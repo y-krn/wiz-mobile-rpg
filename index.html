@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Wiz-Mobile: Neon Dungeon</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="game-container">
+      <!-- Top HUD -->
+      <header id="game-header">
+        <span id="location-label">リルガミンの街</span>
+        <span id="gold-counter">ゴールド: 150</span>
+      </header>
+
+      <!-- 3D Canvas viewport -->
+      <div id="viewport-panel">
+        <canvas id="dungeon-canvas"></canvas>
+      </div>
+
+      <!-- Log Messages -->
+      <div id="log-panel">
+        <div id="log-content"></div>
+      </div>
+
+      <!-- Controls Panel (Grid) -->
+      <div id="controls-panel">
+        <!-- Explortaion D-pad controls (shown in explore mode) -->
+        <div id="explore-controls" class="controls-group active">
+          <div class="dpad">
+            <button id="btn-turn-left" class="btn btn-neon btn-dpad" title="左を向く">◀</button>
+            <button id="btn-move-forward" class="btn btn-neon btn-dpad" title="前進">▲</button>
+            <button id="btn-turn-right" class="btn btn-neon btn-dpad" title="右を向く">▶</button>
+            <div></div>
+            <button id="btn-move-backward" class="btn btn-neon btn-dpad" title="後退">▼</button>
+            <div></div>
+          </div>
+          <div class="action-grid">
+            <button id="btn-inspect" class="btn btn-neon btn-action">調査</button>
+            <button id="btn-cast" class="btn btn-neon btn-action">呪文</button>
+            <button id="btn-item" class="btn btn-neon btn-action">道具</button>
+            <button id="btn-camp" class="btn btn-neon btn-action">キャンプ</button>
+          </div>
+        </div>
+
+        <!-- Combat controls (shown in combat mode) -->
+        <div id="combat-controls" class="controls-group">
+          <div id="combat-prompt">行動を選択してください</div>
+          <div class="combat-grid">
+            <button id="btn-combat-fight" class="btn btn-neon btn-combat">戦う</button>
+            <button id="btn-combat-spell" class="btn btn-neon btn-combat">呪文</button>
+            <button id="btn-combat-item" class="btn btn-neon btn-combat">道具</button>
+            <button id="btn-combat-defend" class="btn btn-neon btn-combat">防御</button>
+            <button id="btn-combat-run" class="btn btn-neon btn-combat">逃げる</button>
+            <button id="btn-combat-cancel" class="btn btn-neon btn-combat">キャンセル</button>
+          </div>
+        </div>
+
+        <!-- Town controls (shown in town mode) -->
+        <div id="town-controls" class="controls-group">
+          <div class="town-grid">
+            <button id="btn-town-dungeon" class="btn btn-neon btn-town">迷宮に入る</button>
+            <button id="btn-town-castle" class="btn btn-neon btn-town">おしろ (宿屋・セーブ)</button>
+            <button id="btn-town-shop" class="btn btn-neon btn-town">ボルタック商店</button>
+            <button id="btn-town-temple" class="btn btn-neon btn-town">カント寺院</button>
+            <button id="btn-town-camp" class="btn btn-neon btn-town">道具・装備</button>
+          </div>
+        </div>
+
+        <!-- Camp/Sub-menu controls (shown when in sub-menu) -->
+        <div id="submenu-controls" class="controls-group">
+          <div id="submenu-title">メニュー</div>
+          <div id="submenu-options" class="submenu-grid">
+            <!-- Dynamically populated buttons -->
+          </div>
+          <button id="btn-submenu-back" class="btn btn-danger btn-block">戻る</button>
+        </div>
+      </div>
+
+      <!-- Party HUD (Bottom) -->
+      <footer id="party-panel">
+        <div id="party-grid">
+          <!-- Dynamically populated from JS -->
+        </div>
+      </footer>
+    </div>
+
+    <!-- Script Entry -->
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
