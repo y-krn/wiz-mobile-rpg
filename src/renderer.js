@@ -1,4 +1,4 @@
-import { DX, DY, MAP_WIDTH, MAP_HEIGHT, MAP } from "./data.js";
+import { DX, DY, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
 import { state } from "./state.js";
 
 // Canvas dimensions
@@ -183,7 +183,7 @@ export class DungeonRenderer {
         continue;
       }
 
-      const cell = MAP[cy][cx];
+      const cell = state.map[cy][cx];
 
       // Relative directions based on player orientation
       const dirLeft = (dir + 3) % 4;
@@ -268,7 +268,7 @@ export class DungeonRenderer {
         // Draw Door or Special Event in front
         const nextX = cx + DX[dir];
         const nextY = cy + DY[dir];
-        const nextCell = (nextX >= 0 && nextX < MAP_WIDTH && nextY >= 0 && nextY < MAP_HEIGHT) ? MAP[nextY][nextX] : null;
+        const nextCell = (nextX >= 0 && nextX < MAP_WIDTH && nextY >= 0 && nextY < MAP_HEIGHT) ? state.map[nextY][nextX] : null;
 
         if (nextCell && nextCell.type === "door") {
           this.drawFrontDoorPattern(ctx, z + 1);
@@ -635,27 +635,44 @@ export class DungeonRenderer {
     ctx.strokeRect(margin - 2, margin - 2, mapSize + 4, mapSize + 4);
 
     // Check light spell radius
-    const lightRad = state.lightTurns > 0 ? 3 : 1;
+    // If no light spell active, light radius is 0 (only show visited cells)
+    const lightRad = state.lightTurns > 0 ? 3 : 0;
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
-        // Render if visited, OR within light radius of player
+        const isVisited = state.visitedMap[y][x];
         const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
-        const isRevealed = state.visitedMap[y][x] || (dist <= lightRad);
+        const isLightRevealed = (lightRad > 0 && dist <= lightRad);
 
-        if (!isRevealed) continue;
+        // Render if visited OR revealed by active light spell
+        if (!isVisited && !isLightRevealed) continue;
 
-        const cell = MAP[y][x];
+        const cell = state.map[y][x];
         const screenX = margin + x * cellS;
         const screenY = margin + y * cellS;
 
-        // Draw floor tile (faint green block to clearly show explored paths)
-        ctx.fillStyle = "rgba(0, 255, 102, 0.08)";
-        ctx.fillRect(screenX, screenY, cellS, cellS);
+        const isLightOnly = !isVisited && isLightRevealed;
 
-        // Draw walls (thicker, solid neon green)
-        ctx.strokeStyle = "#00ff66";
-        ctx.lineWidth = 1.5;
+        if (isLightOnly) {
+          // Faint cyan floor for light-only cell previews
+          ctx.fillStyle = "rgba(0, 229, 255, 0.04)";
+          ctx.fillRect(screenX, screenY, cellS, cellS);
+
+          // Faint cyan dashed walls
+          ctx.strokeStyle = "rgba(0, 229, 255, 0.35)";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 2]);
+        } else {
+          // Explored paths get solid neon green
+          ctx.fillStyle = "rgba(0, 255, 102, 0.08)";
+          ctx.fillRect(screenX, screenY, cellS, cellS);
+
+          ctx.strokeStyle = "#00ff66";
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([]); // Solid lines
+        }
+
+        // Draw walls
         ctx.beginPath();
         if (cell.walls[0]) { // North
           ctx.moveTo(screenX, screenY);
@@ -675,17 +692,20 @@ export class DungeonRenderer {
         }
         ctx.stroke();
 
-        // Special cell colors (highly visible fills)
+        // Reset line dash
+        ctx.setLineDash([]);
+
+        // Special cell colors
         if (cell.type === "stairs-up") {
-          ctx.fillStyle = "rgba(255, 179, 0, 0.5)"; // Glowing Gold block
+          ctx.fillStyle = isLightOnly ? "rgba(255, 179, 0, 0.2)" : "rgba(255, 179, 0, 0.5)";
           ctx.fillRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
-          ctx.strokeStyle = "#ffb300";
+          ctx.strokeStyle = isLightOnly ? "rgba(255, 179, 0, 0.4)" : "#ffb300";
           ctx.lineWidth = 1;
           ctx.strokeRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
         } else if (cell.type === "door") {
-          ctx.fillStyle = "rgba(0, 229, 255, 0.35)"; // Cyan door fill
+          ctx.fillStyle = isLightOnly ? "rgba(0, 229, 255, 0.15)" : "rgba(0, 229, 255, 0.35)";
           ctx.fillRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
-          ctx.strokeStyle = "#00e5ff";
+          ctx.strokeStyle = isLightOnly ? "rgba(0, 229, 255, 0.3)" : "#00e5ff";
           ctx.lineWidth = 1;
           ctx.strokeRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
         }

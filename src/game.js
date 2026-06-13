@@ -1,4 +1,4 @@
-import { DIR_N, DIR_E, DIR_S, DIR_W, DX, DY, DIR_NAMES, MONSTERS, ITEMS, SPELLS, MAP, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "./data.js";
+import { DIR_N, DIR_E, DIR_S, DIR_W, DX, DY, DIR_NAMES, MONSTERS, ITEMS, SPELLS, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "./data.js";
 import { state, initNewGame, loadGame, saveGame, saveAutosave, getCharWeaponAtk, getCharDef, checkCharLevelUp, addLog, EXP_LEVELS } from "./state.js";
 import { DungeonRenderer } from "./renderer.js";
 import { playSound } from "./audio.js";
@@ -327,7 +327,7 @@ function handleMove(action) {
     state.dir = (state.dir + 1) % 4;
     addLog(`右を向いた。方角: ${DIR_NAMES[state.dir]}`);
   } else if (action === "forward") {
-    const currentCell = MAP[state.y][state.x];
+    const currentCell = state.map[state.y][state.x];
     if (currentCell.walls[state.dir]) {
       playSound("bump");
       renderer.triggerShake(4, 150);
@@ -353,7 +353,7 @@ function handleMove(action) {
       checkCellEvents();
     }
   } else if (action === "backward") {
-    const currentCell = MAP[state.y][state.x];
+    const currentCell = state.map[state.y][state.x];
     const backDir = (state.dir + 2) % 4;
     if (currentCell.walls[backDir]) {
       playSound("bump");
@@ -374,7 +374,7 @@ function handleMove(action) {
 }
 
 function checkCellEvents() {
-  const cell = MAP[state.y][state.x];
+  const cell = state.map[state.y][state.x];
 
   // Stairs Up (exit to town)
   if (cell.type === "stairs-up") {
@@ -440,7 +440,7 @@ function handleExploreAction(action) {
     openSubmenu("spell_caster_select", "呪文を唱えるキャラクターを選択：");
   } else if (action === "item") {
     // Select character to use item
-    openSubmenu("item_user_select", "道具を使用/装備するキャラクターを選択：");
+    openSubmenu("item_user_select", `道具を使用/装備するキャラクターを選択 (バッグ: ${state.inventory.length}個)：`);
   }
 }
 
@@ -449,8 +449,8 @@ function handleExploreAction(action) {
 // ----------------------------------------------------
 function enterDungeon() {
   state.gameState = "explore";
-  state.x = 1;
-  state.y = 10;
+  state.x = START_X;
+  state.y = START_Y;
   state.dir = DIR_N;
   state.visitedMap[state.y][state.x] = true;
   addLog("地下1階に降りた。冷たい石造りの暗闇が迫る...");
@@ -490,7 +490,7 @@ function handleTownOption(option) {
   } else if (option === "temple") {
     openSubmenu("temple_main", "カント寺院 - 蘇生と治療：");
   } else if (option === "camp") {
-    openSubmenu("item_user_select", "道具を使用/装備するキャラクターを選択：");
+    openSubmenu("item_user_select", `道具を使用/装備するキャラクターを選択 (バッグ: ${state.inventory.length}個)：`);
   }
 }
 
@@ -525,7 +525,14 @@ function openSubmenu(type, title, isBack = false) {
   document.getElementById("btn-submenu-back").style.display = "block";
   
   const titleEl = document.getElementById("submenu-title");
-  titleEl.textContent = title;
+  // Dynamic replacement of bag/inventory item counts to prevent historical desync
+  let displayTitle = title;
+  if (displayTitle.includes("バッグ: ") || displayTitle.includes("共有バッグ (") || displayTitle.includes("売却 (バッグ: ")) {
+    displayTitle = displayTitle.replace(/(バッグ:\s*)\d+(個)/g, `$1${state.inventory.length}$2`);
+    displayTitle = displayTitle.replace(/(共有バッグ\s*\()\d+(個)/g, `$1${state.inventory.length}$2`);
+    displayTitle = displayTitle.replace(/(売却\s*\(バッグ:\s*)\d+(個)/g, `$1${state.inventory.length}$2`);
+  }
+  titleEl.textContent = displayTitle;
 
   const optGrid = document.getElementById("submenu-options");
   optGrid.innerHTML = "";
@@ -591,7 +598,7 @@ function openSubmenu(type, title, isBack = false) {
       btn.textContent = `${char.name} (Lv.${char.level} ${classJp})`;
       btn.addEventListener("click", () => {
         menuContext.actorIdx = idx;
-        openSubmenu("item_inventory", `共有バッグ - ${char.name}の使用/装備:`);
+        openSubmenu("item_inventory", `共有バッグ (${state.inventory.length}個) - ${char.name}の使用/装備:`);
       });
       optGrid.appendChild(btn);
     });
@@ -702,7 +709,7 @@ function openSubmenu(type, title, isBack = false) {
     btnItems.className = "btn btn-neon btn-block";
     btnItems.textContent = "道具・装備";
     btnItems.addEventListener("click", () => {
-      openSubmenu("item_user_select", "道具を使用/装備するキャラクターを選択：");
+      openSubmenu("item_user_select", `道具を使用/装備するキャラクターを選択 (バッグ: ${state.inventory.length}個) ：`);
     });
     optGrid.appendChild(btnItems);
 
@@ -780,7 +787,7 @@ function openSubmenu(type, title, isBack = false) {
     btnSell.className = "btn btn-neon btn-block";
     btnSell.textContent = "道具を売る";
     btnSell.addEventListener("click", () => {
-      openSubmenu("shop_sell", "売却 (半値での引き取り):");
+      openSubmenu("shop_sell", `売却 (バッグ: ${state.inventory.length}個) - 半値での引き取り:`);
     });
     optGrid.appendChild(btnSell);
   } else if (type === "shop_buy") {
@@ -837,7 +844,7 @@ function openSubmenu(type, title, isBack = false) {
           playSound("gold");
           addLog(`${item.name}を${value}ゴールドで売却した。`);
           saveAutosave();
-          openSubmenu("shop_sell", "売却 (半値での引き取り):"); // refresh
+          openSubmenu("shop_sell", `売却 (バッグ: ${state.inventory.length}個) - 半値での引き取り:`); // refresh
         });
         optGrid.appendChild(btn);
       });
@@ -1049,7 +1056,7 @@ function openChestMenu() {
   btnLeave.addEventListener("click", () => {
     addLog("宝箱を開けずに立ち去った。");
     // Clear chest event on current cell
-    MAP[state.y][state.x].event = null;
+    state.map[state.y][state.x].event = null;
     state.gameState = "explore";
     saveAutosave();
     updateUI();
@@ -1128,11 +1135,13 @@ function triggerChestTrap(char) {
     });
   } else if (trap === "teleporter") {
     // Teleport to random coordinates inside map paths
-    // Find empty spots
+    // Find empty spots (must not be isolated "stone/wall" cells - i.e. must have at least one open wall)
     const emptySpots = [];
     for (let y = 1; y < MAP_HEIGHT - 1; y++) {
       for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        if (MAP[y][x].type === "empty" && MAP[y][x].event !== "boss") {
+        const cell = state.map[y][x];
+        const isPassable = cell.walls.some(closed => !closed);
+        if (isPassable && cell.event !== "boss") {
           emptySpots.push({ x, y });
         }
       }
@@ -1174,7 +1183,7 @@ function openChestDirectly() {
   }
 
   // Clear chest event on current cell
-  MAP[state.y][state.x].event = null;
+  state.map[state.y][state.x].event = null;
 
   // Check game over
   const partyAlive = state.party.some(c => c.status === "ok");

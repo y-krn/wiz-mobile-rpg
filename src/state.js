@@ -1,4 +1,5 @@
 import { DIR_N, ITEMS, MONSTERS, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "./data.js";
+import { generateRandomMap } from "./map_generator.js";
 
 
 // Save key for local storage
@@ -117,6 +118,7 @@ export const state = {
   inventory: ["HEAL_POTION", "HEAL_POTION"],
 
   // Map & Light
+  map: null,
   visitedMap: Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
   lightTurns: 0,
 
@@ -139,6 +141,7 @@ export function initNewGame() {
   state.party = createDefaultParty();
   state.gold = 150;
   state.inventory = ["HEAL_POTION", "HEAL_POTION"];
+  state.map = generateRandomMap();
   state.visitedMap = Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false));
   // Mark initial coordinate as visited
   state.visitedMap[state.y][state.x] = true;
@@ -167,6 +170,7 @@ export function loadGame(forceSaveOnly = false) {
     state.party = data.party ?? createDefaultParty();
     state.gold = data.gold ?? 150;
     state.inventory = data.inventory ?? [];
+    state.map = data.map ?? generateRandomMap();
     state.visitedMap = data.visitedMap ?? Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false));
     state.lightTurns = data.lightTurns ?? 0;
     state.gameState = data.gameState ?? "town";
@@ -192,6 +196,7 @@ export function saveGame() {
       party: state.party,
       gold: state.gold,
       inventory: state.inventory,
+      map: state.map,
       visitedMap: state.visitedMap,
       lightTurns: state.lightTurns,
       gameState: state.gameState,
@@ -215,6 +220,7 @@ export function saveAutosave() {
       party: state.party,
       gold: state.gold,
       inventory: state.inventory,
+      map: state.map,
       visitedMap: state.visitedMap,
       lightTurns: state.lightTurns,
       gameState: state.gameState,

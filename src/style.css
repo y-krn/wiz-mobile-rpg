@@ -230,6 +230,22 @@ html, body {
   overflow-y: auto;
   touch-action: pan-y; /* Only allow vertical scrolling in submenus */
 }
+.submenu-grid::-webkit-scrollbar {
+  width: 4px;
+}
+.submenu-grid::-webkit-scrollbar-track {
+  background: rgba(0, 229, 255, 0.05);
+  border-radius: 2px;
+}
+.submenu-grid::-webkit-scrollbar-thumb {
+  background: var(--neon-cyan);
+  border-radius: 2px;
+  box-shadow: 0 0 4px var(--neon-cyan);
+}
+.submenu-grid .btn {
+  padding: 6px 4px;
+  font-size: 11px;
+}
 
 /* Combat prompt */
 #combat-prompt {
