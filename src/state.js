@@ -380,6 +380,7 @@ export function checkCharLevelUp(char) {
       if (char.level === 2 && !char.spells.includes("MADIOS")) {
         char.spells.push("MADIOS");
         char.spells.push("DIALKO");
+        char.spells.push("LATUMOFIS");
       }
       if (char.level === 3 && !char.spells.includes("LOMILWA")) {
         char.spells.push("LOMILWA");

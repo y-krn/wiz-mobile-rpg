@@ -148,6 +148,22 @@ export const SPELLS = {
       return { heal, log: `${caster.name}はマディオスを唱えた！${target.name}のHPを${heal}大幅に回復した。` };
     }
   },
+  LATUMOFIS: {
+    name: "LATUMOFIS",
+    type: "priest",
+    level: 2,
+    cost: 2,
+    target: "single_ally",
+    desc: "解毒呪文 (毒状態を治療する)",
+    effect: (caster, target) => {
+      let cured = false;
+      if (target.status === "poisoned") {
+        target.status = "ok";
+        cured = true;
+      }
+      return { log: `${caster.name}は${target.name}にラツモフィスを唱えた。${cured ? "毒が消え去った！" : "しかし効果がなかった。"}` };
+    }
+  },
   LOMILWA: {
     name: "LOMILWA",
     type: "priest",
@@ -184,6 +200,16 @@ export const ITEMS = {
   HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", price: 60, desc: "使用するとHPを15回復する。", effect: (char) => {
     char.hp = Math.min(char.maxHp, char.hp + 15);
     return `${char.name}は傷薬を使い、HPが15回復した。`;
+  }},
+  ANTIDOTE: { id: "ANTIDOTE", name: "解毒薬 (Antidote)", type: "usable", price: 80, desc: "使用すると毒状態を解除する。", effect: (char) => {
+    if (char.status === "poisoned") {
+      char.status = "ok";
+      return `${char.name}は解毒薬を使い、毒が消え去った。`;
+    }
+    return `${char.name}は解毒薬を使ったが、何も起こらなかった。`;
+  }},
+  TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 100, desc: "使用すると一瞬で街に戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"], effect: (char) => {
+    return `${char.name}は帰還のスクロールを読んだ！`;
   }},
   ANTIGRAVITY_CRYSTAL: { id: "ANTIGRAVITY_CRYSTAL", name: "浮遊石 (クリスタル)", type: "quest", price: 0, desc: "青く浮かび上がる伝説の結晶。城に持ち帰ると勝利。" }
 };
