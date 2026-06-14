@@ -141,13 +141,16 @@ export function updateUI() {
 export function updatePartyHUD() {
   const grid = document.getElementById("party-grid");
   grid.innerHTML = "";
+  const selectingChar = state.gameState === "combat" && state.combatState?.phase === "choose_actions"
+    ? state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status))[combatSelection.charIdx]
+    : null;
 
   state.party.forEach((char, idx) => {
     const card = document.createElement("div");
     card.className = "party-card";
     
     // Highlight if selecting combat actions for this character
-    if (state.gameState === "combat" && combatSelection.charIdx === idx) {
+    if (selectingChar?.i === idx) {
       card.classList.add("selected");
     }
     

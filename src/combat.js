@@ -510,8 +510,13 @@ export function resolveCombatRound() {
         }
       } else if (act.type === "item") {
         const item = ITEMS[act.itemKey];
+        const inventoryIdx = state.inventory.findIndex(key => key === act.itemKey);
+        if (inventoryIdx === -1) {
+          logQueue.push({ msg: `[味方] ${char.name}は道具を使おうとしたが、もうバッグに残っていない！` });
+          return;
+        }
         if (act.itemKey === "TOWN_PORTAL") {
-          state.inventory.splice(act.itemIdx, 1);
+          state.inventory.splice(inventoryIdx, 1);
           logQueue.push({
             msg: `[味方] ${char.name}は帰還のスクロールを読んだ！パーティ全員が眩い光に包まれる！`,
             sound: "cast_spell",
@@ -522,7 +527,7 @@ export function resolveCombatRound() {
         }
         const target = state.party[act.targetIdx];
         const log = item.effect(target);
-        state.inventory.splice(act.itemIdx, 1);
+        state.inventory.splice(inventoryIdx, 1);
         let floatText = undefined;
         let floatColor = "#00ff66";
         if (act.itemKey === "HEAL_POTION") {
@@ -818,6 +823,9 @@ export function playBattleLogs(queue, index) {
 
   if (log.giveCrystal) {
     state.transitioning = true;
+    if (state.map[state.y]?.[state.x]?.event === "boss") {
+      state.map[state.y][state.x].event = null;
+    }
     state.inventory.push("ANTIGRAVITY_CRYSTAL");
     setTimeout(() => {
       state.gameState = "explore";

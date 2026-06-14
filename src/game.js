@@ -1,7 +1,6 @@
 import { loadGame, state } from "./state.js";
-import { DIR_N, START_X, START_Y } from "./data.js";
 import { DungeonRenderer } from "./renderer.js";
-import { playSound, isMuted, toggleMute } from "./audio.js";
+import { toggleMute } from "./audio.js";
 
 // Import modules for re-export and button bindings
 import { updateUI } from "./ui.js";
@@ -31,9 +30,6 @@ export function initGame() {
 
   // Load Initial UI state
   updateUI();
-  
-  // Clean logs on init
-  state.logs.push("--- ADVENTURE BEGINS ---");
 }
 
 function gameLoop(time) {

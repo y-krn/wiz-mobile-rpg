@@ -1,4 +1,4 @@
-import { DIR_N, ITEMS, MONSTERS, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "./data.js";
+import { DIR_N, ITEMS, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "./data.js";
 import { generateRandomMap, removeIsolatedInternalWalls } from "./map_generator.js";
 
 

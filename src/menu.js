@@ -1,5 +1,5 @@
 import { state, initNewGame, loadGame, saveGame, saveAutosave, getCharWeaponAtk, getCharDef, addLog, EXP_LEVELS } from "./state.js";
-import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, START_Y, ITEMS, SPELLS } from "./data.js";
+import { DIR_N, START_X, START_Y, ITEMS, SPELLS } from "./data.js";
 import { playSound } from "./audio.js";
 import { renderer } from "./game.js";
 import { updateUI } from "./ui.js";

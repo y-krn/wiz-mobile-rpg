@@ -208,6 +208,9 @@ export function triggerChestTrap(char) {
 export function openChestDirectly() {
   state.transitioning = true;
   const chest = state.chestState;
+  const chestMap = state.map;
+  const chestX = state.x;
+  const chestY = state.y;
   
   const translateTrap = (t) => {
     if (t === "poison needle") return "毒針";
@@ -235,8 +238,8 @@ export function openChestDirectly() {
     addLog(`アイテム: [${item.name}] を手に入れた！`);
   }
 
-  // Clear chest event on current cell
-  state.map[state.y][state.x].event = null;
+  // Clear the original chest cell even if a trap moved the party.
+  chestMap[chestY][chestX].event = null;
 
   // Check game over
   const partyAlive = state.party.some(c => c.status !== "dead");
