@@ -112,16 +112,42 @@ export const SPELLS = {
     level: 1,
     cost: 1,
     target: "single_ally",
-    desc: "軽微な治療 & 盲目治療",
+    desc: "軽微な治療 (10-20 HP回復)",
     effect: (caster, target) => {
       const heal = Math.floor(Math.random() * 11) + 10;
       target.hp = Math.min(target.maxHp, target.hp + heal);
+      return { heal, log: `${caster.name}はディオスを唱えた！${target.name}のHPを${heal}回復した。` };
+    }
+  },
+  DIURCO: {
+    name: "DIURCO",
+    type: "priest",
+    level: 1,
+    cost: 1,
+    target: "single_ally",
+    desc: "盲目治療呪文 (盲目を治療する)",
+    effect: (caster, target) => {
       let cured = false;
       if (target.status === "blind") {
         target.status = "ok";
         cured = true;
       }
-      return { heal, log: `${caster.name}はディオスを唱えた！${target.name}のHPを${heal}回復した${cured ? "。目が開いた！" : ""}` };
+      return { log: `${caster.name}は${target.name}にディウルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
+    }
+  },
+  BADIOS: {
+    name: "BADIOS",
+    type: "priest",
+    level: 1,
+    cost: 1,
+    target: "single_enemy",
+    desc: "不浄への一撃 (5-15 HPダメージ)",
+    effect: (caster, target) => {
+      let dmg = Math.floor(Math.random() * 11) + 5;
+      if (target && target.magicResist) {
+        dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
+      }
+      return { damage: dmg, log: `${caster.name}はバディオスを唱えた！${target.name}に${dmg}の神聖ダメージ！${target && target.magicResist ? "（呪文がレジストされた！）" : ""}` };
     }
   },
   MILWA: {
@@ -211,7 +237,7 @@ export const ITEMS = {
   ROBE: { id: "ROBE", name: "魔法使いのローブ", type: "armor", def: 1, price: 30, desc: "魔力を帯びたシルクの衣。防御力+1 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"] },
   LEATHER_ARMOR: { id: "LEATHER_ARMOR", name: "レザーアーマー", type: "armor", def: 4, price: 120, desc: "なめし革の胸当て。防御力+4 [戦・盗・僧用]", classes: ["Fighter", "Thief", "Priest"] },
   CHAIN_MAIL: { id: "CHAIN_MAIL", name: "チェインメイル", type: "armor", def: 8, price: 350, desc: "細かな鉄環を編み込んだ鎧。防御力+8 [戦・僧用]", classes: ["Fighter", "Priest"] },
-  PLATE_MAIL: { id: "PLATE_MAIL", name: "PLATE_MAIL", type: "armor", def: 16, price: 900, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16 [戦士用]", classes: ["Fighter"] },
+  PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", def: 16, price: 900, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16 [戦士用]", classes: ["Fighter"] },
 
   // Potions / Quest items
   HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", price: 60, desc: "使用するとHPを15回復する。", effect: (char) => {
@@ -233,32 +259,32 @@ export const ITEMS = {
 
 // Monsters Database
 export const MONSTERS = [
-  { name: "かみつき蟲", level: 1, hp: 6, atk: 4, def: 1, exp: 40, gold: 15, color: "#00ff66" },
-  { name: "コボルトの斥候", level: 1, hp: 8, atk: 5, def: 2, exp: 60, gold: 30, color: "#00ff66" },
-  { name: "ゾンビ", level: 2, hp: 16, atk: 7, def: 3, exp: 120, gold: 60, isParalyzing: true, color: "#8a2be2" },
-  { name: "ガイコツ戦士", level: 2, hp: 20, atk: 9, def: 4, exp: 180, gold: 100, isParalyzing: true, color: "#dcdcdc" },
-  { name: "オークの戦士", level: 3, hp: 28, atk: 12, def: 6, exp: 280, gold: 150, color: "#ff8c00" },
-  { name: "はぐれ魔術師", level: 3, hp: 22, atk: 8, def: 4, exp: 360, gold: 240, spell: "HALITO", color: "#da70d6" },
+  { name: "かみつき蟲", level: 1, hp: 6, atk: 4, def: 1, exp: 40, gold: 5, spriteType: "biter", color: "#00ff66" },
+  { name: "コボルトの斥候", level: 1, hp: 8, atk: 5, def: 2, exp: 60, gold: 10, spriteType: "kobold", color: "#00ff66" },
+  { name: "ゾンビ", level: 2, hp: 16, atk: 7, def: 3, exp: 120, gold: 20, spriteType: "zombie", isParalyzing: true, color: "#8a2be2" },
+  { name: "ガイコツ戦士", level: 2, hp: 20, atk: 9, def: 4, exp: 180, gold: 35, spriteType: "skeleton", isParalyzing: true, color: "#dcdcdc" },
+  { name: "オークの戦士", level: 3, hp: 28, atk: 12, def: 6, exp: 280, gold: 50, spriteType: "orc", color: "#ff8c00" },
+  { name: "はぐれ魔術師", level: 3, hp: 22, atk: 8, def: 4, exp: 360, gold: 80, spriteType: "mage", spell: "HALITO", color: "#da70d6" },
   // 新しいモンスター
-  { name: "スピリット", level: 2, hp: 15, atk: 5, def: 2, exp: 160, gold: 80, physResist: 0.9, color: "#00e5ff" }, // 物理効きづらい（術推奨）
-  { name: "ウィル・オー・ウィスプ", level: 3, hp: 30, atk: 8, def: 2, exp: 300, gold: 120, magicResist: 0.8, color: "#ffffff" }, // 魔法効きづらい（物理推奨）
-  { name: "ジャイアントスパイダー", level: 2, hp: 18, atk: 7, def: 3, exp: 150, gold: 70, isPoisonous: true, color: "#bf5af2" }, // 毒攻撃
-  { name: "ラッキーラビット", level: 2, hp: 10, atk: 4, def: 10, exp: 800, gold: 200, fleeChance: 0.40, color: "#ffb300" }, // すぐ逃げる、高経験値
-  { name: "フラック", level: 4, hp: 70, atk: 18, def: 8, exp: 1500, gold: 500, spell: "LAHALITO", isRare: true, color: "#ff3b30" }, // 激レア、強敵
+  { name: "スピリット", level: 2, hp: 15, atk: 5, def: 2, exp: 160, gold: 25, spriteType: "spirit", physResist: 0.7, color: "#00e5ff" }, // 物理効きづらい（術推奨）
+  { name: "ウィル・オー・ウィスプ", level: 3, hp: 30, atk: 8, def: 2, exp: 300, gold: 40, spriteType: "wisp", magicResist: 0.8, color: "#ffffff" }, // 魔法効きづらい（物理推奨）
+  { name: "ジャイアントスパイダー", level: 2, hp: 18, atk: 7, def: 3, exp: 150, gold: 25, spriteType: "spider", isPoisonous: true, color: "#bf5af2" }, // 毒攻撃
+  { name: "フラッシュバット", level: 2, hp: 12, atk: 5, def: 2, exp: 100, gold: 15, spriteType: "bat", isBlinding: true, color: "#e5ff00" }, // 盲目攻撃
+  { name: "ラッキーラビット", level: 2, hp: 10, atk: 4, def: 10, exp: 800, gold: 70, spriteType: "rabbit", fleeChance: 0.40, color: "#ffb300" }, // すぐ逃げる、高経験値
+  { name: "フラック", level: 4, hp: 70, atk: 18, def: 8, exp: 1500, gold: 180, spriteType: "flack", spell: "LAHALITO", isRare: true, color: "#ff3b30" }, // 激レア、強敵
   
-  { name: "いにしえの竜", level: 5, hp: 120, atk: 22, def: 12, exp: 4000, gold: 1500, spell: "LAHALITO", isBoss: true, color: "#ff3b30" }
+  { name: "いにしえの竜", level: 5, hp: 120, atk: 22, def: 12, exp: 4000, gold: 500, spriteType: "dragon", spell: "LAHALITO", isBoss: true, color: "#ff3b30" }
 ];
 
-// Dungeon Map Grid 16x16
-// Coordinate axes: X goes right (0..15), Y goes down (0..15)
+// Dungeon Map Grid 32x32
+// Coordinate axes: X goes right (0..31), Y goes down (0..31)
 // 'walls' represents whether a wall exists in [North, East, South, West] directions.
 // 'type': 'empty', 'door', 'stairs-up', 'stairs-down'
 // 'event': null or type of event.
-export const MAP_WIDTH = 16;
-export const MAP_HEIGHT = 16;
+export const MAP_WIDTH = 32;
+export const MAP_HEIGHT = 32;
 
 export const START_X = 1;
-export const START_Y = 14;
-
+export const START_Y = 30;
 
 

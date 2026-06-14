@@ -420,6 +420,26 @@ export class DungeonRenderer {
     ctx.shadowBlur = 0;
   }
 
+  getMonsterSpriteType(monster) {
+    if (monster.spriteType) return monster.spriteType;
+
+    const name = monster.name || "";
+    if (name.includes("かみつき") || name.includes("Biter")) return "biter";
+    if (name.includes("コボルト") || name.includes("Kobold")) return "kobold";
+    if (name.includes("ゾンビ") || name.includes("Zombie")) return "zombie";
+    if (name.includes("ガイコツ") || name.includes("Skeleton")) return "skeleton";
+    if (name.includes("オーク") || name.includes("Orc")) return "orc";
+    if (name.includes("魔術師") || name.includes("Mage")) return "mage";
+    if (name.includes("スピリット")) return "spirit";
+    if (name.includes("ウィル・オー・ウィスプ")) return "wisp";
+    if (name.includes("スパイダー")) return "spider";
+    if (name.includes("バット")) return "bat";
+    if (name.includes("ラッキーラビット")) return "rabbit";
+    if (name.includes("フラック")) return "flack";
+    if (name.includes("竜") || name.includes("Dragon")) return "dragon";
+    return "biter";
+  }
+
   drawMonsters(ctx) {
     const monsters = state.combatState.monsters;
     const alive = monsters.filter(m => m.hp > 0);
@@ -437,9 +457,9 @@ export class DungeonRenderer {
     const cx = VIEW_W / 2;
     const cy = VIEW_H / 2 + 10;
 
-    // Different wireframe drawing based on monster name
-    const mName = monster.name;
-    if (mName.includes("Biter")) {
+    // Different wireframe drawing based on stable sprite type.
+    const spriteType = this.getMonsterSpriteType(monster);
+    if (spriteType === "biter") {
       // Biter: floating orb with massive spike-teeth
       ctx.beginPath();
       ctx.arc(cx, cy - 10, 25, 0, Math.PI * 2);
@@ -455,7 +475,7 @@ export class DungeonRenderer {
       ctx.lineTo(cx - 10, cy + 10);
       ctx.closePath();
       ctx.stroke();
-    } else if (mName.includes("Kobold")) {
+    } else if (spriteType === "kobold") {
       // Kobold: small beast with ears and a weapon
       ctx.beginPath();
       // Head
@@ -482,7 +502,7 @@ export class DungeonRenderer {
       ctx.lineTo(cx - 35, cy - 40);
       ctx.closePath();
       ctx.stroke();
-    } else if (mName.includes("Zombie")) {
+    } else if (spriteType === "zombie") {
       // Zombie: blocky creature with arms out
       ctx.beginPath();
       // Head
@@ -498,7 +518,7 @@ export class DungeonRenderer {
       ctx.lineTo(cx + 45, cy - 15);
       ctx.lineTo(cx + 45, cy - 5);
       ctx.stroke();
-    } else if (mName.includes("Skeleton")) {
+    } else if (spriteType === "skeleton") {
       // Skeleton: Rib cage, skull, sword
       ctx.beginPath();
       // Skull
@@ -516,7 +536,7 @@ export class DungeonRenderer {
       ctx.moveTo(cx + 15, cy + 5); // Guard
       ctx.lineTo(cx + 30, cy + 12);
       ctx.stroke();
-    } else if (mName.includes("Orc")) {
+    } else if (spriteType === "orc") {
       // Orc: horned brute with axes
       ctx.beginPath();
       // Head
@@ -535,7 +555,7 @@ export class DungeonRenderer {
       ctx.lineTo(cx - 25, cy + 30);
       ctx.closePath();
       ctx.stroke();
-    } else if (mName.includes("Mage")) {
+    } else if (spriteType === "mage") {
       // Mage: hooded cloak, glowing staff
       ctx.beginPath();
       // Hood triangle
@@ -557,7 +577,74 @@ export class DungeonRenderer {
       ctx.beginPath();
       ctx.arc(cx - 25, cy - 40, 7, 0, Math.PI * 2);
       ctx.stroke();
-    } else if (mName.includes("Dragon")) {
+    } else if (spriteType === "spirit") {
+      ctx.beginPath();
+      ctx.arc(cx, cy - 18, 24, 0, Math.PI * 2);
+      ctx.moveTo(cx - 18, cy + 4);
+      ctx.quadraticCurveTo(cx - 8, cy + 24, cx, cy + 6);
+      ctx.quadraticCurveTo(cx + 8, cy + 24, cx + 18, cy + 4);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(cx - 8, cy - 20, 3, 0, Math.PI * 2);
+      ctx.arc(cx + 8, cy - 20, 3, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (spriteType === "wisp") {
+      ctx.beginPath();
+      ctx.arc(cx, cy - 10, 26, 0, Math.PI * 2);
+      ctx.arc(cx, cy - 10, 14, 0, Math.PI * 2);
+      ctx.moveTo(cx, cy - 48);
+      ctx.quadraticCurveTo(cx + 12, cy - 28, cx, cy - 10);
+      ctx.quadraticCurveTo(cx - 12, cy + 8, cx, cy + 28);
+      ctx.stroke();
+    } else if (spriteType === "spider") {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - 10, 28, 18, 0, 0, Math.PI * 2);
+      ctx.arc(cx, cy - 35, 12, 0, Math.PI * 2);
+      for (let i = 0; i < 4; i++) {
+        const y = cy - 22 + i * 8;
+        ctx.moveTo(cx - 18, y);
+        ctx.lineTo(cx - 50, y - 14 + i * 8);
+        ctx.moveTo(cx + 18, y);
+        ctx.lineTo(cx + 50, y - 14 + i * 8);
+      }
+      ctx.stroke();
+    } else if (spriteType === "bat") {
+      ctx.beginPath();
+      ctx.arc(cx, cy - 12, 10, 0, Math.PI * 2);
+      ctx.moveTo(cx - 10, cy - 12);
+      ctx.lineTo(cx - 55, cy - 38);
+      ctx.lineTo(cx - 38, cy - 4);
+      ctx.lineTo(cx - 20, cy - 22);
+      ctx.moveTo(cx + 10, cy - 12);
+      ctx.lineTo(cx + 55, cy - 38);
+      ctx.lineTo(cx + 38, cy - 4);
+      ctx.lineTo(cx + 20, cy - 22);
+      ctx.stroke();
+    } else if (spriteType === "rabbit") {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 20, 28, 0, 0, Math.PI * 2);
+      ctx.arc(cx, cy - 34, 14, 0, Math.PI * 2);
+      ctx.moveTo(cx - 8, cy - 45);
+      ctx.lineTo(cx - 18, cy - 78);
+      ctx.lineTo(cx - 4, cy - 48);
+      ctx.moveTo(cx + 8, cy - 45);
+      ctx.lineTo(cx + 18, cy - 78);
+      ctx.lineTo(cx + 4, cy - 48);
+      ctx.stroke();
+    } else if (spriteType === "flack") {
+      ctx.beginPath();
+      ctx.arc(cx, cy - 12, 36, 0, Math.PI * 2);
+      ctx.moveTo(cx - 26, cy - 38);
+      ctx.lineTo(cx + 26, cy + 14);
+      ctx.moveTo(cx + 26, cy - 38);
+      ctx.lineTo(cx - 26, cy + 14);
+      ctx.moveTo(cx, cy - 58);
+      ctx.lineTo(cx, cy + 32);
+      ctx.moveTo(cx - 45, cy - 12);
+      ctx.lineTo(cx + 45, cy - 12);
+      ctx.stroke();
+    } else if (spriteType === "dragon") {
       // Ancient Dragon: massive head, wings, horns
       ctx.beginPath();
       // Dragon snout/jaw
@@ -611,16 +698,26 @@ export class DungeonRenderer {
   }
 
   drawMiniMap(ctx) {
-    const cellS = 8; // Adjust cell size to 8px to fit 16x16 grid nicely
+    const cellS = 8; // Adjust cell size to 8px
     const margin = 8;
-    const mapSize = MAP_WIDTH * cellS;
+    const minimapSize = 128; // Fixed minimap size to match 16x16 cell size (128x128px)
     
-    // Draw background panel
+    // Draw background panel border and background (unclipped)
     ctx.fillStyle = "rgba(12, 12, 14, 0.9)";
     ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
     ctx.lineWidth = 2;
-    ctx.fillRect(margin - 2, margin - 2, mapSize + 4, mapSize + 4);
-    ctx.strokeRect(margin - 2, margin - 2, mapSize + 4, mapSize + 4);
+    ctx.fillRect(margin - 2, margin - 2, minimapSize + 4, minimapSize + 4);
+    ctx.strokeRect(margin - 2, margin - 2, minimapSize + 4, minimapSize + 4);
+
+    ctx.save();
+    // Clip drawing inside the 128x128 panel
+    ctx.beginPath();
+    ctx.rect(margin, margin, minimapSize, minimapSize);
+    ctx.clip();
+
+    // Centering offsets so player is always at the center of the minimap
+    const offsetX = (minimapSize / 2) - (state.x * cellS + cellS / 2);
+    const offsetY = (minimapSize / 2) - (state.y * cellS + cellS / 2);
 
     // Check light spell radius
     // If no light spell active, light radius is 0 (only show visited cells)
@@ -636,8 +733,8 @@ export class DungeonRenderer {
         if (!isVisited && !isLightRevealed) continue;
 
         const cell = state.map[y][x];
-        const screenX = margin + x * cellS;
-        const screenY = margin + y * cellS;
+        const screenX = margin + x * cellS + offsetX;
+        const screenY = margin + y * cellS + offsetY;
 
         const isLightOnly = !isVisited && isLightRevealed;
 
@@ -690,14 +787,13 @@ export class DungeonRenderer {
           ctx.strokeStyle = isLightOnly ? "rgba(255, 179, 0, 0.4)" : "#ffb300";
           ctx.lineWidth = 1;
           ctx.strokeRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
-
         }
       }
     }
 
     // Draw player arrow (larger, glowing gold)
-    const px = margin + state.x * cellS + cellS / 2;
-    const py = margin + state.y * cellS + cellS / 2;
+    const px = margin + state.x * cellS + cellS / 2 + offsetX;
+    const py = margin + state.y * cellS + cellS / 2 + offsetY;
     
     // Draw small background glow circle for player location
     ctx.fillStyle = "rgba(255, 179, 0, 0.2)";
@@ -722,6 +818,8 @@ export class DungeonRenderer {
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
+    ctx.restore();
+    
     ctx.restore();
     ctx.shadowBlur = 0;
   }

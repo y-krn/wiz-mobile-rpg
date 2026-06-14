@@ -460,7 +460,7 @@ export function resolveCombatRound() {
           let floatText = undefined;
           if (result.heal) {
             floatText = `+${result.heal}`;
-          } else if (spell.name === "LATUMOFIS" || spell.name === "DIALKO") {
+          } else if (spell.name === "LATUMOFIS" || spell.name === "DIALKO" || spell.name === "DIURCO") {
             floatText = "CURED";
           }
           logQueue.push({
@@ -603,6 +603,15 @@ export function resolveCombatRound() {
             sound: "chest_trap"
           });
         }
+
+        // Apply blind effect if monster is blinding and target survives
+        if (mon.isBlinding && target.hp > 0 && target.status === "ok" && Math.random() < 0.35) {
+          target.status = "blind";
+          logQueue.push({
+            msg: `[ 敵 ] [!] ${mon.name}の放つ閃光により、${target.name}は盲目状態になった！`,
+            sound: "chest_trap"
+          });
+        }
       }
 
       if (target.hp === 0) {
@@ -718,12 +727,18 @@ export function playBattleLogs(queue, index) {
   if (log.runEscape) {
     state.transitioning = true;
     setTimeout(() => {
-      state.gameState = "explore";
-      state.combatState = null;
-      resetSubmenuBackButton();
-      state.transitioning = false;
-      saveAutosave();
-      updateUI();
+      const allPartyDead = state.party.every(c => c.status === "dead");
+      if (allPartyDead) {
+        state.transitioning = false;
+        triggerGameOver();
+      } else {
+        state.gameState = "explore";
+        state.combatState = null;
+        resetSubmenuBackButton();
+        state.transitioning = false;
+        saveAutosave();
+        updateUI();
+      }
     }, 1200);
     return;
   }
@@ -731,15 +746,21 @@ export function playBattleLogs(queue, index) {
   if (log.escapeToTown) {
     state.transitioning = true;
     setTimeout(() => {
-      state.gameState = "town";
-      state.x = START_X;
-      state.y = START_Y;
-      state.dir = DIR_N;
-      state.combatState = null;
-      resetSubmenuBackButton();
-      state.transitioning = false;
-      saveAutosave();
-      updateUI();
+      const allPartyDead = state.party.every(c => c.status === "dead");
+      if (allPartyDead) {
+        state.transitioning = false;
+        triggerGameOver();
+      } else {
+        state.gameState = "town";
+        state.x = START_X;
+        state.y = START_Y;
+        state.dir = DIR_N;
+        state.combatState = null;
+        resetSubmenuBackButton();
+        state.transitioning = false;
+        saveAutosave();
+        updateUI();
+      }
     }, 1200);
     return;
   }

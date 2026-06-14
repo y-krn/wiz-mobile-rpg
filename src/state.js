@@ -68,7 +68,7 @@ export const createDefaultParty = () => [
     agi: 9,
     luk: 10,
     status: "ok",
-    spells: ["DIOS", "MILWA"],
+    spells: ["DIOS", "MILWA", "DIURCO", "BADIOS"],
     equipment: {
       weapon: "DAGGER",
       shield: "SMALL_SHIELD",
@@ -103,7 +103,7 @@ export const createDefaultParty = () => [
 // Level EXP chart
 // EXP_LEVELS[level] represents cumulative EXP required to reach that level.
 // Level 1 is initial state. Level 2 needs 100 EXP, Level 3 needs 300 EXP, etc.
-export const EXP_LEVELS = [0, 0, 100, 300, 700, 1500, 3000];
+export const EXP_LEVELS = [0, 0, 200, 800, 2500, 7500, 20000];
 
 // Main State Object
 export const state = {
@@ -187,6 +187,13 @@ export function loadGame(forceSaveOnly = false) {
     state.y = data.y ?? START_Y;
     state.dir = data.dir ?? DIR_N;
     state.party = data.party ?? createDefaultParty();
+    // Spell list migration for existing save data
+    state.party.forEach(char => {
+      if (char.class === "Priest") {
+        if (!char.spells.includes("DIURCO")) char.spells.push("DIURCO");
+        if (!char.spells.includes("BADIOS")) char.spells.push("BADIOS");
+      }
+    });
     state.gold = data.gold ?? 150;
     state.inventory = data.inventory ?? [];
     

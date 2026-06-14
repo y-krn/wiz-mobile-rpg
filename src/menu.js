@@ -510,13 +510,14 @@ export function executeAllySpell(targetIdx) {
 
 export function handleTownOption(option) {
   if (option === "castle") {
-    // Heal all HP, MP, status
+    // Heal living characters HP and MP (status anomalies persist)
     state.party.forEach(char => {
-      char.hp = char.maxHp;
-      char.mp = char.maxMp;
-      if (char.status !== "dead") char.status = "ok";
+      if (char.status !== "dead") {
+        char.hp = char.maxHp;
+        char.mp = char.maxMp;
+      }
     });
-    addLog("おしろ：パーティは休息した。HPとMPが全回復した！");
+    addLog("おしろ：パーティは休息した。HPとMPが全回復した！（ステータス異常は教会で治療してください）");
     
     // Check Victory item
     const hasCrystal = state.inventory.includes("ANTIGRAVITY_CRYSTAL");

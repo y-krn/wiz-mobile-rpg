@@ -13,7 +13,8 @@ export function setupChestState() {
   const trap = traps[randIdx];
 
   // Gold reward
-  const gold = Math.floor(Math.random() * 80) + 20;
+  const gold = Math.floor(Math.random() * 81) + 20;
+
 
   // Item reward (50% chance of random item)
   let item = null;
