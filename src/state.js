@@ -118,8 +118,9 @@ export const state = {
   inventory: ["HEAL_POTION", "HEAL_POTION"],
 
   // Map & Light
-  map: null,
-  visitedMap: Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+  floor: 1,
+  maps: [null, null],
+  visitedMaps: [null, null],
   lightTurns: 0,
 
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
@@ -130,7 +131,15 @@ export const state = {
   chestState: null,
 
   // Message logs
-  logs: []
+  logs: [],
+
+  // Dynamic getters for floor-specific maps to maintain backwards compatibility
+  get map() {
+    return this.maps[this.floor - 1];
+  },
+  get visitedMap() {
+    return this.visitedMaps[this.floor - 1];
+  }
 };
 
 // Initial state builder
@@ -141,8 +150,16 @@ export function initNewGame() {
   state.party = createDefaultParty();
   state.gold = 150;
   state.inventory = ["HEAL_POTION", "HEAL_POTION"];
-  state.map = generateRandomMap();
-  state.visitedMap = Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false));
+  
+  state.floor = 1;
+  const b1 = generateRandomMap(1);
+  const b2 = generateRandomMap(2, b1.stairsDownCoord);
+  state.maps = [b1.grid, b2.grid];
+  state.visitedMaps = [
+    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
+  ];
+
   // Mark initial coordinate as visited
   state.visitedMap[state.y][state.x] = true;
   state.lightTurns = 0;
@@ -170,8 +187,58 @@ export function loadGame(forceSaveOnly = false) {
     state.party = data.party ?? createDefaultParty();
     state.gold = data.gold ?? 150;
     state.inventory = data.inventory ?? [];
-    state.map = data.map ?? generateRandomMap();
-    state.visitedMap = data.visitedMap ?? Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false));
+    
+    state.floor = data.floor ?? 1;
+    let loadedMaps = data.maps;
+
+    // Check if maps contain any old "door" types to trigger migration
+    let needsMigration = false;
+    if (loadedMaps) {
+      for (const map of loadedMaps) {
+        if (map) {
+          for (let y = 0; y < MAP_HEIGHT; y++) {
+            for (let x = 0; x < MAP_WIDTH; x++) {
+              if (map[y] && map[y][x] && map[y][x].type === "door") {
+                needsMigration = true;
+                break;
+              }
+            }
+            if (needsMigration) break;
+          }
+        }
+        if (needsMigration) break;
+      }
+    }
+
+    if (!loadedMaps || needsMigration) {
+      if (data.map && !needsMigration) {
+        const b2 = generateRandomMap(2, { x: MAP_WIDTH - 2, y: 1 });
+        loadedMaps = [data.map, b2.grid];
+      } else {
+        const b1 = generateRandomMap(1);
+        const b2 = generateRandomMap(2, b1.stairsDownCoord);
+        loadedMaps = [b1.grid, b2.grid];
+        
+        // Reset player coordinates to B1F start upon migration
+        state.x = START_X;
+        state.y = START_Y;
+        state.floor = 1;
+        state.dir = DIR_N;
+        addLog("マップデータが新しいバージョンに更新され、スタート地点に戻されました。");
+      }
+
+      state.visitedMaps = [
+        Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+        Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
+      ];
+      state.visitedMap[state.y][state.x] = true;
+    } else {
+      state.visitedMaps = data.visitedMaps ?? [
+        data.visitedMap ?? Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+        Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
+      ];
+    }
+    state.maps = loadedMaps;
     state.lightTurns = data.lightTurns ?? 0;
     state.gameState = data.gameState ?? "town";
     state.combatState = data.combatState ?? null;
@@ -196,8 +263,9 @@ export function saveGame() {
       party: state.party,
       gold: state.gold,
       inventory: state.inventory,
-      map: state.map,
-      visitedMap: state.visitedMap,
+      floor: state.floor,
+      maps: state.maps,
+      visitedMaps: state.visitedMaps,
       lightTurns: state.lightTurns,
       gameState: state.gameState,
       combatState: state.combatState,
@@ -220,8 +288,9 @@ export function saveAutosave() {
       party: state.party,
       gold: state.gold,
       inventory: state.inventory,
-      map: state.map,
-      visitedMap: state.visitedMap,
+      floor: state.floor,
+      maps: state.maps,
+      visitedMaps: state.visitedMaps,
       lightTurns: state.lightTurns,
       gameState: state.gameState,
       combatState: state.combatState,

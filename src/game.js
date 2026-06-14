@@ -1,7 +1,7 @@
 import { DIR_N, DIR_E, DIR_S, DIR_W, DX, DY, DIR_NAMES, MONSTERS, ITEMS, SPELLS, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "./data.js";
 import { state, initNewGame, loadGame, saveGame, saveAutosave, getCharWeaponAtk, getCharDef, checkCharLevelUp, addLog, EXP_LEVELS } from "./state.js";
 import { DungeonRenderer } from "./renderer.js";
-import { playSound } from "./audio.js";
+import { playSound, isMuted, toggleMute } from "./audio.js";
 
 let renderer = null;
 let lastTime = 0;
@@ -74,7 +74,7 @@ export function updateUI() {
     locLabel.textContent = "TOWN OF LLYLGAMYN";
   } else if (state.gameState === "explore") {
     const lightText = state.lightTurns > 0 ? ` (LIGHT:${state.lightTurns})` : "";
-    locLabel.textContent = `DUNGEON B1F X:${state.x} Y:${state.y}${lightText}`;
+    locLabel.textContent = `DUNGEON B${state.floor}F X:${state.x} Y:${state.y}${lightText}`;
   } else if (state.gameState === "combat") {
     locLabel.textContent = "BATTLE ENCOUNTER";
   } else if (state.gameState === "chest") {
@@ -86,6 +86,20 @@ export function updateUI() {
   }
   
   goldLabel.textContent = `GOLD: ${state.gold}`;
+
+  // Update mute button display
+  const btnMute = document.getElementById("btn-mute");
+  if (btnMute) {
+    if (isMuted) {
+      btnMute.textContent = "🎵 OFF";
+      btnMute.className = "btn btn-mute sound-off";
+      btnMute.title = "音声をオンにする";
+    } else {
+      btnMute.textContent = "🎵 ON";
+      btnMute.className = "btn btn-mute sound-on";
+      btnMute.title = "ミュートにする";
+    }
+  }
 
   // Update Logs
   const logContent = document.getElementById("log-content");
@@ -268,6 +282,23 @@ function bindButtons() {
   // Submenu
   document.getElementById("btn-submenu-back").addEventListener("click", () => goBackSubmenu());
 
+  // Mute Button
+  const btnMute = document.getElementById("btn-mute");
+  if (btnMute) {
+    btnMute.addEventListener("click", () => {
+      const muted = toggleMute();
+      if (muted) {
+        btnMute.textContent = "🎵 OFF";
+        btnMute.className = "btn btn-mute sound-off";
+        btnMute.title = "音声をオンにする";
+      } else {
+        btnMute.textContent = "🎵 ON";
+        btnMute.className = "btn btn-mute sound-on";
+        btnMute.title = "ミュートにする";
+      }
+    });
+  }
+
   // Prevent iOS Safari pinch zoom and gesture zoom
   document.addEventListener("gesturestart", (e) => {
     e.preventDefault();
@@ -347,7 +378,7 @@ function handleMove(action) {
       
       // Mark as visited
       state.visitedMap[state.y][state.x] = true;
-      addLog(`一歩進んだ。現在位置: X:${state.x}, Y:${state.y}`);
+      addLog(`一歩進んだ。現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}`);
 
       // Check coordinates trigger events
       checkCellEvents();
@@ -364,7 +395,7 @@ function handleMove(action) {
       state.y += DY[backDir];
       if (state.lightTurns > 0) state.lightTurns--;
       state.visitedMap[state.y][state.x] = true;
-      addLog(`一歩下がった。現在位置: X:${state.x}, Y:${state.y}`);
+      addLog(`一歩下がった。現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}`);
       checkCellEvents();
     }
   }
@@ -373,18 +404,61 @@ function handleMove(action) {
   updateUI();
 }
 
+function findCellCoordsByType(grid, type) {
+  for (let y = 0; y < MAP_HEIGHT; y++) {
+    for (let x = 0; x < MAP_WIDTH; x++) {
+      if (grid[y] && grid[y][x] && grid[y][x].type === type) {
+        return { x, y };
+      }
+    }
+  }
+  return { x: MAP_WIDTH - 2, y: 1 }; // Default fallback coordinate
+}
+
 function checkCellEvents() {
   const cell = state.map[state.y][state.x];
 
-  // Stairs Up (exit to town)
+  // Stairs Up (exit to town or go to B1F)
   if (cell.type === "stairs-up") {
-    addLog("階段を上がります。リルガミンの街へ戻る...");
+    if (state.floor === 1) {
+      addLog("階段を上がります。リルガミンの街へ戻る...");
+      setTimeout(() => {
+        state.gameState = "town";
+        state.x = START_X;
+        state.y = START_Y;
+        state.dir = DIR_N;
+        addLog("リルガミンの街に戻り、体力を回復しました。");
+        saveAutosave();
+        updateUI();
+      }, 1200);
+    } else {
+      addLog("階段を上がります。地下1階へ...");
+      playSound("move");
+      setTimeout(() => {
+        state.floor = 1;
+        const target = findCellCoordsByType(state.maps[0], "stairs-down");
+        state.x = target.x;
+        state.y = target.y;
+        state.visitedMap[state.y][state.x] = true;
+        addLog("地下1階に上った。");
+        saveAutosave();
+        updateUI();
+      }, 1200);
+    }
+    return;
+  }
+
+  // Stairs Down (go to B2F)
+  if (cell.type === "stairs-down") {
+    addLog("階段を下ります。地下2階へ...");
+    playSound("move");
     setTimeout(() => {
-      state.gameState = "town";
-      state.x = START_X;
-      state.y = START_Y;
-      state.dir = DIR_N;
-      addLog("リルガミンの街に戻り、体力を回復しました。");
+      state.floor = 2;
+      const target = findCellCoordsByType(state.maps[1], "stairs-up");
+      state.x = target.x;
+      state.y = target.y;
+      state.visitedMap[state.y][state.x] = true;
+      addLog("地下2階に降りた。さらに強い殺気を感じる...");
       saveAutosave();
       updateUI();
     }, 1200);
@@ -449,11 +523,12 @@ function handleExploreAction(action) {
 // ----------------------------------------------------
 function enterDungeon() {
   state.gameState = "explore";
+  state.floor = 1;
   state.x = START_X;
   state.y = START_Y;
   state.dir = DIR_N;
   state.visitedMap[state.y][state.x] = true;
-  addLog("地下1階に降りた。冷たい石造りの暗闇が迫る...");
+  addLog(`地下${state.floor}階に降りた。冷たい石造りの暗闇が迫る...`);
   playSound("move");
   saveAutosave();
   updateUI();
@@ -661,31 +736,39 @@ function openSubmenu(type, title, isBack = false) {
       optGrid.appendChild(btnUse);
     } else if (item.type === "weapon" || item.type === "shield" || item.type === "armor") {
       const btnEquip = document.createElement("button");
-      btnEquip.className = "btn btn-neon btn-block";
-      btnEquip.textContent = "装備する";
-      btnEquip.addEventListener("click", () => {
-        const char = state.party[menuContext.actorIdx];
-        const slot = item.type; // weapon, shield, armor
-        
-        // Return previous equipment to inventory
-        const oldEq = char.equipment[slot];
-        char.equipment[slot] = item.id;
-        
-        // Update inventory
-        if (oldEq) {
-          state.inventory[menuContext.itemIdx] = oldEq;
-        } else {
-          state.inventory.splice(menuContext.itemIdx, 1);
-        }
-        
-        const newAtk = getCharWeaponAtk(char) + char.str;
-        const newDef = getCharDef(char);
-        
-        addLog(`${char.name}は${item.name}を装備した。(攻撃:${newAtk}/守備:${newDef})`);
-        playSound("move");
-        saveAutosave();
-        goBackSubmenu();
-      });
+      const char = state.party[menuContext.actorIdx];
+      const canEquip = !item.classes || item.classes.includes(char.class);
+
+      if (canEquip) {
+        btnEquip.className = "btn btn-neon btn-block";
+        btnEquip.textContent = "装備する";
+        btnEquip.addEventListener("click", () => {
+          const slot = item.type; // weapon, shield, armor
+          
+          // Return previous equipment to inventory
+          const oldEq = char.equipment[slot];
+          char.equipment[slot] = item.id;
+          
+          // Update inventory
+          if (oldEq) {
+            state.inventory[menuContext.itemIdx] = oldEq;
+          } else {
+            state.inventory.splice(menuContext.itemIdx, 1);
+          }
+          
+          const newAtk = getCharWeaponAtk(char) + char.str;
+          const newDef = getCharDef(char);
+          
+          addLog(`${char.name}は${item.name}を装備した。(攻撃:${newAtk}/守備:${newDef})`);
+          playSound("move");
+          saveAutosave();
+          goBackSubmenu();
+        });
+      } else {
+        btnEquip.className = "btn btn-block";
+        btnEquip.textContent = "この職業は装備不可";
+        btnEquip.disabled = true;
+      }
       optGrid.appendChild(btnEquip);
     } else {
       // Quest item or unuseable
@@ -1251,6 +1334,7 @@ function startCombat(isBoss) {
   
   // Check if first character needs choice (if alive)
   advanceActionSelection();
+  saveAutosave();
 }
 
 function advanceActionSelection() {

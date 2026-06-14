@@ -4,7 +4,7 @@ import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, START_Y, MAP_WIDTH, MAP_HEIGHT } f
 const DX = [0, 1, 0, -1];
 const DY = [-1, 0, 1, 0];
 
-export function generateRandomMap() {
+export function generateRandomMap(floor = 1, parentStairsCoord = null) {
   // 1. Initialize grid with all walls closed
   const grid = Array.from({ length: MAP_HEIGHT }, () =>
     Array.from({ length: MAP_WIDTH }, () => ({
@@ -22,9 +22,12 @@ export function generateRandomMap() {
   const visited = Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false));
   const stack = [];
 
-  // Start digging from START_X, START_Y
-  let cx = START_X;
-  let cy = START_Y;
+  // Start digging from START_X, START_Y (or B2F stairs-up position)
+  const digStartX = (floor === 2 && parentStairsCoord) ? parentStairsCoord.x : START_X;
+  const digStartY = (floor === 2 && parentStairsCoord) ? parentStairsCoord.y : START_Y;
+  
+  let cx = digStartX;
+  let cy = digStartY;
   visited[cy][cx] = true;
   stack.push({ x: cx, y: cy });
 
@@ -90,54 +93,40 @@ export function generateRandomMap() {
     }
   }
 
-  // 3. Make sure start position and boss position are connected and exist
-  const bossX = MAP_WIDTH - 2;
-  const bossY = 1;
-
-  if (grid[START_Y][START_X].walls.every(w => w)) {
-    grid[START_Y][START_X].walls[DIR_N] = false;
-    grid[START_Y - 1][START_X].walls[DIR_S] = false;
-  }
-  grid[bossY][bossX].walls[DIR_W] = false;
-  grid[bossY][bossX - 1].walls[DIR_E] = false;
-
-  // 4. Place doors (8% probability on linear corridors)
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
-      const cell = grid[y][x];
-      const openCount = cell.walls.filter(w => !w).length;
-      if (openCount === 2 && Math.random() < 0.08) {
-        if ((x !== START_X || y !== START_Y) && (x !== bossX || y !== bossY)) {
-          cell.type = "door";
-          for (let dir = 0; dir < 4; dir++) {
-            if (!cell.walls[dir]) {
-              const nx = x + DX[dir];
-              const ny = y + DY[dir];
-              if (isValid(nx, ny)) {
-                grid[ny][nx].type = "door";
-              }
-            }
-          }
+  // 3. Setup floor specific connections & detect dead ends
+  // Make sure start position is connected
+  if (floor === 1) {
+    if (grid[START_Y][START_X].walls.every(w => w)) {
+      grid[START_Y][START_X].walls[DIR_N] = false;
+      grid[START_Y - 1][START_X].walls[DIR_S] = false;
+    }
+  } else if (floor === 2 && parentStairsCoord) {
+    if (grid[parentStairsCoord.y][parentStairsCoord.x].walls.every(w => w)) {
+      // Find any valid neighbor to open wall to
+      for (let dir = 0; dir < 4; dir++) {
+        const nx = parentStairsCoord.x + DX[dir];
+        const ny = parentStairsCoord.y + DY[dir];
+        if (isValid(nx, ny)) {
+          grid[parentStairsCoord.y][parentStairsCoord.x].walls[dir] = false;
+          grid[ny][nx].walls[(dir + 2) % 4] = false;
+          break;
         }
       }
     }
   }
 
-  // 5. Setup Stairs Up (Start)
-  grid[START_Y][START_X].type = "stairs-up";
-  grid[START_Y][START_X].message = "街へと戻る階段です。一歩進むとリルガミンの街に戻ります。";
-
-  // 6. Setup Boss room
-  grid[bossY][bossX].type = "empty";
-  grid[bossY][bossX].event = "boss";
-  grid[bossY][bossX].message = "周囲にただならぬ気配が漂っている…！いにしえの竜が姿を現した！";
-  grid[bossY][bossX - 1].type = "door"; // Ensure boss room entry door
-
-  // 7. Place chest events randomly at dead ends
+  // Find all dead ends (cells with exactly 1 open wall)
+  // exclude start position (and stairsUpCoord for floor 2)
   const deadEnds = [];
+  const startX = START_X;
+  const startY = START_Y;
+  const stairsUpCoord = (floor === 2) ? (parentStairsCoord || { x: MAP_WIDTH - 2, y: 1 }) : null;
+
   for (let y = 1; y < MAP_HEIGHT - 1; y++) {
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
-      if ((x === START_X && y === START_Y) || (x === bossX && y === bossY)) continue;
+      if (floor === 1 && x === startX && y === startY) continue;
+      if (floor === 2 && stairsUpCoord && x === stairsUpCoord.x && y === stairsUpCoord.y) continue;
+
       const cell = grid[y][x];
       const openCount = cell.walls.filter(w => !w).length;
       if (openCount === 1) {
@@ -146,6 +135,55 @@ export function generateRandomMap() {
     }
   }
 
+  let stairsDownCoord = null;
+  let bossCoord = null;
+
+  // 4. Setup Stairs & Boss
+  if (floor === 1) {
+    // B1F Setup
+    grid[START_Y][START_X].type = "stairs-up";
+    grid[START_Y][START_X].message = "街へと戻る階段です。一歩進むとリルガミンの街に戻ります。";
+
+    if (deadEnds.length > 0) {
+      const idx = Math.floor(Math.random() * deadEnds.length);
+      stairsDownCoord = deadEnds[idx];
+      deadEnds.splice(idx, 1); // Remove from deadEnds so chest won't spawn here
+    } else {
+      stairsDownCoord = { x: MAP_WIDTH - 2, y: 1 };
+    }
+
+    grid[stairsDownCoord.y][stairsDownCoord.x].type = "stairs-down";
+    grid[stairsDownCoord.y][stairsDownCoord.x].message = "地下2階へ下る階段です。一歩進むとさらに深くへ降ります。";
+  } else {
+    // B2F Setup
+    const suCoord = stairsUpCoord || { x: MAP_WIDTH - 2, y: 1 };
+    grid[suCoord.y][suCoord.x].type = "stairs-up";
+    grid[suCoord.y][suCoord.x].message = "地下1階へ上る階段です。一歩進むと上の階へ戻ります。";
+
+    // Boss coordinates selection: furthest dead ends from stairsUpCoord
+    if (deadEnds.length > 0) {
+      deadEnds.forEach(de => {
+        de.dist = Math.abs(de.x - suCoord.x) + Math.abs(de.y - suCoord.y);
+      });
+      deadEnds.sort((a, b) => b.dist - a.dist);
+      const candidates = deadEnds.slice(0, Math.min(3, deadEnds.length));
+      const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+      bossCoord = { x: chosen.x, y: chosen.y };
+
+      const removeIdx = deadEnds.findIndex(de => de.x === bossCoord.x && de.y === bossCoord.y);
+      if (removeIdx !== -1) {
+        deadEnds.splice(removeIdx, 1);
+      }
+    } else {
+      bossCoord = { x: MAP_WIDTH - 2, y: MAP_HEIGHT - 2 };
+    }
+
+    grid[bossCoord.y][bossCoord.x].type = "empty";
+    grid[bossCoord.y][bossCoord.x].event = "boss";
+    grid[bossCoord.y][bossCoord.x].message = "周囲にただならぬ気配が漂っている…！いにしえの竜が姿を現した！";
+  }
+
+  // 6. Place chest events randomly at dead ends
   // Shuffle array utility
   const shuffle = (array) => {
     for (let i = array.length - 1; i > 0; i--) {
@@ -166,8 +204,11 @@ export function generateRandomMap() {
     const passages = [];
     for (let y = 1; y < MAP_HEIGHT - 1; y++) {
       for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        if ((x === START_X && y === START_Y) || (x === bossX && y === bossY)) continue;
-        if (grid[y][x].event) continue;
+        const isStart = (x === START_X && y === START_Y);
+        const isStairs = (floor === 1) ? (x === stairsDownCoord.x && y === stairsDownCoord.y) : (x === stairsUpCoord.x && y === stairsUpCoord.y);
+        const isBoss = (floor === 2 && x === bossCoord.x && y === bossCoord.y);
+        if (isStart || isStairs || isBoss || grid[y][x].event) continue;
+
         if (grid[y][x].walls.some(w => !w)) {
           passages.push({ x, y });
         }
@@ -181,5 +222,9 @@ export function generateRandomMap() {
     }
   }
 
-  return grid;
+  return {
+    grid,
+    stairsDownCoord,
+    bossCoord
+  };
 }

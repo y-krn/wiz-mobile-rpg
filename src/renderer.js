@@ -232,10 +232,7 @@ export class DungeonRenderer {
         ctx.strokeStyle = "#00ff66"; // Neon Green
         ctx.stroke();
 
-        // Draw door details if left cell is a door
-        if (cell.type === "door" && z === 1) {
-          this.drawSideDoorPattern(ctx, z, true);
-        }
+
       }
 
       // 3. Right Wall
@@ -252,9 +249,7 @@ export class DungeonRenderer {
         ctx.strokeStyle = "#00ff66";
         ctx.stroke();
 
-        if (cell.type === "door" && z === 1) {
-          this.drawSideDoorPattern(ctx, z, false);
-        }
+
       }
 
       // 4. Front Wall (at z + 1 depth)
@@ -265,18 +260,11 @@ export class DungeonRenderer {
         ctx.strokeStyle = "#00ff66";
         ctx.strokeRect(XL[z + 1], YT[z + 1], XR[z + 1] - XL[z + 1], YB[z + 1] - YT[z + 1]);
 
-        // Draw Door or Special Event in front
-        const nextX = cx + DX[dir];
-        const nextY = cy + DY[dir];
-        const nextCell = (nextX >= 0 && nextX < MAP_WIDTH && nextY >= 0 && nextY < MAP_HEIGHT) ? state.map[nextY][nextX] : null;
 
-        if (nextCell && nextCell.type === "door") {
-          this.drawFrontDoorPattern(ctx, z + 1);
-        }
       }
 
-      // Check special symbols inside cells (stairs up, etc.)
-      if (cell.type === "stairs-up") {
+      // Check special symbols inside cells (stairs up / down)
+      if (cell.type === "stairs-up" || cell.type === "stairs-down") {
         this.drawStairsIcon(ctx, z);
       }
     }
@@ -696,18 +684,13 @@ export class DungeonRenderer {
         ctx.setLineDash([]);
 
         // Special cell colors
-        if (cell.type === "stairs-up") {
+        if (cell.type === "stairs-up" || cell.type === "stairs-down") {
           ctx.fillStyle = isLightOnly ? "rgba(255, 179, 0, 0.2)" : "rgba(255, 179, 0, 0.5)";
           ctx.fillRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
           ctx.strokeStyle = isLightOnly ? "rgba(255, 179, 0, 0.4)" : "#ffb300";
           ctx.lineWidth = 1;
           ctx.strokeRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
-        } else if (cell.type === "door") {
-          ctx.fillStyle = isLightOnly ? "rgba(0, 229, 255, 0.15)" : "rgba(0, 229, 255, 0.35)";
-          ctx.fillRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
-          ctx.strokeStyle = isLightOnly ? "rgba(0, 229, 255, 0.3)" : "#00e5ff";
-          ctx.lineWidth = 1;
-          ctx.strokeRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
+
         }
       }
     }
