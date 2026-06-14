@@ -134,6 +134,7 @@ function bindButtons() {
 
   // Keyboard navigation for desktop testing
   window.addEventListener("keydown", (e) => {
+    if (state.transitioning) return;
     if (state.gameState === "explore") {
       if (e.key === "ArrowUp" || e.key === "w") handleMove("forward");
       if (e.key === "ArrowDown" || e.key === "s") handleMove("backward");

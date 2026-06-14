@@ -3,6 +3,7 @@ import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, START_Y, ITEMS, SPELLS } from "./d
 import { playSound } from "./audio.js";
 import { renderer } from "./game.js";
 import { updateUI } from "./ui.js";
+import { executeDisarm } from "./chest.js";
 
 // Submenu navigation tracker
 export let menuContext = {
@@ -99,6 +100,7 @@ export function openSubmenu(type, title, isBack = false) {
       const btn = document.createElement("button");
       btn.className = "btn btn-neon btn-block";
       btn.textContent = `${char.name} (HP:${char.hp}/${char.maxHp})`;
+      if (char.status === "dead") btn.disabled = true;
       btn.addEventListener("click", () => {
         executeAllySpell(idx);
       });
@@ -354,7 +356,7 @@ export function openSubmenu(type, title, isBack = false) {
         playSound("gold");
         addLog(`${item.name}を${st.price}ゴールドで購入した。`);
         saveAutosave();
-        openSubmenu("shop_buy", "装備の購入:"); // refresh
+        openSubmenu("shop_buy", "装備の購入:", true); // refresh (isBack=true to skip history push)
       });
       optGrid.appendChild(btn);
     });
@@ -380,7 +382,7 @@ export function openSubmenu(type, title, isBack = false) {
           playSound("gold");
           addLog(`${item.name}を${value}ゴールドで売却した。`);
           saveAutosave();
-          openSubmenu("shop_sell", `売却 (バッグ: ${state.inventory.length}個) - 半値での引き取り:`); // refresh
+          openSubmenu("shop_sell", `売却 (バッグ: ${state.inventory.length}個) - 半値での引き取り:`, true); // refresh (isBack=true to skip history push)
         });
         optGrid.appendChild(btn);
       });
@@ -395,7 +397,7 @@ export function openSubmenu(type, title, isBack = false) {
       if (char.status === "dead") {
         price = char.level * 50;
         text = `蘇生する (${price}G)`;
-      } else if (char.status === "sleep" || char.status === "paralyze" || char.status === "poisoned") {
+      } else if (char.status === "sleep" || char.status === "paralyze" || char.status === "paralyzed" || char.status === "poisoned" || char.status === "blind") {
         price = 20;
         text = `治療する (${price}G)`;
       } else {
@@ -411,7 +413,19 @@ export function openSubmenu(type, title, isBack = false) {
         playSound("heal");
         addLog(`僧侶が祈りを捧げる... ${char.name}は正常な状態に戻った！`);
         saveAutosave();
-        openSubmenu("temple_main", "カント寺院 - 蘇生と治療："); // refresh
+        openSubmenu("temple_main", "カント寺院 - 蘇生と治療：", true); // refresh (isBack=true to skip history push)
+      });
+      optGrid.appendChild(btn);
+    });
+  } else if (type === "chest_disarmer_select") {
+    state.party.forEach((char, idx) => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-neon btn-block";
+      const classJp = char.class === "Fighter" ? "戦士" : char.class === "Thief" ? "盗賊" : char.class === "Priest" ? "僧侶" : "魔術師";
+      btn.textContent = `${char.name} (${classJp})`;
+      if (!["ok", "poisoned", "blind"].includes(char.status)) btn.disabled = true;
+      btn.addEventListener("click", () => {
+        executeDisarm(char);
       });
       optGrid.appendChild(btn);
     });

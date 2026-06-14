@@ -75,17 +75,30 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
     }
   }
 
-  // 2. Open additional walls to create loops (15% probability)
+  // 2. Open additional walls to create loops (25% probability of connecting visited cells at distance 2)
   for (let y = 1; y < MAP_HEIGHT - 1; y++) {
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
-      if (grid[y][x].walls.some(w => !w)) {
+      if (visited[y][x]) {
         for (let dir = 0; dir < 4; dir++) {
-          const nx = x + DX[dir];
-          const ny = y + DY[dir];
-          if (isValid(nx, ny) && grid[y][x].walls[dir]) {
-            if (grid[ny][nx].walls.some(w => !w) && Math.random() < 0.15) {
-              grid[y][x].walls[dir] = false;
-              grid[ny][nx].walls[(dir + 2) % 4] = false;
+          const nx = x + DX[dir] * 2;
+          const ny = y + DY[dir] * 2;
+          if (isValid(nx, ny) && visited[ny][nx]) {
+            const mx = x + DX[dir];
+            const my = y + DY[dir];
+            // Check if the intermediate cell is not dug (all walls closed)
+            if (grid[my][mx].walls.every(w => w)) {
+              if (Math.random() < 0.25) {
+                const wallDir = dir;
+                const oppDir = (wallDir + 2) % 4;
+
+                grid[y][x].walls[wallDir] = false;
+                grid[my][mx].walls[oppDir] = false;
+                grid[my][mx].walls[wallDir] = false;
+                grid[ny][nx].walls[oppDir] = false;
+                
+                // Mark intermediate cell as visited/passage
+                visited[my][mx] = true;
+              }
             }
           }
         }

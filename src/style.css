@@ -488,3 +488,15 @@ html, body {
   color: var(--neon-gold);
   border: 0.5px solid var(--neon-gold);
 }
+
+.char-status.paralyzed {
+  background-color: rgba(191, 90, 242, 0.25);
+  color: var(--neon-purple);
+  border: 0.5px solid var(--neon-purple);
+}
+
+.char-status.blind {
+  background-color: rgba(142, 142, 147, 0.25);
+  color: #8e8e93;
+  border: 0.5px solid #8e8e93;
+}

@@ -88,6 +88,7 @@ export function checkCellEvents() {
   // Stairs Up (exit to town or go to B1F)
   if (cell.type === "stairs-up") {
     if (state.floor === 1) {
+      state.transitioning = true;
       addLog("階段を上がります。リルガミンの街へ戻る...");
       setTimeout(() => {
         state.gameState = "town";
@@ -95,10 +96,12 @@ export function checkCellEvents() {
         state.y = START_Y;
         state.dir = DIR_N;
         addLog("リルガミンの街に戻り、体力を回復しました。");
+        state.transitioning = false;
         saveAutosave();
         updateUI();
       }, 1200);
     } else {
+      state.transitioning = true;
       addLog("階段を上がります。地下1階へ...");
       playSound("move");
       setTimeout(() => {
@@ -108,6 +111,7 @@ export function checkCellEvents() {
         state.y = target.y;
         state.visitedMap[state.y][state.x] = true;
         addLog("地下1階に上った。");
+        state.transitioning = false;
         saveAutosave();
         updateUI();
       }, 1200);
@@ -117,6 +121,7 @@ export function checkCellEvents() {
 
   // Stairs Down (go to B2F)
   if (cell.type === "stairs-down") {
+    state.transitioning = true;
     addLog("階段を下ります。地下2階へ...");
     playSound("move");
     setTimeout(() => {
@@ -126,6 +131,7 @@ export function checkCellEvents() {
       state.y = target.y;
       state.visitedMap[state.y][state.x] = true;
       addLog("地下2階に降りた。さらに強い殺気を感じる...");
+      state.transitioning = false;
       saveAutosave();
       updateUI();
     }, 1200);
@@ -139,9 +145,11 @@ export function checkCellEvents() {
 
   // Boss encounter
   if (cell.event === "boss") {
+    state.transitioning = true;
     addLog("警告：ただならぬ巨大な気配が立ちふさがる！戦闘準備！");
     playSound("chest_trap");
     setTimeout(() => {
+      state.transitioning = false;
       startCombat(true);
     }, 1000);
     return;
@@ -159,8 +167,10 @@ export function checkCellEvents() {
 
   // Random Encounter (10% chance)
   if (Math.random() < 0.10) {
+    state.transitioning = true;
     addLog("モンスターが暗闇から襲いかかってきた！");
     setTimeout(() => {
+      state.transitioning = false;
       startCombat(false);
     }, 600);
   }

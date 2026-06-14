@@ -20,8 +20,11 @@ export const SPELLS = {
     target: "single_enemy",
     desc: "火の玉 (5-15 DMG)",
     effect: (caster, target) => {
-      const dmg = Math.floor(Math.random() * 11) + 5;
-      return { damage: dmg, log: `${caster.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！` };
+      let dmg = Math.floor(Math.random() * 11) + 5;
+      if (target && target.magicResist) {
+        dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
+      }
+      return { damage: dmg, log: `${caster.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${target && target.magicResist ? "（呪文がレジストされた！）" : ""}` };
     }
   },
   KATINO: {
@@ -52,12 +55,17 @@ export const SPELLS = {
     effect: (caster, targets) => {
       const results = targets.map(t => {
         if (t.hp <= 0) return 0;
-        const dmg = Math.floor(Math.random() * 21) + 15;
+        let dmg = Math.floor(Math.random() * 21) + 15;
+        let isResisted = false;
+        if (t.magicResist) {
+          dmg = Math.max(0, Math.round(dmg * (1 - t.magicResist)));
+          isResisted = true;
+        }
         t.hp = Math.max(0, t.hp - dmg);
-        return { name: t.name, dmg };
+        return { name: t.name, dmg, isResisted };
       }).filter(r => r !== 0);
       
-      const logDetails = results.map(r => `${r.name}に${r.dmg}のダメージ`).join(", ");
+      const logDetails = results.map(r => `${r.name}に${r.dmg}のダメージ${r.isResisted ? "(半減)" : ""}`).join(", ");
       return { log: `${caster.name}はラハリトを唱えた！激しい炎が敵全体を焼き尽くす！(${logDetails})` };
     }
   },
@@ -82,12 +90,17 @@ export const SPELLS = {
     effect: (caster, targets) => {
       const results = targets.map(t => {
         if (t.hp <= 0) return 0;
-        const dmg = Math.floor(Math.random() * 51) + 50;
+        let dmg = Math.floor(Math.random() * 51) + 50;
+        let isResisted = false;
+        if (t.magicResist) {
+          dmg = Math.max(0, Math.round(dmg * (1 - t.magicResist)));
+          isResisted = true;
+        }
         t.hp = Math.max(0, t.hp - dmg);
-        return { name: t.name, dmg };
+        return { name: t.name, dmg, isResisted };
       }).filter(r => r !== 0);
       
-      const logDetails = results.map(r => `${r.name}に${r.dmg}のダメージ`).join(", ");
+      const logDetails = results.map(r => `${r.name}に${r.dmg}のダメージ${r.isResisted ? "(半減)" : ""}`).join(", ");
       return { log: `${caster.name}はティルトウェイトを唱えた！極大爆裂の光が敵全体を消滅させる！(${logDetails})` };
     }
   },
@@ -99,12 +112,16 @@ export const SPELLS = {
     level: 1,
     cost: 1,
     target: "single_ally",
-    desc: "軽微な治療 (10-20 HP回復)",
+    desc: "軽微な治療 & 盲目治療",
     effect: (caster, target) => {
       const heal = Math.floor(Math.random() * 11) + 10;
       target.hp = Math.min(target.maxHp, target.hp + heal);
-      if (target.status === "dead") target.status = "ok";
-      return { heal, log: `${caster.name}はディオスを唱えた！${target.name}のHPを${heal}回復した。` };
+      let cured = false;
+      if (target.status === "blind") {
+        target.status = "ok";
+        cured = true;
+      }
+      return { heal, log: `${caster.name}はディオスを唱えた！${target.name}のHPを${heal}回復した${cured ? "。目が開いた！" : ""}` };
     }
   },
   MILWA: {
@@ -128,7 +145,7 @@ export const SPELLS = {
     desc: "状態異常治療 (睡眠・麻痺の回復)",
     effect: (caster, target) => {
       let cured = false;
-      if (target.status === "sleep" || target.status === "paralyze") {
+      if (target.status === "sleep" || target.status === "paralyze" || target.status === "paralyzed") {
         target.status = "ok";
         cured = true;
       }
@@ -218,10 +235,17 @@ export const ITEMS = {
 export const MONSTERS = [
   { name: "かみつき蟲", level: 1, hp: 6, atk: 4, def: 1, exp: 40, gold: 15, color: "#00ff66" },
   { name: "コボルトの斥候", level: 1, hp: 8, atk: 5, def: 2, exp: 60, gold: 30, color: "#00ff66" },
-  { name: "ゾンビ", level: 2, hp: 16, atk: 7, def: 3, exp: 120, gold: 60, color: "#8a2be2" },
-  { name: "ガイコツ戦士", level: 2, hp: 20, atk: 9, def: 4, exp: 180, gold: 100, color: "#dcdcdc" },
+  { name: "ゾンビ", level: 2, hp: 16, atk: 7, def: 3, exp: 120, gold: 60, isParalyzing: true, color: "#8a2be2" },
+  { name: "ガイコツ戦士", level: 2, hp: 20, atk: 9, def: 4, exp: 180, gold: 100, isParalyzing: true, color: "#dcdcdc" },
   { name: "オークの戦士", level: 3, hp: 28, atk: 12, def: 6, exp: 280, gold: 150, color: "#ff8c00" },
   { name: "はぐれ魔術師", level: 3, hp: 22, atk: 8, def: 4, exp: 360, gold: 240, spell: "HALITO", color: "#da70d6" },
+  // 新しいモンスター
+  { name: "スピリット", level: 2, hp: 15, atk: 5, def: 2, exp: 160, gold: 80, physResist: 0.9, color: "#00e5ff" }, // 物理効きづらい（術推奨）
+  { name: "ウィル・オー・ウィスプ", level: 3, hp: 30, atk: 8, def: 2, exp: 300, gold: 120, magicResist: 0.8, color: "#ffffff" }, // 魔法効きづらい（物理推奨）
+  { name: "ジャイアントスパイダー", level: 2, hp: 18, atk: 7, def: 3, exp: 150, gold: 70, isPoisonous: true, color: "#bf5af2" }, // 毒攻撃
+  { name: "ラッキーラビット", level: 2, hp: 10, atk: 4, def: 10, exp: 800, gold: 200, fleeChance: 0.40, color: "#ffb300" }, // すぐ逃げる、高経験値
+  { name: "フラック", level: 4, hp: 70, atk: 18, def: 8, exp: 1500, gold: 500, spell: "LAHALITO", isRare: true, color: "#ff3b30" }, // 激レア、強敵
+  
   { name: "いにしえの竜", level: 5, hp: 120, atk: 22, def: 12, exp: 4000, gold: 1500, spell: "LAHALITO", isBoss: true, color: "#ff3b30" }
 ];
 

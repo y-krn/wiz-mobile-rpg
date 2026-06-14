@@ -8,7 +8,7 @@ import { triggerGameOver } from "./combat.js";
 
 export function setupChestState() {
   // Traps are levels dependent
-  const traps = ["poison needle", "gas bomb", "teleporter", "none"];
+  const traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
   const randIdx = Math.floor(Math.random() * traps.length);
   const trap = traps[randIdx];
 
@@ -49,6 +49,7 @@ export function openChestMenu() {
     if (t === "poison needle") return "毒針";
     if (t === "gas bomb") return "ガス爆弾";
     if (t === "teleporter") return "テレポーター";
+    if (t === "flash bomb") return "閃光弾";
     return "なし";
   };
 
@@ -58,8 +59,16 @@ export function openChestMenu() {
   btnInspect.textContent = "罠を調べる";
   btnInspect.addEventListener("click", () => {
     // Thief class has high inspect rate, others low
-    const thief = state.party.find(c => c.class === "Thief" && (c.status === "ok" || c.status === "poisoned"));
-    const chance = thief ? 0.85 : 0.30;
+    const thief = state.party.find(c => c.class === "Thief" && ["ok", "poisoned", "blind"].includes(c.status));
+    let chance = thief ? 0.85 : 0.30;
+    if (thief && thief.status === "blind") {
+      chance = chance / 2.0;
+    } else if (!thief) {
+      const activeChar = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status));
+      if (activeChar && activeChar.status === "blind") {
+        chance = chance / 2.0;
+      }
+    }
     state.chestState.inspected = true;
     
     if (Math.random() < chance) {
@@ -67,7 +76,7 @@ export function openChestMenu() {
       addLog(`調査結果：[${translateTrap(state.chestState.trap)}]の罠のようだ！`);
     } else {
       // Pick random false trap
-      const falseTraps = ["poison needle", "gas bomb", "teleporter", "none"];
+      const falseTraps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
       const randTrap = falseTraps[Math.floor(Math.random() * falseTraps.length)];
       state.chestState.identifiedTrap = randTrap;
       addLog(`調査結果：[${translateTrap(randTrap)}]の罠の可能性が高い。（不確実）`);
@@ -119,31 +128,15 @@ export function resetSubmenuBackButton() {
   document.getElementById("btn-submenu-back").style.display = "block";
 }
 
-// Override disarm characters selection
-// Add listener to submenu buttons
-window.addEventListener("click", (e) => {
-  if (state.gameState === "submenu" && menuContext.type === "chest_disarmer_select") {
-    // Populate disarm action
-    const optGrid = document.getElementById("submenu-options");
-    optGrid.innerHTML = "";
-    state.party.forEach((char, idx) => {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-neon btn-block";
-      const classJp = char.class === "Fighter" ? "戦士" : char.class === "Thief" ? "盗賊" : char.class === "Priest" ? "僧侶" : "魔術師";
-      btn.textContent = `${char.name} (${classJp})`;
-      if (char.status !== "ok" && char.status !== "poisoned") btn.disabled = true;
-      btn.addEventListener("click", () => {
-        executeDisarm(char);
-      });
-      optGrid.appendChild(btn);
-    });
-  }
-});
 
 export function executeDisarm(char) {
-  const chance = char.class === "Thief" ? 0.85 : 0.25;
+  let chance = char.class === "Thief" ? 0.85 : 0.25;
+  if (char.status === "blind") {
+    chance = chance / 2.0;
+  }
   const success = Math.random() < chance;
   
+  state.transitioning = true;
   if (success) {
     addLog(`解除成功！${char.name}は無事に罠を解除した。`);
     state.chestState.trap = "none";
@@ -197,22 +190,35 @@ export function triggerChestTrap(char) {
     state.y = spot.y;
     state.visitedMap[state.y][state.x] = true;
     addLog("テレポーターが作動！パーティは別の場所にテレポートした！");
+  } else if (trap === "flash bomb") {
+    addLog("閃光弾が作動！まばゆい光がパーティを包み込んだ！");
+    if (renderer && typeof renderer.triggerFlash === "function") {
+      renderer.triggerFlash(400);
+    }
+    state.party.forEach(c => {
+      if (c.status === "ok" && Math.random() < 0.60) {
+        c.status = "blind";
+        addLog(`${c.name}は光に目がくらみ、盲目状態になった！`);
+      }
+    });
   }
 }
 
 export function openChestDirectly() {
+  state.transitioning = true;
   const chest = state.chestState;
   
   const translateTrap = (t) => {
     if (t === "poison needle") return "毒針";
     if (t === "gas bomb") return "ガス爆弾";
     if (t === "teleporter") return "テレポーター";
+    if (t === "flash bomb") return "閃光弾";
     return "なし";
   };
 
   // If trap is still active, trigger on character 1
   if (chest.trap !== "none") {
-    const opener = state.party.find(c => c.status === "ok" || c.status === "poisoned") || state.party[0];
+    const opener = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
     addLog(`宝箱を開けた瞬間、罠 [${translateTrap(chest.trap)}] が作動した！`);
     triggerChestTrap(opener);
   }
@@ -236,6 +242,7 @@ export function openChestDirectly() {
   
   setTimeout(() => {
     resetSubmenuBackButton();
+    state.transitioning = false;
     if (!partyAlive) {
       triggerGameOver();
     } else {

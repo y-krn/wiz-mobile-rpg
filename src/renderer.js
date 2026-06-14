@@ -272,7 +272,7 @@ export class DungeonRenderer {
 
   renderSolidWall(ctx, z, color) {
     ctx.fillStyle = "#0c0c0e";
-    ctx.fillRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YB[z]);
+    ctx.fillRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
     ctx.strokeStyle = color;
     ctx.strokeRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
   }

@@ -132,6 +132,7 @@ export const state = {
 
   // Message logs
   logs: [],
+  transitioning: false,
 
   // Dynamic getters for floor-specific maps to maintain backwards compatibility
   get map() {
@@ -166,6 +167,7 @@ export function initNewGame() {
   state.gameState = "town";
   state.combatState = null;
   state.chestState = null;
+  state.transitioning = false;
   state.logs = ["リルガミンの街へようこそ。準備を整えて迷宮に入りましょう！"];
   saveGame();
   saveAutosave();
@@ -243,6 +245,7 @@ export function loadGame(forceSaveOnly = false) {
     state.gameState = data.gameState ?? "town";
     state.combatState = data.combatState ?? null;
     state.chestState = data.chestState ?? null;
+    state.transitioning = false;
     state.logs = data.logs ?? ["冒険を再開しました。"];
     
     // 同期のためにオートセーブデータを更新

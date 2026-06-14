@@ -27,23 +27,38 @@ export function startCombat(isBoss) {
     });
   } else {
     // Regular random encounter
-    // Choose 1-3 monsters matching party level
     const avgLevel = Math.round(state.party.reduce((sum, c) => sum + c.level, 0) / state.party.length);
-    const count = Math.floor(Math.random() * 3) + 1; // 1-3
     
-    // Filter templates close to level
-    const candidates = MONSTERS.filter(m => !m.isBoss && Math.abs(m.level - avgLevel) <= 1);
+    // Check rare encounter chance (e.g. 8% chance)
+    const isRareEncounter = Math.random() < 0.08;
+    const rareCandidates = MONSTERS.filter(m => m.isRare);
     
-    for (let i = 0; i < count; i++) {
-      const template = candidates[Math.floor(Math.random() * candidates.length)] || MONSTERS[0];
-      // Letters A, B, C
-      const suffix = count > 1 ? ` ${String.fromCharCode(65 + i)}` : "";
+    if (isRareEncounter && rareCandidates.length > 0) {
+      const template = rareCandidates[Math.floor(Math.random() * rareCandidates.length)];
       monsters.push({
         ...template,
-        name: template.name + suffix,
         hp: template.hp,
         maxHp: template.hp
       });
+      addLog("【⚠️強敵遭遇！】周囲の空気が張り詰める...！");
+    } else {
+      // Choose 1-3 monsters matching party level
+      const count = Math.floor(Math.random() * 3) + 1; // 1-3
+      
+      // Filter templates close to level (not boss, not rare)
+      const candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && Math.abs(m.level - avgLevel) <= 1);
+      
+      for (let i = 0; i < count; i++) {
+        const template = candidates[Math.floor(Math.random() * candidates.length)] || MONSTERS[0];
+        // Letters A, B, C
+        const suffix = count > 1 ? ` ${String.fromCharCode(65 + i)}` : "";
+        monsters.push({
+          ...template,
+          name: template.name + suffix,
+          hp: template.hp,
+          maxHp: template.hp
+        });
+      }
     }
   }
 
@@ -65,7 +80,7 @@ export function startCombat(isBoss) {
 
 export function advanceActionSelection() {
   // Find next living character
-  const livingIdxs = state.party.map((c, i) => ({ c, i })).filter(x => x.c.status === "ok" || x.c.status === "poisoned").map(x => x.i);
+  const livingIdxs = state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status)).map(x => x.i);
   
   const currentSelect = livingIdxs[combatSelection.charIdx];
   if (combatSelection.charIdx >= livingIdxs.length) {
@@ -79,7 +94,7 @@ export function advanceActionSelection() {
 export function selectCombatAction(type) {
   if (!state.combatState || state.combatState.phase !== "choose_actions") return;
 
-  const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => x.c.status === "ok" || x.c.status === "poisoned");
+  const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status));
   const char = livingChars[combatSelection.charIdx].c;
   const charOriginalIdx = livingChars[combatSelection.charIdx].i;
 
@@ -297,7 +312,7 @@ export function resolveCombatRound() {
 
   // Characters
   state.party.forEach((char, idx) => {
-    if (char.status === "ok" || char.status === "poisoned") {
+    if (char.status === "ok" || char.status === "poisoned" || char.status === "blind") {
       const chosen = combatSelection.actions.find(a => a.actorIdx === idx);
       const speed = char.agi + Math.floor(Math.random() * 10);
       turns.push({
@@ -331,7 +346,7 @@ export function resolveCombatRound() {
     if (escaped) return;
     if (turn.type === "char") {
       const char = turn.char;
-      if (char.status !== "ok" && char.status !== "poisoned") return; // Died/slept earlier in the round
+      if (char.status !== "ok" && char.status !== "poisoned" && char.status !== "blind") return; // Died/slept earlier in the round
       
       const act = turn.action;
       
@@ -346,18 +361,49 @@ export function resolveCombatRound() {
         
         const finalTarget = monsters[act.targetIdx];
         
-        // Attack math
-        const atkVal = char.str + getCharWeaponAtk(char);
-        const randRoll = Math.floor(Math.random() * 5); // 0-4
-        const dmg = Math.max(1, atkVal + randRoll - finalTarget.def);
+        let isBlindMiss = false;
+        if (char.status === "blind" && Math.random() < 0.5) {
+          isBlindMiss = true;
+        }
+
+        let dmg = 0;
+        let msg = "";
+        let floatText = "";
+        let sound = "hit";
+        let shake = 8;
+        if (isBlindMiss) {
+          msg = `[味方] ${char.name}の攻撃！しかし目がくらんで空振りした！`;
+          floatText = "MISS";
+          sound = "miss";
+          shake = 0;
+        } else {
+          // Attack math
+          const atkVal = char.str + getCharWeaponAtk(char);
+          const randRoll = Math.floor(Math.random() * 5); // 0-4
+          dmg = Math.max(1, atkVal + randRoll - finalTarget.def);
+          
+          if (char.status === "blind") {
+            dmg = Math.max(1, Math.floor(dmg / 2));
+          }
+          
+          if (finalTarget.physResist) {
+            dmg = Math.max(1, Math.round(dmg * (1 - finalTarget.physResist)));
+          }
+          
+          finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
+          msg = `[味方] ${char.name}の攻撃！${finalTarget.name}に${dmg}のダメージ。`;
+          if (finalTarget.physResist && dmg <= 2) {
+            msg += "（攻撃が弾かれている！）";
+          }
+          floatText = `${dmg}`;
+        }
         
-        finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
         logQueue.push({
-          msg: `[味方] ${char.name}の攻撃！${finalTarget.name}に${dmg}のダメージ。`,
-          sound: "hit",
-          shake: 8,
-          floatText: `${dmg}`,
-          floatColor: finalTarget.color
+          msg,
+          sound,
+          shake,
+          floatText,
+          floatColor: isBlindMiss ? "#8e8e93" : finalTarget.color
         });
 
         if (finalTarget.hp === 0) {
@@ -465,6 +511,7 @@ export function resolveCombatRound() {
               sound: "miss",
               runEscape: true
             });
+            escaped = true;
           } else {
             logQueue.push({ msg: `[味方] ${char.name}は逃げ出そうとしたが、失敗した！` });
           }
@@ -473,6 +520,17 @@ export function resolveCombatRound() {
     } else {
       const mon = turn.mon;
       if (mon.hp <= 0) return;
+
+      // Check if monster flees
+      if (mon.fleeChance && Math.random() < mon.fleeChance) {
+        mon.hp = 0;
+        mon.fled = true;
+        logQueue.push({
+          msg: `[ 敵 ] [!] ${mon.name}は逃げ出した！`,
+          sound: "miss"
+        });
+        return;
+      }
 
       const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => x.c.status !== "dead");
       if (livingChars.length === 0) return;
@@ -513,6 +571,12 @@ export function resolveCombatRound() {
         const finalDef = getCharDef(target);
         let dmg = Math.max(1, finalAtk - finalDef);
         if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+        
+        // Blind target receives 1.5x damage
+        if (target.status === "blind") {
+          dmg = Math.max(1, Math.round(dmg * 1.5));
+        }
+
         target.hp = Math.max(0, target.hp - dmg);
         logQueue.push({
           msg: `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`,
@@ -521,6 +585,24 @@ export function resolveCombatRound() {
           floatText: `${dmg}`,
           floatColor: "#ff3b30"
         });
+
+        // Apply poison effect if monster is poisonous and target survives
+        if (mon.isPoisonous && target.hp > 0 && target.status === "ok" && Math.random() < 0.35) {
+          target.status = "poisoned";
+          logQueue.push({
+            msg: `[ 敵 ] [!] ${target.name}は毒を受け、毒状態になった！`,
+            sound: "chest_trap"
+          });
+        }
+
+        // Apply paralyze effect if monster is paralyzing and target survives
+        if (mon.isParalyzing && target.hp > 0 && ["ok", "poisoned", "blind", "sleep"].includes(target.status) && Math.random() < 0.35) {
+          target.status = "paralyzed";
+          logQueue.push({
+            msg: `[ 敵 ] [!] ${target.name}は麻痺を受け、麻痺状態になった！`,
+            sound: "chest_trap"
+          });
+        }
       }
 
       if (target.hp === 0) {
@@ -537,16 +619,24 @@ export function resolveCombatRound() {
 
   const allMonstersDead = monsters.every(m => m.hp <= 0);
   if (allMonstersDead) {
-    const totalExp = monsters.reduce((sum, m) => sum + m.exp, 0);
-    const totalGold = monsters.reduce((sum, m) => sum + m.gold, 0);
+    const nonFledMonsters = monsters.filter(m => !m.fled);
+    const totalExp = nonFledMonsters.reduce((sum, m) => sum + m.exp, 0);
+    const totalGold = nonFledMonsters.reduce((sum, m) => sum + m.gold, 0);
     const livingChars = state.party.filter(c => c.status !== "dead");
-    const expShare = Math.round(totalExp / livingChars.length);
+    const expShare = livingChars.length > 0 ? Math.round(totalExp / livingChars.length) : 0;
 
     logQueue.push({ msg: "======================================" });
-    logQueue.push({
-      msg: `戦闘に勝利した！パーティは${totalGold}ゴールドを獲得した。`,
-      sound: "level_up"
-    });
+    if (nonFledMonsters.length > 0) {
+      logQueue.push({
+        msg: `戦闘に勝利した！パーティは${totalGold}ゴールドを獲得した。`,
+        sound: "level_up"
+      });
+    } else {
+      logQueue.push({
+        msg: `敵がすべて逃げ出し、戦闘が終了した。`,
+        sound: "miss"
+      });
+    }
 
     state.gold += totalGold;
 
@@ -626,10 +716,12 @@ export function playBattleLogs(queue, index) {
   updateUI();
 
   if (log.runEscape) {
+    state.transitioning = true;
     setTimeout(() => {
       state.gameState = "explore";
       state.combatState = null;
       resetSubmenuBackButton();
+      state.transitioning = false;
       saveAutosave();
       updateUI();
     }, 1200);
@@ -637,6 +729,7 @@ export function playBattleLogs(queue, index) {
   }
 
   if (log.escapeToTown) {
+    state.transitioning = true;
     setTimeout(() => {
       state.gameState = "town";
       state.x = START_X;
@@ -644,6 +737,7 @@ export function playBattleLogs(queue, index) {
       state.dir = DIR_N;
       state.combatState = null;
       resetSubmenuBackButton();
+      state.transitioning = false;
       saveAutosave();
       updateUI();
     }, 1200);
@@ -651,11 +745,13 @@ export function playBattleLogs(queue, index) {
   }
 
   if (log.giveCrystal) {
+    state.transitioning = true;
     state.inventory.push("ANTIGRAVITY_CRYSTAL");
     setTimeout(() => {
       state.gameState = "explore";
       state.combatState = null;
       resetSubmenuBackButton();
+      state.transitioning = false;
       saveAutosave();
       updateUI();
     }, 3000);
@@ -663,18 +759,22 @@ export function playBattleLogs(queue, index) {
   }
 
   if (log.triggerChest) {
+    state.transitioning = true;
     setTimeout(() => {
       state.gameState = "chest";
+      state.transitioning = false;
       setupChestState();
     }, 1500);
     return;
   }
 
   if (log.endCombat) {
+    state.transitioning = true;
     setTimeout(() => {
       state.gameState = "explore";
       state.combatState = null;
       resetSubmenuBackButton();
+      state.transitioning = false;
       saveAutosave();
       updateUI();
     }, 1200);

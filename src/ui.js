@@ -122,6 +122,18 @@ export function updateUI() {
     document.getElementById("submenu-controls").classList.add("active");
   }
 
+  // Disable interaction during transition
+  const controlsPanel = document.getElementById("controls-panel");
+  if (controlsPanel) {
+    if (state.transitioning) {
+      controlsPanel.style.pointerEvents = "none";
+      controlsPanel.style.opacity = "0.6";
+    } else {
+      controlsPanel.style.pointerEvents = "auto";
+      controlsPanel.style.opacity = "1";
+    }
+  }
+
   // Update Party HUD
   updatePartyHUD();
 }
@@ -186,7 +198,7 @@ export function updateCombatPrompt() {
   const prompt = document.getElementById("combat-prompt");
   if (!state.combatState) return;
 
-  const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => x.c.status === "ok" || x.c.status === "poisoned");
+  const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status));
   const currentSelect = livingChars[combatSelection.charIdx];
   if (state.combatState.phase === "resolving") {
     prompt.textContent = "ターン解決中...";
