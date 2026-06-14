@@ -331,18 +331,30 @@ export function openSubmenu(type, title, isBack = false) {
     const stock = [
       { key: "HEAL_POTION", price: 60 },
       { key: "ANTIDOTE", price: 80 },
+      { key: "HOLY_WATER", price: 180 },
+      { key: "MANA_POTION", price: 200 },
       { key: "TOWN_PORTAL", price: 100 },
       { key: "DAGGER", price: 50 },
+      { key: "WAND", price: 120 },
       { key: "SHORT_SWORD", price: 150 },
+      { key: "MACE", price: 100 },
+      { key: "NINJA_DAGGER", price: 300 },
       { key: "LONG_SWORD", price: 400 },
+      { key: "CLAYMORE", price: 750 },
       { key: "KATANA", price: 1500 },
       { key: "SMALL_SHIELD", price: 80 },
       { key: "LARGE_SHIELD", price: 250 },
+      { key: "KNIGHT_SHIELD", price: 450 },
       { key: "ROBE", price: 30 },
+      { key: "MAGE_CLOAK", price: 380 },
       { key: "LEATHER_ARMOR", price: 120 },
+      { key: "NINJA_SUIT", price: 250 },
+      { key: "SCALE_MAIL", price: 220 },
       { key: "CHAIN_MAIL", price: 350 },
+      { key: "PRIEST_ROBE", price: 500 },
       { key: "PLATE_MAIL", price: 900 }
     ];
+
 
     stock.forEach(st => {
       const item = ITEMS[st.key];
@@ -437,7 +449,10 @@ export function openSubmenu(type, title, isBack = false) {
 export function closeSubmenu() {
   // Return to appropriate state
   if (state.gameState === "submenu") {
-    if (menuContext.prevGameState) {
+    if (state.combatState && menuContext.type.startsWith("combat")) {
+      state.gameState = "combat";
+      menuContext.prevGameState = null;
+    } else if (menuContext.prevGameState) {
       state.gameState = menuContext.prevGameState;
       menuContext.prevGameState = null;
     } else {
@@ -563,4 +578,5 @@ export function handleExploreAction(action) {
 export function clearSaveData() {
   // Let the user start fresh next time
   localStorage.removeItem("mobile_wiz_rpg_save");
+  localStorage.removeItem("mobile_wiz_rpg_autosave");
 }

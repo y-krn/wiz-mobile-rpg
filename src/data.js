@@ -225,18 +225,28 @@ export const SPELLS = {
 export const ITEMS = {
   // Weapons
   DAGGER: { id: "DAGGER", name: "ダガー", type: "weapon", atk: 3, price: 50, desc: "シンプルな短剣。攻撃力+3 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"] },
+  WAND: { id: "WAND", name: "魔術師の杖", type: "weapon", atk: 4, price: 120, desc: "神秘的な魔力を宿した木の杖。攻撃力+4 [僧・魔用]", classes: ["Priest", "Mage"] },
   SHORT_SWORD: { id: "SHORT_SWORD", name: "ショートソード", type: "weapon", atk: 6, price: 150, desc: "使いやすい鉄の小太刀。攻撃力+6 [戦・盗用]", classes: ["Fighter", "Thief"] },
+  NINJA_DAGGER: { id: "NINJA_DAGGER", name: "忍びの短刀", type: "weapon", atk: 9, price: 300, desc: "暗殺用の鋭い短刀。攻撃力+9 [盗賊用]", classes: ["Thief"] },
   LONG_SWORD: { id: "LONG_SWORD", name: "ロングソード", type: "weapon", atk: 12, price: 400, desc: "両刃の美しい鋼鉄長剣。攻撃力+12 [戦士用]", classes: ["Fighter"] },
+  CLAYMORE: { id: "CLAYMORE", name: "クレイモア", type: "weapon", atk: 18, price: 750, desc: "重量のある両手大剣。攻撃力+18 [戦士専用]", classes: ["Fighter"] },
   KATANA: { id: "KATANA", name: "名刀ムラマサ", type: "weapon", atk: 25, price: 1500, desc: "伝説の妖刀。攻撃力+25 [戦士用]", classes: ["Fighter"] },
+  MACE: { id: "MACE", name: "メイス", type: "weapon", atk: 5, price: 100, desc: "打撃用の重い金属槌。攻撃力+5 [戦・僧用]", classes: ["Fighter", "Priest"] },
 
   // Shields
   SMALL_SHIELD: { id: "SMALL_SHIELD", name: "スモールシールド", type: "shield", def: 2, price: 80, desc: "木製の丸い小盾。防御力+2 [戦・盗・僧用]", classes: ["Fighter", "Thief", "Priest"] },
   LARGE_SHIELD: { id: "LARGE_SHIELD", name: "ラージシールド", type: "shield", def: 5, price: 250, desc: "鉄製の頑丈な大盾。防御力+5 [戦士用]", classes: ["Fighter"] },
+  KNIGHT_SHIELD: { id: "KNIGHT_SHIELD", name: "ナイトシールド", type: "shield", def: 8, price: 450, desc: "騎士用の鋼鉄盾。防御力+8 [戦士用]", classes: ["Fighter"] },
 
   // Armor
   ROBE: { id: "ROBE", name: "魔法使いのローブ", type: "armor", def: 1, price: 30, desc: "魔力を帯びたシルクの衣。防御力+1 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"] },
+  MAGE_CLOAK: { id: "MAGE_CLOAK", name: "魔術師のクローク", type: "armor", def: 4, price: 380, desc: "魔力で守られた外套。防御力+4 [魔術師用]", classes: ["Mage"] },
   LEATHER_ARMOR: { id: "LEATHER_ARMOR", name: "レザーアーマー", type: "armor", def: 4, price: 120, desc: "なめし革の胸当て。防御力+4 [戦・盗・僧用]", classes: ["Fighter", "Thief", "Priest"] },
+  NINJA_SUIT: { id: "NINJA_SUIT", name: "忍者の装束", type: "armor", def: 5, price: 250, desc: "闇に紛れる防具。防御力+5 [盗賊用]", classes: ["Thief"] },
+  SCALE_MAIL: { id: "SCALE_MAIL", name: "スケイルメイル", type: "armor", def: 6, price: 220, desc: "金属片を魚の鱗状に重ねた鎧。防御力+6 [戦・僧用]", classes: ["Fighter", "Priest"] },
   CHAIN_MAIL: { id: "CHAIN_MAIL", name: "チェインメイル", type: "armor", def: 8, price: 350, desc: "細かな鉄環を編み込んだ鎧。防御力+8 [戦・僧用]", classes: ["Fighter", "Priest"] },
+
+  PRIEST_ROBE: { id: "PRIEST_ROBE", name: "司祭の法衣", type: "armor", def: 8, price: 500, desc: "神聖な加護を得た法衣。防御力+8 [僧侶用]", classes: ["Priest"] },
   PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", def: 16, price: 900, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16 [戦士用]", classes: ["Fighter"] },
 
   // Potions / Quest items
@@ -251,6 +261,22 @@ export const ITEMS = {
     }
     return `${char.name}は解毒薬を使ったが、何も起こらなかった。`;
   }},
+  MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", price: 200, desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"], effect: (char) => {
+    if (char.class === "Priest" || char.class === "Mage") {
+      char.mp = Math.min(char.maxMp, char.mp + 3);
+      return `${char.name}は魔力草を使用し、MPが3回復した。(MP:${char.mp}/${char.maxMp})`;
+    }
+    return `${char.name}は魔力草を使用したが、魔力を持たないため何も起こらなかった。`;
+  }},
+  HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 180, desc: "使用するとHPを40回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"], effect: (char) => {
+    char.hp = Math.min(char.maxHp, char.hp + 40);
+    let cured = false;
+    if (char.status === "poisoned") {
+      char.status = "ok";
+      cured = true;
+    }
+    return `${char.name}は祝福の聖水を使い、HPが40回復した。${cured ? "毒も綺麗に消え去った！" : ""}`;
+  }},
   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 100, desc: "使用すると一瞬で街に戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"], effect: (char) => {
     return `${char.name}は帰還のスクロールを読んだ！`;
   }},
@@ -260,21 +286,29 @@ export const ITEMS = {
 // Monsters Database
 export const MONSTERS = [
   { name: "かみつき蟲", level: 1, hp: 6, atk: 4, def: 1, exp: 40, gold: 5, spriteType: "biter", color: "#00ff66" },
+  { name: "ゴブリンの呪術師", level: 1, hp: 10, atk: 4, def: 2, exp: 50, gold: 12, spriteType: "kobold", spell: "HALITO", color: "#00ff66" },
   { name: "コボルトの斥候", level: 1, hp: 8, atk: 5, def: 2, exp: 60, gold: 10, spriteType: "kobold", color: "#00ff66" },
   { name: "ゾンビ", level: 2, hp: 16, atk: 7, def: 3, exp: 120, gold: 20, spriteType: "zombie", isParalyzing: true, color: "#8a2be2" },
   { name: "ガイコツ戦士", level: 2, hp: 20, atk: 9, def: 4, exp: 180, gold: 35, spriteType: "skeleton", isParalyzing: true, color: "#dcdcdc" },
+  { name: "キラーラビット", level: 2, hp: 16, atk: 12, def: 4, exp: 120, gold: 20, spriteType: "rabbit", color: "#ff8c00" },
+  { name: "マッドゴースト", level: 2, hp: 14, atk: 6, def: 2, exp: 140, gold: 15, spriteType: "spirit", isParalyzing: true, physResist: 0.5, color: "#8a2be2" },
   { name: "オークの戦士", level: 3, hp: 28, atk: 12, def: 6, exp: 280, gold: 50, spriteType: "orc", color: "#ff8c00" },
   { name: "はぐれ魔術師", level: 3, hp: 22, atk: 8, def: 4, exp: 360, gold: 80, spriteType: "mage", spell: "HALITO", color: "#da70d6" },
+  { name: "ワーウルフ", level: 3, hp: 36, atk: 14, def: 5, exp: 340, gold: 60, spriteType: "orc", isPoisonous: true, color: "#ff8c00" },
+  { name: "バンシー", level: 3, hp: 26, atk: 9, def: 3, exp: 300, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.5, color: "#da70d6" },
   // 新しいモンスター
   { name: "スピリット", level: 2, hp: 15, atk: 5, def: 2, exp: 160, gold: 25, spriteType: "spirit", physResist: 0.7, color: "#00e5ff" }, // 物理効きづらい（術推奨）
   { name: "ウィル・オー・ウィスプ", level: 3, hp: 30, atk: 8, def: 2, exp: 300, gold: 40, spriteType: "wisp", magicResist: 0.8, color: "#ffffff" }, // 魔法効きづらい（物理推奨）
   { name: "ジャイアントスパイダー", level: 2, hp: 18, atk: 7, def: 3, exp: 150, gold: 25, spriteType: "spider", isPoisonous: true, color: "#bf5af2" }, // 毒攻撃
   { name: "フラッシュバット", level: 2, hp: 12, atk: 5, def: 2, exp: 100, gold: 15, spriteType: "bat", isBlinding: true, color: "#e5ff00" }, // 盲目攻撃
   { name: "ラッキーラビット", level: 2, hp: 10, atk: 4, def: 10, exp: 800, gold: 70, spriteType: "rabbit", fleeChance: 0.40, color: "#ffb300" }, // すぐ逃げる、高経験値
+  { name: "マスターメイジ", level: 4, hp: 32, atk: 10, def: 6, exp: 500, gold: 100, spriteType: "mage", spell: "LAHALITO", color: "#ff3b30" },
+  { name: "ポイズンジャイアント", level: 4, hp: 65, atk: 19, def: 7, exp: 600, gold: 120, spriteType: "zombie", isPoisonous: true, color: "#bf5af2" },
   { name: "フラック", level: 4, hp: 70, atk: 18, def: 8, exp: 1500, gold: 180, spriteType: "flack", spell: "LAHALITO", isRare: true, color: "#ff3b30" }, // 激レア、強敵
   
   { name: "いにしえの竜", level: 5, hp: 120, atk: 22, def: 12, exp: 4000, gold: 500, spriteType: "dragon", spell: "LAHALITO", isBoss: true, color: "#ff3b30" }
 ];
+
 
 // Dungeon Map Grid 32x32
 // Coordinate axes: X goes right (0..31), Y goes down (0..31)
@@ -286,5 +320,4 @@ export const MAP_HEIGHT = 32;
 
 export const START_X = 1;
 export const START_Y = 30;
-
 

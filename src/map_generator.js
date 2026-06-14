@@ -3,6 +3,81 @@ import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, START_Y, MAP_WIDTH, MAP_HEIGHT } f
 // Directions helper
 const DX = [0, 1, 0, -1];
 const DY = [-1, 0, 1, 0];
+const OPPOSITE_DIR = [DIR_S, DIR_W, DIR_N, DIR_E];
+
+function isPassageCell(grid, x, y) {
+  return x >= 0 &&
+    x < MAP_WIDTH &&
+    y >= 0 &&
+    y < MAP_HEIGHT &&
+    grid[y][x].walls.some(w => !w);
+}
+
+function getInternalWallEdges(grid) {
+  const edges = [];
+
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      if (!isPassageCell(grid, x, y)) continue;
+
+      if (grid[y][x].walls[DIR_E] && isPassageCell(grid, x + 1, y)) {
+        edges.push({
+          x,
+          y,
+          dir: DIR_E,
+          a: `${x + 1},${y}`,
+          b: `${x + 1},${y + 1}`
+        });
+      }
+
+      if (grid[y][x].walls[DIR_S] && isPassageCell(grid, x, y + 1)) {
+        edges.push({
+          x,
+          y,
+          dir: DIR_S,
+          a: `${x},${y + 1}`,
+          b: `${x + 1},${y + 1}`
+        });
+      }
+    }
+  }
+
+  return edges;
+}
+
+function openWall(grid, x, y, dir) {
+  const nx = x + DX[dir];
+  const ny = y + DY[dir];
+  if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) return;
+
+  grid[y][x].walls[dir] = false;
+  grid[ny][nx].walls[OPPOSITE_DIR[dir]] = false;
+}
+
+export function removeIsolatedInternalWalls(grid) {
+  let removed = 0;
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    const edges = getInternalWallEdges(grid);
+    const degree = new Map();
+
+    edges.forEach(edge => {
+      degree.set(edge.a, (degree.get(edge.a) || 0) + 1);
+      degree.set(edge.b, (degree.get(edge.b) || 0) + 1);
+    });
+
+    const isolated = edges.find(edge => degree.get(edge.a) === 1 && degree.get(edge.b) === 1);
+    if (isolated) {
+      openWall(grid, isolated.x, isolated.y, isolated.dir);
+      removed++;
+      changed = true;
+    }
+  }
+
+  return removed;
+}
 
 export function generateRandomMap(floor = 1, parentStairsCoord = null) {
   // 1. Initialize grid with all walls closed
@@ -105,6 +180,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
       }
     }
   }
+
+  removeIsolatedInternalWalls(grid);
 
   // 3. Setup floor specific connections & detect dead ends
   // Make sure start position is connected

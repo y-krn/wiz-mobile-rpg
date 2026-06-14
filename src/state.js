@@ -1,5 +1,5 @@
 import { DIR_N, ITEMS, MONSTERS, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "./data.js";
-import { generateRandomMap } from "./map_generator.js";
+import { generateRandomMap, removeIsolatedInternalWalls } from "./map_generator.js";
 
 
 // Save key for local storage
@@ -247,6 +247,9 @@ export function loadGame(forceSaveOnly = false) {
         Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
       ];
     }
+    loadedMaps.forEach(map => {
+      if (map) removeIsolatedInternalWalls(map);
+    });
     state.maps = loadedMaps;
     state.lightTurns = data.lightTurns ?? 0;
     state.gameState = data.gameState ?? "town";

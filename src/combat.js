@@ -3,7 +3,7 @@ import { DIR_N, START_X, START_Y, MONSTERS, ITEMS, SPELLS } from "./data.js";
 import { playSound } from "./audio.js";
 import { renderer } from "./game.js";
 import { updateUI } from "./ui.js";
-import { menuContext, openSubmenu, closeSubmenu } from "./menu.js";
+import { menuContext, menuHistory, openSubmenu, closeSubmenu } from "./menu.js";
 import { setupChestState, resetSubmenuBackButton } from "./chest.js";
 
 // Combat action selection state
@@ -27,7 +27,41 @@ export function startCombat(isBoss) {
     });
   } else {
     // Regular random encounter
-    const avgLevel = Math.round(state.party.reduce((sum, c) => sum + c.level, 0) / state.party.length);
+    const dist = Math.abs(state.x - START_X) + Math.abs(state.y - START_Y);
+    
+    let baseFloorLevel = state.floor === 1 ? 1 : 3;
+    let distOffset = 0;
+    let minCount = 1;
+    let maxCount = 3;
+    
+    if (state.floor === 1) {
+      if (dist < 12) {
+        distOffset = 0;
+        minCount = 1;
+        maxCount = 1; // Only 1 monster near start
+      } else if (dist < 24) {
+        distOffset = 0;
+        minCount = 1;
+        maxCount = 2; // 1-2 monsters
+      } else {
+        distOffset = 1; // target level 2
+        minCount = 1;
+        maxCount = 3; // 1-3 monsters
+      }
+    } else {
+      // Floor 2
+      if (dist < 15) {
+        distOffset = -1; // target level 2
+        minCount = 2;
+        maxCount = 3; // 2-3 monsters
+      } else {
+        distOffset = 1; // target level 4
+        minCount = 2;
+        maxCount = 4; // 2-4 monsters
+      }
+    }
+    
+    const targetLevel = Math.max(1, Math.min(4, baseFloorLevel + distOffset));
     
     // Check rare encounter chance (e.g. 8% chance)
     const isRareEncounter = Math.random() < 0.08;
@@ -42,15 +76,16 @@ export function startCombat(isBoss) {
       });
       addLog("【⚠️強敵遭遇！】周囲の空気が張り詰める...！");
     } else {
-      // Choose 1-3 monsters matching party level
-      const count = Math.floor(Math.random() * 3) + 1; // 1-3
+      // Choose monsters based on target level and count limits
+      const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
       
-      // Filter templates close to level (not boss, not rare)
-      const candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && Math.abs(m.level - avgLevel) <= 1);
+      let candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.level === targetLevel);
+      if (candidates.length === 0) {
+        candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && Math.abs(m.level - targetLevel) <= 1);
+      }
       
       for (let i = 0; i < count; i++) {
         const template = candidates[Math.floor(Math.random() * candidates.length)] || MONSTERS[0];
-        // Letters A, B, C
         const suffix = count > 1 ? ` ${String.fromCharCode(65 + i)}` : "";
         monsters.push({
           ...template,
@@ -70,6 +105,9 @@ export function startCombat(isBoss) {
 
   combatSelection.charIdx = 0;
   combatSelection.actions = [];
+  menuContext.prevGameState = null;
+  menuContext.type = "";
+  menuHistory.length = 0;
 
   addLog(`戦闘開始！敵が現れた：${monsters.map(m => m.name).join(", ")}`);
   
@@ -491,9 +529,14 @@ export function resolveCombatRound() {
           floatText = "+15";
         } else if (act.itemKey === "ANTIDOTE") {
           floatText = "CURED";
+        } else if (act.itemKey === "HOLY_WATER") {
+          floatText = "+40";
+        } else if (act.itemKey === "MANA_POTION") {
+          floatText = (target.class === "Priest" || target.class === "Mage") ? "+3 MP" : "無効";
         }
         logQueue.push({
           msg: `[味方] ${log}`,
+
           sound: "heal",
           floatText,
           floatColor
@@ -520,6 +563,14 @@ export function resolveCombatRound() {
     } else {
       const mon = turn.mon;
       if (mon.hp <= 0) return;
+
+      if (mon.status === "sleep") {
+        logQueue.push({
+          msg: `[ 敵 ] ${mon.name}は眠っていて動けない。`,
+          sound: "miss"
+        });
+        return;
+      }
 
       // Check if monster flees
       if (mon.fleeChance && Math.random() < mon.fleeChance) {
