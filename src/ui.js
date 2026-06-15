@@ -122,6 +122,16 @@ export function updateUI() {
     document.getElementById("submenu-controls").classList.add("active");
   }
 
+  // Update Shop Overlay visibility
+  const shopOverlay = document.getElementById("shop-overlay");
+  if (shopOverlay) {
+    if (state.gameState === "submenu" && (menuContext.type === "shop_main" || menuContext.type === "shop_buy" || menuContext.type === "shop_sell")) {
+      shopOverlay.style.display = "flex";
+    } else {
+      shopOverlay.style.display = "none";
+    }
+  }
+
   // Disable interaction during transition
   const controlsPanel = document.getElementById("controls-panel");
   if (controlsPanel) {
@@ -157,7 +167,9 @@ export function updatePartyHUD() {
     // Name and Class
     const header = document.createElement("div");
     header.className = "char-header";
-    header.innerHTML = `<span class="char-name">${char.name}</span><span class="char-class">Lv.${char.level} ${char.class[0]}</span>`;
+    const rowLabel = idx < 2 ? "[前]" : "[後]";
+    const rowColor = idx < 2 ? "var(--neon-cyan)" : "var(--neon-gold)";
+    header.innerHTML = `<span class="char-name">${char.name} <span style="font-size: 10px; color: ${rowColor}; font-weight: normal; margin-left: 4px;">${rowLabel}</span></span><span class="char-class">Lv.${char.level} ${char.class[0]}</span>`;
     card.appendChild(header);
 
     // HP Bar

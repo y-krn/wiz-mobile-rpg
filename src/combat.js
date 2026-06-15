@@ -427,6 +427,11 @@ export function resolveCombatRound() {
           if (char.status === "blind") {
             dmg = Math.max(1, Math.floor(dmg / 2));
           }
+
+          // Halve physical damage if attacking from the back row (index 2 or 3)
+          if (turn.idx >= 2) {
+            dmg = Math.max(1, Math.floor(dmg / 2));
+          }
           
           if (finalTarget.physResist) {
             dmg = Math.max(1, Math.round(dmg * (1 - finalTarget.physResist)));
@@ -610,10 +615,20 @@ export function resolveCombatRound() {
         return;
       }
 
-      const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => x.c.status !== "dead");
-      if (livingChars.length === 0) return;
+      // Prioritize living and active front row characters (idx 0, 1) for physical attacks; fall back to all living if none available
+      let targetCandidates = state.party
+        .map((c, i) => ({ c, i }))
+        .filter(x => x.i < 2 && !["dead", "paralyzed", "sleep"].includes(x.c.status));
 
-      const targetSelect = livingChars[Math.floor(Math.random() * livingChars.length)];
+      if (targetCandidates.length === 0) {
+        targetCandidates = state.party
+          .map((c, i) => ({ c, i }))
+          .filter(x => x.c.status !== "dead");
+      }
+
+      if (targetCandidates.length === 0) return;
+
+      const targetSelect = targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
       const target = targetSelect.c;
 
       if (mon.spell && Math.random() < 0.20) {
@@ -644,9 +659,9 @@ export function resolveCombatRound() {
           });
         }
       } else {
-        // Ninja physical attack evasion (30% chance)
+        // Ninja physical attack evasion (25% chance to balance with row system)
         let isEvaded = false;
-        if (target.class === "Ninja" && Math.random() < 0.30) {
+        if (target.class === "Ninja" && Math.random() < 0.25) {
           isEvaded = true;
         }
 

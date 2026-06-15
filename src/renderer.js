@@ -1,5 +1,6 @@
 import { DX, DY, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
 import { state } from "./state.js";
+import { menuContext } from "./menu.js";
 
 // Canvas dimensions
 const VIEW_W = 400;
@@ -69,7 +70,7 @@ export class DungeonRenderer {
     ctx.fillStyle = "#0c0c0e";
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    if (state.gameState === "town") {
+    if (state.gameState === "town" || (state.gameState === "submenu" && (menuContext.prevGameState === "town" || menuContext.type.startsWith("shop") || menuContext.type.startsWith("temple") || menuContext.type === "party_assemble"))) {
       this.drawTownBackground(ctx);
     } else {
       // Exploration or Combat or Chest
