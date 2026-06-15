@@ -132,7 +132,12 @@ export function resetSubmenuBackButton() {
 
 
 export function executeDisarm(char) {
-  let chance = char.class === "Thief" ? 0.85 : 0.25;
+  let chance = 0.25;
+  if (char.class === "Thief") {
+    chance = 0.85;
+  } else if (char.class === "Ranger") {
+    chance = 0.60;
+  }
   if (char.status === "blind") {
     chance = chance / 2.0;
   }

@@ -431,13 +431,31 @@ export function resolveCombatRound() {
           if (finalTarget.physResist) {
             dmg = Math.max(1, Math.round(dmg * (1 - finalTarget.physResist)));
           }
-          
-          finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
-          msg = `[味方] ${char.name}の攻撃！${finalTarget.name}に${dmg}のダメージ。`;
-          if (finalTarget.physResist && dmg <= 2) {
-            msg += "（攻撃が弾かれている！）";
+
+          // Ninja decapitation (instant death)
+          let isDecap = false;
+          if (char.class === "Ninja" && !finalTarget.isBoss) {
+            const decapChance = Math.min(0.15, 0.05 + 0.01 * char.level);
+            if (Math.random() < decapChance) {
+              isDecap = true;
+            }
           }
-          floatText = `${dmg}`;
+
+          if (isDecap) {
+            dmg = finalTarget.hp;
+            finalTarget.hp = 0;
+            msg = `[味方] 【🗡️急所攻撃！】${char.name}の必殺の一撃！${finalTarget.name}の首をはねた！`;
+            floatText = "即死";
+            sound = "kill";
+            shake = 15;
+          } else {
+            finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
+            msg = `[味方] ${char.name}の攻撃！${finalTarget.name}に${dmg}のダメージ。`;
+            if (finalTarget.physResist && dmg <= 2) {
+              msg += "（攻撃が弾かれている！）";
+            }
+            floatText = `${dmg}`;
+          }
         }
         
         logQueue.push({
@@ -626,51 +644,67 @@ export function resolveCombatRound() {
           });
         }
       } else {
-        const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
-        const finalAtk = mon.atk + Math.floor(Math.random() * 4);
-        const finalDef = getCharDef(target);
-        let dmg = Math.max(1, finalAtk - finalDef);
-        if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-        
-        // Blind target receives 1.5x damage
-        if (target.status === "blind") {
-          dmg = Math.max(1, Math.round(dmg * 1.5));
+        // Ninja physical attack evasion (30% chance)
+        let isEvaded = false;
+        if (target.class === "Ninja" && Math.random() < 0.30) {
+          isEvaded = true;
         }
 
-        target.hp = Math.max(0, target.hp - dmg);
-        logQueue.push({
-          msg: `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`,
-          sound: "hit",
-          shake: 8,
-          floatText: `${dmg}`,
-          floatColor: "#ff3b30"
-        });
-
-        // Apply poison effect if monster is poisonous and target survives
-        if (mon.isPoisonous && target.hp > 0 && target.status === "ok" && Math.random() < 0.35) {
-          target.status = "poisoned";
+        if (isEvaded) {
           logQueue.push({
-            msg: `[ 敵 ] [!] ${target.name}は毒を受け、毒状態になった！`,
-            sound: "chest_trap"
+            msg: `[ 敵 ] ${mon.name}の攻撃！しかし、忍者${target.name}は身軽に回避した！`,
+            sound: "miss",
+            shake: 0,
+            floatText: "AVOID",
+            floatColor: "#00ff66"
           });
-        }
+        } else {
+          const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
+          const finalAtk = mon.atk + Math.floor(Math.random() * 4);
+          const finalDef = getCharDef(target);
+          let dmg = Math.max(1, finalAtk - finalDef);
+          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+          
+          // Blind target receives 1.5x damage
+          if (target.status === "blind") {
+            dmg = Math.max(1, Math.round(dmg * 1.5));
+          }
 
-        // Apply paralyze effect if monster is paralyzing and target survives
-        if (mon.isParalyzing && target.hp > 0 && ["ok", "poisoned", "blind", "sleep"].includes(target.status) && Math.random() < 0.35) {
-          target.status = "paralyzed";
+          target.hp = Math.max(0, target.hp - dmg);
           logQueue.push({
-            msg: `[ 敵 ] [!] ${target.name}は麻痺を受け、麻痺状態になった！`,
-            sound: "chest_trap"
+            msg: `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`,
+            sound: "hit",
+            shake: 8,
+            floatText: `${dmg}`,
+            floatColor: "#ff3b30"
           });
-        }
 
-        // Apply blind effect if monster is blinding and target survives
-        if (mon.isBlinding && target.hp > 0 && target.status === "ok" && Math.random() < 0.35) {
-          target.status = "blind";
-          logQueue.push({
-            msg: `[ 敵 ] [!] ${mon.name}の放つ閃光により、${target.name}は盲目状態になった！`,
-            sound: "chest_trap"
-          });
+          // Apply poison effect if monster is poisonous and target survives
+          if (mon.isPoisonous && target.hp > 0 && target.status === "ok" && Math.random() < 0.35) {
+            target.status = "poisoned";
+            logQueue.push({
+              msg: `[ 敵 ] [!] ${target.name}は毒を受け、毒状態になった！`,
+              sound: "chest_trap"
+            });
+          }
+
+          // Apply paralyze effect if monster is paralyzing and target survives
+          if (mon.isParalyzing && target.hp > 0 && ["ok", "poisoned", "blind", "sleep"].includes(target.status) && Math.random() < 0.35) {
+            target.status = "paralyzed";
+            logQueue.push({
+              msg: `[ 敵 ] [!] ${target.name}は麻痺を受け、麻痺状態になった！`,
+              sound: "chest_trap"
+            });
+          }
+
+          // Apply blind effect if monster is blinding and target survives
+          if (mon.isBlinding && target.hp > 0 && target.status === "ok" && Math.random() < 0.35) {
+            target.status = "blind";
+            logQueue.push({
+              msg: `[ 敵 ] [!] ${mon.name}の放つ閃光により、${target.name}は盲目状態になった！`,
+              sound: "chest_trap"
+            });
+          }
         }
       }
 

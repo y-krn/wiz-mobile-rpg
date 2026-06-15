@@ -6,8 +6,8 @@ import { generateRandomMap, removeIsolatedInternalWalls } from "./map_generator.
 const SAVE_KEY = "mobile_wiz_rpg_save";
 const AUTOSAVE_KEY = "mobile_wiz_rpg_autosave";
 
-// Default characters
-export const createDefaultParty = () => [
+// Default roster (all 8 classes)
+export const createDefaultRoster = () => [
   {
     name: "Arthur",
     class: "Fighter",
@@ -97,8 +97,102 @@ export const createDefaultParty = () => [
       shield: null,
       armor: "ROBE"
     }
+  },
+  {
+    name: "Ken",
+    class: "Samurai",
+    level: 1,
+    exp: 0,
+    hp: 18,
+    maxHp: 18,
+    mp: 0,
+    maxMp: 0,
+    str: 12,
+    int: 11,
+    pie: 8,
+    vit: 12,
+    agi: 10,
+    luk: 8,
+    status: "ok",
+    spells: [],
+    equipment: {
+      weapon: "KATANA",
+      shield: "SMALL_SHIELD",
+      armor: "CHAIN_MAIL"
+    }
+  },
+  {
+    name: "Sophia",
+    class: "Bishop",
+    level: 1,
+    exp: 0,
+    hp: 11,
+    maxHp: 11,
+    mp: 3,
+    maxMp: 3,
+    str: 9,
+    int: 12,
+    pie: 12,
+    vit: 10,
+    agi: 9,
+    luk: 9,
+    status: "ok",
+    spells: ["DIOS", "HALITO"],
+    equipment: {
+      weapon: "WAND",
+      shield: null,
+      armor: "ROBE"
+    }
+  },
+  {
+    name: "Kael",
+    class: "Ranger",
+    level: 1,
+    exp: 0,
+    hp: 16,
+    maxHp: 16,
+    mp: 0,
+    maxMp: 0,
+    str: 11,
+    int: 8,
+    pie: 11,
+    vit: 11,
+    agi: 11,
+    luk: 9,
+    status: "ok",
+    spells: [],
+    equipment: {
+      weapon: "SHORT_SWORD",
+      shield: "SMALL_SHIELD",
+      armor: "LEATHER_ARMOR"
+    }
+  },
+  {
+    name: "Hanzo",
+    class: "Ninja",
+    level: 1,
+    exp: 0,
+    hp: 15,
+    maxHp: 15,
+    mp: 0,
+    maxMp: 0,
+    str: 12,
+    int: 8,
+    pie: 8,
+    vit: 12,
+    agi: 12,
+    luk: 12,
+    status: "ok",
+    spells: [],
+    equipment: {
+      weapon: null,
+      shield: null,
+      armor: "ROBE"
+    }
   }
 ];
+
+export const createDefaultParty = () => [];
 
 // Level EXP chart
 // EXP_LEVELS[level] represents cumulative EXP required to reach that level.
@@ -112,8 +206,9 @@ export const state = {
   y: START_Y,
   dir: DIR_N,
 
-  // Party & Inventory
+  // Party, Roster & Inventory
   party: [],
+  roster: [],
   gold: 150,
   inventory: ["HEAL_POTION", "HEAL_POTION"],
 
@@ -148,7 +243,8 @@ export function initNewGame() {
   state.x = START_X;
   state.y = START_Y;
   state.dir = DIR_N;
-  state.party = createDefaultParty();
+  state.roster = createDefaultRoster();
+  state.party = []; // Start with empty party
   state.gold = 150;
   state.inventory = ["HEAL_POTION", "HEAL_POTION"];
   
@@ -192,9 +288,26 @@ export function loadGame(forceSaveOnly = false) {
     state.x = data.x ?? START_X;
     state.y = data.y ?? START_Y;
     state.dir = data.dir ?? DIR_N;
-    state.party = data.party ?? createDefaultParty();
+    state.party = data.party ?? [];
+    state.roster = data.roster;
+    if (!state.roster) {
+      // Restore roster from current party and default roster
+      let roster = [];
+      if (data.party && data.party.length > 0) {
+        roster = [...data.party];
+      }
+      const defRoster = createDefaultRoster();
+      defRoster.forEach(defChar => {
+        if (!roster.some(c => c.name === defChar.name)) {
+          roster.push(defChar);
+        }
+      });
+      state.roster = roster;
+    }
+
     // Spell list migration for existing save data
-    state.party.forEach(char => {
+    const migrateCharSpells = (char) => {
+      if (!char.spells) char.spells = [];
       if (char.class === "Priest") {
         if (!char.spells.includes("DIURCO")) char.spells.push("DIURCO");
         if (!char.spells.includes("BADIOS")) char.spells.push("BADIOS");
@@ -217,7 +330,40 @@ export function loadGame(forceSaveOnly = false) {
           char.spells = char.spells.filter(s => s !== "MADALTO");
         }
       }
-    });
+      if (char.class === "Samurai") {
+        if (char.level < 9 && char.spells.includes("TILTOWAIT")) {
+          char.spells = char.spells.filter(s => s !== "TILTOWAIT");
+        }
+        if (char.level < 7 && char.spells.includes("MADALTO")) {
+          char.spells = char.spells.filter(s => s !== "MADALTO");
+        }
+      }
+      if (char.class === "Ranger") {
+        if (char.level < 10 && char.spells.includes("KADORTO")) {
+          char.spells = char.spells.filter(s => s !== "KADORTO");
+        }
+        if (char.level < 8 && char.spells.includes("DIALMA")) {
+          char.spells = char.spells.filter(s => s !== "DIALMA");
+        }
+      }
+      if (char.class === "Bishop") {
+        if (char.level < 10 && char.spells.includes("TILTOWAIT")) {
+          char.spells = char.spells.filter(s => s !== "TILTOWAIT");
+        }
+        if (char.level < 9 && char.spells.includes("KADORTO")) {
+          char.spells = char.spells.filter(s => s !== "KADORTO");
+        }
+        if (char.level < 7 && char.spells.includes("DIALMA")) {
+          char.spells = char.spells.filter(s => s !== "DIALMA");
+        }
+        if (char.level < 7 && char.spells.includes("MADALTO")) {
+          char.spells = char.spells.filter(s => s !== "MADALTO");
+        }
+      }
+    };
+    state.party.forEach(migrateCharSpells);
+    state.roster.forEach(migrateCharSpells);
+
     state.gold = data.gold ?? 150;
     state.inventory = data.inventory ?? [];
     
@@ -294,6 +440,7 @@ export function saveGame() {
       y: state.y,
       dir: state.dir,
       party: state.party,
+      roster: state.roster,
       gold: state.gold,
       inventory: state.inventory,
       floor: state.floor,
@@ -319,6 +466,7 @@ export function saveAutosave() {
       y: state.y,
       dir: state.dir,
       party: state.party,
+      roster: state.roster,
       gold: state.gold,
       inventory: state.inventory,
       floor: state.floor,
@@ -354,7 +502,12 @@ export function addLog(msg) {
 // Get Weapon Atk
 export function getCharWeaponAtk(char) {
   const wpId = char.equipment.weapon;
-  if (!wpId) return 0;
+  if (!wpId) {
+    if (char.class === "Ninja") {
+      return 3 * char.level; // Ninja bare hands damage scaling
+    }
+    return 0;
+  }
   return ITEMS[wpId]?.atk || 0;
 }
 
@@ -375,7 +528,8 @@ export function checkCharLevelUp(char) {
   const nextLvl = char.level + 1;
   if (nextLvl >= EXP_LEVELS.length) return false; // Max level reached
 
-  const req = EXP_LEVELS[nextLvl];
+  // Ninja requires 1.5x EXP
+  const req = char.class === "Ninja" ? Math.floor(EXP_LEVELS[nextLvl] * 1.5) : EXP_LEVELS[nextLvl];
   if (char.exp >= req) {
     char.level = nextLvl;
     
@@ -385,6 +539,10 @@ export function checkCharLevelUp(char) {
     else if (char.class === "Thief") hpGain = Math.floor(Math.random() * 5) + 6; // 6-10
     else if (char.class === "Priest") hpGain = Math.floor(Math.random() * 5) + 5; // 5-9
     else if (char.class === "Mage") hpGain = Math.floor(Math.random() * 4) + 4; // 4-7
+    else if (char.class === "Samurai") hpGain = Math.floor(Math.random() * 8) + 7; // 7-14
+    else if (char.class === "Bishop") hpGain = Math.floor(Math.random() * 5) + 5; // 5-9
+    else if (char.class === "Ranger") hpGain = Math.floor(Math.random() * 7) + 6; // 6-13
+    else if (char.class === "Ninja") hpGain = Math.floor(Math.random() * 9) + 6; // 6-14
     
     char.maxHp += hpGain;
     char.hp = char.maxHp;
@@ -398,6 +556,19 @@ export function checkCharLevelUp(char) {
       const mpGain = Math.floor(Math.random() * 2) + 3; // 3-4
       char.maxMp += mpGain;
       char.mp = char.maxMp;
+    } else if (char.class === "Bishop") {
+      const mpGain = Math.floor(Math.random() * 2) + 1; // 1-2
+      char.maxMp += mpGain;
+      char.mp = char.maxMp;
+    } else if (char.class === "Samurai" || char.class === "Ranger") {
+      if (char.level >= 3) {
+        if (char.maxMp === 0) {
+          char.maxMp = 3; // Initialize at level 3
+        } else {
+          char.maxMp += Math.floor(Math.random() * 2) + 1; // 1-2
+        }
+        char.mp = char.maxMp;
+      }
     }
 
     // Gain Stats
@@ -405,15 +576,17 @@ export function checkCharLevelUp(char) {
     if (Math.random() < 0.6) char.vit += 1;
     if (Math.random() < 0.6) char.agi += 1;
     if (Math.random() < 0.6) char.luk += 1;
-    if (char.class === "Mage" && Math.random() < 0.8) char.int += 1;
-    if (char.class === "Priest" && Math.random() < 0.8) char.pie += 1;
+    if ((char.class === "Mage" || char.class === "Bishop") && Math.random() < 0.8) char.int += 1;
+    if ((char.class === "Priest" || char.class === "Bishop" || char.class === "Ranger") && Math.random() < 0.8) char.pie += 1;
+    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.8) char.str += 1;
+    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.8) char.vit += 1;
+    if (char.class === "Ninja" && Math.random() < 0.8) char.agi += 1;
 
     // Learn spells
+    if (!char.spells) char.spells = [];
     if (char.class === "Priest") {
       if (char.level === 2 && !char.spells.includes("MADIOS")) {
-        char.spells.push("MADIOS");
-        char.spells.push("DIALKO");
-        char.spells.push("LATUMOFIS");
+        char.spells.push("MADIOS", "DIALKO", "LATUMOFIS");
       }
       if (char.level === 3 && !char.spells.includes("LOMILWA")) {
         char.spells.push("LOMILWA");
@@ -438,9 +611,73 @@ export function checkCharLevelUp(char) {
       if (char.level === 8 && !char.spells.includes("TILTOWAIT")) {
         char.spells.push("TILTOWAIT");
       }
+    } else if (char.class === "Samurai") {
+      if (char.level === 3) {
+        char.spells.push("HALITO", "DUMAPIC");
+      }
+      if (char.level === 4 && !char.spells.includes("LAHALITO")) {
+        char.spells.push("LAHALITO");
+      }
+      if (char.level === 5) {
+        if (!char.spells.includes("KATINO")) char.spells.push("KATINO");
+        if (!char.spells.includes("MAHALITO")) char.spells.push("MAHALITO");
+      }
+      if (char.level === 7 && !char.spells.includes("MADALTO")) {
+        char.spells.push("MADALTO");
+      }
+      if (char.level === 9 && !char.spells.includes("TILTOWAIT")) {
+        char.spells.push("TILTOWAIT");
+      }
+    } else if (char.class === "Ranger") {
+      if (char.level === 3) {
+        char.spells.push("DIOS", "MILWA", "DIURCO", "BADIOS");
+      }
+      if (char.level === 4 && !char.spells.includes("MADIOS")) {
+        char.spells.push("MADIOS", "DIALKO", "LATUMOFIS");
+      }
+      if (char.level === 5 && !char.spells.includes("LOMILWA")) {
+        char.spells.push("LOMILWA");
+      }
+      if (char.level === 8 && !char.spells.includes("DIALMA")) {
+        char.spells.push("DIALMA");
+      }
+      if (char.level === 10 && !char.spells.includes("KADORTO")) {
+        char.spells.push("KADORTO");
+      }
+    } else if (char.class === "Bishop") {
+      if (char.level === 2) {
+        ["MILWA", "DIURCO", "BADIOS", "DUMAPIC"].forEach(s => {
+          if (!char.spells.includes(s)) char.spells.push(s);
+        });
+      }
+      if (char.level === 3) {
+        ["MADIOS", "DIALKO", "LATUMOFIS", "LAHALITO"].forEach(s => {
+          if (!char.spells.includes(s)) char.spells.push(s);
+        });
+      }
+      if (char.level === 4) {
+        ["LOMILWA", "KATINO"].forEach(s => {
+          if (!char.spells.includes(s)) char.spells.push(s);
+        });
+      }
+      if (char.level === 5 && !char.spells.includes("MAHALITO")) {
+        char.spells.push("MAHALITO");
+      }
+      if (char.level === 7) {
+        ["DIALMA", "MADALTO"].forEach(s => {
+          if (!char.spells.includes(s)) char.spells.push(s);
+        });
+      }
+      if (char.level === 9 && !char.spells.includes("KADORTO")) {
+        char.spells.push("KADORTO");
+      }
+      if (char.level === 10 && !char.spells.includes("TILTOWAIT")) {
+        char.spells.push("TILTOWAIT");
+      }
     }
 
     return true;
   }
   return false;
 }
+

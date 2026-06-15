@@ -64,6 +64,7 @@ function bindButtons() {
   document.getElementById("btn-town-castle").addEventListener("click", () => handleTownOption("castle"));
   document.getElementById("btn-town-shop").addEventListener("click", () => handleTownOption("shop"));
   document.getElementById("btn-town-temple").addEventListener("click", () => handleTownOption("temple"));
+  document.getElementById("btn-town-training").addEventListener("click", () => handleTownOption("training"));
   document.getElementById("btn-town-camp").addEventListener("click", () => handleTownOption("camp"));
 
   // Combat actions

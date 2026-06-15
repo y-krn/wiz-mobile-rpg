@@ -231,6 +231,12 @@ export function applyExplorationPoison() {
 }
 
 export function enterDungeon() {
+  if (!state.party || state.party.length === 0) {
+    addLog("【警告】迷宮に入るには、まずお城の「訓練場」でパーティを編成してください。");
+    playSound("bump");
+    updateUI();
+    return;
+  }
   state.gameState = "explore";
   state.floor = 1;
   state.x = START_X;

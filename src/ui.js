@@ -1,5 +1,5 @@
 import { state, getCharWeaponAtk, getCharDef } from "./state.js";
-import { DIR_NAMES } from "./data.js";
+import { DIR_NAMES, getClassJpName, isSpellcaster } from "./data.js";
 import { isMuted } from "./audio.js";
 import { menuContext } from "./menu.js";
 import { combatSelection } from "./combat.js";
@@ -173,10 +173,10 @@ export function updatePartyHUD() {
     `;
     
     // MP Bar (always rendered to align layouts, hidden for non-spellcasters)
-    const isSpellcaster = char.class === "Priest" || char.class === "Mage";
-    const mpPct = (isSpellcaster && char.maxMp > 0) ? (char.mp / char.maxMp) * 100 : 0;
-    const mpVal = isSpellcaster ? char.mp : "";
-    const mpStyle = isSpellcaster ? "" : "visibility: hidden;";
+    const spellcaster = isSpellcaster(char);
+    const mpPct = (spellcaster && char.maxMp > 0) ? (char.mp / char.maxMp) * 100 : 0;
+    const mpVal = spellcaster ? char.mp : "";
+    const mpStyle = spellcaster ? "" : "visibility: hidden;";
     
     hpContainer.innerHTML += `
       <div class="bar-container" style="${mpStyle}">
@@ -208,7 +208,7 @@ export function updateCombatPrompt() {
   if (state.combatState.phase === "resolving") {
     prompt.textContent = "ターン解決中...";
   } else if (currentSelect) {
-    const classJp = currentSelect.c.class === "Fighter" ? "戦士" : currentSelect.c.class === "Thief" ? "盗賊" : currentSelect.c.class === "Priest" ? "僧侶" : "魔術師";
+    const classJp = getClassJpName(currentSelect.c.class);
     prompt.textContent = `${currentSelect.c.name} (${classJp}) の行動を選択：`;
   } else {
     prompt.textContent = "ターン解決中...";

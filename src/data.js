@@ -294,30 +294,30 @@ export const SPELLS = {
 // Item Database
 export const ITEMS = {
   // Weapons
-  DAGGER: { id: "DAGGER", name: "ダガー", type: "weapon", atk: 3, price: 50, desc: "シンプルな短剣。攻撃力+3 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"] },
-  WAND: { id: "WAND", name: "魔術師の杖", type: "weapon", atk: 4, price: 120, desc: "神秘的な魔力を宿した木の杖。攻撃力+4 [僧・魔用]", classes: ["Priest", "Mage"] },
-  SHORT_SWORD: { id: "SHORT_SWORD", name: "ショートソード", type: "weapon", atk: 6, price: 150, desc: "使いやすい鉄の小太刀。攻撃力+6 [戦・盗用]", classes: ["Fighter", "Thief"] },
-  NINJA_DAGGER: { id: "NINJA_DAGGER", name: "忍びの短刀", type: "weapon", atk: 9, price: 300, desc: "暗殺用の鋭い短刀。攻撃力+9 [盗賊用]", classes: ["Thief"] },
-  LONG_SWORD: { id: "LONG_SWORD", name: "ロングソード", type: "weapon", atk: 12, price: 400, desc: "両刃の美しい鋼鉄長剣。攻撃力+12 [戦士用]", classes: ["Fighter"] },
-  CLAYMORE: { id: "CLAYMORE", name: "クレイモア", type: "weapon", atk: 18, price: 750, desc: "重量のある両手大剣。攻撃力+18 [戦士専用]", classes: ["Fighter"] },
-  KATANA: { id: "KATANA", name: "名刀ムラマサ", type: "weapon", atk: 25, price: 1500, desc: "伝説の妖刀。攻撃力+25 [戦士用]", classes: ["Fighter"] },
-  MACE: { id: "MACE", name: "メイス", type: "weapon", atk: 5, price: 100, desc: "打撃用の重い金属槌。攻撃力+5 [戦・僧用]", classes: ["Fighter", "Priest"] },
+  DAGGER: { id: "DAGGER", name: "ダガー", type: "weapon", atk: 3, price: 50, desc: "シンプルな短剣。攻撃力+3 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
+  WAND: { id: "WAND", name: "魔術師の杖", type: "weapon", atk: 4, price: 120, desc: "神秘的な魔力を宿した木の杖。攻撃力+4 [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"] },
+  SHORT_SWORD: { id: "SHORT_SWORD", name: "ショートソード", type: "weapon", atk: 6, price: 150, desc: "使いやすい鉄の小太刀。攻撃力+6 [戦・盗・侍・野用]", classes: ["Fighter", "Thief", "Samurai", "Ranger"] },
+  NINJA_DAGGER: { id: "NINJA_DAGGER", name: "忍びの短刀", type: "weapon", atk: 9, price: 300, desc: "暗殺用の鋭い短刀。攻撃力+9 [盗・忍用]", classes: ["Thief", "Ninja"] },
+  LONG_SWORD: { id: "LONG_SWORD", name: "ロングソード", type: "weapon", atk: 12, price: 400, desc: "両刃 of 美しい鋼鉄長剣。攻撃力+12 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"] },
+  CLAYMORE: { id: "CLAYMORE", name: "クレイモア", type: "weapon", atk: 18, price: 750, desc: "重量のある両手大剣。攻撃力+18 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+  KATANA: { id: "KATANA", name: "名刀ムラマサ", type: "weapon", atk: 25, price: 1500, desc: "伝説の妖刀。攻撃力+25 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+  MACE: { id: "MACE", name: "メイス", type: "weapon", atk: 5, price: 100, desc: "打撃用の重い金属槌。攻撃力+5 [戦・僧・司・野用]", classes: ["Fighter", "Priest", "Bishop", "Ranger"] },
 
   // Shields
-  SMALL_SHIELD: { id: "SMALL_SHIELD", name: "スモールシールド", type: "shield", def: 2, price: 80, desc: "木製の丸い小盾。防御力+2 [戦・盗・僧用]", classes: ["Fighter", "Thief", "Priest"] },
-  LARGE_SHIELD: { id: "LARGE_SHIELD", name: "ラージシールド", type: "shield", def: 5, price: 250, desc: "鉄製の頑丈な大盾。防御力+5 [戦士用]", classes: ["Fighter"] },
-  KNIGHT_SHIELD: { id: "KNIGHT_SHIELD", name: "ナイトシールド", type: "shield", def: 8, price: 450, desc: "騎士用の鋼鉄盾。防御力+8 [戦士用]", classes: ["Fighter"] },
+  SMALL_SHIELD: { id: "SMALL_SHIELD", name: "スモールシールド", type: "shield", def: 2, price: 80, desc: "木製の丸い小盾。防御力+2 [戦・盗・僧・侍・野用]", classes: ["Fighter", "Thief", "Priest", "Samurai", "Ranger"] },
+  LARGE_SHIELD: { id: "LARGE_SHIELD", name: "ラージシールド", type: "shield", def: 5, price: 250, desc: "鉄製の頑丈な大盾。防御力+5 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+  KNIGHT_SHIELD: { id: "KNIGHT_SHIELD", name: "ナイトシールド", type: "shield", def: 8, price: 450, desc: "騎士用の鋼鉄盾。防御力+8 [戦・侍用]", classes: ["Fighter", "Samurai"] },
 
   // Armor
-  ROBE: { id: "ROBE", name: "魔法使いのローブ", type: "armor", def: 1, price: 30, desc: "魔力を帯びたシルクの衣。防御力+1 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"] },
-  MAGE_CLOAK: { id: "MAGE_CLOAK", name: "魔術師のクローク", type: "armor", def: 4, price: 380, desc: "魔力で守られた外套。防御力+4 [魔術師用]", classes: ["Mage"] },
-  LEATHER_ARMOR: { id: "LEATHER_ARMOR", name: "レザーアーマー", type: "armor", def: 4, price: 120, desc: "なめし革の胸当て。防御力+4 [戦・盗・僧用]", classes: ["Fighter", "Thief", "Priest"] },
-  NINJA_SUIT: { id: "NINJA_SUIT", name: "忍者の装束", type: "armor", def: 5, price: 250, desc: "闇に紛れる防具。防御力+5 [盗賊用]", classes: ["Thief"] },
-  SCALE_MAIL: { id: "SCALE_MAIL", name: "スケイルメイル", type: "armor", def: 6, price: 220, desc: "金属片を魚の鱗状に重ねた鎧。防御力+6 [戦・僧用]", classes: ["Fighter", "Priest"] },
-  CHAIN_MAIL: { id: "CHAIN_MAIL", name: "チェインメイル", type: "armor", def: 8, price: 350, desc: "細かな鉄環を編み込んだ鎧。防御力+8 [戦・僧用]", classes: ["Fighter", "Priest"] },
+  ROBE: { id: "ROBE", name: "魔法使いのローブ", type: "armor", def: 1, price: 30, desc: "魔力を帯びたシルクの衣。防御力+1 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
+  MAGE_CLOAK: { id: "MAGE_CLOAK", name: "魔術師のクローク", type: "armor", def: 4, price: 380, desc: "魔力で守られた外套。防御力+4 [魔・司用]", classes: ["Mage", "Bishop"] },
+  LEATHER_ARMOR: { id: "LEATHER_ARMOR", name: "レザーアーマー", type: "armor", def: 4, price: 120, desc: "なめし革の胸当て。防御力+4 [戦・盗・僧・侍・野用]", classes: ["Fighter", "Thief", "Priest", "Samurai", "Ranger"] },
+  NINJA_SUIT: { id: "NINJA_SUIT", name: "忍者の装束", type: "armor", def: 5, price: 250, desc: "闇に紛れる防具。防御力+5 [盗・忍用]", classes: ["Thief", "Ninja"] },
+  SCALE_MAIL: { id: "SCALE_MAIL", name: "スケイルメイル", type: "armor", def: 6, price: 220, desc: "金属片を魚の鱗状に重ねた鎧。防御力+6 [戦・僧・侍・野用]", classes: ["Fighter", "Priest", "Samurai", "Ranger"] },
+  CHAIN_MAIL: { id: "CHAIN_MAIL", name: "チェインメイル", type: "armor", def: 8, price: 350, desc: "細かな鉄環を編み込んだ鎧。防御力+8 [戦・僧・侍用]", classes: ["Fighter", "Priest", "Samurai"] },
 
-  PRIEST_ROBE: { id: "PRIEST_ROBE", name: "司祭の法衣", type: "armor", def: 8, price: 500, desc: "神聖な加護を得た法衣。防御力+8 [僧侶用]", classes: ["Priest"] },
-  PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", def: 16, price: 900, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16 [戦士用]", classes: ["Fighter"] },
+  PRIEST_ROBE: { id: "PRIEST_ROBE", name: "司祭の法衣", type: "armor", def: 8, price: 500, desc: "神聖な加護を得た法衣。防御力+8 [僧・司用]", classes: ["Priest", "Bishop"] },
+  PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", def: 16, price: 900, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16 [戦・侍用]", classes: ["Fighter", "Samurai"] },
 
   // Potions / Quest items
   HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", price: 60, desc: "使用するとHPを15回復する。", effect: (char) => {
@@ -331,14 +331,14 @@ export const ITEMS = {
     }
     return `${char.name}は解毒薬を使ったが、何も起こらなかった。`;
   }},
-  MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", price: 200, desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"], effect: (char) => {
-    if (char.class === "Priest" || char.class === "Mage") {
+  MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", price: 200, desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+    if (canUsePriestSpells(char) || canUseMageSpells(char)) {
       char.mp = Math.min(char.maxMp, char.mp + 3);
       return `${char.name}は魔力草を使用し、MPが3回復した。(MP:${char.mp}/${char.maxMp})`;
     }
     return `${char.name}は魔力草を使用したが、魔力を持たないため何も起こらなかった。`;
   }},
-  HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 180, desc: "使用するとHPを40回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"], effect: (char) => {
+  HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 180, desc: "使用するとHPを40回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     char.hp = Math.min(char.maxHp, char.hp + 40);
     let cured = false;
     if (char.status === "poisoned") {
@@ -347,7 +347,7 @@ export const ITEMS = {
     }
     return `${char.name}は祝福の聖水を使い、HPが40回復した。${cured ? "毒も綺麗に消え去った！" : ""}`;
   }},
-  TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 100, desc: "使用すると一瞬で街に戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"], effect: (char) => {
+  TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 100, desc: "使用すると一瞬で街に戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     return `${char.name}は帰還のスクロールを読んだ！`;
   }},
   ANTIGRAVITY_CRYSTAL: { id: "ANTIGRAVITY_CRYSTAL", name: "浮遊石 (クリスタル)", type: "quest", price: 0, desc: "青く浮かび上がる伝説の結晶。城に持ち帰ると勝利。" },
@@ -392,4 +392,37 @@ export const MAP_HEIGHT = 24;
 
 export const START_X = 1;
 export const START_Y = 22;
+
+export function canUsePriestSpells(char) {
+  if (!char) return false;
+  if (char.class === "Priest" || char.class === "Bishop") return true;
+  if (char.class === "Ranger" && char.level >= 3) return true;
+  return false;
+}
+
+export function canUseMageSpells(char) {
+  if (!char) return false;
+  if (char.class === "Mage" || char.class === "Bishop") return true;
+  if (char.class === "Samurai" && char.level >= 3) return true;
+  return false;
+}
+
+export function isSpellcaster(char) {
+  return canUsePriestSpells(char) || canUseMageSpells(char);
+}
+
+export function getClassJpName(cls) {
+  const mapping = {
+    Fighter: "戦士",
+    Thief: "盗賊",
+    Priest: "僧侶",
+    Mage: "魔術師",
+    Samurai: "侍",
+    Bishop: "司祭",
+    Ranger: "野伏",
+    Ninja: "忍者"
+  };
+  return mapping[cls] || cls;
+}
+
 
