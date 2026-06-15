@@ -102,8 +102,8 @@ export const createDefaultParty = () => [
 
 // Level EXP chart
 // EXP_LEVELS[level] represents cumulative EXP required to reach that level.
-// Level 1 is initial state. Level 2 needs 100 EXP, Level 3 needs 300 EXP, etc.
-export const EXP_LEVELS = [0, 0, 200, 800, 2500, 7500, 20000];
+// Level 1 is initial state.
+export const EXP_LEVELS = [0, 0, 200, 800, 2000, 4500, 9000, 16000, 25000, 40000, 60000];
 
 // Main State Object
 export const state = {
@@ -119,8 +119,8 @@ export const state = {
 
   // Map & Light
   floor: 1,
-  maps: [null, null],
-  visitedMaps: [null, null],
+  maps: [null, null, null, null, null],
+  visitedMaps: [null, null, null, null, null],
   lightTurns: 0,
 
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
@@ -155,8 +155,14 @@ export function initNewGame() {
   state.floor = 1;
   const b1 = generateRandomMap(1);
   const b2 = generateRandomMap(2, b1.stairsDownCoord);
-  state.maps = [b1.grid, b2.grid];
+  const b3 = generateRandomMap(3, b2.stairsDownCoord);
+  const b4 = generateRandomMap(4, b3.stairsDownCoord);
+  const b5 = generateRandomMap(5, b4.stairsDownCoord);
+  state.maps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
   state.visitedMaps = [
+    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
     Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
     Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
   ];
@@ -192,6 +198,24 @@ export function loadGame(forceSaveOnly = false) {
       if (char.class === "Priest") {
         if (!char.spells.includes("DIURCO")) char.spells.push("DIURCO");
         if (!char.spells.includes("BADIOS")) char.spells.push("BADIOS");
+        // DIALMA requires level 8
+        if (char.level < 8 && char.spells.includes("DIALMA")) {
+          char.spells = char.spells.filter(s => s !== "DIALMA");
+        }
+        // KADORTO requires level 9
+        if (char.level < 9 && char.spells.includes("KADORTO")) {
+          char.spells = char.spells.filter(s => s !== "KADORTO");
+        }
+      }
+      if (char.class === "Mage") {
+        // TILTOWAIT requires level 8 now
+        if (char.level < 8 && char.spells.includes("TILTOWAIT")) {
+          char.spells = char.spells.filter(s => s !== "TILTOWAIT");
+        }
+        // MADALTO requires level 6
+        if (char.level < 6 && char.spells.includes("MADALTO")) {
+          char.spells = char.spells.filter(s => s !== "MADALTO");
+        }
       }
     });
     state.gold = data.gold ?? 150;
@@ -200,50 +224,46 @@ export function loadGame(forceSaveOnly = false) {
     state.floor = data.floor ?? 1;
     let loadedMaps = data.maps;
 
-    // Check if maps contain any old "door" types to trigger migration
+    // Check if maps need migration (different dimensions or length !== 5)
     let needsMigration = false;
-    if (loadedMaps) {
-      for (const map of loadedMaps) {
-        if (map) {
-          for (let y = 0; y < MAP_HEIGHT; y++) {
-            for (let x = 0; x < MAP_WIDTH; x++) {
-              if (map[y] && map[y][x] && map[y][x].type === "door") {
-                needsMigration = true;
-                break;
-              }
-            }
-            if (needsMigration) break;
-          }
-        }
-        if (needsMigration) break;
+    if (!loadedMaps || loadedMaps.length < 5) {
+      needsMigration = true;
+    } else {
+      const firstMap = loadedMaps[0];
+      if (!firstMap || firstMap.length !== MAP_HEIGHT || (firstMap[0] && firstMap[0].length !== MAP_WIDTH)) {
+        needsMigration = true;
       }
     }
 
-    if (!loadedMaps || needsMigration) {
-      if (data.map && !needsMigration) {
-        const b2 = generateRandomMap(2, { x: MAP_WIDTH - 2, y: 1 });
-        loadedMaps = [data.map, b2.grid];
-      } else {
-        const b1 = generateRandomMap(1);
-        const b2 = generateRandomMap(2, b1.stairsDownCoord);
-        loadedMaps = [b1.grid, b2.grid];
-        
-        // Reset player coordinates to B1F start upon migration
-        state.x = START_X;
-        state.y = START_Y;
-        state.floor = 1;
-        state.dir = DIR_N;
-        addLog("マップデータが新しいバージョンに更新され、スタート地点に戻されました。");
-      }
+    if (needsMigration) {
+      const b1 = generateRandomMap(1);
+      const b2 = generateRandomMap(2, b1.stairsDownCoord);
+      const b3 = generateRandomMap(3, b2.stairsDownCoord);
+      const b4 = generateRandomMap(4, b3.stairsDownCoord);
+      const b5 = generateRandomMap(5, b4.stairsDownCoord);
+      loadedMaps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
+      
+      // Reset player coordinates upon migration
+      state.x = START_X;
+      state.y = START_Y;
+      state.floor = 1;
+      state.dir = DIR_N;
+      addLog("マップデータが新しいバージョンに更新され、スタート地点に戻されました。");
 
       state.visitedMaps = [
+        Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+        Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+        Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
         Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
         Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
       ];
       state.visitedMap[state.y][state.x] = true;
     } else {
       state.visitedMaps = data.visitedMaps ?? [
-        data.visitedMap ?? Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+        Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+        Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+        Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+        Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
         Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
       ];
     }
@@ -398,13 +418,25 @@ export function checkCharLevelUp(char) {
       if (char.level === 3 && !char.spells.includes("LOMILWA")) {
         char.spells.push("LOMILWA");
       }
+      if (char.level === 8 && !char.spells.includes("DIALMA")) {
+        char.spells.push("DIALMA");
+      }
+      if (char.level === 9 && !char.spells.includes("KADORTO")) {
+        char.spells.push("KADORTO");
+      }
     } else if (char.class === "Mage") {
       if (char.level === 2 && !char.spells.includes("LAHALITO")) {
         char.spells.push("LAHALITO");
       }
-      if (char.level === 3 && !char.spells.includes("TILTOWAIT")) {
+      if (char.level === 3) {
+        if (!char.spells.includes("KATINO")) char.spells.push("KATINO");
+        if (!char.spells.includes("MAHALITO")) char.spells.push("MAHALITO");
+      }
+      if (char.level === 6 && !char.spells.includes("MADALTO")) {
+        char.spells.push("MADALTO");
+      }
+      if (char.level === 8 && !char.spells.includes("TILTOWAIT")) {
         char.spells.push("TILTOWAIT");
-        char.spells.push("KATINO");
       }
     }
 

@@ -76,7 +76,7 @@ export class DungeonRenderer {
       this.draw3DCorridors(ctx);
       
       // Draw Monster if in Combat
-      if (state.gameState === "combat" && state.combatState) {
+      if (state.combatState && (state.gameState === "combat" || (state.gameState === "submenu" && !state.chestState))) {
         this.drawMonsters(ctx);
       }
 
@@ -628,7 +628,7 @@ export class DungeonRenderer {
   }
 
   drawMiniMap(ctx) {
-    const cellS = 8; // Adjust cell size to 8px
+    const cellS = 10; // Adjust cell size to 10px
     const margin = 8;
     const minimapSize = 128; // Fixed minimap size to match 16x16 cell size (128x128px)
     

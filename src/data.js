@@ -80,11 +80,50 @@ export const SPELLS = {
       return { log: `${caster.name}はデュマピックを唱えた！現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}, 方角: ${DIR_NAMES[state.dir]}` };
     }
   },
+  MAHALITO: {
+    name: "MAHALITO",
+    type: "mage",
+    level: 3,
+    cost: 3,
+    target: "single_enemy",
+    desc: "中級炎魔法 (20-35 DMG)",
+    effect: (caster, target) => {
+      let dmg = Math.floor(Math.random() * 16) + 20;
+      if (target && target.magicResist) {
+        dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
+      }
+      return { damage: dmg, log: `${caster.name}はマハリトを唱えた！${target.name}に${dmg}の熱線ダメージ！${target && target.magicResist ? "（呪文がレジストされた！）" : ""}` };
+    }
+  },
+  MADALTO: {
+    name: "MADALTO",
+    type: "mage",
+    level: 6,
+    cost: 4,
+    target: "all_enemies",
+    desc: "氷結呪文 (30-60 DMG)",
+    effect: (caster, targets) => {
+      const results = targets.map(t => {
+        if (t.hp <= 0) return 0;
+        let dmg = Math.floor(Math.random() * 31) + 30;
+        let isResisted = false;
+        if (t.magicResist) {
+          dmg = Math.max(0, Math.round(dmg * (1 - t.magicResist)));
+          isResisted = true;
+        }
+        t.hp = Math.max(0, t.hp - dmg);
+        return { name: t.name, dmg, isResisted };
+      }).filter(r => r !== 0);
+      
+      const logDetails = results.map(r => `${r.name}に${r.dmg}のダメージ${r.isResisted ? "(半減)" : ""}`).join(", ");
+      return { log: `${caster.name}はマダルトを唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})` };
+    }
+  },
   TILTOWAIT: {
     name: "TILTOWAIT",
     type: "mage",
-    level: 3,
-    cost: 5,
+    level: 8,
+    cost: 6,
     target: "all_enemies",
     desc: "極大爆裂呪文 (50-100 DMG)",
     effect: (caster, targets) => {
@@ -218,7 +257,38 @@ export const SPELLS = {
       state.lightTurns = (state.lightTurns || 0) + 100;
       return { log: `${caster.name}はロミルワを唱えた！まばゆい光が暗闇を払い、ミニマップが100歩の間表示される。` };
     }
+  },
+  DIALMA: {
+    name: "DIALMA",
+    type: "priest",
+    level: 8,
+    cost: 4,
+    target: "single_ally",
+    desc: "高度の治療 (70-120 HP回復)",
+    effect: (caster, target) => {
+      const heal = Math.floor(Math.random() * 51) + 70;
+      target.hp = Math.min(target.maxHp, target.hp + heal);
+      return { heal, log: `${caster.name}はディアルマを唱えた！${target.name}のHPを${heal}大回復した。` };
+    }
+  },
+  KADORTO: {
+    name: "KADORTO",
+    type: "priest",
+    level: 9,
+    cost: 6,
+    target: "single_ally",
+    desc: "神聖蘇生呪文 (死亡した仲間を蘇生)",
+    effect: (caster, target) => {
+      let cured = false;
+      if (target.status === "dead") {
+        target.status = "ok";
+        target.hp = 1;
+        cured = true;
+      }
+      return { log: `${caster.name}は${target.name}にカドルトを唱えた。${cured ? "奇跡が起き、息を吹き返した！" : "しかし効果がなかった。"}` };
+    }
   }
+
 };
 
 // Item Database
@@ -280,7 +350,8 @@ export const ITEMS = {
   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 100, desc: "使用すると一瞬で街に戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage"], effect: (char) => {
     return `${char.name}は帰還のスクロールを読んだ！`;
   }},
-  ANTIGRAVITY_CRYSTAL: { id: "ANTIGRAVITY_CRYSTAL", name: "浮遊石 (クリスタル)", type: "quest", price: 0, desc: "青く浮かび上がる伝説の結晶。城に持ち帰ると勝利。" }
+  ANTIGRAVITY_CRYSTAL: { id: "ANTIGRAVITY_CRYSTAL", name: "浮遊石 (クリスタル)", type: "quest", price: 0, desc: "青く浮かび上がる伝説の結晶。城に持ち帰ると勝利。" },
+  DRAGON_KEY: { id: "DRAGON_KEY", name: "竜の鍵", type: "quest", price: 0, desc: "いにしえの竜の巣へと通じる刻印が刻まれた鍵。" }
 };
 
 // Monsters Database
@@ -296,28 +367,29 @@ export const MONSTERS = [
   { name: "はぐれ魔術師", level: 3, hp: 22, atk: 8, def: 4, exp: 360, gold: 80, spriteType: "mage", spell: "HALITO", color: "#da70d6" },
   { name: "ワーウルフ", level: 3, hp: 36, atk: 14, def: 5, exp: 340, gold: 60, spriteType: "orc", isPoisonous: true, color: "#ff8c00" },
   { name: "バンシー", level: 3, hp: 26, atk: 9, def: 3, exp: 300, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.5, color: "#da70d6" },
+  
   // 新しいモンスター
-  { name: "スピリット", level: 2, hp: 15, atk: 5, def: 2, exp: 160, gold: 25, spriteType: "spirit", physResist: 0.7, color: "#00e5ff" }, // 物理効きづらい（術推奨）
-  { name: "ウィル・オー・ウィスプ", level: 3, hp: 30, atk: 8, def: 2, exp: 300, gold: 40, spriteType: "wisp", magicResist: 0.8, color: "#ffffff" }, // 魔法効きづらい（物理推奨）
-  { name: "ジャイアントスパイダー", level: 2, hp: 18, atk: 7, def: 3, exp: 150, gold: 25, spriteType: "spider", isPoisonous: true, color: "#bf5af2" }, // 毒攻撃
-  { name: "フラッシュバット", level: 2, hp: 12, atk: 5, def: 2, exp: 100, gold: 15, spriteType: "bat", isBlinding: true, color: "#e5ff00" }, // 盲目攻撃
-  { name: "ラッキーラビット", level: 2, hp: 10, atk: 4, def: 10, exp: 800, gold: 70, spriteType: "rabbit", fleeChance: 0.40, color: "#ffb300" }, // すぐ逃げる、高経験値
+  { name: "スピリット", level: 2, hp: 15, atk: 5, def: 2, exp: 160, gold: 25, spriteType: "spirit", physResist: 0.7, color: "#00e5ff" },
+  { name: "ウィル・オー・ウィスプ", level: 3, hp: 30, atk: 8, def: 2, exp: 300, gold: 40, spriteType: "wisp", magicResist: 0.8, color: "#ffffff" },
+  { name: "ジャイアントスパイダー", level: 2, hp: 18, atk: 7, def: 3, exp: 150, gold: 25, spriteType: "spider", isPoisonous: true, color: "#bf5af2" },
+  { name: "フラッシュバット", level: 2, hp: 12, atk: 5, def: 2, exp: 100, gold: 15, spriteType: "bat", isBlinding: true, color: "#e5ff00" },
+  { name: "ラッキーラビット", level: 2, hp: 10, atk: 4, def: 10, exp: 800, gold: 70, spriteType: "rabbit", fleeChance: 0.40, color: "#ffb300" },
+  
   { name: "マスターメイジ", level: 4, hp: 32, atk: 10, def: 6, exp: 500, gold: 100, spriteType: "mage", spell: "LAHALITO", color: "#ff3b30" },
   { name: "ポイズンジャイアント", level: 4, hp: 65, atk: 19, def: 7, exp: 600, gold: 120, spriteType: "zombie", isPoisonous: true, color: "#bf5af2" },
-  { name: "フラック", level: 4, hp: 70, atk: 18, def: 8, exp: 1500, gold: 180, spriteType: "flack", spell: "LAHALITO", isRare: true, color: "#ff3b30" }, // 激レア、強敵
   
-  { name: "いにしえの竜", level: 5, hp: 120, atk: 22, def: 12, exp: 4000, gold: 500, spriteType: "dragon", spell: "LAHALITO", isBoss: true, color: "#ff3b30" }
+  { name: "デーモンガード", level: 5, hp: 90, atk: 18, def: 8, exp: 2000, gold: 300, spriteType: "flack", spell: "LAHALITO", isBoss: true, isMidboss: true, color: "#ff8c00" },
+  { name: "アースジャイアント", level: 6, hp: 75, atk: 22, def: 8, exp: 1200, gold: 150, spriteType: "zombie", color: "#8a2be2" },
+  { name: "マスターデーモン", level: 7, hp: 60, atk: 15, def: 8, exp: 1500, gold: 200, spriteType: "flack", spell: "MADALTO", color: "#ff3b30" },
+  
+  { name: "フラック", level: 4, hp: 70, atk: 18, def: 8, exp: 1500, gold: 180, spriteType: "flack", spell: "LAHALITO", isRare: true, color: "#ff3b30" },
+  { name: "いにしえの竜", level: 8, hp: 160, atk: 24, def: 14, exp: 6000, gold: 1000, spriteType: "dragon", spell: "TILTOWAIT", isBoss: true, color: "#ff3b30" }
 ];
 
-
-// Dungeon Map Grid 32x32
-// Coordinate axes: X goes right (0..31), Y goes down (0..31)
-// 'walls' represents whether a wall exists in [North, East, South, West] directions.
-// 'type': 'empty', 'door', 'stairs-up', 'stairs-down'
-// 'event': null or type of event.
-export const MAP_WIDTH = 32;
-export const MAP_HEIGHT = 32;
+// Dungeon Map Grid 24x24
+export const MAP_WIDTH = 24;
+export const MAP_HEIGHT = 24;
 
 export const START_X = 1;
-export const START_Y = 30;
+export const START_Y = 22;
 

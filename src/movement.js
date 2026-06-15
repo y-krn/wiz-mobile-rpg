@@ -9,6 +9,9 @@ import { setupChestState } from "./chest.js";
 export function handleMove(action) {
   playSound("move");
   
+  const prevX = state.x;
+  const prevY = state.y;
+  
   if (action === "turn-left") {
     state.dir = (state.dir + 3) % 4;
     addLog(`左を向いた。方角: ${DIR_NAMES[state.dir]}`);
@@ -42,7 +45,7 @@ export function handleMove(action) {
       const wiped = applyExplorationPoison();
       if (!wiped) {
         // Check coordinates trigger events
-        checkCellEvents();
+        checkCellEvents(prevX, prevY);
       }
     }
   } else if (action === "backward") {
@@ -62,7 +65,7 @@ export function handleMove(action) {
       // Apply poison damage
       const wiped = applyExplorationPoison();
       if (!wiped) {
-        checkCellEvents();
+        checkCellEvents(prevX, prevY);
       }
     }
   }
@@ -82,10 +85,10 @@ export function findCellCoordsByType(grid, type) {
   return { x: MAP_WIDTH - 2, y: 1 }; // Default fallback coordinate
 }
 
-export function checkCellEvents() {
+export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   const cell = state.map[state.y][state.x];
 
-  // Stairs Up (exit to town or go to B1F)
+  // Stairs Up (exit to town or go to previous floor)
   if (cell.type === "stairs-up") {
     if (state.floor === 1) {
       state.transitioning = true;
@@ -102,15 +105,16 @@ export function checkCellEvents() {
       }, 1200);
     } else {
       state.transitioning = true;
-      addLog("階段を上がります。地下1階へ...");
+      const prevFloor = state.floor - 1;
+      addLog(`階段を上がります。地下${prevFloor}階へ...`);
       playSound("move");
       setTimeout(() => {
-        state.floor = 1;
-        const target = findCellCoordsByType(state.maps[0], "stairs-down");
+        state.floor = prevFloor;
+        const target = findCellCoordsByType(state.maps[prevFloor - 1], "stairs-down");
         state.x = target.x;
         state.y = target.y;
         state.visitedMap[state.y][state.x] = true;
-        addLog("地下1階に上った。");
+        addLog(`地下${prevFloor}階に上った。`);
         state.transitioning = false;
         saveAutosave();
         updateUI();
@@ -119,18 +123,19 @@ export function checkCellEvents() {
     return;
   }
 
-  // Stairs Down (go to B2F)
+  // Stairs Down (go to next floor)
   if (cell.type === "stairs-down") {
     state.transitioning = true;
-    addLog("階段を下ります。地下2階へ...");
+    const nextFloor = state.floor + 1;
+    addLog(`階段を下ります。地下${nextFloor}階へ...`);
     playSound("move");
     setTimeout(() => {
-      state.floor = 2;
-      const target = findCellCoordsByType(state.maps[1], "stairs-up");
+      state.floor = nextFloor;
+      const target = findCellCoordsByType(state.maps[nextFloor - 1], "stairs-up");
       state.x = target.x;
       state.y = target.y;
       state.visitedMap[state.y][state.x] = true;
-      addLog("地下2階に降りた。さらに強い殺気を感じる...");
+      addLog(`地下${nextFloor}階に降りた。さらに強い殺気を感じる...`);
       state.transitioning = false;
       saveAutosave();
       updateUI();
@@ -143,14 +148,35 @@ export function checkCellEvents() {
     addLog(cell.message);
   }
 
+  // Midboss encounter
+  if (cell.event === "midboss") {
+    state.transitioning = true;
+    addLog("警告：ただならぬ気配を感じる！デーモンガードが立ちはだかった！");
+    playSound("chest_trap");
+    setTimeout(() => {
+      state.transitioning = false;
+      startCombat(false, true);
+    }, 1000);
+    return;
+  }
+
   // Boss encounter
   if (cell.event === "boss") {
+    if (!state.inventory.includes("DRAGON_KEY")) {
+      addLog("扉は閉ざされている。「竜の鍵」がなければ開かないようだ…");
+      playSound("bump");
+      if (renderer) renderer.triggerShake(4, 150);
+      state.x = prevX;
+      state.y = prevY;
+      return;
+    }
     state.transitioning = true;
+    addLog("竜の鍵を使って頑丈な扉を開けた！");
     addLog("警告：ただならぬ巨大な気配が立ちふさがる！戦闘準備！");
     playSound("chest_trap");
     setTimeout(() => {
       state.transitioning = false;
-      startCombat(true);
+      startCombat(true, false);
     }, 1000);
     return;
   }
@@ -171,7 +197,7 @@ export function checkCellEvents() {
     addLog("モンスターが暗闇から襲いかかってきた！");
     setTimeout(() => {
       state.transitioning = false;
-      startCombat(false);
+      startCombat(false, false);
     }, 600);
   }
 }

@@ -12,56 +12,50 @@ export let combatSelection = {
   actions: [] // array of { type, actorIdx, targetIdx, spellName, itemKey }
 };
 
-export function startCombat(isBoss) {
+export function startCombat(isBoss, isMidboss = false) {
   state.gameState = "combat";
   
   // Choose monsters
   const monsters = [];
   if (isBoss) {
     // Ancient Dragon Boss
-    const dragonTemplate = MONSTERS.find(m => m.isBoss);
+    const dragonTemplate = MONSTERS.find(m => m.name === "いにしえの竜");
     monsters.push({
       ...dragonTemplate,
       hp: dragonTemplate.hp,
       maxHp: dragonTemplate.hp
     });
+  } else if (isMidboss) {
+    // Demon Guard Midboss
+    const midbossTemplate = MONSTERS.find(m => m.name === "デーモンガード");
+    monsters.push({
+      ...midbossTemplate,
+      hp: midbossTemplate.hp,
+      maxHp: midbossTemplate.hp
+    });
   } else {
     // Regular random encounter
     const dist = Math.abs(state.x - START_X) + Math.abs(state.y - START_Y);
     
-    let baseFloorLevel = state.floor === 1 ? 1 : 3;
-    let distOffset = 0;
-    let minCount = 1;
-    let maxCount = 3;
-    
+    let targetLevel = 1;
     if (state.floor === 1) {
-      if (dist < 12) {
-        distOffset = 0;
-        minCount = 1;
-        maxCount = 1; // Only 1 monster near start
-      } else if (dist < 24) {
-        distOffset = 0;
-        minCount = 1;
-        maxCount = 2; // 1-2 monsters
-      } else {
-        distOffset = 1; // target level 2
-        minCount = 1;
-        maxCount = 3; // 1-3 monsters
-      }
-    } else {
-      // Floor 2
-      if (dist < 15) {
-        distOffset = -1; // target level 2
-        minCount = 2;
-        maxCount = 3; // 2-3 monsters
-      } else {
-        distOffset = 1; // target level 4
-        minCount = 2;
-        maxCount = 4; // 2-4 monsters
-      }
+      targetLevel = dist < 20 ? 1 : 2;
+    } else if (state.floor === 2) {
+      targetLevel = dist < 20 ? 2 : 3;
+    } else if (state.floor === 3) {
+      targetLevel = dist < 20 ? 3 : 4;
+    } else if (state.floor === 4) {
+      targetLevel = dist < 20 ? 4 : 6;
+    } else if (state.floor === 5) {
+      targetLevel = dist < 20 ? 6 : 7;
     }
     
-    const targetLevel = Math.max(1, Math.min(4, baseFloorLevel + distOffset));
+    let minCount = 1;
+    let maxCount = 2;
+    if (state.floor === 2) { minCount = 1; maxCount = 3; }
+    else if (state.floor === 3) { minCount = 2; maxCount = 3; }
+    else if (state.floor === 4) { minCount = 2; maxCount = 4; }
+    else if (state.floor === 5) { minCount = 3; maxCount = 4; }
     
     // Check rare encounter chance (e.g. 8% chance)
     const isRareEncounter = Math.random() < 0.08;
@@ -100,8 +94,10 @@ export function startCombat(isBoss) {
   state.combatState = {
     monsters,
     phase: "choose_actions",
-    isBoss
+    isBoss,
+    isMidboss
   };
+  state.chestState = null;
 
   combatSelection.charIdx = 0;
   combatSelection.actions = [];
@@ -182,7 +178,7 @@ export function selectCombatAction(type) {
           });
           combatSelection.charIdx++;
           advanceActionSelection();
-        });
+        }, spellName);
       } else {
         // All enemies / all allies
         combatSelection.actions.push({
@@ -246,7 +242,7 @@ export function cancelCombatAction() {
   }
 }
 
-export function openCombatTargetMenu(type, callback) {
+export function openCombatTargetMenu(type, callback, spellName = null) {
   state.gameState = "submenu";
   menuContext.type = "combat_target";
 
@@ -275,7 +271,15 @@ export function openCombatTargetMenu(type, callback) {
       const btn = document.createElement("button");
       btn.className = "btn btn-neon btn-block";
       btn.textContent = `${char.name} (HP:${char.hp}/${char.maxHp})`;
-      if (char.status === "dead") btn.disabled = true;
+      
+      let disabled = false;
+      if (spellName === "KADORTO") {
+        if (char.status !== "dead") disabled = true;
+      } else {
+        if (char.status === "dead") disabled = true;
+      }
+      
+      btn.disabled = disabled;
       btn.addEventListener("click", () => {
         state.gameState = "combat";
         callback(idx);
@@ -549,8 +553,8 @@ export function resolveCombatRound() {
       } else if (act.type === "defend") {
         logQueue.push({ msg: `[味方] ${char.name}は身を固めて防御している。` });
       } else if (act.type === "run") {
-        if (state.combatState.isBoss) {
-          logQueue.push({ msg: `[味方] ${char.name}は逃げ出そうとしたが、竜の前からは逃げられない！` });
+        if (state.combatState.isBoss || state.combatState.isMidboss) {
+          logQueue.push({ msg: `[味方] ${char.name}は逃げ出そうとしたが、強敵の前からは逃げられない！` });
         } else {
           const escape = Math.random() < 0.40;
           if (escape) {
@@ -692,8 +696,16 @@ export function resolveCombatRound() {
 
     logQueue.push({ msg: "======================================" });
     if (nonFledMonsters.length > 0) {
+      let msg = "戦闘に勝利した！";
+      if (expShare > 0 && totalGold > 0) {
+        msg += `パーティは各自${expShare}の経験値と${totalGold}ゴールドを獲得した。`;
+      } else if (expShare > 0) {
+        msg += `パーティは各自${expShare}の経験値を得た。`;
+      } else if (totalGold > 0) {
+        msg += `パーティは${totalGold}ゴールドを獲得した。`;
+      }
       logQueue.push({
-        msg: `戦闘に勝利した！パーティは${totalGold}ゴールドを獲得した。`,
+        msg,
         sound: "level_up"
       });
     } else {
@@ -707,7 +719,6 @@ export function resolveCombatRound() {
 
     livingChars.forEach(c => {
       c.exp += expShare;
-      logQueue.push({ msg: `${c.name}は${expShare}の経験値を得た。` });
       const lvlUp = checkCharLevelUp(c);
       if (lvlUp) {
         logQueue.push({
@@ -727,6 +738,12 @@ export function resolveCombatRound() {
         msg: "ついに伝説の [浮遊石 (クリスタル)] を手に入れた！おしろに持ち帰ろう！",
         sound: "gold",
         giveCrystal: true
+      });
+    } else if (state.combatState.isMidboss) {
+      logQueue.push({
+        msg: "デーモンガードの骸から [竜の鍵] を手に入れた！これであの扉を開けられるはずだ！",
+        sound: "gold",
+        giveKey: true
       });
     } else {
       if (Math.random() < 0.40) {
@@ -827,6 +844,25 @@ export function playBattleLogs(queue, index) {
       state.map[state.y][state.x].event = null;
     }
     state.inventory.push("ANTIGRAVITY_CRYSTAL");
+    setTimeout(() => {
+      state.gameState = "explore";
+      state.combatState = null;
+      resetSubmenuBackButton();
+      state.transitioning = false;
+      saveAutosave();
+      updateUI();
+    }, 3000);
+    return;
+  }
+
+  if (log.giveKey) {
+    state.transitioning = true;
+    if (state.map[state.y]?.[state.x]?.event === "midboss") {
+      state.map[state.y][state.x].event = null;
+    }
+    if (!state.inventory.includes("DRAGON_KEY")) {
+      state.inventory.push("DRAGON_KEY");
+    }
     setTimeout(() => {
       state.gameState = "explore";
       state.combatState = null;

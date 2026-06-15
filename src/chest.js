@@ -114,6 +114,7 @@ export function openChestMenu() {
     addLog("宝箱を開けずに立ち去った。");
     // Clear chest event on current cell
     state.map[state.y][state.x].event = null;
+    state.chestState = null;
     state.gameState = "explore";
     saveAutosave();
     updateUI();
@@ -250,6 +251,7 @@ export function openChestDirectly() {
     if (!partyAlive) {
       triggerGameOver();
     } else {
+      state.chestState = null;
       state.gameState = "explore";
       saveAutosave();
       updateUI();

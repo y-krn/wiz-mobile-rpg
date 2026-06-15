@@ -97,9 +97,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
   const visited = Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false));
   const stack = [];
 
-  // Start digging from START_X, START_Y (or B2F stairs-up position)
-  const digStartX = (floor === 2 && parentStairsCoord) ? parentStairsCoord.x : START_X;
-  const digStartY = (floor === 2 && parentStairsCoord) ? parentStairsCoord.y : START_Y;
+  // Start digging from START_X, START_Y (or parent stairs-up position)
+  const digStartX = (floor > 1 && parentStairsCoord) ? parentStairsCoord.x : START_X;
+  const digStartY = (floor > 1 && parentStairsCoord) ? parentStairsCoord.y : START_Y;
   
   let cx = digStartX;
   let cy = digStartY;
@@ -190,7 +190,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
       grid[START_Y][START_X].walls[DIR_N] = false;
       grid[START_Y - 1][START_X].walls[DIR_S] = false;
     }
-  } else if (floor === 2 && parentStairsCoord) {
+  } else if (floor > 1 && parentStairsCoord) {
     if (grid[parentStairsCoord.y][parentStairsCoord.x].walls.every(w => w)) {
       // Find any valid neighbor to open wall to
       for (let dir = 0; dir < 4; dir++) {
@@ -206,16 +206,16 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
   }
 
   // Find all dead ends (cells with exactly 1 open wall)
-  // exclude start position (and stairsUpCoord for floor 2)
+  // exclude start position (and stairsUpCoord for floor > 1)
   const deadEnds = [];
   const startX = START_X;
   const startY = START_Y;
-  const stairsUpCoord = (floor === 2) ? (parentStairsCoord || { x: MAP_WIDTH - 2, y: 1 }) : null;
+  const stairsUpCoord = (floor > 1) ? (parentStairsCoord || { x: MAP_WIDTH - 2, y: 1 }) : null;
 
   for (let y = 1; y < MAP_HEIGHT - 1; y++) {
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
       if (floor === 1 && x === startX && y === startY) continue;
-      if (floor === 2 && stairsUpCoord && x === stairsUpCoord.x && y === stairsUpCoord.y) continue;
+      if (floor > 1 && stairsUpCoord && x === stairsUpCoord.x && y === stairsUpCoord.y) continue;
 
       const cell = grid[y][x];
       const openCount = cell.walls.filter(w => !w).length;
@@ -228,29 +228,31 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
   let stairsDownCoord = null;
   let bossCoord = null;
 
-  // 4. Setup Stairs & Boss
-  if (floor === 1) {
-    // B1F Setup
+  // 4. Setup Stairs & Boss / Midboss
+  const suCoord = stairsUpCoord || { x: MAP_WIDTH - 2, y: 1 };
+  if (floor > 1) {
+    grid[suCoord.y][suCoord.x].type = "stairs-up";
+    grid[suCoord.y][suCoord.x].message = `地下${floor - 1}階へ上る階段です。一歩進むと上の階へ戻ります。`;
+  } else {
     grid[START_Y][START_X].type = "stairs-up";
     grid[START_Y][START_X].message = "街へと戻る階段です。一歩進むとリルガミンの街に戻ります。";
+  }
 
+  // Set stairs-down for B1F - B4F
+  if (floor < 5) {
     if (deadEnds.length > 0) {
       const idx = Math.floor(Math.random() * deadEnds.length);
       stairsDownCoord = deadEnds[idx];
-      deadEnds.splice(idx, 1); // Remove from deadEnds so chest won't spawn here
+      deadEnds.splice(idx, 1);
     } else {
       stairsDownCoord = { x: MAP_WIDTH - 2, y: 1 };
     }
-
     grid[stairsDownCoord.y][stairsDownCoord.x].type = "stairs-down";
-    grid[stairsDownCoord.y][stairsDownCoord.x].message = "地下2階へ下る階段です。一歩進むとさらに深くへ降ります。";
-  } else {
-    // B2F Setup
-    const suCoord = stairsUpCoord || { x: MAP_WIDTH - 2, y: 1 };
-    grid[suCoord.y][suCoord.x].type = "stairs-up";
-    grid[suCoord.y][suCoord.x].message = "地下1階へ上る階段です。一歩進むと上の階へ戻ります。";
+    grid[stairsDownCoord.y][stairsDownCoord.x].message = `地下${floor + 1}階へ下る階段です。一歩進むとさらに深くへ降ります。`;
+  }
 
-    // Boss coordinates selection: furthest dead ends from stairsUpCoord
+  // Place Midboss on Floor 3, Boss on Floor 5
+  if (floor === 3) {
     if (deadEnds.length > 0) {
       deadEnds.forEach(de => {
         de.dist = Math.abs(de.x - suCoord.x) + Math.abs(de.y - suCoord.y);
@@ -267,7 +269,26 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
     } else {
       bossCoord = { x: MAP_WIDTH - 2, y: MAP_HEIGHT - 2 };
     }
+    grid[bossCoord.y][bossCoord.x].type = "empty";
+    grid[bossCoord.y][bossCoord.x].event = "midboss";
+    grid[bossCoord.y][bossCoord.x].message = "不気味な魔力の気配を感じる…！デーモンガードが立ち塞がった！";
+  } else if (floor === 5) {
+    if (deadEnds.length > 0) {
+      deadEnds.forEach(de => {
+        de.dist = Math.abs(de.x - suCoord.x) + Math.abs(de.y - suCoord.y);
+      });
+      deadEnds.sort((a, b) => b.dist - a.dist);
+      const candidates = deadEnds.slice(0, Math.min(3, deadEnds.length));
+      const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+      bossCoord = { x: chosen.x, y: chosen.y };
 
+      const removeIdx = deadEnds.findIndex(de => de.x === bossCoord.x && de.y === bossCoord.y);
+      if (removeIdx !== -1) {
+        deadEnds.splice(removeIdx, 1);
+      }
+    } else {
+      bossCoord = { x: MAP_WIDTH - 2, y: MAP_HEIGHT - 2 };
+    }
     grid[bossCoord.y][bossCoord.x].type = "empty";
     grid[bossCoord.y][bossCoord.x].event = "boss";
     grid[bossCoord.y][bossCoord.x].message = "周囲にただならぬ気配が漂っている…！いにしえの竜が姿を現した！";
@@ -295,9 +316,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
     for (let y = 1; y < MAP_HEIGHT - 1; y++) {
       for (let x = 1; x < MAP_WIDTH - 1; x++) {
         const isStart = (x === START_X && y === START_Y);
-        const isStairs = (floor === 1) ? (x === stairsDownCoord.x && y === stairsDownCoord.y) : (x === stairsUpCoord.x && y === stairsUpCoord.y);
-        const isBoss = (floor === 2 && x === bossCoord.x && y === bossCoord.y);
-        if (isStart || isStairs || isBoss || grid[y][x].event) continue;
+        const isStairs = (stairsUpCoord && x === stairsUpCoord.x && y === stairsUpCoord.y) || (stairsDownCoord && x === stairsDownCoord.x && y === stairsDownCoord.y);
+        const isBossCell = (bossCoord && x === bossCoord.x && y === bossCoord.y);
+        if (isStart || isStairs || isBossCell || grid[y][x].event) continue;
 
         if (grid[y][x].walls.some(w => !w)) {
           passages.push({ x, y });

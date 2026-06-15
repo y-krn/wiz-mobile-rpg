@@ -172,17 +172,19 @@ export function updatePartyHUD() {
       </div>
     `;
     
-    // MP Bar (only for spellcasters)
-    if (char.class === "Priest" || char.class === "Mage") {
-      const mpPct = char.maxMp > 0 ? (char.mp / char.maxMp) * 100 : 0;
-      hpContainer.innerHTML += `
-        <div class="bar-container">
-          <span class="bar-label">M</span>
-          <div class="bar"><div class="bar-fill mp" style="width: ${mpPct}%"></div></div>
-          <span>${char.mp}</span>
-        </div>
-      `;
-    }
+    // MP Bar (always rendered to align layouts, hidden for non-spellcasters)
+    const isSpellcaster = char.class === "Priest" || char.class === "Mage";
+    const mpPct = (isSpellcaster && char.maxMp > 0) ? (char.mp / char.maxMp) * 100 : 0;
+    const mpVal = isSpellcaster ? char.mp : "";
+    const mpStyle = isSpellcaster ? "" : "visibility: hidden;";
+    
+    hpContainer.innerHTML += `
+      <div class="bar-container" style="${mpStyle}">
+        <span class="bar-label">M</span>
+        <div class="bar"><div class="bar-fill mp" style="width: ${mpPct}%"></div></div>
+        <span>${mpVal}</span>
+      </div>
+    `;
     card.appendChild(hpContainer);
 
     // Status overlay
