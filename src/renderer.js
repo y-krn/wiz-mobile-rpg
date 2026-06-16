@@ -365,7 +365,7 @@ export class DungeonRenderer {
     if (name.includes("ウィル・オー・ウィスプ")) return "wisp";
     if (name.includes("スパイダー")) return "spider";
     if (name.includes("バット")) return "bat";
-    if (name.includes("ラッキーラビット")) return "rabbit";
+
     if (name.includes("フラック")) return "flack";
     if (name.includes("竜") || name.includes("Dragon")) return "dragon";
     return "biter";

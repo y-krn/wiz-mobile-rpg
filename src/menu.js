@@ -401,6 +401,184 @@ export function renderShop() {
   overlay.appendChild(body);
 }
 
+export function renderTraining() {
+  const overlay = document.getElementById("training-overlay");
+  if (!overlay) return;
+  overlay.innerHTML = "";
+
+  // 1. Create header
+  const header = document.createElement("div");
+  header.className = "training-header";
+  header.innerHTML = `
+    <span class="training-title">訓練場 - パーティ編成</span>
+    <span class="training-subtitle">メンバー: ${state.party.length}/4人</span>
+  `;
+  overlay.appendChild(header);
+
+  // 2. Create body
+  const body = document.createElement("div");
+  body.className = "training-body";
+
+  // 2.1 Left Column: Roster List (available characters not in party)
+  const rosterCol = document.createElement("div");
+  rosterCol.className = "training-column";
+  rosterCol.innerHTML = `<div class="training-col-title">待機メンバー (名簿)</div>`;
+  
+  const rosterList = document.createElement("div");
+  rosterList.className = "training-list";
+
+  const availableChars = state.roster.filter(char => !state.party.some(c => c.name === char.name));
+
+  if (availableChars.length === 0) {
+    const emptyMsg = document.createElement("div");
+    emptyMsg.className = "detail-placeholder";
+    emptyMsg.style.marginTop = "20px";
+    emptyMsg.textContent = "名簿全員がパーティに入っています。";
+    rosterList.appendChild(emptyMsg);
+  } else {
+    availableChars.forEach(char => {
+      const row = document.createElement("div");
+      row.className = "char-row";
+
+      const info = document.createElement("div");
+      info.className = "char-info";
+      info.innerHTML = `
+        <span class="char-row-name">${char.name}</span>
+        <span class="char-row-meta">${getClassJpName(char.class)} Lv.${char.level} | HP:${char.hp}</span>
+      `;
+      row.appendChild(info);
+
+      const actions = document.createElement("div");
+      actions.className = "char-actions";
+
+      const btnAdd = document.createElement("button");
+      btnAdd.className = "btn btn-add-char";
+      btnAdd.textContent = "加える";
+      if (state.party.length >= 4) {
+        btnAdd.disabled = true;
+      }
+      btnAdd.addEventListener("click", () => {
+        if (state.party.length < 4) {
+          state.party.push(char);
+          saveGame();
+          saveAutosave();
+          renderTraining();
+          updateUI();
+        }
+      });
+      actions.appendChild(btnAdd);
+      row.appendChild(actions);
+
+      rosterList.appendChild(row);
+    });
+  }
+  rosterCol.appendChild(rosterList);
+  body.appendChild(rosterCol);
+
+  // 2.2 Right Column: Current Party (numbered 1-4, support reordering)
+  const partyCol = document.createElement("div");
+  partyCol.className = "training-column";
+  partyCol.innerHTML = `<div class="training-col-title">現在の編成 (最大4人)</div>`;
+
+  const partyList = document.createElement("div");
+  partyList.className = "training-list";
+
+  if (state.party.length === 0) {
+    const emptyMsg = document.createElement("div");
+    emptyMsg.className = "detail-placeholder";
+    emptyMsg.style.marginTop = "20px";
+    emptyMsg.textContent = "パーティが結成されていません。";
+    partyList.appendChild(emptyMsg);
+  } else {
+    state.party.forEach((char, idx) => {
+      const row = document.createElement("div");
+      row.className = "char-row";
+
+      // Row label (Front/Back)
+      const isFront = idx < 2;
+      const posClass = isFront ? "front" : "back";
+      const posLabel = isFront ? "前" : "後";
+
+      const label = document.createElement("span");
+      label.className = `party-pos-label ${posClass}`;
+      label.textContent = `${idx + 1}.${posLabel}`;
+      row.appendChild(label);
+
+      const info = document.createElement("div");
+      info.className = "char-info";
+      info.style.flexGrow = "1";
+      info.innerHTML = `
+        <span class="char-row-name">${char.name}</span>
+        <span class="char-row-meta">${getClassJpName(char.class)} Lv.${char.level} | HP:${char.hp}</span>
+      `;
+      row.appendChild(info);
+
+      const actions = document.createElement("div");
+      actions.className = "char-actions";
+
+      // Reorder Up button
+      const btnUp = document.createElement("button");
+      btnUp.className = "btn btn-neon btn-action-sm";
+      btnUp.textContent = "▲";
+      if (idx === 0) {
+        btnUp.disabled = true;
+      }
+      btnUp.addEventListener("click", () => {
+        if (idx > 0) {
+          const temp = state.party[idx];
+          state.party[idx] = state.party[idx - 1];
+          state.party[idx - 1] = temp;
+          saveGame();
+          saveAutosave();
+          renderTraining();
+          updateUI();
+        }
+      });
+      actions.appendChild(btnUp);
+
+      // Reorder Down button
+      const btnDown = document.createElement("button");
+      btnDown.className = "btn btn-neon btn-action-sm";
+      btnDown.textContent = "▼";
+      if (idx === state.party.length - 1) {
+        btnDown.disabled = true;
+      }
+      btnDown.addEventListener("click", () => {
+        if (idx < state.party.length - 1) {
+          const temp = state.party[idx];
+          state.party[idx] = state.party[idx + 1];
+          state.party[idx + 1] = temp;
+          saveGame();
+          saveAutosave();
+          renderTraining();
+          updateUI();
+        }
+      });
+      actions.appendChild(btnDown);
+
+      // Remove button
+      const btnRemove = document.createElement("button");
+      btnRemove.className = "btn btn-remove-char";
+      btnRemove.textContent = "外す";
+      btnRemove.addEventListener("click", () => {
+        state.party = state.party.filter(c => c.name !== char.name);
+        saveGame();
+        saveAutosave();
+        renderTraining();
+        updateUI();
+      });
+      actions.appendChild(btnRemove);
+
+      row.appendChild(actions);
+      partyList.appendChild(row);
+    });
+  }
+
+  partyCol.appendChild(partyList);
+  body.appendChild(partyCol);
+  overlay.appendChild(body);
+}
+
 export function openSubmenu(type, title, isBack = false) {
   if (!isBack) {
     if (state.gameState !== "submenu") {
@@ -756,75 +934,18 @@ export function openSubmenu(type, title, isBack = false) {
       optGrid.appendChild(btn);
     });
   } else if (type === "party_assemble") {
-    // Display row system explanation
-    const desc = document.createElement("div");
-    desc.style.fontSize = "11px";
-    desc.style.color = "var(--neon-gold)";
-    desc.style.marginBottom = "8px";
-    desc.style.textAlign = "center";
-    desc.textContent = "※パーティの1〜2人目が前列、3〜4人目が後列になります。";
-    optGrid.appendChild(desc);
+    // Clear submenu grid inside controls panel
+    optGrid.innerHTML = "";
+    const info = document.createElement("div");
+    info.style.color = "var(--text-muted)";
+    info.style.textAlign = "center";
+    info.style.marginTop = "20px";
+    info.style.fontFamily = "var(--font-mono)";
+    info.style.fontSize = "11px";
+    info.textContent = "訓練場でパーティ編成中...";
+    optGrid.appendChild(info);
 
-    if (state.roster.length === 0) {
-      const info = document.createElement("div");
-      info.textContent = "名簿が空です。";
-      info.style.color = "var(--neon-gold)";
-      optGrid.appendChild(info);
-    } else {
-      state.roster.forEach((char, idx) => {
-        const row = document.createElement("div");
-        row.style.display = "flex";
-        row.style.justifyContent = "space-between";
-        row.style.alignItems = "center";
-        row.style.padding = "6px";
-        row.style.border = "1px solid var(--border-color)";
-        row.style.marginBottom = "4px";
-        row.style.fontFamily = "var(--font-mono)";
-        row.style.fontSize = "12px";
-
-        const partyIdx = state.party.findIndex(c => c.name === char.name);
-        const inParty = partyIdx !== -1;
-        const nameSpan = document.createElement("span");
-        let nameText = `${char.name} (${getClassJpName(char.class)} Lv.${char.level})`;
-        if (inParty) {
-          const rowLabel = partyIdx < 2 ? "前列" : "後列";
-          nameText += ` [${rowLabel}]`;
-        }
-        nameSpan.textContent = nameText;
-        nameSpan.style.color = inParty ? "var(--neon-cyan)" : "#aaa";
-        row.appendChild(nameSpan);
-
-        const btn = document.createElement("button");
-        btn.style.width = "100px";
-        if (inParty) {
-          btn.className = "btn btn-danger btn-sm";
-          btn.textContent = "外す";
-          btn.addEventListener("click", () => {
-            state.party = state.party.filter(c => c.name !== char.name);
-            saveGame();
-            saveAutosave();
-            openSubmenu("party_assemble", "訓練場 - パーティ編成:", true);
-          });
-        } else {
-          btn.className = "btn btn-neon btn-sm";
-          btn.textContent = "加える";
-          if (state.party.length >= 4) {
-            btn.disabled = true;
-            btn.className = "btn btn-sm";
-          }
-          btn.addEventListener("click", () => {
-            if (state.party.length < 4) {
-              state.party.push(char);
-              saveGame();
-              saveAutosave();
-              openSubmenu("party_assemble", "訓練場 - パーティ編成:", true);
-            }
-          });
-        }
-        row.appendChild(btn);
-        optGrid.appendChild(row);
-      });
-    }
+    renderTraining();
   }
 
   updateUI();

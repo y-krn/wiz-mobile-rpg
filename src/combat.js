@@ -795,7 +795,7 @@ export function resolveCombatRound() {
         giveKey: true
       });
     } else {
-      if (Math.random() < 0.40) {
+      if (Math.random() < 0.20) {
         logQueue.push({
           msg: "モンスターが宝箱を残していった！",
           triggerChest: true

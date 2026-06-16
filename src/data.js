@@ -373,7 +373,7 @@ export const MONSTERS = [
   { name: "ウィル・オー・ウィスプ", level: 3, hp: 30, atk: 8, def: 2, exp: 300, gold: 40, spriteType: "wisp", magicResist: 0.8, color: "#ffffff" },
   { name: "ジャイアントスパイダー", level: 2, hp: 18, atk: 7, def: 3, exp: 150, gold: 25, spriteType: "spider", isPoisonous: true, color: "#bf5af2" },
   { name: "フラッシュバット", level: 2, hp: 12, atk: 5, def: 2, exp: 100, gold: 15, spriteType: "bat", isBlinding: true, color: "#e5ff00" },
-  { name: "ラッキーラビット", level: 2, hp: 10, atk: 4, def: 10, exp: 800, gold: 70, spriteType: "rabbit", fleeChance: 0.40, color: "#ffb300" },
+
   
   { name: "マスターメイジ", level: 4, hp: 32, atk: 10, def: 6, exp: 500, gold: 100, spriteType: "mage", spell: "LAHALITO", color: "#ff3b30" },
   { name: "ポイズンジャイアント", level: 4, hp: 65, atk: 19, def: 7, exp: 600, gold: 120, spriteType: "zombie", isPoisonous: true, color: "#bf5af2" },

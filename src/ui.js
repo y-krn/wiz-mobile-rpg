@@ -132,6 +132,16 @@ export function updateUI() {
     }
   }
 
+  // Update Training Overlay visibility
+  const trainingOverlay = document.getElementById("training-overlay");
+  if (trainingOverlay) {
+    if (state.gameState === "submenu" && menuContext.type === "party_assemble") {
+      trainingOverlay.style.display = "flex";
+    } else {
+      trainingOverlay.style.display = "none";
+    }
+  }
+
   // Disable interaction during transition
   const controlsPanel = document.getElementById("controls-panel");
   if (controlsPanel) {
