@@ -97,12 +97,27 @@ export function updateUI() {
     document.getElementById("combat-controls").classList.add("active");
     const gridEl = document.querySelector(".combat-grid");
     if (gridEl) {
-      if (state.combatState && state.combatState.phase === "resolving") {
-        gridEl.style.pointerEvents = "none";
-        gridEl.style.opacity = "0.5";
+      const isResolving = state.combatState && state.combatState.phase === "resolving";
+      
+      const actionButtons = [
+        "btn-combat-fight",
+        "btn-combat-spell",
+        "btn-combat-item",
+        "btn-combat-defend",
+        "btn-combat-run",
+        "btn-combat-cancel"
+      ].map(id => document.getElementById(id)).filter(el => el);
+
+      if (isResolving) {
+        actionButtons.forEach(btn => {
+          btn.style.pointerEvents = "none";
+          btn.style.opacity = "0.3";
+        });
       } else {
-        gridEl.style.pointerEvents = "auto";
-        gridEl.style.opacity = "1";
+        actionButtons.forEach(btn => {
+          btn.style.pointerEvents = "auto";
+          btn.style.opacity = "1";
+        });
         
         const cancelBtn = document.getElementById("btn-combat-cancel");
         if (cancelBtn) {
@@ -113,6 +128,18 @@ export function updateUI() {
             cancelBtn.style.opacity = "1";
             cancelBtn.style.pointerEvents = "auto";
           }
+        }
+      }
+
+      const autoBtn = document.getElementById("btn-combat-auto");
+      if (autoBtn) {
+        autoBtn.style.pointerEvents = "auto";
+        if (state.combatState && state.combatState.isAuto) {
+          autoBtn.classList.add("active");
+          autoBtn.textContent = "オート ON";
+        } else {
+          autoBtn.classList.remove("active");
+          autoBtn.textContent = "オート";
         }
       }
     }

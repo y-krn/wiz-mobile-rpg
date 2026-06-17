@@ -6,13 +6,13 @@ import { toggleMute } from "./audio.js";
 import { updateUI } from "./ui.js";
 import { handleMove, enterDungeon } from "./movement.js";
 import { handleExploreAction, handleTownOption, goBackSubmenu } from "./menu.js";
-import { selectCombatAction, cancelCombatAction } from "./combat.js";
+import { selectCombatAction, cancelCombatAction, toggleCombatAuto } from "./combat.js";
 
 // Re-exports for external use and backward compatibility
 export { updateUI } from "./ui.js";
 export { handleMove, enterDungeon } from "./movement.js";
 export { handleExploreAction, handleTownOption, goBackSubmenu } from "./menu.js";
-export { selectCombatAction, cancelCombatAction, resolveCombatRound, triggerGameOver } from "./combat.js";
+export { selectCombatAction, cancelCombatAction, resolveCombatRound, triggerGameOver, toggleCombatAuto } from "./combat.js";
 
 export let renderer = null;
 let lastTime = 0;
@@ -71,6 +71,7 @@ function bindButtons() {
   document.getElementById("btn-combat-fight").addEventListener("click", () => selectCombatAction("fight"));
   document.getElementById("btn-combat-spell").addEventListener("click", () => selectCombatAction("spell"));
   document.getElementById("btn-combat-item").addEventListener("click", () => selectCombatAction("item"));
+  document.getElementById("btn-combat-auto").addEventListener("click", () => toggleCombatAuto());
   document.getElementById("btn-combat-defend").addEventListener("click", () => selectCombatAction("defend"));
   document.getElementById("btn-combat-run").addEventListener("click", () => selectCombatAction("run"));
   document.getElementById("btn-combat-cancel").addEventListener("click", () => cancelCombatAction());

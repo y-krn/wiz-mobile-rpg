@@ -95,7 +95,8 @@ export function startCombat(isBoss, isMidboss = false) {
     monsters,
     phase: "choose_actions",
     isBoss,
-    isMidboss
+    isMidboss,
+    isAuto: false
   };
   state.chestState = null;
 
@@ -112,10 +113,35 @@ export function startCombat(isBoss, isMidboss = false) {
   saveAutosave();
 }
 
+export function toggleCombatAuto() {
+  if (!state.combatState) return;
+  state.combatState.isAuto = !state.combatState.isAuto;
+  playSound("move");
+  addLog(`オート戦闘を${state.combatState.isAuto ? "オン" : "オフ"}にしました。`);
+  
+  if (state.combatState.isAuto && state.combatState.phase === "choose_actions") {
+    advanceActionSelection();
+  } else {
+    updateUI();
+  }
+}
+
 export function advanceActionSelection() {
   // Find next living character
   const livingIdxs = state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status)).map(x => x.i);
   
+  if (state.combatState && state.combatState.isAuto) {
+    while (combatSelection.charIdx < livingIdxs.length) {
+      const charOriginalIdx = livingIdxs[combatSelection.charIdx];
+      combatSelection.actions.push({
+        type: "fight",
+        actorIdx: charOriginalIdx,
+        targetIdx: 0 // Will auto-redirect to a living monster if target 0 is dead
+      });
+      combatSelection.charIdx++;
+    }
+  }
+
   const currentSelect = livingIdxs[combatSelection.charIdx];
   if (combatSelection.charIdx >= livingIdxs.length) {
     // All characters chose actions! Run turn resolution.
@@ -837,6 +863,7 @@ export function playBattleLogs(queue, index) {
   }
 
   const log = queue[index];
+  const isAuto = state.combatState && state.combatState.isAuto;
 
   if (log.sound) playSound(log.sound);
   if (log.shake && renderer) renderer.triggerShake(log.shake, 250);
@@ -861,7 +888,7 @@ export function playBattleLogs(queue, index) {
         saveAutosave();
         updateUI();
       }
-    }, 1200);
+    }, isAuto ? 150 : 1200);
     return;
   }
 
@@ -883,7 +910,7 @@ export function playBattleLogs(queue, index) {
         saveAutosave();
         updateUI();
       }
-    }, 1200);
+    }, isAuto ? 150 : 1200);
     return;
   }
 
@@ -900,7 +927,7 @@ export function playBattleLogs(queue, index) {
       state.transitioning = false;
       saveAutosave();
       updateUI();
-    }, 3000);
+    }, isAuto ? 300 : 3000);
     return;
   }
 
@@ -919,7 +946,7 @@ export function playBattleLogs(queue, index) {
       state.transitioning = false;
       saveAutosave();
       updateUI();
-    }, 3000);
+    }, isAuto ? 300 : 3000);
     return;
   }
 
@@ -929,7 +956,7 @@ export function playBattleLogs(queue, index) {
       state.gameState = "chest";
       state.transitioning = false;
       setupChestState();
-    }, 1500);
+    }, isAuto ? 150 : 1500);
     return;
   }
 
@@ -942,11 +969,11 @@ export function playBattleLogs(queue, index) {
       state.transitioning = false;
       saveAutosave();
       updateUI();
-    }, 1200);
+    }, isAuto ? 150 : 1200);
     return;
   }
 
-  const delay = log.msg.startsWith("[!]") || log.msg.includes("[★]") ? 1200 : 700;
+  const delay = isAuto ? 50 : (log.msg.startsWith("[!]") || log.msg.includes("[★]") ? 1200 : 700);
   setTimeout(() => {
     playBattleLogs(queue, index + 1);
   }, delay);
