@@ -37,6 +37,14 @@ export function handleMove(action) {
         }
       }
       
+      // Update repel turns
+      if (state.repelTurns > 0) {
+        state.repelTurns--;
+        if (state.repelTurns === 0) {
+          addLog("マスペアルの効果が切れた。モンスターの殺気が戻った。");
+        }
+      }
+      
       // Mark as visited
       state.visitedMap[state.y][state.x] = true;
       addLog(`一歩進んだ。現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}`);
@@ -58,7 +66,18 @@ export function handleMove(action) {
     } else {
       state.x += DX[backDir];
       state.y += DY[backDir];
-      if (state.lightTurns > 0) state.lightTurns--;
+      if (state.lightTurns > 0) {
+        state.lightTurns--;
+        if (state.lightTurns === 0) {
+          addLog("明かりの呪文の効果が切れた。暗闇に包まれた。");
+        }
+      }
+      if (state.repelTurns > 0) {
+        state.repelTurns--;
+        if (state.repelTurns === 0) {
+          addLog("マスペアルの効果が切れた。モンスターの殺気が戻った。");
+        }
+      }
       state.visitedMap[state.y][state.x] = true;
       addLog(`一歩下がった。現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}`);
       
@@ -192,7 +211,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   }
 
   // Random Encounter (10% chance)
-  if (Math.random() < 0.10) {
+  if ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < 0.10) {
     state.transitioning = true;
     addLog("モンスターが暗闇から襲いかかってきた！");
     setTimeout(() => {

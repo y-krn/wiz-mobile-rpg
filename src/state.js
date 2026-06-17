@@ -217,6 +217,7 @@ export const state = {
   maps: [null, null, null, null, null],
   visitedMaps: [null, null, null, null, null],
   lightTurns: 0,
+  repelTurns: 0,
 
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
   gameState: "town",
@@ -266,6 +267,7 @@ export function initNewGame() {
   // Mark initial coordinate as visited
   state.visitedMap[state.y][state.x] = true;
   state.lightTurns = 0;
+  state.repelTurns = 0;
   state.gameState = "town";
   state.combatState = null;
   state.chestState = null;
@@ -319,8 +321,16 @@ export function loadGame(forceSaveOnly = false) {
         if (char.level < 9 && char.spells.includes("KADORTO")) {
           char.spells = char.spells.filter(s => s !== "KADORTO");
         }
+        if (char.spells.includes("MASFEAL")) {
+          char.spells = char.spells.filter(s => s !== "MASFEAL");
+        }
       }
       if (char.class === "Mage") {
+        if (char.level >= 4) {
+          if (!char.spells.includes("MASFEAL")) char.spells.push("MASFEAL");
+        } else {
+          char.spells = char.spells.filter(s => s !== "MASFEAL");
+        }
         // TILTOWAIT requires level 8 now
         if (char.level < 8 && char.spells.includes("TILTOWAIT")) {
           char.spells = char.spells.filter(s => s !== "TILTOWAIT");
@@ -337,6 +347,9 @@ export function loadGame(forceSaveOnly = false) {
         if (char.level < 7 && char.spells.includes("MADALTO")) {
           char.spells = char.spells.filter(s => s !== "MADALTO");
         }
+        if (char.spells.includes("MASFEAL")) {
+          char.spells = char.spells.filter(s => s !== "MASFEAL");
+        }
       }
       if (char.class === "Ranger") {
         if (char.level < 10 && char.spells.includes("KADORTO")) {
@@ -345,8 +358,16 @@ export function loadGame(forceSaveOnly = false) {
         if (char.level < 8 && char.spells.includes("DIALMA")) {
           char.spells = char.spells.filter(s => s !== "DIALMA");
         }
+        if (char.spells.includes("MASFEAL")) {
+          char.spells = char.spells.filter(s => s !== "MASFEAL");
+        }
       }
       if (char.class === "Bishop") {
+        if (char.level >= 4) {
+          if (!char.spells.includes("MASFEAL")) char.spells.push("MASFEAL");
+        } else {
+          char.spells = char.spells.filter(s => s !== "MASFEAL");
+        }
         if (char.level < 10 && char.spells.includes("TILTOWAIT")) {
           char.spells = char.spells.filter(s => s !== "TILTOWAIT");
         }
@@ -418,6 +439,7 @@ export function loadGame(forceSaveOnly = false) {
     });
     state.maps = loadedMaps;
     state.lightTurns = data.lightTurns ?? 0;
+    state.repelTurns = data.repelTurns ?? 0;
     state.gameState = data.gameState ?? "town";
     state.combatState = data.combatState ?? null;
     state.chestState = data.chestState ?? null;
@@ -447,6 +469,7 @@ export function saveGame() {
       maps: state.maps,
       visitedMaps: state.visitedMaps,
       lightTurns: state.lightTurns,
+      repelTurns: state.repelTurns,
       gameState: state.gameState,
       combatState: state.combatState,
       chestState: state.chestState,
@@ -473,6 +496,7 @@ export function saveAutosave() {
       maps: state.maps,
       visitedMaps: state.visitedMaps,
       lightTurns: state.lightTurns,
+      repelTurns: state.repelTurns,
       gameState: state.gameState,
       combatState: state.combatState,
       chestState: state.chestState,
@@ -605,6 +629,9 @@ export function checkCharLevelUp(char) {
         if (!char.spells.includes("KATINO")) char.spells.push("KATINO");
         if (!char.spells.includes("MAHALITO")) char.spells.push("MAHALITO");
       }
+      if (char.level === 4 && !char.spells.includes("MASFEAL")) {
+        char.spells.push("MASFEAL");
+      }
       if (char.level === 6 && !char.spells.includes("MADALTO")) {
         char.spells.push("MADALTO");
       }
@@ -656,7 +683,7 @@ export function checkCharLevelUp(char) {
         });
       }
       if (char.level === 4) {
-        ["LOMILWA", "KATINO"].forEach(s => {
+        ["LOMILWA", "KATINO", "MASFEAL"].forEach(s => {
           if (!char.spells.includes(s)) char.spells.push(s);
         });
       }

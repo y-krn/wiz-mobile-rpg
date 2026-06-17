@@ -95,6 +95,18 @@ export const SPELLS = {
       return { damage: dmg, log: `${caster.name}はマハリトを唱えた！${target.name}に${dmg}の熱線ダメージ！${target && target.magicResist ? "（呪文がレジストされた！）" : ""}` };
     }
   },
+  MASFEAL: {
+    name: "MASFEAL",
+    type: "mage",
+    level: 4,
+    cost: 4,
+    target: "utility",
+    desc: "魔除け (30歩の間、敵の遭遇を回避する)",
+    effect: (caster, state) => {
+      state.repelTurns = 30;
+      return { log: `${caster.name}はマスペアルを唱えた！気配が消え、魔物を寄せ付けなくなった。` };
+    }
+  },
   MADALTO: {
     name: "MADALTO",
     type: "mage",

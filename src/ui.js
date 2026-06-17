@@ -23,7 +23,8 @@ export function updateUI() {
     locLabel.textContent = "TOWN OF LLYLGAMYN";
   } else if (state.gameState === "explore") {
     const lightText = state.lightTurns > 0 ? ` (LIGHT:${state.lightTurns})` : "";
-    locLabel.textContent = `DUNGEON B${state.floor}F X:${state.x} Y:${state.y}${lightText}`;
+    const repelText = state.repelTurns > 0 ? ` (REPEL:${state.repelTurns})` : "";
+    locLabel.textContent = `DUNGEON B${state.floor}F X:${state.x} Y:${state.y}${lightText}${repelText}`;
   } else if (state.gameState === "combat") {
     locLabel.textContent = "BATTLE ENCOUNTER";
   } else if (state.gameState === "chest") {
