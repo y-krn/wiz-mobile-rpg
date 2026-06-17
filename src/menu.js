@@ -4,6 +4,7 @@ import { playSound } from "./audio.js";
 import { renderer } from "./game.js";
 import { updateUI } from "./ui.js";
 import { executeDisarm } from "./chest.js";
+import { triggerGameOver } from "./combat.js";
 
 // Submenu navigation tracker
 export let menuContext = {
@@ -946,6 +947,183 @@ export function openSubmenu(type, title, isBack = false) {
     optGrid.appendChild(info);
 
     renderTraining();
+  } else if (type === "event_spring") {
+    document.getElementById("btn-submenu-back").style.display = "none";
+
+    const btnDrink = document.createElement("button");
+    btnDrink.className = "btn btn-neon btn-block";
+    btnDrink.textContent = "泉の水を飲む";
+    btnDrink.addEventListener("click", () => {
+      const rand = Math.random();
+      if (rand < 0.40) {
+        state.party.forEach(char => {
+          if (char.status !== "dead") {
+            char.hp = Math.min(char.maxHp, char.hp + 20);
+          }
+        });
+        playSound("heal");
+        addLog("[!] 泉の水は清らかだった！パーティ全員のHPが20回復した。");
+      } else if (rand < 0.70) {
+        state.party.forEach(char => {
+          if (char.status !== "dead" && char.maxMp > 0) {
+            char.mp = Math.min(char.maxMp, char.mp + 3);
+          }
+        });
+        playSound("heal");
+        addLog("[!] 泉の水から神秘的な力を感じた！パーティ全員のMPが3回復した。");
+      } else if (rand < 0.85) {
+        const aliveChars = state.party.filter(char => char.status !== "dead");
+        if (aliveChars.length > 0) {
+          const target = aliveChars[Math.floor(Math.random() * aliveChars.length)];
+          target.status = "poisoned";
+          playSound("bump");
+          addLog(`[!] うわっ、水には毒が混ざっていた！${target.name}は毒状態になった！`);
+        }
+      } else {
+        const aliveChars = state.party.filter(char => char.status !== "dead");
+        if (aliveChars.length > 0) {
+          const target = aliveChars[Math.floor(Math.random() * aliveChars.length)];
+          target.status = "paralyzed";
+          playSound("bump");
+          addLog(`[!] うわっ、水が急に冷たくなり体が動かない！${target.name}は麻痺状態になった！`);
+        }
+      }
+      saveAutosave();
+      closeSubmenu();
+    });
+    optGrid.appendChild(btnDrink);
+
+    const btnLeave = document.createElement("button");
+    btnLeave.className = "btn btn-danger btn-block";
+    btnLeave.textContent = "立ち去る";
+    btnLeave.addEventListener("click", () => {
+      addLog("泉に近づかず、そのまま立ち去った。");
+      closeSubmenu();
+    });
+    optGrid.appendChild(btnLeave);
+
+  } else if (type === "event_tablet") {
+    document.getElementById("btn-submenu-back").style.display = "none";
+
+    const btnRead = document.createElement("button");
+    btnRead.className = "btn btn-neon btn-block";
+    btnRead.textContent = "文字を読む";
+    btnRead.addEventListener("click", () => {
+      const rand = Math.random();
+      if (rand < 0.40) {
+        const hints = [
+          "『光は闇を照らし、ロミルワは永遠のミニマップをもたらす。』",
+          "『いにしえの竜は極大爆裂呪文ティルトウェイトを放つ。十分に対抗せよ。』",
+          "『忍者は武器を持たぬとき、その真の力を発揮する。』",
+          "『毒針の罠は、解毒薬かラツモフィスの呪文で治療可能である。』",
+          "『地下3階の奥にはデーモンガードが「竜の鍵」を守っているという。』",
+          "『さまよう商人は迷宮の奥深くで究極の霊薬エリクサーを売っている。』"
+        ];
+        const chosenHint = hints[Math.floor(Math.random() * hints.length)];
+        state.party.forEach(char => {
+          if (char.status !== "dead") {
+            char.exp += 100;
+          }
+        });
+        playSound("level_up");
+        addLog(`石碑の文字を解読した：`);
+        addLog(`「${chosenHint}」`);
+        addLog(`[!] 古代の叡智に触れ、全員が100の経験値を獲得した！`);
+      } else if (rand < 0.70) {
+        const aliveChars = state.party.filter(char => char.status !== "dead");
+        if (aliveChars.length > 0) {
+          const target = aliveChars[Math.floor(Math.random() * aliveChars.length)];
+          target.hp = Math.max(0, target.hp - 8);
+          if (target.hp === 0) {
+            target.status = "dead";
+          }
+          playSound("hit");
+          addLog(`[!] カチッ…罠が作動した！石碑の隙間から矢が飛び出し、${target.name}に8のダメージ！`);
+          if (target.hp === 0) {
+            addLog(`[!] ${target.name}は力尽きた！`);
+          }
+        }
+      } else {
+        addLog("石碑の文字は風化しており、何も読み取れなかった。");
+      }
+      saveAutosave();
+
+      const allPartyDead = state.party.every(c => c.status === "dead");
+      if (allPartyDead) {
+        triggerGameOver();
+      } else {
+        closeSubmenu();
+      }
+    });
+    optGrid.appendChild(btnRead);
+
+    const btnLeave = document.createElement("button");
+    btnLeave.className = "btn btn-danger btn-block";
+    btnLeave.textContent = "立ち去る";
+    btnLeave.addEventListener("click", () => {
+      addLog("石碑には触れず、そのまま立ち去った。");
+      closeSubmenu();
+    });
+    optGrid.appendChild(btnLeave);
+
+  } else if (type === "event_merchant") {
+    document.getElementById("btn-submenu-back").style.display = "none";
+
+    const btnTrade = document.createElement("button");
+    btnTrade.className = "btn btn-neon btn-block";
+    btnTrade.textContent = "取引をする";
+    btnTrade.addEventListener("click", () => {
+      openSubmenu("event_merchant_buy", "商人「さあ、どれにするかね？」");
+    });
+    optGrid.appendChild(btnTrade);
+
+    const btnLeave = document.createElement("button");
+    btnLeave.className = "btn btn-danger btn-block";
+    btnLeave.textContent = "立ち去る";
+    btnLeave.addEventListener("click", () => {
+      addLog("商人は闇の中へと去っていった。");
+      closeSubmenu();
+    });
+    optGrid.appendChild(btnLeave);
+
+  } else if (type === "event_merchant_buy") {
+    document.getElementById("btn-submenu-back").style.display = "block";
+
+    const merchantStock = [
+      { key: "ELIXIR", price: 500 },
+      { key: "LEGENDARY_SWORD", price: 3000 },
+      { key: "LEGENDARY_SHIELD", price: 2000 },
+      { key: "HEAL_POTION", price: 40 },
+      { key: "MANA_POTION", price: 150 },
+      { key: "HOLY_WATER", price: 120 }
+    ];
+
+    merchantStock.forEach(stock => {
+      const item = ITEMS[stock.key];
+      const btn = document.createElement("button");
+      btn.className = "btn btn-neon btn-block";
+      btn.textContent = `${item.name} (${stock.price}G) - ${item.desc.split("[")[0]}`;
+      if (state.gold < stock.price) btn.disabled = true;
+
+      btn.addEventListener("click", () => {
+        state.gold -= stock.price;
+        state.inventory.push(stock.key);
+        playSound("gold");
+        addLog(`[!] 商人から[${item.name}]を${stock.price}Gで購入した。`);
+        saveAutosave();
+        openSubmenu("event_merchant_buy", "商人「他に入用なものはあるかね？」", true);
+      });
+      optGrid.appendChild(btn);
+    });
+
+    const btnLeave = document.createElement("button");
+    btnLeave.className = "btn btn-danger btn-block";
+    btnLeave.textContent = "買い物を終える";
+    btnLeave.addEventListener("click", () => {
+      addLog("商人は丁寧に一礼し、立ち去った。");
+      closeSubmenu();
+    });
+    optGrid.appendChild(btnLeave);
   }
 
   updateUI();

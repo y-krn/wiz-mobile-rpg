@@ -5,6 +5,7 @@ import { renderer } from "./game.js";
 import { updateUI } from "./ui.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
+import { openSubmenu } from "./menu.js";
 
 export function handleMove(action) {
   playSound("move");
@@ -207,6 +208,23 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     state.gameState = "chest";
     // Setup chest contents
     setupChestState();
+    return;
+  }
+
+  // Random Event (5% chance) on standard cells (not stairs, boss, chest, midboss, or message cells)
+  const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
+                        cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
+                        cell.message;
+  if (!isSpecialCell && Math.random() < 0.05) {
+    const events = ["event_spring", "event_tablet", "event_merchant"];
+    const chosen = events[Math.floor(Math.random() * events.length)];
+    if (chosen === "event_spring") {
+      openSubmenu("event_spring", "怪しい泉を見つけた。澄んだ水が湧き出ている…");
+    } else if (chosen === "event_tablet") {
+      openSubmenu("event_tablet", "謎の石碑が立っている。古代の文字が刻まれている…");
+    } else {
+      openSubmenu("event_merchant", "フードを被ったさまよう商人が現れた！");
+    }
     return;
   }
 
