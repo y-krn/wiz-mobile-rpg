@@ -1233,6 +1233,7 @@ export function playBattleLogs(queue, index) {
         state.transitioning = false;
         triggerGameOver();
       } else {
+        state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
         state.gameState = "town";
         state.x = START_X;
         state.y = START_Y;
@@ -1338,6 +1339,8 @@ export function checkCombatStatus() {
 export function triggerGameOver() {
   playSound("game_over");
   state.gameState = "gameover";
+  state.lastReturnedFloor = null;
+  saveAutosave();
   addLog("**************************************************");
   addLog("パーティは全滅した。");
   addLog("冒険者たちの旅は深い暗闇の中で途絶えた。");

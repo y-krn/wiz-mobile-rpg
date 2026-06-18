@@ -5,6 +5,7 @@ import { renderer } from "./game.js";
 import { updateUI } from "./ui.js";
 import { executeDisarm } from "./chest.js";
 import { triggerGameOver } from "./combat.js";
+import { executeEnterDungeon } from "./movement.js";
 
 // Submenu navigation tracker
 export let menuContext = {
@@ -850,6 +851,24 @@ export function openSubmenu(type, title, isBack = false) {
       }
     });
     optGrid.appendChild(btnRestart);
+  } else if (type === "enter_dungeon_select") {
+    const btnB1F = document.createElement("button");
+    btnB1F.className = "btn btn-neon btn-block";
+    btnB1F.textContent = "地下1階から入る";
+    btnB1F.addEventListener("click", () => {
+      closeSubmenu();
+      executeEnterDungeon(1);
+    });
+    optGrid.appendChild(btnB1F);
+
+    const btnResume = document.createElement("button");
+    btnResume.className = "btn btn-neon btn-block";
+    btnResume.textContent = `地下${state.lastReturnedFloor}階から再開`;
+    btnResume.addEventListener("click", () => {
+      closeSubmenu();
+      executeEnterDungeon(state.lastReturnedFloor);
+    });
+    optGrid.appendChild(btnResume);
   } else if (type === "camp_status") {
     state.party.forEach(char => {
       const card = document.createElement("div");
@@ -1619,6 +1638,7 @@ export function renderEquip() {
       actionBtn.addEventListener("click", () => {
         if (itemKey === "TOWN_PORTAL") {
           closeEquipOverlay();
+          state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
           state.gameState = "town";
           state.x = START_X;
           state.y = START_Y;

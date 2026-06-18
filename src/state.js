@@ -226,6 +226,10 @@ export const state = {
   floorChestsTotal: [0, 0, 0, 0, 0],
   firstKills: [],
 
+  // Tracking properties for return checkpointing
+  lastReturnedFloor: null,
+  sessionMaxFloor: 1,
+
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
   gameState: "town",
 
@@ -293,6 +297,8 @@ export function initNewGame() {
     return count;
   });
   state.firstKills = [];
+  state.lastReturnedFloor = null;
+  state.sessionMaxFloor = 1;
 
   state.gameState = "town";
   state.combatState = null;
@@ -489,6 +495,8 @@ export function loadGame(forceSaveOnly = false) {
       return count;
     });
     state.firstKills = data.firstKills ?? [];
+    state.lastReturnedFloor = data.lastReturnedFloor ?? null;
+    state.sessionMaxFloor = state.floor;
 
     // 同期のためにオートセーブデータを更新
     saveAutosave();
@@ -519,6 +527,7 @@ export function saveGame() {
       floorChestsOpened: state.floorChestsOpened,
       floorChestsTotal: state.floorChestsTotal,
       firstKills: state.firstKills,
+      lastReturnedFloor: state.lastReturnedFloor,
       gameState: state.gameState,
       combatState: state.combatState,
       chestState: state.chestState,
@@ -551,6 +560,7 @@ export function saveAutosave() {
       floorChestsOpened: state.floorChestsOpened,
       floorChestsTotal: state.floorChestsTotal,
       firstKills: state.firstKills,
+      lastReturnedFloor: state.lastReturnedFloor,
       gameState: state.gameState,
       combatState: state.combatState,
       chestState: state.chestState,

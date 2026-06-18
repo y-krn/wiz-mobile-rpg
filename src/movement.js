@@ -230,6 +230,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       state.transitioning = true;
       addLog("階段を上がります。リルガミンの街へ戻る...");
       setTimeout(() => {
+        state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
         state.gameState = "town";
         state.x = START_X;
         state.y = START_Y;
@@ -279,6 +280,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     playSound("move");
     setTimeout(() => {
       state.floor = nextFloor;
+      state.sessionMaxFloor = Math.max(state.sessionMaxFloor, state.floor);
       const target = findCellCoordsByType(state.maps[nextFloor - 1], "stairs-up");
       state.x = target.x;
       state.y = target.y;
@@ -467,13 +469,37 @@ export function enterDungeon() {
     updateUI();
     return;
   }
+
+  if (state.lastReturnedFloor && state.lastReturnedFloor > 1 && state.lastReturnedFloor <= 4) {
+    openSubmenu("enter_dungeon_select", "迷宮への進入地点を選択してください：");
+  } else {
+    executeEnterDungeon(1);
+  }
+}
+
+export function executeEnterDungeon(floor) {
   state.gameState = "explore";
-  state.floor = 1;
-  state.x = START_X;
-  state.y = START_Y;
+  state.floor = floor;
+  state.sessionMaxFloor = floor; // セッション最深階を初期化
+
+  if (floor === 1) {
+    state.x = START_X;
+    state.y = START_Y;
+  } else {
+    // 2階以上は上り階段マスから開始
+    const target = findCellCoordsByType(state.maps[floor - 1], "stairs-up");
+    if (target) {
+      state.x = target.x;
+      state.y = target.y;
+    } else {
+      state.x = START_X;
+      state.y = START_Y;
+    }
+  }
+
   state.dir = DIR_N;
   state.visitedMap[state.y][state.x] = true;
-  addLog(`地下${state.floor}階に降りた。冷たい石造りの暗闇が迫る...`);
+  addLog(`地下${state.floor}階の階段から探索を再開した。冷たい石造りの暗闇が迫る...`);
   playSound("move");
   saveAutosave();
   updateUI();
