@@ -74,6 +74,7 @@ export function renderShop() {
   const tabBuy = document.createElement("button");
   tabBuy.className = `shop-tab ${shopState.mode === "buy" ? "active" : ""}`;
   tabBuy.textContent = "🛡️ 買う";
+  tabBuy.setAttribute("aria-pressed", shopState.mode === "buy" ? "true" : "false");
   tabBuy.addEventListener("click", () => {
     shopState.mode = "buy";
     shopState.selectedKey = null;
@@ -85,6 +86,7 @@ export function renderShop() {
   const tabSell = document.createElement("button");
   tabSell.className = `shop-tab ${shopState.mode === "sell" ? "active" : ""}`;
   tabSell.textContent = "💰 売る";
+  tabSell.setAttribute("aria-pressed", shopState.mode === "sell" ? "true" : "false");
   tabSell.addEventListener("click", () => {
     shopState.mode = "sell";
     shopState.selectedKey = null;
@@ -116,8 +118,11 @@ export function renderShop() {
     ];
 
     categories.forEach(cat => {
-      const chip = document.createElement("span");
-      chip.className = `filter-chip ${shopState.filter === cat.id ? "active" : ""}`;
+      const chip = document.createElement("button");
+      chip.type = "button";
+      const isActive = shopState.filter === cat.id;
+      chip.className = `filter-chip ${isActive ? "active" : ""}`;
+      chip.setAttribute("aria-pressed", isActive ? "true" : "false");
       chip.textContent = cat.label;
       chip.addEventListener("click", () => {
         shopState.filter = cat.id;
@@ -147,19 +152,32 @@ export function renderShop() {
 
     filteredStock.forEach(st => {
       const item = ITEMS[st.key];
-      const row = document.createElement("div");
-      row.className = `shop-item-row ${shopState.selectedKey === st.key ? "selected" : ""}`;
+      const row = document.createElement("button");
+      row.type = "button";
+      const isSelected = shopState.selectedKey === st.key;
+      row.className = `shop-item-row ${isSelected ? "selected" : ""}`;
+      row.setAttribute("aria-selected", isSelected ? "true" : "false");
       
       const goldCheck = state.gold < st.price;
       const bagCheck = state.inventory.length >= 20;
+      
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "shop-item-name";
+      nameSpan.textContent = item.name;
+      row.appendChild(nameSpan);
+
       if (goldCheck || bagCheck) {
-        row.classList.add("disabled");
+        row.classList.add("not-purchasable");
+        const badge = document.createElement("span");
+        badge.className = "shop-row-badge cant";
+        badge.textContent = bagCheck ? "バッグ満杯" : "金不足";
+        row.appendChild(badge);
       }
 
-      row.innerHTML = `
-        <span class="shop-item-name">${item.name}</span>
-        <span class="shop-item-price">${st.price}G</span>
-      `;
+      const priceSpan = document.createElement("span");
+      priceSpan.className = "shop-item-price";
+      priceSpan.textContent = `${st.price}G`;
+      row.appendChild(priceSpan);
 
       row.addEventListener("click", () => {
         shopState.selectedKey = st.key;
@@ -181,16 +199,29 @@ export function renderShop() {
         const item = ITEMS[itemKey];
         const value = Math.floor((item.price || 0) * 0.5);
         
-        const row = document.createElement("div");
-        row.className = `shop-item-row ${shopState.selectedIdx === idx ? "selected" : ""}`;
+        const row = document.createElement("button");
+        row.type = "button";
+        const isSelected = shopState.selectedIdx === idx;
+        row.className = `shop-item-row ${isSelected ? "selected" : ""}`;
+        row.setAttribute("aria-selected", isSelected ? "true" : "false");
+        
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "shop-item-name";
+        nameSpan.textContent = item.name;
+        row.appendChild(nameSpan);
+
         if (item.price === 0) {
-          row.classList.add("disabled");
+          row.classList.add("not-purchasable");
+          const badge = document.createElement("span");
+          badge.className = "shop-row-badge cant";
+          badge.textContent = "売却不可";
+          row.appendChild(badge);
         }
 
-        row.innerHTML = `
-          <span class="shop-item-name">${item.name}</span>
-          <span class="shop-item-price">${value}G</span>
-        `;
+        const priceSpan = document.createElement("span");
+        priceSpan.className = "shop-item-price";
+        priceSpan.textContent = `${value}G`;
+        row.appendChild(priceSpan);
 
         row.addEventListener("click", () => {
           if (item.price > 0) {
