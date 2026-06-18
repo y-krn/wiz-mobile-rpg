@@ -61,10 +61,27 @@ export function renderShop() {
   // 1. Create header
   const header = document.createElement("div");
   header.className = "shop-header";
-  header.innerHTML = `
-    <span class="shop-title">ボルタック商店</span>
-    <span class="shop-capacity">バッグ: ${state.inventory.length}/20</span>
-  `;
+  
+  const title = document.createElement("span");
+  title.className = "shop-title";
+  title.textContent = "ボルタック商店";
+  header.appendChild(title);
+  
+  const capacity = document.createElement("span");
+  capacity.className = "shop-capacity";
+  capacity.textContent = `バッグ: ${state.inventory.length}/20`;
+  header.appendChild(capacity);
+
+  const btnClose = document.createElement("button");
+  btnClose.className = "btn btn-danger";
+  btnClose.style.minHeight = "44px";
+  btnClose.style.padding = "8px 16px";
+  btnClose.textContent = "❌ 閉じる";
+  btnClose.addEventListener("click", () => {
+    goBackSubmenu();
+  });
+  header.appendChild(btnClose);
+  
   overlay.appendChild(header);
 
   // 2. Create tabs
