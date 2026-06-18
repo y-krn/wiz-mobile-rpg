@@ -2,7 +2,7 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Wiz-Mobile: Neon Dungeon</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,8 +28,10 @@
         <div id="shop-overlay" class="shop-overlay-container" style="display: none;"></div>
         <div id="training-overlay" class="training-overlay-container" style="display: none;"></div>
         <div id="combat-overlay" class="combat-overlay-container" style="display: none;"></div>
-        <div id="equip-overlay" class="equip-overlay-container" style="display: none;"></div>
       </div>
+
+      <!-- Equip overlay (moved outside viewport for full game area layout) -->
+      <div id="equip-overlay" class="equip-overlay-container" style="display: none;"></div>
 
       <!-- Log Messages -->
       <div id="log-panel">

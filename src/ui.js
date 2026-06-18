@@ -28,7 +28,7 @@ export function resetViewportZoom() {
   const viewport = document.querySelector('meta[name="viewport"]');
   if (viewport) {
     // Force reset viewport scale to 1.0
-    viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+    viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover');
   }
 }
 

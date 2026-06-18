@@ -1409,14 +1409,14 @@ export function renderEquip() {
   header.appendChild(title);
   
   const capacity = document.createElement("span");
-  capacity.className = "equip-capacity";
+  capacity.className = `equip-capacity ${state.inventory.length >= 20 ? "full" : ""}`;
   capacity.textContent = `バッグ: ${state.inventory.length}/20個`;
   header.appendChild(capacity);
   
   const btnClose = document.createElement("button");
   btnClose.className = "btn btn-danger";
-  btnClose.style.minHeight = "24px";
-  btnClose.style.padding = "2px 8px";
+  btnClose.style.minHeight = "44px";
+  btnClose.style.padding = "8px 16px";
   btnClose.textContent = "❌ 閉じる";
   btnClose.addEventListener("click", closeEquipOverlay);
   header.appendChild(btnClose);
@@ -1429,9 +1429,10 @@ export function renderEquip() {
   
   const btnPrev = document.createElement("button");
   btnPrev.className = "btn btn-neon";
-  btnPrev.style.minHeight = "24px";
-  btnPrev.style.padding = "2px 8px";
+  btnPrev.style.minHeight = "44px";
+  btnPrev.style.padding = "8px 16px";
   btnPrev.textContent = "◀";
+  btnPrev.setAttribute("aria-label", "前のキャラクター");
   btnPrev.addEventListener("click", () => {
     equipState.actorIdx = (equipState.actorIdx + state.party.length - 1) % state.party.length;
     equipState.selectedKey = null;
@@ -1447,9 +1448,10 @@ export function renderEquip() {
   
   const btnNext = document.createElement("button");
   btnNext.className = "btn btn-neon";
-  btnNext.style.minHeight = "24px";
-  btnNext.style.padding = "2px 8px";
+  btnNext.style.minHeight = "44px";
+  btnNext.style.padding = "8px 16px";
   btnNext.textContent = "▶";
+  btnNext.setAttribute("aria-label", "次のキャラクター");
   btnNext.addEventListener("click", () => {
     equipState.actorIdx = (equipState.actorIdx + 1) % state.party.length;
     equipState.selectedKey = null;
@@ -1460,11 +1462,11 @@ export function renderEquip() {
   
   overlay.appendChild(selector);
   
-  // 3. Body (Inventory Left, Detail Right)
+  // 3. Body (Inventory Upper, Detail Lower via stacked CSS layout)
   const body = document.createElement("div");
   body.className = "equip-body";
   
-  // 3.1 Left Column: Inventory List
+  // 3.1 Upper part: Inventory List
   const invCol = document.createElement("div");
   invCol.className = "equip-inventory-col";
   
@@ -1480,8 +1482,11 @@ export function renderEquip() {
   ];
   
   cats.forEach(cat => {
-    const chip = document.createElement("div");
-    chip.className = `equip-filter-chip ${equipState.filter === cat.id ? "active" : ""}`;
+    const chip = document.createElement("button");
+    chip.type = "button";
+    const isActive = equipState.filter === cat.id;
+    chip.className = `equip-filter-chip ${isActive ? "active" : ""}`;
+    chip.setAttribute("aria-pressed", isActive ? "true" : "false");
     chip.textContent = cat.label;
     chip.addEventListener("click", () => {
       equipState.filter = cat.id;
@@ -1515,18 +1520,53 @@ export function renderEquip() {
   if (filteredIndices.length === 0) {
     const placeholder = document.createElement("div");
     placeholder.className = "equip-detail-placeholder";
-    placeholder.textContent = "該当するアイテムが\nありません。";
+    placeholder.textContent = "該当するアイテムがありません。";
     itemList.appendChild(placeholder);
   } else {
     filteredIndices.forEach(({ itemKey, idx }) => {
       const item = ITEMS[itemKey];
-      const row = document.createElement("div");
-      row.className = `equip-item-row ${equipState.selectedIdx === idx ? "selected" : ""}`;
+      const row = document.createElement("button");
+      row.type = "button";
+      const isSelected = equipState.selectedIdx === idx;
+      row.className = `equip-item-row ${isSelected ? "selected" : ""}`;
+      row.setAttribute("aria-pressed", isSelected ? "true" : "false");
       
       const name = document.createElement("span");
       name.className = "equip-item-row-name";
       name.textContent = item.name;
       row.appendChild(name);
+      
+      // Add visual badges in list for better decision support
+      const isEquipableType = item.type === "weapon" || item.type === "shield" || item.type === "armor";
+      if (isEquipableType) {
+        const canEquip = !item.classes || item.classes.includes(char.class);
+        if (!canEquip) {
+          row.classList.add("not-equipable");
+          const badge = document.createElement("span");
+          badge.className = "equip-row-badge cant";
+          badge.textContent = "不可";
+          row.appendChild(badge);
+        } else {
+          const slot = item.type;
+          const currentEquipKey = char.equipment[slot];
+          const currentEquip = currentEquipKey ? ITEMS[currentEquipKey] : null;
+          let diff = 0;
+          if (slot === "weapon") {
+            const currentAtk = currentEquip ? currentEquip.atk : 0;
+            diff = item.atk - currentAtk;
+          } else {
+            const currentDef = currentEquip ? currentEquip.def : 0;
+            diff = item.def - currentDef;
+          }
+          
+          if (diff !== 0) {
+            const badge = document.createElement("span");
+            badge.className = `equip-row-badge ${diff > 0 ? "up" : "down"}`;
+            badge.textContent = diff > 0 ? `+${diff}` : `${diff}`;
+            row.appendChild(badge);
+          }
+        }
+      }
       
       const tag = document.createElement("span");
       tag.className = "equip-item-row-tag";
@@ -1544,14 +1584,14 @@ export function renderEquip() {
   invCol.appendChild(itemList);
   body.appendChild(invCol);
   
-  // 3.2 Right Column: Detail Panel
+  // 3.2 Lower part: Detail Panel
   const detailCol = document.createElement("div");
   detailCol.className = "equip-detail-col";
   
   if (equipState.selectedIdx === -1 || !equipState.selectedKey) {
     const placeholder = document.createElement("div");
     placeholder.className = "equip-detail-placeholder";
-    placeholder.innerHTML = "左のバッグから<br>アイテムを選択<br>してください。";
+    placeholder.innerHTML = "上のバッグからアイテムを選択してください。";
     detailCol.appendChild(placeholder);
   } else {
     const itemKey = equipState.selectedKey;
@@ -1631,7 +1671,7 @@ export function renderEquip() {
     // Action button
     const actionBtn = document.createElement("button");
     actionBtn.className = "btn btn-neon btn-block";
-    actionBtn.style.minHeight = "32px";
+    actionBtn.style.minHeight = "44px";
     
     if (item.type === "usable") {
       actionBtn.textContent = "使用する";
@@ -1731,28 +1771,27 @@ export function renderEquip() {
       const btnUnequip = document.createElement("button");
       btnUnequip.className = "btn btn-danger btn-unequip-sm";
       btnUnequip.textContent = "外す";
-      btnUnequip.addEventListener("click", () => {
-        if (state.inventory.length >= 20) {
-          playSound("bump");
-          addLog("【警告】バッグが満杯です！装備を外せません。");
+      
+      // Proactively disable unequip button if inventory is full
+      if (state.inventory.length >= 20) {
+        btnUnequip.disabled = true;
+      } else {
+        btnUnequip.addEventListener("click", () => {
+          char.equipment[slot.id] = null;
+          state.inventory.push(eqKey);
+          
+          const newAtk = getCharWeaponAtk(char) + char.str;
+          const newDef = getCharDef(char);
+          addLog(`${char.name}は${eqItem.name}を外した。(攻撃:${newAtk}/守備:${newDef})`);
+          playSound("move");
+          saveAutosave();
+          
+          equipState.selectedKey = null;
+          equipState.selectedIdx = -1;
+          renderEquip();
           updateUI();
-          return;
-        }
-        
-        char.equipment[slot.id] = null;
-        state.inventory.push(eqKey);
-        
-        const newAtk = getCharWeaponAtk(char) + char.str;
-        const newDef = getCharDef(char);
-        addLog(`${char.name}は${eqItem.name}を外した。(攻撃:${newAtk}/守備:${newDef})`);
-        playSound("move");
-        saveAutosave();
-        
-        equipState.selectedKey = null;
-        equipState.selectedIdx = -1;
-        renderEquip();
-        updateUI();
-      });
+        });
+      }
       row.appendChild(btnUnequip);
     } else {
       const btnDummy = document.createElement("button");
@@ -1763,6 +1802,15 @@ export function renderEquip() {
     }
     footer.appendChild(row);
   });
+  
+  // Proactively display warning message if inventory bag is full
+  if (state.inventory.length >= 20) {
+    const warningText = document.createElement("div");
+    warningText.className = "equip-warning-text";
+    warningText.textContent = "⚠️ バッグが満杯のため、これ以上装備を外せません。";
+    footer.insertBefore(warningText, footer.firstChild);
+  }
+  
   overlay.appendChild(footer);
 }
 

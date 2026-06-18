@@ -48,11 +48,20 @@ function gameLoop(time) {
 // BUTTON BINDINGS
 // ----------------------------------------------------
 function bindButtons() {
-  // Exploration
-  document.getElementById("btn-turn-left").addEventListener("click", () => handleMove("turn-left"));
-  document.getElementById("btn-move-forward").addEventListener("click", () => handleMove("forward"));
-  document.getElementById("btn-turn-right").addEventListener("click", () => handleMove("turn-right"));
-  document.getElementById("btn-move-backward").addEventListener("click", () => handleMove("backward"));
+  // Exploration (pointerdown with preventDefault to prevent zoom and delay)
+  const bindPress = (id, action) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        handleMove(action);
+      });
+    }
+  };
+  bindPress("btn-turn-left", "turn-left");
+  bindPress("btn-move-forward", "forward");
+  bindPress("btn-turn-right", "turn-right");
+  bindPress("btn-move-backward", "backward");
 
   document.getElementById("btn-inspect").addEventListener("click", () => handleExploreAction("search"));
   document.getElementById("btn-cast").addEventListener("click", () => handleExploreAction("spell"));
