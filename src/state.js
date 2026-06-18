@@ -218,6 +218,13 @@ export const state = {
   visitedMaps: [null, null, null, null, null],
   lightTurns: 0,
   repelTurns: 0,
+  eventCooldownTurns: 0,
+  activeMerchantStock: [],
+
+  // New tracking properties for short-term rewards
+  floorChestsOpened: [0, 0, 0, 0, 0],
+  floorChestsTotal: [0, 0, 0, 0, 0],
+  firstKills: [],
 
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
   gameState: "town",
@@ -268,6 +275,25 @@ export function initNewGame() {
   state.visitedMap[state.y][state.x] = true;
   state.lightTurns = 0;
   state.repelTurns = 0;
+  state.eventCooldownTurns = 0;
+  state.activeMerchantStock = [];
+
+  state.floorChestsOpened = [0, 0, 0, 0, 0];
+  state.floorChestsTotal = state.maps.map(grid => {
+    let count = 0;
+    if (grid) {
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (grid[y] && grid[y][x] && grid[y][x].event === "chest") {
+            count++;
+          }
+        }
+      }
+    }
+    return count;
+  });
+  state.firstKills = [];
+
   state.gameState = "town";
   state.combatState = null;
   state.chestState = null;
@@ -440,12 +466,30 @@ export function loadGame(forceSaveOnly = false) {
     state.maps = loadedMaps;
     state.lightTurns = data.lightTurns ?? 0;
     state.repelTurns = data.repelTurns ?? 0;
+    state.eventCooldownTurns = data.eventCooldownTurns ?? 0;
+    state.activeMerchantStock = data.activeMerchantStock ?? [];
     state.gameState = data.gameState ?? "town";
     state.combatState = data.combatState ?? null;
     state.chestState = data.chestState ?? null;
     state.transitioning = false;
     state.logs = data.logs ?? ["冒険を再開しました。"];
     
+    state.floorChestsOpened = data.floorChestsOpened ?? [0, 0, 0, 0, 0];
+    state.floorChestsTotal = data.floorChestsTotal ?? state.maps.map(grid => {
+      let count = 0;
+      if (grid) {
+        for (let y = 0; y < MAP_HEIGHT; y++) {
+          for (let x = 0; x < MAP_WIDTH; x++) {
+            if (grid[y] && grid[y][x] && grid[y][x].event === "chest") {
+              count++;
+            }
+          }
+        }
+      }
+      return count;
+    });
+    state.firstKills = data.firstKills ?? [];
+
     // 同期のためにオートセーブデータを更新
     saveAutosave();
   } catch (err) {
@@ -470,6 +514,11 @@ export function saveGame() {
       visitedMaps: state.visitedMaps,
       lightTurns: state.lightTurns,
       repelTurns: state.repelTurns,
+      eventCooldownTurns: state.eventCooldownTurns,
+      activeMerchantStock: state.activeMerchantStock,
+      floorChestsOpened: state.floorChestsOpened,
+      floorChestsTotal: state.floorChestsTotal,
+      firstKills: state.firstKills,
       gameState: state.gameState,
       combatState: state.combatState,
       chestState: state.chestState,
@@ -497,6 +546,11 @@ export function saveAutosave() {
       visitedMaps: state.visitedMaps,
       lightTurns: state.lightTurns,
       repelTurns: state.repelTurns,
+      eventCooldownTurns: state.eventCooldownTurns,
+      activeMerchantStock: state.activeMerchantStock,
+      floorChestsOpened: state.floorChestsOpened,
+      floorChestsTotal: state.floorChestsTotal,
+      firstKills: state.firstKills,
       gameState: state.gameState,
       combatState: state.combatState,
       chestState: state.chestState,

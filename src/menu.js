@@ -807,7 +807,7 @@ export function openSubmenu(type, title, isBack = false) {
     btnItems.className = "btn btn-neon btn-block";
     btnItems.textContent = "道具・装備";
     btnItems.addEventListener("click", () => {
-      openSubmenu("item_user_select", `道具を使用/装備するキャラクターを選択 (バッグ: ${state.inventory.length}個) ：`);
+      openEquipOverlay(0);
     });
     optGrid.appendChild(btnItems);
 
@@ -930,6 +930,7 @@ export function openSubmenu(type, title, isBack = false) {
       btn.textContent = `${char.name} (${getClassJpName(char.class)})`;
       if (!["ok", "poisoned", "blind"].includes(char.status)) btn.disabled = true;
       btn.addEventListener("click", () => {
+        if (state.transitioning) return;
         executeDisarm(char);
       });
       optGrid.appendChild(btn);
@@ -987,6 +988,10 @@ export function openSubmenu(type, title, isBack = false) {
           playSound("bump");
           addLog(`[!] うわっ、水が急に冷たくなり体が動かない！${target.name}は麻痺状態になった！`);
         }
+      }
+      const currentCell = state.map[state.y][state.x];
+      if (currentCell.event === "event_spring") {
+        currentCell.event = null;
       }
       saveAutosave();
       closeSubmenu();
@@ -1046,6 +1051,10 @@ export function openSubmenu(type, title, isBack = false) {
       } else {
         addLog("石碑の文字は風化しており、何も読み取れなかった。");
       }
+      const currentCell = state.map[state.y][state.x];
+      if (currentCell.event === "event_tablet") {
+        currentCell.event = null;
+      }
       saveAutosave();
 
       const allPartyDead = state.party.every(c => c.status === "dead");
@@ -1069,6 +1078,43 @@ export function openSubmenu(type, title, isBack = false) {
   } else if (type === "event_merchant") {
     document.getElementById("btn-submenu-back").style.display = "none";
 
+    // Generate dynamic stock if empty
+    if (!state.activeMerchantStock || state.activeMerchantStock.length === 0) {
+      const generated = [];
+
+      // Slot 1: Legendary Item
+      const legendaries = [
+        { key: "ELIXIR", price: 500, soldOut: false },
+        { key: "LEGENDARY_SWORD", price: 3000, soldOut: false },
+        { key: "LEGENDARY_SHIELD", price: 2000, soldOut: false }
+      ];
+      generated.push(legendaries[Math.floor(Math.random() * legendaries.length)]);
+
+      // Slot 2: Premium Discounted Equipment
+      const premiums = [
+        { key: "KATANA", price: 1200, soldOut: false },
+        { key: "PLATE_MAIL", price: 720, soldOut: false },
+        { key: "CLAYMORE", price: 600, soldOut: false },
+        { key: "PRIEST_ROBE", price: 400, soldOut: false }
+      ];
+      generated.push(premiums[Math.floor(Math.random() * premiums.length)]);
+
+      // Slot 3 & 4: Usable Items
+      const usables = [
+        { key: "HEAL_POTION", price: 40, soldOut: false },
+        { key: "MANA_POTION", price: 150, soldOut: false },
+        { key: "HOLY_WATER", price: 120, soldOut: false },
+        { key: "ANTIDOTE", price: 50, soldOut: false },
+        { key: "TOWN_PORTAL", price: 70, soldOut: false }
+      ];
+      const shuffledUsables = usables.sort(() => 0.5 - Math.random());
+      generated.push(shuffledUsables[0]);
+      generated.push(shuffledUsables[1]);
+
+      state.activeMerchantStock = generated;
+      saveAutosave();
+    }
+
     const btnTrade = document.createElement("button");
     btnTrade.className = "btn btn-neon btn-block";
     btnTrade.textContent = "取引をする";
@@ -1082,6 +1128,12 @@ export function openSubmenu(type, title, isBack = false) {
     btnLeave.textContent = "立ち去る";
     btnLeave.addEventListener("click", () => {
       addLog("商人は闇の中へと去っていった。");
+      state.activeMerchantStock = [];
+      const currentCell = state.map[state.y][state.x];
+      if (currentCell.event === "event_merchant") {
+        currentCell.event = null;
+      }
+      saveAutosave();
       closeSubmenu();
     });
     optGrid.appendChild(btnLeave);
@@ -1089,38 +1141,44 @@ export function openSubmenu(type, title, isBack = false) {
   } else if (type === "event_merchant_buy") {
     document.getElementById("btn-submenu-back").style.display = "block";
 
-    const merchantStock = [
-      { key: "ELIXIR", price: 500 },
-      { key: "LEGENDARY_SWORD", price: 3000 },
-      { key: "LEGENDARY_SHIELD", price: 2000 },
-      { key: "HEAL_POTION", price: 40 },
-      { key: "MANA_POTION", price: 150 },
-      { key: "HOLY_WATER", price: 120 }
-    ];
+    if (state.activeMerchantStock && state.activeMerchantStock.length > 0) {
+      state.activeMerchantStock.forEach(stock => {
+        const item = ITEMS[stock.key];
+        const btn = document.createElement("button");
+        btn.className = "btn btn-neon btn-block";
+        
+        if (stock.soldOut) {
+          btn.textContent = `[売り切れ] ${item.name}`;
+          btn.disabled = true;
+        } else {
+          btn.textContent = `${item.name} (${stock.price}G) - ${item.desc.split("[")[0]}`;
+          if (state.gold < stock.price) btn.disabled = true;
 
-    merchantStock.forEach(stock => {
-      const item = ITEMS[stock.key];
-      const btn = document.createElement("button");
-      btn.className = "btn btn-neon btn-block";
-      btn.textContent = `${item.name} (${stock.price}G) - ${item.desc.split("[")[0]}`;
-      if (state.gold < stock.price) btn.disabled = true;
-
-      btn.addEventListener("click", () => {
-        state.gold -= stock.price;
-        state.inventory.push(stock.key);
-        playSound("gold");
-        addLog(`[!] 商人から[${item.name}]を${stock.price}Gで購入した。`);
-        saveAutosave();
-        openSubmenu("event_merchant_buy", "商人「他に入用なものはあるかね？」", true);
+          btn.addEventListener("click", () => {
+            state.gold -= stock.price;
+            state.inventory.push(stock.key);
+            stock.soldOut = true;
+            playSound("gold");
+            addLog(`[!] 商人から[${item.name}]を${stock.price}Gで購入した。`);
+            saveAutosave();
+            openSubmenu("event_merchant_buy", "商人「他に入用なものはあるかね？」", true);
+          });
+        }
+        optGrid.appendChild(btn);
       });
-      optGrid.appendChild(btn);
-    });
+    }
 
     const btnLeave = document.createElement("button");
     btnLeave.className = "btn btn-danger btn-block";
     btnLeave.textContent = "買い物を終える";
     btnLeave.addEventListener("click", () => {
       addLog("商人は丁寧に一礼し、立ち去った。");
+      state.activeMerchantStock = [];
+      const currentCell = state.map[state.y][state.x];
+      if (currentCell.event === "event_merchant") {
+        currentCell.event = null;
+      }
+      saveAutosave();
       closeSubmenu();
     });
     optGrid.appendChild(btnLeave);
@@ -1153,6 +1211,7 @@ export function closeSubmenu() {
 }
 
 export function goBackSubmenu() {
+  if (state.transitioning) return;
   if (state.gameState === "submenu" && menuHistory.length > 0) {
     const prev = menuHistory.pop();
     menuContext.actorIdx = prev.actorIdx;
@@ -1238,13 +1297,14 @@ export function handleTownOption(option) {
   } else if (option === "temple") {
     openSubmenu("temple_main", "カント寺院 - 蘇生と治療：");
   } else if (option === "camp") {
-    openSubmenu("item_user_select", `道具を使用/装備するキャラクターを選択 (バッグ: ${state.inventory.length}個)：`);
+    openEquipOverlay(0);
   } else if (option === "training") {
     openSubmenu("party_assemble", "訓練場 - パーティ編成:");
   }
 }
 
 export function handleExploreAction(action) {
+  if (state.transitioning || state.gameState !== "explore") return;
   if (action === "search") {
     // Manual search (could reveal chest if cell has it, but cell event does it automatically)
     addLog("周囲を調べたが、特に何も見つからなかった。");
@@ -1255,8 +1315,7 @@ export function handleExploreAction(action) {
     // Select caster
     openSubmenu("spell_caster_select", "呪文を唱えるキャラクターを選択：");
   } else if (action === "item") {
-    // Select character to use item
-    openSubmenu("item_user_select", `道具を使用/装備するキャラクターを選択 (バッグ: ${state.inventory.length}個)：`);
+    openEquipOverlay(0);
   }
 }
 
@@ -1264,6 +1323,427 @@ export function clearSaveData() {
   // Let the user start fresh next time
   localStorage.removeItem("mobile_wiz_rpg_save");
   localStorage.removeItem("mobile_wiz_rpg_autosave");
+}
+
+export let equipState = {
+  actorIdx: 0,
+  filter: "all",
+  selectedKey: null,
+  selectedIdx: -1,
+  prevGameState: null
+};
+
+export function openEquipOverlay(actorIdx = 0) {
+  if (state.gameState !== "equip_overlay") {
+    equipState.prevGameState = state.gameState;
+  }
+  state.gameState = "equip_overlay";
+  equipState.actorIdx = actorIdx;
+  equipState.filter = "all";
+  equipState.selectedKey = null;
+  equipState.selectedIdx = -1;
+  
+  const overlay = document.getElementById("equip-overlay");
+  if (overlay) {
+    overlay.style.display = "flex";
+  }
+  renderEquip();
+  updateUI();
+}
+
+export function closeEquipOverlay() {
+  const overlay = document.getElementById("equip-overlay");
+  if (overlay) {
+    overlay.style.display = "none";
+  }
+  if (equipState.prevGameState) {
+    state.gameState = equipState.prevGameState;
+    equipState.prevGameState = null;
+  } else {
+    state.gameState = "explore";
+  }
+  saveAutosave();
+  updateUI();
+}
+
+export function renderEquip() {
+  const overlay = document.getElementById("equip-overlay");
+  if (!overlay) return;
+  
+  // Clear container
+  overlay.innerHTML = "";
+  
+  const char = state.party[equipState.actorIdx];
+  if (!char) {
+    // Safety guard, if party is empty, close overlay
+    closeEquipOverlay();
+    return;
+  }
+  
+  // 1. Header
+  const header = document.createElement("div");
+  header.className = "equip-header";
+  
+  const title = document.createElement("span");
+  title.className = "equip-title";
+  title.textContent = "道具・装備";
+  header.appendChild(title);
+  
+  const capacity = document.createElement("span");
+  capacity.className = "equip-capacity";
+  capacity.textContent = `バッグ: ${state.inventory.length}/20個`;
+  header.appendChild(capacity);
+  
+  const btnClose = document.createElement("button");
+  btnClose.className = "btn btn-danger";
+  btnClose.style.minHeight = "24px";
+  btnClose.style.padding = "2px 8px";
+  btnClose.textContent = "❌ 閉じる";
+  btnClose.addEventListener("click", closeEquipOverlay);
+  header.appendChild(btnClose);
+  
+  overlay.appendChild(header);
+  
+  // 2. Character Selector
+  const selector = document.createElement("div");
+  selector.className = "equip-char-selector";
+  
+  const btnPrev = document.createElement("button");
+  btnPrev.className = "btn btn-neon";
+  btnPrev.style.minHeight = "24px";
+  btnPrev.style.padding = "2px 8px";
+  btnPrev.textContent = "◀";
+  btnPrev.addEventListener("click", () => {
+    equipState.actorIdx = (equipState.actorIdx + state.party.length - 1) % state.party.length;
+    equipState.selectedKey = null;
+    equipState.selectedIdx = -1;
+    renderEquip();
+  });
+  selector.appendChild(btnPrev);
+  
+  const charName = document.createElement("span");
+  charName.className = "equip-char-name";
+  charName.textContent = `${char.name} (${getClassJpName(char.class)} Lv.${char.level})`;
+  selector.appendChild(charName);
+  
+  const btnNext = document.createElement("button");
+  btnNext.className = "btn btn-neon";
+  btnNext.style.minHeight = "24px";
+  btnNext.style.padding = "2px 8px";
+  btnNext.textContent = "▶";
+  btnNext.addEventListener("click", () => {
+    equipState.actorIdx = (equipState.actorIdx + 1) % state.party.length;
+    equipState.selectedKey = null;
+    equipState.selectedIdx = -1;
+    renderEquip();
+  });
+  selector.appendChild(btnNext);
+  
+  overlay.appendChild(selector);
+  
+  // 3. Body (Inventory Left, Detail Right)
+  const body = document.createElement("div");
+  body.className = "equip-body";
+  
+  // 3.1 Left Column: Inventory List
+  const invCol = document.createElement("div");
+  invCol.className = "equip-inventory-col";
+  
+  // Filters
+  const filters = document.createElement("div");
+  filters.className = "equip-filters";
+  
+  const cats = [
+    { id: "all", label: "すべて" },
+    { id: "weapon", label: "武器" },
+    { id: "armor", label: "防具" },
+    { id: "usable", label: "道具" }
+  ];
+  
+  cats.forEach(cat => {
+    const chip = document.createElement("div");
+    chip.className = `equip-filter-chip ${equipState.filter === cat.id ? "active" : ""}`;
+    chip.textContent = cat.label;
+    chip.addEventListener("click", () => {
+      equipState.filter = cat.id;
+      equipState.selectedKey = null;
+      equipState.selectedIdx = -1;
+      renderEquip();
+    });
+    filters.appendChild(chip);
+  });
+  invCol.appendChild(filters);
+  
+  // Item list container
+  const itemList = document.createElement("div");
+  itemList.className = "equip-item-list";
+  
+  // Filter inventory
+  const filteredIndices = [];
+  state.inventory.forEach((itemKey, idx) => {
+    const item = ITEMS[itemKey];
+    if (equipState.filter === "all") {
+      filteredIndices.push({ itemKey, idx });
+    } else if (equipState.filter === "weapon" && item.type === "weapon") {
+      filteredIndices.push({ itemKey, idx });
+    } else if (equipState.filter === "armor" && (item.type === "armor" || item.type === "shield")) {
+      filteredIndices.push({ itemKey, idx });
+    } else if (equipState.filter === "usable" && item.type === "usable") {
+      filteredIndices.push({ itemKey, idx });
+    }
+  });
+  
+  if (filteredIndices.length === 0) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "equip-detail-placeholder";
+    placeholder.textContent = "該当するアイテムが\nありません。";
+    itemList.appendChild(placeholder);
+  } else {
+    filteredIndices.forEach(({ itemKey, idx }) => {
+      const item = ITEMS[itemKey];
+      const row = document.createElement("div");
+      row.className = `equip-item-row ${equipState.selectedIdx === idx ? "selected" : ""}`;
+      
+      const name = document.createElement("span");
+      name.className = "equip-item-row-name";
+      name.textContent = item.name;
+      row.appendChild(name);
+      
+      const tag = document.createElement("span");
+      tag.className = "equip-item-row-tag";
+      tag.textContent = item.type === "usable" ? "道具" : item.type === "weapon" ? "武器" : item.type === "shield" ? "盾" : "鎧";
+      row.appendChild(tag);
+      
+      row.addEventListener("click", () => {
+        equipState.selectedKey = itemKey;
+        equipState.selectedIdx = idx;
+        renderEquip();
+      });
+      itemList.appendChild(row);
+    });
+  }
+  invCol.appendChild(itemList);
+  body.appendChild(invCol);
+  
+  // 3.2 Right Column: Detail Panel
+  const detailCol = document.createElement("div");
+  detailCol.className = "equip-detail-col";
+  
+  if (equipState.selectedIdx === -1 || !equipState.selectedKey) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "equip-detail-placeholder";
+    placeholder.innerHTML = "左のバッグから<br>アイテムを選択<br>してください。";
+    detailCol.appendChild(placeholder);
+  } else {
+    const itemKey = equipState.selectedKey;
+    const item = ITEMS[itemKey];
+    
+    const detailContent = document.createElement("div");
+    detailContent.className = "equip-detail-content";
+    
+    const dName = document.createElement("div");
+    dName.className = "equip-detail-name";
+    dName.textContent = item.name;
+    detailContent.appendChild(dName);
+    
+    const dDesc = document.createElement("div");
+    dDesc.className = "equip-detail-desc";
+    dDesc.textContent = item.desc || "効果はありません。";
+    detailContent.appendChild(dDesc);
+    
+    // Class Compatibility Check
+    const isEquipableType = item.type === "weapon" || item.type === "shield" || item.type === "armor";
+    if (isEquipableType) {
+      const canEquip = !item.classes || item.classes.includes(char.class);
+      const compat = document.createElement("div");
+      compat.className = `equip-detail-compat ${canEquip ? "yes" : "no"}`;
+      compat.textContent = canEquip ? "🟢 装備可能" : "🔴 装備不可 (職業制限)";
+      detailContent.appendChild(compat);
+      
+      // Stat compare
+      const compare = document.createElement("div");
+      compare.className = "equip-stat-compare";
+      
+      const currentEquipKey = char.equipment[item.type];
+      const currentEquip = currentEquipKey ? ITEMS[currentEquipKey] : null;
+      
+      if (item.type === "weapon") {
+        const currentAtk = getCharWeaponAtk(char) + char.str;
+        const newAtk = item.atk + char.str;
+        const diff = newAtk - currentAtk;
+        
+        const row = document.createElement("div");
+        row.className = "equip-stat-compare-row";
+        row.innerHTML = `<span>攻撃力:</span>`;
+        
+        const val = document.createElement("span");
+        val.className = `equip-stat-compare-val ${diff > 0 ? "upgrade" : diff < 0 ? "downgrade" : ""}`;
+        val.textContent = `${currentAtk} ➡ ${newAtk} (${diff >= 0 ? "+" : ""}${diff})`;
+        row.appendChild(val);
+        compare.appendChild(row);
+      } else {
+        const currentDef = getCharDef(char);
+        // Calculate new def
+        let newDef = currentDef;
+        if (item.type === "shield") {
+          const currentShieldDef = currentEquip ? currentEquip.def : 0;
+          newDef = currentDef - currentShieldDef + item.def;
+        } else if (item.type === "armor") {
+          const currentArmorDef = currentEquip ? currentEquip.def : 0;
+          newDef = currentDef - currentArmorDef + item.def;
+        }
+        const diff = newDef - currentDef;
+        
+        const row = document.createElement("div");
+        row.className = "equip-stat-compare-row";
+        row.innerHTML = `<span>防御力:</span>`;
+        
+        const val = document.createElement("span");
+        val.className = `equip-stat-compare-val ${diff > 0 ? "upgrade" : diff < 0 ? "downgrade" : ""}`;
+        val.textContent = `${currentDef} ➡ ${newDef} (${diff >= 0 ? "+" : ""}${diff})`;
+        row.appendChild(val);
+        compare.appendChild(row);
+      }
+      detailContent.appendChild(compare);
+    }
+    
+    detailCol.appendChild(detailContent);
+    
+    // Action button
+    const actionBtn = document.createElement("button");
+    actionBtn.className = "btn btn-neon btn-block";
+    actionBtn.style.minHeight = "32px";
+    
+    if (item.type === "usable") {
+      actionBtn.textContent = "使用する";
+      actionBtn.addEventListener("click", () => {
+        if (itemKey === "TOWN_PORTAL") {
+          closeEquipOverlay();
+          state.gameState = "town";
+          state.x = START_X;
+          state.y = START_Y;
+          state.dir = DIR_N;
+          addLog(`${char.name}は帰還のスクロールを読んだ！パーティ全員が眩い光に包まれ、一瞬でリルガミンの街へ戻った！`);
+          playSound("cast_spell");
+          state.inventory.splice(equipState.selectedIdx, 1);
+          saveAutosave();
+          updateUI();
+          return;
+        }
+        
+        const log = item.effect(char);
+        addLog(log);
+        playSound("heal");
+        state.inventory.splice(equipState.selectedIdx, 1);
+        saveAutosave();
+        
+        equipState.selectedKey = null;
+        equipState.selectedIdx = -1;
+        renderEquip();
+        updateUI();
+      });
+    } else {
+      const canEquip = !item.classes || item.classes.includes(char.class);
+      if (canEquip) {
+        actionBtn.textContent = "装備する";
+        actionBtn.addEventListener("click", () => {
+          const slot = item.type; // weapon, shield, armor
+          const oldEq = char.equipment[slot];
+          char.equipment[slot] = item.id;
+          
+          if (oldEq) {
+            state.inventory[equipState.selectedIdx] = oldEq;
+          } else {
+            state.inventory.splice(equipState.selectedIdx, 1);
+          }
+          
+          const newAtk = getCharWeaponAtk(char) + char.str;
+          const newDef = getCharDef(char);
+          addLog(`${char.name}は${item.name}を装備した。(攻撃:${newAtk}/守備:${newDef})`);
+          playSound("move");
+          saveAutosave();
+          
+          equipState.selectedKey = null;
+          equipState.selectedIdx = -1;
+          renderEquip();
+          updateUI();
+        });
+      } else {
+        actionBtn.textContent = "装備不可";
+        actionBtn.disabled = true;
+        actionBtn.className = "btn btn-block";
+      }
+    }
+    detailCol.appendChild(actionBtn);
+  }
+  
+  body.appendChild(detailCol);
+  overlay.appendChild(body);
+  
+  // 4. Footer Slots
+  const footer = document.createElement("div");
+  footer.className = "equip-slots-footer";
+  
+  const slots = [
+    { id: "weapon", label: "武器" },
+    { id: "shield", label: "盾" },
+    { id: "armor", label: "鎧" }
+  ];
+  
+  slots.forEach(slot => {
+    const row = document.createElement("div");
+    row.className = "equip-slot-row";
+    
+    const label = document.createElement("span");
+    label.className = "equip-slot-label";
+    label.textContent = slot.label;
+    row.appendChild(label);
+    
+    const eqKey = char.equipment[slot.id];
+    const eqItem = eqKey ? ITEMS[eqKey] : null;
+    
+    const val = document.createElement("span");
+    val.className = "equip-slot-value";
+    val.textContent = eqItem ? eqItem.name : "なし";
+    row.appendChild(val);
+    
+    if (eqItem) {
+      const btnUnequip = document.createElement("button");
+      btnUnequip.className = "btn btn-danger btn-unequip-sm";
+      btnUnequip.textContent = "外す";
+      btnUnequip.addEventListener("click", () => {
+        if (state.inventory.length >= 20) {
+          playSound("bump");
+          addLog("【警告】バッグが満杯です！装備を外せません。");
+          updateUI();
+          return;
+        }
+        
+        char.equipment[slot.id] = null;
+        state.inventory.push(eqKey);
+        
+        const newAtk = getCharWeaponAtk(char) + char.str;
+        const newDef = getCharDef(char);
+        addLog(`${char.name}は${eqItem.name}を外した。(攻撃:${newAtk}/守備:${newDef})`);
+        playSound("move");
+        saveAutosave();
+        
+        equipState.selectedKey = null;
+        equipState.selectedIdx = -1;
+        renderEquip();
+        updateUI();
+      });
+      row.appendChild(btnUnequip);
+    } else {
+      const btnDummy = document.createElement("button");
+      btnDummy.className = "btn btn-unequip-sm";
+      btnDummy.textContent = "外す";
+      btnDummy.disabled = true;
+      row.appendChild(btnDummy);
+    }
+    footer.appendChild(row);
+  });
+  overlay.appendChild(footer);
 }
 
 

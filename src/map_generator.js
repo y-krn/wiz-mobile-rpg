@@ -310,8 +310,34 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
     grid[spot.y][spot.x].event = "chest";
   }
 
-  // Fallback to place chests on regular passages if dead ends are sparse
-  if (chestCount < 6) {
+  let springCount = 0;
+  for (let i = chestCount; i < Math.min(chestCount + 2, deadEnds.length); i++) {
+    const spot = deadEnds[i];
+    grid[spot.y][spot.x].event = "event_spring";
+    springCount++;
+  }
+
+  let tabletCount = 0;
+  for (let i = chestCount + 2; i < Math.min(chestCount + 4, deadEnds.length); i++) {
+    const spot = deadEnds[i];
+    grid[spot.y][spot.x].event = "event_tablet";
+    tabletCount++;
+  }
+
+  let merchantCount = 0;
+  for (let i = chestCount + 4; i < Math.min(chestCount + 5, deadEnds.length); i++) {
+    const spot = deadEnds[i];
+    grid[spot.y][spot.x].event = "event_merchant";
+    merchantCount++;
+  }
+
+  // Fallback if sparse
+  let totalChestNeeded = 6 - chestCount;
+  let totalSpringNeeded = 2 - springCount;
+  let totalTabletNeeded = 2 - tabletCount;
+  let totalMerchantNeeded = 1 - merchantCount;
+
+  if (totalChestNeeded > 0 || totalSpringNeeded > 0 || totalTabletNeeded > 0 || totalMerchantNeeded > 0) {
     const passages = [];
     for (let y = 1; y < MAP_HEIGHT - 1; y++) {
       for (let x = 1; x < MAP_WIDTH - 1; x++) {
@@ -326,10 +352,23 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
       }
     }
     shuffle(passages);
-    const remaining = 6 - chestCount;
-    for (let i = 0; i < Math.min(remaining, passages.length); i++) {
-      const spot = passages[i];
+    
+    let pIdx = 0;
+    for (let i = 0; i < totalChestNeeded && pIdx < passages.length; i++) {
+      const spot = passages[pIdx++];
       grid[spot.y][spot.x].event = "chest";
+    }
+    for (let i = 0; i < totalSpringNeeded && pIdx < passages.length; i++) {
+      const spot = passages[pIdx++];
+      grid[spot.y][spot.x].event = "event_spring";
+    }
+    for (let i = 0; i < totalTabletNeeded && pIdx < passages.length; i++) {
+      const spot = passages[pIdx++];
+      grid[spot.y][spot.x].event = "event_tablet";
+    }
+    for (let i = 0; i < totalMerchantNeeded && pIdx < passages.length; i++) {
+      const spot = passages[pIdx++];
+      grid[spot.y][spot.x].event = "event_merchant";
     }
   }
 

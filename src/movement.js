@@ -8,6 +8,7 @@ import { setupChestState } from "./chest.js";
 import { openSubmenu } from "./menu.js";
 
 export function handleMove(action) {
+  if (state.transitioning || state.gameState !== "explore") return;
   playSound("move");
   
   const prevX = state.x;
@@ -30,9 +31,10 @@ export function handleMove(action) {
       state.x += DX[state.dir];
       state.y += DY[state.dir];
       
-      // Update light turns
+      // Update light turns (B2F: consume 2 turns per step)
       if (state.lightTurns > 0) {
-        state.lightTurns--;
+        const cost = state.floor === 2 ? 2 : 1;
+        state.lightTurns = Math.max(0, state.lightTurns - cost);
         if (state.lightTurns === 0) {
           addLog("明かりの呪文の効果が切れた。暗闇に包まれた。");
         }
@@ -46,6 +48,11 @@ export function handleMove(action) {
         }
       }
       
+      // Update event cooldown turns
+      if (state.eventCooldownTurns > 0) {
+        state.eventCooldownTurns--;
+      }
+      
       // Mark as visited
       state.visitedMap[state.y][state.x] = true;
       addLog(`一歩進んだ。現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}`);
@@ -53,8 +60,17 @@ export function handleMove(action) {
       // Apply poison damage
       const wiped = applyExplorationPoison();
       if (!wiped) {
-        // Check coordinates trigger events
-        checkCellEvents(prevX, prevY);
+        // Apply floor flame trap (B5F only, 5% chance)
+        const cell = state.map[state.y][state.x];
+        const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
+                              cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
+                              cell.message;
+        if (state.floor === 5 && !isSpecialCell && Math.random() < 0.05) {
+          triggerFlameTrap();
+        } else {
+          // Check coordinates trigger events
+          checkCellEvents(prevX, prevY);
+        }
       }
     }
   } else if (action === "backward") {
@@ -67,8 +83,10 @@ export function handleMove(action) {
     } else {
       state.x += DX[backDir];
       state.y += DY[backDir];
+      // Update light turns (B2F: consume 2 turns per step)
       if (state.lightTurns > 0) {
-        state.lightTurns--;
+        const cost = state.floor === 2 ? 2 : 1;
+        state.lightTurns = Math.max(0, state.lightTurns - cost);
         if (state.lightTurns === 0) {
           addLog("明かりの呪文の効果が切れた。暗闇に包まれた。");
         }
@@ -79,13 +97,27 @@ export function handleMove(action) {
           addLog("マスペアルの効果が切れた。モンスターの殺気が戻った。");
         }
       }
+      
+      // Update event cooldown turns
+      if (state.eventCooldownTurns > 0) {
+        state.eventCooldownTurns--;
+      }
       state.visitedMap[state.y][state.x] = true;
       addLog(`一歩下がった。現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}`);
       
       // Apply poison damage
       const wiped = applyExplorationPoison();
       if (!wiped) {
-        checkCellEvents(prevX, prevY);
+        // Apply floor flame trap (B5F only, 5% chance)
+        const cell = state.map[state.y][state.x];
+        const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
+                              cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
+                              cell.message;
+        if (state.floor === 5 && !isSpecialCell && Math.random() < 0.05) {
+          triggerFlameTrap();
+        } else {
+          checkCellEvents(prevX, prevY);
+        }
       }
     }
   }
@@ -103,6 +135,90 @@ export function findCellCoordsByType(grid, type) {
     }
   }
   return { x: MAP_WIDTH - 2, y: 1 }; // Default fallback coordinate
+}
+
+function checkSensoryAura() {
+  const px = state.x;
+  const py = state.y;
+  
+  let nearestSpring = null;
+  let nearestBoss = null;
+  let nearestTablet = null;
+  let nearestMerchant = null;
+  let nearestStairs = null;
+  let nearestChest = null;
+
+  let minDistSpring = 999;
+  let minDistBoss = 999;
+  let minDistTablet = 999;
+  let minDistMerchant = 999;
+  let minDistStairs = 999;
+  let minDistChest = 999;
+
+  for (let y = 0; y < MAP_HEIGHT; y++) {
+    if (!state.map[y]) continue;
+    for (let x = 0; x < MAP_WIDTH; x++) {
+      if (x === px && y === py) continue; // Skip current cell
+      if (!state.map[y][x]) continue;
+
+      const cell = state.map[y][x];
+      const dist = Math.abs(x - px) + Math.abs(y - py);
+
+      if (cell.event === "event_spring") {
+        if (dist < minDistSpring) { minDistSpring = dist; nearestSpring = { x, y }; }
+      } else if (cell.event === "boss" || cell.event === "midboss") {
+        if (dist < minDistBoss) { minDistBoss = dist; nearestBoss = { x, y }; }
+      } else if (cell.event === "event_tablet") {
+        if (dist < minDistTablet) { minDistTablet = dist; nearestTablet = { x, y }; }
+      } else if (cell.event === "event_merchant") {
+        if (dist < minDistMerchant) { minDistMerchant = dist; nearestMerchant = { x, y }; }
+      } else if (cell.event === "chest") {
+        if (dist < minDistChest) { minDistChest = dist; nearestChest = { x, y }; }
+      }
+
+      if (cell.type === "stairs-up" || cell.type === "stairs-down") {
+        if (dist < minDistStairs) { minDistStairs = dist; nearestStairs = { x, y }; }
+      }
+    }
+  }
+
+  // 1. Boss / Midboss magic aura (distance <= 3)
+  if (minDistBoss <= 3 && nearestBoss) {
+    const dy = nearestBoss.y - py;
+    const dx = nearestBoss.x - px;
+    let dirStr = "";
+    if (Math.abs(dy) > Math.abs(dx)) {
+      dirStr = dy < 0 ? "北" : "南";
+    } else {
+      dirStr = dx < 0 ? "西" : "東";
+    }
+    addLog(`【気配】${dirStr}の方からただならぬ魔力の気配を感じる…`);
+  }
+
+  // 2. Spring water sound (distance <= 2)
+  if (minDistSpring <= 2 && nearestSpring) {
+    addLog("【気配】近くからかすかに水音が聞こえる…");
+  }
+
+  // 3. Tablet magic wave (distance <= 2)
+  if (minDistTablet <= 2 && nearestTablet) {
+    addLog("【気配】近くの壁から弱い魔力の波動を感じる…");
+  }
+
+  // 4. Merchant footsteps/presence (distance <= 2)
+  if (minDistMerchant <= 2 && nearestMerchant) {
+    addLog("【気配】近くから静かな衣擦れの音が聞こえる気がする…");
+  }
+
+  // 5. Stairs wind draft (distance <= 2)
+  if (minDistStairs <= 2 && nearestStairs) {
+    addLog("【気配】どこからかかすかに風が流れてきている…近くに階段があるようだ。");
+  }
+
+  // 6. Chest hidden treasure vibe (distance <= 2)
+  if (minDistChest <= 2 && nearestChest) {
+    addLog("【気配】この近くに何かが隠されている気がする…");
+  }
 }
 
 export function checkCellEvents(prevX = START_X, prevY = START_Y) {
@@ -134,7 +250,19 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
         state.x = target.x;
         state.y = target.y;
         state.visitedMap[state.y][state.x] = true;
-        addLog(`地下${prevFloor}階に上った。`);
+        
+        let floorMsg = `地下${prevFloor}階に上った。`;
+        if (prevFloor === 1) {
+          floorMsg = `地下1階に戻った。穏やかな風が吹いている...`;
+        } else if (prevFloor === 2) {
+          floorMsg = `地下2階に戻った。濃い暗闇と毒気が漂っている...`;
+        } else if (prevFloor === 3) {
+          floorMsg = `地下3階に戻った。中ボスの不気味な魔力の残滓を感じる...`;
+        } else if (prevFloor === 4) {
+          floorMsg = `地下4階に戻った。凶悪な強敵の気配が満ちている...`;
+        }
+        addLog(floorMsg);
+        
         state.transitioning = false;
         saveAutosave();
         updateUI();
@@ -155,7 +283,19 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       state.x = target.x;
       state.y = target.y;
       state.visitedMap[state.y][state.x] = true;
-      addLog(`地下${nextFloor}階に降りた。さらに強い殺気を感じる...`);
+      
+      let floorMsg = `地下${nextFloor}階に降りた。さらに強い殺気を感じる...`;
+      if (nextFloor === 2) {
+        floorMsg = `地下2階に降りた。鼻を突く毒気と、光を吸い込むような暗闇が漂っている...`;
+      } else if (nextFloor === 3) {
+        floorMsg = `地下3階に降りた。不気味な咆哮が木霊し、強大な門番が竜の鍵を握っている気配がする...`;
+      } else if (nextFloor === 4) {
+        floorMsg = `地下4階に降りた。ここは強者の領域。凶悪な魔物の気配と、伝説の財宝が眠っている予感がする...`;
+      } else if (nextFloor === 5) {
+        floorMsg = `地下5階：竜の領域に降りた。灼熱の熱気と強烈なプレッシャーが肌を刺す！`;
+      }
+      addLog(floorMsg);
+      
       state.transitioning = false;
       saveAutosave();
       updateUI();
@@ -211,11 +351,31 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     return;
   }
 
-  // Random Event (5% chance) on standard cells (not stairs, boss, chest, midboss, or message cells)
+  // Spring encounter
+  if (cell.event === "event_spring") {
+    openSubmenu("event_spring", "怪しい泉を見つけた。澄んだ水が湧き出ている…");
+    return;
+  }
+
+  // Tablet encounter
+  if (cell.event === "event_tablet") {
+    openSubmenu("event_tablet", "謎の石碑が立っている。古代の文字が刻まれている…");
+    return;
+  }
+
+  // Merchant encounter
+  if (cell.event === "event_merchant") {
+    openSubmenu("event_merchant", "フードを被ったさまよう商人が現れた！");
+    return;
+  }
+
+  // Random Event (3% chance) on standard cells with cooldown constraint
   const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
                         cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
                         cell.message;
-  if (!isSpecialCell && Math.random() < 0.05) {
+  const cooldownActive = state.eventCooldownTurns && state.eventCooldownTurns > 0;
+  if (!isSpecialCell && !cooldownActive && Math.random() < 0.03) {
+    state.eventCooldownTurns = 15; // Set 15 steps cooldown
     const events = ["event_spring", "event_tablet", "event_merchant"];
     const chosen = events[Math.floor(Math.random() * events.length)];
     if (chosen === "event_spring") {
@@ -236,14 +396,19 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       state.transitioning = false;
       startCombat(false, false);
     }, 600);
+    return;
   }
+
+  // Check nearby sensory aura
+  checkSensoryAura();
 }
 
 export function applyExplorationPoison() {
   let tookDamage = false;
   state.party.forEach(c => {
     if (c.status === "poisoned" && c.hp > 0) {
-      const pDmg = Math.floor(Math.random() * 2) + 1; // 1-2 HP damage
+      const baseDmg = state.floor === 2 ? 2 : 1;
+      const pDmg = Math.floor(Math.random() * 2) + baseDmg; // B2F: 2-3, Others: 1-2 HP damage
       c.hp = Math.max(0, c.hp - pDmg);
       addLog(`[!] 毒のダメージ！${c.name}は${pDmg}のダメージを受けた。`);
       tookDamage = true;
@@ -265,6 +430,34 @@ export function applyExplorationPoison() {
     return true;
   }
   return false;
+}
+
+export function triggerFlameTrap() {
+  addLog("【⚠️熱気！】天井から猛烈な火炎ブレスが吹き出した！");
+  playSound("chest_trap");
+  if (renderer) renderer.triggerShake(10, 400);
+  if (renderer && typeof renderer.triggerFlash === "function") {
+    renderer.triggerFlash(400);
+  }
+  state.party.forEach(c => {
+    if (c.status !== "dead") {
+      const dmg = Math.floor(Math.random() * 11) + 10; // 10-20 damage
+      c.hp = Math.max(0, c.hp - dmg);
+      addLog(`${c.name}は${dmg}の炎ダメージを受けた。`);
+      if (c.hp === 0) {
+        c.status = "dead";
+        addLog(`[!] ${c.name}は炎に焼かれて力尽きた！`);
+      }
+    }
+  });
+
+  const allPartyDead = state.party.every(c => c.status === "dead");
+  if (allPartyDead) {
+    triggerGameOver();
+  } else {
+    saveAutosave();
+    updateUI();
+  }
 }
 
 export function enterDungeon() {

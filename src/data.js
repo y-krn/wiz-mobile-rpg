@@ -21,10 +21,16 @@ export const SPELLS = {
     desc: "火の玉 (5-15 DMG)",
     effect: (caster, target) => {
       let dmg = Math.floor(Math.random() * 11) + 5;
+      let suffix = "";
       if (target && target.magicResist) {
         dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
+        if (target.magicResist > 0) {
+          suffix = "（呪文がレジストされた！）";
+        } else if (target.magicResist < 0) {
+          suffix = "（呪文が弱点に直撃した！）";
+        }
       }
-      return { damage: dmg, log: `${caster.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${target && target.magicResist ? "（呪文がレジストされた！）" : ""}` };
+      return { damage: dmg, log: `${caster.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${suffix}` };
     }
   },
   KATINO: {
@@ -57,15 +63,22 @@ export const SPELLS = {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 21) + 15;
         let isResisted = false;
+        let isWeakness = false;
         if (t.magicResist) {
           dmg = Math.max(0, Math.round(dmg * (1 - t.magicResist)));
-          isResisted = true;
+          if (t.magicResist > 0) isResisted = true;
+          if (t.magicResist < 0) isWeakness = true;
         }
         t.hp = Math.max(0, t.hp - dmg);
-        return { name: t.name, dmg, isResisted };
+        return { name: t.name, dmg, isResisted, isWeakness };
       }).filter(r => r !== 0);
       
-      const logDetails = results.map(r => `${r.name}に${r.dmg}のダメージ${r.isResisted ? "(半減)" : ""}`).join(", ");
+      const logDetails = results.map(r => {
+        let suffix = "";
+        if (r.isResisted) suffix = "(半減)";
+        if (r.isWeakness) suffix = "(弱点直撃!)";
+        return `${r.name}に${r.dmg}のダメージ${suffix}`;
+      }).join(", ");
       return { log: `${caster.name}はラハリトを唱えた！激しい炎が敵全体を焼き尽くす！(${logDetails})` };
     }
   },
@@ -89,10 +102,16 @@ export const SPELLS = {
     desc: "中級炎魔法 (20-35 DMG)",
     effect: (caster, target) => {
       let dmg = Math.floor(Math.random() * 16) + 20;
+      let suffix = "";
       if (target && target.magicResist) {
         dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
+        if (target.magicResist > 0) {
+          suffix = "（呪文がレジストされた！）";
+        } else if (target.magicResist < 0) {
+          suffix = "（呪文が弱点に直撃した！）";
+        }
       }
-      return { damage: dmg, log: `${caster.name}はマハリトを唱えた！${target.name}に${dmg}の熱線ダメージ！${target && target.magicResist ? "（呪文がレジストされた！）" : ""}` };
+      return { damage: dmg, log: `${caster.name}はマハリトを唱えた！${target.name}に${dmg}の熱線ダメージ！${suffix}` };
     }
   },
   MASFEAL: {
@@ -119,15 +138,22 @@ export const SPELLS = {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 31) + 30;
         let isResisted = false;
+        let isWeakness = false;
         if (t.magicResist) {
           dmg = Math.max(0, Math.round(dmg * (1 - t.magicResist)));
-          isResisted = true;
+          if (t.magicResist > 0) isResisted = true;
+          if (t.magicResist < 0) isWeakness = true;
         }
         t.hp = Math.max(0, t.hp - dmg);
-        return { name: t.name, dmg, isResisted };
+        return { name: t.name, dmg, isResisted, isWeakness };
       }).filter(r => r !== 0);
       
-      const logDetails = results.map(r => `${r.name}に${r.dmg}のダメージ${r.isResisted ? "(半減)" : ""}`).join(", ");
+      const logDetails = results.map(r => {
+        let suffix = "";
+        if (r.isResisted) suffix = "(半減)";
+        if (r.isWeakness) suffix = "(弱点直撃!)";
+        return `${r.name}に${r.dmg}のダメージ${suffix}`;
+      }).join(", ");
       return { log: `${caster.name}はマダルトを唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})` };
     }
   },
@@ -143,15 +169,22 @@ export const SPELLS = {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 51) + 50;
         let isResisted = false;
+        let isWeakness = false;
         if (t.magicResist) {
           dmg = Math.max(0, Math.round(dmg * (1 - t.magicResist)));
-          isResisted = true;
+          if (t.magicResist > 0) isResisted = true;
+          if (t.magicResist < 0) isWeakness = true;
         }
         t.hp = Math.max(0, t.hp - dmg);
-        return { name: t.name, dmg, isResisted };
+        return { name: t.name, dmg, isResisted, isWeakness };
       }).filter(r => r !== 0);
       
-      const logDetails = results.map(r => `${r.name}に${r.dmg}のダメージ${r.isResisted ? "(半減)" : ""}`).join(", ");
+      const logDetails = results.map(r => {
+        let suffix = "";
+        if (r.isResisted) suffix = "(半減)";
+        if (r.isWeakness) suffix = "(弱点直撃!)";
+        return `${r.name}に${r.dmg}のダメージ${suffix}`;
+      }).join(", ");
       return { log: `${caster.name}はティルトウェイトを唱えた！極大爆裂の光が敵全体を消滅させる！(${logDetails})` };
     }
   },
@@ -195,10 +228,16 @@ export const SPELLS = {
     desc: "不浄への一撃 (5-15 HPダメージ)",
     effect: (caster, target) => {
       let dmg = Math.floor(Math.random() * 11) + 5;
+      let suffix = "";
       if (target && target.magicResist) {
         dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
+        if (target.magicResist > 0) {
+          suffix = "（呪文がレジストされた！）";
+        } else if (target.magicResist < 0) {
+          suffix = "（呪文が弱点に直撃した！）";
+        }
       }
-      return { damage: dmg, log: `${caster.name}はバディオスを唱えた！${target.name}に${dmg}の神聖ダメージ！${target && target.magicResist ? "（呪文がレジストされた！）" : ""}` };
+      return { damage: dmg, log: `${caster.name}はバディオスを唱えた！${target.name}に${dmg}の神聖ダメージ！${suffix}` };
     }
   },
   MILWA: {
@@ -405,6 +444,16 @@ export const MONSTERS = [
   { name: "マスターデーモン", level: 7, hp: 60, atk: 15, def: 8, exp: 1500, gold: 200, spriteType: "flack", spell: "MADALTO", color: "#ff3b30" },
   
   { name: "フラック", level: 4, hp: 70, atk: 18, def: 8, exp: 1500, gold: 180, spriteType: "flack", spell: "LAHALITO", isRare: true, color: "#ff3b30" },
+  { name: "ドラゴンパピー", level: 4, hp: 45, atk: 12, def: 5, exp: 600, gold: 60, spriteType: "dragon", spell: "HALITO", color: "#ffc0cb" },
+  { name: "ワイバーン", level: 5, hp: 65, atk: 17, def: 7, exp: 1200, gold: 120, spriteType: "dragon", spell: "LAHALITO", color: "#ffa500" },
+  { name: "レッドドラゴン", level: 7, hp: 100, atk: 22, def: 10, exp: 3500, gold: 400, spriteType: "dragon", spell: "MADALTO", color: "#ff3b30" },
+  { name: "アイアンゴーレム", level: 3, hp: 25, atk: 10, def: 12, exp: 400, gold: 50, spriteType: "zombie", physResist: 0.8, color: "#8e8e93" },
+  { name: "マッドスライム", level: 1, hp: 35, atk: 4, def: 1, exp: 120, gold: 20, spriteType: "biter", magicResist: -0.5, color: "#ff9500" },
+  { name: "メタルパピー", level: 3, hp: 8, atk: 5, def: 10, exp: 2000, gold: 500, spriteType: "biter", fleeChance: 0.50, color: "#ffd700", isRare: true },
+  { name: "オークの呪医", level: 2, hp: 22, atk: 5, def: 3, exp: 200, gold: 35, spriteType: "orc", spell: "DIOS", color: "#34c759" },
+  { name: "プリーストデーモン", level: 5, hp: 60, atk: 12, def: 6, exp: 900, gold: 150, spriteType: "flack", spell: "DIALMA", color: "#34c759" },
+  { name: "スケルトンアーチャー", level: 2, hp: 16, atk: 9, def: 3, exp: 150, gold: 30, spriteType: "skeleton", isSniper: true, color: "#af52de" },
+  { name: "ダークアサシン", level: 3, hp: 28, atk: 14, def: 4, exp: 350, gold: 60, spriteType: "kobold", isSniper: true, color: "#ff3b30" },
   { name: "いにしえの竜", level: 8, hp: 160, atk: 24, def: 14, exp: 6000, gold: 1000, spriteType: "dragon", spell: "TILTOWAIT", isBoss: true, color: "#ff3b30" }
 ];
 

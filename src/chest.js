@@ -7,21 +7,63 @@ import { menuContext, openSubmenu, goBackSubmenu, closeSubmenu } from "./menu.js
 import { triggerGameOver } from "./combat.js";
 
 export function setupChestState() {
-  // Traps are levels dependent
-  const traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
+  // Traps are floor dependent
+  let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
+  if (state.floor === 2) {
+    // B2F: High poison needle rate (60% chance)
+    traps = ["poison needle", "poison needle", "poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
+  } else if (state.floor === 4) {
+    // B4F: Higher teleporter and gas bomb chance, no "none"
+    traps = ["gas bomb", "teleporter", "teleporter", "flash bomb", "poison needle"];
+  } else if (state.floor === 5) {
+    // B5F: Extremely dangerous traps, high chance of teleporter
+    traps = ["gas bomb", "teleporter", "teleporter", "poison needle", "flash bomb"];
+  }
   const randIdx = Math.floor(Math.random() * traps.length);
   const trap = traps[randIdx];
 
-  // Gold reward
-  const gold = Math.floor(Math.random() * 81) + 20;
+  // Gold reward scale by floor
+  let gold = Math.floor(Math.random() * 81) + 20; // Default 20-100G
+  if (state.floor === 4) {
+    gold = Math.floor(Math.random() * 201) + 100; // B4F: 100-300G
+  } else if (state.floor === 5) {
+    gold = Math.floor(Math.random() * 301) + 150; // B5F: 150-450G
+  }
 
-
-  // Item reward (50% chance of random item)
+  // Item reward scale by floor
   let item = null;
-  if (Math.random() < 0.50) {
-    const itemKeys = Object.keys(ITEMS).filter(k => k !== "ANTIGRAVITY_CRYSTAL");
-    const randItemIdx = Math.floor(Math.random() * itemKeys.length);
-    item = itemKeys[randItemIdx];
+  const itemChance = state.floor === 4 ? 0.75 : 0.50; // B4F has high item drop rate
+  if (Math.random() < itemChance) {
+    let candidates = [];
+    if (state.floor === 1) {
+      candidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "HEAL_POTION", "ANTIDOTE"];
+    } else if (state.floor === 2) {
+      candidates = ["DAGGER", "WAND", "SHORT_SWORD", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
+    } else if (state.floor === 3) {
+      candidates = ["SHORT_SWORD", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SMALL_SHIELD", "LARGE_SHIELD", "LEATHER_ARMOR", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "HEAL_POTION", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
+    } else if (state.floor === 4) {
+      // B4F: 20% chance of Legendary/Elixir items, 80% other high level items
+      if (Math.random() < 0.20) {
+        candidates = ["ELIXIR", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "KATANA"];
+      } else {
+        candidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL", "HOLY_WATER", "ELIXIR"];
+      }
+    } else if (state.floor === 5) {
+      // B5F: 30% chance of Legendary/Elixir items, 70% other high level items
+      if (Math.random() < 0.30) {
+        candidates = ["ELIXIR", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "KATANA"];
+      } else {
+        candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "HOLY_WATER", "ELIXIR", "TOWN_PORTAL"];
+      }
+    }
+
+    if (candidates.length > 0) {
+      item = candidates[Math.floor(Math.random() * candidates.length)];
+    } else {
+      const itemKeys = Object.keys(ITEMS).filter(k => k !== "ANTIGRAVITY_CRYSTAL");
+      const randItemIdx = Math.floor(Math.random() * itemKeys.length);
+      item = itemKeys[randItemIdx];
+    }
   }
 
   state.chestState = {
@@ -29,7 +71,9 @@ export function setupChestState() {
     gold,
     item,
     inspected: false,
-    identifiedTrap: ""
+    identifiedTrap: "",
+    x: state.x,
+    y: state.y
   };
   
   // Transition to chest submenu
@@ -114,6 +158,9 @@ export function openChestMenu() {
     addLog("宝箱を開けずに立ち去った。");
     // Clear chest event on current cell
     state.map[state.y][state.x].event = null;
+    if (state.floorChestsOpened) {
+      state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
+    }
     state.chestState = null;
     state.gameState = "explore";
     saveAutosave();
@@ -160,7 +207,9 @@ export function executeDisarm(char) {
 }
 
 export function triggerChestTrap(char) {
+  if (!state.chestState || state.chestState.trap === "none") return;
   const trap = state.chestState.trap;
+  state.chestState.trap = "none";
   playSound("chest_trap");
   if (renderer) renderer.triggerShake(10, 400);
 
@@ -215,8 +264,8 @@ export function openChestDirectly() {
   state.transitioning = true;
   const chest = state.chestState;
   const chestMap = state.map;
-  const chestX = state.x;
-  const chestY = state.y;
+  const chestX = chest.x;
+  const chestY = chest.y;
   
   const translateTrap = (t) => {
     if (t === "poison needle") return "毒針";
@@ -246,6 +295,9 @@ export function openChestDirectly() {
 
   // Clear the original chest cell even if a trap moved the party.
   chestMap[chestY][chestX].event = null;
+  if (state.floorChestsOpened) {
+    state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
+  }
 
   // Check game over
   const partyAlive = state.party.some(c => c.status !== "dead");

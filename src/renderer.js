@@ -722,6 +722,56 @@ export class DungeonRenderer {
       }
     }
 
+    // Draw secret event auras (faint glowing circles)
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      if (!state.map[y]) continue;
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        if (!state.map[y][x]) continue;
+        const cell = state.map[y][x];
+        const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
+        
+        // Aura range is within 4 steps
+        if (dist > 4) continue;
+
+        const hasStairs = cell.type === "stairs-up" || cell.type === "stairs-down";
+        const hasEvent = cell.event === "chest" || cell.event === "spring" || cell.event === "tablet" || cell.event === "merchant" || cell.event === "midboss" || cell.event === "boss";
+
+        if (!hasStairs && !hasEvent) continue;
+
+        const screenX = margin + x * cellS + offsetX;
+        const screenY = margin + y * cellS + offsetY;
+
+        ctx.save();
+        if (hasStairs) {
+          // Orange glow for stairs
+          ctx.fillStyle = "rgba(255, 179, 0, 0.12)";
+          ctx.beginPath();
+          ctx.arc(screenX + cellS / 2, screenY + cellS / 2, cellS * 0.9, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (cell.event === "boss" || cell.event === "midboss") {
+          // Pulsing red glow for boss/midboss
+          const pulse = 0.14 + 0.08 * Math.sin(Date.now() / 200);
+          ctx.fillStyle = `rgba(255, 59, 48, ${pulse})`;
+          ctx.beginPath();
+          ctx.arc(screenX + cellS / 2, screenY + cellS / 2, cellS * 1.3, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (cell.event === "chest") {
+          // Yellow glow for chest
+          ctx.fillStyle = "rgba(255, 235, 59, 0.14)";
+          ctx.beginPath();
+          ctx.arc(screenX + cellS / 2, screenY + cellS / 2, cellS * 0.9, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          // Purple glow for mystery events (spring, tablet, merchant)
+          ctx.fillStyle = "rgba(191, 90, 242, 0.14)";
+          ctx.beginPath();
+          ctx.arc(screenX + cellS / 2, screenY + cellS / 2, cellS * 0.9, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
     // Draw player arrow (larger, glowing gold)
     const px = margin + state.x * cellS + cellS / 2 + offsetX;
     const py = margin + state.y * cellS + cellS / 2 + offsetY;

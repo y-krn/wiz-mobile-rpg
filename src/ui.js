@@ -1,14 +1,74 @@
 import { state, getCharWeaponAtk, getCharDef } from "./state.js";
 import { DIR_NAMES, getClassJpName, isSpellcaster } from "./data.js";
 import { isMuted } from "./audio.js";
-import { menuContext } from "./menu.js";
-import { combatSelection } from "./combat.js";
+import { menuContext, renderEquip } from "./menu.js";
+import { combatSelection, renderCombatOverlay } from "./combat.js";
+
+export function getFloorExplorationRate() {
+  const map = state.map;
+  if (!map) return 0;
+  let passableCount = 0;
+  let visitedCount = 0;
+  for (let y = 1; y < map.length - 1; y++) {
+    for (let x = 1; x < map[y].length - 1; x++) {
+      const cell = map[y][x];
+      if (cell && cell.walls && cell.walls.some(w => !w)) {
+        passableCount++;
+        if (state.visitedMap && state.visitedMap[y][x]) {
+          visitedCount++;
+        }
+      }
+    }
+  }
+  if (passableCount === 0) return 0;
+  return Math.floor((visitedCount / passableCount) * 100);
+}
 
 export function resetViewportZoom() {
   const viewport = document.querySelector('meta[name="viewport"]');
   if (viewport) {
     // Force reset viewport scale to 1.0
     viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+  }
+}
+
+export function getCurrentGoal() {
+  if (state.gameState === "town") {
+    if (state.inventory.includes("ANTIGRAVITY_CRYSTAL")) {
+      return "おしろに行き、浮遊石を渡してゲームをクリアせよ！";
+    }
+    return "迷宮に入り、地下深くを探索せよ！";
+  }
+
+  // Inside dungeon
+  if (state.inventory.includes("ANTIGRAVITY_CRYSTAL")) {
+    return "街（リルガミン）に戻り、おしろへ浮遊石を届けよ！";
+  }
+
+  const hasKey = state.inventory.includes("DRAGON_KEY");
+
+  switch (state.floor) {
+    case 1:
+      return "B1F: 地下2階への下り階段を探せ";
+    case 2:
+      return "B2F: 地下3階への下り階段を探せ";
+    case 3:
+      if (hasKey) {
+        return "B3F: 地下4階への下り階段を探せ";
+      }
+      return "B3F: デーモンガードを倒し「竜の鍵」を入手せよ";
+    case 4:
+      if (hasKey) {
+        return "B4F: 地下5階への下り階段を探せ";
+      }
+      return "B3Fに戻り、デーモンガードから「竜の鍵」を奪え";
+    case 5:
+      if (hasKey) {
+        return "B5F: 竜の鍵を使い、最深部の「いにしえの竜」を倒せ";
+      }
+      return "B3Fに戻り、デーモンガードから「竜の鍵」を奪え";
+    default:
+      return "迷宮を探索せよ";
   }
 }
 
@@ -36,6 +96,23 @@ export function updateUI() {
   }
   
   goldLabel.textContent = `GOLD: ${state.gold}`;
+
+  // Update Goal HUD
+  const goalBanner = document.getElementById("goal-banner");
+  if (goalBanner) {
+    if (state.gameState === "gameover") {
+      goalBanner.textContent = "🎯 目標: 全滅した。セーブから再開するか、最初からやり直せ";
+    } else if (state.gameState === "victory") {
+      goalBanner.textContent = "🎯 目標: おめでとう！ゲームクリア！";
+    } else if (state.gameState === "town") {
+      goalBanner.textContent = `🎯 目標: ${getCurrentGoal()}`;
+    } else {
+      const expRate = getFloorExplorationRate();
+      const chestsOpened = state.floorChestsOpened ? (state.floorChestsOpened[state.floor - 1] ?? 0) : 0;
+      const chestsTotal = state.floorChestsTotal ? (state.floorChestsTotal[state.floor - 1] ?? 0) : 0;
+      goalBanner.textContent = `🎯 目標: ${getCurrentGoal()} | 🗺️ 探索率: ${expRate}% | 📦 宝箱: ${chestsOpened}/${chestsTotal}`;
+    }
+  }
 
   // Update mute button display
   const btnMute = document.getElementById("btn-mute");
@@ -75,6 +152,8 @@ export function updateUI() {
       entry.classList.add("loot");
     } else if (msg.includes("唱えた") || msg.includes("明かり") || msg.includes("座標")) {
       entry.classList.add("info");
+    } else if (msg.includes("【気配】")) {
+      entry.classList.add("aura");
     }
     
     entry.textContent = msg;
@@ -167,6 +246,28 @@ export function updateUI() {
       trainingOverlay.style.display = "flex";
     } else {
       trainingOverlay.style.display = "none";
+    }
+  }
+
+  // Update Combat Overlay visibility
+  const combatOverlay = document.getElementById("combat-overlay");
+  if (combatOverlay) {
+    if (state.gameState === "submenu" && (menuContext.type === "combat_spell" || menuContext.type === "combat_item")) {
+      combatOverlay.style.display = "flex";
+      renderCombatOverlay();
+    } else {
+      combatOverlay.style.display = "none";
+    }
+  }
+  
+  // Update Equip Overlay visibility
+  const equipOverlay = document.getElementById("equip-overlay");
+  if (equipOverlay) {
+    if (state.gameState === "equip_overlay") {
+      equipOverlay.style.display = "flex";
+      renderEquip();
+    } else {
+      equipOverlay.style.display = "none";
     }
   }
 

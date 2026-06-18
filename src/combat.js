@@ -1,5 +1,5 @@
-import { state, saveAutosave, addLog, getCharWeaponAtk, getCharDef, checkCharLevelUp } from "./state.js";
-import { DIR_N, START_X, START_Y, MONSTERS, ITEMS, SPELLS } from "./data.js";
+import { state, saveAutosave, addLog, getCharWeaponAtk, getCharDef, checkCharLevelUp, EXP_LEVELS } from "./state.js";
+import { DIR_N, START_X, START_Y, MONSTERS, ITEMS, SPELLS, getClassJpName } from "./data.js";
 import { playSound } from "./audio.js";
 import { renderer } from "./game.js";
 import { updateUI } from "./ui.js";
@@ -11,6 +11,10 @@ export let combatSelection = {
   charIdx: 0,
   actions: [] // array of { type, actorIdx, targetIdx, spellName, itemKey }
 };
+
+let activeTargetCallback = null;
+let activeSpellCallback = null;
+let activeItemCallback = null;
 
 export function startCombat(isBoss, isMidboss = false) {
   state.gameState = "combat";
@@ -57,8 +61,9 @@ export function startCombat(isBoss, isMidboss = false) {
     else if (state.floor === 4) { minCount = 2; maxCount = 4; }
     else if (state.floor === 5) { minCount = 3; maxCount = 4; }
     
-    // Check rare encounter chance (e.g. 8% chance)
-    const isRareEncounter = Math.random() < 0.08;
+    // Check rare encounter chance (e.g. 8% chance, B4F has 18%)
+    const rareChance = state.floor === 4 ? 0.18 : 0.08;
+    const isRareEncounter = Math.random() < rareChance;
     const rareCandidates = MONSTERS.filter(m => m.isRare);
     
     if (isRareEncounter && rareCandidates.length > 0) {
@@ -73,9 +78,37 @@ export function startCombat(isBoss, isMidboss = false) {
       // Choose monsters based on target level and count limits
       const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
       
-      let candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.level === targetLevel);
-      if (candidates.length === 0) {
-        candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && Math.abs(m.level - targetLevel) <= 1);
+      let candidates = [];
+      if (state.floor === 5) {
+        // B5F: 70% chance of dragon-only encounters, otherwise high-level giants/demons
+        const dragons = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.spriteType === "dragon");
+        if (dragons.length > 0 && Math.random() < 0.70) {
+          candidates = dragons;
+        } else {
+          candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && ["アースジャイアント", "マスターデーモン"].includes(m.name));
+          if (candidates.length === 0) {
+            candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.level >= 6);
+          }
+        }
+      } else {
+        candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.level === targetLevel);
+        if (candidates.length === 0) {
+          candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && Math.abs(m.level - targetLevel) <= 1);
+        }
+        
+        if (state.floor === 2) {
+          // B2F: 70% chance to bias towards poisonous monsters
+          const poisonous = candidates.filter(m => m.isPoisonous);
+          if (poisonous.length > 0 && Math.random() < 0.70) {
+            candidates = poisonous;
+          }
+        } else if (state.floor === 3) {
+          // B3F: 60% chance to bias towards spirits/demons/mages
+          const demonSpirits = candidates.filter(m => m.spriteType === "spirit" || m.spriteType === "flack" || m.spriteType === "mage");
+          if (demonSpirits.length > 0 && Math.random() < 0.60) {
+            candidates = demonSpirits;
+          }
+        }
       }
       
       for (let i = 0; i < count; i++) {
@@ -271,10 +304,11 @@ export function cancelCombatAction() {
 export function openCombatTargetMenu(type, callback, spellName = null) {
   state.gameState = "submenu";
   menuContext.type = "combat_target";
+  menuContext.targetType = type;
+  menuContext.spellName = spellName;
+  activeTargetCallback = callback;
 
-  const titleEl = document.getElementById("submenu-title");
-  titleEl.textContent = type === "enemy" ? "攻撃対象の敵を選択してください:" : "回復・支援対象の味方を選択してください:";
-
+  // Render quick-select buttons in controls panel
   const optGrid = document.getElementById("submenu-options");
   optGrid.innerHTML = "";
 
@@ -282,21 +316,25 @@ export function openCombatTargetMenu(type, callback, spellName = null) {
     const monsters = state.combatState.monsters;
     monsters.forEach((m, idx) => {
       const btn = document.createElement("button");
-      btn.className = "btn btn-neon btn-block";
-      btn.textContent = `${m.name} (HP:${m.hp}/${m.maxHp})`;
-      if (m.hp <= 0) btn.disabled = true;
-      btn.addEventListener("click", () => {
-        state.gameState = "combat";
-        callback(idx);
-      });
+      btn.className = "btn btn-neon btn-target-enemy";
+      btn.textContent = `${m.name} (${m.hp}/${m.maxHp})`;
+      
+      if (m.hp <= 0) {
+        btn.disabled = true;
+        btn.style.opacity = "0.3";
+      } else {
+        btn.addEventListener("click", () => {
+          state.gameState = "combat";
+          if (activeTargetCallback) activeTargetCallback(idx);
+        });
+      }
       optGrid.appendChild(btn);
     });
   } else {
-    // Ally targeting
     state.party.forEach((char, idx) => {
       const btn = document.createElement("button");
-      btn.className = "btn btn-neon btn-block";
-      btn.textContent = `${char.name} (HP:${char.hp}/${char.maxHp})`;
+      btn.className = "btn btn-neon btn-target-ally";
+      btn.textContent = `${idx + 1}.${char.name} (${char.hp}/${char.maxHp})`;
       
       let disabled = false;
       if (spellName === "KADORTO") {
@@ -304,24 +342,34 @@ export function openCombatTargetMenu(type, callback, spellName = null) {
       } else {
         if (char.status === "dead") disabled = true;
       }
-      
-      btn.disabled = disabled;
-      btn.addEventListener("click", () => {
-        state.gameState = "combat";
-        callback(idx);
-      });
+
+      if (disabled) {
+        btn.disabled = true;
+        btn.style.opacity = "0.3";
+      } else {
+        btn.addEventListener("click", () => {
+          state.gameState = "combat";
+          if (activeTargetCallback) activeTargetCallback(idx);
+        });
+      }
       optGrid.appendChild(btn);
     });
   }
+
+  const titleEl = document.getElementById("submenu-title");
+  titleEl.textContent = type === "enemy" ? "攻撃対象選択" : "対象選択";
+
   updateUI();
 }
 
 export function openCombatSpellMenu(char, callback) {
   state.gameState = "submenu";
   menuContext.type = "combat_spell";
-
-  const titleEl = document.getElementById("submenu-title");
-  titleEl.textContent = `Spell Cast - ${char.name} (MP:${char.mp}/${char.maxMp}):`;
+  
+  // Find actor index
+  const actorIdx = state.party.findIndex(c => c.name === char.name);
+  menuContext.actorIdx = actorIdx;
+  activeSpellCallback = callback;
 
   const optGrid = document.getElementById("submenu-options");
   optGrid.innerHTML = "";
@@ -329,41 +377,244 @@ export function openCombatSpellMenu(char, callback) {
   char.spells.forEach(spKey => {
     const spell = SPELLS[spKey];
     const btn = document.createElement("button");
-    btn.className = "btn btn-neon btn-block";
-    btn.textContent = `${spell.name} (MP:${spell.cost}) - ${spell.desc}`;
-    if (char.mp < spell.cost) btn.disabled = true;
-    btn.addEventListener("click", () => {
-      state.gameState = "combat";
-      callback(spKey);
-    });
+    btn.className = "btn btn-neon btn-select-spell";
+    btn.textContent = `${spell.name} (${spell.cost}M)`;
+
+    const mpCheck = char.mp < spell.cost;
+    if (mpCheck) {
+      btn.disabled = true;
+      btn.style.opacity = "0.3";
+    } else {
+      btn.addEventListener("click", () => {
+        state.gameState = "combat";
+        if (activeSpellCallback) activeSpellCallback(spKey);
+      });
+    }
     optGrid.appendChild(btn);
   });
+
+  const titleEl = document.getElementById("submenu-title");
+  titleEl.textContent = `${char.name}の呪文詠唱`;
+
   updateUI();
 }
 
 export function openCombatItemMenu(callback) {
   state.gameState = "submenu";
   menuContext.type = "combat_item";
-
-  const titleEl = document.getElementById("submenu-title");
-  titleEl.textContent = "使用する道具を選択:";
+  activeItemCallback = callback;
 
   const optGrid = document.getElementById("submenu-options");
   optGrid.innerHTML = "";
 
-  state.inventory.forEach((itemKey, idx) => {
-    const item = ITEMS[itemKey];
-    const btn = document.createElement("button");
-    btn.className = "btn btn-neon btn-block";
-    btn.textContent = `${item.name}`;
-    if (item.type !== "usable") btn.disabled = true;
-    btn.addEventListener("click", () => {
-      state.gameState = "combat";
-      callback(itemKey, idx);
+  if (state.inventory.length === 0) {
+    const info = document.createElement("div");
+    info.style.color = "var(--text-muted)";
+    info.style.textAlign = "center";
+    info.style.marginTop = "20px";
+    info.style.fontFamily = "var(--font-mono)";
+    info.style.fontSize = "11px";
+    info.textContent = "共有バッグは空っぽです。";
+    optGrid.appendChild(info);
+  } else {
+    state.inventory.forEach((itemKey, idx) => {
+      const item = ITEMS[itemKey];
+      const btn = document.createElement("button");
+      btn.className = "btn btn-neon btn-select-item";
+      btn.textContent = item.name;
+
+      const usableCheck = item.type !== "usable";
+      if (usableCheck) {
+        btn.disabled = true;
+        btn.style.opacity = "0.3";
+      } else {
+        btn.addEventListener("click", () => {
+          state.gameState = "combat";
+          if (activeItemCallback) activeItemCallback(itemKey, idx);
+        });
+      }
+      optGrid.appendChild(btn);
     });
-    optGrid.appendChild(btn);
-  });
+  }
+
+  const titleEl = document.getElementById("submenu-title");
+  titleEl.textContent = "道具使用";
+
   updateUI();
+}
+
+export function renderCombatOverlay() {
+  const overlay = document.getElementById("combat-overlay");
+  if (!overlay) return;
+  overlay.innerHTML = "";
+
+  const type = menuContext.type;
+
+  // 1. Create header
+  const header = document.createElement("div");
+  header.className = "combat-overlay-header";
+  
+  let titleText = "";
+  if (type === "combat_target") {
+    titleText = menuContext.targetType === "enemy" ? "⚔️ 攻撃対象を選択" : "❤️ 対象を選択";
+  } else if (type === "combat_spell") {
+    titleText = "🪄 呪文を唱える";
+  } else if (type === "combat_item") {
+    titleText = "🎒 道具を使う";
+  }
+  header.innerHTML = `<span class="combat-overlay-title">${titleText}</span>`;
+  overlay.appendChild(header);
+
+  // 2. Create scrollable body
+  const body = document.createElement("div");
+  body.className = "combat-overlay-body";
+
+  if (type === "combat_target") {
+    const targetGrid = document.createElement("div");
+    targetGrid.className = "combat-target-grid";
+
+    if (menuContext.targetType === "enemy") {
+      // Enemy targets
+      const monsters = state.combatState.monsters;
+      monsters.forEach((m, idx) => {
+        const card = document.createElement("div");
+        card.className = "combat-target-card enemy";
+        if (m.hp <= 0) {
+          card.classList.add("dead");
+        }
+
+        const hpPct = m.maxHp > 0 ? (m.hp / m.maxHp) * 100 : 0;
+        card.innerHTML = `
+          <div class="card-title">${m.name}</div>
+          <div class="card-hp-bar-container">
+            <div class="card-hp-bar" style="width: ${hpPct}%"></div>
+          </div>
+          <div class="card-hp-text">HP: ${m.hp}/${m.maxHp}</div>
+        `;
+
+        if (m.hp > 0) {
+          card.addEventListener("click", () => {
+            state.gameState = "combat";
+            if (activeTargetCallback) activeTargetCallback(idx);
+          });
+        }
+        targetGrid.appendChild(card);
+      });
+    } else {
+      // Ally targets
+      state.party.forEach((char, idx) => {
+        const card = document.createElement("div");
+        card.className = "combat-target-card ally";
+        
+        let disabled = false;
+        if (menuContext.spellName === "KADORTO") {
+          if (char.status !== "dead") disabled = true;
+        } else {
+          if (char.status === "dead") disabled = true;
+        }
+
+        if (disabled) {
+          card.classList.add("dead");
+        }
+
+        const hpPct = char.maxHp > 0 ? (char.hp / char.maxHp) * 100 : 0;
+        const mpPct = char.maxMp > 0 ? (char.mp / char.maxMp) * 100 : 0;
+        
+        card.innerHTML = `
+          <div class="card-title">${char.name} <span class="card-class-tag">${getClassJpName(char.class)}</span></div>
+          <div class="card-hp-bar-container">
+            <div class="card-hp-bar" style="width: ${hpPct}%"></div>
+          </div>
+          <div class="card-hp-text">HP: ${char.hp}/${char.maxHp}</div>
+          ${char.maxMp > 0 ? `
+          <div class="card-mp-bar-container">
+            <div class="card-mp-bar" style="width: ${mpPct}%"></div>
+          </div>
+          <div class="card-mp-text">MP: ${char.mp}/${char.maxMp}</div>
+          ` : ""}
+        `;
+
+        if (!disabled) {
+          card.addEventListener("click", () => {
+            state.gameState = "combat";
+            if (activeTargetCallback) activeTargetCallback(idx);
+          });
+        }
+        targetGrid.appendChild(card);
+      });
+    }
+    body.appendChild(targetGrid);
+  } else if (type === "combat_spell") {
+    // Spells grid
+    const spellGrid = document.createElement("div");
+    spellGrid.className = "combat-selection-grid";
+
+    const casterIdx = menuContext.actorIdx;
+    const caster = state.party[casterIdx];
+
+    caster.spells.forEach(spKey => {
+      const spell = SPELLS[spKey];
+      const card = document.createElement("div");
+      card.className = "combat-item-card spell";
+      
+      const mpCheck = caster.mp < spell.cost;
+      if (mpCheck) {
+        card.classList.add("disabled");
+      }
+
+      card.innerHTML = `
+        <div class="item-card-title">${spell.name} <span class="cost-tag">${spell.cost}MP</span></div>
+        <div class="item-card-desc">${spell.desc}</div>
+      `;
+
+      if (!mpCheck) {
+        card.addEventListener("click", () => {
+          state.gameState = "combat";
+          if (activeSpellCallback) activeSpellCallback(spKey);
+        });
+      }
+      spellGrid.appendChild(card);
+    });
+    body.appendChild(spellGrid);
+  } else if (type === "combat_item") {
+    // Items grid
+    const itemGrid = document.createElement("div");
+    itemGrid.className = "combat-selection-grid";
+
+    if (state.inventory.length === 0) {
+      const emptyMsg = document.createElement("div");
+      emptyMsg.className = "detail-placeholder";
+      emptyMsg.textContent = "共有バッグは空っぽです。";
+      itemGrid.appendChild(emptyMsg);
+    } else {
+      state.inventory.forEach((itemKey, idx) => {
+        const item = ITEMS[itemKey];
+        const card = document.createElement("div");
+        card.className = "combat-item-card item";
+
+        const usableCheck = item.type !== "usable";
+        if (usableCheck) {
+          card.classList.add("disabled");
+        }
+
+        card.innerHTML = `
+          <div class="item-card-title">${item.name}</div>
+          <div class="item-card-desc">${item.desc || "消費アイテム"}</div>
+        `;
+
+        if (!usableCheck) {
+          card.addEventListener("click", () => {
+            state.gameState = "combat";
+            if (activeItemCallback) activeItemCallback(itemKey, idx);
+          });
+        }
+        itemGrid.appendChild(card);
+      });
+    }
+    body.appendChild(itemGrid);
+  }
+
+  overlay.appendChild(body);
 }
 
 export function resolveCombatRound() {
@@ -641,15 +892,48 @@ export function resolveCombatRound() {
         return;
       }
 
-      // Prioritize living and active front row characters (idx 0, 1) for physical attacks; fall back to all living if none available
-      let targetCandidates = state.party
-        .map((c, i) => ({ c, i }))
-        .filter(x => x.i < 2 && !["dead", "paralyzed", "sleep"].includes(x.c.status));
+      // Check if monster heals its allies first (35% chance if spellcaster healer)
+      if (mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < 0.35) {
+        const woundedMonsters = monsters.filter(m => m.hp > 0 && m.hp < m.maxHp);
+        if (woundedMonsters.length > 0) {
+          woundedMonsters.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
+          const healTarget = woundedMonsters[0];
+          const healAmount = mon.spell === "DIOS" ? (Math.floor(Math.random() * 6) + 10) : (Math.floor(Math.random() * 15) + 20);
+          healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + healAmount);
+          logQueue.push({
+            msg: `[ 敵 ] ${mon.name}は呪文を唱えた！${healTarget.name}のHPが ${healAmount} 回復した。`,
+            sound: "heal",
+            floatText: `+${healAmount}`,
+            floatColor: "#00ff66"
+          });
+          return;
+        }
+      }
 
-      if (targetCandidates.length === 0) {
+      // Prioritize living and active characters for physical attacks
+      let targetCandidates = [];
+      if (mon.isSniper) {
+        // Snipe back-row characters (idx 2, 3) who are alive and active
         targetCandidates = state.party
           .map((c, i) => ({ c, i }))
-          .filter(x => x.c.status !== "dead");
+          .filter(x => x.i >= 2 && !["dead", "paralyzed", "sleep"].includes(x.c.status));
+        
+        if (targetCandidates.length === 0) {
+          targetCandidates = state.party
+            .map((c, i) => ({ c, i }))
+            .filter(x => x.c.status !== "dead");
+        }
+      } else {
+        // Prioritize front-row characters (idx 0, 1)
+        targetCandidates = state.party
+          .map((c, i) => ({ c, i }))
+          .filter(x => x.i < 2 && !["dead", "paralyzed", "sleep"].includes(x.c.status));
+
+        if (targetCandidates.length === 0) {
+          targetCandidates = state.party
+            .map((c, i) => ({ c, i }))
+            .filter(x => x.c.status !== "dead");
+        }
       }
 
       if (targetCandidates.length === 0) return;
@@ -657,7 +941,8 @@ export function resolveCombatRound() {
       const targetSelect = targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
       const target = targetSelect.c;
 
-      if (mon.spell && Math.random() < 0.20) {
+      // Attack spells (HALITO, LAHALITO etc., excluding healer spells)
+      if (mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < 0.20) {
         if (mon.spell === "HALITO") {
           const dmg = Math.floor(Math.random() * 10) + 5;
           target.hp = Math.max(0, target.hp - dmg);
@@ -767,7 +1052,27 @@ export function resolveCombatRound() {
     const totalExp = nonFledMonsters.reduce((sum, m) => sum + m.exp, 0);
     const totalGold = nonFledMonsters.reduce((sum, m) => sum + m.gold, 0);
     const livingChars = state.party.filter(c => c.status !== "dead");
+
+    // Check First Kill Bonuses
+    let bonusExp = 0;
+    let bonusGold = 0;
+    const firstKilledNames = [];
+    
+    nonFledMonsters.forEach(m => {
+      // Extract base name (remove " A", " B" suffix)
+      const baseName = m.name.replace(/\s[A-Z]$/, "");
+      if (state.firstKills && !state.firstKills.includes(baseName)) {
+        if (!state.firstKills) state.firstKills = [];
+        state.firstKills.push(baseName);
+        firstKilledNames.push(baseName);
+        // Bonus reward: 100% of base monster rewards
+        bonusExp += m.exp;
+        bonusGold += m.gold;
+      }
+    });
+
     const expShare = livingChars.length > 0 ? Math.round(totalExp / livingChars.length) : 0;
+    const bonusExpShare = (livingChars.length > 0 && bonusExp > 0) ? Math.round(bonusExp / livingChars.length) : 0;
 
     logQueue.push({ msg: "======================================" });
     if (nonFledMonsters.length > 0) {
@@ -783,6 +1088,17 @@ export function resolveCombatRound() {
         msg,
         sound: "level_up"
       });
+
+      // Output first kill bonus logs
+      if (firstKilledNames.length > 0) {
+        logQueue.push({
+          msg: `🎉【初回討伐ボーナス！】初めて [${firstKilledNames.join(", ")}] を討伐した！`,
+          sound: "gold"
+        });
+        logQueue.push({
+          msg: `  -> 特典ボーナス：各自 +${bonusExpShare} EXP / パーティ +${bonusGold} ゴールド！`
+        });
+      }
     } else {
       logQueue.push({
         msg: `敵がすべて逃げ出し、戦闘が終了した。`,
@@ -790,10 +1106,10 @@ export function resolveCombatRound() {
       });
     }
 
-    state.gold += totalGold;
+    state.gold += totalGold + bonusGold;
 
     livingChars.forEach(c => {
-      c.exp += expShare;
+      c.exp += (expShare + bonusExpShare);
       const lvlUp = checkCharLevelUp(c);
       if (lvlUp) {
         logQueue.push({
@@ -802,6 +1118,20 @@ export function resolveCombatRound() {
           flash: true,
           floatText: "LEVEL UP!",
           floatColor: "#ffb300"
+        });
+      }
+
+      // Display remaining EXP to next level
+      const nextLevel = c.level + 1;
+      if (nextLevel < EXP_LEVELS.length) {
+        const nextReq = EXP_LEVELS[nextLevel];
+        const remaining = Math.max(0, nextReq - c.exp);
+        logQueue.push({
+          msg: `  -> ${c.name}: 次Lvまであと ${remaining} EXP (現在:${c.exp}/${nextReq})`
+        });
+      } else {
+        logQueue.push({
+          msg: `  -> ${c.name}: レベル最大 (現在:${c.exp} EXP)`
         });
       }
     });
@@ -826,6 +1156,9 @@ export function resolveCombatRound() {
           msg: "モンスターが宝箱を残していった！",
           triggerChest: true
         });
+        if (state.floorChestsTotal) {
+          state.floorChestsTotal[state.floor - 1] = (state.floorChestsTotal[state.floor - 1] ?? 0) + 1;
+        }
       } else {
         logQueue.push({
           msg: "周囲に静寂が戻った。",
