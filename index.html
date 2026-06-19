@@ -20,11 +20,15 @@
       </header>
 
       <!-- Goal HUD -->
-      <div id="goal-banner">🎯 目標: 迷宮に入り、地下深くを探索せよ！</div>
+      <div id="goal-banner">
+        <!-- Will be populated dynamically in ui.js -->
+      </div>
 
       <!-- 3D Canvas viewport -->
       <div id="viewport-panel">
         <canvas id="dungeon-canvas"></canvas>
+        <!-- Text HUD representation of surrounding walls for accessibility & navigation -->
+        <div id="viewport-hud" aria-live="polite"></div>
         <div id="training-overlay" class="training-overlay-container" style="display: none;"></div>
         <div id="combat-overlay" class="combat-overlay-container" style="display: none;"></div>
       </div>
@@ -34,6 +38,13 @@
 
       <!-- Equip overlay (moved outside viewport for full game area layout) -->
       <div id="equip-overlay" class="equip-overlay-container" style="display: none;"></div>
+
+      <!-- Spell overlay (moved outside viewport for full game area layout) -->
+      <div id="spell-overlay" class="spell-overlay-container" style="display: none;"></div>
+
+      <!-- Camp overlay (moved outside viewport for full game area layout) -->
+      <div id="camp-overlay" class="camp-overlay-container" style="display: none;"></div>
+
 
       <!-- Log Messages -->
       <div id="log-panel">
@@ -45,11 +56,11 @@
         <!-- Explortaion D-pad controls (shown in explore mode) -->
         <div id="explore-controls" class="controls-group active">
           <div class="dpad">
-            <button id="btn-turn-left" class="btn btn-neon btn-dpad" title="左を向く">◀</button>
-            <button id="btn-move-forward" class="btn btn-neon btn-dpad" title="前進">▲</button>
-            <button id="btn-turn-right" class="btn btn-neon btn-dpad" title="右を向く">▶</button>
+            <button id="btn-turn-left" class="btn btn-neon btn-dpad" title="左を向く" aria-label="左を向く">◀</button>
+            <button id="btn-move-forward" class="btn btn-neon btn-dpad" title="前進" aria-label="前進">▲</button>
+            <button id="btn-turn-right" class="btn btn-neon btn-dpad" title="右を向く" aria-label="右を向く">▶</button>
             <div></div>
-            <button id="btn-move-backward" class="btn btn-neon btn-dpad" title="後退">▼</button>
+            <button id="btn-move-backward" class="btn btn-neon btn-dpad" title="後退" aria-label="後退">▼</button>
             <div></div>
           </div>
           <div class="action-grid">

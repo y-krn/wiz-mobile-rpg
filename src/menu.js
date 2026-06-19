@@ -72,6 +72,11 @@ export function renderShop() {
   capacity.textContent = `バッグ: ${state.inventory.length}/20`;
   header.appendChild(capacity);
 
+  const goldInfo = document.createElement("span");
+  goldInfo.className = "shop-gold-info";
+  goldInfo.textContent = `ゴールド: ${state.gold}G`;
+  header.appendChild(goldInfo);
+
   const btnClose = document.createElement("button");
   btnClose.className = "btn btn-danger";
   btnClose.style.minHeight = "44px";
@@ -664,60 +669,9 @@ export function openSubmenu(type, title, isBack = false) {
   const optGrid = document.getElementById("submenu-options");
   optGrid.innerHTML = "";
 
-  if (type === "spell_caster_select") {
-    state.party.forEach((char, idx) => {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-neon btn-block";
-      btn.textContent = `${char.name} (${getClassJpName(char.class)}) - MP:${char.mp}/${char.maxMp}`;
-      if (char.status === "dead" || char.maxMp === 0 || !isSpellcaster(char)) btn.disabled = true;
-      btn.addEventListener("click", () => {
-        menuContext.actorIdx = idx;
-        openSubmenu("spell_select", `呪文選択 - ${char.name}:`);
-      });
-      optGrid.appendChild(btn);
-    });
-  } else if (type === "spell_select") {
-    const caster = state.party[menuContext.actorIdx];
-    const casterSpells = caster.spells || [];
-    if (casterSpells.length === 0) {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-block";
-      btn.textContent = "修得している呪文がありません";
-      btn.disabled = true;
-      optGrid.appendChild(btn);
-    } else {
-      casterSpells.forEach(spKey => {
-        const spell = SPELLS[spKey];
-        const btn = document.createElement("button");
-        btn.className = "btn btn-neon btn-block";
-        btn.textContent = `${spell.name} (MP:${spell.cost}) - ${spell.desc}`;
-        if (caster.mp < spell.cost) btn.disabled = true;
-        btn.addEventListener("click", () => {
-          menuContext.spellName = spKey;
-          // Determine spell targeting
-          if (spell.target === "single_ally") {
-            openSubmenu("spell_target_ally", `${spell.name}の対象を選択:`);
-          } else if (spell.target === "utility") {
-            executeUtilitySpell();
-          } else {
-            addLog("この呪文は戦闘中のみ使用可能です！");
-            closeSubmenu();
-          }
-        });
-        optGrid.appendChild(btn);
-      });
-    }
-  } else if (type === "spell_target_ally") {
-    state.party.forEach((char, idx) => {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-neon btn-block";
-      btn.textContent = `${char.name} (HP:${char.hp}/${char.maxHp})`;
-      if (char.status === "dead") btn.disabled = true;
-      btn.addEventListener("click", () => {
-        executeAllySpell(idx);
-      });
-      optGrid.appendChild(btn);
-    });
+  if (type === "spell_caster_select" || type === "spell_select" || type === "spell_target_ally" || type === "camp_main" || type === "camp" || type === "camp_status") {
+    updateUI();
+    return;
   } else if (type === "item_user_select") {
     state.party.forEach((char, idx) => {
       const btn = document.createElement("button");
@@ -994,7 +948,20 @@ export function openSubmenu(type, title, isBack = false) {
     state.party.forEach((char, idx) => {
       const btn = document.createElement("button");
       btn.className = "btn btn-neon btn-block";
-      btn.textContent = `${char.name} (${getClassJpName(char.class)})`;
+      
+      let chance = 0.25;
+      if (char.class === "Thief") {
+        chance = 0.85;
+      } else if (char.class === "Ranger") {
+        chance = 0.60;
+      }
+      if (char.status === "blind") {
+        chance = chance / 2.0;
+      }
+      const pct = Math.floor(chance * 100);
+      const blindSuffix = char.status === "blind" ? " / 盲目" : "";
+      btn.textContent = `${char.name} (${getClassJpName(char.class)}) 解除 ${pct}%${blindSuffix}`;
+
       if (!["ok", "poisoned", "blind"].includes(char.status)) btn.disabled = true;
       btn.addEventListener("click", () => {
         if (state.transitioning) return;
@@ -1303,6 +1270,10 @@ export function executeUtilitySpell() {
   caster.mp -= spell.cost;
   playSound("cast_spell");
   
+  if (menuContext.spellName === "DUMAPIC") {
+    state.dumapicTurns = 30;
+  }
+
   const result = spell.effect(caster, state);
   addLog(result.log);
   
@@ -1465,7 +1436,8 @@ export function renderEquip() {
   btnClose.className = "btn btn-danger";
   btnClose.style.minHeight = "44px";
   btnClose.style.padding = "8px 16px";
-  btnClose.textContent = "❌ 閉じる";
+  const isFromCamp = equipState.prevGameState === "submenu";
+  btnClose.textContent = isFromCamp ? "◀ キャンプに戻る" : "❌ 探索に戻る";
   btnClose.addEventListener("click", closeEquipOverlay);
   header.appendChild(btnClose);
   
@@ -1738,6 +1710,27 @@ export function renderEquip() {
           updateUI();
           return;
         }
+
+        // Waste prevention confirm
+        let checkWarning = "";
+        if (itemKey === "HEAL_POTION" && char.hp >= char.maxHp) {
+          checkWarning = "HPはすでに満タンです。本当に使用しますか？";
+        } else if (itemKey === "ANTIDOTE" && char.status !== "poisoned") {
+          checkWarning = "毒状態ではありません。本当に使用しますか？";
+        } else if (itemKey === "MANA_POTION") {
+          const hasMagic = canUsePriestSpells(char) || canUseMageSpells(char);
+          if (!hasMagic) {
+            checkWarning = "このキャラクターは魔力（MP）を持ちません。本当に使用しますか？";
+          } else if (char.mp >= char.maxMp) {
+            checkWarning = "MPはすでに満タンです。本当に使用しますか？";
+          }
+        } else if (itemKey === "HOLY_WATER" && char.hp >= char.maxHp && char.status !== "poisoned") {
+          checkWarning = "HPは満タンで、毒状態でもありません。本当に使用しますか？";
+        }
+
+        if (checkWarning && !confirm(checkWarning)) {
+          return;
+        }
         
         const log = item.effect(char);
         addLog(log);
@@ -1825,6 +1818,25 @@ export function renderEquip() {
         btnUnequip.disabled = true;
       } else {
         btnUnequip.addEventListener("click", () => {
+          // Calculate changes before unequipping
+          const slotId = slot.id;
+          let confirmMsg = "";
+          if (slotId === "weapon") {
+            const currentAtk = getCharWeaponAtk(char) + char.str;
+            const newAtk = char.str; // Weapon ATK becomes 0, leaving only STR
+            const diff = newAtk - currentAtk;
+            confirmMsg = `${eqItem.name}を外しますか？\n（攻撃力: ${currentAtk} ➡ ${newAtk} (${diff >= 0 ? "+" : ""}${diff})）`;
+          } else {
+            const currentDef = getCharDef(char);
+            const newDef = currentDef - eqItem.def;
+            const diff = newDef - currentDef;
+            confirmMsg = `${eqItem.name}を外しますか？\n（防御力: ${currentDef} ➡ ${newDef} (${diff >= 0 ? "+" : ""}${diff})）`;
+          }
+
+          if (!confirm(confirmMsg)) {
+            return;
+          }
+
           char.equipment[slot.id] = null;
           state.inventory.push(eqKey);
           
@@ -1860,6 +1872,492 @@ export function renderEquip() {
   }
   
   overlay.appendChild(footer);
+}
+
+export function renderSpellOverlay() {
+  const overlay = document.getElementById("spell-overlay");
+  if (!overlay) return;
+
+  // Clear container
+  overlay.innerHTML = "";
+
+  // 1. Header
+  const header = document.createElement("div");
+  header.className = "spell-header";
+
+  const title = document.createElement("span");
+  title.className = "spell-title";
+  title.textContent = "呪文（スペル）";
+  header.appendChild(title);
+
+  // Close/Back button
+  const btnClose = document.createElement("button");
+  btnClose.className = "btn btn-spell-close";
+  btnClose.setAttribute("aria-label", menuContext.type === "spell_caster_select" ? "閉じる" : "戻る");
+  btnClose.textContent = menuContext.type === "spell_caster_select" ? "❌ 閉じる" : "◀ 戻る";
+  btnClose.addEventListener("click", () => {
+    if (menuContext.type === "spell_caster_select") {
+      closeSubmenu();
+    } else {
+      goBackSubmenu();
+    }
+  });
+  header.appendChild(btnClose);
+  overlay.appendChild(header);
+
+  // 2. Character Switching HUD (shown in spell_select and spell_target_ally)
+  if (menuContext.type === "spell_select" || menuContext.type === "spell_target_ally") {
+    const caster = state.party[menuContext.actorIdx];
+    const selector = document.createElement("div");
+    selector.className = "spell-char-selector";
+
+    const btnPrev = document.createElement("button");
+    btnPrev.className = "btn btn-neon btn-char-switch";
+    btnPrev.textContent = "◀";
+    btnPrev.setAttribute("aria-label", "前のキャラクター");
+    // Find previous spellcaster
+    let prevIdx = (menuContext.actorIdx - 1 + state.party.length) % state.party.length;
+    while (prevIdx !== menuContext.actorIdx) {
+      const c = state.party[prevIdx];
+      if (c.status !== "dead" && c.maxMp > 0 && isSpellcaster(c)) break;
+      prevIdx = (prevIdx - 1 + state.party.length) % state.party.length;
+    }
+    if (prevIdx === menuContext.actorIdx) {
+      btnPrev.disabled = true;
+    }
+    btnPrev.addEventListener("click", () => {
+      menuContext.actorIdx = prevIdx;
+      // If we are in spell_target_ally, go back to spell_select for the new caster
+      if (menuContext.type === "spell_target_ally") {
+        menuContext.type = "spell_select";
+      }
+      updateUI();
+    });
+    selector.appendChild(btnPrev);
+
+    const charInfo = document.createElement("span");
+    charInfo.className = "spell-char-name";
+    charInfo.textContent = `${caster.name} (${getClassJpName(caster.class)}) | MP: ${caster.mp}/${caster.maxMp}`;
+    selector.appendChild(charInfo);
+
+    const btnNext = document.createElement("button");
+    btnNext.className = "btn btn-neon btn-char-switch";
+    btnNext.textContent = "▶";
+    btnNext.setAttribute("aria-label", "次のキャラクター");
+    // Find next spellcaster
+    let nextIdx = (menuContext.actorIdx + 1) % state.party.length;
+    while (nextIdx !== menuContext.actorIdx) {
+      const c = state.party[nextIdx];
+      if (c.status !== "dead" && c.maxMp > 0 && isSpellcaster(c)) break;
+      nextIdx = (nextIdx + 1) % state.party.length;
+    }
+    if (nextIdx === menuContext.actorIdx) {
+      btnNext.disabled = true;
+    }
+    btnNext.addEventListener("click", () => {
+      menuContext.actorIdx = nextIdx;
+      if (menuContext.type === "spell_target_ally") {
+        menuContext.type = "spell_select";
+      }
+      updateUI();
+    });
+    selector.appendChild(btnNext);
+
+    overlay.appendChild(selector);
+  }
+
+  // 3. Body
+  const body = document.createElement("div");
+  body.className = "spell-body";
+
+  const listCol = document.createElement("div");
+  listCol.className = "spell-list-col";
+
+  const listContainer = document.createElement("div");
+  listContainer.className = "spell-item-list";
+
+  const detailCol = document.createElement("div");
+  detailCol.className = "spell-detail-col";
+  detailCol.id = "spell-detail-panel";
+  // Default text when no spell is selected
+  detailCol.innerHTML = `<div class="spell-detail-placeholder">呪文を選択してください</div>`;
+
+  // Render based on type
+  if (menuContext.type === "spell_caster_select") {
+    // Hide detail column for caster select to give list full width
+    detailCol.style.display = "none";
+    listCol.style.width = "100%";
+    listCol.style.maxWidth = "100%";
+
+    state.party.forEach((char, idx) => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-neon spell-item-row";
+      
+      // Determine if disabled and reason
+      let isDisabled = false;
+      let reason = "";
+      if (char.status === "dead") {
+        isDisabled = true;
+        reason = "死亡";
+      } else if (!isSpellcaster(char)) {
+        isDisabled = true;
+        reason = "呪文なし";
+      } else if (char.maxMp === 0) {
+        isDisabled = true;
+        reason = "MPなし";
+      } else if (char.mp <= 0) {
+        isDisabled = true;
+        reason = "MP枯渇";
+      }
+
+      const reasonBadge = reason ? `<span class="spell-row-tag tag-disabled">${reason}</span>` : `<span class="spell-row-mp">MP:${char.mp}/${char.maxMp}</span>`;
+      btn.innerHTML = `
+        <span class="spell-row-name">${char.name} <span class="spell-row-class">(${getClassJpName(char.class)})</span></span>
+        ${reasonBadge}
+      `;
+
+      if (isDisabled) {
+        btn.disabled = true;
+        btn.classList.add("disabled");
+      } else {
+        btn.addEventListener("click", () => {
+          menuContext.actorIdx = idx;
+          openSubmenu("spell_select", `呪文選択 - ${char.name}:`);
+        });
+      }
+      listContainer.appendChild(btn);
+    });
+  } else if (menuContext.type === "spell_select") {
+    const caster = state.party[menuContext.actorIdx];
+    const casterSpells = caster.spells || [];
+
+    if (casterSpells.length === 0) {
+      const emptyDiv = document.createElement("div");
+      emptyDiv.className = "spell-empty-text";
+      emptyDiv.textContent = "修得している呪文がありません";
+      listContainer.appendChild(emptyDiv);
+      detailCol.style.display = "none";
+      listCol.style.width = "100%";
+    } else {
+      casterSpells.forEach(spKey => {
+        const spell = SPELLS[spKey];
+        const btn = document.createElement("button");
+        btn.className = "btn btn-neon spell-item-row";
+
+        // Determine spell tag
+        let spellTag = "戦闘";
+        let tagClass = "tag-combat";
+        const healSpells = ["DIOS", "MADIOS", "DIALMA", "DIALKO", "DIURCO", "LATUMOFIS", "KADORTO"];
+        const utilitySpells = ["DUMAPIC", "MILWA", "LOMILWA", "MASFEAL"];
+        
+        if (healSpells.includes(spKey)) {
+          spellTag = "回復";
+          tagClass = "tag-heal";
+        } else if (utilitySpells.includes(spKey)) {
+          spellTag = "補助";
+          tagClass = "tag-utility";
+        }
+
+        // Determine explore usability
+        let isCombatOnly = false;
+        if (spell.target === "single_enemy" || spell.target === "all_enemies") {
+          isCombatOnly = true;
+        }
+
+        let isDisabled = false;
+        let reason = "";
+        if (isCombatOnly) {
+          isDisabled = true;
+          reason = "戦闘中のみ";
+          tagClass = "tag-disabled";
+          spellTag = "戦闘のみ";
+        } else if (caster.mp < spell.cost) {
+          isDisabled = true;
+          reason = "MP不足";
+        }
+
+        btn.innerHTML = `
+          <span class="spell-row-name">${spell.name}</span>
+          <span class="spell-row-mp">MP:${spell.cost}</span>
+          <span class="spell-row-tag ${tagClass}">${reason || spellTag}</span>
+        `;
+
+        btn.addEventListener("click", () => {
+          // Deselect others
+          listContainer.querySelectorAll(".spell-item-row").forEach(r => r.classList.remove("active"));
+          btn.classList.add("active");
+
+          // Show detail panel
+          renderSpellDetail(spKey, isDisabled, reason, spellTag, tagClass);
+        });
+
+        listContainer.appendChild(btn);
+      });
+    }
+  } else if (menuContext.type === "spell_target_ally") {
+    // For target selection
+    const spell = SPELLS[menuContext.spellName];
+    detailCol.style.display = "none";
+    listCol.style.width = "100%";
+    listCol.style.maxWidth = "100%";
+
+    state.party.forEach((char, idx) => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-neon spell-item-row";
+
+      // Validation logic for target
+      let isDisabled = false;
+      let reason = "";
+
+      if (char.status === "dead") {
+        if (menuContext.spellName !== "KADORTO") {
+          isDisabled = true;
+          reason = "死亡";
+        }
+      } else {
+        // Living target checks
+        if (menuContext.spellName === "KADORTO") {
+          isDisabled = true;
+          reason = "生存中";
+        } else if (["DIOS", "MADIOS", "DIALMA"].includes(menuContext.spellName)) {
+          if (char.hp >= char.maxHp) {
+            isDisabled = true;
+            reason = "HP満タン";
+          }
+        } else if (menuContext.spellName === "DIURCO") {
+          if (char.status !== "blind") {
+            isDisabled = true;
+            reason = "健康";
+          }
+        } else if (menuContext.spellName === "DIALKO") {
+          if (char.status !== "sleep" && char.status !== "paralyze" && char.status !== "paralyzed") {
+            isDisabled = true;
+            reason = "健康";
+          }
+        } else if (menuContext.spellName === "LATUMOFIS") {
+          if (char.status !== "poisoned") {
+            isDisabled = true;
+            reason = "健康";
+          }
+        }
+      }
+
+      const statusText = char.status !== "ok" ? ` [${char.status.toUpperCase()}]` : "";
+      const reasonBadge = reason ? `<span class="spell-row-tag tag-disabled">${reason}</span>` : `<span class="spell-row-mp">選択可能</span>`;
+
+      btn.innerHTML = `
+        <span class="spell-row-name">${char.name} <span class="spell-row-hp">(HP:${char.hp}/${char.maxHp})${statusText}</span></span>
+        ${reasonBadge}
+      `;
+
+      if (isDisabled) {
+        btn.disabled = true;
+        btn.classList.add("disabled");
+      } else {
+        btn.addEventListener("click", () => {
+          executeAllySpell(idx);
+        });
+      }
+
+      listContainer.appendChild(btn);
+    });
+  }
+
+  listCol.appendChild(listContainer);
+  body.appendChild(listCol);
+  body.appendChild(detailCol);
+  overlay.appendChild(body);
+
+  // Helper to render spell detail
+  function renderSpellDetail(spKey, isDisabled, reason, spellTag, tagClass) {
+    const spell = SPELLS[spKey];
+    const caster = state.party[menuContext.actorIdx];
+    const panel = document.getElementById("spell-detail-panel");
+    if (!panel) return;
+
+    panel.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.className = "spell-detail-header";
+    header.innerHTML = `
+      <span class="spell-detail-name">${spell.name}</span>
+      <span class="spell-detail-tag ${tagClass}">${spellTag}</span>
+    `;
+    panel.appendChild(header);
+
+    const stats = document.createElement("div");
+    stats.className = "spell-detail-stats";
+    
+    let targetJp = "単体味方";
+    if (spell.target === "all_enemies") targetJp = "敵全体";
+    else if (spell.target === "single_enemy") targetJp = "敵単体";
+    else if (spell.target === "utility") targetJp = "探索ユーティリティ";
+
+    stats.innerHTML = `
+      <div>消費MP: <span class="detail-mp">${spell.cost}</span> (現在MP: ${caster.mp})</div>
+      <div>対象: <span>${targetJp}</span></div>
+    `;
+    panel.appendChild(stats);
+
+    const desc = document.createElement("div");
+    desc.className = "spell-detail-desc";
+    desc.textContent = spell.desc;
+    panel.appendChild(desc);
+
+    // Cast button
+    const btnCast = document.createElement("button");
+    btnCast.className = "btn btn-neon btn-block btn-cast-action";
+    btnCast.textContent = "呪文を唱える";
+
+    if (isDisabled) {
+      btnCast.disabled = true;
+      btnCast.classList.add("disabled");
+      btnCast.textContent = `詠唱不可 (${reason})`;
+      
+      const warn = document.createElement("div");
+      warn.className = "spell-detail-warning";
+      warn.textContent = `※${reason}のため探索中には唱えられません。`;
+      panel.appendChild(warn);
+    } else {
+      btnCast.addEventListener("click", () => {
+        menuContext.spellName = spKey;
+        if (spell.target === "single_ally") {
+          openSubmenu("spell_target_ally", `${spell.name}の対象を選択:`);
+        } else if (spell.target === "utility") {
+          executeUtilitySpell();
+        }
+      });
+    }
+    panel.appendChild(btnCast);
+  }
+}
+
+export function renderCampOverlay() {
+  const overlay = document.getElementById("camp-overlay");
+  if (!overlay) return;
+
+  overlay.innerHTML = "";
+
+  // 1. Header
+  const header = document.createElement("div");
+  header.className = "camp-header";
+
+  const title = document.createElement("span");
+  title.className = "camp-title";
+  title.textContent = menuContext.type === "camp_status" ? "パーティの強さ" : "キャンプメニュー";
+  header.appendChild(title);
+
+  // Close/Back button
+  const btnClose = document.createElement("button");
+  btnClose.className = "btn btn-camp-close";
+  btnClose.style.minHeight = "44px";
+  
+  if (menuContext.type === "camp_status") {
+    btnClose.textContent = "◀ メニューに戻る";
+    btnClose.setAttribute("aria-label", "キャンプメニューに戻る");
+    btnClose.addEventListener("click", () => {
+      goBackSubmenu();
+    });
+  } else {
+    btnClose.textContent = "❌ 探索に戻る";
+    btnClose.setAttribute("aria-label", "キャンプを閉じて探索に戻る");
+    btnClose.addEventListener("click", () => {
+      closeSubmenu();
+    });
+  }
+  header.appendChild(btnClose);
+  overlay.appendChild(header);
+
+  // 2. Body
+  const body = document.createElement("div");
+  body.className = "camp-body";
+
+  if (menuContext.type === "camp_main" || menuContext.type === "camp") {
+    // Command group
+    const cmdGroup = document.createElement("div");
+    cmdGroup.className = "camp-command-group";
+
+    const btnStatus = document.createElement("button");
+    btnStatus.className = "btn btn-neon btn-block camp-btn";
+    btnStatus.textContent = "🛡️ パーティの強さ";
+    btnStatus.addEventListener("click", () => {
+      openSubmenu("camp_status", "パーティ詳細ステータス:");
+    });
+    cmdGroup.appendChild(btnStatus);
+
+    const btnItems = document.createElement("button");
+    btnItems.className = "btn btn-neon btn-block camp-btn";
+    btnItems.textContent = "📦 道具・装備";
+    btnItems.addEventListener("click", () => {
+      openEquipOverlay(0);
+    });
+    cmdGroup.appendChild(btnItems);
+
+    body.appendChild(cmdGroup);
+
+    // Danger Zone at the bottom (isolated)
+    const dangerZone = document.createElement("div");
+    dangerZone.className = "camp-danger-zone";
+
+    const btnDiscard = document.createElement("button");
+    btnDiscard.className = "btn btn-danger btn-block camp-btn-danger";
+    btnDiscard.textContent = "⚠️ 冒険を最初からやり直す";
+    btnDiscard.addEventListener("click", () => {
+      if (confirm("【警告】現在のセーブデータと進行状況が完全に削除されます。\n本当に最初からやり直しますか？")) {
+        if (confirm("本当の本当にやり直しますか？この操作は取り消せません。")) {
+          initNewGame();
+          closeSubmenu();
+        }
+      }
+    });
+    dangerZone.appendChild(btnDiscard);
+    body.appendChild(dangerZone);
+
+  } else if (menuContext.type === "camp_status") {
+    // Status detail grid
+    const statusGrid = document.createElement("div");
+    statusGrid.className = "camp-status-grid";
+
+    state.party.forEach(char => {
+      const card = document.createElement("div");
+      card.className = "camp-status-card";
+      
+      const classJp = getClassJpName(char.class);
+      const nextReq = char.class === "Ninja" ? Math.floor(EXP_LEVELS[char.level + 1] * 1.5) : EXP_LEVELS[char.level + 1];
+      const nextText = nextReq ? `${char.exp}/${nextReq}` : `${char.exp}/MAX`;
+      
+      card.innerHTML = `
+        <div class="camp-status-card-header">
+          <strong class="camp-char-name">${char.name}</strong>
+          <span class="camp-char-class">${classJp} Lv.${char.level}</span>
+        </div>
+        <div class="camp-status-card-hpmp">
+          <span>HP: <strong class="camp-val">${char.hp}/${char.maxHp}</strong></span>
+          <span>MP: <strong class="camp-val">${char.mp}/${char.maxMp}</strong></span>
+        </div>
+        <div class="camp-status-card-stats">
+          <div>力: ${char.str}</div>
+          <div>知恵: ${char.int}</div>
+          <div>信仰: ${char.pie}</div>
+          <div>生命: ${char.vit}</div>
+          <div>素早: ${char.agi}</div>
+          <div>運: ${char.luk}</div>
+        </div>
+        <div class="camp-status-card-combat">
+          <span>攻撃力: <strong class="camp-val">+${getCharWeaponAtk(char)}</strong></span>
+          <span>防御力(AC): <strong class="camp-val">${getCharDef(char)}</strong></span>
+        </div>
+        <div class="camp-status-card-exp">
+          <span>EXP: <span class="exp-val">${nextText}</span></span>
+        </div>
+      `;
+      statusGrid.appendChild(card);
+    });
+
+    body.appendChild(statusGrid);
+  }
+
+  overlay.appendChild(body);
 }
 
 

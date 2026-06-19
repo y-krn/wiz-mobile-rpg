@@ -48,13 +48,19 @@ function gameLoop(time) {
 // BUTTON BINDINGS
 // ----------------------------------------------------
 function bindButtons() {
-  // Exploration (pointerdown with preventDefault to prevent zoom and delay)
+  // Exploration (pointerdown for touch/mouse, keydown for keyboard focus space/enter)
   const bindPress = (id, action) => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         handleMove(action);
+      });
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleMove(action);
+        }
       });
     }
   };
@@ -105,25 +111,29 @@ function bindButtons() {
     });
   }
 
-  // Prevent iOS Safari pinch zoom and gesture zoom
+  // Prevent iOS Safari pinch zoom and gesture zoom only inside non-log panels to allow text scaling/copy
+  const shouldPreventGesture = (target) => {
+    return target && !target.closest("#log-panel");
+  };
+
   document.addEventListener("gesturestart", (e) => {
-    e.preventDefault();
+    if (shouldPreventGesture(e.target)) e.preventDefault();
   });
   document.addEventListener("gesturechange", (e) => {
-    e.preventDefault();
+    if (shouldPreventGesture(e.target)) e.preventDefault();
   });
   document.addEventListener("gestureend", (e) => {
-    e.preventDefault();
+    if (shouldPreventGesture(e.target)) e.preventDefault();
   });
 
-  // Prevent pinch zoom via multi-touch touchstart
+  // Prevent pinch zoom via multi-touch touchstart (except on log panel for accessibility scaling)
   document.addEventListener("touchstart", (e) => {
-    if (e.touches.length > 1) {
+    if (e.touches.length > 1 && shouldPreventGesture(e.target)) {
       e.preventDefault();
     }
   }, { passive: false });
 
-  // Prevent double-tap zoom on non-interactive background elements
+  // Prevent double-tap zoom on non-interactive background elements (except log panel)
   let lastTouchEnd = 0;
   document.addEventListener("touchend", (e) => {
     const now = (new Date()).getTime();
@@ -132,7 +142,7 @@ function bindButtons() {
                             e.target.tagName === "A" || 
                             e.target.closest("button") || 
                             e.target.closest(".btn");
-      if (!isInteractive) {
+      if (!isInteractive && shouldPreventGesture(e.target)) {
         e.preventDefault();
       }
     }

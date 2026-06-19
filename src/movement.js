@@ -11,6 +11,9 @@ export function handleMove(action) {
   if (state.transitioning || state.gameState !== "explore") return;
   playSound("move");
   
+  state.prevX = state.x;
+  state.prevY = state.y;
+  
   const prevX = state.x;
   const prevY = state.y;
   
@@ -47,6 +50,14 @@ export function handleMove(action) {
           addLog("マスペアルの効果が切れた。モンスターの殺気が戻った。");
         }
       }
+
+      // Update dumapic turns
+      if (state.dumapicTurns > 0) {
+        state.dumapicTurns--;
+        if (state.dumapicTurns === 0) {
+          addLog("デュマピックの効果が切れた。詳細な座標探知が停止した。");
+        }
+      }
       
       // Update event cooldown turns
       if (state.eventCooldownTurns > 0) {
@@ -57,21 +68,7 @@ export function handleMove(action) {
       state.visitedMap[state.y][state.x] = true;
       addLog(`一歩進んだ。現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}`);
 
-      // Apply poison damage
-      const wiped = applyExplorationPoison();
-      if (!wiped) {
-        // Apply floor flame trap (B5F only, 5% chance)
-        const cell = state.map[state.y][state.x];
-        const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
-                              cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
-                              cell.message;
-        if (state.floor === 5 && !isSpecialCell && Math.random() < 0.05) {
-          triggerFlameTrap();
-        } else {
-          // Check coordinates trigger events
-          checkCellEvents(prevX, prevY);
-        }
-      }
+      processExplorationResolution(prevX, prevY);
     }
   } else if (action === "backward") {
     const currentCell = state.map[state.y][state.x];
@@ -98,6 +95,14 @@ export function handleMove(action) {
         }
       }
       
+      // Update dumapic turns
+      if (state.dumapicTurns > 0) {
+        state.dumapicTurns--;
+        if (state.dumapicTurns === 0) {
+          addLog("デュマピックの効果が切れた。詳細な座標探知が停止した。");
+        }
+      }
+      
       // Update event cooldown turns
       if (state.eventCooldownTurns > 0) {
         state.eventCooldownTurns--;
@@ -105,20 +110,7 @@ export function handleMove(action) {
       state.visitedMap[state.y][state.x] = true;
       addLog(`一歩下がった。現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}`);
       
-      // Apply poison damage
-      const wiped = applyExplorationPoison();
-      if (!wiped) {
-        // Apply floor flame trap (B5F only, 5% chance)
-        const cell = state.map[state.y][state.x];
-        const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
-                              cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
-                              cell.message;
-        if (state.floor === 5 && !isSpecialCell && Math.random() < 0.05) {
-          triggerFlameTrap();
-        } else {
-          checkCellEvents(prevX, prevY);
-        }
-      }
+      processExplorationResolution(prevX, prevY);
     }
   }
   
@@ -218,6 +210,22 @@ function checkSensoryAura() {
   // 6. Chest hidden treasure vibe (distance <= 2)
   if (minDistChest <= 2 && nearestChest) {
     addLog("【気配】この近くに何かが隠されている気がする…");
+  }
+
+  // 7. Roaming Flack presence (distance <= 3)
+  if (state.roamingMonsters) {
+    const currentFlacks = state.roamingMonsters.filter(rm => rm.floor === state.floor);
+    let minFlackDist = 999;
+    currentFlacks.forEach(flack => {
+      const dist = Math.abs(flack.x - px) + Math.abs(flack.y - py);
+      if (dist < minFlackDist) {
+        minFlackDist = dist;
+      }
+    });
+    if (minFlackDist <= 3) {
+      addLog("【⚠️警告】近くから不浄で禍々しい気配が漂ってくる…強敵「フラック」が近くにいる！");
+      playSound("miss");
+    }
   }
 }
 
@@ -409,8 +417,7 @@ export function applyExplorationPoison() {
   let tookDamage = false;
   state.party.forEach(c => {
     if (c.status === "poisoned" && c.hp > 0) {
-      const baseDmg = state.floor === 2 ? 2 : 1;
-      const pDmg = Math.floor(Math.random() * 2) + baseDmg; // B2F: 2-3, Others: 1-2 HP damage
+      const pDmg = Math.floor(Math.random() * 2) + 1; // 1-2 HP damage
       c.hp = Math.max(0, c.hp - pDmg);
       addLog(`[!] 毒のダメージ！${c.name}は${pDmg}のダメージを受けた。`);
       tookDamage = true;
@@ -503,4 +510,133 @@ export function executeEnterDungeon(floor) {
   playSound("move");
   saveAutosave();
   updateUI();
+}
+
+export function checkRoamingMonsterEncounter() {
+  if (!state.roamingMonsters) return false;
+  const flack = state.roamingMonsters.find(
+    rm => rm.floor === state.floor && rm.x === state.x && rm.y === state.y
+  );
+  if (flack) {
+    state.transitioning = true;
+    addLog(`【⚠️遭遇！】徘徊する強敵「${flack.name}」が目の前に現れた！`);
+    playSound("chest_trap");
+    setTimeout(() => {
+      state.transitioning = false;
+      startCombat(false, false, true);
+    }, 1000);
+    return true;
+  }
+  return false;
+}
+
+export function moveRoamingMonsters() {
+  if (!state.roamingMonsters) return;
+  const currentFloor = state.floor;
+  const grid = state.map;
+  if (!grid) return;
+
+  state.roamingMonsters.forEach(monster => {
+    if (monster.floor !== currentFloor) return;
+
+    const mx = monster.x;
+    const my = monster.y;
+
+    // Determine mode: chase player if Manhattan distance <= 4
+    const distToPlayer = Math.abs(mx - state.x) + Math.abs(my - state.y);
+    const isChase = distToPlayer <= 4;
+
+    // Find passable neighbors
+    const neighbors = [];
+    const cell = grid[my][mx];
+    for (let dir = 0; dir < 4; dir++) {
+      if (!cell.walls[dir]) {
+        const nx = mx + DX[dir];
+        const ny = my + DY[dir];
+        if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+          // Check if another monster is there
+          const isBlockedByMonster = state.roamingMonsters.some(
+            rm => rm.floor === currentFloor && rm !== monster && rm.x === nx && rm.y === ny
+          );
+          // Prevent stepping on stairs, boss, or midboss
+          const destCell = grid[ny][nx];
+          const isSpecialCell = destCell.type === "stairs-up" || destCell.type === "stairs-down" || 
+                                destCell.event === "boss" || destCell.event === "midboss";
+          if (!isBlockedByMonster && !isSpecialCell) {
+            neighbors.push({ x: nx, y: ny, dir });
+          }
+        }
+      }
+    }
+
+    if (neighbors.length === 0) return; // No move possible
+
+    let chosen = null;
+    if (isChase) {
+      // Pick neighbor that minimizes distance to player
+      let minDist = 999;
+      const candidates = [];
+      neighbors.forEach(n => {
+        const d = Math.abs(n.x - state.x) + Math.abs(n.y - state.y);
+        if (d < minDist) {
+          minDist = d;
+        }
+      });
+      neighbors.forEach(n => {
+        const d = Math.abs(n.x - state.x) + Math.abs(n.y - state.y);
+        if (d === minDist) {
+          candidates.push(n);
+        }
+      });
+      chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    } else {
+      // Patrol mode: try to avoid backtracking
+      let lastDir = monster.lastDir;
+      const oppositeDir = lastDir !== undefined ? (lastDir + 2) % 4 : -1;
+      const forwardCandidates = neighbors.filter(n => n.dir !== oppositeDir);
+      
+      if (forwardCandidates.length > 0) {
+        chosen = forwardCandidates[Math.floor(Math.random() * forwardCandidates.length)];
+      } else {
+        chosen = neighbors[Math.floor(Math.random() * neighbors.length)];
+      }
+    }
+
+    if (chosen) {
+      monster.x = chosen.x;
+      monster.y = chosen.y;
+      monster.lastDir = chosen.dir;
+    }
+  });
+}
+
+export function processExplorationResolution(prevX, prevY) {
+  const wiped = applyExplorationPoison();
+  if (wiped) return;
+
+  // 1. Check if player stepped onto Flack
+  if (checkRoamingMonsterEncounter()) {
+    return;
+  }
+
+  // 2. Move Flacks if it's their turn
+  state.roamingMovementStepCount = (state.roamingMovementStepCount || 0) + 1;
+  if (state.roamingMovementStepCount % 2 === 0) {
+    moveRoamingMonsters();
+    // Check if Flack stepped onto player
+    if (checkRoamingMonsterEncounter()) {
+      return;
+    }
+  }
+
+  // 3. Regular floor events
+  const cell = state.map[state.y][state.x];
+  const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
+                        cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
+                        cell.message;
+  if (state.floor === 5 && !isSpecialCell && Math.random() < 0.05) {
+    triggerFlameTrap();
+  } else {
+    checkCellEvents(prevX, prevY);
+  }
 }

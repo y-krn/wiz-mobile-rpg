@@ -199,8 +199,13 @@ export const SPELLS = {
     desc: "軽微な治療 (10-20 HP回復)",
     effect: (caster, target) => {
       const heal = Math.floor(Math.random() * 11) + 10;
+      const oldHp = target.hp;
       target.hp = Math.min(target.maxHp, target.hp + heal);
-      return { heal, log: `${caster.name}はディオスを唱えた！${target.name}のHPを${heal}回復した。` };
+      const actualHeal = target.hp - oldHp;
+      if (actualHeal === 0) {
+        return { heal: 0, log: `${caster.name}はディオスを唱えたが、${target.name}のHPは最大だった。` };
+      }
+      return { heal: actualHeal, log: `${caster.name}はディオスを唱えた！${target.name}のHPを${actualHeal}回復した。` };
     }
   },
   DIURCO: {
@@ -277,8 +282,13 @@ export const SPELLS = {
     desc: "中度の治療 (35-70 HP回復)",
     effect: (caster, target) => {
       const heal = Math.floor(Math.random() * 36) + 35;
+      const oldHp = target.hp;
       target.hp = Math.min(target.maxHp, target.hp + heal);
-      return { heal, log: `${caster.name}はマディオスを唱えた！${target.name}のHPを${heal}大幅に回復した。` };
+      const actualHeal = target.hp - oldHp;
+      if (actualHeal === 0) {
+        return { heal: 0, log: `${caster.name}はマディオスを唱えたが、${target.name}のHPは最大だった。` };
+      }
+      return { heal: actualHeal, log: `${caster.name}はマディオスを唱えた！${target.name}のHPを${actualHeal}大幅に回復した。` };
     }
   },
   LATUMOFIS: {
@@ -318,8 +328,13 @@ export const SPELLS = {
     desc: "高度の治療 (70-120 HP回復)",
     effect: (caster, target) => {
       const heal = Math.floor(Math.random() * 51) + 70;
+      const oldHp = target.hp;
       target.hp = Math.min(target.maxHp, target.hp + heal);
-      return { heal, log: `${caster.name}はディアルマを唱えた！${target.name}のHPを${heal}大回復した。` };
+      const actualHeal = target.hp - oldHp;
+      if (actualHeal === 0) {
+        return { heal: 0, log: `${caster.name}はディアルマを唱えたが、${target.name}のHPは最大だった。` };
+      }
+      return { heal: actualHeal, log: `${caster.name}はディアルマを唱えた！${target.name}のHPを${actualHeal}大回復した。` };
     }
   },
   KADORTO: {

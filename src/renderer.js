@@ -268,6 +268,16 @@ export class DungeonRenderer {
       if (cell.type === "stairs-up" || cell.type === "stairs-down") {
         this.drawStairsIcon(ctx, z);
       }
+
+      // Check if there is a roaming monster at this coordinate (cx, cy)
+      if (state.roamingMonsters) {
+        const hasFlack = state.roamingMonsters.some(
+          rm => rm.floor === state.floor && rm.x === cx && rm.y === cy
+        );
+        if (hasFlack && z > 0) { // Don't draw under the player
+          this.drawRoamingFlackIcon(ctx, z);
+        }
+      }
     }
   }
 
@@ -312,6 +322,37 @@ export class DungeonRenderer {
     ctx.closePath();
 
     ctx.stroke();
+  }
+
+  drawRoamingFlackIcon(ctx, z) {
+    const xl = XL[z];
+    const xr = XR[z];
+    const yt = YT[z];
+    const yb = YB[z];
+
+    const cx = (xl + xr) / 2;
+    const cy = yb - (yb - yt) * 0.25; // Align near floor level
+    const scale = (xr - xl) / 400;
+
+    ctx.strokeStyle = "#ff3b30"; // Red glow/silhouette for Flack
+    ctx.lineWidth = Math.max(1, 2 * scale);
+    ctx.shadowColor = "#ff3b30";
+    ctx.shadowBlur = Math.max(2, 6 * scale);
+
+    ctx.beginPath();
+    // flack sprite scaled down
+    ctx.arc(cx, cy - 12 * scale, 36 * scale, 0, Math.PI * 2);
+    ctx.moveTo(cx - 26 * scale, cy - 38 * scale);
+    ctx.lineTo(cx + 26 * scale, cy + 14 * scale);
+    ctx.moveTo(cx + 26 * scale, cy - 38 * scale);
+    ctx.lineTo(cx - 26 * scale, cy + 14 * scale);
+    ctx.moveTo(cx, cy - 58 * scale);
+    ctx.lineTo(cx, cy + 32 * scale);
+    ctx.moveTo(cx - 45 * scale, cy - 12 * scale);
+    ctx.lineTo(cx + 45 * scale, cy - 12 * scale);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0; // Reset shadow
   }
 
   drawChest(ctx) {
@@ -635,7 +676,8 @@ export class DungeonRenderer {
     
     // Draw background panel border and background (unclipped)
     ctx.fillStyle = "rgba(12, 12, 14, 0.9)";
-    ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
+    const isDumapic = state.dumapicTurns > 0;
+    ctx.strokeStyle = isDumapic ? "rgba(255, 215, 0, 0.9)" : "rgba(0, 229, 255, 0.5)";
     ctx.lineWidth = 2;
     ctx.fillRect(margin - 2, margin - 2, minimapSize + 4, minimapSize + 4);
     ctx.strokeRect(margin - 2, margin - 2, minimapSize + 4, minimapSize + 4);
@@ -650,9 +692,8 @@ export class DungeonRenderer {
     const offsetX = (minimapSize / 2) - (state.x * cellS + cellS / 2);
     const offsetY = (minimapSize / 2) - (state.y * cellS + cellS / 2);
 
-    // Check light spell radius
-    // If no light spell active, light radius is 0 (only show visited cells)
-    const lightRad = state.lightTurns > 0 ? 3 : 0;
+    // Check light spell radius (dumapic extends radius to 5, light is 3)
+    const lightRad = state.dumapicTurns > 0 ? 5 : (state.lightTurns > 0 ? 3 : 0);
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
@@ -770,6 +811,29 @@ export class DungeonRenderer {
         }
         ctx.restore();
       }
+    }
+
+    // Draw roaming Flack on minimap
+    if (state.roamingMonsters) {
+      state.roamingMonsters.forEach(rm => {
+        if (rm.floor !== state.floor) return;
+        const dist = Math.abs(rm.x - state.x) + Math.abs(rm.y - state.y);
+        if (dist <= 4) {
+          const rx = margin + rm.x * cellS + cellS / 2 + offsetX;
+          const ry = margin + rm.y * cellS + cellS / 2 + offsetY;
+          
+          // Flashing red dot
+          const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 150);
+          ctx.save();
+          ctx.fillStyle = `rgba(255, 59, 48, ${pulse})`;
+          ctx.shadowBlur = 6;
+          ctx.shadowColor = "#ff3b30";
+          ctx.beginPath();
+          ctx.arc(rx, ry, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      });
     }
 
     // Draw player arrow (larger, glowing gold)

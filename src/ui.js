@@ -1,7 +1,7 @@
 import { state, getCharWeaponAtk, getCharDef } from "./state.js";
 import { DIR_NAMES, getClassJpName, isSpellcaster } from "./data.js";
 import { isMuted } from "./audio.js";
-import { menuContext, renderEquip } from "./menu.js";
+import { menuContext, renderEquip, renderSpellOverlay, renderCampOverlay } from "./menu.js";
 import { combatSelection, renderCombatOverlay } from "./combat.js";
 
 export function getFloorExplorationRate() {
@@ -100,18 +100,33 @@ export function updateUI() {
   // Update Goal HUD
   const goalBanner = document.getElementById("goal-banner");
   if (goalBanner) {
+    goalBanner.innerHTML = "";
+    const goalRow = document.createElement("div");
+    goalRow.className = "goal-row";
+    
+    const goalText = document.createElement("span");
     if (state.gameState === "gameover") {
-      goalBanner.textContent = "🎯 目標: 全滅した。セーブから再開するか、最初からやり直せ";
+      goalText.textContent = "🎯 目標: 全滅した。セーブから再開するか、最初からやり直せ";
     } else if (state.gameState === "victory") {
-      goalBanner.textContent = "🎯 目標: おめでとう！ゲームクリア！";
+      goalText.textContent = "🎯 目標: おめでとう！ゲームクリア！";
     } else if (state.gameState === "town") {
-      goalBanner.textContent = `🎯 目標: ${getCurrentGoal()}`;
+      goalText.textContent = `🎯 目標: ${getCurrentGoal()}`;
     } else {
+      goalText.textContent = `🎯 目標: ${getCurrentGoal()}`;
+    }
+    goalRow.appendChild(goalText);
+
+    if (state.gameState !== "gameover" && state.gameState !== "victory" && state.gameState !== "town") {
       const expRate = getFloorExplorationRate();
       const chestsOpened = state.floorChestsOpened ? (state.floorChestsOpened[state.floor - 1] ?? 0) : 0;
       const chestsTotal = state.floorChestsTotal ? (state.floorChestsTotal[state.floor - 1] ?? 0) : 0;
-      goalBanner.textContent = `🎯 目標: ${getCurrentGoal()} | 🗺️ 探索率: ${expRate}% | 📦 宝箱: ${chestsOpened}/${chestsTotal}`;
+      
+      const statsContainer = document.createElement("span");
+      statsContainer.className = "goal-stats-container";
+      statsContainer.innerHTML = `<span>🗺️ 探索率: ${expRate}%</span> <span>📦 宝箱: ${chestsOpened}/${chestsTotal}</span>`;
+      goalRow.appendChild(statsContainer);
     }
+    goalBanner.appendChild(goalRow);
   }
 
   // Update mute button display
@@ -271,6 +286,28 @@ export function updateUI() {
     }
   }
 
+  // Update Spell Overlay visibility
+  const spellOverlay = document.getElementById("spell-overlay");
+  if (spellOverlay) {
+    if (state.gameState === "submenu" && (menuContext.type === "spell_caster_select" || menuContext.type === "spell_select" || menuContext.type === "spell_target_ally")) {
+      spellOverlay.style.display = "flex";
+      renderSpellOverlay();
+    } else {
+      spellOverlay.style.display = "none";
+    }
+  }
+
+  // Update Camp Overlay visibility
+  const campOverlay = document.getElementById("camp-overlay");
+  if (campOverlay) {
+    if (state.gameState === "submenu" && (menuContext.type === "camp_main" || menuContext.type === "camp" || menuContext.type === "camp_status")) {
+      campOverlay.style.display = "flex";
+      renderCampOverlay();
+    } else {
+      campOverlay.style.display = "none";
+    }
+  }
+
   // Disable interaction during transition
   const controlsPanel = document.getElementById("controls-panel");
   if (controlsPanel) {
@@ -285,6 +322,9 @@ export function updateUI() {
 
   // Update Party HUD
   updatePartyHUD();
+
+  // Update Viewport accessibility Text HUD
+  updateViewportHUD();
 }
 
 export function updatePartyHUD() {
@@ -308,7 +348,7 @@ export function updatePartyHUD() {
     header.className = "char-header";
     const rowLabel = idx < 2 ? "[前]" : "[後]";
     const rowColor = idx < 2 ? "var(--neon-cyan)" : "var(--neon-gold)";
-    header.innerHTML = `<span class="char-name">${char.name} <span style="font-size: 10px; color: ${rowColor}; font-weight: normal; margin-left: 4px;">${rowLabel}</span></span><span class="char-class">Lv.${char.level} ${char.class[0]}</span>`;
+    header.innerHTML = `<span class="char-name">${char.name} <span style="font-size: 8px; color: ${rowColor}; font-weight: normal; margin-left: 2px;">${rowLabel}</span></span><span class="char-class">${char.class[0]}.${char.level}</span>`;
     card.appendChild(header);
 
     // HP Bar
@@ -363,5 +403,48 @@ export function updateCombatPrompt() {
     prompt.textContent = `${currentSelect.c.name} (${classJp}) の行動を選択：`;
   } else {
     prompt.textContent = "ターン解決中...";
+  }
+}
+
+export function updateViewportHUD() {
+  const hud = document.getElementById("viewport-hud");
+  if (!hud) return;
+
+  if (state.gameState !== "explore" && state.gameState !== "combat") {
+    hud.style.display = "none";
+    return;
+  }
+  hud.style.display = "flex";
+
+  const map = state.map;
+  if (!map) return;
+  const cell = map[state.y]?.[state.x];
+  if (!cell) return;
+
+  // Directions: 0:N, 1:E, 2:S, 3:W
+  const DIR_LABELS = ["北", "東", "南", "西"];
+  const dirLabel = DIR_LABELS[state.dir];
+
+  const hasWallFront = cell.walls[state.dir];
+  const hasWallRight = cell.walls[(state.dir + 1) % 4];
+  const hasWallBack = cell.walls[(state.dir + 2) % 4];
+  const hasWallLeft = cell.walls[(state.dir + 3) % 4];
+
+  const frontText = hasWallFront ? "壁" : "通路";
+  const rightText = hasWallRight ? "壁" : "通路";
+  const leftText = hasWallLeft ? "壁" : "通路";
+  const backText = hasWallBack ? "壁" : "通路";
+
+  const isDumapic = state.dumapicTurns > 0;
+  if (isDumapic) {
+    hud.innerHTML = `
+      <div class="hud-dir dumapic-active">【DUMAPIC座標検知中】地下${state.floor}階 X:${state.x} Y:${state.y} (${dirLabel})</div>
+      <div class="hud-surround">前:${frontText} | 右:${rightText} | 左:${leftText} | 後:${backText}</div>
+    `;
+  } else {
+    hud.innerHTML = `
+      <div class="hud-dir">方角: ${dirLabel}</div>
+      <div class="hud-surround">前:${frontText} | 右:${rightText} | 左:${leftText} | 後:${backText}</div>
+    `;
   }
 }

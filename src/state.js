@@ -25,9 +25,9 @@ export const createDefaultRoster = () => [
     luk: 9,
     status: "ok",
     equipment: {
-      weapon: "LONG_SWORD",
-      shield: "LARGE_SHIELD",
-      armor: "CHAIN_MAIL"
+      weapon: "SHORT_SWORD",
+      shield: "SMALL_SHIELD",
+      armor: "LEATHER_ARMOR"
     }
   },
   {
@@ -116,9 +116,9 @@ export const createDefaultRoster = () => [
     status: "ok",
     spells: [],
     equipment: {
-      weapon: "KATANA",
+      weapon: "SHORT_SWORD",
       shield: "SMALL_SHIELD",
-      armor: "CHAIN_MAIL"
+      armor: "LEATHER_ARMOR"
     }
   },
   {
@@ -205,6 +205,8 @@ export const state = {
   x: START_X,
   y: START_Y,
   dir: DIR_N,
+  prevX: START_X,
+  prevY: START_Y,
 
   // Party, Roster & Inventory
   party: [],
@@ -218,6 +220,7 @@ export const state = {
   visitedMaps: [null, null, null, null, null],
   lightTurns: 0,
   repelTurns: 0,
+  dumapicTurns: 0,
   eventCooldownTurns: 0,
   activeMerchantStock: [],
 
@@ -225,6 +228,10 @@ export const state = {
   floorChestsOpened: [0, 0, 0, 0, 0],
   floorChestsTotal: [0, 0, 0, 0, 0],
   firstKills: [],
+
+  // Roaming monsters state
+  roamingMonsters: [],
+  roamingMovementStepCount: 0,
 
   // Tracking properties for return checkpointing
   lastReturnedFloor: null,
@@ -250,11 +257,60 @@ export const state = {
   }
 };
 
+// Helper to place roaming monster on floor
+function findSuitableRoamingMonsterStart(mapData, floor) {
+  const grid = mapData.grid;
+  let stairsUp = { x: START_X, y: START_Y };
+  for (let y = 0; y < MAP_HEIGHT; y++) {
+    for (let x = 0; x < MAP_WIDTH; x++) {
+      if (grid[y] && grid[y][x] && grid[y][x].type === "stairs-up") {
+        stairsUp = { x, y };
+      }
+    }
+  }
+  const stairsDown = mapData.stairsDownCoord || { x: -1, y: -1 };
+  const boss = mapData.bossCoord || { x: -1, y: -1 };
+  const candidates = [];
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      const cell = grid[y][x];
+      if (cell.walls.some(w => !w)) {
+        const isStairsUp = (x === stairsUp.x && y === stairsUp.y);
+        const isStairsDown = (x === stairsDown.x && y === stairsDown.y);
+        const isBoss = (x === boss.x && y === boss.y);
+        const hasEvent = cell.event === "boss" || cell.event === "midboss";
+        if (!isStairsUp && !isStairsDown && !isBoss && !hasEvent) {
+          const dist = Math.abs(x - stairsUp.x) + Math.abs(y - stairsUp.y);
+          if (dist >= 5) {
+            candidates.push({ x, y });
+          }
+        }
+      }
+    }
+  }
+  if (candidates.length > 0) {
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      const cell = grid[y][x];
+      if (cell.walls.some(w => !w)) {
+        if (x !== stairsUp.x || y !== stairsUp.y) {
+          return { x, y };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 // Initial state builder
 export function initNewGame() {
   state.x = START_X;
   state.y = START_Y;
   state.dir = DIR_N;
+  state.prevX = START_X;
+  state.prevY = START_Y;
   state.roster = createDefaultRoster();
   state.party = []; // Start with empty party
   state.gold = 150;
@@ -267,6 +323,17 @@ export function initNewGame() {
   const b4 = generateRandomMap(4, b3.stairsDownCoord);
   const b5 = generateRandomMap(5, b4.stairsDownCoord);
   state.maps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
+
+  state.roamingMovementStepCount = 0;
+  state.roamingMonsters = [];
+  const f4Start = findSuitableRoamingMonsterStart(b4, 4);
+  if (f4Start) {
+    state.roamingMonsters.push({ floor: 4, x: f4Start.x, y: f4Start.y, name: "フラック" });
+  }
+  const f5Start = findSuitableRoamingMonsterStart(b5, 5);
+  if (f5Start) {
+    state.roamingMonsters.push({ floor: 5, x: f5Start.x, y: f5Start.y, name: "フラック" });
+  }
   state.visitedMaps = [
     Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
     Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
@@ -279,6 +346,7 @@ export function initNewGame() {
   state.visitedMap[state.y][state.x] = true;
   state.lightTurns = 0;
   state.repelTurns = 0;
+  state.dumapicTurns = 0;
   state.eventCooldownTurns = 0;
   state.activeMerchantStock = [];
 
@@ -322,6 +390,8 @@ export function loadGame(forceSaveOnly = false) {
     state.x = data.x ?? START_X;
     state.y = data.y ?? START_Y;
     state.dir = data.dir ?? DIR_N;
+    state.prevX = data.prevX ?? START_X;
+    state.prevY = data.prevY ?? START_Y;
     state.party = data.party ?? [];
     state.roster = data.roster;
     if (!state.roster) {
@@ -472,6 +542,7 @@ export function loadGame(forceSaveOnly = false) {
     state.maps = loadedMaps;
     state.lightTurns = data.lightTurns ?? 0;
     state.repelTurns = data.repelTurns ?? 0;
+    state.dumapicTurns = data.dumapicTurns ?? 0;
     state.eventCooldownTurns = data.eventCooldownTurns ?? 0;
     state.activeMerchantStock = data.activeMerchantStock ?? [];
     state.gameState = data.gameState ?? "town";
@@ -497,6 +568,8 @@ export function loadGame(forceSaveOnly = false) {
     state.firstKills = data.firstKills ?? [];
     state.lastReturnedFloor = data.lastReturnedFloor ?? null;
     state.sessionMaxFloor = state.floor;
+    state.roamingMonsters = data.roamingMonsters ?? [];
+    state.roamingMovementStepCount = data.roamingMovementStepCount ?? 0;
 
     // 同期のためにオートセーブデータを更新
     saveAutosave();
@@ -522,6 +595,7 @@ export function saveGame() {
       visitedMaps: state.visitedMaps,
       lightTurns: state.lightTurns,
       repelTurns: state.repelTurns,
+      dumapicTurns: state.dumapicTurns,
       eventCooldownTurns: state.eventCooldownTurns,
       activeMerchantStock: state.activeMerchantStock,
       floorChestsOpened: state.floorChestsOpened,
@@ -531,6 +605,10 @@ export function saveGame() {
       gameState: state.gameState,
       combatState: state.combatState,
       chestState: state.chestState,
+      prevX: state.prevX,
+      prevY: state.prevY,
+      roamingMonsters: state.roamingMonsters,
+      roamingMovementStepCount: state.roamingMovementStepCount,
       logs: state.logs.slice(-30) // Only save last 30 logs to keep clean
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -555,6 +633,7 @@ export function saveAutosave() {
       visitedMaps: state.visitedMaps,
       lightTurns: state.lightTurns,
       repelTurns: state.repelTurns,
+      dumapicTurns: state.dumapicTurns,
       eventCooldownTurns: state.eventCooldownTurns,
       activeMerchantStock: state.activeMerchantStock,
       floorChestsOpened: state.floorChestsOpened,
@@ -564,6 +643,10 @@ export function saveAutosave() {
       gameState: state.gameState,
       combatState: state.combatState,
       chestState: state.chestState,
+      prevX: state.prevX,
+      prevY: state.prevY,
+      roamingMonsters: state.roamingMonsters,
+      roamingMovementStepCount: state.roamingMovementStepCount,
       logs: state.logs.slice(-30)
     };
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));

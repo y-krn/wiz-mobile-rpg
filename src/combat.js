@@ -16,7 +16,7 @@ let activeTargetCallback = null;
 let activeSpellCallback = null;
 let activeItemCallback = null;
 
-export function startCombat(isBoss, isMidboss = false) {
+export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
   state.gameState = "combat";
   
   // Choose monsters
@@ -36,6 +36,14 @@ export function startCombat(isBoss, isMidboss = false) {
       ...midbossTemplate,
       hp: midbossTemplate.hp,
       maxHp: midbossTemplate.hp
+    });
+  } else if (isRoamingFlack) {
+    // Roaming Flack Encounter
+    const flackTemplate = MONSTERS.find(m => m.name === "フラック");
+    monsters.push({
+      ...flackTemplate,
+      hp: flackTemplate.hp,
+      maxHp: flackTemplate.hp
     });
   } else {
     // Regular random encounter
@@ -63,10 +71,10 @@ export function startCombat(isBoss, isMidboss = false) {
     
     // Check rare encounter chance (e.g. 8% chance, B4F has 18%)
     const rareChance = state.floor === 4 ? 0.18 : 0.08;
-    const isRareEncounter = Math.random() < rareChance;
-    const rareCandidates = MONSTERS.filter(m => m.isRare);
+    const rareCandidates = MONSTERS.filter(m => m.isRare && m.name !== "フラック" && m.level <= targetLevel + 1);
+    const isRareEncounter = (Math.random() < rareChance) && (rareCandidates.length > 0);
     
-    if (isRareEncounter && rareCandidates.length > 0) {
+    if (isRareEncounter) {
       const template = rareCandidates[Math.floor(Math.random() * rareCandidates.length)];
       monsters.push({
         ...template,
@@ -97,9 +105,9 @@ export function startCombat(isBoss, isMidboss = false) {
         }
         
         if (state.floor === 2) {
-          // B2F: 70% chance to bias towards poisonous monsters
+          // B2F: 50% chance to bias towards poisonous monsters
           const poisonous = candidates.filter(m => m.isPoisonous);
-          if (poisonous.length > 0 && Math.random() < 0.70) {
+          if (poisonous.length > 0 && Math.random() < 0.50) {
             candidates = poisonous;
           }
         } else if (state.floor === 3) {
@@ -129,6 +137,7 @@ export function startCombat(isBoss, isMidboss = false) {
     phase: "choose_actions",
     isBoss,
     isMidboss,
+    isRoamingFlack,
     isAuto: false
   };
   state.chestState = null;
@@ -968,6 +977,36 @@ export function resolveCombatRound() {
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
             }
           });
+        } else if (mon.spell === "MADALTO") {
+          logQueue.push({
+            msg: `[ 敵 ] ${mon.name}はマダルトを唱えた！氷の嵐が吹き荒れる！`,
+            sound: "cast_spell",
+            shake: 15,
+            flash: true
+          });
+          state.party.forEach(c => {
+            if (c.status !== "dead") {
+              const dmg = Math.floor(Math.random() * 20) + 15; // 15-35 DMG
+              c.hp = Math.max(0, c.hp - dmg);
+              if (c.hp === 0) c.status = "dead";
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。` });
+            }
+          });
+        } else if (mon.spell === "TILTOWAIT") {
+          logQueue.push({
+            msg: `[ 敵 ] ${mon.name}はティルトウェイトを唱えた！極大爆裂が襲いかかる！`,
+            sound: "cast_spell",
+            shake: 25,
+            flash: true
+          });
+          state.party.forEach(c => {
+            if (c.status !== "dead") {
+              const dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
+              c.hp = Math.max(0, c.hp - dmg);
+              if (c.hp === 0) c.status = "dead";
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。` });
+            }
+          });
         }
       } else {
         // Ninja physical attack evasion (25% chance to balance with row system)
@@ -1150,6 +1189,22 @@ export function resolveCombatRound() {
         sound: "gold",
         giveKey: true
       });
+    } else if (state.combatState.isRoamingFlack) {
+      // Remove Flack from state.roamingMonsters
+      state.roamingMonsters = state.roamingMonsters.filter(
+        rm => !(rm.floor === state.floor && rm.x === state.x && rm.y === state.y)
+      );
+      logQueue.push({
+        msg: "強敵「フラック」を見事に撃破した！",
+        sound: "gold"
+      });
+      logQueue.push({
+        msg: "フラックの残骸の影に宝箱を見つけた！",
+        triggerChest: true
+      });
+      if (state.floorChestsTotal) {
+        state.floorChestsTotal[state.floor - 1] = (state.floorChestsTotal[state.floor - 1] ?? 0) + 1;
+      }
     } else {
       if (Math.random() < 0.20) {
         logQueue.push({
@@ -1214,6 +1269,11 @@ export function playBattleLogs(queue, index) {
         state.transitioning = false;
         triggerGameOver();
       } else {
+        if (state.combatState && state.combatState.isRoamingFlack) {
+          // Push player back to prevX, prevY
+          state.x = state.prevX;
+          state.y = state.prevY;
+        }
         state.gameState = "explore";
         state.combatState = null;
         resetSubmenuBackButton();
@@ -1254,6 +1314,9 @@ export function playBattleLogs(queue, index) {
       state.map[state.y][state.x].event = null;
     }
     state.inventory.push("ANTIGRAVITY_CRYSTAL");
+    if (!state.inventory.includes("LEGENDARY_SWORD")) {
+      state.inventory.push("LEGENDARY_SWORD");
+    }
     setTimeout(() => {
       state.gameState = "explore";
       state.combatState = null;
@@ -1272,6 +1335,9 @@ export function playBattleLogs(queue, index) {
     }
     if (!state.inventory.includes("DRAGON_KEY")) {
       state.inventory.push("DRAGON_KEY");
+    }
+    if (!state.inventory.includes("LEGENDARY_SHIELD")) {
+      state.inventory.push("LEGENDARY_SHIELD");
     }
     setTimeout(() => {
       state.gameState = "explore";
