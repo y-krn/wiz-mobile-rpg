@@ -1,4 +1,5 @@
 import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, START_Y, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
+import { createRng } from "./seed_rng.js";
 
 // Directions helper
 const DX = [0, 1, 0, -1];
@@ -79,7 +80,8 @@ export function removeIsolatedInternalWalls(grid) {
   return removed;
 }
 
-export function generateRandomMap(floor = 1, parentStairsCoord = null) {
+export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = null) {
+  const rng = seed ? createRng(`${seed}:map:B${floor}`) : Math.random;
   // 1. Initialize grid with all walls closed
   const grid = Array.from({ length: MAP_HEIGHT }, () =>
     Array.from({ length: MAP_WIDTH }, () => ({
@@ -122,7 +124,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
 
     if (neighbors.length > 0) {
       // Pick random neighbor
-      const next = neighbors[Math.floor(Math.random() * neighbors.length)];
+      const next = neighbors[Math.floor(rng() * neighbors.length)];
       
       // Dig passage to the next cell
       const wallDir = next.dir;
@@ -162,7 +164,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
             const my = y + DY[dir];
             // Check if the intermediate cell is not dug (all walls closed)
             if (grid[my][mx].walls.every(w => w)) {
-              if (Math.random() < 0.25) {
+              if (rng() < 0.25) {
                 const wallDir = dir;
                 const oppDir = (wallDir + 2) % 4;
 
@@ -241,7 +243,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
   // Set stairs-down for B1F - B4F
   if (floor < 5) {
     if (deadEnds.length > 0) {
-      const idx = Math.floor(Math.random() * deadEnds.length);
+      const idx = Math.floor(rng() * deadEnds.length);
       stairsDownCoord = deadEnds[idx];
       deadEnds.splice(idx, 1);
     } else {
@@ -259,7 +261,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
       });
       deadEnds.sort((a, b) => b.dist - a.dist);
       const candidates = deadEnds.slice(0, Math.min(3, deadEnds.length));
-      const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+      const chosen = candidates[Math.floor(rng() * candidates.length)];
       bossCoord = { x: chosen.x, y: chosen.y };
 
       const removeIdx = deadEnds.findIndex(de => de.x === bossCoord.x && de.y === bossCoord.y);
@@ -279,7 +281,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
       });
       deadEnds.sort((a, b) => b.dist - a.dist);
       const candidates = deadEnds.slice(0, Math.min(3, deadEnds.length));
-      const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+      const chosen = candidates[Math.floor(rng() * candidates.length)];
       bossCoord = { x: chosen.x, y: chosen.y };
 
       const removeIdx = deadEnds.findIndex(de => de.x === bossCoord.x && de.y === bossCoord.y);
@@ -298,7 +300,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null) {
   // Shuffle array utility
   const shuffle = (array) => {
     for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rng() * (i + 1));
       [array[i], array[j]] = [array[j], array[i]];
     }
   };

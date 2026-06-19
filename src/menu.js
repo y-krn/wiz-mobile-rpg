@@ -1,8 +1,8 @@
-import { state, initNewGame, loadGame, saveGame, saveAutosave, getCharWeaponAtk, getCharDef, addLog, EXP_LEVELS } from "./state.js";
-import { DIR_N, START_X, START_Y, ITEMS, SPELLS, canUsePriestSpells, canUseMageSpells, isSpellcaster, getClassJpName } from "./data.js";
+import { state, initNewGame, loadGame, saveGame, saveAutosave, getCharWeaponAtk, getCharDef, addLog, EXP_LEVELS, generateRandomSeed, rebuildDungeonMaps, calculateSeedProperties, recordEquipmentDiscovery } from "./state.js";
+import { DIR_N, START_X, START_Y, ITEMS, SPELLS, canUsePriestSpells, canUseMageSpells, isSpellcaster, getClassJpName, getItemData, getCharStr, getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharMaxHp, getCharMaxMp } from "./data.js";
 import { playSound } from "./audio.js";
 import { renderer } from "./game.js";
-import { updateUI } from "./ui.js";
+import { updateUI, openArchivesOverlay } from "./ui.js";
 import { executeDisarm } from "./chest.js";
 import { triggerGameOver } from "./combat.js";
 import { executeEnterDungeon } from "./movement.js";
@@ -22,7 +22,7 @@ export let menuHistory = [];
 const SHOP_STOCK = [
   { key: "HEAL_POTION", price: 60 },
   { key: "ANTIDOTE", price: 80 },
-  { key: "HOLY_WATER", price: 180 },
+  { key: "HOLY_WATER", price: 100 },
   { key: "MANA_POTION", price: 200 },
   { key: "TOWN_PORTAL", price: 100 },
   { key: "DAGGER", price: 50 },
@@ -52,6 +52,13 @@ let shopState = {
   selectedKey: null,
   selectedIdx: -1
 };
+
+export function openShopAppraise() {
+  shopState.mode = "appraise";
+  shopState.selectedKey = null;
+  shopState.selectedIdx = -1;
+  openSubmenu("shop_main", "ボルタック商店 - 鑑定：");
+}
 
 export function renderShop() {
   const overlay = document.getElementById("shop-overlay");
@@ -116,6 +123,18 @@ export function renderShop() {
     renderShop();
   });
   tabs.appendChild(tabSell);
+
+  const tabAppraise = document.createElement("button");
+  tabAppraise.className = `shop-tab ${shopState.mode === "appraise" ? "active" : ""}`;
+  tabAppraise.textContent = "🔍 鑑定する";
+  tabAppraise.setAttribute("aria-pressed", shopState.mode === "appraise" ? "true" : "false");
+  tabAppraise.addEventListener("click", () => {
+    shopState.mode = "appraise";
+    shopState.selectedKey = null;
+    shopState.selectedIdx = -1;
+    renderShop();
+  });
+  tabs.appendChild(tabAppraise);
   
   overlay.appendChild(tabs);
 
@@ -209,7 +228,7 @@ export function renderShop() {
 
       itemsList.appendChild(row);
     });
-  } else {
+  } else if (shopState.mode === "sell") {
     // Selling Mode: list player inventory
     if (state.inventory.length === 0) {
       const emptyMsg = document.createElement("div");
@@ -218,7 +237,8 @@ export function renderShop() {
       itemsList.appendChild(emptyMsg);
     } else {
       state.inventory.forEach((itemKey, idx) => {
-        const item = ITEMS[itemKey];
+        const item = getItemData(itemKey);
+        if (!item) return;
         const value = Math.floor((item.price || 0) * 0.5);
         
         const row = document.createElement("button");
@@ -247,10 +267,63 @@ export function renderShop() {
 
         row.addEventListener("click", () => {
           if (item.price > 0) {
-            shopState.selectedKey = itemKey;
+            shopState.selectedKey = (typeof itemKey === "object" ? itemKey : itemKey);
             shopState.selectedIdx = idx;
             renderShop();
           }
+        });
+
+        itemsList.appendChild(row);
+      });
+    }
+  } else if (shopState.mode === "appraise") {
+    // Appraise Mode: list unidentified items in player inventory
+    const unidentifiedItems = [];
+    state.inventory.forEach((itemKey, idx) => {
+      if (typeof itemKey === "object" && !itemKey.identified) {
+        unidentifiedItems.push({ itemKey, idx });
+      }
+    });
+
+    if (unidentifiedItems.length === 0) {
+      const emptyMsg = document.createElement("div");
+      emptyMsg.className = "detail-placeholder";
+      emptyMsg.textContent = "未鑑定のアイテムがありません。";
+      itemsList.appendChild(emptyMsg);
+    } else {
+      unidentifiedItems.forEach(({ itemKey, idx }) => {
+        const itemData = getItemData(itemKey);
+        const rarity = itemKey.rarity || "magic";
+        const cost = { magic: 60, rare: 150, epic: 400 }[rarity] || 20;
+
+        const row = document.createElement("button");
+        row.type = "button";
+        const isSelected = shopState.selectedIdx === idx;
+        row.className = `shop-item-row ${isSelected ? "selected" : ""}`;
+        row.setAttribute("aria-selected", isSelected ? "true" : "false");
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "shop-item-name";
+        nameSpan.textContent = itemData.name;
+        row.appendChild(nameSpan);
+
+        if (state.gold < cost) {
+          row.classList.add("not-purchasable");
+          const badge = document.createElement("span");
+          badge.className = "shop-row-badge cant";
+          badge.textContent = "金不足";
+          row.appendChild(badge);
+        }
+
+        const priceSpan = document.createElement("span");
+        priceSpan.className = "shop-item-price";
+        priceSpan.textContent = `${cost}G`;
+        row.appendChild(priceSpan);
+
+        row.addEventListener("click", () => {
+          shopState.selectedKey = itemKey;
+          shopState.selectedIdx = idx;
+          renderShop();
         });
 
         itemsList.appendChild(row);
@@ -267,16 +340,27 @@ export function renderShop() {
   detailPanel.id = "shop-detail-panel";
 
   const hasSelected = (shopState.mode === "buy" && shopState.selectedKey) || 
-                       (shopState.mode === "sell" && shopState.selectedIdx !== -1);
+                       (shopState.mode === "sell" && shopState.selectedIdx !== -1) ||
+                       (shopState.mode === "appraise" && shopState.selectedIdx !== -1);
 
   if (!hasSelected) {
     detailPanel.innerHTML = `<div class="detail-placeholder">取引するアイテムを<br>選択してください</div>`;
   } else if (hasSelected) {
     const itemKey = shopState.selectedKey;
-    const item = ITEMS[itemKey];
-    const itemPrice = shopState.mode === "buy" 
-      ? SHOP_STOCK.find(st => st.key === itemKey).price 
-      : Math.floor((item.price || 0) * 0.5);
+    let item;
+    let itemPrice;
+    if (shopState.mode === "buy") {
+      item = ITEMS[itemKey];
+      itemPrice = SHOP_STOCK.find(st => st.key === itemKey).price;
+    } else if (shopState.mode === "sell") {
+      item = getItemData(state.inventory[shopState.selectedIdx]);
+      itemPrice = Math.floor((item.price || 0) * 0.5);
+    } else { // appraise
+      const eqItem = state.inventory[shopState.selectedIdx];
+      item = getItemData(eqItem);
+      const rarity = eqItem.rarity || "magic";
+      itemPrice = { magic: 60, rare: 150, epic: 400 }[rarity] || 20;
+    }
 
     // Create scrollable content container
     const scrollContent = document.createElement("div");
@@ -340,7 +424,7 @@ export function renderShop() {
           // Compare current slot
           const slot = item.type; // "weapon", "shield", "armor"
           const currentEquipKey = char.equipment[slot];
-          const currentEquip = currentEquipKey ? ITEMS[currentEquipKey] : null;
+          const currentEquip = currentEquipKey ? getItemData(currentEquipKey) : null;
           
           let currentStat = 0;
           if (currentEquip) {
@@ -409,6 +493,7 @@ export function renderShop() {
       actionBtn.addEventListener("click", () => {
         state.gold -= itemPrice;
         state.inventory.push(itemKey);
+        recordEquipmentDiscovery(itemKey);
         playSound("gold");
         addLog(`${item.name}を${itemPrice}ゴールドで購入した。`);
         saveAutosave();
@@ -426,7 +511,7 @@ export function renderShop() {
         renderShop();
         updateUI(); // update party HUD etc.
       });
-    } else {
+    } else if (shopState.mode === "sell") {
       actionBtn.classList.add("btn-danger");
       actionBtn.textContent = `売却する (+${itemPrice}G)`;
 
@@ -447,6 +532,38 @@ export function renderShop() {
 
         renderShop();
         updateUI(); // update party HUD etc.
+      });
+    } else { // appraise
+      actionBtn.classList.add("btn-neon");
+      actionBtn.textContent = `鑑定する (${itemPrice}G)`;
+
+      const goldCheck = state.gold < itemPrice;
+      if (goldCheck) {
+        actionBtn.disabled = true;
+        actionBtn.textContent = "ゴールド不足";
+      }
+
+      actionBtn.addEventListener("click", () => {
+        state.gold -= itemPrice;
+        
+        const eqItem = state.inventory[shopState.selectedIdx];
+        eqItem.identified = true;
+        const resultItem = getItemData(eqItem);
+
+        playSound("level_up");
+        addLog(`鑑定成功！未鑑定のアイテムは [${resultItem.name}] だった！`);
+        saveAutosave();
+
+        // Reset selection since index changed
+        shopState.selectedKey = null;
+        shopState.selectedIdx = -1;
+
+        // Update top gold count label instantly
+        const goldLabel = document.getElementById("gold-counter");
+        if (goldLabel) goldLabel.textContent = `GOLD: ${state.gold}`;
+
+        renderShop();
+        updateUI();
       });
     }
     detailPanel.appendChild(actionBtn);
@@ -695,9 +812,9 @@ export function openSubmenu(type, title, isBack = false) {
     statsDiv.style.textAlign = "center";
     statsDiv.style.marginBottom = "4px";
     
-    const wName = char.equipment.weapon ? ITEMS[char.equipment.weapon].name : "なし";
-    const sName = char.equipment.shield ? ITEMS[char.equipment.shield].name : "なし";
-    const aName = char.equipment.armor ? ITEMS[char.equipment.armor].name : "なし";
+    const wName = char.equipment.weapon ? getItemData(char.equipment.weapon).name : "なし";
+    const sName = char.equipment.shield ? getItemData(char.equipment.shield).name : "なし";
+    const aName = char.equipment.armor ? getItemData(char.equipment.armor).name : "なし";
     statsDiv.textContent = `武器: ${wName} | 盾: ${sName} | 鎧: ${aName}`;
     optGrid.appendChild(statsDiv);
 
@@ -709,7 +826,8 @@ export function openSubmenu(type, title, isBack = false) {
       optGrid.appendChild(btn);
     } else {
       state.inventory.forEach((itemKey, idx) => {
-        const item = ITEMS[itemKey];
+        const item = getItemData(itemKey);
+        if (!item) return;
         const btn = document.createElement("button");
         btn.className = "btn btn-neon btn-block";
         const typeJp = item.type === "usable" ? "消費" : item.type === "weapon" ? "武器" : item.type === "shield" ? "盾" : "鎧";
@@ -723,7 +841,7 @@ export function openSubmenu(type, title, isBack = false) {
       });
     }
   } else if (type === "item_action") {
-    const item = ITEMS[menuContext.itemKey];
+    const item = getItemData(menuContext.itemKey);
     
     if (item.type === "usable") {
       const btnUse = document.createElement("button");
@@ -856,21 +974,23 @@ export function openSubmenu(type, title, isBack = false) {
   } else if (type === "enter_dungeon_select") {
     const btnB1F = document.createElement("button");
     btnB1F.className = "btn btn-neon btn-block";
-    btnB1F.textContent = "地下1階から入る";
+    btnB1F.textContent = "地下1階から潜る";
     btnB1F.addEventListener("click", () => {
       closeSubmenu();
       executeEnterDungeon(1);
     });
     optGrid.appendChild(btnB1F);
 
-    const btnResume = document.createElement("button");
-    btnResume.className = "btn btn-neon btn-block";
-    btnResume.textContent = `地下${state.lastReturnedFloor}階から再開`;
-    btnResume.addEventListener("click", () => {
-      closeSubmenu();
-      executeEnterDungeon(state.lastReturnedFloor);
-    });
-    optGrid.appendChild(btnResume);
+    if (state.lastReturnedFloor && state.lastReturnedFloor > 1 && state.lastReturnedFloor <= 4) {
+      const btnResume = document.createElement("button");
+      btnResume.className = "btn btn-neon btn-block";
+      btnResume.textContent = `地下${state.lastReturnedFloor}階から再開`;
+      btnResume.addEventListener("click", () => {
+        closeSubmenu();
+        executeEnterDungeon(state.lastReturnedFloor);
+      });
+      optGrid.appendChild(btnResume);
+    }
   } else if (type === "camp_status") {
     state.party.forEach(char => {
       const card = document.createElement("div");
@@ -989,6 +1109,9 @@ export function openSubmenu(type, title, isBack = false) {
     btnDrink.className = "btn btn-neon btn-block";
     btnDrink.textContent = "泉の水を飲む";
     btnDrink.addEventListener("click", () => {
+      if (state.codex && state.codex.events && state.codex.events.facilities) {
+        state.codex.events.facilities.spring.used++;
+      }
       const rand = Math.random();
       if (rand < 0.40) {
         state.party.forEach(char => {
@@ -1048,6 +1171,9 @@ export function openSubmenu(type, title, isBack = false) {
     btnRead.className = "btn btn-neon btn-block";
     btnRead.textContent = "文字を読む";
     btnRead.addEventListener("click", () => {
+      if (state.codex && state.codex.events && state.codex.events.facilities) {
+        state.codex.events.facilities.tablet.read++;
+      }
       const rand = Math.random();
       if (rand < 0.40) {
         const hints = [
@@ -1137,7 +1263,7 @@ export function openSubmenu(type, title, isBack = false) {
       const usables = [
         { key: "HEAL_POTION", price: 40, soldOut: false },
         { key: "MANA_POTION", price: 150, soldOut: false },
-        { key: "HOLY_WATER", price: 120, soldOut: false },
+        { key: "HOLY_WATER", price: 70, soldOut: false },
         { key: "ANTIDOTE", price: 50, soldOut: false },
         { key: "TOWN_PORTAL", price: 70, soldOut: false }
       ];
@@ -1177,7 +1303,7 @@ export function openSubmenu(type, title, isBack = false) {
 
     if (state.activeMerchantStock && state.activeMerchantStock.length > 0) {
       state.activeMerchantStock.forEach(stock => {
-        const item = ITEMS[stock.key];
+        const item = getItemData(stock.key);
         const btn = document.createElement("button");
         btn.className = "btn btn-neon btn-block";
         
@@ -1191,6 +1317,10 @@ export function openSubmenu(type, title, isBack = false) {
           btn.addEventListener("click", () => {
             state.gold -= stock.price;
             state.inventory.push(stock.key);
+            recordEquipmentDiscovery(stock.key);
+            if (state.codex && state.codex.events && state.codex.events.facilities) {
+              state.codex.events.facilities.merchant.purchased++;
+            }
             stock.soldOut = true;
             playSound("gold");
             addLog(`[!] 商人から[${item.name}]を${stock.price}Gで購入した。`);
@@ -1338,6 +1468,8 @@ export function handleTownOption(option) {
     openEquipOverlay(0);
   } else if (option === "training") {
     openSubmenu("party_assemble", "訓練場 - パーティ編成:");
+  } else if (option === "archives") {
+    openArchivesOverlay();
   }
 }
 
@@ -1525,7 +1657,8 @@ export function renderEquip() {
   // Filter inventory
   const filteredIndices = [];
   state.inventory.forEach((itemKey, idx) => {
-    const item = ITEMS[itemKey];
+    const item = getItemData(itemKey);
+    if (!item) return;
     if (equipState.filter === "all") {
       filteredIndices.push({ itemKey, idx });
     } else if (equipState.filter === "weapon" && item.type === "weapon") {
@@ -1544,7 +1677,8 @@ export function renderEquip() {
     itemList.appendChild(placeholder);
   } else {
     filteredIndices.forEach(({ itemKey, idx }) => {
-      const item = ITEMS[itemKey];
+      const item = getItemData(itemKey);
+      if (!item) return;
       const row = document.createElement("button");
       row.type = "button";
       const isSelected = equipState.selectedIdx === idx;
@@ -1559,8 +1693,15 @@ export function renderEquip() {
       // Add visual badges in list for better decision support
       const isEquipableType = item.type === "weapon" || item.type === "shield" || item.type === "armor";
       if (isEquipableType) {
-        const canEquip = !item.classes || item.classes.includes(char.class);
-        if (!canEquip) {
+        const isIdentified = typeof itemKey !== "object" || itemKey.identified;
+        const canEquip = (!item.classes || item.classes.includes(char.class)) && isIdentified;
+        if (!isIdentified) {
+          row.classList.add("not-equipable");
+          const badge = document.createElement("span");
+          badge.className = "equip-row-badge cant";
+          badge.textContent = "未鑑定";
+          row.appendChild(badge);
+        } else if (!canEquip) {
           row.classList.add("not-equipable");
           const badge = document.createElement("span");
           badge.className = "equip-row-badge cant";
@@ -1569,7 +1710,7 @@ export function renderEquip() {
         } else {
           const slot = item.type;
           const currentEquipKey = char.equipment[slot];
-          const currentEquip = currentEquipKey ? ITEMS[currentEquipKey] : null;
+          const currentEquip = currentEquipKey ? getItemData(currentEquipKey) : null;
           let diff = 0;
           if (slot === "weapon") {
             const currentAtk = currentEquip ? currentEquip.atk : 0;
@@ -1615,7 +1756,8 @@ export function renderEquip() {
     detailCol.appendChild(placeholder);
   } else {
     const itemKey = equipState.selectedKey;
-    const item = ITEMS[itemKey];
+    const item = getItemData(itemKey);
+    if (!item) return;
     
     const detailContent = document.createElement("div");
     detailContent.className = "equip-detail-content";
@@ -1630,13 +1772,18 @@ export function renderEquip() {
     dDesc.textContent = item.desc || "効果はありません。";
     detailContent.appendChild(dDesc);
     
-    // Class Compatibility Check
+    // Class Compatibility and Identification Check
     const isEquipableType = item.type === "weapon" || item.type === "shield" || item.type === "armor";
     if (isEquipableType) {
-      const canEquip = !item.classes || item.classes.includes(char.class);
+      const isIdentified = typeof itemKey !== "object" || itemKey.identified;
+      const canEquip = (!item.classes || item.classes.includes(char.class)) && isIdentified;
       const compat = document.createElement("div");
       compat.className = `equip-detail-compat ${canEquip ? "yes" : "no"}`;
-      compat.textContent = canEquip ? "🟢 装備可能" : "🔴 装備不可 (職業制限)";
+      if (!isIdentified) {
+        compat.textContent = "🔴 装備不可 (未鑑定アイテム)";
+      } else {
+        compat.textContent = canEquip ? "🟢 装備可能" : "🔴 装備不可 (職業制限)";
+      }
       detailContent.appendChild(compat);
       
       // Stat compare
@@ -1644,45 +1791,53 @@ export function renderEquip() {
       compare.className = "equip-stat-compare";
       
       const currentEquipKey = char.equipment[item.type];
-      const currentEquip = currentEquipKey ? ITEMS[currentEquipKey] : null;
+      const currentEquip = currentEquipKey ? getItemData(currentEquipKey) : null;
       
-      if (item.type === "weapon") {
-        const currentAtk = getCharWeaponAtk(char) + char.str;
-        const newAtk = item.atk + char.str;
-        const diff = newAtk - currentAtk;
+      const statsToCompare = [
+        { label: "攻撃力", getValue: (eq) => eq?.type === "weapon" ? eq.atk : 0 },
+        { label: "防御力", getValue: (eq) => eq?.type !== "weapon" ? (eq?.def || 0) : 0 },
+        { label: "HP", getValue: (eq) => eq?.hpBonus || 0 },
+        { label: "MP", getValue: (eq) => eq?.mpBonus || 0 },
+        { label: "力", getValue: (eq) => eq?.statsBonus?.str || 0 },
+        { label: "知恵", getValue: (eq) => eq?.statsBonus?.int || 0 },
+        { label: "信仰", getValue: (eq) => eq?.statsBonus?.pie || 0 },
+        { label: "生命", getValue: (eq) => eq?.statsBonus?.vit || 0 },
+        { label: "素早さ", getValue: (eq) => eq?.statsBonus?.agi || 0 },
+        { label: "運", getValue: (eq) => eq?.statsBonus?.luk || 0 },
+        { label: "罠解除", getValue: (eq) => eq?.trapBonus || 0, isPercent: true }
+      ];
+
+      statsToCompare.forEach(st => {
+        const curVal = st.getValue(currentEquip);
+        const newVal = st.getValue(item);
+        const isCoreStat = st.label === "攻撃力" || st.label === "防御力";
         
+        if (!isCoreStat && curVal === 0 && newVal === 0) return;
+
         const row = document.createElement("div");
         row.className = "equip-stat-compare-row";
-        row.innerHTML = `<span>攻撃力:</span>`;
-        
-        const val = document.createElement("span");
-        val.className = `equip-stat-compare-val ${diff > 0 ? "upgrade" : diff < 0 ? "downgrade" : ""}`;
-        val.textContent = `${currentAtk} ➡ ${newAtk} (${diff >= 0 ? "+" : ""}${diff})`;
-        row.appendChild(val);
-        compare.appendChild(row);
-      } else {
-        const currentDef = getCharDef(char);
-        // Calculate new def
-        let newDef = currentDef;
-        if (item.type === "shield") {
-          const currentShieldDef = currentEquip ? currentEquip.def : 0;
-          newDef = currentDef - currentShieldDef + item.def;
-        } else if (item.type === "armor") {
-          const currentArmorDef = currentEquip ? currentEquip.def : 0;
-          newDef = currentDef - currentArmorDef + item.def;
+
+        let displayCur = curVal;
+        let displayNew = newVal;
+        if (st.label === "攻撃力") {
+          displayCur = getCharWeaponAtk(char) + getCharStr(char);
+          displayNew = item.atk + getCharStr(char) - (currentEquip ? currentEquip.atk : 0);
+        } else if (st.label === "防御力") {
+          displayCur = getCharDef(char);
+          displayNew = getCharDef(char) - (currentEquip ? currentEquip.def : 0) + item.def;
         }
-        const diff = newDef - currentDef;
-        
-        const row = document.createElement("div");
-        row.className = "equip-stat-compare-row";
-        row.innerHTML = `<span>防御力:</span>`;
-        
+
+        const finalDiff = displayNew - displayCur;
+        const sign = finalDiff >= 0 ? "+" : "";
+        const unit = st.isPercent ? "%" : "";
+
+        row.innerHTML = `<span>${st.label}:</span>`;
         const val = document.createElement("span");
-        val.className = `equip-stat-compare-val ${diff > 0 ? "upgrade" : diff < 0 ? "downgrade" : ""}`;
-        val.textContent = `${currentDef} ➡ ${newDef} (${diff >= 0 ? "+" : ""}${diff})`;
+        val.className = `equip-stat-compare-val ${finalDiff > 0 ? "upgrade" : finalDiff < 0 ? "downgrade" : ""}`;
+        val.textContent = `${displayCur}${unit} ➡ ${displayNew}${unit} (${sign}${finalDiff}${unit})`;
         row.appendChild(val);
         compare.appendChild(row);
-      }
+      });
       detailContent.appendChild(compare);
     }
     
@@ -1744,13 +1899,17 @@ export function renderEquip() {
         updateUI();
       });
     } else {
-      const canEquip = !item.classes || item.classes.includes(char.class);
+      const isIdentified = typeof itemKey !== "object" || itemKey.identified;
+      const canEquip = (!item.classes || item.classes.includes(char.class)) && isIdentified;
       if (canEquip) {
         actionBtn.textContent = "装備する";
         actionBtn.addEventListener("click", () => {
           const slot = item.type; // weapon, shield, armor
           const oldEq = char.equipment[slot];
-          char.equipment[slot] = item.id;
+          
+          // インベントリから装備データを代入（オブジェクトまたはID）
+          const eqData = state.inventory[equipState.selectedIdx];
+          char.equipment[slot] = eqData;
           
           if (oldEq) {
             state.inventory[equipState.selectedIdx] = oldEq;
@@ -1758,7 +1917,7 @@ export function renderEquip() {
             state.inventory.splice(equipState.selectedIdx, 1);
           }
           
-          const newAtk = getCharWeaponAtk(char) + char.str;
+          const newAtk = getCharWeaponAtk(char) + getCharStr(char);
           const newDef = getCharDef(char);
           addLog(`${char.name}は${item.name}を装備した。(攻撃:${newAtk}/守備:${newDef})`);
           playSound("move");
@@ -1770,7 +1929,7 @@ export function renderEquip() {
           updateUI();
         });
       } else {
-        actionBtn.textContent = "装備不可";
+        actionBtn.textContent = !isIdentified ? "未鑑定のため装備不可" : "装備不可";
         actionBtn.disabled = true;
         actionBtn.className = "btn btn-block";
       }
@@ -1801,7 +1960,7 @@ export function renderEquip() {
     row.appendChild(label);
     
     const eqKey = char.equipment[slot.id];
-    const eqItem = eqKey ? ITEMS[eqKey] : null;
+    const eqItem = eqKey ? getItemData(eqKey) : null;
     
     const val = document.createElement("span");
     val.className = "equip-slot-value";
@@ -1818,19 +1977,26 @@ export function renderEquip() {
         btnUnequip.disabled = true;
       } else {
         btnUnequip.addEventListener("click", () => {
-          // Calculate changes before unequipping
+          // Calculate changes before unequipping using temp unequip
           const slotId = slot.id;
           let confirmMsg = "";
+          
+          const oldAtk = getCharWeaponAtk(char) + getCharStr(char);
+          const oldDef = getCharDef(char);
+          
+          // Temporary unequip
+          char.equipment[slotId] = null;
+          const newAtk = getCharWeaponAtk(char) + getCharStr(char);
+          const newDef = getCharDef(char);
+          // Restore
+          char.equipment[slotId] = eqKey;
+          
           if (slotId === "weapon") {
-            const currentAtk = getCharWeaponAtk(char) + char.str;
-            const newAtk = char.str; // Weapon ATK becomes 0, leaving only STR
-            const diff = newAtk - currentAtk;
-            confirmMsg = `${eqItem.name}を外しますか？\n（攻撃力: ${currentAtk} ➡ ${newAtk} (${diff >= 0 ? "+" : ""}${diff})）`;
+            const diff = newAtk - oldAtk;
+            confirmMsg = `${eqItem.name}を外しますか？\n（攻撃力: ${oldAtk} ➡ ${newAtk} (${diff >= 0 ? "+" : ""}${diff})）`;
           } else {
-            const currentDef = getCharDef(char);
-            const newDef = currentDef - eqItem.def;
-            const diff = newDef - currentDef;
-            confirmMsg = `${eqItem.name}を外しますか？\n（防御力: ${currentDef} ➡ ${newDef} (${diff >= 0 ? "+" : ""}${diff})）`;
+            const diff = newDef - oldDef;
+            confirmMsg = `${eqItem.name}を外しますか？\n（防御力: ${oldDef} ➡ ${newDef} (${diff >= 0 ? "+" : ""}${diff})）`;
           }
 
           if (!confirm(confirmMsg)) {
@@ -1840,9 +2006,9 @@ export function renderEquip() {
           char.equipment[slot.id] = null;
           state.inventory.push(eqKey);
           
-          const newAtk = getCharWeaponAtk(char) + char.str;
-          const newDef = getCharDef(char);
-          addLog(`${char.name}は${eqItem.name}を外した。(攻撃:${newAtk}/守備:${newDef})`);
+          const finalAtk = getCharWeaponAtk(char) + getCharStr(char);
+          const finalDef = getCharDef(char);
+          addLog(`${char.name}は${eqItem.name}を外した。(攻撃:${finalAtk}/守備:${finalDef})`);
           playSound("move");
           saveAutosave();
           
@@ -2359,5 +2525,155 @@ export function renderCampOverlay() {
 
   overlay.appendChild(body);
 }
+
+export function triggerRunResult(reason) {
+  if (!state.currentRun) return;
+  
+  state.currentRun.returnReason = reason;
+  const isSuccess = reason !== "gameover";
+  
+  const danger = calculateDangerScore();
+  state.currentRun.dangerScore = danger.score;
+  state.currentRun.dangerRank = danger.rank;
+  state.currentRun.dangerLabel = danger.label;
+
+  let lostGold = 0;
+  let lostUnidentifiedCount = 0;
+  const lostItemsNames = [];
+  if (!isSuccess) {
+    lostGold = state.currentRun.goldGained;
+    state.gold = Math.max(0, state.gold - lostGold);
+    state.currentRun.goldGained = 0;
+    
+    const unidEquip = state.inventory.filter(item => typeof item === "object" && !item.identified);
+    lostUnidentifiedCount = Math.ceil(unidEquip.length * 0.5);
+    for (let i = 0; i < lostUnidentifiedCount; i++) {
+      if (unidEquip.length === 0) break;
+      const idx = Math.floor(Math.random() * unidEquip.length);
+      const lostItem = unidEquip.splice(idx, 1)[0];
+      lostItemsNames.push(lostItem.name || "未鑑定装備");
+      const invIdx = state.inventory.indexOf(lostItem);
+      if (invIdx !== -1) {
+        state.inventory.splice(invIdx, 1);
+      }
+      const runEqIdx = state.currentRun.equipmentFound.indexOf(lostItem);
+      if (runEqIdx !== -1) {
+        state.currentRun.equipmentFound.splice(runEqIdx, 1);
+      }
+    }
+
+    state.party.forEach(c => {
+      c.status = "ok";
+      c.hp = 1;
+      c.mp = 0;
+    });
+
+    // 死亡履歴登録
+    let cause = "不測の罠またはダメージ";
+    if (state.combatState && state.combatState.monsters) {
+      const activeEnemies = state.combatState.monsters.filter(m => m.hp > 0);
+      if (activeEnemies.length > 0) {
+        cause = activeEnemies[0].name.replace(/\s[A-Z]$/, "") + "との戦闘";
+      }
+    }
+    const deathEntry = {
+      id: "death_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+      endedAt: Date.now(),
+      floor: state.floor,
+      x: state.x,
+      y: state.y,
+      seed: state.seed,
+      cause: cause,
+      partyLevelAvg: state.party.length > 0 ? Math.round(state.party.reduce((sum, c) => sum + c.level, 0) / state.party.length) : 1,
+      deepestFloor: state.currentRun.deepestFloor,
+      kills: state.currentRun.kills,
+      chestsOpened: state.currentRun.chestsOpened,
+      lostItems: lostItemsNames,
+      note: "リルガミンの蘇生費用に注意"
+    };
+    if (!state.deathLogs) state.deathLogs = [];
+    state.deathLogs.unshift(deathEntry);
+    if (state.deathLogs.length > 20) {
+      state.deathLogs.pop();
+    }
+  }
+
+  // 図鑑スタッツの更新
+  if (state.codex) {
+    if (!state.codex.stats) {
+      state.codex.stats = { totalRuns: 0, totalDeaths: 0, deepestFloor: 1, totalKills: 0, totalChests: 0 };
+    }
+    state.codex.stats.totalRuns++;
+    if (!isSuccess) {
+      state.codex.stats.totalDeaths++;
+    }
+    state.codex.stats.deepestFloor = Math.max(state.codex.stats.deepestFloor || 1, state.currentRun.deepestFloor);
+    state.codex.stats.totalChests += state.currentRun.chestsOpened;
+  }
+
+  state.x = START_X;
+  state.y = START_Y;
+  state.dir = DIR_N;
+  state.floor = 1;
+  state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
+
+  const runSummary = {
+    id: "run_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+    endedAt: Date.now(),
+    result: isSuccess ? "returned" : "failed",
+    deepestFloor: state.currentRun.deepestFloor,
+    kills: state.currentRun.kills,
+    chestsOpened: state.currentRun.chestsOpened,
+    dangerRank: danger.rank,
+    goldGained: isSuccess ? state.currentRun.goldGained : 0,
+    lostGold: lostGold,
+    lostUnidentifiedCount: lostUnidentifiedCount,
+    itemCount: state.currentRun.itemsFound.length + state.currentRun.equipmentFound.length,
+    returnReason: reason
+  };
+  
+  if (!state.runHistory) state.runHistory = [];
+  state.runHistory.unshift(runSummary);
+  if (state.runHistory.length > 20) {
+    state.runHistory.pop();
+  }
+
+  state.gameState = "result";
+  
+  saveGame();
+  saveAutosave();
+  updateUI();
+}
+
+function calculateDangerScore() {
+  if (!state.currentRun) return { score: 0, rank: "E", label: "安全な偵察" };
+  let score = 0;
+  score += state.currentRun.deepestFloor * 8;
+  score += state.currentRun.battles * 2;
+  score += state.currentRun.elitesKilled * 5;
+  score += state.currentRun.bossesKilled * 15;
+  score += state.currentRun.chestsOpened * 3;
+  score += state.currentRun.trapsTriggered * 4;
+  
+  let deadCount = 0;
+  let anomalyCount = 0;
+  state.party.forEach(c => {
+    if (c.status === "dead") deadCount++;
+    else if (c.status !== "ok") anomalyCount++;
+  });
+  score += deadCount * 10;
+  score += anomalyCount * 5;
+
+  let rank = "E";
+  let label = "安全な偵察";
+  if (score >= 80) { rank = "S"; label = "無謀なる踏破"; }
+  else if (score >= 55) { rank = "A"; label = "危険な遠征"; }
+  else if (score >= 35) { rank = "B"; label = "深部探索"; }
+  else if (score >= 20) { rank = "C"; label = "通常探索"; }
+  else if (score >= 10) { rank = "D"; label = "小規模探索"; }
+  
+  return { score, rank, label };
+}
+
 
 

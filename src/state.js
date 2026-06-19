@@ -1,10 +1,68 @@
-import { DIR_N, ITEMS, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "./data.js";
+import { DIR_N, ITEMS, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y, getItemData, getCharStr, getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharMaxHp, getCharMaxMp, getCharTrapBonus } from "./data.js";
 import { generateRandomMap, removeIsolatedInternalWalls } from "./map_generator.js";
+import { createRng } from "./seed_rng.js";
 
 
 // Save key for local storage
 const SAVE_KEY = "mobile_wiz_rpg_save";
 const AUTOSAVE_KEY = "mobile_wiz_rpg_autosave";
+
+export function generateRandomSeed() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "";
+  for (let i = 0; i < 8; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `CASTLE-${result}`;
+}
+
+export const createDefaultCodex = () => ({
+  monsters: {},
+  equipment: {},
+  events: {
+    traps: {
+      "poison needle": { triggered: 0, disarmed: 0, firstFloor: 0 },
+      "gas bomb": { triggered: 0, disarmed: 0, firstFloor: 0 },
+      "teleporter": { triggered: 0, disarmed: 0, firstFloor: 0 },
+      "flash bomb": { triggered: 0, disarmed: 0, firstFloor: 0 }
+    },
+    facilities: {
+      spring: { found: 0, used: 0 },
+      merchant: { found: 0, purchased: 0 },
+      tablet: { found: 0, read: 0 },
+      chest: { found: 0, opened: 0 }
+    }
+  },
+  stats: {
+    totalRuns: 0,
+    totalDeaths: 0,
+    deepestFloor: 1,
+    totalKills: 0,
+    totalChests: 0
+  }
+});
+
+export const createDefaultCurrentRun = () => ({
+  startedAt: 0,
+  startFloor: 1,
+  deepestFloor: 1,
+  steps: 0,
+  battles: 0,
+  kills: 0,
+  elitesKilled: 0,
+  bossesKilled: 0,
+  chestsOpened: 0,
+  trapsTriggered: 0,
+  trapsDisarmed: 0,
+  goldGained: 0,
+  expGained: 0,
+  itemsFound: [],
+  equipmentFound: [],
+  firstKills: [],
+  floorsVisited: [],
+  dangerScore: 0,
+  returnReason: ""
+});
 
 // Default roster (all 8 classes)
 export const createDefaultRoster = () => [
@@ -237,6 +295,36 @@ export const state = {
   lastReturnedFloor: null,
   sessionMaxFloor: 1,
 
+  currentRun: null,
+  runHistory: [],
+  deathLogs: [],
+  codex: {
+    monsters: {},
+    equipment: {},
+    events: {
+      traps: {
+        "poison needle": { triggered: 0, disarmed: 0, firstFloor: 0 },
+        "gas bomb": { triggered: 0, disarmed: 0, firstFloor: 0 },
+        "teleporter": { triggered: 0, disarmed: 0, firstFloor: 0 },
+        "flash bomb": { triggered: 0, disarmed: 0, firstFloor: 0 }
+      },
+      facilities: {
+        spring: { found: 0, used: 0 },
+        merchant: { found: 0, purchased: 0 },
+        tablet: { found: 0, read: 0 },
+        chest: { found: 0, opened: 0 }
+      }
+    },
+    stats: {
+      totalRuns: 0,
+      totalDeaths: 0,
+      deepestFloor: 1,
+      totalKills: 0,
+      totalChests: 0
+    }
+  },
+  seed: "",
+
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
   gameState: "town",
 
@@ -316,12 +404,16 @@ export function initNewGame() {
   state.gold = 150;
   state.inventory = ["HEAL_POTION", "HEAL_POTION"];
   
+  if (!state.seed) {
+    state.seed = generateRandomSeed();
+  }
+  
   state.floor = 1;
-  const b1 = generateRandomMap(1);
-  const b2 = generateRandomMap(2, b1.stairsDownCoord);
-  const b3 = generateRandomMap(3, b2.stairsDownCoord);
-  const b4 = generateRandomMap(4, b3.stairsDownCoord);
-  const b5 = generateRandomMap(5, b4.stairsDownCoord);
+  const b1 = generateRandomMap(1, null, state.seed);
+  const b2 = generateRandomMap(2, b1.stairsDownCoord, state.seed);
+  const b3 = generateRandomMap(3, b2.stairsDownCoord, state.seed);
+  const b4 = generateRandomMap(4, b3.stairsDownCoord, state.seed);
+  const b5 = generateRandomMap(5, b4.stairsDownCoord, state.seed);
   state.maps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
 
   state.roamingMovementStepCount = 0;
@@ -367,6 +459,10 @@ export function initNewGame() {
   state.firstKills = [];
   state.lastReturnedFloor = null;
   state.sessionMaxFloor = 1;
+  state.currentRun = null;
+  state.runHistory = [];
+  state.deathLogs = [];
+  state.codex = createDefaultCodex();
 
   state.gameState = "town";
   state.combatState = null;
@@ -505,11 +601,11 @@ export function loadGame(forceSaveOnly = false) {
     }
 
     if (needsMigration) {
-      const b1 = generateRandomMap(1);
-      const b2 = generateRandomMap(2, b1.stairsDownCoord);
-      const b3 = generateRandomMap(3, b2.stairsDownCoord);
-      const b4 = generateRandomMap(4, b3.stairsDownCoord);
-      const b5 = generateRandomMap(5, b4.stairsDownCoord);
+      const b1 = generateRandomMap(1, null, state.seed);
+      const b2 = generateRandomMap(2, b1.stairsDownCoord, state.seed);
+      const b3 = generateRandomMap(3, b2.stairsDownCoord, state.seed);
+      const b4 = generateRandomMap(4, b3.stairsDownCoord, state.seed);
+      const b5 = generateRandomMap(5, b4.stairsDownCoord, state.seed);
       loadedMaps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
       
       // Reset player coordinates upon migration
@@ -568,6 +664,11 @@ export function loadGame(forceSaveOnly = false) {
     state.firstKills = data.firstKills ?? [];
     state.lastReturnedFloor = data.lastReturnedFloor ?? null;
     state.sessionMaxFloor = state.floor;
+    state.seed = data.seed ?? generateRandomSeed();
+    state.currentRun = data.currentRun ?? null;
+    state.runHistory = data.runHistory ?? [];
+    state.deathLogs = data.deathLogs ?? [];
+    state.codex = data.codex ?? createDefaultCodex();
     state.roamingMonsters = data.roamingMonsters ?? [];
     state.roamingMovementStepCount = data.roamingMovementStepCount ?? 0;
 
@@ -602,6 +703,11 @@ export function saveGame() {
       floorChestsTotal: state.floorChestsTotal,
       firstKills: state.firstKills,
       lastReturnedFloor: state.lastReturnedFloor,
+      currentRun: state.currentRun,
+      runHistory: state.runHistory,
+      deathLogs: state.deathLogs,
+      codex: state.codex,
+      seed: state.seed,
       gameState: state.gameState,
       combatState: state.combatState,
       chestState: state.chestState,
@@ -640,6 +746,11 @@ export function saveAutosave() {
       floorChestsTotal: state.floorChestsTotal,
       firstKills: state.firstKills,
       lastReturnedFloor: state.lastReturnedFloor,
+      currentRun: state.currentRun,
+      runHistory: state.runHistory,
+      deathLogs: state.deathLogs,
+      codex: state.codex,
+      seed: state.seed,
       gameState: state.gameState,
       combatState: state.combatState,
       chestState: state.chestState,
@@ -679,20 +790,22 @@ export function getCharWeaponAtk(char) {
     }
     return 0;
   }
-  return ITEMS[wpId]?.atk || 0;
+  return getItemData(wpId)?.atk || 0;
 }
 
 // Get Total Armor Def
 export function getCharDef(char) {
   let def = 0;
   if (char.equipment.shield) {
-    def += ITEMS[char.equipment.shield]?.def || 0;
+    def += getItemData(char.equipment.shield)?.def || 0;
   }
   if (char.equipment.armor) {
-    def += ITEMS[char.equipment.armor]?.def || 0;
+    def += getItemData(char.equipment.armor)?.def || 0;
   }
   return def;
 }
+
+
 
 // Check Level Up
 export function checkCharLevelUp(char) {
@@ -716,21 +829,21 @@ export function checkCharLevelUp(char) {
     else if (char.class === "Ninja") hpGain = Math.floor(Math.random() * 9) + 6; // 6-14
     
     char.maxHp += hpGain;
-    char.hp = char.maxHp;
+    char.hp = getCharMaxHp(char);
 
     // Gain MP
     if (char.class === "Priest") {
       const mpGain = Math.floor(Math.random() * 2) + 2; // 2-3
       char.maxMp += mpGain;
-      char.mp = char.maxMp;
+      char.mp = getCharMaxMp(char);
     } else if (char.class === "Mage") {
       const mpGain = Math.floor(Math.random() * 2) + 3; // 3-4
       char.maxMp += mpGain;
-      char.mp = char.maxMp;
+      char.mp = getCharMaxMp(char);
     } else if (char.class === "Bishop") {
       const mpGain = Math.floor(Math.random() * 2) + 1; // 1-2
       char.maxMp += mpGain;
-      char.mp = char.maxMp;
+      char.mp = getCharMaxMp(char);
     } else if (char.class === "Samurai" || char.class === "Ranger") {
       if (char.level >= 3) {
         if (char.maxMp === 0) {
@@ -738,7 +851,7 @@ export function checkCharLevelUp(char) {
         } else {
           char.maxMp += Math.floor(Math.random() * 2) + 1; // 1-2
         }
-        char.mp = char.maxMp;
+        char.mp = getCharMaxMp(char);
       }
     }
 
@@ -853,5 +966,274 @@ export function checkCharLevelUp(char) {
     return true;
   }
   return false;
+}
+
+export function rebuildDungeonMaps() {
+  const b1 = generateRandomMap(1, null, state.seed);
+  const b2 = generateRandomMap(2, b1.stairsDownCoord, state.seed);
+  const b3 = generateRandomMap(3, b2.stairsDownCoord, state.seed);
+  const b4 = generateRandomMap(4, b3.stairsDownCoord, state.seed);
+  const b5 = generateRandomMap(5, b4.stairsDownCoord, state.seed);
+  state.maps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
+  
+  state.roamingMonsters = [];
+  const f4Start = findSuitableRoamingMonsterStart(b4, 4);
+  if (f4Start) {
+    state.roamingMonsters.push({ floor: 4, x: f4Start.x, y: f4Start.y, name: "フラック" });
+  }
+  const f5Start = findSuitableRoamingMonsterStart(b5, 5);
+  if (f5Start) {
+    state.roamingMonsters.push({ floor: 5, x: f5Start.x, y: f5Start.y, name: "フラック" });
+  }
+  
+  state.visitedMaps = [
+    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
+    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
+  ];
+  state.visitedMap[state.y][state.x] = true;
+  saveAutosave();
+}
+
+export function calculateSeedProperties() {
+  if (!state.seed) {
+    return { rank: "-", label: "未設定", biases: [] };
+  }
+
+  let totalDist = 0;
+  let floorCount = 0;
+  
+  for (let f = 1; f <= 5; f++) {
+    const grid = state.maps[f - 1];
+    if (!grid) continue;
+    
+    let up = null;
+    let down = null;
+    
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        const cell = grid[y]?.[x];
+        if (!cell) continue;
+        if (f === 1) {
+          if (x === START_X && y === START_Y) {
+            up = { x, y };
+          }
+        } else {
+          if (cell.type === "stairs-up") {
+            up = { x, y };
+          }
+        }
+        if (cell.type === "stairs-down") {
+          down = { x, y };
+        }
+      }
+    }
+    
+    if (up && down) {
+      const dist = Math.abs(up.x - down.x) + Math.abs(up.y - down.y);
+      totalDist += dist;
+      floorCount++;
+    }
+  }
+  
+  const distScore = floorCount > 0 ? Math.min(30, (totalDist / (floorCount * 25)) * 30) : 15;
+
+  let totalChests = 0;
+  let trappedChests = 0;
+  let goldSum = 0;
+  let equipChanceSum = 0;
+  
+  for (let f = 1; f <= 5; f++) {
+    const grid = state.maps[f - 1];
+    if (!grid) continue;
+    
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        const cell = grid[y]?.[x];
+        if (cell && cell.event === "chest") {
+          totalChests++;
+          const chestSeed = `${state.seed}:chest:B${f}:${x},${y}`;
+          const rng = createRng(chestSeed);
+          
+          let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
+          if (f === 2) {
+            traps = ["poison needle", "poison needle", "gas bomb", "teleporter", "flash bomb", "none", "none"];
+          } else if (f === 4) {
+            traps = ["gas bomb", "teleporter", "teleporter", "flash bomb", "poison needle"];
+          } else if (f === 5) {
+            traps = ["gas bomb", "teleporter", "teleporter", "poison needle", "flash bomb"];
+          }
+          const randIdx = Math.floor(rng() * traps.length);
+          const trap = traps[randIdx];
+          if (trap !== "none") {
+            trappedChests++;
+          }
+          
+          let gold = Math.floor(rng() * 81) + 20;
+          if (f === 4) gold = Math.floor(rng() * 201) + 100;
+          else if (f === 5) gold = Math.floor(rng() * 301) + 150;
+          goldSum += gold;
+          
+          const itemChance = f === 4 ? 0.75 : 0.50;
+          if (rng() < itemChance) {
+            const randChance = f === 5 ? 0.70 : (["poison needle", "gas bomb", "teleporter"].includes(trap) ? 0.60 : 0.35);
+            if (rng() < randChance) {
+              equipChanceSum += 1;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const trapRate = totalChests > 0 ? trappedChests / totalChests : 0.5;
+  const trapScore = trapRate * 20;
+  
+  let themeScore = 0;
+  const biases = [];
+  
+  const b2Seed = `${state.seed}:monster_theme:B2`;
+  const b2Rng = createRng(b2Seed);
+  const b2Theme = b2Rng() < 0.60 ? "poisonous" : "standard";
+  if (b2Theme === "poisonous") {
+    themeScore += 5;
+    biases.push("毒系多め");
+  }
+  
+  const b3Seed = `${state.seed}:monster_theme:B3`;
+  const b3Rng = createRng(b3Seed);
+  const b3Theme = b3Rng() < 0.60 ? "spirit" : "standard";
+  if (b3Theme === "spirit") {
+    themeScore += 10;
+    biases.push("不死・霊体多め");
+  }
+  
+  const b5Seed = `${state.seed}:monster_theme:B5`;
+  const b5Rng = createRng(b5Seed);
+  const b5Theme = b5Rng() < 0.70 ? "dragon" : "giant";
+  if (b5Theme === "dragon") {
+    themeScore += 10;
+    biases.push("竜族多め");
+  } else {
+    biases.push("巨人族多め");
+  }
+
+  let springCount = 0;
+  for (let f = 1; f <= 5; f++) {
+    const grid = state.maps[f - 1];
+    if (!grid) continue;
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        if (grid[y]?.[x]?.event === "event_spring") {
+          springCount++;
+        }
+      }
+    }
+  }
+  const springScore = Math.max(0, 25 - (springCount * 2.5));
+  
+  if (trapRate >= 0.8) {
+    biases.push("罠多め");
+  } else if (trapRate < 0.4) {
+    biases.push("安全な宝箱");
+  }
+  
+  const avgGold = totalChests > 0 ? goldSum / totalChests : 0;
+  if (avgGold > 120) {
+    biases.push("ゴールド豊富");
+  }
+  
+  const equipRate = totalChests > 0 ? equipChanceSum / totalChests : 0;
+  if (equipRate >= 0.3) {
+    biases.push("宝箱品質高");
+  }
+  
+  if (springCount <= 4) {
+    biases.push("泉少なめ");
+  } else if (springCount >= 8) {
+    biases.push("泉豊富");
+  }
+
+  const finalScore = Math.round(distScore + trapScore + themeScore + springScore);
+  
+  let rank = "C";
+  let label = "中危険度";
+  if (finalScore >= 70) {
+    rank = "S";
+    label = "極限の魔城";
+  } else if (finalScore >= 50) {
+    rank = "A";
+    label = "危険な遠征";
+  } else if (finalScore >= 35) {
+    rank = "B";
+    label = "深部探索";
+  } else if (finalScore >= 20) {
+    rank = "C";
+    label = "通常探索";
+  } else {
+    rank = "D";
+    label = "安全な偵察";
+  }
+
+  return {
+    score: finalScore,
+    rank,
+    label,
+    biases: biases.slice(0, 3)
+  };
+}
+
+export function recordEquipmentDiscovery(equipKey) {
+  if (!state.codex) return;
+  if (!state.codex.equipment) {
+    state.codex.equipment = {};
+  }
+  
+  const isRandomEquip = typeof equipKey === "object";
+  const baseId = isRandomEquip ? equipKey.baseId : equipKey;
+  const item = getItemData(baseId);
+  if (!item) return;
+  
+  if (item.type !== "weapon" && item.type !== "armor" && item.type !== "shield") return;
+
+  if (!state.codex.equipment[baseId]) {
+    state.codex.equipment[baseId] = {
+      discovered: true,
+      foundCount: 0,
+      highestRarity: "common",
+      bestBonus: 0,
+      affixesSeen: [],
+      firstFoundAt: `B${state.floor}F`,
+      lastFoundSeed: state.seed
+    };
+  }
+
+  const record = state.codex.equipment[baseId];
+  record.foundCount++;
+  record.lastFoundSeed = state.seed;
+
+  if (isRandomEquip) {
+    const rarities = ["common", "magic", "rare", "epic", "legendary"];
+    const currentIdx = rarities.indexOf(record.highestRarity);
+    const newIdx = rarities.indexOf(equipKey.rarity || "common");
+    if (newIdx > currentIdx) {
+      record.highestRarity = equipKey.rarity || "common";
+    }
+
+    const newBonus = equipKey.atkBonus || equipKey.defBonus || 0;
+    if (newBonus > record.bestBonus) {
+      record.bestBonus = newBonus;
+    }
+
+    if (equipKey.affixes && Array.isArray(equipKey.affixes)) {
+      equipKey.affixes.forEach(aff => {
+        if (!record.affixesSeen.includes(aff.type)) {
+          record.affixesSeen.push(aff.type);
+        }
+      });
+    }
+  }
 }
 

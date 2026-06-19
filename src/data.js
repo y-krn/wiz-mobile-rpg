@@ -200,7 +200,8 @@ export const SPELLS = {
     effect: (caster, target) => {
       const heal = Math.floor(Math.random() * 11) + 10;
       const oldHp = target.hp;
-      target.hp = Math.min(target.maxHp, target.hp + heal);
+      const maxHp = getCharMaxHp(target);
+      target.hp = Math.min(maxHp, target.hp + heal);
       const actualHeal = target.hp - oldHp;
       if (actualHeal === 0) {
         return { heal: 0, log: `${caster.name}はディオスを唱えたが、${target.name}のHPは最大だった。` };
@@ -283,7 +284,8 @@ export const SPELLS = {
     effect: (caster, target) => {
       const heal = Math.floor(Math.random() * 36) + 35;
       const oldHp = target.hp;
-      target.hp = Math.min(target.maxHp, target.hp + heal);
+      const maxHp = getCharMaxHp(target);
+      target.hp = Math.min(maxHp, target.hp + heal);
       const actualHeal = target.hp - oldHp;
       if (actualHeal === 0) {
         return { heal: 0, log: `${caster.name}はマディオスを唱えたが、${target.name}のHPは最大だった。` };
@@ -329,7 +331,8 @@ export const SPELLS = {
     effect: (caster, target) => {
       const heal = Math.floor(Math.random() * 51) + 70;
       const oldHp = target.hp;
-      target.hp = Math.min(target.maxHp, target.hp + heal);
+      const maxHp = getCharMaxHp(target);
+      target.hp = Math.min(maxHp, target.hp + heal);
       const actualHeal = target.hp - oldHp;
       if (actualHeal === 0) {
         return { heal: 0, log: `${caster.name}はディアルマを唱えたが、${target.name}のHPは最大だった。` };
@@ -387,7 +390,7 @@ export const ITEMS = {
 
   // Potions / Quest items
   HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", price: 60, desc: "使用するとHPを15回復する。", effect: (char) => {
-    char.hp = Math.min(char.maxHp, char.hp + 15);
+    char.hp = Math.min(getCharMaxHp(char), char.hp + 15);
     return `${char.name}は傷薬を使い、HPが15回復した。`;
   }},
   ANTIDOTE: { id: "ANTIDOTE", name: "解毒薬 (Antidote)", type: "usable", price: 80, desc: "使用すると毒状態を解除する。", effect: (char) => {
@@ -399,13 +402,13 @@ export const ITEMS = {
   }},
   MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", price: 200, desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     if (canUsePriestSpells(char) || canUseMageSpells(char)) {
-      char.mp = Math.min(char.maxMp, char.mp + 3);
-      return `${char.name}は魔力草を使用し、MPが3回復した。(MP:${char.mp}/${char.maxMp})`;
+      char.mp = Math.min(getCharMaxMp(char), char.mp + 3);
+      return `${char.name}は魔力草を使用し、MPが3回復した。(MP:${char.mp}/${getCharMaxMp(char)})`;
     }
     return `${char.name}は魔力草を使用したが、魔力を持たないため何も起こらなかった。`;
   }},
-  HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 180, desc: "使用するとHPを40回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
-    char.hp = Math.min(char.maxHp, char.hp + 40);
+  HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 100, desc: "使用するとHPを40回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+    char.hp = Math.min(getCharMaxHp(char), char.hp + 40);
     let cured = false;
     if (char.status === "poisoned") {
       char.status = "ok";
@@ -416,9 +419,9 @@ export const ITEMS = {
   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 100, desc: "使用すると一瞬で街に戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     return `${char.name}は帰還のスクロールを読んだ！`;
   }},
-  ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極の霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
-    char.hp = char.maxHp;
-    char.mp = char.maxMp;
+  ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極 of 霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+    char.hp = getCharMaxHp(char);
+    char.mp = getCharMaxMp(char);
     if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {
       char.status = "ok";
     }
@@ -510,5 +513,363 @@ export function getClassJpName(cls) {
   };
   return mapping[cls] || cls;
 }
+
+export function getItemData(itemOrKey) {
+  if (!itemOrKey) return null;
+  if (typeof itemOrKey === "string") {
+    return ITEMS[itemOrKey];
+  }
+  if (typeof itemOrKey === "object") {
+    const base = ITEMS[itemOrKey.baseId];
+    if (!base) return null;
+    
+    // 未鑑定状態
+    if (!itemOrKey.identified) {
+      let partName = "武器";
+      if (base.type === "shield") partName = "盾";
+      if (base.type === "armor") partName = "防具";
+      
+      return {
+        ...base,
+        id: itemOrKey,
+        name: `未鑑定の${partName}`,
+        desc: `未鑑定の${partName}。街の商店で鑑定できます。`,
+        price: base.price,
+        atk: 0,
+        def: 0,
+        affixes: [],
+        classes: base.classes,
+        type: base.type
+      };
+    }
+    
+    // 鑑定済み状態
+    let baseAtk = base.atk || 0;
+    let baseDef = base.def || 0;
+    
+    let atkBonus = 0;
+    let defBonus = 0;
+    let hpBonus = 0;
+    let mpBonus = 0;
+    const statsBonus = { str: 0, int: 0, pie: 0, vit: 0, agi: 0, luk: 0 };
+    let trapBonus = 0;
+    
+    if (itemOrKey.affixes) {
+      itemOrKey.affixes.forEach(aff => {
+        if (aff.type === "atk") atkBonus += aff.value;
+        else if (aff.type === "def") defBonus += aff.value;
+        else if (aff.type === "hp") hpBonus += aff.value;
+        else if (aff.type === "mp") mpBonus += aff.value;
+        else if (["str", "int", "pie", "vit", "agi", "luk"].includes(aff.type)) {
+          statsBonus[aff.type] = (statsBonus[aff.type] || 0) + aff.value;
+        }
+        else if (aff.type === "trapBonus") {
+          trapBonus += aff.value;
+        }
+      });
+    }
+    
+    // prefix の決定
+    let prefix = "";
+    if (itemOrKey.affixes && itemOrKey.affixes.length > 0) {
+      const primaryAff = itemOrKey.affixes[0];
+      if (primaryAff.type === "atk") prefix = "鋭利な";
+      else if (primaryAff.type === "def") prefix = "頑丈な";
+      else if (primaryAff.type === "hp") prefix = "生命の";
+      else if (primaryAff.type === "mp") prefix = "魔力の";
+      else if (primaryAff.type === "str") prefix = "怪力の";
+      else if (primaryAff.type === "int") prefix = "叡智の";
+      else if (primaryAff.type === "pie") prefix = "信仰の";
+      else if (primaryAff.type === "vit") prefix = "堅固な";
+      else if (primaryAff.type === "agi") prefix = "疾風の";
+      else if (primaryAff.type === "luk") prefix = "強運の";
+      else if (primaryAff.type === "trapBonus") prefix = "技巧の";
+    }
+    
+    const name = prefix ? `${prefix}${base.name}` : base.name;
+    
+    let affixDesc = itemOrKey.affixes.map(aff => {
+      const label = {
+        atk: "攻撃",
+        def: "防御",
+        hp: "HP",
+        mp: "MP",
+        str: "力",
+        int: "知恵",
+        pie: "信仰",
+        vit: "生命",
+        agi: "素早さ",
+        luk: "運",
+        trapBonus: "罠解除"
+      }[aff.type];
+      const sign = aff.value >= 0 ? "+" : "";
+      const unit = aff.type === "trapBonus" ? "%" : "";
+      return `${label}${sign}${aff.value}${unit}`;
+    }).join(" / ");
+    
+    let desc = `${base.desc} [${affixDesc}]`;
+    if (itemOrKey.rarity) {
+      const rarityLabel = {
+        magic: "Magic",
+        rare: "Rare",
+        epic: "Epic"
+      }[itemOrKey.rarity] || "Magic";
+      desc = `[${rarityLabel}] ${desc}`;
+    }
+    
+    const multiplier = { magic: 1.5, rare: 2.5, epic: 4.0 }[itemOrKey.rarity || "magic"] || 1.5;
+    
+    return {
+      ...base,
+      id: itemOrKey,
+      name,
+      desc,
+      atk: baseAtk + atkBonus,
+      def: baseDef + defBonus,
+      hpBonus,
+      mpBonus,
+      statsBonus,
+      trapBonus,
+      price: Math.floor(base.price * multiplier),
+      classes: base.classes,
+      type: base.type
+    };
+  }
+  return null;
+}
+
+export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random) {
+  let baseCandidates = [];
+  if (floor === 1) {
+    baseCandidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR"];
+  } else if (floor === 2) {
+    baseCandidates = ["DAGGER", "WAND", "SHORT_SWORD", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "SCALE_MAIL", "MAGE_CLOAK"];
+  } else if (floor === 3) {
+    baseCandidates = ["SHORT_SWORD", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SMALL_SHIELD", "LARGE_SHIELD", "LEATHER_ARMOR", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL"];
+  } else if (floor === 4) {
+    baseCandidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL"];
+  } else {
+    baseCandidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "KATANA", "NINJA_DAGGER", "NINJA_SUIT"];
+  }
+  
+  const baseId = baseCandidates[Math.floor(rng() * baseCandidates.length)];
+  const baseItem = ITEMS[baseId];
+  if (!baseItem) return null;
+  
+  let rarity = "magic";
+  if (forceRarity) {
+    rarity = forceRarity;
+  } else {
+    const roll = rng();
+    if (roll < 0.05) rarity = "epic";
+    else if (roll < 0.30) rarity = "rare";
+    else rarity = "magic";
+  }
+  
+  const affixCount = { magic: 1, rare: 2, epic: 3 }[rarity];
+  
+  let maxWpBonus = 1;
+  if (floor === 2) maxWpBonus = 2;
+  else if (floor === 3) maxWpBonus = 3;
+  else if (floor === 4) maxWpBonus = 4;
+  else if (floor >= 5) maxWpBonus = 6;
+  
+  let maxArBonus = 1;
+  if (floor === 3) maxArBonus = 2;
+  else if (floor === 4) maxArBonus = 3;
+  else if (floor >= 5) maxArBonus = 4;
+  
+  const possibleAffixes = [];
+  
+  if (baseItem.type === "weapon") {
+    possibleAffixes.push({ type: "atk", getVal: () => Math.floor(rng() * maxWpBonus) + 1 });
+  }
+  if (baseItem.type === "armor" || baseItem.type === "shield") {
+    possibleAffixes.push({ type: "def", getVal: () => Math.floor(rng() * maxArBonus) + 1 });
+  }
+  possibleAffixes.push({ type: "hp", getVal: () => {
+    const minHp = floor + 1;
+    const maxHp = floor * 2 + 2;
+    return Math.floor(rng() * (maxHp - minHp + 1)) + minHp;
+  }});
+  
+  const isMpEligible = baseId === "WAND" || baseId === "ROBE" || baseId === "PRIEST_ROBE" || baseId === "MAGE_CLOAK";
+  if (isMpEligible) {
+    possibleAffixes.push({ type: "mp", getVal: () => {
+      const maxMpBonus = floor >= 5 ? 4 : (floor >= 3 ? 2 : 1);
+      return Math.floor(rng() * maxMpBonus) + 1;
+    }});
+  }
+  
+  const stats = ["str", "int", "pie", "vit", "agi", "luk"];
+  stats.forEach(stat => {
+    possibleAffixes.push({ type: stat, getVal: () => {
+      const maxStat = floor >= 5 ? 3 : (floor >= 3 ? 2 : 1);
+      return Math.floor(rng() * maxStat) + 1;
+    }});
+  });
+  
+  const isTrapEligible = baseId === "DAGGER" || baseId === "NINJA_DAGGER" || baseId === "LEATHER_ARMOR" || baseId === "NINJA_SUIT";
+  if (isTrapEligible) {
+    possibleAffixes.push({ type: "trapBonus", getVal: () => {
+      if (floor >= 5) return 15;
+      if (floor >= 3) return 10;
+      return 5;
+    }});
+  }
+  
+  const affixes = [];
+  const selectedTypes = new Set();
+  
+  for (let i = 0; i < affixCount; i++) {
+    const available = possibleAffixes.filter(aff => !selectedTypes.has(aff.type));
+    if (available.length === 0) break;
+    const chosen = available[Math.floor(rng() * available.length)];
+    affixes.push({
+      type: chosen.type,
+      value: chosen.getVal()
+    });
+    selectedTypes.add(chosen.type);
+  }
+  
+  const instanceId = `eq_${rng().toString(36).substr(2, 9)}`;
+  
+  return {
+    kind: "equipment",
+    instanceId,
+    baseId,
+    rarity,
+    level: floor,
+    identified: false,
+    affixes
+  };
+}
+
+export function getCharStr(char) {
+  if (!char) return 0;
+  let bonus = 0;
+  Object.values(char.equipment).forEach(eqKey => {
+    if (eqKey) {
+      const eqData = getItemData(eqKey);
+      if (eqData && eqData.statsBonus && eqData.statsBonus.str) {
+        bonus += eqData.statsBonus.str;
+      }
+    }
+  });
+  return char.str + bonus;
+}
+
+export function getCharInt(char) {
+  if (!char) return 0;
+  let bonus = 0;
+  Object.values(char.equipment).forEach(eqKey => {
+    if (eqKey) {
+      const eqData = getItemData(eqKey);
+      if (eqData && eqData.statsBonus && eqData.statsBonus.int) {
+        bonus += eqData.statsBonus.int;
+      }
+    }
+  });
+  return char.int + bonus;
+}
+
+export function getCharPie(char) {
+  if (!char) return 0;
+  let bonus = 0;
+  Object.values(char.equipment).forEach(eqKey => {
+    if (eqKey) {
+      const eqData = getItemData(eqKey);
+      if (eqData && eqData.statsBonus && eqData.statsBonus.pie) {
+        bonus += eqData.statsBonus.pie;
+      }
+    }
+  });
+  return char.pie + bonus;
+}
+
+export function getCharVit(char) {
+  if (!char) return 0;
+  let bonus = 0;
+  Object.values(char.equipment).forEach(eqKey => {
+    if (eqKey) {
+      const eqData = getItemData(eqKey);
+      if (eqData && eqData.statsBonus && eqData.statsBonus.vit) {
+        bonus += eqData.statsBonus.vit;
+      }
+    }
+  });
+  return char.vit + bonus;
+}
+
+export function getCharAgi(char) {
+  if (!char) return 0;
+  let bonus = 0;
+  Object.values(char.equipment).forEach(eqKey => {
+    if (eqKey) {
+      const eqData = getItemData(eqKey);
+      if (eqData && eqData.statsBonus && eqData.statsBonus.agi) {
+        bonus += eqData.statsBonus.agi;
+      }
+    }
+  });
+  return char.agi + bonus;
+}
+
+export function getCharLuk(char) {
+  if (!char) return 0;
+  let bonus = 0;
+  Object.values(char.equipment).forEach(eqKey => {
+    if (eqKey) {
+      const eqData = getItemData(eqKey);
+      if (eqData && eqData.statsBonus && eqData.statsBonus.luk) {
+        bonus += eqData.statsBonus.luk;
+      }
+    }
+  });
+  return char.luk + bonus;
+}
+
+export function getCharMaxHp(char) {
+  if (!char) return 0;
+  let bonus = 0;
+  Object.values(char.equipment).forEach(eqKey => {
+    if (eqKey) {
+      const eqData = getItemData(eqKey);
+      if (eqData && eqData.hpBonus) {
+        bonus += eqData.hpBonus;
+      }
+    }
+  });
+  return char.maxHp + bonus;
+}
+
+export function getCharMaxMp(char) {
+  if (!char) return 0;
+  let bonus = 0;
+  Object.values(char.equipment).forEach(eqKey => {
+    if (eqKey) {
+      const eqData = getItemData(eqKey);
+      if (eqData && eqData.mpBonus) {
+        bonus += eqData.mpBonus;
+      }
+    }
+  });
+  return char.maxMp + bonus;
+}
+
+export function getCharTrapBonus(char) {
+  if (!char) return 0;
+  let bonus = 0;
+  Object.values(char.equipment).forEach(eqKey => {
+    if (eqKey) {
+      const eqData = getItemData(eqKey);
+      if (eqData && eqData.trapBonus) {
+        bonus += eqData.trapBonus / 100;
+      }
+    }
+  });
+  return bonus;
+}
+
 
 

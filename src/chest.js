@@ -1,12 +1,22 @@
-import { state, saveAutosave, addLog } from "./state.js";
-import { ITEMS, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
+import { state, saveAutosave, addLog, recordEquipmentDiscovery } from "./state.js";
+import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomEquipment } from "./data.js";
 import { playSound } from "./audio.js";
 import { renderer } from "./game.js";
 import { updateUI } from "./ui.js";
 import { menuContext, openSubmenu, goBackSubmenu, closeSubmenu } from "./menu.js";
 import { triggerGameOver } from "./combat.js";
+import { createRng } from "./seed_rng.js";
 
 export function setupChestState() {
+  if (state.codex && state.codex.events && state.codex.events.facilities) {
+    if (!state.codex.events.facilities.chest) {
+      state.codex.events.facilities.chest = { found: 0, opened: 0 };
+    }
+    state.codex.events.facilities.chest.found++;
+  }
+  const chestSeed = `${state.seed}:chest:B${state.floor}:${state.x},${state.y}`;
+  const rng = state.seed ? createRng(chestSeed) : Math.random;
+
   // Traps are floor dependent
   let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
   if (state.floor === 2) {
@@ -19,21 +29,21 @@ export function setupChestState() {
     // B5F: Extremely dangerous traps, high chance of teleporter
     traps = ["gas bomb", "teleporter", "teleporter", "poison needle", "flash bomb"];
   }
-  const randIdx = Math.floor(Math.random() * traps.length);
+  const randIdx = Math.floor(rng() * traps.length);
   const trap = traps[randIdx];
 
   // Gold reward scale by floor
-  let gold = Math.floor(Math.random() * 81) + 20; // Default 20-100G
+  let gold = Math.floor(rng() * 81) + 20; // Default 20-100G
   if (state.floor === 4) {
-    gold = Math.floor(Math.random() * 201) + 100; // B4F: 100-300G
+    gold = Math.floor(rng() * 201) + 100; // B4F: 100-300G
   } else if (state.floor === 5) {
-    gold = Math.floor(Math.random() * 301) + 150; // B5F: 150-450G
+    gold = Math.floor(rng() * 301) + 150; // B5F: 150-450G
   }
 
   // Item reward scale by floor
   let item = null;
   const itemChance = state.floor === 4 ? 0.75 : 0.50; // B4F has high item drop rate
-  if (Math.random() < itemChance) {
+  if (rng() < itemChance) {
     let candidates = [];
     if (state.floor === 1) {
       candidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "HEAL_POTION", "ANTIDOTE"];
@@ -50,11 +60,26 @@ export function setupChestState() {
     }
 
     if (candidates.length > 0) {
-      item = candidates[Math.floor(Math.random() * candidates.length)];
+      item = candidates[Math.floor(rng() * candidates.length)];
     } else {
       const itemKeys = Object.keys(ITEMS).filter(k => k !== "ANTIGRAVITY_CRYSTAL");
-      const randItemIdx = Math.floor(Math.random() * itemKeys.length);
+      const randItemIdx = Math.floor(rng() * itemKeys.length);
       item = itemKeys[randItemIdx];
+    }
+
+    if (item) {
+      const itemData = ITEMS[item];
+      if (itemData && (itemData.type === "weapon" || itemData.type === "armor" || itemData.type === "shield")) {
+        let randChance = 0.35;
+        if (state.floor === 5) {
+          randChance = 0.70;
+        } else if (["poison needle", "gas bomb", "teleporter"].includes(trap)) {
+          randChance = 0.60;
+        }
+        if (rng() < randChance) {
+          item = generateRandomEquipment(state.floor, null, rng);
+        }
+      }
     }
   }
 
@@ -241,6 +266,7 @@ export function executeDisarm(char) {
   } else if (char.class === "Ranger") {
     chance = 0.60;
   }
+  chance += getCharTrapBonus(char);
   if (char.status === "blind") {
     chance = chance / 2.0;
   }
@@ -248,11 +274,26 @@ export function executeDisarm(char) {
   
   state.transitioning = true;
   if (success) {
-    addLog(`解除成功！${char.name}は無事に罠を解除した。`);
+    addLog(`解除成功！${char.name}は無さに罠を解除した。`);
+    if (state.codex && state.codex.events && state.codex.events.traps) {
+      const tKey = state.chestState.trap;
+      if (state.codex.events.traps[tKey]) {
+        state.codex.events.traps[tKey].disarmed++;
+        if (state.codex.events.traps[tKey].firstFloor === 0) {
+          state.codex.events.traps[tKey].firstFloor = state.floor;
+        }
+      }
+    }
+    if (state.currentRun) {
+      state.currentRun.trapsDisarmed++;
+    }
     state.chestState.trap = "none";
     playSound("heal");
   } else {
     addLog(`解除失敗！${char.name}は罠を作動させてしまった！`);
+    if (state.currentRun) {
+      state.currentRun.trapsTriggered++;
+    }
     triggerChestTrap(char);
   }
   
@@ -265,6 +306,14 @@ export function executeDisarm(char) {
 export function triggerChestTrap(char) {
   if (!state.chestState || state.chestState.trap === "none") return;
   const trap = state.chestState.trap;
+  if (state.codex && state.codex.events && state.codex.events.traps) {
+    if (state.codex.events.traps[trap]) {
+      state.codex.events.traps[trap].triggered++;
+      if (state.codex.events.traps[trap].firstFloor === 0) {
+        state.codex.events.traps[trap].firstFloor = state.floor;
+      }
+    }
+  }
   state.chestState.trap = "none";
   playSound("chest_trap");
   if (renderer) renderer.triggerShake(10, 400);
@@ -323,6 +372,10 @@ export function openChestDirectly() {
   const chestX = chest.x;
   const chestY = chest.y;
   
+  if (state.currentRun) {
+    state.currentRun.chestsOpened++;
+  }
+  
   const translateTrap = (t) => {
     if (t === "poison needle") return "毒針";
     if (t === "gas bomb") return "ガス爆弾";
@@ -335,17 +388,38 @@ export function openChestDirectly() {
   if (chest.trap !== "none") {
     const opener = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
     addLog(`宝箱を開けた瞬間、罠 [${translateTrap(chest.trap)}] が作動した！`);
+    if (state.currentRun) {
+      state.currentRun.trapsTriggered++;
+    }
     triggerChestTrap(opener);
   }
 
   // Award Gold
   state.gold += chest.gold;
+  if (state.currentRun) {
+    state.currentRun.goldGained += chest.gold;
+  }
   addLog(`宝箱から ${chest.gold} ゴールドを見つけた！`);
+  
+  if (state.codex && state.codex.events && state.codex.events.facilities) {
+    if (!state.codex.events.facilities.chest) {
+      state.codex.events.facilities.chest = { found: 1, opened: 0 };
+    }
+    state.codex.events.facilities.chest.opened++;
+  }
   
   // Award Item
   if (chest.item) {
-    const item = ITEMS[chest.item];
+    const item = getItemData(chest.item);
     state.inventory.push(chest.item);
+    recordEquipmentDiscovery(chest.item);
+    if (state.currentRun) {
+      if (typeof chest.item === "string") {
+        state.currentRun.itemsFound.push(chest.item);
+      } else {
+        state.currentRun.equipmentFound.push(chest.item);
+      }
+    }
     addLog(`アイテム: [${item.name}] を手に入れた！`);
   }
 

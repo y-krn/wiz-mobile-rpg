@@ -1,11 +1,11 @@
-import { state, saveAutosave, addLog } from "./state.js";
+import { state, saveAutosave, addLog, createDefaultCurrentRun } from "./state.js";
 import { DIR_N, START_X, START_Y, DX, DY, DIR_NAMES, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
 import { playSound } from "./audio.js";
 import { renderer } from "./game.js";
 import { updateUI } from "./ui.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
-import { openSubmenu } from "./menu.js";
+import { openSubmenu, triggerRunResult } from "./menu.js";
 
 export function handleMove(action) {
   if (state.transitioning || state.gameState !== "explore") return;
@@ -33,6 +33,10 @@ export function handleMove(action) {
       // Step forward
       state.x += DX[state.dir];
       state.y += DY[state.dir];
+      
+      if (state.currentRun) {
+        state.currentRun.steps++;
+      }
       
       // Update light turns (B2F: consume 2 turns per step)
       if (state.lightTurns > 0) {
@@ -80,6 +84,9 @@ export function handleMove(action) {
     } else {
       state.x += DX[backDir];
       state.y += DY[backDir];
+      if (state.currentRun) {
+        state.currentRun.steps++;
+      }
       // Update light turns (B2F: consume 2 turns per step)
       if (state.lightTurns > 0) {
         const cost = state.floor === 2 ? 2 : 1;
@@ -239,14 +246,8 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       addLog("階段を上がります。リルガミンの街へ戻る...");
       setTimeout(() => {
         state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
-        state.gameState = "town";
-        state.x = START_X;
-        state.y = START_Y;
-        state.dir = DIR_N;
-        addLog("リルガミンの街に戻り、体力を回復しました。");
         state.transitioning = false;
-        saveAutosave();
-        updateUI();
+        triggerRunResult("stairs");
       }, 1200);
     } else {
       state.transitioning = true;
@@ -255,6 +256,12 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       playSound("move");
       setTimeout(() => {
         state.floor = prevFloor;
+        if (state.currentRun) {
+          if (!state.currentRun.floorsVisited.includes(prevFloor)) {
+            state.currentRun.floorsVisited.push(prevFloor);
+          }
+          state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, prevFloor);
+        }
         const target = findCellCoordsByType(state.maps[prevFloor - 1], "stairs-down");
         state.x = target.x;
         state.y = target.y;
@@ -289,6 +296,12 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     setTimeout(() => {
       state.floor = nextFloor;
       state.sessionMaxFloor = Math.max(state.sessionMaxFloor, state.floor);
+      if (state.currentRun) {
+        if (!state.currentRun.floorsVisited.includes(nextFloor)) {
+          state.currentRun.floorsVisited.push(nextFloor);
+        }
+        state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
+      }
       const target = findCellCoordsByType(state.maps[nextFloor - 1], "stairs-up");
       state.x = target.x;
       state.y = target.y;
@@ -363,18 +376,27 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 
   // Spring encounter
   if (cell.event === "event_spring") {
+    if (state.codex && state.codex.events && state.codex.events.facilities) {
+      state.codex.events.facilities.spring.found++;
+    }
     openSubmenu("event_spring", "怪しい泉を見つけた。澄んだ水が湧き出ている…");
     return;
   }
 
   // Tablet encounter
   if (cell.event === "event_tablet") {
+    if (state.codex && state.codex.events && state.codex.events.facilities) {
+      state.codex.events.facilities.tablet.found++;
+    }
     openSubmenu("event_tablet", "謎の石碑が立っている。古代の文字が刻まれている…");
     return;
   }
 
   // Merchant encounter
   if (cell.event === "event_merchant") {
+    if (state.codex && state.codex.events && state.codex.events.facilities) {
+      state.codex.events.facilities.merchant.found++;
+    }
     openSubmenu("event_merchant", "フードを被ったさまよう商人が現れた！");
     return;
   }
@@ -389,10 +411,19 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     const events = ["event_spring", "event_tablet", "event_merchant"];
     const chosen = events[Math.floor(Math.random() * events.length)];
     if (chosen === "event_spring") {
+      if (state.codex && state.codex.events && state.codex.events.facilities) {
+        state.codex.events.facilities.spring.found++;
+      }
       openSubmenu("event_spring", "怪しい泉を見つけた。澄んだ水が湧き出ている…");
     } else if (chosen === "event_tablet") {
+      if (state.codex && state.codex.events && state.codex.events.facilities) {
+        state.codex.events.facilities.tablet.found++;
+      }
       openSubmenu("event_tablet", "謎の石碑が立っている。古代の文字が刻まれている…");
     } else {
+      if (state.codex && state.codex.events && state.codex.events.facilities) {
+        state.codex.events.facilities.merchant.found++;
+      }
       openSubmenu("event_merchant", "フードを被ったさまよう商人が現れた！");
     }
     return;
@@ -478,7 +509,7 @@ export function enterDungeon() {
   }
 
   if (state.lastReturnedFloor && state.lastReturnedFloor > 1 && state.lastReturnedFloor <= 4) {
-    openSubmenu("enter_dungeon_select", "迷宮への進入地点を選択してください：");
+    openSubmenu("enter_dungeon_select", "迷宮へ入る準備：");
   } else {
     executeEnterDungeon(1);
   }
@@ -488,6 +519,11 @@ export function executeEnterDungeon(floor) {
   state.gameState = "explore";
   state.floor = floor;
   state.sessionMaxFloor = floor; // セッション最深階を初期化
+  state.currentRun = createDefaultCurrentRun();
+  state.currentRun.startedAt = Date.now();
+  state.currentRun.startFloor = floor;
+  state.currentRun.deepestFloor = floor;
+  state.currentRun.floorsVisited = [floor];
 
   if (floor === 1) {
     state.x = START_X;

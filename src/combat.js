@@ -1,10 +1,11 @@
 import { state, saveAutosave, addLog, getCharWeaponAtk, getCharDef, checkCharLevelUp, EXP_LEVELS } from "./state.js";
-import { DIR_N, START_X, START_Y, MONSTERS, ITEMS, SPELLS, getClassJpName } from "./data.js";
+import { DIR_N, START_X, START_Y, MONSTERS, ITEMS, SPELLS, getClassJpName, generateRandomEquipment, getItemData, getCharStr, getCharAgi, getCharMaxHp, getCharMaxMp } from "./data.js";
 import { playSound } from "./audio.js";
 import { renderer } from "./game.js";
 import { updateUI } from "./ui.js";
-import { menuContext, menuHistory, openSubmenu, closeSubmenu } from "./menu.js";
+import { menuContext, menuHistory, openSubmenu, closeSubmenu, triggerRunResult } from "./menu.js";
 import { setupChestState, resetSubmenuBackButton } from "./chest.js";
+import { createRng } from "./seed_rng.js";
 
 // Combat action selection state
 export let combatSelection = {
@@ -18,6 +19,9 @@ let activeItemCallback = null;
 
 export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
   state.gameState = "combat";
+  if (state.currentRun) {
+    state.currentRun.battles++;
+  }
   
   // Choose monsters
   const monsters = [];
@@ -87,11 +91,21 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
       const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
       
       let candidates = [];
+      const themeSeed = `${state.seed}:monster_theme:B${state.floor}`;
+      const themeRng = state.seed ? createRng(themeSeed) : Math.random;
+      let theme = "standard";
+      if (state.floor === 2) {
+        theme = themeRng() < 0.60 ? "poisonous" : "standard";
+      } else if (state.floor === 3) {
+        theme = themeRng() < 0.60 ? "spirit" : "standard";
+      } else if (state.floor === 5) {
+        theme = themeRng() < 0.70 ? "dragon" : "giant";
+      }
+
       if (state.floor === 5) {
-        // B5F: 70% chance of dragon-only encounters, otherwise high-level giants/demons
-        const dragons = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.spriteType === "dragon");
-        if (dragons.length > 0 && Math.random() < 0.70) {
-          candidates = dragons;
+        if (theme === "dragon") {
+          const dragons = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.spriteType === "dragon");
+          candidates = dragons.length > 0 ? dragons : MONSTERS.filter(m => !m.isBoss && !m.isRare && m.level >= 6);
         } else {
           candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && ["アースジャイアント", "マスターデーモン"].includes(m.name));
           if (candidates.length === 0) {
@@ -104,16 +118,14 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
           candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && Math.abs(m.level - targetLevel) <= 1);
         }
         
-        if (state.floor === 2) {
-          // B2F: 50% chance to bias towards poisonous monsters
+        if (state.floor === 2 && theme === "poisonous") {
           const poisonous = candidates.filter(m => m.isPoisonous);
-          if (poisonous.length > 0 && Math.random() < 0.50) {
+          if (poisonous.length > 0) {
             candidates = poisonous;
           }
-        } else if (state.floor === 3) {
-          // B3F: 60% chance to bias towards spirits/demons/mages
+        } else if (state.floor === 3 && theme === "spirit") {
           const demonSpirits = candidates.filter(m => m.spriteType === "spirit" || m.spriteType === "flack" || m.spriteType === "mage");
-          if (demonSpirits.length > 0 && Math.random() < 0.60) {
+          if (demonSpirits.length > 0) {
             candidates = demonSpirits;
           }
         }
@@ -149,6 +161,17 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
   menuHistory.length = 0;
 
   addLog(`戦闘開始！敵が現れた：${monsters.map(m => m.name).join(", ")}`);
+  
+  if (state.codex) {
+    if (!state.codex.monsters) state.codex.monsters = {};
+    monsters.forEach(m => {
+      const baseName = m.name.replace(/\s[A-Z]$/, "");
+      if (!state.codex.monsters[baseName]) {
+        state.codex.monsters[baseName] = { encountered: 0, killed: 0, firstKilled: false };
+      }
+      state.codex.monsters[baseName].encountered++;
+    });
+  }
   
   // Check if first character needs choice (if alive)
   advanceActionSelection();
@@ -343,7 +366,7 @@ export function openCombatTargetMenu(type, callback, spellName = null) {
     state.party.forEach((char, idx) => {
       const btn = document.createElement("button");
       btn.className = "btn btn-neon btn-target-ally";
-      btn.textContent = `${idx + 1}.${char.name} (${char.hp}/${char.maxHp})`;
+      btn.textContent = `${idx + 1}.${char.name} (${char.hp}/${getCharMaxHp(char)})`;
       
       let disabled = false;
       if (spellName === "KADORTO") {
@@ -526,20 +549,22 @@ export function renderCombatOverlay() {
           card.classList.add("dead");
         }
 
-        const hpPct = char.maxHp > 0 ? (char.hp / char.maxHp) * 100 : 0;
-        const mpPct = char.maxMp > 0 ? (char.mp / char.maxMp) * 100 : 0;
+        const maxHp = getCharMaxHp(char);
+        const maxMp = getCharMaxMp(char);
+        const hpPct = maxHp > 0 ? (char.hp / maxHp) * 100 : 0;
+        const mpPct = maxMp > 0 ? (char.mp / maxMp) * 100 : 0;
         
         card.innerHTML = `
           <div class="card-title">${char.name} <span class="card-class-tag">${getClassJpName(char.class)}</span></div>
           <div class="card-hp-bar-container">
             <div class="card-hp-bar" style="width: ${hpPct}%"></div>
           </div>
-          <div class="card-hp-text">HP: ${char.hp}/${char.maxHp}</div>
-          ${char.maxMp > 0 ? `
+          <div class="card-hp-text">HP: ${char.hp}/${maxHp}</div>
+          ${maxMp > 0 ? `
           <div class="card-mp-bar-container">
             <div class="card-mp-bar" style="width: ${mpPct}%"></div>
           </div>
-          <div class="card-mp-text">MP: ${char.mp}/${char.maxMp}</div>
+          <div class="card-mp-text">MP: ${char.mp}/${maxMp}</div>
           ` : ""}
         `;
 
@@ -642,7 +667,7 @@ export function resolveCombatRound() {
   state.party.forEach((char, idx) => {
     if (char.status === "ok" || char.status === "poisoned" || char.status === "blind") {
       const chosen = combatSelection.actions.find(a => a.actorIdx === idx);
-      const speed = char.agi + Math.floor(Math.random() * 10);
+      const speed = getCharAgi(char) + Math.floor(Math.random() * 10);
       turns.push({
         type: "char",
         char,
@@ -706,7 +731,7 @@ export function resolveCombatRound() {
           shake = 0;
         } else {
           // Attack math
-          const atkVal = char.str + getCharWeaponAtk(char);
+          const atkVal = getCharStr(char) + getCharWeaponAtk(char);
           const randRoll = Math.floor(Math.random() * 5); // 0-4
           dmg = Math.max(1, atkVal + randRoll - finalTarget.def);
           
@@ -1110,8 +1135,44 @@ export function resolveCombatRound() {
       }
     });
 
+    if (state.codex) {
+      if (!state.codex.stats) {
+        state.codex.stats = { totalRuns: 0, totalDeaths: 0, deepestFloor: 1, totalKills: 0, totalChests: 0 };
+      }
+      state.codex.stats.totalKills += nonFledMonsters.length;
+      
+      if (!state.codex.monsters) state.codex.monsters = {};
+      nonFledMonsters.forEach(m => {
+        const baseName = m.name.replace(/\s[A-Z]$/, "");
+        if (!state.codex.monsters[baseName]) {
+          state.codex.monsters[baseName] = { encountered: 1, killed: 0, firstKilled: false };
+        }
+        state.codex.monsters[baseName].killed++;
+        if (firstKilledNames.includes(baseName)) {
+          state.codex.monsters[baseName].firstKilled = true;
+        }
+      });
+    }
+
     const expShare = livingChars.length > 0 ? Math.round(totalExp / livingChars.length) : 0;
     const bonusExpShare = (livingChars.length > 0 && bonusExp > 0) ? Math.round(bonusExp / livingChars.length) : 0;
+
+    if (state.currentRun) {
+      state.currentRun.kills += nonFledMonsters.length;
+      state.currentRun.goldGained += (totalGold + bonusGold);
+      state.currentRun.expGained += (expShare + bonusExpShare);
+      if (state.combatState.isBoss) {
+        state.currentRun.bossesKilled += nonFledMonsters.length;
+      } else if (state.combatState.isMidboss || state.combatState.isRoamingFlack) {
+        state.currentRun.elitesKilled += nonFledMonsters.length;
+      } else {
+        nonFledMonsters.forEach(m => {
+          if (m.isRare) {
+            state.currentRun.elitesKilled++;
+          }
+        });
+      }
+    }
 
     logQueue.push({ msg: "======================================" });
     if (nonFledMonsters.length > 0) {
@@ -1176,6 +1237,40 @@ export function resolveCombatRound() {
     });
 
     logQueue.push({ msg: "======================================" });
+
+    // 敵撃破時の未鑑定装備ドロップ判定
+    let dropEquipment = null;
+    if (state.combatState.isBoss) {
+      dropEquipment = generateRandomEquipment(state.floor, "epic");
+    } else if (state.combatState.isMidboss) {
+      const rarity = Math.random() < 0.25 ? "epic" : "rare";
+      dropEquipment = generateRandomEquipment(state.floor, rarity);
+    } else {
+      const isRare = state.combatState.monsters && state.combatState.monsters.some(m => m.isRare);
+      const chance = isRare ? 0.25 : 0.03;
+      if (Math.random() < chance) {
+        dropEquipment = generateRandomEquipment(state.floor);
+      }
+    }
+
+    if (dropEquipment) {
+      if (state.inventory.length < 20) {
+        state.inventory.push(dropEquipment);
+        if (state.currentRun) {
+          state.currentRun.equipmentFound.push(dropEquipment);
+        }
+        const eqData = getItemData(dropEquipment);
+        logQueue.push({
+          msg: `モンスターの骸から [${eqData.name}] を手に入れた！`,
+          sound: "gold"
+        });
+      } else {
+        logQueue.push({
+          msg: `モンスターは何かを落としたが、バッグが満杯で拾えなかった！`,
+          sound: "miss"
+        });
+      }
+    }
 
     if (state.combatState.isBoss) {
       logQueue.push({
@@ -1294,15 +1389,10 @@ export function playBattleLogs(queue, index) {
         triggerGameOver();
       } else {
         state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
-        state.gameState = "town";
-        state.x = START_X;
-        state.y = START_Y;
-        state.dir = DIR_N;
         state.combatState = null;
         resetSubmenuBackButton();
         state.transitioning = false;
-        saveAutosave();
-        updateUI();
+        triggerRunResult("escape_scroll");
       }
     }, isAuto ? 150 : 1200);
     return;
@@ -1314,8 +1404,14 @@ export function playBattleLogs(queue, index) {
       state.map[state.y][state.x].event = null;
     }
     state.inventory.push("ANTIGRAVITY_CRYSTAL");
+    if (state.currentRun) {
+      state.currentRun.itemsFound.push("ANTIGRAVITY_CRYSTAL");
+    }
     if (!state.inventory.includes("LEGENDARY_SWORD")) {
       state.inventory.push("LEGENDARY_SWORD");
+      if (state.currentRun) {
+        state.currentRun.equipmentFound.push("LEGENDARY_SWORD");
+      }
     }
     setTimeout(() => {
       state.gameState = "explore";
@@ -1335,9 +1431,15 @@ export function playBattleLogs(queue, index) {
     }
     if (!state.inventory.includes("DRAGON_KEY")) {
       state.inventory.push("DRAGON_KEY");
+      if (state.currentRun) {
+        state.currentRun.itemsFound.push("DRAGON_KEY");
+      }
     }
     if (!state.inventory.includes("LEGENDARY_SHIELD")) {
       state.inventory.push("LEGENDARY_SHIELD");
+      if (state.currentRun) {
+        state.currentRun.equipmentFound.push("LEGENDARY_SHIELD");
+      }
     }
     setTimeout(() => {
       state.gameState = "explore";
@@ -1404,16 +1506,8 @@ export function checkCombatStatus() {
 
 export function triggerGameOver() {
   playSound("game_over");
-  state.gameState = "gameover";
   state.lastReturnedFloor = null;
-  saveAutosave();
-  addLog("**************************************************");
-  addLog("パーティは全滅した。");
-  addLog("冒険者たちの旅は深い暗闇の中で途絶えた。");
-  addLog("「おしろから再開」または「最初からやり直す」を選択してください。");
-  addLog("**************************************************");
-  // Allow reload or reset from sub-menu
-  openSubmenu("gameover_main", "全滅：次のオプションを選択してください");
+  triggerRunResult("gameover");
   // Hide normal back button
   document.getElementById("btn-submenu-back").style.display = "none";
 }
