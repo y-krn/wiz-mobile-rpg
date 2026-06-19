@@ -117,31 +117,37 @@ export function openChestMenu() {
 
   // Create Info Panel for Chest Details & Floor Risks
   const infoPanel = document.createElement("div");
-  infoPanel.style.marginBottom = "12px";
-  infoPanel.style.padding = "10px";
+  infoPanel.style.padding = "8px 10px";
   infoPanel.style.border = "1px solid #3a3a4c";
   infoPanel.style.borderRadius = "4px";
   infoPanel.style.backgroundColor = "rgba(27, 27, 34, 0.6)";
-  infoPanel.style.fontSize = "12px";
+  infoPanel.style.fontSize = "11px";
   infoPanel.style.fontFamily = "var(--font-mono)";
-  infoPanel.style.lineHeight = "1.5";
+  infoPanel.style.lineHeight = "1.4";
+  infoPanel.style.gridColumn = "auto";
+  infoPanel.style.marginBottom = "0";
+  infoPanel.style.height = "100%";
+  infoPanel.style.boxSizing = "border-box";
+  infoPanel.style.display = "flex";
+  infoPanel.style.flexDirection = "column";
+  infoPanel.style.justifyContent = "center";
 
   // 1. Floor Risk Warning
   let riskText = "";
   if (state.floor === 1 || state.floor === 3) {
-    riskText = `<span style="color:var(--neon-yellow)">[階層情報] 宝箱の罠遭遇率：高 (約80%)</span>`;
+    riskText = `<span style="color:var(--neon-yellow)">[階層] 罠遭遇：高 (約80%)</span>`;
   } else if (state.floor === 2) {
-    riskText = `<span style="color:var(--neon-green)">[階層情報] 宝箱の罠遭遇率：中 (約70%)</span>`;
+    riskText = `<span style="color:var(--neon-green)">[階層] 罠遭遇：中 (約70%)</span>`;
   } else if (state.floor === 4) {
-    riskText = `<span style="color:var(--neon-red)">[警告] この階の宝箱はすべて罠付き。転移の罠に警戒せよ！</span>`;
+    riskText = `<span style="color:var(--neon-red)">[警告] 全宝箱罠付き（転移警戒）</span>`;
   } else if (state.floor === 5) {
-    riskText = `<span style="color:var(--neon-red)">[警告] この階の宝箱はすべて罠付き。転移の罠に警戒せよ！<br>(※移動時の床の火炎トラップにも注意)</span>`;
+    riskText = `<span style="color:var(--neon-red)">[警告] 全宝箱罠付き＆火炎トラップ注意</span>`;
   }
 
   // 2. Inspection result
   let inspectText = "";
   if (!state.chestState.inspected) {
-    inspectText = `<span style="color:var(--text-muted)">推定された宝箱の罠: 未調査</span>`;
+    inspectText = `<span style="color:var(--text-muted)">推定罠: 未調査</span>`;
   } else {
     const trapNameJp = translateTrap(state.chestState.identifiedTrap);
     const chance = state.chestState.inspectChance || 0;
@@ -157,19 +163,18 @@ export function openChestMenu() {
       reliability = "低";
       reliabilityColor = "#ff9f0a"; // orange
     }
-    inspectText = `推定された宝箱の罠: <strong style="color:var(--neon-cyan)">${trapNameJp}</strong> (信頼度: <span style="color:${reliabilityColor}">${reliability}</span>)`;
+    inspectText = `推定: <strong style="color:var(--neon-cyan)">${trapNameJp}</strong> (<span style="color:${reliabilityColor}">${reliability}</span>)`;
   }
 
   // 3. Traps Help
-  const helpText = `<div style="font-size:10px; color:var(--text-muted); border-top:1px solid #3a3a4c; margin-top:8px; padding-top:6px;">
-【宝箱の罠効果】<br>
-毒針:単体ダメージ+毒 | ガス爆弾:全体ダメージ<br>
-テレポーター:ランダム転移 | 閃光弾:全体盲目
+  const helpText = `<div style="font-size:9px; color:var(--text-muted); border-top:1px solid #3a3a4c; margin-top:6px; padding-top:4px; line-height:1.2;">
+毒針:単体+毒 | ガス:全体ダメ<br>
+テレポ:転移 | 閃光:全体盲目
 </div>`;
 
   infoPanel.innerHTML = `
     <div>${riskText}</div>
-    <div style="margin-top:6px;">${inspectText}</div>
+    <div style="margin-top:4px;">${inspectText}</div>
     ${helpText}
   `;
   optGrid.appendChild(infoPanel);
@@ -177,7 +182,9 @@ export function openChestMenu() {
   // Inspect Chest
   const btnInspect = document.createElement("button");
   btnInspect.className = "btn btn-neon btn-block";
-  btnInspect.textContent = "罠を調べる";
+  btnInspect.textContent = "調べる";
+  btnInspect.style.minHeight = "44px";
+  btnInspect.style.flex = "1";
   btnInspect.addEventListener("click", () => {
     // Thief class has high inspect rate, others low
     const thief = state.party.find(c => c.class === "Thief" && ["ok", "poisoned", "blind"].includes(c.status));
@@ -206,26 +213,38 @@ export function openChestMenu() {
     playSound("move");
     openChestMenu(); // redraw
   });
-  optGrid.appendChild(btnInspect);
 
   // Disarm Chest
   const btnDisarm = document.createElement("button");
   btnDisarm.className = "btn btn-neon btn-block";
+  btnDisarm.style.minHeight = "44px";
+  btnDisarm.style.flex = "1";
   if (!state.chestState.inspected) {
-    btnDisarm.textContent = "罠を解除する（要調査）";
+    btnDisarm.textContent = "解除（要調査）";
     btnDisarm.disabled = true;
   } else {
-    btnDisarm.textContent = "罠を解除する";
+    btnDisarm.textContent = "解除する";
   }
   btnDisarm.addEventListener("click", () => {
     openSubmenu("chest_disarmer_select", "罠を解除するキャラクターを選択：");
   });
-  optGrid.appendChild(btnDisarm);
+
+  // Right Column (Inspect & Disarm)
+  const rightColumn = document.createElement("div");
+  rightColumn.style.display = "flex";
+  rightColumn.style.flexDirection = "column";
+  rightColumn.style.gap = "4px";
+  rightColumn.style.width = "100%";
+  rightColumn.style.height = "100%";
+  rightColumn.appendChild(btnInspect);
+  rightColumn.appendChild(btnDisarm);
+  optGrid.appendChild(rightColumn);
 
   // Open Chest
   const btnOpen = document.createElement("button");
   btnOpen.className = "btn btn-neon btn-block";
   btnOpen.textContent = "宝箱を開ける";
+  btnOpen.style.minHeight = "44px";
   btnOpen.addEventListener("click", () => {
     openChestDirectly();
   });
@@ -235,6 +254,7 @@ export function openChestMenu() {
   const btnLeave = document.createElement("button");
   btnLeave.className = "btn btn-danger btn-block";
   btnLeave.textContent = "立ち去る";
+  btnLeave.style.minHeight = "44px";
   btnLeave.addEventListener("click", () => {
     addLog("宝箱を開けずに立ち去った。");
     // Clear chest event on current cell

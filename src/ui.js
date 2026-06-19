@@ -899,44 +899,7 @@ export function renderArchives() {
   title.textContent = "古城年代記・書庫";
   header.appendChild(title);
   
-  const btnClose = document.createElement("button");
-  btnClose.className = "btn btn-camp-close";
-  btnClose.textContent = "閉じる";
-  btnClose.style.minHeight = "28px";
-  btnClose.style.height = "28px";
-  btnClose.style.padding = "0 8px";
-  btnClose.addEventListener("click", () => {
-    overlay.style.display = "none";
-    state.gameState = "town";
-    updateUI();
-  });
-  header.appendChild(btnClose);
   overlay.appendChild(header);
-  
-  // 2. Tabs
-  const tabs = document.createElement("div");
-  tabs.className = "archives-tabs";
-  
-  const tabList = [
-    { id: "monsters", name: "👿 敵図鑑" },
-    { id: "equipment", name: "🛡️ 装備" },
-    { id: "events", name: "⚠️ 罠・施設" },
-    { id: "runHistory", name: "📜 記録" },
-    { id: "deathLogs", name: "☠️ 死亡" }
-  ];
-  
-  tabList.forEach(t => {
-    const tabBtn = document.createElement("button");
-    tabBtn.className = `archives-tab ${archivesState.tab === t.id ? "active" : ""}`;
-    tabBtn.textContent = t.name;
-    tabBtn.addEventListener("click", () => {
-      archivesState.tab = t.id;
-      archivesState.selectedId = null;
-      renderArchives();
-    });
-    tabs.appendChild(tabBtn);
-  });
-  overlay.appendChild(tabs);
   
   // 3. Body
   const body = document.createElement("div");
@@ -1075,6 +1038,54 @@ export function renderArchives() {
   }
   
   overlay.appendChild(body);
+
+  // 3. Bottom Actions Container
+  const footer = document.createElement("div");
+  footer.className = "bottom-actions-container";
+
+  // Tabs Row
+  const tabs = document.createElement("div");
+  tabs.className = "bottom-actions-row archives-tabs";
+  
+  const tabList = [
+    { id: "monsters", name: "👿 敵" },
+    { id: "equipment", name: "🛡️ 装備" },
+    { id: "events", name: "⚠️ 罠" },
+    { id: "runHistory", name: "📜 記録" },
+    { id: "deathLogs", name: "☠️ 死亡" }
+  ];
+  
+  tabList.forEach(t => {
+    const tabBtn = document.createElement("button");
+    tabBtn.className = `archives-tab ${archivesState.tab === t.id ? "active" : ""}`;
+    tabBtn.textContent = t.name;
+    tabBtn.addEventListener("click", () => {
+      archivesState.tab = t.id;
+      archivesState.selectedId = null;
+      renderArchives();
+    });
+    tabs.appendChild(tabBtn);
+  });
+  footer.appendChild(tabs);
+
+  // Close Row
+  const closeRow = document.createElement("div");
+  closeRow.className = "bottom-actions-row";
+
+  const btnClose = document.createElement("button");
+  btnClose.className = "btn btn-danger btn-camp-close";
+  btnClose.textContent = "❌ 閉じる";
+  btnClose.style.width = "100%";
+  btnClose.style.minHeight = "44px";
+  btnClose.addEventListener("click", () => {
+    overlay.style.display = "none";
+    state.gameState = "town";
+    updateUI();
+  });
+  closeRow.appendChild(btnClose);
+  footer.appendChild(closeRow);
+
+  overlay.appendChild(footer);
 }
 
 function getEvaluationText(run, isSuccess) {

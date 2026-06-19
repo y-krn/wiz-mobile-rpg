@@ -130,12 +130,12 @@ html, body {
 }
 
 .btn-mute {
-  font-size: 9px;
-  padding: 2px 6px;
-  height: 20px;
-  min-height: 20px;
-  line-height: 18px;
-  border-radius: 3px;
+  font-size: 12px;
+  padding: 8px 16px;
+  height: 44px;
+  min-height: 44px;
+  line-height: 26px;
+  border-radius: 4px;
   background-color: #121216;
   font-weight: 700;
   transition: all 0.2s ease;
@@ -237,8 +237,8 @@ html, body {
 
 /* Controls Panel */
 #controls-panel {
-  height: 145px;
-  min-height: 145px;
+  height: auto;
+  min-height: 180px;
   background-color: #121216;
   border-bottom: 1px solid var(--border-color);
   padding: 8px;
@@ -289,9 +289,10 @@ html, body {
 .town-grid {
   grid-template-columns: repeat(2, 1fr);
   width: 100%;
+  gap: 6px;
 }
 
-#btn-town-dungeon, #btn-town-camp, #btn-town-archives {
+#btn-town-dungeon {
   grid-column: span 2;
 }
 
@@ -302,6 +303,22 @@ html, body {
 }
 #btn-combat-cancel {
   grid-column: span 2;
+  border-color: #555566 !important;
+  color: #888899 !important;
+  background-color: #15151c;
+}
+#btn-combat-cancel:active {
+  background-color: rgba(255, 59, 48, 0.15) !important;
+  border-color: var(--neon-red) !important;
+  color: var(--neon-red) !important;
+}
+#btn-combat-auto {
+  border-color: var(--neon-purple) !important;
+  color: var(--neon-purple) !important;
+}
+#btn-combat-auto:active {
+  background-color: rgba(180, 0, 255, 0.12) !important;
+  box-shadow: var(--neon-glow-purple) !important;
 }
 
 
@@ -364,6 +381,7 @@ html, body {
   cursor: pointer;
   transition: transform 0.1s ease, background-color 0.1s ease, border-color 0.1s ease, box-shadow 0.1s ease;
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  min-height: 44px;
 }
 
 .btn:disabled {
@@ -1004,10 +1022,18 @@ html, body {
   align-items: center;
   background-color: #14141a;
   border: 1px solid #22222d;
-  padding: 4px 6px;
+  padding: 6px 8px;
   border-radius: 4px;
-  font-size: 10px;
-  min-height: 36px;
+  font-size: 11px;
+  min-height: 44px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.char-row.selected {
+  background-color: rgba(0, 229, 255, 0.12);
+  border-color: var(--neon-cyan);
+  box-shadow: var(--neon-glow-cyan);
 }
 
 .char-info {
@@ -2608,6 +2634,10 @@ html, body {
   cursor: pointer;
   border-radius: 4px;
   white-space: nowrap;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .archives-tab.active {
   background-color: #121216;
@@ -2696,4 +2726,31 @@ html, body {
   font-size: 11px;
   line-height: 1.5;
   color: #ddd;
+}
+
+/* Bottom Sticky Actions Container for mobile comfort */
+.bottom-actions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 0 0;
+  border-top: 1px solid var(--border-color);
+  background-color: rgba(12, 12, 14, 0.98);
+  margin-top: auto;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.bottom-actions-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.bottom-actions-row .btn,
+.bottom-actions-row .shop-tab,
+.bottom-actions-row .equip-filter-chip,
+.bottom-actions-row .filter-chip {
+  flex: 1;
+  min-height: 44px;
 }

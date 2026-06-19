@@ -649,6 +649,25 @@ export function renderCombatOverlay() {
   }
 
   overlay.appendChild(body);
+
+  // 3. Bottom Actions Container
+  const footer = document.createElement("div");
+  footer.className = "bottom-actions-container";
+
+  const closeRow = document.createElement("div");
+  closeRow.className = "bottom-actions-row";
+
+  const btnBack = document.createElement("button");
+  btnBack.className = "btn btn-danger btn-combat-back";
+  btnBack.textContent = "◀ 戻る (キャンセル)";
+  btnBack.style.width = "100%";
+  btnBack.style.minHeight = "44px";
+  btnBack.addEventListener("click", () => {
+    goBackSubmenu();
+  });
+  closeRow.appendChild(btnBack);
+  footer.appendChild(closeRow);
+  overlay.appendChild(footer);
 }
 
 export function resolveCombatRound() {
