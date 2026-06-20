@@ -474,6 +474,7 @@ export function renderResultScreen() {
   const itemsCount = run.itemsFound.length;
   const equipCount = run.equipmentFound.length;
   const totalLootCount = itemsCount + equipCount;
+  const lootTitle = isSuccess ? `持ち帰り品 (${totalLootCount}個)` : `失った発見品 (${totalLootCount}個)`;
 
   const getReasonJp = (r) => {
     if (r === "stairs") return "迷宮の階段から帰還";
@@ -576,7 +577,7 @@ export function renderResultScreen() {
       </div>
 
       <div class="result-items-section">
-        <div class="result-section-title">📦 持ち帰り品 (${totalLootCount}個)</div>
+        <div class="result-section-title">📦 ${lootTitle}</div>
         <div class="result-items-list">
           ${lootHtml}
         </div>

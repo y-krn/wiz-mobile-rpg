@@ -1,4 +1,4 @@
-import { state, saveGame, saveAutosave } from "./state.js";
+import { state, loadGame, saveGame, saveAutosave } from "./state.js";
 import { START_X, START_Y, DIR_N } from "./data.js";
 import { updateUI } from "./ui.js";
 import { closeSubmenu } from "./menu.js";
@@ -19,30 +19,9 @@ export function triggerRunResult(reason) {
   const lostItemsNames = [];
   if (!isSuccess) {
     lostGold = state.currentRun.goldGained;
-    state.gold = Math.max(0, state.gold - lostGold);
-    state.currentRun.goldGained = 0;
-    
-    const unidEquip = state.inventory.filter(item => typeof item === "object" && !item.identified);
-    lostUnidentifiedCount = Math.ceil(unidEquip.length * 0.5);
-    for (let i = 0; i < lostUnidentifiedCount; i++) {
-      if (unidEquip.length === 0) break;
-      const idx = Math.floor(Math.random() * unidEquip.length);
-      const lostItem = unidEquip.splice(idx, 1)[0];
-      lostItemsNames.push(lostItem.name || "未鑑定装備");
-      const invIdx = state.inventory.indexOf(lostItem);
-      if (invIdx !== -1) {
-        state.inventory.splice(invIdx, 1);
-      }
-      const runEqIdx = state.currentRun.equipmentFound.indexOf(lostItem);
-      if (runEqIdx !== -1) {
-        state.currentRun.equipmentFound.splice(runEqIdx, 1);
-      }
-    }
-
-    state.party.forEach(c => {
-      c.status = "ok";
-      c.hp = 1;
-      c.mp = 0;
+    lostUnidentifiedCount = state.currentRun.equipmentFound.length;
+    state.currentRun.equipmentFound.forEach(item => {
+      lostItemsNames.push(item.name || "未鑑定装備");
     });
 
     // 死亡履歴登録
@@ -115,10 +94,59 @@ export function triggerRunResult(reason) {
     state.runHistory.pop();
   }
 
+  if (!isSuccess) {
+    persistGameoverRollback();
+    return;
+  }
+
   state.gameState = "result";
   
   saveGame();
   saveAutosave();
+  updateUI();
+}
+
+function persistGameoverRollback() {
+  const saveKey = "mobile_wiz_rpg_save";
+  const autosaveKey = "mobile_wiz_rpg_autosave";
+  const rawCastleSave = localStorage.getItem(saveKey);
+
+  if (!rawCastleSave) {
+    state.gameState = "result";
+    saveAutosave();
+    updateUI();
+    return;
+  }
+
+  try {
+    const castleSave = JSON.parse(rawCastleSave);
+    const mergedCastleSave = {
+      ...castleSave,
+      runHistory: state.runHistory,
+      deathLogs: state.deathLogs,
+      codex: state.codex,
+      currentRun: null,
+      logs: state.logs.slice(-30)
+    };
+
+    const resultAutosave = {
+      ...mergedCastleSave,
+      currentRun: state.currentRun,
+      gameState: "result",
+      combatState: null,
+      chestState: null,
+      transitioning: false
+    };
+
+    localStorage.setItem(saveKey, JSON.stringify(mergedCastleSave));
+    localStorage.setItem(autosaveKey, JSON.stringify(resultAutosave));
+    loadGame();
+  } catch (err) {
+    console.error("Gameover rollback failed", err);
+    state.gameState = "result";
+    saveAutosave();
+  }
+
   updateUI();
 }
 

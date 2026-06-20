@@ -1646,24 +1646,24 @@ html, body {
   font-size: 14px;
   font-weight: bold;
   color: #fff;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   border-bottom: 1px dashed #22222d;
-  padding-bottom: 4px;
+  padding-bottom: 3px;
 }
 
 .equip-detail-desc {
   font-size: 11px;
   color: var(--text-muted);
-  line-height: 1.4;
-  margin-bottom: 8px;
+  line-height: 1.25;
+  margin-bottom: 5px;
 }
 
 .equip-detail-compat {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  margin-bottom: 8px;
+  font-size: 11px;
+  margin-bottom: 5px;
   font-weight: bold;
 }
 
@@ -1676,23 +1676,68 @@ html, body {
 }
 
 .equip-stat-compare {
-  font-size: 12px;
+  font-size: 11px;
   background-color: #0c0c0e;
   border-radius: 4px;
-  padding: 6px 8px;
+  padding: 5px 6px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   font-family: var(--font-mono);
 }
 
-.equip-stat-compare-row {
+.equip-stat-summary {
+  border-bottom: 1px solid #22222d;
+  color: var(--text-muted);
+  font-weight: bold;
+  padding-bottom: 3px;
+  margin-bottom: 1px;
+}
+
+.equip-stat-summary.upgrade {
+  color: var(--neon-green);
+}
+
+.equip-stat-summary.downgrade {
+  color: var(--neon-red);
+}
+
+.equip-stat-primary {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.equip-stat-grid {
+  border-top: 1px solid #22222d;
+  display: grid;
+  gap: 2px 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 3px;
+}
+
+.equip-stat-compare-row {
+  align-items: baseline;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(3em, auto) minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.equip-stat-label {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .equip-stat-compare-val {
   color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .equip-stat-compare-val.upgrade {
@@ -1701,6 +1746,28 @@ html, body {
 
 .equip-stat-compare-val.downgrade {
   color: var(--neon-red);
+}
+
+.equip-stat-diff {
+  color: var(--text-muted);
+  font-weight: bold;
+  min-width: 2.7em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.equip-stat-diff.upgrade {
+  color: var(--neon-green);
+}
+
+.equip-stat-diff.downgrade {
+  color: var(--neon-red);
+}
+
+@media (max-width: 359px) {
+  .equip-stat-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .equip-detail-col .btn {

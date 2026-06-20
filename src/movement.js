@@ -144,14 +144,14 @@ function checkSensoryAura() {
   let nearestBoss = null;
   let nearestTablet = null;
   let nearestMerchant = null;
-  let nearestStairs = null;
+  let nearestDownStairs = null;
   let nearestChest = null;
 
   let minDistSpring = 999;
   let minDistBoss = 999;
   let minDistTablet = 999;
   let minDistMerchant = 999;
-  let minDistStairs = 999;
+  let minDistDownStairs = 999;
   let minDistChest = 999;
 
   for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -175,8 +175,8 @@ function checkSensoryAura() {
         if (dist < minDistChest) { minDistChest = dist; nearestChest = { x, y }; }
       }
 
-      if (cell.type === "stairs-up" || cell.type === "stairs-down") {
-        if (dist < minDistStairs) { minDistStairs = dist; nearestStairs = { x, y }; }
+      if (cell.type === "stairs-down") {
+        if (dist < minDistDownStairs) { minDistDownStairs = dist; nearestDownStairs = { x, y }; }
       }
     }
   }
@@ -209,9 +209,9 @@ function checkSensoryAura() {
     addLog("【気配】近くから静かな衣擦れの音が聞こえる気がする…");
   }
 
-  // 5. Stairs wind draft (distance <= 2)
-  if (minDistStairs <= 2 && nearestStairs) {
-    addLog("【気配】どこからかかすかに風が流れてきている…近くに階段があるようだ。");
+  // 5. Down stairs wind draft (distance <= 2)
+  if (minDistDownStairs <= 2 && nearestDownStairs) {
+    addLog("【気配】下へ続く空洞から、冷たい風が流れてきている…");
   }
 
   // 6. Chest hidden treasure vibe (distance <= 2)

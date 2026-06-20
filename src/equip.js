@@ -1,7 +1,8 @@
 import { state, saveAutosave, addLog, getCharWeaponAtk, getCharDef } from "./state.js";
 import { 
   DIR_N, START_X, START_Y, 
-  getClassJpName, getCharMaxHp, getCharMaxMp, getItemData, getCharStr 
+  getClassJpName, getCharMaxHp, getCharMaxMp, getItemData, getCharStr,
+  getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharTrapBonus
 } from "./data.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
@@ -47,6 +48,61 @@ export function closeEquipOverlay() {
   }
   saveAutosave();
   updateUI();
+}
+
+function isEquipmentItem(item) {
+  return item && (item.type === "weapon" || item.type === "shield" || item.type === "armor");
+}
+
+function getDisplayStats(char) {
+  return {
+    atk: getCharWeaponAtk(char) + getCharStr(char),
+    def: getCharDef(char),
+    hp: getCharMaxHp(char),
+    mp: getCharMaxMp(char),
+    str: getCharStr(char),
+    int: getCharInt(char),
+    pie: getCharPie(char),
+    vit: getCharVit(char),
+    agi: getCharAgi(char),
+    luk: getCharLuk(char),
+    trap: Math.round(getCharTrapBonus(char) * 100)
+  };
+}
+
+function getEquipPreview(char, itemKey) {
+  const item = getItemData(itemKey);
+  if (!isEquipmentItem(item)) return null;
+
+  const current = getDisplayStats(char);
+  const slot = item.type;
+  const oldEq = char.equipment[slot];
+  char.equipment[slot] = itemKey;
+  const next = getDisplayStats(char);
+  char.equipment[slot] = oldEq;
+
+  const rows = [
+    { key: "atk", label: "攻撃力" },
+    { key: "def", label: "防御力" },
+    { key: "hp", label: "最大HP" },
+    { key: "mp", label: "最大MP" },
+    { key: "str", label: "力" },
+    { key: "int", label: "知恵" },
+    { key: "pie", label: "信仰" },
+    { key: "vit", label: "生命" },
+    { key: "agi", label: "素早さ" },
+    { key: "luk", label: "運" },
+    { key: "trap", label: "罠解除", unit: "%" }
+  ].map((stat) => ({
+    ...stat,
+    current: current[stat.key],
+    next: next[stat.key],
+    diff: next[stat.key] - current[stat.key]
+  }));
+
+  const primaryKey = slot === "weapon" ? "atk" : "def";
+  const primaryDiff = rows.find((row) => row.key === primaryKey)?.diff ?? 0;
+  return { item, slot, rows, primaryDiff };
 }
 
 export function renderEquip() {
@@ -202,6 +258,26 @@ export function renderEquip() {
       name.className = "equip-item-row-name";
       name.textContent = item.name;
       row.appendChild(name);
+
+      const isIdentified = typeof itemKey !== "object" || itemKey.identified;
+      const canEquip = isEquipmentItem(item) && (!item.classes || item.classes.includes(char.class)) && isIdentified;
+      if (isEquipmentItem(item)) {
+        if (!isIdentified || !canEquip) {
+          row.classList.add("not-equipable");
+          const badge = document.createElement("span");
+          badge.className = "equip-row-badge cant";
+          badge.textContent = !isIdentified ? "未鑑定" : "不可";
+          row.appendChild(badge);
+        } else {
+          const preview = getEquipPreview(char, itemKey);
+          if (preview && preview.primaryDiff !== 0) {
+            const badge = document.createElement("span");
+            badge.className = `equip-row-badge ${preview.primaryDiff > 0 ? "up" : "down"}`;
+            badge.textContent = `${preview.primaryDiff > 0 ? "+" : ""}${preview.primaryDiff}`;
+            row.appendChild(badge);
+          }
+        }
+      }
       
       const tag = document.createElement("span");
       tag.className = "equip-item-row-tag";
@@ -242,7 +318,7 @@ export function renderEquip() {
     if (item) {
       const detailContent = document.createElement("div");
       detailContent.className = "equip-detail-content";
-      detailContent.style.maxHeight = "90px";
+      detailContent.style.maxHeight = "220px";
       detailContent.style.overflowY = "auto";
       
       const dName = document.createElement("div");
@@ -256,7 +332,7 @@ export function renderEquip() {
       detailContent.appendChild(dDesc);
       
       // Compare Stats if equipable
-      const isEquipableType = item.type === "weapon" || item.type === "shield" || item.type === "armor";
+      const isEquipableType = isEquipmentItem(item);
       if (isEquipableType && equipState.selectedIdx !== -1) {
         const isIdentified = typeof itemKey !== "object" || itemKey.identified;
         const canEquip = (!item.classes || item.classes.includes(char.class)) && isIdentified;
@@ -266,46 +342,63 @@ export function renderEquip() {
         compat.textContent = canEquip ? "🟢 装備可能" : !isIdentified ? "🔴 装備不可 (未鑑定)" : "🔴 装備不可 (職業制限)";
         detailContent.appendChild(compat);
 
-        // Stat preview
-        const compare = document.createElement("div");
-        compare.className = "equip-stat-compare";
-        
-        const currentEquipKey = char.equipment[item.type];
-        const currentEquip = currentEquipKey ? getItemData(currentEquipKey) : null;
-        
-        const statsToCompare = [
-          { label: "攻撃力", getValue: (eq) => eq?.type === "weapon" ? eq.atk : 0 },
-          { label: "防御力", getValue: (eq) => eq?.type !== "weapon" ? (eq?.def || 0) : 0 }
-        ];
+        const preview = getEquipPreview(char, itemKey);
+        if (preview) {
+          const compare = document.createElement("div");
+          compare.className = "equip-stat-compare";
 
-        statsToCompare.forEach(st => {
-          const curVal = st.getValue(currentEquip);
-          const newVal = st.getValue(item);
-          
-          const row = document.createElement("div");
-          row.className = "equip-stat-compare-row";
+          const summary = document.createElement("div");
+          summary.className = `equip-stat-summary ${preview.primaryDiff > 0 ? "upgrade" : preview.primaryDiff < 0 ? "downgrade" : ""}`;
+          summary.textContent = preview.primaryDiff > 0
+            ? `主要ステータス +${preview.primaryDiff}`
+            : preview.primaryDiff < 0
+              ? `主要ステータス ${preview.primaryDiff}`
+              : "主要ステータス ±0";
+          compare.appendChild(summary);
 
-          let displayCur = curVal;
-          let displayNew = newVal;
-          if (st.label === "攻撃力") {
-            displayCur = getCharWeaponAtk(char) + getCharStr(char);
-            displayNew = item.atk + getCharStr(char) - (currentEquip ? currentEquip.atk : 0);
-          } else if (st.label === "防御力") {
-            displayCur = getCharDef(char);
-            displayNew = getCharDef(char) - (currentEquip ? currentEquip.def : 0) + item.def;
-          }
+          const renderStatRow = (st) => {
+            const row = document.createElement("div");
+            row.className = "equip-stat-compare-row";
+            const sign = st.diff >= 0 ? "+" : "";
+            const unit = st.unit || "";
 
-          const finalDiff = displayNew - displayCur;
-          const sign = finalDiff >= 0 ? "+" : "";
+            const label = document.createElement("span");
+            label.className = "equip-stat-label";
+            label.textContent = st.label;
+            row.appendChild(label);
 
-          row.innerHTML = `<span>${st.label}:</span>`;
-          const val = document.createElement("span");
-          val.className = `equip-stat-compare-val ${finalDiff > 0 ? "upgrade" : finalDiff < 0 ? "downgrade" : ""}`;
-          val.textContent = `${displayCur} ➡ ${displayNew} (${sign}${finalDiff})`;
-          row.appendChild(val);
-          compare.appendChild(row);
-        });
-        detailContent.appendChild(compare);
+            const val = document.createElement("span");
+            val.className = `equip-stat-compare-val ${st.diff > 0 ? "upgrade" : st.diff < 0 ? "downgrade" : ""}`;
+            val.textContent = `${st.current}${unit} → ${st.next}${unit}`;
+            row.appendChild(val);
+
+            const diff = document.createElement("span");
+            diff.className = `equip-stat-diff ${st.diff > 0 ? "upgrade" : st.diff < 0 ? "downgrade" : ""}`;
+            diff.textContent = `${sign}${st.diff}${unit}`;
+            row.appendChild(diff);
+
+            return row;
+          };
+
+          const primaryRows = preview.rows.filter(st => st.key === "atk" || st.key === "def");
+          const secondaryRows = preview.rows.filter(st => st.key !== "atk" && st.key !== "def");
+
+          const primaryGroup = document.createElement("div");
+          primaryGroup.className = "equip-stat-primary";
+          primaryRows.forEach(st => {
+            primaryGroup.appendChild(renderStatRow(st));
+          });
+          compare.appendChild(primaryGroup);
+
+          const secondaryGrid = document.createElement("div");
+          secondaryGrid.className = "equip-stat-grid";
+          secondaryRows.forEach(st => {
+            secondaryGrid.appendChild(renderStatRow(st));
+          });
+          compare.appendChild(secondaryGrid);
+
+          detailContent.appendChild(compare);
+        }
       }
       
       detailCol.appendChild(detailContent);

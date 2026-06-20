@@ -234,10 +234,10 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   const suCoord = stairsUpCoord || { x: MAP_WIDTH - 2, y: 1 };
   if (floor > 1) {
     grid[suCoord.y][suCoord.x].type = "stairs-up";
-    grid[suCoord.y][suCoord.x].message = `地下${floor - 1}階へ上る階段です。一歩進むと上の階へ戻ります。`;
+    grid[suCoord.y][suCoord.x].message = `【上り階段】地下${floor - 1}階へ戻る階段です。`;
   } else {
     grid[START_Y][START_X].type = "stairs-up";
-    grid[START_Y][START_X].message = "街へと戻る階段です。一歩進むとリルガミンの街に戻ります。";
+    grid[START_Y][START_X].message = "【上り階段】街へ戻る階段です。";
   }
 
   // Set stairs-down for B1F - B4F
@@ -250,7 +250,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       stairsDownCoord = { x: MAP_WIDTH - 2, y: 1 };
     }
     grid[stairsDownCoord.y][stairsDownCoord.x].type = "stairs-down";
-    grid[stairsDownCoord.y][stairsDownCoord.x].message = `地下${floor + 1}階へ下る階段です。一歩進むとさらに深くへ降ります。`;
+    grid[stairsDownCoord.y][stairsDownCoord.x].message = `【下り階段】地下${floor + 1}階へ進む階段です。`;
   }
 
   // Place Midboss on Floor 3, Boss on Floor 5

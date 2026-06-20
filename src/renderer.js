@@ -271,7 +271,7 @@ export class DungeonRenderer {
 
       // Check special symbols inside cells (stairs up / down)
       if (cell.type === "stairs-up" || cell.type === "stairs-down") {
-        this.drawStairsIcon(ctx, z);
+        this.drawStairsIcon(ctx, z, cell.type);
       }
 
       // Check if there is a roaming monster at this coordinate (cx, cy)
@@ -293,8 +293,7 @@ export class DungeonRenderer {
     ctx.strokeRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
   }
 
-  drawStairsIcon(ctx, z) {
-    // Draw an upward stair silhouette in the middle of depth z cell floor
+  drawStairsIcon(ctx, z, type) {
     const xl = XL[z];
     const xr = XR[z];
     const yb = YB[z];
@@ -303,7 +302,15 @@ export class DungeonRenderer {
     const stepW = w * 0.4;
     const startX = xl + w * 0.3;
 
-    ctx.strokeStyle = "#ffb300"; // Gold color for stairs
+    const isUp = type === "stairs-up";
+    const color = isUp ? "#00b7ff" : "#ffb300";
+    const label = isUp ? "↑" : "↓";
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 6;
     ctx.beginPath();
     // Base step
     ctx.moveTo(startX, yb - 2);
@@ -327,6 +334,12 @@ export class DungeonRenderer {
     ctx.closePath();
 
     ctx.stroke();
+
+    ctx.font = "bold 16px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, xl + w * 0.5, yb - 18);
+    ctx.restore();
   }
 
   drawRoamingFlackIcon(ctx, z) {
@@ -759,11 +772,19 @@ export class DungeonRenderer {
 
         // Special cell colors
         if (cell.type === "stairs-up" || cell.type === "stairs-down") {
-          ctx.fillStyle = isLightOnly ? "rgba(255, 179, 0, 0.2)" : "rgba(255, 179, 0, 0.5)";
+          const isUp = cell.type === "stairs-up";
+          const fill = isUp ? "0, 183, 255" : "255, 179, 0";
+          const stroke = isUp ? "#00b7ff" : "#ffb300";
+          ctx.fillStyle = isLightOnly ? `rgba(${fill}, 0.2)` : `rgba(${fill}, 0.5)`;
           ctx.fillRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
-          ctx.strokeStyle = isLightOnly ? "rgba(255, 179, 0, 0.4)" : "#ffb300";
+          ctx.strokeStyle = isLightOnly ? `rgba(${fill}, 0.4)` : stroke;
           ctx.lineWidth = 1;
           ctx.strokeRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
+          ctx.fillStyle = stroke;
+          ctx.font = "bold 10px monospace";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(isUp ? "↑" : "↓", screenX + cellS / 2, screenY + cellS / 2);
         }
       }
     }
@@ -789,8 +810,8 @@ export class DungeonRenderer {
 
         ctx.save();
         if (hasStairs) {
-          // Orange glow for stairs
-          ctx.fillStyle = "rgba(255, 179, 0, 0.12)";
+          const isUp = cell.type === "stairs-up";
+          ctx.fillStyle = isUp ? "rgba(0, 183, 255, 0.12)" : "rgba(255, 179, 0, 0.12)";
           ctx.beginPath();
           ctx.arc(screenX + cellS / 2, screenY + cellS / 2, cellS * 0.9, 0, Math.PI * 2);
           ctx.fill();
