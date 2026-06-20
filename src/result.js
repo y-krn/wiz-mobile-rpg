@@ -5,7 +5,29 @@ import { closeSubmenu } from "./navigation.js";
 import { checkActiveContract, generateContractsList } from "./contracts.js";
 
 export function triggerRunResult(reason) {
-  if (!state.currentRun) return;
+  if (!state.currentRun) {
+    state.currentRun = {
+      startedAt: Date.now(),
+      startFloor: state.floor,
+      deepestFloor: state.floor,
+      steps: 0,
+      battles: 0,
+      kills: 0,
+      elitesKilled: 0,
+      bossesKilled: 0,
+      chestsOpened: 0,
+      trapsTriggered: 0,
+      trapsDisarmed: 0,
+      goldGained: 0,
+      expGained: 0,
+      itemsFound: [],
+      equipmentFound: [],
+      firstKills: [],
+      floorsVisited: [state.floor],
+      dangerScore: 0,
+      returnReason: reason
+    };
+  }
   
   state.currentRun.returnReason = reason;
   const isSuccess = reason !== "gameover";

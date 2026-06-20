@@ -506,6 +506,8 @@ export function renderEquip() {
             });
           }
         } else {
+          actionBtn = document.createElement("button");
+          actionBtn.className = "btn btn-neon btn-block";
           const isIdentified = typeof itemKey !== "object" || itemKey.identified;
           const canEquip = (!item.classes || item.classes.includes(char.class)) && isIdentified;
           if (canEquip) {

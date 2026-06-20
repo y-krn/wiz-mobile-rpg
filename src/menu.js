@@ -6,7 +6,7 @@ import { updateUI, openArchivesOverlay, openContractsOverlay, openWarehouseOverl
 import { generateContractsList } from "./contracts.js";
 import { executeDisarm } from "./chest.js";
 import { triggerGameOver } from "./combat.js";
-import { executeEnterDungeon } from "./movement.js";
+import { executeEnterDungeon, checkCellEvents } from "./movement.js";
 import { menuContext, menuHistory, openSubmenu, closeSubmenu, goBackSubmenu, setRenderSubmenuCallback } from "./navigation.js";
 
 // Re-exports from screen modules
@@ -661,8 +661,13 @@ export function handleTownOption(option) {
 export function handleExploreAction(action) {
   if (state.transitioning || state.gameState !== "explore") return;
   if (action === "search") {
-    addLog("周囲を調べたが、特に何も見つからなかった。");
-    updateUI();
+    const cell = state.map[state.y][state.x];
+    if (cell && (cell.type === "stairs-up" || cell.type === "stairs-down")) {
+      checkCellEvents(state.x, state.y);
+    } else {
+      addLog("周囲を調べたが、特に何も見つからなかった。");
+      updateUI();
+    }
   } else if (action === "camp") {
     openCampMenu();
   } else if (action === "spell") {
