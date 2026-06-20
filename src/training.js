@@ -136,7 +136,42 @@ export function renderTraining() {
   const footer = document.createElement("div");
   footer.className = "bottom-actions-container";
 
-  // 3.1 Tabs row
+  // 3.1 Current party summary
+  const partyBar = document.createElement("div");
+  partyBar.className = "training-party-bar";
+
+  for (let i = 0; i < 4; i++) {
+    const member = state.party[i];
+    const slot = document.createElement("button");
+    slot.type = "button";
+    slot.className = `training-party-slot ${member ? "filled" : "empty"} ${member && trainingState.selectedName === member.name ? "selected" : ""}`;
+
+    if (member) {
+      const isFront = i < 2;
+      const posLabel = isFront ? "前" : "後";
+      slot.innerHTML = `
+        <span class="training-party-pos">${i + 1}.${posLabel}</span>
+        <span class="training-party-name">${member.name}</span>
+      `;
+      slot.addEventListener("click", () => {
+        trainingState.tab = "party";
+        trainingState.selectedName = member.name;
+        renderTraining();
+      });
+    } else {
+      slot.innerHTML = `
+        <span class="training-party-pos">${i + 1}</span>
+        <span class="training-party-name">空き</span>
+      `;
+      slot.disabled = true;
+    }
+
+    partyBar.appendChild(slot);
+  }
+
+  footer.appendChild(partyBar);
+
+  // 3.2 Tabs row
   const tabRow = document.createElement("div");
   tabRow.className = "bottom-actions-row";
 
@@ -163,7 +198,7 @@ export function renderTraining() {
   tabRow.appendChild(tabParty);
   footer.appendChild(tabRow);
 
-  // 3.2 Action buttons row
+  // 3.3 Action buttons row
   if (selectedChar) {
     const actionRow = document.createElement("div");
     actionRow.className = "bottom-actions-row";
@@ -243,7 +278,7 @@ export function renderTraining() {
     footer.appendChild(actionRow);
   }
 
-  // 3.3 Back/Close button row
+  // 3.4 Back/Close button row
   const closeRow = document.createElement("div");
   closeRow.className = "bottom-actions-row";
 

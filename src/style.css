@@ -657,7 +657,7 @@ html, body {
   border-radius: 4px;
   font-family: var(--font-mono);
   min-height: 44px;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .shop-tab.active {
@@ -1059,6 +1059,61 @@ html, body {
 .char-row-meta {
   font-size: 8px;
   color: var(--text-muted);
+}
+
+.training-party-bar {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+}
+
+.training-party-slot {
+  background-color: #14141a;
+  border: 1px solid #2a2a3c;
+  border-radius: 4px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  gap: 1px;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 0;
+  padding: 4px 3px;
+  touch-action: manipulation;
+}
+
+.training-party-slot.filled {
+  border-color: rgba(0, 229, 255, 0.45);
+  color: var(--text-main);
+}
+
+.training-party-slot.selected {
+  background-color: rgba(0, 229, 255, 0.12);
+  border-color: var(--neon-cyan);
+  box-shadow: var(--neon-glow-cyan);
+}
+
+.training-party-slot.empty {
+  opacity: 0.55;
+}
+
+.training-party-pos {
+  color: var(--neon-gold);
+  font-size: 9px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.training-party-name {
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1.1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .char-actions {
@@ -1499,7 +1554,7 @@ html, body {
   color: var(--text-muted);
   cursor: pointer;
   font-family: inherit;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .equip-filter-chip.active {
@@ -1541,7 +1596,7 @@ html, body {
   font-family: inherit;
   width: 100%;
   text-align: left;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .equip-item-row.selected {
@@ -1829,10 +1884,62 @@ html, body {
   font-weight: bold;
 }
 
+.equip-mini-slots {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+
+.equip-mini-slot {
+  background-color: #14141a;
+  border: 1px solid #2a2a3c;
+  border-radius: 4px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  gap: 1px;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 0;
+  padding: 4px 5px;
+  touch-action: manipulation;
+}
+
+.equip-mini-slot.filled {
+  border-color: rgba(0, 229, 255, 0.45);
+  color: var(--text-main);
+}
+
+.equip-mini-slot.selected {
+  background-color: rgba(0, 229, 255, 0.12);
+  border-color: var(--neon-cyan);
+  box-shadow: var(--neon-glow-cyan);
+}
+
+.equip-mini-slot-label {
+  color: var(--neon-gold);
+  font-size: 9px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.equip-mini-slot-name {
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1.1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Focus Visible outline rules */
 .btn:focus-visible,
 .equip-filter-chip:focus-visible,
-.equip-item-row:focus-visible {
+.equip-item-row:focus-visible,
+.equip-mini-slot:focus-visible {
   outline: 2px solid var(--neon-cyan) !important;
   outline-offset: 2px !important;
 }
@@ -1853,6 +1960,7 @@ html, body {
 }
 
 .submenu-grid,
+.training-list,
 .equip-item-list,
 .equip-detail-content,
 .shop-items-list,

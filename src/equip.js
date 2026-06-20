@@ -512,7 +512,33 @@ export function renderEquip() {
   const footer = document.createElement("div");
   footer.className = "bottom-actions-container";
 
-  // 4.1 Character Switch Row
+  // 4.1 Current equipment summary
+  const equipBar = document.createElement("div");
+  equipBar.className = "equip-mini-slots";
+
+  slots.forEach(slot => {
+    const eqKey = char.equipment[slot.id];
+    const eqItem = eqKey ? getItemData(eqKey) : null;
+    const isSelected = equipState.selectedSlot === slot.id;
+    const slotBtn = document.createElement("button");
+    slotBtn.type = "button";
+    slotBtn.className = `equip-mini-slot ${eqItem ? "filled" : "empty"} ${isSelected ? "selected" : ""}`;
+    slotBtn.innerHTML = `
+      <span class="equip-mini-slot-label">${slot.label}</span>
+      <span class="equip-mini-slot-name">${eqItem ? eqItem.name : "なし"}</span>
+    `;
+    slotBtn.addEventListener("click", () => {
+      equipState.selectedSlot = isSelected ? null : slot.id;
+      equipState.selectedKey = isSelected ? null : eqKey;
+      equipState.selectedIdx = -1;
+      renderEquip();
+    });
+    equipBar.appendChild(slotBtn);
+  });
+
+  footer.appendChild(equipBar);
+
+  // 4.2 Character Switch Row
   const charRow = document.createElement("div");
   charRow.className = "bottom-actions-row";
   
@@ -535,7 +561,7 @@ export function renderEquip() {
   charRow.appendChild(btnNext);
   footer.appendChild(charRow);
 
-  // 4.2 Filters row
+  // 4.3 Filters row
   const filterRow = document.createElement("div");
   filterRow.className = "bottom-actions-row";
   
@@ -561,7 +587,7 @@ export function renderEquip() {
   });
   footer.appendChild(filterRow);
 
-  // 4.3 Back/Close row
+  // 4.4 Back/Close row
   const closeRow = document.createElement("div");
   closeRow.className = "bottom-actions-row";
 
