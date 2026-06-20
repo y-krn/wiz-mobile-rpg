@@ -1,10 +1,11 @@
-import { state, saveAutosave, addLog, getCharWeaponAtk, getCharDef, checkCharLevelUp, EXP_LEVELS } from "./state.js";
+import { state, saveAutosave, addLog, getCharWeaponAtk, getCharDef, checkCharLevelUp, EXP_LEVELS, addInventoryItem } from "./state.js";
 import { DIR_N, START_X, START_Y, MONSTERS, ITEMS, SPELLS, getClassJpName, generateRandomEquipment, getItemData, getCharStr, getCharAgi, getCharMaxHp, getCharMaxMp } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
-import { menuContext, menuHistory, openSubmenu, closeSubmenu, triggerRunResult } from "./menu.js";
-import { setupChestState, resetSubmenuBackButton } from "./chest.js";
+import { menuContext, menuHistory, openSubmenu, closeSubmenu, resetSubmenuBackButton } from "./navigation.js";
+import { triggerRunResult } from "./result.js";
+import { setupChestState } from "./chest.js";
 import { createRng } from "./seed_rng.js";
 import { runCombatRoundCalculation } from "./combat_logic.js";
 
@@ -686,7 +687,18 @@ export function resolveCombatRound() {
   state.combatState.phase = "resolving";
   document.getElementById("btn-submenu-back").style.display = "none";
   
-  const { logQueue } = runCombatRoundCalculation(state, combatSelection);
+  const { logQueue, state: nextState } = runCombatRoundCalculation(state, combatSelection);
+  
+  // Apply state mutations calculated in pure combat_logic
+  state.party = nextState.party;
+  state.combatState.monsters = nextState.combatState.monsters;
+  state.inventory = nextState.inventory;
+  state.firstKills = nextState.firstKills;
+  state.codex = nextState.codex;
+  state.currentRun = nextState.currentRun;
+  state.roamingMonsters = nextState.roamingMonsters;
+  state.floorChestsTotal = nextState.floorChestsTotal;
+  state.gold = nextState.gold;
   
   playBattleLogs(logQueue, 0);
 }
@@ -755,12 +767,12 @@ export function playBattleLogs(queue, index) {
     if (state.map[state.y]?.[state.x]?.event === "boss") {
       state.map[state.y][state.x].event = null;
     }
-    state.inventory.push("ANTIGRAVITY_CRYSTAL");
+    addInventoryItem("ANTIGRAVITY_CRYSTAL");
     if (state.currentRun) {
       state.currentRun.itemsFound.push("ANTIGRAVITY_CRYSTAL");
     }
-    if (!state.inventory.includes("LEGENDARY_SWORD")) {
-      state.inventory.push("LEGENDARY_SWORD");
+    if (!state.inventory.some(item => (typeof item === "object" ? item.baseId : item) === "LEGENDARY_SWORD")) {
+      addInventoryItem("LEGENDARY_SWORD");
       if (state.currentRun) {
         state.currentRun.equipmentFound.push("LEGENDARY_SWORD");
       }
@@ -781,14 +793,14 @@ export function playBattleLogs(queue, index) {
     if (state.map[state.y]?.[state.x]?.event === "midboss") {
       state.map[state.y][state.x].event = null;
     }
-    if (!state.inventory.includes("DRAGON_KEY")) {
-      state.inventory.push("DRAGON_KEY");
+    if (!state.inventory.some(item => (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY")) {
+      addInventoryItem("DRAGON_KEY");
       if (state.currentRun) {
         state.currentRun.itemsFound.push("DRAGON_KEY");
       }
     }
-    if (!state.inventory.includes("LEGENDARY_SHIELD")) {
-      state.inventory.push("LEGENDARY_SHIELD");
+    if (!state.inventory.some(item => (typeof item === "object" ? item.baseId : item) === "LEGENDARY_SHIELD")) {
+      addInventoryItem("LEGENDARY_SHIELD");
       if (state.currentRun) {
         state.currentRun.equipmentFound.push("LEGENDARY_SHIELD");
       }

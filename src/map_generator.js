@@ -1,4 +1,4 @@
-import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, START_Y, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
+import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, START_Y, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES } from "./data.js";
 import { createRng } from "./seed_rng.js";
 
 // Directions helper
@@ -309,27 +309,27 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   const chestCount = Math.min(6, deadEnds.length);
   for (let i = 0; i < chestCount; i++) {
     const spot = deadEnds[i];
-    grid[spot.y][spot.x].event = "chest";
+    grid[spot.y][spot.x].event = EVENT_TYPES.CHEST;
   }
 
   let springCount = 0;
   for (let i = chestCount; i < Math.min(chestCount + 2, deadEnds.length); i++) {
     const spot = deadEnds[i];
-    grid[spot.y][spot.x].event = "event_spring";
+    grid[spot.y][spot.x].event = EVENT_TYPES.SPRING;
     springCount++;
   }
 
   let tabletCount = 0;
   for (let i = chestCount + 2; i < Math.min(chestCount + 4, deadEnds.length); i++) {
     const spot = deadEnds[i];
-    grid[spot.y][spot.x].event = "event_tablet";
+    grid[spot.y][spot.x].event = EVENT_TYPES.TABLET;
     tabletCount++;
   }
 
   let merchantCount = 0;
   for (let i = chestCount + 4; i < Math.min(chestCount + 5, deadEnds.length); i++) {
     const spot = deadEnds[i];
-    grid[spot.y][spot.x].event = "event_merchant";
+    grid[spot.y][spot.x].event = EVENT_TYPES.MERCHANT;
     merchantCount++;
   }
 
@@ -358,19 +358,19 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     let pIdx = 0;
     for (let i = 0; i < totalChestNeeded && pIdx < passages.length; i++) {
       const spot = passages[pIdx++];
-      grid[spot.y][spot.x].event = "chest";
+      grid[spot.y][spot.x].event = EVENT_TYPES.CHEST;
     }
     for (let i = 0; i < totalSpringNeeded && pIdx < passages.length; i++) {
       const spot = passages[pIdx++];
-      grid[spot.y][spot.x].event = "event_spring";
+      grid[spot.y][spot.x].event = EVENT_TYPES.SPRING;
     }
     for (let i = 0; i < totalTabletNeeded && pIdx < passages.length; i++) {
       const spot = passages[pIdx++];
-      grid[spot.y][spot.x].event = "event_tablet";
+      grid[spot.y][spot.x].event = EVENT_TYPES.TABLET;
     }
     for (let i = 0; i < totalMerchantNeeded && pIdx < passages.length; i++) {
       const spot = passages[pIdx++];
-      grid[spot.y][spot.x].event = "event_merchant";
+      grid[spot.y][spot.x].event = EVENT_TYPES.MERCHANT;
     }
   }
 

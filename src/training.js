@@ -1,7 +1,7 @@
 import { state, saveGame, saveAutosave } from "./state.js";
 import { getClassJpName } from "./data.js";
 import { updateUI } from "./ui.js";
-import { goBackSubmenu } from "./menu.js";
+import { goBackSubmenu } from "./navigation.js";
 
 export let trainingState = {
   tab: "roster", // "roster" or "party"

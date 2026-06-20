@@ -1,11 +1,12 @@
 import { state, saveAutosave, addLog, createDefaultCurrentRun } from "./state.js";
-import { DIR_N, START_X, START_Y, DX, DY, DIR_NAMES, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
+import { DIR_N, START_X, START_Y, DX, DY, DIR_NAMES, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
-import { openSubmenu, triggerRunResult } from "./menu.js";
+import { openSubmenu } from "./navigation.js";
+import { triggerRunResult } from "./result.js";
 
 export function handleMove(action) {
   if (state.transitioning || state.gameState !== "explore") return;
@@ -163,15 +164,15 @@ function checkSensoryAura() {
       const cell = state.map[y][x];
       const dist = Math.abs(x - px) + Math.abs(y - py);
 
-      if (cell.event === "event_spring") {
+      if (cell.event === EVENT_TYPES.SPRING) {
         if (dist < minDistSpring) { minDistSpring = dist; nearestSpring = { x, y }; }
-      } else if (cell.event === "boss" || cell.event === "midboss") {
+      } else if (cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS) {
         if (dist < minDistBoss) { minDistBoss = dist; nearestBoss = { x, y }; }
-      } else if (cell.event === "event_tablet") {
+      } else if (cell.event === EVENT_TYPES.TABLET) {
         if (dist < minDistTablet) { minDistTablet = dist; nearestTablet = { x, y }; }
-      } else if (cell.event === "event_merchant") {
+      } else if (cell.event === EVENT_TYPES.MERCHANT) {
         if (dist < minDistMerchant) { minDistMerchant = dist; nearestMerchant = { x, y }; }
-      } else if (cell.event === "chest") {
+      } else if (cell.event === EVENT_TYPES.CHEST) {
         if (dist < minDistChest) { minDistChest = dist; nearestChest = { x, y }; }
       }
 
@@ -375,56 +376,56 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   }
 
   // Spring encounter
-  if (cell.event === "event_spring") {
+  if (cell.event === EVENT_TYPES.SPRING) {
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.spring.found++;
     }
-    openSubmenu("event_spring", "怪しい泉を見つけた。澄んだ水が湧き出ている…");
+    openSubmenu(EVENT_TYPES.SPRING, "怪しい泉を見つけた。澄んだ水が湧き出ている…");
     return;
   }
 
   // Tablet encounter
-  if (cell.event === "event_tablet") {
+  if (cell.event === EVENT_TYPES.TABLET) {
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.tablet.found++;
     }
-    openSubmenu("event_tablet", "謎の石碑が立っている。古代の文字が刻まれている…");
+    openSubmenu(EVENT_TYPES.TABLET, "謎の石碑が立っている。古代の文字が刻まれている…");
     return;
   }
 
   // Merchant encounter
-  if (cell.event === "event_merchant") {
+  if (cell.event === EVENT_TYPES.MERCHANT) {
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.merchant.found++;
     }
-    openSubmenu("event_merchant", "フードを被ったさまよう商人が現れた！");
+    openSubmenu(EVENT_TYPES.MERCHANT, "フードを被ったさまよう商人が現れた！");
     return;
   }
 
   // Random Event (3% chance) on standard cells with cooldown constraint
   const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
-                        cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
+                        cell.event === EVENT_TYPES.MIDBOSS || cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.CHEST ||
                         cell.message;
   const cooldownActive = state.eventCooldownTurns && state.eventCooldownTurns > 0;
   if (!isSpecialCell && !cooldownActive && Math.random() < 0.03) {
     state.eventCooldownTurns = 15; // Set 15 steps cooldown
-    const events = ["event_spring", "event_tablet", "event_merchant"];
+    const events = [EVENT_TYPES.SPRING, EVENT_TYPES.TABLET, EVENT_TYPES.MERCHANT];
     const chosen = events[Math.floor(Math.random() * events.length)];
-    if (chosen === "event_spring") {
+    if (chosen === EVENT_TYPES.SPRING) {
       if (state.codex && state.codex.events && state.codex.events.facilities) {
         state.codex.events.facilities.spring.found++;
       }
-      openSubmenu("event_spring", "怪しい泉を見つけた。澄んだ水が湧き出ている…");
-    } else if (chosen === "event_tablet") {
+      openSubmenu(EVENT_TYPES.SPRING, "怪しい泉を見つけた。澄んだ水が湧き出ている…");
+    } else if (chosen === EVENT_TYPES.TABLET) {
       if (state.codex && state.codex.events && state.codex.events.facilities) {
         state.codex.events.facilities.tablet.found++;
       }
-      openSubmenu("event_tablet", "謎の石碑が立っている。古代の文字が刻まれている…");
+      openSubmenu(EVENT_TYPES.TABLET, "謎の石碑が立っている。古代の文字が刻まれている…");
     } else {
       if (state.codex && state.codex.events && state.codex.events.facilities) {
         state.codex.events.facilities.merchant.found++;
       }
-      openSubmenu("event_merchant", "フードを被ったさまよう商人が現れた！");
+      openSubmenu(EVENT_TYPES.MERCHANT, "フードを被ったさまよう商人が現れた！");
     }
     return;
   }

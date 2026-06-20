@@ -1,9 +1,9 @@
-import { state, saveAutosave, addLog, recordEquipmentDiscovery } from "./state.js";
+import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "./state.js";
 import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomEquipment } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
-import { menuContext, openSubmenu, goBackSubmenu, closeSubmenu } from "./menu.js";
+import { menuContext, openSubmenu, goBackSubmenu, closeSubmenu, resetSubmenuBackButton } from "./navigation.js";
 import { triggerGameOver } from "./combat.js";
 import { createRng } from "./seed_rng.js";
 
@@ -70,7 +70,7 @@ export function setupChestState() {
     if (item) {
       const itemData = ITEMS[item];
       if (itemData && (itemData.type === "weapon" || itemData.type === "armor" || itemData.type === "shield")) {
-        let randChance = 0.35;
+        let randChance = state.floor <= 3 ? 0.50 : 0.35;
         if (state.floor === 5) {
           randChance = 0.70;
         } else if (["poison needle", "gas bomb", "teleporter"].includes(trap)) {
@@ -278,9 +278,7 @@ export function openChestMenu() {
   updateUI();
 }
 
-export function resetSubmenuBackButton() {
-  document.getElementById("btn-submenu-back").style.display = "block";
-}
+
 
 
 export function executeDisarm(char) {
@@ -435,16 +433,20 @@ export function openChestDirectly() {
   // Award Item
   if (chest.item) {
     const item = getItemData(chest.item);
-    state.inventory.push(chest.item);
-    recordEquipmentDiscovery(chest.item);
-    if (state.currentRun) {
-      if (typeof chest.item === "string") {
-        state.currentRun.itemsFound.push(chest.item);
-      } else {
-        state.currentRun.equipmentFound.push(chest.item);
+    const added = addInventoryItem(chest.item);
+    if (added) {
+      recordEquipmentDiscovery(chest.item);
+      if (state.currentRun) {
+        if (typeof chest.item === "string") {
+          state.currentRun.itemsFound.push(chest.item);
+        } else {
+          state.currentRun.equipmentFound.push(chest.item);
+        }
       }
+      addLog(`アイテム: [${item.name}] を手に入れた！`);
+    } else {
+      addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
     }
-    addLog(`アイテム: [${item.name}] を手に入れた！`);
   }
 
   // Clear the original chest cell even if a trap moved the party.

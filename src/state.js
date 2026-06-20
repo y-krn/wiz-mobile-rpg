@@ -1,6 +1,9 @@
-import { DIR_N, ITEMS, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y, getItemData, getCharStr, getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharMaxHp, getCharMaxMp, getCharTrapBonus } from "./data.js";
+import { DIR_N, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y, getItemData, getItemBaseId, EXP_LEVELS, getCharWeaponAtk, getCharDef, checkCharLevelUp } from "./data.js";
 import { generateRandomMap, removeIsolatedInternalWalls } from "./map_generator.js";
 import { createRng } from "./seed_rng.js";
+
+export { EXP_LEVELS, getCharWeaponAtk, getCharDef, checkCharLevelUp };
+
 
 
 // Save key for local storage
@@ -255,7 +258,7 @@ export const createDefaultParty = () => [];
 // Level EXP chart
 // EXP_LEVELS[level] represents cumulative EXP required to reach that level.
 // Level 1 is initial state.
-export const EXP_LEVELS = [0, 0, 200, 800, 2000, 4500, 9000, 16000, 25000, 40000, 60000];
+
 
 // Main State Object
 export const state = {
@@ -585,6 +588,7 @@ export function loadGame(forceSaveOnly = false) {
 
     state.gold = data.gold ?? 150;
     state.inventory = data.inventory ?? [];
+    state.seed = data.seed ?? generateRandomSeed();
     
     state.floor = data.floor ?? 1;
     let loadedMaps = data.maps;
@@ -664,7 +668,6 @@ export function loadGame(forceSaveOnly = false) {
     state.firstKills = data.firstKills ?? [];
     state.lastReturnedFloor = data.lastReturnedFloor ?? null;
     state.sessionMaxFloor = state.floor;
-    state.seed = data.seed ?? generateRandomSeed();
     state.currentRun = data.currentRun ?? null;
     state.runHistory = data.runHistory ?? [];
     state.deathLogs = data.deathLogs ?? [];
@@ -752,192 +755,6 @@ export function addLog(msg) {
   }
 }
 
-// Get Weapon Atk
-export function getCharWeaponAtk(char) {
-  const wpId = char.equipment.weapon;
-  if (!wpId) {
-    if (char.class === "Ninja") {
-      return 3 * char.level; // Ninja bare hands damage scaling
-    }
-    return 0;
-  }
-  return getItemData(wpId)?.atk || 0;
-}
-
-// Get Total Armor Def
-export function getCharDef(char) {
-  let def = 0;
-  if (char.equipment.shield) {
-    def += getItemData(char.equipment.shield)?.def || 0;
-  }
-  if (char.equipment.armor) {
-    def += getItemData(char.equipment.armor)?.def || 0;
-  }
-  return def;
-}
-
-
-
-// Check Level Up
-export function checkCharLevelUp(char) {
-  const nextLvl = char.level + 1;
-  if (nextLvl >= EXP_LEVELS.length) return false; // Max level reached
-
-  // Ninja requires 1.5x EXP
-  const req = char.class === "Ninja" ? Math.floor(EXP_LEVELS[nextLvl] * 1.5) : EXP_LEVELS[nextLvl];
-  if (char.exp >= req) {
-    char.level = nextLvl;
-    
-    // Gain HP
-    let hpGain = 0;
-    if (char.class === "Fighter") hpGain = Math.floor(Math.random() * 8) + 8; // 8-15
-    else if (char.class === "Thief") hpGain = Math.floor(Math.random() * 5) + 6; // 6-10
-    else if (char.class === "Priest") hpGain = Math.floor(Math.random() * 5) + 5; // 5-9
-    else if (char.class === "Mage") hpGain = Math.floor(Math.random() * 4) + 4; // 4-7
-    else if (char.class === "Samurai") hpGain = Math.floor(Math.random() * 8) + 7; // 7-14
-    else if (char.class === "Bishop") hpGain = Math.floor(Math.random() * 5) + 5; // 5-9
-    else if (char.class === "Ranger") hpGain = Math.floor(Math.random() * 7) + 6; // 6-13
-    else if (char.class === "Ninja") hpGain = Math.floor(Math.random() * 9) + 6; // 6-14
-    
-    char.maxHp += hpGain;
-    char.hp = getCharMaxHp(char);
-
-    // Gain MP
-    if (char.class === "Priest") {
-      const mpGain = Math.floor(Math.random() * 2) + 2; // 2-3
-      char.maxMp += mpGain;
-      char.mp = getCharMaxMp(char);
-    } else if (char.class === "Mage") {
-      const mpGain = Math.floor(Math.random() * 2) + 3; // 3-4
-      char.maxMp += mpGain;
-      char.mp = getCharMaxMp(char);
-    } else if (char.class === "Bishop") {
-      const mpGain = Math.floor(Math.random() * 2) + 1; // 1-2
-      char.maxMp += mpGain;
-      char.mp = getCharMaxMp(char);
-    } else if (char.class === "Samurai" || char.class === "Ranger") {
-      if (char.level >= 3) {
-        if (char.maxMp === 0) {
-          char.maxMp = 3; // Initialize at level 3
-        } else {
-          char.maxMp += Math.floor(Math.random() * 2) + 1; // 1-2
-        }
-        char.mp = getCharMaxMp(char);
-      }
-    }
-
-    // Gain Stats
-    if (Math.random() < 0.6) char.str += 1;
-    if (Math.random() < 0.6) char.vit += 1;
-    if (Math.random() < 0.6) char.agi += 1;
-    if (Math.random() < 0.6) char.luk += 1;
-    if ((char.class === "Mage" || char.class === "Bishop") && Math.random() < 0.8) char.int += 1;
-    if ((char.class === "Priest" || char.class === "Bishop" || char.class === "Ranger") && Math.random() < 0.8) char.pie += 1;
-    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.8) char.str += 1;
-    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.8) char.vit += 1;
-    if (char.class === "Ninja" && Math.random() < 0.8) char.agi += 1;
-
-    // Learn spells
-    if (!char.spells) char.spells = [];
-    if (char.class === "Priest") {
-      if (char.level === 2 && !char.spells.includes("MADIOS")) {
-        char.spells.push("MADIOS", "DIALKO", "LATUMOFIS");
-      }
-      if (char.level === 3 && !char.spells.includes("LOMILWA")) {
-        char.spells.push("LOMILWA");
-      }
-      if (char.level === 8 && !char.spells.includes("DIALMA")) {
-        char.spells.push("DIALMA");
-      }
-      if (char.level === 9 && !char.spells.includes("KADORTO")) {
-        char.spells.push("KADORTO");
-      }
-    } else if (char.class === "Mage") {
-      if (char.level === 2 && !char.spells.includes("LAHALITO")) {
-        char.spells.push("LAHALITO");
-      }
-      if (char.level === 3) {
-        if (!char.spells.includes("KATINO")) char.spells.push("KATINO");
-        if (!char.spells.includes("MAHALITO")) char.spells.push("MAHALITO");
-      }
-      if (char.level === 4 && !char.spells.includes("MASFEAL")) {
-        char.spells.push("MASFEAL");
-      }
-      if (char.level === 6 && !char.spells.includes("MADALTO")) {
-        char.spells.push("MADALTO");
-      }
-      if (char.level === 8 && !char.spells.includes("TILTOWAIT")) {
-        char.spells.push("TILTOWAIT");
-      }
-    } else if (char.class === "Samurai") {
-      if (char.level === 3) {
-        char.spells.push("HALITO", "DUMAPIC");
-      }
-      if (char.level === 4 && !char.spells.includes("LAHALITO")) {
-        char.spells.push("LAHALITO");
-      }
-      if (char.level === 5) {
-        if (!char.spells.includes("KATINO")) char.spells.push("KATINO");
-        if (!char.spells.includes("MAHALITO")) char.spells.push("MAHALITO");
-      }
-      if (char.level === 7 && !char.spells.includes("MADALTO")) {
-        char.spells.push("MADALTO");
-      }
-      if (char.level === 9 && !char.spells.includes("TILTOWAIT")) {
-        char.spells.push("TILTOWAIT");
-      }
-    } else if (char.class === "Ranger") {
-      if (char.level === 3) {
-        char.spells.push("DIOS", "MILWA", "DIURCO", "BADIOS");
-      }
-      if (char.level === 4 && !char.spells.includes("MADIOS")) {
-        char.spells.push("MADIOS", "DIALKO", "LATUMOFIS");
-      }
-      if (char.level === 5 && !char.spells.includes("LOMILWA")) {
-        char.spells.push("LOMILWA");
-      }
-      if (char.level === 8 && !char.spells.includes("DIALMA")) {
-        char.spells.push("DIALMA");
-      }
-      if (char.level === 10 && !char.spells.includes("KADORTO")) {
-        char.spells.push("KADORTO");
-      }
-    } else if (char.class === "Bishop") {
-      if (char.level === 2) {
-        ["MILWA", "DIURCO", "BADIOS", "DUMAPIC"].forEach(s => {
-          if (!char.spells.includes(s)) char.spells.push(s);
-        });
-      }
-      if (char.level === 3) {
-        ["MADIOS", "DIALKO", "LATUMOFIS", "LAHALITO"].forEach(s => {
-          if (!char.spells.includes(s)) char.spells.push(s);
-        });
-      }
-      if (char.level === 4) {
-        ["LOMILWA", "KATINO", "MASFEAL"].forEach(s => {
-          if (!char.spells.includes(s)) char.spells.push(s);
-        });
-      }
-      if (char.level === 5 && !char.spells.includes("MAHALITO")) {
-        char.spells.push("MAHALITO");
-      }
-      if (char.level === 7) {
-        ["DIALMA", "MADALTO"].forEach(s => {
-          if (!char.spells.includes(s)) char.spells.push(s);
-        });
-      }
-      if (char.level === 9 && !char.spells.includes("KADORTO")) {
-        char.spells.push("KADORTO");
-      }
-      if (char.level === 10 && !char.spells.includes("TILTOWAIT")) {
-        char.spells.push("TILTOWAIT");
-      }
-    }
-
-    return true;
-  }
-  return false;
-}
 
 export function rebuildDungeonMaps() {
   const b1 = generateRandomMap(1, null, state.seed);
@@ -1206,5 +1023,22 @@ export function recordEquipmentDiscovery(equipKey) {
       });
     }
   }
+}
+
+export function addInventoryItem(item, options = {}) {
+  const allowQuestOverflow = options.allowQuestOverflow ?? false;
+  const itemId = getItemBaseId(item);
+  
+  const isQuestItem = itemId === "ANTIGRAVITY_CRYSTAL" || 
+                      itemId === "DRAGON_KEY" || 
+                      itemId === "LEGENDARY_SWORD" || 
+                      itemId === "LEGENDARY_SHIELD";
+  
+  if (state.inventory.length >= 20 && !allowQuestOverflow && !isQuestItem) {
+    return false;
+  }
+  
+  state.inventory.push(item);
+  return true;
 }
 

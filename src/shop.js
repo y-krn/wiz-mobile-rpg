@@ -1,8 +1,8 @@
-import { state, saveAutosave, addLog, recordEquipmentDiscovery } from "./state.js";
-import { ITEMS, getItemData } from "./data.js";
+import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "./state.js";
+import { ITEMS, getItemData, getItemBaseId } from "./data.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
-import { openSubmenu, goBackSubmenu, menuContext } from "./menu.js";
+import { openSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 
 export const SHOP_STOCK = [
   { key: "HEAL_POTION", price: 60 },
@@ -37,11 +37,7 @@ export function getItemOwnership(key) {
 
   state.inventory.forEach(item => {
     if (item) {
-      if (typeof item === "object") {
-        if (item.key === key) bagCount++;
-      } else {
-        if (item === key) bagCount++;
-      }
+      if (getItemBaseId(item) === key) bagCount++;
     }
   });
 
@@ -49,11 +45,7 @@ export function getItemOwnership(key) {
     if (char && char.equipment) {
       Object.values(char.equipment).forEach(eq => {
         if (eq) {
-          if (typeof eq === "object") {
-            if (eq.key === key) equippedCount++;
-          } else {
-            if (eq === key) equippedCount++;
-          }
+          if (getItemBaseId(eq) === key) equippedCount++;
         }
       });
     }
@@ -129,7 +121,7 @@ export function renderShop() {
       chip.setAttribute("aria-pressed", isActive ? "true" : "false");
       chip.textContent = cat.label;
       chip.style.flex = "1";
-      chip.style.minHeight = "36px";
+      chip.style.minHeight = "44px";
       chip.addEventListener("click", () => {
         shopState.filter = cat.id;
         shopState.selectedKey = null;
@@ -717,8 +709,12 @@ export function renderShop() {
       }
 
       actionBtn.addEventListener("click", () => {
+        const added = addInventoryItem(itemKey);
+        if (!added) {
+          addLog("バッグがいっぱいで購入できません。");
+          return;
+        }
         state.gold -= itemPrice;
-        state.inventory.push(itemKey);
         recordEquipmentDiscovery(itemKey);
         playSound("gold");
         addLog(`${item.name}を${itemPrice}ゴールドで購入した。`);

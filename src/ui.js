@@ -1,7 +1,11 @@
-import { state, getCharWeaponAtk, getCharDef, saveAutosave, createDefaultCodex } from "./state.js";
+import { state, saveAutosave, createDefaultCodex } from "./state.js";
 import { DIR_NAMES, getClassJpName, isSpellcaster, getCharMaxHp, getCharMaxMp, getItemData, MONSTERS, ITEMS } from "./data.js";
 import { getIsMuted } from "./audio.js";
-import { menuContext, renderEquip, renderSpellOverlay, renderCampOverlay, openEquipOverlay, openShopAppraise } from "./menu.js";
+import { menuContext } from "./navigation.js";
+import { renderEquip, openEquipOverlay } from "./equip.js";
+import { renderSpellOverlay } from "./spell_menu.js";
+import { renderCampOverlay } from "./camp.js";
+import { openShopAppraise } from "./shop.js";
 import { combatSelection, renderCombatOverlay } from "./combat.js";
 import { enterDungeon } from "./movement.js";
 

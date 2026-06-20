@@ -1,7 +1,8 @@
 import { state } from "./state.js";
 import { getClassJpName, isSpellcaster, SPELLS } from "./data.js";
 import { updateUI } from "./ui.js";
-import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext, executeAllySpell, executeUtilitySpell } from "./menu.js";
+import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
+import { executeAllySpell, executeUtilitySpell } from "./camp.js";
 
 export let spellMenuState = {
   filter: "all", // "all", "heal", "utility", "combat"
@@ -124,7 +125,7 @@ export function renderSpellOverlay() {
       chip.className = `filter-chip ${isActive ? "active" : ""}`;
       chip.textContent = cat.label;
       chip.style.flex = "1";
-      chip.style.minHeight = "36px";
+      chip.style.minHeight = "44px";
       chip.addEventListener("click", () => {
         spellMenuState.filter = cat.id;
         spellMenuState.selectedKey = null;
@@ -269,6 +270,9 @@ export function renderSpellOverlay() {
     detailCol.style.display = "none";
     listCol.style.width = "100%";
     listCol.style.maxWidth = "100%";
+    listCol.style.maxHeight = "none";
+    listCol.style.flex = "1";
+    listContainer.style.maxHeight = "none";
 
     // Add Spell Summary at the top of target selection list
     const summaryDiv = document.createElement("div");

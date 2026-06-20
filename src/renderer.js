@@ -1,6 +1,6 @@
-import { DX, DY, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
+import { DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES } from "./data.js";
 import { state } from "./state.js";
-import { menuContext } from "./menu.js";
+import { menuContext } from "./navigation.js";
 
 export let dungeonRenderer = null;
 export function setDungeonRenderer(r) {
@@ -811,7 +811,12 @@ export class DungeonRenderer {
         if (dist > 4) continue;
 
         const hasStairs = cell.type === "stairs-up" || cell.type === "stairs-down";
-        const hasEvent = cell.event === "chest" || cell.event === "spring" || cell.event === "tablet" || cell.event === "merchant" || cell.event === "midboss" || cell.event === "boss";
+        const hasEvent = cell.event === EVENT_TYPES.CHEST || 
+                          cell.event === EVENT_TYPES.SPRING || 
+                          cell.event === EVENT_TYPES.TABLET || 
+                          cell.event === EVENT_TYPES.MERCHANT || 
+                          cell.event === EVENT_TYPES.MIDBOSS || 
+                          cell.event === EVENT_TYPES.BOSS;
 
         if (!hasStairs && !hasEvent) continue;
 
@@ -825,14 +830,14 @@ export class DungeonRenderer {
           ctx.beginPath();
           ctx.arc(screenX + cellS / 2, screenY + cellS / 2, cellS * 0.9, 0, Math.PI * 2);
           ctx.fill();
-        } else if (cell.event === "boss" || cell.event === "midboss") {
+        } else if (cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS) {
           // Pulsing red glow for boss/midboss
           const pulse = 0.14 + 0.08 * Math.sin(Date.now() / 200);
           ctx.fillStyle = `rgba(255, 59, 48, ${pulse})`;
           ctx.beginPath();
           ctx.arc(screenX + cellS / 2, screenY + cellS / 2, cellS * 1.3, 0, Math.PI * 2);
           ctx.fill();
-        } else if (cell.event === "chest") {
+        } else if (cell.event === EVENT_TYPES.CHEST) {
           // Yellow glow for chest
           ctx.fillStyle = "rgba(255, 235, 59, 0.14)";
           ctx.beginPath();

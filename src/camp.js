@@ -4,7 +4,7 @@ import {
 } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
-import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./menu.js";
+import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { openEquipOverlay } from "./equip.js";
 
 export function openCampMenu() {

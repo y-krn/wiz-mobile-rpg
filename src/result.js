@@ -1,7 +1,7 @@
 import { state, loadGame, saveGame, saveAutosave } from "./state.js";
 import { START_X, START_Y, DIR_N } from "./data.js";
 import { updateUI } from "./ui.js";
-import { closeSubmenu } from "./menu.js";
+import { closeSubmenu } from "./navigation.js";
 
 export function triggerRunResult(reason) {
   if (!state.currentRun) return;

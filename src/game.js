@@ -1,17 +1,19 @@
 import { loadGame, state } from "./state.js";
 import { DungeonRenderer, setDungeonRenderer } from "./renderer.js";
 import { toggleMute } from "./audio.js";
+import { setUiUpdateCallback, goBackSubmenu } from "./navigation.js";
 
 // Import modules for re-export and button bindings
 import { updateUI } from "./ui.js";
 import { handleMove, enterDungeon } from "./movement.js";
-import { handleExploreAction, handleTownOption, goBackSubmenu } from "./menu.js";
+import { handleExploreAction, handleTownOption } from "./menu.js";
 import { selectCombatAction, cancelCombatAction, toggleCombatAuto } from "./combat.js";
 
 // Re-exports for external use and backward compatibility
 export { updateUI } from "./ui.js";
 export { handleMove, enterDungeon } from "./movement.js";
-export { handleExploreAction, handleTownOption, goBackSubmenu } from "./menu.js";
+export { handleExploreAction, handleTownOption } from "./menu.js";
+export { goBackSubmenu } from "./navigation.js";
 export { selectCombatAction, cancelCombatAction, resolveCombatRound, triggerGameOver, toggleCombatAuto } from "./combat.js";
 
 let renderer = null;
@@ -19,6 +21,7 @@ let lastTime = 0;
 const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover";
 
 export function initGame() {
+  setUiUpdateCallback(updateUI);
   lockViewportScale();
   loadGame();
   

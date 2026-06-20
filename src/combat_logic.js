@@ -1,12 +1,58 @@
-import { getCharWeaponAtk, getCharDef, checkCharLevelUp, EXP_LEVELS } from "./state.js";
 import { 
   SPELLS, ITEMS, 
-  generateRandomEquipment, getItemData, getCharStr, getCharAgi 
+  generateRandomEquipment, getItemData, getCharStr, getCharAgi,
+  getCharWeaponAtk, getCharDef, checkCharLevelUp, EXP_LEVELS,
+  getItemBaseId
 } from "./data.js";
 
-export function runCombatRoundCalculation(state, combatSelection) {
+function addInventoryItem(state, item, options = {}) {
+  const allowQuestOverflow = options.allowQuestOverflow ?? false;
+  const itemId = getItemBaseId(item);
+  
+  const isQuestItem = itemId === "ANTIGRAVITY_CRYSTAL" || 
+                      itemId === "DRAGON_KEY" || 
+                      itemId === "LEGENDARY_SWORD" || 
+                      itemId === "LEGENDARY_SHIELD";
+  
+  if (state.inventory.length >= 20 && !allowQuestOverflow && !isQuestItem) {
+    return false;
+  }
+  
+  state.inventory.push(item);
+  return true;
+}
+
+export function runCombatRoundCalculation(originalState, combatSelection) {
   const logQueue = [];
-  const monsters = state.combatState.monsters;
+  
+  const party = originalState.party.map(c => ({
+    ...c,
+    equipment: {...c.equipment},
+    spells: c.spells ? [...c.spells] : []
+  }));
+  const monsters = originalState.combatState.monsters.map(m => ({...m}));
+  const inventory = [...originalState.inventory];
+  const firstKills = originalState.firstKills ? [...originalState.firstKills] : [];
+  const codex = originalState.codex ? JSON.parse(JSON.stringify(originalState.codex)) : null;
+  const currentRun = originalState.currentRun ? JSON.parse(JSON.stringify(originalState.currentRun)) : null;
+  const roamingMonsters = originalState.roamingMonsters ? originalState.roamingMonsters.map(rm => ({...rm})) : [];
+  const floorChestsTotal = originalState.floorChestsTotal ? [...originalState.floorChestsTotal] : [];
+  
+  const state = {
+    ...originalState,
+    party,
+    combatState: {
+      ...originalState.combatState,
+      monsters
+    },
+    inventory,
+    firstKills,
+    codex,
+    currentRun,
+    roamingMonsters,
+    floorChestsTotal,
+    gold: originalState.gold
+  };
   let escaped = false;
 
   // Build Turn Order: All active characters + all active monsters
@@ -454,7 +500,7 @@ export function runCombatRoundCalculation(state, combatSelection) {
   });
 
   if (escaped) {
-    return { logQueue };
+    return { logQueue, state };
   }
 
   const allMonstersDead = monsters.every(m => m.hp <= 0);
@@ -594,15 +640,15 @@ export function runCombatRoundCalculation(state, combatSelection) {
       dropEquipment = generateRandomEquipment(state.floor, rarity);
     } else {
       const isRare = state.combatState.monsters && state.combatState.monsters.some(m => m.isRare);
-      const chance = isRare ? 0.25 : 0.03;
+      const chance = isRare ? 0.25 : 0.06;
       if (Math.random() < chance) {
         dropEquipment = generateRandomEquipment(state.floor);
       }
     }
 
     if (dropEquipment) {
-      if (state.inventory.length < 20) {
-        state.inventory.push(dropEquipment);
+      const added = addInventoryItem(state, dropEquipment);
+      if (added) {
         if (state.currentRun) {
           state.currentRun.equipmentFound.push(dropEquipment);
         }
@@ -683,5 +729,5 @@ export function runCombatRoundCalculation(state, combatSelection) {
     });
   }
 
-  return { logQueue };
+  return { logQueue, state };
 }

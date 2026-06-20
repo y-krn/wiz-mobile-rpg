@@ -7,8 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node scratch/test_seed.js && node scratch/test_codex.js",
-    "test:browser": "playwright test"
+    "test": "npm run test:unit && npm run test:browser",
+    "test:unit": "node scratch/test_seed.js && node scratch/test_codex.js",
+    "test:browser": "playwright test",
+    "lint": "eslint src"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.0",
