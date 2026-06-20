@@ -252,6 +252,11 @@ html, body {
   flex-shrink: 0; /* Guarantee controls never shrink and overlap */
 }
 
+#controls-panel.explore-mode {
+  min-height: 116px;
+  padding: 6px 8px;
+}
+
 .controls-group {
   display: none;
   width: 100%;
@@ -271,6 +276,15 @@ html, body {
 #explore-controls.active {
   display: grid;
   grid-template-columns: 1.2fr 1.3fr;
+}
+
+#controls-panel.explore-mode #explore-controls.active {
+  align-items: center;
+}
+
+#controls-panel.explore-mode .dpad,
+#controls-panel.explore-mode .action-grid {
+  height: auto;
 }
 
 /* Virtual D-pad */
@@ -2935,4 +2949,105 @@ html, body {
 .bottom-actions-row .filter-chip {
   flex: 1;
   min-height: 44px;
+}
+
+/* Shop Owned Item Badge */
+.shop-owned-badge {
+  font-size: 9px;
+  color: var(--neon-cyan);
+  background-color: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-left: 6px;
+  display: inline-block;
+  vertical-align: middle;
+  font-weight: normal;
+  font-family: var(--font-mono);
+}
+
+/* Equip list category headings */
+.equip-list-heading {
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--neon-cyan);
+  background-color: rgba(0, 229, 255, 0.04);
+  padding: 4px 8px;
+  margin-top: 8px;
+  margin-bottom: 2px;
+  border-left: 2.5px solid var(--neon-cyan);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  box-sizing: border-box;
+}
+
+/* Spell list category headings */
+.spell-list-heading {
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--neon-purple);
+  background-color: rgba(191, 90, 242, 0.04);
+  padding: 4px 8px;
+  margin-top: 8px;
+  margin-bottom: 2px;
+  border-left: 2.5px solid var(--neon-purple);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  box-sizing: border-box;
+}
+
+/* Spell filters active state override */
+.spell-filters .filter-chip.active {
+  color: var(--neon-purple);
+  border-color: var(--neon-purple);
+  box-shadow: 0 0 4px rgba(191, 90, 242, 0.2);
+  background-color: rgba(191, 90, 242, 0.05);
+}
+
+/* Spell Mini Casters bottom switcher bar */
+.spell-mini-casters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  width: 100%;
+}
+
+.spell-mini-caster-btn {
+  background-color: #14141a;
+  border: 1px solid #22222d;
+  border-radius: 4px;
+  color: var(--text-main);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  flex: 1;
+  min-height: 44px;
+  cursor: pointer;
+  box-sizing: border-box;
+  text-align: center;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+
+.spell-mini-caster-btn.active {
+  background-color: rgba(191, 90, 242, 0.12);
+  border-color: var(--neon-purple);
+  box-shadow: var(--neon-glow-purple);
+}
+
+.spell-mini-caster-btn:focus-visible {
+  outline: 2px solid var(--neon-purple) !important;
+  outline-offset: 2px !important;
+}
+
+/* Spell target summary header styling */
+.spell-target-summary-header {
+  background-color: rgba(191, 90, 242, 0.03);
+  border: 1px solid rgba(191, 90, 242, 0.15);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
 }

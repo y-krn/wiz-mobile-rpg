@@ -13,7 +13,7 @@ const createDummyElement = () => ({
   style: {},
   appendChild: () => createDummyElement(),
   addEventListener: () => {},
-  classList: { add: () => {}, remove: () => {}, contains: () => false },
+  classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
   setAttribute: () => {},
   getAttribute: () => "",
   removeAttribute: () => {},

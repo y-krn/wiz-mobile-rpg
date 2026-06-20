@@ -1,6 +1,6 @@
 import { state, getCharWeaponAtk, getCharDef, saveAutosave, createDefaultCodex } from "./state.js";
 import { DIR_NAMES, getClassJpName, isSpellcaster, getCharMaxHp, getCharMaxMp, getItemData, MONSTERS, ITEMS } from "./data.js";
-import { isMuted } from "./audio.js";
+import { getIsMuted } from "./audio.js";
 import { menuContext, renderEquip, renderSpellOverlay, renderCampOverlay, openEquipOverlay, openShopAppraise } from "./menu.js";
 import { combatSelection, renderCombatOverlay } from "./combat.js";
 import { enterDungeon } from "./movement.js";
@@ -143,7 +143,7 @@ export function updateUI() {
   // Update mute button display
   const btnMute = document.getElementById("btn-mute");
   if (btnMute) {
-    if (isMuted) {
+    if (getIsMuted()) {
       btnMute.textContent = "🎵 OFF";
       btnMute.className = "btn btn-mute sound-off";
       btnMute.title = "音声をオンにする";
@@ -195,6 +195,11 @@ export function updateUI() {
     const el = document.getElementById(g);
     el.classList.remove("active");
   });
+
+  const controlsPanel = document.getElementById("controls-panel");
+  if (controlsPanel) {
+    controlsPanel.classList.toggle("explore-mode", state.gameState === "explore");
+  }
 
   if (state.gameState === "explore") {
     document.getElementById("explore-controls").classList.add("active");
@@ -320,7 +325,6 @@ export function updateUI() {
   }
 
   // Disable interaction during transition
-  const controlsPanel = document.getElementById("controls-panel");
   if (controlsPanel) {
     if (state.transitioning) {
       controlsPanel.style.pointerEvents = "none";

@@ -31,6 +31,38 @@ export const SHOP_STOCK = [
   { key: "PLATE_MAIL", price: 900 }
 ];
 
+export function getItemOwnership(key) {
+  let bagCount = 0;
+  let equippedCount = 0;
+
+  state.inventory.forEach(item => {
+    if (item) {
+      if (typeof item === "object") {
+        if (item.key === key) bagCount++;
+      } else {
+        if (item === key) bagCount++;
+      }
+    }
+  });
+
+  state.party.forEach(char => {
+    if (char && char.equipment) {
+      Object.values(char.equipment).forEach(eq => {
+        if (eq) {
+          if (typeof eq === "object") {
+            if (eq.key === key) equippedCount++;
+          } else {
+            if (eq === key) equippedCount++;
+          }
+        }
+      });
+    }
+  });
+
+  const total = bagCount + equippedCount;
+  return { total, bagCount, equippedCount };
+}
+
 export let shopState = {
   mode: "buy", // "buy" or "sell"
   filter: "all", // "all", "weapon", "armor", "usable"
@@ -112,7 +144,19 @@ export function renderShop() {
       
       const nameSpan = document.createElement("span");
       nameSpan.className = "shop-item-name";
-      nameSpan.textContent = item.name;
+      
+      const ownership = getItemOwnership(st.key);
+      if (ownership.total > 0) {
+        const nameText = document.createTextNode(item.name + " ");
+        nameSpan.appendChild(nameText);
+        
+        const badge = document.createElement("span");
+        badge.className = "shop-owned-badge";
+        badge.textContent = `所持:${ownership.total}`;
+        nameSpan.appendChild(badge);
+      } else {
+        nameSpan.textContent = item.name;
+      }
       row.appendChild(nameSpan);
 
       if (goldCheck || bagCheck) {
@@ -290,6 +334,28 @@ export function renderShop() {
     detailDesc.className = "detail-desc";
     detailDesc.textContent = item.desc || "特別な効果はありません。";
     scrollContent.appendChild(detailDesc);
+
+    // Detail Ownership (Only for BUY mode)
+    if (shopState.mode === "buy") {
+      const ownership = getItemOwnership(itemKey);
+      const ownershipDiv = document.createElement("div");
+      ownershipDiv.className = "detail-ownership";
+      ownershipDiv.style.marginTop = "8px";
+      ownershipDiv.style.padding = "6px 8px";
+      ownershipDiv.style.backgroundColor = "rgba(18, 18, 24, 0.6)";
+      ownershipDiv.style.border = "1px solid #22222d";
+      ownershipDiv.style.borderRadius = "4px";
+      ownershipDiv.style.fontSize = "11px";
+      ownershipDiv.style.color = "var(--text-muted)";
+      ownershipDiv.style.fontFamily = "var(--font-mono)";
+
+      let ownershipHtml = `<div>所持数: <span style="color: ${ownership.total > 0 ? "var(--neon-cyan)" : "inherit"}; font-weight: bold;">${ownership.total}個</span></div>`;
+      if (ownership.total > 0) {
+        ownershipHtml += `<div style="font-size: 9px; margin-top: 2px; color: var(--text-muted);">（バッグ: ${ownership.bagCount}個 / 装備中: ${ownership.equippedCount}個）</div>`;
+      }
+      ownershipDiv.innerHTML = ownershipHtml;
+      scrollContent.appendChild(ownershipDiv);
+    }
 
     // Detail Stats (if weapon or armor/shield)
     if (item.type === "weapon" || item.type === "armor" || item.type === "shield") {

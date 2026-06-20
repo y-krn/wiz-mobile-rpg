@@ -2,11 +2,16 @@
 let audioCtx = null;
 
 // Initialize mute state from localStorage
-export let isMuted = localStorage.getItem("mobile_wiz_rpg_muted") === "true";
+let isMuted = localStorage.getItem("mobile_wiz_rpg_muted") === "true";
+
+export const getIsMuted = () => isMuted;
 
 export const toggleMute = () => {
   isMuted = !isMuted;
   localStorage.setItem("mobile_wiz_rpg_muted", isMuted ? "true" : "false");
+  if (!isMuted) {
+    unlockAudio();
+  }
   return isMuted;
 };
 
@@ -15,9 +20,31 @@ function getAudioContext() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
   if (audioCtx.state === "suspended") {
-    audioCtx.resume();
+    audioCtx.resume().catch(() => {});
   }
   return audioCtx;
+}
+
+export function unlockAudio() {
+  if (isMuted) return;
+  const ctx = getAudioContext();
+  if (ctx && ctx.state === "suspended") {
+    ctx.resume().then(() => {
+      removeUnlockListeners();
+    }).catch(() => {});
+  } else if (ctx && ctx.state === "running") {
+    removeUnlockListeners();
+  }
+}
+
+const unlockEvents = ["click", "touchstart", "touchend", "keydown"];
+function removeUnlockListeners() {
+  if (typeof document !== "undefined" && typeof document.removeEventListener === "function") {
+    unlockEvents.forEach(e => document.removeEventListener(e, unlockAudio));
+  }
+}
+if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+  unlockEvents.forEach(e => document.addEventListener(e, unlockAudio, { passive: true }));
 }
 
 export const playSound = (type) => {
