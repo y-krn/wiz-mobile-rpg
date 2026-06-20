@@ -12,12 +12,12 @@
 # Error details
 
 ```
-Error: Key action button "すべて" (id: ) on Equip Screen should be located in the bottom part of the screen (y: 121px, threshold: 466px)
+Error: Button "すべて" (id: , class: filter-chip active) on Shop Screen should be >= 44px high. Found: 36px
 
-expect(received).toBeGreaterThan(expected)
+expect(received).toBeGreaterThanOrEqual(expected)
 
-Expected: > 466
-Received:   121
+Expected: >= 44
+Received:    36
 ```
 
 # Page snapshot
@@ -34,50 +34,138 @@ Received:   121
       - generic [ref=e11]: "🗺️ 探索率: 0%"
       - generic [ref=e12]: "📦 宝箱: 0/6"
   - generic [ref=e15]:
-    - generic [ref=e16]:
-      - generic [ref=e17]: 道具・装備
-      - generic [ref=e18]: "バッグ: 2/20個"
-    - generic [ref=e20]: Arthur (戦士 Lv.1) HP:20/20 MP:0/0
-    - generic [ref=e21]:
-      - generic [ref=e22]:
-        - generic [ref=e23]:
-          - button "すべて" [ref=e24] [cursor=pointer]
-          - button "道具" [ref=e25] [cursor=pointer]
-          - button "武器" [ref=e26] [cursor=pointer]
-          - button "防具" [ref=e27] [cursor=pointer]
-        - generic [ref=e28]:
-          - generic [ref=e29]: 道具
-          - button "傷薬 (ディオス薬)" [ref=e30] [cursor=pointer]:
-            - generic [ref=e31]: 傷薬 (ディオス薬)
-          - button "傷薬 (ディオス薬)" [ref=e32] [cursor=pointer]:
-            - generic [ref=e33]: 傷薬 (ディオス薬)
-      - generic [ref=e35]:
-        - text: バッグまたは装備スロットを
-        - text: 選択してください。
-    - generic [ref=e36]:
-      - generic [ref=e37]:
-        - button "武器 ショートソード" [ref=e38]:
-          - generic [ref=e39]: 武器
-          - generic [ref=e40]: ショートソード
-        - button "盾 スモールシールド" [ref=e41]:
-          - generic [ref=e42]: 盾
-          - generic [ref=e43]: スモールシールド
-        - button "鎧 レザーアーマー" [ref=e44]:
-          - generic [ref=e45]: 鎧
-          - generic [ref=e46]: レザーアーマー
-      - generic [ref=e47]:
-        - button "◀ 前のキャラ" [ref=e48] [cursor=pointer]
-        - button "次のキャラ ▶" [ref=e49] [cursor=pointer]
-      - button "❌ 閉じる" [ref=e51] [cursor=pointer]
-  - generic [ref=e54]: リルガミンの街へようこそ。準備を整えて迷宮に入りましょう！
-  - contentinfo [ref=e56]:
-    - generic [ref=e58]:
-      - generic [ref=e59]:
-        - generic [ref=e60]: Arthur [前]
-        - generic [ref=e61]: F.1
-      - generic [ref=e63]:
-        - generic [ref=e64]: H
-        - generic [ref=e67]: "20"
+    - generic [ref=e17]: ボルタック商店
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - button "すべて" [pressed] [ref=e21] [cursor=pointer]
+          - button "道具" [ref=e22] [cursor=pointer]
+          - button "武器" [ref=e23] [cursor=pointer]
+          - button "防具" [ref=e24] [cursor=pointer]
+        - generic [ref=e25]:
+          - generic [ref=e26]: 道具
+          - button "傷薬 (ディオス薬) 所持:2 60G" [ref=e27] [cursor=pointer]:
+            - generic [ref=e28]:
+              - text: 傷薬 (ディオス薬)
+              - generic [ref=e29]: 所持:2
+            - generic [ref=e30]: 60G
+          - button "解毒薬 (Antidote) 80G" [ref=e31] [cursor=pointer]:
+            - generic [ref=e32]: 解毒薬 (Antidote)
+            - generic [ref=e33]: 80G
+          - button "祝福の聖水 100G" [ref=e34] [cursor=pointer]:
+            - generic [ref=e35]: 祝福の聖水
+            - generic [ref=e36]: 100G
+          - button "魔力草 金不足 200G" [ref=e37] [cursor=pointer]:
+            - generic [ref=e38]: 魔力草
+            - generic [ref=e39]: 金不足
+            - generic [ref=e40]: 200G
+          - button "帰還のスクロール 100G" [ref=e41] [cursor=pointer]:
+            - generic [ref=e42]: 帰還のスクロール
+            - generic [ref=e43]: 100G
+          - generic [ref=e44]: 武器
+          - button "ダガー 50G" [ref=e45] [cursor=pointer]:
+            - generic [ref=e46]: ダガー
+            - generic [ref=e47]: 50G
+          - button "魔術師の杖 120G" [ref=e48] [cursor=pointer]:
+            - generic [ref=e49]: 魔術師の杖
+            - generic [ref=e50]: 120G
+          - button "ショートソード 所持:1 150G" [ref=e51] [cursor=pointer]:
+            - generic [ref=e52]:
+              - text: ショートソード
+              - generic [ref=e53]: 所持:1
+            - generic [ref=e54]: 150G
+          - button "メイス 100G" [ref=e55] [cursor=pointer]:
+            - generic [ref=e56]: メイス
+            - generic [ref=e57]: 100G
+          - button "忍びの短刀 金不足 300G" [ref=e58] [cursor=pointer]:
+            - generic [ref=e59]: 忍びの短刀
+            - generic [ref=e60]: 金不足
+            - generic [ref=e61]: 300G
+          - button "ロングソード 金不足 400G" [ref=e62] [cursor=pointer]:
+            - generic [ref=e63]: ロングソード
+            - generic [ref=e64]: 金不足
+            - generic [ref=e65]: 400G
+          - button "クレイモア 金不足 750G" [ref=e66] [cursor=pointer]:
+            - generic [ref=e67]: クレイモア
+            - generic [ref=e68]: 金不足
+            - generic [ref=e69]: 750G
+          - button "名刀ムラマサ 金不足 1500G" [ref=e70] [cursor=pointer]:
+            - generic [ref=e71]: 名刀ムラマサ
+            - generic [ref=e72]: 金不足
+            - generic [ref=e73]: 1500G
+          - generic [ref=e74]: 防具
+          - button "スモールシールド 所持:1 80G" [ref=e75] [cursor=pointer]:
+            - generic [ref=e76]:
+              - text: スモールシールド
+              - generic [ref=e77]: 所持:1
+            - generic [ref=e78]: 80G
+          - button "ラージシールド 金不足 250G" [ref=e79] [cursor=pointer]:
+            - generic [ref=e80]: ラージシールド
+            - generic [ref=e81]: 金不足
+            - generic [ref=e82]: 250G
+          - button "ナイトシールド 金不足 450G" [ref=e83] [cursor=pointer]:
+            - generic [ref=e84]: ナイトシールド
+            - generic [ref=e85]: 金不足
+            - generic [ref=e86]: 450G
+          - button "魔法使いのローブ 30G" [ref=e87] [cursor=pointer]:
+            - generic [ref=e88]: 魔法使いのローブ
+            - generic [ref=e89]: 30G
+          - button "魔術師のクローク 金不足 380G" [ref=e90] [cursor=pointer]:
+            - generic [ref=e91]: 魔術師のクローク
+            - generic [ref=e92]: 金不足
+            - generic [ref=e93]: 380G
+          - button "レザーアーマー 所持:1 120G" [ref=e94] [cursor=pointer]:
+            - generic [ref=e95]:
+              - text: レザーアーマー
+              - generic [ref=e96]: 所持:1
+            - generic [ref=e97]: 120G
+          - button "忍者の装束 金不足 250G" [ref=e98] [cursor=pointer]:
+            - generic [ref=e99]: 忍者の装束
+            - generic [ref=e100]: 金不足
+            - generic [ref=e101]: 250G
+          - button "スケイルメイル 金不足 220G" [ref=e102] [cursor=pointer]:
+            - generic [ref=e103]: スケイルメイル
+            - generic [ref=e104]: 金不足
+            - generic [ref=e105]: 220G
+          - button "チェインメイル 金不足 350G" [ref=e106] [cursor=pointer]:
+            - generic [ref=e107]: チェインメイル
+            - generic [ref=e108]: 金不足
+            - generic [ref=e109]: 350G
+          - button "司祭の法衣 金不足 500G" [ref=e110] [cursor=pointer]:
+            - generic [ref=e111]: 司祭の法衣
+            - generic [ref=e112]: 金不足
+            - generic [ref=e113]: 500G
+          - button "プレートメイル 金不足 900G" [ref=e114] [cursor=pointer]:
+            - generic [ref=e115]: プレートメイル
+            - generic [ref=e116]: 金不足
+            - generic [ref=e117]: 900G
+      - generic [ref=e119]:
+        - text: 取引するアイテムを
+        - text: 選択してください
+    - generic [ref=e120]:
+      - generic [ref=e121]:
+        - generic [ref=e122]: 💰 150G
+        - generic [ref=e123]: "🎒 バッグ: 2/20"
+      - generic [ref=e124]:
+        - button "🛡️ 買う" [pressed] [ref=e125] [cursor=pointer]
+        - button "💰 売る" [ref=e126] [cursor=pointer]
+        - button "🔍 鑑定" [ref=e127] [cursor=pointer]
+      - generic [ref=e128]:
+        - button "取引するアイテムを選択してください" [disabled]
+      - button "❌ 閉じる" [ref=e130] [cursor=pointer]
+  - generic [ref=e133]: リルガミンの街へようこそ。準備を整えて迷宮に入りましょう！
+  - generic [ref=e135]:
+    - generic [ref=e136]: ボルタック商店 - アイテムの売買：
+    - generic [ref=e138]: ボルタック商店で取引中...
+    - button "戻る" [ref=e139] [cursor=pointer]
+  - contentinfo [ref=e140]:
+    - generic [ref=e142]:
+      - generic [ref=e143]:
+        - generic [ref=e144]: Arthur [前]
+        - generic [ref=e145]: F.1
+      - generic [ref=e147]:
+        - generic [ref=e148]: H
+        - generic [ref=e151]: "20"
 ```
 
 # Test source
@@ -128,7 +216,8 @@ Received:   121
   43  |           const className = await btn.getAttribute('class') || '';
   44  | 
   45  |           // Check minimum height (ignore helper icons or very specific small tags if any, but regular buttons must be >= 44px)
-  46  |           expect(box.height, `Button "${text}" (id: ${id}, class: ${className}) on ${screenName} should be >= 44px high. Found: ${box.height}px`).toBeGreaterThanOrEqual(44);
+> 46  |           expect(box.height, `Button "${text}" (id: ${id}, class: ${className}) on ${screenName} should be >= 44px high. Found: ${box.height}px`).toBeGreaterThanOrEqual(44);
+      |                                                                                                                                                   ^ Error: Button "すべて" (id: , class: filter-chip active) on Shop Screen should be >= 44px high. Found: 36px
   47  | 
   48  |           // Verify if key action button is located in the bottom reach zone
   49  |           const isKeyAction = text.includes('戻る') || text.includes('閉じる') || text.includes('確定') || text.includes('決定') || text.includes('購入') || text.includes('売却') || text.includes('鑑定') || text.includes('唱える') || text.includes('加える') || text.includes('外す') || id.includes('btn-submenu-back') || className.includes('tab') || className.includes('filter');
@@ -136,8 +225,7 @@ Received:   121
   51  |             const centerY = box.y + box.height / 2;
   52  |             const threshold = vp.height * 0.50; // In bottom 50% of the screen
   53  |             if (!id.includes('btn-mute')) {
-> 54  |               expect(centerY, `Key action button "${text}" (id: ${id}) on ${screenName} should be located in the bottom part of the screen (y: ${centerY}px, threshold: ${threshold}px)`).toBeGreaterThan(threshold);
-      |                                                                                                                                                                                           ^ Error: Key action button "すべて" (id: ) on Equip Screen should be located in the bottom part of the screen (y: 121px, threshold: 466px)
+  54  |               expect(centerY, `Key action button "${text}" (id: ${id}) on ${screenName} should be located in the bottom part of the screen (y: ${centerY}px, threshold: ${threshold}px)`).toBeGreaterThan(threshold);
   55  |             }
   56  |           }
   57  |         }

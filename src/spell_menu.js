@@ -283,18 +283,26 @@ export function renderSpellOverlay() {
     `;
     listContainer.appendChild(summaryDiv);
 
-    state.party.forEach((char, idx) => {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-neon spell-item-row";
+    // Create 2x2 Grid Container
+    const gridContainer = document.createElement("div");
+    gridContainer.className = "spell-target-grid";
 
-      // Validation logic for target
+    state.party.forEach((char, idx) => {
+      const card = document.createElement("button");
+      card.type = "button";
+
+      // Target validation logic
       let isDisabled = false;
-      let reason = "";
+      let reason = "選択可能";
+      let isRecommended = false;
 
       if (char.status === "dead") {
-        if (menuContext.spellName !== "KADORTO") {
+        if (menuContext.spellName === "KADORTO") {
+          reason = "蘇生可";
+          isRecommended = true;
+        } else {
           isDisabled = true;
-          reason = "死亡";
+          reason = "対象外";
         }
       } else {
         if (menuContext.spellName === "KADORTO") {
@@ -304,44 +312,80 @@ export function renderSpellOverlay() {
           if (char.hp >= char.maxHp) {
             isDisabled = true;
             reason = "HP満タン";
+          } else {
+            const ratio = char.hp / char.maxHp;
+            reason = "回復推奨";
+            if (ratio <= 0.5) {
+              isRecommended = true;
+            }
           }
         } else if (menuContext.spellName === "DIURCO") {
-          if (char.status !== "blind") {
+          if (char.status === "blind") {
+            reason = "治療可";
+            isRecommended = true;
+          } else {
             isDisabled = true;
             reason = "健康";
           }
         } else if (menuContext.spellName === "DIALKO") {
-          if (char.status !== "sleep" && char.status !== "paralyze" && char.status !== "paralyzed") {
+          if (["sleep", "paralyze", "paralyzed"].includes(char.status)) {
+            reason = "治療可";
+            isRecommended = true;
+          } else {
             isDisabled = true;
             reason = "健康";
           }
         } else if (menuContext.spellName === "LATUMOFIS") {
-          if (char.status !== "poisoned") {
+          if (char.status === "poisoned") {
+            reason = "治療可";
+            isRecommended = true;
+          } else {
             isDisabled = true;
             reason = "健康";
           }
         }
       }
 
-      const statusText = char.status !== "ok" ? ` [${char.status.toUpperCase()}]` : "";
-      const reasonBadge = reason ? `<span class="spell-row-tag tag-disabled">${reason}</span>` : `<span class="spell-row-mp">選択可能</span>`;
-
-      btn.innerHTML = `
-        <span class="spell-row-name">${char.name} <span class="spell-row-hp">(HP:${char.hp}/${char.maxHp})${statusText}</span></span>
-        ${reasonBadge}
-      `;
-
+      card.className = `spell-target-card ${isDisabled ? "disabled" : ""} ${isRecommended ? "recommended" : ""}`;
+      
       if (isDisabled) {
-        btn.disabled = true;
-        btn.classList.add("disabled");
+        card.disabled = true;
       } else {
-        btn.addEventListener("click", () => {
+        card.addEventListener("click", () => {
           executeAllySpell(idx);
         });
       }
 
-      listContainer.appendChild(btn);
+      let statusColor = "var(--text-muted)";
+      if (isRecommended) {
+        statusColor = "var(--neon-green)";
+      } else if (isDisabled) {
+        statusColor = "rgba(255, 255, 255, 0.2)";
+      } else {
+        statusColor = "var(--neon-cyan)";
+      }
+
+      const hpColor = char.hp <= char.maxHp * 0.3 ? "var(--neon-red)" : (char.hp <= char.maxHp * 0.5 ? "var(--neon-gold)" : "#fff");
+      const statusSuffix = char.status !== "ok" && char.status !== "dead" ? ` [${char.status.toUpperCase()}]` : "";
+
+      let hpOrStatusHtml = `<div class="target-card-hp" style="color: ${hpColor}">HP: ${char.hp}/${char.maxHp}</div>`;
+      if (char.status === "dead") {
+        hpOrStatusHtml = `<div class="target-card-hp" style="color: var(--neon-red); font-weight: bold;">死亡</div>`;
+      }
+
+      card.innerHTML = `
+        <div class="target-card-name">${char.name}</div>
+        <div class="target-card-class">${getClassJpName(char.class)}</div>
+        ${hpOrStatusHtml}
+        <div class="target-card-status" style="color: ${statusColor}; font-weight: bold; font-size: 10px; margin-top: 4px;">
+          ${reason}${statusSuffix}
+        </div>
+      `;
+
+      gridContainer.appendChild(card);
     });
+
+    listContainer.appendChild(gridContainer);
   }
 
   listCol.appendChild(listContainer);

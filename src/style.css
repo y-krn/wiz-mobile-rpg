@@ -1986,7 +1986,7 @@ html, body {
 #viewport-hud {
   position: absolute;
   top: 8px;
-  left: 8px;
+  right: 8px;
   background-color: rgba(12, 12, 14, 0.85);
   border: 1px solid var(--border-color);
   border-radius: 4px;
@@ -3092,4 +3092,74 @@ html, body {
 
 .shop-status-capacity {
   color: var(--text-muted);
+}
+
+/* Spell Target Selection Grid (2x2 Grid) */
+.spell-target-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  box-sizing: border-box;
+}
+
+.spell-target-card {
+  background-color: #14141a;
+  border: 1px solid #22222d;
+  border-radius: 8px;
+  padding: 10px 6px;
+  min-height: 90px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+  box-sizing: border-box;
+  width: 100%;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+  color: var(--text-main);
+  font-family: inherit;
+}
+
+.spell-target-card.recommended {
+  border-color: rgba(0, 255, 102, 0.45);
+  background-color: rgba(0, 255, 102, 0.04);
+  box-shadow: 0 0 4px rgba(0, 255, 102, 0.15);
+}
+
+.spell-target-card.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: #1a1a24;
+  background-color: #0c0c0e;
+}
+
+@media (hover: hover) {
+  .spell-target-card:not(.disabled):hover,
+  .spell-target-card:not(.disabled):active {
+    border-color: var(--neon-purple);
+    background-color: rgba(191, 90, 242, 0.08);
+    box-shadow: 0 0 5px var(--neon-glow-purple);
+  }
+}
+
+.target-card-name {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.target-card-class {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.target-card-hp {
+  font-size: 11px;
+  font-family: var(--font-mono);
 }
