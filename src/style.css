@@ -183,6 +183,8 @@ html, body {
 /* Log Panel */
 #log-panel {
   flex-grow: 1;
+  flex-shrink: 1; /* Shrink logs when vertical space is tight */
+  min-height: 80px; /* Keep logs visible */
   max-height: 220px; /* Limit overly large height on tall mobile screens */
   background-color: #0e0e12;
   border-top: 1px solid var(--border-color);
@@ -238,7 +240,7 @@ html, body {
 /* Controls Panel */
 #controls-panel {
   height: auto;
-  min-height: 180px;
+  min-height: 210px; /* Expanded to fit town controls (4 rows) comfortably */
   background-color: #121216;
   border-bottom: 1px solid var(--border-color);
   padding: 8px;
@@ -246,6 +248,7 @@ html, body {
   flex-direction: column;
   justify-content: center;
   position: relative;
+  flex-shrink: 0; /* Guarantee controls never shrink and overlap */
 }
 
 .controls-group {
@@ -468,6 +471,7 @@ html, body {
   border-top: 1.5px solid var(--neon-cyan);
   box-shadow: var(--neon-glow-cyan);
   padding: 6px 4px;
+  flex-shrink: 0; /* Guarantee party HUD never shrinks and overlaps */
 }
 
 #party-grid {
@@ -2676,11 +2680,13 @@ html, body {
   background-color: #1a1a24;
   border: 1px solid #333;
   border-radius: 4px;
-  padding: 6px 8px;
+  padding: 10px 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
+  min-height: 44px;
+  box-sizing: border-box;
 }
 .codex-row:hover {
   border-color: var(--neon-cyan);

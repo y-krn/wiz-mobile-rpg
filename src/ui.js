@@ -664,7 +664,7 @@ function getMonsterCodexDetailHtml(m, record) {
   
   if (kil >= 1) {
     html += `
-      <p><strong>特徴:</strong> ${m.isPoisonous ? "毒攻撃を放つ" : m.isRare ? "非常に強力な強敵" : "標準的なモンスター"}</p>
+      <p><strong>特徴:</strong> ${m.isPoisonous ? "毒攻撃を放つ" : m.isRare ? (m.name === "メタルパピー" ? "希少な魔物" : "非常に強力な強敵") : "標準的なモンスター"}</p>
       <p><strong>獲得報酬目安:</strong> ${m.exp} EXP / ${m.gold} GOLD</p>
     `;
   } else {

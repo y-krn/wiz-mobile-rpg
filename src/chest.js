@@ -74,7 +74,7 @@ export function setupChestState() {
         if (state.floor === 5) {
           randChance = 0.70;
         } else if (["poison needle", "gas bomb", "teleporter"].includes(trap)) {
-          randChance = 0.60;
+          randChance = state.floor === 4 ? 0.45 : 0.60;
         }
         if (rng() < randChance) {
           item = generateRandomEquipment(state.floor, null, rng);

@@ -1670,7 +1670,7 @@ export function renderEquip() {
   charName.style.fontSize = "14px";
   charName.style.fontWeight = "bold";
   charName.style.color = "var(--neon-cyan)";
-  charName.style.marginBottom = "8px";
+  charName.style.marginBottom = "0";
   charName.textContent = `${char.name} (${getClassJpName(char.class)} Lv.${char.level}) HP:${char.hp}/${getCharMaxHp(char)} MP:${char.mp}/${getCharMaxMp(char)}`;
   summaryPanel.appendChild(charName);
 
@@ -1680,7 +1680,7 @@ export function renderEquip() {
   slotsGrid.style.display = "grid";
   slotsGrid.style.gridTemplateColumns = "repeat(3, 1fr)";
   slotsGrid.style.gap = "6px";
-  slotsGrid.style.marginBottom = "4px";
+  slotsGrid.style.marginBottom = "8px";
 
   const slots = [
     { id: "weapon", label: "武器" },
@@ -1720,7 +1720,6 @@ export function renderEquip() {
     slotsGrid.appendChild(slotBtn);
   });
   
-  summaryPanel.appendChild(slotsGrid);
   overlay.appendChild(summaryPanel);
 
   // 3. Create Body
@@ -1740,6 +1739,9 @@ export function renderEquip() {
   invCol.style.flexDirection = "column";
   invCol.style.flex = "1";
   invCol.style.minHeight = "0";
+  invCol.style.gap = "8px";
+
+  invCol.appendChild(slotsGrid);
 
   const itemList = document.createElement("div");
   itemList.className = "equip-item-list";
@@ -2505,34 +2507,21 @@ export function renderCampOverlay() {
   body.className = "camp-body";
 
   if (menuContext.type === "camp_main" || menuContext.type === "camp") {
-    // Command group
-    const cmdGroup = document.createElement("div");
-    cmdGroup.className = "camp-command-group";
+    // Info text at the top of the body
+    const infoText = document.createElement("div");
+    infoText.className = "camp-info-text";
+    infoText.style.textAlign = "center";
+    infoText.style.fontSize = "12px";
+    infoText.style.color = "var(--text-muted)";
+    infoText.style.marginTop = "12px";
+    infoText.style.lineHeight = "1.6";
+    infoText.innerHTML = "キャンプ中 (探索を一時中断しています)<br>ステータスの確認や道具の使用・装備の変更を行えます。";
+    body.appendChild(infoText);
 
-    const btnStatus = document.createElement("button");
-    btnStatus.className = "btn btn-neon btn-block camp-btn";
-    btnStatus.textContent = "🛡️ パーティの強さ";
-    btnStatus.style.minHeight = "44px";
-    btnStatus.addEventListener("click", () => {
-      openSubmenu("camp_status", "パーティ詳細ステータス:");
-    });
-    cmdGroup.appendChild(btnStatus);
-
-    const btnItems = document.createElement("button");
-    btnItems.className = "btn btn-neon btn-block camp-btn";
-    btnItems.textContent = "📦 道具・装備";
-    btnItems.style.minHeight = "44px";
-    btnItems.addEventListener("click", () => {
-      openEquipOverlay(0);
-    });
-    cmdGroup.appendChild(btnItems);
-
-    body.appendChild(cmdGroup);
-
-    // Danger Zone at the bottom (isolated)
+    // Danger Zone at the bottom (isolated in body, away from footer)
     const dangerZone = document.createElement("div");
     dangerZone.className = "camp-danger-zone";
-    dangerZone.style.marginTop = "24px";
+    dangerZone.style.marginTop = "40px";
 
     const btnDiscard = document.createElement("button");
     btnDiscard.className = "btn btn-danger btn-block camp-btn-danger";
@@ -2598,6 +2587,33 @@ export function renderCampOverlay() {
   // 3. Bottom Actions Container
   const footer = document.createElement("div");
   footer.className = "bottom-actions-container";
+
+  if (menuContext.type === "camp_main" || menuContext.type === "camp") {
+    const mainActionRow = document.createElement("div");
+    mainActionRow.className = "bottom-actions-row";
+
+    const btnStatus = document.createElement("button");
+    btnStatus.className = "btn btn-neon";
+    btnStatus.style.flex = "1";
+    btnStatus.textContent = "🛡️ パーティの強さ";
+    btnStatus.style.minHeight = "44px";
+    btnStatus.addEventListener("click", () => {
+      openSubmenu("camp_status", "パーティ詳細ステータス:");
+    });
+    mainActionRow.appendChild(btnStatus);
+
+    const btnItems = document.createElement("button");
+    btnItems.className = "btn btn-neon";
+    btnItems.style.flex = "1";
+    btnItems.textContent = "📦 道具・装備";
+    btnItems.style.minHeight = "44px";
+    btnItems.addEventListener("click", () => {
+      openEquipOverlay(0);
+    });
+    mainActionRow.appendChild(btnItems);
+
+    footer.appendChild(mainActionRow);
+  }
 
   const closeRow = document.createElement("div");
   closeRow.className = "bottom-actions-row";

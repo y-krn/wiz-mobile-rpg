@@ -378,7 +378,7 @@ export const ITEMS = {
   KNIGHT_SHIELD: { id: "KNIGHT_SHIELD", name: "ナイトシールド", type: "shield", def: 8, price: 450, desc: "騎士用の鋼鉄盾。防御力+8 [戦・侍用]", classes: ["Fighter", "Samurai"] },
 
   // Armor
-  ROBE: { id: "ROBE", name: "魔法使いのローブ", type: "armor", def: 1, price: 30, desc: "魔力を帯びたシルクの衣。防御力+1 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
+  ROBE: { id: "ROBE", name: "魔法使いのローブ", type: "armor", def: 1, price: 30, desc: "魔力を帯びたシルクの衣。防御力+1 [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"] },
   MAGE_CLOAK: { id: "MAGE_CLOAK", name: "魔術師のクローク", type: "armor", def: 4, price: 380, desc: "魔力で守られた外套。防御力+4 [魔・司用]", classes: ["Mage", "Bishop"] },
   LEATHER_ARMOR: { id: "LEATHER_ARMOR", name: "レザーアーマー", type: "armor", def: 4, price: 120, desc: "なめし革の胸当て。防御力+4 [戦・盗・僧・侍・野用]", classes: ["Fighter", "Thief", "Priest", "Samurai", "Ranger"] },
   NINJA_SUIT: { id: "NINJA_SUIT", name: "忍者の装束", type: "armor", def: 5, price: 250, desc: "闇に紛れる防具。防御力+5 [盗・忍用]", classes: ["Thief", "Ninja"] },
@@ -461,13 +461,13 @@ export const MONSTERS = [
   { name: "アースジャイアント", level: 6, hp: 75, atk: 22, def: 8, exp: 1200, gold: 150, spriteType: "zombie", color: "#8a2be2" },
   { name: "マスターデーモン", level: 7, hp: 60, atk: 15, def: 8, exp: 1500, gold: 200, spriteType: "flack", spell: "MADALTO", color: "#ff3b30" },
   
-  { name: "フラック", level: 4, hp: 70, atk: 18, def: 8, exp: 1500, gold: 180, spriteType: "flack", spell: "LAHALITO", isRare: true, color: "#ff3b30" },
+  { name: "フラック", level: 4, hp: 70, atk: 18, def: 8, exp: 1500, gold: 180, spriteType: "flack", spell: "LAHALITO", isRare: true, dangerRare: true, color: "#ff3b30" },
   { name: "ドラゴンパピー", level: 4, hp: 45, atk: 12, def: 5, exp: 600, gold: 60, spriteType: "dragon", spell: "HALITO", color: "#ffc0cb" },
   { name: "ワイバーン", level: 5, hp: 65, atk: 17, def: 7, exp: 1200, gold: 120, spriteType: "dragon", spell: "LAHALITO", color: "#ffa500" },
   { name: "レッドドラゴン", level: 7, hp: 100, atk: 22, def: 10, exp: 3500, gold: 400, spriteType: "dragon", spell: "MADALTO", color: "#ff3b30" },
   { name: "アイアンゴーレム", level: 3, hp: 25, atk: 10, def: 12, exp: 400, gold: 50, spriteType: "zombie", physResist: 0.8, color: "#8e8e93" },
   { name: "マッドスライム", level: 1, hp: 35, atk: 4, def: 1, exp: 120, gold: 20, spriteType: "biter", magicResist: -0.5, color: "#ff9500" },
-  { name: "メタルパピー", level: 3, hp: 8, atk: 5, def: 10, exp: 2000, gold: 500, spriteType: "biter", fleeChance: 0.50, color: "#ffd700", isRare: true },
+  { name: "メタルパピー", level: 3, hp: 8, atk: 5, def: 10, exp: 2000, gold: 500, spriteType: "biter", fleeChance: 0.50, color: "#ffd700", isRare: true, treasureRare: true },
   { name: "オークの呪医", level: 2, hp: 22, atk: 5, def: 3, exp: 200, gold: 35, spriteType: "orc", spell: "DIOS", color: "#34c759" },
   { name: "プリーストデーモン", level: 5, hp: 60, atk: 12, def: 6, exp: 900, gold: 150, spriteType: "flack", spell: "DIALMA", color: "#34c759" },
   { name: "スケルトンアーチャー", level: 2, hp: 16, atk: 9, def: 3, exp: 150, gold: 30, spriteType: "skeleton", isSniper: true, color: "#af52de" },

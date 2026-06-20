@@ -245,7 +245,7 @@ export const createDefaultRoster = () => [
     equipment: {
       weapon: null,
       shield: null,
-      armor: "ROBE"
+      armor: "NINJA_SUIT"
     }
   }
 ];

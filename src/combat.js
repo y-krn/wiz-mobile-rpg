@@ -49,6 +49,10 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
       hp: flackTemplate.hp,
       maxHp: flackTemplate.hp
     });
+  }
+  
+  if (isBoss || isMidboss || isRoamingFlack) {
+    addLog("【⚠️強敵遭遇！】周囲の空気が張り詰める...！");
   } else {
     // Regular random encounter
     const dist = Math.abs(state.x - START_X) + Math.abs(state.y - START_Y);
@@ -75,17 +79,17 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
     
     // Check rare encounter chance (e.g. 8% chance, B4F has 18%)
     const rareChance = state.floor === 4 ? 0.18 : 0.08;
-    const rareCandidates = MONSTERS.filter(m => m.isRare && m.name !== "フラック" && m.level <= targetLevel + 1);
-    const isRareEncounter = (Math.random() < rareChance) && (rareCandidates.length > 0);
+    const treasureCandidates = MONSTERS.filter(m => m.treasureRare && m.level <= targetLevel + 1);
+    const isTreasureEncounter = (Math.random() < rareChance) && (treasureCandidates.length > 0);
     
-    if (isRareEncounter) {
-      const template = rareCandidates[Math.floor(Math.random() * rareCandidates.length)];
+    if (isTreasureEncounter) {
+      const template = treasureCandidates[Math.floor(Math.random() * treasureCandidates.length)];
       monsters.push({
         ...template,
         hp: template.hp,
         maxHp: template.hp
       });
-      addLog("【⚠️強敵遭遇！】周囲の空気が張り詰める...！");
+      addLog("【✨希少遭遇！】珍しい魔物が現れた！");
     } else {
       // Choose monsters based on target level and count limits
       const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
