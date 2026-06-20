@@ -151,5 +151,11 @@ Object.defineProperty(global, "navigator", {
   assert.strictEqual(state.storage[0].identified, false, "Reward item should be unidentified");
   console.log("-> [PASS] Inventory overflow handling verified");
 
+  console.log("Running Test 7: UI renderContracts Rendering Test...");
+  const { renderContracts } = await import("../src/ui.js");
+  state.activeContract = createRandomContract("A", state);
+  renderContracts();
+  console.log("-> [PASS] UI renderContracts verified");
+
   console.log("All Contracts & Warehouse verification tests passed successfully!");
 })();

@@ -6,6 +6,7 @@ import {
 } from "./data.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
+import { triggerRunResult } from "./result.js";
 
 export let equipState = {
   actorIdx: 0,
@@ -466,16 +467,10 @@ export function renderEquip() {
             actionBtn.addEventListener("click", () => {
               if (itemKey === "TOWN_PORTAL") {
                 closeEquipOverlay();
-                state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
-                state.gameState = "town";
-                state.x = START_X;
-                state.y = START_Y;
-                state.dir = DIR_N;
-                addLog(`${char.name}は帰還のスクロールを読んだ！街へ戻った！`);
                 playSound("cast_spell");
+                addLog(`${char.name}は帰還のスクロールを読んだ！街へ戻った！`);
                 state.inventory.splice(equipState.selectedIdx, 1);
-                saveAutosave();
-                updateUI();
+                triggerRunResult("escape_scroll");
                 return;
               }
 

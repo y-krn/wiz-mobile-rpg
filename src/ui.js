@@ -1,4 +1,4 @@
-import { state, saveAutosave, createDefaultCodex } from "./state.js";
+import { state, saveAutosave, createDefaultCodex, addLog } from "./state.js";
 import { DIR_NAMES, getClassJpName, isSpellcaster, getCharMaxHp, getCharMaxMp, getItemData, MONSTERS, ITEMS } from "./data.js";
 import { getIsMuted, playSound } from "./audio.js";
 import { getMonsterContractInfo } from "./contracts.js";
@@ -39,6 +39,22 @@ export function resetViewportZoom() {
 }
 
 export function getCurrentGoal() {
+  if (state.activeContract) {
+    const contract = state.activeContract;
+    let progressText = "";
+    if (contract.type === "kill") {
+      progressText = `(${contract.targetMonsterName} 討伐: ${contract.currentValue || 0}/${contract.targetValue})`;
+    } else if (contract.type === "chest") {
+      progressText = `(宝箱: ${state.currentRun ? (state.currentRun.chestsOpened || 0) : 0}/${contract.targetValue})`;
+    } else if (contract.type === "recovery") {
+      const currentUnid = state.inventory.filter(item => typeof item === "object" && !item.identified).length;
+      progressText = `(未鑑定品: ${currentUnid}/${contract.targetValue})`;
+    } else if (contract.type === "reach" || contract.type === "weekly" || contract.type === "limit") {
+      progressText = `(到達目標: B${contract.targetValue}F)`;
+    }
+    return `探索契約「${contract.name}」進行中 ${progressText}`;
+  }
+
   if (state.gameState === "town") {
     if (state.inventory.includes("ANTIGRAVITY_CRYSTAL")) {
       return "おしろに行き、浮遊石を渡してゲームをクリアせよ！";
@@ -1341,7 +1357,14 @@ export function renderContracts() {
           playSound("level_up");
           saveAutosave();
           contractsState.selectedId = null;
-          renderContracts();
+          
+          // Close the overlay and return to town UI to reflect the active contract in the goal banner
+          const overlay = document.getElementById("contracts-overlay");
+          if (overlay) {
+            overlay.style.display = "none";
+          }
+          state.gameState = "town";
+          updateUI();
         });
 
         const btnCancel = document.createElement("button");
