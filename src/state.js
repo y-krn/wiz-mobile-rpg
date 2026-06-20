@@ -328,6 +328,14 @@ export const state = {
   },
   seed: "",
 
+  // Castle Contracts & Warehouse System
+  contracts: [],
+  activeContract: null,
+  completedContracts: [],
+  storage: [],
+  storageMax: 30,
+  identifyTickets: 0,
+
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
   gameState: "town",
 
@@ -406,6 +414,7 @@ export function initNewGame() {
   state.party = []; // Start with empty party
   state.gold = 150;
   state.inventory = ["HEAL_POTION", "HEAL_POTION"];
+  state.firstChestUnidentifiedGuaranteed = false;
   
   if (!state.seed) {
     state.seed = generateRandomSeed();
@@ -466,6 +475,14 @@ export function initNewGame() {
   state.runHistory = [];
   state.deathLogs = [];
   state.codex = createDefaultCodex();
+
+  // Contracts & Storage initialization
+  state.contracts = [];
+  state.activeContract = null;
+  state.completedContracts = [];
+  state.storage = [];
+  state.storageMax = 30;
+  state.identifyTickets = 0;
 
   state.gameState = "town";
   state.combatState = null;
@@ -673,7 +690,16 @@ export function loadGame(forceSaveOnly = false) {
     state.deathLogs = data.deathLogs ?? [];
     state.codex = data.codex ?? createDefaultCodex();
     state.roamingMonsters = data.roamingMonsters ?? [];
+    state.firstChestUnidentifiedGuaranteed = data.firstChestUnidentifiedGuaranteed ?? false;
     state.roamingMovementStepCount = data.roamingMovementStepCount ?? 0;
+
+    // Contracts & Storage load
+    state.contracts = data.contracts ?? [];
+    state.activeContract = data.activeContract ?? null;
+    state.completedContracts = data.completedContracts ?? [];
+    state.storage = data.storage ?? [];
+    state.storageMax = data.storageMax ?? 30;
+    state.identifyTickets = data.identifyTickets ?? 0;
 
     // 同期のためにオートセーブデータを更新
     saveAutosave();
@@ -716,6 +742,13 @@ export function createSavePayload() {
     prevY: state.prevY,
     roamingMonsters: state.roamingMonsters,
     roamingMovementStepCount: state.roamingMovementStepCount,
+    firstChestUnidentifiedGuaranteed: state.firstChestUnidentifiedGuaranteed,
+    contracts: state.contracts,
+    activeContract: state.activeContract,
+    completedContracts: state.completedContracts,
+    storage: state.storage,
+    storageMax: state.storageMax,
+    identifyTickets: state.identifyTickets,
     logs: state.logs.slice(-30)
   };
 }
@@ -1036,6 +1069,14 @@ export function addInventoryItem(item, options = {}) {
   
   if (state.inventory.length >= 20 && !allowQuestOverflow && !isQuestItem) {
     return false;
+  }
+
+  // 所持制限チェック: 聖灰はバッグに1個まで
+  if (itemId === "SACRED_ASHES") {
+    const hasAshes = state.inventory.some(i => getItemBaseId(i) === "SACRED_ASHES");
+    if (hasAshes) {
+      return false;
+    }
   }
   
   state.inventory.push(item);

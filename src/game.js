@@ -91,6 +91,8 @@ function bindButtons() {
   // Town
   document.getElementById("btn-town-dungeon").addEventListener("click", () => enterDungeon());
   document.getElementById("btn-town-castle").addEventListener("click", () => handleTownOption("castle"));
+  document.getElementById("btn-town-contracts").addEventListener("click", () => handleTownOption("contracts"));
+  document.getElementById("btn-town-warehouse").addEventListener("click", () => handleTownOption("warehouse"));
   document.getElementById("btn-town-shop").addEventListener("click", () => handleTownOption("shop"));
   document.getElementById("btn-town-temple").addEventListener("click", () => handleTownOption("temple"));
   document.getElementById("btn-town-training").addEventListener("click", () => handleTownOption("training"));

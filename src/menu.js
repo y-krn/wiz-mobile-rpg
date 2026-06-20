@@ -2,7 +2,8 @@ import { state, initNewGame, loadGame, saveGame, saveAutosave, addLog, recordEqu
 import { DIR_N, START_X, START_Y, ITEMS, SPELLS, canUsePriestSpells, canUseMageSpells, isSpellcaster, getClassJpName, getItemData, getCharStr, getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharMaxHp, getCharMaxMp, getCharWeaponAtk, getCharDef, EXP_LEVELS } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
-import { updateUI, openArchivesOverlay } from "./ui.js";
+import { updateUI, openArchivesOverlay, openContractsOverlay, openWarehouseOverlay } from "./ui.js";
+import { generateContractsList } from "./contracts.js";
 import { executeDisarm } from "./chest.js";
 import { triggerGameOver } from "./combat.js";
 import { executeEnterDungeon } from "./movement.js";
@@ -508,6 +509,13 @@ export function renderSubmenu(type) {
         { key: "ANTIDOTE", price: 50, soldOut: false },
         { key: "TOWN_PORTAL", price: 70, soldOut: false }
       ];
+      const alreadyHasAshes = state.inventory.some(i => {
+        if (typeof i === "string") return i === "SACRED_ASHES";
+        return i.baseId === "SACRED_ASHES";
+      });
+      if (state.floor >= 4 && !alreadyHasAshes) {
+        usables.push({ key: "SACRED_ASHES", price: 1000, soldOut: false });
+      }
       const shuffledUsables = usables.sort(() => 0.5 - Math.random());
       generated.push(shuffledUsables[0]);
       generated.push(shuffledUsables[1]);
@@ -552,8 +560,19 @@ export function renderSubmenu(type) {
           btn.textContent = `[売り切れ] ${item.name}`;
           btn.disabled = true;
         } else {
+          const hasAshes = state.inventory.some(i => {
+            if (typeof i === "string") return i === "SACRED_ASHES";
+            return i.baseId === "SACRED_ASHES";
+          });
+          const isAshes = stock.key === "SACRED_ASHES";
+          
           btn.textContent = `${item.name} (${stock.price}G) - ${item.desc.split("[")[0]}`;
-          if (state.gold < stock.price) btn.disabled = true;
+          if (state.gold < stock.price || (isAshes && hasAshes)) {
+            btn.disabled = true;
+            if (isAshes && hasAshes) {
+              btn.textContent = `[所持数制限] ${item.name} (${stock.price}G)`;
+            }
+          }
 
           btn.addEventListener("click", () => {
             state.gold -= stock.price;
@@ -629,6 +648,13 @@ export function handleTownOption(option) {
     openSubmenu("party_assemble", "訓練場 - パーティ編成:");
   } else if (option === "archives") {
     openArchivesOverlay();
+  } else if (option === "contracts") {
+    if (!state.contracts || state.contracts.length === 0) {
+      state.contracts = generateContractsList(state);
+    }
+    openContractsOverlay();
+  } else if (option === "warehouse") {
+    openWarehouseOverlay();
   }
 }
 

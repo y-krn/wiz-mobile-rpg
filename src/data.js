@@ -21,13 +21,16 @@ export const SPELLS = {
     desc: "火の玉 (5-15 DMG)",
     effect: (caster, target) => {
       let dmg = Math.floor(Math.random() * 11) + 5;
+      const intVal = caster ? getCharInt(caster) : 10;
+      const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
+      dmg = Math.round(dmg * bonus);
       let suffix = "";
       if (target && target.magicResist) {
         dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
         if (target.magicResist > 0) {
-          suffix = "（呪文がレジストされた！）";
+          suffix = "【レジスト！】呪文がレジストされた…";
         } else if (target.magicResist < 0) {
-          suffix = "（呪文が弱点に直撃した！）";
+          suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
         }
       }
       return { damage: dmg, log: `${caster.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${suffix}` };
@@ -42,8 +45,11 @@ export const SPELLS = {
     desc: "睡眠の呪文 (敵全体を眠らせる)",
     effect: (caster, targets) => {
       let sleptCount = 0;
+      const intVal = caster ? getCharInt(caster) : 10;
+      const bonus = Math.min(0.10, Math.max(0, (intVal - 10) * 0.005));
+      const chance = 0.6 + bonus;
       targets.forEach(t => {
-        if (t.hp > 0 && Math.random() < 0.6) {
+        if (t.hp > 0 && Math.random() < chance) {
           t.status = "sleep";
           sleptCount++;
         }
@@ -59,9 +65,12 @@ export const SPELLS = {
     target: "all_enemies",
     desc: "炎の嵐 (敵全体に15-35 DMG)",
     effect: (caster, targets) => {
+      const intVal = caster ? getCharInt(caster) : 10;
+      const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
       const results = targets.map(t => {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 21) + 15;
+        dmg = Math.round(dmg * bonus);
         let isResisted = false;
         let isWeakness = false;
         if (t.magicResist) {
@@ -75,8 +84,8 @@ export const SPELLS = {
       
       const logDetails = results.map(r => {
         let suffix = "";
-        if (r.isResisted) suffix = "(半減)";
-        if (r.isWeakness) suffix = "(弱点直撃!)";
+        if (r.isResisted) suffix = "【レジスト】";
+        if (r.isWeakness) suffix = "【弱点直撃！】";
         return `${r.name}に${r.dmg}のダメージ${suffix}`;
       }).join(", ");
       return { log: `${caster.name}はラハリトを唱えた！激しい炎が敵全体を焼き尽くす！(${logDetails})` };
@@ -102,13 +111,16 @@ export const SPELLS = {
     desc: "中級炎魔法 (20-35 DMG)",
     effect: (caster, target) => {
       let dmg = Math.floor(Math.random() * 16) + 20;
+      const intVal = caster ? getCharInt(caster) : 10;
+      const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
+      dmg = Math.round(dmg * bonus);
       let suffix = "";
       if (target && target.magicResist) {
         dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
         if (target.magicResist > 0) {
-          suffix = "（呪文がレジストされた！）";
+          suffix = "【レジスト！】呪文がレジストされた…";
         } else if (target.magicResist < 0) {
-          suffix = "（呪文が弱点に直撃した！）";
+          suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
         }
       }
       return { damage: dmg, log: `${caster.name}はマハリトを唱えた！${target.name}に${dmg}の熱線ダメージ！${suffix}` };
@@ -122,8 +134,11 @@ export const SPELLS = {
     target: "utility",
     desc: "魔除け (30歩の間、敵の遭遇を回避する)",
     effect: (caster, state) => {
-      state.repelTurns = 30;
-      return { log: `${caster.name}はマスペアルを唱えた！気配が消え、魔物を寄せ付けなくなった。` };
+      const intVal = caster ? getCharInt(caster) : 10;
+      const durationBonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
+      const steps = Math.round(30 * durationBonus);
+      state.repelTurns = steps;
+      return { log: `${caster.name}はマスペアルを唱えた！気配が消え、魔物を寄せ付けなくなった。(${steps}歩の間有効)` };
     }
   },
   MADALTO: {
@@ -134,9 +149,12 @@ export const SPELLS = {
     target: "all_enemies",
     desc: "氷結呪文 (30-60 DMG)",
     effect: (caster, targets) => {
+      const intVal = caster ? getCharInt(caster) : 10;
+      const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
       const results = targets.map(t => {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 31) + 30;
+        dmg = Math.round(dmg * bonus);
         let isResisted = false;
         let isWeakness = false;
         if (t.magicResist) {
@@ -150,8 +168,8 @@ export const SPELLS = {
       
       const logDetails = results.map(r => {
         let suffix = "";
-        if (r.isResisted) suffix = "(半減)";
-        if (r.isWeakness) suffix = "(弱点直撃!)";
+        if (r.isResisted) suffix = "【レジスト】";
+        if (r.isWeakness) suffix = "【弱点直撃！】";
         return `${r.name}に${r.dmg}のダメージ${suffix}`;
       }).join(", ");
       return { log: `${caster.name}はマダルトを唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})` };
@@ -165,9 +183,12 @@ export const SPELLS = {
     target: "all_enemies",
     desc: "極大爆裂呪文 (50-100 DMG)",
     effect: (caster, targets) => {
+      const intVal = caster ? getCharInt(caster) : 10;
+      const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
       const results = targets.map(t => {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 51) + 50;
+        dmg = Math.round(dmg * bonus);
         let isResisted = false;
         let isWeakness = false;
         if (t.magicResist) {
@@ -181,8 +202,8 @@ export const SPELLS = {
       
       const logDetails = results.map(r => {
         let suffix = "";
-        if (r.isResisted) suffix = "(半減)";
-        if (r.isWeakness) suffix = "(弱点直撃!)";
+        if (r.isResisted) suffix = "【レジスト】";
+        if (r.isWeakness) suffix = "【弱点直撃！】";
         return `${r.name}に${r.dmg}のダメージ${suffix}`;
       }).join(", ");
       return { log: `${caster.name}はティルトウェイトを唱えた！極大爆裂の光が敵全体を消滅させる！(${logDetails})` };
@@ -198,7 +219,10 @@ export const SPELLS = {
     target: "single_ally",
     desc: "軽微な治療 (10-20 HP回復)",
     effect: (caster, target) => {
-      const heal = Math.floor(Math.random() * 11) + 10;
+      let heal = Math.floor(Math.random() * 11) + 10;
+      const pieVal = caster ? getCharPie(caster) : 10;
+      const bonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
+      heal = Math.round(heal * bonus);
       const oldHp = target.hp;
       const maxHp = getCharMaxHp(target);
       target.hp = Math.min(maxHp, target.hp + heal);
@@ -234,13 +258,16 @@ export const SPELLS = {
     desc: "不浄への一撃 (5-15 HPダメージ)",
     effect: (caster, target) => {
       let dmg = Math.floor(Math.random() * 11) + 5;
+      const pieVal = caster ? getCharPie(caster) : 10;
+      const bonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
+      dmg = Math.round(dmg * bonus);
       let suffix = "";
       if (target && target.magicResist) {
         dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
         if (target.magicResist > 0) {
-          suffix = "（呪文がレジストされた！）";
+          suffix = "【レジスト！】呪文がレジストされた…";
         } else if (target.magicResist < 0) {
-          suffix = "（呪文が弱点に直撃した！）";
+          suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
         }
       }
       return { damage: dmg, log: `${caster.name}はバディオスを唱えた！${target.name}に${dmg}の神聖ダメージ！${suffix}` };
@@ -254,8 +281,11 @@ export const SPELLS = {
     target: "utility",
     desc: "明かりの呪文 (30歩の間、地図を表示)",
     effect: (caster, state) => {
-      state.lightTurns = (state.lightTurns || 0) + 30;
-      return { log: `${caster.name}はミルワを唱えた！周囲が明るくなり、ミニマップが30歩の間表示される。` };
+      const pieVal = caster ? getCharPie(caster) : 10;
+      const durationBonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
+      const steps = Math.round(30 * durationBonus);
+      state.lightTurns = (state.lightTurns || 0) + steps;
+      return { log: `${caster.name}はミルワを唱えた！周囲が明るくなり、ミニマップが${steps}歩の間表示される。` };
     }
   },
   DIALKO: {
@@ -282,7 +312,10 @@ export const SPELLS = {
     target: "single_ally",
     desc: "中度の治療 (35-70 HP回復)",
     effect: (caster, target) => {
-      const heal = Math.floor(Math.random() * 36) + 35;
+      let heal = Math.floor(Math.random() * 36) + 35;
+      const pieVal = caster ? getCharPie(caster) : 10;
+      const bonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
+      heal = Math.round(heal * bonus);
       const oldHp = target.hp;
       const maxHp = getCharMaxHp(target);
       target.hp = Math.min(maxHp, target.hp + heal);
@@ -317,8 +350,11 @@ export const SPELLS = {
     target: "utility",
     desc: "永続の明かり (100歩の間、地図を表示)",
     effect: (caster, state) => {
-      state.lightTurns = (state.lightTurns || 0) + 100;
-      return { log: `${caster.name}はロミルワを唱えた！まばゆい光が暗闇を払い、ミニマップが100歩の間表示される。` };
+      const pieVal = caster ? getCharPie(caster) : 10;
+      const durationBonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
+      const steps = Math.round(100 * durationBonus);
+      state.lightTurns = (state.lightTurns || 0) + steps;
+      return { log: `${caster.name}はロミルワを唱えた！まばゆい光が暗闇を払い、ミニマップが${steps}歩の間表示される。` };
     }
   },
   DIALMA: {
@@ -329,7 +365,10 @@ export const SPELLS = {
     target: "single_ally",
     desc: "高度の治療 (70-120 HP回復)",
     effect: (caster, target) => {
-      const heal = Math.floor(Math.random() * 51) + 70;
+      let heal = Math.floor(Math.random() * 51) + 70;
+      const pieVal = caster ? getCharPie(caster) : 10;
+      const bonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
+      heal = Math.round(heal * bonus);
       const oldHp = target.hp;
       const maxHp = getCharMaxHp(target);
       target.hp = Math.min(maxHp, target.hp + heal);
@@ -344,9 +383,10 @@ export const SPELLS = {
     name: "KADORTO",
     type: "priest",
     level: 9,
-    cost: 6,
+    cost: 8,
     target: "single_ally",
-    desc: "神聖蘇生呪文 (死亡した仲間を蘇生)",
+    desc: "神聖蘇生呪文 (死亡した仲間をキャンプ中に蘇生)",
+    campOnly: true,
     effect: (caster, target) => {
       let cured = false;
       if (target.status === "dead") {
@@ -427,6 +467,15 @@ export const ITEMS = {
     }
     return `${char.name}はエリクサーを飲んだ！HP・MPが全回復し、全ての状態異常が消え去った！`;
   }},
+  SACRED_ASHES: { id: "SACRED_ASHES", name: "聖灰", type: "usable", price: 1000, desc: "死亡した仲間をキャンプ中にHP1で蘇生させる（所持制限：バッグに1個まで）。", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], campOnly: true, effect: (char) => {
+    let cured = false;
+    if (char.status === "dead") {
+      char.status = "ok";
+      char.hp = 1;
+      cured = true;
+    }
+    return `${char.name}に聖灰を振りかけると、${cured ? "奇跡が起き、HP1で息を吹き返した！" : "しかし何も起こらなかった。"}`;
+  }},
   LEGENDARY_SWORD: { id: "LEGENDARY_SWORD", name: "神剣エクスカリバー", type: "weapon", atk: 40, price: 3000, desc: "聖なる光を放つ伝説の神剣。攻撃力+40 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   LEGENDARY_SHIELD: { id: "LEGENDARY_SHIELD", name: "イージスの盾", type: "shield", def: 15, price: 2000, desc: "あらゆる厄災を払う神の盾。防御力+15 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   ANTIGRAVITY_CRYSTAL: { id: "ANTIGRAVITY_CRYSTAL", name: "浮遊石 (クリスタル)", type: "quest", price: 0, desc: "青く浮かび上がる伝説の結晶。城に持ち帰ると勝利。" },
@@ -458,10 +507,10 @@ export const MONSTERS = [
   { name: "ポイズンジャイアント", level: 4, hp: 65, atk: 19, def: 7, exp: 600, gold: 120, spriteType: "zombie", isPoisonous: true, color: "#bf5af2" },
   
   { name: "デーモンガード", level: 5, hp: 90, atk: 18, def: 8, exp: 2000, gold: 300, spriteType: "flack", spell: "LAHALITO", isBoss: true, isMidboss: true, color: "#ff8c00" },
-  { name: "アースジャイアント", level: 6, hp: 75, atk: 22, def: 8, exp: 1200, gold: 150, spriteType: "zombie", color: "#8a2be2" },
+  { name: "アースジャイアント", level: 6, hp: 70, atk: 19, def: 8, exp: 1400, gold: 150, spriteType: "zombie", color: "#8a2be2" },
   { name: "マスターデーモン", level: 7, hp: 60, atk: 15, def: 8, exp: 1500, gold: 200, spriteType: "flack", spell: "MADALTO", color: "#ff3b30" },
   
-  { name: "フラック", level: 4, hp: 70, atk: 18, def: 8, exp: 1500, gold: 180, spriteType: "flack", spell: "LAHALITO", isRare: true, dangerRare: true, color: "#ff3b30" },
+  { name: "フラック", level: 4, hp: 120, atk: 22, def: 10, exp: 2500, gold: 350, spriteType: "flack", spell: "LAHALITO", isRare: true, dangerRare: true, color: "#ff3b30" },
   { name: "ドラゴンパピー", level: 4, hp: 45, atk: 12, def: 5, exp: 600, gold: 60, spriteType: "dragon", spell: "HALITO", color: "#ffc0cb" },
   { name: "ワイバーン", level: 5, hp: 65, atk: 17, def: 7, exp: 1200, gold: 120, spriteType: "dragon", spell: "LAHALITO", color: "#ffa500" },
   { name: "レッドドラゴン", level: 7, hp: 100, atk: 22, def: 10, exp: 3500, gold: 400, spriteType: "dragon", spell: "MADALTO", color: "#ff3b30" },
@@ -472,7 +521,7 @@ export const MONSTERS = [
   { name: "プリーストデーモン", level: 5, hp: 60, atk: 12, def: 6, exp: 900, gold: 150, spriteType: "flack", spell: "DIALMA", color: "#34c759" },
   { name: "スケルトンアーチャー", level: 2, hp: 16, atk: 9, def: 3, exp: 150, gold: 30, spriteType: "skeleton", isSniper: true, color: "#af52de" },
   { name: "ダークアサシン", level: 3, hp: 28, atk: 14, def: 4, exp: 350, gold: 60, spriteType: "kobold", isSniper: true, color: "#ff3b30" },
-  { name: "いにしえの竜", level: 8, hp: 160, atk: 24, def: 14, exp: 6000, gold: 1000, spriteType: "dragon", spell: "TILTOWAIT", isBoss: true, color: "#ff3b30" }
+  { name: "いにしえの竜", level: 8, hp: 280, atk: 26, def: 16, exp: 6000, gold: 1000, spriteType: "dragon", spell: "TILTOWAIT", isBoss: true, color: "#ff3b30" }
 ];
 
 // Dungeon Map Grid 24x24

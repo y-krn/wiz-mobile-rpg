@@ -320,6 +320,240 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         return;
       }
 
+      // フラック独自のギミック行動
+      if (mon.name === "フラック") {
+        const hpPct = mon.hp / mon.maxHp;
+        const r = Math.random();
+        let action = "attack";
+        
+        if (hpPct <= 0.25) {
+          if (r < 0.10) action = "flee";
+          else if (r < 0.20) action = "suicide";
+          else if (r < 0.60) action = "lahalito";
+          else if (r < 0.90) action = "attack";
+          else action = "gaze";
+        } else if (hpPct <= 0.50) {
+          if (r < 0.40) action = "lahalito";
+          else if (r < 0.90) action = "attack";
+          else action = "gaze";
+        } else {
+          if (r < 0.70) action = "attack";
+          else if (r < 0.90) action = "lahalito";
+          else action = "gaze";
+        }
+
+        if (action === "flee") {
+          mon.hp = 0;
+          mon.fled = true;
+          logQueue.push({
+            msg: `[ 敵 ] [!] フラックは煙に巻いて逃げ出した！`,
+            sound: "miss"
+          });
+          return;
+        } else if (action === "suicide") {
+          mon.hp = 0;
+          logQueue.push({
+            msg: `[ 敵 ] フラックは禍々しい光を放ち、自爆した！`,
+            sound: "cast_spell",
+            shake: 25,
+            flash: true
+          });
+          state.party.forEach((c, charIdx) => {
+            if (c.status !== "dead") {
+              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+              let dmg = Math.floor(Math.random() * 16) + 15; // 15-30 DMG
+              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              c.hp = Math.max(0, c.hp - dmg);
+              if (c.hp === 0) c.status = "dead";
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。` });
+            }
+          });
+          return;
+        } else if (action === "lahalito") {
+          logQueue.push({
+            msg: `[ 敵 ] フラックは激しい炎の息（ラハリト）を吹き出した！`,
+            sound: "cast_spell",
+            shake: 15,
+            flash: true
+          });
+          state.party.forEach((c, charIdx) => {
+            if (c.status !== "dead") {
+              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+              let dmg = Math.floor(Math.random() * 16) + 10; // 10-25 DMG
+              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              c.hp = Math.max(0, c.hp - dmg);
+              if (c.hp === 0) c.status = "dead";
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
+            }
+          });
+          return;
+        } else if (action === "gaze") {
+          const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => x.c.status === "ok");
+          if (livingChars.length > 0) {
+            const targetChar = livingChars[Math.floor(Math.random() * livingChars.length)];
+            const target = targetChar.c;
+            const isDefending = combatSelection.actions.some(a => a.actorIdx === targetChar.i && a.type === "defend");
+            
+            logQueue.push({
+              msg: `[ 敵 ] フラックは${target.name}を呪わしき眼光で見つめた！`,
+              sound: "cast_spell"
+            });
+
+            if (isDefending && Math.random() < 0.50) {
+              logQueue.push({ msg: `[ 敵 ] しかし、${target.name}は身を守り呪いを防いだ！` });
+            } else {
+              const gazeRoll = Math.random();
+              if (gazeRoll < 0.50) {
+                target.status = "blind";
+                logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は盲目になった！` });
+              } else {
+                target.status = "paralyzed";
+                logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は麻痺した！` });
+              }
+            }
+          }
+          return;
+        }
+      }
+
+      // いにしえの竜独自のギミック行動
+      if (mon.name === "いにしえの竜") {
+        if (mon.tiltowaitQueued) {
+          mon.tiltowaitQueued = false;
+          logQueue.push({
+            msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！`,
+            sound: "cast_spell",
+            shake: 25,
+            flash: true
+          });
+          state.party.forEach((c, charIdx) => {
+            if (c.status !== "dead") {
+              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+              let dmg = Math.floor(Math.random() * 31) + 45; // 45-75 DMG
+              if (isDefending) {
+                dmg = Math.max(1, Math.round(dmg * 0.5));
+                logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを軽減した！` });
+              }
+              c.hp = Math.max(0, c.hp - dmg);
+              if (c.hp === 0) c.status = "dead";
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。` });
+            }
+          });
+          return;
+        }
+
+        const hpPct = mon.hp / mon.maxHp;
+        const r = Math.random();
+        let action = "attack";
+
+        if (hpPct <= 0.35) {
+          if (r < 0.35) action = "attack";
+          else if (r < 0.60) action = "tiltowait_queue";
+          else if (r < 0.85) action = "breath";
+          else action = "intimidate";
+        } else if (hpPct <= 0.70) {
+          if (r < 0.45) action = "attack";
+          else if (r < 0.70) action = "madalto";
+          else if (r < 0.90) action = "breath";
+          else action = "regenerate";
+        } else {
+          if (r < 0.60) action = "attack";
+          else if (r < 0.85) action = "breath";
+          else action = "roar";
+        }
+
+        if (action === "tiltowait_queue") {
+          mon.tiltowaitQueued = true;
+          logQueue.push({
+            msg: `[警告] いにしえの竜の角に極大の魔力が集まっている…！`,
+            sound: "cast_spell",
+            flash: true
+          });
+          return;
+        } else if (action === "breath") {
+          logQueue.push({
+            msg: `[ 敵 ] いにしえの竜は激しい炎の息を吐き出した！`,
+            sound: "cast_spell",
+            shake: 15,
+            flash: true
+          });
+          state.party.forEach((c, charIdx) => {
+            if (c.status !== "dead") {
+              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+              let dmg = Math.floor(Math.random() * 13) + 12; // 12-24 DMG
+              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              c.hp = Math.max(0, c.hp - dmg);
+              if (c.hp === 0) c.status = "dead";
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
+            }
+          });
+          return;
+        } else if (action === "roar") {
+          logQueue.push({
+            msg: `[ 敵 ] いにしえの竜が咆哮した！凄まじい威圧感が襲いかかる！`,
+            sound: "hit",
+            shake: 20
+          });
+          state.party.forEach(c => {
+            if (c.status === "ok") {
+              if (Math.random() < 0.20) {
+                c.status = "sleep";
+                logQueue.push({ msg: `[ 敵 ] [!] ${c.name}は恐怖で体が竦んだ！` });
+              }
+            }
+          });
+          return;
+        } else if (action === "madalto") {
+          logQueue.push({
+            msg: `[ 敵 ] いにしえの竜はマダルトを唱えた！氷の嵐が吹き荒れる！`,
+            sound: "cast_spell",
+            shake: 15,
+            flash: true
+          });
+          state.party.forEach((c, charIdx) => {
+            if (c.status !== "dead") {
+              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+              let dmg = Math.floor(Math.random() * 21) + 15; // 15-35 DMG
+              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              c.hp = Math.max(0, c.hp - dmg);
+              if (c.hp === 0) c.status = "dead";
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。` });
+            }
+          });
+          return;
+        } else if (action === "regenerate") {
+          const healAmount = 30;
+          mon.hp = Math.min(mon.maxHp, mon.hp + healAmount);
+          logQueue.push({
+            msg: `[ 敵 ] いにしえの竜の硬質な鱗が輝く！竜鱗再生によりHPが ${healAmount} 回復した。`,
+            sound: "heal",
+            floatText: `+${healAmount}`,
+            floatColor: "#00ff66"
+          });
+          return;
+        } else if (action === "intimidate") {
+          logQueue.push({
+            msg: `[ 敵 ] いにしえの竜は鋭い眼光でパーティを威圧した！`,
+            sound: "cast_spell"
+          });
+          state.party.forEach(c => {
+            if (c.status === "ok") {
+              if (Math.random() < 0.25) {
+                const roll = Math.random();
+                if (roll < 0.50) {
+                  c.status = "blind";
+                  logQueue.push({ msg: `[ 敵 ] [!] ${c.name}は暗闇に包まれた！` });
+                } else {
+                  c.status = "paralyzed";
+                  logQueue.push({ msg: `[ 敵 ] [!] ${c.name}は麻痺した！` });
+                }
+              }
+            }
+          });
+          return;
+        }
+      }
+
       // Check if monster heals its allies first (35% chance if spellcaster healer)
       if (mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < 0.35) {
         const woundedMonsters = monsters.filter(m => m.hp > 0 && m.hp < m.maxHp);
@@ -372,10 +606,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       // Attack spells (HALITO, LAHALITO etc., excluding healer spells)
       if (mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < 0.20) {
         if (mon.spell === "HALITO") {
-          const dmg = Math.floor(Math.random() * 10) + 5;
+          let dmg = Math.floor(Math.random() * 10) + 5;
+          const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
+          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           target.hp = Math.max(0, target.hp - dmg);
           logQueue.push({
-            msg: `[ 敵 ] ${mon.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！`,
+            msg: `[ 敵 ] ${mon.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${isDefending ? "(半減)" : ""}`,
             sound: "cast_spell",
             shake: 8,
             floatText: `${dmg}`,
@@ -388,12 +624,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             shake: 15,
             flash: true
           });
-          state.party.forEach(c => {
+          state.party.forEach((c, charIdx) => {
             if (c.status !== "dead") {
-              const dmg = Math.floor(Math.random() * 15) + 10;
+              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+              let dmg = Math.floor(Math.random() * 15) + 10;
+              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
-              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
             }
           });
         } else if (mon.spell === "MADALTO") {
@@ -403,12 +641,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             shake: 15,
             flash: true
           });
-          state.party.forEach(c => {
+          state.party.forEach((c, charIdx) => {
             if (c.status !== "dead") {
-              const dmg = Math.floor(Math.random() * 20) + 15; // 15-35 DMG
+              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+              let dmg = Math.floor(Math.random() * 20) + 15; // 15-35 DMG
+              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
-              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。` });
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
             }
           });
         } else if (mon.spell === "TILTOWAIT") {
@@ -418,12 +658,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             shake: 25,
             flash: true
           });
-          state.party.forEach(c => {
+          state.party.forEach((c, charIdx) => {
             if (c.status !== "dead") {
-              const dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
+              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+              let dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
+              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
-              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。` });
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(半減)" : ""}` });
             }
           });
         }
@@ -544,6 +786,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         if (firstKilledNames.includes(baseName)) {
           state.codex.monsters[baseName].firstKilled = true;
         }
+        
+        // 討伐契約の進捗を更新
+        if (state.activeContract && state.activeContract.type === "kill" && state.activeContract.targetMonsterName === baseName) {
+          state.activeContract.currentValue = (state.activeContract.currentValue || 0) + 1;
+        }
       });
     }
 
@@ -637,6 +884,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       dropEquipment = generateRandomEquipment(state.floor, "epic");
     } else if (state.combatState.isMidboss) {
       const rarity = Math.random() < 0.25 ? "epic" : "rare";
+      dropEquipment = generateRandomEquipment(state.floor, rarity);
+    } else if (state.combatState.isRoamingFlack) {
+      const rarity = Math.random() < 0.30 ? "epic" : "rare";
       dropEquipment = generateRandomEquipment(state.floor, rarity);
     } else {
       const isRare = state.combatState.monsters && state.combatState.monsters.some(m => m.isRare);

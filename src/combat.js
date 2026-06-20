@@ -119,9 +119,22 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
           }
         }
       } else {
-        candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.level === targetLevel);
-        if (candidates.length === 0) {
-          candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && Math.abs(m.level - targetLevel) <= 1);
+        if (state.floor === 1) {
+          if (dist < 20) {
+            candidates = MONSTERS.filter(m => ["かみつき蟲", "コボルトの斥候"].includes(m.name));
+          } else {
+            const isBasic = Math.random() < 0.60;
+            if (isBasic) {
+              candidates = MONSTERS.filter(m => ["かみつき蟲", "コボルトの斥候"].includes(m.name));
+            } else {
+              candidates = MONSTERS.filter(m => ["ゴブリンの呪術師", "マッドスライム", "フラッシュバット"].includes(m.name));
+            }
+          }
+        } else {
+          candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.level === targetLevel);
+          if (candidates.length === 0) {
+            candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && Math.abs(m.level - targetLevel) <= 1);
+          }
         }
         
         if (state.floor === 2 && theme === "poisonous") {
@@ -600,6 +613,8 @@ export function renderCombatOverlay() {
 
     caster.spells.forEach(spKey => {
       const spell = SPELLS[spKey];
+      if (spell.campOnly) return;
+      
       const card = document.createElement("div");
       card.className = "combat-item-card spell";
       

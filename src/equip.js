@@ -437,45 +437,74 @@ export function renderEquip() {
         }
       } else {
         // Equip/Use action
-        actionBtn = document.createElement("button");
-        actionBtn.className = "btn btn-neon btn-block";
         if (item.type === "usable") {
-          actionBtn.textContent = "使用する";
-          actionBtn.addEventListener("click", () => {
-            if (itemKey === "TOWN_PORTAL") {
-              closeEquipOverlay();
-              state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
-              state.gameState = "town";
-              state.x = START_X;
-              state.y = START_Y;
-              state.dir = DIR_N;
-              addLog(`${char.name}は帰還のスクロールを読んだ！街へ戻った！`);
-              playSound("cast_spell");
+          let canUse = true;
+          let disabledText = "";
+
+          if (char.status === "dead") {
+            if (itemKey !== "SACRED_ASHES") {
+              canUse = false;
+              disabledText = "死亡中は使用不可";
+            }
+          } else {
+            if (itemKey === "SACRED_ASHES") {
+              canUse = false;
+              disabledText = "生存中は使用不可";
+            }
+          }
+
+          if (!canUse) {
+            actionBtn = document.createElement("button");
+            actionBtn.className = "btn btn-block disabled";
+            actionBtn.style.opacity = "0.5";
+            actionBtn.disabled = true;
+            actionBtn.textContent = disabledText;
+          } else {
+            actionBtn = document.createElement("button");
+            actionBtn.className = "btn btn-neon btn-block";
+            actionBtn.textContent = "使用する";
+            actionBtn.addEventListener("click", () => {
+              if (itemKey === "TOWN_PORTAL") {
+                closeEquipOverlay();
+                state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
+                state.gameState = "town";
+                state.x = START_X;
+                state.y = START_Y;
+                state.dir = DIR_N;
+                addLog(`${char.name}は帰還のスクロールを読んだ！街へ戻った！`);
+                playSound("cast_spell");
+                state.inventory.splice(equipState.selectedIdx, 1);
+                saveAutosave();
+                updateUI();
+                return;
+              }
+
+              let checkWarning = "";
+              if (itemKey === "HEAL_POTION" && char.hp >= char.maxHp) {
+                checkWarning = "HPはすでに満タンです。本当に使用しますか？";
+              } else if (itemKey === "ANTIDOTE" && char.status !== "poisoned") {
+                checkWarning = "毒状態ではありません。本当に使用しますか？";
+              } else if (itemKey === "SACRED_ASHES") {
+                checkWarning = `${char.name}に聖灰を使用し、HP1で蘇生させます。よろしいですか？`;
+              }
+              if (checkWarning && !confirm(checkWarning)) return;
+              
+              const log = item.effect(char);
+              addLog(log);
+              if (itemKey === "SACRED_ASHES") {
+                playSound("level_up");
+              } else {
+                playSound("heal");
+              }
               state.inventory.splice(equipState.selectedIdx, 1);
               saveAutosave();
+              
+              equipState.selectedKey = null;
+              equipState.selectedIdx = -1;
+              renderEquip();
               updateUI();
-              return;
-            }
-
-            let checkWarning = "";
-            if (itemKey === "HEAL_POTION" && char.hp >= char.maxHp) {
-              checkWarning = "HPはすでに満タンです。本当に使用しますか？";
-            } else if (itemKey === "ANTIDOTE" && char.status !== "poisoned") {
-              checkWarning = "毒状態ではありません。本当に使用しますか？";
-            }
-            if (checkWarning && !confirm(checkWarning)) return;
-            
-            const log = item.effect(char);
-            addLog(log);
-            playSound("heal");
-            state.inventory.splice(equipState.selectedIdx, 1);
-            saveAutosave();
-            
-            equipState.selectedKey = null;
-            equipState.selectedIdx = -1;
-            renderEquip();
-            updateUI();
-          });
+            });
+          }
         } else {
           const isIdentified = typeof itemKey !== "object" || itemKey.identified;
           const canEquip = (!item.classes || item.classes.includes(char.class)) && isIdentified;

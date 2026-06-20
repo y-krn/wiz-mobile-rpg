@@ -2,6 +2,7 @@ import { state, loadGame, saveGame, saveAutosave } from "./state.js";
 import { START_X, START_Y, DIR_N } from "./data.js";
 import { updateUI } from "./ui.js";
 import { closeSubmenu } from "./navigation.js";
+import { checkActiveContract, generateContractsList } from "./contracts.js";
 
 export function triggerRunResult(reason) {
   if (!state.currentRun) return;
@@ -94,6 +95,19 @@ export function triggerRunResult(reason) {
     state.runHistory.pop();
   }
 
+  // 契約の判定
+  let contractResult = null;
+  if (state.activeContract) {
+    contractResult = checkActiveContract(state, state.currentRun, isSuccess);
+  } else {
+    if (!state.contracts || state.contracts.length === 0) {
+      state.contracts = generateContractsList(state);
+    }
+  }
+  if (state.currentRun) {
+    state.currentRun.contractResult = contractResult;
+  }
+
   if (!isSuccess) {
     persistGameoverRollback();
     return;
@@ -125,6 +139,12 @@ function persistGameoverRollback() {
       runHistory: state.runHistory,
       deathLogs: state.deathLogs,
       codex: state.codex,
+      contracts: state.contracts,
+      activeContract: state.activeContract,
+      completedContracts: state.completedContracts,
+      storage: state.storage,
+      storageMax: state.storageMax,
+      identifyTickets: state.identifyTickets,
       currentRun: null,
       logs: state.logs.slice(-30)
     };

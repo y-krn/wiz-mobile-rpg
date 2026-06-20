@@ -2774,7 +2774,9 @@ html, body {
 }
 
 /* Archives Overlay Styles */
-.archives-overlay-container {
+.archives-overlay-container,
+.contracts-overlay-container,
+.warehouse-overlay-container {
   position: absolute;
   top: 0;
   left: 0;
@@ -3162,4 +3164,11 @@ html, body {
 .target-card-hp {
   font-size: 11px;
   font-family: var(--font-mono);
+}
+
+.unidentified-tag {
+  color: var(--neon-gold);
+  font-weight: bold;
+  margin-right: 4px;
+  text-shadow: 0 0 3px rgba(255, 214, 10, 0.4);
 }

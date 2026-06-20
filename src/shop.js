@@ -752,18 +752,27 @@ export function renderShop() {
         updateUI();
       });
     } else { // appraise
+      const hasTicket = (state.identifyTickets || 0) > 0;
       actionBtn.className = `btn btn-block shop-action-btn btn-neon`;
-      actionBtn.textContent = `鑑定する (${itemPrice}G)`;
+      if (hasTicket) {
+        actionBtn.textContent = `鑑定する (割引券: 残${state.identifyTickets}枚)`;
+      } else {
+        actionBtn.textContent = `鑑定する (${itemPrice}G)`;
+      }
 
       const goldCheck = state.gold < itemPrice;
-      if (goldCheck) {
+      if (goldCheck && !hasTicket) {
         actionBtn.disabled = true;
         actionBtn.classList.add("disabled");
         actionBtn.textContent = "ゴールド不足";
       }
 
       actionBtn.addEventListener("click", () => {
-        state.gold -= itemPrice;
+        if (hasTicket) {
+          state.identifyTickets = Math.max(0, state.identifyTickets - 1);
+        } else {
+          state.gold -= itemPrice;
+        }
         
         const eqItem = state.inventory[shopState.selectedIdx];
         const beforeName = getItemData(eqItem).name;

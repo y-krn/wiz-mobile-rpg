@@ -1,6 +1,7 @@
 import { state, saveAutosave, createDefaultCodex } from "./state.js";
 import { DIR_NAMES, getClassJpName, isSpellcaster, getCharMaxHp, getCharMaxMp, getItemData, MONSTERS, ITEMS } from "./data.js";
-import { getIsMuted } from "./audio.js";
+import { getIsMuted, playSound } from "./audio.js";
+import { getMonsterContractInfo } from "./contracts.js";
 import { menuContext } from "./navigation.js";
 import { renderEquip, openEquipOverlay } from "./equip.js";
 import { renderSpellOverlay } from "./spell_menu.js";
@@ -496,9 +497,11 @@ export function renderResultScreen() {
       const item = getItemData(equip);
       const rarityLabel = (item.rarity || "common").toUpperCase();
       const rarityClass = item.rarity || "common";
+      const isUnidentified = !equip.identified;
+      const tagHtml = isUnidentified ? `<span class="unidentified-tag">【未鑑定】</span>` : "";
       lootHtml += `
         <div class="result-item-entry">
-          <span>🛡️ ${item.name}</span>
+          <span>🛡️ ${tagHtml}${item.name}</span>
           <span class="result-item-rarity ${rarityClass}">${rarityLabel}</span>
         </div>
       `;
@@ -520,6 +523,37 @@ export function renderResultScreen() {
     });
   } else {
     historyHtml = `<div style="font-size: 8px; color: var(--text-muted); text-align: center;">履歴はありません</div>`;
+  }
+
+  // 探索契約の判定表示HTML
+  let contractHtml = "";
+  if (run.contractResult) {
+    const cr = run.contractResult;
+    const resClass = cr.success ? "success" : "failed";
+    const resTitle = cr.success ? "🎉 探索契約 達成！" : "❌ 探索契約 未達成";
+    const statusColor = cr.success ? "var(--neon-green)" : "var(--neon-red)";
+    
+    let rewardText = "";
+    if (cr.success) {
+      const tickets = cr.contract.reward.identifyTickets > 0 ? ` / 鑑定割引券: ${cr.contract.reward.identifyTickets}枚` : "";
+      rewardText = `獲得：${cr.contract.reward.gold} G${tickets}`;
+      if (cr.itemMsg) {
+        rewardText += `<br><span style="font-size: 10px; color: var(--neon-cyan);">${cr.itemMsg}</span>`;
+      }
+    } else {
+      rewardText = cr.reason || "目標を達成できませんでした。";
+    }
+
+    contractHtml = `
+      <div class="result-eval-section ${resClass}" style="margin-top: 10px; border-color: ${statusColor};">
+        <div class="result-eval-title" style="color: ${statusColor};">${resTitle}</div>
+        <div style="font-size: 11px; font-weight: bold; margin-bottom: 4px;">契約: ${cr.contract.name}</div>
+        <div style="font-size: 10px; color: var(--text-muted);">${cr.contract.description}</div>
+        <div style="font-size: 11px; margin-top: 6px; border-top: 1px dashed #333; padding-top: 4px;">
+          ${rewardText}
+        </div>
+      </div>
+    `;
   }
 
   overlay.innerHTML = `
@@ -571,6 +605,8 @@ export function renderResultScreen() {
         <div class="result-eval-title">今回の冒険評価</div>
         <div>${getEvaluationText(run, isSuccess)}</div>
       </div>
+
+      ${contractHtml}
 
       <div class="result-items-section">
         <div class="result-section-title">📦 ${lootTitle}</div>
@@ -667,6 +703,15 @@ function getMonsterCodexDetailHtml(m, record) {
   } else {
     html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[撃破すると特徴と報酬が解放されます]</p>`;
   }
+
+  // 撃破数に応じた契約連動の推奨情報表示
+  const contractInfo = getMonsterContractInfo(m.name, kil);
+  html += `
+    <div style="border-top: 1px solid #333; border-bottom: 1px solid #333; margin: 8px 0; padding: 6px 0;">
+      <p><strong>特性:</strong> ${contractInfo.features}</p>
+      <p style="color: var(--neon-green);"><strong>推奨:</strong> ${contractInfo.recommended}</p>
+    </div>
+  `;
   
   if (kil >= 3) {
     html += `
@@ -1118,4 +1163,457 @@ function getEvaluationText(run, isSuccess) {
     return "安全を最優先にし、無理のない探索を行った。";
   }
   return lines.join(" ");
+}
+
+// Contracts state & render functions
+const contractsState = {
+  selectedId: null
+};
+
+export function openContractsOverlay() {
+  contractsState.selectedId = null;
+  const overlay = document.getElementById("contracts-overlay");
+  if (overlay) {
+    overlay.style.display = "flex";
+  }
+  renderContracts();
+}
+
+export function renderContracts() {
+  const overlay = document.getElementById("contracts-overlay");
+  if (!overlay) return;
+
+  overlay.innerHTML = "";
+  
+  // Header
+  const header = document.createElement("div");
+  header.className = "archives-header";
+  
+  const title = document.createElement("div");
+  title.className = "archives-title";
+  title.textContent = "城の探索契約書";
+  header.appendChild(title);
+  
+  overlay.appendChild(header);
+
+  // Body
+  const body = document.createElement("div");
+  body.className = "archives-body";
+
+  if (state.activeContract) {
+    // Show active contract details and progress
+    const contract = state.activeContract;
+    const isKill = contract.type === "kill";
+    const isChest = contract.type === "chest";
+    const isRecovery = contract.type === "recovery";
+    
+    let progressText = "";
+    if (isKill) {
+      progressText = `討伐数: ${contract.currentValue} / ${contract.targetValue} 体`;
+    } else if (isChest) {
+      progressText = `宝箱開封数 (探索中): ${state.currentRun ? state.currentRun.chestsOpened : 0} / ${contract.targetValue} 個`;
+    } else if (isRecovery) {
+      const currentUnid = state.inventory.filter(item => typeof item === "object" && !item.identified).length;
+      progressText = `所持未鑑定品: ${currentUnid} / ${contract.targetValue} 個`;
+    } else if (contract.type === "reach" || contract.type === "weekly" || contract.type === "limit") {
+      progressText = `最高到達階: B${state.currentRun ? state.currentRun.deepestFloor : 1}F (目標: B${contract.targetValue}F)`;
+    }
+
+    const detailDiv = document.createElement("div");
+    detailDiv.className = "codex-detail";
+    
+    let rewardText = `ゴールド: ${contract.reward.gold} G`;
+    if (contract.reward.identifyTickets > 0) {
+      rewardText += ` / 鑑定割引券: ${contract.reward.identifyTickets}枚`;
+    }
+    if (contract.reward.item === "rare_equip") {
+      rewardText += " / Rare未鑑定装備";
+    } else if (contract.reward.item === "epic_equip") {
+      rewardText += " / Epic未鑑定装備";
+    }
+
+    detailDiv.innerHTML = `
+      <div class="codex-detail-header" style="border-bottom: 1px solid var(--neon-glow-gold);">
+        <span class="codex-detail-name" style="color: var(--neon-gold);">${contract.name}</span>
+        <span class="codex-meta" style="color: var(--neon-gold); border-color: var(--neon-gold);">危険度: ${contract.danger}</span>
+      </div>
+      <div class="codex-detail-body">
+        <p style="font-size: 13px; font-weight: bold; margin-bottom: 10px;">${contract.description}</p>
+        <p style="margin-top: 10px; font-size: 13px; color: var(--neon-cyan);"><strong>現在の進捗:</strong> ${progressText}</p>
+        <p style="margin-top: 10px;"><strong>報酬:</strong> ${rewardText}</p>
+        <p style="margin-top: 6px; font-size: 11px; color: var(--text-muted);">※契約を完了させるには、条件を満たした状態で無事に街へ「帰還」する必要があります。全滅した場合は契約失敗となり、破棄されます。</p>
+        <p style="margin-top: 10px; border-top: 1px dashed #333; padding-top: 8px;"><strong>推奨事項:</strong><br>${contract.recommended || "特になし"}</p>
+      </div>
+    `;
+
+    const btnAbandon = document.createElement("button");
+    btnAbandon.className = "btn btn-danger btn-block";
+    btnAbandon.style.marginTop = "15px";
+    btnAbandon.style.minHeight = "44px";
+    btnAbandon.textContent = "⚠️ 契約を破棄する";
+    btnAbandon.addEventListener("click", () => {
+      if (confirm("本当にこの契約を破棄しますか？進捗は完全にリセットされます。")) {
+        state.activeContract = null;
+        import("./contracts.js").then(mod => {
+          state.contracts = mod.generateContractsList(state);
+          saveAutosave();
+          renderContracts();
+        });
+      }
+    });
+
+    detailDiv.appendChild(btnAbandon);
+    body.appendChild(detailDiv);
+  } else {
+    // Show contract choices
+    const listTitle = document.createElement("div");
+    listTitle.className = "archives-section-title";
+    listTitle.textContent = "受注可能な契約 (1件のみ選択可能)";
+    body.appendChild(listTitle);
+
+    const listContainer = document.createElement("div");
+    listContainer.className = "codex-grid";
+
+    state.contracts.forEach(c => {
+      const row = document.createElement("div");
+      row.className = "codex-row";
+      row.style.borderLeft = `3px solid ${c.danger === "C" ? "var(--neon-green)" : (c.danger === "B" ? "var(--neon-gold)" : "var(--neon-red)")}`;
+      
+      row.innerHTML = `
+        <div style="display: flex; flex-direction: column;">
+          <span class="codex-name" style="font-weight: bold;">${c.name}</span>
+          <span style="font-size: 10px; color: var(--text-muted);">${c.description}</span>
+        </div>
+        <span class="codex-meta" style="min-width: 50px; text-align: center;">危険度 ${c.danger}</span>
+      `;
+
+      row.addEventListener("click", () => {
+        contractsState.selectedId = c.id;
+        renderContracts();
+      });
+
+      listContainer.appendChild(row);
+    });
+
+    body.appendChild(listContainer);
+
+    // Show details of selected contract if any
+    if (contractsState.selectedId) {
+      const selected = state.contracts.find(c => c.id === contractsState.selectedId);
+      if (selected) {
+        const detailModal = document.createElement("div");
+        detailModal.className = "codex-detail";
+        detailModal.style.marginTop = "15px";
+        detailModal.style.border = "1px solid var(--border-color)";
+        detailModal.style.padding = "10px";
+        detailModal.style.backgroundColor = "rgba(10, 10, 15, 0.95)";
+
+        let rewardText = `ゴールド: ${selected.reward.gold} G`;
+        if (selected.reward.identifyTickets > 0) {
+          rewardText += ` / 鑑定割引券: ${selected.reward.identifyTickets}枚`;
+        }
+        if (selected.reward.item === "rare_equip") {
+          rewardText += " / Rare未鑑定装備";
+        } else if (selected.reward.item === "epic_equip") {
+          rewardText += " / Epic未鑑定装備";
+        }
+
+        detailModal.innerHTML = `
+          <div style="font-size: 13px; font-weight: bold; color: var(--neon-gold); margin-bottom: 6px;">📝 契約詳細：${selected.name}</div>
+          <p style="font-size: 12px; margin-bottom: 8px;">${selected.description}</p>
+          <p style="font-size: 11px;"><strong>報酬:</strong> ${rewardText}</p>
+          <p style="font-size: 11px; margin-top: 4px; color: var(--neon-cyan);"><strong>推奨準備:</strong> ${selected.recommended || "特になし"}</p>
+        `;
+
+        const actionRow = document.createElement("div");
+        actionRow.className = "bottom-actions-row";
+        actionRow.style.marginTop = "10px";
+
+        const btnAccept = document.createElement("button");
+        btnAccept.className = "btn btn-neon";
+        btnAccept.style.flex = "1";
+        btnAccept.style.minHeight = "44px";
+        btnAccept.textContent = "✍️ 契約を受注する";
+        btnAccept.addEventListener("click", () => {
+          state.activeContract = selected;
+          state.contracts = state.contracts.filter(c => c.id !== selected.id);
+          addLog(`探索契約「${selected.name}」を受注しました！`);
+          playSound("level_up");
+          saveAutosave();
+          contractsState.selectedId = null;
+          renderContracts();
+        });
+
+        const btnCancel = document.createElement("button");
+        btnCancel.className = "btn btn-danger";
+        btnCancel.style.flex = "1";
+        btnCancel.style.minHeight = "44px";
+        btnCancel.textContent = "閉じる";
+        btnCancel.addEventListener("click", () => {
+          contractsState.selectedId = null;
+          renderContracts();
+        });
+
+        actionRow.appendChild(btnAccept);
+        actionRow.appendChild(btnCancel);
+        detailModal.appendChild(actionRow);
+        body.appendChild(detailModal);
+      }
+    }
+  }
+
+  overlay.appendChild(body);
+
+  // Footer / Close Button
+  const footer = document.createElement("div");
+  footer.className = "archives-footer";
+
+  const closeRow = document.createElement("div");
+  closeRow.className = "bottom-actions-row";
+
+  const btnClose = document.createElement("button");
+  btnClose.className = "btn btn-danger btn-camp-close";
+  btnClose.textContent = "❌ 街に戻る";
+  btnClose.style.width = "100%";
+  btnClose.style.minHeight = "44px";
+  btnClose.addEventListener("click", () => {
+    overlay.style.display = "none";
+    state.gameState = "town";
+    updateUI();
+  });
+  closeRow.appendChild(btnClose);
+  footer.appendChild(closeRow);
+
+  overlay.appendChild(footer);
+}
+
+export function openWarehouseOverlay() {
+  const overlay = document.getElementById("warehouse-overlay");
+  if (overlay) {
+    overlay.style.display = "flex";
+  }
+  renderWarehouse();
+}
+
+export function renderWarehouse() {
+  const overlay = document.getElementById("warehouse-overlay");
+  if (!overlay) return;
+
+  if (!state.storage) state.storage = [];
+  if (!state.storageMax) state.storageMax = 30;
+
+  overlay.innerHTML = "";
+
+  // Header
+  const header = document.createElement("div");
+  header.className = "archives-header";
+  
+  const title = document.createElement("div");
+  title.className = "archives-title";
+  title.textContent = `共有倉庫 (容量: ${state.storage.length} / ${state.storageMax})`;
+  header.appendChild(title);
+  
+  overlay.appendChild(header);
+
+  // Body
+  const body = document.createElement("div");
+  body.className = "archives-body";
+  body.style.display = "flex";
+  body.style.flexDirection = "column";
+  body.style.gap = "15px";
+
+  // Section 1: Bag (Inventory)
+  const bagSection = document.createElement("div");
+  bagSection.innerHTML = `<div class="archives-section-title">🎒 共有バッグ内のアイテム (${state.inventory.length} / 20)</div>`;
+  
+  const bagList = document.createElement("div");
+  bagList.className = "codex-grid";
+  bagList.style.maxHeight = "180px";
+  bagList.style.overflowY = "auto";
+
+  if (state.inventory.length === 0) {
+    bagList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 10px; font-size: 11px;">バッグは空です</div>`;
+  } else {
+    state.inventory.forEach((itemKey, idx) => {
+      const item = getItemData(itemKey);
+      if (!item) return;
+      
+      const row = document.createElement("div");
+      row.className = "codex-row";
+      row.style.padding = "8px 10px";
+      
+      const isUnidentified = typeof itemKey === "object" && !itemKey.identified;
+      const unidTag = isUnidentified ? `<span style="color: var(--neon-red); font-size: 9px; border: 1px solid var(--neon-red); padding: 0 2px; margin-right: 4px; border-radius: 2px;">未鑑定</span>` : "";
+      
+      row.innerHTML = `
+        <div style="display: flex; align-items: center;">
+          ${unidTag}
+          <span class="codex-name">${item.name}</span>
+        </div>
+        <span class="codex-meta" style="color: var(--neon-cyan); cursor: pointer; padding: 4px 8px; border: 1px solid var(--neon-cyan); border-radius: 4px; font-size: 10px; min-width: 44px; text-align: center;">預ける</span>
+      `;
+
+      row.querySelector(".codex-meta").addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (state.storage.length >= state.storageMax) {
+          alert("倉庫がいっぱいでこれ以上預けられません！");
+          return;
+        }
+        const removed = state.inventory.splice(idx, 1)[0];
+        state.storage.push(removed);
+        playSound("gold");
+        saveAutosave();
+        renderWarehouse();
+      });
+
+      bagList.appendChild(row);
+    });
+  }
+  bagSection.appendChild(bagList);
+  body.appendChild(bagSection);
+
+  // Section 2: Storage (Warehouse)
+  const storageSection = document.createElement("div");
+  storageSection.innerHTML = `<div class="archives-section-title">🏢 倉庫内の保管アイテム (${state.storage.length} / ${state.storageMax})</div>`;
+
+  const storageList = document.createElement("div");
+  storageList.className = "codex-grid";
+  storageList.style.maxHeight = "180px";
+  storageList.style.overflowY = "auto";
+
+  if (state.storage.length === 0) {
+    storageList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 10px; font-size: 11px;">倉庫に保管されているアイテムはありません</div>`;
+  } else {
+    state.storage.forEach((itemKey, idx) => {
+      const item = getItemData(itemKey);
+      if (!item) return;
+
+      const row = document.createElement("div");
+      row.className = "codex-row";
+      row.style.padding = "8px 10px";
+
+      const isUnidentified = typeof itemKey === "object" && !itemKey.identified;
+      const unidTag = isUnidentified ? `<span style="color: var(--neon-red); font-size: 9px; border: 1px solid var(--neon-red); padding: 0 2px; margin-right: 4px; border-radius: 2px;">未鑑定</span>` : "";
+
+      row.innerHTML = `
+        <div style="display: flex; align-items: center;">
+          ${unidTag}
+          <span class="codex-name">${item.name}</span>
+        </div>
+        <span class="codex-meta" style="color: var(--neon-green); cursor: pointer; padding: 4px 8px; border: 1px solid var(--neon-green); border-radius: 4px; font-size: 10px; min-width: 44px; text-align: center;">引出</span>
+      `;
+
+      row.querySelector(".codex-meta").addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (state.inventory.length >= 20) {
+          alert("バッグがいっぱいで引き出せません！");
+          return;
+        }
+        const removed = state.storage.splice(idx, 1)[0];
+        state.inventory.push(removed);
+        playSound("gold");
+        saveAutosave();
+        renderWarehouse();
+      });
+
+      storageList.appendChild(row);
+    });
+  }
+  storageSection.appendChild(storageList);
+  body.appendChild(storageSection);
+
+  overlay.appendChild(body);
+
+  // Footer with actions
+  const footer = document.createElement("div");
+  footer.className = "archives-footer";
+
+  const actionRow1 = document.createElement("div");
+  actionRow1.className = "bottom-actions-row";
+  actionRow1.style.marginBottom = "8px";
+
+  // 一括預入ボタン
+  const btnBatchDeposit = document.createElement("button");
+  btnBatchDeposit.className = "btn btn-neon";
+  btnBatchDeposit.style.flex = "1";
+  btnBatchDeposit.style.minHeight = "44px";
+  btnBatchDeposit.textContent = "📦 未鑑定品一括預入";
+  btnBatchDeposit.addEventListener("click", () => {
+    const unids = state.inventory.filter(item => typeof item === "object" && !item.identified);
+    if (unids.length === 0) {
+      alert("バッグ内に未鑑定の装備がありません。");
+      return;
+    }
+    
+    let count = 0;
+    for (let i = state.inventory.length - 1; i >= 0; i--) {
+      const itemKey = state.inventory[i];
+      if (typeof itemKey === "object" && !itemKey.identified) {
+        if (state.storage.length >= state.storageMax) {
+          alert("倉庫がいっぱいになりました！一部の未鑑定品は預けられませんでした。");
+          break;
+        }
+        const removed = state.inventory.splice(i, 1)[0];
+        state.storage.push(removed);
+        count++;
+      }
+    }
+    
+    if (count > 0) {
+      addLog(`未鑑定品を ${count} 個、倉庫に預けました。`);
+      playSound("gold");
+      saveAutosave();
+      renderWarehouse();
+    }
+  });
+
+  // 倉庫拡張ボタン
+  const btnExpand = document.createElement("button");
+  btnExpand.className = "btn btn-neon";
+  btnExpand.style.flex = "1";
+  btnExpand.style.minHeight = "44px";
+  btnExpand.style.borderColor = "var(--neon-cyan)";
+  btnExpand.style.color = "var(--neon-cyan)";
+  btnExpand.textContent = `🏢 倉庫拡張 (+5/500G)`;
+  if (state.gold < 500) {
+    btnExpand.disabled = true;
+    btnExpand.classList.add("disabled");
+  }
+  btnExpand.addEventListener("click", () => {
+    if (state.gold < 500) return;
+    state.gold -= 500;
+    state.storageMax += 5;
+    addLog(`倉庫枠を拡張しました！最大枠数：${state.storageMax}`);
+    playSound("level_up");
+    
+    const goldLabel = document.getElementById("gold-counter");
+    if (goldLabel) goldLabel.textContent = `GOLD: ${state.gold}`;
+
+    saveGame();
+    saveAutosave();
+    renderWarehouse();
+  });
+
+  actionRow1.appendChild(btnBatchDeposit);
+  actionRow1.appendChild(btnExpand);
+  footer.appendChild(actionRow1);
+
+  // 閉じる行
+  const closeRow = document.createElement("div");
+  closeRow.className = "bottom-actions-row";
+
+  const btnClose = document.createElement("button");
+  btnClose.className = "btn btn-danger btn-camp-close";
+  btnClose.textContent = "❌ 街に戻る";
+  btnClose.style.width = "100%";
+  btnClose.style.minHeight = "44px";
+  btnClose.addEventListener("click", () => {
+    overlay.style.display = "none";
+    state.gameState = "town";
+    updateUI();
+  });
+  closeRow.appendChild(btnClose);
+  footer.appendChild(closeRow);
+
+  overlay.appendChild(footer);
 }

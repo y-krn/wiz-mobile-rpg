@@ -18,19 +18,28 @@ export function setupChestState() {
   const rng = state.seed ? createRng(chestSeed) : Math.random;
 
   // Traps are floor dependent
-  let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
-  if (state.floor === 2) {
-    // B2F: Moderate poison needle rate (around 28% chance)
-    traps = ["poison needle", "poison needle", "gas bomb", "teleporter", "flash bomb", "none", "none"];
-  } else if (state.floor === 4) {
-    // B4F: Higher teleporter and gas bomb chance, no "none"
-    traps = ["gas bomb", "teleporter", "teleporter", "flash bomb", "poison needle"];
-  } else if (state.floor === 5) {
-    // B5F: Extremely dangerous traps, high chance of teleporter
-    traps = ["gas bomb", "teleporter", "teleporter", "poison needle", "flash bomb"];
+  let trap = "none";
+  if (state.floor === 1) {
+    const r = rng();
+    if (r < 0.35) trap = "none";
+    else if (r < 0.60) trap = "poison needle";
+    else if (r < 0.85) trap = "flash bomb";
+    else trap = "gas bomb";
+  } else {
+    let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
+    if (state.floor === 2) {
+      // B2F: Moderate poison needle rate (around 28% chance)
+      traps = ["poison needle", "poison needle", "gas bomb", "teleporter", "flash bomb", "none", "none"];
+    } else if (state.floor === 4) {
+      // B4F: Higher teleporter and gas bomb chance, no "none"
+      traps = ["gas bomb", "teleporter", "teleporter", "flash bomb", "poison needle"];
+    } else if (state.floor === 5) {
+      // B5F: Extremely dangerous traps, high chance of teleporter
+      traps = ["gas bomb", "teleporter", "teleporter", "poison needle", "flash bomb"];
+    }
+    const randIdx = Math.floor(rng() * traps.length);
+    trap = traps[randIdx];
   }
-  const randIdx = Math.floor(rng() * traps.length);
-  const trap = traps[randIdx];
 
   // Gold reward scale by floor
   let gold = Math.floor(rng() * 81) + 20; // Default 20-100G
@@ -42,42 +51,86 @@ export function setupChestState() {
 
   // Item reward scale by floor
   let item = null;
+  let isGuaranteed = false;
+  if (state.floor === 1 && !state.firstChestUnidentifiedGuaranteed) {
+    isGuaranteed = true;
+  }
+
   const itemChance = state.floor === 4 ? 0.75 : 0.50; // B4F has high item drop rate
-  if (rng() < itemChance) {
-    let candidates = [];
-    if (state.floor === 1) {
-      candidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "HEAL_POTION", "ANTIDOTE"];
-    } else if (state.floor === 2) {
-      candidates = ["DAGGER", "WAND", "SHORT_SWORD", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
-    } else if (state.floor === 3) {
-      candidates = ["SHORT_SWORD", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SMALL_SHIELD", "LARGE_SHIELD", "LEATHER_ARMOR", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "HEAL_POTION", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
-    } else if (state.floor === 4) {
-      // B4F: Standard standard chests only drop high-level store gear (e.g. Katana, Claymore)
-      candidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL", "HOLY_WATER"];
-    } else if (state.floor === 5) {
-      // B5F: Standard standard chests drop high-level gear
-      candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "HOLY_WATER", "TOWN_PORTAL"];
-    }
+  if (isGuaranteed || rng() < itemChance) {
+    if (isGuaranteed) {
+      const guaranCandidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR"];
+      const baseId = guaranCandidates[Math.floor(rng() * guaranCandidates.length)];
+      const baseItem = ITEMS[baseId];
+      
+      const affixes = [];
+      if (baseItem.type === "weapon") {
+        affixes.push({ type: "atk", value: 1 });
+      } else if (baseItem.type === "armor" || baseItem.type === "shield") {
+        affixes.push({ type: "def", value: 1 });
+      }
+      
+      if (rng() < 0.50) {
+        affixes.push({ type: "hp", value: 2 });
+      } else {
+        affixes.push({ type: "luk", value: 1 });
+      }
 
-    if (candidates.length > 0) {
-      item = candidates[Math.floor(rng() * candidates.length)];
+      const instanceId = `eq_${rng().toString(36).substr(2, 9)}`;
+      item = {
+        kind: "equipment",
+        instanceId,
+        baseId,
+        rarity: "magic",
+        level: 1,
+        identified: false,
+        affixes
+      };
+      state.firstChestUnidentifiedGuaranteed = true;
     } else {
-      const itemKeys = Object.keys(ITEMS).filter(k => k !== "ANTIGRAVITY_CRYSTAL");
-      const randItemIdx = Math.floor(rng() * itemKeys.length);
-      item = itemKeys[randItemIdx];
-    }
-
-    if (item) {
-      const itemData = ITEMS[item];
-      if (itemData && (itemData.type === "weapon" || itemData.type === "armor" || itemData.type === "shield")) {
-        let randChance = state.floor <= 3 ? 0.50 : 0.35;
-        if (state.floor === 5) {
-          randChance = 0.70;
-        } else if (["poison needle", "gas bomb", "teleporter"].includes(trap)) {
-          randChance = state.floor === 4 ? 0.45 : 0.60;
+      const hasAshes = state.inventory.some(i => {
+        if (typeof i === "string") return i === "SACRED_ASHES";
+        return i.baseId === "SACRED_ASHES";
+      });
+      if (state.floor >= 3 && !hasAshes && rng() < 0.05) {
+        item = "SACRED_ASHES";
+      } else {
+        let candidates = [];
+        if (state.floor === 1) {
+          candidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "HEAL_POTION", "ANTIDOTE"];
+        } else if (state.floor === 2) {
+          candidates = ["DAGGER", "WAND", "SHORT_SWORD", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
+        } else if (state.floor === 3) {
+          candidates = ["SHORT_SWORD", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SMALL_SHIELD", "LARGE_SHIELD", "LEATHER_ARMOR", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "HEAL_POTION", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
+        } else if (state.floor === 4) {
+          // B4F: Standard standard chests only drop high-level store gear (e.g. Katana, Claymore)
+          candidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL", "HOLY_WATER"];
+        } else if (state.floor === 5) {
+          // B5F: Standard standard chests drop high-level gear
+          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "HOLY_WATER", "TOWN_PORTAL"];
         }
-        if (rng() < randChance) {
-          item = generateRandomEquipment(state.floor, null, rng);
+
+        if (candidates.length > 0) {
+          item = candidates[Math.floor(rng() * candidates.length)];
+        } else {
+          const itemKeys = Object.keys(ITEMS).filter(k => k !== "ANTIGRAVITY_CRYSTAL");
+          const randItemIdx = Math.floor(rng() * itemKeys.length);
+          item = itemKeys[randItemIdx];
+        }
+
+        if (item) {
+          const itemData = ITEMS[item];
+          if (itemData && (itemData.type === "weapon" || itemData.type === "armor" || itemData.type === "shield")) {
+            let randChance = state.floor <= 3 ? 0.50 : 0.35;
+            if (state.floor === 5) {
+              randChance = 0.70;
+            } else if (["poison needle", "gas bomb", "teleporter"].includes(trap)) {
+              randChance = state.floor === 4 ? 0.45 : 0.60;
+            }
+            if (rng() < randChance) {
+              item = generateRandomEquipment(state.floor, null, rng);
+            }
+          }
         }
       }
     }

@@ -117,6 +117,28 @@ for (const vp of VIEWPORTS) {
         await backBtn.click();
         await page.waitForTimeout(500);
       }
+
+      // 6. Contracts Screen
+      const contractsBtn = page.locator('#btn-town-contracts');
+      if (await contractsBtn.isVisible()) {
+        await contractsBtn.click();
+        await page.waitForTimeout(500);
+        await verifyScreenButtons('Contracts Screen');
+        const backBtn = page.locator('button:has-text("閉じる"):visible, #btn-submenu-back:visible, button:has-text("街に戻る"):visible').first();
+        await backBtn.click();
+        await page.waitForTimeout(500);
+      }
+
+      // 7. Warehouse Screen
+      const warehouseBtn = page.locator('#btn-town-warehouse');
+      if (await warehouseBtn.isVisible()) {
+        await warehouseBtn.click();
+        await page.waitForTimeout(500);
+        await verifyScreenButtons('Warehouse Screen');
+        const backBtn = page.locator('button:has-text("閉じる"):visible, #btn-submenu-back:visible, button:has-text("街に戻る"):visible').first();
+        await backBtn.click();
+        await page.waitForTimeout(500);
+      }
     });
   });
 }
