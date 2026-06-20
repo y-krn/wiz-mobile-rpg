@@ -706,9 +706,19 @@ export class DungeonRenderer {
     ctx.rect(margin, margin, minimapSize, minimapSize);
     ctx.clip();
 
-    // Centering offsets so player is always at the center of the minimap
-    const offsetX = (minimapSize / 2) - (state.x * cellS + cellS / 2);
-    const offsetY = (minimapSize / 2) - (state.y * cellS + cellS / 2);
+    // Desired centering offsets so player is at the center of the minimap
+    const desiredOffsetX = (minimapSize / 2) - (state.x * cellS + cellS / 2);
+    const desiredOffsetY = (minimapSize / 2) - (state.y * cellS + cellS / 2);
+
+    const mapPixelW = MAP_WIDTH * cellS;
+    const mapPixelH = MAP_HEIGHT * cellS;
+
+    const minOffsetX = minimapSize - mapPixelW;
+    const minOffsetY = minimapSize - mapPixelH;
+
+    // Clamp offsets to map boundaries to prevent black margins
+    const offsetX = Math.max(minOffsetX, Math.min(0, desiredOffsetX));
+    const offsetY = Math.max(minOffsetY, Math.min(0, desiredOffsetY));
 
     // Check light spell radius (dumapic extends radius to 5, light is 3)
     const lightRad = state.dumapicTurns > 0 ? 5 : (state.lightTurns > 0 ? 3 : 0);
@@ -862,30 +872,30 @@ export class DungeonRenderer {
       });
     }
 
-    // Draw player arrow (larger, glowing gold)
+    // Draw player arrow
     const px = margin + state.x * cellS + cellS / 2 + offsetX;
     const py = margin + state.y * cellS + cellS / 2 + offsetY;
     
-    // Draw small background glow circle for player location
-    ctx.fillStyle = "rgba(255, 179, 0, 0.2)";
+    // Draw background glow circle for player location (gold/cyan depending on dumapic)
+    ctx.fillStyle = isDumapic ? "rgba(255, 215, 0, 0.3)" : "rgba(0, 229, 255, 0.25)";
     ctx.beginPath();
-    ctx.arc(px, py, 6, 0, Math.PI * 2);
+    ctx.arc(px, py, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = "#ffb300"; 
+    ctx.fillStyle = isDumapic ? "#ffd700" : "#00e5ff"; 
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1;
-    ctx.shadowBlur = 6;
-    ctx.shadowColor = "#ffb300";
+    ctx.shadowBlur = isDumapic ? 8 : 6;
+    ctx.shadowColor = isDumapic ? "#ffd700" : "#00e5ff";
     
     ctx.save();
     ctx.translate(px, py);
     // Rotate to match direction: 0=N, 1=E, 2=S, 3=W
     ctx.rotate((state.dir * Math.PI) / 2);
     ctx.beginPath();
-    ctx.moveTo(0, -5);
-    ctx.lineTo(-4, 4);
-    ctx.lineTo(4, 4);
+    ctx.moveTo(0, -6);
+    ctx.lineTo(-5, 5);
+    ctx.lineTo(5, 5);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();

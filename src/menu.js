@@ -314,6 +314,7 @@ export function openSubmenu(type, title, isBack = false) {
     shopState.filter = "all";
     shopState.selectedKey = null;
     shopState.selectedIdx = -1;
+    shopState.lastAppraised = null;
     renderShop();
   } else if (type === "shop_buy" || type === "shop_sell") {
     // Redirect to main shop flow to avoid legacy states

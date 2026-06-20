@@ -185,9 +185,15 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
 
 export function toggleCombatAuto() {
   if (!state.combatState) return;
+  const wasAuto = state.combatState.isAuto;
   state.combatState.isAuto = !state.combatState.isAuto;
   playSound("move");
-  addLog(`オート戦闘を${state.combatState.isAuto ? "オン" : "オフ"}にしました。`);
+  
+  if (wasAuto) {
+    addLog("オート戦闘を停止しました。");
+  } else {
+    addLog("オート戦闘をオンにしました。");
+  }
   
   if (state.combatState.isAuto && state.combatState.phase === "choose_actions") {
     advanceActionSelection();

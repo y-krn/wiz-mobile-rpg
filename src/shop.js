@@ -67,13 +67,15 @@ export let shopState = {
   mode: "buy", // "buy" or "sell"
   filter: "all", // "all", "weapon", "armor", "usable"
   selectedKey: null,
-  selectedIdx: -1
+  selectedIdx: -1,
+  lastAppraised: null // { idx, beforeName }
 };
 
 export function openShopAppraise() {
   shopState.mode = "appraise";
   shopState.selectedKey = null;
   shopState.selectedIdx = -1;
+  shopState.lastAppraised = null;
   openSubmenu("shop_main", "ボルタック商店 - 鑑定：");
 }
 
@@ -132,6 +134,7 @@ export function renderShop() {
         shopState.filter = cat.id;
         shopState.selectedKey = null;
         shopState.selectedIdx = -1;
+        shopState.lastAppraised = null;
         renderShop();
       });
       filterRow.appendChild(chip);
@@ -234,6 +237,7 @@ export function renderShop() {
       row.addEventListener("click", () => {
         shopState.selectedKey = st.key;
         shopState.selectedIdx = -1;
+        shopState.lastAppraised = null;
         renderShop();
       });
 
@@ -309,6 +313,7 @@ export function renderShop() {
           if (item.price > 0) {
             shopState.selectedKey = itemVal;
             shopState.selectedIdx = idx;
+            shopState.lastAppraised = null;
             renderShop();
           }
         });
@@ -317,10 +322,11 @@ export function renderShop() {
       });
     }
   } else if (shopState.mode === "appraise") {
-    // Appraise Mode
+    // Appraise Mode: include the last appraised item so it doesn't instantly vanish
     const unidentifiedItems = [];
     state.inventory.forEach((itemKey, idx) => {
-      if (typeof itemKey === "object" && !itemKey.identified) {
+      const isLastAppraised = shopState.lastAppraised && shopState.lastAppraised.idx === idx;
+      if (isLastAppraised || (typeof itemKey === "object" && !itemKey.identified)) {
         unidentifiedItems.push({ itemKey, idx });
       }
     });
@@ -346,6 +352,7 @@ export function renderShop() {
       itemsList.appendChild(heading);
 
       unidentifiedItems.forEach(({ itemKey, idx }) => {
+        const isLastAppraised = shopState.lastAppraised && shopState.lastAppraised.idx === idx;
         const itemData = getItemData(itemKey);
         const rarity = itemKey.rarity || "magic";
         const cost = { magic: 60, rare: 150, epic: 400 }[rarity] || 20;
@@ -359,10 +366,15 @@ export function renderShop() {
 
         const nameSpan = document.createElement("span");
         nameSpan.className = "shop-item-name";
-        nameSpan.textContent = itemData.name;
+        
+        if (isLastAppraised) {
+          nameSpan.innerHTML = `${itemData.name} <span class="shop-owned-badge" style="border-color: var(--neon-green); color: var(--neon-green); background-color: rgba(0, 255, 102, 0.08);">鑑定済</span>`;
+        } else {
+          nameSpan.textContent = itemData.name;
+        }
         row.appendChild(nameSpan);
 
-        if (state.gold < cost) {
+        if (!isLastAppraised && state.gold < cost) {
           row.classList.add("not-purchasable");
           const badge = document.createElement("span");
           badge.className = "shop-row-badge cant";
@@ -376,9 +388,15 @@ export function renderShop() {
         row.appendChild(priceSpan);
 
         row.addEventListener("click", () => {
-          shopState.selectedKey = itemKey;
-          shopState.selectedIdx = idx;
-          renderShop();
+          if (isLastAppraised) {
+            shopState.selectedKey = itemKey;
+            shopState.selectedIdx = idx;
+          } else {
+            shopState.lastAppraised = null;
+            shopState.selectedKey = itemKey;
+            shopState.selectedIdx = idx;
+            renderShop();
+          }
         });
 
         itemsList.appendChild(row);
@@ -401,7 +419,135 @@ export function renderShop() {
 
   let actionBtn = null;
 
-  if (!hasSelected) {
+  if (shopState.mode === "appraise" && shopState.lastAppraised) {
+    // ----------------------------------------------------
+    // Custom Appraised Result Panel
+    // ----------------------------------------------------
+    const appraisedIdx = shopState.lastAppraised.idx;
+    const eqItem = state.inventory[appraisedIdx];
+    if (eqItem) {
+      const item = getItemData(eqItem);
+      
+      const scrollContent = document.createElement("div");
+      scrollContent.className = "detail-scroll-content";
+
+      // 1. Detail Header (Title: 鑑定結果)
+      const detailHeader = document.createElement("div");
+      detailHeader.className = "detail-header";
+      detailHeader.style.borderBottom = "1px solid var(--neon-green)";
+      detailHeader.innerHTML = `
+        <div style="font-size: 10px; color: var(--neon-green); font-weight: bold; text-shadow: 0 0 2px rgba(0, 255, 102, 0.3);">✨ 鑑定結果</div>
+        <div class="detail-name" style="color: #fff; text-shadow: none; font-size: 15px; margin-top: 2px;">
+          ${shopState.lastAppraised.beforeName} ➔ <span style="color: var(--neon-green); font-weight: bold; text-shadow: 0 0 4px rgba(0, 255, 102, 0.4);">${item.name}</span>
+        </div>
+      `;
+      scrollContent.appendChild(detailHeader);
+
+      // 2. Stats and Rarity Info
+      const statsDiv = document.createElement("div");
+      statsDiv.className = "detail-stats";
+      
+      let typeJp = "貴重品";
+      if (item.type === "usable") typeJp = "消費アイテム";
+      else if (item.type === "weapon") typeJp = "武器";
+      else if (item.type === "shield") typeJp = "盾";
+      else if (item.type === "armor") typeJp = "鎧";
+
+      const sellPrice = Math.floor((item.price || 0) * 0.5);
+      const rarityJp = { magic: "MAGIC", rare: "RARE", epic: "EPIC" }[eqItem.rarity || "magic"] || "NORMAL";
+      const rarityColor = { magic: "var(--neon-cyan)", rare: "var(--neon-gold)", epic: "var(--neon-purple)" }[eqItem.rarity || "magic"] || "var(--text-muted)";
+
+      statsDiv.innerHTML = `
+        <div class="detail-stat-row">
+          <span>アイテム種別:</span>
+          <span>${typeJp}</span>
+        </div>
+        <div class="detail-stat-row">
+          <span>レアリティ:</span>
+          <span style="color: ${rarityColor}; font-weight: bold; text-shadow: 0 0 2px ${rarityColor}55;">${rarityJp}</span>
+        </div>
+        <div class="detail-stat-row">
+          <span>売却価値:</span>
+          <span style="color: var(--neon-gold); font-weight: bold;">${sellPrice}G</span>
+        </div>
+      `;
+      scrollContent.appendChild(statsDiv);
+
+      // 3. Stats details and Comparisons
+      if (item.type === "weapon" || item.type === "armor" || item.type === "shield") {
+        const equipStatsDiv = document.createElement("div");
+        equipStatsDiv.className = "detail-stats";
+        let statLabel = item.type === "weapon" ? "攻撃力" : "防御力";
+        let statVal = item.type === "weapon" ? item.atk : item.def;
+        equipStatsDiv.innerHTML = `
+          <div class="detail-stat-row">
+            <span>${statLabel}:</span>
+            <span class="detail-stat-val">+${statVal}</span>
+          </div>
+        `;
+        scrollContent.appendChild(equipStatsDiv);
+
+        const compatDiv = document.createElement("div");
+        compatDiv.className = "detail-compat";
+        compatDiv.innerHTML = `<div class="compat-title">装備適合と増減</div>`;
+
+        state.party.forEach(char => {
+          const canEquip = item.classes ? item.classes.includes(char.class) : true;
+          const row = document.createElement("div");
+          row.className = "compat-row";
+
+          if (!canEquip) {
+            row.innerHTML = `
+              <span class="compat-name">${char.name}</span>
+              <span class="compat-result no">🔴 装備不可</span>
+            `;
+          } else {
+            const slot = item.type; // "weapon", "shield", "armor"
+            const currentEquipKey = char.equipment[slot];
+            const currentEquip = currentEquipKey ? getItemData(currentEquipKey) : null;
+            
+            let currentStat = 0;
+            if (currentEquip) {
+              currentStat = slot === "weapon" ? currentEquip.atk : currentEquip.def;
+            }
+
+            const newStat = slot === "weapon" ? item.atk : item.def;
+            const diff = newStat - currentStat;
+
+            let diffText = "";
+            let resultClass = "ok";
+            
+            if (diff > 0) {
+              diffText = `🔺+${diff} (強化!)`;
+              resultClass = "upgrade";
+            } else if (diff < 0) {
+              diffText = `🔻${diff}`;
+              resultClass = "downgrade";
+            } else {
+              diffText = `±0`;
+              resultClass = "ok";
+            }
+
+            row.innerHTML = `
+              <span class="compat-name">${char.name}</span>
+              <span class="compat-result ${resultClass}">🟢 ${diffText}</span>
+            `;
+          }
+          compatDiv.appendChild(row);
+        });
+        scrollContent.appendChild(compatDiv);
+      }
+
+      // 4. Detail Description
+      const detailDesc = document.createElement("div");
+      detailDesc.className = "detail-desc";
+      detailDesc.style.marginTop = "8px";
+      detailDesc.textContent = item.desc || "特別な効果はありません。";
+      scrollContent.appendChild(detailDesc);
+
+      detailPanel.appendChild(scrollContent);
+    }
+  } else if (!hasSelected) {
     detailPanel.innerHTML = `<div class="detail-placeholder">取引するアイテムを<br>選択してください</div>`;
   } else {
     const itemKey = shopState.selectedKey;
@@ -624,6 +770,8 @@ export function renderShop() {
         state.gold -= itemPrice;
         
         const eqItem = state.inventory[shopState.selectedIdx];
+        const beforeName = getItemData(eqItem).name;
+
         eqItem.identified = true;
         const resultItem = getItemData(eqItem);
 
@@ -631,8 +779,11 @@ export function renderShop() {
         addLog(`鑑定成功！未鑑定のアイテムは [${resultItem.name}] だった！`);
         saveAutosave();
 
-        shopState.selectedKey = null;
-        shopState.selectedIdx = -1;
+        // Save appraisal results
+        shopState.lastAppraised = {
+          idx: shopState.selectedIdx,
+          beforeName: beforeName
+        };
 
         const goldLabel = document.getElementById("gold-counter");
         if (goldLabel) goldLabel.textContent = `GOLD: ${state.gold}`;
@@ -672,6 +823,7 @@ export function renderShop() {
     shopState.filter = "all";
     shopState.selectedKey = null;
     shopState.selectedIdx = -1;
+    shopState.lastAppraised = null;
     renderShop();
   });
   tabRow.appendChild(tabBuy);
@@ -685,6 +837,7 @@ export function renderShop() {
     shopState.filter = "all";
     shopState.selectedKey = null;
     shopState.selectedIdx = -1;
+    shopState.lastAppraised = null;
     renderShop();
   });
   tabRow.appendChild(tabSell);
@@ -698,6 +851,7 @@ export function renderShop() {
     shopState.filter = "all";
     shopState.selectedKey = null;
     shopState.selectedIdx = -1;
+    shopState.lastAppraised = null;
     renderShop();
   });
   tabRow.appendChild(tabAppraise);
@@ -707,7 +861,52 @@ export function renderShop() {
   const actionRow = document.createElement("div");
   actionRow.className = "bottom-actions-row";
   
-  if (!hasSelected) {
+  if (shopState.mode === "appraise" && shopState.lastAppraised) {
+    // Appraised mode action buttons: [次の未鑑定品] [売却へ]
+    const appraisedIdx = shopState.lastAppraised.idx;
+    
+    const btnNext = document.createElement("button");
+    btnNext.className = "btn btn-neon";
+    btnNext.style.flex = "1";
+    btnNext.style.minHeight = "44px";
+    
+    const nextItemIdx = state.inventory.findIndex((it, i) => i !== appraisedIdx && typeof it === "object" && !it.identified);
+    if (nextItemIdx !== -1) {
+      btnNext.textContent = "🔮 次を鑑定";
+      btnNext.addEventListener("click", () => {
+        shopState.lastAppraised = null;
+        shopState.selectedKey = state.inventory[nextItemIdx];
+        shopState.selectedIdx = nextItemIdx;
+        renderShop();
+      });
+    } else {
+      btnNext.textContent = "✅ 鑑定完了";
+      btnNext.addEventListener("click", () => {
+        shopState.lastAppraised = null;
+        shopState.selectedKey = null;
+        shopState.selectedIdx = -1;
+        renderShop();
+      });
+    }
+    actionRow.appendChild(btnNext);
+
+    const btnToSell = document.createElement("button");
+    btnToSell.className = "btn btn-danger";
+    btnToSell.style.flex = "1";
+    btnToSell.style.minHeight = "44px";
+    btnToSell.style.marginLeft = "6px";
+    btnToSell.textContent = "💰 売却へ";
+    btnToSell.addEventListener("click", () => {
+      const itemVal = state.inventory[appraisedIdx];
+      shopState.lastAppraised = null;
+      shopState.mode = "sell";
+      shopState.filter = "all";
+      shopState.selectedKey = itemVal;
+      shopState.selectedIdx = appraisedIdx;
+      renderShop();
+    });
+    actionRow.appendChild(btnToSell);
+  } else if (!hasSelected) {
     const btnDummy = document.createElement("button");
     btnDummy.className = "btn btn-block shop-action-btn disabled";
     btnDummy.disabled = true;

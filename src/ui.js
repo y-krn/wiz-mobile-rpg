@@ -246,7 +246,7 @@ export function updateUI() {
         autoBtn.style.pointerEvents = "auto";
         if (state.combatState && state.combatState.isAuto) {
           autoBtn.classList.add("active");
-          autoBtn.textContent = "オート ON";
+          autoBtn.textContent = "停止";
         } else {
           autoBtn.classList.remove("active");
           autoBtn.textContent = "オート";
@@ -442,26 +442,14 @@ export function updateViewportHUD() {
   const DIR_LABELS = ["北", "東", "南", "西"];
   const dirLabel = DIR_LABELS[state.dir];
 
-  const hasWallFront = cell.walls[state.dir];
-  const hasWallRight = cell.walls[(state.dir + 1) % 4];
-  const hasWallBack = cell.walls[(state.dir + 2) % 4];
-  const hasWallLeft = cell.walls[(state.dir + 3) % 4];
-
-  const frontText = hasWallFront ? "壁" : "通路";
-  const rightText = hasWallRight ? "壁" : "通路";
-  const leftText = hasWallLeft ? "壁" : "通路";
-  const backText = hasWallBack ? "壁" : "通路";
-
   const isDumapic = state.dumapicTurns > 0;
   if (isDumapic) {
     hud.innerHTML = `
       <div class="hud-dir dumapic-active">【DUMAPIC座標検知中】地下${state.floor}階 X:${state.x} Y:${state.y} (${dirLabel})</div>
-      <div class="hud-surround">前:${frontText} | 右:${rightText} | 左:${leftText} | 後:${backText}</div>
     `;
   } else {
     hud.innerHTML = `
       <div class="hud-dir">方角: ${dirLabel}</div>
-      <div class="hud-surround">前:${frontText} | 右:${rightText} | 左:${leftText} | 後:${backText}</div>
     `;
   }
 }
