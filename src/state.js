@@ -680,43 +680,47 @@ export function loadGame(forceSaveOnly = false) {
   }
 }
 
+export function createSavePayload() {
+  return {
+    x: state.x,
+    y: state.y,
+    dir: state.dir,
+    party: state.party,
+    roster: state.roster,
+    gold: state.gold,
+    inventory: state.inventory,
+    floor: state.floor,
+    maps: state.maps,
+    visitedMaps: state.visitedMaps,
+    lightTurns: state.lightTurns,
+    repelTurns: state.repelTurns,
+    dumapicTurns: state.dumapicTurns,
+    eventCooldownTurns: state.eventCooldownTurns,
+    activeMerchantStock: state.activeMerchantStock,
+    floorChestsOpened: state.floorChestsOpened,
+    floorChestsTotal: state.floorChestsTotal,
+    firstKills: state.firstKills,
+    lastReturnedFloor: state.lastReturnedFloor,
+    currentRun: state.currentRun,
+    runHistory: state.runHistory,
+    deathLogs: state.deathLogs,
+    codex: state.codex,
+    seed: state.seed,
+    gameState: state.gameState,
+    combatState: state.combatState,
+    chestState: state.chestState,
+    prevX: state.prevX,
+    prevY: state.prevY,
+    roamingMonsters: state.roamingMonsters,
+    roamingMovementStepCount: state.roamingMovementStepCount,
+    logs: state.logs.slice(-30)
+  };
+}
+
 // Save Game (Castle)
 export function saveGame() {
   try {
-    const data = {
-      x: state.x,
-      y: state.y,
-      dir: state.dir,
-      party: state.party,
-      roster: state.roster,
-      gold: state.gold,
-      inventory: state.inventory,
-      floor: state.floor,
-      maps: state.maps,
-      visitedMaps: state.visitedMaps,
-      lightTurns: state.lightTurns,
-      repelTurns: state.repelTurns,
-      dumapicTurns: state.dumapicTurns,
-      eventCooldownTurns: state.eventCooldownTurns,
-      activeMerchantStock: state.activeMerchantStock,
-      floorChestsOpened: state.floorChestsOpened,
-      floorChestsTotal: state.floorChestsTotal,
-      firstKills: state.firstKills,
-      lastReturnedFloor: state.lastReturnedFloor,
-      currentRun: state.currentRun,
-      runHistory: state.runHistory,
-      deathLogs: state.deathLogs,
-      codex: state.codex,
-      seed: state.seed,
-      gameState: state.gameState,
-      combatState: state.combatState,
-      chestState: state.chestState,
-      prevX: state.prevX,
-      prevY: state.prevY,
-      roamingMonsters: state.roamingMonsters,
-      roamingMovementStepCount: state.roamingMovementStepCount,
-      logs: state.logs.slice(-30) // Only save last 30 logs to keep clean
-    };
+    const data = createSavePayload();
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   } catch (err) {
     console.error("Save game failed", err);
@@ -726,40 +730,7 @@ export function saveGame() {
 // Save Autosave (Session State)
 export function saveAutosave() {
   try {
-    const data = {
-      x: state.x,
-      y: state.y,
-      dir: state.dir,
-      party: state.party,
-      roster: state.roster,
-      gold: state.gold,
-      inventory: state.inventory,
-      floor: state.floor,
-      maps: state.maps,
-      visitedMaps: state.visitedMaps,
-      lightTurns: state.lightTurns,
-      repelTurns: state.repelTurns,
-      dumapicTurns: state.dumapicTurns,
-      eventCooldownTurns: state.eventCooldownTurns,
-      activeMerchantStock: state.activeMerchantStock,
-      floorChestsOpened: state.floorChestsOpened,
-      floorChestsTotal: state.floorChestsTotal,
-      firstKills: state.firstKills,
-      lastReturnedFloor: state.lastReturnedFloor,
-      currentRun: state.currentRun,
-      runHistory: state.runHistory,
-      deathLogs: state.deathLogs,
-      codex: state.codex,
-      seed: state.seed,
-      gameState: state.gameState,
-      combatState: state.combatState,
-      chestState: state.chestState,
-      prevX: state.prevX,
-      prevY: state.prevY,
-      roamingMonsters: state.roamingMonsters,
-      roamingMovementStepCount: state.roamingMovementStepCount,
-      logs: state.logs.slice(-30)
-    };
+    const data = createSavePayload();
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
   } catch (err) {
     console.error("Save autosave failed", err);

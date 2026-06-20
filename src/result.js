@@ -1,0 +1,153 @@
+import { state, saveGame, saveAutosave } from "./state.js";
+import { START_X, START_Y, DIR_N } from "./data.js";
+import { updateUI } from "./ui.js";
+import { closeSubmenu } from "./menu.js";
+
+export function triggerRunResult(reason) {
+  if (!state.currentRun) return;
+  
+  state.currentRun.returnReason = reason;
+  const isSuccess = reason !== "gameover";
+  
+  const danger = calculateDangerScore();
+  state.currentRun.dangerScore = danger.score;
+  state.currentRun.dangerRank = danger.rank;
+  state.currentRun.dangerLabel = danger.label;
+
+  let lostGold = 0;
+  let lostUnidentifiedCount = 0;
+  const lostItemsNames = [];
+  if (!isSuccess) {
+    lostGold = state.currentRun.goldGained;
+    state.gold = Math.max(0, state.gold - lostGold);
+    state.currentRun.goldGained = 0;
+    
+    const unidEquip = state.inventory.filter(item => typeof item === "object" && !item.identified);
+    lostUnidentifiedCount = Math.ceil(unidEquip.length * 0.5);
+    for (let i = 0; i < lostUnidentifiedCount; i++) {
+      if (unidEquip.length === 0) break;
+      const idx = Math.floor(Math.random() * unidEquip.length);
+      const lostItem = unidEquip.splice(idx, 1)[0];
+      lostItemsNames.push(lostItem.name || "未鑑定装備");
+      const invIdx = state.inventory.indexOf(lostItem);
+      if (invIdx !== -1) {
+        state.inventory.splice(invIdx, 1);
+      }
+      const runEqIdx = state.currentRun.equipmentFound.indexOf(lostItem);
+      if (runEqIdx !== -1) {
+        state.currentRun.equipmentFound.splice(runEqIdx, 1);
+      }
+    }
+
+    state.party.forEach(c => {
+      c.status = "ok";
+      c.hp = 1;
+      c.mp = 0;
+    });
+
+    // 死亡履歴登録
+    let cause = "不測の罠またはダメージ";
+    if (state.combatState && state.combatState.monsters) {
+      const activeEnemies = state.combatState.monsters.filter(m => m.hp > 0);
+      if (activeEnemies.length > 0) {
+        cause = activeEnemies[0].name.replace(/\s[A-Z]$/, "") + "との戦闘";
+      }
+    }
+    const deathEntry = {
+      id: "death_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+      endedAt: Date.now(),
+      floor: state.floor,
+      x: state.x,
+      y: state.y,
+      seed: state.seed,
+      cause: cause,
+      partyLevelAvg: state.party.length > 0 ? Math.round(state.party.reduce((sum, c) => sum + c.level, 0) / state.party.length) : 1,
+      deepestFloor: state.currentRun.deepestFloor,
+      kills: state.currentRun.kills,
+      chestsOpened: state.currentRun.chestsOpened,
+      lostItems: lostItemsNames,
+      note: "リルガミンの蘇生費用に注意"
+    };
+    if (!state.deathLogs) state.deathLogs = [];
+    state.deathLogs.unshift(deathEntry);
+    if (state.deathLogs.length > 20) {
+      state.deathLogs.pop();
+    }
+  }
+
+  // 図鑑スタッツの更新
+  if (state.codex) {
+    if (!state.codex.stats) {
+      state.codex.stats = { totalRuns: 0, totalDeaths: 0, deepestFloor: 1, totalKills: 0, totalChests: 0 };
+    }
+    state.codex.stats.totalRuns++;
+    if (!isSuccess) {
+      state.codex.stats.totalDeaths++;
+    }
+    state.codex.stats.deepestFloor = Math.max(state.codex.stats.deepestFloor || 1, state.currentRun.deepestFloor);
+    state.codex.stats.totalChests += state.currentRun.chestsOpened;
+  }
+
+  state.x = START_X;
+  state.y = START_Y;
+  state.dir = DIR_N;
+  state.floor = 1;
+  state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
+
+  const runSummary = {
+    id: "run_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+    endedAt: Date.now(),
+    result: isSuccess ? "returned" : "failed",
+    deepestFloor: state.currentRun.deepestFloor,
+    kills: state.currentRun.kills,
+    chestsOpened: state.currentRun.chestsOpened,
+    dangerRank: danger.rank,
+    goldGained: isSuccess ? state.currentRun.goldGained : 0,
+    lostGold: lostGold,
+    lostUnidentifiedCount: lostUnidentifiedCount,
+    itemCount: state.currentRun.itemsFound.length + state.currentRun.equipmentFound.length,
+    returnReason: reason
+  };
+  
+  if (!state.runHistory) state.runHistory = [];
+  state.runHistory.unshift(runSummary);
+  if (state.runHistory.length > 20) {
+    state.runHistory.pop();
+  }
+
+  state.gameState = "result";
+  
+  saveGame();
+  saveAutosave();
+  updateUI();
+}
+
+export function calculateDangerScore() {
+  if (!state.currentRun) return { score: 0, rank: "E", label: "安全な偵察" };
+  let score = 0;
+  score += state.currentRun.deepestFloor * 8;
+  score += state.currentRun.battles * 2;
+  score += state.currentRun.elitesKilled * 5;
+  score += state.currentRun.bossesKilled * 15;
+  score += state.currentRun.chestsOpened * 3;
+  score += state.currentRun.trapsTriggered * 4;
+  
+  let deadCount = 0;
+  let anomalyCount = 0;
+  state.party.forEach(c => {
+    if (c.status === "dead") deadCount++;
+    else if (c.status !== "ok") anomalyCount++;
+  });
+  score += deadCount * 10;
+  score += anomalyCount * 5;
+
+  let rank = "E";
+  let label = "安全な偵察";
+  if (score >= 80) { rank = "S"; label = "無謀なる踏破"; }
+  else if (score >= 55) { rank = "A"; label = "危険な遠征"; }
+  else if (score >= 35) { rank = "B"; label = "深部探索"; }
+  else if (score >= 20) { rank = "C"; label = "通常探索"; }
+  else if (score >= 10) { rank = "D"; label = "小規模探索"; }
+  
+  return { score, rank, label };
+}

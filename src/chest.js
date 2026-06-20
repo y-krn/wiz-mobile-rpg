@@ -1,7 +1,7 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery } from "./state.js";
 import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomEquipment } from "./data.js";
 import { playSound } from "./audio.js";
-import { renderer } from "./game.js";
+import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
 import { menuContext, openSubmenu, goBackSubmenu, closeSubmenu } from "./menu.js";
 import { triggerGameOver } from "./combat.js";

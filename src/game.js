@@ -1,5 +1,5 @@
 import { loadGame, state } from "./state.js";
-import { DungeonRenderer } from "./renderer.js";
+import { DungeonRenderer, setDungeonRenderer } from "./renderer.js";
 import { toggleMute } from "./audio.js";
 
 // Import modules for re-export and button bindings
@@ -14,13 +14,14 @@ export { handleMove, enterDungeon } from "./movement.js";
 export { handleExploreAction, handleTownOption, goBackSubmenu } from "./menu.js";
 export { selectCombatAction, cancelCombatAction, resolveCombatRound, triggerGameOver, toggleCombatAuto } from "./combat.js";
 
-export let renderer = null;
+let renderer = null;
 let lastTime = 0;
 
 export function initGame() {
   loadGame();
   
   renderer = new DungeonRenderer("dungeon-canvas");
+  setDungeonRenderer(renderer);
   
   // Set up animation/render loop
   requestAnimationFrame(gameLoop);

@@ -1,0 +1,486 @@
+import { state, saveAutosave, addLog, getCharWeaponAtk, getCharDef } from "./state.js";
+import { 
+  DIR_N, START_X, START_Y, 
+  getClassJpName, getCharMaxHp, getCharMaxMp, getItemData, getCharStr 
+} from "./data.js";
+import { playSound } from "./audio.js";
+import { updateUI } from "./ui.js";
+
+export let equipState = {
+  actorIdx: 0,
+  filter: "all",
+  selectedKey: null,
+  selectedIdx: -1,
+  selectedSlot: null,
+  prevGameState: null
+};
+
+export function openEquipOverlay(actorIdx = 0) {
+  if (state.gameState !== "equip_overlay") {
+    equipState.prevGameState = state.gameState;
+  }
+  state.gameState = "equip_overlay";
+  equipState.actorIdx = actorIdx;
+  equipState.filter = "all";
+  equipState.selectedKey = null;
+  equipState.selectedIdx = -1;
+  equipState.selectedSlot = null;
+  
+  const overlay = document.getElementById("equip-overlay");
+  if (overlay) {
+    overlay.style.display = "flex";
+  }
+  renderEquip();
+  updateUI();
+}
+
+export function closeEquipOverlay() {
+  const overlay = document.getElementById("equip-overlay");
+  if (overlay) {
+    overlay.style.display = "none";
+  }
+  if (equipState.prevGameState) {
+    state.gameState = equipState.prevGameState;
+    equipState.prevGameState = null;
+  } else {
+    state.gameState = "explore";
+  }
+  saveAutosave();
+  updateUI();
+}
+
+export function renderEquip() {
+  const overlay = document.getElementById("equip-overlay");
+  if (!overlay) return;
+  
+  // Clear container
+  overlay.innerHTML = "";
+  
+  const char = state.party[equipState.actorIdx];
+  if (!char) {
+    closeEquipOverlay();
+    return;
+  }
+  
+  // 1. Header
+  const header = document.createElement("div");
+  header.className = "equip-header";
+  
+  const title = document.createElement("span");
+  title.className = "equip-title";
+  title.textContent = "道具・装備";
+  header.appendChild(title);
+  
+  const capacity = document.createElement("span");
+  capacity.className = `equip-capacity ${state.inventory.length >= 20 ? "full" : ""}`;
+  capacity.textContent = `バッグ: ${state.inventory.length}/20個`;
+  header.appendChild(capacity);
+  
+  overlay.appendChild(header);
+
+  // 2. Character summary & slots (Top content)
+  const summaryPanel = document.createElement("div");
+  summaryPanel.className = "equip-summary-panel";
+  summaryPanel.style.padding = "8px";
+  summaryPanel.style.backgroundColor = "#121216";
+  summaryPanel.style.borderBottom = "1px solid var(--border-color)";
+  summaryPanel.style.flexShrink = "0";
+
+  const charName = document.createElement("div");
+  charName.className = "equip-char-name";
+  charName.style.fontSize = "14px";
+  charName.style.fontWeight = "bold";
+  charName.style.color = "var(--neon-cyan)";
+  charName.style.marginBottom = "0";
+  charName.textContent = `${char.name} (${getClassJpName(char.class)} Lv.${char.level}) HP:${char.hp}/${getCharMaxHp(char)} MP:${char.mp}/${getCharMaxMp(char)}`;
+  summaryPanel.appendChild(charName);
+
+  // Equipment slots grid
+  const slotsGrid = document.createElement("div");
+  slotsGrid.className = "equip-slots-grid";
+  slotsGrid.style.display = "grid";
+  slotsGrid.style.gridTemplateColumns = "repeat(3, 1fr)";
+  slotsGrid.style.gap = "6px";
+  slotsGrid.style.marginBottom = "8px";
+
+  const slots = [
+    { id: "weapon", label: "武器" },
+    { id: "shield", label: "盾" },
+    { id: "armor", label: "鎧" }
+  ];
+
+  slots.forEach(slot => {
+    const eqKey = char.equipment[slot.id];
+    const eqItem = eqKey ? getItemData(eqKey) : null;
+    
+    const slotBtn = document.createElement("button");
+    const isSelected = equipState.selectedSlot === slot.id;
+    slotBtn.className = `btn btn-neon ${isSelected ? "active" : ""}`;
+    slotBtn.style.minHeight = "44px";
+    slotBtn.style.padding = "4px";
+    slotBtn.style.fontSize = "11px";
+    slotBtn.style.flexDirection = "column";
+    
+    const labelSpan = document.createElement("span");
+    labelSpan.style.fontSize = "9px";
+    labelSpan.style.color = "var(--text-muted)";
+    labelSpan.textContent = slot.label;
+    slotBtn.appendChild(labelSpan);
+    
+    const valSpan = document.createElement("span");
+    valSpan.textContent = eqItem ? eqItem.name : "なし";
+    slotBtn.appendChild(valSpan);
+    
+    slotBtn.addEventListener("click", () => {
+      equipState.selectedSlot = isSelected ? null : slot.id;
+      equipState.selectedKey = isSelected ? null : eqKey;
+      equipState.selectedIdx = -1;
+      renderEquip();
+    });
+    
+    slotsGrid.appendChild(slotBtn);
+  });
+  
+  overlay.appendChild(summaryPanel);
+
+  // 3. Create Body
+  const body = document.createElement("div");
+  body.className = "equip-body";
+  body.style.display = "flex";
+  body.style.flexDirection = "column";
+  body.style.flex = "1";
+  body.style.minHeight = "0";
+  body.style.gap = "8px";
+  body.style.padding = "8px 0";
+
+  // 3.1 Inventory List
+  const invCol = document.createElement("div");
+  invCol.className = "equip-inventory-col";
+  invCol.style.display = "flex";
+  invCol.style.flexDirection = "column";
+  invCol.style.flex = "1";
+  invCol.style.minHeight = "0";
+  invCol.style.gap = "8px";
+
+  invCol.appendChild(slotsGrid);
+
+  const itemList = document.createElement("div");
+  itemList.className = "equip-item-list";
+  itemList.style.maxHeight = "160px";
+  itemList.style.overflowY = "auto";
+  itemList.style.display = "flex";
+  itemList.style.flexDirection = "column";
+  itemList.style.gap = "4px";
+
+  // Filter inventory
+  const filteredInv = state.inventory.map((itemKey, idx) => ({ itemKey, idx })).filter(({ itemKey }) => {
+    const item = getItemData(itemKey);
+    if (!item) return false;
+    if (equipState.filter === "all") return true;
+    if (equipState.filter === "weapon") return item.type === "weapon";
+    if (equipState.filter === "armor") return item.type === "armor" || item.type === "shield";
+    if (equipState.filter === "usable") return item.type === "usable";
+    return true;
+  });
+
+  if (filteredInv.length === 0) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "equip-detail-placeholder";
+    placeholder.textContent = "バッグは空っぽです。";
+    itemList.appendChild(placeholder);
+  } else {
+    filteredInv.forEach(({ itemKey, idx }) => {
+      const item = getItemData(itemKey);
+      const isSelected = equipState.selectedIdx === idx;
+      
+      const row = document.createElement("button");
+      row.className = `equip-item-row ${isSelected ? "selected" : ""}`;
+      row.style.minHeight = "44px";
+      row.setAttribute("aria-selected", isSelected ? "true" : "false");
+      
+      const name = document.createElement("span");
+      name.className = "equip-item-row-name";
+      name.textContent = item.name;
+      row.appendChild(name);
+      
+      const tag = document.createElement("span");
+      tag.className = "equip-item-row-tag";
+      tag.textContent = item.type === "usable" ? "道具" : item.type === "weapon" ? "武器" : item.type === "shield" ? "盾" : "鎧";
+      row.appendChild(tag);
+      
+      row.addEventListener("click", () => {
+        equipState.selectedKey = isSelected ? null : itemKey;
+        equipState.selectedIdx = isSelected ? -1 : idx;
+        equipState.selectedSlot = null;
+        renderEquip();
+      });
+      itemList.appendChild(row);
+    });
+  }
+  invCol.appendChild(itemList);
+  body.appendChild(invCol);
+
+  // 3.2 Detail Panel
+  const detailCol = document.createElement("div");
+  detailCol.className = "equip-detail-col";
+  detailCol.style.minHeight = "90px";
+  detailCol.style.flexShrink = "0";
+  
+  let actionBtn = null;
+
+  const hasSelection = equipState.selectedIdx !== -1 || equipState.selectedSlot !== null;
+
+  if (!hasSelection || !equipState.selectedKey) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "equip-detail-placeholder";
+    placeholder.innerHTML = "バッグまたは装備スロットを<br>選択してください。";
+    detailCol.appendChild(placeholder);
+  } else {
+    const itemKey = equipState.selectedKey;
+    const item = getItemData(itemKey);
+    
+    if (item) {
+      const detailContent = document.createElement("div");
+      detailContent.className = "equip-detail-content";
+      detailContent.style.maxHeight = "90px";
+      detailContent.style.overflowY = "auto";
+      
+      const dName = document.createElement("div");
+      dName.className = "equip-detail-name";
+      dName.textContent = item.name;
+      detailContent.appendChild(dName);
+      
+      const dDesc = document.createElement("div");
+      dDesc.className = "equip-detail-desc";
+      dDesc.textContent = item.desc || "効果はありません。";
+      detailContent.appendChild(dDesc);
+      
+      // Compare Stats if equipable
+      const isEquipableType = item.type === "weapon" || item.type === "shield" || item.type === "armor";
+      if (isEquipableType && equipState.selectedIdx !== -1) {
+        const isIdentified = typeof itemKey !== "object" || itemKey.identified;
+        const canEquip = (!item.classes || item.classes.includes(char.class)) && isIdentified;
+        
+        const compat = document.createElement("div");
+        compat.className = `equip-detail-compat ${canEquip ? "yes" : "no"}`;
+        compat.textContent = canEquip ? "🟢 装備可能" : !isIdentified ? "🔴 装備不可 (未鑑定)" : "🔴 装備不可 (職業制限)";
+        detailContent.appendChild(compat);
+
+        // Stat preview
+        const compare = document.createElement("div");
+        compare.className = "equip-stat-compare";
+        
+        const currentEquipKey = char.equipment[item.type];
+        const currentEquip = currentEquipKey ? getItemData(currentEquipKey) : null;
+        
+        const statsToCompare = [
+          { label: "攻撃力", getValue: (eq) => eq?.type === "weapon" ? eq.atk : 0 },
+          { label: "防御力", getValue: (eq) => eq?.type !== "weapon" ? (eq?.def || 0) : 0 }
+        ];
+
+        statsToCompare.forEach(st => {
+          const curVal = st.getValue(currentEquip);
+          const newVal = st.getValue(item);
+          
+          const row = document.createElement("div");
+          row.className = "equip-stat-compare-row";
+
+          let displayCur = curVal;
+          let displayNew = newVal;
+          if (st.label === "攻撃力") {
+            displayCur = getCharWeaponAtk(char) + getCharStr(char);
+            displayNew = item.atk + getCharStr(char) - (currentEquip ? currentEquip.atk : 0);
+          } else if (st.label === "防御力") {
+            displayCur = getCharDef(char);
+            displayNew = getCharDef(char) - (currentEquip ? currentEquip.def : 0) + item.def;
+          }
+
+          const finalDiff = displayNew - displayCur;
+          const sign = finalDiff >= 0 ? "+" : "";
+
+          row.innerHTML = `<span>${st.label}:</span>`;
+          const val = document.createElement("span");
+          val.className = `equip-stat-compare-val ${finalDiff > 0 ? "upgrade" : finalDiff < 0 ? "downgrade" : ""}`;
+          val.textContent = `${displayCur} ➡ ${displayNew} (${sign}${finalDiff})`;
+          row.appendChild(val);
+          compare.appendChild(row);
+        });
+        detailContent.appendChild(compare);
+      }
+      
+      detailCol.appendChild(detailContent);
+
+      // Create action button for selection
+      if (equipState.selectedSlot !== null) {
+        // Unequip action
+        actionBtn = document.createElement("button");
+        actionBtn.className = "btn btn-danger btn-block";
+        actionBtn.textContent = "外す (装備解除)";
+        if (state.inventory.length >= 20) {
+          actionBtn.disabled = true;
+          actionBtn.textContent = "バッグ満杯のため外せません";
+        } else {
+          actionBtn.addEventListener("click", () => {
+            const slotId = equipState.selectedSlot;
+            char.equipment[slotId] = null;
+            state.inventory.push(itemKey);
+            saveAutosave();
+            
+            equipState.selectedKey = null;
+            equipState.selectedSlot = null;
+            renderEquip();
+            updateUI();
+          });
+        }
+      } else {
+        // Equip/Use action
+        actionBtn = document.createElement("button");
+        actionBtn.className = "btn btn-neon btn-block";
+        if (item.type === "usable") {
+          actionBtn.textContent = "使用する";
+          actionBtn.addEventListener("click", () => {
+            if (itemKey === "TOWN_PORTAL") {
+              closeEquipOverlay();
+              state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
+              state.gameState = "town";
+              state.x = START_X;
+              state.y = START_Y;
+              state.dir = DIR_N;
+              addLog(`${char.name}は帰還のスクロールを読んだ！街へ戻った！`);
+              playSound("cast_spell");
+              state.inventory.splice(equipState.selectedIdx, 1);
+              saveAutosave();
+              updateUI();
+              return;
+            }
+
+            let checkWarning = "";
+            if (itemKey === "HEAL_POTION" && char.hp >= char.maxHp) {
+              checkWarning = "HPはすでに満タンです。本当に使用しますか？";
+            } else if (itemKey === "ANTIDOTE" && char.status !== "poisoned") {
+              checkWarning = "毒状態ではありません。本当に使用しますか？";
+            }
+            if (checkWarning && !confirm(checkWarning)) return;
+            
+            const log = item.effect(char);
+            addLog(log);
+            playSound("heal");
+            state.inventory.splice(equipState.selectedIdx, 1);
+            saveAutosave();
+            
+            equipState.selectedKey = null;
+            equipState.selectedIdx = -1;
+            renderEquip();
+            updateUI();
+          });
+        } else {
+          const isIdentified = typeof itemKey !== "object" || itemKey.identified;
+          const canEquip = (!item.classes || item.classes.includes(char.class)) && isIdentified;
+          if (canEquip) {
+            actionBtn.textContent = "装備する";
+            actionBtn.addEventListener("click", () => {
+              const slot = item.type;
+              const oldEq = char.equipment[slot];
+              const eqData = state.inventory[equipState.selectedIdx];
+              
+              char.equipment[slot] = eqData;
+              if (oldEq) {
+                state.inventory[equipState.selectedIdx] = oldEq;
+              } else {
+                state.inventory.splice(equipState.selectedIdx, 1);
+              }
+              
+              playSound("move");
+              saveAutosave();
+              
+              equipState.selectedKey = null;
+              equipState.selectedIdx = -1;
+              renderEquip();
+              updateUI();
+            });
+          } else {
+            actionBtn.textContent = !isIdentified ? "未鑑定のため装備不可" : "装備不可";
+            actionBtn.disabled = true;
+            actionBtn.className = "btn btn-block";
+          }
+        }
+      }
+    }
+    
+    if (actionBtn) {
+      detailCol.appendChild(actionBtn);
+    }
+  }
+
+  body.appendChild(detailCol);
+  overlay.appendChild(body);
+
+  // 4. Create Bottom Actions Panel
+  const footer = document.createElement("div");
+  footer.className = "bottom-actions-container";
+
+  // 4.1 Character Switch Row
+  const charRow = document.createElement("div");
+  charRow.className = "bottom-actions-row";
+  
+  const btnPrev = document.createElement("button");
+  btnPrev.className = "btn btn-neon";
+  btnPrev.textContent = "◀ 前のキャラ";
+  btnPrev.addEventListener("click", () => {
+    const prevIdx = (equipState.actorIdx - 1 + state.party.length) % state.party.length;
+    openEquipOverlay(prevIdx);
+  });
+  charRow.appendChild(btnPrev);
+  
+  const btnNext = document.createElement("button");
+  btnNext.className = "btn btn-neon";
+  btnNext.textContent = "次のキャラ ▶";
+  btnNext.addEventListener("click", () => {
+    const nextIdx = (equipState.actorIdx + 1) % state.party.length;
+    openEquipOverlay(nextIdx);
+  });
+  charRow.appendChild(btnNext);
+  footer.appendChild(charRow);
+
+  // 4.2 Filters row
+  const filterRow = document.createElement("div");
+  filterRow.className = "bottom-actions-row";
+  
+  const categories = [
+    { id: "all", label: "すべて" },
+    { id: "weapon", label: "武器" },
+    { id: "armor", label: "防具" },
+    { id: "usable", label: "道具" }
+  ];
+
+  categories.forEach(cat => {
+    const chip = document.createElement("button");
+    const isActive = equipState.filter === cat.id;
+    chip.className = `filter-chip ${isActive ? "active" : ""}`;
+    chip.textContent = cat.label;
+    chip.addEventListener("click", () => {
+      equipState.filter = cat.id;
+      equipState.selectedKey = null;
+      equipState.selectedIdx = -1;
+      renderEquip();
+    });
+    filterRow.appendChild(chip);
+  });
+  footer.appendChild(filterRow);
+
+  // 4.3 Back/Close row
+  const closeRow = document.createElement("div");
+  closeRow.className = "bottom-actions-row";
+
+  const btnClose = document.createElement("button");
+  btnClose.className = "btn btn-danger";
+  btnClose.style.width = "100%";
+  btnClose.textContent = "❌ 閉じる";
+  btnClose.addEventListener("click", () => {
+    closeEquipOverlay();
+  });
+  closeRow.appendChild(btnClose);
+  footer.appendChild(closeRow);
+
+  overlay.appendChild(footer);
+}

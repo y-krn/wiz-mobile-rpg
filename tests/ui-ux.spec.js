@@ -10,13 +10,13 @@ for (const vp of VIEWPORTS) {
   test.describe(`UIUX Mobile One-Handed Operation tests on ${vp.name} (${vp.width}x${vp.height})`, () => {
     test.beforeEach(async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
-      await page.goto('http://localhost:5175/');
+      await page.goto('/');
       await page.evaluate(() => {
         localStorage.clear();
       });
-      await page.goto('http://localhost:5175/');
+      await page.goto('/');
       await page.waitForTimeout(1000);
-      await page.screenshot({ path: `/Users/ottan/.gemini/antigravity/scratch/${vp.name}-start.png` });
+      await page.screenshot({ path: `./scratch/${vp.name}-start.png` });
     });
 
     test('Check all visible buttons are at least 44px high and key actions are at the bottom', async ({ page }) => {
@@ -24,7 +24,7 @@ for (const vp of VIEWPORTS) {
       await page.waitForTimeout(1000);
 
       const verifyScreenButtons = async (screenName) => {
-        await page.screenshot({ path: `/Users/ottan/.gemini/antigravity/scratch/screen-${screenName.replace(/\s+/g, '_')}-${vp.name}.png` });
+        await page.screenshot({ path: `./scratch/screen-${screenName.replace(/\s+/g, '_')}-${vp.name}.png` });
         const buttons = await page.locator('button:visible, [role="button"]:visible, .btn:visible, .shop-item-row:visible, .equip-item-row:visible, .char-row:visible, .archives-tab:visible').all();
         console.log(`Checking ${buttons.length} buttons on screen: ${screenName}`);
         for (const btn of buttons) {

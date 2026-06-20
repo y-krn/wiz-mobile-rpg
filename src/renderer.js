@@ -2,6 +2,11 @@ import { DX, DY, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
 import { state } from "./state.js";
 import { menuContext } from "./menu.js";
 
+export let dungeonRenderer = null;
+export function setDungeonRenderer(r) {
+  dungeonRenderer = r;
+}
+
 // Canvas dimensions
 const VIEW_W = 400;
 const VIEW_H = 260;

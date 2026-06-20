@@ -1,7 +1,7 @@
 import { state, saveAutosave, addLog, createDefaultCurrentRun } from "./state.js";
 import { DIR_N, START_X, START_Y, DX, DY, DIR_NAMES, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
 import { playSound } from "./audio.js";
-import { renderer } from "./game.js";
+import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
