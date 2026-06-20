@@ -16,8 +16,10 @@ export { selectCombatAction, cancelCombatAction, resolveCombatRound, triggerGame
 
 let renderer = null;
 let lastTime = 0;
+const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover";
 
 export function initGame() {
+  lockViewportScale();
   loadGame();
   
   renderer = new DungeonRenderer("dungeon-canvas");
@@ -31,6 +33,14 @@ export function initGame() {
 
   // Load Initial UI state
   updateUI();
+}
+
+function lockViewportScale() {
+  const viewport = document.querySelector('meta[name="viewport"]');
+  if (viewport && viewport.getAttribute("content") !== LOCKED_VIEWPORT) {
+    viewport.setAttribute("content", LOCKED_VIEWPORT);
+  }
+  window.scrollTo(0, 0);
 }
 
 function gameLoop(time) {
@@ -113,9 +123,9 @@ function bindButtons() {
     });
   }
 
-  // Prevent iOS Safari pinch zoom and gesture zoom only inside non-log panels to allow text scaling/copy
+  // Prevent iOS/PWA pinch, double-tap zoom, and viewport drift during rapid gameplay taps.
   const shouldPreventGesture = (target) => {
-    return target && !target.closest("#log-panel");
+    return target && target.closest("#game-container");
   };
 
   document.addEventListener("gesturestart", (e) => {
@@ -128,14 +138,29 @@ function bindButtons() {
     if (shouldPreventGesture(e.target)) e.preventDefault();
   });
 
-  // Prevent pinch zoom via multi-touch touchstart (except on log panel for accessibility scaling)
+  // Prevent pinch zoom via multi-touch gestures.
   document.addEventListener("touchstart", (e) => {
     if (e.touches.length > 1 && shouldPreventGesture(e.target)) {
       e.preventDefault();
+      lockViewportScale();
     }
   }, { passive: false });
 
-  // Prevent double-tap zoom on non-interactive background elements (except log panel)
+  document.addEventListener("touchmove", (e) => {
+    if (e.touches.length > 1 && shouldPreventGesture(e.target)) {
+      e.preventDefault();
+      lockViewportScale();
+    }
+  }, { passive: false });
+
+  document.addEventListener("dblclick", (e) => {
+    if (shouldPreventGesture(e.target)) {
+      e.preventDefault();
+      lockViewportScale();
+    }
+  }, { passive: false });
+
+  // Prevent double-tap zoom on non-interactive background elements.
   let lastTouchEnd = 0;
   document.addEventListener("touchend", (e) => {
     const now = (new Date()).getTime();
@@ -150,6 +175,14 @@ function bindButtons() {
     }
     lastTouchEnd = now;
   }, { passive: false });
+
+  window.addEventListener("pageshow", lockViewportScale);
+  window.addEventListener("resize", lockViewportScale);
+  window.addEventListener("orientationchange", lockViewportScale);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", lockViewportScale);
+    window.visualViewport.addEventListener("scroll", lockViewportScale);
+  }
 
   // Keyboard navigation for desktop testing
   window.addEventListener("keydown", (e) => {
