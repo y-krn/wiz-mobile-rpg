@@ -307,8 +307,10 @@ export function openSubmenu(type, title, isBack = false) {
     info.textContent = "ボルタック商店で取引中...";
     optGrid.appendChild(info);
 
-    // Initialize shop state
-    shopState.mode = "buy";
+    // Initialize shop state (preserve appraise mode if set)
+    if (shopState.mode !== "appraise") {
+      shopState.mode = "buy";
+    }
     shopState.filter = "all";
     shopState.selectedKey = null;
     shopState.selectedIdx = -1;

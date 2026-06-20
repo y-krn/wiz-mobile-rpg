@@ -222,6 +222,10 @@ export function openChestMenu() {
   if (!state.chestState.inspected) {
     btnDisarm.textContent = "解除（要調査）";
     btnDisarm.disabled = true;
+  } else if (state.chestState.identifiedTrap === "none") {
+    btnDisarm.textContent = "解除不要";
+    btnDisarm.disabled = true;
+    btnDisarm.classList.add("disabled");
   } else {
     btnDisarm.textContent = "解除する";
   }
@@ -294,7 +298,7 @@ export function executeDisarm(char) {
   
   state.transitioning = true;
   if (success) {
-    addLog(`解除成功！${char.name}は無さに罠を解除した。`);
+    addLog(`解除成功！${char.name}は無事に罠を解除した。`);
     if (state.codex && state.codex.events && state.codex.events.traps) {
       const tKey = state.chestState.trap;
       if (state.codex.events.traps[tKey]) {

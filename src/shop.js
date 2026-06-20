@@ -82,7 +82,7 @@ export function renderShop() {
   if (!overlay) return;
   overlay.innerHTML = "";
 
-  // 1. Create header
+  // 1. Create header (only title)
   const header = document.createElement("div");
   header.className = "shop-header";
   
@@ -91,17 +91,6 @@ export function renderShop() {
   title.textContent = "ボルタック商店";
   header.appendChild(title);
   
-  const capacity = document.createElement("span");
-  capacity.className = "shop-capacity";
-  capacity.textContent = `バッグ: ${state.inventory.length}/20`;
-  header.appendChild(capacity);
-
-  const goldInfo = document.createElement("span");
-  goldInfo.className = "shop-gold-info";
-  goldInfo.textContent = `ゴールド: ${state.gold}G`;
-  header.appendChild(goldInfo);
-
-  // Note: btnClose is no longer in header, we move it to bottom-actions
   overlay.appendChild(header);
 
   // 2. Create body
@@ -111,13 +100,64 @@ export function renderShop() {
   // 2.1 Left Column: List Container
   const listContainer = document.createElement("div");
   listContainer.className = "shop-list-container";
-  listContainer.style.maxHeight = "none"; // allow natural flow in vertical layout
+  listContainer.style.maxHeight = "none";
   listContainer.style.flexShrink = "0";
+
+  // Filters row (only for Buy and Sell mode) - moved directly above list
+  if (shopState.mode === "buy" || shopState.mode === "sell") {
+    const filterRow = document.createElement("div");
+    filterRow.className = "shop-filters";
+    filterRow.style.display = "flex";
+    filterRow.style.gap = "6px";
+    filterRow.style.marginBottom = "8px";
+    filterRow.style.width = "100%";
+    
+    const categories = [
+      { id: "all", label: "すべて" },
+      { id: "usable", label: "道具" },
+      { id: "weapon", label: "武器" },
+      { id: "armor", label: "防具" }
+    ];
+
+    categories.forEach(cat => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      const isActive = shopState.filter === cat.id;
+      chip.className = `filter-chip ${isActive ? "active" : ""}`;
+      chip.setAttribute("aria-pressed", isActive ? "true" : "false");
+      chip.textContent = cat.label;
+      chip.style.flex = "1";
+      chip.style.minHeight = "36px";
+      chip.addEventListener("click", () => {
+        shopState.filter = cat.id;
+        shopState.selectedKey = null;
+        shopState.selectedIdx = -1;
+        renderShop();
+      });
+      filterRow.appendChild(chip);
+    });
+    listContainer.appendChild(filterRow);
+  }
 
   // Scrollable Items list
   const itemsList = document.createElement("div");
   itemsList.className = "shop-items-list";
-  itemsList.style.maxHeight = "160px"; // Constrain height to leave space for details
+  itemsList.style.maxHeight = "160px";
+
+  const TYPE_PRIORITIES = {
+    usable: 0,
+    weapon: 1,
+    armor: 2,
+    shield: 2,
+    quest: 3
+  };
+
+  function getTypeDisplayName(type) {
+    if (type === "usable") return "道具";
+    if (type === "weapon") return "武器";
+    if (type === "armor" || type === "shield") return "防具";
+    return "その他";
+  }
 
   if (shopState.mode === "buy") {
     // Filter stock
@@ -130,14 +170,33 @@ export function renderShop() {
       return true;
     });
 
+    // Sort stock: usable -> weapon -> armor/shield -> other
+    filteredStock.sort((a, b) => {
+      const itemA = ITEMS[a.key];
+      const itemB = ITEMS[b.key];
+      const priA = TYPE_PRIORITIES[itemA.type] ?? 3;
+      const priB = TYPE_PRIORITIES[itemB.type] ?? 3;
+      return priA - priB;
+    });
+
+    let currentCategory = null;
     filteredStock.forEach(st => {
       const item = ITEMS[st.key];
+      const itemCat = getTypeDisplayName(item.type);
+      if (itemCat !== currentCategory) {
+        currentCategory = itemCat;
+        const heading = document.createElement("div");
+        heading.className = "shop-list-heading";
+        heading.textContent = currentCategory;
+        itemsList.appendChild(heading);
+      }
+
       const row = document.createElement("button");
       row.type = "button";
       const isSelected = shopState.selectedKey === st.key;
       row.className = `shop-item-row ${isSelected ? "selected" : ""}`;
       row.setAttribute("aria-selected", isSelected ? "true" : "false");
-      row.style.minHeight = "44px"; // Ensure 44px
+      row.style.minHeight = "44px";
       
       const goldCheck = state.gold < st.price;
       const bagCheck = state.inventory.length >= 20;
@@ -181,24 +240,52 @@ export function renderShop() {
       itemsList.appendChild(row);
     });
   } else if (shopState.mode === "sell") {
-    // Selling Mode: list player inventory
-    if (state.inventory.length === 0) {
+    // Selling Mode: list player inventory mapped to preserve index
+    const mappedInventory = state.inventory.map((itemVal, idx) => {
+      const item = getItemData(itemVal);
+      return { itemVal, idx, item };
+    });
+
+    const filteredInventory = mappedInventory.filter(({ item }) => {
+      if (!item) return false;
+      if (shopState.filter === "all") return true;
+      if (shopState.filter === "weapon") return item.type === "weapon";
+      if (shopState.filter === "armor") return item.type === "armor" || item.type === "shield";
+      if (shopState.filter === "usable") return item.type === "usable";
+      return true;
+    });
+
+    // Sort inventory: usable -> weapon -> armor/shield -> other
+    filteredInventory.sort((a, b) => {
+      const priA = TYPE_PRIORITIES[a.item.type] ?? 3;
+      const priB = TYPE_PRIORITIES[b.item.type] ?? 3;
+      return priA - priB;
+    });
+
+    if (filteredInventory.length === 0) {
       const emptyMsg = document.createElement("div");
       emptyMsg.className = "detail-placeholder";
-      emptyMsg.textContent = "バッグは空っぽです。";
+      emptyMsg.textContent = "売却できるアイテムがありません。";
       itemsList.appendChild(emptyMsg);
     } else {
-      state.inventory.forEach((itemKey, idx) => {
-        const item = getItemData(itemKey);
-        if (!item) return;
+      let currentCategory = null;
+      filteredInventory.forEach(({ itemVal, idx, item }) => {
+        const itemCat = getTypeDisplayName(item.type);
+        if (itemCat !== currentCategory) {
+          currentCategory = itemCat;
+          const heading = document.createElement("div");
+          heading.className = "shop-list-heading";
+          heading.textContent = currentCategory;
+          itemsList.appendChild(heading);
+        }
+
         const value = Math.floor((item.price || 0) * 0.5);
-        
         const row = document.createElement("button");
         row.type = "button";
         const isSelected = shopState.selectedIdx === idx;
         row.className = `shop-item-row ${isSelected ? "selected" : ""}`;
         row.setAttribute("aria-selected", isSelected ? "true" : "false");
-        row.style.minHeight = "44px"; // Ensure 44px
+        row.style.minHeight = "44px";
         
         const nameSpan = document.createElement("span");
         nameSpan.className = "shop-item-name";
@@ -220,7 +307,7 @@ export function renderShop() {
 
         row.addEventListener("click", () => {
           if (item.price > 0) {
-            shopState.selectedKey = itemKey;
+            shopState.selectedKey = itemVal;
             shopState.selectedIdx = idx;
             renderShop();
           }
@@ -238,12 +325,26 @@ export function renderShop() {
       }
     });
 
+    // Sort unidentified items by actual identified type
+    unidentifiedItems.sort((a, b) => {
+      const itemA = getItemData(a.itemKey);
+      const itemB = getItemData(b.itemKey);
+      const priA = TYPE_PRIORITIES[itemA.type] ?? 3;
+      const priB = TYPE_PRIORITIES[itemB.type] ?? 3;
+      return priA - priB;
+    });
+
     if (unidentifiedItems.length === 0) {
       const emptyMsg = document.createElement("div");
       emptyMsg.className = "detail-placeholder";
       emptyMsg.textContent = "未鑑定のアイテムがありません。";
       itemsList.appendChild(emptyMsg);
     } else {
+      const heading = document.createElement("div");
+      heading.className = "shop-list-heading";
+      heading.textContent = "未鑑定品";
+      itemsList.appendChild(heading);
+
       unidentifiedItems.forEach(({ itemKey, idx }) => {
         const itemData = getItemData(itemKey);
         const rarity = itemKey.rarity || "magic";
@@ -254,7 +355,7 @@ export function renderShop() {
         const isSelected = shopState.selectedIdx === idx;
         row.className = `shop-item-row ${isSelected ? "selected" : ""}`;
         row.setAttribute("aria-selected", isSelected ? "true" : "false");
-        row.style.minHeight = "44px"; // Ensure 44px
+        row.style.minHeight = "44px";
 
         const nameSpan = document.createElement("span");
         nameSpan.className = "shop-item-name";
@@ -298,7 +399,7 @@ export function renderShop() {
                        (shopState.mode === "sell" && shopState.selectedIdx !== -1) ||
                        (shopState.mode === "appraise" && shopState.selectedIdx !== -1);
 
-  let actionBtn = null; // Will create if hasSelected
+  let actionBtn = null;
 
   if (!hasSelected) {
     detailPanel.innerHTML = `<div class="detail-placeholder">取引するアイテムを<br>選択してください</div>`;
@@ -323,41 +424,13 @@ export function renderShop() {
     const scrollContent = document.createElement("div");
     scrollContent.className = "detail-scroll-content";
 
-    // Detail Header
+    // 1. Detail Header (Name)
     const detailHeader = document.createElement("div");
     detailHeader.className = "detail-header";
     detailHeader.innerHTML = `<div class="detail-name">${item.name}</div>`;
     scrollContent.appendChild(detailHeader);
 
-    // Detail Description
-    const detailDesc = document.createElement("div");
-    detailDesc.className = "detail-desc";
-    detailDesc.textContent = item.desc || "特別な効果はありません。";
-    scrollContent.appendChild(detailDesc);
-
-    // Detail Ownership (Only for BUY mode)
-    if (shopState.mode === "buy") {
-      const ownership = getItemOwnership(itemKey);
-      const ownershipDiv = document.createElement("div");
-      ownershipDiv.className = "detail-ownership";
-      ownershipDiv.style.marginTop = "8px";
-      ownershipDiv.style.padding = "6px 8px";
-      ownershipDiv.style.backgroundColor = "rgba(18, 18, 24, 0.6)";
-      ownershipDiv.style.border = "1px solid #22222d";
-      ownershipDiv.style.borderRadius = "4px";
-      ownershipDiv.style.fontSize = "11px";
-      ownershipDiv.style.color = "var(--text-muted)";
-      ownershipDiv.style.fontFamily = "var(--font-mono)";
-
-      let ownershipHtml = `<div>所持数: <span style="color: ${ownership.total > 0 ? "var(--neon-cyan)" : "inherit"}; font-weight: bold;">${ownership.total}個</span></div>`;
-      if (ownership.total > 0) {
-        ownershipHtml += `<div style="font-size: 9px; margin-top: 2px; color: var(--text-muted);">（バッグ: ${ownership.bagCount}個 / 装備中: ${ownership.equippedCount}個）</div>`;
-      }
-      ownershipDiv.innerHTML = ownershipHtml;
-      scrollContent.appendChild(ownershipDiv);
-    }
-
-    // Detail Stats (if weapon or armor/shield)
+    // 2. Stats (if weapon or armor/shield) - moved to top
     if (item.type === "weapon" || item.type === "armor" || item.type === "shield") {
       const statsDiv = document.createElement("div");
       statsDiv.className = "detail-stats";
@@ -384,7 +457,7 @@ export function renderShop() {
       `;
       scrollContent.appendChild(statsDiv);
 
-      // Compatibilities and comparisons
+      // 3. Compatibility and comparisons
       const compatDiv = document.createElement("div");
       compatDiv.className = "detail-compat";
       compatDiv.innerHTML = `<div class="compat-title">装備適合と増減</div>`;
@@ -446,6 +519,35 @@ export function renderShop() {
       scrollContent.appendChild(statsDiv);
     }
 
+    // 4. Detail Ownership (Only for BUY mode) - moved to top
+    if (shopState.mode === "buy") {
+      const ownership = getItemOwnership(itemKey);
+      const ownershipDiv = document.createElement("div");
+      ownershipDiv.className = "detail-ownership";
+      ownershipDiv.style.marginTop = "8px";
+      ownershipDiv.style.padding = "6px 8px";
+      ownershipDiv.style.backgroundColor = "rgba(18, 18, 24, 0.6)";
+      ownershipDiv.style.border = "1px solid #22222d";
+      ownershipDiv.style.borderRadius = "4px";
+      ownershipDiv.style.fontSize = "11px";
+      ownershipDiv.style.color = "var(--text-muted)";
+      ownershipDiv.style.fontFamily = "var(--font-mono)";
+
+      let ownershipHtml = `<div>所持数: <span style="color: ${ownership.total > 0 ? "var(--neon-cyan)" : "inherit"}; font-weight: bold;">${ownership.total}個</span></div>`;
+      if (ownership.total > 0) {
+        ownershipHtml += `<div style="font-size: 9px; margin-top: 2px; color: var(--text-muted);">（バッグ: ${ownership.bagCount}個 / 装備中: ${ownership.equippedCount}個）</div>`;
+      }
+      ownershipDiv.innerHTML = ownershipHtml;
+      scrollContent.appendChild(ownershipDiv);
+    }
+
+    // 5. Detail Description - moved to bottom
+    const detailDesc = document.createElement("div");
+    detailDesc.className = "detail-desc";
+    detailDesc.style.marginTop = "8px";
+    detailDesc.textContent = item.desc || "特別な効果はありません。";
+    scrollContent.appendChild(detailDesc);
+
     detailPanel.appendChild(scrollContent);
 
     // Confirm button
@@ -460,6 +562,7 @@ export function renderShop() {
       const bagCheck = state.inventory.length >= 20;
       if (goldCheck || bagCheck) {
         actionBtn.disabled = true;
+        actionBtn.classList.add("disabled");
         if (bagCheck) {
           actionBtn.textContent = "バッグが満杯です";
         } else {
@@ -513,6 +616,7 @@ export function renderShop() {
       const goldCheck = state.gold < itemPrice;
       if (goldCheck) {
         actionBtn.disabled = true;
+        actionBtn.classList.add("disabled");
         actionBtn.textContent = "ゴールド不足";
       }
 
@@ -546,7 +650,16 @@ export function renderShop() {
   const footer = document.createElement("div");
   footer.className = "bottom-actions-container";
 
-  // 3.1 Tabs row
+  // 3.1 Status Bar row: [GOLD: 820G] [バッグ: 12/20]
+  const statusBar = document.createElement("div");
+  statusBar.className = "shop-status-bar";
+  statusBar.innerHTML = `
+    <span class="shop-status-gold">💰 ${state.gold}G</span>
+    <span class="shop-status-capacity">🎒 バッグ: ${state.inventory.length}/20</span>
+  `;
+  footer.appendChild(statusBar);
+
+  // 3.2 Tabs row: [買う] [売る] [鑑定]
   const tabRow = document.createElement("div");
   tabRow.className = "bottom-actions-row";
   
@@ -556,6 +669,7 @@ export function renderShop() {
   tabBuy.setAttribute("aria-pressed", shopState.mode === "buy" ? "true" : "false");
   tabBuy.addEventListener("click", () => {
     shopState.mode = "buy";
+    shopState.filter = "all";
     shopState.selectedKey = null;
     shopState.selectedIdx = -1;
     renderShop();
@@ -568,6 +682,7 @@ export function renderShop() {
   tabSell.setAttribute("aria-pressed", shopState.mode === "sell" ? "true" : "false");
   tabSell.addEventListener("click", () => {
     shopState.mode = "sell";
+    shopState.filter = "all";
     shopState.selectedKey = null;
     shopState.selectedIdx = -1;
     renderShop();
@@ -580,6 +695,7 @@ export function renderShop() {
   tabAppraise.setAttribute("aria-pressed", shopState.mode === "appraise" ? "true" : "false");
   tabAppraise.addEventListener("click", () => {
     shopState.mode = "appraise";
+    shopState.filter = "all";
     shopState.selectedKey = null;
     shopState.selectedIdx = -1;
     renderShop();
@@ -587,43 +703,22 @@ export function renderShop() {
   tabRow.appendChild(tabAppraise);
   footer.appendChild(tabRow);
 
-  // 3.2 Filters row (only for Buy mode)
-  if (shopState.mode === "buy") {
-    const filterRow = document.createElement("div");
-    filterRow.className = "bottom-actions-row";
-    
-    const categories = [
-      { id: "all", label: "すべて" },
-      { id: "weapon", label: "武器" },
-      { id: "armor", label: "防具" },
-      { id: "usable", label: "道具" }
-    ];
-
-    categories.forEach(cat => {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      const isActive = shopState.filter === cat.id;
-      chip.className = `filter-chip ${isActive ? "active" : ""}`;
-      chip.setAttribute("aria-pressed", isActive ? "true" : "false");
-      chip.textContent = cat.label;
-      chip.addEventListener("click", () => {
-        shopState.filter = cat.id;
-        shopState.selectedKey = null;
-        shopState.selectedIdx = -1;
-        renderShop();
-      });
-      filterRow.appendChild(chip);
-    });
-    footer.appendChild(filterRow);
-  }
-
-  // 3.3 Confirm button row
-  if (actionBtn) {
-    const actionRow = document.createElement("div");
-    actionRow.className = "bottom-actions-row";
+  // 3.3 Confirm/Action button row
+  const actionRow = document.createElement("div");
+  actionRow.className = "bottom-actions-row";
+  
+  if (!hasSelected) {
+    const btnDummy = document.createElement("button");
+    btnDummy.className = "btn btn-block shop-action-btn disabled";
+    btnDummy.disabled = true;
+    btnDummy.textContent = "取引するアイテムを選択してください";
+    btnDummy.style.minHeight = "44px";
+    actionRow.appendChild(btnDummy);
+  } else {
+    actionBtn.style.minHeight = "44px";
     actionRow.appendChild(actionBtn);
-    footer.appendChild(actionRow);
   }
+  footer.appendChild(actionRow);
 
   // 3.4 Close button row
   const closeRow = document.createElement("div");
@@ -632,6 +727,7 @@ export function renderShop() {
   const btnClose = document.createElement("button");
   btnClose.className = "btn btn-danger";
   btnClose.style.width = "100%";
+  btnClose.style.minHeight = "44px";
   btnClose.textContent = "❌ 閉じる";
   btnClose.addEventListener("click", () => {
     goBackSubmenu();
