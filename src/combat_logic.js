@@ -420,6 +420,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (mon.name === "いにしえの竜") {
         if (mon.tiltowaitQueued) {
           mon.tiltowaitQueued = false;
+          mon.turnCount = (mon.turnCount || 0) + 1;
           logQueue.push({
             msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！`,
             sound: "cast_spell",
@@ -431,8 +432,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 31) + 45; // 45-75 DMG
               if (isDefending) {
-                dmg = Math.max(1, Math.round(dmg * 0.5));
-                logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを軽減した！` });
+                dmg = Math.max(1, Math.round(dmg * 0.4));
+                logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを大幅に軽減した！` });
               }
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
@@ -442,30 +443,26 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           return;
         }
 
-        const hpPct = mon.hp / mon.maxHp;
-        const r = Math.random();
+        mon.turnCount = mon.turnCount || 0;
+        const currentTurn = mon.turnCount % 4;
         let action = "attack";
 
-        if (hpPct <= 0.35) {
-          if (r < 0.35) action = "attack";
-          else if (r < 0.60) action = "tiltowait_queue";
-          else if (r < 0.85) action = "breath";
-          else action = "intimidate";
-        } else if (hpPct <= 0.70) {
-          if (r < 0.45) action = "attack";
-          else if (r < 0.70) action = "madalto";
-          else if (r < 0.90) action = "breath";
-          else action = "regenerate";
+        if (currentTurn === 0) {
+          action = "attack";
+        } else if (currentTurn === 1) {
+          action = Math.random() < 0.5 ? "breath" : "madalto";
+        } else if (currentTurn === 2) {
+          action = "tiltowait_queue";
         } else {
-          if (r < 0.60) action = "attack";
-          else if (r < 0.85) action = "breath";
-          else action = "roar";
+          action = "attack"; // Fallback
         }
+
+        mon.turnCount++;
 
         if (action === "tiltowait_queue") {
           mon.tiltowaitQueued = true;
           logQueue.push({
-            msg: `[警告] いにしえの竜の角に極大の魔力が集まっている…！`,
+            msg: `[警告] いにしえの竜の角に極大の魔力集まっている…！`,
             sound: "cast_spell",
             flash: true
           });
@@ -488,21 +485,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             }
           });
           return;
-        } else if (action === "roar") {
-          logQueue.push({
-            msg: `[ 敵 ] いにしえの竜が咆哮した！凄まじい威圧感が襲いかかる！`,
-            sound: "hit",
-            shake: 20
-          });
-          state.party.forEach(c => {
-            if (c.status === "ok") {
-              if (Math.random() < 0.20) {
-                c.status = "sleep";
-                logQueue.push({ msg: `[ 敵 ] [!] ${c.name}は恐怖で体が竦んだ！` });
-              }
-            }
-          });
-          return;
         } else if (action === "madalto") {
           logQueue.push({
             msg: `[ 敵 ] いにしえの竜はマダルトを唱えた！氷の嵐が吹き荒れる！`,
@@ -521,41 +503,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             }
           });
           return;
-        } else if (action === "regenerate") {
-          const healAmount = 30;
-          mon.hp = Math.min(mon.maxHp, mon.hp + healAmount);
-          logQueue.push({
-            msg: `[ 敵 ] いにしえの竜の硬質な鱗が輝く！竜鱗再生によりHPが ${healAmount} 回復した。`,
-            sound: "heal",
-            floatText: `+${healAmount}`,
-            floatColor: "#00ff66"
-          });
-          return;
-        } else if (action === "intimidate") {
-          logQueue.push({
-            msg: `[ 敵 ] いにしえの竜は鋭い眼光でパーティを威圧した！`,
-            sound: "cast_spell"
-          });
-          state.party.forEach(c => {
-            if (c.status === "ok") {
-              if (Math.random() < 0.25) {
-                const roll = Math.random();
-                if (roll < 0.50) {
-                  c.status = "blind";
-                  logQueue.push({ msg: `[ 敵 ] [!] ${c.name}は暗闇に包まれた！` });
-                } else {
-                  c.status = "paralyzed";
-                  logQueue.push({ msg: `[ 敵 ] [!] ${c.name}は麻痺した！` });
-                }
-              }
-            }
-          });
-          return;
         }
       }
 
       // Check if monster heals its allies first (35% chance if spellcaster healer)
-      if (mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < 0.35) {
+      const healSpellChance = mon.spellChance !== undefined ? mon.spellChance : 0.35;
+      if (mon.name !== "いにしえの竜" && mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < healSpellChance) {
         const woundedMonsters = monsters.filter(m => m.hp > 0 && m.hp < m.maxHp);
         if (woundedMonsters.length > 0) {
           woundedMonsters.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
@@ -604,7 +557,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       const target = targetSelect.c;
 
       // Attack spells (HALITO, LAHALITO etc., excluding healer spells)
-      if (mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < 0.20) {
+      const attackSpellChance = mon.spellChance !== undefined ? mon.spellChance : 0.20;
+      if (mon.name !== "いにしえの竜" && mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < attackSpellChance) {
         if (mon.spell === "HALITO") {
           let dmg = Math.floor(Math.random() * 10) + 5;
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
@@ -706,7 +660,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           });
 
           // Apply poison effect if monster is poisonous and target survives
-          if (mon.isPoisonous && target.hp > 0 && target.status === "ok" && Math.random() < 0.35) {
+          const poisonChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
+          if (mon.isPoisonous && target.hp > 0 && target.status === "ok" && Math.random() < poisonChance) {
             target.status = "poisoned";
             logQueue.push({
               msg: `[ 敵 ] [!] ${target.name}は毒を受け、毒状態になった！`,
@@ -715,7 +670,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           }
 
           // Apply paralyze effect if monster is paralyzing and target survives
-          if (mon.isParalyzing && target.hp > 0 && ["ok", "poisoned", "blind", "sleep"].includes(target.status) && Math.random() < 0.35) {
+          const paralyzeChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
+          if (mon.isParalyzing && target.hp > 0 && ["ok", "poisoned", "blind", "sleep"].includes(target.status) && Math.random() < paralyzeChance) {
             target.status = "paralyzed";
             logQueue.push({
               msg: `[ 敵 ] [!] ${target.name}は麻痺を受け、麻痺状態になった！`,
@@ -724,7 +680,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           }
 
           // Apply blind effect if monster is blinding and target survives
-          if (mon.isBlinding && target.hp > 0 && target.status === "ok" && Math.random() < 0.35) {
+          const blindChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
+          if (mon.isBlinding && target.hp > 0 && target.status === "ok" && Math.random() < blindChance) {
             target.status = "blind";
             logQueue.push({
               msg: `[ 敵 ] [!] ${mon.name}の放つ閃光により、${target.name}は盲目状態になった！`,

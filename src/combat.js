@@ -9,6 +9,38 @@ import { setupChestState } from "./chest.js";
 import { createRng } from "./seed_rng.js";
 import { runCombatRoundCalculation } from "./combat_logic.js";
 
+const ENCOUNTER_PACKS = {
+  1: [
+    { members: [{ name: "かみつき蟲", min: 1, max: 2 }] },
+    { members: [{ name: "コボルトの斥候", min: 1, max: 2 }] },
+    { members: [{ name: "マッドスライム", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
+    { members: [{ name: "フラッシュバット", min: 1, max: 2 }] }
+  ],
+  2: [
+    { members: [{ name: "リビングアーマー", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
+    { members: [{ name: "ブラッドバット群", min: 4, max: 6 }] },
+    { members: [{ name: "ゾンビ", min: 1, max: 1 }, { name: "ジャイアントスパイダー", min: 1, max: 1 }] }
+  ],
+  3: [
+    { members: [{ name: "スピリット", min: 1, max: 1 }, { name: "はぐれ魔術師", min: 1, max: 1 }] },
+    { members: [{ name: "呪文喰い", min: 1, max: 1 }, { name: "オークの戦士", min: 1, max: 1 }] },
+    { members: [{ name: "カースドハンド", min: 1, max: 1 }, { name: "ゾンビ", min: 1, max: 1 }] },
+    { members: [{ name: "アイアンゴーレム", min: 1, max: 1 }, { name: "はぐれ魔術師", min: 1, max: 1 }] }
+  ],
+  4: [
+    { members: [{ name: "ストーンガード", min: 1, max: 1 }, { name: "マスターメイジ", min: 1, max: 1 }] },
+    { members: [{ name: "ウィル・オー・ウィスプ", min: 1, max: 1 }, { name: "バンシー", min: 1, max: 1 }] },
+    { members: [{ name: "アースジャイアント", min: 1, max: 1 }, { name: "ポイズンジャイアント", min: 1, max: 1 }] },
+    { members: [{ name: "ブラッドバット群", min: 4, max: 6 }] }
+  ],
+  5: [
+    { members: [{ name: "マスターデーモン", min: 1, max: 1 }, { name: "プリーストデーモン", min: 1, max: 1 }] },
+    { members: [{ name: "ドラゴンワーム", min: 3, max: 4 }] },
+    { members: [{ name: "レッドドラゴン", min: 1, max: 1 }, { name: "ワイバーン", min: 1, max: 1 }] },
+    { members: [{ name: "ストーンガード", min: 1, max: 1 }, { name: "マスターデーモン", min: 1, max: 1 }] }
+  ]
+};
+
 // Combat action selection state
 export let combatSelection = {
   charIdx: 0,
@@ -93,73 +125,41 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
       });
       addLog("【✨希少遭遇！】珍しい魔物が現れた！");
     } else {
-      // Choose monsters based on target level and count limits
-      const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
+      // 役割パックから遭遇を決定する
+      const floorPacks = ENCOUNTER_PACKS[state.floor] || ENCOUNTER_PACKS[1];
+      const chosenPack = floorPacks[Math.floor(Math.random() * floorPacks.length)];
       
-      let candidates = [];
-      const themeSeed = `${state.seed}:monster_theme:B${state.floor}`;
-      const themeRng = state.seed ? createRng(themeSeed) : Math.random;
-      let theme = "standard";
-      if (state.floor === 2) {
-        theme = themeRng() < 0.60 ? "poisonous" : "standard";
-      } else if (state.floor === 3) {
-        theme = themeRng() < 0.60 ? "spirit" : "standard";
-      } else if (state.floor === 5) {
-        theme = themeRng() < 0.70 ? "dragon" : "giant";
-      }
+      const tempMonsters = [];
+      chosenPack.members.forEach(member => {
+        const template = MONSTERS.find(m => m.name === member.name);
+        if (template) {
+          const count = Math.floor(Math.random() * (member.max - member.min + 1)) + member.min;
+          for (let i = 0; i < count; i++) {
+            tempMonsters.push({
+              ...template,
+              hp: template.hp,
+              maxHp: template.hp
+            });
+          }
+        }
+      });
 
-      if (state.floor === 5) {
-        if (theme === "dragon") {
-          const dragons = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.spriteType === "dragon");
-          candidates = dragons.length > 0 ? dragons : MONSTERS.filter(m => !m.isBoss && !m.isRare && m.level >= 6);
-        } else {
-          candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && ["アースジャイアント", "マスターデーモン"].includes(m.name));
-          if (candidates.length === 0) {
-            candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.level >= 6);
-          }
+      // 同種の敵が複数出現した場合、A, B, C... のサフィックスを付与する
+      const nameCounts = {};
+      tempMonsters.forEach(m => {
+        nameCounts[m.name] = (nameCounts[m.name] || 0) + 1;
+      });
+
+      const currentNameIndices = {};
+      tempMonsters.forEach(m => {
+        const baseName = m.name;
+        if (nameCounts[baseName] > 1) {
+          currentNameIndices[baseName] = (currentNameIndices[baseName] || 0) + 1;
+          const suffix = ` ${String.fromCharCode(64 + currentNameIndices[baseName])}`; // A, B, C...
+          m.name = baseName + suffix;
         }
-      } else {
-        if (state.floor === 1) {
-          if (dist < 20) {
-            candidates = MONSTERS.filter(m => ["かみつき蟲", "コボルトの斥候"].includes(m.name));
-          } else {
-            const isBasic = Math.random() < 0.60;
-            if (isBasic) {
-              candidates = MONSTERS.filter(m => ["かみつき蟲", "コボルトの斥候"].includes(m.name));
-            } else {
-              candidates = MONSTERS.filter(m => ["ゴブリンの呪術師", "マッドスライム", "フラッシュバット"].includes(m.name));
-            }
-          }
-        } else {
-          candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && m.level === targetLevel);
-          if (candidates.length === 0) {
-            candidates = MONSTERS.filter(m => !m.isBoss && !m.isRare && Math.abs(m.level - targetLevel) <= 1);
-          }
-        }
-        
-        if (state.floor === 2 && theme === "poisonous") {
-          const poisonous = candidates.filter(m => m.isPoisonous);
-          if (poisonous.length > 0) {
-            candidates = poisonous;
-          }
-        } else if (state.floor === 3 && theme === "spirit") {
-          const demonSpirits = candidates.filter(m => m.spriteType === "spirit" || m.spriteType === "flack" || m.spriteType === "mage");
-          if (demonSpirits.length > 0) {
-            candidates = demonSpirits;
-          }
-        }
-      }
-      
-      for (let i = 0; i < count; i++) {
-        const template = candidates[Math.floor(Math.random() * candidates.length)] || MONSTERS[0];
-        const suffix = count > 1 ? ` ${String.fromCharCode(65 + i)}` : "";
-        monsters.push({
-          ...template,
-          name: template.name + suffix,
-          hp: template.hp,
-          maxHp: template.hp
-        });
-      }
+        monsters.push(m);
+      });
     }
   }
 
