@@ -23,7 +23,8 @@ export const SPELLS = {
       let dmg = Math.floor(Math.random() * 11) + 5;
       const intVal = caster ? getCharInt(caster) : 10;
       const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
-      dmg = Math.round(dmg * bonus);
+      const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
+      dmg = Math.round(dmg * bonus * arcaneBonus);
       let suffix = "";
       if (target && target.magicResist) {
         dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
@@ -70,7 +71,8 @@ export const SPELLS = {
       const results = targets.map(t => {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 21) + 15;
-        dmg = Math.round(dmg * bonus);
+        const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
+        dmg = Math.round(dmg * bonus * arcaneBonus);
         let isResisted = false;
         let isWeakness = false;
         if (t.magicResist) {
@@ -113,7 +115,8 @@ export const SPELLS = {
       let dmg = Math.floor(Math.random() * 16) + 20;
       const intVal = caster ? getCharInt(caster) : 10;
       const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
-      dmg = Math.round(dmg * bonus);
+      const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
+      dmg = Math.round(dmg * bonus * arcaneBonus);
       let suffix = "";
       if (target && target.magicResist) {
         dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
@@ -154,7 +157,8 @@ export const SPELLS = {
       const results = targets.map(t => {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 31) + 30;
-        dmg = Math.round(dmg * bonus);
+        const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
+        dmg = Math.round(dmg * bonus * arcaneBonus);
         let isResisted = false;
         let isWeakness = false;
         if (t.magicResist) {
@@ -188,7 +192,8 @@ export const SPELLS = {
       const results = targets.map(t => {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 51) + 50;
-        dmg = Math.round(dmg * bonus);
+        const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
+        dmg = Math.round(dmg * bonus * arcaneBonus);
         let isResisted = false;
         let isWeakness = false;
         if (t.magicResist) {
@@ -222,7 +227,8 @@ export const SPELLS = {
       let heal = Math.floor(Math.random() * 11) + 10;
       const pieVal = caster ? getCharPie(caster) : 10;
       const bonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
-      heal = Math.round(heal * bonus);
+      const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
+      heal = Math.round(heal * bonus * devotionBonus);
       const oldHp = target.hp;
       const maxHp = getCharMaxHp(target);
       target.hp = Math.min(maxHp, target.hp + heal);
@@ -260,7 +266,8 @@ export const SPELLS = {
       let dmg = Math.floor(Math.random() * 11) + 5;
       const pieVal = caster ? getCharPie(caster) : 10;
       const bonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
-      dmg = Math.round(dmg * bonus);
+      const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
+      dmg = Math.round(dmg * bonus * arcaneBonus);
       let suffix = "";
       if (target && target.magicResist) {
         dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
@@ -368,7 +375,8 @@ export const SPELLS = {
       let heal = Math.floor(Math.random() * 51) + 70;
       const pieVal = caster ? getCharPie(caster) : 10;
       const bonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
-      heal = Math.round(heal * bonus);
+      const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
+      heal = Math.round(heal * bonus * devotionBonus);
       const oldHp = target.hp;
       const maxHp = getCharMaxHp(target);
       target.hp = Math.min(maxHp, target.hp + heal);
@@ -580,15 +588,42 @@ export function getItemData(itemOrKey) {
     
     // 未鑑定状態
     if (!itemOrKey.identified) {
-      let partName = "武器";
-      if (base.type === "shield") partName = "盾";
-      if (base.type === "armor") partName = "防具";
+      let prefix = "古びた";
+      const rarity = itemOrKey.rarity || "magic";
+      if (rarity === "magic") {
+        const isMagicAura = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE"].includes(base.id);
+        prefix = isMagicAura ? "青く光る" : "古びた";
+      } else if (rarity === "rare") {
+        prefix = "金紋の";
+      } else if (rarity === "epic") {
+        prefix = "紫光を放つ";
+      }
+
+      let typeName = "武器";
+      if (base.type === "shield") {
+        typeName = "盾";
+      } else if (base.type === "armor") {
+        const isRobe = ["ROBE", "MAGE_CLOAK", "PRIEST_ROBE"].includes(base.id);
+        typeName = isRobe ? "ローブ" : "鎧";
+      } else if (base.type === "weapon") {
+        if (base.id === "WAND") {
+          typeName = "杖";
+        } else if (["DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(base.id)) {
+          typeName = "短剣";
+        } else if (["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA"].includes(base.id)) {
+          typeName = "剣";
+        } else if (base.id === "MACE") {
+          typeName = "メイス";
+        }
+      }
+      
+      const unidentName = `${prefix}未鑑定の${typeName}`;
       
       return {
         ...base,
         id: itemOrKey,
-        name: `未鑑定の${partName}`,
-        desc: `未鑑定の${partName}。街の商店で鑑定できます。`,
+        name: unidentName,
+        desc: `${unidentName}。街の商店で鑑定できます。`,
         price: base.price,
         atk: 0,
         def: 0,
@@ -639,6 +674,11 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "agi") prefix = "疾風の";
       else if (primaryAff.type === "luk") prefix = "強運の";
       else if (primaryAff.type === "trapBonus") prefix = "技巧の";
+      else if (primaryAff.type === "followUp") prefix = "連撃の";
+      else if (primaryAff.type === "arcane") prefix = "秘術の";
+      else if (primaryAff.type === "devotion") prefix = "神聖な";
+      else if (primaryAff.type === "guardian") prefix = "守護の";
+      else if (primaryAff.type === "treasureSense") prefix = "宝探しの";
     }
     
     const name = prefix ? `${prefix}${base.name}` : base.name;
@@ -655,10 +695,15 @@ export function getItemData(itemOrKey) {
         vit: "生命",
         agi: "素早さ",
         luk: "運",
-        trapBonus: "罠解除"
+        trapBonus: "罠解除",
+        followUp: "追加攻撃",
+        arcane: "呪文威力",
+        devotion: "回復威力",
+        guardian: "守護",
+        treasureSense: "宝探"
       }[aff.type];
       const sign = aff.value >= 0 ? "+" : "";
-      const unit = aff.type === "trapBonus" ? "%" : "";
+      const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense"].includes(aff.type) ? "%" : "";
       return `${label}${sign}${aff.value}${unit}`;
     }).join(" / ");
     
@@ -705,6 +750,21 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
     baseCandidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL"];
   } else {
     baseCandidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "KATANA", "NINJA_DAGGER", "NINJA_SUIT"];
+  }
+  
+  // Smart Drop (70%): Select base items usable by the current party
+  if (rng() < 0.70 && globalState && globalState.party && globalState.party.length > 0) {
+    const usableCandidates = baseCandidates.filter(baseId => {
+      const item = ITEMS[baseId];
+      if (!item) return false;
+      return globalState.party.some(char => {
+        if (char.status === "dead") return false;
+        return !item.classes || item.classes.includes(char.class);
+      });
+    });
+    if (usableCandidates.length > 0) {
+      baseCandidates = usableCandidates;
+    }
   }
   
   const baseId = baseCandidates[Math.floor(rng() * baseCandidates.length)];
@@ -772,6 +832,28 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
       return 5;
     }});
   }
+
+  // New build-specific affixes
+  const isFollowUpEligible = ["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(baseId);
+  if (isFollowUpEligible) {
+    possibleAffixes.push({ type: "followUp", getVal: () => Math.floor(rng() * 5) + 8 }); // 8-12%
+  }
+  const isArcaneEligible = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE"].includes(baseId);
+  if (isArcaneEligible) {
+    possibleAffixes.push({ type: "arcane", getVal: () => 10 }); // +10%
+  }
+  const isDevotionEligible = ["MACE", "PRIEST_ROBE"].includes(baseId);
+  if (isDevotionEligible) {
+    possibleAffixes.push({ type: "devotion", getVal: () => 10 }); // +10%
+  }
+  const isGuardianEligible = ["SMALL_SHIELD", "LARGE_SHIELD", "KNIGHT_SHIELD", "LEGENDARY_SHIELD", "PLATE_MAIL", "CHAIN_MAIL", "SCALE_MAIL"].includes(baseId);
+  if (isGuardianEligible) {
+    possibleAffixes.push({ type: "guardian", getVal: () => 10 }); // -10%
+  }
+  const isTreasureSenseEligible = ["LEATHER_ARMOR", "NINJA_SUIT", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(baseId);
+  if (isTreasureSenseEligible) {
+    possibleAffixes.push({ type: "treasureSense", getVal: () => 5 }); // +5%
+  }
   
   const affixes = [];
   const selectedTypes = new Set();
@@ -803,126 +885,144 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
 export function getCharStr(char) {
   if (!char) return 0;
   let bonus = 0;
-  Object.values(char.equipment).forEach(eqKey => {
-    if (eqKey) {
-      const eqData = getItemData(eqKey);
-      if (eqData && eqData.statsBonus && eqData.statsBonus.str) {
-        bonus += eqData.statsBonus.str;
+  if (char.equipment) {
+    Object.values(char.equipment).forEach(eqKey => {
+      if (eqKey) {
+        const eqData = getItemData(eqKey);
+        if (eqData && eqData.statsBonus && eqData.statsBonus.str) {
+          bonus += eqData.statsBonus.str;
+        }
       }
-    }
-  });
+    });
+  }
   return char.str + bonus;
 }
 
 export function getCharInt(char) {
   if (!char) return 0;
   let bonus = 0;
-  Object.values(char.equipment).forEach(eqKey => {
-    if (eqKey) {
-      const eqData = getItemData(eqKey);
-      if (eqData && eqData.statsBonus && eqData.statsBonus.int) {
-        bonus += eqData.statsBonus.int;
+  if (char.equipment) {
+    Object.values(char.equipment).forEach(eqKey => {
+      if (eqKey) {
+        const eqData = getItemData(eqKey);
+        if (eqData && eqData.statsBonus && eqData.statsBonus.int) {
+          bonus += eqData.statsBonus.int;
+        }
       }
-    }
-  });
+    });
+  }
   return char.int + bonus;
 }
 
 export function getCharPie(char) {
   if (!char) return 0;
   let bonus = 0;
-  Object.values(char.equipment).forEach(eqKey => {
-    if (eqKey) {
-      const eqData = getItemData(eqKey);
-      if (eqData && eqData.statsBonus && eqData.statsBonus.pie) {
-        bonus += eqData.statsBonus.pie;
+  if (char.equipment) {
+    Object.values(char.equipment).forEach(eqKey => {
+      if (eqKey) {
+        const eqData = getItemData(eqKey);
+        if (eqData && eqData.statsBonus && eqData.statsBonus.pie) {
+          bonus += eqData.statsBonus.pie;
+        }
       }
-    }
-  });
+    });
+  }
   return char.pie + bonus;
 }
 
 export function getCharVit(char) {
   if (!char) return 0;
   let bonus = 0;
-  Object.values(char.equipment).forEach(eqKey => {
-    if (eqKey) {
-      const eqData = getItemData(eqKey);
-      if (eqData && eqData.statsBonus && eqData.statsBonus.vit) {
-        bonus += eqData.statsBonus.vit;
+  if (char.equipment) {
+    Object.values(char.equipment).forEach(eqKey => {
+      if (eqKey) {
+        const eqData = getItemData(eqKey);
+        if (eqData && eqData.statsBonus && eqData.statsBonus.vit) {
+          bonus += eqData.statsBonus.vit;
+        }
       }
-    }
-  });
+    });
+  }
   return char.vit + bonus;
 }
 
 export function getCharAgi(char) {
   if (!char) return 0;
   let bonus = 0;
-  Object.values(char.equipment).forEach(eqKey => {
-    if (eqKey) {
-      const eqData = getItemData(eqKey);
-      if (eqData && eqData.statsBonus && eqData.statsBonus.agi) {
-        bonus += eqData.statsBonus.agi;
+  if (char.equipment) {
+    Object.values(char.equipment).forEach(eqKey => {
+      if (eqKey) {
+        const eqData = getItemData(eqKey);
+        if (eqData && eqData.statsBonus && eqData.statsBonus.agi) {
+          bonus += eqData.statsBonus.agi;
+        }
       }
-    }
-  });
+    });
+  }
   return char.agi + bonus;
 }
 
 export function getCharLuk(char) {
   if (!char) return 0;
   let bonus = 0;
-  Object.values(char.equipment).forEach(eqKey => {
-    if (eqKey) {
-      const eqData = getItemData(eqKey);
-      if (eqData && eqData.statsBonus && eqData.statsBonus.luk) {
-        bonus += eqData.statsBonus.luk;
+  if (char.equipment) {
+    Object.values(char.equipment).forEach(eqKey => {
+      if (eqKey) {
+        const eqData = getItemData(eqKey);
+        if (eqData && eqData.statsBonus && eqData.statsBonus.luk) {
+          bonus += eqData.statsBonus.luk;
+        }
       }
-    }
-  });
+    });
+  }
   return char.luk + bonus;
 }
 
 export function getCharMaxHp(char) {
   if (!char) return 0;
   let bonus = 0;
-  Object.values(char.equipment).forEach(eqKey => {
-    if (eqKey) {
-      const eqData = getItemData(eqKey);
-      if (eqData && eqData.hpBonus) {
-        bonus += eqData.hpBonus;
+  if (char.equipment) {
+    Object.values(char.equipment).forEach(eqKey => {
+      if (eqKey) {
+        const eqData = getItemData(eqKey);
+        if (eqData && eqData.hpBonus) {
+          bonus += eqData.hpBonus;
+        }
       }
-    }
-  });
+    });
+  }
   return char.maxHp + bonus;
 }
 
 export function getCharMaxMp(char) {
   if (!char) return 0;
   let bonus = 0;
-  Object.values(char.equipment).forEach(eqKey => {
-    if (eqKey) {
-      const eqData = getItemData(eqKey);
-      if (eqData && eqData.mpBonus) {
-        bonus += eqData.mpBonus;
+  if (char.equipment) {
+    Object.values(char.equipment).forEach(eqKey => {
+      if (eqKey) {
+        const eqData = getItemData(eqKey);
+        if (eqData && eqData.mpBonus) {
+          bonus += eqData.mpBonus;
+        }
       }
-    }
-  });
+    });
+  }
   return char.maxMp + bonus;
 }
 
 export function getCharTrapBonus(char) {
   if (!char) return 0;
   let bonus = 0;
-  Object.values(char.equipment).forEach(eqKey => {
-    if (eqKey) {
-      const eqData = getItemData(eqKey);
-      if (eqData && eqData.trapBonus) {
-        bonus += eqData.trapBonus / 100;
+  if (char.equipment) {
+    Object.values(char.equipment).forEach(eqKey => {
+      if (eqKey) {
+        const eqData = getItemData(eqKey);
+        if (eqData && eqData.trapBonus) {
+          bonus += eqData.trapBonus / 100;
+        }
       }
-    }
-  });
+    });
+  }
   return bonus;
 }
 
@@ -1127,6 +1227,26 @@ export function checkCharLevelUp(char) {
     return true;
   }
   return false;
+}
+
+let globalState = null;
+export function registerState(stateObj) {
+  globalState = stateObj;
+}
+
+export function getCharAffixSum(char, affixType) {
+  if (!char || !char.equipment) return 0;
+  let sum = 0;
+  Object.values(char.equipment).forEach(eqKey => {
+    if (eqKey && typeof eqKey === "object" && eqKey.identified && eqKey.affixes) {
+      eqKey.affixes.forEach(aff => {
+        if (aff.type === affixType) {
+          sum += aff.value;
+        }
+      });
+    }
+  });
+  return sum;
 }
 
 

@@ -2,7 +2,7 @@ import {
   SPELLS, ITEMS, 
   generateRandomEquipment, getItemData, getCharStr, getCharAgi,
   getCharWeaponAtk, getCharDef, checkCharLevelUp, EXP_LEVELS,
-  getItemBaseId
+  getItemBaseId, getCharAffixSum
 } from "./data.js";
 
 function addInventoryItem(state, item, options = {}) {
@@ -166,6 +166,27 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               msg += "（攻撃が弾かれている！）";
             }
             floatText = `${dmg}`;
+          }
+
+          // followUp (追撃)
+          if (!isBlindMiss && finalTarget.hp > 0) {
+            const followUpChance = getCharAffixSum(char, "followUp");
+            if (followUpChance > 0 && Math.random() * 100 < followUpChance) {
+              const followUpDmgRand = Math.floor(Math.random() * 3);
+              const atkVal = getCharStr(char) + getCharWeaponAtk(char);
+              let followUpDmg = Math.max(1, Math.floor((atkVal + followUpDmgRand - finalTarget.def) * 0.7));
+              if (finalTarget.physResist) {
+                followUpDmg = Math.max(1, Math.round(followUpDmg * (1 - finalTarget.physResist)));
+              }
+              finalTarget.hp = Math.max(0, finalTarget.hp - followUpDmg);
+              logQueue.push({
+                msg: `[味方] 【🗡️追撃】${char.name}の素早い追加攻撃！${finalTarget.name}に${followUpDmg}のダメージ。`,
+                sound: "hit",
+                shake: 4,
+                floatText: `${followUpDmg}`,
+                floatColor: finalTarget.color
+              });
+            }
           }
         }
         
@@ -363,6 +384,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 16) + 15; // 15-30 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              if (c.hp / c.maxHp <= 0.25) {
+                const g = getCharAffixSum(c, "guardian");
+                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+              }
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。` });
@@ -381,6 +406,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 16) + 10; // 10-25 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              if (c.hp / c.maxHp <= 0.25) {
+                const g = getCharAffixSum(c, "guardian");
+                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+              }
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
@@ -435,6 +464,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 dmg = Math.max(1, Math.round(dmg * 0.4));
                 logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを大幅に軽減した！` });
               }
+              if (c.hp / c.maxHp <= 0.25) {
+                const g = getCharAffixSum(c, "guardian");
+                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+              }
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。` });
@@ -479,6 +512,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 13) + 12; // 12-24 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              if (c.hp / c.maxHp <= 0.25) {
+                const g = getCharAffixSum(c, "guardian");
+                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+              }
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
@@ -497,6 +534,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 21) + 15; // 15-35 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              if (c.hp / c.maxHp <= 0.25) {
+                const g = getCharAffixSum(c, "guardian");
+                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+              }
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。` });
@@ -563,6 +604,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           let dmg = Math.floor(Math.random() * 10) + 5;
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+          if (target.hp / target.maxHp <= 0.25) {
+            const g = getCharAffixSum(target, "guardian");
+            if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+          }
           target.hp = Math.max(0, target.hp - dmg);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${isDefending ? "(半減)" : ""}`,
@@ -583,6 +628,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 15) + 10;
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              if (c.hp / c.maxHp <= 0.25) {
+                const g = getCharAffixSum(c, "guardian");
+                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+              }
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
@@ -600,6 +649,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 20) + 15; // 15-35 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              if (c.hp / c.maxHp <= 0.25) {
+                const g = getCharAffixSum(c, "guardian");
+                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+              }
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
@@ -617,6 +670,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              if (c.hp / c.maxHp <= 0.25) {
+                const g = getCharAffixSum(c, "guardian");
+                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+              }
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(半減)" : ""}` });
@@ -650,6 +707,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             dmg = Math.max(1, Math.round(dmg * 1.5));
           }
 
+          if (target.hp / target.maxHp <= 0.25) {
+            const g = getCharAffixSum(target, "guardian");
+            if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+          }
           target.hp = Math.max(0, target.hp - dmg);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`,
@@ -847,7 +908,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       dropEquipment = generateRandomEquipment(state.floor, rarity);
     } else {
       const isRare = state.combatState.monsters && state.combatState.monsters.some(m => m.isRare);
-      const chance = isRare ? 0.25 : 0.06;
+      const chance = isRare ? 0.40 : 0.08;
       if (Math.random() < chance) {
         dropEquipment = generateRandomEquipment(state.floor);
       }

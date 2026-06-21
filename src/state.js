@@ -1,4 +1,4 @@
-import { DIR_N, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y, getItemData, getItemBaseId, EXP_LEVELS, getCharWeaponAtk, getCharDef, checkCharLevelUp } from "./data.js";
+import { DIR_N, MAP_WIDTH, MAP_HEIGHT, START_X, START_Y, getItemData, getItemBaseId, EXP_LEVELS, getCharWeaponAtk, getCharDef, checkCharLevelUp, registerState } from "./data.js";
 import { generateRandomMap, removeIsolatedInternalWalls } from "./map_generator.js";
 import { createRng } from "./seed_rng.js";
 
@@ -455,6 +455,7 @@ export function initNewGame() {
   state.activeMerchantStock = [];
 
   state.floorChestsOpened = [0, 0, 0, 0, 0];
+  registerState(state);
   state.floorChestsTotal = state.maps.map(grid => {
     let count = 0;
     if (grid) {
@@ -702,6 +703,7 @@ export function loadGame(forceSaveOnly = false) {
     state.identifyTickets = data.identifyTickets ?? 0;
 
     // 同期のためにオートセーブデータを更新
+    registerState(state);
     saveAutosave();
   } catch (err) {
     console.error("Failed to load save, resetting.", err);
@@ -1082,4 +1084,6 @@ export function addInventoryItem(item, options = {}) {
   state.inventory.push(item);
   return true;
 }
+
+registerState(state);
 

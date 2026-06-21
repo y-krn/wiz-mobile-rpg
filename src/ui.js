@@ -524,6 +524,35 @@ export function renderResultScreen() {
     });
   }
 
+  let featuredLootHtml = "";
+  const unidentifiedEquip = (run.equipmentFound || []).filter(eq => !eq.identified);
+  if (unidentifiedEquip.length > 0) {
+    const rarityWeight = { epic: 3, rare: 2, magic: 1 };
+    const sortedLoot = [...unidentifiedEquip].sort((a, b) => {
+      return (rarityWeight[b.rarity] || 0) - (rarityWeight[a.rarity] || 0);
+    });
+    const displayedLoot = sortedLoot.slice(0, 3);
+    const lootListHtml = displayedLoot.map(eq => {
+      const eqData = getItemData(eq);
+      const color = eq.rarity === "epic" ? "var(--neon-purple)" :
+                    eq.rarity === "rare" ? "var(--neon-gold)" :
+                    "var(--neon-cyan)";
+      return `
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; font-size: 11px;">
+          <span style="color: ${color}; font-weight: bold;">💎 ${eqData.name}</span>
+          <span style="font-size: 9px; color: var(--text-muted); font-family: var(--font-mono);">${eq.rarity.toUpperCase()}</span>
+        </div>
+      `;
+    }).join("");
+    
+    featuredLootHtml = `
+      <div class="result-eval-section" style="margin-top: 10px; border-color: var(--neon-cyan); padding: 8px 10px; background: rgba(0, 162, 232, 0.05); text-align: left;">
+        <div class="result-eval-title" style="color: var(--neon-cyan); font-size: 11px; margin-bottom: 6px; border-bottom: 1px solid rgba(0, 162, 232, 0.2); padding-bottom: 2px;">🏆 今回の目玉戦利品</div>
+        ${lootListHtml}
+      </div>
+    `;
+  }
+
   let historyHtml = "";
   if (state.runHistory && state.runHistory.length > 0) {
     state.runHistory.slice(0, 5).forEach((h, i) => {
@@ -623,6 +652,7 @@ export function renderResultScreen() {
       </div>
 
       ${contractHtml}
+      ${featuredLootHtml}
 
       <div class="result-items-section">
         <div class="result-section-title">📦 ${lootTitle}</div>

@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "./state.js";
-import { ITEMS, getItemData, getItemBaseId } from "./data.js";
+import { ITEMS, getItemData, getItemBaseId, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
 import { openSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
@@ -347,7 +347,7 @@ export function renderShop() {
         const isLastAppraised = shopState.lastAppraised && shopState.lastAppraised.idx === idx;
         const itemData = getItemData(itemKey);
         const rarity = itemKey.rarity || "magic";
-        const cost = { magic: 60, rare: 150, epic: 400 }[rarity] || 20;
+        const cost = { magic: 30, rare: 120, epic: 300 }[rarity] || 20;
 
         const row = document.createElement("button");
         row.type = "button";
@@ -479,6 +479,31 @@ export function renderShop() {
         `;
         scrollContent.appendChild(equipStatsDiv);
 
+        // 🔮 付与アフィックスの表示を追加
+        if (eqItem.affixes && eqItem.affixes.length > 0) {
+          const affixesDiv = document.createElement("div");
+          affixesDiv.className = "detail-compat";
+          affixesDiv.style.marginTop = "6px";
+          affixesDiv.style.marginBottom = "6px";
+          
+          let affList = eqItem.affixes.map(aff => {
+            const label = {
+              atk: "攻撃力", def: "防御力", hp: "最大HP", mp: "最大MP",
+              str: "力", int: "知恵", pie: "信仰", vit: "生命", agi: "素早さ", luk: "運",
+              trapBonus: "罠解除率", followUp: "追加攻撃率", arcane: "呪文威力",
+              devotion: "回復威力", guardian: "守護", treasureSense: "宝探"
+            }[aff.type] || aff.type;
+            const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense"].includes(aff.type) ? "%" : "";
+            return `<div style="font-size: 11px; margin-bottom: 2px;">・${label}: <strong style="color:var(--neon-green)">+${aff.value}${unit}</strong></div>`;
+          }).join("");
+          
+          affixesDiv.innerHTML = `
+            <div class="compat-title">🔮 付与アフィックス</div>
+            <div style="padding: 4px 8px; color: #eee;">${affList}</div>
+          `;
+          scrollContent.appendChild(affixesDiv);
+        }
+
         const compatDiv = document.createElement("div");
         compatDiv.className = "detail-compat";
         compatDiv.innerHTML = `<div class="compat-title">装備適合と増減</div>`;
@@ -498,25 +523,58 @@ export function renderShop() {
             const currentEquipKey = char.equipment[slot];
             const currentEquip = currentEquipKey ? getItemData(currentEquipKey) : null;
             
-            let currentStat = 0;
+            // Calculate base value diff
+            const newBaseVal = slot === "weapon" ? item.atk : item.def;
+            let currentBaseVal = 0;
             if (currentEquip) {
-              currentStat = slot === "weapon" ? currentEquip.atk : currentEquip.def;
+              currentBaseVal = slot === "weapon" ? currentEquip.atk : currentEquip.def;
+            }
+            const baseDiff = newBaseVal - currentBaseVal;
+            const changes = [];
+            
+            const mainLabel = slot === "weapon" ? "攻撃" : "防御";
+            if (baseDiff !== 0) {
+              changes.push(`${mainLabel}${baseDiff > 0 ? "+" : ""}${baseDiff}`);
             }
 
-            const newStat = slot === "weapon" ? item.atk : item.def;
-            const diff = newStat - currentStat;
+            // Calculate affix diffs
+            const newAffMap = {};
+            if (eqItem.affixes) {
+              eqItem.affixes.forEach(aff => {
+                newAffMap[aff.type] = (newAffMap[aff.type] || 0) + aff.value;
+              });
+            }
+
+            const curAffMap = {};
+            if (currentEquip && currentEquip.id && currentEquip.id.affixes) {
+              currentEquip.id.affixes.forEach(aff => {
+                curAffMap[aff.type] = (curAffMap[aff.type] || 0) + aff.value;
+              });
+            }
+
+            const allAffKeys = new Set([...Object.keys(newAffMap), ...Object.keys(curAffMap)]);
+            allAffKeys.forEach(type => {
+              if (type === "atk" || type === "def") return;
+              const newVal = newAffMap[type] || 0;
+              const curVal = curAffMap[type] || 0;
+              const diff = newVal - curVal;
+              if (diff !== 0) {
+                const label = {
+                  hp: "HP", mp: "MP", str: "力", int: "知恵", pie: "信仰", vit: "生命", agi: "素早さ", luk: "運",
+                  trapBonus: "罠解除", followUp: "追加攻撃", arcane: "呪文威力", devotion: "回復威力", guardian: "守護", treasureSense: "宝探"
+                }[type] || type;
+                const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense"].includes(type) ? "%" : "";
+                changes.push(`${label}${diff > 0 ? "+" : ""}${diff}${unit}`);
+              }
+            });
 
             let diffText = "";
             let resultClass = "ok";
-            
-            if (diff > 0) {
-              diffText = `🔺+${diff} (強化!)`;
-              resultClass = "upgrade";
-            } else if (diff < 0) {
-              diffText = `🔻${diff}`;
-              resultClass = "downgrade";
+            if (changes.length > 0) {
+              diffText = changes.join(", ");
+              resultClass = baseDiff > 0 ? "upgrade" : (baseDiff < 0 ? "downgrade" : "ok");
             } else {
-              diffText = `±0`;
+              diffText = "差分なし";
               resultClass = "ok";
             }
 
@@ -555,7 +613,7 @@ export function renderShop() {
       const eqItem = state.inventory[shopState.selectedIdx];
       item = getItemData(eqItem);
       const rarity = eqItem.rarity || "magic";
-      itemPrice = { magic: 60, rare: 150, epic: 400 }[rarity] || 20;
+      itemPrice = { magic: 30, rare: 120, epic: 300 }[rarity] || 20;
     }
 
     // Create scrollable content container

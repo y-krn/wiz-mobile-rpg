@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "./state.js";
-import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomEquipment } from "./data.js";
+import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomEquipment, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
@@ -7,7 +7,7 @@ import { menuContext, openSubmenu, goBackSubmenu, closeSubmenu, resetSubmenuBack
 import { triggerGameOver } from "./combat.js";
 import { createRng } from "./seed_rng.js";
 
-export function setupChestState() {
+export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem = null, customRng = null) {
   if (state.codex && state.codex.events && state.codex.events.facilities) {
     if (!state.codex.events.facilities.chest) {
       state.codex.events.facilities.chest = { found: 0, opened: 0 };
@@ -15,11 +15,13 @@ export function setupChestState() {
     state.codex.events.facilities.chest.found++;
   }
   const chestSeed = `${state.seed}:chest:B${state.floor}:${state.x},${state.y}`;
-  const rng = state.seed ? createRng(chestSeed) : Math.random;
+  const rng = customRng || (state.seed ? createRng(chestSeed) : Math.random);
 
   // Traps are floor dependent
   let trap = "none";
-  if (state.floor === 1) {
+  if (forcedTrap !== null) {
+    trap = forcedTrap;
+  } else if (state.floor === 1) {
     const r = rng();
     if (r < 0.35) trap = "none";
     else if (r < 0.60) trap = "poison needle";
@@ -42,22 +44,30 @@ export function setupChestState() {
   }
 
   // Gold reward scale by floor
-  let gold = Math.floor(rng() * 81) + 20; // Default 20-100G
-  if (state.floor === 4) {
-    gold = Math.floor(rng() * 201) + 100; // B4F: 100-300G
-  } else if (state.floor === 5) {
-    gold = Math.floor(rng() * 301) + 150; // B5F: 150-450G
+  let gold = 0;
+  if (forcedGold !== null) {
+    gold = forcedGold;
+  } else {
+    gold = Math.floor(rng() * 81) + 20; // Default 20-100G
+    if (state.floor === 4) {
+      gold = Math.floor(rng() * 201) + 100; // B4F: 100-300G
+    } else if (state.floor === 5) {
+      gold = Math.floor(rng() * 301) + 150; // B5F: 150-450G
+    }
   }
 
   // Item reward scale by floor
   let item = null;
-  let isGuaranteed = false;
-  if (state.floor === 1 && !state.firstChestUnidentifiedGuaranteed) {
-    isGuaranteed = true;
-  }
+  if (forcedItem !== null) {
+    item = forcedItem;
+  } else {
+    let isGuaranteed = false;
+    if (state.floor === 1 && !state.firstChestUnidentifiedGuaranteed) {
+      isGuaranteed = true;
+    }
 
-  const itemChance = state.floor === 4 ? 0.75 : 0.50; // B4F has high item drop rate
-  if (isGuaranteed || rng() < itemChance) {
+    const itemChance = state.floor === 4 ? 0.75 : 0.50; // B4F has high item drop rate
+    if (isGuaranteed || rng() < itemChance) {
     if (isGuaranteed) {
       const guaranCandidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR"];
       const baseId = guaranCandidates[Math.floor(rng() * guaranCandidates.length)];
@@ -121,12 +131,34 @@ export function setupChestState() {
         if (item) {
           const itemData = ITEMS[item];
           if (itemData && (itemData.type === "weapon" || itemData.type === "armor" || itemData.type === "shield")) {
-            let randChance = state.floor <= 3 ? 0.50 : 0.35;
+            let randChance = 0.35;
+            if (state.floor <= 3) {
+              randChance = 0.40;
+            }
             if (state.floor === 5) {
               randChance = 0.70;
             } else if (["poison needle", "gas bomb", "teleporter"].includes(trap)) {
-              randChance = state.floor === 4 ? 0.45 : 0.60;
+              randChance = 0.60;
             }
+            
+            // Rescue mechanism: if no equipment found yet and chestsOpened >= 2 (i.e. 3rd chest onwards)
+            if (state.currentRun && state.currentRun.equipmentFound && state.currentRun.equipmentFound.length === 0 && state.currentRun.chestsOpened >= 2) {
+              randChance += 0.20;
+            }
+            
+            // treasureSense bonus
+            if (state.party) {
+              const senseSum = state.party.reduce((sum, c) => {
+                if (c.status !== "dead") {
+                  return sum + getCharAffixSum(c, "treasureSense");
+                }
+                return sum;
+              }, 0);
+              randChance += senseSum / 100;
+            }
+            
+            randChance = Math.min(0.95, randChance);
+            
             if (rng() < randChance) {
               item = generateRandomEquipment(state.floor, null, rng);
             }
@@ -135,6 +167,18 @@ export function setupChestState() {
       }
     }
   }
+}
+
+  // Aura & loot hint calculation
+  let aura = "weak";
+  let hasEquipmentSignal = false;
+  if (item && typeof item === "object" && item.kind === "equipment") {
+    hasEquipmentSignal = true;
+    if (item.rarity === "epic") aura = "strong";
+    else if (item.rarity === "rare") aura = "medium";
+    else aura = "weak";
+  }
+  const label = hasEquipmentSignal ? "装備品の反応あり" : "消耗品または反応なし";
 
   state.chestState = {
     trap,
@@ -143,7 +187,12 @@ export function setupChestState() {
     inspected: false,
     identifiedTrap: "",
     x: state.x,
-    y: state.y
+    y: state.y,
+    lootHint: {
+      hasEquipmentSignal,
+      aura,
+      label
+    }
   };
   
   // Transition to chest submenu
@@ -225,9 +274,24 @@ export function openChestMenu() {
 テレポ:転移 | 閃光:全体盲目
 </div>`;
 
+  const loot = state.chestState.lootHint;
+  let lootText = "";
+  if (loot) {
+    const auraLabel = loot.aura === "strong" ? `<span style="color:var(--neon-red); font-weight:bold;">強</span>` :
+                      loot.aura === "medium" ? `<span style="color:var(--neon-yellow); font-weight:bold;">中</span>` :
+                      `<span style="color:var(--text-muted);">弱</span>`;
+    lootText = `
+      <div style="border-top:1px dashed #3a3a4c; margin-top:4px; padding-top:4px;">
+        <div>宝気: <span style="color:#fff;">${loot.label}</span></div>
+        <div>魔力反応: ${auraLabel}</div>
+      </div>
+    `;
+  }
+
   infoPanel.innerHTML = `
     <div>${riskText}</div>
     <div style="margin-top:4px;">${inspectText}</div>
+    ${lootText}
     ${helpText}
   `;
   optGrid.appendChild(infoPanel);
