@@ -134,6 +134,7 @@ export function renderSpellOverlay() {
       filterRow.appendChild(chip);
     });
     listCol.appendChild(filterRow);
+    listContainer.classList.add("grid-mode");
 
     const caster = state.party[menuContext.actorIdx];
     const casterSpells = caster.spells || [];
@@ -219,8 +220,10 @@ export function renderSpellOverlay() {
 
         btn.innerHTML = `
           <span class="spell-row-name">${spell.name}</span>
-          <span class="spell-row-mp">MP:${spell.cost}</span>
-          <span class="spell-row-tag ${tagClass}">${rightText}</span>
+          <div class="spell-row-meta">
+            <span class="spell-row-mp">MP:${spell.cost}</span>
+            <span class="spell-row-tag ${tagClass}">${rightText}</span>
+          </div>
         `;
 
         btn.addEventListener("click", () => {

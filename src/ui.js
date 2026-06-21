@@ -1,4 +1,4 @@
-import { state, saveAutosave, createDefaultCodex, addLog } from "./state.js";
+import { state, saveGame, saveAutosave, createDefaultCodex, addLog } from "./state.js";
 import { DIR_NAMES, getClassJpName, isSpellcaster, getCharMaxHp, getCharMaxMp, getItemData, MONSTERS, ITEMS } from "./data.js";
 import { getIsMuted, playSound } from "./audio.js";
 import { getMonsterContractInfo } from "./contracts.js";

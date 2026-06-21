@@ -3172,3 +3172,53 @@ html, body {
   margin-right: 4px;
   text-shadow: 0 0 3px rgba(255, 214, 10, 0.4);
 }
+
+/* Spell Selection Grid Layout (2-column) */
+.spell-item-list.grid-mode {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.spell-item-list.grid-mode .spell-list-heading {
+  grid-column: span 2;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.spell-item-list.grid-mode .spell-empty-text {
+  grid-column: span 2;
+}
+
+.spell-item-list.grid-mode .spell-item-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 52px;
+  padding: 6px 10px;
+  gap: 3px;
+  width: 100%;
+}
+
+.spell-item-list.grid-mode .spell-row-name {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.spell-item-list.grid-mode .spell-row-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.spell-item-list.grid-mode .spell-row-mp {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.spell-item-list.grid-mode .spell-row-tag {
+  font-size: 9px;
+  padding: 1px 4px;
+}
