@@ -1,0 +1,50 @@
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+	deleted:    scratch/Galaxy S20-start.png
+	deleted:    scratch/iPhone 13-start.png
+	deleted:    scratch/iPhone 14 Pro Max-start.png
+	deleted:    scratch/screen-Archives_Screen-Galaxy S20.png
+	deleted:    scratch/screen-Archives_Screen-iPhone 13.png
+	deleted:    scratch/screen-Archives_Screen-iPhone 14 Pro Max.png
+	deleted:    scratch/screen-Contracts_Screen-Galaxy S20.png
+	deleted:    scratch/screen-Contracts_Screen-iPhone 13.png
+	deleted:    scratch/screen-Contracts_Screen-iPhone 14 Pro Max.png
+	deleted:    scratch/screen-Equip_Screen-Galaxy S20.png
+	deleted:    scratch/screen-Equip_Screen-iPhone 13.png
+	deleted:    scratch/screen-Equip_Screen-iPhone 14 Pro Max.png
+	deleted:    scratch/screen-Shop_Screen-Galaxy S20.png
+	deleted:    scratch/screen-Shop_Screen-iPhone 13.png
+	deleted:    scratch/screen-Shop_Screen-iPhone 14 Pro Max.png
+	deleted:    scratch/screen-Town_Screen-Galaxy S20.png
+	deleted:    scratch/screen-Town_Screen-iPhone 13.png
+	deleted:    scratch/screen-Town_Screen-iPhone 14 Pro Max.png
+	deleted:    scratch/screen-Training_Screen-Galaxy S20.png
+	deleted:    scratch/screen-Training_Screen-iPhone 13.png
+	deleted:    scratch/screen-Training_Screen-iPhone 14 Pro Max.png
+	deleted:    scratch/screen-Warehouse_Screen-Galaxy S20.png
+	deleted:    scratch/screen-Warehouse_Screen-iPhone 13.png
+	deleted:    scratch/screen-Warehouse_Screen-iPhone 14 Pro Max.png
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   src/camp.js
+	modified:   src/chest.js
+	modified:   src/combat.js
+	modified:   src/combat_logic.js
+	modified:   src/data.js
+	modified:   src/equip.js
+	modified:   src/renderer.js
+	modified:   src/shop.js
+	modified:   src/state.js
+	modified:   src/style.css
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	scratch/status.txt
+	scratch/test_enemy_traits.js
+	scratch/verification_simulation_row.js
+

@@ -384,7 +384,7 @@ export function updatePartyHUD() {
     header.className = "char-header";
     const rowLabel = idx < 2 ? "[前]" : "[後]";
     const rowColor = idx < 2 ? "var(--neon-cyan)" : "var(--neon-gold)";
-    header.innerHTML = `<span class="char-name">${char.name} <span style="font-size: 8px; color: ${rowColor}; font-weight: normal; margin-left: 2px;">${rowLabel}</span></span><span class="char-class">${char.class[0]}.${char.level}</span>`;
+    header.innerHTML = `<span class="char-name">${char.name} <span style="font-size: 8px; color: ${rowColor}; font-weight: normal; margin-left: 2px;">${rowLabel}</span></span><span class="char-class">${char.class[0]}</span>`;
     card.appendChild(header);
 
     // HP Bar
@@ -486,6 +486,7 @@ export function renderResultScreen() {
 
   const itemsCount = run.itemsFound.length;
   const equipCount = run.equipmentFound.length;
+  const unidentifiedCount = (run.equipmentFound || []).filter(eq => typeof eq === "object" && !eq.identified).length;
   const totalLootCount = itemsCount + equipCount;
   const lootTitle = isSuccess ? `持ち帰り品 (${totalLootCount}個)` : `失った発見品 (${totalLootCount}個)`;
 
@@ -618,15 +619,15 @@ export function renderResultScreen() {
           <span class="result-danger-label rank-${run.dangerRank.toLowerCase()}">${run.dangerLabel}</span>
         </div>
         <div class="result-summary-item">
-          <span class="result-summary-label">獲得GOLD</span>
-          <span class="result-summary-val" style="color: var(--neon-gold);">${isSuccess ? run.goldGained : 0} G</span>
+          <span class="result-summary-label">未鑑定装備</span>
+          <span class="result-summary-val" style="color: var(--neon-gold);">${unidentifiedCount} 個</span>
         </div>
       </div>
 
       <div class="result-details-section">
         <div class="result-detail-row">
-          <span>探索歩数:</span>
-          <span class="result-detail-val">${run.steps} 歩</span>
+          <span>戦利品 / GOLD:</span>
+          <span class="result-detail-val">${totalLootCount} 個 / ${isSuccess ? run.goldGained : 0} G</span>
         </div>
         <div class="result-detail-row">
           <span>戦闘回数 / 総撃破数:</span>
@@ -641,8 +642,8 @@ export function renderResultScreen() {
           <span class="result-detail-val" style="color: ${run.trapsTriggered > 0 ? "var(--neon-red)" : "inherit"};">${run.trapsTriggered} 回</span>
         </div>
         <div class="result-detail-row">
-          <span>獲得EXP (各自):</span>
-          <span class="result-detail-val" style="color: var(--neon-green);">${run.expGained} EXP</span>
+          <span>装備候補 / 未鑑定:</span>
+          <span class="result-detail-val" style="color: var(--neon-cyan);">${equipCount} 個 / ${unidentifiedCount} 個</span>
         </div>
       </div>
 
@@ -744,7 +745,7 @@ function getMonsterCodexDetailHtml(m, record) {
   if (kil >= 1) {
     html += `
       <p><strong>特徴:</strong> ${m.isPoisonous ? "毒攻撃を放つ" : m.isRare ? (m.name === "メタルパピー" ? "希少な魔物" : "非常に強力な強敵") : "標準的なモンスター"}</p>
-      <p><strong>獲得報酬目安:</strong> ${m.exp} EXP / ${m.gold} GOLD</p>
+      <p><strong>戦利品傾向:</strong> ${m.isRare ? "未鑑定装備の期待値が高い" : "通常戦利品とGOLD"} / ${m.gold} GOLD</p>
     `;
   } else {
     html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[撃破すると特徴と報酬が解放されます]</p>`;
@@ -785,7 +786,7 @@ function getMonsterCodexDetailHtml(m, record) {
     } else if (m.name.includes("デーモンガード")) {
       note = "非常に堅い鎧をまとっている。打撃武器より、侍のカタナや魔術師の強力な攻撃呪文（ラハリト、マハリト）で一掃せよ。";
     } else if (m.name.includes("いにしえの竜")) {
-      note = "全階層中最強のブレス攻撃を放つ。レベル10以上の十分に育成された僧侶による回復呪文（ダイヤルマ、カドルト）を切らさずに戦え。";
+      note = "全階層中最強のブレス攻撃を放つ。竜特効・呪文耐性・守護を重ね、回復役のMP補強装備を切らさずに戦え。";
     } else {
       note = `B${m.level}Fに広く出現する魔物。十分な装備の補正値があれば安全に討伐可能。`;
     }

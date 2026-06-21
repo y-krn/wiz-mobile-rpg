@@ -1290,6 +1290,11 @@ html, body {
   background-color: transparent !important;
 }
 
+.combat-target-card.blocked {
+  opacity: 0.55;
+  border-color: rgba(255, 179, 0, 0.35) !important;
+}
+
 .combat-target-card .card-title {
   font-size: 10px;
   font-weight: bold;
@@ -1305,6 +1310,33 @@ html, body {
   color: var(--text-muted);
   font-weight: normal;
   margin-left: 2px;
+}
+
+.enemy-row-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 16px;
+  margin-right: 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.enemy-row-tag.front {
+  color: var(--neon-red);
+}
+
+.enemy-row-tag.back {
+  color: var(--neon-gold);
+}
+
+.combat-target-card .card-note {
+  margin-top: 3px;
+  color: var(--neon-gold);
+  font-size: 9px;
 }
 
 .card-hp-bar-container, .card-mp-bar-container {

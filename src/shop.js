@@ -13,17 +13,21 @@ export const SHOP_STOCK = [
   { key: "DAGGER", price: 50 },
   { key: "WAND", price: 120 },
   { key: "SHORT_SWORD", price: 150 },
+  { key: "RAPIER", price: 180 },
   { key: "MACE", price: 100 },
+  { key: "SACRED_MACE", price: 320 },
   { key: "NINJA_DAGGER", price: 300 },
   { key: "LONG_SWORD", price: 400 },
   { key: "CLAYMORE", price: 750 },
   { key: "KATANA", price: 1500 },
   { key: "SMALL_SHIELD", price: 80 },
+  { key: "BUCKLER", price: 120 },
   { key: "LARGE_SHIELD", price: 250 },
   { key: "KNIGHT_SHIELD", price: 450 },
   { key: "ROBE", price: 30 },
   { key: "MAGE_CLOAK", price: 380 },
   { key: "LEATHER_ARMOR", price: 120 },
+  { key: "EXPLORER_CLOAK", price: 160 },
   { key: "NINJA_SUIT", price: 250 },
   { key: "SCALE_MAIL", price: 220 },
   { key: "CHAIN_MAIL", price: 350 },
@@ -62,6 +66,16 @@ export let shopState = {
   selectedIdx: -1,
   lastAppraised: null // { idx, beforeName }
 };
+
+function getAppraisalCost(eqItem) {
+  const rarity = eqItem.rarity || "magic";
+  const baseCost = { magic: 30, rare: 120, epic: 300 }[rarity] || 30;
+  const bestDiscount = state.party.reduce((max, char) => {
+    if (char.status === "dead") return max;
+    return Math.max(max, getCharAffixSum(char, "identifyDiscount"));
+  }, 0);
+  return Math.max(1, Math.floor(baseCost * (1 - bestDiscount / 100)));
+}
 
 export function openShopAppraise() {
   shopState.mode = "appraise";
@@ -346,8 +360,7 @@ export function renderShop() {
       unidentifiedItems.forEach(({ itemKey, idx }) => {
         const isLastAppraised = shopState.lastAppraised && shopState.lastAppraised.idx === idx;
         const itemData = getItemData(itemKey);
-        const rarity = itemKey.rarity || "magic";
-        const cost = { magic: 30, rare: 120, epic: 300 }[rarity] || 20;
+        const cost = getAppraisalCost(itemKey);
 
         const row = document.createElement("button");
         row.type = "button";
@@ -491,9 +504,11 @@ export function renderShop() {
               atk: "攻撃力", def: "防御力", hp: "最大HP", mp: "最大MP",
               str: "力", int: "知恵", pie: "信仰", vit: "生命", agi: "素早さ", luk: "運",
               trapBonus: "罠解除率", followUp: "追加攻撃率", arcane: "呪文威力",
-              devotion: "回復威力", guardian: "守護", treasureSense: "宝探"
+              devotion: "回復威力", guardian: "守護", treasureSense: "宝探",
+              antiUndead: "不死特効", antiDragon: "竜特効", spellGuard: "呪文耐性",
+              poisonWard: "毒耐性", firstStrike: "先制"
             }[aff.type] || aff.type;
-            const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense"].includes(aff.type) ? "%" : "";
+            const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "firstStrike"].includes(aff.type) ? "%" : "";
             return `<div style="font-size: 11px; margin-bottom: 2px;">・${label}: <strong style="color:var(--neon-green)">+${aff.value}${unit}</strong></div>`;
           }).join("");
           
@@ -561,9 +576,11 @@ export function renderShop() {
               if (diff !== 0) {
                 const label = {
                   hp: "HP", mp: "MP", str: "力", int: "知恵", pie: "信仰", vit: "生命", agi: "素早さ", luk: "運",
-                  trapBonus: "罠解除", followUp: "追加攻撃", arcane: "呪文威力", devotion: "回復威力", guardian: "守護", treasureSense: "宝探"
+                  trapBonus: "罠解除", followUp: "追加攻撃", arcane: "呪文威力", devotion: "回復威力", guardian: "守護", treasureSense: "宝探",
+                  antiUndead: "不死特効", antiDragon: "竜特効", spellGuard: "呪文耐性",
+                  poisonWard: "毒耐性", firstStrike: "先制"
                 }[type] || type;
-                const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense"].includes(type) ? "%" : "";
+                const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "firstStrike"].includes(type) ? "%" : "";
                 changes.push(`${label}${diff > 0 ? "+" : ""}${diff}${unit}`);
               }
             });
@@ -612,8 +629,7 @@ export function renderShop() {
     } else { // appraise
       const eqItem = state.inventory[shopState.selectedIdx];
       item = getItemData(eqItem);
-      const rarity = eqItem.rarity || "magic";
-      itemPrice = { magic: 30, rare: 120, epic: 300 }[rarity] || 20;
+      itemPrice = getAppraisalCost(eqItem);
     }
 
     // Create scrollable content container

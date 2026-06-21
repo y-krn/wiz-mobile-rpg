@@ -1,7 +1,7 @@
 import { 
   SPELLS, ITEMS, 
   generateRandomEquipment, getItemData, getCharStr, getCharAgi,
-  getCharWeaponAtk, getCharDef, checkCharLevelUp, EXP_LEVELS,
+  getCharWeaponAtk, getCharDef, checkCharLevelUp,
   getItemBaseId, getCharAffixSum
 } from "./data.js";
 
@@ -31,6 +31,138 @@ function getMeleeModifiers(char, actorIdx) {
   return classRate * rowRate;
 }
 
+function hasTrait(mon, trait) {
+  return mon.traits?.includes(trait);
+}
+
+function getBuffTotal(mon, type) {
+  return (mon.buffs || []).reduce((sum, buff) => {
+    return buff.type === type ? sum + buff.value : sum;
+  }, 0);
+}
+
+function getEffectiveDef(mon) {
+  return Math.max(0, mon.def + Math.max(-6, Math.min(6, getBuffTotal(mon, "def"))));
+}
+
+function getEffectiveMagicResist(mon) {
+  const base = mon.magicResist || 0;
+  const buff = Math.max(-0.5, Math.min(0.5, getBuffTotal(mon, "magicResist")));
+  return Math.max(-1, Math.min(0.9, base + buff));
+}
+
+function getEffectiveAtk(mon) {
+  return Math.max(1, mon.atk + Math.max(-6, Math.min(6, getBuffTotal(mon, "atk"))));
+}
+
+function hasLivingEnemyFrontRow(monsters) {
+  return monsters.some(m => m.hp > 0 && (m.row || "front") === "front");
+}
+
+function canMeleeTargetEnemy(monsters, target) {
+  if (!target || target.hp <= 0) return false;
+  if ((target.row || "front") === "front") return true;
+  return !hasLivingEnemyFrontRow(monsters);
+}
+
+function findMeleeFallbackTarget(monsters) {
+  const frontIdx = monsters.findIndex(m => m.hp > 0 && (m.row || "front") === "front");
+  if (frontIdx !== -1) return frontIdx;
+  return monsters.findIndex(m => m.hp > 0);
+}
+
+function findAdjacentGuard(monsters, targetIdx) {
+  const candidates = [targetIdx - 1, targetIdx + 1]
+    .filter(idx => idx >= 0 && idx < monsters.length)
+    .map(idx => ({ idx, mon: monsters[idx] }))
+    .filter(x => x.mon.hp > 0 && hasTrait(x.mon, "guardAdjacent"));
+  if (candidates.length === 0) return null;
+  const guard = candidates.find(x => Math.random() < (x.mon.guard?.chance ?? 0.5));
+  return guard || null;
+}
+
+function addMonsterBuff(mon, type, value, turns) {
+  if (!mon.buffs) mon.buffs = [];
+  mon.buffs.push({ type, value, turns });
+}
+
+function tickMonsterBuffs(monsters) {
+  monsters.forEach(mon => {
+    if (!mon.buffs) return;
+    mon.buffs = mon.buffs
+      .map(buff => ({ ...buff, turns: buff.turns - 1 }))
+      .filter(buff => buff.turns > 0);
+  });
+}
+
+function applyMagicResistBuffs(monsters, callback) {
+  const original = monsters.map(mon => mon.magicResist);
+  monsters.forEach(mon => {
+    mon.magicResist = getEffectiveMagicResist(mon);
+  });
+  const result = callback();
+  monsters.forEach((mon, idx) => {
+    if (original[idx] === undefined) delete mon.magicResist;
+    else mon.magicResist = original[idx];
+  });
+  return result;
+}
+
+function processMonsterDefeat(monsters, mon, logQueue) {
+  if (mon.hp > 0 || mon.deathProcessed) return;
+  mon.deathProcessed = true;
+  if (!hasTrait(mon, "splitOnDeath") || mon.hasSplit) return;
+
+  const split = mon.split || {};
+  const count = split.count ?? 2;
+  const hp = Math.max(1, Math.floor(mon.maxHp * (split.hpRate ?? 0.5)));
+  for (let i = 0; i < count; i++) {
+    monsters.push({
+      ...mon,
+      name: `${mon.name}の分裂体${i + 1}`,
+      hp,
+      maxHp: hp,
+      exp: Math.max(1, Math.floor(mon.exp * 0.25)),
+      gold: Math.max(0, Math.floor(mon.gold * 0.25)),
+      hasSplit: true,
+      deathProcessed: false,
+      fled: false
+    });
+  }
+  logQueue.push({ msg: `[ 敵 ] ${mon.name}は崩れ落ち、${count}体に分裂した！` });
+}
+
+function applyTargetedDamageBonus(char, target, dmg) {
+  let next = dmg;
+  if (target.tags?.includes("undead")) {
+    next = Math.round(next * (1 + getCharAffixSum(char, "antiUndead") / 100));
+  }
+  if (target.tags?.includes("dragon")) {
+    next = Math.round(next * (1 + getCharAffixSum(char, "antiDragon") / 100));
+  }
+  return Math.max(1, next);
+}
+
+function reduceIncomingDamage(char, dmg, options = {}) {
+  let next = dmg;
+  if (options.spell && char.magicVulnerableTurns > 0) {
+    next = Math.max(1, Math.round(next * 1.3));
+  }
+  if (char.hp / char.maxHp <= 0.25) {
+    const guardian = getCharAffixSum(char, "guardian");
+    if (guardian > 0) next = Math.max(1, Math.round(next * (1 - guardian / 100)));
+  }
+  if (options.spell) {
+    const spellGuard = getCharAffixSum(char, "spellGuard");
+    if (spellGuard > 0) next = Math.max(1, Math.round(next * (1 - spellGuard / 100)));
+  }
+  if (options.dragon) {
+    const dragonGuard = getCharAffixSum(char, "antiDragon");
+    if (dragonGuard > 0) next = Math.max(1, Math.round(next * (1 - dragonGuard / 100)));
+  }
+  return next;
+}
+
 function addInventoryItem(state, item, options = {}) {
   const allowQuestOverflow = options.allowQuestOverflow ?? false;
   const itemId = getItemBaseId(item);
@@ -56,7 +188,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     equipment: {...c.equipment},
     spells: c.spells ? [...c.spells] : []
   }));
-  const monsters = originalState.combatState.monsters.map(m => ({...m}));
+  const monsters = originalState.combatState.monsters.map(m => ({
+    ...m,
+    buffs: m.buffs ? m.buffs.map(buff => ({ ...buff })) : undefined
+  }));
   const inventory = [...originalState.inventory];
   const firstKills = originalState.firstKills ? [...originalState.firstKills] : [];
   const codex = originalState.codex ? JSON.parse(JSON.stringify(originalState.codex)) : null;
@@ -88,7 +223,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   state.party.forEach((char, idx) => {
     if (char.status === "ok" || char.status === "poisoned" || char.status === "blind") {
       const chosen = combatSelection.actions.find(a => a.actorIdx === idx);
-      const speed = getCharAgi(char) + Math.floor(Math.random() * 10);
+      const speed = getCharAgi(char) + Math.floor(Math.random() * 10) + getCharAffixSum(char, "firstStrike");
       turns.push({
         type: "char",
         char,
@@ -126,14 +261,20 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       
       if (act.type === "fight") {
         const target = monsters[act.targetIdx];
-        if (target.hp <= 0) {
+        if (!canMeleeTargetEnemy(monsters, target)) {
           // Find another random living target
-          const livingTargetIdx = monsters.findIndex(m => m.hp > 0);
+          const livingTargetIdx = findMeleeFallbackTarget(monsters);
           if (livingTargetIdx === -1) return; // All dead
           act.targetIdx = livingTargetIdx;
         }
-        
-        const finalTarget = monsters[act.targetIdx];
+
+        let finalTarget = monsters[act.targetIdx];
+        const guard = findAdjacentGuard(monsters, act.targetIdx);
+        if (guard) {
+          logQueue.push({ msg: `[ 敵 ] ${guard.mon.name}が${finalTarget.name}を庇った！` });
+          act.targetIdx = guard.idx;
+          finalTarget = guard.mon;
+        }
         
         let isBlindMiss = false;
         if (char.status === "blind" && Math.random() < 0.5) {
@@ -155,7 +296,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const atkVal = getCharStr(char) + getCharWeaponAtk(char);
           const randRoll = Math.floor(Math.random() * 5); // 0-4
           const meleeMod = getMeleeModifiers(char, turn.idx);
-          dmg = Math.max(1, Math.floor((atkVal + randRoll - finalTarget.def) * meleeMod));
+          dmg = Math.max(1, Math.floor((atkVal + randRoll - getEffectiveDef(finalTarget)) * meleeMod));
           
           if (char.status === "blind") {
             dmg = Math.max(1, Math.floor(dmg / 2));
@@ -164,6 +305,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (finalTarget.physResist) {
             dmg = Math.max(1, Math.round(dmg * (1 - finalTarget.physResist)));
           }
+          dmg = applyTargetedDamageBonus(char, finalTarget, dmg);
 
           // Ninja decapitation (instant death)
           let isDecap = false;
@@ -190,6 +332,18 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             floatText = `${dmg}`;
           }
 
+          if (!isDecap && hasTrait(finalTarget, "reflectPhysical") && dmg > 0) {
+            const reflected = Math.max(1, Math.floor(dmg * (finalTarget.physicalReflect?.rate ?? 0.3)));
+            char.hp = Math.max(0, char.hp - reflected);
+            if (char.hp === 0) char.status = "dead";
+            logQueue.push({
+              msg: `[ 敵 ] ${finalTarget.name}の棘が${char.name}に${reflected}の反射ダメージを与えた！`,
+              sound: "hit",
+              floatText: `${reflected}`,
+              floatColor: "#ff3b30"
+            });
+          }
+
           // followUp (追撃)
           if (!isBlindMiss && finalTarget.hp > 0) {
             const followUpChance = getCharAffixSum(char, "followUp");
@@ -197,10 +351,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const followUpDmgRand = Math.floor(Math.random() * 3);
               const atkVal = getCharStr(char) + getCharWeaponAtk(char);
               const meleeMod = getMeleeModifiers(char, turn.idx);
-              let followUpDmg = Math.max(1, Math.floor((atkVal + followUpDmgRand - finalTarget.def) * 0.7 * meleeMod));
+              let followUpDmg = Math.max(1, Math.floor((atkVal + followUpDmgRand - getEffectiveDef(finalTarget)) * 0.7 * meleeMod));
               if (finalTarget.physResist) {
                 followUpDmg = Math.max(1, Math.round(followUpDmg * (1 - finalTarget.physResist)));
               }
+              followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg);
               finalTarget.hp = Math.max(0, finalTarget.hp - followUpDmg);
               logQueue.push({
                 msg: `[味方] 【🗡️追撃】${char.name}の素早い追加攻撃！${finalTarget.name}に${followUpDmg}のダメージ。`,
@@ -223,6 +378,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
         if (finalTarget.hp === 0) {
           logQueue.push({ msg: `[味方] [!] ${finalTarget.name}を倒した！` });
+          processMonsterDefeat(monsters, finalTarget, logQueue);
         }
       } else if (act.type === "spell") {
         const spell = SPELLS[act.spellName];
@@ -241,7 +397,25 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             target = monsters[livingTargetIdx];
           }
           
+          if (hasTrait(target, "reflectMagic") && Math.random() < (target.magicReflect?.chance ?? 0.5)) {
+            const reflected = Math.floor(Math.random() * 11) + 5;
+            char.hp = Math.max(0, char.hp - reflected);
+            if (char.hp === 0) char.status = "dead";
+            logQueue.push({
+              msg: `[ 敵 ] ${target.name}は呪文を反射した！${char.name}に${reflected}の反射ダメージ！`,
+              sound: "cast_spell",
+              shake: 8,
+              floatText: `${reflected}`,
+              floatColor: "#ff3b30"
+            });
+            return;
+          }
+
+          const originalMagicResist = target.magicResist;
+          target.magicResist = getEffectiveMagicResist(target);
           const result = spell.effect(char, target);
+          if (originalMagicResist === undefined) delete target.magicResist;
+          else target.magicResist = originalMagicResist;
           target.hp = Math.max(0, target.hp - result.damage);
           logQueue.push({
             msg: `[味方] ${result.log}`,
@@ -253,9 +427,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           if (target.hp === 0) {
             logQueue.push({ msg: `[味方] [!] ${target.name}を倒した！` });
+            processMonsterDefeat(monsters, target, logQueue);
           }
         } else if (spell.target === "all_enemies") {
-          const result = spell.effect(char, monsters);
+          const result = applyMagicResistBuffs(monsters, () => spell.effect(char, monsters));
           logQueue.push({
             msg: `[味方] ${result.log}`,
             sound: "cast_spell",
@@ -267,6 +442,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             if (m.hp === 0 && !m.loggedDeath) {
               m.loggedDeath = true;
               logQueue.push({ msg: `[味方] [!] ${m.name}を倒した！` });
+              processMonsterDefeat(monsters, m, logQueue);
             }
           });
         } else if (spell.target === "single_ally") {
@@ -353,6 +529,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         return;
       }
 
+      if (hasTrait(mon, "regen") && mon.hp < mon.maxHp) {
+        const heal = mon.regenAmount ?? Math.max(1, Math.floor(mon.maxHp * 0.12));
+        mon.hp = Math.min(mon.maxHp, mon.hp + heal);
+        logQueue.push({ msg: `[ 敵 ] ${mon.name}は再生し、HPが${heal}回復した。` });
+      }
+
       // Check if monster flees
       if (mon.fleeChance && Math.random() < mon.fleeChance) {
         mon.hp = 0;
@@ -361,6 +543,24 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           msg: `[ 敵 ] [!] ${mon.name}は逃げ出した！`,
           sound: "miss"
         });
+        return;
+      }
+
+      if (hasTrait(mon, "buffPhysicalDef") && Math.random() < (mon.traitChance ?? 0.3)) {
+        monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "def", mon.buffValue ?? 2, 3));
+        logQueue.push({ msg: `[ 敵 ] ${mon.name}は仲間の守りを固めた！` });
+        return;
+      }
+
+      if (hasTrait(mon, "buffMagicDef") && Math.random() < (mon.traitChance ?? 0.3)) {
+        monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "magicResist", mon.buffValue ?? 0.3, 3));
+        logQueue.push({ msg: `[ 敵 ] ${mon.name}は魔法の結界を張った！` });
+        return;
+      }
+
+      if (hasTrait(mon, "buffAtk") && Math.random() < (mon.traitChance ?? 0.3)) {
+        monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "atk", mon.buffValue ?? 3, 3));
+        logQueue.push({ msg: `[ 敵 ] ${mon.name}は仲間を鼓舞した！` });
         return;
       }
 
@@ -407,10 +607,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 16) + 15; // 15-30 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              if (c.hp / c.maxHp <= 0.25) {
-                const g = getCharAffixSum(c, "guardian");
-                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
-              }
+              dmg = reduceIncomingDamage(c, dmg, { spell: true });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。` });
@@ -429,10 +626,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 16) + 10; // 10-25 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              if (c.hp / c.maxHp <= 0.25) {
-                const g = getCharAffixSum(c, "guardian");
-                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
-              }
+              dmg = reduceIncomingDamage(c, dmg, { spell: true });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
@@ -487,10 +681,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 dmg = Math.max(1, Math.round(dmg * 0.4));
                 logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを大幅に軽減した！` });
               }
-              if (c.hp / c.maxHp <= 0.25) {
-                const g = getCharAffixSum(c, "guardian");
-                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
-              }
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。` });
@@ -535,10 +726,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 13) + 12; // 12-24 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              if (c.hp / c.maxHp <= 0.25) {
-                const g = getCharAffixSum(c, "guardian");
-                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
-              }
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
@@ -557,10 +745,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 21) + 15; // 15-35 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              if (c.hp / c.maxHp <= 0.25) {
-                const g = getCharAffixSum(c, "guardian");
-                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
-              }
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。` });
@@ -627,10 +812,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           let dmg = Math.floor(Math.random() * 10) + 5;
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-          if (target.hp / target.maxHp <= 0.25) {
-            const g = getCharAffixSum(target, "guardian");
-            if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
-          }
+          dmg = reduceIncomingDamage(target, dmg, { spell: true, dragon: mon.tags?.includes("dragon") });
           target.hp = Math.max(0, target.hp - dmg);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${isDefending ? "(半減)" : ""}`,
@@ -651,10 +833,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 15) + 10;
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              if (c.hp / c.maxHp <= 0.25) {
-                const g = getCharAffixSum(c, "guardian");
-                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
-              }
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon") });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
@@ -672,10 +851,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 20) + 15; // 15-35 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              if (c.hp / c.maxHp <= 0.25) {
-                const g = getCharAffixSum(c, "guardian");
-                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
-              }
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon") });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
@@ -693,10 +869,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              if (c.hp / c.maxHp <= 0.25) {
-                const g = getCharAffixSum(c, "guardian");
-                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
-              }
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon") });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(半減)" : ""}` });
@@ -720,8 +893,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           });
         } else {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
-          const finalAtk = mon.atk + Math.floor(Math.random() * 4);
-          const finalDef = getCharDef(target);
+          const finalAtk = getEffectiveAtk(mon) + Math.floor(Math.random() * 4);
+          const finalDef = Math.max(0, getCharDef(target) - (target.tempDefDown || 0));
           let dmg = Math.max(1, finalAtk - finalDef);
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           
@@ -730,10 +903,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             dmg = Math.max(1, Math.round(dmg * 1.5));
           }
 
-          if (target.hp / target.maxHp <= 0.25) {
-            const g = getCharAffixSum(target, "guardian");
-            if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
-          }
+          dmg = reduceIncomingDamage(target, dmg);
           target.hp = Math.max(0, target.hp - dmg);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`,
@@ -743,14 +913,32 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             floatColor: "#ff3b30"
           });
 
+          if (hasTrait(mon, "debuffPhysicalDef") && target.hp > 0 && Math.random() < (mon.traitChance ?? 0.25)) {
+            target.tempDefDown = Math.min(6, (target.tempDefDown || 0) + (mon.debuffValue ?? 2));
+            logQueue.push({ msg: `[ 敵 ] ${target.name}の守りが崩された！` });
+          }
+
+          if (hasTrait(mon, "debuffMagicDef") && target.hp > 0 && Math.random() < (mon.traitChance ?? 0.25)) {
+            target.magicVulnerableTurns = 3;
+            logQueue.push({ msg: `[ 敵 ] ${target.name}は魔法に弱くなった！` });
+          }
+
           // Apply poison effect if monster is poisonous and target survives
           const poisonChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
           if (mon.isPoisonous && target.hp > 0 && target.status === "ok" && Math.random() < poisonChance) {
-            target.status = "poisoned";
-            logQueue.push({
-              msg: `[ 敵 ] [!] ${target.name}は毒を受け、毒状態になった！`,
-              sound: "chest_trap"
-            });
+            const ward = getCharAffixSum(target, "poisonWard");
+            if (ward > 0 && Math.random() * 100 < ward) {
+              logQueue.push({
+                msg: `[ 敵 ] ${target.name}は防毒の備えで毒を退けた！`,
+                sound: "miss"
+              });
+            } else {
+              target.status = "poisoned";
+              logQueue.push({
+                msg: `[ 敵 ] [!] ${target.name}は毒を受け、毒状態になった！`,
+                sound: "chest_trap"
+              });
+            }
           }
 
           // Apply paralyze effect if monster is paralyzing and target survives
@@ -780,6 +968,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
       }
     }
+  });
+
+  tickMonsterBuffs(monsters);
+  state.party.forEach(char => {
+    if (char.tempDefDown) char.tempDefDown = Math.max(0, char.tempDefDown - 1);
+    if (char.magicVulnerableTurns) char.magicVulnerableTurns = Math.max(0, char.magicVulnerableTurns - 1);
   });
 
   if (escaped) {
@@ -859,9 +1053,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     if (nonFledMonsters.length > 0) {
       let msg = "戦闘に勝利した！";
       if (expShare > 0 && totalGold > 0) {
-        msg += `パーティは各自${expShare}の経験値と${totalGold}ゴールドを獲得した。`;
+        msg += `パーティは${totalGold}ゴールドを獲得した。`;
       } else if (expShare > 0) {
-        msg += `パーティは各自${expShare}の経験値を得た。`;
+        msg += `パーティは戦闘経験を積んだ。`;
       } else if (totalGold > 0) {
         msg += `パーティは${totalGold}ゴールドを獲得した。`;
       }
@@ -877,7 +1071,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           sound: "gold"
         });
         logQueue.push({
-          msg: `  -> 特典ボーナス：各自 +${bonusExpShare} EXP / パーティ +${bonusGold} ゴールド！`
+          msg: `  -> 初討伐の追加報酬：パーティ +${bonusGold} ゴールド / 成長値 +${bonusExpShare}`
         });
       }
     } else {
@@ -901,20 +1095,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           floatColor: "#ffb300"
         });
       }
-
-      // Display remaining EXP to next level
-      const nextLevel = c.level + 1;
-      if (nextLevel < EXP_LEVELS.length) {
-        const nextReq = EXP_LEVELS[nextLevel];
-        const remaining = Math.max(0, nextReq - c.exp);
-        logQueue.push({
-          msg: `  -> ${c.name}: 次Lvまであと ${remaining} EXP (現在:${c.exp}/${nextReq})`
-        });
-      } else {
-        logQueue.push({
-          msg: `  -> ${c.name}: レベル最大 (現在:${c.exp} EXP)`
-        });
-      }
     });
 
     logQueue.push({ msg: "======================================" });
@@ -931,7 +1111,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       dropEquipment = generateRandomEquipment(state.floor, rarity);
     } else {
       const isRare = state.combatState.monsters && state.combatState.monsters.some(m => m.isRare);
-      const chance = isRare ? 0.40 : 0.08;
+      const chance = isRare ? 0.55 : 0.14;
       if (Math.random() < chance) {
         dropEquipment = generateRandomEquipment(state.floor);
       }

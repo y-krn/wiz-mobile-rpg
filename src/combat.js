@@ -14,30 +14,41 @@ const ENCOUNTER_PACKS = {
     { members: [{ name: "かみつき蟲", min: 1, max: 2 }] },
     { members: [{ name: "コボルトの斥候", min: 1, max: 2 }] },
     { members: [{ name: "マッドスライム", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
-    { members: [{ name: "フラッシュバット", min: 1, max: 2 }] }
+    { members: [{ name: "フラッシュバット", min: 1, max: 2 }] },
+    { members: [{ name: "分裂スライム", min: 1, max: 2 }] },
+    { members: [{ name: "錆びた盾兵", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
+    { members: [{ name: "群れネズミ", min: 4, max: 6 }] }
   ],
   2: [
     { members: [{ name: "リビングアーマー", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
     { members: [{ name: "ブラッドバット群", min: 4, max: 6 }] },
-    { members: [{ name: "ゾンビ", min: 1, max: 1 }, { name: "ジャイアントスパイダー", min: 1, max: 1 }] }
+    { members: [{ name: "ゾンビ", min: 1, max: 1 }, { name: "ジャイアントスパイダー", min: 1, max: 1 }] },
+    { members: [{ name: "針甲虫", min: 1, max: 1 }, { name: "呪いの小鏡", min: 1, max: 1 }] },
+    { members: [{ name: "鉄皮のゴブリン", min: 1, max: 1 }, { name: "祈祷ゴブリン", min: 1, max: 1 }] }
   ],
   3: [
     { members: [{ name: "スピリット", min: 1, max: 1 }, { name: "はぐれ魔術師", min: 1, max: 1 }] },
     { members: [{ name: "呪文喰い", min: 1, max: 1 }, { name: "オークの戦士", min: 1, max: 1 }] },
     { members: [{ name: "カースドハンド", min: 1, max: 1 }, { name: "ゾンビ", min: 1, max: 1 }] },
-    { members: [{ name: "アイアンゴーレム", min: 1, max: 1 }, { name: "はぐれ魔術師", min: 1, max: 1 }] }
+    { members: [{ name: "アイアンゴーレム", min: 1, max: 1 }, { name: "はぐれ魔術師", min: 1, max: 1 }] },
+    { members: [{ name: "霧の亡霊", min: 1, max: 1 }, { name: "骨の鼓手", min: 1, max: 1 }] },
+    { members: [{ name: "オークの戦士", min: 1, max: 1 }, { name: "弱体の魔女", min: 1, max: 1 }] }
   ],
   4: [
     { members: [{ name: "ストーンガード", min: 1, max: 1 }, { name: "マスターメイジ", min: 1, max: 1 }] },
     { members: [{ name: "ウィル・オー・ウィスプ", min: 1, max: 1 }, { name: "バンシー", min: 1, max: 1 }] },
     { members: [{ name: "アースジャイアント", min: 1, max: 1 }, { name: "ポイズンジャイアント", min: 1, max: 1 }] },
-    { members: [{ name: "ブラッドバット群", min: 4, max: 6 }] }
+    { members: [{ name: "ブラッドバット群", min: 4, max: 6 }] },
+    { members: [{ name: "石像兵", min: 1, max: 1 }, { name: "魔鏡の司祭", min: 1, max: 1 }] },
+    { members: [{ name: "鋼殻ビートル", min: 1, max: 1 }, { name: "弱体の魔女", min: 1, max: 1 }] }
   ],
   5: [
     { members: [{ name: "マスターデーモン", min: 1, max: 1 }, { name: "プリーストデーモン", min: 1, max: 1 }] },
     { members: [{ name: "ドラゴンワーム", min: 3, max: 4 }] },
     { members: [{ name: "レッドドラゴン", min: 1, max: 1 }, { name: "ワイバーン", min: 1, max: 1 }] },
-    { members: [{ name: "ストーンガード", min: 1, max: 1 }, { name: "マスターデーモン", min: 1, max: 1 }] }
+    { members: [{ name: "ストーンガード", min: 1, max: 1 }, { name: "マスターデーモン", min: 1, max: 1 }] },
+    { members: [{ name: "反逆の鎧", min: 1, max: 1 }, { name: "黒曜の魔導士", min: 1, max: 1 }] },
+    { members: [{ name: "竜血の再生者", min: 1, max: 1 }, { name: "結界の守護者", min: 1, max: 1 }] }
   ]
 };
 
@@ -50,6 +61,20 @@ export let combatSelection = {
 let activeTargetCallback = null;
 let activeSpellCallback = null;
 let activeItemCallback = null;
+
+function getEnemyRow(monster) {
+  return monster.row || "front";
+}
+
+function hasLivingEnemyFrontRow(monsters) {
+  return monsters.some(m => m.hp > 0 && getEnemyRow(m) === "front");
+}
+
+function canMeleeTargetEnemy(monsters, target) {
+  if (!target || target.hp <= 0) return false;
+  if (getEnemyRow(target) === "front") return true;
+  return !hasLivingEnemyFrontRow(monsters);
+}
 
 export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
   state.gameState = "combat";
@@ -283,7 +308,7 @@ export function selectCombatAction(type) {
           });
           combatSelection.charIdx++;
           advanceActionSelection();
-        });
+        }, spellName);
       } else if (spell.target === "single_ally") {
         openCombatTargetMenu("ally", (targetIdx) => {
           combatSelection.actions.push({
@@ -371,14 +396,18 @@ export function openCombatTargetMenu(type, callback, spellName = null) {
 
   if (type === "enemy") {
     const monsters = state.combatState.monsters;
+    const isMeleeTarget = !spellName;
     monsters.forEach((m, idx) => {
       const btn = document.createElement("button");
       btn.className = "btn btn-neon btn-target-enemy";
-      btn.textContent = `${m.name} (${m.hp}/${m.maxHp})`;
-      
-      if (m.hp <= 0) {
+      const rowLabel = getEnemyRow(m) === "front" ? "前" : "後";
+      btn.textContent = `[${rowLabel}] ${m.name} (${m.hp}/${m.maxHp})`;
+
+      const blocked = isMeleeTarget && !canMeleeTargetEnemy(monsters, m);
+      if (m.hp <= 0 || blocked) {
         btn.disabled = true;
-        btn.style.opacity = "0.3";
+        btn.style.opacity = blocked ? "0.55" : "0.3";
+        if (blocked) btn.title = "前列に阻まれている";
       } else {
         btn.addEventListener("click", () => {
           state.gameState = "combat";
@@ -533,23 +562,28 @@ export function renderCombatOverlay() {
     if (menuContext.targetType === "enemy") {
       // Enemy targets
       const monsters = state.combatState.monsters;
+      const isMeleeTarget = !menuContext.spellName;
       monsters.forEach((m, idx) => {
         const card = document.createElement("div");
         card.className = "combat-target-card enemy";
-        if (m.hp <= 0) {
+        const blocked = isMeleeTarget && !canMeleeTargetEnemy(monsters, m);
+        if (m.hp <= 0 || blocked) {
           card.classList.add("dead");
+          if (blocked) card.classList.add("blocked");
         }
 
         const hpPct = m.maxHp > 0 ? (m.hp / m.maxHp) * 100 : 0;
+        const rowLabel = getEnemyRow(m) === "front" ? "前" : "後";
         card.innerHTML = `
-          <div class="card-title">${m.name}</div>
+          <div class="card-title"><span class="enemy-row-tag ${getEnemyRow(m)}">${rowLabel}</span>${m.name}</div>
           <div class="card-hp-bar-container">
             <div class="card-hp-bar" style="width: ${hpPct}%"></div>
           </div>
           <div class="card-hp-text">HP: ${m.hp}/${m.maxHp}</div>
+          ${blocked ? `<div class="card-note">前列に阻まれている</div>` : ""}
         `;
 
-        if (m.hp > 0) {
+        if (m.hp > 0 && !blocked) {
           card.addEventListener("click", () => {
             state.gameState = "combat";
             if (activeTargetCallback) activeTargetCallback(idx);

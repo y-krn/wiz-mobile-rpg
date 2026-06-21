@@ -1,0 +1,2275 @@
+diff --git a/src/camp.js b/src/camp.js
+index 0e86fa5..46028ae 100644
+--- a/src/camp.js
++++ b/src/camp.js
+@@ -1,6 +1,6 @@
+ import { state, initNewGame, saveAutosave, addLog, EXP_LEVELS, getCharWeaponAtk, getCharDef } from "./state.js";
+ import { 
+-  SPELLS, getClassJpName, START_X, START_Y, DIR_N 
++  SPELLS, getClassJpName, START_X, START_Y, DIR_N, getCharDerivedStat
+ } from "./data.js";
+ import { playSound } from "./audio.js";
+ import { dungeonRenderer as renderer } from "./renderer.js";
+@@ -126,19 +126,30 @@ export function renderCampOverlay() {
+           <span>HP: <strong class="camp-val">${char.hp}/${char.maxHp}</strong></span>
+           <span>MP: <strong class="camp-val">${char.mp}/${char.maxMp}</strong></span>
+         </div>
+-        <div class="camp-status-card-stats">
+-          <div>力: ${char.str}</div>
+-          <div>知恵: ${char.int}</div>
+-          <div>信仰: ${char.pie}</div>
+-          <div>生命: ${char.vit}</div>
+-          <div>素早: ${char.agi}</div>
+-          <div>運: ${char.luk}</div>
++        <div class="camp-status-card-stats-derived" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; color: var(--text-main); background-color: #0c0c0e; padding: 6px; border-radius: 4px; font-size: 11px;">
++          <div>攻撃: <strong class="camp-val">${getCharDerivedStat(char, "atk")}</strong></div>
++          <div>防御: <strong class="camp-val">${getCharDerivedStat(char, "def")}</strong></div>
++          <div>魔力: <strong class="camp-val">${getCharDerivedStat(char, "arcane")}</strong></div>
++          <div>回復: <strong class="camp-val">${getCharDerivedStat(char, "devotion")}</strong></div>
++          <div>速度: <strong class="camp-val">${getCharDerivedStat(char, "speed")}</strong></div>
++          <div>罠解除: <strong class="camp-val">${getCharDerivedStat(char, "trap")}%</strong></div>
++          <div style="grid-column: span 2;">探宝: <strong class="camp-val">${getCharDerivedStat(char, "treasureSense")}%</strong></div>
+         </div>
+-        <div class="camp-status-card-combat">
+-          <span>攻撃力: <strong class="camp-val">+${getCharWeaponAtk(char)}</strong></span>
+-          <span>防御力(AC): <strong class="camp-val">${getCharDef(char)}</strong></span>
+-        </div>
+-        <div class="camp-status-card-exp">
++        <details style="margin-top: 4px; cursor: pointer;">
++          <summary style="font-size: 10px; color: var(--text-muted); padding: 2px 4px; outline: none; list-style: none; display: flex; justify-content: space-between; align-items: center;">
++            <span>基本能力値 (力、知恵 等)</span>
++            <span style="font-size: 8px; color: var(--text-muted);">▼</span>
++          </summary>
++          <div class="camp-status-card-stats" style="margin-top: 4px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 10px;">
++            <div>力: ${char.str}</div>
++            <div>知恵: ${char.int}</div>
++            <div>信仰: ${char.pie}</div>
++            <div>生命: ${char.vit}</div>
++            <div>素早: ${char.agi}</div>
++            <div>運: ${char.luk}</div>
++          </div>
++        </details>
++        <div class="camp-status-card-exp" style="margin-top: 2px;">
+           <span>EXP: <span class="exp-val">${nextText}</span></span>
+         </div>
+       `;
+diff --git a/src/chest.js b/src/chest.js
+index c0c3e0b..13ce8d0 100644
+--- a/src/chest.js
++++ b/src/chest.js
+@@ -172,13 +172,37 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
+   // Aura & loot hint calculation
+   let aura = "weak";
+   let hasEquipmentSignal = false;
++  let tagHint = "";
+   if (item && typeof item === "object" && item.kind === "equipment") {
+     hasEquipmentSignal = true;
+     if (item.rarity === "epic") aura = "strong";
+     else if (item.rarity === "rare") aura = "medium";
+     else aura = "weak";
++
++    if (item.affixes && item.affixes.length > 0) {
++      const partyTreasureSense = state.party ? state.party.reduce((sum, c) => {
++        if (c.status !== "dead") {
++          return sum + getCharAffixSum(c, "treasureSense");
++        }
++        return sum;
++      }, 0) : 0;
++
++      if (partyTreasureSense >= 5 || rng() < 0.20) {
++        const hintTypes = [];
++        item.affixes.forEach(aff => {
++          if (aff.type === "followUp") hintTypes.push("追撃の予兆");
++          else if (aff.type === "arcane") hintTypes.push("魔導の予兆");
++          else if (aff.type === "devotion") hintTypes.push("祈祷の予兆");
++          else if (aff.type === "guardian") hintTypes.push("守護の予兆");
++          else if (aff.type === "treasureSense") hintTypes.push("探宝の予兆");
++        });
++        if (hintTypes.length > 0) {
++          tagHint = ` (${hintTypes.join(", ")})`;
++        }
++      }
++    }
+   }
+-  const label = hasEquipmentSignal ? "装備品の反応あり" : "消耗品または反応なし";
++  const label = hasEquipmentSignal ? `装備品の反応あり${tagHint}` : "消耗品または反応なし";
+ 
+   state.chestState = {
+     trap,
+diff --git a/src/combat.js b/src/combat.js
+index dcea737..cd5aa8f 100644
+--- a/src/combat.js
++++ b/src/combat.js
+@@ -7,37 +7,50 @@ import { menuContext, menuHistory, openSubmenu, closeSubmenu, resetSubmenuBackBu
+ import { triggerRunResult } from "./result.js";
+ import { setupChestState } from "./chest.js";
+ import { createRng } from "./seed_rng.js";
+-import { runCombatRoundCalculation } from "./combat_logic.js";
++import { runCombatRoundCalculation, hasLivingEnemyFrontRow, canMeleeTargetEnemy } from "./combat_logic.js";
+ 
+ const ENCOUNTER_PACKS = {
+   1: [
+-    { members: [{ name: "かみつき蟲", min: 1, max: 2 }] },
+-    { members: [{ name: "コボルトの斥候", min: 1, max: 2 }] },
+-    { members: [{ name: "マッドスライム", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
+-    { members: [{ name: "フラッシュバット", min: 1, max: 2 }] }
++    { members: [{ name: "群れネズミ", min: 4, max: 6 }] },
++    { members: [{ name: "分裂スライム", min: 2, max: 2 }] },
++    { members: [{ name: "錆びた盾兵", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
++    { members: [{ name: "泥の呪い子", min: 1, max: 2 }, { name: "コボルトの斥候", min: 1, max: 1 }] },
++    { members: [{ name: "火薬コウモリ", min: 2, max: 3 }] }
+   ],
+   2: [
+-    { members: [{ name: "リビングアーマー", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
+-    { members: [{ name: "ブラッドバット群", min: 4, max: 6 }] },
+-    { members: [{ name: "ゾンビ", min: 1, max: 1 }, { name: "ジャイアントスパイダー", min: 1, max: 1 }] }
++    { members: [{ name: "呪いの小鏡", min: 1, max: 1 }, { name: "ゾンビ", min: 1, max: 2 }] },
++    { members: [{ name: "針甲虫", min: 1, max: 2 }, { name: "ゾンビ", min: 1, max: 1 }] },
++    { members: [{ name: "鉄皮のゴブリン", min: 1, max: 1 }, { name: "オークの戦士", min: 1, max: 1 }] },
++    { members: [{ name: "腐毒の蛆", min: 1, max: 2 }, { name: "ジャイアントスパイダー", min: 1, max: 1 }] },
++    { members: [{ name: "祈祷ゴブリン", min: 1, max: 1 }, { name: "アイアンゴーレム", min: 1, max: 1 }] },
++    { members: [{ name: "マナドレイン", min: 1, max: 1 }, { name: "スケルトンアーチャー", min: 1, max: 2 }] },
++    { members: [{ name: "煙幕盗賊", min: 1, max: 1 }, { name: "ワーウルフ", min: 1, max: 1 }] }
+   ],
+   3: [
+-    { members: [{ name: "スピリット", min: 1, max: 1 }, { name: "はぐれ魔術師", min: 1, max: 1 }] },
+-    { members: [{ name: "呪文喰い", min: 1, max: 1 }, { name: "オークの戦士", min: 1, max: 1 }] },
+-    { members: [{ name: "カースドハンド", min: 1, max: 1 }, { name: "ゾンビ", min: 1, max: 1 }] },
+-    { members: [{ name: "アイアンゴーレム", min: 1, max: 1 }, { name: "はぐれ魔術師", min: 1, max: 1 }] }
++    { members: [{ name: "呪文喰い", min: 1, max: 2 }, { name: "バンシー", min: 1, max: 1 }] },
++    { members: [{ name: "霧の亡霊", min: 1, max: 2 }, { name: "はぐれ魔術師", min: 1, max: 1 }] },
++    { members: [{ name: "魔封じの目玉", min: 1, max: 2 }, { name: "カースドハンド", min: 1, max: 1 }] },
++    { members: [{ name: "骨の鼓手", min: 1, max: 1 }, { name: "オークの戦士", min: 1, max: 2 }] },
++    { members: [{ name: "弱体の魔女", min: 1, max: 1 }, { name: "ゾンビ", min: 1, max: 2 }] },
++    { members: [{ name: "解呪の司祭", min: 1, max: 1 }, { name: "アイアンゴーレム", min: 1, max: 1 }] }
+   ],
+   4: [
+-    { members: [{ name: "ストーンガード", min: 1, max: 1 }, { name: "マスターメイジ", min: 1, max: 1 }] },
+-    { members: [{ name: "ウィル・オー・ウィスプ", min: 1, max: 1 }, { name: "バンシー", min: 1, max: 1 }] },
+-    { members: [{ name: "アースジャイアント", min: 1, max: 1 }, { name: "ポイズンジャイアント", min: 1, max: 1 }] },
+-    { members: [{ name: "ブラッドバット群", min: 4, max: 6 }] }
++    { members: [{ name: "石像兵", min: 1, max: 1 }, { name: "魔鏡の司祭", min: 1, max: 1 }] },
++    { members: [{ name: "鋼殻ビートル", min: 1, max: 2 }, { name: "マスターメイジ", min: 1, max: 1 }] },
++    { members: [{ name: "血塗れの処刑人", min: 1, max: 1 }, { name: "ポイズンジャイアント", min: 1, max: 1 }] },
++    { members: [{ name: "魔防崩しの蛇", min: 1, max: 1 }, { name: "マスターメイジ", min: 1, max: 1 }] },
++    { members: [{ name: "沈黙の修道士", min: 1, max: 1 }, { name: "石像兵", min: 1, max: 1 }] },
++    { members: [{ name: "召喚する悪魔", min: 1, max: 1 }, { name: "ストーンガード", min: 1, max: 1 }] }
+   ],
+   5: [
+-    { members: [{ name: "マスターデーモン", min: 1, max: 1 }, { name: "プリーストデーモン", min: 1, max: 1 }] },
+-    { members: [{ name: "ドラゴンワーム", min: 3, max: 4 }] },
+-    { members: [{ name: "レッドドラゴン", min: 1, max: 1 }, { name: "ワイバーン", min: 1, max: 1 }] },
+-    { members: [{ name: "ストーンガード", min: 1, max: 1 }, { name: "マスターデーモン", min: 1, max: 1 }] }
++    { members: [{ name: "結界の守護者", min: 1, max: 1 }, { name: "黒曜の魔導士", min: 1, max: 1 }] },
++    { members: [{ name: "破滅の導師", min: 1, max: 1 }, { name: "盾持ちデーモン", min: 1, max: 1 }] },
++    { members: [{ name: "双頭の番犬", min: 1, max: 1 }, { name: "マスターデーモン", min: 1, max: 1 }] },
++    { members: [{ name: "竜血の再生者", min: 1, max: 1 }, { name: "プリーストデーモン", min: 1, max: 1 }] },
++    { members: [{ name: "反逆の鎧", min: 1, max: 1 }, { name: "黒曜の魔導士", min: 1, max: 1 }] },
++    { members: [{ name: "深淵の分裂体", min: 1, max: 2 }] },
++    { members: [{ name: "命喰いの影", min: 1, max: 1 }, { name: "プリーストデーモン", min: 1, max: 1 }] },
++    { members: [{ name: "灰燼の術士", min: 1, max: 1 }, { name: "盾持ちデーモン", min: 1, max: 1 }] }
+   ]
+ };
+ 
+@@ -56,6 +69,9 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
+   if (state.currentRun) {
+     state.currentRun.battles++;
+   }
++  state.party.forEach(char => {
++    char.buffs = [];
++  });
+   
+   // Choose monsters
+   const monsters = [];
+@@ -65,7 +81,8 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
+     monsters.push({
+       ...dragonTemplate,
+       hp: dragonTemplate.hp,
+-      maxHp: dragonTemplate.hp
++      maxHp: dragonTemplate.hp,
++      buffs: []
+     });
+   } else if (isMidboss) {
+     // Demon Guard Midboss
+@@ -73,7 +90,8 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
+     monsters.push({
+       ...midbossTemplate,
+       hp: midbossTemplate.hp,
+-      maxHp: midbossTemplate.hp
++      maxHp: midbossTemplate.hp,
++      buffs: []
+     });
+   } else if (isRoamingFlack) {
+     // Roaming Flack Encounter
+@@ -81,7 +99,8 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
+     monsters.push({
+       ...flackTemplate,
+       hp: flackTemplate.hp,
+-      maxHp: flackTemplate.hp
++      maxHp: flackTemplate.hp,
++      buffs: []
+     });
+   }
+   
+@@ -121,7 +140,8 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
+       monsters.push({
+         ...template,
+         hp: template.hp,
+-        maxHp: template.hp
++        maxHp: template.hp,
++        buffs: []
+       });
+       addLog("【✨希少遭遇！】珍しい魔物が現れた！");
+     } else {
+@@ -138,7 +158,8 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
+             tempMonsters.push({
+               ...template,
+               hp: template.hp,
+-              maxHp: template.hp
++              maxHp: template.hp,
++              buffs: []
+             });
+           }
+         }
+@@ -371,15 +392,26 @@ export function openCombatTargetMenu(type, callback, spellName = null) {
+ 
+   if (type === "enemy") {
+     const monsters = state.combatState.monsters;
++    const hasFront = hasLivingEnemyFrontRow(monsters);
++    const isPhysical = !spellName;
++
+     monsters.forEach((m, idx) => {
+       const btn = document.createElement("button");
+       btn.className = "btn btn-neon btn-target-enemy";
+-      btn.textContent = `${m.name} (${m.hp}/${m.maxHp})`;
++      
++      const rowLabel = (m.row || "front") === "back" ? "[後]" : "[前]";
++      const isBlocked = isPhysical && (m.row || "front") === "back" && hasFront;
+       
+       if (m.hp <= 0) {
++        btn.textContent = `${rowLabel} ${m.name} (死亡)`;
++        btn.disabled = true;
++        btn.style.opacity = "0.3";
++      } else if (isBlocked) {
++        btn.textContent = `${rowLabel} ${m.name} (${m.hp}/${m.maxHp}) (前列に阻まれている)`;
+         btn.disabled = true;
+         btn.style.opacity = "0.3";
+       } else {
++        btn.textContent = `${rowLabel} ${m.name} (${m.hp}/${m.maxHp})`;
+         btn.addEventListener("click", () => {
+           state.gameState = "combat";
+           if (activeTargetCallback) activeTargetCallback(idx);
+@@ -533,23 +565,33 @@ export function renderCombatOverlay() {
+     if (menuContext.targetType === "enemy") {
+       // Enemy targets
+       const monsters = state.combatState.monsters;
++      const hasFront = hasLivingEnemyFrontRow(monsters);
++      const isPhysical = !menuContext.spellName;
++
+       monsters.forEach((m, idx) => {
+         const card = document.createElement("div");
+         card.className = "combat-target-card enemy";
++        
++        const rowLabel = (m.row || "front") === "back" ? "[後]" : "[前]";
++        const isBlocked = isPhysical && (m.row || "front") === "back" && hasFront;
++
+         if (m.hp <= 0) {
+           card.classList.add("dead");
++        } else if (isBlocked) {
++          card.classList.add("blocked");
+         }
+ 
+         const hpPct = m.maxHp > 0 ? (m.hp / m.maxHp) * 100 : 0;
+         card.innerHTML = `
+-          <div class="card-title">${m.name}</div>
++          <div class="card-title">${rowLabel} ${m.name}</div>
+           <div class="card-hp-bar-container">
+             <div class="card-hp-bar" style="width: ${hpPct}%"></div>
+           </div>
+           <div class="card-hp-text">HP: ${m.hp}/${m.maxHp}</div>
++          ${isBlocked ? `<div class="card-blocked-text" style="color: #ff3b30; font-size: 8px; margin-top: 4px; font-weight: bold;">前列に阻まれている</div>` : ""}
+         `;
+ 
+-        if (m.hp > 0) {
++        if (m.hp > 0 && !isBlocked) {
+           card.addEventListener("click", () => {
+             state.gameState = "combat";
+             if (activeTargetCallback) activeTargetCallback(idx);
+diff --git a/src/combat_logic.js b/src/combat_logic.js
+index 2c26825..9c96a35 100644
+--- a/src/combat_logic.js
++++ b/src/combat_logic.js
+@@ -2,9 +2,52 @@ import {
+   SPELLS, ITEMS, 
+   generateRandomEquipment, getItemData, getCharStr, getCharAgi,
+   getCharWeaponAtk, getCharDef, checkCharLevelUp, EXP_LEVELS,
+-  getItemBaseId, getCharAffixSum
++  getItemBaseId, getCharAffixSum, getClassPassiveBonus,
++  getMonsterEffectiveDef, getMonsterEffectiveAtk, getMonsterEffectiveMagicResist,
++  getCharEffectiveMagicResist
+ } from "./data.js";
+ 
++export function hasLivingEnemyFrontRow(enemies) {
++  return enemies.some(e => e.hp > 0 && (e.row || "front") === "front");
++}
++
++export function canMeleeTargetEnemy(enemies, target) {
++  if (!target || target.hp <= 0) return false;
++  if ((target.row || "front") === "front") return true;
++  return !hasLivingEnemyFrontRow(enemies);
++}
++
++function applyBuff(target, type, value, turns) {
++  if (!target.buffs) target.buffs = [];
++  let currentVal = 0;
++  target.buffs.forEach(b => {
++    if (b.type === type) currentVal += b.value;
++  });
++  
++  let limitMin = -6, limitMax = 6;
++  if (type === "magicResist") {
++    limitMin = -0.5;
++    limitMax = 0.5;
++  }
++  
++  const allowedAdd = value > 0 
++    ? Math.max(0, limitMax - currentVal)
++    : Math.min(0, limitMin - currentVal);
++  
++  const actualAdd = value > 0 
++    ? Math.min(value, allowedAdd)
++    : Math.max(value, allowedAdd);
++    
++  if (actualAdd !== 0) {
++    const roundedAdd = type === "magicResist" ? Math.round(actualAdd * 100) / 100 : actualAdd;
++    if (roundedAdd !== 0) {
++      target.buffs.push({ type, value: roundedAdd, turns });
++    }
++    return roundedAdd;
++  }
++  return 0;
++}
++
+ function getMeleeModifiers(char, actorIdx) {
+   const classMeleeRates = {
+     Fighter: 1.00,
+@@ -54,9 +97,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+   const party = originalState.party.map(c => ({
+     ...c,
+     equipment: {...c.equipment},
+-    spells: c.spells ? [...c.spells] : []
++    spells: c.spells ? [...c.spells] : [],
++    buffs: c.buffs ? c.buffs.map(b => ({ ...b })) : []
++  }));
++  const monsters = originalState.combatState.monsters.map(m => ({
++    ...m,
++    buffs: m.buffs ? m.buffs.map(b => ({ ...b })) : []
+   }));
+-  const monsters = originalState.combatState.monsters.map(m => ({...m}));
+   const inventory = [...originalState.inventory];
+   const firstKills = originalState.firstKills ? [...originalState.firstKills] : [];
+   const codex = originalState.codex ? JSON.parse(JSON.stringify(originalState.codex)) : null;
+@@ -69,7 +116,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+     party,
+     combatState: {
+       ...originalState.combatState,
+-      monsters
++      monsters,
++      round: (originalState.combatState.round || 0) + 1
+     },
+     inventory,
+     firstKills,
+@@ -109,6 +157,16 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+         idx,
+         speed
+       });
++      if (mon.traits && mon.traits.includes("multiAction")) {
++        const speed2 = 8 + Math.floor(Math.random() * 10);
++        turns.push({
++          type: "monster",
++          mon,
++          idx,
++          speed: speed2,
++          isExtraAction: true
++        });
++      }
+     }
+   });
+ 
+@@ -118,22 +176,73 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+   // Run each action
+   turns.forEach(turn => {
+     if (escaped) return;
++    const hadFront = hasLivingEnemyFrontRow(monsters);
+     if (turn.type === "char") {
+       const char = turn.char;
+       if (char.status !== "ok" && char.status !== "poisoned" && char.status !== "blind") return; // Died/slept earlier in the round
+       
++      // 経過バフの減少
++      if (char.buffs) {
++        char.buffs.forEach(b => b.turns--);
++        char.buffs = char.buffs.filter(b => b.turns > 0);
++      }
++
+       const act = turn.action;
+       
+       if (act.type === "fight") {
+-        const target = monsters[act.targetIdx];
++        let target = monsters[act.targetIdx];
++        
++        // 1. 最初から後列を狙っており、前列がまだ生きている場合は攻撃不発
++        if (target.hp > 0 && (target.row || "front") === "back" && hasLivingEnemyFrontRow(monsters)) {
++          logQueue.push({
++            msg: `[味方] ${char.name}の攻撃！しかし前列の敵に阻まれて、後列の${target.name}には届かない！`,
++            sound: "miss"
++          });
++          return;
++        }
++
++        // 2. ターゲットがすでに死亡している場合の振り替え
+         if (target.hp <= 0) {
+-          // Find another random living target
+-          const livingTargetIdx = monsters.findIndex(m => m.hp > 0);
+-          if (livingTargetIdx === -1) return; // All dead
+-          act.targetIdx = livingTargetIdx;
++          // 代わりの近接ターゲットを探す。
++          // まず前列の生存モンスターを探す。
++          let validIdx = monsters.findIndex(m => m.hp > 0 && (m.row || "front") === "front");
++          if (validIdx === -1) {
++            // 前列生存者がいないなら、後列も含めた任意の生存モンスターを探す。
++            validIdx = monsters.findIndex(m => m.hp > 0);
++          }
++          
++          if (validIdx === -1) return; // 生存モンスターなし
++          act.targetIdx = validIdx;
++          target = monsters[act.targetIdx];
+         }
+         
+-        const finalTarget = monsters[act.targetIdx];
++        let finalTarget = target;
++        let isGuarded = false;
++        let guardReduce = false;
++        
++        // 庇う(guardAdjacent / guardAdjacentReduce)の判定
++        const idx = act.targetIdx;
++        const candidates = [];
++        if (idx > 0 && monsters[idx - 1].hp > 0) candidates.push({ m: monsters[idx - 1], index: idx - 1 });
++        if (idx < monsters.length - 1 && monsters[idx + 1].hp > 0) candidates.push({ m: monsters[idx + 1], index: idx + 1 });
++        
++        const guarders = candidates.filter(c => 
++          c.m.traits && (c.m.traits.includes("guardAdjacent") || c.m.traits.includes("guardAdjacentReduce"))
++        );
++        
++        if (guarders.length > 0 && Math.random() < 0.50) {
++          const guarder = guarders[Math.floor(Math.random() * guarders.length)];
++          finalTarget = guarder.m;
++          act.targetIdx = guarder.index;
++          isGuarded = true;
++          if (guarder.m.traits.includes("guardAdjacentReduce")) {
++            guardReduce = true;
++          }
++          logQueue.push({
++            msg: `[ 敵 ] ${finalTarget.name}が割り込み、${target.name}を庇った！`,
++            sound: "hit"
++          });
++        }
+         
+         let isBlindMiss = false;
+         if (char.status === "blind" && Math.random() < 0.5) {
+@@ -155,7 +264,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+           const atkVal = getCharStr(char) + getCharWeaponAtk(char);
+           const randRoll = Math.floor(Math.random() * 5); // 0-4
+           const meleeMod = getMeleeModifiers(char, turn.idx);
+-          dmg = Math.max(1, Math.floor((atkVal + randRoll - finalTarget.def) * meleeMod));
++          dmg = Math.max(1, Math.floor((atkVal + randRoll - getMonsterEffectiveDef(finalTarget)) * meleeMod));
+           
+           if (char.status === "blind") {
+             dmg = Math.max(1, Math.floor(dmg / 2));
+@@ -165,6 +274,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+             dmg = Math.max(1, Math.round(dmg * (1 - finalTarget.physResist)));
+           }
+ 
++          if (guardReduce) {
++            dmg = Math.max(1, Math.round(dmg * 0.7));
++          }
++
+           // Ninja decapitation (instant death)
+           let isDecap = false;
+           if (char.class === "Ninja" && !finalTarget.isBoss) {
+@@ -190,17 +303,37 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+             floatText = `${dmg}`;
+           }
+ 
++          // 物理反射
++          if (dmg > 0 && finalTarget.traits && (finalTarget.traits.includes("reflectPhysical") || finalTarget.traits.includes("reflectPhysicalHigh"))) {
++            const rate = finalTarget.traits.includes("reflectPhysicalHigh") ? 0.4 : 0.3;
++            const refDmg = Math.max(1, Math.floor(dmg * rate));
++            char.hp = Math.max(0, char.hp - refDmg);
++            logQueue.push({
++              msg: `[!] ${finalTarget.name}のトゲに反撃された！${char.name}は${refDmg}の反射ダメージを受けた。`,
++              sound: "hit",
++              floatText: `${refDmg}`,
++              floatColor: "#ff3b30"
++            });
++            if (char.hp === 0) {
++              char.status = "dead";
++              logQueue.push({ msg: `[味方] [!] ${char.name}は反射ダメージで力尽きた！` });
++            }
++          }
++
+           // followUp (追撃)
+-          if (!isBlindMiss && finalTarget.hp > 0) {
++          if (char.hp > 0 && !isBlindMiss && finalTarget.hp > 0) {
+             const followUpChance = getCharAffixSum(char, "followUp");
+             if (followUpChance > 0 && Math.random() * 100 < followUpChance) {
+               const followUpDmgRand = Math.floor(Math.random() * 3);
+               const atkVal = getCharStr(char) + getCharWeaponAtk(char);
+               const meleeMod = getMeleeModifiers(char, turn.idx);
+-              let followUpDmg = Math.max(1, Math.floor((atkVal + followUpDmgRand - finalTarget.def) * 0.7 * meleeMod));
++              let followUpDmg = Math.max(1, Math.floor((atkVal + followUpDmgRand - getMonsterEffectiveDef(finalTarget)) * 0.7 * meleeMod));
+               if (finalTarget.physResist) {
+                 followUpDmg = Math.max(1, Math.round(followUpDmg * (1 - finalTarget.physResist)));
+               }
++              if (guardReduce) {
++                followUpDmg = Math.max(1, Math.round(followUpDmg * 0.7));
++              }
+               finalTarget.hp = Math.max(0, finalTarget.hp - followUpDmg);
+               logQueue.push({
+                 msg: `[味方] 【🗡️追撃】${char.name}の素早い追加攻撃！${finalTarget.name}に${followUpDmg}のダメージ。`,
+@@ -209,6 +342,42 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+                 floatText: `${followUpDmg}`,
+                 floatColor: finalTarget.color
+               });
++
++              // 追撃の物理反射
++              if (followUpDmg > 0 && finalTarget.traits && (finalTarget.traits.includes("reflectPhysical") || finalTarget.traits.includes("reflectPhysicalHigh"))) {
++                const rate = finalTarget.traits.includes("reflectPhysicalHigh") ? 0.4 : 0.3;
++                const refDmg = Math.max(1, Math.floor(followUpDmg * rate));
++                char.hp = Math.max(0, char.hp - refDmg);
++                logQueue.push({
++                  msg: `[!] ${finalTarget.name}のトゲに反撃された！${char.name}は${refDmg}の反射ダメージを受けた。`,
++                  sound: "hit",
++                  floatText: `${refDmg}`,
++                  floatColor: "#ff3b30"
++                });
++                if (char.hp === 0) {
++                  char.status = "dead";
++                  logQueue.push({ msg: `[味方] [!] ${char.name}は反射ダメージで力尽きた！` });
++                }
++              }
++            }
++          }
++
++          // counterSpell
++          if (char.hp > 0 && finalTarget.hp > 0 && finalTarget.traits && finalTarget.traits.includes("counterSpell") && Math.random() < 0.20) {
++            let counterDmg = Math.floor(Math.random() * 11) + 5;
++            const charMr = getCharEffectiveMagicResist(char);
++            counterDmg = Math.max(0, Math.round(counterDmg * (1 - charMr)));
++            char.hp = Math.max(0, char.hp - counterDmg);
++            logQueue.push({
++              msg: `[ 敵 ] [!] ${finalTarget.name}は物理攻撃に反応し、ハリトで反撃した！${char.name}に${counterDmg}の炎ダメージ！`,
++              sound: "cast_spell",
++              shake: 8,
++              floatText: `${counterDmg}`,
++              floatColor: "#ff3b30"
++            });
++            if (char.hp === 0) {
++              char.status = "dead";
++              logQueue.push({ msg: `[味方] [!] ${char.name}は反撃 of 炎で力尽きた！` });
+             }
+           }
+         }
+@@ -225,6 +394,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+           logQueue.push({ msg: `[味方] [!] ${finalTarget.name}を倒した！` });
+         }
+       } else if (act.type === "spell") {
++        if (char.buffs && char.buffs.some(b => b.type === "silence")) {
++          logQueue.push({ msg: `[味方] ${char.name}は呪文を唱えようとしたが、沈黙状態で呪文が使えない！` });
++          return;
++        }
++
+         const spell = SPELLS[act.spellName];
+         
+         if (char.mp < spell.cost) {
+@@ -241,21 +415,64 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+             target = monsters[livingTargetIdx];
+           }
+           
++          let isReflected = false;
++          if (target.traits) {
++            if (target.traits.includes("reflectMagic") && Math.random() < 0.50) {
++              isReflected = true;
++            } else if (target.traits.includes("reflectMagicTelegraph") && state.combatState.round % 2 === 0) {
++              isReflected = true;
++            }
++          }
++          
+           const result = spell.effect(char, target);
+-          target.hp = Math.max(0, target.hp - result.damage);
+-          logQueue.push({
+-            msg: `[味方] ${result.log}`,
+-            sound: "hit",
+-            shake: 12,
+-            floatText: `${result.damage}`,
+-            floatColor: target.color
+-          });
++          
++          if (isReflected) {
++            const refDmg = result.damage;
++            char.hp = Math.max(0, char.hp - refDmg);
++            logQueue.push({
++              msg: `[味方] ${char.name}の呪文が反射された！${char.name}は${refDmg}のダメージを受けた！`,
++              sound: "cast_spell",
++              shake: 12,
++              floatText: `${refDmg}`,
++              floatColor: "#ff3b30"
++            });
++            if (char.hp === 0) {
++              char.status = "dead";
++              logQueue.push({ msg: `[味方] [!] ${char.name}は反射ダメージで力尽きた！` });
++            }
++          } else {
++            target.hp = Math.max(0, target.hp - result.damage);
++            logQueue.push({
++              msg: `[味方] ${result.log}`,
++              sound: "hit",
++              shake: 12,
++              floatText: `${result.damage}`,
++              floatColor: target.color
++            });
+ 
+-          if (target.hp === 0) {
+-            logQueue.push({ msg: `[味方] [!] ${target.name}を倒した！` });
++            if (target.hp === 0) {
++              logQueue.push({ msg: `[味方] [!] ${target.name}を倒した！` });
++            }
+           }
+         } else if (spell.target === "all_enemies") {
++          const addedBuffs = [];
++          monsters.forEach(m => {
++            if (m.hp > 0 && m.traits) {
++              const hasReflect = m.traits.includes("reflectMagic") || 
++                                 (m.traits.includes("reflectMagicTelegraph") && state.combatState.round % 2 === 0);
++              if (hasReflect) {
++                m.buffs.push({ type: "magicResist", value: 0.5, turns: 0, isTemporary: true });
++                addedBuffs.push(m);
++              }
++            }
++          });
++          
+           const result = spell.effect(char, monsters);
++          
++          addedBuffs.forEach(m => {
++            m.buffs = m.buffs.filter(b => !b.isTemporary);
++          });
++          
+           logQueue.push({
+             msg: `[味方] ${result.log}`,
+             sound: "cast_spell",
+@@ -271,19 +488,38 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+           });
+         } else if (spell.target === "single_ally") {
+           const target = state.party[act.targetIdx];
+-          const result = spell.effect(char, target);
+-          let floatText = undefined;
+-          if (result.heal) {
+-            floatText = `+${result.heal}`;
+-          } else if (spell.name === "LATUMOFIS" || spell.name === "DIALKO" || spell.name === "DIURCO") {
+-            floatText = "CURED";
++          const hasAntiHeal = target.buffs && target.buffs.some(b => b.type === "antiHeal");
++          const oldHp = target.hp;
++          
++          if (hasAntiHeal) {
++            const result = spell.effect(char, target);
++            const rawHealed = target.hp - oldHp;
++            const reducedHeal = Math.round(rawHealed * 0.5);
++            target.hp = oldHp + reducedHeal;
++            result.heal = reducedHeal;
++            result.log = result.log.replace(new RegExp(`${rawHealed}回復`), `${reducedHeal}回復`);
++            
++            logQueue.push({
++              msg: `[!] 回復阻害！回復量が半減している！\n[味方] ${result.log}`,
++              sound: "heal",
++              floatText: `+${reducedHeal}`,
++              floatColor: "#ff9500"
++            });
++          } else {
++            const result = spell.effect(char, target);
++            let floatText = undefined;
++            if (result.heal) {
++              floatText = `+${result.heal}`;
++            } else if (spell.name === "LATUMOFIS" || spell.name === "DIALKO" || spell.name === "DIURCO") {
++              floatText = "CURED";
++            }
++            logQueue.push({
++              msg: `[味方] ${result.log}`,
++              sound: "heal",
++              floatText,
++              floatColor: "#00ff66"
++            });
+           }
+-          logQueue.push({
+-            msg: `[味方] ${result.log}`,
+-            sound: "heal",
+-            floatText,
+-            floatColor: "#00ff66"
+-          });
+         }
+       } else if (act.type === "item") {
+         const item = ITEMS[act.itemKey];
+@@ -303,21 +539,36 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+           return;
+         }
+         const target = state.party[act.targetIdx];
+-        const log = item.effect(target);
++        const hasAntiHeal = target.buffs && target.buffs.some(b => b.type === "antiHeal");
++        const oldHp = target.hp;
++        
++        let log = item.effect(target, char);
++        let actualHealed = target.hp - oldHp;
++        
++        if (hasAntiHeal && (act.itemKey === "HEAL_POTION" || act.itemKey === "HOLY_WATER")) {
++          actualHealed = Math.round(actualHealed * 0.5);
++          target.hp = oldHp + actualHealed;
++          log = log.replace(/(\d+)\s*回復/, `${actualHealed} 回復 (回復阻害)`);
++        }
++        
+         state.inventory.splice(inventoryIdx, 1);
+         let floatText = undefined;
+         let floatColor = "#00ff66";
+-        if (act.itemKey === "HEAL_POTION") {
+-          floatText = "+15";
++        if (act.itemKey === "HEAL_POTION" || act.itemKey === "HOLY_WATER") {
++          floatText = `+${actualHealed}`;
++          if (hasAntiHeal) floatColor = "#ff9500";
+         } else if (act.itemKey === "ANTIDOTE") {
+           floatText = "CURED";
+-        } else if (act.itemKey === "HOLY_WATER") {
+-          floatText = "+40";
+         } else if (act.itemKey === "MANA_POTION") {
+           floatText = (target.class === "Priest" || target.class === "Mage") ? "+3 MP" : "無効";
+         }
++        
++        const finalMsg = hasAntiHeal && (act.itemKey === "HEAL_POTION" || act.itemKey === "HOLY_WATER")
++          ? `[!] 回復阻害！回復量が半減している！\n[味方] ${log}`
++          : `[味方] ${log}`;
++          
+         logQueue.push({
+-          msg: `[味方] ${log}`,
++          msg: finalMsg,
+           sound: "heal",
+           floatText,
+           floatColor
+@@ -328,7 +579,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+         if (state.combatState.isBoss || state.combatState.isMidboss) {
+           logQueue.push({ msg: `[味方] ${char.name}は逃げ出そうとしたが、強敵の前からは逃げられない！` });
+         } else {
+-          const escape = Math.random() < 0.40;
++          let fleeChance = 0.40;
++          if (state.party.some(c => c.class === "Ranger" && c.status !== "dead")) {
++            fleeChance += 0.15;
++          }
++          const escape = Math.random() < fleeChance;
+           if (escape) {
+             logQueue.push({
+               msg: "[味方] パーティは戦闘から逃げ出した！",
+@@ -344,6 +599,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+     } else {
+       const mon = turn.mon;
+       if (mon.hp <= 0) return;
++      
++      // 経過バフの減少
++      if (mon.buffs && !turn.isExtraAction) {
++        mon.buffs.forEach(b => b.turns--);
++        mon.buffs = mon.buffs.filter(b => b.turns > 0);
++      }
+ 
+       if (mon.status === "sleep") {
+         logQueue.push({
+@@ -364,6 +625,184 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+         return;
+       }
+ 
++      // 魔鏡の司祭の魔法反射予兆（奇数ラウンド）
++      if (mon.traits && mon.traits.includes("reflectMagicTelegraph")) {
++        if (state.combatState.round % 2 === 1) {
++          logQueue.push({
++            msg: `[ 敵 ] ${mon.name}は魔力を鏡に集め始めた！次のターン、魔法を反射する予兆！`,
++            sound: "cast_spell"
++          });
++        } else {
++          logQueue.push({
++            msg: `[ 敵 ] ${mon.name}の鏡の結界が輝いている！（魔法反射状態）`,
++            sound: "cast_spell"
++          });
++        }
++      }
++
++      // 破滅の導師のチャージ攻撃判定
++      if (mon.traits && mon.traits.includes("chargeAttack")) {
++        if (mon.chargeState) {
++          mon.chargeState = false;
++          logQueue.push({
++            msg: `[ 敵 ] [!] ${mon.name}は破滅の波動を放った！`,
++            sound: "cast_spell",
++            shake: 20,
++            flash: true
++          });
++          state.party.forEach((c, charIdx) => {
++            if (c.status !== "dead") {
++              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
++              let dmg = Math.floor(Math.random() * 16) + 20; // 20-35 DMG
++              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
++              
++              const charMr = getCharEffectiveMagicResist(c);
++              dmg = Math.max(1, Math.round(dmg * (1 - charMr)));
++              
++              if (c.hp / c.maxHp <= 0.25) {
++                const g = getCharAffixSum(c, "guardian");
++                if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
++              }
++              c.hp = Math.max(0, c.hp - dmg);
++              if (c.hp === 0) c.status = "dead";
++              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の波動ダメージを受けた。${isDefending ? "(半減)" : ""}` });
++            }
++          });
++        } else {
++          mon.chargeState = true;
++          logQueue.push({
++            msg: `[警告] ${mon.name}が魔力を集中している！次のターン、破滅の波動！`,
++            sound: "cast_spell",
++            flash: true
++          });
++        }
++        return;
++      }
++
++      // 召喚する悪魔の小悪魔召喚（3ターンに1回、上限6体）
++      if (mon.traits && mon.traits.includes("summonAlly")) {
++        mon.summonCooldown = (mon.summonCooldown || 0) + 1;
++        if (mon.summonCooldown >= 3) {
++          mon.summonCooldown = 0;
++          const currentCount = monsters.filter(m => m.hp > 0).length;
++          if (currentCount < 6) {
++            const template = monsters.find(m => m.name.replace(/\s[A-Z]$/, "") === "小悪魔") || {
++              name: "小悪魔", level: 3, hp: 12, atk: 6, def: 2, exp: 50, gold: 0, spriteType: "kobold", color: "#bf5af2", traits: []
++            };
++            const baseName = template.name;
++            const sameNameMonsters = monsters.filter(m => m.name.startsWith(baseName));
++            const suffix = ` ${String.fromCharCode(65 + sameNameMonsters.length)}`; // A, B, C...
++            monsters.push({
++              ...template,
++              name: baseName + suffix,
++              hp: template.hp,
++              maxHp: template.hp,
++              buffs: []
++            });
++            logQueue.push({
++              msg: `[ 敵 ] [!] ${mon.name}は異界から [${baseName}${suffix}] を召喚した！`,
++              sound: "cast_spell",
++              flash: true
++            });
++          } else {
++            logQueue.push({
++              msg: `[ 敵 ] ${mon.name}は召喚を試みたが、これ以上魔物を呼び出せない！`,
++              sound: "miss"
++            });
++          }
++          return;
++        }
++      }
++
++      // バフアクション
++      if (mon.traits && Math.random() < 0.35) {
++        let stat = null;
++        let val = 0;
++        let msg = "";
++        if (mon.traits.includes("buffAtk")) {
++          stat = "atk";
++          val = 3;
++          msg = `[ 敵 ] ${mon.name}は鼓笛を鳴らし、敵全体の攻撃力を上昇させた！(ATK +3, 3ターン)`;
++        } else if (mon.traits.includes("buffPhysicalDef")) {
++          stat = "def";
++          val = 2;
++          msg = `[ 敵 ] ${mon.name}は鬨の声を上げ、敵全体の物理防御力を上昇させた！(DEF +2, 3ターン)`;
++        } else if (mon.traits.includes("buffMagicDef")) {
++          stat = "magicResist";
++          val = 0.3;
++          msg = `[ 敵 ] ${mon.name}は結界を展開し、敵全体の魔法抵抗力を上昇させた！(魔防 +30%, 3ターン)`;
++        }
++        
++        if (stat) {
++          logQueue.push({ msg, sound: "cast_spell" });
++          monsters.forEach(m => {
++            if (m.hp > 0) {
++              applyBuff(m, stat, val, 3);
++            }
++          });
++          return;
++        }
++      }
++
++      // 敵側クレンジング
++      if (mon.traits && mon.traits.includes("cleanseAlly") && Math.random() < 0.35) {
++        const debuffedAllies = monsters.filter(m => 
++          m.hp > 0 && (m.status === "sleep" || (m.buffs && m.buffs.some(b => b.value < 0)))
++        );
++        if (debuffedAllies.length > 0) {
++          debuffedAllies.forEach(m => {
++            if (m.status === "sleep") m.status = "ok";
++            if (m.buffs) {
++              m.buffs = m.buffs.filter(b => b.value >= 0);
++            }
++          });
++          logQueue.push({
++            msg: `[ 敵 ] ${mon.name}は解呪の祈りを捧げた！味方の睡眠と弱体化が解除された！`,
++            sound: "heal"
++          });
++          return;
++        }
++      }
++
++      // 沈黙付与アクション
++      if (mon.traits && (mon.traits.includes("silence") || mon.traits.includes("silenceAll")) && Math.random() < 0.30) {
++        if (mon.traits.includes("silenceAll")) {
++          logQueue.push({
++            msg: `[ 敵 ] ${mon.name}は沈黙の霧を吐き出した！全体に沈黙の呪詛！`,
++            sound: "cast_spell"
++          });
++          state.party.forEach(c => {
++            if (c.status !== "dead" && Math.random() < 0.20) {
++              applyBuff(c, "silence", 1, 2);
++              logQueue.push({ msg: `[味方] [!] ${c.name}は沈黙状態になった！(2ターン)` });
++            }
++          });
++        } else {
++          let silenceCandidates = state.party
++            .map((c, i) => ({ c, i }))
++            .filter(x => x.c.status !== "dead" && x.i >= 2);
++          if (silenceCandidates.length === 0) {
++            silenceCandidates = state.party
++              .map((c, i) => ({ c, i }))
++              .filter(x => x.c.status !== "dead");
++          }
++          if (silenceCandidates.length > 0) {
++            const targetSelect = silenceCandidates[Math.floor(Math.random() * silenceCandidates.length)];
++            logQueue.push({
++              msg: `[ 敵 ] ${mon.name}は${targetSelect.c.name}に魔封じの視線を送った！`,
++              sound: "cast_spell"
++            });
++            if (Math.random() < 0.50) {
++              applyBuff(targetSelect.c, "silence", 1, 2);
++              logQueue.push({ msg: `[味方] [!] ${targetSelect.c.name}は沈黙状態になった！(2ターン)` });
++            } else {
++              logQueue.push({ msg: `[味方] しかし、${targetSelect.c.name}は防いだ！` });
++            }
++          }
++        }
++        return;
++      }
++
+       // フラック独自のギミック行動
+       if (mon.name === "フラック") {
+         const hpPct = mon.hp / mon.maxHp;
+@@ -407,6 +846,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+               let dmg = Math.floor(Math.random() * 16) + 15; // 15-30 DMG
+               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
++              
++              const charMr = getCharEffectiveMagicResist(c);
++              dmg = Math.max(1, Math.round(dmg * (1 - charMr)));
++
+               if (c.hp / c.maxHp <= 0.25) {
+                 const g = getCharAffixSum(c, "guardian");
+                 if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+@@ -429,6 +872,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+               let dmg = Math.floor(Math.random() * 16) + 10; // 10-25 DMG
+               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
++              
++              const charMr = getCharEffectiveMagicResist(c);
++              dmg = Math.max(1, Math.round(dmg * (1 - charMr)));
++
+               if (c.hp / c.maxHp <= 0.25) {
+                 const g = getCharAffixSum(c, "guardian");
+                 if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+@@ -487,6 +934,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+                 dmg = Math.max(1, Math.round(dmg * 0.4));
+                 logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを大幅に軽減した！` });
+               }
++              
++              const charMr = getCharEffectiveMagicResist(c);
++              dmg = Math.max(1, Math.round(dmg * (1 - charMr)));
++
+               if (c.hp / c.maxHp <= 0.25) {
+                 const g = getCharAffixSum(c, "guardian");
+                 if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+@@ -535,6 +986,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+               let dmg = Math.floor(Math.random() * 13) + 12; // 12-24 DMG
+               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
++              
++              const charMr = getCharEffectiveMagicResist(c);
++              dmg = Math.max(1, Math.round(dmg * (1 - charMr)));
++
+               if (c.hp / c.maxHp <= 0.25) {
+                 const g = getCharAffixSum(c, "guardian");
+                 if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+@@ -557,6 +1012,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+               let dmg = Math.floor(Math.random() * 21) + 15; // 15-35 DMG
+               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
++              
++              const charMr = getCharEffectiveMagicResist(c);
++              dmg = Math.max(1, Math.round(dmg * (1 - charMr)));
++
+               if (c.hp / c.maxHp <= 0.25) {
+                 const g = getCharAffixSum(c, "guardian");
+                 if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+@@ -571,16 +1030,21 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+       }
+ 
+       // Check if monster heals its allies first (35% chance if spellcaster healer)
++      const isHealer = mon.traits && mon.traits.includes("healAlly");
+       const healSpellChance = mon.spellChance !== undefined ? mon.spellChance : 0.35;
+-      if (mon.name !== "いにしえの竜" && mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < healSpellChance) {
++      if (mon.name !== "いにしえの竜" && (isHealer || (mon.spell && ["DIOS", "DIALMA"].includes(mon.spell))) && Math.random() < healSpellChance) {
+         const woundedMonsters = monsters.filter(m => m.hp > 0 && m.hp < m.maxHp);
+         if (woundedMonsters.length > 0) {
+           woundedMonsters.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
+           const healTarget = woundedMonsters[0];
+-          const healAmount = mon.spell === "DIOS" ? (Math.floor(Math.random() * 6) + 10) : (Math.floor(Math.random() * 15) + 20);
++          let healAmount = 15;
++          if (mon.spell === "DIOS") healAmount = Math.floor(Math.random() * 6) + 10;
++          else if (mon.spell === "DIALMA") healAmount = Math.floor(Math.random() * 15) + 20;
++          else if (isHealer) healAmount = Math.floor(Math.random() * 11) + 10; // 10-20回復
++          
+           healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + healAmount);
+           logQueue.push({
+-            msg: `[ 敵 ] ${mon.name}は呪文を唱えた！${healTarget.name}のHPが ${healAmount} 回復した。`,
++            msg: `[ 敵 ] ${mon.name}は祈祷を捧げた！${healTarget.name}のHPが ${healAmount} 回復した。`,
+             sound: "heal",
+             floatText: `+${healAmount}`,
+             floatColor: "#00ff66"
+@@ -591,23 +1055,37 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+ 
+       // Prioritize living and active characters for physical attacks
+       let targetCandidates = [];
+-      if (mon.isSniper) {
+-        // Snipe back-row characters (idx 2, 3) who are alive and active
++      if (mon.traits && mon.traits.includes("targetBackRow")) {
++        targetCandidates = state.party
++          .map((c, i) => ({ c, i }))
++          .filter(x => x.i >= 2 && !["dead", "paralyzed", "sleep"].includes(x.c.status));
++        if (targetCandidates.length === 0) {
++          targetCandidates = state.party
++            .map((c, i) => ({ c, i }))
++            .filter(x => x.c.status !== "dead");
++        }
++      } else if (mon.traits && mon.traits.includes("targetLowHp")) {
++        targetCandidates = state.party
++          .map((c, i) => ({ c, i }))
++          .filter(x => x.c.status !== "dead" && (x.c.hp / x.c.maxHp) <= 0.50);
++        if (targetCandidates.length === 0) {
++          targetCandidates = state.party
++            .map((c, i) => ({ c, i }))
++            .filter(x => x.c.status !== "dead");
++        }
++      } else if (mon.isSniper) {
+         targetCandidates = state.party
+           .map((c, i) => ({ c, i }))
+           .filter(x => x.i >= 2 && !["dead", "paralyzed", "sleep"].includes(x.c.status));
+-        
+         if (targetCandidates.length === 0) {
+           targetCandidates = state.party
+             .map((c, i) => ({ c, i }))
+             .filter(x => x.c.status !== "dead");
+         }
+       } else {
+-        // Prioritize front-row characters (idx 0, 1)
+         targetCandidates = state.party
+           .map((c, i) => ({ c, i }))
+           .filter(x => x.i < 2 && !["dead", "paralyzed", "sleep"].includes(x.c.status));
+-
+         if (targetCandidates.length === 0) {
+           targetCandidates = state.party
+             .map((c, i) => ({ c, i }))
+@@ -627,6 +1105,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+           let dmg = Math.floor(Math.random() * 10) + 5;
+           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
+           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
++          
++          const charMr = getCharEffectiveMagicResist(target);
++          dmg = Math.max(1, Math.round(dmg * (1 - charMr)));
++
+           if (target.hp / target.maxHp <= 0.25) {
+             const g = getCharAffixSum(target, "guardian");
+             if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+@@ -651,6 +1133,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+               let dmg = Math.floor(Math.random() * 15) + 10;
+               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
++              
++              const charMr = getCharEffectiveMagicResist(c);
++              dmg = Math.max(1, Math.round(dmg * (1 - charMr)));
++
+               if (c.hp / c.maxHp <= 0.25) {
+                 const g = getCharAffixSum(c, "guardian");
+                 if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+@@ -672,6 +1158,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+               let dmg = Math.floor(Math.random() * 20) + 15; // 15-35 DMG
+               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
++              
++              const charMr = getCharEffectiveMagicResist(c);
++              dmg = Math.max(1, Math.round(dmg * (1 - charMr)));
++
+               if (c.hp / c.maxHp <= 0.25) {
+                 const g = getCharAffixSum(c, "guardian");
+                 if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+@@ -693,6 +1183,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+               let dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
+               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
++              
++              const charMr = getCharEffectiveMagicResist(c);
++              dmg = Math.max(1, Math.round(dmg * (1 - charMr)));
++
+               if (c.hp / c.maxHp <= 0.25) {
+                 const g = getCharAffixSum(c, "guardian");
+                 if (g > 0) dmg = Math.max(1, Math.round(dmg * (1 - g / 100)));
+@@ -704,9 +1198,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+           });
+         }
+       } else {
+-        // Ninja physical attack evasion (25% chance to balance with row system)
+         let isEvaded = false;
+-        if (target.class === "Ninja" && Math.random() < 0.25) {
++        const ninjaEvadeBonus = getClassPassiveBonus(target, "ninjaEvade");
++        const evadeChance = 0.25 + (ninjaEvadeBonus / 100);
++        if (target.class === "Ninja" && Math.random() < evadeChance) {
+           isEvaded = true;
+         }
+ 
+@@ -720,12 +1215,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+           });
+         } else {
+           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
+-          const finalAtk = mon.atk + Math.floor(Math.random() * 4);
++          const finalAtk = getMonsterEffectiveAtk(mon) + Math.floor(Math.random() * 4);
+           const finalDef = getCharDef(target);
+           let dmg = Math.max(1, finalAtk - finalDef);
+           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+           
+-          // Blind target receives 1.5x damage
+           if (target.status === "blind") {
+             dmg = Math.max(1, Math.round(dmg * 1.5));
+           }
+@@ -743,6 +1237,57 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+             floatColor: "#ff3b30"
+           });
+ 
++          // drainMp の効果適用
++          if (mon.traits && mon.traits.includes("drainMp") && target.hp > 0 && Math.random() < 0.25) {
++            const mpDrained = Math.min(target.mp, Math.floor(Math.random() * 2) + 1);
++            if (mpDrained > 0) {
++              target.mp -= mpDrained;
++              logQueue.push({
++                msg: `[ 敵 ] [!] ${mon.name}は${target.name}から魔力を吸い取った！${target.name}のMPが ${mpDrained} 減少した。`,
++                sound: "cast_spell"
++              });
++            }
++          }
++
++          // debuffPhysicalDef の効果適用
++          if (mon.traits && mon.traits.includes("debuffPhysicalDef") && target.hp > 0) {
++            const chance = mon.name === "泥の呪い子" ? 0.20 : 0.25;
++            if (Math.random() < chance) {
++              applyBuff(target, "def", -2, 3);
++              logQueue.push({
++                msg: `[ 敵 ] [!] ${mon.name}の攻撃により、${target.name}の防御力が低下した！(DEF -2, 3ターン)`,
++                sound: "chest_trap"
++              });
++            }
++          }
++
++          // debuffMagicDef の効果適用
++          if (mon.traits && mon.traits.includes("debuffMagicDef") && target.hp > 0 && Math.random() < 0.25) {
++            applyBuff(target, "magicResist", -0.3, 3);
++            logQueue.push({
++              msg: `[ 敵 ] [!] ${mon.name}の呪詛！${target.name}の被魔法ダメージが30%増加した！(3ターン)`,
++              sound: "chest_trap"
++            });
++          }
++
++          // antiHeal の効果適用
++          if (mon.traits && mon.traits.includes("antiHeal") && target.hp > 0 && Math.random() < 0.25) {
++            applyBuff(target, "antiHeal", 1, 2);
++            logQueue.push({
++              msg: `[ 敵 ] [!] ${mon.name}の呪い！${target.name}は回復量が半減する回復阻害状態になった！(2ターン)`,
++              sound: "chest_trap"
++            });
++          }
++
++          // 煙幕盗賊の blind 付与効果適用
++          if (mon.traits && mon.traits.includes("blind") && target.hp > 0 && target.status === "ok" && Math.random() < 0.25) {
++            target.status = "blind";
++            logQueue.push({
++              msg: `[ 敵 ] [!] ${mon.name}の煙幕！${target.name}は盲目状態になった！`,
++              sound: "chest_trap"
++            });
++          }
++
+           // Apply poison effect if monster is poisonous and target survives
+           const poisonChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
+           if (mon.isPoisonous && target.hp > 0 && target.status === "ok" && Math.random() < poisonChance) {
+@@ -780,8 +1325,69 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
+         logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
+       }
+     }
++
++    const hasFrontNow = hasLivingEnemyFrontRow(monsters);
++    if (hadFront && !hasFrontNow && monsters.some(m => m.hp > 0)) {
++      logQueue.push({
++        msg: "敵の前列が崩れ、後列がむき出しになった！",
++        sound: "cleanse"
++      });
++    }
+   });
+ 
++  // ターン終了時の分裂(splitOnDeath)および再生(regen)処理
++  if (!escaped) {
++    monsters.forEach(m => {
++      if (m.hp > 0 && m.traits && m.traits.includes("regen")) {
++        const regenAmount = 10;
++        m.hp = Math.min(m.maxHp, m.hp + regenAmount);
++        logQueue.push({
++          msg: `[ 敵 ] [!] ${m.name}の傷口が塞がっていく…！HPが ${regenAmount} 再生した。`,
++          sound: "heal",
++          floatText: `+${regenAmount}`,
++          floatColor: "#00ff66"
++        });
++      }
++    });
++
++    const newSplits = [];
++    monsters.forEach(m => {
++      if (m.hp <= 0 && m.traits && m.traits.includes("splitOnDeath") && !m.hasSplit) {
++        m.hasSplit = true;
++        const currentCount = monsters.filter(x => x.hp > 0).length + newSplits.length;
++        const countToSummon = Math.min(2, 6 - currentCount);
++        if (countToSummon > 0) {
++          const baseName = m.name.replace(/\s[A-Z]$/, "").replace(" (分裂体)", "");
++          logQueue.push({
++            msg: `[ 敵 ] [!] ${m.name}は力尽きると同時に、2体に分裂した！`,
++            sound: "cast_spell"
++          });
++          for (let i = 0; i < countToSummon; i++) {
++            newSplits.push({
++              ...m,
++              name: `${baseName} (分裂体)`,
++              hp: Math.floor(m.maxHp * 0.5),
++              maxHp: m.maxHp,
++              exp: 0,
++              gold: 0,
++              hasSplit: true,
++              buffs: []
++            });
++          }
++        }
++      }
++    });
++
++    if (newSplits.length > 0) {
++      newSplits.forEach((split, sIdx) => {
++        const existingCount = monsters.filter(m => m.name.startsWith(split.name)).length;
++        const letter = String.fromCharCode(65 + existingCount + sIdx);
++        split.name = `${split.name} ${letter}`;
++        monsters.push(split);
++      });
++    }
++  }
++
+   if (escaped) {
+     return { logQueue, state };
+   }
+diff --git a/src/data.js b/src/data.js
+index 7f2e710..844bea3 100644
+--- a/src/data.js
++++ b/src/data.js
+@@ -9,6 +9,39 @@ export const DY = [-1, 0, 1, 0];
+ 
+ export const DIR_NAMES = ["北", "東", "南", "西"];
+ 
++export function getMonsterEffectiveMagicResist(m) {
++  if (!m) return 0;
++  let mr = m.magicResist || 0;
++  if (m.buffs) {
++    m.buffs.forEach(b => {
++      if (b.type === "magicResist") mr += b.value;
++    });
++  }
++  return mr;
++}
++
++export function getMonsterEffectiveDef(m) {
++  if (!m) return 0;
++  let defVal = m.def || 0;
++  if (m.buffs) {
++    m.buffs.forEach(b => {
++      if (b.type === "def") defVal += b.value;
++    });
++  }
++  return defVal;
++}
++
++export function getMonsterEffectiveAtk(m) {
++  if (!m) return 0;
++  let atkVal = m.atk || 0;
++  if (m.buffs) {
++    m.buffs.forEach(b => {
++      if (b.type === "atk") atkVal += b.value;
++    });
++  }
++  return atkVal;
++}
++
+ // Spells Database
+ export const getSpellStatBonus = (stat) => {
+   return 1.0 + Math.min(0.40, Math.max(0, (stat - 10) * 0.02));
+@@ -28,11 +61,12 @@ export const SPELLS = {
+       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
+       dmg = Math.round(dmg * bonus * arcaneBonus);
+       let suffix = "";
+-      if (target && target.magicResist) {
+-        dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
+-        if (target.magicResist > 0) {
++      const mrVal = getMonsterEffectiveMagicResist(target);
++      if (target && mrVal) {
++        dmg = Math.max(0, Math.round(dmg * (1 - mrVal)));
++        if (mrVal > 0) {
+           suffix = "【レジスト！】呪文がレジストされた…";
+-        } else if (target.magicResist < 0) {
++        } else if (mrVal < 0) {
+           suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
+         }
+       }
+@@ -76,10 +110,11 @@ export const SPELLS = {
+         dmg = Math.round(dmg * bonus * arcaneBonus);
+         let isResisted = false;
+         let isWeakness = false;
+-        if (t.magicResist) {
+-          dmg = Math.max(0, Math.round(dmg * (1 - t.magicResist)));
+-          if (t.magicResist > 0) isResisted = true;
+-          if (t.magicResist < 0) isWeakness = true;
++        const mrVal = getMonsterEffectiveMagicResist(t);
++        if (mrVal) {
++          dmg = Math.max(0, Math.round(dmg * (1 - mrVal)));
++          if (mrVal > 0) isResisted = true;
++          if (mrVal < 0) isWeakness = true;
+         }
+         t.hp = Math.max(0, t.hp - dmg);
+         return { name: t.name, dmg, isResisted, isWeakness };
+@@ -118,11 +153,12 @@ export const SPELLS = {
+       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
+       dmg = Math.round(dmg * bonus * arcaneBonus);
+       let suffix = "";
+-      if (target && target.magicResist) {
+-        dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
+-        if (target.magicResist > 0) {
++      const mrVal = getMonsterEffectiveMagicResist(target);
++      if (target && mrVal) {
++        dmg = Math.max(0, Math.round(dmg * (1 - mrVal)));
++        if (mrVal > 0) {
+           suffix = "【レジスト！】呪文がレジストされた…";
+-        } else if (target.magicResist < 0) {
++        } else if (mrVal < 0) {
+           suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
+         }
+       }
+@@ -160,10 +196,11 @@ export const SPELLS = {
+         dmg = Math.round(dmg * bonus * arcaneBonus);
+         let isResisted = false;
+         let isWeakness = false;
+-        if (t.magicResist) {
+-          dmg = Math.max(0, Math.round(dmg * (1 - t.magicResist)));
+-          if (t.magicResist > 0) isResisted = true;
+-          if (t.magicResist < 0) isWeakness = true;
++        const mrVal = getMonsterEffectiveMagicResist(t);
++        if (mrVal) {
++          dmg = Math.max(0, Math.round(dmg * (1 - mrVal)));
++          if (mrVal > 0) isResisted = true;
++          if (mrVal < 0) isWeakness = true;
+         }
+         t.hp = Math.max(0, t.hp - dmg);
+         return { name: t.name, dmg, isResisted, isWeakness };
+@@ -194,10 +231,11 @@ export const SPELLS = {
+         dmg = Math.round(dmg * bonus * arcaneBonus);
+         let isResisted = false;
+         let isWeakness = false;
+-        if (t.magicResist) {
+-          dmg = Math.max(0, Math.round(dmg * (1 - t.magicResist)));
+-          if (t.magicResist > 0) isResisted = true;
+-          if (t.magicResist < 0) isWeakness = true;
++        const mrVal = getMonsterEffectiveMagicResist(t);
++        if (mrVal) {
++          dmg = Math.max(0, Math.round(dmg * (1 - mrVal)));
++          if (mrVal > 0) isResisted = true;
++          if (mrVal < 0) isWeakness = true;
+         }
+         t.hp = Math.max(0, t.hp - dmg);
+         return { name: t.name, dmg, isResisted, isWeakness };
+@@ -278,11 +316,12 @@ export const SPELLS = {
+       dmg = Math.round(dmg * bonusMult);
+ 
+       let suffix = "";
+-      if (target && target.magicResist) {
+-        dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
+-        if (target.magicResist > 0) {
++      const mrVal = getMonsterEffectiveMagicResist(target);
++      if (target && mrVal) {
++        dmg = Math.max(0, Math.round(dmg * (1 - mrVal)));
++        if (mrVal > 0) {
+           suffix = "【レジスト！】呪文がレジストされた…";
+-        } else if (target.magicResist < 0) {
++        } else if (mrVal < 0) {
+           suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
+         }
+       }
+@@ -420,17 +459,21 @@ export const ITEMS = {
+   // Weapons
+   DAGGER: { id: "DAGGER", name: "ダガー", type: "weapon", atk: 2, price: 50, desc: "シンプルな短剣。攻撃力+2 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
+   WAND: { id: "WAND", name: "魔術師の杖", type: "weapon", atk: 1, price: 120, desc: "神秘的な魔力を宿した木の杖。攻撃力+1 呪文威力+10% [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"] },
+-  SHORT_SWORD: { id: "SHORT_SWORD", name: "ショートソード", type: "weapon", atk: 6, price: 150, desc: "使いやすい鉄の小太刀。攻撃力+6 [戦・盗・侍・野用]", classes: ["Fighter", "Thief", "Samurai", "Ranger"] },
++  SHORT_SWORD: { id: "SHORT_SWORD", name: "ショートソード", type: "weapon", atk: 6, price: 150, desc: "使いやすい鉄 of 小太刀。攻撃力+6 [戦・盗・侍・野用]", classes: ["Fighter", "Thief", "Samurai", "Ranger"] },
+   NINJA_DAGGER: { id: "NINJA_DAGGER", name: "忍びの短刀", type: "weapon", atk: 9, price: 300, desc: "暗殺用の鋭い短刀。攻撃力+9 [盗・忍用]", classes: ["Thief", "Ninja"] },
+   LONG_SWORD: { id: "LONG_SWORD", name: "ロングソード", type: "weapon", atk: 12, price: 400, desc: "両刃の美しい鋼鉄長剣。攻撃力+12 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"] },
+   CLAYMORE: { id: "CLAYMORE", name: "クレイモア", type: "weapon", atk: 18, price: 750, desc: "重量のある両手大剣。攻撃力+18 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+   KATANA: { id: "KATANA", name: "名刀ムラマサ", type: "weapon", atk: 25, price: 1500, desc: "伝説の妖刀。攻撃力+25 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+   MACE: { id: "MACE", name: "メイス", type: "weapon", atk: 5, price: 100, desc: "打撃用の重い金属槌。攻撃力+5 [戦・僧・司・野用]", classes: ["Fighter", "Priest", "Bishop", "Ranger"] },
++  RAPIER: { id: "RAPIER", name: "レイピア", type: "weapon", atk: 8, price: 180, desc: "刺突用の細身の剣。攻撃力+8 [戦・盗・侍・野・忍用]", classes: ["Fighter", "Thief", "Samurai", "Ranger", "Ninja"] },
++  SACRED_MACE: { id: "SACRED_MACE", name: "聖印メイス", type: "weapon", atk: 7, price: 200, desc: "聖印が刻まれた金属槌。攻撃力+7 [僧・司用]", classes: ["Priest", "Bishop"] },
+ 
+   // Shields
+   SMALL_SHIELD: { id: "SMALL_SHIELD", name: "スモールシールド", type: "shield", def: 2, price: 80, desc: "木製の丸い小盾。防御力+2 [戦・盗・僧・侍・野用]", classes: ["Fighter", "Thief", "Priest", "Samurai", "Ranger"] },
+   LARGE_SHIELD: { id: "LARGE_SHIELD", name: "ラージシールド", type: "shield", def: 5, price: 250, desc: "鉄製の頑丈な大盾。防御力+5 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+   KNIGHT_SHIELD: { id: "KNIGHT_SHIELD", name: "ナイトシールド", type: "shield", def: 8, price: 450, desc: "騎士用の鋼鉄盾。防御力+8 [戦・侍用]", classes: ["Fighter", "Samurai"] },
++  BUCKLER: { id: "BUCKLER", name: "バックラー", type: "shield", def: 1, price: 60, desc: "取り回しの良い小型の軽盾。防御力+1 [魔用を除く全員用]", classes: ["Fighter", "Thief", "Priest", "Samurai", "Ranger", "Ninja", "Bishop"] },
++  MAGIC_SHIELD: { id: "MAGIC_SHIELD", name: "魔法盾", type: "shield", def: 4, price: 450, desc: "魔除けの紋章が刻まれた防護盾。防御力+4 [戦・僧・侍・司用]", classes: ["Fighter", "Priest", "Samurai", "Bishop"] },
+ 
+   // Armor
+   ROBE: { id: "ROBE", name: "魔法使いのローブ", type: "armor", def: 1, price: 30, desc: "魔力を帯びたシルクの衣。防御力+1 [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"] },
+@@ -439,14 +482,19 @@ export const ITEMS = {
+   NINJA_SUIT: { id: "NINJA_SUIT", name: "忍者の装束", type: "armor", def: 5, price: 250, desc: "闇に紛れる防具。防御力+5 [盗・忍用]", classes: ["Thief", "Ninja"] },
+   SCALE_MAIL: { id: "SCALE_MAIL", name: "スケイルメイル", type: "armor", def: 6, price: 220, desc: "金属片を魚の鱗状に重ねた鎧。防御力+6 [戦・僧・侍・野用]", classes: ["Fighter", "Priest", "Samurai", "Ranger"] },
+   CHAIN_MAIL: { id: "CHAIN_MAIL", name: "チェインメイル", type: "armor", def: 8, price: 350, desc: "細かな鉄環を編み込んだ鎧。防御力+8 [戦・僧・侍用]", classes: ["Fighter", "Priest", "Samurai"] },
+-
+   PRIEST_ROBE: { id: "PRIEST_ROBE", name: "司祭の法衣", type: "armor", def: 8, price: 500, desc: "神聖な加護を得た法衣。防御力+8 [僧・司用]", classes: ["Priest", "Bishop"] },
+   PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", def: 16, price: 900, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16 [戦・侍用]", classes: ["Fighter", "Samurai"] },
++  EXPLORER_CLOAK: { id: "EXPLORER_CLOAK", name: "探索者の外套", type: "armor", def: 3, price: 120, desc: "探索や潜入に適した外套。防御力+3 [盗・野・司・忍用]", classes: ["Thief", "Ranger", "Bishop", "Ninja"] },
++  ARCANE_ROBE: { id: "ARCANE_ROBE", name: "魔導ローブ", type: "armor", def: 3, price: 400, desc: "魔導の刺繍が施された絹の衣。防御力+3 [魔・司用]", classes: ["Mage", "Bishop"] },
++  BATTLE_GARB: { id: "BATTLE_GARB", name: "戦装束", type: "armor", def: 5, price: 550, desc: "動きやすさと防御力を両立した軽防具。防御力+5 [戦・盗・侍・野・忍用]", classes: ["Fighter", "Thief", "Samurai", "Ranger", "Ninja"] },
++  DRAGON_SCALE: { id: "DRAGON_SCALE", name: "竜鱗鎧", type: "armor", def: 12, price: 1200, desc: "頑丈な竜の鱗を綴じ合わせた鎧。防御力+12 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+ 
+   // Potions / Quest items
+-  HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", price: 60, desc: "使用するとHPを15回復する。", effect: (char) => {
+-    char.hp = Math.min(getCharMaxHp(char), char.hp + 15);
+-    return `${char.name}は傷薬を使い、HPが15回復した。`;
++  HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", price: 60, desc: "使用するとHPを15回復する。", effect: (char, user) => {
++    const devotion = getCharAffixSum(user || char, "devotion");
++    const healAmount = Math.round(15 * (1 + devotion / 100));
++    char.hp = Math.min(getCharMaxHp(char), char.hp + healAmount);
++    return `${char.name}は傷薬を使い、HPが${healAmount}回復した。`;
+   }},
+   ANTIDOTE: { id: "ANTIDOTE", name: "解毒薬 (Antidote)", type: "usable", price: 80, desc: "使用すると毒状態を解除する。", effect: (char) => {
+     if (char.status === "poisoned") {
+@@ -462,14 +510,16 @@ export const ITEMS = {
+     }
+     return `${char.name}は魔力草を使用したが、魔力を持たないため何も起こらなかった。`;
+   }},
+-  HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 100, desc: "使用するとHPを40回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+-    char.hp = Math.min(getCharMaxHp(char), char.hp + 40);
++  HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 100, desc: "使用するとHPを40回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char, user) => {
++    const devotion = getCharAffixSum(user || char, "devotion");
++    const healAmount = Math.round(40 * (1 + devotion / 100));
++    char.hp = Math.min(getCharMaxHp(char), char.hp + healAmount);
+     let cured = false;
+     if (char.status === "poisoned") {
+       char.status = "ok";
+       cured = true;
+     }
+-    return `${char.name}は祝福の聖水を使い、HPが40回復した。${cured ? "毒も綺麗に消え去った！" : ""}`;
++    return `${char.name}は祝福の聖水を使い、HPが${healAmount}回復した。${cured ? "毒も綺麗に消え去った！" : ""}`;
+   }},
+   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 100, desc: "使用すると一瞬で街に戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+     return `${char.name}は帰還のスクロールを読んだ！`;
+@@ -500,50 +550,87 @@ export const ITEMS = {
+ // Monsters Database
+ export const MONSTERS = [
+   { name: "かみつき蟲", level: 1, hp: 8, atk: 4, def: 1, exp: 40, gold: 5, spriteType: "biter", color: "#00ff66" },
+-  { name: "ゴブリンの呪術師", level: 1, hp: 10, atk: 4, def: 1, exp: 50, gold: 12, spriteType: "kobold", spell: "HALITO", spellChance: 0.3, color: "#00ff66" },
++  { name: "ゴブリンの呪術師", level: 1, hp: 10, atk: 4, def: 1, exp: 50, gold: 12, spriteType: "kobold", spell: "HALITO", spellChance: 0.3, color: "#00ff66", row: "back" },
+   { name: "コボルトの斥候", level: 1, hp: 11, atk: 5, def: 2, exp: 60, gold: 10, spriteType: "kobold", color: "#00ff66" },
+   { name: "ゾンビ", level: 2, hp: 16, atk: 7, def: 3, exp: 120, gold: 20, spriteType: "zombie", isParalyzing: true, tags: ["undead"], color: "#8a2be2" },
+   { name: "ガイコツ戦士", level: 2, hp: 20, atk: 9, def: 4, exp: 180, gold: 35, spriteType: "skeleton", isParalyzing: true, tags: ["undead"], color: "#dcdcdc" },
+   { name: "キラーラビット", level: 2, hp: 16, atk: 12, def: 4, exp: 120, gold: 20, spriteType: "rabbit", color: "#ff8c00" },
+   { name: "マッドゴースト", level: 2, hp: 14, atk: 6, def: 2, exp: 140, gold: 15, spriteType: "spirit", isParalyzing: true, physResist: 0.5, tags: ["undead", "spirit"], color: "#8a2be2" },
+   { name: "オークの戦士", level: 3, hp: 28, atk: 12, def: 6, exp: 280, gold: 50, spriteType: "orc", color: "#ff8c00" },
+-  { name: "はぐれ魔術師", level: 3, hp: 22, atk: 8, def: 4, exp: 360, gold: 80, spriteType: "mage", spell: "HALITO", spellChance: 0.3, color: "#da70d6" },
++  { name: "はぐれ魔術師", level: 3, hp: 22, atk: 8, def: 4, exp: 360, gold: 80, spriteType: "mage", spell: "HALITO", spellChance: 0.3, color: "#da70d6", row: "back" },
+   { name: "ワーウルフ", level: 3, hp: 36, atk: 14, def: 5, exp: 340, gold: 60, spriteType: "orc", isPoisonous: true, color: "#ff8c00" },
+-  { name: "バンシー", level: 3, hp: 28, atk: 9, def: 3, exp: 360, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.6, physResist: 0.2, statusChance: 0.2, tags: ["undead", "spirit"], color: "#da70d6" },
++  { name: "バンシー", level: 3, hp: 28, atk: 9, def: 3, exp: 360, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.6, physResist: 0.2, statusChance: 0.2, tags: ["undead", "spirit"], color: "#da70d6", row: "back" },
+   
+   // 既存モンスターの再調整
+   { name: "スピリット", level: 2, hp: 18, atk: 6, def: 2, exp: 180, gold: 25, spriteType: "spirit", physResist: 0.6, magicResist: -0.2, tags: ["undead", "spirit"], color: "#00e5ff" },
+   { name: "ウィル・オー・ウィスプ", level: 3, hp: 24, atk: 7, def: 2, exp: 260, gold: 40, spriteType: "wisp", magicResist: 0.8, tags: ["spirit"], color: "#ffffff" },
+   { name: "ジャイアントスパイダー", level: 2, hp: 18, atk: 7, def: 3, exp: 150, gold: 25, spriteType: "spider", isPoisonous: true, color: "#bf5af2" },
+-  { name: "フラッシュバット", level: 2, hp: 12, atk: 5, def: 2, exp: 100, gold: 15, spriteType: "bat", isBlinding: true, color: "#e5ff00" },
++  { name: "フラッシュバット", level: 2, hp: 12, atk: 5, def: 2, exp: 100, gold: 15, spriteType: "bat", isBlinding: true, color: "#e5ff00", row: "back" },
+ 
+-  { name: "マスターメイジ", level: 4, hp: 38, atk: 9, def: 5, exp: 650, gold: 100, spriteType: "mage", spell: "LAHALITO", spellChance: 0.35, magicResist: 0.3, color: "#ff3b30" },
++  { name: "マスターメイジ", level: 4, hp: 38, atk: 9, def: 5, exp: 650, gold: 100, spriteType: "mage", spell: "LAHALITO", spellChance: 0.35, magicResist: 0.3, color: "#ff3b30", row: "back" },
+   { name: "ポイズンジャイアント", level: 4, hp: 65, atk: 19, def: 7, exp: 600, gold: 120, spriteType: "zombie", isPoisonous: true, color: "#bf5af2" },
+   
+   { name: "デーモンガード", level: 5, hp: 90, atk: 18, def: 8, exp: 2000, gold: 300, spriteType: "flack", spell: "LAHALITO", isBoss: true, isMidboss: true, tags: ["demon"], color: "#ff8c00" },
+   { name: "アースジャイアント", level: 6, hp: 72, atk: 18, def: 10, exp: 1500, gold: 150, spriteType: "zombie", magicResist: -0.25, color: "#8a2be2" },
+-  { name: "マスターデーモン", level: 7, hp: 70, atk: 16, def: 8, exp: 1800, gold: 200, spriteType: "flack", spell: "MADALTO", spellChance: 0.3, magicResist: 0.3, tags: ["demon"], color: "#ff3b30" },
++  { name: "マスターデーモン", level: 7, hp: 70, atk: 16, def: 8, exp: 1800, gold: 200, spriteType: "flack", spell: "MADALTO", spellChance: 0.3, magicResist: 0.3, tags: ["demon"], color: "#ff3b30", row: "back" },
+   
+   { name: "フラック", level: 4, hp: 130, atk: 23, def: 11, exp: 3000, gold: 350, spriteType: "flack", spell: "LAHALITO", spellChance: 0.25, physResist: 0.2, magicResist: 0.2, isRare: true, dangerRare: true, color: "#ff3b30" },
+   { name: "ドラゴンパピー", level: 4, hp: 45, atk: 12, def: 5, exp: 600, gold: 60, spriteType: "dragon", spell: "HALITO", color: "#ffc0cb" },
+-  { name: "ワイバーン", level: 5, hp: 65, atk: 17, def: 7, exp: 1200, gold: 120, spriteType: "dragon", spell: "LAHALITO", color: "#ffa500" },
++  { name: "ワイバーン", level: 5, hp: 65, atk: 17, def: 7, exp: 1200, gold: 120, spriteType: "dragon", spell: "LAHALITO", color: "#ffa500", row: "back" },
+   { name: "レッドドラゴン", level: 7, hp: 100, atk: 22, def: 10, exp: 3500, gold: 400, spriteType: "dragon", spell: "MADALTO", color: "#ff3b30" },
+   { name: "アイアンゴーレム", level: 3, hp: 32, atk: 10, def: 14, exp: 500, gold: 50, spriteType: "zombie", physResist: 0.5, magicResist: -0.5, color: "#8e8e93" },
+   { name: "マッドスライム", level: 1, hp: 24, atk: 4, def: 1, exp: 120, gold: 20, spriteType: "biter", physResist: 0.4, magicResist: -0.5, color: "#ff9500" },
+   { name: "メタルパピー", level: 3, hp: 8, atk: 5, def: 10, exp: 2000, gold: 500, spriteType: "biter", fleeChance: 0.50, color: "#ffd700", isRare: true, treasureRare: true },
+   { name: "オークの呪医", level: 2, hp: 22, atk: 5, def: 3, exp: 200, gold: 35, spriteType: "orc", spell: "DIOS", spellChance: 0.3, color: "#34c759" },
+   { name: "プリーストデーモン", level: 5, hp: 60, atk: 12, def: 6, exp: 900, gold: 150, spriteType: "flack", spell: "DIALMA", spellChance: 0.3, tags: ["demon"], color: "#34c759" },
+-  { name: "スケルトンアーチャー", level: 2, hp: 16, atk: 9, def: 3, exp: 150, gold: 30, spriteType: "skeleton", isSniper: true, tags: ["undead"], color: "#af52de" },
++  { name: "スケルトンアーチャー", level: 2, hp: 16, atk: 9, def: 3, exp: 150, gold: 30, spriteType: "skeleton", isSniper: true, tags: ["undead"], color: "#af52de", row: "back" },
+   { name: "ダークアサシン", level: 3, hp: 28, atk: 14, def: 4, exp: 350, gold: 60, spriteType: "kobold", isSniper: true, color: "#ff3b30" },
+   { name: "いにしえの竜", level: 8, hp: 320, atk: 26, def: 16, exp: 7000, gold: 1000, spriteType: "dragon", spell: "TILTOWAIT", magicResist: 0.25, isBoss: true, color: "#ff3b30" },
+-
++ 
+   // 追加モンスター
+   { name: "リビングアーマー", level: 2, hp: 26, atk: 8, def: 10, exp: 260, gold: 40, spriteType: "zombie", magicResist: -0.25, color: "#8e8e93" },
+   { name: "呪文喰い", level: 3, hp: 34, atk: 10, def: 4, exp: 420, gold: 60, spriteType: "spirit", magicResist: 0.75, color: "#4cd964" },
+   { name: "ストーンガード", level: 5, hp: 55, atk: 15, def: 16, exp: 1200, gold: 140, spriteType: "zombie", magicResist: -0.4, color: "#708090" },
+   { name: "カースドハンド", level: 3, hp: 20, atk: 7, def: 3, exp: 320, gold: 45, spriteType: "zombie", isParalyzing: true, statusChance: 0.25, color: "#5856d6" },
+   { name: "ブラッドバット群", level: 2, hp: 10, atk: 5, def: 1, exp: 90, gold: 10, spriteType: "bat", color: "#ff3b30" },
+-  { name: "ドラゴンワーム", level: 5, hp: 42, atk: 14, def: 6, exp: 850, gold: 80, spriteType: "dragon", color: "#ff9500" }
++  { name: "ドラゴンワーム", level: 5, hp: 42, atk: 14, def: 6, exp: 850, gold: 80, spriteType: "dragon", color: "#ff9500" },
++ 
++  // 新バリエーション特殊能力エネミー
++  { name: "分裂スライム", level: 1, hp: 10, atk: 3, def: 1, exp: 70, gold: 8, spriteType: "biter", color: "#34c759", traits: ["splitOnDeath"] },
++  { name: "群れネズミ", level: 1, hp: 6, atk: 3, def: 0, exp: 35, gold: 4, spriteType: "biter", color: "#a2b2b2", traits: [] },
++  { name: "錆びた盾兵", level: 1, hp: 14, atk: 4, def: 4, exp: 90, gold: 12, spriteType: "zombie", color: "#8e8e93", traits: ["guardAdjacent"] },
++  { name: "火薬コウモリ", level: 1, hp: 8, atk: 4, def: 1, exp: 80, gold: 8, spriteType: "bat", color: "#ff9500", traits: ["selfDestruct"] },
++  { name: "泥の呪い子", level: 1, hp: 12, atk: 3, def: 1, exp: 85, gold: 10, spriteType: "spirit", color: "#30d158", traits: ["debuffPhysicalDef"] },
++  { name: "呪いの小鏡", level: 2, hp: 12, atk: 3, def: 1, exp: 180, gold: 25, spriteType: "wisp", color: "#00e5ff", traits: ["reflectMagic"], row: "back" },
++  { name: "針甲虫", level: 2, hp: 16, atk: 5, def: 5, exp: 160, gold: 20, spriteType: "spider", color: "#ff453a", traits: ["reflectPhysical"] },
++  { name: "鉄皮のゴブリン", level: 2, hp: 18, atk: 6, def: 3, exp: 150, gold: 18, spriteType: "kobold", color: "#ff9f0a", traits: ["buffPhysicalDef"] },
++  { name: "腐毒の蛆", level: 2, hp: 14, atk: 4, def: 1, exp: 140, gold: 15, spriteType: "biter", color: "#af52de", traits: ["debuffPhysicalDef"] },
++  { name: "マナドレイン", level: 2, hp: 15, atk: 4, def: 2, exp: 180, gold: 22, spriteType: "spirit", color: "#bf5af2", traits: ["drainMp", "targetBackRow"], row: "back" },
++  { name: "祈祷ゴブリン", level: 2, hp: 18, atk: 4, def: 2, exp: 190, gold: 25, spriteType: "kobold", color: "#34c759", traits: ["healAlly"], row: "back" },
++  { name: "煙幕盗賊", level: 2, hp: 18, atk: 7, def: 2, exp: 210, gold: 35, spriteType: "kobold", color: "#ffcc00", traits: ["blind"] },
++  { name: "霧の亡霊", level: 3, hp: 22, atk: 7, def: 2, exp: 320, gold: 35, spriteType: "spirit", color: "#e5e5ea", traits: ["evasive"] },
++  { name: "魔封じの目玉", level: 3, hp: 20, atk: 6, def: 2, exp: 360, gold: 45, spriteType: "wisp", color: "#ff3b30", traits: ["silence"], row: "back" },
++  { name: "骨の鼓手", level: 3, hp: 24, atk: 5, def: 3, exp: 380, gold: 50, spriteType: "skeleton", color: "#ff9f0a", traits: ["buffAtk"], row: "back" },
++  { name: "弱体の魔女", level: 3, hp: 26, atk: 6, def: 3, exp: 420, gold: 60, spriteType: "mage", color: "#bf5af2", traits: ["debuffMagicDef"], row: "back" },
++  { name: "解呪の司祭", level: 3, hp: 30, atk: 7, def: 4, exp: 450, gold: 70, spriteType: "mage", color: "#34c759", traits: ["cleanseAlly"] },
++  { name: "石像兵", level: 4, hp: 50, atk: 13, def: 15, exp: 900, gold: 100, spriteType: "zombie", color: "#8e8e93", traits: ["guardAdjacent"] },
++  { name: "魔鏡の司祭", level: 4, hp: 38, atk: 8, def: 5, exp: 1000, gold: 130, spriteType: "mage", color: "#00e5ff", traits: ["reflectMagicTelegraph"], row: "back" },
++  { name: "血塗れの処刑人", level: 4, hp: 42, atk: 16, def: 6, exp: 950, gold: 90, spriteType: "orc", color: "#ff3b30", traits: ["targetLowHp"] },
++  { name: "鋼殻ビートル", level: 4, hp: 44, atk: 12, def: 12, exp: 1100, gold: 120, spriteType: "spider", color: "#ff453a", traits: ["reflectPhysical"] },
++  { name: "魔防崩しの蛇", level: 4, hp: 36, atk: 11, def: 5, exp: 900, gold: 80, spriteType: "biter", color: "#30d158", traits: ["debuffMagicDef"] },
++  { name: "沈黙の修道士", level: 4, hp: 40, atk: 10, def: 6, exp: 980, gold: 100, spriteType: "orc", color: "#ff3b30", traits: ["silenceAll"] },
++  { name: "召喚する悪魔", level: 4, hp: 45, atk: 12, def: 6, exp: 1150, gold: 140, spriteType: "flack", color: "#bf5af2", traits: ["summonAlly"], row: "back" },
++  { name: "双頭の番犬", level: 5, hp: 70, atk: 15, def: 8, exp: 1600, gold: 150, spriteType: "biter", color: "#ff453a", traits: ["multiAction"] },
++  { name: "竜血の再生者", level: 5, hp: 85, atk: 17, def: 8, exp: 1800, gold: 170, spriteType: "dragon", color: "#ff9f0a", traits: ["regen"] },
++  { name: "反逆の鎧", level: 5, hp: 75, atk: 18, def: 16, exp: 1900, gold: 180, spriteType: "zombie", color: "#8e8e93", traits: ["reflectPhysical", "highDef"] },
++  { name: "黒曜の魔導士", level: 5, hp: 58, atk: 10, def: 6, exp: 2000, gold: 220, spriteType: "mage", magicResist: 0.6, spell: "MADALTO", spellChance: 0.35, color: "#1d1d1f", traits: [], row: "back" },
++  { name: "結界の守護者", level: 5, hp: 65, atk: 12, def: 8, exp: 1900, gold: 200, spriteType: "zombie", color: "#00e5ff", traits: ["buffPhysicalDef", "buffMagicDef"], row: "back" },
++  { name: "深淵の分裂体", level: 5, hp: 60, atk: 14, def: 7, exp: 1700, gold: 160, spriteType: "biter", color: "#bf5af2", traits: ["splitOnDeath"] },
++  { name: "破滅の導師", level: 5, hp: 62, atk: 12, def: 7, exp: 2100, gold: 240, spriteType: "mage", color: "#ff3b30", traits: ["chargeAttack"], row: "back" },
++  { name: "命喰いの影", level: 5, hp: 54, atk: 15, def: 5, exp: 1800, gold: 180, spriteType: "spirit", color: "#5856d6", traits: ["antiHeal"] },
++  { name: "灰燼の術士", level: 5, hp: 52, atk: 9, def: 5, exp: 1900, gold: 210, spriteType: "mage", color: "#ff9500", traits: ["counterSpell"] },
++  { name: "盾持ちデーモン", level: 5, hp: 80, atk: 17, def: 12, exp: 2200, gold: 230, spriteType: "flack", color: "#8e8e93", traits: ["guardAdjacentReduce"] },
++  { name: "小悪魔", level: 3, hp: 12, atk: 6, def: 2, exp: 50, gold: 0, spriteType: "kobold", color: "#bf5af2", traits: [] }
+ ];
+ 
+ export const MAP_WIDTH = 24;
+@@ -607,29 +694,67 @@ export function getItemData(itemOrKey) {
+ 
+       let typeName = "武器";
+       if (base.type === "shield") {
+-        typeName = "盾";
++        if (base.id === "MAGIC_SHIELD") {
++          typeName = "魔盾";
++        } else if (base.id === "BUCKLER") {
++          typeName = "小盾";
++        } else {
++          typeName = "盾";
++        }
+       } else if (base.type === "armor") {
+-        const isRobe = ["ROBE", "MAGE_CLOAK", "PRIEST_ROBE"].includes(base.id);
+-        typeName = isRobe ? "ローブ" : "鎧";
++        if (base.id === "EXPLORER_CLOAK") {
++          typeName = "外套";
++        } else if (base.id === "BATTLE_GARB") {
++          typeName = "戦装束";
++        } else if (base.id === "DRAGON_SCALE") {
++          typeName = "鱗鎧";
++        } else {
++          const isRobe = ["ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE"].includes(base.id);
++          typeName = isRobe ? "ローブ" : "鎧";
++        }
+       } else if (base.type === "weapon") {
+         if (base.id === "WAND") {
+           typeName = "杖";
++        } else if (base.id === "RAPIER") {
++          typeName = "細剣";
+         } else if (["DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(base.id)) {
+           typeName = "短剣";
+         } else if (["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA"].includes(base.id)) {
+           typeName = "剣";
+         } else if (base.id === "MACE") {
+           typeName = "メイス";
++        } else if (base.id === "SACRED_MACE") {
++          typeName = "聖器";
+         }
+       }
+       
+       const unidentName = `${prefix}未鑑定の${typeName}`;
+       
++      let tagHint = "";
++      if (itemOrKey.affixes && itemOrKey.affixes.length > 0) {
++        const hintTypes = [];
++        itemOrKey.affixes.forEach(aff => {
++          if (aff.type === "followUp") hintTypes.push("追撃");
++          else if (aff.type === "arcane") hintTypes.push("魔導");
++          else if (aff.type === "devotion") hintTypes.push("祈祷");
++          else if (aff.type === "guardian") hintTypes.push("守護");
++          else if (aff.type === "treasureSense") hintTypes.push("探宝");
++          else if (aff.type === "antiUndead") hintTypes.push("不死祓い");
++          else if (aff.type === "antiDragon") hintTypes.push("竜殺し");
++          else if (aff.type === "spellGuard") hintTypes.push("魔除け");
++          else if (aff.type === "poisonWard") hintTypes.push("毒避け");
++          else if (aff.type === "firstStrike") hintTypes.push("先制");
++        });
++        if (hintTypes.length > 0) {
++          tagHint = `\n気配: ${hintTypes.join(", ")}`;
++        }
++      }
++
+       return {
+         ...base,
+         id: itemOrKey,
+         name: unidentName,
+-        desc: `${unidentName}。街の商店で鑑定できます。`,
++        desc: `${unidentName}。街の商店で鑑定できます。${tagHint}`,
+         price: base.price,
+         atk: 0,
+         def: 0,
+@@ -685,6 +810,11 @@ export function getItemData(itemOrKey) {
+       else if (primaryAff.type === "devotion") prefix = "神聖な";
+       else if (primaryAff.type === "guardian") prefix = "守護の";
+       else if (primaryAff.type === "treasureSense") prefix = "宝探しの";
++      else if (primaryAff.type === "antiUndead") prefix = "退魔の";
++      else if (primaryAff.type === "antiDragon") prefix = "竜殺しの";
++      else if (primaryAff.type === "spellGuard") prefix = "魔除けの";
++      else if (primaryAff.type === "poisonWard") prefix = "防毒の";
++      else if (primaryAff.type === "firstStrike") prefix = "先駆の";
+     }
+     
+     const name = prefix ? `${prefix}${base.name}` : base.name;
+@@ -706,10 +836,15 @@ export function getItemData(itemOrKey) {
+         arcane: "呪文威力",
+         devotion: "回復威力",
+         guardian: "守護",
+-        treasureSense: "宝探"
++        treasureSense: "宝探",
++        antiUndead: "不死祓い",
++        antiDragon: "竜殺し",
++        spellGuard: "魔除け",
++        poisonWard: "毒避け",
++        firstStrike: "先制"
+       }[aff.type];
+       const sign = aff.value >= 0 ? "+" : "";
+-      const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense"].includes(aff.type) ? "%" : "";
++      const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "firstStrike"].includes(aff.type) ? "%" : "";
+       return `${label}${sign}${aff.value}${unit}`;
+     }).join(" / ");
+     
+@@ -747,15 +882,15 @@ export function getItemData(itemOrKey) {
+ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random) {
+   let baseCandidates = [];
+   if (floor === 1) {
+-    baseCandidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR"];
++    baseCandidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "RAPIER", "BUCKLER", "EXPLORER_CLOAK"];
+   } else if (floor === 2) {
+-    baseCandidates = ["DAGGER", "WAND", "SHORT_SWORD", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "SCALE_MAIL", "MAGE_CLOAK"];
++    baseCandidates = ["DAGGER", "WAND", "SHORT_SWORD", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "SCALE_MAIL", "MAGE_CLOAK", "EXPLORER_CLOAK", "SACRED_MACE", "BUCKLER"];
+   } else if (floor === 3) {
+-    baseCandidates = ["SHORT_SWORD", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SMALL_SHIELD", "LARGE_SHIELD", "LEATHER_ARMOR", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL"];
++    baseCandidates = ["SHORT_SWORD", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SMALL_SHIELD", "LARGE_SHIELD", "LEATHER_ARMOR", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "SACRED_MACE", "ARCANE_ROBE", "MAGIC_SHIELD"];
+   } else if (floor === 4) {
+-    baseCandidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL"];
++    baseCandidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL", "BATTLE_GARB", "MAGIC_SHIELD"];
+   } else {
+-    baseCandidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "KATANA", "NINJA_DAGGER", "NINJA_SUIT"];
++    baseCandidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "KATANA", "NINJA_DAGGER", "NINJA_SUIT", "DRAGON_SCALE", "BATTLE_GARB"];
+   }
+   
+   // Smart Drop (70%): Select base items usable by the current party
+@@ -814,7 +949,7 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
+     return Math.floor(rng() * (maxHp - minHp + 1)) + minHp;
+   }});
+   
+-  const isMpEligible = baseId === "WAND" || baseId === "ROBE" || baseId === "PRIEST_ROBE" || baseId === "MAGE_CLOAK";
++  const isMpEligible = baseId === "WAND" || baseId === "ROBE" || baseId === "PRIEST_ROBE" || baseId === "MAGE_CLOAK" || baseId === "ARCANE_ROBE";
+   if (isMpEligible) {
+     possibleAffixes.push({ type: "mp", getVal: () => {
+       const maxMpBonus = floor >= 5 ? 4 : (floor >= 3 ? 2 : 1);
+@@ -830,7 +965,7 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
+     }});
+   });
+   
+-  const isTrapEligible = baseId === "DAGGER" || baseId === "NINJA_DAGGER" || baseId === "LEATHER_ARMOR" || baseId === "NINJA_SUIT";
++  const isTrapEligible = baseId === "DAGGER" || baseId === "NINJA_DAGGER" || baseId === "LEATHER_ARMOR" || baseId === "NINJA_SUIT" || baseId === "EXPLORER_CLOAK";
+   if (isTrapEligible) {
+     possibleAffixes.push({ type: "trapBonus", getVal: () => {
+       if (floor >= 5) return 15;
+@@ -839,27 +974,50 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
+     }});
+   }
+ 
+-  // New build-specific affixes
+-  const isFollowUpEligible = ["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(baseId);
+-  if (isFollowUpEligible) {
++  // New build-specific affixes with floor-based rates
++  const buildAffixChance = floor >= 4 ? 0.40 : 0.15;
++  const isFollowUpEligible = ["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD", "RAPIER", "BATTLE_GARB"].includes(baseId);
++  if (isFollowUpEligible && rng() < buildAffixChance) {
+     possibleAffixes.push({ type: "followUp", getVal: () => Math.floor(rng() * 5) + 8 }); // 8-12%
+   }
+-  const isArcaneEligible = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE"].includes(baseId);
+-  if (isArcaneEligible) {
++  const isArcaneEligible = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "MAGIC_SHIELD"].includes(baseId);
++  if (isArcaneEligible && rng() < buildAffixChance) {
+     possibleAffixes.push({ type: "arcane", getVal: () => 10 }); // +10%
+   }
+-  const isDevotionEligible = ["MACE", "PRIEST_ROBE"].includes(baseId);
+-  if (isDevotionEligible) {
++  const isDevotionEligible = ["MACE", "PRIEST_ROBE", "SACRED_MACE"].includes(baseId);
++  if (isDevotionEligible && rng() < buildAffixChance) {
+     possibleAffixes.push({ type: "devotion", getVal: () => 10 }); // +10%
+   }
+-  const isGuardianEligible = ["SMALL_SHIELD", "LARGE_SHIELD", "KNIGHT_SHIELD", "LEGENDARY_SHIELD", "PLATE_MAIL", "CHAIN_MAIL", "SCALE_MAIL"].includes(baseId);
+-  if (isGuardianEligible) {
++  const isGuardianEligible = ["SMALL_SHIELD", "LARGE_SHIELD", "KNIGHT_SHIELD", "LEGENDARY_SHIELD", "PLATE_MAIL", "CHAIN_MAIL", "SCALE_MAIL", "BUCKLER", "MAGIC_SHIELD", "DRAGON_SCALE"].includes(baseId);
++  if (isGuardianEligible && rng() < buildAffixChance) {
+     possibleAffixes.push({ type: "guardian", getVal: () => 10 }); // -10%
+   }
+-  const isTreasureSenseEligible = ["LEATHER_ARMOR", "NINJA_SUIT", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(baseId);
+-  if (isTreasureSenseEligible) {
++  const isTreasureSenseEligible = ["LEATHER_ARMOR", "NINJA_SUIT", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD", "BUCKLER", "EXPLORER_CLOAK"].includes(baseId);
++  if (isTreasureSenseEligible && rng() < buildAffixChance) {
+     possibleAffixes.push({ type: "treasureSense", getVal: () => 5 }); // +5%
+   }
++
++  // MVP/New Affixes
++  const isAntiUndeadEligible = ["SACRED_MACE", "MACE"].includes(baseId);
++  if (isAntiUndeadEligible && rng() < buildAffixChance) {
++    possibleAffixes.push({ type: "antiUndead", getVal: () => 20 });
++  }
++  const isAntiDragonEligible = ["DRAGON_SCALE"].includes(baseId);
++  if (isAntiDragonEligible && rng() < buildAffixChance) {
++    possibleAffixes.push({ type: "antiDragon", getVal: () => 20 });
++  }
++  const isSpellGuardEligible = ["MAGIC_SHIELD", "ARCANE_ROBE", "DRAGON_SCALE"].includes(baseId);
++  if (isSpellGuardEligible && rng() < buildAffixChance) {
++    possibleAffixes.push({ type: "spellGuard", getVal: () => 10 });
++  }
++  const isPoisonWardEligible = ["EXPLORER_CLOAK"].includes(baseId);
++  if (isPoisonWardEligible && rng() < buildAffixChance) {
++    possibleAffixes.push({ type: "poisonWard", getVal: () => 50 });
++  }
++  const isFirstStrikeEligible = ["RAPIER", "BATTLE_GARB"].includes(baseId);
++  if (isFirstStrikeEligible && rng() < buildAffixChance) {
++    possibleAffixes.push({ type: "firstStrike", getVal: () => 15 });
++  }
+   
+   const affixes = [];
+   const selectedTypes = new Set();
+@@ -1054,13 +1212,20 @@ export const EXP_LEVELS = [0, 0, 200, 800, 2000, 4500, 9000, 16000, 25000, 40000
+ // Get Weapon Atk
+ export function getCharWeaponAtk(char) {
+   const wpId = char.equipment.weapon;
++  let baseAtk = 0;
+   if (!wpId) {
+     if (char.class === "Ninja") {
+-      return 3 * char.level; // Ninja bare hands damage scaling
++      baseAtk = 2 * char.level; // Ninja bare hands damage scaling
+     }
+-    return 0;
++  } else {
++    baseAtk = getItemData(wpId)?.atk || 0;
++  }
++  if (char.buffs) {
++    char.buffs.forEach(b => {
++      if (b.type === "atk") baseAtk += b.value;
++    });
+   }
+-  return getItemData(wpId)?.atk || 0;
++  return baseAtk;
+ }
+ 
+ // Get Total Armor Def
+@@ -1072,6 +1237,11 @@ export function getCharDef(char) {
+   if (char.equipment.armor) {
+     def += getItemData(char.equipment.armor)?.def || 0;
+   }
++  if (char.buffs) {
++    char.buffs.forEach(b => {
++      if (b.type === "def") def += b.value;
++    });
++  }
+   return def;
+ }
+ 
+@@ -1087,25 +1257,25 @@ export function checkCharLevelUp(char) {
+     
+     // Gain HP
+     let hpGain = 0;
+-    if (char.class === "Fighter") hpGain = Math.floor(Math.random() * 8) + 8; // 8-15
+-    else if (char.class === "Thief") hpGain = Math.floor(Math.random() * 5) + 6; // 6-10
+-    else if (char.class === "Priest") hpGain = Math.floor(Math.random() * 5) + 5; // 5-9
+-    else if (char.class === "Mage") hpGain = Math.floor(Math.random() * 4) + 4; // 4-7
+-    else if (char.class === "Samurai") hpGain = Math.floor(Math.random() * 8) + 7; // 7-14
+-    else if (char.class === "Bishop") hpGain = Math.floor(Math.random() * 5) + 5; // 5-9
+-    else if (char.class === "Ranger") hpGain = Math.floor(Math.random() * 7) + 6; // 6-13
+-    else if (char.class === "Ninja") hpGain = Math.floor(Math.random() * 9) + 6; // 6-14
++    if (char.class === "Fighter") hpGain = Math.floor(Math.random() * 3) + 7; // 7-9
++    else if (char.class === "Thief") hpGain = Math.floor(Math.random() * 3) + 5; // 5-7
++    else if (char.class === "Priest") hpGain = Math.floor(Math.random() * 3) + 4; // 4-6
++    else if (char.class === "Mage") hpGain = Math.floor(Math.random() * 3) + 3; // 3-5
++    else if (char.class === "Samurai") hpGain = Math.floor(Math.random() * 3) + 6; // 6-8
++    else if (char.class === "Bishop") hpGain = Math.floor(Math.random() * 3) + 4; // 4-6
++    else if (char.class === "Ranger") hpGain = Math.floor(Math.random() * 3) + 5; // 5-7
++    else if (char.class === "Ninja") hpGain = Math.floor(Math.random() * 3) + 5; // 5-7
+     
+     char.maxHp += hpGain;
+     char.hp = getCharMaxHp(char);
+ 
+     // Gain MP
+     if (char.class === "Priest") {
+-      const mpGain = Math.floor(Math.random() * 2) + 2; // 2-3
++      const mpGain = 2;
+       char.maxMp += mpGain;
+       char.mp = getCharMaxMp(char);
+     } else if (char.class === "Mage") {
+-      const mpGain = Math.floor(Math.random() * 2) + 3; // 3-4
++      const mpGain = 3;
+       char.maxMp += mpGain;
+       char.mp = getCharMaxMp(char);
+     } else if (char.class === "Bishop") {
+@@ -1117,22 +1287,29 @@ export function checkCharLevelUp(char) {
+         if (char.maxMp === 0) {
+           char.maxMp = 3; // Initialize at level 3
+         } else {
+-          char.maxMp += Math.floor(Math.random() * 2) + 1; // 1-2
++          char.maxMp += 1;
+         }
+         char.mp = getCharMaxMp(char);
+       }
+     }
+ 
+-    // Gain Stats
+-    if (Math.random() < 0.6) char.str += 1;
+-    if (Math.random() < 0.6) char.vit += 1;
+-    if (Math.random() < 0.6) char.agi += 1;
+-    if (Math.random() < 0.6) char.luk += 1;
+-    if ((char.class === "Mage" || char.class === "Bishop") && Math.random() < 0.8) char.int += 1;
+-    if ((char.class === "Priest" || char.class === "Bishop" || char.class === "Ranger") && Math.random() < 0.8) char.pie += 1;
+-    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.8) char.str += 1;
+-    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.8) char.vit += 1;
+-    if (char.class === "Ninja" && Math.random() < 0.8) char.agi += 1;
++    // Gain Stats (3レベルごとに1項目だけ+1)
++    if (char.level % 3 === 0) {
++      const candidates = [];
++      if (char.class === "Fighter") candidates.push("str", "vit");
++      else if (char.class === "Thief") candidates.push("agi", "luk");
++      else if (char.class === "Priest") candidates.push("pie", "vit");
++      else if (char.class === "Mage") candidates.push("int", "luk");
++      else if (char.class === "Samurai") candidates.push("str", "int");
++      else if (char.class === "Bishop") candidates.push("int", "pie");
++      else if (char.class === "Ranger") candidates.push("agi", "pie");
++      else if (char.class === "Ninja") candidates.push("agi", "luk");
++      
++      if (candidates.length > 0) {
++        const chosenStat = candidates[Math.floor(Math.random() * candidates.length)];
++        char[chosenStat] += 1;
++      }
++    }
+ 
+     // Learn spells
+     if (!char.spells) char.spells = [];
+@@ -1261,8 +1438,88 @@ export function getCharAffixSum(char, affixType) {
+       sum += 10;
+     }
+   }
++  // Add class passive bonus
++  sum += getClassPassiveBonus(char, affixType);
+   return sum;
+ }
+ 
+ 
+ 
++
++export function getClassPassiveBonus(char, passiveType) {
++  if (!char) return 0;
++  const cls = char.class;
++  if (passiveType === "arcane") {
++    return cls === "Mage" ? 20 : 0;
++  }
++  if (passiveType === "devotion") {
++    return cls === "Priest" ? 20 : 0;
++  }
++  if (passiveType === "followUp") {
++    return cls === "Samurai" ? 5 : 0;
++  }
++  if (passiveType === "trapSense") {
++    return cls === "Thief" ? 10 : 0;
++  }
++  if (passiveType === "treasureSense") {
++    return cls === "Thief" ? 5 : 0;
++  }
++  if (passiveType === "guardian") {
++    return cls === "Fighter" ? 20 : 0;
++  }
++  if (passiveType === "identifyDiscount") {
++    return cls === "Bishop" ? 20 : 0;
++  }
++  if (passiveType === "fleeBonus") {
++    return cls === "Ranger" ? 15 : 0;
++  }
++  if (passiveType === "ninjaEvade") {
++    return cls === "Ninja" ? 15 : 0;
++  }
++  return 0;
++}
++
++export function getCharDerivedStat(char, statType) {
++  if (!char) return 0;
++  if (statType === "atk") {
++    return getCharWeaponAtk(char) + getCharStr(char);
++  }
++  if (statType === "def") {
++    const baseDef = getCharDef(char);
++    const vitBonus = Math.max(0, Math.floor((getCharVit(char) - 10) / 2));
++    return baseDef + vitBonus;
++  }
++  if (statType === "arcane") {
++    const baseInt = getCharInt(char);
++    const equipArcane = getCharAffixSum(char, "arcane"); // Already includes passive via getCharAffixSum
++    return baseInt + equipArcane;
++  }
++  if (statType === "devotion") {
++    const basePie = getCharPie(char);
++    const equipDevotion = getCharAffixSum(char, "devotion"); // Already includes passive via getCharAffixSum
++    return basePie + equipDevotion;
++  }
++  if (statType === "speed") {
++    return getCharAgi(char);
++  }
++  if (statType === "trap") {
++    const baseTrap = Math.round(getCharTrapBonus(char) * 100);
++    const passiveTrap = getClassPassiveBonus(char, "trapSense");
++    return baseTrap + passiveTrap;
++  }
++  if (statType === "treasureSense") {
++    return getCharAffixSum(char, "treasureSense"); // Already includes passive
++  }
++  return 0;
++}
++
++export function getCharEffectiveMagicResist(char) {
++  if (!char) return 0;
++  let mr = char.magicResist || 0;
++  if (char.buffs) {
++    char.buffs.forEach(b => {
++      if (b.type === "magicResist") mr += b.value;
++    });
++  }
++  return mr;
++}
+diff --git a/src/equip.js b/src/equip.js
+index 7625c5c..8905b26 100644
+--- a/src/equip.js
++++ b/src/equip.js
+@@ -2,7 +2,8 @@ import { state, saveAutosave, addLog, getCharWeaponAtk, getCharDef } from "./sta
+ import { 
+   DIR_N, START_X, START_Y, 
+   getClassJpName, getCharMaxHp, getCharMaxMp, getItemData, getCharStr,
+-  getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharTrapBonus
++  getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharTrapBonus,
++  getCharDerivedStat
+ } from "./data.js";
+ import { playSound } from "./audio.js";
+ import { updateUI } from "./ui.js";
+@@ -57,17 +58,15 @@ function isEquipmentItem(item) {
+ 
+ function getDisplayStats(char) {
+   return {
+-    atk: getCharWeaponAtk(char) + getCharStr(char),
+-    def: getCharDef(char),
++    atk: getCharDerivedStat(char, "atk"),
++    def: getCharDerivedStat(char, "def"),
++    arcane: getCharDerivedStat(char, "arcane"),
++    devotion: getCharDerivedStat(char, "devotion"),
++    speed: getCharDerivedStat(char, "speed"),
++    trap: getCharDerivedStat(char, "trap"),
++    treasureSense: getCharDerivedStat(char, "treasureSense"),
+     hp: getCharMaxHp(char),
+-    mp: getCharMaxMp(char),
+-    str: getCharStr(char),
+-    int: getCharInt(char),
+-    pie: getCharPie(char),
+-    vit: getCharVit(char),
+-    agi: getCharAgi(char),
+-    luk: getCharLuk(char),
+-    trap: Math.round(getCharTrapBonus(char) * 100)
++    mp: getCharMaxMp(char)
+   };
+ }
+ 
+@@ -83,17 +82,15 @@ function getEquipPreview(char, itemKey) {
+   char.equipment[slot] = oldEq;
+ 
+   const rows = [
+-    { key: "atk", label: "攻撃力" },
+-    { key: "def", label: "防御力" },
++    { key: "atk", label: "攻撃" },
++    { key: "def", label: "防御" },
++    { key: "arcane", label: "魔力" },
++    { key: "devotion", label: "回復" },
++    { key: "speed", label: "速度" },
++    { key: "trap", label: "罠解除", unit: "%" },
++    { key: "treasureSense", label: "探宝", unit: "%" },
+     { key: "hp", label: "最大HP" },
+-    { key: "mp", label: "最大MP" },
+-    { key: "str", label: "力" },
+-    { key: "int", label: "知恵" },
+-    { key: "pie", label: "信仰" },
+-    { key: "vit", label: "生命" },
+-    { key: "agi", label: "素早さ" },
+-    { key: "luk", label: "運" },
+-    { key: "trap", label: "罠解除", unit: "%" }
++    { key: "mp", label: "最大MP" }
+   ].map((stat) => ({
+     ...stat,
+     current: current[stat.key],
+@@ -448,6 +445,62 @@ export function renderEquip() {
+           compare.appendChild(secondaryGrid);
+ 
+           detailContent.appendChild(compare);
++
++          // Find all alive party members who can equip this item and show recommendations
++          const recommendations = [];
++          state.party.forEach((member, mIdx) => {
++            if (member.status === "dead") return;
++            const canMemberEquip = !item.classes || item.classes.includes(member.class);
++            if (!canMemberEquip) return;
++
++            // Compute stat difference if member equipped it
++            const slot = item.type;
++            const oldEq = member.equipment[slot];
++            const currentStat = slot === "weapon" ? (getCharWeaponAtk(member) + getCharStr(member)) : getCharDef(member);
++            member.equipment[slot] = itemKey;
++            const nextStat = slot === "weapon" ? (getCharWeaponAtk(member) + getCharStr(member)) : getCharDef(member);
++            member.equipment[slot] = oldEq;
++
++            const statDiff = nextStat - currentStat;
++            const statName = slot === "weapon" ? "攻撃" : "防御";
++
++            // Check synergy
++            const synergies = [];
++            if (item.affixes) {
++              item.affixes.forEach(aff => {
++                if (aff.type === "followUp" && member.class === "Samurai") synergies.push("追撃適性");
++                if (aff.type === "arcane" && member.class === "Mage") synergies.push("魔導適性");
++                if (aff.type === "devotion" && member.class === "Priest") synergies.push("祈祷適性");
++                if (aff.type === "guardian" && member.class === "Fighter") synergies.push("守護適性");
++                if ((aff.type === "treasureSense" || aff.type === "trapBonus") && member.class === "Thief") synergies.push("探宝/罠解除適性");
++              });
++            }
++
++            let text = `${member.name}: ${statName} ${statDiff >= 0 ? "+" : ""}${statDiff}`;
++            if (synergies.length > 0) {
++              text += ` / <span style="color:var(--neon-yellow); font-weight:bold;">${synergies.join(", ")}あり</span>`;
++            }
++            // Highlight if member is current actor or diff is positive or synergy exists
++            const isCurrent = mIdx === equipState.actorIdx;
++            const style = isCurrent ? "color:var(--neon-cyan);font-weight:bold;" : "color:#fff;";
++            recommendations.push(`<div style="${style}">・${text} ${isCurrent ? "(選択中)" : ""}</div>`);
++          });
++
++          if (recommendations.length > 0) {
++            const recEl = document.createElement("div");
++            recEl.style.marginTop = "8px";
++            recEl.style.padding = "6px 8px";
++            recEl.style.border = "1px solid #4a3a2c";
++            recEl.style.borderRadius = "4px";
++            recEl.style.backgroundColor = "rgba(74, 58, 44, 0.2)";
++            recEl.style.fontSize = "11px";
++            recEl.style.lineHeight = "1.4";
++            recEl.innerHTML = `
++              <div style="color:var(--neon-yellow); font-weight:bold; margin-bottom:4px;">💡 パーティ装備適性・おすすめ</div>
++              ${recommendations.join("")}
++            `;
++            detailContent.appendChild(recEl);
++          }
+         }
+       } else if (item.type === "usable" && equipState.selectedIdx !== -1) {
+         const useStatus = getItemUseStatus(char, itemKey);
+diff --git a/src/renderer.js b/src/renderer.js
+index 3be0e5b..1fbc756 100644
+--- a/src/renderer.js
++++ b/src/renderer.js
+@@ -672,7 +672,8 @@ export class DungeonRenderer {
+     ctx.fillStyle = "#ffffff";
+     ctx.font = "bold 13px 'Share Tech Mono', monospace";
+     ctx.textAlign = "center";
+-    ctx.fillText(`${monster.name} (Lv.${monster.level})`, cx, cy - 70);
++    const rowLabel = (monster.row || "front") === "back" ? "[後]" : "[前]";
++    ctx.fillText(`${rowLabel} ${monster.name} (Lv.${monster.level})`, cx, cy - 70);
+ 
+     // HP Bar
+     const barW = 100;
+diff --git a/src/shop.js b/src/shop.js
+index 1d6f013..aa847df 100644
+--- a/src/shop.js
++++ b/src/shop.js
+@@ -1,5 +1,5 @@
+ import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "./state.js";
+-import { ITEMS, getItemData, getItemBaseId, getCharAffixSum } from "./data.js";
++import { ITEMS, getItemData, getItemBaseId, getCharAffixSum, getCharDerivedStat } from "./data.js";
+ import { playSound } from "./audio.js";
+ import { updateUI } from "./ui.js";
+ import { openSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
+@@ -347,7 +347,10 @@ export function renderShop() {
+         const isLastAppraised = shopState.lastAppraised && shopState.lastAppraised.idx === idx;
+         const itemData = getItemData(itemKey);
+         const rarity = itemKey.rarity || "magic";
+-        const cost = { magic: 30, rare: 120, epic: 300 }[rarity] || 20;
++        let cost = { magic: 30, rare: 120, epic: 300 }[rarity] || 20;
++        if (state.party && state.party.some(c => c.class === "Bishop" && c.status !== "dead")) {
++          cost = Math.floor(cost * 0.8);
++        }
+ 
+         const row = document.createElement("button");
+         row.type = "button";
+@@ -613,7 +616,11 @@ export function renderShop() {
+       const eqItem = state.inventory[shopState.selectedIdx];
+       item = getItemData(eqItem);
+       const rarity = eqItem.rarity || "magic";
+-      itemPrice = { magic: 30, rare: 120, epic: 300 }[rarity] || 20;
++      let basePrice = { magic: 30, rare: 120, epic: 300 }[rarity] || 20;
++      if (state.party && state.party.some(c => c.class === "Bishop" && c.status !== "dead")) {
++        basePrice = Math.floor(basePrice * 0.8);
++      }
++      itemPrice = basePrice;
+     }
+ 
+     // Create scrollable content container
+@@ -670,15 +677,16 @@ export function renderShop() {
+           `;
+         } else {
+           const slot = item.type; // "weapon", "shield", "armor"
+-          const currentEquipKey = char.equipment[slot];
+-          const currentEquip = currentEquipKey ? getItemData(currentEquipKey) : null;
+-          
+-          let currentStat = 0;
+-          if (currentEquip) {
+-            currentStat = slot === "weapon" ? currentEquip.atk : currentEquip.def;
+-          }
++          const oldEq = char.equipment[slot];
++          const statType = slot === "weapon" ? "atk" : "def";
++
++          const currentStat = getCharDerivedStat(char, statType);
++
++          const newEquipValue = (shopState.mode === "buy") ? itemKey : state.inventory[shopState.selectedIdx];
++          char.equipment[slot] = newEquipValue;
++          const newStat = getCharDerivedStat(char, statType);
++          char.equipment[slot] = oldEq;
+ 
+-          const newStat = slot === "weapon" ? item.atk : item.def;
+           const diff = newStat - currentStat;
+ 
+           let diffText = "";
+diff --git a/src/state.js b/src/state.js
+index 55988d8..5ffc654 100644
+--- a/src/state.js
++++ b/src/state.js
+@@ -168,8 +168,8 @@ export const createDefaultRoster = () => [
+     maxHp: 18,
+     mp: 0,
+     maxMp: 0,
+-    str: 12,
+-    int: 11,
++    str: 14,
++    int: 10,
+     pie: 8,
+     vit: 12,
+     agi: 10,
+@@ -218,8 +218,8 @@ export const createDefaultRoster = () => [
+     int: 8,
+     pie: 11,
+     vit: 11,
+-    agi: 11,
+-    luk: 9,
++    agi: 12,
++    luk: 10,
+     status: "ok",
+     spells: [],
+     equipment: {
+@@ -233,14 +233,14 @@ export const createDefaultRoster = () => [
+     class: "Ninja",
+     level: 1,
+     exp: 0,
+-    hp: 15,
+-    maxHp: 15,
++    hp: 14,
++    maxHp: 14,
+     mp: 0,
+     maxMp: 0,
+     str: 12,
+     int: 8,
+     pie: 8,
+-    vit: 12,
++    vit: 11,
+     agi: 12,
+     luk: 12,
+     status: "ok",
+diff --git a/src/style.css b/src/style.css
+index 78f2f0f..2b5210c 100644
+--- a/src/style.css
++++ b/src/style.css
+@@ -1290,6 +1290,14 @@ html, body {
+   background-color: transparent !important;
+ }
+ 
++.combat-target-card.blocked {
++  opacity: 0.4;
++  cursor: not-allowed;
++  border-color: rgba(255, 59, 48, 0.15) !important;
++  box-shadow: none !important;
++  background-color: transparent !important;
++}
++
+ .combat-target-card .card-title {
+   font-size: 10px;
+   font-weight: bold;

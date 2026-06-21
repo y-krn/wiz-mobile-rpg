@@ -69,7 +69,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     const itemChance = state.floor === 4 ? 0.75 : 0.50; // B4F has high item drop rate
     if (isGuaranteed || rng() < itemChance) {
     if (isGuaranteed) {
-      const guaranCandidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR"];
+      const guaranCandidates = ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK"];
       const baseId = guaranCandidates[Math.floor(rng() * guaranCandidates.length)];
       const baseItem = ITEMS[baseId];
       
@@ -107,17 +107,17 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
       } else {
         let candidates = [];
         if (state.floor === 1) {
-          candidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "HEAL_POTION", "ANTIDOTE"];
+          candidates = ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE"];
         } else if (state.floor === 2) {
-          candidates = ["DAGGER", "WAND", "SHORT_SWORD", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
+          candidates = ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
         } else if (state.floor === 3) {
-          candidates = ["SHORT_SWORD", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SMALL_SHIELD", "LARGE_SHIELD", "LEATHER_ARMOR", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "HEAL_POTION", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
+          candidates = ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SACRED_MACE", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
         } else if (state.floor === 4) {
           // B4F: Standard standard chests only drop high-level store gear (e.g. Katana, Claymore)
-          candidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL", "HOLY_WATER"];
+          candidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "HOLY_WATER"];
         } else if (state.floor === 5) {
           // B5F: Standard standard chests drop high-level gear
-          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "HOLY_WATER", "TOWN_PORTAL"];
+          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "BATTLE_GARB", "DRAGON_SCALE", "HOLY_WATER", "TOWN_PORTAL"];
         }
 
         if (candidates.length > 0) {
@@ -131,14 +131,14 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
         if (item) {
           const itemData = ITEMS[item];
           if (itemData && (itemData.type === "weapon" || itemData.type === "armor" || itemData.type === "shield")) {
-            let randChance = 0.35;
+            let randChance = 0.45;
             if (state.floor <= 3) {
-              randChance = 0.40;
+              randChance = 0.50;
             }
             if (state.floor === 5) {
-              randChance = 0.70;
+              randChance = 0.80;
             } else if (["poison needle", "gas bomb", "teleporter"].includes(trap)) {
-              randChance = 0.60;
+              randChance = 0.70;
             }
             
             // Rescue mechanism: if no equipment found yet and chestsOpened >= 2 (i.e. 3rd chest onwards)
@@ -178,7 +178,31 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     else if (item.rarity === "rare") aura = "medium";
     else aura = "weak";
   }
-  const label = hasEquipmentSignal ? "装備品の反応あり" : "消耗品または反応なし";
+  let label = hasEquipmentSignal ? "装備品の反応あり" : "消耗品または反応なし";
+  if (hasEquipmentSignal) {
+    const tagLabels = {
+      followUp: "連撃",
+      arcane: "秘術",
+      devotion: "神聖",
+      guardian: "守護",
+      treasureSense: "宝探",
+      trapBonus: "技巧",
+      antiUndead: "不死祓い",
+      antiDragon: "竜殺し",
+      spellGuard: "魔除け",
+      poisonWard: "防毒",
+      firstStrike: "先駆"
+    };
+    const senseSum = state.party.reduce((sum, c) => {
+      if (c.status === "dead") return sum;
+      return sum + getCharAffixSum(c, "treasureSense");
+    }, 0);
+    const shouldRevealTag = senseSum >= 5 || rng() < 0.20;
+    const hintedAffix = item.affixes?.find(aff => tagLabels[aff.type]);
+    if (shouldRevealTag && hintedAffix) {
+      label = `${label} / 気配:${tagLabels[hintedAffix.type]}`;
+    }
+  }
 
   state.chestState = {
     trap,
@@ -459,8 +483,10 @@ export function triggerChestTrap(char) {
 
   if (trap === "poison needle") {
     char.hp = Math.max(0, char.hp - 12);
-    char.status = char.hp === 0 ? "dead" : "poisoned";
-    addLog(`毒針が作動！${char.name}は12のダメージを受け、毒状態になった！`);
+    const ward = getCharAffixSum(char, "poisonWard");
+    const resisted = char.hp > 0 && ward > 0 && Math.random() * 100 < ward;
+    char.status = char.hp === 0 ? "dead" : (resisted ? char.status : "poisoned");
+    addLog(`毒針が作動！${char.name}は12のダメージを受けた。${resisted ? "防毒の備えで毒は免れた！" : "毒状態になった！"}`);
     if (renderer) renderer.addDamageText("12", "#ff3b30");
   } else if (trap === "gas bomb") {
     addLog("ガス爆弾が作動！パーティ全体にガスが充満した！");

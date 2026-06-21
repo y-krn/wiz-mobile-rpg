@@ -421,27 +421,35 @@ export const ITEMS = {
   DAGGER: { id: "DAGGER", name: "ダガー", type: "weapon", atk: 2, price: 50, desc: "シンプルな短剣。攻撃力+2 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   WAND: { id: "WAND", name: "魔術師の杖", type: "weapon", atk: 1, price: 120, desc: "神秘的な魔力を宿した木の杖。攻撃力+1 呪文威力+10% [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"] },
   SHORT_SWORD: { id: "SHORT_SWORD", name: "ショートソード", type: "weapon", atk: 6, price: 150, desc: "使いやすい鉄の小太刀。攻撃力+6 [戦・盗・侍・野用]", classes: ["Fighter", "Thief", "Samurai", "Ranger"] },
+  RAPIER: { id: "RAPIER", name: "レイピア", type: "weapon", atk: 5, price: 180, desc: "突きに優れた細身の剣。攻撃力+5 [盗・司・野・忍用]", classes: ["Thief", "Bishop", "Ranger", "Ninja"] },
   NINJA_DAGGER: { id: "NINJA_DAGGER", name: "忍びの短刀", type: "weapon", atk: 9, price: 300, desc: "暗殺用の鋭い短刀。攻撃力+9 [盗・忍用]", classes: ["Thief", "Ninja"] },
   LONG_SWORD: { id: "LONG_SWORD", name: "ロングソード", type: "weapon", atk: 12, price: 400, desc: "両刃の美しい鋼鉄長剣。攻撃力+12 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"] },
   CLAYMORE: { id: "CLAYMORE", name: "クレイモア", type: "weapon", atk: 18, price: 750, desc: "重量のある両手大剣。攻撃力+18 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   KATANA: { id: "KATANA", name: "名刀ムラマサ", type: "weapon", atk: 25, price: 1500, desc: "伝説の妖刀。攻撃力+25 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   MACE: { id: "MACE", name: "メイス", type: "weapon", atk: 5, price: 100, desc: "打撃用の重い金属槌。攻撃力+5 [戦・僧・司・野用]", classes: ["Fighter", "Priest", "Bishop", "Ranger"] },
+  SACRED_MACE: { id: "SACRED_MACE", name: "聖別のメイス", type: "weapon", atk: 8, price: 320, desc: "不死者を祓う祝福を受けた槌。攻撃力+8 [僧・司・野用]", classes: ["Priest", "Bishop", "Ranger"] },
 
   // Shields
   SMALL_SHIELD: { id: "SMALL_SHIELD", name: "スモールシールド", type: "shield", def: 2, price: 80, desc: "木製の丸い小盾。防御力+2 [戦・盗・僧・侍・野用]", classes: ["Fighter", "Thief", "Priest", "Samurai", "Ranger"] },
+  BUCKLER: { id: "BUCKLER", name: "バックラー", type: "shield", def: 2, price: 120, desc: "取り回しのよい小盾。防御力+2 [盗・司・野・忍用]", classes: ["Thief", "Bishop", "Ranger", "Ninja"] },
   LARGE_SHIELD: { id: "LARGE_SHIELD", name: "ラージシールド", type: "shield", def: 5, price: 250, desc: "鉄製の頑丈な大盾。防御力+5 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   KNIGHT_SHIELD: { id: "KNIGHT_SHIELD", name: "ナイトシールド", type: "shield", def: 8, price: 450, desc: "騎士用の鋼鉄盾。防御力+8 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+  MAGIC_SHIELD: { id: "MAGIC_SHIELD", name: "魔除けの盾", type: "shield", def: 6, price: 620, desc: "呪文を逸らす護符を打ち込んだ盾。防御力+6 [戦・僧・侍・司・野用]", classes: ["Fighter", "Priest", "Samurai", "Bishop", "Ranger"] },
 
   // Armor
   ROBE: { id: "ROBE", name: "魔法使いのローブ", type: "armor", def: 1, price: 30, desc: "魔力を帯びたシルクの衣。防御力+1 [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"] },
   MAGE_CLOAK: { id: "MAGE_CLOAK", name: "魔術師のクローク", type: "armor", def: 4, price: 380, desc: "魔力で守られた外套。防御力+4 [魔・司用]", classes: ["Mage", "Bishop"] },
+  ARCANE_ROBE: { id: "ARCANE_ROBE", name: "秘術師のローブ", type: "armor", def: 6, price: 760, desc: "術式を織り込んだ上質なローブ。防御力+6 [魔・司用]", classes: ["Mage", "Bishop"] },
   LEATHER_ARMOR: { id: "LEATHER_ARMOR", name: "レザーアーマー", type: "armor", def: 4, price: 120, desc: "なめし革の胸当て。防御力+4 [戦・盗・僧・侍・野用]", classes: ["Fighter", "Thief", "Priest", "Samurai", "Ranger"] },
+  EXPLORER_CLOAK: { id: "EXPLORER_CLOAK", name: "探索者の外套", type: "armor", def: 3, price: 160, desc: "罠と毒への備えを隠した外套。防御力+3 [盗・僧・魔・司・野・忍用]", classes: ["Thief", "Priest", "Mage", "Bishop", "Ranger", "Ninja"] },
   NINJA_SUIT: { id: "NINJA_SUIT", name: "忍者の装束", type: "armor", def: 5, price: 250, desc: "闇に紛れる防具。防御力+5 [盗・忍用]", classes: ["Thief", "Ninja"] },
   SCALE_MAIL: { id: "SCALE_MAIL", name: "スケイルメイル", type: "armor", def: 6, price: 220, desc: "金属片を魚の鱗状に重ねた鎧。防御力+6 [戦・僧・侍・野用]", classes: ["Fighter", "Priest", "Samurai", "Ranger"] },
   CHAIN_MAIL: { id: "CHAIN_MAIL", name: "チェインメイル", type: "armor", def: 8, price: 350, desc: "細かな鉄環を編み込んだ鎧。防御力+8 [戦・僧・侍用]", classes: ["Fighter", "Priest", "Samurai"] },
 
   PRIEST_ROBE: { id: "PRIEST_ROBE", name: "司祭の法衣", type: "armor", def: 8, price: 500, desc: "神聖な加護を得た法衣。防御力+8 [僧・司用]", classes: ["Priest", "Bishop"] },
+  BATTLE_GARB: { id: "BATTLE_GARB", name: "戦鬼の装束", type: "armor", def: 9, price: 840, desc: "一撃後の踏み込みを助ける戦装束。防御力+9 [戦・盗・侍・忍用]", classes: ["Fighter", "Thief", "Samurai", "Ninja"] },
   PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", def: 16, price: 900, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+  DRAGON_SCALE: { id: "DRAGON_SCALE", name: "竜鱗の鎧", type: "armor", def: 14, price: 1400, desc: "竜の炎と爪に備える鱗鎧。防御力+14 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"] },
 
   // Potions / Quest items
   HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", price: 60, desc: "使用するとHPを15回復する。", effect: (char) => {
@@ -500,14 +508,14 @@ export const ITEMS = {
 // Monsters Database
 export const MONSTERS = [
   { name: "かみつき蟲", level: 1, hp: 8, atk: 4, def: 1, exp: 40, gold: 5, spriteType: "biter", color: "#00ff66" },
-  { name: "ゴブリンの呪術師", level: 1, hp: 10, atk: 4, def: 1, exp: 50, gold: 12, spriteType: "kobold", spell: "HALITO", spellChance: 0.3, color: "#00ff66" },
+  { name: "ゴブリンの呪術師", level: 1, hp: 10, atk: 4, def: 1, exp: 50, gold: 12, spriteType: "kobold", spell: "HALITO", spellChance: 0.3, row: "back", color: "#00ff66" },
   { name: "コボルトの斥候", level: 1, hp: 11, atk: 5, def: 2, exp: 60, gold: 10, spriteType: "kobold", color: "#00ff66" },
   { name: "ゾンビ", level: 2, hp: 16, atk: 7, def: 3, exp: 120, gold: 20, spriteType: "zombie", isParalyzing: true, tags: ["undead"], color: "#8a2be2" },
   { name: "ガイコツ戦士", level: 2, hp: 20, atk: 9, def: 4, exp: 180, gold: 35, spriteType: "skeleton", isParalyzing: true, tags: ["undead"], color: "#dcdcdc" },
   { name: "キラーラビット", level: 2, hp: 16, atk: 12, def: 4, exp: 120, gold: 20, spriteType: "rabbit", color: "#ff8c00" },
   { name: "マッドゴースト", level: 2, hp: 14, atk: 6, def: 2, exp: 140, gold: 15, spriteType: "spirit", isParalyzing: true, physResist: 0.5, tags: ["undead", "spirit"], color: "#8a2be2" },
   { name: "オークの戦士", level: 3, hp: 28, atk: 12, def: 6, exp: 280, gold: 50, spriteType: "orc", color: "#ff8c00" },
-  { name: "はぐれ魔術師", level: 3, hp: 22, atk: 8, def: 4, exp: 360, gold: 80, spriteType: "mage", spell: "HALITO", spellChance: 0.3, color: "#da70d6" },
+  { name: "はぐれ魔術師", level: 3, hp: 22, atk: 8, def: 4, exp: 360, gold: 80, spriteType: "mage", spell: "HALITO", spellChance: 0.3, row: "back", color: "#da70d6" },
   { name: "ワーウルフ", level: 3, hp: 36, atk: 14, def: 5, exp: 340, gold: 60, spriteType: "orc", isPoisonous: true, color: "#ff8c00" },
   { name: "バンシー", level: 3, hp: 28, atk: 9, def: 3, exp: 360, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.6, physResist: 0.2, statusChance: 0.2, tags: ["undead", "spirit"], color: "#da70d6" },
   
@@ -515,9 +523,9 @@ export const MONSTERS = [
   { name: "スピリット", level: 2, hp: 18, atk: 6, def: 2, exp: 180, gold: 25, spriteType: "spirit", physResist: 0.6, magicResist: -0.2, tags: ["undead", "spirit"], color: "#00e5ff" },
   { name: "ウィル・オー・ウィスプ", level: 3, hp: 24, atk: 7, def: 2, exp: 260, gold: 40, spriteType: "wisp", magicResist: 0.8, tags: ["spirit"], color: "#ffffff" },
   { name: "ジャイアントスパイダー", level: 2, hp: 18, atk: 7, def: 3, exp: 150, gold: 25, spriteType: "spider", isPoisonous: true, color: "#bf5af2" },
-  { name: "フラッシュバット", level: 2, hp: 12, atk: 5, def: 2, exp: 100, gold: 15, spriteType: "bat", isBlinding: true, color: "#e5ff00" },
+  { name: "フラッシュバット", level: 2, hp: 12, atk: 5, def: 2, exp: 100, gold: 15, spriteType: "bat", isBlinding: true, row: "back", color: "#e5ff00" },
 
-  { name: "マスターメイジ", level: 4, hp: 38, atk: 9, def: 5, exp: 650, gold: 100, spriteType: "mage", spell: "LAHALITO", spellChance: 0.35, magicResist: 0.3, color: "#ff3b30" },
+  { name: "マスターメイジ", level: 4, hp: 38, atk: 9, def: 5, exp: 650, gold: 100, spriteType: "mage", spell: "LAHALITO", spellChance: 0.35, magicResist: 0.3, row: "back", color: "#ff3b30" },
   { name: "ポイズンジャイアント", level: 4, hp: 65, atk: 19, def: 7, exp: 600, gold: 120, spriteType: "zombie", isPoisonous: true, color: "#bf5af2" },
   
   { name: "デーモンガード", level: 5, hp: 90, atk: 18, def: 8, exp: 2000, gold: 300, spriteType: "flack", spell: "LAHALITO", isBoss: true, isMidboss: true, tags: ["demon"], color: "#ff8c00" },
@@ -525,25 +533,44 @@ export const MONSTERS = [
   { name: "マスターデーモン", level: 7, hp: 70, atk: 16, def: 8, exp: 1800, gold: 200, spriteType: "flack", spell: "MADALTO", spellChance: 0.3, magicResist: 0.3, tags: ["demon"], color: "#ff3b30" },
   
   { name: "フラック", level: 4, hp: 130, atk: 23, def: 11, exp: 3000, gold: 350, spriteType: "flack", spell: "LAHALITO", spellChance: 0.25, physResist: 0.2, magicResist: 0.2, isRare: true, dangerRare: true, color: "#ff3b30" },
-  { name: "ドラゴンパピー", level: 4, hp: 45, atk: 12, def: 5, exp: 600, gold: 60, spriteType: "dragon", spell: "HALITO", color: "#ffc0cb" },
-  { name: "ワイバーン", level: 5, hp: 65, atk: 17, def: 7, exp: 1200, gold: 120, spriteType: "dragon", spell: "LAHALITO", color: "#ffa500" },
-  { name: "レッドドラゴン", level: 7, hp: 100, atk: 22, def: 10, exp: 3500, gold: 400, spriteType: "dragon", spell: "MADALTO", color: "#ff3b30" },
+  { name: "ドラゴンパピー", level: 4, hp: 45, atk: 12, def: 5, exp: 600, gold: 60, spriteType: "dragon", spell: "HALITO", tags: ["dragon"], color: "#ffc0cb" },
+  { name: "ワイバーン", level: 5, hp: 65, atk: 17, def: 7, exp: 1200, gold: 120, spriteType: "dragon", spell: "LAHALITO", tags: ["dragon"], color: "#ffa500" },
+  { name: "レッドドラゴン", level: 7, hp: 100, atk: 22, def: 10, exp: 3500, gold: 400, spriteType: "dragon", spell: "MADALTO", tags: ["dragon"], color: "#ff3b30" },
   { name: "アイアンゴーレム", level: 3, hp: 32, atk: 10, def: 14, exp: 500, gold: 50, spriteType: "zombie", physResist: 0.5, magicResist: -0.5, color: "#8e8e93" },
   { name: "マッドスライム", level: 1, hp: 24, atk: 4, def: 1, exp: 120, gold: 20, spriteType: "biter", physResist: 0.4, magicResist: -0.5, color: "#ff9500" },
   { name: "メタルパピー", level: 3, hp: 8, atk: 5, def: 10, exp: 2000, gold: 500, spriteType: "biter", fleeChance: 0.50, color: "#ffd700", isRare: true, treasureRare: true },
   { name: "オークの呪医", level: 2, hp: 22, atk: 5, def: 3, exp: 200, gold: 35, spriteType: "orc", spell: "DIOS", spellChance: 0.3, color: "#34c759" },
-  { name: "プリーストデーモン", level: 5, hp: 60, atk: 12, def: 6, exp: 900, gold: 150, spriteType: "flack", spell: "DIALMA", spellChance: 0.3, tags: ["demon"], color: "#34c759" },
-  { name: "スケルトンアーチャー", level: 2, hp: 16, atk: 9, def: 3, exp: 150, gold: 30, spriteType: "skeleton", isSniper: true, tags: ["undead"], color: "#af52de" },
-  { name: "ダークアサシン", level: 3, hp: 28, atk: 14, def: 4, exp: 350, gold: 60, spriteType: "kobold", isSniper: true, color: "#ff3b30" },
-  { name: "いにしえの竜", level: 8, hp: 320, atk: 26, def: 16, exp: 7000, gold: 1000, spriteType: "dragon", spell: "TILTOWAIT", magicResist: 0.25, isBoss: true, color: "#ff3b30" },
+  { name: "プリーストデーモン", level: 5, hp: 60, atk: 12, def: 6, exp: 900, gold: 150, spriteType: "flack", spell: "DIALMA", spellChance: 0.3, tags: ["demon"], row: "back", color: "#34c759" },
+  { name: "スケルトンアーチャー", level: 2, hp: 16, atk: 9, def: 3, exp: 150, gold: 30, spriteType: "skeleton", isSniper: true, tags: ["undead"], row: "back", color: "#af52de" },
+  { name: "ダークアサシン", level: 3, hp: 28, atk: 14, def: 4, exp: 350, gold: 60, spriteType: "kobold", isSniper: true, row: "back", color: "#ff3b30" },
+  { name: "いにしえの竜", level: 8, hp: 320, atk: 26, def: 16, exp: 7000, gold: 1000, spriteType: "dragon", spell: "TILTOWAIT", magicResist: 0.25, isBoss: true, tags: ["dragon"], color: "#ff3b30" },
 
   // 追加モンスター
   { name: "リビングアーマー", level: 2, hp: 26, atk: 8, def: 10, exp: 260, gold: 40, spriteType: "zombie", magicResist: -0.25, color: "#8e8e93" },
   { name: "呪文喰い", level: 3, hp: 34, atk: 10, def: 4, exp: 420, gold: 60, spriteType: "spirit", magicResist: 0.75, color: "#4cd964" },
-  { name: "ストーンガード", level: 5, hp: 55, atk: 15, def: 16, exp: 1200, gold: 140, spriteType: "zombie", magicResist: -0.4, color: "#708090" },
+  { name: "ストーンガード", level: 5, hp: 55, atk: 15, def: 16, exp: 1200, gold: 140, spriteType: "zombie", magicResist: -0.4, traits: ["guardAdjacent"], guard: { chance: 0.5 }, color: "#708090" },
   { name: "カースドハンド", level: 3, hp: 20, atk: 7, def: 3, exp: 320, gold: 45, spriteType: "zombie", isParalyzing: true, statusChance: 0.25, color: "#5856d6" },
   { name: "ブラッドバット群", level: 2, hp: 10, atk: 5, def: 1, exp: 90, gold: 10, spriteType: "bat", color: "#ff3b30" },
-  { name: "ドラゴンワーム", level: 5, hp: 42, atk: 14, def: 6, exp: 850, gold: 80, spriteType: "dragon", color: "#ff9500" }
+  { name: "ドラゴンワーム", level: 5, hp: 42, atk: 14, def: 6, exp: 850, gold: 80, spriteType: "dragon", tags: ["dragon"], color: "#ff9500" },
+  { name: "分裂スライム", level: 1, hp: 10, atk: 3, def: 1, exp: 70, gold: 8, spriteType: "biter", traits: ["splitOnDeath"], split: { count: 2, hpRate: 0.5 }, color: "#34c759" },
+  { name: "群れネズミ", level: 1, hp: 6, atk: 3, def: 0, exp: 35, gold: 4, spriteType: "rabbit", color: "#8e8e93" },
+  { name: "錆びた盾兵", level: 1, hp: 14, atk: 4, def: 4, exp: 90, gold: 12, spriteType: "skeleton", traits: ["guardAdjacent"], guard: { chance: 0.5 }, color: "#8e8e93" },
+  { name: "泥の呪い子", level: 1, hp: 12, atk: 3, def: 1, exp: 85, gold: 10, spriteType: "biter", traits: ["debuffPhysicalDef"], traitChance: 0.2, debuffValue: 2, color: "#8a2be2" },
+  { name: "呪いの小鏡", level: 2, hp: 12, atk: 3, def: 1, exp: 180, gold: 25, spriteType: "wisp", traits: ["reflectMagic"], magicReflect: { chance: 0.5 }, row: "back", color: "#ffffff" },
+  { name: "針甲虫", level: 2, hp: 16, atk: 5, def: 5, exp: 160, gold: 20, spriteType: "biter", traits: ["reflectPhysical"], physicalReflect: { rate: 0.3 }, color: "#ff9500" },
+  { name: "鉄皮のゴブリン", level: 2, hp: 18, atk: 6, def: 3, exp: 150, gold: 18, spriteType: "kobold", traits: ["buffPhysicalDef"], traitChance: 0.3, buffValue: 2, color: "#00ff66" },
+  { name: "祈祷ゴブリン", level: 2, hp: 18, atk: 4, def: 2, exp: 190, gold: 25, spriteType: "orc", spell: "DIOS", spellChance: 0.35, row: "back", color: "#34c759" },
+  { name: "マナドレイン", level: 2, hp: 15, atk: 4, def: 2, exp: 180, gold: 22, spriteType: "spirit", isSniper: true, row: "back", color: "#00e5ff" },
+  { name: "霧の亡霊", level: 3, hp: 22, atk: 7, def: 2, exp: 320, gold: 35, spriteType: "spirit", physResist: 0.3, magicResist: -0.3, tags: ["undead", "spirit"], color: "#00e5ff" },
+  { name: "骨の鼓手", level: 3, hp: 24, atk: 5, def: 3, exp: 380, gold: 50, spriteType: "skeleton", traits: ["buffAtk"], traitChance: 0.35, buffValue: 3, tags: ["undead"], row: "back", color: "#dcdcdc" },
+  { name: "弱体の魔女", level: 3, hp: 26, atk: 6, def: 3, exp: 420, gold: 60, spriteType: "mage", traits: ["debuffMagicDef"], traitChance: 0.3, row: "back", color: "#da70d6" },
+  { name: "石像兵", level: 4, hp: 50, atk: 13, def: 15, exp: 900, gold: 100, spriteType: "zombie", magicResist: -0.4, traits: ["guardAdjacent"], guard: { chance: 0.5 }, color: "#708090" },
+  { name: "魔鏡の司祭", level: 4, hp: 38, atk: 8, def: 5, exp: 1000, gold: 130, spriteType: "mage", traits: ["reflectMagic"], magicReflect: { chance: 0.6 }, row: "back", color: "#af52de" },
+  { name: "鋼殻ビートル", level: 4, hp: 44, atk: 12, def: 12, exp: 1100, gold: 120, spriteType: "biter", traits: ["reflectPhysical"], physicalReflect: { rate: 0.4 }, magicResist: -0.25, color: "#ff9500" },
+  { name: "結界の守護者", level: 5, hp: 65, atk: 12, def: 8, exp: 1900, gold: 200, spriteType: "flack", traits: ["buffPhysicalDef", "buffMagicDef"], traitChance: 0.35, buffValue: 3, row: "back", color: "#34c759" },
+  { name: "竜血の再生者", level: 5, hp: 85, atk: 17, def: 8, exp: 1800, gold: 170, spriteType: "dragon", traits: ["regen"], regenAmount: 10, magicResist: -0.2, tags: ["dragon"], color: "#ff3b30" },
+  { name: "反逆の鎧", level: 5, hp: 75, atk: 18, def: 16, exp: 1900, gold: 180, spriteType: "zombie", traits: ["reflectPhysical"], physicalReflect: { rate: 0.3 }, magicResist: -0.35, color: "#8e8e93" },
+  { name: "黒曜の魔導士", level: 5, hp: 58, atk: 10, def: 6, exp: 2000, gold: 220, spriteType: "mage", spell: "MADALTO", spellChance: 0.3, magicResist: 0.6, row: "back", color: "#ff3b30" }
 ];
 
 export const MAP_WIDTH = 24;
@@ -597,7 +624,7 @@ export function getItemData(itemOrKey) {
       let prefix = "古びた";
       const rarity = itemOrKey.rarity || "magic";
       if (rarity === "magic") {
-        const isMagicAura = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE"].includes(base.id);
+        const isMagicAura = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "MAGIC_SHIELD"].includes(base.id);
         prefix = isMagicAura ? "青く光る" : "古びた";
       } else if (rarity === "rare") {
         prefix = "金紋の";
@@ -607,13 +634,27 @@ export function getItemData(itemOrKey) {
 
       let typeName = "武器";
       if (base.type === "shield") {
-        typeName = "盾";
+        if (base.id === "BUCKLER") {
+          typeName = "小盾";
+        } else if (base.id === "MAGIC_SHIELD") {
+          typeName = "魔盾";
+        } else {
+          typeName = "盾";
+        }
       } else if (base.type === "armor") {
-        const isRobe = ["ROBE", "MAGE_CLOAK", "PRIEST_ROBE"].includes(base.id);
-        typeName = isRobe ? "ローブ" : "鎧";
+        const isRobe = ["ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE"].includes(base.id);
+        if (isRobe) typeName = "ローブ";
+        else if (base.id === "EXPLORER_CLOAK") typeName = "外套";
+        else if (base.id === "BATTLE_GARB") typeName = "戦装束";
+        else if (base.id === "DRAGON_SCALE") typeName = "鱗鎧";
+        else typeName = "鎧";
       } else if (base.type === "weapon") {
         if (base.id === "WAND") {
           typeName = "杖";
+        } else if (base.id === "RAPIER") {
+          typeName = "細剣";
+        } else if (base.id === "SACRED_MACE") {
+          typeName = "聖器";
         } else if (["DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(base.id)) {
           typeName = "短剣";
         } else if (["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA"].includes(base.id)) {
@@ -624,12 +665,27 @@ export function getItemData(itemOrKey) {
       }
       
       const unidentName = `${prefix}未鑑定の${typeName}`;
+      const hintLabels = {
+        followUp: "連撃",
+        arcane: "秘術",
+        devotion: "神聖",
+        guardian: "守護",
+        treasureSense: "宝探",
+        trapBonus: "技巧",
+        antiUndead: "不死祓い",
+        antiDragon: "竜殺し",
+        spellGuard: "魔除け",
+        poisonWard: "防毒",
+        firstStrike: "先駆"
+      };
+      const hintAffix = itemOrKey.affixes?.find(aff => hintLabels[aff.type]);
+      const hintText = hintAffix ? ` 気配: ${hintLabels[hintAffix.type]}。` : "";
       
       return {
         ...base,
         id: itemOrKey,
         name: unidentName,
-        desc: `${unidentName}。街の商店で鑑定できます。`,
+        desc: `${unidentName}。街の商店で鑑定できます。${hintText}`,
         price: base.price,
         atk: 0,
         def: 0,
@@ -685,6 +741,11 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "devotion") prefix = "神聖な";
       else if (primaryAff.type === "guardian") prefix = "守護の";
       else if (primaryAff.type === "treasureSense") prefix = "宝探しの";
+      else if (primaryAff.type === "antiUndead") prefix = "退魔の";
+      else if (primaryAff.type === "antiDragon") prefix = "竜殺しの";
+      else if (primaryAff.type === "spellGuard") prefix = "魔除けの";
+      else if (primaryAff.type === "poisonWard") prefix = "防毒の";
+      else if (primaryAff.type === "firstStrike") prefix = "先駆の";
     }
     
     const name = prefix ? `${prefix}${base.name}` : base.name;
@@ -706,11 +767,16 @@ export function getItemData(itemOrKey) {
         arcane: "呪文威力",
         devotion: "回復威力",
         guardian: "守護",
-        treasureSense: "宝探"
+        treasureSense: "宝探",
+        antiUndead: "不死特効",
+        antiDragon: "竜特効",
+        spellGuard: "呪文耐性",
+        poisonWard: "毒耐性",
+        firstStrike: "先制"
       }[aff.type];
       const sign = aff.value >= 0 ? "+" : "";
-      const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense"].includes(aff.type) ? "%" : "";
-      return `${label}${sign}${aff.value}${unit}`;
+      const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "firstStrike"].includes(aff.type) ? "%" : "";
+      return `${label || aff.type}${sign}${aff.value}${unit}`;
     }).join(" / ");
     
     let desc = `${base.desc} [${affixDesc}]`;
@@ -747,15 +813,15 @@ export function getItemData(itemOrKey) {
 export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random) {
   let baseCandidates = [];
   if (floor === 1) {
-    baseCandidates = ["DAGGER", "WAND", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR"];
+    baseCandidates = ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK"];
   } else if (floor === 2) {
-    baseCandidates = ["DAGGER", "WAND", "SHORT_SWORD", "MACE", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "SCALE_MAIL", "MAGE_CLOAK"];
+    baseCandidates = ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK"];
   } else if (floor === 3) {
-    baseCandidates = ["SHORT_SWORD", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SMALL_SHIELD", "LARGE_SHIELD", "LEATHER_ARMOR", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL"];
+    baseCandidates = ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SACRED_MACE", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE"];
   } else if (floor === 4) {
-    baseCandidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL"];
+    baseCandidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB"];
   } else {
-    baseCandidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "KATANA", "NINJA_DAGGER", "NINJA_SUIT"];
+    baseCandidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "KATANA", "NINJA_DAGGER", "NINJA_SUIT", "BATTLE_GARB", "DRAGON_SCALE"];
   }
   
   // Smart Drop (70%): Select base items usable by the current party
@@ -782,8 +848,8 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
     rarity = forceRarity;
   } else {
     const roll = rng();
-    if (roll < 0.05) rarity = "epic";
-    else if (roll < 0.30) rarity = "rare";
+    if (roll < 0.08) rarity = "epic";
+    else if (roll < 0.40) rarity = "rare";
     else rarity = "magic";
   }
   
@@ -814,7 +880,7 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
     return Math.floor(rng() * (maxHp - minHp + 1)) + minHp;
   }});
   
-  const isMpEligible = baseId === "WAND" || baseId === "ROBE" || baseId === "PRIEST_ROBE" || baseId === "MAGE_CLOAK";
+  const isMpEligible = baseId === "WAND" || baseId === "ROBE" || baseId === "PRIEST_ROBE" || baseId === "MAGE_CLOAK" || baseId === "ARCANE_ROBE";
   if (isMpEligible) {
     possibleAffixes.push({ type: "mp", getVal: () => {
       const maxMpBonus = floor >= 5 ? 4 : (floor >= 3 ? 2 : 1);
@@ -830,7 +896,7 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
     }});
   });
   
-  const isTrapEligible = baseId === "DAGGER" || baseId === "NINJA_DAGGER" || baseId === "LEATHER_ARMOR" || baseId === "NINJA_SUIT";
+  const isTrapEligible = baseId === "DAGGER" || baseId === "NINJA_DAGGER" || baseId === "RAPIER" || baseId === "LEATHER_ARMOR" || baseId === "NINJA_SUIT" || baseId === "EXPLORER_CLOAK" || baseId === "BUCKLER";
   if (isTrapEligible) {
     possibleAffixes.push({ type: "trapBonus", getVal: () => {
       if (floor >= 5) return 15;
@@ -840,25 +906,40 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
   }
 
   // New build-specific affixes
-  const isFollowUpEligible = ["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(baseId);
+  const isFollowUpEligible = ["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD", "RAPIER", "BATTLE_GARB"].includes(baseId);
   if (isFollowUpEligible) {
-    possibleAffixes.push({ type: "followUp", getVal: () => Math.floor(rng() * 5) + 8 }); // 8-12%
+    possibleAffixes.push({ type: "followUp", getVal: () => Math.floor(rng() * 6) + 10 }); // 10-15%
   }
-  const isArcaneEligible = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE"].includes(baseId);
+  const isArcaneEligible = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "MAGIC_SHIELD"].includes(baseId);
   if (isArcaneEligible) {
-    possibleAffixes.push({ type: "arcane", getVal: () => 10 }); // +10%
+    possibleAffixes.push({ type: "arcane", getVal: () => 15 }); // +15%
   }
-  const isDevotionEligible = ["MACE", "PRIEST_ROBE"].includes(baseId);
+  const isDevotionEligible = ["MACE", "PRIEST_ROBE", "SACRED_MACE"].includes(baseId);
   if (isDevotionEligible) {
-    possibleAffixes.push({ type: "devotion", getVal: () => 10 }); // +10%
+    possibleAffixes.push({ type: "devotion", getVal: () => 15 }); // +15%
   }
-  const isGuardianEligible = ["SMALL_SHIELD", "LARGE_SHIELD", "KNIGHT_SHIELD", "LEGENDARY_SHIELD", "PLATE_MAIL", "CHAIN_MAIL", "SCALE_MAIL"].includes(baseId);
+  const isGuardianEligible = ["SMALL_SHIELD", "LARGE_SHIELD", "KNIGHT_SHIELD", "LEGENDARY_SHIELD", "PLATE_MAIL", "CHAIN_MAIL", "SCALE_MAIL", "BUCKLER", "MAGIC_SHIELD", "DRAGON_SCALE"].includes(baseId);
   if (isGuardianEligible) {
-    possibleAffixes.push({ type: "guardian", getVal: () => 10 }); // -10%
+    possibleAffixes.push({ type: "guardian", getVal: () => 15 }); // -15%
   }
-  const isTreasureSenseEligible = ["LEATHER_ARMOR", "NINJA_SUIT", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(baseId);
+  const isTreasureSenseEligible = ["LEATHER_ARMOR", "NINJA_SUIT", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD", "RAPIER", "BUCKLER", "EXPLORER_CLOAK"].includes(baseId);
   if (isTreasureSenseEligible) {
-    possibleAffixes.push({ type: "treasureSense", getVal: () => 5 }); // +5%
+    possibleAffixes.push({ type: "treasureSense", getVal: () => 8 }); // +8%
+  }
+  if (["SACRED_MACE", "MACE"].includes(baseId)) {
+    possibleAffixes.push({ type: "antiUndead", getVal: () => 30 });
+  }
+  if (baseId === "DRAGON_SCALE") {
+    possibleAffixes.push({ type: "antiDragon", getVal: () => 30 });
+  }
+  if (["MAGIC_SHIELD", "ARCANE_ROBE", "DRAGON_SCALE"].includes(baseId)) {
+    possibleAffixes.push({ type: "spellGuard", getVal: () => 20 });
+  }
+  if (baseId === "EXPLORER_CLOAK") {
+    possibleAffixes.push({ type: "poisonWard", getVal: () => 50 });
+  }
+  if (["RAPIER", "BATTLE_GARB"].includes(baseId)) {
+    possibleAffixes.push({ type: "firstStrike", getVal: () => 20 });
   }
   
   const affixes = [];
@@ -1056,7 +1137,7 @@ export function getCharWeaponAtk(char) {
   const wpId = char.equipment.weapon;
   if (!wpId) {
     if (char.class === "Ninja") {
-      return 3 * char.level; // Ninja bare hands damage scaling
+      return 2 * char.level; // Ninja bare hands remains viable but no longer outscales gear.
     }
     return 0;
   }
@@ -1087,52 +1168,52 @@ export function checkCharLevelUp(char) {
     
     // Gain HP
     let hpGain = 0;
-    if (char.class === "Fighter") hpGain = Math.floor(Math.random() * 8) + 8; // 8-15
-    else if (char.class === "Thief") hpGain = Math.floor(Math.random() * 5) + 6; // 6-10
-    else if (char.class === "Priest") hpGain = Math.floor(Math.random() * 5) + 5; // 5-9
-    else if (char.class === "Mage") hpGain = Math.floor(Math.random() * 4) + 4; // 4-7
-    else if (char.class === "Samurai") hpGain = Math.floor(Math.random() * 8) + 7; // 7-14
-    else if (char.class === "Bishop") hpGain = Math.floor(Math.random() * 5) + 5; // 5-9
-    else if (char.class === "Ranger") hpGain = Math.floor(Math.random() * 7) + 6; // 6-13
-    else if (char.class === "Ninja") hpGain = Math.floor(Math.random() * 9) + 6; // 6-14
+    if (char.class === "Fighter") hpGain = Math.floor(Math.random() * 4) + 4; // 4-7
+    else if (char.class === "Thief") hpGain = Math.floor(Math.random() * 3) + 3; // 3-5
+    else if (char.class === "Priest") hpGain = Math.floor(Math.random() * 2) + 3; // 3-4
+    else if (char.class === "Mage") hpGain = Math.floor(Math.random() * 2) + 2; // 2-3
+    else if (char.class === "Samurai") hpGain = Math.floor(Math.random() * 3) + 4; // 4-6
+    else if (char.class === "Bishop") hpGain = Math.floor(Math.random() * 2) + 3; // 3-4
+    else if (char.class === "Ranger") hpGain = Math.floor(Math.random() * 4) + 3; // 3-6
+    else if (char.class === "Ninja") hpGain = Math.floor(Math.random() * 4) + 3; // 3-6
     
     char.maxHp += hpGain;
     char.hp = getCharMaxHp(char);
 
     // Gain MP
     if (char.class === "Priest") {
-      const mpGain = Math.floor(Math.random() * 2) + 2; // 2-3
+      const mpGain = Math.floor(Math.random() * 2) + 1; // 1-2
       char.maxMp += mpGain;
       char.mp = getCharMaxMp(char);
     } else if (char.class === "Mage") {
-      const mpGain = Math.floor(Math.random() * 2) + 3; // 3-4
+      const mpGain = Math.floor(Math.random() * 2) + 1; // 1-2
       char.maxMp += mpGain;
       char.mp = getCharMaxMp(char);
     } else if (char.class === "Bishop") {
-      const mpGain = Math.floor(Math.random() * 2) + 1; // 1-2
+      const mpGain = 1;
       char.maxMp += mpGain;
       char.mp = getCharMaxMp(char);
     } else if (char.class === "Samurai" || char.class === "Ranger") {
       if (char.level >= 3) {
         if (char.maxMp === 0) {
-          char.maxMp = 3; // Initialize at level 3
+          char.maxMp = 2; // Initialize at level 3
         } else {
-          char.maxMp += Math.floor(Math.random() * 2) + 1; // 1-2
+          char.maxMp += 1;
         }
         char.mp = getCharMaxMp(char);
       }
     }
 
     // Gain Stats
-    if (Math.random() < 0.6) char.str += 1;
-    if (Math.random() < 0.6) char.vit += 1;
-    if (Math.random() < 0.6) char.agi += 1;
-    if (Math.random() < 0.6) char.luk += 1;
-    if ((char.class === "Mage" || char.class === "Bishop") && Math.random() < 0.8) char.int += 1;
-    if ((char.class === "Priest" || char.class === "Bishop" || char.class === "Ranger") && Math.random() < 0.8) char.pie += 1;
-    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.8) char.str += 1;
-    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.8) char.vit += 1;
-    if (char.class === "Ninja" && Math.random() < 0.8) char.agi += 1;
+    if (Math.random() < 0.25) char.str += 1;
+    if (Math.random() < 0.25) char.vit += 1;
+    if (Math.random() < 0.25) char.agi += 1;
+    if (Math.random() < 0.25) char.luk += 1;
+    if ((char.class === "Mage" || char.class === "Bishop") && Math.random() < 0.35) char.int += 1;
+    if ((char.class === "Priest" || char.class === "Bishop" || char.class === "Ranger") && Math.random() < 0.35) char.pie += 1;
+    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.35) char.str += 1;
+    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.35) char.vit += 1;
+    if (char.class === "Ninja" && Math.random() < 0.35) char.agi += 1;
 
     // Learn spells
     if (!char.spells) char.spells = [];
@@ -1261,8 +1342,18 @@ export function getCharAffixSum(char, affixType) {
       sum += 10;
     }
   }
+  const classBonus = {
+    Mage: { arcane: 25 },
+    Priest: { devotion: 25 },
+    Samurai: { followUp: 8 },
+    Thief: { trapBonus: 15, treasureSense: 10 },
+    Fighter: { guardian: 25 },
+    Bishop: { identifyDiscount: 25 },
+    Ranger: { treasureSense: 10, poisonWard: 20 },
+    Ninja: { firstStrike: 15 }
+  }[char.class];
+  if (classBonus && classBonus[affixType]) {
+    sum += classBonus[affixType];
+  }
   return sum;
 }
-
-
-
