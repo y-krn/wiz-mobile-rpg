@@ -226,6 +226,7 @@ export const SPELLS = {
       const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
       const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
       heal = Math.round(heal * bonus * devotionBonus);
+      heal = getEffectiveHealAmount(target, heal);
       const oldHp = target.hp;
       const maxHp = getCharMaxHp(target);
       target.hp = Math.min(maxHp, target.hp + heal);
@@ -331,6 +332,7 @@ export const SPELLS = {
       let heal = Math.floor(Math.random() * 36) + 35;
       const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
       heal = Math.round(heal * bonus);
+      heal = getEffectiveHealAmount(target, heal);
       const oldHp = target.hp;
       const maxHp = getCharMaxHp(target);
       target.hp = Math.min(maxHp, target.hp + heal);
@@ -384,6 +386,7 @@ export const SPELLS = {
       const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
       const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
       heal = Math.round(heal * bonus * devotionBonus);
+      heal = getEffectiveHealAmount(target, heal);
       const oldHp = target.hp;
       const maxHp = getCharMaxHp(target);
       target.hp = Math.min(maxHp, target.hp + heal);
@@ -415,31 +418,38 @@ export const SPELLS = {
 
 };
 
+function getEffectiveHealAmount(target, amount) {
+  if (target?.antiHealTurns > 0) {
+    return Math.max(1, Math.round(amount * 0.5));
+  }
+  return amount;
+}
+
 // Item Database
 export const ITEMS = {
   // Weapons
   DAGGER: { id: "DAGGER", name: "ダガー", type: "weapon", atk: 2, price: 50, desc: "シンプルな短剣。攻撃力+2 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   WAND: { id: "WAND", name: "魔術師の杖", type: "weapon", atk: 1, price: 120, desc: "神秘的な魔力を宿した木の杖。攻撃力+1 呪文威力+10% [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"] },
   SHORT_SWORD: { id: "SHORT_SWORD", name: "ショートソード", type: "weapon", atk: 6, price: 150, desc: "使いやすい鉄の小太刀。攻撃力+6 [戦・盗・侍・野用]", classes: ["Fighter", "Thief", "Samurai", "Ranger"] },
-  RAPIER: { id: "RAPIER", name: "レイピア", type: "weapon", atk: 5, price: 180, desc: "突きに優れた細身の剣。攻撃力+5 [盗・司・野・忍用]", classes: ["Thief", "Bishop", "Ranger", "Ninja"] },
+  RAPIER: { id: "RAPIER", name: "レイピア", type: "weapon", atk: 8, price: 180, desc: "突きに優れた細身の剣。攻撃力+8 [盗・司・野・忍用]", classes: ["Thief", "Bishop", "Ranger", "Ninja"] },
   NINJA_DAGGER: { id: "NINJA_DAGGER", name: "忍びの短刀", type: "weapon", atk: 9, price: 300, desc: "暗殺用の鋭い短刀。攻撃力+9 [盗・忍用]", classes: ["Thief", "Ninja"] },
   LONG_SWORD: { id: "LONG_SWORD", name: "ロングソード", type: "weapon", atk: 12, price: 400, desc: "両刃の美しい鋼鉄長剣。攻撃力+12 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"] },
   CLAYMORE: { id: "CLAYMORE", name: "クレイモア", type: "weapon", atk: 18, price: 750, desc: "重量のある両手大剣。攻撃力+18 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   KATANA: { id: "KATANA", name: "名刀ムラマサ", type: "weapon", atk: 25, price: 1500, desc: "伝説の妖刀。攻撃力+25 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   MACE: { id: "MACE", name: "メイス", type: "weapon", atk: 5, price: 100, desc: "打撃用の重い金属槌。攻撃力+5 [戦・僧・司・野用]", classes: ["Fighter", "Priest", "Bishop", "Ranger"] },
-  SACRED_MACE: { id: "SACRED_MACE", name: "聖別のメイス", type: "weapon", atk: 8, price: 320, desc: "不死者を祓う祝福を受けた槌。攻撃力+8 [僧・司・野用]", classes: ["Priest", "Bishop", "Ranger"] },
+  SACRED_MACE: { id: "SACRED_MACE", name: "聖印メイス", type: "weapon", atk: 7, price: 320, desc: "不死者を祓う祝福を受けた槌。攻撃力+7 [僧・司・野用]", classes: ["Priest", "Bishop", "Ranger"] },
 
   // Shields
   SMALL_SHIELD: { id: "SMALL_SHIELD", name: "スモールシールド", type: "shield", def: 2, price: 80, desc: "木製の丸い小盾。防御力+2 [戦・盗・僧・侍・野用]", classes: ["Fighter", "Thief", "Priest", "Samurai", "Ranger"] },
-  BUCKLER: { id: "BUCKLER", name: "バックラー", type: "shield", def: 2, price: 120, desc: "取り回しのよい小盾。防御力+2 [盗・司・野・忍用]", classes: ["Thief", "Bishop", "Ranger", "Ninja"] },
+  BUCKLER: { id: "BUCKLER", name: "バックラー", type: "shield", def: 1, price: 120, desc: "取り回しのよい小盾。防御力+1 [盗・司・野・忍用]", classes: ["Thief", "Bishop", "Ranger", "Ninja"] },
   LARGE_SHIELD: { id: "LARGE_SHIELD", name: "ラージシールド", type: "shield", def: 5, price: 250, desc: "鉄製の頑丈な大盾。防御力+5 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   KNIGHT_SHIELD: { id: "KNIGHT_SHIELD", name: "ナイトシールド", type: "shield", def: 8, price: 450, desc: "騎士用の鋼鉄盾。防御力+8 [戦・侍用]", classes: ["Fighter", "Samurai"] },
-  MAGIC_SHIELD: { id: "MAGIC_SHIELD", name: "魔除けの盾", type: "shield", def: 6, price: 620, desc: "呪文を逸らす護符を打ち込んだ盾。防御力+6 [戦・僧・侍・司・野用]", classes: ["Fighter", "Priest", "Samurai", "Bishop", "Ranger"] },
+  MAGIC_SHIELD: { id: "MAGIC_SHIELD", name: "魔法盾", type: "shield", def: 4, price: 620, desc: "呪文を逸らす護符を打ち込んだ盾。防御力+4 [戦・僧・侍・司・野用]", classes: ["Fighter", "Priest", "Samurai", "Bishop", "Ranger"] },
 
   // Armor
   ROBE: { id: "ROBE", name: "魔法使いのローブ", type: "armor", def: 1, price: 30, desc: "魔力を帯びたシルクの衣。防御力+1 [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"] },
   MAGE_CLOAK: { id: "MAGE_CLOAK", name: "魔術師のクローク", type: "armor", def: 4, price: 380, desc: "魔力で守られた外套。防御力+4 [魔・司用]", classes: ["Mage", "Bishop"] },
-  ARCANE_ROBE: { id: "ARCANE_ROBE", name: "秘術師のローブ", type: "armor", def: 6, price: 760, desc: "術式を織り込んだ上質なローブ。防御力+6 [魔・司用]", classes: ["Mage", "Bishop"] },
+  ARCANE_ROBE: { id: "ARCANE_ROBE", name: "魔導ローブ", type: "armor", def: 3, price: 760, desc: "術式を織り込んだ上質なローブ。防御力+3 [魔・司用]", classes: ["Mage", "Bishop"] },
   LEATHER_ARMOR: { id: "LEATHER_ARMOR", name: "レザーアーマー", type: "armor", def: 4, price: 120, desc: "なめし革の胸当て。防御力+4 [戦・盗・僧・侍・野用]", classes: ["Fighter", "Thief", "Priest", "Samurai", "Ranger"] },
   EXPLORER_CLOAK: { id: "EXPLORER_CLOAK", name: "探索者の外套", type: "armor", def: 3, price: 160, desc: "罠と毒への備えを隠した外套。防御力+3 [盗・僧・魔・司・野・忍用]", classes: ["Thief", "Priest", "Mage", "Bishop", "Ranger", "Ninja"] },
   NINJA_SUIT: { id: "NINJA_SUIT", name: "忍者の装束", type: "armor", def: 5, price: 250, desc: "闇に紛れる防具。防御力+5 [盗・忍用]", classes: ["Thief", "Ninja"] },
@@ -447,14 +457,15 @@ export const ITEMS = {
   CHAIN_MAIL: { id: "CHAIN_MAIL", name: "チェインメイル", type: "armor", def: 8, price: 350, desc: "細かな鉄環を編み込んだ鎧。防御力+8 [戦・僧・侍用]", classes: ["Fighter", "Priest", "Samurai"] },
 
   PRIEST_ROBE: { id: "PRIEST_ROBE", name: "司祭の法衣", type: "armor", def: 8, price: 500, desc: "神聖な加護を得た法衣。防御力+8 [僧・司用]", classes: ["Priest", "Bishop"] },
-  BATTLE_GARB: { id: "BATTLE_GARB", name: "戦鬼の装束", type: "armor", def: 9, price: 840, desc: "一撃後の踏み込みを助ける戦装束。防御力+9 [戦・盗・侍・忍用]", classes: ["Fighter", "Thief", "Samurai", "Ninja"] },
+  BATTLE_GARB: { id: "BATTLE_GARB", name: "戦装束", type: "armor", def: 5, price: 840, desc: "一撃後の踏み込みを助ける装束。防御力+5 [戦・盗・侍・忍用]", classes: ["Fighter", "Thief", "Samurai", "Ninja"] },
   PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", def: 16, price: 900, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16 [戦・侍用]", classes: ["Fighter", "Samurai"] },
-  DRAGON_SCALE: { id: "DRAGON_SCALE", name: "竜鱗の鎧", type: "armor", def: 14, price: 1400, desc: "竜の炎と爪に備える鱗鎧。防御力+14 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"] },
+  DRAGON_SCALE: { id: "DRAGON_SCALE", name: "竜鱗の鎧", type: "armor", def: 12, price: 1400, desc: "竜の炎と爪に備える鱗鎧。防御力+12 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"] },
 
   // Potions / Quest items
   HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", price: 60, desc: "使用するとHPを15回復する。", effect: (char) => {
-    char.hp = Math.min(getCharMaxHp(char), char.hp + 15);
-    return `${char.name}は傷薬を使い、HPが15回復した。`;
+    const heal = getEffectiveHealAmount(char, 15);
+    char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
+    return `${char.name}は傷薬を使い、HPが${heal}回復した。`;
   }},
   ANTIDOTE: { id: "ANTIDOTE", name: "解毒薬 (Antidote)", type: "usable", price: 80, desc: "使用すると毒状態を解除する。", effect: (char) => {
     if (char.status === "poisoned") {
@@ -471,13 +482,14 @@ export const ITEMS = {
     return `${char.name}は魔力草を使用したが、魔力を持たないため何も起こらなかった。`;
   }},
   HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 100, desc: "使用するとHPを40回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
-    char.hp = Math.min(getCharMaxHp(char), char.hp + 40);
+    const heal = getEffectiveHealAmount(char, 40);
+    char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
     let cured = false;
     if (char.status === "poisoned") {
       char.status = "ok";
       cured = true;
     }
-    return `${char.name}は祝福の聖水を使い、HPが40回復した。${cured ? "毒も綺麗に消え去った！" : ""}`;
+    return `${char.name}は祝福の聖水を使い、HPが${heal}回復した。${cured ? "毒も綺麗に消え去った！" : ""}`;
   }},
   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 100, desc: "使用すると一瞬で街に戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     return `${char.name}は帰還のスクロールを読んだ！`;
@@ -555,22 +567,37 @@ export const MONSTERS = [
   { name: "分裂スライム", level: 1, hp: 10, atk: 3, def: 1, exp: 70, gold: 8, spriteType: "biter", traits: ["splitOnDeath"], split: { count: 2, hpRate: 0.5 }, color: "#34c759" },
   { name: "群れネズミ", level: 1, hp: 6, atk: 3, def: 0, exp: 35, gold: 4, spriteType: "rabbit", color: "#8e8e93" },
   { name: "錆びた盾兵", level: 1, hp: 14, atk: 4, def: 4, exp: 90, gold: 12, spriteType: "skeleton", traits: ["guardAdjacent"], guard: { chance: 0.5 }, color: "#8e8e93" },
+  { name: "火薬コウモリ", level: 1, hp: 8, atk: 4, def: 1, exp: 80, gold: 8, spriteType: "bat", traits: ["selfDestruct"], color: "#ff9500" },
   { name: "泥の呪い子", level: 1, hp: 12, atk: 3, def: 1, exp: 85, gold: 10, spriteType: "biter", traits: ["debuffPhysicalDef"], traitChance: 0.2, debuffValue: 2, color: "#8a2be2" },
   { name: "呪いの小鏡", level: 2, hp: 12, atk: 3, def: 1, exp: 180, gold: 25, spriteType: "wisp", traits: ["reflectMagic"], magicReflect: { chance: 0.5 }, row: "back", color: "#ffffff" },
   { name: "針甲虫", level: 2, hp: 16, atk: 5, def: 5, exp: 160, gold: 20, spriteType: "biter", traits: ["reflectPhysical"], physicalReflect: { rate: 0.3 }, color: "#ff9500" },
   { name: "鉄皮のゴブリン", level: 2, hp: 18, atk: 6, def: 3, exp: 150, gold: 18, spriteType: "kobold", traits: ["buffPhysicalDef"], traitChance: 0.3, buffValue: 2, color: "#00ff66" },
+  { name: "腐毒の蛆", level: 2, hp: 14, atk: 4, def: 1, exp: 140, gold: 15, spriteType: "biter", traits: ["debuffPhysicalDef"], traitChance: 0.25, debuffValue: 2, color: "#bf5af2" },
   { name: "祈祷ゴブリン", level: 2, hp: 18, atk: 4, def: 2, exp: 190, gold: 25, spriteType: "orc", spell: "DIOS", spellChance: 0.35, row: "back", color: "#34c759" },
-  { name: "マナドレイン", level: 2, hp: 15, atk: 4, def: 2, exp: 180, gold: 22, spriteType: "spirit", isSniper: true, row: "back", color: "#00e5ff" },
+  { name: "マナドレイン", level: 2, hp: 15, atk: 4, def: 2, exp: 180, gold: 22, spriteType: "spirit", traits: ["drainMp", "targetBackRow"], traitChance: 0.25, isSniper: true, row: "back", color: "#00e5ff" },
+  { name: "煙幕盗賊", level: 2, hp: 18, atk: 7, def: 2, exp: 210, gold: 35, spriteType: "kobold", isBlinding: true, statusChance: 0.25, row: "back", color: "#8e8e93" },
   { name: "霧の亡霊", level: 3, hp: 22, atk: 7, def: 2, exp: 320, gold: 35, spriteType: "spirit", physResist: 0.3, magicResist: -0.3, tags: ["undead", "spirit"], color: "#00e5ff" },
+  { name: "魔封じの目玉", level: 3, hp: 20, atk: 6, def: 2, exp: 360, gold: 45, spriteType: "wisp", traits: ["silence", "targetBackRow"], traitChance: 0.25, row: "back", color: "#ffcc00" },
   { name: "骨の鼓手", level: 3, hp: 24, atk: 5, def: 3, exp: 380, gold: 50, spriteType: "skeleton", traits: ["buffAtk"], traitChance: 0.35, buffValue: 3, tags: ["undead"], row: "back", color: "#dcdcdc" },
   { name: "弱体の魔女", level: 3, hp: 26, atk: 6, def: 3, exp: 420, gold: 60, spriteType: "mage", traits: ["debuffMagicDef"], traitChance: 0.3, row: "back", color: "#da70d6" },
+  { name: "解呪の司祭", level: 3, hp: 30, atk: 7, def: 4, exp: 450, gold: 70, spriteType: "mage", traits: ["cleanseAlly"], traitChance: 0.35, row: "back", color: "#34c759" },
   { name: "石像兵", level: 4, hp: 50, atk: 13, def: 15, exp: 900, gold: 100, spriteType: "zombie", magicResist: -0.4, traits: ["guardAdjacent"], guard: { chance: 0.5 }, color: "#708090" },
   { name: "魔鏡の司祭", level: 4, hp: 38, atk: 8, def: 5, exp: 1000, gold: 130, spriteType: "mage", traits: ["reflectMagic"], magicReflect: { chance: 0.6 }, row: "back", color: "#af52de" },
+  { name: "血塗れの処刑人", level: 4, hp: 42, atk: 16, def: 6, exp: 950, gold: 90, spriteType: "orc", traits: ["targetLowHp"], color: "#ff3b30" },
   { name: "鋼殻ビートル", level: 4, hp: 44, atk: 12, def: 12, exp: 1100, gold: 120, spriteType: "biter", traits: ["reflectPhysical"], physicalReflect: { rate: 0.4 }, magicResist: -0.25, color: "#ff9500" },
+  { name: "魔防崩しの蛇", level: 4, hp: 36, atk: 11, def: 5, exp: 900, gold: 80, spriteType: "spider", traits: ["debuffMagicDef"], traitChance: 0.25, color: "#bf5af2" },
+  { name: "沈黙の修道士", level: 4, hp: 40, atk: 10, def: 6, exp: 980, gold: 100, spriteType: "mage", traits: ["silence"], traitChance: 0.18, row: "back", color: "#dcdcdc" },
+  { name: "召喚する悪魔", level: 4, hp: 45, atk: 12, def: 6, exp: 1150, gold: 140, spriteType: "flack", traits: ["summonAlly"], summon: { name: "ゴブリンの呪術師", maxAllies: 5 }, row: "back", tags: ["demon"], color: "#ff3b30" },
+  { name: "双頭の番犬", level: 5, hp: 70, atk: 15, def: 8, exp: 1600, gold: 150, spriteType: "dragon", traits: ["multiAction"], color: "#ff9500" },
   { name: "結界の守護者", level: 5, hp: 65, atk: 12, def: 8, exp: 1900, gold: 200, spriteType: "flack", traits: ["buffPhysicalDef", "buffMagicDef"], traitChance: 0.35, buffValue: 3, row: "back", color: "#34c759" },
   { name: "竜血の再生者", level: 5, hp: 85, atk: 17, def: 8, exp: 1800, gold: 170, spriteType: "dragon", traits: ["regen"], regenAmount: 10, magicResist: -0.2, tags: ["dragon"], color: "#ff3b30" },
   { name: "反逆の鎧", level: 5, hp: 75, atk: 18, def: 16, exp: 1900, gold: 180, spriteType: "zombie", traits: ["reflectPhysical"], physicalReflect: { rate: 0.3 }, magicResist: -0.35, color: "#8e8e93" },
-  { name: "黒曜の魔導士", level: 5, hp: 58, atk: 10, def: 6, exp: 2000, gold: 220, spriteType: "mage", spell: "MADALTO", spellChance: 0.3, magicResist: 0.6, row: "back", color: "#ff3b30" }
+  { name: "黒曜の魔導士", level: 5, hp: 58, atk: 10, def: 6, exp: 2000, gold: 220, spriteType: "mage", spell: "MADALTO", spellChance: 0.3, magicResist: 0.6, row: "back", color: "#ff3b30" },
+  { name: "深淵の分裂体", level: 5, hp: 60, atk: 14, def: 7, exp: 1700, gold: 160, spriteType: "biter", traits: ["splitOnDeath"], split: { count: 2, hpRate: 0.5 }, color: "#5856d6" },
+  { name: "破滅の導師", level: 5, hp: 62, atk: 12, def: 7, exp: 2100, gold: 240, spriteType: "mage", traits: ["chargeAttack"], row: "back", color: "#af52de" },
+  { name: "命喰いの影", level: 5, hp: 54, atk: 15, def: 5, exp: 1800, gold: 180, spriteType: "spirit", traits: ["antiHeal"], traitChance: 0.3, color: "#5856d6" },
+  { name: "灰燼の術士", level: 5, hp: 52, atk: 9, def: 5, exp: 1900, gold: 210, spriteType: "mage", traits: ["counterSpell"], counterSpell: { chance: 0.2 }, row: "back", color: "#ff9500" },
+  { name: "盾持ちデーモン", level: 5, hp: 80, atk: 17, def: 12, exp: 2200, gold: 230, spriteType: "flack", traits: ["guardAdjacent"], guard: { chance: 0.65, damageRate: 0.7 }, tags: ["demon"], color: "#ff3b30" }
 ];
 
 export const MAP_WIDTH = 24;
@@ -675,8 +702,8 @@ export function getItemData(itemOrKey) {
         antiUndead: "不死祓い",
         antiDragon: "竜殺し",
         spellGuard: "魔除け",
-        poisonWard: "防毒",
-        firstStrike: "先駆"
+        poisonWard: "毒避け",
+        firstStrike: "先制"
       };
       const hintAffix = itemOrKey.affixes?.find(aff => hintLabels[aff.type]);
       const hintText = hintAffix ? ` 気配: ${hintLabels[hintAffix.type]}。` : "";
@@ -744,8 +771,8 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "antiUndead") prefix = "退魔の";
       else if (primaryAff.type === "antiDragon") prefix = "竜殺しの";
       else if (primaryAff.type === "spellGuard") prefix = "魔除けの";
-      else if (primaryAff.type === "poisonWard") prefix = "防毒の";
-      else if (primaryAff.type === "firstStrike") prefix = "先駆の";
+      else if (primaryAff.type === "poisonWard") prefix = "毒避けの";
+      else if (primaryAff.type === "firstStrike") prefix = "先制の";
     }
     
     const name = prefix ? `${prefix}${base.name}` : base.name;
@@ -768,10 +795,10 @@ export function getItemData(itemOrKey) {
         devotion: "回復威力",
         guardian: "守護",
         treasureSense: "宝探",
-        antiUndead: "不死特効",
-        antiDragon: "竜特効",
-        spellGuard: "呪文耐性",
-        poisonWard: "毒耐性",
+        antiUndead: "不死祓い",
+        antiDragon: "竜殺し",
+        spellGuard: "魔除け",
+        poisonWard: "毒避け",
         firstStrike: "先制"
       }[aff.type];
       const sign = aff.value >= 0 ? "+" : "";
@@ -1113,6 +1140,18 @@ export function getCharTrapBonus(char) {
   return bonus;
 }
 
+export function getCharDerivedStats(char) {
+  return {
+    attack: getCharWeaponAtk(char) + getCharStr(char),
+    defense: getCharDef(char) + Math.floor(getCharVit(char) / 2),
+    magic: getCharInt(char) + getCharAffixSum(char, "arcane"),
+    healing: getCharPie(char) + getCharAffixSum(char, "devotion"),
+    speed: getCharAgi(char),
+    trap: getCharLuk(char) + Math.round(getCharTrapBonus(char) * 100),
+    treasure: getCharAffixSum(char, "treasureSense")
+  };
+}
+
 export const EVENT_TYPES = {
   CHEST: "chest",
   SPRING: "event_spring",
@@ -1156,6 +1195,24 @@ export function getCharDef(char) {
   return def;
 }
 
+function rollInclusive(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function pickClassGrowthStat(className) {
+  const growthStats = {
+    Fighter: ["str", "vit"],
+    Thief: ["agi", "luk"],
+    Priest: ["pie", "vit"],
+    Mage: ["int", "luk"],
+    Samurai: ["str", "int"],
+    Bishop: ["int", "pie"],
+    Ranger: ["agi", "pie"],
+    Ninja: ["agi", "luk"]
+  }[className] || ["vit"];
+  return growthStats[Math.floor(Math.random() * growthStats.length)];
+}
+
 // Check Level Up
 export function checkCharLevelUp(char) {
   const nextLvl = char.level + 1;
@@ -1168,35 +1225,32 @@ export function checkCharLevelUp(char) {
     
     // Gain HP
     let hpGain = 0;
-    if (char.class === "Fighter") hpGain = Math.floor(Math.random() * 4) + 4; // 4-7
-    else if (char.class === "Thief") hpGain = Math.floor(Math.random() * 3) + 3; // 3-5
-    else if (char.class === "Priest") hpGain = Math.floor(Math.random() * 2) + 3; // 3-4
-    else if (char.class === "Mage") hpGain = Math.floor(Math.random() * 2) + 2; // 2-3
-    else if (char.class === "Samurai") hpGain = Math.floor(Math.random() * 3) + 4; // 4-6
-    else if (char.class === "Bishop") hpGain = Math.floor(Math.random() * 2) + 3; // 3-4
-    else if (char.class === "Ranger") hpGain = Math.floor(Math.random() * 4) + 3; // 3-6
-    else if (char.class === "Ninja") hpGain = Math.floor(Math.random() * 4) + 3; // 3-6
+    if (char.class === "Fighter") hpGain = rollInclusive(7, 9);
+    else if (char.class === "Thief") hpGain = rollInclusive(5, 7);
+    else if (char.class === "Priest") hpGain = rollInclusive(4, 6);
+    else if (char.class === "Mage") hpGain = rollInclusive(3, 5);
+    else if (char.class === "Samurai") hpGain = rollInclusive(6, 8);
+    else if (char.class === "Bishop") hpGain = rollInclusive(4, 6);
+    else if (char.class === "Ranger") hpGain = rollInclusive(5, 7);
+    else if (char.class === "Ninja") hpGain = rollInclusive(5, 7);
     
     char.maxHp += hpGain;
     char.hp = getCharMaxHp(char);
 
     // Gain MP
     if (char.class === "Priest") {
-      const mpGain = Math.floor(Math.random() * 2) + 1; // 1-2
-      char.maxMp += mpGain;
+      char.maxMp += 2;
       char.mp = getCharMaxMp(char);
     } else if (char.class === "Mage") {
-      const mpGain = Math.floor(Math.random() * 2) + 1; // 1-2
-      char.maxMp += mpGain;
+      char.maxMp += 3;
       char.mp = getCharMaxMp(char);
     } else if (char.class === "Bishop") {
-      const mpGain = 1;
-      char.maxMp += mpGain;
+      char.maxMp += rollInclusive(1, 2);
       char.mp = getCharMaxMp(char);
     } else if (char.class === "Samurai" || char.class === "Ranger") {
       if (char.level >= 3) {
         if (char.maxMp === 0) {
-          char.maxMp = 2; // Initialize at level 3
+          char.maxMp = 1;
         } else {
           char.maxMp += 1;
         }
@@ -1205,15 +1259,10 @@ export function checkCharLevelUp(char) {
     }
 
     // Gain Stats
-    if (Math.random() < 0.25) char.str += 1;
-    if (Math.random() < 0.25) char.vit += 1;
-    if (Math.random() < 0.25) char.agi += 1;
-    if (Math.random() < 0.25) char.luk += 1;
-    if ((char.class === "Mage" || char.class === "Bishop") && Math.random() < 0.35) char.int += 1;
-    if ((char.class === "Priest" || char.class === "Bishop" || char.class === "Ranger") && Math.random() < 0.35) char.pie += 1;
-    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.35) char.str += 1;
-    if ((char.class === "Samurai" || char.class === "Ninja") && Math.random() < 0.35) char.vit += 1;
-    if (char.class === "Ninja" && Math.random() < 0.35) char.agi += 1;
+    if (char.level % 3 === 0) {
+      const stat = pickClassGrowthStat(char.class);
+      char[stat] += 1;
+    }
 
     // Learn spells
     if (!char.spells) char.spells = [];
@@ -1342,18 +1391,22 @@ export function getCharAffixSum(char, affixType) {
       sum += 10;
     }
   }
-  const classBonus = {
-    Mage: { arcane: 25 },
-    Priest: { devotion: 25 },
-    Samurai: { followUp: 8 },
-    Thief: { trapBonus: 15, treasureSense: 10 },
-    Fighter: { guardian: 25 },
-    Bishop: { identifyDiscount: 25 },
-    Ranger: { treasureSense: 10, poisonWard: 20 },
-    Ninja: { firstStrike: 15 }
-  }[char.class];
-  if (classBonus && classBonus[affixType]) {
-    sum += classBonus[affixType];
-  }
-  return sum;
+  return sum + getClassPassiveBonus(char, affixType);
+}
+
+export function getClassPassive(char) {
+  return {
+    Mage: { label: "魔導適性", bonuses: { arcane: 20 } },
+    Priest: { label: "祈祷適性", bonuses: { devotion: 20 } },
+    Samurai: { label: "追撃適性", bonuses: { followUp: 5 } },
+    Thief: { label: "探宝適性", bonuses: { trapBonus: 15, treasureSense: 10 } },
+    Fighter: { label: "守護適性", bonuses: { guardian: 20 } },
+    Bishop: { label: "鑑定眼", bonuses: { identifyDiscount: 20 } },
+    Ranger: { label: "探索術", bonuses: { treasureSense: 10, poisonWard: 20 } },
+    Ninja: { label: "先制術", bonuses: { firstStrike: 15 } }
+  }[char?.class] || { label: "", bonuses: {} };
+}
+
+export function getClassPassiveBonus(char, affixType) {
+  return getClassPassive(char).bonuses[affixType] || 0;
 }

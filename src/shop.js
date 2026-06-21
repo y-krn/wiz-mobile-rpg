@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "./state.js";
-import { ITEMS, getItemData, getItemBaseId, getCharAffixSum } from "./data.js";
+import { ITEMS, getItemData, getItemBaseId, getCharAffixSum, getCharDerivedStats, getClassPassive } from "./data.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
 import { openSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
@@ -75,6 +75,58 @@ function getAppraisalCost(eqItem) {
     return Math.max(max, getCharAffixSum(char, "identifyDiscount"));
   }, 0);
   return Math.max(1, Math.floor(baseCost * (1 - bestDiscount / 100)));
+}
+
+const DERIVED_COMPARE_ROWS = [
+  { key: "attack", label: "攻撃" },
+  { key: "defense", label: "防御" },
+  { key: "magic", label: "魔力" },
+  { key: "healing", label: "回復" },
+  { key: "speed", label: "速度" },
+  { key: "trap", label: "罠解除" },
+  { key: "treasure", label: "探宝" }
+];
+
+const SYNERGY_AFFIX_LABELS = {
+  followUp: "追撃適性あり",
+  arcane: "魔導適性あり",
+  devotion: "祈祷適性あり",
+  guardian: "守護適性あり",
+  treasureSense: "探宝適性あり",
+  trapBonus: "罠解除適性あり"
+};
+
+function getEquipmentPreview(char, eqItem) {
+  const item = getItemData(eqItem);
+  if (!item || !["weapon", "shield", "armor"].includes(item.type)) return null;
+
+  const current = getCharDerivedStats(char);
+  const slot = item.type;
+  const oldEq = char.equipment[slot];
+  char.equipment[slot] = eqItem;
+  const next = getCharDerivedStats(char);
+  char.equipment[slot] = oldEq;
+
+  const diffs = DERIVED_COMPARE_ROWS
+    .map(row => ({ ...row, diff: next[row.key] - current[row.key] }))
+    .filter(row => row.diff !== 0);
+
+  const passive = getClassPassive(char);
+  const itemAffixTypes = new Set((eqItem.affixes || []).map(aff => aff.type));
+  const synergies = Object.keys(passive.bonuses)
+    .filter(type => itemAffixTypes.has(type) && SYNERGY_AFFIX_LABELS[type])
+    .map(type => SYNERGY_AFFIX_LABELS[type]);
+
+  return { diffs, synergies };
+}
+
+function formatEquipmentPreview(preview) {
+  if (!preview) return "差分なし";
+  const diffText = preview.diffs.length > 0
+    ? preview.diffs.slice(0, 4).map(row => `${row.label}${row.diff > 0 ? "+" : ""}${row.diff}`).join(" / ")
+    : "主要差分なし";
+  if (preview.synergies.length === 0) return diffText;
+  return `${diffText} / ${preview.synergies.join(" / ")}`;
 }
 
 export function openShopAppraise() {
@@ -505,8 +557,8 @@ export function renderShop() {
               str: "力", int: "知恵", pie: "信仰", vit: "生命", agi: "素早さ", luk: "運",
               trapBonus: "罠解除率", followUp: "追加攻撃率", arcane: "呪文威力",
               devotion: "回復威力", guardian: "守護", treasureSense: "宝探",
-              antiUndead: "不死特効", antiDragon: "竜特効", spellGuard: "呪文耐性",
-              poisonWard: "毒耐性", firstStrike: "先制"
+              antiUndead: "不死祓い", antiDragon: "竜殺し", spellGuard: "魔除け",
+              poisonWard: "毒避け", firstStrike: "先制"
             }[aff.type] || aff.type;
             const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "firstStrike"].includes(aff.type) ? "%" : "";
             return `<div style="font-size: 11px; margin-bottom: 2px;">・${label}: <strong style="color:var(--neon-green)">+${aff.value}${unit}</strong></div>`;
@@ -521,7 +573,7 @@ export function renderShop() {
 
         const compatDiv = document.createElement("div");
         compatDiv.className = "detail-compat";
-        compatDiv.innerHTML = `<div class="compat-title">装備適合と増減</div>`;
+        compatDiv.innerHTML = `<div class="compat-title">おすすめ</div>`;
 
         state.party.forEach(char => {
           const canEquip = item.classes ? item.classes.includes(char.class) : true;
@@ -534,66 +586,10 @@ export function renderShop() {
               <span class="compat-result no">🔴 装備不可</span>
             `;
           } else {
-            const slot = item.type; // "weapon", "shield", "armor"
-            const currentEquipKey = char.equipment[slot];
-            const currentEquip = currentEquipKey ? getItemData(currentEquipKey) : null;
-            
-            // Calculate base value diff
-            const newBaseVal = slot === "weapon" ? item.atk : item.def;
-            let currentBaseVal = 0;
-            if (currentEquip) {
-              currentBaseVal = slot === "weapon" ? currentEquip.atk : currentEquip.def;
-            }
-            const baseDiff = newBaseVal - currentBaseVal;
-            const changes = [];
-            
-            const mainLabel = slot === "weapon" ? "攻撃" : "防御";
-            if (baseDiff !== 0) {
-              changes.push(`${mainLabel}${baseDiff > 0 ? "+" : ""}${baseDiff}`);
-            }
-
-            // Calculate affix diffs
-            const newAffMap = {};
-            if (eqItem.affixes) {
-              eqItem.affixes.forEach(aff => {
-                newAffMap[aff.type] = (newAffMap[aff.type] || 0) + aff.value;
-              });
-            }
-
-            const curAffMap = {};
-            if (currentEquip && currentEquip.id && currentEquip.id.affixes) {
-              currentEquip.id.affixes.forEach(aff => {
-                curAffMap[aff.type] = (curAffMap[aff.type] || 0) + aff.value;
-              });
-            }
-
-            const allAffKeys = new Set([...Object.keys(newAffMap), ...Object.keys(curAffMap)]);
-            allAffKeys.forEach(type => {
-              if (type === "atk" || type === "def") return;
-              const newVal = newAffMap[type] || 0;
-              const curVal = curAffMap[type] || 0;
-              const diff = newVal - curVal;
-              if (diff !== 0) {
-                const label = {
-                  hp: "HP", mp: "MP", str: "力", int: "知恵", pie: "信仰", vit: "生命", agi: "素早さ", luk: "運",
-                  trapBonus: "罠解除", followUp: "追加攻撃", arcane: "呪文威力", devotion: "回復威力", guardian: "守護", treasureSense: "宝探",
-                  antiUndead: "不死特効", antiDragon: "竜特効", spellGuard: "呪文耐性",
-                  poisonWard: "毒耐性", firstStrike: "先制"
-                }[type] || type;
-                const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "firstStrike"].includes(type) ? "%" : "";
-                changes.push(`${label}${diff > 0 ? "+" : ""}${diff}${unit}`);
-              }
-            });
-
-            let diffText = "";
-            let resultClass = "ok";
-            if (changes.length > 0) {
-              diffText = changes.join(", ");
-              resultClass = baseDiff > 0 ? "upgrade" : (baseDiff < 0 ? "downgrade" : "ok");
-            } else {
-              diffText = "差分なし";
-              resultClass = "ok";
-            }
+            const preview = getEquipmentPreview(char, eqItem);
+            const bestDiff = preview?.diffs[0]?.diff || 0;
+            const diffText = formatEquipmentPreview(preview);
+            const resultClass = bestDiff > 0 ? "upgrade" : (bestDiff < 0 ? "downgrade" : "ok");
 
             row.innerHTML = `
               <span class="compat-name">${char.name}</span>

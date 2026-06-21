@@ -1,8 +1,8 @@
-import { state, saveAutosave, addLog, getCharWeaponAtk, getCharDef } from "./state.js";
+import { state, saveAutosave, addLog } from "./state.js";
 import { 
   DIR_N, START_X, START_Y, 
   getClassJpName, getCharMaxHp, getCharMaxMp, getItemData, getCharStr,
-  getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharTrapBonus
+  getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharDerivedStats
 } from "./data.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
@@ -56,9 +56,15 @@ function isEquipmentItem(item) {
 }
 
 function getDisplayStats(char) {
+  const derived = getCharDerivedStats(char);
   return {
-    atk: getCharWeaponAtk(char) + getCharStr(char),
-    def: getCharDef(char),
+    atk: derived.attack,
+    def: derived.defense,
+    magic: derived.magic,
+    healing: derived.healing,
+    speed: derived.speed,
+    trap: derived.trap,
+    treasure: derived.treasure,
     hp: getCharMaxHp(char),
     mp: getCharMaxMp(char),
     str: getCharStr(char),
@@ -66,8 +72,7 @@ function getDisplayStats(char) {
     pie: getCharPie(char),
     vit: getCharVit(char),
     agi: getCharAgi(char),
-    luk: getCharLuk(char),
-    trap: Math.round(getCharTrapBonus(char) * 100)
+    luk: getCharLuk(char)
   };
 }
 
@@ -83,8 +88,13 @@ function getEquipPreview(char, itemKey) {
   char.equipment[slot] = oldEq;
 
   const rows = [
-    { key: "atk", label: "攻撃力" },
-    { key: "def", label: "防御力" },
+    { key: "atk", label: "攻撃" },
+    { key: "def", label: "防御" },
+    { key: "magic", label: "魔力" },
+    { key: "healing", label: "回復" },
+    { key: "speed", label: "速度" },
+    { key: "trap", label: "罠解除" },
+    { key: "treasure", label: "探宝" },
     { key: "hp", label: "最大HP" },
     { key: "mp", label: "最大MP" },
     { key: "str", label: "力" },
@@ -92,8 +102,7 @@ function getEquipPreview(char, itemKey) {
     { key: "pie", label: "信仰" },
     { key: "vit", label: "生命" },
     { key: "agi", label: "素早さ" },
-    { key: "luk", label: "運" },
-    { key: "trap", label: "罠解除", unit: "%" }
+    { key: "luk", label: "運" }
   ].map((stat) => ({
     ...stat,
     current: current[stat.key],

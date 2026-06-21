@@ -168,8 +168,8 @@ export const createDefaultRoster = () => [
     maxHp: 18,
     mp: 0,
     maxMp: 0,
-    str: 12,
-    int: 11,
+    str: 14,
+    int: 10,
     pie: 8,
     vit: 12,
     agi: 10,
@@ -218,8 +218,8 @@ export const createDefaultRoster = () => [
     int: 8,
     pie: 11,
     vit: 11,
-    agi: 11,
-    luk: 9,
+    agi: 12,
+    luk: 10,
     status: "ok",
     spells: [],
     equipment: {
@@ -1086,4 +1086,3 @@ export function addInventoryItem(item, options = {}) {
 }
 
 registerState(state);
-

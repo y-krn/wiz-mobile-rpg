@@ -190,8 +190,8 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
       antiUndead: "不死祓い",
       antiDragon: "竜殺し",
       spellGuard: "魔除け",
-      poisonWard: "防毒",
-      firstStrike: "先駆"
+      poisonWard: "毒避け",
+      firstStrike: "先制"
     };
     const senseSum = state.party.reduce((sum, c) => {
       if (c.status === "dead") return sum;
@@ -486,7 +486,7 @@ export function triggerChestTrap(char) {
     const ward = getCharAffixSum(char, "poisonWard");
     const resisted = char.hp > 0 && ward > 0 && Math.random() * 100 < ward;
     char.status = char.hp === 0 ? "dead" : (resisted ? char.status : "poisoned");
-    addLog(`毒針が作動！${char.name}は12のダメージを受けた。${resisted ? "防毒の備えで毒は免れた！" : "毒状態になった！"}`);
+    addLog(`毒針が作動！${char.name}は12のダメージを受けた。${resisted ? "毒避けの備えで毒は免れた！" : "毒状態になった！"}`);
     if (renderer) renderer.addDamageText("12", "#ff3b30");
   } else if (trap === "gas bomb") {
     addLog("ガス爆弾が作動！パーティ全体にガスが充満した！");
