@@ -10,6 +10,9 @@ export const DY = [-1, 0, 1, 0];
 export const DIR_NAMES = ["北", "東", "南", "西"];
 
 // Spells Database
+export const getSpellStatBonus = (stat) => {
+  return 1.0 + Math.min(0.40, Math.max(0, (stat - 10) * 0.02));
+};
 export const SPELLS = {
   // Mage Spells
   HALITO: {
@@ -21,8 +24,7 @@ export const SPELLS = {
     desc: "火の玉 (5-15 DMG)",
     effect: (caster, target) => {
       let dmg = Math.floor(Math.random() * 11) + 5;
-      const intVal = caster ? getCharInt(caster) : 10;
-      const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
+      const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus);
       let suffix = "";
@@ -66,8 +68,7 @@ export const SPELLS = {
     target: "all_enemies",
     desc: "炎の嵐 (敵全体に15-35 DMG)",
     effect: (caster, targets) => {
-      const intVal = caster ? getCharInt(caster) : 10;
-      const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
+      const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
       const results = targets.map(t => {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 21) + 15;
@@ -113,8 +114,7 @@ export const SPELLS = {
     desc: "中級炎魔法 (20-35 DMG)",
     effect: (caster, target) => {
       let dmg = Math.floor(Math.random() * 16) + 20;
-      const intVal = caster ? getCharInt(caster) : 10;
-      const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
+      const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus);
       let suffix = "";
@@ -152,8 +152,7 @@ export const SPELLS = {
     target: "all_enemies",
     desc: "氷結呪文 (30-60 DMG)",
     effect: (caster, targets) => {
-      const intVal = caster ? getCharInt(caster) : 10;
-      const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
+      const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
       const results = targets.map(t => {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 31) + 30;
@@ -187,8 +186,7 @@ export const SPELLS = {
     target: "all_enemies",
     desc: "極大爆裂呪文 (50-100 DMG)",
     effect: (caster, targets) => {
-      const intVal = caster ? getCharInt(caster) : 10;
-      const bonus = 1.0 + Math.min(0.20, Math.max(0, (intVal - 10) * 0.01));
+      const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
       const results = targets.map(t => {
         if (t.hp <= 0) return 0;
         let dmg = Math.floor(Math.random() * 51) + 50;
@@ -225,8 +223,7 @@ export const SPELLS = {
     desc: "軽微な治療 (10-20 HP回復)",
     effect: (caster, target) => {
       let heal = Math.floor(Math.random() * 11) + 10;
-      const pieVal = caster ? getCharPie(caster) : 10;
-      const bonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
+      const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
       const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
       heal = Math.round(heal * bonus * devotionBonus);
       const oldHp = target.hp;
@@ -264,10 +261,22 @@ export const SPELLS = {
     desc: "不浄への一撃 (5-15 HPダメージ)",
     effect: (caster, target) => {
       let dmg = Math.floor(Math.random() * 11) + 5;
-      const pieVal = caster ? getCharPie(caster) : 10;
-      const bonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
+      const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus);
+      
+      let bonusMult = 1.0;
+      if (target && target.tags) {
+        if (target.tags.includes("undead")) {
+          bonusMult = 1.5;
+        } else if (target.tags.includes("spirit")) {
+          bonusMult = 1.3;
+        } else if (target.tags.includes("demon")) {
+          bonusMult = 1.3;
+        }
+      }
+      dmg = Math.round(dmg * bonusMult);
+
       let suffix = "";
       if (target && target.magicResist) {
         dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
@@ -320,8 +329,7 @@ export const SPELLS = {
     desc: "中度の治療 (35-70 HP回復)",
     effect: (caster, target) => {
       let heal = Math.floor(Math.random() * 36) + 35;
-      const pieVal = caster ? getCharPie(caster) : 10;
-      const bonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
+      const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
       heal = Math.round(heal * bonus);
       const oldHp = target.hp;
       const maxHp = getCharMaxHp(target);
@@ -373,8 +381,7 @@ export const SPELLS = {
     desc: "高度の治療 (70-120 HP回復)",
     effect: (caster, target) => {
       let heal = Math.floor(Math.random() * 51) + 70;
-      const pieVal = caster ? getCharPie(caster) : 10;
-      const bonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
+      const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
       const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
       heal = Math.round(heal * bonus * devotionBonus);
       const oldHp = target.hp;
@@ -411,11 +418,11 @@ export const SPELLS = {
 // Item Database
 export const ITEMS = {
   // Weapons
-  DAGGER: { id: "DAGGER", name: "ダガー", type: "weapon", atk: 3, price: 50, desc: "シンプルな短剣。攻撃力+3 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
-  WAND: { id: "WAND", name: "魔術師の杖", type: "weapon", atk: 4, price: 120, desc: "神秘的な魔力を宿した木の杖。攻撃力+4 [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"] },
+  DAGGER: { id: "DAGGER", name: "ダガー", type: "weapon", atk: 2, price: 50, desc: "シンプルな短剣。攻撃力+2 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
+  WAND: { id: "WAND", name: "魔術師の杖", type: "weapon", atk: 1, price: 120, desc: "神秘的な魔力を宿した木の杖。攻撃力+1 呪文威力+10% [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"] },
   SHORT_SWORD: { id: "SHORT_SWORD", name: "ショートソード", type: "weapon", atk: 6, price: 150, desc: "使いやすい鉄の小太刀。攻撃力+6 [戦・盗・侍・野用]", classes: ["Fighter", "Thief", "Samurai", "Ranger"] },
   NINJA_DAGGER: { id: "NINJA_DAGGER", name: "忍びの短刀", type: "weapon", atk: 9, price: 300, desc: "暗殺用の鋭い短刀。攻撃力+9 [盗・忍用]", classes: ["Thief", "Ninja"] },
-  LONG_SWORD: { id: "LONG_SWORD", name: "ロングソード", type: "weapon", atk: 12, price: 400, desc: "両刃 of 美しい鋼鉄長剣。攻撃力+12 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"] },
+  LONG_SWORD: { id: "LONG_SWORD", name: "ロングソード", type: "weapon", atk: 12, price: 400, desc: "両刃の美しい鋼鉄長剣。攻撃力+12 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"] },
   CLAYMORE: { id: "CLAYMORE", name: "クレイモア", type: "weapon", atk: 18, price: 750, desc: "重量のある両手大剣。攻撃力+18 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   KATANA: { id: "KATANA", name: "名刀ムラマサ", type: "weapon", atk: 25, price: 1500, desc: "伝説の妖刀。攻撃力+25 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   MACE: { id: "MACE", name: "メイス", type: "weapon", atk: 5, price: 100, desc: "打撃用の重い金属槌。攻撃力+5 [戦・僧・司・野用]", classes: ["Fighter", "Priest", "Bishop", "Ranger"] },
@@ -467,7 +474,7 @@ export const ITEMS = {
   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 100, desc: "使用すると一瞬で街に戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     return `${char.name}は帰還のスクロールを読んだ！`;
   }},
-  ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極 of 霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+  ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極の霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     char.hp = getCharMaxHp(char);
     char.mp = getCharMaxMp(char);
     if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {
@@ -492,41 +499,41 @@ export const ITEMS = {
 
 // Monsters Database
 export const MONSTERS = [
-  { name: "かみつき蟲", level: 1, hp: 6, atk: 4, def: 1, exp: 40, gold: 5, spriteType: "biter", color: "#00ff66" },
-  { name: "ゴブリンの呪術師", level: 1, hp: 10, atk: 4, def: 2, exp: 50, gold: 12, spriteType: "kobold", spell: "HALITO", spellChance: 0.3, color: "#00ff66" },
-  { name: "コボルトの斥候", level: 1, hp: 8, atk: 5, def: 2, exp: 60, gold: 10, spriteType: "kobold", color: "#00ff66" },
-  { name: "ゾンビ", level: 2, hp: 16, atk: 7, def: 3, exp: 120, gold: 20, spriteType: "zombie", isParalyzing: true, color: "#8a2be2" },
-  { name: "ガイコツ戦士", level: 2, hp: 20, atk: 9, def: 4, exp: 180, gold: 35, spriteType: "skeleton", isParalyzing: true, color: "#dcdcdc" },
+  { name: "かみつき蟲", level: 1, hp: 8, atk: 4, def: 1, exp: 40, gold: 5, spriteType: "biter", color: "#00ff66" },
+  { name: "ゴブリンの呪術師", level: 1, hp: 10, atk: 4, def: 1, exp: 50, gold: 12, spriteType: "kobold", spell: "HALITO", spellChance: 0.3, color: "#00ff66" },
+  { name: "コボルトの斥候", level: 1, hp: 11, atk: 5, def: 2, exp: 60, gold: 10, spriteType: "kobold", color: "#00ff66" },
+  { name: "ゾンビ", level: 2, hp: 16, atk: 7, def: 3, exp: 120, gold: 20, spriteType: "zombie", isParalyzing: true, tags: ["undead"], color: "#8a2be2" },
+  { name: "ガイコツ戦士", level: 2, hp: 20, atk: 9, def: 4, exp: 180, gold: 35, spriteType: "skeleton", isParalyzing: true, tags: ["undead"], color: "#dcdcdc" },
   { name: "キラーラビット", level: 2, hp: 16, atk: 12, def: 4, exp: 120, gold: 20, spriteType: "rabbit", color: "#ff8c00" },
-  { name: "マッドゴースト", level: 2, hp: 14, atk: 6, def: 2, exp: 140, gold: 15, spriteType: "spirit", isParalyzing: true, physResist: 0.5, color: "#8a2be2" },
+  { name: "マッドゴースト", level: 2, hp: 14, atk: 6, def: 2, exp: 140, gold: 15, spriteType: "spirit", isParalyzing: true, physResist: 0.5, tags: ["undead", "spirit"], color: "#8a2be2" },
   { name: "オークの戦士", level: 3, hp: 28, atk: 12, def: 6, exp: 280, gold: 50, spriteType: "orc", color: "#ff8c00" },
   { name: "はぐれ魔術師", level: 3, hp: 22, atk: 8, def: 4, exp: 360, gold: 80, spriteType: "mage", spell: "HALITO", spellChance: 0.3, color: "#da70d6" },
   { name: "ワーウルフ", level: 3, hp: 36, atk: 14, def: 5, exp: 340, gold: 60, spriteType: "orc", isPoisonous: true, color: "#ff8c00" },
-  { name: "バンシー", level: 3, hp: 28, atk: 9, def: 3, exp: 360, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.6, physResist: 0.2, statusChance: 0.2, color: "#da70d6" },
+  { name: "バンシー", level: 3, hp: 28, atk: 9, def: 3, exp: 360, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.6, physResist: 0.2, statusChance: 0.2, tags: ["undead", "spirit"], color: "#da70d6" },
   
   // 既存モンスターの再調整
-  { name: "スピリット", level: 2, hp: 18, atk: 6, def: 2, exp: 180, gold: 25, spriteType: "spirit", physResist: 0.6, magicResist: -0.2, color: "#00e5ff" },
-  { name: "ウィル・オー・ウィスプ", level: 3, hp: 24, atk: 7, def: 2, exp: 260, gold: 40, spriteType: "wisp", magicResist: 0.8, color: "#ffffff" },
+  { name: "スピリット", level: 2, hp: 18, atk: 6, def: 2, exp: 180, gold: 25, spriteType: "spirit", physResist: 0.6, magicResist: -0.2, tags: ["undead", "spirit"], color: "#00e5ff" },
+  { name: "ウィル・オー・ウィスプ", level: 3, hp: 24, atk: 7, def: 2, exp: 260, gold: 40, spriteType: "wisp", magicResist: 0.8, tags: ["spirit"], color: "#ffffff" },
   { name: "ジャイアントスパイダー", level: 2, hp: 18, atk: 7, def: 3, exp: 150, gold: 25, spriteType: "spider", isPoisonous: true, color: "#bf5af2" },
   { name: "フラッシュバット", level: 2, hp: 12, atk: 5, def: 2, exp: 100, gold: 15, spriteType: "bat", isBlinding: true, color: "#e5ff00" },
 
   { name: "マスターメイジ", level: 4, hp: 38, atk: 9, def: 5, exp: 650, gold: 100, spriteType: "mage", spell: "LAHALITO", spellChance: 0.35, magicResist: 0.3, color: "#ff3b30" },
   { name: "ポイズンジャイアント", level: 4, hp: 65, atk: 19, def: 7, exp: 600, gold: 120, spriteType: "zombie", isPoisonous: true, color: "#bf5af2" },
   
-  { name: "デーモンガード", level: 5, hp: 90, atk: 18, def: 8, exp: 2000, gold: 300, spriteType: "flack", spell: "LAHALITO", isBoss: true, isMidboss: true, color: "#ff8c00" },
+  { name: "デーモンガード", level: 5, hp: 90, atk: 18, def: 8, exp: 2000, gold: 300, spriteType: "flack", spell: "LAHALITO", isBoss: true, isMidboss: true, tags: ["demon"], color: "#ff8c00" },
   { name: "アースジャイアント", level: 6, hp: 72, atk: 18, def: 10, exp: 1500, gold: 150, spriteType: "zombie", magicResist: -0.25, color: "#8a2be2" },
-  { name: "マスターデーモン", level: 7, hp: 70, atk: 16, def: 8, exp: 1800, gold: 200, spriteType: "flack", spell: "MADALTO", spellChance: 0.3, magicResist: 0.3, color: "#ff3b30" },
+  { name: "マスターデーモン", level: 7, hp: 70, atk: 16, def: 8, exp: 1800, gold: 200, spriteType: "flack", spell: "MADALTO", spellChance: 0.3, magicResist: 0.3, tags: ["demon"], color: "#ff3b30" },
   
   { name: "フラック", level: 4, hp: 130, atk: 23, def: 11, exp: 3000, gold: 350, spriteType: "flack", spell: "LAHALITO", spellChance: 0.25, physResist: 0.2, magicResist: 0.2, isRare: true, dangerRare: true, color: "#ff3b30" },
   { name: "ドラゴンパピー", level: 4, hp: 45, atk: 12, def: 5, exp: 600, gold: 60, spriteType: "dragon", spell: "HALITO", color: "#ffc0cb" },
   { name: "ワイバーン", level: 5, hp: 65, atk: 17, def: 7, exp: 1200, gold: 120, spriteType: "dragon", spell: "LAHALITO", color: "#ffa500" },
   { name: "レッドドラゴン", level: 7, hp: 100, atk: 22, def: 10, exp: 3500, gold: 400, spriteType: "dragon", spell: "MADALTO", color: "#ff3b30" },
   { name: "アイアンゴーレム", level: 3, hp: 32, atk: 10, def: 14, exp: 500, gold: 50, spriteType: "zombie", physResist: 0.5, magicResist: -0.5, color: "#8e8e93" },
-  { name: "マッドスライム", level: 1, hp: 28, atk: 4, def: 1, exp: 120, gold: 20, spriteType: "biter", physResist: 0.4, magicResist: -0.5, color: "#ff9500" },
+  { name: "マッドスライム", level: 1, hp: 24, atk: 4, def: 1, exp: 120, gold: 20, spriteType: "biter", physResist: 0.4, magicResist: -0.5, color: "#ff9500" },
   { name: "メタルパピー", level: 3, hp: 8, atk: 5, def: 10, exp: 2000, gold: 500, spriteType: "biter", fleeChance: 0.50, color: "#ffd700", isRare: true, treasureRare: true },
   { name: "オークの呪医", level: 2, hp: 22, atk: 5, def: 3, exp: 200, gold: 35, spriteType: "orc", spell: "DIOS", spellChance: 0.3, color: "#34c759" },
-  { name: "プリーストデーモン", level: 5, hp: 60, atk: 12, def: 6, exp: 900, gold: 150, spriteType: "flack", spell: "DIALMA", spellChance: 0.3, color: "#34c759" },
-  { name: "スケルトンアーチャー", level: 2, hp: 16, atk: 9, def: 3, exp: 150, gold: 30, spriteType: "skeleton", isSniper: true, color: "#af52de" },
+  { name: "プリーストデーモン", level: 5, hp: 60, atk: 12, def: 6, exp: 900, gold: 150, spriteType: "flack", spell: "DIALMA", spellChance: 0.3, tags: ["demon"], color: "#34c759" },
+  { name: "スケルトンアーチャー", level: 2, hp: 16, atk: 9, def: 3, exp: 150, gold: 30, spriteType: "skeleton", isSniper: true, tags: ["undead"], color: "#af52de" },
   { name: "ダークアサシン", level: 3, hp: 28, atk: 14, def: 4, exp: 350, gold: 60, spriteType: "kobold", isSniper: true, color: "#ff3b30" },
   { name: "いにしえの竜", level: 8, hp: 320, atk: 26, def: 16, exp: 7000, gold: 1000, spriteType: "dragon", spell: "TILTOWAIT", magicResist: 0.25, isBoss: true, color: "#ff3b30" },
 
@@ -539,7 +546,6 @@ export const MONSTERS = [
   { name: "ドラゴンワーム", level: 5, hp: 42, atk: 14, def: 6, exp: 850, gold: 80, spriteType: "dragon", color: "#ff9500" }
 ];
 
-// Dungeon Map Grid 24x24
 export const MAP_WIDTH = 24;
 export const MAP_HEIGHT = 24;
 
@@ -1238,14 +1244,23 @@ export function getCharAffixSum(char, affixType) {
   if (!char || !char.equipment) return 0;
   let sum = 0;
   Object.values(char.equipment).forEach(eqKey => {
-    if (eqKey && typeof eqKey === "object" && eqKey.identified && eqKey.affixes) {
-      eqKey.affixes.forEach(aff => {
-        if (aff.type === affixType) {
-          sum += aff.value;
-        }
-      });
+    if (!eqKey) return;
+    if (typeof eqKey === "object") {
+      if (eqKey.identified && eqKey.affixes) {
+        eqKey.affixes.forEach(aff => {
+          if (aff.type === affixType) {
+            sum += aff.value;
+          }
+        });
+      }
     }
   });
+  if (affixType === "arcane") {
+    const weaponIdStr = getItemBaseId(char.equipment.weapon);
+    if (weaponIdStr === "WAND") {
+      sum += 10;
+    }
+  }
   return sum;
 }
 

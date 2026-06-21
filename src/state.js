@@ -154,7 +154,7 @@ export const createDefaultRoster = () => [
     status: "ok",
     spells: ["HALITO", "DUMAPIC"],
     equipment: {
-      weapon: "DAGGER",
+      weapon: "WAND",
       shield: null,
       armor: "ROBE"
     }

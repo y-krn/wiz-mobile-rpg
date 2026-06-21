@@ -5,6 +5,32 @@ import {
   getItemBaseId, getCharAffixSum
 } from "./data.js";
 
+function getMeleeModifiers(char, actorIdx) {
+  const classMeleeRates = {
+    Fighter: 1.00,
+    Samurai: 0.95,
+    Ninja: 0.95,
+    Ranger: 0.85,
+    Thief: 0.75,
+    Priest: 0.60,
+    Bishop: 0.50,
+    Mage: 0.35
+  };
+  const classRate = classMeleeRates[char.class] ?? 1.00;
+  
+  let rowRate = 1.00;
+  if (actorIdx >= 2) {
+    const weaponId = char.equipment.weapon;
+    const baseId = getItemBaseId(weaponId);
+    if (baseId === "DAGGER" || baseId === "WAND") {
+      rowRate = 0.35;
+    } else {
+      rowRate = 0.50;
+    }
+  }
+  return classRate * rowRate;
+}
+
 function addInventoryItem(state, item, options = {}) {
   const allowQuestOverflow = options.allowQuestOverflow ?? false;
   const itemId = getItemBaseId(item);
@@ -128,14 +154,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // Attack math
           const atkVal = getCharStr(char) + getCharWeaponAtk(char);
           const randRoll = Math.floor(Math.random() * 5); // 0-4
-          dmg = Math.max(1, atkVal + randRoll - finalTarget.def);
+          const meleeMod = getMeleeModifiers(char, turn.idx);
+          dmg = Math.max(1, Math.floor((atkVal + randRoll - finalTarget.def) * meleeMod));
           
           if (char.status === "blind") {
-            dmg = Math.max(1, Math.floor(dmg / 2));
-          }
-
-          // Halve physical damage if attacking from the back row (index 2 or 3)
-          if (turn.idx >= 2) {
             dmg = Math.max(1, Math.floor(dmg / 2));
           }
           
@@ -174,7 +196,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             if (followUpChance > 0 && Math.random() * 100 < followUpChance) {
               const followUpDmgRand = Math.floor(Math.random() * 3);
               const atkVal = getCharStr(char) + getCharWeaponAtk(char);
-              let followUpDmg = Math.max(1, Math.floor((atkVal + followUpDmgRand - finalTarget.def) * 0.7));
+              const meleeMod = getMeleeModifiers(char, turn.idx);
+              let followUpDmg = Math.max(1, Math.floor((atkVal + followUpDmgRand - finalTarget.def) * 0.7 * meleeMod));
               if (finalTarget.physResist) {
                 followUpDmg = Math.max(1, Math.round(followUpDmg * (1 - finalTarget.physResist)));
               }
