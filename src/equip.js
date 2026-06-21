@@ -106,6 +106,28 @@ function getEquipPreview(char, itemKey) {
   return { item, slot, rows, primaryDiff };
 }
 
+export function getItemUseStatus(char, itemKey) {
+  const item = getItemData(itemKey);
+  if (!item || item.type !== "usable") return { usable: true, reason: "" };
+
+  if (char.status === "dead") {
+    if (itemKey !== "SACRED_ASHES") {
+      return { usable: false, reason: "死亡中は回復アイテムを使用できません" };
+    }
+  } else {
+    if (itemKey === "SACRED_ASHES") {
+      return { usable: false, reason: "蘇生アイテムは死亡キャラの画面で使用できます" };
+    }
+    if (itemKey === "HEAL_POTION" && char.hp >= char.maxHp) {
+      return { usable: false, reason: "HPはすでに満タンです" };
+    }
+    if (itemKey === "ANTIDOTE" && char.status !== "poisoned") {
+      return { usable: false, reason: "毒状態ではありません" };
+    }
+  }
+  return { usable: true, reason: "" };
+}
+
 export function renderEquip() {
   const overlay = document.getElementById("equip-overlay");
   if (!overlay) return;
@@ -144,19 +166,31 @@ export function renderEquip() {
   // 2. Character summary (Top content - slots grid deleted)
   const summaryPanel = document.createElement("div");
   summaryPanel.className = "equip-summary-panel";
-  summaryPanel.style.padding = "8px";
+  summaryPanel.style.padding = "10px 12px";
   summaryPanel.style.backgroundColor = "#121216";
-  summaryPanel.style.borderBottom = "1px solid var(--border-color)";
+  summaryPanel.style.borderBottom = "1px solid #22222d";
   summaryPanel.style.flexShrink = "0";
 
-  const charName = document.createElement("div");
-  charName.className = "equip-char-name";
-  charName.style.fontSize = "14px";
-  charName.style.fontWeight = "bold";
-  charName.style.color = "var(--neon-cyan)";
-  charName.style.marginBottom = "0";
-  charName.textContent = `${char.name} (${getClassJpName(char.class)} Lv.${char.level}) HP:${char.hp}/${getCharMaxHp(char)} MP:${char.mp}/${getCharMaxMp(char)}`;
-  summaryPanel.appendChild(charName);
+  const charNameRow = document.createElement("div");
+  charNameRow.style.display = "flex";
+  charNameRow.style.justifyContent = "space-between";
+  charNameRow.style.fontSize = "14px";
+  charNameRow.style.fontWeight = "bold";
+  charNameRow.style.color = "var(--neon-cyan)";
+  charNameRow.innerHTML = `
+    <span>${char.name} <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">(${getClassJpName(char.class)} Lv.${char.level})</span></span>
+    <span>HP: ${char.hp}/${getCharMaxHp(char)}</span>
+  `;
+  summaryPanel.appendChild(charNameRow);
+
+  const charMpRow = document.createElement("div");
+  charMpRow.style.display = "flex";
+  charMpRow.style.justifyContent = "flex-end";
+  charMpRow.style.fontSize = "11px";
+  charMpRow.style.color = "var(--text-muted)";
+  charMpRow.style.marginTop = "2px";
+  charMpRow.innerHTML = `<span>MP: ${char.mp}/${getCharMaxMp(char)}</span>`;
+  summaryPanel.appendChild(charMpRow);
   
   overlay.appendChild(summaryPanel);
 
@@ -277,22 +311,27 @@ export function renderEquip() {
 
       const isIdentified = typeof itemKey !== "object" || itemKey.identified;
       const canEquip = isEquipmentItem(item) && (!item.classes || item.classes.includes(char.class)) && isIdentified;
+      
+      const badge = document.createElement("span");
+      
       if (isEquipmentItem(item)) {
         if (!isIdentified || !canEquip) {
           row.classList.add("not-equipable");
-          const badge = document.createElement("span");
           badge.className = "equip-row-badge cant";
           badge.textContent = !isIdentified ? "未鑑定" : "不可";
           row.appendChild(badge);
         } else {
           const preview = getEquipPreview(char, itemKey);
-          if (preview && preview.primaryDiff !== 0) {
-            const badge = document.createElement("span");
-            badge.className = `equip-row-badge ${preview.primaryDiff > 0 ? "up" : "down"}`;
-            badge.textContent = `${preview.primaryDiff > 0 ? "+" : ""}${preview.primaryDiff}`;
+          if (preview) {
+            badge.className = `equip-row-badge ${preview.primaryDiff > 0 ? "up" : preview.primaryDiff < 0 ? "down" : "zero"}`;
+            badge.textContent = `${preview.primaryDiff >= 0 ? "+" : ""}${preview.primaryDiff}`;
             row.appendChild(badge);
           }
         }
+      } else if (item.type === "usable") {
+        badge.className = "equip-row-badge tool";
+        badge.textContent = "道具";
+        row.appendChild(badge);
       }
       
       row.addEventListener("click", () => {
@@ -410,6 +449,13 @@ export function renderEquip() {
 
           detailContent.appendChild(compare);
         }
+      } else if (item.type === "usable" && equipState.selectedIdx !== -1) {
+        const useStatus = getItemUseStatus(char, itemKey);
+        
+        const compat = document.createElement("div");
+        compat.className = `equip-detail-compat ${useStatus.usable ? "yes" : "no"}`;
+        compat.textContent = useStatus.usable ? "🟢 使用可能" : `🔴 使用不可: ${useStatus.reason}`;
+        detailContent.appendChild(compat);
       }
       
       detailCol.appendChild(detailContent);
@@ -439,27 +485,22 @@ export function renderEquip() {
       } else {
         // Equip/Use action
         if (item.type === "usable") {
-          let canUse = true;
-          let disabledText = "";
+          const useStatus = getItemUseStatus(char, itemKey);
 
-          if (char.status === "dead") {
-            if (itemKey !== "SACRED_ASHES") {
-              canUse = false;
-              disabledText = "死亡中は使用不可";
-            }
-          } else {
-            if (itemKey === "SACRED_ASHES") {
-              canUse = false;
-              disabledText = "生存中は使用不可";
-            }
-          }
-
-          if (!canUse) {
+          if (!useStatus.usable) {
             actionBtn = document.createElement("button");
             actionBtn.className = "btn btn-block disabled";
             actionBtn.style.opacity = "0.5";
             actionBtn.disabled = true;
-            actionBtn.textContent = disabledText;
+            if (useStatus.reason.includes("満タン")) {
+              actionBtn.textContent = "HP満タン";
+            } else if (useStatus.reason.includes("死亡中")) {
+              actionBtn.textContent = "死亡中につき使用不可";
+            } else if (useStatus.reason.includes("蘇生")) {
+              actionBtn.textContent = "生存中のため使用不可";
+            } else {
+              actionBtn.textContent = "使用不可";
+            }
           } else {
             actionBtn = document.createElement("button");
             actionBtn.className = "btn btn-neon btn-block";
@@ -474,15 +515,9 @@ export function renderEquip() {
                 return;
               }
 
-              let checkWarning = "";
-              if (itemKey === "HEAL_POTION" && char.hp >= char.maxHp) {
-                checkWarning = "HPはすでに満タンです。本当に使用しますか？";
-              } else if (itemKey === "ANTIDOTE" && char.status !== "poisoned") {
-                checkWarning = "毒状態ではありません。本当に使用しますか？";
-              } else if (itemKey === "SACRED_ASHES") {
-                checkWarning = `${char.name}に聖灰を使用し、HP1で蘇生させます。よろしいですか？`;
+              if (itemKey === "SACRED_ASHES" && !confirm(`${char.name}に聖灰を使用し、HP1で蘇生させます。よろしいですか？`)) {
+                return;
               }
-              if (checkWarning && !confirm(checkWarning)) return;
               
               const log = item.effect(char);
               addLog(log);
@@ -582,8 +617,12 @@ export function renderEquip() {
   btnPrev.className = "btn btn-neon";
   btnPrev.textContent = "◀ 前のキャラ";
   btnPrev.addEventListener("click", () => {
-    const prevIdx = (equipState.actorIdx - 1 + state.party.length) % state.party.length;
-    openEquipOverlay(prevIdx);
+    equipState.actorIdx = (equipState.actorIdx - 1 + state.party.length) % state.party.length;
+    equipState.selectedKey = null;
+    equipState.selectedIdx = -1;
+    equipState.selectedSlot = null;
+    renderEquip();
+    updateUI();
   });
   charRow.appendChild(btnPrev);
   
@@ -591,8 +630,12 @@ export function renderEquip() {
   btnNext.className = "btn btn-neon";
   btnNext.textContent = "次のキャラ ▶";
   btnNext.addEventListener("click", () => {
-    const nextIdx = (equipState.actorIdx + 1) % state.party.length;
-    openEquipOverlay(nextIdx);
+    equipState.actorIdx = (equipState.actorIdx + 1) % state.party.length;
+    equipState.selectedKey = null;
+    equipState.selectedIdx = -1;
+    equipState.selectedSlot = null;
+    renderEquip();
+    updateUI();
   });
   charRow.appendChild(btnNext);
   footer.appendChild(charRow);

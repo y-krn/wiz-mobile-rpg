@@ -2,20 +2,71 @@ import { state } from "./state.js";
 import { getClassJpName, isSpellcaster, SPELLS } from "./data.js";
 import { updateUI } from "./ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
-import { executeAllySpell, executeUtilitySpell } from "./camp.js";
+import { executeAllySpell, executeUtilitySpell } from "./menu.js";
 
 export let spellMenuState = {
-  filter: "all", // "all", "heal", "utility", "combat"
+  filter: "all", // "all", "usable", "heal", "utility", "combat"
   selectedKey: null
 };
 
-function getShortClassJp(cls) {
-  if (cls === "Mage") return "魔";
-  if (cls === "Priest") return "僧";
-  if (cls === "Bishop") return "司";
-  if (cls === "Lord") return "君";
-  if (cls === "Samurai") return "侍";
-  return cls[0];
+// Helper function to check spell usability in camps
+export function getSpellUsability(caster, spKey) {
+  const spell = SPELLS[spKey];
+  if (!spell) return { usable: false, reason: "不明" };
+
+  // Check if combat-only spell
+  const isCombatOnly = (spell.target === "single_enemy" || spell.target === "all_enemies");
+  if (isCombatOnly) {
+    return { usable: false, reason: "戦闘のみ" };
+  }
+
+  // Check MP
+  if (caster.mp < spell.cost) {
+    return { usable: false, reason: "MP不足" };
+  }
+
+  // Check target availability
+  if (["DIOS", "MADIOS", "DIALMA"].includes(spKey)) {
+    const hasDamaged = state.party.some(c => c.status !== "dead" && c.hp < c.maxHp);
+    if (!hasDamaged) {
+      return { usable: false, reason: "対象なし" };
+    }
+  } else if (spKey === "KADORTO") {
+    const hasDead = state.party.some(c => c.status === "dead");
+    if (!hasDead) {
+      return { usable: false, reason: "対象なし" };
+    }
+  } else if (spKey === "LATUMOFIS") {
+    const hasPoisoned = state.party.some(c => c.status === "poisoned");
+    if (!hasPoisoned) {
+      return { usable: false, reason: "対象なし" };
+    }
+  } else if (spKey === "DIURCO") {
+    const hasBlind = state.party.some(c => c.status === "blind");
+    if (!hasBlind) {
+      return { usable: false, reason: "対象なし" };
+    }
+  } else if (spKey === "DIALKO") {
+    const hasSleepOrParalyze = state.party.some(c => ["sleep", "paralyze", "paralyzed"].includes(c.status));
+    if (!hasSleepOrParalyze) {
+      return { usable: false, reason: "対象なし" };
+    }
+  }
+
+  return { usable: true, reason: "" };
+}
+
+// Helper function to categorize spells
+export function getSpellCategory(spKey) {
+  const healSpells = ["DIOS", "MADIOS", "DIALMA", "DIALKO", "DIURCO", "LATUMOFIS", "KADORTO"];
+  const utilitySpells = ["DUMAPIC", "MILWA", "LOMILWA", "MASFEAL"];
+  if (healSpells.includes(spKey)) {
+    if (spKey === "KADORTO") return { cat: "heal", name: "蘇生" };
+    if (["DIALKO", "DIURCO", "LATUMOFIS"].includes(spKey)) return { cat: "heal", name: "治療" };
+    return { cat: "heal", name: "回復" };
+  }
+  if (utilitySpells.includes(spKey)) return { cat: "utility", name: "探索" };
+  return { cat: "combat", name: "戦闘" };
 }
 
 export function renderSpellOverlay() {
@@ -25,94 +76,89 @@ export function renderSpellOverlay() {
   // Clear container
   overlay.innerHTML = "";
 
-  // Reset filter when entering caster select
+  // Set default values if uninitialized
+  if (spellMenuState.filter === undefined) {
+    spellMenuState.filter = "all";
+  }
+  if (spellMenuState.selectedKey === undefined) {
+    spellMenuState.selectedKey = null;
+  }
+
+  // Auto-normalize caster selection when entering spell system
   if (menuContext.type === "spell_caster_select") {
     spellMenuState.filter = "all";
     spellMenuState.selectedKey = null;
+    
+    // Choose first living caster
+    const firstCasterIdx = state.party.findIndex(c => c.status !== "dead" && isSpellcaster(c) && c.maxMp > 0);
+    menuContext.actorIdx = firstCasterIdx !== -1 ? firstCasterIdx : 0;
+    menuContext.type = "spell_select";
   }
 
   // 1. Header
   const header = document.createElement("div");
   header.className = "spell-header";
-
-  const title = document.createElement("span");
-  title.className = "spell-title";
-  title.textContent = "呪文（スペル）";
-  header.appendChild(title);
-
+  header.innerHTML = `<span class="spell-title">呪文</span>`;
   overlay.appendChild(header);
 
-  // 2. Body
-  const body = document.createElement("div");
-  body.className = "spell-body";
-
-  const listCol = document.createElement("div");
-  listCol.className = "spell-list-col";
-
-  const listContainer = document.createElement("div");
-  listContainer.className = "spell-item-list";
-
-  const detailCol = document.createElement("div");
-  detailCol.className = "spell-detail-col";
-  detailCol.id = "spell-detail-panel";
-  detailCol.innerHTML = `<div class="spell-detail-placeholder">呪文を選択してください</div>`;
-
-  // Render based on type
-  if (menuContext.type === "spell_caster_select") {
-    // Hide detail column for caster select to give list full width
-    detailCol.style.display = "none";
-    listCol.style.width = "100%";
-    listCol.style.maxWidth = "100%";
+  // 2. Render based on type
+  if (menuContext.type === "spell_select") {
+    // 2.1 Caster Switch Bar (術者バー)
+    const casterBar = document.createElement("div");
+    casterBar.className = "spell-caster-bar";
 
     state.party.forEach((char, idx) => {
+      // Hide characters who can't cast spells entirely
+      if (!isSpellcaster(char) || char.maxMp === 0) return;
+
       const btn = document.createElement("button");
-      btn.className = "btn btn-neon spell-item-row";
+      btn.type = "button";
+      const isCurrent = idx === menuContext.actorIdx;
       
-      // Determine if disabled and reason
       let isDisabled = false;
       let reason = "";
       if (char.status === "dead") {
         isDisabled = true;
         reason = "死亡";
-      } else if (!isSpellcaster(char)) {
-        isDisabled = true;
-        reason = "呪文なし";
-      } else if (char.maxMp === 0) {
-        isDisabled = true;
-        reason = "MPなし";
       } else if (char.mp <= 0) {
         isDisabled = true;
         reason = "MP枯渇";
       }
 
-      const reasonBadge = reason ? `<span class="spell-row-tag tag-disabled">${reason}</span>` : `<span class="spell-row-mp">MP:${char.mp}/${char.maxMp}</span>`;
+      btn.className = `spell-caster-btn ${isCurrent ? "active" : ""} ${isDisabled ? "disabled" : ""}`;
+      
+      const mpInfo = reason ? `<span class="caster-btn-reason">${reason}</span>` : `MP ${char.mp}/${char.maxMp}`;
+
       btn.innerHTML = `
-        <span class="spell-row-name">${char.name} <span class="spell-row-class">(${getClassJpName(char.class)})</span></span>
-        ${reasonBadge}
+        <div class="caster-btn-name">${char.name}</div>
+        <div class="caster-btn-meta">${getClassJpName(char.class)} ${mpInfo}</div>
       `;
 
-      if (isDisabled) {
+      if (isDisabled && !isCurrent) {
         btn.disabled = true;
-        btn.classList.add("disabled");
       } else {
         btn.addEventListener("click", () => {
           menuContext.actorIdx = idx;
-          openSubmenu("spell_select", `呪文選択 - ${char.name}:`);
+          spellMenuState.selectedKey = null; // Clear selected spell on caster switch
+          renderSpellOverlay();
         });
       }
-      listContainer.appendChild(btn);
+
+      casterBar.appendChild(btn);
     });
-  } else if (menuContext.type === "spell_select") {
-    // Create Filter Chips Row directly above the list
+    overlay.appendChild(casterBar);
+
+    // 2.2 Spell Filter (呪文フィルタ)
     const filterRow = document.createElement("div");
     filterRow.className = "spell-filters";
     filterRow.style.display = "flex";
     filterRow.style.gap = "6px";
     filterRow.style.marginBottom = "8px";
     filterRow.style.width = "100%";
-    
+
     const categories = [
       { id: "all", label: "すべて" },
+      { id: "usable", label: "使用可" },
       { id: "heal", label: "回復" },
       { id: "utility", label: "探索" },
       { id: "combat", label: "戦闘" }
@@ -125,174 +171,155 @@ export function renderSpellOverlay() {
       chip.className = `filter-chip ${isActive ? "active" : ""}`;
       chip.textContent = cat.label;
       chip.style.flex = "1";
-      chip.style.minHeight = "44px";
+      chip.style.minHeight = "36px";
+      chip.style.fontSize = "11px";
       chip.addEventListener("click", () => {
         spellMenuState.filter = cat.id;
-        spellMenuState.selectedKey = null;
+        spellMenuState.selectedKey = null; // Clear selected spell on filter switch
         renderSpellOverlay();
       });
       filterRow.appendChild(chip);
     });
-    listCol.appendChild(filterRow);
-    listContainer.classList.add("grid-mode");
+    overlay.appendChild(filterRow);
+
+    // 2.3 Spell List (呪文一覧)
+    const listContainer = document.createElement("div");
+    listContainer.className = "spell-item-list";
 
     const caster = state.party[menuContext.actorIdx];
-    const casterSpells = caster.spells || [];
-
-    const healSpells = ["DIOS", "MADIOS", "DIALMA", "DIALKO", "DIURCO", "LATUMOFIS", "KADORTO"];
-    const utilitySpells = ["DUMAPIC", "MILWA", "LOMILWA", "MASFEAL"];
+    const casterSpells = caster ? (caster.spells || []) : [];
 
     // Filter spells
     const filteredSpells = casterSpells.filter(spKey => {
-      const spell = SPELLS[spKey];
-      if (!spell) return false;
-      let spellCat = "combat";
-      if (healSpells.includes(spKey)) spellCat = "heal";
-      else if (utilitySpells.includes(spKey)) spellCat = "utility";
-
+      const usability = getSpellUsability(caster, spKey);
+      const catInfo = getSpellCategory(spKey);
+      
       if (spellMenuState.filter === "all") return true;
-      return spellMenuState.filter === spellCat;
+      if (spellMenuState.filter === "usable") return usability.usable;
+      return spellMenuState.filter === catInfo.cat;
     });
 
-    // Sort spells by priority: heal (回復) -> utility (探索) -> combat (戦闘)
-    const typePriority = {
-      heal: 0,
-      utility: 1,
-      combat: 2
-    };
+    // Sort spells
+    // 1. Usable (使用可能)
+    // 2. Category order: heal (回復 -> 治療 -> 蘇生) -> utility (探索) -> combat (戦闘)
+    // 3. Unusable reason order: 戦闘のみ -> MP不足 -> 対象なし
     filteredSpells.sort((a, b) => {
-      const catA = healSpells.includes(a) ? "heal" : utilitySpells.includes(a) ? "utility" : "combat";
-      const catB = healSpells.includes(b) ? "heal" : utilitySpells.includes(b) ? "utility" : "combat";
-      return typePriority[catA] - typePriority[catB];
+      const statusA = getSpellUsability(caster, a);
+      const statusB = getSpellUsability(caster, b);
+
+      if (statusA.usable !== statusB.usable) {
+        return statusA.usable ? -1 : 1;
+      }
+
+      const catA = getSpellCategory(a);
+      const catB = getSpellCategory(b);
+      const catOrder = { heal: 0, utility: 1, combat: 2 };
+
+      if (statusA.usable) {
+        if (catA.cat !== catB.cat) {
+          return catOrder[catA.cat] - catOrder[catB.cat];
+        }
+        if (catA.cat === "heal") {
+          const subOrder = { "回復": 0, "治療": 1, "蘇生": 2 };
+          return subOrder[catA.name] - subOrder[catB.name];
+        }
+        return 0;
+      } else {
+        const reasonOrder = { "戦闘のみ": 0, "MP不足": 1, "対象なし": 2 };
+        const rA = statusA.reason === "戦闘のみ" || statusA.reason === "戦闘中のみ" ? "戦闘のみ" : statusA.reason;
+        const rB = statusB.reason === "戦闘のみ" || statusB.reason === "戦闘中のみ" ? "戦闘のみ" : statusB.reason;
+        if (rA !== rB) {
+          return (reasonOrder[rA] ?? 99) - (reasonOrder[rB] ?? 99);
+        }
+        return 0;
+      }
     });
 
     if (filteredSpells.length === 0) {
       const emptyDiv = document.createElement("div");
       emptyDiv.className = "spell-empty-text";
-      emptyDiv.textContent = "選択したカテゴリの呪文がありません";
+      emptyDiv.textContent = "該当する呪文がありません";
       listContainer.appendChild(emptyDiv);
     } else {
-      let currentCategory = null;
       filteredSpells.forEach(spKey => {
         const spell = SPELLS[spKey];
+        const usability = getSpellUsability(caster, spKey);
+        const catInfo = getSpellCategory(spKey);
         const isSelected = spellMenuState.selectedKey === spKey;
-        
-        // Determine category heading
-        let spellCat = "戦闘";
-        let tagClass = "tag-combat";
-        if (healSpells.includes(spKey)) {
-          spellCat = "回復";
-          tagClass = "tag-heal";
-        } else if (utilitySpells.includes(spKey)) {
-          spellCat = "探索";
-          tagClass = "tag-utility";
-        }
-
-        if (spellCat !== currentCategory) {
-          currentCategory = spellCat;
-          const heading = document.createElement("div");
-          heading.className = "spell-list-heading";
-          heading.textContent = currentCategory;
-          listContainer.appendChild(heading);
-        }
 
         const btn = document.createElement("button");
-        btn.className = `btn btn-neon spell-item-row ${isSelected ? "active" : ""}`;
+        btn.type = "button";
+        btn.className = `btn btn-neon spell-item-row-card ${isSelected ? "active" : ""} ${!usability.usable ? "disabled" : ""}`;
 
-        // Explore usability check
-        let isCombatOnly = false;
-        if (spell.target === "single_enemy" || spell.target === "all_enemies") {
-          isCombatOnly = true;
+        const rightTagText = usability.reason || catInfo.name;
+        let tagClass = `tag-${catInfo.cat}`;
+        if (!usability.usable) {
+          tagClass = usability.reason === "MP不足" ? "tag-mp-short" : "tag-disabled";
         }
-
-        let isDisabled = false;
-        let reason = "";
-        if (isCombatOnly) {
-          isDisabled = true;
-          reason = "戦闘中のみ";
-          tagClass = "tag-disabled";
-        } else if (caster.mp < spell.cost) {
-          isDisabled = true;
-          reason = "MP不足";
-        }
-
-        let rightText = reason || spellCat;
 
         btn.innerHTML = `
-          <span class="spell-row-name">${spell.name}</span>
-          <div class="spell-row-meta">
-            <span class="spell-row-mp">MP:${spell.cost}</span>
-            <span class="spell-row-tag ${tagClass}">${rightText}</span>
+          <div class="spell-card-row-top">
+            <span class="spell-card-name">${spell.name}</span>
+            <span class="spell-card-mp">MP ${spell.cost}</span>
+          </div>
+          <div class="spell-card-row-bottom">
+            <span class="spell-card-desc">${spell.desc}</span>
+            <span class="spell-card-tag ${tagClass}">${rightTagText}</span>
           </div>
         `;
 
         btn.addEventListener("click", () => {
-          listContainer.querySelectorAll(".spell-item-row").forEach(r => r.classList.remove("active"));
+          listContainer.querySelectorAll(".spell-item-row-card").forEach(r => r.classList.remove("active"));
           btn.classList.add("active");
           spellMenuState.selectedKey = spKey;
-          renderSpellDetail(spKey, isDisabled, reason, spellCat, tagClass);
+          renderSpellDetailInPanel(spKey, caster);
         });
 
         listContainer.appendChild(btn);
       });
-
-      // Auto-select and display details of previously selected spell
-      if (spellMenuState.selectedKey && filteredSpells.includes(spellMenuState.selectedKey)) {
-        const activeKey = spellMenuState.selectedKey;
-        const spell = SPELLS[activeKey];
-        let spellCat = "戦闘";
-        let tagClass = "tag-combat";
-        if (healSpells.includes(activeKey)) {
-          spellCat = "回復";
-          tagClass = "tag-heal";
-        } else if (utilitySpells.includes(activeKey)) {
-          spellCat = "探索";
-          tagClass = "tag-utility";
-        }
-
-        let isCombatOnly = (spell.target === "single_enemy" || spell.target === "all_enemies");
-        let isDisabled = false;
-        let reason = "";
-        if (isCombatOnly) {
-          isDisabled = true;
-          reason = "戦闘中のみ";
-          tagClass = "tag-disabled";
-        } else if (caster.mp < spell.cost) {
-          isDisabled = true;
-          reason = "MP不足";
-        }
-        
-        setTimeout(() => {
-          renderSpellDetail(activeKey, isDisabled, reason, spellCat, tagClass);
-        }, 0);
-      }
     }
-  } else if (menuContext.type === "spell_target_ally") {
-    // For target selection
-    const spell = SPELLS[menuContext.spellName];
-    detailCol.style.display = "none";
-    listCol.style.width = "100%";
-    listCol.style.maxWidth = "100%";
-    listCol.style.maxHeight = "none";
-    listCol.style.flex = "1";
-    listContainer.style.maxHeight = "none";
 
-    // Add Spell Summary at the top of target selection list
+    overlay.appendChild(listContainer);
+
+    // 2.4 Detail Panel & Cast Button Container
+    const detailContainer = document.createElement("div");
+    detailContainer.className = "spell-detail-container";
+    detailContainer.id = "spell-detail-panel";
+    overlay.appendChild(detailContainer);
+
+    // Render details for previously selected key or show placeholder
+    renderSpellDetailInPanel(spellMenuState.selectedKey, caster);
+  } else if (menuContext.type === "spell_target_ally") {
+    // 3. Spell Target Selection Screen (2x2 Grid)
+    const spell = SPELLS[menuContext.spellName];
+    const caster = state.party[menuContext.actorIdx];
+
+    // Summary Header
     const summaryDiv = document.createElement("div");
     summaryDiv.className = "spell-target-summary-header";
+    
+    const nextMp = Math.max(0, caster.mp - spell.cost);
+    
     summaryDiv.innerHTML = `
       <div style="font-size: 13px; font-weight: bold; color: var(--neon-purple); margin-bottom: 4px;">
-        🔮 詠唱中: ${spell.name} <span style="font-size: 10px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(消費MP: ${spell.cost} / 対象: 味方単体)</span>
+        🔮 ${caster.name} が ${spell.name} を唱える <span style="font-size: 10px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(MP ${caster.mp} → ${nextMp})</span>
       </div>
       <div style="font-size: 11px; color: var(--text-muted); line-height: 1.3;">
         ${spell.desc}
       </div>
     `;
-    listContainer.appendChild(summaryDiv);
+    overlay.appendChild(summaryDiv);
 
-    // Create 2x2 Grid Container
+    const selectPrompt = document.createElement("div");
+    selectPrompt.className = "spell-target-prompt";
+    selectPrompt.textContent = "対象を選択";
+    overlay.appendChild(selectPrompt);
+
+    // 2x2 Grid Container
     const gridContainer = document.createElement("div");
     gridContainer.className = "spell-target-grid";
+    gridContainer.style.flex = "1";
+    gridContainer.style.maxHeight = "none";
 
     state.party.forEach((char, idx) => {
       const card = document.createElement("button");
@@ -354,7 +381,8 @@ export function renderSpellOverlay() {
       }
 
       card.className = `spell-target-card ${isDisabled ? "disabled" : ""} ${isRecommended ? "recommended" : ""}`;
-      
+      card.style.minHeight = "80px";
+
       if (isDisabled) {
         card.disabled = true;
       } else {
@@ -384,7 +412,7 @@ export function renderSpellOverlay() {
         <div class="target-card-name">${char.name}</div>
         <div class="target-card-class">${getClassJpName(char.class)}</div>
         ${hpOrStatusHtml}
-        <div class="target-card-status" style="color: ${statusColor}; font-weight: bold; font-size: 10px; margin-top: 4px;">
+        <div class="target-card-status" style="color: ${statusColor}; font-weight: bold; font-size: 11px; margin-top: 4px;">
           ${reason}${statusSuffix}
         </div>
       `;
@@ -392,186 +420,96 @@ export function renderSpellOverlay() {
       gridContainer.appendChild(card);
     });
 
-    listContainer.appendChild(gridContainer);
+    overlay.appendChild(gridContainer);
   }
 
-  listCol.appendChild(listContainer);
-  body.appendChild(listCol);
-  body.appendChild(detailCol);
-  overlay.appendChild(body);
-
-  // 3. Bottom Actions Container (Footer)
+  // 4. Footer Row (戻るボタン)
   const footer = document.createElement("div");
   footer.className = "bottom-actions-container";
 
-  if (menuContext.type === "spell_caster_select") {
-    const closeRow = document.createElement("div");
-    closeRow.className = "bottom-actions-row";
-
-    const btnClose = document.createElement("button");
-    btnClose.className = "btn btn-danger btn-spell-close";
-    btnClose.textContent = "❌ 閉じる";
-    btnClose.style.width = "100%";
-    btnClose.style.minHeight = "44px";
-    btnClose.addEventListener("click", () => {
+  const btnBack = document.createElement("button");
+  btnBack.type = "button";
+  btnBack.className = "btn btn-danger btn-block";
+  btnBack.textContent = "◀ 戻る";
+  btnBack.style.minHeight = "44px";
+  btnBack.addEventListener("click", () => {
+    if (menuContext.type === "spell_select") {
       closeSubmenu();
-    });
-    closeRow.appendChild(btnClose);
-    footer.appendChild(closeRow);
-  } else if (menuContext.type === "spell_select") {
-    // Caster Switching Mini Bar
-    const casterBar = document.createElement("div");
-    casterBar.className = "spell-mini-casters";
-    casterBar.style.display = "flex";
-    casterBar.style.gap = "6px";
-    casterBar.style.marginBottom = "6px";
-    casterBar.style.width = "100%";
-
-    const spellcasters = state.party.map((c, i) => ({ char: c, idx: i }))
-      .filter(x => x.char.status !== "dead" && isSpellcaster(x.char));
-
-    spellcasters.forEach(sc => {
-      const slotBtn = document.createElement("button");
-      slotBtn.type = "button";
-      const isCurrent = sc.idx === menuContext.actorIdx;
-      slotBtn.className = `spell-mini-caster-btn ${isCurrent ? "active" : ""}`;
-      slotBtn.innerHTML = `
-        <span style="font-weight: bold; font-size: 10px; color: ${isCurrent ? "var(--neon-cyan)" : "#fff"}">${sc.char.name}</span>
-        <span style="font-size: 9px; color: var(--text-muted); margin-top: 1px;">
-          ${getShortClassJp(sc.char.class)} MP:${sc.char.mp}/${sc.char.maxMp}
-        </span>
-      `;
-      slotBtn.addEventListener("click", () => {
-        menuContext.actorIdx = sc.idx;
-        spellMenuState.selectedKey = null; // Prevent cost mismatches
-        renderSpellOverlay();
-      });
-      casterBar.appendChild(slotBtn);
-    });
-
-    footer.appendChild(casterBar);
-
-    // Primary Actions Row
-    const actionRow = document.createElement("div");
-    actionRow.className = "bottom-actions-row";
-
-    const btnBack = document.createElement("button");
-    btnBack.className = "btn btn-danger btn-spell-close";
-    btnBack.textContent = "◀ 戻る";
-    btnBack.style.minHeight = "44px";
-    btnBack.addEventListener("click", () => {
+    } else {
       goBackSubmenu();
-    });
-    actionRow.appendChild(btnBack);
-
-    const btnCast = document.createElement("button");
-    btnCast.id = "btn-spell-cast-action";
-    btnCast.className = "btn btn-neon btn-cast-action disabled";
-    btnCast.disabled = true;
-    btnCast.textContent = "唱える呪文を選択";
-    btnCast.style.minHeight = "44px";
-    btnCast.style.flex = "2";
-    actionRow.appendChild(btnCast);
-
-    footer.appendChild(actionRow);
-  } else if (menuContext.type === "spell_target_ally") {
-    // Back row for target selection with context label
-    const closeRow = document.createElement("div");
-    closeRow.className = "bottom-actions-row";
-
-    const btnBack = document.createElement("button");
-    btnBack.className = "btn btn-danger";
-    btnBack.textContent = "◀ 戻る";
-    btnBack.style.minHeight = "44px";
-    btnBack.addEventListener("click", () => {
-      goBackSubmenu();
-    });
-    closeRow.appendChild(btnBack);
-    
-    const selectionLabel = document.createElement("div");
-    selectionLabel.style.flex = "2";
-    selectionLabel.style.display = "flex";
-    selectionLabel.style.alignItems = "center";
-    selectionLabel.style.justifyContent = "center";
-    selectionLabel.style.fontFamily = "var(--font-mono)";
-    selectionLabel.style.fontSize = "12px";
-    selectionLabel.style.color = "var(--neon-purple)";
-    selectionLabel.style.border = "1px solid rgba(191, 90, 242, 0.3)";
-    selectionLabel.style.borderRadius = "4px";
-    selectionLabel.style.backgroundColor = "rgba(191, 90, 242, 0.05)";
-    selectionLabel.textContent = `選択中: ${SPELLS[menuContext.spellName].name}`;
-    closeRow.appendChild(selectionLabel);
-
-    footer.appendChild(closeRow);
-  }
-
+    }
+  });
+  footer.appendChild(btnBack);
   overlay.appendChild(footer);
 
-  // Helper to render spell detail
-  function renderSpellDetail(spKey, isDisabled, reason, spellTag, tagClass) {
-    const spell = SPELLS[spKey];
-    const caster = state.party[menuContext.actorIdx];
+  // Helper to render spell details & cast button inside the fixed panel
+  function renderSpellDetailInPanel(spKey, caster) {
     const panel = document.getElementById("spell-detail-panel");
     if (!panel) return;
 
-    panel.innerHTML = "";
+    if (!spKey || !caster) {
+      panel.innerHTML = `
+        <div class="spell-detail-placeholder">呪文を選択してください</div>
+        <button class="btn btn-neon btn-block disabled" disabled>唱える呪文を選択</button>
+      `;
+      return;
+    }
 
-    const header = document.createElement("div");
-    header.className = "spell-detail-header";
-    header.innerHTML = `
-      <span class="spell-detail-name">${spell.name}</span>
-      <span class="spell-detail-tag ${tagClass}">${spellTag}</span>
-    `;
-    panel.appendChild(header);
-
-    const stats = document.createElement("div");
-    stats.className = "spell-detail-stats";
+    const spell = SPELLS[spKey];
+    const usability = getSpellUsability(caster, spKey);
     
-    let targetJp = "単体味方";
+    let targetJp = "味方単体";
     if (spell.target === "all_enemies") targetJp = "敵全体";
     else if (spell.target === "single_enemy") targetJp = "敵単体";
-    else if (spell.target === "utility") targetJp = "探索ユーティリティ";
+    else if (spell.target === "utility") targetJp = "探索全体";
 
-    stats.innerHTML = `
-      <div>消費MP: <span class="detail-mp">${spell.cost}</span> (現在MP: ${caster.mp})</div>
-      <div>対象: <span>${targetJp}</span></div>
-    `;
-    panel.appendChild(stats);
+    let btnText = "🔮 呪文を唱える";
+    let isBtnDisabled = false;
+    let warnHtml = "";
 
-    const desc = document.createElement("div");
-    desc.className = "spell-detail-desc";
-    desc.textContent = spell.desc;
-    panel.appendChild(desc);
-
-    // Update bottom cast button
-    const btnCastFooter = document.getElementById("btn-spell-cast-action");
-    if (btnCastFooter) {
-      btnCastFooter.className = "btn btn-neon btn-cast-action";
-      btnCastFooter.disabled = false;
-      btnCastFooter.textContent = "🔮 呪文を唱える";
-      
-      const newBtnCast = btnCastFooter.cloneNode(true);
-      btnCastFooter.parentNode.replaceChild(newBtnCast, btnCastFooter);
-
-      if (isDisabled) {
-        newBtnCast.disabled = true;
-        newBtnCast.classList.add("disabled");
-        newBtnCast.textContent = `詠唱不可 (${reason})`;
-        
-        const warn = document.createElement("div");
-        warn.className = "spell-detail-warning";
-        warn.textContent = `※${reason}のため探索中には唱えられません。`;
-        panel.appendChild(warn);
+    if (!usability.usable) {
+      isBtnDisabled = true;
+      if (usability.reason === "戦闘のみ" || usability.reason === "戦闘中のみ") {
+        btnText = "戦闘中のみ";
+        warnHtml = `<div class="spell-detail-warning">※戦闘中のみ使用可能な呪文です。</div>`;
+      } else if (usability.reason === "MP不足") {
+        btnText = "MP不足";
+        warnHtml = `<div class="spell-detail-warning">※MPが不足しています。</div>`;
+      } else if (usability.reason === "対象なし") {
+        btnText = "対象なし";
+        warnHtml = `<div class="spell-detail-warning">※効果のある対象がいません。</div>`;
       } else {
-        newBtnCast.addEventListener("click", () => {
-          menuContext.spellName = spKey;
-          if (spell.target === "single_ally") {
-            openSubmenu("spell_target_ally", `${spell.name}の対象を選択:`);
-          } else if (spell.target === "utility") {
-            executeUtilitySpell();
-          }
-        });
+        btnText = usability.reason;
       }
+    }
+
+    panel.innerHTML = `
+      <div class="spell-detail-content">
+        <div class="spell-detail-header-row">
+          <span class="spell-detail-name">${spell.name}</span>
+          <span class="spell-detail-target">対象: ${targetJp}</span>
+        </div>
+        <div class="spell-detail-mp-row">
+          消費MP: <span class="detail-mp-val">${spell.cost}</span> / 現在MP: <span class="detail-mp-val">${caster.mp}</span>
+        </div>
+        <div class="spell-detail-desc">${spell.desc}</div>
+        ${warnHtml}
+      </div>
+      <button id="btn-spell-cast-action" class="btn btn-neon btn-block ${isBtnDisabled ? "disabled" : ""}" ${isBtnDisabled ? "disabled" : ""}>
+        ${btnText}
+      </button>
+    `;
+
+    if (!isBtnDisabled) {
+      const castBtn = panel.querySelector("#btn-spell-cast-action");
+      castBtn.addEventListener("click", () => {
+        menuContext.spellName = spKey;
+        if (spell.target === "single_ally") {
+          openSubmenu("spell_target_ally", `${spell.name}の対象を選択:`);
+        } else if (spell.target === "utility") {
+          executeUtilitySpell();
+        }
+      });
     }
   }
 }

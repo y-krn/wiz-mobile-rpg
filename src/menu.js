@@ -671,7 +671,9 @@ export function handleExploreAction(action) {
   } else if (action === "camp") {
     openCampMenu();
   } else if (action === "spell") {
-    openSubmenu("spell_caster_select", "呪文を唱えるキャラクターを選択：");
+    const firstCasterIdx = state.party.findIndex(c => c.status !== "dead" && isSpellcaster(c) && c.maxMp > 0);
+    menuContext.actorIdx = firstCasterIdx !== -1 ? firstCasterIdx : 0;
+    openSubmenu("spell_select", "呪文選択:");
   } else if (action === "item") {
     openEquipOverlay(0);
   }
