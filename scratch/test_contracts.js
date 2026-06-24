@@ -70,12 +70,12 @@ Object.defineProperty(global, "navigator", {
   // Test 2: Codex Dynamic Info Linkage
   console.log("Running Test 2: Codex Dynamic Info Linkage...");
   // < 3 kills
-  const infoUnder3 = getMonsterContractInfo("ワーウルフ", 2);
+  const infoUnder3 = getMonsterContractInfo("ゾンビ", 2);
   assert.ok(infoUnder3.features.includes("不明"), "Should say features unknown for < 3 kills");
   assert.ok(infoUnder3.recommended.includes("情報不足"), "Should say recommended info insufficient for < 3 kills");
   
   // >= 3 kills
-  const infoOver3 = getMonsterContractInfo("ワーウルフ", 3);
+  const infoOver3 = getMonsterContractInfo("ゾンビ", 3);
   assert.ok(infoOver3.features.includes("毒攻撃"), "Should reveal toxic features for >= 3 kills");
   assert.ok(infoOver3.recommended.includes("解毒薬"), "Should recommend antidote for >= 3 kills");
   console.log("-> [PASS] Dynamic info lookup verified");

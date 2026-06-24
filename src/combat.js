@@ -13,20 +13,23 @@ const ENCOUNTER_PACKS = {
   1: [
     { members: [{ name: "かみつき蟲", min: 1, max: 2 }] },
     { members: [{ name: "コボルトの斥候", min: 1, max: 2 }] },
-    { members: [{ name: "マッドスライム", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
+    { members: [{ name: "マッドスライム", min: 1, max: 2 }] },
     { members: [{ name: "フラッシュバット", min: 1, max: 2 }] },
     { members: [{ name: "分裂スライム", min: 1, max: 2 }] },
     { members: [{ name: "錆びた盾兵", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
     { members: [{ name: "群れネズミ", min: 4, max: 6 }] },
-    { members: [{ name: "火薬コウモリ", min: 1, max: 2 }, { name: "泥の呪い子", min: 1, max: 1 }] }
+    { members: [{ name: "火薬コウモリ", min: 1, max: 1 }] },
+    { members: [{ name: "泥の呪い子", min: 1, max: 1 }] }
   ],
   2: [
     { members: [{ name: "リビングアーマー", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
     { members: [{ name: "ブラッドバット群", min: 4, max: 6 }] },
     { members: [{ name: "ゾンビ", min: 1, max: 1 }, { name: "ジャイアントスパイダー", min: 1, max: 1 }] },
-    { members: [{ name: "針甲虫", min: 1, max: 1 }, { name: "呪いの小鏡", min: 1, max: 1 }] },
+    { members: [{ name: "針甲虫", min: 1, max: 1 }] },
+    { members: [{ name: "呪いの小鏡", min: 1, max: 1 }] },
     { members: [{ name: "鉄皮のゴブリン", min: 1, max: 1 }, { name: "祈祷ゴブリン", min: 1, max: 1 }] },
-    { members: [{ name: "マナドレイン", min: 1, max: 1 }, { name: "スケルトンアーチャー", min: 1, max: 1 }] },
+    { members: [{ name: "マナドレイン", min: 1, max: 1 }] },
+    { members: [{ name: "スケルトンアーチャー", min: 1, max: 1 }] },
     { members: [{ name: "煙幕盗賊", min: 1, max: 1 }, { name: "腐毒の蛆", min: 1, max: 2 }] }
   ],
   3: [
@@ -35,25 +38,28 @@ const ENCOUNTER_PACKS = {
     { members: [{ name: "カースドハンド", min: 1, max: 1 }, { name: "ゾンビ", min: 1, max: 1 }] },
     { members: [{ name: "アイアンゴーレム", min: 1, max: 1 }, { name: "はぐれ魔術師", min: 1, max: 1 }] },
     { members: [{ name: "霧の亡霊", min: 1, max: 1 }, { name: "骨の鼓手", min: 1, max: 1 }] },
-    { members: [{ name: "オークの戦士", min: 1, max: 1 }, { name: "弱体の魔女", min: 1, max: 1 }] },
-    { members: [{ name: "魔封じの目玉", min: 1, max: 1 }, { name: "解呪の司祭", min: 1, max: 1 }] }
+    { members: [{ name: "オークの戦士", min: 1, max: 1 }, { name: "弱体の魔女", min: 1, max: 1 }] }
   ],
   4: [
-    { members: [{ name: "ストーンガード", min: 1, max: 1 }, { name: "マスターメイジ", min: 1, max: 1 }] },
+    { members: [{ name: "ストーンガード", min: 1, max: 1 }] },
+    { members: [{ name: "マスターメイジ", min: 1, max: 1 }] },
     { members: [{ name: "ウィル・オー・ウィスプ", min: 1, max: 1 }, { name: "バンシー", min: 1, max: 1 }] },
     { members: [{ name: "アースジャイアント", min: 1, max: 1 }, { name: "ポイズンジャイアント", min: 1, max: 1 }] },
     { members: [{ name: "ブラッドバット群", min: 4, max: 6 }] },
     { members: [{ name: "石像兵", min: 1, max: 1 }, { name: "魔鏡の司祭", min: 1, max: 1 }] },
     { members: [{ name: "鋼殻ビートル", min: 1, max: 1 }, { name: "弱体の魔女", min: 1, max: 1 }] },
     { members: [{ name: "血塗れの処刑人", min: 1, max: 1 }, { name: "沈黙の修道士", min: 1, max: 1 }] },
-    { members: [{ name: "召喚する悪魔", min: 1, max: 1 }, { name: "魔防崩しの蛇", min: 1, max: 1 }] }
+    { members: [{ name: "召喚する悪魔", min: 1, max: 1 }, { name: "魔防崩しの蛇", min: 1, max: 1 }] },
+    { members: [{ name: "魔封じの目玉", min: 1, max: 1 }, { name: "解呪の司祭", min: 1, max: 1 }] }
   ],
   5: [
     { members: [{ name: "マスターデーモン", min: 1, max: 1 }, { name: "プリーストデーモン", min: 1, max: 1 }] },
     { members: [{ name: "ドラゴンワーム", min: 3, max: 4 }] },
     { members: [{ name: "レッドドラゴン", min: 1, max: 1 }, { name: "ワイバーン", min: 1, max: 1 }] },
-    { members: [{ name: "ストーンガード", min: 1, max: 1 }, { name: "マスターデーモン", min: 1, max: 1 }] },
-    { members: [{ name: "反逆の鎧", min: 1, max: 1 }, { name: "黒曜の魔導士", min: 1, max: 1 }] },
+    { members: [{ name: "ストーンガード", min: 1, max: 1 }] },
+    { members: [{ name: "マスターデーモン", min: 1, max: 1 }] },
+    { members: [{ name: "反逆の鎧", min: 1, max: 1 }] },
+    { members: [{ name: "黒曜の魔導士", min: 1, max: 1 }] },
     { members: [{ name: "竜血の再生者", min: 1, max: 1 }, { name: "結界の守護者", min: 1, max: 1 }] },
     { members: [{ name: "双頭の番犬", min: 1, max: 1 }, { name: "命喰いの影", min: 1, max: 1 }] },
     { members: [{ name: "破滅の導師", min: 1, max: 1 }, { name: "盾持ちデーモン", min: 1, max: 1 }] },

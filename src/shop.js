@@ -93,7 +93,10 @@ const SYNERGY_AFFIX_LABELS = {
   devotion: "祈祷適性あり",
   guardian: "守護適性あり",
   treasureSense: "探宝適性あり",
-  trapBonus: "罠解除適性あり"
+  trapBonus: "罠解除適性あり",
+  antiUndead: "不死祓い適性あり",
+  poisonWard: "毒避け適性あり",
+  firstStrike: "先制適性あり"
 };
 
 function getEquipmentPreview(char, eqItem) {

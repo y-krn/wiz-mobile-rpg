@@ -536,9 +536,34 @@ export function renderResultScreen() {
       const color = eq.rarity === "epic" ? "var(--neon-purple)" :
                     eq.rarity === "rare" ? "var(--neon-gold)" :
                     "var(--neon-cyan)";
+      
+      let hintText = "";
+      if (!eq.identified && eq.affixes && eq.affixes.length > 0) {
+        const hintLabels = {
+          followUp: "連撃",
+          arcane: "秘術",
+          devotion: "神聖",
+          guardian: "守護",
+          treasureSense: "宝探",
+          trapBonus: "技巧",
+          antiUndead: "不死祓い",
+          antiDragon: "竜殺し",
+          spellGuard: "魔除け",
+          poisonWard: "毒避け",
+          firstStrike: "先制"
+        };
+        const hintAff = eq.affixes.find(aff => hintLabels[aff.type]);
+        if (hintAff) {
+          hintText = `<div style="font-size: 8px; color: var(--neon-yellow); margin-top: 1px;">気配: ${hintLabels[hintAff.type]}</div>`;
+        }
+      }
+
       return `
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; font-size: 11px;">
-          <span style="color: ${color}; font-weight: bold;">💎 ${eqData.name}</span>
+          <div>
+            <span style="color: ${color}; font-weight: bold;">💎 ${eqData.name}</span>
+            ${hintText}
+          </div>
           <span style="font-size: 9px; color: var(--text-muted); font-family: var(--font-mono);">${eq.rarity.toUpperCase()}</span>
         </div>
       `;

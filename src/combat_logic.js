@@ -1,6 +1,6 @@
 import { 
   SPELLS, ITEMS, MONSTERS,
-  generateRandomEquipment, getItemData, getCharStr, getCharAgi,
+  generateRandomEquipment, getItemData, getCharStr, getCharAgi, getCharVit,
   getCharWeaponAtk, getCharDef, checkCharLevelUp,
   getItemBaseId, getCharAffixSum
 } from "./data.js";
@@ -826,7 +826,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           mon.tiltowaitQueued = false;
           mon.turnCount = (mon.turnCount || 0) + 1;
           logQueue.push({
-            msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！`,
+            msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！(防御で大幅軽減可能)`,
             sound: "cast_spell",
             shake: 25,
             flash: true
@@ -867,7 +867,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         if (action === "tiltowait_queue") {
           mon.tiltowaitQueued = true;
           logQueue.push({
-            msg: `[警告] いにしえの竜の角に極大の魔力集まっている…！`,
+            msg: `[警告] いにしえの竜の角に極大の魔力集まっている…！次のターン、ティルトウェイトの予兆！身を守れ！`,
             sound: "cast_spell",
             flash: true
           });
@@ -1038,7 +1038,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         } else {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           const finalAtk = getEffectiveAtk(mon) + Math.floor(Math.random() * 4);
-          const finalDef = Math.max(0, getCharDef(target) - (target.tempDefDown || 0));
+          const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 2)) - (target.tempDefDown || 0));
           let dmg = Math.max(1, finalAtk - finalDef);
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           
@@ -1047,7 +1047,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             dmg = Math.max(1, Math.round(dmg * 1.5));
           }
 
-          dmg = reduceIncomingDamage(target, dmg);
+          const isMonDragon = mon.spriteType === "dragon" || (mon.tags && mon.tags.includes("dragon"));
+          dmg = reduceIncomingDamage(target, dmg, { dragon: isMonDragon });
           target.hp = Math.max(0, target.hp - dmg);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`,

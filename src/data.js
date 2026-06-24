@@ -519,17 +519,17 @@ export const ITEMS = {
 
 // Monsters Database
 export const MONSTERS = [
-  { name: "かみつき蟲", level: 1, hp: 16, atk: 4, def: 1, exp: 40, gold: 5, spriteType: "biter", color: "#00ff66" },
+  { name: "かみつき蟲", level: 1, hp: 16, atk: 6, def: 1, exp: 40, gold: 5, spriteType: "biter", color: "#00ff66" },
   { name: "ゴブリンの呪術師", level: 1, hp: 20, atk: 4, def: 1, exp: 50, gold: 12, spriteType: "kobold", spell: "HALITO", spellChance: 0.3, row: "back", color: "#00ff66" },
-  { name: "コボルトの斥候", level: 1, hp: 22, atk: 5, def: 2, exp: 60, gold: 10, spriteType: "kobold", color: "#00ff66" },
-  { name: "ゾンビ", level: 2, hp: 32, atk: 7, def: 3, exp: 120, gold: 20, spriteType: "zombie", isParalyzing: true, tags: ["undead"], color: "#8a2be2" },
-  { name: "ガイコツ戦士", level: 2, hp: 40, atk: 9, def: 4, exp: 180, gold: 35, spriteType: "skeleton", isParalyzing: true, tags: ["undead"], color: "#dcdcdc" },
+  { name: "コボルトの斥候", level: 1, hp: 22, atk: 7, def: 2, exp: 60, gold: 10, spriteType: "kobold", color: "#00ff66" },
+  { name: "ゾンビ", level: 2, hp: 32, atk: 7, def: 3, exp: 120, gold: 20, spriteType: "zombie", isPoisonous: true, tags: ["undead"], color: "#8a2be2" },
+  { name: "ガイコツ戦士", level: 2, hp: 40, atk: 9, def: 4, exp: 180, gold: 35, spriteType: "skeleton", tags: ["undead"], color: "#dcdcdc" },
   { name: "キラーラビット", level: 2, hp: 32, atk: 12, def: 4, exp: 120, gold: 20, spriteType: "rabbit", color: "#ff8c00" },
-  { name: "マッドゴースト", level: 2, hp: 28, atk: 6, def: 2, exp: 140, gold: 15, spriteType: "spirit", isParalyzing: true, physResist: 0.5, tags: ["undead", "spirit"], color: "#8a2be2" },
+  { name: "マッドゴースト", level: 2, hp: 28, atk: 6, def: 2, exp: 140, gold: 15, spriteType: "spirit", physResist: 0.5, tags: ["undead", "spirit"], color: "#8a2be2" },
   { name: "オークの戦士", level: 3, hp: 56, atk: 12, def: 6, exp: 280, gold: 50, spriteType: "orc", color: "#ff8c00" },
-  { name: "はぐれ魔術師", level: 3, hp: 44, atk: 8, def: 4, exp: 360, gold: 80, spriteType: "mage", spell: "HALITO", spellChance: 0.3, row: "back", color: "#da70d6" },
-  { name: "ワーウルフ", level: 3, hp: 72, atk: 14, def: 5, exp: 340, gold: 60, spriteType: "orc", isPoisonous: true, color: "#ff8c00" },
-  { name: "バンシー", level: 3, hp: 56, atk: 9, def: 3, exp: 360, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.6, physResist: 0.2, statusChance: 0.2, tags: ["undead", "spirit"], color: "#da70d6" },
+  { name: "はぐれ魔術師", level: 3, hp: 44, atk: 8, def: 4, exp: 280, gold: 80, spriteType: "mage", spell: "HALITO", spellChance: 0.3, row: "back", color: "#da70d6" },
+  { name: "ワーウルフ", level: 3, hp: 72, atk: 14, def: 5, exp: 340, gold: 60, spriteType: "orc", isParalyzing: true, color: "#ff8c00" },
+  { name: "バンシー", level: 3, hp: 56, atk: 9, def: 3, exp: 300, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.6, physResist: 0.2, statusChance: 0.2, tags: ["undead", "spirit"], color: "#da70d6" },
   
   // 既存モンスターの再調整
   { name: "スピリット", level: 2, hp: 36, atk: 6, def: 2, exp: 180, gold: 25, spriteType: "spirit", physResist: 0.6, magicResist: -0.2, tags: ["undead", "spirit"], color: "#00e5ff" },
@@ -541,21 +541,21 @@ export const MONSTERS = [
   { name: "ポイズンジャイアント", level: 4, hp: 130, atk: 19, def: 7, exp: 600, gold: 120, spriteType: "zombie", isPoisonous: true, color: "#bf5af2" },
   
   { name: "デーモンガード", level: 5, hp: 180, atk: 18, def: 8, exp: 2000, gold: 300, spriteType: "flack", spell: "LAHALITO", isBoss: true, isMidboss: true, tags: ["demon"], color: "#ff8c00" },
-  { name: "アースジャイアント", level: 6, hp: 144, atk: 18, def: 10, exp: 1500, gold: 150, spriteType: "zombie", magicResist: -0.25, color: "#8a2be2" },
-  { name: "マスターデーモン", level: 7, hp: 140, atk: 16, def: 8, exp: 1800, gold: 200, spriteType: "flack", spell: "MADALTO", spellChance: 0.3, magicResist: 0.3, tags: ["demon"], color: "#ff3b30" },
+  { name: "アースジャイアント", level: 6, hp: 144, atk: 18, def: 10, exp: 1200, gold: 150, spriteType: "zombie", magicResist: -0.25, color: "#8a2be2" },
+  { name: "マスターデーモン", level: 7, hp: 140, atk: 16, def: 8, exp: 1400, gold: 200, spriteType: "flack", spell: "MADALTO", spellChance: 0.3, magicResist: 0.3, tags: ["demon"], color: "#ff3b30" },
   
   { name: "フラック", level: 4, hp: 260, atk: 23, def: 11, exp: 3000, gold: 350, spriteType: "flack", spell: "LAHALITO", spellChance: 0.25, physResist: 0.2, magicResist: 0.2, isRare: true, dangerRare: true, color: "#ff3b30" },
   { name: "ドラゴンパピー", level: 4, hp: 90, atk: 12, def: 5, exp: 600, gold: 60, spriteType: "dragon", spell: "HALITO", tags: ["dragon"], color: "#ffc0cb" },
   { name: "ワイバーン", level: 5, hp: 130, atk: 17, def: 7, exp: 1200, gold: 120, spriteType: "dragon", spell: "LAHALITO", tags: ["dragon"], color: "#ffa500" },
   { name: "レッドドラゴン", level: 7, hp: 200, atk: 22, def: 10, exp: 3500, gold: 400, spriteType: "dragon", spell: "MADALTO", tags: ["dragon"], color: "#ff3b30" },
-  { name: "アイアンゴーレム", level: 3, hp: 64, atk: 10, def: 14, exp: 500, gold: 50, spriteType: "zombie", physResist: 0.5, magicResist: -0.5, color: "#8e8e93" },
+  { name: "アイアンゴーレム", level: 3, hp: 64, atk: 10, def: 14, exp: 350, gold: 50, spriteType: "zombie", physResist: 0.5, magicResist: -0.5, color: "#8e8e93" },
   { name: "マッドスライム", level: 1, hp: 48, atk: 4, def: 1, exp: 120, gold: 20, spriteType: "biter", physResist: 0.4, magicResist: -0.5, color: "#ff9500" },
   { name: "メタルパピー", level: 3, hp: 16, atk: 5, def: 10, exp: 2000, gold: 500, spriteType: "biter", fleeChance: 0.50, color: "#ffd700", isRare: true, treasureRare: true },
   { name: "オークの呪医", level: 2, hp: 44, atk: 5, def: 3, exp: 200, gold: 35, spriteType: "orc", spell: "DIOS", spellChance: 0.3, color: "#34c759" },
-  { name: "プリーストデーモン", level: 5, hp: 120, atk: 12, def: 6, exp: 900, gold: 150, spriteType: "flack", spell: "DIALMA", spellChance: 0.3, tags: ["demon"], row: "back", color: "#34c759" },
+  { name: "プリーストデーモン", level: 5, hp: 120, atk: 12, def: 6, exp: 800, gold: 150, spriteType: "flack", spell: "DIALMA", spellChance: 0.3, tags: ["demon"], row: "back", color: "#34c759" },
   { name: "スケルトンアーチャー", level: 2, hp: 32, atk: 9, def: 3, exp: 150, gold: 30, spriteType: "skeleton", isSniper: true, tags: ["undead"], row: "back", color: "#af52de" },
   { name: "ダークアサシン", level: 3, hp: 56, atk: 14, def: 4, exp: 350, gold: 60, spriteType: "kobold", isSniper: true, row: "back", color: "#ff3b30" },
-  { name: "いにしえの竜", level: 8, hp: 640, atk: 26, def: 16, exp: 7000, gold: 1000, spriteType: "dragon", spell: "TILTOWAIT", magicResist: 0.25, isBoss: true, tags: ["dragon"], color: "#ff3b30" },
+  { name: "いにしえの竜", level: 8, hp: 640, atk: 26, def: 16, exp: 6000, gold: 1000, spriteType: "dragon", spell: "TILTOWAIT", magicResist: 0.25, isBoss: true, tags: ["dragon"], color: "#ff3b30" },
 
   // 追加モンスター
   { name: "リビングアーマー", level: 2, hp: 52, atk: 8, def: 10, exp: 260, gold: 40, spriteType: "zombie", magicResist: -0.25, color: "#8e8e93" },
@@ -875,8 +875,17 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
     rarity = forceRarity;
   } else {
     const roll = rng();
-    if (roll < 0.08) rarity = "epic";
-    else if (roll < 0.40) rarity = "rare";
+    let epicChance = 0.08;
+    let rareChance = 0.40;
+    if (floor === 4) {
+      epicChance = 0.12;
+      rareChance = 0.45;
+    } else if (floor >= 5) {
+      epicChance = 0.18;
+      rareChance = 0.50;
+    }
+    if (roll < epicChance) rarity = "epic";
+    else if (roll < rareChance) rarity = "rare";
     else rarity = "magic";
   }
   
@@ -1397,11 +1406,11 @@ export function getCharAffixSum(char, affixType) {
 export function getClassPassive(char) {
   return {
     Mage: { label: "魔導適性", bonuses: { arcane: 20 } },
-    Priest: { label: "祈祷適性", bonuses: { devotion: 20 } },
+    Priest: { label: "祈祷・退魔適性", bonuses: { devotion: 20, antiUndead: 20 } },
     Samurai: { label: "追撃適性", bonuses: { followUp: 5 } },
     Thief: { label: "探宝適性", bonuses: { trapBonus: 15, treasureSense: 10 } },
     Fighter: { label: "守護適性", bonuses: { guardian: 20 } },
-    Bishop: { label: "鑑定眼", bonuses: { identifyDiscount: 20 } },
+    Bishop: { label: "鑑定・退魔眼", bonuses: { identifyDiscount: 20, antiUndead: 20 } },
     Ranger: { label: "探索術", bonuses: { treasureSense: 10, poisonWard: 20 } },
     Ninja: { label: "先制術", bonuses: { firstStrike: 15 } }
   }[char?.class] || { label: "", bonuses: {} };

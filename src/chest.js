@@ -33,11 +33,11 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
       // B2F: Moderate poison needle rate (around 28% chance)
       traps = ["poison needle", "poison needle", "gas bomb", "teleporter", "flash bomb", "none", "none"];
     } else if (state.floor === 4) {
-      // B4F: Higher teleporter and gas bomb chance, no "none"
-      traps = ["gas bomb", "teleporter", "teleporter", "flash bomb", "poison needle"];
+      // B4F: Higher teleporter and gas bomb chance, 12.5% none (1/8)
+      traps = ["gas bomb", "gas bomb", "teleporter", "teleporter", "flash bomb", "poison needle", "poison needle", "none"];
     } else if (state.floor === 5) {
-      // B5F: Extremely dangerous traps, high chance of teleporter
-      traps = ["gas bomb", "teleporter", "teleporter", "poison needle", "flash bomb"];
+      // B5F: Extremely dangerous traps, high chance of teleporter, 8.3% none (1/12)
+      traps = ["gas bomb", "gas bomb", "teleporter", "teleporter", "teleporter", "teleporter", "poison needle", "poison needle", "flash bomb", "flash bomb", "flash bomb", "none"];
     }
     const randIdx = Math.floor(rng() * traps.length);
     trap = traps[randIdx];
@@ -50,9 +50,9 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
   } else {
     gold = Math.floor(rng() * 81) + 20; // Default 20-100G
     if (state.floor === 4) {
-      gold = Math.floor(rng() * 201) + 100; // B4F: 100-300G
+      gold = Math.floor(rng() * 201) + 150; // B4F: 150-350G
     } else if (state.floor === 5) {
-      gold = Math.floor(rng() * 301) + 150; // B5F: 150-450G
+      gold = Math.floor(rng() * 351) + 250; // B5F: 250-600G
     }
   }
 
@@ -66,7 +66,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
       isGuaranteed = true;
     }
 
-    const itemChance = state.floor === 4 ? 0.75 : 0.50; // B4F has high item drop rate
+    const itemChance = (state.floor === 4 || state.floor === 5) ? 0.85 : 0.50; // B4F/B5F has high item drop rate
     if (isGuaranteed || rng() < itemChance) {
     if (isGuaranteed) {
       const guaranCandidates = ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK"];
@@ -131,14 +131,16 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
         if (item) {
           const itemData = ITEMS[item];
           if (itemData && (itemData.type === "weapon" || itemData.type === "armor" || itemData.type === "shield")) {
-            let randChance = 0.45;
-            if (state.floor <= 3) {
-              randChance = 0.50;
-            }
-            if (state.floor === 5) {
-              randChance = 0.80;
-            } else if (["poison needle", "gas bomb", "teleporter"].includes(trap)) {
-              randChance = 0.70;
+            let randChance = 0.50;
+            if (state.floor === 4) {
+              const isDangerousTrap = ["poison needle", "gas bomb", "teleporter"].includes(trap);
+              randChance = isDangerousTrap ? 0.80 : 0.70;
+            } else if (state.floor === 5) {
+              randChance = 0.90;
+            } else {
+              // B1F/B2F/B3F
+              const isDangerousTrap = ["poison needle", "gas bomb", "teleporter"].includes(trap);
+              randChance = isDangerousTrap ? 0.70 : 0.50;
             }
             
             // Rescue mechanism: if no equipment found yet and chestsOpened >= 2 (i.e. 3rd chest onwards)

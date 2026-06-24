@@ -2,7 +2,8 @@ import { state, saveAutosave, addLog } from "./state.js";
 import { 
   DIR_N, START_X, START_Y, 
   getClassJpName, getCharMaxHp, getCharMaxMp, getItemData, getCharStr,
-  getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharDerivedStats
+  getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharDerivedStats,
+  getClassPassive
 } from "./data.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
@@ -398,7 +399,30 @@ export function renderEquip() {
         
         const compat = document.createElement("div");
         compat.className = `equip-detail-compat ${canEquip ? "yes" : "no"}`;
-        compat.textContent = canEquip ? "🟢 装備可能" : !isIdentified ? "🔴 装備不可 (未鑑定)" : "🔴 装備不可 (職業制限)";
+        
+        let compatText = canEquip ? "🟢 装備可能" : !isIdentified ? "🔴 装備不可 (未鑑定)" : "🔴 装備不可 (職業制限)";
+        if (canEquip && typeof itemKey === "object" && itemKey.affixes) {
+          const SYNERGY_AFFIX_LABELS = {
+            followUp: "追撃適性あり",
+            arcane: "魔導適性あり",
+            devotion: "祈祷適性あり",
+            guardian: "守護適性あり",
+            treasureSense: "探宝適性あり",
+            trapBonus: "罠解除適性あり",
+            antiUndead: "不死祓い適性あり",
+            poisonWard: "毒避け適性あり",
+            firstStrike: "先制適性あり"
+          };
+          const passive = getClassPassive(char);
+          const itemAffixTypes = new Set((itemKey.affixes || []).map(aff => aff.type));
+          const synergies = Object.keys(passive.bonuses || {})
+            .filter(type => itemAffixTypes.has(type) && SYNERGY_AFFIX_LABELS[type])
+            .map(type => SYNERGY_AFFIX_LABELS[type]);
+          if (synergies.length > 0) {
+            compatText += ` (${synergies.join(" / ")})`;
+          }
+        }
+        compat.textContent = compatText;
         detailContent.appendChild(compat);
 
         const preview = getEquipPreview(char, itemKey);
