@@ -563,7 +563,7 @@ export function renderShop() {
               antiUndead: "不死祓い", antiDragon: "竜殺し", spellGuard: "魔除け",
               poisonWard: "毒避け", firstStrike: "先制"
             }[aff.type] || aff.type;
-            const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "firstStrike"].includes(aff.type) ? "%" : "";
+            const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard"].includes(aff.type) ? "%" : "";
             return `<div style="font-size: 11px; margin-bottom: 2px;">・${label}: <strong style="color:var(--neon-green)">+${aff.value}${unit}</strong></div>`;
           }).join("");
           

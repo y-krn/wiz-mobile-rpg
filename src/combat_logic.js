@@ -139,7 +139,7 @@ function applyPartyDamage(state, combatSelection, logQueue, sourceName, minDmg, 
     const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
     let dmg = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
     if (isDefending) dmg = Math.max(1, Math.round(dmg * (options.defendRate ?? 0.5)));
-    dmg = reduceIncomingDamage(c, dmg, { spell: options.spell });
+    dmg = reduceIncomingDamage(c, dmg, { spell: options.spell, dragon: options.dragon, logQueue });
     c.hp = Math.max(0, c.hp - dmg);
     if (c.hp === 0) c.status = "dead";
     logQueue.push({ msg: `[ 敵 ] ${sourceName}により${c.name}は${dmg}のダメージを受けた。${isDefending ? "(防御)" : ""}` });
@@ -185,20 +185,36 @@ function applyTargetedDamageBonus(char, target, dmg) {
 
 function reduceIncomingDamage(char, dmg, options = {}) {
   let next = dmg;
+  const reductions = [];
   if (options.spell && char.magicVulnerableTurns > 0) {
     next = Math.max(1, Math.round(next * 1.3));
   }
   if (char.hp / char.maxHp <= 0.25) {
     const guardian = getCharAffixSum(char, "guardian");
-    if (guardian > 0) next = Math.max(1, Math.round(next * (1 - guardian / 100)));
+    if (guardian > 0) {
+      const before = next;
+      next = Math.max(1, Math.round(next * (1 - guardian / 100)));
+      if (next < before) reductions.push("守護");
+    }
   }
   if (options.spell) {
     const spellGuard = getCharAffixSum(char, "spellGuard");
-    if (spellGuard > 0) next = Math.max(1, Math.round(next * (1 - spellGuard / 100)));
+    if (spellGuard > 0) {
+      const before = next;
+      next = Math.max(1, Math.round(next * (1 - spellGuard / 100)));
+      if (next < before) reductions.push("魔除け");
+    }
   }
   if (options.dragon) {
     const dragonGuard = getCharAffixSum(char, "antiDragon");
-    if (dragonGuard > 0) next = Math.max(1, Math.round(next * (1 - dragonGuard / 100)));
+    if (dragonGuard > 0) {
+      const before = next;
+      next = Math.max(1, Math.round(next * (1 - dragonGuard / 100)));
+      if (next < before) reductions.push("竜殺し");
+    }
+  }
+  if (options.logQueue && reductions.length > 0) {
+    options.logQueue.push({ msg: `[味方] ${char.name}の${reductions.join("・")}がダメージを和らげた。` });
   }
   return next;
 }
@@ -406,7 +422,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           if (!isDecap && hasTrait(finalTarget, "counterSpell") && finalTarget.hp > 0 && Math.random() < (finalTarget.counterSpell?.chance ?? 0.2)) {
             let counterDmg = Math.floor(Math.random() * 11) + 5;
-            counterDmg = reduceIncomingDamage(char, counterDmg, { spell: true });
+            counterDmg = reduceIncomingDamage(char, counterDmg, { spell: true, logQueue });
             char.hp = Math.max(0, char.hp - counterDmg);
             if (char.hp === 0) char.status = "dead";
             logQueue.push({
@@ -765,7 +781,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 16) + 15; // 15-30 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true });
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。` });
@@ -784,7 +800,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 16) + 10; // 10-25 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true });
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
@@ -839,7 +855,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 dmg = Math.max(1, Math.round(dmg * 0.4));
                 logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを大幅に軽減した！` });
               }
-              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true });
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。` });
@@ -884,7 +900,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 13) + 12; // 12-24 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true });
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
@@ -903,7 +919,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 21) + 15; // 15-35 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true });
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。` });
@@ -956,7 +972,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           let dmg = Math.floor(Math.random() * 10) + 5;
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-          dmg = reduceIncomingDamage(target, dmg, { spell: true, dragon: mon.tags?.includes("dragon") });
+          dmg = reduceIncomingDamage(target, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
           target.hp = Math.max(0, target.hp - dmg);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${isDefending ? "(半減)" : ""}`,
@@ -977,7 +993,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 15) + 10;
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon") });
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
@@ -995,7 +1011,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 20) + 15; // 15-35 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon") });
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
@@ -1013,7 +1029,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon") });
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) c.status = "dead";
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(半減)" : ""}` });
@@ -1038,7 +1054,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         } else {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           const finalAtk = getEffectiveAtk(mon) + Math.floor(Math.random() * 4);
-          const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 2)) - (target.tempDefDown || 0));
+          const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4)) - (target.tempDefDown || 0));
           let dmg = Math.max(1, finalAtk - finalDef);
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           
@@ -1048,7 +1064,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           }
 
           const isMonDragon = mon.spriteType === "dragon" || (mon.tags && mon.tags.includes("dragon"));
-          dmg = reduceIncomingDamage(target, dmg, { dragon: isMonDragon });
+          dmg = reduceIncomingDamage(target, dmg, { dragon: isMonDragon, logQueue });
           target.hp = Math.max(0, target.hp - dmg);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`,

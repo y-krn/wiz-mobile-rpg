@@ -66,7 +66,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
       isGuaranteed = true;
     }
 
-    const itemChance = (state.floor === 4 || state.floor === 5) ? 0.85 : 0.50; // B4F/B5F has high item drop rate
+    const itemChance = state.floor >= 5 ? 0.85 : (state.floor === 4 ? 0.75 : 0.50);
     if (isGuaranteed || rng() < itemChance) {
     if (isGuaranteed) {
       const guaranCandidates = ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK"];
@@ -80,12 +80,6 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
         affixes.push({ type: "def", value: 1 });
       }
       
-      if (rng() < 0.50) {
-        affixes.push({ type: "hp", value: 2 });
-      } else {
-        affixes.push({ type: "luk", value: 1 });
-      }
-
       const instanceId = `eq_${rng().toString(36).substr(2, 9)}`;
       item = {
         kind: "equipment",
@@ -156,10 +150,10 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
                 }
                 return sum;
               }, 0);
-              randChance += senseSum / 100;
+              randChance += Math.min(25, senseSum) / 100;
             }
-            
-            randChance = Math.min(0.95, randChance);
+
+            randChance = Math.min(0.90, randChance);
             
             if (rng() < randChance) {
               item = generateRandomEquipment(state.floor, null, rng);

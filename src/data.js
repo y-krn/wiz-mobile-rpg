@@ -802,7 +802,7 @@ export function getItemData(itemOrKey) {
         firstStrike: "先制"
       }[aff.type];
       const sign = aff.value >= 0 ? "+" : "";
-      const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "firstStrike"].includes(aff.type) ? "%" : "";
+      const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard"].includes(aff.type) ? "%" : "";
       return `${label || aff.type}${sign}${aff.value}${unit}`;
     }).join(" / ");
     
@@ -903,79 +903,90 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
   else if (floor >= 5) maxArBonus = 4;
   
   const possibleAffixes = [];
-  
+  const addAffix = (minFloor, type, getVal, weight = 3) => {
+    if (floor >= minFloor) possibleAffixes.push({ type, getVal, weight });
+  };
+
   if (baseItem.type === "weapon") {
-    possibleAffixes.push({ type: "atk", getVal: () => Math.floor(rng() * maxWpBonus) + 1 });
+    addAffix(1, "atk", () => Math.floor(rng() * maxWpBonus) + 1);
   }
   if (baseItem.type === "armor" || baseItem.type === "shield") {
-    possibleAffixes.push({ type: "def", getVal: () => Math.floor(rng() * maxArBonus) + 1 });
+    addAffix(1, "def", () => Math.floor(rng() * maxArBonus) + 1);
   }
-  possibleAffixes.push({ type: "hp", getVal: () => {
+  addAffix(1, "hp", () => {
     const minHp = floor + 1;
     const maxHp = floor * 2 + 2;
     return Math.floor(rng() * (maxHp - minHp + 1)) + minHp;
-  }});
-  
+  });
+
   const isMpEligible = baseId === "WAND" || baseId === "ROBE" || baseId === "PRIEST_ROBE" || baseId === "MAGE_CLOAK" || baseId === "ARCANE_ROBE";
   if (isMpEligible) {
-    possibleAffixes.push({ type: "mp", getVal: () => {
+    addAffix(1, "mp", () => {
       const maxMpBonus = floor >= 5 ? 4 : (floor >= 3 ? 2 : 1);
       return Math.floor(rng() * maxMpBonus) + 1;
-    }});
+    });
   }
-  
+
   const stats = ["str", "int", "pie", "vit", "agi", "luk"];
   stats.forEach(stat => {
-    possibleAffixes.push({ type: stat, getVal: () => {
+    addAffix(1, stat, () => {
       const maxStat = floor >= 5 ? 3 : (floor >= 3 ? 2 : 1);
       return Math.floor(rng() * maxStat) + 1;
-    }});
+    });
   });
   
   const isTrapEligible = baseId === "DAGGER" || baseId === "NINJA_DAGGER" || baseId === "RAPIER" || baseId === "LEATHER_ARMOR" || baseId === "NINJA_SUIT" || baseId === "EXPLORER_CLOAK" || baseId === "BUCKLER";
   if (isTrapEligible) {
-    possibleAffixes.push({ type: "trapBonus", getVal: () => {
+    addAffix(1, "trapBonus", () => {
       if (floor >= 5) return 15;
       if (floor >= 3) return 10;
       return 5;
-    }});
+    }, 2);
   }
 
   // New build-specific affixes
   const isFollowUpEligible = ["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD", "RAPIER", "BATTLE_GARB"].includes(baseId);
   if (isFollowUpEligible) {
-    possibleAffixes.push({ type: "followUp", getVal: () => Math.floor(rng() * 6) + 10 }); // 10-15%
+    addAffix(2, "followUp", () => Math.floor(rng() * 6) + 10, 2); // 10-15%
   }
   const isArcaneEligible = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "MAGIC_SHIELD"].includes(baseId);
   if (isArcaneEligible) {
-    possibleAffixes.push({ type: "arcane", getVal: () => 15 }); // +15%
+    addAffix(2, "arcane", () => 15, 2); // +15%
   }
   const isDevotionEligible = ["MACE", "PRIEST_ROBE", "SACRED_MACE"].includes(baseId);
   if (isDevotionEligible) {
-    possibleAffixes.push({ type: "devotion", getVal: () => 15 }); // +15%
+    addAffix(2, "devotion", () => 15, 2); // +15%
   }
   const isGuardianEligible = ["SMALL_SHIELD", "LARGE_SHIELD", "KNIGHT_SHIELD", "LEGENDARY_SHIELD", "PLATE_MAIL", "CHAIN_MAIL", "SCALE_MAIL", "BUCKLER", "MAGIC_SHIELD", "DRAGON_SCALE"].includes(baseId);
   if (isGuardianEligible) {
-    possibleAffixes.push({ type: "guardian", getVal: () => 15 }); // -15%
+    addAffix(3, "guardian", () => 15, 2); // -15%
   }
   const isTreasureSenseEligible = ["LEATHER_ARMOR", "NINJA_SUIT", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD", "RAPIER", "BUCKLER", "EXPLORER_CLOAK"].includes(baseId);
   if (isTreasureSenseEligible) {
-    possibleAffixes.push({ type: "treasureSense", getVal: () => 8 }); // +8%
+    addAffix(3, "treasureSense", () => 8, 1); // +8%
   }
   if (["SACRED_MACE", "MACE"].includes(baseId)) {
-    possibleAffixes.push({ type: "antiUndead", getVal: () => 30 });
+    addAffix(3, "antiUndead", () => 30, 1);
   }
   if (baseId === "DRAGON_SCALE") {
-    possibleAffixes.push({ type: "antiDragon", getVal: () => 30 });
+    addAffix(4, "antiDragon", () => 30, 1);
   }
   if (["MAGIC_SHIELD", "ARCANE_ROBE", "DRAGON_SCALE"].includes(baseId)) {
-    possibleAffixes.push({ type: "spellGuard", getVal: () => 20 });
+    addAffix(3, "spellGuard", () => 20, 1);
   }
   if (baseId === "EXPLORER_CLOAK") {
-    possibleAffixes.push({ type: "poisonWard", getVal: () => 50 });
+    addAffix(2, "poisonWard", () => {
+      if (floor >= 5) return 50;
+      if (floor >= 3) return 35;
+      return 20;
+    }, 1);
   }
   if (["RAPIER", "BATTLE_GARB"].includes(baseId)) {
-    possibleAffixes.push({ type: "firstStrike", getVal: () => 20 });
+    addAffix(4, "firstStrike", () => {
+      if (floor >= 5 && rarity === "epic") return 10;
+      if (floor >= 5) return 8;
+      return 5;
+    }, 1);
   }
   
   const affixes = [];
@@ -984,7 +995,12 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
   for (let i = 0; i < affixCount; i++) {
     const available = possibleAffixes.filter(aff => !selectedTypes.has(aff.type));
     if (available.length === 0) break;
-    const chosen = available[Math.floor(rng() * available.length)];
+    const totalWeight = available.reduce((sum, aff) => sum + aff.weight, 0);
+    let roll = rng() * totalWeight;
+    const chosen = available.find(aff => {
+      roll -= aff.weight;
+      return roll <= 0;
+    }) || available[available.length - 1];
     affixes.push({
       type: chosen.type,
       value: chosen.getVal()
@@ -1400,7 +1416,17 @@ export function getCharAffixSum(char, affixType) {
       sum += 10;
     }
   }
-  return sum + getClassPassiveBonus(char, affixType);
+  const total = sum + getClassPassiveBonus(char, affixType);
+  const caps = {
+    poisonWard: 75,
+    firstStrike: 15,
+    guardian: 50,
+    spellGuard: 50,
+    arcane: 50,
+    devotion: 50,
+    followUp: 50
+  };
+  return caps[affixType] ? Math.min(caps[affixType], total) : total;
 }
 
 export function getClassPassive(char) {
