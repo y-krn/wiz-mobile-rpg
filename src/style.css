@@ -2564,7 +2564,7 @@ html, body {
   padding: 12px;
   box-sizing: border-box;
   font-family: var(--font-mono);
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .result-header {
@@ -2608,6 +2608,7 @@ html, body {
   gap: 12px;
   min-height: 0;
   overflow-y: auto;
+  padding-bottom: 0;
 }
 
 .result-summary-section {
@@ -2769,8 +2770,16 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 8px;
-  padding-bottom: 8px;
+  margin-top: 10px;
+  padding: 10px 0 0;
+  background-color: rgba(12, 12, 14, 0.98);
+  flex-shrink: 0;
+}
+
+.result-footer-actions .btn {
+  min-height: 48px;
+  font-size: 14px;
+  font-weight: bold;
 }
 
 .result-history-section {

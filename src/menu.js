@@ -22,6 +22,7 @@ import { renderTraining } from "./training.js";
 import { renderEquip, openEquipOverlay } from "./equip.js";
 import { renderSpellOverlay } from "./spell_menu.js";
 import { renderCampOverlay, openCampMenu } from "./camp.js";
+import { triggerRunResult } from "./result.js";
 
 export function renderSubmenu(type) {
   const optGrid = document.getElementById("submenu-options");
@@ -89,15 +90,11 @@ export function renderSubmenu(type) {
       btnUse.addEventListener("click", () => {
         const char = state.party[menuContext.actorIdx];
         if (menuContext.itemKey === "TOWN_PORTAL") {
-          state.gameState = "town";
-          state.x = START_X;
-          state.y = START_Y;
-          state.dir = DIR_N;
-          addLog("帰還のスクロールを読んだ！パーティ全員が眩い光に包まれ、一瞬でリルガミンの街へ戻った！");
+          addLog("帰還のスクロールを読んだ！パーティ全員が眩い光に包まれ、一瞬でお城へ戻った！");
           playSound("cast_spell");
           state.inventory.splice(menuContext.itemIdx, 1);
-          saveAutosave();
           closeSubmenu();
+          triggerRunResult("escape_scroll");
           return;
         }
         const log = item.effect(char);

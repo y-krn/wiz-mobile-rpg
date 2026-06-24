@@ -81,32 +81,26 @@ Object.defineProperty(global, "navigator", {
   // ----------------------------------------------------
   console.log("Running Test 2: Smart Drop Validation...");
 
-  // Mock party: Mage and Priest only (usable bases: WAND, ROBE, PRIEST_ROBE, MAGE_CLOAK, etc.)
+  // Mock party: Mage only (only ARCANE_ROBE is usable among B4F candidates)
   state.party = [
-    { name: "MageChar", class: "Mage", status: "ok", equipment: {} },
-    { name: "PriestChar", class: "Priest", status: "ok", equipment: {} }
+    { name: "MageChar", class: "Mage", status: "ok", equipment: {} }
   ];
 
-  // Try generating 100 random equipments at floor 4.
-  // Standard B4F baseCandidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL"];
-  // Usable by Mage/Priest: "PRIEST_ROBE" (Priest/Bishop)
-  // Smart drop (70%) should force PRIEST_ROBE.
-  let priestRobeCount = 0;
+  // Try generating 200 random equipments at floor 4.
+  // Usable by Mage: "ARCANE_ROBE"
+  // Smart drop (70%) should force ARCANE_ROBE.
+  let arcaneRobeCount = 0;
   const totalTrials = 200;
   for (let i = 0; i < totalTrials; i++) {
     const eq = generateRandomEquipment(4, null, Math.random);
-    if (eq.baseId === "PRIEST_ROBE") {
-      priestRobeCount++;
+    if (eq.baseId === "ARCANE_ROBE") {
+      arcaneRobeCount++;
     }
   }
 
-  // Without smart drop, PRIEST_ROBE chance is 1/8 = 12.5%.
-  // With smart drop, 70% of time it is 100% PRIEST_ROBE. 30% of time it is 12.5% PRIEST_ROBE.
-  // Expected rate is 70% + (30% * 0.125) = 73.75%.
-  // We assert it's significantly higher than 12.5% (e.g. > 50%).
-  const rate = priestRobeCount / totalTrials;
-  console.log(`PRIEST_ROBE count: ${priestRobeCount}/${totalTrials} (${(rate*100).toFixed(1)}%)`);
-  assert.ok(rate > 0.30, "Smart drop rate for PRIEST_ROBE should be > 30%");
+  const rate = arcaneRobeCount / totalTrials;
+  console.log(`ARCANE_ROBE count: ${arcaneRobeCount}/${totalTrials} (${(rate*100).toFixed(1)}%)`);
+  assert.ok(rate > 0.40, "Smart drop rate for ARCANE_ROBE should be > 40%");
   console.log("[PASS] Smart drop verified.");
 
   // ----------------------------------------------------
@@ -240,7 +234,8 @@ Object.defineProperty(global, "navigator", {
     actions: [{ actorIdx: 0, type: "defend" }]
   });
   Math.random = tempRand2;
-  
+  console.log("ROUND LOGS:", combatResult2.logQueue.map(l => l.msg));
+  console.log("ARTHUR FINAL STATE:", combatResult2.state.party[0]);
   console.log(`Guardian Test Char remaining HP: ${combatResult2.state.party[0].hp}`);
   assert.strictEqual(combatResult2.state.party[0].hp, 2, "Arthur HP should be 2 (protected by guardian)");
   console.log("[PASS] New affixes verified.");

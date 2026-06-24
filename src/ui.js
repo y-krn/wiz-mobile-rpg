@@ -3,12 +3,10 @@ import { DIR_NAMES, getClassJpName, isSpellcaster, getCharMaxHp, getCharMaxMp, g
 import { getIsMuted, playSound } from "./audio.js";
 import { getMonsterContractInfo } from "./contracts.js";
 import { menuContext } from "./navigation.js";
-import { renderEquip, openEquipOverlay } from "./equip.js";
+import { renderEquip } from "./equip.js";
 import { renderSpellOverlay } from "./spell_menu.js";
 import { renderCampOverlay } from "./camp.js";
-import { openShopAppraise } from "./shop.js";
 import { combatSelection, renderCombatOverlay } from "./combat.js";
-import { enterDungeon } from "./movement.js";
 
 export function getFloorExplorationRate() {
   const map = state.map;
@@ -491,8 +489,8 @@ export function renderResultScreen() {
   const lootTitle = isSuccess ? `持ち帰り品 (${totalLootCount}個)` : `失った発見品 (${totalLootCount}個)`;
 
   const getReasonJp = (r) => {
-    if (r === "stairs") return "迷宮の階段から帰還";
-    if (r === "escape_scroll") return "帰還のスクロール";
+    if (r === "stairs") return "迷宮の階段からお城へ帰還";
+    if (r === "escape_scroll") return "帰還のスクロールでお城へ帰還";
     if (r === "gameover") return "魔物に敗北（全滅）";
     return r || "不明";
   };
@@ -668,51 +666,40 @@ export function renderResultScreen() {
           ${historyHtml}
         </div>
       </div>
-
-      <div class="result-footer-actions">
-        ${isSuccess && equipCount > 0 ? `<button id="btn-result-appraise" class="btn btn-neon btn-block">ボルタック商店で未鑑定品を鑑定する</button>` : ""}
-        <button id="btn-result-equip" class="btn btn-neon btn-block">装備を変更・整理する</button>
-        <button id="btn-result-dungeon" class="btn btn-neon btn-block" style="border-color: var(--neon-cyan); color: var(--neon-cyan);">もう一度迷宮に入る</button>
-        <button id="btn-result-town" class="btn btn-neon btn-block" style="border-color: var(--neon-gold); color: var(--neon-gold);">街（リルガミン）へ戻る</button>
-      </div>
+    </div>
+    <div class="result-footer-actions">
+      <button id="btn-result-castle" class="btn btn-neon btn-block">お城へ戻る</button>
     </div>
   `;
 
-  const btnAppraise = document.getElementById("btn-result-appraise");
-  if (btnAppraise) {
-    btnAppraise.addEventListener("click", () => {
-      overlay.style.display = "none";
-      openShopAppraise();
-    });
-  }
-
-
-
-  const btnEquip = document.getElementById("btn-result-equip");
-  if (btnEquip) {
-    btnEquip.addEventListener("click", () => {
-      overlay.style.display = "none";
-      state.gameState = "town";
-      openEquipOverlay(0);
-    });
-  }
-
-  const btnDungeon = document.getElementById("btn-result-dungeon");
-  if (btnDungeon) {
-    btnDungeon.addEventListener("click", () => {
-      overlay.style.display = "none";
-      state.gameState = "town";
-      enterDungeon();
-    });
-  }
-
-  const btnTown = document.getElementById("btn-result-town");
-  if (btnTown) {
-    btnTown.addEventListener("click", () => {
+  const btnCastle = document.getElementById("btn-result-castle");
+  if (btnCastle) {
+    btnCastle.addEventListener("click", () => {
       overlay.style.display = "none";
       state.gameState = "town";
       state.currentRun = null;
-      saveAutosave();
+      state.party.forEach(char => {
+        if (char.status !== "dead") {
+          char.hp = char.maxHp;
+          char.mp = char.maxMp;
+        }
+      });
+      addLog("おしろ：パーティは休息した。HPとMPが全回復した！（ステータス異常は教会で治療してください）");
+
+      if (state.inventory.includes("ANTIGRAVITY_CRYSTAL")) {
+        playSound("level_up");
+        state.gameState = "victory";
+        addLog("**************************************************");
+        addLog("おめでとうございます！浮遊石を持ち帰りました！");
+        addLog("王より名誉勲章が授与されました。ゲームクリアです！");
+        addLog("**************************************************");
+        localStorage.removeItem("mobile_wiz_rpg_save");
+        localStorage.removeItem("mobile_wiz_rpg_autosave");
+      } else {
+        playSound("heal");
+        saveGame();
+        saveAutosave();
+      }
       updateUI();
     });
   }

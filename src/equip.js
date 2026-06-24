@@ -518,7 +518,7 @@ export function renderEquip() {
               if (itemKey === "TOWN_PORTAL") {
                 closeEquipOverlay();
                 playSound("cast_spell");
-                addLog(`${char.name}は帰還のスクロールを読んだ！街へ戻った！`);
+                addLog(`${char.name}は帰還のスクロールを読んだ！お城へ戻った！`);
                 state.inventory.splice(equipState.selectedIdx, 1);
                 triggerRunResult("escape_scroll");
                 return;
