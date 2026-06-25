@@ -3489,3 +3489,42 @@ html, body {
   color: var(--text-muted);
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
+
+/* --- Party HUD Interactive Styles in Town --- */
+.party-hud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  padding: 0 4px;
+}
+
+.party-hud-detail-btn {
+  color: var(--neon-cyan);
+  font-weight: bold;
+  cursor: pointer;
+}
+
+#party-panel.interactive-hud .party-card {
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+
+#party-panel.interactive-hud .party-card:hover {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 6px var(--neon-cyan);
+}
+
+#party-panel.interactive-hud .party-card:active {
+  background-color: rgba(0, 229, 255, 0.1);
+}
+
+/* camp-status-card focus highlight style */
+.camp-status-card.focused-char {
+  border-color: var(--neon-cyan) !important;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+  background-color: rgba(0, 229, 255, 0.05);
+}

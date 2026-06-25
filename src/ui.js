@@ -2,7 +2,7 @@ import { state, saveGame, saveAutosave, createDefaultCodex, addLog } from "./sta
 import { DIR_NAMES, getClassJpName, isSpellcaster, getCharMaxHp, getCharMaxMp, getItemData, MONSTERS, ITEMS } from "./data.js";
 import { getIsMuted, playSound } from "./audio.js";
 import { getMonsterContractInfo } from "./contracts.js";
-import { menuContext } from "./navigation.js";
+import { menuContext, openSubmenu } from "./navigation.js";
 import { renderEquip } from "./equip.js";
 import { renderSpellOverlay } from "./spell_menu.js";
 import { renderCampOverlay } from "./camp.js";
@@ -354,6 +354,28 @@ export function updateUI() {
     }
   }
 
+  // Update Party HUD & Header visibility in town mode
+  const partyHeader = document.getElementById("party-hud-header");
+  const partyPanel = document.getElementById("party-panel");
+  if (partyHeader && partyPanel) {
+    if (state.gameState === "town") {
+      partyHeader.style.display = "flex";
+      partyPanel.style.height = "92px";
+      partyPanel.style.minHeight = "92px";
+      partyPanel.classList.add("interactive-hud");
+      partyHeader.onclick = () => {
+        menuContext.actorIdx = 0;
+        openSubmenu("camp_status", "パーティの強さ");
+      };
+    } else {
+      partyHeader.style.display = "none";
+      partyPanel.style.height = "75px";
+      partyPanel.style.minHeight = "75px";
+      partyPanel.classList.remove("interactive-hud");
+      partyHeader.onclick = null;
+    }
+  }
+
   // Update Party HUD
   updatePartyHUD();
 
@@ -375,6 +397,16 @@ export function updatePartyHUD() {
     // Highlight if selecting combat actions for this character
     if (selectingChar?.i === idx) {
       card.classList.add("selected");
+    }
+    
+    // Interactive HUD when in town
+    if (state.gameState === "town") {
+      card.onclick = () => {
+        menuContext.actorIdx = idx;
+        openSubmenu("camp_status", "パーティの強さ");
+      };
+    } else {
+      card.onclick = null;
     }
     
     // Name and Class

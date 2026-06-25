@@ -109,9 +109,12 @@ export function renderCampOverlay() {
     const statusGrid = document.createElement("div");
     statusGrid.className = "camp-status-grid";
 
-    state.party.forEach(char => {
+    state.party.forEach((char, idx) => {
       const card = document.createElement("div");
       card.className = "camp-status-card";
+      if (menuContext.actorIdx === idx && menuContext.prevGameState === "town") {
+        card.classList.add("focused-char");
+      }
       
       const classJp = getClassJpName(char.class);
       const nextReq = char.class === "Ninja" ? Math.floor(EXP_LEVELS[char.level + 1] * 1.5) : EXP_LEVELS[char.level + 1];
@@ -190,11 +193,19 @@ export function renderCampOverlay() {
   btnClose.style.minHeight = "44px";
   
   if (menuContext.type === "camp_status") {
-    btnClose.textContent = "◀ メニューに戻る";
-    btnClose.setAttribute("aria-label", "キャンプメニューに戻る");
-    btnClose.addEventListener("click", () => {
-      goBackSubmenu();
-    });
+    if (menuContext.prevGameState === "town") {
+      btnClose.textContent = "❌ 閉じる";
+      btnClose.setAttribute("aria-label", "街に戻る");
+      btnClose.addEventListener("click", () => {
+        closeSubmenu();
+      });
+    } else {
+      btnClose.textContent = "◀ メニューに戻る";
+      btnClose.setAttribute("aria-label", "キャンプメニューに戻る");
+      btnClose.addEventListener("click", () => {
+        goBackSubmenu();
+      });
+    }
   } else {
     btnClose.textContent = "❌ 探索に戻る";
     btnClose.setAttribute("aria-label", "キャンプを閉じて探索に戻る");
