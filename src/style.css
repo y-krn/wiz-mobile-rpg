@@ -487,13 +487,16 @@ html, body {
   box-shadow: var(--neon-glow-cyan);
   padding: 6px 4px;
   flex-shrink: 0; /* Guarantee party HUD never shrinks and overlaps */
+  display: flex;
+  flex-direction: column;
 }
 
 #party-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 3px;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .party-card {

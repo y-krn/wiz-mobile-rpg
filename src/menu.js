@@ -614,8 +614,8 @@ export function handleTownOption(option) {
   if (option === "castle") {
     state.party.forEach(char => {
       if (char.status !== "dead") {
-        char.hp = char.maxHp;
-        char.mp = char.maxMp;
+        char.hp = getCharMaxHp(char);
+        char.mp = getCharMaxMp(char);
       }
     });
     addLog("おしろ：パーティは休息した。HPとMPが全回復した！（ステータス異常は教会で治療してください）");
