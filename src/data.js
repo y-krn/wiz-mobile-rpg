@@ -13,6 +13,65 @@ export const DIR_NAMES = ["北", "東", "南", "西"];
 export const getSpellStatBonus = (stat) => {
   return 1.0 + Math.min(0.40, Math.max(0, (stat - 10) * 0.02));
 };
+
+function getCompassDirection(fromX, fromY, toX, toY) {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  if (dx === 0 && dy === 0) return "現在地";
+  const vertical = dy < 0 ? "北" : (dy > 0 ? "南" : "");
+  const horizontal = dx < 0 ? "西" : (dx > 0 ? "東" : "");
+  if (Math.abs(dx) >= Math.abs(dy) * 2) return horizontal;
+  if (Math.abs(dy) >= Math.abs(dx) * 2) return vertical;
+  return `${vertical}${horizontal}`;
+}
+
+function findNearestCell(state, predicate) {
+  let best = null;
+  const map = state.maps?.[state.floor - 1] || state.map;
+  if (!map) return null;
+  for (let y = 0; y < map.length; y++) {
+    for (let x = 0; x < map[y].length; x++) {
+      const cell = map[y][x];
+      if (!cell || !predicate(cell)) continue;
+      const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
+      if (!best || dist < best.dist) best = { x, y, dist, cell };
+    }
+  }
+  return best;
+}
+
+function getNearbyEventHints(state, range) {
+  const map = state.maps?.[state.floor - 1] || state.map;
+  if (!map) return [];
+  const hints = [];
+  const labels = {
+    [EVENT_TYPES.CHEST]: "宝箱",
+    [EVENT_TYPES.SPRING]: "泉",
+    [EVENT_TYPES.TABLET]: "石碑",
+    [EVENT_TYPES.MERCHANT]: "商人",
+    [EVENT_TYPES.MIDBOSS]: "強敵",
+    [EVENT_TYPES.BOSS]: "巨大な気配"
+  };
+  for (let y = 0; y < map.length; y++) {
+    for (let x = 0; x < map[y].length; x++) {
+      const cell = map[y][x];
+      const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
+      if (!cell || dist === 0 || dist > range) continue;
+      if (cell.event && labels[cell.event]) {
+        hints.push(`${labels[cell.event]}:${getCompassDirection(state.x, state.y, x, y)}`);
+      }
+    }
+  }
+  return hints.slice(0, 3);
+}
+
+function getDangerHint(state) {
+  const floorDanger = state.floor >= 5 ? "極めて危険" : state.floor >= 4 ? "危険" : state.floor >= 3 ? "警戒" : "低め";
+  const nearbyThreat = findNearestCell(state, cell => cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS);
+  if (nearbyThreat && nearbyThreat.dist <= 4) return `${floorDanger}。近くに強大な気配`;
+  return floorDanger;
+}
+
 export const SPELLS = {
   // Mage Spells
   HALITO: {
@@ -100,9 +159,17 @@ export const SPELLS = {
     level: 1,
     cost: 1,
     target: "utility",
-    desc: "座標表示 (位置と方角を表示)",
+    desc: "座標探知 (位置・階段方向・周囲の気配を読む)",
     effect: (caster, state) => {
-      return { log: `${caster.name}はデュマピックを唱えた！現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}, 方角: ${DIR_NAMES[state.dir]}` };
+      const stairs = findNearestCell(state, cell => cell.type === "stairs-down");
+      const stairHint = stairs ? `下り階段:${getCompassDirection(state.x, state.y, stairs.x, stairs.y)}方面` : "下り階段:この階にはない";
+      const eventHints = getNearbyEventHints(state, 3);
+      const eventText = eventHints.length > 0 ? `周囲の気配:${eventHints.join(" / ")}` : "周囲の気配:特になし";
+      const dangerText = `危険度:${getDangerHint(state)}`;
+      const hint = `${stairHint} / ${eventText} / ${dangerText}`;
+      state.dumapicTurns = 30;
+      state.dumapicHint = hint;
+      return { log: `${caster.name}はデュマピックを唱えた！地下${state.floor}階 X:${state.x}, Y:${state.y}, 方角:${DIR_NAMES[state.dir]}。${hint}` };
     }
   },
   MAHALITO: {
@@ -296,13 +363,14 @@ export const SPELLS = {
     level: 1,
     cost: 1,
     target: "utility",
-    desc: "明かりの呪文 (30歩の間、地図を表示)",
+    desc: "明かりの呪文 (30歩: 不意打ち・罠調査を軽減)",
     effect: (caster, state) => {
       const pieVal = caster ? getCharPie(caster) : 10;
       const durationBonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
       const steps = Math.round(30 * durationBonus);
       state.lightTurns = (state.lightTurns || 0) + steps;
-      return { log: `${caster.name}はミルワを唱えた！周囲が明るくなり、ミニマップが${steps}歩の間表示される。` };
+      if (state.lightPower !== "lomilwa") state.lightPower = "milwa";
+      return { log: `${caster.name}はミルワを唱えた！${steps}歩の間、明かりが罠と不意打ちへの警戒を助ける。` };
     }
   },
   DIALKO: {
@@ -365,13 +433,14 @@ export const SPELLS = {
     level: 3,
     cost: 4,
     target: "utility",
-    desc: "永続の明かり (100歩の間、地図を表示)",
+    desc: "永続の明かり (100歩: 探索補助を大きく強化)",
     effect: (caster, state) => {
       const pieVal = caster ? getCharPie(caster) : 10;
       const durationBonus = 1.0 + Math.min(0.20, Math.max(0, (pieVal - 10) * 0.01));
       const steps = Math.round(100 * durationBonus);
       state.lightTurns = (state.lightTurns || 0) + steps;
-      return { log: `${caster.name}はロミルワを唱えた！まばゆい光が暗闇を払い、ミニマップが${steps}歩の間表示される。` };
+      state.lightPower = "lomilwa";
+      return { log: `${caster.name}はロミルワを唱えた！${steps}歩の間、強い光が罠・不意打ち・隠れた気配を照らす。` };
     }
   },
   DIALMA: {

@@ -55,6 +55,32 @@ function openWall(grid, x, y, dir) {
   grid[ny][nx].walls[OPPOSITE_DIR[dir]] = false;
 }
 
+function getReachableCellKeys(grid, start) {
+  const queue = [start];
+  const seen = new Set([`${start.x},${start.y}`]);
+
+  for (const pos of queue) {
+    const cell = grid[pos.y]?.[pos.x];
+    if (!cell) continue;
+
+    for (let dir = 0; dir < 4; dir++) {
+      if (cell.walls[dir]) continue;
+
+      const nx = pos.x + DX[dir];
+      const ny = pos.y + DY[dir];
+      if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+
+      const key = `${nx},${ny}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+  }
+
+  return seen;
+}
+
 export function removeIsolatedInternalWalls(grid) {
   let removed = 0;
   let changed = true;
@@ -207,12 +233,14 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     }
   }
 
-  // Find all dead ends (cells with exactly 1 open wall)
+  // Find all reachable dead ends (cells with exactly 1 open wall)
   // exclude start position (and stairsUpCoord for floor > 1)
-  const deadEnds = [];
+  let deadEnds = [];
   const startX = START_X;
   const startY = START_Y;
   const stairsUpCoord = (floor > 1) ? (parentStairsCoord || { x: MAP_WIDTH - 2, y: 1 }) : null;
+  const suCoord = floor > 1 ? (stairsUpCoord || { x: MAP_WIDTH - 2, y: 1 }) : { x: START_X, y: START_Y };
+  const reachableKeys = getReachableCellKeys(grid, suCoord);
 
   for (let y = 1; y < MAP_HEIGHT - 1; y++) {
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
@@ -226,12 +254,12 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       }
     }
   }
+  deadEnds = deadEnds.filter(de => reachableKeys.has(`${de.x},${de.y}`));
 
   let stairsDownCoord = null;
   let bossCoord = null;
 
   // 4. Setup Stairs & Boss / Midboss
-  const suCoord = stairsUpCoord || { x: MAP_WIDTH - 2, y: 1 };
   if (floor > 1) {
     grid[suCoord.y][suCoord.x].type = "stairs-up";
     grid[suCoord.y][suCoord.x].message = `【上り階段】地下${floor - 1}階へ戻る階段です。`;
@@ -247,7 +275,13 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       stairsDownCoord = deadEnds[idx];
       deadEnds.splice(idx, 1);
     } else {
-      stairsDownCoord = { x: MAP_WIDTH - 2, y: 1 };
+      stairsDownCoord = [...reachableKeys]
+        .map(key => {
+          const [x, y] = key.split(",").map(Number);
+          return { x, y, dist: Math.abs(x - suCoord.x) + Math.abs(y - suCoord.y) };
+        })
+        .filter(cell => cell.x !== suCoord.x || cell.y !== suCoord.y)
+        .sort((a, b) => b.dist - a.dist)[0] || { x: suCoord.x, y: suCoord.y };
     }
     grid[stairsDownCoord.y][stairsDownCoord.x].type = "stairs-down";
     grid[stairsDownCoord.y][stairsDownCoord.x].message = `【下り階段】地下${floor + 1}階へ進む階段です。`;
@@ -269,7 +303,13 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
         deadEnds.splice(removeIdx, 1);
       }
     } else {
-      bossCoord = { x: MAP_WIDTH - 2, y: MAP_HEIGHT - 2 };
+      bossCoord = [...reachableKeys]
+        .map(key => {
+          const [x, y] = key.split(",").map(Number);
+          return { x, y, dist: Math.abs(x - suCoord.x) + Math.abs(y - suCoord.y) };
+        })
+        .filter(cell => (cell.x !== suCoord.x || cell.y !== suCoord.y) && (cell.x !== stairsDownCoord?.x || cell.y !== stairsDownCoord?.y))
+        .sort((a, b) => b.dist - a.dist)[0] || { x: suCoord.x, y: suCoord.y };
     }
     grid[bossCoord.y][bossCoord.x].type = "empty";
     grid[bossCoord.y][bossCoord.x].event = "midboss";
@@ -289,7 +329,13 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
         deadEnds.splice(removeIdx, 1);
       }
     } else {
-      bossCoord = { x: MAP_WIDTH - 2, y: MAP_HEIGHT - 2 };
+      bossCoord = [...reachableKeys]
+        .map(key => {
+          const [x, y] = key.split(",").map(Number);
+          return { x, y, dist: Math.abs(x - suCoord.x) + Math.abs(y - suCoord.y) };
+        })
+        .filter(cell => cell.x !== suCoord.x || cell.y !== suCoord.y)
+        .sort((a, b) => b.dist - a.dist)[0] || { x: suCoord.x, y: suCoord.y };
     }
     grid[bossCoord.y][bossCoord.x].type = "empty";
     grid[bossCoord.y][bossCoord.x].event = "boss";
@@ -348,7 +394,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
         const isBossCell = (bossCoord && x === bossCoord.x && y === bossCoord.y);
         if (isStart || isStairs || isBossCell || grid[y][x].event) continue;
 
-        if (grid[y][x].walls.some(w => !w)) {
+        if (reachableKeys.has(`${x},${y}`) && grid[y][x].walls.some(w => !w)) {
           passages.push({ x, y });
         }
       }

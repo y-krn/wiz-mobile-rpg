@@ -112,9 +112,11 @@ export function updateUI() {
   if (state.gameState === "town") {
     locLabel.textContent = "TOWN OF LLYLGAMYN";
   } else if (state.gameState === "explore") {
-    const lightText = state.lightTurns > 0 ? ` (LIGHT:${state.lightTurns})` : "";
+    const lightLabel = state.lightPower === "lomilwa" ? "LOMILWA" : "LIGHT";
+    const lightText = state.lightTurns > 0 ? ` (${lightLabel}:${state.lightTurns})` : "";
     const repelText = state.repelTurns > 0 ? ` (REPEL:${state.repelTurns})` : "";
-    locLabel.textContent = `DUNGEON B${state.floor}F X:${state.x} Y:${state.y}${lightText}${repelText}`;
+    const dumapicText = state.dumapicTurns > 0 ? ` (DUMAPIC:${state.dumapicTurns})` : "";
+    locLabel.textContent = `DUNGEON B${state.floor}F X:${state.x} Y:${state.y}${lightText}${repelText}${dumapicText}`;
   } else if (state.gameState === "combat") {
     locLabel.textContent = "BATTLE ENCOUNTER";
   } else if (state.gameState === "chest") {
@@ -497,6 +499,12 @@ export function updateViewportHUD() {
   if (isDumapic) {
     hud.innerHTML = `
       <div class="hud-dir dumapic-active">【DUMAPIC座標検知中】地下${state.floor}階 X:${state.x} Y:${state.y} (${dirLabel})</div>
+      ${state.dumapicHint ? `<div class="hud-dir dumapic-active">${state.dumapicHint}</div>` : ""}
+    `;
+  } else if (state.lightTurns > 0) {
+    const lightName = state.lightPower === "lomilwa" ? "LOMILWA強光" : "MILWA明かり";
+    hud.innerHTML = `
+      <div class="hud-dir">${lightName}: 残り${state.lightTurns}歩 / 方角: ${dirLabel}</div>
     `;
   } else {
     hud.innerHTML = `

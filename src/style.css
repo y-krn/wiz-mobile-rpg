@@ -956,6 +956,13 @@ html, body {
   flex-shrink: 0;
 }
 
+.shop-detail-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  width: 100%;
+}
+
 /* Training Overlay Styles */
 .training-overlay-container {
   position: absolute;

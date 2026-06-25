@@ -720,8 +720,8 @@ export class DungeonRenderer {
     const offsetX = Math.max(minOffsetX, Math.min(0, desiredOffsetX));
     const offsetY = Math.max(minOffsetY, Math.min(0, desiredOffsetY));
 
-    // Check light spell radius (dumapic extends radius to 5, light is 3)
-    const lightRad = state.dumapicTurns > 0 ? 5 : (state.lightTurns > 0 ? 3 : 0);
+    // DUMAPIC/LOMILWA reveal wider tactical context than basic MILWA.
+    const lightRad = state.dumapicTurns > 0 ? 5 : (state.lightPower === "lomilwa" ? 5 : (state.lightTurns > 0 ? 3 : 0));
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {

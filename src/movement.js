@@ -8,6 +8,36 @@ import { setupChestState } from "./chest.js";
 import { openSubmenu } from "./navigation.js";
 import { triggerRunResult } from "./result.js";
 
+function tickExplorationSpellEffects() {
+  if (state.lightTurns > 0) {
+    const cost = state.floor === 2 ? 2 : 1;
+    state.lightTurns = Math.max(0, state.lightTurns - cost);
+    if (state.lightTurns === 0) {
+      state.lightPower = "";
+      addLog("明かりの呪文の効果が切れた。暗闇に包まれた。");
+    }
+  }
+
+  if (state.repelTurns > 0) {
+    state.repelTurns--;
+    if (state.repelTurns === 0) {
+      addLog("マスペアルの効果が切れた。モンスターの殺気が戻った。");
+    }
+  }
+
+  if (state.dumapicTurns > 0) {
+    state.dumapicTurns--;
+    if (state.dumapicTurns === 0) {
+      state.dumapicHint = "";
+      addLog("デュマピックの効果が切れた。詳細な座標探知が停止した。");
+    }
+  }
+
+  if (state.eventCooldownTurns > 0) {
+    state.eventCooldownTurns--;
+  }
+}
+
 export function handleMove(action) {
   if (state.transitioning || state.gameState !== "explore") return;
   playSound("move");
@@ -39,35 +69,7 @@ export function handleMove(action) {
         state.currentRun.steps++;
       }
       
-      // Update light turns (B2F: consume 2 turns per step)
-      if (state.lightTurns > 0) {
-        const cost = state.floor === 2 ? 2 : 1;
-        state.lightTurns = Math.max(0, state.lightTurns - cost);
-        if (state.lightTurns === 0) {
-          addLog("明かりの呪文の効果が切れた。暗闇に包まれた。");
-        }
-      }
-      
-      // Update repel turns
-      if (state.repelTurns > 0) {
-        state.repelTurns--;
-        if (state.repelTurns === 0) {
-          addLog("マスペアルの効果が切れた。モンスターの殺気が戻った。");
-        }
-      }
-
-      // Update dumapic turns
-      if (state.dumapicTurns > 0) {
-        state.dumapicTurns--;
-        if (state.dumapicTurns === 0) {
-          addLog("デュマピックの効果が切れた。詳細な座標探知が停止した。");
-        }
-      }
-      
-      // Update event cooldown turns
-      if (state.eventCooldownTurns > 0) {
-        state.eventCooldownTurns--;
-      }
+      tickExplorationSpellEffects();
       
       // Mark as visited
       state.visitedMap[state.y][state.x] = true;
@@ -88,33 +90,7 @@ export function handleMove(action) {
       if (state.currentRun) {
         state.currentRun.steps++;
       }
-      // Update light turns (B2F: consume 2 turns per step)
-      if (state.lightTurns > 0) {
-        const cost = state.floor === 2 ? 2 : 1;
-        state.lightTurns = Math.max(0, state.lightTurns - cost);
-        if (state.lightTurns === 0) {
-          addLog("明かりの呪文の効果が切れた。暗闇に包まれた。");
-        }
-      }
-      if (state.repelTurns > 0) {
-        state.repelTurns--;
-        if (state.repelTurns === 0) {
-          addLog("マスペアルの効果が切れた。モンスターの殺気が戻った。");
-        }
-      }
-      
-      // Update dumapic turns
-      if (state.dumapicTurns > 0) {
-        state.dumapicTurns--;
-        if (state.dumapicTurns === 0) {
-          addLog("デュマピックの効果が切れた。詳細な座標探知が停止した。");
-        }
-      }
-      
-      // Update event cooldown turns
-      if (state.eventCooldownTurns > 0) {
-        state.eventCooldownTurns--;
-      }
+      tickExplorationSpellEffects();
       state.visitedMap[state.y][state.x] = true;
       addLog(`一歩下がった。現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}`);
       
@@ -140,6 +116,9 @@ export function findCellCoordsByType(grid, type) {
 function checkSensoryAura() {
   const px = state.x;
   const py = state.y;
+  const lightSenseRange = state.lightPower === "lomilwa" ? 4 : (state.lightTurns > 0 ? 3 : 2);
+  const dumapicSenseRange = state.dumapicTurns > 0 ? 3 : 0;
+  const senseRange = Math.max(lightSenseRange, dumapicSenseRange);
   
   let nearestSpring = null;
   let nearestBoss = null;
@@ -196,27 +175,27 @@ function checkSensoryAura() {
   }
 
   // 2. Spring water sound (distance <= 2)
-  if (minDistSpring <= 2 && nearestSpring) {
+  if (minDistSpring <= senseRange && nearestSpring) {
     addLog("【気配】近くからかすかに水音が聞こえる…");
   }
 
   // 3. Tablet magic wave (distance <= 2)
-  if (minDistTablet <= 2 && nearestTablet) {
+  if (minDistTablet <= senseRange && nearestTablet) {
     addLog("【気配】近くの壁から弱い魔力の波動を感じる…");
   }
 
   // 4. Merchant footsteps/presence (distance <= 2)
-  if (minDistMerchant <= 2 && nearestMerchant) {
+  if (minDistMerchant <= senseRange && nearestMerchant) {
     addLog("【気配】近くから静かな衣擦れの音が聞こえる気がする…");
   }
 
   // 5. Down stairs wind draft (distance <= 2)
-  if (minDistDownStairs <= 2 && nearestDownStairs) {
+  if (minDistDownStairs <= senseRange && nearestDownStairs) {
     addLog("【気配】下へ続く空洞から、冷たい風が流れてきている…");
   }
 
   // 6. Chest hidden treasure vibe (distance <= 2)
-  if (minDistChest <= 2 && nearestChest) {
+  if (minDistChest <= senseRange && nearestChest) {
     addLog("【気配】この近くに何かが隠されている気がする…");
   }
 
@@ -430,8 +409,15 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     return;
   }
 
-  // Random Encounter (10% chance)
-  if ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < 0.10) {
+  let encounterChance = 0.10;
+  if (state.lightPower === "lomilwa") {
+    encounterChance = 0.05;
+  } else if (state.lightTurns > 0) {
+    encounterChance = 0.07;
+  }
+
+  // Random Encounter
+  if ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance) {
     state.transitioning = true;
     addLog("モンスターが暗闇から襲いかかってきた！");
     setTimeout(() => {

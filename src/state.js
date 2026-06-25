@@ -280,8 +280,10 @@ export const state = {
   maps: [null, null, null, null, null],
   visitedMaps: [null, null, null, null, null],
   lightTurns: 0,
+  lightPower: "",
   repelTurns: 0,
   dumapicTurns: 0,
+  dumapicHint: "",
   eventCooldownTurns: 0,
   activeMerchantStock: [],
 
@@ -449,8 +451,10 @@ export function initNewGame() {
   // Mark initial coordinate as visited
   state.visitedMap[state.y][state.x] = true;
   state.lightTurns = 0;
+  state.lightPower = "";
   state.repelTurns = 0;
   state.dumapicTurns = 0;
+  state.dumapicHint = "";
   state.eventCooldownTurns = 0;
   state.activeMerchantStock = [];
 
@@ -659,8 +663,10 @@ export function loadGame(forceSaveOnly = false) {
     });
     state.maps = loadedMaps;
     state.lightTurns = data.lightTurns ?? 0;
+    state.lightPower = data.lightPower ?? "";
     state.repelTurns = data.repelTurns ?? 0;
     state.dumapicTurns = data.dumapicTurns ?? 0;
+    state.dumapicHint = data.dumapicHint ?? "";
     state.eventCooldownTurns = data.eventCooldownTurns ?? 0;
     state.activeMerchantStock = data.activeMerchantStock ?? [];
     state.gameState = data.gameState ?? "town";
@@ -724,8 +730,10 @@ export function createSavePayload() {
     maps: state.maps,
     visitedMaps: state.visitedMaps,
     lightTurns: state.lightTurns,
+    lightPower: state.lightPower,
     repelTurns: state.repelTurns,
     dumapicTurns: state.dumapicTurns,
+    dumapicHint: state.dumapicHint,
     eventCooldownTurns: state.eventCooldownTurns,
     activeMerchantStock: state.activeMerchantStock,
     floorChestsOpened: state.floorChestsOpened,

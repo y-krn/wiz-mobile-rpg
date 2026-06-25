@@ -334,6 +334,11 @@ export function openChestMenu() {
         chance = chance / 2.0;
       }
     }
+    const lightBonus = state.lightPower === "lomilwa" ? 0.25 : (state.lightTurns > 0 ? 0.15 : 0);
+    if (lightBonus > 0) {
+      chance = Math.min(0.95, chance + lightBonus);
+      addLog(`明かりの呪文が罠の調査を助けている。成功率 +${Math.round(lightBonus * 100)}%`);
+    }
     state.chestState.inspected = true;
     state.chestState.inspectChance = chance; // Save inspect success rate for reliability display
     

@@ -612,6 +612,52 @@ export function renderShop() {
       scrollContent.appendChild(detailDesc);
 
       detailPanel.appendChild(scrollContent);
+
+      const appraisedActions = document.createElement("div");
+      appraisedActions.className = "shop-detail-actions";
+
+      const btnNext = document.createElement("button");
+      btnNext.className = "btn btn-neon";
+      btnNext.style.flex = "1";
+      btnNext.style.minHeight = "44px";
+
+      const nextItemIdx = state.inventory.findIndex((it, i) => i !== appraisedIdx && typeof it === "object" && !it.identified);
+      if (nextItemIdx !== -1) {
+        btnNext.textContent = "🔮 次を鑑定";
+        btnNext.addEventListener("click", () => {
+          shopState.lastAppraised = null;
+          shopState.selectedKey = state.inventory[nextItemIdx];
+          shopState.selectedIdx = nextItemIdx;
+          renderShop();
+        });
+      } else {
+        btnNext.textContent = "✅ 鑑定完了";
+        btnNext.addEventListener("click", () => {
+          shopState.lastAppraised = null;
+          shopState.selectedKey = null;
+          shopState.selectedIdx = -1;
+          renderShop();
+        });
+      }
+      appraisedActions.appendChild(btnNext);
+
+      const btnToSell = document.createElement("button");
+      btnToSell.className = "btn btn-danger";
+      btnToSell.style.flex = "1";
+      btnToSell.style.minHeight = "44px";
+      btnToSell.textContent = "💰 売却へ";
+      btnToSell.addEventListener("click", () => {
+        const itemVal = state.inventory[appraisedIdx];
+        shopState.lastAppraised = null;
+        shopState.mode = "sell";
+        shopState.filter = "all";
+        shopState.selectedKey = itemVal;
+        shopState.selectedIdx = appraisedIdx;
+        renderShop();
+      });
+      appraisedActions.appendChild(btnToSell);
+
+      detailPanel.appendChild(appraisedActions);
     }
   } else if (!hasSelected) {
     detailPanel.innerHTML = `<div class="detail-placeholder">取引するアイテムを<br>選択してください</div>`;
@@ -870,6 +916,11 @@ export function renderShop() {
         updateUI();
       });
     }
+
+    if (actionBtn) {
+      actionBtn.style.minHeight = "44px";
+      detailPanel.appendChild(actionBtn);
+    }
   }
 
   body.appendChild(detailPanel);
@@ -935,69 +986,7 @@ export function renderShop() {
   tabRow.appendChild(tabAppraise);
   footer.appendChild(tabRow);
 
-  // 3.3 Confirm/Action button row
-  const actionRow = document.createElement("div");
-  actionRow.className = "bottom-actions-row";
-  
-  if (shopState.mode === "appraise" && shopState.lastAppraised) {
-    // Appraised mode action buttons: [次の未鑑定品] [売却へ]
-    const appraisedIdx = shopState.lastAppraised.idx;
-    
-    const btnNext = document.createElement("button");
-    btnNext.className = "btn btn-neon";
-    btnNext.style.flex = "1";
-    btnNext.style.minHeight = "44px";
-    
-    const nextItemIdx = state.inventory.findIndex((it, i) => i !== appraisedIdx && typeof it === "object" && !it.identified);
-    if (nextItemIdx !== -1) {
-      btnNext.textContent = "🔮 次を鑑定";
-      btnNext.addEventListener("click", () => {
-        shopState.lastAppraised = null;
-        shopState.selectedKey = state.inventory[nextItemIdx];
-        shopState.selectedIdx = nextItemIdx;
-        renderShop();
-      });
-    } else {
-      btnNext.textContent = "✅ 鑑定完了";
-      btnNext.addEventListener("click", () => {
-        shopState.lastAppraised = null;
-        shopState.selectedKey = null;
-        shopState.selectedIdx = -1;
-        renderShop();
-      });
-    }
-    actionRow.appendChild(btnNext);
-
-    const btnToSell = document.createElement("button");
-    btnToSell.className = "btn btn-danger";
-    btnToSell.style.flex = "1";
-    btnToSell.style.minHeight = "44px";
-    btnToSell.style.marginLeft = "6px";
-    btnToSell.textContent = "💰 売却へ";
-    btnToSell.addEventListener("click", () => {
-      const itemVal = state.inventory[appraisedIdx];
-      shopState.lastAppraised = null;
-      shopState.mode = "sell";
-      shopState.filter = "all";
-      shopState.selectedKey = itemVal;
-      shopState.selectedIdx = appraisedIdx;
-      renderShop();
-    });
-    actionRow.appendChild(btnToSell);
-  } else if (!hasSelected) {
-    const btnDummy = document.createElement("button");
-    btnDummy.className = "btn btn-block shop-action-btn disabled";
-    btnDummy.disabled = true;
-    btnDummy.textContent = "取引するアイテムを選択してください";
-    btnDummy.style.minHeight = "44px";
-    actionRow.appendChild(btnDummy);
-  } else {
-    actionBtn.style.minHeight = "44px";
-    actionRow.appendChild(actionBtn);
-  }
-  footer.appendChild(actionRow);
-
-  // 3.4 Close button row
+  // 3.3 Close button row
   const closeRow = document.createElement("div");
   closeRow.className = "bottom-actions-row";
   
