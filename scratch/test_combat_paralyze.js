@@ -113,6 +113,7 @@ try {
 // ターン開始時は麻痺+毒(生存)であり、ターン終了時の毒ダメージで毒キャラが死亡。
 // 結果として生存メンバーが全員麻痺になり、allParalyzedTurns が 1 に増えることを検証。
 try {
+  Math.random = () => 0.99;
   const state = createParalyzedState(["paralyzed", "poisoned", "dead", "dead"], 0);
   // 毒キャラのHPを2に設定し、確実に毒ダメージ(2-4)で死亡するようにする
   state.party[1].hp = 2;

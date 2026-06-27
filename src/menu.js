@@ -4,7 +4,7 @@ import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI, openArchivesOverlay, openContractsOverlay, openWarehouseOverlay } from "./ui.js";
 import { generateContractsList } from "./contracts.js";
-import { executeDisarm } from "./chest.js";
+import { executeDisarm, openChestMenu } from "./chest.js";
 import { triggerGameOver } from "./combat.js";
 import { executeEnterDungeon, checkCellEvents } from "./movement.js";
 import { menuContext, menuHistory, openSubmenu, closeSubmenu, goBackSubmenu, setRenderSubmenuCallback } from "./navigation.js";
@@ -29,6 +29,8 @@ export function renderSubmenu(type) {
 
   if (type === "spell_caster_select" || type === "spell_select" || type === "spell_target_ally" || type === "camp_main" || type === "camp" || type === "camp_status") {
     return;
+  } else if (type === "chest_menu") {
+    openChestMenu();
   } else if (type === "item_user_select") {
     state.party.forEach((char, idx) => {
       const btn = document.createElement("button");
@@ -483,10 +485,26 @@ export function renderSubmenu(type) {
 
       // Slot 1: Legendary Item
       const legendaries = [
-        { key: "ELIXIR", price: 500, soldOut: false },
-        { key: "LEGENDARY_SWORD", price: 3000, soldOut: false },
-        { key: "LEGENDARY_SHIELD", price: 2000, soldOut: false }
+        { key: "ELIXIR", price: ITEMS.ELIXIR.price, soldOut: false },
+        { key: "SEALED_EXCALIBUR", price: ITEMS.SEALED_EXCALIBUR.price, soldOut: false },
+        { key: "HOLY_BLADE", price: ITEMS.HOLY_BLADE.price, soldOut: false },
+        { key: "DRAGON_CHARM", price: ITEMS.DRAGON_CHARM.price, soldOut: false },
+        { key: "EXCALIBUR_FRAGMENT", price: ITEMS.EXCALIBUR_FRAGMENT.price, soldOut: false }
       ];
+
+      const alreadyHasAshes = state.inventory.some(i => {
+        if (typeof i === "string") return i === "SACRED_ASHES";
+        return i.baseId === "SACRED_ASHES";
+      });
+
+      if (state.floor >= 4) {
+        if (!alreadyHasAshes) {
+          legendaries.push({ key: "SACRED_ASHES", price: ITEMS.SACRED_ASHES.price, soldOut: false });
+        }
+        if (Math.random() < 0.30) {
+          legendaries.push({ key: "LEGENDARY_SHIELD", price: ITEMS.LEGENDARY_SHIELD.price, soldOut: false });
+        }
+      }
       generated.push(legendaries[Math.floor(Math.random() * legendaries.length)]);
 
       // Slot 2: Premium Discounted Equipment
@@ -506,13 +524,6 @@ export function renderSubmenu(type) {
         { key: "ANTIDOTE", price: 50, soldOut: false },
         { key: "TOWN_PORTAL", price: 70, soldOut: false }
       ];
-      const alreadyHasAshes = state.inventory.some(i => {
-        if (typeof i === "string") return i === "SACRED_ASHES";
-        return i.baseId === "SACRED_ASHES";
-      });
-      if (state.floor >= 4 && !alreadyHasAshes) {
-        usables.push({ key: "SACRED_ASHES", price: 1000, soldOut: false });
-      }
       const shuffledUsables = usables.sort(() => 0.5 - Math.random());
       generated.push(shuffledUsables[0]);
       generated.push(shuffledUsables[1]);

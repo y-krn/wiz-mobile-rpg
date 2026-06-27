@@ -2,7 +2,7 @@ import {
   SPELLS, ITEMS, MONSTERS,
   generateRandomEquipment, getItemData, getCharStr, getCharAgi, getCharVit,
   getCharWeaponAtk, getCharDef, checkCharLevelUp,
-  getItemBaseId, getCharAffixSum
+  getItemBaseId, getCharAffixSum, isSpecialOrQuestItem
 } from "./data.js";
 
 function getMeleeModifiers(char, actorIdx) {
@@ -88,6 +88,7 @@ function addMonsterBuff(mon, type, value, turns) {
 
 function tickMonsterBuffs(monsters) {
   monsters.forEach(mon => {
+    if (mon.silenceTurns) mon.silenceTurns = Math.max(0, mon.silenceTurns - 1);
     if (!mon.buffs) return;
     mon.buffs = mon.buffs
       .map(buff => ({ ...buff, turns: buff.turns - 1 }))
@@ -180,6 +181,9 @@ function applyTargetedDamageBonus(char, target, dmg) {
   if (target.tags?.includes("dragon")) {
     next = Math.round(next * (1 + getCharAffixSum(char, "antiDragon") / 100));
   }
+  if (target.tags?.includes("demon")) {
+    next = Math.round(next * (1 + getCharAffixSum(char, "antiDemon") / 100));
+  }
   return Math.max(1, next);
 }
 
@@ -198,11 +202,24 @@ function reduceIncomingDamage(char, dmg, options = {}) {
     }
   }
   if (options.spell) {
+    let resistPct = 0;
     const spellGuard = getCharAffixSum(char, "spellGuard");
-    if (spellGuard > 0) {
+    if (spellGuard > 0) resistPct += spellGuard;
+    if (char.mabarrierTurns > 0) resistPct += 30;
+    resistPct = Math.min(60, resistPct);
+    
+    if (resistPct > 0) {
       const before = next;
-      next = Math.max(1, Math.round(next * (1 - spellGuard / 100)));
-      if (next < before) reductions.push("魔除け");
+      next = Math.max(1, Math.round(next * (1 - resistPct / 100)));
+      if (next < before) {
+        if (char.mabarrierTurns > 0 && spellGuard > 0) {
+          reductions.push("結界と魔除け");
+        } else if (char.mabarrierTurns > 0) {
+          reductions.push("結界");
+        } else {
+          reductions.push("魔除け");
+        }
+      }
     }
   }
   if (options.dragon) {
@@ -223,10 +240,7 @@ function addInventoryItem(state, item, options = {}) {
   const allowQuestOverflow = options.allowQuestOverflow ?? false;
   const itemId = getItemBaseId(item);
   
-  const isQuestItem = itemId === "ANTIGRAVITY_CRYSTAL" || 
-                      itemId === "DRAGON_KEY" || 
-                      itemId === "LEGENDARY_SWORD" || 
-                      itemId === "LEGENDARY_SHIELD";
+  const isQuestItem = isSpecialOrQuestItem(itemId);
   
   if (state.inventory.length >= 20 && !allowQuestOverflow && !isQuestItem) {
     return false;
@@ -562,6 +576,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             floatText,
             floatColor: "#00ff66"
           });
+        } else if (spell.target === "all_allies") {
+          const result = spell.effect(char, state.party);
+          logQueue.push({
+            msg: `[味方] ${result.log}`,
+            sound: "heal",
+            floatText: "BARRIER",
+            floatColor: "#00ff66"
+          });
         }
       } else if (act.type === "item") {
         const item = ITEMS[act.itemKey];
@@ -624,9 +646,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       const mon = turn.mon;
       if (mon.hp <= 0) return;
 
-      if (mon.status === "sleep") {
+      if (mon.status === "sleep" || mon.status === "paralyzed" || mon.status === "paralyze") {
+        mon.lahalitoQueued = false;
+        if (mon.name === "いにしえの竜") {
+          mon.tiltowaitQueued = false;
+        }
         logQueue.push({
-          msg: `[ 敵 ] ${mon.name}は眠っていて動けない。`,
+          msg: `[ 敵 ] ${mon.name}は動けない！`,
           sound: "miss"
         });
         return;
@@ -748,6 +774,33 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       // フラック独自のギミック行動
       if (mon.name === "フラック") {
+        const isSilenced = mon.silenceTurns > 0;
+        if (isSilenced) {
+          mon.lahalitoQueued = false;
+        }
+
+        if (!isSilenced && mon.lahalitoQueued) {
+          mon.lahalitoQueued = false;
+          logQueue.push({
+            msg: `[ 敵 ] フラックは激しい炎の息（ラハリト）を吹き出した！`,
+            sound: "cast_spell",
+            shake: 15,
+            flash: true
+          });
+          state.party.forEach((c, charIdx) => {
+            if (c.status !== "dead") {
+              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+              let dmg = Math.floor(Math.random() * 16) + 10; // 10-25 DMG
+              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue });
+              c.hp = Math.max(0, c.hp - dmg);
+              if (c.hp === 0) c.status = "dead";
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
+            }
+          });
+          return;
+        }
+
         const hpPct = mon.hp / mon.maxHp;
         const r = Math.random();
         let action = "attack";
@@ -766,6 +819,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (r < 0.70) action = "attack";
           else if (r < 0.90) action = "lahalito";
           else action = "gaze";
+        }
+
+        if (isSilenced && action === "lahalito") {
+          action = "attack";
         }
 
         if (action === "flee") {
@@ -797,22 +854,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           });
           return;
         } else if (action === "lahalito") {
+          mon.lahalitoQueued = true;
           logQueue.push({
-            msg: `[ 敵 ] フラックは激しい炎の息（ラハリト）を吹き出した！`,
-            sound: "cast_spell",
-            shake: 15,
-            flash: true
-          });
-          state.party.forEach((c, charIdx) => {
-            if (c.status !== "dead") {
-              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-              let dmg = Math.floor(Math.random() * 16) + 10; // 10-25 DMG
-              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue });
-              c.hp = Math.max(0, c.hp - dmg);
-              if (c.hp === 0) c.status = "dead";
-              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
-            }
+            msg: `[警告] フラックの周囲に炎が渦巻く！次のターン、ラハリトの予兆！`,
+            sound: "cast_spell"
           });
           return;
         } else if (action === "gaze") {
@@ -846,8 +891,18 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       // いにしえの竜独自のギミック行動
       if (mon.name === "いにしえの竜") {
+        const isSilenced = mon.silenceTurns > 0;
+        if (isSilenced) {
+          mon.tiltowaitQueued = false;
+        }
+
         if (mon.tiltowaitQueued) {
           mon.tiltowaitQueued = false;
+          if (isSilenced) {
+            logQueue.push({ msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えようとしたが、沈黙している！` });
+            mon.turnCount = (mon.turnCount || 0) + 1;
+            return;
+          }
           mon.turnCount = (mon.turnCount || 0) + 1;
           logQueue.push({
             msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！(防御で大幅軽減可能)`,
@@ -887,6 +942,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
 
         mon.turnCount++;
+
+        if (isSilenced) {
+          if (action === "madalto") {
+            action = "breath";
+          } else if (action === "tiltowait_queue") {
+            action = "attack";
+          }
+        }
 
         if (action === "tiltowait_queue") {
           mon.tiltowaitQueued = true;
@@ -938,8 +1001,16 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       // Check if monster heals its allies first (35% chance if spellcaster healer)
+      const isSilenced = mon.silenceTurns > 0;
+      if (isSilenced) {
+        mon.lahalitoQueued = false;
+        if (mon.name === "いにしえの竜") {
+          mon.tiltowaitQueued = false;
+        }
+      }
+
       const healSpellChance = mon.spellChance !== undefined ? mon.spellChance : 0.35;
-      if (mon.name !== "いにしえの竜" && mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < healSpellChance) {
+      if (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < healSpellChance) {
         const woundedMonsters = monsters.filter(m => m.hp > 0 && m.hp < m.maxHp);
         if (woundedMonsters.length > 0) {
           woundedMonsters.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
@@ -975,8 +1046,38 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       // Attack spells (HALITO, LAHALITO etc., excluding healer spells)
       const attackSpellChance = mon.spellChance !== undefined ? mon.spellChance : 0.20;
-      if (mon.name !== "いにしえの竜" && mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < attackSpellChance) {
-        if (mon.spell === "HALITO") {
+      let isLahalitoForced = !isSilenced && mon.spell === "LAHALITO" && mon.lahalitoQueued;
+
+      if (isLahalitoForced || (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < attackSpellChance)) {
+        if (isLahalitoForced || mon.spell === "LAHALITO") {
+          if (mon.lahalitoQueued) {
+            mon.lahalitoQueued = false;
+            logQueue.push({
+              msg: `[ 敵 ] ${mon.name}は激しい炎の息（ラハリト）を吹き出した！`,
+              sound: "cast_spell",
+              shake: 15,
+              flash: true
+            });
+            state.party.forEach((c, charIdx) => {
+              if (c.status !== "dead") {
+                const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+                let dmg = Math.floor(Math.random() * 15) + 10;
+                if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+                dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
+                c.hp = Math.max(0, c.hp - dmg);
+                if (c.hp === 0) c.status = "dead";
+                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
+              }
+            });
+          } else {
+            mon.lahalitoQueued = true;
+            logQueue.push({
+              msg: `[警告] ${mon.name}の周囲に炎が渦巻く！次のターン、ラハリトの予兆！`,
+              sound: "cast_spell"
+            });
+          }
+          return;
+        } else if (mon.spell === "HALITO") {
           let dmg = Math.floor(Math.random() * 10) + 5;
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
@@ -988,24 +1089,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             shake: 8,
             floatText: `${dmg}`,
             floatColor: "#ff3b30"
-          });
-        } else if (mon.spell === "LAHALITO") {
-          logQueue.push({
-            msg: `[ 敵 ] ${mon.name}は激しい炎の息（ラハリト）を吐き出した！`,
-            sound: "cast_spell",
-            shake: 15,
-            flash: true
-          });
-          state.party.forEach((c, charIdx) => {
-            if (c.status !== "dead") {
-              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-              let dmg = Math.floor(Math.random() * 15) + 10;
-              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
-              c.hp = Math.max(0, c.hp - dmg);
-              if (c.hp === 0) c.status = "dead";
-              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
-            }
           });
         } else if (mon.spell === "MADALTO") {
           logQueue.push({
@@ -1145,6 +1228,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     if (char.magicVulnerableTurns) char.magicVulnerableTurns = Math.max(0, char.magicVulnerableTurns - 1);
     if (char.silenceTurns) char.silenceTurns = Math.max(0, char.silenceTurns - 1);
     if (char.antiHealTurns) char.antiHealTurns = Math.max(0, char.antiHealTurns - 1);
+    if (char.mabarrierTurns) char.mabarrierTurns = Math.max(0, char.mabarrierTurns - 1);
   });
 
   if (escaped) {

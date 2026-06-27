@@ -143,36 +143,110 @@ export function openShopAppraise() {
 export function renderShop() {
   const overlay = document.getElementById("shop-overlay");
   if (!overlay) return;
+
+  // 0. Save scroll position
+  const existingList = document.querySelector(".shop-items-list");
+  const savedScrollTop = existingList ? existingList.scrollTop : 0;
+
   overlay.innerHTML = "";
 
-  // 1. Create header (only title)
+  // 1. Create header area (Sticky settings UI)
   const header = document.createElement("div");
-  header.className = "shop-header";
-  
+  header.className = "shop-header-area";
+  header.style.display = "flex";
+  header.style.flexDirection = "column";
+  header.style.gap = "8px";
+  header.style.flexShrink = "0";
+
+  // Row 1: Title and Close button
+  const titleRow = document.createElement("div");
+  titleRow.className = "shop-title-row";
+  titleRow.style.display = "flex";
+  titleRow.style.justifyContent = "space-between";
+  titleRow.style.alignItems = "center";
+
   const title = document.createElement("span");
   title.className = "shop-title";
   title.textContent = "ボルタック商店";
-  header.appendChild(title);
-  
-  overlay.appendChild(header);
+  titleRow.appendChild(title);
 
-  // 2. Create body
-  const body = document.createElement("div");
-  body.className = "shop-body";
+  const btnClose = document.createElement("button");
+  btnClose.id = "btn-shop-close";
+  btnClose.className = "btn btn-danger";
+  btnClose.style.minHeight = "44px";
+  btnClose.style.padding = "0 16px";
+  btnClose.textContent = "閉じる";
+  btnClose.addEventListener("click", () => {
+    goBackSubmenu();
+  });
+  titleRow.appendChild(btnClose);
+  header.appendChild(titleRow);
 
-  // 2.1 Left Column: List Container
-  const listContainer = document.createElement("div");
-  listContainer.className = "shop-list-container";
-  listContainer.style.maxHeight = "none";
-  listContainer.style.flexShrink = "0";
+  // Row 2: Status Bar
+  const statusBar = document.createElement("div");
+  statusBar.className = "shop-status-bar";
+  statusBar.innerHTML = `
+    <span class="shop-status-gold">💰 ${state.gold}G</span>
+    <span class="shop-status-capacity">🎒 バッグ: ${state.inventory.length}/20</span>
+  `;
+  header.appendChild(statusBar);
 
-  // Filters row (only for Buy and Sell mode) - moved directly above list
+  // Row 3: Shop Tabs (Mode Switcher)
+  const tabRow = document.createElement("div");
+  tabRow.className = "shop-tabs"; // Use existing class for styling
+  tabRow.style.display = "flex";
+  tabRow.style.gap = "6px";
+  tabRow.style.width = "100%";
+
+  const tabBuy = document.createElement("button");
+  tabBuy.className = `shop-tab ${shopState.mode === "buy" ? "active" : ""}`;
+  tabBuy.textContent = "🛡️ 買う";
+  tabBuy.setAttribute("aria-pressed", shopState.mode === "buy" ? "true" : "false");
+  tabBuy.addEventListener("click", () => {
+    shopState.mode = "buy";
+    shopState.filter = "all";
+    shopState.selectedKey = null;
+    shopState.selectedIdx = -1;
+    shopState.lastAppraised = null;
+    renderShop();
+  });
+  tabRow.appendChild(tabBuy);
+
+  const tabSell = document.createElement("button");
+  tabSell.className = `shop-tab ${shopState.mode === "sell" ? "active" : ""}`;
+  tabSell.textContent = "💰 売る";
+  tabSell.setAttribute("aria-pressed", shopState.mode === "sell" ? "true" : "false");
+  tabSell.addEventListener("click", () => {
+    shopState.mode = "sell";
+    shopState.filter = "all";
+    shopState.selectedKey = null;
+    shopState.selectedIdx = -1;
+    shopState.lastAppraised = null;
+    renderShop();
+  });
+  tabRow.appendChild(tabSell);
+
+  const tabAppraise = document.createElement("button");
+  tabAppraise.className = `shop-tab ${shopState.mode === "appraise" ? "active" : ""}`;
+  tabAppraise.textContent = "🔍 鑑定";
+  tabAppraise.setAttribute("aria-pressed", shopState.mode === "appraise" ? "true" : "false");
+  tabAppraise.addEventListener("click", () => {
+    shopState.mode = "appraise";
+    shopState.filter = "all";
+    shopState.selectedKey = null;
+    shopState.selectedIdx = -1;
+    shopState.lastAppraised = null;
+    renderShop();
+  });
+  tabRow.appendChild(tabAppraise);
+  header.appendChild(tabRow);
+
+  // Row 4: Filter Row (if buy or sell)
   if (shopState.mode === "buy" || shopState.mode === "sell") {
     const filterRow = document.createElement("div");
     filterRow.className = "shop-filters";
     filterRow.style.display = "flex";
     filterRow.style.gap = "6px";
-    filterRow.style.marginBottom = "8px";
     filterRow.style.width = "100%";
     
     const categories = [
@@ -187,7 +261,6 @@ export function renderShop() {
       chip.type = "button";
       const isActive = shopState.filter === cat.id;
       chip.className = `filter-chip ${isActive ? "active" : ""}`;
-      chip.setAttribute("aria-pressed", isActive ? "true" : "false");
       chip.textContent = cat.label;
       chip.style.flex = "1";
       chip.style.minHeight = "44px";
@@ -200,13 +273,22 @@ export function renderShop() {
       });
       filterRow.appendChild(chip);
     });
-    listContainer.appendChild(filterRow);
+    header.appendChild(filterRow);
   }
+
+  overlay.appendChild(header);
+
+  // 2. Create body
+  const body = document.createElement("div");
+  body.className = "shop-body";
+
+  // 2.1 List Container
+  const listContainer = document.createElement("div");
+  listContainer.className = "shop-list-container";
 
   // Scrollable Items list
   const itemsList = document.createElement("div");
   itemsList.className = "shop-items-list";
-  itemsList.style.maxHeight = "160px";
 
   const TYPE_PRIORITIES = {
     usable: 0,
@@ -224,7 +306,6 @@ export function renderShop() {
   }
 
   if (shopState.mode === "buy") {
-    // Filter stock
     const filteredStock = SHOP_STOCK.filter(st => {
       const item = ITEMS[st.key];
       if (shopState.filter === "all") return true;
@@ -234,7 +315,6 @@ export function renderShop() {
       return true;
     });
 
-    // Sort stock: usable -> weapon -> armor/shield -> other
     filteredStock.sort((a, b) => {
       const itemA = ITEMS[a.key];
       const itemB = ITEMS[b.key];
@@ -299,13 +379,21 @@ export function renderShop() {
         shopState.selectedKey = st.key;
         shopState.selectedIdx = -1;
         shopState.lastAppraised = null;
-        renderShop();
+
+        const rows = itemsList.querySelectorAll(".shop-item-row");
+        rows.forEach(r => {
+          r.classList.remove("selected");
+          r.setAttribute("aria-selected", "false");
+        });
+        row.classList.add("selected");
+        row.setAttribute("aria-selected", "true");
+
+        renderShopDetail();
       });
 
       itemsList.appendChild(row);
     });
   } else if (shopState.mode === "sell") {
-    // Selling Mode: list player inventory mapped to preserve index
     const mappedInventory = state.inventory.map((itemVal, idx) => {
       const item = getItemData(itemVal);
       return { itemVal, idx, item };
@@ -320,7 +408,6 @@ export function renderShop() {
       return true;
     });
 
-    // Sort inventory: usable -> weapon -> armor/shield -> other
     filteredInventory.sort((a, b) => {
       const priA = TYPE_PRIORITIES[a.item.type] ?? 3;
       const priB = TYPE_PRIORITIES[b.item.type] ?? 3;
@@ -375,7 +462,16 @@ export function renderShop() {
             shopState.selectedKey = itemVal;
             shopState.selectedIdx = idx;
             shopState.lastAppraised = null;
-            renderShop();
+
+            const rows = itemsList.querySelectorAll(".shop-item-row");
+            rows.forEach(r => {
+              r.classList.remove("selected");
+              r.setAttribute("aria-selected", "false");
+            });
+            row.classList.add("selected");
+            row.setAttribute("aria-selected", "true");
+
+            renderShopDetail();
           }
         });
 
@@ -383,7 +479,6 @@ export function renderShop() {
       });
     }
   } else if (shopState.mode === "appraise") {
-    // Appraise Mode: include the last appraised item so it doesn't instantly vanish
     const unidentifiedItems = [];
     state.inventory.forEach((itemKey, idx) => {
       const isLastAppraised = shopState.lastAppraised && shopState.lastAppraised.idx === idx;
@@ -392,7 +487,6 @@ export function renderShop() {
       }
     });
 
-    // Sort unidentified items by actual identified type
     unidentifiedItems.sort((a, b) => {
       const itemA = getItemData(a.itemKey);
       const itemB = getItemData(b.itemKey);
@@ -451,6 +545,16 @@ export function renderShop() {
           if (isLastAppraised) {
             shopState.selectedKey = itemKey;
             shopState.selectedIdx = idx;
+
+            const rows = itemsList.querySelectorAll(".shop-item-row");
+            rows.forEach(r => {
+              r.classList.remove("selected");
+              r.setAttribute("aria-selected", "false");
+            });
+            row.classList.add("selected");
+            row.setAttribute("aria-selected", "true");
+
+            renderShopDetail();
           } else {
             shopState.lastAppraised = null;
             shopState.selectedKey = itemKey;
@@ -467,17 +571,33 @@ export function renderShop() {
   listContainer.appendChild(itemsList);
   body.appendChild(listContainer);
 
-  // 2.2 Right/Bottom Column: Detail Panel
+  // 2.2 Detail Panel
   const detailPanel = document.createElement("div");
   detailPanel.className = "shop-detail-panel";
   detailPanel.id = "shop-detail-panel";
-  detailPanel.style.minHeight = "100px";
+  body.appendChild(detailPanel);
+
+  overlay.appendChild(body);
+
+  // Render detail contents
+  renderShopDetail();
+
+  // Restore scroll position safely
+  requestAnimationFrame(() => {
+    if (itemsList) {
+      itemsList.scrollTop = savedScrollTop;
+    }
+  });
+}
+
+export function renderShopDetail() {
+  const detailPanel = document.getElementById("shop-detail-panel");
+  if (!detailPanel) return;
+  detailPanel.innerHTML = "";
 
   const hasSelected = (shopState.mode === "buy" && shopState.selectedKey) || 
                        (shopState.mode === "sell" && shopState.selectedIdx !== -1) ||
                        (shopState.mode === "appraise" && shopState.selectedIdx !== -1);
-
-  let actionBtn = null;
 
   if (shopState.mode === "appraise" && shopState.lastAppraised) {
     // ----------------------------------------------------
@@ -776,7 +896,7 @@ export function renderShop() {
       scrollContent.appendChild(statsDiv);
     }
 
-    // 4. Detail Ownership (Only for BUY mode) - moved to top
+    // 4. Detail Ownership
     if (shopState.mode === "buy") {
       const ownership = getItemOwnership(itemKey);
       const ownershipDiv = document.createElement("div");
@@ -796,9 +916,28 @@ export function renderShop() {
       }
       ownershipDiv.innerHTML = ownershipHtml;
       scrollContent.appendChild(ownershipDiv);
+    } else if (shopState.mode === "sell") {
+      const originalItemKey = state.inventory[shopState.selectedIdx];
+      const baseKey = getItemBaseId(originalItemKey);
+      const ownership = getItemOwnership(baseKey);
+      const ownershipDiv = document.createElement("div");
+      ownershipDiv.className = "detail-ownership";
+      ownershipDiv.style.marginTop = "8px";
+      ownershipDiv.style.padding = "6px 8px";
+      ownershipDiv.style.backgroundColor = "rgba(18, 18, 24, 0.6)";
+      ownershipDiv.style.border = "1px solid #22222d";
+      ownershipDiv.style.borderRadius = "4px";
+      ownershipDiv.style.fontSize = "11px";
+      ownershipDiv.style.color = "var(--text-muted)";
+      ownershipDiv.style.fontFamily = "var(--font-mono)";
+
+      let ownershipHtml = `<div>所持数: <span style="color: var(--neon-cyan); font-weight: bold;">${ownership.total}個</span></div>`;
+      ownershipHtml += `<div style="font-size: 9px; margin-top: 2px; color: var(--text-muted);">（バッグ: ${ownership.bagCount}個 / 装備中: ${ownership.equippedCount}個）</div>`;
+      ownershipDiv.innerHTML = ownershipHtml;
+      scrollContent.appendChild(ownershipDiv);
     }
 
-    // 5. Detail Description - moved to bottom
+    // 5. Detail Description
     const detailDesc = document.createElement("div");
     detailDesc.className = "detail-desc";
     detailDesc.style.marginTop = "8px";
@@ -808,7 +947,7 @@ export function renderShop() {
     detailPanel.appendChild(scrollContent);
 
     // Confirm button
-    actionBtn = document.createElement("button");
+    const actionBtn = document.createElement("button");
     actionBtn.className = `btn btn-block shop-action-btn`;
     
     if (shopState.mode === "buy") {
@@ -855,14 +994,57 @@ export function renderShop() {
       actionBtn.textContent = `売却する (+${itemPrice}G)`;
 
       actionBtn.addEventListener("click", () => {
+        const currentSelectedIdx = shopState.selectedIdx;
+        
+        // フィルタ後の現在の位置（filteredClickIdx）を特定する
+        const mappedInventory = state.inventory.map((itemVal, idx) => {
+          const item = getItemData(itemVal);
+          return { itemVal, idx, item };
+        });
+        const filteredInventory = mappedInventory.filter(({ item }) => {
+          if (!item) return false;
+          if (shopState.filter === "all") return true;
+          if (shopState.filter === "weapon") return item.type === "weapon";
+          if (shopState.filter === "armor") return item.type === "armor" || item.type === "shield";
+          if (shopState.filter === "usable") return item.type === "usable";
+          return true;
+        });
+        
+        const filteredClickIdx = filteredInventory.findIndex(entry => entry.idx === currentSelectedIdx);
+
+        // 売却実行
         state.gold += itemPrice;
-        state.inventory.splice(shopState.selectedIdx, 1);
+        state.inventory.splice(currentSelectedIdx, 1);
         playSound("gold");
         addLog(`${item.name}を${itemPrice}ゴールドで売却した。`);
         saveAutosave();
 
-        shopState.selectedKey = null;
-        shopState.selectedIdx = -1;
+        // 売却後のインベントリを再構築して、次の選択対象を決定する
+        const postMappedInventory = state.inventory.map((itemVal, idx) => {
+          const item = getItemData(itemVal);
+          return { itemVal, idx, item };
+        });
+        const postFilteredInventory = postMappedInventory.filter(({ item }) => {
+          if (!item) return false;
+          if (shopState.filter === "all") return true;
+          if (shopState.filter === "weapon") return item.type === "weapon";
+          if (shopState.filter === "armor") return item.type === "armor" || item.type === "shield";
+          if (shopState.filter === "usable") return item.type === "usable";
+          return true;
+        });
+
+        if (postFilteredInventory.length > 0) {
+          let nextSelectIdxInFiltered = filteredClickIdx;
+          if (nextSelectIdxInFiltered >= postFilteredInventory.length) {
+            nextSelectIdxInFiltered = postFilteredInventory.length - 1;
+          }
+          const nextEntry = postFilteredInventory[nextSelectIdxInFiltered];
+          shopState.selectedIdx = nextEntry.idx;
+          shopState.selectedKey = nextEntry.itemVal;
+        } else {
+          shopState.selectedIdx = -1;
+          shopState.selectedKey = null;
+        }
 
         const goldLabel = document.getElementById("gold-counter");
         if (goldLabel) goldLabel.textContent = `GOLD: ${state.gold}`;
@@ -922,84 +1104,5 @@ export function renderShop() {
       detailPanel.appendChild(actionBtn);
     }
   }
-
-  body.appendChild(detailPanel);
-  overlay.appendChild(body);
-
-  // 3. Create Bottom Actions Panel (Sticky comfort UI)
-  const footer = document.createElement("div");
-  footer.className = "bottom-actions-container";
-
-  // 3.1 Status Bar row: [GOLD: 820G] [バッグ: 12/20]
-  const statusBar = document.createElement("div");
-  statusBar.className = "shop-status-bar";
-  statusBar.innerHTML = `
-    <span class="shop-status-gold">💰 ${state.gold}G</span>
-    <span class="shop-status-capacity">🎒 バッグ: ${state.inventory.length}/20</span>
-  `;
-  footer.appendChild(statusBar);
-
-  // 3.2 Tabs row: [買う] [売る] [鑑定]
-  const tabRow = document.createElement("div");
-  tabRow.className = "bottom-actions-row";
-  
-  const tabBuy = document.createElement("button");
-  tabBuy.className = `shop-tab ${shopState.mode === "buy" ? "active" : ""}`;
-  tabBuy.textContent = "🛡️ 買う";
-  tabBuy.setAttribute("aria-pressed", shopState.mode === "buy" ? "true" : "false");
-  tabBuy.addEventListener("click", () => {
-    shopState.mode = "buy";
-    shopState.filter = "all";
-    shopState.selectedKey = null;
-    shopState.selectedIdx = -1;
-    shopState.lastAppraised = null;
-    renderShop();
-  });
-  tabRow.appendChild(tabBuy);
-
-  const tabSell = document.createElement("button");
-  tabSell.className = `shop-tab ${shopState.mode === "sell" ? "active" : ""}`;
-  tabSell.textContent = "💰 売る";
-  tabSell.setAttribute("aria-pressed", shopState.mode === "sell" ? "true" : "false");
-  tabSell.addEventListener("click", () => {
-    shopState.mode = "sell";
-    shopState.filter = "all";
-    shopState.selectedKey = null;
-    shopState.selectedIdx = -1;
-    shopState.lastAppraised = null;
-    renderShop();
-  });
-  tabRow.appendChild(tabSell);
-
-  const tabAppraise = document.createElement("button");
-  tabAppraise.className = `shop-tab ${shopState.mode === "appraise" ? "active" : ""}`;
-  tabAppraise.textContent = "🔍 鑑定";
-  tabAppraise.setAttribute("aria-pressed", shopState.mode === "appraise" ? "true" : "false");
-  tabAppraise.addEventListener("click", () => {
-    shopState.mode = "appraise";
-    shopState.filter = "all";
-    shopState.selectedKey = null;
-    shopState.selectedIdx = -1;
-    shopState.lastAppraised = null;
-    renderShop();
-  });
-  tabRow.appendChild(tabAppraise);
-  footer.appendChild(tabRow);
-
-  // 3.3 Close button row
-  const closeRow = document.createElement("div");
-  closeRow.className = "bottom-actions-row";
-  
-  const btnClose = document.createElement("button");
-  btnClose.className = "btn btn-danger";
-  btnClose.style.width = "100%";
-  btnClose.style.minHeight = "44px";
-  btnClose.textContent = "❌ 閉じる";
-  btnClose.addEventListener("click", () => {
-    goBackSubmenu();
-  });
-  closeRow.appendChild(btnClose);
-  footer.appendChild(closeRow);
-
-  overlay.appendChild(footer);
 }
+

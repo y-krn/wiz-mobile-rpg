@@ -483,6 +483,66 @@ export const SPELLS = {
       }
       return { log: `${caster.name}は${target.name}にカドルトを唱えた。${cured ? "奇跡が起き、息を吹き返した！" : "しかし効果がなかった。"}` };
     }
+  },
+  MABARRIER: {
+    name: "MABARRIER",
+    type: "priest",
+    level: 4,
+    cost: 3,
+    target: "all_allies",
+    desc: "魔力障壁 (3ターン、味方全体の呪文・ブレス被ダメージを30%軽減)",
+    effect: (caster, allies) => {
+      allies.forEach(char => {
+        if (char.status !== "dead") {
+          char.mabarrierTurns = 3;
+        }
+      });
+      return { log: `${caster.name}はマバリアを唱えた！味方全体に魔力障壁が張られた。` };
+    }
+  },
+  MONTINO: {
+    name: "MONTINO",
+    type: "mage",
+    level: 4,
+    cost: 3,
+    target: "all_enemies",
+    desc: "沈黙の呪文 (2ターン、敵全体の呪文行動を封じる)",
+    effect: (caster, targets) => {
+      let silencedCount = 0;
+      const intVal = caster ? getCharInt(caster) : 10;
+      const pieVal = caster ? getCharPie(caster) : 10;
+      const maxStat = Math.max(intVal, pieVal);
+      const bonus = Math.min(0.15, Math.max(0, (maxStat - 10) * 0.015));
+      const baseChance = 0.5 + bonus;
+
+      targets.forEach(t => {
+        if (t.hp > 0) {
+          const chance = (t.isBoss || t.isMidboss) ? baseChance * 0.6 : baseChance;
+          if (Math.random() < chance) {
+            t.silenceTurns = 2;
+            silencedCount++;
+          }
+        }
+      });
+      return { log: `${caster.name}はモンティノを唱えた！敵${silencedCount}体を沈黙させた。` };
+    }
+  },
+  MORLIS: {
+    name: "MORLIS",
+    type: "mage",
+    level: 5,
+    cost: 3,
+    target: "all_enemies",
+    desc: "魔防低下の呪文 (3ターン、敵全体の魔法耐性を20%低下させる)",
+    effect: (caster, targets) => {
+      targets.forEach(t => {
+        if (t.hp > 0) {
+          if (!t.buffs) t.buffs = [];
+          t.buffs.push({ type: "magicResist", value: -0.2, turns: 3 });
+        }
+      });
+      return { log: `${caster.name}はモーリスを唱えた！敵全体の魔法耐性を下げた。` };
+    }
   }
 
 };
@@ -581,7 +641,11 @@ export const ITEMS = {
     return `${char.name}に聖灰を振りかけると、${cured ? "奇跡が起き、HP1で息を吹き返した！" : "しかし何も起こらなかった。"}`;
   }},
   LEGENDARY_SWORD: { id: "LEGENDARY_SWORD", name: "神剣エクスカリバー", type: "weapon", atk: 40, price: 3000, desc: "聖なる光を放つ伝説の神剣。攻撃力+40 [戦・侍用]", classes: ["Fighter", "Samurai"] },
-  LEGENDARY_SHIELD: { id: "LEGENDARY_SHIELD", name: "イージスの盾", type: "shield", def: 15, price: 2000, desc: "あらゆる厄災を払う神の盾。防御力+15 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+  LEGENDARY_SHIELD: { id: "LEGENDARY_SHIELD", name: "イージスの盾", type: "shield", def: 15, price: 2500, desc: "あらゆる厄災を払う神の盾。防御力+15 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+  SEALED_EXCALIBUR: { id: "SEALED_EXCALIBUR", name: "封印された聖剣", type: "weapon", atk: 26, price: 2400, desc: "封印が施された伝説の聖剣。攻撃力+26 [戦・侍用]", classes: ["Fighter", "Samurai"] },
+  HOLY_BLADE: { id: "HOLY_BLADE", name: "聖騎士の剣", type: "weapon", atk: 24, price: 2200, desc: "不死・悪魔を退ける聖なる剣。攻撃力+24 不死・悪魔特効+20% [戦・僧・侍・野用]", classes: ["Fighter", "Priest", "Samurai", "Ranger"] },
+  DRAGON_CHARM: { id: "DRAGON_CHARM", name: "竜除けの護符", type: "shield", def: 2, price: 2500, desc: "竜の炎と爪を和らげる魔除けの護符。防御力+2 竜耐性・特効+30% [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
+  EXCALIBUR_FRAGMENT: { id: "EXCALIBUR_FRAGMENT", name: "神剣の破片", type: "quest", price: 1800, desc: "神剣の刀身が砕けた一部。不思議な光を放っている。価格: 1800G" },
   ANTIGRAVITY_CRYSTAL: { id: "ANTIGRAVITY_CRYSTAL", name: "浮遊石 (クリスタル)", type: "quest", price: 0, desc: "青く浮かび上がる伝説の結晶。城に持ち帰ると勝利。" },
   DRAGON_KEY: { id: "DRAGON_KEY", name: "竜の鍵", type: "quest", price: 0, desc: "いにしえの竜の巣へと通じる刻印が刻まれた鍵。" }
 };
@@ -1367,6 +1431,9 @@ export function checkCharLevelUp(char) {
       if (char.level === 3 && !char.spells.includes("LOMILWA")) {
         char.spells.push("LOMILWA");
       }
+      if (char.level === 4 && !char.spells.includes("MABARRIER")) {
+        char.spells.push("MABARRIER");
+      }
       if (char.level === 8 && !char.spells.includes("DIALMA")) {
         char.spells.push("DIALMA");
       }
@@ -1381,8 +1448,12 @@ export function checkCharLevelUp(char) {
         if (!char.spells.includes("KATINO")) char.spells.push("KATINO");
         if (!char.spells.includes("MAHALITO")) char.spells.push("MAHALITO");
       }
-      if (char.level === 4 && !char.spells.includes("MASFEAL")) {
-        char.spells.push("MASFEAL");
+      if (char.level === 4) {
+        if (!char.spells.includes("MASFEAL")) char.spells.push("MASFEAL");
+        if (!char.spells.includes("MONTINO")) char.spells.push("MONTINO");
+      }
+      if (char.level === 5 && !char.spells.includes("MORLIS")) {
+        char.spells.push("MORLIS");
       }
       if (char.level === 6 && !char.spells.includes("MADALTO")) {
         char.spells.push("MADALTO");
@@ -1401,6 +1472,12 @@ export function checkCharLevelUp(char) {
         if (!char.spells.includes("KATINO")) char.spells.push("KATINO");
         if (!char.spells.includes("MAHALITO")) char.spells.push("MAHALITO");
       }
+      if (char.level === 6 && !char.spells.includes("MONTINO")) {
+        char.spells.push("MONTINO");
+      }
+      if (char.level === 7 && !char.spells.includes("MORLIS")) {
+        char.spells.push("MORLIS");
+      }
       if (char.level === 7 && !char.spells.includes("MADALTO")) {
         char.spells.push("MADALTO");
       }
@@ -1414,8 +1491,9 @@ export function checkCharLevelUp(char) {
       if (char.level === 4 && !char.spells.includes("MADIOS")) {
         char.spells.push("MADIOS", "DIALKO", "LATUMOFIS");
       }
-      if (char.level === 5 && !char.spells.includes("LOMILWA")) {
-        char.spells.push("LOMILWA");
+      if (char.level === 5) {
+        if (!char.spells.includes("LOMILWA")) char.spells.push("LOMILWA");
+        if (!char.spells.includes("MABARRIER")) char.spells.push("MABARRIER");
       }
       if (char.level === 8 && !char.spells.includes("DIALMA")) {
         char.spells.push("DIALMA");
@@ -1435,12 +1513,17 @@ export function checkCharLevelUp(char) {
         });
       }
       if (char.level === 4) {
-        ["LOMILWA", "KATINO", "MASFEAL"].forEach(s => {
+        ["LOMILWA", "KATINO", "MASFEAL", "MABARRIER"].forEach(s => {
           if (!char.spells.includes(s)) char.spells.push(s);
         });
       }
-      if (char.level === 5 && !char.spells.includes("MAHALITO")) {
-        char.spells.push("MAHALITO");
+      if (char.level === 5) {
+        ["MAHALITO", "MONTINO"].forEach(s => {
+          if (!char.spells.includes(s)) char.spells.push(s);
+        });
+      }
+      if (char.level === 6 && !char.spells.includes("MORLIS")) {
+        char.spells.push("MORLIS");
       }
       if (char.level === 7) {
         ["DIALMA", "MADALTO"].forEach(s => {
@@ -1485,6 +1568,18 @@ export function getCharAffixSum(char, affixType) {
       sum += 10;
     }
   }
+  if (affixType === "antiUndead" || affixType === "antiDemon") {
+    const weaponIdStr = getItemBaseId(char.equipment.weapon);
+    if (weaponIdStr === "HOLY_BLADE") {
+      sum += 20;
+    }
+  }
+  if (affixType === "antiDragon") {
+    const shieldIdStr = getItemBaseId(char.equipment.shield);
+    if (shieldIdStr === "DRAGON_CHARM") {
+      sum += 30;
+    }
+  }
   const total = sum + getClassPassiveBonus(char, affixType);
   const caps = {
     poisonWard: 75,
@@ -1513,4 +1608,11 @@ export function getClassPassive(char) {
 
 export function getClassPassiveBonus(char, affixType) {
   return getClassPassive(char).bonuses[affixType] || 0;
+}
+
+export function isSpecialOrQuestItem(itemId) {
+  return itemId === "ANTIGRAVITY_CRYSTAL" || 
+         itemId === "DRAGON_KEY" || 
+         itemId === "LEGENDARY_SWORD" || 
+         itemId === "LEGENDARY_SHIELD";
 }

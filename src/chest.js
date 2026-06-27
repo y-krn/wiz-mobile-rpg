@@ -319,42 +319,48 @@ export function openChestMenu() {
   // Inspect Chest
   const btnInspect = document.createElement("button");
   btnInspect.className = "btn btn-neon btn-block";
-  btnInspect.textContent = "調べる";
   btnInspect.style.minHeight = "44px";
   btnInspect.style.flex = "1";
-  btnInspect.addEventListener("click", () => {
-    // Thief class has high inspect rate, others low
-    const thief = state.party.find(c => c.class === "Thief" && ["ok", "poisoned", "blind"].includes(c.status));
-    let chance = thief ? 0.85 : 0.30;
-    if (thief && thief.status === "blind") {
-      chance = chance / 2.0;
-    } else if (!thief) {
-      const activeChar = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status));
-      if (activeChar && activeChar.status === "blind") {
+  if (state.chestState.inspected) {
+    btnInspect.textContent = "調査済み";
+    btnInspect.disabled = true;
+    btnInspect.classList.add("disabled");
+  } else {
+    btnInspect.textContent = "調べる";
+    btnInspect.addEventListener("click", () => {
+      // Thief class has high inspect rate, others low
+      const thief = state.party.find(c => c.class === "Thief" && ["ok", "poisoned", "blind"].includes(c.status));
+      let chance = thief ? 0.85 : 0.30;
+      if (thief && thief.status === "blind") {
         chance = chance / 2.0;
+      } else if (!thief) {
+        const activeChar = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status));
+        if (activeChar && activeChar.status === "blind") {
+          chance = chance / 2.0;
+        }
       }
-    }
-    const lightBonus = state.lightPower === "lomilwa" ? 0.25 : (state.lightTurns > 0 ? 0.15 : 0);
-    if (lightBonus > 0) {
-      chance = Math.min(0.95, chance + lightBonus);
-      addLog(`明かりの呪文が罠の調査を助けている。成功率 +${Math.round(lightBonus * 100)}%`);
-    }
-    state.chestState.inspected = true;
-    state.chestState.inspectChance = chance; // Save inspect success rate for reliability display
-    
-    if (Math.random() < chance) {
-      state.chestState.identifiedTrap = state.chestState.trap;
-      addLog(`調査結果：[${translateTrap(state.chestState.trap)}]の罠のようだ！`);
-    } else {
-      // Pick random false trap
-      const falseTraps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
-      const randTrap = falseTraps[Math.floor(Math.random() * falseTraps.length)];
-      state.chestState.identifiedTrap = randTrap;
-      addLog(`調査結果：[${translateTrap(randTrap)}]の罠の可能性が高い。（不確実）`);
-    }
-    playSound("move");
-    openChestMenu(); // redraw
-  });
+      const lightBonus = state.lightPower === "lomilwa" ? 0.25 : (state.lightTurns > 0 ? 0.15 : 0);
+      if (lightBonus > 0) {
+        chance = Math.min(0.95, chance + lightBonus);
+        addLog(`明かりの呪文が罠の調査を助けている。成功率 +${Math.round(lightBonus * 100)}%`);
+      }
+      state.chestState.inspected = true;
+      state.chestState.inspectChance = chance; // Save inspect success rate for reliability display
+      
+      if (Math.random() < chance) {
+        state.chestState.identifiedTrap = state.chestState.trap;
+        addLog(`調査結果：[${translateTrap(state.chestState.trap)}]の罠のようだ！`);
+      } else {
+        // Pick random false trap
+        const falseTraps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
+        const randTrap = falseTraps[Math.floor(Math.random() * falseTraps.length)];
+        state.chestState.identifiedTrap = randTrap;
+        addLog(`調査結果：[${translateTrap(randTrap)}]の罠の可能性が高い。（不確実）`);
+      }
+      playSound("move");
+      openChestMenu(); // redraw
+    });
+  }
 
   // Disarm Chest
   const btnDisarm = document.createElement("button");
@@ -364,16 +370,17 @@ export function openChestMenu() {
   if (!state.chestState.inspected) {
     btnDisarm.textContent = "解除（要調査）";
     btnDisarm.disabled = true;
-  } else if (state.chestState.identifiedTrap === "none") {
+    btnDisarm.classList.add("disabled");
+  } else if (state.chestState.identifiedTrap === "none" || state.chestState.identifiedTrap === "") {
     btnDisarm.textContent = "解除不要";
     btnDisarm.disabled = true;
     btnDisarm.classList.add("disabled");
   } else {
     btnDisarm.textContent = "解除する";
+    btnDisarm.addEventListener("click", () => {
+      openSubmenu("chest_disarmer_select", "罠を解除するキャラクターを選択：");
+    });
   }
-  btnDisarm.addEventListener("click", () => {
-    openSubmenu("chest_disarmer_select", "罠を解除するキャラクターを選択：");
-  });
 
   // Right Column (Inspect & Disarm)
   const rightColumn = document.createElement("div");

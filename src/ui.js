@@ -825,7 +825,8 @@ function getMonsterCodexDetailHtml(m, record) {
   
   if (kil >= 5) {
     const resistJp = m.resistances && m.resistances.length > 0 ? m.resistances.join(", ") : "特になし";
-    const spellsJp = m.spells && m.spells.length > 0 ? m.spells.join(", ") : "唱えられない";
+    const spellList = m.spells || (m.spell ? [m.spell] : []);
+    const spellsJp = spellList.length > 0 ? spellList.join(", ") : "唱えられない";
     html += `
       <p><strong>耐性・弱点:</strong> ${resistJp}</p>
       <p><strong>使用呪文:</strong> ${spellsJp}</p>
