@@ -26,6 +26,15 @@ existing state and data structures.
 - Existing save/state shape, when relevant
 - Test output or reproduction seed, when relevant
 
+## Agent Skills
+
+- No skill is mandatory by default; prioritize direct source and test review.
+- Recommended when the change touches frontend state wiring or rendered game
+  flow as well as logic: `build-web-apps:frontend-testing-debugging`.
+- Recommended when browser reproduction is needed for a game-flow bug:
+  `webapp-testing` or `playwright`.
+- Do not load UI or writing skills for pure mechanics reviews.
+
 ## Review Checklist
 
 - Rules match the stated design goal.
@@ -55,4 +64,3 @@ existing state and data structures.
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
-

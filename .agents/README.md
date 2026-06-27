@@ -11,6 +11,8 @@ mode.
 - Default mode: review-only.
 - Main agent owns implementation and final decisions.
 - Sub agents inspect only the files relevant to their scope.
+- Sub agents use the Agent Skills listed in their own definition when the review
+  scope matches the skill trigger.
 - Reviews must be concrete, file-aware, and tied to project constraints.
 - Reviews must avoid unrelated refactors, broad redesigns, and speculative
   future systems.
@@ -31,4 +33,3 @@ Each review should return:
 2. `Non-blocking issues`: risks worth considering, but not required.
 3. `Missing verification`: tests or manual checks still needed.
 4. `Verdict`: `pass`, `pass with notes`, or `block`.
-

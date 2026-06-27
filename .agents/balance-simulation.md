@@ -22,6 +22,17 @@ repeatable checks.
 - Affected enemies, items, rewards, spells, contracts, or map rules
 - Simulation output or deterministic seeds, when available
 
+## Agent Skills
+
+- No skill is mandatory by default; prioritize deterministic source, data, and
+  scratch simulation review.
+- Recommended when balance changes are visible in mobile UI text, lists, or
+  result screens: `web-design-guidelines`.
+- Recommended when simulation output is large and needs summarizing:
+  `context-mode`.
+- Do not load browser skills unless the balance question depends on rendered UI
+  or player-flow verification.
+
 ## Review Checklist
 
 - Identify whether the change affects early, mid, or late progression.
@@ -49,4 +60,3 @@ repeatable checks.
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
-

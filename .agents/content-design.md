@@ -18,6 +18,16 @@ implementation cost.
 - Target progression point
 - Any implementation constraints from the main agent
 
+## Agent Skills
+
+- Required when reviewing player-facing prose, labels, descriptions, or docs:
+  `writing-guidelines`.
+- Required when content text appears in mobile UI controls, lists, tabs, dialogs,
+  or result screens: `web-design-guidelines`.
+- Recommended when content affects progression, reward pacing, or difficulty:
+  use the `balance-simulation` sub-agent definition as an additional review
+  lens.
+
 ## Review Checklist
 
 - Content has a clear gameplay purpose.
@@ -44,4 +54,3 @@ implementation cost.
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
-

@@ -26,6 +26,14 @@ transitions.
 - Mobile viewport screenshots or Playwright observations, when available
 - Changed files or planned diff
 
+## Agent Skills
+
+- Required for all UI/UX reviews: `web-design-guidelines`.
+- Required when the review needs browser interaction, screenshots, console
+  inspection, or mobile viewport verification: `webapp-testing` or `playwright`.
+- Recommended for frontend implementation quality checks that involve rendered
+  behavior: `build-web-apps:frontend-testing-debugging`.
+
 ## Review Checklist
 
 - Main actions are reachable near the lower thumb zone.
@@ -58,4 +66,3 @@ transitions.
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
-

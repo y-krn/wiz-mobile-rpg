@@ -20,6 +20,14 @@ game flows.
 - Existing test output, when available
 - Reproduction steps for bugs, when available
 
+## Agent Skills
+
+- Required when browser behavior, screenshots, or end-to-end UI flows are part
+  of the review: `webapp-testing` or `playwright`.
+- Recommended when debugging a failing Playwright test from terminal output:
+  `playwright-cli`.
+- Do not load browser-focused skills for pure unit-test or data-only reviews.
+
 ## Review Checklist
 
 - Confirm the change has a clear success condition.
@@ -47,4 +55,3 @@ game flows.
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
-
