@@ -211,6 +211,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   removeIsolatedInternalWalls(grid);
 
+  const stairsUpCoord = (floor > 1) ? (parentStairsCoord || { x: MAP_WIDTH - 2, y: 1 }) : null;
+  const suCoord = floor > 1 ? (stairsUpCoord || { x: MAP_WIDTH - 2, y: 1 }) : { x: START_X, y: START_Y };
+
   // 3. Setup floor specific connections & detect dead ends
   // Make sure start position is connected
   if (floor === 1) {
@@ -218,16 +221,30 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       grid[START_Y][START_X].walls[DIR_N] = false;
       grid[START_Y - 1][START_X].walls[DIR_S] = false;
     }
-  } else if (floor > 1 && parentStairsCoord) {
-    if (grid[parentStairsCoord.y][parentStairsCoord.x].walls.every(w => w)) {
-      // Find any valid neighbor to open wall to
+  } else if (floor > 1) {
+    if (grid[suCoord.y][suCoord.x].walls.every(w => w)) {
+      // Find a visited (passage) neighbor first to guarantee connection to the main maze
+      let opened = false;
       for (let dir = 0; dir < 4; dir++) {
-        const nx = parentStairsCoord.x + DX[dir];
-        const ny = parentStairsCoord.y + DY[dir];
-        if (isValid(nx, ny)) {
-          grid[parentStairsCoord.y][parentStairsCoord.x].walls[dir] = false;
+        const nx = suCoord.x + DX[dir];
+        const ny = suCoord.y + DY[dir];
+        if (isValid(nx, ny) && visited[ny][nx]) {
+          grid[suCoord.y][suCoord.x].walls[dir] = false;
           grid[ny][nx].walls[(dir + 2) % 4] = false;
+          opened = true;
           break;
+        }
+      }
+      // Fallback to any valid neighbor if no visited neighbor exists
+      if (!opened) {
+        for (let dir = 0; dir < 4; dir++) {
+          const nx = suCoord.x + DX[dir];
+          const ny = suCoord.y + DY[dir];
+          if (isValid(nx, ny)) {
+            grid[suCoord.y][suCoord.x].walls[dir] = false;
+            grid[ny][nx].walls[(dir + 2) % 4] = false;
+            break;
+          }
         }
       }
     }
@@ -238,8 +255,6 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   let deadEnds = [];
   const startX = START_X;
   const startY = START_Y;
-  const stairsUpCoord = (floor > 1) ? (parentStairsCoord || { x: MAP_WIDTH - 2, y: 1 }) : null;
-  const suCoord = floor > 1 ? (stairsUpCoord || { x: MAP_WIDTH - 2, y: 1 }) : { x: START_X, y: START_Y };
   const reachableKeys = getReachableCellKeys(grid, suCoord);
 
   for (let y = 1; y < MAP_HEIGHT - 1; y++) {
@@ -283,7 +298,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
         .filter(cell => cell.x !== suCoord.x || cell.y !== suCoord.y)
         .sort((a, b) => b.dist - a.dist)[0] || { x: suCoord.x, y: suCoord.y };
     }
-    grid[stairsDownCoord.y][stairsDownCoord.x].type = "stairs-down";
+    if (grid[stairsDownCoord.y][stairsDownCoord.x].type !== "stairs-up") {
+      grid[stairsDownCoord.y][stairsDownCoord.x].type = "stairs-down";
+    }
     grid[stairsDownCoord.y][stairsDownCoord.x].message = `【下り階段】地下${floor + 1}階へ進む階段です。`;
   }
 
@@ -311,7 +328,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
         .filter(cell => (cell.x !== suCoord.x || cell.y !== suCoord.y) && (cell.x !== stairsDownCoord?.x || cell.y !== stairsDownCoord?.y))
         .sort((a, b) => b.dist - a.dist)[0] || { x: suCoord.x, y: suCoord.y };
     }
-    grid[bossCoord.y][bossCoord.x].type = "empty";
+    if (grid[bossCoord.y][bossCoord.x].type !== "stairs-up" && grid[bossCoord.y][bossCoord.x].type !== "stairs-down") {
+      grid[bossCoord.y][bossCoord.x].type = "empty";
+    }
     grid[bossCoord.y][bossCoord.x].event = "midboss";
     grid[bossCoord.y][bossCoord.x].message = "不気味な魔力の気配を感じる…！デーモンガードが立ち塞がった！";
   } else if (floor === 5) {
@@ -337,7 +356,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
         .filter(cell => cell.x !== suCoord.x || cell.y !== suCoord.y)
         .sort((a, b) => b.dist - a.dist)[0] || { x: suCoord.x, y: suCoord.y };
     }
-    grid[bossCoord.y][bossCoord.x].type = "empty";
+    if (grid[bossCoord.y][bossCoord.x].type !== "stairs-up" && grid[bossCoord.y][bossCoord.x].type !== "stairs-down") {
+      grid[bossCoord.y][bossCoord.x].type = "empty";
+    }
     grid[bossCoord.y][bossCoord.x].event = "boss";
     grid[bossCoord.y][bossCoord.x].message = "周囲にただならぬ気配が漂っている…！いにしえの竜が姿を現した！";
   }
