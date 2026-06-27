@@ -84,7 +84,8 @@ for (const vp of VIEWPORTS) {
             const centerY = box.y + box.height / 2;
             const threshold = vp.height * 0.50; // In bottom 50% of the screen
             const isShopTab = className.includes('shop-tab');
-            if (!id.includes('btn-mute') && !id.includes('btn-shop-close') && !isShopTab) {
+            const isEquipTab = className.includes('equip-tab');
+            if (!id.includes('btn-mute') && !id.includes('btn-shop-close') && !id.includes('btn-equip-close') && !isShopTab && !isEquipTab) {
               expect(centerY, `Key action button "${text}" (id: ${id}) on ${screenName} should be located in the bottom part of the screen (y: ${centerY}px, threshold: ${threshold}px)`).toBeGreaterThan(threshold);
             }
           }
