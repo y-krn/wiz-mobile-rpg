@@ -1244,6 +1244,15 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       });
     }
 
+    if (nonFledMonsters.length === 0) {
+      logQueue.push({ msg: "======================================" });
+      logQueue.push({
+        msg: "周囲に静寂が戻った。",
+        endCombat: true
+      });
+      return { logQueue, state };
+    }
+
     state.gold += totalGold + bonusGold;
 
     livingChars.forEach(c => {

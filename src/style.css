@@ -2042,6 +2042,10 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  max-width: calc(100% - 150px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .hud-dir {
   font-weight: bold;
@@ -2359,9 +2363,9 @@ html, body {
 }
 
 @keyframes dumapic-pulse {
-  0% { opacity: 0.85; text-shadow: 0 0 3px rgba(255, 215, 0, 0.6); }
-  50% { opacity: 1; text-shadow: 0 0 8px rgba(255, 215, 0, 0.9), 0 0 15px rgba(255, 215, 0, 0.4); }
-  100% { opacity: 0.85; text-shadow: 0 0 3px rgba(255, 215, 0, 0.6); }
+  0% { opacity: 0.9; text-shadow: 0 0 2px rgba(255, 215, 0, 0.5); }
+  50% { opacity: 1; text-shadow: 0 0 4px rgba(255, 215, 0, 0.8); }
+  100% { opacity: 0.9; text-shadow: 0 0 2px rgba(255, 215, 0, 0.5); }
 }
 
 /* Camp Overlay Styles */

@@ -61,6 +61,61 @@ function runForcedMidbossDrop(inventorySize) {
   }
 }
 
+function createFleeOnlyState() {
+  const char = {
+    name: "Tester",
+    class: "Fighter",
+    level: 1,
+    hp: 30,
+    maxHp: 30,
+    mp: 0,
+    maxMp: 0,
+    status: "ok",
+    str: 1,
+    int: 8,
+    pie: 8,
+    vit: 10,
+    agi: 1,
+    luk: 8,
+    equipment: { weapon: null, shield: null, armor: null },
+    spells: [],
+    exp: 0
+  };
+  const dead = { ...char, name: "Dead", status: "dead", hp: 0 };
+
+  return {
+    party: [char, dead, dead, dead],
+    combatState: {
+      monsters: [
+        { name: "Runner", hp: 10, maxHp: 10, atk: 1, def: 0, exp: 100, gold: 100, fleeChance: 1, row: "front" }
+      ],
+      isBoss: false,
+      isMidboss: false,
+      isRoamingFlack: false
+    },
+    inventory: [],
+    firstKills: [],
+    codex: null,
+    currentRun: { kills: 0, goldGained: 0, expGained: 0, equipmentFound: [], itemsFound: [] },
+    roamingMonsters: [],
+    floorChestsTotal: [0, 0, 0, 0, 0],
+    gold: 0,
+    floor: 3
+  };
+}
+
+function runForcedFleeOnlyCombat() {
+  const originalRandom = Math.random;
+  Math.random = () => 0;
+  try {
+    return runCombatRoundCalculation(createFleeOnlyState(), {
+      actions: [{ actorIdx: 0, type: "defend" }]
+    });
+  } finally {
+    Math.random = originalRandom;
+  }
+}
+
 console.log("Starting Combat Inventory Verification Tests...");
 
 const partialBagResult = runForcedMidbossDrop(11);
@@ -74,5 +129,14 @@ assert.strictEqual(fullBagResult.state.inventory.length, 20, "Non-quest enemy dr
 assert.strictEqual(fullBagResult.state.currentRun.equipmentFound.length, 0, "Rejected enemy drop should not be recorded");
 assert.ok(fullBagResult.logQueue.some(log => log.msg?.includes("満杯")), "20/20 should produce a full-bag log");
 console.log("[PASS] Enemy drop is rejected at 20/20.");
+
+const fleeOnlyResult = runForcedFleeOnlyCombat();
+assert.strictEqual(fleeOnlyResult.state.inventory.length, 0, "Fled-only combat should not add drops");
+assert.strictEqual(fleeOnlyResult.state.gold, 0, "Fled-only combat should not award gold");
+assert.strictEqual(fleeOnlyResult.state.currentRun.kills, 0, "Fled-only combat should not count kills");
+assert.ok(fleeOnlyResult.logQueue.some(log => log.endCombat), "Fled-only combat should end without chest");
+assert.ok(!fleeOnlyResult.logQueue.some(log => log.triggerChest), "Fled-only combat should not trigger a chest");
+assert.ok(!fleeOnlyResult.logQueue.some(log => log.msg?.includes("骸")), "Fled-only combat should not produce corpse loot");
+console.log("[PASS] Fled-only combat ends without rewards or chest.");
 
 console.log("All Combat Inventory verification tests passed successfully!");

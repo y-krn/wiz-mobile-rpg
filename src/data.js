@@ -169,7 +169,7 @@ export const SPELLS = {
       const hint = `${stairHint} / ${eventText} / ${dangerText}`;
       state.dumapicTurns = 30;
       state.dumapicHint = hint;
-      return { log: `${caster.name}はデュマピックを唱えた！地下${state.floor}階 X:${state.x}, Y:${state.y}, 方角:${DIR_NAMES[state.dir]}。${hint}` };
+      return { log: `${caster.name}はデュマピックを唱えた！地下${state.floor}階 X:${state.x}, Y:${state.y}, 方角:${DIR_NAMES[state.dir]}。\nDUMAPIC: ${hint}` };
     }
   },
   MAHALITO: {

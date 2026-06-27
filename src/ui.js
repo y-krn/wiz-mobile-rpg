@@ -179,32 +179,36 @@ export function updateUI() {
   const logContent = document.getElementById("log-content");
   logContent.innerHTML = "";
   state.logs.forEach(msg => {
-    const entry = document.createElement("div");
-    entry.className = "log-entry";
-    
-    // Auto color coding Japanese logs & Combat sides
-    if (msg.includes("[味方]")) {
-      if (msg.includes("回復") || msg.includes("治") || msg.includes("無事")) {
-        entry.classList.add("heal"); // 味方の回復/治療/解除成功はグリーン
-      } else {
-        entry.classList.add("ally"); // 味方の通常の攻撃等はパープル
+    const lines = msg.split("\n");
+    lines.forEach(line => {
+      if (!line) return;
+      const entry = document.createElement("div");
+      entry.className = "log-entry";
+      
+      // Auto color coding Japanese logs & Combat sides
+      if (line.includes("[味方]")) {
+        if (line.includes("回復") || line.includes("治") || line.includes("無事")) {
+          entry.classList.add("heal"); // 味方の回復/治療/解除成功はグリーン
+        } else {
+          entry.classList.add("ally"); // 味方の通常の攻撃等はパープル
+        }
+      } else if (line.includes("[ 敵 ]")) {
+        entry.classList.add("enemy"); // 敵の行動はすべてレッド
+      } else if (line.includes("ダメージ") || line.includes("倒れた") || line.includes("失敗")) {
+        entry.classList.add("damage");
+      } else if (line.includes("回復") || line.includes("レベルアップ") || line.includes("強さ") || line.includes("休息")) {
+        entry.classList.add("heal");
+      } else if (line.includes("ゴールド") || line.includes("ゴールド") || line.includes("手に入れた") || line.includes("獲得した") || line.includes("購入") || line.includes("売却")) {
+        entry.classList.add("loot");
+      } else if (line.includes("唱えた") || line.includes("明かり") || line.includes("座標") || line.includes("DUMAPIC")) {
+        entry.classList.add("info");
+      } else if (line.includes("【気配】")) {
+        entry.classList.add("aura");
       }
-    } else if (msg.includes("[ 敵 ]")) {
-      entry.classList.add("enemy"); // 敵の行動はすべてレッド
-    } else if (msg.includes("ダメージ") || msg.includes("倒れた") || msg.includes("失敗")) {
-      entry.classList.add("damage");
-    } else if (msg.includes("回復") || msg.includes("レベルアップ") || msg.includes("強さ") || msg.includes("休息")) {
-      entry.classList.add("heal");
-    } else if (msg.includes("ゴールド") || msg.includes("ゴールド") || msg.includes("手に入れた") || msg.includes("獲得した") || msg.includes("購入") || msg.includes("売却")) {
-      entry.classList.add("loot");
-    } else if (msg.includes("唱えた") || msg.includes("明かり") || msg.includes("座標")) {
-      entry.classList.add("info");
-    } else if (msg.includes("【気配】")) {
-      entry.classList.add("aura");
-    }
-    
-    entry.textContent = msg;
-    logContent.appendChild(entry);
+      
+      entry.textContent = line;
+      logContent.appendChild(entry);
+    });
   });
   // Auto scroll logs
   const logPanel = document.getElementById("log-panel");
@@ -498,8 +502,7 @@ export function updateViewportHUD() {
   const isDumapic = state.dumapicTurns > 0;
   if (isDumapic) {
     hud.innerHTML = `
-      <div class="hud-dir dumapic-active">【DUMAPIC座標検知中】地下${state.floor}階 X:${state.x} Y:${state.y} (${dirLabel})</div>
-      ${state.dumapicHint ? `<div class="hud-dir dumapic-active">${state.dumapicHint}</div>` : ""}
+      <div class="hud-dir dumapic-active">B${state.floor}F X:${state.x} Y:${state.y} ${dirLabel} | DUMAPIC ${state.dumapicTurns}</div>
     `;
   } else if (state.lightTurns > 0) {
     const lightName = state.lightPower === "lomilwa" ? "LOMILWA強光" : "MILWA明かり";
