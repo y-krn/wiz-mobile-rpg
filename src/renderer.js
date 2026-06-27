@@ -177,6 +177,28 @@ export class DungeonRenderer {
     ctx.lineWidth = 2;
     ctx.shadowBlur = 0;
 
+    // Determine colors based on floor theme
+    let wallColor = "#00ff66";
+    let gridColor = "rgba(0, 255, 102, 0.2)";
+    let outOfBoundsColor = "#ff3b30";
+
+    if (state.floor === 1) {
+      wallColor = "#00e5ff"; // Neon Cyan
+      gridColor = "rgba(0, 229, 255, 0.25)";
+    } else if (state.floor === 2) {
+      wallColor = "#00cc55"; // Poisonous Green
+      gridColor = "rgba(0, 204, 85, 0.2)";
+    } else if (state.floor === 3) {
+      wallColor = "#a855f7"; // Arcane Purple
+      gridColor = "rgba(168, 85, 247, 0.2)";
+    } else if (state.floor === 4) {
+      wallColor = "#cc2222"; // Death Red
+      gridColor = "rgba(204, 34, 34, 0.15)";
+    } else if (state.floor === 5) {
+      wallColor = "#cc8800"; // Dragon Gold
+      gridColor = "rgba(204, 136, 0, 0.2)";
+    }
+
     // Draw from back (z=3) to front (z=0)
     for (let z = 3; z >= 0; z--) {
       const cx = px + DX[dir] * z;
@@ -185,7 +207,7 @@ export class DungeonRenderer {
       // Check out of bounds
       if (cx < 0 || cx >= MAP_WIDTH || cy < 0 || cy >= MAP_HEIGHT) {
         // Render a solid wall block at depth z
-        this.renderSolidWall(ctx, z, "#ff3b30"); // Red glow for out of bounds
+        this.renderSolidWall(ctx, z, outOfBoundsColor); // Red glow for out of bounds
         continue;
       }
 
@@ -201,7 +223,7 @@ export class DungeonRenderer {
       const hasFrontWall = cell.walls[dirFront];
 
       // 1. Draw floor/ceiling segments
-      ctx.strokeStyle = "rgba(0, 255, 102, 0.2)"; // Dim green grid
+      ctx.strokeStyle = gridColor;
       
       // Floor lines
       ctx.beginPath();
@@ -235,10 +257,8 @@ export class DungeonRenderer {
         ctx.closePath();
         ctx.fill();
 
-        ctx.strokeStyle = "#00ff66"; // Neon Green
+        ctx.strokeStyle = wallColor;
         ctx.stroke();
-
-
       }
 
       // 3. Right Wall
@@ -252,10 +272,8 @@ export class DungeonRenderer {
         ctx.closePath();
         ctx.fill();
 
-        ctx.strokeStyle = "#00ff66";
+        ctx.strokeStyle = wallColor;
         ctx.stroke();
-
-
       }
 
       // 4. Front Wall (at z + 1 depth)
@@ -263,10 +281,8 @@ export class DungeonRenderer {
         ctx.fillStyle = "#0c0c0e";
         ctx.fillRect(XL[z + 1], YT[z + 1], XR[z + 1] - XL[z + 1], YB[z + 1] - YT[z + 1]);
 
-        ctx.strokeStyle = "#00ff66";
+        ctx.strokeStyle = wallColor;
         ctx.strokeRect(XL[z + 1], YT[z + 1], XR[z + 1] - XL[z + 1], YB[z + 1] - YT[z + 1]);
-
-
       }
 
       // Check special symbols inside cells (stairs up / down)
@@ -281,6 +297,24 @@ export class DungeonRenderer {
         );
         if (hasFlack && z > 0) { // Don't draw under the player
           this.drawRoamingFlackIcon(ctx, z);
+        }
+      }
+
+      // 5. Draw 3D Environmental Effects (fog / ambient aura / heat)
+      if (z > 0) {
+        if (state.floor === 2) {
+          // B2F Fog: Cumulative semi-transparent dark green overlay
+          ctx.fillStyle = "rgba(5, 25, 10, 0.18)";
+          ctx.fillRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
+        } else if (state.floor === 3) {
+          // B3F Mana residue: cumulative magenta overlay
+          ctx.fillStyle = "rgba(120, 0, 180, 0.04)";
+          ctx.fillRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
+        } else if (state.floor === 5) {
+          // B5F Heatwave shimmer: cumulative dark red-orange overlay with slight temporal pulse
+          const heatPulse = 0.06 + 0.02 * Math.sin(Date.now() / 250);
+          ctx.fillStyle = `rgba(100, 20, 0, ${heatPulse})`;
+          ctx.fillRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
         }
       }
     }

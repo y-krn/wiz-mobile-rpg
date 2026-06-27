@@ -81,16 +81,16 @@ html, body {
   justify-content: space-between;
   align-items: center;
   padding: 0 12px;
-  background-color: #121216;
-  border-bottom: 1.5px solid var(--neon-cyan);
-  box-shadow: var(--neon-glow-cyan);
+  background-color: var(--floor-header-bg, #121216);
+  border-bottom: 1.5px solid var(--floor-border, var(--neon-cyan));
+  box-shadow: var(--floor-glow, var(--neon-glow-cyan));
   font-family: var(--font-mono);
   font-size: 13px;
   letter-spacing: 1px;
 }
 
 #location-label {
-  color: var(--neon-cyan);
+  color: var(--floor-border, var(--neon-cyan));
 }
 
 #gold-counter {
@@ -105,8 +105,8 @@ html, body {
   flex-direction: column;
   justify-content: center;
   padding: 6px 12px;
-  background-color: #0e0e12;
-  border-bottom: 1px solid var(--border-color);
+  background-color: var(--floor-banner-bg, #0e0e12);
+  border-bottom: 1px solid var(--floor-border, var(--border-color));
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--neon-gold);
@@ -168,7 +168,7 @@ html, body {
   width: 100%;
   aspect-ratio: 400 / 260;
   max-height: 320px;
-  background-color: #000;
+  background-color: var(--floor-bg, #000);
   position: relative;
   display: flex;
   justify-content: center;
@@ -187,10 +187,10 @@ html, body {
   flex-shrink: 1; /* Shrink logs when vertical space is tight */
   min-height: 80px; /* Keep logs visible */
   max-height: 220px; /* Limit overly large height on tall mobile screens */
-  background-color: #0e0e12;
-  border-top: 1px solid var(--border-color);
-  border-bottom: 1.5px solid var(--neon-green);
-  box-shadow: var(--neon-glow-green);
+  background-color: var(--floor-banner-bg, #0e0e12);
+  border-top: 1px solid var(--floor-border, var(--border-color));
+  border-bottom: 1.5px solid var(--floor-border, var(--neon-green));
+  box-shadow: var(--floor-glow, var(--neon-glow-green));
   padding: 8px 12px;
   overflow-y: auto;
   font-family: var(--font-mono);
@@ -3690,4 +3690,104 @@ html, body {
   border-color: var(--neon-cyan) !important;
   box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
   background-color: rgba(0, 229, 255, 0.05);
+}
+
+/* ==========================================================================
+   Floor Theme Overrides & Environmental Effects
+   ========================================================================== */
+
+/* B1F: 入口の石造り */
+#game-container.floor-theme-b1 {
+  --floor-border: var(--neon-cyan);
+  --floor-glow: var(--neon-glow-cyan);
+  --floor-bg: #000000;
+  --floor-header-bg: #121216;
+  --floor-banner-bg: #0e0e12;
+}
+
+/* B2F: 湿気と毒気 */
+#game-container.floor-theme-b2 {
+  --floor-border: #00cc55;
+  --floor-glow: 0 0 8px rgba(0, 204, 85, 0.4);
+  --floor-bg: #040d07;
+  --floor-header-bg: #0a170f;
+  --floor-banner-bg: #06110a;
+}
+
+/* B3F: 門番と魔力 */
+#game-container.floor-theme-b3 {
+  --floor-border: #a855f7;
+  --floor-glow: 0 0 8px rgba(168, 85, 247, 0.4);
+  --floor-bg: #0d040f;
+  --floor-header-bg: #16071a;
+  --floor-banner-bg: #100513;
+}
+
+/* B4F: 深層の殺気 */
+#game-container.floor-theme-b4 {
+  --floor-border: #cc2222;
+  --floor-glow: 0 0 8px rgba(204, 34, 34, 0.4);
+  --floor-bg: #0f0404;
+  --floor-header-bg: #1a0707;
+  --floor-banner-bg: #130505;
+}
+
+/* B5F: 竜の領域 */
+#game-container.floor-theme-b5 {
+  --floor-border: #cc8800;
+  --floor-glow: 0 0 8px rgba(204, 136, 0, 0.4);
+  --floor-bg: #140804;
+  --floor-header-bg: #1e0c06;
+  --floor-banner-bg: #160905;
+}
+
+/* Overlay effects for viewport-panel */
+#viewport-panel::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+  transition: background 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+}
+
+.floor-theme-b1 #viewport-panel::after {
+  background: radial-gradient(circle, rgba(0, 229, 255, 0.03) 0%, rgba(0, 0, 0, 0.15) 100%);
+  opacity: 0.3;
+}
+
+.floor-theme-b2 #viewport-panel::after {
+  background: radial-gradient(circle, rgba(0, 204, 85, 0.06) 0%, rgba(0, 20, 10, 0.45) 70%, rgba(0, 0, 0, 0.65) 100%);
+  opacity: 0.6;
+}
+
+.floor-theme-b3 #viewport-panel::after {
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, rgba(204, 34, 34, 0.03) 50%, rgba(13, 4, 15, 0.5) 100%);
+  opacity: 0.6;
+}
+
+.floor-theme-b4 #viewport-panel::after {
+  background: radial-gradient(circle, rgba(204, 34, 34, 0.06) 0%, rgba(20, 5, 5, 0.65) 70%, rgba(0, 0, 0, 0.85) 100%);
+  opacity: 0.7;
+}
+
+.floor-theme-b5 #viewport-panel::after {
+  background: radial-gradient(circle, rgba(255, 179, 0, 0.08) 0%, rgba(204, 34, 34, 0.08) 40%, rgba(30, 10, 5, 0.75) 100%);
+  opacity: 0.75;
+  animation: heatwave 4s infinite alternate ease-in-out;
+}
+
+@keyframes heatwave {
+  0% {
+    filter: hue-rotate(0deg) saturate(1);
+    opacity: 0.7;
+  }
+  100% {
+    filter: hue-rotate(10deg) saturate(1.1);
+    opacity: 0.8;
+  }
 }

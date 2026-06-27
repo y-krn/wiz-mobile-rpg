@@ -158,6 +158,8 @@ function persistGameoverRollback() {
     const castleSave = JSON.parse(rawCastleSave);
     const mergedCastleSave = {
       ...castleSave,
+      materials: state.materials,
+      cleared: state.cleared,
       runHistory: state.runHistory,
       deathLogs: state.deathLogs,
       codex: state.codex,

@@ -14,6 +14,7 @@ to verify the change.
 - Mobile styling: `src/style.css`
 - Browser/mobile coverage: `tests/ui-ux.spec.js`
 - Unit-style deterministic checks: `scratch/test_*.js`
+- Progression/economy design: `.agents/game-design.md`
 
 ## Implementation Lookup
 
@@ -34,6 +35,7 @@ to verify the change.
 | Treasure chest, traps, drops | `src/chest.js`, `src/data.js` | `src/state.js`, `src/combat.js`, `src/contracts.js` | `npm run test:unit` |
 | Contracts and codex/progress tracking | `src/contracts.js`, `src/state.js` | `src/ui.js`, `src/result.js`, `scratch/test_contracts.js` | `npm run test:unit`, `npm run test:browser` |
 | Run result, rewards, return reasons | `src/result.js`, `src/state.js` | `src/contracts.js`, `src/chest.js`, `src/combat.js` | `npm run test:unit`, `npm run test:browser` |
+| Progression economy, materials, workshop, post-clear loop | `.agents/game-design.md`, `src/data.js`, `src/state.js` | `src/combat_logic.js`, `src/chest.js`, `src/menu.js`, `src/contracts.js`, `src/result.js`, `scratch/test_*.js`, `tests/ui-ux.spec.js` | `npm run test:unit`, `npm run build`, `npm run test:browser` |
 | Audio toggle or sound effects | `src/audio.js`, `src/game.js` | Calling module for the changed event | `npm run build` |
 | Mobile layout, tap targets, thumb flow | `src/style.css`, affected UI module | `tests/ui-ux.spec.js`, `index.html` | `npm run test:browser` |
 | Browser/mobile test changes | `tests/ui-ux.spec.js`, `playwright.config.js` | Affected UI module, `src/style.css` | `npm run test:browser` |
@@ -61,5 +63,8 @@ to verify the change.
   in review and verification.
 - If numbers affect enemies, drops, rewards, XP, gold, contracts, or map pacing,
   include the `balance-simulation` review lens.
+- If the request changes XP, gold, shops, loot, materials, workshop actions,
+  contracts, or B5F clear behavior, read `.agents/game-design.md` before
+  implementation or review.
 - Do not read all of `src/` unless the request is architectural or the map does
   not identify a credible starting point.

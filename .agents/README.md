@@ -6,6 +6,10 @@ Use these agents to review plans, diffs, tests, and content proposals. They do
 not directly implement code unless the user explicitly changes the operating
 mode.
 
+For progression, economy, materials, workshop, rewards, contracts, or B5F clear
+behavior, review against `.agents/game-design.md` in addition to the relevant
+agent definition.
+
 Before broad repository searches, read `.agents/file-map.md` and start from the
 files listed for the request area. Expand only to direct imports, touched files,
 or verification targets.
@@ -28,6 +32,11 @@ or verification targets.
 3. `game-logic.md`
 4. `balance-simulation.md`
 5. `content-design.md`
+
+## Design References
+
+- `game-design.md`: current progression/economy design for XP, gold, shops,
+  materials, workshop, reward roles, and post-clear save behavior.
 
 ## File Routing
 

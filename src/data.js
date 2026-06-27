@@ -603,7 +603,7 @@ export const ITEMS = {
     }
     return `${char.name}は解毒薬を使ったが、何も起こらなかった。`;
   }},
-  MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", price: 200, desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+  MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", price: 300, desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     if (canUsePriestSpells(char) || canUseMageSpells(char)) {
       char.mp = Math.min(getCharMaxMp(char), char.mp + 3);
       return `${char.name}は魔力草を使用し、MPが3回復した。(MP:${char.mp}/${getCharMaxMp(char)})`;
@@ -620,10 +620,10 @@ export const ITEMS = {
     }
     return `${char.name}は祝福の聖水を使い、HPが${heal}回復した。${cured ? "毒も綺麗に消え去った！" : ""}`;
   }},
-  TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 100, desc: "使用すると一瞬でお城へ戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+  TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 250, desc: "使用すると一瞬でお城へ戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     return `${char.name}は帰還のスクロールを読んだ！`;
   }},
-  ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極の霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+  ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 1500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極 of 霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     char.hp = getCharMaxHp(char);
     char.mp = getCharMaxMp(char);
     if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {
@@ -631,7 +631,7 @@ export const ITEMS = {
     }
     return `${char.name}はエリクサーを飲んだ！HP・MPが全回復し、全ての状態異常が消え去った！`;
   }},
-  SACRED_ASHES: { id: "SACRED_ASHES", name: "聖灰", type: "usable", price: 1000, desc: "死亡した仲間をキャンプ中にHP1で蘇生させる（所持制限：バッグに1個まで）。", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], campOnly: true, effect: (char) => {
+  SACRED_ASHES: { id: "SACRED_ASHES", name: "聖灰", type: "usable", price: 2500, desc: "死亡した仲間をキャンプ中にHP1で蘇生させる（所持制限：バッグに1個まで）。", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], campOnly: true, effect: (char) => {
     let cured = false;
     if (char.status === "dead") {
       char.status = "ok";
@@ -866,6 +866,15 @@ export function getItemData(itemOrKey) {
     const statsBonus = { str: 0, int: 0, pie: 0, vit: 0, agi: 0, luk: 0 };
     let trapBonus = 0;
     
+    const enhanceLevel = itemOrKey.enhanceLevel || 0;
+    if (enhanceLevel > 0) {
+      if (base.type === "weapon") {
+        atkBonus += enhanceLevel * 2;
+      } else if (base.type === "shield" || base.type === "armor") {
+        defBonus += enhanceLevel;
+      }
+    }
+    
     if (itemOrKey.affixes) {
       itemOrKey.affixes.forEach(aff => {
         if (aff.type === "atk") atkBonus += aff.value;
@@ -908,7 +917,10 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "firstStrike") prefix = "先制の";
     }
     
-    const name = prefix ? `${prefix}${base.name}` : base.name;
+    let name = prefix ? `${prefix}${base.name}` : base.name;
+    if (enhanceLevel > 0) {
+      name = `${name}+${enhanceLevel}`;
+    }
     
     let affixDesc = itemOrKey.affixes.map(aff => {
       const label = {
@@ -979,9 +991,9 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
   } else if (floor === 3) {
     baseCandidates = ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SACRED_MACE", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE"];
   } else if (floor === 4) {
-    baseCandidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB"];
+    baseCandidates = ["LONG_SWORD", "CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB"];
   } else {
-    baseCandidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "KATANA", "NINJA_DAGGER", "NINJA_SUIT", "BATTLE_GARB", "DRAGON_SCALE"];
+    baseCandidates = ["LONG_SWORD", "CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "KATANA", "NINJA_DAGGER", "NINJA_SUIT", "BATTLE_GARB", "DRAGON_SCALE"];
   }
   
   // Smart Drop (70%): Select base items usable by the current party
@@ -1008,14 +1020,14 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
     rarity = forceRarity;
   } else {
     const roll = rng();
-    let epicChance = 0.08;
-    let rareChance = 0.40;
+    let epicChance = 0.03;
+    let rareChance = 0.20;
     if (floor === 4) {
-      epicChance = 0.12;
-      rareChance = 0.45;
+      epicChance = 0.05;
+      rareChance = 0.25;
     } else if (floor >= 5) {
-      epicChance = 0.18;
-      rareChance = 0.50;
+      epicChance = 0.08;
+      rareChance = 0.30;
     }
     if (roll < epicChance) rarity = "epic";
     else if (roll < rareChance) rarity = "rare";
@@ -1392,19 +1404,23 @@ export function checkCharLevelUp(char) {
     else if (char.class === "Ranger") hpGain = rollInclusive(5, 7);
     else if (char.class === "Ninja") hpGain = rollInclusive(5, 7);
     
+    const oldMaxHp = getCharMaxHp(char);
     char.maxHp += hpGain;
-    char.hp = getCharMaxHp(char);
+    const newMaxHp = getCharMaxHp(char);
+    char.hp += (newMaxHp - oldMaxHp);
 
     // Gain MP
+    const oldMaxMp = getCharMaxMp(char);
+    let mpIncreased = false;
     if (char.class === "Priest") {
       char.maxMp += 2;
-      char.mp = getCharMaxMp(char);
+      mpIncreased = true;
     } else if (char.class === "Mage") {
       char.maxMp += 3;
-      char.mp = getCharMaxMp(char);
+      mpIncreased = true;
     } else if (char.class === "Bishop") {
       char.maxMp += rollInclusive(1, 2);
-      char.mp = getCharMaxMp(char);
+      mpIncreased = true;
     } else if (char.class === "Samurai" || char.class === "Ranger") {
       if (char.level >= 3) {
         if (char.maxMp === 0) {
@@ -1412,8 +1428,12 @@ export function checkCharLevelUp(char) {
         } else {
           char.maxMp += 1;
         }
-        char.mp = getCharMaxMp(char);
+        mpIncreased = true;
       }
+    }
+    if (mpIncreased) {
+      const newMaxMp = getCharMaxMp(char);
+      char.mp += (newMaxMp - oldMaxMp);
     }
 
     // Gain Stats

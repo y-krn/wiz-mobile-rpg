@@ -348,6 +348,8 @@ export const state = {
   // Message logs
   logs: [],
   transitioning: false,
+  cleared: false,
+  materials: {},
 
   // Dynamic getters for floor-specific maps to maintain backwards compatibility
   get map() {
@@ -493,6 +495,8 @@ export function initNewGame() {
   state.combatState = null;
   state.chestState = null;
   state.transitioning = false;
+  state.cleared = false;
+  state.materials = {};
   state.logs = ["リルガミンの街へようこそ。準備を整えて迷宮に入りましょう！"];
   saveGame();
   saveAutosave();
@@ -707,6 +711,8 @@ export function loadGame(forceSaveOnly = false) {
     state.storage = data.storage ?? [];
     state.storageMax = data.storageMax ?? 30;
     state.identifyTickets = data.identifyTickets ?? 0;
+    state.cleared = data.cleared ?? false;
+    state.materials = data.materials ?? {};
 
     // 同期のためにオートセーブデータを更新
     registerState(state);
@@ -759,6 +765,8 @@ export function createSavePayload() {
     storage: state.storage,
     storageMax: state.storageMax,
     identifyTickets: state.identifyTickets,
+    cleared: state.cleared,
+    materials: state.materials,
     logs: state.logs.slice(-30)
   };
 }

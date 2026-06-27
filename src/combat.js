@@ -872,12 +872,26 @@ export function playBattleLogs(queue, index) {
     if (state.currentRun) {
       state.currentRun.itemsFound.push("ANTIGRAVITY_CRYSTAL");
     }
-    if (!state.inventory.some(item => (typeof item === "object" ? item.baseId : item) === "LEGENDARY_SWORD")) {
-      addInventoryItem("LEGENDARY_SWORD");
-      if (state.currentRun) {
-        state.currentRun.equipmentFound.push("LEGENDARY_SWORD");
+    
+    // ボス報酬: Epic装備（未鑑定） + 竜鱗x3
+    const rewardEquip = generateRandomEquipment(5, "epic");
+    if (rewardEquip) {
+      rewardEquip.identified = false;
+      const added = addInventoryItem(rewardEquip);
+      if (added && state.currentRun) {
+        state.currentRun.equipmentFound.push(rewardEquip);
       }
     }
+    
+    if (!state.materials) state.materials = {};
+    state.materials["竜鱗"] = (state.materials["竜鱗"] || 0) + 3;
+    if (state.currentRun) {
+      if (!state.currentRun.materialsFound) state.currentRun.materialsFound = {};
+      state.currentRun.materialsFound["竜鱗"] = (state.currentRun.materialsFound["竜鱗"] || 0) + 3;
+    }
+    
+    addLog("巨大な魔物を撃破した！お宝: [未鑑定のエピック装備] と [竜鱗 x3] を手に入れた！");
+
     setTimeout(() => {
       state.gameState = "explore";
       state.combatState = null;
@@ -900,12 +914,26 @@ export function playBattleLogs(queue, index) {
         state.currentRun.itemsFound.push("DRAGON_KEY");
       }
     }
-    if (!state.inventory.some(item => (typeof item === "object" ? item.baseId : item) === "LEGENDARY_SHIELD")) {
-      addInventoryItem("LEGENDARY_SHIELD");
-      if (state.currentRun) {
-        state.currentRun.equipmentFound.push("LEGENDARY_SHIELD");
+    
+    // 中ボス報酬: Rare装備（未鑑定） + 黒角x2
+    const rewardEquip = generateRandomEquipment(4, "rare");
+    if (rewardEquip) {
+      rewardEquip.identified = false;
+      const added = addInventoryItem(rewardEquip);
+      if (added && state.currentRun) {
+        state.currentRun.equipmentFound.push(rewardEquip);
       }
     }
+
+    if (!state.materials) state.materials = {};
+    state.materials["黒角"] = (state.materials["黒角"] || 0) + 2;
+    if (state.currentRun) {
+      if (!state.currentRun.materialsFound) state.currentRun.materialsFound = {};
+      state.currentRun.materialsFound["黒角"] = (state.currentRun.materialsFound["黒角"] || 0) + 2;
+    }
+    
+    addLog("迷宮の守護者を撃破した！お宝: [未鑑定のレア装備] と [黒角 x2] を手に入れた！");
+
     setTimeout(() => {
       state.gameState = "explore";
       state.combatState = null;

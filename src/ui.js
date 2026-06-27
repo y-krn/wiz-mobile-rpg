@@ -95,6 +95,17 @@ export function getCurrentGoal() {
 export function updateUI() {
   resetViewportZoom();
 
+  // Reset/Apply floor-theme class on #game-container
+  const container = document.getElementById("game-container");
+  if (container) {
+    for (let i = 1; i <= 5; i++) {
+      container.classList.remove(`floor-theme-b${i}`);
+    }
+    if (state.gameState === "explore" && state.floor >= 1 && state.floor <= 5) {
+      container.classList.add(`floor-theme-b${state.floor}`);
+    }
+  }
+
   // Update locations & gold labels
   const locLabel = document.getElementById("location-label");
   const goldLabel = document.getElementById("gold-counter");
@@ -112,11 +123,19 @@ export function updateUI() {
   if (state.gameState === "town") {
     locLabel.textContent = "TOWN OF LLYLGAMYN";
   } else if (state.gameState === "explore") {
+    const floorThemes = {
+      1: "迷宮入口",
+      2: "湿った毒気",
+      3: "竜鍵の気配",
+      4: "深層の殺気",
+      5: "竜の領域"
+    };
+    const themeLabel = floorThemes[state.floor] ? ` / ${floorThemes[state.floor]}` : "";
     const lightLabel = state.lightPower === "lomilwa" ? "LOMILWA" : "LIGHT";
     const lightText = state.lightTurns > 0 ? ` (${lightLabel}:${state.lightTurns})` : "";
     const repelText = state.repelTurns > 0 ? ` (REPEL:${state.repelTurns})` : "";
     const dumapicText = state.dumapicTurns > 0 ? ` (DUMAPIC:${state.dumapicTurns})` : "";
-    locLabel.textContent = `DUNGEON B${state.floor}F X:${state.x} Y:${state.y}${lightText}${repelText}${dumapicText}`;
+    locLabel.textContent = `B${state.floor}F${themeLabel} X:${state.x} Y:${state.y}${lightText}${repelText}${dumapicText}`;
   } else if (state.gameState === "combat") {
     locLabel.textContent = "BATTLE ENCOUNTER";
   } else if (state.gameState === "chest") {
@@ -637,6 +656,20 @@ export function renderResultScreen() {
     historyHtml = `<div style="font-size: 8px; color: var(--text-muted); text-align: center;">履歴はありません</div>`;
   }
 
+  // 今回獲得した素材
+  let materialsHtml = "";
+  if (run.materialsFound && Object.keys(run.materialsFound).length > 0) {
+    const matList = Object.entries(run.materialsFound)
+      .map(([name, qty]) => `<span style="display:inline-block; margin:2px 4px; padding:2px 6px; background:#222; border:1px solid #444; border-radius:3px; font-size:10px; color:var(--neon-green)">${name} x${qty}</span>`)
+      .join(" ");
+    materialsHtml = `
+      <div class="result-eval-section" style="margin-top: 10px; border-color: var(--neon-green); padding: 8px 10px; background: rgba(0, 255, 102, 0.05); text-align: left;">
+        <div class="result-eval-title" style="color: var(--neon-green); font-size: 11px; margin-bottom: 6px; border-bottom: 1px solid rgba(0, 255, 102, 0.2); padding-bottom: 2px;">🍁 今回獲得した素材</div>
+        <div style="line-height: 1.5;">${matList}</div>
+      </div>
+    `;
+  }
+
   // 探索契約の判定表示HTML
   let contractHtml = "";
   if (run.contractResult) {
@@ -718,6 +751,7 @@ export function renderResultScreen() {
         <div>${getEvaluationText(run, isSuccess)}</div>
       </div>
 
+      ${materialsHtml}
       ${contractHtml}
       ${featuredLootHtml}
 
@@ -754,15 +788,18 @@ export function renderResultScreen() {
       });
       addLog("おしろ：パーティは休息した。HPとMPが全回復した！（ステータス異常は教会で治療してください）");
 
-      if (state.inventory.includes("ANTIGRAVITY_CRYSTAL")) {
+      const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
+      if (hasCrystal) {
         playSound("level_up");
-        state.gameState = "victory";
+        state.cleared = true;
+        state.inventory = state.inventory.filter(item => getItemBaseId(item) !== "ANTIGRAVITY_CRYSTAL");
         addLog("**************************************************");
         addLog("おめでとうございます！浮遊石を持ち帰りました！");
-        addLog("王より名誉勲章が授与されました。ゲームクリアです！");
+        addLog("王より名誉勲章が授与され、初踏破が記録されました！");
+        addLog("以後も、街からさらなる探索を続けられます。");
         addLog("**************************************************");
-        localStorage.removeItem("mobile_wiz_rpg_save");
-        localStorage.removeItem("mobile_wiz_rpg_autosave");
+        saveGame();
+        saveAutosave();
       } else {
         playSound("heal");
         saveGame();

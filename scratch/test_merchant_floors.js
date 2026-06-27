@@ -127,8 +127,8 @@ Object.defineProperty(global, "navigator", {
       legendarySwordFound = true;
     }
   }
-  assert.ok(legendarySwordFound, "B5 merchant should offer LEGENDARY_SWORD");
-  console.log("-> [PASS] B5 merchant restriction verified (allows high-end items)");
+  assert.strictEqual(legendarySwordFound, false, "B5 merchant must not offer LEGENDARY_SWORD");
+  console.log("-> [PASS] B5 merchant restriction verified (excludes legendaries)");
 
 
   // --- Test 2: Tablet (Monument) floor-scaling formulas ---

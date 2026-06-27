@@ -43,16 +43,16 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     trap = traps[randIdx];
   }
 
-  // Gold reward scale by floor
+  // Gold reward scale by floor (reduced)
   let gold = 0;
   if (forcedGold !== null) {
     gold = forcedGold;
   } else {
-    gold = Math.floor(rng() * 81) + 20; // Default 20-100G
+    gold = Math.floor(rng() * 16) + 5; // Default B1-B3: 5-20G
     if (state.floor === 4) {
-      gold = Math.floor(rng() * 201) + 150; // B4F: 150-350G
+      gold = Math.floor(rng() * 21) + 10; // B4F: 10-30G
     } else if (state.floor === 5) {
-      gold = Math.floor(rng() * 351) + 250; // B5F: 250-600G
+      gold = Math.floor(rng() * 31) + 20; // B5F: 20-50G
     }
   }
 
@@ -574,6 +574,24 @@ export function openChestDirectly() {
   }
   addLog(`宝箱から ${chest.gold} ゴールドを見つけた！`);
   
+  // 素材束の獲得
+  const mats = generateChestMaterials(state.floor);
+  if (Object.keys(mats).length > 0) {
+    Object.entries(mats).forEach(([mat, qty]) => {
+      if (!state.materials) state.materials = {};
+      state.materials[mat] = (state.materials[mat] || 0) + qty;
+      
+      if (state.currentRun) {
+        if (!state.currentRun.materialsFound) {
+          state.currentRun.materialsFound = {};
+        }
+        state.currentRun.materialsFound[mat] = (state.currentRun.materialsFound[mat] || 0) + qty;
+      }
+    });
+    const matStr = Object.entries(mats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
+    addLog(`宝箱から素材束: [${matStr}] を獲得した！`);
+  }
+  
   if (state.codex && state.codex.events && state.codex.events.facilities) {
     if (!state.codex.events.facilities.chest) {
       state.codex.events.facilities.chest = { found: 1, opened: 0 };
@@ -621,4 +639,20 @@ export function openChestDirectly() {
       updateUI();
     }
   }, 1800);
+}
+
+function generateChestMaterials(floor, rng = Math.random) {
+  const mats = {};
+  const qty = Math.floor(rng() * 3) + 1; // 1-3個の素材が手に入る
+  let pool = ["獣の牙", "硬い皮"];
+  if (floor === 2) pool = ["獣の牙", "硬い皮", "毒腺", "骨片"];
+  else if (floor === 3) pool = ["骨片", "霊粉", "魔石片", "呪布"];
+  else if (floor === 4) pool = ["魔石片", "鉄片", "呪布", "黒角"];
+  else if (floor >= 5) pool = ["鉄片", "黒角", "竜鱗"];
+
+  for (let i = 0; i < qty; i++) {
+    const mat = pool[Math.floor(rng() * pool.length)];
+    mats[mat] = (mats[mat] || 0) + 1;
+  }
+  return mats;
 }
