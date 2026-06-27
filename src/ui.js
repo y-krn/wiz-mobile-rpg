@@ -1298,6 +1298,15 @@ export function renderContracts() {
   // Body
   const body = document.createElement("div");
   body.className = "archives-body";
+  body.style.flex = "1";
+  body.style.overflowY = "auto";
+
+  // Footer / Close Button
+  const footer = document.createElement("div");
+  footer.className = "archives-footer";
+  footer.style.display = "flex";
+  footer.style.flexDirection = "column";
+  footer.style.gap = "8px";
 
   if (state.activeContract) {
     // Show active contract details and progress
@@ -1346,6 +1355,7 @@ export function renderContracts() {
     `;
 
     const btnAbandon = document.createElement("button");
+    btnAbandon.type = "button";
     btnAbandon.className = "btn btn-danger btn-block";
     btnAbandon.style.marginTop = "15px";
     btnAbandon.style.minHeight = "44px";
@@ -1363,46 +1373,27 @@ export function renderContracts() {
 
     detailDiv.appendChild(btnAbandon);
     body.appendChild(detailDiv);
-  } else {
-    // Show contract choices
-    const listTitle = document.createElement("div");
-    listTitle.className = "archives-section-title";
-    listTitle.textContent = "受注可能な契約 (1件のみ選択可能)";
-    body.appendChild(listTitle);
 
-    const listContainer = document.createElement("div");
-    listContainer.className = "codex-grid";
-
-    state.contracts.forEach(c => {
-      const row = document.createElement("div");
-      row.className = "codex-row";
-      row.style.borderLeft = `3px solid ${c.danger === "C" ? "var(--neon-green)" : (c.danger === "B" ? "var(--neon-gold)" : "var(--neon-red)")}`;
-      
-      row.innerHTML = `
-        <div style="display: flex; flex-direction: column;">
-          <span class="codex-name" style="font-weight: bold;">${c.name}</span>
-          <span style="font-size: 10px; color: var(--text-muted);">${c.description}</span>
-        </div>
-        <span class="codex-meta" style="min-width: 50px; text-align: center;">危険度 ${c.danger}</span>
-      `;
-
-      row.addEventListener("click", () => {
-        contractsState.selectedId = c.id;
-        renderContracts();
-      });
-
-      listContainer.appendChild(row);
+    // Footer - Close only
+    const btnClose = document.createElement("button");
+    btnClose.type = "button";
+    btnClose.className = "btn btn-danger btn-camp-close";
+    btnClose.textContent = "❌ 街に戻る";
+    btnClose.style.width = "100%";
+    btnClose.style.minHeight = "44px";
+    btnClose.addEventListener("click", () => {
+      overlay.style.display = "none";
+      state.gameState = "town";
+      updateUI();
     });
-
-    body.appendChild(listContainer);
-
-    // Show details of selected contract if any
+    footer.appendChild(btnClose);
+  } else {
+    // Show details of selected contract OR choices list (NOT BOTH in the scrollable view)
     if (contractsState.selectedId) {
       const selected = state.contracts.find(c => c.id === contractsState.selectedId);
       if (selected) {
         const detailModal = document.createElement("div");
         detailModal.className = "codex-detail";
-        detailModal.style.marginTop = "15px";
         detailModal.style.border = "1px solid var(--border-color)";
         detailModal.style.padding = "10px";
         detailModal.style.backgroundColor = "rgba(10, 10, 15, 0.95)";
@@ -1423,14 +1414,13 @@ export function renderContracts() {
           <p style="font-size: 11px;"><strong>報酬:</strong> ${rewardText}</p>
           <p style="font-size: 11px; margin-top: 4px; color: var(--neon-cyan);"><strong>推奨準備:</strong> ${selected.recommended || "特になし"}</p>
         `;
+        body.appendChild(detailModal);
 
-        const actionRow = document.createElement("div");
-        actionRow.className = "bottom-actions-row";
-        actionRow.style.marginTop = "10px";
-
+        // Footer Actions - Accept on top, Back/Close on bottom row
         const btnAccept = document.createElement("button");
+        btnAccept.type = "button";
         btnAccept.className = "btn btn-neon";
-        btnAccept.style.flex = "1";
+        btnAccept.style.width = "100%";
         btnAccept.style.minHeight = "44px";
         btnAccept.textContent = "✍️ 契約を受注する";
         btnAccept.addEventListener("click", () => {
@@ -1441,7 +1431,6 @@ export function renderContracts() {
           saveAutosave();
           contractsState.selectedId = null;
           
-          // Close the overlay and return to town UI to reflect the active contract in the goal banner
           const overlay = document.getElementById("contracts-overlay");
           if (overlay) {
             overlay.style.display = "none";
@@ -1449,55 +1438,111 @@ export function renderContracts() {
           state.gameState = "town";
           updateUI();
         });
+        footer.appendChild(btnAccept);
+
+        const subActionRow = document.createElement("div");
+        subActionRow.className = "bottom-actions-row";
+        subActionRow.style.gap = "8px";
 
         const btnCancel = document.createElement("button");
-        btnCancel.className = "btn btn-danger";
+        btnCancel.type = "button";
+        btnCancel.className = "btn btn-neon";
         btnCancel.style.flex = "1";
         btnCancel.style.minHeight = "44px";
-        btnCancel.textContent = "閉じる";
+        btnCancel.style.borderColor = "var(--neon-gold)";
+        btnCancel.style.color = "var(--neon-gold)";
+        btnCancel.textContent = "◀ 一覧に戻る";
         btnCancel.addEventListener("click", () => {
           contractsState.selectedId = null;
           renderContracts();
         });
 
-        actionRow.appendChild(btnAccept);
-        actionRow.appendChild(btnCancel);
-        detailModal.appendChild(actionRow);
-        body.appendChild(detailModal);
+        const btnClose = document.createElement("button");
+        btnClose.type = "button";
+        btnClose.className = "btn btn-danger btn-camp-close";
+        btnClose.textContent = "❌ 街に戻る";
+        btnClose.style.flex = "1";
+        btnClose.style.minHeight = "44px";
+        btnClose.addEventListener("click", () => {
+          overlay.style.display = "none";
+          state.gameState = "town";
+          updateUI();
+        });
+
+        subActionRow.appendChild(btnCancel);
+        subActionRow.appendChild(btnClose);
+        footer.appendChild(subActionRow);
       }
+    } else {
+      // Show contract choices list
+      const listTitle = document.createElement("div");
+      listTitle.className = "archives-section-title";
+      listTitle.textContent = "受注可能な契約 (1件のみ選択可能)";
+      body.appendChild(listTitle);
+
+      const listContainer = document.createElement("div");
+      listContainer.className = "codex-grid";
+
+      state.contracts.forEach(c => {
+        const row = document.createElement("div");
+        row.className = "codex-row";
+        row.style.borderLeft = `3px solid ${c.danger === "C" ? "var(--neon-green)" : (c.danger === "B" ? "var(--neon-gold)" : "var(--neon-red)")}`;
+        row.style.minHeight = "44px"; // Ensure touch target size
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.alignItems = "center";
+        
+        row.innerHTML = `
+          <div style="display: flex; flex-direction: column;">
+            <span class="codex-name" style="font-weight: bold;">${c.name}</span>
+            <span style="font-size: 10px; color: var(--text-muted);">${c.description}</span>
+          </div>
+          <span class="codex-meta" style="min-width: 50px; text-align: center;">危険度 ${c.danger}</span>
+        `;
+
+        row.addEventListener("click", () => {
+          contractsState.selectedId = c.id;
+          renderContracts();
+        });
+
+        listContainer.appendChild(row);
+      });
+
+      body.appendChild(listContainer);
+
+      // Footer - Close only
+      const btnClose = document.createElement("button");
+      btnClose.type = "button";
+      btnClose.className = "btn btn-danger btn-camp-close";
+      btnClose.textContent = "❌ 街に戻る";
+      btnClose.style.width = "100%";
+      btnClose.style.minHeight = "44px";
+      btnClose.addEventListener("click", () => {
+        overlay.style.display = "none";
+        state.gameState = "town";
+        updateUI();
+      });
+      footer.appendChild(btnClose);
     }
   }
 
   overlay.appendChild(body);
-
-  // Footer / Close Button
-  const footer = document.createElement("div");
-  footer.className = "archives-footer";
-
-  const closeRow = document.createElement("div");
-  closeRow.className = "bottom-actions-row";
-
-  const btnClose = document.createElement("button");
-  btnClose.className = "btn btn-danger btn-camp-close";
-  btnClose.textContent = "❌ 街に戻る";
-  btnClose.style.width = "100%";
-  btnClose.style.minHeight = "44px";
-  btnClose.addEventListener("click", () => {
-    overlay.style.display = "none";
-    state.gameState = "town";
-    updateUI();
-  });
-  closeRow.appendChild(btnClose);
-  footer.appendChild(closeRow);
-
   overlay.appendChild(footer);
 }
+
+let warehouseState = {
+  selectedSource: null, // "bag" or "storage"
+  selectedIndex: null   // index in the array
+};
 
 export function openWarehouseOverlay() {
   const overlay = document.getElementById("warehouse-overlay");
   if (overlay) {
     overlay.style.display = "flex";
   }
+  // Reset selection state when opening warehouse
+  warehouseState.selectedSource = null;
+  warehouseState.selectedIndex = null;
   renderWarehouse();
 }
 
@@ -1545,30 +1590,27 @@ export function renderWarehouse() {
       if (!item) return;
       
       const row = document.createElement("div");
-      row.className = "codex-row";
+      const isSelected = warehouseState.selectedSource === "bag" && warehouseState.selectedIndex === idx;
+      row.className = `codex-row ${isSelected ? "active" : ""}`;
       row.style.padding = "8px 10px";
+      row.style.cursor = "pointer";
+      row.style.minHeight = "44px"; // Ensure touch target size
+      row.style.display = "flex";
+      row.style.alignItems = "center";
       
       const isUnidentified = typeof itemKey === "object" && !itemKey.identified;
       const unidTag = isUnidentified ? `<span style="color: var(--neon-red); font-size: 9px; border: 1px solid var(--neon-red); padding: 0 2px; margin-right: 4px; border-radius: 2px;">未鑑定</span>` : "";
       
       row.innerHTML = `
-        <div style="display: flex; align-items: center;">
+        <div style="display: flex; align-items: center; width: 100%;">
           ${unidTag}
           <span class="codex-name">${item.name}</span>
         </div>
-        <span class="codex-meta" style="color: var(--neon-cyan); cursor: pointer; padding: 4px 8px; border: 1px solid var(--neon-cyan); border-radius: 4px; font-size: 10px; min-width: 44px; text-align: center;">預ける</span>
       `;
 
-      row.querySelector(".codex-meta").addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (state.storage.length >= state.storageMax) {
-          alert("倉庫がいっぱいでこれ以上預けられません！");
-          return;
-        }
-        const removed = state.inventory.splice(idx, 1)[0];
-        state.storage.push(removed);
-        playSound("gold");
-        saveAutosave();
+      row.addEventListener("click", () => {
+        warehouseState.selectedSource = "bag";
+        warehouseState.selectedIndex = idx;
         renderWarehouse();
       });
 
@@ -1595,30 +1637,27 @@ export function renderWarehouse() {
       if (!item) return;
 
       const row = document.createElement("div");
-      row.className = "codex-row";
+      const isSelected = warehouseState.selectedSource === "storage" && warehouseState.selectedIndex === idx;
+      row.className = `codex-row ${isSelected ? "active" : ""}`;
       row.style.padding = "8px 10px";
+      row.style.cursor = "pointer";
+      row.style.minHeight = "44px"; // Ensure touch target size
+      row.style.display = "flex";
+      row.style.alignItems = "center";
 
       const isUnidentified = typeof itemKey === "object" && !itemKey.identified;
       const unidTag = isUnidentified ? `<span style="color: var(--neon-red); font-size: 9px; border: 1px solid var(--neon-red); padding: 0 2px; margin-right: 4px; border-radius: 2px;">未鑑定</span>` : "";
 
       row.innerHTML = `
-        <div style="display: flex; align-items: center;">
+        <div style="display: flex; align-items: center; width: 100%;">
           ${unidTag}
           <span class="codex-name">${item.name}</span>
         </div>
-        <span class="codex-meta" style="color: var(--neon-green); cursor: pointer; padding: 4px 8px; border: 1px solid var(--neon-green); border-radius: 4px; font-size: 10px; min-width: 44px; text-align: center;">引出</span>
       `;
 
-      row.querySelector(".codex-meta").addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (state.inventory.length >= 20) {
-          alert("バッグがいっぱいで引き出せません！");
-          return;
-        }
-        const removed = state.storage.splice(idx, 1)[0];
-        state.inventory.push(removed);
-        playSound("gold");
-        saveAutosave();
+      row.addEventListener("click", () => {
+        warehouseState.selectedSource = "storage";
+        warehouseState.selectedIndex = idx;
         renderWarehouse();
       });
 
@@ -1633,13 +1672,102 @@ export function renderWarehouse() {
   // Footer with actions
   const footer = document.createElement("div");
   footer.className = "archives-footer";
+  footer.style.display = "flex";
+  footer.style.flexDirection = "column";
+  footer.style.gap = "8px";
+
+  // Selection info and main execute button
+  const selectionPanel = document.createElement("div");
+  selectionPanel.style.display = "flex";
+  selectionPanel.style.flexDirection = "column";
+  selectionPanel.style.gap = "6px";
+  selectionPanel.style.border = "1px solid var(--border-color)";
+  selectionPanel.style.padding = "8px";
+  selectionPanel.style.backgroundColor = "rgba(10, 10, 15, 0.95)";
+  selectionPanel.style.borderRadius = "4px";
+
+  const infoLabel = document.createElement("div");
+  infoLabel.style.fontSize = "12px";
+  infoLabel.style.fontWeight = "bold";
+  infoLabel.style.textAlign = "center";
+  infoLabel.style.minHeight = "18px";
+
+  const btnExecute = document.createElement("button");
+  btnExecute.type = "button";
+  btnExecute.className = "btn btn-neon";
+  btnExecute.style.width = "100%";
+  btnExecute.style.minHeight = "44px";
+
+  let selectedItemName = "なし";
+  if (warehouseState.selectedSource === "bag" && warehouseState.selectedIndex !== null) {
+    const itemKey = state.inventory[warehouseState.selectedIndex];
+    if (itemKey) {
+      const item = getItemData(itemKey);
+      if (item) selectedItemName = item.name;
+    }
+  } else if (warehouseState.selectedSource === "storage" && warehouseState.selectedIndex !== null) {
+    const itemKey = state.storage[warehouseState.selectedIndex];
+    if (itemKey) {
+      const item = getItemData(itemKey);
+      if (item) selectedItemName = item.name;
+    }
+  }
+
+  infoLabel.textContent = `選択中: ${selectedItemName}`;
+
+  if (warehouseState.selectedSource === "bag" && warehouseState.selectedIndex !== null) {
+    btnExecute.textContent = "🏢 倉庫に預ける";
+    btnExecute.addEventListener("click", () => {
+      const idx = warehouseState.selectedIndex;
+      if (state.storage.length >= state.storageMax) {
+        alert("倉庫がいっぱいでこれ以上預けられません！");
+        return;
+      }
+      const removed = state.inventory.splice(idx, 1)[0];
+      state.storage.push(removed);
+      playSound("gold");
+      saveAutosave();
+      
+      // Clear selection
+      warehouseState.selectedSource = null;
+      warehouseState.selectedIndex = null;
+      renderWarehouse();
+    });
+  } else if (warehouseState.selectedSource === "storage" && warehouseState.selectedIndex !== null) {
+    btnExecute.textContent = "🎒 バッグに引き出す";
+    btnExecute.addEventListener("click", () => {
+      const idx = warehouseState.selectedIndex;
+      if (state.inventory.length >= 20) {
+        alert("バッグがいっぱいで引き出せません！");
+        return;
+      }
+      const removed = state.storage.splice(idx, 1)[0];
+      state.inventory.push(removed);
+      playSound("gold");
+      saveAutosave();
+      
+      // Clear selection
+      warehouseState.selectedSource = null;
+      warehouseState.selectedIndex = null;
+      renderWarehouse();
+    });
+  } else {
+    btnExecute.textContent = "アイテムを選択してください";
+    btnExecute.disabled = true;
+    btnExecute.classList.add("disabled");
+  }
+
+  selectionPanel.appendChild(infoLabel);
+  selectionPanel.appendChild(btnExecute);
+  footer.appendChild(selectionPanel);
 
   const actionRow1 = document.createElement("div");
   actionRow1.className = "bottom-actions-row";
-  actionRow1.style.marginBottom = "8px";
+  actionRow1.style.gap = "6px";
 
   // 一括預入ボタン
   const btnBatchDeposit = document.createElement("button");
+  btnBatchDeposit.type = "button";
   btnBatchDeposit.className = "btn btn-neon";
   btnBatchDeposit.style.flex = "1";
   btnBatchDeposit.style.minHeight = "44px";
@@ -1669,12 +1797,17 @@ export function renderWarehouse() {
       addLog(`未鑑定品を ${count} 個、倉庫に預けました。`);
       playSound("gold");
       saveAutosave();
+      
+      // Reset selection just in case
+      warehouseState.selectedSource = null;
+      warehouseState.selectedIndex = null;
       renderWarehouse();
     }
   });
 
   // 倉庫拡張ボタン
   const btnExpand = document.createElement("button");
+  btnExpand.type = "button";
   btnExpand.className = "btn btn-neon";
   btnExpand.style.flex = "1";
   btnExpand.style.minHeight = "44px";
@@ -1709,6 +1842,7 @@ export function renderWarehouse() {
   closeRow.className = "bottom-actions-row";
 
   const btnClose = document.createElement("button");
+  btnClose.type = "button";
   btnClose.className = "btn btn-danger btn-camp-close";
   btnClose.textContent = "❌ 街に戻る";
   btnClose.style.width = "100%";

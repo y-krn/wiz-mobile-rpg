@@ -148,40 +148,6 @@ export function renderSpellOverlay() {
     });
     overlay.appendChild(casterBar);
 
-    // 2.2 Spell Filter (呪文フィルタ)
-    const filterRow = document.createElement("div");
-    filterRow.className = "spell-filters";
-    filterRow.style.display = "flex";
-    filterRow.style.gap = "6px";
-    filterRow.style.marginBottom = "8px";
-    filterRow.style.width = "100%";
-
-    const categories = [
-      { id: "all", label: "すべて" },
-      { id: "usable", label: "使用可" },
-      { id: "heal", label: "回復" },
-      { id: "utility", label: "探索" },
-      { id: "combat", label: "戦闘" }
-    ];
-
-    categories.forEach(cat => {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      const isActive = spellMenuState.filter === cat.id;
-      chip.className = `filter-chip ${isActive ? "active" : ""}`;
-      chip.textContent = cat.label;
-      chip.style.flex = "1";
-      chip.style.minHeight = "36px";
-      chip.style.fontSize = "11px";
-      chip.addEventListener("click", () => {
-        spellMenuState.filter = cat.id;
-        spellMenuState.selectedKey = null; // Clear selected spell on filter switch
-        renderSpellOverlay();
-      });
-      filterRow.appendChild(chip);
-    });
-    overlay.appendChild(filterRow);
-
     // 2.3 Spell List (呪文一覧)
     const listContainer = document.createElement("div");
     listContainer.className = "spell-item-list";
@@ -280,6 +246,40 @@ export function renderSpellOverlay() {
     }
 
     overlay.appendChild(listContainer);
+
+    // 2.2 Spell Filter (呪文フィルタ) - Moved here to be closer to bottom action area
+    const filterRow = document.createElement("div");
+    filterRow.className = "spell-filters";
+    filterRow.style.display = "grid";
+    filterRow.style.gridTemplateColumns = "repeat(3, 1fr)";
+    filterRow.style.gap = "6px";
+    filterRow.style.marginBottom = "8px";
+    filterRow.style.width = "100%";
+
+    const categories = [
+      { id: "all", label: "すべて" },
+      { id: "usable", label: "使用可" },
+      { id: "heal", label: "回復" },
+      { id: "utility", label: "探索" },
+      { id: "combat", label: "戦闘" }
+    ];
+
+    categories.forEach(cat => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      const isActive = spellMenuState.filter === cat.id;
+      chip.className = `filter-chip ${isActive ? "active" : ""}`;
+      chip.textContent = cat.label;
+      chip.style.minHeight = "44px";
+      chip.style.fontSize = "11px";
+      chip.addEventListener("click", () => {
+        spellMenuState.filter = cat.id;
+        spellMenuState.selectedKey = null; // Clear selected spell on filter switch
+        renderSpellOverlay();
+      });
+      filterRow.appendChild(chip);
+    });
+    overlay.appendChild(filterRow);
 
     // 2.4 Detail Panel & Cast Button Container
     const detailContainer = document.createElement("div");

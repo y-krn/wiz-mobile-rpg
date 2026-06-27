@@ -23,7 +23,42 @@ for (const vp of VIEWPORTS) {
       await page.waitForTimeout(1000);
 
       const verifyScreenButtons = async (screenName) => {
-        const buttons = await page.locator('button:visible, [role="button"]:visible, .btn:visible, .shop-item-row:visible, .equip-item-row:visible, .char-row:visible, .archives-tab:visible').all();
+        let buttons = await page.locator('button:visible, [role="button"]:visible, .btn:visible, .shop-item-row:visible, .equip-item-row:visible, .char-row:visible, .archives-tab:visible').all();
+        
+        // Active overlay detection to avoid back-button pollution
+        const activeOverlayId = await page.evaluate(() => {
+          const overlays = [
+            'combat-overlay', 'result-overlay', 'training-overlay', 'shop-overlay',
+            'equip-overlay', 'spell-overlay', 'camp-overlay', 'archives-overlay',
+            'contracts-overlay', 'warehouse-overlay'
+          ];
+          for (const id of overlays) {
+            const el = document.getElementById(id);
+            if (el && el.style.display !== 'none') {
+              return id;
+            }
+          }
+          return null;
+        });
+
+        if (activeOverlayId) {
+          const filtered = [];
+          for (const btn of buttons) {
+            const inside = await btn.evaluate((el, id) => el.closest(`#${id}`) !== null, activeOverlayId);
+            if (inside) filtered.push(btn);
+          }
+          buttons = filtered;
+        } else {
+          const filtered = [];
+          for (const btn of buttons) {
+            const inside = await btn.evaluate((el) => {
+              return el.closest('.combat-overlay-container, .result-overlay-container, .training-overlay-container, .shop-overlay-container, .equip-overlay-container, .spell-overlay-container, .camp-overlay-container, .archives-overlay-container, .contracts-overlay-container, .warehouse-overlay-container') !== null;
+            });
+            if (!inside) filtered.push(btn);
+          }
+          buttons = filtered;
+        }
+
         console.log(`Checking ${buttons.length} buttons on screen: ${screenName}`);
         for (const btn of buttons) {
           const text = (await btn.textContent()).trim();
