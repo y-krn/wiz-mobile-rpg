@@ -272,6 +272,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   };
   let escaped = false;
 
+  // 全員麻痺のときの警告メッセージ
+  const currentLivingParty = state.party.filter(c => c.status !== "dead");
+  const currentAllParalyzed = currentLivingParty.length > 0 && currentLivingParty.every(c => c.status === "paralyzed");
+  if (currentAllParalyzed) {
+    logQueue.push({ msg: "全員が麻痺して動けない！" });
+    logQueue.push({ msg: "敵の攻撃を受けるしかない。" });
+  }
+
   // Build Turn Order: All active characters + all active monsters
   const turns = [];
 
@@ -1370,6 +1378,43 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
       }
     });
+
+    // 味方各キャラクターの麻痺自然回復判定
+    state.party.forEach(c => {
+      if (c.status === "paralyzed" && c.hp > 0) {
+        if (Math.random() < 0.20) { // 20% の確率で回復
+          c.status = "ok";
+          logQueue.push({
+            msg: `[味方] ${c.name}は麻痺から回復した！`,
+            sound: "heal"
+          });
+        }
+      }
+    });
+
+    // 全員麻痺の判定と全滅処理
+    const nextLivingParty = state.party.filter(c => c.status !== "dead");
+    const nextAllParalyzed = nextLivingParty.length > 0 && nextLivingParty.every(c => c.status === "paralyzed");
+
+    if (nextAllParalyzed) {
+      state.combatState.allParalyzedTurns = (state.combatState.allParalyzedTurns || 0) + 1;
+      logQueue.push({
+        msg: `[警告] 全員麻痺状態が続いている！（${state.combatState.allParalyzedTurns}/3ターン）`
+      });
+      if (state.combatState.allParalyzedTurns >= 3) {
+        logQueue.push({
+          msg: "全員が麻痺したまま力尽きた…"
+        });
+        state.party.forEach(c => {
+          c.hp = 0;
+          c.status = "dead";
+        });
+      }
+    } else {
+      if (state.combatState) {
+        state.combatState.allParalyzedTurns = 0;
+      }
+    }
   }
 
   return { logQueue, state };

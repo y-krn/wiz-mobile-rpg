@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "npm run test:unit && npm run test:browser",
-    "test:unit": "node scratch/test_seed.js && node scratch/test_codex.js && node scratch/test_contracts.js && node scratch/test_combat_inventory.js && node scratch/test_map_reachability.js",
+    "test:unit": "node scratch/test_seed.js && node scratch/test_codex.js && node scratch/test_contracts.js && node scratch/test_combat_inventory.js && node scratch/test_map_reachability.js && node scratch/test_combat_paralyze.js",
     "test:browser": "playwright test",
     "lint": "eslint src"
   },

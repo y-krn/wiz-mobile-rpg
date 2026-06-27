@@ -209,7 +209,8 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
     isBoss,
     isMidboss,
     isRoamingFlack,
-    isAuto: false
+    isAuto: false,
+    allParalyzedTurns: 0
   };
   state.chestState = null;
 
