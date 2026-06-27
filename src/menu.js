@@ -1,5 +1,5 @@
 import { state, initNewGame, loadGame, saveGame, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "./state.js";
-import { DIR_N, START_X, START_Y, ITEMS, SPELLS, canUsePriestSpells, canUseMageSpells, isSpellcaster, getClassJpName, getItemData, getCharStr, getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharMaxHp, getCharMaxMp, getCharWeaponAtk, getCharDef, EXP_LEVELS } from "./data.js";
+import { DIR_N, START_X, START_Y, ITEMS, SPELLS, canUsePriestSpells, canUseMageSpells, isSpellcaster, getClassJpName, getItemData, getItemBaseId, getCharStr, getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharMaxHp, getCharMaxMp, getCharWeaponAtk, getCharDef, EXP_LEVELS } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI, openArchivesOverlay, openContractsOverlay, openWarehouseOverlay } from "./ui.js";
@@ -416,6 +416,7 @@ export function renderSubmenu(type) {
         state.codex.events.facilities.tablet.read++;
       }
       const rand = Math.random();
+      const currentFloor = state.floor || 1;
       if (rand < 0.40) {
         const hints = [
           "『光は闇を照らし、ロミルワは永遠のミニマップをもたらす。』",
@@ -426,25 +427,29 @@ export function renderSubmenu(type) {
           "『さまよう商人は迷宮の奥深くで究極の霊薬エリクサーを売っている。』"
         ];
         const chosenHint = hints[Math.floor(Math.random() * hints.length)];
+        const expGained = 100 + currentFloor * 100;
+        const goldGained = 50 + currentFloor * 50;
         state.party.forEach(char => {
           if (char.status !== "dead") {
-            char.exp += 100;
+            char.exp += expGained;
           }
         });
+        state.gold += goldGained;
         playSound("level_up");
         addLog(`石碑の文字を解読した：`);
         addLog(`「${chosenHint}」`);
-        addLog(`[!] 古代の叡智に触れ、全員が100の経験値を獲得した！`);
+        addLog(`[!] 古代の叡智に触れ、全員が${expGained}の経験値を獲得し、${goldGained}Gを見つけた！`);
       } else if (rand < 0.70) {
         const aliveChars = state.party.filter(char => char.status !== "dead");
         if (aliveChars.length > 0) {
           const target = aliveChars[Math.floor(Math.random() * aliveChars.length)];
-          target.hp = Math.max(0, target.hp - 8);
+          const trapDmg = 6 + currentFloor * 3;
+          target.hp = Math.max(0, target.hp - trapDmg);
           if (target.hp === 0) {
             target.status = "dead";
           }
           playSound("hit");
-          addLog(`[!] カチッ…罠が作動した！石碑の隙間から矢が飛び出し、${target.name}に8のダメージ！`);
+          addLog(`[!] カチッ…罠が作動した！石碑の隙間から矢が飛び出し、${target.name}に${trapDmg}のダメージ！`);
           if (target.hp === 0) {
             addLog(`[!] ${target.name}は力尽きた！`);
           }
@@ -481,54 +486,7 @@ export function renderSubmenu(type) {
 
     // Generate dynamic stock if empty
     if (!state.activeMerchantStock || state.activeMerchantStock.length === 0) {
-      const generated = [];
-
-      // Slot 1: Legendary Item
-      const legendaries = [
-        { key: "ELIXIR", price: ITEMS.ELIXIR.price, soldOut: false },
-        { key: "SEALED_EXCALIBUR", price: ITEMS.SEALED_EXCALIBUR.price, soldOut: false },
-        { key: "HOLY_BLADE", price: ITEMS.HOLY_BLADE.price, soldOut: false },
-        { key: "DRAGON_CHARM", price: ITEMS.DRAGON_CHARM.price, soldOut: false },
-        { key: "EXCALIBUR_FRAGMENT", price: ITEMS.EXCALIBUR_FRAGMENT.price, soldOut: false }
-      ];
-
-      const alreadyHasAshes = state.inventory.some(i => {
-        if (typeof i === "string") return i === "SACRED_ASHES";
-        return i.baseId === "SACRED_ASHES";
-      });
-
-      if (state.floor >= 4) {
-        if (!alreadyHasAshes) {
-          legendaries.push({ key: "SACRED_ASHES", price: ITEMS.SACRED_ASHES.price, soldOut: false });
-        }
-        if (Math.random() < 0.30) {
-          legendaries.push({ key: "LEGENDARY_SHIELD", price: ITEMS.LEGENDARY_SHIELD.price, soldOut: false });
-        }
-      }
-      generated.push(legendaries[Math.floor(Math.random() * legendaries.length)]);
-
-      // Slot 2: Premium Discounted Equipment
-      const premiums = [
-        { key: "KATANA", price: 1200, soldOut: false },
-        { key: "PLATE_MAIL", price: 720, soldOut: false },
-        { key: "CLAYMORE", price: 600, soldOut: false },
-        { key: "PRIEST_ROBE", price: 400, soldOut: false }
-      ];
-      generated.push(premiums[Math.floor(Math.random() * premiums.length)]);
-
-      // Slot 3 & 4: Usable Items
-      const usables = [
-        { key: "HEAL_POTION", price: 40, soldOut: false },
-        { key: "MANA_POTION", price: 150, soldOut: false },
-        { key: "HOLY_WATER", price: 70, soldOut: false },
-        { key: "ANTIDOTE", price: 50, soldOut: false },
-        { key: "TOWN_PORTAL", price: 70, soldOut: false }
-      ];
-      const shuffledUsables = usables.sort(() => 0.5 - Math.random());
-      generated.push(shuffledUsables[0]);
-      generated.push(shuffledUsables[1]);
-
-      state.activeMerchantStock = generated;
+      state.activeMerchantStock = generateMerchantStock(state.floor || 1, state.inventory || []);
       saveAutosave();
     }
 
@@ -568,32 +526,33 @@ export function renderSubmenu(type) {
           btn.textContent = `[売り切れ] ${item.name}`;
           btn.disabled = true;
         } else {
-          const hasAshes = state.inventory.some(i => {
-            if (typeof i === "string") return i === "SACRED_ASHES";
-            return i.baseId === "SACRED_ASHES";
-          });
           const isAshes = stock.key === "SACRED_ASHES";
+          const hasAshes = state.inventory.some(i => getItemBaseId(i) === "SACRED_ASHES");
+          const bagFull = state.inventory.length >= 20;
           
           btn.textContent = `${item.name} (${stock.price}G) - ${item.desc.split("[")[0]}`;
-          if (state.gold < stock.price || (isAshes && hasAshes)) {
+          if (state.gold < stock.price || (isAshes && hasAshes) || bagFull) {
             btn.disabled = true;
             if (isAshes && hasAshes) {
               btn.textContent = `[所持数制限] ${item.name} (${stock.price}G)`;
+            } else if (bagFull) {
+              btn.textContent = `[バッグ満杯] ${item.name} (${stock.price}G)`;
             }
           }
 
           btn.addEventListener("click", () => {
-            state.gold -= stock.price;
-            state.inventory.push(stock.key);
-            recordEquipmentDiscovery(stock.key);
-            if (state.codex && state.codex.events && state.codex.events.facilities) {
-              state.codex.events.facilities.merchant.purchased++;
+            if (addInventoryItem(stock.key)) {
+              state.gold -= stock.price;
+              recordEquipmentDiscovery(stock.key);
+              if (state.codex && state.codex.events && state.codex.events.facilities) {
+                state.codex.events.facilities.merchant.purchased++;
+              }
+              stock.soldOut = true;
+              playSound("gold");
+              addLog(`[!] 商人から[${item.name}]を${stock.price}Gで購入した。`);
+              saveAutosave();
+              openSubmenu("event_merchant_buy", "商人「他に入用なものはあるかね？」", true);
             }
-            stock.soldOut = true;
-            playSound("gold");
-            addLog(`[!] 商人から[${item.name}]を${stock.price}Gで購入した。`);
-            saveAutosave();
-            openSubmenu("event_merchant_buy", "商人「他に入用なものはあるかね？」", true);
           });
         }
         optGrid.appendChild(btn);
@@ -693,3 +652,130 @@ export function clearSaveData() {
 }
 
 setRenderSubmenuCallback(renderSubmenu);
+
+export function generateMerchantStock(floor, inventory) {
+  const generated = [];
+  const alreadyHasAshes = inventory.some(i => getItemBaseId(i) === "SACRED_ASHES");
+
+  // Slot 1: Rare/Legendary Item (Floor-based)
+  let slot1Choices = [];
+  if (floor <= 2) {
+    // B1-B2: Mid-tier items, no legendaries/dragon/resurrect
+    slot1Choices = [
+      { key: "LONG_SWORD", price: 320, soldOut: false },
+      { key: "CHAIN_MAIL", price: 280, soldOut: false },
+      { key: "MAGIC_SHIELD", price: 500, soldOut: false },
+      { key: "PRIEST_ROBE", price: 400, soldOut: false },
+      { key: "HOLY_WATER", price: 70, soldOut: false },
+      { key: "MANA_POTION", price: 150, soldOut: false }
+    ];
+  } else if (floor === 3) {
+    // B3: Low chance (30%) of premium equipment, else mid-tier. No Sacred Ashes. No Katana on B3.
+    if (Math.random() < 0.30) {
+      slot1Choices = [
+        { key: "PLATE_MAIL", price: 720, soldOut: false },
+        { key: "CLAYMORE", price: 600, soldOut: false }
+      ];
+    } else {
+      slot1Choices = [
+        { key: "LONG_SWORD", price: 320, soldOut: false },
+        { key: "CHAIN_MAIL", price: 280, soldOut: false },
+        { key: "MAGIC_SHIELD", price: 500, soldOut: false },
+        { key: "PRIEST_ROBE", price: 400, soldOut: false }
+      ];
+    }
+  } else if (floor === 4) {
+    // B4: Unlock Sacred Ashes (if not possessed), dragon charm, elixir, legendaries
+    slot1Choices = [
+      { key: "ELIXIR", price: ITEMS.ELIXIR.price, soldOut: false },
+      { key: "SEALED_EXCALIBUR", price: ITEMS.SEALED_EXCALIBUR.price, soldOut: false },
+      { key: "HOLY_BLADE", price: ITEMS.HOLY_BLADE.price, soldOut: false },
+      { key: "DRAGON_CHARM", price: ITEMS.DRAGON_CHARM.price, soldOut: false },
+      { key: "EXCALIBUR_FRAGMENT", price: ITEMS.EXCALIBUR_FRAGMENT.price, soldOut: false }
+    ];
+    if (!alreadyHasAshes) {
+      slot1Choices.push({ key: "SACRED_ASHES", price: ITEMS.SACRED_ASHES.price, soldOut: false });
+    }
+    if (Math.random() < 0.30) {
+      slot1Choices.push({ key: "LEGENDARY_SHIELD", price: ITEMS.LEGENDARY_SHIELD.price, soldOut: false });
+    }
+  } else {
+    // B5: High cost but extremely powerful items allowed (including Excalibur, Aegis shield)
+    slot1Choices = [
+      { key: "ELIXIR", price: ITEMS.ELIXIR.price, soldOut: false },
+      { key: "SEALED_EXCALIBUR", price: ITEMS.SEALED_EXCALIBUR.price, soldOut: false },
+      { key: "HOLY_BLADE", price: ITEMS.HOLY_BLADE.price, soldOut: false },
+      { key: "DRAGON_CHARM", price: ITEMS.DRAGON_CHARM.price, soldOut: false },
+      { key: "EXCALIBUR_FRAGMENT", price: ITEMS.EXCALIBUR_FRAGMENT.price, soldOut: false },
+      { key: "LEGENDARY_SWORD", price: ITEMS.LEGENDARY_SWORD.price, soldOut: false },
+      { key: "LEGENDARY_SHIELD", price: ITEMS.LEGENDARY_SHIELD.price, soldOut: false }
+    ];
+    if (!alreadyHasAshes) {
+      slot1Choices.push({ key: "SACRED_ASHES", price: ITEMS.SACRED_ASHES.price, soldOut: false });
+    }
+  }
+  generated.push(slot1Choices[Math.floor(Math.random() * slot1Choices.length)]);
+
+  // Slot 2: Premium Discounted Equipment (Floor-based)
+  let slot2Choices = [];
+  if (floor <= 2) {
+    // B1-B2: Mid-tier equipment only
+    slot2Choices = [
+      { key: "LONG_SWORD", price: 320, soldOut: false },
+      { key: "CHAIN_MAIL", price: 280, soldOut: false },
+      { key: "MAGIC_SHIELD", price: 500, soldOut: false },
+      { key: "PRIEST_ROBE", price: 400, soldOut: false }
+    ];
+  } else if (floor === 3) {
+    // B3: Low chance (30%) of premium, else mid-tier. Katana omitted on B3.
+    if (Math.random() < 0.30) {
+      slot2Choices = [
+        { key: "PLATE_MAIL", price: 720, soldOut: false },
+        { key: "CLAYMORE", price: 600, soldOut: false }
+      ];
+    } else {
+      slot2Choices = [
+        { key: "LONG_SWORD", price: 320, soldOut: false },
+        { key: "CHAIN_MAIL", price: 280, soldOut: false },
+        { key: "MAGIC_SHIELD", price: 500, soldOut: false },
+        { key: "PRIEST_ROBE", price: 400, soldOut: false }
+      ];
+    }
+  } else if (floor === 4) {
+    // B4: Premium + Dragon scale
+    slot2Choices = [
+      { key: "KATANA", price: 1200, soldOut: false },
+      { key: "PLATE_MAIL", price: 720, soldOut: false },
+      { key: "CLAYMORE", price: 600, soldOut: false },
+      { key: "PRIEST_ROBE", price: 400, soldOut: false },
+      { key: "DRAGON_SCALE", price: 1120, soldOut: false }
+    ];
+  } else {
+    // B5: High-end equipment (20% off discounted)
+    slot2Choices = [
+      { key: "KATANA", price: 1200, soldOut: false },
+      { key: "PLATE_MAIL", price: 720, soldOut: false },
+      { key: "CLAYMORE", price: 600, soldOut: false },
+      { key: "PRIEST_ROBE", price: 400, soldOut: false },
+      { key: "DRAGON_SCALE", price: 1120, soldOut: false },
+      { key: "LEGENDARY_SHIELD", price: 2000, soldOut: false },
+      { key: "DRAGON_CHARM", price: 2000, soldOut: false },
+      { key: "LEGENDARY_SWORD", price: 2400, soldOut: false }
+    ];
+  }
+  generated.push(slot2Choices[Math.floor(Math.random() * slot2Choices.length)]);
+
+  // Slot 3 & 4: Usable Items
+  const usables = [
+    { key: "HEAL_POTION", price: 40, soldOut: false },
+    { key: "MANA_POTION", price: 150, soldOut: false },
+    { key: "HOLY_WATER", price: 70, soldOut: false },
+    { key: "ANTIDOTE", price: 50, soldOut: false },
+    { key: "TOWN_PORTAL", price: 70, soldOut: false }
+  ];
+  const shuffledUsables = usables.sort(() => 0.5 - Math.random());
+  generated.push(shuffledUsables[0]);
+  generated.push(shuffledUsables[1]);
+
+  return generated;
+}

@@ -1380,6 +1380,7 @@ html, body {
 }
 
 /* Spell and Item Grid */
+/* Spell and Item Grid */
 .combat-selection-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1388,6 +1389,12 @@ html, body {
   -webkit-overflow-scrolling: touch;
   height: 100%;
   padding-right: 2px;
+}
+
+/* 2列呪文グリッド */
+.combat-selection-grid.spell-grid {
+  grid-template-columns: 1fr 1fr;
+  padding-bottom: 80px; /* 戻るボタンとの重なり防止の余白 */
 }
 
 .combat-selection-grid::-webkit-scrollbar {
@@ -1413,6 +1420,9 @@ html, body {
 
 .combat-item-card.spell {
   border-color: rgba(191, 90, 242, 0.3);
+  min-height: 48px; /* パディングと合わせて48px高を確保 */
+  padding: 6px 8px;
+  box-sizing: border-box;
 }
 
 .combat-item-card.spell:hover, .combat-item-card.spell:active {
@@ -1431,12 +1441,150 @@ html, body {
   box-shadow: 0 0 4px var(--neon-gold);
 }
 
+/* 各無効状態のスタイル */
+.combat-item-card.spell.disabled-mp {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: rgba(255, 69, 58, 0.25) !important;
+  background-color: rgba(255, 69, 58, 0.02) !important;
+  box-shadow: none !important;
+}
+
+.combat-item-card.spell.disabled-unavailable {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: rgba(142, 142, 147, 0.2) !important;
+  background-color: rgba(142, 142, 147, 0.02) !important;
+  box-shadow: none !important;
+}
+
 .combat-item-card.disabled {
   opacity: 0.3;
   cursor: not-allowed;
   border-color: #22222d !important;
   box-shadow: none !important;
   background-color: transparent !important;
+}
+
+/* 呪文カードのレイアウト構造 */
+.spell-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.spell-card-top .spell-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 75%;
+}
+
+.spell-card-top .cost-tag {
+  font-size: 9px;
+  color: var(--neon-purple);
+  white-space: nowrap;
+}
+
+.spell-card-bottom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 9px;
+  line-height: 1.1;
+  overflow: hidden;
+}
+
+.spell-card-bottom .spell-effect {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+/* 呪文カテゴリタグ */
+.spell-tag {
+  font-size: 8px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.spell-tag.single {
+  background-color: rgba(255, 69, 58, 0.15);
+  color: #ff453a;
+  border: 1px solid rgba(255, 69, 58, 0.3);
+}
+
+.spell-tag.all {
+  background-color: rgba(255, 159, 10, 0.15);
+  color: #ff9f0a;
+  border: 1px solid rgba(255, 159, 10, 0.3);
+}
+
+.spell-tag.heal {
+  background-color: rgba(48, 209, 88, 0.15);
+  color: #30d158;
+  border: 1px solid rgba(48, 209, 88, 0.3);
+}
+
+.spell-tag.cure {
+  background-color: rgba(100, 210, 255, 0.15);
+  color: #64d2ff;
+  border: 1px solid rgba(100, 210, 255, 0.3);
+}
+
+.spell-tag.buff {
+  background-color: rgba(191, 90, 242, 0.15);
+  color: #bf5af2;
+  border: 1px solid rgba(191, 90, 242, 0.3);
+}
+
+.spell-tag.debuff {
+  background-color: rgba(255, 55, 95, 0.15);
+  color: #ff375f;
+  border: 1px solid rgba(255, 55, 95, 0.3);
+}
+
+.spell-tag.utility {
+  background-color: rgba(174, 174, 178, 0.15);
+  color: #aeaea6;
+  border: 1px solid rgba(174, 174, 178, 0.3);
+}
+
+.spell-tag.dead {
+  background-color: rgba(142, 142, 147, 0.15);
+  color: #8e8e93;
+  border: 1px solid rgba(142, 142, 147, 0.3);
+}
+
+/* 無効化理由バッジ */
+.disabled-reason-tag {
+  font-size: 8px;
+  padding: 1px 3px;
+  border-radius: 2px;
+  margin-left: auto;
+  white-space: nowrap;
+  font-weight: bold;
+}
+
+.disabled-reason-tag.mp-shortage {
+  background-color: rgba(255, 69, 58, 0.2);
+  color: #ff453a;
+  border: 1px solid rgba(255, 69, 58, 0.5);
+}
+
+.disabled-reason-tag.unavailable {
+  background-color: rgba(142, 142, 147, 0.2);
+  color: #aeaea6;
+  border: 1px solid rgba(142, 142, 147, 0.5);
 }
 
 .item-card-title {
@@ -2990,7 +3138,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 0 0 0;
+  padding: 8px 0 env(safe-area-inset-bottom, 12px) 0;
   border-top: 1px solid var(--border-color);
   background-color: rgba(12, 12, 14, 0.98);
   margin-top: auto;

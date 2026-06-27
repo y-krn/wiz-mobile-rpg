@@ -382,6 +382,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   }
 
   // Random Event (3% chance) on standard cells with cooldown constraint
+  // 宝箱はランダム出現させない（固定配置のみ）/ No random chests here, fixed positions only
   const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
                         cell.event === EVENT_TYPES.MIDBOSS || cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.CHEST ||
                         cell.message;
@@ -468,7 +469,7 @@ export function triggerFlameTrap() {
   }
   state.party.forEach(c => {
     if (c.status !== "dead") {
-      const dmg = Math.floor(Math.random() * 11) + 10; // 10-20 damage
+      const dmg = Math.floor(Math.random() * 9) + 8; // 8-16 damage
       c.hp = Math.max(0, c.hp - dmg);
       addLog(`${c.name}は${dmg}の炎ダメージを受けた。`);
       if (c.hp === 0) {
@@ -657,7 +658,14 @@ export function processExplorationResolution(prevX, prevY) {
   const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
                         cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
                         cell.message;
-  if (state.floor === 5 && !isSpecialCell && Math.random() < 0.05) {
+
+  if (state.flameTrapCooldownTurns && state.flameTrapCooldownTurns > 0) {
+    state.flameTrapCooldownTurns--;
+  }
+  const flameCooldownActive = state.flameTrapCooldownTurns && state.flameTrapCooldownTurns > 0;
+
+  if (state.floor === 5 && !isSpecialCell && !flameCooldownActive && Math.random() < 0.05) {
+    state.flameTrapCooldownTurns = 5; // 5 steps cooldown to prevent back-to-back triggers
     triggerFlameTrap();
   } else {
     checkCellEvents(prevX, prevY);

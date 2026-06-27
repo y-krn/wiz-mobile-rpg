@@ -3,7 +3,7 @@ import { DIR_N, START_X, START_Y, MONSTERS, ITEMS, SPELLS, getClassJpName, gener
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
-import { menuContext, menuHistory, openSubmenu, closeSubmenu, resetSubmenuBackButton } from "./navigation.js";
+import { menuContext, menuHistory, openSubmenu, closeSubmenu, resetSubmenuBackButton, goBackSubmenu } from "./navigation.js";
 import { triggerRunResult } from "./result.js";
 import { setupChestState } from "./chest.js";
 import { createRng } from "./seed_rng.js";
@@ -478,12 +478,26 @@ export function openCombatSpellMenu(char, callback) {
 
   char.spells.forEach(spKey => {
     const spell = SPELLS[spKey];
+    if (spell.campOnly) return; // 戦闘中はキャンプ専用を表示しない
+
     const btn = document.createElement("button");
     btn.className = "btn btn-neon btn-select-spell";
-    btn.textContent = `${spell.name} (${spell.cost}M)`;
-
+    
     const mpCheck = char.mp < spell.cost;
-    if (mpCheck) {
+    const targetCheck = isSpellTargetAvailable(spell, char);
+    const disabled = mpCheck || !targetCheck;
+
+    let label = `${spell.name} (${spell.cost}M)`;
+    if (disabled) {
+      if (mpCheck) {
+        label += " [MP不足]";
+      } else if (!targetCheck) {
+        label += spell.target === "utility" ? " [戦闘不可]" : " [対象なし]";
+      }
+    }
+    btn.textContent = label;
+
+    if (disabled) {
       btn.disabled = true;
       btn.style.opacity = "0.3";
     } else {
@@ -656,7 +670,7 @@ export function renderCombatOverlay() {
   } else if (type === "combat_spell") {
     // Spells grid
     const spellGrid = document.createElement("div");
-    spellGrid.className = "combat-selection-grid";
+    spellGrid.className = "combat-selection-grid spell-grid";
 
     const casterIdx = menuContext.actorIdx;
     const caster = state.party[casterIdx];
@@ -669,16 +683,38 @@ export function renderCombatOverlay() {
       card.className = "combat-item-card spell";
       
       const mpCheck = caster.mp < spell.cost;
+      const targetCheck = isSpellTargetAvailable(spell, caster);
+      const disabled = mpCheck || !targetCheck;
+
       if (mpCheck) {
-        card.classList.add("disabled");
+        card.classList.add("disabled-mp");
+      } else if (!targetCheck) {
+        card.classList.add("disabled-unavailable");
+      }
+
+      const summary = getSpellCombatSummary(spKey);
+      
+      let reasonBadgeHTML = "";
+      if (mpCheck) {
+        reasonBadgeHTML = `<span class="disabled-reason-tag mp-shortage">MP不足</span>`;
+      } else if (!targetCheck) {
+        const reasonText = spell.target === "utility" ? "戦闘不可" : "対象なし";
+        reasonBadgeHTML = `<span class="disabled-reason-tag unavailable">${reasonText}</span>`;
       }
 
       card.innerHTML = `
-        <div class="item-card-title">${spell.name} <span class="cost-tag">${spell.cost}MP</span></div>
-        <div class="item-card-desc">${spell.desc}</div>
+        <div class="spell-card-top">
+          <span class="spell-name" title="${spell.name}">${spell.name}</span>
+          <span class="cost-tag">${spell.cost}MP</span>
+        </div>
+        <div class="spell-card-bottom">
+          <span class="spell-tag ${summary.category}">${summary.tag}</span>
+          <span class="spell-effect" title="${summary.effect}">${summary.effect}</span>
+          ${reasonBadgeHTML}
+        </div>
       `;
 
-      if (!mpCheck) {
+      if (!disabled) {
         card.addEventListener("click", () => {
           state.gameState = "combat";
           if (activeSpellCallback) activeSpellCallback(spKey);
@@ -939,4 +975,70 @@ export function triggerGameOver() {
   triggerRunResult("gameover");
   // Hide normal back button
   document.getElementById("btn-submenu-back").style.display = "none";
+}
+
+export function getSpellCombatSummary(spellName) {
+  const summaries = {
+    HALITO: { tag: "単体", effect: "火 5-15", category: "single" },
+    KATINO: { tag: "弱体", effect: "全体睡眠", category: "debuff" },
+    LAHALITO: { tag: "全体", effect: "火 15-35", category: "all" },
+    DUMAPIC: { tag: "探索", effect: "座標探知", category: "utility" },
+    MAHALITO: { tag: "単体", effect: "火 20-35", category: "single" },
+    MASFEAL: { tag: "探索", effect: "遭遇回避", category: "utility" },
+    MADALTO: { tag: "全体", effect: "氷 30-60", category: "all" },
+    TILTOWAIT: { tag: "全体", effect: "爆 50-100", category: "all" },
+    DIOS: { tag: "単体", effect: "回復 10-20", category: "single" },
+    DIURCO: { tag: "治療", effect: "単体 盲目", category: "cure" },
+    BADIOS: { tag: "単体", effect: "聖 5-15", category: "single" },
+    MILWA: { tag: "探索", effect: "明かり", category: "utility" },
+    DIALKO: { tag: "治療", effect: "麻痺/睡眠", category: "cure" },
+    MADIOS: { tag: "単体", effect: "回復 35-70", category: "single" },
+    LATUMOFIS: { tag: "治療", effect: "毒", category: "cure" },
+    LOMILWA: { tag: "探索", effect: "永続明かり", category: "utility" },
+    DIALMA: { tag: "単体", effect: "回復 70-120", category: "single" },
+    KADORTO: { tag: "戦闘不可", effect: "蘇生", category: "dead" },
+    MABARRIER: { tag: "補助", effect: "味方全体 魔法軽減", category: "buff" },
+    MONTINO: { tag: "全体", effect: "沈黙 2T", category: "all" },
+    MORLIS: { tag: "弱体", effect: "全体魔防低下", category: "debuff" }
+  };
+  return summaries[spellName] || { tag: "不明", effect: "", category: "unknown" };
+}
+
+export function isSpellTargetAvailable(spell, caster) {
+  // 1. 移動用（utility）呪文は戦闘中効果なしのため使用不可（戦闘不可）
+  if (spell.target === "utility") return false;
+
+  // 2. 敵対象呪文：生存している敵がいるか
+  if (spell.target === "single_enemy" || spell.target === "all_enemies") {
+    const hasLivingEnemy = state.combatState && state.combatState.monsters.some(m => m.hp > 0);
+    if (!hasLivingEnemy) return false;
+  }
+
+  // 3. 味方対象呪文：生存している（またはKADORTOなら死亡している）味方がいるか
+  if (spell.target === "single_ally" || spell.target === "all_allies") {
+    if (spell.name === "KADORTO") {
+      const hasDeadAlly = state.party.some(c => c.status === "dead");
+      if (!hasDeadAlly) return false;
+    } else {
+      const hasLivingAlly = state.party.some(c => ["ok", "poisoned", "blind"].includes(c.status));
+      if (!hasLivingAlly) return false;
+    }
+  }
+
+  // 4. 特定の状態異常治療呪文の対象不在チェック
+  // （HP回復呪文はHP満タンでも置きヒール可能なようにここでは制限しない）
+  if (spell.name === "DIURCO") {
+    // 盲目治療：盲目の味方が1人以上いるか
+    return state.party.some(c => c.status === "blind");
+  }
+  if (spell.name === "DIALKO") {
+    // 睡眠・麻痺治療：睡眠または麻痺の味方が1人以上いるか
+    return state.party.some(c => c.status === "sleep" || c.status === "paralyze" || c.status === "paralyzed");
+  }
+  if (spell.name === "LATUMOFIS") {
+    // 解毒：毒状態の味方が1人以上いるか
+    return state.party.some(c => c.status === "poisoned");
+  }
+
+  return true;
 }
