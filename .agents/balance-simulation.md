@@ -16,6 +16,12 @@ repeatable checks.
 - `scratch/*`
 - Existing build or simulation logs, when relevant
 
+## Initial File Routing
+
+Before searching broadly, read `.agents/file-map.md`. Start with the changed
+enemy, reward, map, combat, or contract data path, then use the smallest
+deterministic scratch check that exercises the changed values.
+
 ## Inputs
 
 - Balance goal or changed values

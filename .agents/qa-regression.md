@@ -13,6 +13,12 @@ game flows.
 - `package.json`
 - Any source files touched by the change under review
 
+## Initial File Routing
+
+Before searching broadly, read `.agents/file-map.md`. Start with the changed
+files, the matching test target, and only the source modules listed for that
+request area.
+
 ## Inputs
 
 - User request or feature goal

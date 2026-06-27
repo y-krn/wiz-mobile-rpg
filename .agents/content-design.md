@@ -11,6 +11,12 @@ implementation cost.
 - User-facing text in source files
 - Enemy, item, spell, contract, class, reward, and event proposals
 
+## Initial File Routing
+
+Before searching broadly, read `.agents/file-map.md`. Start with `src/data.js`
+for gameplay content or the affected UI module for visible text, then expand to
+balance or mobile UI files only if the content changes progression or layout.
+
 ## Inputs
 
 - Content proposal or changed data

@@ -20,6 +20,12 @@ transitions.
 - `src/result.js`
 - `tests/ui-ux.spec.js`
 
+## Initial File Routing
+
+Before searching broadly, read `.agents/file-map.md`. Start with `src/style.css`,
+the affected UI module, and `tests/ui-ux.spec.js`; expand only to direct UI
+callers such as `src/ui.js`, `src/menu.js`, or `src/navigation.js`.
+
 ## Inputs
 
 - User-facing flow being changed

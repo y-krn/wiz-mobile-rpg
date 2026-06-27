@@ -6,6 +6,10 @@ Use these agents to review plans, diffs, tests, and content proposals. They do
 not directly implement code unless the user explicitly changes the operating
 mode.
 
+Before broad repository searches, read `.agents/file-map.md` and start from the
+files listed for the request area. Expand only to direct imports, touched files,
+or verification targets.
+
 ## Operating Mode
 
 - Default mode: review-only.
@@ -24,6 +28,12 @@ mode.
 3. `game-logic.md`
 4. `balance-simulation.md`
 5. `content-design.md`
+
+## File Routing
+
+Use `.agents/file-map.md` to decide the initial files for implementation and
+review. Agent-specific `Scope` sections remain authoritative for what each agent
+is allowed to review.
 
 ## Review Output Format
 

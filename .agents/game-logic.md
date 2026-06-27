@@ -19,6 +19,13 @@ existing state and data structures.
 - `src/spell_menu.js`
 - `src/game.js`
 
+## Initial File Routing
+
+Before searching broadly, read `.agents/file-map.md`. Start with the mechanic
+module named by the request, then inspect `src/state.js`, `src/data.js`, and
+direct callers only when the state shape, data formulas, or flow wiring are
+affected.
+
 ## Inputs
 
 - Intended rule or mechanic change
