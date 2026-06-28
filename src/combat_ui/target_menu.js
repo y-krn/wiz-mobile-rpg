@@ -1,13 +1,10 @@
-import { state } from "../state.js";
-import { menuContext } from "../navigation.js";
-import { updateUI } from "../ui.js";
+import { menuContext, openSubmenu } from "../navigation.js";
 import { combatCallbacks } from "./combat_state.js";
 
 export function openCombatTargetMenu(type, callback, spellName = null) {
-  state.gameState = "submenu";
-  menuContext.type = "combat_target";
   menuContext.targetType = type;
   menuContext.spellName = spellName;
   combatCallbacks.activeTargetCallback = callback;
-  updateUI();
+  const title = type === "enemy" ? "攻撃対象を選択" : "対象を選択";
+  openSubmenu("combat_target", title);
 }

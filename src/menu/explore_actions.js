@@ -26,7 +26,9 @@ export function handleExploreAction(action) {
     const firstCasterIdx = state.party.findIndex(c => c.status !== "dead" && isSpellcaster(c) && c.maxMp > 0);
     menuContext.actorIdx = firstCasterIdx !== -1 ? firstCasterIdx : 0;
     openSubmenu("spell_select", "呪文選択:");
-  } else if (action === "item") {
+  } else if (action === "tool") {
+    openSubmenu("item_user_select", "道具を使う:");
+  } else if (action === "item" || action === "equip") {
     openEquipOverlay(0);
   }
 }
@@ -428,4 +430,3 @@ export function clearSaveData() {
   localStorage.removeItem("mobile_wiz_rpg_save");
   localStorage.removeItem("mobile_wiz_rpg_autosave");
 }
-

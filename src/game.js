@@ -83,9 +83,9 @@ function bindButtons() {
   bindPress("btn-turn-right", "turn-right");
   bindPress("btn-move-backward", "backward");
 
-  document.getElementById("btn-inspect").addEventListener("click", () => handleExploreAction("search"));
+  document.getElementById("btn-inspect").addEventListener("click", () => handleExploreAction("tool"));
   document.getElementById("btn-cast").addEventListener("click", () => handleExploreAction("spell"));
-  document.getElementById("btn-item").addEventListener("click", () => handleExploreAction("item"));
+  document.getElementById("btn-item").addEventListener("click", () => handleExploreAction("equip"));
   document.getElementById("btn-camp").addEventListener("click", () => handleExploreAction("camp"));
 
   // Town

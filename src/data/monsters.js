@@ -30,7 +30,7 @@ export const MONSTERS = [
   { name: "レッドドラゴン", level: 7, hp: 200, atk: 22, def: 10, exp: 3500, gold: 400, spriteType: "dragon", spell: "MADALTO", tags: ["dragon"], color: "#ff3b30" },
   { name: "アイアンゴーレム", level: 3, hp: 64, atk: 10, def: 14, exp: 350, gold: 50, spriteType: "zombie", physResist: 0.5, magicResist: -0.5, color: "#8e8e93" },
   { name: "マッドスライム", level: 1, hp: 48, atk: 4, def: 1, exp: 120, gold: 20, spriteType: "biter", physResist: 0.4, magicResist: -0.5, color: "#ff9500" },
-  { name: "メタルパピー", level: 3, hp: 16, atk: 5, def: 10, exp: 2000, gold: 500, spriteType: "biter", fleeChance: 0.50, color: "#ffd700", isRare: true, treasureRare: true },
+  { name: "メタルパピー", level: 3, hp: 16, atk: 5, def: 10, exp: 2000, gold: 150, spriteType: "biter", fleeChance: 0.50, color: "#ffd700", isRare: true, treasureRare: true },
   { name: "オークの呪医", level: 2, hp: 44, atk: 5, def: 3, exp: 200, gold: 35, spriteType: "orc", spell: "DIOS", spellChance: 0.3, color: "#34c759" },
   { name: "プリーストデーモン", level: 5, hp: 120, atk: 12, def: 6, exp: 800, gold: 150, spriteType: "flack", spell: "DIALMA", spellChance: 0.3, tags: ["demon"], row: "back", color: "#34c759" },
   { name: "スケルトンアーチャー", level: 2, hp: 40, atk: 9, def: 3, exp: 150, gold: 30, spriteType: "skeleton", isSniper: true, tags: ["undead"], row: "back", color: "#af52de" },

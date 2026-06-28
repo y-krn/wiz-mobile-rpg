@@ -97,6 +97,8 @@ export function getCurrentGoal() {
 
 export function updateUI() {
   resetViewportZoom();
+  const combatOverlayTypes = ["combat_target", "combat_spell", "combat_item"];
+  const isCombatOverlaySubmenu = state.gameState === "submenu" && combatOverlayTypes.includes(menuContext.type);
 
   // Reset/Apply floor-theme class on #game-container
   const container = document.getElementById("game-container");
@@ -303,7 +305,7 @@ export function updateUI() {
     updateCombatPrompt();
   } else if (state.gameState === "town") {
     document.getElementById("town-controls").classList.add("active");
-  } else if (state.gameState === "submenu") {
+  } else if (state.gameState === "submenu" && !isCombatOverlaySubmenu) {
     document.getElementById("submenu-controls").classList.add("active");
   }
 
@@ -330,8 +332,7 @@ export function updateUI() {
   // Update Combat Overlay visibility
   const combatOverlay = document.getElementById("combat-overlay");
   if (combatOverlay) {
-    const combatOverlayTypes = ["combat_target", "combat_spell", "combat_item"];
-    if (state.gameState === "submenu" && combatOverlayTypes.includes(menuContext.type)) {
+    if (isCombatOverlaySubmenu) {
       combatOverlay.style.display = "flex";
       renderCombatOverlay();
     } else {

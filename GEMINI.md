@@ -125,7 +125,8 @@ UI実装・レビュー時は以下を必ず確認する。
   `src/state.js`, `src/state/*`, `src/combat_logic.js`,
   `src/combat_logic/*`, `src/combat.js`, `src/combat_ui/*`,
   `src/menu.js`, `src/menu/*`, `src/shop.js`, `src/shop/*`,
-  `src/ui.js`, `src/ui/*`, `src/style.css`, `tests/ui-ux.spec.js` に実質的な挙動変更が入る場合。
+  `src/ui.js`, `src/ui/*`, `src/style.css`, `src/styles/*`,
+  `tests/ui-ux.spec.js` に実質的な挙動変更が入る場合。
 - UI変更でモバイル片手操作の品質が変わる可能性が高い場合。
 - 数値変更でゲームバランスが変わる可能性が高い場合。
 

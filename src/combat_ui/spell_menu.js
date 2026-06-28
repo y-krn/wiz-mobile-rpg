@@ -1,18 +1,14 @@
 import { state } from "../state.js";
 import { SPELLS } from "../data.js";
-import { menuContext } from "../navigation.js";
-import { updateUI } from "../ui.js";
+import { menuContext, openSubmenu } from "../navigation.js";
 import { combatCallbacks } from "./combat_state.js";
 
 export function openCombatSpellMenu(char, callback) {
-  state.gameState = "submenu";
-  menuContext.type = "combat_spell";
-  
   // Find actor index
   const actorIdx = state.party.findIndex(c => c.name === char.name);
   menuContext.actorIdx = actorIdx;
   combatCallbacks.activeSpellCallback = callback;
-  updateUI();
+  openSubmenu("combat_spell", "呪文を唱える");
 }
 
 export function getSpellCombatSummary(spellName) {

@@ -12,6 +12,7 @@ transitions.
 - `src/menu.js`
 - `src/menu/*`
 - `src/style.css`
+- `src/styles/*`
 - `src/shop.js`
 - `src/shop/*`
 - `src/combat.js`
@@ -27,10 +28,12 @@ transitions.
 
 ## Initial File Routing
 
-Before searching broadly, read `.agents/file-map.md`. Start with `src/style.css`,
-the affected UI or overlay module, and `tests/ui-ux.spec.js`; expand only to
-direct UI callers such as `src/ui.js`, `src/ui/*`, `src/menu.js`, `src/menu/*`,
-`src/combat_ui/*`, or `src/navigation.js`.
+Before searching broadly, read `.agents/file-map.md`. Start with the relevant
+`src/styles/*.css` file, the affected UI or overlay module, and
+`tests/ui-ux.spec.js`; expand only to direct UI callers such as `src/ui.js`,
+`src/ui/*`, `src/menu.js`, `src/menu/*`, `src/combat_ui/*`, or
+`src/navigation.js`. Read `src/style.css` only when import order or cascade
+behavior may be relevant.
 
 ## Inputs
 
