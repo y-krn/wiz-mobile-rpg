@@ -1,5 +1,5 @@
 import { state, saveGame, saveAutosave, createDefaultCodex, addLog } from "./state.js";
-import { DIR_NAMES, getClassJpName, isSpellcaster, getCharMaxHp, getCharMaxMp, getItemData, MONSTERS, ITEMS } from "./data.js";
+import { DIR_NAMES, getClassJpName, isSpellcaster, getCharMaxHp, getCharMaxMp, getItemData, getItemBaseId, MONSTERS, ITEMS } from "./data.js";
 import { getIsMuted, playSound } from "./audio.js";
 import { getMonsterContractInfo } from "./contracts.js";
 import { menuContext, openSubmenu } from "./navigation.js";
