@@ -72,7 +72,7 @@ Object.defineProperty(global, "navigator", {
 
   assert.strictEqual(dataWand.name, "青く光る未鑑定の杖", "Magic Wand should be 青く光る未鑑定の杖");
   assert.strictEqual(dataSword.name, "古びた未鑑定の剣", "Magic Sword should be 古びた未鑑定の剣");
-  assert.strictEqual(dataArmor.name, "金紋の未鑑定の鎧", "Rare Armor should be 金紋の未鑑定 of 鎧");
+  assert.strictEqual(dataArmor.name, "金紋の未鑑定の鎧", "Rare Armor should be 金紋の未鑑定の鎧");
   assert.strictEqual(dataRobe.name, "紫光を放つ未鑑定のローブ", "Epic Robe should be 紫光を放つ未鑑定のローブ");
   console.log("[PASS] Unidentified names verified.");
 

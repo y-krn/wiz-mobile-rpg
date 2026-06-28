@@ -14,6 +14,10 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     }
     state.codex.events.facilities.chest.found++;
   }
+
+  if (state.floor === 1 && state.currentRun) {
+    state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
+  }
   const chestSeed = `${state.seed}:chest:B${state.floor}:${state.x},${state.y}`;
   const rng = customRng || (state.seed ? createRng(chestSeed) : Math.random);
 
@@ -62,41 +66,37 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     item = forcedItem;
   } else {
     let isGuaranteed = false;
-    if (state.floor === 1 && !state.firstChestUnidentifiedGuaranteed) {
-      isGuaranteed = true;
+    if (state.floor === 1) {
+      if (state.currentRun) {
+        const b1Opened = state.currentRun.b1ChestsOpened || 0;
+        const b1Found = state.currentRun.b1EquipFound || 0;
+        if (b1Opened >= 3 && b1Found === 0) {
+          isGuaranteed = true;
+        }
+      }
+      if (!isGuaranteed && !state.firstChestUnidentifiedGuaranteed) {
+        isGuaranteed = true;
+      }
     }
 
-    const itemChance = state.floor >= 5 ? 0.85 : (state.floor === 4 ? 0.75 : 0.50);
+    let itemChance = state.floor >= 5 ? 0.85 : (state.floor === 4 ? 0.75 : 0.50);
+    if (state.floor === 1 && state.currentRun && (state.currentRun.b1EquipFound || 0) === 0) {
+      const b1Opened = state.currentRun.b1ChestsOpened || 1;
+      itemChance += (b1Opened - 1) * 0.15;
+    }
+
     if (isGuaranteed || rng() < itemChance) {
-    if (isGuaranteed) {
-      const guaranCandidates = ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK"];
-      const baseId = guaranCandidates[Math.floor(rng() * guaranCandidates.length)];
-      const baseItem = ITEMS[baseId];
-      
-      const affixes = [];
-      if (baseItem.type === "weapon") {
-        affixes.push({ type: "atk", value: 1 });
-      } else if (baseItem.type === "armor" || baseItem.type === "shield") {
-        affixes.push({ type: "def", value: 1 });
-      }
-      
-      const instanceId = `eq_${rng().toString(36).substr(2, 9)}`;
-      item = {
-        kind: "equipment",
-        instanceId,
-        baseId,
-        rarity: "magic",
-        level: 1,
-        identified: false,
-        affixes
-      };
-      state.firstChestUnidentifiedGuaranteed = true;
-    } else {
-      const hasAshes = state.inventory.some(i => {
-        if (typeof i === "string") return i === "SACRED_ASHES";
-        return i.baseId === "SACRED_ASHES";
-      });
-      if (state.floor >= 3 && !hasAshes && rng() < 0.05) {
+      if (isGuaranteed) {
+        item = generateRandomEquipment(state.floor, "magic", rng);
+        if (state.floor === 1) {
+          state.firstChestUnidentifiedGuaranteed = true;
+        }
+      } else {
+        const hasAshes = state.inventory.some(i => {
+          if (typeof i === "string") return i === "SACRED_ASHES";
+          return i.baseId === "SACRED_ASHES";
+        });
+        if (state.floor >= 3 && !hasAshes && rng() < 0.05) {
         item = "SACRED_ASHES";
       } else {
         let candidates = [];
@@ -107,11 +107,11 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
         } else if (state.floor === 3) {
           candidates = ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "LONG_SWORD", "MACE", "SACRED_MACE", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
         } else if (state.floor === 4) {
-          // B4F: Standard standard chests only drop high-level store gear (e.g. Katana, Claymore)
-          candidates = ["CLAYMORE", "KATANA", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "HOLY_WATER"];
+          // B4F: Standard standard chests only drop high-level store gear (e.g. Claymore)
+          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "HOLY_WATER"];
         } else if (state.floor === 5) {
           // B5F: Standard standard chests drop high-level gear
-          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "BATTLE_GARB", "DRAGON_SCALE", "HOLY_WATER", "TOWN_PORTAL"];
+          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "BATTLE_GARB", "HOLY_WATER", "TOWN_PORTAL"];
         }
 
         if (candidates.length > 0) {
@@ -610,6 +610,9 @@ export function openChestDirectly() {
           state.currentRun.itemsFound.push(chest.item);
         } else {
           state.currentRun.equipmentFound.push(chest.item);
+          if (state.floor === 1) {
+            state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
+          }
         }
       }
       addLog(`アイテム: [${item.name}] を手に入れた！`);

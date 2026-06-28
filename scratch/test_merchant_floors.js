@@ -77,24 +77,30 @@ Object.defineProperty(global, "navigator", {
   // Simulator B3 Stock Generation (1000 trials)
   const bannedB3Keys = [
     "ELIXIR", "SEALED_EXCALIBUR", "HOLY_BLADE", "DRAGON_CHARM", 
-    "EXCALIBUR_FRAGMENT", "SACRED_ASHES", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "DRAGON_SCALE"
+    "EXCALIBUR_FRAGMENT", "SACRED_ASHES", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "DRAGON_SCALE",
+    "LONG_SWORD", "CHAIN_MAIL", "MAGIC_SHIELD", "PRIEST_ROBE", "PLATE_MAIL", "CLAYMORE", "KATANA"
   ];
-  let b3PremiumFound = 0;
+  let b3TicketFound = 0;
+  let b3MaterialFound = 0;
+  let b3UnidentifiedFound = 0;
+
   for (let i = 0; i < 1000; i++) {
     const stock = generateMerchantStock(3, []);
     stock.forEach(item => {
       assert.strictEqual(
-        bannedB3Keys.includes(item.key),
+        bannedB3Keys.includes(item.key) && item.type !== "unidentified" && item.type !== "material" && item.type !== "ticket",
         false,
-        `B3 merchant stock must not contain SACRED_ASHES or legendary: ${item.key}`
+        `B3 merchant stock must not contain middle/high equipment: ${item.key}`
       );
-      if (item.key === "KATANA" || item.key === "PLATE_MAIL" || item.key === "CLAYMORE") {
-        b3PremiumFound++;
-      }
+      if (item.type === "ticket") b3TicketFound++;
+      if (item.type === "material") b3MaterialFound++;
+      if (item.type === "unidentified") b3UnidentifiedFound++;
     });
   }
-  assert.ok(b3PremiumFound > 0, "B3 should unlock premium weapons/armor with low chance");
-  console.log(`-> [PASS] B3 merchant restriction verified (premium chance active, premium found count: ${b3PremiumFound})`);
+  assert.ok(b3TicketFound > 0, "B3 merchant should offer identify tickets");
+  assert.ok(b3MaterialFound > 0, "B3 merchant should offer materials");
+  assert.strictEqual(b3UnidentifiedFound, 0, "B3 merchant should not offer unidentified equipment");
+  console.log(`-> [PASS] B3 merchant restriction verified (no mid/high tier gear, offers tickets/mats, no unidentified)`);
 
   // Simulator B4 Stock Generation (1000 trials)
   let ashesFoundWithoutOwning = false;

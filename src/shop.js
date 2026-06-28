@@ -7,25 +7,16 @@ import { openSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 export const SHOP_STOCK = [
   { key: "HEAL_POTION", price: 60 },
   { key: "ANTIDOTE", price: 80 },
-  { key: "HOLY_WATER", price: 100 },
-  { key: "MANA_POTION", price: 300 },
-  { key: "TOWN_PORTAL", price: 250 },
+  { key: "HOLY_WATER", price: 150 },
+  { key: "MANA_POTION", price: 400 },
+  { key: "TOWN_PORTAL", price: 350 },
   { key: "DAGGER", price: 50 },
   { key: "WAND", price: 120 },
   { key: "SHORT_SWORD", price: 150 },
-  { key: "RAPIER", price: 180 },
-  { key: "MACE", price: 100 },
-  { key: "SACRED_MACE", price: 320 },
-  { key: "LONG_SWORD", price: 400 },
   { key: "SMALL_SHIELD", price: 80 },
-  { key: "BUCKLER", price: 120 },
-  { key: "LARGE_SHIELD", price: 250 },
   { key: "ROBE", price: 30 },
-  { key: "MAGE_CLOAK", price: 380 },
   { key: "LEATHER_ARMOR", price: 120 },
-  { key: "EXPLORER_CLOAK", price: 160 },
-  { key: "SCALE_MAIL", price: 220 },
-  { key: "CHAIN_MAIL", price: 350 }
+  { key: "NINJA_SUIT", price: 250 }
 ];
 
 export function getItemOwnership(key) {
@@ -61,8 +52,13 @@ export let shopState = {
 };
 
 function getAppraisalCost(eqItem) {
+  const item = getItemData(eqItem);
+  if (!item) return 30;
+
   const rarity = eqItem.rarity || "magic";
-  const baseCost = { magic: 30, rare: 120, epic: 300 }[rarity] || 30;
+  const rarityCoeff = { magic: 0.5, rare: 1.0, epic: 1.5 }[rarity] || 0.5;
+  const baseCost = Math.floor((item.price || 0) * rarityCoeff);
+
   const bestDiscount = state.party.reduce((max, char) => {
     if (char.status === "dead") return max;
     return Math.max(max, getCharAffixSum(char, "identifyDiscount"));
@@ -234,6 +230,17 @@ export function renderShop() {
   tabRow.appendChild(tabAppraise);
   header.appendChild(tabRow);
 
+  if (shopState.mode === "buy") {
+    const notice = document.createElement("div");
+    notice.className = "shop-notice";
+    notice.style.fontSize = "11px";
+    notice.style.color = "var(--neon-gold)";
+    notice.style.textAlign = "center";
+    notice.style.margin = "4px 0";
+    notice.textContent = "強い装備は迷宮で手に入ります。";
+    header.appendChild(notice);
+  }
+
   // Row 4: Filter Row (if buy or sell)
   if (shopState.mode === "buy" || shopState.mode === "sell") {
     const filterRow = document.createElement("div");
@@ -292,9 +299,9 @@ export function renderShop() {
   };
 
   function getTypeDisplayName(type) {
-    if (type === "usable") return "道具";
-    if (type === "weapon") return "武器";
-    if (type === "armor" || type === "shield") return "防具";
+    if (type === "usable") return "補給品";
+    if (type === "weapon") return "予備武器";
+    if (type === "armor" || type === "shield") return "予備防具";
     return "その他";
   }
 

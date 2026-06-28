@@ -155,3 +155,80 @@ export function executeEnhance(itemIdx) {
   saveAutosave();
   return true;
 }
+
+export function getDismantleResults(eqItem) {
+  const item = getItemData(eqItem);
+  if (!item || !["weapon", "shield", "armor"].includes(item.type)) return null;
+
+  // 未鑑定装備の場合は分解不可
+  if (typeof eqItem === "object" && eqItem.identified === false) {
+    return null;
+  }
+
+  const baseId = getItemBaseId(eqItem);
+  const rarity = (typeof eqItem === "object" ? eqItem.rarity : null) || "magic";
+
+  let mainMat = "鉄片";
+  let midMat = "骨片";
+  let highMat = "竜鱗";
+
+  if (["SHORT_SWORD", "LONG_SWORD", "CLAYMORE", "KATANA", "HOLY_BLADE", "RAPIER", "SEALED_EXCALIBUR", "EXCALIBUR_FRAGMENT"].includes(baseId)) {
+    mainMat = "鉄片"; midMat = "骨片"; highMat = "竜鱗";
+  } else if (["DAGGER", "NINJA_DAGGER"].includes(baseId)) {
+    mainMat = "硬い皮"; midMat = "毒腺"; highMat = "黒角";
+  } else if (["WAND", "SACRED_MACE", "MACE"].includes(baseId)) {
+    mainMat = "魔石片"; midMat = "霊粉"; highMat = "黒角";
+  } else if (["ROBE", "MAGE_CLOAK", "ARCANE_ROBE", "PRIEST_ROBE"].includes(baseId)) {
+    mainMat = "呪布"; midMat = "霊粉"; highMat = "黒角";
+  } else if (["LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT"].includes(baseId)) {
+    mainMat = "硬い皮"; midMat = "獣の牙"; highMat = "竜鱗";
+  } else if (["SCALE_MAIL", "CHAIN_MAIL", "PLATE_MAIL", "BATTLE_GARB"].includes(baseId)) {
+    mainMat = "鉄片"; midMat = "骨片"; highMat = "竜鱗";
+  } else if (["SMALL_SHIELD", "BUCKLER", "LARGE_SHIELD", "KNIGHT_SHIELD", "MAGIC_SHIELD"].includes(baseId)) {
+    mainMat = "鉄片"; midMat = "骨片"; highMat = "竜鱗";
+  } else if (["DRAGON_SCALE", "DRAGON_CHARM"].includes(baseId)) {
+    mainMat = "竜鱗"; midMat = "竜鱗"; highMat = "竜鱗";
+  }
+
+  const results = {};
+  if (rarity === "magic") {
+    results[mainMat] = 1;
+  } else if (rarity === "rare") {
+    results[mainMat] = 2;
+    results[midMat] = (results[midMat] || 0) + 1;
+  } else if (rarity === "epic") {
+    results[mainMat] = 2;
+    results[highMat] = (results[highMat] || 0) + 1;
+  }
+
+  return results;
+}
+
+export function executeDismantle(itemIdx) {
+  const eqItem = state.inventory[itemIdx];
+  if (!eqItem) return false;
+
+  const results = getDismantleResults(eqItem);
+  if (!results) {
+    addLog("このアイテムは分解できません。");
+    return false;
+  }
+
+  const itemData = getItemData(eqItem);
+  const itemName = itemData.name;
+
+  // インベントリから削除
+  state.inventory.splice(itemIdx, 1);
+
+  // 素材追加
+  const gainedMats = [];
+  for (const [mat, qty] of Object.entries(results)) {
+    state.materials[mat] = (state.materials[mat] || 0) + qty;
+    gainedMats.push(`${mat}x${qty}`);
+  }
+
+  playSound("level_up");
+  addLog(`[工房] [${itemName}] を分解し、[${gainedMats.join(", ")}] を獲得しました！`);
+  saveAutosave();
+  return true;
+}

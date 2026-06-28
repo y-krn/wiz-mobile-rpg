@@ -1371,14 +1371,14 @@ export function renderContracts() {
     const detailDiv = document.createElement("div");
     detailDiv.className = "codex-detail";
     
-    let rewardText = `ゴールド: ${contract.reward.gold} G`;
+    let rewardText = `${contract.reward.gold} G`;
     if (contract.reward.identifyTickets > 0) {
-      rewardText += ` / 鑑定割引券: ${contract.reward.identifyTickets}枚`;
+      rewardText += ` / 鑑定券:${contract.reward.identifyTickets}枚`;
     }
     if (contract.reward.item === "rare_equip") {
-      rewardText += " / Rare未鑑定装備";
+      rewardText += " / 未鑑定装備(Rare)";
     } else if (contract.reward.item === "epic_equip") {
-      rewardText += " / Epic未鑑定装備";
+      rewardText += " / 未鑑定装備(Epic)";
     }
 
     detailDiv.innerHTML = `
@@ -1439,14 +1439,14 @@ export function renderContracts() {
         detailModal.style.padding = "10px";
         detailModal.style.backgroundColor = "rgba(10, 10, 15, 0.95)";
 
-        let rewardText = `ゴールド: ${selected.reward.gold} G`;
+        let rewardText = `${selected.reward.gold} G`;
         if (selected.reward.identifyTickets > 0) {
-          rewardText += ` / 鑑定割引券: ${selected.reward.identifyTickets}枚`;
+          rewardText += ` / 鑑定券:${selected.reward.identifyTickets}枚`;
         }
         if (selected.reward.item === "rare_equip") {
-          rewardText += " / Rare未鑑定装備";
+          rewardText += " / 未鑑定装備(Rare)";
         } else if (selected.reward.item === "epic_equip") {
-          rewardText += " / Epic未鑑定装備";
+          rewardText += " / 未鑑定装備(Epic)";
         }
 
         detailModal.innerHTML = `

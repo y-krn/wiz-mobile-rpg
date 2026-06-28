@@ -1,5 +1,5 @@
 import { state, initNewGame, loadGame, saveGame, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "./state.js";
-import { DIR_N, START_X, START_Y, ITEMS, SPELLS, canUsePriestSpells, canUseMageSpells, isSpellcaster, getClassJpName, getItemData, getItemBaseId, getCharStr, getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharMaxHp, getCharMaxMp, getCharWeaponAtk, getCharDef, EXP_LEVELS } from "./data.js";
+import { DIR_N, START_X, START_Y, ITEMS, SPELLS, canUsePriestSpells, canUseMageSpells, isSpellcaster, getClassJpName, getItemData, getItemBaseId, getCharStr, getCharInt, getCharPie, getCharVit, getCharAgi, getCharLuk, getCharMaxHp, getCharMaxMp, getCharWeaponAtk, getCharDef, EXP_LEVELS, generateRandomEquipment } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI, openArchivesOverlay, openContractsOverlay, openWarehouseOverlay } from "./ui.js";
@@ -8,7 +8,7 @@ import { executeDisarm, openChestMenu } from "./chest.js";
 import { triggerGameOver } from "./combat.js";
 import { executeEnterDungeon, checkCellEvents } from "./movement.js";
 import { menuContext, menuHistory, openSubmenu, closeSubmenu, goBackSubmenu, setRenderSubmenuCallback } from "./navigation.js";
-import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance } from "./craft.js";
+import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, executeDismantle, getDismantleResults } from "./craft.js";
 
 // Re-exports from screen modules
 export { renderShop, openShopAppraise, shopState, SHOP_STOCK } from "./shop.js";
@@ -34,21 +34,7 @@ export function renderSubmenu(type) {
     openChestMenu();
   } else if (type === "craft_main") {
     // 素材一覧表示
-    const matsDiv = document.createElement("div");
-    matsDiv.style.gridColumn = "span 2";
-    matsDiv.style.fontFamily = "var(--font-mono)";
-    matsDiv.style.fontSize = "11px";
-    matsDiv.style.color = "var(--neon-green)";
-    matsDiv.style.border = "1px solid #333";
-    matsDiv.style.padding = "6px 8px";
-    matsDiv.style.background = "rgba(0, 255, 102, 0.03)";
-    matsDiv.style.borderRadius = "4px";
-    matsDiv.style.marginBottom = "8px";
-    
-    const matPool = ["獣の牙", "硬い皮", "毒腺", "骨片", "霊粉", "魔石片", "鉄片", "呪布", "黒角", "竜鱗"];
-    const matList = matPool.map(m => `${m}:${state.materials[m] || 0}`).join(" / ");
-    matsDiv.textContent = `🍀 所持素材: ${matList}`;
-    optGrid.appendChild(matsDiv);
+    renderMaterialsHUD(optGrid);
 
     const btnRecipes = document.createElement("button");
     btnRecipes.className = "btn btn-neon btn-block";
@@ -65,18 +51,17 @@ export function renderSubmenu(type) {
       openSubmenu("craft_enhance", "工房 - 装備の強化(+1)：");
     });
     optGrid.appendChild(btnEnhance);
+
+    const btnDismantle = document.createElement("button");
+    btnDismantle.className = "btn btn-neon btn-block";
+    btnDismantle.textContent = "🔮 不要装備を分解する";
+    btnDismantle.addEventListener("click", () => {
+      openSubmenu("craft_dismantle", "工房 - 不要装備の分解：");
+    });
+    optGrid.appendChild(btnDismantle);
   } else if (type === "craft_recipes") {
     // 素材HUD
-    const matsDiv = document.createElement("div");
-    matsDiv.style.gridColumn = "span 2";
-    matsDiv.style.fontSize = "11px";
-    matsDiv.style.color = "var(--neon-green)";
-    matsDiv.style.fontFamily = "var(--font-mono)";
-    matsDiv.style.marginBottom = "4px";
-    matsDiv.style.textAlign = "center";
-    const matPool = ["獣の牙", "硬い皮", "毒腺", "骨片", "霊粉", "魔石片", "鉄片", "呪布", "黒角", "竜鱗"];
-    matsDiv.textContent = `🍀 所持: ` + matPool.map(m => `${m}:${state.materials[m] || 0}`).join(" / ");
-    optGrid.appendChild(matsDiv);
+    renderMaterialsHUD(optGrid);
 
     CRAFT_RECIPES.forEach(recipe => {
       const container = document.createElement("div");
@@ -93,9 +78,16 @@ export function renderSubmenu(type) {
       const info = document.createElement("div");
       info.style.fontFamily = "var(--font-mono)";
       info.style.fontSize = "11px";
-      const matsReq = Object.entries(recipe.mats).map(([m, qty]) => `${m}x${qty}`).join(", ");
+      
+      const matsReq = Object.entries(recipe.mats).map(([m, reqQty]) => {
+        const curQty = state.materials[m] || 0;
+        const color = curQty >= reqQty ? "var(--neon-green)" : "var(--neon-red)";
+        return `<span style="color:${color}">${m} ${curQty}/${reqQty}</span>`;
+      }).join(", ");
+      const goldColor = state.gold >= recipe.gold ? "#fff" : "var(--neon-red)";
+
       info.innerHTML = `<strong style="color:#fff">${recipe.name}</strong><br>
-        <span style="color:var(--text-muted)">必要: ${matsReq} / ${recipe.gold}G</span>`;
+        <span style="color:var(--text-muted)">必要: ${matsReq} / <span style="color:${goldColor}">${recipe.gold}G</span></span>`;
       container.appendChild(info);
 
       const btn = document.createElement("button");
@@ -124,16 +116,7 @@ export function renderSubmenu(type) {
     });
   } else if (type === "craft_enhance") {
     // 素材HUD
-    const matsDiv = document.createElement("div");
-    matsDiv.style.gridColumn = "span 2";
-    matsDiv.style.fontSize = "11px";
-    matsDiv.style.color = "var(--neon-green)";
-    matsDiv.style.fontFamily = "var(--font-mono)";
-    matsDiv.style.marginBottom = "4px";
-    matsDiv.style.textAlign = "center";
-    const matPool = ["獣の牙", "硬い皮", "毒腺", "骨片", "霊粉", "魔石片", "鉄片", "呪布", "黒角", "竜鱗"];
-    matsDiv.textContent = `🍀 所持: ` + matPool.map(m => `${m}:${state.materials[m] || 0}`).join(" / ");
-    optGrid.appendChild(matsDiv);
+    renderMaterialsHUD(optGrid);
 
     let enhanceableCount = 0;
     state.inventory.forEach((itemKey, idx) => {
@@ -161,9 +144,16 @@ export function renderSubmenu(type) {
       const info = document.createElement("div");
       info.style.fontFamily = "var(--font-mono)";
       info.style.fontSize = "11px";
-      const matsReq = Object.entries(cost.mats).map(([m, qty]) => `${m}x${qty}`).join(", ");
+      
+      const matsReq = Object.entries(cost.mats).map(([m, reqQty]) => {
+        const curQty = state.materials[m] || 0;
+        const color = curQty >= reqQty ? "var(--neon-green)" : "var(--neon-red)";
+        return `<span style="color:${color}">${m} ${curQty}/${reqQty}</span>`;
+      }).join(", ");
+      const goldColor = state.gold >= cost.gold ? "#fff" : "var(--neon-red)";
+
       info.innerHTML = `<strong style="color:#fff">${item.name} ➔ +1</strong><br>
-        <span style="color:var(--text-muted)">必要: ${matsReq} / ${cost.gold}G</span>`;
+        <span style="color:var(--text-muted)">必要: ${matsReq} / <span style="color:${goldColor}">${cost.gold}G</span></span>`;
       container.appendChild(info);
 
       const btn = document.createElement("button");
@@ -199,6 +189,63 @@ export function renderSubmenu(type) {
       emptyMsg.style.fontSize = "11px";
       emptyMsg.style.padding = "20px";
       emptyMsg.textContent = "強化可能な装備品がバッグにありません。";
+      optGrid.appendChild(emptyMsg);
+    }
+  } else if (type === "craft_dismantle") {
+    // 素材HUD
+    renderMaterialsHUD(optGrid);
+
+    let dismantleableCount = 0;
+    state.inventory.forEach((itemKey, idx) => {
+      const item = getItemData(itemKey);
+      if (!item || !["weapon", "shield", "armor"].includes(item.type)) return;
+
+      const results = getDismantleResults(itemKey);
+      if (!results) return;
+
+      dismantleableCount++;
+      const container = document.createElement("div");
+      container.style.gridColumn = "span 2";
+      container.style.border = "1px solid #333";
+      container.style.padding = "6px 8px";
+      container.style.borderRadius = "4px";
+      container.style.display = "flex";
+      container.style.justifyContent = "space-between";
+      container.style.alignItems = "center";
+      container.style.background = "rgba(0,0,0,0.2)";
+      container.style.marginBottom = "4px";
+
+      const info = document.createElement("div");
+      info.style.fontFamily = "var(--font-mono)";
+      info.style.fontSize = "11px";
+      const matsYield = Object.entries(results).map(([m, qty]) => `${m}x${qty}`).join(", ");
+      info.innerHTML = `<strong style="color:#fff">${item.name}</strong><br>
+        <span style="color:var(--text-muted)">分解報酬: ${matsYield}</span>`;
+      container.appendChild(info);
+
+      const btn = document.createElement("button");
+      btn.className = "btn btn-danger";
+      btn.textContent = "分解";
+      btn.style.minHeight = "44px";
+      btn.style.width = "80px";
+
+      btn.addEventListener("click", () => {
+        if (executeDismantle(idx)) {
+          openSubmenu("craft_dismantle", "工房 - 不要装備の分解：", true); // リフレッシュ
+        }
+      });
+      container.appendChild(btn);
+      optGrid.appendChild(container);
+    });
+
+    if (dismantleableCount === 0) {
+      const emptyMsg = document.createElement("div");
+      emptyMsg.style.gridColumn = "span 2";
+      emptyMsg.style.textAlign = "center";
+      emptyMsg.style.color = "var(--text-muted)";
+      emptyMsg.style.fontSize = "11px";
+      emptyMsg.style.padding = "20px";
+      emptyMsg.textContent = "分解可能な装備品がバッグにありません。";
       optGrid.appendChild(emptyMsg);
     }
   } else if (type === "item_user_select") {
@@ -539,7 +586,7 @@ export function renderSubmenu(type) {
           }
         });
         playSound("heal");
-        addLog("[!] 泉の水から神秘的な力を感じた！パーティ全員 of MPが3回復した。");
+        addLog("[!] 泉の水から神秘的な力を感じた！パーティ全員のMPが3回復した。");
       } else if (rand < 0.85) {
         const aliveChars = state.party.filter(char => char.status !== "dead");
         if (aliveChars.length > 0) {
@@ -688,38 +735,83 @@ export function renderSubmenu(type) {
 
     if (state.activeMerchantStock && state.activeMerchantStock.length > 0) {
       state.activeMerchantStock.forEach(stock => {
-        const item = getItemData(stock.key);
+        const stockType = stock.type || "item";
+        let name = "";
+        let desc = "";
+        
+        if (stockType === "ticket") {
+          name = "鑑定割引券";
+          desc = "鑑定時にゴールドの代わりに使用できる。";
+        } else if (stockType === "material") {
+          name = stock.key;
+          desc = `[素材] 工房で使用する。`;
+        } else if (stockType === "unidentified") {
+          name = stock.rarity === "rare" ? "未鑑定の装備 (Rare)" : "未鑑定の装備 (Magic)";
+          desc = "鑑定するまで詳細のわからない装備品。";
+        } else {
+          const item = getItemData(stock.key);
+          name = item ? item.name : stock.key;
+          desc = item ? item.desc.split("[")[0] : "";
+        }
+
         const btn = document.createElement("button");
         btn.className = "btn btn-neon btn-block";
         
         if (stock.soldOut) {
-          btn.textContent = `[売り切れ] ${item.name}`;
+          btn.textContent = `[売り切れ] ${name}`;
           btn.disabled = true;
         } else {
           const isAshes = stock.key === "SACRED_ASHES";
           const hasAshes = state.inventory.some(i => getItemBaseId(i) === "SACRED_ASHES");
           const bagFull = state.inventory.length >= 20;
           
-          btn.textContent = `${item.name} (${stock.price}G) - ${item.desc.split("[")[0]}`;
-          if (state.gold < stock.price || (isAshes && hasAshes) || bagFull) {
+          btn.textContent = `${name} (${stock.price}G) - ${desc}`;
+
+          // バッグ制限のチェック
+          const needsBagSpace = (stockType === "item" || stockType === "unidentified");
+
+          if (state.gold < stock.price || (isAshes && hasAshes) || (needsBagSpace && bagFull)) {
             btn.disabled = true;
             if (isAshes && hasAshes) {
-              btn.textContent = `[所持数制限] ${item.name} (${stock.price}G)`;
-            } else if (bagFull) {
-              btn.textContent = `[バッグ満杯] ${item.name} (${stock.price}G)`;
+              btn.textContent = `[所持数制限] ${name} (${stock.price}G)`;
+            } else if (needsBagSpace && bagFull) {
+              btn.textContent = `[バッグ満杯] ${name} (${stock.price}G)`;
             }
           }
 
           btn.addEventListener("click", () => {
-            if (addInventoryItem(stock.key)) {
+            let purchaseSuccess = false;
+            
+            if (stockType === "ticket") {
+              state.identifyTickets = (state.identifyTickets || 0) + 1;
+              purchaseSuccess = true;
+            } else if (stockType === "material") {
+              state.materials[stock.key] = (state.materials[stock.key] || 0) + 1;
+              purchaseSuccess = true;
+            } else if (stockType === "unidentified") {
+              const eqObj = generateRandomEquipment(state.floor || 1, stock.rarity);
+              if (eqObj) {
+                eqObj.identified = false;
+                if (addInventoryItem(eqObj)) {
+                  purchaseSuccess = true;
+                }
+              }
+            } else {
+              // item
+              if (addInventoryItem(stock.key)) {
+                recordEquipmentDiscovery(stock.key);
+                purchaseSuccess = true;
+              }
+            }
+
+            if (purchaseSuccess) {
               state.gold -= stock.price;
-              recordEquipmentDiscovery(stock.key);
               if (state.codex && state.codex.events && state.codex.events.facilities) {
                 state.codex.events.facilities.merchant.purchased++;
               }
               stock.soldOut = true;
               playSound("gold");
-              addLog(`[!] 商人から[${item.name}]を${stock.price}Gで購入した。`);
+              addLog(`[!] 商人から[${name}]を${stock.price}Gで購入した。`);
               saveAutosave();
               openSubmenu("event_merchant_buy", "商人「他に入用なものはあるかね？」", true);
             }
@@ -832,111 +924,94 @@ export function generateMerchantStock(floor, inventory) {
   const generated = [];
   const alreadyHasAshes = inventory.some(i => getItemBaseId(i) === "SACRED_ASHES");
 
-  // Slot 1: Rare/Legendary Item (Floor-based)
-  let slot1Choices = [];
-  if (floor <= 2) {
-    // B1-B2: Mid-tier items, no legendaries/dragon/resurrect
-    slot1Choices = [
-      { key: "LONG_SWORD", price: 320, soldOut: false },
-      { key: "CHAIN_MAIL", price: 280, soldOut: false },
-      { key: "MAGIC_SHIELD", price: 500, soldOut: false },
-      { key: "PRIEST_ROBE", price: 400, soldOut: false },
-      { key: "HOLY_WATER", price: 70, soldOut: false },
-      { key: "MANA_POTION", price: 150, soldOut: false }
-    ];
-  } else if (floor === 3) {
-    // B3: Low chance (30%) of premium equipment, else mid-tier. No Sacred Ashes. No Katana on B3.
-    if (Math.random() < 0.30) {
-      slot1Choices = [
-        { key: "PLATE_MAIL", price: 720, soldOut: false },
-        { key: "CLAYMORE", price: 600, soldOut: false }
-      ];
-    } else {
-      slot1Choices = [
-        { key: "LONG_SWORD", price: 320, soldOut: false },
-        { key: "CHAIN_MAIL", price: 280, soldOut: false },
-        { key: "MAGIC_SHIELD", price: 500, soldOut: false },
-        { key: "PRIEST_ROBE", price: 400, soldOut: false }
-      ];
-    }
-  } else if (floor === 4) {
-    // B4: Premium items but no legendaries/dragon scale/dragon charm
-    slot1Choices = [
-      { key: "ELIXIR", price: ITEMS.ELIXIR.price, soldOut: false },
-      { key: "SEALED_EXCALIBUR", price: ITEMS.SEALED_EXCALIBUR.price, soldOut: false },
-      { key: "EXCALIBUR_FRAGMENT", price: ITEMS.EXCALIBUR_FRAGMENT.price, soldOut: false }
-    ];
-    if (!alreadyHasAshes) {
-      slot1Choices.push({ key: "SACRED_ASHES", price: ITEMS.SACRED_ASHES.price, soldOut: false });
-    }
-  } else {
-    // B5: High cost items but no legendaries/dragon scale/dragon charm
-    slot1Choices = [
-      { key: "ELIXIR", price: ITEMS.ELIXIR.price, soldOut: false },
-      { key: "SEALED_EXCALIBUR", price: ITEMS.SEALED_EXCALIBUR.price, soldOut: false },
-      { key: "EXCALIBUR_FRAGMENT", price: ITEMS.EXCALIBUR_FRAGMENT.price, soldOut: false }
-    ];
-    if (!alreadyHasAshes) {
-      slot1Choices.push({ key: "SACRED_ASHES", price: ITEMS.SACRED_ASHES.price, soldOut: false });
-    }
-  }
-  generated.push(slot1Choices[Math.floor(Math.random() * slot1Choices.length)]);
+  const allowlist = ["SHORT_SWORD", "SMALL_SHIELD", "LEATHER_ARMOR", "DAGGER", "WAND", "ROBE", "NINJA_SUIT"];
 
-  // Slot 2: Premium Discounted Equipment (Floor-based)
-  let slot2Choices = [];
-  if (floor <= 2) {
-    // B1-B2: Mid-tier equipment only
-    slot2Choices = [
-      { key: "LONG_SWORD", price: 320, soldOut: false },
-      { key: "CHAIN_MAIL", price: 280, soldOut: false },
-      { key: "MAGIC_SHIELD", price: 500, soldOut: false },
-      { key: "PRIEST_ROBE", price: 400, soldOut: false }
-    ];
-  } else if (floor === 3) {
-    // B3: Low chance (30%) of premium, else mid-tier. Katana omitted on B3.
-    if (Math.random() < 0.30) {
-      slot2Choices = [
-        { key: "PLATE_MAIL", price: 720, soldOut: false },
-        { key: "CLAYMORE", price: 600, soldOut: false }
-      ];
-    } else {
-      slot2Choices = [
-        { key: "LONG_SWORD", price: 320, soldOut: false },
-        { key: "CHAIN_MAIL", price: 280, soldOut: false },
-        { key: "MAGIC_SHIELD", price: 500, soldOut: false },
-        { key: "PRIEST_ROBE", price: 400, soldOut: false }
-      ];
-    }
-  } else if (floor === 4) {
-    // B4: Premium
-    slot2Choices = [
-      { key: "KATANA", price: 1200, soldOut: false },
-      { key: "PLATE_MAIL", price: 720, soldOut: false },
-      { key: "CLAYMORE", price: 600, soldOut: false },
-      { key: "PRIEST_ROBE", price: 400, soldOut: false }
-    ];
-  } else {
-    // B5: High-end equipment (20% off discounted)
-    slot2Choices = [
-      { key: "KATANA", price: 1200, soldOut: false },
-      { key: "PLATE_MAIL", price: 720, soldOut: false },
-      { key: "CLAYMORE", price: 600, soldOut: false },
-      { key: "PRIEST_ROBE", price: 400, soldOut: false }
-    ];
+  let matPool = ["獣の牙", "硬い皮"];
+  if (floor === 3) {
+    matPool = ["骨片", "霊粉", "毒腺"];
+  } else if (floor >= 4) {
+    matPool = ["鉄片", "呪布", "魔石片", "黒角", "竜鱗"];
   }
-  generated.push(slot2Choices[Math.floor(Math.random() * slot2Choices.length)]);
 
-  // Slot 3 & 4: Usable Items
+  const getSlot1And2Choices = () => {
+    const choices = [];
+    
+    const eq1 = allowlist[Math.floor(Math.random() * allowlist.length)];
+    const eq2 = allowlist[Math.floor(Math.random() * allowlist.length)];
+    choices.push({ type: "item", key: eq1, price: Math.floor(ITEMS[eq1].price * 0.8), soldOut: false });
+    choices.push({ type: "item", key: eq2, price: Math.floor(ITEMS[eq2].price * 0.8), soldOut: false });
+
+    choices.push({ type: "ticket", key: "IDENTIFY_TICKET", price: 100, soldOut: false });
+
+    const mat = matPool[Math.floor(Math.random() * matPool.length)];
+    choices.push({ type: "material", key: mat, price: 60, soldOut: false });
+
+    if (floor >= 4 && !alreadyHasAshes && Math.random() < 0.1) {
+      choices.push({ type: "item", key: "SACRED_ASHES", price: ITEMS.SACRED_ASHES.price, soldOut: false });
+    }
+
+    return choices;
+  };
+
+  const choices = getSlot1And2Choices();
+  const shuffledChoices = choices.sort(() => 0.5 - Math.random());
+  generated.push(shuffledChoices[0]);
+  generated.push(shuffledChoices[1]);
+
   const usables = [
-    { key: "HEAL_POTION", price: 40, soldOut: false },
-    { key: "MANA_POTION", price: 220, soldOut: false },
-    { key: "HOLY_WATER", price: 70, soldOut: false },
-    { key: "ANTIDOTE", price: 50, soldOut: false },
-    { key: "TOWN_PORTAL", price: 180, soldOut: false }
+    { type: "item", key: "HEAL_POTION", price: 40, soldOut: false },
+    { type: "item", key: "MANA_POTION", price: 300, soldOut: false },
+    { type: "item", key: "HOLY_WATER", price: 70, soldOut: false },
+    { type: "item", key: "ANTIDOTE", price: 50, soldOut: false },
+    { type: "item", key: "TOWN_PORTAL", price: 250, soldOut: false }
   ];
+
   const shuffledUsables = usables.sort(() => 0.5 - Math.random());
   generated.push(shuffledUsables[0]);
   generated.push(shuffledUsables[1]);
 
   return generated;
+}
+
+export function renderMaterialsHUD(container) {
+  const matsContainer = document.createElement("div");
+  matsContainer.className = "materials-hud";
+  matsContainer.style.gridColumn = "span 2";
+  matsContainer.style.display = "flex";
+  matsContainer.style.flexWrap = "wrap";
+  matsContainer.style.gap = "4px";
+  matsContainer.style.justifyContent = "center";
+  matsContainer.style.marginBottom = "8px";
+  matsContainer.style.border = "1px solid #333";
+  matsContainer.style.padding = "6px 8px";
+  matsContainer.style.background = "rgba(0, 255, 102, 0.03)";
+  matsContainer.style.borderRadius = "4px";
+  matsContainer.style.boxSizing = "border-box";
+
+  const matPool = ["獣の牙", "硬い皮", "毒腺", "骨片", "霊粉", "魔石片", "鉄片", "呪布", "黒角", "竜鱗"];
+  const ownedMats = matPool.filter(m => (state.materials[m] || 0) > 0);
+
+  if (ownedMats.length === 0) {
+    const empty = document.createElement("span");
+    empty.style.color = "var(--text-muted)";
+    empty.style.fontSize = "10px";
+    empty.textContent = "所持素材なし";
+    matsContainer.appendChild(empty);
+  } else {
+    ownedMats.forEach(m => {
+      const badge = document.createElement("span");
+      badge.style.fontSize = "10px";
+      badge.style.fontFamily = "var(--font-mono)";
+      badge.style.padding = "2px 6px";
+      badge.style.background = "rgba(0, 255, 102, 0.08)";
+      badge.style.border = "1px solid rgba(0, 255, 102, 0.2)";
+      badge.style.borderRadius = "3px";
+      badge.style.color = "var(--neon-green)";
+      badge.style.display = "inline-flex";
+      badge.style.alignItems = "center";
+      badge.textContent = `${m}: ${state.materials[m]}`;
+      matsContainer.appendChild(badge);
+    });
+  }
+  container.appendChild(matsContainer);
 }

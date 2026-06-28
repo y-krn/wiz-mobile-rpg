@@ -635,7 +635,8 @@ export function renderEquip() {
             if (itemKey === "HEAL_POTION" || itemKey === "HOLY_WATER") {
               const currentHp = char.hp;
               const maxHp = getCharMaxHp(char);
-              const nextHp = Math.min(maxHp, currentHp + (itemKey === "HEAL_POTION" ? 30 : 15));
+              const restoreHp = 15;
+              const nextHp = Math.min(maxHp, currentHp + restoreHp);
               previewText = `対象: ${char.name} / HP ${currentHp}/${maxHp} → ${nextHp}/${maxHp}`;
             } else if (itemKey === "ANTIDOTE") {
               previewText = `対象: ${char.name} / 状態: 毒 → 正常`;
@@ -644,8 +645,14 @@ export function renderEquip() {
             } else if (itemKey === "MANA_POTION") {
               const currentMp = char.mp;
               const maxMp = getCharMaxMp(char);
-              const nextMp = Math.min(maxMp, currentMp + 15);
+              const nextMp = Math.min(maxMp, currentMp + 3);
               previewText = `対象: ${char.name} / MP ${currentMp}/${maxMp} → ${nextMp}/${maxMp}`;
+            } else if (itemKey === "ELIXIR") {
+              const currentHp = char.hp;
+              const maxHp = getCharMaxHp(char);
+              const currentMp = char.mp;
+              const maxMp = getCharMaxMp(char);
+              previewText = `対象: ${char.name} / HP ${currentHp}/${maxHp} → ${maxHp}/${maxHp} / MP ${currentMp}/${maxMp} → ${maxMp}/${maxMp}`;
             } else if (itemKey === "TOWN_PORTAL") {
               previewText = `対象: 全員 / 効果: お城へ安全に帰還する`;
             } else {

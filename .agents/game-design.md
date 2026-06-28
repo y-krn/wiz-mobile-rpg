@@ -101,6 +101,23 @@ Revisit price and availability for high-impact consumables:
 - `TOWN_PORTAL`
 - `MANA_POTION`
 
+Dungeon merchants are expedition support, not loot vendors. Their stock should
+focus on identify tickets, small material quantities, consumables, return
+support, and low-floor replacement gear. Do not make dungeon merchants a
+reliable source of unidentified equipment.
+
+If unidentified equipment is ever sold by a merchant, apply all restrictions:
+
+- B1F-B2F equivalent `magic` equipment only.
+- At most one per expedition.
+- Price must be above the expected identify-and-sell return.
+- No `rare` or `epic` unidentified equipment.
+- No high-end bases such as `KATANA`, `DRAGON_SCALE`, `HOLY_BLADE`, or
+  `DRAGON_CHARM`.
+
+Normal shop stock and dungeon merchant stock must not create a "buy unidentified
+gear -> identify -> sell for profit" loop.
+
 ## Materials
 
 Materials are a separate resource from normal inventory. They must not consume
@@ -160,6 +177,7 @@ Defer:
 - Material codex.
 - Large recipe trees.
 - Random-property crafting.
+- Broad dismantling systems.
 
 ### Consumable Crafting
 
@@ -196,6 +214,21 @@ instance first. Do not globally edit the base item.
 Initial enhancement cap should be `+1`. Future cap can be `+3`, but only after
 checking affix and deep-floor drop inflation.
 
+### Dismantling
+
+Dismantling is a cleanup and consolation path, not a primary material source.
+If included, it should start with identified equipment only.
+
+Rules:
+
+- Do not allow unidentified equipment to be dismantled in the initial version.
+- Keep material returns low enough that combat and chests remain the main
+  material sources.
+- Watch `黒角` and `竜鱗` especially; high-end equipment supply can make rare
+  materials overflow if dismantling is too generous.
+- Dismantling should not be more attractive than identifying and evaluating the
+  item.
+
 ## Unidentified Equipment
 
 Unidentified equipment should remain a main progression reward.
@@ -209,6 +242,41 @@ Guidelines:
   bases should have explicit floor, rarity, and source rules.
 - Boss and midboss guaranteed legendary rewards should be reviewed as part of
   the same economy pass.
+
+Primary sources:
+
+- Chests.
+- Rare enemies.
+- Elite fights.
+- Boss and midboss rewards.
+- Low-probability normal combat drops.
+
+Avoid these sources:
+
+- Normal shop stock.
+- Reliable dungeon merchant stock.
+- Cheap purchase gacha.
+
+Identification should be a meaningful gold sink. Avoid fixed appraisal prices
+that are low compared to the identified sell value. Prefer a value-linked
+formula such as:
+
+```text
+appraisal cost = base item price * rarity coefficient
+```
+
+The exact coefficient should be tuned so that:
+
+- Identifying useful equipment feels worthwhile.
+- Identifying only to sell is not a stable profit strategy.
+- High-floor and high-rarity items create a real spending decision.
+- Identify tickets remain useful as occasional cost relief.
+
+Chest and combat supply must be balanced with appraisal cost, sell value, and
+dismantling returns. In particular, B4F/B5F normal chests should not flood the
+economy with high-end bases. Move `KATANA`, `DRAGON_SCALE`, and similar
+late-game answers toward dangerous chests, rare enemies, elites, bosses, or very
+low-probability sources.
 
 ## B5F Clear Flow
 
@@ -292,6 +360,7 @@ Future contract types:
 | Boss | Clear record, rare materials, high-tier unidentified gear |
 | Contract | Identify ticket, materials, low gold |
 | Shop | Baseline gear and supplies |
+| Dungeon merchant | Expedition support: tickets, consumables, small materials |
 | Workshop | Crafting and instance enhancement |
 
 ## Avoid
@@ -299,6 +368,8 @@ Future contract types:
 - Forced B5F or boss locks.
 - Full HP/MP recovery on level-up.
 - Best-in-slot shop gear.
+- Reliable merchant unidentified-equipment sales.
+- Identify-and-sell profit loops.
 - Large gold payouts.
 - Large material lists.
 - Large recipe trees.
@@ -322,6 +393,10 @@ Manual or targeted checks:
 - Combat and chests add materials without consuming bag slots.
 - Crystal delivery at the castle preserves the save and allows return to town.
 - Material, recipe, combat log, result, and contract text fit on mobile.
+- Dungeon merchant unidentified-equipment purchases cannot produce stable
+  identify-and-sell profit if that stock exists at all.
+- Identified sell value, appraisal cost, and dismantling returns do not make
+  equipment farming stronger than expedition progression.
 
 Recommended simulations:
 
@@ -331,3 +406,8 @@ Recommended simulations:
 - B3F+ survival comparisons for baseline gear, shop gear, and found/enhanced
   gear.
 - Economy impact from repeated C/B/A contract completion.
+- B1F-B5F samples for 1000 chests or equivalent deterministic trials covering
+  unidentified equipment count, appraisal cost, sell value, material gains, and
+  net gold.
+- Merchant stock trials by floor, including any unidentified-equipment purchase
+  path, to prove the expected value is not profitable.

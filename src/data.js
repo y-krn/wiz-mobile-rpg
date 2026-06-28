@@ -586,9 +586,9 @@ export const ITEMS = {
   CHAIN_MAIL: { id: "CHAIN_MAIL", name: "チェインメイル", type: "armor", def: 8, price: 350, desc: "細かな鉄環を編み込んだ鎧。防御力+8 [戦・僧・侍用]", classes: ["Fighter", "Priest", "Samurai"] },
 
   PRIEST_ROBE: { id: "PRIEST_ROBE", name: "司祭の法衣", type: "armor", def: 8, price: 500, desc: "神聖な加護を得た法衣。防御力+8 [僧・司用]", classes: ["Priest", "Bishop"] },
-  BATTLE_GARB: { id: "BATTLE_GARB", name: "戦装束", type: "armor", def: 5, price: 840, desc: "一撃後の踏み込みを助ける装束。防御力+5 [戦・盗・侍・忍用]", classes: ["Fighter", "Thief", "Samurai", "Ninja"] },
+  BATTLE_GARB: { id: "BATTLE_GARB", name: "戦装束", type: "armor", def: 5, price: 840, desc: "軽量で動きやすい戦用の装束。防御力+5 [戦・盗・侍・忍用]", classes: ["Fighter", "Thief", "Samurai", "Ninja"] },
   PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", def: 16, price: 900, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16 [戦・侍用]", classes: ["Fighter", "Samurai"] },
-  DRAGON_SCALE: { id: "DRAGON_SCALE", name: "竜鱗の鎧", type: "armor", def: 12, price: 1400, desc: "竜の炎と爪に備える鱗鎧。防御力+12 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"] },
+  DRAGON_SCALE: { id: "DRAGON_SCALE", name: "竜鱗の鎧", type: "armor", def: 12, price: 1400, desc: "竜の鱗を加工して作られた極めて頑丈な鱗鎧。防御力+12 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"] },
 
   // Potions / Quest items
   HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", price: 60, desc: "使用するとHPを15回復する。", effect: (char) => {
@@ -596,22 +596,22 @@ export const ITEMS = {
     char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
     return `${char.name}は傷薬を使い、HPが${heal}回復した。`;
   }},
-  ANTIDOTE: { id: "ANTIDOTE", name: "解毒薬 (Antidote)", type: "usable", price: 80, desc: "使用すると毒状態を解除する。", effect: (char) => {
+  ANTIDOTE: { id: "ANTIDOTE", name: "解毒薬", type: "usable", price: 80, desc: "使用すると毒状態を解除する。", effect: (char) => {
     if (char.status === "poisoned") {
       char.status = "ok";
       return `${char.name}は解毒薬を使い、毒が消え去った。`;
     }
     return `${char.name}は解毒薬を使ったが、何も起こらなかった。`;
   }},
-  MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", price: 300, desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+  MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", price: 400, desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     if (canUsePriestSpells(char) || canUseMageSpells(char)) {
       char.mp = Math.min(getCharMaxMp(char), char.mp + 3);
       return `${char.name}は魔力草を使用し、MPが3回復した。(MP:${char.mp}/${getCharMaxMp(char)})`;
     }
     return `${char.name}は魔力草を使用したが、魔力を持たないため何も起こらなかった。`;
   }},
-  HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 100, desc: "使用するとHPを40回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
-    const heal = getEffectiveHealAmount(char, 40);
+  HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 150, desc: "使用するとHPを15回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+    const heal = getEffectiveHealAmount(char, 15);
     char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
     let cured = false;
     if (char.status === "poisoned") {
@@ -620,10 +620,10 @@ export const ITEMS = {
     }
     return `${char.name}は祝福の聖水を使い、HPが${heal}回復した。${cured ? "毒も綺麗に消え去った！" : ""}`;
   }},
-  TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 250, desc: "使用すると一瞬でお城へ戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+  TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 350, desc: "使用すると一瞬でお城へ戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     return `${char.name}は帰還のスクロールを読んだ！`;
   }},
-  ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 1500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極 of 霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
+  ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 1500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極の霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], effect: (char) => {
     char.hp = getCharMaxHp(char);
     char.mp = getCharMaxMp(char);
     if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {
@@ -644,8 +644,8 @@ export const ITEMS = {
   LEGENDARY_SHIELD: { id: "LEGENDARY_SHIELD", name: "イージスの盾", type: "shield", def: 15, price: 2500, desc: "あらゆる厄災を払う神の盾。防御力+15 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   SEALED_EXCALIBUR: { id: "SEALED_EXCALIBUR", name: "封印された聖剣", type: "weapon", atk: 26, price: 2400, desc: "封印が施された伝説の聖剣。攻撃力+26 [戦・侍用]", classes: ["Fighter", "Samurai"] },
   HOLY_BLADE: { id: "HOLY_BLADE", name: "聖騎士の剣", type: "weapon", atk: 24, price: 2200, desc: "不死・悪魔を退ける聖なる剣。攻撃力+24 不死・悪魔特効+20% [戦・僧・侍・野用]", classes: ["Fighter", "Priest", "Samurai", "Ranger"] },
-  DRAGON_CHARM: { id: "DRAGON_CHARM", name: "竜除けの護符", type: "shield", def: 2, price: 2500, desc: "竜の炎と爪を和らげる魔除けの護符。防御力+2 竜耐性・特効+30% [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
-  EXCALIBUR_FRAGMENT: { id: "EXCALIBUR_FRAGMENT", name: "神剣の破片", type: "quest", price: 1800, desc: "神剣の刀身が砕けた一部。不思議な光を放っている。価格: 1800G" },
+  DRAGON_CHARM: { id: "DRAGON_CHARM", name: "竜除けの護符", type: "shield", def: 2, price: 2500, desc: "盾として装備し、竜の炎と爪を和らげる魔除けの護符。防御力+2 竜耐性・特効+30% [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
+  EXCALIBUR_FRAGMENT: { id: "EXCALIBUR_FRAGMENT", name: "神剣の破片", type: "quest", price: 1800, desc: "神剣の刀身が砕けた一部。不思議な光を放っている。" },
   ANTIGRAVITY_CRYSTAL: { id: "ANTIGRAVITY_CRYSTAL", name: "浮遊石 (クリスタル)", type: "quest", price: 0, desc: "青く浮かび上がる伝説の結晶。城に持ち帰ると勝利。" },
   DRAGON_KEY: { id: "DRAGON_KEY", name: "竜の鍵", type: "quest", price: 0, desc: "いにしえの竜の巣へと通じる刻印が刻まれた鍵。" }
 };
@@ -998,15 +998,51 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
   
   // Smart Drop (70%): Select base items usable by the current party
   if (rng() < 0.70 && globalState && globalState.party && globalState.party.length > 0) {
-    const usableCandidates = baseCandidates.filter(baseId => {
+    const livingParty = globalState.party.filter(char => char.status !== "dead");
+    const missingCount = { weapon: 0, shield: 0, armor: 0 };
+    
+    if (livingParty.length > 0) {
+      livingParty.forEach(char => {
+        if (!char.equipment || !char.equipment.weapon) {
+          missingCount.weapon++;
+        }
+        const canEquipShield = !["Mage", "Thief", "Ninja"].includes(char.class);
+        if (canEquipShield && (!char.equipment || !char.equipment.shield)) {
+          missingCount.shield++;
+        }
+        if (!char.equipment || !char.equipment.armor || typeof char.equipment.armor === "string") {
+          missingCount.armor++;
+        }
+      });
+    }
+
+    let priorityType = null;
+    let maxMissing = 0;
+    for (const [slot, count] of Object.entries(missingCount)) {
+      if (count > maxMissing) {
+        maxMissing = count;
+        priorityType = slot;
+      }
+    }
+
+    let usableCandidates = baseCandidates.filter(baseId => {
       const item = ITEMS[baseId];
       if (!item) return false;
-      return globalState.party.some(char => {
-        if (char.status === "dead") return false;
+      return livingParty.some(char => {
         return !item.classes || item.classes.includes(char.class);
       });
     });
+
     if (usableCandidates.length > 0) {
+      if (priorityType) {
+        const typeCandidates = usableCandidates.filter(baseId => {
+          const item = ITEMS[baseId];
+          return item && item.type === priorityType;
+        });
+        if (typeCandidates.length > 0) {
+          usableCandidates = typeCandidates;
+        }
+      }
       baseCandidates = usableCandidates;
     }
   }

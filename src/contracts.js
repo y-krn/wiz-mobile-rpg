@@ -89,7 +89,7 @@ export function createRandomContract(danger, stateInstance = state) {
       targetValue: 3, // Target B3F
       currentValue: 1, // Current floor (starts at 1)
       reward: {
-        gold: 300,
+        gold: 100,
         identifyTickets: 1,
         item: null
       },
@@ -114,15 +114,18 @@ export function createRandomContract(danger, stateInstance = state) {
     const monster = getMonsterByName(targetMonsterName);
     const targetValue = danger === "C" ? 5 : (danger === "B" ? 3 : 1);
     
-    let rewardGold = 100 + Math.floor(Math.random() * 50);
+    let rewardGold = 40 + Math.floor(Math.random() * 20);
     let rewardTickets = 0;
     let rewardItem = null;
 
     if (danger === "B") {
-      rewardGold = 200 + Math.floor(Math.random() * 100);
+      rewardGold = 80 + Math.floor(Math.random() * 40);
       rewardTickets = 1;
+      if (Math.random() < 0.30) {
+        rewardItem = "rare_equip";
+      }
     } else if (danger === "A") {
-      rewardGold = 400 + Math.floor(Math.random() * 200);
+      rewardGold = 150 + Math.floor(Math.random() * 80);
       rewardTickets = 2;
       rewardItem = "rare_equip";
     }
@@ -153,9 +156,12 @@ export function createRandomContract(danger, stateInstance = state) {
     const isChestCount = Math.random() < 0.5;
     if (isChestCount) {
       const targetValue = danger === "C" ? 2 : (danger === "B" ? 4 : 6);
-      let rewardGold = danger === "C" ? 120 : (danger === "B" ? 250 : 500);
+      let rewardGold = danger === "C" ? 50 : (danger === "B" ? 90 : 180);
       let rewardTickets = danger === "C" ? 0 : (danger === "B" ? 1 : 2);
       let rewardItem = danger === "A" ? "rare_equip" : null;
+      if (danger === "B" && Math.random() < 0.30) {
+        rewardItem = "rare_equip";
+      }
 
       return {
         id,
@@ -175,9 +181,12 @@ export function createRandomContract(danger, stateInstance = state) {
     } else {
       // Unidentified equipment recovery
       const targetValue = danger === "C" ? 1 : (danger === "B" ? 2 : 3);
-      let rewardGold = danger === "C" ? 130 : (danger === "B" ? 280 : 550);
+      let rewardGold = danger === "C" ? 60 : (danger === "B" ? 100 : 200);
       let rewardTickets = danger === "C" ? 0 : (danger === "B" ? 1 : 2);
       let rewardItem = danger === "A" ? "epic_equip" : null; // Epic for A-rank recovery!
+      if (danger === "B" && Math.random() < 0.30) {
+        rewardItem = "rare_equip";
+      }
 
       return {
         id,
@@ -200,9 +209,12 @@ export function createRandomContract(danger, stateInstance = state) {
   // 4. Reach Contract
   if (typeRoll < 0.85) {
     const targetFloor = danger === "C" ? 2 : (danger === "B" ? 3 : 4);
-    let rewardGold = danger === "C" ? 120 : (danger === "B" ? 240 : 450);
+    let rewardGold = danger === "C" ? 50 : (danger === "B" ? 90 : 180);
     let rewardTickets = danger === "C" ? 0 : (danger === "B" ? 1 : 2);
     let rewardItem = danger === "A" ? "rare_equip" : null;
+    if (danger === "B" && Math.random() < 0.30) {
+      rewardItem = "rare_equip";
+    }
 
     return {
       id,
@@ -225,9 +237,12 @@ export function createRandomContract(danger, stateInstance = state) {
   // 5. Limit / Restriction Contract
   const limitType = Math.random() < 0.5 ? "trap" : "no_death";
   const targetFloor = danger === "C" ? 2 : (danger === "B" ? 3 : 4);
-  let rewardGold = danger === "C" ? 150 : (danger === "B" ? 300 : 600);
+  let rewardGold = danger === "C" ? 60 : (danger === "B" ? 110 : 220);
   let rewardTickets = danger === "C" ? 0 : (danger === "B" ? 1 : 2);
   let rewardItem = danger === "A" ? "rare_equip" : null;
+  if (danger === "B" && Math.random() < 0.30) {
+    rewardItem = "rare_equip";
+  }
 
   let desc = "";
   let recommended = "";
@@ -341,22 +356,34 @@ export function checkActiveContract(stateInstance, runResult, success) {
 
     let itemMsg = "";
     if (contract.reward.item) {
-      const rarity = contract.reward.item === "epic_equip" ? "epic" : "rare";
-      // Generate unidentified reward item
-      const item = generateRandomEquipment(runResult.deepestFloor || 3, rarity);
+      let rarity = "magic";
+      if (contract.reward.item === "epic_equip") {
+        const isDeep = (runResult.deepestFloor || 1) >= 4;
+        const isRankA = contract.danger === "A";
+        rarity = (isDeep && isRankA) ? "epic" : "rare";
+      } else if (contract.reward.item === "rare_equip") {
+        rarity = contract.danger === "C" ? "magic" : "rare";
+      }
+
+      let genFloor = runResult.deepestFloor || 1;
+      if (contract.danger === "C") genFloor = Math.min(genFloor, 2);
+      if (contract.danger === "B") genFloor = Math.min(genFloor, 3);
+      if (contract.danger === "A") genFloor = Math.min(genFloor, 5);
+
+      const item = generateRandomEquipment(genFloor, rarity);
       item.identified = false;
 
       // Add to inventory, or storage if full
       if (stateInstance.inventory.length < 20) {
         stateInstance.inventory.push(item);
-        itemMsg = `報酬アイテム「未鑑定の${item.type === "weapon" ? "武器" : (item.type === "shield" ? "盾" : "防具")}」がバッグに追加されました。`;
+        itemMsg = `報酬「未鑑定${item.type === "weapon" ? "武器" : (item.type === "shield" ? "盾" : "防具")}」がバッグに追加されました。`;
       } else {
         if (!stateInstance.storage) stateInstance.storage = [];
         if (stateInstance.storage.length < stateInstance.storageMax) {
           stateInstance.storage.push(item);
-          itemMsg = `バッグが満杯のため、報酬「未鑑定の${item.type === "weapon" ? "武器" : (item.type === "shield" ? "盾" : "防具")}」は倉庫に送られました。`;
+          itemMsg = `バッグ満杯のため、報酬「未鑑定${item.type === "weapon" ? "武器" : (item.type === "shield" ? "盾" : "防具")}」は倉庫に送られました。`;
         } else {
-          itemMsg = `バッグと倉庫が満杯のため、報酬アイテムを受け取れませんでした。`;
+          itemMsg = `バッグ・倉庫が満杯のため、報酬を受け取れませんでした。`;
         }
       }
     }
