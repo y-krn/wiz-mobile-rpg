@@ -381,7 +381,7 @@ export function renderSubmenu(type) {
 
     const btnItems = document.createElement("button");
     btnItems.className = "btn btn-neon btn-block";
-    btnItems.textContent = "道具・装備";
+    btnItems.textContent = "装備変更";
     btnItems.addEventListener("click", () => {
       openEquipOverlay(0);
     });

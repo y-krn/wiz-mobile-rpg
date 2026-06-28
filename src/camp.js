@@ -81,7 +81,7 @@ export function renderCampOverlay() {
     infoText.style.color = "var(--text-muted)";
     infoText.style.marginTop = "12px";
     infoText.style.lineHeight = "1.6";
-    infoText.innerHTML = "キャンプ中 (探索を一時中断しています)<br>ステータスの確認や道具の使用・装備の変更を行えます。";
+    infoText.innerHTML = "キャンプ中 (探索を一時中断しています)<br>ステータスの確認や装備の変更を行えます。";
     body.appendChild(infoText);
 
     // Danger Zone at the bottom (isolated in body, away from footer)
@@ -174,7 +174,7 @@ export function renderCampOverlay() {
     const btnItems = document.createElement("button");
     btnItems.className = "btn btn-neon";
     btnItems.style.flex = "1";
-    btnItems.textContent = "📦 道具・装備";
+    btnItems.textContent = "装備変更";
     btnItems.style.minHeight = "44px";
     btnItems.addEventListener("click", () => {
       openEquipOverlay(0);
