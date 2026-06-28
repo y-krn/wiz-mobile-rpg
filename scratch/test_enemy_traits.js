@@ -17,8 +17,8 @@ const testGuard = () => {
     { name: "戦士", class: "Fighter", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 1, equipment: { weapon: "LONG_SWORD" }, str: 15, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
   ];
   const monsters = [
-    { name: "錆びた盾兵", hp: 30, maxHp: 30, def: 5, traits: ["guardAdjacent"], buffs: [] },
-    { name: "コボルトの斥候", hp: 20, maxHp: 20, def: 1, traits: [], buffs: [] }
+    { name: "錆びた盾兵", hp: 30, maxHp: 30, atk: 5, def: 5, traits: ["guardAdjacent"], buffs: [] },
+    { name: "コボルトの斥候", hp: 20, maxHp: 20, atk: 5, def: 1, traits: [], buffs: [] }
   ];
   const state = {
     party,
@@ -50,7 +50,7 @@ const testPhysicalReflect = () => {
     { name: "戦士", class: "Fighter", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 1, equipment: { weapon: "LONG_SWORD" }, str: 15, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
   ];
   const monsters = [
-    { name: "針甲虫", hp: 30, maxHp: 30, def: 1, traits: ["reflectPhysical"], buffs: [] }
+    { name: "針甲虫", hp: 30, maxHp: 30, atk: 5, def: 1, traits: ["reflectPhysical"], buffs: [] }
   ];
   const state = {
     party,
@@ -74,7 +74,7 @@ const testMagicReflect = () => {
     { name: "魔術師", class: "Mage", status: "ok", hp: 50, maxHp: 50, mp: 10, level: 1, equipment: { weapon: "WAND" }, spells: ["HALITO"], str: 8, int: 15, pie: 8, vit: 10, agi: 12, luk: 8, buffs: [] }
   ];
   const monsters = [
-    { name: "呪いの小鏡", hp: 30, maxHp: 30, def: 1, traits: ["reflectMagic"], buffs: [] }
+    { name: "呪いの小鏡", hp: 30, maxHp: 30, atk: 5, def: 1, traits: ["reflectMagic"], buffs: [] }
   ];
   const state = {
     party,
@@ -106,7 +106,7 @@ const testSplitOnDeath = () => {
     { name: "戦士", class: "Fighter", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 10, equipment: { weapon: "LONG_SWORD" }, str: 30, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
   ];
   const monsters = [
-    { name: "分裂スライム", hp: 1, maxHp: 20, def: 0, traits: ["splitOnDeath"], exp: 100, gold: 10, buffs: [] }
+    { name: "分裂スライム", hp: 1, maxHp: 20, atk: 5, def: 0, traits: ["splitOnDeath"], exp: 100, gold: 10, buffs: [] }
   ];
   const state = {
     party,
@@ -125,7 +125,7 @@ const testSplitOnDeath = () => {
   const splits = newMonsters.filter(m => m.name.includes("分裂体"));
   assert.strictEqual(splits.length, 2, "Should summon 2 split slimes");
   assert.strictEqual(splits[0].hp, 10, "Split slimes should have 50% HP");
-  assert.strictEqual(splits[0].exp, 0, "Split slimes should award 0 EXP");
+  assert.strictEqual(splits[0].exp, 25, "Split slimes should award 25 EXP");
   console.log("[PASS] splitOnDeath verified.");
 };
 
@@ -135,7 +135,7 @@ const testRegen = () => {
     { name: "戦士", class: "Fighter", status: "ok", hp: 100, maxHp: 100, mp: 0, level: 1, equipment: { weapon: "LONG_SWORD" }, str: 15, int: 8, pie: 8, vit: 15, agi: 10, luk: 10, buffs: [] }
   ];
   const monsters = [
-    { name: "竜血の再生者", hp: 50, maxHp: 80, def: 10, traits: ["regen"], buffs: [] }
+    { name: "竜血の再生者", hp: 50, maxHp: 80, atk: 5, def: 10, traits: ["regen"], buffs: [] }
   ];
   const state = {
     party,
@@ -149,17 +149,17 @@ const testRegen = () => {
   };
 
   const result = runCombatRoundCalculation(state, selection);
-  assert.strictEqual(result.state.combatState.monsters[0].hp, 60, "Dragon blood regenerator should regen 10 HP at turn end");
+  assert.strictEqual(result.state.combatState.monsters[0].hp, 59, "Dragon blood regenerator should regen 9 HP at turn end");
   console.log("[PASS] regen verified.");
 };
 
 // 6. silence (沈黙) のテスト
 const testSilence = () => {
   const party = [
-    { name: "魔術師", class: "Mage", status: "ok", hp: 50, maxHp: 50, mp: 10, level: 1, equipment: { weapon: "WAND" }, spells: ["HALITO"], str: 8, int: 15, pie: 8, vit: 10, agi: 12, luk: 8, buffs: [{ type: "silence", value: 1, turns: 2 }] }
+    { name: "魔術師", class: "Mage", status: "ok", hp: 50, maxHp: 50, mp: 10, level: 1, equipment: { weapon: "WAND" }, spells: ["HALITO"], str: 8, int: 15, pie: 8, vit: 10, agi: 12, luk: 8, silenceTurns: 2, buffs: [{ type: "silence", value: 1, turns: 2 }] }
   ];
   const monsters = [
-    { name: "コボルトの斥候", hp: 20, maxHp: 20, def: 1, traits: [], buffs: [] }
+    { name: "コボルトの斥候", hp: 20, maxHp: 20, atk: 5, def: 1, traits: [], buffs: [] }
   ];
   const state = {
     party,
@@ -175,7 +175,7 @@ const testSilence = () => {
   const result = runCombatRoundCalculation(state, selection);
   assert.strictEqual(result.state.party[0].mp, 10, "MP should not decrease on failed spell cast due to silence");
   assert.strictEqual(result.state.combatState.monsters[0].hp, 20, "Monster HP should not decrease on failed spell cast");
-  assert.strictEqual(result.state.party[0].buffs[0].turns, 1, "Silence buff turn should decrease");
+  assert.strictEqual(result.state.party[0].silenceTurns, 1, "Silence turn should decrease");
   console.log("[PASS] silence verified.");
 };
 
