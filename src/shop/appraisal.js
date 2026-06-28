@@ -1,10 +1,8 @@
 import { state, saveAutosave, addLog } from "../state.js";
 import { getItemData } from "../data.js";
 import { playSound } from "../audio.js";
-import { updateUI } from "../ui.js";
 import { openSubmenu } from "../navigation.js";
 import { shopState } from "./shop_state.js";
-import { renderShop } from "./shop_view.js";
 
 export function openShopAppraise() {
   shopState.mode = "appraise";
@@ -40,6 +38,5 @@ export function executeAppraise(idx, cost, hasTicket) {
   const goldLabel = document.getElementById("gold-counter");
   if (goldLabel) goldLabel.textContent = `GOLD: ${state.gold}`;
 
-  renderShop();
-  updateUI();
+  return true;
 }

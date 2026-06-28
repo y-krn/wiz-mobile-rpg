@@ -11,6 +11,11 @@ game flows.
 - `tests/ui-ux.spec.js`
 - `playwright.config.js`
 - `package.json`
+- Facade modules such as `src/data.js`, `src/state.js`, `src/combat.js`,
+  `src/combat_logic.js`, `src/menu.js`, `src/shop.js`, and `src/ui.js`
+- Concrete modules under `src/data/*`, `src/rules/*`, `src/systems/*`,
+  `src/state/*`, `src/combat_logic/*`, `src/combat_ui/*`, `src/menu/*`,
+  `src/shop/*`, and `src/ui/*`
 - Any source files touched by the change under review
 
 ## Initial File Routing
@@ -41,6 +46,10 @@ request area.
 - Check whether browser coverage exercises changed UI flows on mobile widths.
 - Look for deterministic seeds when validating map, combat, inventory, or drop
   behavior.
+- Check facade re-exports and direct imports for divergent behavior after a
+  module split.
+- Check for duplicated UI or state mutation paths that tests may exercise only
+  through one route.
 - Identify missing negative cases for validation or state transitions.
 - Confirm failures can be reproduced with a specific command.
 

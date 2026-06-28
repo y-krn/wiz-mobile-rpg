@@ -8,14 +8,26 @@ implementation cost.
 ## Scope
 
 - `src/data.js`
+- `src/data/*`
+- `src/rules/*`
+- `src/systems/*`
+- `src/ui.js`
+- `src/ui/*`
+- `src/menu.js`
+- `src/menu/*`
+- `src/shop.js`
+- `src/shop/*`
+- `src/combat_ui/*`
 - User-facing text in source files
 - Enemy, item, spell, contract, class, reward, and event proposals
 
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with `src/data.js`
-for gameplay content or the affected UI module for visible text, then expand to
-balance or mobile UI files only if the content changes progression or layout.
+or the relevant `src/data/*` module for gameplay content, and start with the
+affected UI/overlay module for visible text. Expand to rules, systems, balance,
+or mobile UI files only if the content changes progression, mechanics, or
+layout.
 
 ## Inputs
 
@@ -41,6 +53,8 @@ balance or mobile UI files only if the content changes progression or layout.
 - Rewards match the effort and risk required.
 - New content does not require unnecessary systems.
 - Terminology is consistent with existing text.
+- Text and content rules are not split across facade and concrete modules in a
+  way that can drift.
 - Additions do not overload the player with too many similar choices.
 - Content can be verified with existing tests or a small targeted check.
 

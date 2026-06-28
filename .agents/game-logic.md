@@ -8,11 +8,18 @@ existing state and data structures.
 ## Scope
 
 - `src/combat.js`
+- `src/combat_ui/*`
 - `src/combat_logic.js`
+- `src/combat_logic/*`
 - `src/map_generator.js`
 - `src/movement.js`
 - `src/state.js`
+- `src/state/*`
 - `src/data.js`
+- `src/data/*`
+- `src/rules/*`
+- `src/systems/*`
+- `src/constants/*`
 - `src/contracts.js`
 - `src/chest.js`
 - `src/equip.js`
@@ -22,9 +29,11 @@ existing state and data structures.
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with the mechanic
-module named by the request, then inspect `src/state.js`, `src/data.js`, and
-direct callers only when the state shape, data formulas, or flow wiring are
-affected.
+module named by the request, then inspect the concrete module behind any facade
+(`src/state.js`, `src/data.js`, `src/combat.js`, `src/combat_logic.js`,
+`src/menu.js`, `src/shop.js`, or `src/ui.js`). Expand to state, data/rules,
+systems, and direct callers only when the state shape, formulas, random
+behavior, or flow wiring are affected.
 
 ## Inputs
 
@@ -49,6 +58,10 @@ affected.
 - Existing save data shape is preserved or migration risk is explicitly handled.
 - Random behavior is deterministic when seeded tests require it.
 - Combat, inventory, equipment, contract, and reward flows remain consistent.
+- Facade files remain thin and do not hide divergent behavior from direct
+  module imports.
+- Shared rules such as inventory addition, equipment generation, and target
+  selection are not duplicated with slightly different constraints.
 - Edge cases are handled only where they can happen in the current game flow.
 - Names and structure follow existing project style.
 - The change does not introduce unnecessary generic systems.

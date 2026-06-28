@@ -6,6 +6,7 @@ import { executeAppraise } from "./appraisal.js";
 import { executePurchase, executeSale } from "./purchase.js";
 import { renderShop } from "./shop_view.js";
 import { SHOP_STOCK } from "./shop_stock.js";
+import { updateUI } from "../ui.js";
 
 export function renderShopDetail() {
   const detailPanel = document.getElementById("shop-detail-panel");
@@ -166,6 +167,7 @@ export function renderShopDetail() {
           shopState.selectedKey = state.inventory[nextItemIdx];
           shopState.selectedIdx = nextItemIdx;
           renderShop();
+          updateUI();
         });
       } else {
         btnNext.textContent = "✅ 鑑定完了";
@@ -174,6 +176,7 @@ export function renderShopDetail() {
           shopState.selectedKey = null;
           shopState.selectedIdx = -1;
           renderShop();
+          updateUI();
         });
       }
       appraisedActions.appendChild(btnNext);
@@ -191,6 +194,7 @@ export function renderShopDetail() {
         shopState.selectedKey = itemVal;
         shopState.selectedIdx = appraisedIdx;
         renderShop();
+        updateUI();
       });
       appraisedActions.appendChild(btnToSell);
 
@@ -384,14 +388,20 @@ export function renderShopDetail() {
       }
 
       actionBtn.addEventListener("click", () => {
-        executePurchase(itemKey, itemPrice);
+        if (executePurchase(itemKey, itemPrice)) {
+          renderShop();
+          updateUI();
+        }
       });
     } else if (shopState.mode === "sell") {
       actionBtn.className = `btn btn-block shop-action-btn btn-danger`;
       actionBtn.textContent = `売却する (+${itemPrice}G)`;
 
       actionBtn.addEventListener("click", () => {
-        executeSale(shopState.selectedIdx, itemPrice);
+        if (executeSale(shopState.selectedIdx, itemPrice)) {
+          renderShop();
+          updateUI();
+        }
       });
     } else { // appraise
       const hasTicket = (state.identifyTickets || 0) > 0;
@@ -413,7 +423,10 @@ export function renderShopDetail() {
         const eqItem = state.inventory[shopState.selectedIdx];
         const cost = getAppraisalCost(eqItem);
         const hasTicketVal = (state.identifyTickets || 0) > 0;
-        executeAppraise(shopState.selectedIdx, cost, hasTicketVal);
+        if (executeAppraise(shopState.selectedIdx, cost, hasTicketVal)) {
+          renderShop();
+          updateUI();
+        }
       });
     }
 

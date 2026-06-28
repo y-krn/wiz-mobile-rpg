@@ -8,9 +8,14 @@ transitions.
 ## Scope
 
 - `src/ui.js`
+- `src/ui/*`
 - `src/menu.js`
+- `src/menu/*`
 - `src/style.css`
 - `src/shop.js`
+- `src/shop/*`
+- `src/combat.js`
+- `src/combat_ui/*`
 - `src/training.js`
 - `src/equip.js`
 - `src/camp.js`
@@ -23,8 +28,9 @@ transitions.
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with `src/style.css`,
-the affected UI module, and `tests/ui-ux.spec.js`; expand only to direct UI
-callers such as `src/ui.js`, `src/menu.js`, or `src/navigation.js`.
+the affected UI or overlay module, and `tests/ui-ux.spec.js`; expand only to
+direct UI callers such as `src/ui.js`, `src/ui/*`, `src/menu.js`, `src/menu/*`,
+`src/combat_ui/*`, or `src/navigation.js`.
 
 ## Inputs
 
@@ -48,6 +54,10 @@ callers such as `src/ui.js`, `src/menu.js`, or `src/navigation.js`.
 - Tap targets are at least 44px tall and visually distinct.
 - Current state, selected target, and next action are visible without guessing.
 - Lists, filters, tabs, and execution buttons form a continuous flow.
+- Overlay flows use one rendering path per choice surface. Do not duplicate the
+  same combat/shop/menu controls in both an overlay and `submenu-options`.
+- Combat action flows explicitly cover `combat_target`, `combat_spell`, and
+  `combat_item`.
 - No horizontal scrolling or tiny tap targets are introduced.
 - Repeated taps do not cause accidental zoom, scroll interference, or duplicate
   actions.

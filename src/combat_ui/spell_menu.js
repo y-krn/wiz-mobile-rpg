@@ -12,48 +12,6 @@ export function openCombatSpellMenu(char, callback) {
   const actorIdx = state.party.findIndex(c => c.name === char.name);
   menuContext.actorIdx = actorIdx;
   combatCallbacks.activeSpellCallback = callback;
-
-  const optGrid = document.getElementById("submenu-options");
-  if (optGrid) optGrid.innerHTML = "";
-
-  char.spells.forEach(spKey => {
-    const spell = SPELLS[spKey];
-    if (spell.campOnly) return; // 戦闘中はキャンプ専用を表示しない
-
-    const btn = document.createElement("button");
-    btn.className = "btn btn-neon btn-select-spell";
-    
-    const mpCheck = char.mp < spell.cost;
-    const targetCheck = isSpellTargetAvailable(spell, char);
-    const disabled = mpCheck || !targetCheck;
-
-    let label = `${spell.name} (${spell.cost}M)`;
-    if (disabled) {
-      if (mpCheck) {
-        label += " [MP不足]";
-      } else if (!targetCheck) {
-        label += spell.target === "utility" ? " [戦闘不可]" : " [対象なし]";
-      }
-    }
-    btn.textContent = label;
-
-    if (disabled) {
-      btn.disabled = true;
-      btn.style.opacity = "0.3";
-    } else {
-      btn.addEventListener("click", () => {
-        state.gameState = "combat";
-        if (combatCallbacks.activeSpellCallback) combatCallbacks.activeSpellCallback(spKey);
-      });
-    }
-    if (optGrid) optGrid.appendChild(btn);
-  });
-
-  const titleEl = document.getElementById("submenu-title");
-  if (titleEl) {
-    titleEl.textContent = `${char.name}の呪文詠唱`;
-  }
-
   updateUI();
 }
 

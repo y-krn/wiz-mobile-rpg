@@ -7,6 +7,8 @@ import { getCharMaxHp, getCharMaxMp, getItemBaseId, getItemData, getClassJpName 
 import { renderMaterialsHUD } from "./materials_hud.js";
 import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, executeDismantle, getDismantleResults } from "../craft.js";
 
+import { openEquipOverlay } from "../equip.js";
+
 export function handleTownOption(option) {
   if (option === "castle") {
     state.party.forEach(char => {
@@ -40,12 +42,7 @@ export function handleTownOption(option) {
   } else if (option === "temple") {
     openSubmenu("temple_main", "カント寺院 - 蘇生と治療：");
   } else if (option === "camp") {
-    openSubmenu("camp_main", "キャンプメニュー："); // Wait, option === "camp" is camp overlay? Wait, in original code: openEquipOverlay(0)
-    // Actually, original: `else if (option === "camp") { openEquipOverlay(0); }`
-    // Let's check original line 877:
-    // `else if (option === "camp") { openEquipOverlay(0); }`
-    // Let's verify what option === "camp" does. Yes, it opens Equip Overlay directly!
-    // Wait, let's keep exact behavior.
+    openEquipOverlay(0);
   } else if (option === "craft") {
     openSubmenu("craft_main", "工房 - 製作と装備強化：");
   } else if (option === "training") {
@@ -59,20 +56,6 @@ export function handleTownOption(option) {
     openContractsOverlay();
   } else if (option === "warehouse") {
     openWarehouseOverlay();
-  }
-}
-
-// In menu.js line 877:
-// `else if (option === "camp") { openEquipOverlay(0); }`
-// Wait, we need to import openEquipOverlay!
-import { openEquipOverlay } from "../equip.js";
-
-// Let's wrap handleTownOption to support the exact camp call
-export function handleTownOptionFixed(option) {
-  if (option === "camp") {
-    openEquipOverlay(0);
-  } else {
-    handleTownOption(option);
   }
 }
 

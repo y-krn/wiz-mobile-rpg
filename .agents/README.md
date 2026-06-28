@@ -14,6 +14,13 @@ Before broad repository searches, read `.agents/file-map.md` and start from the
 files listed for the request area. Expand only to direct imports, touched files,
 or verification targets.
 
+The codebase uses thin facade modules such as `src/data.js`, `src/state.js`,
+`src/combat.js`, `src/combat_logic.js`, `src/menu.js`, `src/shop.js`, and
+`src/ui.js`. When a review touches one of these files, inspect the concrete
+module under the matching directory (`src/data/*`, `src/state/*`,
+`src/combat_ui/*`, `src/combat_logic/*`, `src/menu/*`, `src/shop/*`, or
+`src/ui/*`) before drawing conclusions.
+
 ## Operating Mode
 
 - Default mode: review-only.
@@ -22,6 +29,7 @@ or verification targets.
 - Sub agents use the Agent Skills listed in their own definition when the review
   scope matches the skill trigger.
 - Reviews must be concrete, file-aware, and tied to project constraints.
+- Reviews must distinguish facade wiring issues from concrete module behavior.
 - Reviews must avoid unrelated refactors, broad redesigns, and speculative
   future systems.
 

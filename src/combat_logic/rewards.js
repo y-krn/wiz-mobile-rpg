@@ -1,22 +1,9 @@
 import {
   generateRandomEquipment, getItemData, checkCharLevelUp,
-  getItemBaseId, isSpecialOrQuestItem
+  getItemBaseId
 } from "../data.js";
 import { determineMonsterDrop } from "./drops.js";
-
-function addInventoryItem(state, item, options = {}) {
-  const allowQuestOverflow = options.allowQuestOverflow ?? false;
-  const itemId = getItemBaseId(item);
-  
-  const isQuestItem = isSpecialOrQuestItem(itemId);
-  
-  if (state.inventory.length >= 20 && !allowQuestOverflow && !isQuestItem) {
-    return false;
-  }
-  
-  state.inventory.push(item);
-  return true;
-}
+import { addInventoryItemToState } from "../state/inventory_state.js";
 
 export function applyCombatRewards(state, monsters, logQueue) {
   const nonFledMonsters = monsters.filter(m => !m.fled);
@@ -191,7 +178,7 @@ export function applyCombatRewards(state, monsters, logQueue) {
   }
 
   if (dropEquipment) {
-    const added = addInventoryItem(state, dropEquipment);
+    const added = addInventoryItemToState(state, dropEquipment);
     if (added) {
       if (state.currentRun) {
         state.currentRun.equipmentFound.push(dropEquipment);

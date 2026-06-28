@@ -120,7 +120,11 @@ UI実装・レビュー時は以下を必ず確認する。
 
 - ユーザーが明示的にレビューを依頼した場合。
 - 複数ファイルにまたがる変更を行う場合。
-- `src/data.js`, `src/state.js`, `src/combat_logic.js`, `src/style.css`, `tests/ui-ux.spec.js` に影響する場合。
+- `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*`,
+  `src/state.js`, `src/state/*`, `src/combat_logic.js`,
+  `src/combat_logic/*`, `src/combat.js`, `src/combat_ui/*`,
+  `src/menu.js`, `src/menu/*`, `src/shop.js`, `src/shop/*`,
+  `src/ui.js`, `src/ui/*`, `src/style.css`, `tests/ui-ux.spec.js` に影響する場合。
 - UI変更でモバイル片手操作の品質が変わる可能性がある場合。
 - 数値変更でゲームバランスが変わる可能性がある場合。
 

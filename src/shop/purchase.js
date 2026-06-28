@@ -1,16 +1,14 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "../state.js";
 import { getItemData } from "../data.js";
 import { playSound } from "../audio.js";
-import { updateUI } from "../ui.js";
 import { shopState } from "./shop_state.js";
-import { renderShop } from "./shop_view.js";
 
 export function executePurchase(itemKey, price) {
   const item = getItemData(itemKey);
   const added = addInventoryItem(itemKey);
   if (!added) {
     addLog("バッグがいっぱいで購入できません。");
-    return;
+    return false;
   }
   state.gold -= price;
   recordEquipmentDiscovery(itemKey);
@@ -26,8 +24,7 @@ export function executePurchase(itemKey, price) {
   const goldLabel = document.getElementById("gold-counter");
   if (goldLabel) goldLabel.textContent = `GOLD: ${state.gold}`;
   
-  renderShop();
-  updateUI();
+  return true;
 }
 
 export function executeSale(idx, price) {
@@ -87,6 +84,5 @@ export function executeSale(idx, price) {
   const goldLabel = document.getElementById("gold-counter");
   if (goldLabel) goldLabel.textContent = `GOLD: ${state.gold}`;
 
-  renderShop();
-  updateUI();
+  return true;
 }

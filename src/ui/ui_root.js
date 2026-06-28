@@ -330,7 +330,8 @@ export function updateUI() {
   // Update Combat Overlay visibility
   const combatOverlay = document.getElementById("combat-overlay");
   if (combatOverlay) {
-    if (state.gameState === "submenu" && (menuContext.type === "combat_spell" || menuContext.type === "combat_item")) {
+    const combatOverlayTypes = ["combat_target", "combat_spell", "combat_item"];
+    if (state.gameState === "submenu" && combatOverlayTypes.includes(menuContext.type)) {
       combatOverlay.style.display = "flex";
       renderCombatOverlay();
     } else {

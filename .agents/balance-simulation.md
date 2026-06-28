@@ -8,8 +8,13 @@ repeatable checks.
 ## Scope
 
 - `src/data.js`
+- `src/data/*`
+- `src/rules/*`
+- `src/systems/*`
 - `src/combat_logic.js`
+- `src/combat_logic/*`
 - `src/combat.js`
+- `src/combat_ui/*`
 - `src/map_generator.js`
 - `src/chest.js`
 - `src/contracts.js`
@@ -19,8 +24,8 @@ repeatable checks.
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with the changed
-enemy, reward, map, combat, or contract data path, then use the smallest
-deterministic scratch check that exercises the changed values.
+enemy, reward, map, combat, rule, system, or contract data path, then use the
+smallest deterministic scratch check that exercises the changed values.
 
 ## Inputs
 
@@ -46,6 +51,8 @@ deterministic scratch check that exercises the changed values.
 - Check whether gold, items, XP, or contract rewards create runaway growth.
 - Check whether enemy damage, HP, traits, and encounter frequency match expected
   party capability.
+- Confirm balance-affecting values did not move into UI or action modules where
+  deterministic checks are harder to target.
 - Prefer deterministic seed checks over anecdotal play results.
 - Flag balance changes hidden inside UI or unrelated logic diffs.
 
