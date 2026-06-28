@@ -1,0 +1,207 @@
+#game-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 450px; /* Locked to phone-like aspect ratio on desktop */
+  height: 100%;
+  margin: 0 auto;
+  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  background-color: var(--bg-color);
+  position: relative;
+}
+
+/* Header */
+#game-header {
+  height: 50px;
+  min-height: 50px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 12px;
+  background-color: var(--floor-header-bg, #121216);
+  border-bottom: 1.5px solid var(--floor-border, var(--neon-cyan));
+  box-shadow: var(--floor-glow, var(--neon-glow-cyan));
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+#location-label {
+  color: var(--floor-border, var(--neon-cyan));
+}
+
+#gold-counter {
+  color: var(--neon-gold);
+}
+
+/* Goal HUD Banner */
+#goal-banner {
+  min-height: 24px;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 12px;
+  background-color: var(--floor-banner-bg, #0e0e12);
+  border-bottom: 1px solid var(--floor-border, var(--border-color));
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--neon-gold);
+  text-shadow: var(--neon-glow-gold);
+  letter-spacing: 0.5px;
+  gap: 4px;
+}
+.goal-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.goal-stats-container {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--neon-cyan);
+  text-shadow: var(--neon-glow-cyan);
+  box-sizing: border-box;
+}
+
+.btn-mute {
+  font-size: 12px;
+  padding: 8px 16px;
+  height: 44px;
+  min-height: 44px;
+  line-height: 26px;
+  border-radius: 4px;
+  background-color: #121216;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+/* 音声ありの時 (Mute OFF) - 緑色 */
+.btn-mute.sound-on {
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+  box-shadow: 0 0 4px rgba(0, 255, 102, 0.2);
+}
+.btn-mute.sound-on:active {
+  background-color: rgba(0, 255, 102, 0.12);
+  box-shadow: var(--neon-glow-green);
+}
+
+/* 消音中の時 (Mute ON) - 暗灰色 */
+.btn-mute.sound-off {
+  border-color: #555566;
+  color: #888899;
+  box-shadow: none;
+}
+.btn-mute.sound-off:active {
+  background-color: rgba(136, 136, 153, 0.12);
+}
+
+/* Viewport Canvas Panel */
+#viewport-panel {
+  width: 100%;
+  aspect-ratio: 400 / 260;
+  max-height: 320px;
+  background-color: var(--floor-bg, #000);
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#dungeon-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Log Panel */
+#log-panel {
+  flex-grow: 1;
+  flex-shrink: 1; /* Shrink logs when vertical space is tight */
+  min-height: 80px; /* Keep logs visible */
+  max-height: 220px; /* Limit overly large height on tall mobile screens */
+  background-color: var(--floor-banner-bg, #0e0e12);
+  border-top: 1px solid var(--floor-border, var(--border-color));
+  border-bottom: 1.5px solid var(--floor-border, var(--neon-green));
+  box-shadow: var(--floor-glow, var(--neon-glow-green));
+  padding: 8px 12px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.4;
+  touch-action: pan-y; /* Only allow vertical scrolling in logs */
+}
+
+#log-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-entry {
+  color: #dcdcdc;
+  word-wrap: break-word;
+}
+
+.log-entry.damage {
+  color: var(--neon-red);
+}
+
+.log-entry.heal {
+  color: var(--neon-green);
+}
+
+.log-entry.loot {
+  color: var(--neon-gold);
+}
+
+.log-entry.info {
+  color: var(--neon-cyan);
+}
+
+.log-entry.ally {
+  color: var(--neon-cyan); /* 味方の行動は青っぽい色（シアン） */
+}
+
+.log-entry.enemy {
+  color: var(--neon-red); /* 敵の行動はレッド */
+}
+
+.log-entry.aura {
+  color: var(--neon-purple); /* 探索の気配はパープル */
+}
+
+/* Accessibility Text HUD for dungeons */
+#viewport-hud {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: rgba(12, 12, 14, 0.85);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--neon-cyan);
+  text-shadow: var(--neon-glow-cyan);
+  pointer-events: none;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: calc(100% - 150px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-dir {
+  font-weight: bold;
+  color: var(--neon-gold);
+  text-shadow: var(--neon-glow-gold);
+}
+

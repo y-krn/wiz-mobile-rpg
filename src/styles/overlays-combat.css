@@ -1,0 +1,407 @@
+/* Combat Overlay Styles */
+.combat-overlay-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(12, 12, 14, 0.96);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  font-family: var(--font-mono);
+  box-sizing: border-box;
+}
+
+.combat-overlay-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-bottom: 1.5px solid var(--neon-red);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.combat-overlay-title {
+  color: var(--neon-red);
+  font-size: 14px;
+  font-weight: bold;
+  text-shadow: var(--neon-glow-red);
+}
+
+.combat-overlay-body {
+  flex-grow: 1;
+  overflow: hidden;
+  height: calc(100% - 30px);
+}
+
+.combat-target-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
+  padding-right: 2px;
+}
+
+.combat-target-grid::-webkit-scrollbar {
+  width: 3px;
+}
+.combat-target-grid::-webkit-scrollbar-thumb {
+  background: var(--neon-red);
+  border-radius: 1.5px;
+}
+
+.combat-target-card {
+  background-color: #14141a;
+  border: 1px solid #22222d;
+  border-radius: 4px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 48px;
+}
+
+.combat-target-card.enemy {
+  border-color: rgba(255, 59, 48, 0.3);
+}
+
+.combat-target-card.enemy:hover, .combat-target-card.enemy:active {
+  border-color: var(--neon-red);
+  background-color: rgba(255, 59, 48, 0.05);
+  box-shadow: 0 0 4px var(--neon-red);
+}
+
+.combat-target-card.ally {
+  border-color: rgba(0, 229, 255, 0.3);
+}
+
+.combat-target-card.ally:hover, .combat-target-card.ally:active {
+  border-color: var(--neon-cyan);
+  background-color: rgba(0, 229, 255, 0.05);
+  box-shadow: 0 0 4px var(--neon-cyan);
+}
+
+.combat-target-card.dead {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: #22222d !important;
+  box-shadow: none !important;
+  background-color: transparent !important;
+}
+
+.combat-target-card.blocked {
+  opacity: 0.55;
+  border-color: rgba(255, 179, 0, 0.35) !important;
+}
+
+.combat-target-card .card-title {
+  font-size: 10px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.combat-target-card .card-class-tag {
+  font-size: 8px;
+  color: var(--text-muted);
+  font-weight: normal;
+  margin-left: 2px;
+}
+
+.enemy-row-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 16px;
+  margin-right: 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.enemy-row-tag.front {
+  color: var(--neon-red);
+}
+
+.enemy-row-tag.back {
+  color: var(--neon-gold);
+}
+
+.combat-target-card .card-note {
+  margin-top: 3px;
+  color: var(--neon-gold);
+  font-size: 9px;
+}
+
+.card-hp-bar-container, .card-mp-bar-container {
+  width: 100%;
+  height: 4px;
+  background-color: #0c0c0e;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 1px;
+}
+
+.card-hp-bar {
+  height: 100%;
+  background-color: var(--neon-green);
+}
+
+.card-mp-bar {
+  height: 100%;
+  background-color: var(--neon-cyan);
+}
+
+.card-hp-text, .card-mp-text {
+  font-size: 7px;
+  color: var(--text-muted);
+  text-align: right;
+  margin-bottom: 2px;
+}
+
+/* Spell and Item Grid */
+/* Spell and Item Grid */
+.combat-selection-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
+  padding-right: 2px;
+}
+
+/* 2列呪文グリッド */
+.combat-selection-grid.spell-grid {
+  grid-template-columns: 1fr 1fr;
+  padding-bottom: 80px; /* 戻るボタンとの重なり防止の余白 */
+}
+
+.combat-selection-grid::-webkit-scrollbar {
+  width: 3px;
+}
+.combat-selection-grid::-webkit-scrollbar-thumb {
+  background: var(--neon-red);
+  border-radius: 1.5px;
+}
+
+.combat-item-card {
+  background-color: #14141a;
+  border: 1px solid rgba(191, 90, 242, 0.3);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 52px;
+}
+
+.combat-item-card.spell {
+  border-color: rgba(191, 90, 242, 0.3);
+  min-height: 48px; /* パディングと合わせて48px高を確保 */
+  padding: 6px 8px;
+  box-sizing: border-box;
+}
+
+.combat-item-card.spell:hover, .combat-item-card.spell:active {
+  border-color: var(--neon-purple);
+  background-color: rgba(191, 90, 242, 0.05);
+  box-shadow: 0 0 4px var(--neon-purple);
+}
+
+.combat-item-card.item {
+  border-color: rgba(255, 179, 0, 0.3);
+}
+
+.combat-item-card.item:hover, .combat-item-card.item:active {
+  border-color: var(--neon-gold);
+  background-color: rgba(255, 179, 0, 0.05);
+  box-shadow: 0 0 4px var(--neon-gold);
+}
+
+/* 各無効状態のスタイル */
+.combat-item-card.spell.disabled-mp {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: rgba(255, 69, 58, 0.25) !important;
+  background-color: rgba(255, 69, 58, 0.02) !important;
+  box-shadow: none !important;
+}
+
+.combat-item-card.spell.disabled-unavailable {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: rgba(142, 142, 147, 0.2) !important;
+  background-color: rgba(142, 142, 147, 0.02) !important;
+  box-shadow: none !important;
+}
+
+.combat-item-card.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: #22222d !important;
+  box-shadow: none !important;
+  background-color: transparent !important;
+}
+
+/* 呪文カードのレイアウト構造 */
+.spell-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.spell-card-top .spell-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 75%;
+}
+
+.spell-card-top .cost-tag {
+  font-size: 9px;
+  color: var(--neon-purple);
+  white-space: nowrap;
+}
+
+.spell-card-bottom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 9px;
+  line-height: 1.1;
+  overflow: hidden;
+}
+
+.spell-card-bottom .spell-effect {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+/* 呪文カテゴリタグ */
+.spell-tag {
+  font-size: 8px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.spell-tag.single {
+  background-color: rgba(255, 69, 58, 0.15);
+  color: #ff453a;
+  border: 1px solid rgba(255, 69, 58, 0.3);
+}
+
+.spell-tag.all {
+  background-color: rgba(255, 159, 10, 0.15);
+  color: #ff9f0a;
+  border: 1px solid rgba(255, 159, 10, 0.3);
+}
+
+.spell-tag.heal {
+  background-color: rgba(48, 209, 88, 0.15);
+  color: #30d158;
+  border: 1px solid rgba(48, 209, 88, 0.3);
+}
+
+.spell-tag.cure {
+  background-color: rgba(100, 210, 255, 0.15);
+  color: #64d2ff;
+  border: 1px solid rgba(100, 210, 255, 0.3);
+}
+
+.spell-tag.buff {
+  background-color: rgba(191, 90, 242, 0.15);
+  color: #bf5af2;
+  border: 1px solid rgba(191, 90, 242, 0.3);
+}
+
+.spell-tag.debuff {
+  background-color: rgba(255, 55, 95, 0.15);
+  color: #ff375f;
+  border: 1px solid rgba(255, 55, 95, 0.3);
+}
+
+.spell-tag.utility {
+  background-color: rgba(174, 174, 178, 0.15);
+  color: #aeaea6;
+  border: 1px solid rgba(174, 174, 178, 0.3);
+}
+
+.spell-tag.dead {
+  background-color: rgba(142, 142, 147, 0.15);
+  color: #8e8e93;
+  border: 1px solid rgba(142, 142, 147, 0.3);
+}
+
+/* 無効化理由バッジ */
+.disabled-reason-tag {
+  font-size: 8px;
+  padding: 1px 3px;
+  border-radius: 2px;
+  margin-left: auto;
+  white-space: nowrap;
+  font-weight: bold;
+}
+
+.disabled-reason-tag.mp-shortage {
+  background-color: rgba(255, 69, 58, 0.2);
+  color: #ff453a;
+  border: 1px solid rgba(255, 69, 58, 0.5);
+}
+
+.disabled-reason-tag.unavailable {
+  background-color: rgba(142, 142, 147, 0.2);
+  color: #aeaea6;
+  border: 1px solid rgba(142, 142, 147, 0.5);
+}
+
+.item-card-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.item-card-title .cost-tag {
+  font-size: 10px;
+  color: var(--neon-purple);
+}
+
+.item-card-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.3;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+

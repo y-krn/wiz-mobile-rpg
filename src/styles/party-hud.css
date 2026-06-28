@@ -1,0 +1,173 @@
+/* Party HUD Panel */
+#party-panel {
+  height: 75px; /* Expanded from 65px for better mobile spacing */
+  min-height: 75px;
+  background-color: #121216;
+  border-top: 1.5px solid var(--neon-cyan);
+  box-shadow: var(--neon-glow-cyan);
+  padding: 6px 4px;
+  flex-shrink: 0; /* Guarantee party HUD never shrinks and overlaps */
+  display: flex;
+  flex-direction: column;
+}
+
+#party-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+  flex: 1;
+  min-height: 0;
+}
+
+.party-card {
+  background-color: #181822;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 3px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  position: relative;
+}
+
+.party-card.selected {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 4px var(--neon-cyan);
+}
+
+.char-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.char-name {
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+}
+
+.char-class {
+  color: var(--text-muted);
+}
+
+.char-hpmp {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.bar-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+}
+
+.bar-label {
+  width: 10px;
+  color: var(--text-muted);
+}
+
+.bar {
+  flex-grow: 1;
+  height: 3px;
+  background-color: #09090b;
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+}
+
+.bar-fill.hp {
+  background-color: var(--neon-green);
+}
+
+.bar-fill.mp {
+  background-color: var(--neon-cyan);
+}
+
+.char-status {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 8px;
+  text-align: center;
+  padding: 1px 3px;
+  border-radius: 2px;
+  font-weight: bold;
+  z-index: 5;
+}
+
+.char-status.ok {
+  display: none;
+}
+
+.char-status.sleep {
+  background-color: rgba(191, 90, 242, 0.2);
+  color: var(--neon-purple);
+  border: 0.5px solid var(--neon-purple);
+}
+
+.char-status.dead {
+  background-color: rgba(255, 59, 48, 0.25);
+  color: var(--neon-red);
+  border: 0.5px solid var(--neon-red);
+}
+
+.char-status.poisoned {
+  background-color: rgba(255, 179, 0, 0.25);
+  color: var(--neon-gold);
+  border: 0.5px solid var(--neon-gold);
+}
+
+.char-status.paralyzed {
+  background-color: rgba(191, 90, 242, 0.25);
+  color: var(--neon-purple);
+  border: 0.5px solid var(--neon-purple);
+}
+
+.char-status.blind {
+  background-color: rgba(142, 142, 147, 0.25);
+  color: #8e8e93;
+  border: 0.5px solid #8e8e93;
+}
+
+/* --- Party HUD Interactive Styles in Town --- */
+.party-hud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  padding: 0 4px;
+}
+
+.party-hud-detail-btn {
+  color: var(--neon-cyan);
+  font-weight: bold;
+  cursor: pointer;
+}
+
+#party-panel.interactive-hud .party-card {
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+
+#party-panel.interactive-hud .party-card:hover {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 6px var(--neon-cyan);
+}
+
+#party-panel.interactive-hud .party-card:active {
+  background-color: rgba(0, 229, 255, 0.1);
+}
+

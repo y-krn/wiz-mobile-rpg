@@ -1,0 +1,104 @@
+/* Button styles */
+.btn {
+  background-color: #1b1b22;
+  border: 1px solid #3a3a4c;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 4px;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.1s ease, background-color 0.1s ease, border-color 0.1s ease, box-shadow 0.1s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  min-height: 44px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #3a3a4c !important;
+  color: var(--text-muted) !important;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-neon {
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+}
+
+.btn-neon:active {
+  background-color: rgba(0, 255, 102, 0.12);
+  box-shadow: var(--neon-glow-green);
+}
+
+/* Exploration action button colors */
+#explore-controls .btn-action {
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+}
+#explore-controls .btn-action:active {
+  background-color: rgba(0, 229, 255, 0.12);
+  box-shadow: var(--neon-glow-cyan);
+}
+
+/* Town buttons */
+.btn-town {
+  border-color: var(--neon-gold);
+  color: var(--neon-gold);
+}
+.btn-town:active {
+  background-color: rgba(255, 179, 0, 0.12);
+  box-shadow: var(--neon-glow-gold);
+}
+
+/* Combat buttons */
+.btn-combat {
+  border-color: var(--neon-red);
+  color: var(--neon-red);
+}
+.btn-combat:active {
+  background-color: rgba(255, 59, 48, 0.12);
+  box-shadow: var(--neon-glow-red);
+}
+.btn-combat-auto.active {
+  border-color: var(--neon-green) !important;
+  color: var(--neon-green) !important;
+  background-color: rgba(0, 255, 102, 0.12) !important;
+  box-shadow: var(--neon-glow-green) !important;
+}
+
+.btn-dpad {
+  font-size: 18px;
+}
+
+.btn-danger {
+  background-color: #271215;
+  border-color: var(--neon-red);
+  color: var(--neon-red);
+}
+.btn-danger:active {
+  background-color: rgba(255, 59, 48, 0.2);
+}
+.btn-block {
+  width: 100%;
+  padding: 6px 0;
+}
+
+/* Focus Visible outline rules */
+.btn:focus-visible,
+.equip-filter-chip:focus-visible,
+.equip-item-row:focus-visible,
+.equip-actor-chip:focus-visible {
+  outline: 2px solid var(--neon-cyan) !important;
+  outline-offset: 2px !important;
+}
+

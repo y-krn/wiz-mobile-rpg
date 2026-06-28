@@ -5,7 +5,7 @@ import { menuContext, openSubmenu } from "../navigation.js";
 import { renderEquip } from "../equip.js";
 import { renderSpellOverlay } from "../spell_menu.js";
 import { renderCampOverlay } from "../camp.js";
-import { renderCombatOverlay } from "../combat.js";
+import { renderCombatOverlay, combatSelection } from "../combat.js";
 import { updatePartyHUD } from "./hud.js";
 import { updateCombatPrompt } from "./combat_prompt.js";
 import { updateViewportHUD } from "./viewport_hud.js";

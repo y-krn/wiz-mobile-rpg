@@ -1,0 +1,145 @@
+/* Controls Panel */
+#controls-panel {
+  height: auto;
+  min-height: 210px; /* Expanded to fit town controls (4 rows) comfortably */
+  background-color: #121216;
+  border-bottom: 1px solid var(--border-color);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0; /* Guarantee controls never shrink and overlap */
+}
+
+#controls-panel.explore-mode {
+  min-height: 116px;
+  padding: 6px 8px;
+}
+
+.controls-group {
+  display: none;
+  width: 100%;
+  height: 100%;
+}
+
+.controls-group.active {
+  display: flex;
+}
+
+/* Explore layout: D-pad on left, actions on right */
+#explore-controls {
+  display: none;
+  gap: 8px;
+}
+
+#explore-controls.active {
+  display: grid;
+  grid-template-columns: 1.2fr 1.3fr;
+}
+
+#controls-panel.explore-mode #explore-controls.active {
+  align-items: center;
+}
+
+#controls-panel.explore-mode .dpad,
+#controls-panel.explore-mode .action-grid {
+  height: auto;
+}
+
+/* Virtual D-pad */
+.dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 4px;
+  height: 100%;
+}
+
+/* Action button grids */
+.action-grid, .combat-grid, .town-grid, .submenu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  height: 100%;
+}
+
+.town-grid {
+  grid-template-columns: repeat(2, 1fr);
+  width: 100%;
+  gap: 6px;
+}
+
+#btn-town-dungeon {
+  grid-column: span 2;
+}
+
+.combat-grid {
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  width: 100%;
+}
+#btn-combat-cancel {
+  grid-column: span 2;
+  border-color: #555566 !important;
+  color: #888899 !important;
+  background-color: #15151c;
+}
+#btn-combat-cancel:active {
+  background-color: rgba(255, 59, 48, 0.15) !important;
+  border-color: var(--neon-red) !important;
+  color: var(--neon-red) !important;
+}
+#btn-combat-auto {
+  border-color: var(--neon-purple) !important;
+  color: var(--neon-purple) !important;
+}
+#btn-combat-auto:active {
+  background-color: rgba(180, 0, 255, 0.12) !important;
+  box-shadow: var(--neon-glow-purple) !important;
+}
+
+
+/* Submenu layout */
+#submenu-controls {
+  flex-direction: column;
+  gap: 6px;
+}
+#submenu-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--neon-gold);
+  text-align: center;
+}
+.submenu-grid {
+  flex-grow: 1;
+  grid-template-columns: repeat(2, 1fr);
+  overflow-y: auto;
+  touch-action: pan-y; /* Only allow vertical scrolling in submenus */
+}
+.submenu-grid::-webkit-scrollbar {
+  width: 4px;
+}
+.submenu-grid::-webkit-scrollbar-track {
+  background: rgba(0, 229, 255, 0.05);
+  border-radius: 2px;
+}
+.submenu-grid::-webkit-scrollbar-thumb {
+  background: var(--neon-cyan);
+  border-radius: 2px;
+  box-shadow: 0 0 4px var(--neon-cyan);
+}
+.submenu-grid .btn {
+  padding: 6px 4px;
+  font-size: 11px;
+}
+
+/* Combat prompt */
+#combat-prompt {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--neon-cyan);
+  text-align: center;
+  margin-bottom: 4px;
+}
+

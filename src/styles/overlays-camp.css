@@ -1,0 +1,202 @@
+/* Camp Overlay Styles */
+.camp-overlay-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(12, 12, 14, 0.98);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.camp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1.5px solid var(--neon-cyan);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.camp-title {
+  color: var(--neon-cyan);
+  font-size: 16px;
+  font-weight: bold;
+  text-shadow: var(--neon-glow-cyan);
+}
+
+.btn-camp-close {
+  background: transparent;
+  border: 1px solid var(--neon-cyan);
+  color: var(--neon-cyan);
+  box-shadow: 0 0 2px var(--neon-cyan);
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-camp-close:hover, .btn-camp-close:active {
+  background-color: rgba(0, 229, 255, 0.12);
+  box-shadow: var(--neon-glow-cyan);
+}
+
+.camp-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.camp-command-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.camp-btn {
+  min-height: 48px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.camp-danger-zone {
+  border-top: 1px dashed rgba(255, 59, 48, 0.3);
+  padding-top: 16px;
+  margin-bottom: 10px;
+}
+
+.camp-btn-danger {
+  min-height: 48px;
+  font-size: 14px;
+  background-color: rgba(255, 59, 48, 0.1) !important;
+  border-color: rgba(255, 59, 48, 0.5) !important;
+  color: var(--neon-red) !important;
+}
+
+.camp-btn-danger:hover, .camp-btn-danger:active {
+  background-color: rgba(255, 59, 48, 0.25) !important;
+  box-shadow: var(--neon-glow-red) !important;
+}
+
+/* Status Detail Layout */
+.camp-status-grid {
+  flex: 1 1 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.camp-status-grid::-webkit-scrollbar {
+  width: 4px;
+}
+.camp-status-grid::-webkit-scrollbar-thumb {
+  background: var(--neon-cyan);
+  border-radius: 2px;
+}
+
+.camp-status-card {
+  background-color: #14141a;
+  border: 1px solid #22222d;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.camp-status-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #22222d;
+  padding-bottom: 4px;
+}
+
+.camp-char-name {
+  font-size: 13px;
+  color: var(--neon-gold);
+  text-shadow: var(--neon-glow-gold);
+}
+
+.camp-char-class {
+  color: #fff;
+  font-size: 11px;
+}
+
+.camp-status-card-hpmp {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-main);
+}
+
+.camp-val {
+  color: #fff;
+}
+
+.camp-status-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  color: var(--text-muted);
+  background-color: #0c0c0e;
+  padding: 6px;
+  border-radius: 4px;
+}
+
+.camp-status-card-combat {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-main);
+}
+
+.camp-status-card-exp {
+  font-size: 11px;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 2px rgba(0, 229, 255, 0.3);
+}
+
+.camp-status-card:focus-within {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 4px var(--neon-cyan);
+}
+
+.shop-gold-info {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--neon-gold);
+  text-shadow: var(--neon-glow-gold);
+  font-family: var(--font-mono);
+}
+
+/* camp-status-card focus highlight style */
+.camp-status-card.focused-char {
+  border-color: var(--neon-cyan) !important;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+  background-color: rgba(0, 229, 255, 0.05);
+}
+

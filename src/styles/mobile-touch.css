@@ -1,0 +1,51 @@
+/* Mobile Touch Action Customizations */
+#controls-panel,
+#controls-panel .btn,
+.action-grid,
+.town-grid {
+  touch-action: manipulation;
+}
+
+.dpad,
+.dpad .btn,
+.combat-grid,
+.combat-grid .btn {
+  touch-action: none;
+}
+
+.submenu-grid,
+.training-list,
+.equip-item-list,
+.equip-detail-content,
+.shop-items-list,
+.detail-scroll-content {
+  touch-action: pan-y;
+}
+
+/* Bottom Sticky Actions Container for mobile comfort */
+.bottom-actions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 env(safe-area-inset-bottom, 12px) 0;
+  border-top: 1px solid var(--border-color);
+  background-color: rgba(12, 12, 14, 0.98);
+  margin-top: auto;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.bottom-actions-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.bottom-actions-row .btn,
+.bottom-actions-row .shop-tab,
+.bottom-actions-row .equip-filter-chip,
+.bottom-actions-row .filter-chip {
+  flex: 1;
+  min-height: 44px;
+}
+

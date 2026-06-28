@@ -1,0 +1,24 @@
+/* Game Styling - Neon Dark Fantasy theme */
+:root {
+  --bg-color: #0c0c0e;
+  --panel-bg: rgba(18, 18, 24, 0.85);
+  --border-color: #1a1a24;
+  
+  /* Neon Colors */
+  --neon-green: #00ff66;
+  --neon-cyan: #00e5ff;
+  --neon-gold: #ffb300;
+  --neon-red: #ff3b30;
+  --neon-purple: #bf5af2;
+  --text-muted: #8e8e93;
+  --text-main: #ffffff;
+  
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-sans: 'Outfit', sans-serif;
+  
+  --neon-glow-green: 0 0 8px rgba(0, 255, 102, 0.4);
+  --neon-glow-cyan: 0 0 8px rgba(0, 229, 255, 0.4);
+  --neon-glow-gold: 0 0 8px rgba(255, 179, 0, 0.4);
+  --neon-glow-red: 0 0 8px rgba(255, 59, 48, 0.4);
+}
+
