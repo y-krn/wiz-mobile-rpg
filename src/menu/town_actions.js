@@ -3,9 +3,9 @@ import { playSound } from "../audio.js";
 import { updateUI, openArchivesOverlay, openContractsOverlay, openWarehouseOverlay } from "../ui.js";
 import { openSubmenu } from "../navigation.js";
 import { generateContractsList } from "../contracts.js";
-import { getCharMaxHp, getCharMaxMp, getItemBaseId, getItemData, getClassJpName } from "../data.js";
+import { getCharMaxHp, getCharMaxMp, getItemBaseId, getItemData } from "../data.js";
 import { renderMaterialsHUD } from "./materials_hud.js";
-import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, executeDismantle, getDismantleResults } from "../craft.js";
+import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, executeDismantle, getDismantleResults, INSCRIPTION_RECIPES, executeInscription } from "../craft.js";
 
 import { openEquipOverlay } from "../equip.js";
 
@@ -60,12 +60,12 @@ export function handleTownOption(option) {
 }
 
 export function renderTempleMain(optGrid) {
-  state.party.forEach((char, idx) => {
+  state.party.forEach((char) => {
     const btn = document.createElement("button");
     btn.className = "btn btn-neon btn-block";
     
     let price = 0;
-    let text = "";
+    let text;
     if (char.status === "dead") {
       price = char.level * 50;
       text = `蘇生する (${price}G)`;
@@ -110,6 +110,14 @@ export function renderCraftMain(optGrid) {
   });
   optGrid.appendChild(btnEnhance);
 
+  const btnInscription = document.createElement("button");
+  btnInscription.className = "btn btn-neon btn-block";
+  btnInscription.textContent = "✨ 刻印する";
+  btnInscription.addEventListener("click", () => {
+    openSubmenu("craft_inscription_select_equip", "工房 - 刻印する装備の選択：");
+  });
+  optGrid.appendChild(btnInscription);
+
   const btnDismantle = document.createElement("button");
   btnDismantle.className = "btn btn-neon btn-block";
   btnDismantle.textContent = "🔮 不要装備を分解する";
@@ -117,6 +125,162 @@ export function renderCraftMain(optGrid) {
     openSubmenu("craft_dismantle", "工房 - 不要装備の分解：");
   });
   optGrid.appendChild(btnDismantle);
+}
+
+let selectedInscriptionEquipIdx = -1;
+
+export function renderCraftInscriptionSelectEquip(optGrid) {
+  renderMaterialsHUD(optGrid);
+
+  let equipCount = 0;
+  state.inventory.forEach((itemKey, idx) => {
+    const item = getItemData(itemKey);
+    if (!item || !["weapon", "shield", "armor"].includes(item.type)) return;
+
+    equipCount++;
+    const container = document.createElement("div");
+    container.style.gridColumn = "span 2";
+    container.style.border = "1px solid #333";
+    container.style.padding = "6px 8px";
+    container.style.borderRadius = "4px";
+    container.style.display = "flex";
+    container.style.justifyContent = "space-between";
+    container.style.alignItems = "center";
+    container.style.background = "rgba(0,0,0,0.2)";
+    container.style.marginBottom = "4px";
+
+    const info = document.createElement("div");
+    info.style.fontFamily = "var(--font-mono)";
+    info.style.fontSize = "11px";
+    
+    // 未鑑定は刻印不可、刻印済みも1つまでなので不可
+    const isUnidentified = typeof itemKey === "object" && itemKey.identified === false;
+    const isAlreadyInscribed = typeof itemKey === "object" && !!itemKey.inscription;
+
+    let statusText = "";
+    if (isUnidentified) {
+      statusText = " [未鑑定]";
+    } else if (isAlreadyInscribed) {
+      statusText = " [刻印済み]";
+    }
+
+    info.innerHTML = `<strong style="color:#fff">${item.name}</strong><br>
+      <span style="color:var(--text-muted)">${item.desc.split("[")[0]}${statusText}</span>`;
+    container.appendChild(info);
+
+    const btn = document.createElement("button");
+    btn.className = "btn btn-neon";
+    btn.textContent = "選択";
+    btn.style.minHeight = "44px";
+    btn.style.width = "80px";
+
+    if (isUnidentified || isAlreadyInscribed) {
+      btn.disabled = true;
+      btn.classList.add("disabled");
+    } else {
+      btn.addEventListener("click", () => {
+        selectedInscriptionEquipIdx = idx;
+        openSubmenu("craft_inscription_select_engrave", "工房 - 刻印の選択：");
+      });
+    }
+    container.appendChild(btn);
+    optGrid.appendChild(container);
+  });
+
+  if (equipCount === 0) {
+    const emptyMsg = document.createElement("div");
+    emptyMsg.style.gridColumn = "span 2";
+    emptyMsg.style.textAlign = "center";
+    emptyMsg.style.color = "var(--text-muted)";
+    emptyMsg.style.fontSize = "11px";
+    emptyMsg.style.padding = "20px";
+    emptyMsg.textContent = "刻印可能な装備品がバッグにありません。";
+    optGrid.appendChild(emptyMsg);
+  }
+}
+
+export function renderCraftInscriptionSelectEngrave(optGrid) {
+  renderMaterialsHUD(optGrid);
+
+  const eqItem = state.inventory[selectedInscriptionEquipIdx];
+  const item = getItemData(eqItem);
+  if (!item) {
+    const emptyMsg = document.createElement("div");
+    emptyMsg.style.gridColumn = "span 2";
+    emptyMsg.style.textAlign = "center";
+    emptyMsg.style.color = "var(--text-muted)";
+    emptyMsg.style.fontSize = "11px";
+    emptyMsg.style.padding = "20px";
+    emptyMsg.textContent = "選択された装備が見つかりません。";
+    optGrid.appendChild(emptyMsg);
+    return;
+  }
+
+  // 選択中の装備情報を一番上に表示する
+  const header = document.createElement("div");
+  header.style.gridColumn = "span 2";
+  header.style.border = "1px solid var(--neon-blue)";
+  header.style.padding = "6px 8px";
+  header.style.borderRadius = "4px";
+  header.style.background = "rgba(0,170,255,0.05)";
+  header.style.marginBottom = "8px";
+  header.style.fontFamily = "var(--font-mono)";
+  header.style.fontSize = "11px";
+  header.innerHTML = `対象: <strong style="color:var(--neon-blue)">${item.name}</strong>`;
+  optGrid.appendChild(header);
+
+  INSCRIPTION_RECIPES.forEach(recipe => {
+    const container = document.createElement("div");
+    container.style.gridColumn = "span 2";
+    container.style.border = "1px solid #333";
+    container.style.padding = "6px 8px";
+    container.style.borderRadius = "4px";
+    container.style.display = "flex";
+    container.style.justifyContent = "space-between";
+    container.style.alignItems = "center";
+    container.style.background = "rgba(0,0,0,0.2)";
+    container.style.marginBottom = "4px";
+
+    const info = document.createElement("div");
+    info.style.fontFamily = "var(--font-mono)";
+    info.style.fontSize = "11px";
+
+    const matsReq = Object.entries(recipe.mats).map(([m, reqQty]) => {
+      const curQty = state.materials[m] || 0;
+      const color = curQty >= reqQty ? "var(--neon-green)" : "var(--neon-red)";
+      return `<span style="color:${color}">${m} ${curQty}/${reqQty}</span>`;
+    }).join(", ");
+    const goldColor = state.gold >= recipe.gold ? "#fff" : "var(--neon-red)";
+
+    info.innerHTML = `<strong style="color:#fff">${recipe.name} (${recipe.desc})</strong><br>
+      <span style="color:var(--text-muted)">必要: ${matsReq} / <span style="color:${goldColor}">${recipe.gold}G</span></span>`;
+    container.appendChild(info);
+
+    const btn = document.createElement("button");
+    btn.className = "btn btn-neon";
+    btn.textContent = "刻印";
+    btn.style.minHeight = "44px";
+    btn.style.width = "80px";
+
+    let canEngrave = state.gold >= recipe.gold;
+    for (const [m, reqQty] of Object.entries(recipe.mats)) {
+      if ((state.materials[m] || 0) < reqQty) canEngrave = false;
+    }
+
+    if (!canEngrave) {
+      btn.disabled = true;
+      btn.classList.add("disabled");
+    } else {
+      btn.addEventListener("click", () => {
+        if (executeInscription(selectedInscriptionEquipIdx, recipe.id)) {
+          openSubmenu("craft_inscription_select_equip", "工房 - 刻印する装備の選択：", true);
+        }
+      });
+    }
+
+    container.appendChild(btn);
+    optGrid.appendChild(container);
+  });
 }
 
 export function renderCraftRecipes(optGrid) {

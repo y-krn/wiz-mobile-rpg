@@ -2,7 +2,6 @@ import { state, saveAutosave, addLog } from "./state.js";
 import {
   getClassJpName,
   getCharMaxHp,
-  getCharMaxMp,
   getItemData,
   getCharDerivedStats
 } from "./data.js";

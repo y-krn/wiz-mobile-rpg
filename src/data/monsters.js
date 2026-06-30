@@ -56,7 +56,7 @@ export const MONSTERS = [
   { name: "祈祷ゴブリン", level: 2, hp: 36, atk: 4, def: 2, exp: 190, gold: 25, spriteType: "orc", spell: "DIOS", spellChance: 0.35, row: "back", color: "#34c759" },
   { name: "マナドレイン", level: 2, hp: 36, atk: 4, def: 2, exp: 180, gold: 22, spriteType: "spirit", traits: ["drainMp", "targetBackRow"], traitChance: 0.35, isSniper: true, row: "back", color: "#00e5ff" },
   { name: "煙幕盗賊", level: 2, hp: 36, atk: 7, def: 2, exp: 210, gold: 35, spriteType: "kobold", isBlinding: true, statusChance: 0.25, row: "back", color: "#8e8e93" },
-  { name: "霧 of 亡霊", name: "霧の亡霊", level: 3, hp: 44, atk: 7, def: 2, exp: 320, gold: 35, spriteType: "spirit", physResist: 0.3, magicResist: -0.3, tags: ["undead", "spirit"], color: "#00e5ff" },
+  { name: "霧の亡霊", level: 3, hp: 44, atk: 7, def: 2, exp: 320, gold: 35, spriteType: "spirit", physResist: 0.3, magicResist: -0.3, tags: ["undead", "spirit"], color: "#00e5ff" },
   { name: "魔封じの目玉", level: 3, hp: 48, atk: 6, def: 2, exp: 360, gold: 45, spriteType: "wisp", traits: ["silence", "targetBackRow"], traitChance: 0.35, row: "back", color: "#ffcc00" },
   { name: "骨の鼓手", level: 3, hp: 48, atk: 5, def: 3, exp: 380, gold: 50, spriteType: "skeleton", traits: ["buffAtk"], traitChance: 0.35, buffValue: 3, tags: ["undead"], row: "back", color: "#dcdcdc" },
   { name: "弱体の魔女", level: 3, hp: 52, atk: 6, def: 3, exp: 420, gold: 60, spriteType: "mage", traits: ["debuffMagicDef"], traitChance: 0.3, row: "back", color: "#da70d6" },

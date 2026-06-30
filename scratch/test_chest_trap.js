@@ -8,7 +8,7 @@ global.localStorage = {
 // Simple DOM Mock
 const createdElements = [];
 global.document = {
-  getElementById: (id) => {
+  getElementById: () => {
     return {
       textContent: "",
       innerHTML: "",
@@ -51,7 +51,7 @@ global.document = {
     createdElements.push(el);
     return el;
   },
-  querySelector: (sel) => {
+  querySelector: () => {
     return {
       setAttribute: () => {},
       removeAttribute: () => {},
@@ -64,7 +64,7 @@ global.document = {
       }
     };
   },
-  querySelectorAll: (sel) => {
+  querySelectorAll: () => {
     return [];
   }
 };
@@ -75,7 +75,7 @@ global.window = {
 
 // Delayed dynamic imports to ensure global mocks are set up first
 const { state, initNewGame } = await import("../src/state.js");
-const { setupChestState, openChestMenu } = await import("../src/chest.js");
+const { setupChestState } = await import("../src/chest.js");
 import assert from "assert";
 
 console.log("Starting Chest Trap Inspect Verification Tests...");

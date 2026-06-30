@@ -165,7 +165,7 @@ function checkSensoryAura() {
   if (minDistBoss <= 3 && nearestBoss) {
     const dy = nearestBoss.y - py;
     const dx = nearestBoss.x - px;
-    let dirStr = "";
+    let dirStr;
     if (Math.abs(dy) > Math.abs(dx)) {
       dirStr = dy < 0 ? "北" : "南";
     } else {
@@ -595,7 +595,7 @@ export function moveRoamingMonsters() {
 
     if (neighbors.length === 0) return; // No move possible
 
-    let chosen = null;
+    let chosen;
     if (isChase) {
       // Pick neighbor that minimizes distance to player
       let minDist = 999;

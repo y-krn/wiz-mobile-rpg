@@ -1,6 +1,5 @@
 import { state } from "./state.js";
 import { getClassJpName, isSpellcaster, SPELLS } from "./data.js";
-import { updateUI } from "./ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { executeAllySpell, executeUtilitySpell } from "./menu.js";
 
@@ -391,7 +390,7 @@ export function renderSpellOverlay() {
         });
       }
 
-      let statusColor = "var(--text-muted)";
+      let statusColor;
       if (isRecommended) {
         statusColor = "var(--neon-green)";
       } else if (isDisabled) {

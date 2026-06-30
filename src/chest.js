@@ -3,7 +3,7 @@ import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRa
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
-import { menuContext, openSubmenu, goBackSubmenu, closeSubmenu, resetSubmenuBackButton } from "./navigation.js";
+import { menuContext, openSubmenu, resetSubmenuBackButton } from "./navigation.js";
 import { triggerGameOver } from "./combat.js";
 import { createRng } from "./seed_rng.js";
 
@@ -22,7 +22,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
   const rng = customRng || (state.seed ? createRng(chestSeed) : Math.random);
 
   // Traps are floor dependent
-  let trap = "none";
+  let trap;
   if (forcedTrap !== null) {
     trap = forcedTrap;
   } else if (state.floor === 1) {
@@ -48,7 +48,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
   }
 
   // Gold reward scale by floor (reduced)
-  let gold = 0;
+  let gold;
   if (forcedGold !== null) {
     gold = forcedGold;
   } else {
@@ -125,7 +125,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
         if (item) {
           const itemData = ITEMS[item];
           if (itemData && (itemData.type === "weapon" || itemData.type === "armor" || itemData.type === "shield")) {
-            let randChance = 0.50;
+            let randChance;
             if (state.floor === 4) {
               const isDangerousTrap = ["poison needle", "gas bomb", "teleporter"].includes(trap);
               randChance = isDangerousTrap ? 0.80 : 0.70;
@@ -267,7 +267,7 @@ export function openChestMenu() {
   }
 
   // 2. Inspection result
-  let inspectText = "";
+  let inspectText;
   if (!state.chestState.inspected) {
     inspectText = `<span style="color:var(--text-muted)">推定罠: 未調査</span>`;
   } else {

@@ -29,12 +29,17 @@ export function getCharAffixSum(char, affixType) {
   Object.values(char.equipment).forEach(eqKey => {
     if (!eqKey) return;
     if (typeof eqKey === "object") {
-      if (eqKey.identified && eqKey.affixes) {
-        eqKey.affixes.forEach(aff => {
-          if (aff.type === affixType) {
-            sum += aff.value;
-          }
-        });
+      if (eqKey.identified) {
+        if (eqKey.affixes) {
+          eqKey.affixes.forEach(aff => {
+            if (aff.type === affixType) {
+              sum += aff.value;
+            }
+          });
+        }
+        if (eqKey.inscription && eqKey.inscription.type === affixType) {
+          sum += eqKey.inscription.value;
+        }
       }
     }
   });
@@ -134,7 +139,8 @@ export function getItemData(itemOrKey) {
         antiDragon: "竜殺し",
         spellGuard: "魔除け",
         poisonWard: "毒避け",
-        firstStrike: "先制"
+        firstStrike: "先制",
+        antiDemon: "悪魔祓い"
       };
       const hintAffix = itemOrKey.affixes?.find(aff => hintLabels[aff.type]);
       const hintText = hintAffix ? ` 気配: ${hintLabels[hintAffix.type]}。` : "";
@@ -219,6 +225,9 @@ export function getItemData(itemOrKey) {
     if (enhanceLevel > 0) {
       name = `${name}+${enhanceLevel}`;
     }
+    if (itemOrKey.inscription) {
+      name = `${name} [${itemOrKey.inscription.name}]`;
+    }
     
     let affixDesc = itemOrKey.affixes.map(aff => {
       const label = {
@@ -242,14 +251,26 @@ export function getItemData(itemOrKey) {
         antiDragon: "竜殺し",
         spellGuard: "魔除け",
         poisonWard: "毒避け",
-        firstStrike: "先制"
+        firstStrike: "先制",
+        antiDemon: "悪魔対策"
       }[aff.type];
       const sign = aff.value >= 0 ? "+" : "";
-      const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard"].includes(aff.type) ? "%" : "";
+      const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "antiDemon"].includes(aff.type) ? "%" : "";
       return `${label || aff.type}${sign}${aff.value}${unit}`;
     }).join(" / ");
     
     let desc = `${base.desc} [${affixDesc}]`;
+    if (itemOrKey.inscription) {
+      const ins = itemOrKey.inscription;
+      const label = {
+        poisonWard: "毒避け",
+        antiUndead: "不死特効",
+        spellGuard: "魔除け",
+        antiDemon: "悪魔対策",
+        antiDragon: "竜特効"
+      }[ins.type] || ins.type;
+      desc += ` <刻印: ${ins.name} (${label}+${ins.value}%)>`;
+    }
     if (itemOrKey.rarity) {
       const rarityLabel = {
         magic: "Magic",

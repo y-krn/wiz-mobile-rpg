@@ -7,7 +7,6 @@ global.localStorage = {
 
 import assert from "assert";
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
-import { SPELLS } from "../src/data.js";
 
 // Helper to create basic party and monster state
 function createTestState() {

@@ -1,7 +1,5 @@
 import { state, initNewGame, saveAutosave, addLog, EXP_LEVELS, getCharWeaponAtk, getCharDef } from "./state.js";
-import { 
-  SPELLS, getClassJpName, START_X, START_Y, DIR_N 
-} from "./data.js";
+import { SPELLS, getClassJpName } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";

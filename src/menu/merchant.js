@@ -2,7 +2,6 @@ import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem
 import { ITEMS, getItemData, getItemBaseId, generateRandomEquipment } from "../data.js";
 import { playSound } from "../audio.js";
 import { openSubmenu, closeSubmenu } from "../navigation.js";
-import { updateUI } from "../ui.js";
 
 export function generateMerchantStock(floor, inventory) {
   const generated = [];
@@ -28,7 +27,10 @@ export function generateMerchantStock(floor, inventory) {
     choices.push({ type: "ticket", key: "IDENTIFY_TICKET", price: 100, soldOut: false });
 
     const mat = matPool[Math.floor(Math.random() * matPool.length)];
-    choices.push({ type: "material", key: mat, price: 60, soldOut: false });
+    let price = 60;
+    if (mat === "黒角") price = 250;
+    if (mat === "竜鱗") price = 300;
+    choices.push({ type: "material", key: mat, price, soldOut: false });
 
     if (floor >= 4 && !alreadyHasAshes && Math.random() < 0.1) {
       choices.push({ type: "item", key: "SACRED_ASHES", price: ITEMS.SACRED_ASHES.price, soldOut: false });
@@ -97,7 +99,7 @@ export function renderEventMerchantBuy(optGrid) {
     state.activeMerchantStock.forEach(stock => {
       const stockType = stock.type || "item";
       let name = "";
-      let desc = "";
+      let desc;
       
       if (stockType === "ticket") {
         name = "鑑定割引券";

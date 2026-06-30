@@ -44,8 +44,6 @@ Object.defineProperty(global, "navigator", {
 
 (async () => {
   const { state, initNewGame, saveGame, loadGame, recordEquipmentDiscovery, createDefaultCodex } = await import("../src/state.js");
-  const { startCombat } = await import("../src/combat.js");
-  const { setupChestState, executeDisarm } = await import("../src/chest.js");
   const { triggerRunResult } = await import("../src/menu.js");
   const assert = await import("assert");
 

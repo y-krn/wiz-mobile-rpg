@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { ITEMS, getItemData, getItemBaseId } from "../data.js";
+import { ITEMS, getItemData } from "../data.js";
 import { goBackSubmenu } from "../navigation.js";
 import { shopState } from "./shop_state.js";
 import { SHOP_STOCK } from "./shop_stock.js";

@@ -1,5 +1,4 @@
-import { state, saveGame, saveAutosave, addLog } from "../state.js";
-import { getItemBaseId } from "../data.js";
+import { state } from "../state.js";
 import { getIsMuted } from "../audio.js";
 import { menuContext, openSubmenu } from "../navigation.js";
 import { renderEquip } from "../equip.js";

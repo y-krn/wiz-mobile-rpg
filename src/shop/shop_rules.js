@@ -58,6 +58,9 @@ const SYNERGY_AFFIX_LABELS = {
   treasureSense: "探宝適性あり",
   trapBonus: "罠解除適性あり",
   antiUndead: "不死祓い適性あり",
+  antiDemon: "悪魔祓い適性あり",
+  antiDragon: "竜殺し適性あり",
+  spellGuard: "魔除け適性あり",
   poisonWard: "毒避け適性あり",
   firstStrike: "先制適性あり"
 };
@@ -79,6 +82,9 @@ export function getEquipmentPreview(char, eqItem) {
 
   const passive = getClassPassive(char);
   const itemAffixTypes = new Set((eqItem.affixes || []).map(aff => aff.type));
+  if (eqItem.inscription) {
+    itemAffixTypes.add(eqItem.inscription.type);
+  }
   const synergies = Object.keys(passive.bonuses)
     .filter(type => itemAffixTypes.has(type) && SYNERGY_AFFIX_LABELS[type])
     .map(type => SYNERGY_AFFIX_LABELS[type]);

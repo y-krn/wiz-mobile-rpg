@@ -99,9 +99,9 @@ export function renderShopDetail() {
               trapBonus: "罠解除率", followUp: "追加攻撃率", arcane: "呪文威力",
               devotion: "回復威力", guardian: "守護", treasureSense: "宝探",
               antiUndead: "不死祓い", antiDragon: "竜殺し", spellGuard: "魔除け",
-              poisonWard: "毒避け", firstStrike: "先制"
+              poisonWard: "毒避け", firstStrike: "先制", antiDemon: "悪魔対策"
             }[aff.type] || aff.type;
-            const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard"].includes(aff.type) ? "%" : "";
+            const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "antiDemon"].includes(aff.type) ? "%" : "";
             return `<div style="font-size: 11px; margin-bottom: 2px;">・${label}: <strong style="color:var(--neon-green)">+${aff.value}${unit}</strong></div>`;
           }).join("");
           
@@ -110,6 +110,28 @@ export function renderShopDetail() {
             <div style="padding: 4px 8px; color: #eee;">${affList}</div>
           `;
           scrollContent.appendChild(affixesDiv);
+        }
+
+        // ✨ 刻印の表示を追加
+        if (eqItem.inscription) {
+          const insDiv = document.createElement("div");
+          insDiv.className = "detail-compat";
+          insDiv.style.marginTop = "6px";
+          insDiv.style.marginBottom = "6px";
+          const inscriptionLabel = {
+            poisonWard: "毒避け",
+            antiUndead: "不死祓い",
+            spellGuard: "魔除け",
+            antiDemon: "悪魔対策",
+            antiDragon: "竜殺し"
+          }[eqItem.inscription.type] || eqItem.inscription.type;
+          insDiv.innerHTML = `
+            <div class="compat-title">✨ 刻印</div>
+            <div style="padding: 4px 8px; color: #eee; font-size: 11px;">
+              ・${eqItem.inscription.name} (${inscriptionLabel}): <strong style="color:var(--neon-green)">+${eqItem.inscription.value}%</strong>
+            </div>
+          `;
+          scrollContent.appendChild(insDiv);
         }
 
         const compatDiv = document.createElement("div");
@@ -233,15 +255,8 @@ export function renderShopDetail() {
       const statsDiv = document.createElement("div");
       statsDiv.className = "detail-stats";
       
-      let statLabel = "";
-      let statVal = 0;
-      if (item.type === "weapon") {
-        statLabel = "攻撃力";
-        statVal = item.atk;
-      } else {
-        statLabel = "防御力";
-        statVal = item.def;
-      }
+      const statLabel = item.type === "weapon" ? "攻撃力" : "防御力";
+      const statVal = item.type === "weapon" ? item.atk : item.def;
 
       statsDiv.innerHTML = `
         <div class="detail-stat-row">
@@ -283,8 +298,8 @@ export function renderShopDetail() {
           const newStat = slot === "weapon" ? item.atk : item.def;
           const diff = newStat - currentStat;
 
-          let diffText = "";
-          let resultClass = "ok";
+          let diffText;
+          let resultClass;
           
           if (diff > 0) {
             diffText = `🔺+${diff} (強化!)`;

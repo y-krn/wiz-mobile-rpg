@@ -245,7 +245,7 @@ export const createDefaultRoster = () => [
 
 export const createDefaultParty = () => [];
 
-export function findSuitableRoamingMonsterStart(mapData, floor) {
+export function findSuitableRoamingMonsterStart(mapData) {
   const grid = mapData.grid;
   let stairsUp = { x: START_X, y: START_Y };
   for (let y = 0; y < MAP_HEIGHT; y++) {

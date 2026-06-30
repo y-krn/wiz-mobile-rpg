@@ -1,6 +1,5 @@
 import {
-  generateRandomEquipment, getItemData, checkCharLevelUp,
-  getItemBaseId
+  generateRandomEquipment, getItemData, checkCharLevelUp
 } from "../data.js";
 import { determineMonsterDrop } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";

@@ -1,11 +1,9 @@
-import { 
-  SPELLS, ITEMS, MONSTERS,
-  generateRandomEquipment, getItemData, getCharStr, getCharAgi, getCharVit,
-  getCharWeaponAtk, getCharDef, checkCharLevelUp,
-  getItemBaseId, getCharAffixSum, isSpecialOrQuestItem
+import {
+  MONSTERS,
+  getCharStr, getCharAgi, getCharVit,
+  getCharWeaponAtk, getCharDef,
+  getCharAffixSum
 } from "../data.js";
-
-import { determineMonsterDrop } from "./drops.js";
 import {
   hasLivingEnemyFrontRow,
   canMeleeTargetEnemy,
@@ -17,15 +15,12 @@ import {
 import {
   getMeleeModifiers,
   getEffectiveDef,
-  getEffectiveMagicResist,
   getEffectiveAtk,
   applyTargetedDamageBonus,
   reduceIncomingDamage,
-  applyPartyDamage,
-  applyMagicResistBuffs
+  applyPartyDamage
 } from "./damage.js";
 import {
-  getBuffTotal,
   addMonsterBuff,
   tickMonsterBuffs
 } from "./status_effects.js";
@@ -165,15 +160,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           isBlindMiss = true;
         }
 
-        let dmg = 0;
-        let msg = "";
-        let floatText = "";
+        let dmg;
+        let msg;
+        let floatText;
         let sound = "hit";
         let shake = 8;
         if (!isBlindMiss && hasTrait(finalTarget, "evasive") && Math.random() < (finalTarget.evasionChance ?? 0.3)) {
           isBlindMiss = true;
-          msg = `[味方] ${char.name}の攻撃！しかし${finalTarget.name}は親指のようにかわした！`;
-          // Note: Text says "霧のように" in original but let's keep original text
           msg = `[味方] ${char.name}の攻撃！しかし${finalTarget.name}は霧のようにかわした！`;
           floatText = "AVOID";
           sound = "miss";
@@ -478,16 +471,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       // Prioritize living and active characters for physical attacks
-      let targetCandidates = [];
-      if (hasTrait(mon, "targetLowHp")) {
-        targetCandidates = getLivingTargetCandidates(state.party, "lowHp");
-      } else if (mon.isSniper || hasTrait(mon, "targetBackRow")) {
-        // Snipe back-row characters (idx 2, 3) who are alive and active
-        targetCandidates = getLivingTargetCandidates(state.party, "back");
-      } else {
-        // Prioritize front-row characters (idx 0, 1)
-        targetCandidates = getLivingTargetCandidates(state.party, "front");
-      }
+      const targetCandidates = hasTrait(mon, "targetLowHp")
+        ? getLivingTargetCandidates(state.party, "lowHp")
+        : (mon.isSniper || hasTrait(mon, "targetBackRow"))
+          ? getLivingTargetCandidates(state.party, "back")
+          : getLivingTargetCandidates(state.party, "front");
 
       if (targetCandidates.length === 0) return;
 
@@ -503,8 +491,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (mon.lahalitoQueued) {
             mon.lahalitoQueued = false;
             logQueue.push({
-              msg: `[ 敵 ] ${mon.name}は激しい炎 of 息（ラハリト）を吹き出した！`,
-              // Note: Original says "激しい炎の息（ラハリト）"
               msg: `[ 敵 ] ${mon.name}は激しい炎の息（ラハリト）を吹き出した！`,
               sound: "cast_spell",
               shake: 15,

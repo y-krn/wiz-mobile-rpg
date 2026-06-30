@@ -3,18 +3,19 @@ import { openSubmenu, setRenderSubmenuCallback } from "../navigation.js";
 import { renderShop } from "../shop/shop_view.js";
 import { shopState } from "../shop/shop_state.js";
 import { renderTraining } from "../training.js";
-import { renderMaterialsHUD } from "./materials_hud.js";
 import { renderEventMerchant, renderEventMerchantBuy } from "./merchant.js";
-import { renderTempleMain, renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftDismantle } from "./town_actions.js";
+import { renderTempleMain, renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftDismantle, renderCraftInscriptionSelectEquip, renderCraftInscriptionSelectEngrave } from "./town_actions.js";
 import { renderItemUserSelect, renderItemInventory, renderItemAction, renderCampMain, renderGameOverMain, renderEnterDungeonSelect, renderCampStatus, renderEventSpring, renderEventTablet, renderChestDisarmerSelect } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 
 const SUBMENU_RENDERERS = {
-  chest_menu: (optGrid) => openChestMenu(),
+  chest_menu: () => openChestMenu(),
   craft_main: (optGrid) => renderCraftMain(optGrid),
   craft_recipes: (optGrid) => renderCraftRecipes(optGrid),
   craft_enhance: (optGrid) => renderCraftEnhance(optGrid),
   craft_dismantle: (optGrid) => renderCraftDismantle(optGrid),
+  craft_inscription_select_equip: (optGrid) => renderCraftInscriptionSelectEquip(optGrid),
+  craft_inscription_select_engrave: (optGrid) => renderCraftInscriptionSelectEngrave(optGrid),
   item_user_select: (optGrid) => renderItemUserSelect(optGrid),
   item_inventory: (optGrid) => renderItemInventory(optGrid),
   item_action: (optGrid) => renderItemAction(optGrid),
@@ -43,10 +44,10 @@ const SUBMENU_RENDERERS = {
     shopState.lastAppraised = null;
     renderShop();
   },
-  shop_buy: (optGrid) => {
+  shop_buy: () => {
     openSubmenu("shop_main", "ボルタック商店");
   },
-  shop_sell: (optGrid) => {
+  shop_sell: () => {
     openSubmenu("shop_main", "ボルタック商店");
   },
   temple_main: (optGrid) => renderTempleMain(optGrid),

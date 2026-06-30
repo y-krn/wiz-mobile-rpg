@@ -2,7 +2,7 @@ import { state, initNewGame, loadGame, saveAutosave, addLog } from "../state.js"
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, getCharMaxHp, getCharMaxMp, EXP_LEVELS } from "../data.js";
+import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, EXP_LEVELS } from "../data.js";
 import { triggerRunResult } from "../result.js";
 import { checkCellEvents, executeEnterDungeon } from "../movement.js";
 import { triggerGameOver } from "../combat.js";
@@ -400,7 +400,7 @@ export function renderEventTablet(optGrid) {
 }
 
 export function renderChestDisarmerSelect(optGrid) {
-  state.party.forEach((char, idx) => {
+  state.party.forEach((char) => {
     const btn = document.createElement("button");
     btn.className = "btn btn-neon btn-block";
     

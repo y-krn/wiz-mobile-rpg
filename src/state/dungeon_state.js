@@ -195,8 +195,8 @@ export function calculateSeedProperties() {
 
   const finalScore = Math.round(distScore + trapScore + themeScore + springScore);
   
-  let rank = "C";
-  let label = "中危険度";
+  let rank;
+  let label;
   if (finalScore >= 70) {
     rank = "S";
     label = "極限の魔城";

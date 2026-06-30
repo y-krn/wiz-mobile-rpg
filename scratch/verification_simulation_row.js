@@ -1,4 +1,3 @@
-import { SPELLS, ITEMS, MONSTERS } from '/Users/ottan/.gemini/antigravity/scratch/wiz-mobile-rpg/src/data.js';
 import { runCombatRoundCalculation } from '/Users/ottan/.gemini/antigravity/scratch/wiz-mobile-rpg/src/combat_logic.js';
 import { createDefaultRoster } from '/Users/ottan/.gemini/antigravity/scratch/wiz-mobile-rpg/src/state.js';
 import assert from 'assert';

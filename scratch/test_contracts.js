@@ -43,7 +43,7 @@ Object.defineProperty(global, "navigator", {
 });
 
 (async () => {
-  const { state, initNewGame, saveGame, loadGame } = await import("../src/state.js");
+  const { state, initNewGame } = await import("../src/state.js");
   const { 
     generateContractsList, 
     getMonsterContractInfo, 

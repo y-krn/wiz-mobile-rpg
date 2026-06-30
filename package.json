@@ -8,12 +8,15 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "npm run test:unit && npm run test:browser",
-    "test:unit": "node scratch/test_seed.js && node scratch/test_codex.js && node scratch/test_contracts.js && node scratch/test_combat_inventory.js && node scratch/test_map_reachability.js && node scratch/test_combat_paralyze.js && node scratch/test_special_items.js && node scratch/test_chest_trap.js && node scratch/test_merchant_floors.js && node scratch/test_lahalito_counter.js && node scratch/test_dismantle.js && node scratch/test_chest_guarantee.js",
+    "test:unit": "node scratch/test_seed.js && node scratch/test_codex.js && node scratch/test_contracts.js && node scratch/test_combat_inventory.js && node scratch/test_map_reachability.js && node scratch/test_combat_paralyze.js && node scratch/test_special_items.js && node scratch/test_chest_trap.js && node scratch/test_merchant_floors.js && node scratch/test_lahalito_counter.js && node scratch/test_dismantle.js && node scratch/test_chest_guarantee.js && node scratch/test_inscription.js",
     "test:browser": "playwright test",
-    "lint": "eslint src"
+    "lint": "eslint ."
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.0",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0",
     "vite": "^8.0.12"
   }
 }

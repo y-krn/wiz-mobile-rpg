@@ -1,5 +1,5 @@
 import { getSpellStatBonus } from "../rules/spell_rules.js";
-import { getCharInt, getCharPie, getCharMaxHp, getCharMaxMp } from "../rules/character_stats.js";
+import { getCharInt, getCharPie, getCharMaxHp } from "../rules/character_stats.js";
 import { getCharAffixSum, getEffectiveHealAmount } from "../rules/item_rules.js";
 import { DIR_NAMES } from "../constants/directions.js";
 import { EVENT_TYPES } from "../constants/events.js";

@@ -6,8 +6,8 @@ export function determineMonsterDrop(monster, floor, rng = Math.random) {
   const isBoss = monster.isBoss || false;
   const isPoisonous = monster.isPoisonous || false;
 
-  let main = "";
-  let sub = "";
+  let main;
+  let sub;
   
   if (tags.includes("dragon") || spriteType === "dragon") {
     main = "竜鱗";

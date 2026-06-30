@@ -36,23 +36,23 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
 
     const hpPct = mon.hp / mon.maxHp;
     const r = Math.random();
-    let action = "attack";
-    
-    if (hpPct <= 0.25) {
-      if (r < 0.10) action = "flee";
-      else if (r < 0.20) action = "suicide";
-      else if (r < 0.60) action = "lahalito";
-      else if (r < 0.90) action = "attack";
-      else action = "gaze";
-    } else if (hpPct <= 0.50) {
-      if (r < 0.40) action = "lahalito";
-      else if (r < 0.90) action = "attack";
-      else action = "gaze";
-    } else {
-      if (r < 0.70) action = "attack";
-      else if (r < 0.90) action = "lahalito";
-      else action = "gaze";
-    }
+    let action = (() => {
+      if (hpPct <= 0.25) {
+        if (r < 0.10) return "flee";
+        if (r < 0.20) return "suicide";
+        if (r < 0.60) return "lahalito";
+        if (r < 0.90) return "attack";
+        return "gaze";
+      }
+      if (hpPct <= 0.50) {
+        if (r < 0.40) return "lahalito";
+        if (r < 0.90) return "attack";
+        return "gaze";
+      }
+      if (r < 0.70) return "attack";
+      if (r < 0.90) return "lahalito";
+      return "gaze";
+    })();
 
     if (isSilenced && action === "lahalito") {
       action = "attack";
@@ -163,15 +163,10 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     mon.turnCount = mon.turnCount || 0;
     const currentTurn = mon.turnCount % 4;
     let action = "attack";
-
-    if (currentTurn === 0) {
-      action = "attack";
-    } else if (currentTurn === 1) {
+    if (currentTurn === 1) {
       action = Math.random() < 0.5 ? "breath" : "madalto";
     } else if (currentTurn === 2) {
       action = "tiltowait_queue";
-    } else {
-      action = "attack"; // Fallback
     }
 
     mon.turnCount++;

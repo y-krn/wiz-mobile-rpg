@@ -181,7 +181,7 @@ export function renderResultScreen() {
     const resTitle = cr.success ? "🎉 探索契約 達成！" : "❌ 探索契約 未達成";
     const statusColor = cr.success ? "var(--neon-green)" : "var(--neon-red)";
     
-    let rewardText = "";
+    let rewardText;
     if (cr.success) {
       const tickets = cr.contract.reward.identifyTickets > 0 ? ` / 鑑定割引券: ${cr.contract.reward.identifyTickets}枚` : "";
       rewardText = `獲得：${cr.contract.reward.gold} G${tickets}`;

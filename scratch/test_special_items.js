@@ -7,8 +7,6 @@ global.localStorage = {
 
 import assert from "assert";
 import { ITEMS, getCharAffixSum, isSpecialOrQuestItem } from "../src/data.js";
-import { state } from "../src/state.js";
-import { runCombatRoundCalculation } from "../src/combat_logic.js";
 
 // Helper to resolve applyTargetedDamageBonus indirectly via test context or direct calculation
 // Since applyTargetedDamageBonus is a private function in combat_logic.js, we can inspect its effects via runCombatRoundCalculation or write a manual assertion helper mimicking it.

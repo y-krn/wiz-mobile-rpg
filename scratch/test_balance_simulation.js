@@ -106,8 +106,6 @@ function simulateEncounter(monsterTemplate, count, strategy, level = 5) {
   let turns = 0;
   let mpConsumed = 0;
   let totalDmgTaken = 0;
-  let silenceInflicted = 0;
-
   // Track initial HP to calculate damage taken
   const initialHp = party.map(c => c.hp);
 

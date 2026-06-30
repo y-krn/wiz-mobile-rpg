@@ -65,7 +65,7 @@ export function getMonsterCodexDetailHtml(m, record) {
   }
   
   if (kil >= 10) {
-    let note = "特になし";
+    let note;
     if (m.name.includes("ワーウルフ")) {
       note = "毒攻撃の被弾率が高いため、毒避けを持つ前衛を編成するか解毒薬（アンチドート・ラツモフィス）を多めに準備せよ。";
     } else if (m.name.includes("デーモンガード")) {

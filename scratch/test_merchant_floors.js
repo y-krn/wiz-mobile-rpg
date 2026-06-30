@@ -44,7 +44,6 @@ Object.defineProperty(global, "navigator", {
 
 (async () => {
   const { generateMerchantStock } = await import("../src/menu.js");
-  const { ITEMS } = await import("../src/data.js");
   const { state, addInventoryItem, initNewGame } = await import("../src/state.js");
   const { processExplorationResolution } = await import("../src/movement.js");
   const assert = await import("assert");

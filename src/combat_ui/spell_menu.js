@@ -1,5 +1,4 @@
 import { state } from "../state.js";
-import { SPELLS } from "../data.js";
 import { menuContext, openSubmenu } from "../navigation.js";
 import { combatCallbacks } from "./combat_state.js";
 
@@ -38,7 +37,7 @@ export function getSpellCombatSummary(spellName) {
   return summaries[spellName] || { tag: "不明", effect: "", category: "unknown" };
 }
 
-export function isSpellTargetAvailable(spell, caster) {
+export function isSpellTargetAvailable(spell) {
   // 1. 移動用（utility）呪文は戦闘中効果なしのため使用不可（戦闘不可）
   if (spell.target === "utility") return false;
 

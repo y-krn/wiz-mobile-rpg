@@ -101,7 +101,7 @@ export function createRandomContract(danger, stateInstance = state) {
   // 2. Kill Contract
   if (typeRoll < 0.40) {
     // Select monster based on danger
-    let candidates = [];
+    let candidates;
     if (danger === "C") {
       candidates = ["かみつき蟲", "ゴブリンの呪術師", "コボルトの斥候"];
     } else if (danger === "B") {
@@ -244,8 +244,8 @@ export function createRandomContract(danger, stateInstance = state) {
     rewardItem = "rare_equip";
   }
 
-  let desc = "";
-  let recommended = "";
+  let desc;
+  let recommended;
   if (limitType === "trap") {
     const trapLimit = danger === "C" ? 2 : (danger === "B" ? 1 : 0);
     desc = `罠被弾を${trapLimit}回以下に抑えてB${targetFloor}Fに到達し帰還`;

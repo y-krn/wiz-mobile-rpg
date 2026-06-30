@@ -43,8 +43,8 @@ Object.defineProperty(global, "navigator", {
 });
 
 (async () => {
-  const { state, initNewGame, getCharAffixSum } = await import("../src/state.js");
-  const { generateRandomEquipment, getItemData, ITEMS, SPELLS, registerState } = await import("../src/data.js");
+  const { state, initNewGame } = await import("../src/state.js");
+  const { generateRandomEquipment, getItemData, SPELLS, registerState } = await import("../src/data.js");
   const { setupChestState } = await import("../src/chest.js");
   const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
   const assert = await import("assert");
@@ -200,13 +200,11 @@ Object.defineProperty(global, "navigator", {
   const dummyPriest1 = { ...priestCaster, equipment: {} };
   const dummyPriest2 = { ...priestCaster };
   
-  let heal1 = 0;
-  let heal2 = 0;
   const targetChar = { hp: 1, maxHp: 100 };
   const tempRand = Math.random;
   Math.random = () => 0.5;
-  heal1 = SPELLS.DIOS.effect(dummyPriest1, targetChar).heal;
-  heal2 = SPELLS.DIOS.effect(dummyPriest2, targetChar).heal;
+  const heal1 = SPELLS.DIOS.effect(dummyPriest1, targetChar).heal;
+  const heal2 = SPELLS.DIOS.effect(dummyPriest2, targetChar).heal;
   Math.random = tempRand;
   assert.ok(heal2 > heal1, "Devotion caster healing should be greater due to +10% boost");
 

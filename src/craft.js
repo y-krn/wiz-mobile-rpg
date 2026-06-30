@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, addInventoryItem } from "./state.js";
-import { ITEMS, getItemData, getItemBaseId } from "./data.js";
+import { getItemData, getItemBaseId } from "./data.js";
 import { playSound } from "./audio.js";
 
 export const CRAFT_RECIPES = [
@@ -229,6 +229,117 @@ export function executeDismantle(itemIdx) {
 
   playSound("level_up");
   addLog(`[工房] [${itemName}] を分解し、[${gainedMats.join(", ")}] を獲得しました！`);
+  saveAutosave();
+  return true;
+}
+
+export const INSCRIPTION_RECIPES = [
+  {
+    id: "POISON_WARD",
+    name: "毒避刻印",
+    type: "poisonWard",
+    value: 25,
+    mats: { "毒腺": 2, "硬い皮": 2 },
+    gold: 100,
+    desc: "毒耐性+25%"
+  },
+  {
+    id: "ANTI_UNDEAD",
+    name: "不死刻印",
+    type: "antiUndead",
+    value: 20,
+    mats: { "骨片": 2, "霊粉": 1 },
+    gold: 150,
+    desc: "不死特効+20%"
+  },
+  {
+    id: "SPELL_GUARD",
+    name: "魔除刻印",
+    type: "spellGuard",
+    value: 15,
+    mats: { "呪布": 2, "魔石片": 2 },
+    gold: 200,
+    desc: "呪文防御+15%"
+  },
+  {
+    id: "ANTI_DEMON",
+    name: "退魔刻印",
+    type: "antiDemon",
+    value: 20,
+    mats: { "黒角": 2, "魔石片": 2 },
+    gold: 250,
+    desc: "悪魔対策+20%"
+  },
+  {
+    id: "ANTI_DRAGON",
+    name: "竜殺刻印",
+    type: "antiDragon",
+    value: 20,
+    mats: { "竜鱗": 2, "鉄片": 3 },
+    gold: 300,
+    desc: "竜特効+20%"
+  }
+];
+
+export function executeInscription(itemIdx, recipeId) {
+  const eqItem = state.inventory[itemIdx];
+  if (!eqItem) return false;
+
+  const item = getItemData(eqItem);
+  if (!item || !["weapon", "shield", "armor"].includes(item.type)) {
+    addLog("このアイテムには刻印できません。");
+    return false;
+  }
+
+  // 未鑑定装備は刻印不可
+  if (typeof eqItem === "object" && eqItem.identified === false) {
+    addLog("未鑑定の装備には刻印できません。");
+    return false;
+  }
+
+  // すでに刻印されているか
+  if (typeof eqItem === "object" && eqItem.inscription) {
+    addLog("この装備には既に刻印が施されています。");
+    return false;
+  }
+
+  const recipe = INSCRIPTION_RECIPES.find(r => r.id === recipeId);
+  if (!recipe) return false;
+
+  // ゴールドチェック
+  if (state.gold < recipe.gold) {
+    addLog("ゴールドが不足しています。");
+    return false;
+  }
+
+  // 素材チェック
+  for (const [mat, reqQty] of Object.entries(recipe.mats)) {
+    const curQty = state.materials[mat] || 0;
+    if (curQty < reqQty) {
+      addLog(`素材 [${mat}] が不足しています。`);
+      return false;
+    }
+  }
+
+  // 消費
+  state.gold -= recipe.gold;
+  for (const [mat, reqQty] of Object.entries(recipe.mats)) {
+    state.materials[mat] -= reqQty;
+  }
+
+  // 刻印付与
+  const upgradedItem = convertToEquipObject(eqItem);
+  upgradedItem.inscription = {
+    type: recipe.type,
+    value: recipe.value,
+    name: recipe.name
+  };
+
+  // インベントリの更新
+  state.inventory[itemIdx] = upgradedItem;
+
+  playSound("level_up");
+  addLog(`[工房] [${item.name}] に [${recipe.name}] を施しました！`);
   saveAutosave();
   return true;
 }
