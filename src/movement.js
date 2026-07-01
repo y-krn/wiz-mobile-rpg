@@ -2,6 +2,7 @@ import { state, saveAutosave, addLog, createDefaultCurrentRun } from "./state.js
 import { DIR_N, START_X, START_Y, DX, DY, DIR_NAMES, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
+import { checkFloorOmenMessage } from "./systems/omens.js";
 import { updateUI } from "./ui.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
@@ -258,6 +259,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
           floorMsg = `地下4階に戻った。凶悪な強敵の気配が満ちている...`;
         }
         addLog(floorMsg);
+        checkFloorOmenMessage();
         
         state.transitioning = false;
         saveAutosave();
@@ -298,6 +300,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
         floorMsg = `地下5階：竜の領域に降りた。灼熱の熱気と強烈なプレッシャーが肌を刺す！`;
       }
       addLog(floorMsg);
+      checkFloorOmenMessage();
       
       state.transitioning = false;
       saveAutosave();
@@ -531,6 +534,7 @@ export function executeEnterDungeon(floor) {
   state.dir = DIR_N;
   state.visitedMap[state.y][state.x] = true;
   addLog(`地下${state.floor}階の階段から探索を再開した。冷たい石造りの暗闇が迫る...`);
+  checkFloorOmenMessage();
   playSound("move");
   saveAutosave();
   updateUI();

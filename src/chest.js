@@ -1,5 +1,6 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "./state.js";
 import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomEquipment, getCharAffixSum } from "./data.js";
+import { getOmenForFloor, isMatchedTrap, triggerOmenMatch } from "./systems/omens.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
@@ -22,6 +23,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
   const rng = customRng || (state.seed ? createRng(chestSeed) : Math.random);
 
   // Traps are floor dependent
+  const omen = getOmenForFloor(state.seed, state.floor);
   let trap;
   if (forcedTrap !== null) {
     trap = forcedTrap;
@@ -31,6 +33,20 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     else if (r < 0.60) trap = "poison needle";
     else if (r < 0.85) trap = "flash bomb";
     else trap = "gas bomb";
+    
+    if (omen && ["blood_chest", "scorched_floor", "stale_air", "cold_draft"].includes(omen.id)) {
+      if (!isMatchedTrap(omen.id, trap)) {
+        const r2 = rng();
+        let trap2;
+        if (r2 < 0.35) trap2 = "none";
+        else if (r2 < 0.60) trap2 = "poison needle";
+        else if (r2 < 0.85) trap2 = "flash bomb";
+        else trap2 = "gas bomb";
+        if (isMatchedTrap(omen.id, trap2)) {
+          trap = trap2;
+        }
+      }
+    }
   } else {
     let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
     if (state.floor === 2) {
@@ -45,6 +61,16 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     }
     const randIdx = Math.floor(rng() * traps.length);
     trap = traps[randIdx];
+    
+    if (omen && ["blood_chest", "scorched_floor", "stale_air", "cold_draft"].includes(omen.id)) {
+      if (!isMatchedTrap(omen.id, trap)) {
+        const randIdx2 = Math.floor(rng() * traps.length);
+        const trap2 = traps[randIdx2];
+        if (isMatchedTrap(omen.id, trap2)) {
+          trap = trap2;
+        }
+      }
+    }
   }
 
   // Gold reward scale by floor (reduced)
@@ -350,6 +376,10 @@ export function openChestMenu() {
       if (Math.random() < chance) {
         state.chestState.identifiedTrap = state.chestState.trap;
         addLog(`調査結果：[${translateTrap(state.chestState.trap)}]の罠のようだ！`);
+        const omen = getOmenForFloor(state.seed, state.floor);
+        if (omen && isMatchedTrap(omen.id, state.chestState.trap)) {
+          triggerOmenMatch(omen.id);
+        }
       } else {
         // Pick random false trap
         const falseTraps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
@@ -446,8 +476,12 @@ export function executeDisarm(char) {
   state.transitioning = true;
   if (success) {
     addLog(`解除成功！${char.name}は無事に罠を解除した。`);
+    const tKey = state.chestState.trap;
+    const omen = getOmenForFloor(state.seed, state.floor);
+    if (omen && isMatchedTrap(omen.id, tKey)) {
+      triggerOmenMatch(omen.id);
+    }
     if (state.codex && state.codex.events && state.codex.events.traps) {
-      const tKey = state.chestState.trap;
       if (state.codex.events.traps[tKey]) {
         state.codex.events.traps[tKey].disarmed++;
         if (state.codex.events.traps[tKey].firstFloor === 0) {
@@ -477,6 +511,10 @@ export function executeDisarm(char) {
 export function triggerChestTrap(char) {
   if (!state.chestState || state.chestState.trap === "none") return;
   const trap = state.chestState.trap;
+  const omen = getOmenForFloor(state.seed, state.floor);
+  if (omen && isMatchedTrap(omen.id, trap)) {
+    triggerOmenMatch(omen.id);
+  }
   if (state.codex && state.codex.events && state.codex.events.traps) {
     if (state.codex.events.traps[trap]) {
       state.codex.events.traps[trap].triggered++;

@@ -2,6 +2,7 @@ import { state, createDefaultCodex } from "../state.js";
 import { MONSTERS, ITEMS } from "../data.js";
 import { getMonsterContractInfo } from "../contracts.js";
 import { updateUI } from "./ui_root.js";
+import { OMEN_DETAILS } from "../systems/omens.js";
 
 export const archivesState = {
   tab: "monsters",
@@ -139,6 +140,75 @@ export function getEventsCodexHtml() {
       </div>
     `;
   });
+  html += `</div>`;
+  
+  // 予兆セクション
+  html += `<div><div class="archives-section-title">🔮 迷宮の予兆記録</div>`;
+  const omenKeys = Object.keys(ev.omens || {});
+  if (omenKeys.length === 0) {
+    html += `
+      <div style="background-color: #1a1a24; border: 1px dashed #444; padding: 12px; text-align: center; color: var(--text-muted); border-radius: 4px; margin-bottom: 8px;">
+        予兆の記録はまだありません。
+      </div>
+    `;
+  } else {
+    omenKeys.forEach(k => {
+      const record = ev.omens[k] || { count: 0, firstFloor: 0 };
+      const detail = OMEN_DETAILS[k] || { name: k, trend: "不明", counter: "不明" };
+      
+      html += `
+        <div style="background-color: #1a1a24; border: 1px solid #333; padding: 8px; border-radius: 4px; margin-bottom: 6px; display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d2d3a; padding-bottom: 4px; margin-bottom: 2px;">
+            <strong style="color: var(--neon-cyan); font-size: 11px;">${detail.name}</strong>
+            <span style="color: var(--text-muted); font-size: 9px;">発見: ${record.count} 回</span>
+          </div>
+      `;
+      
+      if (record.count === 0) {
+        html += `
+          <div style="color: var(--text-muted); font-size: 10px; font-style: italic;">
+            未発見の予兆
+          </div>
+        `;
+      } else {
+        // Lv1
+        html += `
+          <div style="color: #ddd; font-size: 10px;">
+            B${record.firstFloor}Fで兆候を確認。
+          </div>
+        `;
+        // Lv2
+        if (record.count >= 3) {
+          html += `
+            <div style="color: var(--neon-yellow); font-size: 10px; margin-top: 2px;">
+              <strong>傾向:</strong> ${detail.trend}
+            </div>
+          `;
+        } else {
+          html += `
+            <div style="color: var(--text-muted); font-size: 9px; margin-top: 2px;">
+              [3回発見で傾向解放]
+            </div>
+          `;
+        }
+        // Lv3
+        if (record.count >= 5) {
+          html += `
+            <div style="color: var(--neon-green); font-size: 10px; margin-top: 2px; line-height: 1.3;">
+              <strong>対策:</strong> ${detail.counter}
+            </div>
+          `;
+        } else {
+          html += `
+            <div style="color: var(--text-muted); font-size: 9px; margin-top: 2px;">
+              [5回発見で対策解放]
+            </div>
+          `;
+        }
+      }
+      html += `</div>`;
+    });
+  }
   html += `</div>`;
   
   // 施設セクション

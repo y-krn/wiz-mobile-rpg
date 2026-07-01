@@ -101,9 +101,31 @@ export function migrateSavePayload(data) {
   normalized.firstKills = data.firstKills ?? [];
   normalized.lastReturnedFloor = data.lastReturnedFloor ?? null;
   normalized.currentRun = data.currentRun ?? null;
+  if (normalized.currentRun) {
+    if (!normalized.currentRun.seenOmenFloors) {
+      normalized.currentRun.seenOmenFloors = [];
+    }
+    if (!normalized.currentRun.matchedOmenFloors) {
+      normalized.currentRun.matchedOmenFloors = [];
+    }
+  }
   normalized.runHistory = data.runHistory ?? [];
   normalized.deathLogs = data.deathLogs ?? [];
   normalized.codex = data.codex ?? createDefaultCodex();
+  if (normalized.codex && normalized.codex.events) {
+    if (!normalized.codex.events.omens) {
+      normalized.codex.events.omens = {
+        claw_marks: { count: 0, firstFloor: 0 },
+        scorched_floor: { count: 0, firstFloor: 0 },
+        broken_sigil: { count: 0, firstFloor: 0 },
+        blood_chest: { count: 0, firstFloor: 0 },
+        dry_bell: { count: 0, firstFloor: 0 },
+        stale_air: { count: 0, firstFloor: 0 },
+        cold_draft: { count: 0, firstFloor: 0 },
+        iron_dust: { count: 0, firstFloor: 0 }
+      };
+    }
+  }
   normalized.roamingMonsters = data.roamingMonsters ?? [];
   normalized.firstChestUnidentifiedGuaranteed = data.firstChestUnidentifiedGuaranteed ?? false;
   normalized.roamingMovementStepCount = data.roamingMovementStepCount ?? 0;

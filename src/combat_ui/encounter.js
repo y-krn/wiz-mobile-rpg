@@ -1,4 +1,5 @@
 import { MONSTERS, START_X, START_Y } from "../data.js";
+import { getOmenForFloor, isMatchedMonster, OMEN_EFFECT_LIMITS } from "../systems/omens.js";
 
 export const ENCOUNTER_PACKS = {
   1: [
@@ -104,7 +105,12 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack) {
       targetLevel = dist < 20 ? 6 : 7;
     }
     
-    const rareChance = state.floor === 4 ? 0.18 : 0.08;
+    const omen = getOmenForFloor(state.seed, state.floor);
+    let baseRareChance = state.floor === 4 ? 0.18 : 0.08;
+    if (omen && omen.id === "dry_bell") {
+      baseRareChance = Math.min(0.225, baseRareChance * OMEN_EFFECT_LIMITS.maxWeightMultiplier);
+    }
+    const rareChance = baseRareChance;
     const treasureCandidates = MONSTERS.filter(m => m.treasureRare && m.level <= targetLevel + 1);
     const isTreasureEncounter = (Math.random() < rareChance) && (treasureCandidates.length > 0);
     
@@ -118,7 +124,20 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack) {
       });
     } else {
       const floorPacks = ENCOUNTER_PACKS[state.floor] || ENCOUNTER_PACKS[1];
-      const chosenPack = floorPacks[Math.floor(Math.random() * floorPacks.length)];
+      let chosenPack = floorPacks[Math.floor(Math.random() * floorPacks.length)];
+      
+      if (omen && ["claw_marks", "scorched_floor", "broken_sigil", "stale_air", "cold_draft", "iron_dust"].includes(omen.id)) {
+        const hasMatch = (pack) => pack.members.some(member => {
+          const template = MONSTERS.find(m => m.name === member.name);
+          return template && isMatchedMonster(omen.id, [template]);
+        });
+        if (!hasMatch(chosenPack)) {
+          const rerolledPack = floorPacks[Math.floor(Math.random() * floorPacks.length)];
+          if (hasMatch(rerolledPack)) {
+            chosenPack = rerolledPack;
+          }
+        }
+      }
       
       const tempMonsters = [];
       chosenPack.members.forEach(member => {
