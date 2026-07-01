@@ -51,10 +51,8 @@ export function handleMove(action) {
   
   if (action === "turn-left") {
     state.dir = (state.dir + 3) % 4;
-    addLog(`左を向いた。方角: ${DIR_NAMES[state.dir]}`);
   } else if (action === "turn-right") {
     state.dir = (state.dir + 1) % 4;
-    addLog(`右を向いた。方角: ${DIR_NAMES[state.dir]}`);
   } else if (action === "forward") {
     const currentCell = state.map[state.y][state.x];
     if (currentCell.walls[state.dir]) {
@@ -74,7 +72,6 @@ export function handleMove(action) {
       
       // Mark as visited
       state.visitedMap[state.y][state.x] = true;
-      addLog(`一歩進んだ。現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}`);
 
       processExplorationResolution(prevX, prevY);
     }
@@ -93,7 +90,6 @@ export function handleMove(action) {
       }
       tickExplorationSpellEffects();
       state.visitedMap[state.y][state.x] = true;
-      addLog(`一歩下がった。現在位置: 地下${state.floor}階 X:${state.x}, Y:${state.y}`);
       
       processExplorationResolution(prevX, prevY);
     }
