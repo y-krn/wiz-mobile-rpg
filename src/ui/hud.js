@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { isSpellcaster, getCharMaxHp, getCharMaxMp } from "../data.js";
+import { isSpellcaster, getCharMaxHp, getCharMaxMp, getActiveSynergies } from "../data.js";
 import { menuContext, openSubmenu } from "../navigation.js";
 import { combatSelection } from "../combat.js";
 
@@ -7,6 +7,35 @@ export function updatePartyHUD() {
   const grid = document.getElementById("party-grid");
   if (!grid) return;
   grid.innerHTML = "";
+
+  // 反応中のシナジー表示
+  let synergyBanner = document.getElementById("party-synergy-banner");
+  if (!synergyBanner) {
+    synergyBanner = document.createElement("div");
+    synergyBanner.id = "party-synergy-banner";
+    synergyBanner.style.fontFamily = "var(--font-mono)";
+    synergyBanner.style.fontSize = "9px";
+    synergyBanner.style.color = "var(--neon-green)";
+    synergyBanner.style.padding = "4px 8px";
+    synergyBanner.style.borderBottom = "1px solid #222";
+    synergyBanner.style.background = "rgba(0, 255, 102, 0.02)";
+    synergyBanner.style.textAlign = "center";
+    synergyBanner.style.display = "none";
+    
+    const partyPanel = document.getElementById("party-panel");
+    if (partyPanel) {
+      partyPanel.insertBefore(synergyBanner, grid);
+    }
+  }
+
+  const activeSyns = getActiveSynergies(state.party);
+  if (activeSyns.length > 0) {
+    const names = activeSyns.map(s => s.name).join(", ");
+    synergyBanner.textContent = `反応中: ${names}`;
+    synergyBanner.style.display = "block";
+  } else {
+    synergyBanner.style.display = "none";
+  }
   const selectingChar = state.gameState === "combat" && state.combatState?.phase === "choose_actions"
     ? state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status))[combatSelection.charIdx]
     : null;

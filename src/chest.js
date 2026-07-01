@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "./state.js";
-import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomEquipment, getCharAffixSum } from "./data.js";
+import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomEquipment, getCharAffixSum, getActiveSynergies, recordSynergyDiscovery } from "./data.js";
 import { getOmenForFloor, isMatchedTrap, triggerOmenMatch } from "./systems/omens.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -461,6 +461,17 @@ export function openChestMenu() {
 
 
 export function executeDisarm(char) {
+  // 罠解除時のシナジーログ
+  const activeSyns = getActiveSynergies(state.party);
+  const poisonThief = activeSyns.find(s => s.id === "poison_thief");
+  if (poisonThief && state.chestState && state.chestState.trap !== "none" && state.chestState.trap !== "") {
+    const isNew = !state.codex.synergies || !state.codex.synergies[poisonThief.id];
+    recordSynergyDiscovery(poisonThief.id);
+    if (isNew || Math.random() < 0.5) {
+      addLog(poisonThief.log);
+    }
+  }
+
   let chance = 0.25;
   if (char.class === "Thief") {
     chance = 0.85;

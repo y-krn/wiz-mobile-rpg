@@ -8,6 +8,8 @@ export * from "./rules/item_rules.js";
 export * from "./rules/character_stats.js";
 export * from "./rules/spell_rules.js";
 export * from "./systems/leveling.js";
+export * from "./data/tags.js";
+
 
 // Re-export constants/data with wrapper compatibility
 import { ITEMS as STATIC_ITEMS } from "./data/items.js";

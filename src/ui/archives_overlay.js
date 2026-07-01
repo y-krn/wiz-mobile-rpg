@@ -1,5 +1,5 @@
 import { state, createDefaultCodex } from "../state.js";
-import { MONSTERS, ITEMS } from "../data.js";
+import { MONSTERS, ITEMS, SYNERGIES, TAG_EFFECT_MAP } from "../data.js";
 import { getMonsterContractInfo } from "../contracts.js";
 import { updateUI } from "./ui_root.js";
 import { OMEN_DETAILS } from "../systems/omens.js";
@@ -481,6 +481,73 @@ export function renderArchives() {
     const container = document.createElement("div");
     container.innerHTML = getDeathLogsHtml();
     body.appendChild(container);
+  } else if (archivesState.tab === "synergy") {
+    const container = document.createElement("div");
+    container.className = "archives-synergy-container";
+    container.style.fontFamily = "var(--font-mono)";
+    container.style.fontSize = "11px";
+    container.style.color = "#fff";
+    container.style.padding = "8px";
+
+    const title = document.createElement("div");
+    title.className = "archives-section-title";
+    title.textContent = "✨ 発見済みの相性・シナジー";
+    title.style.marginBottom = "8px";
+    container.appendChild(title);
+
+    const list = document.createElement("div");
+    list.style.display = "flex";
+    list.style.flexDirection = "column";
+    list.style.gap = "6px";
+
+    const discoveredCount = state.codex.synergies ? Object.keys(state.codex.synergies).length : 0;
+    const totalCount = Object.keys(SYNERGIES).length;
+
+    const stats = document.createElement("div");
+    stats.style.color = "var(--text-muted)";
+    stats.style.marginBottom = "8px";
+    stats.textContent = `発見数: ${discoveredCount} / ${totalCount}`;
+    container.appendChild(stats);
+
+    if (discoveredCount === 0) {
+      const empty = document.createElement("div");
+      empty.style.color = "var(--text-muted)";
+      empty.style.textAlign = "center";
+      empty.style.padding = "20px";
+      empty.textContent = "未発見。戦闘や探索、刻印を通じて新たなシナジーを発見しましょう。";
+      list.appendChild(empty);
+    } else {
+      for (const [id, syn] of Object.entries(SYNERGIES)) {
+        const isDiscovered = state.codex.synergies && state.codex.synergies[id];
+        const row = document.createElement("div");
+        row.style.border = "1px solid #333";
+        row.style.padding = "8px";
+        row.style.borderRadius = "4px";
+        row.style.background = isDiscovered ? "rgba(0, 255, 102, 0.03)" : "rgba(0, 0, 0, 0.2)";
+
+        if (isDiscovered) {
+          const tagsHtml = syn.tags.map(t => {
+            const label = TAG_EFFECT_MAP[t] || { name: t };
+            return `<span style="background:rgba(0,255,102,0.15); color:var(--neon-green); padding:1px 3px; border-radius:2px; margin-right:4px;">${label.name || t}</span>`;
+          }).join("");
+          
+          row.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+              <strong style="color:var(--neon-green); font-size:12px;">${syn.name}</strong>
+              <div>${tagsHtml}</div>
+            </div>
+            <div style="color:#eee; line-height:1.4;">${syn.archive}</div>
+          `;
+        } else {
+          row.innerHTML = `
+            <div style="color:var(--text-muted)">??? (未発見の相性)</div>
+          `;
+        }
+        list.appendChild(row);
+      }
+    }
+    container.appendChild(list);
+    body.appendChild(container);
   }
   
   overlay.appendChild(body);
@@ -497,6 +564,7 @@ export function renderArchives() {
     { id: "monsters", name: "👿 敵" },
     { id: "equipment", name: "🛡️ 装備" },
     { id: "events", name: "⚠️ 罠" },
+    { id: "synergy", name: "✨ 相性" },
     { id: "runHistory", name: "📜 記録" },
     { id: "deathLogs", name: "☠️ 死亡" }
   ];

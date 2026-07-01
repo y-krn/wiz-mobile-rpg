@@ -1,5 +1,11 @@
-import { ITEMS } from "../data/items.js";
+import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { getClassPassiveBonus } from "./class_rules.js";
+import { getActiveSynergies } from "../data/tags.js";
+
+let localStateRef = null;
+export function setItemRulesStateRef(stateObj) {
+  localStateRef = stateObj;
+}
 
 export function getItemBaseId(item) {
   if (!item) return "";
@@ -40,6 +46,24 @@ export function getCharAffixSum(char, affixType) {
         if (eqKey.inscription && eqKey.inscription.type === affixType) {
           sum += eqKey.inscription.value;
         }
+        // 完全鑑定済みかつ呪われ装備の場合、呪いの全効果を適用
+        if (eqKey.curseEffectId) {
+          const curse = CURSE_EFFECTS[eqKey.curseEffectId];
+          if (curse && curse.mod && curse.mod[affixType] !== undefined) {
+            sum += curse.mod[affixType];
+          }
+        }
+      } else {
+        // 未鑑定で装備している場合、呪いのデメリット（負の補正値）のみ適用するリスク
+        if (eqKey.curseEffectId) {
+          const curse = CURSE_EFFECTS[eqKey.curseEffectId];
+          if (curse && curse.mod && curse.mod[affixType] !== undefined) {
+            const val = curse.mod[affixType];
+            if (val < 0) {
+              sum += val;
+            }
+          }
+        }
       }
     }
   });
@@ -60,6 +84,15 @@ export function getCharAffixSum(char, affixType) {
     if (shieldIdStr === "DRAGON_CHARM") {
       sum += 30;
     }
+  }
+  // アクティブなシナジーボーナスの加算
+  if (localStateRef && localStateRef.party) {
+    const activeSyns = getActiveSynergies(localStateRef.party);
+    activeSyns.forEach(syn => {
+      if (syn.mod && syn.mod[affixType] !== undefined) {
+        sum += syn.mod[affixType];
+      }
+    });
   }
   const total = sum + getClassPassiveBonus(char, affixType);
   const caps = {
@@ -84,79 +117,44 @@ export function getItemData(itemOrKey) {
     
     // 未鑑定状態
     if (!itemOrKey.identified) {
-      let prefix = "古びた";
-      const rarity = itemOrKey.rarity || "magic";
-      if (rarity === "magic") {
-        const isMagicAura = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "MAGIC_SHIELD"].includes(base.id);
-        prefix = isMagicAura ? "青く光る" : "古びた";
-      } else if (rarity === "rare") {
-        prefix = "金紋の";
-      } else if (rarity === "epic") {
-        prefix = "紫光を放つ";
+      if (itemOrKey.halfIdentified) {
+        const hintLabels = {
+          fire_rite: "火葬", holy: "聖", spirit: "霊", poison: "毒",
+          dragon: "竜", iron: "鉄", blood: "血", curse: "呪",
+          ward: "守勢", appraisal: "鑑定", beast: "獣", ambush: "奇襲",
+          blade: "刃", trap: "罠", search: "探索", exorcism: "退魔",
+          analysis: "解析", follow_up: "連撃", record: "記録", evasion: "回避"
+        };
+        const hints = itemOrKey.hintTags ? itemOrKey.hintTags.map(t => hintLabels[t] || t).join("・") : "なし";
+        const curseText = itemOrKey.curseSuspected ? "呪いの疑いあり。" : "呪いの兆候なし。";
+        const unidentName = itemOrKey.unidentifiedName || "簡易鑑定された装備品";
+        return {
+          ...base,
+          id: itemOrKey,
+          name: `${unidentName} (簡易鑑定済)`,
+          desc: `${unidentName}。気配: ${hints}。${curseText} 完全鑑定で真価が確定します。`,
+          price: base.price,
+          atk: 0,
+          def: 0,
+          affixes: [],
+          classes: base.classes,
+          type: base.type
+        };
+      } else {
+        const unidentName = itemOrKey.unidentifiedName || "未鑑定の装備品";
+        return {
+          ...base,
+          id: itemOrKey,
+          name: unidentName,
+          desc: `${unidentName}。商店で鑑定できます。未鑑定のまま装備可能ですが、能力ボーナスは得られず、呪いのデメリットだけを受けるリスクがあります。`,
+          price: base.price,
+          atk: 0,
+          def: 0,
+          affixes: [],
+          classes: base.classes,
+          type: base.type
+        };
       }
-
-      let typeName = "武器";
-      if (base.type === "shield") {
-        if (base.id === "BUCKLER") {
-          typeName = "小盾";
-        } else if (base.id === "MAGIC_SHIELD") {
-          typeName = "魔盾";
-        } else {
-          typeName = "盾";
-        }
-      } else if (base.type === "armor") {
-        const isRobe = ["ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE"].includes(base.id);
-        if (isRobe) typeName = "ローブ";
-        else if (base.id === "EXPLORER_CLOAK") typeName = "外套";
-        else if (base.id === "BATTLE_GARB") typeName = "戦装束";
-        else if (base.id === "DRAGON_SCALE") typeName = "鱗鎧";
-        else typeName = "鎧";
-      } else if (base.type === "weapon") {
-        if (base.id === "WAND") {
-          typeName = "杖";
-        } else if (base.id === "RAPIER") {
-          typeName = "細剣";
-        } else if (base.id === "SACRED_MACE") {
-          typeName = "聖器";
-        } else if (["DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(base.id)) {
-          typeName = "短剣";
-        } else if (["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA"].includes(base.id)) {
-          typeName = "剣";
-        } else if (base.id === "MACE") {
-          typeName = "メイス";
-        }
-      }
-      
-      const unidentName = `${prefix}未鑑定の${typeName}`;
-      const hintLabels = {
-        followUp: "連撃",
-        arcane: "秘術",
-        devotion: "神聖",
-        guardian: "守護",
-        treasureSense: "宝探",
-        trapBonus: "技巧",
-        antiUndead: "不死祓い",
-        antiDragon: "竜殺し",
-        spellGuard: "魔除け",
-        poisonWard: "毒避け",
-        firstStrike: "先制",
-        antiDemon: "悪魔祓い"
-      };
-      const hintAffix = itemOrKey.affixes?.find(aff => hintLabels[aff.type]);
-      const hintText = hintAffix ? ` 気配: ${hintLabels[hintAffix.type]}。` : "";
-      
-      return {
-        ...base,
-        id: itemOrKey,
-        name: unidentName,
-        desc: `${unidentName}。街の商店で鑑定できます。${hintText}`,
-        price: base.price,
-        atk: 0,
-        def: 0,
-        affixes: [],
-        classes: base.classes,
-        type: base.type
-      };
     }
     
     // 鑑定済み状態
@@ -229,7 +227,7 @@ export function getItemData(itemOrKey) {
       name = `${name} [${itemOrKey.inscription.name}]`;
     }
     
-    let affixDesc = itemOrKey.affixes.map(aff => {
+    let affixDesc = (itemOrKey.affixes || []).map(aff => {
       const label = {
         atk: "攻撃",
         def: "防御",
@@ -260,6 +258,17 @@ export function getItemData(itemOrKey) {
     }).join(" / ");
     
     let desc = `${base.desc} [${affixDesc}]`;
+    if (itemOrKey.tags && itemOrKey.tags.length > 0) {
+      const hintLabels = {
+        fire_rite: "火葬", holy: "聖", spirit: "霊", poison: "毒",
+        dragon: "竜", iron: "鉄", blood: "血", curse: "呪",
+        ward: "守勢", appraisal: "鑑定", beast: "獣", ambush: "奇襲",
+        blade: "刃", trap: "罠", search: "探索", exorcism: "退魔",
+        analysis: "解析", follow_up: "連撃", record: "記録", evasion: "回避"
+      };
+      const tagList = itemOrKey.tags.map(t => hintLabels[t] || t).join("・");
+      desc = `<タグ: ${tagList}> ${desc}`;
+    }
     if (itemOrKey.inscription) {
       const ins = itemOrKey.inscription;
       const label = {

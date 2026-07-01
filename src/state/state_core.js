@@ -1,4 +1,4 @@
-import { DIR_N, START_X, START_Y, registerState } from "../data.js";
+import { DIR_N, START_X, START_Y, registerState, setItemRulesStateRef, setTagsStateRef } from "../data.js";
 
 // Main State Object
 export const state = {
@@ -109,3 +109,5 @@ export function addLog(msg) {
 }
 
 registerState(state);
+setItemRulesStateRef(state);
+setTagsStateRef(state);

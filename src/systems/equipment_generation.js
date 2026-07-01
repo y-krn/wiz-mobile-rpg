@@ -1,4 +1,4 @@
-import { ITEMS } from "../data/items.js";
+import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { EQUIPMENT_CANDIDATES_BY_FLOOR } from "../data/equipment_tables.js";
 
 export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.random, party = null } = {}) {
@@ -197,7 +197,76 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   }
   
   const instanceId = `eq_${rng().toString(36).substr(2, 9)}`;
+
+  // tags, curse, unidentified information generation
+  const baseItemTags = baseItem.tags || [];
+  const tags = [...baseItemTags];
   
+  // Add tags based on affixes
+  affixes.forEach(aff => {
+    if (aff.type === "atk" || aff.type === "str") {
+      if (!tags.includes("blade")) tags.push("blade");
+    }
+    if (aff.type === "def" || aff.type === "vit") {
+      if (!tags.includes("ward")) tags.push("ward");
+    }
+    if (aff.type === "trapBonus") {
+      if (!tags.includes("poison")) tags.push("poison");
+    }
+  });
+
+  let curseEffectId = null;
+  const isKatanaOrSealed = baseId === "KATANA" || baseId === "SEALED_EXCALIBUR";
+  const rollCurse = rng();
+  const curseChance = rarity === "epic" ? 0.25 : 0.15;
+  if (isKatanaOrSealed || rollCurse < curseChance) {
+    const curseKeys = Object.keys(CURSE_EFFECTS);
+    curseEffectId = curseKeys[Math.floor(rng() * curseKeys.length)];
+    if (!tags.includes("curse")) tags.push("curse");
+    CURSE_EFFECTS[curseEffectId].tags.forEach(t => {
+      if (!tags.includes(t)) tags.push(t);
+    });
+  }
+
+  const nonCurseTags = tags.filter(t => t !== "curse");
+  const hintTags = [];
+  if (nonCurseTags.length > 0) {
+    const t1 = nonCurseTags[Math.floor(rng() * nonCurseTags.length)];
+    hintTags.push(t1);
+    if (nonCurseTags.length > 1 && rng() < 0.5) {
+      const t2 = nonCurseTags.find(t => t !== t1);
+      if (t2) hintTags.push(t2);
+    }
+  }
+
+  const curseSuspected = curseEffectId ? true : (rng() < 0.20);
+
+  let prefix = "古びた";
+  if (rarity === "magic") {
+    const isMagicAura = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "MAGIC_SHIELD"].includes(baseId);
+    prefix = isMagicAura ? "青く光る" : "古びた";
+  } else if (rarity === "rare") {
+    prefix = "金紋の";
+  } else if (rarity === "epic") {
+    prefix = "紫光を放つ";
+  }
+
+  let typeName = "武器";
+  if (baseItem.type === "shield") {
+    typeName = baseId === "BUCKLER" ? "小盾" : (baseId === "MAGIC_SHIELD" ? "魔盾" : "盾");
+  } else if (baseItem.type === "armor") {
+    const isRobe = ["ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE"].includes(baseId);
+    typeName = isRobe ? "ローブ" : (baseId === "EXPLORER_CLOAK" ? "外套" : (baseId === "BATTLE_GARB" ? "戦装束" : (baseId === "DRAGON_SCALE" ? "鱗鎧" : "鎧")));
+  } else if (baseItem.type === "weapon") {
+    if (baseId === "WAND") typeName = "杖";
+    else if (baseId === "RAPIER") typeName = "細剣";
+    else if (baseId === "SACRED_MACE") typeName = "聖器";
+    else if (["DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(baseId)) typeName = "短剣";
+    else if (["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA"].includes(baseId)) typeName = "剣";
+    else if (baseId === "MACE") typeName = "メイス";
+  }
+  const unidentifiedName = `${prefix}未鑑定の${typeName}`;
+
   return {
     kind: "equipment",
     instanceId,
@@ -205,6 +274,12 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     rarity,
     level: floor,
     identified: false,
+    halfIdentified: false,
+    tags,
+    hintTags,
+    curseEffectId,
+    curseSuspected,
+    unidentifiedName,
     affixes
   };
 }

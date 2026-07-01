@@ -4,6 +4,7 @@ import { combatSelection } from "./combat_state.js";
 import { generateEncounter } from "./encounter.js";
 import { advanceActionSelection } from "./action_selection.js";
 import { getOmenForFloor, isMatchedMonster, triggerOmenMatch } from "../systems/omens.js";
+import { getActiveSynergies, recordSynergyDiscovery } from "../data/tags.js";
 
 export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
   state.gameState = "combat";
@@ -50,6 +51,15 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
   menuHistory.length = 0;
 
   addLog(`戦闘開始！敵が現れた：${monsters.map(m => m.name).join(", ")}`);
+  
+  const activeSyns = getActiveSynergies(state.party);
+  activeSyns.forEach(syn => {
+    const isNew = !state.codex.synergies || !state.codex.synergies[syn.id];
+    recordSynergyDiscovery(syn.id);
+    if (isNew || Math.random() < 0.3) {
+      addLog(syn.log);
+    }
+  });
   
   if (state.codex) {
     if (!state.codex.monsters) state.codex.monsters = {};

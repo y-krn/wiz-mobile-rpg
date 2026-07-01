@@ -5,7 +5,8 @@ import { openSubmenu } from "../navigation.js";
 import { generateContractsList } from "../contracts.js";
 import { getCharMaxHp, getCharMaxMp, getItemBaseId, getItemData } from "../data.js";
 import { renderMaterialsHUD } from "./materials_hud.js";
-import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, executeDismantle, getDismantleResults, INSCRIPTION_RECIPES, executeInscription } from "../craft.js";
+import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, executeDismantle, getDismantleResults, executeTagInscription } from "../craft.js";
+import { TAGS, MATERIAL_TAGS, TAG_EFFECT_MAP } from "../data/tags.js";
 
 import { openEquipOverlay } from "../equip.js";
 
@@ -199,6 +200,11 @@ export function renderCraftInscriptionSelectEquip(optGrid) {
   }
 }
 
+let currentSelectedMat = null;
+let currentSelectedTag = null;
+let currentOverwriteIdx = -1;
+let currentActionType = "add";
+
 export function renderCraftInscriptionSelectEngrave(optGrid) {
   renderMaterialsHUD(optGrid);
 
@@ -216,71 +222,233 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
     return;
   }
 
-  // 選択中の装備情報を一番上に表示する
-  const header = document.createElement("div");
-  header.style.gridColumn = "span 2";
-  header.style.border = "1px solid var(--neon-blue)";
-  header.style.padding = "6px 8px";
-  header.style.borderRadius = "4px";
-  header.style.background = "rgba(0,170,255,0.05)";
-  header.style.marginBottom = "8px";
-  header.style.fontFamily = "var(--font-mono)";
-  header.style.fontSize = "11px";
-  header.innerHTML = `対象: <strong style="color:var(--neon-blue)">${item.name}</strong>`;
-  optGrid.appendChild(header);
+  if (!eqItem.tags) eqItem.tags = [];
 
-  INSCRIPTION_RECIPES.forEach(recipe => {
-    const container = document.createElement("div");
-    container.style.gridColumn = "span 2";
-    container.style.border = "1px solid #333";
-    container.style.padding = "6px 8px";
-    container.style.borderRadius = "4px";
-    container.style.display = "flex";
-    container.style.justifyContent = "space-between";
-    container.style.alignItems = "center";
-    container.style.background = "rgba(0,0,0,0.2)";
-    container.style.marginBottom = "4px";
+  const wrapper = document.createElement("div");
+  wrapper.style.gridColumn = "span 2";
+  wrapper.style.display = "flex";
+  wrapper.style.flexDirection = "column";
+  wrapper.style.gap = "10px";
+  wrapper.style.fontFamily = "var(--font-mono)";
+  wrapper.style.fontSize = "11px";
+  wrapper.style.color = "#fff";
 
-    const info = document.createElement("div");
-    info.style.fontFamily = "var(--font-mono)";
-    info.style.fontSize = "11px";
+  const infoCard = document.createElement("div");
+  infoCard.style.border = "1px solid var(--neon-blue)";
+  infoCard.style.padding = "8px";
+  infoCard.style.borderRadius = "4px";
+  infoCard.style.background = "rgba(0,170,255,0.05)";
+  
+  const tagLabels = eqItem.tags.map(t => {
+    const info = TAG_EFFECT_MAP[t] || { name: t };
+    return `<span class="unidentified-tag" style="background:rgba(0,170,255,0.2); padding:2px 4px; border-radius:3px; margin-right:4px;">${info.name || t}</span>`;
+  }).join(" ") || '<span style="color:var(--text-muted)">なし</span>';
+  
+  infoCard.innerHTML = `
+    対象: <strong style="color:var(--neon-blue); font-size:12px;">${item.name}</strong><br>
+    <div style="margin-top:6px;">現在のタグ: ${tagLabels}</div>
+  `;
+  wrapper.appendChild(infoCard);
 
-    const matsReq = Object.entries(recipe.mats).map(([m, reqQty]) => {
-      const curQty = state.materials[m] || 0;
-      const color = curQty >= reqQty ? "var(--neon-green)" : "var(--neon-red)";
-      return `<span style="color:${color}">${m} ${curQty}/${reqQty}</span>`;
-    }).join(", ");
-    const goldColor = state.gold >= recipe.gold ? "#fff" : "var(--neon-red)";
+  const matTitle = document.createElement("div");
+  matTitle.style.fontWeight = "bold";
+  matTitle.style.color = "var(--neon-green)";
+  matTitle.textContent = "1. 素材の選択 (必要数: 3)";
+  wrapper.appendChild(matTitle);
 
-    info.innerHTML = `<strong style="color:#fff">${recipe.name} (${recipe.desc})</strong><br>
-      <span style="color:var(--text-muted)">必要: ${matsReq} / <span style="color:${goldColor}">${recipe.gold}G</span></span>`;
-    container.appendChild(info);
+  const matRow = document.createElement("div");
+  matRow.style.display = "flex";
+  matRow.style.flexWrap = "wrap";
+  matRow.style.gap = "6px";
 
+  const mats = ["霊粉", "毒腺", "鉄片", "竜鱗", "黒角"];
+  mats.forEach(matName => {
+    const curQty = state.materials[matName] || 0;
     const btn = document.createElement("button");
-    btn.className = "btn btn-neon";
-    btn.textContent = "刻印";
-    btn.style.minHeight = "44px";
-    btn.style.width = "80px";
-
-    let canEngrave = state.gold >= recipe.gold;
-    for (const [m, reqQty] of Object.entries(recipe.mats)) {
-      if ((state.materials[m] || 0) < reqQty) canEngrave = false;
-    }
-
-    if (!canEngrave) {
+    btn.type = "button";
+    btn.className = `btn ${currentSelectedMat === matName ? "btn-neon" : "btn-secondary"}`;
+    btn.style.flex = "1 1 80px";
+    btn.style.minHeight = "36px";
+    btn.style.padding = "4px";
+    btn.style.fontSize = "10px";
+    btn.innerHTML = `${matName}<br><small>${curQty}/3</small>`;
+    
+    if (curQty < 3) {
       btn.disabled = true;
       btn.classList.add("disabled");
+      btn.style.opacity = "0.4";
     } else {
       btn.addEventListener("click", () => {
-        if (executeInscription(selectedInscriptionEquipIdx, recipe.id)) {
-          openSubmenu("craft_inscription_select_equip", "工房 - 刻印する装備の選択：", true);
-        }
+        currentSelectedMat = matName;
+        currentSelectedTag = null;
+        currentOverwriteIdx = -1;
+        currentActionType = "add";
+        optGrid.innerHTML = "";
+        renderCraftInscriptionSelectEngrave(optGrid);
       });
     }
-
-    container.appendChild(btn);
-    optGrid.appendChild(container);
+    matRow.appendChild(btn);
   });
+  wrapper.appendChild(matRow);
+
+  if (currentSelectedMat) {
+    const tagTitle = document.createElement("div");
+    tagTitle.style.fontWeight = "bold";
+    tagTitle.style.color = "var(--neon-green)";
+    tagTitle.style.marginTop = "6px";
+    tagTitle.textContent = "2. 刻印タグの選択";
+    wrapper.appendChild(tagTitle);
+
+    const tagList = document.createElement("div");
+    tagList.style.display = "flex";
+    tagList.style.flexDirection = "column";
+    tagList.style.gap = "4px";
+
+    const possibleTags = MATERIAL_TAGS[currentSelectedMat] || [];
+    possibleTags.forEach(tag => {
+      const effect = TAG_EFFECT_MAP[tag];
+      if (!effect) return;
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `btn ${currentSelectedTag === tag && currentActionType === "add" ? "btn-neon" : "btn-secondary"}`;
+      btn.style.textAlign = "left";
+      btn.style.padding = "6px 8px";
+      btn.style.fontSize = "11px";
+      btn.style.minHeight = "40px";
+      btn.innerHTML = `<strong>${effect.name} (${tag})</strong> - ${effect.desc}`;
+      
+      btn.addEventListener("click", () => {
+        currentSelectedTag = tag;
+        currentActionType = "add";
+        optGrid.innerHTML = "";
+        renderCraftInscriptionSelectEngrave(optGrid);
+      });
+      tagList.appendChild(btn);
+    });
+
+    const hasCurse = eqItem.tags.includes("curse") || eqItem.curseEffectId;
+    if (hasCurse && currentSelectedMat === "霊粉") {
+      const sealBtn = document.createElement("button");
+      sealBtn.type = "button";
+      sealBtn.className = `btn ${currentActionType === "seal" ? "btn-neon" : "btn-secondary"}`;
+      sealBtn.style.textAlign = "left";
+      sealBtn.style.padding = "6px 8px";
+      sealBtn.style.fontSize = "11px";
+      sealBtn.style.minHeight = "40px";
+      sealBtn.style.borderColor = "var(--neon-red)";
+      sealBtn.innerHTML = `<strong>封印の儀 (呪い封印)</strong> - デメリット効果を無効化する`;
+      
+      sealBtn.addEventListener("click", () => {
+        currentSelectedTag = null;
+        currentActionType = "seal";
+        optGrid.innerHTML = "";
+        renderCraftInscriptionSelectEngrave(optGrid);
+      });
+      tagList.appendChild(sealBtn);
+    }
+
+    wrapper.appendChild(tagList);
+  }
+
+  if (currentSelectedTag && currentActionType === "add" && eqItem.tags.length > 0) {
+    const overwriteTitle = document.createElement("div");
+    overwriteTitle.style.fontWeight = "bold";
+    overwriteTitle.style.color = "var(--neon-green)";
+    overwriteTitle.style.marginTop = "6px";
+    overwriteTitle.textContent = "3. 上書きするタグの選択";
+    wrapper.appendChild(overwriteTitle);
+
+    const overwriteRow = document.createElement("div");
+    overwriteRow.style.display = "flex";
+    overwriteRow.style.flexWrap = "wrap";
+    overwriteRow.style.gap = "6px";
+
+    const btnNew = document.createElement("button");
+    btnNew.type = "button";
+    btnNew.className = `btn ${currentOverwriteIdx === -1 ? "btn-neon" : "btn-secondary"}`;
+    btnNew.style.flex = "1 1 80px";
+    btnNew.style.minHeight = "36px";
+    btnNew.style.fontSize = "10px";
+    btnNew.textContent = eqItem.tags.length >= 3 ? "新規追加 (最古タグ上書き)" : "新規追加 (枠追加)";
+    btnNew.addEventListener("click", () => {
+      currentOverwriteIdx = -1;
+      optGrid.innerHTML = "";
+      renderCraftInscriptionSelectEngrave(optGrid);
+    });
+    overwriteRow.appendChild(btnNew);
+
+    eqItem.tags.forEach((tag, idx) => {
+      const tagInfo = TAG_EFFECT_MAP[tag] || { name: tag };
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `btn ${currentOverwriteIdx === idx ? "btn-neon" : "btn-secondary"}`;
+      btn.style.flex = "1 1 80px";
+      btn.style.minHeight = "36px";
+      btn.style.fontSize = "10px";
+      btn.textContent = `[${tagInfo.name || tag}] を上書き`;
+      btn.addEventListener("click", () => {
+        currentOverwriteIdx = idx;
+        optGrid.innerHTML = "";
+        renderCraftInscriptionSelectEngrave(optGrid);
+      });
+      overwriteRow.appendChild(btn);
+    });
+
+    wrapper.appendChild(overwriteRow);
+  }
+
+  const actionRow = document.createElement("div");
+  actionRow.style.marginTop = "12px";
+  
+  const submitBtn = document.createElement("button");
+  submitBtn.className = "btn btn-block btn-neon";
+  submitBtn.style.minHeight = "44px";
+  
+  const hasEnoughGold = state.gold >= 150;
+  let canSubmit = false;
+
+  if (currentActionType === "seal") {
+    submitBtn.textContent = "封印の儀を実行 (150G)";
+    canSubmit = hasEnoughGold && currentSelectedMat === "霊粉";
+  } else if (currentSelectedTag) {
+    const effect = TAG_EFFECT_MAP[currentSelectedTag];
+    submitBtn.textContent = `${effect.name}を刻印する (150G)`;
+    canSubmit = hasEnoughGold;
+  } else {
+    submitBtn.textContent = "刻印の方向性を選択してください";
+    submitBtn.disabled = true;
+    submitBtn.classList.add("disabled");
+  }
+
+  if (canSubmit) {
+    submitBtn.addEventListener("click", () => {
+      const idx = selectedInscriptionEquipIdx;
+      const mat = currentSelectedMat;
+      const tag = currentSelectedTag;
+      const owIdx = currentOverwriteIdx >= 0 ? currentOverwriteIdx : undefined;
+      const type = currentActionType;
+      
+      if (executeTagInscription(idx, mat, tag, owIdx, type)) {
+        currentSelectedMat = null;
+        currentSelectedTag = null;
+        currentOverwriteIdx = -1;
+        currentActionType = "add";
+        openSubmenu("craft_inscription_select_equip", "工房 - 刻印する装備の選択：", true);
+      }
+    });
+  } else if (submitBtn.disabled === false) {
+    submitBtn.disabled = true;
+    submitBtn.classList.add("disabled");
+    if (!hasEnoughGold) {
+      submitBtn.textContent = "ゴールド不足 (150G必要)";
+    }
+  }
+
+  actionRow.appendChild(submitBtn);
+  wrapper.appendChild(actionRow);
+
+  optGrid.appendChild(wrapper);
 }
 
 export function renderCraftRecipes(optGrid) {

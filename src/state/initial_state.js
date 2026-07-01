@@ -12,6 +12,7 @@ export function generateRandomSeed() {
 export const createDefaultCodex = () => ({
   monsters: {},
   equipment: {},
+  synergies: {},
   events: {
     traps: {
       "poison needle": { triggered: 0, disarmed: 0, firstFloor: 0 },

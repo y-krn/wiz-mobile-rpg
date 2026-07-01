@@ -1,6 +1,8 @@
 import { state, saveAutosave, addLog, addInventoryItem } from "./state.js";
 import { getItemData, getItemBaseId } from "./data.js";
 import { playSound } from "./audio.js";
+import { getActiveSynergies, recordSynergyDiscovery, MATERIAL_TAGS, TAG_EFFECT_MAP } from "./data/tags.js";
+import { CURSE_EFFECTS } from "./data/items.js";
 
 export const CRAFT_RECIPES = [
   {
@@ -281,7 +283,7 @@ export const INSCRIPTION_RECIPES = [
   }
 ];
 
-export function executeInscription(itemIdx, recipeId) {
+export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTagIdx, actionType = "add", options = {}) {
   const eqItem = state.inventory[itemIdx];
   if (!eqItem) return false;
 
@@ -297,49 +299,113 @@ export function executeInscription(itemIdx, recipeId) {
     return false;
   }
 
-  // すでに刻印されているか
-  if (typeof eqItem === "object" && eqItem.inscription) {
-    addLog("この装備には既に刻印が施されています。");
-    return false;
-  }
-
-  const recipe = INSCRIPTION_RECIPES.find(r => r.id === recipeId);
-  if (!recipe) return false;
+  const goldCost = options.gold !== undefined ? options.gold : 150;
+  const matCost = options.matCost !== undefined ? options.matCost : 3;
 
   // ゴールドチェック
-  if (state.gold < recipe.gold) {
+  if (state.gold < goldCost) {
     addLog("ゴールドが不足しています。");
     return false;
   }
 
-  // 素材チェック
-  for (const [mat, reqQty] of Object.entries(recipe.mats)) {
-    const curQty = state.materials[mat] || 0;
-    if (curQty < reqQty) {
-      addLog(`素材 [${mat}] が不足しています。`);
+  // 素材チェック＆消費
+  if (options.mats) {
+    for (const [m, reqQty] of Object.entries(options.mats)) {
+      if ((state.materials[m] || 0) < reqQty) {
+        addLog(`素材 [${m}] が不足しています。`);
+        return false;
+      }
+    }
+    state.gold -= goldCost;
+    for (const [m, reqQty] of Object.entries(options.mats)) {
+      state.materials[m] -= reqQty;
+    }
+  } else {
+    if ((state.materials[matName] || 0) < matCost) {
+      addLog(`素材 [${matName}] が不足しています。`);
       return false;
     }
-  }
-
-  // 消費
-  state.gold -= recipe.gold;
-  for (const [mat, reqQty] of Object.entries(recipe.mats)) {
-    state.materials[mat] -= reqQty;
+    state.gold -= goldCost;
+    state.materials[matName] -= matCost;
   }
 
   // 刻印付与
   const upgradedItem = convertToEquipObject(eqItem);
-  upgradedItem.inscription = {
-    type: recipe.type,
-    value: recipe.value,
-    name: recipe.name
-  };
+  if (!upgradedItem.tags) upgradedItem.tags = [];
+
+  if (actionType === "seal") {
+    // 呪いの封印
+    upgradedItem.tags = upgradedItem.tags.filter(t => t !== "curse");
+    if (upgradedItem.curseEffectId) {
+      upgradedItem.sealedCurseEffectId = upgradedItem.curseEffectId;
+      upgradedItem.curseEffectId = null;
+    }
+    upgradedItem.inscription = {
+      type: "sealed",
+      value: 0,
+      name: "封印印",
+      tag: "holy"
+    };
+    addLog(`[工房] [${item.name}] の呪いを封印しました！`);
+  } else {
+    // タグの付与/上書き
+    const effectInfo = TAG_EFFECT_MAP[tagToApply];
+    if (overwriteTagIdx !== undefined && overwriteTagIdx >= 0 && overwriteTagIdx < upgradedItem.tags.length) {
+      const oldTag = upgradedItem.tags[overwriteTagIdx];
+      upgradedItem.tags[overwriteTagIdx] = tagToApply;
+      addLog(`[工房] タグ [${oldTag}] を [${tagToApply}] で上書きしました。`);
+    } else {
+      if (upgradedItem.tags.length >= 3) {
+        upgradedItem.tags.shift();
+      }
+      upgradedItem.tags.push(tagToApply);
+    }
+
+    if (tagToApply === "curse") {
+      const curseKeys = Object.keys(CURSE_EFFECTS);
+      upgradedItem.curseEffectId = curseKeys[Math.floor(Math.random() * curseKeys.length)];
+    }
+
+    upgradedItem.inscription = {
+      type: effectInfo.type,
+      value: effectInfo.value,
+      name: effectInfo.name,
+      tag: tagToApply
+    };
+    addLog(`[工房] [${item.name}] に [${effectInfo.name}] (${effectInfo.desc}) を施しました！`);
+  }
 
   // インベントリの更新
   state.inventory[itemIdx] = upgradedItem;
 
+  // 新規シナジー発見記録
+  const activeSyns = getActiveSynergies(state.party);
+  activeSyns.forEach(syn => {
+    recordSynergyDiscovery(syn.id);
+  });
+
   playSound("level_up");
-  addLog(`[工房] [${item.name}] に [${recipe.name}] を施しました！`);
   saveAutosave();
   return true;
+}
+
+// 既存の互換性用
+export function executeInscription(itemIdx, recipeId) {
+  const eqItem = state.inventory[itemIdx];
+  if (eqItem && typeof eqItem === "object" && eqItem.inscription) {
+    addLog("この装備には既に刻印が施されています。");
+    return false;
+  }
+
+  const OLD_RECIPES = {
+    POISON_WARD: { mats: { "硬い皮": 2, "毒腺": 1 }, gold: 150, tag: "poison" },
+    ANTI_UNDEAD: { mats: { "骨片": 2, "霊粉": 1 }, gold: 150, tag: "holy" },
+    SPELL_GUARD: { mats: { "魔石片": 2, "霊粉": 1 }, gold: 150, tag: "spirit" },
+    ANTI_DEMON: { mats: { "黒角": 1, "魔石片": 2 }, gold: 200, tag: "demon" },
+    ANTI_DRAGON: { mats: { "竜鱗": 1, "硬い皮": 2 }, gold: 250, tag: "dragon" }
+  };
+  const recipe = OLD_RECIPES[recipeId];
+  if (!recipe) return false;
+  
+  return executeTagInscription(itemIdx, null, recipe.tag, undefined, "add", recipe);
 }

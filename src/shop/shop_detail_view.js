@@ -2,7 +2,7 @@ import { state } from "../state.js";
 import { ITEMS, getItemData, getItemBaseId } from "../data.js";
 import { shopState } from "./shop_state.js";
 import { getAppraisalCost, getItemOwnership, getEquipmentPreview, formatEquipmentPreview } from "./shop_rules.js";
-import { executeAppraise } from "./appraisal.js";
+import { executeAppraise, executeHalfAppraise, executeFullAppraise } from "./appraisal.js";
 import { executePurchase, executeSale } from "./purchase.js";
 import { renderShop } from "./shop_view.js";
 import { SHOP_STOCK } from "./shop_stock.js";
@@ -419,30 +419,64 @@ export function renderShopDetail() {
         }
       });
     } else { // appraise
+      const eqItem = state.inventory[shopState.selectedIdx];
       const hasTicket = (state.identifyTickets || 0) > 0;
-      actionBtn.className = `btn btn-block shop-action-btn btn-neon`;
+      const fullCost = itemPrice;
+
+      // 1. 完全鑑定ボタン
+      const fullBtn = document.createElement("button");
+      fullBtn.className = `btn btn-block shop-action-btn btn-neon`;
+      fullBtn.style.minHeight = "44px";
       if (hasTicket) {
-        actionBtn.textContent = `鑑定する (割引券: 残${state.identifyTickets}枚)`;
+        fullBtn.textContent = `完全鑑定する (割引券: 残${state.identifyTickets}枚)`;
       } else {
-        actionBtn.textContent = `鑑定する (${itemPrice}G)`;
+        fullBtn.textContent = `完全鑑定する (${fullCost}G)`;
       }
 
-      const goldCheck = state.gold < itemPrice;
+      const goldCheck = state.gold < fullCost;
       if (goldCheck && !hasTicket) {
-        actionBtn.disabled = true;
-        actionBtn.classList.add("disabled");
-        actionBtn.textContent = "ゴールド不足";
+        fullBtn.disabled = true;
+        fullBtn.classList.add("disabled");
+        fullBtn.textContent = "完全鑑定: ゴールド不足";
       }
 
-      actionBtn.addEventListener("click", () => {
-        const eqItem = state.inventory[shopState.selectedIdx];
+      fullBtn.addEventListener("click", () => {
         const cost = getAppraisalCost(eqItem);
         const hasTicketVal = (state.identifyTickets || 0) > 0;
-        if (executeAppraise(shopState.selectedIdx, cost, hasTicketVal)) {
+        if (executeFullAppraise(shopState.selectedIdx, cost, hasTicketVal)) {
           renderShop();
           updateUI();
         }
       });
+      detailPanel.appendChild(fullBtn);
+
+      // 2. 簡易鑑定ボタン
+      if (eqItem && !eqItem.halfIdentified) {
+        const halfCost = Math.max(10, Math.floor(fullCost * 0.3));
+        const halfBtn = document.createElement("button");
+        halfBtn.className = `btn btn-block shop-action-btn btn-warning`;
+        halfBtn.style.minHeight = "44px";
+        halfBtn.style.marginTop = "8px";
+        halfBtn.textContent = `簡易鑑定する (${halfCost}G)`;
+
+        const halfGoldCheck = state.gold < halfCost;
+        if (halfGoldCheck) {
+          halfBtn.disabled = true;
+          halfBtn.classList.add("disabled");
+          halfBtn.textContent = "簡易鑑定: ゴールド不足";
+        }
+
+        halfBtn.addEventListener("click", () => {
+          if (executeHalfAppraise(shopState.selectedIdx, halfCost)) {
+            renderShop();
+            updateUI();
+          }
+        });
+        detailPanel.appendChild(halfBtn);
+      }
+
+      // Hide the default actionBtn
+      actionBtn.style.display = "none";
     }
 
     if (actionBtn) {

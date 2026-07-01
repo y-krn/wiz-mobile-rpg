@@ -167,9 +167,6 @@ function canEquip(char, itemKey) {
   if (!isEquipmentItem(item)) {
     return { ok: false, reason: "装備品ではありません" };
   }
-  if (!isIdentified(itemKey)) {
-    return { ok: false, reason: "未鑑定です。商店で鑑定してください" };
-  }
   if (item.classes && !item.classes.includes(char.class)) {
     return { ok: false, reason: `${getClassJpName(char.class)}は装備できません` };
   }
@@ -287,9 +284,14 @@ function createEquipmentList(char, savedScrollTop) {
       row.appendChild(left);
 
       const badge = document.createElement("span");
-      if (!availability.ok) {
+      if (!isIdentified(itemKey)) {
+        badge.className = "equip-row-badge unident";
+        badge.textContent = "未鑑定";
+        badge.style.background = "rgba(255, 170, 0, 0.2)";
+        badge.style.color = "rgb(255, 170, 0)";
+      } else if (!availability.ok) {
         badge.className = "equip-row-badge cant";
-        badge.textContent = !isIdentified(itemKey) ? "未鑑定" : "不可";
+        badge.textContent = "不可";
       } else {
         badge.className = `equip-row-badge ${preview.primaryDiff > 0 ? "up" : preview.primaryDiff < 0 ? "down" : "zero"}`;
         badge.textContent = `${preview.primaryDiff >= 0 ? "+" : ""}${preview.primaryDiff}`;
