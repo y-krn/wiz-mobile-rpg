@@ -77,6 +77,7 @@ export const state = {
   storage: [],
   storageMax: 30,
   identifyTickets: 0,
+  dungeonMemory: { traps: {} },
 
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
   gameState: "town",

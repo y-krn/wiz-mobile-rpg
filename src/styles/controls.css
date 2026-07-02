@@ -146,3 +146,73 @@
   text-align: center;
   margin-bottom: 4px;
 }
+
+/* Trap Encounter Panel Style */
+#controls-panel.trap-mode {
+  height: auto;
+  min-height: 220px;
+  padding: 10px;
+}
+
+#trap-controls {
+  flex-direction: column;
+  gap: 8px;
+}
+
+#trap-controls.active {
+  display: flex;
+}
+
+#trap-info {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-color);
+  background-color: rgba(20, 20, 25, 0.95);
+  border: 1px solid rgba(255, 59, 48, 0.4);
+  border-radius: 4px;
+  padding: 8px;
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.15);
+}
+
+#trap-header {
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--neon-red);
+  margin-bottom: 6px;
+  text-align: center;
+  text-shadow: var(--neon-glow-red);
+}
+
+#trap-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+}
+
+.trap-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.btn-trap {
+  padding: 10px 4px;
+  font-size: 12px;
+  min-height: 44px;
+}
+
+#btn-trap-disarm {
+  box-shadow: 0 0 2px var(--neon-cyan);
+}
+#btn-trap-force {
+  border-color: var(--neon-red) !important;
+  color: var(--neon-red) !important;
+  background-color: rgba(255, 59, 48, 0.05);
+}
+#btn-trap-force:active {
+  background-color: rgba(255, 59, 48, 0.25) !important;
+  box-shadow: var(--neon-glow-red) !important;
+}
+

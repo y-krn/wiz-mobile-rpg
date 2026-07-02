@@ -4,6 +4,7 @@ import { createSavePayload, applySavePayload } from "./save_payload.js";
 import { migrateSavePayload } from "./save_migrations.js";
 import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH, registerState } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";
+import { applyDungeonMemoryToMaps } from "./dungeon_state.js";
 
 const SAVE_KEY = "mobile_wiz_rpg_save";
 const AUTOSAVE_KEY = "mobile_wiz_rpg_autosave";
@@ -31,6 +32,7 @@ export function initNewGame() {
   const b4 = generateRandomMap(4, b3.stairsDownCoord, state.seed);
   const b5 = generateRandomMap(5, b4.stairsDownCoord, state.seed);
   state.maps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
+  applyDungeonMemoryToMaps();
 
   state.roamingMovementStepCount = 0;
   state.roamingMonsters = [];
@@ -90,6 +92,7 @@ export function initNewGame() {
   state.storage = [];
   state.storageMax = 30;
   state.identifyTickets = 0;
+  state.dungeonMemory = { traps: {} };
 
   state.gameState = "town";
   state.combatState = null;
@@ -137,6 +140,7 @@ export function loadGame(forceSaveOnly = false) {
     const data = JSON.parse(raw);
     const migrated = migrateSavePayload(data);
     applySavePayload(migrated);
+    applyDungeonMemoryToMaps();
     registerState(state);
     saveAutosave();
   } catch (err) {

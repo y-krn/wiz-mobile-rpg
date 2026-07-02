@@ -122,6 +122,26 @@
           </div>
           <button id="btn-submenu-back" class="btn btn-danger btn-block">戻る</button>
         </div>
+
+        <!-- Trap controls (shown in trap encounter) -->
+        <div id="trap-controls" class="controls-group">
+          <div id="trap-info">
+            <div id="trap-header">⚠️ 罠に遭遇！</div>
+            <div id="trap-details">
+              <div id="trap-name">罠名: -</div>
+              <div id="trap-status">状態: -</div>
+              <div id="trap-difficulty">危険度: -</div>
+              <div id="trap-effect">予想効果: -</div>
+              <div id="trap-success-rate">解除成功率: -</div>
+            </div>
+          </div>
+          <div class="trap-grid">
+            <button id="btn-trap-back" class="btn btn-secondary btn-trap">引き返す</button>
+            <button id="btn-trap-bypass" class="btn btn-neon btn-trap">迂回する</button>
+            <button id="btn-trap-disarm" class="btn btn-neon btn-trap" style="border-color: var(--neon-cyan); color: var(--neon-cyan);">解除する</button>
+            <button id="btn-trap-force" class="btn btn-danger btn-trap">強行突破</button>
+          </div>
+        </div>
       </div>
 
       <!-- Party HUD (Bottom) -->

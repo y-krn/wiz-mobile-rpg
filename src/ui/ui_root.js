@@ -238,20 +238,46 @@ export function updateUI() {
   logPanel.scrollTop = logPanel.scrollHeight;
 
   // Update Controls Panel visible state
-  const groups = ["explore-controls", "combat-controls", "town-controls", "submenu-controls"];
+  const groups = ["explore-controls", "combat-controls", "town-controls", "submenu-controls", "trap-controls"];
   groups.forEach(g => {
     const el = document.getElementById(g);
-    el.classList.remove("active");
+    if (el) el.classList.remove("active");
   });
 
   const controlsPanel = document.getElementById("controls-panel");
   if (controlsPanel) {
     controlsPanel.classList.toggle("explore-mode", state.gameState === "explore");
     controlsPanel.classList.toggle("submenu-mode", state.gameState === "submenu");
+    controlsPanel.classList.toggle("trap-mode", state.gameState === "trap_encounter");
   }
 
   if (state.gameState === "explore") {
     document.getElementById("explore-controls").classList.add("active");
+  } else if (state.gameState === "trap_encounter" && state.activeTrapState) {
+    const el = document.getElementById("trap-controls");
+    if (el) el.classList.add("active");
+    
+    const { trap, successRate, expectedEffect } = state.activeTrapState;
+    const trapNames = {
+      damage: "火炎放射の罠",
+      mpDrain: "魔力吸収の罠",
+      alarm: "警報装置の罠"
+    };
+    const trapName = trapNames[trap.type] || "未知の罠";
+    document.getElementById("trap-name").innerHTML = `罠名: <strong style="color:var(--neon-red)">${trapName}</strong>`;
+    
+    const trapStates = {
+      hidden: "未解除",
+      discovered: "発見済み",
+      weakened: "解除痕跡あり (弱体化)"
+    };
+    const statusColor = trap.state === "weakened" ? "var(--neon-green)" : "var(--neon-gold)";
+    document.getElementById("trap-status").innerHTML = `状態: <span style="color:${statusColor}">${trapStates[trap.state] || trap.state}</span>`;
+    document.getElementById("trap-difficulty").textContent = `危険度: B${trap.floorId.replace("B", "")}F (難易度: ${trap.difficulty})`;
+    document.getElementById("trap-effect").textContent = `予想効果: ${expectedEffect}`;
+    
+    const rateColor = successRate >= 75 ? "var(--neon-green)" : (successRate >= 45 ? "var(--neon-gold)" : "var(--neon-red)");
+    document.getElementById("trap-success-rate").innerHTML = `解除成功率: <span style="color:${rateColor}; font-weight:bold;">${successRate}%</span>`;
   } else if (state.gameState === "combat") {
     document.getElementById("combat-controls").classList.add("active");
     const gridEl = document.querySelector(".combat-grid");

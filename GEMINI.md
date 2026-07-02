@@ -142,3 +142,45 @@ UI実装・レビュー時は以下を必ず確認する。
 2. 採用した指摘
 3. 採用しなかった指摘と理由
 4. 実施した検証
+
+## 10. UI Change Gate
+
+実装者のUI変更ミスを防ぐため、UIに影響する変更では以下を必須とする。
+
+対象:
+
+- `src/ui.js`, `src/ui/*`
+- `src/menu.js`, `src/menu/*`, `src/navigation.js`
+- `src/shop.js`, `src/shop/*`
+- `src/combat.js`, `src/combat_ui/*`
+- `src/training.js`, `src/equip.js`, `src/camp.js`, `src/spell_menu.js`
+- `src/contracts.js`, `src/chest.js`, `src/result.js`
+- `src/style.css`, `src/styles/*`
+- `tests/ui-ux.spec.js`, `playwright.config.js`
+
+実装前:
+
+1. `.agents/file-map.md` で対象画面の最小ファイル範囲を決める。
+2. UI/UXレビュー観点が必要な場合は `.agents/mobile-ui-ux.md` を読む。
+3. 回帰確認・E2E確認が必要な場合は `.agents/qa-regression.md` を読む。
+4. サブエージェントを呼ぶ場合は、各 `.agents/*.md` の `Agent Skills` に従って必要な Agent Skills を呼び出す。
+   - UI/UXレビュー: `web-design-guidelines`
+   - ブラウザ操作、スクリーンショット、モバイル幅確認: `webapp-testing` または `playwright`
+   - Playwright失敗調査: `playwright-cli`
+   - レンダリング挙動を伴うフロントエンド確認: `build-web-apps:frontend-testing-debugging`
+5. UIとゲーム仕様、バランス、表示文言がまたがる場合は、該当する `game-logic`, `balance-simulation`, `content-design` の定義も読む。
+
+実装後:
+
+1. `npm run build` を実行する。
+2. `npm run test:browser` を実行する。
+3. ロジックや状態も触った場合は `npm run test:unit` または `npm run test` を実行する。
+4. 可能な限り 360x800, 390x844, 430x932 のモバイル幅で主要フローを操作確認する。
+
+PRまたは最終報告には以下を含める:
+
+- 変更した画面またはフロー
+- 呼び出したサブエージェントと Agent Skills
+- 実施した検証コマンド
+- モバイル幅で確認した主要操作
+- 未確認項目がある場合はその理由

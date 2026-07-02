@@ -441,6 +441,61 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     }
   }
 
+  // 7. Place traps randomly on passage cells
+  const trapCandidates = [];
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      const isStart = (x === START_X && y === START_Y);
+      const isStairs = (stairsUpCoord && x === stairsUpCoord.x && y === stairsUpCoord.y) || (stairsDownCoord && x === stairsDownCoord.x && y === stairsDownCoord.y);
+      const isBossCell = (bossCoord && x === bossCoord.x && y === bossCoord.y);
+      const cell = grid[y][x];
+      
+      if (isStart || isStairs || isBossCell || cell.event || cell.type !== "empty") continue;
+      
+      if (reachableKeys.has(`${x},${y}`) && cell.walls.some(w => !w)) {
+        trapCandidates.push({ x, y });
+      }
+    }
+  }
+
+  shuffle(trapCandidates);
+  const trapCount = Math.min(6 + floor, trapCandidates.length);
+  
+  for (let i = 0; i < trapCount; i++) {
+    const spot = trapCandidates[i];
+    const trapId = `trap_${floor}_${spot.x}_${spot.y}`;
+    
+    let trapType = "damage";
+    const r = rng();
+    if (floor <= 2) {
+      if (r < 0.70) trapType = "damage";
+      else if (r < 0.85) trapType = "mpDrain";
+      else trapType = "alarm";
+    } else if (floor <= 4) {
+      if (r < 0.30) trapType = "damage";
+      else if (r < 0.70) trapType = "mpDrain";
+      else trapType = "alarm";
+    } else {
+      if (r < 0.20) trapType = "damage";
+      else if (r < 0.60) trapType = "mpDrain";
+      else trapType = "alarm";
+    }
+    
+    const baseDifficulty = 15 + floor * 15;
+    const diffNoise = Math.floor(rng() * 11) - 5;
+    const difficulty = Math.max(10, baseDifficulty + diffNoise);
+
+    grid[spot.y][spot.x].trap = {
+      id: trapId,
+      floorId: `B${floor}`,
+      position: { x: spot.x, y: spot.y },
+      type: trapType,
+      state: "hidden",
+      difficulty: difficulty,
+      weakenLevel: 0
+    };
+  }
+
   return {
     grid,
     stairsDownCoord,

@@ -14,6 +14,19 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
 
   const { monsters, isRare } = generateEncounter(state, isBoss, isMidboss, isRoamingFlack);
 
+  if (state.alarmActive) {
+    const mult = state.alarmWeakened ? 1.10 : 1.20;
+    monsters.forEach(m => {
+      m.hp = Math.round(m.hp * mult);
+      m.maxHp = Math.round(m.maxHp * mult);
+      if (m.str) m.str = Math.round(m.str * mult);
+      if (m.int) m.int = Math.round(m.int * mult);
+    });
+    addLog(`【⚠️警告】警報により魔物が活性化している！(HP/攻撃力+${Math.round((mult - 1) * 100)}%)`);
+    state.alarmActive = false;
+    state.alarmWeakened = false;
+  }
+
   const omen = getOmenForFloor(state.seed, state.floor);
   if (omen) {
     let matched = false;

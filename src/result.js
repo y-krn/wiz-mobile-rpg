@@ -1,9 +1,92 @@
 import { state, loadGame, saveGame, saveAutosave } from "./state.js";
-import { START_X, START_Y, DIR_N } from "./data.js";
+import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
 import { updateUI } from "./ui.js";
 import { checkActiveContract, generateContractsList } from "./contracts.js";
+import { trapPersistenceByDepth } from "./systems/traps.js";
+
+export function persistDungeonTraps() {
+  if (!state.dungeonMemory) {
+    state.dungeonMemory = { traps: {} };
+  }
+
+  const getDepthCategory = (floor) => {
+    if (floor <= 2) return "shallow";
+    if (floor <= 4) return "middle";
+    return "deep";
+  };
+
+  if (state.maps) {
+    for (let f = 1; f <= 5; f++) {
+      const grid = state.maps[f - 1];
+      if (!grid) continue;
+      
+      const depth = getDepthCategory(f);
+      const conf = trapPersistenceByDepth[depth];
+
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          const cell = grid[y]?.[x];
+          if (cell && cell.trap) {
+            const trap = cell.trap;
+            const trapId = trap.id;
+
+            if (trap.state === "disabled") {
+              if (Math.random() < conf.keepWeakenedRate) {
+                const prevLevel = trap.weakenLevel || 0;
+                state.dungeonMemory.traps[trapId] = {
+                  state: "weakened",
+                  weakenLevel: prevLevel + 1,
+                  lastUpdatedAt: Date.now()
+                };
+              } else {
+                const reactState = Math.random() < 0.5 ? "hidden" : "discovered";
+                state.dungeonMemory.traps[trapId] = {
+                  state: reactState,
+                  weakenLevel: 0,
+                  lastUpdatedAt: Date.now()
+                };
+              }
+            } else if (trap.state === "weakened") {
+              if (Math.random() < conf.reactivateRate) {
+                const reactState = Math.random() < 0.5 ? "hidden" : "discovered";
+                state.dungeonMemory.traps[trapId] = {
+                  state: reactState,
+                  weakenLevel: 0,
+                  lastUpdatedAt: Date.now()
+                };
+              } else {
+                state.dungeonMemory.traps[trapId] = {
+                  state: "weakened",
+                  weakenLevel: trap.weakenLevel || 1,
+                  lastUpdatedAt: Date.now()
+                };
+              }
+            } else if (trap.state === "discovered") {
+              if (Math.random() < conf.reactivateRate) {
+                state.dungeonMemory.traps[trapId] = {
+                  state: "hidden",
+                  weakenLevel: 0,
+                  lastUpdatedAt: Date.now()
+                };
+              } else {
+                state.dungeonMemory.traps[trapId] = {
+                  state: "discovered",
+                  lastUpdatedAt: Date.now()
+                };
+              }
+            } else if (trap.state === "hidden") {
+              delete state.dungeonMemory.traps[trapId];
+            }
+          }
+        }
+      }
+    }
+  }
+}
 
 export function triggerRunResult(reason) {
+  persistDungeonTraps();
+
   if (!state.currentRun) {
     state.currentRun = {
       startedAt: Date.now(),
@@ -169,6 +252,7 @@ function persistGameoverRollback() {
       storageMax: state.storageMax,
       identifyTickets: state.identifyTickets,
       currentRun: null,
+      dungeonMemory: state.dungeonMemory,
       logs: state.logs.slice(-30)
     };
 

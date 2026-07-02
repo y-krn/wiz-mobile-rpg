@@ -44,6 +44,7 @@ export function createSavePayload() {
     identifyTickets: state.identifyTickets,
     cleared: state.cleared,
     materials: state.materials,
+    dungeonMemory: state.dungeonMemory,
     logs: state.logs.slice(-30)
   };
 }
@@ -93,4 +94,5 @@ export function applySavePayload(data) {
   state.identifyTickets = data.identifyTickets;
   state.cleared = data.cleared;
   state.materials = data.materials;
+  state.dungeonMemory = data.dungeonMemory || { traps: {} };
 }

@@ -30,7 +30,8 @@ export {
 
 export {
   rebuildDungeonMaps,
-  calculateSeedProperties
+  calculateSeedProperties,
+  applyDungeonMemoryToMaps
 } from "./state/dungeon_state.js";
 
 // Re-exports from data.js originally in state.js

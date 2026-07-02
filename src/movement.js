@@ -8,6 +8,7 @@ import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
 import { openSubmenu } from "./navigation.js";
 import { triggerRunResult } from "./result.js";
+import { handleTrapStepCheck } from "./systems/traps.js";
 
 function tickExplorationSpellEffects() {
   if (state.lightTurns > 0) {
@@ -653,8 +654,16 @@ export function processExplorationResolution(prevX, prevY) {
     }
   }
 
-  // 3. Regular floor events
+  // 2.5. Check standard traps on standard passage cells
   const cell = state.map[state.y][state.x];
+  if (cell.trap && cell.trap.state !== "disabled") {
+    const encountered = handleTrapStepCheck(cell.trap, prevX, prevY);
+    if (encountered) {
+      return;
+    }
+  }
+
+  // 3. Regular floor events
   const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
                         cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
                         cell.message;

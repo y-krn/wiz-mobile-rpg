@@ -2,6 +2,7 @@ import { loadGame, state } from "./state.js";
 import { DungeonRenderer, setDungeonRenderer } from "./renderer.js";
 import { toggleMute } from "./audio.js";
 import { setUiUpdateCallback, goBackSubmenu } from "./navigation.js";
+import { handleTrapAction } from "./systems/traps.js";
 
 // Import modules for re-export and button bindings
 import { updateUI } from "./ui.js";
@@ -111,6 +112,22 @@ function bindButtons() {
 
   // Submenu
   document.getElementById("btn-submenu-back").addEventListener("click", () => goBackSubmenu());
+
+  // Trap actions
+  const bindTrapBtn = (id, action) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("click", () => {
+        if (state.gameState === "trap_encounter") {
+          handleTrapAction(action);
+        }
+      });
+    }
+  };
+  bindTrapBtn("btn-trap-back", "back");
+  bindTrapBtn("btn-trap-bypass", "bypass");
+  bindTrapBtn("btn-trap-disarm", "disarm");
+  bindTrapBtn("btn-trap-force", "force");
 
   // Mute Button
   const btnMute = document.getElementById("btn-mute");

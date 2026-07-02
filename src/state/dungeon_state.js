@@ -30,8 +30,41 @@ export function rebuildDungeonMaps() {
     Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
     Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
   ];
+  applyDungeonMemoryToMaps();
   state.visitedMap[state.y][state.x] = true;
   saveAutosave();
+}
+
+export function applyDungeonMemoryToMaps() {
+  if (!state.dungeonMemory || !state.dungeonMemory.traps) {
+    state.dungeonMemory = { traps: {} };
+    return;
+  }
+
+  if (state.maps) {
+    for (let f = 1; f <= 5; f++) {
+      const grid = state.maps[f - 1];
+      if (!grid) continue;
+
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          const cell = grid[y]?.[x];
+          if (cell && cell.trap) {
+            const trapId = cell.trap.id;
+            const memory = state.dungeonMemory.traps[trapId];
+            if (memory) {
+              cell.trap.state = memory.state;
+              if (memory.weakenLevel !== undefined) {
+                cell.trap.weakenLevel = memory.weakenLevel;
+              }
+            } else {
+              cell.trap.state = "hidden";
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 export function calculateSeedProperties() {
