@@ -205,3 +205,19 @@
   text-shadow: var(--neon-glow-gold);
 }
 
+@media (max-height: 700px) {
+  #viewport-panel {
+    aspect-ratio: auto;
+    flex: 1 1 120px;
+    min-height: 120px;
+    max-height: none;
+  }
+
+  #log-panel {
+    min-height: 56px;
+    max-height: 96px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-size: 12px;
+  }
+}

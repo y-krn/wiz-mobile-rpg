@@ -13,8 +13,13 @@
 }
 
 #controls-panel.explore-mode {
-  min-height: 116px;
+  height: 116px; /* Compact height for dungeon exploration */
   padding: 6px 8px;
+}
+
+#controls-panel.submenu-mode {
+  height: 320px; /* Expand height in submenus for list readability */
+  max-height: 45vh; /* Keep it within bounds of device screen height */
 }
 
 .controls-group {
@@ -70,9 +75,7 @@
   gap: 6px;
 }
 
-#btn-town-dungeon {
-  grid-column: span 2;
-}
+
 
 .combat-grid {
   grid-template-columns: repeat(4, 1fr);

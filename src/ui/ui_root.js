@@ -247,6 +247,7 @@ export function updateUI() {
   const controlsPanel = document.getElementById("controls-panel");
   if (controlsPanel) {
     controlsPanel.classList.toggle("explore-mode", state.gameState === "explore");
+    controlsPanel.classList.toggle("submenu-mode", state.gameState === "submenu");
   }
 
   if (state.gameState === "explore") {
@@ -389,8 +390,8 @@ export function updateUI() {
   if (partyHeader && partyPanel) {
     if (state.gameState === "town") {
       partyHeader.style.display = "flex";
-      partyPanel.style.height = "92px";
-      partyPanel.style.minHeight = "92px";
+      partyPanel.style.height = "105px";
+      partyPanel.style.minHeight = "105px";
       partyPanel.classList.add("interactive-hud");
       partyHeader.onclick = () => {
         menuContext.actorIdx = 0;
@@ -398,8 +399,8 @@ export function updateUI() {
       };
     } else {
       partyHeader.style.display = "none";
-      partyPanel.style.height = "75px";
-      partyPanel.style.minHeight = "75px";
+      partyPanel.style.height = "88px";
+      partyPanel.style.minHeight = "88px";
       partyPanel.classList.remove("interactive-hud");
       partyHeader.onclick = null;
     }

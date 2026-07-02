@@ -1,7 +1,7 @@
 /* Party HUD Panel */
 #party-panel {
-  height: 75px; /* Expanded from 65px for better mobile spacing */
-  min-height: 75px;
+  height: 88px; /* Expanded from 75px for better mobile spacing */
+  min-height: 88px;
   background-color: #121216;
   border-top: 1.5px solid var(--neon-cyan);
   box-shadow: var(--neon-glow-cyan);
