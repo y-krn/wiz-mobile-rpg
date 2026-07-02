@@ -95,4 +95,17 @@ export function applySavePayload(data) {
   state.cleared = data.cleared;
   state.materials = data.materials;
   state.dungeonMemory = data.dungeonMemory || { traps: {} };
+  
+  // 統一された参照リンク
+  linkPartyToRoster();
 }
+
+export function linkPartyToRoster() {
+  if (state.party && state.roster) {
+    state.party = state.party.map(partyChar => {
+      const rosterChar = state.roster.find(c => c.name === partyChar.name);
+      return rosterChar || partyChar;
+    });
+  }
+}
+

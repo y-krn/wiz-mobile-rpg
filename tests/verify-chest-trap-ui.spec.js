@@ -32,8 +32,8 @@ test('Verify Chest Trap Inspection and Disarm Button UI state flow (with trap)',
   await page.waitForTimeout(1000);
 
   // 2. Before Inspection UI verification
-  const btnInspect = page.locator('button:has-text("調べる")');
-  const btnDisarm = page.locator('button:has-text("解除")');
+  const btnInspect = page.locator('#btn-chest-inspect');
+  const btnDisarm = page.locator('#btn-chest-disarm');
 
   await expect(btnInspect).toBeVisible();
   await expect(btnInspect).toBeEnabled();
@@ -50,22 +50,19 @@ test('Verify Chest Trap Inspection and Disarm Button UI state flow (with trap)',
   await page.waitForTimeout(1000);
 
   // 4. After Inspection UI verification
-  const btnInspectAfter = page.locator('button:has-text("調査済み")');
+  const btnInspectAfter = page.locator('#btn-chest-inspect');
   await expect(btnInspectAfter).toBeVisible();
   await expect(btnInspectAfter).toBeDisabled();
 
-  // Find the disarm button again to check its new text and state
-  const btnDisarmAfter = page.locator('button:has-text("解除")');
-  const disarmText = await btnDisarmAfter.textContent();
-  console.log(`Disarm button text after inspection (trap case): ${disarmText}`);
-
-  // Disarm should be enabled if a trap was identified (poison needle, gas bomb, etc.)
-  // If inspect failed to identify the true trap, it might pick a false trap.
-  // We check if it is "解除する" or "解除不要" based on the identified trap in the state.
   const identifiedTrap = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return state.chestState.identifiedTrap;
   });
+
+  // Find the disarm button again to check its new text and state
+  const btnDisarmAfter = page.locator('#btn-chest-disarm');
+  const disarmText = await btnDisarmAfter.textContent();
+  console.log(`Disarm button text after inspection (trap case): ${disarmText}`);
 
   if (identifiedTrap === "none") {
     await expect(btnDisarmAfter).toHaveText("解除不要");
@@ -85,7 +82,7 @@ test('Verify Chest Trap Inspection and Disarm Button UI state flow (with trap)',
     await page.waitForTimeout(1000);
 
     // Verify we returned to chest menu and elements are redrawn
-    const btnInspectBack = page.locator('button:has-text("調査済み")');
+    const btnInspectBack = page.locator('#btn-chest-inspect');
     await expect(btnInspectBack).toBeVisible();
     await expect(btnInspectBack).toBeDisabled();
   }
@@ -126,8 +123,8 @@ test('Verify Chest Trap Inspection and Disarm Button UI state flow (no trap)', a
   await page.waitForTimeout(1000);
 
   // 2. Before Inspection UI verification
-  const btnInspect = page.locator('button:has-text("調べる")');
-  const btnDisarm = page.locator('button:has-text("解除")');
+  const btnInspect = page.locator('#btn-chest-inspect');
+  const btnDisarm = page.locator('#btn-chest-disarm');
 
   await expect(btnInspect).toBeVisible();
   await expect(btnInspect).toBeEnabled();
@@ -144,19 +141,19 @@ test('Verify Chest Trap Inspection and Disarm Button UI state flow (no trap)', a
   await page.waitForTimeout(1000);
 
   // 4. After Inspection UI verification
-  const btnInspectAfter = page.locator('button:has-text("調査済み")');
+  const btnInspectAfter = page.locator('#btn-chest-inspect');
   await expect(btnInspectAfter).toBeVisible();
   await expect(btnInspectAfter).toBeDisabled();
-
-  // Find the disarm button again
-  const btnDisarmAfter = page.locator('button:has-text("解除")');
-  const disarmText = await btnDisarmAfter.textContent();
-  console.log(`Disarm button text after inspection (no trap case): ${disarmText}`);
 
   const identifiedTrap = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     return state.chestState.identifiedTrap;
   });
+
+  // Find the disarm button again
+  const btnDisarmAfter = page.locator('#btn-chest-disarm');
+  const disarmText = await btnDisarmAfter.textContent();
+  console.log(`Disarm button text after inspection (no trap case): ${disarmText}`);
 
   if (identifiedTrap === "none") {
     await expect(btnDisarmAfter).toHaveText("解除不要");

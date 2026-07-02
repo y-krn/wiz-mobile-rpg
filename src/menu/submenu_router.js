@@ -4,7 +4,7 @@ import { renderShop } from "../shop/shop_view.js";
 import { shopState } from "../shop/shop_state.js";
 import { renderTraining } from "../training.js";
 import { renderEventMerchant, renderEventMerchantBuy } from "./merchant.js";
-import { renderTempleMain, renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftDismantle, renderCraftInscriptionSelectEquip, renderCraftInscriptionSelectEngrave } from "./town_actions.js";
+import { renderTempleMain, renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftDismantle, renderCraftInscriptionSelectEquip, renderCraftInscriptionSelectEngrave, renderCastleMain, renderCastleDeadList, renderCastleRemainsList, renderCastleDeathLogs } from "./town_actions.js";
 import { renderItemUserSelect, renderItemInventory, renderItemAction, renderCampMain, renderGameOverMain, renderEnterDungeonSelect, renderCampStatus, renderEventSpring, renderEventTablet, renderChestDisarmerSelect } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 
@@ -51,6 +51,10 @@ const SUBMENU_RENDERERS = {
     openSubmenu("shop_main", "ボルタック商店");
   },
   temple_main: (optGrid) => renderTempleMain(optGrid),
+  castle_main: (optGrid) => renderCastleMain(optGrid),
+  castle_dead_list: (optGrid) => renderCastleDeadList(optGrid),
+  castle_remains_list: (optGrid) => renderCastleRemainsList(optGrid),
+  castle_death_logs: (optGrid) => renderCastleDeathLogs(optGrid),
   chest_disarmer_select: (optGrid) => renderChestDisarmerSelect(optGrid),
   party_assemble: (optGrid) => {
     optGrid.innerHTML = "";

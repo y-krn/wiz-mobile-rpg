@@ -80,7 +80,11 @@ export function closeSubmenu() {
       state.gameState = menuContext.prevGameState;
       menuContext.prevGameState = null;
     } else {
-      if (menuContext.type.startsWith("shop") || menuContext.type.startsWith("temple")) {
+      if (menuContext.type.startsWith("shop") || 
+          menuContext.type.startsWith("temple") || 
+          menuContext.type.startsWith("castle") || 
+          menuContext.type.startsWith("party_assemble") || 
+          menuContext.type.startsWith("craft")) {
         state.gameState = "town";
       } else if (menuContext.type.startsWith("combat")) {
         state.gameState = "combat";

@@ -1,13 +1,14 @@
 import { state } from "./state_core.js";
 import { generateRandomSeed, createDefaultRoster, createDefaultCodex, findSuitableRoamingMonsterStart } from "./initial_state.js";
-import { createSavePayload, applySavePayload } from "./save_payload.js";
+import { createSavePayload, applySavePayload, linkPartyToRoster } from "./save_payload.js";
 import { migrateSavePayload } from "./save_migrations.js";
 import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH, registerState } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";
 import { applyDungeonMemoryToMaps } from "./dungeon_state.js";
 
-const SAVE_KEY = "mobile_wiz_rpg_save";
-const AUTOSAVE_KEY = "mobile_wiz_rpg_autosave";
+const SAVE_KEY = "mobile_wiz_rpg_autosave";
+const OLD_SAVE_KEY = "mobile_wiz_rpg_save";
+
 
 export function initNewGame() {
   state.x = START_X;
@@ -100,24 +101,19 @@ export function initNewGame() {
   state.transitioning = false;
   state.cleared = false;
   state.materials = {};
+  state.remains = []; // 遺留品の初期化
   state.logs = ["リルガミンの街へようこそ。準備を整えて迷宮に入りましょう！"];
-  saveGame();
   saveAutosave();
 }
 
 export function saveGame() {
-  try {
-    const data = createSavePayload();
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-  } catch (err) {
-    console.error("Save game failed", err);
-  }
+  saveAutosave();
 }
 
 export function saveAutosave() {
   try {
     const data = createSavePayload();
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   } catch (err) {
     console.error("Save autosave failed", err);
   }
@@ -125,14 +121,17 @@ export function saveAutosave() {
 
 export function clearSave() {
   localStorage.removeItem(SAVE_KEY);
-  localStorage.removeItem(AUTOSAVE_KEY);
+  localStorage.removeItem(OLD_SAVE_KEY);
   initNewGame();
 }
 
 export function loadGame(forceSaveOnly = false) {
   try {
-    const key = (!forceSaveOnly && localStorage.getItem(AUTOSAVE_KEY)) ? AUTOSAVE_KEY : SAVE_KEY;
-    const raw = localStorage.getItem(key);
+    let raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) {
+      // 統一キーがない場合、旧手動セーブキーからの移行を試みる
+      raw = localStorage.getItem(OLD_SAVE_KEY);
+    }
     if (!raw) {
       initNewGame();
       return;
@@ -142,9 +141,14 @@ export function loadGame(forceSaveOnly = false) {
     applySavePayload(migrated);
     applyDungeonMemoryToMaps();
     registerState(state);
+    
+    // ロード直後に参照の再リンクを念押し
+    linkPartyToRoster();
+
     saveAutosave();
   } catch (err) {
     console.error("Failed to load save, resetting.", err);
     initNewGame();
   }
 }
+

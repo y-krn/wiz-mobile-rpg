@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, createDefaultCurrentRun } from "./state.js";
-import { DIR_N, START_X, START_Y, DX, DY, DIR_NAMES, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES } from "./data.js";
+import { DIR_N, START_X, START_Y, DX, DY, DIR_NAMES, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, getItemBaseId, isSpecialOrQuestItem } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
@@ -215,6 +215,35 @@ function checkSensoryAura() {
 }
 
 export function checkCellEvents(prevX = START_X, prevY = START_Y) {
+  // 遺留品の回収チェック
+  if (state.remains && state.remains.length > 0) {
+    const remainsIdx = state.remains.findIndex(rem => rem.floor === state.floor && rem.x === state.x && rem.y === state.y);
+    if (remainsIdx !== -1) {
+      const remains = state.remains[remainsIdx];
+      addLog(`【遺留品回収】かつて全滅した地点にたどり着いた。遺留品を発見し、回収した！`);
+      playSound("gold");
+      
+      let recoveredCount = 0;
+      remains.items.forEach(item => {
+        // インベントリに戻す (上限20個を一時的に超過可能)
+        state.inventory.push(item);
+        recoveredCount++;
+      });
+
+      if (recoveredCount > 0) {
+        addLog(`遺留品からアイテムを ${recoveredCount} 個回収しました。`);
+      } else {
+        addLog(`遺留品の中身は空だった。`);
+      }
+
+      // 遺留品データを削除
+      state.remains.splice(remainsIdx, 1);
+      
+      saveAutosave();
+      updateUI();
+    }
+  }
+
   const cell = state.map[state.y][state.x];
 
   // Stairs Up (exit to town or go to previous floor)

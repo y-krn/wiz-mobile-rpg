@@ -344,6 +344,7 @@ export function openChestMenu() {
 
   // Inspect Chest
   const btnInspect = document.createElement("button");
+  btnInspect.id = "btn-chest-inspect";
   btnInspect.className = "btn btn-neon btn-block";
   btnInspect.style.minHeight = "44px";
   btnInspect.style.flex = "1";
@@ -394,6 +395,7 @@ export function openChestMenu() {
 
   // Disarm Chest
   const btnDisarm = document.createElement("button");
+  btnDisarm.id = "btn-chest-disarm";
   btnDisarm.className = "btn btn-neon btn-block";
   btnDisarm.style.minHeight = "44px";
   btnDisarm.style.flex = "1";
