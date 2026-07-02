@@ -90,6 +90,39 @@ for (const vp of VIEWPORTS) {
             }
           }
         }
+
+        const overflow = await page.evaluate(() => {
+          const viewportWidth = document.documentElement.clientWidth;
+          const offenders = Array.from(document.querySelectorAll('body *'))
+            .filter((el) => {
+              const style = getComputedStyle(el);
+              const rect = el.getBoundingClientRect();
+              return style.visibility !== 'hidden' &&
+                style.display !== 'none' &&
+                rect.width > 0 &&
+                rect.height > 0 &&
+                (rect.left < -1 || rect.right > viewportWidth + 1);
+            })
+            .slice(0, 5)
+            .map((el) => {
+              const rect = el.getBoundingClientRect();
+              return {
+                tag: el.tagName.toLowerCase(),
+                id: el.id,
+                className: typeof el.className === 'string' ? el.className : '',
+                left: rect.left,
+                right: rect.right,
+                width: rect.width,
+              };
+            });
+          return {
+            scrollWidth: document.documentElement.scrollWidth,
+            clientWidth: viewportWidth,
+            offenders,
+          };
+        });
+        expect(overflow.scrollWidth, `${screenName} should not create horizontal page scroll on ${vp.name}`).toBeLessThanOrEqual(overflow.clientWidth + 1);
+        expect(overflow.offenders, `${screenName} should not have visible elements overflowing horizontally on ${vp.name}`).toEqual([]);
       };
 
       // 1. Town Screen
@@ -173,6 +206,32 @@ for (const vp of VIEWPORTS) {
         const backBtn = page.locator('button:has-text("閉じる"):visible, #btn-submenu-back:visible, button:has-text("街に戻る"):visible').first();
         await backBtn.click();
         await page.waitForTimeout(500);
+      }
+    });
+
+    test('Dungeon exploration controls stay compact after entering the dungeon', async ({ page }) => {
+      await page.locator('#btn-town-training').click();
+      await expect(page.locator('#training-overlay')).toBeVisible();
+      await page.locator('.char-row').first().click();
+      await page.locator('button:has-text("加える"):visible').first().click();
+      await page.locator('button:has-text("閉じる"):visible').first().click();
+      await expect(page.locator('#town-controls')).toBeVisible();
+
+      await page.locator('#btn-town-dungeon').click();
+      if (await page.locator('#submenu-controls').isVisible()) {
+        await page.getByRole('button', { name: '地下1階から潜る' }).click();
+      }
+      await expect(page.locator('#explore-controls')).toBeVisible();
+
+      const panelBox = await page.locator('#controls-panel').boundingBox();
+      expect(panelBox.height, `Explore controls panel should stay compact on ${vp.name}`).toBeLessThanOrEqual(130);
+
+      const exploreButtons = await page.locator('#explore-controls button:visible').all();
+      expect(exploreButtons.length).toBe(8);
+      for (const btn of exploreButtons) {
+        const box = await btn.boundingBox();
+        const text = (await btn.textContent()).trim();
+        expect(box.height, `Explore button "${text}" should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
       }
     });
   });

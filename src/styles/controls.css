@@ -14,6 +14,7 @@
 
 #controls-panel.explore-mode {
   height: 116px; /* Compact height for dungeon exploration */
+  min-height: 116px;
   padding: 6px 8px;
 }
 
@@ -145,4 +146,3 @@
   text-align: center;
   margin-bottom: 4px;
 }
-
