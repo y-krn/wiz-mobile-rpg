@@ -16,6 +16,7 @@ export let equipState = {
   selectedKey: null,
   selectedSlot: null,
   selectedActorIdx: -1,
+  selectedIsEquipped: false,
   prevGameState: null
 };
 
@@ -80,6 +81,7 @@ function clearSelection() {
   equipState.selectedKey = null;
   equipState.selectedSlot = null;
   equipState.selectedActorIdx = -1;
+  equipState.selectedIsEquipped = false;
 }
 
 function isEquipmentItem(item) {
@@ -114,6 +116,27 @@ function getEquipPreview(char, itemKey) {
   const primaryKey = slot === "weapon" ? "attack" : "defense";
   const primaryDiff = rows.find((row) => row.key === primaryKey)?.diff ?? 0;
   return { item, slot, rows, primaryDiff, oldEq };
+}
+
+function getUnequipPreview(char, slot) {
+  const itemKey = char.equipment[slot];
+  const item = getItemData(itemKey);
+  if (!item) return null;
+
+  const current = getDisplayStats(char);
+  char.equipment[slot] = null;
+  const next = getDisplayStats(char);
+  char.equipment[slot] = itemKey;
+
+  const rows = STAT_ROWS.map((stat) => ({
+    ...stat,
+    current: current[stat.key],
+    next: next[stat.key],
+    diff: next[stat.key] - current[stat.key]
+  }));
+  const primaryKey = slot === "weapon" ? "attack" : "defense";
+  const primaryDiff = rows.find((row) => row.key === primaryKey)?.diff ?? 0;
+  return { item, slot, rows, primaryDiff, oldEq: null };
 }
 
 export function getItemUseStatus(char, itemKey) {
@@ -244,6 +267,72 @@ function createEquipmentList(char, savedScrollTop) {
 
   const itemList = document.createElement("div");
   itemList.className = "equip-item-list";
+
+  // 1. 装備中セクション
+  const headingEquipped = document.createElement("div");
+  headingEquipped.className = "equip-list-heading";
+  headingEquipped.textContent = "装備中";
+  itemList.appendChild(headingEquipped);
+
+  const slots = [
+    { id: "weapon", label: "武器" },
+    { id: "shield", label: "盾" },
+    { id: "armor", label: "鎧" }
+  ];
+
+  const filteredSlots = slots.filter(s => equipState.filter === "all" || equipState.filter === s.id);
+  filteredSlots.forEach(({ id, label }) => {
+    const itemKey = char.equipment[id];
+    const item = itemKey ? getItemData(itemKey) : null;
+    const selected = equipState.selectedIsEquipped && equipState.selectedSlot === id;
+    
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `equip-item-row ${selected ? "selected" : ""}`;
+    row.setAttribute("aria-selected", selected ? "true" : "false");
+
+    const left = document.createElement("div");
+    left.className = "equip-item-row-main";
+    const name = document.createElement("span");
+    name.className = "equip-item-row-name";
+    name.textContent = item ? item.name : "（なし）";
+    if (!item) {
+      name.style.color = "var(--text-muted)";
+    }
+    left.appendChild(name);
+
+    const summary = document.createElement("span");
+    summary.className = "equip-item-row-tag";
+    summary.textContent = `${label} ${item ? `/ ${getItemSummary(item)}` : ""}`;
+    left.appendChild(summary);
+    row.appendChild(left);
+
+    row.addEventListener("click", () => {
+      if (!itemKey) {
+        clearSelection();
+      } else {
+        if (selected) {
+          clearSelection();
+        } else {
+          equipState.selectedIdx = -1;
+          equipState.selectedKey = itemKey;
+          equipState.selectedSlot = id;
+          equipState.selectedActorIdx = equipState.actorIdx;
+          equipState.selectedIsEquipped = true;
+        }
+      }
+      renderEquip();
+    });
+
+    itemList.appendChild(row);
+  });
+
+  // 2. バッグの装備品セクション
+  const headingBag = document.createElement("div");
+  headingBag.className = "equip-list-heading";
+  headingBag.textContent = "バッグの装備品";
+  itemList.appendChild(headingBag);
+
   const equipmentItems = getEquipmentItems();
 
   if (equipmentItems.length === 0) {
@@ -262,7 +351,7 @@ function createEquipmentList(char, savedScrollTop) {
         itemList.appendChild(heading);
       }
 
-      const selected = equipState.selectedIdx === idx;
+      const selected = !equipState.selectedIsEquipped && equipState.selectedIdx === idx;
       const availability = canEquip(char, itemKey);
       const preview = getEquipPreview(char, itemKey);
       const row = document.createElement("button");
@@ -306,6 +395,7 @@ function createEquipmentList(char, savedScrollTop) {
           equipState.selectedKey = itemKey;
           equipState.selectedSlot = item.type;
           equipState.selectedActorIdx = equipState.actorIdx;
+          equipState.selectedIsEquipped = false;
         }
         renderEquip();
       });
@@ -346,8 +436,17 @@ function createDetailPanel(char) {
 
   const itemKey = equipState.selectedKey;
   const item = getItemData(itemKey);
-  const availability = canEquip(char, itemKey);
-  const preview = getEquipPreview(char, itemKey);
+  const isEquipped = equipState.selectedIsEquipped;
+
+  let preview;
+  let availability;
+  if (isEquipped) {
+    preview = getUnequipPreview(char, equipState.selectedSlot);
+    availability = { ok: true, reason: "" };
+  } else {
+    preview = getEquipPreview(char, itemKey);
+    availability = canEquip(char, itemKey);
+  }
 
   const content = document.createElement("div");
   content.className = "equip-detail-content";
@@ -363,10 +462,14 @@ function createDetailPanel(char) {
   `;
   content.appendChild(heading);
 
-  const currentEquip = preview?.oldEq ? getItemData(preview.oldEq) : null;
   const exchange = document.createElement("div");
   exchange.className = "equip-exchange-line";
-  exchange.textContent = `${SLOT_LABELS[item.type]}: ${currentEquip ? currentEquip.name : "なし"} → ${item.name}`;
+  if (isEquipped) {
+    exchange.textContent = `${SLOT_LABELS[equipState.selectedSlot]}: ${item.name} → なし`;
+  } else {
+    const currentEquip = preview?.oldEq ? getItemData(preview.oldEq) : null;
+    exchange.textContent = `${SLOT_LABELS[item.type]}: ${currentEquip ? currentEquip.name : "なし"} → ${item.name}`;
+  }
   content.appendChild(exchange);
 
   if (preview && availability.ok) {
@@ -381,39 +484,68 @@ function createDetailPanel(char) {
   }
 
   const compat = document.createElement("div");
-  compat.className = `equip-detail-compat ${availability.ok ? "yes" : "no"}`;
-  compat.textContent = availability.ok ? "装備できます" : availability.reason;
+  if (isEquipped) {
+    compat.className = "equip-detail-compat yes";
+    compat.textContent = "現在装備しています";
+  } else {
+    compat.className = `equip-detail-compat ${availability.ok ? "yes" : "no"}`;
+    compat.textContent = availability.ok ? "装備できます" : availability.reason;
+  }
   content.appendChild(compat);
 
   detailCol.appendChild(content);
 
   const actionBtn = document.createElement("button");
   actionBtn.type = "button";
-  actionBtn.className = availability.ok ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
-  actionBtn.disabled = !availability.ok;
-  actionBtn.textContent = availability.ok ? "装備する" : "装備できません";
-  actionBtn.addEventListener("click", () => {
-    if (!availability.ok) return;
-    const currentChar = state.party[equipState.actorIdx];
-    const selectedItem = state.inventory[equipState.selectedIdx];
-    const selectedData = getItemData(selectedItem);
-    const slot = selectedData.type;
-    const oldEq = currentChar.equipment[slot];
+  if (isEquipped) {
+    const bagFull = state.inventory.length >= 20;
+    actionBtn.className = bagFull ? "btn btn-block equip-action-btn disabled" : "btn btn-neon btn-block equip-action-btn";
+    actionBtn.disabled = bagFull;
+    actionBtn.textContent = bagFull ? "バッグが満杯です" : "外す";
+    actionBtn.addEventListener("click", () => {
+      if (bagFull) return;
+      const currentChar = state.party[equipState.actorIdx];
+      const slot = equipState.selectedSlot;
+      const currentItemKey = currentChar.equipment[slot];
+      const itemData = getItemData(currentItemKey);
 
-    currentChar.equipment[slot] = selectedItem;
-    if (oldEq) {
-      state.inventory[equipState.selectedIdx] = oldEq;
-    } else {
-      state.inventory.splice(equipState.selectedIdx, 1);
-    }
+      currentChar.equipment[slot] = null;
+      state.inventory.push(currentItemKey);
 
-    addLog(`${currentChar.name}は${selectedData.name}を装備した。`);
-    playSound("move");
-    saveAutosave();
-    clearSelection();
-    renderEquip();
-    updateUI();
-  });
+      addLog(`${currentChar.name}は${itemData.name}を外した。`);
+      playSound("move");
+      saveAutosave();
+      clearSelection();
+      renderEquip();
+      updateUI();
+    });
+  } else {
+    actionBtn.className = availability.ok ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
+    actionBtn.disabled = !availability.ok;
+    actionBtn.textContent = availability.ok ? "装備する" : "装備できません";
+    actionBtn.addEventListener("click", () => {
+      if (!availability.ok) return;
+      const currentChar = state.party[equipState.actorIdx];
+      const selectedItem = state.inventory[equipState.selectedIdx];
+      const selectedData = getItemData(selectedItem);
+      const slot = selectedData.type;
+      const oldEq = currentChar.equipment[slot];
+
+      currentChar.equipment[slot] = selectedItem;
+      if (oldEq) {
+        state.inventory[equipState.selectedIdx] = oldEq;
+      } else {
+        state.inventory.splice(equipState.selectedIdx, 1);
+      }
+
+      addLog(`${currentChar.name}は${selectedData.name}を装備した。`);
+      playSound("move");
+      saveAutosave();
+      clearSelection();
+      renderEquip();
+      updateUI();
+    });
+  }
   detailCol.appendChild(actionBtn);
   return detailCol;
 }

@@ -114,7 +114,23 @@ export function executeCraft(recipeId) {
 }
 
 export function executeEnhance(itemIdx) {
-  const eqItem = state.inventory[itemIdx];
+  let eqItem;
+  let isEquipped = false;
+  let actorIdx, slot;
+
+  if (itemIdx && typeof itemIdx === "object") {
+    if (itemIdx.type === "equipped") {
+      isEquipped = true;
+      actorIdx = itemIdx.actorIdx;
+      slot = itemIdx.slot;
+      eqItem = state.party[actorIdx].equipment[slot];
+    } else {
+      eqItem = state.inventory[itemIdx.index];
+    }
+  } else {
+    eqItem = state.inventory[itemIdx];
+  }
+
   if (!eqItem) return false;
 
   const cost = getEnhanceCost(eqItem);
@@ -148,8 +164,13 @@ export function executeEnhance(itemIdx) {
   const upgradedItem = convertToEquipObject(eqItem);
   upgradedItem.enhanceLevel = (upgradedItem.enhanceLevel || 0) + 1;
 
-  // インベントリの更新
-  state.inventory[itemIdx] = upgradedItem;
+  // 更新
+  if (isEquipped) {
+    state.party[actorIdx].equipment[slot] = upgradedItem;
+  } else {
+    const idx = (itemIdx && typeof itemIdx === "object") ? itemIdx.index : itemIdx;
+    state.inventory[idx] = upgradedItem;
+  }
 
   playSound("level_up");
   const itemData = getItemData(upgradedItem);
@@ -284,7 +305,23 @@ export const INSCRIPTION_RECIPES = [
 ];
 
 export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTagIdx, actionType = "add", options = {}) {
-  const eqItem = state.inventory[itemIdx];
+  let eqItem;
+  let isEquipped = false;
+  let actorIdx, slot;
+
+  if (itemIdx && typeof itemIdx === "object") {
+    if (itemIdx.type === "equipped") {
+      isEquipped = true;
+      actorIdx = itemIdx.actorIdx;
+      slot = itemIdx.slot;
+      eqItem = state.party[actorIdx].equipment[slot];
+    } else {
+      eqItem = state.inventory[itemIdx.index];
+    }
+  } else {
+    eqItem = state.inventory[itemIdx];
+  }
+
   if (!eqItem) return false;
 
   const item = getItemData(eqItem);
@@ -375,8 +412,13 @@ export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTag
     addLog(`[工房] [${item.name}] に [${effectInfo.name}] (${effectInfo.desc}) を施しました！`);
   }
 
-  // インベントリの更新
-  state.inventory[itemIdx] = upgradedItem;
+  // 更新
+  if (isEquipped) {
+    state.party[actorIdx].equipment[slot] = upgradedItem;
+  } else {
+    const idx = (itemIdx && typeof itemIdx === "object") ? itemIdx.index : itemIdx;
+    state.inventory[idx] = upgradedItem;
+  }
 
   // 新規シナジー発見記録
   const activeSyns = getActiveSynergies(state.party);
@@ -391,7 +433,17 @@ export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTag
 
 // 既存の互換性用
 export function executeInscription(itemIdx, recipeId) {
-  const eqItem = state.inventory[itemIdx];
+  let eqItem;
+  if (itemIdx && typeof itemIdx === "object") {
+    if (itemIdx.type === "equipped") {
+      eqItem = state.party[itemIdx.actorIdx].equipment[itemIdx.slot];
+    } else {
+      eqItem = state.inventory[itemIdx.index];
+    }
+  } else {
+    eqItem = state.inventory[itemIdx];
+  }
+
   if (eqItem && typeof eqItem === "object" && eqItem.inscription) {
     addLog("この装備には既に刻印が施されています。");
     return false;

@@ -10,8 +10,18 @@ import { TAGS, MATERIAL_TAGS, TAG_EFFECT_MAP } from "../data/tags.js";
 
 import { openEquipOverlay } from "../equip.js";
 
+let isCastleProcessing = false;
+
 export function handleTownOption(option) {
   if (option === "castle") {
+    if (isCastleProcessing) return;
+    isCastleProcessing = true;
+
+    const btn = document.getElementById("btn-town-castle");
+    if (btn) {
+      btn.disabled = true;
+    }
+
     state.party.forEach(char => {
       if (char.status !== "dead") {
         char.hp = getCharMaxHp(char);
@@ -38,6 +48,13 @@ export function handleTownOption(option) {
       saveAutosave();
     }
     updateUI();
+
+    setTimeout(() => {
+      isCastleProcessing = false;
+      if (btn) {
+        btn.disabled = false;
+      }
+    }, 800);
   } else if (option === "shop") {
     openSubmenu("shop_main", "ボルタック商店 - アイテムの売買：");
   } else if (option === "temple") {
@@ -134,6 +151,66 @@ export function renderCraftInscriptionSelectEquip(optGrid) {
   renderMaterialsHUD(optGrid);
 
   let equipCount = 0;
+
+  // 1. 装備中の装備品
+  state.party.forEach((char, actorIdx) => {
+    ["weapon", "shield", "armor"].forEach(slot => {
+      const itemKey = char.equipment[slot];
+      if (!itemKey) return;
+      const item = getItemData(itemKey);
+      if (!item || !["weapon", "shield", "armor"].includes(item.type)) return;
+
+      equipCount++;
+      const container = document.createElement("div");
+      container.style.gridColumn = "span 2";
+      container.style.border = "1px solid #333";
+      container.style.padding = "6px 8px";
+      container.style.borderRadius = "4px";
+      container.style.display = "flex";
+      container.style.justifyContent = "space-between";
+      container.style.alignItems = "center";
+      container.style.background = "rgba(0,0,0,0.2)";
+      container.style.marginBottom = "4px";
+
+      const info = document.createElement("div");
+      info.style.fontFamily = "var(--font-mono)";
+      info.style.fontSize = "11px";
+      
+      const isUnidentified = typeof itemKey === "object" && itemKey.identified === false;
+      const isAlreadyInscribed = typeof itemKey === "object" && !!itemKey.inscription;
+
+      let statusText = " [装備中]";
+      if (isUnidentified) {
+        statusText = " [装備中/未鑑定]";
+      } else if (isAlreadyInscribed) {
+        statusText = " [装備中/刻印済み]";
+      }
+
+      info.innerHTML = `<strong style="color:#fff">${item.name}</strong><br>
+        <span style="color:var(--text-muted)">${item.desc.split("[")[0]}${statusText} (使用者: ${char.name})</span>`;
+      container.appendChild(info);
+
+      const btn = document.createElement("button");
+      btn.className = "btn btn-neon";
+      btn.textContent = "選択";
+      btn.style.minHeight = "44px";
+      btn.style.width = "80px";
+
+      if (isUnidentified || isAlreadyInscribed) {
+        btn.disabled = true;
+        btn.classList.add("disabled");
+      } else {
+        btn.addEventListener("click", () => {
+          selectedInscriptionEquipIdx = { type: "equipped", actorIdx, slot };
+          openSubmenu("craft_inscription_select_engrave", "工房 - 刻印の選択：");
+        });
+      }
+      container.appendChild(btn);
+      optGrid.appendChild(container);
+    });
+  });
+
+  // 2. バッグの装備品
   state.inventory.forEach((itemKey, idx) => {
     const item = getItemData(itemKey);
     if (!item || !["weapon", "shield", "armor"].includes(item.type)) return;
@@ -154,7 +231,6 @@ export function renderCraftInscriptionSelectEquip(optGrid) {
     info.style.fontFamily = "var(--font-mono)";
     info.style.fontSize = "11px";
     
-    // 未鑑定は刻印不可、刻印済みも1つまでなので不可
     const isUnidentified = typeof itemKey === "object" && itemKey.identified === false;
     const isAlreadyInscribed = typeof itemKey === "object" && !!itemKey.inscription;
 
@@ -180,7 +256,7 @@ export function renderCraftInscriptionSelectEquip(optGrid) {
       btn.classList.add("disabled");
     } else {
       btn.addEventListener("click", () => {
-        selectedInscriptionEquipIdx = idx;
+        selectedInscriptionEquipIdx = { type: "inventory", index: idx };
         openSubmenu("craft_inscription_select_engrave", "工房 - 刻印の選択：");
       });
     }
@@ -195,7 +271,7 @@ export function renderCraftInscriptionSelectEquip(optGrid) {
     emptyMsg.style.color = "var(--text-muted)";
     emptyMsg.style.fontSize = "11px";
     emptyMsg.style.padding = "20px";
-    emptyMsg.textContent = "刻印可能な装備品がバッグにありません。";
+    emptyMsg.textContent = "刻印可能な装備品がありません。";
     optGrid.appendChild(emptyMsg);
   }
 }
@@ -208,7 +284,18 @@ let currentActionType = "add";
 export function renderCraftInscriptionSelectEngrave(optGrid) {
   renderMaterialsHUD(optGrid);
 
-  const eqItem = state.inventory[selectedInscriptionEquipIdx];
+  let eqItem;
+  if (selectedInscriptionEquipIdx && typeof selectedInscriptionEquipIdx === "object") {
+    if (selectedInscriptionEquipIdx.type === "equipped") {
+      const actor = state.party[selectedInscriptionEquipIdx.actorIdx];
+      eqItem = actor.equipment[selectedInscriptionEquipIdx.slot];
+    } else {
+      eqItem = state.inventory[selectedInscriptionEquipIdx.index];
+    }
+  } else {
+    eqItem = state.inventory[selectedInscriptionEquipIdx];
+  }
+
   const item = getItemData(eqItem);
   if (!item) {
     const emptyMsg = document.createElement("div");
@@ -434,6 +521,7 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
         currentSelectedTag = null;
         currentOverwriteIdx = -1;
         currentActionType = "add";
+        selectedInscriptionEquipIdx = -1;
         openSubmenu("craft_inscription_select_equip", "工房 - 刻印する装備の選択：", true);
       }
     });
@@ -510,6 +598,74 @@ export function renderCraftEnhance(optGrid) {
   renderMaterialsHUD(optGrid);
 
   let enhanceableCount = 0;
+
+  // 1. 装備中の装備品
+  state.party.forEach((char, actorIdx) => {
+    ["weapon", "shield", "armor"].forEach(slot => {
+      const itemKey = char.equipment[slot];
+      if (!itemKey) return;
+      const item = getItemData(itemKey);
+      if (!item || !["weapon", "shield", "armor"].includes(item.type)) return;
+
+      const currentEnhance = (typeof itemKey === "object" ? itemKey.enhanceLevel : 0) || 0;
+      if (currentEnhance >= 1) return; // +1が上限
+
+      const cost = getEnhanceCost(itemKey);
+      if (!cost) return;
+
+      enhanceableCount++;
+      const container = document.createElement("div");
+      container.style.gridColumn = "span 2";
+      container.style.border = "1px solid #333";
+      container.style.padding = "6px 8px";
+      container.style.borderRadius = "4px";
+      container.style.display = "flex";
+      container.style.justifyContent = "space-between";
+      container.style.alignItems = "center";
+      container.style.background = "rgba(0,0,0,0.2)";
+      container.style.marginBottom = "4px";
+
+      const info = document.createElement("div");
+      info.style.fontFamily = "var(--font-mono)";
+      info.style.fontSize = "11px";
+      
+      const matsReq = Object.entries(cost.mats).map(([m, reqQty]) => {
+        const curQty = state.materials[m] || 0;
+        const color = curQty >= reqQty ? "var(--neon-green)" : "var(--neon-red)";
+        return `<span style="color:${color}">${m} ${curQty}/${reqQty}</span>`;
+      }).join(", ");
+      const goldColor = state.gold >= cost.gold ? "#fff" : "var(--neon-red)";
+
+      info.innerHTML = `<strong style="color:#fff">${item.name} ➔ +1</strong> <span style="color:var(--neon-blue)">[装備中] (${char.name})</span><br>
+        <span style="color:var(--text-muted)">必要: ${matsReq} / <span style="color:${goldColor}">${cost.gold}G</span></span>`;
+      container.appendChild(info);
+
+      const btn = document.createElement("button");
+      btn.className = "btn btn-neon";
+      btn.textContent = "強化";
+      btn.style.minHeight = "44px";
+      btn.style.width = "80px";
+
+      let canEnhance = state.gold >= cost.gold;
+      for (const [m, reqQty] of Object.entries(cost.mats)) {
+        if ((state.materials[m] || 0) < reqQty) canEnhance = false;
+      }
+      if (!canEnhance) {
+        btn.disabled = true;
+        btn.classList.add("disabled");
+      }
+
+      btn.addEventListener("click", () => {
+        if (executeEnhance({ type: "equipped", actorIdx, slot })) {
+          openSubmenu("craft_enhance", "工房 - 装備の強化(+1)：", true); // リフレッシュ
+        }
+      });
+      container.appendChild(btn);
+      optGrid.appendChild(container);
+    });
+  });
+
+  // 2. バッグの装備品
   state.inventory.forEach((itemKey, idx) => {
     const item = getItemData(itemKey);
     if (!item || !["weapon", "shield", "armor"].includes(item.type)) return;
@@ -563,7 +719,7 @@ export function renderCraftEnhance(optGrid) {
     }
 
     btn.addEventListener("click", () => {
-      if (executeEnhance(idx)) {
+      if (executeEnhance({ type: "inventory", index: idx })) {
         openSubmenu("craft_enhance", "工房 - 装備の強化(+1)：", true); // リフレッシュ
       }
     });
@@ -578,7 +734,7 @@ export function renderCraftEnhance(optGrid) {
     emptyMsg.style.color = "var(--text-muted)";
     emptyMsg.style.fontSize = "11px";
     emptyMsg.style.padding = "20px";
-    emptyMsg.textContent = "強化可能な装備品がバッグにありません。";
+    emptyMsg.textContent = "強化可能な装備品がありません。";
     optGrid.appendChild(emptyMsg);
   }
 }
