@@ -44,7 +44,7 @@ Object.defineProperty(global, "navigator", {
 
 (async () => {
   const { state, initNewGame } = await import("../src/state.js");
-  const { generateRandomEquipment, getItemData, SPELLS, registerState } = await import("../src/data.js");
+  const { generateRandomEquipment, getItemData, SPELLS } = await import("../src/data.js");
   const { setupChestState } = await import("../src/chest.js");
   const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
   const assert = await import("assert");
@@ -53,7 +53,6 @@ Object.defineProperty(global, "navigator", {
 
   // Initialize
   initNewGame();
-  registerState(state);
 
   // ----------------------------------------------------
   // Test 1: Unidentified Name Customization
@@ -92,7 +91,7 @@ Object.defineProperty(global, "navigator", {
   let arcaneRobeCount = 0;
   const totalTrials = 200;
   for (let i = 0; i < totalTrials; i++) {
-    const eq = generateRandomEquipment(4, null, Math.random);
+    const eq = generateRandomEquipment(4, null, Math.random, state.party);
     if (eq.baseId === "ARCANE_ROBE") {
       arcaneRobeCount++;
     }

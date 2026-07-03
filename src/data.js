@@ -48,20 +48,9 @@ for (const [key, val] of Object.entries(STATIC_ITEMS)) {
   }
 }
 
-// @deprecated Backward compatibility wrapper.
-// Use direct state-passing APIs instead of globalState registers.
-let globalState = null;
-
-// @deprecated Use direct state-passing APIs. Included for backward compatibility.
-export function registerState(stateObj) {
-  globalState = stateObj;
-}
-
-// @deprecated Use systems/equipment_generation.js for new code. Included for backward compatibility.
-export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random) {
-  return newGenerateRandomEquipment(floor, {
-    forceRarity,
-    rng,
-    party: globalState ? globalState.party : null
-  });
+// Facade wrapper over systems/equipment_generation.js.
+// Pass `party` explicitly for smart-drop selection; callers holding state
+// should pass state.party.
+export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random, party = null) {
+  return newGenerateRandomEquipment(floor, { forceRarity, rng, party });
 }

@@ -161,18 +161,18 @@ export function applyCombatRewards(state, monsters, logQueue) {
   // 敵撃破時の未鑑定装備ドロップ判定
   let dropEquipment = null;
   if (state.combatState.isBoss) {
-    dropEquipment = generateRandomEquipment(state.floor, "epic");
+    dropEquipment = generateRandomEquipment(state.floor, "epic", Math.random, state.party);
   } else if (state.combatState.isMidboss) {
     const rarity = Math.random() < 0.25 ? "epic" : "rare";
-    dropEquipment = generateRandomEquipment(state.floor, rarity);
+    dropEquipment = generateRandomEquipment(state.floor, rarity, Math.random, state.party);
   } else if (state.combatState.isRoamingFlack) {
     const rarity = Math.random() < 0.30 ? "epic" : "rare";
-    dropEquipment = generateRandomEquipment(state.floor, rarity);
+    dropEquipment = generateRandomEquipment(state.floor, rarity, Math.random, state.party);
   } else {
     const isRare = state.combatState.monsters && state.combatState.monsters.some(m => m.isRare);
     const chance = isRare ? 0.55 : 0.14;
     if (Math.random() < chance) {
-      dropEquipment = generateRandomEquipment(state.floor);
+      dropEquipment = generateRandomEquipment(state.floor, null, Math.random, state.party);
     }
   }
 

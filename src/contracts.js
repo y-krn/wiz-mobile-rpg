@@ -370,7 +370,7 @@ export function checkActiveContract(stateInstance, runResult, success) {
       if (contract.danger === "B") genFloor = Math.min(genFloor, 3);
       if (contract.danger === "A") genFloor = Math.min(genFloor, 5);
 
-      const item = generateRandomEquipment(genFloor, rarity);
+      const item = generateRandomEquipment(genFloor, rarity, Math.random, state.party);
       item.identified = false;
 
       // Add to inventory, or storage if full

@@ -1,6 +1,7 @@
 import { state, saveAutosave, addLog } from "../state.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
+import { generateContractsList } from "../contracts.js";
 
 export const contractsState = {
   selectedId: null
@@ -100,11 +101,9 @@ export function renderContracts() {
     btnAbandon.addEventListener("click", () => {
       if (confirm("本当にこの契約を破棄しますか？進捗は完全にリセットされます。")) {
         state.activeContract = null;
-        import("../contracts.js").then(mod => {
-          state.contracts = mod.generateContractsList(state);
-          saveAutosave();
-          renderContracts();
-        });
+        state.contracts = generateContractsList(state);
+        saveAutosave();
+        renderContracts();
       }
     });
 

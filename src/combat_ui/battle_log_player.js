@@ -79,7 +79,7 @@ export function playBattleLogs(queue, index) {
     }
     
     // ボス報酬: Epic装備（未鑑定） + 竜鱗x3
-    const rewardEquip = generateRandomEquipment(5, "epic");
+    const rewardEquip = generateRandomEquipment(5, "epic", Math.random, state.party);
     if (rewardEquip) {
       rewardEquip.identified = false;
       const added = addInventoryItem(rewardEquip);
@@ -121,7 +121,7 @@ export function playBattleLogs(queue, index) {
     }
     
     // 中ボス報酬: Rare装備（未鑑定） + 黒角x2
-    const rewardEquip = generateRandomEquipment(4, "rare");
+    const rewardEquip = generateRandomEquipment(4, "rare", Math.random, state.party);
     if (rewardEquip) {
       rewardEquip.identified = false;
       const added = addInventoryItem(rewardEquip);

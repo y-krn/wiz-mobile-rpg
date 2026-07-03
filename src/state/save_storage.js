@@ -2,7 +2,7 @@ import { state, addLog } from "./state_core.js";
 import { generateRandomSeed, createDefaultRoster, createDefaultCodex, findSuitableRoamingMonsterStart } from "./initial_state.js";
 import { createSavePayload, applySavePayload, linkPartyToRoster } from "./save_payload.js";
 import { migrateSavePayload } from "./save_migrations.js";
-import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH, registerState } from "../data.js";
+import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";
 import { applyDungeonMemoryToMaps } from "./dungeon_state.js";
 
@@ -68,7 +68,6 @@ export function initNewGame() {
   state.activeMerchantStock = [];
 
   state.floorChestsOpened = [0, 0, 0, 0, 0];
-  registerState(state);
   state.floorChestsTotal = state.maps.map(grid => {
     let count = 0;
     if (grid) {
@@ -148,7 +147,6 @@ function applyRawSave(raw) {
   const migrated = migrateSavePayload(data);
   applySavePayload(migrated);
   applyDungeonMemoryToMaps();
-  registerState(state);
   // ロード直後に参照の再リンクを念押し
   linkPartyToRoster();
 }

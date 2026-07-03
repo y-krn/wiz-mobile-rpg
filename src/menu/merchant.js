@@ -151,7 +151,7 @@ export function renderEventMerchantBuy(optGrid) {
             state.materials[stock.key] = (state.materials[stock.key] || 0) + 1;
             purchaseSuccess = true;
           } else if (stockType === "unidentified") {
-            const eqObj = generateRandomEquipment(state.floor || 1, stock.rarity);
+            const eqObj = generateRandomEquipment(state.floor || 1, stock.rarity, Math.random, state.party);
             if (eqObj) {
               eqObj.identified = false;
               if (addInventoryItem(eqObj)) {

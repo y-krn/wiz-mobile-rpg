@@ -113,7 +113,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
 
     if (isGuaranteed || rng() < itemChance) {
       if (isGuaranteed) {
-        item = generateRandomEquipment(state.floor, "magic", rng);
+        item = generateRandomEquipment(state.floor, "magic", rng, state.party);
         if (state.floor === 1) {
           state.firstChestUnidentifiedGuaranteed = true;
         }
@@ -182,7 +182,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
             randChance = Math.min(0.90, randChance);
             
             if (rng() < randChance) {
-              item = generateRandomEquipment(state.floor, null, rng);
+              item = generateRandomEquipment(state.floor, null, rng, state.party);
             }
           }
         }

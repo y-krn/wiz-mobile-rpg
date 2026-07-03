@@ -1,7 +1,9 @@
 import { state } from "./state_core.js";
+import { SAVE_VERSION } from "./save_migrations.js";
 
 export function createSavePayload() {
   return {
+    version: SAVE_VERSION,
     x: state.x,
     y: state.y,
     dir: state.dir,

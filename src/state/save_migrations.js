@@ -73,7 +73,39 @@ export function migrateCharSpells(char) {
   }
 }
 
+// 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
+// MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
+export const SAVE_VERSION = 1;
+
+// 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
+// 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
+// 例: 2: (d) => { d.materials = Object.fromEntries(...); return d; }
+// 現状はフィールド追加のみ(=下のnormalizeで??吸収)のためstepは無し。
+const MIGRATIONS = {};
+
+// version番号に基づく段階migration。旧shapeを現行shapeへ引き上げてから
+// normalizeSavePayloadでデフォルト補完する。
 export function migrateSavePayload(data) {
+  const from = typeof data.version === "number" ? data.version : 0;
+
+  // 未来セーブ(新版で保存→旧版コードで読込)は変換不能。normalizeは通すが警告を残す。
+  if (from > SAVE_VERSION) {
+    console.warn(`Save version ${from} is newer than supported ${SAVE_VERSION}. Loading best-effort.`);
+  }
+
+  let migrated = data;
+  for (let v = from + 1; v <= SAVE_VERSION; v++) {
+    const step = MIGRATIONS[v];
+    if (step) migrated = step(migrated);
+  }
+
+  const normalized = normalizeSavePayload(migrated);
+  normalized.version = SAVE_VERSION;
+  return normalized;
+}
+
+// version非依存のデフォルト補完・派生データ整形。冪等。毎ロード安全に実行できる。
+export function normalizeSavePayload(data) {
   const normalized = { ...data };
 
   normalized.x = data.x ?? START_X;

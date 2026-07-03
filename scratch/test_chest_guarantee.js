@@ -47,14 +47,13 @@ Object.defineProperty(global, "navigator", {
 (async () => {
   const { state, initNewGame } = await import("../src/state.js");
   const { setupChestState } = await import("../src/chest.js");
-  const { generateRandomEquipment, registerState, ITEMS } = await import("../src/data.js");
+  const { generateRandomEquipment, ITEMS } = await import("../src/data.js");
   const assert = await import("assert");
 
   console.log("Starting Chest Guarantee & Smart Drop Verification Tests...");
 
   // Test 1: B1F 3-Chest Equipment Guarantee
   initNewGame();
-  registerState(state);
 
   state.floor = 1;
   state.currentRun = {
@@ -101,7 +100,6 @@ Object.defineProperty(global, "navigator", {
 
   // Test 2: Smart Drop Bias (Prioritize missing slots)
   initNewGame();
-  registerState(state);
   state.floor = 1;
 
   state.party = [
@@ -132,7 +130,7 @@ Object.defineProperty(global, "navigator", {
   let armors = 0;
 
   for (let i = 0; i < 100; i++) {
-    const eq = generateRandomEquipment(1, null, Math.random);
+    const eq = generateRandomEquipment(1, null, Math.random, state.party);
     const type = ITEMS[eq.baseId].type;
     if (type === "weapon") weapons++;
     else if (type === "shield") shields++;
