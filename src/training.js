@@ -1,4 +1,4 @@
-import { state, saveGame, saveAutosave } from "./state.js";
+import { state, saveGame, saveAutosave, isSoftlocked, addLog } from "./state.js";
 import { getClassJpName } from "./data.js";
 import { updateUI } from "./ui.js";
 import { goBackSubmenu } from "./navigation.js";
@@ -238,7 +238,31 @@ export function renderTraining() {
           updateUI();
         }
       });
-      actionRow.appendChild(btnAdd);
+
+      if (!canJoin) {
+        const btnDismiss = document.createElement("button");
+        btnDismiss.className = "btn btn-danger btn-block";
+        btnDismiss.style.marginTop = "8px";
+        btnDismiss.style.height = "44px";
+        btnDismiss.textContent = `❌ ${selectedChar.name}を諦める (削除)`;
+        btnDismiss.addEventListener("click", () => {
+          if (confirm(`${selectedChar.name}を諦めて名簿から完全に削除しますか？`)) {
+            state.party = state.party.filter(c => c.name !== selectedChar.name);
+            state.roster = state.roster.filter(c => c.name !== selectedChar.name);
+            trainingState.selectedName = null;
+            saveGame();
+            saveAutosave();
+            renderTraining();
+            updateUI();
+          }
+        });
+        actionRow.style.flexDirection = "column";
+        actionRow.style.gap = "8px";
+        actionRow.appendChild(btnAdd);
+        actionRow.appendChild(btnDismiss);
+      } else {
+        actionRow.appendChild(btnAdd);
+      }
     } else {
       const charIdx = state.party.findIndex(c => c.name === selectedChar.name);
 
@@ -296,6 +320,41 @@ export function renderTraining() {
   }
 
   // 3.4 Back/Close button row
+  if (isSoftlocked()) {
+    const rescueRow = document.createElement("div");
+    rescueRow.className = "bottom-actions-row";
+    rescueRow.style.flexDirection = "column";
+    rescueRow.style.gap = "8px";
+    rescueRow.style.marginTop = "8px";
+
+    const btnRescue = document.createElement("button");
+    btnRescue.type = "button";
+    btnRescue.className = "btn btn-neon btn-block";
+    btnRescue.style.height = "44px";
+    btnRescue.style.backgroundColor = "var(--danger-color, #ff3366)";
+    btnRescue.style.borderColor = "var(--danger-color, #ff3366)";
+
+    const isFull = state.roster.length >= 8;
+    if (isFull) {
+      btnRescue.textContent = "⚠️ 新人を迎える (名簿満員)";
+      btnRescue.disabled = true;
+
+      const infoMsg = document.createElement("div");
+      infoMsg.style.color = "var(--danger-color, #ff3366)";
+      infoMsg.style.fontSize = "12px";
+      infoMsg.style.textAlign = "center";
+      infoMsg.textContent = "名簿が満員です。死亡したメンバーを諦めて空き枠を作ってください。";
+      rescueRow.appendChild(infoMsg);
+    } else {
+      btnRescue.textContent = "🆕 新人を迎える (0G)";
+      btnRescue.addEventListener("click", () => {
+        addNewbieToRoster();
+      });
+    }
+    rescueRow.appendChild(btnRescue);
+    footer.appendChild(rescueRow);
+  }
+
   const closeRow = document.createElement("div");
   closeRow.className = "bottom-actions-row";
 
@@ -310,4 +369,50 @@ export function renderTraining() {
   footer.appendChild(closeRow);
 
   overlay.appendChild(footer);
+}
+
+function addNewbieToRoster() {
+  let baseName = "Trainee";
+  let name = baseName;
+  let count = 1;
+  while (state.roster.some(c => c.name === name)) {
+    name = `${baseName}${count}`;
+    count++;
+  }
+
+  const newChar = {
+    name: name,
+    class: "Fighter",
+    level: 1,
+    exp: 0,
+    hp: 20,
+    maxHp: 20,
+    mp: 0,
+    maxMp: 0,
+    str: 15,
+    int: 7,
+    pie: 8,
+    vit: 14,
+    agi: 10,
+    luk: 9,
+    status: "ok",
+    equipment: {
+      weapon: null,
+      shield: null,
+      armor: null
+    }
+  };
+
+  state.roster.push(newChar);
+  addLog(`新しい冒険者 ${name} が訓練場にやってきた！`);
+
+  if (state.party.length < 4) {
+    state.party.push(newChar);
+    addLog(`${name} をパーティに編成した！`);
+  }
+
+  saveGame();
+  saveAutosave();
+  renderTraining();
+  updateUI();
 }

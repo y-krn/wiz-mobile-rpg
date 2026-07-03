@@ -62,6 +62,7 @@ export function openSubmenu(type, title, isBack = false) {
   titleEl.textContent = displayTitle;
 
   const optGrid = document.getElementById("submenu-options");
+  optGrid.className = "submenu-grid";
   optGrid.innerHTML = "";
 
   if (renderSubmenuCallback) {

@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog } from "../state.js";
+import { state, saveAutosave, addLog, isSoftlocked } from "../state.js";
 import { playSound } from "../audio.js";
 import { updateUI, openArchivesOverlay, openContractsOverlay, openWarehouseOverlay } from "../ui.js";
 import { openSubmenu } from "../navigation.js";
@@ -37,6 +37,7 @@ export function handleTownOption(option) {
 
 export function renderTempleMain(optGrid) {
   optGrid.innerHTML = "";
+  optGrid.classList.add("temple-list-mode");
   
   // ロースター全体から、死亡・状態異常・灰化などのキャラを対象にする
   const targetChars = state.roster.filter(char => {
@@ -55,32 +56,81 @@ export function renderTempleMain(optGrid) {
   } else {
     let hasAffordableAction = false;
     targetChars.forEach((char) => {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-neon btn-block";
-      btn.style.height = "44px"; // 44px以上のタップターゲット
+      const card = document.createElement("div");
+      card.className = "temple-card";
       
       let price = 0;
       let text;
-      let actionType = ""; // "revive_dead", "revive_ash", "cure"
+      let actionType;
+      let statusClass;
+      let statusText;
       
       if (char.status === "dead") {
         price = char.level * 50;
-        text = `蘇生する (${price}G)`;
+        text = "蘇生";
         actionType = "revive_dead";
+        statusClass = "status-dead";
+        statusText = "死亡";
       } else if (char.status === "ash") {
         price = char.level * 150;
-        text = `灰から蘇生する (${price}G)`;
+        text = "灰蘇生";
         actionType = "revive_ash";
+        statusClass = "status-ash";
+        statusText = "灰";
       } else {
         price = 20;
-        text = `治療する (${price}G)`;
+        text = "治療";
         actionType = "cure";
+        statusClass = "status-other";
+        if (char.status === "sleep") statusText = "睡眠";
+        else if (char.status === "paralyze" || char.status === "paralyzed") statusText = "麻痺";
+        else if (char.status === "poisoned") statusText = "毒";
+        else if (char.status === "blind") statusText = "暗闇";
+        else statusText = char.status;
       }
 
       const charJpClass = getClassJpName(char.class);
-      btn.textContent = `${char.name} (${charJpClass} Lv.${char.level}) - ${text}`;
-      if (price === 0 || state.gold < price) btn.disabled = true;
-      else hasAffordableAction = true;
+
+      // キャラクター情報
+      const infoDiv = document.createElement("div");
+      infoDiv.className = "temple-char-info";
+      
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "temple-char-name";
+      nameSpan.textContent = char.name;
+      
+      const metaSpan = document.createElement("span");
+      metaSpan.className = "temple-char-meta";
+      metaSpan.textContent = `${charJpClass} Lv.${char.level}`;
+      
+      infoDiv.appendChild(nameSpan);
+      infoDiv.appendChild(metaSpan);
+
+      // ステータスと費用
+      const statusCostDiv = document.createElement("div");
+      statusCostDiv.className = "temple-status-cost";
+      
+      const statusSpan = document.createElement("span");
+      statusSpan.className = `temple-status ${statusClass}`;
+      statusSpan.textContent = statusText;
+      
+      const costSpan = document.createElement("span");
+      costSpan.className = "temple-cost";
+      costSpan.textContent = `${price}G`;
+      
+      statusCostDiv.appendChild(statusSpan);
+      statusCostDiv.appendChild(costSpan);
+
+      // アクションボタン
+      const btn = document.createElement("button");
+      btn.className = "btn btn-neon btn-temple-action";
+      btn.textContent = text;
+      
+      if (price === 0 || state.gold < price) {
+        btn.disabled = true;
+      } else {
+        hasAffordableAction = true;
+      }
       
       btn.addEventListener("click", () => {
         state.gold -= price;
@@ -139,7 +189,11 @@ export function renderTempleMain(optGrid) {
         saveAutosave();
         openSubmenu("temple_main", "カント寺院 - 蘇生と治療：", true); // refresh
       });
-      optGrid.appendChild(btn);
+
+      card.appendChild(infoDiv);
+      card.appendChild(statusCostDiv);
+      card.appendChild(btn);
+      optGrid.appendChild(card);
     });
 
     if (!hasAffordableAction) {
@@ -147,7 +201,11 @@ export function renderTempleMain(optGrid) {
       info.className = "detail-placeholder";
       info.style.textAlign = "center";
       info.style.padding = "10px";
-      info.textContent = "蘇生・治療に必要な金貨が足りません。待機メンバーがいる場合は訓練場で編成を立て直せます。";
+      if (isSoftlocked()) {
+        info.textContent = "蘇生・治療に必要な金貨が足りません。訓練場で新人を迎えて編成を立て直してください。";
+      } else {
+        info.textContent = "蘇生・治療に必要な金貨が足りません。待機メンバーがいる場合は訓練場で編成を立て直せます。";
+      }
       optGrid.appendChild(info);
 
       const btnTraining = document.createElement("button");

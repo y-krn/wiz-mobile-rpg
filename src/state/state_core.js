@@ -110,5 +110,22 @@ export function addLog(msg) {
   }
 }
 
+// 詰み判定 (全員死亡かつ蘇生費不足)
+export function isSoftlocked() {
+  const hasAlive = state.roster.some(char => char.status !== "dead" && char.status !== "ash");
+  if (hasAlive) return false;
+
+  const deadOrAsh = state.roster.filter(char => char.status === "dead" || char.status === "ash");
+  if (deadOrAsh.length === 0) {
+    return true;
+  }
+
+  const minCost = Math.min(...deadOrAsh.map(char => {
+    return char.status === "dead" ? char.level * 50 : char.level * 150;
+  }));
+
+  return state.gold < minCost;
+}
+
 setItemRulesStateRef(state);
 setTagsStateRef(state);

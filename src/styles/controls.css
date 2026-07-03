@@ -219,3 +219,94 @@
   background-color: rgba(255, 59, 48, 0.25) !important;
   box-shadow: var(--neon-glow-red) !important;
 }
+
+/* Temple List Layout */
+#submenu-options.temple-list-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  grid-template-columns: none;
+}
+
+.temple-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #1a1a24;
+  border: 1px solid #333344;
+  border-radius: 4px;
+  padding: 6px 10px;
+  gap: 8px;
+  min-height: 52px;
+  box-sizing: border-box;
+}
+
+.temple-char-info {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.temple-char-name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-color);
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.temple-char-meta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.temple-status-cost {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.temple-status {
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.temple-status.status-dead {
+  background-color: rgba(255, 59, 48, 0.2);
+  color: var(--neon-red);
+  border: 1px solid rgba(255, 59, 48, 0.4);
+}
+
+.temple-status.status-ash {
+  background-color: rgba(142, 142, 147, 0.2);
+  color: #aaa;
+  border: 1px solid rgba(142, 142, 147, 0.4);
+}
+
+.temple-status.status-other {
+  background-color: rgba(255, 204, 0, 0.2);
+  color: var(--neon-gold);
+  border: 1px solid rgba(255, 204, 0, 0.4);
+}
+
+.temple-cost {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--neon-gold);
+}
+
+.btn-temple-action {
+  flex-shrink: 0;
+  min-width: 80px;
+  height: 38px;
+  font-size: var(--fs-xs);
+  padding: 0 8px;
+}
