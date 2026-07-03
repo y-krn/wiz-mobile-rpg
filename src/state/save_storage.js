@@ -1,4 +1,4 @@
-import { state } from "./state_core.js";
+import { state, addLog } from "./state_core.js";
 import { generateRandomSeed, createDefaultRoster, createDefaultCodex, findSuitableRoamingMonsterStart } from "./initial_state.js";
 import { createSavePayload, applySavePayload, linkPartyToRoster } from "./save_payload.js";
 import { migrateSavePayload } from "./save_migrations.js";
@@ -8,6 +8,10 @@ import { applyDungeonMemoryToMaps } from "./dungeon_state.js";
 
 const SAVE_KEY = "mobile_wiz_rpg_autosave";
 const OLD_SAVE_KEY = "mobile_wiz_rpg_save";
+// 直前の正常セーブ(1世代)。SAVE_KEYが破損した際の復旧元。
+const BACKUP_KEY = "mobile_wiz_rpg_backup";
+// 読込不能だった生データの退避先。上書きせず調査・手動復旧に残す。
+const CORRUPT_KEY = "mobile_wiz_rpg_corrupt";
 
 
 export function initNewGame() {
@@ -112,8 +116,19 @@ export function saveGame() {
 
 export function saveAutosave() {
   try {
-    const data = createSavePayload();
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    const data = JSON.stringify(createSavePayload());
+    // 新規書き込み前に直前の正常セーブをバックアップへローテート。
+    // setItemは原子的なので、この時点のSAVE_KEYは前回の正常データ。
+    const prev = localStorage.getItem(SAVE_KEY);
+    if (prev) {
+      try {
+        localStorage.setItem(BACKUP_KEY, prev);
+      } catch (backupErr) {
+        // バックアップ失敗は致命ではない(容量超過など)。本体保存を優先。
+        console.warn("Save backup rotation failed", backupErr);
+      }
+    }
+    localStorage.setItem(SAVE_KEY, data);
   } catch (err) {
     console.error("Save autosave failed", err);
   }
@@ -122,33 +137,57 @@ export function saveAutosave() {
 export function clearSave() {
   localStorage.removeItem(SAVE_KEY);
   localStorage.removeItem(OLD_SAVE_KEY);
+  localStorage.removeItem(BACKUP_KEY);
+  localStorage.removeItem(CORRUPT_KEY);
   initNewGame();
 }
 
-export function loadGame() {
-  try {
-    let raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) {
-      // 統一キーがない場合、旧手動セーブキーからの移行を試みる
-      raw = localStorage.getItem(OLD_SAVE_KEY);
-    }
-    if (!raw) {
-      initNewGame();
-      return;
-    }
-    const data = JSON.parse(raw);
-    const migrated = migrateSavePayload(data);
-    applySavePayload(migrated);
-    applyDungeonMemoryToMaps();
-    registerState(state);
-    
-    // ロード直後に参照の再リンクを念押し
-    linkPartyToRoster();
+// 生データからstateへ復元する。失敗時はthrowし、呼び出し側でフォールバックする。
+function applyRawSave(raw) {
+  const data = JSON.parse(raw);
+  const migrated = migrateSavePayload(data);
+  applySavePayload(migrated);
+  applyDungeonMemoryToMaps();
+  registerState(state);
+  // ロード直後に参照の再リンクを念押し
+  linkPartyToRoster();
+}
 
-    saveAutosave();
-  } catch (err) {
-    console.error("Failed to load save, resetting.", err);
-    initNewGame();
+export function loadGame() {
+  // 優先度順に読込元を試す。SAVE_KEYが破損してもBACKUP/旧キーから復旧する。
+  const sources = [
+    { key: SAVE_KEY, label: "オートセーブ" },
+    { key: BACKUP_KEY, label: "バックアップ" },
+    { key: OLD_SAVE_KEY, label: "旧セーブ" }
+  ];
+
+  let firstCorrupt = null;
+  for (const src of sources) {
+    const raw = localStorage.getItem(src.key);
+    if (!raw) continue;
+    try {
+      applyRawSave(raw);
+      if (src.key !== SAVE_KEY) {
+        addLog(`セーブデータが破損していたため、${src.label}から復旧しました。`);
+      }
+      // 復旧内容を正データとして確定(SAVE_KEYへ書き戻し)。
+      saveAutosave();
+      return;
+    } catch (err) {
+      console.error(`Failed to load save from ${src.label}, trying fallback.`, err);
+      if (firstCorrupt === null) firstCorrupt = raw;
+    }
   }
+
+  // 全滅時のみ新規開始。破損データは上書きせずCORRUPT_KEYへ退避して残す。
+  if (firstCorrupt !== null) {
+    try {
+      localStorage.setItem(CORRUPT_KEY, firstCorrupt);
+    } catch (err) {
+      console.error("Failed to preserve corrupt save", err);
+    }
+    console.error("All saves unreadable. Corrupt data preserved under", CORRUPT_KEY);
+  }
+  initNewGame();
 }
 

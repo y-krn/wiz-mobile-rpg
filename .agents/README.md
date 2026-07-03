@@ -1,10 +1,12 @@
-# Review Sub Agents
+# Review Checklists
 
-This directory defines review-only sub agents for expanding this mobile RPG.
+This directory defines review-only checklists for expanding this mobile RPG.
+They are documents to read and review against, not sub-agents registered with
+the Agent tool.
 
-Use these agents to review plans, diffs, tests, and content proposals. They do
-not directly implement code unless the user explicitly changes the operating
-mode.
+Use these checklists to review plans, diffs, tests, and content proposals. They
+do not drive direct implementation unless the user explicitly changes the
+operating mode.
 
 For progression, economy, materials, workshop, rewards, contracts, or B5F clear
 behavior, review against `.agents/game-design.md` in addition to the relevant
@@ -25,15 +27,15 @@ module under the matching directory (`src/data/*`, `src/state/*`,
 
 - Default mode: review-only.
 - Main agent owns implementation and final decisions.
-- Sub agents inspect only the files relevant to their scope.
-- Sub agents use the Agent Skills listed in their own definition when the review
-  scope matches the skill trigger.
+- Each checklist inspects only the files relevant to its scope.
+- Each checklist uses the Agent Skills listed in its own definition when the
+  review scope matches the skill trigger.
 - Reviews must be concrete, file-aware, and tied to project constraints.
 - Reviews must distinguish facade wiring issues from concrete module behavior.
 - Reviews must avoid unrelated refactors, broad redesigns, and speculative
   future systems.
 
-## Agents
+## Checklists
 
 1. `qa-regression.md`
 2. `mobile-ui-ux.md`

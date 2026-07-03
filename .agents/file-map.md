@@ -86,9 +86,9 @@ to verify the change.
 | Browser/mobile test changes | `tests/ui-ux.spec.js`, `playwright.config.js` | Affected UI module, relevant `src/styles/*.css` | `npm run test:browser` |
 | Unit test or simulation changes | Matching `scratch/test_*.js` | Source module under test, `package.json` | `npm run test:unit` |
 
-## Sub-Agent Starting Points
+## Review Checklist Starting Points
 
-| Sub-agent | Start with | Expand to |
+| Checklist | Start with | Expand to |
 | --- | --- | --- |
 | `qa-regression` | `package.json`, changed files, relevant `scratch/test_*.js` or `tests/ui-ux.spec.js` | Direct imports of changed files and failing test targets |
 | `mobile-ui-ux` | Relevant `src/styles/*.css`, affected UI module or overlay module, `tests/ui-ux.spec.js` | `src/style.css` import order, `src/ui.js`, `src/ui/*`, `src/menu.js`, `src/menu/*`, `src/combat_ui/*`, `src/navigation.js`, screenshots or browser observations |

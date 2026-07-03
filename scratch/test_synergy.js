@@ -33,9 +33,7 @@ global.document = {
 global.window = {
   innerWidth: 375,
   innerHeight: 667,
-  addEventListener: () => {},
-  AudioContext: class {},
-  webkitAudioContext: class {}
+  addEventListener: () => {}
 };
 
 Object.defineProperty(global, "navigator", {

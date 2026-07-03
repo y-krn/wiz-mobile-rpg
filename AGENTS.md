@@ -19,8 +19,37 @@ files may point here, but should not duplicate these rules.
   verification targets.
 - Do not read `dist`, `node_modules`, `test-results`, or `*.log` unless the task
   requires it. When logs are needed, inspect only the tail or error area.
-- Sub-agent definitions live in `.agents/*.md`; they are review-only unless the
-  user explicitly changes that mode.
+- Review checklists live in `.agents/*.md`; apply them by reading the matching
+  file. They are review-only unless the user explicitly changes that mode.
+
+## Large Output and Log Handling
+
+Avoid loading large command output, logs, or files into context in full. Filter
+first, then read only the relevant part.
+
+- Filter at the source. Pipe test, build, and log commands through `grep`,
+  `head`, or `tail` so only failures or the relevant region are returned, e.g.
+  `npm test 2>&1 | grep -E 'FAIL|Error'` or `git log --oneline -20`.
+- Locate before reading. For large files, run `grep -n` (or `grep -rn` across a
+  directory) to find the line first, then read only that region with a ranged
+  read (offset/limit, `head`, `tail`). Do not open a whole large file to find
+  one function.
+- Map structure cheaply. To learn a file's shape, `grep -nE` its definition
+  lines (e.g. `^(export |function |const |class )`) instead of reading the file
+  end to end, then read only the parts you need.
+- Honor line references. When the user gives a `file:line` pointer, read that
+  region directly and skip the search step.
+- Read files in ranges. Prefer partial reads (offset/limit, `head`, `tail`,
+  targeted `grep -n`) over reading whole large files.
+- Delegate broad searches to a search-only sub-agent when the work fans out
+  across many files or directories, or when the volume read greatly exceeds the
+  answer returned. Take back the conclusion, not the raw file dumps.
+- Do not delegate narrow, context-dependent lookups (one function, a few known
+  files); a direct `grep`/ranged read is cheaper than a cold-start sub-agent.
+- If a tool offers a summarize-then-return mode for large output, prefer it over
+  running a command whose full stdout would land in context.
+- For long-running commands, keep logs in `tmux` and inspect only the needed
+  slice rather than streaming everything.
 
 ## Tool and Execution Policy
 
@@ -105,34 +134,35 @@ Before editing UI:
 4. If UI also changes game rules, balance, or content text, read the matching
    `.agents/*.md` review definition.
 
-After editing UI:
+After editing UI, run the checks in `Verification`. Additionally, when feasible,
+verify primary flows at 360x800, 390x844, and 430x932.
 
-1. Run `npm run build`.
-2. Run `npm run test:browser`.
-3. If logic or state changed, also run `npm run test:unit` or `npm run test`.
-4. When feasible, verify primary flows at 360x800, 390x844, and 430x932.
+## Review Checklists
 
-## Sub-Agent Review
+The `.agents/*.md` files are review checklists, not sub-agents registered with
+the Agent tool. Apply them by reading the matching file and reviewing against
+it; use them only when the added scrutiny is worth the cost.
 
-Use review-only sub-agents only when their added scrutiny is worth the cost.
+- `.agents/qa-regression.md`: tests, reproduction, regression risk, release
+  checks.
+- `.agents/mobile-ui-ux.md`: UI, CSS, transitions, tap operation, mobile
+  display.
+- `.agents/game-logic.md`: combat, exploration, state, map generation,
+  equipment, spells, contracts, and other game rules.
+- `.agents/balance-simulation.md`: enemies, rewards, drops, growth, economy,
+  difficulty, and progression speed.
+- `.agents/content-design.md`: items, enemies, spells, contracts, descriptions,
+  and display text.
 
-- `qa-regression`: tests, reproduction, regression risk, release checks.
-- `mobile-ui-ux`: UI, CSS, transitions, tap operation, mobile display.
-- `game-logic`: combat, exploration, state, map generation, equipment, spells,
-  contracts, and other game rules.
-- `balance-simulation`: enemies, rewards, drops, growth, economy, difficulty,
-  and progression speed.
-- `content-design`: items, enemies, spells, contracts, descriptions, and display
-  text.
+Each file owns its own scope, checklist, and required verification; do not
+restate them here. Apply a checklist for explicit review requests, broad
+multi-file behavior changes, high-risk UI/mobile changes, or game-balance
+changes. Skip them for small text, comment, local bug, test expectation, or
+import/export-only changes that are verified directly.
 
-Call sub-agents for explicit review requests, broad multi-file behavior changes,
-high-risk UI/mobile changes, or game-balance changes. Skip them for small text,
-comment, local bug, test expectation, or import/export-only changes that are
-verified directly.
+When reporting checklist use, include:
 
-When reporting sub-agent use, include:
-
-1. Called sub-agents.
+1. Checklists applied.
 2. Adopted findings.
 3. Rejected findings and why.
 4. Verification performed.

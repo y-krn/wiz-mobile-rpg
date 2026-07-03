@@ -1,8 +1,9 @@
 // Audio Manager using Web Audio API to synthesize retro 8-bit sounds.
 let audioCtx = null;
 
-// Initialize mute state from localStorage
-let isMuted = localStorage.getItem("mobile_wiz_rpg_muted") === "true";
+// Initialize mute state from localStorage (guard for non-browser/SSR/test環境)
+let isMuted = typeof localStorage !== "undefined" &&
+  localStorage.getItem("mobile_wiz_rpg_muted") === "true";
 
 export const getIsMuted = () => isMuted;
 
@@ -16,8 +17,12 @@ export const toggleMute = () => {
 };
 
 function getAudioContext() {
+  // ブラウザ以外(node/SSR/テスト)ではWeb Audio非在。無音で黙って抜ける。
+  const Ctor = typeof window !== "undefined" &&
+    (window.AudioContext || window.webkitAudioContext);
+  if (!Ctor) return null;
   if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx = new Ctor();
   }
   if (audioCtx.state === "suspended") {
     audioCtx.resume().catch(() => {});
@@ -51,6 +56,7 @@ export const playSound = (type) => {
   if (isMuted) return;
   try {
     const ctx = getAudioContext();
+    if (!ctx) return;
     const now = ctx.currentTime;
 
     switch (type) {

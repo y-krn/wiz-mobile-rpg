@@ -43,8 +43,7 @@ layout.
 - Required when content text appears in mobile UI controls, lists, tabs, dialogs,
   or result screens: `web-design-guidelines`.
 - Recommended when content affects progression, reward pacing, or difficulty:
-  use the `balance-simulation` sub-agent definition as an additional review
-  lens.
+  use the `balance-simulation` checklist as an additional review lens.
 
 ## Review Checklist
 
