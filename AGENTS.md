@@ -54,14 +54,21 @@ first, then read only the relevant part.
   answer returned. Take back the conclusion, not the raw file dumps.
 - Do not delegate narrow, context-dependent lookups (one function, a few known
   files); a direct `grep`/ranged read is cheaper than a cold-start sub-agent.
-- If a tool offers a summarize-then-return mode for large output, prefer it over
-  running a command whose full stdout would land in context.
+- For large command output or logs, prefer the context-mode skill
+  (`ctx_execute` / `ctx_execute_file`) so full stdout is summarized outside the
+  main context instead of being loaded in full. It is installed cross-agent
+  under `~/.agents/skills/context-mode`.
 - For long-running commands, keep logs in `tmux` and inspect only the needed
   slice rather than streaming everything.
 
 ## Tool and Execution Policy
 
 - Use applicable Agent Skills when the task clearly matches one.
+- Resolve Agent Skill files only from the current session's advertised skill
+  registry and Skill roots. Do not guess or probe hardcoded locations such as
+  `~/.codex/skills/<name>/SKILL.md` or `~/.agents/skills/<name>/SKILL.md`.
+  If the advertised path is missing, report that specific missing path and
+  continue with the best fallback instead of trying unrelated paths.
 - Use `tmux` for long-running commands, dev servers, watchers, and parallel
   verification that should keep logs.
 - Safe commands may be run without extra confirmation: reads, searches, diffs,

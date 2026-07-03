@@ -234,5 +234,18 @@ for (const vp of VIEWPORTS) {
         expect(box.height, `Explore button "${text}" should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
       }
     });
+
+    test('Few-button submenu rows do not stretch to fill the panel', async ({ page }) => {
+      await page.evaluate(async () => {
+        const { openSubmenu } = await import('/src/navigation.js');
+        openSubmenu('enter_dungeon_select', '迷宮へ入る準備：');
+      });
+      const dungeonStartButton = page.getByRole('button', { name: '地下1階から潜る' });
+      await expect(dungeonStartButton).toBeVisible();
+
+      const box = await dungeonStartButton.boundingBox();
+      expect(box.height, `Few-button submenu row should stay compact on ${vp.name}`).toBeLessThanOrEqual(64);
+      expect(box.height, `Few-button submenu row should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
+    });
   });
 }

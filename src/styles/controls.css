@@ -118,6 +118,10 @@
 .submenu-grid {
   flex-grow: 1;
   grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: minmax(var(--tap-min), max-content);
+  align-content: start;
+  height: auto;
+  min-height: 0;
   overflow-y: auto;
   touch-action: pan-y; /* Only allow vertical scrolling in submenus */
 }
@@ -215,4 +219,3 @@
   background-color: rgba(255, 59, 48, 0.25) !important;
   box-shadow: var(--neon-glow-red) !important;
 }
-

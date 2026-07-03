@@ -65,6 +65,18 @@ behavior may be relevant.
 - Repeated taps do not cause accidental zoom, scroll interference, or duplicate
   actions.
 - Text fits inside controls on 360px, 390px, and 430px wide mobile viewports.
+- Tap height, font size, spacing, and radius come from shared tokens in
+  `src/styles/tokens.css`, not per-screen hardcoded `px`. The same-role element
+  (list row, primary button, chip) has the same height across screens; no
+  `!important` overrides drift it below `--tap-min`.
+- Grid or list containers do not vertically stretch a small number of controls
+  to fill a fixed-height panel. Rows size to content (`grid-auto-rows`/
+  `align-content: start`) and overflow scrolls, so a single button never inflates
+  into a full-panel bar. Watch `#submenu-options.submenu-grid` in
+  `src/styles/controls.css` and few-button submenus (`enter_dungeon_select`,
+  `camp_main`, `gameover_main`, `event_*`, `item_action`).
+- Every referenced CSS custom property is defined in `src/styles/tokens.css`
+  (e.g. `--neon-glow-purple`); an undefined var silently drops the effect.
 
 ## Required Verification
 
