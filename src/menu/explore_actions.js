@@ -184,21 +184,15 @@ export function renderCampMain(optGrid) {
 }
 
 export function renderGameOverMain(optGrid) {
-  const btnLoad = document.createElement("button");
-  btnLoad.className = "btn btn-neon btn-block";
-  btnLoad.textContent = "セーブデータから再開（おしろから）";
-  
-  const hasSave = localStorage.getItem("mobile_wiz_rpg_save") !== null;
-  if (!hasSave) {
-    btnLoad.disabled = true;
-    btnLoad.textContent = "セーブデータがありません";
-  }
-  
-  btnLoad.addEventListener("click", () => {
-    loadGame(true);
+  const btnBack = document.createElement("button");
+  btnBack.className = "btn btn-neon btn-block";
+  btnBack.textContent = "街へ戻る（寺院で蘇生・訓練場で編成）";
+  btnBack.addEventListener("click", () => {
+    state.gameState = "town";
     closeSubmenu();
+    updateUI();
   });
-  optGrid.appendChild(btnLoad);
+  optGrid.appendChild(btnBack);
 
   const btnRestart = document.createElement("button");
   btnRestart.className = "btn btn-danger btn-block";
@@ -208,6 +202,7 @@ export function renderGameOverMain(optGrid) {
       initNewGame();
       state.gameState = "town";
       closeSubmenu();
+      updateUI();
     }
   });
   optGrid.appendChild(btnRestart);

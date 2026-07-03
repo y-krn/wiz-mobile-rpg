@@ -111,6 +111,7 @@ export function migrateSavePayload(data) {
   }
   normalized.runHistory = data.runHistory ?? [];
   normalized.deathLogs = data.deathLogs ?? [];
+  normalized.remains = data.remains ?? [];
   normalized.codex = data.codex ?? createDefaultCodex();
   if (normalized.codex) {
     if (!normalized.codex.synergies) {

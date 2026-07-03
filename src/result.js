@@ -127,6 +127,11 @@ export function triggerRunResult(reason) {
     state.party.forEach(c => {
       c.status = "dead";
       c.hp = 0;
+      const rc = state.roster.find(r => r.name === c.name);
+      if (rc) {
+        rc.status = "dead";
+        rc.hp = 0;
+      }
     });
 
     // 死亡履歴登録用の原因特定
@@ -276,6 +281,10 @@ export function triggerRunResult(reason) {
     // currentRun に遺留品情報などを一時保存して結果画面に渡す
     state.currentRun.lostGold = lostGold;
     state.currentRun.remainsItemCount = remainsItems.length;
+    state.currentRun.wipedFloor = state.floor;
+    state.currentRun.wipedX = state.x;
+    state.currentRun.wipedY = state.y;
+    state.currentRun.remainsId = newRemains.items.length > 0 ? newRemains.id : null;
 
     // 5. 街へ強制帰還させる
     state.x = START_X;

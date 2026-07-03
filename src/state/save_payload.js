@@ -26,6 +26,7 @@ export function createSavePayload() {
     currentRun: state.currentRun,
     runHistory: state.runHistory,
     deathLogs: state.deathLogs,
+    remains: state.remains,
     codex: state.codex,
     seed: state.seed,
     gameState: state.gameState,
@@ -82,6 +83,7 @@ export function applySavePayload(data) {
   state.currentRun = data.currentRun;
   state.runHistory = data.runHistory;
   state.deathLogs = data.deathLogs;
+  state.remains = data.remains ?? [];
   state.codex = data.codex;
   state.roamingMonsters = data.roamingMonsters;
   state.firstChestUnidentifiedGuaranteed = data.firstChestUnidentifiedGuaranteed;

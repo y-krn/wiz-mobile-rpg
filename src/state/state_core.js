@@ -43,6 +43,7 @@ export const state = {
   currentRun: null,
   runHistory: [],
   deathLogs: [],
+  remains: [],
   codex: {
     monsters: {},
     equipment: {},

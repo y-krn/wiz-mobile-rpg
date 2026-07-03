@@ -525,6 +525,14 @@ export function enterDungeon() {
     return;
   }
 
+  const hasLivingMember = state.party.some(c => c.status !== "dead" && c.status !== "ash");
+  if (!hasLivingMember) {
+    addLog("【警告】生存している冒険者がいません。カント寺院で蘇生するか、訓練場で編成してください。");
+    playSound("bump");
+    updateUI();
+    return;
+  }
+
   if (state.lastReturnedFloor && state.lastReturnedFloor > 1 && state.lastReturnedFloor <= 4) {
     openSubmenu("enter_dungeon_select", "迷宮へ入る準備：");
   } else {

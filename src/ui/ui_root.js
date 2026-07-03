@@ -161,7 +161,7 @@ export function updateUI() {
     
     const goalText = document.createElement("span");
     if (state.gameState === "gameover") {
-      goalText.textContent = "🎯 目標: 全滅した。セーブから再開するか、最初からやり直せ";
+      goalText.textContent = "🎯 目標: 全滅した。街に戻って立て直せ";
     } else if (state.gameState === "victory") {
       goalText.textContent = "🎯 目標: おめでとう！ゲームクリア！";
     } else if (state.gameState === "town") {

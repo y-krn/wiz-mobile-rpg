@@ -234,7 +234,7 @@ export function renderResultScreen() {
             ・パーティメンバー全員が<strong>死亡状態</strong>になりました。<br>
             ・所持金から救出費として <strong>${run.lostGold || 0} G</strong> を失いました。<br>
             ・今回の遠征で獲得した未確定の戦利品 <strong>${totalLootCount} 個</strong> が消滅しました。<br>
-            ・出発前から所持していたアイテムのうち <strong>${run.remainsItemCount || 0} 個</strong> が遺留品として <strong>B${state.floor}F (X:${state.x} Y:${state.y})</strong> に残されました。
+            ・出発前から所持していたアイテムのうち <strong>${run.remainsItemCount || 0} 個</strong> が遺留品として <strong>B${run.wipedFloor || run.deepestFloor}F (X:${run.wipedX || 0} Y:${run.wipedY || 0})</strong> に残されました。
           </div>
         </div>
 
