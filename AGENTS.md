@@ -22,6 +22,14 @@ files may point here, but should not duplicate these rules.
 - Review checklists live in `.agents/*.md`; apply them by reading the matching
   file. They are review-only unless the user explicitly changes that mode.
 
+## Cross-Tool Tickets
+
+A local, git-excluded ticket board coordinates work across Claude, Codex, and
+Antigravity. Before starting or resuming work, read `tickets/README.md` and scan
+`tickets/` for open items, and update a ticket's `status`/`owner` when you pick
+it up or finish. These files are excluded via `.git/info/exclude`; never commit
+them.
+
 ## Large Output and Log Handling
 
 Avoid loading large command output, logs, or files into context in full. Filter
