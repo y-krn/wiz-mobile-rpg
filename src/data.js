@@ -51,6 +51,6 @@ for (const [key, val] of Object.entries(STATIC_ITEMS)) {
 // Facade wrapper over systems/equipment_generation.js.
 // Pass `party` explicitly for smart-drop selection; callers holding state
 // should pass state.party.
-export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random, party = null) {
-  return newGenerateRandomEquipment(floor, { forceRarity, rng, party });
+export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false) {
+  return newGenerateRandomEquipment(floor, { forceRarity, rng, party, excludeHighEnd });
 }

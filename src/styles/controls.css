@@ -111,7 +111,7 @@
 }
 #submenu-title {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: var(--neon-gold);
   text-align: center;
 }
@@ -135,13 +135,13 @@
 }
 .submenu-grid .btn {
   padding: 6px 4px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 
 /* Combat prompt */
 #combat-prompt {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: var(--neon-cyan);
   text-align: center;
   margin-bottom: 4px;
@@ -165,7 +165,7 @@
 
 #trap-info {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: var(--text-color);
   background-color: rgba(20, 20, 25, 0.95);
   border: 1px solid rgba(255, 59, 48, 0.4);
@@ -175,7 +175,7 @@
 }
 
 #trap-header {
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: bold;
   color: var(--neon-red);
   margin-bottom: 6px;
@@ -199,8 +199,8 @@
 
 .btn-trap {
   padding: 10px 4px;
-  font-size: 12px;
-  min-height: 44px;
+  font-size: var(--fs-md);
+  min-height: var(--tap-min);
 }
 
 #btn-trap-disarm {

@@ -34,7 +34,7 @@
 }
 
 .result-title {
-  font-size: 20px;
+  font-size: var(--fs-title);
   font-weight: bold;
   letter-spacing: 2px;
   margin-bottom: 4px;
@@ -78,12 +78,12 @@
 }
 
 .result-summary-label {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
 }
 
 .result-summary-val {
-  font-size: 14px;
+  font-size: var(--fs-lg);
   font-weight: bold;
   color: #fff;
 }
@@ -96,7 +96,7 @@
 }
 
 .result-danger-rank-val {
-  font-size: 32px;
+  font-size: var(--fs-display);
   font-weight: 900;
   line-height: 1;
   text-shadow: 0 0 10px currentColor;
@@ -110,7 +110,7 @@
 .rank-e { color: #8e8e93; }
 
 .result-danger-label {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   margin-top: 2px;
   font-weight: bold;
 }
@@ -128,7 +128,7 @@
 .result-detail-row {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: var(--text-main);
   border-bottom: 1px dashed #22222d;
   padding-bottom: 4px;
@@ -149,7 +149,7 @@
   border: 1px dashed var(--neon-cyan);
   border-radius: 8px;
   padding: 10px 12px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   line-height: 1.4;
   color: var(--text-main);
 }
@@ -176,7 +176,7 @@
 }
 
 .result-section-title {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   font-weight: bold;
   color: var(--neon-gold);
   text-shadow: var(--neon-glow-gold);
@@ -196,7 +196,7 @@
 }
 
 .result-item-entry {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #fff;
   display: flex;
   justify-content: space-between;
@@ -204,7 +204,7 @@
 }
 
 .result-item-rarity {
-  font-size: 8px;
+  font-size: var(--fs-xs);
   padding: 1px 4px;
   border-radius: 2px;
   font-weight: bold;
@@ -226,8 +226,8 @@
 }
 
 .result-footer-actions .btn {
-  min-height: 48px;
-  font-size: 14px;
+  min-height: var(--tap-lg);
+  font-size: var(--fs-lg);
   font-weight: bold;
 }
 
@@ -251,7 +251,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   border-bottom: 1px dashed #22222d;
   padding-bottom: 2px;
@@ -262,4 +262,3 @@
 .result-history-rank {
   font-weight: bold;
 }
-

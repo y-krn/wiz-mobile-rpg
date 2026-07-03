@@ -46,6 +46,6 @@
 .bottom-actions-row .equip-filter-chip,
 .bottom-actions-row .filter-chip {
   flex: 1;
-  min-height: 44px;
+  min-height: var(--tap-min);
 }
 

@@ -1,8 +1,13 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
-import { EQUIPMENT_CANDIDATES_BY_FLOOR } from "../data/equipment_tables.js";
+import { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
 
-export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.random, party = null } = {}) {
+export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false } = {}) {
   let baseCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[floor] || EQUIPMENT_CANDIDATES_BY_FLOOR[5];
+
+  // 通常チェストなど高級ベースを出したくないソースでは除外する。
+  if (excludeHighEnd) {
+    baseCandidates = baseCandidates.filter(baseId => !RESTRICTED_CHEST_BASES.includes(baseId));
+  }
 
   // Smart Drop (70%): Select base items usable by the current party
   if (rng() < 0.70 && party && party.length > 0) {

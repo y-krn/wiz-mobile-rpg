@@ -39,7 +39,7 @@
 .char-header {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: bold;
 }
 
@@ -65,7 +65,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 9px;
+  font-size: var(--fs-xs);
 }
 
 .bar-label {
@@ -97,7 +97,7 @@
   position: absolute;
   top: 2px;
   right: 2px;
-  font-size: 8px;
+  font-size: var(--fs-xs);
   text-align: center;
   padding: 1px 3px;
   border-radius: 2px;
@@ -145,7 +145,7 @@
   justify-content: space-between;
   align-items: center;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   margin-bottom: 4px;
   padding: 0 4px;
@@ -170,4 +170,3 @@
 #party-panel.interactive-hud .party-card:active {
   background-color: rgba(0, 229, 255, 0.1);
 }
-

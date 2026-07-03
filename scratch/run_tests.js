@@ -2,13 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
-const EXCLUDE_LIST = [
-  'test_balance_simulation.js',
-  'test_economy_simulation.js',
-  'test_reachability_loop.js',
-  'test_unidentified.js',
-  'run_tests.js'
-];
+// `test_` 接頭辞のファイルのみスイート対象。バランス調整用の数値シミュは
+// sim_ 接頭辞(例: sim_balance.js)にして命名で除外している。
+const EXCLUDE_LIST = [];
 
 const scratchDir = './scratch';
 const files = fs.readdirSync(scratchDir);

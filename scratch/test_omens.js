@@ -30,6 +30,7 @@ const { generateEncounter, ENCOUNTER_PACKS } = await import("../src/combat_ui/en
 const { setupChestState } = await import("../src/chest.js");
 const { state } = await import("../src/state.js");
 const { MONSTERS } = await import("../src/data.js");
+const assert = (await import("assert")).default;
 
 console.log("=== OMEN SYSTEM VERIFICATION ===");
 
@@ -55,11 +56,8 @@ const values = Object.values(omenDist);
 const max = Math.max(...values);
 const min = Math.min(...values);
 console.log(`Min: ${min}, Max: ${max}, Ratio Max/Min: ${(max / min).toFixed(2)}`);
-if (max / min > 1.5) {
-  console.error("Warning: Omen distribution is highly skewed!");
-} else {
-  console.log("Omen distribution is reasonably uniform.");
-}
+assert.ok(max / min <= 1.5, `Omen distribution is highly skewed (ratio ${(max / min).toFixed(2)})`);
+console.log("Omen distribution is reasonably uniform.");
 
 // 2. Verify Encounter Biases
 console.log("\n[2] Verifying Encounter Pack Rerolls:");
@@ -140,6 +138,8 @@ console.log(`Without Omen (iron_dust): Beast encounters = ${beastSelectedNoOmen}
 
 const biasRatio = beastSelected / beastSelectedNoOmen;
 console.log(`Encounter bias ratio: ${biasRatio.toFixed(2)}x`);
+// claw_marks must actually bias encounters toward beasts (observed ~2.1x).
+assert.ok(biasRatio > 1.3, `claw_marks should bias toward beast encounters (ratio ${biasRatio.toFixed(2)})`);
 
 // Check XP/Gold inflation
 const expInflation = totalExp / totalExpNoOmen;
@@ -147,11 +147,9 @@ const goldInflation = totalGold / totalGoldNoOmen;
 console.log(`XP Inflation ratio: ${expInflation.toFixed(3)}x (Limit: 1.08x)`);
 console.log(`GOLD Inflation ratio: ${goldInflation.toFixed(3)}x (Limit: 1.08x)`);
 
-if (expInflation > 1.08 || goldInflation > 1.08) {
-  console.error("FAIL: XP/Gold total expectation inflated by omen!");
-} else {
-  console.log("PASS: XP/Gold totals remain stable.");
-}
+assert.ok(expInflation <= 1.08, `XP total expectation inflated by omen (${expInflation.toFixed(3)}x)`);
+assert.ok(goldInflation <= 1.08, `Gold total expectation inflated by omen (${goldInflation.toFixed(3)}x)`);
+console.log("PASS: XP/Gold totals remain stable.");
 
 // 3. Verify Chest Trap Biases
 console.log("\n[3] Verifying Chest Trap Biases:");
@@ -198,15 +196,15 @@ for (let i = 0; i < iterations; i++) {
 
 console.log(`With Omen (stale_air): Poison/Gas traps = ${poisonOrGasCount} (${(poisonOrGasCount / iterations * 100).toFixed(1)}%)`);
 console.log(`Without Omen (iron_dust): Poison/Gas traps = ${poisonOrGasCountNoOmen} (${(poisonOrGasCountNoOmen / iterations * 100).toFixed(1)}%)`);
-console.log(`Trap bias ratio: ${(poisonOrGasCount / poisonOrGasCountNoOmen).toFixed(2)}x`);
+const trapBias = poisonOrGasCount / poisonOrGasCountNoOmen;
+console.log(`Trap bias ratio: ${trapBias.toFixed(2)}x`);
+// stale_air must actually increase poison/gas trap frequency (observed ~1.5x).
+assert.ok(trapBias > 1.15, `stale_air should bias toward poison/gas traps (ratio ${trapBias.toFixed(2)})`);
 
 const goldRatio = totalChestGold / totalChestGoldNoOmen;
 console.log(`Chest Gold Expectation ratio: ${goldRatio.toFixed(3)}x (Limit: 1.05x)`);
 
-if (goldRatio > 1.05) {
-  console.error("FAIL: Chest gold expectation inflated by omen!");
-} else {
-  console.log("PASS: Chest gold remains stable.");
-}
+assert.ok(goldRatio <= 1.05, `Chest gold expectation inflated by omen (${goldRatio.toFixed(3)}x)`);
+console.log("PASS: Chest gold remains stable.");
 
 console.log("\n=== VERIFICATION COMPLETE ===");

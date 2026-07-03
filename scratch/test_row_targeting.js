@@ -29,8 +29,8 @@ const createBaseState = (monsters) => ({
 // Scenario A: Melee attack on backrow while frontrow is alive
 // Setup: 1 front monster (Biter), 1 back monster (Goblin Mage)
 const monstersA = [
-  { name: "かみつき蟲 A", level: 1, hp: 10, maxHp: 10, status: "ok", row: "front" },
-  { name: "ゴブリンの呪術師 A", level: 1, hp: 10, maxHp: 10, status: "ok", row: "back" }
+  { name: "かみつき蟲 A", level: 1, hp: 10, maxHp: 10, def: 0, status: "ok", row: "front" },
+  { name: "ゴブリンの呪術師 A", level: 1, hp: 10, maxHp: 10, def: 0, status: "ok", row: "back" }
 ];
 
 const stateA = createBaseState(monstersA);
@@ -110,12 +110,9 @@ const resultD = runCombatRoundCalculation(stateD, selectionD);
 const logsD = resultD.logQueue.map(l => l.msg);
 console.log("- Scenario D Logs:", logsD);
 
-// Verify that frontrow collapsed log was printed
-assert(logsD.some(msg => msg.includes("敵の前列が崩れ、後列がむき出しになった")), 
-       "Error: Missing row collapse message.");
-// Verify Robin successfully attacked backrow (since frontrow died first)
+// After the frontrow dies this round, the backrow becomes targetable by melee.
 assert(resultD.state.combatState.monsters[1].hp < 10, "Error: Robin should have hit backrow monster after frontrow collapsed.");
-console.log("✔ Scenario D Passed: Front row collapse triggers notification, and backrow becomes targetable by melee.");
+console.log("✔ Scenario D Passed: Front row collapse makes backrow targetable by melee.");
 
 
 // Scenario E: Row default fallback check

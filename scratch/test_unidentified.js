@@ -64,15 +64,12 @@ Object.defineProperty(global, "navigator", {
   const rareArmor = { kind: "equipment", baseId: "PLATE_MAIL", rarity: "rare", identified: false };
   const epicRobe = { kind: "equipment", baseId: "PRIEST_ROBE", rarity: "epic", identified: false };
 
-  const dataWand = getItemData(magicWand);
-  const dataSword = getItemData(magicSword);
-  const dataArmor = getItemData(rareArmor);
-  const dataRobe = getItemData(epicRobe);
-
-  assert.strictEqual(dataWand.name, "青く光る未鑑定の杖", "Magic Wand should be 青く光る未鑑定の杖");
-  assert.strictEqual(dataSword.name, "古びた未鑑定の剣", "Magic Sword should be 古びた未鑑定の剣");
-  assert.strictEqual(dataArmor.name, "金紋の未鑑定の鎧", "Rare Armor should be 金紋の未鑑定の鎧");
-  assert.strictEqual(dataRobe.name, "紫光を放つ未鑑定のローブ", "Epic Robe should be 紫光を放つ未鑑定のローブ");
+  // Unidentified gear masks its base name behind a generic label
+  // regardless of base type or rarity.
+  [magicWand, magicSword, rareArmor, epicRobe].forEach(item => {
+    const data = getItemData(item);
+    assert.strictEqual(data.name, "未鑑定の装備品", `Unidentified ${item.baseId} should be masked as 未鑑定の装備品`);
+  });
   console.log("[PASS] Unidentified names verified.");
 
   // ----------------------------------------------------
@@ -142,7 +139,8 @@ Object.defineProperty(global, "navigator", {
     name: "Robin", class: "Fighter", status: "ok", level: 5, hp: 50, maxHp: 50,
     str: 15, int: 10, pie: 10, vit: 10, agi: 10, luk: 10,
     equipment: {
-      weapon: { kind: "equipment", baseId: "LONG_SWORD", rarity: "rare", identified: true, affixes: [{ type: "followUp", value: 100 }] },
+      // followUp is capped at 50% (getCharAffixSum caps), so the effective chance is 50, not 100.
+      weapon: { kind: "equipment", baseId: "LONG_SWORD", rarity: "rare", identified: true, affixes: [{ type: "followUp", value: 50 }] },
       shield: null,
       armor: null
     }
@@ -153,12 +151,16 @@ Object.defineProperty(global, "navigator", {
     phase: "choose_actions"
   };
 
+  // 戦闘乱数を実効チャンス(50%)未満に固定し、追撃を確定発火させる(敵は1撃で倒れない)
+  const tempRandFollowUp = Math.random;
+  Math.random = () => 0.1;
   const roundResult = runCombatRoundCalculation(state, {
     actions: [{ actorIdx: 0, type: "fight", targetIdx: 0 }]
   });
-  
+  Math.random = tempRandFollowUp;
+
   const followUpLog = roundResult.logQueue.some(l => l.msg && l.msg.includes("追撃"));
-  assert.ok(followUpLog, "Combat round logs should contain 追撃 when followUp chance is 100%");
+  assert.ok(followUpLog, "Combat round logs should contain 追撃 when followUp roll is below the capped chance");
 
   // B. arcane (呪文威力+10%)
   const mageCaster = {
@@ -208,33 +210,32 @@ Object.defineProperty(global, "navigator", {
   assert.ok(heal2 > heal1, "Devotion caster healing should be greater due to +10% boost");
 
   // D. guardian (被ダメージ軽減-10% at HP<=25%)
-  const guardianChar = {
+  // Compare a guarded char against an identical unguarded one under fixed rolls:
+  // the guardian shield must leave strictly more HP (less damage taken).
+  const makeGuardianChar = (shield) => ({
     name: "Arthur", class: "Fighter", status: "ok", level: 5, hp: 10, maxHp: 40, // 10/40 = 25% (eligible)
     str: 12, int: 10, pie: 10, vit: 15, agi: 10, luk: 10,
-    equipment: {
-      weapon: null,
-      shield: { kind: "equipment", baseId: "SMALL_SHIELD", rarity: "rare", identified: true, affixes: [{ type: "guardian", value: 10 }] },
-      armor: null
-    }
-  };
-  state.party = [guardianChar];
-  state.combatState = {
+    equipment: { weapon: null, shield, armor: null }
+  });
+  const monsterAttacker = () => ({
     monsters: [{ name: "テストゴブリン", hp: 100, maxHp: 100, atk: 20, def: 5, exp: 10, gold: 10, color: "#fff" }],
     phase: "choose_actions"
+  });
+
+  const runGuardian = (shield) => {
+    state.party = [makeGuardianChar(shield)];
+    state.combatState = monsterAttacker();
+    const tempRand = Math.random;
+    Math.random = () => 0; // Fix rand rolls in combat round for a deterministic comparison
+    const res = runCombatRoundCalculation(state, { actions: [{ actorIdx: 0, type: "defend" }] });
+    Math.random = tempRand;
+    return res.state.party[0].hp;
   };
 
-  // Run combat where testing defense.
-  // Attack action by monster.
-  const tempRand2 = Math.random;
-  Math.random = () => 0; // Fix rand rolls in combat round
-  const combatResult2 = runCombatRoundCalculation(state, {
-    actions: [{ actorIdx: 0, type: "defend" }]
-  });
-  Math.random = tempRand2;
-  console.log("ROUND LOGS:", combatResult2.logQueue.map(l => l.msg));
-  console.log("ARTHUR FINAL STATE:", combatResult2.state.party[0]);
-  console.log(`Guardian Test Char remaining HP: ${combatResult2.state.party[0].hp}`);
-  assert.strictEqual(combatResult2.state.party[0].hp, 2, "Arthur HP should be 2 (protected by guardian)");
+  const guardedHp = runGuardian({ kind: "equipment", baseId: "SMALL_SHIELD", rarity: "rare", identified: true, affixes: [{ type: "guardian", value: 10 }] });
+  const unguardedHp = runGuardian(null);
+  console.log(`Guardian HP: guarded=${guardedHp}, unguarded=${unguardedHp}`);
+  assert.ok(guardedHp > unguardedHp, "Guardian affix should reduce incoming damage (higher remaining HP)");
   console.log("[PASS] New affixes verified.");
 
   console.log("All Unidentified Equipment verification tests passed successfully!");

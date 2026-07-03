@@ -25,7 +25,7 @@
 
 .camp-title {
   color: var(--neon-cyan);
-  font-size: 16px;
+  font-size: var(--fs-xl);
   font-weight: bold;
   text-shadow: var(--neon-glow-cyan);
 }
@@ -36,11 +36,11 @@
   color: var(--neon-cyan);
   box-shadow: 0 0 2px var(--neon-cyan);
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   border-radius: 4px;
   cursor: pointer;
   font-weight: bold;
-  min-height: 44px;
+  min-height: var(--tap-min);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -69,8 +69,8 @@
 }
 
 .camp-btn {
-  min-height: 48px;
-  font-size: 14px;
+  min-height: var(--tap-lg);
+  font-size: var(--fs-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -84,8 +84,8 @@
 }
 
 .camp-btn-danger {
-  min-height: 48px;
-  font-size: 14px;
+  min-height: var(--tap-lg);
+  font-size: var(--fs-lg);
   background-color: rgba(255, 59, 48, 0.1) !important;
   border-color: rgba(255, 59, 48, 0.5) !important;
   color: var(--neon-red) !important;
@@ -124,7 +124,7 @@
   flex-direction: column;
   gap: 6px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-sm);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
@@ -137,20 +137,20 @@
 }
 
 .camp-char-name {
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--neon-gold);
   text-shadow: var(--neon-glow-gold);
 }
 
 .camp-char-class {
   color: #fff;
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 
 .camp-status-card-hpmp {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: var(--text-main);
 }
 
@@ -175,7 +175,7 @@
 }
 
 .camp-status-card-exp {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: var(--neon-cyan);
   text-shadow: 0 0 2px rgba(0, 229, 255, 0.3);
 }
@@ -186,7 +186,7 @@
 }
 
 .shop-gold-info {
-  font-size: 12px;
+  font-size: var(--fs-md);
   font-weight: bold;
   color: var(--neon-gold);
   text-shadow: var(--neon-glow-gold);

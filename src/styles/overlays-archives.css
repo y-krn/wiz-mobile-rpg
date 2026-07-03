@@ -27,7 +27,7 @@
 
 .archives-title {
   color: var(--neon-cyan);
-  font-size: 15px;
+  font-size: var(--fs-xl);
   font-weight: bold;
   text-shadow: var(--neon-glow-cyan);
 }
@@ -48,14 +48,14 @@
   background-color: #1a1a24;
   border: 1px solid #333;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: var(--fs-xs);
   font-family: var(--font-mono);
   padding: 6px 0;
   text-align: center;
   cursor: pointer;
   border-radius: 4px;
   white-space: nowrap;
-  min-height: 44px;
+  min-height: var(--tap-min);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -80,7 +80,7 @@
 }
 
 .archives-section-title {
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: var(--neon-cyan);
   border-left: 3px solid var(--neon-cyan);
   padding-left: 6px;
@@ -102,7 +102,7 @@
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  min-height: 44px;
+  min-height: var(--tap-min);
   box-sizing: border-box;
 }
 .codex-row:hover {
@@ -110,12 +110,12 @@
 }
 
 .codex-name {
-  font-size: 12px;
+  font-size: var(--fs-md);
   font-weight: bold;
   color: #fff;
 }
 .codex-meta {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
 }
 
@@ -139,15 +139,14 @@
 }
 
 .codex-detail-name {
-  font-size: 14px;
+  font-size: var(--fs-lg);
   font-weight: bold;
   color: var(--neon-cyan);
   text-shadow: var(--neon-glow-cyan);
 }
 
 .codex-detail-body {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   line-height: 1.5;
   color: #ddd;
 }
-

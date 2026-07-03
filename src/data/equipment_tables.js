@@ -1,3 +1,7 @@
+// 高級ベース: game-design.md に従い通常チェストからは排除し、
+// 危険チェスト・レア敵・ボス・極低確率ソースへ寄せる。
+export const RESTRICTED_CHEST_BASES = ["KATANA", "DRAGON_SCALE"];
+
 export const EQUIPMENT_CANDIDATES_BY_FLOOR = {
   1: ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK"],
   2: ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK"],

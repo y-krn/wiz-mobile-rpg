@@ -23,7 +23,7 @@
   border-bottom: 1.5px solid var(--floor-border, var(--neon-cyan));
   box-shadow: var(--floor-glow, var(--neon-glow-cyan));
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--fs-base);
   letter-spacing: 1px;
 }
 
@@ -46,7 +46,7 @@
   background-color: var(--floor-banner-bg, #0e0e12);
   border-bottom: 1px solid var(--floor-border, var(--border-color));
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--neon-gold);
   text-shadow: var(--neon-glow-gold);
   letter-spacing: 0.5px;
@@ -69,10 +69,10 @@
 }
 
 .btn-mute {
-  font-size: 12px;
+  font-size: var(--fs-md);
   padding: 8px 16px;
   height: 44px;
-  min-height: 44px;
+  min-height: var(--tap-min);
   line-height: 26px;
   border-radius: 4px;
   background-color: #121216;
@@ -132,7 +132,7 @@
   padding: 8px 12px;
   overflow-y: auto;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--fs-base);
   line-height: 1.4;
   touch-action: pan-y; /* Only allow vertical scrolling in logs */
 }
@@ -186,7 +186,7 @@
   border-radius: 4px;
   padding: 6px 10px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: var(--neon-cyan);
   text-shadow: var(--neon-glow-cyan);
   pointer-events: none;
@@ -218,6 +218,6 @@
     max-height: 96px;
     padding-top: 6px;
     padding-bottom: 6px;
-    font-size: 12px;
+    font-size: var(--fs-md);
   }
 }

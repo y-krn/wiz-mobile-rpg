@@ -15,10 +15,36 @@
   
   --font-mono: 'Share Tech Mono', monospace;
   --font-sans: 'Outfit', sans-serif;
+
+  --tap-min: 44px;
+  --tap-lg: 48px;
+
+  --sp-xxs: 2px;
+  --sp-xs: 4px;
+  --sp-sm: 6px;
+  --sp-md: 8px;
+  --sp-lg: 12px;
+  --sp-xl: 16px;
+
+  --fs-xs: 10px;
+  --fs-sm: 11px;
+  --fs-md: 12px;
+  --fs-base: 13px;
+  --fs-lg: 14px;
+  --fs-xl: 16px;
+  --fs-xxl: 18px;
+  --fs-title: 20px;
+  --fs-display: 32px;
+
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
   
   --neon-glow-green: 0 0 8px rgba(0, 255, 102, 0.4);
   --neon-glow-cyan: 0 0 8px rgba(0, 229, 255, 0.4);
   --neon-glow-gold: 0 0 8px rgba(255, 179, 0, 0.4);
   --neon-glow-red: 0 0 8px rgba(255, 59, 48, 0.4);
+  --neon-glow-purple: 0 0 8px rgba(191, 90, 242, 0.4);
 }
-

@@ -26,13 +26,13 @@
 
 .training-title {
   color: var(--neon-gold);
-  font-size: 14px;
+  font-size: var(--fs-lg);
   font-weight: bold;
   text-shadow: var(--neon-glow-gold);
 }
 
 .training-subtitle {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
 }
 
@@ -53,7 +53,7 @@
 }
 
 .training-col-title {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--neon-cyan);
   border-bottom: 0.5px solid #2a2a3c;
   padding-bottom: 2px;
@@ -88,8 +88,8 @@
   border: 1px solid #22222d;
   padding: 6px 8px;
   border-radius: 4px;
-  font-size: 11px;
-  min-height: 44px;
+  font-size: var(--fs-sm);
+  min-height: var(--tap-min);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
@@ -116,7 +116,7 @@
 }
 
 .char-row-meta {
-  font-size: 8px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
 }
 
@@ -137,7 +137,7 @@
   font-family: var(--font-mono);
   gap: 1px;
   justify-content: center;
-  min-height: 44px;
+  min-height: var(--tap-min);
   min-width: 0;
   padding: 4px 3px;
   touch-action: manipulation;
@@ -160,13 +160,13 @@
 
 .training-party-pos {
   color: var(--neon-gold);
-  font-size: 9px;
+  font-size: var(--fs-xs);
   font-weight: bold;
   line-height: 1;
 }
 
 .training-party-name {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: bold;
   line-height: 1.1;
   min-width: 0;
@@ -182,20 +182,20 @@
 }
 
 .btn-action-sm {
-  width: 20px;
-  height: 20px;
-  min-height: 20px;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  min-height: var(--tap-min);
   padding: 0;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   border-radius: 3px;
 }
 
 .btn-add-char {
-  width: 38px;
-  height: 20px;
-  min-height: 20px;
+  min-width: var(--tap-min);
+  height: var(--tap-min);
+  min-height: var(--tap-min);
   padding: 0;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   border-radius: 3px;
   border-color: var(--neon-green);
   color: var(--neon-green);
@@ -207,11 +207,11 @@
 }
 
 .btn-remove-char {
-  width: 32px;
-  height: 20px;
-  min-height: 20px;
+  min-width: var(--tap-min);
+  height: var(--tap-min);
+  min-height: var(--tap-min);
   padding: 0;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   border-radius: 3px;
   border-color: var(--neon-red);
   color: var(--neon-red);
@@ -223,7 +223,7 @@
 }
 
 .party-pos-label {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: bold;
   margin-right: 4px;
   width: 24px;
@@ -236,4 +236,3 @@
 .party-pos-label.back {
   color: var(--neon-gold);
 }
-
