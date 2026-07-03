@@ -55,6 +55,7 @@ export function renderTempleMain(optGrid) {
     info.textContent = "治療や蘇生が必要な冒険者は名簿にいません。";
     optGrid.appendChild(info);
   } else {
+    let hasAffordableAction = false;
     targetChars.forEach((char) => {
       const btn = document.createElement("button");
       btn.className = "btn btn-neon btn-block";
@@ -81,6 +82,7 @@ export function renderTempleMain(optGrid) {
       const charJpClass = getClassJpName(char.class);
       btn.textContent = `${char.name} (${charJpClass} Lv.${char.level}) - ${text}`;
       if (price === 0 || state.gold < price) btn.disabled = true;
+      else hasAffordableAction = true;
       
       btn.addEventListener("click", () => {
         state.gold -= price;
@@ -141,6 +143,24 @@ export function renderTempleMain(optGrid) {
       });
       optGrid.appendChild(btn);
     });
+
+    if (!hasAffordableAction) {
+      const info = document.createElement("div");
+      info.className = "detail-placeholder";
+      info.style.textAlign = "center";
+      info.style.padding = "10px";
+      info.textContent = "蘇生・治療に必要な金貨が足りません。待機メンバーがいる場合は訓練場で編成を立て直せます。";
+      optGrid.appendChild(info);
+
+      const btnTraining = document.createElement("button");
+      btnTraining.className = "btn btn-neon btn-block";
+      btnTraining.style.height = "44px";
+      btnTraining.textContent = "👥 訓練場で編成する";
+      btnTraining.addEventListener("click", () => {
+        openSubmenu("party_assemble", "訓練場 - パーティ編成：");
+      });
+      optGrid.appendChild(btnTraining);
+    }
   }
 }
 
@@ -1082,4 +1102,3 @@ export function renderCastleDeathLogs(optGrid) {
   });
   optGrid.appendChild(btnBack);
 }
-

@@ -206,13 +206,30 @@ export function renderTraining() {
     if (trainingState.tab === "roster") {
       const btnAdd = document.createElement("button");
       btnAdd.className = "btn btn-neon btn-block";
-      btnAdd.textContent = `➕ ${selectedChar.name}を編成に加える`;
-      if (state.party.length >= 4) {
+      const replaceIdx = state.party.findIndex(c => c.status === "dead" || c.status === "ash");
+      const canJoin = selectedChar.status !== "dead" && selectedChar.status !== "ash";
+      const canReplaceDead = state.party.length >= 4 && replaceIdx !== -1 && canJoin;
+
+      btnAdd.textContent = canReplaceDead
+        ? `↔ ${state.party[replaceIdx].name}と入れ替える`
+        : `➕ ${selectedChar.name}を編成に加える`;
+      if (!canJoin) {
+        btnAdd.disabled = true;
+        btnAdd.textContent = "死亡・灰化メンバーは編成不可";
+      } else if (state.party.length >= 4 && !canReplaceDead) {
         btnAdd.disabled = true;
         btnAdd.textContent = "パーティ満員 (最大4人)";
       }
       btnAdd.addEventListener("click", () => {
-        if (state.party.length < 4) {
+        if (!canJoin) return;
+        if (canReplaceDead) {
+          state.party[replaceIdx] = selectedChar;
+          trainingState.selectedName = null;
+          saveGame();
+          saveAutosave();
+          renderTraining();
+          updateUI();
+        } else if (state.party.length < 4) {
           state.party.push(selectedChar);
           trainingState.selectedName = null;
           saveGame();
