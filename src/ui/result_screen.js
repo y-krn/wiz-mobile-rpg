@@ -216,7 +216,7 @@ export function renderResultScreen() {
         <div class="result-summary-section" style="border-color: var(--neon-red); background: rgba(255, 0, 51, 0.05); margin-bottom: 12px;">
           <div class="result-summary-item">
             <span class="result-summary-label">全滅階層</span>
-            <span class="result-summary-val" style="color: var(--neon-red);">B${run.deepestFloor}F</span>
+            <span class="result-summary-val" style="color: var(--neon-red);">B${run.wipedFloor || run.deepestFloor}F</span>
           </div>
           <div class="result-summary-item">
             <span class="result-summary-label">救出費損失</span>
@@ -266,6 +266,7 @@ export function renderResultScreen() {
       overlay.style.display = "none";
       state.gameState = "town";
       state.currentRun = null;
+      saveAutosave();
       updateUI();
       openSubmenu("temple_main", "カント寺院 - 蘇生と治療：");
     });
@@ -274,6 +275,7 @@ export function renderResultScreen() {
       overlay.style.display = "none";
       state.gameState = "town";
       state.currentRun = null;
+      saveAutosave();
       updateUI();
       openSubmenu("party_assemble", "訓練場 - パーティ編成:");
     });
@@ -282,6 +284,7 @@ export function renderResultScreen() {
       overlay.style.display = "none";
       state.gameState = "town";
       state.currentRun = null;
+      saveAutosave();
       updateUI();
       openSubmenu("castle_remains_list", "おしろ - 遺留品情報：");
     });
@@ -290,6 +293,7 @@ export function renderResultScreen() {
       overlay.style.display = "none";
       state.gameState = "town";
       state.currentRun = null;
+      saveAutosave();
       updateUI();
     });
   } else {
@@ -403,4 +407,3 @@ export function renderResultScreen() {
     }
   }
 }
-

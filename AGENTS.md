@@ -59,6 +59,7 @@ If multiple interpretations are plausible, ask instead of choosing silently.
 ## Verification
 
 - After implementation, run the narrowest meaningful checks.
+- After source code changes, always run `npm run lint` and confirm the result.
 - For UI-affecting changes, run `npm run build` and `npm run test:browser` when
   feasible.
 - For logic or state changes, run `npm run test:unit` or the matching focused

@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog } from "../state.js";
+import { state, addLog } from "../state.js";
 import { menuContext, menuHistory } from "../navigation.js";
 import { combatSelection } from "./combat_state.js";
 import { generateEncounter } from "./encounter.js";
@@ -86,5 +86,4 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
   }
   
   advanceActionSelection();
-  saveAutosave();
 }

@@ -156,6 +156,7 @@ export function playBattleLogs(queue, index) {
       state.gameState = "chest";
       state.transitioning = false;
       setupChestState();
+      saveAutosave();
     }, isAuto ? 150 : 1500);
     return;
   }
