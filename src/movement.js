@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, createDefaultCurrentRun } from "./state.js";
-import { DIR_N, START_X, START_Y, DX, DY, DIR_NAMES, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, getItemBaseId, isSpecialOrQuestItem } from "./data.js";
+import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
@@ -694,7 +694,7 @@ export function processExplorationResolution(prevX, prevY) {
   // 2.5. Check standard traps on standard passage cells
   const cell = state.map[state.y][state.x];
   if (cell.trap && cell.trap.state !== "disabled") {
-    const encountered = handleTrapStepCheck(cell.trap, prevX, prevY);
+    const encountered = handleTrapStepCheck(cell.trap);
     if (encountered) {
       return;
     }

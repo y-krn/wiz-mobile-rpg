@@ -1,4 +1,4 @@
-import { state, initNewGame, loadGame, saveAutosave, addLog } from "../state.js";
+import { state, initNewGame, saveAutosave, addLog } from "../state.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";

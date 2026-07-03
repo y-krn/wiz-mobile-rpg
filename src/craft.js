@@ -1,7 +1,7 @@
 import { state, saveAutosave, addLog, addInventoryItem } from "./state.js";
 import { getItemData, getItemBaseId } from "./data.js";
 import { playSound } from "./audio.js";
-import { getActiveSynergies, recordSynergyDiscovery, MATERIAL_TAGS, TAG_EFFECT_MAP } from "./data/tags.js";
+import { getActiveSynergies, recordSynergyDiscovery, TAG_EFFECT_MAP } from "./data/tags.js";
 import { CURSE_EFFECTS } from "./data/items.js";
 
 export const CRAFT_RECIPES = [

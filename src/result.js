@@ -1,4 +1,4 @@
-import { state, loadGame, saveGame, saveAutosave } from "./state.js";
+import { state, saveGame, saveAutosave } from "./state.js";
 import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT, getItemBaseId, isSpecialOrQuestItem, ITEMS, getItemData } from "./data.js";
 import { updateUI } from "./ui.js";
 import { checkActiveContract, generateContractsList } from "./contracts.js";

@@ -25,7 +25,7 @@ global.localStorage = {
   setItem: () => {}
 };
 
-const { getOmenForFloor, OMENS, isMatchedMonster, isMatchedTrap } = await import("../src/systems/omens.js");
+const { getOmenForFloor, OMENS, isMatchedMonster } = await import("../src/systems/omens.js");
 const { generateEncounter, ENCOUNTER_PACKS } = await import("../src/combat_ui/encounter.js");
 const { setupChestState } = await import("../src/chest.js");
 const { state } = await import("../src/state.js");
@@ -35,7 +35,6 @@ console.log("=== OMEN SYSTEM VERIFICATION ===");
 
 // 1. Check Deterministic Omen Selection
 console.log("\n[1] Verifying seed-based deterministic selection:");
-const seeds = ["CASTLE-12345678", "CASTLE-ABCDEFGH", "CASTLE-XYZ12345"];
 const omenDist = {};
 OMENS.forEach(o => omenDist[o.id] = 0);
 
@@ -81,16 +80,10 @@ const originalGetOmen = getOmenForFloor;
 
 // We will inject a custom forced omen hook in the system so we can force omens in tests
 // Let's modify our test setup: we will temporarily override the getOmenForFloor function in the test environment.
-import * as omensModule from "../src/systems/omens.js";
-
 // Simulate with claw_marks Omen
 let beastSelected = 0;
 let totalExp = 0;
 let totalGold = 0;
-
-// Override getOmenForFloor for forcing claw_marks
-const forceClawMarks = () => ({ id: "claw_marks" });
-const forceIronDust = () => ({ id: "iron_dust" });
 
 // Since import is read-only, we can override state.seed dynamically to map to desired omens in our test,
 // or we can just mock state.seed + floor to resolve to claw_marks.

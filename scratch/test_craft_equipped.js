@@ -47,7 +47,6 @@ Object.defineProperty(global, "navigator", {
 (async () => {
   const { state, initNewGame } = await import("../src/state.js");
   const { executeEnhance, executeTagInscription } = await import("../src/craft.js");
-  const { getItemData } = await import("../src/rules/item_rules.js");
   const { renderCraftEnhance, renderCraftInscriptionSelectEquip } = await import("../src/menu/town_actions.js");
 
   console.log("=== STARTING EQUIPPED CRAFT VERIFICATION ===");

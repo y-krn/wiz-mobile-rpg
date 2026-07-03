@@ -465,7 +465,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     const spot = trapCandidates[i];
     const trapId = `trap_${floor}_${spot.x}_${spot.y}`;
     
-    let trapType = "damage";
+    let trapType;
     const r = rng();
     if (floor <= 2) {
       if (r < 0.70) trapType = "damage";

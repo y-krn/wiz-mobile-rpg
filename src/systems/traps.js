@@ -80,7 +80,7 @@ export function startTrapEncounter(trap) {
   updateUI();
 }
 
-export function handleTrapStepCheck(trap, prevX, prevY) {
+export function handleTrapStepCheck(trap) {
   if (trap.state === "hidden") {
     let detectionRate = 0.30;
     const scouts = state.party.filter(c => ["Thief", "Ninja", "Ranger"].includes(c.class) && c.hp > 0);

@@ -30,7 +30,6 @@ const { state } = await import("../src/state.js");
 const { generateRandomMap } = await import("../src/map_generator.js");
 const {
   calculateSuccessRate,
-  getExpectedEffectText,
   triggerTrap
 } = await import("../src/systems/traps.js");
 

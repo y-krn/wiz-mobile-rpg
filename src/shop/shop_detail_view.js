@@ -2,7 +2,7 @@ import { state } from "../state.js";
 import { ITEMS, getItemData, getItemBaseId } from "../data.js";
 import { shopState } from "./shop_state.js";
 import { getAppraisalCost, getItemOwnership, getEquipmentPreview, formatEquipmentPreview } from "./shop_rules.js";
-import { executeAppraise, executeHalfAppraise, executeFullAppraise } from "./appraisal.js";
+import { executeHalfAppraise, executeFullAppraise } from "./appraisal.js";
 import { executePurchase, executeSale } from "./purchase.js";
 import { renderShop } from "./shop_view.js";
 import { SHOP_STOCK } from "./shop_stock.js";

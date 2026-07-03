@@ -188,7 +188,7 @@ export function getPartyActiveTags(party) {
 export function getActiveSynergies(party) {
   const activeTags = getPartyActiveTags(party);
   const activeList = [];
-  for (const [id, syn] of Object.entries(SYNERGIES)) {
+  for (const syn of Object.values(SYNERGIES)) {
     const hasAll = syn.tags.every(t => activeTags.includes(t));
     if (hasAll) {
       activeList.push(syn);

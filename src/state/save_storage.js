@@ -125,7 +125,7 @@ export function clearSave() {
   initNewGame();
 }
 
-export function loadGame(forceSaveOnly = false) {
+export function loadGame() {
   try {
     let raw = localStorage.getItem(SAVE_KEY);
     if (!raw) {

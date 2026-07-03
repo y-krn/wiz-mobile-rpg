@@ -1,4 +1,4 @@
-import { state, saveGame, saveAutosave, addLog } from "../state.js";
+import { state, saveAutosave, addLog } from "../state.js";
 import { playSound } from "../audio.js";
 import { updateUI, openArchivesOverlay, openContractsOverlay, openWarehouseOverlay } from "../ui.js";
 import { openSubmenu } from "../navigation.js";
@@ -6,11 +6,9 @@ import { generateContractsList } from "../contracts.js";
 import { getCharMaxHp, getCharMaxMp, getItemBaseId, getItemData, getClassJpName } from "../data.js";
 import { renderMaterialsHUD } from "./materials_hud.js";
 import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, executeDismantle, getDismantleResults, executeTagInscription } from "../craft.js";
-import { TAGS, MATERIAL_TAGS, TAG_EFFECT_MAP } from "../data/tags.js";
+import { MATERIAL_TAGS, TAG_EFFECT_MAP } from "../data/tags.js";
 
 import { openEquipOverlay } from "../equip.js";
-
-let isCastleProcessing = false;
 
 export function handleTownOption(option) {
   if (option === "castle") {
@@ -62,7 +60,7 @@ export function renderTempleMain(optGrid) {
       btn.style.height = "44px"; // 44px以上のタップターゲット
       
       let price = 0;
-      let text = "";
+      let text;
       let actionType = ""; // "revive_dead", "revive_ash", "cure"
       
       if (char.status === "dead") {
