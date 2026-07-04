@@ -20,16 +20,6 @@ export const createDefaultCodex = () => ({
       "teleporter": { triggered: 0, disarmed: 0, firstFloor: 0 },
       "flash bomb": { triggered: 0, disarmed: 0, firstFloor: 0 }
     },
-    omens: {
-      claw_marks: { count: 0, firstFloor: 0 },
-      scorched_floor: { count: 0, firstFloor: 0 },
-      broken_sigil: { count: 0, firstFloor: 0 },
-      blood_chest: { count: 0, firstFloor: 0 },
-      dry_bell: { count: 0, firstFloor: 0 },
-      stale_air: { count: 0, firstFloor: 0 },
-      cold_draft: { count: 0, firstFloor: 0 },
-      iron_dust: { count: 0, firstFloor: 0 }
-    },
     facilities: {
       spring: { found: 0, used: 0 },
       merchant: { found: 0, purchased: 0 },
@@ -58,8 +48,6 @@ export const createDefaultCurrentRun = () => ({
   chestsOpened: 0,
   trapsTriggered: 0,
   trapsDisarmed: 0,
-  seenOmenFloors: [],
-  matchedOmenFloors: [],
   goldGained: 0,
   expGained: 0,
   itemsFound: [],

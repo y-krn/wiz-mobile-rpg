@@ -1,11 +1,15 @@
-import { state, initNewGame, saveAutosave, addLog, EXP_LEVELS, getCharWeaponAtk, getCharDef } from "./state.js";
+import { state, initNewGame, saveGame, saveAutosave, addLog, EXP_LEVELS, getCharWeaponAtk, getCharDef } from "./state.js";
 import { SPELLS, getClassJpName } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { openEquipOverlay } from "./equip.js";
+import { updateUI } from "./ui.js";
+
+let selectedFormationIdx = 0;
 
 export function openCampMenu() {
+  selectedFormationIdx = 0;
   openSubmenu("camp_main", "キャンプメニュー:");
 }
 
@@ -66,7 +70,13 @@ export function renderCampOverlay() {
 
   const title = document.createElement("span");
   title.className = "camp-title";
-  title.textContent = menuContext.type === "camp_status" ? "パーティの強さ" : "キャンプメニュー";
+  if (menuContext.type === "camp_status") {
+    title.textContent = "パーティの強さ";
+  } else if (menuContext.type === "camp_formation") {
+    title.textContent = "隊列変更";
+  } else {
+    title.textContent = "キャンプメニュー";
+  }
   header.appendChild(title);
 
   overlay.appendChild(header);
@@ -152,6 +162,82 @@ export function renderCampOverlay() {
     });
 
     body.appendChild(statusGrid);
+  } else if (menuContext.type === "camp_formation") {
+    const formationList = document.createElement("div");
+    formationList.className = "camp-formation-list";
+
+    for (let i = 0; i < 4; i++) {
+      const char = state.party[i];
+      const card = document.createElement("div");
+      card.className = `camp-formation-card ${char ? "" : "empty"} ${selectedFormationIdx === i ? "selected" : ""}`;
+      
+      const posLabel = i < 2 ? "前" : "後";
+      const posClass = i < 2 ? "front" : "back";
+
+      if (char) {
+        card.addEventListener("click", () => {
+          selectedFormationIdx = i;
+          renderCampOverlay();
+        });
+
+        const leftDiv = document.createElement("div");
+        leftDiv.className = "camp-formation-left";
+
+        const posSpan = document.createElement("span");
+        posSpan.className = `camp-formation-pos ${posClass}`;
+        posSpan.textContent = `${i + 1} ${posLabel}`;
+        leftDiv.appendChild(posSpan);
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "camp-formation-name";
+        nameSpan.textContent = char.name;
+        leftDiv.appendChild(nameSpan);
+
+        card.appendChild(leftDiv);
+
+        const metaSpan = document.createElement("span");
+        metaSpan.className = "camp-formation-meta";
+        const classJp = getClassJpName(char.class);
+        let statusJp = "健康";
+        if (char.status === "dead") statusJp = "死亡";
+        else if (char.status === "ash") statusJp = "灰化";
+        else if (char.status === "sleep") statusJp = "睡眠";
+        else if (char.status === "paralyze" || char.status === "paralyzed") statusJp = "麻痺";
+        else if (char.status === "poisoned") statusJp = "毒";
+        else if (char.status === "blind") statusJp = "暗闇";
+
+        if (statusJp === "健康") {
+          metaSpan.textContent = `Lv.${char.level} ${classJp}`;
+        } else {
+          metaSpan.textContent = `Lv.${char.level} ${classJp} (${statusJp})`;
+        }
+        card.appendChild(metaSpan);
+      } else {
+        const leftDiv = document.createElement("div");
+        leftDiv.className = "camp-formation-left";
+
+        const posSpan = document.createElement("span");
+        posSpan.className = "camp-formation-pos empty";
+        posSpan.style.borderColor = "#444";
+        posSpan.style.color = "#888";
+        posSpan.textContent = `${i + 1} ${posLabel}`;
+        leftDiv.appendChild(posSpan);
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "camp-formation-name";
+        nameSpan.textContent = "(空き)";
+        nameSpan.style.color = "#555";
+        leftDiv.appendChild(nameSpan);
+
+        card.appendChild(leftDiv);
+        card.style.opacity = "0.5";
+        card.style.cursor = "default";
+      }
+
+      formationList.appendChild(card);
+    }
+
+    body.appendChild(formationList);
   }
 
   overlay.appendChild(body);
@@ -167,17 +253,28 @@ export function renderCampOverlay() {
     const btnStatus = document.createElement("button");
     btnStatus.className = "btn btn-neon";
     btnStatus.style.flex = "1";
-    btnStatus.textContent = "🛡️ パーティの強さ";
+    btnStatus.textContent = "🛡️ ステータス";
     btnStatus.style.minHeight = "44px";
     btnStatus.addEventListener("click", () => {
       openSubmenu("camp_status", "パーティ詳細ステータス:");
     });
     mainActionRow.appendChild(btnStatus);
 
+    const btnFormation = document.createElement("button");
+    btnFormation.className = "btn btn-neon";
+    btnFormation.style.flex = "1";
+    btnFormation.textContent = "🔄 隊列変更";
+    btnFormation.style.minHeight = "44px";
+    btnFormation.addEventListener("click", () => {
+      selectedFormationIdx = 0;
+      openSubmenu("camp_formation", "隊列変更:");
+    });
+    mainActionRow.appendChild(btnFormation);
+
     const btnItems = document.createElement("button");
     btnItems.className = "btn btn-neon";
     btnItems.style.flex = "1";
-    btnItems.textContent = "装備変更";
+    btnItems.textContent = "⚔️ 装備変更";
     btnItems.style.minHeight = "44px";
     btnItems.addEventListener("click", () => {
       openEquipOverlay(0);
@@ -185,6 +282,59 @@ export function renderCampOverlay() {
     mainActionRow.appendChild(btnItems);
 
     footer.appendChild(mainActionRow);
+  }
+
+  if (menuContext.type === "camp_formation") {
+    const formationActionRow = document.createElement("div");
+    formationActionRow.className = "bottom-actions-row";
+
+    const btnUp = document.createElement("button");
+    btnUp.className = "btn btn-neon";
+    btnUp.style.flex = "1";
+    btnUp.textContent = "▲ 上へ";
+    btnUp.style.minHeight = "44px";
+    
+    const isUpDisabled = selectedFormationIdx === 0 || !state.party[selectedFormationIdx];
+    if (isUpDisabled) btnUp.disabled = true;
+    
+    btnUp.addEventListener("click", () => {
+      if (selectedFormationIdx > 0 && state.party[selectedFormationIdx]) {
+        const temp = state.party[selectedFormationIdx];
+        state.party[selectedFormationIdx] = state.party[selectedFormationIdx - 1];
+        state.party[selectedFormationIdx - 1] = temp;
+        selectedFormationIdx--;
+        saveGame();
+        saveAutosave();
+        renderCampOverlay();
+        updateUI();
+      }
+    });
+    formationActionRow.appendChild(btnUp);
+
+    const btnDown = document.createElement("button");
+    btnDown.className = "btn btn-neon";
+    btnDown.style.flex = "1";
+    btnDown.textContent = "▼ 下へ";
+    btnDown.style.minHeight = "44px";
+    
+    const isDownDisabled = selectedFormationIdx >= state.party.length - 1 || !state.party[selectedFormationIdx];
+    if (isDownDisabled) btnDown.disabled = true;
+
+    btnDown.addEventListener("click", () => {
+      if (selectedFormationIdx < state.party.length - 1 && state.party[selectedFormationIdx]) {
+        const temp = state.party[selectedFormationIdx];
+        state.party[selectedFormationIdx] = state.party[selectedFormationIdx + 1];
+        state.party[selectedFormationIdx + 1] = temp;
+        selectedFormationIdx++;
+        saveGame();
+        saveAutosave();
+        renderCampOverlay();
+        updateUI();
+      }
+    });
+    formationActionRow.appendChild(btnDown);
+
+    footer.appendChild(formationActionRow);
   }
 
   const closeRow = document.createElement("div");
@@ -195,7 +345,7 @@ export function renderCampOverlay() {
   btnClose.style.width = "100%";
   btnClose.style.minHeight = "44px";
   
-  if (menuContext.type === "camp_status") {
+  if (menuContext.type === "camp_status" || menuContext.type === "camp_formation") {
     if (menuContext.prevGameState === "town") {
       btnClose.textContent = "❌ 閉じる";
       btnClose.setAttribute("aria-label", "街に戻る");

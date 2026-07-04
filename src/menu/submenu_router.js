@@ -79,7 +79,7 @@ export function renderSubmenu(type) {
   const optGrid = document.getElementById("submenu-options");
   if (!optGrid) return;
 
-  if (type === "spell_caster_select" || type === "spell_select" || type === "spell_target_ally" || type === "camp_main" || type === "camp" || type === "camp_status") {
+  if (type === "spell_caster_select" || type === "spell_select" || type === "spell_target_ally" || type === "camp_main" || type === "camp" || type === "camp_status" || type === "camp_formation") {
     return;
   }
 

@@ -200,3 +200,75 @@
   background-color: rgba(0, 229, 255, 0.05);
 }
 
+/* Camp Formation styles */
+.camp-formation-list {
+  flex: 1 1 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.camp-formation-card {
+  background-color: #14141a;
+  border: 1px solid #22222d;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 48px;
+}
+
+.camp-formation-card.selected {
+  border-color: var(--neon-cyan) !important;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+  background-color: rgba(0, 229, 255, 0.05);
+}
+
+.camp-formation-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.camp-formation-pos {
+  font-size: var(--fs-sm);
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  min-width: 48px;
+  text-align: center;
+}
+
+.camp-formation-pos.front {
+  background-color: rgba(0, 229, 255, 0.1);
+  color: var(--neon-cyan);
+  border: 1.5px solid var(--neon-cyan);
+}
+
+.camp-formation-pos.back {
+  background-color: rgba(255, 170, 0, 0.1);
+  color: var(--neon-gold);
+  border: 1.5px solid var(--neon-gold);
+}
+
+.camp-formation-name {
+  font-size: var(--fs-base);
+  font-weight: bold;
+  color: #fff;
+}
+
+.camp-formation-meta {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+

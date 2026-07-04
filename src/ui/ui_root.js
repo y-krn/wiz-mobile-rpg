@@ -393,7 +393,7 @@ export function updateUI() {
   // Update Camp Overlay visibility
   const campOverlay = document.getElementById("camp-overlay");
   if (campOverlay) {
-    if (state.gameState === "submenu" && (menuContext.type === "camp_main" || menuContext.type === "camp" || menuContext.type === "camp_status")) {
+    if (state.gameState === "submenu" && (menuContext.type === "camp_main" || menuContext.type === "camp" || menuContext.type === "camp_status" || menuContext.type === "camp_formation")) {
       campOverlay.style.display = "flex";
       renderCampOverlay();
     } else {

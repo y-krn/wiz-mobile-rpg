@@ -75,7 +75,7 @@ export function migrateCharSpells(char) {
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 // 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
 // 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
@@ -95,6 +95,16 @@ const MIGRATIONS = {
     data.party?.forEach(normalizeCharEquipment);
     data.roster?.forEach(normalizeCharEquipment);
     data.remains?.forEach(normalizeCharEquipment);
+    return data;
+  },
+  3: (data) => {
+    if (data.currentRun) {
+      delete data.currentRun.seenOmenFloors;
+      delete data.currentRun.matchedOmenFloors;
+    }
+    if (data.codex?.events) {
+      delete data.codex.events.omens;
+    }
     return data;
   }
 };
@@ -150,12 +160,8 @@ export function normalizeSavePayload(data) {
   normalized.lastReturnedFloor = data.lastReturnedFloor ?? null;
   normalized.currentRun = data.currentRun ?? null;
   if (normalized.currentRun) {
-    if (!normalized.currentRun.seenOmenFloors) {
-      normalized.currentRun.seenOmenFloors = [];
-    }
-    if (!normalized.currentRun.matchedOmenFloors) {
-      normalized.currentRun.matchedOmenFloors = [];
-    }
+    delete normalized.currentRun.seenOmenFloors;
+    delete normalized.currentRun.matchedOmenFloors;
   }
   normalized.runHistory = data.runHistory ?? [];
   normalized.deathLogs = data.deathLogs ?? [];
@@ -167,18 +173,7 @@ export function normalizeSavePayload(data) {
     }
   }
   if (normalized.codex && normalized.codex.events) {
-    if (!normalized.codex.events.omens) {
-      normalized.codex.events.omens = {
-        claw_marks: { count: 0, firstFloor: 0 },
-        scorched_floor: { count: 0, firstFloor: 0 },
-        broken_sigil: { count: 0, firstFloor: 0 },
-        blood_chest: { count: 0, firstFloor: 0 },
-        dry_bell: { count: 0, firstFloor: 0 },
-        stale_air: { count: 0, firstFloor: 0 },
-        cold_draft: { count: 0, firstFloor: 0 },
-        iron_dust: { count: 0, firstFloor: 0 }
-      };
-    }
+    delete normalized.codex.events.omens;
   }
   normalized.roamingMonsters = data.roamingMonsters ?? [];
   normalized.firstChestUnidentifiedGuaranteed = data.firstChestUnidentifiedGuaranteed ?? false;

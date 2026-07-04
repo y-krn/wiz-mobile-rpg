@@ -396,13 +396,7 @@ export function renderResultScreen() {
         overlay.style.display = "none";
         state.gameState = "town";
         state.currentRun = null;
-        state.party.forEach(char => {
-          if (char.status !== "dead") {
-            char.hp = char.maxHp;
-            char.mp = char.maxMp;
-          }
-        });
-        addLog("おしろ：パーティは休息した。HPとMPが全回復した！（ステータス異常は教会で治療してください）");
+        addLog("おしろ：探索から無事帰還した。");
 
         const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
         if (hasCrystal) {

@@ -924,7 +924,7 @@ import { migrateSavePayload } from "../src/state/save_migrations.js";
       remains: [{ ...baseChar, equipment: { weapon: null, shield: null, armor: null } }]
     });
 
-    assert.strictEqual(migrated.version, 2);
+    assert.strictEqual(migrated.version, 3);
     assert.deepStrictEqual(migrated.party[0].equipment, {
       weapon: "DAGGER",
       shield: null,

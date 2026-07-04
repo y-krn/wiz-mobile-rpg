@@ -247,5 +247,80 @@ for (const vp of VIEWPORTS) {
       expect(box.height, `Few-button submenu row should stay compact on ${vp.name}`).toBeLessThanOrEqual(64);
       expect(box.height, `Few-button submenu row should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
     });
+
+    test('Party formation reordering works in adventure camp menu', async ({ page }) => {
+      // 1. Add characters to party at Training Ground
+      await page.locator('#btn-town-training').click();
+      await expect(page.locator('#training-overlay')).toBeVisible();
+
+      // Add character 1
+      await page.locator('.char-row').nth(0).click();
+      await page.waitForTimeout(100);
+      await page.locator('button:has-text("加える"):visible').first().click();
+      await page.waitForTimeout(200);
+
+      // Add character 2
+      await page.locator('.char-row').nth(0).click();
+      await page.waitForTimeout(100);
+      await page.locator('button:has-text("加える"):visible').first().click();
+      await page.waitForTimeout(200);
+
+      // Close training
+      await page.locator('button:has-text("閉じる"):visible').first().click();
+      await page.waitForTimeout(200);
+
+      // 2. Enter Dungeon
+      await page.locator('#btn-town-dungeon').click();
+      if (await page.locator('#submenu-controls').isVisible()) {
+        await page.getByRole('button', { name: '地下1階から潜る' }).click();
+      }
+      await expect(page.locator('#explore-controls')).toBeVisible();
+
+      // 3. Open Camp
+      await page.locator('#btn-camp').click();
+      await expect(page.locator('#camp-overlay')).toBeVisible();
+
+      // 4. Go to Formation Screen
+      const btnFormation = page.locator('button:has-text("隊列変更"):visible');
+      await expect(btnFormation).toBeVisible();
+      await btnFormation.click();
+      await page.waitForTimeout(200);
+
+      // 5. Select character and perform swap
+      const cards = page.locator('.camp-formation-card');
+      await expect(cards).toHaveCount(4);
+
+      // Get initial names
+      const name1 = await cards.nth(0).locator('.camp-formation-name').textContent();
+      const name2 = await cards.nth(1).locator('.camp-formation-name').textContent();
+
+      // Select first character card
+      await cards.nth(0).click();
+      await expect(cards.nth(0)).toHaveClass(/selected/);
+
+      // Click Down button
+      const btnDown = page.locator('button:has-text("下へ"):visible');
+      await expect(btnDown).toBeEnabled();
+      await btnDown.click();
+      await page.waitForTimeout(200);
+
+      // Names should be swapped
+      const newName1 = await cards.nth(0).locator('.camp-formation-name').textContent();
+      const newName2 = await cards.nth(1).locator('.camp-formation-name').textContent();
+      expect(newName1).toBe(name2);
+      expect(newName2).toBe(name1);
+
+      // Back to camp main
+      const btnBack = page.locator('button:has-text("メニューに戻る"):visible');
+      await btnBack.click();
+      await page.waitForTimeout(200);
+      await expect(btnFormation).toBeVisible();
+
+      // Close camp
+      const btnClose = page.locator('button:has-text("探索に戻る"):visible');
+      await btnClose.click();
+      await page.waitForTimeout(200);
+      await expect(page.locator('#explore-controls')).toBeVisible();
+    });
   });
 }

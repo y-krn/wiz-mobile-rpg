@@ -3,7 +3,6 @@ import { menuContext, menuHistory } from "../navigation.js";
 import { combatSelection } from "./combat_state.js";
 import { generateEncounter } from "./encounter.js";
 import { advanceActionSelection } from "./action_selection.js";
-import { getOmenForFloor, isMatchedMonster, triggerOmenMatch } from "../systems/omens.js";
 import { getActiveSynergies, recordSynergyDiscovery } from "../data/tags.js";
 
 export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
@@ -31,18 +30,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
     state.alarmWeakened = false;
   }
 
-  const omen = getOmenForFloor(state.seed, state.floor);
-  if (omen) {
-    let matched = false;
-    if (isRare && omen.id === "dry_bell") {
-      matched = true;
-    } else if (isMatchedMonster(omen.id, monsters)) {
-      matched = true;
-    }
-    if (matched) {
-      triggerOmenMatch(omen.id);
-    }
-  }
+
 
   if (isBoss || isMidboss || isRoamingFlack) {
     addLog("【⚠️強敵遭遇！】周囲の空気が張り詰める...！");
