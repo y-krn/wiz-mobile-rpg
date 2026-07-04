@@ -1,4 +1,4 @@
-# Content Design Agent
+# Content Design Checklist
 
 ## Role
 

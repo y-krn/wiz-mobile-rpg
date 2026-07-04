@@ -181,7 +181,7 @@ export function executeEnhance(itemIdx) {
 
 export function getDismantleResults(eqItem) {
   const item = getItemData(eqItem);
-  if (!item || !["weapon", "shield", "armor"].includes(item.type)) return null;
+  if (!item || !["weapon", "shield", "armor", "accessory"].includes(item.type)) return null;
 
   // 未鑑定装備の場合は分解不可
   if (typeof eqItem === "object" && eqItem.identified === false) {
@@ -211,6 +211,20 @@ export function getDismantleResults(eqItem) {
     mainMat = "鉄片"; midMat = "骨片"; highMat = "竜鱗";
   } else if (["DRAGON_SCALE", "DRAGON_CHARM"].includes(baseId)) {
     mainMat = "竜鱗"; midMat = "竜鱗"; highMat = "竜鱗";
+  } else if (["AMULET_HP", "WARD_CHARM"].includes(baseId)) {
+    mainMat = "霊粉"; midMat = "魔石片"; highMat = "黒角";
+  } else if (["AMULET_MP"].includes(baseId)) {
+    mainMat = "魔石片"; midMat = "霊粉"; highMat = "黒角";
+  } else if (["RING_STR", "RING_AGI", "RING_LUK"].includes(baseId)) {
+    mainMat = "鉄片"; midMat = "霊粉"; highMat = "黒角";
+  } else if (["THIEF_EYE"].includes(baseId)) {
+    mainMat = "硬い皮"; midMat = "毒腺"; highMat = "黒角";
+  } else if (["DRAGON_RING"].includes(baseId)) {
+    mainMat = "竜鱗"; midMat = "竜鱗"; highMat = "竜鱗";
+  } else if (["HOLY_BAND"].includes(baseId)) {
+    mainMat = "霊粉"; midMat = "骨片"; highMat = "黒角";
+  } else if (["SWIFT_BAND"].includes(baseId)) {
+    mainMat = "鉄片"; midMat = "獣の牙"; highMat = "黒角";
   }
 
   const results = {};

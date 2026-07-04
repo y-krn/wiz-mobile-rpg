@@ -1,4 +1,4 @@
-# Game Logic Agent
+# Game Logic Checklist
 
 ## Role
 

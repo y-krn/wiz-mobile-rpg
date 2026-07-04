@@ -62,7 +62,8 @@ import { migrateSavePayload } from "../src/state/save_migrations.js";
 
     (async () => {
       const { state, initNewGame } = await import("../src/state.js");
-      const { executeEnhance, executeTagInscription } = await import("../src/craft.js");
+      const { getEnhanceCost, executeEnhance, executeTagInscription } = await import("../src/craft.js");
+      const { getEquipmentPreview, formatEquipmentPreview } = await import("../src/shop/shop_rules.js");
       const { renderCraftEnhance, renderCraftInscriptionSelectEquip } = await import("../src/menu/town_actions.js");
 
       console.log("=== STARTING EQUIPPED CRAFT VERIFICATION ===");
@@ -108,6 +109,32 @@ import { migrateSavePayload } from "../src/state/save_migrations.js";
       }
       console.log("-> [PASS] Equipped weapon successfully enhanced. Level: " + weapon.enhanceLevel);
 
+      // 1b. アクセサリは強化対象外
+      char.equipment.accessory = {
+        kind: "equipment",
+        instanceId: "eq_test_accessory_123",
+        baseId: "AMULET_HP",
+        rarity: "magic",
+        level: 1,
+        identified: true,
+        enhanceLevel: 0,
+        affixes: []
+      };
+      assert.strictEqual(getEnhanceCost(char.equipment.accessory), null);
+      const accessoryEnhance = executeEnhance({ type: "equipped", actorIdx: 0, slot: "accessory" });
+      assert.strictEqual(accessoryEnhance, false, "Accessory enhancement should stay disabled");
+      assert.strictEqual(char.equipment.accessory.enhanceLevel, 0);
+
+      const accessoryPreviewChar = {
+        ...char,
+        maxHp: char.maxHp || 20,
+        equipment: { ...char.equipment, accessory: null }
+      };
+      const accessoryPreview = getEquipmentPreview(accessoryPreviewChar, "RING_STR");
+      assert.strictEqual(formatEquipmentPreview(accessoryPreview), "攻撃+2 / 力+2");
+      const hpAccessoryPreview = getEquipmentPreview(accessoryPreviewChar, "AMULET_HP");
+      assert.strictEqual(formatEquipmentPreview(hpAccessoryPreview), "最大HP+10");
+      console.log("-> [PASS] Accessory enhancement disabled and shop comparison verified");
 
       // 2. 装備中装備の刻印テスト
       console.log("\n[Test 2] Inscribing equipped armor...");
@@ -260,6 +287,17 @@ import { migrateSavePayload } from "../src/state/save_migrations.js";
       };
       const res3 = getDismantleResults(mockArmorEpic);
       assert.deepStrictEqual(res3, { "呪布": 2, "黒角": 1 }, "Epic Robe should yield 2 Cursed Cloth, 1 Demon Horn");
+
+      const mockAccessoryMagic = {
+        kind: "equipment",
+        instanceId: "test_eq_4",
+        baseId: "AMULET_MP",
+        rarity: "magic",
+        identified: true,
+        affixes: []
+      };
+      const res4 = getDismantleResults(mockAccessoryMagic);
+      assert.deepStrictEqual(res4, { "魔石片": 1 }, "Magic MP Amulet should yield 1 Magic Shard");
 
       console.log("-> [PASS] Dismantle mapping verified");
 

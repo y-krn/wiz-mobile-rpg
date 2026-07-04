@@ -889,7 +889,7 @@ export function renderCraftDismantle(optGrid) {
   let dismantleableCount = 0;
   state.inventory.forEach((itemKey, idx) => {
     const item = getItemData(itemKey);
-    if (!item || !["weapon", "shield", "armor"].includes(item.type)) return;
+    if (!item || !["weapon", "shield", "armor", "accessory"].includes(item.type)) return;
 
     const results = getDismantleResults(itemKey);
     if (!results) return;

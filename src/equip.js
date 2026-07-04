@@ -4,7 +4,14 @@ import {
   getCharMaxHp,
   getCharMaxMp,
   getItemData,
+  getCharAffixSum,
   getCharDerivedStats,
+  getCharStr,
+  getCharInt,
+  getCharPie,
+  getCharVit,
+  getCharAgi,
+  getCharLuk,
   canUseMageSpells,
   canUsePriestSpells
 } from "./data.js";
@@ -41,11 +48,24 @@ const SLOT_LABELS = {
 const STAT_ROWS = [
   { key: "attack", label: "攻撃" },
   { key: "defense", label: "防御" },
+  { key: "maxHp", label: "最大HP" },
+  { key: "maxMp", label: "最大MP" },
+  { key: "str", label: "力" },
+  { key: "int", label: "知恵" },
+  { key: "pie", label: "信仰" },
+  { key: "vit", label: "生命" },
+  { key: "agi", label: "素早さ" },
+  { key: "luk", label: "運" },
   { key: "magic", label: "魔力" },
   { key: "healing", label: "回復" },
   { key: "speed", label: "速度" },
   { key: "trap", label: "罠" },
-  { key: "treasure", label: "探宝" }
+  { key: "treasure", label: "探宝" },
+  { key: "spellGuard", label: "魔法耐性" },
+  { key: "antiDragon", label: "竜特効" },
+  { key: "antiUndead", label: "不死特効" },
+  { key: "firstStrike", label: "先制" },
+  { key: "poisonWard", label: "毒耐性" }
 ];
 
 export function openEquipOverlay(actorIdx = 0) {
@@ -98,7 +118,29 @@ function isIdentified(itemKey) {
 }
 
 function getDisplayStats(char) {
-  return getCharDerivedStats(char);
+  const derived = getCharDerivedStats(char);
+  return {
+    ...derived,
+    maxHp: getCharMaxHp(char),
+    maxMp: getCharMaxMp(char),
+    str: getCharStr(char),
+    int: getCharInt(char),
+    pie: getCharPie(char),
+    vit: getCharVit(char),
+    agi: getCharAgi(char),
+    luk: getCharLuk(char),
+    spellGuard: getCharAffixSum(char, "spellGuard"),
+    antiDragon: getCharAffixSum(char, "antiDragon"),
+    antiUndead: getCharAffixSum(char, "antiUndead"),
+    firstStrike: getCharAffixSum(char, "firstStrike"),
+    poisonWard: getCharAffixSum(char, "poisonWard")
+  };
+}
+
+function getPrimaryDiff(slot, rows) {
+  if (slot === "weapon") return rows.find((row) => row.key === "attack")?.diff ?? 0;
+  if (slot === "shield" || slot === "armor") return rows.find((row) => row.key === "defense")?.diff ?? 0;
+  return rows.find((row) => row.diff !== 0)?.diff ?? 0;
 }
 
 function getEquipPreview(char, itemKey) {
@@ -118,8 +160,7 @@ function getEquipPreview(char, itemKey) {
     next: next[stat.key],
     diff: next[stat.key] - current[stat.key]
   }));
-  const primaryKey = slot === "weapon" ? "attack" : "defense";
-  const primaryDiff = rows.find((row) => row.key === primaryKey)?.diff ?? 0;
+  const primaryDiff = getPrimaryDiff(slot, rows);
   return { item, slot, rows, primaryDiff, oldEq };
 }
 
@@ -139,8 +180,7 @@ function getUnequipPreview(char, slot) {
     next: next[stat.key],
     diff: next[stat.key] - current[stat.key]
   }));
-  const primaryKey = slot === "weapon" ? "attack" : "defense";
-  const primaryDiff = rows.find((row) => row.key === primaryKey)?.diff ?? 0;
+  const primaryDiff = getPrimaryDiff(slot, rows);
   return { item, slot, rows, primaryDiff, oldEq: null };
 }
 

@@ -1,4 +1,4 @@
-# QA Regression Agent
+# QA Regression Checklist
 
 ## Role
 

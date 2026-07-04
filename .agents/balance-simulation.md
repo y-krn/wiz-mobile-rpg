@@ -1,4 +1,4 @@
-# Balance Simulation Agent
+# Balance Simulation Checklist
 
 ## Role
 

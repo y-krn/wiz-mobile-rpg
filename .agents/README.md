@@ -10,7 +10,7 @@ operating mode.
 
 For progression, economy, materials, workshop, rewards, contracts, or B5F clear
 behavior, review against `.agents/game-design.md` in addition to the relevant
-agent definition.
+checklist definition.
 
 Before broad repository searches, read `.agents/file-map.md` and start from the
 files listed for the request area. Expand only to direct imports, touched files,
@@ -51,8 +51,37 @@ module under the matching directory (`src/data/*`, `src/state/*`,
 ## File Routing
 
 Use `.agents/file-map.md` to decide the initial files for implementation and
-review. Agent-specific `Scope` sections remain authoritative for what each agent
-is allowed to review.
+review. Each checklist's `Scope` section remains authoritative for what that
+checklist covers.
+
+## Scope Overlap Resolution
+
+Many source paths (for example `src/data/*`, `src/rules/*`, `src/systems/*`,
+`src/combat*`, `src/ui/*`, `src/menu/*`, `src/shop/*`, `src/contracts.js`,
+`src/chest.js`, `src/equip.js`, `src/spell_menu.js`) appear in more than one
+checklist `Scope`. A shared path does not mean every checklist applies. Select
+by the nature of the change, not the file alone:
+
+- Mechanics, state shape, or rule correctness -> `game-logic.md`.
+- Progression, economy, drops, difficulty, or reward pacing ->
+  `balance-simulation.md`.
+- New or reworded player-facing content, items, enemies, spells, contracts, or
+  display text -> `content-design.md`.
+- Layout, tap flow, one-handed reach, or CSS -> `mobile-ui-ux.md`.
+- Test, reproduction, or regression risk -> `qa-regression.md`.
+
+Resolution rules:
+
+- A change that genuinely spans concerns applies each matching checklist, but
+  each reports only findings within its own lens; do not restate the same
+  finding under multiple checklists.
+- `qa-regression.md` is the regression backstop, not a substitute for the
+  domain checklist. Apply it in addition to the domain checklist when
+  regression risk is material, not instead of it.
+- When two checklists could each own a finding, the checklist whose `Role`
+  most directly matches the change intent owns it; the other omits it.
+- If the applicable checklist is still ambiguous after this, ask before
+  applying, rather than applying all of them.
 
 ## Review Output Format
 

@@ -37,7 +37,7 @@ export const ITEMS = {
   CHAIN_MAIL: { id: "CHAIN_MAIL", name: "チェインメイル", type: "armor", def: 8, price: 350, desc: "細かな鉄環を編み込んだ鎧。防御力+8 [戦・僧・侍用]", classes: ["Fighter", "Priest", "Samurai"], tags: ["iron", "ward"] },
 
   PRIEST_ROBE: { id: "PRIEST_ROBE", name: "司祭の法衣", type: "armor", def: 8, price: 500, desc: "神聖な加護を得た法衣。防御力+8 [僧・司用]", classes: ["Priest", "Bishop"], tags: ["holy", "ward"] },
-  BATTLE_GARB: { id: "BATTLE_GARB", name: "戦装束", type: "armor", def: 5, price: 840, desc: "軽量で動きやすい戦用の装束。防御力+5 [戦・盗・侍・忍用]", classes: ["Fighter", "Thief", "Samurai", "Ninja"], tags: ["ambush", "ward"] },
+  BATTLE_GARB: { id: "BATTLE_GARB", name: "戦装束", type: "armor", def: 6, price: 840, desc: "軽量で動きやすい戦用の装束。防御力+6 [戦・盗・侍・忍用]", classes: ["Fighter", "Thief", "Samurai", "Ninja"], tags: ["ambush", "ward"] },
   PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", def: 16, price: 900, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16 [戦・侍用]", classes: ["Fighter", "Samurai"], tags: ["iron", "ward"] },
   DRAGON_SCALE: { id: "DRAGON_SCALE", name: "竜鱗の鎧", type: "armor", def: 12, price: 1400, desc: "竜の鱗を加工して作られた極めて頑丈な鱗鎧。防御力+12 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"], tags: ["dragon", "ward"] },
 
