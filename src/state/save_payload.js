@@ -113,3 +113,19 @@ export function linkPartyToRoster() {
   }
 }
 
+// 戦闘計算 (round.js) は state.party を複製するため、戦闘後 party と roster の
+// 参照リンクが切れる。party の最新状態 (HP・status・EXP 等) を roster へ書き戻し、
+// 同一参照へ再リンクする。街帰還時に呼び出し、寺院が死亡者を正しく認識できるようにする。
+export function syncPartyToRoster() {
+  if (state.party && state.roster) {
+    state.party = state.party.map(partyChar => {
+      const idx = state.roster.findIndex(c => c.name === partyChar.name);
+      if (idx !== -1) {
+        state.roster[idx] = Object.assign(state.roster[idx], partyChar);
+        return state.roster[idx];
+      }
+      return partyChar;
+    });
+  }
+}
+

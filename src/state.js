@@ -17,7 +17,8 @@ export {
 } from "./state/save_storage.js";
 
 export {
-  createSavePayload
+  createSavePayload,
+  syncPartyToRoster
 } from "./state/save_payload.js";
 
 export {

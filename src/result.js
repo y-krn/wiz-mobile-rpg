@@ -1,4 +1,4 @@
-import { state, saveGame, saveAutosave } from "./state.js";
+import { state, saveGame, saveAutosave, syncPartyToRoster } from "./state.js";
 import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT, getItemBaseId, isSpecialOrQuestItem, ITEMS, getItemData } from "./data.js";
 import { updateUI } from "./ui.js";
 import { checkActiveContract, generateContractsList } from "./contracts.js";
@@ -341,6 +341,10 @@ export function triggerRunResult(reason) {
   // ==========================================
   // 【成功時（無事帰還）の処理】
   // ==========================================
+  // 戦闘後 party は roster と参照が切れている。party の最新状態（死亡含む）を
+  // roster へ書き戻し、寺院が死亡メンバーを蘇生対象として認識できるようにする。
+  syncPartyToRoster();
+
   // 図鑑スタッツの更新
   if (state.codex) {
     if (!state.codex.stats) {
