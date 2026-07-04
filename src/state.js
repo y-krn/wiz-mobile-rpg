@@ -1,4 +1,4 @@
-export { state, addLog, isSoftlocked } from "./state/state_core.js";
+export { state, addLog, isSoftlocked, canRecruitRescueNewcomer } from "./state/state_core.js";
 
 export {
   generateRandomSeed,

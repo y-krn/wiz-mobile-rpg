@@ -127,5 +127,22 @@ export function isSoftlocked() {
   return state.gold < minCost;
 }
 
+// 詰み救済の新人を迎えられるか判定 (生存メンバー数2人未満かつ蘇生費不足)
+export function canRecruitRescueNewcomer() {
+  const aliveCount = state.roster.filter(char => char.status !== "dead" && char.status !== "ash").length;
+  if (aliveCount >= 2) return false;
+
+  const deadOrAsh = state.roster.filter(char => char.status === "dead" || char.status === "ash");
+  if (deadOrAsh.length === 0) {
+    return false;
+  }
+
+  const minCost = Math.min(...deadOrAsh.map(char => {
+    return char.status === "dead" ? char.level * 50 : char.level * 150;
+  }));
+
+  return state.gold < minCost;
+}
+
 setItemRulesStateRef(state);
 setTagsStateRef(state);

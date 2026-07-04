@@ -130,7 +130,9 @@ test.describe('Softlock Rescue Flow', () => {
     // 2. 訓練場で「新人を迎える」ボタンが表示されていることを確認
     const rescueBtn = page.locator('button:has-text("新人を迎える")');
     await expect(rescueBtn).toBeVisible();
+    await expect(rescueBtn).toContainText('0/2');
     
+    // 1人目の新人を迎える
     await rescueBtn.click();
     await page.waitForTimeout(500);
 
@@ -139,6 +141,20 @@ test.describe('Softlock Rescue Flow', () => {
 
     const partySlot = page.locator('.training-party-slot.filled:has-text("Trainee")');
     await expect(partySlot).toBeVisible();
+
+    // 2人目の新人を迎える
+    await expect(rescueBtn).toContainText('1/2');
+    await rescueBtn.click();
+    await page.waitForTimeout(500);
+
+    const newbieRow2 = page.locator('button:has-text("Trainee1")');
+    await expect(newbieRow2).toBeVisible();
+
+    const partySlot2 = page.locator('.training-party-slot.filled:has-text("Trainee1")');
+    await expect(partySlot2).toBeVisible();
+
+    // 最低探索人数(2人)に達したのでボタンが表示されなくなることを確認
+    await expect(rescueBtn).not.toBeVisible();
 
     // 3. 死亡している「Arthur」を選択し「諦める」ボタンが機能することを確認
     const arthurRow = page.locator('button:has-text("Arthur")');

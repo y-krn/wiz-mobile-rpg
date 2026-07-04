@@ -1,4 +1,4 @@
-import { state, saveGame, saveAutosave, isSoftlocked, addLog } from "./state.js";
+import { state, saveGame, saveAutosave, canRecruitRescueNewcomer, addLog } from "./state.js";
 import { getClassJpName } from "./data.js";
 import { updateUI } from "./ui.js";
 import { goBackSubmenu } from "./navigation.js";
@@ -320,7 +320,7 @@ export function renderTraining() {
   }
 
   // 3.4 Back/Close button row
-  if (isSoftlocked()) {
+  if (canRecruitRescueNewcomer()) {
     const rescueRow = document.createElement("div");
     rescueRow.className = "bottom-actions-row";
     rescueRow.style.flexDirection = "column";
@@ -334,9 +334,10 @@ export function renderTraining() {
     btnRescue.style.backgroundColor = "var(--danger-color, #ff3366)";
     btnRescue.style.borderColor = "var(--danger-color, #ff3366)";
 
+    const aliveCount = state.roster.filter(char => char.status !== "dead" && char.status !== "ash").length;
     const isFull = state.roster.length >= 8;
     if (isFull) {
-      btnRescue.textContent = "⚠️ 新人を迎える (名簿満員)";
+      btnRescue.textContent = `⚠️ 新人を迎える (名簿満員) ${aliveCount}/2`;
       btnRescue.disabled = true;
 
       const infoMsg = document.createElement("div");
@@ -346,7 +347,7 @@ export function renderTraining() {
       infoMsg.textContent = "名簿が満員です。死亡したメンバーを諦めて空き枠を作ってください。";
       rescueRow.appendChild(infoMsg);
     } else {
-      btnRescue.textContent = "🆕 新人を迎える (0G)";
+      btnRescue.textContent = `🆕 新人を迎える (0G) ${aliveCount}/2`;
       btnRescue.addEventListener("click", () => {
         addNewbieToRoster();
       });
