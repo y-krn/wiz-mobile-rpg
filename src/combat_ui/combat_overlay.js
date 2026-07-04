@@ -201,7 +201,7 @@ export function renderCombatOverlay() {
         const card = document.createElement("div");
         card.className = "combat-item-card item";
 
-        const usableCheck = item.type !== "usable";
+        const usableCheck = item.type !== "usable" || item.campOnly;
         if (usableCheck) {
           card.classList.add("disabled");
         }

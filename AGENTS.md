@@ -72,6 +72,11 @@ first, then read only the relevant part.
   `~/.agents/skills/<name>/SKILL.md`. If the advertised path is missing, report
   that specific missing path and continue with the best fallback instead of
   trying unrelated paths.
+- Do not surface resolved Agent Skill absolute paths in normal user-facing
+  progress or summaries. Refer to the skill name, advertised alias, or registry
+  label instead. Show the absolute path only when the user asks for it, when
+  reporting a missing advertised path, or when it is needed to debug tool
+  configuration.
 - Use `tmux` for long-running commands, dev servers, watchers, and parallel
   verification that should keep logs.
 - Safe commands may be run without extra confirmation: reads, searches, diffs,

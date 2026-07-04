@@ -3,7 +3,7 @@ import globals from "globals";
 
 export default [
   {
-    ignores: ["dist/**", "node_modules/**", "test-results/**", "*.log"],
+    ignores: ["dist/**", "node_modules/**", "scratch/**", "test-results/**", "*.log"],
   },
   js.configs.recommended,
   {
@@ -15,7 +15,7 @@ export default [
     },
   },
   {
-    files: ["scratch/**/*.js", "playwright.config.js"],
+    files: ["playwright.config.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",

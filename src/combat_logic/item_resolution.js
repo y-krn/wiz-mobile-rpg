@@ -22,18 +22,19 @@ export function resolvePlayerItem(char, act, state, logQueue) {
   }
   const target = state.party[act.targetIdx];
   const oldHp = target.hp;
+  const oldMp = target.mp;
+  const oldStatus = target.status;
   const log = item.effect(target);
   state.inventory.splice(inventoryIdx, 1);
   let floatText = undefined;
   let floatColor = "#00ff66";
-  if (act.itemKey === "HEAL_POTION") {
+  if (act.itemKey === "HEAL_POTION" || act.itemKey === "GREATER_HEAL" || act.itemKey === "HOLY_WATER") {
     floatText = `+${Math.max(0, target.hp - oldHp)}`;
-  } else if (act.itemKey === "ANTIDOTE") {
-    floatText = "CURED";
-  } else if (act.itemKey === "HOLY_WATER") {
-    floatText = `+${Math.max(0, target.hp - oldHp)}`;
-  } else if (act.itemKey === "MANA_POTION") {
-    floatText = (target.class === "Priest" || target.class === "Mage") ? "+3 MP" : "無効";
+  } else if (act.itemKey === "MANA_POTION" || act.itemKey === "ETHER") {
+    const restored = Math.max(0, target.mp - oldMp);
+    floatText = restored > 0 ? `+${restored} MP` : "無効";
+  } else if (["ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "PANACEA"].includes(act.itemKey)) {
+    floatText = oldStatus !== target.status ? "CURED" : "無効";
   }
   logQueue.push({
     msg: `[味方] ${log}`,

@@ -2,8 +2,11 @@ import { state, saveAutosave, addLog } from "./state.js";
 import {
   getClassJpName,
   getCharMaxHp,
+  getCharMaxMp,
   getItemData,
-  getCharDerivedStats
+  getCharDerivedStats,
+  canUseMageSpells,
+  canUsePriestSpells
 } from "./data.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
@@ -142,20 +145,36 @@ function getUnequipPreview(char, slot) {
 export function getItemUseStatus(char, itemKey) {
   const item = getItemData(itemKey);
   if (!item || item.type !== "usable") return { usable: true, reason: "" };
+  const canRestoreMp = canUsePriestSpells(char) || canUseMageSpells(char);
 
   if (char.status === "dead") {
-    if (itemKey !== "SACRED_ASHES") {
+    if (itemKey !== "SACRED_ASHES" && itemKey !== "LIFE_WATER") {
       return { usable: false, reason: "死亡中は回復アイテムを使用できません" };
     }
   } else {
-    if (itemKey === "SACRED_ASHES") {
+    if (itemKey === "SACRED_ASHES" || itemKey === "LIFE_WATER") {
       return { usable: false, reason: "蘇生アイテムは死亡キャラの画面で使用できます" };
     }
-    if (itemKey === "HEAL_POTION" && char.hp >= getCharMaxHp(char)) {
+    if ((itemKey === "HEAL_POTION" || itemKey === "GREATER_HEAL") && char.hp >= getCharMaxHp(char)) {
       return { usable: false, reason: "HPはすでに満タンです" };
     }
     if (itemKey === "ANTIDOTE" && char.status !== "poisoned") {
       return { usable: false, reason: "毒状態ではありません" };
+    }
+    if (itemKey === "EYE_DROPS" && char.status !== "blind") {
+      return { usable: false, reason: "盲目状態ではありません" };
+    }
+    if (itemKey === "PARALYZE_CURE" && char.status !== "paralyzed" && char.status !== "paralyze") {
+      return { usable: false, reason: "麻痺状態ではありません" };
+    }
+    if (itemKey === "WAKE_POWDER" && char.status !== "sleep") {
+      return { usable: false, reason: "睡眠状態ではありません" };
+    }
+    if (itemKey === "PANACEA" && !["poisoned", "blind", "paralyzed", "paralyze", "sleep"].includes(char.status)) {
+      return { usable: false, reason: "治療できる状態異常ではありません" };
+    }
+    if ((itemKey === "MANA_POTION" || itemKey === "ETHER") && (!canRestoreMp || char.mp >= getCharMaxMp(char))) {
+      return { usable: false, reason: canRestoreMp ? "MPはすでに満タンです" : "MPを持たない職業です" };
     }
   }
   return { usable: true, reason: "" };

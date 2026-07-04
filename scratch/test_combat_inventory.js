@@ -7,6 +7,7 @@ global.localStorage = {
 
 import assert from "assert";
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
+import { resolvePlayerItem } from "../src/combat_logic/item_resolution.js";
 
 function createState(inventorySize) {
   const char = {
@@ -117,6 +118,50 @@ function runForcedFleeOnlyCombat() {
 }
 
 console.log("Starting Combat Inventory Verification Tests...");
+
+function resolveTestItem(itemKey, target) {
+  const testState = { party: [target], inventory: [itemKey] };
+  const logQueue = [];
+  resolvePlayerItem(target, { itemKey, targetIdx: 0 }, testState, logQueue);
+  return { target, testState, logQueue };
+}
+
+const greaterHealResult = resolveTestItem("GREATER_HEAL", {
+  name: "Hurt",
+  class: "Fighter",
+  hp: 10,
+  maxHp: 60,
+  status: "ok",
+  equipment: {}
+});
+assert.strictEqual(greaterHealResult.target.hp, 50, "GREATER_HEAL should restore 40 HP in combat.");
+assert.strictEqual(greaterHealResult.testState.inventory.length, 0, "Combat item use should consume GREATER_HEAL.");
+assert.strictEqual(greaterHealResult.logQueue[0].floatText, "+40", "GREATER_HEAL floatText should show actual HP recovery.");
+
+const etherResult = resolveTestItem("ETHER", {
+  name: "Mage",
+  class: "Mage",
+  hp: 10,
+  maxHp: 10,
+  mp: 1,
+  maxMp: 12,
+  status: "ok",
+  equipment: {}
+});
+assert.strictEqual(etherResult.target.mp, 9, "ETHER should restore 8 MP in combat.");
+assert.strictEqual(etherResult.logQueue[0].floatText, "+8 MP", "ETHER floatText should show actual MP recovery.");
+
+const cureResult = resolveTestItem("PARALYZE_CURE", {
+  name: "Paralyzed",
+  class: "Fighter",
+  hp: 10,
+  maxHp: 10,
+  status: "paralyzed",
+  equipment: {}
+});
+assert.strictEqual(cureResult.target.status, "ok", "PARALYZE_CURE should cure paralysis in combat.");
+assert.strictEqual(cureResult.logQueue[0].floatText, "CURED", "PARALYZE_CURE floatText should show cure.");
+console.log("[PASS] New combat consumables resolve effects, consumption, and floatText.");
 
 const partialBagResult = runForcedMidbossDrop(11);
 assert.strictEqual(partialBagResult.state.inventory.length, 12, "Enemy drop should be added when bag is 11/20");

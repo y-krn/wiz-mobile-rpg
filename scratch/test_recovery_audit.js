@@ -104,11 +104,12 @@ Object.defineProperty(global, "navigator", {
   const { setupChestState } = await import("../src/chest.js");
   const { generateMerchantStock } = await import("../src/menu/merchant.js");
   const { renderCastleMain } = await import("../src/menu/town_actions.js");
+  const { getItemUseStatus } = await import("../src/equip.js");
 
   console.log("Starting recovery/resurrection scarcity audit...");
 
   const fullRecoveryIds = ["ELIXIR"];
-  const resurrectionIds = ["SACRED_ASHES"];
+  const resurrectionIds = ["SACRED_ASHES", "LIFE_WATER"];
   const highImpactIds = [...fullRecoveryIds, ...resurrectionIds];
   const shopKeys = SHOP_STOCK.map(stock => stock.key);
   const craftResultIds = CRAFT_RECIPES.map(recipe => recipe.resultId);
@@ -116,9 +117,30 @@ Object.defineProperty(global, "navigator", {
   assert.strictEqual(ITEMS.ELIXIR.price, 1500, "ELIXIR price must stay a major gold sink.");
   assert.strictEqual(ITEMS.SACRED_ASHES.price, 2500, "SACRED_ASHES price must stay above temple revive costs.");
   assert.strictEqual(ITEMS.SACRED_ASHES.campOnly, true, "SACRED_ASHES must remain camp-only.");
-  assert.ok(!highImpactIds.some(id => shopKeys.includes(id)), "Normal shop must not sell ELIXIR or SACRED_ASHES.");
-  assert.ok(!highImpactIds.some(id => craftResultIds.includes(id)), "Crafting must not create ELIXIR or SACRED_ASHES.");
+  assert.strictEqual(ITEMS.LIFE_WATER.price, 4000, "LIFE_WATER price must stay above SACRED_ASHES.");
+  assert.strictEqual(ITEMS.LIFE_WATER.campOnly, true, "LIFE_WATER must remain camp-only.");
+  assert.ok(!highImpactIds.some(id => shopKeys.includes(id)), "Normal shop must not sell ELIXIR or resurrection items.");
+  assert.ok(!highImpactIds.some(id => craftResultIds.includes(id)), "Crafting must not create ELIXIR or resurrection items.");
   assert.ok(!craftResultIds.includes("TOWN_PORTAL"), "Crafting must not create easy return scrolls.");
+  assert.deepStrictEqual(
+    {
+      GREATER_HEAL: ITEMS.GREATER_HEAL.price,
+      ETHER: ITEMS.ETHER.price,
+      EYE_DROPS: ITEMS.EYE_DROPS.price,
+      PARALYZE_CURE: ITEMS.PARALYZE_CURE.price,
+      WAKE_POWDER: ITEMS.WAKE_POWDER.price,
+      PANACEA: ITEMS.PANACEA.price
+    },
+    {
+      GREATER_HEAL: 180,
+      ETHER: 700,
+      EYE_DROPS: 80,
+      PARALYZE_CURE: 120,
+      WAKE_POWDER: 80,
+      PANACEA: 300
+    },
+    "New consumable prices must match the C-1 economy plan."
+  );
 
   const manaRecipe = CRAFT_RECIPES.find(recipe => recipe.resultId === "MANA_POTION");
   assert.ok(manaRecipe, "MANA_POTION recipe should exist as limited MP recovery.");
@@ -149,10 +171,45 @@ Object.defineProperty(global, "navigator", {
     "SACRED_ASHES must revive only to HP1."
   );
 
+  const fullReviveTarget = { name: "FullRevive", status: "dead", hp: 0, maxHp: 42, equipment: {} };
+  ITEM_EFFECTS.LIFE_WATER({ char: fullReviveTarget });
+  assert.deepStrictEqual(
+    { status: fullReviveTarget.status, hp: fullReviveTarget.hp },
+    { status: "ok", hp: 42 },
+    "LIFE_WATER must revive to full HP."
+  );
+
+  const greaterHealTarget = { name: "Hurt", status: "ok", hp: 10, maxHp: 60, equipment: {} };
+  ITEM_EFFECTS.GREATER_HEAL({ char: greaterHealTarget });
+  assert.strictEqual(greaterHealTarget.hp, 50, "GREATER_HEAL must restore 40 HP before max cap.");
+
+  const etherTarget = { name: "Mage", class: "Mage", status: "ok", mp: 1, maxMp: 12, equipment: {} };
+  ITEM_EFFECTS.ETHER({ char: etherTarget });
+  assert.strictEqual(etherTarget.mp, 9, "ETHER must restore 8 MP to spellcasters.");
+
+  const statusCases = [
+    ["EYE_DROPS", "blind"],
+    ["PARALYZE_CURE", "paralyzed"],
+    ["WAKE_POWDER", "sleep"],
+    ["PANACEA", "poisoned"]
+  ];
+  for (const [itemId, status] of statusCases) {
+    const target = { name: itemId, status, hp: 10, maxHp: 10, equipment: {} };
+    ITEM_EFFECTS[itemId]({ char: target });
+    assert.strictEqual(target.status, "ok", `${itemId} must cure ${status}.`);
+  }
+
   initNewGame();
   state.inventory = [];
   assert.strictEqual(addInventoryItem("SACRED_ASHES"), true, "First SACRED_ASHES should fit in inventory.");
   assert.strictEqual(addInventoryItem("SACRED_ASHES"), false, "Duplicate SACRED_ASHES must be blocked.");
+  assert.strictEqual(addInventoryItem("LIFE_WATER"), true, "First LIFE_WATER should fit in inventory.");
+  assert.strictEqual(addInventoryItem("LIFE_WATER"), false, "Duplicate LIFE_WATER must be blocked.");
+
+  assert.strictEqual(getItemUseStatus({ name: "Blind", status: "blind", hp: 10, maxHp: 10, equipment: {} }, "EYE_DROPS").usable, true);
+  assert.strictEqual(getItemUseStatus({ name: "Ok", status: "ok", hp: 10, maxHp: 10, equipment: {} }, "EYE_DROPS").usable, false);
+  assert.strictEqual(getItemUseStatus({ name: "Dead", status: "dead", hp: 0, maxHp: 10, equipment: {} }, "LIFE_WATER").usable, true);
+  assert.strictEqual(getItemUseStatus({ name: "Alive", status: "ok", hp: 10, maxHp: 10, equipment: {} }, "LIFE_WATER").usable, false);
 
   initNewGame();
   state.floor = 3;

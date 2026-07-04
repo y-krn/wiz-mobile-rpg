@@ -8,6 +8,11 @@ export const ITEM_EFFECTS = {
     char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
     return `${char.name}は傷薬を使い、HPが${heal}回復した。`;
   },
+  GREATER_HEAL: ({ char }) => {
+    const heal = getEffectiveHealAmount(char, 40);
+    char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
+    return `${char.name}は上薬を使い、HPが${heal}回復した。`;
+  },
   ANTIDOTE: ({ char }) => {
     if (char.status === "poisoned") {
       char.status = "ok";
@@ -15,12 +20,40 @@ export const ITEM_EFFECTS = {
     }
     return `${char.name}は解毒薬を使ったが、何も起こらなかった。`;
   },
+  EYE_DROPS: ({ char }) => {
+    if (char.status === "blind") {
+      char.status = "ok";
+      return `${char.name}は目薬を使い、視界が戻った。`;
+    }
+    return `${char.name}は目薬を使ったが、何も起こらなかった。`;
+  },
+  PARALYZE_CURE: ({ char }) => {
+    if (char.status === "paralyzed" || char.status === "paralyze") {
+      char.status = "ok";
+      return `${char.name}は解痺薬を使い、麻痺が解けた。`;
+    }
+    return `${char.name}は解痺薬を使ったが、何も起こらなかった。`;
+  },
+  WAKE_POWDER: ({ char }) => {
+    if (char.status === "sleep") {
+      char.status = "ok";
+      return `${char.name}は覚醒薬を使い、目を覚ました。`;
+    }
+    return `${char.name}は覚醒薬を使ったが、何も起こらなかった。`;
+  },
   MANA_POTION: ({ char }) => {
     if (canUsePriestSpells(char) || canUseMageSpells(char)) {
       char.mp = Math.min(getCharMaxMp(char), char.mp + 3);
       return `${char.name}は魔力草を使用し、MPが3回復した。(MP:${char.mp}/${getCharMaxMp(char)})`;
     }
     return `${char.name}は魔力草を使用したが、魔力を持たないため何も起こらなかった。`;
+  },
+  ETHER: ({ char }) => {
+    if (canUsePriestSpells(char) || canUseMageSpells(char)) {
+      char.mp = Math.min(getCharMaxMp(char), char.mp + 8);
+      return `${char.name}は魔力の雫を使用し、MPが8回復した。(MP:${char.mp}/${getCharMaxMp(char)})`;
+    }
+    return `${char.name}は魔力の雫を使用したが、魔力を持たないため何も起こらなかった。`;
   },
   HOLY_WATER: ({ char }) => {
     const heal = getEffectiveHealAmount(char, 15);
@@ -34,6 +67,13 @@ export const ITEM_EFFECTS = {
   },
   TOWN_PORTAL: ({ char }) => {
     return `${char.name}は帰還のスクロールを読んだ！`;
+  },
+  PANACEA: ({ char }) => {
+    if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {
+      char.status = "ok";
+      return `${char.name}は万能薬を使い、状態異常が消え去った。`;
+    }
+    return `${char.name}は万能薬を使ったが、何も起こらなかった。`;
   },
   ELIXIR: ({ char }) => {
     char.hp = getCharMaxHp(char);
@@ -51,5 +91,14 @@ export const ITEM_EFFECTS = {
       cured = true;
     }
     return `${char.name}に聖灰を振りかけると、${cured ? "奇跡が起き、HP1で息を吹き返した！" : "しかし何も起こらなかった。"}`;
+  },
+  LIFE_WATER: ({ char }) => {
+    let cured = false;
+    if (char.status === "dead") {
+      char.status = "ok";
+      char.hp = getCharMaxHp(char);
+      cured = true;
+    }
+    return `${char.name}に生命の水を注ぐと、${cured ? "命が満ち、HP全快で息を吹き返した！" : "しかし何も起こらなかった。"}`;
   }
 };

@@ -195,13 +195,13 @@ export function getDismantleResults(eqItem) {
   let midMat = "骨片";
   let highMat = "竜鱗";
 
-  if (["SHORT_SWORD", "LONG_SWORD", "CLAYMORE", "KATANA", "HOLY_BLADE", "RAPIER", "SEALED_EXCALIBUR", "EXCALIBUR_FRAGMENT"].includes(baseId)) {
+  if (["SHORT_SWORD", "LONG_SWORD", "CLAYMORE", "KATANA", "HOLY_BLADE", "RAPIER", "NINJA_BLADE", "MOONSHADOW", "FLAME_SWORD", "SEALED_EXCALIBUR", "EXCALIBUR_FRAGMENT"].includes(baseId)) {
     mainMat = "鉄片"; midMat = "骨片"; highMat = "竜鱗";
-  } else if (["DAGGER", "NINJA_DAGGER"].includes(baseId)) {
+  } else if (["DAGGER", "NINJA_DAGGER", "VENOM_FANG"].includes(baseId)) {
     mainMat = "硬い皮"; midMat = "毒腺"; highMat = "黒角";
-  } else if (["WAND", "SACRED_MACE", "MACE"].includes(baseId)) {
+  } else if (["WAND", "SAGE_STAFF", "ARCH_WAND", "SACRED_MACE", "HOLY_STAFF", "MACE"].includes(baseId)) {
     mainMat = "魔石片"; midMat = "霊粉"; highMat = "黒角";
-  } else if (["ROBE", "MAGE_CLOAK", "ARCANE_ROBE", "PRIEST_ROBE"].includes(baseId)) {
+  } else if (["ROBE", "MAGE_CLOAK", "ARCANE_ROBE", "SORCERER_ROBE", "PRIEST_ROBE"].includes(baseId)) {
     mainMat = "呪布"; midMat = "霊粉"; highMat = "黒角";
   } else if (["LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT"].includes(baseId)) {
     mainMat = "硬い皮"; midMat = "獣の牙"; highMat = "竜鱗";
@@ -377,4 +377,3 @@ export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTag
   saveAutosave();
   return true;
 }
-

@@ -11,10 +11,10 @@ export function addInventoryItemToState(targetState, item, options = {}) {
     return false;
   }
 
-  // 所持制限チェック: 聖灰はバッグに1個まで
-  if (itemId === "SACRED_ASHES") {
-    const hasAshes = targetState.inventory.some(i => getItemBaseId(i) === "SACRED_ASHES");
-    if (hasAshes) {
+  // 所持制限チェック: 蘇生上位品はバッグに1個まで
+  if (itemId === "SACRED_ASHES" || itemId === "LIFE_WATER") {
+    const hasLimitedRevive = targetState.inventory.some(i => getItemBaseId(i) === itemId);
+    if (hasLimitedRevive) {
       return false;
     }
   }

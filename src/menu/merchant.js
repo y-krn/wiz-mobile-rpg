@@ -6,6 +6,7 @@ import { openSubmenu, closeSubmenu } from "../navigation.js";
 export function generateMerchantStock(floor, inventory) {
   const generated = [];
   const alreadyHasAshes = inventory.some(i => getItemBaseId(i) === "SACRED_ASHES");
+  const alreadyHasLifeWater = inventory.some(i => getItemBaseId(i) === "LIFE_WATER");
 
   const allowlist = ["SHORT_SWORD", "SMALL_SHIELD", "LEATHER_ARMOR", "DAGGER", "WAND", "ROBE", "NINJA_SUIT"];
 
@@ -35,6 +36,9 @@ export function generateMerchantStock(floor, inventory) {
     if (floor >= 4 && !alreadyHasAshes && Math.random() < 0.1) {
       choices.push({ type: "item", key: "SACRED_ASHES", price: ITEMS.SACRED_ASHES.price, soldOut: false });
     }
+    if (floor >= 5 && !alreadyHasLifeWater && Math.random() < 0.08) {
+      choices.push({ type: "item", key: "LIFE_WATER", price: ITEMS.LIFE_WATER.price, soldOut: false });
+    }
 
     return choices;
   };
@@ -49,8 +53,18 @@ export function generateMerchantStock(floor, inventory) {
     { type: "item", key: "MANA_POTION", price: 300, soldOut: false },
     { type: "item", key: "HOLY_WATER", price: 70, soldOut: false },
     { type: "item", key: "ANTIDOTE", price: 50, soldOut: false },
+    { type: "item", key: "EYE_DROPS", price: 60, soldOut: false },
+    { type: "item", key: "PARALYZE_CURE", price: 100, soldOut: false },
+    { type: "item", key: "WAKE_POWDER", price: 60, soldOut: false },
     { type: "item", key: "TOWN_PORTAL", price: 250, soldOut: false }
   ];
+  if (floor >= 3) {
+    usables.push(
+      { type: "item", key: "GREATER_HEAL", price: 160, soldOut: false },
+      { type: "item", key: "ETHER", price: 650, soldOut: false },
+      { type: "item", key: "PANACEA", price: 260, soldOut: false }
+    );
+  }
 
   const shuffledUsables = usables.sort(() => 0.5 - Math.random());
   generated.push(shuffledUsables[0]);
@@ -123,8 +137,8 @@ export function renderEventMerchantBuy(optGrid) {
         btn.textContent = `[売り切れ] ${name}`;
         btn.disabled = true;
       } else {
-        const isAshes = stock.key === "SACRED_ASHES";
-        const hasAshes = state.inventory.some(i => getItemBaseId(i) === "SACRED_ASHES");
+        const isLimitedRevive = stock.key === "SACRED_ASHES" || stock.key === "LIFE_WATER";
+        const hasLimitedRevive = state.inventory.some(i => getItemBaseId(i) === stock.key);
         const bagFull = state.inventory.length >= 20;
         
         btn.textContent = `${name} (${stock.price}G) - ${desc}`;
@@ -132,9 +146,9 @@ export function renderEventMerchantBuy(optGrid) {
         // バッグ制限のチェック
         const needsBagSpace = (stockType === "item" || stockType === "unidentified");
 
-        if (state.gold < stock.price || (isAshes && hasAshes) || (needsBagSpace && bagFull)) {
+        if (state.gold < stock.price || (isLimitedRevive && hasLimitedRevive) || (needsBagSpace && bagFull)) {
           btn.disabled = true;
-          if (isAshes && hasAshes) {
+          if (isLimitedRevive && hasLimitedRevive) {
             btn.textContent = `[所持数制限] ${name} (${stock.price}G)`;
           } else if (needsBagSpace && bagFull) {
             btn.textContent = `[バッグ満杯] ${name} (${stock.price}G)`;

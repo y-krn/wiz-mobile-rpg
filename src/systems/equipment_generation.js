@@ -113,7 +113,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     return Math.floor(rng() * (maxHp - minHp + 1)) + minHp;
   });
 
-  const isMpEligible = baseId === "WAND" || baseId === "ROBE" || baseId === "PRIEST_ROBE" || baseId === "MAGE_CLOAK" || baseId === "ARCANE_ROBE";
+  const isMpEligible = ["WAND", "SAGE_STAFF", "ARCH_WAND", "ROBE", "PRIEST_ROBE", "MAGE_CLOAK", "ARCANE_ROBE", "SORCERER_ROBE"].includes(baseId);
   if (isMpEligible) {
     addAffix(1, "mp", () => {
       const maxMpBonus = floor >= 5 ? 4 : (floor >= 3 ? 2 : 1);
@@ -129,7 +129,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     });
   });
   
-  const isTrapEligible = baseId === "DAGGER" || baseId === "NINJA_DAGGER" || baseId === "RAPIER" || baseId === "LEATHER_ARMOR" || baseId === "NINJA_SUIT" || baseId === "EXPLORER_CLOAK" || baseId === "BUCKLER";
+  const isTrapEligible = ["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "RAPIER", "LEATHER_ARMOR", "NINJA_SUIT", "EXPLORER_CLOAK", "BUCKLER"].includes(baseId);
   if (isTrapEligible) {
     addAffix(1, "trapBonus", () => {
       if (floor >= 5) return 15;
@@ -138,15 +138,15 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     }, 2);
   }
 
-  const isFollowUpEligible = ["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD", "RAPIER", "BATTLE_GARB"].includes(baseId);
+  const isFollowUpEligible = ["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "SHORT_SWORD", "RAPIER", "FLAME_SWORD", "BATTLE_GARB"].includes(baseId);
   if (isFollowUpEligible) {
     addAffix(2, "followUp", () => Math.floor(rng() * 6) + 10, 2); // 10-15%
   }
-  const isArcaneEligible = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "MAGIC_SHIELD"].includes(baseId);
+  const isArcaneEligible = ["WAND", "SAGE_STAFF", "ARCH_WAND", "HOLY_STAFF", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "SORCERER_ROBE", "MAGIC_SHIELD"].includes(baseId);
   if (isArcaneEligible) {
     addAffix(2, "arcane", () => 15, 2); // +15%
   }
-  const isDevotionEligible = ["MACE", "PRIEST_ROBE", "SACRED_MACE"].includes(baseId);
+  const isDevotionEligible = ["MACE", "PRIEST_ROBE", "SACRED_MACE", "HOLY_STAFF"].includes(baseId);
   if (isDevotionEligible) {
     addAffix(2, "devotion", () => 15, 2); // +15%
   }
@@ -154,17 +154,17 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   if (isGuardianEligible) {
     addAffix(3, "guardian", () => 15, 2); // -15%
   }
-  const isTreasureSenseEligible = ["LEATHER_ARMOR", "NINJA_SUIT", "DAGGER", "NINJA_DAGGER", "SHORT_SWORD", "RAPIER", "BUCKLER", "EXPLORER_CLOAK"].includes(baseId);
+  const isTreasureSenseEligible = ["LEATHER_ARMOR", "NINJA_SUIT", "DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "SHORT_SWORD", "RAPIER", "BUCKLER", "EXPLORER_CLOAK"].includes(baseId);
   if (isTreasureSenseEligible) {
     addAffix(3, "treasureSense", () => 8, 1); // +8%
   }
-  if (["SACRED_MACE", "MACE"].includes(baseId)) {
+  if (["SACRED_MACE", "MACE", "HOLY_STAFF"].includes(baseId)) {
     addAffix(3, "antiUndead", () => 30, 1);
   }
   if (baseId === "DRAGON_SCALE") {
     addAffix(4, "antiDragon", () => 30, 1);
   }
-  if (["MAGIC_SHIELD", "ARCANE_ROBE", "DRAGON_SCALE"].includes(baseId)) {
+  if (["MAGIC_SHIELD", "ARCH_WAND", "ARCANE_ROBE", "SORCERER_ROBE", "DRAGON_SCALE"].includes(baseId)) {
     addAffix(3, "spellGuard", () => 20, 1);
   }
   if (baseId === "EXPLORER_CLOAK") {
@@ -174,7 +174,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
       return 20;
     }, 1);
   }
-  if (["RAPIER", "BATTLE_GARB"].includes(baseId)) {
+  if (["RAPIER", "NINJA_BLADE", "MOONSHADOW", "BATTLE_GARB"].includes(baseId)) {
     addAffix(4, "firstStrike", () => {
       if (floor >= 5 && rarity === "epic") return 10;
       if (floor >= 5) return 8;
@@ -248,7 +248,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
 
   let prefix = "古びた";
   if (rarity === "magic") {
-    const isMagicAura = ["WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "MAGIC_SHIELD"].includes(baseId);
+    const isMagicAura = ["WAND", "SAGE_STAFF", "ARCH_WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "SORCERER_ROBE", "MAGIC_SHIELD"].includes(baseId);
     prefix = isMagicAura ? "青く光る" : "古びた";
   } else if (rarity === "rare") {
     prefix = "金紋の";
@@ -260,14 +260,14 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   if (baseItem.type === "shield") {
     typeName = baseId === "BUCKLER" ? "小盾" : (baseId === "MAGIC_SHIELD" ? "魔盾" : "盾");
   } else if (baseItem.type === "armor") {
-    const isRobe = ["ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE"].includes(baseId);
+    const isRobe = ["ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "SORCERER_ROBE"].includes(baseId);
     typeName = isRobe ? "ローブ" : (baseId === "EXPLORER_CLOAK" ? "外套" : (baseId === "BATTLE_GARB" ? "戦装束" : (baseId === "DRAGON_SCALE" ? "鱗鎧" : "鎧")));
   } else if (baseItem.type === "weapon") {
-    if (baseId === "WAND") typeName = "杖";
+    if (["WAND", "SAGE_STAFF", "ARCH_WAND", "HOLY_STAFF"].includes(baseId)) typeName = "杖";
     else if (baseId === "RAPIER") typeName = "細剣";
     else if (baseId === "SACRED_MACE") typeName = "聖器";
-    else if (["DAGGER", "NINJA_DAGGER", "SHORT_SWORD"].includes(baseId)) typeName = "短剣";
-    else if (["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA"].includes(baseId)) typeName = "剣";
+    else if (["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "SHORT_SWORD"].includes(baseId)) typeName = "短剣";
+    else if (["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "NINJA_BLADE", "MOONSHADOW", "FLAME_SWORD"].includes(baseId)) typeName = "剣";
     else if (baseId === "MACE") typeName = "メイス";
   }
   const unidentifiedName = `${prefix}未鑑定の${typeName}`;

@@ -55,7 +55,7 @@ Object.defineProperty(global, "navigator", {
 
   const bannedB1B2Keys = [
     "ELIXIR", "SEALED_EXCALIBUR", "HOLY_BLADE", "DRAGON_CHARM", 
-    "EXCALIBUR_FRAGMENT", "SACRED_ASHES", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "DRAGON_SCALE"
+    "EXCALIBUR_FRAGMENT", "SACRED_ASHES", "LIFE_WATER", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "DRAGON_SCALE"
   ];
 
   // Simulator B1-B2 Stock Generation (1000 trials)
@@ -76,7 +76,7 @@ Object.defineProperty(global, "navigator", {
   // Simulator B3 Stock Generation (1000 trials)
   const bannedB3Keys = [
     "ELIXIR", "SEALED_EXCALIBUR", "HOLY_BLADE", "DRAGON_CHARM", 
-    "EXCALIBUR_FRAGMENT", "SACRED_ASHES", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "DRAGON_SCALE",
+    "EXCALIBUR_FRAGMENT", "SACRED_ASHES", "LIFE_WATER", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "DRAGON_SCALE",
     "LONG_SWORD", "CHAIN_MAIL", "MAGIC_SHIELD", "PRIEST_ROBE", "PLATE_MAIL", "CLAYMORE", "KATANA"
   ];
   let b3TicketFound = 0;
@@ -126,14 +126,26 @@ Object.defineProperty(global, "navigator", {
 
   // Simulator B5 Stock Generation (1000 trials)
   let legendarySwordFound = false;
+  let lifeWaterFoundWithoutOwning = false;
+  let lifeWaterFoundWithOwning = false;
   for (let i = 0; i < 1000; i++) {
     const stock = generateMerchantStock(5, []);
     if (stock.some(item => item.key === "LEGENDARY_SWORD")) {
       legendarySwordFound = true;
     }
+    if (stock.some(item => item.key === "LIFE_WATER")) {
+      lifeWaterFoundWithoutOwning = true;
+    }
+
+    const stockWithLifeWater = generateMerchantStock(5, ["LIFE_WATER"]);
+    if (stockWithLifeWater.some(item => item.key === "LIFE_WATER")) {
+      lifeWaterFoundWithOwning = true;
+    }
   }
   assert.strictEqual(legendarySwordFound, false, "B5 merchant must not offer LEGENDARY_SWORD");
-  console.log("-> [PASS] B5 merchant restriction verified (excludes legendaries)");
+  assert.ok(lifeWaterFoundWithoutOwning, "B5 merchant should offer LIFE_WATER if not owned");
+  assert.strictEqual(lifeWaterFoundWithOwning, false, "B5 merchant must not offer LIFE_WATER if already owned");
+  console.log("-> [PASS] B5 merchant restriction verified (excludes legendaries, LIFE_WATER constraint works)");
 
 
   // --- Test 2: Tablet (Monument) floor-scaling formulas ---
@@ -183,6 +195,11 @@ Object.defineProperty(global, "navigator", {
   
   const addedAshes2 = addInventoryItem("SACRED_ASHES");
   assert.strictEqual(addedAshes2, false, "Should block duplicate SACRED_ASHES");
+  const addedLifeWater1 = addInventoryItem("LIFE_WATER");
+  assert.strictEqual(addedLifeWater1, true, "Should allow first LIFE_WATER");
+  
+  const addedLifeWater2 = addInventoryItem("LIFE_WATER");
+  assert.strictEqual(addedLifeWater2, false, "Should block duplicate LIFE_WATER");
   console.log("-> [PASS] Inventory capacity and unique constraints verified");
 
 

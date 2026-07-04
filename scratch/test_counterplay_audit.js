@@ -1,6 +1,7 @@
 import { MONSTERS } from "../src/data/monsters.js";
 import { ENCOUNTER_PACKS } from "../src/combat_ui/encounter.js";
 import { CRAFT_RECIPES } from "../src/craft.js";
+import { SHOP_STOCK } from "../src/shop/shop_stock.js";
 
 // --- Helpers ---
 
@@ -68,7 +69,7 @@ function getSpellAvailableFloor(spellName) {
 // 消耗品がそのフロアで入手可能か（ショップまたはクラフト）
 function getItemAvailableFloor(itemId) {
   // ショップは最初から利用可能 (floor 1)
-  const shopAvailable = true; 
+  const shopAvailable = SHOP_STOCK.some(stock => stock.key === itemId);
   const craftFloor = getCraftFloor(itemId);
   return Math.min(shopAvailable ? 1 : Infinity, craftFloor);
 }
@@ -164,8 +165,8 @@ MONSTERS.forEach(m => {
 
 const threats = [
   { name: "毒 (Poison)", minFloor: minPoisonFloor, spells: ["LATUMOFIS"], items: ["ANTIDOTE"] },
-  { name: "麻痺 (Paralysis)", minFloor: minParalyzeFloor, spells: ["DIALKO"], items: [] },
-  { name: "盲目 (Blind)", minFloor: minBlindFloor, spells: ["DIURCO"], items: [] },
+  { name: "麻痺 (Paralysis)", minFloor: minParalyzeFloor, spells: ["DIALKO"], items: ["PARALYZE_CURE"] },
+  { name: "盲目 (Blind)", minFloor: minBlindFloor, spells: ["DIURCO"], items: ["EYE_DROPS"] },
   { name: "沈黙 (Silence)", minFloor: minSilenceFloor, spells: ["MONTINO"], items: [] },
   { name: "MPドレイン (MP Drain)", minFloor: minMpDrainFloor, spells: [], items: ["MANA_POTION"] },
   { name: "全体魔法 LAHALITO", minFloor: minLahalitoFloor, spells: ["MABARRIER"], items: [] },

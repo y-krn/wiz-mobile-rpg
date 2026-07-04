@@ -127,8 +127,8 @@ export function selectCombatAction(type) {
     }
     openCombatItemMenu((itemKey, itemIdx) => {
       const item = ITEMS[itemKey];
-      if (item.type !== "usable") {
-        addLog("戦闘中その装備品は使用できません。");
+      if (item.type !== "usable" || item.campOnly) {
+        addLog("戦闘中その道具は使用できません。");
         return;
       }
       openCombatTargetMenu("ally", (targetIdx) => {
