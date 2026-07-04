@@ -22,7 +22,8 @@ import {
 } from "./damage.js";
 import {
   addMonsterBuff,
-  tickMonsterBuffs
+  tickMonsterBuffs,
+  wakeSleepingMonsterOnDamage
 } from "./status_effects.js";
 import {
   hasTrait,
@@ -220,6 +221,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             if (finalTarget.physResist && dmg <= 2) {
               msg += "（攻撃が弾かれている！）";
             }
+            if (wakeSleepingMonsterOnDamage(finalTarget)) {
+              msg += `${finalTarget.name}は目を覚ました！`;
+            }
             floatText = `${dmg}`;
           }
 
@@ -269,8 +273,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               }
               followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg);
               finalTarget.hp = Math.max(0, finalTarget.hp - followUpDmg);
+              const wakeSuffix = wakeSleepingMonsterOnDamage(finalTarget) ? `${finalTarget.name}は目を覚ました！` : "";
               logQueue.push({
-                msg: `[味方] 【🗡️追撃】${char.name}の素早い追加攻撃！${finalTarget.name}に${followUpDmg}のダメージ。`,
+                msg: `[味方] 【🗡️追撃】${char.name}の素早い追加攻撃！${finalTarget.name}に${followUpDmg}のダメージ。${wakeSuffix}`,
                 sound: "hit",
                 shake: 4,
                 floatText: `${followUpDmg}`,

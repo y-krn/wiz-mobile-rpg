@@ -12,17 +12,17 @@ export function openCombatSpellMenu(char, callback) {
 
 export function getSpellCombatSummary(spellName) {
   const summaries = {
-    HALITO: { tag: "単体", effect: "火 5-15", category: "single" },
+    HALITO: { tag: "単体", effect: "火 8-18", category: "single" },
     KATINO: { tag: "弱体", effect: "全体睡眠", category: "debuff" },
     LAHALITO: { tag: "全体", effect: "火 15-35", category: "all" },
     DUMAPIC: { tag: "探索", effect: "座標探知", category: "utility" },
-    MAHALITO: { tag: "単体", effect: "火 20-35", category: "single" },
+    MAHALITO: { tag: "単体", effect: "火 30-50", category: "single" },
     MASFEAL: { tag: "探索", effect: "遭遇回避", category: "utility" },
     MADALTO: { tag: "全体", effect: "氷 30-60", category: "all" },
     TILTOWAIT: { tag: "全体", effect: "爆 50-100", category: "all" },
     DIOS: { tag: "単体", effect: "回復 10-20", category: "single" },
     DIURCO: { tag: "治療", effect: "単体 盲目", category: "cure" },
-    BADIOS: { tag: "単体", effect: "聖 5-15", category: "single" },
+    BADIOS: { tag: "単体", effect: "聖 8-18", category: "single" },
     MILWA: { tag: "探索", effect: "明かり", category: "utility" },
     DIALKO: { tag: "治療", effect: "麻痺/睡眠", category: "cure" },
     MADIOS: { tag: "単体", effect: "回復 35-70", category: "single" },

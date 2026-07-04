@@ -66,7 +66,7 @@ function getDangerHint(state) {
 export const SPELL_EFFECTS = {
   // Mage Spells
   HALITO: ({ caster, target, rng = Math.random }) => {
-    let dmg = Math.floor(rng() * 11) + 5;
+    let dmg = Math.floor(rng() * 11) + 8;
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     dmg = Math.round(dmg * bonus * arcaneBonus);
@@ -85,10 +85,12 @@ export const SPELL_EFFECTS = {
     let sleptCount = 0;
     const intVal = caster ? getCharInt(caster) : 10;
     const bonus = Math.min(0.10, Math.max(0, (intVal - 10) * 0.005));
-    const chance = 0.6 + bonus;
+    const baseChance = 0.6 + bonus;
     targets.forEach(t => {
+      const chance = (t.isBoss || t.isMidboss) ? baseChance * 0.4 : baseChance;
       if (t.hp > 0 && rng() < chance) {
         t.status = "sleep";
+        t.sleepTurns = 2;
         sleptCount++;
       }
     });
@@ -132,7 +134,7 @@ export const SPELL_EFFECTS = {
     return { log: `${caster.name}はデュマピックを唱えた！地下${state.floor}階 X:${state.x}, Y:${state.y}, 方角:${DIR_NAMES[state.dir]}。\nDUMAPIC: ${hint}` };
   },
   MAHALITO: ({ caster, target, rng = Math.random }) => {
-    let dmg = Math.floor(rng() * 16) + 20;
+    let dmg = Math.floor(rng() * 21) + 30;
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     dmg = Math.round(dmg * bonus * arcaneBonus);
@@ -232,7 +234,7 @@ export const SPELL_EFFECTS = {
     return { log: `${caster.name}は${target.name}にディウルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
   },
   BADIOS: ({ caster, target, rng = Math.random }) => {
-    let dmg = Math.floor(rng() * 11) + 5;
+    let dmg = Math.floor(rng() * 11) + 8;
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     dmg = Math.round(dmg * bonus * arcaneBonus);
@@ -322,15 +324,13 @@ export const SPELL_EFFECTS = {
     return { heal: actualHeal, log: `${caster.name}はディアルマを唱えた！${target.name}のHPを${actualHeal}大回復した。` };
   },
   KADORTO: ({ caster, target, rng = Math.random }) => {
-    let cured = false;
-    let logMsg = "";
+    let logMsg;
     if (target.status === "dead") {
       const successChance = Math.min(95, 70 + (target.vit || 10));
       const roll = rng() * 100;
       if (roll < successChance) {
         target.status = "ok";
         target.hp = 1;
-        cured = true;
         logMsg = `${caster.name}は${target.name}にカドルトを唱えた。奇跡が起き、息を吹き返した！`;
       } else {
         target.status = "ash";

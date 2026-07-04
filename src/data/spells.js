@@ -6,7 +6,7 @@ export const SPELLS = {
     level: 1,
     cost: 1,
     target: "single_enemy",
-    desc: "火の玉 (5-15 DMG)"
+    desc: "火の玉 (8-18 DMG)"
   },
   KATINO: {
     name: "KATINO",
@@ -38,7 +38,7 @@ export const SPELLS = {
     level: 3,
     cost: 3,
     target: "single_enemy",
-    desc: "中級炎魔法 (20-35 DMG)"
+    desc: "中級炎魔法 (30-50 DMG)"
   },
   MASFEAL: {
     name: "MASFEAL",
@@ -88,7 +88,7 @@ export const SPELLS = {
     level: 1,
     cost: 1,
     target: "single_enemy",
-    desc: "不浄への一撃 (5-15 HPダメージ)"
+    desc: "不浄への一撃 (8-18 HPダメージ)"
   },
   MILWA: {
     name: "MILWA",

@@ -64,11 +64,14 @@ first, then read only the relevant part.
 ## Tool and Execution Policy
 
 - Use applicable Agent Skills when the task clearly matches one.
-- Resolve Agent Skill files only from the current session's advertised skill
-  registry and Skill roots. Do not guess or probe hardcoded locations such as
-  `~/.codex/skills/<name>/SKILL.md` or `~/.agents/skills/<name>/SKILL.md`.
-  If the advertised path is missing, report that specific missing path and
-  continue with the best fallback instead of trying unrelated paths.
+- Resolve Agent Skill files only from the skill metadata advertised to the
+  active tool. Codex, Claude, and Antigravity may expose the same skill from
+  different roots, so expand and read the path shown by that tool's current
+  registry, advertised path, or Skill roots before acting. Do not guess or
+  probe hardcoded locations such as `~/.codex/skills/<name>/SKILL.md` or
+  `~/.agents/skills/<name>/SKILL.md`. If the advertised path is missing, report
+  that specific missing path and continue with the best fallback instead of
+  trying unrelated paths.
 - Use `tmux` for long-running commands, dev servers, watchers, and parallel
   verification that should keep logs.
 - Safe commands may be run without extra confirmation: reads, searches, diffs,
