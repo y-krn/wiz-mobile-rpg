@@ -851,6 +851,28 @@ export class DungeonRenderer {
           ctx.textBaseline = "middle";
           ctx.fillText(isUp ? "↑" : "↓", screenX + cellS / 2, screenY + cellS / 2);
         }
+
+        if (cell.trap && cell.trap.state !== "hidden") {
+          const isDisabled = cell.trap.state === "disabled";
+          const isWeakened = cell.trap.state === "weakened";
+          const markerColor = isDisabled ? "#2fd66d" : (isWeakened ? "#ffb300" : "#ff3b30");
+          const markerBg = isDisabled ? "rgba(47, 214, 109, 0.22)" : (isWeakened ? "rgba(255, 179, 0, 0.24)" : "rgba(255, 59, 48, 0.24)");
+
+          ctx.fillStyle = markerBg;
+          ctx.beginPath();
+          ctx.arc(screenX + cellS / 2, screenY + cellS / 2, 4, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = markerColor;
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+
+          ctx.fillStyle = markerColor;
+          ctx.font = "bold 9px monospace";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(isDisabled ? "x" : "!", screenX + cellS / 2, screenY + cellS / 2);
+        }
       }
     }
 

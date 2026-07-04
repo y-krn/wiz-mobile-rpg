@@ -59,9 +59,6 @@ first, then read only the relevant part.
   (`ctx_execute` / `ctx_execute_file`) so full stdout is summarized outside the
   main context instead of being loaded in full. It is installed cross-agent
   under `~/.agents/skills/context-mode`.
-- For long-running commands, keep logs in `tmux` and inspect only the needed
-  slice rather than streaming everything.
-
 ## Tool and Execution Policy
 
 - Use applicable Agent Skills when the task clearly matches one.
@@ -78,8 +75,6 @@ first, then read only the relevant part.
   label instead. Show the absolute path only when the user asks for it, when
   reporting a missing advertised path, or when it is needed to debug tool
   configuration.
-- Use `tmux` for long-running commands, dev servers, watchers, and parallel
-  verification that should keep logs.
 - Safe commands may be run without extra confirmation: reads, searches, diffs,
   builds, tests, and dev server startup.
 - Ask first before destructive or high-risk operations: `rm`, `git reset`,
