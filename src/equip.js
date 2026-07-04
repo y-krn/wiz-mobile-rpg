@@ -147,6 +147,14 @@ export function getItemUseStatus(char, itemKey) {
   if (!item || item.type !== "usable") return { usable: true, reason: "" };
   const canRestoreMp = canUsePriestSpells(char) || canUseMageSpells(char);
 
+  if (item.combatOnly && !state.combatState) {
+    return { usable: false, reason: "戦闘中のみ使用できます" };
+  }
+
+  if (itemKey === "ESCAPE_SCROLL" && state.combatState && (state.combatState.isBoss || state.combatState.isMidboss)) {
+    return { usable: false, reason: "ボス戦では使用できません" };
+  }
+
   if (char.status === "dead") {
     if (itemKey !== "SACRED_ASHES" && itemKey !== "LIFE_WATER") {
       return { usable: false, reason: "死亡中は回復アイテムを使用できません" };

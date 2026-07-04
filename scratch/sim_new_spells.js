@@ -45,7 +45,7 @@ function createParty(level = 5) {
     { name: "Fighter", class: "Fighter", level, hp: 55 + s*9, maxHp: 55 + s*9, mp: 0, maxMp: 0, status: "ok", str: 15, int: 8, pie: 8, vit: 14, agi: 12, luk: 10, equipment: { weapon: { name: "ロングソード", atk: 12 }, shield: { name: "ヒーターシールド", def: 5 }, armor: { name: "鎖帷子", def: 6 } }, spells: [] },
     { name: "Samurai", class: "Samurai", level, hp: 48 + s*8, maxHp: 48 + s*8, mp: Math.max(0, 4 + s), maxMp: Math.max(0, 4 + s), status: "ok", str: 14, int: 11, pie: 8, vit: 12, agi: 13, luk: 9, equipment: { weapon: { name: "刀", atk: 14 }, shield: null, armor: { name: "ハラアテ", def: 4 } }, spells: ["HALITO"] },
     { name: "Priest", class: "Priest", level, hp: 36 + s*6, maxHp: 36 + s*6, mp: Math.max(0, 12 + s*2), maxMp: Math.max(0, 12 + s*2), status: "ok", str: 10, int: 10, pie: 15, vit: 10, agi: 11, luk: 10, equipment: { weapon: { name: "メイス", atk: 8 }, shield: { name: "ターゲットシールド", def: 3 }, armor: { name: "革鎧", def: 3 } }, spells: ["DIOS", "MABARRIER"] },
-    { name: "Mage", class: "Mage", level, hp: 24 + s*4, maxHp: 24 + s*4, mp: Math.max(0, 10 + s*2), maxMp: Math.max(0, 10 + s*2), status: "ok", str: 8, int: 16, pie: 8, vit: 9, agi: 12, luk: 11, equipment: { weapon: { name: "スタッフ", atk: 4 }, shield: null, armor: { name: "ローブ", def: 1 } }, spells: ["HALITO", "LAHALITO", "MONTINO"] }
+    { name: "Mage", class: "Mage", level, hp: 24 + s*4, maxHp: 24 + s*4, mp: Math.max(0, 10 + s*2), maxMp: Math.max(0, 10 + s*2), status: "ok", str: 8, int: 16, pie: 8, vit: 9, agi: 12, luk: 11, equipment: { weapon: { name: "スタッフ", atk: 4 }, shield: null, armor: { name: "ローブ", def: 1 } }, spells: ["HALITO", "MAHALITO", "LAHALITO", "MONTINO"] }
   ];
 }
 function getMonster(name, o = {}) {
@@ -110,15 +110,20 @@ function withSpell(spellName, forClass, cond) {
 console.log("=== Proposed Spell Balance Impact (real engine, 800 runs) ===");
 const RUNS = 800;
 
-// [1] ZILWAN throughput vs boss dragon (immortal party isolates HP-compression)
-console.log("\n[1] ZILWAN 討伐ペース vs いにしえの竜 (dragon boss 640HP) @L8  ※不死パーティで火力純測定");
-suite("baseline", "いにしえの竜", {}, 1, basePlan, 8, RUNS, { isBoss: true, immortal: true });
-suite("+ZILWAN", "いにしえの竜", {}, 1, (c, i, s) => c.class === "Mage" && c.mp >= 3 ? { type: "spell", actorIdx: i, targetIdx: firstLiving(s), spellName: "ZILWAN" } : basePlan(c, i, s), 8, RUNS, { isBoss: true, immortal: true });
+// Single-target mage plan using 020-buffed MAHALITO (30-50) — proper single-target baseline.
+const mageSpell = name => (c, i, s) => c.class === "Mage" && c.mp >= 3 ? { type: "spell", actorIdx: i, targetIdx: firstLiving(s), spellName: name } : basePlan(c, i, s);
 
-// [1b] ZILWAN vs single chunky dragon (non-boss elite) — intended niche, full 2.0x
-console.log("\n[1b] ZILWAN 討伐ペース vs レッドドラゴン x1 (dragon 200HP, 非ボス) @L7  ※不死で火力純測定");
-suite("baseline", "レッドドラゴン", {}, 1, basePlan, 7, RUNS, { immortal: true });
-suite("+ZILWAN", "レッドドラゴン", {}, 1, (c, i, s) => c.class === "Mage" && c.mp >= 3 ? { type: "spell", actorIdx: i, targetIdx: firstLiving(s), spellName: "ZILWAN" } : basePlan(c, i, s), 7, RUNS, { immortal: true });
+// [1] Single-target throughput vs boss dragon (immortal isolates火力). 3 arms.
+console.log("\n[1] 単体火力 vs いにしえの竜 (dragon boss 640HP) @L8  ※不死・30T残HP小=火力高");
+suite("LAHALITO", "いにしえの竜", {}, 1, basePlan, 8, RUNS, { isBoss: true, immortal: true });
+suite("MAHALITO", "いにしえの竜", {}, 1, mageSpell("MAHALITO"), 8, RUNS, { isBoss: true, immortal: true });
+suite("ZILWAN", "いにしえの竜", {}, 1, mageSpell("ZILWAN"), 8, RUNS, { isBoss: true, immortal: true });
+
+// [1b] Single chunky dragon (non-boss). ZILWAN full 2.0x vs buffed MAHALITO.
+console.log("\n[1b] 単体火力 vs レッドドラゴン x1 (dragon 200HP, 非ボス) @L7  ※不死・討伐T小=火力高");
+suite("LAHALITO", "レッドドラゴン", {}, 1, basePlan, 7, RUNS, { immortal: true });
+suite("MAHALITO", "レッドドラゴン", {}, 1, mageSpell("MAHALITO"), 7, RUNS, { immortal: true });
+suite("ZILWAN", "レッドドラゴン", {}, 1, mageSpell("ZILWAN"), 7, RUNS, { immortal: true });
 
 // [2] BAKADI (DEF down): two rows.
 //   (a) 石像兵 = 装甲だが魔法弱点(magicResist -0.4) → 現ロスターの典型。nukeが上位でBAKADIは損。

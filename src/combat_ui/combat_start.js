@@ -12,6 +12,10 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
     state.currentRun.battles++;
   }
 
+  state.party.forEach(char => {
+    char.buffs = [];
+  });
+
   const { monsters, isRare } = generateEncounter(state, isBoss, isMidboss, isRoamingFlack);
 
   if (state.alarmActive) {

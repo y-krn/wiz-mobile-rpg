@@ -23,7 +23,9 @@ import {
 import {
   addMonsterBuff,
   tickMonsterBuffs,
-  wakeSleepingMonsterOnDamage
+  wakeSleepingMonsterOnDamage,
+  getBuffTotal,
+  tickCharBuffs
 } from "./status_effects.js";
 import {
   hasTrait,
@@ -93,7 +95,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   state.party.forEach((char, idx) => {
     if (char.status === "ok" || char.status === "poisoned" || char.status === "blind") {
       const chosen = combatSelection.actions.find(a => a.actorIdx === idx);
-      const speed = getCharAgi(char) + Math.floor(Math.random() * 10) + getCharAffixSum(char, "firstStrike");
+      const speed = getCharAgi(char) + getBuffTotal(char, "agi") + Math.floor(Math.random() * 10) + getCharAffixSum(char, "firstStrike");
       turns.push({
         type: "char",
         char,
@@ -182,10 +184,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // Attack math
           const weaponAtk = getCharWeaponAtk(char);
           const str = getCharStr(char);
+          const buffAtk = getBuffTotal(char, "atk") + getBuffTotal(char, "str");
           const randRoll = Math.floor(Math.random() * 5); // 0-4
           const meleeMod = getMeleeModifiers(char, turn.idx);
           const def = getEffectiveDef(finalTarget);
-          dmg = Math.max(1, Math.floor((weaponAtk * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod));
+          dmg = Math.max(1, Math.floor(((weaponAtk + buffAtk) * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod));
           
           if (char.status === "blind") {
             dmg = Math.max(1, Math.floor(dmg / 2));
@@ -691,7 +694,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           } else {
             finalAtk = baseAtk + Math.floor(Math.random() * 4);
           }
-          const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4)) - (target.tempDefDown || 0));
+          const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4) + getBuffTotal(target, "def")) - (target.tempDefDown || 0));
           let dmg = Math.max(1, finalAtk - finalDef);
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           
@@ -781,6 +784,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   });
 
   tickMonsterBuffs(monsters);
+  tickCharBuffs(state.party);
   state.party.forEach(char => {
     if (char.tempDefDown) char.tempDefDown = Math.max(0, char.tempDefDown - 1);
     if (char.magicVulnerableTurns) char.magicVulnerableTurns = Math.max(0, char.magicVulnerableTurns - 1);

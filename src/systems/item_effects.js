@@ -1,6 +1,7 @@
 import { getEffectiveHealAmount } from "../rules/item_rules.js";
 import { getCharMaxHp, getCharMaxMp } from "../rules/character_stats.js";
 import { canUsePriestSpells, canUseMageSpells } from "../rules/class_rules.js";
+import { addCharBuff } from "../combat_logic/status_effects.js";
 
 export const ITEM_EFFECTS = {
   HEAL_POTION: ({ char }) => {
@@ -100,5 +101,17 @@ export const ITEM_EFFECTS = {
       cured = true;
     }
     return `${char.name}に生命の水を注ぐと、${cured ? "命が満ち、HP全快で息を吹き返した！" : "しかし何も起こらなかった。"}`;
+  },
+  STR_POTION: ({ char }) => {
+    addCharBuff(char, "atk", 10, 5);
+    return `${char.name}は剛力の薬を使用し、攻撃力が上昇した！`;
+  },
+  GUARD_POTION: ({ char }) => {
+    addCharBuff(char, "def", 10, 5);
+    return `${char.name}は守りの薬を使用し、防御力が上昇した！`;
+  },
+  HASTE_POTION: ({ char }) => {
+    addCharBuff(char, "agi", 5, 5);
+    return `${char.name}は疾風の薬を使用し、敏捷性が上昇した！`;
   }
 };

@@ -35,3 +35,17 @@ export function wakeSleepingMonsterOnDamage(mon, rng = Math.random) {
   delete mon.sleepTurns;
   return true;
 }
+
+export function addCharBuff(char, type, value, turns) {
+  if (!char.buffs) char.buffs = [];
+  char.buffs.push({ type, value, turns });
+}
+
+export function tickCharBuffs(party) {
+  party.forEach(char => {
+    if (!char.buffs) return;
+    char.buffs = char.buffs
+      .map(buff => ({ ...buff, turns: buff.turns - 1 }))
+      .filter(buff => buff.turns > 0);
+  });
+}

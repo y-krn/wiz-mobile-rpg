@@ -9,6 +9,13 @@ import { setupChestState } from "../chest.js";
 import { checkCombatStatus } from "./combat_status.js";
 import { triggerGameOver } from "./game_over.js";
 
+function cleanupCombatState() {
+  state.combatState = null;
+  state.party.forEach(char => {
+    delete char.buffs;
+  });
+}
+
 export function playBattleLogs(queue, index) {
   if (index >= queue.length) {
     checkCombatStatus();
@@ -40,7 +47,7 @@ export function playBattleLogs(queue, index) {
           state.y = state.prevY;
         }
         state.gameState = "explore";
-        state.combatState = null;
+        cleanupCombatState();
         resetSubmenuBackButton();
         state.transitioning = false;
         saveAutosave();
@@ -59,10 +66,33 @@ export function playBattleLogs(queue, index) {
         triggerGameOver();
       } else {
         state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
-        state.combatState = null;
+        cleanupCombatState();
         resetSubmenuBackButton();
         state.transitioning = false;
         triggerRunResult("escape_scroll");
+      }
+    }, isAuto ? 150 : 1200);
+    return;
+  }
+
+  if (log.fleeCombat) {
+    state.transitioning = true;
+    setTimeout(() => {
+      const allPartyDead = state.party.every(c => c.status === "dead");
+      if (allPartyDead) {
+        state.transitioning = false;
+        triggerGameOver();
+      } else {
+        if (state.combatState && state.combatState.isRoamingFlack) {
+          state.x = state.prevX;
+          state.y = state.prevY;
+        }
+        state.gameState = "explore";
+        cleanupCombatState();
+        resetSubmenuBackButton();
+        state.transitioning = false;
+        saveAutosave();
+        updateUI();
       }
     }, isAuto ? 150 : 1200);
     return;
@@ -99,7 +129,7 @@ export function playBattleLogs(queue, index) {
 
     setTimeout(() => {
       state.gameState = "explore";
-      state.combatState = null;
+      cleanupCombatState();
       resetSubmenuBackButton();
       state.transitioning = false;
       saveAutosave();
@@ -141,7 +171,7 @@ export function playBattleLogs(queue, index) {
 
     setTimeout(() => {
       state.gameState = "explore";
-      state.combatState = null;
+      cleanupCombatState();
       resetSubmenuBackButton();
       state.transitioning = false;
       saveAutosave();
@@ -165,7 +195,7 @@ export function playBattleLogs(queue, index) {
     state.transitioning = true;
     setTimeout(() => {
       state.gameState = "explore";
-      state.combatState = null;
+      cleanupCombatState();
       resetSubmenuBackButton();
       state.transitioning = false;
       saveAutosave();

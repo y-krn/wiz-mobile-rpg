@@ -52,6 +52,7 @@ export const ITEMS = {
   ETHER: { id: "ETHER", name: "魔力の雫", type: "usable", price: 700, desc: "使用するとMPを8回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 150, desc: "使用するとHPを15回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 350, desc: "使用すると一瞬でお城へ戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
+  ESCAPE_SCROLL: { id: "ESCAPE_SCROLL", name: "離脱のスクロール", type: "usable", price: 300, desc: "使用すると戦闘から逃れ、その場に留まる。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
   PANACEA: { id: "PANACEA", name: "万能薬", type: "usable", price: 300, desc: "毒・盲目・麻痺・睡眠を治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 1500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極の霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   SACRED_ASHES: { id: "SACRED_ASHES", name: "聖灰", type: "usable", price: 2500, desc: "死亡した仲間をキャンプ中にHP1で蘇生させる（所持制限：バッグに1個まで）。", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], campOnly: true },
@@ -63,7 +64,10 @@ export const ITEMS = {
   DRAGON_CHARM: { id: "DRAGON_CHARM", name: "竜除けの護符", type: "shield", def: 2, price: 2500, desc: "盾として装備し、竜の炎と爪を和らげる魔除けの護符。防御力+2 竜耐性・特効+30% [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["dragon", "ward"] },
   EXCALIBUR_FRAGMENT: { id: "EXCALIBUR_FRAGMENT", name: "神剣の破片", type: "quest", price: 1800, desc: "神剣の刀身が砕けた一部。不思議な光を放っている。" },
   ANTIGRAVITY_CRYSTAL: { id: "ANTIGRAVITY_CRYSTAL", name: "浮遊石 (クリスタル)", type: "quest", price: 0, desc: "青く浮かび上がる伝説の結晶。城に持ち帰ると勝利。" },
-  DRAGON_KEY: { id: "DRAGON_KEY", name: "竜の鍵", type: "quest", price: 0, desc: "いにしえの竜の巣へと通じる刻印が刻まれた鍵。" }
+  DRAGON_KEY: { id: "DRAGON_KEY", name: "竜の鍵", type: "quest", price: 0, desc: "いにしえの竜の巣へと通じる刻印が刻まれた鍵。" },
+  STR_POTION: { id: "STR_POTION", name: "剛力の薬", type: "usable", price: 200, desc: "使用すると数ターンの間、攻撃力が上昇する。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
+  GUARD_POTION: { id: "GUARD_POTION", name: "守りの薬", type: "usable", price: 200, desc: "使用すると数ターンの間、防御力が上昇する。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
+  HASTE_POTION: { id: "HASTE_POTION", name: "疾風の薬", type: "usable", price: 200, desc: "使用すると数ターンの間、敏捷性が上昇する。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true }
 };
 
 export const CURSE_EFFECTS = {
