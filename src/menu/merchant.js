@@ -53,7 +53,7 @@ export function generateMerchantStock(floor, inventory) {
 
   const usables = [
     { type: "item", key: "HEAL_POTION", price: 40, soldOut: false },
-    { type: "item", key: "MANA_POTION", price: 300, soldOut: false },
+    { type: "item", key: "MANA_POTION", price: 250, soldOut: false },
     { type: "item", key: "HOLY_WATER", price: 70, soldOut: false },
     { type: "item", key: "ANTIDOTE", price: 50, soldOut: false },
     { type: "item", key: "EYE_DROPS", price: 60, soldOut: false },

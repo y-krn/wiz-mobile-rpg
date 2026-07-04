@@ -5,7 +5,7 @@ export const SHOP_STOCK = [
   { key: "PARALYZE_CURE", price: 120 },
   { key: "WAKE_POWDER", price: 80 },
   { key: "HOLY_WATER", price: 150 },
-  { key: "MANA_POTION", price: 400 },
+  { key: "MANA_POTION", price: 300 },
   { key: "TOWN_PORTAL", price: 350 },
   { key: "DAGGER", price: 50 },
   { key: "WAND", price: 120 },

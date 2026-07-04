@@ -174,7 +174,7 @@ function simulateEncounter(monsterTemplate, count, strategy, level = 5, withAcce
   const partyAlive = state.party.some(c => c.status !== "dead");
   const deaths = state.party.filter(c => c.status === "dead").length;
 
-  party.forEach((c, idx) => {
+  state.party.forEach((c, idx) => {
     totalDmgTaken += Math.max(0, initialHp[idx] - c.hp);
   });
 

@@ -60,7 +60,7 @@ export const ITEMS = {
   EYE_DROPS: { id: "EYE_DROPS", name: "目薬", type: "usable", price: 80, desc: "使用すると盲目状態を解除する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   PARALYZE_CURE: { id: "PARALYZE_CURE", name: "解痺薬", type: "usable", price: 120, desc: "使用すると麻痺状態を解除する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   WAKE_POWDER: { id: "WAKE_POWDER", name: "覚醒薬", type: "usable", price: 80, desc: "使用すると睡眠状態を解除する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
-  MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", price: 400, desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
+  MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", price: 300, desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   ETHER: { id: "ETHER", name: "魔力の雫", type: "usable", price: 700, desc: "使用するとMPを8回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 150, desc: "使用するとHPを15回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 350, desc: "使用すると一瞬でお城へ戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },

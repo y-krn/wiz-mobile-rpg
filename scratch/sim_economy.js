@@ -30,12 +30,40 @@ global.document = {
   body: createDummyElement()
 };
 
+class MockAudioContext {
+  constructor() {
+    this.currentTime = 0;
+    this.destination = {};
+  }
+  createOscillator() {
+    return {
+      type: "sine",
+      frequency: { setValueAtTime() {} },
+      connect() {},
+      start() {},
+      stop() {}
+    };
+  }
+  createGain() {
+    return {
+      gain: {
+        setValueAtTime() {},
+        exponentialRampToValueAtTime() {}
+      },
+      connect() {}
+    };
+  }
+  resume() {
+    return Promise.resolve();
+  }
+}
+
 global.window = {
   innerWidth: 375,
   innerHeight: 667,
   addEventListener: () => {},
-  AudioContext: class {},
-  webkitAudioContext: class {}
+  AudioContext: MockAudioContext,
+  webkitAudioContext: MockAudioContext
 };
 
 Object.defineProperty(global, "navigator", {

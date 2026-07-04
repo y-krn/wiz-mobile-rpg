@@ -9,6 +9,7 @@ files may point here, but should not duplicate these rules.
 - Do not use greetings, preambles, or emoji.
 - Keep implementation notes, decisions, and verification results concise.
 - Ask before proceeding when success criteria or requirements are unclear.
+- (Antigravity-specific) Always write implementation plans in Japanese.
 
 ## Context and Search Order
 
