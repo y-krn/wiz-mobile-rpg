@@ -44,7 +44,7 @@ Object.defineProperty(global, "navigator", {
 
 (async () => {
   const { state, initNewGame } = await import("../src/state.js");
-  const { executeInscription } = await import("../src/craft.js");
+  const { executeTagInscription } = await import("../src/craft.js");
   const { getCharAffixSum, getItemData } = await import("../src/rules/item_rules.js");
   const { applyTargetedDamageBonus } = await import("../src/combat_logic/damage.js");
   const assert = await import("assert");
@@ -79,51 +79,50 @@ Object.defineProperty(global, "navigator", {
 
   // Test 1: 素材・ゴールド不足のチェック
   state.inventory = [mockSword];
-  state.materials = { "骨片": 0, "霊粉": 0 }; // 不死刻印には 骨片2, 霊粉1 が必要
+  state.materials = { "霊粉": 0 }; // 聖印には 霊粉3 が必要
   state.gold = 1000;
 
-  let success = executeInscription(0, "ANTI_UNDEAD");
+  let success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
   assert.strictEqual(success, false, "Should fail when materials are missing");
 
-  state.materials = { "骨片": 2, "霊粉": 1 };
-  state.gold = 50; // 不死刻印には 150G 必要
-  success = executeInscription(0, "ANTI_UNDEAD");
+  state.materials = { "霊粉": 3 };
+  state.gold = 50; // 聖印には 150G 必要
+  success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
   assert.strictEqual(success, false, "Should fail when gold is insufficient");
 
   console.log("-> [PASS] Material and gold insufficiency validation verified");
 
   // Test 2: 未鑑定装備への刻印不可チェック
   state.inventory = [mockUnidentifiedSword];
-  state.materials = { "骨片": 2, "霊粉": 1 };
+  state.materials = { "霊粉": 3 };
   state.gold = 1000;
-  success = executeInscription(0, "ANTI_UNDEAD");
+  success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
   assert.strictEqual(success, false, "Should not allow inscription on unidentified items");
 
   console.log("-> [PASS] Unidentified items protection verified");
 
-  // Test 3: 正常な刻印実行と、2つ目の刻印制限
+  // Test 3: 正常な刻印実行と、複数刻印（3枠制限）
   state.inventory = [{ ...mockSword }]; // clone to prevent mutating original mock
-  state.materials = { "骨片": 2, "霊粉": 1 };
+  state.materials = { "霊粉": 3 };
   state.gold = 1000;
   
-  success = executeInscription(0, "ANTI_UNDEAD");
+  success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
   assert.strictEqual(success, true, "Inscription should succeed with enough materials and gold");
   assert.strictEqual(state.gold, 850, "Gold should be deducted (1000 - 150)");
-  assert.strictEqual(state.materials["骨片"], 0, "Materials should be consumed");
-  assert.strictEqual(state.materials["霊粉"], 0);
+  assert.strictEqual(state.materials["霊粉"], 0, "Materials should be consumed");
 
   const inscribedItem = state.inventory[0];
   assert.ok(inscribedItem.inscription, "Item should have inscription field");
   assert.strictEqual(inscribedItem.inscription.type, "antiUndead");
   assert.strictEqual(inscribedItem.inscription.value, 20);
 
-  // 2つ目の刻印ができないこと
-  state.materials = { "骨片": 2, "霊粉": 1 };
+  // 2つ目の刻印が許可されること (複数刻印のサポート)
+  state.materials = { "霊粉": 3 };
   state.gold = 1000;
-  success = executeInscription(0, "ANTI_UNDEAD");
-  assert.strictEqual(success, false, "Should not allow double inscription");
+  success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
+  assert.strictEqual(success, true, "Should allow multiple inscriptions");
 
-  console.log("-> [PASS] Successful inscription and double inscription protection verified");
+  console.log("-> [PASS] Successful inscription and multiple inscription support verified");
 
   // Test 4: 刻印済み装備の売却益のチェック（金策ループ防止）
   const normalItemData = getItemData(mockSword); // 刻印なし

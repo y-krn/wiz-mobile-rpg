@@ -1,7 +1,7 @@
 import {
   generateRandomEquipment, getItemData, checkCharLevelUp
 } from "../data.js";
-import { determineMonsterDrop } from "./drops.js";
+import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
 
 export function applyCombatRewards(state, monsters, logQueue) {
@@ -14,9 +14,10 @@ export function applyCombatRewards(state, monsters, logQueue) {
   const livingChars = state.party.filter(c => c.status !== "dead");
 
   // Check First Kill Bonuses
-  let bonusExp = 0;
   let bonusGold = 0;
   const firstKilledNames = [];
+  const firstKilledMats = {};
+  let bonusTickets = 0;
   
   nonFledMonsters.forEach(m => {
     const baseName = m.name.replace(/\s[A-Z]$/, "");
@@ -24,9 +25,38 @@ export function applyCombatRewards(state, monsters, logQueue) {
       if (!state.firstKills) state.firstKills = [];
       state.firstKills.push(baseName);
       firstKilledNames.push(baseName);
-      const baseGold = m.isBoss || m.isRare ? m.gold : Math.max(1, Math.round(m.gold * 0.15));
-      bonusExp += Math.round(m.exp * 0.5);
-      bonusGold += Math.round(baseGold * 0.5);
+      
+      // ゴールドは一律 100G 定額
+      bonusGold += 100;
+      
+      // 素材付与
+      const mat = getMonsterMainMaterial(m);
+      if (mat) {
+        firstKilledMats[mat] = (firstKilledMats[mat] || 0) + 1;
+      }
+      
+      // 5種類討伐ごとに鑑定割引券+1枚
+      if (state.firstKills.length % 5 === 0) {
+        bonusTickets++;
+      }
+    }
+  });
+
+  // チケット付与の反映
+  if (bonusTickets > 0) {
+    state.identifyTickets = (state.identifyTickets || 0) + bonusTickets;
+  }
+
+  // 素材報酬の反映
+  Object.entries(firstKilledMats).forEach(([mat, qty]) => {
+    if (!state.materials) state.materials = {};
+    state.materials[mat] = (state.materials[mat] || 0) + qty;
+    
+    if (state.currentRun) {
+      if (!state.currentRun.materialsFound) {
+        state.currentRun.materialsFound = {};
+      }
+      state.currentRun.materialsFound[mat] = (state.currentRun.materialsFound[mat] || 0) + qty;
     }
   });
 
@@ -54,7 +84,7 @@ export function applyCombatRewards(state, monsters, logQueue) {
   }
 
   const expShare = livingChars.length > 0 ? Math.round(totalExp / livingChars.length) : 0;
-  const bonusExpShare = (livingChars.length > 0 && bonusExp > 0) ? Math.round(bonusExp / livingChars.length) : 0;
+  const bonusExpShare = 0;
 
   if (state.currentRun) {
     state.currentRun.kills += nonFledMonsters.length;
@@ -120,8 +150,16 @@ export function applyCombatRewards(state, monsters, logQueue) {
         msg: `🎉【初回討伐ボーナス！】初めて [${firstKilledNames.join(", ")}] を討伐した！`,
         sound: "gold"
       });
+      let rewardMsg = `  -> 初討伐の追加報酬：パーティ +${bonusGold} ゴールド`;
+      const matListStr = Object.entries(firstKilledMats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
+      if (matListStr) {
+        rewardMsg += ` / 素材: [${matListStr}]`;
+      }
+      if (bonusTickets > 0) {
+        rewardMsg += ` / 鑑定割引券 +${bonusTickets}枚`;
+      }
       logQueue.push({
-        msg: `  -> 初討伐の追加報酬：パーティ +${bonusGold} ゴールド / 成長値 +${bonusExpShare}`
+        msg: rewardMsg
       });
     }
   } else {

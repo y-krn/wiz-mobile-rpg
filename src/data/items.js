@@ -13,7 +13,7 @@ export const ITEMS = {
 
   // Shields
   SMALL_SHIELD: { id: "SMALL_SHIELD", name: "スモールシールド", type: "shield", def: 2, price: 80, desc: "木製の丸い小盾。防御力+2 [戦・盗・僧・侍・野用]", classes: ["Fighter", "Thief", "Priest", "Samurai", "Ranger"], tags: ["iron", "ward"] },
-  BUCKLER: { id: "BUCKLER", name: "バックラー", type: "shield", def: 1, price: 120, desc: "取り回しのよい小盾。防御力+1 [盗・司・野・忍用]", classes: ["Thief", "Bishop", "Ranger", "Ninja"], tags: ["ambush", "ward"] },
+  BUCKLER: { id: "BUCKLER", name: "バックラー", type: "shield", def: 2, price: 120, desc: "取り回しのよい小盾。防御力+2 [盗・司・野・忍用]", classes: ["Thief", "Bishop", "Ranger", "Ninja"], tags: ["ambush", "ward"] },
   LARGE_SHIELD: { id: "LARGE_SHIELD", name: "ラージシールド", type: "shield", def: 5, price: 250, desc: "鉄製の頑丈な大盾。防御力+5 [戦・侍用]", classes: ["Fighter", "Samurai"], tags: ["iron", "ward"] },
   KNIGHT_SHIELD: { id: "KNIGHT_SHIELD", name: "ナイトシールド", type: "shield", def: 8, price: 450, desc: "騎士用の鋼鉄盾。防御力+8 [戦・侍用]", classes: ["Fighter", "Samurai"], tags: ["iron", "ward"] },
   MAGIC_SHIELD: { id: "MAGIC_SHIELD", name: "魔法盾", type: "shield", def: 4, price: 620, desc: "呪文を逸らす護符を打ち込んだ盾。防御力+4 [戦・僧・侍・司・野用]", classes: ["Fighter", "Priest", "Samurai", "Bishop", "Ranger"], tags: ["holy", "ward"] },
@@ -41,7 +41,7 @@ export const ITEMS = {
   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 350, desc: "使用すると一瞬でお城へ戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 1500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極の霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   SACRED_ASHES: { id: "SACRED_ASHES", name: "聖灰", type: "usable", price: 2500, desc: "死亡した仲間をキャンプ中にHP1で蘇生させる（所持制限：バッグに1個まで）。", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], campOnly: true },
-  LEGENDARY_SWORD: { id: "LEGENDARY_SWORD", name: "神剣エクスカリバー", type: "weapon", atk: 40, price: 3000, desc: "聖なる光を放つ伝説 of 神剣。攻撃力+40 [戦・侍用]", classes: ["Fighter", "Samurai"], tags: ["holy", "blade"] },
+  LEGENDARY_SWORD: { id: "LEGENDARY_SWORD", name: "神剣エクスカリバー", type: "weapon", atk: 40, price: 3000, desc: "聖なる光を放つ伝説の神剣。攻撃力+40 [戦・侍用]", classes: ["Fighter", "Samurai"], tags: ["holy", "blade"] },
   LEGENDARY_SHIELD: { id: "LEGENDARY_SHIELD", name: "イージスの盾", type: "shield", def: 15, price: 2500, desc: "あらゆる厄災を払う神の盾。防御力+15 [戦・侍用]", classes: ["Fighter", "Samurai"], tags: ["holy", "ward"] },
   SEALED_EXCALIBUR: { id: "SEALED_EXCALIBUR", name: "封印された聖剣", type: "weapon", atk: 26, price: 2400, desc: "封印が施された伝説の聖剣。攻撃力+26 [戦・侍用]", classes: ["Fighter", "Samurai"], tags: ["curse", "blade"] },
   HOLY_BLADE: { id: "HOLY_BLADE", name: "聖騎士の剣", type: "weapon", atk: 24, price: 2200, desc: "不死・悪魔を退ける聖なる剣。攻撃力+24 不死・悪魔特効+20% [戦・僧・侍・野用]", classes: ["Fighter", "Priest", "Samurai", "Ranger"], tags: ["holy", "blade"] },

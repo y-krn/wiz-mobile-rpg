@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog } from "../state.js";
+import { state, saveAutosave, addLog, recordCharDeath } from "../state.js";
 import { updateUI } from "../ui.js";
 import { startCombat } from "../combat_ui/combat_start.js";
 import { playSound } from "../audio.js";
@@ -150,6 +150,7 @@ export function triggerTrap(trap, isWeakenedOverride = null, isPartialSuccess = 
         addLog(`[!] ${c.name}は${dmg}のダメージを受けた。`);
         if (c.hp === 0) {
           c.status = "dead";
+          recordCharDeath(state, c, "仕掛けられた罠");
           addLog(`[!] ${c.name}は力尽きた！`);
         }
       }

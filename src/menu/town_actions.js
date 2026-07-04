@@ -66,19 +66,19 @@ export function renderTempleMain(optGrid) {
       let statusText;
       
       if (char.status === "dead") {
-        price = char.level * 50;
+        price = char.level * 100;
         text = "蘇生";
         actionType = "revive_dead";
         statusClass = "status-dead";
         statusText = "死亡";
       } else if (char.status === "ash") {
-        price = char.level * 150;
+        price = char.level * 300;
         text = "灰蘇生";
         actionType = "revive_ash";
         statusClass = "status-ash";
         statusText = "灰";
       } else {
-        price = 20;
+        price = 50;
         text = "治療";
         actionType = "cure";
         statusClass = "status-other";
@@ -451,7 +451,7 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
   const matTitle = document.createElement("div");
   matTitle.style.fontWeight = "bold";
   matTitle.style.color = "var(--neon-green)";
-  matTitle.textContent = "1. 素材の選択 (必要数: 3)";
+  matTitle.textContent = "1. 素材の選択";
   wrapper.appendChild(matTitle);
 
   const matRow = document.createElement("div");
@@ -462,6 +462,17 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
   const mats = ["霊粉", "毒腺", "鉄片", "竜鱗", "黒角"];
   mats.forEach(matName => {
     const curQty = state.materials[matName] || 0;
+    
+    // 素材に紐づく可能なタグの必要素材数
+    const possibleTags = MATERIAL_TAGS[matName] || [];
+    const reqCosts = possibleTags.map(tag => TAG_EFFECT_MAP[tag]?.matCost || 3);
+    if (matName === "霊粉") {
+      reqCosts.push(3); // 呪い封印のコスト
+    }
+    const minCost = reqCosts.length > 0 ? Math.min(...reqCosts) : 3;
+    const maxCost = reqCosts.length > 0 ? Math.max(...reqCosts) : 3;
+    const costRangeStr = minCost === maxCost ? `${minCost}` : `${minCost}-${maxCost}`;
+
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = `btn ${currentSelectedMat === matName ? "btn-neon" : "btn-secondary"}`;
@@ -469,9 +480,9 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
     btn.style.minHeight = "36px";
     btn.style.padding = "4px";
     btn.style.fontSize = "10px";
-    btn.innerHTML = `${matName}<br><small>${curQty}/3</small>`;
+    btn.innerHTML = `${matName}<br><small>${curQty}/${costRangeStr}</small>`;
     
-    if (curQty < 3) {
+    if (curQty < minCost) {
       btn.disabled = true;
       btn.classList.add("disabled");
       btn.style.opacity = "0.4";
@@ -507,6 +518,11 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
       const effect = TAG_EFFECT_MAP[tag];
       if (!effect) return;
 
+      const goldCost = effect.gold || 150;
+      const matCost = effect.matCost || 3;
+      const curQty = state.materials[currentSelectedMat] || 0;
+      const hasEnough = curQty >= matCost;
+
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = `btn ${currentSelectedTag === tag && currentActionType === "add" ? "btn-neon" : "btn-secondary"}`;
@@ -514,7 +530,11 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
       btn.style.padding = "6px 8px";
       btn.style.fontSize = "11px";
       btn.style.minHeight = "40px";
-      btn.innerHTML = `<strong>${effect.name} (${tag})</strong> - ${effect.desc}`;
+      
+      const matColor = hasEnough ? "var(--neon-green)" : "var(--neon-red)";
+      btn.innerHTML = `<strong>${effect.name} (${tag})</strong> - ${effect.desc}<br>` +
+                      `<small style="color:var(--text-muted)">コスト: ${goldCost}G / ` +
+                      `<span style="color:${matColor}">${currentSelectedMat} ${curQty}/${matCost}個</span></small>`;
       
       btn.addEventListener("click", () => {
         currentSelectedTag = tag;
@@ -527,6 +547,10 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
 
     const hasCurse = eqItem.tags.includes("curse") || eqItem.curseEffectId;
     if (hasCurse && currentSelectedMat === "霊粉") {
+      const sealGold = 150;
+      const sealMat = 3;
+      const curQty = state.materials["霊粉"] || 0;
+      const hasEnough = curQty >= sealMat;
       const sealBtn = document.createElement("button");
       sealBtn.type = "button";
       sealBtn.className = `btn ${currentActionType === "seal" ? "btn-neon" : "btn-secondary"}`;
@@ -535,7 +559,11 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
       sealBtn.style.fontSize = "11px";
       sealBtn.style.minHeight = "40px";
       sealBtn.style.borderColor = "var(--neon-red)";
-      sealBtn.innerHTML = `<strong>封印の儀 (呪い封印)</strong> - デメリット効果を無効化する`;
+      
+      const matColor = hasEnough ? "var(--neon-green)" : "var(--neon-red)";
+      sealBtn.innerHTML = `<strong>封印の儀 (呪い封印)</strong> - デメリット効果を無効化する<br>` +
+                          `<small style="color:var(--text-muted)">コスト: ${sealGold}G / ` +
+                          `<span style="color:${matColor}">霊粉 ${curQty}/${sealMat}個</span></small>`;
       
       sealBtn.addEventListener("click", () => {
         currentSelectedTag = null;
@@ -603,16 +631,19 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
   submitBtn.className = "btn btn-block btn-neon";
   submitBtn.style.minHeight = "44px";
   
-  const hasEnoughGold = state.gold >= 150;
+  const goldCost = currentActionType === "seal" ? 150 : (TAG_EFFECT_MAP[currentSelectedTag]?.gold || 150);
+  const matCost = currentActionType === "seal" ? 3 : (TAG_EFFECT_MAP[currentSelectedTag]?.matCost || 3);
+  const hasEnoughGold = state.gold >= goldCost;
+  const hasEnoughMat = (state.materials[currentSelectedMat] || 0) >= matCost;
   let canSubmit = false;
 
   if (currentActionType === "seal") {
-    submitBtn.textContent = "封印の儀を実行 (150G)";
-    canSubmit = hasEnoughGold && currentSelectedMat === "霊粉";
+    submitBtn.textContent = `封印の儀を実行 (${goldCost}G / 霊粉 ${matCost}個)`;
+    canSubmit = hasEnoughGold && hasEnoughMat && currentSelectedMat === "霊粉";
   } else if (currentSelectedTag) {
     const effect = TAG_EFFECT_MAP[currentSelectedTag];
-    submitBtn.textContent = `${effect.name}を刻印する (150G)`;
-    canSubmit = hasEnoughGold;
+    submitBtn.textContent = `${effect.name}を刻印する (${goldCost}G / ${currentSelectedMat} ${matCost}個)`;
+    canSubmit = hasEnoughGold && hasEnoughMat;
   } else {
     submitBtn.textContent = "刻印の方向性を選択してください";
     submitBtn.disabled = true;
@@ -640,7 +671,9 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
     submitBtn.disabled = true;
     submitBtn.classList.add("disabled");
     if (!hasEnoughGold) {
-      submitBtn.textContent = "ゴールド不足 (150G必要)";
+      submitBtn.textContent = `ゴールド不足 (${goldCost}G必要)`;
+    } else if (!hasEnoughMat) {
+      submitBtn.textContent = `素材不足 (${currentSelectedMat} ${matCost}個必要)`;
     }
   }
 
@@ -914,20 +947,67 @@ export function renderCastleMain(optGrid) {
   optGrid.style.flexDirection = "column";
   optGrid.style.gap = "8px";
   
-  // 🛌 宿泊して休息する
-  const btnRest = document.createElement("button");
-  btnRest.className = "btn btn-neon btn-block";
-  btnRest.style.height = "44px";
-  btnRest.textContent = "🛌 宿泊して休息する";
-  btnRest.addEventListener("click", () => {
+  const aliveMembers = state.party.filter(char => char.status !== "dead" && char.status !== "ash");
+  const totalLv = aliveMembers.reduce((sum, char) => sum + char.level, 0);
+  const innCost = totalLv * 10;
+  const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
+
+  // 🛌 馬小屋で休む (無料 / MPのみ回復)
+  const btnStable = document.createElement("button");
+  btnStable.className = "btn btn-neon btn-block";
+  btnStable.style.height = "44px";
+  btnStable.textContent = "🛌 馬小屋で休む (無料 / MP回復)";
+  btnStable.addEventListener("click", () => {
     state.party.forEach(char => {
-      if (char.status !== "dead") {
+      if (char.status !== "dead" && char.status !== "ash") {
+        char.mp = getCharMaxMp(char);
+      }
+    });
+    
+    if (hasCrystal) {
+      playSound("level_up");
+      state.cleared = true;
+      state.inventory = state.inventory.filter(item => getItemBaseId(item) !== "ANTIGRAVITY_CRYSTAL");
+      state.party.forEach(char => {
+        if (char.status !== "dead" && char.status !== "ash") {
+          char.hp = getCharMaxHp(char);
+        }
+      });
+      addLog("**************************************************");
+      addLog("おめでとうございます！浮遊石を持ち帰りました！");
+      addLog("王より名誉勲章が授与され、初踏破が記録されました！");
+      addLog("以後も、街からさらなる探索を続けられます。");
+      addLog("**************************************************");
+      saveAutosave();
+    } else {
+      playSound("heal");
+      addLog("おしろ（馬小屋）：パーティは休息した。MPが全回復した！（HPは回復していません）");
+      saveAutosave();
+    }
+    updateUI();
+    renderCastleMain(optGrid);
+  });
+  optGrid.appendChild(btnStable);
+
+  // 🛌 宿屋で休む (有料 / HP・MP全回復)
+  const btnInn = document.createElement("button");
+  btnInn.className = "btn btn-neon btn-block";
+  btnInn.style.height = "44px";
+  btnInn.textContent = `🛌 宿屋で休む (${innCost}G / HP・MP全回復)`;
+  if (state.gold < innCost && !hasCrystal) {
+    btnInn.disabled = true;
+  }
+  btnInn.addEventListener("click", () => {
+    if (!hasCrystal) {
+      state.gold -= innCost;
+    }
+    state.party.forEach(char => {
+      if (char.status !== "dead" && char.status !== "ash") {
         char.hp = getCharMaxHp(char);
         char.mp = getCharMaxMp(char);
       }
     });
     
-    const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
     if (hasCrystal) {
       playSound("level_up");
       state.cleared = true;
@@ -940,12 +1020,13 @@ export function renderCastleMain(optGrid) {
       saveAutosave();
     } else {
       playSound("heal");
-      addLog("おしろ：パーティは休息した。HPとMPが全回復した！（ステータス異常はカント寺院で治療してください）");
+      addLog(`おしろ（宿屋）：${innCost}Gを支払い、宿屋で休息した。HPとMPが全回復した！`);
       saveAutosave();
     }
     updateUI();
+    renderCastleMain(optGrid);
   });
-  optGrid.appendChild(btnRest);
+  optGrid.appendChild(btnInn);
 
   // 👥 メンバー編成 (訓練場)
   const btnAssemble = document.createElement("button");

@@ -177,5 +177,46 @@ Object.defineProperty(global, "navigator", {
 
   console.log("   [PASS] Workshop only allows dismantling of identified equipment.");
 
+  // ==========================================
+  // Test 5: Sale Restriction for Unidentified Items
+  // ==========================================
+  console.log("-> Checking Sale restrictions for Unidentified Items...");
+  const { executeSale } = await import("../src/shop/purchase.js");
+  
+  // Setup state for sale
+  state.inventory = [
+    {
+      kind: "equipment",
+      instanceId: "test_unidentified_2",
+      baseId: "SHORT_SWORD",
+      rarity: "magic",
+      identified: false,
+      affixes: []
+    },
+    {
+      kind: "equipment",
+      instanceId: "test_identified_2",
+      baseId: "SHORT_SWORD",
+      rarity: "magic",
+      identified: true,
+      affixes: []
+    }
+  ];
+  state.gold = 100;
+  
+  // Attempt to sell unidentified item (index 0)
+  const sellUnidentifiedResult = executeSale(0, 100);
+  assert.strictEqual(sellUnidentifiedResult, false, "Unidentified gear must NOT be saleable");
+  assert.strictEqual(state.gold, 100, "Gold must not change after failed sale");
+  assert.strictEqual(state.inventory.length, 2, "Inventory size must not change after failed sale");
+
+  // Attempt to sell identified item (index 1)
+  const sellIdentifiedResult = executeSale(1, 50);
+  assert.strictEqual(sellIdentifiedResult, true, "Identified gear should be saleable");
+  assert.strictEqual(state.gold, 150, "Gold must increase by sale price");
+  assert.strictEqual(state.inventory.length, 1, "Inventory size must decrease by 1");
+  
+  console.log("   [PASS] Direct sale of unidentified items is successfully blocked.");
+
   console.log("All Expedition Economy Simulation & Verification Tests PASSED!");
 })();

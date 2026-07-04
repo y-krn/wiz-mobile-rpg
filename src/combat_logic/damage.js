@@ -1,4 +1,5 @@
 import { getItemBaseId, getCharAffixSum } from "../data.js";
+import { recordCharDeath } from "../state.js";
 import { getBuffTotal } from "./status_effects.js";
 
 export function getMeleeModifiers(char, actorIdx) {
@@ -112,7 +113,16 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
     if (isDefending) dmg = Math.max(1, Math.round(dmg * (options.defendRate ?? 0.5)));
     dmg = reduceIncomingDamage(c, dmg, { spell: options.spell, dragon: options.dragon, logQueue });
     c.hp = Math.max(0, c.hp - dmg);
-    if (c.hp === 0) c.status = "dead";
+    if (c.hp === 0) {
+      c.status = "dead";
+      let causeText = `${sourceName}の攻撃`;
+      if (options.spell) {
+        causeText = `${sourceName}の魔術`;
+      } else if (options.dragon) {
+        causeText = `${sourceName}のブレス`;
+      }
+      recordCharDeath(state, c, causeText);
+    }
     logQueue.push({ msg: `[ 敵 ] ${sourceName}により${c.name}は${dmg}のダメージを受けた。${isDefending ? "(防御)" : ""}` });
   });
 }

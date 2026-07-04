@@ -48,6 +48,21 @@ export function renderResultScreen() {
   const titleText = isSuccess ? "探索結果 (無事帰還)" : "探索失敗 (全滅)";
   const headerClass = isSuccess ? "success" : "failed";
 
+  let deathLogsHtml = "";
+  if (run.deathLogs && run.deathLogs.length > 0) {
+    const logsList = run.deathLogs.map(log => {
+      const turnText = log.turn !== null ? ` (ターン${log.turn})` : "";
+      return `<div style="font-size: 10px; margin-bottom: 3px; color: #ddd; white-space: normal; word-break: break-all;">☠️ <strong>${log.charName}</strong>: B${log.floor}F で${log.cause}により倒れた${turnText}</div>`;
+    }).join("");
+    
+    deathLogsHtml = `
+      <div class="result-eval-section failed" style="margin-top: 10px; margin-bottom: 12px; border-color: var(--neon-red); padding: 8px 10px; background: rgba(255, 0, 51, 0.05); text-align: left;">
+        <div class="result-eval-title" style="color: var(--neon-red); font-size: 11px; margin-bottom: 6px; border-bottom: 1px solid rgba(255, 0, 51, 0.2); padding-bottom: 2px;">☠️ 最期の記録</div>
+        <div style="line-height: 1.4;">${logsList}</div>
+      </div>
+    `;
+  }
+
   const itemsCount = run.itemsFound.length;
   const equipCount = run.equipmentFound.length;
   const unidentifiedCount = (run.equipmentFound || []).filter(eq => typeof eq === "object" && !eq.identified).length;
@@ -238,6 +253,8 @@ export function renderResultScreen() {
           </div>
         </div>
 
+        ${deathLogsHtml}
+
         <div class="result-eval-section" style="border-color: var(--neon-gold); background: rgba(255, 170, 0, 0.05); text-align: left; margin-bottom: 12px;">
           <div class="result-eval-title" style="color: var(--neon-gold);">💡 次の推奨アクション</div>
           <div style="font-size: 11px; line-height: 1.5;">
@@ -347,6 +364,8 @@ export function renderResultScreen() {
           <div class="result-eval-title">今回の冒険評価</div>
           <div>${getEvaluationText(run, isSuccess)}</div>
         </div>
+
+        ${deathLogsHtml}
 
         ${materialsHtml}
         ${contractHtml}

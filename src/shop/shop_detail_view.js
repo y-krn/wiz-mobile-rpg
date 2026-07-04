@@ -409,15 +409,24 @@ export function renderShopDetail() {
         }
       });
     } else if (shopState.mode === "sell") {
-      actionBtn.className = `btn btn-block shop-action-btn btn-danger`;
-      actionBtn.textContent = `売却する (+${itemPrice}G)`;
+      const originalItemKey = state.inventory[shopState.selectedIdx];
+      const isUnidentified = (typeof originalItemKey === "object" && originalItemKey !== null && !originalItemKey.identified);
 
-      actionBtn.addEventListener("click", () => {
-        if (executeSale(shopState.selectedIdx, itemPrice)) {
-          renderShop();
-          updateUI();
-        }
-      });
+      actionBtn.className = `btn btn-block shop-action-btn btn-danger`;
+      if (isUnidentified) {
+        actionBtn.textContent = `売却不可 (未鑑定)`;
+        actionBtn.disabled = true;
+        actionBtn.classList.add("disabled");
+      } else {
+        actionBtn.textContent = `売却する (+${itemPrice}G)`;
+
+        actionBtn.addEventListener("click", () => {
+          if (executeSale(shopState.selectedIdx, itemPrice)) {
+            renderShop();
+            updateUI();
+          }
+        });
+      }
     } else { // appraise
       const eqItem = state.inventory[shopState.selectedIdx];
       const hasTicket = (state.identifyTickets || 0) > 0;

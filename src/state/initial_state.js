@@ -67,7 +67,8 @@ export const createDefaultCurrentRun = () => ({
   firstKills: [],
   floorsVisited: [],
   dangerScore: 0,
-  returnReason: ""
+  returnReason: "",
+  deathLogs: []
 });
 
 // Default roster (all 8 classes)

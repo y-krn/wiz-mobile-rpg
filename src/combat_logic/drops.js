@@ -1,3 +1,28 @@
+export function getMonsterMainMaterial(monster) {
+  const name = monster.name.replace(/\s[A-Z]$/, "");
+  const tags = monster.tags || [];
+  const spriteType = monster.spriteType || "";
+  const isPoisonous = monster.isPoisonous || false;
+
+  if (tags.includes("dragon") || spriteType === "dragon") {
+    return "竜鱗";
+  } else if (tags.includes("demon") || spriteType === "flack") {
+    return "黒角";
+  } else if (name.includes("鎧") || name.includes("石") || name.includes("アイアン") || name.includes("ストーン") || name.includes("ゴーレム")) {
+    return "鉄片";
+  } else if (spriteType === "mage" || name.includes("魔術") || name.includes("魔女")) {
+    return "魔石片";
+  } else if (tags.includes("spirit") || spriteType === "spirit" || spriteType === "wisp") {
+    return "霊粉";
+  } else if (tags.includes("undead") || spriteType === "skeleton" || spriteType === "zombie") {
+    return "骨片";
+  } else if (isPoisonous || spriteType === "spider" || name.includes("蜘蛛") || name.includes("毒")) {
+    return "毒腺";
+  } else {
+    return "獣の牙";
+  }
+}
+
 export function determineMonsterDrop(monster, floor, rng = Math.random) {
   const name = monster.name.replace(/\s[A-Z]$/, "");
   const tags = monster.tags || [];
@@ -6,32 +31,33 @@ export function determineMonsterDrop(monster, floor, rng = Math.random) {
   const isBoss = monster.isBoss || false;
   const isPoisonous = monster.isPoisonous || false;
 
-  let main;
+  const main = getMonsterMainMaterial(monster);
   let sub;
   
+  if (name === "メタルパピー") {
+    const rareMat = floor >= 4 ? "竜鱗" : "黒角";
+    return {
+      "獣の牙": 2,
+      "硬い皮": 1,
+      [rareMat]: 1
+    };
+  }
+  
   if (tags.includes("dragon") || spriteType === "dragon") {
-    main = "竜鱗";
     sub = "獣の牙";
   } else if (tags.includes("demon") || spriteType === "flack") {
-    main = "黒角";
     sub = "魔石片";
   } else if (name.includes("鎧") || name.includes("石") || name.includes("アイアン") || name.includes("ストーン") || name.includes("ゴーレム")) {
-    main = "鉄片";
     sub = "魔石片";
   } else if (spriteType === "mage" || name.includes("魔術") || name.includes("魔女")) {
-    main = "魔石片";
     sub = "呪布";
   } else if (tags.includes("spirit") || spriteType === "spirit" || spriteType === "wisp") {
-    main = "霊粉";
     sub = "魔石片";
   } else if (tags.includes("undead") || spriteType === "skeleton" || spriteType === "zombie") {
-    main = "骨片";
     sub = "霊粉";
   } else if (isPoisonous || spriteType === "spider" || name.includes("蜘蛛") || name.includes("毒")) {
-    main = "毒腺";
     sub = "硬い皮";
   } else {
-    main = "獣の牙";
     sub = "硬い皮";
   }
 

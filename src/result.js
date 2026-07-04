@@ -136,7 +136,10 @@ export function triggerRunResult(reason) {
 
     // 死亡履歴登録用の原因特定
     let cause = "不測の罠またはダメージ";
-    if (state.combatState && state.combatState.monsters) {
+    if (state.currentRun && state.currentRun.deathLogs && state.currentRun.deathLogs.length > 0) {
+      const latestDeath = state.currentRun.deathLogs[state.currentRun.deathLogs.length - 1];
+      cause = `${latestDeath.charName}が${latestDeath.cause}で死亡`;
+    } else if (state.combatState && state.combatState.monsters) {
       const activeEnemies = state.combatState.monsters.filter(m => m.hp > 0);
       if (activeEnemies.length > 0) {
         cause = activeEnemies[0].name.replace(/\s[A-Z]$/, "") + "との戦闘";

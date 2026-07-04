@@ -28,7 +28,14 @@ export function executePurchase(itemKey, price) {
 }
 
 export function executeSale(idx, price) {
-  const item = getItemData(state.inventory[idx]);
+  const itemVal = state.inventory[idx];
+  const isUnidentified = (typeof itemVal === "object" && itemVal !== null && !itemVal.identified);
+  if (isUnidentified) {
+    addLog("未鑑定の装備は売却できません。");
+    return false;
+  }
+
+  const item = getItemData(itemVal);
   const currentSelectedIdx = idx;
   
   // フィルタ後の現在の位置（filteredClickIdx）を特定する

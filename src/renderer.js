@@ -708,6 +708,27 @@ export class DungeonRenderer {
     ctx.textAlign = "center";
     ctx.fillText(`${monster.name} (Lv.${monster.level})`, cx, cy - 70);
 
+    // Draw Omen (danger telegraph) if any
+    let omenText = "";
+    if (monster.chargeQueued) omenText = "⚠️溜め中 (大ダメージ)";
+    else if (monster.selfDestructQueued) omenText = "⚠️爆発寸前 (自爆)";
+    else if (monster.lahalitoQueued) omenText = "⚠️詠唱準備 (ラハリト/全体)";
+    else if (monster.madaltoQueued) omenText = "⚠️詠唱準備 (マダルト/全体)";
+    else if (monster.tiltowaitQueued) omenText = "⚠️詠唱準備 (極大爆裂/全体)";
+    else if (monster.dragonBreathQueued) omenText = "⚠️ブレス準備 (全体)";
+    else if (monster.multiActionQueued) omenText = "⚠️連続行動の予兆";
+    else if (monster.summonQueued) omenText = "⚠️召喚の予兆";
+    else if (monster.snipeQueued) {
+      const targetChar = state.party[monster.snipeTargetIdx];
+      omenText = `⚠️狙撃準備 (後列: ${targetChar ? targetChar.name : "後列"})`;
+    }
+
+    if (omenText) {
+      ctx.fillStyle = "#ffcc00"; // Gold color for warnings
+      ctx.font = "bold 12px 'Share Tech Mono', monospace";
+      ctx.fillText(omenText, cx, cy - 88);
+    }
+
     // HP Bar
     const barW = 100;
     const barH = 5;

@@ -11,7 +11,7 @@ export const SPELLS = {
   KATINO: {
     name: "KATINO",
     type: "mage",
-    level: 1,
+    level: 3,
     cost: 2,
     target: "all_enemies",
     desc: "睡眠の呪文 (敵全体を眠らせる)"

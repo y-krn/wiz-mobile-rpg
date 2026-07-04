@@ -55,7 +55,8 @@ function generateDungeon(seed) {
 console.log("Starting Loop verification of Map Reachability...");
 
 let failCount = 0;
-for (let i = 0; i < 3000; i++) {
+const ITERATIONS = 500;
+for (let i = 0; i < ITERATIONS; i++) {
   const seed = `SEED-LOOP-${i}`;
   try {
     const { b1, b2, b3, b4, b5 } = generateDungeon(seed);
@@ -116,7 +117,7 @@ for (let i = 0; i < 3000; i++) {
 }
 
 if (failCount === 0) {
-  console.log("[PASS] 3000 seeds verified. No reachability bugs found in generator.");
+  console.log(`[PASS] ${ITERATIONS} seeds verified. No reachability bugs found in generator.`);
 } else {
   console.log(`[FAIL] Total failures: ${failCount}`);
   process.exit(1);

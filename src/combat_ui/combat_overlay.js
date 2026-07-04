@@ -51,12 +51,27 @@ export function renderCombatOverlay() {
 
         const hpPct = m.maxHp > 0 ? (m.hp / m.maxHp) * 100 : 0;
         const rowLabel = getEnemyRow(m) === "front" ? "前" : "後";
+        let omenHtml = "";
+        if (m.chargeQueued) omenHtml = `<div class="enemy-omen charge">⚠️ 溜め中 (大ダメージ)</div>`;
+        else if (m.selfDestructQueued) omenHtml = `<div class="enemy-omen explode">⚠️ 爆発寸前 (自爆)</div>`;
+        else if (m.lahalitoQueued) omenHtml = `<div class="enemy-omen spell">⚠️ 詠唱準備 (ラハリト/全体)</div>`;
+        else if (m.madaltoQueued) omenHtml = `<div class="enemy-omen spell">⚠️ 詠唱準備 (マダルト/全体)</div>`;
+        else if (m.tiltowaitQueued) omenHtml = `<div class="enemy-omen spell-boss">⚠️ 詠唱準備 (極大爆裂/全体)</div>`;
+        else if (m.dragonBreathQueued) omenHtml = `<div class="enemy-omen breath">⚠️ ブレス準備 (全体)</div>`;
+        else if (m.multiActionQueued) omenHtml = `<div class="enemy-omen multi">⚠️ 連続行動の予兆</div>`;
+        else if (m.summonQueued) omenHtml = `<div class="enemy-omen summon">⚠️ 召喚の予兆</div>`;
+        else if (m.snipeQueued) {
+          const targetChar = state.party[m.snipeTargetIdx];
+          omenHtml = `<div class="enemy-omen snipe">⚠️ 狙撃準備 (対象: ${targetChar ? targetChar.name : "後列"})</div>`;
+        }
+
         card.innerHTML = `
           <div class="card-title"><span class="enemy-row-tag ${getEnemyRow(m)}">${rowLabel}</span>${m.name}</div>
           <div class="card-hp-bar-container">
             <div class="card-hp-bar" style="width: ${hpPct}%"></div>
           </div>
           <div class="card-hp-text">HP: ${m.hp}/${m.maxHp}</div>
+          ${omenHtml}
           ${blocked ? `<div class="card-note">前列に阻まれている</div>` : ""}
         `;
 

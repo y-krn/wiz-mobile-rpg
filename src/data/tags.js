@@ -136,18 +136,18 @@ export const MATERIAL_TAGS = {
 };
 
 export const TAG_EFFECT_MAP = {
-  holy: { name: "聖印", type: "antiUndead", value: 20, desc: "不死特効+20%" },
-  spirit: { name: "霊印", type: "mp", value: 2, desc: "最大MP+2" },
-  appraisal: { name: "鑑印", type: "identifyDiscount", value: 10, desc: "鑑定割引+10%" },
-  poison: { name: "毒印", type: "poisonWard", value: 25, desc: "毒耐性+25%" },
-  trap: { name: "罠印", type: "trapBonus", value: 10, desc: "罠解除率+10%" },
-  iron: { name: "鉄印", type: "def", value: 3, desc: "防御力+3" },
-  ward: { name: "守印", type: "guardian", value: 10, desc: "守護適性+10%" },
-  dragon: { name: "竜印", type: "antiDragon", value: 20, desc: "竜特効+20%" },
-  fire: { name: "火印", type: "atk", value: 3, desc: "攻撃力+3" },
-  curse: { name: "呪印", type: "curse", value: 0, desc: "渇血の呪い (攻撃+15 / 回復-20%)" },
-  demon: { name: "魔印", type: "antiDemon", value: 20, desc: "悪魔特効+20%" },
-  blood: { name: "血印", type: "followUp", value: 10, desc: "連撃適性+10%" }
+  holy: { name: "聖印", type: "antiUndead", value: 20, desc: "不死特効+20%", gold: 150, matCost: 3 },
+  spirit: { name: "霊印", type: "mp", value: 2, desc: "最大MP+2", gold: 100, matCost: 2 },
+  appraisal: { name: "鑑印", type: "identifyDiscount", value: 10, desc: "鑑定割引+10%", gold: 100, matCost: 2 },
+  poison: { name: "毒印", type: "poisonWard", value: 25, desc: "毒耐性+25%", gold: 100, matCost: 2 },
+  trap: { name: "罠印", type: "trapBonus", value: 10, desc: "罠解除率+10%", gold: 100, matCost: 2 },
+  iron: { name: "鉄印", type: "def", value: 3, desc: "防御力+3", gold: 100, matCost: 2 },
+  ward: { name: "守印", type: "guardian", value: 10, desc: "守護適性+10%", gold: 150, matCost: 3 },
+  dragon: { name: "竜印", type: "antiDragon", value: 20, desc: "竜特効+20%", gold: 300, matCost: 4 },
+  fire: { name: "火印", type: "atk", value: 3, desc: "攻撃力+3", gold: 150, matCost: 3 },
+  curse: { name: "呪印", type: "curse", value: 0, desc: "渇血の呪い (攻撃+15 / 回復-20%)", gold: 50, matCost: 1 },
+  demon: { name: "魔印", type: "antiDemon", value: 20, desc: "悪魔特効+20%", gold: 250, matCost: 4 },
+  blood: { name: "血印", type: "followUp", value: 10, desc: "連撃適性+10%", gold: 150, matCost: 3 }
 };
 
 export function getPartyActiveTags(party) {

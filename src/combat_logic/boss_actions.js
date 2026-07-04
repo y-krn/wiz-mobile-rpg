@@ -1,4 +1,5 @@
 import { reduceIncomingDamage } from "./damage.js";
+import { recordCharDeath } from "../state.js";
 
 /**
  * Executes a boss custom action for Flack or Old Dragon.
@@ -27,7 +28,10 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue });
           c.hp = Math.max(0, c.hp - dmg);
-          if (c.hp === 0) c.status = "dead";
+          if (c.hp === 0) {
+            c.status = "dead";
+            recordCharDeath(state, c, "フラックのラハリト");
+          }
           logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
         }
       });
@@ -81,7 +85,10 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue });
           c.hp = Math.max(0, c.hp - dmg);
-          if (c.hp === 0) c.status = "dead";
+          if (c.hp === 0) {
+            c.status = "dead";
+            recordCharDeath(state, c, "フラックの自爆");
+          }
           logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。` });
         }
       });
@@ -127,6 +134,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     const isSilenced = mon.silenceTurns > 0;
     if (isSilenced) {
       mon.tiltowaitQueued = false;
+      mon.madaltoQueued = false;
     }
 
     if (mon.tiltowaitQueued) {
@@ -153,8 +161,67 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           }
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
           c.hp = Math.max(0, c.hp - dmg);
-          if (c.hp === 0) c.status = "dead";
+          if (c.hp === 0) {
+            c.status = "dead";
+            recordCharDeath(state, c, "いにしえの竜のティルトウェイト");
+          }
           logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。` });
+        }
+      });
+      return true;
+    }
+
+    if (mon.dragonBreathQueued) {
+      mon.dragonBreathQueued = false;
+      mon.turnCount = (mon.turnCount || 0) + 1;
+      logQueue.push({
+        msg: `[ 敵 ] いにしえの竜は激しい炎の息を吐き出した！`,
+        sound: "cast_spell",
+        shake: 15,
+        flash: true
+      });
+      state.party.forEach((c, charIdx) => {
+        if (c.status !== "dead") {
+          const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+          let dmg = Math.floor(Math.random() * 13) + 12; // 12-24 DMG
+          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
+          c.hp = Math.max(0, c.hp - dmg);
+          if (c.hp === 0) {
+            c.status = "dead";
+            recordCharDeath(state, c, "いにしえの竜の炎の息");
+          }
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
+        }
+      });
+      return true;
+    }
+
+    if (mon.madaltoQueued) {
+      mon.madaltoQueued = false;
+      mon.turnCount = (mon.turnCount || 0) + 1;
+      if (isSilenced) {
+        logQueue.push({ msg: `[ 敵 ] いにしえの竜はマダルトを唱えようとしたが、沈黙している！` });
+        return true;
+      }
+      logQueue.push({
+        msg: `[ 敵 ] いにしえの竜はマダルトを唱えた！氷の嵐が吹き荒れる！`,
+        sound: "cast_spell",
+        shake: 15,
+        flash: true
+      });
+      state.party.forEach((c, charIdx) => {
+        if (c.status !== "dead") {
+          const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+          let dmg = Math.floor(Math.random() * 21) + 15; // 15-35 DMG
+          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
+          c.hp = Math.max(0, c.hp - dmg);
+          if (c.hp === 0) {
+            c.status = "dead";
+            recordCharDeath(state, c, "いにしえの竜のマダルト");
+          }
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
         }
       });
       return true;
@@ -168,8 +235,6 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     } else if (currentTurn === 2) {
       action = "tiltowait_queue";
     }
-
-    mon.turnCount++;
 
     if (isSilenced) {
       if (action === "madalto") {
@@ -188,41 +253,17 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       });
       return true;
     } else if (action === "breath") {
+      mon.dragonBreathQueued = true;
       logQueue.push({
-        msg: `[ 敵 ] いにしえの竜は激しい炎の息を吐き出した！`,
-        sound: "cast_spell",
-        shake: 15,
-        flash: true
-      });
-      state.party.forEach((c, charIdx) => {
-        if (c.status !== "dead") {
-          const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-          let dmg = Math.floor(Math.random() * 13) + 12; // 12-24 DMG
-          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
-          c.hp = Math.max(0, c.hp - dmg);
-          if (c.hp === 0) c.status = "dead";
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。` });
-        }
+        msg: `[警告] いにしえの竜の顎から黒煙が立ち上る！次のターン、炎の息の予兆！身を守れ！`,
+        sound: "cast_spell"
       });
       return true;
     } else if (action === "madalto") {
+      mon.madaltoQueued = true;
       logQueue.push({
-        msg: `[ 敵 ] いにしえの竜はマダルトを唱えた！氷の嵐が吹き荒れる！`,
-        sound: "cast_spell",
-        shake: 15,
-        flash: true
-      });
-      state.party.forEach((c, charIdx) => {
-        if (c.status !== "dead") {
-          const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-          let dmg = Math.floor(Math.random() * 21) + 15; // 15-35 DMG
-          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
-          c.hp = Math.max(0, c.hp - dmg);
-          if (c.hp === 0) c.status = "dead";
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。` });
-        }
+        msg: `[警告] いにしえの竜の周囲に冷気が渦巻く！次のターン、マダルトの予兆！身を守れ！`,
+        sound: "cast_spell"
       });
       return true;
     }

@@ -308,6 +308,7 @@ export function renderShop() {
           itemsList.appendChild(heading);
         }
 
+        const isUnidentified = (typeof itemVal === "object" && itemVal !== null && !itemVal.identified);
         const value = Math.floor((item.price || 0) * 0.5);
         const row = document.createElement("button");
         row.type = "button";
@@ -327,15 +328,21 @@ export function renderShop() {
           badge.className = "shop-row-badge cant";
           badge.textContent = "売却不可";
           row.appendChild(badge);
+        } else if (isUnidentified) {
+          row.classList.add("not-purchasable");
+          const badge = document.createElement("span");
+          badge.className = "shop-row-badge cant";
+          badge.textContent = "要鑑定";
+          row.appendChild(badge);
         }
 
         const priceSpan = document.createElement("span");
         priceSpan.className = "shop-item-price";
-        priceSpan.textContent = `${value}G`;
+        priceSpan.textContent = isUnidentified ? "—" : `${value}G`;
         row.appendChild(priceSpan);
 
         row.addEventListener("click", () => {
-          if (item.price > 0) {
+          if (item.price > 0 && !isUnidentified) {
             shopState.selectedKey = itemVal;
             shopState.selectedIdx = idx;
             shopState.lastAppraised = null;

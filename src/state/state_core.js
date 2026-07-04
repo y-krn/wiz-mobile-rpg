@@ -110,6 +110,26 @@ export function addLog(msg) {
   }
 }
 
+export function recordCharDeath(stateObj, char, cause) {
+  if (!stateObj.currentRun) return;
+  if (!stateObj.currentRun.deathLogs) {
+    stateObj.currentRun.deathLogs = [];
+  }
+  const alreadyRecorded = stateObj.currentRun.deathLogs.some(log => log.charName === char.name);
+  if (alreadyRecorded) return;
+
+  const turn = stateObj.combatState ? stateObj.combatState.turn : null;
+  stateObj.currentRun.deathLogs.push({
+    charName: char.name,
+    cause: cause,
+    floor: stateObj.floor,
+    turn: turn
+  });
+
+  const turnText = turn !== null ? ` (ターン ${turn})` : "";
+  addLog(`☠️ [!] ${char.name}は B${stateObj.floor}F で${cause}により倒れた。${turnText}`);
+}
+
 // 詰み判定 (全員死亡かつ蘇生費不足)
 export function isSoftlocked() {
   const hasAlive = state.roster.some(char => char.status !== "dead" && char.status !== "ash");

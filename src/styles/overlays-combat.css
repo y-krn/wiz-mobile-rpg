@@ -404,3 +404,55 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
+
+/* Enemy Danger Telegraph Omen Badges */
+.enemy-omen {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 4px;
+  border-radius: 2px;
+  margin-top: 4px;
+  text-align: center;
+  box-sizing: border-box;
+  width: 100%;
+}
+.enemy-omen.charge {
+  background-color: rgba(255, 149, 0, 0.15);
+  border: 1px solid rgba(255, 149, 0, 0.4);
+  color: #ff9500;
+}
+.enemy-omen.explode {
+  background-color: rgba(255, 59, 48, 0.15);
+  border: 1px solid rgba(255, 59, 48, 0.4);
+  color: #ff3b30;
+}
+.enemy-omen.spell {
+  background-color: rgba(175, 82, 222, 0.15);
+  border: 1px solid rgba(175, 82, 222, 0.4);
+  color: #af52de;
+}
+.enemy-omen.spell-boss {
+  background-color: rgba(255, 45, 85, 0.15);
+  border: 1px solid rgba(255, 45, 85, 0.4);
+  color: #ff2d55;
+}
+.enemy-omen.breath {
+  background-color: rgba(255, 59, 48, 0.15);
+  border: 1px solid rgba(255, 59, 48, 0.4);
+  color: #ff3b30;
+}
+.enemy-omen.multi {
+  background-color: rgba(90, 200, 250, 0.15);
+  border: 1px solid rgba(90, 200, 250, 0.4);
+  color: #5ac8fa;
+}
+.enemy-omen.summon {
+  background-color: rgba(76, 217, 100, 0.15);
+  border: 1px solid rgba(76, 217, 100, 0.4);
+  color: #4cd964;
+}
+.enemy-omen.snipe {
+  background-color: rgba(255, 204, 0, 0.15);
+  border: 1px solid rgba(255, 204, 0, 0.4);
+  color: #ffcc00;
+}

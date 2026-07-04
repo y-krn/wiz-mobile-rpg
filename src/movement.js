@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, createDefaultCurrentRun } from "./state.js";
+import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath } from "./state.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -471,6 +471,7 @@ export function applyExplorationPoison() {
       tookDamage = true;
       if (c.hp === 0) {
         c.status = "dead";
+        recordCharDeath(state, c, "毒のダメージ");
         addLog(`[!] ${c.name}は毒で力尽きた！`);
       }
     }
@@ -503,6 +504,7 @@ export function triggerFlameTrap() {
       addLog(`${c.name}は${dmg}の炎ダメージを受けた。`);
       if (c.hp === 0) {
         c.status = "dead";
+        recordCharDeath(state, c, "火炎の罠");
         addLog(`[!] ${c.name}は炎に焼かれて力尽きた！`);
       }
     }

@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "./state.js";
+import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath } from "./state.js";
 import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomEquipment, getCharAffixSum, getActiveSynergies, recordSynergyDiscovery } from "./data.js";
 import { getOmenForFloor, isMatchedTrap, triggerOmenMatch } from "./systems/omens.js";
 import { playSound } from "./audio.js";
@@ -544,7 +544,12 @@ export function triggerChestTrap(char) {
     char.hp = Math.max(0, char.hp - 12);
     const ward = getCharAffixSum(char, "poisonWard");
     const resisted = char.hp > 0 && ward > 0 && Math.random() * 100 < ward;
-    char.status = char.hp === 0 ? "dead" : (resisted ? char.status : "poisoned");
+    if (char.hp === 0) {
+      char.status = "dead";
+      recordCharDeath(state, char, "宝箱の罠「毒針」");
+    } else {
+      char.status = resisted ? char.status : "poisoned";
+    }
     addLog(`毒針が作動！${char.name}は12のダメージを受けた。${resisted ? "毒避けの備えで毒は免れた！" : "毒状態になった！"}`);
     if (renderer) renderer.addDamageText("12", "#ff3b30");
   } else if (trap === "gas bomb") {
@@ -553,7 +558,10 @@ export function triggerChestTrap(char) {
       if (c.status !== "dead") {
         const dmg = Math.floor(Math.random() * 8) + 5; // 5-12
         c.hp = Math.max(0, c.hp - dmg);
-        if (c.hp === 0) c.status = "dead";
+        if (c.hp === 0) {
+          c.status = "dead";
+          recordCharDeath(state, c, "宝箱の罠「ガス爆弾」");
+        }
         addLog(`${c.name}は${dmg}のガスダメージを受けた。`);
       }
     });

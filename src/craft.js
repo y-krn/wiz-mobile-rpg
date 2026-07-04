@@ -9,28 +9,28 @@ export const CRAFT_RECIPES = [
     resultId: "HEAL_POTION",
     name: "傷薬 (回復薬)",
     mats: { "硬い皮": 1, "獣の牙": 1 },
-    gold: 15,
+    gold: 40,
     desc: "使用するとHPを15回復する。"
   },
   {
     resultId: "ANTIDOTE",
     name: "解毒薬",
     mats: { "毒腺": 1 },
-    gold: 20,
+    gold: 50,
     desc: "使用すると毒状態を解除する。"
   },
   {
     resultId: "HOLY_WATER",
     name: "祝福の聖水",
     mats: { "霊粉": 1, "骨片": 1 },
-    gold: 30,
-    desc: "HPを40回復し、毒状態も治療する。"
+    gold: 100,
+    desc: "HPを15回復し、毒状態も治療する。"
   },
   {
     resultId: "MANA_POTION",
     name: "魔力草",
-    mats: { "魔石片": 2, "呪布": 1 },
-    gold: 50,
+    mats: { "魔石片": 3, "呪布": 1 },
+    gold: 250,
     desc: "使用するとMPを3回復する。"
   }
 ];
@@ -256,55 +256,7 @@ export function executeDismantle(itemIdx) {
   return true;
 }
 
-export const INSCRIPTION_RECIPES = [
-  {
-    id: "POISON_WARD",
-    name: "毒避刻印",
-    type: "poisonWard",
-    value: 25,
-    mats: { "毒腺": 2, "硬い皮": 2 },
-    gold: 100,
-    desc: "毒耐性+25%"
-  },
-  {
-    id: "ANTI_UNDEAD",
-    name: "不死刻印",
-    type: "antiUndead",
-    value: 20,
-    mats: { "骨片": 2, "霊粉": 1 },
-    gold: 150,
-    desc: "不死特効+20%"
-  },
-  {
-    id: "SPELL_GUARD",
-    name: "魔除刻印",
-    type: "spellGuard",
-    value: 15,
-    mats: { "呪布": 2, "魔石片": 2 },
-    gold: 200,
-    desc: "呪文防御+15%"
-  },
-  {
-    id: "ANTI_DEMON",
-    name: "退魔刻印",
-    type: "antiDemon",
-    value: 20,
-    mats: { "黒角": 2, "魔石片": 2 },
-    gold: 250,
-    desc: "悪魔対策+20%"
-  },
-  {
-    id: "ANTI_DRAGON",
-    name: "竜殺刻印",
-    type: "antiDragon",
-    value: 20,
-    mats: { "竜鱗": 2, "鉄片": 3 },
-    gold: 300,
-    desc: "竜特効+20%"
-  }
-];
-
-export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTagIdx, actionType = "add", options = {}) {
+export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTagIdx, actionType = "add") {
   let eqItem;
   let isEquipped = false;
   let actorIdx, slot;
@@ -336,8 +288,15 @@ export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTag
     return false;
   }
 
-  const goldCost = options.gold !== undefined ? options.gold : 150;
-  const matCost = options.matCost !== undefined ? options.matCost : 3;
+  // コスト取得
+  const effectInfo = actionType === "seal" ? { gold: 150, matCost: 3 } : TAG_EFFECT_MAP[tagToApply];
+  if (!effectInfo) {
+    addLog("無効な刻印効果です。");
+    return false;
+  }
+
+  const goldCost = effectInfo.gold;
+  const matCost = effectInfo.matCost;
 
   // ゴールドチェック
   if (state.gold < goldCost) {
@@ -346,25 +305,13 @@ export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTag
   }
 
   // 素材チェック＆消費
-  if (options.mats) {
-    for (const [m, reqQty] of Object.entries(options.mats)) {
-      if ((state.materials[m] || 0) < reqQty) {
-        addLog(`素材 [${m}] が不足しています。`);
-        return false;
-      }
-    }
-    state.gold -= goldCost;
-    for (const [m, reqQty] of Object.entries(options.mats)) {
-      state.materials[m] -= reqQty;
-    }
-  } else {
-    if ((state.materials[matName] || 0) < matCost) {
-      addLog(`素材 [${matName}] が不足しています。`);
-      return false;
-    }
-    state.gold -= goldCost;
-    state.materials[matName] -= matCost;
+  if ((state.materials[matName] || 0) < matCost) {
+    addLog(`素材 [${matName}] が不足しています。`);
+    return false;
   }
+
+  state.gold -= goldCost;
+  state.materials[matName] -= matCost;
 
   // 刻印付与
   const upgradedItem = convertToEquipObject(eqItem);
@@ -431,33 +378,3 @@ export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTag
   return true;
 }
 
-// 既存の互換性用
-export function executeInscription(itemIdx, recipeId) {
-  let eqItem;
-  if (itemIdx && typeof itemIdx === "object") {
-    if (itemIdx.type === "equipped") {
-      eqItem = state.party[itemIdx.actorIdx].equipment[itemIdx.slot];
-    } else {
-      eqItem = state.inventory[itemIdx.index];
-    }
-  } else {
-    eqItem = state.inventory[itemIdx];
-  }
-
-  if (eqItem && typeof eqItem === "object" && eqItem.inscription) {
-    addLog("この装備には既に刻印が施されています。");
-    return false;
-  }
-
-  const OLD_RECIPES = {
-    POISON_WARD: { mats: { "硬い皮": 2, "毒腺": 1 }, gold: 150, tag: "poison" },
-    ANTI_UNDEAD: { mats: { "骨片": 2, "霊粉": 1 }, gold: 150, tag: "holy" },
-    SPELL_GUARD: { mats: { "魔石片": 2, "霊粉": 1 }, gold: 150, tag: "spirit" },
-    ANTI_DEMON: { mats: { "黒角": 1, "魔石片": 2 }, gold: 200, tag: "demon" },
-    ANTI_DRAGON: { mats: { "竜鱗": 1, "硬い皮": 2 }, gold: 250, tag: "dragon" }
-  };
-  const recipe = OLD_RECIPES[recipeId];
-  if (!recipe) return false;
-  
-  return executeTagInscription(itemIdx, null, recipe.tag, undefined, "add", recipe);
-}

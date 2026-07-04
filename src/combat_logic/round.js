@@ -30,6 +30,7 @@ import {
 } from "./monster_traits.js";
 
 import { applyCombatRewards } from "./rewards.js";
+import { recordCharDeath } from "../state.js";
 
 import { resolveBossAction } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
@@ -112,7 +113,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         idx,
         speed
       });
-      if (hasTrait(mon, "multiAction")) {
+      if (hasTrait(mon, "multiAction") && mon.multiActionQueued) {
         turns.push({
           type: "monster",
           mon,
@@ -178,10 +179,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           shake = 0;
         } else {
           // Attack math
-          const atkVal = getCharStr(char) + getCharWeaponAtk(char);
+          const weaponAtk = getCharWeaponAtk(char);
+          const str = getCharStr(char);
           const randRoll = Math.floor(Math.random() * 5); // 0-4
           const meleeMod = getMeleeModifiers(char, turn.idx);
-          dmg = Math.max(1, Math.floor((atkVal + randRoll - getEffectiveDef(finalTarget)) * meleeMod));
+          const def = getEffectiveDef(finalTarget);
+          dmg = Math.max(1, Math.floor((weaponAtk * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod));
           
           if (char.status === "blind") {
             dmg = Math.max(1, Math.floor(dmg / 2));
@@ -223,7 +226,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (!isDecap && hasTrait(finalTarget, "reflectPhysical") && dmg > 0) {
             const reflected = Math.max(1, Math.floor(dmg * (finalTarget.physicalReflect?.rate ?? 0.3)));
             char.hp = Math.max(0, char.hp - reflected);
-            if (char.hp === 0) char.status = "dead";
+            if (char.hp === 0) {
+              char.status = "dead";
+              recordCharDeath(state, char, `${finalTarget.name}の物理反射`);
+            }
             logQueue.push({
               msg: `[ 敵 ] ${finalTarget.name}の棘が${char.name}に${reflected}の反射ダメージを与えた！`,
               sound: "hit",
@@ -236,7 +242,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             let counterDmg = Math.floor(Math.random() * 11) + 5;
             counterDmg = reduceIncomingDamage(char, counterDmg, { spell: true, logQueue });
             char.hp = Math.max(0, char.hp - counterDmg);
-            if (char.hp === 0) char.status = "dead";
+            if (char.hp === 0) {
+              char.status = "dead";
+              recordCharDeath(state, char, `${finalTarget.name}の反撃ハリト`);
+            }
             logQueue.push({
               msg: `[ 敵 ] ${finalTarget.name}はハリトで反撃した！${char.name}に${counterDmg}の炎ダメージ！`,
               sound: "cast_spell",
@@ -250,9 +259,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             const followUpChance = getCharAffixSum(char, "followUp");
             if (followUpChance > 0 && Math.random() * 100 < followUpChance) {
               const followUpDmgRand = Math.floor(Math.random() * 3);
-              const atkVal = getCharStr(char) + getCharWeaponAtk(char);
+              const weaponAtk = getCharWeaponAtk(char);
+              const str = getCharStr(char);
               const meleeMod = getMeleeModifiers(char, turn.idx);
-              let followUpDmg = Math.max(1, Math.floor((atkVal + followUpDmgRand - getEffectiveDef(finalTarget)) * 0.7 * meleeMod));
+              const def = getEffectiveDef(finalTarget);
+              let followUpDmg = Math.max(1, Math.floor((weaponAtk * 1.5 + (str - 10) + followUpDmgRand - Math.floor(def / 2)) * 0.7 * meleeMod));
               if (finalTarget.physResist) {
                 followUpDmg = Math.max(1, Math.round(followUpDmg * (1 - finalTarget.physResist)));
               }
@@ -312,11 +323,20 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       const mon = turn.mon;
       if (mon.hp <= 0) return;
 
+      if (mon.multiActionQueued) {
+        mon.multiActionQueued = false;
+      }
+
       if (mon.status === "sleep" || mon.status === "paralyzed" || mon.status === "paralyze") {
+        mon.chargeQueued = false;
+        mon.selfDestructQueued = false;
         mon.lahalitoQueued = false;
-        if (mon.name === "いにしえの竜") {
-          mon.tiltowaitQueued = false;
-        }
+        mon.madaltoQueued = false;
+        mon.tiltowaitQueued = false;
+        mon.dragonBreathQueued = false;
+        mon.multiActionQueued = false;
+        mon.summonQueued = false;
+        mon.snipeQueued = false;
         logQueue.push({
           msg: `[ 敵 ] ${mon.name}は動けない！`,
           sound: "miss"
@@ -368,16 +388,35 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       if (hasTrait(mon, "summonAlly")) {
-        mon.turnCount = (mon.turnCount || 0) + 1;
-        const livingMonsterCount = monsters.filter(m => m.hp > 0).length;
-        const summonLimit = mon.summon?.maxAllies ?? 5;
-        if (mon.turnCount % 3 === 0 && livingMonsterCount < summonLimit) {
-          const template = findMonsterTemplate(mon.summon?.name || "ゴブリンの呪術師");
-          if (template) {
-            monsters.push({ ...template, hp: template.hp, maxHp: template.hp });
-            logQueue.push({ msg: `[ 敵 ] ${mon.name}は${template.name}を召喚した！` });
+        if (mon.summonQueued) {
+          mon.summonQueued = false;
+          const livingMonsterCount = monsters.filter(m => m.hp > 0).length;
+          const summonLimit = mon.summon?.maxAllies ?? 5;
+          if (livingMonsterCount < summonLimit) {
+            const template = findMonsterTemplate(mon.summon?.name || "ゴブリンの呪術師");
+            if (template) {
+              monsters.push({ ...template, hp: template.hp, maxHp: template.hp });
+              logQueue.push({ msg: `[ 敵 ] ${mon.name}は${template.name}を召喚した！` });
+              return;
+            }
+          }
+        } else {
+          mon.turnCount = (mon.turnCount || 0) + 1;
+          const livingMonsterCount = monsters.filter(m => m.hp > 0).length;
+          const summonLimit = mon.summon?.maxAllies ?? 5;
+          if (mon.turnCount % 3 === 0 && livingMonsterCount < summonLimit) {
+            mon.summonQueued = true;
+            logQueue.push({ msg: `[警告] ${mon.name}が怪しい声で呪文を唱え始めた！次のターン、召喚の予兆！`, sound: "cast_spell" });
             return;
           }
+        }
+      }
+
+      if (hasTrait(mon, "multiAction")) {
+        if (!mon.multiActionQueued && Math.random() < (mon.traitChance ?? 0.35)) {
+          mon.multiActionQueued = true;
+          logQueue.push({ msg: `[警告] ${mon.name}の目が血走り、凶暴化している！次のターン、連続攻撃の予兆！`, sound: "cast_spell" });
+          return;
         }
       }
 
@@ -447,6 +486,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       const isSilenced = mon.silenceTurns > 0;
       if (isSilenced) {
         mon.lahalitoQueued = false;
+        mon.madaltoQueued = false;
         if (mon.name === "いにしえの竜") {
           mon.tiltowaitQueued = false;
         }
@@ -471,22 +511,60 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       // Prioritize living and active characters for physical attacks
-      const targetCandidates = hasTrait(mon, "targetLowHp")
-        ? getLivingTargetCandidates(state.party, "lowHp")
-        : (mon.isSniper || hasTrait(mon, "targetBackRow"))
-          ? getLivingTargetCandidates(state.party, "back")
-          : getLivingTargetCandidates(state.party, "front");
+      let targetCandidates;
+      let targetSelect = null;
+      let isSnipeAttack = false;
 
-      if (targetCandidates.length === 0) return;
+      if (mon.isSniper || hasTrait(mon, "targetBackRow")) {
+        if (mon.snipeQueued) {
+          mon.snipeQueued = false;
+          isSnipeAttack = true;
+          const targetChar = state.party[mon.snipeTargetIdx];
+          if (targetChar && targetChar.hp > 0 && targetChar.status !== "dead") {
+            const idx = state.party.indexOf(targetChar);
+            targetSelect = { c: targetChar, i: idx };
+          } else {
+            targetCandidates = getLivingTargetCandidates(state.party, "back");
+            if (targetCandidates.length > 0) {
+              targetSelect = targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
+            }
+          }
+        } else {
+          if (Math.random() < (mon.traitChance ?? 0.35)) {
+            targetCandidates = getLivingTargetCandidates(state.party, "back");
+            if (targetCandidates.length > 0) {
+              const selected = targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
+              mon.snipeQueued = true;
+              mon.snipeTargetIdx = selected.i;
+              logQueue.push({
+                msg: `[警告] ${mon.name}が後列の${selected.c.name}を狙い定めている！次のターン、狙撃の予兆！`,
+                sound: "cast_spell"
+              });
+              return;
+            }
+          }
+        }
+      }
 
-      const targetSelect = hasTrait(mon, "targetLowHp") ? targetCandidates[0] : targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
+      if (!targetSelect) {
+        targetCandidates = hasTrait(mon, "targetLowHp")
+          ? getLivingTargetCandidates(state.party, "lowHp")
+          : (mon.isSniper || hasTrait(mon, "targetBackRow"))
+            ? getLivingTargetCandidates(state.party, "back")
+            : getLivingTargetCandidates(state.party, "front");
+
+        if (targetCandidates.length === 0) return;
+        targetSelect = hasTrait(mon, "targetLowHp") ? targetCandidates[0] : targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
+      }
+
       const target = targetSelect.c;
 
       // Attack spells (HALITO, LAHALITO etc., excluding healer spells)
       const attackSpellChance = mon.spellChance !== undefined ? mon.spellChance : 0.20;
       let isLahalitoForced = !isSilenced && mon.spell === "LAHALITO" && mon.lahalitoQueued;
+      let isMadaltoForced = !isSilenced && mon.spell === "MADALTO" && mon.madaltoQueued;
 
-      if (isLahalitoForced || (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < attackSpellChance)) {
+      if (isLahalitoForced || isMadaltoForced || (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < attackSpellChance)) {
         if (isLahalitoForced || mon.spell === "LAHALITO") {
           if (mon.lahalitoQueued) {
             mon.lahalitoQueued = false;
@@ -503,7 +581,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
                 dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
                 c.hp = Math.max(0, c.hp - dmg);
-                if (c.hp === 0) c.status = "dead";
+                if (c.hp === 0) {
+                  c.status = "dead";
+                  recordCharDeath(state, c, `${mon.name}のラハリト`);
+                }
                 logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
               }
             });
@@ -511,6 +592,37 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             mon.lahalitoQueued = true;
             logQueue.push({
               msg: `[警告] ${mon.name}の周囲に炎が渦巻く！次のターン、ラハリトの予兆！`,
+              sound: "cast_spell"
+            });
+          }
+          return;
+        } else if (isMadaltoForced || mon.spell === "MADALTO") {
+          if (mon.madaltoQueued) {
+            mon.madaltoQueued = false;
+            logQueue.push({
+              msg: `[ 敵 ] ${mon.name}はマダルトを唱えた！氷の嵐が吹き荒れる！`,
+              sound: "cast_spell",
+              shake: 15,
+              flash: true
+            });
+            state.party.forEach((c, charIdx) => {
+              if (c.status !== "dead") {
+                const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
+                let dmg = Math.floor(Math.random() * 20) + 15;
+                if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+                dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
+                c.hp = Math.max(0, c.hp - dmg);
+                if (c.hp === 0) {
+                  c.status = "dead";
+                  recordCharDeath(state, c, `${mon.name}のマダルト`);
+                }
+                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
+              }
+            });
+          } else {
+            mon.madaltoQueued = true;
+            logQueue.push({
+              msg: `[警告] ${mon.name}の周囲の温度が急激に下がっていく！次のターン、マダルトの予兆！`,
               sound: "cast_spell"
             });
           }
@@ -528,24 +640,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             floatText: `${dmg}`,
             floatColor: "#ff3b30"
           });
-        } else if (mon.spell === "MADALTO") {
-          logQueue.push({
-            msg: `[ 敵 ] ${mon.name}はマダルトを唱えた！氷の嵐が吹き荒れる！`,
-            sound: "cast_spell",
-            shake: 15,
-            flash: true
-          });
-          state.party.forEach((c, charIdx) => {
-            if (c.status !== "dead") {
-              const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
-              let dmg = Math.floor(Math.random() * 20) + 15; // 15-35 DMG
-              if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
-              c.hp = Math.max(0, c.hp - dmg);
-              if (c.hp === 0) c.status = "dead";
-              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
-            }
-          });
         } else if (mon.spell === "TILTOWAIT") {
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}はティルトウェイトを唱えた！極大爆裂が襲いかかる！`,
@@ -560,7 +654,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
               dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
               c.hp = Math.max(0, c.hp - dmg);
-              if (c.hp === 0) c.status = "dead";
+              if (c.hp === 0) {
+                c.status = "dead";
+                recordCharDeath(state, c, `${mon.name}のティルトウェイト`);
+              }
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(半減)" : ""}` });
             }
           });
@@ -582,7 +679,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           });
         } else {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
-          const finalAtk = getEffectiveAtk(mon) + Math.floor(Math.random() * 4);
+          const baseAtk = getEffectiveAtk(mon);
+          let finalAtk;
+          if (isSnipeAttack) {
+            finalAtk = Math.round(baseAtk * 1.5) + Math.floor(Math.random() * 4);
+          } else {
+            finalAtk = baseAtk + Math.floor(Math.random() * 4);
+          }
           const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4)) - (target.tempDefDown || 0));
           let dmg = Math.max(1, finalAtk - finalDef);
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
@@ -595,10 +698,15 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const isMonDragon = mon.spriteType === "dragon" || (mon.tags && mon.tags.includes("dragon"));
           dmg = reduceIncomingDamage(target, dmg, { dragon: isMonDragon, logQueue });
           target.hp = Math.max(0, target.hp - dmg);
+          
+          const attackMsg = isSnipeAttack
+            ? `[ 敵 ] ${mon.name}の狙撃！${target.name}に${dmg}のダメージ！`
+            : `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`;
+          
           logQueue.push({
-            msg: `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`,
+            msg: attackMsg,
             sound: "hit",
-            shake: 8,
+            shake: isSnipeAttack ? 12 : 8,
             floatText: `${dmg}`,
             floatColor: "#ff3b30"
           });
@@ -655,6 +763,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       if (target.hp === 0) {
         target.status = "dead";
+        let deathCause = `${mon.name}の攻撃`;
+        if (isSnipeAttack) {
+          deathCause = `${mon.name}の狙撃`;
+        } else if (mon.spell) {
+          deathCause = `${mon.name}の${mon.spell}`;
+        }
+        recordCharDeath(state, target, deathCause);
         logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
       }
     }
@@ -690,6 +805,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         });
         if (c.hp === 0) {
           c.status = "dead";
+          recordCharDeath(state, c, "毒のダメージ");
           logQueue.push({ msg: `[味方] [!] ${c.name}は毒で力尽きた！` });
         }
       }
@@ -724,6 +840,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         state.party.forEach(c => {
           c.hp = 0;
           c.status = "dead";
+          recordCharDeath(state, c, "麻痺による衰弱");
         });
       }
     } else {

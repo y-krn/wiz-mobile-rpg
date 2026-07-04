@@ -1,4 +1,5 @@
 import { SPELLS } from "../data.js";
+import { recordCharDeath } from "../state.js";
 import { getEffectiveMagicResist, applyMagicResistBuffs } from "./damage.js";
 import { hasTrait, processMonsterDefeat } from "./monster_traits.js";
 
@@ -30,7 +31,10 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     if (hasTrait(target, "reflectMagic") && Math.random() < (target.magicReflect?.chance ?? 0.5)) {
       const reflected = Math.floor(Math.random() * 11) + 5;
       char.hp = Math.max(0, char.hp - reflected);
-      if (char.hp === 0) char.status = "dead";
+      if (char.hp === 0) {
+        char.status = "dead";
+        recordCharDeath(state, char, `${target.name}の魔法反射`);
+      }
       logQueue.push({
         msg: `[ 敵 ] ${target.name}は呪文を反射した！${char.name}に${reflected}の反射ダメージ！`,
         sound: "cast_spell",

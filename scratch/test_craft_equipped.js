@@ -114,14 +114,12 @@ Object.defineProperty(global, "navigator", {
   };
 
   // 装備中防具に刻印を付与 (毒避刻印: 毒耐性+25%)
-  const options = { mats: { "毒腺": 2, "硬い皮": 2 }, gold: 100 };
   const successInscription = executeTagInscription(
     { type: "equipped", actorIdx: 0, slot: "armor" },
-    null,
+    "毒腺",
     "poison",
     undefined,
-    "add",
-    options
+    "add"
   );
 
   if (!successInscription) {

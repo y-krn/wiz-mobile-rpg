@@ -29,7 +29,7 @@ export const ENCOUNTER_PACKS = {
     { members: [{ name: "呪文喰い", min: 1, max: 1 }, { name: "オークの戦士", min: 1, max: 1 }] },
     { members: [{ name: "カースドハンド", min: 1, max: 1 }, { name: "ゾンビ", min: 1, max: 1 }] },
     { members: [{ name: "アイアンゴーレム", min: 1, max: 1 }, { name: "はぐれ魔術師", min: 1, max: 1 }] },
-    { members: [{ name: "霧 of 亡霊", min: 1, max: 1 }, { name: "骨の鼓手", min: 1, max: 1 }] }, // 待て、元の表記は？「霧の亡霊」！
+    { members: [{ name: "霧の亡霊", min: 1, max: 1 }, { name: "骨の鼓手", min: 1, max: 1 }] },
     { members: [{ name: "オークの戦士", min: 1, max: 1 }, { name: "弱体の魔女", min: 1, max: 1 }] }
   ],
   4: [
