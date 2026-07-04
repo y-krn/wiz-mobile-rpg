@@ -219,13 +219,14 @@ export function renderShop() {
       row.setAttribute("aria-selected", isSelected ? "true" : "false");
       row.style.minHeight = "44px";
       
+      const ownership = getItemOwnership(st.key);
       const goldCheck = state.gold < st.price;
       const bagCheck = state.inventory.length >= 20;
+      const limitCheck = st.key === "TOWN_PORTAL" && ownership.bagCount > 0;
       
       const nameSpan = document.createElement("span");
       nameSpan.className = "shop-item-name";
       
-      const ownership = getItemOwnership(st.key);
       if (ownership.total > 0) {
         const nameText = document.createTextNode(item.name + " ");
         nameSpan.appendChild(nameText);
@@ -239,11 +240,15 @@ export function renderShop() {
       }
       row.appendChild(nameSpan);
 
-      if (goldCheck || bagCheck) {
+      if (goldCheck || bagCheck || limitCheck) {
         row.classList.add("not-purchasable");
         const badge = document.createElement("span");
         badge.className = "shop-row-badge cant";
-        badge.textContent = bagCheck ? "バッグ満杯" : "金不足";
+        if (limitCheck) {
+          badge.textContent = "所持制限";
+        } else {
+          badge.textContent = bagCheck ? "バッグ満杯" : "金不足";
+        }
         row.appendChild(badge);
       }
 

@@ -1,10 +1,16 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "../state.js";
-import { getItemData } from "../data.js";
+import { getItemData, getItemBaseId } from "../data.js";
 import { playSound } from "../audio.js";
 import { shopState } from "./shop_state.js";
 
 export function executePurchase(itemKey, price) {
   const item = getItemData(itemKey);
+
+  if (itemKey === "TOWN_PORTAL" && state.inventory.some(i => getItemBaseId(i) === itemKey)) {
+    addLog("帰還のスクロールはこれ以上所持できません。");
+    return false;
+  }
+
   const added = addInventoryItem(itemKey);
   if (!added) {
     addLog("バッグがいっぱいで購入できません。");

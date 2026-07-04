@@ -63,7 +63,7 @@ export const ITEMS = {
   MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", price: 300, desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   ETHER: { id: "ETHER", name: "魔力の雫", type: "usable", price: 700, desc: "使用するとMPを8回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", price: 150, desc: "使用するとHPを15回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
-  TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 350, desc: "使用すると一瞬でお城へ戻る。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
+  TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還のスクロール", type: "usable", price: 500, desc: "使用すると一瞬でお城へ戻る（所持制限：バッグに1個まで）。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   ESCAPE_SCROLL: { id: "ESCAPE_SCROLL", name: "離脱のスクロール", type: "usable", price: 300, desc: "使用すると戦闘から逃れ、その場に留まる。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
   PANACEA: { id: "PANACEA", name: "万能薬", type: "usable", price: 300, desc: "毒・盲目・麻痺・睡眠を治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 1500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極の霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },

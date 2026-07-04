@@ -294,7 +294,7 @@ export function triggerRunResult(reason) {
     state.y = START_Y;
     state.dir = DIR_N;
     state.floor = 1;
-    state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
+    state.lastReturnedFloor = null;
 
     // 図鑑スタッツの更新
     if (state.codex) {
@@ -355,11 +355,22 @@ export function triggerRunResult(reason) {
     state.codex.stats.totalChests += state.currentRun.chestsOpened;
   }
 
+  const returnedFloor = state.floor;
   state.x = START_X;
   state.y = START_Y;
   state.dir = DIR_N;
   state.floor = 1;
-  state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
+
+  if (reason === "escape_scroll") {
+    const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
+    if (hasCrystal) {
+      state.lastReturnedFloor = null;
+    } else {
+      state.lastReturnedFloor = Math.min(4, returnedFloor);
+    }
+  } else if (reason === "stairs") {
+    // 温存：変更しない
+  }
 
   const runSummary = {
     id: "run_" + Date.now() + "_" + Math.floor(Math.random() * 1000),

@@ -59,7 +59,7 @@ export function generateMerchantStock(floor, inventory) {
     { type: "item", key: "EYE_DROPS", price: 60, soldOut: false },
     { type: "item", key: "PARALYZE_CURE", price: 100, soldOut: false },
     { type: "item", key: "WAKE_POWDER", price: 60, soldOut: false },
-    { type: "item", key: "TOWN_PORTAL", price: 250, soldOut: false }
+    { type: "item", key: "TOWN_PORTAL", price: 400, soldOut: false }
   ];
   if (floor >= 3) {
     usables.push(
@@ -143,8 +143,8 @@ export function renderEventMerchantBuy(optGrid) {
         btn.textContent = `[売り切れ] ${name}`;
         btn.disabled = true;
       } else {
-        const isLimitedRevive = stock.key === "SACRED_ASHES" || stock.key === "LIFE_WATER";
-        const hasLimitedRevive = state.inventory.some(i => getItemBaseId(i) === stock.key);
+        const isLimitedItem = stock.key === "SACRED_ASHES" || stock.key === "LIFE_WATER" || stock.key === "TOWN_PORTAL";
+        const hasLimitedItem = state.inventory.some(i => getItemBaseId(i) === stock.key);
         const bagFull = state.inventory.length >= 20;
         
         btn.textContent = `${name} (${stock.price}G) - ${desc}`;
@@ -152,9 +152,9 @@ export function renderEventMerchantBuy(optGrid) {
         // バッグ制限のチェック
         const needsBagSpace = (stockType === "item" || stockType === "unidentified" || stockType === "unidentified_accessory");
 
-        if (state.gold < stock.price || (isLimitedRevive && hasLimitedRevive) || (needsBagSpace && bagFull)) {
+        if (state.gold < stock.price || (isLimitedItem && hasLimitedItem) || (needsBagSpace && bagFull)) {
           btn.disabled = true;
-          if (isLimitedRevive && hasLimitedRevive) {
+          if (isLimitedItem && hasLimitedItem) {
             btn.textContent = `[所持数制限] ${name} (${stock.price}G)`;
           } else if (needsBagSpace && bagFull) {
             btn.textContent = `[バッグ満杯] ${name} (${stock.price}G)`;

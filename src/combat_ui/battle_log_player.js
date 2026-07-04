@@ -65,7 +65,6 @@ export function playBattleLogs(queue, index) {
         state.transitioning = false;
         triggerGameOver();
       } else {
-        state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
         cleanupCombatState();
         resetSubmenuBackButton();
         state.transitioning = false;
@@ -103,6 +102,7 @@ export function playBattleLogs(queue, index) {
     if (state.map[state.y]?.[state.x]?.event === "boss") {
       state.map[state.y][state.x].event = null;
     }
+    state.lastReturnedFloor = null;
     addInventoryItem("ANTIGRAVITY_CRYSTAL");
     if (state.currentRun) {
       state.currentRun.itemsFound.push("ANTIGRAVITY_CRYSTAL");

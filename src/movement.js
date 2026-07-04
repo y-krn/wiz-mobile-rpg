@@ -250,7 +250,6 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       state.transitioning = true;
       addLog("階段を上がります。お城へ戻る...");
       setTimeout(() => {
-        state.lastReturnedFloor = Math.min(4, state.sessionMaxFloor);
         state.transitioning = false;
         triggerRunResult("stairs");
       }, 1200);

@@ -224,8 +224,10 @@ export function renderEnterDungeonSelect(optGrid) {
     btnResume.className = "btn btn-neon btn-block";
     btnResume.textContent = `地下${state.lastReturnedFloor}階から再開`;
     btnResume.addEventListener("click", () => {
+      const resumeFloor = state.lastReturnedFloor;
+      state.lastReturnedFloor = null;
       closeSubmenu();
-      executeEnterDungeon(state.lastReturnedFloor);
+      executeEnterDungeon(resumeFloor);
     });
     optGrid.appendChild(btnResume);
   }
