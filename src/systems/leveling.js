@@ -69,8 +69,12 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
       if (char.level === 3 && !char.spells.includes("LOMILWA")) {
         char.spells.push("LOMILWA");
       }
-      if (char.level === 4 && !char.spells.includes("MABARRIER")) {
-        char.spells.push("MABARRIER");
+      if (char.level === 4) {
+        if (!char.spells.includes("MABARRIER")) char.spells.push("MABARRIER");
+        if (!char.spells.includes("WEAKEN")) char.spells.push("WEAKEN");
+      }
+      if (char.level === 5 && !char.spells.includes("MADI")) {
+        char.spells.push("MADI");
       }
       if (char.level === 8 && !char.spells.includes("DIALMA")) {
         char.spells.push("DIALMA");
@@ -132,6 +136,10 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
       if (char.level === 5) {
         if (!char.spells.includes("LOMILWA")) char.spells.push("LOMILWA");
         if (!char.spells.includes("MABARRIER")) char.spells.push("MABARRIER");
+        if (!char.spells.includes("WEAKEN")) char.spells.push("WEAKEN");
+      }
+      if (char.level === 6 && !char.spells.includes("MADI")) {
+        char.spells.push("MADI");
       }
       if (char.level === 8 && !char.spells.includes("DIALMA")) {
         char.spells.push("DIALMA");
@@ -151,7 +159,7 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
         });
       }
       if (char.level === 4) {
-        ["LOMILWA", "KATINO", "MASFEAL", "MABARRIER"].forEach(s => {
+        ["LOMILWA", "KATINO", "MASFEAL", "MABARRIER", "WEAKEN"].forEach(s => {
           if (!char.spells.includes(s)) char.spells.push(s);
         });
       }
@@ -164,7 +172,7 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
         char.spells.push("MORLIS");
       }
       if (char.level === 7) {
-        ["DIALMA", "MADALTO"].forEach(s => {
+        ["DIALMA", "MADALTO", "MADI"].forEach(s => {
           if (!char.spells.includes(s)) char.spells.push(s);
         });
       }

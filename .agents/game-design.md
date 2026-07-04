@@ -92,6 +92,7 @@ post-clear or special rewards:
 - `DRAGON_CHARM`
 - `HOLY_BLADE`
 - `DRAGON_SCALE`
+- `MOONSHADOW`
 - Other obvious boss-counter or high-end equipment.
 
 Revisit price and availability for high-impact consumables:
@@ -112,8 +113,9 @@ If unidentified equipment is ever sold by a merchant, apply all restrictions:
 - At most one per expedition.
 - Price must be above the expected identify-and-sell return.
 - No `rare` or `epic` unidentified equipment.
-- No high-end bases such as `KATANA`, `DRAGON_SCALE`, `HOLY_BLADE`, or
-  `DRAGON_CHARM`.
+- No high-end bases such as `KATANA`, `MOONSHADOW`, `DRAGON_SCALE`, `HOLY_BLADE`,
+  or `DRAGON_CHARM`. Keep this list in sync with `RESTRICTED_CHEST_BASES` in
+  `src/data/equipment_tables.js`.
 
 Normal shop stock and dungeon merchant stock must not create a "buy unidentified
 gear -> identify -> sell for profit" loop.

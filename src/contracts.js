@@ -1,4 +1,4 @@
-import { MONSTERS, generateRandomEquipment } from "./data.js";
+import { MONSTERS, generateRandomAccessory, generateRandomEquipment } from "./data.js";
 import { state } from "./state.js";
 
 // Helper to get monster by name
@@ -355,6 +355,24 @@ export function checkActiveContract(stateInstance, runResult, success) {
     stateInstance.identifyTickets = (stateInstance.identifyTickets || 0) + contract.reward.identifyTickets;
 
     let itemMsg = "";
+    const addRewardItem = (item, label) => {
+      if (!item) return false;
+      item.identified = false;
+      if (stateInstance.inventory.length < 20) {
+        stateInstance.inventory.push(item);
+        itemMsg = `報酬「${label}」がバッグに追加されました。`;
+        return true;
+      }
+      if (!stateInstance.storage) stateInstance.storage = [];
+      if (stateInstance.storage.length < stateInstance.storageMax) {
+        stateInstance.storage.push(item);
+        itemMsg = `バッグ満杯のため、報酬「${label}」は倉庫に送られました。`;
+        return true;
+      }
+      itemMsg = `バッグ・倉庫が満杯のため、報酬を受け取れませんでした。`;
+      return false;
+    };
+
     if (contract.reward.item) {
       let rarity = "magic";
       if (contract.reward.item === "epic_equip") {
@@ -371,21 +389,15 @@ export function checkActiveContract(stateInstance, runResult, success) {
       if (contract.danger === "A") genFloor = Math.min(genFloor, 5);
 
       const item = generateRandomEquipment(genFloor, rarity, Math.random, state.party);
-      item.identified = false;
+      addRewardItem(item, `未鑑定${item.type === "weapon" ? "武器" : (item.type === "shield" ? "盾" : "防具")}`);
+    }
 
-      // Add to inventory, or storage if full
-      if (stateInstance.inventory.length < 20) {
-        stateInstance.inventory.push(item);
-        itemMsg = `報酬「未鑑定${item.type === "weapon" ? "武器" : (item.type === "shield" ? "盾" : "防具")}」がバッグに追加されました。`;
-      } else {
-        if (!stateInstance.storage) stateInstance.storage = [];
-        if (stateInstance.storage.length < stateInstance.storageMax) {
-          stateInstance.storage.push(item);
-          itemMsg = `バッグ満杯のため、報酬「未鑑定${item.type === "weapon" ? "武器" : (item.type === "shield" ? "盾" : "防具")}」は倉庫に送られました。`;
-        } else {
-          itemMsg = `バッグ・倉庫が満杯のため、報酬を受け取れませんでした。`;
-        }
-      }
+    const accessoryChance = contract.danger === "A" ? 0.30 : (contract.danger === "B" ? 0.15 : 0);
+    const accessoryRoll = Math.random();
+    if (stateInstance.inventory.length < 20 && accessoryChance > 0 && accessoryRoll > 0 && accessoryRoll < accessoryChance) {
+      const genFloor = Math.min(runResult.deepestFloor || 1, contract.danger === "A" ? 5 : 3);
+      const rarity = contract.danger === "A" && genFloor >= 4 ? "rare" : null;
+      addRewardItem(generateRandomAccessory(genFloor, rarity, Math.random, state.party), "未鑑定装身具");
     }
 
     if (!stateInstance.completedContracts) stateInstance.completedContracts = [];

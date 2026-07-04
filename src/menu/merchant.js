@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "../state.js";
-import { ITEMS, getItemData, getItemBaseId, generateRandomEquipment } from "../data.js";
+import { ITEMS, getItemData, getItemBaseId, generateRandomAccessory, generateRandomEquipment } from "../data.js";
 import { playSound } from "../audio.js";
 import { openSubmenu, closeSubmenu } from "../navigation.js";
 
@@ -38,6 +38,9 @@ export function generateMerchantStock(floor, inventory) {
     }
     if (floor >= 5 && !alreadyHasLifeWater && Math.random() < 0.08) {
       choices.push({ type: "item", key: "LIFE_WATER", price: ITEMS.LIFE_WATER.price, soldOut: false });
+    }
+    if (floor >= 3 && Math.random() < 0.08) {
+      choices.push({ type: "unidentified_accessory", rarity: "magic", price: floor >= 5 ? 900 : 650, soldOut: false });
     }
 
     return choices;
@@ -124,6 +127,9 @@ export function renderEventMerchantBuy(optGrid) {
       } else if (stockType === "unidentified") {
         name = stock.rarity === "rare" ? "未鑑定の装備 (Rare)" : "未鑑定 of 装備 (Magic)";
         desc = "鑑定するまで詳細のわからない装備品。";
+      } else if (stockType === "unidentified_accessory") {
+        name = "未鑑定の装身具 (Magic)";
+        desc = "鑑定するまで詳細のわからない装身具。";
       } else {
         const item = getItemData(stock.key);
         name = item ? item.name : stock.key;
@@ -144,7 +150,7 @@ export function renderEventMerchantBuy(optGrid) {
         btn.textContent = `${name} (${stock.price}G) - ${desc}`;
 
         // バッグ制限のチェック
-        const needsBagSpace = (stockType === "item" || stockType === "unidentified");
+        const needsBagSpace = (stockType === "item" || stockType === "unidentified" || stockType === "unidentified_accessory");
 
         if (state.gold < stock.price || (isLimitedRevive && hasLimitedRevive) || (needsBagSpace && bagFull)) {
           btn.disabled = true;
@@ -171,6 +177,11 @@ export function renderEventMerchantBuy(optGrid) {
               if (addInventoryItem(eqObj)) {
                 purchaseSuccess = true;
               }
+            }
+          } else if (stockType === "unidentified_accessory") {
+            const accessory = generateRandomAccessory(state.floor || 1, stock.rarity, Math.random, state.party);
+            if (accessory && addInventoryItem(accessory)) {
+              purchaseSuccess = true;
             }
           } else {
             // item

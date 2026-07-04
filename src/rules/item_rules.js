@@ -34,6 +34,10 @@ export function getCharAffixSum(char, affixType) {
   let sum = 0;
   Object.values(char.equipment).forEach(eqKey => {
     if (!eqKey) return;
+    const eqData = getItemData(eqKey);
+    if ((typeof eqKey !== "object" || eqKey.identified) && eqData?.affixBonus?.[affixType] !== undefined) {
+      sum += eqData.affixBonus[affixType];
+    }
     if (typeof eqKey === "object") {
       if (eqKey.identified) {
         if (eqKey.affixes) {

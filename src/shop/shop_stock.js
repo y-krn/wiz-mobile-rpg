@@ -13,5 +13,15 @@ export const SHOP_STOCK = [
   { key: "SMALL_SHIELD", price: 80 },
   { key: "ROBE", price: 30 },
   { key: "LEATHER_ARMOR", price: 120 },
-  { key: "NINJA_SUIT", price: 250 }
+  { key: "NINJA_SUIT", price: 250 },
+  { key: "AMULET_HP", price: 450 },
+  { key: "AMULET_MP", price: 520 },
+  { key: "RING_STR", price: 500 },
+  { key: "RING_AGI", price: 480 },
+  { key: "RING_LUK", price: 480 },
+  { key: "THIEF_EYE", price: 520 },
+  { key: "WARD_CHARM", price: 680 },
+  { key: "DRAGON_RING", price: 760 },
+  { key: "HOLY_BAND", price: 720 },
+  { key: "SWIFT_BAND", price: 760 }
 ];

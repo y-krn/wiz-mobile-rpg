@@ -29,6 +29,7 @@ export function getSpellCombatSummary(spellName) {
     LATUMOFIS: { tag: "治療", effect: "毒", category: "cure" },
     LOMILWA: { tag: "探索", effect: "永続明かり", category: "utility" },
     DIALMA: { tag: "単体", effect: "回復 70-120", category: "single" },
+    MADI: { tag: "全体", effect: "回復 25-40", category: "all" },
     KADORTO: { tag: "戦闘不可", effect: "蘇生", category: "dead" },
     MABARRIER: { tag: "補助", effect: "味方全体 魔法軽減", category: "buff" },
     MONTINO: { tag: "全体", effect: "沈黙 2T", category: "all" },

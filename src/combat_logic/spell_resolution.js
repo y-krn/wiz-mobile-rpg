@@ -133,10 +133,11 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     });
   } else if (spell.target === "all_allies") {
     const result = spell.effect(char, state.party);
+    const floatText = spell.name === "MADI" ? (result.heal ? `+${result.heal}` : "HEAL") : "BARRIER";
     logQueue.push({
       msg: `[味方] ${result.log}`,
       sound: "heal",
-      floatText: "BARRIER",
+      floatText,
       floatColor: "#00ff66"
     });
   }

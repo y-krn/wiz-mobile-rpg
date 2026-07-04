@@ -147,6 +147,14 @@ export const SPELLS = {
     desc: "神聖蘇生呪文 (死亡した仲間をキャンプ中に蘇生)",
     campOnly: true
   },
+  MADI: {
+    name: "MADI",
+    type: "priest",
+    level: 5,
+    cost: 5,
+    target: "all_allies",
+    desc: "味方全体の治療 (25-40 HP回復)"
+  },
   MABARRIER: {
     name: "MABARRIER",
     type: "priest",
@@ -170,5 +178,13 @@ export const SPELLS = {
     cost: 3,
     target: "all_enemies",
     desc: "魔防低下の呪文 (3ターン、敵全体の魔法耐性を20%低下させる)"
+  },
+  WEAKEN: {
+    name: "WEAKEN",
+    type: "priest",
+    level: 4,
+    cost: 3,
+    target: "all_enemies",
+    desc: "虚脱の呪文 (3ターン、敵全体の物理攻撃力を3低下させる)"
   }
 };

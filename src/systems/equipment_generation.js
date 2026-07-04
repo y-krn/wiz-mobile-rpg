@@ -1,5 +1,54 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
-import { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
+import { ACCESSORY_CANDIDATES_BY_FLOOR, EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
+
+export function rollAffixes(pool, count, rng = Math.random) {
+  const affixes = [];
+  const selectedTypes = new Set();
+
+  for (let i = 0; i < count; i++) {
+    const available = pool.filter(aff => !selectedTypes.has(aff.type));
+    if (available.length === 0) break;
+    const totalWeight = available.reduce((sum, aff) => sum + aff.weight, 0);
+    let roll = rng() * totalWeight;
+    const chosen = available.find(aff => {
+      roll -= aff.weight;
+      return roll <= 0;
+    }) || available[available.length - 1];
+    affixes.push({
+      type: chosen.type,
+      value: chosen.getVal()
+    });
+    selectedTypes.add(chosen.type);
+  }
+
+  return affixes;
+}
+
+export function buildUnidentifiedMeta(tags, rarity, typeName, rng = Math.random, { curseEffectId = null } = {}) {
+  const nonCurseTags = tags.filter(t => t !== "curse");
+  const hintTags = [];
+  if (nonCurseTags.length > 0) {
+    const t1 = nonCurseTags[Math.floor(rng() * nonCurseTags.length)];
+    hintTags.push(t1);
+    if (nonCurseTags.length > 1 && rng() < 0.5) {
+      const t2 = nonCurseTags.find(t => t !== t1);
+      if (t2) hintTags.push(t2);
+    }
+  }
+
+  let prefix = "古びた";
+  if (rarity === "rare") {
+    prefix = "金紋の";
+  } else if (rarity === "epic") {
+    prefix = "紫光を放つ";
+  }
+
+  return {
+    hintTags,
+    curseSuspected: curseEffectId ? true : (rng() < 0.20),
+    unidentifiedName: `${prefix}未鑑定の${typeName}`
+  };
+}
 
 export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false } = {}) {
   let baseCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[floor] || EQUIPMENT_CANDIDATES_BY_FLOOR[5];
@@ -182,24 +231,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     }, 1);
   }
   
-  const affixes = [];
-  const selectedTypes = new Set();
-  
-  for (let i = 0; i < affixCount; i++) {
-    const available = possibleAffixes.filter(aff => !selectedTypes.has(aff.type));
-    if (available.length === 0) break;
-    const totalWeight = available.reduce((sum, aff) => sum + aff.weight, 0);
-    let roll = rng() * totalWeight;
-    const chosen = available.find(aff => {
-      roll -= aff.weight;
-      return roll <= 0;
-    }) || available[available.length - 1];
-    affixes.push({
-      type: chosen.type,
-      value: chosen.getVal()
-    });
-    selectedTypes.add(chosen.type);
-  }
+  const affixes = rollAffixes(possibleAffixes, affixCount, rng);
   
   const instanceId = `eq_${rng().toString(36).substr(2, 9)}`;
 
@@ -233,19 +265,6 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     });
   }
 
-  const nonCurseTags = tags.filter(t => t !== "curse");
-  const hintTags = [];
-  if (nonCurseTags.length > 0) {
-    const t1 = nonCurseTags[Math.floor(rng() * nonCurseTags.length)];
-    hintTags.push(t1);
-    if (nonCurseTags.length > 1 && rng() < 0.5) {
-      const t2 = nonCurseTags.find(t => t !== t1);
-      if (t2) hintTags.push(t2);
-    }
-  }
-
-  const curseSuspected = curseEffectId ? true : (rng() < 0.20);
-
   let prefix = "古びた";
   if (rarity === "magic") {
     const isMagicAura = ["WAND", "SAGE_STAFF", "ARCH_WAND", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "SORCERER_ROBE", "MAGIC_SHIELD"].includes(baseId);
@@ -270,7 +289,8 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     else if (["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "NINJA_BLADE", "MOONSHADOW", "FLAME_SWORD"].includes(baseId)) typeName = "剣";
     else if (baseId === "MACE") typeName = "メイス";
   }
-  const unidentifiedName = `${prefix}未鑑定の${typeName}`;
+  const meta = buildUnidentifiedMeta(tags, rarity, typeName, rng, { curseEffectId });
+  meta.unidentifiedName = `${prefix}未鑑定の${typeName}`;
 
   return {
     kind: "equipment",
@@ -281,10 +301,116 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     identified: false,
     halfIdentified: false,
     tags,
-    hintTags,
+    hintTags: meta.hintTags,
     curseEffectId,
-    curseSuspected,
-    unidentifiedName,
+    curseSuspected: meta.curseSuspected,
+    unidentifiedName: meta.unidentifiedName,
+    affixes
+  };
+}
+
+export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.random, party = null } = {}) {
+  let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[floor] || ACCESSORY_CANDIDATES_BY_FLOOR[5];
+
+  if (party && party.length > 0) {
+    const livingParty = party.filter(char => char.status !== "dead");
+    const usableCandidates = baseCandidates.filter(baseId => {
+      const item = ITEMS[baseId];
+      return item && livingParty.some(char => !item.classes || item.classes.includes(char.class));
+    });
+    if (usableCandidates.length > 0) {
+      baseCandidates = usableCandidates;
+    }
+  }
+
+  const baseId = baseCandidates[Math.floor(rng() * baseCandidates.length)];
+  const baseItem = ITEMS[baseId];
+  if (!baseItem) return null;
+
+  let rarity = "magic";
+  if (forceRarity) {
+    rarity = forceRarity;
+  } else {
+    const roll = rng();
+    let epicChance = 0.02;
+    let rareChance = 0.16;
+    if (floor === 4) {
+      epicChance = 0.035;
+      rareChance = 0.20;
+    } else if (floor >= 5) {
+      epicChance = 0.05;
+      rareChance = 0.24;
+    }
+    if (roll < epicChance) rarity = "epic";
+    else if (roll < rareChance) rarity = "rare";
+  }
+
+  const affixCount = { magic: 1, rare: 1, epic: 2 }[rarity] || 1;
+  const statValue = floor >= 4 ? 2 : 1;
+  const accessoryAffixPool = [
+    { type: "hp", getVal: () => floor >= 4 ? 8 : 6, weight: 4 },
+    { type: "mp", getVal: () => floor >= 4 ? 2 : 1, weight: 3 },
+    { type: "str", getVal: () => statValue, weight: 2 },
+    { type: "int", getVal: () => statValue, weight: 2 },
+    { type: "pie", getVal: () => statValue, weight: 2 },
+    { type: "vit", getVal: () => statValue, weight: 2 },
+    { type: "agi", getVal: () => statValue, weight: 2 },
+    { type: "luk", getVal: () => statValue, weight: 2 },
+    { type: "trapBonus", getVal: () => floor >= 4 ? 10 : 5, weight: 2 },
+    { type: "spellGuard", getVal: () => floor >= 4 ? 15 : 10, weight: 1 },
+    { type: "antiDragon", getVal: () => 15, weight: floor >= 4 ? 1 : 0 },
+    { type: "antiUndead", getVal: () => 15, weight: floor >= 3 ? 1 : 0 },
+    { type: "poisonWard", getVal: () => floor >= 4 ? 25 : 15, weight: 1 },
+    { type: "treasureSense", getVal: () => floor >= 4 ? 8 : 5, weight: 1 }
+  ].filter(aff => aff.weight > 0);
+
+  const affixes = rollAffixes(accessoryAffixPool, affixCount, rng);
+  const tags = [...(baseItem.tags || [])];
+  affixes.forEach(aff => {
+    const affixTags = {
+      hp: "ward",
+      mp: "spirit",
+      str: "iron",
+      int: "analysis",
+      pie: "holy",
+      vit: "ward",
+      agi: "ambush",
+      luk: "search",
+      trapBonus: "trap",
+      spellGuard: "ward",
+      antiDragon: "dragon",
+      antiUndead: "holy",
+      poisonWard: "poison",
+      treasureSense: "search"
+    };
+    const tag = affixTags[aff.type];
+    if (tag && !tags.includes(tag)) tags.push(tag);
+  });
+
+  let typeName = "装身具";
+  if (baseId.includes("RING")) {
+    typeName = "指輪";
+  } else if (baseId.includes("BAND")) {
+    typeName = "腕輪";
+  } else if (baseId.includes("AMULET") || baseId.includes("CHARM")) {
+    typeName = "護符";
+  }
+
+  const meta = buildUnidentifiedMeta(tags, rarity, typeName, rng, { curseEffectId: null });
+
+  return {
+    kind: "equipment",
+    instanceId: `eq_${rng().toString(36).substr(2, 9)}`,
+    baseId,
+    rarity,
+    level: floor,
+    identified: false,
+    halfIdentified: false,
+    tags,
+    hintTags: meta.hintTags,
+    curseEffectId: null,
+    curseSuspected: false,
+    unidentifiedName: meta.unidentifiedName,
     affixes
   };
 }

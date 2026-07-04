@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, addInventoryItem } from "../state.js";
-import { generateRandomEquipment } from "../data.js";
+import { generateRandomAccessory, generateRandomEquipment } from "../data.js";
 import { playSound } from "../audio.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
 import { updateUI } from "../ui.js";
@@ -117,6 +117,15 @@ export function playBattleLogs(queue, index) {
         state.currentRun.equipmentFound.push(rewardEquip);
       }
     }
+    if (Math.random() < 0.35) {
+      const rewardAccessory = generateRandomAccessory(5, "epic", Math.random, state.party);
+      if (rewardAccessory) {
+        const added = addInventoryItem(rewardAccessory);
+        if (added && state.currentRun) {
+          state.currentRun.equipmentFound.push(rewardAccessory);
+        }
+      }
+    }
     
     if (!state.materials) state.materials = {};
     state.materials["竜鱗"] = (state.materials["竜鱗"] || 0) + 3;
@@ -157,6 +166,15 @@ export function playBattleLogs(queue, index) {
       const added = addInventoryItem(rewardEquip);
       if (added && state.currentRun) {
         state.currentRun.equipmentFound.push(rewardEquip);
+      }
+    }
+    if (Math.random() < 0.25) {
+      const rewardAccessory = generateRandomAccessory(4, "rare", Math.random, state.party);
+      if (rewardAccessory) {
+        const added = addInventoryItem(rewardAccessory);
+        if (added && state.currentRun) {
+          state.currentRun.equipmentFound.push(rewardAccessory);
+        }
       }
     }
 

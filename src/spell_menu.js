@@ -25,7 +25,7 @@ export function getSpellUsability(caster, spKey) {
   }
 
   // Check target availability
-  if (["DIOS", "MADIOS", "DIALMA"].includes(spKey)) {
+  if (["DIOS", "MADIOS", "DIALMA", "MADI"].includes(spKey)) {
     const hasDamaged = state.party.some(c => c.status !== "dead" && c.hp < c.maxHp);
     if (!hasDamaged) {
       return { usable: false, reason: "対象なし" };
@@ -57,7 +57,7 @@ export function getSpellUsability(caster, spKey) {
 
 // Helper function to categorize spells
 export function getSpellCategory(spKey) {
-  const healSpells = ["DIOS", "MADIOS", "DIALMA", "DIALKO", "DIURCO", "LATUMOFIS", "KADORTO"];
+  const healSpells = ["DIOS", "MADIOS", "DIALMA", "MADI", "DIALKO", "DIURCO", "LATUMOFIS", "KADORTO"];
   const utilitySpells = ["DUMAPIC", "MILWA", "LOMILWA", "MASFEAL"];
   if (healSpells.includes(spKey)) {
     if (spKey === "KADORTO") return { cat: "heal", name: "蘇生" };
@@ -459,6 +459,7 @@ export function renderSpellOverlay() {
     
     let targetJp = "味方単体";
     if (spell.target === "all_enemies") targetJp = "敵全体";
+    else if (spell.target === "all_allies") targetJp = "味方全体";
     else if (spell.target === "single_enemy") targetJp = "敵単体";
     else if (spell.target === "utility") targetJp = "探索全体";
 
@@ -505,6 +506,8 @@ export function renderSpellOverlay() {
         menuContext.spellName = spKey;
         if (spell.target === "single_ally") {
           openSubmenu("spell_target_ally", `${spell.name}の対象を選択:`);
+        } else if (spell.target === "all_allies") {
+          executeAllySpell();
         } else if (spell.target === "utility") {
           executeUtilitySpell();
         }

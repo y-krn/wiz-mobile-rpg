@@ -60,7 +60,8 @@ export function renderItemInventory(optGrid) {
   const wName = char.equipment.weapon ? getItemData(char.equipment.weapon).name : "なし";
   const sName = char.equipment.shield ? getItemData(char.equipment.shield).name : "なし";
   const aName = char.equipment.armor ? getItemData(char.equipment.armor).name : "なし";
-  statsDiv.textContent = `武器: ${wName} | 盾: ${sName} | 鎧: ${aName}`;
+  const acName = char.equipment.accessory ? getItemData(char.equipment.accessory).name : "なし";
+  statsDiv.textContent = `武器: ${wName} | 盾: ${sName} | 鎧: ${aName} | 装飾: ${acName}`;
   optGrid.appendChild(statsDiv);
 
   if (state.inventory.length === 0) {
@@ -75,7 +76,7 @@ export function renderItemInventory(optGrid) {
       if (!item) return;
       const btn = document.createElement("button");
       btn.className = "btn btn-neon btn-block";
-      const typeJp = item.type === "usable" ? "消費" : item.type === "weapon" ? "武器" : item.type === "shield" ? "盾" : "鎧";
+      const typeJp = item.type === "usable" ? "消費" : item.type === "weapon" ? "武器" : item.type === "shield" ? "盾" : item.type === "armor" ? "鎧" : "装飾";
       btn.textContent = `${item.name} [${typeJp}]`;
       btn.addEventListener("click", () => {
         menuContext.itemKey = itemKey;
@@ -112,7 +113,7 @@ export function renderItemAction(optGrid) {
       goBackSubmenu();
     });
     optGrid.appendChild(btnUse);
-  } else if (item.type === "weapon" || item.type === "shield" || item.type === "armor") {
+  } else if (item.type === "weapon" || item.type === "shield" || item.type === "armor" || item.type === "accessory") {
     const btnEquip = document.createElement("button");
     const char = state.party[menuContext.actorIdx];
     const canEquip = !item.classes || item.classes.includes(char.class);
@@ -121,7 +122,7 @@ export function renderItemAction(optGrid) {
       btnEquip.className = "btn btn-neon btn-block";
       btnEquip.textContent = "装備する";
       btnEquip.addEventListener("click", () => {
-        const slot = item.type; // weapon, shield, armor
+        const slot = item.type; // weapon, shield, armor, accessory
         const oldEq = char.equipment[slot];
         char.equipment[slot] = item.id;
         

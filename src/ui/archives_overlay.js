@@ -103,7 +103,7 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
       <span class="codex-meta">入手回数: ${record.foundCount} 回</span>
     </div>
     <div class="codex-detail-body">
-      <p><strong>種別:</strong> ${item.type === "weapon" ? "武器" : item.type === "shield" ? "盾" : "防具"}</p>
+      <p><strong>種別:</strong> ${item.type === "weapon" ? "武器" : item.type === "shield" ? "盾" : item.type === "accessory" ? "装飾" : "防具"}</p>
       <p><strong>最高レアリティ:</strong> <span class="${record.highestRarity}">${record.highestRarity.toUpperCase()}</span></p>
       <p><strong>最高補正値:</strong> +${record.bestBonus}</p>
       <p><strong>発見済み特性 (Affixes):</strong> ${record.affixesSeen.length > 0 ? record.affixesSeen.map(a => {
@@ -433,13 +433,13 @@ export function renderArchives() {
       detailContainer.appendChild(btnBack);
       body.appendChild(detailContainer);
     } else {
-      // List weapons, armors, shields
+      // List weapons, armors, shields, accessories
       const grid = document.createElement("div");
       grid.className = "codex-grid";
       
       const equipKeys = Object.keys(ITEMS).filter(k => {
         const item = ITEMS[k];
-        return item && (item.type === "weapon" || item.type === "armor" || item.type === "shield");
+        return item && (item.type === "weapon" || item.type === "armor" || item.type === "shield" || item.type === "accessory");
       });
       
       equipKeys.forEach(k => {

@@ -46,6 +46,7 @@ export const SPELL_TAGS = {
   DIOS: ["heal"],
   MADIOS: ["heal"],
   DIALMA: ["heal"],
+  MADI: ["heal"],
   DIALKO: ["heal"],
   LATUMOFIS: ["heal", "poison"],
   DIURCO: ["heal"],

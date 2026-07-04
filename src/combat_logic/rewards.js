@@ -1,8 +1,21 @@
 import {
-  generateRandomEquipment, getItemData, checkCharLevelUp
+  generateRandomAccessory, generateRandomEquipment, getItemData, checkCharLevelUp
 } from "../data.js";
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
+
+function rollCombatAccessoryDrop(state) {
+  const roll = Math.random();
+  if (state.combatState.isBoss) {
+    return roll > 0 && roll < 0.35 ? generateRandomAccessory(state.floor, "epic", Math.random, state.party) : null;
+  }
+  if (state.combatState.isMidboss || state.combatState.isRoamingFlack) {
+    return roll > 0 && roll < 0.25 ? generateRandomAccessory(state.floor, "rare", Math.random, state.party) : null;
+  }
+  const isRare = state.combatState.monsters?.some(m => m.isRare);
+  const chance = isRare ? 0.12 : 0.03;
+  return roll > 0 && roll < chance ? generateRandomAccessory(state.floor, null, Math.random, state.party) : null;
+}
 
 export function applyCombatRewards(state, monsters, logQueue) {
   const nonFledMonsters = monsters.filter(m => !m.fled);
@@ -228,6 +241,26 @@ export function applyCombatRewards(state, monsters, logQueue) {
     } else {
       logQueue.push({
         msg: `モンスターは何かを落としたが、バッグが満杯で拾えなかった！`,
+        sound: "miss"
+      });
+    }
+  }
+
+  const dropAccessory = rollCombatAccessoryDrop(state);
+  if (dropAccessory) {
+    const added = addInventoryItemToState(state, dropAccessory);
+    if (added) {
+      if (state.currentRun) {
+        state.currentRun.equipmentFound.push(dropAccessory);
+      }
+      const itemData = getItemData(dropAccessory);
+      logQueue.push({
+        msg: `モンスターの骸から [${itemData.name}] を手に入れた！`,
+        sound: "gold"
+      });
+    } else {
+      logQueue.push({
+        msg: `モンスターは装身具を落としたが、バッグが満杯で拾えなかった！`,
         sound: "miss"
       });
     }

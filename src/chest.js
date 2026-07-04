@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath } from "./state.js";
-import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomEquipment, getCharAffixSum, getActiveSynergies, recordSynergyDiscovery } from "./data.js";
+import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomAccessory, generateRandomEquipment, getCharAffixSum, getActiveSynergies, recordSynergyDiscovery } from "./data.js";
 import { getOmenForFloor, isMatchedTrap, triggerOmenMatch } from "./systems/omens.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -7,6 +7,19 @@ import { updateUI } from "./ui.js";
 import { menuContext, openSubmenu, resetSubmenuBackButton } from "./navigation.js";
 import { triggerGameOver } from "./combat.js";
 import { createRng } from "./seed_rng.js";
+
+function rollChestAccessory(floor, rng, party) {
+  const chance = floor >= 5 ? 0.16 : (floor === 4 ? 0.14 : (floor === 3 ? 0.12 : 0.08));
+  if (rng() >= chance) return null;
+  const rarityRoll = rng();
+  let rarity = null;
+  if (floor >= 4 && rarityRoll < 0.10) {
+    rarity = "epic";
+  } else if (rarityRoll < 0.35) {
+    rarity = "rare";
+  }
+  return generateRandomAccessory(floor, rarity, rng, party);
+}
 
 export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem = null, customRng = null) {
   if (state.codex && state.codex.events && state.codex.events.facilities) {
@@ -189,7 +202,8 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
       }
     }
   }
-}
+  }
+  const accessoryItem = forcedItem === null ? rollChestAccessory(state.floor, rng, state.party) : null;
 
   // Aura & loot hint calculation
   let aura = "weak";
@@ -199,6 +213,11 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     if (item.rarity === "epic") aura = "strong";
     else if (item.rarity === "rare") aura = "medium";
     else aura = "weak";
+  }
+  if (accessoryItem) {
+    hasEquipmentSignal = true;
+    if (accessoryItem.rarity === "epic") aura = "strong";
+    else if (accessoryItem.rarity === "rare" && aura !== "strong") aura = "medium";
   }
   let label = hasEquipmentSignal ? "装備品の反応あり" : "消耗品または反応なし";
   if (hasEquipmentSignal) {
@@ -220,9 +239,11 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
       return sum + getCharAffixSum(c, "treasureSense");
     }, 0);
     const shouldRevealTag = senseSum >= 5 || rng() < 0.20;
-    const hintedAffix = item.affixes?.find(aff => tagLabels[aff.type]);
-    if (shouldRevealTag && hintedAffix) {
-      label = `${label} / 気配:${tagLabels[hintedAffix.type]}`;
+    const hintedAffix = item?.affixes?.find(aff => tagLabels[aff.type]);
+    const hintedAccessoryAffix = accessoryItem?.affixes?.find(aff => tagLabels[aff.type]);
+    if (shouldRevealTag && (hintedAffix || hintedAccessoryAffix)) {
+      const affixType = hintedAffix?.type || hintedAccessoryAffix.type;
+      label = `${label} / 気配:${tagLabels[affixType]}`;
     }
   }
 
@@ -230,6 +251,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     trap,
     gold,
     item,
+    accessoryItem,
     inspected: false,
     identifiedTrap: "",
     x: state.x,
@@ -675,6 +697,23 @@ export function openChestDirectly() {
         }
       }
       addLog(`アイテム: [${item.name}] を手に入れた！`);
+    } else {
+      addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
+    }
+  }
+
+  if (chest.accessoryItem) {
+    const item = getItemData(chest.accessoryItem);
+    const added = addInventoryItem(chest.accessoryItem);
+    if (added) {
+      recordEquipmentDiscovery(chest.accessoryItem);
+      if (state.currentRun) {
+        state.currentRun.equipmentFound.push(chest.accessoryItem);
+        if (state.floor === 1) {
+          state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
+        }
+      }
+      addLog(`装身具: [${item.name}] を手に入れた！`);
     } else {
       addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
     }

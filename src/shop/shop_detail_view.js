@@ -8,6 +8,28 @@ import { renderShop } from "./shop_view.js";
 import { SHOP_STOCK } from "./shop_stock.js";
 import { updateUI } from "../ui.js";
 
+function getShopItemTypeLabel(type) {
+  if (type === "usable") return "消費アイテム";
+  if (type === "weapon") return "武器";
+  if (type === "shield") return "盾";
+  if (type === "armor") return "鎧";
+  if (type === "accessory") return "装飾";
+  return "貴重品";
+}
+
+function getShopItemBonusSummary(item) {
+  if (item.type === "weapon") return { label: "攻撃力", value: `+${item.atk || 0}` };
+  if (item.type === "shield" || item.type === "armor") return { label: "防御力", value: `+${item.def || 0}` };
+  if (item.hpBonus) return { label: "最大HP", value: `+${item.hpBonus}` };
+  if (item.mpBonus) return { label: "最大MP", value: `+${item.mpBonus}` };
+  if (item.trapBonus) return { label: "罠解除", value: `+${item.trapBonus}%` };
+  const stat = Object.entries(item.statsBonus || {}).find(([, value]) => value);
+  if (stat) return { label: stat[0].toUpperCase(), value: `+${stat[1]}` };
+  const affix = Object.entries(item.affixBonus || {}).find(([, value]) => value);
+  if (affix) return { label: affix[0], value: `+${affix[1]}%` };
+  return { label: "効果", value: "なし" };
+}
+
 export function renderShopDetail() {
   const detailPanel = document.getElementById("shop-detail-panel");
   if (!detailPanel) return;
@@ -45,11 +67,7 @@ export function renderShopDetail() {
       const statsDiv = document.createElement("div");
       statsDiv.className = "detail-stats";
       
-      let typeJp = "貴重品";
-      if (item.type === "usable") typeJp = "消費アイテム";
-      else if (item.type === "weapon") typeJp = "武器";
-      else if (item.type === "shield") typeJp = "盾";
-      else if (item.type === "armor") typeJp = "鎧";
+      const typeJp = getShopItemTypeLabel(item.type);
 
       const sellPrice = Math.floor((item.price || 0) * 0.5);
       const rarityJp = { magic: "MAGIC", rare: "RARE", epic: "EPIC" }[eqItem.rarity || "magic"] || "NORMAL";
@@ -72,15 +90,14 @@ export function renderShopDetail() {
       scrollContent.appendChild(statsDiv);
 
       // 3. Stats details and Comparisons
-      if (item.type === "weapon" || item.type === "armor" || item.type === "shield") {
+      if (item.type === "weapon" || item.type === "armor" || item.type === "shield" || item.type === "accessory") {
         const equipStatsDiv = document.createElement("div");
         equipStatsDiv.className = "detail-stats";
-        let statLabel = item.type === "weapon" ? "攻撃力" : "防御力";
-        let statVal = item.type === "weapon" ? item.atk : item.def;
+        const bonus = getShopItemBonusSummary(item);
         equipStatsDiv.innerHTML = `
           <div class="detail-stat-row">
-            <span>${statLabel}:</span>
-            <span class="detail-stat-val">+${statVal}</span>
+            <span>${bonus.label}:</span>
+            <span class="detail-stat-val">${bonus.value}</span>
           </div>
         `;
         scrollContent.appendChild(equipStatsDiv);
@@ -250,22 +267,21 @@ export function renderShopDetail() {
     detailHeader.innerHTML = `<div class="detail-name">${item.name}</div>`;
     scrollContent.appendChild(detailHeader);
 
-    // 2. Stats (if weapon or armor/shield) - moved to top
-    if (item.type === "weapon" || item.type === "armor" || item.type === "shield") {
+    // 2. Stats (if equipment) - moved to top
+    if (item.type === "weapon" || item.type === "armor" || item.type === "shield" || item.type === "accessory") {
       const statsDiv = document.createElement("div");
       statsDiv.className = "detail-stats";
       
-      const statLabel = item.type === "weapon" ? "攻撃力" : "防御力";
-      const statVal = item.type === "weapon" ? item.atk : item.def;
+      const bonus = getShopItemBonusSummary(item);
 
       statsDiv.innerHTML = `
         <div class="detail-stat-row">
           <span>アイテム種別:</span>
-          <span>${item.type === "weapon" ? "武器" : item.type === "shield" ? "盾" : "鎧"}</span>
+          <span>${getShopItemTypeLabel(item.type)}</span>
         </div>
         <div class="detail-stat-row">
-          <span>${statLabel}:</span>
-          <span class="detail-stat-val">+${statVal}</span>
+          <span>${bonus.label}:</span>
+          <span class="detail-stat-val">${bonus.value}</span>
         </div>
       `;
       scrollContent.appendChild(statsDiv);
@@ -286,31 +302,10 @@ export function renderShopDetail() {
             <span class="compat-result no">🔴 装備不可</span>
           `;
         } else {
-          const slot = item.type; // "weapon", "shield", "armor"
-          const currentEquipKey = char.equipment[slot];
-          const currentEquip = currentEquipKey ? getItemData(currentEquipKey) : null;
-          
-          let currentStat = 0;
-          if (currentEquip) {
-            currentStat = slot === "weapon" ? currentEquip.atk : currentEquip.def;
-          }
-
-          const newStat = slot === "weapon" ? item.atk : item.def;
-          const diff = newStat - currentStat;
-
-          let diffText;
-          let resultClass;
-          
-          if (diff > 0) {
-            diffText = `🔺+${diff} (強化!)`;
-            resultClass = "upgrade";
-          } else if (diff < 0) {
-            diffText = `🔻${diff}`;
-            resultClass = "downgrade";
-          } else {
-            diffText = `±0`;
-            resultClass = "ok";
-          }
+          const preview = getEquipmentPreview(char, itemKey);
+          const bestDiff = preview?.diffs[0]?.diff || 0;
+          const diffText = formatEquipmentPreview(preview);
+          const resultClass = bestDiff > 0 ? "upgrade" : (bestDiff < 0 ? "downgrade" : "ok");
 
           row.innerHTML = `
             <span class="compat-name">${char.name}</span>
@@ -326,7 +321,7 @@ export function renderShopDetail() {
       statsDiv.innerHTML = `
         <div class="detail-stat-row">
           <span>アイテム種別:</span>
-          <span>${item.type === "usable" ? "消費アイテム" : "貴重品"}</span>
+          <span>${getShopItemTypeLabel(item.type)}</span>
         </div>
       `;
       scrollContent.appendChild(statsDiv);

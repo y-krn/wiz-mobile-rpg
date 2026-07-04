@@ -92,7 +92,8 @@ export const createDefaultRoster = () => [
     equipment: {
       weapon: "SHORT_SWORD",
       shield: "SMALL_SHIELD",
-      armor: "LEATHER_ARMOR"
+      armor: "LEATHER_ARMOR",
+      accessory: null
     }
   },
   {
@@ -114,7 +115,8 @@ export const createDefaultRoster = () => [
     equipment: {
       weapon: "SHORT_SWORD",
       shield: "SMALL_SHIELD",
-      armor: "LEATHER_ARMOR"
+      armor: "LEATHER_ARMOR",
+      accessory: null
     }
   },
   {
@@ -137,7 +139,8 @@ export const createDefaultRoster = () => [
     equipment: {
       weapon: "DAGGER",
       shield: "SMALL_SHIELD",
-      armor: "ROBE"
+      armor: "ROBE",
+      accessory: null
     }
   },
   {
@@ -160,7 +163,8 @@ export const createDefaultRoster = () => [
     equipment: {
       weapon: "WAND",
       shield: null,
-      armor: "ROBE"
+      armor: "ROBE",
+      accessory: null
     }
   },
   {
@@ -183,7 +187,8 @@ export const createDefaultRoster = () => [
     equipment: {
       weapon: "SHORT_SWORD",
       shield: "SMALL_SHIELD",
-      armor: "LEATHER_ARMOR"
+      armor: "LEATHER_ARMOR",
+      accessory: null
     }
   },
   {
@@ -206,7 +211,8 @@ export const createDefaultRoster = () => [
     equipment: {
       weapon: "WAND",
       shield: null,
-      armor: "ROBE"
+      armor: "ROBE",
+      accessory: null
     }
   },
   {
@@ -229,7 +235,8 @@ export const createDefaultRoster = () => [
     equipment: {
       weapon: "SHORT_SWORD",
       shield: "SMALL_SHIELD",
-      armor: "LEATHER_ARMOR"
+      armor: "LEATHER_ARMOR",
+      accessory: null
     }
   },
   {
@@ -252,7 +259,8 @@ export const createDefaultRoster = () => [
     equipment: {
       weapon: null,
       shield: null,
-      armor: "NINJA_SUIT"
+      armor: "NINJA_SUIT",
+      accessory: null
     }
   }
 ];

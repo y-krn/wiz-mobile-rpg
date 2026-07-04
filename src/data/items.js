@@ -28,8 +28,8 @@ export const ITEMS = {
   // Armor
   ROBE: { id: "ROBE", name: "魔法使いのローブ", type: "armor", def: 1, price: 30, desc: "魔力を帯びたシルクの衣。防御力+1 [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"], tags: ["spirit", "ward"] },
   MAGE_CLOAK: { id: "MAGE_CLOAK", name: "魔術師のクローク", type: "armor", def: 4, price: 380, desc: "魔力で守られた外套。防御力+4 [魔・司用]", classes: ["Mage", "Bishop"], tags: ["spirit", "ward"] },
-  ARCANE_ROBE: { id: "ARCANE_ROBE", name: "魔導ローブ", type: "armor", def: 3, price: 760, desc: "術式を織り込んだ上質なローブ。防御力+3 [魔・司用]", classes: ["Mage", "Bishop"], tags: ["spirit", "ward"] },
-  SORCERER_ROBE: { id: "SORCERER_ROBE", name: "大魔道のローブ", type: "armor", def: 4, price: 950, desc: "魔除けの刺繍を施した高位のローブ。防御力+4 [魔・司用]", classes: ["Mage", "Bishop"], tags: ["spirit", "ward"] },
+  ARCANE_ROBE: { id: "ARCANE_ROBE", name: "魔導ローブ", type: "armor", def: 5, price: 760, desc: "術式を織り込んだ上質なローブ。防御力+5 [魔・司用]", classes: ["Mage", "Bishop"], tags: ["spirit", "ward"] },
+  SORCERER_ROBE: { id: "SORCERER_ROBE", name: "大魔道のローブ", type: "armor", def: 6, price: 950, desc: "魔除けの刺繍を施した高位のローブ。防御力+6 [魔・司用]", classes: ["Mage", "Bishop"], tags: ["spirit", "ward"] },
   LEATHER_ARMOR: { id: "LEATHER_ARMOR", name: "レザーアーマー", type: "armor", def: 4, price: 120, desc: "なめし革の胸当て。防御力+4 [戦・盗・僧・侍・野用]", classes: ["Fighter", "Thief", "Priest", "Samurai", "Ranger"], tags: ["beast", "ward"] },
   EXPLORER_CLOAK: { id: "EXPLORER_CLOAK", name: "探索者の外套", type: "armor", def: 3, price: 160, desc: "罠と毒への備えを隠した外套。防御力+3 [盗・僧・魔・司・野・忍用]", classes: ["Thief", "Priest", "Mage", "Bishop", "Ranger", "Ninja"], tags: ["beast", "poison"] },
   NINJA_SUIT: { id: "NINJA_SUIT", name: "忍者の装束", type: "armor", def: 5, price: 250, desc: "闇に紛れる防具。防御力+5 [盗・忍用]", classes: ["Thief", "Ninja"], tags: ["ambush", "evasion"] },
@@ -40,6 +40,18 @@ export const ITEMS = {
   BATTLE_GARB: { id: "BATTLE_GARB", name: "戦装束", type: "armor", def: 5, price: 840, desc: "軽量で動きやすい戦用の装束。防御力+5 [戦・盗・侍・忍用]", classes: ["Fighter", "Thief", "Samurai", "Ninja"], tags: ["ambush", "ward"] },
   PLATE_MAIL: { id: "PLATE_MAIL", name: "プレートメイル", type: "armor", def: 16, price: 900, desc: "全身を包み込む鋼鉄の板金鎧。防御力+16 [戦・侍用]", classes: ["Fighter", "Samurai"], tags: ["iron", "ward"] },
   DRAGON_SCALE: { id: "DRAGON_SCALE", name: "竜鱗の鎧", type: "armor", def: 12, price: 1400, desc: "竜の鱗を加工して作られた極めて頑丈な鱗鎧。防御力+12 [戦・侍・野用]", classes: ["Fighter", "Samurai", "Ranger"], tags: ["dragon", "ward"] },
+
+  // Accessories
+  AMULET_HP: { id: "AMULET_HP", name: "生命の護符", type: "accessory", hpBonus: 10, price: 450, desc: "生命力を高める小さな護符。最大HP+10 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["ward"] },
+  AMULET_MP: { id: "AMULET_MP", name: "魔力の護符", type: "accessory", mpBonus: 3, price: 520, desc: "魔力を蓄える小さな護符。最大MP+3 [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"], tags: ["spirit"] },
+  RING_STR: { id: "RING_STR", name: "力の指輪", type: "accessory", statsBonus: { str: 2 }, price: 500, desc: "腕力を引き出す指輪。力+2 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["iron"] },
+  RING_AGI: { id: "RING_AGI", name: "韋駄天の指輪", type: "accessory", statsBonus: { agi: 1 }, price: 480, desc: "身のこなしを軽くする指輪。素早さ+1 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["ambush"] },
+  RING_LUK: { id: "RING_LUK", name: "幸運の指輪", type: "accessory", statsBonus: { luk: 2 }, price: 480, desc: "運を呼ぶ指輪。運+2 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["search"] },
+  THIEF_EYE: { id: "THIEF_EYE", name: "盗賊の目", type: "accessory", trapBonus: 10, price: 520, desc: "罠の癖を見抜く片眼鏡。罠解除+10% [盗・野・忍用]", classes: ["Thief", "Ranger", "Ninja"], tags: ["trap"] },
+  WARD_CHARM: { id: "WARD_CHARM", name: "守護の護符", type: "accessory", affixBonus: { spellGuard: 15 }, price: 680, desc: "呪文を逸らす守り札。魔法耐性+15% [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["ward"] },
+  DRAGON_RING: { id: "DRAGON_RING", name: "竜除けの指輪", type: "accessory", affixBonus: { antiDragon: 20 }, price: 760, desc: "竜への備えを刻んだ指輪。竜特効+20% [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["dragon"] },
+  HOLY_BAND: { id: "HOLY_BAND", name: "退魔の腕輪", type: "accessory", affixBonus: { antiUndead: 20 }, price: 720, desc: "不死者を退ける腕輪。不死特効+20% [僧・司用]", classes: ["Priest", "Bishop"], tags: ["holy"] },
+  SWIFT_BAND: { id: "SWIFT_BAND", name: "迅雷の帯", type: "accessory", affixBonus: { firstStrike: 5 }, price: 760, desc: "初動を助ける細帯。先制+5% [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["ambush"] },
 
   // Potions / Quest items
   HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", price: 60, desc: "使用するとHPを15回復する。" },

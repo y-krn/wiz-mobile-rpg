@@ -423,7 +423,7 @@ function createRescueCandidates() {
     luk: isFighter ? 9 : 8,
     status: "ok",
     spells: [],
-    equipment: { weapon: null, shield: null, armor: null }
+    equipment: { weapon: null, shield: null, armor: null, accessory: null }
   });
 
   // 2. 回復 (Priest/Bishop)
@@ -447,7 +447,7 @@ function createRescueCandidates() {
     luk: isPriest ? 10 : 9,
     status: "ok",
     spells: isPriest ? ["DIOS", "MILWA", "DIURCO", "BADIOS"] : ["DIOS", "HALITO"],
-    equipment: { weapon: null, shield: null, armor: null }
+    equipment: { weapon: null, shield: null, armor: null, accessory: null }
   });
 
   // 3. 探索・魔法 (Thief/Mage)
@@ -471,7 +471,7 @@ function createRescueCandidates() {
     luk: isThief ? 15 : 9,
     status: "ok",
     spells: isThief ? [] : ["HALITO", "DUMAPIC"],
-    equipment: { weapon: null, shield: null, armor: null }
+    equipment: { weapon: null, shield: null, armor: null, accessory: null }
   });
 
   return candidates;

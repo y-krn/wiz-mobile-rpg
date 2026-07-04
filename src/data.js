@@ -17,7 +17,7 @@ import { MONSTERS as STATIC_MONSTERS } from "./data/monsters.js";
 import { SPELLS as STATIC_SPELLS } from "./data/spells.js";
 import { ITEM_EFFECTS } from "./systems/item_effects.js";
 import { SPELL_EFFECTS } from "./systems/spell_effects.js";
-import { generateRandomEquipment as newGenerateRandomEquipment } from "./systems/equipment_generation.js";
+import { generateRandomAccessory as newGenerateRandomAccessory, generateRandomEquipment as newGenerateRandomEquipment } from "./systems/equipment_generation.js";
 
 export const MONSTERS = STATIC_MONSTERS;
 
@@ -53,4 +53,8 @@ for (const [key, val] of Object.entries(STATIC_ITEMS)) {
 // should pass state.party.
 export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false) {
   return newGenerateRandomEquipment(floor, { forceRarity, rng, party, excludeHighEnd });
+}
+
+export function generateRandomAccessory(floor, forceRarity = null, rng = Math.random, party = null) {
+  return newGenerateRandomAccessory(floor, { forceRarity, rng, party });
 }

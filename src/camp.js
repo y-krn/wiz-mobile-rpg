@@ -30,12 +30,17 @@ export function executeUtilitySpell() {
 export function executeAllySpell(targetIdx) {
   const caster = state.party[menuContext.actorIdx];
   const spell = SPELLS[menuContext.spellName];
-  const target = state.party[targetIdx];
 
   caster.mp -= spell.cost;
   playSound("cast_spell");
 
-  const result = spell.effect(caster, target);
+  let result;
+  if (spell.target === "all_allies") {
+    result = spell.effect(caster, state.party);
+  } else {
+    const target = state.party[targetIdx];
+    result = spell.effect(caster, target);
+  }
   addLog(result.log);
   
   if (result.heal) {

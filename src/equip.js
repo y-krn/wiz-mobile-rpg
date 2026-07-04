@@ -27,13 +27,15 @@ const EQUIP_FILTERS = [
   { id: "all", label: "すべて" },
   { id: "weapon", label: "武器" },
   { id: "shield", label: "盾" },
-  { id: "armor", label: "鎧" }
+  { id: "armor", label: "鎧" },
+  { id: "accessory", label: "装飾" }
 ];
 
 const SLOT_LABELS = {
   weapon: "武器",
   shield: "盾",
-  armor: "鎧"
+  armor: "鎧",
+  accessory: "装飾"
 };
 
 const STAT_ROWS = [
@@ -88,7 +90,7 @@ function clearSelection() {
 }
 
 function isEquipmentItem(item) {
-  return item && (item.type === "weapon" || item.type === "shield" || item.type === "armor");
+  return item && (item.type === "weapon" || item.type === "shield" || item.type === "armor" || item.type === "accessory");
 }
 
 function isIdentified(itemKey) {
@@ -189,7 +191,7 @@ export function getItemUseStatus(char, itemKey) {
 }
 
 function getEquipmentItems() {
-  const typePriority = { weapon: 0, shield: 1, armor: 2 };
+  const typePriority = { weapon: 0, shield: 1, armor: 2, accessory: 3 };
   return state.inventory
     .map((itemKey, idx) => ({ itemKey, idx, item: getItemData(itemKey) }))
     .filter(({ item }) => {
@@ -209,6 +211,15 @@ function getItemSummary(item) {
   if (item.type === "weapon") return `攻撃 +${item.atk || 0}`;
   if (item.type === "shield") return `防御 +${item.def || 0}`;
   if (item.type === "armor") return `防御 +${item.def || 0}`;
+  if (item.type === "accessory") {
+    if (item.hpBonus) return `HP +${item.hpBonus}`;
+    if (item.mpBonus) return `MP +${item.mpBonus}`;
+    if (item.trapBonus) return `罠 +${item.trapBonus}%`;
+    const stat = Object.entries(item.statsBonus || {}).find(([, value]) => value);
+    if (stat) return `${stat[0].toUpperCase()} +${stat[1]}`;
+    const affix = Object.entries(item.affixBonus || {}).find(([, value]) => value);
+    if (affix) return `${affix[0]} +${affix[1]}%`;
+  }
   return "";
 }
 
@@ -304,7 +315,8 @@ function createEquipmentList(char, savedScrollTop) {
   const slots = [
     { id: "weapon", label: "武器" },
     { id: "shield", label: "盾" },
-    { id: "armor", label: "鎧" }
+    { id: "armor", label: "鎧" },
+    { id: "accessory", label: "装飾" }
   ];
 
   const filteredSlots = slots.filter(s => equipState.filter === "all" || equipState.filter === s.id);

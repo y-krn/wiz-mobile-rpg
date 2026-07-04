@@ -67,7 +67,7 @@ const SYNERGY_AFFIX_LABELS = {
 
 export function getEquipmentPreview(char, eqItem) {
   const item = getItemData(eqItem);
-  if (!item || !["weapon", "shield", "armor"].includes(item.type)) return null;
+  if (!item || !["weapon", "shield", "armor", "accessory"].includes(item.type)) return null;
 
   const current = getCharDerivedStats(char);
   const slot = item.type;

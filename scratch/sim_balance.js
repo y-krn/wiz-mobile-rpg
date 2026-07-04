@@ -9,7 +9,7 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
 import { MONSTERS } from "../src/data.js";
 
 // Helper to create a standard level party
-function createParty(level = 5) {
+function createParty(level = 5, withAccessories = false) {
   const hpScale = level - 5;
   return [
     {
@@ -20,7 +20,7 @@ function createParty(level = 5) {
       mp: 0, maxMp: 0,
       status: "ok",
       str: 15, int: 8, pie: 8, vit: 14, agi: 12, luk: 10,
-      equipment: { weapon: { name: "ロングソード", atk: 12 }, shield: { name: "ヒーターシールド", def: 5 }, armor: { name: "鎖帷子", def: 6 } },
+      equipment: { weapon: "LONG_SWORD", shield: "LARGE_SHIELD", armor: "CHAIN_MAIL", accessory: withAccessories ? "RING_STR" : null },
       spells: []
     },
     {
@@ -31,7 +31,7 @@ function createParty(level = 5) {
       mp: Math.max(0, 4 + hpScale * 1), maxMp: Math.max(0, 4 + hpScale * 1),
       status: "ok",
       str: 14, int: 11, pie: 8, vit: 12, agi: 13, luk: 9,
-      equipment: { weapon: { name: "刀", atk: 14 }, shield: null, armor: { name: "ハラアテ", def: 4 } },
+      equipment: { weapon: "NINJA_BLADE", shield: null, armor: "BATTLE_GARB", accessory: withAccessories ? "SWIFT_BAND" : null },
       spells: ["HALITO"]
     },
     {
@@ -42,7 +42,7 @@ function createParty(level = 5) {
       mp: Math.max(0, 12 + hpScale * 2), maxMp: Math.max(0, 12 + hpScale * 2),
       status: "ok",
       str: 10, int: 10, pie: 15, vit: 10, agi: 11, luk: 10,
-      equipment: { weapon: { name: "メイス", atk: 8 }, shield: { name: "ターゲットシールド", def: 3 }, armor: { name: "革鎧", def: 3 } },
+      equipment: { weapon: "SACRED_MACE", shield: "SMALL_SHIELD", armor: "PRIEST_ROBE", accessory: withAccessories ? "HOLY_BAND" : null },
       spells: ["DIOS", "MABARRIER", "LATUMOF"]
     },
     {
@@ -53,7 +53,7 @@ function createParty(level = 5) {
       mp: Math.max(0, 10 + hpScale * 2), maxMp: Math.max(0, 10 + hpScale * 2),
       status: "ok",
       str: 8, int: 16, pie: 8, vit: 9, agi: 12, luk: 11,
-      equipment: { weapon: { name: "スタッフ", atk: 4 }, shield: null, armor: { name: "ローブ", def: 1 } },
+      equipment: { weapon: "ARCH_WAND", shield: null, armor: "SORCERER_ROBE", accessory: withAccessories ? "AMULET_MP" : null },
       spells: ["HALITO", "MONTINO", "LAHALITO", "MORLIS"]
     }
   ];
@@ -76,8 +76,8 @@ function getMonster(name, override = {}) {
 
 // Simulate one combat encounter
 // strategy: 'auto' or 'manual'
-function simulateEncounter(monsterTemplate, count, strategy, level = 5) {
-  const party = createParty(level);
+function simulateEncounter(monsterTemplate, count, strategy, level = 5, withAccessories = false) {
+  const party = createParty(level, withAccessories);
   const monsters = Array.from({ length: count }, (_, i) => ({
     ...JSON.parse(JSON.stringify(monsterTemplate)),
     id: `m_${i}`
@@ -189,14 +189,14 @@ function simulateEncounter(monsterTemplate, count, strategy, level = 5) {
 }
 
 // Run bulk simulation for a monster type
-function runSimulationSuite(monsterName, override, count = 1, runs = 1000, level = 5) {
+function runSimulationSuite(monsterName, override, count = 1, runs = 1000, level = 5, withAccessories = false) {
   const monsterTemplate = getMonster(monsterName, override);
   
   let autoStats = { wins: 0, tpks: 0, totalTurns: 0, totalDeaths: 0, totalDmg: 0, totalMp: 0 };
   let manualStats = { wins: 0, tpks: 0, totalTurns: 0, totalDeaths: 0, totalDmg: 0, totalMp: 0 };
 
   for (let i = 0; i < runs; i++) {
-    const resAuto = simulateEncounter(monsterTemplate, count, "auto", level);
+    const resAuto = simulateEncounter(monsterTemplate, count, "auto", level, withAccessories);
     autoStats.wins += resAuto.win;
     autoStats.tpks += resAuto.tpk;
     autoStats.totalTurns += resAuto.turns;
@@ -204,7 +204,7 @@ function runSimulationSuite(monsterName, override, count = 1, runs = 1000, level
     autoStats.totalDmg += resAuto.totalDmgTaken;
     autoStats.totalMp += resAuto.mpConsumed;
 
-    const resManual = simulateEncounter(monsterTemplate, count, "manual", level);
+    const resManual = simulateEncounter(monsterTemplate, count, "manual", level, withAccessories);
     manualStats.wins += resManual.win;
     manualStats.tpks += resManual.tpk;
     manualStats.totalTurns += resManual.turns;
@@ -246,13 +246,13 @@ const targets = [
 
 targets.forEach(t => {
   console.log(`\nMonster: ${t.name} (x${t.count}), Party Level: ${t.level}`);
-  const before = runSimulationSuite(t.name, t.overrideBefore, t.count, 500, t.level);
-  const after = runSimulationSuite(t.name, t.overrideAfter, t.count, 500, t.level);
+  const before = runSimulationSuite(t.name, t.overrideBefore, t.count, 500, t.level, false);
+  const after = runSimulationSuite(t.name, t.overrideAfter, t.count, 500, t.level, true);
 
   console.log(`  [Before]`);
   console.log(`    Auto  : TPK=${(before.auto.tpkRate*100).toFixed(1)}%, AvgDmg=${before.auto.avgDmg.toFixed(1)}, AvgTurns=${before.auto.avgTurns.toFixed(1)}, AvgMp=${before.auto.avgMp.toFixed(1)}`);
   console.log(`    Manual: TPK=${(before.manual.tpkRate*100).toFixed(1)}%, AvgDmg=${before.manual.avgDmg.toFixed(1)}, AvgTurns=${before.manual.avgTurns.toFixed(1)}, AvgMp=${before.manual.avgMp.toFixed(1)}`);
-  console.log(`  [After]`);
+  console.log(`  [After + full accessories]`);
   console.log(`    Auto  : TPK=${(after.auto.tpkRate*100).toFixed(1)}%, AvgDmg=${after.auto.avgDmg.toFixed(1)}, AvgTurns=${after.auto.avgTurns.toFixed(1)}, AvgMp=${after.auto.avgMp.toFixed(1)}`);
   console.log(`    Manual: TPK=${(after.manual.tpkRate*100).toFixed(1)}%, AvgDmg=${after.manual.avgDmg.toFixed(1)}, AvgTurns=${after.manual.avgTurns.toFixed(1)}, AvgMp=${after.manual.avgMp.toFixed(1)}`);
 });

@@ -323,6 +323,40 @@ export const SPELL_EFFECTS = {
     }
     return { heal: actualHeal, log: `${caster.name}はディアルマを唱えた！${target.name}のHPを${actualHeal}大回復した。` };
   },
+  MADI: ({ caster, target: allies, rng = Math.random }) => {
+    const results = [];
+    const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
+    const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
+    let totalHeal = 0;
+    let anyHealed = false;
+
+    allies.forEach(char => {
+      if (char.status === "dead") return;
+      let heal = Math.floor(rng() * 16) + 25; // 25-40
+      heal = Math.round(heal * bonus * devotionBonus);
+      heal = getEffectiveHealAmount(char, heal);
+
+      const oldHp = char.hp;
+      const maxHp = getCharMaxHp(char);
+      char.hp = Math.min(maxHp, char.hp + heal);
+      const actualHeal = char.hp - oldHp;
+      totalHeal += actualHeal;
+      if (actualHeal > 0) {
+        anyHealed = true;
+      }
+      results.push({ name: char.name, heal: actualHeal });
+    });
+
+    if (!anyHealed) {
+      return { heal: 0, log: `${caster.name}はマディを唱えたが、味方全体のHPは最大だった。` };
+    }
+
+    const details = results.map(r => `${r.name}(+${r.heal})`).join(", ");
+    return {
+      heal: totalHeal,
+      log: `${caster.name}はマディを唱えた！味方全員のHPを回復した。[${details}]`
+    };
+  },
   KADORTO: ({ caster, target, rng = Math.random }) => {
     let logMsg;
     if (target.status === "dead") {
@@ -377,5 +411,14 @@ export const SPELL_EFFECTS = {
       }
     });
     return { log: `${caster.name}はモーリスを唱えた！敵全体の魔法耐性を下げた。` };
+  },
+  WEAKEN: ({ caster, target: targets }) => {
+    targets.forEach(t => {
+      if (t.hp > 0) {
+        if (!t.buffs) t.buffs = [];
+        t.buffs.push({ type: "atk", value: -3, turns: 3 });
+      }
+    });
+    return { log: `${caster.name}はウィークンを唱えた！敵全体の攻撃力を下げた。` };
   }
 };

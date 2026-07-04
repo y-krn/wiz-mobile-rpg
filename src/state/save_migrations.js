@@ -75,13 +75,29 @@ export function migrateCharSpells(char) {
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 // 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
 // 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
 // 例: 2: (d) => { d.materials = Object.fromEntries(...); return d; }
-// 現状はフィールド追加のみ(=下のnormalizeで??吸収)のためstepは無し。
-const MIGRATIONS = {};
+function normalizeCharEquipment(char) {
+  if (!char) return;
+  char.equipment = {
+    weapon: char.equipment?.weapon ?? null,
+    shield: char.equipment?.shield ?? null,
+    armor: char.equipment?.armor ?? null,
+    accessory: char.equipment?.accessory ?? null
+  };
+}
+
+const MIGRATIONS = {
+  2: (data) => {
+    data.party?.forEach(normalizeCharEquipment);
+    data.roster?.forEach(normalizeCharEquipment);
+    data.remains?.forEach(normalizeCharEquipment);
+    return data;
+  }
+};
 
 // version番号に基づく段階migration。旧shapeを現行shapeへ引き上げてから
 // normalizeSavePayloadでデフォルト補完する。
@@ -192,6 +208,9 @@ export function normalizeSavePayload(data) {
     normalized.roster = data.roster;
   }
 
+  normalized.party.forEach(normalizeCharEquipment);
+  normalized.roster.forEach(normalizeCharEquipment);
+  normalized.remains.forEach(normalizeCharEquipment);
   normalized.party.forEach(migrateCharSpells);
   normalized.roster.forEach(migrateCharSpells);
 
