@@ -275,6 +275,7 @@ export function openChestMenu() {
   titleEl.textContent = "宝箱の調査・解除";
 
   const optGrid = document.getElementById("submenu-options");
+  optGrid.className = "submenu-grid chest-menu-grid";
   optGrid.innerHTML = "";
 
   const translateTrap = (t) => {
@@ -287,20 +288,7 @@ export function openChestMenu() {
 
   // Create Info Panel for Chest Details & Floor Risks
   const infoPanel = document.createElement("div");
-  infoPanel.style.padding = "8px 10px";
-  infoPanel.style.border = "1px solid #3a3a4c";
-  infoPanel.style.borderRadius = "4px";
-  infoPanel.style.backgroundColor = "rgba(27, 27, 34, 0.6)";
-  infoPanel.style.fontSize = "11px";
-  infoPanel.style.fontFamily = "var(--font-mono)";
-  infoPanel.style.lineHeight = "1.4";
-  infoPanel.style.gridColumn = "auto";
-  infoPanel.style.marginBottom = "0";
-  infoPanel.style.height = "100%";
-  infoPanel.style.boxSizing = "border-box";
-  infoPanel.style.display = "flex";
-  infoPanel.style.flexDirection = "column";
-  infoPanel.style.justifyContent = "center";
+  infoPanel.className = "chest-info-panel";
 
   // 1. Floor Risk Warning
   let riskText = "";
@@ -337,7 +325,7 @@ export function openChestMenu() {
   }
 
   // 3. Traps Help
-  const helpText = `<div style="font-size:9px; color:var(--text-muted); border-top:1px solid #3a3a4c; margin-top:6px; padding-top:4px; line-height:1.2;">
+  const helpText = `<div class="chest-help-text">
 毒針:単体+毒 | ガス:全体ダメ<br>
 テレポ:転移 | 閃光:全体盲目
 </div>`;
@@ -349,7 +337,7 @@ export function openChestMenu() {
                       loot.aura === "medium" ? `<span style="color:var(--neon-yellow); font-weight:bold;">中</span>` :
                       `<span style="color:var(--text-muted);">弱</span>`;
     lootText = `
-      <div style="border-top:1px dashed #3a3a4c; margin-top:4px; padding-top:4px;">
+      <div class="chest-loot-hint">
         <div>宝気: <span style="color:#fff;">${loot.label}</span></div>
         <div>魔力反応: ${auraLabel}</div>
       </div>
@@ -369,7 +357,6 @@ export function openChestMenu() {
   btnInspect.id = "btn-chest-inspect";
   btnInspect.className = "btn btn-neon btn-block";
   btnInspect.style.minHeight = "44px";
-  btnInspect.style.flex = "1";
   if (state.chestState.inspected) {
     btnInspect.textContent = "調査済み";
     btnInspect.disabled = true;
@@ -420,7 +407,6 @@ export function openChestMenu() {
   btnDisarm.id = "btn-chest-disarm";
   btnDisarm.className = "btn btn-neon btn-block";
   btnDisarm.style.minHeight = "44px";
-  btnDisarm.style.flex = "1";
   if (!state.chestState.inspected) {
     btnDisarm.textContent = "解除（要調査）";
     btnDisarm.disabled = true;
@@ -438,11 +424,7 @@ export function openChestMenu() {
 
   // Right Column (Inspect & Disarm)
   const rightColumn = document.createElement("div");
-  rightColumn.style.display = "flex";
-  rightColumn.style.flexDirection = "column";
-  rightColumn.style.gap = "4px";
-  rightColumn.style.width = "100%";
-  rightColumn.style.height = "100%";
+  rightColumn.className = "chest-action-column";
   rightColumn.appendChild(btnInspect);
   rightColumn.appendChild(btnDisarm);
   optGrid.appendChild(rightColumn);

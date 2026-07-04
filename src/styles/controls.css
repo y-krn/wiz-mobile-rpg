@@ -19,8 +19,22 @@
 }
 
 #controls-panel.submenu-mode {
-  height: 320px; /* Expand height in submenus for list readability */
-  max-height: 45vh; /* Keep it within bounds of device screen height */
+  height: auto; /* Hug content — avoid dead space for short menus (events, springs) */
+  min-height: 0;
+  max-height: 45vh; /* Cap for long lists; submenu-grid scrolls beyond this */
+}
+
+#controls-panel.combat-mode {
+  height: auto; /* Compact — buttons sized to content, no vertical stretch */
+  min-height: 0;
+  justify-content: flex-start;
+  padding: 8px;
+}
+
+#controls-panel.submenu-mode.chest-menu-mode {
+  height: auto;
+  min-height: 210px;
+  justify-content: flex-start;
 }
 
 .controls-group {
@@ -78,9 +92,15 @@
 
 
 
+#combat-controls.active {
+  flex-direction: column; /* Prompt on top, action grid below */
+  gap: 6px;
+}
+
 .combat-grid {
   grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+  grid-auto-rows: var(--tap-lg); /* Fixed row height — no vertical stretch */
+  height: auto;
   width: 100%;
 }
 #btn-combat-cancel {
@@ -140,6 +160,44 @@
 .submenu-grid .btn {
   padding: 6px 4px;
   font-size: var(--fs-sm);
+}
+
+.chest-menu-grid {
+  grid-template-columns: 1.25fr 1fr;
+  gap: var(--sp-sm);
+}
+
+.chest-info-panel {
+  padding: var(--sp-md) 10px;
+  border: 1px solid #3a3a4c;
+  border-radius: var(--radius-md);
+  background-color: rgba(27, 27, 34, 0.6);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  box-sizing: border-box;
+}
+
+.chest-loot-hint {
+  border-top: 1px dashed #3a3a4c;
+  margin-top: var(--sp-xs);
+  padding-top: var(--sp-xs);
+}
+
+.chest-help-text {
+  color: var(--text-muted);
+  border-top: 1px solid #3a3a4c;
+  margin-top: var(--sp-sm);
+  padding-top: var(--sp-xs);
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+}
+
+.chest-action-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+  width: 100%;
 }
 
 /* Combat prompt */

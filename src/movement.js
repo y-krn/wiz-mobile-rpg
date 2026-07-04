@@ -59,7 +59,6 @@ export function handleMove(action) {
     if (currentCell.walls[state.dir]) {
       playSound("bump");
       if (renderer) renderer.triggerShake(4, 150);
-      addLog("痛い！壁にぶつかった！");
     } else {
       // Step forward
       state.x += DX[state.dir];
@@ -82,7 +81,6 @@ export function handleMove(action) {
     if (currentCell.walls[backDir]) {
       playSound("bump");
       if (renderer) renderer.triggerShake(4, 150);
-      addLog("下がれない。後ろは壁だ。");
     } else {
       state.x += DX[backDir];
       state.y += DY[backDir];

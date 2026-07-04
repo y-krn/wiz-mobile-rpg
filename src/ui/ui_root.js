@@ -247,7 +247,9 @@ export function updateUI() {
   const controlsPanel = document.getElementById("controls-panel");
   if (controlsPanel) {
     controlsPanel.classList.toggle("explore-mode", state.gameState === "explore");
+    controlsPanel.classList.toggle("combat-mode", state.gameState === "combat");
     controlsPanel.classList.toggle("submenu-mode", state.gameState === "submenu");
+    controlsPanel.classList.toggle("chest-menu-mode", state.gameState === "submenu" && menuContext.type === "chest_menu");
     controlsPanel.classList.toggle("trap-mode", state.gameState === "trap_encounter");
   }
 
