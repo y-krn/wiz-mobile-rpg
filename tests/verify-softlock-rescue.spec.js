@@ -127,8 +127,8 @@ test.describe('Softlock Rescue Flow', () => {
     await trainingBtn.click();
     await page.waitForTimeout(500);
 
-    // 2. 訓練場で「新人を迎える」ボタンが表示されていることを確認
-    const rescueBtn = page.locator('button:has-text("新人を迎える")');
+    // 2. 訓練場で「志願者を募る」ボタンが表示されていることを確認
+    const rescueBtn = page.locator('button:has-text("志願者を募る")');
     await expect(rescueBtn).toBeVisible();
     await expect(rescueBtn).toContainText('0/2');
     
@@ -136,10 +136,17 @@ test.describe('Softlock Rescue Flow', () => {
     await rescueBtn.click();
     await page.waitForTimeout(500);
 
-    const newbieRow = page.locator('button:has-text("Trainee")');
+    // 候補3人が表示されていることを確認
+    await expect(page.locator('.rescue-candidate-card')).toHaveCount(3);
+    const selectedName = await page.locator('.rescue-candidate-name').first().textContent();
+    const selectBtn1 = page.locator('.btn-rescue-select').first();
+    await selectBtn1.click();
+    await page.waitForTimeout(500);
+
+    const newbieRow = page.locator(`button:has-text("${selectedName}")`);
     await expect(newbieRow).toBeVisible();
 
-    const partySlot = page.locator('.training-party-slot.filled:has-text("Trainee")');
+    const partySlot = page.locator(`.training-party-slot.filled:has-text("${selectedName}")`);
     await expect(partySlot).toBeVisible();
 
     // 2人目の新人を迎える
@@ -147,10 +154,16 @@ test.describe('Softlock Rescue Flow', () => {
     await rescueBtn.click();
     await page.waitForTimeout(500);
 
-    const newbieRow2 = page.locator('button:has-text("Trainee1")');
+    await expect(page.locator('.rescue-candidate-card')).toHaveCount(3);
+    const selectedName2 = await page.locator('.rescue-candidate-name').first().textContent();
+    const selectBtn2 = page.locator('.btn-rescue-select').first();
+    await selectBtn2.click();
+    await page.waitForTimeout(500);
+
+    const newbieRow2 = page.locator(`button:has-text("${selectedName2}")`);
     await expect(newbieRow2).toBeVisible();
 
-    const partySlot2 = page.locator('.training-party-slot.filled:has-text("Trainee1")');
+    const partySlot2 = page.locator(`.training-party-slot.filled:has-text("${selectedName2}")`);
     await expect(partySlot2).toBeVisible();
 
     // 最低探索人数(2人)に達したのでボタンが表示されなくなることを確認

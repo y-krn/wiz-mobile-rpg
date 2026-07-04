@@ -5,13 +5,20 @@ import { goBackSubmenu } from "./navigation.js";
 
 export let trainingState = {
   tab: "roster", // "roster" or "party"
-  selectedName: null
+  selectedName: null,
+  rescueCandidates: null,
+  showRescueSelection: false
 };
 
 export function renderTraining() {
   const overlay = document.getElementById("training-overlay");
   if (!overlay) return;
   overlay.innerHTML = "";
+
+  if (trainingState.showRescueSelection && trainingState.rescueCandidates) {
+    renderRescueSelection(overlay);
+    return;
+  }
 
   // 1. Create header
   const header = document.createElement("div");
@@ -337,7 +344,7 @@ export function renderTraining() {
     const aliveCount = state.roster.filter(char => char.status !== "dead" && char.status !== "ash").length;
     const isFull = state.roster.length >= 8;
     if (isFull) {
-      btnRescue.textContent = `⚠️ 新人を迎える (名簿満員) ${aliveCount}/2`;
+      btnRescue.textContent = `⚠️ 志願者を募る (名簿満員) ${aliveCount}/2`;
       btnRescue.disabled = true;
 
       const infoMsg = document.createElement("div");
@@ -347,9 +354,13 @@ export function renderTraining() {
       infoMsg.textContent = "名簿が満員です。死亡したメンバーを諦めて空き枠を作ってください。";
       rescueRow.appendChild(infoMsg);
     } else {
-      btnRescue.textContent = `🆕 新人を迎える (0G) ${aliveCount}/2`;
+      btnRescue.textContent = `🆕 志願者を募る (0G) ${aliveCount}/2`;
       btnRescue.addEventListener("click", () => {
-        addNewbieToRoster();
+        if (!trainingState.rescueCandidates) {
+          trainingState.rescueCandidates = createRescueCandidates();
+        }
+        trainingState.showRescueSelection = true;
+        renderTraining();
       });
     }
     rescueRow.appendChild(btnRescue);
@@ -364,6 +375,8 @@ export function renderTraining() {
   btnClose.style.width = "100%";
   btnClose.textContent = "❌ 閉じる";
   btnClose.addEventListener("click", () => {
+    trainingState.rescueCandidates = null;
+    trainingState.showRescueSelection = false;
     goBackSubmenu();
   });
   closeRow.appendChild(btnClose);
@@ -372,44 +385,195 @@ export function renderTraining() {
   overlay.appendChild(footer);
 }
 
-function addNewbieToRoster() {
-  let baseName = "Trainee";
-  let name = baseName;
-  let count = 1;
-  while (state.roster.some(c => c.name === name)) {
-    name = `${baseName}${count}`;
-    count++;
-  }
+function createRescueCandidates() {
+  const namePool = ["アレン", "ミナ", "ロウ", "セラ", "ガイ", "リナ", "ノア", "エル", "ダン", "ユリ", "カイ", "レナ"];
+  const shuffled = [...namePool].sort(() => Math.random() - 0.5);
+  const selectedNames = shuffled.slice(0, 3);
 
-  const newChar = {
-    name: name,
-    class: "Fighter",
+  const finalNames = selectedNames.map(baseName => {
+    let name = baseName;
+    let count = 2;
+    while (state.roster.some(c => c.name === name)) {
+      name = `${baseName}${count}`;
+      count++;
+    }
+    return name;
+  });
+
+  const candidates = [];
+
+  // 1. 前衛 (Fighter/Samurai)
+  const isFighter = Math.random() < 0.5;
+  const c1Class = isFighter ? "Fighter" : "Samurai";
+  candidates.push({
+    name: finalNames[0],
+    class: c1Class,
+    roleDesc: "前衛向き",
     level: 1,
     exp: 0,
-    hp: 20,
-    maxHp: 20,
+    hp: isFighter ? 20 : 18,
+    maxHp: isFighter ? 20 : 18,
     mp: 0,
     maxMp: 0,
-    str: 15,
-    int: 7,
-    pie: 8,
-    vit: 14,
-    agi: 10,
-    luk: 9,
+    str: isFighter ? 15 : 14,
+    int: isFighter ? 7 : 10,
+    pie: isFighter ? 8 : 8,
+    vit: isFighter ? 14 : 12,
+    agi: isFighter ? 10 : 10,
+    luk: isFighter ? 9 : 8,
     status: "ok",
-    equipment: {
-      weapon: null,
-      shield: null,
-      armor: null
-    }
-  };
+    spells: [],
+    equipment: { weapon: null, shield: null, armor: null }
+  });
 
-  state.roster.push(newChar);
-  addLog(`新しい冒険者 ${name} が訓練場にやってきた！`);
+  // 2. 回復 (Priest/Bishop)
+  const isPriest = Math.random() < 0.5;
+  const c2Class = isPriest ? "Priest" : "Bishop";
+  candidates.push({
+    name: finalNames[1],
+    class: c2Class,
+    roleDesc: "回復役",
+    level: 1,
+    exp: 0,
+    hp: isPriest ? 12 : 11,
+    maxHp: isPriest ? 12 : 11,
+    mp: 3,
+    maxMp: 3,
+    str: 9,
+    int: isPriest ? 10 : 12,
+    pie: isPriest ? 15 : 12,
+    vit: isPriest ? 11 : 10,
+    agi: 9,
+    luk: isPriest ? 10 : 9,
+    status: "ok",
+    spells: isPriest ? ["DIOS", "MILWA", "DIURCO", "BADIOS"] : ["DIOS", "HALITO"],
+    equipment: { weapon: null, shield: null, armor: null }
+  });
+
+  // 3. 探索・魔法 (Thief/Mage)
+  const isThief = Math.random() < 0.5;
+  const c3Class = isThief ? "Thief" : "Mage";
+  candidates.push({
+    name: finalNames[2],
+    class: c3Class,
+    roleDesc: isThief ? "宝箱対策" : "攻撃魔法",
+    level: 1,
+    exp: 0,
+    hp: isThief ? 15 : 9,
+    maxHp: isThief ? 15 : 9,
+    mp: isThief ? 0 : 4,
+    maxMp: isThief ? 0 : 4,
+    str: isThief ? 10 : 7,
+    int: isThief ? 9 : 16,
+    pie: isThief ? 7 : 9,
+    vit: isThief ? 10 : 8,
+    agi: isThief ? 16 : 11,
+    luk: isThief ? 15 : 9,
+    status: "ok",
+    spells: isThief ? [] : ["HALITO", "DUMAPIC"],
+    equipment: { weapon: null, shield: null, armor: null }
+  });
+
+  return candidates;
+}
+
+function renderRescueSelection(overlay) {
+  const header = document.createElement("div");
+  header.className = "training-header";
+  header.innerHTML = `
+    <span class="training-title">訓練場 - 志願者募集</span>
+    <span class="training-subtitle">仲間に加える志願者を1人選んでください</span>
+  `;
+  overlay.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "training-body";
+  body.style.display = "flex";
+  body.style.flexDirection = "column";
+  body.style.gap = "12px";
+  body.style.flexGrow = "1";
+  body.style.justifyContent = "center";
+
+  const listContainer = document.createElement("div");
+  listContainer.className = "rescue-candidates-list";
+  listContainer.style.display = "flex";
+  listContainer.style.flexDirection = "column";
+  listContainer.style.gap = "12px";
+
+  trainingState.rescueCandidates.forEach(cand => {
+    const card = document.createElement("div");
+    card.className = "rescue-candidate-card";
+
+    const info = document.createElement("div");
+    info.className = "rescue-candidate-info";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "rescue-candidate-name";
+    nameSpan.textContent = cand.name;
+
+    const metaSpan = document.createElement("span");
+    metaSpan.className = "rescue-candidate-meta";
+    metaSpan.textContent = `${getClassJpName(cand.class)} (HP: ${cand.hp})`;
+
+    const descSpan = document.createElement("span");
+    descSpan.className = "rescue-candidate-desc";
+    descSpan.textContent = `役割: ${cand.roleDesc}`;
+
+    info.appendChild(nameSpan);
+    info.appendChild(metaSpan);
+    info.appendChild(descSpan);
+    card.appendChild(info);
+
+    const btnSelect = document.createElement("button");
+    btnSelect.type = "button";
+    btnSelect.className = "btn btn-neon btn-rescue-select";
+    btnSelect.style.height = "44px";
+    btnSelect.textContent = "🤝 仲間に加える";
+    btnSelect.addEventListener("click", () => {
+      const selectedCandidate = { ...cand };
+      delete selectedCandidate.roleDesc;
+
+      trainingState.rescueCandidates = null;
+      trainingState.showRescueSelection = false;
+
+      addNewbieToRoster(selectedCandidate);
+    });
+
+    card.appendChild(btnSelect);
+    listContainer.appendChild(card);
+  });
+
+  body.appendChild(listContainer);
+  overlay.appendChild(body);
+
+  const footer = document.createElement("div");
+  footer.className = "bottom-actions-container";
+
+  const closeRow = document.createElement("div");
+  closeRow.className = "bottom-actions-row";
+
+  const btnCancel = document.createElement("button");
+  btnCancel.className = "btn btn-danger";
+  btnCancel.style.width = "100%";
+  btnCancel.style.height = "44px";
+  btnCancel.textContent = "❌ キャンセル";
+  btnCancel.addEventListener("click", () => {
+    trainingState.showRescueSelection = false;
+    renderTraining();
+  });
+
+  closeRow.appendChild(btnCancel);
+  footer.appendChild(closeRow);
+  overlay.appendChild(footer);
+}
+
+function addNewbieToRoster(candidate) {
+  state.roster.push(candidate);
+  addLog(`新しい冒険者 ${candidate.name} が訓練場にやってきた！`);
 
   if (state.party.length < 4) {
-    state.party.push(newChar);
-    addLog(`${name} をパーティに編成した！`);
+    state.party.push(candidate);
+    addLog(`${candidate.name} をパーティに編成した！`);
   }
 
   saveGame();

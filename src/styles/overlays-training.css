@@ -236,3 +236,61 @@
 .party-pos-label.back {
   color: var(--neon-gold);
 }
+
+/* Rescue Candidates UI */
+.rescue-candidates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.rescue-candidate-card {
+  background-color: #14141a;
+  border: 1px solid #2a2a3c;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+}
+
+.rescue-candidate-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rescue-candidate-name {
+  color: var(--neon-cyan);
+  font-size: var(--fs-md);
+  font-weight: bold;
+  text-shadow: var(--neon-glow-cyan);
+}
+
+.rescue-candidate-meta {
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-family: var(--font-mono);
+}
+
+.rescue-candidate-desc {
+  color: var(--neon-gold);
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  text-shadow: var(--neon-glow-gold);
+  margin-top: 2px;
+}
+
+.btn-rescue-select {
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  font-size: var(--fs-sm);
+  font-weight: bold;
+  border-radius: 4px;
+  touch-action: manipulation;
+}
