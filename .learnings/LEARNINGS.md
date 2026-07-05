@@ -135,3 +135,84 @@ Docker build fails on Apple Silicon due to platform mismatch
 - **Notes**: `combat-mode` トグル追加、`.combat-grid` を `grid-auto-rows:var(--tap-lg)` + `height:auto` 化、`#combat-controls.active` を column 化、`submenu-mode` を固定320px→`height:auto`+`max-height:45vh` 化。実DOM検証で戦闘210→145px(ボタン48px固定)、泉320→135px、長リスト16項目で45vhスクロール維持を確認。
 
 ---
+
+## [LRN-20260705-004] best_practice
+
+**Logged**: 2026-07-05T18:30:00Z
+**Priority**: high
+**Status**: promoted
+**Promoted**: AGENTS.md (Verification セクション)
+**Area**: tests
+
+### Summary
+`scratch/test_*.js` の自作アサートが「常時グリーン詐称」する二重欠陥。ガード早期returnでロジック未実行 + `console.assert`失敗でも無条件`[PASS]`ログ。
+
+### Details
+`scratch/test_return_mark.js` の例:
+- **前提未構築で早期return**: `triggerRunResult`は`state.currentRun`未設定だと `result.js:88` で即return。テストは`currentRun`未設定 → 全`escape_scroll`/`gameover`ケースがno-op。`lastReturnedFloor`は書き換わらず、テスト前に手動セットした値がそのまま残るだけ。
+- **アサート結果を出力に反映しない**: `console.assert(cond, msg)` は失敗時stderrに出すのみで実行は止まらない。直後に無条件 `console.log("-> [PASS] ...")` を置くと、実際FAILでも画面には[PASS]。exit codeも0。CIも人も気付けない。
+
+この2つが重なると「実際は何も検証してないのに全緑」。実際 `node test_return_mark.js` は `Assertion failed:` を3件出しつつ全行[PASS]表示していた。
+
+### Suggested Action
+`scratch/test_*.js`（`run_tests.js`がexecSyncで実行、非ゼロexitで検出）作成・レビュー時:
+1. アサートは成否を変数集計し、`失敗>0 → process.exit(1)`。`console.assert`単独に頼らない。`[PASS]/[FAIL]`ラベルは条件で出し分け（無条件logは詐称の温床）。
+2. テスト対象関数のガード条件（早期return, null前提）を確認し、副作用が実際に走る最小状態を構築してから呼ぶ。呼んで状態不変=検証ゼロを疑う。
+3. 新テストは「わざと壊して落ちるか」を1度確認（期待値を反転させFAIL・exit1が出るか）。常時グリーン検出の唯一確実な方法。
+
+### Metadata
+- Source: user_feedback
+- Related Files: scratch/test_return_mark.js, scratch/run_tests.js, src/result.js
+- Tags: testing, false-positive, assertions, early-return, test-integrity
+- Pattern-Key: harden.test_false_green
+- Recurrence-Count: 1
+- First-Seen: 2026-07-05
+- Last-Seen: 2026-07-05
+
+### Resolution
+- **Resolved**: 2026-07-05T18:30:00Z
+- **Notes**: `setupRun(floor)`で`currentRun`/party/roster等を構築し全ケースで実行担保。`check(cond,label,detail)`ヘルパで成否集計→`[PASS]/[FAIL]`出し分け、`failed>0`で`process.exit(1)`。テスト1期待も仕様変更に合わせ「階段帰還で温存」→「B1F階段帰還で失効」に反転。`node scratch/test_return_mark.js`でexit=0・全PASS確認。
+
+---
+
+## [LRN-20260705-005] best_practice
+
+**Logged**: 2026-07-05T00:00:00Z
+**Priority**: high
+**Status**: promoted
+**Promoted**: AGENTS.md
+**Area**: backend
+
+### Summary
+一時オーバーレイ状態(`submenu` / `trap_encounter`)をそのまま`gameState`保存すると、付随コンテキストが未永続化のため再開時に画面が壊れる。セーブは基底画面へ畳んでから保存する。
+
+### Details
+バグ: お城(城サブメニュー)でやめて再開すると地下1F登り階段から始まる。
+- `createSavePayload`は`state.gameState`を保存するが、`menuContext`(サブメニューの`type`/`prevGameState`)は**payloadに含まれない**。
+- 街サブメニュー(お城/宿屋/寺院/倉庫/訓練/工房)は`gameState="submenu"`。この状態でautosaveが多数走る。
+- 再開: `gameState="submenu"`復元 → `menuContext`は初期値にリセット → `renderer.js:78`の街背景判定が全falseでダンジョン描画。座標は帰城時に`floor=1`/`START`(=地下1F登り階段)へリセット済み。
+- 同型: `trap_encounter`も`activeTrapState`未保存(`traps.js:127`でautosave) → 再開時に罠UI消えて操作不能で詰み。
+
+一般原則: **セーブpayloadに含めない一時state(`menuContext`, `activeTrapState`等)に依存する`gameState`は、そのまま永続化してはいけない**。保存前に安定した基底画面へ正規化する。
+
+### Suggested Action
+新しい`gameState`(オーバーレイ/モーダル系)を追加する際:
+1. その状態の描画/操作が`state`直下以外(module-local変数, 別オブジェクト)に依存するか確認。依存する かつ payload非対象 なら「一時状態」。
+2. 一時状態はセーブ前に基底画面へ畳む(`save_payload.js`の`resolvePersistedGameState`に分岐追加)。畳み規則は`closeSubmenu`(navigation.js)と一致させる。
+3. 「その状態でautosaveが走るか」をgrepで確認(`saveAutosave`呼び出し箇所)。走るなら畳み必須。
+4. `scratch/test_submenu_resume.js`に往復テスト追加(保存→gameState汚し→loadGame→基底画面復帰をassert)。
+
+### Metadata
+- Source: conversation
+- Related Files: src/state/save_payload.js, src/navigation.js, src/systems/traps.js, src/renderer.js, src/ui/ui_root.js, scratch/test_submenu_resume.js
+- Tags: save-load, persistence, gameState, transient-state, submenu, trap
+- Pattern-Key: harden.persist_transient_gamestate
+- Recurrence-Count: 1
+- First-Seen: 2026-07-05
+- Last-Seen: 2026-07-05
+
+### Resolution
+- **Resolved**: 2026-07-05T00:00:00Z
+- **Notes**: `save_payload.js`に`resolvePersistedGameState()`追加。`submenu`は`menuContext.prevGameState`優先→type判定(castle/shop/temple/party_assemble/craft→town, combat→combat, 他→explore)、`trap_encounter`→explore に畳む。`gameState`フィールドをresolverに差し替え。回帰テスト`test_submenu_resume.js`新規(4ケース)。全ユニット+lint パス。
+
+---

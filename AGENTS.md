@@ -92,6 +92,11 @@ first, then read only the relevant part.
 - Avoid one-off abstractions, speculative configuration, and unrelated cleanup.
 - Remove imports, variables, and functions made unused by your own changes.
 - Do not remove unrelated dead code unless asked.
+- When adding a `gameState` whose rendering/controls depend on state NOT in the
+  save payload (e.g. `menuContext`, `activeTrapState`), never persist that
+  transient state directly. Collapse it to a stable base screen before saving in
+  `save_payload.js` `resolvePersistedGameState` (mirror `closeSubmenu`); otherwise
+  resume renders a broken/wrong screen. Add a save→load roundtrip test.
 
 ## Think Before Coding
 
@@ -112,6 +117,13 @@ If multiple interpretations are plausible, ask instead of choosing silently.
   feasible.
 - For logic or state changes, run `npm run test:unit` or the matching focused
   test when feasible.
+- When writing or touching `scratch/test_*.js`, guard against false-green tests:
+  aggregate assertion results and `process.exit(1)` on any failure (never rely on
+  bare `console.assert`, and never print an unconditional `[PASS]`). Ensure the
+  function under test actually runs its side effects — many take an early guard
+  return (e.g. `triggerRunResult` returns when `state.currentRun` is unset), so
+  build the minimal state first. Sanity-check a new test by temporarily inverting
+  an expectation and confirming it fails with a non-zero exit.
 - Report any skipped verification and the reason.
 - For one-off Playwright/browser checks, prefer the Playwright test runner
   (`npm run test:browser` or `npx playwright test path/to/spec`) over raw

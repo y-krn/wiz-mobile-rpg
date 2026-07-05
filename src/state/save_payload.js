@@ -1,5 +1,34 @@
 import { state } from "./state_core.js";
 import { SAVE_VERSION } from "./save_migrations.js";
+import { menuContext } from "../navigation.js";
+
+// 一時オーバーレイ状態は付随コンテキストが永続化されないため、そのまま保存すると
+// 再開時に壊れる。基底画面へ畳んでから保存する。
+//
+// - "submenu": 親画面情報(menuContext)が未保存。gameState="submenu" のまま保存すると
+//   再開時に menuContext が初期化され、街サブメニュー(お城/宿屋/寺院 等)にいても
+//   renderer が街と判定できず、floor=1/START座標(=地下1F登り階段)のダンジョンを描画。
+//   closeSubmenu と同じ規則で親画面へ畳む。
+// - "trap_encounter": activeTrapState が未保存。gameState="trap_encounter" のまま保存すると
+//   再開時に罠UIが表示されず、罠操作パネルだけ出て操作不能になる。罠は探索中のみ発生する
+//   ため explore へ畳む(罠マス上で再開し、踏み直せば罠が再発生する)。
+function resolvePersistedGameState() {
+  if (state.gameState === "trap_encounter") return "explore";
+  if (state.gameState !== "submenu") return state.gameState;
+  if (menuContext.prevGameState) return menuContext.prevGameState;
+  const t = menuContext.type || "";
+  if (
+    t.startsWith("shop") ||
+    t.startsWith("temple") ||
+    t.startsWith("castle") ||
+    t.startsWith("party_assemble") ||
+    t.startsWith("craft")
+  ) {
+    return "town";
+  }
+  if (t.startsWith("combat")) return "combat";
+  return "explore";
+}
 
 export function createSavePayload() {
   return {
@@ -31,7 +60,7 @@ export function createSavePayload() {
     remains: state.remains,
     codex: state.codex,
     seed: state.seed,
-    gameState: state.gameState,
+    gameState: resolvePersistedGameState(),
     combatState: state.combatState,
     chestState: state.chestState,
     prevX: state.prevX,
