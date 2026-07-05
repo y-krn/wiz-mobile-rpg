@@ -121,6 +121,20 @@ export function getItemData(itemOrKey) {
     
     // 未鑑定状態
     if (!itemOrKey.identified) {
+      let curseAtk = 0;
+      let curseDef = 0;
+      let curseHp = 0;
+      let curseMp = 0;
+      if (itemOrKey.curseEffectId) {
+        const curse = CURSE_EFFECTS[itemOrKey.curseEffectId];
+        if (curse && curse.mod) {
+          if (curse.mod.atk !== undefined && curse.mod.atk < 0) curseAtk = curse.mod.atk;
+          if (curse.mod.def !== undefined && curse.mod.def < 0) curseDef = curse.mod.def;
+          if (curse.mod.hp !== undefined && curse.mod.hp < 0) curseHp = curse.mod.hp;
+          if (curse.mod.mp !== undefined && curse.mod.mp < 0) curseMp = curse.mod.mp;
+        }
+      }
+
       if (itemOrKey.halfIdentified) {
         const hintLabels = {
           fire_rite: "火葬", holy: "聖", spirit: "霊", poison: "毒",
@@ -138,9 +152,14 @@ export function getItemData(itemOrKey) {
           name: `${unidentName} (簡易鑑定済)`,
           desc: `${unidentName}。気配: ${hints}。${curseText} 完全鑑定で真価が確定します。`,
           price: base.price,
-          atk: 0,
-          def: 0,
+          atk: curseAtk,
+          def: curseDef,
           affixes: [],
+          hpBonus: curseHp,
+          mpBonus: curseMp,
+          statsBonus: {},
+          trapBonus: 0,
+          affixBonus: {},
           classes: base.classes,
           type: base.type
         };
@@ -152,9 +171,14 @@ export function getItemData(itemOrKey) {
           name: unidentName,
           desc: `${unidentName}。商店で鑑定できます。未鑑定のまま装備可能ですが、能力ボーナスは得られず、呪いのデメリットだけを受けるリスクがあります。`,
           price: base.price,
-          atk: 0,
-          def: 0,
+          atk: curseAtk,
+          def: curseDef,
           affixes: [],
+          hpBonus: curseHp,
+          mpBonus: curseMp,
+          statsBonus: {},
+          trapBonus: 0,
+          affixBonus: {},
           classes: base.classes,
           type: base.type
         };
@@ -167,10 +191,27 @@ export function getItemData(itemOrKey) {
     
     let atkBonus = 0;
     let defBonus = 0;
-    let hpBonus = 0;
-    let mpBonus = 0;
-    const statsBonus = { str: 0, int: 0, pie: 0, vit: 0, agi: 0, luk: 0 };
-    let trapBonus = 0;
+    let hpBonus = base.hpBonus || 0;
+    let mpBonus = base.mpBonus || 0;
+
+    if (itemOrKey.curseEffectId) {
+      const curse = CURSE_EFFECTS[itemOrKey.curseEffectId];
+      if (curse && curse.mod) {
+        if (curse.mod.atk !== undefined) atkBonus += curse.mod.atk;
+        if (curse.mod.def !== undefined) defBonus += curse.mod.def;
+        if (curse.mod.hp !== undefined) hpBonus += curse.mod.hp;
+        if (curse.mod.mp !== undefined) mpBonus += curse.mod.mp;
+      }
+    }
+    const statsBonus = {
+      str: base.statsBonus?.str || 0,
+      int: base.statsBonus?.int || 0,
+      pie: base.statsBonus?.pie || 0,
+      vit: base.statsBonus?.vit || 0,
+      agi: base.statsBonus?.agi || 0,
+      luk: base.statsBonus?.luk || 0
+    };
+    let trapBonus = base.trapBonus || 0;
     
     const enhanceLevel = itemOrKey.enhanceLevel || 0;
     if (enhanceLevel > 0) {

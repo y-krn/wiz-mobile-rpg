@@ -228,6 +228,18 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               msg += `${finalTarget.name}は目を覚ました！`;
             }
             floatText = `${dmg}`;
+
+            // 毒脈の呪いなどによる毒付与チャンス
+            if (finalTarget.hp > 0 && finalTarget.status !== "poisoned") {
+              const poisonAtkChance = getCharAffixSum(char, "poisonAtk") / 100;
+              if (poisonAtkChance > 0 && Math.random() < poisonAtkChance) {
+                finalTarget.status = "poisoned";
+                logQueue.push({
+                  msg: `[味方] [!] ${char.name}の攻撃により、${finalTarget.name}は毒に侵された！`,
+                  sound: "poison"
+                });
+              }
+            }
           }
 
           if (!isDecap && hasTrait(finalTarget, "reflectPhysical") && dmg > 0) {
@@ -797,7 +809,28 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     return { logQueue, state };
   }
 
-  const allMonstersDead = monsters.every(m => m.hp <= 0);
+  let allMonstersDead = monsters.every(m => m.hp <= 0);
+  if (!allMonstersDead) {
+    // モンスターのターン終了時毒ダメージ
+    monsters.forEach(m => {
+      if (m.status === "poisoned" && m.hp > 0) {
+        const pDmg = Math.floor(Math.random() * 3) + 2; // 2-4 damage
+        m.hp = Math.max(0, m.hp - pDmg);
+        logQueue.push({
+          msg: `[ 敵 ] [!] 毒のダメージ！${m.name}は${pDmg}のダメージを受けた。`,
+          sound: "hit",
+          floatText: `${pDmg}`,
+          floatColor: "#ff3b30"
+        });
+        if (m.hp === 0) {
+          logQueue.push({ msg: `[味方] [!] ${m.name}を毒で倒した！` });
+          processMonsterDefeat(monsters, m, logQueue);
+        }
+      }
+    });
+    allMonstersDead = monsters.every(m => m.hp <= 0);
+  }
+
   if (allMonstersDead) {
     applyCombatRewards(state, monsters, logQueue);
   } else {

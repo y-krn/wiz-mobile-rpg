@@ -69,7 +69,8 @@ export const SPELL_EFFECTS = {
     let dmg = Math.floor(rng() * 11) + 8;
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-    dmg = Math.round(dmg * bonus * arcaneBonus);
+    const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
+    dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
     let suffix = "";
     if (target && target.magicResist) {
       dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
@@ -102,7 +103,8 @@ export const SPELL_EFFECTS = {
       if (t.hp <= 0) return 0;
       let dmg = Math.floor(rng() * 21) + 15;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-      dmg = Math.round(dmg * bonus * arcaneBonus);
+      const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
+      dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
       let isResisted = false;
       let isWeakness = false;
       if (t.magicResist) {
@@ -137,7 +139,8 @@ export const SPELL_EFFECTS = {
     let dmg = Math.floor(rng() * 21) + 30;
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-    dmg = Math.round(dmg * bonus * arcaneBonus);
+    const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
+    dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
     let suffix = "";
     if (target && target.magicResist) {
       dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));

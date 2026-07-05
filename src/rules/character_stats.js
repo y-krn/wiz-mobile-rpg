@@ -145,23 +145,32 @@ export function getCharTrapBonus(char) {
 }
 
 export function getCharWeaponAtk(char) {
+  let atk = 0;
   const wpId = char.equipment.weapon;
-  if (!wpId) {
-    if (char.class === "Ninja") {
-      return 2 * char.level;
-    }
-    return 0;
+  if (wpId) {
+    atk += getItemData(wpId)?.atk || 0;
+  } else if (char.class === "Ninja") {
+    atk += 2 * char.level;
   }
-  return getItemData(wpId)?.atk || 0;
+  
+  if (char.equipment) {
+    Object.entries(char.equipment).forEach(([slot, eqKey]) => {
+      if (slot !== "weapon" && eqKey) {
+        atk += getItemData(eqKey)?.atk || 0;
+      }
+    });
+  }
+  return atk;
 }
 
 export function getCharDef(char) {
   let def = 0;
-  if (char.equipment.shield) {
-    def += getItemData(char.equipment.shield)?.def || 0;
-  }
-  if (char.equipment.armor) {
-    def += getItemData(char.equipment.armor)?.def || 0;
+  if (char.equipment) {
+    Object.values(char.equipment).forEach(eqKey => {
+      if (eqKey) {
+        def += getItemData(eqKey)?.def || 0;
+      }
+    });
   }
   return def;
 }
