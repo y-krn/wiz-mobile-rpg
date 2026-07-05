@@ -1,5 +1,5 @@
 import { state, createDefaultCodex } from "../state.js";
-import { MONSTERS, ITEMS, SYNERGIES, TAG_EFFECT_MAP } from "../data.js";
+import { MONSTERS, ITEMS, SYNERGIES, TAGS, TAG_EFFECT_MAP } from "../data.js";
 import { getMonsterContractInfo } from "../contracts.js";
 import { updateUI } from "./ui_root.js";
 
@@ -426,7 +426,7 @@ export function renderArchives() {
 
     const title = document.createElement("div");
     title.className = "archives-section-title";
-    title.textContent = "✨ 発見済みの相性・シナジー";
+    title.textContent = "✨ 発見済みの相性";
     title.style.marginBottom = "8px";
     container.appendChild(title);
 
@@ -449,7 +449,7 @@ export function renderArchives() {
       empty.style.color = "var(--text-muted)";
       empty.style.textAlign = "center";
       empty.style.padding = "20px";
-      empty.textContent = "未発見。戦闘や探索、刻印を通じて新たなシナジーを発見しましょう。";
+      empty.textContent = "未発見。戦闘や探索、刻印を通じて新たな相性を発見しましょう。";
       list.appendChild(empty);
     } else {
       for (const [id, syn] of Object.entries(SYNERGIES)) {
@@ -462,7 +462,7 @@ export function renderArchives() {
 
         if (isDiscovered) {
           const tagsHtml = syn.tags.map(t => {
-            const label = TAG_EFFECT_MAP[t] || { name: t };
+            const label = TAGS[t] || TAG_EFFECT_MAP[t] || { name: t };
             return `<span style="background:rgba(0,255,102,0.15); color:var(--neon-green); padding:1px 3px; border-radius:2px; margin-right:4px;">${label.name || t}</span>`;
           }).join("");
           

@@ -761,7 +761,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply paralyze effect if monster is paralyzing and target survives
           const paralyzeChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isParalyzing && target.hp > 0 && ["ok", "poisoned", "blind", "sleep"].includes(target.status) && Math.random() < paralyzeChance) {
+          if (mon.isParalyzing && target.hp > 0 && target.status === "ok" && Math.random() < paralyzeChance) {
             target.status = "paralyzed";
             logQueue.push({
               msg: `[ 敵 ] [!] ${target.name}は麻痺を受け、麻痺状態になった！`,

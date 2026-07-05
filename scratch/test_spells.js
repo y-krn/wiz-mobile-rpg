@@ -620,6 +620,21 @@ import { menuContext } from "../src/navigation.js";
     Math.random = originalRandom;
   }
 
+  // 6. すでにステータス異常（毒/暗闇/睡眠）のキャラクターに麻痺攻撃が当たっても上書きされないことの検証
+  try {
+    const state = createParalyzedState(["poisoned", "dead", "dead", "dead"], 0);
+    state.combatState.monsters[0].isParalyzing = true;
+    state.combatState.monsters[0].statusChance = 1.0;
+
+    Math.random = () => 0.01;
+
+    const result = runCombatRoundCalculation(state, { actions: [] });
+
+    assert.strictEqual(result.state.party[0].status, "poisoned", "毒状態のキャラクターが麻痺で上書きされないこと");
+  } finally {
+    Math.random = originalRandom;
+  }
+
   console.log("All Combat Paralyze verification tests passed successfully!");
 })();
 

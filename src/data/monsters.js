@@ -8,7 +8,7 @@ export const MONSTERS = [
   { name: "マッドゴースト", level: 2, hp: 28, atk: 6, def: 2, exp: 140, gold: 15, spriteType: "spirit", physResist: 0.5, tags: ["undead", "spirit"], color: "#8a2be2" },
   { name: "オークの戦士", level: 3, hp: 56, atk: 12, def: 6, exp: 280, gold: 50, spriteType: "orc", color: "#ff8c00" },
   { name: "はぐれ魔術師", level: 3, hp: 44, atk: 8, def: 4, exp: 280, gold: 80, spriteType: "mage", spell: "HALITO", spellChance: 0.3, row: "back", color: "#da70d6" },
-  { name: "ワーウルフ", level: 3, hp: 72, atk: 14, def: 5, exp: 340, gold: 60, spriteType: "orc", isParalyzing: true, color: "#ff8c00" },
+  { name: "ワーウルフ", level: 3, hp: 72, atk: 14, def: 5, exp: 340, gold: 60, spriteType: "orc", isParalyzing: true, statusChance: 0.25, color: "#ff8c00" },
   { name: "バンシー", level: 3, hp: 56, atk: 9, def: 3, exp: 300, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.6, physResist: 0.2, statusChance: 0.2, tags: ["undead", "spirit"], color: "#da70d6" },
   
   // 既存モンスターの再調整

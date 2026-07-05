@@ -5,7 +5,7 @@ export function setTagsStateRef(stateObj) {
 
 export const TAGS = {
   fire_rite: { name: "火葬", desc: "アンデッドを焼き払う魔力" },
-  holy: { name: "聖", desc: "神聖な祈りと加護 of 印" },
+  holy: { name: "聖", desc: "神聖な祈りと加護の印" },
   spirit: { name: "霊", desc: "霊体や魂に干渉する力" },
   poison: { name: "毒", desc: "毒物や罠に精通した技術" },
   dragon: { name: "竜", desc: "竜の力と耐性" },
@@ -99,7 +99,7 @@ export const SYNERGIES = {
     name: "獣の野性",
     tags: ["beast", "search"],
     log: "[反応] 野生の鋭い勘が、周囲の獣の気配を察知した。",
-    archive: "獣の性質を帯びた装備と探索術のシナジーにより、不意打ちを防ぎやすくなる。",
+    archive: "獣の性質を帯びた装備と探索術の相性により、不意打ちを防ぎやすくなる。",
     mod: { firstStrike: 5, treasureSense: 5 }
   },
   spirit_analysis: {
@@ -206,7 +206,7 @@ export function recordSynergyDiscovery(synergyId) {
   if (!localStateRef.codex.synergies[synergyId]) {
     localStateRef.codex.synergies[synergyId] = true;
     if (localStateRef.logs) {
-      localStateRef.logs.push(`[書庫記録] 新たなシナジー「${SYNERGIES[synergyId].name}」を発見した！`);
+      localStateRef.logs.push(`[書庫記録] 新たな相性「${SYNERGIES[synergyId].name}」を発見した！`);
       if (localStateRef.logs.length > 50) {
         localStateRef.logs.shift();
       }
