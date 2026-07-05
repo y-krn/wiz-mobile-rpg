@@ -52,7 +52,8 @@ export const state = {
         "poison needle": { triggered: 0, disarmed: 0, firstFloor: 0 },
         "gas bomb": { triggered: 0, disarmed: 0, firstFloor: 0 },
         "teleporter": { triggered: 0, disarmed: 0, firstFloor: 0 },
-        "flash bomb": { triggered: 0, disarmed: 0, firstFloor: 0 }
+        "flash bomb": { triggered: 0, disarmed: 0, firstFloor: 0 },
+        "pitfall": { triggered: 0, disarmed: 0, firstFloor: 0 }
       },
       facilities: {
         spring: { found: 0, used: 0 },

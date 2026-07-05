@@ -6,3 +6,11 @@ export const EVENT_TYPES = {
   MIDBOSS: "midboss",
   BOSS: "boss"
 };
+
+export const TRAP_TYPES = {
+  DAMAGE: "damage",
+  MP_DRAIN: "mpDrain",
+  ALARM: "alarm",
+  PITFALL: "pitfall"
+};
+

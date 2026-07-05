@@ -30,7 +30,9 @@ const { state } = await import("../src/state.js");
 const { generateRandomMap } = await import("../src/map_generator.js");
 const {
   calculateSuccessRate,
-  triggerTrap
+  triggerTrap,
+  triggerPitfall,
+  getExpectedEffectText
 } = await import("../src/systems/traps.js");
 
 const { persistDungeonTraps } = await import("../src/result.js");
@@ -202,5 +204,88 @@ if (targetCell.trap.state !== "weakened" || targetCell.trap.weakenLevel !== 1) {
 // Restore Math.random
 Math.random = originalRandom;
 console.log("PASS: Persistence and synchronization verified.");
+
+// 5. Verify Pitfall Trap Behavior
+console.log("\n[5] Verifying pitfall trap specific behavior:");
+
+const pitfallTrap = {
+  id: "trap_1_6_6",
+  floorId: "B1",
+  position: { x: 6, y: 6 },
+  type: "pitfall",
+  state: "hidden",
+  difficulty: 30,
+  weakenLevel: 0
+};
+
+// Success rate of pitfall should have +20% bonus
+state.floor = 1;
+state.party = [{
+  name: "Robin",
+  class: "Thief",
+  level: 5,
+  hp: 20,
+  maxHp: 20,
+  luk: 15,
+  agi: 16,
+  status: "ok"
+}];
+const pfRate = calculateSuccessRate(pitfallTrap);
+console.log(`- Pitfall success rate with Thief: ${pfRate}% (Expected: 95% because 76 + 20 = 96% capped at 95%)`);
+if (pfRate !== 95) {
+  console.error("FAIL: Pitfall success rate bonus not applied.");
+  process.exit(1);
+}
+
+// Expected effect text should specify floor dropping
+const pfEffect = getExpectedEffectText(pitfallTrap);
+console.log(`- Expected effect text: "${pfEffect}" (Expected to include "地下2階へ落下")`);
+if (!pfEffect.includes("地下2階へ落下")) {
+  console.error("FAIL: Pitfall expected effect text mismatch.");
+  process.exit(1);
+}
+
+// Mock maps for floor transition validation
+const mapB2 = generateRandomMap(2, null, "TEST_SEED");
+state.maps = [mapB1.grid, mapB2.grid, null, null, null];
+state.visitedMaps = [
+  Array(mapB1.grid.length).fill().map(() => Array(mapB1.grid[0].length).fill(false)),
+  Array(mapB2.grid.length).fill().map(() => Array(mapB2.grid[0].length).fill(false)),
+  null, null, null
+];
+state.currentRun = { steps: 0, pitfallsFallen: 0, trapsTriggered: 0, floorsVisited: [1], deepestFloor: 1 };
+state.transitioning = false;
+
+// Trigger pitfall (forces transition to B2)
+console.log("- Triggering pitfall...");
+triggerPitfall(pitfallTrap, false, false);
+
+if (!state.transitioning) {
+  console.error("FAIL: state.transitioning should be true immediately after triggering pitfall.");
+  process.exit(1);
+}
+
+// Wait for transition timer (1200ms)
+await new Promise(resolve => setTimeout(resolve, 1300));
+
+console.log(`- State floor after fall: ${state.floor} (Expected: 2)`);
+if (state.floor !== 2) {
+  console.error("FAIL: Party did not drop to floor 2.");
+  process.exit(1);
+}
+
+console.log(`- Fighter HP after fall damage: ${state.party[0].hp}/20`);
+if (state.party[0].hp >= 20) {
+  console.error("FAIL: No fall damage applied.");
+  process.exit(1);
+}
+
+console.log(`- pitfallsFallen count: ${state.currentRun.pitfallsFallen} (Expected: 1)`);
+if (state.currentRun.pitfallsFallen !== 1) {
+  console.error("FAIL: pitfallsFallen count not incremented.");
+  process.exit(1);
+}
+
+console.log("PASS: Pitfall trap behavior verified.");
 
 console.log("\n=== ALL DUNGEON TRAP TESTS PASSED SUCCESSFULLY! ===");

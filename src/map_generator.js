@@ -1,10 +1,17 @@
-import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, START_Y, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES } from "./data.js";
+import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, START_Y, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, TRAP_TYPES } from "./data.js";
 import { createRng } from "./seed_rng.js";
 
 // Directions helper
 const DX = [0, 1, 0, -1];
 const DY = [-1, 0, 1, 0];
 const OPPOSITE_DIR = [DIR_S, DIR_W, DIR_N, DIR_E];
+
+const PITFALL_PROBABILITIES = {
+  1: 0.05,
+  2: 0.08,
+  3: 0.12
+};
+
 
 function isPassageCell(grid, x, y) {
   return x >= 0 &&
@@ -467,18 +474,24 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     
     let trapType;
     const r = rng();
-    if (floor <= 2) {
-      if (r < 0.70) trapType = "damage";
-      else if (r < 0.85) trapType = "mpDrain";
-      else trapType = "alarm";
-    } else if (floor <= 4) {
-      if (r < 0.30) trapType = "damage";
-      else if (r < 0.70) trapType = "mpDrain";
-      else trapType = "alarm";
+    const pitfallProb = PITFALL_PROBABILITIES[floor] || 0;
+    if (r < pitfallProb) {
+      trapType = TRAP_TYPES.PITFALL;
     } else {
-      if (r < 0.20) trapType = "damage";
-      else if (r < 0.60) trapType = "mpDrain";
-      else trapType = "alarm";
+      const r2 = pitfallProb > 0 ? (r - pitfallProb) / (1 - pitfallProb) : r;
+      if (floor <= 2) {
+        if (r2 < 0.70) trapType = TRAP_TYPES.DAMAGE;
+        else if (r2 < 0.85) trapType = TRAP_TYPES.MP_DRAIN;
+        else trapType = TRAP_TYPES.ALARM;
+      } else if (floor <= 4) {
+        if (r2 < 0.30) trapType = TRAP_TYPES.DAMAGE;
+        else if (r2 < 0.70) trapType = TRAP_TYPES.MP_DRAIN;
+        else trapType = TRAP_TYPES.ALARM;
+      } else {
+        if (r2 < 0.20) trapType = TRAP_TYPES.DAMAGE;
+        else if (r2 < 0.60) trapType = TRAP_TYPES.MP_DRAIN;
+        else trapType = TRAP_TYPES.ALARM;
+      }
     }
     
     const baseDifficulty = 15 + floor * 15;

@@ -109,6 +109,68 @@ export function findCellCoordsByType(grid, type) {
   return { x: MAP_WIDTH - 2, y: 1 }; // Default fallback coordinate
 }
 
+export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false, onLanding = null) {
+  state.transitioning = true;
+  
+  if (isPitfall) {
+    addLog("【⚠️落とし穴】足元が抜けた！暗闇へ落下していく…");
+    playSound("chest_trap");
+    if (renderer) {
+      if (typeof renderer.triggerShake === "function") {
+        renderer.triggerShake(10, 400);
+      }
+      if (typeof renderer.triggerFlash === "function") {
+        renderer.triggerFlash(400);
+      }
+    }
+  } else {
+    addLog(`階段を下ります。地下${nextFloor}階へ...`);
+    playSound("move");
+  }
+
+  setTimeout(() => {
+    state.floor = nextFloor;
+    state.sessionMaxFloor = Math.max(state.sessionMaxFloor, state.floor);
+    if (state.currentRun) {
+      if (!state.currentRun.floorsVisited.includes(nextFloor)) {
+        state.currentRun.floorsVisited.push(nextFloor);
+      }
+      state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
+    }
+
+    const target = landingCoord || findCellCoordsByType(state.maps[nextFloor - 1], "stairs-up");
+    state.x = target.x;
+    state.y = target.y;
+    state.visitedMap[state.y][state.x] = true;
+
+    if (isPitfall) {
+      addLog(`ドスン！地下${nextFloor}階の冷たい床に叩きつけられた！`);
+    } else {
+      let floorMsg = `地下${nextFloor}階に降りた。さらに強い殺気を感じる...`;
+      if (nextFloor === 2) {
+        floorMsg = `地下2階に降りた。鼻を突く毒気と、光を吸い込むような暗闇が漂っている...`;
+      } else if (nextFloor === 3) {
+        floorMsg = `地下3階に降りた。不気味な咆哮が木霊し、強大な門番が竜の鍵を握っている気配がする...`;
+      } else if (nextFloor === 4) {
+        floorMsg = `地下4階に降りた。ここは強者の領域。凶悪な魔物の気配と、伝説の財宝が眠っている予感がする...`;
+      } else if (nextFloor === 5) {
+        floorMsg = `地下5階：竜の領域に降りた。灼熱の熱気と強烈なプレッシャーが肌を刺す！`;
+      }
+      addLog(floorMsg);
+    }
+
+    checkFloorOmenMessage();
+    
+    state.transitioning = false;
+    saveAutosave();
+    updateUI();
+
+    if (isPitfall && typeof onLanding === "function") {
+      onLanding();
+    }
+  }, 1200);
+}
+
 function checkSensoryAura() {
   const px = state.x;
   const py = state.y;
@@ -294,41 +356,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 
   // Stairs Down (go to next floor)
   if (cell.type === "stairs-down") {
-    state.transitioning = true;
-    const nextFloor = state.floor + 1;
-    addLog(`階段を下ります。地下${nextFloor}階へ...`);
-    playSound("move");
-    setTimeout(() => {
-      state.floor = nextFloor;
-      state.sessionMaxFloor = Math.max(state.sessionMaxFloor, state.floor);
-      if (state.currentRun) {
-        if (!state.currentRun.floorsVisited.includes(nextFloor)) {
-          state.currentRun.floorsVisited.push(nextFloor);
-        }
-        state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
-      }
-      const target = findCellCoordsByType(state.maps[nextFloor - 1], "stairs-up");
-      state.x = target.x;
-      state.y = target.y;
-      state.visitedMap[state.y][state.x] = true;
-      
-      let floorMsg = `地下${nextFloor}階に降りた。さらに強い殺気を感じる...`;
-      if (nextFloor === 2) {
-        floorMsg = `地下2階に降りた。鼻を突く毒気と、光を吸い込むような暗闇が漂っている...`;
-      } else if (nextFloor === 3) {
-        floorMsg = `地下3階に降りた。不気味な咆哮が木霊し、強大な門番が竜の鍵を握っている気配がする...`;
-      } else if (nextFloor === 4) {
-        floorMsg = `地下4階に降りた。ここは強者の領域。凶悪な魔物の気配と、伝説の財宝が眠っている予感がする...`;
-      } else if (nextFloor === 5) {
-        floorMsg = `地下5階：竜の領域に降りた。灼熱の熱気と強烈なプレッシャーが肌を刺す！`;
-      }
-      addLog(floorMsg);
-      checkFloorOmenMessage();
-      
-      state.transitioning = false;
-      saveAutosave();
-      updateUI();
-    }, 1200);
+    descendToFloor(state.floor + 1);
     return;
   }
 

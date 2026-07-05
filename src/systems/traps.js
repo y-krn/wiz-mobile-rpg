@@ -4,6 +4,9 @@ import { startCombat } from "../combat_ui/combat_start.js";
 import { playSound } from "../audio.js";
 import { triggerGameOver } from "../combat.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
+import { createRng } from "../seed_rng.js";
+import { descendToFloor, findCellCoordsByType } from "../movement.js";
+import { MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "../data.js";
 
 // 罠設定値
 export const weakenedModifiers = {
@@ -50,6 +53,9 @@ export function calculateSuccessRate(trap) {
   }
 
   let rate = baseRate + disarmerSkill - trap.difficulty - (state.floor - 1) * 5 + weakenedBonus;
+  if (trap.type === "pitfall") {
+    rate += 20; // 「縁を伝う」は成功率高なので+20%のボーナス
+  }
   return Math.max(10, Math.min(95, rate));
 }
 
@@ -65,6 +71,8 @@ export function getExpectedEffectText(trap) {
       return `MP減少${powerText}`;
     case "alarm":
       return `警報発報(次回敵強化/遭遇率上昇)${powerText}`;
+    case "pitfall":
+      return `地下${state.floor + 1}階へ落下${powerText}`;
     default:
       return "不明な効果";
   }
@@ -98,18 +106,131 @@ export function handleTrapStepCheck(trap) {
       startTrapEncounter(trap);
       return true;
     } else {
-      addLog("【⚠️罠発動！】不意に罠を踏み抜いてしまった！");
-      triggerTrap(trap);
-      trap.state = "disabled";
-      saveAutosave();
-      updateUI();
-      return false; // 発動した場合はそのまま元の移動処理を進める
+      if (trap.type === "pitfall") {
+        addLog("【⚠️罠発動！】不意に罠を踏み抜いてしまった！");
+        triggerPitfall(trap);
+        trap.state = "disabled";
+        return true; // 落下中なので、このターンの他のイベントを抑止するために true を返す
+      } else {
+        addLog("【⚠️罠発動！】不意に罠を踏み抜いてしまった！");
+        triggerTrap(trap);
+        trap.state = "disabled";
+        saveAutosave();
+        updateUI();
+        return false; // 発動した場合はそのまま元の移動処理を進める
+      }
     }
   } else {
     // discovered / weakened
     startTrapEncounter(trap);
     return true;
   }
+}
+
+export function triggerPitfall(trap, isWeakenedOverride = null, isPartialSuccess = false) {
+  const isWeakened = isWeakenedOverride !== null ? isWeakenedOverride : (trap.state === "weakened");
+  
+  const nextFloor = state.floor + 1;
+  const nextMap = state.maps[nextFloor - 1];
+  
+  const candidates = [];
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      const cell = nextMap[y]?.[x];
+      if (!cell) continue;
+      const isPassable = cell.walls && cell.walls.some(w => !w);
+      const isNotStairs = cell.type !== "stairs-up" && cell.type !== "stairs-down";
+      const hasNoEvent = !cell.event;
+      const hasNoTrap = !cell.trap;
+      const isNotStart = !(x === START_X && y === START_Y);
+      
+      if (isPassable && isNotStairs && hasNoEvent && hasNoTrap && isNotStart) {
+        candidates.push({ x, y });
+      }
+    }
+  }
+  
+  let landingCoord;
+  if (candidates.length > 0) {
+    const seed = state.seed;
+    const pitfallRng = createRng(`${seed}:pitfall:B${state.floor}:${trap.position.x}_${trap.position.y}`);
+    const index = Math.floor(pitfallRng() * candidates.length);
+    landingCoord = candidates[index];
+  } else {
+    const stairsUp = findCellCoordsByType(nextMap, "stairs-up");
+    const directions = [
+      { dx: 0, dy: -1, wallIndex: 0 },
+      { dx: 1, dy: 0, wallIndex: 1 },
+      { dx: 0, dy: 1, wallIndex: 2 },
+      { dx: -1, dy: 0, wallIndex: 3 }
+    ];
+    let found = false;
+    for (const d of directions) {
+      const nx = stairsUp.x + d.dx;
+      const ny = stairsUp.y + d.dy;
+      const stairsUpCell = nextMap[stairsUp.y]?.[stairsUp.x];
+      if (stairsUpCell && !stairsUpCell.walls[d.wallIndex]) {
+        landingCoord = { x: nx, y: ny };
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      landingCoord = stairsUp;
+    }
+  }
+
+  const onLanding = () => {
+    let powerMultiplier = 1.0;
+    if (isWeakened) powerMultiplier *= weakenedModifiers.effectPower;
+    if (isPartialSuccess) powerMultiplier *= 0.5;
+    
+    const hasScout = state.party.some(c => ["Thief", "Ninja"].includes(c.class) && c.hp > 0);
+    if (hasScout) {
+      powerMultiplier *= 0.7;
+      addLog("[味方] 盗賊の素早い身のこなしにより、着地時の衝撃が和らいだ！");
+    }
+    
+    state.party.forEach(c => {
+      if (c.status !== "dead") {
+        const baseDmg = state.floor * 2;
+        const randDmg = Math.floor(Math.random() * 7) + 4; // 4..10
+        const rawDmg = baseDmg + randDmg;
+        const dmg = Math.max(1, Math.floor(rawDmg * powerMultiplier));
+        
+        c.hp = Math.max(0, c.hp - dmg);
+        addLog(`[!] ${c.name}は落下で${dmg}のダメージを受けた。`);
+        
+        if (c.hp === 0) {
+          c.status = "dead";
+          recordCharDeath(state, c, "落とし穴トラップ");
+          addLog(`[!] ${c.name}は力尽きた！`);
+        }
+      }
+    });
+
+    if (state.currentRun) {
+      state.currentRun.pitfallsFallen = (state.currentRun.pitfallsFallen || 0) + 1;
+      state.currentRun.trapsTriggered++;
+    }
+
+    if (state.codex && state.codex.events && state.codex.events.traps) {
+      if (state.codex.events.traps["pitfall"]) {
+        state.codex.events.traps["pitfall"].triggered++;
+      }
+    }
+
+    const allPartyDead = state.party.every(c => c.status === "dead");
+    if (allPartyDead) {
+      triggerGameOver();
+      return;
+    }
+    
+    saveAutosave();
+    updateUI();
+  };
+
+  descendToFloor(nextFloor, landingCoord, true, onLanding);
 }
 
 export function triggerTrap(trap, isWeakenedOverride = null, isPartialSuccess = false) {
@@ -220,6 +341,28 @@ export function handleTrapAction(action) {
   }
   
   if (action === "force") {
+    if (trap.type === "pitfall") {
+      addLog("助走をつけて落とし穴を一気に飛び越える！");
+      const roll = Math.random() * 100;
+      const jumpSuccessRate = successRate - 20; // 飛び越える際は「縁を伝う」の+20%ボーナスを除く
+      if (roll < jumpSuccessRate) {
+        addLog("[味方] 【跳躍成功】見事に落とし穴を飛び越えた！");
+        playSound("move");
+        trap.state = "disabled";
+        state.gameState = "explore";
+        state.activeTrapState = null;
+        saveAutosave();
+        updateUI();
+      } else {
+        addLog("【跳躍失敗】向こう岸に届かず、奈落へと落下した！");
+        triggerPitfall(trap, trap.state === "weakened", false);
+        trap.state = "disabled";
+        state.gameState = "explore";
+        state.activeTrapState = null;
+      }
+      return;
+    }
+
     addLog("罠を顧みず、強引に駆け抜けた！");
     triggerTrap(trap, false, false);
     trap.state = "disabled";
@@ -233,6 +376,40 @@ export function handleTrapAction(action) {
   
   if (action === "disarm") {
     const roll = Math.random() * 100;
+    if (trap.type === "pitfall") {
+      if (roll < successRate) {
+        addLog("[味方] 【回避成功】慎重に縁を伝い、落とし穴を渡りきった！");
+        playSound("gold");
+        trap.state = "disabled";
+        if (state.currentRun) {
+          state.currentRun.steps += 3;
+          state.currentRun.trapsDisarmed++;
+        }
+        if (state.codex && state.codex.events && state.codex.events.traps) {
+          if (state.codex.events.traps["pitfall"]) {
+            state.codex.events.traps["pitfall"].disarmed++;
+          }
+        }
+        state.gameState = "explore";
+        state.activeTrapState = null;
+        saveAutosave();
+        updateUI();
+      } else if (roll < successRate + 15) {
+        addLog("[味方] 【部分成功】足が滑った！しかし身を乗り出して衝撃を緩和した！");
+        triggerPitfall(trap, trap.state === "weakened", true);
+        trap.state = "disabled";
+        state.gameState = "explore";
+        state.activeTrapState = null;
+      } else {
+        addLog("【失敗】バランスを崩して落とし穴に真っ逆さまに落ちてしまった！");
+        triggerPitfall(trap, trap.state === "weakened", false);
+        trap.state = "disabled";
+        state.gameState = "explore";
+        state.activeTrapState = null;
+      }
+      return;
+    }
+
     if (roll < successRate) {
       addLog("[味方] 【解除成功】罠の機能を完全に停止した！");
       playSound("gold");

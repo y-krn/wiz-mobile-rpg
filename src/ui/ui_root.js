@@ -263,7 +263,8 @@ export function updateUI() {
     const trapNames = {
       damage: "火炎放射の罠",
       mpDrain: "魔力吸収の罠",
-      alarm: "警報装置の罠"
+      alarm: "警報装置の罠",
+      pitfall: "底なし落とし穴"
     };
     const trapName = trapNames[trap.type] || "未知の罠";
     document.getElementById("trap-name").innerHTML = `罠名: <strong style="color:var(--neon-red)">${trapName}</strong>`;
@@ -278,8 +279,15 @@ export function updateUI() {
     document.getElementById("trap-difficulty").textContent = `危険度: B${trap.floorId.replace("B", "")}F (難易度: ${trap.difficulty})`;
     document.getElementById("trap-effect").textContent = `予想効果: ${expectedEffect}`;
     
+    const isPitfall = trap.type === "pitfall";
+    const btnDisarm = document.getElementById("btn-trap-disarm");
+    const btnForce = document.getElementById("btn-trap-force");
+    if (btnDisarm) btnDisarm.textContent = isPitfall ? "縁を伝う" : "解除する";
+    if (btnForce) btnForce.textContent = isPitfall ? "飛び越える" : "強行突破";
+
     const rateColor = successRate >= 75 ? "var(--neon-green)" : (successRate >= 45 ? "var(--neon-gold)" : "var(--neon-red)");
-    document.getElementById("trap-success-rate").innerHTML = `解除成功率: <span style="color:${rateColor}; font-weight:bold;">${successRate}%</span>`;
+    const rateText = isPitfall ? "回避成功率" : "解除成功率";
+    document.getElementById("trap-success-rate").innerHTML = `${rateText}: <span style="color:${rateColor}; font-weight:bold;">${successRate}%</span>`;
   } else if (state.gameState === "combat") {
     document.getElementById("combat-controls").classList.add("active");
     const gridEl = document.querySelector(".combat-grid");
