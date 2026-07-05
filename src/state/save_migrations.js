@@ -75,7 +75,7 @@ export function migrateCharSpells(char) {
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 5;
 
 // 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
 // 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
@@ -88,6 +88,37 @@ function normalizeCharEquipment(char) {
     armor: char.equipment?.armor ?? null,
     accessory: char.equipment?.accessory ?? null
   };
+}
+
+function backfillMapBlockEnter(data) {
+  data.maps?.forEach(map => {
+    map?.forEach(row => {
+      row?.forEach(cell => {
+        if (!cell) return;
+        if (!Array.isArray(cell.blockEnter) || cell.blockEnter.length !== 4) {
+          cell.blockEnter = [false, false, false, false];
+        }
+      });
+    });
+  });
+  return data;
+}
+
+function backfillMapSecretDoors(data) {
+  data.maps?.forEach(map => {
+    map?.forEach(row => {
+      row?.forEach(cell => {
+        if (!cell) return;
+        if (!Array.isArray(cell.secretDoor) || cell.secretDoor.length !== 4) {
+          cell.secretDoor = [false, false, false, false];
+        }
+        if (!Array.isArray(cell.secretFound) || cell.secretFound.length !== 4) {
+          cell.secretFound = [false, false, false, false];
+        }
+      });
+    });
+  });
+  return data;
 }
 
 const MIGRATIONS = {
@@ -106,6 +137,12 @@ const MIGRATIONS = {
       delete data.codex.events.omens;
     }
     return data;
+  },
+  4: (data) => {
+    return backfillMapBlockEnter(data);
+  },
+  5: (data) => {
+    return backfillMapSecretDoors(data);
   }
 };
 
@@ -254,6 +291,8 @@ export function normalizeSavePayload(data) {
   }
 
   loadedMaps.forEach(map => {
+    backfillMapBlockEnter({ maps: [map] });
+    backfillMapSecretDoors({ maps: [map] });
     if (map) removeIsolatedInternalWalls(map);
   });
   normalized.maps = loadedMaps;

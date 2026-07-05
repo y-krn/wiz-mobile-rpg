@@ -12,6 +12,21 @@ const PITFALL_PROBABILITIES = {
   3: 0.12
 };
 
+const ONE_WAY_PASSAGE_COUNTS = {
+  1: 2,
+  2: 3,
+  3: 4,
+  4: 5,
+  5: 5
+};
+
+const SECRET_DOOR_COUNTS = {
+  1: { shortcut: 1, room: 1 },
+  2: { shortcut: 2, room: 1 },
+  3: { shortcut: 2, room: 1 },
+  4: { shortcut: 2, room: 2 },
+  5: { shortcut: 3, room: 2 }
+};
 
 function isPassageCell(grid, x, y) {
   return x >= 0 &&
@@ -28,7 +43,7 @@ function getInternalWallEdges(grid) {
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
       if (!isPassageCell(grid, x, y)) continue;
 
-      if (grid[y][x].walls[DIR_E] && isPassageCell(grid, x + 1, y)) {
+      if (grid[y][x].walls[DIR_E] && !grid[y][x].secretDoor?.[DIR_E] && isPassageCell(grid, x + 1, y)) {
         edges.push({
           x,
           y,
@@ -38,7 +53,7 @@ function getInternalWallEdges(grid) {
         });
       }
 
-      if (grid[y][x].walls[DIR_S] && isPassageCell(grid, x, y + 1)) {
+      if (grid[y][x].walls[DIR_S] && !grid[y][x].secretDoor?.[DIR_S] && isPassageCell(grid, x, y + 1)) {
         edges.push({
           x,
           y,
@@ -53,13 +68,37 @@ function getInternalWallEdges(grid) {
   return edges;
 }
 
-function openWall(grid, x, y, dir) {
+export function openWall(grid, x, y, dir) {
   const nx = x + DX[dir];
   const ny = y + DY[dir];
   if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) return;
 
   grid[y][x].walls[dir] = false;
   grid[ny][nx].walls[OPPOSITE_DIR[dir]] = false;
+}
+
+function setSecretDoor(grid, x, y, dir) {
+  const nx = x + DX[dir];
+  const ny = y + DY[dir];
+  const next = grid[ny]?.[nx];
+  if (!next) return false;
+
+  const cell = grid[y][x];
+  cell.secretDoor[dir] = true;
+  cell.secretFound[dir] = false;
+  next.secretDoor[OPPOSITE_DIR[dir]] = true;
+  next.secretFound[OPPOSITE_DIR[dir]] = false;
+  cell.walls[dir] = true;
+  next.walls[OPPOSITE_DIR[dir]] = true;
+  return true;
+}
+
+function canEnterFrom(grid, x, y, dir) {
+  const nx = x + DX[dir];
+  const ny = y + DY[dir];
+  const next = grid[ny]?.[nx];
+  if (!next) return false;
+  return !next.blockEnter?.[OPPOSITE_DIR[dir]];
 }
 
 function getReachableCellKeys(grid, start) {
@@ -86,6 +125,235 @@ function getReachableCellKeys(grid, start) {
   }
 
   return seen;
+}
+
+function getDirectedReachableCellKeys(grid, start) {
+  const queue = [start];
+  const seen = new Set([`${start.x},${start.y}`]);
+
+  for (const pos of queue) {
+    const cell = grid[pos.y]?.[pos.x];
+    if (!cell) continue;
+
+    for (let dir = 0; dir < 4; dir++) {
+      if (cell.walls[dir] || !canEnterFrom(grid, pos.x, pos.y, dir)) continue;
+
+      const nx = pos.x + DX[dir];
+      const ny = pos.y + DY[dir];
+      if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+
+      const key = `${nx},${ny}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+  }
+
+  return seen;
+}
+
+function isSameUndirectedEdge(x, y, dir, edge) {
+  return (x === edge.x && y === edge.y && dir === edge.dir) ||
+    (x === edge.nx && y === edge.ny && dir === OPPOSITE_DIR[edge.dir]);
+}
+
+function canReachWithoutEdge(grid, edge) {
+  const start = { x: edge.x, y: edge.y };
+  const targetKey = `${edge.nx},${edge.ny}`;
+  const queue = [start];
+  const seen = new Set([`${start.x},${start.y}`]);
+
+  for (const pos of queue) {
+    if (`${pos.x},${pos.y}` === targetKey) return true;
+    const cell = grid[pos.y]?.[pos.x];
+    if (!cell) continue;
+
+    for (let dir = 0; dir < 4; dir++) {
+      if (cell.walls[dir] || isSameUndirectedEdge(pos.x, pos.y, dir, edge)) continue;
+
+      const nx = pos.x + DX[dir];
+      const ny = pos.y + DY[dir];
+      if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+
+      const key = `${nx},${ny}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+  }
+
+  return false;
+}
+
+function getNonBridgePassageEdges(grid) {
+  const edges = [];
+
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      const cell = grid[y][x];
+      if (!isPassageCell(grid, x, y)) continue;
+
+      [DIR_E, DIR_S].forEach(dir => {
+        if (cell.walls[dir]) return;
+        const nx = x + DX[dir];
+        const ny = y + DY[dir];
+        if (!isPassageCell(grid, nx, ny)) return;
+
+        const edge = { x, y, nx, ny, dir };
+        if (canReachWithoutEdge(grid, edge)) edges.push(edge);
+      });
+    }
+  }
+
+  return edges;
+}
+
+function getRequiredReachableKeys(grid, stairsDownCoord, bossCoord) {
+  const keys = new Set();
+
+  if (stairsDownCoord) keys.add(`${stairsDownCoord.x},${stairsDownCoord.y}`);
+  if (bossCoord) keys.add(`${bossCoord.x},${bossCoord.y}`);
+
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      const cell = grid[y][x];
+      if (cell.event || cell.type === "stairs-down") keys.add(`${x},${y}`);
+    }
+  }
+
+  return keys;
+}
+
+function canReachAllRequired(grid, start, requiredKeys) {
+  const reachable = getDirectedReachableCellKeys(grid, start);
+  return [...requiredKeys].every(key => reachable.has(key));
+}
+
+function shuffleInPlace(array, rng) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+function placeSecretShortcuts(grid, targetCount, rng) {
+  const candidates = [];
+
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      if (!isPassageCell(grid, x, y)) continue;
+
+      [DIR_E, DIR_S].forEach(dir => {
+        const nx = x + DX[dir];
+        const ny = y + DY[dir];
+        const next = grid[ny]?.[nx];
+        if (!next || !isPassageCell(grid, nx, ny)) return;
+        if (!grid[y][x].walls[dir] || !next.walls[OPPOSITE_DIR[dir]]) return;
+        if (grid[y][x].secretDoor[dir] || next.secretDoor[OPPOSITE_DIR[dir]]) return;
+        candidates.push({ x, y, dir });
+      });
+    }
+  }
+
+  shuffleInPlace(candidates, rng);
+  let placed = 0;
+  for (const candidate of candidates) {
+    if (placed >= targetCount) break;
+    if (setSecretDoor(grid, candidate.x, candidate.y, candidate.dir)) placed++;
+  }
+  return placed;
+}
+
+function placeSecretRooms(grid, targetCount, requiredKeys, rng) {
+  const candidates = [];
+
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      const roomCell = grid[y][x];
+      if (!roomCell.walls.every(Boolean) || roomCell.event || roomCell.type !== "empty") continue;
+      if (requiredKeys.has(`${x},${y}`)) continue;
+
+      for (let dir = 0; dir < 4; dir++) {
+        const px = x + DX[dir];
+        const py = y + DY[dir];
+        const passage = grid[py]?.[px];
+        if (!passage || !isPassageCell(grid, px, py)) continue;
+        if (passage.event || passage.type !== "empty") continue;
+        const passageDir = OPPOSITE_DIR[dir];
+        if (!passage.walls[passageDir] || !roomCell.walls[dir]) continue;
+        candidates.push({ roomX: x, roomY: y, passageX: px, passageY: py, passageDir });
+      }
+    }
+  }
+
+  shuffleInPlace(candidates, rng);
+  let placed = 0;
+  for (const candidate of candidates) {
+    if (placed >= targetCount) break;
+
+    const room = grid[candidate.roomY][candidate.roomX];
+    if (!room.walls.every(Boolean) || room.event || room.type !== "empty") continue;
+    if (!setSecretDoor(grid, candidate.passageX, candidate.passageY, candidate.passageDir)) continue;
+
+    room.event = rng() < 0.75 ? EVENT_TYPES.CHEST : EVENT_TYPES.TABLET;
+    placed++;
+  }
+  return placed;
+}
+
+function placeSecretDoors(grid, floor, start, stairsDownCoord, bossCoord, rng) {
+  const counts = SECRET_DOOR_COUNTS[floor] || { shortcut: 0, room: 0 };
+  const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, bossCoord);
+  const shortcuts = placeSecretShortcuts(grid, counts.shortcut, rng);
+  const rooms = placeSecretRooms(grid, counts.room, requiredKeys, rng);
+
+  if (!canReachAllRequired(grid, start, requiredKeys)) {
+    throw new Error(`B${floor}F required path blocked by secret doors`);
+  }
+
+  return { shortcuts, rooms };
+}
+
+function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng) {
+  const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, bossCoord);
+  const edges = getNonBridgePassageEdges(grid);
+  const targetCount = Math.min(ONE_WAY_PASSAGE_COUNTS[floor] || 0, edges.length);
+  let placed = 0;
+
+  for (let i = edges.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [edges[i], edges[j]] = [edges[j], edges[i]];
+  }
+
+  for (const edge of edges) {
+    if (placed >= targetCount) break;
+
+    const options = rng() < 0.5
+      ? [
+          { x: edge.x, y: edge.y, blockDir: edge.dir },
+          { x: edge.nx, y: edge.ny, blockDir: OPPOSITE_DIR[edge.dir] }
+        ]
+      : [
+          { x: edge.nx, y: edge.ny, blockDir: OPPOSITE_DIR[edge.dir] },
+          { x: edge.x, y: edge.y, blockDir: edge.dir }
+        ];
+
+    for (const option of options) {
+      const cell = grid[option.y][option.x];
+      if (cell.blockEnter[option.blockDir]) continue;
+
+      cell.blockEnter[option.blockDir] = true;
+      if (canReachAllRequired(grid, start, requiredKeys)) {
+        placed++;
+        break;
+      }
+      cell.blockEnter[option.blockDir] = false;
+    }
+  }
+
+  return placed;
 }
 
 export function removeIsolatedInternalWalls(grid) {
@@ -119,6 +387,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   const grid = Array.from({ length: MAP_HEIGHT }, () =>
     Array.from({ length: MAP_WIDTH }, () => ({
       walls: [true, true, true, true], // N, E, S, W starts closed
+      blockEnter: [false, false, false, false],
+      secretDoor: [false, false, false, false],
+      secretFound: [false, false, false, false],
       type: "empty",
       event: null,
       message: null
@@ -371,13 +642,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   }
 
   // 6. Place chest events randomly at dead ends
-  // Shuffle array utility
-  const shuffle = (array) => {
-    for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]];
-    }
-  };
+  const shuffle = (array) => shuffleInPlace(array, rng);
   shuffle(deadEnds);
 
   const chestCount = Math.min(6, deadEnds.length);
@@ -508,6 +773,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       weakenLevel: 0
     };
   }
+
+  placeOneWayPassages(grid, floor, suCoord, stairsDownCoord, bossCoord, rng);
+  placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng);
 
   return {
     grid,

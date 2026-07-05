@@ -80,6 +80,12 @@
   font-size: var(--fs-xxl);
 }
 
+#btn-search {
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+  font-size: var(--fs-sm);
+}
+
 .btn-danger {
   background-color: #271215;
   border-color: var(--neon-red);

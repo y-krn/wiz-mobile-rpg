@@ -221,6 +221,10 @@ export class DungeonRenderer {
       const hasLeftWall = cell.walls[dirLeft];
       const hasRightWall = cell.walls[dirRight];
       const hasFrontWall = cell.walls[dirFront];
+      const frontX = cx + DX[dirFront];
+      const frontY = cy + DY[dirFront];
+      const frontEnterFace = (dirFront + 2) % 4;
+      const hasFrontOneWayBarrier = !hasFrontWall && Boolean(state.map[frontY]?.[frontX]?.blockEnter?.[frontEnterFace]);
 
       // 1. Draw floor/ceiling segments
       ctx.strokeStyle = gridColor;
@@ -283,6 +287,8 @@ export class DungeonRenderer {
 
         ctx.strokeStyle = wallColor;
         ctx.strokeRect(XL[z + 1], YT[z + 1], XR[z + 1] - XL[z + 1], YB[z + 1] - YT[z + 1]);
+      } else if (hasFrontOneWayBarrier) {
+        this.drawOneWayBarrier(ctx, z, wallColor);
       }
 
       // Check special symbols inside cells (stairs up / down)
@@ -325,6 +331,34 @@ export class DungeonRenderer {
     ctx.fillRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
     ctx.strokeStyle = color;
     ctx.strokeRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
+  }
+
+  drawOneWayBarrier(ctx, z, color) {
+    const x = XL[z + 1];
+    const y = YT[z + 1];
+    const w = XR[z + 1] - XL[z + 1];
+    const h = YB[z + 1] - YT[z + 1];
+    const midX = x + w / 2;
+    const midY = y + h / 2;
+    const chevronW = Math.max(8, w * 0.18);
+    const chevronH = Math.max(6, h * 0.12);
+
+    ctx.fillStyle = "rgba(0, 229, 255, 0.10)";
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = "rgba(0, 229, 255, 0.75)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x, y, w, h);
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    for (let i = -1; i <= 1; i++) {
+      const cy = midY + i * chevronH * 1.7;
+      ctx.beginPath();
+      ctx.moveTo(midX - chevronW, cy - chevronH);
+      ctx.lineTo(midX, cy);
+      ctx.lineTo(midX + chevronW, cy - chevronH);
+      ctx.stroke();
+    }
   }
 
   drawStairsIcon(ctx, z, type) {
@@ -835,6 +869,8 @@ export class DungeonRenderer {
         // Reset line dash
         ctx.setLineDash([]);
 
+        this.drawOneWayMiniMapMarkers(ctx, screenX, screenY, cellS, cell, isLightOnly);
+
         // Special cell colors
         if (cell.type === "stairs-up" || cell.type === "stairs-down") {
           const isUp = cell.type === "stairs-up";
@@ -985,6 +1021,52 @@ export class DungeonRenderer {
     
     ctx.restore();
     ctx.shadowBlur = 0;
+  }
+
+  drawOneWayMiniMapMarkers(ctx, screenX, screenY, cellS, cell, isLightOnly) {
+    if (!cell.blockEnter?.some(Boolean)) return;
+
+    const centerX = screenX + cellS / 2;
+    const centerY = screenY + cellS / 2;
+    const length = Math.max(5, cellS * 0.34);
+    const head = Math.max(2, cellS * 0.12);
+
+    ctx.save();
+    ctx.strokeStyle = isLightOnly ? "rgba(0, 229, 255, 0.55)" : "#ffb300";
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([]);
+
+    cell.blockEnter.forEach((blocked, dir) => {
+      if (!blocked) return;
+
+      const dx = DX[dir];
+      const dy = DY[dir];
+      const startX = centerX - dx * length * 0.35;
+      const startY = centerY - dy * length * 0.35;
+      const endX = centerX + dx * length;
+      const endY = centerY + dy * length;
+
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      if (dir === 0 || dir === 2) {
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(endX - head, endY - dy * head);
+        ctx.lineTo(endX + head, endY - dy * head);
+      } else {
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(endX - dx * head, endY - head);
+        ctx.lineTo(endX - dx * head, endY + head);
+      }
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    ctx.restore();
   }
 
   drawFloatingTexts(ctx) {

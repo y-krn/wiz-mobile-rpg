@@ -227,7 +227,7 @@ for (const vp of VIEWPORTS) {
       expect(panelBox.height, `Explore controls panel should stay compact on ${vp.name}`).toBeLessThanOrEqual(130);
 
       const exploreButtons = await page.locator('#explore-controls button:visible').all();
-      expect(exploreButtons.length).toBe(8);
+      expect(exploreButtons.length).toBe(9);
       for (const btn of exploreButtons) {
         const box = await btn.boundingBox();
         const text = (await btn.textContent()).trim();

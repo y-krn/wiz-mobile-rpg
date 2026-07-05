@@ -2,13 +2,118 @@ import { state, initNewGame, saveAutosave, addLog } from "../state.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, EXP_LEVELS } from "../data.js";
+import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, EXP_LEVELS, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
-import { checkCellEvents, executeEnterDungeon } from "../movement.js";
-import { triggerGameOver } from "../combat.js";
+import { checkCellEvents, executeEnterDungeon, tickExplorationSpellEffects } from "../movement.js";
+import { startCombat, triggerGameOver } from "../combat.js";
 import { openCampMenu } from "../camp.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
 import { executeDisarm } from "../chest.js";
+import { openWall } from "../map_generator.js";
+
+function getSecretSearchDirs() {
+  return [
+    state.dir,
+    (state.dir + 3) % 4,
+    (state.dir + 1) % 4,
+    (state.dir + 2) % 4
+  ];
+}
+
+function getSecretDoorCandidate() {
+  const cell = state.map[state.y]?.[state.x];
+  if (!cell) return null;
+
+  for (const dir of getSecretSearchDirs()) {
+    const nx = state.x + DX[dir];
+    const ny = state.y + DY[dir];
+    const next = state.map[ny]?.[nx];
+    const opposite = (dir + 2) % 4;
+    if (!next) continue;
+    if (cell.secretDoor?.[dir] && !cell.secretFound?.[dir]) {
+      return { x: state.x, y: state.y, dir, nx, ny, opposite };
+    }
+  }
+  return null;
+}
+
+function calculateSecretSearchSuccessRate() {
+  let rate = 0.35;
+  const scouts = state.party.filter(c => ["Thief", "Ninja", "Ranger"].includes(c.class) && c.hp > 0);
+  if (scouts.length > 0) {
+    const bestScout = scouts
+      .map(c => {
+        let bonus = 0;
+        if (c.class === "Thief") bonus = 0.20;
+        else if (c.class === "Ninja") bonus = 0.15;
+        else if (c.class === "Ranger") bonus = 0.10;
+        return bonus + (c.luk + c.agi) * 0.01;
+      })
+      .sort((a, b) => b - a)[0];
+    rate += bestScout;
+  }
+  rate -= (state.floor - 1) * 0.05;
+  return Math.max(0.10, Math.min(0.95, rate));
+}
+
+function consumeSearchTurn() {
+  if (state.currentRun) {
+    state.currentRun.steps++;
+  }
+  tickExplorationSpellEffects();
+
+  let encounterChance = 0.06;
+  if (state.lightPower === "lomilwa") {
+    encounterChance = 0.03;
+  } else if (state.lightTurns > 0) {
+    encounterChance = 0.04;
+  }
+
+  if ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance) {
+    state.transitioning = true;
+    addLog("探索に時間をかけている間に、モンスターが近づいてきた！");
+    setTimeout(() => {
+      state.transitioning = false;
+      startCombat(false, false);
+    }, 600);
+    return true;
+  }
+  return false;
+}
+
+function revealSecretDoor(candidate) {
+  const cell = state.map[candidate.y][candidate.x];
+  const next = state.map[candidate.ny][candidate.nx];
+  cell.secretFound[candidate.dir] = true;
+  next.secretFound[candidate.opposite] = true;
+  openWall(state.map, candidate.x, candidate.y, candidate.dir);
+  addLog(`【隠し扉発見！】${DIR_NAMES[candidate.dir]}の壁に秘密の通路を見つけた！`);
+  playSound("gold");
+}
+
+function searchSecretDoor() {
+  const candidate = getSecretDoorCandidate();
+  const interrupted = consumeSearchTurn();
+  if (interrupted) {
+    saveAutosave();
+    updateUI();
+    return true;
+  }
+
+  if (candidate && Math.random() < calculateSecretSearchSuccessRate()) {
+    revealSecretDoor(candidate);
+    saveAutosave();
+    updateUI();
+    return true;
+  }
+
+  if (!interrupted) {
+    addLog(candidate ? "壁を調べたが、隠し扉は見つからなかった。" : "周囲を調べたが、特に何も見つからなかった。");
+    saveAutosave();
+    updateUI();
+  }
+  return true;
+}
 
 export function handleExploreAction(action) {
   if (state.transitioning || state.gameState !== "explore") return;
@@ -17,8 +122,7 @@ export function handleExploreAction(action) {
     if (cell && (cell.type === "stairs-up" || cell.type === "stairs-down")) {
       checkCellEvents(state.x, state.y);
     } else {
-      addLog("周囲を調べたが、特に何も見つからなかった。");
-      updateUI();
+      searchSecretDoor();
     }
   } else if (action === "camp") {
     openCampMenu();

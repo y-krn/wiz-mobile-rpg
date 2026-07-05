@@ -9,7 +9,8 @@ global.localStorage = {
 
 import assert from "assert";
 import { getCharAgi, getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharStr, getCharTrapBonus, generateRandomAccessory, getItemData } from "../src/data.js";
-import { migrateSavePayload } from "../src/state/save_migrations.js";
+import { migrateSavePayload, SAVE_VERSION } from "../src/state/save_migrations.js";
+import { generateRandomMap } from "../src/map_generator.js";
 
 (async () => {
 
@@ -924,7 +925,7 @@ import { migrateSavePayload } from "../src/state/save_migrations.js";
       remains: [{ ...baseChar, equipment: { weapon: null, shield: null, armor: null } }]
     });
 
-    assert.strictEqual(migrated.version, 3);
+    assert.strictEqual(migrated.version, SAVE_VERSION);
     assert.deepStrictEqual(migrated.party[0].equipment, {
       weapon: "DAGGER",
       shield: null,
@@ -933,6 +934,15 @@ import { migrateSavePayload } from "../src/state/save_migrations.js";
     });
     assert.strictEqual(migrated.roster[0].equipment.accessory, null);
     assert.strictEqual(migrated.remains[0].equipment.accessory, null);
+
+    const oldMap = generateRandomMap(1, null, "ACCESSORY-MIGRATION-MAP").grid;
+    delete oldMap[1][1].blockEnter;
+    delete oldMap[1][1].secretDoor;
+    delete oldMap[1][1].secretFound;
+    const migratedMapSave = migrateSavePayload({ version: 3, maps: [oldMap, oldMap, oldMap, oldMap, oldMap] });
+    assert.deepStrictEqual(migratedMapSave.maps[0][1][1].blockEnter, [false, false, false, false]);
+    assert.deepStrictEqual(migratedMapSave.maps[0][1][1].secretDoor, [false, false, false, false]);
+    assert.deepStrictEqual(migratedMapSave.maps[0][1][1].secretFound, [false, false, false, false]);
 
     function lcg(seed) {
       let value = seed;

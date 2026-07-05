@@ -10,7 +10,7 @@ import { openSubmenu } from "./navigation.js";
 import { triggerRunResult } from "./result.js";
 import { handleTrapStepCheck } from "./systems/traps.js";
 
-function tickExplorationSpellEffects() {
+export function tickExplorationSpellEffects() {
   if (state.lightTurns > 0) {
     const cost = state.floor === 2 ? 2 : 1;
     state.lightTurns = Math.max(0, state.lightTurns - cost);
@@ -40,6 +40,19 @@ function tickExplorationSpellEffects() {
   }
 }
 
+function isBlockedByOneWayPassage(x, y, dir) {
+  const nx = x + DX[dir];
+  const ny = y + DY[dir];
+  const enterFace = (dir + 2) % 4;
+  return Boolean(state.map[ny]?.[nx]?.blockEnter?.[enterFace]);
+}
+
+function blockOneWayMove() {
+  playSound("bump");
+  if (renderer) renderer.triggerShake(4, 150);
+  addLog("見えない力に押し返された。ここは一方通行だ…");
+}
+
 export function handleMove(action) {
   if (state.transitioning || state.gameState !== "explore") return;
   playSound("move");
@@ -59,6 +72,8 @@ export function handleMove(action) {
     if (currentCell.walls[state.dir]) {
       playSound("bump");
       if (renderer) renderer.triggerShake(4, 150);
+    } else if (isBlockedByOneWayPassage(state.x, state.y, state.dir)) {
+      blockOneWayMove();
     } else {
       // Step forward
       state.x += DX[state.dir];
@@ -81,6 +96,8 @@ export function handleMove(action) {
     if (currentCell.walls[backDir]) {
       playSound("bump");
       if (renderer) renderer.triggerShake(4, 150);
+    } else if (isBlockedByOneWayPassage(state.x, state.y, backDir)) {
+      blockOneWayMove();
     } else {
       state.x += DX[backDir];
       state.y += DY[backDir];
@@ -651,7 +668,9 @@ export function moveRoamingMonsters() {
           const destCell = grid[ny][nx];
           const isSpecialCell = destCell.type === "stairs-up" || destCell.type === "stairs-down" || 
                                 destCell.event === "boss" || destCell.event === "midboss";
-          if (!isBlockedByMonster && !isSpecialCell) {
+          const enterFace = (dir + 2) % 4;
+          const isBlockedByOneWay = Boolean(destCell.blockEnter?.[enterFace]);
+          if (!isBlockedByMonster && !isSpecialCell && !isBlockedByOneWay) {
             neighbors.push({ x: nx, y: ny, dir });
           }
         }

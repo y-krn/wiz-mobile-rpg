@@ -113,6 +113,13 @@ If multiple interpretations are plausible, ask instead of choosing silently.
 - For logic or state changes, run `npm run test:unit` or the matching focused
   test when feasible.
 - Report any skipped verification and the reason.
+- For one-off Playwright/browser checks, prefer the Playwright test runner
+  (`npm run test:browser` or `npx playwright test path/to/spec`) over raw
+  `node -e` scripts that launch Chromium directly. In the Codex/macOS sandbox,
+  direct Chromium launches can fail with MachPort permission errors and trigger
+  unnecessary approval retries. If a one-off flow needs browser automation,
+  create a temporary or focused Playwright spec and run it through the test
+  runner.
 
 ## Mobile UI/UX Requirements
 
