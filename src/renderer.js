@@ -881,11 +881,7 @@ export class DungeonRenderer {
           ctx.strokeStyle = isLightOnly ? `rgba(${fill}, 0.4)` : stroke;
           ctx.lineWidth = 1;
           ctx.strokeRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
-          ctx.fillStyle = stroke;
-          ctx.font = "bold 10px monospace";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(isUp ? "↑" : "↓", screenX + cellS / 2, screenY + cellS / 2);
+          this.drawStairMiniMapIcon(ctx, screenX, screenY, cellS, isUp, stroke);
         }
 
         if (cell.trap && cell.trap.state !== "hidden") {
@@ -1066,6 +1062,41 @@ export class DungeonRenderer {
       ctx.fill();
     });
 
+    ctx.restore();
+  }
+
+  drawStairMiniMapIcon(ctx, screenX, screenY, cellS, isUp, color) {
+    const left = screenX + 2;
+    const right = screenX + cellS - 2;
+    const top = screenY + 2;
+    const bottom = screenY + cellS - 2;
+    const stepX = (right - left) / 3;
+    const stepY = (bottom - top) / 3;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = "square";
+    ctx.lineJoin = "miter";
+    ctx.beginPath();
+
+    if (isUp) {
+      ctx.moveTo(left, bottom);
+      ctx.lineTo(left + stepX, bottom);
+      ctx.lineTo(left + stepX, bottom - stepY);
+      ctx.lineTo(left + stepX * 2, bottom - stepY);
+      ctx.lineTo(left + stepX * 2, bottom - stepY * 2);
+      ctx.lineTo(right, bottom - stepY * 2);
+    } else {
+      ctx.moveTo(left, top + stepY);
+      ctx.lineTo(left + stepX, top + stepY);
+      ctx.lineTo(left + stepX, top + stepY * 2);
+      ctx.lineTo(left + stepX * 2, top + stepY * 2);
+      ctx.lineTo(left + stepX * 2, bottom);
+      ctx.lineTo(right, bottom);
+    }
+
+    ctx.stroke();
     ctx.restore();
   }
 
