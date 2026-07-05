@@ -42,16 +42,38 @@ export function getItemOwnership(key) {
 export function getAppraisalCost(eqItem) {
   const item = getItemData(eqItem);
   if (!item) return 30;
+  const valuedItem = typeof eqItem === "object" && eqItem !== null
+    ? getItemData({ ...eqItem, identified: true })
+    : item;
 
   const rarity = eqItem.rarity || "magic";
   const rarityCoeff = { magic: 0.5, rare: 1.0, epic: 1.5 }[rarity] || 0.5;
-  const baseCost = Math.floor((item.price || 0) * rarityCoeff);
+  const baseCost = Math.floor((valuedItem?.price || item.price || 0) * rarityCoeff);
 
   const bestDiscount = state.party.reduce((max, char) => {
     if (char.status === "dead") return max;
     return Math.max(max, getCharAffixSum(char, "identifyDiscount"));
   }, 0);
   return Math.max(1, Math.floor(baseCost * (1 - bestDiscount / 100)));
+}
+
+export function isDisposalSaleItem(itemVal) {
+  return typeof itemVal === "object" && itemVal !== null && itemVal.halfIdentified && !itemVal.identified;
+}
+
+export function canSellItem(itemVal) {
+  return !(typeof itemVal === "object" && itemVal !== null && !itemVal.identified && !itemVal.halfIdentified);
+}
+
+export function getSalePrice(itemVal) {
+  const item = getItemData(itemVal);
+  if (!item) return 0;
+  const valuedItem = typeof itemVal === "object" && itemVal !== null
+    ? getItemData({ ...itemVal, identified: true })
+    : item;
+  const basePrice = valuedItem?.price || item.price || 0;
+  if (isDisposalSaleItem(itemVal)) return Math.min(Math.floor(basePrice * 0.1), 10);
+  return Math.floor(basePrice * 0.5);
 }
 
 const DERIVED_COMPARE_ROWS = [

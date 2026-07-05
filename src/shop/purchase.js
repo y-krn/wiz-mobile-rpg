@@ -2,6 +2,7 @@ import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem
 import { getItemData, getItemBaseId } from "../data.js";
 import { playSound } from "../audio.js";
 import { shopState } from "./shop_state.js";
+import { canSellItem, getSalePrice, isDisposalSaleItem } from "./shop_rules.js";
 
 export function executePurchase(itemKey, price) {
   const item = getItemData(itemKey);
@@ -33,15 +34,15 @@ export function executePurchase(itemKey, price) {
   return true;
 }
 
-export function executeSale(idx, price) {
+export function executeSale(idx) {
   const itemVal = state.inventory[idx];
-  const isUnidentified = (typeof itemVal === "object" && itemVal !== null && !itemVal.identified);
-  if (isUnidentified) {
+  if (!canSellItem(itemVal)) {
     addLog("未鑑定の装備は売却できません。");
     return false;
   }
 
   const item = getItemData(itemVal);
+  const price = getSalePrice(itemVal);
   const currentSelectedIdx = idx;
   
   // フィルタ後の現在の位置（filteredClickIdx）を特定する
@@ -64,7 +65,8 @@ export function executeSale(idx, price) {
   state.gold += price;
   state.inventory.splice(currentSelectedIdx, 1);
   playSound("gold");
-  addLog(`${item.name}を${price}ゴールドで売却した。`);
+  const saleKind = isDisposalSaleItem(itemVal) ? "処分売却" : "売却";
+  addLog(`${item.name}を${price}ゴールドで${saleKind}した。`);
   saveAutosave();
 
   // 売却後のインベントリを再構築して、次の選択対象を決定する

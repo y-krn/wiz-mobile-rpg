@@ -78,6 +78,7 @@ Object.defineProperty(global, "navigator", {
   const { generateMerchantStock } = await import("../src/menu.js");
   const { setupChestState } = await import("../src/chest.js");
   const { getDismantleResults } = await import("../src/craft.js");
+  const { getAppraisalCost, getSalePrice } = await import("../src/shop/shop_rules.js");
   const assert = await import("assert");
 
   console.log("Starting Expedition Economy Simulation & Verification...");
@@ -115,12 +116,23 @@ Object.defineProperty(global, "navigator", {
     if (!baseItem) return;
     
     rarities.forEach(rarity => {
-      const multiplier = { magic: 1.5, rare: 2.5, epic: 4.0 }[rarity];
-      const basePrice = Math.floor(baseItem.price * multiplier);
-      
-      const rarityCoeff = { magic: 0.5, rare: 1.0, epic: 1.5 }[rarity];
-      const identifyCost = Math.floor(basePrice * rarityCoeff);
-      const sellPrice = Math.floor(basePrice * 0.5);
+      const identifiedItem = {
+        kind: "equipment",
+        baseId,
+        rarity,
+        identified: true,
+        affixes: []
+      };
+      const halfIdentifiedItem = {
+        ...identifiedItem,
+        identified: false,
+        halfIdentified: true
+      };
+
+      const identifyCost = getAppraisalCost(halfIdentifiedItem);
+      const sellPrice = getSalePrice(identifiedItem);
+      const disposalSalePrice = getSalePrice(halfIdentifiedItem);
+      const halfIdentifyCost = Math.max(10, Math.floor(identifyCost * 0.3));
       
       const netProfit = sellPrice - identifyCost;
       if (rarity === "magic") {
@@ -128,9 +140,13 @@ Object.defineProperty(global, "navigator", {
       } else {
         assert.ok(netProfit < 0, `${rarity} ${baseId} should be in red: ${netProfit}G`);
       }
+
+      const disposalNet = disposalSalePrice - halfIdentifyCost;
+      assert.ok(disposalNet <= 0, `${rarity} ${baseId} disposal sale yields positive margin: ${disposalNet}G`);
+      assert.ok(disposalSalePrice < sellPrice, `${rarity} ${baseId} disposal sale must be below identified sale value`);
     });
   });
-  console.log("   [PASS] Appraisal sell margins guarantee no stable profit (deficit or net-zero).");
+  console.log("   [PASS] Appraisal and disposal sell margins guarantee no stable profit (deficit or net-zero).");
 
   // ==========================================
   // Test 3: Chest Candidates Check & Simulation (1000 times)
@@ -223,6 +239,15 @@ Object.defineProperty(global, "navigator", {
     },
     {
       kind: "equipment",
+      instanceId: "test_half_identified_2",
+      baseId: "SHORT_SWORD",
+      rarity: "magic",
+      identified: false,
+      halfIdentified: true,
+      affixes: []
+    },
+    {
+      kind: "equipment",
       instanceId: "test_identified_2",
       baseId: "SHORT_SWORD",
       rarity: "magic",
@@ -233,18 +258,26 @@ Object.defineProperty(global, "navigator", {
   state.gold = 100;
   
   // Attempt to sell unidentified item (index 0)
-  const sellUnidentifiedResult = executeSale(0, 100);
+  const sellUnidentifiedResult = executeSale(0);
   assert.strictEqual(sellUnidentifiedResult, false, "Unidentified gear must NOT be saleable");
   assert.strictEqual(state.gold, 100, "Gold must not change after failed sale");
-  assert.strictEqual(state.inventory.length, 2, "Inventory size must not change after failed sale");
+  assert.strictEqual(state.inventory.length, 3, "Inventory size must not change after failed sale");
 
-  // Attempt to sell identified item (index 1)
-  const sellIdentifiedResult = executeSale(1, 50);
+  // Attempt to dispose half-identified item (index 1)
+  const halfSalePrice = getSalePrice(state.inventory[1]);
+  const sellHalfIdentifiedResult = executeSale(1);
+  assert.strictEqual(sellHalfIdentifiedResult, true, "Half-identified gear should be disposal-saleable");
+  assert.strictEqual(state.gold, 100 + halfSalePrice, "Gold must increase by disposal sale price");
+  assert.strictEqual(state.inventory.length, 2, "Inventory size must decrease after disposal sale");
+
+  // Attempt to sell identified item (now index 1)
+  const identifiedSalePrice = getSalePrice(state.inventory[1]);
+  const sellIdentifiedResult = executeSale(1);
   assert.strictEqual(sellIdentifiedResult, true, "Identified gear should be saleable");
-  assert.strictEqual(state.gold, 150, "Gold must increase by sale price");
+  assert.strictEqual(state.gold, 100 + halfSalePrice + identifiedSalePrice, "Gold must increase by sale price");
   assert.strictEqual(state.inventory.length, 1, "Inventory size must decrease by 1");
   
-  console.log("   [PASS] Direct sale of unidentified items is successfully blocked.");
+  console.log("   [PASS] Direct sale of unidentified items is blocked; half-identified disposal sale is allowed.");
 
   console.log("All Expedition Economy Simulation & Verification Tests PASSED!");
 })();

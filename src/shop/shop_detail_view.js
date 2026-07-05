@@ -1,7 +1,7 @@
 import { state } from "../state.js";
 import { ITEMS, getItemData, getItemBaseId } from "../data.js";
 import { shopState } from "./shop_state.js";
-import { getAppraisalCost, getItemOwnership, getEquipmentPreview, formatEquipmentPreview } from "./shop_rules.js";
+import { getAppraisalCost, getItemOwnership, getEquipmentPreview, formatEquipmentPreview, canSellItem, getSalePrice, isDisposalSaleItem } from "./shop_rules.js";
 import { executeHalfAppraise, executeFullAppraise } from "./appraisal.js";
 import { executePurchase, executeSale } from "./purchase.js";
 import { renderShop } from "./shop_view.js";
@@ -69,7 +69,7 @@ export function renderShopDetail() {
       
       const typeJp = getShopItemTypeLabel(item.type);
 
-      const sellPrice = Math.floor((item.price || 0) * 0.5);
+      const sellPrice = getSalePrice(eqItem);
       const rarityJp = { magic: "MAGIC", rare: "RARE", epic: "EPIC" }[eqItem.rarity || "magic"] || "NORMAL";
       const rarityColor = { magic: "var(--neon-cyan)", rare: "var(--neon-gold)", epic: "var(--neon-purple)" }[eqItem.rarity || "magic"] || "var(--text-muted)";
 
@@ -249,8 +249,9 @@ export function renderShopDetail() {
       item = ITEMS[itemKey];
       itemPrice = SHOP_STOCK.find(st => st.key === itemKey).price;
     } else if (shopState.mode === "sell") {
-      item = getItemData(state.inventory[shopState.selectedIdx]);
-      itemPrice = Math.floor((item.price || 0) * 0.5);
+      const itemVal = state.inventory[shopState.selectedIdx];
+      item = getItemData(itemVal);
+      itemPrice = getSalePrice(itemVal);
     } else { // appraise
       const eqItem = state.inventory[shopState.selectedIdx];
       item = getItemData(eqItem);
@@ -405,18 +406,19 @@ export function renderShopDetail() {
       });
     } else if (shopState.mode === "sell") {
       const originalItemKey = state.inventory[shopState.selectedIdx];
-      const isUnidentified = (typeof originalItemKey === "object" && originalItemKey !== null && !originalItemKey.identified);
+      const isSellable = canSellItem(originalItemKey);
+      const isDisposal = isDisposalSaleItem(originalItemKey);
 
       actionBtn.className = `btn btn-block shop-action-btn btn-danger`;
-      if (isUnidentified) {
+      if (!isSellable) {
         actionBtn.textContent = `売却不可 (未鑑定)`;
         actionBtn.disabled = true;
         actionBtn.classList.add("disabled");
       } else {
-        actionBtn.textContent = `売却する (+${itemPrice}G)`;
+        actionBtn.textContent = isDisposal ? `処分売却する (+${itemPrice}G)` : `売却する (+${itemPrice}G)`;
 
         actionBtn.addEventListener("click", () => {
-          if (executeSale(shopState.selectedIdx, itemPrice)) {
+          if (executeSale(shopState.selectedIdx)) {
             renderShop();
             updateUI();
           }

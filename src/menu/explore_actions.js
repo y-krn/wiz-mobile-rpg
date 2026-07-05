@@ -427,17 +427,15 @@ export function renderEventTablet(optGrid) {
       ];
       const chosenHint = hints[Math.floor(Math.random() * hints.length)];
       const expGained = 100 + currentFloor * 100;
-      const goldGained = 50 + currentFloor * 50;
       state.party.forEach(char => {
         if (char.status !== "dead") {
           char.exp += expGained;
         }
       });
-      state.gold += goldGained;
       playSound("level_up");
       addLog(`石碑の文字を解読した：`);
       addLog(`「${chosenHint}」`);
-      addLog(`[!] 古代の叡智に触れ、全員が${expGained}の経験値を獲得し、${goldGained}Gを見つけた！`);
+      addLog(`[!] 古代の叡智に触れ、全員が${expGained}の経験値を獲得した！`);
     } else if (rand < 0.70) {
       const aliveChars = state.party.filter(char => char.status !== "dead");
       if (aliveChars.length > 0) {

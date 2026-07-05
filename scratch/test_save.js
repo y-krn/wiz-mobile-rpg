@@ -77,6 +77,7 @@ global.localStorage = {
 
       // 2. Trigger GameOver (triggerRunResult)
       console.log("Test 1: triggerRunResult('gameover') should generate remains and wipedFloor coordinates...");
+      enterDungeon();
       triggerRunResult("gameover");
 
       assert.default.ok(state.remains.length > 0, "Remains should be generated");

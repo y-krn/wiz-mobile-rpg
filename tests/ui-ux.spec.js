@@ -324,3 +324,29 @@ for (const vp of VIEWPORTS) {
     });
   });
 }
+
+test('Castle record submenus show a single back button', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.clear();
+  });
+  await page.goto('/');
+
+  await page.locator('#btn-town-castle').click();
+  await expect(page.locator('#submenu-controls')).toBeVisible();
+
+  const recordButtons = [
+    '死亡者・完全ロスト名簿',
+    '遺留品情報確認',
+    '全滅ログ確認',
+  ];
+
+  for (const label of recordButtons) {
+    await page.getByRole('button', { name: new RegExp(label) }).click();
+    await expect(page.locator('#btn-submenu-back')).toBeVisible();
+    await expect(page.locator('button:visible').filter({ hasText: '戻る' })).toHaveCount(1);
+    await page.locator('#btn-submenu-back').click();
+    await expect(page.getByRole('button', { name: new RegExp(label) })).toBeVisible();
+  }
+});

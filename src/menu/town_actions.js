@@ -1122,15 +1122,6 @@ export function renderCastleDeadList(optGrid) {
     });
   }
 
-  const btnBack = document.createElement("button");
-  btnBack.className = "btn btn-danger btn-block";
-  btnBack.style.height = "44px";
-  btnBack.style.marginTop = "10px";
-  btnBack.textContent = "❌ 戻る";
-  btnBack.addEventListener("click", () => {
-    openSubmenu("castle_main", "おしろ - 冒険者管理と記録：");
-  });
-  optGrid.appendChild(btnBack);
 }
 
 export function renderCastleRemainsList(optGrid) {
@@ -1167,15 +1158,6 @@ export function renderCastleRemainsList(optGrid) {
     });
   }
 
-  const btnBack = document.createElement("button");
-  btnBack.className = "btn btn-danger btn-block";
-  btnBack.style.height = "44px";
-  btnBack.style.marginTop = "10px";
-  btnBack.textContent = "❌ 戻る";
-  btnBack.addEventListener("click", () => {
-    openSubmenu("castle_main", "おしろ - 冒険者管理と記録：");
-  });
-  optGrid.appendChild(btnBack);
 }
 
 export function renderCastleDeathLogs(optGrid) {
@@ -1229,13 +1211,4 @@ export function renderCastleDeathLogs(optGrid) {
     optGrid.appendChild(logsContainer);
   }
 
-  const btnBack = document.createElement("button");
-  btnBack.className = "btn btn-danger btn-block";
-  btnBack.style.height = "44px";
-  btnBack.style.marginTop = "10px";
-  btnBack.textContent = "❌ 戻る";
-  btnBack.addEventListener("click", () => {
-    openSubmenu("castle_main", "おしろ - 冒険者管理と記録：");
-  });
-  optGrid.appendChild(btnBack);
 }

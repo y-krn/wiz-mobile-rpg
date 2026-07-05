@@ -3,7 +3,7 @@ import { ITEMS, getItemData } from "../data.js";
 import { goBackSubmenu } from "../navigation.js";
 import { shopState } from "./shop_state.js";
 import { SHOP_STOCK } from "./shop_stock.js";
-import { getItemOwnership, getAppraisalCost } from "./shop_rules.js";
+import { getItemOwnership, getAppraisalCost, canSellItem, getSalePrice, isDisposalSaleItem } from "./shop_rules.js";
 import { renderShopDetail } from "./shop_detail_view.js";
 
 export function renderShop() {
@@ -313,8 +313,9 @@ export function renderShop() {
           itemsList.appendChild(heading);
         }
 
-        const isUnidentified = (typeof itemVal === "object" && itemVal !== null && !itemVal.identified);
-        const value = Math.floor((item.price || 0) * 0.5);
+        const isSellable = canSellItem(itemVal);
+        const isDisposal = isDisposalSaleItem(itemVal);
+        const value = getSalePrice(itemVal);
         const row = document.createElement("button");
         row.type = "button";
         const isSelected = shopState.selectedIdx === idx;
@@ -333,21 +334,26 @@ export function renderShop() {
           badge.className = "shop-row-badge cant";
           badge.textContent = "売却不可";
           row.appendChild(badge);
-        } else if (isUnidentified) {
+        } else if (!isSellable) {
           row.classList.add("not-purchasable");
           const badge = document.createElement("span");
           badge.className = "shop-row-badge cant";
           badge.textContent = "要鑑定";
           row.appendChild(badge);
+        } else if (isDisposal) {
+          const badge = document.createElement("span");
+          badge.className = "shop-row-badge";
+          badge.textContent = "処分";
+          row.appendChild(badge);
         }
 
         const priceSpan = document.createElement("span");
         priceSpan.className = "shop-item-price";
-        priceSpan.textContent = isUnidentified ? "—" : `${value}G`;
+        priceSpan.textContent = isSellable ? `${value}G` : "—";
         row.appendChild(priceSpan);
 
         row.addEventListener("click", () => {
-          if (item.price > 0 && !isUnidentified) {
+          if (item.price > 0 && isSellable) {
             shopState.selectedKey = itemVal;
             shopState.selectedIdx = idx;
             shopState.lastAppraised = null;
