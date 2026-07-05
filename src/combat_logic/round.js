@@ -831,7 +831,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     allMonstersDead = monsters.every(m => m.hp <= 0);
   }
 
-  if (allMonstersDead) {
+  const allPartyDeadNow = state.party.every(c => c.status === "dead");
+
+  if (allPartyDeadNow) {
+    // 相互全滅：最後の敵と味方全員が同一ラウンドで倒れた場合、勝利より全滅を優先する。
+    // 勝利報酬(endCombat)を出すと checkCombatStatus に届く前に戦闘が「勝利」で終わり、
+    // ゲームオーバーが発火しない。報酬はスキップし、後段の checkCombatStatus に委ねる。
+  } else if (allMonstersDead) {
     applyCombatRewards(state, monsters, logQueue);
   } else {
     // Combat round end poison damage

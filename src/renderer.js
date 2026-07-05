@@ -919,7 +919,10 @@ export class DungeonRenderer {
         // Aura range is within 4 steps
         if (dist > 4) continue;
 
-        const hasStairs = cell.type === "stairs-up" || cell.type === "stairs-down";
+        // 上り階段は探索済みのときだけ気配グローを出す（落とし穴でランダム着地した際、
+        // 未探索の上り階段が距離4以内グローで露出してしまう問題を防ぐ）。
+        const hasStairs = cell.type === "stairs-down" ||
+          (cell.type === "stairs-up" && state.visitedMap[y][x]);
         const hasEvent = cell.event === EVENT_TYPES.CHEST || 
                           cell.event === EVENT_TYPES.SPRING || 
                           cell.event === EVENT_TYPES.TABLET || 
