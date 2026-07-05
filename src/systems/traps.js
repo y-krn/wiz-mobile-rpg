@@ -30,6 +30,15 @@ export const trapPersistenceByDepth = {
   },
 };
 
+function recordTrapCodex(type, field) {
+  const record = state.codex?.events?.traps?.[type];
+  if (!record) return;
+  record[field]++;
+  if (record.firstFloor === 0) {
+    record.firstFloor = state.floor;
+  }
+}
+
 export function calculateSuccessRate(trap) {
   let baseRate = 50;
   let disarmerSkill = 0;
@@ -214,11 +223,7 @@ export function triggerPitfall(trap, isWeakenedOverride = null, isPartialSuccess
       state.currentRun.trapsTriggered++;
     }
 
-    if (state.codex && state.codex.events && state.codex.events.traps) {
-      if (state.codex.events.traps["pitfall"]) {
-        state.codex.events.traps["pitfall"].triggered++;
-      }
-    }
+    recordTrapCodex("pitfall", "triggered");
 
     const allPartyDead = state.party.every(c => c.status === "dead");
     if (allPartyDead) {
@@ -385,11 +390,7 @@ export function handleTrapAction(action) {
           state.currentRun.steps += 3;
           state.currentRun.trapsDisarmed++;
         }
-        if (state.codex && state.codex.events && state.codex.events.traps) {
-          if (state.codex.events.traps["pitfall"]) {
-            state.codex.events.traps["pitfall"].disarmed++;
-          }
-        }
+        recordTrapCodex("pitfall", "disarmed");
         state.gameState = "explore";
         state.activeTrapState = null;
         saveAutosave();
@@ -417,12 +418,8 @@ export function handleTrapAction(action) {
       if (state.currentRun) {
         state.currentRun.trapsDisarmed++;
       }
-      if (state.codex && state.codex.events && state.codex.events.traps) {
-        const codexTrapType = trap.type === "damage" ? "poison needle" : (trap.type === "mpDrain" ? "gas bomb" : "flash bomb");
-        if (state.codex.events.traps[codexTrapType]) {
-          state.codex.events.traps[codexTrapType].disarmed++;
-        }
-      }
+      const codexTrapType = trap.type === "damage" ? "poison needle" : (trap.type === "mpDrain" ? "gas bomb" : "flash bomb");
+      recordTrapCodex(codexTrapType, "disarmed");
       state.gameState = "explore";
       state.activeTrapState = null;
       saveAutosave();
@@ -442,12 +439,8 @@ export function handleTrapAction(action) {
       if (state.currentRun) {
         state.currentRun.trapsTriggered++;
       }
-      if (state.codex && state.codex.events && state.codex.events.traps) {
-        const codexTrapType = trap.type === "damage" ? "poison needle" : (trap.type === "mpDrain" ? "gas bomb" : "flash bomb");
-        if (state.codex.events.traps[codexTrapType]) {
-          state.codex.events.traps[codexTrapType].triggered++;
-        }
-      }
+      const codexTrapType = trap.type === "damage" ? "poison needle" : (trap.type === "mpDrain" ? "gas bomb" : "flash bomb");
+      recordTrapCodex(codexTrapType, "triggered");
       state.gameState = "explore";
       state.activeTrapState = null;
       saveAutosave();

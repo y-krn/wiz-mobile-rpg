@@ -128,13 +128,16 @@ export function getEventsCodexHtml() {
   const trapKeys = Object.keys(ev.traps || {});
   trapKeys.forEach(k => {
     const record = ev.traps[k];
+    const hasRecord = record.disarmed > 0 || record.triggered > 0;
+    const firstFloorLabel = record.firstFloor > 0 ? `B${record.firstFloor}F` : (hasRecord ? "記録なし" : "未発見");
     const nameJp = k === "poison needle" ? "毒針" :
                    k === "gas bomb" ? "ガス爆弾" :
                    k === "teleporter" ? "テレポーター" :
-                   k === "flash bomb" ? "閃光弾" : k;
+                   k === "flash bomb" ? "閃光弾" :
+                   k === "pitfall" ? "落とし穴" : k;
     html += `
       <div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between;">
-        <span><strong>${nameJp}</strong> (初発見: B${record.firstFloor}F)</span>
+        <span><strong>${nameJp}</strong> (初発見: ${firstFloorLabel})</span>
         <span>解除: ${record.disarmed} 回 / 被弾: ${record.triggered} 回</span>
       </div>
     `;
