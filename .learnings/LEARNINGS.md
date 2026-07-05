@@ -100,3 +100,38 @@ Docker build fails on Apple Silicon due to platform mismatch
 - **Notes**: `explore_actions.js` に `getItemUseStatus` をインポートし、`renderItemAction` の「使用する」ボタン生成時に呼び出して判定するよう修正。
 
 ---
+
+## [LRN-20260705-003] best_practice
+
+**Logged**: 2026-07-05T17:45:00Z
+**Priority**: medium
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+`#controls-panel` の高さは gameState 毎の mode クラスで制御する設計。mode クラス欠落 or 固定高さ指定 → ボタン縦間延び・空白過多。
+
+### Details
+`src/ui/ui_root.js` の `updateControlsPanel` が gameState に応じ `explore-mode` / `combat-mode` / `submenu-mode` / `trap-mode` を `#controls-panel` にトグル。各 mode クラスが `src/styles/controls.css` で高さを定義。2つの落とし穴:
+- **mode クラス欠落**: combat には mode クラスが無く、デフォルト `min-height:210px` に落ちていた。かつ `.combat-grid` が `height:100%` + `grid-template-rows:repeat(2,1fr)` → ボタンが210px枠を等分し縦伸び（1ボタン ~180px）。さらに `#combat-controls` が `.controls-group.active` の flex row 継承で prompt 左・グリッド右の変則配置。
+- **固定高さ**: `submenu-mode` が `height:320px` 固定 → 泉など2択イベントで大量の下方空白。
+
+### Suggested Action
+コントロールパネルのレイアウト調整時:
+1. 新 gameState には必ず専用 mode クラスをトグル追加（ui_root.js）＋ CSS 定義。デフォルト高さ依存にしない。
+2. パネル高さは `height:auto` + `max-height:Nvh`（内容ハグ）を基本。固定 px は避け空白を作らない。
+3. ボタングリッドは `grid-auto-rows: var(--tap-lg)` で行高固定。`height:100%` + `1fr` 行は枠を等分し縦伸びする。
+4. prompt+グリッドを縦積みする controls-group は `flex-direction: column` を明示（`.controls-group.active` はデフォルト row）。
+5. 長リストは `max-height:45vh` + グリッド側 `overflow-y:auto` でスクロール担保。
+
+### Metadata
+- Source: user_feedback
+- Related Files: src/ui/ui_root.js, src/styles/controls.css
+- Tags: UI-layout, css-grid, controls-panel, whitespace
+- See Also: LRN-20260705-002 (どちらもUI反映漏れ系)
+
+### Resolution
+- **Resolved**: 2026-07-05T17:45:00Z
+- **Notes**: `combat-mode` トグル追加、`.combat-grid` を `grid-auto-rows:var(--tap-lg)` + `height:auto` 化、`#combat-controls.active` を column 化、`submenu-mode` を固定320px→`height:auto`+`max-height:45vh` 化。実DOM検証で戦闘210→145px(ボタン48px固定)、泉320→135px、長リスト16項目で45vhスクロール維持を確認。
+
+---

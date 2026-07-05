@@ -58,43 +58,79 @@ Object.defineProperty(global, "navigator", {
 
   console.log("=== 帰還印システム検証テスト開始 ===");
 
-  // テスト1: 階段帰還（stairs）では帰還印が温存されること
+  let failed = 0;
+  // console.assert は失敗しても後続の [PASS] ログを止めない。
+  // 実際に結果へ反映させるため、成否を集計しつつラベルを出し分ける。
+  const check = (cond, label, detail) => {
+    if (cond) {
+      console.log(`-> [PASS] ${label}`);
+    } else {
+      failed++;
+      console.error(`-> [FAIL] ${label}${detail ? ` (${detail})` : ""}`);
+    }
+  };
+
+  // triggerRunResult は currentRun が無いと即 return するため、
+  // 各ケースで最低限のラン状態を用意する。
+  const setupRun = (floor) => {
+    state.currentRun = {
+      returnReason: null,
+      startFloor: floor,
+      deepestFloor: floor,
+      floorsVisited: [floor],
+      kills: 0, battles: 0, elitesKilled: 0, bossesKilled: 0,
+      chestsOpened: 0, trapsTriggered: 0, goldGained: 0,
+      itemsFound: [], equipmentFound: [], materialsFound: {}, deathLogs: []
+    };
+    state.party = [{ name: "A", class: "Fighter", level: 1, status: "ok", hp: 10, maxHp: 10 }];
+    state.roster = [{ name: "A", class: "Fighter", level: 1, status: "ok", hp: 10, maxHp: 10 }];
+    state.materials = {};
+    state.remains = [];
+    state.gold = 1000;
+  };
+
+  // テスト1: B1F階段帰還（城帰還）では帰還印が失効すること
+  // 表面へ完全帰還＝仕切り直しなので、前ランのスクロール印は残さない。
+  setupRun(1);
   state.lastReturnedFloor = 3;
   state.floor = 1; // 1Fの階段から帰る
+  state.inventory = [];
   triggerRunResult("stairs");
-  console.assert(state.lastReturnedFloor === 3, `階段帰還で帰還印が温存されること (actual: ${state.lastReturnedFloor})`);
-  console.log("-> [PASS] 階段帰還温存検証");
+  check(state.lastReturnedFloor === null, "B1F階段帰還で帰還印が失効", `actual: ${state.lastReturnedFloor}`);
 
   // テスト2: スクロール帰還（escape_scroll）で、現在階（上限B4F）が保存されること
   // B3Fからのスクロール帰還
+  setupRun(3);
   state.lastReturnedFloor = null;
   state.floor = 3;
+  state.inventory = [];
   triggerRunResult("escape_scroll");
-  console.assert(state.lastReturnedFloor === 3, `B3Fスクロール帰還で3Fが保存されること (actual: ${state.lastReturnedFloor})`);
-  console.log("-> [PASS] B3Fスクロール帰還検証");
+  check(state.lastReturnedFloor === 3, "B3Fスクロール帰還で3Fが保存", `actual: ${state.lastReturnedFloor}`);
 
   // B5Fからのスクロール帰還（上限B4Fの検証）
+  setupRun(5);
   state.lastReturnedFloor = null;
   state.floor = 5;
+  state.inventory = [];
   triggerRunResult("escape_scroll");
-  console.assert(state.lastReturnedFloor === 4, `B5Fスクロール帰還で4Fが保存されること (actual: ${state.lastReturnedFloor})`);
-  console.log("-> [PASS] B5Fスクロール帰還検証");
+  check(state.lastReturnedFloor === 4, "B5Fスクロール帰還で4Fが保存（上限）", `actual: ${state.lastReturnedFloor}`);
 
   // テスト3: 全滅（gameover）で帰還印が null になること
+  setupRun(3);
   state.lastReturnedFloor = 3;
   state.floor = 3;
+  state.inventory = [];
   triggerRunResult("gameover");
-  console.assert(state.lastReturnedFloor === null, `全滅時に帰還印がnullになること (actual: ${state.lastReturnedFloor})`);
-  console.log("-> [PASS] 全滅時帰還印消滅検証");
+  check(state.lastReturnedFloor === null, "全滅時に帰還印がnull", `actual: ${state.lastReturnedFloor}`);
 
   // テスト4: ボス撃破（クリスタル所持）時、帰還印が null になること
   // クリスタル所持状態でのスクロール帰還
+  setupRun(5);
   state.lastReturnedFloor = 3;
   state.floor = 5;
   state.inventory = ["ANTIGRAVITY_CRYSTAL"];
   triggerRunResult("escape_scroll");
-  console.assert(state.lastReturnedFloor === null, `クリスタル所持時にスクロール帰還で帰還印がnullになること (actual: ${state.lastReturnedFloor})`);
-  console.log("-> [PASS] ボス撃破（クリスタル所持）スクロール帰還検証");
+  check(state.lastReturnedFloor === null, "クリスタル所持スクロール帰還で帰還印がnull", `actual: ${state.lastReturnedFloor}`);
 
   // テスト5: 「地下N階から再開」選択時に帰還印が消費（null）されること
   state.lastReturnedFloor = 3;
@@ -127,11 +163,15 @@ Object.defineProperty(global, "navigator", {
   
   if (resumeButton) {
     resumeButton.click();
-    console.assert(state.lastReturnedFloor === null, `再開選択時に帰還印がnullになること (actual: ${state.lastReturnedFloor})`);
-    console.log("-> [PASS] 再開選択時帰還印消費検証");
+    check(state.lastReturnedFloor === null, "再開選択時に帰還印が消費（null）", `actual: ${state.lastReturnedFloor}`);
   } else {
-    console.error("再開ボタンが生成されなかった");
+    failed++;
+    console.error("-> [FAIL] 再開ボタンが生成されなかった");
   }
 
   console.log("=== 全テスト完了 ===");
+  if (failed > 0) {
+    console.error(`${failed} 件のテストが失敗しました`);
+    process.exit(1);
+  }
 })();

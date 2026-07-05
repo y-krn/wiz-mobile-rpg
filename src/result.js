@@ -348,7 +348,9 @@ export function triggerRunResult(reason) {
       state.lastReturnedFloor = Math.min(4, returnedFloor);
     }
   } else if (reason === "stairs") {
-    // 温存：変更しない
+    // B1F階段帰還（城帰還）＝表面へ完全帰還。前ランのスクロール帰還印は失効させる
+    // （地下1階から潜り直す＝仕切り直しなので、古い深層印を残さない）。
+    state.lastReturnedFloor = null;
   }
 
   const runSummary = {
