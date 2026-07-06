@@ -531,5 +531,48 @@ global.localStorage = {
     })();
   })();
 
+  // ========================================================================
+  // initNewGame seed properties validation (TICKET-054)
+  // ========================================================================
+  await (async () => {
+    console.log("=== STARTING TICKET-054 SEED RESTART TESTS ===");
+    global.localStorage = (() => {
+      let store = {};
+      return {
+        getItem: (key) => store[key] || null,
+        setItem: (key, value) => { store[key] = String(value); },
+        removeItem: (key) => { delete store[key]; },
+        clear: () => { store = {}; }
+      };
+    })();
+
+    const assert = await import("assert");
+    const { state, initNewGame } = await import("../src/state.js");
+
+    // 1回目の初期化
+    initNewGame();
+    const seed1 = state.seed;
+    const map1 = JSON.stringify(state.maps[0]); // B1の形状
+
+    // 2回目の初期化
+    initNewGame();
+    const seed2 = state.seed;
+    const map2 = JSON.stringify(state.maps[0]);
+
+    assert.default.notStrictEqual(seed1, seed2, "initNewGame should generate a new seed on successive calls");
+    assert.default.notStrictEqual(map1, map2, "initNewGame should generate a different B1 map shape on successive calls");
+
+    // preserveSeed オプションの検証
+    initNewGame();
+    const seedBefore = state.seed;
+    initNewGame({ preserveSeed: true });
+    const seedAfter = state.seed;
+    assert.default.strictEqual(seedBefore, seedAfter, "initNewGame({ preserveSeed: true }) should preserve the seed");
+
+    console.log("-> [PASS] successive initNewGame generates different seeds and map shapes");
+    console.log("-> [PASS] initNewGame({ preserveSeed: true }) preserves seed");
+    console.log("=== TICKET-054 SEED RESTART TESTS PASSED ===");
+  })();
+
   console.log("\n[TEST_SAVE PASSED]");
 })();

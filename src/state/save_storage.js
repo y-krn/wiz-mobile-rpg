@@ -14,7 +14,7 @@ const BACKUP_KEY = "mobile_wiz_rpg_backup";
 const CORRUPT_KEY = "mobile_wiz_rpg_corrupt";
 
 
-export function initNewGame() {
+export function initNewGame({ preserveSeed = false } = {}) {
   state.x = START_X;
   state.y = START_Y;
   state.dir = DIR_N;
@@ -26,7 +26,7 @@ export function initNewGame() {
   state.inventory = ["HEAL_POTION", "HEAL_POTION"];
   state.firstChestUnidentifiedGuaranteed = false;
   
-  if (!state.seed) {
+  if (!preserveSeed || !state.seed) {
     state.seed = generateRandomSeed();
   }
   
