@@ -19,6 +19,8 @@ const ONE_WAY_PASSAGE_COUNTS = {
   4: 5,
   5: 5
 };
+export const ONE_WAY_MIN_DETOUR = 6;
+const ONE_WAY_DETOUR_STAGES = [ONE_WAY_MIN_DETOUR, 4, 0];
 
 const SECRET_DOOR_COUNTS = {
   1: { shortcut: 1, room: 1 },
@@ -158,14 +160,14 @@ function isSameUndirectedEdge(x, y, dir, edge) {
     (x === edge.nx && y === edge.ny && dir === OPPOSITE_DIR[edge.dir]);
 }
 
-function canReachWithoutEdge(grid, edge) {
+function getDetourDistanceWithoutEdge(grid, edge) {
   const start = { x: edge.x, y: edge.y };
   const targetKey = `${edge.nx},${edge.ny}`;
-  const queue = [start];
+  const queue = [{ ...start, dist: 0 }];
   const seen = new Set([`${start.x},${start.y}`]);
 
   for (const pos of queue) {
-    if (`${pos.x},${pos.y}` === targetKey) return true;
+    if (`${pos.x},${pos.y}` === targetKey) return pos.dist;
     const cell = grid[pos.y]?.[pos.x];
     if (!cell) continue;
 
@@ -179,12 +181,40 @@ function canReachWithoutEdge(grid, edge) {
       const key = `${nx},${ny}`;
       if (!seen.has(key)) {
         seen.add(key);
-        queue.push({ x: nx, y: ny });
+        queue.push({ x: nx, y: ny, dist: pos.dist + 1 });
       }
     }
   }
 
-  return false;
+  return Infinity;
+}
+
+function getDirectedDistance(grid, start, target) {
+  const targetKey = `${target.x},${target.y}`;
+  const queue = [{ ...start, dist: 0 }];
+  const seen = new Set([`${start.x},${start.y}`]);
+
+  for (const pos of queue) {
+    if (`${pos.x},${pos.y}` === targetKey) return pos.dist;
+    const cell = grid[pos.y]?.[pos.x];
+    if (!cell) continue;
+
+    for (let dir = 0; dir < 4; dir++) {
+      if (cell.walls[dir] || !canEnterFrom(grid, pos.x, pos.y, dir)) continue;
+
+      const nx = pos.x + DX[dir];
+      const ny = pos.y + DY[dir];
+      if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+
+      const key = `${nx},${ny}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        queue.push({ x: nx, y: ny, dist: pos.dist + 1 });
+      }
+    }
+  }
+
+  return Infinity;
 }
 
 function getNonBridgePassageEdges(grid) {
@@ -202,7 +232,7 @@ function getNonBridgePassageEdges(grid) {
         if (!isPassageCell(grid, nx, ny)) return;
 
         const edge = { x, y, nx, ny, dir };
-        if (canReachWithoutEdge(grid, edge)) edges.push(edge);
+        if (getDetourDistanceWithoutEdge(grid, edge) < Infinity) edges.push(edge);
       });
     }
   }
@@ -236,6 +266,14 @@ function shuffleInPlace(array, rng) {
     const j = Math.floor(rng() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
   }
+}
+
+function getOneWayReverseDetourDistance(grid, option) {
+  const reverseStart = {
+    x: option.x + DX[option.blockDir],
+    y: option.y + DY[option.blockDir]
+  };
+  return getDirectedDistance(grid, reverseStart, { x: option.x, y: option.y });
 }
 
 function placeSecretShortcuts(grid, targetCount, rng) {
@@ -321,16 +359,16 @@ function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng
   const edges = getNonBridgePassageEdges(grid);
   const targetCount = Math.min(ONE_WAY_PASSAGE_COUNTS[floor] || 0, edges.length);
   let placed = 0;
+  const usedEdges = new Set();
 
   for (let i = edges.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [edges[i], edges[j]] = [edges[j], edges[i]];
   }
 
-  for (const edge of edges) {
-    if (placed >= targetCount) break;
-
-    const options = rng() < 0.5
+  const candidates = edges.map(edge => ({
+    key: `${edge.x},${edge.y},${edge.dir}`,
+    options: rng() < 0.5
       ? [
           { x: edge.x, y: edge.y, blockDir: edge.dir },
           { x: edge.nx, y: edge.ny, blockDir: OPPOSITE_DIR[edge.dir] }
@@ -338,18 +376,27 @@ function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng
       : [
           { x: edge.nx, y: edge.ny, blockDir: OPPOSITE_DIR[edge.dir] },
           { x: edge.x, y: edge.y, blockDir: edge.dir }
-        ];
+        ]
+  }));
 
-    for (const option of options) {
-      const cell = grid[option.y][option.x];
-      if (cell.blockEnter[option.blockDir]) continue;
+  for (const minDetour of ONE_WAY_DETOUR_STAGES) {
+    for (const candidate of candidates) {
+      if (placed >= targetCount) break;
+      if (usedEdges.has(candidate.key)) continue;
 
-      cell.blockEnter[option.blockDir] = true;
-      if (canReachAllRequired(grid, start, requiredKeys)) {
-        placed++;
-        break;
+      for (const option of candidate.options) {
+        const cell = grid[option.y][option.x];
+        if (cell.blockEnter[option.blockDir]) continue;
+
+        cell.blockEnter[option.blockDir] = true;
+        const reverseDetour = getOneWayReverseDetourDistance(grid, option);
+        if (reverseDetour >= minDetour && canReachAllRequired(grid, start, requiredKeys)) {
+          usedEdges.add(candidate.key);
+          placed++;
+          break;
+        }
+        cell.blockEnter[option.blockDir] = false;
       }
-      cell.blockEnter[option.blockDir] = false;
     }
   }
 

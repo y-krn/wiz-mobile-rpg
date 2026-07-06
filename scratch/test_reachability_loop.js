@@ -1,4 +1,4 @@
-import { generateRandomMap } from "../src/map_generator.js";
+import { generateRandomMap, ONE_WAY_MIN_DETOUR } from "../src/map_generator.js";
 
 const DIRS = [
   { dx: 0, dy: -1, dir: 0 },
@@ -74,6 +74,35 @@ function canReachWithoutEdge(grid, edge) {
   return false;
 }
 
+function getOneWayReverseDetourDistance(grid, x, y, dir) {
+  const start = { x: x + DIRS[dir].dx, y: y + DIRS[dir].dy, dist: 0 };
+  const targetKey = `${x},${y}`;
+  const queue = [start];
+  const seen = new Set([`${start.x},${start.y}`]);
+
+  for (const pos of queue) {
+    if (`${pos.x},${pos.y}` === targetKey) return pos.dist;
+    const cell = grid[pos.y]?.[pos.x];
+    if (!cell) continue;
+
+    for (const { dx, dy, dir: moveDir } of DIRS) {
+      const nx = pos.x + dx;
+      const ny = pos.y + dy;
+      const next = grid[ny]?.[nx];
+      if (!next || cell.walls[moveDir]) continue;
+      if (next.blockEnter?.[(moveDir + 2) % 4]) continue;
+
+      const key = `${nx},${ny}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        queue.push({ x: nx, y: ny, dist: pos.dist + 1 });
+      }
+    }
+  }
+
+  return Infinity;
+}
+
 function assertOneWayPassagesAreLoopEdges(grid, floorName) {
   let count = 0;
   for (let y = 0; y < grid.length; y++) {
@@ -94,6 +123,10 @@ function assertOneWayPassagesAreLoopEdges(grid, floorName) {
         }
         if (!canReachWithoutEdge(grid, { x, y, nx, ny, dir })) {
           throw new Error(`${floorName} one-way flag is on a bridge at ${x},${y}`);
+        }
+        const reverseDetour = getOneWayReverseDetourDistance(grid, x, y, dir);
+        if (reverseDetour < ONE_WAY_MIN_DETOUR) {
+          throw new Error(`${floorName} one-way reverse detour too short at ${x},${y}: ${reverseDetour}`);
         }
       });
     }
