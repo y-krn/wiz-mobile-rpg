@@ -4,6 +4,22 @@ import * as Sentry from "@sentry/browser";
 // window.onerror / unhandledrejection はinit時に自動フックされる。
 const dsn = import.meta.env.VITE_SENTRY_DSN;
 
+// エラー送信時に呼ばれるゲーム状態スナップショット関数。
+// game側から setGameSnapshotProvider() で登録する（sentry.jsはゲームに依存しない）。
+let snapshotProvider = null;
+
+// ライブなゲーム状態を返す関数を登録する。beforeSendがエラー発生時に呼ぶ。
+export function setGameSnapshotProvider(fn) {
+  snapshotProvider = fn;
+}
+
+// ゲーム内イベントをbreadcrumbとして記録する薄いラッパ。
+// Sentry未初期化でも安全（no-op）。SDKデフォルトのclick/console履歴に上乗せする。
+export function addGameBreadcrumb(category, message, data) {
+  if (!dsn) return;
+  Sentry.addBreadcrumb({ category, message, data, level: "info" });
+}
+
 if (dsn) {
   Sentry.init({
     dsn,
@@ -19,6 +35,15 @@ if (dsn) {
     beforeSend(event) {
       // dev環境からは送信しない
       if (import.meta.env.DEV) return null;
+      // エラー発生時点のゲーム状態を context として添付（再現性のため）。
+      // 状態取得中の例外でエラー送信自体を潰さないよう握りつぶす。
+      if (snapshotProvider) {
+        try {
+          event.contexts = { ...event.contexts, game: snapshotProvider() };
+        } catch {
+          // snapshot失敗は無視（元イベントは送る）
+        }
+      }
       return event;
     },
   });

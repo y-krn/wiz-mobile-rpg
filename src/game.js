@@ -1,4 +1,6 @@
 import { loadGame, state } from "./state.js";
+import { initErrorContext } from "./error_context.js";
+import { addGameBreadcrumb } from "./sentry.js";
 import { DungeonRenderer, setDungeonRenderer } from "./renderer.js";
 import { toggleMute } from "./audio.js";
 import { setUiUpdateCallback, goBackSubmenu } from "./navigation.js";
@@ -25,7 +27,10 @@ export function initGame() {
   setUiUpdateCallback(updateUI);
   lockViewportScale();
   loadGame();
-  
+
+  // エラー発生時にゲーム状態をSentryへ添付できるよう登録（stateはロード済み）
+  initErrorContext(state);
+
   renderer = new DungeonRenderer("dungeon-canvas");
   setDungeonRenderer(renderer);
   
@@ -212,6 +217,16 @@ function bindButtons() {
   window.addEventListener("keydown", (e) => {
     if (state.transitioning) return;
     if (state.gameState === "explore") {
+      // キーボード操作はSDKのui.click breadcrumbに乗らないため手動記録する
+      const keyMap = {
+        ArrowUp: ["move", "forward"], w: ["move", "forward"],
+        ArrowDown: ["move", "backward"], s: ["move", "backward"],
+        ArrowLeft: ["move", "turn-left"], a: ["move", "turn-left"],
+        ArrowRight: ["move", "turn-right"], d: ["move", "turn-right"],
+        f: ["action", "search"],
+      };
+      const entry = keyMap[e.key];
+      if (entry) addGameBreadcrumb(entry[0], `key:${entry[1]}`, { floor: state.floor });
       if (e.key === "ArrowUp" || e.key === "w") handleMove("forward");
       if (e.key === "ArrowDown" || e.key === "s") handleMove("backward");
       if (e.key === "ArrowLeft" || e.key === "a") handleMove("turn-left");

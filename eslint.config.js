@@ -15,7 +15,7 @@ export default [
     },
   },
   {
-    files: ["playwright.config.js"],
+    files: ["playwright.config.js", "vite.config.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
