@@ -103,11 +103,25 @@ export const state = {
   }
 };
 
-// Log message helper
+// Log message helper.
+// Collapses consecutive identical messages into a single "… ×N" entry so
+// repeated探索の気配 etc. don't spam the log panel.
+const LOG_COUNT_RE = / ×(\d+)$/;
 export function addLog(msg) {
-  state.logs.push(msg);
-  if (state.logs.length > 50) {
-    state.logs.shift();
+  const logs = state.logs;
+  if (logs.length > 0) {
+    const last = logs[logs.length - 1];
+    const m = last.match(LOG_COUNT_RE);
+    const lastBase = m ? last.slice(0, m.index) : last;
+    if (lastBase === msg) {
+      const n = m ? parseInt(m[1], 10) + 1 : 2;
+      logs[logs.length - 1] = `${msg} ×${n}`;
+      return;
+    }
+  }
+  logs.push(msg);
+  if (logs.length > 50) {
+    logs.shift();
   }
 }
 

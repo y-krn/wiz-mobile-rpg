@@ -133,7 +133,11 @@
 #viewport-panel {
   width: 100%;
   aspect-ratio: 400 / 260;
-  flex: 0 1 auto;
+  /* Hold the true 400x260 aspect (with object-fit on the canvas) so the 3D
+     view never stretches or gets squeezed by the growing log panel. The log
+     absorbs spare vertical space instead. On short screens the max-height:700
+     media query re-enables shrinking. */
+  flex: 0 0 auto;
   min-height: 110px;
   max-height: 320px;
   background-color: var(--floor-bg, #000);
@@ -147,14 +151,17 @@
   width: 100%;
   height: 100%;
   display: block;
+  object-fit: contain; /* keep the 400x260 render undistorted if the panel grows taller */
 }
 
 /* Log Panel */
 #log-panel {
-  flex-grow: 1;
+  flex-grow: 1; /* Absorb spare vertical space so the party HUD stays pinned to the bottom */
   flex-shrink: 1; /* Shrink logs when vertical space is tight */
   min-height: 80px; /* Keep logs visible */
-  max-height: 220px; /* Limit overly large height on tall mobile screens */
+  /* No max cap: with dedup keeping content short, the log fills leftover space
+     cleanly (typically ~190px once safe-area insets apply) rather than leaving
+     a dead gap or forcing the 3D view to stretch. */
   background-color: var(--floor-banner-bg, #0e0e12);
   border-top: 1px solid var(--floor-border, var(--border-color));
   border-bottom: 1.5px solid var(--floor-border, var(--hud-frame));
