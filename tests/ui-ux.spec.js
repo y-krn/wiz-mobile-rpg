@@ -248,6 +248,65 @@ for (const vp of VIEWPORTS) {
       expect(box.height, `Few-button submenu row should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
     });
 
+    test('Standalone safe-area chest menu keeps HUD and party visible', async ({ page }) => {
+      await page.addStyleTag({
+        content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,
+      });
+      await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { createDefaultCurrentRun } = await import('/src/state/initial_state.js');
+        const { openChestMenu } = await import('/src/chest.js');
+
+        state.party = state.roster.slice(0, 4);
+        state.gameState = 'combat';
+        state.floor = 5;
+        state.currentRun = createDefaultCurrentRun();
+        state.floorChestsOpened = [0, 0, 0, 0, 2];
+        state.floorChestsTotal = [3, 3, 3, 3, 4];
+        state.chestState = {
+          x: state.x,
+          y: state.y,
+          trap: 'flash bomb',
+          identifiedTrap: 'flash bomb',
+          inspected: true,
+          inspectChance: 0.85,
+          gold: 120,
+          item: 'POTION',
+          lootHint: { label: '古い魔力', aura: 'medium' },
+        };
+        openChestMenu();
+      });
+
+      await expect(page.locator('#submenu-controls')).toBeVisible();
+      await expect(page.locator('#btn-chest-inspect')).toBeVisible();
+
+      const layout = await page.evaluate(() => {
+        const rect = (selector) => {
+          const el = document.querySelector(selector);
+          return el ? el.getBoundingClientRect().toJSON() : null;
+        };
+        return {
+          header: rect('#game-header'),
+          goal: rect('#goal-banner'),
+          viewport: rect('#viewport-panel'),
+          controls: rect('#controls-panel'),
+          party: rect('#party-panel'),
+          partyCards: Array.from(document.querySelectorAll('#party-grid .party-card'))
+            .map((el) => el.getBoundingClientRect().toJSON()),
+          height: window.innerHeight,
+        };
+      });
+
+      expect(layout.header.top, `Header should clear standalone top safe area on ${vp.name}`).toBeGreaterThanOrEqual(59);
+      expect(layout.goal.bottom, `Goal banner should not be covered by viewport on ${vp.name}`).toBeLessThanOrEqual(layout.viewport.top);
+      expect(layout.party.bottom, `Party HUD should clear standalone bottom safe area on ${vp.name}`).toBeLessThanOrEqual(layout.height - 34);
+      expect(layout.partyCards).toHaveLength(4);
+      for (const card of layout.partyCards) {
+        expect(card.bottom, `Party card should remain inside party panel on ${vp.name}`).toBeLessThanOrEqual(layout.party.bottom);
+      }
+      expect(layout.controls.bottom, `Controls should not push party panel offscreen on ${vp.name}`).toBeLessThanOrEqual(layout.party.top);
+    });
+
     test('Party formation reordering works in adventure camp menu', async ({ page }) => {
       // 1. Add characters to party at Training Ground
       await page.locator('#btn-town-training').click();

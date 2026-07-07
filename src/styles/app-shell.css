@@ -3,18 +3,23 @@
   flex-direction: column;
   width: 100%;
   max-width: 450px; /* Locked to phone-like aspect ratio on desktop */
-  height: 100%;
+  height: 100dvh;
+  min-height: 0;
   margin: 0 auto;
+  padding-top: var(--safe-area-top);
+  padding-bottom: var(--safe-area-bottom);
   border-left: 1px solid var(--border-color);
   border-right: 1px solid var(--border-color);
   background-color: var(--bg-color);
   position: relative;
+  overflow: hidden;
 }
 
 /* Header */
 #game-header {
   height: 50px;
   min-height: 50px;
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -39,6 +44,7 @@
 #goal-banner {
   min-height: 24px;
   height: auto;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -105,6 +111,8 @@
 #viewport-panel {
   width: 100%;
   aspect-ratio: 400 / 260;
+  flex: 0 1 auto;
+  min-height: 110px;
   max-height: 320px;
   background-color: var(--floor-bg, #000);
   position: relative;
@@ -208,8 +216,8 @@
 @media (max-height: 700px) {
   #viewport-panel {
     aspect-ratio: auto;
-    flex: 1 1 120px;
-    min-height: 120px;
+    flex: 1 1 110px;
+    min-height: 96px;
     max-height: none;
   }
 
