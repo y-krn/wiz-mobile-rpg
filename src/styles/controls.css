@@ -33,6 +33,10 @@
   padding: 8px;
 }
 
+#controls-panel.town-mode {
+  justify-content: flex-start;
+}
+
 #controls-panel.submenu-mode.chest-menu-mode {
   height: auto;
   min-height: 0;
@@ -91,6 +95,11 @@
   grid-template-columns: repeat(2, 1fr);
   width: 100%;
   gap: 6px;
+  grid-auto-rows: var(--tap-min);
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 

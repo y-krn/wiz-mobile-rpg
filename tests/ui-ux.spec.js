@@ -307,6 +307,49 @@ for (const vp of VIEWPORTS) {
       expect(layout.controls.bottom, `Controls should not push party panel offscreen on ${vp.name}`).toBeLessThanOrEqual(layout.party.top);
     });
 
+    test('Standalone safe-area town menu is scroll-contained above party HUD', async ({ page }) => {
+      await page.addStyleTag({
+        content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,
+      });
+      await expect(page.locator('#town-controls')).toBeVisible();
+
+      const initialLayout = await page.evaluate(() => {
+        const rect = (selector) => {
+          const el = document.querySelector(selector);
+          return el ? el.getBoundingClientRect().toJSON() : null;
+        };
+        const grid = document.querySelector('.town-grid');
+        return {
+          controls: rect('#controls-panel'),
+          party: rect('#party-panel'),
+          grid: rect('.town-grid'),
+          scrollHeight: grid ? grid.scrollHeight : 0,
+          clientHeight: grid ? grid.clientHeight : 0,
+        };
+      });
+
+      expect(initialLayout.controls.bottom, `Town controls should not overlap party HUD on ${vp.name}`).toBeLessThanOrEqual(initialLayout.party.top);
+      expect(initialLayout.grid.bottom, `Town grid should be clipped inside controls panel on ${vp.name}`).toBeLessThanOrEqual(initialLayout.controls.bottom);
+
+      await page.locator('.town-grid').evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+      });
+
+      const lastButton = page.locator('#btn-town-archives');
+      await expect(lastButton).toBeVisible();
+      const scrolledLayout = await page.evaluate(() => {
+        const grid = document.querySelector('.town-grid');
+        const last = document.querySelector('#btn-town-archives');
+        return {
+          grid: grid ? grid.getBoundingClientRect().toJSON() : null,
+          last: last ? last.getBoundingClientRect().toJSON() : null,
+        };
+      });
+
+      expect(scrolledLayout.last.bottom, `Last town button should be reachable inside scrolled town grid on ${vp.name}`).toBeLessThanOrEqual(scrolledLayout.grid.bottom + 1);
+      expect(scrolledLayout.last.top, `Last town button should remain below the top of the town grid on ${vp.name}`).toBeGreaterThanOrEqual(scrolledLayout.grid.top - 1);
+    });
+
     test('Party formation reordering works in adventure camp menu', async ({ page }) => {
       // 1. Add characters to party at Training Ground
       await page.locator('#btn-town-training').click();

@@ -1,8 +1,7 @@
 /* Mobile Touch Action Customizations */
 #controls-panel,
 #controls-panel .btn,
-.action-grid,
-.town-grid {
+.action-grid {
   touch-action: manipulation;
 }
 
@@ -14,6 +13,7 @@
 }
 
 .submenu-grid,
+.town-grid,
 .training-list,
 .equip-item-list,
 .equip-detail-content,
@@ -50,4 +50,3 @@
   flex: 1;
   min-height: var(--tap-min);
 }
-
