@@ -2,9 +2,9 @@
 #party-panel {
   height: 88px; /* Expanded from 75px for better mobile spacing */
   min-height: 88px;
-  background-color: #121216;
-  border-top: 1.5px solid var(--neon-cyan);
-  box-shadow: var(--neon-glow-cyan);
+  background-color: var(--hud-chrome-bg);
+  border-top: 1.5px solid var(--hud-frame);
+  box-shadow: var(--hud-frame-glow);
   padding: 6px 4px;
   flex-shrink: 0; /* Guarantee party HUD never shrinks and overlaps */
   display: flex;

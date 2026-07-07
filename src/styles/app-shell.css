@@ -15,6 +15,28 @@
   overflow: hidden;
 }
 
+/* Paint the status-bar / home-indicator safe-area strips so they match the
+   header and party HUD instead of showing a darker seam (standalone PWA). */
+#game-container::before,
+#game-container::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+#game-container::before {
+  top: 0;
+  height: var(--safe-area-top);
+  background-color: var(--floor-header-bg, var(--hud-chrome-bg));
+}
+#game-container::after {
+  bottom: 0;
+  height: var(--safe-area-bottom);
+  background-color: var(--hud-chrome-bg);
+}
+
 /* Header */
 #game-header {
   height: 50px;
@@ -25,8 +47,8 @@
   align-items: center;
   padding: 0 12px;
   background-color: var(--floor-header-bg, #121216);
-  border-bottom: 1.5px solid var(--floor-border, var(--neon-cyan));
-  box-shadow: var(--floor-glow, var(--neon-glow-cyan));
+  border-bottom: 1.5px solid var(--floor-border, var(--hud-frame));
+  box-shadow: var(--floor-glow, var(--hud-frame-glow));
   font-family: var(--font-mono);
   font-size: var(--fs-base);
   letter-spacing: 1px;
@@ -135,8 +157,8 @@
   max-height: 220px; /* Limit overly large height on tall mobile screens */
   background-color: var(--floor-banner-bg, #0e0e12);
   border-top: 1px solid var(--floor-border, var(--border-color));
-  border-bottom: 1.5px solid var(--floor-border, var(--neon-cyan));
-  box-shadow: var(--floor-glow, var(--neon-glow-cyan));
+  border-bottom: 1.5px solid var(--floor-border, var(--hud-frame));
+  box-shadow: var(--floor-glow, var(--hud-frame-glow));
   padding: 8px 12px;
   overflow-y: auto;
   font-family: var(--font-mono);
