@@ -151,7 +151,11 @@
 .submenu-grid {
   flex-grow: 1;
   grid-template-columns: 1fr;
-  grid-auto-rows: minmax(var(--tap-min), max-content);
+  /* max-content (not minmax) so tall items like the chest info panel size to
+     their content. Inside this overflow:auto container, minmax() rows collapse
+     to their base size when content overflows, clipping tall panels. Buttons
+     keep their tap height via the .submenu-grid .btn min-height rule below. */
+  grid-auto-rows: max-content;
   align-content: start;
   height: auto;
   min-height: 0;
@@ -176,6 +180,7 @@
 .submenu-grid .btn {
   padding: 6px 4px;
   font-size: var(--fs-sm);
+  min-height: var(--tap-min); /* keep tap target now that rows use max-content */
 }
 
 
