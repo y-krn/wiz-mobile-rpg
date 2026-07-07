@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="46%" r="65%">
+      <stop offset="0%" stop-color="#16121f"/>
+      <stop offset="55%" stop-color="#0d0b12"/>
+      <stop offset="100%" stop-color="#08070a"/>
+    </radialGradient>
+    <linearGradient id="door" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe9a8"/>
+      <stop offset="55%" stop-color="#ffcf5c"/>
+      <stop offset="100%" stop-color="#f0a41e"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="doorglow" x="-120%" y="-120%" width="340%" height="340%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+  </defs>
+
+  <!-- background (full-bleed: safe for maskable) -->
+  <rect width="512" height="512" rx="0" fill="url(#bg)"/>
+
+  <!-- corridor: perspective toward a glowing far door. Vanishing point ~ (256,244) -->
+  <g filter="url(#glow)" stroke-linejoin="round" stroke-linecap="round" fill="none">
+    <!-- connectors from near opening corners to far-wall corners -->
+    <g stroke="#8a5bff" stroke-width="5" opacity="0.9">
+      <path d="M104 108 L226 214"/>
+      <path d="M408 108 L286 214"/>
+      <path d="M104 404 L226 300"/>
+      <path d="M408 404 L286 300"/>
+    </g>
+
+    <!-- floor depth lines -->
+    <g stroke="#38c8ff" stroke-width="3.5" opacity="0.55">
+      <path d="M104 404 L408 404"/>
+      <path d="M150 356 L362 356"/>
+      <path d="M190 316 L322 316"/>
+    </g>
+    <!-- ceiling depth lines -->
+    <g stroke="#38c8ff" stroke-width="3.5" opacity="0.4">
+      <path d="M104 108 L408 108"/>
+      <path d="M150 156 L362 156"/>
+      <path d="M190 196 L322 196"/>
+    </g>
+
+    <!-- near opening frame -->
+    <rect x="104" y="108" width="304" height="296" rx="10" stroke="#4dd6ff" stroke-width="8"/>
+    <!-- mid frame -->
+    <rect x="150" y="156" width="212" height="200" rx="8" stroke="#5fd0ff" stroke-width="6" opacity="0.85"/>
+    <!-- far-wall frame -->
+    <rect x="190" y="196" width="132" height="120" rx="6" stroke="#7ad3ff" stroke-width="4.5" opacity="0.7"/>
+  </g>
+
+  <!-- glowing far door (goal) -->
+  <ellipse cx="256" cy="256" rx="46" ry="60" fill="#ffcf5c" filter="url(#doorglow)" opacity="0.55"/>
+  <rect x="226" y="214" width="60" height="86" rx="7" fill="url(#door)"/>
+  <rect x="226" y="214" width="60" height="86" rx="7" fill="none" stroke="#fff3d0" stroke-width="2" opacity="0.8"/>
+</svg>
