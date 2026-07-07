@@ -4,7 +4,13 @@ export * from "./constants/map.js";
 export * from "./constants/events.js";
 export * from "./data/progression.js";
 export * from "./rules/class_rules.js";
-export * from "./rules/item_rules.js";
+export {
+  setItemRulesStateRef,
+  getItemBaseId,
+  isSpecialOrQuestItem,
+  getEffectiveHealAmount,
+  getCharAffixSum
+} from "./rules/item_rules.js";
 export * from "./rules/character_stats.js";
 export * from "./rules/spell_rules.js";
 export * from "./systems/leveling.js";
@@ -18,6 +24,7 @@ import { SPELLS as STATIC_SPELLS } from "./data/spells.js";
 import { ITEM_EFFECTS } from "./systems/item_effects.js";
 import { SPELL_EFFECTS } from "./systems/spell_effects.js";
 import { generateRandomAccessory as newGenerateRandomAccessory, generateRandomEquipment as newGenerateRandomEquipment } from "./systems/equipment_generation.js";
+import { getItemData as baseGetItemData, getItemBaseId } from "./rules/item_rules.js";
 
 export const MONSTERS = STATIC_MONSTERS;
 
@@ -57,4 +64,19 @@ export function generateRandomEquipment(floor, forceRarity = null, rng = Math.ra
 
 export function generateRandomAccessory(floor, forceRarity = null, rng = Math.random, party = null) {
   return newGenerateRandomAccessory(floor, { forceRarity, rng, party });
+}
+
+export function getItemData(itemOrKey) {
+  const item = baseGetItemData(itemOrKey);
+  if (!item) return null;
+  const baseId = getItemBaseId(itemOrKey);
+  if (ITEM_EFFECTS[baseId]) {
+    return {
+      ...item,
+      effect: (char) => {
+        return ITEM_EFFECTS[baseId]({ char, rng: Math.random });
+      }
+    };
+  }
+  return item;
 }

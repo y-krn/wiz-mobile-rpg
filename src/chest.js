@@ -249,7 +249,7 @@ export function openChestMenu() {
   titleEl.textContent = "宝箱の調査・解除";
 
   const optGrid = document.getElementById("submenu-options");
-  optGrid.className = "submenu-grid chest-menu-grid";
+  optGrid.className = "submenu-grid";
   optGrid.innerHTML = "";
 
   const translateTrap = (t) => {
@@ -392,12 +392,9 @@ export function openChestMenu() {
     });
   }
 
-  // Right Column (Inspect & Disarm)
-  const rightColumn = document.createElement("div");
-  rightColumn.className = "chest-action-column";
-  rightColumn.appendChild(btnInspect);
-  rightColumn.appendChild(btnDisarm);
-  optGrid.appendChild(rightColumn);
+  // Append action buttons directly to grid for 1-column layout
+  optGrid.appendChild(btnInspect);
+  optGrid.appendChild(btnDisarm);
 
   // Open Chest
   const btnOpen = document.createElement("button");
