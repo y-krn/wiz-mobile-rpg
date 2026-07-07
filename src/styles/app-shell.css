@@ -127,8 +127,8 @@
   max-height: 220px; /* Limit overly large height on tall mobile screens */
   background-color: var(--floor-banner-bg, #0e0e12);
   border-top: 1px solid var(--floor-border, var(--border-color));
-  border-bottom: 1.5px solid var(--floor-border, var(--neon-green));
-  box-shadow: var(--floor-glow, var(--neon-glow-green));
+  border-bottom: 1.5px solid var(--floor-border, var(--neon-cyan));
+  box-shadow: var(--floor-glow, var(--neon-glow-cyan));
   padding: 8px 12px;
   overflow-y: auto;
   font-family: var(--font-mono);

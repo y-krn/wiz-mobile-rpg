@@ -105,7 +105,13 @@ export function updateUI() {
     for (let i = 1; i <= 5; i++) {
       container.classList.remove(`floor-theme-b${i}`);
     }
-    if (state.gameState === "explore" && state.floor >= 1 && state.floor <= 5) {
+    if (state.currentRun &&
+        state.gameState !== "town" &&
+        state.gameState !== "gameover" &&
+        state.gameState !== "victory" &&
+        state.gameState !== "result" &&
+        state.floor >= 1 &&
+        state.floor <= 5) {
       container.classList.add(`floor-theme-b${state.floor}`);
     }
   }
