@@ -132,14 +132,13 @@
 /* Viewport Canvas Panel */
 #viewport-panel {
   width: 100%;
-  aspect-ratio: 400 / 260;
-  /* Hold the true 400x260 aspect (with object-fit on the canvas) so the 3D
-     view never stretches or gets squeezed by the growing log panel. The log
-     absorbs spare vertical space instead. On short screens the max-height:700
-     media query re-enables shrinking. */
-  flex: 0 0 auto;
-  min-height: 110px;
-  max-height: 320px;
+  /* Map absorbs spare vertical space (priority: buttons > party HUD > map > log).
+     The canvas is object-fit:contain so the 400x260 render never distorts when
+     the panel grows taller or shorter. Buttons and party HUD are fixed-height
+     and never shrink; the map takes what's left, capped so it can't crowd them. */
+  flex: 1 1 auto;
+  min-height: 132px;
+  max-height: 340px;
   background-color: var(--floor-bg, #000);
   position: relative;
   display: flex;
@@ -154,14 +153,14 @@
   object-fit: contain; /* keep the 400x260 render undistorted if the panel grows taller */
 }
 
-/* Log Panel */
+/* Log Panel — kept minimal (priority: buttons > party HUD > map > log).
+   Small fixed floor + grow only as the spare-space receiver once the map hits
+   its max. DOM shows recent entries only; the expand button opens full history. */
 #log-panel {
-  flex-grow: 1; /* Absorb spare vertical space so the party HUD stays pinned to the bottom */
-  flex-shrink: 1; /* Shrink logs when vertical space is tight */
-  min-height: 80px; /* Keep logs visible */
-  /* No max cap: with dedup keeping content short, the log fills leftover space
-     cleanly (typically ~190px once safe-area insets apply) rather than leaving
-     a dead gap or forcing the 3D view to stretch. */
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 56px; /* ~2-3 lines; enough to read the latest events */
+  max-height: 160px; /* Never let logs dominate the screen */
   background-color: var(--floor-banner-bg, #0e0e12);
   border-top: 1px solid var(--floor-border, var(--border-color));
   border-bottom: 1.5px solid var(--floor-border, var(--hud-frame));
@@ -172,6 +171,73 @@
   font-size: var(--fs-base);
   line-height: 1.4;
   touch-action: pan-y; /* Only allow vertical scrolling in logs */
+}
+
+/* Full-log expand button, pinned to the log panel's top-right */
+#btn-log-expand {
+  position: sticky;
+  top: 0;
+  float: right;
+  margin: -2px -4px 0 6px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  line-height: 24px;
+  text-align: center;
+  font-size: var(--fs-md);
+  color: var(--neon-cyan);
+  background-color: rgba(12, 12, 14, 0.85);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  z-index: 3;
+}
+#btn-log-expand:active {
+  background-color: rgba(0, 229, 255, 0.15);
+  border-color: var(--neon-cyan);
+}
+
+/* Full-log overlay (opened from #btn-log-expand) */
+.log-overlay-container {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background-color: rgba(8, 8, 10, 0.97);
+  backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--safe-area-top) + 12px) 14px calc(var(--safe-area-bottom) + 12px);
+  box-sizing: border-box;
+  font-family: var(--font-mono);
+}
+.log-overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1.5px solid var(--hud-frame);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.log-overlay-title {
+  color: var(--neon-cyan);
+  font-size: var(--fs-lg);
+  font-weight: bold;
+  text-shadow: var(--neon-glow-cyan);
+}
+.log-overlay-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--fs-base);
+  line-height: 1.45;
+  -webkit-overflow-scrolling: touch;
+}
+#btn-log-overlay-close {
+  min-width: 84px;
+  height: var(--tap-min);
+  font-size: var(--fs-md);
 }
 
 #log-content {
@@ -242,19 +308,18 @@
   text-shadow: var(--neon-glow-gold);
 }
 
+/* On short screens, shrink the map floor further so buttons and party HUD keep
+   their fixed heights; the log stays minimal. */
 @media (max-height: 700px) {
   #viewport-panel {
-    aspect-ratio: auto;
-    flex: 1 1 110px;
-    min-height: 96px;
-    max-height: none;
+    min-height: 104px;
+    max-height: 240px;
   }
 
   #log-panel {
-    min-height: 56px;
-    max-height: 96px;
+    min-height: 48px;
+    max-height: 104px;
     padding-top: 6px;
     padding-bottom: 6px;
-    font-size: var(--fs-md);
   }
 }

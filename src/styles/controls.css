@@ -1,4 +1,6 @@
-/* Controls Panel */
+/* Controls Panel — highest layout priority: buttons must always be tappable.
+   Never shrinks; sizes to its content. Long lists (town, submenu) cap their own
+   height and scroll internally instead of squeezing the button area. */
 #controls-panel {
   height: auto;
   min-height: 210px; /* Expanded to fit town controls (4 rows) comfortably */
@@ -9,7 +11,7 @@
   flex-direction: column;
   justify-content: center;
   position: relative;
-  flex-shrink: 1;
+  flex-shrink: 0; /* Guarantee the button area is never compressed below its content */
   overflow: hidden;
 }
 

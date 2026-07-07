@@ -1,11 +1,12 @@
-/* Party HUD Panel */
+/* Party HUD Panel — kept minimal (priority: buttons > party HUD > map > log).
+   Compact one-row-per-member cards; tap a card for full status details. */
 #party-panel {
-  height: 88px; /* Expanded from 75px for better mobile spacing */
-  min-height: 88px;
+  height: 58px;
+  min-height: 58px;
   background-color: var(--hud-chrome-bg);
   border-top: 1.5px solid var(--hud-frame);
   box-shadow: var(--hud-frame-glow);
-  padding: 6px 4px;
+  padding: 4px;
   flex-shrink: 0; /* Guarantee party HUD never shrinks and overlaps */
   display: flex;
   flex-direction: column;
@@ -23,10 +24,11 @@
   background-color: #181822;
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  padding: 3px;
+  padding: 3px 4px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 2px;
   font-family: var(--font-mono);
   position: relative;
 }
