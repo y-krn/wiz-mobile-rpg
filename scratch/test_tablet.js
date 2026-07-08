@@ -4,6 +4,7 @@ const makeDummyElement = () => {
   return {
     style: {},
     appendChild: () => {},
+    replaceChildren: () => {},
     addEventListener: (event, cb) => {
       listeners[event] = cb;
     },
@@ -65,6 +66,9 @@ const optGrid = {
   children: [],
   appendChild: function(child) {
     this.children.push(child);
+  },
+  replaceChildren: function(...children) {
+    this.children = children;
   }
 };
 

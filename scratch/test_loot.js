@@ -28,6 +28,7 @@ import assert from "assert";
     const createDummyElement = () => ({
       style: {},
       appendChild: () => createDummyElement(),
+      replaceChildren: () => {},
       addEventListener: () => {},
       classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
       setAttribute: () => {},
@@ -175,6 +176,7 @@ import assert from "assert";
           textContent: "",
           innerHTML: "",
           appendChild: () => {},
+          replaceChildren: () => {},
           style: {},
           classList: {
             add: () => {},
@@ -208,6 +210,9 @@ import assert from "assert";
           appendChild: (child) => {
             if (!el.children) el.children = [];
             el.children.push(child);
+          },
+          replaceChildren: (...children) => {
+            el.children = children;
           }
         };
         createdElements.push(el);
@@ -331,6 +336,7 @@ import assert from "assert";
     const createDummyElement = () => ({
       style: {},
       appendChild: () => createDummyElement(),
+      replaceChildren: () => {},
       addEventListener: () => {},
       classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
       setAttribute: () => {},

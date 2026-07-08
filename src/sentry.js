@@ -2,12 +2,16 @@ import * as Sentry from "@sentry/browser";
 
 // Sentry初期化。main.jsの最上部で最初に実行すること。
 // window.onerror / unhandledrejection はinit時に自動フックされる。
-const dsn = import.meta.env.VITE_SENTRY_DSN;
+//
+// import.meta.env はVite専用で、Viteを経由しない生Node実行(npm run test:unit)では
+// 未定義になる。プロパティ直接アクセスはTypeErrorになるため、必ずviteEnv経由で参照する。
+const viteEnv = import.meta.env ?? {};
+const dsn = viteEnv.VITE_SENTRY_DSN;
 
 // ローカル環境判定。dev(vite dev)/preview(本番ビルドのローカル配信)/
 // --host経由のLAN実機(スマホ確認)を全て抑止し、Vercel本番ドメインのみ送信する。
 function isLocalEnv() {
-  if (import.meta.env.DEV) return true; // vite dev
+  if (viteEnv.DEV) return true; // vite dev
   if (typeof location === "undefined") return false;
   const h = location.hostname;
   return (
@@ -42,7 +46,7 @@ export function addGameBreadcrumb(category, message, data) {
 }
 
 if (!enabled) {
-  if (import.meta.env.PROD && !dsn && !isLocalEnv()) {
+  if (viteEnv.PROD && !dsn && !isLocalEnv()) {
     // 本番ドメインでDSN未設定は設定ミス。気付けるよう警告のみ。
     console.warn("[sentry] VITE_SENTRY_DSN 未設定のためエラー収集が無効");
   }
@@ -50,8 +54,8 @@ if (!enabled) {
 } else {
   Sentry.init({
     dsn,
-    environment: import.meta.env.MODE, // development / production
-    release: import.meta.env.VITE_SENTRY_RELEASE, // git hash（vite.configでdefine注入）
+    environment: viteEnv.MODE, // development / production
+    release: viteEnv.VITE_SENTRY_RELEASE, // git hash（vite.configでdefine注入）
     sampleRate: 1.0, // 初期は全件送信。エラー爆発時に下げる。
     tracesSampleRate: 0, // パフォーマンス計測は不要（別課金回避）
     sendDefaultPii: false,

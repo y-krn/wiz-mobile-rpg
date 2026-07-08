@@ -8,6 +8,7 @@ const dummyEl = () => ({
   style: {},
   children: [],
   appendChild() {},
+  replaceChildren() {},
   addEventListener() {},
   classList: { add() {}, remove() {}, contains: () => false, toggle() {} },
   setAttribute() {},

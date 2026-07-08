@@ -2,6 +2,7 @@
 const makeDummyElement = () => ({
   style: {},
   appendChild: () => {},
+  replaceChildren: () => {},
   addEventListener: () => {},
   innerHTML: "",
   classList: {

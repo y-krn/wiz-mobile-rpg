@@ -28,6 +28,7 @@ global.localStorage = {
     const createDummyElement = () => ({
       style: {},
       appendChild: () => createDummyElement(),
+      replaceChildren: () => {},
       addEventListener: () => {},
       classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
       setAttribute: () => {},
@@ -253,6 +254,9 @@ global.localStorage = {
         appendChild: (child) => {
           element.children.push(child);
           return child;
+        },
+        replaceChildren: (...children) => {
+          element.children = children;
         },
         addEventListener: (event, handler) => {
           element.listeners[event] = handler;

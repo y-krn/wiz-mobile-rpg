@@ -31,6 +31,7 @@ import { generateRandomMap } from "../src/map_generator.js";
     const createDummyElement = () => ({
       style: {},
       appendChild: () => createDummyElement(),
+      replaceChildren: () => {},
       addEventListener: () => {},
       classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
       setAttribute: () => {},
@@ -213,6 +214,7 @@ import { generateRandomMap } from "../src/map_generator.js";
     const createDummyElement = () => ({
       style: {},
       appendChild: () => createDummyElement(),
+      replaceChildren: () => {},
       addEventListener: () => {},
       classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
       setAttribute: () => {},
@@ -339,6 +341,7 @@ import { generateRandomMap } from "../src/map_generator.js";
     const createDummyElement = () => ({
       style: {},
       appendChild: () => createDummyElement(),
+      replaceChildren: () => {},
       addEventListener: () => {},
       classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
       setAttribute: () => {},
@@ -500,6 +503,7 @@ import { generateRandomMap } from "../src/map_generator.js";
     const createDummyElement = () => ({
       style: {},
       appendChild: () => createDummyElement(),
+      replaceChildren: () => {},
       addEventListener: () => {},
       classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
       setAttribute: () => {},

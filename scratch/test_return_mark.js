@@ -15,6 +15,7 @@ const createDummyElement = () => {
   return {
     style: {},
     appendChild: () => createDummyElement(),
+    replaceChildren: () => {},
     addEventListener: (event, callback) => {
       listeners[event] = callback;
     },
