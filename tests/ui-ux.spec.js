@@ -120,6 +120,134 @@ for (const vp of PARTY_HUD_VIEWPORTS) {
   });
 }
 
+test('Standalone safe-area full-screen overlays keep controls outside system bars', async ({ page }) => {
+  const safeAreaTop = 59;
+  const safeAreaBottom = 34;
+  await page.setViewportSize({ width: 402, height: 874 });
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.clear();
+  });
+  await page.goto('/');
+  await page.addStyleTag({
+    content: `:root { --safe-area-top: ${safeAreaTop}px; --safe-area-bottom: ${safeAreaBottom}px; }`,
+  });
+
+  const overlayCases = [
+    { name: 'training', selector: '#training-overlay' },
+    { name: 'shop', selector: '#shop-overlay' },
+    { name: 'equip', selector: '#equip-overlay' },
+    { name: 'spell', selector: '#spell-overlay' },
+    { name: 'camp', selector: '#camp-overlay' },
+    { name: 'archives', selector: '#archives-overlay' },
+    { name: 'contracts', selector: '#contracts-overlay' },
+    { name: 'warehouse', selector: '#warehouse-overlay' },
+  ];
+
+  for (const overlayCase of overlayCases) {
+    await page.evaluate(async (name) => {
+      const overlays = [
+        'training-overlay',
+        'shop-overlay',
+        'equip-overlay',
+        'spell-overlay',
+        'camp-overlay',
+        'archives-overlay',
+        'contracts-overlay',
+        'warehouse-overlay',
+      ];
+      overlays.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+
+      const { state } = await import('/src/state.js');
+      const { getCharMaxMp } = await import('/src/data.js');
+      const { openSubmenu } = await import('/src/navigation.js');
+
+      state.party = state.roster.slice(0, 4);
+      state.party.forEach((char) => {
+        char.hp = Math.max(1, char.hp);
+        char.mp = getCharMaxMp(char);
+        char.maxMp = getCharMaxMp(char);
+      });
+
+      if (name === 'training') {
+        openSubmenu('party_assemble', '訓練場 - パーティ編成:');
+      } else if (name === 'shop') {
+        openSubmenu('shop_main', 'ボルタック商店 - アイテムの売買:');
+      } else if (name === 'equip') {
+        const { openEquipOverlay } = await import('/src/equip.js');
+        openEquipOverlay(0);
+      } else if (name === 'spell') {
+        openSubmenu('spell_caster_select', '呪文選択:');
+      } else if (name === 'camp') {
+        const { openCampMenu } = await import('/src/camp.js');
+        openCampMenu();
+      } else if (name === 'archives') {
+        const { openArchivesOverlay } = await import('/src/ui.js');
+        openArchivesOverlay();
+      } else if (name === 'contracts') {
+        const { openContractsOverlay } = await import('/src/ui.js');
+        openContractsOverlay();
+      } else if (name === 'warehouse') {
+        const { openWarehouseOverlay } = await import('/src/ui.js');
+        openWarehouseOverlay();
+      }
+    }, overlayCase.name);
+
+    await expect(page.locator(overlayCase.selector)).toBeVisible();
+
+    const layout = await page.evaluate((selector) => {
+      const overlay = document.querySelector(selector);
+      const rect = (el) => el.getBoundingClientRect().toJSON();
+      const visibleChildren = Array.from(overlay.querySelectorAll('*'))
+        .filter((el) => {
+          const style = getComputedStyle(el);
+          const box = el.getBoundingClientRect();
+          return style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            box.width > 0 &&
+            box.height > 0;
+        });
+      const topMost = visibleChildren
+        .slice()
+        .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
+      const bottomMostButton = Array.from(overlay.querySelectorAll('button, [role="button"], .btn'))
+        .filter((el) => {
+          const style = getComputedStyle(el);
+          const box = el.getBoundingClientRect();
+          const isScrollRow = el.classList.contains('shop-item-row') ||
+            el.classList.contains('equip-item-row') ||
+            el.classList.contains('char-row');
+          return style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            !isScrollRow &&
+            box.width > 0 &&
+            box.height > 0 &&
+            box.top < window.innerHeight &&
+            box.bottom > 0;
+        })
+        .sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom)[0];
+      return {
+        overlay: rect(overlay),
+        topMost: topMost ? rect(topMost) : null,
+        bottomMostButton: bottomMostButton ? rect(bottomMostButton) : null,
+        paddingTop: parseFloat(getComputedStyle(overlay).paddingTop),
+        paddingBottom: parseFloat(getComputedStyle(overlay).paddingBottom),
+        height: window.innerHeight,
+      };
+    }, overlayCase.selector);
+
+    expect(layout.overlay.top, `${overlayCase.name} backdrop should cover the top safe-area strip`).toBe(0);
+    expect(layout.overlay.bottom, `${overlayCase.name} backdrop should cover the bottom safe-area strip`).toBe(874);
+    expect(layout.paddingTop, `${overlayCase.name} overlay should include top safe-area padding`).toBeGreaterThanOrEqual(safeAreaTop + 12);
+    expect(layout.paddingBottom, `${overlayCase.name} overlay should include bottom safe-area padding`).toBeGreaterThanOrEqual(safeAreaBottom + 12);
+    expect(layout.topMost.top, `${overlayCase.name} content should clear top safe area`).toBeGreaterThanOrEqual(safeAreaTop);
+    expect(layout.bottomMostButton.bottom, `${overlayCase.name} controls should clear bottom safe area`).toBeLessThanOrEqual(layout.height - safeAreaBottom);
+  }
+});
+
 for (const vp of VIEWPORTS) {
   test.describe(`UIUX Mobile One-Handed Operation tests on ${vp.name} (${vp.width}x${vp.height})`, () => {
     test.beforeEach(async ({ page }) => {
