@@ -73,10 +73,10 @@ export function updatePartyHUD() {
     const hpContainer = document.createElement("div");
     hpContainer.className = "char-hpmp";
     hpContainer.innerHTML = `
-      <div class="bar-container">
+      <div class="bar-container hp-row">
         <span class="bar-label">H</span>
         <div class="bar"><div class="bar-fill hp" style="width: ${hpPct}%"></div></div>
-        <span>${char.hp}</span>
+        <span class="bar-value">${char.hp}</span>
       </div>
     `;
     
@@ -88,10 +88,10 @@ export function updatePartyHUD() {
     const mpStyle = spellcaster ? "" : "visibility: hidden;";
     
     hpContainer.innerHTML += `
-      <div class="bar-container" style="${mpStyle}">
+      <div class="bar-container mp-row" style="${mpStyle}">
         <span class="bar-label">M</span>
         <div class="bar"><div class="bar-fill mp" style="width: ${mpPct}%"></div></div>
-        <span>${mpVal}</span>
+        <span class="bar-value">${mpVal}</span>
       </div>
     `;
     card.appendChild(hpContainer);

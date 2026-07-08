@@ -6,6 +6,120 @@ const VIEWPORTS = [
   { width: 430, height: 932, name: 'iPhone 14 Pro Max' },
 ];
 
+const PARTY_HUD_VIEWPORTS = [
+  { width: 402, height: 874, name: 'iPhone 16 Pro standalone', safeArea: true },
+  { width: 375, height: 667, name: 'iPhone SE' },
+  ...VIEWPORTS,
+];
+
+const PARTY_HUD_STATES = ['town', 'explore', 'combat', 'submenu', 'trap_encounter'];
+
+for (const vp of PARTY_HUD_VIEWPORTS) {
+  test.describe(`Party HUD MP visibility on ${vp.name} (${vp.width}x${vp.height})`, () => {
+    test.beforeEach(async ({ page }) => {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.goto('/');
+      await page.evaluate(() => {
+        localStorage.clear();
+      });
+      await page.goto('/');
+      if (vp.safeArea) {
+        await page.addStyleTag({
+          content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,
+        });
+      }
+    });
+
+    for (const gameState of PARTY_HUD_STATES) {
+      test(`MP row remains visible in ${gameState}`, async ({ page }) => {
+        await page.evaluate(async (nextGameState) => {
+          const { state } = await import('/src/state.js');
+          const { getCharMaxMp } = await import('/src/data.js');
+          const { menuContext } = await import('/src/navigation.js');
+          const { updateUI } = await import('/src/ui.js');
+
+          state.party = state.roster.slice(0, 4);
+          state.party.forEach((char) => {
+            char.hp = Math.max(1, char.hp);
+            char.mp = getCharMaxMp(char);
+          });
+          state.gameState = nextGameState;
+          state.combatState = {
+            phase: 'choose_actions',
+            enemies: [],
+            monsters: [],
+            playerActions: [],
+          };
+          menuContext.type = 'camp_main';
+          menuContext.prevGameState = 'explore';
+          state.activeTrapState = {
+            trap: {
+              type: 'mpDrain',
+              state: 'discovered',
+              floorId: 'B1',
+              difficulty: 1,
+            },
+            successRate: 80,
+            expectedEffect: 'MP減少',
+          };
+
+          updateUI();
+        }, gameState);
+
+        const hud = await page.evaluate(async () => {
+          const { state } = await import('/src/state.js');
+          const { isSpellcaster } = await import('/src/data.js');
+          const panel = document.querySelector('#party-panel').getBoundingClientRect();
+          return {
+            panel: panel.toJSON(),
+            rows: Array.from(document.querySelectorAll('#party-grid .party-card')).map((card, idx) => {
+              const mpRow = card.querySelector('.mp-row');
+              const mpValue = card.querySelector('.mp-row .bar-value');
+              const mpFill = card.querySelector('.mp-row .bar-fill.mp');
+              const cardRect = card.getBoundingClientRect();
+              const rowRect = mpRow.getBoundingClientRect();
+              const valueRect = mpValue.getBoundingClientRect();
+              const fillRect = mpFill.getBoundingClientRect();
+              return {
+                name: state.party[idx].name,
+                spellcaster: isSpellcaster(state.party[idx]),
+                value: mpValue.textContent,
+                visibility: getComputedStyle(mpRow).visibility,
+                card: cardRect.toJSON(),
+                row: rowRect.toJSON(),
+                valueBox: valueRect.toJSON(),
+                fill: fillRect.toJSON(),
+              };
+            }),
+          };
+        });
+
+        expect(hud.rows).toHaveLength(4);
+        expect(hud.panel.bottom, `Party HUD should stay inside viewport on ${vp.name}/${gameState}`).toBeLessThanOrEqual(vp.height - (vp.safeArea ? 34 : 0));
+        if (gameState !== 'town') {
+          expect(hud.panel.height, `Compact party HUD should keep the 56px height budget on ${vp.name}/${gameState}`).toBeLessThanOrEqual(56.5);
+        }
+
+        for (const row of hud.rows) {
+          expect(row.row.height, `MP placeholder row should keep layout height for ${row.name} on ${vp.name}/${gameState}`).toBeGreaterThan(0);
+          expect(row.row.top, `MP row should not clip above card for ${row.name} on ${vp.name}/${gameState}`).toBeGreaterThanOrEqual(row.card.top - 0.5);
+          expect(row.row.bottom, `MP row should not clip below card for ${row.name} on ${vp.name}/${gameState}`).toBeLessThanOrEqual(row.card.bottom + 0.5);
+          expect(row.row.bottom, `MP row should not clip below HUD for ${row.name} on ${vp.name}/${gameState}`).toBeLessThanOrEqual(hud.panel.bottom + 0.5);
+
+          if (row.spellcaster) {
+            expect(row.visibility, `Spellcaster MP row should be visible for ${row.name} on ${vp.name}/${gameState}`).toBe('visible');
+            expect(row.value, `Spellcaster MP value should be shown for ${row.name} on ${vp.name}/${gameState}`).not.toBe('');
+            expect(row.valueBox.width, `Spellcaster MP value should have visible width for ${row.name} on ${vp.name}/${gameState}`).toBeGreaterThan(0);
+            expect(row.fill.width, `Spellcaster MP bar should have visible fill for ${row.name} on ${vp.name}/${gameState}`).toBeGreaterThan(0);
+          } else {
+            expect(row.visibility, `Non-spellcaster MP row should remain a hidden placeholder for ${row.name} on ${vp.name}/${gameState}`).toBe('hidden');
+          }
+        }
+      });
+    }
+  });
+}
+
 for (const vp of VIEWPORTS) {
   test.describe(`UIUX Mobile One-Handed Operation tests on ${vp.name} (${vp.width}x${vp.height})`, () => {
     test.beforeEach(async ({ page }) => {

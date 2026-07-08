@@ -1,8 +1,8 @@
 /* Party HUD Panel — kept minimal (priority: buttons > party HUD > map > log).
    Compact one-row-per-member cards; tap a card for full status details. */
 #party-panel {
-  height: 58px;
-  min-height: 58px;
+  height: 56px;
+  min-height: 56px;
   background-color: var(--hud-chrome-bg);
   border-top: 1.5px solid var(--hud-frame);
   box-shadow: var(--hud-frame-glow);
@@ -24,13 +24,15 @@
   background-color: #181822;
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  padding: 3px 4px;
+  padding: 2px 3px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
   font-family: var(--font-mono);
   position: relative;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .party-card.selected {
@@ -41,8 +43,10 @@
 .char-header {
   display: flex;
   justify-content: space-between;
-  font-size: var(--fs-xs);
+  font-size: calc(var(--fs-xs) - 1px);
   font-weight: bold;
+  line-height: 1;
+  min-width: 0;
 }
 
 .char-name {
@@ -55,28 +59,32 @@
 
 .char-class {
   color: var(--text-muted);
+  line-height: 1;
 }
 
 .char-hpmp {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0;
 }
 
 .bar-container {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: var(--fs-xs);
+  gap: 3px;
+  font-size: calc(var(--fs-xs) - 1px);
+  line-height: 1;
+  min-width: 0;
 }
 
 .bar-label {
-  width: 10px;
+  width: 8px;
   color: var(--text-muted);
 }
 
 .bar {
   flex-grow: 1;
+  min-width: 0;
   height: 3px;
   background-color: #09090b;
   border-radius: 1px;
@@ -85,6 +93,11 @@
 
 .bar-fill {
   height: 100%;
+}
+
+.bar-value {
+  min-width: 12px;
+  text-align: right;
 }
 
 .bar-fill.hp {

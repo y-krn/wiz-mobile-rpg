@@ -483,8 +483,8 @@ export function updateUI() {
       };
     } else {
       partyHeader.style.display = "none";
-      partyPanel.style.height = "58px";
-      partyPanel.style.minHeight = "58px";
+      partyPanel.style.height = "56px";
+      partyPanel.style.minHeight = "56px";
       partyPanel.classList.remove("interactive-hud");
       partyHeader.onclick = null;
     }
