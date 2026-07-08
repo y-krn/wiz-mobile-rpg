@@ -27,7 +27,7 @@ export function findAdjacentGuard(monsters, targetIdx) {
 export function getLivingTargetCandidates(party, mode = "front") {
   const active = party
     .map((c, i) => ({ c, i }))
-    .filter(x => !["dead", "paralyzed", "sleep"].includes(x.c.status));
+    .filter(x => !["dead", "paralyzed"].includes(x.c.status));
   if (mode === "back") {
     const back = active.filter(x => x.i >= 2);
     return back.length > 0 ? back : active;

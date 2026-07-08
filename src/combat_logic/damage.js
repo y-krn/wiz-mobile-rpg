@@ -1,6 +1,6 @@
 import { getItemBaseId, getCharAffixSum } from "../data.js";
 import { recordCharDeath } from "../state.js";
-import { getBuffTotal } from "./status_effects.js";
+import { getBuffTotal, wakeSleepingCharOnDamage } from "./status_effects.js";
 
 export function getMeleeModifiers(char, actorIdx) {
   const classMeleeRates = {
@@ -113,6 +113,7 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
     if (isDefending) dmg = Math.max(1, Math.round(dmg * (options.defendRate ?? 0.5)));
     dmg = reduceIncomingDamage(c, dmg, { spell: options.spell, dragon: options.dragon, logQueue });
     c.hp = Math.max(0, c.hp - dmg);
+    const wakeSuffix = wakeSleepingCharOnDamage(c) ? `${c.name}は目を覚ました！` : "";
     if (c.hp === 0) {
       c.status = "dead";
       let causeText = `${sourceName}の攻撃`;
@@ -123,7 +124,7 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
       }
       recordCharDeath(state, c, causeText);
     }
-    logQueue.push({ msg: `[ 敵 ] ${sourceName}により${c.name}は${dmg}のダメージを受けた。${isDefending ? "(防御)" : ""}` });
+    logQueue.push({ msg: `[ 敵 ] ${sourceName}により${c.name}は${dmg}のダメージを受けた。${isDefending ? "(防御)" : ""}${wakeSuffix}` });
   });
 }
 

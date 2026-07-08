@@ -24,8 +24,10 @@ import {
   addMonsterBuff,
   tickMonsterBuffs,
   wakeSleepingMonsterOnDamage,
+  wakeSleepingCharOnDamage,
   getBuffTotal,
-  tickCharBuffs
+  tickCharBuffs,
+  tickCharSleep
 } from "./status_effects.js";
 import {
   hasTrait,
@@ -718,13 +720,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const isMonDragon = mon.spriteType === "dragon" || (mon.tags && mon.tags.includes("dragon"));
           dmg = reduceIncomingDamage(target, dmg, { dragon: isMonDragon, logQueue });
           target.hp = Math.max(0, target.hp - dmg);
+          const wakeSuffix = wakeSleepingCharOnDamage(target) ? `${target.name}は目を覚ました！` : "";
           
           const attackMsg = isSnipeAttack
             ? `[ 敵 ] ${mon.name}の狙撃！${target.name}に${dmg}のダメージ！`
             : `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`;
           
           logQueue.push({
-            msg: attackMsg,
+            msg: `${attackMsg}${wakeSuffix}`,
             sound: "hit",
             shake: isSnipeAttack ? 12 : 8,
             floatText: `${dmg}`,
@@ -765,6 +768,17 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             target.status = "paralyzed";
             logQueue.push({
               msg: `[ 敵 ] [!] ${target.name}は麻痺を受け、麻痺状態になった！`,
+              sound: "chest_trap"
+            });
+          }
+
+          // Apply sleep effect if monster can induce sleep and target survives
+          const sleepChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
+          if (mon.isSleepInflicting && target.hp > 0 && target.status === "ok" && Math.random() < sleepChance) {
+            target.status = "sleep";
+            target.sleepTurns = 2;
+            logQueue.push({
+              msg: `[ 敵 ] [!] ${target.name}は眠りに落ちた！`,
               sound: "chest_trap"
             });
           }
@@ -871,6 +885,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         }
       }
     });
+
+    tickCharSleep(state.party, logQueue);
 
     // 全員麻痺の判定と全滅処理
     const nextLivingParty = state.party.filter(c => c.status !== "dead");

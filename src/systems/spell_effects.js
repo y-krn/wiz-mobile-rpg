@@ -277,6 +277,7 @@ export const SPELL_EFFECTS = {
     let cured = false;
     if (target.status === "sleep" || target.status === "paralyze" || target.status === "paralyzed") {
       target.status = "ok";
+      delete target.sleepTurns;
       cured = true;
     }
     return { log: `${caster.name}は${target.name}にディアルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };

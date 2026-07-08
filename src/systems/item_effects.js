@@ -38,6 +38,7 @@ export const ITEM_EFFECTS = {
   WAKE_POWDER: ({ char }) => {
     if (char.status === "sleep") {
       char.status = "ok";
+      delete char.sleepTurns;
       return `${char.name}は覚醒薬を使い、目を覚ました。`;
     }
     return `${char.name}は覚醒薬を使ったが、何も起こらなかった。`;
@@ -72,6 +73,7 @@ export const ITEM_EFFECTS = {
   PANACEA: ({ char }) => {
     if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {
       char.status = "ok";
+      delete char.sleepTurns;
       return `${char.name}は万能薬を使い、状態異常が消え去った。`;
     }
     return `${char.name}は万能薬を使ったが、何も起こらなかった。`;
@@ -81,6 +83,7 @@ export const ITEM_EFFECTS = {
     char.mp = getCharMaxMp(char);
     if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {
       char.status = "ok";
+      delete char.sleepTurns;
     }
     return `${char.name}はエリクサーを飲んだ！HP・MPが全回復し、全ての状態異常が消え去った！`;
   },

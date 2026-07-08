@@ -12,6 +12,7 @@ import assert from "assert";
 import { checkCharLevelUp } from "../src/systems/leveling.js";
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
 import { SPELL_EFFECTS } from "../src/systems/spell_effects.js";
+import { ITEM_EFFECTS } from "../src/systems/item_effects.js";
 import { getEffectiveAtk } from "../src/combat_logic/damage.js";
 import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
 import { state, initNewGame } from "../src/state.js";
@@ -636,6 +637,145 @@ import { menuContext } from "../src/navigation.js";
   }
 
   console.log("All Combat Paralyze verification tests passed successfully!");
+})();
+
+// ========================================================================
+// Ally sleep combat flow
+// ========================================================================
+(() => {
+  function createSleepState(partyOverrides = {}, monsterOverrides = {}) {
+    return {
+      party: [
+        {
+          name: "Char0",
+          class: "Fighter",
+          level: 1,
+          hp: 30,
+          maxHp: 30,
+          mp: 0,
+          maxMp: 0,
+          status: "ok",
+          str: 10,
+          int: 10,
+          pie: 10,
+          vit: 10,
+          agi: 10,
+          luk: 10,
+          equipment: { weapon: null, shield: null, armor: null },
+          spells: [],
+          exp: 0,
+          ...partyOverrides
+        }
+      ],
+      combatState: {
+        monsters: [
+          {
+            name: "Sleep Beast",
+            hp: 20,
+            maxHp: 20,
+            atk: 1,
+            def: 0,
+            exp: 1,
+            gold: 1,
+            row: "front",
+            buffs: [],
+            ...monsterOverrides
+          }
+        ],
+        isBoss: false,
+        isMidboss: false,
+        isRoamingFlack: false,
+        allParalyzedTurns: 0,
+        phase: "choose_actions"
+      },
+      inventory: [],
+      firstKills: [],
+      codex: null,
+      currentRun: { itemsFound: [], equipmentFound: [] },
+      roamingMonsters: [],
+      floorChestsTotal: [],
+      gold: 0,
+      floor: 1
+    };
+  }
+
+  function withRandom(values, fn) {
+    const originalRandom = Math.random;
+    let idx = 0;
+    Math.random = () => values[idx++] ?? values[values.length - 1] ?? 0;
+    try {
+      return fn();
+    } finally {
+      Math.random = originalRandom;
+    }
+  }
+
+  console.log("Starting Ally Sleep verification tests...");
+
+  {
+    const state = createSleepState({}, { isSleepInflicting: true, statusChance: 1 });
+    const result = withRandom([0, 0, 0, 0, 0], () => runCombatRoundCalculation(state, {
+      actions: [{ type: "defend", actorIdx: 0 }]
+    }));
+
+    assert.strictEqual(result.state.party[0].status, "sleep", "Sleep-inflicting monster should put an ok ally to sleep.");
+    assert.strictEqual(result.state.party[0].sleepTurns, 1, "Newly inflicted ally sleep should tick from 2 to 1 at round end.");
+    assert.ok(result.logQueue.some(log => log.msg?.includes("眠りに落ちた")), "Sleep infliction log should be emitted.");
+  }
+
+  {
+    const state = createSleepState({ status: "sleep", sleepTurns: 2 });
+    const result = withRandom([0.99], () => runCombatRoundCalculation(state, {
+      actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
+    }));
+
+    assert.strictEqual(result.state.combatState.monsters[0].hp, 20, "Sleeping ally should skip selected actions.");
+    assert.strictEqual(result.state.party[0].status, "sleep", "Sleeping ally should remain asleep when damage wake roll fails.");
+    assert.strictEqual(result.state.party[0].sleepTurns, 1, "Sleeping ally duration should tick at round end.");
+  }
+
+  {
+    const state = createSleepState({ status: "sleep", sleepTurns: 2 });
+    const result = withRandom([0, 0, 0, 0], () => runCombatRoundCalculation(state, {
+      actions: []
+    }));
+
+    assert.strictEqual(result.state.party[0].status, "ok", "Damage wake roll should clear ally sleep.");
+    assert.strictEqual(result.state.party[0].sleepTurns, undefined, "Damage wake should clear ally sleepTurns.");
+    assert.ok(result.logQueue.some(log => log.msg?.includes("目を覚ました")), "Damage wake log should be emitted.");
+  }
+
+  {
+    const state = createSleepState({ status: "sleep", sleepTurns: 1 });
+    const result = withRandom([0.99], () => runCombatRoundCalculation(state, {
+      actions: []
+    }));
+
+    assert.strictEqual(result.state.party[0].status, "ok", "Ally sleep should naturally expire.");
+    assert.strictEqual(result.state.party[0].sleepTurns, undefined, "Expired ally sleep should clear sleepTurns.");
+    assert.strictEqual(result.state.combatState.allParalyzedTurns, 0, "All-sleep party should not advance all-paralyzed defeat counter.");
+    assert.ok(result.state.party[0].hp > 0, "All-sleep party should not be defeated by sleep itself.");
+  }
+
+  {
+    const caster = { name: "PriestChar" };
+    const dialkoTarget = { name: "Char0", status: "sleep", sleepTurns: 2 };
+    SPELL_EFFECTS.DIALKO({ caster, target: dialkoTarget });
+    assert.strictEqual(dialkoTarget.status, "ok", "DIALKO should cure ally sleep.");
+    assert.strictEqual(dialkoTarget.sleepTurns, undefined, "DIALKO should clear sleepTurns.");
+
+    const wakeTarget = { name: "Char1", status: "sleep", sleepTurns: 2 };
+    ITEM_EFFECTS.WAKE_POWDER({ char: wakeTarget });
+    assert.strictEqual(wakeTarget.status, "ok", "Wake powder should cure ally sleep.");
+    assert.strictEqual(wakeTarget.sleepTurns, undefined, "Wake powder should clear sleepTurns.");
+
+    const panaceaTarget = { name: "Char2", status: "sleep", sleepTurns: 2 };
+    ITEM_EFFECTS.PANACEA({ char: panaceaTarget });
+    assert.strictEqual(panaceaTarget.status, "ok", "PANACEA should cure ally sleep.");
+    assert.strictEqual(panaceaTarget.sleepTurns, undefined, "PANACEA should clear sleepTurns.");
+  }
+
+  console.log("All Ally Sleep verification tests passed successfully!");
 })();
 
 // ========================================================================
