@@ -69,7 +69,7 @@ export const SYNERGIES = {
     tags: ["holy", "exorcism"],
     log: "[反応] 聖なる祈りが不浄を退ける光を放った。",
     archive: "聖なる装備を退魔の力を持つ僧侶が扱うと、アンデッドへの攻撃力が微増する。",
-    mod: { antiUndead: 10 }
+    mod: { antiUndead: 35, antiDemon: 15 }
   },
   poison_thief: {
     id: "poison_thief",
@@ -77,7 +77,7 @@ export const SYNERGIES = {
     tags: ["poison", "trap"],
     log: "[反応] 毒の刻印が罠の匂いを変え、仕組みを暴きやすくした。",
     archive: "毒に精通した装備と罠解除の技術が重なると、毒罠の解除率が上昇する。",
-    mod: { trapBonus: 15 }
+    mod: { trapBonus: 30, poisonWard: 20, firstStrike: -3 }
   },
   fire_curse: {
     id: "fire_curse",
@@ -85,7 +85,7 @@ export const SYNERGIES = {
     tags: ["fire_rite", "curse"],
     log: "[反応] 呪われた業火が命を削り、凄まじい熱線を放った。",
     archive: "火葬の力と呪いが交わると、攻撃力が劇的に上昇するが、被回復効果が低下する。",
-    mod: { atk: 12, healMod: -20 }
+    mod: { atk: 4, healMod: -30 }
   },
   iron_ward: {
     id: "iron_ward",
@@ -93,7 +93,7 @@ export const SYNERGIES = {
     tags: ["iron", "ward"],
     log: "[反応] 鉄の防具が重い一撃の衝撃を巧みに逃した。",
     archive: "鉄と守勢のタグが合わさることで、物理被ダメージを軽減する強固な防御となる。",
-    mod: { def: 5, guardian: 10 }
+    mod: { def: 3, guardian: 12, firstStrike: -4 }
   },
   beast_search: {
     id: "beast_search",
@@ -101,7 +101,7 @@ export const SYNERGIES = {
     tags: ["beast", "search"],
     log: "[反応] 野生の鋭い勘が、周囲の獣の気配を察知した。",
     archive: "獣の性質を帯びた装備と探索術の相性により、不意打ちを防ぎやすくなる。",
-    mod: { firstStrike: 5, treasureSense: 5 }
+    mod: { firstStrike: 8, treasureSense: 8 }
   },
   spirit_analysis: {
     id: "spirit_analysis",
@@ -109,7 +109,7 @@ export const SYNERGIES = {
     tags: ["spirit", "analysis"],
     log: "[反応] 霊視の魔力が、見えない罠や迷宮の歪みを照らし出した。",
     archive: "霊的干渉と解析の知識が一致すると、罠の看破や迷宮の隠された宝を発見しやすくなる。",
-    mod: { treasureSense: 10 }
+    mod: { treasureSense: 18, trapBonus: 10 }
   },
   ambush_poison: {
     id: "ambush_poison",
@@ -117,7 +117,7 @@ export const SYNERGIES = {
     tags: ["ambush", "poison"],
     log: "[反応] 闇に紛れる一撃に、致死の毒液が静かに滴る。",
     archive: "奇襲の心得と毒の付与が組み合わさることで、先制確率と罠対策が共に高まる。",
-    mod: { firstStrike: 10, trapBonus: 10 }
+    mod: { firstStrike: 10, followUp: 8, def: -3 }
   },
   blood_blade: {
     id: "blood_blade",
@@ -125,7 +125,7 @@ export const SYNERGIES = {
     tags: ["blood", "blade"],
     log: "[反応] 血を吸った刃が赤く染まり、さらなる闘志を呼び覚ます。",
     archive: "血と刃のタグが調和すると、連撃の確率が上がり、攻撃的ビルドが強化される。",
-    mod: { followUp: 10 }
+    mod: { followUp: 14, def: -3 }
   }
 };
 
@@ -197,6 +197,13 @@ export function getActiveSynergies(party) {
     }
   }
   return activeList;
+}
+
+export function getActiveSynergyMod(party, modType) {
+  if (!modType) return 0;
+  return getActiveSynergies(party).reduce((sum, syn) => {
+    return sum + (syn.mod?.[modType] || 0);
+  }, 0);
 }
 
 export function recordSynergyDiscovery(synergyId) {

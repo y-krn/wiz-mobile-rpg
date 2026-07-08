@@ -685,10 +685,10 @@ import { generateRandomMap } from "../src/map_generator.js";
         throw new Error("holy_priest synergy should be active");
       }
 
-      // Check if synergy stat modification (antiUndead: +10%) is applied via getCharAffixSum
+      // Check if synergy stat modification (antiUndead: +35%) is applied via getCharAffixSum
       const antiUndeadBonus = getCharAffixSum(state.party[1], "antiUndead");
-      console.log("antiUndead Bonus:", antiUndeadBonus, "(expected 30 = 20 priest class bonus + 10 synergy)");
-      if (antiUndeadBonus !== 30) {
+      console.log("antiUndead Bonus:", antiUndeadBonus, "(expected 55 = 20 priest class bonus + 35 synergy)");
+      if (antiUndeadBonus !== 55) {
         throw new Error("Synergy stat bonus failed to apply");
       }
 

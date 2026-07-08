@@ -1,4 +1,4 @@
-import { DIR_N, START_X, START_Y, setItemRulesStateRef, setTagsStateRef } from "../data.js";
+import { DIR_N, START_X, START_Y, setCharacterStatsStateRef, setItemRulesStateRef, setTagsStateRef } from "../data.js";
 
 // Main State Object
 export const state = {
@@ -181,4 +181,5 @@ export function canRecruitRescueNewcomer() {
 }
 
 setItemRulesStateRef(state);
+setCharacterStatsStateRef(state);
 setTagsStateRef(state);

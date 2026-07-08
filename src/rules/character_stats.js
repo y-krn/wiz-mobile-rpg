@@ -1,4 +1,10 @@
 import { getItemData, getCharAffixSum } from "./item_rules.js";
+import { getActiveSynergyMod } from "../data/tags.js";
+
+let localStateRef = null;
+export function setCharacterStatsStateRef(stateObj) {
+  localStateRef = stateObj;
+}
 
 export function getCharStr(char) {
   if (!char) return 0;
@@ -141,6 +147,7 @@ export function getCharTrapBonus(char) {
       }
     });
   }
+  bonus += getActiveSynergyMod(localStateRef?.party, "trapBonus") / 100;
   return bonus;
 }
 
@@ -160,6 +167,7 @@ export function getCharWeaponAtk(char) {
       }
     });
   }
+  atk += getActiveSynergyMod(localStateRef?.party, "atk");
   return atk;
 }
 
@@ -172,6 +180,7 @@ export function getCharDef(char) {
       }
     });
   }
+  def += getActiveSynergyMod(localStateRef?.party, "def");
   return def;
 }
 

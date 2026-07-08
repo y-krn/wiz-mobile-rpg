@@ -1,6 +1,6 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { getClassPassiveBonus } from "./class_rules.js";
-import { getActiveSynergies } from "../data/tags.js";
+import { getActiveSynergyMod } from "../data/tags.js";
 
 let localStateRef = null;
 export function setItemRulesStateRef(stateObj) {
@@ -23,10 +23,14 @@ export function isSpecialOrQuestItem(itemId) {
 }
 
 export function getEffectiveHealAmount(target, amount) {
+  if (amount <= 0) return amount;
+  let mult = 1;
   if (target?.antiHealTurns > 0) {
-    return Math.max(1, Math.round(amount * 0.5));
+    mult *= 0.5;
   }
-  return amount;
+  mult *= 1 + getActiveSynergyMod(localStateRef?.party, "healMod") / 100;
+  mult = Math.max(0.25, mult);
+  return Math.max(1, Math.round(amount * mult));
 }
 
 export function getCharAffixSum(char, affixType) {
@@ -89,15 +93,7 @@ export function getCharAffixSum(char, affixType) {
       sum += 30;
     }
   }
-  // アクティブなシナジーボーナスの加算
-  if (localStateRef && localStateRef.party) {
-    const activeSyns = getActiveSynergies(localStateRef.party);
-    activeSyns.forEach(syn => {
-      if (syn.mod && syn.mod[affixType] !== undefined) {
-        sum += syn.mod[affixType];
-      }
-    });
-  }
+  sum += getActiveSynergyMod(localStateRef?.party, affixType);
   const total = sum + getClassPassiveBonus(char, affixType);
   const caps = {
     poisonWard: 75,
