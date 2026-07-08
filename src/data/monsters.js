@@ -8,8 +8,8 @@ export const MONSTERS = [
   { name: "マッドゴースト", level: 2, hp: 28, atk: 6, def: 2, exp: 140, gold: 15, spriteType: "spirit", physResist: 0.5, tags: ["undead", "spirit"], color: "#8a2be2" },
   { name: "オークの戦士", level: 3, hp: 56, atk: 12, def: 6, exp: 280, gold: 50, spriteType: "orc", color: "#ff8c00" },
   { name: "はぐれ魔術師", level: 3, hp: 44, atk: 8, def: 4, exp: 280, gold: 80, spriteType: "mage", spell: "HALITO", spellChance: 0.3, row: "back", color: "#da70d6" },
-  { name: "ワーウルフ", level: 3, hp: 72, atk: 14, def: 5, exp: 340, gold: 60, spriteType: "orc", isParalyzing: true, statusChance: 0.25, color: "#ff8c00" },
-  { name: "バンシー", level: 3, hp: 56, atk: 9, def: 3, exp: 300, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.6, physResist: 0.2, statusChance: 0.2, tags: ["undead", "spirit"], color: "#da70d6" },
+  { name: "ワーウルフ", level: 3, hp: 72, atk: 14, def: 5, exp: 340, gold: 60, spriteType: "orc", isParalyzing: true, statusChance: 0.3, color: "#ff8c00" },
+  { name: "バンシー", level: 3, hp: 56, atk: 9, def: 3, exp: 300, gold: 45, spriteType: "spirit", isParalyzing: true, magicResist: 0.6, physResist: 0.2, statusChance: 0.3, tags: ["undead", "spirit"], color: "#da70d6" },
   
   // 既存モンスターの再調整
   { name: "スピリット", level: 2, hp: 36, atk: 6, def: 2, exp: 180, gold: 25, spriteType: "spirit", physResist: 0.6, magicResist: -0.2, tags: ["undead", "spirit"], color: "#00e5ff" },
@@ -48,6 +48,7 @@ export const MONSTERS = [
   { name: "群れネズミ", level: 1, hp: 12, atk: 3, def: 0, exp: 35, gold: 4, spriteType: "rabbit", color: "#8e8e93" },
   { name: "錆びた盾兵", level: 1, hp: 28, atk: 4, def: 4, exp: 90, gold: 12, spriteType: "skeleton", traits: ["guardAdjacent"], guard: { chance: 0.5 }, color: "#8e8e93" },
   { name: "火薬コウモリ", level: 1, hp: 22, atk: 4, def: 1, exp: 80, gold: 8, spriteType: "bat", traits: ["selfDestruct"], color: "#ff9500" },
+  { name: "まどろみ胞子", level: 1, hp: 20, atk: 4, def: 1, exp: 70, gold: 8, spriteType: "wisp", isSleepInflicting: true, statusChance: 0.2, row: "back", color: "#00e5ff" },
   { name: "泥の呪い子", level: 1, hp: 24, atk: 3, def: 1, exp: 85, gold: 10, spriteType: "biter", traits: ["debuffPhysicalDef"], traitChance: 0.2, debuffValue: 2, color: "#8a2be2" },
   { name: "呪いの小鏡", level: 2, hp: 24, atk: 3, def: 1, exp: 180, gold: 25, spriteType: "wisp", traits: ["reflectMagic"], magicReflect: { chance: 0.5 }, row: "back", color: "#ffffff" },
   { name: "針甲虫", level: 2, hp: 32, atk: 5, def: 5, exp: 160, gold: 20, spriteType: "biter", traits: ["reflectPhysical"], physicalReflect: { rate: 0.3 }, color: "#ff9500" },
@@ -56,6 +57,7 @@ export const MONSTERS = [
   { name: "祈祷ゴブリン", level: 2, hp: 36, atk: 4, def: 2, exp: 190, gold: 25, spriteType: "orc", spell: "DIOS", spellChance: 0.35, row: "back", color: "#34c759" },
   { name: "マナドレイン", level: 2, hp: 36, atk: 4, def: 2, exp: 180, gold: 22, spriteType: "spirit", traits: ["drainMp", "targetBackRow"], traitChance: 0.35, isSniper: true, row: "back", color: "#00e5ff" },
   { name: "煙幕盗賊", level: 2, hp: 36, atk: 7, def: 2, exp: 210, gold: 35, spriteType: "kobold", isBlinding: true, statusChance: 0.25, row: "back", color: "#8e8e93" },
+  { name: "催眠コウモリ", level: 2, hp: 24, atk: 5, def: 2, exp: 110, gold: 15, spriteType: "bat", isSleepInflicting: true, statusChance: 0.3, row: "back", color: "#e5ff00" },
   { name: "霧の亡霊", level: 3, hp: 44, atk: 7, def: 2, exp: 320, gold: 35, spriteType: "spirit", physResist: 0.3, magicResist: -0.3, tags: ["undead", "spirit"], color: "#00e5ff" },
   { name: "魔封じの目玉", level: 3, hp: 48, atk: 6, def: 2, exp: 360, gold: 45, spriteType: "wisp", traits: ["silence", "targetBackRow"], traitChance: 0.35, row: "back", color: "#ffcc00" },
   { name: "骨の鼓手", level: 3, hp: 48, atk: 5, def: 3, exp: 380, gold: 50, spriteType: "skeleton", traits: ["buffAtk"], traitChance: 0.35, buffValue: 3, tags: ["undead"], row: "back", color: "#dcdcdc" },

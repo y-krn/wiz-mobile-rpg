@@ -606,6 +606,40 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
     }
     console.log("Monster name consistency check passed.");
 
+    // --- Test 1.5: Sleep/paralysis placement curve ---
+    const packsByMonster = (name) => Object.entries(ENCOUNTER_PACKS).flatMap(([floor, packs]) =>
+      packs.flatMap(pack => pack.members
+        .filter(member => member.name === name)
+        .map(member => ({ floor: Number(floor), member, pack })))
+    );
+    const monsterByName = (name) => MONSTERS.find(m => m.name === name);
+    const sleepIntro = monsterByName("まどろみ胞子");
+    const sleepGroup = monsterByName("催眠コウモリ");
+    const werewolf = monsterByName("ワーウルフ");
+    const banshee = monsterByName("バンシー");
+
+    assert.ok(sleepIntro?.isSleepInflicting, "B1 sleep intro monster should inflict sleep.");
+    assert.strictEqual(sleepIntro.statusChance, 0.2, "B1 sleep intro should use a low status chance.");
+    assert.strictEqual(packsByMonster("まどろみ胞子")[0]?.floor, 1, "Sleep intro monster should appear on B1.");
+    assert.strictEqual(packsByMonster("まどろみ胞子")[0]?.member.min, 1, "B1 sleep intro should be single-target education.");
+    assert.strictEqual(packsByMonster("まどろみ胞子")[0]?.member.max, 1, "B1 sleep intro should be single-target education.");
+
+    assert.ok(sleepGroup?.isSleepInflicting, "B2 sleep group monster should inflict sleep.");
+    assert.strictEqual(sleepGroup.statusChance, 0.3, "B2 sleep group should use the stronger status chance.");
+    assert.strictEqual(packsByMonster("催眠コウモリ")[0]?.floor, 2, "Sleep group monster should appear on B2.");
+    assert.strictEqual(packsByMonster("催眠コウモリ")[0]?.member.min, 2, "B2 sleep group should appear in groups.");
+    assert.strictEqual(packsByMonster("催眠コウモリ")[0]?.member.max, 3, "B2 sleep group should appear in groups.");
+
+    assert.strictEqual(packsByMonster("カースドハンド")[0]?.floor, 3, "Paralysis should debut on B3.");
+    assert.ok(werewolf?.isParalyzing, "Werewolf should remain a paralyzing monster.");
+    assert.ok(banshee?.isParalyzing, "Banshee should remain a paralyzing monster.");
+    assert.ok(werewolf.statusChance >= 0.3 && werewolf.statusChance <= 0.35, "Werewolf paralysis chance should match B4 curve.");
+    assert.ok(banshee.statusChance >= 0.3 && banshee.statusChance <= 0.35, "Banshee paralysis chance should match B4 curve.");
+    assert.ok(ENCOUNTER_PACKS[4].some(pack =>
+      pack.members.filter(member => monsterByName(member.name)?.isParalyzing).length === 2
+    ), "B4 should contain a two-paralyzer pack.");
+    console.log("Sleep/paralysis placement curve check passed.");
+
     // --- Test 2: Counterplay Availability Audit ---
     console.log("\nAuditing counterplay availability per floor...");
 

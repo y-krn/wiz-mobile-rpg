@@ -10,6 +10,7 @@ export const ENCOUNTER_PACKS = {
     { members: [{ name: "錆びた盾兵", min: 1, max: 1 }, { name: "ゴブリンの呪術師", min: 1, max: 1 }] },
     { members: [{ name: "群れネズミ", min: 4, max: 6 }] },
     { members: [{ name: "火薬コウモリ", min: 1, max: 1 }] },
+    { members: [{ name: "まどろみ胞子", min: 1, max: 1 }] },
     { members: [{ name: "泥の呪い子", min: 1, max: 1 }] }
   ],
   2: [
@@ -21,7 +22,8 @@ export const ENCOUNTER_PACKS = {
     { members: [{ name: "鉄皮のゴブリン", min: 1, max: 1 }, { name: "祈祷ゴブリン", min: 1, max: 1 }] },
     { members: [{ name: "マナドレイン", min: 1, max: 1 }] },
     { members: [{ name: "スケルトンアーチャー", min: 1, max: 1 }] },
-    { members: [{ name: "煙幕盗賊", min: 1, max: 1 }, { name: "腐毒の蛆", min: 1, max: 2 }] }
+    { members: [{ name: "煙幕盗賊", min: 1, max: 1 }, { name: "腐毒の蛆", min: 1, max: 2 }] },
+    { members: [{ name: "催眠コウモリ", min: 2, max: 3 }] }
   ],
   3: [
     { members: [{ name: "スピリット", min: 1, max: 1 }, { name: "はぐれ魔術師", min: 1, max: 1 }] },
@@ -34,7 +36,7 @@ export const ENCOUNTER_PACKS = {
   4: [
     { members: [{ name: "ストーンガード", min: 1, max: 1 }] },
     { members: [{ name: "マスターメイジ", min: 1, max: 1 }] },
-    { members: [{ name: "ウィル・オー・ウィスプ", min: 1, max: 1 }, { name: "バンシー", min: 1, max: 1 }] },
+    { members: [{ name: "ワーウルフ", min: 1, max: 1 }, { name: "バンシー", min: 1, max: 1 }] },
     { members: [{ name: "アースジャイアント", min: 1, max: 1 }, { name: "ポイズンジャイアント", min: 1, max: 1 }] },
     { members: [{ name: "ブラッドバット群", min: 4, max: 6 }] },
     { members: [{ name: "石像兵", min: 1, max: 1 }, { name: "魔鏡の司祭", min: 1, max: 1 }] },
