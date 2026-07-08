@@ -73,7 +73,7 @@
 }
 
 .btn-char-switch {
-  width: 44px;
+  width: var(--tap-min);
   min-height: var(--tap-min);
   padding: 0;
   display: flex;

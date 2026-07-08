@@ -377,7 +377,7 @@
 .btn-temple-action {
   flex-shrink: 0;
   min-width: 80px;
-  height: 38px;
+  height: var(--tap-min);
   font-size: var(--fs-xs);
   padding: 0 8px;
 }

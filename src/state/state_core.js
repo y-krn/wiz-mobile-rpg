@@ -107,6 +107,7 @@ export const state = {
 // Collapses consecutive identical messages into a single "… ×N" entry so
 // repeated探索の気配 etc. don't spam the log panel.
 const LOG_COUNT_RE = / ×(\d+)$/;
+export const LOG_HISTORY_LIMIT = 500;
 export function addLog(msg) {
   const logs = state.logs;
   if (logs.length > 0) {
@@ -120,7 +121,7 @@ export function addLog(msg) {
     }
   }
   logs.push(msg);
-  if (logs.length > 50) {
+  if (logs.length > LOG_HISTORY_LIMIT) {
     logs.shift();
   }
 }

@@ -77,10 +77,38 @@ behavior may be relevant.
   `camp_main`, `gameover_main`, `event_*`, `item_action`).
 - Every referenced CSS custom property is defined in `src/styles/tokens.css`
   (e.g. `--neon-glow-purple`); an undefined var silently drops the effect.
+- Positioning context is checked, not just the edited rule. Flex shrink
+  distribution, `absolute`/`fixed` containing-block, `aspect-ratio`, and
+  `max-height` media queries break by *combination*, not by a single property.
+  When touching a panel's size or position, trace up to its parent's
+  `position`/`padding`/`flex` and the layout siblings that compete for space.
+  Known traps: default `flex-shrink:1` crushing `#controls-panel` buttons
+  (`src/styles/controls.css`); `absolute; top:0` overlays ignoring the
+  `#game-container` `--safe-area-top` padding and sliding under the status bar
+  (`src/styles/overlays-*.css`); log/content height feeding the flex basis and
+  starving buttons (`src/styles/app-shell.css`).
+- New CSS, its DOM, and its JS wiring land together — no dead CSS, no unwired
+  handlers. A new selector has a matching element in `index.html`; a
+  `getElementById` in `src/ui/*` hits a real element; an exported open/close
+  handler is actually bound in `src/game.js`. `lint`/`build`/`test:browser` do
+  not catch these: exported-but-uncalled functions pass `no-unused-vars`, a
+  `getElementById` miss is a silent runtime null, and a selector with no element
+  is ignored. Verify the three-way link by cross-reference or live check.
 
 ## Required Verification
 
 - `npm run test:browser`
+- Verify against *computed boxes*, not declared CSS. Flex shrink, safe-area
+  offsets, and effective tap height cannot be read statically — measure with
+  `getBoundingClientRect` / preview `inspect`.
+- Measure in the *worst-case state*, not the empty one: full log history
+  (~50 lines), long submenu lists, and injected `safe-area-inset` (59/34), across
+  every affected `gameState` (combat / submenu / explore / trap / town). The
+  060 button collapse only appeared with logs full — an empty-state review never
+  sees it.
+- Any UI invariant proven here (buttons unclipped inside `#controls-panel`, HUD
+  MP row visible, overlay header below the safe area, tap targets ≥ `--tap-min`)
+  is added to `tests/ui-ux.spec.js` as a guard, not left to manual review.
 - Manual or browser-driven check at:
   - 360x800
   - 390x844

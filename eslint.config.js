@@ -23,6 +23,14 @@ export default [
     },
   },
   {
+    files: ["scripts/**/*.js"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.node,
+    },
+  },
+  {
     files: ["tests/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",

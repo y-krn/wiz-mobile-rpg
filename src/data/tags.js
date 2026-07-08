@@ -1,4 +1,5 @@
 let localStateRef = null;
+const LOG_HISTORY_LIMIT = 500;
 export function setTagsStateRef(stateObj) {
   localStateRef = stateObj;
 }
@@ -207,7 +208,7 @@ export function recordSynergyDiscovery(synergyId) {
     localStateRef.codex.synergies[synergyId] = true;
     if (localStateRef.logs) {
       localStateRef.logs.push(`[書庫記録] 新たな相性「${SYNERGIES[synergyId].name}」を発見した！`);
-      if (localStateRef.logs.length > 50) {
+      if (localStateRef.logs.length > LOG_HISTORY_LIMIT) {
         localStateRef.logs.shift();
       }
     }
