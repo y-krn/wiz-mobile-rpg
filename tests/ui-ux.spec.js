@@ -490,6 +490,53 @@ for (const vp of VIEWPORTS) {
       expect(box.height, `Few-button submenu row should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
     });
 
+    test('Result screen expands by collapsing logs and controls', async ({ page }) => {
+      await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { createDefaultCurrentRun } = await import('/src/state/initial_state.js');
+        const { updateUI } = await import('/src/ui.js');
+
+        state.party = state.roster.slice(0, 4);
+        state.gameState = 'result';
+        state.currentRun = createDefaultCurrentRun();
+        state.currentRun.returnReason = 'stairs';
+        state.currentRun.deepestFloor = 1;
+        state.currentRun.dangerRank = 'E';
+        state.currentRun.dangerLabel = '安全な偵察';
+        for (let i = 0; i < 50; i++) {
+          state.logs.push(`検証ログ ${i + 1}`);
+        }
+        updateUI();
+      });
+
+      await expect(page.locator('#result-overlay')).toBeVisible();
+
+      const layout = await page.evaluate(() => {
+        const rect = (selector) => document.querySelector(selector).getBoundingClientRect().toJSON();
+        return {
+          containerHasResultMode: document.querySelector('#game-container').classList.contains('result-mode'),
+          goalDisplay: getComputedStyle(document.querySelector('#goal-banner')).display,
+          logDisplay: getComputedStyle(document.querySelector('#log-panel')).display,
+          controlsDisplay: getComputedStyle(document.querySelector('#controls-panel')).display,
+          viewport: rect('#viewport-panel'),
+          overlay: rect('#result-overlay'),
+          button: rect('#btn-result-castle'),
+          party: rect('#party-panel'),
+          height: window.innerHeight,
+        };
+      });
+
+      expect(layout.containerHasResultMode).toBe(true);
+      expect(layout.goalDisplay).toBe('none');
+      expect(layout.logDisplay).toBe('none');
+      expect(layout.controlsDisplay).toBe('none');
+      expect(layout.viewport.height, `Result viewport should use most available height on ${vp.name}`).toBeGreaterThan(vp.height * 0.65);
+      expect(layout.overlay.height, `Result overlay should fill expanded viewport on ${vp.name}`).toBeCloseTo(layout.viewport.height, 1);
+      expect(layout.button.height, `Result return button should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(layout.button.top, `Result return button should stay in bottom thumb zone on ${vp.name}`).toBeGreaterThan(vp.height * 0.5);
+      expect(layout.party.bottom, `Party HUD should stay visible below result viewport on ${vp.name}`).toBeLessThanOrEqual(layout.height);
+    });
+
     test('Standalone safe-area chest menu keeps HUD and party visible', async ({ page }) => {
       await page.addStyleTag({
         content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,

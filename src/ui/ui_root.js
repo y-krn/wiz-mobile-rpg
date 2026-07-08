@@ -167,6 +167,7 @@ export function updateUI() {
     for (let i = 1; i <= 5; i++) {
       container.classList.remove(`floor-theme-b${i}`);
     }
+    container.classList.toggle("result-mode", state.gameState === "result");
     if (state.currentRun &&
         state.gameState !== "town" &&
         state.gameState !== "gameover" &&
