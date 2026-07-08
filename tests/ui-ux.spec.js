@@ -712,9 +712,78 @@ for (const vp of VIEWPORTS) {
       await btnClose.click();
       await page.waitForTimeout(200);
       await expect(page.locator('#explore-controls')).toBeVisible();
-    });
   });
+});
 }
+
+test('Party synergy banner stays outside compact party HUD with many synergies', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    localStorage.clear();
+    const { state } = await import('/src/state.js');
+    const { getCharMaxMp } = await import('/src/data.js');
+    const { updateUI } = await import('/src/ui.js');
+
+    state.party = state.roster.slice(0, 4);
+    state.party.forEach((char) => {
+      char.hp = Math.max(1, char.hp);
+      char.mp = getCharMaxMp(char);
+      char.equipment = {
+        weapon: {
+          identified: true,
+          tags: [
+            'holy',
+            'exorcism',
+            'poison',
+            'trap',
+            'fire_rite',
+            'curse',
+            'iron',
+            'ward',
+            'beast',
+            'search',
+            'spirit',
+            'analysis',
+            'ambush',
+            'blood',
+            'blade',
+          ],
+        },
+      };
+    });
+    state.gameState = 'explore';
+    updateUI();
+  });
+
+  const layout = await page.evaluate(() => {
+    const rect = (selector) => document.querySelector(selector).getBoundingClientRect().toJSON();
+    return {
+      banner: rect('#party-synergy-banner'),
+      bannerText: document.querySelector('#party-synergy-banner').textContent,
+      bannerOverflowX: document.querySelector('#party-synergy-banner').scrollWidth > document.querySelector('#party-synergy-banner').clientWidth,
+      panel: rect('#party-panel'),
+      cards: Array.from(document.querySelectorAll('#party-grid .party-card')).map((card) => card.getBoundingClientRect().toJSON()),
+      mpRows: Array.from(document.querySelectorAll('#party-grid .mp-row')).map((row) => row.getBoundingClientRect().toJSON()),
+      viewportWidth: window.innerWidth,
+    };
+  });
+
+  expect(layout.bannerText).toContain('反応中:');
+  expect(layout.banner.bottom, 'Synergy banner should sit directly above the party HUD').toBeLessThanOrEqual(layout.panel.top + 0.5);
+  expect(layout.banner.height, 'Synergy banner should remain a single compact row').toBeLessThanOrEqual(26);
+  expect(layout.banner.width, 'Synergy banner should not create horizontal page overflow').toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.bannerOverflowX, 'Long synergy text should be clipped with ellipsis instead of wrapping').toBe(true);
+  expect(layout.panel.height, 'Party HUD should keep the compact height budget').toBeLessThanOrEqual(56.5);
+
+  for (const card of layout.cards) {
+    expect(card.top, 'Party card should not be pushed below the panel by synergies').toBeGreaterThanOrEqual(layout.panel.top - 0.5);
+    expect(card.bottom, 'Party card should stay inside the party HUD').toBeLessThanOrEqual(layout.panel.bottom + 0.5);
+  }
+  for (const row of layout.mpRows) {
+    expect(row.bottom, 'MP row should stay inside the party HUD with synergies visible').toBeLessThanOrEqual(layout.panel.bottom + 0.5);
+  }
+});
 
 test('Castle record submenus show a single back button', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });

@@ -20,6 +20,27 @@
   min-height: 0;
 }
 
+#party-synergy-banner {
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 24px;
+  padding: 4px 10px;
+  border-top: 1px solid rgba(0, 255, 102, 0.18);
+  background: rgba(0, 255, 102, 0.04);
+  color: var(--neon-green);
+  font-family: var(--font-mono);
+  font-size: calc(var(--fs-xs) - 1px);
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#party-synergy-banner[hidden] {
+  display: none;
+}
+
 .party-card {
   background-color: #181822;
   border: 1px solid var(--border-color);

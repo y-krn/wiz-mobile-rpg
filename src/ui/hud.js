@@ -13,28 +13,22 @@ export function updatePartyHUD() {
   if (!synergyBanner) {
     synergyBanner = document.createElement("div");
     synergyBanner.id = "party-synergy-banner";
-    synergyBanner.style.fontFamily = "var(--font-mono)";
-    synergyBanner.style.fontSize = "9px";
-    synergyBanner.style.color = "var(--neon-green)";
-    synergyBanner.style.padding = "4px 8px";
-    synergyBanner.style.borderBottom = "1px solid #222";
-    synergyBanner.style.background = "rgba(0, 255, 102, 0.02)";
-    synergyBanner.style.textAlign = "center";
-    synergyBanner.style.display = "none";
-    
-    const partyPanel = document.getElementById("party-panel");
-    if (partyPanel) {
-      partyPanel.insertBefore(synergyBanner, grid);
-    }
+    synergyBanner.hidden = true;
+  }
+  const partyPanel = document.getElementById("party-panel");
+  if (partyPanel?.parentElement && synergyBanner.parentElement !== partyPanel.parentElement) {
+    partyPanel.parentElement.insertBefore(synergyBanner, partyPanel);
   }
 
   const activeSyns = getActiveSynergies(state.party);
   if (activeSyns.length > 0) {
     const names = activeSyns.map(s => s.name).join(", ");
     synergyBanner.textContent = `反応中: ${names}`;
-    synergyBanner.style.display = "block";
+    synergyBanner.title = names;
+    synergyBanner.hidden = false;
   } else {
-    synergyBanner.style.display = "none";
+    synergyBanner.hidden = true;
+    synergyBanner.title = "";
   }
   const selectingChar = state.gameState === "combat" && state.combatState?.phase === "choose_actions"
     ? state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status))[combatSelection.charIdx]
