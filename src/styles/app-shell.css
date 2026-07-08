@@ -179,10 +179,10 @@
   top: 0;
   float: right;
   margin: -2px -4px 0 6px;
-  width: 26px;
-  height: 26px;
+  width: var(--tap-min);
+  height: var(--tap-min);
   padding: 0;
-  line-height: 24px;
+  line-height: calc(var(--tap-min) - 2px); /* subtract 1px border top+bottom */
   text-align: center;
   font-size: var(--fs-md);
   color: var(--neon-cyan);

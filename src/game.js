@@ -7,7 +7,7 @@ import { setUiUpdateCallback, goBackSubmenu } from "./navigation.js";
 import { handleTrapAction } from "./systems/traps.js";
 
 // Import modules for re-export and button bindings
-import { updateUI } from "./ui.js";
+import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
 import { handleMove, enterDungeon } from "./movement.js";
 import { handleExploreAction, handleTownOption } from "./menu.js";
 import { selectCombatAction, cancelCombatAction, toggleCombatAuto } from "./combat.js";
@@ -150,6 +150,16 @@ function bindButtons() {
         btnMute.title = "ミュートにする";
       }
     });
+  }
+
+  // Full-log overlay: expand from the minimal log panel, close back to it.
+  const btnLogExpand = document.getElementById("btn-log-expand");
+  if (btnLogExpand) {
+    btnLogExpand.addEventListener("click", () => openLogOverlay());
+  }
+  const btnLogOverlayClose = document.getElementById("btn-log-overlay-close");
+  if (btnLogOverlayClose) {
+    btnLogOverlayClose.addEventListener("click", () => closeLogOverlay());
   }
 
   // Prevent iOS/PWA pinch, double-tap zoom, and viewport drift during rapid gameplay taps.

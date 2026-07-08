@@ -2,7 +2,9 @@ export {
   updateUI,
   resetViewportZoom,
   getFloorExplorationRate,
-  getCurrentGoal
+  getCurrentGoal,
+  openLogOverlay,
+  closeLogOverlay
 } from "./ui/ui_root.js";
 
 export {

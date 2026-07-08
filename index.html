@@ -70,7 +70,17 @@
 
       <!-- Log Messages -->
       <div id="log-panel">
+        <button id="btn-log-expand" title="全ログを表示" aria-label="全ログを表示">⛶</button>
         <div id="log-content"></div>
+      </div>
+
+      <!-- Full-log overlay (expanded from #btn-log-expand) -->
+      <div id="log-overlay" class="log-overlay-container" style="display: none;">
+        <div class="log-overlay-header">
+          <span class="log-overlay-title">冒険の記録</span>
+          <button id="btn-log-overlay-close" class="btn btn-neon">閉じる</button>
+        </div>
+        <div id="log-overlay-body" class="log-overlay-body"></div>
       </div>
 
       <!-- Controls Panel (Grid) -->
