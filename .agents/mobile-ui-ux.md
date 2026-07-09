@@ -87,6 +87,16 @@ behavior may be relevant.
   `#game-container` `--safe-area-top` padding and sliding under the status bar
   (`src/styles/overlays-*.css`); log/content height feeding the flex basis and
   starving buttons (`src/styles/app-shell.css`).
+- Hiding, collapsing, or conditionally showing a UI element requires an
+  information audit: list what that element uniquely displays, confirm each
+  datum also surfaces elsewhere, and if the element is the *only* source
+  (log-only results, trap-estimate confidence, who took trap damage), move that
+  datum to a persistent surface for the hidden context. A layout-only test
+  (class toggled, panel hidden, buttons ≥ 44px) does NOT prove the information
+  survived — assert the datum is present and visible in the DOM. Regression
+  precedent: the `chest-mode` log hide (TICKET-072) silently dropped the
+  trap-estimate uncertainty and who-took-the-hit lines that only lived in the
+  log.
 - New CSS, its DOM, and its JS wiring land together — no dead CSS, no unwired
   handlers. A new selector has a matching element in `index.html`; a
   `getElementById` in `src/ui/*` hits a real element; an exported open/close

@@ -5,7 +5,7 @@ import { shopState } from "../shop/shop_state.js";
 import { renderTraining } from "../training.js";
 import { renderEventMerchant, renderEventMerchantBuy } from "./merchant.js";
 import { renderTempleMain, renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftDismantle, renderCraftInscriptionSelectEquip, renderCraftInscriptionSelectEngrave, renderCastleMain, renderCastleDeadList, renderCastleRemainsList, renderCastleDeathLogs } from "./town_actions.js";
-import { renderItemInventory, renderItemTargetSelect, renderCampMain, renderGameOverMain, renderEnterDungeonSelect, renderCampStatus, renderEventSpring, renderEventTablet, renderChestDisarmerSelect } from "./explore_actions.js";
+import { renderItemInventory, renderItemTargetSelect, renderCampMain, renderGameOverMain, renderEnterDungeonSelect, renderCampStatus, renderEventSpring, renderEventTablet, renderChestDisarmerSelect, renderChestOpenerSelect } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 
 const SUBMENU_RENDERERS = {
@@ -55,6 +55,7 @@ const SUBMENU_RENDERERS = {
   castle_remains_list: (optGrid) => renderCastleRemainsList(optGrid),
   castle_death_logs: (optGrid) => renderCastleDeathLogs(optGrid),
   chest_disarmer_select: (optGrid) => renderChestDisarmerSelect(optGrid),
+  chest_opener_select: (optGrid) => renderChestOpenerSelect(optGrid),
   party_assemble: (optGrid) => {
     optGrid.innerHTML = "";
     const info = document.createElement("div");

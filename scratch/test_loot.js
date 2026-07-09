@@ -242,7 +242,7 @@ import assert from "assert";
 
     // Delayed dynamic imports to ensure global mocks are set up first
     const { state, initNewGame } = await import("../src/state.js");
-    const { setupChestState } = await import("../src/chest.js");
+    const { setupChestState, openChestDirectly } = await import("../src/chest.js");
 
     console.log("Starting Chest Trap Inspect Verification Tests...");
 
@@ -315,6 +315,50 @@ import assert from "assert";
     }
 
     console.log("[PASS] Post-inspection UI button states verified.");
+
+    // Test 5: Verify selected opener takes single-target trap risk
+    initNewGame();
+    state.party = [
+      { name: "Arthur", class: "Fighter", status: "ok", hp: 20, maxHp: 20, equipment: {} },
+      { name: "Robin", class: "Thief", status: "ok", hp: 15, maxHp: 15, equipment: {} }
+    ];
+    state.floor = 1;
+    state.currentRun = {
+      chestsOpened: 0,
+      trapsTriggered: 0,
+      goldGained: 0,
+      itemsFound: [],
+      equipmentFound: []
+    };
+    state.chestState = {
+      x: state.x,
+      y: state.y,
+      trap: "poison needle",
+      identifiedTrap: "poison needle",
+      inspected: true,
+      inspectChance: 0.85,
+      gold: 0,
+      item: null,
+      accessoryItem: null,
+      lootHint: null
+    };
+    state.map[state.y][state.x].event = "chest";
+
+    const originalSetTimeout = global.setTimeout;
+    global.setTimeout = (cb) => {
+      cb();
+      return 0;
+    };
+    openChestDirectly(state.party[1]);
+    global.setTimeout = originalSetTimeout;
+
+    assert.strictEqual(state.party[0].status, "ok", "Default front character should not take selected opener trap");
+    assert.strictEqual(state.party[0].hp, 20, "Default front character HP should remain unchanged");
+    assert.strictEqual(state.party[1].status, "poisoned", "Selected opener should take poison needle");
+    assert.strictEqual(state.party[1].hp, 3, "Selected opener should take poison needle damage");
+    assert.strictEqual(state.currentRun.trapsTriggered, 1, "Trap trigger count should increment");
+
+    console.log("[PASS] Selected chest opener trap target verified.");
 
     console.log("All chest trap inspect tests passed successfully!");
   })();

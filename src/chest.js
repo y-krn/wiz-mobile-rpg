@@ -295,7 +295,10 @@ export function openChestMenu() {
       reliability = "低";
       reliabilityColor = "#ff9f0a"; // orange
     }
-    inspectText = `推定: <strong style="color:var(--neon-cyan)">${trapNameJp}</strong> (<span style="color:${reliabilityColor}">${reliability}</span>)`;
+    const uncertainty = chance >= 0.8
+      ? `<span style="color:var(--text-muted)">推定は外れる場合あり</span>`
+      : `<span style="color:${reliabilityColor}; font-weight:bold;">[!] 外れる可能性あり</span>`;
+    inspectText = `推定: <strong style="color:var(--neon-cyan)">${trapNameJp}</strong> / 信頼度 <span style="color:${reliabilityColor}">${reliability}</span><br>${uncertainty}`;
   }
 
   // 3. Traps Help
@@ -402,6 +405,10 @@ export function openChestMenu() {
   btnOpen.textContent = "宝箱を開ける";
   btnOpen.style.minHeight = "44px";
   btnOpen.addEventListener("click", () => {
+    if (state.chestState.trap && state.chestState.trap !== "none") {
+      openSubmenu("chest_opener_select", "宝箱を開けるキャラクターを選択：");
+      return;
+    }
     openChestDirectly();
   });
   optGrid.appendChild(btnOpen);
@@ -484,7 +491,7 @@ export function executeDisarm(char) {
   
   // Open the chest after disarm attempt resolves
   setTimeout(() => {
-    openChestDirectly();
+    openChestDirectly(char);
   }, 1500);
 }
 
@@ -560,7 +567,7 @@ export function triggerChestTrap(char) {
   }
 }
 
-export function openChestDirectly() {
+export function openChestDirectly(opener = null) {
   state.transitioning = true;
   menuContext.type = "chest_result";
   const chest = state.chestState;
@@ -580,14 +587,14 @@ export function openChestDirectly() {
     return "なし";
   };
 
-  // If trap is still active, trigger on character 1
-  if (chest.trap !== "none") {
-    const opener = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
+  // If trap is still active, trigger on selected opener if provided.
+  if (chest.trap && chest.trap !== "none") {
+    const trapTarget = opener || state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
     addLog(`宝箱を開けた瞬間、罠 [${translateTrap(chest.trap)}] が作動した！`);
     if (state.currentRun) {
       state.currentRun.trapsTriggered++;
     }
-    triggerChestTrap(opener);
+    triggerChestTrap(trapTarget);
   }
 
   // Award Gold

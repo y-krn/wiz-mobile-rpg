@@ -2,13 +2,13 @@ import { state, initNewGame, saveAutosave, addLog } from "../state.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, EXP_LEVELS, DX, DY, DIR_NAMES } from "../data.js";
+import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, getCharTrapBonus, EXP_LEVELS, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
 import { checkCellEvents, executeEnterDungeon, tickExplorationSpellEffects } from "../movement.js";
 import { startCombat, triggerGameOver } from "../combat.js";
 import { openCampMenu } from "../camp.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
-import { executeDisarm } from "../chest.js";
+import { executeDisarm, openChestDirectly } from "../chest.js";
 import { openWall } from "../map_generator.js";
 
 function getSecretSearchDirs() {
@@ -501,6 +501,25 @@ export function renderChestDisarmerSelect(optGrid) {
     btn.addEventListener("click", () => {
       if (state.transitioning) return;
       executeDisarm(char);
+    });
+    optGrid.appendChild(btn);
+  });
+}
+
+export function renderChestOpenerSelect(optGrid) {
+  state.party.forEach((char) => {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-neon btn-block";
+
+    const trapBonus = getCharTrapBonus(char);
+    const statusSuffix = char.status === "blind" ? " / 盲目" : (char.status === "poisoned" ? " / 毒" : "");
+    const bonusText = trapBonus > 0 ? ` / 耐罠 +${trapBonus}%` : "";
+    btn.textContent = `${char.name} (${getClassJpName(char.class)}) 開ける${statusSuffix}${bonusText}`;
+
+    if (!["ok", "poisoned", "blind"].includes(char.status)) btn.disabled = true;
+    btn.addEventListener("click", () => {
+      if (state.transitioning) return;
+      openChestDirectly(char);
     });
     optGrid.appendChild(btn);
   });

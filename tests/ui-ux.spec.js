@@ -555,10 +555,10 @@ for (const vp of VIEWPORTS) {
         state.chestState = {
           x: state.x,
           y: state.y,
-          trap: 'flash bomb',
-          identifiedTrap: 'flash bomb',
+          trap: 'poison needle',
+          identifiedTrap: 'poison needle',
           inspected: true,
-          inspectChance: 0.85,
+          inspectChance: 0.30,
           gold: 120,
           item: 'HEAL_POTION',
           lootHint: { label: '古い魔力', aura: 'medium' },
@@ -568,6 +568,8 @@ for (const vp of VIEWPORTS) {
 
       await expect(page.locator('#submenu-controls')).toBeVisible();
       await expect(page.locator('#btn-chest-inspect')).toBeVisible();
+      await expect(page.locator('.chest-info-panel')).toContainText('信頼度 低');
+      await expect(page.locator('.chest-info-panel')).toContainText('[!] 外れる可能性あり');
       await expect(page.getByRole('button', { name: '解除する' })).toBeVisible();
       await expect(page.getByRole('button', { name: '宝箱を開ける' })).toBeVisible();
       await expect(page.getByRole('button', { name: '立ち去る' })).toBeVisible();
@@ -629,7 +631,31 @@ for (const vp of VIEWPORTS) {
       expect(layout.controls.bottom, `Controls should not push party panel offscreen on ${vp.name}`).toBeLessThanOrEqual(layout.party.top);
 
       await page.getByRole('button', { name: '宝箱を開ける' }).click();
+      await expect(page.locator('#submenu-title')).toContainText('宝箱を開けるキャラクターを選択');
+      await expect(page.getByRole('button', { name: /Robin .*開ける/ })).toBeVisible();
+
+      const openerLayout = await page.evaluate(() => {
+        const controls = document.querySelector('#controls-panel').getBoundingClientRect().toJSON();
+        return {
+          controls,
+          buttons: Array.from(document.querySelectorAll('#submenu-options button'))
+            .map((el) => ({
+              text: el.textContent,
+              rect: el.getBoundingClientRect().toJSON(),
+            })),
+          hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        };
+      });
+      expect(openerLayout.buttons).toHaveLength(4);
+      expect(openerLayout.hasHorizontalOverflow, `Chest opener select should not create horizontal overflow on ${vp.name}`).toBe(false);
+      for (const button of openerLayout.buttons) {
+        expect(button.rect.height, `Chest opener button "${button.text}" should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
+        expect(button.rect.bottom, `Chest opener button "${button.text}" should stay within controls on ${vp.name}`).toBeLessThanOrEqual(openerLayout.controls.bottom);
+      }
+
+      await page.getByRole('button', { name: /Robin .*開ける/ }).click();
       await expect(page.locator('#log-panel')).toBeVisible();
+      await expect(page.locator('#log-content')).toContainText('Robinは12のダメージを受けた');
       await expect(page.locator('#log-content')).toContainText('宝箱から 120 ゴールドを見つけた！');
       await expect(page.locator('#game-container')).not.toHaveClass(/chest-mode/);
     });
