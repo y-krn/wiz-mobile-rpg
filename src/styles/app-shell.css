@@ -157,6 +157,14 @@
   min-height: 0;
 }
 
+#game-container.chest-mode #log-panel {
+  display: none;
+}
+
+#game-container.chest-mode #viewport-panel {
+  max-height: 480px;
+}
+
 #dungeon-canvas {
   width: 100%;
   height: 100%;

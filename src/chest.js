@@ -562,6 +562,7 @@ export function triggerChestTrap(char) {
 
 export function openChestDirectly() {
   state.transitioning = true;
+  menuContext.type = "chest_result";
   const chest = state.chestState;
   const chestMap = state.map;
   const chestX = chest.x;
@@ -668,6 +669,7 @@ export function openChestDirectly() {
 
   // Check game over
   const partyAlive = state.party.some(c => c.status !== "dead");
+  updateUI();
   
   setTimeout(() => {
     resetSubmenuBackButton();

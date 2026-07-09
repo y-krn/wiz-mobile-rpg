@@ -560,7 +560,7 @@ for (const vp of VIEWPORTS) {
           inspected: true,
           inspectChance: 0.85,
           gold: 120,
-          item: 'POTION',
+          item: 'HEAL_POTION',
           lootHint: { label: '古い魔力', aura: 'medium' },
         };
         openChestMenu();
@@ -568,32 +568,70 @@ for (const vp of VIEWPORTS) {
 
       await expect(page.locator('#submenu-controls')).toBeVisible();
       await expect(page.locator('#btn-chest-inspect')).toBeVisible();
+      await expect(page.getByRole('button', { name: '解除する' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '宝箱を開ける' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '立ち去る' })).toBeVisible();
 
-      const layout = await page.evaluate(() => {
+      const layout = await page.evaluate(async () => {
+        const { menuContext } = await import('/src/navigation.js');
+        const { updateUI } = await import('/src/ui.js');
         const rect = (selector) => {
           const el = document.querySelector(selector);
           return el ? el.getBoundingClientRect().toJSON() : null;
         };
+        const capture = () => ({
+          chestMode: document.querySelector('#game-container').classList.contains('chest-mode'),
+          logDisplay: getComputedStyle(document.querySelector('#log-panel')).display,
+          viewport: rect('#viewport-panel'),
+        });
+        const chestLayout = capture();
+        menuContext.type = 'chest_result';
+        updateUI();
+        const resultLayout = capture();
+        menuContext.type = 'chest_menu';
+        updateUI();
         return {
+          chestMode: chestLayout.chestMode,
+          logDisplay: chestLayout.logDisplay,
+          resultLogDisplay: resultLayout.logDisplay,
+          resultViewport: resultLayout.viewport,
           header: rect('#game-header'),
           goal: rect('#goal-banner'),
-          viewport: rect('#viewport-panel'),
+          viewport: chestLayout.viewport,
           controls: rect('#controls-panel'),
           party: rect('#party-panel'),
+          buttons: Array.from(document.querySelectorAll('#submenu-options button'))
+            .map((el) => el.getBoundingClientRect().toJSON()),
           partyCards: Array.from(document.querySelectorAll('#party-grid .party-card'))
             .map((el) => el.getBoundingClientRect().toJSON()),
           height: window.innerHeight,
+          hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         };
       });
 
+      expect(layout.chestMode, `Chest menu should add chest-mode on ${vp.name}`).toBe(true);
+      expect(layout.logDisplay, `Chest menu should hide inline logs on ${vp.name}`).toBe('none');
+      expect(layout.resultLogDisplay, `Chest result should restore inline logs on ${vp.name}`).not.toBe('none');
+      expect(layout.viewport.height, `Chest viewport should grow when logs are hidden on ${vp.name}`).toBeGreaterThan(layout.resultViewport.height);
       expect(layout.header.top, `Header should clear standalone top safe area on ${vp.name}`).toBeGreaterThanOrEqual(59);
       expect(layout.goal.bottom, `Goal banner should not be covered by viewport on ${vp.name}`).toBeLessThanOrEqual(layout.viewport.top);
       expect(layout.party.bottom, `Party HUD should clear standalone bottom safe area on ${vp.name}`).toBeLessThanOrEqual(layout.height - 34);
+      expect(layout.buttons).toHaveLength(4);
+      expect(layout.hasHorizontalOverflow, `Chest menu should not create horizontal overflow on ${vp.name}`).toBe(false);
+      for (const button of layout.buttons) {
+        expect(button.height, `Chest action buttons should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
+        expect(button.bottom, `Chest action buttons should stay within controls on ${vp.name}`).toBeLessThanOrEqual(layout.controls.bottom);
+      }
       expect(layout.partyCards).toHaveLength(4);
       for (const card of layout.partyCards) {
         expect(card.bottom, `Party card should remain inside party panel on ${vp.name}`).toBeLessThanOrEqual(layout.party.bottom);
       }
       expect(layout.controls.bottom, `Controls should not push party panel offscreen on ${vp.name}`).toBeLessThanOrEqual(layout.party.top);
+
+      await page.getByRole('button', { name: '宝箱を開ける' }).click();
+      await expect(page.locator('#log-panel')).toBeVisible();
+      await expect(page.locator('#log-content')).toContainText('宝箱から 120 ゴールドを見つけた！');
+      await expect(page.locator('#game-container')).not.toHaveClass(/chest-mode/);
     });
 
     test('Standalone safe-area town menu is scroll-contained above party HUD', async ({ page }) => {

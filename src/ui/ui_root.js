@@ -168,6 +168,7 @@ export function updateUI() {
       container.classList.remove(`floor-theme-b${i}`);
     }
     container.classList.toggle("result-mode", state.gameState === "result");
+    container.classList.toggle("chest-mode", state.gameState === "submenu" && menuContext.type === "chest_menu");
     if (state.currentRun &&
         state.gameState !== "town" &&
         state.gameState !== "gameover" &&
