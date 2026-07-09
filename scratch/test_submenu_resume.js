@@ -98,5 +98,21 @@ globalThis.localStorage = (() => {
   assert.strictEqual(state.gameState, "town", "non-submenu state persists unchanged");
   console.log("-> [PASS] 非submenu状態はそのまま保存");
 
+  // [E] ダンジョンイベントの結果フェーズも explore へ畳まれる
+  localStorage.clear();
+  initNewGame();
+  state.gameState = "explore";
+  state.floor = 2;
+  openSubmenu("event_tablet_result", "石碑の結果：");
+  saveAutosave();
+  state.gameState = "town";
+  loadGame();
+  assert.strictEqual(
+    state.gameState,
+    "explore",
+    "event result submenu should resume as explore, not a transient result screen"
+  );
+  console.log("-> [PASS] ダンジョンイベント結果保存→再開でexplore復帰");
+
   console.log("\n[TEST_SUBMENU_RESUME PASSED]");
 })();

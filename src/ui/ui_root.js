@@ -160,6 +160,15 @@ export function updateUI() {
   resetViewportZoom();
   const combatOverlayTypes = ["combat_target", "combat_spell", "combat_item"];
   const isCombatOverlaySubmenu = state.gameState === "submenu" && combatOverlayTypes.includes(menuContext.type);
+  const eventModeSubmenus = [
+    "chest_menu",
+    "chest_disarmer_select",
+    "chest_opener_select",
+    "event_spring",
+    "event_tablet",
+    "event_merchant",
+    "event_merchant_buy"
+  ];
 
   // Reset/Apply floor-theme class on #game-container
   const container = document.getElementById("game-container");
@@ -168,7 +177,7 @@ export function updateUI() {
       container.classList.remove(`floor-theme-b${i}`);
     }
     container.classList.toggle("result-mode", state.gameState === "result");
-    container.classList.toggle("chest-mode", state.gameState === "submenu" && menuContext.type === "chest_menu");
+    container.classList.toggle("event-mode", state.gameState === "submenu" && eventModeSubmenus.includes(menuContext.type));
     if (state.currentRun &&
         state.gameState !== "town" &&
         state.gameState !== "gameover" &&

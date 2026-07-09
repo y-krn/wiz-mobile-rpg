@@ -390,7 +390,7 @@ export function renderEventSpring(optGrid) {
       currentCell.event = null;
     }
     saveAutosave();
-    closeSubmenu();
+    openSubmenu("event_spring_result", "泉の結果：");
   });
   optGrid.appendChild(btnDrink);
 
@@ -402,6 +402,18 @@ export function renderEventSpring(optGrid) {
     closeSubmenu();
   });
   optGrid.appendChild(btnLeave);
+}
+
+export function renderEventSpringResult(optGrid) {
+  document.getElementById("btn-submenu-back").style.display = "none";
+
+  const btnReturn = document.createElement("button");
+  btnReturn.className = "btn btn-neon btn-block";
+  btnReturn.textContent = "探索に戻る";
+  btnReturn.addEventListener("click", () => {
+    closeSubmenu();
+  });
+  optGrid.appendChild(btnReturn);
 }
 
 export function renderEventTablet(optGrid) {
@@ -464,7 +476,7 @@ export function renderEventTablet(optGrid) {
     if (allPartyDead) {
       triggerGameOver();
     } else {
-      closeSubmenu();
+      openSubmenu("event_tablet_result", "石碑の結果：");
     }
   });
   optGrid.appendChild(btnRead);
@@ -477,6 +489,18 @@ export function renderEventTablet(optGrid) {
     closeSubmenu();
   });
   optGrid.appendChild(btnLeave);
+}
+
+export function renderEventTabletResult(optGrid) {
+  document.getElementById("btn-submenu-back").style.display = "none";
+
+  const btnReturn = document.createElement("button");
+  btnReturn.className = "btn btn-neon btn-block";
+  btnReturn.textContent = "探索に戻る";
+  btnReturn.addEventListener("click", () => {
+    closeSubmenu();
+  });
+  optGrid.appendChild(btnReturn);
 }
 
 export function renderChestDisarmerSelect(optGrid) {

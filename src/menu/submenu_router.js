@@ -3,9 +3,9 @@ import { openSubmenu, setRenderSubmenuCallback } from "../navigation.js";
 import { renderShop } from "../shop/shop_view.js";
 import { shopState } from "../shop/shop_state.js";
 import { renderTraining } from "../training.js";
-import { renderEventMerchant, renderEventMerchantBuy } from "./merchant.js";
+import { renderEventMerchant, renderEventMerchantBuy, renderEventMerchantResult } from "./merchant.js";
 import { renderTempleMain, renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftDismantle, renderCraftInscriptionSelectEquip, renderCraftInscriptionSelectEngrave, renderCastleMain, renderCastleDeadList, renderCastleRemainsList, renderCastleDeathLogs } from "./town_actions.js";
-import { renderItemInventory, renderItemTargetSelect, renderCampMain, renderGameOverMain, renderEnterDungeonSelect, renderCampStatus, renderEventSpring, renderEventTablet, renderChestDisarmerSelect, renderChestOpenerSelect } from "./explore_actions.js";
+import { renderItemInventory, renderItemTargetSelect, renderCampMain, renderGameOverMain, renderEnterDungeonSelect, renderCampStatus, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 
 const SUBMENU_RENDERERS = {
@@ -70,9 +70,12 @@ const SUBMENU_RENDERERS = {
     renderTraining();
   },
   event_spring: (optGrid) => renderEventSpring(optGrid),
+  event_spring_result: (optGrid) => renderEventSpringResult(optGrid),
   event_tablet: (optGrid) => renderEventTablet(optGrid),
+  event_tablet_result: (optGrid) => renderEventTabletResult(optGrid),
   event_merchant: (optGrid) => renderEventMerchant(optGrid),
-  event_merchant_buy: (optGrid) => renderEventMerchantBuy(optGrid)
+  event_merchant_buy: (optGrid) => renderEventMerchantBuy(optGrid),
+  event_merchant_result: (optGrid) => renderEventMerchantResult(optGrid)
 };
 
 export function renderSubmenu(type) {

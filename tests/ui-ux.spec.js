@@ -582,7 +582,7 @@ for (const vp of VIEWPORTS) {
           return el ? el.getBoundingClientRect().toJSON() : null;
         };
         const capture = () => ({
-          chestMode: document.querySelector('#game-container').classList.contains('chest-mode'),
+          eventMode: document.querySelector('#game-container').classList.contains('event-mode'),
           logDisplay: getComputedStyle(document.querySelector('#log-panel')).display,
           viewport: rect('#viewport-panel'),
         });
@@ -593,7 +593,7 @@ for (const vp of VIEWPORTS) {
         menuContext.type = 'chest_menu';
         updateUI();
         return {
-          chestMode: chestLayout.chestMode,
+          eventMode: chestLayout.eventMode,
           logDisplay: chestLayout.logDisplay,
           resultLogDisplay: resultLayout.logDisplay,
           resultViewport: resultLayout.viewport,
@@ -611,7 +611,7 @@ for (const vp of VIEWPORTS) {
         };
       });
 
-      expect(layout.chestMode, `Chest menu should add chest-mode on ${vp.name}`).toBe(true);
+      expect(layout.eventMode, `Chest menu should add event-mode on ${vp.name}`).toBe(true);
       expect(layout.logDisplay, `Chest menu should hide inline logs on ${vp.name}`).toBe('none');
       expect(layout.resultLogDisplay, `Chest result should restore inline logs on ${vp.name}`).not.toBe('none');
       expect(layout.viewport.height, `Chest viewport should grow when logs are hidden on ${vp.name}`).toBeGreaterThan(layout.resultViewport.height);
@@ -657,7 +657,70 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('#log-panel')).toBeVisible();
       await expect(page.locator('#log-content')).toContainText('Robinは12のダメージを受けた');
       await expect(page.locator('#log-content')).toContainText('宝箱から 120 ゴールドを見つけた！');
-      await expect(page.locator('#game-container')).not.toHaveClass(/chest-mode/);
+      await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
+    });
+
+    test('Dungeon event submenus hide logs only until result phase', async ({ page }) => {
+      await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { openSubmenu } = await import('/src/navigation.js');
+        const { updateUI } = await import('/src/ui.js');
+
+        Math.random = () => 0.1;
+        state.party = state.roster.slice(0, 4);
+        state.gameState = 'explore';
+        state.floor = 2;
+        state.gold = 100;
+        state.inventory = [];
+        state.activeMerchantStock = [
+          { type: 'item', key: 'HEAL_POTION', price: 1, soldOut: false },
+        ];
+        state.map[state.y][state.x].event = 'event_spring';
+        openSubmenu('event_spring', '怪しい泉を見つけた。澄んだ水が湧き出ている…');
+        updateUI();
+      });
+
+      await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
+      await expect(page.locator('#log-panel')).toBeHidden();
+      await expect(page.getByRole('button', { name: '泉の水を飲む' })).toBeVisible();
+      await page.getByRole('button', { name: '泉の水を飲む' }).click();
+      await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
+      await expect(page.locator('#log-panel')).toBeVisible();
+      await expect(page.locator('#log-content')).toContainText('泉の水は清らかだった');
+      await expect(page.getByRole('button', { name: '探索に戻る' })).toBeVisible();
+
+      await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { openSubmenu } = await import('/src/navigation.js');
+        state.map[state.y][state.x].event = 'event_tablet';
+        openSubmenu('event_tablet', '謎の石碑が立っている。古代の文字が刻まれている…');
+      });
+      await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
+      await expect(page.locator('#log-panel')).toBeHidden();
+      await expect(page.getByRole('button', { name: '文字を読む' })).toBeVisible();
+      await page.getByRole('button', { name: '文字を読む' }).click();
+      await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
+      await expect(page.locator('#log-panel')).toBeVisible();
+      await expect(page.locator('#log-content')).toContainText('石碑の文字を解読した');
+      await expect(page.getByRole('button', { name: '探索に戻る' })).toBeVisible();
+
+      await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { openSubmenu } = await import('/src/navigation.js');
+        state.map[state.y][state.x].event = 'event_merchant';
+        openSubmenu('event_merchant', 'フードを被ったさまよう商人が現れた！');
+      });
+      await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
+      await expect(page.locator('#log-panel')).toBeHidden();
+      await page.getByRole('button', { name: '取引をする' }).click();
+      await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
+      await expect(page.locator('#log-panel')).toBeHidden();
+      await expect(page.getByRole('button', { name: /傷薬/ })).toBeVisible();
+      await page.getByRole('button', { name: /傷薬/ }).click();
+      await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
+      await expect(page.locator('#log-panel')).toBeVisible();
+      await expect(page.locator('#log-content')).toContainText('商人から');
+      await expect(page.getByRole('button', { name: '取引を続ける' })).toBeVisible();
     });
 
     test('Standalone safe-area town menu is scroll-contained above party HUD', async ({ page }) => {

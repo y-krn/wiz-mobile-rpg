@@ -200,7 +200,7 @@ export function renderEventMerchantBuy(optGrid) {
             playSound("gold");
             addLog(`[!] 商人から[${name}]を${stock.price}Gで購入した。`);
             saveAutosave();
-            openSubmenu("event_merchant_buy", "商人「他に入用なものはあるかね？」", true);
+            openSubmenu("event_merchant_result", "商人「毎度あり。」");
           }
         });
       }
@@ -211,6 +211,33 @@ export function renderEventMerchantBuy(optGrid) {
   const btnLeave = document.createElement("button");
   btnLeave.className = "btn btn-danger btn-block";
   btnLeave.textContent = "買い物を終える";
+  btnLeave.addEventListener("click", () => {
+    addLog("商人は丁寧に一礼し、立ち去った。");
+    state.activeMerchantStock = [];
+    const currentCell = state.map[state.y][state.x];
+    if (currentCell.event === "event_merchant") {
+      currentCell.event = null;
+    }
+    saveAutosave();
+    closeSubmenu();
+  });
+  optGrid.appendChild(btnLeave);
+}
+
+export function renderEventMerchantResult(optGrid) {
+  document.getElementById("btn-submenu-back").style.display = "none";
+
+  const btnContinue = document.createElement("button");
+  btnContinue.className = "btn btn-neon btn-block";
+  btnContinue.textContent = "取引を続ける";
+  btnContinue.addEventListener("click", () => {
+    openSubmenu("event_merchant_buy", "商人「他に入用なものはあるかね？」", true);
+  });
+  optGrid.appendChild(btnContinue);
+
+  const btnLeave = document.createElement("button");
+  btnLeave.className = "btn btn-danger btn-block";
+  btnLeave.textContent = "探索に戻る";
   btnLeave.addEventListener("click", () => {
     addLog("商人は丁寧に一礼し、立ち去った。");
     state.activeMerchantStock = [];
