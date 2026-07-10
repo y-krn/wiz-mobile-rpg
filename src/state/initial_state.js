@@ -42,6 +42,7 @@ export const createDefaultCurrentRun = () => ({
   startFloor: 1,
   deepestFloor: 1,
   steps: 0,
+  floorSteps: {},
   battles: 0,
   kills: 0,
   elitesKilled: 0,

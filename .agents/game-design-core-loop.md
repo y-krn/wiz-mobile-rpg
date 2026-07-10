@@ -48,6 +48,14 @@ each pillar covers a weakness of the others.
    the primary long-term reward. The moment of identifying a find and having it
    change your build is a peak experience; protect its rarity and its impact.
 
+**Decided: the labyrinth is fixed, not regenerated per run** (2026-07-10).
+Per-run map regeneration (full roguelike / Torneko-style dungeons) was
+considered and rejected. The map stays fixed within a save (TICKET-054);
+mastery, shortcuts, and "come back for that enemy later" depend on it. The
+Torneko lineage contributes resource management and push-your-luck decisions
+(pillar 2), not map randomness. Unknownness comes from unexplored floors and
+unidentified loot (pillars 1 and 3), not from reshuffling known ground.
+
 ## Combat Is Subordinate To Exploration
 
 Combat exists to gate and pace exploration, not as the goal.
@@ -63,12 +71,30 @@ Combat exists to gate and pace exploration, not as the goal.
 ## Floor Density Targets
 
 Browser and mobile play means short sessions. Long, sparse floors kill the
-game. Target per floor:
+game. Targets below were calibrated against the TICKET-076 audit
+(`scratch/sim_floor_density.js`, 100 seeds x B1F-B5F); measured means in
+parentheses.
 
-- Roughly 20-30 walkable tiles of meaningful space.
-- 1-2 gimmicks (one-way passage, hidden door, pitfall, shortcut, etc.).
-- Around 5-6 combats.
-- At most 1 avoid-for-now threat (see FOE-like enemies below).
+- **Critical path** (entry to down stairs; B3/B5 also to boss): 20-30 steps
+  (measured 22-28 — on target). This, not total tile count, is the per-run
+  pacing metric.
+- **Full-loot route** (all normal chests, then stairs): 80-110 steps
+  (measured 92-99). A first-visit cost; revisits should beeline.
+- **Total reachable tiles** (~320 per floor) are exploration capacity
+  amortized across runs under the fixed labyrinth, not a per-run cost. There
+  is no per-run tile cap; do not shrink the map to chase one (TICKET-076 kept
+  map size, plan A on hold).
+- **Combat pacing**: ~5-6 fights on the frontier floor being explored; 2-3 on
+  known transit floors is acceptable and desirable. The flat 0.10 encounter
+  rate yields 9-10 fights on a full-loot route — tuning tracked in
+  TICKET-077.
+- **Gimmick learning load**: introduce at most 1-2 *new gimmick concepts* per
+  floor. Instance counts (one-way 2-5, secret doors 1-2, pitfalls 0-1) are
+  balance tuning numbers, not capped at 1-2; with a fixed labyrinth they
+  amortize into route knowledge.
+- **Avoid-for-now threats**: at most 1 *roaming* threat per floor. Bosses and
+  midbosses are destination fights, not avoid targets, and do not count.
+  B1-B3 currently have 0 — a gap owned by the FOE design track.
 
 These are pacing targets, not hard validation rules. Use them when reviewing
 map generation, encounter rates, and gimmick placement. A floor far outside
@@ -130,6 +156,9 @@ Not yet ticketed; this section records intent, not implementation scope.
   event.
 - Adding a fourth pillar. New systems must serve exploration, survival, or
   unknown loot; a system serving none of them is out of scope.
+- Per-run map regeneration. See the fixed-labyrinth decision under Design
+  Pillars; do not reintroduce it as a feature, difficulty mode, or "fresh
+  content" fix without revisiting that decision explicitly.
 
 ## Relationship To Other Documents
 

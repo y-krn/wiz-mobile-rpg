@@ -4,7 +4,7 @@ import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
 import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, getCharTrapBonus, EXP_LEVELS, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
-import { checkCellEvents, executeEnterDungeon, tickExplorationSpellEffects } from "../movement.js";
+import { checkCellEvents, executeEnterDungeon, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
 import { startCombat, triggerGameOver } from "../combat.js";
 import { openCampMenu } from "../camp.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
@@ -57,17 +57,10 @@ function calculateSecretSearchSuccessRate() {
 }
 
 function consumeSearchTurn() {
-  if (state.currentRun) {
-    state.currentRun.steps++;
-  }
+  recordExplorationSteps();
   tickExplorationSpellEffects();
 
-  let encounterChance = 0.06;
-  if (state.lightPower === "lomilwa") {
-    encounterChance = 0.03;
-  } else if (state.lightTurns > 0) {
-    encounterChance = 0.04;
-  }
+  const encounterChance = getEncounterChance();
 
   if ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance) {
     state.transitioning = true;

@@ -326,6 +326,9 @@ export function handleTrapAction(action) {
   if (action === "bypass") {
     if (state.currentRun) {
       state.currentRun.steps += 5;
+      if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
+      const key = String(state.floor);
+      state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + 5;
     }
     
     if (Math.random() < 0.25) {
@@ -388,6 +391,9 @@ export function handleTrapAction(action) {
         trap.state = "disabled";
         if (state.currentRun) {
           state.currentRun.steps += 3;
+          if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
+          const key = String(state.floor);
+          state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + 3;
           state.currentRun.trapsDisarmed++;
         }
         recordTrapCodex("pitfall", "disarmed");

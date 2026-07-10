@@ -10,6 +10,37 @@ import { openSubmenu } from "./navigation.js";
 import { triggerRunResult } from "./result.js";
 import { handleTrapStepCheck } from "./systems/traps.js";
 
+const ENCOUNTER_HIGH_STEP_LIMIT = 30;
+const ENCOUNTER_HIGH_RATE = 0.10;
+const ENCOUNTER_LOW_RATE = 0.04;
+const MILWA_ENCOUNTER_REDUCTION = 0.03;
+const LOMILWA_ENCOUNTER_REDUCTION = 0.05;
+
+export function recordExplorationSteps(count = 1) {
+  if (!state.currentRun) return;
+  state.currentRun.steps += count;
+  if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
+  const key = String(state.floor);
+  state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + count;
+}
+
+export function getCurrentFloorExplorationSteps() {
+  if (!state.currentRun) return 0;
+  return state.currentRun.floorSteps?.[String(state.floor)] || 0;
+}
+
+export function getEncounterChance() {
+  const floorSteps = getCurrentFloorExplorationSteps();
+  const baseRate = floorSteps <= ENCOUNTER_HIGH_STEP_LIMIT ? ENCOUNTER_HIGH_RATE : ENCOUNTER_LOW_RATE;
+  if (state.lightPower === "lomilwa") {
+    return Math.max(0, baseRate - LOMILWA_ENCOUNTER_REDUCTION);
+  }
+  if (state.lightTurns > 0) {
+    return Math.max(0, baseRate - MILWA_ENCOUNTER_REDUCTION);
+  }
+  return baseRate;
+}
+
 export function tickExplorationSpellEffects() {
   if (state.lightTurns > 0) {
     const cost = state.floor === 2 ? 2 : 1;
@@ -79,9 +110,7 @@ export function handleMove(action) {
       state.x += DX[state.dir];
       state.y += DY[state.dir];
       
-      if (state.currentRun) {
-        state.currentRun.steps++;
-      }
+      recordExplorationSteps();
       
       tickExplorationSpellEffects();
       
@@ -101,9 +130,7 @@ export function handleMove(action) {
     } else {
       state.x += DX[backDir];
       state.y += DY[backDir];
-      if (state.currentRun) {
-        state.currentRun.steps++;
-      }
+      recordExplorationSteps();
       tickExplorationSpellEffects();
       state.visitedMap[state.y][state.x] = true;
       
@@ -481,12 +508,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     return;
   }
 
-  let encounterChance = 0.10;
-  if (state.lightPower === "lomilwa") {
-    encounterChance = 0.05;
-  } else if (state.lightTurns > 0) {
-    encounterChance = 0.07;
-  }
+  const encounterChance = getEncounterChance();
 
   // Random Encounter
   if ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance) {
@@ -589,6 +611,7 @@ export function executeEnterDungeon(floor) {
   state.currentRun.startFloor = floor;
   state.currentRun.deepestFloor = floor;
   state.currentRun.floorsVisited = [floor];
+  state.currentRun.floorSteps = {};
 
   if (floor === 1) {
     state.x = START_X;
