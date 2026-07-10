@@ -83,7 +83,6 @@ export function initNewGame({ preserveSeed = false } = {}) {
     return count;
   });
   state.firstKills = [];
-  state.lastReturnedFloor = null;
   state.sessionMaxFloor = 1;
   state.currentRun = null;
   state.runHistory = [];
@@ -205,4 +204,3 @@ export function loadGame() {
   }
   initNewGame();
 }
-

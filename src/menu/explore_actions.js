@@ -296,25 +296,12 @@ export function renderGameOverMain(optGrid) {
 export function renderEnterDungeonSelect(optGrid) {
   const btnB1F = document.createElement("button");
   btnB1F.className = "btn btn-neon btn-block";
-  btnB1F.textContent = "地下1階から潜る";
+  btnB1F.textContent = "迷宮へ入る";
   btnB1F.addEventListener("click", () => {
     closeSubmenu();
     executeEnterDungeon(1);
   });
   optGrid.appendChild(btnB1F);
-
-  if (state.lastReturnedFloor && state.lastReturnedFloor > 1 && state.lastReturnedFloor <= 4) {
-    const btnResume = document.createElement("button");
-    btnResume.className = "btn btn-neon btn-block";
-    btnResume.textContent = `地下${state.lastReturnedFloor}階から再開`;
-    btnResume.addEventListener("click", () => {
-      const resumeFloor = state.lastReturnedFloor;
-      state.lastReturnedFloor = null;
-      closeSubmenu();
-      executeEnterDungeon(resumeFloor);
-    });
-    optGrid.appendChild(btnResume);
-  }
 }
 
 export function renderCampStatus(optGrid) {

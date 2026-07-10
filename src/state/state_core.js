@@ -36,8 +36,7 @@ export const state = {
   roamingMonsters: [],
   roamingMovementStepCount: 0,
 
-  // Tracking properties for return checkpointing
-  lastReturnedFloor: null,
+  // Tracking properties for the current descent
   sessionMaxFloor: 1,
 
   currentRun: null,

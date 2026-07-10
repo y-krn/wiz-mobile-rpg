@@ -5,6 +5,9 @@ economy, rewards, crafting, and post-clear flow. Use it when implementing or
 reviewing changes that affect XP, gold, shops, loot, materials, contracts,
 workshop actions, or B5F clear behavior.
 
+This is the economy-level refinement of `.agents/game-design-core-loop.md`
+(core loop, pillars, pacing targets). Resolve conflicts toward that document.
+
 ## Goal
 
 Move the game away from:

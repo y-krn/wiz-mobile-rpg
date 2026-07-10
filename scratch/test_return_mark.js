@@ -1,4 +1,4 @@
-// 帰還印システム（TICKET-041）検証テスト
+// 帰還印撤去（TICKET-075）検証テスト
 
 global.localStorage = (() => {
   let store = {};
@@ -14,13 +14,19 @@ const createDummyElement = () => {
   const listeners = {};
   return {
     style: {},
-    appendChild: () => createDummyElement(),
-    replaceChildren: () => {},
+    children: [],
+    appendChild(child) {
+      this.children.push(child);
+      return child;
+    },
+    replaceChildren() {
+      this.children = [];
+    },
     addEventListener: (event, callback) => {
       listeners[event] = callback;
     },
     click: () => {
-      if (listeners["click"]) listeners["click"]();
+      if (listeners.click) listeners.click();
     },
     classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
     setAttribute: () => {},
@@ -54,14 +60,15 @@ Object.defineProperty(global, "navigator", {
 
 (async () => {
   const { state } = await import("../src/state.js");
+  const { applySavePayload } = await import("../src/state/save_payload.js");
   const { triggerRunResult } = await import("../src/result.js");
+  const { enterDungeon } = await import("../src/movement.js");
   const { renderEnterDungeonSelect } = await import("../src/menu/explore_actions.js");
+  const { MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } = await import("../src/data.js");
 
-  console.log("=== 帰還印システム検証テスト開始 ===");
+  console.log("=== 帰還印撤去検証テスト開始 ===");
 
   let failed = 0;
-  // console.assert は失敗しても後続の [PASS] ログを止めない。
-  // 実際に結果へ反映させるため、成否を集計しつつラベルを出し分ける。
   const check = (cond, label, detail) => {
     if (cond) {
       console.log(`-> [PASS] ${label}`);
@@ -71,9 +78,12 @@ Object.defineProperty(global, "navigator", {
     }
   };
 
-  // triggerRunResult は currentRun が無いと即 return するため、
-  // 各ケースで最低限のラン状態を用意する。
+  const createVisitedMaps = () => Array.from({ length: 5 }, () =>
+    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
+  );
+
   const setupRun = (floor) => {
+    delete state.lastReturnedFloor;
     state.currentRun = {
       returnReason: null,
       startFloor: floor,
@@ -88,87 +98,87 @@ Object.defineProperty(global, "navigator", {
     state.materials = {};
     state.remains = [];
     state.gold = 1000;
+    state.inventory = [];
+    state.maps = Array.from({ length: 5 }, () =>
+      Array.from({ length: MAP_HEIGHT }, () => Array.from({ length: MAP_WIDTH }, () => ({ type: "floor" })))
+    );
+    state.visitedMaps = createVisitedMaps();
   };
 
-  // テスト1: B1F階段帰還（城帰還）では帰還印が失効すること
-  // 表面へ完全帰還＝仕切り直しなので、前ランのスクロール印は残さない。
-  setupRun(1);
-  state.lastReturnedFloor = 3;
-  state.floor = 1; // 1Fの階段から帰る
-  state.inventory = [];
-  triggerRunResult("stairs");
-  check(state.lastReturnedFloor === null, "B1F階段帰還で帰還印が失効", `actual: ${state.lastReturnedFloor}`);
-
-  // テスト2: スクロール帰還（escape_scroll）で、現在階（上限B4F）が保存されること
-  // B3Fからのスクロール帰還
   setupRun(3);
-  state.lastReturnedFloor = null;
   state.floor = 3;
-  state.inventory = [];
   triggerRunResult("escape_scroll");
-  check(state.lastReturnedFloor === 3, "B3Fスクロール帰還で3Fが保存", `actual: ${state.lastReturnedFloor}`);
+  check(!Object.hasOwn(state, "lastReturnedFloor"), "スクロール帰還で帰還印を書かない", `actual: ${state.lastReturnedFloor}`);
+  check(state.gameState === "result" && state.floor === 1, "スクロール帰還は町帰還結果へ進む", `state: ${state.gameState}, floor: ${state.floor}`);
 
-  // B5Fからのスクロール帰還（上限B4Fの検証）
   setupRun(5);
-  state.lastReturnedFloor = null;
   state.floor = 5;
-  state.inventory = [];
-  triggerRunResult("escape_scroll");
-  check(state.lastReturnedFloor === 4, "B5Fスクロール帰還で4Fが保存（上限）", `actual: ${state.lastReturnedFloor}`);
-
-  // テスト3: 全滅（gameover）で帰還印が null になること
-  setupRun(3);
-  state.lastReturnedFloor = 3;
-  state.floor = 3;
-  state.inventory = [];
   triggerRunResult("gameover");
-  check(state.lastReturnedFloor === null, "全滅時に帰還印がnull", `actual: ${state.lastReturnedFloor}`);
+  check(!Object.hasOwn(state, "lastReturnedFloor"), "全滅で帰還印を書かない", `actual: ${state.lastReturnedFloor}`);
+  check(state.gameState === "result" && state.floor === 1, "全滅後もB1F基点へ戻る", `state: ${state.gameState}, floor: ${state.floor}`);
 
-  // テスト4: ボス撃破（クリスタル所持）時、帰還印が null になること
-  // クリスタル所持状態でのスクロール帰還
-  setupRun(5);
-  state.lastReturnedFloor = 3;
-  state.floor = 5;
-  state.inventory = ["ANTIGRAVITY_CRYSTAL"];
-  triggerRunResult("escape_scroll");
-  check(state.lastReturnedFloor === null, "クリスタル所持スクロール帰還で帰還印がnull", `actual: ${state.lastReturnedFloor}`);
-
-  // テスト5: 「地下N階から再開」選択時に帰還印が消費（null）されること
-  state.lastReturnedFloor = 3;
-  state.maps = [
-    null, // B1F
-    null, // B2F
-    [ // B3F
-      [{ type: "stairs-up", x: 0, y: 0 }]
-    ],
-    null, // B4F
-    null  // B5F
-  ];
-  state.visitedMaps = [
-    null,
-    null,
-    [[false]], // B3F visited map
-    null,
-    null
-  ];
-  
-  const dummyGrid = createDummyElement();
-  let resumeButton = null;
-  dummyGrid.appendChild = (child) => {
-    if (child.textContent && child.textContent.includes("再開")) {
-      resumeButton = child;
-    }
-    return child;
+  const oldSave = {
+    x: START_X,
+    y: START_Y,
+    dir: 0,
+    prevX: START_X,
+    prevY: START_Y,
+    party: [{ name: "A", class: "Fighter", status: "ok" }],
+    roster: [{ name: "A", class: "Fighter", status: "ok" }],
+    gold: 1000,
+    inventory: [],
+    seed: 1,
+    floor: 1,
+    maps: state.maps,
+    visitedMaps: createVisitedMaps(),
+    lightTurns: 0,
+    lightPower: "",
+    repelTurns: 0,
+    dumapicTurns: 0,
+    dumapicHint: "",
+    eventCooldownTurns: 0,
+    activeMerchantStock: [],
+    gameState: "town",
+    combatState: null,
+    chestState: null,
+    logs: [],
+    floorChestsOpened: [0, 0, 0, 0, 0],
+    floorChestsTotal: [0, 0, 0, 0, 0],
+    firstKills: [],
+    lastReturnedFloor: 4,
+    currentRun: null,
+    runHistory: [],
+    deathLogs: [],
+    remains: [],
+    codex: {},
+    roamingMonsters: [],
+    firstChestUnidentifiedGuaranteed: false,
+    roamingMovementStepCount: 0,
+    contracts: [],
+    activeContract: null,
+    completedContracts: [],
+    storage: [],
+    storageMax: 30,
+    identifyTickets: 0,
+    cleared: false,
+    materials: {},
+    dungeonMemory: { traps: {} }
   };
+  delete state.lastReturnedFloor;
+  applySavePayload(oldSave);
+  check(!Object.hasOwn(state, "lastReturnedFloor"), "旧セーブの帰還印をロード時に読まない", `actual: ${state.lastReturnedFloor}`);
+
+  state.party = [{ name: "A", class: "Fighter", status: "ok" }];
+  state.visitedMaps = createVisitedMaps();
+  enterDungeon();
+  check(state.gameState === "explore" && state.floor === 1, "旧帰還印があっても進入はB1F固定", `state: ${state.gameState}, floor: ${state.floor}`);
+  check(state.visitedMaps[0][START_Y][START_X] === true, "B1F入口から探索開始", "start cell not visited");
+
+  state.lastReturnedFloor = 4;
+  const dummyGrid = createDummyElement();
   renderEnterDungeonSelect(dummyGrid);
-  
-  if (resumeButton) {
-    resumeButton.click();
-    check(state.lastReturnedFloor === null, "再開選択時に帰還印が消費（null）", `actual: ${state.lastReturnedFloor}`);
-  } else {
-    failed++;
-    console.error("-> [FAIL] 再開ボタンが生成されなかった");
-  }
+  check(dummyGrid.children.length === 1, "進入UIは単一導線", `buttons: ${dummyGrid.children.length}`);
+  check(!dummyGrid.children.some(child => child.textContent.includes("再開")), "進入UIに再開選択肢なし");
 
   console.log("=== 全テスト完了 ===");
   if (failed > 0) {

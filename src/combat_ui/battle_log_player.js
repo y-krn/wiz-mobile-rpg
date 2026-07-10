@@ -102,7 +102,6 @@ export function playBattleLogs(queue, index) {
     if (state.map[state.y]?.[state.x]?.event === "boss") {
       state.map[state.y][state.x].event = null;
     }
-    state.lastReturnedFloor = null;
     addInventoryItem("ANTIGRAVITY_CRYSTAL");
     if (state.currentRun) {
       state.currentRun.itemsFound.push("ANTIGRAVITY_CRYSTAL");

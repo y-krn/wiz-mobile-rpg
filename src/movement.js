@@ -577,11 +577,7 @@ export function enterDungeon() {
     return;
   }
 
-  if (state.lastReturnedFloor && state.lastReturnedFloor > 1 && state.lastReturnedFloor <= 4) {
-    openSubmenu("enter_dungeon_select", "迷宮へ入る準備：");
-  } else {
-    executeEnterDungeon(1);
-  }
+  executeEnterDungeon(1);
 }
 
 export function executeEnterDungeon(floor) {
@@ -611,7 +607,7 @@ export function executeEnterDungeon(floor) {
 
   state.dir = DIR_N;
   state.visitedMap[state.y][state.x] = true;
-  addLog(`地下${state.floor}階の階段から探索を再開した。冷たい石造りの暗闇が迫る...`);
+  addLog(`地下${state.floor}階の階段から探索を開始した。冷たい石造りの暗闇が迫る...`);
   checkFloorOmenMessage();
   playSound("move");
   saveAutosave();

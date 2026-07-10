@@ -194,7 +194,6 @@ export function normalizeSavePayload(data) {
   normalized.logs = data.logs ?? ["冒険を再開しました。"];
   normalized.floorChestsOpened = data.floorChestsOpened ?? [0, 0, 0, 0, 0];
   normalized.firstKills = data.firstKills ?? [];
-  normalized.lastReturnedFloor = data.lastReturnedFloor ?? null;
   normalized.currentRun = data.currentRun ?? null;
   if (normalized.currentRun) {
     delete normalized.currentRun.seenOmenFloors;

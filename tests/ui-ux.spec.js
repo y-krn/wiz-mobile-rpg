@@ -461,7 +461,7 @@ for (const vp of VIEWPORTS) {
 
       await page.locator('#btn-town-dungeon').click();
       if (await page.locator('#submenu-controls').isVisible()) {
-        await page.getByRole('button', { name: '地下1階から潜る' }).click();
+        await page.getByRole('button', { name: '迷宮へ入る' }).click();
       }
       await expect(page.locator('#explore-controls')).toBeVisible();
 
@@ -482,7 +482,7 @@ for (const vp of VIEWPORTS) {
         const { openSubmenu } = await import('/src/navigation.js');
         openSubmenu('enter_dungeon_select', '迷宮へ入る準備：');
       });
-      const dungeonStartButton = page.getByRole('button', { name: '地下1階から潜る' });
+      const dungeonStartButton = page.getByRole('button', { name: '迷宮へ入る' });
       await expect(dungeonStartButton).toBeVisible();
 
       const box = await dungeonStartButton.boundingBox();

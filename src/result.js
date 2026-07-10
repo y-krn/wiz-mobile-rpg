@@ -273,7 +273,6 @@ export function triggerRunResult(reason) {
     state.y = START_Y;
     state.dir = DIR_N;
     state.floor = 1;
-    state.lastReturnedFloor = null;
 
     // 図鑑スタッツの更新
     if (state.codex) {
@@ -334,24 +333,10 @@ export function triggerRunResult(reason) {
     state.codex.stats.totalChests += state.currentRun.chestsOpened;
   }
 
-  const returnedFloor = state.floor;
   state.x = START_X;
   state.y = START_Y;
   state.dir = DIR_N;
   state.floor = 1;
-
-  if (reason === "escape_scroll") {
-    const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
-    if (hasCrystal) {
-      state.lastReturnedFloor = null;
-    } else {
-      state.lastReturnedFloor = Math.min(4, returnedFloor);
-    }
-  } else if (reason === "stairs") {
-    // B1F階段帰還（城帰還）＝表面へ完全帰還。前ランのスクロール帰還印は失効させる
-    // （地下1階から潜り直す＝仕切り直しなので、古い深層印を残さない）。
-    state.lastReturnedFloor = null;
-  }
 
   const runSummary = {
     id: "run_" + Date.now() + "_" + Math.floor(Math.random() * 1000),

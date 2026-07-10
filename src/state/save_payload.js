@@ -53,7 +53,6 @@ export function createSavePayload() {
     floorChestsOpened: state.floorChestsOpened,
     floorChestsTotal: state.floorChestsTotal,
     firstKills: state.firstKills,
-    lastReturnedFloor: state.lastReturnedFloor,
     currentRun: state.currentRun,
     runHistory: state.runHistory,
     deathLogs: state.deathLogs,
@@ -109,7 +108,6 @@ export function applySavePayload(data) {
   state.floorChestsOpened = data.floorChestsOpened;
   state.floorChestsTotal = data.floorChestsTotal;
   state.firstKills = data.firstKills;
-  state.lastReturnedFloor = data.lastReturnedFloor;
   state.sessionMaxFloor = data.floor;
   state.currentRun = data.currentRun;
   state.runHistory = data.runHistory;
@@ -157,4 +155,3 @@ export function syncPartyToRoster() {
     });
   }
 }
-
