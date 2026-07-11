@@ -39,7 +39,7 @@ globalThis.localStorage = (() => {
 
 (async () => {
   const assert = (await import("assert")).default;
-  const { state, initNewGame, saveAutosave, loadGame } = await import("../src/state.js");
+  const { state, initNewGame, saveAutosave, loadGame, createDefaultCurrentRun } = await import("../src/state.js");
   const { openSubmenu } = await import("../src/navigation.js");
 
   console.log("=== SUBMENU SAVE COLLAPSE VERIFICATION ===");
@@ -64,11 +64,14 @@ globalThis.localStorage = (() => {
   initNewGame();
   state.gameState = "explore";
   state.floor = 2;
-  openSubmenu("camp_status", "キャンプ"); // prevGameState="explore"
+  state.currentRun = createDefaultCurrentRun();
+  state.currentRun.campRested = { 2: true };
+  openSubmenu("event_camp", "野営地"); // prevGameState="explore"
   saveAutosave();
   state.gameState = "town";
   loadGame();
   assert.strictEqual(state.gameState, "explore", "explore submenu should resume as explore");
+  assert.deepStrictEqual(state.currentRun.campRested, { 2: true }, "camp usage should survive roundtrip");
   console.log("-> [PASS] 探索サブメニュー保存→再開でexplore復帰");
 
   // [C] 罠遭遇中(activeTrapState未保存)は explore へ畳まれる

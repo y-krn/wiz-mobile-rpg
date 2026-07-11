@@ -135,21 +135,6 @@ function setSealedGate(grid, floor, edge, start) {
   return gate;
 }
 
-function placeTargetSealedGate(grid, floor, start, target) {
-  if (!target) return null;
-  for (let dir = 0; dir < 4; dir++) {
-    const x = target.x - DX[dir];
-    const y = target.y - DY[dir];
-    const cell = grid[y]?.[x];
-    if (!cell || cell.walls[dir]) continue;
-    return setSealedGate(grid, floor, {
-      x, y, dir, nx: target.x, ny: target.y,
-      home: { x, y }, shortcutDelta: 0
-    }, start);
-  }
-  return null;
-}
-
 function closeWall(grid, x, y, dir) {
   const nx = x + DX[dir];
   const ny = y + DY[dir];
@@ -1074,18 +1059,49 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng);
   let wardenPlacement = stairsDownCoord
     ? placeWardenGateWithStairFallback(grid, floor, suCoord, stairsDownCoord)
-    : { gate: placeWardenGate(grid, floor, suCoord, bossCoord) || placeTargetSealedGate(grid, floor, suCoord, bossCoord), stairsDownCoord };
+    : { gate: placeWardenGate(grid, floor, suCoord, bossCoord), stairsDownCoord };
   if (!wardenPlacement.gate && bossCoord && stairsDownCoord) {
     wardenPlacement = { gate: placeWardenGate(grid, floor, suCoord, bossCoord), stairsDownCoord };
   }
-  if (!wardenPlacement.gate) {
-    wardenPlacement = { gate: placeTargetSealedGate(grid, floor, suCoord, stairsDownCoord || bossCoord), stairsDownCoord };
-  }
   const wardenGate = wardenPlacement.gate;
-  if (stairsDownCoord) {
-    stairsDownCoord = wardenPlacement.stairsDownCoord;
-  }
+  if (stairsDownCoord) stairsDownCoord = wardenPlacement.stairsDownCoord;
 
+  if ((floor === 2 || floor === 4) && wardenGate) {
+    const endpoints = [
+      { x: wardenGate.x, y: wardenGate.y },
+      { x: wardenGate.nx, y: wardenGate.ny }
+    ].filter(({ x, y }) => grid[y]?.[x]?.type === "empty");
+    const camp = endpoints.find(({ x, y }) => !grid[y][x].event && !grid[y][x].trap) || endpoints[0];
+    if (camp) {
+      const cell = grid[camp.y][camp.x];
+      const displacedEvent = cell.event;
+      const displacedTrap = cell.trap;
+      cell.event = EVENT_TYPES.CAMP;
+      delete cell.trap;
+
+      if (displacedEvent || displacedTrap) {
+        const relocation = [];
+        for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+          for (let x = 1; x < MAP_WIDTH - 1; x++) {
+            const candidate = grid[y][x];
+            if (candidate.type === "empty" && !candidate.event && !candidate.trap && candidate.walls.some(wall => !wall)) {
+              relocation.push({ x, y });
+            }
+          }
+        }
+        shuffleInPlace(relocation, rng);
+        const target = relocation[0];
+        if (target && displacedEvent) grid[target.y][target.x].event = displacedEvent;
+        if (target && displacedTrap) {
+          grid[target.y][target.x].trap = {
+            ...displacedTrap,
+            id: `trap_${floor}_${target.x}_${target.y}`,
+            position: { x: target.x, y: target.y }
+          };
+        }
+      }
+    }
+  }
   return {
     grid,
     stairsDownCoord,

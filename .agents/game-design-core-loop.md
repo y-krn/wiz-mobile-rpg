@@ -118,6 +118,16 @@ Design test for any new exploration feature: **what does a step disclose,
 and what decision does that change?** If the answer is "nothing" or "none",
 the feature is scenery.
 
+### Places, not floors
+
+Each floor is a named place with its own grammar and rules (TICKET-084): a
+fixed set of guaranteed elements re-skinned per theme, a local "law" that is
+the world-fiction reading of its perception rules and trap distribution
+(TICKET-079), and a name that is itself on the ladder — unknown ("???") until
+first entry. The player's reward for descending is not a bigger number but a
+new culture to read. Layout stays fixed (see the fixed-labyrinth decision);
+place identity is what makes the fixed map worth remembering.
+
 ## Combat Is Subordinate To Exploration
 
 Combat exists to gate and pace exploration, not as the goal.

@@ -165,6 +165,7 @@ export function updateUI() {
     "chest_disarmer_select",
     "chest_opener_select",
     "event_spring",
+    "event_camp",
     "event_tablet",
     "event_merchant",
     "event_merchant_buy"

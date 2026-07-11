@@ -21,7 +21,7 @@ export function getWardenPerception(floor) {
 export function isInPlayerLineOfSight(player, monster, grid) {
   let x = player.x;
   let y = player.y;
-  while (grid[y]?.[x] && !grid[y][x].walls[player.dir]) {
+  while (grid[y]?.[x] && grid[y][x].walls?.[player.dir] === false) {
     x += player.dx[player.dir];
     y += player.dy[player.dir];
     if (x === monster.x && y === monster.y) return true;

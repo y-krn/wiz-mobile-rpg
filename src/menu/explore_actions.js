@@ -6,6 +6,7 @@ import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDe
 import { triggerRunResult } from "../result.js";
 import { advanceRoamingTurn, challengePendingWarden, checkCellEvents, createNoiseEvent, executeEnterDungeon, getEncounterChance, recordExplorationSteps, retreatPendingWarden, tickExplorationSpellEffects } from "../movement.js";
 import { WARDEN_PERCEPTION_HINTS } from "../systems/warden_perception.js";
+import { getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
 import { startCombat, triggerGameOver } from "../combat.js";
 import { openCampMenu } from "../camp.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
@@ -444,6 +445,41 @@ export function renderEventSpring(optGrid) {
     addLog("泉に近づかず、そのまま立ち去った。");
     closeSubmenu();
   });
+  optGrid.appendChild(btnLeave);
+}
+
+export function renderEventCamp(optGrid) {
+  document.getElementById("btn-submenu-back").style.display = "none";
+  const status = getCampRestStatus(state);
+
+  const info = document.createElement("p");
+  info.className = "submenu-description";
+  info.textContent = status.reason === "locked"
+    ? "門番が徘徊する間は休めない。封印門の門番を倒せば、この野営地を使える。"
+    : status.reason === "used"
+      ? "この野営地では、すでに今回の遠征中に休息した。"
+      : "生存メンバーの失ったHP・MPを40%回復する。状態異常や死亡は回復しない。";
+  optGrid.appendChild(info);
+
+  if (status.available) {
+    const btnRest = document.createElement("button");
+    btnRest.className = "btn btn-neon btn-block";
+    btnRest.textContent = "休息する";
+    btnRest.addEventListener("click", () => {
+      const result = restAtCamp(state);
+      if (!result.available) return;
+      playSound("heal");
+      addLog(`[!] 野営地で休息した。パーティ合計 HP ${result.hpRecovered} / MP ${result.mpRecovered} 回復。`);
+      saveAutosave();
+      closeSubmenu();
+    });
+    optGrid.appendChild(btnRest);
+  }
+
+  const btnLeave = document.createElement("button");
+  btnLeave.className = "btn btn-danger btn-block";
+  btnLeave.textContent = "立ち去る";
+  btnLeave.addEventListener("click", closeSubmenu);
   optGrid.appendChild(btnLeave);
 }
 

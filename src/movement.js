@@ -524,6 +524,11 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     return;
   }
 
+  if (cell.event === EVENT_TYPES.CAMP) {
+    openSubmenu(EVENT_TYPES.CAMP, "野営地。門番の気配を警戒しながら休息場所を確かめる。");
+    return;
+  }
+
   // Tablet encounter
   if (cell.event === EVENT_TYPES.TABLET) {
     if (state.codex && state.codex.events && state.codex.events.facilities) {

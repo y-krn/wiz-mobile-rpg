@@ -761,6 +761,38 @@ for (const vp of VIEWPORTS) {
       await expect(page.getByRole('button', { name: '取引を続ける' })).toBeVisible();
     });
 
+    test('Camp rest is thumb-safe and limited to once per run', async ({ page }) => {
+      await page.evaluate(async () => {
+        const { state, createDefaultCurrentRun } = await import('/src/state.js');
+        const { getWardenGateId } = await import('/src/state/warden_gates.js');
+        const { openSubmenu } = await import('/src/navigation.js');
+        state.party = state.roster.slice(0, 4);
+        state.party.forEach(char => {
+          char.hp = Math.max(1, Math.floor(char.maxHp / 2));
+          char.mp = Math.floor(char.maxMp / 2);
+        });
+        state.floor = 2;
+        state.gameState = 'explore';
+        state.currentRun = createDefaultCurrentRun();
+        state.openedGates = [getWardenGateId(2)];
+        openSubmenu('event_camp', '野営地');
+      });
+
+      const rest = page.getByRole('button', { name: '休息する' });
+      await expect(rest).toBeVisible();
+      expect((await rest.boundingBox()).height).toBeGreaterThanOrEqual(44);
+      await rest.click();
+      await expect(page.locator('#log-content')).toContainText('野営地で休息した');
+
+      await page.evaluate(async () => {
+        const { openSubmenu } = await import('/src/navigation.js');
+        openSubmenu('event_camp', '野営地');
+      });
+      await expect(page.getByText('すでに今回の遠征中に休息した')).toBeVisible();
+      await expect(page.getByRole('button', { name: '休息する' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: '立ち去る' })).toBeVisible();
+    });
+
     test('Standalone safe-area town menu is scroll-contained above party HUD', async ({ page }) => {
       await page.addStyleTag({
         content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,

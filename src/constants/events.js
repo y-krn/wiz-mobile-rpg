@@ -1,6 +1,7 @@
 export const EVENT_TYPES = {
   CHEST: "chest",
   SPRING: "event_spring",
+  CAMP: "event_camp",
   TABLET: "event_tablet",
   MERCHANT: "event_merchant",
   MIDBOSS: "midboss",
@@ -13,4 +14,3 @@ export const TRAP_TYPES = {
   ALARM: "alarm",
   PITFALL: "pitfall"
 };
-

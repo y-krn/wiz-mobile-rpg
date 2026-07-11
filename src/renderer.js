@@ -957,6 +957,7 @@ export class DungeonRenderer {
           (cell.type === "stairs-up" && state.visitedMap[y][x]);
         const hasEvent = cell.event === EVENT_TYPES.CHEST || 
                           cell.event === EVENT_TYPES.SPRING || 
+                          cell.event === EVENT_TYPES.CAMP ||
                           cell.event === EVENT_TYPES.TABLET || 
                           cell.event === EVENT_TYPES.MERCHANT || 
                           cell.event === EVENT_TYPES.MIDBOSS || 

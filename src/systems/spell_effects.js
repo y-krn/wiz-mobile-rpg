@@ -38,6 +38,7 @@ function getNearbyEventHints(state, range) {
   const labels = {
     [EVENT_TYPES.CHEST]: "宝箱",
     [EVENT_TYPES.SPRING]: "泉",
+    [EVENT_TYPES.CAMP]: "野営地",
     [EVENT_TYPES.TABLET]: "石碑",
     [EVENT_TYPES.MERCHANT]: "商人",
     [EVENT_TYPES.MIDBOSS]: "強敵",
