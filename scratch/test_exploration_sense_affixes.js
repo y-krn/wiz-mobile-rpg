@@ -130,7 +130,13 @@ function assertMovementRunsTraceConsumer() {
     difficulty: 12,
   };
 
-  processExplorationResolution(2, 1);
+  const originalRandom = Math.random;
+  Math.random = () => 0.99;
+  try {
+    processExplorationResolution(2, 1);
+  } finally {
+    Math.random = originalRandom;
+  }
   assert(state.map[3][2].trap.state === "discovered", "movement resolution should call traceRead consumer");
   assert(state.map[3][2].trap.traceReadLevel === 3, "movement consumer should keep traceRead level");
 }

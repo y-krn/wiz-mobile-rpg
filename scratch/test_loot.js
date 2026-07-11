@@ -345,12 +345,18 @@ import assert from "assert";
     state.map[state.y][state.x].event = "chest";
 
     const originalSetTimeout = global.setTimeout;
+    const originalRandom = Math.random;
     global.setTimeout = (cb) => {
       cb();
       return 0;
     };
-    openChestDirectly(state.party[1]);
-    global.setTimeout = originalSetTimeout;
+    Math.random = () => 0.99;
+    try {
+      openChestDirectly(state.party[1]);
+    } finally {
+      global.setTimeout = originalSetTimeout;
+      Math.random = originalRandom;
+    }
 
     assert.strictEqual(state.party[0].status, "ok", "Default front character should not take selected opener trap");
     assert.strictEqual(state.party[0].hp, 20, "Default front character HP should remain unchanged");
