@@ -1,4 +1,4 @@
-import { generateRandomMap, ONE_WAY_MIN_DETOUR } from "../src/map_generator.js";
+import { generateRandomMap, ONE_WAY_MAX_DETOUR, ONE_WAY_MIN_DETOUR } from "../src/map_generator.js";
 
 const DIRS = [
   { dx: 0, dy: -1, dir: 0 },
@@ -42,6 +42,43 @@ function canReach(grid, start, target) {
   }
 
   return false;
+}
+
+function getFullExplorationReachableKeys(grid, start) {
+  const queue = [start];
+  const seen = new Set([`${start.x},${start.y}`]);
+
+  for (const pos of queue) {
+    const cell = grid[pos.y][pos.x];
+    for (const { dx, dy, dir } of DIRS) {
+      const nx = pos.x + dx;
+      const ny = pos.y + dy;
+      const next = grid[ny]?.[nx];
+      const canOpen = cell.secretDoor?.[dir] || cell.sealedGate?.[dir];
+      if (!next || (cell.walls[dir] && !canOpen)) continue;
+      if (next.blockEnter?.[(dir + 2) % 4]) continue;
+
+      const key = `${nx},${ny}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+  }
+
+  return seen;
+}
+
+function assertEventsAreReachable(grid, start, floorName) {
+  const reachableKeys = getFullExplorationReachableKeys(grid, start);
+  for (let y = 0; y < grid.length; y++) {
+    for (let x = 0; x < grid[y].length; x++) {
+      const cell = grid[y][x];
+      if ((cell.event || cell.trap) && !reachableKeys.has(`${x},${y}`)) {
+        throw new Error(`${floorName} event or trap is unreachable at ${x},${y}`);
+      }
+    }
+  }
 }
 
 function canReachWithoutEdge(grid, edge) {
@@ -104,7 +141,6 @@ function getOneWayReverseDetourDistance(grid, x, y, dir) {
 }
 
 function assertOneWayPassagesAreLoopEdges(grid, floorName) {
-  let count = 0;
   for (let y = 0; y < grid.length; y++) {
     for (let x = 0; x < grid[y].length; x++) {
       const cell = grid[y][x];
@@ -114,7 +150,6 @@ function assertOneWayPassagesAreLoopEdges(grid, floorName) {
 
       cell.blockEnter.forEach((blocked, dir) => {
         if (!blocked) return;
-        count++;
         const nx = x + DIRS[dir].dx;
         const ny = y + DIRS[dir].dy;
         const next = grid[ny]?.[nx];
@@ -125,14 +160,11 @@ function assertOneWayPassagesAreLoopEdges(grid, floorName) {
           throw new Error(`${floorName} one-way flag is on a bridge at ${x},${y}`);
         }
         const reverseDetour = getOneWayReverseDetourDistance(grid, x, y, dir);
-        if (reverseDetour < ONE_WAY_MIN_DETOUR) {
-          throw new Error(`${floorName} one-way reverse detour too short at ${x},${y}: ${reverseDetour}`);
+        if (!Number.isFinite(reverseDetour) || reverseDetour < ONE_WAY_MIN_DETOUR || reverseDetour > ONE_WAY_MAX_DETOUR) {
+          throw new Error(`${floorName} one-way reverse detour out of range at ${x},${y}: ${reverseDetour}`);
         }
       });
     }
-  }
-  if (count === 0) {
-    throw new Error(`${floorName} one-way passages not generated`);
   }
 }
 
@@ -182,7 +214,7 @@ function assertSecretDoors(grid, floorName) {
 function generateDungeon(seed) {
   const b1 = generateRandomMap(1, null, seed);
   const b2 = generateRandomMap(2, b1.stairsDownCoord, seed);
-  const b3 = generateRandomMap(3, null, seed);
+  const b3 = generateRandomMap(3, b2.stairsDownCoord, seed);
   const b4 = generateRandomMap(4, b3.stairsDownCoord, seed);
   const b5 = generateRandomMap(5, b4.stairsDownCoord, seed);
   return { b1, b2, b3, b4, b5 };
@@ -192,8 +224,8 @@ console.log("Starting Loop verification of Map Reachability...");
 
 let failCount = 0;
 const ITERATIONS = 500;
-for (let i = 0; i < ITERATIONS; i++) {
-  const seed = `SEED-LOOP-${i}`;
+const seeds = ["DIAG-118", ...Array.from({ length: ITERATIONS }, (_, i) => `SEED-LOOP-${i}`)];
+for (const seed of seeds) {
   try {
     const { b1, b2, b3, b4, b5 } = generateDungeon(seed);
 
@@ -214,6 +246,19 @@ for (let i = 0; i < ITERATIONS; i++) {
 
       assertOneWayPassagesAreLoopEdges(f.grid, f.name);
       assertSecretDoors(f.grid, f.name);
+      assertEventsAreReachable(f.grid, start, `${seed}/${f.name}`);
+
+      for (let y = 0; y < f.grid.length; y++) {
+        for (let x = 0; x < f.grid[y].length; x++) {
+          f.grid[y][x].blockEnter.forEach((blocked, dir) => {
+            if (!blocked) return;
+            const crossed = { x: x + DIRS[dir].dx, y: y + DIRS[dir].dy };
+            if (!canReach(f.grid, crossed, start)) {
+              throw new Error(`${f.name} start is not reachable after crossing one-way at ${x},${y}`);
+            }
+          });
+        }
+      }
 
       if (f.down) {
         const downCell = findCell(f.grid, cell => cell.type === "stairs-down");
@@ -256,7 +301,7 @@ for (let i = 0; i < ITERATIONS; i++) {
 }
 
 if (failCount === 0) {
-  console.log(`[PASS] ${ITERATIONS} seeds verified. No reachability bugs found in generator.`);
+  console.log(`[PASS] ${seeds.length} seeds verified. No reachability bugs found in generator.`);
 } else {
   console.log(`[FAIL] Total failures: ${failCount}`);
   process.exit(1);

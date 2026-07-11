@@ -20,7 +20,7 @@ const ONE_WAY_PASSAGE_COUNTS = {
   5: 5
 };
 export const ONE_WAY_MIN_DETOUR = 6;
-const ONE_WAY_DETOUR_STAGES = [ONE_WAY_MIN_DETOUR, 4, 0];
+export const ONE_WAY_MAX_DETOUR = 64;
 
 const SECRET_DOOR_COUNTS = {
   1: { shortcut: 1, room: 1 },
@@ -389,6 +389,44 @@ function getOneWayReverseDetourDistance(grid, option) {
   return getDirectedDistance(grid, reverseStart, { x: option.x, y: option.y });
 }
 
+function hasValidOneWayReverseDetours(grid) {
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      for (let blockDir = 0; blockDir < 4; blockDir++) {
+        if (!grid[y][x].blockEnter[blockDir]) continue;
+        const distance = getOneWayReverseDetourDistance(grid, { x, y, blockDir });
+        if (!Number.isFinite(distance) || distance < ONE_WAY_MIN_DETOUR || distance > ONE_WAY_MAX_DETOUR) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+function removeInvalidOneWayPassages(grid, start) {
+  let removed;
+  do {
+    removed = false;
+    for (let y = 1; y < MAP_HEIGHT - 1 && !removed; y++) {
+      for (let x = 1; x < MAP_WIDTH - 1 && !removed; x++) {
+        for (let blockDir = 0; blockDir < 4; blockDir++) {
+          if (!grid[y][x].blockEnter[blockDir]) continue;
+          const distance = getOneWayReverseDetourDistance(grid, { x, y, blockDir });
+          const crossed = { x: x + DX[blockDir], y: y + DY[blockDir] };
+          if (Number.isFinite(distance) &&
+              distance >= ONE_WAY_MIN_DETOUR &&
+              distance <= ONE_WAY_MAX_DETOUR &&
+              Number.isFinite(getDirectedDistance(grid, crossed, start))) continue;
+          grid[y][x].blockEnter[blockDir] = false;
+          removed = true;
+          break;
+        }
+      }
+    }
+  } while (removed);
+}
+
 function placeSecretShortcuts(grid, targetCount, rng) {
   const candidates = [];
 
@@ -417,8 +455,9 @@ function placeSecretShortcuts(grid, targetCount, rng) {
   return placed;
 }
 
-function placeSecretRooms(grid, targetCount, requiredKeys, rng) {
+function placeSecretRooms(grid, targetCount, requiredKeys, start, rng) {
   const candidates = [];
+  const reachableKeys = getDirectedReachableCellKeys(grid, start);
 
   for (let y = 1; y < MAP_HEIGHT - 1; y++) {
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
@@ -431,6 +470,7 @@ function placeSecretRooms(grid, targetCount, requiredKeys, rng) {
         const py = y + DY[dir];
         const passage = grid[py]?.[px];
         if (!passage || !isPassageCell(grid, px, py)) continue;
+        if (!reachableKeys.has(`${px},${py}`)) continue;
         if (passage.event || passage.type !== "empty") continue;
         const passageDir = OPPOSITE_DIR[dir];
         if (!passage.walls[passageDir] || !roomCell.walls[dir]) continue;
@@ -458,7 +498,7 @@ function placeSecretDoors(grid, floor, start, stairsDownCoord, bossCoord, rng) {
   const counts = SECRET_DOOR_COUNTS[floor] || { shortcut: 0, room: 0 };
   const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, bossCoord);
   const shortcuts = placeSecretShortcuts(grid, counts.shortcut, rng);
-  const rooms = placeSecretRooms(grid, counts.room, requiredKeys, rng);
+  const rooms = placeSecretRooms(grid, counts.room, requiredKeys, start, rng);
 
   if (!canReachAllRequired(grid, start, requiredKeys)) {
     throw new Error(`B${floor}F required path blocked by secret doors`);
@@ -492,24 +532,21 @@ function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng
         ]
   }));
 
-  for (const minDetour of ONE_WAY_DETOUR_STAGES) {
-    for (const candidate of candidates) {
-      if (placed >= targetCount) break;
-      if (usedEdges.has(candidate.key)) continue;
+  for (const candidate of candidates) {
+    if (placed >= targetCount) break;
+    if (usedEdges.has(candidate.key)) continue;
 
-      for (const option of candidate.options) {
-        const cell = grid[option.y][option.x];
-        if (cell.blockEnter[option.blockDir]) continue;
+    for (const option of candidate.options) {
+      const cell = grid[option.y][option.x];
+      if (cell.blockEnter[option.blockDir]) continue;
 
-        cell.blockEnter[option.blockDir] = true;
-        const reverseDetour = getOneWayReverseDetourDistance(grid, option);
-        if (reverseDetour >= minDetour && canReachAllRequired(grid, start, requiredKeys)) {
-          usedEdges.add(candidate.key);
-          placed++;
-          break;
-        }
-        cell.blockEnter[option.blockDir] = false;
+      cell.blockEnter[option.blockDir] = true;
+      if (hasValidOneWayReverseDetours(grid) && canReachAllRequired(grid, start, requiredKeys)) {
+        usedEdges.add(candidate.key);
+        placed++;
+        break;
       }
+      cell.blockEnter[option.blockDir] = false;
     }
   }
 
@@ -1064,8 +1101,10 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   }
   const wardenGate = wardenPlacement.gate;
   if (stairsDownCoord) stairsDownCoord = wardenPlacement.stairsDownCoord;
+  removeInvalidOneWayPassages(grid, suCoord);
 
   if ((floor === 2 || floor === 4) && wardenGate) {
+    const relocationReachableKeys = getDirectedReachableCellKeys(grid, suCoord);
     const endpoints = [
       { x: wardenGate.x, y: wardenGate.y },
       { x: wardenGate.nx, y: wardenGate.ny }
@@ -1083,7 +1122,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
         for (let y = 1; y < MAP_HEIGHT - 1; y++) {
           for (let x = 1; x < MAP_WIDTH - 1; x++) {
             const candidate = grid[y][x];
-            if (candidate.type === "empty" && !candidate.event && !candidate.trap && candidate.walls.some(wall => !wall)) {
+            if (candidate.type === "empty" && !candidate.event && !candidate.trap &&
+                candidate.walls.some(wall => !wall) && relocationReachableKeys.has(`${x},${y}`)) {
               relocation.push({ x, y });
             }
           }
