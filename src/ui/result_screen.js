@@ -3,6 +3,7 @@ import { getItemData, getItemBaseId } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
 import { openSubmenu } from "../navigation.js";
+import { getFloorLabel } from "../data/floor_themes.js";
 
 export function getEvaluationText(run, isSuccess) {
   if (!run) return "";
@@ -12,9 +13,9 @@ export function getEvaluationText(run, isSuccess) {
   
   let lines = [];
   if (run.deepestFloor >= 4) {
-    lines.push(`B${run.deepestFloor}Fの深部まで到達し、見事な生還を遂げた。`);
+    lines.push(`${getFloorLabel(state, run.deepestFloor)}の深部まで到達し、見事な生還を遂げた。`);
   } else {
-    lines.push(`B${run.deepestFloor}Fまで到達し、無事帰還した。`);
+    lines.push(`${getFloorLabel(state, run.deepestFloor)}まで到達し、無事帰還した。`);
   }
   
   if (run.chestsOpened >= 5) {
@@ -201,6 +202,13 @@ export function renderResultScreen() {
     if (cr.success) {
       const tickets = cr.contract.reward.identifyTickets > 0 ? ` / 鑑定割引券: ${cr.contract.reward.identifyTickets}枚` : "";
       rewardText = `獲得：${cr.contract.reward.gold} G${tickets}`;
+      const materials = Object.entries(cr.contract.reward.materials || {});
+      if (materials.length > 0) {
+        rewardText += ` / ${materials.map(([name, qty]) => `${name}: ${qty}`).join("、")}`;
+      }
+      if (cr.revealedCells > 0) {
+        rewardText += `<br>B${cr.contract.reward.mapFragmentFloor}Fの地図を${cr.revealedCells}区画開示`;
+      }
       if (cr.itemMsg) {
         rewardText += `<br><span style="font-size: 10px; color: var(--neon-cyan);">${cr.itemMsg}</span>`;
       }
@@ -231,7 +239,7 @@ export function renderResultScreen() {
         <div class="result-summary-section" style="border-color: var(--neon-red); background: rgba(255, 0, 51, 0.05); margin-bottom: 12px;">
           <div class="result-summary-item">
             <span class="result-summary-label">全滅階層</span>
-            <span class="result-summary-val" style="color: var(--neon-red);">B${run.wipedFloor || run.deepestFloor}F</span>
+            <span class="result-summary-val" style="color: var(--neon-red);">${getFloorLabel(state, run.wipedFloor || run.deepestFloor)}</span>
           </div>
           <div class="result-summary-item">
             <span class="result-summary-label">救出費損失</span>
@@ -324,7 +332,7 @@ export function renderResultScreen() {
         <div class="result-summary-section">
           <div class="result-summary-item">
             <span class="result-summary-label">到達階層</span>
-            <span class="result-summary-val" style="color: var(--neon-cyan);">B${run.deepestFloor}F</span>
+            <span class="result-summary-val" style="color: var(--neon-cyan);">${getFloorLabel(state, run.deepestFloor)}</span>
           </div>
           <div class="result-danger-rank-container">
             <span class="result-summary-label">危険度評価</span>

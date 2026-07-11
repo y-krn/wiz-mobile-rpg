@@ -14,16 +14,23 @@ function findCamp(grid) {
   return null;
 }
 
-let parent = null;
-for (let floor = 1; floor <= 5; floor++) {
-  const map = generateRandomMap(floor, parent, "CAMP-WAYPOINTS");
-  const camp = findCamp(map.grid);
-  assert.equal(Boolean(camp), floor === 2 || floor === 4, `B${floor} camp placement`);
-  if (camp) {
-    assert.equal(camp.cell.trap, undefined, `B${floor} camp excludes traps`);
-    assert.equal(camp.cell.type, "empty", `B${floor} camp uses passage cell`);
+for (let seedIndex = 0; seedIndex < 50; seedIndex++) {
+  const seed = `CAMP-WAYPOINTS-${seedIndex}`;
+  let parent = null;
+  for (let floor = 1; floor <= 5; floor++) {
+    const map = generateRandomMap(floor, parent, seed);
+    assert.ok(map.wardenGate, `${seed} B${floor} warden gate placement`);
+    const camp = findCamp(map.grid);
+    assert.equal(Boolean(camp), floor === 2 || floor === 4, `${seed} B${floor} camp placement`);
+    if (camp) {
+      assert.equal(camp.cell.trap, undefined, `${seed} B${floor} camp excludes traps`);
+      assert.equal(camp.cell.type, "empty", `${seed} B${floor} camp uses passage cell`);
+      const onGateEndpoint = (camp.x === map.wardenGate.x && camp.y === map.wardenGate.y) ||
+        (camp.x === map.wardenGate.nx && camp.y === map.wardenGate.ny);
+      assert.ok(onGateEndpoint, `${seed} B${floor} camp is next to warden gate`);
+    }
+    parent = map.stairsDownCoord;
   }
-  parent = map.stairsDownCoord;
 }
 
 const fighter = {

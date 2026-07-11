@@ -129,7 +129,8 @@ export function applySavePayload(data) {
   state.identifyTickets = data.identifyTickets;
   state.cleared = data.cleared;
   state.materials = data.materials;
-  state.dungeonMemory = data.dungeonMemory || { traps: {} };
+  state.dungeonMemory = data.dungeonMemory || { traps: {}, mapFragments: {}, visitedFloors: [1] };
+  state.dungeonMemory.visitedFloors ||= [1];
   
   // 統一された参照リンク
   linkPartyToRoster();

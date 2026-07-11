@@ -6,7 +6,7 @@ import { trapPersistenceByDepth } from "./systems/traps.js";
 
 export function persistDungeonTraps() {
   if (!state.dungeonMemory) {
-    state.dungeonMemory = { traps: {} };
+    state.dungeonMemory = { traps: {}, mapFragments: {}, visitedFloors: [1] };
   }
 
   const getDepthCategory = (floor) => {

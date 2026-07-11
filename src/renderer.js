@@ -843,23 +843,32 @@ export class DungeonRenderer {
 
     // DUMAPIC/LOMILWA reveal wider tactical context than basic MILWA.
     const lightRad = state.dumapicTurns > 0 ? 5 : (state.lightPower === "lomilwa" ? 5 : (state.lightTurns > 0 ? 3 : 0));
+    const fragmentCells = new Set(state.dungeonMemory?.mapFragments?.[state.floor] || []);
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const isVisited = state.visitedMap[y][x];
+        const isFragmentRevealed = fragmentCells.has(`${x},${y}`);
         const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
         const isLightRevealed = (lightRad > 0 && dist <= lightRad);
 
-        // Render if visited OR revealed by active light spell
-        if (!isVisited && !isLightRevealed) continue;
+        // Render explored cells and temporary or contract-supplied map information.
+        if (!isVisited && !isLightRevealed && !isFragmentRevealed) continue;
 
         const cell = state.map[y][x];
         const screenX = margin + x * cellS + offsetX;
         const screenY = margin + y * cellS + offsetY;
 
         const isLightOnly = !isVisited && isLightRevealed;
+        const isFragmentOnly = !isVisited && !isLightRevealed && isFragmentRevealed;
 
-        if (isLightOnly) {
+        if (isFragmentOnly) {
+          ctx.fillStyle = "rgba(255, 179, 0, 0.04)";
+          ctx.fillRect(screenX, screenY, cellS, cellS);
+          ctx.strokeStyle = "rgba(255, 179, 0, 0.4)";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 2]);
+        } else if (isLightOnly) {
           // Faint cyan floor for light-only cell previews
           ctx.fillStyle = "rgba(0, 229, 255, 0.04)";
           ctx.fillRect(screenX, screenY, cellS, cellS);

@@ -2,6 +2,7 @@ import { state, createDefaultCodex } from "../state.js";
 import { MONSTERS, ITEMS, SYNERGIES, TAGS, TAG_EFFECT_MAP } from "../data.js";
 import { getMonsterContractInfo } from "../contracts.js";
 import { updateUI } from "./ui_root.js";
+import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
 
 export const archivesState = {
   tab: "monsters",
@@ -122,6 +123,12 @@ export function getEventsCodexHtml() {
   const ev = state.codex?.events || createDefaultCodex().events;
   
   let html = `<div style="display: flex; flex-direction: column; gap: 8px; font-family: var(--font-mono); font-size: 11px;">`;
+  html += `<div><div class="archives-section-title">🗺️ 場所の記録</div>`;
+  Object.keys(FLOOR_THEMES).forEach(floor => {
+    const name = getFloorDisplayName(state, Number(floor));
+    html += `<div style="background-color: #1a1a24; border: 1px solid #333; padding: 6px; border-radius: 4px; margin-bottom: 4px;"><strong>${name}</strong> <span style="color: var(--text-muted);">地下${floor}階</span></div>`;
+  });
+  html += `</div>`;
   
   // 罠セクション
   html += `<div><div class="archives-section-title">⚠️ 罠の遭遇記録</div>`;

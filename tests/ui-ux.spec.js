@@ -14,6 +14,68 @@ const PARTY_HUD_VIEWPORTS = [
 
 const PARTY_HUD_STATES = ['town', 'explore', 'combat', 'submenu', 'trap_encounter'];
 
+for (const vp of VIEWPORTS) {
+  test(`Floor identity fits ${vp.name} (${vp.width}x${vp.height})`, async ({ page }) => {
+    await page.setViewportSize(vp);
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { showFloorEntryStinger, updateUI } = await import('/src/ui.js');
+      state.gameState = 'explore';
+      state.currentRun = { floorsVisited: [1], deepestFloor: 1 };
+      state.floor = 1;
+      state.dungeonMemory = { traps: {}, mapFragments: {}, visitedFloors: [1] };
+      updateUI();
+      showFloorEntryStinger(4, true);
+    });
+
+    await expect(page.locator('#location-label')).toContainText('崩れた坑道');
+    await expect(page.locator('#goal-banner')).toContainText('???（地下2階）');
+    const stinger = page.locator('#floor-entry-stinger');
+    await expect(stinger).toBeVisible();
+    await expect(stinger).toContainText('水没した魔導書庫');
+    const box = await stinger.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(vp.width);
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Warden contract details fit ${vp.name} (${vp.width}x${vp.height})`, async ({ page }) => {
+    await page.setViewportSize(vp);
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { openContractsOverlay } = await import('/src/ui.js');
+      state.activeContract = {
+        id: 'WARDEN-UI',
+        name: 'フラックの討伐',
+        description: 'B4Fの封印門を守るフラックを討伐して帰還',
+        type: 'warden',
+        danger: 'A',
+        targetValue: 1,
+        currentValue: 0,
+        reward: { gold: 80, identifyTickets: 1, item: null, materials: { 黒角: 2 } },
+        recommended: '生還者の証言: 距離で獲物を捉える',
+      };
+      openContractsOverlay();
+    });
+
+    const overlay = page.locator('#contracts-overlay');
+    await expect(overlay).toBeVisible();
+    await expect(overlay).toContainText('生還者の証言: 距離で獲物を捉える');
+    await expect(overlay).toContainText('黒角:2');
+    const bounds = await overlay.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }));
+    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
+    for (const button of await overlay.locator('button:visible').all()) {
+      expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    }
+  });
+}
+
 for (const vp of PARTY_HUD_VIEWPORTS) {
   test.describe(`Party HUD MP visibility on ${vp.name} (${vp.width}x${vp.height})`, () => {
     test.beforeEach(async ({ page }) => {

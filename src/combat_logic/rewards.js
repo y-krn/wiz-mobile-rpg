@@ -4,6 +4,7 @@ import {
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
 import { applyOpenedGatesToMap } from "../state/warden_gates.js";
+import { recordWardenDefeat } from "../contracts.js";
 
 function rollCombatAccessoryDrop(state) {
   const roll = Math.random();
@@ -289,6 +290,7 @@ export function applyCombatRewards(state, monsters, logQueue) {
     });
 
     if (isWarden) {
+      recordWardenDefeat(state, gateId);
       if (gateId) {
         if (!state.openedGates) state.openedGates = [];
         if (!state.openedGates.includes(gateId)) {

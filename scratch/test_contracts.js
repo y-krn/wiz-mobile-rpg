@@ -49,8 +49,12 @@ Object.defineProperty(global, "navigator", {
     generateContractsList, 
     getMonsterContractInfo, 
     checkActiveContract, 
-    createRandomContract 
+    createRandomContract,
+    recordWardenDefeat,
+    revealMapFragment
   } = await import("../src/contracts.js");
+  const { getWardenGateId } = await import("../src/state/warden_gates.js");
+  const { normalizeSavePayload } = await import("../src/state/save_migrations.js");
   const assert = await import("assert");
 
   console.log("Starting Contracts & Warehouse Verification Tests...");
@@ -152,11 +156,57 @@ Object.defineProperty(global, "navigator", {
   assert.strictEqual(state.storage[0].identified, false, "Reward item should be unidentified");
   console.log("-> [PASS] Inventory overflow handling verified");
 
-  console.log("Running Test 7: UI renderContracts Rendering Test...");
+  console.log("Running Test 7: Warden contracts and obsolete Flack rescue...");
+  const originalRandom = Math.random;
+  Math.random = () => 0;
+  state.openedGates = [];
+  const wardenContract = createRandomContract("C", state);
+  Math.random = originalRandom;
+  assert.strictEqual(wardenContract.type, "warden", "Living C-rank warden should be issued");
+  assert.strictEqual(wardenContract.targetGateId, getWardenGateId(1));
+  assert.ok(wardenContract.recommended.includes("音に反応"), "Contract should disclose perception hint");
+  state.activeContract = wardenContract;
+  assert.strictEqual(recordWardenDefeat(state, getWardenGateId(1)), true);
+  assert.strictEqual(state.activeContract.currentValue, 1, "Warden defeat should complete progress");
+
+  state.openedGates = [getWardenGateId(1)];
+  Math.random = () => 0;
+  const noDeadWardenContract = createRandomContract("C", state);
+  Math.random = originalRandom;
+  assert.notStrictEqual(noDeadWardenContract.type, "warden", "Opened warden must not be issued");
+
+  for (let i = 0; i < 50; i++) {
+    const contract = createRandomContract("A", state);
+    assert.notStrictEqual(contract.targetMonsterName, "フラック", "Flack must not be a kill target");
+  }
+
+  const rescued = normalizeSavePayload({
+    ...state,
+    contracts: [{ type: "kill", targetMonsterName: "フラック" }, { type: "reach" }],
+    activeContract: { type: "kill", targetMonsterName: "フラック" }
+  });
+  assert.strictEqual(rescued.activeContract, null, "Existing Flack contract should expire");
+  assert.strictEqual(rescued.contracts.length, 1, "Offered Flack contract should be removed");
+  console.log("-> [PASS] Warden contracts and Flack rescue verified");
+
+  console.log("Running Test 8: Map fragment memory does not count as explored...");
+  state.dungeonMemory = { traps: {}, mapFragments: {} };
+  const visitedBefore = state.visitedMaps[3].flat().filter(Boolean).length;
+  const revealed = revealMapFragment(state, 4, () => 0.5);
+  const visitedAfter = state.visitedMaps[3].flat().filter(Boolean).length;
+  assert.strictEqual(revealed, 25, "Map fragment should reveal one 5x5 area");
+  assert.strictEqual(state.dungeonMemory.mapFragments[4].length, 25);
+  assert.strictEqual(visitedAfter, visitedBefore, "Map fragment must not affect explored cells");
+  console.log("-> [PASS] Map fragment memory verified");
+
+  console.log("Running Test 9: UI renderContracts Rendering Test...");
   const { renderContracts } = await import("../src/ui.js");
   state.activeContract = createRandomContract("A", state);
   renderContracts();
   console.log("-> [PASS] UI renderContracts verified");
 
   console.log("All Contracts & Warehouse verification tests passed successfully!");
-})();
+})().catch(error => {
+  console.error(error);
+  process.exit(1);
+});

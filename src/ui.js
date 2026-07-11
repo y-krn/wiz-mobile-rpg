@@ -4,7 +4,8 @@ export {
   getFloorExplorationRate,
   getCurrentGoal,
   openLogOverlay,
-  closeLogOverlay
+  closeLogOverlay,
+  showFloorEntryStinger
 } from "./ui/ui_root.js";
 
 export {

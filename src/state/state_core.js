@@ -80,7 +80,7 @@ export const state = {
   storage: [],
   storageMax: 30,
   identifyTickets: 0,
-  dungeonMemory: { traps: {} },
+  dungeonMemory: { traps: {}, mapFragments: {}, visitedFloors: [1] },
 
   // Current screen state: 'town', 'explore', 'combat', 'chest', 'gameover', 'victory'
   gameState: "town",

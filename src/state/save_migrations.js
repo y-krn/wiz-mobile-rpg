@@ -234,14 +234,25 @@ export function normalizeSavePayload(data) {
   normalized.roamingMovementStepCount = data.roamingMovementStepCount ?? 0;
   normalized.noiseEvents = data.noiseEvents ?? [];
   normalized.openedGates = data.openedGates ?? [];
-  normalized.contracts = data.contracts ?? [];
-  normalized.activeContract = data.activeContract ?? null;
+  normalized.contracts = (data.contracts ?? []).filter(contract =>
+    !(contract.type === "kill" && contract.targetMonsterName === "フラック")
+  );
+  normalized.activeContract = data.activeContract?.type === "kill" && data.activeContract.targetMonsterName === "フラック"
+    ? null
+    : (data.activeContract ?? null);
   normalized.completedContracts = data.completedContracts ?? [];
   normalized.storage = data.storage ?? [];
   normalized.storageMax = data.storageMax ?? 30;
   normalized.identifyTickets = data.identifyTickets ?? 0;
   normalized.cleared = data.cleared ?? false;
   normalized.materials = data.materials ?? {};
+  normalized.dungeonMemory = data.dungeonMemory ?? { traps: {}, mapFragments: {} };
+  normalized.dungeonMemory.traps ||= {};
+  normalized.dungeonMemory.mapFragments ||= {};
+  normalized.dungeonMemory.visitedFloors ||= Array.from(
+    { length: Math.max(1, data.codex?.stats?.deepestFloor || data.floor || 1) },
+    (_, index) => index + 1
+  );
 
   if (!data.roster) {
     let roster = [];

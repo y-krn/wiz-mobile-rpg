@@ -1,0 +1,50 @@
+import assert from "node:assert/strict";
+import {
+  getFloorDisplayName,
+  getFloorLabel,
+  revealFloor
+} from "../src/data/floor_themes.js";
+import { normalizeSavePayload } from "../src/state/save_migrations.js";
+
+let failed = false;
+
+function check(name, fn) {
+  try {
+    fn();
+    console.log(`[PASS] ${name}`);
+  } catch (error) {
+    failed = true;
+    console.error(`[FAIL] ${name}: ${error.message}`);
+  }
+}
+
+check("未踏階は名前を隠し、進入で開示する", () => {
+  const state = { dungeonMemory: { traps: {}, mapFragments: {}, visitedFloors: [1] } };
+  assert.equal(getFloorLabel(state, 2), "???（地下2階）");
+  assert.equal(revealFloor(state, 2), true);
+  assert.equal(getFloorDisplayName(state, 2), "忘れられた地下墓地");
+  assert.equal(revealFloor(state, 2), false);
+  assert.deepEqual(state.dungeonMemory.visitedFloors, [1, 2]);
+});
+
+check("場所開示時に既存契約の未知名を更新する", () => {
+  const state = {
+    dungeonMemory: { traps: {}, mapFragments: {}, visitedFloors: [1] },
+    contracts: [{ locationFloor: 3, name: "???への到達", description: "???（地下3階）へ向かう" }],
+    activeContract: null
+  };
+  revealFloor(state, 3);
+  assert.equal(state.contracts[0].name, "大裂溝の巣窟への到達");
+  assert.match(state.contracts[0].description, /大裂溝の巣窟/);
+});
+
+check("旧セーブは到達済み最深階まで訪問済みにする", () => {
+  const normalized = normalizeSavePayload({
+    floor: 3,
+    codex: { stats: { deepestFloor: 4 } },
+    dungeonMemory: { traps: {}, mapFragments: {} }
+  });
+  assert.deepEqual(normalized.dungeonMemory.visitedFloors, [1, 2, 3, 4]);
+});
+
+if (failed) process.exit(1);

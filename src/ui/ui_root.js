@@ -9,6 +9,28 @@ import { updatePartyHUD } from "./hud.js";
 import { updateCombatPrompt } from "./combat_prompt.js";
 import { updateViewportHUD } from "./viewport_hud.js";
 import { renderResultScreen } from "./result_screen.js";
+import { getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
+
+let floorStingerTimer = null;
+
+export function showFloorEntryStinger(floor, firstVisit) {
+  const stinger = document.getElementById("floor-entry-stinger");
+  const theme = getFloorTheme(floor);
+  if (!stinger || !theme) return;
+  clearTimeout(floorStingerTimer);
+  stinger.replaceChildren();
+  const depth = document.createElement("span");
+  depth.className = "floor-entry-depth";
+  depth.textContent = `地下${floor}階`;
+  const name = document.createElement("strong");
+  name.className = "floor-entry-name";
+  name.textContent = theme.name;
+  stinger.appendChild(depth);
+  stinger.appendChild(name);
+  stinger.classList.toggle("first-visit", firstVisit);
+  stinger.classList.add("visible");
+  floorStingerTimer = setTimeout(() => stinger.classList.remove("visible"), firstVisit ? 1400 : 900);
+}
 
 // Split stored log messages (which may contain embedded newlines) into
 // individual display lines, dropping empties.
@@ -133,24 +155,24 @@ export function getCurrentGoal() {
 
   switch (state.floor) {
     case 1:
-      return "B1F: 地下2階への下り階段を探せ";
+      return `${getFloorDisplayName(state, 1)}: ${getFloorLabel(state, 2)}への下り階段を探せ`;
     case 2:
-      return "B2F: 地下3階への下り階段を探せ";
+      return `${getFloorDisplayName(state, 2)}: ${getFloorLabel(state, 3)}への下り階段を探せ`;
     case 3:
       if (hasKey) {
-        return "B3F: 地下4階への下り階段を探せ";
+        return `${getFloorDisplayName(state, 3)}: ${getFloorLabel(state, 4)}への下り階段を探せ`;
       }
-      return "B3F: デーモンガードを倒し「竜の鍵」を入手せよ";
+      return `${getFloorDisplayName(state, 3)}: デーモンガードを倒し「竜の鍵」を入手せよ`;
     case 4:
       if (hasKey) {
-        return "B4F: 地下5階への下り階段を探せ";
+        return `${getFloorDisplayName(state, 4)}: ${getFloorLabel(state, 5)}への下り階段を探せ`;
       }
-      return "B3Fに戻り、デーモンガードから「竜の鍵」を奪え";
+      return `${getFloorLabel(state, 3)}に戻り、デーモンガードから「竜の鍵」を奪え`;
     case 5:
       if (hasKey) {
-        return "B5F: 竜の鍵を使い、最深部の「いにしえの竜」を倒せ";
+        return `${getFloorDisplayName(state, 5)}: 竜の鍵を使い、最深部の「いにしえの竜」を倒せ`;
       }
-      return "B3Fに戻り、デーモンガードから「竜の鍵」を奪え";
+      return `${getFloorLabel(state, 3)}に戻り、デーモンガードから「竜の鍵」を奪え`;
     default:
       return "迷宮を探索せよ";
   }
@@ -207,14 +229,7 @@ export function updateUI() {
   if (state.gameState === "town") {
     locLabel.textContent = "TOWN OF LLYLGAMYN";
   } else if (state.gameState === "explore") {
-    const floorThemes = {
-      1: "迷宮入口",
-      2: "湿った毒気",
-      3: "竜鍵の気配",
-      4: "深層の殺気",
-      5: "竜の領域"
-    };
-    const themeLabel = floorThemes[state.floor] ? ` / ${floorThemes[state.floor]}` : "";
+    const themeLabel = ` / ${getFloorDisplayName(state, state.floor)}`;
     const lightLabel = state.lightPower === "lomilwa" ? "LOMILWA" : "LIGHT";
     const lightText = state.lightTurns > 0 ? ` (${lightLabel}:${state.lightTurns})` : "";
     const repelText = state.repelTurns > 0 ? ` (REPEL:${state.repelTurns})` : "";
@@ -320,12 +335,7 @@ export function updateUI() {
     if (el) el.classList.add("active");
     
     const { trap, successRate, expectedEffect, revealLevel = 3 } = state.activeTrapState;
-    const trapNames = {
-      damage: "火炎放射の罠",
-      mpDrain: "魔力吸収の罠",
-      alarm: "警報装置の罠",
-      pitfall: "底なし落とし穴"
-    };
+    const trapNames = getFloorTheme(state.floor)?.trapSkins || {};
     const trapName = revealLevel >= 2 ? (trapNames[trap.type] || "未知の罠") : "罠の気配";
     document.getElementById("trap-name").innerHTML = `罠名: <strong style="color:var(--neon-red)">${trapName}</strong>`;
     

@@ -51,8 +51,10 @@ export function rebuildDungeonMaps() {
 
 export function applyDungeonMemoryToMaps() {
   if (!state.dungeonMemory || !state.dungeonMemory.traps) {
-    state.dungeonMemory = { traps: {} };
+    state.dungeonMemory = { traps: {}, mapFragments: {}, visitedFloors: [1] };
   }
+  state.dungeonMemory.mapFragments ||= {};
+  state.dungeonMemory.visitedFloors ||= [1];
 
   if (state.maps) {
     for (let f = 1; f <= 5; f++) {

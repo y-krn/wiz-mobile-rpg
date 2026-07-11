@@ -7,6 +7,17 @@ export const contractsState = {
   selectedId: null
 };
 
+function formatContractReward(contract) {
+  let text = `${contract.reward.gold} G`;
+  if (contract.reward.identifyTickets > 0) text += ` / 鑑定券:${contract.reward.identifyTickets}枚`;
+  const materials = Object.entries(contract.reward.materials || {});
+  if (materials.length > 0) text += ` / ${materials.map(([name, qty]) => `${name}:${qty}`).join("、")}`;
+  if (contract.reward.mapFragmentFloor) text += ` / B${contract.reward.mapFragmentFloor}F 地図の断片`;
+  if (contract.reward.item === "rare_equip") text += " / 未鑑定装備(Rare)";
+  if (contract.reward.item === "epic_equip") text += " / 未鑑定装備(Epic)";
+  return text;
+}
+
 export function openContractsOverlay() {
   contractsState.selectedId = null;
   const overlay = document.getElementById("contracts-overlay");
@@ -49,7 +60,7 @@ export function renderContracts() {
   if (state.activeContract) {
     // Show active contract details and progress
     const contract = state.activeContract;
-    const isKill = contract.type === "kill";
+    const isKill = contract.type === "kill" || contract.type === "warden";
     const isChest = contract.type === "chest";
     const isRecovery = contract.type === "recovery";
     
@@ -68,15 +79,7 @@ export function renderContracts() {
     const detailDiv = document.createElement("div");
     detailDiv.className = "codex-detail";
     
-    let rewardText = `${contract.reward.gold} G`;
-    if (contract.reward.identifyTickets > 0) {
-      rewardText += ` / 鑑定券:${contract.reward.identifyTickets}枚`;
-    }
-    if (contract.reward.item === "rare_equip") {
-      rewardText += " / 未鑑定装備(Rare)";
-    } else if (contract.reward.item === "epic_equip") {
-      rewardText += " / 未鑑定装備(Epic)";
-    }
+    const rewardText = formatContractReward(contract);
 
     detailDiv.innerHTML = `
       <div class="codex-detail-header" style="border-bottom: 1px solid var(--neon-glow-gold);">
@@ -134,15 +137,7 @@ export function renderContracts() {
         detailModal.style.padding = "10px";
         detailModal.style.backgroundColor = "rgba(10, 10, 15, 0.95)";
 
-        let rewardText = `${selected.reward.gold} G`;
-        if (selected.reward.identifyTickets > 0) {
-          rewardText += ` / 鑑定券:${selected.reward.identifyTickets}枚`;
-        }
-        if (selected.reward.item === "rare_equip") {
-          rewardText += " / 未鑑定装備(Rare)";
-        } else if (selected.reward.item === "epic_equip") {
-          rewardText += " / 未鑑定装備(Epic)";
-        }
+        const rewardText = formatContractReward(selected);
 
         detailModal.innerHTML = `
           <div style="font-size: 13px; font-weight: bold; color: var(--neon-gold); margin-bottom: 6px;">📝 契約詳細：${selected.name}</div>

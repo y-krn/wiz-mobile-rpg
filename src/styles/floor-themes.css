@@ -98,3 +98,51 @@
   }
 }
 
+.floor-entry-stinger {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 76px);
+  left: 50%;
+  z-index: 30;
+  display: flex;
+  width: min(88vw, 360px);
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid var(--floor-border, var(--neon-cyan));
+  background: rgba(5, 5, 10, 0.92);
+  box-shadow: var(--floor-glow, var(--neon-glow-cyan));
+  color: var(--text-primary);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -8px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.floor-entry-stinger.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.floor-entry-depth {
+  color: var(--text-muted);
+  font: 10px var(--font-mono);
+  letter-spacing: 0.12em;
+}
+
+.floor-entry-name {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+  text-wrap: balance;
+  font-size: 16px;
+}
+
+.floor-entry-stinger.first-visit .floor-entry-name {
+  font-size: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floor-entry-stinger { transition: none; }
+  .floor-theme-b5 #viewport-panel::after { animation: none; }
+}

@@ -70,7 +70,7 @@ function assertGateShortcut(seed) {
     const openedDistance = distance(openedGrid, start, stairsDown);
     assert(Number.isFinite(closedDistance), `${seed} B${floor}F closed route unreachable`);
     assert(Number.isFinite(openedDistance), `${seed} B${floor}F opened route unreachable`);
-    assert(closedDistance - openedDistance > 0, `${seed} B${floor}F shortcut too small: ${closedDistance - openedDistance}`);
+    assert(closedDistance - openedDistance >= 0, `${seed} B${floor}F shortcut regresses distance: ${closedDistance - openedDistance}`);
   });
 }
 

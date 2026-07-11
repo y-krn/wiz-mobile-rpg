@@ -535,7 +535,6 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord) {
       ...edge,
       roughPotential: openedDistance - (manhattan(start, { x: edge.nx, y: edge.ny }) + 2 + manhattan(edge.home, stairsDownCoord))
     }))
-    .filter(edge => edge.roughPotential > 0)
     .sort((a, b) => b.roughPotential - a.roughPotential)
     .slice(0, 40);
 
@@ -580,7 +579,7 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord) {
     }
   }
 
-  const fallback = candidates[0];
+  const fallback = candidates.find(edge => edge.carveDir !== undefined);
   if (fallback) {
     if (fallback.carveDir !== undefined) {
       openWall(grid, fallback.x, fallback.y, fallback.carveDir);

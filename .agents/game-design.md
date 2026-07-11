@@ -52,6 +52,9 @@ Implementation requirements:
 - Tune enemy XP, rare enemy XP, boss XP, and first-kill bonus together.
 - Reduce or redesign the current first-kill EXP/GOLD bonus so it does not make
   fast leveling the dominant strategy.
+- Warden XP stays at same-floor level even though wardens fight at +2-floor
+  strength (TICKET-078); paying strength-tier XP would make warden hunting
+  the dominant leveling strategy.
 
 ## Gold Economy
 
@@ -102,8 +105,14 @@ Revisit price and availability for high-impact consumables:
 
 - `ELIXIR`
 - `SACRED_ASHES`
-- `TOWN_PORTAL`
+- `TOWN_PORTAL` — since TICKET-075 it is a pure emergency escape (no
+  floor-resume value), so its effective worth dropped; reprice together with
+  the TICKET-042 scarcity work.
 - `MANA_POTION`
+
+Counterplay consumables (the noise lure from TICKET-079) belong in baseline
+shop stock, cheap and available before B1F: counterplay accessibility
+(TICKET-016) outranks scarcity for this category.
 
 Dungeon merchants are expedition support, not loot vendors. Their stock should
 focus on identify tickets, small material quantities, consumables, return
@@ -253,8 +262,14 @@ Primary sources:
 - Chests.
 - Rare enemies.
 - Elite fights.
+- Wardens (one-time sealed-gate guardians; one rare unidentified item each).
 - Boss and midboss rewards.
 - Low-probability normal combat drops.
+
+Information affixes (`hearRange`, `arcaneSense`, `traceRead` — TICKET-080)
+are drop-only: they never appear in shop or merchant stock. Exploration power
+is "strong gear" even at zero combat stats, so it follows the same
+best-in-slot-comes-from-the-dungeon rule.
 
 Avoid these sources:
 
@@ -372,13 +387,20 @@ Add persistent fields:
 
 ```js
 cleared: false,
-materials: {}
+materials: {},
+openedGates: []   // sealed-gate ids, SAVE_VERSION 6 (TICKET-078)
 ```
+
+`openedGates` is the single source of truth for warden defeat, gate state,
+and camp availability (TICKET-082 derives camps from it — no separate camp
+field). Gate openings survive gameover rollback by design: an opened gate
+never closes.
 
 Add run-summary tracking:
 
 ```js
 currentRun.materialsFound = {}
+currentRun.campRested = {}   // per-floor once-per-run rest flags (TICKET-082)
 ```
 
 Update every save path:
@@ -403,8 +425,17 @@ Adjust contract rewards:
 
 - Reduce raw gold.
 - Prefer materials, identify tickets, and workshop support.
+- Information rewards (map fragments, warden intel — TICKET-083) are the
+  preferred way to make a contract more attractive without adding gold.
 - Review A-rank gold and equipment rewards carefully.
 - Keep reward text short enough for mobile lists and result screens.
+
+Contracts are also an information channel (TICKET-083): accepting a warden
+contract buys the identification rung for that warden (existence, rough
+location, danger) and its text carries a perception hint in observational
+language. Warden contracts are issued only while the target warden is alive,
+so unfulfillable contracts cannot exist; kill-contract candidate lists must
+never contain one-time enemies (the フラック regression fixed in 083).
 
 Future contract types:
 
@@ -423,15 +454,32 @@ Future contract types:
 | Rare enemy | Rare materials, possible unidentified gear |
 | Chest | Unidentified gear, material bundle, low gold |
 | Elite | Rare materials, rare unidentified gear |
+| Warden (one-time, TICKET-078/079) | Sealed-gate opening (spatial: shortcut, camp access), Elite-tier materials and one rare unidentified item, same-floor XP only |
 | Boss | Clear record, rare materials, high-tier unidentified gear |
-| Contract | Identify ticket, materials, low gold |
-| Shop | Baseline gear and supplies |
+| Contract | Identify ticket, materials, low gold, information (map fragments, warden intel — TICKET-083) |
+| Camp (B2/B4, TICKET-082) | Not a loot source: partial in-run recovery, once per run, unlocked by that floor's warden defeat |
+| Shop | Baseline gear and supplies (including counterplay consumables such as the noise lure) |
 | Dungeon merchant | Expedition support: tickets, consumables, small materials |
 | Workshop | Crafting and instance enhancement |
+
+Wardens never respawn, so they cannot be farmed; their XP is deliberately
+same-floor (not strength-tier) so warden hunting is never the fastest
+leveling route. Information rewards pay in disclosure instead of gold, which
+keeps contract value attractive without inflating the economy.
 
 ## Avoid
 
 - Forced B5F or boss locks.
+- Warden respawns or any repeatable warden reward (they are one-time by
+  design; farming must stay impossible).
+- Strength-tier XP on wardens (same-floor only).
+- Camps that fully heal, revive, cure, sell, or serve as exits (partial rest
+  once per run is the whole offer).
+- Sealed gates on required paths (gates are shortcut-only; every objective
+  must be reachable with all gates closed — guarded by
+  `scratch/test_reachability_loop.js`).
+- Information affixes or other exploration-power gear in shop stock.
+- One-time enemies in repeatable kill-contract candidate lists.
 - Full HP/MP recovery on level-up.
 - Best-in-slot shop gear.
 - Reliable merchant unidentified-equipment sales.

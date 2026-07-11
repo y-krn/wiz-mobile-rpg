@@ -3,7 +3,8 @@ import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DI
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
-import { updateUI } from "./ui.js";
+import { showFloorEntryStinger, updateUI } from "./ui.js";
+import { getFloorTheme, revealFloor } from "./data/floor_themes.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
 import { openSubmenu } from "./navigation.js";
@@ -209,20 +210,12 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     state.y = target.y;
     state.visitedMap[state.y][state.x] = true;
 
+    const theme = getFloorTheme(nextFloor);
+    const firstVisit = revealFloor(state, nextFloor);
     if (isPitfall) {
       addLog(`ドスン！地下${nextFloor}階の冷たい床に叩きつけられた！`);
     } else {
-      let floorMsg = `地下${nextFloor}階に降りた。さらに強い殺気を感じる...`;
-      if (nextFloor === 2) {
-        floorMsg = `地下2階に降りた。鼻を突く毒気と、光を吸い込むような暗闇が漂っている...`;
-      } else if (nextFloor === 3) {
-        floorMsg = `地下3階に降りた。不気味な咆哮が木霊し、強大な門番が竜の鍵を握っている気配がする...`;
-      } else if (nextFloor === 4) {
-        floorMsg = `地下4階に降りた。ここは強者の領域。凶悪な魔物の気配と、伝説の財宝が眠っている予感がする...`;
-      } else if (nextFloor === 5) {
-        floorMsg = `地下5階：竜の領域に降りた。灼熱の熱気と強烈なプレッシャーが肌を刺す！`;
-      }
-      addLog(floorMsg);
+      addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
     }
 
     checkFloorOmenMessage();
@@ -230,6 +223,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     state.transitioning = false;
     saveAutosave();
     updateUI();
+    showFloorEntryStinger(nextFloor, firstVisit);
 
     if (isPitfall && typeof onLanding === "function") {
       onLanding();
@@ -238,6 +232,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
 }
 
 function checkSensoryAura() {
+  const aura = getFloorTheme(state.floor)?.auraLexicon;
   const px = state.x;
   const py = state.y;
   const hearRangeBonus = getPartyMaxAffix(state.party, "hearRange");
@@ -299,36 +294,36 @@ function checkSensoryAura() {
     } else {
       dirStr = dx < 0 ? "西" : "東";
     }
-    addLog(`【気配】${dirStr}の方からただならぬ魔力の気配を感じる…`);
+    addLog(`【気配】${dirStr}の方から${aura?.boss || "ただならぬ魔力の気配を感じる…"}`);
   }
 
   // 2. Spring water sound
   if (minDistSpring <= soundRange && nearestSpring) {
-    addLog("【気配】近くからかすかに水音が聞こえる…");
+    addLog(`【気配】${aura?.spring || "近くからかすかに水音が聞こえる…"}`);
   }
 
   // 3. Tablet magic wave
   if (minDistTablet <= arcaneRange && nearestTablet) {
     if (arcaneSense >= 1) {
-      addLog(`【気配】${getRelativeDirectionText(nearestTablet.x, nearestTablet.y, px, py)}の壁から弱い魔力の波動を感じる…`);
+      addLog(`【気配】${getRelativeDirectionText(nearestTablet.x, nearestTablet.y, px, py)}に${aura?.tablet || "弱い魔力の波動を感じる…"}`);
     } else {
-      addLog("【気配】近くの壁から弱い魔力の波動を感じる…");
+      addLog(`【気配】${aura?.tablet || "近くの壁から弱い魔力の波動を感じる…"}`);
     }
   }
 
   // 4. Merchant footsteps/presence
   if (minDistMerchant <= soundRange && nearestMerchant) {
-    addLog("【気配】近くから静かな衣擦れの音が聞こえる気がする…");
+    addLog(`【気配】${aura?.merchant || "近くから静かな衣擦れの音が聞こえる気がする…"}`);
   }
 
   // 5. Down stairs wind draft
   if (minDistDownStairs <= soundRange && nearestDownStairs) {
-    addLog("【気配】下へ続く空洞から、冷たい風が流れてきている…");
+    addLog(`【気配】${aura?.stairs || "下へ続く空洞から、冷たい風が流れてきている…"}`);
   }
 
   // 6. Chest hidden treasure vibe
   if (minDistChest <= baseSenseRange && nearestChest) {
-    addLog("【気配】この近くに何かが隠されている気がする…");
+    addLog(`【気配】${aura?.chest || "この近くに何かが隠されている気がする…"}`);
   }
 
   // 7. Hidden door wall sense
@@ -440,22 +435,14 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
         state.y = target.y;
         state.visitedMap[state.y][state.x] = true;
         
-        let floorMsg = `地下${prevFloor}階に上った。`;
-        if (prevFloor === 1) {
-          floorMsg = `地下1階に戻った。穏やかな風が吹いている...`;
-        } else if (prevFloor === 2) {
-          floorMsg = `地下2階に戻った。濃い暗闇と毒気が漂っている...`;
-        } else if (prevFloor === 3) {
-          floorMsg = `地下3階に戻った。中ボスの不気味な魔力の残滓を感じる...`;
-        } else if (prevFloor === 4) {
-          floorMsg = `地下4階に戻った。凶悪な強敵の気配が満ちている...`;
-        }
-        addLog(floorMsg);
+        const theme = getFloorTheme(prevFloor);
+        addLog(`【${theme.name}】${theme.entryText.revisit}`);
         checkFloorOmenMessage();
         
         state.transitioning = false;
         saveAutosave();
         updateUI();
+        showFloorEntryStinger(prevFloor, false);
       }, 1200);
     }
     return;
@@ -517,33 +504,37 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 
   // Spring encounter
   if (cell.event === EVENT_TYPES.SPRING) {
+    const skin = getFloorTheme(state.floor)?.eventSkins.spring || "怪しい泉";
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.spring.found++;
     }
-    openSubmenu(EVENT_TYPES.SPRING, "怪しい泉を見つけた。澄んだ水が湧き出ている…");
+    openSubmenu(EVENT_TYPES.SPRING, `${skin}を見つけた。水面がかすかに揺れている…`);
     return;
   }
 
   if (cell.event === EVENT_TYPES.CAMP) {
-    openSubmenu(EVENT_TYPES.CAMP, "野営地。門番の気配を警戒しながら休息場所を確かめる。");
+    const skin = getFloorTheme(state.floor)?.eventSkins.camp || "野営地";
+    openSubmenu(EVENT_TYPES.CAMP, `${skin}。門番の気配を警戒しながら休息場所を確かめる。`);
     return;
   }
 
   // Tablet encounter
   if (cell.event === EVENT_TYPES.TABLET) {
+    const skin = getFloorTheme(state.floor)?.eventSkins.tablet || "謎の石碑";
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.tablet.found++;
     }
-    openSubmenu(EVENT_TYPES.TABLET, "謎の石碑が立っている。古代の文字が刻まれている…");
+    openSubmenu(EVENT_TYPES.TABLET, `${skin}が残されている。古い文字が刻まれている…`);
     return;
   }
 
   // Merchant encounter
   if (cell.event === EVENT_TYPES.MERCHANT) {
+    const skin = getFloorTheme(state.floor)?.eventSkins.merchant || "さまよう商人";
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.merchant.found++;
     }
-    openSubmenu(EVENT_TYPES.MERCHANT, "フードを被ったさまよう商人が現れた！");
+    openSubmenu(EVENT_TYPES.MERCHANT, `${skin}が暗がりから姿を現した。`);
     return;
   }
 
@@ -558,20 +549,23 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     const events = [EVENT_TYPES.SPRING, EVENT_TYPES.TABLET, EVENT_TYPES.MERCHANT];
     const chosen = events[Math.floor(Math.random() * events.length)];
     if (chosen === EVENT_TYPES.SPRING) {
+      const skin = getFloorTheme(state.floor)?.eventSkins.spring || "怪しい泉";
       if (state.codex && state.codex.events && state.codex.events.facilities) {
         state.codex.events.facilities.spring.found++;
       }
-      openSubmenu(EVENT_TYPES.SPRING, "怪しい泉を見つけた。澄んだ水が湧き出ている…");
+      openSubmenu(EVENT_TYPES.SPRING, `${skin}を見つけた。水面がかすかに揺れている…`);
     } else if (chosen === EVENT_TYPES.TABLET) {
+      const skin = getFloorTheme(state.floor)?.eventSkins.tablet || "謎の石碑";
       if (state.codex && state.codex.events && state.codex.events.facilities) {
         state.codex.events.facilities.tablet.found++;
       }
-      openSubmenu(EVENT_TYPES.TABLET, "謎の石碑が立っている。古代の文字が刻まれている…");
+      openSubmenu(EVENT_TYPES.TABLET, `${skin}が残されている。古い文字が刻まれている…`);
     } else {
+      const skin = getFloorTheme(state.floor)?.eventSkins.merchant || "さまよう商人";
       if (state.codex && state.codex.events && state.codex.events.facilities) {
         state.codex.events.facilities.merchant.found++;
       }
-      openSubmenu(EVENT_TYPES.MERCHANT, "フードを被ったさまよう商人が現れた！");
+      openSubmenu(EVENT_TYPES.MERCHANT, `${skin}が暗がりから姿を現した。`);
     }
     return;
   }
@@ -699,11 +693,14 @@ export function executeEnterDungeon(floor) {
 
   state.dir = DIR_N;
   state.visitedMap[state.y][state.x] = true;
-  addLog(`地下${state.floor}階の階段から探索を開始した。冷たい石造りの暗闇が迫る...`);
+  const theme = getFloorTheme(floor);
+  const firstVisit = revealFloor(state, floor);
+  addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
   checkFloorOmenMessage();
   playSound("move");
   saveAutosave();
   updateUI();
+  showFloorEntryStinger(floor, firstVisit);
 }
 
 function beginRoamingMonsterCombat(monster) {
