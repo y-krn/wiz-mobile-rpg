@@ -25,6 +25,9 @@ export const MONSTERS = [
   { name: "マスターデーモン", level: 7, hp: 140, atk: 16, def: 8, exp: 1400, gold: 200, spriteType: "flack", spell: "MADALTO", spellChance: 0.25, magicResist: 0.3, tags: ["demon"], color: "#ff3b30" },
   
   { name: "フラック", level: 4, hp: 260, atk: 23, def: 11, exp: 3000, gold: 350, spriteType: "flack", spell: "LAHALITO", spellChance: 0.25, physResist: 0.2, magicResist: 0.2, isRare: true, dangerRare: true, color: "#ff3b30" },
+  { name: "封印門の門番 B1", level: 3, hp: 96, atk: 15, def: 7, exp: 120, gold: 35, spriteType: "flack", spell: "HALITO", spellChance: 0.20, physResist: 0.1, magicResist: 0.1, isRare: true, dangerRare: true, tags: ["demon"], color: "#ff3b30" },
+  { name: "封印門の門番 B2", level: 4, hp: 150, atk: 19, def: 9, exp: 260, gold: 55, spriteType: "flack", spell: "LAHALITO", spellChance: 0.20, physResist: 0.15, magicResist: 0.15, isRare: true, dangerRare: true, tags: ["demon"], color: "#ff3b30" },
+  { name: "封印門の門番 B3", level: 5, hp: 210, atk: 22, def: 12, exp: 450, gold: 75, spriteType: "flack", spell: "LAHALITO", spellChance: 0.25, physResist: 0.2, magicResist: 0.2, isRare: true, dangerRare: true, tags: ["demon"], color: "#ff3b30" },
   { name: "ドラゴンパピー", level: 4, hp: 90, atk: 12, def: 5, exp: 600, gold: 60, spriteType: "dragon", spell: "HALITO", tags: ["dragon"], color: "#ffc0cb" },
   { name: "ワイバーン", level: 5, hp: 130, atk: 17, def: 7, exp: 1200, gold: 120, spriteType: "dragon", spell: "LAHALITO", spellChance: 0.10, tags: ["dragon"], color: "#ffa500" },
   { name: "レッドドラゴン", level: 7, hp: 200, atk: 22, def: 10, exp: 3500, gold: 400, spriteType: "dragon", spell: "MADALTO", spellChance: 0.12, tags: ["dragon"], color: "#ff3b30" },

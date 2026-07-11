@@ -4,6 +4,19 @@ import { findSuitableRoamingMonsterStart } from "./initial_state.js";
 import { generateRandomMap } from "../map_generator.js";
 import { createRng } from "../seed_rng.js";
 import { MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "../data.js";
+import { applyOpenedGatesToMap, createWardenMonster, ensureWardenGate } from "./warden_gates.js";
+import { getWardenPerception } from "../systems/warden_perception.js";
+
+function createUngatedWarden(mapData, floor) {
+  const start = findSuitableRoamingMonsterStart(mapData, floor);
+  if (!start) return null;
+  return {
+    id: `B${floor}_WARDEN`, floor, x: start.x, y: start.y,
+    name: floor === 4 ? "フラック" : `封印門の門番 B${floor}`,
+    kind: "warden", perception: getWardenPerception(floor),
+    homeX: start.x, homeY: start.y, gateId: null
+  };
+}
 
 export function rebuildDungeonMaps() {
   const b1 = generateRandomMap(1, null, state.seed);
@@ -14,14 +27,15 @@ export function rebuildDungeonMaps() {
   state.maps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
   
   state.roamingMonsters = [];
-  const f4Start = findSuitableRoamingMonsterStart(b4, 4);
-  if (f4Start) {
-    state.roamingMonsters.push({ floor: 4, x: f4Start.x, y: f4Start.y, name: "フラック" });
-  }
-  const f5Start = findSuitableRoamingMonsterStart(b5, 5);
-  if (f5Start) {
-    state.roamingMonsters.push({ floor: 5, x: f5Start.x, y: f5Start.y, name: "フラック" });
-  }
+  [b1, b2, b3, b4, b5].forEach((mapData, index) => {
+    const floor = index + 1;
+    const gate = ensureWardenGate(mapData.grid, floor, mapData.wardenGate);
+    applyOpenedGatesToMap(mapData.grid, state.openedGates);
+    if (!gate?.id || !state.openedGates?.includes(gate.id)) {
+      const warden = createWardenMonster(floor, gate, mapData.grid) || createUngatedWarden(mapData, floor);
+      if (warden) state.roamingMonsters.push(warden);
+    }
+  });
   
   state.visitedMaps = [
     Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
@@ -38,7 +52,6 @@ export function rebuildDungeonMaps() {
 export function applyDungeonMemoryToMaps() {
   if (!state.dungeonMemory || !state.dungeonMemory.traps) {
     state.dungeonMemory = { traps: {} };
-    return;
   }
 
   if (state.maps) {
@@ -62,6 +75,33 @@ export function applyDungeonMemoryToMaps() {
             }
           }
         }
+      }
+    }
+
+    for (let floor = 1; floor <= 5; floor++) {
+      const grid = state.maps[floor - 1];
+      if (!grid) continue;
+      const gate = ensureWardenGate(grid, floor);
+      applyOpenedGatesToMap(grid, state.openedGates);
+      if (gate && state.openedGates?.includes(gate.id) && state.roamingMonsters) {
+        state.roamingMonsters = state.roamingMonsters.filter(rm => rm.gateId !== gate.id);
+      }
+      if (gate && !state.openedGates?.includes(gate.id)) {
+        if (!state.roamingMonsters) state.roamingMonsters = [];
+        const existing = state.roamingMonsters.find(rm => rm.kind === "warden" && rm.gateId === gate.id);
+        if (existing && !existing.perception) {
+          existing.perception = createWardenMonster(floor, gate, grid)?.perception;
+        }
+        const exists = Boolean(existing);
+        if (!exists) {
+          const warden = createWardenMonster(floor, gate, grid);
+          if (warden) state.roamingMonsters.push(warden);
+        }
+      }
+      if (!gate && !state.roamingMonsters?.some(rm => rm.id === `B${floor}_WARDEN`)) {
+        if (!state.roamingMonsters) state.roamingMonsters = [];
+        const warden = createUngatedWarden({ grid }, floor);
+        if (warden) state.roamingMonsters.push(warden);
       }
     }
   }

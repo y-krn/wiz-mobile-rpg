@@ -2,9 +2,10 @@ import { state, initNewGame, saveAutosave, addLog } from "../state.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, getCharTrapBonus, EXP_LEVELS, DX, DY, DIR_NAMES } from "../data.js";
+import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, getCharTrapBonus, getPartyMaxAffix, EXP_LEVELS, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
-import { checkCellEvents, executeEnterDungeon, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
+import { advanceRoamingTurn, challengePendingWarden, checkCellEvents, createNoiseEvent, executeEnterDungeon, getEncounterChance, recordExplorationSteps, retreatPendingWarden, tickExplorationSpellEffects } from "../movement.js";
+import { WARDEN_PERCEPTION_HINTS } from "../systems/warden_perception.js";
 import { startCombat, triggerGameOver } from "../combat.js";
 import { openCampMenu } from "../camp.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
@@ -86,6 +87,7 @@ function revealSecretDoor(candidate) {
 
 function searchSecretDoor() {
   const candidate = getSecretDoorCandidate();
+  const arcaneSense = getPartyMaxAffix(state.party, "arcaneSense");
   const interrupted = consumeSearchTurn();
   if (interrupted) {
     saveAutosave();
@@ -101,7 +103,11 @@ function searchSecretDoor() {
   }
 
   if (!interrupted) {
-    addLog(candidate ? "壁を調べたが、隠し扉は見つからなかった。" : "周囲を調べたが、特に何も見つからなかった。");
+    if (candidate && arcaneSense >= 2) {
+      addLog(`${DIR_NAMES[candidate.dir]}の壁の奥に空洞の気配がある。もう少し丁寧に調べる必要がありそうだ。`);
+    } else {
+      addLog(candidate ? "壁を調べたが、隠し扉は見つからなかった。" : "周囲を調べたが、特に何も見つからなかった。");
+    }
     saveAutosave();
     updateUI();
   }
@@ -148,11 +154,68 @@ export function renderItemInventory(optGrid) {
       btn.addEventListener("click", () => {
         menuContext.itemKey = itemKey;
         menuContext.itemIdx = idx;
-        openSubmenu("item_target_select", `${item.name}の対象を選択:`);
+        openSubmenu(item.exploreDirectional ? "item_direction_select" : "item_target_select", item.exploreDirectional ? `${item.name}を投げる方向:` : `${item.name}の対象を選択:`);
       });
       optGrid.appendChild(btn);
     });
   }
+}
+
+export function renderWardenConfirm(optGrid) {
+  const info = document.createElement("div");
+  info.className = "submenu-info";
+  const monster = state.roamingMonsters?.find(rm => rm.id === state.pendingWardenEncounter?.monsterId);
+  const perceptionHint = WARDEN_PERCEPTION_HINTS[monster?.perception] || "未知の方法でこちらを捉えている";
+  info.textContent = `格上の強敵。${perceptionHint}。`;
+  optGrid.appendChild(info);
+
+  const fightBtn = document.createElement("button");
+  fightBtn.className = "btn btn-danger btn-block";
+  fightBtn.textContent = "挑む";
+  fightBtn.addEventListener("click", () => {
+    closeSubmenu();
+    challengePendingWarden();
+  });
+  optGrid.appendChild(fightBtn);
+
+  const backBtn = document.createElement("button");
+  backBtn.className = "btn btn-neon btn-block";
+  backBtn.textContent = "引き返す";
+  backBtn.addEventListener("click", () => {
+    closeSubmenu();
+    retreatPendingWarden();
+  });
+  optGrid.appendChild(backBtn);
+}
+
+export function renderItemDirectionSelect(optGrid) {
+  const item = getItemData(menuContext.itemKey);
+  if (!item?.exploreDirectional) return;
+  DIR_NAMES.forEach((name, dir) => {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-neon btn-block";
+    btn.textContent = `${name}へ投げる`;
+    btn.addEventListener("click", () => {
+      let x = state.x;
+      let y = state.y;
+      for (let distance = 0; distance < 3; distance++) {
+        if (state.map[y]?.[x]?.walls[dir]) break;
+        x += DX[dir];
+        y += DY[dir];
+      }
+      createNoiseEvent(x, y);
+      state.inventory.splice(menuContext.itemIdx, 1);
+      recordExplorationSteps();
+      tickExplorationSpellEffects();
+      addLog(`鳴らし玉を${name}へ投げた。甲高い音が迷宮に響く。`);
+      playSound("bump");
+      closeSubmenu();
+      advanceRoamingTurn(false, state.x, state.y);
+      saveAutosave();
+      updateUI();
+    });
+    optGrid.appendChild(btn);
+  });
 }
 
 export function renderItemTargetSelect(optGrid) {

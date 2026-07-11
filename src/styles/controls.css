@@ -186,6 +186,17 @@
   min-height: var(--tap-min); /* keep tap target now that rows use max-content */
 }
 
+.submenu-info {
+  padding: var(--sp-sm);
+  border: 1px solid #3a3a4c;
+  border-radius: var(--radius-md);
+  background-color: rgba(39, 18, 21, 0.45);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+}
+
 
 .chest-info-panel {
   padding: var(--sp-md) 10px;

@@ -64,6 +64,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   const currentRun = originalState.currentRun ? JSON.parse(JSON.stringify(originalState.currentRun)) : null;
   const roamingMonsters = originalState.roamingMonsters ? originalState.roamingMonsters.map(rm => ({...rm})) : [];
   const floorChestsTotal = originalState.floorChestsTotal ? [...originalState.floorChestsTotal] : [];
+  const openedGates = originalState.openedGates ? [...originalState.openedGates] : [];
   
   const state = {
     ...originalState,
@@ -78,6 +79,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     currentRun,
     roamingMonsters,
     floorChestsTotal,
+    openedGates,
     gold: originalState.gold
   };
   let escaped = false;

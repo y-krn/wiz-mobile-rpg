@@ -64,7 +64,7 @@ export function getEnemyRow(monster) {
   return monster.row || "front";
 }
 
-export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack) {
+export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster = null) {
   const monsters = [];
   let isRare = false;
 
@@ -83,7 +83,8 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack) {
       maxHp: midbossTemplate.hp
     });
   } else if (isRoamingFlack) {
-    const flackTemplate = MONSTERS.find(m => m.name === "フラック");
+    const monsterName = roamingMonster?.kind === "warden" ? roamingMonster.name : "フラック";
+    const flackTemplate = MONSTERS.find(m => m.name === monsterName) || MONSTERS.find(m => m.name === "フラック");
     monsters.push({
       ...flackTemplate,
       hp: flackTemplate.hp,

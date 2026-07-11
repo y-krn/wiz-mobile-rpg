@@ -56,6 +56,68 @@ Torneko lineage contributes resource management and push-your-luck decisions
 (pillar 2), not map randomness. Unknownness comes from unexplored floors and
 unidentified loot (pillars 1 and 3), not from reshuffling known ground.
 
+## Information Disclosure
+
+The smallest unit of the exploration pillar is not the step — it is **the
+information a step discloses**. A step is interesting when what it reveals
+forces the player to re-evaluate the current plan:
+
+```text
+take a step -> new information appears -> re-evaluate the plan ->
+advance, retreat, or prepare -> take another step
+```
+
+Darkness and hidden things are not the point; the *process of coming into
+view* is. Never add opacity for its own sake — a corridor where nothing is
+revealed step by step is dead space, however dark it is.
+
+### The four-rung ladder
+
+Information about any entity (enemy, trap, door, treasure) moves through
+stages, and reveal mechanics should land on a rung rather than jump from
+nothing to everything:
+
+1. **Unknown** — nothing.
+2. **Presence** — something exists: a sound, a glow, an aura, a trace.
+3. **Identification** — what kind of thing: a large shadow, an iron door,
+   a chest-like light.
+4. **Detail** — exact type and state: the specific enemy, the trap type,
+   the threat rating.
+
+Existing systems already sit on this ladder: the proximity/sensory aura is
+presence; trap traces (TICKET-037) are presence-to-identification; the danger
+telegraph (TICKET-015) and the warden threat display (TICKET-078) are
+identification-to-detail. A new reveal mechanic should state which rung it
+serves and what decision changes when the player climbs to it. The gap
+between rungs is where decisions live: "do I get closer to identify it,
+knowing it may notice me?"
+
+### Information vs exposure
+
+Gaining information must have a price, or maximum-visibility gear becomes the
+only correct build. The trade is information against exposure and resources:
+approaching to identify risks being noticed; light costs fuel. Today light is
+pure upside (encounter rate 0.10 -> 0.07 -> 0.05); that is an accepted
+simplification, already flagged as a watch item under Combat pacing. Any
+future light rebalance should consider pricing light with exposure, not just
+supply.
+
+The same logic bounds caution: checking must cost something (light duration,
+the step budget that TICKET-077 pacing implies), so the ideal state is
+"checking makes you safe, but you cannot afford to check everything."
+
+### Growth along this axis
+
+Level-less growth lives here: perception (identify from further away),
+interpretation (read traces into predictions), options (more actions to take
+on information), and equipment (hearing range, wall sense, trace reading).
+Information-gathering gear is a first-class reward category alongside combat
+stats, and feeds pillar 3's build variety.
+
+Design test for any new exploration feature: **what does a step disclose,
+and what decision does that change?** If the answer is "nothing" or "none",
+the feature is scenery.
+
 ## Combat Is Subordinate To Exploration
 
 Combat exists to gate and pace exploration, not as the goal.
@@ -85,9 +147,14 @@ parentheses.
   is no per-run tile cap; do not shrink the map to chase one (TICKET-076 kept
   map size, plan A on hold).
 - **Combat pacing**: ~5-6 fights on the frontier floor being explored; 2-3 on
-  known transit floors is acceptable and desirable. The flat 0.10 encounter
-  rate yields 9-10 fights on a full-loot route — tuning tracked in
-  TICKET-077.
+  known transit floors is acceptable and desirable. Implemented via per-floor
+  step decay (TICKET-077): encounter rate 0.10 for the first 30 steps on a
+  floor this run, 0.04 after (measured: full-loot 5.4-5.7 fights, beeline
+  2.0-2.6 — both on target). Light spells still subtract flat (-0.03 / -0.05),
+  which means past 30 steps LOMILWA reaches a 0% encounter rate. Light supply,
+  MP cost, and duration are therefore the real balance valve on frontier
+  combat — a cheap LOMILWA collapses the 5-6 target to ~1.5. Watch this when
+  touching light-spell cost or availability.
 - **Gimmick learning load**: introduce at most 1-2 *new gimmick concepts* per
   floor. Instance counts (one-way 2-5, secret doors 1-2, pitfalls 0-1) are
   balance tuning numbers, not capped at 1-2; with a fixed labyrinth they
@@ -119,15 +186,19 @@ while returning is constrained and in-dungeon resources are finite.
   (TICKET-054) are what make re-descending faster. If re-descent still feels
   like padding, fix it with more shortcuts or floor density, not by
   reintroducing resume.
-- Planned direction, not yet ticketed: designated mid-dungeon camps as the
-  only checkpoint mechanism, so "reach the next camp" becomes a goal in
-  itself. Camp design must not reintroduce free depth-banking; reconcile it
-  with TICKET-040/042/075 rather than layering on top of them.
+- Camps (TICKET-082) are **in-run waypoints, not cross-run resume points**:
+  a partial rest once per run at B2/B4, unlocked permanently by defeating
+  that floor's warden. They segment the run ("push to the next camp?")
+  without banking depth between runs — TICKET-075's B1F start is untouched.
+  Session interruption is already covered by autosave; camps owe it nothing.
 
-## FOE-Like Enemies (Planned Direction)
+## FOE-Like Enemies (Designed: TICKET-078)
 
 Visible, avoidable, clearly-unwinnable-for-now enemies give exploration a
-mid-term goal that pure floor progression lacks.
+mid-term goal that pure floor progression lacks. The concrete design is
+TICKET-078 ("warden" enemies guarding sealed gates; defeating one permanently
+opens a shortcut on that floor). This section stays as the design intent the
+ticket must satisfy.
 
 Intended cycle:
 
@@ -144,7 +215,8 @@ Requirements when this is designed:
   not just drop loot; otherwise it is only an elite fight.
 - At most one per floor (see Floor Density Targets).
 
-Not yet ticketed; this section records intent, not implementation scope.
+Implementation scope, phasing, and data shape live in TICKET-078; this
+section records only the intent it must satisfy.
 
 ## Avoid
 

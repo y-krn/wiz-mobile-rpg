@@ -107,6 +107,14 @@ export function getCharAffixSum(char, affixType) {
   return caps[affixType] ? Math.min(caps[affixType], total) : total;
 }
 
+export function getPartyMaxAffix(party, affixType) {
+  if (!Array.isArray(party)) return 0;
+  return party.reduce((max, char) => {
+    if (!char || char.hp <= 0 || char.status === "dead") return max;
+    return Math.max(max, getCharAffixSum(char, affixType));
+  }, 0);
+}
+
 export function getItemData(itemOrKey) {
   if (!itemOrKey) return null;
   const baseId = getItemBaseId(itemOrKey);
@@ -253,6 +261,9 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "devotion") prefix = "神聖な";
       else if (primaryAff.type === "guardian") prefix = "守護の";
       else if (primaryAff.type === "treasureSense") prefix = "宝探しの";
+      else if (primaryAff.type === "hearRange") prefix = "地獄耳の";
+      else if (primaryAff.type === "arcaneSense") prefix = "霊視の";
+      else if (primaryAff.type === "traceRead") prefix = "追跡者の";
       else if (primaryAff.type === "antiUndead") prefix = "退魔の";
       else if (primaryAff.type === "antiDragon") prefix = "竜殺しの";
       else if (primaryAff.type === "spellGuard") prefix = "魔除けの";
@@ -286,6 +297,9 @@ export function getItemData(itemOrKey) {
         devotion: "回復威力",
         guardian: "守護",
         treasureSense: "宝探",
+        hearRange: "聴覚",
+        arcaneSense: "霊視",
+        traceRead: "痕跡",
         antiUndead: "不死祓い",
         antiDragon: "竜殺し",
         spellGuard: "魔除け",
@@ -294,8 +308,11 @@ export function getItemData(itemOrKey) {
         antiDemon: "悪魔対策"
       }[aff.type];
       const sign = aff.value >= 0 ? "+" : "";
-      const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "antiDemon"].includes(aff.type) ? "%" : "";
-      return `${label || aff.type}${sign}${aff.value}${unit}`;
+      const percentTypes = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "antiDemon"];
+      const levelTypes = ["arcaneSense", "traceRead"];
+      const unit = percentTypes.includes(aff.type) ? "%" : (levelTypes.includes(aff.type) ? "Lv" : "");
+      const valueText = levelTypes.includes(aff.type) ? aff.value : `${sign}${aff.value}`;
+      return `${label || aff.type}${valueText}${unit}`;
     }).join(" / ");
     
     let desc = `${base.desc} [${affixDesc}]`;

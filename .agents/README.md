@@ -45,9 +45,10 @@ module under the matching directory (`src/data/*`, `src/state/*`,
 
 ## Design References
 
-- `game-design-core-loop.md`: top-level design pillars, core loop, floor
-  density and pacing targets, push-your-luck structure, and planned FOE/camp
-  direction. Check any feature or balance proposal against it.
+- `game-design-core-loop.md`: top-level design pillars, core loop,
+  information-disclosure principles, floor density and pacing targets,
+  push-your-luck structure, and FOE/camp direction. Check any feature or
+  balance proposal against it.
 - `game-design.md`: current progression/economy design for XP, gold, shops,
   materials, workshop, reward roles, and post-clear save behavior.
 

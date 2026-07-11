@@ -1,6 +1,6 @@
 import { state, addLog } from "./state_core.js";
 import { Sentry } from "../sentry.js";
-import { generateRandomSeed, createDefaultRoster, createDefaultCodex, findSuitableRoamingMonsterStart } from "./initial_state.js";
+import { generateRandomSeed, createDefaultRoster, createDefaultCodex } from "./initial_state.js";
 import { createSavePayload, applySavePayload, linkPartyToRoster } from "./save_payload.js";
 import { migrateSavePayload } from "./save_migrations.js";
 import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
@@ -26,6 +26,7 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.gold = 150;
   state.inventory = ["HEAL_POTION", "HEAL_POTION"];
   state.firstChestUnidentifiedGuaranteed = false;
+  state.openedGates = [];
   
   if (!preserveSeed || !state.seed) {
     state.seed = generateRandomSeed();
@@ -38,18 +39,10 @@ export function initNewGame({ preserveSeed = false } = {}) {
   const b4 = generateRandomMap(4, b3.stairsDownCoord, state.seed);
   const b5 = generateRandomMap(5, b4.stairsDownCoord, state.seed);
   state.maps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
-  applyDungeonMemoryToMaps();
-
   state.roamingMovementStepCount = 0;
+  state.noiseEvents = [];
   state.roamingMonsters = [];
-  const f4Start = findSuitableRoamingMonsterStart(b4, 4);
-  if (f4Start) {
-    state.roamingMonsters.push({ floor: 4, x: f4Start.x, y: f4Start.y, name: "フラック" });
-  }
-  const f5Start = findSuitableRoamingMonsterStart(b5, 5);
-  if (f5Start) {
-    state.roamingMonsters.push({ floor: 5, x: f5Start.x, y: f5Start.y, name: "フラック" });
-  }
+  applyDungeonMemoryToMaps();
   state.visitedMaps = [
     Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
     Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),

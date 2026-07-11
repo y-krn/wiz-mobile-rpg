@@ -75,7 +75,7 @@ export function migrateCharSpells(char) {
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 // 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
 // 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
@@ -121,6 +121,20 @@ function backfillMapSecretDoors(data) {
   return data;
 }
 
+function backfillMapSealedGates(data) {
+  data.maps?.forEach(map => {
+    map?.forEach(row => {
+      row?.forEach(cell => {
+        if (!cell) return;
+        if (!Array.isArray(cell.sealedGate) || cell.sealedGate.length !== 4) {
+          cell.sealedGate = [null, null, null, null];
+        }
+      });
+    });
+  });
+  return data;
+}
+
 const MIGRATIONS = {
   2: (data) => {
     data.party?.forEach(normalizeCharEquipment);
@@ -143,6 +157,10 @@ const MIGRATIONS = {
   },
   5: (data) => {
     return backfillMapSecretDoors(data);
+  },
+  6: (data) => {
+    data.openedGates = data.openedGates ?? [];
+    return backfillMapSealedGates(data);
   }
 };
 
@@ -214,6 +232,8 @@ export function normalizeSavePayload(data) {
   normalized.roamingMonsters = data.roamingMonsters ?? [];
   normalized.firstChestUnidentifiedGuaranteed = data.firstChestUnidentifiedGuaranteed ?? false;
   normalized.roamingMovementStepCount = data.roamingMovementStepCount ?? 0;
+  normalized.noiseEvents = data.noiseEvents ?? [];
+  normalized.openedGates = data.openedGates ?? [];
   normalized.contracts = data.contracts ?? [];
   normalized.activeContract = data.activeContract ?? null;
   normalized.completedContracts = data.completedContracts ?? [];
@@ -292,6 +312,7 @@ export function normalizeSavePayload(data) {
   loadedMaps.forEach(map => {
     backfillMapBlockEnter({ maps: [map] });
     backfillMapSecretDoors({ maps: [map] });
+    backfillMapSealedGates({ maps: [map] });
     if (map) removeIsolatedInternalWalls(map);
   });
   normalized.maps = loadedMaps;

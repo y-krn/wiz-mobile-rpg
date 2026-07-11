@@ -30,6 +30,9 @@ const SECRET_DOOR_COUNTS = {
   5: { shortcut: 3, room: 2 }
 };
 
+export const WARDEN_GATE_FLOORS = [1, 2, 3, 4, 5];
+export const WARDEN_GATE_DETOUR_STAGES = [8, 6, 4];
+
 function isPassageCell(grid, x, y) {
   return x >= 0 &&
     x < MAP_WIDTH &&
@@ -45,7 +48,7 @@ function getInternalWallEdges(grid) {
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
       if (!isPassageCell(grid, x, y)) continue;
 
-      if (grid[y][x].walls[DIR_E] && !grid[y][x].secretDoor?.[DIR_E] && isPassageCell(grid, x + 1, y)) {
+      if (grid[y][x].walls[DIR_E] && !grid[y][x].secretDoor?.[DIR_E] && !grid[y][x].sealedGate?.[DIR_E] && isPassageCell(grid, x + 1, y)) {
         edges.push({
           x,
           y,
@@ -55,7 +58,7 @@ function getInternalWallEdges(grid) {
         });
       }
 
-      if (grid[y][x].walls[DIR_S] && !grid[y][x].secretDoor?.[DIR_S] && isPassageCell(grid, x, y + 1)) {
+      if (grid[y][x].walls[DIR_S] && !grid[y][x].secretDoor?.[DIR_S] && !grid[y][x].sealedGate?.[DIR_S] && isPassageCell(grid, x, y + 1)) {
         edges.push({
           x,
           y,
@@ -93,6 +96,67 @@ function setSecretDoor(grid, x, y, dir) {
   cell.walls[dir] = true;
   next.walls[OPPOSITE_DIR[dir]] = true;
   return true;
+}
+
+function ensureSealedGateArrays(cell) {
+  if (!Array.isArray(cell.sealedGate) || cell.sealedGate.length !== 4) {
+    cell.sealedGate = [null, null, null, null];
+  }
+}
+
+function setSealedGate(grid, floor, edge, start) {
+  const id = `B${floor}_WARDEN_GATE`;
+  const cell = grid[edge.y][edge.x];
+  const next = grid[edge.ny][edge.nx];
+  ensureSealedGateArrays(cell);
+  ensureSealedGateArrays(next);
+
+  const startToA = getDirectedDistance(grid, start, { x: edge.x, y: edge.y });
+  const startToB = getDirectedDistance(grid, start, { x: edge.nx, y: edge.ny });
+  const home = edge.home || (startToB >= startToA ? { x: edge.nx, y: edge.ny } : { x: edge.x, y: edge.y });
+
+  const gate = {
+    id,
+    floor,
+    x: edge.x,
+    y: edge.y,
+    dir: edge.dir,
+    nx: edge.nx,
+    ny: edge.ny,
+    homeX: home.x,
+    homeY: home.y,
+    shortcutDelta: edge.shortcutDelta
+  };
+
+  cell.walls[edge.dir] = true;
+  next.walls[OPPOSITE_DIR[edge.dir]] = true;
+  cell.sealedGate[edge.dir] = { id, open: false };
+  next.sealedGate[OPPOSITE_DIR[edge.dir]] = { id, open: false };
+  return gate;
+}
+
+function placeTargetSealedGate(grid, floor, start, target) {
+  if (!target) return null;
+  for (let dir = 0; dir < 4; dir++) {
+    const x = target.x - DX[dir];
+    const y = target.y - DY[dir];
+    const cell = grid[y]?.[x];
+    if (!cell || cell.walls[dir]) continue;
+    return setSealedGate(grid, floor, {
+      x, y, dir, nx: target.x, ny: target.y,
+      home: { x, y }, shortcutDelta: 0
+    }, start);
+  }
+  return null;
+}
+
+function closeWall(grid, x, y, dir) {
+  const nx = x + DX[dir];
+  const ny = y + DY[dir];
+  const next = grid[ny]?.[nx];
+  if (!next) return;
+  grid[y][x].walls[dir] = true;
+  next.walls[OPPOSITE_DIR[dir]] = true;
 }
 
 function canEnterFrom(grid, x, y, dir) {
@@ -240,6 +304,66 @@ function getNonBridgePassageEdges(grid) {
   return edges;
 }
 
+function getOpenPassageEdges(grid) {
+  const edges = [];
+
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      const cell = grid[y][x];
+      if (!isPassageCell(grid, x, y)) continue;
+
+      [DIR_E, DIR_S].forEach(dir => {
+        if (cell.walls[dir] || cell.blockEnter?.[dir]) return;
+        const nx = x + DX[dir];
+        const ny = y + DY[dir];
+        const next = grid[ny]?.[nx];
+        if (!next || next.walls[OPPOSITE_DIR[dir]] || next.blockEnter?.[OPPOSITE_DIR[dir]]) return;
+        if (!isPassageCell(grid, nx, ny)) return;
+        edges.push({ x, y, nx, ny, dir });
+      });
+    }
+  }
+
+  return edges;
+}
+
+function getCarvedShortcutEdges(grid) {
+  const edges = [];
+
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      const cell = grid[y][x];
+      if (cell.type !== "empty" || cell.event || cell.walls.some(w => !w)) continue;
+
+      const adjacent = [];
+      for (let dir = 0; dir < 4; dir++) {
+        const nx = x + DX[dir];
+        const ny = y + DY[dir];
+        if (isPassageCell(grid, nx, ny)) adjacent.push({ x: nx, y: ny, dir });
+      }
+
+      for (let i = 0; i < adjacent.length; i++) {
+        for (let j = 0; j < adjacent.length; j++) {
+          if (i === j) continue;
+          const gateSide = adjacent[i];
+          const openSide = adjacent[j];
+          edges.push({
+            x,
+            y,
+            nx: gateSide.x,
+            ny: gateSide.y,
+            dir: gateSide.dir,
+            carveDir: openSide.dir,
+            home: { x: openSide.x, y: openSide.y }
+          });
+        }
+      }
+    }
+  }
+
+  return edges;
+}
+
 function getRequiredReachableKeys(grid, stairsDownCoord, bossCoord) {
   const keys = new Set();
 
@@ -266,6 +390,10 @@ function shuffleInPlace(array, rng) {
     const j = Math.floor(rng() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
   }
+}
+
+function manhattan(a, b) {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
 function getOneWayReverseDetourDistance(grid, option) {
@@ -403,6 +531,126 @@ function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng
   return placed;
 }
 
+export function placeWardenGate(grid, floor, start, stairsDownCoord) {
+  if (!WARDEN_GATE_FLOORS.includes(floor) || !stairsDownCoord) return null;
+
+  const openedDistance = getDirectedDistance(grid, start, stairsDownCoord);
+  if (!Number.isFinite(openedDistance)) return null;
+  const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, null);
+
+  const openEdges = getOpenPassageEdges(grid)
+    .map(edge => ({
+      ...edge,
+      roughPotential: -(manhattan(start, { x: edge.x, y: edge.y }) + manhattan({ x: edge.nx, y: edge.ny }, stairsDownCoord))
+    }))
+    .sort((a, b) => b.roughPotential - a.roughPotential)
+    .slice(0, 40);
+  const carvedEdges = getCarvedShortcutEdges(grid)
+    .map(edge => ({
+      ...edge,
+      roughPotential: openedDistance - (manhattan(start, { x: edge.nx, y: edge.ny }) + 2 + manhattan(edge.home, stairsDownCoord))
+    }))
+    .filter(edge => edge.roughPotential > 0)
+    .sort((a, b) => b.roughPotential - a.roughPotential)
+    .slice(0, 40);
+
+  const candidates = [...openEdges, ...carvedEdges]
+    .map(edge => {
+      let candidateDistance;
+      let requiredReachable;
+      let shortcutDelta;
+      if (edge.carveDir !== undefined) {
+        openWall(grid, edge.x, edge.y, edge.carveDir);
+        openWall(grid, edge.x, edge.y, edge.dir);
+        candidateDistance = getDirectedDistance(grid, start, stairsDownCoord);
+        shortcutDelta = openedDistance - candidateDistance;
+        requiredReachable = Number.isFinite(openedDistance);
+        closeWall(grid, edge.x, edge.y, edge.dir);
+        closeWall(grid, edge.x, edge.y, edge.carveDir);
+      } else {
+        closeWall(grid, edge.x, edge.y, edge.dir);
+        candidateDistance = getDirectedDistance(grid, start, stairsDownCoord);
+        requiredReachable = canReachAllRequired(grid, start, requiredKeys);
+        shortcutDelta = candidateDistance - openedDistance;
+        openWall(grid, edge.x, edge.y, edge.dir);
+      }
+      return {
+        ...edge,
+        openedDistance,
+        candidateDistance,
+        requiredReachable,
+        shortcutDelta
+      };
+    })
+    .filter(edge => edge.requiredReachable && Number.isFinite(edge.candidateDistance) && edge.shortcutDelta >= 0)
+    .sort((a, b) => b.shortcutDelta - a.shortcutDelta);
+
+  for (const minDetour of WARDEN_GATE_DETOUR_STAGES) {
+    const candidate = candidates.find(edge => edge.shortcutDelta >= minDetour);
+    if (candidate) {
+      if (candidate.carveDir !== undefined) {
+        openWall(grid, candidate.x, candidate.y, candidate.carveDir);
+      }
+      return setSealedGate(grid, floor, candidate, start);
+    }
+  }
+
+  const fallback = candidates[0];
+  if (fallback) {
+    if (fallback.carveDir !== undefined) {
+      openWall(grid, fallback.x, fallback.y, fallback.carveDir);
+    }
+    return setSealedGate(grid, floor, fallback, start);
+  }
+  return null;
+}
+
+export function placeWardenGateWithStairFallback(grid, floor, start, stairsDownCoord) {
+  const firstGate = placeWardenGate(grid, floor, start, stairsDownCoord);
+  if (firstGate || !WARDEN_GATE_FLOORS.includes(floor) || !stairsDownCoord) {
+    return { gate: firstGate, stairsDownCoord };
+  }
+
+  const reachable = getDirectedReachableCellKeys(grid, start);
+  const candidates = [...reachable]
+    .map(key => {
+      const [x, y] = key.split(",").map(Number);
+      return {
+        x,
+        y,
+        dist: Math.abs(x - start.x) + Math.abs(y - start.y)
+      };
+    })
+    .filter(pos => {
+      const cell = grid[pos.y]?.[pos.x];
+      if (!cell) return false;
+      if (pos.x === start.x && pos.y === start.y) return false;
+      if (cell.type !== "empty" || cell.event || cell.trap) return false;
+      return cell.walls.some(w => !w);
+    })
+    .sort((a, b) => b.dist - a.dist)
+    .slice(0, 8);
+
+  for (const candidate of candidates) {
+    const trial = JSON.parse(JSON.stringify(grid));
+    const oldStairs = trial[stairsDownCoord.y]?.[stairsDownCoord.x];
+    if (oldStairs?.type === "stairs-down") {
+      oldStairs.type = "empty";
+      oldStairs.message = null;
+    }
+    trial[candidate.y][candidate.x].type = "stairs-down";
+    trial[candidate.y][candidate.x].message = `【下り階段】地下${floor + 1}階へ進む階段です。`;
+    const gate = placeWardenGate(trial, floor, start, candidate);
+    if (!gate) continue;
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      grid[y] = trial[y];
+    }
+    return { gate, stairsDownCoord: { x: candidate.x, y: candidate.y } };
+  }
+
+  return { gate: null, stairsDownCoord };
+}
+
 export function removeIsolatedInternalWalls(grid) {
   let removed = 0;
   let changed = true;
@@ -437,6 +685,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       blockEnter: [false, false, false, false],
       secretDoor: [false, false, false, false],
       secretFound: [false, false, false, false],
+      sealedGate: [null, null, null, null],
       type: "empty",
       event: null,
       message: null
@@ -823,10 +1072,24 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   placeOneWayPassages(grid, floor, suCoord, stairsDownCoord, bossCoord, rng);
   placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng);
+  let wardenPlacement = stairsDownCoord
+    ? placeWardenGateWithStairFallback(grid, floor, suCoord, stairsDownCoord)
+    : { gate: placeWardenGate(grid, floor, suCoord, bossCoord) || placeTargetSealedGate(grid, floor, suCoord, bossCoord), stairsDownCoord };
+  if (!wardenPlacement.gate && bossCoord && stairsDownCoord) {
+    wardenPlacement = { gate: placeWardenGate(grid, floor, suCoord, bossCoord), stairsDownCoord };
+  }
+  if (!wardenPlacement.gate) {
+    wardenPlacement = { gate: placeTargetSealedGate(grid, floor, suCoord, stairsDownCoord || bossCoord), stairsDownCoord };
+  }
+  const wardenGate = wardenPlacement.gate;
+  if (stairsDownCoord) {
+    stairsDownCoord = wardenPlacement.stairsDownCoord;
+  }
 
   return {
     grid,
     stairsDownCoord,
-    bossCoord
+    bossCoord,
+    wardenGate
   };
 }

@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath } from "./state.js";
-import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES } from "./data.js";
+import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
@@ -8,7 +8,8 @@ import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
 import { openSubmenu } from "./navigation.js";
 import { triggerRunResult } from "./result.js";
-import { handleTrapStepCheck } from "./systems/traps.js";
+import { detectAdjacentTrapsByTraceRead, handleTrapStepCheck } from "./systems/traps.js";
+import { getPerceptionIntent } from "./systems/warden_perception.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -78,10 +79,21 @@ function isBlockedByOneWayPassage(x, y, dir) {
   return Boolean(state.map[ny]?.[nx]?.blockEnter?.[enterFace]);
 }
 
+function getClosedSealedGate(x, y, dir) {
+  const gate = state.map[y]?.[x]?.sealedGate?.[dir];
+  return gate && !gate.open ? gate : null;
+}
+
 function blockOneWayMove() {
   playSound("bump");
   if (renderer) renderer.triggerShake(4, 150);
   addLog("見えない力に押し返された。ここは一方通行だ…");
+}
+
+function blockSealedGateMove() {
+  playSound("bump");
+  if (renderer) renderer.triggerShake(5, 180);
+  addLog("【封印門】冷たい封印が行く手を阻む。門番を倒さなければ開かない。");
 }
 
 export function handleMove(action) {
@@ -96,13 +108,19 @@ export function handleMove(action) {
   
   if (action === "turn-left") {
     state.dir = (state.dir + 3) % 4;
+    advanceRoamingTurn(false, prevX, prevY);
   } else if (action === "turn-right") {
     state.dir = (state.dir + 1) % 4;
+    advanceRoamingTurn(false, prevX, prevY);
   } else if (action === "forward") {
     const currentCell = state.map[state.y][state.x];
     if (currentCell.walls[state.dir]) {
-      playSound("bump");
-      if (renderer) renderer.triggerShake(4, 150);
+      if (getClosedSealedGate(state.x, state.y, state.dir)) {
+        blockSealedGateMove();
+      } else {
+        playSound("bump");
+        if (renderer) renderer.triggerShake(4, 150);
+      }
     } else if (isBlockedByOneWayPassage(state.x, state.y, state.dir)) {
       blockOneWayMove();
     } else {
@@ -123,8 +141,12 @@ export function handleMove(action) {
     const currentCell = state.map[state.y][state.x];
     const backDir = (state.dir + 2) % 4;
     if (currentCell.walls[backDir]) {
-      playSound("bump");
-      if (renderer) renderer.triggerShake(4, 150);
+      if (getClosedSealedGate(state.x, state.y, backDir)) {
+        blockSealedGateMove();
+      } else {
+        playSound("bump");
+        if (renderer) renderer.triggerShake(4, 150);
+      }
     } else if (isBlockedByOneWayPassage(state.x, state.y, backDir)) {
       blockOneWayMove();
     } else {
@@ -218,9 +240,13 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
 function checkSensoryAura() {
   const px = state.x;
   const py = state.y;
+  const hearRangeBonus = getPartyMaxAffix(state.party, "hearRange");
+  const arcaneSense = getPartyMaxAffix(state.party, "arcaneSense");
   const lightSenseRange = state.lightPower === "lomilwa" ? 4 : (state.lightTurns > 0 ? 3 : 2);
   const dumapicSenseRange = state.dumapicTurns > 0 ? 3 : 0;
-  const senseRange = Math.max(lightSenseRange, dumapicSenseRange);
+  const baseSenseRange = Math.max(lightSenseRange, dumapicSenseRange);
+  const soundRange = baseSenseRange + hearRangeBonus;
+  const arcaneRange = baseSenseRange;
   
   let nearestSpring = null;
   let nearestBoss = null;
@@ -263,8 +289,8 @@ function checkSensoryAura() {
     }
   }
 
-  // 1. Boss / Midboss magic aura (distance <= 3)
-  if (minDistBoss <= 3 && nearestBoss) {
+  // 1. Boss / Midboss magic aura
+  if (minDistBoss <= Math.max(3, arcaneRange) && nearestBoss) {
     const dy = nearestBoss.y - py;
     const dx = nearestBoss.x - px;
     let dirStr;
@@ -276,46 +302,83 @@ function checkSensoryAura() {
     addLog(`【気配】${dirStr}の方からただならぬ魔力の気配を感じる…`);
   }
 
-  // 2. Spring water sound (distance <= 2)
-  if (minDistSpring <= senseRange && nearestSpring) {
+  // 2. Spring water sound
+  if (minDistSpring <= soundRange && nearestSpring) {
     addLog("【気配】近くからかすかに水音が聞こえる…");
   }
 
-  // 3. Tablet magic wave (distance <= 2)
-  if (minDistTablet <= senseRange && nearestTablet) {
-    addLog("【気配】近くの壁から弱い魔力の波動を感じる…");
+  // 3. Tablet magic wave
+  if (minDistTablet <= arcaneRange && nearestTablet) {
+    if (arcaneSense >= 1) {
+      addLog(`【気配】${getRelativeDirectionText(nearestTablet.x, nearestTablet.y, px, py)}の壁から弱い魔力の波動を感じる…`);
+    } else {
+      addLog("【気配】近くの壁から弱い魔力の波動を感じる…");
+    }
   }
 
-  // 4. Merchant footsteps/presence (distance <= 2)
-  if (minDistMerchant <= senseRange && nearestMerchant) {
+  // 4. Merchant footsteps/presence
+  if (minDistMerchant <= soundRange && nearestMerchant) {
     addLog("【気配】近くから静かな衣擦れの音が聞こえる気がする…");
   }
 
-  // 5. Down stairs wind draft (distance <= 2)
-  if (minDistDownStairs <= senseRange && nearestDownStairs) {
+  // 5. Down stairs wind draft
+  if (minDistDownStairs <= soundRange && nearestDownStairs) {
     addLog("【気配】下へ続く空洞から、冷たい風が流れてきている…");
   }
 
-  // 6. Chest hidden treasure vibe (distance <= 2)
-  if (minDistChest <= senseRange && nearestChest) {
+  // 6. Chest hidden treasure vibe
+  if (minDistChest <= baseSenseRange && nearestChest) {
     addLog("【気配】この近くに何かが隠されている気がする…");
   }
 
-  // 7. Roaming Flack presence (distance <= 3)
+  // 7. Hidden door wall sense
+  if (arcaneSense >= 2) {
+    const secretDir = getAdjacentHiddenSecretDoorDir();
+    if (secretDir !== null) {
+      addLog(`【気配】${DIR_NAMES[secretDir]}の壁の向こうに空洞の気配がある…`);
+    }
+  }
+
+  // 8. Roaming threat presence
   if (state.roamingMonsters) {
     const currentFlacks = state.roamingMonsters.filter(rm => rm.floor === state.floor);
     let minFlackDist = 999;
+    let nearest = null;
     currentFlacks.forEach(flack => {
       const dist = Math.abs(flack.x - px) + Math.abs(flack.y - py);
       if (dist < minFlackDist) {
         minFlackDist = dist;
+        nearest = flack;
       }
     });
-    if (minFlackDist <= 3) {
+    const roamingRange = nearest?.kind === "warden" ? 5 + hearRangeBonus : 3 + hearRangeBonus;
+    if (nearest?.kind === "warden" && minFlackDist <= roamingRange) {
+      addLog("【⚠️封印門の気配】近くに桁違いの殺気がある。今は勝ち目が薄い門番だ。");
+      playSound("miss");
+    } else if (minFlackDist <= roamingRange) {
       addLog("【⚠️警告】近くから不浄で禍々しい気配が漂ってくる…強敵「フラック」が近くにいる！");
       playSound("miss");
     }
   }
+}
+
+function getRelativeDirectionText(x, y, px, py) {
+  const dy = y - py;
+  const dx = x - px;
+  if (Math.abs(dy) > Math.abs(dx)) return dy < 0 ? "北" : "南";
+  return dx < 0 ? "西" : "東";
+}
+
+function getAdjacentHiddenSecretDoorDir() {
+  const cell = state.map[state.y]?.[state.x];
+  if (!cell?.secretDoor) return null;
+  for (let dir = 0; dir < 4; dir++) {
+    const nx = state.x + DX[dir];
+    const ny = state.y + DY[dir];
+    if (!state.map[ny]?.[nx]) continue;
+    if (cell.secretDoor[dir] && !cell.secretFound?.[dir]) return dir;
+  }
+  return null;
 }
 
 export function checkCellEvents(prevX = START_X, prevY = START_Y) {
@@ -513,6 +576,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // Random Encounter
   if ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance) {
     state.transitioning = true;
+    createNoiseEvent(state.x, state.y);
     addLog("モンスターが暗闇から襲いかかってきた！");
     setTimeout(() => {
       state.transitioning = false;
@@ -637,25 +701,113 @@ export function executeEnterDungeon(floor) {
   updateUI();
 }
 
-export function checkRoamingMonsterEncounter() {
+function beginRoamingMonsterCombat(monster) {
+  state.transitioning = true;
+  const isWarden = monster.kind === "warden";
+  addLog(isWarden
+    ? `【⚠️封印門の門番】${monster.name}が立ちはだかった！`
+    : `【⚠️遭遇！】徘徊する強敵「${monster.name}」が目の前に現れた！`);
+  playSound("chest_trap");
+  setTimeout(() => {
+    state.transitioning = false;
+    startCombat(false, false, true, monster);
+  }, 1000);
+}
+
+export function challengePendingWarden() {
+  const pending = state.pendingWardenEncounter;
+  const monster = state.roamingMonsters?.find(rm => rm.id === pending?.monsterId);
+  state.pendingWardenEncounter = null;
+  if (!monster) {
+    state.gameState = "explore";
+    updateUI();
+    return;
+  }
+  beginRoamingMonsterCombat(monster);
+}
+
+export function retreatPendingWarden() {
+  const pending = state.pendingWardenEncounter;
+  if (pending) {
+    state.x = pending.prevX;
+    state.y = pending.prevY;
+  }
+  state.pendingWardenEncounter = null;
+  state.gameState = "explore";
+  addLog("門番から距離を取った。今は挑むべき相手ではない。");
+  saveAutosave();
+  updateUI();
+}
+
+export function checkRoamingMonsterEncounter({ forced = false, prevX = state.prevX, prevY = state.prevY } = {}) {
   if (!state.roamingMonsters) return false;
   const flack = state.roamingMonsters.find(
     rm => rm.floor === state.floor && rm.x === state.x && rm.y === state.y
   );
   if (flack) {
-    state.transitioning = true;
-    addLog(`【⚠️遭遇！】徘徊する強敵「${flack.name}」が目の前に現れた！`);
-    playSound("chest_trap");
-    setTimeout(() => {
-      state.transitioning = false;
-      startCombat(false, false, true);
-    }, 1000);
+    if (flack.kind === "warden" && !forced) {
+      state.pendingWardenEncounter = { monsterId: flack.id, prevX, prevY };
+      addLog("【⚠️封印門の門番】圧倒的な殺気が行く手を塞ぐ。挑む前に覚悟が必要だ。");
+      openSubmenu("warden_confirm", "封印門の門番: 勝ち目は薄い");
+    } else {
+      beginRoamingMonsterCombat(flack);
+    }
     return true;
   }
   return false;
 }
 
-export function moveRoamingMonsters() {
+function getLatestNoise() {
+  return state.noiseEvents?.filter(event => event.floor === state.floor && event.ttl > 0).at(-1) ?? null;
+}
+
+export function createNoiseEvent(x, y, ttl = 4) {
+  if (!state.noiseEvents) state.noiseEvents = [];
+  state.noiseEvents.push({ floor: state.floor, x, y, ttl });
+}
+
+function getPassableNeighbors(monster, targetActive) {
+  const grid = state.map;
+  const neighbors = [];
+  const cell = grid[monster.y]?.[monster.x];
+  if (!cell) return neighbors;
+  const patrolRadius = monster.kind === "warden" ? 5 : Infinity;
+  const currentHomeDist = Math.abs(monster.x - (monster.homeX ?? monster.x)) + Math.abs(monster.y - (monster.homeY ?? monster.y));
+  for (let dir = 0; dir < 4; dir++) {
+    if (cell.walls[dir]) continue;
+    const x = monster.x + DX[dir];
+    const y = monster.y + DY[dir];
+    const destCell = grid[y]?.[x];
+    if (!destCell) continue;
+    const blocked = state.roamingMonsters.some(rm => rm.floor === state.floor && rm !== monster && rm.x === x && rm.y === y);
+    const special = destCell.type === "stairs-up" || destCell.type === "stairs-down" || destCell.event === "boss" || destCell.event === "midboss";
+    const oneWay = Boolean(destCell.blockEnter?.[(dir + 2) % 4]);
+    const homeDist = Math.abs(x - (monster.homeX ?? monster.x)) + Math.abs(y - (monster.homeY ?? monster.y));
+    if (!blocked && !special && !oneWay && (targetActive || homeDist <= patrolRadius || currentHomeDist > patrolRadius)) {
+      neighbors.push({ x, y, dir });
+    }
+  }
+  return neighbors;
+}
+
+function pickStep(monster, neighbors, target) {
+  if (target) {
+    const min = Math.min(...neighbors.map(n => Math.abs(n.x - target.x) + Math.abs(n.y - target.y)));
+    const candidates = neighbors.filter(n => Math.abs(n.x - target.x) + Math.abs(n.y - target.y) === min);
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+  const homeDistance = Math.abs(monster.x - (monster.homeX ?? monster.x)) + Math.abs(monster.y - (monster.homeY ?? monster.y));
+  if (monster.kind === "warden" && homeDistance > 5) {
+    const min = Math.min(...neighbors.map(n => Math.abs(n.x - monster.homeX) + Math.abs(n.y - monster.homeY)));
+    return neighbors.find(n => Math.abs(n.x - monster.homeX) + Math.abs(n.y - monster.homeY) === min);
+  }
+  const opposite = monster.lastDir === undefined ? -1 : (monster.lastDir + 2) % 4;
+  const forward = neighbors.filter(n => n.dir !== opposite);
+  const candidates = forward.length ? forward : neighbors;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+export function moveRoamingMonsters(playerMoved = true) {
   if (!state.roamingMonsters) return;
   const currentFloor = state.floor;
   const grid = state.map;
@@ -664,77 +816,35 @@ export function moveRoamingMonsters() {
   state.roamingMonsters.forEach(monster => {
     if (monster.floor !== currentFloor) return;
 
-    const mx = monster.x;
-    const my = monster.y;
-
-    // Determine mode: chase player if Manhattan distance <= 4
-    const distToPlayer = Math.abs(mx - state.x) + Math.abs(my - state.y);
-    const isChase = distToPlayer <= 4;
-
-    // Find passable neighbors
-    const neighbors = [];
-    const cell = grid[my][mx];
-    for (let dir = 0; dir < 4; dir++) {
-      if (!cell.walls[dir]) {
-        const nx = mx + DX[dir];
-        const ny = my + DY[dir];
-        if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-          // Check if another monster is there
-          const isBlockedByMonster = state.roamingMonsters.some(
-            rm => rm.floor === currentFloor && rm !== monster && rm.x === nx && rm.y === ny
-          );
-          // Prevent stepping on stairs, boss, or midboss
-          const destCell = grid[ny][nx];
-          const isSpecialCell = destCell.type === "stairs-up" || destCell.type === "stairs-down" || 
-                                destCell.event === "boss" || destCell.event === "midboss";
-          const enterFace = (dir + 2) % 4;
-          const isBlockedByOneWay = Boolean(destCell.blockEnter?.[enterFace]);
-          if (!isBlockedByMonster && !isSpecialCell && !isBlockedByOneWay) {
-            neighbors.push({ x: nx, y: ny, dir });
-          }
-        }
-      }
-    }
-
-    if (neighbors.length === 0) return; // No move possible
-
-    let chosen;
-    if (isChase) {
-      // Pick neighbor that minimizes distance to player
-      let minDist = 999;
-      const candidates = [];
-      neighbors.forEach(n => {
-        const d = Math.abs(n.x - state.x) + Math.abs(n.y - state.y);
-        if (d < minDist) {
-          minDist = d;
-        }
-      });
-      neighbors.forEach(n => {
-        const d = Math.abs(n.x - state.x) + Math.abs(n.y - state.y);
-        if (d === minDist) {
-          candidates.push(n);
-        }
-      });
-      chosen = candidates[Math.floor(Math.random() * candidates.length)];
-    } else {
-      // Patrol mode: try to avoid backtracking
-      let lastDir = monster.lastDir;
-      const oppositeDir = lastDir !== undefined ? (lastDir + 2) % 4 : -1;
-      const forwardCandidates = neighbors.filter(n => n.dir !== oppositeDir);
-      
-      if (forwardCandidates.length > 0) {
-        chosen = forwardCandidates[Math.floor(Math.random() * forwardCandidates.length)];
-      } else {
-        chosen = neighbors[Math.floor(Math.random() * neighbors.length)];
-      }
-    }
-
-    if (chosen) {
+    const intent = getPerceptionIntent({
+      monster,
+      player: { x: state.x, y: state.y, dir: state.dir, dx: DX, dy: DY },
+      noise: getLatestNoise(),
+      playerMoved,
+      grid
+    });
+    monster.detected = intent.detected;
+    for (let step = 0; step < intent.speed; step++) {
+      const neighbors = getPassableNeighbors(monster, Boolean(intent.target));
+      if (!neighbors.length) break;
+      const chosen = pickStep(monster, neighbors, intent.target);
+      if (!chosen) break;
       monster.x = chosen.x;
       monster.y = chosen.y;
       monster.lastDir = chosen.dir;
+      if (monster.x === state.x && monster.y === state.y) break;
     }
   });
+}
+
+export function advanceRoamingTurn(playerMoved, prevX = state.x, prevY = state.y) {
+  state.noiseEvents = (state.noiseEvents || [])
+    .map(event => ({ ...event, ttl: event.ttl - 1 }))
+    .filter(event => event.ttl > 0);
+  state.roamingMovementStepCount = (state.roamingMovementStepCount || 0) + 1;
+  if (state.roamingMovementStepCount % 2 !== 0) return false;
+  moveRoamingMonsters(playerMoved);
+  return checkRoamingMonsterEncounter({ forced: true, prevX, prevY });
 }
 
 export function processExplorationResolution(prevX, prevY) {
@@ -742,19 +852,12 @@ export function processExplorationResolution(prevX, prevY) {
   if (wiped) return;
 
   // 1. Check if player stepped onto Flack
-  if (checkRoamingMonsterEncounter()) {
+  if (checkRoamingMonsterEncounter({ prevX, prevY })) {
     return;
   }
 
   // 2. Move Flacks if it's their turn
-  state.roamingMovementStepCount = (state.roamingMovementStepCount || 0) + 1;
-  if (state.roamingMovementStepCount % 2 === 0) {
-    moveRoamingMonsters();
-    // Check if Flack stepped onto player
-    if (checkRoamingMonsterEncounter()) {
-      return;
-    }
-  }
+  if (advanceRoamingTurn(true, prevX, prevY)) return;
 
   // 2.5. Check standard traps on standard passage cells
   const cell = state.map[state.y][state.x];
@@ -763,6 +866,8 @@ export function processExplorationResolution(prevX, prevY) {
     if (encountered) {
       return;
     }
+  } else {
+    detectAdjacentTrapsByTraceRead();
   }
 
   // 3. Regular floor events

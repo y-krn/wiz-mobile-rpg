@@ -4,6 +4,7 @@ import { canUsePriestSpells, canUseMageSpells } from "../rules/class_rules.js";
 import { addCharBuff } from "../combat_logic/status_effects.js";
 
 export const ITEM_EFFECTS = {
+  NOISE_BALL: () => "鳴らし玉が甲高い音を響かせた。",
   HEAL_POTION: ({ char }) => {
     const heal = getEffectiveHealAmount(char, 15);
     char.hp = Math.min(getCharMaxHp(char), char.hp + heal);

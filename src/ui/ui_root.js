@@ -318,14 +318,14 @@ export function updateUI() {
     const el = document.getElementById("trap-controls");
     if (el) el.classList.add("active");
     
-    const { trap, successRate, expectedEffect } = state.activeTrapState;
+    const { trap, successRate, expectedEffect, revealLevel = 3 } = state.activeTrapState;
     const trapNames = {
       damage: "火炎放射の罠",
       mpDrain: "魔力吸収の罠",
       alarm: "警報装置の罠",
       pitfall: "底なし落とし穴"
     };
-    const trapName = trapNames[trap.type] || "未知の罠";
+    const trapName = revealLevel >= 2 ? (trapNames[trap.type] || "未知の罠") : "罠の気配";
     document.getElementById("trap-name").innerHTML = `罠名: <strong style="color:var(--neon-red)">${trapName}</strong>`;
     
     const trapStates = {
@@ -335,7 +335,10 @@ export function updateUI() {
     };
     const statusColor = trap.state === "weakened" ? "var(--neon-green)" : "var(--neon-gold)";
     document.getElementById("trap-status").innerHTML = `状態: <span style="color:${statusColor}">${trapStates[trap.state] || trap.state}</span>`;
-    document.getElementById("trap-difficulty").textContent = `危険度: B${trap.floorId.replace("B", "")}F (難易度: ${trap.difficulty})`;
+    const difficultyText = revealLevel >= 3
+      ? `危険度: B${trap.floorId.replace("B", "")}F (難易度: ${trap.difficulty})`
+      : `危険度: B${trap.floorId.replace("B", "")}F`;
+    document.getElementById("trap-difficulty").textContent = difficultyText;
     document.getElementById("trap-effect").textContent = `予想効果: ${expectedEffect}`;
     
     const isPitfall = trap.type === "pitfall";

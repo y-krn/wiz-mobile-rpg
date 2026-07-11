@@ -1,4 +1,5 @@
 export const SHOP_STOCK = [
+  { key: "NOISE_BALL", price: 40 },
   { key: "HEAL_POTION", price: 60 },
   { key: "ANTIDOTE", price: 80 },
   { key: "EYE_DROPS", price: 80 },

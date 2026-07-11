@@ -207,6 +207,26 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   if (isTreasureSenseEligible) {
     addAffix(3, "treasureSense", () => 8, 1); // +8%
   }
+  const isHearEligible = ["EXPLORER_CLOAK", "NINJA_SUIT", "LEATHER_ARMOR", "BUCKLER"].includes(baseId);
+  if (isHearEligible) {
+    addAffix(1, "hearRange", () => floor >= 4 ? 2 : 1, 1);
+  }
+  const isArcaneSenseEligible = ["WAND", "SAGE_STAFF", "ARCH_WAND", "HOLY_STAFF", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "SORCERER_ROBE", "MAGIC_SHIELD"].includes(baseId);
+  if (isArcaneSenseEligible) {
+    addAffix(1, "arcaneSense", () => {
+      if (floor >= 5) return 3;
+      if (floor >= 3) return 2;
+      return 1;
+    }, 1);
+  }
+  const isTraceReadEligible = ["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "RAPIER", "EXPLORER_CLOAK", "NINJA_SUIT", "BUCKLER"].includes(baseId);
+  if (isTraceReadEligible) {
+    addAffix(1, "traceRead", () => {
+      if (floor >= 5) return 3;
+      if (floor >= 3) return 2;
+      return 1;
+    }, 1);
+  }
   if (["SACRED_MACE", "MACE", "HOLY_STAFF"].includes(baseId)) {
     addAffix(3, "antiUndead", () => 30, 1);
   }
@@ -250,6 +270,9 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     if (aff.type === "trapBonus") {
       if (!tags.includes("poison")) tags.push("poison");
     }
+    if (aff.type === "hearRange" && !tags.includes("search")) tags.push("search");
+    if (aff.type === "arcaneSense" && !tags.includes("analysis")) tags.push("analysis");
+    if (aff.type === "traceRead" && !tags.includes("trap")) tags.push("trap");
   });
 
   let curseEffectId = null;
@@ -361,7 +384,10 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     { type: "antiDragon", getVal: () => 15, weight: floor >= 4 ? 1 : 0 },
     { type: "antiUndead", getVal: () => 15, weight: floor >= 3 ? 1 : 0 },
     { type: "poisonWard", getVal: () => floor >= 4 ? 25 : 15, weight: 1 },
-    { type: "treasureSense", getVal: () => floor >= 4 ? 8 : 5, weight: 1 }
+    { type: "treasureSense", getVal: () => floor >= 4 ? 8 : 5, weight: 1 },
+    { type: "hearRange", getVal: () => floor >= 4 ? 2 : 1, weight: 2 },
+    { type: "arcaneSense", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 },
+    { type: "traceRead", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 }
   ].filter(aff => aff.weight > 0);
 
   const affixes = rollAffixes(accessoryAffixPool, affixCount, rng);
@@ -381,7 +407,10 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
       antiDragon: "dragon",
       antiUndead: "holy",
       poisonWard: "poison",
-      treasureSense: "search"
+      treasureSense: "search",
+      hearRange: "search",
+      arcaneSense: "analysis",
+      traceRead: "trap"
     };
     const tag = affixTags[aff.type];
     if (tag && !tags.includes(tag)) tags.push(tag);

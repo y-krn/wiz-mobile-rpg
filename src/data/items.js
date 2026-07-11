@@ -55,6 +55,7 @@ export const ITEMS = {
 
   // Potions / Quest items
   HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", price: 60, desc: "使用するとHPを15回復する。" },
+  NOISE_BALL: { id: "NOISE_BALL", name: "鳴らし玉", type: "usable", price: 40, desc: "探索中、指定方向へ投げて着弾地点に音を発生させる。", exploreDirectional: true },
   GREATER_HEAL: { id: "GREATER_HEAL", name: "上薬", type: "usable", price: 180, desc: "使用するとHPを40回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   ANTIDOTE: { id: "ANTIDOTE", name: "解毒薬", type: "usable", price: 80, desc: "使用すると毒状態を解除する。" },
   EYE_DROPS: { id: "EYE_DROPS", name: "目薬", type: "usable", price: 80, desc: "使用すると盲目状態を解除する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },

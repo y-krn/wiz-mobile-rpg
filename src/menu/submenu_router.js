@@ -5,7 +5,7 @@ import { shopState } from "../shop/shop_state.js";
 import { renderTraining } from "../training.js";
 import { renderEventMerchant, renderEventMerchantBuy, renderEventMerchantResult } from "./merchant.js";
 import { renderTempleMain, renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftDismantle, renderCraftInscriptionSelectEquip, renderCraftInscriptionSelectEngrave, renderCastleMain, renderCastleDeadList, renderCastleRemainsList, renderCastleDeathLogs } from "./town_actions.js";
-import { renderItemInventory, renderItemTargetSelect, renderCampMain, renderGameOverMain, renderEnterDungeonSelect, renderCampStatus, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect } from "./explore_actions.js";
+import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderCampMain, renderGameOverMain, renderEnterDungeonSelect, renderCampStatus, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect, renderWardenConfirm } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 
 const SUBMENU_RENDERERS = {
@@ -18,6 +18,7 @@ const SUBMENU_RENDERERS = {
   craft_inscription_select_engrave: (optGrid) => renderCraftInscriptionSelectEngrave(optGrid),
   item_inventory: (optGrid) => renderItemInventory(optGrid),
   item_target_select: (optGrid) => renderItemTargetSelect(optGrid),
+  item_direction_select: (optGrid) => renderItemDirectionSelect(optGrid),
   camp_main: (optGrid) => renderCampMain(optGrid),
   camp: (optGrid) => renderCampMain(optGrid),
   gameover_main: (optGrid) => renderGameOverMain(optGrid),
@@ -56,6 +57,7 @@ const SUBMENU_RENDERERS = {
   castle_death_logs: (optGrid) => renderCastleDeathLogs(optGrid),
   chest_disarmer_select: (optGrid) => renderChestDisarmerSelect(optGrid),
   chest_opener_select: (optGrid) => renderChestOpenerSelect(optGrid),
+  warden_confirm: (optGrid) => renderWardenConfirm(optGrid),
   party_assemble: (optGrid) => {
     optGrid.innerHTML = "";
     const info = document.createElement("div");

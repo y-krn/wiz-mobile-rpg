@@ -66,6 +66,8 @@ export function createSavePayload() {
     prevY: state.prevY,
     roamingMonsters: state.roamingMonsters,
     roamingMovementStepCount: state.roamingMovementStepCount,
+    noiseEvents: state.noiseEvents,
+    openedGates: state.openedGates,
     firstChestUnidentifiedGuaranteed: state.firstChestUnidentifiedGuaranteed,
     contracts: state.contracts,
     activeContract: state.activeContract,
@@ -117,6 +119,8 @@ export function applySavePayload(data) {
   state.roamingMonsters = data.roamingMonsters;
   state.firstChestUnidentifiedGuaranteed = data.firstChestUnidentifiedGuaranteed;
   state.roamingMovementStepCount = data.roamingMovementStepCount;
+  state.noiseEvents = data.noiseEvents ?? [];
+  state.openedGates = data.openedGates;
   state.contracts = data.contracts;
   state.activeContract = data.activeContract;
   state.completedContracts = data.completedContracts;

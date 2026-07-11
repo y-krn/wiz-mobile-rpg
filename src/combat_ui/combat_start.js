@@ -5,7 +5,7 @@ import { generateEncounter } from "./encounter.js";
 import { advanceActionSelection } from "./action_selection.js";
 import { getActiveSynergies, recordSynergyDiscovery } from "../data/tags.js";
 
-export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
+export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null) {
   state.gameState = "combat";
   if (state.currentRun) {
     state.currentRun.battles++;
@@ -15,7 +15,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
     char.buffs = [];
   });
 
-  const { monsters, isRare } = generateEncounter(state, isBoss, isMidboss, isRoamingFlack);
+  const { monsters, isRare } = generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster);
 
   if (state.alarmActive) {
     const mult = state.alarmWeakened ? 1.10 : 1.20;
@@ -44,6 +44,9 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false) {
     isBoss,
     isMidboss,
     isRoamingFlack,
+    roamingMonsterId: roamingMonster?.id ?? null,
+    roamingMonsterKind: roamingMonster?.kind ?? "flack",
+    gateId: roamingMonster?.gateId ?? null,
     isAuto: false,
     allParalyzedTurns: 0
   };

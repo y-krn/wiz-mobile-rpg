@@ -120,6 +120,44 @@ for (const vp of PARTY_HUD_VIEWPORTS) {
   });
 }
 
+for (const vp of VIEWPORTS) {
+  test(`Warden confirmation controls stay tappable on ${vp.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(() => {
+      localStorage.clear();
+    });
+    await page.goto('/');
+
+    const boxes = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { openSubmenu } = await import('/src/navigation.js');
+      await import('/src/menu/submenu_router.js');
+
+      state.gameState = 'explore';
+      state.pendingWardenEncounter = { monsterId: 'B1_WARDEN', prevX: 1, prevY: 22 };
+      openSubmenu('warden_confirm', '封印門の門番: 勝ち目は薄い');
+
+      return Array.from(document.querySelectorAll('#submenu-options .btn')).map((button) => {
+        const rect = button.getBoundingClientRect();
+        return {
+          text: button.textContent,
+          rect: rect.toJSON(),
+          visible: getComputedStyle(button).display !== 'none',
+        };
+      });
+    });
+
+    expect(boxes.map((box) => box.text)).toEqual(['挑む', '引き返す']);
+    for (const box of boxes) {
+      expect(box.visible, `${box.text} should be visible on ${vp.name}`).toBe(true);
+      expect(box.rect.height, `${box.text} should be at least 44px on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(box.rect.left, `${box.text} should stay inside viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
+      expect(box.rect.right, `${box.text} should stay inside viewport on ${vp.name}`).toBeLessThanOrEqual(vp.width);
+    }
+  });
+}
+
 test('Standalone safe-area full-screen overlays keep controls outside system bars', async ({ page }) => {
   const safeAreaTop = 59;
   const safeAreaBottom = 34;

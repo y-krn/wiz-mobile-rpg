@@ -9,7 +9,8 @@ export {
   getItemBaseId,
   isSpecialOrQuestItem,
   getEffectiveHealAmount,
-  getCharAffixSum
+  getCharAffixSum,
+  getPartyMaxAffix
 } from "./rules/item_rules.js";
 export * from "./rules/character_stats.js";
 export * from "./rules/spell_rules.js";

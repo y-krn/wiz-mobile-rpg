@@ -6,7 +6,7 @@ import { triggerGameOver } from "../combat.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
 import { createRng } from "../seed_rng.js";
 import { descendToFloor, findCellCoordsByType } from "../movement.js";
-import { MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "../data.js";
+import { MAP_WIDTH, MAP_HEIGHT, START_X, START_Y, DX, DY, getPartyMaxAffix } from "../data.js";
 
 // 罠設定値
 export const weakenedModifiers = {
@@ -87,14 +87,46 @@ export function getExpectedEffectText(trap) {
   }
 }
 
+function getTrapRevealLevel(trap) {
+  if (Number.isFinite(trap.traceReadLevel)) return trap.traceReadLevel;
+  if (trap.state === "discovered" || trap.state === "weakened") return 3;
+  return 0;
+}
+
 export function startTrapEncounter(trap) {
+  const revealLevel = getTrapRevealLevel(trap);
   state.gameState = "trap_encounter";
   state.activeTrapState = {
     trap,
     successRate: calculateSuccessRate(trap),
-    expectedEffect: getExpectedEffectText(trap)
+    expectedEffect: revealLevel >= 2 ? getExpectedEffectText(trap) : "不明",
+    revealLevel
   };
-  updateUI();
+  if (typeof document !== "undefined") updateUI();
+}
+
+export function detectAdjacentTrapsByTraceRead() {
+  const traceRead = getPartyMaxAffix(state.party, "traceRead");
+  if (traceRead <= 0) return false;
+  const found = [];
+  for (let dir = 0; dir < 4; dir++) {
+    const x = state.x + DX[dir];
+    const y = state.y + DY[dir];
+    const trap = state.map[y]?.[x]?.trap;
+    if (!trap || trap.state !== "hidden") continue;
+    trap.state = "discovered";
+    trap.traceReadLevel = traceRead;
+    found.push(trap);
+  }
+  if (found.length === 0) return false;
+  const lead = found[0];
+  if (traceRead >= 2) {
+    addLog(`【痕跡】近くに${getExpectedEffectText(lead)}の罠の痕跡がある。`);
+  } else {
+    addLog("【痕跡】近くの床に不自然な傷跡がある。罠かもしれない。");
+  }
+  playSound("miss");
+  return true;
 }
 
 export function handleTrapStepCheck(trap) {
@@ -303,6 +335,8 @@ export function triggerTrap(trap, isWeakenedOverride = null, isPartialSuccess = 
   } else if (trap.type === "alarm") {
     state.alarmActive = true;
     state.alarmWeakened = isWeakened || isPartialSuccess;
+    if (!state.noiseEvents) state.noiseEvents = [];
+    state.noiseEvents.push({ floor: state.floor, x: state.x, y: state.y, ttl: 4 });
     addLog("【⚠️警報】けたたましい警報音が響き渡った！");
   }
 }

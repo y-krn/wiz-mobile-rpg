@@ -3,6 +3,7 @@ import {
 } from "../data.js";
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
+import { applyOpenedGatesToMap } from "../state/warden_gates.js";
 
 function rollCombatAccessoryDrop(state) {
   const roll = Math.random();
@@ -279,20 +280,39 @@ export function applyCombatRewards(state, monsters, logQueue) {
       giveKey: true
     });
   } else if (state.combatState.isRoamingFlack) {
-    // Remove Flack from state.roamingMonsters
-    state.roamingMonsters = state.roamingMonsters.filter(
-      rm => !(rm.floor === state.floor && rm.x === state.x && rm.y === state.y)
-    );
-    logQueue.push({
-      msg: "強敵「フラック」を見事に撃破した！",
-      sound: "gold"
+    const defeatedId = state.combatState.roamingMonsterId;
+    const gateId = state.combatState.gateId;
+    const isWarden = state.combatState.roamingMonsterKind === "warden";
+    state.roamingMonsters = state.roamingMonsters.filter(rm => {
+      if (defeatedId) return rm.id !== defeatedId;
+      return !(rm.floor === state.floor && rm.x === state.x && rm.y === state.y);
     });
-    logQueue.push({
-      msg: "フラックの残骸の影に宝箱を見つけた！",
-      triggerChest: true
-    });
-    if (state.floorChestsTotal) {
-      state.floorChestsTotal[state.floor - 1] = (state.floorChestsTotal[state.floor - 1] ?? 0) + 1;
+
+    if (isWarden) {
+      if (gateId) {
+        if (!state.openedGates) state.openedGates = [];
+        if (!state.openedGates.includes(gateId)) {
+          state.openedGates.push(gateId);
+        }
+        applyOpenedGatesToMap(state.maps?.[state.floor - 1], state.openedGates);
+      }
+      logQueue.push({
+        msg: "封印門の門番を撃破した！封印門が開き、精鋭の戦利品を得た。",
+        sound: "gold",
+        endCombat: true
+      });
+    } else {
+      logQueue.push({
+        msg: "強敵「フラック」を見事に撃破した！",
+        sound: "gold"
+      });
+      logQueue.push({
+        msg: "フラックの残骸の影に宝箱を見つけた！",
+        triggerChest: true
+      });
+      if (state.floorChestsTotal) {
+        state.floorChestsTotal[state.floor - 1] = (state.floorChestsTotal[state.floor - 1] ?? 0) + 1;
+      }
     }
   } else {
     if (Math.random() < 0.20) {
