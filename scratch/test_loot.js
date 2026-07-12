@@ -177,6 +177,7 @@ import assert from "assert";
           innerHTML: "",
           appendChild: () => {},
           replaceChildren: () => {},
+          addEventListener: () => {},
           style: {},
           classList: {
             add: () => {},
@@ -346,9 +347,10 @@ import assert from "assert";
 
     const originalSetTimeout = global.setTimeout;
     const originalRandom = Math.random;
-    global.setTimeout = (cb) => {
-      cb();
-      return 0;
+    const scheduledTimeouts = [];
+    global.setTimeout = (cb, delay) => {
+      scheduledTimeouts.push({ cb, delay });
+      return scheduledTimeouts.length;
     };
     Math.random = () => 0.99;
     try {
@@ -363,8 +365,63 @@ import assert from "assert";
     assert.strictEqual(state.party[1].status, "poisoned", "Selected opener should take poison needle");
     assert.strictEqual(state.party[1].hp, 3, "Selected opener should take poison needle damage");
     assert.strictEqual(state.currentRun.trapsTriggered, 1, "Trap trigger count should increment");
+    assert.strictEqual(scheduledTimeouts.length, 0, "Surviving party should return without a result delay");
+    assert.strictEqual(state.chestState, null, "Successful chest opening should clear chestState immediately");
+    assert.strictEqual(state.gameState, "explore", "Successful chest opening should return to explore immediately");
+    assert.strictEqual(state.transitioning, false, "Successful chest opening should end the transition immediately");
+    assert.ok(global.localStorage.getItem("mobile_wiz_rpg_autosave"), "Successful chest opening should autosave");
 
     console.log("[PASS] Selected chest opener trap target verified.");
+
+    // Test 6: A lethal trap keeps the existing delayed game-over path
+    initNewGame();
+    state.party = [
+      { name: "Robin", class: "Thief", status: "ok", hp: 10, maxHp: 10, equipment: {} }
+    ];
+    state.floor = 1;
+    state.currentRun = {
+      chestsOpened: 0,
+      trapsTriggered: 0,
+      goldGained: 0,
+      itemsFound: [],
+      equipmentFound: []
+    };
+    state.chestState = {
+      x: state.x,
+      y: state.y,
+      trap: "poison needle",
+      identifiedTrap: "poison needle",
+      inspected: true,
+      inspectChance: 0.85,
+      gold: 0,
+      item: null,
+      accessoryItem: null,
+      lootHint: null
+    };
+    state.map[state.y][state.x].event = "chest";
+
+    const gameOverTimeouts = [];
+    global.setTimeout = (cb, delay) => {
+      gameOverTimeouts.push({ cb, delay });
+      return gameOverTimeouts.length;
+    };
+    Math.random = () => 0.99;
+    try {
+      openChestDirectly(state.party[0]);
+      assert.strictEqual(gameOverTimeouts.length, 1, "Party wipe should retain the result delay");
+      assert.strictEqual(gameOverTimeouts[0].delay, 1800, "Party wipe delay should remain 1800ms");
+      assert.strictEqual(state.transitioning, true, "Party wipe should remain transitioning during the delay");
+      gameOverTimeouts[0].cb();
+    } finally {
+      global.setTimeout = originalSetTimeout;
+      Math.random = originalRandom;
+    }
+
+    assert.strictEqual(state.gameState, "result", "Party wipe timeout should reach the game-over result");
+    assert.strictEqual(state.currentRun.returnReason, "gameover", "Party wipe should preserve the game-over reason");
+    assert.strictEqual(state.transitioning, false, "Party wipe timeout should end the transition");
+
+    console.log("[PASS] Delayed chest trap game-over path verified.");
 
     console.log("All chest trap inspect tests passed successfully!");
   })();

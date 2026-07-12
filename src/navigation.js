@@ -1,4 +1,5 @@
 import { state } from "./state.js";
+import { armControlsGuard } from "./controls_guard.js";
 
 // Submenu navigation tracker
 export let menuContext = {
@@ -70,6 +71,11 @@ export function openSubmenu(type, title, isBack = false) {
   }
 
   triggerUiUpdate();
+}
+
+export function openGuardedSubmenu(type, title) {
+  armControlsGuard();
+  openSubmenu(type, title);
 }
 
 export function closeSubmenu() {

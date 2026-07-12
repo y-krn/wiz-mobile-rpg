@@ -676,19 +676,21 @@ export function openChestDirectly(opener = null) {
 
   // Check game over
   const partyAlive = state.party.some(c => c.status !== "dead");
+  if (partyAlive) {
+    resetSubmenuBackButton();
+    state.transitioning = false;
+    state.chestState = null;
+    state.gameState = "explore";
+    saveAutosave();
+    updateUI();
+    return;
+  }
+
   updateUI();
-  
   setTimeout(() => {
     resetSubmenuBackButton();
     state.transitioning = false;
-    if (!partyAlive) {
-      triggerGameOver();
-    } else {
-      state.chestState = null;
-      state.gameState = "explore";
-      saveAutosave();
-      updateUI();
-    }
+    triggerGameOver();
   }, 1800);
 }
 

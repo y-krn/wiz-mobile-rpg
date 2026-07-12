@@ -7,6 +7,7 @@ import { dungeonRenderer as renderer } from "../renderer.js";
 import { createRng } from "../seed_rng.js";
 import { descendToFloor, findCellCoordsByType } from "../movement.js";
 import { MAP_WIDTH, MAP_HEIGHT, START_X, START_Y, DX, DY, getPartyMaxAffix } from "../data.js";
+import { armControlsGuard } from "../controls_guard.js";
 
 // 罠設定値
 export const weakenedModifiers = {
@@ -95,6 +96,7 @@ function getTrapRevealLevel(trap) {
 
 export function startTrapEncounter(trap) {
   const revealLevel = getTrapRevealLevel(trap);
+  armControlsGuard();
   state.gameState = "trap_encounter";
   state.activeTrapState = {
     trap,

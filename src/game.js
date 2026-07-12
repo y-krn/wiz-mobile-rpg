@@ -5,6 +5,7 @@ import { DungeonRenderer, setDungeonRenderer } from "./renderer.js";
 import { toggleMute } from "./audio.js";
 import { setUiUpdateCallback, goBackSubmenu } from "./navigation.js";
 import { handleTrapAction } from "./systems/traps.js";
+import { blockGuardedControlsEvent } from "./controls_guard.js";
 
 // Import modules for re-export and button bindings
 import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
@@ -68,6 +69,9 @@ function gameLoop(time) {
 // BUTTON BINDINGS
 // ----------------------------------------------------
 function bindButtons() {
+  document.getElementById("submenu-controls").addEventListener("click", blockGuardedControlsEvent, true);
+  document.getElementById("trap-controls").addEventListener("click", blockGuardedControlsEvent, true);
+
   // Exploration (pointerdown for touch/mouse, keydown for keyboard focus space/enter)
   const bindPress = (id, action) => {
     const el = document.getElementById(id);

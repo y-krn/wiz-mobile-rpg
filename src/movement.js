@@ -7,7 +7,7 @@ import { showFloorEntryStinger, updateUI } from "./ui.js";
 import { getFloorTheme, revealFloor } from "./data/floor_themes.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
-import { openSubmenu } from "./navigation.js";
+import { openGuardedSubmenu, openSubmenu } from "./navigation.js";
 import { triggerRunResult } from "./result.js";
 import { detectAdjacentTrapsByTraceRead, handleTrapStepCheck } from "./systems/traps.js";
 import { getPerceptionIntent } from "./systems/warden_perception.js";
@@ -508,13 +508,13 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.spring.found++;
     }
-    openSubmenu(EVENT_TYPES.SPRING, `${skin}を見つけた。水面がかすかに揺れている…`);
+    openGuardedSubmenu(EVENT_TYPES.SPRING, `${skin}を見つけた。水面がかすかに揺れている…`);
     return;
   }
 
   if (cell.event === EVENT_TYPES.CAMP) {
     const skin = getFloorTheme(state.floor)?.eventSkins.camp || "野営地";
-    openSubmenu(EVENT_TYPES.CAMP, `${skin}。門番の気配を警戒しながら休息場所を確かめる。`);
+    openGuardedSubmenu(EVENT_TYPES.CAMP, `${skin}。門番の気配を警戒しながら休息場所を確かめる。`);
     return;
   }
 
@@ -524,7 +524,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.tablet.found++;
     }
-    openSubmenu(EVENT_TYPES.TABLET, `${skin}が残されている。古い文字が刻まれている…`);
+    openGuardedSubmenu(EVENT_TYPES.TABLET, `${skin}が残されている。古い文字が刻まれている…`);
     return;
   }
 
@@ -534,7 +534,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.merchant.found++;
     }
-    openSubmenu(EVENT_TYPES.MERCHANT, `${skin}が暗がりから姿を現した。`);
+    openGuardedSubmenu(EVENT_TYPES.MERCHANT, `${skin}が暗がりから姿を現した。`);
     return;
   }
 
@@ -553,19 +553,19 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       if (state.codex && state.codex.events && state.codex.events.facilities) {
         state.codex.events.facilities.spring.found++;
       }
-      openSubmenu(EVENT_TYPES.SPRING, `${skin}を見つけた。水面がかすかに揺れている…`);
+      openGuardedSubmenu(EVENT_TYPES.SPRING, `${skin}を見つけた。水面がかすかに揺れている…`);
     } else if (chosen === EVENT_TYPES.TABLET) {
       const skin = getFloorTheme(state.floor)?.eventSkins.tablet || "謎の石碑";
       if (state.codex && state.codex.events && state.codex.events.facilities) {
         state.codex.events.facilities.tablet.found++;
       }
-      openSubmenu(EVENT_TYPES.TABLET, `${skin}が残されている。古い文字が刻まれている…`);
+      openGuardedSubmenu(EVENT_TYPES.TABLET, `${skin}が残されている。古い文字が刻まれている…`);
     } else {
       const skin = getFloorTheme(state.floor)?.eventSkins.merchant || "さまよう商人";
       if (state.codex && state.codex.events && state.codex.events.facilities) {
         state.codex.events.facilities.merchant.found++;
       }
-      openSubmenu(EVENT_TYPES.MERCHANT, `${skin}が暗がりから姿を現した。`);
+      openGuardedSubmenu(EVENT_TYPES.MERCHANT, `${skin}が暗がりから姿を現した。`);
     }
     return;
   }

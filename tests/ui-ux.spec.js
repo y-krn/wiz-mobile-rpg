@@ -823,6 +823,44 @@ for (const vp of VIEWPORTS) {
       await expect(page.getByRole('button', { name: '取引を続ける' })).toBeVisible();
     });
 
+    test('Movement-triggered event and trap panels ignore immediate taps', async ({ page }) => {
+      const result = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { openGuardedSubmenu, openSubmenu } = await import('/src/navigation.js');
+        const { startTrapEncounter } = await import('/src/systems/traps.js');
+
+        const clickProbe = (panel) => {
+          const button = document.createElement('button');
+          let clicks = 0;
+          button.addEventListener('click', () => clicks++);
+          panel.appendChild(button);
+          button.click();
+          const immediate = clicks;
+          state.controlsGuardUntil = performance.now() - 1;
+          button.click();
+          return { immediate, afterGuard: clicks };
+        };
+
+        state.gameState = 'explore';
+        openGuardedSubmenu('event_spring', '怪しい泉');
+        const event = clickProbe(document.getElementById('submenu-controls'));
+
+        state.gameState = 'explore';
+        openSubmenu('item_inventory', '共有バッグ');
+        state.controlsGuardUntil = 0;
+        const userSubmenu = clickProbe(document.getElementById('submenu-controls'));
+
+        state.party = state.roster.slice(0, 4);
+        startTrapEncounter({ type: 'damage', state: 'discovered', floorId: 'B1', difficulty: 10 });
+        const trap = clickProbe(document.getElementById('trap-controls'));
+        return { event, userSubmenu, trap };
+      });
+
+      expect(result.event).toEqual({ immediate: 0, afterGuard: 1 });
+      expect(result.userSubmenu).toEqual({ immediate: 1, afterGuard: 2 });
+      expect(result.trap).toEqual({ immediate: 0, afterGuard: 1 });
+    });
+
     test('Camp rest is thumb-safe and limited to once per run', async ({ page }) => {
       await page.evaluate(async () => {
         const { state, createDefaultCurrentRun } = await import('/src/state.js');

@@ -92,6 +92,7 @@ export const state = {
   // Message logs
   logs: [],
   transitioning: false,
+  controlsGuardUntil: 0,
   cleared: false,
   materials: {},
 
