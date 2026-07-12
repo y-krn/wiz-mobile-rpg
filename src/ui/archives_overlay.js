@@ -6,7 +6,8 @@ import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
 
 export const archivesState = {
   tab: "monsters",
-  selectedId: null
+  selectedId: null,
+  listScrollTop: 0
 };
 
 export function getMonsterCodexDetailHtml(m, record) {
@@ -263,6 +264,7 @@ export function getDeathLogsHtml() {
 export function openArchivesOverlay() {
   archivesState.tab = "monsters";
   archivesState.selectedId = null;
+  archivesState.listScrollTop = 0;
   
   const overlay = document.getElementById("archives-overlay");
   if (overlay) {
@@ -346,6 +348,7 @@ export function renderArchives() {
             <span class="codex-meta">撃破: ${record.killed}</span>
           `;
           row.addEventListener("click", () => {
+            archivesState.listScrollTop = body.scrollTop;
             archivesState.selectedId = m.name;
             renderArchives();
           });
@@ -403,6 +406,7 @@ export function renderArchives() {
             <span class="codex-meta">入手: ${record.foundCount}回</span>
           `;
           row.addEventListener("click", () => {
+            archivesState.listScrollTop = body.scrollTop;
             archivesState.selectedId = k;
             renderArchives();
           });
@@ -518,6 +522,7 @@ export function renderArchives() {
     tabBtn.addEventListener("click", () => {
       archivesState.tab = t.id;
       archivesState.selectedId = null;
+      archivesState.listScrollTop = 0;
       renderArchives();
     });
     tabs.appendChild(tabBtn);
@@ -542,4 +547,10 @@ export function renderArchives() {
   footer.appendChild(closeRow);
 
   overlay.appendChild(footer);
+  if (
+    archivesState.selectedId === null &&
+    (archivesState.tab === "monsters" || archivesState.tab === "equipment")
+  ) {
+    body.scrollTop = archivesState.listScrollTop;
+  }
 }
