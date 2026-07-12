@@ -378,6 +378,9 @@ import assert from "assert";
     state.party = [
       { name: "Robin", class: "Thief", status: "ok", hp: 10, maxHp: 10, equipment: {} }
     ];
+    state.roster = [
+      { name: "Robin", class: "Thief", status: "ok", hp: 10, maxHp: 10, equipment: {} }
+    ];
     state.floor = 1;
     state.currentRun = {
       chestsOpened: 0,
@@ -420,6 +423,9 @@ import assert from "assert";
     assert.strictEqual(state.gameState, "result", "Party wipe timeout should reach the game-over result");
     assert.strictEqual(state.currentRun.returnReason, "gameover", "Party wipe should preserve the game-over reason");
     assert.strictEqual(state.transitioning, false, "Party wipe timeout should end the transition");
+    assert.strictEqual(state.party[0], state.roster[0], "Party wipe should relink party members to roster objects");
+    assert.strictEqual(state.party[0].status, "dead", "Relinked party member should retain dead status");
+    assert.strictEqual(state.party[0].hp, 0, "Relinked party member should retain zero HP");
 
     console.log("[PASS] Delayed chest trap game-over path verified.");
 

@@ -310,6 +310,7 @@ export function triggerRunResult(reason) {
       checkActiveContract(state, state.currentRun, false);
     }
 
+    syncPartyToRoster();
     state.gameState = "result";
     saveAutosave();
     updateUI();
