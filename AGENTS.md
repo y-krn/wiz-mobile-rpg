@@ -29,18 +29,23 @@ Work is tracked as **GitHub Issues** on `y-krn/wiz-mobile-rpg`
 (https://github.com/y-krn/wiz-mobile-rpg/issues), shared across Claude, Codex,
 and Antigravity. Use the `gh` CLI.
 
-**Issue operations need no prior confirmation.** Creating, commenting on,
-labeling, assigning, editing, closing, and reopening issues on this repository
-are pre-approved — just do them and report the result. (This covers issues
-only; it does not extend to pushing commits, opening PRs, or other repo
-changes.)
+**Issue and pull-request operations need no prior confirmation.** Creating,
+commenting on, labeling, assigning, editing, closing, and reopening issues, and
+creating, updating, commenting on, reviewing, and merging pull requests on this
+repository are pre-approved — just do them and report the result. Committing and
+pushing to a feature branch for that PR is likewise pre-approved. Do not commit
+directly to `main`.
 
 - Before starting or resuming work, scan open issues:
   `gh issue list --state open`. Read the target issue with
   `gh issue view <n>`.
 - When you pick up an issue, assign yourself and leave a comment noting you
-  started (`gh issue comment <n> --body "..."`); when you finish, close it
-  (`gh issue close <n>`) or comment for review.
+  started (`gh issue comment <n> --body "..."`).
+- **Fixes go on a branch + PR, never straight to `main`.** For each issue,
+  branch off `main` (`fix/<n>-<slug>` or `feat/<n>-<slug>`, e.g.
+  `fix/33-mana-potion-reprice`), implement there, then open a PR that links the
+  issue in its body with `Closes #<n>` (`gh pr create`). Merging the PR closes
+  the issue automatically.
 - One concern per issue. Create with `gh issue create --template task.md`
   (`.github/ISSUE_TEMPLATE/task.md`); fill in Goal / Notes / Verification and
   the coordination checklist.
