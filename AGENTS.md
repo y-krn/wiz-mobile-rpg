@@ -29,6 +29,12 @@ Work is tracked as **GitHub Issues** on `y-krn/wiz-mobile-rpg`
 (https://github.com/y-krn/wiz-mobile-rpg/issues), shared across Claude, Codex,
 and Antigravity. Use the `gh` CLI.
 
+**Issue operations need no prior confirmation.** Creating, commenting on,
+labeling, assigning, editing, closing, and reopening issues on this repository
+are pre-approved — just do them and report the result. (This covers issues
+only; it does not extend to pushing commits, opening PRs, or other repo
+changes.)
+
 - Before starting or resuming work, scan open issues:
   `gh issue list --state open`. Read the target issue with
   `gh issue view <n>`.
