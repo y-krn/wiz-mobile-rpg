@@ -14,6 +14,40 @@ const PARTY_HUD_VIEWPORTS = [
 
 const PARTY_HUD_STATES = ['town', 'explore', 'combat', 'submenu', 'trap_encounter'];
 
+test('Three-column corridor renderer draws adjacent front walls', async ({ page }) => {
+  await page.goto('/');
+  const cyanPixels = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const makeCell = () => ({ walls: [false, false, false, false], type: 'empty' });
+
+    state.gameState = 'explore';
+    state.floor = 1;
+    state.x = 5;
+    state.y = 5;
+    state.dir = 0;
+    state.maps[0] = Array.from({ length: 24 }, () => Array.from({ length: 24 }, makeCell));
+    state.map[5][4].walls[0] = true;
+    state.map[5][6].walls[0] = true;
+    dungeonRenderer.draw();
+
+    const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
+    const countCyan = (centerX) => {
+      const pixels = ctx.getImageData(centerX - 2, 55, 5, 150).data;
+      let count = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        if (pixels[i + 1] > 180 && pixels[i + 2] > 180) count++;
+      }
+      return count;
+    };
+
+    return [countCyan(100), countCyan(300)];
+  });
+
+  expect(cyanPixels[0]).toBeGreaterThan(100);
+  expect(cyanPixels[1]).toBeGreaterThan(100);
+});
+
 test('Archives list restores scroll after detail and resets on navigation', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
