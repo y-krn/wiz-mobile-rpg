@@ -553,7 +553,7 @@ function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng
   return placed;
 }
 
-export function placeWardenGate(grid, floor, start, stairsDownCoord) {
+export function placeWardenGate(grid, floor, start, stairsDownCoord, rng = Math.random) {
   if (!WARDEN_GATE_FLOORS.includes(floor) || !stairsDownCoord) return null;
 
   const openedDistance = getDirectedDistance(grid, start, stairsDownCoord);
@@ -580,12 +580,16 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord) {
       let candidateDistance;
       let requiredReachable;
       let shortcutDelta;
+      let startToA;
+      let startToB;
       if (edge.carveDir !== undefined) {
         openWall(grid, edge.x, edge.y, edge.carveDir);
         openWall(grid, edge.x, edge.y, edge.dir);
         candidateDistance = getDirectedDistance(grid, start, stairsDownCoord);
         shortcutDelta = openedDistance - candidateDistance;
         requiredReachable = Number.isFinite(openedDistance);
+        startToA = getDirectedDistance(grid, start, { x: edge.x, y: edge.y });
+        startToB = getDirectedDistance(grid, start, { x: edge.nx, y: edge.ny });
         closeWall(grid, edge.x, edge.y, edge.dir);
         closeWall(grid, edge.x, edge.y, edge.carveDir);
       } else {
@@ -594,20 +598,34 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord) {
         requiredReachable = canReachAllRequired(grid, start, requiredKeys);
         shortcutDelta = candidateDistance - openedDistance;
         openWall(grid, edge.x, edge.y, edge.dir);
+        startToA = getDirectedDistance(grid, start, { x: edge.x, y: edge.y });
+        startToB = getDirectedDistance(grid, start, { x: edge.nx, y: edge.ny });
       }
       return {
         ...edge,
         openedDistance,
         candidateDistance,
         requiredReachable,
-        shortcutDelta
+        shortcutDelta,
+        startToA,
+        startToB
       };
     })
-    .filter(edge => edge.requiredReachable && Number.isFinite(edge.candidateDistance) && edge.shortcutDelta >= 0)
+    .filter(edge => {
+      const minStartDistance = Math.max(5, Math.floor(openedDistance * 0.3));
+      return edge.requiredReachable &&
+        Number.isFinite(edge.candidateDistance) &&
+        edge.shortcutDelta >= 0 &&
+        edge.startToA >= minStartDistance &&
+        edge.startToB >= minStartDistance;
+    })
     .sort((a, b) => b.shortcutDelta - a.shortcutDelta);
 
   for (const minDetour of WARDEN_GATE_DETOUR_STAGES) {
-    const candidate = candidates.find(edge => edge.shortcutDelta >= minDetour);
+    const stageCandidates = candidates.filter(edge => edge.shortcutDelta >= minDetour);
+    const candidate = stageCandidates.length > 0
+      ? stageCandidates[Math.floor(rng() * stageCandidates.length)]
+      : null;
     if (candidate) {
       if (candidate.carveDir !== undefined) {
         openWall(grid, candidate.x, candidate.y, candidate.carveDir);
@@ -616,7 +634,10 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord) {
     }
   }
 
-  const fallback = candidates.find(edge => edge.carveDir !== undefined);
+  const fallbackCandidates = candidates.filter(edge => edge.carveDir !== undefined);
+  const fallback = fallbackCandidates.length > 0
+    ? fallbackCandidates[Math.floor(rng() * fallbackCandidates.length)]
+    : null;
   if (fallback) {
     if (fallback.carveDir !== undefined) {
       openWall(grid, fallback.x, fallback.y, fallback.carveDir);
@@ -626,8 +647,8 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord) {
   return null;
 }
 
-export function placeWardenGateWithStairFallback(grid, floor, start, stairsDownCoord) {
-  const firstGate = placeWardenGate(grid, floor, start, stairsDownCoord);
+export function placeWardenGateWithStairFallback(grid, floor, start, stairsDownCoord, rng = Math.random) {
+  const firstGate = placeWardenGate(grid, floor, start, stairsDownCoord, rng);
   if (firstGate || !WARDEN_GATE_FLOORS.includes(floor) || !stairsDownCoord) {
     return { gate: firstGate, stairsDownCoord };
   }
@@ -661,7 +682,7 @@ export function placeWardenGateWithStairFallback(grid, floor, start, stairsDownC
     }
     trial[candidate.y][candidate.x].type = "stairs-down";
     trial[candidate.y][candidate.x].message = `【下り階段】地下${floor + 1}階へ進む階段です。`;
-    const gate = placeWardenGate(trial, floor, start, candidate);
+    const gate = placeWardenGate(trial, floor, start, candidate, rng);
     if (!gate) continue;
     for (let y = 0; y < MAP_HEIGHT; y++) {
       grid[y] = trial[y];
@@ -1094,10 +1115,10 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   placeOneWayPassages(grid, floor, suCoord, stairsDownCoord, bossCoord, rng);
   placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng);
   let wardenPlacement = stairsDownCoord
-    ? placeWardenGateWithStairFallback(grid, floor, suCoord, stairsDownCoord)
-    : { gate: placeWardenGate(grid, floor, suCoord, bossCoord), stairsDownCoord };
+    ? placeWardenGateWithStairFallback(grid, floor, suCoord, stairsDownCoord, rng)
+    : { gate: placeWardenGate(grid, floor, suCoord, bossCoord, rng), stairsDownCoord };
   if (!wardenPlacement.gate && bossCoord && stairsDownCoord) {
-    wardenPlacement = { gate: placeWardenGate(grid, floor, suCoord, bossCoord), stairsDownCoord };
+    wardenPlacement = { gate: placeWardenGate(grid, floor, suCoord, bossCoord, rng), stairsDownCoord };
   }
   const wardenGate = wardenPlacement.gate;
   if (stairsDownCoord) stairsDownCoord = wardenPlacement.stairsDownCoord;
