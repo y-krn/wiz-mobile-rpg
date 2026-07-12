@@ -125,7 +125,7 @@ function assertOldSaveBackfill() {
     }));
   });
 
-  const migrated = migrateSavePayload({
+  const createMigratedPayload = () => migrateSavePayload({
     version: 5,
     x: 1,
     y: 1,
@@ -136,17 +136,25 @@ function assertOldSaveBackfill() {
     inventory: [],
     seed,
     floor: 1,
-    maps: [...oldMaps, null, null],
+    maps: [...oldMaps.map(grid => JSON.parse(JSON.stringify(grid))), null, null],
     visitedMaps: oldMaps.map(grid => grid.map(row => row.map(() => false))),
     roamingMonsters: [],
     logs: []
   });
-  applySavePayload(migrated);
-  applyDungeonMemoryToMaps();
-  for (let floor = 1; floor <= 3; floor++) {
-    assert(findWardenGate(state.maps[floor - 1], floor), `old save B${floor}F gate not backfilled`);
-    assert(state.roamingMonsters.some(rm => rm.kind === "warden" && rm.floor === floor), `old save B${floor}F warden not backfilled`);
-  }
+  const backfill = () => {
+    applySavePayload(createMigratedPayload());
+    applyDungeonMemoryToMaps();
+    return [1, 2, 3].map(floor => {
+      const gate = findWardenGate(state.maps[floor - 1], floor);
+      assert(gate, `old save B${floor}F gate not backfilled`);
+      assert(state.roamingMonsters.some(rm => rm.kind === "warden" && rm.floor === floor), `old save B${floor}F warden not backfilled`);
+      return gate;
+    });
+  };
+
+  const firstBackfill = backfill();
+  const secondBackfill = backfill();
+  assert(JSON.stringify(firstBackfill) === JSON.stringify(secondBackfill), "old save gate backfill is not reproducible");
 }
 
 function assertOpenedGateRestores() {

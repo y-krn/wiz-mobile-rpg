@@ -66,7 +66,7 @@ function getGateHome(grid, gate, start) {
   return dist(b) >= dist(a) ? b : a;
 }
 
-export function ensureWardenGate(grid, floor, generatedGate = null) {
+export function ensureWardenGate(grid, floor, generatedGate = null, rng = Math.random) {
   if (!grid || floor < 1 || floor > 5) return null;
   const existing = findWardenGate(grid, floor);
   if (existing) return existing;
@@ -75,7 +75,7 @@ export function ensureWardenGate(grid, floor, generatedGate = null) {
   const start = floor === 1 ? { x: START_X, y: START_Y } : findMapCellByType(grid, "stairs-up");
   const stairsDown = findMapCellByType(grid, "stairs-down");
   if (!start || !stairsDown) return null;
-  return placeWardenGateWithStairFallback(grid, floor, start, stairsDown).gate;
+  return placeWardenGateWithStairFallback(grid, floor, start, stairsDown, rng).gate;
 }
 
 export function applyOpenedGatesToMap(grid, openedGates = []) {

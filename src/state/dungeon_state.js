@@ -83,7 +83,8 @@ export function applyDungeonMemoryToMaps() {
     for (let floor = 1; floor <= 5; floor++) {
       const grid = state.maps[floor - 1];
       if (!grid) continue;
-      const gate = ensureWardenGate(grid, floor);
+      const rng = createRng(`${state.seed}:warden-backfill:B${floor}`);
+      const gate = ensureWardenGate(grid, floor, null, rng);
       applyOpenedGatesToMap(grid, state.openedGates);
       if (gate && state.openedGates?.includes(gate.id) && state.roamingMonsters) {
         state.roamingMonsters = state.roamingMonsters.filter(rm => rm.gateId !== gate.id);

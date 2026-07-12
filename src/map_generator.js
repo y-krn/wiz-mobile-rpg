@@ -558,6 +558,7 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord, rng = Math.
 
   const openedDistance = getDirectedDistance(grid, start, stairsDownCoord);
   if (!Number.isFinite(openedDistance)) return null;
+  const minStartDistance = Math.max(5, Math.floor(openedDistance * 0.3));
   const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, null);
 
   const openEdges = getOpenPassageEdges(grid)
@@ -612,14 +613,12 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord, rng = Math.
       };
     })
     .filter(edge => {
-      const minStartDistance = Math.max(5, Math.floor(openedDistance * 0.3));
       return edge.requiredReachable &&
         Number.isFinite(edge.candidateDistance) &&
         edge.shortcutDelta >= 0 &&
         edge.startToA >= minStartDistance &&
         edge.startToB >= minStartDistance;
-    })
-    .sort((a, b) => b.shortcutDelta - a.shortcutDelta);
+    });
 
   for (const minDetour of WARDEN_GATE_DETOUR_STAGES) {
     const stageCandidates = candidates.filter(edge => edge.shortcutDelta >= minDetour);
