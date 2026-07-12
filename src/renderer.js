@@ -12,8 +12,8 @@ const VIEW_W = 400;
 const VIEW_H = 260;
 
 // Depth planes for 3D projection
-const XL = [0, 80, 128, 157, 174];
-const XR = [400, 320, 272, 243, 226];
+const XL = [0, 100, 145, 170, 184];
+const XR = [400, 300, 255, 230, 216];
 const YT = [0, 52, 86, 106, 118];
 const YB = [260, 208, 174, 154, 142];
 
@@ -199,141 +199,153 @@ export class DungeonRenderer {
       gridColor = "rgba(204, 136, 0, 0.2)";
     }
 
-    // Draw from back (z=3) to front (z=0)
+    const columnOrder = [-1, 1, 0];
+
+    // Draw from back (z=3) to front (z=0), outer columns before center
     for (let z = 3; z >= 0; z--) {
-      const cx = px + DX[dir] * z;
-      const cy = py + DY[dir] * z;
+      for (const column of columnOrder) {
+        const dirRight = (dir + 1) % 4;
+        const cx = px + DX[dir] * z + DX[dirRight] * column;
+        const cy = py + DY[dir] * z + DY[dirRight] * column;
+        const width = XR[z] - XL[z];
+        const nextWidth = XR[z + 1] - XL[z + 1];
+        const left = XL[z] + width * column;
+        const right = XR[z] + width * column;
+        const nextLeft = XL[z + 1] + nextWidth * column;
+        const nextRight = XR[z + 1] + nextWidth * column;
 
-      // Check out of bounds
-      if (cx < 0 || cx >= MAP_WIDTH || cy < 0 || cy >= MAP_HEIGHT) {
-        // Render a solid wall block at depth z
-        this.renderSolidWall(ctx, z, outOfBoundsColor); // Red glow for out of bounds
-        continue;
-      }
-
-      const cell = state.map[cy][cx];
-
-      // Relative directions based on player orientation
-      const dirLeft = (dir + 3) % 4;
-      const dirRight = (dir + 1) % 4;
-      const dirFront = dir;
-
-      const hasLeftWall = cell.walls[dirLeft];
-      const hasRightWall = cell.walls[dirRight];
-      const hasFrontWall = cell.walls[dirFront];
-      const frontX = cx + DX[dirFront];
-      const frontY = cy + DY[dirFront];
-      const frontEnterFace = (dirFront + 2) % 4;
-      const hasFrontOneWayBarrier = !hasFrontWall && Boolean(state.map[frontY]?.[frontX]?.blockEnter?.[frontEnterFace]);
-      const hasFrontSealedGate = hasFrontWall && Boolean(cell.sealedGate?.[dirFront] && !cell.sealedGate[dirFront].open);
-
-      // 1. Draw floor/ceiling segments
-      ctx.strokeStyle = gridColor;
-      
-      // Floor lines
-      ctx.beginPath();
-      ctx.moveTo(XL[z], YB[z]);
-      ctx.lineTo(XL[z + 1], YB[z + 1]);
-      ctx.moveTo(XR[z], YB[z]);
-      ctx.lineTo(XR[z + 1], YB[z + 1]);
-      // Ceiling lines
-      ctx.moveTo(XL[z], YT[z]);
-      ctx.lineTo(XL[z + 1], YT[z + 1]);
-      ctx.moveTo(XR[z], YT[z]);
-      ctx.lineTo(XR[z + 1], YT[z + 1]);
-      ctx.stroke();
-
-      // Horizontal grid lines
-      ctx.beginPath();
-      ctx.moveTo(XL[z + 1], YB[z + 1]);
-      ctx.lineTo(XR[z + 1], YB[z + 1]);
-      ctx.moveTo(XL[z + 1], YT[z + 1]);
-      ctx.lineTo(XR[z + 1], YT[z + 1]);
-      ctx.stroke();
-
-      // 2. Left Wall
-      if (hasLeftWall) {
-        ctx.fillStyle = "#0c0c0e";
-        ctx.beginPath();
-        ctx.moveTo(XL[z], YT[z]);
-        ctx.lineTo(XL[z + 1], YT[z + 1]);
-        ctx.lineTo(XL[z + 1], YB[z + 1]);
-        ctx.lineTo(XL[z], YB[z]);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.strokeStyle = wallColor;
-        ctx.stroke();
-      }
-
-      // 3. Right Wall
-      if (hasRightWall) {
-        ctx.fillStyle = "#0c0c0e";
-        ctx.beginPath();
-        ctx.moveTo(XR[z], YT[z]);
-        ctx.lineTo(XR[z + 1], YT[z + 1]);
-        ctx.lineTo(XR[z + 1], YB[z + 1]);
-        ctx.lineTo(XR[z], YB[z]);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.strokeStyle = wallColor;
-        ctx.stroke();
-      }
-
-      // 4. Front Wall (at z + 1 depth)
-      if (hasFrontSealedGate) {
-        this.drawSealedGate(ctx, z);
-      } else if (hasFrontWall) {
-        ctx.fillStyle = "#0c0c0e";
-        ctx.fillRect(XL[z + 1], YT[z + 1], XR[z + 1] - XL[z + 1], YB[z + 1] - YT[z + 1]);
-
-        ctx.strokeStyle = wallColor;
-        ctx.strokeRect(XL[z + 1], YT[z + 1], XR[z + 1] - XL[z + 1], YB[z + 1] - YT[z + 1]);
-      } else if (hasFrontOneWayBarrier) {
-        this.drawOneWayBarrier(ctx, z, wallColor);
-      }
-
-      // Check special symbols inside cells (stairs up / down)
-      if (cell.type === "stairs-up" || cell.type === "stairs-down") {
-        this.drawStairsIcon(ctx, z, cell.type);
-      }
-
-      // Check if there is a roaming monster at this coordinate (cx, cy)
-      if (state.roamingMonsters) {
-        const hasFlack = state.roamingMonsters.some(
-          rm => rm.floor === state.floor && rm.x === cx && rm.y === cy
-        );
-        if (hasFlack && z > 0) { // Don't draw under the player
-          this.drawRoamingFlackIcon(ctx, z);
+        // Check out of bounds
+        if (cx < 0 || cx >= MAP_WIDTH || cy < 0 || cy >= MAP_HEIGHT) {
+          // Render a solid wall block at depth z
+          this.renderSolidWall(ctx, z, outOfBoundsColor, column); // Red glow for out of bounds
+          continue;
         }
-      }
 
-      // 5. Draw 3D Environmental Effects (fog / ambient aura / heat)
-      if (z > 0) {
-        if (state.floor === 2) {
-          // B2F Fog: Cumulative semi-transparent dark green overlay
-          ctx.fillStyle = "rgba(5, 25, 10, 0.18)";
-          ctx.fillRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
-        } else if (state.floor === 3) {
-          // B3F Mana residue: cumulative magenta overlay
-          ctx.fillStyle = "rgba(120, 0, 180, 0.04)";
-          ctx.fillRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
-        } else if (state.floor === 5) {
-          // B5F Heatwave shimmer: cumulative dark red-orange overlay with slight temporal pulse
-          const heatPulse = 0.06 + 0.02 * Math.sin(Date.now() / 250);
-          ctx.fillStyle = `rgba(100, 20, 0, ${heatPulse})`;
-          ctx.fillRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
+        const cell = state.map[cy][cx];
+
+        // Relative directions based on player orientation
+        const dirLeft = (dir + 3) % 4;
+        const dirFront = dir;
+
+        const hasLeftWall = cell.walls[dirLeft];
+        const hasRightWall = cell.walls[dirRight];
+        const hasFrontWall = cell.walls[dirFront];
+        const frontX = cx + DX[dirFront];
+        const frontY = cy + DY[dirFront];
+        const frontEnterFace = (dirFront + 2) % 4;
+        const hasFrontOneWayBarrier = column === 0 && !hasFrontWall && Boolean(state.map[frontY]?.[frontX]?.blockEnter?.[frontEnterFace]);
+        const hasFrontSealedGate = column === 0 && hasFrontWall && Boolean(cell.sealedGate?.[dirFront] && !cell.sealedGate[dirFront].open);
+
+        // 1. Draw floor/ceiling segments
+        ctx.strokeStyle = gridColor;
+
+        // Floor lines
+        ctx.beginPath();
+        ctx.moveTo(left, YB[z]);
+        ctx.lineTo(nextLeft, YB[z + 1]);
+        ctx.moveTo(right, YB[z]);
+        ctx.lineTo(nextRight, YB[z + 1]);
+        // Ceiling lines
+        ctx.moveTo(left, YT[z]);
+        ctx.lineTo(nextLeft, YT[z + 1]);
+        ctx.moveTo(right, YT[z]);
+        ctx.lineTo(nextRight, YT[z + 1]);
+        ctx.stroke();
+
+        // Horizontal grid lines
+        ctx.beginPath();
+        ctx.moveTo(nextLeft, YB[z + 1]);
+        ctx.lineTo(nextRight, YB[z + 1]);
+        ctx.moveTo(nextLeft, YT[z + 1]);
+        ctx.lineTo(nextRight, YT[z + 1]);
+        ctx.stroke();
+
+        // 2. Left Wall
+        if (hasLeftWall) {
+          ctx.fillStyle = "#0c0c0e";
+          ctx.beginPath();
+          ctx.moveTo(left, YT[z]);
+          ctx.lineTo(nextLeft, YT[z + 1]);
+          ctx.lineTo(nextLeft, YB[z + 1]);
+          ctx.lineTo(left, YB[z]);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.strokeStyle = wallColor;
+          ctx.stroke();
+        }
+
+        // 3. Right Wall
+        if (hasRightWall) {
+          ctx.fillStyle = "#0c0c0e";
+          ctx.beginPath();
+          ctx.moveTo(right, YT[z]);
+          ctx.lineTo(nextRight, YT[z + 1]);
+          ctx.lineTo(nextRight, YB[z + 1]);
+          ctx.lineTo(right, YB[z]);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.strokeStyle = wallColor;
+          ctx.stroke();
+        }
+
+        // 4. Front Wall (at z + 1 depth)
+        if (hasFrontSealedGate) {
+          this.drawSealedGate(ctx, z);
+        } else if (hasFrontWall) {
+          ctx.fillStyle = "#0c0c0e";
+          ctx.fillRect(nextLeft, YT[z + 1], nextWidth, YB[z + 1] - YT[z + 1]);
+
+          ctx.strokeStyle = wallColor;
+          ctx.strokeRect(nextLeft, YT[z + 1], nextWidth, YB[z + 1] - YT[z + 1]);
+        } else if (hasFrontOneWayBarrier) {
+          this.drawOneWayBarrier(ctx, z, wallColor);
+        }
+
+        // Check special symbols inside cells (stairs up / down)
+        if (column === 0 && (cell.type === "stairs-up" || cell.type === "stairs-down")) {
+          this.drawStairsIcon(ctx, z, cell.type);
+        }
+
+        // Check if there is a roaming monster at this coordinate (cx, cy)
+        if (column === 0 && state.roamingMonsters) {
+          const hasFlack = state.roamingMonsters.some(
+            rm => rm.floor === state.floor && rm.x === cx && rm.y === cy
+          );
+          if (hasFlack && z > 0) { // Don't draw under the player
+            this.drawRoamingFlackIcon(ctx, z);
+          }
+        }
+
+        // 5. Draw 3D Environmental Effects (fog / ambient aura / heat)
+        if (z > 0) {
+          if (state.floor === 2) {
+            // B2F Fog: Cumulative semi-transparent dark green overlay
+            ctx.fillStyle = "rgba(5, 25, 10, 0.18)";
+            ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
+          } else if (state.floor === 3) {
+            // B3F Mana residue: cumulative magenta overlay
+            ctx.fillStyle = "rgba(120, 0, 180, 0.04)";
+            ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
+          } else if (state.floor === 5) {
+            // B5F Heatwave shimmer: cumulative dark red-orange overlay with slight temporal pulse
+            const heatPulse = 0.06 + 0.02 * Math.sin(Date.now() / 250);
+            ctx.fillStyle = `rgba(100, 20, 0, ${heatPulse})`;
+            ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
+          }
         }
       }
     }
   }
 
-  renderSolidWall(ctx, z, color) {
+  renderSolidWall(ctx, z, color, column = 0) {
+    const width = XR[z] - XL[z];
+    const left = XL[z] + width * column;
     ctx.fillStyle = "#0c0c0e";
-    ctx.fillRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
+    ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
     ctx.strokeStyle = color;
-    ctx.strokeRect(XL[z], YT[z], XR[z] - XL[z], YB[z] - YT[z]);
+    ctx.strokeRect(left, YT[z], width, YB[z] - YT[z]);
   }
 
   drawOneWayBarrier(ctx, z, color) {
