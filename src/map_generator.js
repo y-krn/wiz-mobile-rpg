@@ -717,6 +717,73 @@ export function removeIsolatedInternalWalls(grid) {
   return removed;
 }
 
+export const ROOM_COUNT_RANGE = [2, 4];
+export const ROOM_SIZES = [
+  { w: 2, h: 2 },
+  { w: 2, h: 3 },
+  { w: 3, h: 2 }
+];
+
+function isInsideRoom(room, x, y) {
+  return x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
+}
+
+function countRoomEntrances(grid, room) {
+  let entrances = 0;
+  for (let y = room.y; y < room.y + room.h; y++) {
+    for (let x = room.x; x < room.x + room.w; x++) {
+      for (let dir = 0; dir < 4; dir++) {
+        const nx = x + DX[dir];
+        const ny = y + DY[dir];
+        if (!isInsideRoom(room, nx, ny) && !grid[y][x].walls[dir]) entrances++;
+      }
+    }
+  }
+  return entrances;
+}
+
+// Overlapping or directly adjacent rooms would merge into one large hall.
+function roomsTooClose(a, b) {
+  return a.x <= b.x + b.w && b.x <= a.x + a.w &&
+    a.y <= b.y + b.h && b.y <= a.y + a.h;
+}
+
+// Carve small halls into the finished maze by opening every wall inside the
+// rectangle. The rectangle always contains existing passage cells, so the
+// hall stays connected to the main maze; never-dug pillar cells inside the
+// rectangle simply become hall floor.
+export function carveRooms(grid, rng, visited = null) {
+  const targetCount = ROOM_COUNT_RANGE[0] +
+    Math.floor(rng() * (ROOM_COUNT_RANGE[1] - ROOM_COUNT_RANGE[0] + 1));
+
+  const candidates = [];
+  for (const size of ROOM_SIZES) {
+    for (let y = 1; y <= MAP_HEIGHT - 1 - size.h; y++) {
+      for (let x = 1; x <= MAP_WIDTH - 1 - size.w; x++) {
+        candidates.push({ x, y, w: size.w, h: size.h });
+      }
+    }
+  }
+  shuffleInPlace(candidates, rng);
+
+  const rooms = [];
+  for (const candidate of candidates) {
+    if (rooms.length >= targetCount) break;
+    if (rooms.some(room => roomsTooClose(room, candidate))) continue;
+    if (countRoomEntrances(grid, candidate) < 2) continue;
+
+    for (let y = candidate.y; y < candidate.y + candidate.h; y++) {
+      for (let x = candidate.x; x < candidate.x + candidate.w; x++) {
+        if (x + 1 < candidate.x + candidate.w) openWall(grid, x, y, DIR_E);
+        if (y + 1 < candidate.y + candidate.h) openWall(grid, x, y, DIR_S);
+        if (visited) visited[y][x] = true;
+      }
+    }
+    rooms.push(candidate);
+  }
+  return rooms;
+}
+
 export const MAZE_PROFILE_RANGES = {
   1: { straightBias: [0.20, 0.60], loopRate: [0.10, 0.40] },
   2: { straightBias: [0.10, 0.60], loopRate: [0.10, 0.37] },
@@ -865,6 +932,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   removeIsolatedInternalWalls(grid);
 
+  const rooms = carveRooms(grid, rng, visited);
+
   const stairsUpCoord = (floor > 1) ? (parentStairsCoord || { x: MAP_WIDTH - 2, y: 1 }) : null;
   const suCoord = floor > 1 ? (stairsUpCoord || { x: MAP_WIDTH - 2, y: 1 }) : { x: START_X, y: START_Y };
 
@@ -889,17 +958,40 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
           break;
         }
       }
-      // Fallback to any valid neighbor if no visited neighbor exists
+      // No dug neighbor at all (possible when the parent stairs coord sits on
+      // a never-dug pillar-parity cell, e.g. inside a carved room upstairs):
+      // carve a corridor to the nearest dug cell instead of opening a blind
+      // wall, which could strand the stairs on an isolated island.
       if (!opened) {
-        for (let dir = 0; dir < 4; dir++) {
-          const nx = suCoord.x + DX[dir];
-          const ny = suCoord.y + DY[dir];
-          if (isValid(nx, ny)) {
-            grid[suCoord.y][suCoord.x].walls[dir] = false;
-            grid[ny][nx].walls[(dir + 2) % 4] = false;
-            break;
+        const previous = new Map();
+        const queue = [suCoord];
+        const seen = new Set([`${suCoord.x},${suCoord.y}`]);
+        let found = null;
+        for (const pos of queue) {
+          if (found) break;
+          for (let dir = 0; dir < 4; dir++) {
+            const nx = pos.x + DX[dir];
+            const ny = pos.y + DY[dir];
+            const key = `${nx},${ny}`;
+            if (!isValid(nx, ny) || seen.has(key)) continue;
+            seen.add(key);
+            previous.set(key, pos);
+            if (visited[ny][nx]) {
+              found = { x: nx, y: ny };
+              break;
+            }
+            queue.push({ x: nx, y: ny });
           }
         }
+        let cursor = found;
+        while (cursor && (cursor.x !== suCoord.x || cursor.y !== suCoord.y)) {
+          const parent = previous.get(`${cursor.x},${cursor.y}`);
+          const dir = DX.findIndex((dx, i) => parent.x + dx === cursor.x && parent.y + DY[i] === cursor.y);
+          openWall(grid, parent.x, parent.y, dir);
+          visited[cursor.y][cursor.x] = true;
+          cursor = parent;
+        }
+        visited[suCoord.y][suCoord.x] = true;
       }
     }
   }
@@ -1204,6 +1296,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     grid,
     stairsDownCoord,
     bossCoord,
-    wardenGate
+    wardenGate,
+    rooms
   };
 }
