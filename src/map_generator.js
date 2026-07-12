@@ -717,8 +717,41 @@ export function removeIsolatedInternalWalls(grid) {
   return removed;
 }
 
+export const MAZE_PROFILE_RANGES = {
+  1: { straightBias: [0.20, 0.60], loopRate: [0.10, 0.40] },
+  2: { straightBias: [0.10, 0.60], loopRate: [0.10, 0.37] },
+  3: { straightBias: [0.00, 0.60], loopRate: [0.10, 0.34] },
+  4: { straightBias: [0.00, 0.50], loopRate: [0.10, 0.31] },
+  5: { straightBias: [0.00, 0.40], loopRate: [0.10, 0.28] }
+};
+
+export function createMazeProfile(floor, rng) {
+  const range = MAZE_PROFILE_RANGES[floor] || MAZE_PROFILE_RANGES[5];
+  const randomInRange = ([min, max]) => min + rng() * (max - min);
+  // Favor visibly sparse or dense layouts over clustering near the mean.
+  const randomNearRangeEdge = ([min, max]) => {
+    const roll = rng();
+    const edgeRoll = roll < 0.5 ? roll * 2 : (1 - roll) * 2;
+    return roll < 0.5
+      ? min + edgeRoll * (max - min) * 0.25
+      : max - edgeRoll * (max - min) * 0.25;
+  };
+  const digColumns = Math.floor((MAP_WIDTH - 1) / 2);
+  const digRows = Math.floor((MAP_HEIGHT - 2) / 2);
+
+  return {
+    straightBias: randomInRange(range.straightBias),
+    loopRate: randomNearRangeEdge(range.loopRate),
+    digStart: {
+      x: 1 + Math.floor(rng() * digColumns) * 2,
+      y: 2 + Math.floor(rng() * digRows) * 2
+    }
+  };
+}
+
 export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = null) {
   const rng = seed ? createRng(`${seed}:map:B${floor}`) : Math.random;
+  const mazeProfile = createMazeProfile(floor, rng);
   // 1. Initialize grid with all walls closed
   const grid = Array.from({ length: MAP_HEIGHT }, () =>
     Array.from({ length: MAP_WIDTH }, () => ({
@@ -740,14 +773,14 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   const visited = Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false));
   const stack = [];
 
-  // Start digging from START_X, START_Y (or parent stairs-up position)
-  const digStartX = (floor > 1 && parentStairsCoord) ? parentStairsCoord.x : START_X;
-  const digStartY = (floor > 1 && parentStairsCoord) ? parentStairsCoord.y : START_Y;
+  // Start digging from a seeded random cell on the DFS lattice.
+  const { x: digStartX, y: digStartY } = mazeProfile.digStart;
   
   let cx = digStartX;
   let cy = digStartY;
   visited[cy][cx] = true;
-  stack.push({ x: cx, y: cy });
+  stack.push({ x: cx, y: cy, entryDir: null });
+  let canContinueStraight = false;
 
   while (stack.length > 0) {
     const current = stack[stack.length - 1];
@@ -764,8 +797,12 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     }
 
     if (neighbors.length > 0) {
-      // Pick random neighbor
-      const next = neighbors[Math.floor(rng() * neighbors.length)];
+      const straight = canContinueStraight
+        ? neighbors.find(neighbor => neighbor.dir === current.entryDir)
+        : null;
+      const next = straight && rng() < mazeProfile.straightBias
+        ? straight
+        : neighbors[Math.floor(rng() * neighbors.length)];
       
       // Dig passage to the next cell
       const wallDir = next.dir;
@@ -787,17 +824,19 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       visited[next.y][next.x] = true;
       visited[my][mx] = true; // intermediate is also part of passage
 
-      stack.push({ x: next.x, y: next.y });
+      stack.push({ x: next.x, y: next.y, entryDir: next.dir });
+      canContinueStraight = true;
     } else {
       stack.pop();
+      canContinueStraight = false;
     }
   }
 
-  // 2. Open additional walls to create loops (25% probability of connecting visited cells at distance 2)
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  // 2. Open additional walls once per undirected DFS-lattice edge.
+  for (let y = 2; y < MAP_HEIGHT - 1; y += 2) {
+    for (let x = 1; x < MAP_WIDTH - 1; x += 2) {
       if (visited[y][x]) {
-        for (let dir = 0; dir < 4; dir++) {
+        for (const dir of [DIR_E, DIR_S]) {
           const nx = x + DX[dir] * 2;
           const ny = y + DY[dir] * 2;
           if (isValid(nx, ny) && visited[ny][nx]) {
@@ -805,7 +844,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
             const my = y + DY[dir];
             // Check if the intermediate cell is not dug (all walls closed)
             if (grid[my][mx].walls.every(w => w)) {
-              if (rng() < 0.25) {
+              if (rng() < mazeProfile.loopRate) {
                 const wallDir = dir;
                 const oppDir = (wallDir + 2) % 4;
 
