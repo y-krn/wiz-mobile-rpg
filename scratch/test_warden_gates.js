@@ -74,6 +74,45 @@ function assertGateShortcut(seed) {
   });
 }
 
+function assertGatePlacementConstraints() {
+  let missingGates = 0;
+
+  for (let seedIndex = 0; seedIndex < 100; seedIndex++) {
+    const seed = `WARDEN-DISTANCE-${seedIndex}`;
+    let parentStairs = null;
+    let repeatedParentStairs = null;
+
+    for (let floor = 1; floor <= 5; floor++) {
+      const mapData = generateRandomMap(floor, parentStairs, seed);
+      const repeated = generateRandomMap(floor, repeatedParentStairs, seed);
+      const gate = mapData.wardenGate;
+
+      assert(JSON.stringify(mapData) === JSON.stringify(repeated), `${seed} B${floor}F generation is not reproducible`);
+      if (!gate) {
+        missingGates++;
+      } else {
+        const start = floor === 1 ? { x: START_X, y: START_Y } : findMapCellByType(mapData.grid, "stairs-up");
+        const destination = mapData.stairsDownCoord || mapData.bossCoord;
+        const openedGrid = JSON.parse(JSON.stringify(mapData.grid));
+        applyOpenedGatesToMap(openedGrid, [gate.id]);
+        const openedDistance = distance(openedGrid, start, destination);
+        const minStartDistance = Math.max(5, Math.floor(openedDistance * 0.3));
+        const endpointDistances = [
+          distance(openedGrid, start, { x: gate.x, y: gate.y }),
+          distance(openedGrid, start, { x: gate.nx, y: gate.ny })
+        ];
+        assert(endpointDistances.every(value => value >= minStartDistance),
+          `${seed} B${floor}F gate too close: ${endpointDistances.join(",")} < ${minStartDistance}`);
+      }
+
+      parentStairs = mapData.stairsDownCoord;
+      repeatedParentStairs = repeated.stairsDownCoord;
+    }
+  }
+
+  assert(missingGates === 0, `gate placement regressed: ${missingGates}/500 missing`);
+}
+
 function assertOldSaveBackfill() {
   const seed = "CASTLE-BBBB0000";
   const maps = generateMaps(seed);
@@ -86,7 +125,7 @@ function assertOldSaveBackfill() {
     }));
   });
 
-  const migrated = migrateSavePayload({
+  const createMigratedPayload = () => migrateSavePayload({
     version: 5,
     x: 1,
     y: 1,
@@ -97,17 +136,25 @@ function assertOldSaveBackfill() {
     inventory: [],
     seed,
     floor: 1,
-    maps: [...oldMaps, null, null],
+    maps: [...oldMaps.map(grid => JSON.parse(JSON.stringify(grid))), null, null],
     visitedMaps: oldMaps.map(grid => grid.map(row => row.map(() => false))),
     roamingMonsters: [],
     logs: []
   });
-  applySavePayload(migrated);
-  applyDungeonMemoryToMaps();
-  for (let floor = 1; floor <= 3; floor++) {
-    assert(findWardenGate(state.maps[floor - 1], floor), `old save B${floor}F gate not backfilled`);
-    assert(state.roamingMonsters.some(rm => rm.kind === "warden" && rm.floor === floor), `old save B${floor}F warden not backfilled`);
-  }
+  const backfill = () => {
+    applySavePayload(createMigratedPayload());
+    applyDungeonMemoryToMaps();
+    return [1, 2, 3].map(floor => {
+      const gate = findWardenGate(state.maps[floor - 1], floor);
+      assert(gate, `old save B${floor}F gate not backfilled`);
+      assert(state.roamingMonsters.some(rm => rm.kind === "warden" && rm.floor === floor), `old save B${floor}F warden not backfilled`);
+      return gate;
+    });
+  };
+
+  const firstBackfill = backfill();
+  const secondBackfill = backfill();
+  assert(JSON.stringify(firstBackfill) === JSON.stringify(secondBackfill), "old save gate backfill is not reproducible");
 }
 
 function assertOpenedGateRestores() {
@@ -130,6 +177,7 @@ function assertWardenConfirmSaveCollapses() {
 }
 
 ["CASTLE-TEST-0", "CASTLE-TEST-4", "CASTLE-TEST-5", "CASTLE-TEST-10", "CASTLE-TEST-11"].forEach(assertGateShortcut);
+assertGatePlacementConstraints();
 assertOldSaveBackfill();
 assertOpenedGateRestores();
 assertWardenConfirmSaveCollapses();
