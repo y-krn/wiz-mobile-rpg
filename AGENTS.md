@@ -25,11 +25,24 @@ files may point here, but should not duplicate these rules.
 
 ## Cross-Tool Tickets
 
-A local, git-excluded ticket board coordinates work across Claude, Codex, and
-Antigravity. Before starting or resuming work, read `tickets/README.md` and scan
-`tickets/` for open items, and update a ticket's `status`/`owner` when you pick
-it up or finish. These files are excluded via `.git/info/exclude`; never commit
-them.
+Work is tracked as **GitHub Issues** on `y-krn/wiz-mobile-rpg`
+(https://github.com/y-krn/wiz-mobile-rpg/issues), shared across Claude, Codex,
+and Antigravity. Use the `gh` CLI.
+
+- Before starting or resuming work, scan open issues:
+  `gh issue list --state open`. Read the target issue with
+  `gh issue view <n>`.
+- When you pick up an issue, assign yourself and leave a comment noting you
+  started (`gh issue comment <n> --body "..."`); when you finish, close it
+  (`gh issue close <n>`) or comment for review.
+- One concern per issue. Create with `gh issue create --template task.md`
+  (`.github/ISSUE_TEMPLATE/task.md`); fill in Goal / Notes / Verification and
+  the coordination checklist.
+- Keep coordination notes in the issue thread (append-only comments), not in
+  code, so parallel tools don't clobber each other.
+
+The former local `tickets/` board was migrated to Issues and removed; do not
+recreate it.
 
 ## Large Output and Log Handling
 
