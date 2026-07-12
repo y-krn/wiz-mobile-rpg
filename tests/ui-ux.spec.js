@@ -19,14 +19,14 @@ test('Three-column corridor renderer draws adjacent front walls', async ({ page 
   const cyanPixels = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { dungeonRenderer } = await import('/src/renderer.js');
-    const makeCell = () => ({ walls: [false, false, false, false], type: 'floor' });
+    const makeCell = () => ({ walls: [false, false, false, false], type: 'empty' });
 
     state.gameState = 'explore';
     state.floor = 1;
     state.x = 5;
     state.y = 5;
     state.dir = 0;
-    state.map = Array.from({ length: 20 }, () => Array.from({ length: 20 }, makeCell));
+    state.maps[0] = Array.from({ length: 24 }, () => Array.from({ length: 24 }, makeCell));
     state.map[5][4].walls[0] = true;
     state.map[5][6].walls[0] = true;
     dungeonRenderer.draw();

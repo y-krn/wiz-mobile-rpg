@@ -200,15 +200,15 @@ export class DungeonRenderer {
     }
 
     const columnOrder = [-1, 1, 0];
+    const dirRight = (dir + 1) % 4;
 
     // Draw from back (z=3) to front (z=0), outer columns before center
     for (let z = 3; z >= 0; z--) {
+      const width = XR[z] - XL[z];
+      const nextWidth = XR[z + 1] - XL[z + 1];
       for (const column of columnOrder) {
-        const dirRight = (dir + 1) % 4;
         const cx = px + DX[dir] * z + DX[dirRight] * column;
         const cy = py + DY[dir] * z + DY[dirRight] * column;
-        const width = XR[z] - XL[z];
-        const nextWidth = XR[z + 1] - XL[z + 1];
         const left = XL[z] + width * column;
         const right = XR[z] + width * column;
         const nextLeft = XL[z + 1] + nextWidth * column;
