@@ -87,6 +87,8 @@ function countEvents(grid) {
   return counts;
 }
 
+assert(ROOM_SIZES.some(size => size.w === 3 && size.h === 3), "ROOM_SIZES must include 3x3 halls");
+
 let missingGates = 0;
 for (let seedIndex = 0; seedIndex < 100; seedIndex++) {
   const seed = `room-carving-${seedIndex}`;
@@ -98,6 +100,8 @@ for (let seedIndex = 0; seedIndex < 100; seedIndex++) {
 
     assert(rooms.length >= ROOM_COUNT_RANGE[0] && rooms.length <= ROOM_COUNT_RANGE[1],
       `${label} room count ${rooms.length} out of range`);
+    assert(rooms.filter(room => room.w === 3 && room.h === 3).length <= 1,
+      `${label} has multiple 3x3 halls`);
     rooms.forEach(room => assertRoomGeometry(grid, room, label));
 
     const start = findCell(grid, cell => cell.type === "stairs-up");
@@ -143,4 +147,4 @@ const first = generateRandomMap(1, null, "room-repeatability");
 const second = generateRandomMap(1, null, "room-repeatability");
 assert.deepEqual(first, second, "same seed must reproduce the same map and rooms");
 
-console.log("[PASS] 100 seeds x 5 floors carve 2-4 reachable small halls without breaking events or gates.");
+console.log("[PASS] 100 seeds x 5 floors carve 2-4 reachable halls with at most one 3x3 hall without breaking events or gates.");

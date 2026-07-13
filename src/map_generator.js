@@ -721,7 +721,8 @@ export const ROOM_COUNT_RANGE = [2, 4];
 export const ROOM_SIZES = [
   { w: 2, h: 2 },
   { w: 2, h: 3 },
-  { w: 3, h: 2 }
+  { w: 3, h: 2 },
+  { w: 3, h: 3 }
 ];
 
 function isInsideRoom(room, x, y) {
@@ -769,6 +770,8 @@ export function carveRooms(grid, rng, visited = null) {
   const rooms = [];
   for (const candidate of candidates) {
     if (rooms.length >= targetCount) break;
+    if (candidate.w === 3 && candidate.h === 3 &&
+      rooms.some(room => room.w === 3 && room.h === 3)) continue;
     if (rooms.some(room => roomsTooClose(room, candidate))) continue;
     if (countRoomEntrances(grid, candidate) < 2) continue;
 
