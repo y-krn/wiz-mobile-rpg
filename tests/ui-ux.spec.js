@@ -1248,3 +1248,62 @@ test('Castle record submenus show a single back button', async ({ page }) => {
     await expect(page.getByRole('button', { name: new RegExp(label) })).toBeVisible();
   }
 });
+
+for (const vp of VIEWPORTS) {
+  test(`Craft recipes preserve action flow and tap targets on ${vp.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { openSubmenu } = await import('/src/navigation.js');
+
+      state.gameState = 'town';
+      state.gold = 500;
+      state.materials = { '硬い皮': 1, '獣の牙': 1 };
+      state.inventory = [];
+      openSubmenu('craft_main', '工房 - 製作と装備強化：');
+    });
+
+    await page.getByRole('button', { name: '🛡️ 消耗品を製作する' }).click();
+    await expect(page.locator('#submenu-title')).toHaveText('工房 - 消耗品の製作：');
+    await expect(page.locator('#submenu-options')).toContainText('傷薬 (回復薬)');
+
+    const layout = await page.locator('#submenu-options button').evaluateAll((buttons) => ({
+      buttons: buttons.map((button) => button.getBoundingClientRect().toJSON()),
+      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    }));
+    expect(layout.buttons).toHaveLength(4);
+    expect(layout.hasHorizontalOverflow).toBe(false);
+    for (const button of layout.buttons) {
+      expect(button.height, `Craft button should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(button.left, `Craft button should stay inside viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
+      expect(button.right, `Craft button should stay inside viewport on ${vp.name}`).toBeLessThanOrEqual(vp.width);
+    }
+
+    await page.locator('#submenu-options button').first().click();
+    const result = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return {
+        gold: state.gold,
+        hardHide: state.materials['硬い皮'],
+        beastFang: state.materials['獣の牙'],
+        inventory: state.inventory,
+      };
+    });
+    expect(result).toEqual({
+      gold: 460,
+      hardHide: 0,
+      beastFang: 0,
+      inventory: ['HEAL_POTION'],
+    });
+    await expect(page.locator('#submenu-options button').first()).toBeDisabled();
+
+    await page.locator('#btn-submenu-back').click();
+    await expect(page.getByRole('button', { name: '🛡️ 消耗品を製作する' })).toBeVisible();
+    await page.locator('#btn-submenu-back').click();
+    await expect.poll(() => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return state.gameState;
+    })).toBe('town');
+  });
+}
