@@ -30,6 +30,9 @@ const SECRET_DOOR_COUNTS = {
   5: { shortcut: 3, room: 2 }
 };
 
+// Preserve the existing sparse/dense profile split while bounding endpoint counts.
+const DEAD_END_TARGET_RANGE = [15, 38];
+
 export const WARDEN_GATE_FLOORS = [1, 2, 3, 4, 5];
 export const WARDEN_GATE_DETOUR_STAGES = [8, 6, 4];
 
@@ -39,6 +42,86 @@ function isPassageCell(grid, x, y) {
     y >= 0 &&
     y < MAP_HEIGHT &&
     grid[y][x].walls.some(w => !w);
+}
+
+function countOpenFaceEdges(grid, centerX, centerY) {
+  return [
+    grid[centerY - 1]?.[centerX],
+    grid[centerY]?.[centerX + 1],
+    grid[centerY + 1]?.[centerX],
+    grid[centerY]?.[centerX - 1]
+  ].filter(cell => cell?.walls.some(wall => !wall)).length;
+}
+
+function countCreatedTightUTurns(grid, x, y, dir) {
+  const middleX = x + DX[dir];
+  const middleY = y + DY[dir];
+  const faceCenters = DX[dir] === 0
+    ? [{ x: middleX - 1, y: middleY }, { x: middleX + 1, y: middleY }]
+    : [{ x: middleX, y: middleY - 1 }, { x: middleX, y: middleY + 1 }];
+
+  return faceCenters.filter(center =>
+    center.x > 0 && center.x < MAP_WIDTH - 1 &&
+    center.y > 0 && center.y < MAP_HEIGHT - 1 &&
+    grid[center.y][center.x].walls.every(Boolean) &&
+    countOpenFaceEdges(grid, center.x, center.y) === 2
+  ).length;
+}
+
+function collectReachableDeadEnds(grid, start, protectedKeys) {
+  const reachableKeys = getReachableCellKeys(grid, start);
+  const deadEnds = [];
+  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+      if (protectedKeys.has(`${x},${y}`) || !reachableKeys.has(`${x},${y}`)) continue;
+      if (grid[y][x].walls.filter(wall => !wall).length === 1) deadEnds.push({ x, y });
+    }
+  }
+  return deadEnds;
+}
+
+function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
+  let deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
+
+  while (deadEnds.length > target) {
+    const leaf = deadEnds[Math.floor(rng() * deadEnds.length)];
+    const openDir = leaf && grid[leaf.y][leaf.x].walls.findIndex(wall => !wall);
+    if (openDir === -1) break;
+    closeWall(grid, leaf.x, leaf.y, openDir);
+    deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
+  }
+
+  while (deadEnds.length < target) {
+    const reachableKeys = getReachableCellKeys(grid, start);
+    const candidates = [];
+    for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+      for (let x = 1; x < MAP_WIDTH - 1; x++) {
+        if (protectedKeys.has(`${x},${y}`) || !grid[y][x].walls.every(Boolean)) continue;
+        const attachmentDirs = [];
+        for (let dir = 0; dir < 4; dir++) {
+          const nx = x + DX[dir];
+          const ny = y + DY[dir];
+          const next = grid[ny]?.[nx];
+          if (next && reachableKeys.has(`${nx},${ny}`) && next.walls.filter(wall => !wall).length >= 2) {
+            attachmentDirs.push(dir);
+          }
+        }
+        if (attachmentDirs.length > 0) {
+          candidates.push({ x, y, attachmentDirs, resolvesTightUTurn: countOpenFaceEdges(grid, x, y) === 3 });
+        }
+      }
+    }
+    if (candidates.length === 0) break;
+    const shapeCandidates = candidates.some(candidate => candidate.resolvesTightUTurn)
+      ? candidates.filter(candidate => candidate.resolvesTightUTurn)
+      : candidates;
+    const candidate = shapeCandidates[Math.floor(rng() * shapeCandidates.length)];
+    const dir = candidate.attachmentDirs[Math.floor(rng() * candidate.attachmentDirs.length)];
+    openWall(grid, candidate.x, candidate.y, dir);
+    deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
+  }
+
+  return deadEnds;
 }
 
 function getInternalWallEdges(grid) {
@@ -867,12 +950,32 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     }
 
     if (neighbors.length > 0) {
+      const candidateScores = neighbors.map(neighbor => ({
+        neighbor,
+        createdTightUTurns: countCreatedTightUTurns(grid, current.x, current.y, neighbor.dir)
+      }));
+      const minimumCreatedTightUTurns = Math.min(...candidateScores.map(candidate => candidate.createdTightUTurns));
+      const shapeSafeNeighbors = candidateScores
+        .filter(candidate => candidate.createdTightUTurns === minimumCreatedTightUTurns)
+        .map(candidate => candidate.neighbor);
+      const nonAdjacentNeighbors = shapeSafeNeighbors.filter(neighbor => {
+        for (let dir = 0; dir < 4; dir++) {
+          const adjacentX = neighbor.x + DX[dir] * 2;
+          const adjacentY = neighbor.y + DY[dir] * 2;
+          const isCurrent = adjacentX === current.x && adjacentY === current.y;
+          if (!isCurrent && isValid(adjacentX, adjacentY) && visited[adjacentY][adjacentX]) {
+            return false;
+          }
+        }
+        return true;
+      });
+      const preferredNeighbors = nonAdjacentNeighbors.length > 0 ? nonAdjacentNeighbors : shapeSafeNeighbors;
       const straight = canContinueStraight
-        ? neighbors.find(neighbor => neighbor.dir === current.entryDir)
+        ? preferredNeighbors.find(neighbor => neighbor.dir === current.entryDir)
         : null;
       const next = straight && rng() < mazeProfile.straightBias
         ? straight
-        : neighbors[Math.floor(rng() * neighbors.length)];
+        : preferredNeighbors[Math.floor(rng() * preferredNeighbors.length)];
       
       // Dig passage to the next cell
       const wallDir = next.dir;
@@ -914,7 +1017,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
             const my = y + DY[dir];
             // Check if the intermediate cell is not dug (all walls closed)
             if (grid[my][mx].walls.every(w => w)) {
-              if (rng() < mazeProfile.loopRate) {
+              const compensatedLoopRate = Math.min(1, mazeProfile.loopRate * 3);
+              if (countCreatedTightUTurns(grid, x, y, dir) === 0 && rng() < compensatedLoopRate) {
                 const wallDir = dir;
                 const oppDir = (wallDir + 2) % 4;
 
@@ -999,26 +1103,29 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     }
   }
 
-  // Find all reachable dead ends (cells with exactly 1 open wall)
-  // exclude start position (and stairsUpCoord for floor > 1)
-  let deadEnds = [];
-  const startX = START_X;
-  const startY = START_Y;
-  const reachableKeys = getReachableCellKeys(grid, suCoord);
-
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
-      if (floor === 1 && x === startX && y === startY) continue;
-      if (floor > 1 && stairsUpCoord && x === stairsUpCoord.x && y === stairsUpCoord.y) continue;
-
-      const cell = grid[y][x];
-      const openCount = cell.walls.filter(w => !w).length;
-      if (openCount === 1) {
-        deadEnds.push({ x, y });
+  // Keep enough meaningful endpoints for stairs and events while pruning excess branches.
+  const protectedDeadEndKeys = new Set([`${suCoord.x},${suCoord.y}`]);
+  for (const room of rooms) {
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) {
+        protectedDeadEndKeys.add(`${x},${y}`);
+        for (let dir = 0; dir < 4; dir++) {
+          const nx = x + DX[dir];
+          const ny = y + DY[dir];
+          if (!isInsideRoom(room, nx, ny) && !grid[y][x].walls[dir]) {
+            protectedDeadEndKeys.add(`${nx},${ny}`);
+          }
+        }
       }
     }
   }
-  deadEnds = deadEnds.filter(de => reachableKeys.has(`${de.x},${de.y}`));
+  const loopRateMidpoint = (MAZE_PROFILE_RANGES[floor]?.loopRate || MAZE_PROFILE_RANGES[5].loopRate)
+    .reduce((sum, value) => sum + value, 0) / 2;
+  const deadEndTarget = mazeProfile.loopRate >= loopRateMidpoint
+    ? DEAD_END_TARGET_RANGE[0]
+    : DEAD_END_TARGET_RANGE[1];
+  let deadEnds = normalizeDeadEndCount(grid, suCoord, protectedDeadEndKeys, deadEndTarget, rng);
+  const reachableKeys = getReachableCellKeys(grid, suCoord);
 
   let stairsDownCoord = null;
   let bossCoord = null;
