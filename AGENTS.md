@@ -41,8 +41,13 @@ directly to `main`.
   `gh issue view <n>`.
 - When you pick up an issue, assign yourself and leave a comment noting you
   started (`gh issue comment <n> --body "..."`).
-- **Fixes go on a branch + PR, never straight to `main`.** For each issue,
-  branch off `main` (`fix/<n>-<slug>` or `feat/<n>-<slug>`, e.g.
+- **Fixes go on a branch + PR, never straight to `main`.** Immediately before
+  creating a branch, starting or resuming work, or running a baseline
+  measurement, fetch `origin/main`. Always create branches from the freshly
+  fetched `origin/main`. If `origin/main` advanced after branch creation, bring
+  the working branch up to date before implementation or measurement; never
+  rely on a stale local `main` or previously fetched `origin/main`. For each
+  issue, use `fix/<n>-<slug>` or `feat/<n>-<slug>` (e.g.
   `fix/33-mana-potion-reprice`), implement there, then open a PR that links the
   issue in its body with `Closes #<n>` (`gh pr create`). Merging the PR closes
   the issue automatically.
