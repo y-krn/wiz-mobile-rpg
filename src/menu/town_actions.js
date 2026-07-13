@@ -5,6 +5,7 @@ import { openSubmenu } from "../navigation.js";
 import { generateContractsList } from "../contracts.js";
 import { getCharMaxHp, getCharMaxMp, getItemBaseId, getItemData, getClassJpName } from "../data.js";
 import { renderMaterialsHUD } from "./materials_hud.js";
+import { renderCraftRecipesView } from "./craft_recipes_view.js";
 import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, executeDismantle, getDismantleResults, executeTagInscription } from "../craft.js";
 import { MATERIAL_TAGS, TAG_EFFECT_MAP } from "../data/tags.js";
 
@@ -686,56 +687,28 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
 export function renderCraftRecipes(optGrid) {
   renderMaterialsHUD(optGrid);
 
-  CRAFT_RECIPES.forEach(recipe => {
-    const container = document.createElement("div");
-    container.style.gridColumn = "span 2";
-    container.style.border = "1px solid #333";
-    container.style.padding = "6px 8px";
-    container.style.borderRadius = "4px";
-    container.style.display = "flex";
-    container.style.justifyContent = "space-between";
-    container.style.alignItems = "center";
-    container.style.background = "rgba(0,0,0,0.2)";
-    container.style.marginBottom = "4px";
-
-    const info = document.createElement("div");
-    info.style.fontFamily = "var(--font-mono)";
-    info.style.fontSize = "11px";
-    
-    const matsReq = Object.entries(recipe.mats).map(([m, reqQty]) => {
-      const curQty = state.materials[m] || 0;
-      const color = curQty >= reqQty ? "var(--neon-green)" : "var(--neon-red)";
-      return `<span style="color:${color}">${m} ${curQty}/${reqQty}</span>`;
-    }).join(", ");
-    const goldColor = state.gold >= recipe.gold ? "#fff" : "var(--neon-red)";
-
-    info.innerHTML = `<strong style="color:#fff">${recipe.name}</strong><br>
-      <span style="color:var(--text-muted)">必要: ${matsReq} / <span style="color:${goldColor}">${recipe.gold}G</span></span>`;
-    container.appendChild(info);
-
-    const btn = document.createElement("button");
-    btn.className = "btn btn-neon";
-    btn.textContent = "製作";
-    btn.style.minHeight = "44px";
-    btn.style.width = "80px";
-
-    let canCraft = state.gold >= recipe.gold && state.inventory.length < 20;
-    for (const [m, reqQty] of Object.entries(recipe.mats)) {
-      if ((state.materials[m] || 0) < reqQty) canCraft = false;
-    }
-    if (!canCraft) {
-      btn.disabled = true;
-      btn.classList.add("disabled");
-    }
-
-    btn.addEventListener("click", () => {
-      if (executeCraft(recipe.resultId)) {
-        openSubmenu("craft_recipes", "工房 - 消耗品の製作：", true); // リフレッシュ
-      }
+  const recipes = CRAFT_RECIPES.map((recipe) => {
+    const materials = Object.entries(recipe.mats).map(([name, required]) => {
+      const current = state.materials[name] || 0;
+      return { name, current, required, affordable: current >= required };
     });
-    container.appendChild(btn);
-    optGrid.appendChild(container);
+    const goldAffordable = state.gold >= recipe.gold;
+
+    return {
+      name: recipe.name,
+      gold: recipe.gold,
+      materials,
+      goldAffordable,
+      canCraft: goldAffordable && state.inventory.length < 20 && materials.every((material) => material.affordable),
+      onCraft: () => {
+        if (executeCraft(recipe.resultId)) {
+          openSubmenu("craft_recipes", "工房 - 消耗品の製作：", true); // リフレッシュ
+        }
+      },
+    };
   });
+
+  renderCraftRecipesView(optGrid, recipes);
 }
 
 export function renderCraftEnhance(optGrid) {
