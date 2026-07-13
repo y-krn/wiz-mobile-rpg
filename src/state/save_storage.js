@@ -1,7 +1,7 @@
 import { state, addLog } from "./state_core.js";
 import { Sentry } from "../sentry.js";
 import { generateRandomSeed, createDefaultRoster, createDefaultCodex } from "./initial_state.js";
-import { createSavePayload, applySavePayload, linkPartyToRoster } from "./save_payload.js";
+import { createSavePayload, applySavePayload } from "./save_payload.js";
 import { migrateSavePayload } from "./save_migrations.js";
 import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";
@@ -145,8 +145,6 @@ function applyRawSave(raw) {
   const migrated = migrateSavePayload(data);
   applySavePayload(migrated);
   applyDungeonMemoryToMaps();
-  // ロード直後に参照の再リンクを念押し
-  linkPartyToRoster();
 }
 
 export function loadGame() {
