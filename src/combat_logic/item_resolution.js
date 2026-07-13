@@ -48,7 +48,7 @@ export function resolvePlayerItem(char, act, state, logQueue) {
   const oldHp = target.hp;
   const oldMp = target.mp;
   const oldStatus = target.status;
-  const log = item.effect(target);
+  const log = item.effect(target, state.party);
   state.inventory.splice(inventoryIdx, 1);
   let floatText = undefined;
   let floatColor = "#00ff66";

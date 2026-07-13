@@ -24,7 +24,7 @@ export function executeUtilitySpell() {
     state.dumapicTurns = 30;
   }
 
-  const result = spell.effect(caster, state);
+  const result = spell.effect(caster, state, state.party);
   addLog(result.log);
   
   saveAutosave();
@@ -40,10 +40,10 @@ export function executeAllySpell(targetIdx) {
 
   let result;
   if (spell.target === "all_allies") {
-    result = spell.effect(caster, state.party);
+    result = spell.effect(caster, state.party, state.party);
   } else {
     const target = state.party[targetIdx];
-    result = spell.effect(caster, target);
+    result = spell.effect(caster, target, state.party);
   }
   addLog(result.log);
   
@@ -151,8 +151,8 @@ export function renderCampOverlay() {
           <div>運: ${char.luk}</div>
         </div>
         <div class="camp-status-card-combat">
-          <span>攻撃力: <strong class="camp-val">+${getCharWeaponAtk(char)}</strong></span>
-          <span>防御力(AC): <strong class="camp-val">${getCharDef(char)}</strong></span>
+          <span>攻撃力: <strong class="camp-val">+${getCharWeaponAtk(char, state.party)}</strong></span>
+          <span>防御力(AC): <strong class="camp-val">${getCharDef(char, state.party)}</strong></span>
         </div>
         <div class="camp-status-card-exp">
           <span>EXP: <span class="exp-val">${nextText}</span></span>

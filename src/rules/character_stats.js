@@ -1,11 +1,6 @@
 import { getItemData, getCharAffixSum } from "./item_rules.js";
 import { getActiveSynergyMod } from "../data/tags.js";
 
-let localStateRef = null;
-export function setCharacterStatsStateRef(stateObj) {
-  localStateRef = stateObj;
-}
-
 export function getCharStr(char) {
   if (!char) return 0;
   let bonus = 0;
@@ -134,7 +129,7 @@ export function getCharMaxMp(char) {
   return char.maxMp + bonus;
 }
 
-export function getCharTrapBonus(char) {
+export function getCharTrapBonus(char, party = null) {
   if (!char) return 0;
   let bonus = 0;
   if (char.equipment) {
@@ -147,11 +142,11 @@ export function getCharTrapBonus(char) {
       }
     });
   }
-  bonus += getActiveSynergyMod(localStateRef?.party, "trapBonus") / 100;
+  bonus += getActiveSynergyMod(party, "trapBonus") / 100;
   return bonus;
 }
 
-export function getCharWeaponAtk(char) {
+export function getCharWeaponAtk(char, party = null) {
   let atk = 0;
   const wpId = char.equipment.weapon;
   if (wpId) {
@@ -167,11 +162,11 @@ export function getCharWeaponAtk(char) {
       }
     });
   }
-  atk += getActiveSynergyMod(localStateRef?.party, "atk");
+  atk += getActiveSynergyMod(party, "atk");
   return atk;
 }
 
-export function getCharDef(char) {
+export function getCharDef(char, party = null) {
   let def = 0;
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
@@ -180,18 +175,18 @@ export function getCharDef(char) {
       }
     });
   }
-  def += getActiveSynergyMod(localStateRef?.party, "def");
+  def += getActiveSynergyMod(party, "def");
   return def;
 }
 
-export function getCharDerivedStats(char) {
+export function getCharDerivedStats(char, party = null) {
   return {
-    attack: getCharWeaponAtk(char) + getCharStr(char),
-    defense: getCharDef(char) + Math.floor(getCharVit(char) / 2),
-    magic: getCharInt(char) + getCharAffixSum(char, "arcane"),
-    healing: getCharPie(char) + getCharAffixSum(char, "devotion"),
+    attack: getCharWeaponAtk(char, party) + getCharStr(char),
+    defense: getCharDef(char, party) + Math.floor(getCharVit(char) / 2),
+    magic: getCharInt(char) + getCharAffixSum(char, "arcane", party),
+    healing: getCharPie(char) + getCharAffixSum(char, "devotion", party),
     speed: getCharAgi(char),
-    trap: getCharLuk(char) + Math.round(getCharTrapBonus(char) * 100),
-    treasure: getCharAffixSum(char, "treasureSense")
+    trap: getCharLuk(char) + Math.round(getCharTrapBonus(char, party) * 100),
+    treasure: getCharAffixSum(char, "treasureSense", party)
   };
 }

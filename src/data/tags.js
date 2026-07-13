@@ -1,9 +1,3 @@
-let localStateRef = null;
-const LOG_HISTORY_LIMIT = 500;
-export function setTagsStateRef(stateObj) {
-  localStateRef = stateObj;
-}
-
 export const TAGS = {
   fire_rite: { name: "火葬", desc: "アンデッドを焼き払う魔力" },
   holy: { name: "聖", desc: "神聖な祈りと加護の印" },
@@ -206,18 +200,13 @@ export function getActiveSynergyMod(party, modType) {
   }, 0);
 }
 
-export function recordSynergyDiscovery(synergyId) {
-  if (!localStateRef || !localStateRef.codex) return;
-  if (!localStateRef.codex.synergies) {
-    localStateRef.codex.synergies = {};
+export function recordSynergyDiscovery(synergyId, { codex, addLog } = {}) {
+  if (!codex || !SYNERGIES[synergyId]) return;
+  if (!codex.synergies) {
+    codex.synergies = {};
   }
-  if (!localStateRef.codex.synergies[synergyId]) {
-    localStateRef.codex.synergies[synergyId] = true;
-    if (localStateRef.logs) {
-      localStateRef.logs.push(`[書庫記録] 新たな相性「${SYNERGIES[synergyId].name}」を発見した！`);
-      if (localStateRef.logs.length > LOG_HISTORY_LIMIT) {
-        localStateRef.logs.shift();
-      }
-    }
+  if (!codex.synergies[synergyId]) {
+    codex.synergies[synergyId] = true;
+    addLog?.(`[書庫記録] 新たな相性「${SYNERGIES[synergyId].name}」を発見した！`);
   }
 }

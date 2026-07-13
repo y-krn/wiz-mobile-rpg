@@ -159,7 +159,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
             if (state.party) {
               const senseSum = state.party.reduce((sum, c) => {
                 if (c.status !== "dead") {
-                  return sum + getCharAffixSum(c, "treasureSense");
+                  return sum + getCharAffixSum(c, "treasureSense", state.party);
                 }
                 return sum;
               }, 0);
@@ -210,7 +210,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     };
     const senseSum = state.party.reduce((sum, c) => {
       if (c.status === "dead") return sum;
-      return sum + getCharAffixSum(c, "treasureSense");
+      return sum + getCharAffixSum(c, "treasureSense", state.party);
     }, 0);
     const shouldRevealTag = senseSum >= 5 || rng() < 0.20;
     const hintedAffix = item?.affixes?.find(aff => tagLabels[aff.type]);
@@ -446,7 +446,7 @@ export function executeDisarm(char) {
   const poisonThief = activeSyns.find(s => s.id === "poison_thief");
   if (poisonThief && state.chestState && state.chestState.trap !== "none" && state.chestState.trap !== "") {
     const isNew = !state.codex.synergies || !state.codex.synergies[poisonThief.id];
-    recordSynergyDiscovery(poisonThief.id);
+    recordSynergyDiscovery(poisonThief.id, { codex: state.codex, addLog });
     if (isNew || Math.random() < 0.5) {
       addLog(poisonThief.log);
     }
@@ -458,7 +458,7 @@ export function executeDisarm(char) {
   } else if (char.class === "Ranger") {
     chance = 0.60;
   }
-  chance += getCharTrapBonus(char);
+  chance += getCharTrapBonus(char, state.party);
   if (char.status === "blind") {
     chance = chance / 2.0;
   }
@@ -512,7 +512,7 @@ export function triggerChestTrap(char) {
 
   if (trap === "poison needle") {
     char.hp = Math.max(0, char.hp - 12);
-    const ward = getCharAffixSum(char, "poisonWard");
+    const ward = getCharAffixSum(char, "poisonWard", state.party);
     const resisted = char.hp > 0 && ward > 0 && Math.random() * 100 < ward;
     if (char.hp === 0) {
       char.status = "dead";

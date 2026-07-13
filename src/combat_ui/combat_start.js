@@ -63,7 +63,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
   const activeSyns = getActiveSynergies(state.party);
   activeSyns.forEach(syn => {
     const isNew = !state.codex.synergies || !state.codex.synergies[syn.id];
-    recordSynergyDiscovery(syn.id);
+    recordSynergyDiscovery(syn.id, { codex: state.codex, addLog });
     if (isNew || Math.random() < 0.3) {
       addLog(syn.log);
     }

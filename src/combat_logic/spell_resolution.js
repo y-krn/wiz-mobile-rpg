@@ -64,7 +64,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
 
     const originalMagicResist = target.magicResist;
     target.magicResist = getEffectiveMagicResist(target);
-    const result = spell.effect(char, target);
+    const result = spell.effect(char, target, state.party);
     if (originalMagicResist === undefined) delete target.magicResist;
     else target.magicResist = originalMagicResist;
     target.hp = Math.max(0, target.hp - result.damage);
@@ -89,7 +89,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     const reflectedMonsters = new Set(reflectedSources.map(source => source.monster));
     const affectedMonsters = monsters.filter(mon => !reflectedMonsters.has(mon));
     const beforeHp = monsters.map(mon => mon.hp);
-    const result = applyMagicResistBuffs(affectedMonsters, () => spell.effect(char, affectedMonsters));
+    const result = applyMagicResistBuffs(affectedMonsters, () => spell.effect(char, affectedMonsters, state.party));
     const wokeNames = monsters
       .filter((mon, idx) => beforeHp[idx] > mon.hp && wakeSleepingMonsterOnDamage(mon))
       .map(mon => mon.name);
@@ -118,7 +118,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     });
   } else if (spell.target === "single_ally") {
     const target = state.party[act.targetIdx];
-    const result = spell.effect(char, target);
+    const result = spell.effect(char, target, state.party);
     let floatText = undefined;
     if (result.heal) {
       floatText = `+${result.heal}`;
@@ -132,7 +132,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
       floatColor: "#00ff66"
     });
   } else if (spell.target === "all_allies") {
-    const result = spell.effect(char, state.party);
+    const result = spell.effect(char, state.party, state.party);
     const floatText = spell.name === "MADI" ? (result.heal ? `+${result.heal}` : "HEAL") : "BARRIER";
     logQueue.push({
       msg: `[味方] ${result.log}`,
