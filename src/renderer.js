@@ -199,7 +199,7 @@ export class DungeonRenderer {
       gridColor = "rgba(204, 136, 0, 0.2)";
     }
 
-    const columnOrder = [-1, 1, 0];
+    const columnOrder = [-2, 2, -1, 1, 0];
     const dirRight = (dir + 1) % 4;
 
     // Draw from back (z=3) to front (z=0), outer columns before center
@@ -207,6 +207,8 @@ export class DungeonRenderer {
       const width = XR[z] - XL[z];
       const nextWidth = XR[z + 1] - XL[z + 1];
       for (const column of columnOrder) {
+        if (Math.abs(column) === 2 && z < 2) continue;
+
         const cx = px + DX[dir] * z + DX[dirRight] * column;
         const cy = py + DY[dir] * z + DY[dirRight] * column;
         const left = XL[z] + width * column;

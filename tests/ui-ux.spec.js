@@ -48,6 +48,51 @@ test('Three-column corridor renderer draws adjacent front walls', async ({ page 
   expect(cyanPixels[1]).toBeGreaterThan(100);
 });
 
+test('Five-column corridor renderer draws outer front walls', async ({ page }) => {
+  await page.goto('/');
+  const cyanPixels = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const makeCell = () => ({ walls: [false, false, false, false], type: 'empty' });
+
+    state.gameState = 'explore';
+    state.floor = 1;
+    state.x = 5;
+    state.y = 5;
+    state.dir = 0;
+    state.maps[0] = Array.from({ length: 24 }, () => Array.from({ length: 24 }, makeCell));
+    state.map[3][3].walls[0] = true;
+    state.map[3][7].walls[0] = true;
+    dungeonRenderer.draw();
+
+    const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
+    const countCyan = (centerX) => {
+      const pixels = ctx.getImageData(centerX - 2, 100, 5, 60).data;
+      let count = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        if (pixels[i + 1] > 180 && pixels[i + 2] > 180) count++;
+      }
+      return count;
+    };
+
+    const visible = [countCyan(50), countCyan(350)];
+
+    state.map[5][5].walls[1] = true;
+    state.map[5][5].walls[3] = true;
+    dungeonRenderer.draw();
+
+    return {
+      visible,
+      occluded: [countCyan(50), countCyan(350)],
+    };
+  });
+
+  expect(cyanPixels.visible[0]).toBeGreaterThan(30);
+  expect(cyanPixels.visible[1]).toBeGreaterThan(30);
+  expect(cyanPixels.occluded[0]).toBeLessThan(10);
+  expect(cyanPixels.occluded[1]).toBeLessThan(10);
+});
+
 test('Archives list restores scroll after detail and resets on navigation', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
