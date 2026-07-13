@@ -59,7 +59,7 @@ export function executeFullAppraise(idx, cost, hasTicket) {
   // シナジー発見の自動記録
   const activeSyns = getActiveSynergies(state.party);
   activeSyns.forEach(syn => {
-    recordSynergyDiscovery(syn.id);
+    recordSynergyDiscovery(syn.id, { codex: state.codex, addLog });
   });
   
   saveAutosave();
@@ -79,4 +79,3 @@ export function executeFullAppraise(idx, cost, hasTicket) {
 export function executeAppraise(idx, cost, hasTicket) {
   return executeFullAppraise(idx, cost, hasTicket);
 }
-

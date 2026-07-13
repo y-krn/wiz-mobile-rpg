@@ -2,11 +2,6 @@ import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { getClassPassiveBonus } from "./class_rules.js";
 import { getActiveSynergyMod } from "../data/tags.js";
 
-let localStateRef = null;
-export function setItemRulesStateRef(stateObj) {
-  localStateRef = stateObj;
-}
-
 export function getItemBaseId(item) {
   if (!item) return "";
   if (typeof item === "object") {
@@ -22,18 +17,18 @@ export function isSpecialOrQuestItem(itemId) {
          itemId === "LEGENDARY_SHIELD";
 }
 
-export function getEffectiveHealAmount(target, amount) {
+export function getEffectiveHealAmount(target, amount, party = null) {
   if (amount <= 0) return amount;
   let mult = 1;
   if (target?.antiHealTurns > 0) {
     mult *= 0.5;
   }
-  mult *= 1 + getActiveSynergyMod(localStateRef?.party, "healMod") / 100;
+  mult *= 1 + getActiveSynergyMod(party, "healMod") / 100;
   mult = Math.max(0.25, mult);
   return Math.max(1, Math.round(amount * mult));
 }
 
-export function getCharAffixSum(char, affixType) {
+export function getCharAffixSum(char, affixType, party = null) {
   if (!char || !char.equipment) return 0;
   let sum = 0;
   Object.values(char.equipment).forEach(eqKey => {
@@ -93,7 +88,7 @@ export function getCharAffixSum(char, affixType) {
       sum += 30;
     }
   }
-  sum += getActiveSynergyMod(localStateRef?.party, affixType);
+  sum += getActiveSynergyMod(party, affixType);
   const total = sum + getClassPassiveBonus(char, affixType);
   const caps = {
     poisonWard: 75,
@@ -111,7 +106,7 @@ export function getPartyMaxAffix(party, affixType) {
   if (!Array.isArray(party)) return 0;
   return party.reduce((max, char) => {
     if (!char || char.hp <= 0 || char.status === "dead") return max;
-    return Math.max(max, getCharAffixSum(char, affixType));
+    return Math.max(max, getCharAffixSum(char, affixType, party));
   }, 0);
 }
 

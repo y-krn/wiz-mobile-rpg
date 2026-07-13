@@ -1,4 +1,4 @@
-import { DIR_N, START_X, START_Y, setCharacterStatsStateRef, setItemRulesStateRef, setTagsStateRef } from "../data.js";
+import { DIR_N, START_X, START_Y } from "../data.js";
 
 // Main State Object
 export const state = {
@@ -181,7 +181,3 @@ export function canRecruitRescueNewcomer() {
 
   return state.gold < minCost;
 }
-
-setItemRulesStateRef(state);
-setCharacterStatsStateRef(state);
-setTagsStateRef(state);

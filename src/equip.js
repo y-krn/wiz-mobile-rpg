@@ -118,7 +118,7 @@ function isIdentified(itemKey) {
 }
 
 function getDisplayStats(char) {
-  const derived = getCharDerivedStats(char);
+  const derived = getCharDerivedStats(char, state.party);
   return {
     ...derived,
     maxHp: getCharMaxHp(char),
@@ -129,11 +129,11 @@ function getDisplayStats(char) {
     vit: getCharVit(char),
     agi: getCharAgi(char),
     luk: getCharLuk(char),
-    spellGuard: getCharAffixSum(char, "spellGuard"),
-    antiDragon: getCharAffixSum(char, "antiDragon"),
-    antiUndead: getCharAffixSum(char, "antiUndead"),
-    firstStrike: getCharAffixSum(char, "firstStrike"),
-    poisonWard: getCharAffixSum(char, "poisonWard")
+    spellGuard: getCharAffixSum(char, "spellGuard", state.party),
+    antiDragon: getCharAffixSum(char, "antiDragon", state.party),
+    antiUndead: getCharAffixSum(char, "antiUndead", state.party),
+    firstStrike: getCharAffixSum(char, "firstStrike", state.party),
+    poisonWard: getCharAffixSum(char, "poisonWard", state.party)
   };
 }
 

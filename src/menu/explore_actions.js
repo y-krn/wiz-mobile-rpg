@@ -260,7 +260,7 @@ export function renderItemTargetSelect(optGrid) {
             triggerRunResult("escape_scroll");
             return;
           }
-          const log = item.effect(char);
+          const log = item.effect(char, state.party);
           addLog(log);
           playSound("heal");
           state.inventory.splice(menuContext.itemIdx, 1);
@@ -277,8 +277,8 @@ export function renderItemTargetSelect(optGrid) {
             state.inventory.splice(menuContext.itemIdx, 1);
           }
           
-          const newAtk = getCharWeaponAtk(char) + char.str;
-          const newDef = getCharDef(char);
+          const newAtk = getCharWeaponAtk(char, state.party) + char.str;
+          const newDef = getCharDef(char, state.party);
           
           addLog(`${char.name}は${item.name}を装備した。(攻撃:${newAtk}/守備:${newDef})`);
           playSound("move");
@@ -378,7 +378,7 @@ export function renderCampStatus(optGrid) {
       <span>HP: ${char.hp}/${char.maxHp} | MP: ${char.mp}/${char.maxMp}</span>
       <span>力:${char.str} 知恵:${char.int} 信仰:${char.pie}</span>
       <span>生命:${char.vit} 素早:${char.agi} 運:${char.luk}</span>
-      <span>攻撃:+${getCharWeaponAtk(char)} | 守備:${getCharDef(char)}</span>
+      <span>攻撃:+${getCharWeaponAtk(char, state.party)} | 守備:${getCharDef(char, state.party)}</span>
       <span style="color:var(--neon-cyan)">EXP: ${nextText}</span>
     `;
     optGrid.appendChild(card);
@@ -614,7 +614,7 @@ export function renderChestOpenerSelect(optGrid) {
     const btn = document.createElement("button");
     btn.className = "btn btn-neon btn-block";
 
-    const trapBonus = getCharTrapBonus(char);
+    const trapBonus = getCharTrapBonus(char, state.party);
     const statusSuffix = char.status === "blind" ? " / 盲目" : (char.status === "poisoned" ? " / 毒" : "");
     const bonusText = trapBonus > 0 ? ` / 耐罠 +${trapBonus}%` : "";
     btn.textContent = `${char.name} (${getClassJpName(char.class)}) 開ける${statusSuffix}${bonusText}`;

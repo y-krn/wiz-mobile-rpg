@@ -5,7 +5,6 @@ export * from "./constants/events.js";
 export * from "./data/progression.js";
 export * from "./rules/class_rules.js";
 export {
-  setItemRulesStateRef,
   getItemBaseId,
   isSpecialOrQuestItem,
   getEffectiveHealAmount,
@@ -34,12 +33,13 @@ export const SPELLS = {};
 for (const [key, val] of Object.entries(STATIC_SPELLS)) {
   SPELLS[key] = {
     ...val,
-    effect: (arg1, arg2) => {
+    effect: (arg1, arg2, party = null) => {
       // arg1 is caster, arg2 is target, targets or state depending on spell type
       return SPELL_EFFECTS[key]({
         caster: arg1,
         target: arg2,
-        rng: Math.random
+        rng: Math.random,
+        party
       });
     }
   };
@@ -50,8 +50,8 @@ export const ITEMS = {};
 for (const [key, val] of Object.entries(STATIC_ITEMS)) {
   ITEMS[key] = { ...val };
   if (ITEM_EFFECTS[key]) {
-    ITEMS[key].effect = (char) => {
-      return ITEM_EFFECTS[key]({ char, rng: Math.random });
+    ITEMS[key].effect = (char, party = null) => {
+      return ITEM_EFFECTS[key]({ char, rng: Math.random, party });
     };
   }
 }
@@ -74,8 +74,8 @@ export function getItemData(itemOrKey) {
   if (ITEM_EFFECTS[baseId]) {
     return {
       ...item,
-      effect: (char) => {
-        return ITEM_EFFECTS[baseId]({ char, rng: Math.random });
+      effect: (char, party = null) => {
+        return ITEM_EFFECTS[baseId]({ char, rng: Math.random, party });
       }
     };
   }

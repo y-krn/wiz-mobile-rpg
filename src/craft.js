@@ -384,7 +384,7 @@ export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTag
   // 新規シナジー発見記録
   const activeSyns = getActiveSynergies(state.party);
   activeSyns.forEach(syn => {
-    recordSynergyDiscovery(syn.id);
+    recordSynergyDiscovery(syn.id, { codex: state.codex, addLog });
   });
 
   playSound("level_up");

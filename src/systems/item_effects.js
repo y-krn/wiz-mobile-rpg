@@ -5,13 +5,13 @@ import { addCharBuff } from "../combat_logic/status_effects.js";
 
 export const ITEM_EFFECTS = {
   NOISE_BALL: () => "鳴らし玉が甲高い音を響かせた。",
-  HEAL_POTION: ({ char }) => {
-    const heal = getEffectiveHealAmount(char, 15);
+  HEAL_POTION: ({ char, party }) => {
+    const heal = getEffectiveHealAmount(char, 15, party);
     char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
     return `${char.name}は傷薬を使い、HPが${heal}回復した。`;
   },
-  GREATER_HEAL: ({ char }) => {
-    const heal = getEffectiveHealAmount(char, 40);
+  GREATER_HEAL: ({ char, party }) => {
+    const heal = getEffectiveHealAmount(char, 40, party);
     char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
     return `${char.name}は上薬を使い、HPが${heal}回復した。`;
   },
@@ -58,8 +58,8 @@ export const ITEM_EFFECTS = {
     }
     return `${char.name}は魔力の雫を使用したが、魔力を持たないため何も起こらなかった。`;
   },
-  HOLY_WATER: ({ char }) => {
-    const heal = getEffectiveHealAmount(char, 15);
+  HOLY_WATER: ({ char, party }) => {
+    const heal = getEffectiveHealAmount(char, 15, party);
     char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
     let cured = false;
     if (char.status === "poisoned") {

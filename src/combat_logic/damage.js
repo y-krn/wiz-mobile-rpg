@@ -42,16 +42,16 @@ export function getEffectiveAtk(mon) {
   return Math.max(1, mon.atk + Math.max(-6, Math.min(6, getBuffTotal(mon, "atk"))));
 }
 
-export function applyTargetedDamageBonus(char, target, dmg) {
+export function applyTargetedDamageBonus(char, target, dmg, party = null) {
   let next = dmg;
   if (target.tags?.includes("undead")) {
-    next = Math.round(next * (1 + getCharAffixSum(char, "antiUndead") / 100));
+    next = Math.round(next * (1 + getCharAffixSum(char, "antiUndead", party) / 100));
   }
   if (target.tags?.includes("dragon")) {
-    next = Math.round(next * (1 + getCharAffixSum(char, "antiDragon") / 100));
+    next = Math.round(next * (1 + getCharAffixSum(char, "antiDragon", party) / 100));
   }
   if (target.tags?.includes("demon")) {
-    next = Math.round(next * (1 + getCharAffixSum(char, "antiDemon") / 100));
+    next = Math.round(next * (1 + getCharAffixSum(char, "antiDemon", party) / 100));
   }
   return Math.max(1, next);
 }
@@ -63,7 +63,7 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
     next = Math.max(1, Math.round(next * 1.3));
   }
   if (char.hp / char.maxHp <= 0.25) {
-    const guardian = getCharAffixSum(char, "guardian");
+    const guardian = getCharAffixSum(char, "guardian", options.party);
     if (guardian > 0) {
       const before = next;
       next = Math.max(1, Math.round(next * (1 - guardian / 100)));
@@ -72,7 +72,7 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
   }
   if (options.spell) {
     let resistPct = 0;
-    const spellGuard = getCharAffixSum(char, "spellGuard");
+    const spellGuard = getCharAffixSum(char, "spellGuard", options.party);
     if (spellGuard > 0) resistPct += spellGuard;
     if (char.mabarrierTurns > 0) resistPct += 30;
     resistPct = Math.min(60, resistPct);
@@ -92,7 +92,7 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
     }
   }
   if (options.dragon) {
-    const dragonGuard = getCharAffixSum(char, "antiDragon");
+    const dragonGuard = getCharAffixSum(char, "antiDragon", options.party);
     if (dragonGuard > 0) {
       const before = next;
       next = Math.max(1, Math.round(next * (1 - dragonGuard / 100)));
@@ -111,7 +111,7 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
     const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
     let dmg = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
     if (isDefending) dmg = Math.max(1, Math.round(dmg * (options.defendRate ?? 0.5)));
-    dmg = reduceIncomingDamage(c, dmg, { spell: options.spell, dragon: options.dragon, logQueue });
+    dmg = reduceIncomingDamage(c, dmg, { spell: options.spell, dragon: options.dragon, logQueue, party: state.party });
     c.hp = Math.max(0, c.hp - dmg);
     const wakeSuffix = wakeSleepingCharOnDamage(c) ? `${c.name}は目を覚ました！` : "";
     if (c.hp === 0) {

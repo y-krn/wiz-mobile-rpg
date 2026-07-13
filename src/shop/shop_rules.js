@@ -52,7 +52,7 @@ export function getAppraisalCost(eqItem) {
 
   const bestDiscount = state.party.reduce((max, char) => {
     if (char.status === "dead") return max;
-    return Math.max(max, getCharAffixSum(char, "identifyDiscount"));
+    return Math.max(max, getCharAffixSum(char, "identifyDiscount", state.party));
   }, 0);
   return Math.max(1, Math.floor(baseCost * (1 - bestDiscount / 100)));
 }
@@ -115,7 +115,7 @@ const SYNERGY_AFFIX_LABELS = {
 };
 
 function getCompareStats(char) {
-  const derived = getCharDerivedStats(char);
+  const derived = getCharDerivedStats(char, state.party);
   return {
     ...derived,
     maxHp: getCharMaxHp(char),
@@ -126,11 +126,11 @@ function getCompareStats(char) {
     vit: getCharVit(char),
     agi: getCharAgi(char),
     luk: getCharLuk(char),
-    spellGuard: getCharAffixSum(char, "spellGuard"),
-    antiDragon: getCharAffixSum(char, "antiDragon"),
-    antiUndead: getCharAffixSum(char, "antiUndead"),
-    firstStrike: getCharAffixSum(char, "firstStrike"),
-    poisonWard: getCharAffixSum(char, "poisonWard")
+    spellGuard: getCharAffixSum(char, "spellGuard", state.party),
+    antiDragon: getCharAffixSum(char, "antiDragon", state.party),
+    antiUndead: getCharAffixSum(char, "antiUndead", state.party),
+    firstStrike: getCharAffixSum(char, "firstStrike", state.party),
+    poisonWard: getCharAffixSum(char, "poisonWard", state.party)
   };
 }
 
