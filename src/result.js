@@ -106,11 +106,6 @@ export function triggerRunResult(reason) {
     state.party.forEach(c => {
       c.status = "dead";
       c.hp = 0;
-      const rc = state.roster.find(r => r.name === c.name);
-      if (rc) {
-        rc.status = "dead";
-        rc.hp = 0;
-      }
     });
 
     // 死亡履歴登録用の原因特定
@@ -320,8 +315,7 @@ export function triggerRunResult(reason) {
   // ==========================================
   // 【成功時（無事帰還）の処理】
   // ==========================================
-  // 戦闘後 party は roster と参照が切れている。party の最新状態（死亡含む）を
-  // roster へ書き戻し、寺院が死亡メンバーを蘇生対象として認識できるようにする。
+  // 帰還確定前にpartyの最新状態をrosterへ反映する。
   syncPartyToRoster();
 
   // 図鑑スタッツの更新

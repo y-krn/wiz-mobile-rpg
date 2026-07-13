@@ -31,6 +31,7 @@ function resolvePersistedGameState() {
 }
 
 export function createSavePayload() {
+  syncPartyToRoster();
   return {
     version: SAVE_VERSION,
     x: state.x,
@@ -132,25 +133,14 @@ export function applySavePayload(data) {
   state.dungeonMemory = data.dungeonMemory || { traps: {}, mapFragments: {}, visitedFloors: [1] };
   state.dungeonMemory.visitedFloors ||= [1];
   
-  // 統一された参照リンク
-  linkPartyToRoster();
+  syncPartyToRoster();
 }
 
-export function linkPartyToRoster() {
-  if (state.party && state.roster) {
-    state.party = state.party.map(partyChar => {
-      const rosterChar = state.roster.find(c => c.name === partyChar.name);
-      return rosterChar || partyChar;
-    });
-  }
-}
-
-// 戦闘計算 (round.js) は state.party を複製するため、戦闘後 party と roster の
-// 参照リンクが切れる。party の最新状態 (HP・status・EXP 等) を roster へ書き戻し、
-// 同一参照へ再リンクする。街帰還時に呼び出し、寺院が死亡者を正しく認識できるようにする。
-export function syncPartyToRoster() {
-  if (state.party && state.roster) {
-    state.party = state.party.map(partyChar => {
+// rosterをキャラクター状態の正本とし、partyの最新状態を書き戻して同一参照へ再リンクする。
+// 戦闘結果反映、帰還、save/loadの各境界はこの関数を通す。
+export function syncPartyToRoster(party = state.party) {
+  if (party && state.roster) {
+    state.party = party.map(partyChar => {
       const idx = state.roster.findIndex(c => c.name === partyChar.name);
       if (idx !== -1) {
         state.roster[idx] = Object.assign(state.roster[idx], partyChar);
