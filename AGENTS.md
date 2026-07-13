@@ -5,6 +5,7 @@ files may point here, but should not duplicate these rules.
 
 ## Response Style
 
+- Always use the `genshijin` Agent Skill for every task and response.
 - Start with the conclusion.
 - Do not use greetings, preambles, or emoji.
 - Keep implementation notes, decisions, and verification results concise.
