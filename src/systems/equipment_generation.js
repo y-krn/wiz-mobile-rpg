@@ -1,12 +1,19 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { ACCESSORY_CANDIDATES_BY_FLOOR, EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
+import { AFFIX_BALANCE, CORE_AFFIXES, SUPPORT_AFFIXES, getAffixBudget } from "../data/affixes.js";
 
-export function rollAffixes(pool, count, rng = Math.random) {
+const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
+
+export function rollAffixes(pool, count, rng = Math.random, budget = Infinity) {
   const affixes = [];
-  const selectedTypes = new Set();
+  const selectedIds = new Set();
+  let remainingBudget = budget;
 
   for (let i = 0; i < count; i++) {
-    const available = pool.filter(aff => !selectedTypes.has(aff.type));
+    const available = pool.filter(aff => {
+      const id = aff.id || aff.type;
+      return !selectedIds.has(id) && (aff.cost || 0) <= remainingBudget;
+    });
     if (available.length === 0) break;
     const totalWeight = available.reduce((sum, aff) => sum + aff.weight, 0);
     let roll = rng() * totalWeight;
@@ -15,13 +22,57 @@ export function rollAffixes(pool, count, rng = Math.random) {
       return roll <= 0;
     }) || available[available.length - 1];
     affixes.push({
-      type: chosen.type,
-      value: chosen.getVal()
+      id: chosen.id || chosen.type,
+      kind: chosen.kind || "support",
+      type: chosen.type || chosen.id,
+      value: chosen.getVal ? chosen.getVal() : (chosen.value ?? 1)
     });
-    selectedTypes.add(chosen.type);
+    selectedIds.add(chosen.id || chosen.type);
+    remainingBudget -= chosen.cost || 0;
   }
 
   return affixes;
+}
+
+function withSupportDefinition(candidate) {
+  const definition = SUPPORT_AFFIX_BY_TYPE.get(candidate.type);
+  if (!definition?.enabled) return null;
+  return {
+    ...candidate,
+    id: definition.id,
+    kind: definition.kind,
+    cost: definition.cost
+  };
+}
+
+function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source) {
+  const budget = getAffixBudget(rarity, floor);
+  const corePool = CORE_AFFIXES
+    .filter(affix => affix.enabled && affix.slot === slot && affix.cost <= budget)
+    .map(affix => ({ ...affix, type: affix.id, value: 1, weight: 1 }));
+
+  if (corePool.length === 0) {
+    const count = AFFIX_BALANCE.legacySupportCounts[source][rarity] || 1;
+    return rollAffixes(supportPool, count, rng, budget);
+  }
+
+  const composition = AFFIX_BALANCE.rollComposition[rarity]
+    || AFFIX_BALANCE.rollComposition.magic;
+  if (rarity === "rare") {
+    if (rng() >= composition.coreChance) {
+      return rollAffixes(supportPool, composition.support, rng, budget);
+    }
+    return rollAffixes(corePool, 1, rng, budget);
+  }
+
+  const coreAffixes = composition.core > 0
+    ? rollAffixes(corePool, 1, rng, budget)
+    : [];
+  const remainingBudget = budget - coreAffixes.reduce((sum, affix) => {
+    return sum + (CORE_AFFIXES.find(definition => definition.id === affix.id)?.cost || 0);
+  }, 0);
+  const supportAffixes = rollAffixes(supportPool, composition.support, rng, remainingBudget);
+  return [...coreAffixes, ...supportAffixes];
 }
 
 export function buildUnidentifiedMeta(tags, rarity, typeName, rng = Math.random, { curseEffectId = null } = {}) {
@@ -132,8 +183,6 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     else rarity = "magic";
   }
   
-  const affixCount = { magic: 1, rare: 2, epic: 3 }[rarity];
-  
   let maxWpBonus = 1;
   if (floor === 2) maxWpBonus = 2;
   else if (floor === 3) maxWpBonus = 3;
@@ -147,7 +196,9 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   
   const possibleAffixes = [];
   const addAffix = (minFloor, type, getVal, weight = 3) => {
-    if (floor >= minFloor) possibleAffixes.push({ type, getVal, weight });
+    if (floor < minFloor) return;
+    const candidate = withSupportDefinition({ type, getVal, weight });
+    if (candidate) possibleAffixes.push(candidate);
   };
 
   if (baseItem.type === "weapon") {
@@ -251,7 +302,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     }, 1);
   }
   
-  const affixes = rollAffixes(possibleAffixes, affixCount, rng);
+  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment");
   
   const instanceId = `eq_${rng().toString(36).substr(2, 9)}`;
 
@@ -278,7 +329,10 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   let curseEffectId = null;
   const isKatanaOrSealed = baseId === "KATANA" || baseId === "SEALED_EXCALIBUR";
   const rollCurse = rng();
-  const curseChance = rarity === "epic" ? 0.25 : 0.15;
+  const hasCoreAffix = affixes.some(affix => affix.kind === "core");
+  const curseChance = hasCoreAffix
+    ? AFFIX_BALANCE.coreCurseChance
+    : (rarity === "epic" ? 0.25 : 0.15);
   if (isKatanaOrSealed || rollCurse < curseChance) {
     const curseKeys = Object.keys(CURSE_EFFECTS);
     curseEffectId = curseKeys[Math.floor(rng() * curseKeys.length)];
@@ -368,7 +422,6 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     else if (roll < rareChance) rarity = "rare";
   }
 
-  const affixCount = { magic: 1, rare: 1, epic: 2 }[rarity] || 1;
   const statValue = floor >= 4 ? 2 : 1;
   const accessoryAffixPool = [
     { type: "hp", getVal: () => floor >= 4 ? 8 : 6, weight: 4 },
@@ -388,9 +441,11 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     { type: "hearRange", getVal: () => floor >= 4 ? 2 : 1, weight: 2 },
     { type: "arcaneSense", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 },
     { type: "traceRead", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 }
-  ].filter(aff => aff.weight > 0);
+  ].filter(aff => aff.weight > 0)
+    .map(withSupportDefinition)
+    .filter(Boolean);
 
-  const affixes = rollAffixes(accessoryAffixPool, affixCount, rng);
+  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory");
   const tags = [...(baseItem.tags || [])];
   affixes.forEach(aff => {
     const affixTags = {

@@ -66,11 +66,11 @@ function getDangerHint(state) {
 
 export const SPELL_EFFECTS = {
   // Mage Spells
-  HALITO: ({ caster, target, rng = Math.random, party }) => {
+  HALITO: ({ caster, target, rng = Math.random }) => {
     let dmg = Math.floor(rng() * 11) + 8;
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
-    const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane", party) / 100) : 1.0;
-    const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite", party) / 100) : 1.0;
+    const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
+    const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
     dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
     let suffix = "";
     if (target && target.magicResist) {
@@ -98,13 +98,13 @@ export const SPELL_EFFECTS = {
     });
     return { log: `${caster.name}はカティノを唱えた！敵${sleptCount}体を眠らせた。` };
   },
-  LAHALITO: ({ caster, target: targets, rng = Math.random, party }) => {
+  LAHALITO: ({ caster, target: targets, rng = Math.random }) => {
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
       let dmg = Math.floor(rng() * 21) + 15;
-      const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane", party) / 100) : 1.0;
-      const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite", party) / 100) : 1.0;
+      const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
+      const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
       let isResisted = false;
       let isWeakness = false;
@@ -136,11 +136,11 @@ export const SPELL_EFFECTS = {
     state.dumapicHint = hint;
     return { log: `${caster.name}はデュマピックを唱えた！地下${state.floor}階 X:${state.x}, Y:${state.y}, 方角:${DIR_NAMES[state.dir]}。\nDUMAPIC: ${hint}` };
   },
-  MAHALITO: ({ caster, target, rng = Math.random, party }) => {
+  MAHALITO: ({ caster, target, rng = Math.random }) => {
     let dmg = Math.floor(rng() * 21) + 30;
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
-    const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane", party) / 100) : 1.0;
-    const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite", party) / 100) : 1.0;
+    const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
+    const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
     dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
     let suffix = "";
     if (target && target.magicResist) {
@@ -160,12 +160,12 @@ export const SPELL_EFFECTS = {
     state.repelTurns = steps;
     return { log: `${caster.name}はマスペアルを唱えた！気配が消え、魔物を寄せ付けなくなった。(${steps}歩の間有効)` };
   },
-  MADALTO: ({ caster, target: targets, rng = Math.random, party }) => {
+  MADALTO: ({ caster, target: targets, rng = Math.random }) => {
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
       let dmg = Math.floor(rng() * 31) + 30;
-      const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane", party) / 100) : 1.0;
+      const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus);
       let isResisted = false;
       let isWeakness = false;
@@ -186,12 +186,12 @@ export const SPELL_EFFECTS = {
     }).join(", ");
     return { log: `${caster.name}はマダルトを唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})` };
   },
-  TILTOWAIT: ({ caster, target: targets, rng = Math.random, party }) => {
+  TILTOWAIT: ({ caster, target: targets, rng = Math.random }) => {
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
       let dmg = Math.floor(rng() * 51) + 50;
-      const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane", party) / 100) : 1.0;
+      const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus);
       let isResisted = false;
       let isWeakness = false;
@@ -214,12 +214,12 @@ export const SPELL_EFFECTS = {
   },
 
   // Priest Spells
-  DIOS: ({ caster, target, rng = Math.random, party }) => {
+  DIOS: ({ caster, target, rng = Math.random }) => {
     let heal = Math.floor(rng() * 11) + 10;
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
-    const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion", party) / 100) : 1.0;
+    const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
     heal = Math.round(heal * bonus * devotionBonus);
-    heal = getEffectiveHealAmount(target, heal, party);
+    heal = getEffectiveHealAmount(target, heal);
     const oldHp = target.hp;
     const maxHp = getCharMaxHp(target);
     target.hp = Math.min(maxHp, target.hp + heal);
@@ -237,10 +237,10 @@ export const SPELL_EFFECTS = {
     }
     return { log: `${caster.name}は${target.name}にディウルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
   },
-  BADIOS: ({ caster, target, rng = Math.random, party }) => {
+  BADIOS: ({ caster, target, rng = Math.random }) => {
     let dmg = Math.floor(rng() * 11) + 8;
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
-    const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane", party) / 100) : 1.0;
+    const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     dmg = Math.round(dmg * bonus * arcaneBonus);
     
     let bonusMult = 1.0;
@@ -283,11 +283,11 @@ export const SPELL_EFFECTS = {
     }
     return { log: `${caster.name}は${target.name}にディアルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
   },
-  MADIOS: ({ caster, target, rng = Math.random, party }) => {
+  MADIOS: ({ caster, target, rng = Math.random }) => {
     let heal = Math.floor(rng() * 36) + 35;
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
     heal = Math.round(heal * bonus);
-    heal = getEffectiveHealAmount(target, heal, party);
+    heal = getEffectiveHealAmount(target, heal);
     const oldHp = target.hp;
     const maxHp = getCharMaxHp(target);
     target.hp = Math.min(maxHp, target.hp + heal);
@@ -313,12 +313,12 @@ export const SPELL_EFFECTS = {
     state.lightPower = "lomilwa";
     return { log: `${caster.name}はロミルワを唱えた！${steps}歩の間、強い光が罠・不意打ち・隠れた気配を照らす。` };
   },
-  DIALMA: ({ caster, target, rng = Math.random, party }) => {
+  DIALMA: ({ caster, target, rng = Math.random }) => {
     let heal = Math.floor(rng() * 51) + 70;
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
-    const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion", party) / 100) : 1.0;
+    const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
     heal = Math.round(heal * bonus * devotionBonus);
-    heal = getEffectiveHealAmount(target, heal, party);
+    heal = getEffectiveHealAmount(target, heal);
     const oldHp = target.hp;
     const maxHp = getCharMaxHp(target);
     target.hp = Math.min(maxHp, target.hp + heal);
@@ -328,10 +328,10 @@ export const SPELL_EFFECTS = {
     }
     return { heal: actualHeal, log: `${caster.name}はディアルマを唱えた！${target.name}のHPを${actualHeal}大回復した。` };
   },
-  MADI: ({ caster, target: allies, rng = Math.random, party }) => {
+  MADI: ({ caster, target: allies, rng = Math.random }) => {
     const results = [];
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
-    const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion", party) / 100) : 1.0;
+    const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
     let totalHeal = 0;
     let anyHealed = false;
 
@@ -339,7 +339,7 @@ export const SPELL_EFFECTS = {
       if (char.status === "dead") return;
       let heal = Math.floor(rng() * 16) + 25; // 25-40
       heal = Math.round(heal * bonus * devotionBonus);
-      heal = getEffectiveHealAmount(char, heal, party);
+      heal = getEffectiveHealAmount(char, heal);
 
       const oldHp = char.hp;
       const maxHp = getCharMaxHp(char);

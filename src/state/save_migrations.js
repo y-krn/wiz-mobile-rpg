@@ -75,7 +75,7 @@ export function migrateCharSpells(char) {
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 // 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
 // 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
@@ -88,6 +88,27 @@ function normalizeCharEquipment(char) {
     armor: char.equipment?.armor ?? null,
     accessory: char.equipment?.accessory ?? null
   };
+}
+
+function backfillItemAffixes(item) {
+  if (!item || typeof item !== "object" || !Array.isArray(item.affixes)) return;
+  item.affixes.forEach(affix => {
+    if (!affix || typeof affix !== "object") return;
+    affix.id ||= affix.type;
+    affix.kind ||= affix.id?.startsWith("CORE_") ? "core" : "support";
+  });
+}
+
+function backfillAffixMetadata(data) {
+  [data.inventory, data.storage, data.activeMerchantStock].forEach(collection => {
+    collection?.forEach(backfillItemAffixes);
+  });
+  [data.party, data.roster, data.remains].forEach(characters => {
+    characters?.forEach(char => {
+      Object.values(char?.equipment || {}).forEach(backfillItemAffixes);
+    });
+  });
+  return data;
 }
 
 function backfillMapBlockEnter(data) {
@@ -161,6 +182,9 @@ const MIGRATIONS = {
   6: (data) => {
     data.openedGates = data.openedGates ?? [];
     return backfillMapSealedGates(data);
+  },
+  7: (data) => {
+    return backfillAffixMetadata(data);
   }
 };
 
@@ -221,11 +245,6 @@ export function normalizeSavePayload(data) {
   normalized.deathLogs = data.deathLogs ?? [];
   normalized.remains = data.remains ?? [];
   normalized.codex = data.codex ?? createDefaultCodex();
-  if (normalized.codex) {
-    if (!normalized.codex.synergies) {
-      normalized.codex.synergies = {};
-    }
-  }
   if (normalized.codex && normalized.codex.events) {
     delete normalized.codex.events.omens;
   }
@@ -273,6 +292,7 @@ export function normalizeSavePayload(data) {
   normalized.party.forEach(normalizeCharEquipment);
   normalized.roster.forEach(normalizeCharEquipment);
   normalized.remains.forEach(normalizeCharEquipment);
+  backfillAffixMetadata(normalized);
   normalized.party.forEach(migrateCharSpells);
   normalized.roster.forEach(migrateCharSpells);
 

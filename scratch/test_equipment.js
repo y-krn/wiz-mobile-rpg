@@ -1,5 +1,5 @@
 // 装備/クラフト 統合テスト
-// 集約元: test_craft_equipped.js, test_dismantle.js, test_inscription.js, test_synergy.js, test_equipment_variety_plan_a.js, test_accessory_slot.js
+// 集約元: test_craft_equipped.js, test_dismantle.js, test_inscription.js, test_equipment_variety_plan_a.js, test_accessory_slot.js
 // 各テストは同名ローカル定義の衝突回避と Math.random 差し替え隔離のため IIFE でスコープ分離。
 global.localStorage = {
   getItem: () => null,
@@ -487,7 +487,7 @@ import { generateRandomMap } from "../src/map_generator.js";
   })();
 
   // ========================================================================
-  // 元: test_synergy.js
+  // 装備生成・鑑定・呪い・刻印の統合確認
   // ========================================================================
   await (async () => {
     global.localStorage = (() => {
@@ -540,9 +540,8 @@ import { generateRandomMap } from "../src/map_generator.js";
       const { getItemData, getCharAffixSum } = await import("../src/rules/item_rules.js");
       const { executeHalfAppraise, executeFullAppraise } = await import("../src/shop/appraisal.js");
       const { executeTagInscription } = await import("../src/craft.js");
-      const { getPartyActiveTags, getActiveSynergies } = await import("../src/data/tags.js");
 
-      console.log("=== STARTING INTEGRATED SYNERGY SYSTEM VERIFICATION ===");
+      console.log("=== STARTING INTEGRATED EQUIPMENT SYSTEM VERIFICATION ===");
       initNewGame();
 
       // Test 1: Random Equipment Generation with tags & curses
@@ -645,57 +644,8 @@ import { generateRandomMap } from "../src/map_generator.js";
 
       console.log("-> [PASS] Test 3: Curse Debuffs Application verified");
 
-      // Test 4: Synergy Calculation
-      console.log("\n[Test 4] Synergy Calculation...");
-      initNewGame();
-      state.party = [ ...state.roster.slice(0, 4) ];
-      
-      // We have Arthur (Fighter), Robin (Thief), Maria (Priest), Ged (Mage) etc. in default roster
-      state.party = [
-        state.roster.find(c => c.class === "Fighter"),
-        state.roster.find(c => c.class === "Priest")
-      ];
-
-      // Priest has holy, heal, exorcism class tags
-      const activeTagsBefore = getPartyActiveTags(state.party);
-      console.log("Active tags before equipment:", activeTagsBefore);
-
-      const activeSynsBefore = getActiveSynergies(state.party);
-      console.log("Active synergies before equipment:", activeSynsBefore.map(s => s.name));
-
-      // Equip Priest with a holy mace (identified)
-      const holyMace = {
-        kind: "equipment",
-        baseId: "SACRED_MACE",
-        identified: true,
-        tags: ["holy", "spirit"]
-      };
-      state.party[1].equipment.weapon = holyMace;
-
-      const activeTagsAfter = getPartyActiveTags(state.party);
-      console.log("Active tags after holy weapon:", activeTagsAfter);
-
-      const activeSynsAfter = getActiveSynergies(state.party);
-      console.log("Active synergies after holy weapon:", activeSynsAfter.map(s => s.name));
-
-      // "holy_priest" synergy requires tags ["holy", "exorcism"]. Priest class tags have exorcism. Mace has holy.
-      // It should activate!
-      const hasHolyPriestSynergy = activeSynsAfter.some(s => s.id === "holy_priest");
-      if (!hasHolyPriestSynergy) {
-        throw new Error("holy_priest synergy should be active");
-      }
-
-      // Check if synergy stat modification (antiUndead: +35%) is applied via getCharAffixSum
-      const antiUndeadBonus = getCharAffixSum(state.party[1], "antiUndead", state.party);
-      console.log("antiUndead Bonus:", antiUndeadBonus, "(expected 55 = 20 priest class bonus + 35 synergy)");
-      if (antiUndeadBonus !== 55) {
-        throw new Error("Synergy stat bonus failed to apply");
-      }
-
-      console.log("-> [PASS] Test 4: Synergy Calculation verified");
-
-      // Test 5: Tag Inscription Crafting
-      console.log("\n[Test 5] Tag Inscription Crafting...");
+      // Test 4: Tag Inscription Crafting
+      console.log("\n[Test 4] Tag Inscription Crafting...");
       initNewGame();
       state.party = [ ...state.roster.slice(0, 4) ];
       
@@ -756,9 +706,9 @@ import { generateRandomMap } from "../src/map_generator.js";
       if (sealedArmor.curseEffectId !== null) throw new Error("curseEffectId not cleared");
       if (sealedArmor.sealedCurseEffectId !== "curse_blood_thirst") throw new Error("sealedCurseEffectId mismatch");
 
-      console.log("-> [PASS] Test 5: Tag Inscription Crafting verified");
+      console.log("-> [PASS] Test 4: Tag Inscription Crafting verified");
 
-      console.log("\n=== ALL INTEGRATED SYNERGY SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY! ===");
+      console.log("\n=== ALL INTEGRATED EQUIPMENT SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY! ===");
     })();
   })();
 
@@ -926,7 +876,12 @@ import { generateRandomMap } from "../src/map_generator.js";
       version: 1,
       party: [{ ...baseChar, equipment: { weapon: "DAGGER", shield: null, armor: null } }],
       roster: [{ ...baseChar, equipment: {} }],
-      remains: [{ ...baseChar, equipment: { weapon: null, shield: null, armor: null } }]
+      remains: [{ ...baseChar, equipment: { weapon: null, shield: null, armor: null } }],
+      inventory: [{
+        kind: "equipment",
+        baseId: "DAGGER",
+        affixes: [{ type: "agi", value: 1 }]
+      }]
     });
 
     assert.strictEqual(migrated.version, SAVE_VERSION);
@@ -938,6 +893,12 @@ import { generateRandomMap } from "../src/map_generator.js";
     });
     assert.strictEqual(migrated.roster[0].equipment.accessory, null);
     assert.strictEqual(migrated.remains[0].equipment.accessory, null);
+    assert.deepStrictEqual(migrated.inventory[0].affixes[0], {
+      id: "agi",
+      kind: "support",
+      type: "agi",
+      value: 1
+    });
 
     const oldMap = generateRandomMap(1, null, "ACCESSORY-MIGRATION-MAP").grid;
     delete oldMap[1][1].blockEnter;

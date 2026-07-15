@@ -410,6 +410,41 @@
   white-space: nowrap;
 }
 
+.equip-affix-details {
+  display: grid;
+  gap: 4px;
+}
+
+.equip-affix-group {
+  background-color: rgba(0, 229, 255, 0.05);
+  border: 1px solid #22222d;
+  border-radius: 4px;
+  display: grid;
+  gap: 2px;
+  padding: 5px 6px;
+}
+
+.equip-affix-group strong {
+  color: var(--neon-cyan);
+  font-size: var(--fs-xs);
+}
+
+.equip-affix-group span {
+  color: #eee;
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.equip-affix-group.core {
+  border-color: var(--neon-purple);
+}
+
+.equip-affix-group.core strong,
+.equip-affix-group.core span {
+  color: var(--neon-purple);
+}
+
 .equip-stat-pill {
   background-color: #0c0c0e;
   border: 1px solid #22222d;

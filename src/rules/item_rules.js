@@ -1,6 +1,6 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { getClassPassiveBonus } from "./class_rules.js";
-import { getActiveSynergyMod } from "../data/tags.js";
+import { formatAffixText } from "../data/affixes.js";
 
 export function getItemBaseId(item) {
   if (!item) return "";
@@ -17,18 +17,17 @@ export function isSpecialOrQuestItem(itemId) {
          itemId === "LEGENDARY_SHIELD";
 }
 
-export function getEffectiveHealAmount(target, amount, party = null) {
+export function getEffectiveHealAmount(target, amount) {
   if (amount <= 0) return amount;
   let mult = 1;
   if (target?.antiHealTurns > 0) {
     mult *= 0.5;
   }
-  mult *= 1 + getActiveSynergyMod(party, "healMod") / 100;
   mult = Math.max(0.25, mult);
   return Math.max(1, Math.round(amount * mult));
 }
 
-export function getCharAffixSum(char, affixType, party = null) {
+export function getCharAffixSum(char, affixType) {
   if (!char || !char.equipment) return 0;
   let sum = 0;
   Object.values(char.equipment).forEach(eqKey => {
@@ -88,7 +87,6 @@ export function getCharAffixSum(char, affixType, party = null) {
       sum += 30;
     }
   }
-  sum += getActiveSynergyMod(party, affixType);
   const total = sum + getClassPassiveBonus(char, affixType);
   const caps = {
     poisonWard: 75,
@@ -106,7 +104,7 @@ export function getPartyMaxAffix(party, affixType) {
   if (!Array.isArray(party)) return 0;
   return party.reduce((max, char) => {
     if (!char || char.hp <= 0 || char.status === "dead") return max;
-    return Math.max(max, getCharAffixSum(char, affixType, party));
+    return Math.max(max, getCharAffixSum(char, affixType));
   }, 0);
 }
 
@@ -275,39 +273,7 @@ export function getItemData(itemOrKey) {
     }
     
     let affixDesc = (itemOrKey.affixes || []).map(aff => {
-      const label = {
-        atk: "攻撃",
-        def: "防御",
-        hp: "HP",
-        mp: "MP",
-        str: "力",
-        int: "知恵",
-        pie: "信仰",
-        vit: "生命",
-        agi: "素早さ",
-        luk: "運",
-        trapBonus: "罠解除",
-        followUp: "追加攻撃",
-        arcane: "呪文威力",
-        devotion: "回復威力",
-        guardian: "守護",
-        treasureSense: "宝探",
-        hearRange: "聴覚",
-        arcaneSense: "霊視",
-        traceRead: "痕跡",
-        antiUndead: "不死祓い",
-        antiDragon: "竜殺し",
-        spellGuard: "魔除け",
-        poisonWard: "毒避け",
-        firstStrike: "先制",
-        antiDemon: "悪魔対策"
-      }[aff.type];
-      const sign = aff.value >= 0 ? "+" : "";
-      const percentTypes = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "antiDemon"];
-      const levelTypes = ["arcaneSense", "traceRead"];
-      const unit = percentTypes.includes(aff.type) ? "%" : (levelTypes.includes(aff.type) ? "Lv" : "");
-      const valueText = levelTypes.includes(aff.type) ? aff.value : `${sign}${aff.value}`;
-      return `${label || aff.type}${valueText}${unit}`;
+      return formatAffixText(aff, "");
     }).join(" / ");
     
     let desc = `${base.desc} [${affixDesc}]`;

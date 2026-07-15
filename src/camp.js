@@ -151,8 +151,8 @@ export function renderCampOverlay() {
           <div>運: ${char.luk}</div>
         </div>
         <div class="camp-status-card-combat">
-          <span>攻撃力: <strong class="camp-val">+${getCharWeaponAtk(char, state.party)}</strong></span>
-          <span>防御力(AC): <strong class="camp-val">${getCharDef(char, state.party)}</strong></span>
+          <span>攻撃力: <strong class="camp-val">+${getCharWeaponAtk(char)}</strong></span>
+          <span>防御力(AC): <strong class="camp-val">${getCharDef(char)}</strong></span>
         </div>
         <div class="camp-status-card-exp">
           <span>EXP: <span class="exp-val">${nextText}</span></span>

@@ -3,7 +3,6 @@ import { menuContext, menuHistory } from "../navigation.js";
 import { combatSelection } from "./combat_state.js";
 import { generateEncounter } from "./encounter.js";
 import { advanceActionSelection } from "./action_selection.js";
-import { getActiveSynergies, recordSynergyDiscovery } from "../data/tags.js";
 
 export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null) {
   state.gameState = "combat";
@@ -59,15 +58,6 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
   menuHistory.length = 0;
 
   addLog(`戦闘開始！敵が現れた：${monsters.map(m => m.name).join(", ")}`);
-  
-  const activeSyns = getActiveSynergies(state.party);
-  activeSyns.forEach(syn => {
-    const isNew = !state.codex.synergies || !state.codex.synergies[syn.id];
-    recordSynergyDiscovery(syn.id, { codex: state.codex, addLog });
-    if (isNew || Math.random() < 0.3) {
-      addLog(syn.log);
-    }
-  });
   
   if (state.codex) {
     if (!state.codex.monsters) state.codex.monsters = {};

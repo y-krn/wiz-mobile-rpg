@@ -99,7 +99,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   state.party.forEach((char, idx) => {
     if (char.status === "ok" || char.status === "poisoned" || char.status === "blind") {
       const chosen = combatSelection.actions.find(a => a.actorIdx === idx);
-      const speed = getCharAgi(char) + getBuffTotal(char, "agi") + Math.floor(Math.random() * 10) + getCharAffixSum(char, "firstStrike", state.party);
+      const speed = getCharAgi(char) + getBuffTotal(char, "agi") + Math.floor(Math.random() * 10) + getCharAffixSum(char, "firstStrike");
       turns.push({
         type: "char",
         char,
@@ -186,7 +186,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           shake = 0;
         } else {
           // Attack math
-          const weaponAtk = getCharWeaponAtk(char, state.party);
+          const weaponAtk = getCharWeaponAtk(char);
           const str = getCharStr(char);
           const buffAtk = getBuffTotal(char, "atk") + getBuffTotal(char, "str");
           const randRoll = Math.floor(Math.random() * 5); // 0-4
@@ -201,7 +201,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (finalTarget.physResist) {
             dmg = Math.max(1, Math.round(dmg * (1 - finalTarget.physResist)));
           }
-          dmg = applyTargetedDamageBonus(char, finalTarget, dmg, state.party);
+          dmg = applyTargetedDamageBonus(char, finalTarget, dmg);
           if (guard?.mon === finalTarget && guard.mon.guard?.damageRate) {
             dmg = Math.max(1, Math.round(dmg * guard.mon.guard.damageRate));
           }
@@ -235,7 +235,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
             // 毒脈の呪いなどによる毒付与チャンス
             if (finalTarget.hp > 0 && finalTarget.status !== "poisoned") {
-              const poisonAtkChance = getCharAffixSum(char, "poisonAtk", state.party) / 100;
+              const poisonAtkChance = getCharAffixSum(char, "poisonAtk") / 100;
               if (poisonAtkChance > 0 && Math.random() < poisonAtkChance) {
                 finalTarget.status = "poisoned";
                 logQueue.push({
@@ -263,7 +263,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           if (!isDecap && hasTrait(finalTarget, "counterSpell") && finalTarget.hp > 0 && Math.random() < (finalTarget.counterSpell?.chance ?? 0.2)) {
             let counterDmg = Math.floor(Math.random() * 11) + 5;
-            counterDmg = reduceIncomingDamage(char, counterDmg, { spell: true, logQueue, party: state.party });
+            counterDmg = reduceIncomingDamage(char, counterDmg, { spell: true, logQueue });
             char.hp = Math.max(0, char.hp - counterDmg);
             if (char.hp === 0) {
               char.status = "dead";
@@ -279,10 +279,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // followUp (追撃)
           if (!isBlindMiss && finalTarget.hp > 0) {
-            const followUpChance = getCharAffixSum(char, "followUp", state.party);
+            const followUpChance = getCharAffixSum(char, "followUp");
             if (followUpChance > 0 && Math.random() * 100 < followUpChance) {
               const followUpDmgRand = Math.floor(Math.random() * 3);
-              const weaponAtk = getCharWeaponAtk(char, state.party);
+              const weaponAtk = getCharWeaponAtk(char);
               const str = getCharStr(char);
               const meleeMod = getMeleeModifiers(char, turn.idx);
               const def = getEffectiveDef(finalTarget);
@@ -290,7 +290,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               if (finalTarget.physResist) {
                 followUpDmg = Math.max(1, Math.round(followUpDmg * (1 - finalTarget.physResist)));
               }
-              followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg, state.party);
+              followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg);
               finalTarget.hp = Math.max(0, finalTarget.hp - followUpDmg);
               const wakeSuffix = wakeSleepingMonsterOnDamage(finalTarget) ? `${finalTarget.name}は目を覚ました！` : "";
               logQueue.push({
@@ -603,7 +603,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
                 let dmg = Math.floor(Math.random() * 15) + 10;
                 if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-                dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue, party: state.party });
+                dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
                 c.hp = Math.max(0, c.hp - dmg);
                 if (c.hp === 0) {
                   c.status = "dead";
@@ -634,7 +634,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
                 let dmg = Math.floor(Math.random() * 20) + 15;
                 if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-                dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue, party: state.party });
+                dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
                 c.hp = Math.max(0, c.hp - dmg);
                 if (c.hp === 0) {
                   c.status = "dead";
@@ -655,7 +655,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           let dmg = Math.floor(Math.random() * 10) + 5;
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-          dmg = reduceIncomingDamage(target, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue, party: state.party });
+          dmg = reduceIncomingDamage(target, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
           target.hp = Math.max(0, target.hp - dmg);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${isDefending ? "(半減)" : ""}`,
@@ -676,7 +676,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue, party: state.party });
+              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
               c.hp = Math.max(0, c.hp - dmg);
               if (c.hp === 0) {
                 c.status = "dead";
@@ -710,7 +710,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           } else {
             finalAtk = baseAtk + Math.floor(Math.random() * 4);
           }
-          const finalDef = Math.max(0, (getCharDef(target, state.party) + Math.floor(getCharVit(target) / 4) + getBuffTotal(target, "def")) - (target.tempDefDown || 0));
+          const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4) + getBuffTotal(target, "def")) - (target.tempDefDown || 0));
           let dmg = Math.max(1, finalAtk - finalDef);
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           
@@ -720,7 +720,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           }
 
           const isMonDragon = mon.spriteType === "dragon" || (mon.tags && mon.tags.includes("dragon"));
-          dmg = reduceIncomingDamage(target, dmg, { dragon: isMonDragon, logQueue, party: state.party });
+          dmg = reduceIncomingDamage(target, dmg, { dragon: isMonDragon, logQueue });
           target.hp = Math.max(0, target.hp - dmg);
           const wakeSuffix = wakeSleepingCharOnDamage(target) ? `${target.name}は目を覚ました！` : "";
           
@@ -749,7 +749,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // Apply poison effect if monster is poisonous and target survives
           const poisonChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
           if (mon.isPoisonous && target.hp > 0 && target.status === "ok" && Math.random() < poisonChance) {
-            const ward = getCharAffixSum(target, "poisonWard", state.party);
+            const ward = getCharAffixSum(target, "poisonWard");
             if (ward > 0 && Math.random() * 100 < ward) {
               logQueue.push({
                 msg: `[ 敵 ] ${target.name}は防毒の備えで毒を退けた！`,

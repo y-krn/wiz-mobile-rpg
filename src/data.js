@@ -15,6 +15,7 @@ export * from "./rules/character_stats.js";
 export * from "./rules/spell_rules.js";
 export * from "./systems/leveling.js";
 export * from "./data/tags.js";
+export * from "./data/affixes.js";
 
 
 // Re-export constants/data with wrapper compatibility

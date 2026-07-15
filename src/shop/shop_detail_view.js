@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { ITEMS, getItemData, getItemBaseId } from "../data.js";
+import { ITEMS, formatAffixText, getItemData, getItemBaseId } from "../data.js";
 import { shopState } from "./shop_state.js";
 import { getAppraisalCost, getItemOwnership, getEquipmentPreview, formatEquipmentPreview, canSellItem, getSalePrice, isDisposalSaleItem } from "./shop_rules.js";
 import { executeHalfAppraise, executeFullAppraise } from "./appraisal.js";
@@ -109,22 +109,20 @@ export function renderShopDetail() {
           affixesDiv.style.marginTop = "6px";
           affixesDiv.style.marginBottom = "6px";
           
-          let affList = eqItem.affixes.map(aff => {
-            const label = {
-              atk: "攻撃力", def: "防御力", hp: "最大HP", mp: "最大MP",
-              str: "力", int: "知恵", pie: "信仰", vit: "生命", agi: "素早さ", luk: "運",
-              trapBonus: "罠解除率", followUp: "追加攻撃率", arcane: "呪文威力",
-              devotion: "回復威力", guardian: "守護", treasureSense: "宝探",
-              antiUndead: "不死祓い", antiDragon: "竜殺し", spellGuard: "魔除け",
-              poisonWard: "毒避け", firstStrike: "先制", antiDemon: "悪魔対策"
-            }[aff.type] || aff.type;
-            const unit = ["trapBonus", "followUp", "arcane", "devotion", "guardian", "treasureSense", "antiUndead", "antiDragon", "spellGuard", "poisonWard", "antiDemon"].includes(aff.type) ? "%" : "";
-            return `<div style="font-size: 11px; margin-bottom: 2px;">・${label}: <strong style="color:var(--neon-green)">+${aff.value}${unit}</strong></div>`;
+          const affixGroups = [
+            { kind: "core", label: "コア" },
+            { kind: "support", label: "サポート" }
+          ].map(group => {
+            const lines = eqItem.affixes
+              .filter(aff => (aff.kind || "support") === group.kind)
+              .map(aff => `<div style="font-size: 11px; margin-bottom: 2px;">${group.kind === "support" ? "・" : ""}${formatAffixText(aff)}</div>`)
+              .join("");
+            return lines ? `<div style="color:var(--text-muted); margin-top:4px;">${group.label}</div>${lines}` : "";
           }).join("");
           
           affixesDiv.innerHTML = `
             <div class="compat-title">🔮 付与アフィックス</div>
-            <div style="padding: 4px 8px; color: #eee;">${affList}</div>
+            <div style="padding: 4px 8px; color: #eee;">${affixGroups}</div>
           `;
           scrollContent.appendChild(affixesDiv);
         }

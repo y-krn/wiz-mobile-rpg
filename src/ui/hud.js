@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { isSpellcaster, getCharMaxHp, getCharMaxMp, getActiveSynergies } from "../data.js";
+import { isSpellcaster, getCharMaxHp, getCharMaxMp } from "../data.js";
 import { menuContext, openSubmenu } from "../navigation.js";
 import { combatSelection } from "../combat.js";
 
@@ -8,28 +8,6 @@ export function updatePartyHUD() {
   if (!grid) return;
   grid.innerHTML = "";
 
-  // 反応中のシナジー表示
-  let synergyBanner = document.getElementById("party-synergy-banner");
-  if (!synergyBanner) {
-    synergyBanner = document.createElement("div");
-    synergyBanner.id = "party-synergy-banner";
-    synergyBanner.hidden = true;
-  }
-  const partyPanel = document.getElementById("party-panel");
-  if (partyPanel?.parentElement && synergyBanner.parentElement !== partyPanel.parentElement) {
-    partyPanel.parentElement.insertBefore(synergyBanner, partyPanel);
-  }
-
-  const activeSyns = getActiveSynergies(state.party);
-  if (activeSyns.length > 0) {
-    const names = activeSyns.map(s => s.name).join(", ");
-    synergyBanner.textContent = `反応中: ${names}`;
-    synergyBanner.title = names;
-    synergyBanner.hidden = false;
-  } else {
-    synergyBanner.hidden = true;
-    synergyBanner.title = "";
-  }
   const selectingChar = state.gameState === "combat" && state.combatState?.phase === "choose_actions"
     ? state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status))[combatSelection.charIdx]
     : null;
