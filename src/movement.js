@@ -675,6 +675,9 @@ export function executeEnterDungeon(floor) {
   state.currentRun.deepestFloor = floor;
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
+  state.party.forEach(char => {
+    char.runTrapAttackBonus = 0;
+  });
 
   if (floor === 1) {
     state.x = START_X;

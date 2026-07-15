@@ -1,8 +1,18 @@
-import { getItemBaseId, getCharAffixSum } from "../data.js";
+import { getItemBaseId, getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharWeaponAtk, getCharStr } from "../data.js";
 import { recordCharDeath } from "../state.js";
 import { getBuffTotal, wakeSleepingCharOnDamage } from "./status_effects.js";
+import { getCharCoreParams, getCoreLogText, getDamageAffixResult } from "../rules/affix_rules.js";
 
-export function getMeleeModifiers(char, actorIdx) {
+export function logCoreActivation(state, logQueue, char, coreId, { once = true } = {}) {
+  if (!state?.combatState || !logQueue) return;
+  const key = `${char.name}:${coreId}`;
+  state.combatState.loggedCoreActivations ||= [];
+  if (once && state.combatState.loggedCoreActivations.includes(key)) return;
+  if (once) state.combatState.loggedCoreActivations.push(key);
+  logQueue.push({ msg: getCoreLogText(coreId) });
+}
+
+export function getMeleeModifiers(char, actorIdx, options = {}) {
   const classMeleeRates = {
     Fighter: 1.00,
     Samurai: 0.95,
@@ -17,12 +27,18 @@ export function getMeleeModifiers(char, actorIdx) {
   
   let rowRate = 1.00;
   if (actorIdx >= 2) {
-    const weaponId = char.equipment.weapon;
-    const baseId = getItemBaseId(weaponId);
-    if (baseId === "DAGGER" || baseId === "WAND") {
-      rowRate = 0.35;
+    const rearguard = getCharCoreParams(char, "CORE_REARGUARD");
+    if (rearguard) {
+      rowRate = rearguard.rowRate;
+      logCoreActivation(options.state, options.logQueue, char, "CORE_REARGUARD");
     } else {
-      rowRate = 0.50;
+      const weaponId = char.equipment.weapon;
+      const baseId = getItemBaseId(weaponId);
+      if (baseId === "DAGGER" || baseId === "WAND") {
+        rowRate = 0.35;
+      } else {
+        rowRate = 0.50;
+      }
     }
   }
   return classRate * rowRate;
@@ -42,7 +58,7 @@ export function getEffectiveAtk(mon) {
   return Math.max(1, mon.atk + Math.max(-6, Math.min(6, getBuffTotal(mon, "atk"))));
 }
 
-export function applyTargetedDamageBonus(char, target, dmg) {
+export function applyTargetedDamageBonus(char, target, dmg, options = {}) {
   let next = dmg;
   if (target.tags?.includes("undead")) {
     next = Math.round(next * (1 + getCharAffixSum(char, "antiUndead") / 100));
@@ -53,7 +69,49 @@ export function applyTargetedDamageBonus(char, target, dmg) {
   if (target.tags?.includes("demon")) {
     next = Math.round(next * (1 + getCharAffixSum(char, "antiDemon") / 100));
   }
-  return Math.max(1, next);
+  const result = getDamageAffixResult(char, target, next, options);
+  result.coreIds.forEach(coreId => {
+    logCoreActivation(options.state, options.logQueue, char, coreId);
+  });
+  return result.damage;
+}
+
+export function applyKillAffixEffects(char, target, state, logQueue) {
+  if (!char || !target || target.affixKillProcessed) return;
+  target.affixKillProcessed = true;
+
+  const killHeal = getCharAffixSum(char, "killHeal");
+  if (killHeal > 0 && char.hp > 0) {
+    char.hp = Math.min(getCharMaxHp(char), char.hp + killHeal);
+  }
+
+  const purify = getCharCoreParams(char, "CORE_PURIFY_RING");
+  if (purify && purify.targetTags.some(tag => target.tags?.includes(tag))) {
+    char.mp = Math.min(getCharMaxMp(char), char.mp + purify.mpRecovery);
+    logCoreActivation(state, logQueue, char, "CORE_PURIFY_RING", { once: false });
+  }
+}
+
+export function tryApplyHitFlinch(char, target, logQueue, rng = Math.random) {
+  const chance = getCharAffixSum(char, "hitFlinch") / 100;
+  if (chance <= 0 || target.hp <= 0 || rng() >= chance) return false;
+  target.flinched = true;
+  logQueue.push({ msg: `[味方] ${char.name}の威圧で${target.name}は怯んだ！` });
+  return true;
+}
+
+export function tryThornCounter(char, monster, actorIdx, state, logQueue, rng = Math.random) {
+  const thorn = getCharCoreParams(char, "CORE_THORN_SHIELD");
+  if (!thorn || char.hp <= 0 || monster.hp <= 0 || rng() >= thorn.counterChance) return 0;
+  const base = Math.max(1, Math.floor(
+    ((getCharWeaponAtk(char) * 1.5) + (getCharStr(char) - 10) - Math.floor(getEffectiveDef(monster) / 2))
+      * getMeleeModifiers(char, actorIdx)
+  ));
+  const damage = Math.max(1, Math.round(base * thorn.counterPower));
+  monster.hp = Math.max(0, monster.hp - damage);
+  logCoreActivation(state, logQueue, char, "CORE_THORN_SHIELD", { once: false });
+  logQueue.push({ msg: `[味方] ${char.name}の棘が${monster.name}に${damage}の反撃ダメージ！` });
+  return damage;
 }
 
 export function reduceIncomingDamage(char, dmg, options = {}) {

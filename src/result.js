@@ -89,6 +89,11 @@ export function triggerRunResult(reason) {
     return;
   }
   persistDungeonTraps();
+  [state.party, state.roster].forEach(characters => {
+    characters?.forEach(char => {
+      char.runTrapAttackBonus = 0;
+    });
+  });
   
   state.currentRun.returnReason = reason;
   const isSuccess = reason !== "gameover";

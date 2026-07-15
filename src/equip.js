@@ -14,7 +14,8 @@ import {
   getCharLuk,
   formatAffixText,
   canUseMageSpells,
-  canUsePriestSpells
+  canUsePriestSpells,
+  canEquipCoreAffix
 } from "./data.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
@@ -271,6 +272,9 @@ function canEquip(char, itemKey) {
   }
   if (item.classes && !item.classes.includes(char.class)) {
     return { ok: false, reason: `${getClassJpName(char.class)}は装備できません` };
+  }
+  if (!canEquipCoreAffix(char, itemKey, item.type)) {
+    return { ok: false, reason: "コアは1人につき1個までです" };
   }
   return { ok: true, reason: "" };
 }

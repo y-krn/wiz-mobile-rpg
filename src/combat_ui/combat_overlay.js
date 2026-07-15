@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { ITEMS, SPELLS, getClassJpName, getCharMaxHp, getCharMaxMp } from "../data.js";
+import { ITEMS, SPELLS, getClassJpName, getCharMaxHp, getCharMaxMp, getSpellPayment } from "../data.js";
 import { menuContext, goBackSubmenu } from "../navigation.js";
 import { combatCallbacks } from "./combat_state.js";
 import { getEnemyRow } from "./encounter.js";
@@ -144,7 +144,8 @@ export function renderCombatOverlay() {
       const card = document.createElement("div");
       card.className = "combat-item-card spell";
       
-      const mpCheck = caster.mp < spell.cost;
+      const payment = getSpellPayment(caster, spell.cost);
+      const mpCheck = !payment.canCast;
       const targetCheck = isSpellTargetAvailable(spell, caster);
       const disabled = mpCheck || !targetCheck;
 
@@ -167,7 +168,7 @@ export function renderCombatOverlay() {
       card.innerHTML = `
         <div class="spell-card-top">
           <span class="spell-name" title="${spell.name}">${spell.name}</span>
-          <span class="cost-tag">${spell.cost}MP</span>
+          <span class="cost-tag">${payment.resource === "hp" ? `${payment.cost}HP` : `${spell.cost}MP`}</span>
         </div>
         <div class="spell-card-bottom">
           <span class="spell-tag ${summary.category}">${summary.tag}</span>

@@ -1,4 +1,5 @@
 import { getItemData, getCharAffixSum } from "./item_rules.js";
+import { getCharAllStatsAffixBonus } from "./affix_rules.js";
 
 export function getCharStr(char) {
   if (!char) return 0;
@@ -13,7 +14,7 @@ export function getCharStr(char) {
       }
     });
   }
-  return char.str + bonus;
+  return char.str + bonus + getCharAllStatsAffixBonus(char);
 }
 
 export function getCharInt(char) {
@@ -29,7 +30,7 @@ export function getCharInt(char) {
       }
     });
   }
-  return char.int + bonus;
+  return char.int + bonus + getCharAllStatsAffixBonus(char);
 }
 
 export function getCharPie(char) {
@@ -45,7 +46,7 @@ export function getCharPie(char) {
       }
     });
   }
-  return char.pie + bonus;
+  return char.pie + bonus + getCharAllStatsAffixBonus(char);
 }
 
 export function getCharVit(char) {
@@ -61,7 +62,7 @@ export function getCharVit(char) {
       }
     });
   }
-  return char.vit + bonus;
+  return char.vit + bonus + getCharAllStatsAffixBonus(char);
 }
 
 export function getCharAgi(char) {
@@ -77,7 +78,7 @@ export function getCharAgi(char) {
       }
     });
   }
-  return char.agi + bonus;
+  return char.agi + bonus + getCharAllStatsAffixBonus(char);
 }
 
 export function getCharLuk(char) {
@@ -93,7 +94,7 @@ export function getCharLuk(char) {
       }
     });
   }
-  return char.luk + bonus;
+  return char.luk + bonus + getCharAllStatsAffixBonus(char);
 }
 
 export function getCharMaxHp(char) {
@@ -145,7 +146,7 @@ export function getCharTrapBonus(char) {
 }
 
 export function getCharWeaponAtk(char) {
-  let atk = 0;
+  let atk = char.runTrapAttackBonus || 0;
   const wpId = char.equipment.weapon;
   if (wpId) {
     atk += getItemData(wpId)?.atk || 0;

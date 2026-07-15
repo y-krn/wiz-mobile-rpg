@@ -496,7 +496,7 @@ export function checkActiveContract(stateInstance, runResult, success) {
       if (contract.danger === "B") genFloor = Math.min(genFloor, 3);
       if (contract.danger === "A") genFloor = Math.min(genFloor, 5);
 
-      const item = generateRandomEquipment(genFloor, rarity, Math.random, state.party);
+      const item = generateRandomEquipment(genFloor, rarity, Math.random, state.party, false, false);
       addRewardItem(item, `未鑑定${item.type === "weapon" ? "武器" : (item.type === "shield" ? "盾" : "防具")}`);
     }
 
@@ -505,7 +505,7 @@ export function checkActiveContract(stateInstance, runResult, success) {
     if (stateInstance.inventory.length < 20 && accessoryChance > 0 && accessoryRoll > 0 && accessoryRoll < accessoryChance) {
       const genFloor = Math.min(runResult.deepestFloor || 1, contract.danger === "A" ? 5 : 3);
       const rarity = contract.danger === "A" && genFloor >= 4 ? "rare" : null;
-      addRewardItem(generateRandomAccessory(genFloor, rarity, Math.random, state.party), "未鑑定装身具");
+      addRewardItem(generateRandomAccessory(genFloor, rarity, Math.random, state.party, false), "未鑑定装身具");
     }
 
     if (!stateInstance.completedContracts) stateInstance.completedContracts = [];

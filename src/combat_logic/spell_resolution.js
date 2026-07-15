@@ -1,8 +1,9 @@
 import { SPELLS } from "../data.js";
 import { recordCharDeath } from "../state.js";
-import { getEffectiveMagicResist, applyMagicResistBuffs } from "./damage.js";
+import { getEffectiveMagicResist, applyMagicResistBuffs, applyKillAffixEffects, logCoreActivation } from "./damage.js";
 import { hasTrait, processMonsterDefeat } from "./monster_traits.js";
 import { wakeSleepingMonsterOnDamage } from "./status_effects.js";
+import { getSpellPayment, paySpellCost } from "../rules/affix_rules.js";
 
 /**
  * Resolves player spell casting logic.
@@ -42,11 +43,16 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     return;
   }
   
-  if (char.mp < spell.cost) {
-    logQueue.push({ msg: `[味方] ${char.name}は${spell.name}を唱えようとしたが、MPが足りない！` });
+  const payment = getSpellPayment(char, spell.cost);
+  if (!payment.canCast) {
+    logQueue.push({ msg: `[味方] ${char.name}は${spell.name}を唱えようとしたが、MPもHPも足りない！` });
     return;
   }
-  char.mp -= spell.cost;
+  paySpellCost(char, spell.cost);
+  if (payment.resource === "hp") {
+    logCoreActivation(state, logQueue, char, "CORE_BLOOD_WAND", { once: false });
+  }
+  char.combatFloor = state.floor;
 
   if (spell.target === "single_enemy") {
     let target = monsters[act.targetIdx];
@@ -65,6 +71,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     const originalMagicResist = target.magicResist;
     target.magicResist = getEffectiveMagicResist(target);
     const result = spell.effect(char, target, state.party);
+    result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));
     if (originalMagicResist === undefined) delete target.magicResist;
     else target.magicResist = originalMagicResist;
     target.hp = Math.max(0, target.hp - result.damage);
@@ -78,6 +85,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     });
 
     if (target.hp === 0) {
+      applyKillAffixEffects(char, target, state, logQueue);
       logQueue.push({ msg: `[味方] [!] ${target.name}を倒した！` });
       processMonsterDefeat(monsters, target, logQueue);
     }
@@ -90,6 +98,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     const affectedMonsters = monsters.filter(mon => !reflectedMonsters.has(mon));
     const beforeHp = monsters.map(mon => mon.hp);
     const result = applyMagicResistBuffs(affectedMonsters, () => spell.effect(char, affectedMonsters, state.party));
+    result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));
     const wokeNames = monsters
       .filter((mon, idx) => beforeHp[idx] > mon.hp && wakeSleepingMonsterOnDamage(mon))
       .map(mon => mon.name);
@@ -112,6 +121,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     monsters.forEach(m => {
       if (m.hp === 0 && !m.loggedDeath) {
         m.loggedDeath = true;
+        applyKillAffixEffects(char, m, state, logQueue);
         logQueue.push({ msg: `[味方] [!] ${m.name}を倒した！` });
         processMonsterDefeat(monsters, m, logQueue);
       }

@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { getClassJpName, isSpellcaster, SPELLS } from "./data.js";
+import { getClassJpName, isSpellcaster, SPELLS, getSpellPayment } from "./data.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { executeAllySpell, executeUtilitySpell } from "./menu.js";
 
@@ -20,8 +20,8 @@ export function getSpellUsability(caster, spKey) {
   }
 
   // Check MP
-  if (caster.mp < spell.cost) {
-    return { usable: false, reason: "MP不足" };
+  if (!getSpellPayment(caster, spell.cost).canCast) {
+    return { usable: false, reason: "MP・HP不足" };
   }
 
   // Check target availability
@@ -119,7 +119,7 @@ export function renderSpellOverlay() {
       if (char.status === "dead") {
         isDisabled = true;
         reason = "死亡";
-      } else if (char.mp <= 0) {
+      } else if (char.mp <= 0 && !char.spells?.some(spellKey => getSpellPayment(char, SPELLS[spellKey].cost).canCast)) {
         isDisabled = true;
         reason = "MP枯渇";
       }
@@ -209,6 +209,7 @@ export function renderSpellOverlay() {
       filteredSpells.forEach(spKey => {
         const spell = SPELLS[spKey];
         const usability = getSpellUsability(caster, spKey);
+        const payment = getSpellPayment(caster, spell.cost);
         const catInfo = getSpellCategory(spKey);
         const isSelected = spellMenuState.selectedKey === spKey;
 
@@ -225,7 +226,7 @@ export function renderSpellOverlay() {
         btn.innerHTML = `
           <div class="spell-card-row-top">
             <span class="spell-card-name">${spell.name}</span>
-            <span class="spell-card-mp">MP ${spell.cost}</span>
+            <span class="spell-card-mp">${payment.resource === "hp" ? `HP ${payment.cost}` : `MP ${spell.cost}`}</span>
           </div>
           <div class="spell-card-row-bottom">
             <span class="spell-card-desc">${spell.desc}</span>
@@ -297,11 +298,14 @@ export function renderSpellOverlay() {
     const summaryDiv = document.createElement("div");
     summaryDiv.className = "spell-target-summary-header";
     
-    const nextMp = Math.max(0, caster.mp - spell.cost);
+    const payment = getSpellPayment(caster, spell.cost);
+    const resourcePreview = payment.resource === "hp"
+      ? `HP ${caster.hp} → ${Math.max(1, caster.hp - payment.cost)}`
+      : `MP ${caster.mp} → ${Math.max(0, caster.mp - spell.cost)}`;
     
     summaryDiv.innerHTML = `
       <div style="font-size: 13px; font-weight: bold; color: var(--neon-purple); margin-bottom: 4px;">
-        🔮 ${caster.name} が ${spell.name} を唱える <span style="font-size: 10px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(MP ${caster.mp} → ${nextMp})</span>
+        🔮 ${caster.name} が ${spell.name} を唱える <span style="font-size: 10px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(${resourcePreview})</span>
       </div>
       <div style="font-size: 11px; color: var(--text-muted); line-height: 1.3;">
         ${spell.desc}

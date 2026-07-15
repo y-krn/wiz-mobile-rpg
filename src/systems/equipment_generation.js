@@ -45,11 +45,11 @@ function withSupportDefinition(candidate) {
   };
 }
 
-function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source) {
+function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores) {
   const budget = getAffixBudget(rarity, floor);
-  const corePool = CORE_AFFIXES
+  const corePool = allowCores ? CORE_AFFIXES
     .filter(affix => affix.enabled && affix.slot === slot && affix.cost <= budget)
-    .map(affix => ({ ...affix, type: affix.id, value: 1, weight: 1 }));
+    .map(affix => ({ ...affix, type: affix.id, value: 1, weight: 1 })) : [];
 
   if (corePool.length === 0) {
     const count = AFFIX_BALANCE.legacySupportCounts[source][rarity] || 1;
@@ -101,7 +101,7 @@ export function buildUnidentifiedMeta(tags, rarity, typeName, rng = Math.random,
   };
 }
 
-export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false } = {}) {
+export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true } = {}) {
   let baseCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[floor] || EQUIPMENT_CANDIDATES_BY_FLOOR[5];
 
   // 通常チェストなど高級ベースを出したくないソースでは除外する。
@@ -301,8 +301,26 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
       return 5;
     }, 1);
   }
+  addAffix(3, "deepAssault", () => floor >= 5 ? 15 : 10, 2);
+  if (baseItem.type === "armor" || baseItem.type === "shield") {
+    addAffix(1, "frontGuard", () => floor >= 4 ? 4 : 2, 2);
+    addAffix(2, "rearEvasion", () => floor >= 4 ? 10 : 6, 2);
+    addAffix(2, "firstStrikeDefense", () => floor >= 4 ? 4 : 2, 1);
+  }
+  if (baseItem.type === "weapon") {
+    addAffix(2, "fullHpDamage", () => floor >= 4 ? 15 : 10, 2);
+    addAffix(1, "firstTurnAttack", () => floor >= 4 ? 4 : 2, 2);
+    addAffix(2, "antiBeast", () => floor >= 4 ? 25 : 15, 1);
+    addAffix(2, "antiSpirit", () => floor >= 4 ? 25 : 15, 1);
+    addAffix(3, "spellAccuracy", () => floor >= 5 ? 15 : 10, 1);
+    addAffix(3, "killHeal", () => 2, 1);
+    addAffix(3, "followUpMp", () => 1, 1);
+    addAffix(3, "hitFlinch", () => floor >= 5 ? 15 : 10, 1);
+  }
+  addAffix(3, "lastSurvivorStats", () => floor >= 5 ? 3 : 2, 1);
+  addAffix(2, "statusResistance", () => floor >= 5 ? 20 : 12, 2);
   
-  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment");
+  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores);
   
   const instanceId = `eq_${rng().toString(36).substr(2, 9)}`;
 
@@ -386,7 +404,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   };
 }
 
-export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.random, party = null } = {}) {
+export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.random, party = null, allowCores = true } = {}) {
   let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[floor] || ACCESSORY_CANDIDATES_BY_FLOOR[5];
 
   if (party && party.length > 0) {
@@ -440,12 +458,22 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     { type: "treasureSense", getVal: () => floor >= 4 ? 8 : 5, weight: 1 },
     { type: "hearRange", getVal: () => floor >= 4 ? 2 : 1, weight: 2 },
     { type: "arcaneSense", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 },
-    { type: "traceRead", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 }
+    { type: "traceRead", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 },
+    { type: "deepAssault", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 2 : 0 },
+    { type: "fullHpDamage", getVal: () => floor >= 4 ? 15 : 10, weight: floor >= 2 ? 2 : 0 },
+    { type: "antiBeast", getVal: () => floor >= 4 ? 25 : 15, weight: floor >= 2 ? 1 : 0 },
+    { type: "antiSpirit", getVal: () => floor >= 4 ? 25 : 15, weight: floor >= 2 ? 1 : 0 },
+    { type: "lastSurvivorStats", getVal: () => floor >= 5 ? 3 : 2, weight: floor >= 3 ? 1 : 0 },
+    { type: "statusResistance", getVal: () => floor >= 5 ? 20 : 12, weight: floor >= 2 ? 2 : 0 },
+    { type: "spellAccuracy", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 1 : 0 },
+    { type: "killHeal", getVal: () => 2, weight: floor >= 3 ? 1 : 0 },
+    { type: "followUpMp", getVal: () => 1, weight: floor >= 3 ? 1 : 0 },
+    { type: "hitFlinch", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 1 : 0 }
   ].filter(aff => aff.weight > 0)
     .map(withSupportDefinition)
     .filter(Boolean);
 
-  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory");
+  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores);
   const tags = [...(baseItem.tags || [])];
   affixes.forEach(aff => {
     const affixTags = {
@@ -471,6 +499,17 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     if (tag && !tags.includes(tag)) tags.push(tag);
   });
 
+  const hasCoreAffix = affixes.some(affix => affix.kind === "core");
+  let curseEffectId = null;
+  if (hasCoreAffix && rng() < AFFIX_BALANCE.coreCurseChance) {
+    const curseKeys = Object.keys(CURSE_EFFECTS);
+    curseEffectId = curseKeys[Math.floor(rng() * curseKeys.length)];
+    if (!tags.includes("curse")) tags.push("curse");
+    CURSE_EFFECTS[curseEffectId].tags.forEach(tag => {
+      if (!tags.includes(tag)) tags.push(tag);
+    });
+  }
+
   let typeName = "装身具";
   if (baseId.includes("RING")) {
     typeName = "指輪";
@@ -480,7 +519,7 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     typeName = "護符";
   }
 
-  const meta = buildUnidentifiedMeta(tags, rarity, typeName, rng, { curseEffectId: null });
+  const meta = buildUnidentifiedMeta(tags, rarity, typeName, rng, { curseEffectId });
 
   return {
     kind: "equipment",
@@ -492,8 +531,8 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     halfIdentified: false,
     tags,
     hintTags: meta.hintTags,
-    curseEffectId: null,
-    curseSuspected: false,
+    curseEffectId,
+    curseSuspected: hasCoreAffix ? meta.curseSuspected : false,
     unidentifiedName: meta.unidentifiedName,
     affixes
   };

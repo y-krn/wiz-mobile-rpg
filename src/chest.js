@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath } from "./state.js";
-import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomAccessory, generateRandomEquipment, getCharAffixSum } from "./data.js";
+import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomAccessory, generateRandomEquipment, getCharAffixSum, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
@@ -17,7 +17,7 @@ function rollChestAccessory(floor, rng, party) {
   } else if (rarityRoll < 0.35) {
     rarity = "rare";
   }
-  return generateRandomAccessory(floor, rarity, rng, party);
+  return generateRandomAccessory(floor, rarity, rng, party, floor >= 3);
 }
 
 export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem = null, customRng = null) {
@@ -100,7 +100,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
 
     if (isGuaranteed || rng() < itemChance) {
       if (isGuaranteed) {
-        item = generateRandomEquipment(state.floor, "magic", rng, state.party, true);
+        item = generateRandomEquipment(state.floor, "magic", rng, state.party, true, state.floor >= 3);
         if (state.floor === 1) {
           state.firstChestUnidentifiedGuaranteed = true;
         }
@@ -169,7 +169,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
             randChance = Math.min(0.90, randChance);
             
             if (rng() < randChance) {
-              item = generateRandomEquipment(state.floor, null, rng, state.party, true);
+              item = generateRandomEquipment(state.floor, null, rng, state.party, true, state.floor >= 3);
             }
           }
         }
@@ -467,6 +467,11 @@ export function executeDisarm(char) {
     }
     if (state.currentRun) {
       state.currentRun.trapsDisarmed++;
+    }
+    const previousTrapBonus = char.runTrapAttackBonus || 0;
+    char.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(char, previousTrapBonus);
+    if (char.runTrapAttackBonus > previousTrapBonus) {
+      addLog(getCoreLogText("CORE_TRAP_EATER"));
     }
     state.chestState.trap = "none";
     playSound("heal");

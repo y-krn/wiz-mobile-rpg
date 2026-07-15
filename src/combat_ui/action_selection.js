@@ -1,5 +1,5 @@
 import { state, addLog } from "../state.js";
-import { SPELLS, ITEMS } from "../data.js";
+import { SPELLS, ITEMS, getSpellPayment } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { combatSelection } from "./combat_state.js";
@@ -79,8 +79,8 @@ export function selectCombatAction(type) {
     }
     openCombatSpellMenu(char, (spellName) => {
       const spell = SPELLS[spellName];
-      if (char.mp < spell.cost) {
-        addLog("MPが足りません。");
+      if (!getSpellPayment(char, spell.cost).canCast) {
+        addLog("MPもHPも足りません。");
         return;
       }
       

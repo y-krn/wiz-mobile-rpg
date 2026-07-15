@@ -1,5 +1,5 @@
 import { state, initNewGame, saveGame, saveAutosave, addLog, EXP_LEVELS, getCharWeaponAtk, getCharDef } from "./state.js";
-import { SPELLS, getClassJpName } from "./data.js";
+import { SPELLS, getClassJpName, paySpellCost, getCoreLogText } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
@@ -17,7 +17,9 @@ export function executeUtilitySpell() {
   const caster = state.party[menuContext.actorIdx];
   const spell = SPELLS[menuContext.spellName];
 
-  caster.mp -= spell.cost;
+  const payment = paySpellCost(caster, spell.cost);
+  if (!payment.canCast) return;
+  if (payment.resource === "hp") addLog(getCoreLogText("CORE_BLOOD_WAND"));
   playSound("cast_spell");
   
   if (menuContext.spellName === "DUMAPIC") {
@@ -35,7 +37,9 @@ export function executeAllySpell(targetIdx) {
   const caster = state.party[menuContext.actorIdx];
   const spell = SPELLS[menuContext.spellName];
 
-  caster.mp -= spell.cost;
+  const payment = paySpellCost(caster, spell.cost);
+  if (!payment.canCast) return;
+  if (payment.resource === "hp") addLog(getCoreLogText("CORE_BLOOD_WAND"));
   playSound("cast_spell");
 
   let result;

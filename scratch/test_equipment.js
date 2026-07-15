@@ -893,6 +893,8 @@ import { generateRandomMap } from "../src/map_generator.js";
     });
     assert.strictEqual(migrated.roster[0].equipment.accessory, null);
     assert.strictEqual(migrated.remains[0].equipment.accessory, null);
+    assert.strictEqual(migrated.party[0].runTrapAttackBonus, 0);
+    assert.strictEqual(migrated.roster[0].runTrapAttackBonus, 0);
     assert.deepStrictEqual(migrated.inventory[0].affixes[0], {
       id: "agi",
       kind: "support",
@@ -932,12 +934,25 @@ import { generateRandomMap } from "../src/map_generator.js";
       antiDragon: 15,
       antiUndead: 15,
       poisonWard: 25,
-      treasureSense: 8
+      treasureSense: 8,
+      hearRange: 2,
+      arcaneSense: 3,
+      traceRead: 3,
+      deepAssault: 15,
+      fullHpDamage: 15,
+      antiBeast: 25,
+      antiSpirit: 25,
+      lastSurvivorStats: 3,
+      statusResistance: 20,
+      spellAccuracy: 15,
+      killHeal: 2,
+      followUpMp: 1,
+      hitFlinch: 15
     };
 
     ["magic", "rare", "epic"].forEach((rarity, rarityIndex) => {
       const rng = lcg(100 + rarityIndex);
-      const accessory = generateRandomAccessory(5, rarity, rng, [baseChar]);
+      const accessory = generateRandomAccessory(5, rarity, rng, [baseChar], false);
       assert.strictEqual(accessory.kind, "equipment");
       assert.strictEqual(accessory.identified, false);
       assert.strictEqual(accessory.curseEffectId, null);
