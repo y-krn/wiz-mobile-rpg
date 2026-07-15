@@ -98,24 +98,23 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
       for (let x = 1; x < MAP_WIDTH - 1; x++) {
         if (protectedKeys.has(`${x},${y}`) || !grid[y][x].walls.every(Boolean)) continue;
         const attachmentDirs = [];
+        const passageNeighborDirs = [];
         for (let dir = 0; dir < 4; dir++) {
           const nx = x + DX[dir];
           const ny = y + DY[dir];
           const next = grid[ny]?.[nx];
+          if (next && next.walls.some(wall => !wall)) passageNeighborDirs.push(dir);
           if (next && reachableKeys.has(`${nx},${ny}`) && next.walls.filter(wall => !wall).length >= 2) {
             attachmentDirs.push(dir);
           }
         }
-        if (attachmentDirs.length > 0) {
-          candidates.push({ x, y, attachmentDirs, resolvesTightUTurn: countOpenFaceEdges(grid, x, y) === 3 });
-        }
+        if (passageNeighborDirs.length !== 1) continue;
+        if (!attachmentDirs.includes(passageNeighborDirs[0])) continue;
+        candidates.push({ x, y, attachmentDirs: [passageNeighborDirs[0]] });
       }
     }
     if (candidates.length === 0) break;
-    const shapeCandidates = candidates.some(candidate => candidate.resolvesTightUTurn)
-      ? candidates.filter(candidate => candidate.resolvesTightUTurn)
-      : candidates;
-    const candidate = shapeCandidates[Math.floor(rng() * shapeCandidates.length)];
+    const candidate = candidates[Math.floor(rng() * candidates.length)];
     const dir = candidate.attachmentDirs[Math.floor(rng() * candidate.attachmentDirs.length)];
     openWall(grid, candidate.x, candidate.y, dir);
     deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
@@ -409,6 +408,7 @@ function getCarvedShortcutEdges(grid) {
         const ny = y + DY[dir];
         if (isPassageCell(grid, nx, ny)) adjacent.push({ x: nx, y: ny, dir });
       }
+      if (adjacent.length !== 2) continue;
 
       for (let i = 0; i < adjacent.length; i++) {
         for (let j = 0; j < adjacent.length; j++) {
@@ -1062,7 +1062,6 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
           grid[suCoord.y][suCoord.x].walls[dir] = false;
           grid[ny][nx].walls[(dir + 2) % 4] = false;
           opened = true;
-          break;
         }
       }
       // No dug neighbor at all (possible when the parent stairs coord sits on
@@ -1099,6 +1098,17 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
           cursor = parent;
         }
         visited[suCoord.y][suCoord.x] = true;
+        // The BFS stops at the first visited neighbor, so the junction cell may
+        // still share a closed wall with another passage; open every visited
+        // neighbor to avoid leaving a corridor behind a zero-thickness wall.
+        if (found) {
+          const junction = previous.get(`${found.x},${found.y}`);
+          for (let dir = 0; dir < 4; dir++) {
+            const nx = junction.x + DX[dir];
+            const ny = junction.y + DY[dir];
+            if (isValid(nx, ny) && visited[ny][nx]) openWall(grid, junction.x, junction.y, dir);
+          }
+        }
       }
     }
   }
