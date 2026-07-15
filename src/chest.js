@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath } from "./state.js";
-import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomAccessory, generateRandomEquipment, getCharAffixSum, getActiveSynergies, recordSynergyDiscovery } from "./data.js";
+import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomAccessory, generateRandomEquipment, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
@@ -159,7 +159,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
             if (state.party) {
               const senseSum = state.party.reduce((sum, c) => {
                 if (c.status !== "dead") {
-                  return sum + getCharAffixSum(c, "treasureSense", state.party);
+                  return sum + getCharAffixSum(c, "treasureSense");
                 }
                 return sum;
               }, 0);
@@ -210,7 +210,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     };
     const senseSum = state.party.reduce((sum, c) => {
       if (c.status === "dead") return sum;
-      return sum + getCharAffixSum(c, "treasureSense", state.party);
+      return sum + getCharAffixSum(c, "treasureSense");
     }, 0);
     const shouldRevealTag = senseSum >= 5 || rng() < 0.20;
     const hintedAffix = item?.affixes?.find(aff => tagLabels[aff.type]);
@@ -441,24 +441,13 @@ export function openChestMenu() {
 
 
 export function executeDisarm(char) {
-  // 罠解除時のシナジーログ
-  const activeSyns = getActiveSynergies(state.party);
-  const poisonThief = activeSyns.find(s => s.id === "poison_thief");
-  if (poisonThief && state.chestState && state.chestState.trap !== "none" && state.chestState.trap !== "") {
-    const isNew = !state.codex.synergies || !state.codex.synergies[poisonThief.id];
-    recordSynergyDiscovery(poisonThief.id, { codex: state.codex, addLog });
-    if (isNew || Math.random() < 0.5) {
-      addLog(poisonThief.log);
-    }
-  }
-
   let chance = 0.25;
   if (char.class === "Thief") {
     chance = 0.85;
   } else if (char.class === "Ranger") {
     chance = 0.60;
   }
-  chance += getCharTrapBonus(char, state.party);
+  chance += getCharTrapBonus(char);
   if (char.status === "blind") {
     chance = chance / 2.0;
   }
@@ -512,7 +501,7 @@ export function triggerChestTrap(char) {
 
   if (trap === "poison needle") {
     char.hp = Math.max(0, char.hp - 12);
-    const ward = getCharAffixSum(char, "poisonWard", state.party);
+    const ward = getCharAffixSum(char, "poisonWard");
     const resisted = char.hp > 0 && ward > 0 && Math.random() * 100 < ward;
     if (char.hp === 0) {
       char.status = "dead";

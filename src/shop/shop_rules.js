@@ -52,7 +52,7 @@ export function getAppraisalCost(eqItem) {
 
   const bestDiscount = state.party.reduce((max, char) => {
     if (char.status === "dead") return max;
-    return Math.max(max, getCharAffixSum(char, "identifyDiscount", state.party));
+    return Math.max(max, getCharAffixSum(char, "identifyDiscount"));
   }, 0);
   return Math.max(1, Math.floor(baseCost * (1 - bestDiscount / 100)));
 }
@@ -99,7 +99,7 @@ const DERIVED_COMPARE_ROWS = [
   { key: "poisonWard", label: "毒耐性" }
 ];
 
-const SYNERGY_AFFIX_LABELS = {
+const AFFINITY_AFFIX_LABELS = {
   followUp: "追撃適性あり",
   arcane: "魔導適性あり",
   devotion: "祈祷適性あり",
@@ -115,7 +115,7 @@ const SYNERGY_AFFIX_LABELS = {
 };
 
 function getCompareStats(char) {
-  const derived = getCharDerivedStats(char, state.party);
+  const derived = getCharDerivedStats(char);
   return {
     ...derived,
     maxHp: getCharMaxHp(char),
@@ -126,11 +126,11 @@ function getCompareStats(char) {
     vit: getCharVit(char),
     agi: getCharAgi(char),
     luk: getCharLuk(char),
-    spellGuard: getCharAffixSum(char, "spellGuard", state.party),
-    antiDragon: getCharAffixSum(char, "antiDragon", state.party),
-    antiUndead: getCharAffixSum(char, "antiUndead", state.party),
-    firstStrike: getCharAffixSum(char, "firstStrike", state.party),
-    poisonWard: getCharAffixSum(char, "poisonWard", state.party)
+    spellGuard: getCharAffixSum(char, "spellGuard"),
+    antiDragon: getCharAffixSum(char, "antiDragon"),
+    antiUndead: getCharAffixSum(char, "antiUndead"),
+    firstStrike: getCharAffixSum(char, "firstStrike"),
+    poisonWard: getCharAffixSum(char, "poisonWard")
   };
 }
 
@@ -154,11 +154,11 @@ export function getEquipmentPreview(char, eqItem) {
   if (eqItem.inscription) {
     itemAffixTypes.add(eqItem.inscription.type);
   }
-  const synergies = Object.keys(passive.bonuses)
-    .filter(type => itemAffixTypes.has(type) && SYNERGY_AFFIX_LABELS[type])
-    .map(type => SYNERGY_AFFIX_LABELS[type]);
+  const affinities = Object.keys(passive.bonuses)
+    .filter(type => itemAffixTypes.has(type) && AFFINITY_AFFIX_LABELS[type])
+    .map(type => AFFINITY_AFFIX_LABELS[type]);
 
-  return { diffs, synergies };
+  return { diffs, affinities };
 }
 
 export function formatEquipmentPreview(preview) {
@@ -166,6 +166,6 @@ export function formatEquipmentPreview(preview) {
   const diffText = preview.diffs.length > 0
     ? preview.diffs.slice(0, 4).map(row => `${row.label}${row.diff > 0 ? "+" : ""}${row.diff}`).join(" / ")
     : "主要差分なし";
-  if (preview.synergies.length === 0) return diffText;
-  return `${diffText} / ${preview.synergies.join(" / ")}`;
+  if (preview.affinities.length === 0) return diffText;
+  return `${diffText} / ${preview.affinities.join(" / ")}`;
 }

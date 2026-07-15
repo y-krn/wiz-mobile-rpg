@@ -12,6 +12,7 @@ import {
   getCharVit,
   getCharAgi,
   getCharLuk,
+  formatAffixText,
   canUseMageSpells,
   canUsePriestSpells
 } from "./data.js";
@@ -118,7 +119,7 @@ function isIdentified(itemKey) {
 }
 
 function getDisplayStats(char) {
-  const derived = getCharDerivedStats(char, state.party);
+  const derived = getCharDerivedStats(char);
   return {
     ...derived,
     maxHp: getCharMaxHp(char),
@@ -129,11 +130,11 @@ function getDisplayStats(char) {
     vit: getCharVit(char),
     agi: getCharAgi(char),
     luk: getCharLuk(char),
-    spellGuard: getCharAffixSum(char, "spellGuard", state.party),
-    antiDragon: getCharAffixSum(char, "antiDragon", state.party),
-    antiUndead: getCharAffixSum(char, "antiUndead", state.party),
-    firstStrike: getCharAffixSum(char, "firstStrike", state.party),
-    poisonWard: getCharAffixSum(char, "poisonWard", state.party)
+    spellGuard: getCharAffixSum(char, "spellGuard"),
+    antiDragon: getCharAffixSum(char, "antiDragon"),
+    antiUndead: getCharAffixSum(char, "antiUndead"),
+    firstStrike: getCharAffixSum(char, "firstStrike"),
+    poisonWard: getCharAffixSum(char, "poisonWard")
   };
 }
 
@@ -501,6 +502,35 @@ function createStatPill(row) {
   return pill;
 }
 
+function createAffixDetails(itemKey) {
+  if (typeof itemKey !== "object" || !itemKey.identified || !itemKey.affixes?.length) return null;
+
+  const details = document.createElement("div");
+  details.className = "equip-affix-details";
+  const groups = [
+    { kind: "core", label: "コア" },
+    { kind: "support", label: "サポート" }
+  ];
+
+  groups.forEach(group => {
+    const affixes = itemKey.affixes.filter(affix => (affix.kind || "support") === group.kind);
+    if (affixes.length === 0) return;
+    const section = document.createElement("div");
+    section.className = `equip-affix-group ${group.kind}`;
+    const label = document.createElement("strong");
+    label.textContent = group.label;
+    section.appendChild(label);
+    affixes.forEach(affix => {
+      const line = document.createElement("span");
+      line.textContent = `${group.kind === "support" ? "・" : ""}${formatAffixText(affix)}`;
+      section.appendChild(line);
+    });
+    details.appendChild(section);
+  });
+
+  return details.childElementCount > 0 ? details : null;
+}
+
 function createDetailPanel(char) {
   const detailCol = document.createElement("div");
   detailCol.className = "equip-detail-col";
@@ -550,6 +580,9 @@ function createDetailPanel(char) {
     exchange.textContent = `${SLOT_LABELS[item.type]}: ${currentEquip ? currentEquip.name : "なし"} → ${item.name}`;
   }
   content.appendChild(exchange);
+
+  const affixDetails = createAffixDetails(itemKey);
+  if (affixDetails) content.appendChild(affixDetails);
 
   if (preview && availability.ok) {
     const primaryRows = preview.rows.filter((row) => row.diff !== 0);

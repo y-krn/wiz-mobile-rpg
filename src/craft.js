@@ -1,7 +1,7 @@
 import { state, saveAutosave, addLog, addInventoryItem } from "./state.js";
 import { getItemData, getItemBaseId } from "./data.js";
 import { playSound } from "./audio.js";
-import { getActiveSynergies, recordSynergyDiscovery, TAG_EFFECT_MAP } from "./data/tags.js";
+import { TAG_EFFECT_MAP } from "./data/tags.js";
 import { CURSE_EFFECTS } from "./data/items.js";
 
 export const CRAFT_RECIPES = [
@@ -380,12 +380,6 @@ export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTag
     const idx = (itemIdx && typeof itemIdx === "object") ? itemIdx.index : itemIdx;
     state.inventory[idx] = upgradedItem;
   }
-
-  // 新規シナジー発見記録
-  const activeSyns = getActiveSynergies(state.party);
-  activeSyns.forEach(syn => {
-    recordSynergyDiscovery(syn.id, { codex: state.codex, addLog });
-  });
 
   playSound("level_up");
   saveAutosave();

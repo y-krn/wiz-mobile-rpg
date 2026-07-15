@@ -3,7 +3,6 @@ import { getItemData } from "../data.js";
 import { playSound } from "../audio.js";
 import { openSubmenu } from "../navigation.js";
 import { shopState } from "./shop_state.js";
-import { getActiveSynergies, recordSynergyDiscovery } from "../data/tags.js";
 
 export function openShopAppraise() {
   shopState.mode = "appraise";
@@ -55,12 +54,6 @@ export function executeFullAppraise(idx, cost, hasTicket) {
   
   playSound("level_up");
   addLog(`完全鑑定成功！正体は [${resultItem.name}] だった！`);
-  
-  // シナジー発見の自動記録
-  const activeSyns = getActiveSynergies(state.party);
-  activeSyns.forEach(syn => {
-    recordSynergyDiscovery(syn.id, { codex: state.codex, addLog });
-  });
   
   saveAutosave();
   
