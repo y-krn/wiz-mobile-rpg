@@ -1,5 +1,6 @@
 import { reduceIncomingDamage } from "./damage.js";
 import { recordCharDeath } from "../state.js";
+import { getStatusEffectChance } from "../rules/affix_rules.js";
 
 /**
  * Executes a boss custom action for Flack or Old Dragon.
@@ -114,6 +115,8 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
 
         if (isDefending && Math.random() < 0.50) {
           logQueue.push({ msg: `[ 敵 ] しかし、${target.name}は身を守り呪いを防いだ！` });
+        } else if (Math.random() >= getStatusEffectChance(target, 1)) {
+          logQueue.push({ msg: `[ 敵 ] ${target.name}は不屈の意志で呪いを退けた！` });
         } else {
           const gazeRoll = Math.random();
           if (gazeRoll < 0.50) {

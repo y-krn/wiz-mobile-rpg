@@ -3,6 +3,7 @@ import { menuContext, menuHistory } from "../navigation.js";
 import { combatSelection } from "./combat_state.js";
 import { generateEncounter } from "./encounter.js";
 import { advanceActionSelection } from "./action_selection.js";
+import { getCharCoreParams, getCoreLogText, getEquippedCurseCount } from "../data.js";
 
 export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null) {
   state.gameState = "combat";
@@ -47,7 +48,9 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     roamingMonsterKind: roamingMonster?.kind ?? "flack",
     gateId: roamingMonster?.gateId ?? null,
     isAuto: false,
-    allParalyzedTurns: 0
+    allParalyzedTurns: 0,
+    roundNumber: 1,
+    loggedCoreActivations: []
   };
   state.chestState = null;
 
@@ -58,6 +61,14 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
   menuHistory.length = 0;
 
   addLog(`戦闘開始！敵が現れた：${monsters.map(m => m.name).join(", ")}`);
+  state.party.forEach(char => {
+    if (getCharCoreParams(char, "CORE_CURSE_KEEPER") && getEquippedCurseCount(char) > 0) {
+      addLog(getCoreLogText("CORE_CURSE_KEEPER"));
+    }
+    if (char.runTrapAttackBonus > 0 && getCharCoreParams(char, "CORE_TRAP_EATER")) {
+      addLog(getCoreLogText("CORE_TRAP_EATER"));
+    }
+  });
   
   if (state.codex) {
     if (!state.codex.monsters) state.codex.monsters = {};

@@ -107,22 +107,22 @@ export const SUPPORT_AFFIXES = [
   support("guardian", "守護", "物理ダメージを軽減する。", "basic", { unit: "%" }),
   support("firstStrike", "先制", "先制率が増加する。", "basic"),
 
-  support("deepAssault", "深層攻勢", "B3F以深で与ダメージが増加する。", "conditional", { enabled: false, unit: "%" }),
-  support("frontGuard", "前衛堅守", "前列で防御力が増加する。", "conditional", { enabled: false }),
-  support("rearEvasion", "後衛回避", "後列で回避率が増加する。", "conditional", { enabled: false, unit: "%" }),
-  support("fullHpDamage", "無傷の猛攻", "HP満タン時に与ダメージが増加する。", "conditional", { enabled: false, unit: "%" }),
-  support("firstTurnAttack", "初陣", "1ターン目に攻撃力が増加する。", "conditional", { enabled: false }),
-  support("antiBeast", "獣狩り", "獣への与ダメージが増加する。", "conditional", { enabled: false, unit: "%" }),
-  support("antiSpirit", "霊祓い", "霊体への与ダメージが増加する。", "conditional", { enabled: false, unit: "%" }),
-  support("firstStrikeDefense", "先陣の守り", "先制成功時に防御力が増加する。", "conditional", { enabled: false }),
-  support("lastSurvivorStats", "孤軍", "単独生存時に全能力が増加する。", "conditional", { enabled: false }),
-  support("statusResistance", "不屈", "状態異常への耐性が増加する。", "conditional", { enabled: false, unit: "%" }),
-  support("spellAccuracy", "精唱", "呪文命中率が増加する。", "conditional", { enabled: false, unit: "%" }),
+  support("deepAssault", "深層攻勢", "B3F以深で与ダメージが増加する。", "conditional", { unit: "%" }),
+  support("frontGuard", "前衛堅守", "前列で防御力が増加する。", "conditional"),
+  support("rearEvasion", "後衛回避", "後列で回避率が増加する。", "conditional", { unit: "%" }),
+  support("fullHpDamage", "無傷の猛攻", "HP満タン時に与ダメージが増加する。", "conditional", { unit: "%" }),
+  support("firstTurnAttack", "初陣", "1ターン目に攻撃力が増加する。", "conditional"),
+  support("antiBeast", "獣狩り", "獣への与ダメージが増加する。", "conditional", { unit: "%" }),
+  support("antiSpirit", "霊祓い", "霊体への与ダメージが増加する。", "conditional", { unit: "%" }),
+  support("firstStrikeDefense", "先陣の守り", "先制成功時に防御力が増加する。", "conditional"),
+  support("lastSurvivorStats", "孤軍", "単独生存時に全能力が増加する。", "conditional"),
+  support("statusResistance", "不屈", "状態異常への耐性が増加する。", "conditional", { unit: "%" }),
+  support("spellAccuracy", "精唱", "呪文命中率が増加する。", "conditional", { unit: "%" }),
 
-  support("killHeal", "吸命", "敵撃破時にHPを2回復する。", "trigger", { enabled: false }),
-  support("followUpMp", "連環", "追撃時にMPを1回復する。", "trigger", { enabled: false }),
+  support("killHeal", "吸命", "敵撃破時にHPを2回復する。", "trigger"),
+  support("followUpMp", "連環", "追撃時にMPを1回復する。", "trigger"),
   support("trapGold", "罠銭", "罠解除時に少額のGOLDを得る。", "trigger", { enabled: false }),
-  support("hitFlinch", "威圧", "被弾時に低確率で敵を怯ませる。", "trigger", { enabled: false }),
+  support("hitFlinch", "威圧", "被弾時に低確率で敵を怯ませる。", "trigger"),
   support("victoryMaterial", "拾得", "勝利時に低確率で素材を得る。", "trigger", { enabled: false }),
   support("stairsHeal", "踏破の息吹", "階段発見時にHPを回復する。", "trigger", { enabled: false }),
 
@@ -142,7 +142,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { hpThreshold: 0.25, damageMultiplier: 1.4 },
-    enabled: false
+    enabled: true
   },
   {
     id: "CORE_OPENER",
@@ -152,7 +152,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { followUpChance: 1 },
-    enabled: false
+    enabled: true
   },
   {
     id: "CORE_BLOOD_WAND",
@@ -162,7 +162,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { hpCostMultiplier: 2 },
-    enabled: false
+    enabled: true
   },
   {
     id: "CORE_PURIFY_RING",
@@ -172,7 +172,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { mpRecovery: 1, targetTags: ["undead", "demon"] },
-    enabled: false
+    enabled: true
   },
   {
     id: "CORE_TRAP_EATER",
@@ -182,7 +182,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { attackPerDisarm: 2, maxAttack: 20 },
-    enabled: false
+    enabled: true
   },
   {
     id: "CORE_CURSE_KEEPER",
@@ -192,7 +192,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { statsPerCurse: 3 },
-    enabled: false
+    enabled: true
   },
   {
     id: "CORE_GIANT_SLAYER",
@@ -202,7 +202,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { damageMultiplier: 1.3 },
-    enabled: false
+    enabled: true
   },
   {
     id: "CORE_REARGUARD",
@@ -212,7 +212,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { rowRate: 1 },
-    enabled: false
+    enabled: true
   },
   {
     id: "CORE_THORN_SHIELD",
@@ -222,7 +222,7 @@ export const CORE_AFFIXES = [
     slot: "shield",
     cost: 10,
     params: { counterChance: 0.3, counterPower: 0.5 },
-    enabled: false
+    enabled: true
   },
   {
     id: "CORE_EXECUTIONER",
@@ -232,7 +232,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { damageMultiplier: 2 },
-    enabled: false
+    enabled: true
   },
   {
     id: "CORE_SNEAK_STEP",

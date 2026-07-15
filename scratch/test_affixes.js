@@ -21,7 +21,7 @@ function lcg(seed) {
 }
 
 assert.strictEqual(SUPPORT_AFFIXES.length, 47, "support registry count");
-assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 25, "enabled legacy support count");
+assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 39, "enabled Phase 2 support count");
 assert.deepStrictEqual(
   Object.fromEntries(["basic", "conditional", "trigger", "economy"].map(category => [
     category,
@@ -36,7 +36,12 @@ SUPPORT_AFFIXES.forEach(affix => {
 });
 
 assert.strictEqual(CORE_AFFIXES.length, 16, "core registry count");
-assert.ok(CORE_AFFIXES.every(affix => affix.kind === "core" && affix.cost === 10 && !affix.enabled));
+assert.ok(CORE_AFFIXES.every(affix => affix.kind === "core" && affix.cost === 10));
+assert.deepStrictEqual(
+  CORE_AFFIXES.filter(affix => affix.enabled).map(affix => affix.id),
+  CORE_AFFIXES.slice(0, 10).map(affix => affix.id),
+  "Phase 2 combat cores enabled"
+);
 assert.strictEqual(new Set(CORE_AFFIXES.map(affix => affix.id)).size, 16, "core IDs unique");
 assert.ok(formatAffixText(CORE_AFFIXES[0]).startsWith("◆背水: HP25%以下"));
 
@@ -45,7 +50,7 @@ for (const [source, generator, expectedCounts] of [
   ["accessory", generateRandomAccessory, { magic: 1, rare: 1, epic: 2 }]
 ]) {
   for (const [rarity, expectedCount] of Object.entries(expectedCounts)) {
-    const item = generator(5, { forceRarity: rarity, rng: lcg(source.length + rarity.length) });
+    const item = generator(5, { forceRarity: rarity, rng: lcg(source.length + rarity.length), allowCores: false });
     assert.strictEqual(item.affixes.length, expectedCount, `${source} ${rarity} affix count`);
     assert.ok(item.affixes.every(affix => affix.kind === "support"), `${source} ${rarity} support only`);
     assert.ok(item.affixes.every(affix => affix.id && affix.type && Number.isFinite(affix.value)));
@@ -54,20 +59,13 @@ for (const [source, generator, expectedCounts] of [
   }
 }
 
-const lastStand = CORE_AFFIXES.find(affix => affix.id === "CORE_LAST_STAND");
-lastStand.enabled = true;
-try {
-  let generatedCore = null;
-  for (let seed = 1; seed <= 50 && !generatedCore; seed++) {
-    const item = generateRandomEquipment(5, { forceRarity: "epic", rng: lcg(seed) });
-    if (item.affixes.some(affix => affix.kind === "core")) generatedCore = item;
-  }
-  assert.ok(generatedCore, "enabled core enters compatible slot pool");
-  assert.strictEqual(generatedCore.affixes.filter(affix => affix.kind === "core").length, 1);
-  assert.strictEqual(generatedCore.affixes.filter(affix => affix.kind === "support").length, 2);
-  assert.strictEqual(generatedCore.affixes[0].id, "CORE_LAST_STAND");
-} finally {
-  lastStand.enabled = false;
+let generatedCore = null;
+for (let seed = 1; seed <= 50 && !generatedCore; seed++) {
+  const item = generateRandomEquipment(5, { forceRarity: "epic", rng: lcg(seed) });
+  if (item.affixes.some(affix => affix.kind === "core")) generatedCore = item;
 }
+assert.ok(generatedCore, "enabled core enters compatible slot pool");
+assert.strictEqual(generatedCore.affixes.filter(affix => affix.kind === "core").length, 1);
+assert.strictEqual(generatedCore.affixes.filter(affix => affix.kind === "support").length, 2);
 
 console.log("[PASS] affix registry and budget generation");

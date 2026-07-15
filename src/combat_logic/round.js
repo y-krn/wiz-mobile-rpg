@@ -2,7 +2,7 @@ import {
   MONSTERS,
   getCharStr, getCharAgi, getCharVit,
   getCharWeaponAtk, getCharDef,
-  getCharAffixSum
+  getCharAffixSum, getCharMaxHp, getCharMaxMp
 } from "../data.js";
 import {
   hasLivingEnemyFrontRow,
@@ -18,7 +18,11 @@ import {
   getEffectiveAtk,
   applyTargetedDamageBonus,
   reduceIncomingDamage,
-  applyPartyDamage
+  applyPartyDamage,
+  applyKillAffixEffects,
+  tryApplyHitFlinch,
+  tryThornCounter,
+  logCoreActivation
 } from "./damage.js";
 import {
   addMonsterBuff,
@@ -40,6 +44,7 @@ import { recordCharDeath } from "../state.js";
 import { resolveBossAction } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
 import { resolvePlayerSpell } from "./spell_resolution.js";
+import { getCharCoreParams, getFollowUpChance, getStatusEffectChance } from "../rules/affix_rules.js";
 
 function findMonsterTemplate(name) {
   return MONSTERS.find(m => m.name === name);
@@ -83,9 +88,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     gold: originalState.gold
   };
   let escaped = false;
+  const roundNumber = state.combatState.roundNumber || 1;
 
   // 全員麻痺のときの警告メッセージ
   const currentLivingParty = state.party.filter(c => c.status !== "dead");
+  currentLivingParty.forEach(char => {
+    char.combatLastSurvivor = currentLivingParty.length === 1;
+  });
   const currentAllParalyzed = currentLivingParty.length > 0 && currentLivingParty.every(c => c.status === "paralyzed");
   if (currentAllParalyzed) {
     logQueue.push({ msg: "全員が麻痺して動けない！" });
@@ -133,10 +142,21 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
   // Sort by Speed descending
   turns.sort((a, b) => b.speed - a.speed);
+  const firstMonsterIndex = turns.findIndex(turn => turn.type === "monster");
+  turns.forEach((turn, index) => {
+    if (turn.type === "char") {
+      turn.char.combatFirstStrikeActive = roundNumber === 1
+        && (firstMonsterIndex === -1 || index < firstMonsterIndex);
+    }
+  });
 
   // Run each action
   turns.forEach(turn => {
     if (escaped) return;
+    const livingNow = state.party.filter(char => char.status !== "dead");
+    state.party.forEach(char => {
+      char.combatLastSurvivor = livingNow.length === 1 && livingNow[0] === char;
+    });
     if (turn.type === "char") {
       const char = turn.char;
       if (char.status !== "ok" && char.status !== "poisoned" && char.status !== "blind") return; // Died/slept earlier in the round
@@ -186,11 +206,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           shake = 0;
         } else {
           // Attack math
-          const weaponAtk = getCharWeaponAtk(char);
+          const firstTurnAttack = roundNumber === 1 ? getCharAffixSum(char, "firstTurnAttack") : 0;
+          const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
           const str = getCharStr(char);
           const buffAtk = getBuffTotal(char, "atk") + getBuffTotal(char, "str");
           const randRoll = Math.floor(Math.random() * 5); // 0-4
-          const meleeMod = getMeleeModifiers(char, turn.idx);
+          const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
           dmg = Math.max(1, Math.floor(((weaponAtk + buffAtk) * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod));
           
@@ -201,7 +222,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (finalTarget.physResist) {
             dmg = Math.max(1, Math.round(dmg * (1 - finalTarget.physResist)));
           }
-          dmg = applyTargetedDamageBonus(char, finalTarget, dmg);
+          dmg = applyTargetedDamageBonus(char, finalTarget, dmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
           if (guard?.mon === finalTarget && guard.mon.guard?.damageRate) {
             dmg = Math.max(1, Math.round(dmg * guard.mon.guard.damageRate));
           }
@@ -224,6 +245,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             shake = 15;
           } else {
             finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
+            tryApplyHitFlinch(char, finalTarget, logQueue);
             msg = `[味方] ${char.name}の攻撃！${finalTarget.name}に${dmg}のダメージ。`;
             if (finalTarget.physResist && dmg <= 2) {
               msg += "（攻撃が弾かれている！）";
@@ -279,19 +301,35 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // followUp (追撃)
           if (!isBlindMiss && finalTarget.hp > 0) {
-            const followUpChance = getCharAffixSum(char, "followUp");
+            const opener = char.combatFirstStrikeActive
+              ? getCharCoreParams(char, "CORE_OPENER")
+              : null;
+            const followUpChance = getFollowUpChance(
+              char,
+              getCharAffixSum(char, "followUp"),
+              char.combatFirstStrikeActive
+            );
             if (followUpChance > 0 && Math.random() * 100 < followUpChance) {
+              if (opener) {
+                logCoreActivation(state, logQueue, char, "CORE_OPENER", { once: false });
+              }
               const followUpDmgRand = Math.floor(Math.random() * 3);
-              const weaponAtk = getCharWeaponAtk(char);
+              const firstTurnAttack = roundNumber === 1 ? getCharAffixSum(char, "firstTurnAttack") : 0;
+              const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
               const str = getCharStr(char);
-              const meleeMod = getMeleeModifiers(char, turn.idx);
+              const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
               const def = getEffectiveDef(finalTarget);
               let followUpDmg = Math.max(1, Math.floor((weaponAtk * 1.5 + (str - 10) + followUpDmgRand - Math.floor(def / 2)) * 0.7 * meleeMod));
               if (finalTarget.physResist) {
                 followUpDmg = Math.max(1, Math.round(followUpDmg * (1 - finalTarget.physResist)));
               }
-              followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg);
+              followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
               finalTarget.hp = Math.max(0, finalTarget.hp - followUpDmg);
+              tryApplyHitFlinch(char, finalTarget, logQueue);
+              const followUpMp = getCharAffixSum(char, "followUpMp");
+              if (followUpMp > 0) {
+                char.mp = Math.min(getCharMaxMp(char), char.mp + followUpMp);
+              }
               const wakeSuffix = wakeSleepingMonsterOnDamage(finalTarget) ? `${finalTarget.name}は目を覚ました！` : "";
               logQueue.push({
                 msg: `[味方] 【🗡️追撃】${char.name}の素早い追加攻撃！${finalTarget.name}に${followUpDmg}のダメージ。${wakeSuffix}`,
@@ -313,6 +351,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         });
 
         if (finalTarget.hp === 0) {
+          applyKillAffixEffects(char, finalTarget, state, logQueue);
           logQueue.push({ msg: `[味方] [!] ${finalTarget.name}を倒した！` });
           processMonsterDefeat(monsters, finalTarget, logQueue);
         }
@@ -346,6 +385,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     } else {
       const mon = turn.mon;
       if (mon.hp <= 0) return;
+
+      if (mon.flinched) {
+        mon.flinched = false;
+        logQueue.push({ msg: `[ 敵 ] ${mon.name}は怯んで動けない！`, sound: "miss" });
+        return;
+      }
 
       if (mon.multiActionQueued) {
         mon.multiActionQueued = false;
@@ -468,8 +513,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (hasTrait(mon, "silence") && Math.random() < (mon.traitChance ?? 0.25)) {
         const targetSelect = pickTarget(state.party, hasTrait(mon, "targetBackRow") ? "back" : "front");
         if (targetSelect) {
-          targetSelect.c.silenceTurns = 2;
-          logQueue.push({ msg: `[ 敵 ] ${mon.name}は封呪の気配を放った！${targetSelect.c.name}は沈黙した。`, sound: "cast_spell" });
+          if (Math.random() >= getStatusEffectChance(targetSelect.c, 1)) {
+            logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は不屈の意志で沈黙を退けた！`, sound: "miss" });
+          } else {
+            targetSelect.c.silenceTurns = 2;
+            logQueue.push({ msg: `[ 敵 ] ${mon.name}は封呪の気配を放った！${targetSelect.c.name}は沈黙した。`, sound: "cast_spell" });
+          }
           return;
         }
       }
@@ -477,8 +526,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (hasTrait(mon, "antiHeal") && Math.random() < (mon.traitChance ?? 0.3)) {
         const targetSelect = pickTarget(state.party, "lowHp");
         if (targetSelect) {
-          targetSelect.c.antiHealTurns = 2;
-          logQueue.push({ msg: `[ 敵 ] ${mon.name}は命を喰らう呪いを刻んだ！${targetSelect.c.name}への回復量が半減する。`, sound: "cast_spell" });
+          if (Math.random() >= getStatusEffectChance(targetSelect.c, 1)) {
+            logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は不屈の意志で呪いを退けた！`, sound: "miss" });
+          } else {
+            targetSelect.c.antiHealTurns = 2;
+            logQueue.push({ msg: `[ 敵 ] ${mon.name}は命を喰らう呪いを刻んだ！${targetSelect.c.name}への回復量が半減する。`, sound: "cast_spell" });
+          }
           return;
         }
       }
@@ -689,13 +742,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       } else {
         // Ninja physical attack evasion (25% chance to balance with row system)
         let isEvaded = false;
-        if (target.class === "Ninja" && Math.random() < 0.25) {
+        const rearEvasion = targetSelect.i >= 2 ? getCharAffixSum(target, "rearEvasion") / 100 : 0;
+        if ((target.class === "Ninja" && Math.random() < 0.25) || (rearEvasion > 0 && Math.random() < rearEvasion)) {
           isEvaded = true;
         }
 
         if (isEvaded) {
           logQueue.push({
-            msg: `[ 敵 ] ${mon.name}の攻撃！しかし、忍者${target.name}は身軽に回避した！`,
+            msg: `[ 敵 ] ${mon.name}の攻撃！しかし、${target.name}は身軽に回避した！`,
             sound: "miss",
             shake: 0,
             floatText: "AVOID",
@@ -710,7 +764,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           } else {
             finalAtk = baseAtk + Math.floor(Math.random() * 4);
           }
-          const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4) + getBuffTotal(target, "def")) - (target.tempDefDown || 0));
+          const frontGuard = targetSelect.i < 2 ? getCharAffixSum(target, "frontGuard") : 0;
+          const firstStrikeDefense = target.combatFirstStrikeActive ? getCharAffixSum(target, "firstStrikeDefense") : 0;
+          const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4) + getBuffTotal(target, "def") + frontGuard + firstStrikeDefense) - (target.tempDefDown || 0));
           let dmg = Math.max(1, finalAtk - finalDef);
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           
@@ -736,6 +792,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             floatColor: "#ff3b30"
           });
 
+          tryThornCounter(target, mon, targetSelect.i, state, logQueue);
+          if (mon.hp === 0) {
+            applyKillAffixEffects(target, mon, state, logQueue);
+            logQueue.push({ msg: `[味方] [!] ${mon.name}を反撃で倒した！` });
+            processMonsterDefeat(monsters, mon, logQueue);
+            return;
+          }
+
           if (hasTrait(mon, "debuffPhysicalDef") && target.hp > 0 && Math.random() < (mon.traitChance ?? 0.25)) {
             target.tempDefDown = Math.min(6, (target.tempDefDown || 0) + (mon.debuffValue ?? 2));
             logQueue.push({ msg: `[ 敵 ] ${target.name}の守りが崩された！` });
@@ -748,7 +812,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply poison effect if monster is poisonous and target survives
           const poisonChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isPoisonous && target.hp > 0 && target.status === "ok" && Math.random() < poisonChance) {
+          if (mon.isPoisonous && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, poisonChance)) {
             const ward = getCharAffixSum(target, "poisonWard");
             if (ward > 0 && Math.random() * 100 < ward) {
               logQueue.push({
@@ -766,7 +830,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply paralyze effect if monster is paralyzing and target survives
           const paralyzeChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isParalyzing && target.hp > 0 && target.status === "ok" && Math.random() < paralyzeChance) {
+          if (mon.isParalyzing && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, paralyzeChance)) {
             target.status = "paralyzed";
             logQueue.push({
               msg: `[ 敵 ] [!] ${target.name}は麻痺を受け、麻痺状態になった！`,
@@ -776,7 +840,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply sleep effect if monster can induce sleep and target survives
           const sleepChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isSleepInflicting && target.hp > 0 && target.status === "ok" && Math.random() < sleepChance) {
+          if (mon.isSleepInflicting && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, sleepChance)) {
             target.status = "sleep";
             target.sleepTurns = 2;
             logQueue.push({
@@ -787,7 +851,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply blind effect if monster is blinding and target survives
           const blindChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isBlinding && target.hp > 0 && target.status === "ok" && Math.random() < blindChance) {
+          if (mon.isBlinding && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, blindChance)) {
             target.status = "blind";
             logQueue.push({
               msg: `[ 敵 ] [!] ${mon.name}の放つ閃光により、${target.name}は盲目状態になった！`,
@@ -916,5 +980,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     }
   }
 
+  state.combatState.roundNumber = roundNumber + 1;
+  state.party.forEach(char => {
+    delete char.combatLastSurvivor;
+    delete char.combatFirstStrikeActive;
+    delete char.combatFloor;
+  });
   return { logQueue, state };
 }

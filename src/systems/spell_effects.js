@@ -3,6 +3,14 @@ import { getCharInt, getCharPie, getCharMaxHp } from "../rules/character_stats.j
 import { getCharAffixSum, getEffectiveHealAmount } from "../rules/item_rules.js";
 import { DIR_NAMES } from "../constants/directions.js";
 import { EVENT_TYPES } from "../constants/events.js";
+import { getDamageAffixResult, getSpellAccuracyBonus } from "../rules/affix_rules.js";
+
+function applyOffensiveAffixes(caster, target, damage) {
+  return getDamageAffixResult(caster, target, damage, {
+    floor: caster?.combatFloor || 1,
+    maxHp: getCharMaxHp(caster)
+  });
+}
 
 // Helper functions for DUMAPIC
 function getCompassDirection(fromX, fromY, toX, toY) {
@@ -72,6 +80,8 @@ export const SPELL_EFFECTS = {
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
     dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
+    const affixResult = applyOffensiveAffixes(caster, target, dmg);
+    dmg = affixResult.damage;
     let suffix = "";
     if (target && target.magicResist) {
       dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
@@ -81,13 +91,13 @@ export const SPELL_EFFECTS = {
         suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
       }
     }
-    return { damage: dmg, log: `${caster.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${suffix}` };
+    return { damage: dmg, coreIds: affixResult.coreIds, log: `${caster.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${suffix}` };
   },
   KATINO: ({ caster, target: targets, rng = Math.random }) => {
     let sleptCount = 0;
     const intVal = caster ? getCharInt(caster) : 10;
     const bonus = Math.min(0.10, Math.max(0, (intVal - 10) * 0.005));
-    const baseChance = 0.6 + bonus;
+    const baseChance = Math.min(1, 0.6 + bonus + getSpellAccuracyBonus(caster));
     targets.forEach(t => {
       const chance = (t.isBoss || t.isMidboss) ? baseChance * 0.4 : baseChance;
       if (t.hp > 0 && rng() < chance) {
@@ -106,6 +116,8 @@ export const SPELL_EFFECTS = {
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
+      const affixResult = applyOffensiveAffixes(caster, t, dmg);
+      dmg = affixResult.damage;
       let isResisted = false;
       let isWeakness = false;
       if (t.magicResist) {
@@ -114,7 +126,7 @@ export const SPELL_EFFECTS = {
         if (t.magicResist < 0) isWeakness = true;
       }
       t.hp = Math.max(0, t.hp - dmg);
-      return { name: t.name, dmg, isResisted, isWeakness };
+      return { name: t.name, dmg, isResisted, isWeakness, coreIds: affixResult.coreIds };
     }).filter(r => r !== 0);
     
     const logDetails = results.map(r => {
@@ -123,7 +135,7 @@ export const SPELL_EFFECTS = {
       if (r.isWeakness) suffix = "【弱点直撃！】";
       return `${r.name}に${r.dmg}のダメージ${suffix}`;
     }).join(", ");
-    return { log: `${caster.name}はラハリトを唱えた！激しい炎が敵全体を焼き尽くす！(${logDetails})` };
+    return { coreIds: [...new Set(results.flatMap(result => result.coreIds))], log: `${caster.name}はラハリトを唱えた！激しい炎が敵全体を焼き尽くす！(${logDetails})` };
   },
   DUMAPIC: ({ caster, target: state }) => {
     const stairs = findNearestCell(state, cell => cell.type === "stairs-down");
@@ -142,6 +154,8 @@ export const SPELL_EFFECTS = {
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
     dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
+    const affixResult = applyOffensiveAffixes(caster, target, dmg);
+    dmg = affixResult.damage;
     let suffix = "";
     if (target && target.magicResist) {
       dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
@@ -151,7 +165,7 @@ export const SPELL_EFFECTS = {
         suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
       }
     }
-    return { damage: dmg, log: `${caster.name}はマハリトを唱えた！${target.name}に${dmg}の熱線ダメージ！${suffix}` };
+    return { damage: dmg, coreIds: affixResult.coreIds, log: `${caster.name}はマハリトを唱えた！${target.name}に${dmg}の熱線ダメージ！${suffix}` };
   },
   MASFEAL: ({ caster, target: state }) => {
     const intVal = caster ? getCharInt(caster) : 10;
@@ -167,6 +181,8 @@ export const SPELL_EFFECTS = {
       let dmg = Math.floor(rng() * 31) + 30;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus);
+      const affixResult = applyOffensiveAffixes(caster, t, dmg);
+      dmg = affixResult.damage;
       let isResisted = false;
       let isWeakness = false;
       if (t.magicResist) {
@@ -175,7 +191,7 @@ export const SPELL_EFFECTS = {
         if (t.magicResist < 0) isWeakness = true;
       }
       t.hp = Math.max(0, t.hp - dmg);
-      return { name: t.name, dmg, isResisted, isWeakness };
+      return { name: t.name, dmg, isResisted, isWeakness, coreIds: affixResult.coreIds };
     }).filter(r => r !== 0);
     
     const logDetails = results.map(r => {
@@ -184,7 +200,7 @@ export const SPELL_EFFECTS = {
       if (r.isWeakness) suffix = "【弱点直撃！】";
       return `${r.name}に${r.dmg}のダメージ${suffix}`;
     }).join(", ");
-    return { log: `${caster.name}はマダルトを唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})` };
+    return { coreIds: [...new Set(results.flatMap(result => result.coreIds))], log: `${caster.name}はマダルトを唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})` };
   },
   TILTOWAIT: ({ caster, target: targets, rng = Math.random }) => {
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
@@ -193,6 +209,8 @@ export const SPELL_EFFECTS = {
       let dmg = Math.floor(rng() * 51) + 50;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus);
+      const affixResult = applyOffensiveAffixes(caster, t, dmg);
+      dmg = affixResult.damage;
       let isResisted = false;
       let isWeakness = false;
       if (t.magicResist) {
@@ -201,7 +219,7 @@ export const SPELL_EFFECTS = {
         if (t.magicResist < 0) isWeakness = true;
       }
       t.hp = Math.max(0, t.hp - dmg);
-      return { name: t.name, dmg, isResisted, isWeakness };
+      return { name: t.name, dmg, isResisted, isWeakness, coreIds: affixResult.coreIds };
     }).filter(r => r !== 0);
     
     const logDetails = results.map(r => {
@@ -210,7 +228,7 @@ export const SPELL_EFFECTS = {
       if (r.isWeakness) suffix = "【弱点直撃！】";
       return `${r.name}に${r.dmg}のダメージ${suffix}`;
     }).join(", ");
-    return { log: `${caster.name}はティルトウェイトを唱えた！極大爆裂の光が敵全体を消滅させる！(${logDetails})` };
+    return { coreIds: [...new Set(results.flatMap(result => result.coreIds))], log: `${caster.name}はティルトウェイトを唱えた！極大爆裂の光が敵全体を消滅させる！(${logDetails})` };
   },
 
   // Priest Spells
@@ -254,6 +272,8 @@ export const SPELL_EFFECTS = {
       }
     }
     dmg = Math.round(dmg * bonusMult);
+    const affixResult = applyOffensiveAffixes(caster, target, dmg);
+    dmg = affixResult.damage;
 
     let suffix = "";
     if (target && target.magicResist) {
@@ -264,7 +284,7 @@ export const SPELL_EFFECTS = {
         suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
       }
     }
-    return { damage: dmg, log: `${caster.name}はバディオスを唱えた！${target.name}に${dmg}の神聖ダメージ！${suffix}` };
+    return { damage: dmg, coreIds: affixResult.coreIds, log: `${caster.name}はバディオスを唱えた！${target.name}に${dmg}の神聖ダメージ！${suffix}` };
   },
   MILWA: ({ caster, target: state }) => {
     const pieVal = caster ? getCharPie(caster) : 10;
@@ -395,7 +415,7 @@ export const SPELL_EFFECTS = {
     const pieVal = caster ? getCharPie(caster) : 10;
     const maxStat = Math.max(intVal, pieVal);
     const bonus = Math.min(0.15, Math.max(0, (maxStat - 10) * 0.015));
-    const baseChance = 0.5 + bonus;
+    const baseChance = Math.min(1, 0.5 + bonus + getSpellAccuracyBonus(caster));
 
     targets.forEach(t => {
       if (t.hp > 0) {

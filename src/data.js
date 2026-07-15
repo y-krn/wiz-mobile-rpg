@@ -12,6 +12,7 @@ export {
   getPartyMaxAffix
 } from "./rules/item_rules.js";
 export * from "./rules/character_stats.js";
+export * from "./rules/affix_rules.js";
 export * from "./rules/spell_rules.js";
 export * from "./systems/leveling.js";
 export * from "./data/tags.js";
@@ -60,12 +61,12 @@ for (const [key, val] of Object.entries(STATIC_ITEMS)) {
 // Facade wrapper over systems/equipment_generation.js.
 // Pass `party` explicitly for smart-drop selection; callers holding state
 // should pass state.party.
-export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false) {
-  return newGenerateRandomEquipment(floor, { forceRarity, rng, party, excludeHighEnd });
+export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true) {
+  return newGenerateRandomEquipment(floor, { forceRarity, rng, party, excludeHighEnd, allowCores });
 }
 
-export function generateRandomAccessory(floor, forceRarity = null, rng = Math.random, party = null) {
-  return newGenerateRandomAccessory(floor, { forceRarity, rng, party });
+export function generateRandomAccessory(floor, forceRarity = null, rng = Math.random, party = null, allowCores = true) {
+  return newGenerateRandomAccessory(floor, { forceRarity, rng, party, allowCores });
 }
 
 export function getItemData(itemOrKey) {

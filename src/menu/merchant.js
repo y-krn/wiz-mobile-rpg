@@ -171,7 +171,7 @@ export function renderEventMerchantBuy(optGrid) {
             state.materials[stock.key] = (state.materials[stock.key] || 0) + 1;
             purchaseSuccess = true;
           } else if (stockType === "unidentified") {
-            const eqObj = generateRandomEquipment(state.floor || 1, stock.rarity, Math.random, state.party);
+            const eqObj = generateRandomEquipment(state.floor || 1, stock.rarity, Math.random, state.party, false, false);
             if (eqObj) {
               eqObj.identified = false;
               if (addInventoryItem(eqObj)) {
@@ -179,7 +179,7 @@ export function renderEventMerchantBuy(optGrid) {
               }
             }
           } else if (stockType === "unidentified_accessory") {
-            const accessory = generateRandomAccessory(state.floor || 1, stock.rarity, Math.random, state.party);
+            const accessory = generateRandomAccessory(state.floor || 1, stock.rarity, Math.random, state.party, false);
             if (accessory && addInventoryItem(accessory)) {
               purchaseSuccess = true;
             }

@@ -15,7 +15,7 @@ export function resolveCombatRound() {
   
   // Apply state mutations calculated in pure combat_logic
   syncPartyToRoster(nextState.party);
-  state.combatState.monsters = nextState.combatState.monsters;
+  state.combatState = nextState.combatState;
   state.inventory = nextState.inventory;
   state.firstKills = nextState.firstKills;
   state.codex = nextState.codex;
