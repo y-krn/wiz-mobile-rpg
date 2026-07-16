@@ -182,6 +182,63 @@ for (const vp of VIEWPORTS) {
 }
 
 for (const vp of VIEWPORTS) {
+  test(`Craft polishing exposes support affixes only on ${vp.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { openSubmenu } = await import('/src/navigation.js');
+
+      state.gameState = 'town';
+      state.gold = 500;
+      state.materials = { '魔石片': 3 };
+      state.inventory = [{
+        kind: 'equipment',
+        baseId: 'LEATHER_ARMOR',
+        identified: true,
+        affixes: [
+          { id: 'CORE_SNEAK_STEP', type: 'CORE_SNEAK_STEP', kind: 'core', value: 1 },
+          { id: 'statusResistance', type: 'statusResistance', kind: 'support', value: 5 },
+          { id: 'goldBonus', type: 'goldBonus', kind: 'support', value: 10 },
+        ],
+      }];
+      openSubmenu('craft_main', '工房 - 製作と装備強化：');
+    });
+
+    await page.getByRole('button', { name: '💎 サポートを研磨する' }).click();
+    await expect(page.locator('#submenu-title')).toHaveText('工房 - サポートアフィックスの研磨：');
+    await expect(page.getByRole('button', { name: /忍び足/ })).toHaveCount(0);
+    await expect(page.locator('#submenu-options button')).toHaveCount(2);
+
+    const layout = await page.locator('#submenu-options button').evaluateAll((buttons) => ({
+      buttons: buttons.map((button) => button.getBoundingClientRect().toJSON()),
+      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    }));
+    expect(layout.hasHorizontalOverflow).toBe(false);
+    for (const button of layout.buttons) {
+      expect(button.height, `Polish button should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(button.left, `Polish button should stay inside viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
+      expect(button.right, `Polish button should stay inside viewport on ${vp.name}`).toBeLessThanOrEqual(vp.width);
+    }
+
+    await page.getByRole('button', { name: /不屈/ }).click();
+    const result = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return {
+        gold: state.gold,
+        magicStone: state.materials['魔石片'],
+        item: state.inventory[0],
+      };
+    });
+    expect(result.gold).toBe(300);
+    expect(result.magicStone).toBe(1);
+    expect(result.item.polished).toBe(true);
+    expect(result.item.affixes.map((affix) => affix.value)).toEqual([1, 8, 10]);
+    await expect(page.locator('#submenu-options')).toContainText('研磨可能なサポートアフィックスがありません。');
+  });
+}
+
+for (const vp of VIEWPORTS) {
   test(`Warden contract details fit ${vp.name} (${vp.width}x${vp.height})`, async ({ page }) => {
     await page.setViewportSize(vp);
     await page.goto('/');

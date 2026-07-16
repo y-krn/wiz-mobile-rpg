@@ -1,4 +1,4 @@
-import { MAP_HEIGHT, MAP_WIDTH, MONSTERS, generateRandomAccessory, generateRandomEquipment, getPartyMaxAffix, getContractProgressIncrement, partyHasCoreAffix } from "./data.js";
+import { MAP_HEIGHT, MAP_WIDTH, MONSTERS, generateRandomAccessory, generateRandomEquipment, getPartyMaxAffix, getContractProgressIncrement, getPartyCoreParams } from "./data.js";
 import { state } from "./state.js";
 import { getWardenGateId } from "./state/warden_gates.js";
 import { getWardenPerception, WARDEN_PERCEPTION_HINTS } from "./systems/warden_perception.js";
@@ -423,7 +423,7 @@ export function checkActiveContract(stateInstance, runResult, success) {
   } else if (contract.type === "recovery") {
     // Count unidentified items in final inventory
     const unIdCount = stateInstance.inventory.filter(item => typeof item === "object" && !item.identified).length;
-    bountyHunterActivated = partyHasCoreAffix(stateInstance.party, "CORE_BOUNTY_HUNTER") && unIdCount > 0;
+    bountyHunterActivated = Boolean(getPartyCoreParams(stateInstance.party, "CORE_BOUNTY_HUNTER")) && unIdCount > 0;
     if (getContractProgressIncrement(stateInstance.party, unIdCount) >= contract.targetValue) {
       achieved = true;
       // Bring back unidentified items, we don't consume them, but the contract is resolved

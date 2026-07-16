@@ -1,6 +1,6 @@
 import {
   generateRandomAccessory, generateRandomEquipment, getItemData, checkCharLevelUp,
-  getPartyMaxAffix, partyHasCoreAffix, getContractProgressIncrement, getCoreLogText
+  getPartyMaxAffix, getPartyCoreParams, getContractProgressIncrement, getCoreLogText
 } from "../data.js";
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
@@ -30,8 +30,8 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   const goldBonus = getPartyMaxAffix(state.party, "goldBonus");
   const totalGold = Math.floor(rawGold * (1 + goldBonus / 100));
   const livingChars = state.party.filter(c => c.status !== "dead");
-  const bountyHunter = partyHasCoreAffix(state.party, "CORE_BOUNTY_HUNTER");
-  const scholarEye = partyHasCoreAffix(state.party, "CORE_SCHOLAR_EYE");
+  const bountyHunter = Boolean(getPartyCoreParams(state.party, "CORE_BOUNTY_HUNTER"));
+  const scholarEye = Boolean(getPartyCoreParams(state.party, "CORE_SCHOLAR_EYE"));
   const uncataloguedNames = new Set(nonFledMonsters.filter(m => {
     const baseName = m.name.replace(/\s[A-Z]$/, "");
     return (state.codex?.monsters?.[baseName]?.killed || 0) === 0;

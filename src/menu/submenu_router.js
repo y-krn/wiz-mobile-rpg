@@ -4,7 +4,7 @@ import { renderShop } from "../shop/shop_view.js";
 import { shopState } from "../shop/shop_state.js";
 import { renderTraining } from "../training.js";
 import { renderEventMerchant, renderEventMerchantBuy, renderEventMerchantResult } from "./merchant.js";
-import { renderTempleMain, renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftDismantle, renderCraftInscriptionSelectEquip, renderCraftInscriptionSelectEngrave, renderCastleMain, renderCastleDeadList, renderCastleRemainsList, renderCastleDeathLogs } from "./town_actions.js";
+import { renderTempleMain, renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftPolish, renderCraftDismantle, renderCraftInscriptionSelectEquip, renderCraftInscriptionSelectEngrave, renderCastleMain, renderCastleDeadList, renderCastleRemainsList, renderCastleDeathLogs } from "./town_actions.js";
 import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderCampMain, renderGameOverMain, renderEnterDungeonSelect, renderCampStatus, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect, renderWardenConfirm } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 
@@ -13,6 +13,7 @@ const SUBMENU_RENDERERS = {
   craft_main: (optGrid) => renderCraftMain(optGrid),
   craft_recipes: (optGrid) => renderCraftRecipes(optGrid),
   craft_enhance: (optGrid) => renderCraftEnhance(optGrid),
+  craft_polish: (optGrid) => renderCraftPolish(optGrid),
   craft_dismantle: (optGrid) => renderCraftDismantle(optGrid),
   craft_inscription_select_equip: (optGrid) => renderCraftInscriptionSelectEquip(optGrid),
   craft_inscription_select_engrave: (optGrid) => renderCraftInscriptionSelectEngrave(optGrid),

@@ -18,7 +18,15 @@ export const TAGS = {
   analysis: { name: "解析", desc: "魔法の構造と心理の洞察" },
   follow_up: { name: "連撃", desc: "絶え間ない追撃の構え" },
   record: { name: "記録", desc: "迷宮の記録と知見の蓄積" },
-  evasion: { name: "回避", desc: "身軽な動きによる危険回避" }
+  evasion: { name: "回避", desc: "身軽な動きによる危険回避" },
+  material: { name: "素材", desc: "迷宮素材を見つけ出す知識" },
+  fortune: { name: "金運", desc: "財貨を引き寄せる運気" },
+  contract: { name: "契約", desc: "依頼の成果を高める技量" },
+  merchant: { name: "商談", desc: "商人との取引を有利にする話術" },
+  depth: { name: "深層", desc: "迷宮深部で力を引き出す覚悟" },
+  vigor: { name: "無傷", desc: "万全の状態から放つ猛攻" },
+  resistance: { name: "不屈", desc: "状態異常に抗う強い意志" },
+  precision: { name: "精唱", desc: "呪文を正確に導く集中力" }
 };
 
 export const CLASS_TAGS = {
@@ -57,11 +65,11 @@ export const SPELL_TAGS = {
 };
 
 export const MATERIAL_TAGS = {
-  "霊粉": ["holy", "spirit", "appraisal"],
-  "毒腺": ["poison", "trap"],
-  "鉄片": ["iron", "ward"],
-  "竜鱗": ["dragon", "fire"],
-  "黒角": ["curse", "demon", "blood"]
+  "霊粉": ["holy", "spirit", "appraisal", "contract", "precision"],
+  "毒腺": ["poison", "trap", "material", "resistance"],
+  "鉄片": ["iron", "ward", "merchant", "vigor"],
+  "竜鱗": ["dragon", "fire", "depth"],
+  "黒角": ["curse", "demon", "blood", "fortune"]
 };
 
 export const TAG_EFFECT_MAP = {
@@ -76,5 +84,13 @@ export const TAG_EFFECT_MAP = {
   fire: { name: "火印", type: "atk", value: 3, desc: "攻撃力+3", gold: 150, matCost: 3 },
   curse: { name: "呪印", type: "curse", value: 0, desc: "渇血の呪い (攻撃+15 / 回復-20%)", gold: 50, matCost: 1 },
   demon: { name: "魔印", type: "antiDemon", value: 20, desc: "悪魔特効+20%", gold: 250, matCost: 4 },
-  blood: { name: "血印", type: "followUp", value: 10, desc: "連撃適性+10%", gold: 150, matCost: 3 }
+  blood: { name: "血印", type: "followUp", value: 10, desc: "連撃適性+10%", gold: 150, matCost: 3 },
+  material: { name: "採印", type: "materialFind", value: 10, desc: "素材発見率+10%", gold: 150, matCost: 2 },
+  fortune: { name: "財印", type: "goldBonus", value: 10, desc: "獲得GOLD+10%", gold: 200, matCost: 3 },
+  contract: { name: "契印", type: "contractReward", value: 10, desc: "契約報酬+10%", gold: 200, matCost: 3 },
+  merchant: { name: "商印", type: "merchantDiscount", value: 5, desc: "商人価格-5%", gold: 150, matCost: 2 },
+  depth: { name: "深印", type: "deepAssault", value: 10, desc: "B3F以深で与ダメージ+10%", gold: 250, matCost: 4 },
+  vigor: { name: "剛印", type: "fullHpDamage", value: 10, desc: "HP満タン時に与ダメージ+10%", gold: 250, matCost: 4 },
+  resistance: { name: "忍印", type: "statusResistance", value: 12, desc: "状態異常耐性+12%", gold: 200, matCost: 3 },
+  precision: { name: "詠印", type: "spellAccuracy", value: 10, desc: "呪文命中率+10%", gold: 200, matCost: 3 }
 };

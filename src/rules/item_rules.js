@@ -292,7 +292,7 @@ export function getItemData(itemOrKey) {
     }
     
     let affixDesc = (itemOrKey.affixes || []).map(aff => {
-      return formatAffixText(aff, "");
+      return formatAffixText(aff, "", { coreSealed: itemOrKey.coreSealed });
     }).join(" / ");
     
     let desc = `${base.desc} [${affixDesc}]`;
