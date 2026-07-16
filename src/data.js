@@ -9,7 +9,8 @@ export {
   isSpecialOrQuestItem,
   getEffectiveHealAmount,
   getCharAffixSum,
-  getPartyMaxAffix
+  getPartyMaxAffix,
+  getEquippedItemData
 } from "./rules/item_rules.js";
 export * from "./rules/character_stats.js";
 export * from "./rules/affix_rules.js";

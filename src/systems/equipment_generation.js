@@ -47,9 +47,17 @@ function withSupportDefinition(candidate) {
 
 function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores) {
   const budget = getAffixBudget(rarity, floor);
+  const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
+    ? AFFIX_BALANCE.corePoolWeights.shallow
+    : AFFIX_BALANCE.corePoolWeights.deep;
   const corePool = allowCores ? CORE_AFFIXES
     .filter(affix => affix.enabled && affix.slot === slot && affix.cost <= budget)
-    .map(affix => ({ ...affix, type: affix.id, value: 1, weight: 1 })) : [];
+    .map(affix => ({
+      ...affix,
+      type: affix.id,
+      value: 1,
+      weight: poolWeights[affix.poolGroup] || 1
+    })) : [];
 
   if (corePool.length === 0) {
     const count = AFFIX_BALANCE.legacySupportCounts[source][rarity] || 1;
@@ -319,6 +327,14 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   }
   addAffix(3, "lastSurvivorStats", () => floor >= 5 ? 3 : 2, 1);
   addAffix(2, "statusResistance", () => floor >= 5 ? 20 : 12, 2);
+  addAffix(1, "trapGold", () => 1, 1);
+  addAffix(2, "victoryMaterial", () => 5, 1);
+  addAffix(1, "stairsHeal", () => floor >= 4 ? 4 : 2, 1);
+  addAffix(1, "identifyDiscount", () => 10, 2);
+  addAffix(1, "materialFind", () => 10, 2);
+  addAffix(1, "goldBonus", () => 10, 2);
+  addAffix(1, "contractReward", () => 10, 2);
+  addAffix(1, "merchantDiscount", () => 5, 2);
   
   const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores);
   
@@ -468,7 +484,15 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     { type: "spellAccuracy", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 1 : 0 },
     { type: "killHeal", getVal: () => 2, weight: floor >= 3 ? 1 : 0 },
     { type: "followUpMp", getVal: () => 1, weight: floor >= 3 ? 1 : 0 },
-    { type: "hitFlinch", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 1 : 0 }
+    { type: "hitFlinch", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 1 : 0 },
+    { type: "trapGold", getVal: () => 1, weight: 1 },
+    { type: "victoryMaterial", getVal: () => 5, weight: floor >= 2 ? 1 : 0 },
+    { type: "stairsHeal", getVal: () => floor >= 4 ? 4 : 2, weight: 1 },
+    { type: "identifyDiscount", getVal: () => 10, weight: 2 },
+    { type: "materialFind", getVal: () => 10, weight: 2 },
+    { type: "goldBonus", getVal: () => 10, weight: 2 },
+    { type: "contractReward", getVal: () => 10, weight: 2 },
+    { type: "merchantDiscount", getVal: () => 5, weight: 2 }
   ].filter(aff => aff.weight > 0)
     .map(withSupportDefinition)
     .filter(Boolean);

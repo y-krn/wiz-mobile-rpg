@@ -15,7 +15,9 @@ import {
   formatAffixText,
   canUseMageSpells,
   canUsePriestSpells,
-  canEquipCoreAffix
+  canEquipCoreAffix,
+  canEquipUnidentifiedItem,
+  getCoreLogText
 } from "./data.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
@@ -273,6 +275,9 @@ function canEquip(char, itemKey) {
   if (item.classes && !item.classes.includes(char.class)) {
     return { ok: false, reason: `${getClassJpName(char.class)}は装備できません` };
   }
+  if (!canEquipUnidentifiedItem(char, itemKey)) {
+    return { ok: false, reason: "未鑑定装備には慧眼が必要です" };
+  }
   if (!canEquipCoreAffix(char, itemKey, item.type)) {
     return { ok: false, reason: "コアは1人につき1個までです" };
   }
@@ -379,7 +384,7 @@ function createEquipmentList(char, savedScrollTop) {
     left.className = "equip-item-row-main";
     const name = document.createElement("span");
     name.className = "equip-item-row-name";
-    name.textContent = item ? item.name : "（なし）";
+    name.textContent = item ? `${isIdentified(itemKey) ? "" : "? "}${item.name}` : "（なし）";
     if (!item) {
       name.style.color = "var(--text-muted)";
     }
@@ -387,7 +392,7 @@ function createEquipmentList(char, savedScrollTop) {
 
     const summary = document.createElement("span");
     summary.className = "equip-item-row-tag";
-    summary.textContent = `${label} ${item ? `/ ${getItemSummary(item)}` : ""}`;
+    summary.textContent = `${label} ${item ? `/ ${isIdentified(itemKey) ? getItemSummary(item) : "???"}` : ""}`;
     left.appendChild(summary);
     row.appendChild(left);
 
@@ -447,19 +452,19 @@ function createEquipmentList(char, savedScrollTop) {
       left.className = "equip-item-row-main";
       const name = document.createElement("span");
       name.className = "equip-item-row-name";
-      name.textContent = item.name;
+      name.textContent = `${isIdentified(itemKey) ? "" : "? "}${item.name}`;
       left.appendChild(name);
 
       const summary = document.createElement("span");
       summary.className = "equip-item-row-tag";
-      summary.textContent = `${SLOT_LABELS[item.type]} / ${getItemSummary(item)}`;
+      summary.textContent = `${SLOT_LABELS[item.type]} / ${isIdentified(itemKey) ? getItemSummary(item) : "???"}`;
       left.appendChild(summary);
       row.appendChild(left);
 
       const badge = document.createElement("span");
       if (!isIdentified(itemKey)) {
         badge.className = "equip-row-badge unident";
-        badge.textContent = "未鑑定";
+        badge.textContent = "? 未鑑定";
         badge.style.background = "rgba(255, 170, 0, 0.2)";
         badge.style.color = "rgb(255, 170, 0)";
       } else if (!availability.ok) {
@@ -549,6 +554,7 @@ function createDetailPanel(char) {
 
   const itemKey = equipState.selectedKey;
   const item = getItemData(itemKey);
+  const hidden = !isIdentified(itemKey);
   const isEquipped = equipState.selectedIsEquipped;
 
   let preview;
@@ -568,7 +574,7 @@ function createDetailPanel(char) {
   heading.className = "equip-detail-heading";
   heading.innerHTML = `
     <div>
-      <div class="equip-detail-name">${item.name}</div>
+      <div class="equip-detail-name">${hidden ? "? " : ""}${item.name}</div>
       <div class="equip-detail-desc">${item.desc || getItemSummary(item)}</div>
     </div>
     <div class="equip-target-summary">${char.name}<small>${getClassJpName(char.class)} Lv.${char.level}</small></div>
@@ -588,7 +594,7 @@ function createDetailPanel(char) {
   const affixDetails = createAffixDetails(itemKey);
   if (affixDetails) content.appendChild(affixDetails);
 
-  if (preview && availability.ok) {
+  if (preview && availability.ok && !hidden) {
     const primaryRows = preview.rows.filter((row) => row.diff !== 0);
     const importantRows = primaryRows.length > 0 ? primaryRows.slice(0, 7) : preview.rows.slice(0, 2);
     const statGrid = document.createElement("div");
@@ -597,6 +603,11 @@ function createDetailPanel(char) {
       statGrid.appendChild(createStatPill(row));
     });
     content.appendChild(statGrid);
+  } else if (preview && availability.ok && hidden) {
+    const hiddenStats = document.createElement("div");
+    hiddenStats.className = "equip-detail-placeholder";
+    hiddenStats.textContent = "能力・付与効果: ???";
+    content.appendChild(hiddenStats);
   }
 
   const compat = document.createElement("div");
@@ -655,6 +666,9 @@ function createDetailPanel(char) {
       }
 
       addLog(`${currentChar.name}は${selectedData.name}を装備した。`);
+      if (typeof selectedItem === "object" && !selectedItem.identified) {
+        addLog(getCoreLogText("CORE_KEEN_EYE"));
+      }
       playSound("move");
       saveAutosave();
       clearSelection();

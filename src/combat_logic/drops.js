@@ -23,7 +23,7 @@ export function getMonsterMainMaterial(monster) {
   }
 }
 
-export function determineMonsterDrop(monster, floor, rng = Math.random) {
+export function determineMonsterDrop(monster, floor, rng = Math.random, { chanceBonus = 0, guaranteed = false } = {}) {
   const name = monster.name.replace(/\s[A-Z]$/, "");
   const tags = monster.tags || [];
   const spriteType = monster.spriteType || "";
@@ -67,7 +67,7 @@ export function determineMonsterDrop(monster, floor, rng = Math.random) {
   if (isRare) dropChance = 0.85;
   if (isBoss) dropChance = 1.0;
 
-  if (rng() < dropChance) {
+  if (guaranteed || rng() < Math.min(1, dropChance + chanceBonus)) {
     const qty = (isBoss ? 2 : 1) + (isRare ? 1 : 0);
     drops[main] = qty;
     

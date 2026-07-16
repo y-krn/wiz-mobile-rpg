@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import {
   CORE_AFFIXES,
+  SUPPORT_AFFIXES,
+  AFFIX_BALANCE,
   getCharCoreParams,
   getDamageAffixResult,
   getSpellPayment,
@@ -8,9 +10,13 @@ import {
   getTrapEaterBonusAfterDisarm,
   getFollowUpChance,
   getStatusEffectChance,
-  canEquipCoreAffix
+  canEquipCoreAffix,
+  partyHasCoreAffix,
+  canEquipUnidentifiedItem,
+  getItemData,
+  getPartyMaxAffix
 } from "../src/data.js";
-import { getCharStr, getCharInt } from "../src/rules/character_stats.js";
+import { getCharStr, getCharInt, getCharWeaponAtk } from "../src/rules/character_stats.js";
 import {
   applyKillAffixEffects,
   getMeleeModifiers,
@@ -21,6 +27,11 @@ import {
   generateRandomAccessory,
   generateRandomEquipment
 } from "../src/systems/equipment_generation.js";
+import { getPerceptionIntent } from "../src/systems/warden_perception.js";
+import { applyTombRaiderTrapTier, generateChestMaterials } from "../src/chest.js";
+import { increaseChestTrapTier } from "../src/systems/traps.js";
+import { restAtCamp } from "../src/systems/camp_rest.js";
+import { applyCombatRewards } from "../src/combat_logic/rewards.js";
 
 let failures = 0;
 
@@ -86,13 +97,152 @@ function makeChar(coreId, baseId = "SHORT_SWORD") {
   };
 }
 
-test("戦闘系コア10種だけがenabled", () => {
+test("全コア16種がenabled", () => {
   const enabled = CORE_AFFIXES.filter(core => core.enabled).map(core => core.id);
   assert.deepEqual(enabled, [
     "CORE_LAST_STAND", "CORE_OPENER", "CORE_BLOOD_WAND", "CORE_PURIFY_RING",
     "CORE_TRAP_EATER", "CORE_CURSE_KEEPER", "CORE_GIANT_SLAYER", "CORE_REARGUARD",
-    "CORE_THORN_SHIELD", "CORE_EXECUTIONER"
+    "CORE_THORN_SHIELD", "CORE_EXECUTIONER", "CORE_SNEAK_STEP", "CORE_TOMB_RAIDER",
+    "CORE_KEEN_EYE", "CORE_CAMP_MASTER", "CORE_BOUNTY_HUNTER", "CORE_SCHOLAR_EYE"
   ]);
+});
+
+test("Phase 3サポートenabled・浅層経済3/戦闘1・深層逆転", () => {
+  const phase3 = [
+    "trapGold", "victoryMaterial", "stairsHeal", "identifyDiscount", "materialFind",
+    "goldBonus", "contractReward", "merchantDiscount"
+  ];
+  assert.ok(phase3.every(id => SUPPORT_AFFIXES.find(affix => affix.id === id)?.enabled));
+  assert.deepEqual(AFFIX_BALANCE.corePoolWeights.shallow, { combat: 1, economy: 3 });
+  assert.deepEqual(AFFIX_BALANCE.corePoolWeights.deep, { combat: 3, economy: 1 });
+});
+
+test("忍び足: 生存装備者のみパーティ有効、感知4→2、オーラ値+1", () => {
+  const wearer = makeChar(null);
+  wearer.equipment.armor = coreItem("CORE_SNEAK_STEP", "LEATHER_ARMOR");
+  assert.equal(partyHasCoreAffix([wearer], "CORE_SNEAK_STEP"), true);
+  const intent = getPerceptionIntent({
+    monster: { x: 0, y: 0, perception: "standard" },
+    player: { x: 3, y: 0 },
+    grid: []
+  });
+  const sneaking = getPerceptionIntent({
+    monster: { x: 0, y: 0, perception: "standard" },
+    player: { x: 3, y: 0 },
+    grid: [],
+    rangeMultiplier: 0.5
+  });
+  assert.equal(intent.detected, true);
+  assert.equal(sneaking.detected, false);
+  assert.equal(getCharCoreParams(wearer, "CORE_SNEAK_STEP").auraRangeBonus, 1);
+  wearer.status = "ash";
+  assert.equal(partyHasCoreAffix([wearer], "CORE_SNEAK_STEP"), false);
+});
+
+test("盗掘王: 開錠者本人で素材+1と罠強度+1を両立", () => {
+  const opener = makeChar(null);
+  opener.equipment.accessory = coreItem("CORE_TOMB_RAIDER", "AMULET_HP");
+  const chest = { trap: "poison needle" };
+  assert.equal(applyTombRaiderTrapTier(chest, opener), true);
+  assert.equal(chest.trap, increaseChestTrapTier("poison needle", 1));
+  assert.equal(applyTombRaiderTrapTier(chest, opener), false);
+  const baseMats = generateChestMaterials(1, () => 0, 0);
+  const boostedMats = generateChestMaterials(1, () => 0, 1);
+  assert.equal(Object.values(boostedMats).reduce((a, b) => a + b, 0),
+    Object.values(baseMats).reduce((a, b) => a + b, 0) + 1);
+});
+
+test("慧眼: 未鑑定装備可・能力適用・表示隠匿", () => {
+  const char = makeChar(null);
+  char.equipment.accessory = coreItem("CORE_KEEN_EYE", "AMULET_HP");
+  const unknown = {
+    kind: "equipment",
+    baseId: "SHORT_SWORD",
+    identified: false,
+    unidentifiedName: "古びた未鑑定の武器",
+    affixes: [{ id: "str", type: "str", kind: "support", value: 3 }]
+  };
+  assert.equal(canEquipUnidentifiedItem(char, unknown), true);
+  assert.equal(canEquipUnidentifiedItem(makeChar(null), unknown), false);
+  const hidden = getItemData(unknown);
+  assert.deepEqual(hidden.statsBonus, {});
+  assert.deepEqual(hidden.affixes, []);
+  assert.ok(!hidden.desc.includes("力+3"));
+  char.equipment.weapon = unknown;
+  assert.equal(getCharStr(char), char.str + 3);
+  assert.equal(getCharWeaponAtk(char), getItemData({ ...unknown, identified: true }).atk);
+});
+
+test("野営の達人: 装備者本人のキャンプ回復量2倍", () => {
+  const master = makeChar(null);
+  master.equipment.armor = coreItem("CORE_CAMP_MASTER", "LEATHER_ARMOR");
+  master.hp = 50;
+  master.mp = 0;
+  const normal = makeChar(null);
+  normal.hp = 50;
+  normal.mp = 0;
+  const campState = {
+    floor: 2,
+    openedGates: ["B2_WARDEN_GATE"],
+    currentRun: { campRested: {} },
+    party: [master, normal]
+  };
+  const result = restAtCamp(campState);
+  assert.equal(master.hp, 90);
+  assert.equal(normal.hp, 70);
+  assert.deepEqual(result.coreUsers, [master.name]);
+});
+
+function makeRewardState(coreId, contract = null) {
+  const char = makeChar(null);
+  char.equipment.accessory = coreId ? coreItem(coreId, "AMULET_HP") : null;
+  return {
+    floor: 1,
+    party: [char],
+    combatState: { isBoss: false, isMidboss: false, isRoamingFlack: false, monsters: [] },
+    currentRun: {
+      kills: 0, goldGained: 0, expGained: 0, bossesKilled: 0, elitesKilled: 0,
+      materialsFound: {}, equipmentFound: []
+    },
+    codex: { stats: {}, monsters: { ゴブリン: { encountered: 1, killed: 0, firstKilled: false } } },
+    firstKills: ["ゴブリン"],
+    materials: {},
+    inventory: [],
+    gold: 0,
+    activeContract: contract,
+    floorChestsTotal: [0]
+  };
+}
+
+function goblin() {
+  return { name: "ゴブリン", hp: 0, maxHp: 10, exp: 0, gold: 0, tags: [], fled: false };
+}
+
+test("賞金稼ぎ: 契約対象キルを2倍カウント", () => {
+  const contract = { type: "kill", targetMonsterName: "ゴブリン", currentValue: 0, targetValue: 4 };
+  const rewardState = makeRewardState("CORE_BOUNTY_HUNTER", contract);
+  rewardState.combatState.monsters = [goblin()];
+  const logs = [];
+  applyCombatRewards(rewardState, rewardState.combatState.monsters, logs, () => 1);
+  assert.equal(contract.currentValue, 2);
+  assert.ok(logs.some(entry => entry.msg.startsWith("[賞金稼ぎ]")));
+});
+
+test("学者の眼: 図鑑未登録敵からrng不発でも素材確定", () => {
+  const rewardState = makeRewardState("CORE_SCHOLAR_EYE");
+  rewardState.combatState.monsters = [goblin()];
+  const logs = [];
+  applyCombatRewards(rewardState, rewardState.combatState.monsters, logs, () => 1);
+  assert.equal(rewardState.materials["獣の牙"], 1);
+  assert.ok(logs.some(entry => entry.msg.startsWith("[学者の眼]")));
+});
+
+test("経済サポート: パーティ合算でなく最大値1人分", () => {
+  const a = makeChar(null);
+  const b = makeChar(null);
+  a.equipment.armor = supportItem("goldBonus", 10);
+  b.equipment.armor = supportItem("goldBonus", 10);
+  assert.equal(getPartyMaxAffix([a, b], "goldBonus"), 10);
 });
 
 test("背水: params閾値と倍率", () => {

@@ -1,4 +1,4 @@
-import { getItemData, getCharAffixSum } from "./item_rules.js";
+import { getEquippedItemData, getCharAffixSum } from "./item_rules.js";
 import { getCharAllStatsAffixBonus } from "./affix_rules.js";
 
 export function getCharStr(char) {
@@ -7,7 +7,7 @@ export function getCharStr(char) {
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
       if (eqKey) {
-        const eqData = getItemData(eqKey);
+        const eqData = getEquippedItemData(char, eqKey);
         if (eqData && eqData.statsBonus && eqData.statsBonus.str) {
           bonus += eqData.statsBonus.str;
         }
@@ -23,7 +23,7 @@ export function getCharInt(char) {
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
       if (eqKey) {
-        const eqData = getItemData(eqKey);
+        const eqData = getEquippedItemData(char, eqKey);
         if (eqData && eqData.statsBonus && eqData.statsBonus.int) {
           bonus += eqData.statsBonus.int;
         }
@@ -39,7 +39,7 @@ export function getCharPie(char) {
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
       if (eqKey) {
-        const eqData = getItemData(eqKey);
+        const eqData = getEquippedItemData(char, eqKey);
         if (eqData && eqData.statsBonus && eqData.statsBonus.pie) {
           bonus += eqData.statsBonus.pie;
         }
@@ -55,7 +55,7 @@ export function getCharVit(char) {
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
       if (eqKey) {
-        const eqData = getItemData(eqKey);
+        const eqData = getEquippedItemData(char, eqKey);
         if (eqData && eqData.statsBonus && eqData.statsBonus.vit) {
           bonus += eqData.statsBonus.vit;
         }
@@ -71,7 +71,7 @@ export function getCharAgi(char) {
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
       if (eqKey) {
-        const eqData = getItemData(eqKey);
+        const eqData = getEquippedItemData(char, eqKey);
         if (eqData && eqData.statsBonus && eqData.statsBonus.agi) {
           bonus += eqData.statsBonus.agi;
         }
@@ -87,7 +87,7 @@ export function getCharLuk(char) {
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
       if (eqKey) {
-        const eqData = getItemData(eqKey);
+        const eqData = getEquippedItemData(char, eqKey);
         if (eqData && eqData.statsBonus && eqData.statsBonus.luk) {
           bonus += eqData.statsBonus.luk;
         }
@@ -103,7 +103,7 @@ export function getCharMaxHp(char) {
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
       if (eqKey) {
-        const eqData = getItemData(eqKey);
+        const eqData = getEquippedItemData(char, eqKey);
         if (eqData && eqData.hpBonus) {
           bonus += eqData.hpBonus;
         }
@@ -119,7 +119,7 @@ export function getCharMaxMp(char) {
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
       if (eqKey) {
-        const eqData = getItemData(eqKey);
+        const eqData = getEquippedItemData(char, eqKey);
         if (eqData && eqData.mpBonus) {
           bonus += eqData.mpBonus;
         }
@@ -135,7 +135,7 @@ export function getCharTrapBonus(char) {
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
       if (eqKey) {
-        const eqData = getItemData(eqKey);
+        const eqData = getEquippedItemData(char, eqKey);
         if (eqData && eqData.trapBonus) {
           bonus += eqData.trapBonus / 100;
         }
@@ -149,7 +149,7 @@ export function getCharWeaponAtk(char) {
   let atk = char.runTrapAttackBonus || 0;
   const wpId = char.equipment.weapon;
   if (wpId) {
-    atk += getItemData(wpId)?.atk || 0;
+    atk += getEquippedItemData(char, wpId)?.atk || 0;
   } else if (char.class === "Ninja") {
     atk += 2 * char.level;
   }
@@ -157,7 +157,7 @@ export function getCharWeaponAtk(char) {
   if (char.equipment) {
     Object.entries(char.equipment).forEach(([slot, eqKey]) => {
       if (slot !== "weapon" && eqKey) {
-        atk += getItemData(eqKey)?.atk || 0;
+        atk += getEquippedItemData(char, eqKey)?.atk || 0;
       }
     });
   }
@@ -169,7 +169,7 @@ export function getCharDef(char) {
   if (char.equipment) {
     Object.values(char.equipment).forEach(eqKey => {
       if (eqKey) {
-        def += getItemData(eqKey)?.def || 0;
+        def += getEquippedItemData(char, eqKey)?.def || 0;
       }
     });
   }

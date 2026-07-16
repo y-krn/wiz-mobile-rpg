@@ -1,4 +1,4 @@
-import { MAP_HEIGHT, MAP_WIDTH, MONSTERS, generateRandomAccessory, generateRandomEquipment } from "./data.js";
+import { MAP_HEIGHT, MAP_WIDTH, MONSTERS, generateRandomAccessory, generateRandomEquipment, getPartyMaxAffix, getContractProgressIncrement, partyHasCoreAffix } from "./data.js";
 import { state } from "./state.js";
 import { getWardenGateId } from "./state/warden_gates.js";
 import { getWardenPerception, WARDEN_PERCEPTION_HINTS } from "./systems/warden_perception.js";
@@ -85,7 +85,7 @@ export function revealMapFragment(stateInstance, floor, rng = Math.random) {
 export function recordWardenDefeat(stateInstance, gateId) {
   const contract = stateInstance.activeContract;
   if (contract?.type !== "warden" || contract.targetGateId !== gateId) return false;
-  contract.currentValue = 1;
+  contract.currentValue = getContractProgressIncrement(stateInstance.party, 1);
   return true;
 }
 
@@ -402,6 +402,7 @@ export function checkActiveContract(stateInstance, runResult, success) {
   }
 
   let achieved = false;
+  let bountyHunterActivated = false;
 
   // Check achievement conditions
   if (contract.type === "weekly") {
@@ -422,7 +423,8 @@ export function checkActiveContract(stateInstance, runResult, success) {
   } else if (contract.type === "recovery") {
     // Count unidentified items in final inventory
     const unIdCount = stateInstance.inventory.filter(item => typeof item === "object" && !item.identified).length;
-    if (unIdCount >= contract.targetValue) {
+    bountyHunterActivated = partyHasCoreAffix(stateInstance.party, "CORE_BOUNTY_HUNTER") && unIdCount > 0;
+    if (getContractProgressIncrement(stateInstance.party, unIdCount) >= contract.targetValue) {
       achieved = true;
       // Bring back unidentified items, we don't consume them, but the contract is resolved
     }
@@ -450,12 +452,18 @@ export function checkActiveContract(stateInstance, runResult, success) {
 
   if (achieved) {
     // Award rewards
-    stateInstance.gold += contract.reward.gold;
+    const rewardBonus = getPartyMaxAffix(stateInstance.party, "contractReward");
+    const rewardMultiplier = 1 + rewardBonus / 100;
+    const awardedGold = Math.floor(contract.reward.gold * rewardMultiplier);
+    const awardedMaterials = {};
+    stateInstance.gold += awardedGold;
     stateInstance.identifyTickets = (stateInstance.identifyTickets || 0) + contract.reward.identifyTickets;
 
     Object.entries(contract.reward.materials || {}).forEach(([material, quantity]) => {
+      const awardedQuantity = Math.max(1, Math.floor(quantity * rewardMultiplier));
+      awardedMaterials[material] = awardedQuantity;
       stateInstance.materials ||= {};
-      stateInstance.materials[material] = (stateInstance.materials[material] || 0) + quantity;
+      stateInstance.materials[material] = (stateInstance.materials[material] || 0) + awardedQuantity;
     });
 
     const revealedCells = contract.reward.mapFragmentFloor
@@ -518,7 +526,13 @@ export function checkActiveContract(stateInstance, runResult, success) {
       success: true,
       contract,
       itemMsg,
-      revealedCells
+      revealedCells,
+      awardedReward: {
+        gold: awardedGold,
+        materials: awardedMaterials,
+        identifyTickets: contract.reward.identifyTickets
+      },
+      bountyHunterActivated
     };
   }
 

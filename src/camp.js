@@ -1,5 +1,5 @@
 import { state, initNewGame, saveGame, saveAutosave, addLog, EXP_LEVELS, getCharWeaponAtk, getCharDef } from "./state.js";
-import { SPELLS, getClassJpName, paySpellCost, getCoreLogText } from "./data.js";
+import { SPELLS, getClassJpName, paySpellCost, getCoreLogText, hasHiddenEquipmentEffects } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
@@ -136,6 +136,7 @@ export function renderCampOverlay() {
       const classJp = getClassJpName(char.class);
       const nextReq = char.class === "Ninja" ? Math.floor(EXP_LEVELS[char.level + 1] * 1.5) : EXP_LEVELS[char.level + 1];
       const nextText = nextReq ? `${char.exp}/${nextReq}` : `${char.exp}/MAX`;
+      const hiddenEquipment = hasHiddenEquipmentEffects(char);
       
       card.innerHTML = `
         <div class="camp-status-card-header">
@@ -155,8 +156,8 @@ export function renderCampOverlay() {
           <div>運: ${char.luk}</div>
         </div>
         <div class="camp-status-card-combat">
-          <span>攻撃力: <strong class="camp-val">+${getCharWeaponAtk(char)}</strong></span>
-          <span>防御力(AC): <strong class="camp-val">${getCharDef(char)}</strong></span>
+          <span>攻撃力: <strong class="camp-val">${hiddenEquipment ? "???" : `+${getCharWeaponAtk(char)}`}</strong></span>
+          <span>防御力(AC): <strong class="camp-val">${hiddenEquipment ? "???" : getCharDef(char)}</strong></span>
         </div>
         <div class="camp-status-card-exp">
           <span>EXP: <span class="exp-val">${nextText}</span></span>

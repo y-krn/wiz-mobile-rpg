@@ -200,9 +200,10 @@ export function renderResultScreen() {
     
     let rewardText;
     if (cr.success) {
-      const tickets = cr.contract.reward.identifyTickets > 0 ? ` / 鑑定割引券: ${cr.contract.reward.identifyTickets}枚` : "";
-      rewardText = `獲得：${cr.contract.reward.gold} G${tickets}`;
-      const materials = Object.entries(cr.contract.reward.materials || {});
+      const awarded = cr.awardedReward || cr.contract.reward;
+      const tickets = awarded.identifyTickets > 0 ? ` / 鑑定割引券: ${awarded.identifyTickets}枚` : "";
+      rewardText = `獲得：${awarded.gold} G${tickets}`;
+      const materials = Object.entries(awarded.materials || {});
       if (materials.length > 0) {
         rewardText += ` / ${materials.map(([name, qty]) => `${name}: ${qty}`).join("、")}`;
       }
