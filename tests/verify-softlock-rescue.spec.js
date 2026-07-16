@@ -188,4 +188,43 @@ test.describe('Softlock Rescue Flow', () => {
 
     await expect(arthurRow).not.toBeVisible();
   });
+
+  test('Full roster can replace a dead member with a rescue newcomer', async ({ page }) => {
+    await page.evaluate(() => {
+      const save = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
+      const template = save.roster[0];
+      save.roster = Array.from({ length: 8 }, (_, index) => ({
+        ...template,
+        name: `Dead${index + 1}`,
+        level: index + 1,
+        status: 'dead'
+      }));
+      save.party = save.roster.slice(0, 4);
+      localStorage.setItem('mobile_wiz_rpg_autosave', JSON.stringify(save));
+    });
+    await page.goto('/');
+    await page.waitForTimeout(500);
+
+    await page.locator('button:has-text("訓練場")').click();
+
+    const rescueBtn = page.locator('button:has-text("志願者を募る")');
+    await expect(rescueBtn).toBeEnabled();
+    await expect(rescueBtn).toContainText('名簿満員');
+    await rescueBtn.click();
+
+    const selectedName = await page.locator('.rescue-candidate-name').first().textContent();
+    await page.locator('.btn-rescue-select').first().click();
+
+    await expect(page.locator('.training-title')).toContainText('名簿入れ替え');
+    await expect(page.locator('.rescue-candidate-card')).toHaveCount(8);
+
+    page.once('dialog', async dialog => {
+      expect(dialog.message()).toContain('名簿から完全に削除');
+      await dialog.accept();
+    });
+    await page.locator('.btn-rescue-select').first().click();
+
+    await expect(page.locator(`button:has-text("${selectedName}")`)).toBeVisible();
+    await expect(page.locator(`.training-party-slot.filled:has-text("${selectedName}")`)).toBeVisible();
+  });
 });
