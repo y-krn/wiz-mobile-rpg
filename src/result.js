@@ -29,13 +29,27 @@ export function persistDungeonTraps() {
           if (cell && cell.trap) {
             const trap = cell.trap;
             const trapId = trap.id;
+            const persistedTrap = state.dungeonMemory.traps[trapId];
+
+            if (persistedTrap?.state === "disabled") {
+              continue;
+            }
 
             if (trap.state === "disabled") {
+              const nextWeakenLevel = (trap.weakenLevel || 0) + 1;
+              if (nextWeakenLevel >= conf.permanentDisarmCount) {
+                state.dungeonMemory.traps[trapId] = {
+                  state: "disabled",
+                  weakenLevel: nextWeakenLevel,
+                  lastUpdatedAt: Date.now()
+                };
+                continue;
+              }
+
               if (Math.random() < conf.keepWeakenedRate) {
-                const prevLevel = trap.weakenLevel || 0;
                 state.dungeonMemory.traps[trapId] = {
                   state: "weakened",
-                  weakenLevel: prevLevel + 1,
+                  weakenLevel: nextWeakenLevel,
                   lastUpdatedAt: Date.now()
                 };
               } else {

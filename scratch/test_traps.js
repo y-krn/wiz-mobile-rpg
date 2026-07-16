@@ -189,7 +189,7 @@ Math.random = () => 0.1; // Force success
 persistDungeonTraps();
 console.log("- Dungeon memory after persistence:", state.dungeonMemory.traps["trap_1_5_5"]);
 if (!state.dungeonMemory.traps["trap_1_5_5"] || state.dungeonMemory.traps["trap_1_5_5"].state !== "weakened") {
-  console.error("FAIL: Dungeon memory did not preserve disabled trap as weakened.");
+  console.error("FAIL: Below-threshold trap did not preserve current weakened behavior.");
   process.exit(1);
 }
 
@@ -199,6 +199,44 @@ applyDungeonMemoryToMaps();
 console.log("- Map trap state after synchronization:", targetCell.trap.state);
 if (targetCell.trap.state !== "weakened" || targetCell.trap.weakenLevel !== 1) {
   console.error("FAIL: Synchronization to map failed.");
+  process.exit(1);
+}
+
+// Threshold reached on B1: the second disarm becomes permanent.
+targetCell.trap.state = "disabled";
+targetCell.trap.weakenLevel = 1;
+state.dungeonMemory.traps = {};
+persistDungeonTraps();
+const permanentTrap = state.dungeonMemory.traps["trap_1_5_5"];
+if (permanentTrap?.state !== "disabled" || permanentTrap.weakenLevel !== 2) {
+  console.error("FAIL: Threshold disarm was not saved as permanently disabled.");
+  process.exit(1);
+}
+
+// B5 never becomes permanent, regardless of weaken level.
+targetCell.trap.state = "disabled";
+targetCell.trap.weakenLevel = 99;
+state.maps = [null, null, null, null, mapB1.grid];
+state.dungeonMemory.traps = {};
+persistDungeonTraps();
+const deepTrap = state.dungeonMemory.traps["trap_1_5_5"];
+if (deepTrap?.state !== "weakened" || deepTrap.weakenLevel !== 100) {
+  console.error("FAIL: Deep trap was incorrectly made permanent.");
+  process.exit(1);
+}
+
+// A permanently disabled memory entry must never be rerolled or degraded.
+targetCell.trap.state = "disabled";
+targetCell.trap.weakenLevel = 0;
+state.maps = [mapB1.grid, null, null, null, null];
+state.dungeonMemory.traps = {
+  "trap_1_5_5": { state: "disabled", weakenLevel: 2, lastUpdatedAt: 123 }
+};
+Math.random = () => 0.99;
+persistDungeonTraps();
+const preservedTrap = state.dungeonMemory.traps["trap_1_5_5"];
+if (preservedTrap.state !== "disabled" || preservedTrap.weakenLevel !== 2 || preservedTrap.lastUpdatedAt !== 123) {
+  console.error("FAIL: Permanently disabled trap was degraded by persistence.");
   process.exit(1);
 }
 
