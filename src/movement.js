@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath } from "./state.js";
-import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix } from "./data.js";
+import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
@@ -236,11 +236,12 @@ function checkSensoryAura() {
   const px = state.x;
   const py = state.y;
   const hearRangeBonus = getPartyMaxAffix(state.party, "hearRange");
+  const sneakStep = getPartyCoreParams(state.party, "CORE_SNEAK_STEP");
   const arcaneSense = getPartyMaxAffix(state.party, "arcaneSense");
   const lightSenseRange = state.lightPower === "lomilwa" ? 4 : (state.lightTurns > 0 ? 3 : 2);
   const dumapicSenseRange = state.dumapicTurns > 0 ? 3 : 0;
   const baseSenseRange = Math.max(lightSenseRange, dumapicSenseRange);
-  const soundRange = baseSenseRange + hearRangeBonus;
+  const soundRange = baseSenseRange + hearRangeBonus + (sneakStep?.auraRangeBonus || 0);
   const arcaneRange = baseSenseRange;
   
   let nearestSpring = null;
@@ -376,6 +377,26 @@ function getAdjacentHiddenSecretDoorDir() {
   return null;
 }
 
+export function applyStairsHeal(cell) {
+  if (!state.currentRun || !["stairs-up", "stairs-down"].includes(cell?.type)) return 0;
+  state.currentRun.discoveredStairs ||= [];
+  const stairsId = `${state.floor}:${state.x},${state.y}`;
+  if (state.currentRun.discoveredStairs.includes(stairsId)) return 0;
+  state.currentRun.discoveredStairs.push(stairsId);
+
+  let total = 0;
+  state.party.forEach(char => {
+    if (!char || char.hp <= 0 || ["dead", "ash"].includes(char.status)) return;
+    const amount = getCharAffixSum(char, "stairsHeal");
+    if (amount <= 0) return;
+    const before = char.hp;
+    char.hp = Math.min(getCharMaxHp(char), char.hp + amount);
+    total += char.hp - before;
+  });
+  if (total > 0) addLog(`[踏破の息吹] 階段の発見でHPを${total}回復した！`);
+  return total;
+}
+
 export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // 遺留品の回収チェック
   if (state.remains && state.remains.length > 0) {
@@ -407,6 +428,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   }
 
   const cell = state.map[state.y][state.x];
+  applyStairsHeal(cell);
 
   // Stairs Up (exit to town or go to previous floor)
   if (cell.type === "stairs-up") {
@@ -817,6 +839,14 @@ export function moveRoamingMonsters(playerMoved = true) {
   const currentFloor = state.floor;
   const grid = state.map;
   if (!grid) return;
+  const sneakStep = getPartyCoreParams(state.party, "CORE_SNEAK_STEP");
+  if (sneakStep && state.currentRun) {
+    state.currentRun.loggedCoreActivations ||= [];
+    if (!state.currentRun.loggedCoreActivations.includes("CORE_SNEAK_STEP")) {
+      state.currentRun.loggedCoreActivations.push("CORE_SNEAK_STEP");
+      addLog(getCoreLogText("CORE_SNEAK_STEP"));
+    }
+  }
 
   state.roamingMonsters.forEach(monster => {
     if (monster.floor !== currentFloor) return;
@@ -826,7 +856,8 @@ export function moveRoamingMonsters(playerMoved = true) {
       player: { x: state.x, y: state.y, dir: state.dir, dx: DX, dy: DY },
       noise: getLatestNoise(),
       playerMoved,
-      grid
+      grid,
+      rangeMultiplier: sneakStep?.detectionRangeMultiplier || 1
     });
     monster.detected = intent.detected;
     for (let step = 0; step < intent.speed; step++) {

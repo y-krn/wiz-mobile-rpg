@@ -1,4 +1,4 @@
-import { getCharMaxHp, getCharMaxMp } from "../data.js";
+import { getCharMaxHp, getCharMaxMp, getCharCoreParams } from "../data.js";
 import { getWardenGateId } from "../state/warden_gates.js";
 
 const CAMP_FLOORS = new Set([2, 4]);
@@ -20,12 +20,16 @@ export function restAtCamp(stateObj) {
 
   let hpRecovered = 0;
   let mpRecovered = 0;
+  const coreUsers = [];
   stateObj.party.forEach(char => {
-    if (char.status === "dead") return;
+    if (char.hp <= 0 || ["dead", "ash"].includes(char.status)) return;
     const maxHp = getCharMaxHp(char);
     const maxMp = getCharMaxMp(char);
-    const hpGain = Math.ceil((maxHp - char.hp) * 0.4);
-    const mpGain = Math.ceil((maxMp - char.mp) * 0.4);
+    const params = getCharCoreParams(char, "CORE_CAMP_MASTER");
+    const multiplier = params?.recoveryMultiplier || 1;
+    if (params) coreUsers.push(char.name);
+    const hpGain = Math.min(maxHp - char.hp, Math.ceil((maxHp - char.hp) * 0.4 * multiplier));
+    const mpGain = Math.min(maxMp - char.mp, Math.ceil((maxMp - char.mp) * 0.4 * multiplier));
     char.hp = Math.min(maxHp, char.hp + hpGain);
     char.mp = Math.min(maxMp, char.mp + mpGain);
     hpRecovered += hpGain;
@@ -34,5 +38,5 @@ export function restAtCamp(stateObj) {
 
   stateObj.currentRun.campRested ??= {};
   stateObj.currentRun.campRested[stateObj.floor] = true;
-  return { available: true, reason: null, hpRecovered, mpRecovered };
+  return { available: true, reason: null, hpRecovered, mpRecovered, coreUsers };
 }

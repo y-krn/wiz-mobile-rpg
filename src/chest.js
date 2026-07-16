@@ -1,11 +1,20 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath } from "./state.js";
-import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomAccessory, generateRandomEquipment, getCharAffixSum, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
+import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomAccessory, generateRandomEquipment, getCharAffixSum, getPartyMaxAffix, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
 import { menuContext, openSubmenu, resetSubmenuBackButton } from "./navigation.js";
 import { triggerGameOver } from "./combat.js";
 import { createRng } from "./seed_rng.js";
+import { increaseChestTrapTier } from "./systems/traps.js";
+
+export function applyTombRaiderTrapTier(chest, opener) {
+  const params = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
+  if (!params || chest.tombRaiderTrapApplied) return false;
+  chest.trap = increaseChestTrapTier(chest.trap, params.trapTierBonus);
+  chest.tombRaiderTrapApplied = true;
+  return true;
+}
 
 function rollChestAccessory(floor, rng, party) {
   const chance = floor >= 5 ? 0.16 : (floor === 4 ? 0.14 : (floor === 3 ? 0.12 : 0.08));
@@ -405,11 +414,7 @@ export function openChestMenu() {
   btnOpen.textContent = "宝箱を開ける";
   btnOpen.style.minHeight = "44px";
   btnOpen.addEventListener("click", () => {
-    if (state.chestState.trap && state.chestState.trap !== "none") {
-      openSubmenu("chest_opener_select", "宝箱を開けるキャラクターを選択：");
-      return;
-    }
-    openChestDirectly();
+    openSubmenu("chest_opener_select", "宝箱を開けるキャラクターを選択：");
   });
   optGrid.appendChild(btnOpen);
 
@@ -440,7 +445,8 @@ export function openChestMenu() {
 
 
 
-export function executeDisarm(char) {
+export function executeDisarm(char, rng = Math.random) {
+  applyTombRaiderTrapTier(state.chestState, char);
   let chance = 0.25;
   if (char.class === "Thief") {
     chance = 0.85;
@@ -451,7 +457,7 @@ export function executeDisarm(char) {
   if (char.status === "blind") {
     chance = chance / 2.0;
   }
-  const success = Math.random() < chance;
+  const success = rng() < chance;
   
   state.transitioning = true;
     if (success) {
@@ -473,6 +479,13 @@ export function executeDisarm(char) {
     if (char.runTrapAttackBonus > previousTrapBonus) {
       addLog(getCoreLogText("CORE_TRAP_EATER"));
     }
+    const trapGold = getCharAffixSum(char, "trapGold");
+    if (trapGold > 0) {
+      const amount = state.floor * 2 + trapGold;
+      state.gold += amount;
+      if (state.currentRun) state.currentRun.goldGained += amount;
+      addLog(`[罠銭] 罠の機構から${amount}Gを回収した！`);
+    }
     state.chestState.trap = "none";
     playSound("heal");
   } else {
@@ -485,7 +498,7 @@ export function executeDisarm(char) {
   
   // Open the chest after disarm attempt resolves
   setTimeout(() => {
-    openChestDirectly(char);
+    openChestDirectly(char, rng);
   }, 1500);
 }
 
@@ -561,13 +574,14 @@ export function triggerChestTrap(char) {
   }
 }
 
-export function openChestDirectly(opener = null) {
+export function openChestDirectly(opener = null, rng = Math.random) {
   state.transitioning = true;
   menuContext.type = "chest_result";
   const chest = state.chestState;
   const chestMap = state.map;
   const chestX = chest.x;
   const chestY = chest.y;
+  const tombRaiderActivated = applyTombRaiderTrapTier(chest, opener);
   
   if (state.currentRun) {
     state.currentRun.chestsOpened++;
@@ -592,14 +606,17 @@ export function openChestDirectly(opener = null) {
   }
 
   // Award Gold
-  state.gold += chest.gold;
+  const goldBonus = getPartyMaxAffix(state.party, "goldBonus");
+  const awardedGold = Math.floor(chest.gold * (1 + goldBonus / 100));
+  state.gold += awardedGold;
   if (state.currentRun) {
-    state.currentRun.goldGained += chest.gold;
+    state.currentRun.goldGained += awardedGold;
   }
-  addLog(`宝箱から ${chest.gold} ゴールドを見つけた！`);
+  addLog(`宝箱から ${awardedGold} ゴールドを見つけた！`);
   
   // 素材束の獲得
-  const mats = generateChestMaterials(state.floor);
+  const tombRaider = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
+  const mats = generateChestMaterials(state.floor, rng, tombRaider?.materialBonus || 0);
   if (Object.keys(mats).length > 0) {
     Object.entries(mats).forEach(([mat, qty]) => {
       if (!state.materials) state.materials = {};
@@ -614,6 +631,7 @@ export function openChestDirectly(opener = null) {
     });
     const matStr = Object.entries(mats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
     addLog(`宝箱から素材束: [${matStr}] を獲得した！`);
+    if (tombRaiderActivated || tombRaider) addLog(getCoreLogText("CORE_TOMB_RAIDER"));
   }
   
   if (state.codex && state.codex.events && state.codex.events.facilities) {
@@ -688,9 +706,9 @@ export function openChestDirectly(opener = null) {
   }, 1800);
 }
 
-function generateChestMaterials(floor, rng = Math.random) {
+export function generateChestMaterials(floor, rng = Math.random, bonus = 0) {
   const mats = {};
-  const qty = Math.floor(rng() * 3) + 1; // 1-3個の素材が手に入る
+  const qty = Math.floor(rng() * 3) + 1 + bonus; // 1-3個 + コア補正
   let pool = ["獣の牙", "硬い皮"];
   if (floor === 2) pool = ["獣の牙", "硬い皮", "毒腺", "骨片"];
   else if (floor === 3) pool = ["骨片", "霊粉", "魔石片", "呪布"];

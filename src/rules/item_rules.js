@@ -1,6 +1,6 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { getClassPassiveBonus } from "./class_rules.js";
-import { formatAffixText } from "../data/affixes.js";
+import { formatAffixText, getAffixDefinition } from "../data/affixes.js";
 
 export function getItemBaseId(item) {
   if (!item) return "";
@@ -27,17 +27,36 @@ export function getEffectiveHealAmount(target, amount) {
   return Math.max(1, Math.round(amount * mult));
 }
 
+function canApplyUnidentifiedEquipmentEffects(char) {
+  return Object.values(char?.equipment || {}).some(item => {
+    if (!item || typeof item !== "object" || !item.identified) return false;
+    return (item.affixes || []).some(affix => {
+      const id = affix.id || affix.type;
+      return id === "CORE_KEEN_EYE" && getAffixDefinition(id)?.enabled;
+    });
+  });
+}
+
+export function getEquippedItemData(char, item) {
+  if (item && typeof item === "object" && !item.identified && canApplyUnidentifiedEquipmentEffects(char)) {
+    return getItemData({ ...item, identified: true });
+  }
+  return getItemData(item);
+}
+
 export function getCharAffixSum(char, affixType) {
   if (!char || !char.equipment) return 0;
   let sum = 0;
+  const applyUnidentified = canApplyUnidentifiedEquipmentEffects(char);
   Object.values(char.equipment).forEach(eqKey => {
     if (!eqKey) return;
-    const eqData = getItemData(eqKey);
-    if ((typeof eqKey !== "object" || eqKey.identified) && eqData?.affixBonus?.[affixType] !== undefined) {
+    const isMechanicallyActive = typeof eqKey !== "object" || eqKey.identified || applyUnidentified;
+    const eqData = isMechanicallyActive ? getEquippedItemData(char, eqKey) : getItemData(eqKey);
+    if (isMechanicallyActive && eqData?.affixBonus?.[affixType] !== undefined) {
       sum += eqData.affixBonus[affixType];
     }
     if (typeof eqKey === "object") {
-      if (eqKey.identified) {
+      if (eqKey.identified || applyUnidentified) {
         if (eqKey.affixes) {
           eqKey.affixes.forEach(aff => {
             if (aff.type === affixType) {

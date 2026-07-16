@@ -474,6 +474,7 @@ export function renderEventCamp(optGrid) {
       const result = restAtCamp(state);
       if (!result.available) return;
       playSound("heal");
+      if (result.coreUsers?.length) addLog(`[野営の達人] ${result.coreUsers.join("・")}の休息効果が倍増した！`);
       addLog(`[!] 野営地で休息した。パーティ合計 HP ${result.hpRecovered} / MP ${result.mpRecovered} 回復。`);
       saveAutosave();
       closeSubmenu();

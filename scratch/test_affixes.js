@@ -21,7 +21,7 @@ function lcg(seed) {
 }
 
 assert.strictEqual(SUPPORT_AFFIXES.length, 47, "support registry count");
-assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 39, "enabled Phase 2 support count");
+assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 47, "enabled Phase 3 support count");
 assert.deepStrictEqual(
   Object.fromEntries(["basic", "conditional", "trigger", "economy"].map(category => [
     category,
@@ -39,8 +39,8 @@ assert.strictEqual(CORE_AFFIXES.length, 16, "core registry count");
 assert.ok(CORE_AFFIXES.every(affix => affix.kind === "core" && affix.cost === 10));
 assert.deepStrictEqual(
   CORE_AFFIXES.filter(affix => affix.enabled).map(affix => affix.id),
-  CORE_AFFIXES.slice(0, 10).map(affix => affix.id),
-  "Phase 2 combat cores enabled"
+  CORE_AFFIXES.map(affix => affix.id),
+  "Phase 3: all cores enabled"
 );
 assert.strictEqual(new Set(CORE_AFFIXES.map(affix => affix.id)).size, 16, "core IDs unique");
 assert.ok(formatAffixText(CORE_AFFIXES[0]).startsWith("◆背水: HP25%以下"));

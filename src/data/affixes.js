@@ -62,7 +62,12 @@ export const AFFIX_BALANCE = {
     equipment: { magic: 1, rare: 2, epic: 3 },
     accessory: { magic: 1, rare: 1, epic: 2 }
   },
-  coreCurseChance: 0.3
+  coreCurseChance: 0.3,
+  corePoolWeights: {
+    shallowMaxFloor: 2,
+    shallow: { combat: 1, economy: 3 },
+    deep: { combat: 3, economy: 1 }
+  }
 };
 
 function support(id, jpName, desc, category, options = {}) {
@@ -121,16 +126,16 @@ export const SUPPORT_AFFIXES = [
 
   support("killHeal", "吸命", "敵撃破時にHPを2回復する。", "trigger"),
   support("followUpMp", "連環", "追撃時にMPを1回復する。", "trigger"),
-  support("trapGold", "罠銭", "罠解除時に少額のGOLDを得る。", "trigger", { enabled: false }),
+  support("trapGold", "罠銭", "罠解除時に少額のGOLDを得る。", "trigger"),
   support("hitFlinch", "威圧", "被弾時に低確率で敵を怯ませる。", "trigger"),
-  support("victoryMaterial", "拾得", "勝利時に低確率で素材を得る。", "trigger", { enabled: false }),
-  support("stairsHeal", "踏破の息吹", "階段発見時にHPを回復する。", "trigger", { enabled: false }),
+  support("victoryMaterial", "拾得", "勝利時に低確率で素材を得る。", "trigger", { unit: "%" }),
+  support("stairsHeal", "踏破の息吹", "階段発見時にHPを回復する。", "trigger"),
 
-  support("identifyDiscount", "鑑定眼", "鑑定費用を軽減する。", "economy", { enabled: false, unit: "%" }),
-  support("materialFind", "素材探し", "素材発見率が10%増加する。", "economy", { enabled: false, unit: "%" }),
-  support("goldBonus", "金運", "獲得GOLDが10%増加する。", "economy", { enabled: false, unit: "%" }),
-  support("contractReward", "契約巧者", "契約報酬が10%増加する。", "economy", { enabled: false, unit: "%" }),
-  support("merchantDiscount", "商談", "商人価格を5%軽減する。", "economy", { enabled: false, unit: "%" })
+  support("identifyDiscount", "鑑定眼", "鑑定費用を軽減する。", "economy", { unit: "%" }),
+  support("materialFind", "素材探し", "素材発見率が10%増加する。", "economy", { unit: "%" }),
+  support("goldBonus", "金運", "獲得GOLDが10%増加する。", "economy", { unit: "%" }),
+  support("contractReward", "契約巧者", "契約報酬が10%増加する。", "economy", { unit: "%" }),
+  support("merchantDiscount", "商談", "商人価格を5%軽減する。", "economy", { unit: "%" })
 ];
 
 export const CORE_AFFIXES = [
@@ -142,6 +147,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { hpThreshold: 0.25, damageMultiplier: 1.4 },
+    poolGroup: "combat",
     enabled: true
   },
   {
@@ -152,6 +158,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { followUpChance: 1 },
+    poolGroup: "combat",
     enabled: true
   },
   {
@@ -162,6 +169,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { hpCostMultiplier: 2 },
+    poolGroup: "combat",
     enabled: true
   },
   {
@@ -172,6 +180,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { mpRecovery: 1, targetTags: ["undead", "demon"] },
+    poolGroup: "combat",
     enabled: true
   },
   {
@@ -182,6 +191,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { attackPerDisarm: 2, maxAttack: 20 },
+    poolGroup: "combat",
     enabled: true
   },
   {
@@ -192,6 +202,7 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { statsPerCurse: 3 },
+    poolGroup: "combat",
     enabled: true
   },
   {
@@ -202,6 +213,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { damageMultiplier: 1.3 },
+    poolGroup: "combat",
     enabled: true
   },
   {
@@ -212,6 +224,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { rowRate: 1 },
+    poolGroup: "combat",
     enabled: true
   },
   {
@@ -222,6 +235,7 @@ export const CORE_AFFIXES = [
     slot: "shield",
     cost: 10,
     params: { counterChance: 0.3, counterPower: 0.5 },
+    poolGroup: "combat",
     enabled: true
   },
   {
@@ -232,6 +246,7 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { damageMultiplier: 2 },
+    poolGroup: "combat",
     enabled: true
   },
   {
@@ -242,7 +257,8 @@ export const CORE_AFFIXES = [
     slot: "armor",
     cost: 10,
     params: { detectionRangeMultiplier: 0.5, auraRangeBonus: 1 },
-    enabled: false
+    poolGroup: "economy",
+    enabled: true
   },
   {
     id: "CORE_TOMB_RAIDER",
@@ -252,7 +268,8 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { materialBonus: 1, trapTierBonus: 1 },
-    enabled: false
+    poolGroup: "economy",
+    enabled: true
   },
   {
     id: "CORE_KEEN_EYE",
@@ -262,7 +279,8 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { applyUnidentifiedEffects: true, hideUntilIdentified: true },
-    enabled: false
+    poolGroup: "economy",
+    enabled: true
   },
   {
     id: "CORE_CAMP_MASTER",
@@ -272,7 +290,8 @@ export const CORE_AFFIXES = [
     slot: "armor",
     cost: 10,
     params: { recoveryMultiplier: 2 },
-    enabled: false
+    poolGroup: "economy",
+    enabled: true
   },
   {
     id: "CORE_BOUNTY_HUNTER",
@@ -282,7 +301,8 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { contractCountMultiplier: 2 },
-    enabled: false
+    poolGroup: "economy",
+    enabled: true
   },
   {
     id: "CORE_SCHOLAR_EYE",
@@ -292,7 +312,8 @@ export const CORE_AFFIXES = [
     slot: "accessory",
     cost: 10,
     params: { guaranteedMaterialDrop: true },
-    enabled: false
+    poolGroup: "economy",
+    enabled: true
   }
 ];
 

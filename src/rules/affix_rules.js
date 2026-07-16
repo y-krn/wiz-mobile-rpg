@@ -39,6 +39,33 @@ export function getCharCoreParams(char, coreId) {
   return getCharCoreDefinition(char, coreId)?.params || null;
 }
 
+export function partyHasCoreAffix(party, coreId) {
+  if (!Array.isArray(party)) return false;
+  return party.some(char => {
+    if (!char || char.hp <= 0 || ["dead", "ash"].includes(char.status)) return false;
+    return Boolean(getCharCoreAffix(char, coreId));
+  });
+}
+
+export function getPartyCoreParams(party, coreId) {
+  return partyHasCoreAffix(party, coreId) ? getAffixDefinition(coreId)?.params || null : null;
+}
+
+export function canEquipUnidentifiedItem(char, item) {
+  if (!item || typeof item !== "object" || item.identified) return true;
+  return Boolean(getCharCoreParams(char, "CORE_KEEN_EYE")?.applyUnidentifiedEffects);
+}
+
+export function hasHiddenEquipmentEffects(char) {
+  if (!getCharCoreParams(char, "CORE_KEEN_EYE")) return false;
+  return Object.values(char?.equipment || {}).some(item => item && typeof item === "object" && !item.identified);
+}
+
+export function getContractProgressIncrement(party, baseCount = 1) {
+  const params = getPartyCoreParams(party, "CORE_BOUNTY_HUNTER");
+  return baseCount * (params?.contractCountMultiplier || 1);
+}
+
 export function getEquippedCurseCount(char) {
   if (!char?.equipment) return 0;
   return Object.values(char.equipment).filter(item => {
@@ -142,7 +169,13 @@ export function getCoreLogText(coreId) {
     CORE_GIANT_SLAYER: "巨躯を断つ一撃が冴えた！",
     CORE_REARGUARD: "後列から間合いを制した！",
     CORE_THORN_SHIELD: "棘が攻撃者へ牙を剥いた！",
-    CORE_EXECUTIONER: "弱った敵へ執行の刃を振るった！"
+    CORE_EXECUTIONER: "弱った敵へ執行の刃を振るった！",
+    CORE_SNEAK_STEP: "気配を殺し、敵の感知を鈍らせた！",
+    CORE_TOMB_RAIDER: "危険な罠ごと宝を奪い取った！",
+    CORE_KEEN_EYE: "未知の装備の真価を引き出した！",
+    CORE_CAMP_MASTER: "野営の知恵で回復を高めた！",
+    CORE_BOUNTY_HUNTER: "契約対象を確実に仕留めた！",
+    CORE_SCHOLAR_EYE: "未知の魔物から素材を見抜いた！"
   };
   return `[${name}] ${messages[coreId] || "コアが発動した！"}`;
 }

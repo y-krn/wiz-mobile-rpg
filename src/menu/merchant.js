@@ -1,7 +1,12 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem } from "../state.js";
-import { ITEMS, getItemData, getItemBaseId, generateRandomAccessory, generateRandomEquipment } from "../data.js";
+import { ITEMS, getItemData, getItemBaseId, generateRandomAccessory, generateRandomEquipment, getPartyMaxAffix } from "../data.js";
 import { playSound } from "../audio.js";
 import { openSubmenu, closeSubmenu } from "../navigation.js";
+
+export function getMerchantPrice(basePrice, party) {
+  const discount = getPartyMaxAffix(party, "merchantDiscount");
+  return Math.max(1, Math.floor(basePrice * (1 - discount / 100)));
+}
 
 export function generateMerchantStock(floor, inventory) {
   const generated = [];
@@ -143,21 +148,22 @@ export function renderEventMerchantBuy(optGrid) {
         btn.textContent = `[売り切れ] ${name}`;
         btn.disabled = true;
       } else {
+        const price = getMerchantPrice(stock.price, state.party);
         const isLimitedItem = stock.key === "SACRED_ASHES" || stock.key === "LIFE_WATER" || stock.key === "TOWN_PORTAL";
         const hasLimitedItem = state.inventory.some(i => getItemBaseId(i) === stock.key);
         const bagFull = state.inventory.length >= 20;
         
-        btn.textContent = `${name} (${stock.price}G) - ${desc}`;
+        btn.textContent = `${name} (${price}G) - ${desc}`;
 
         // バッグ制限のチェック
         const needsBagSpace = (stockType === "item" || stockType === "unidentified" || stockType === "unidentified_accessory");
 
-        if (state.gold < stock.price || (isLimitedItem && hasLimitedItem) || (needsBagSpace && bagFull)) {
+        if (state.gold < price || (isLimitedItem && hasLimitedItem) || (needsBagSpace && bagFull)) {
           btn.disabled = true;
           if (isLimitedItem && hasLimitedItem) {
-            btn.textContent = `[所持数制限] ${name} (${stock.price}G)`;
+            btn.textContent = `[所持数制限] ${name} (${price}G)`;
           } else if (needsBagSpace && bagFull) {
-            btn.textContent = `[バッグ満杯] ${name} (${stock.price}G)`;
+            btn.textContent = `[バッグ満杯] ${name} (${price}G)`;
           }
         }
 
@@ -192,13 +198,13 @@ export function renderEventMerchantBuy(optGrid) {
           }
 
           if (purchaseSuccess) {
-            state.gold -= stock.price;
+            state.gold -= price;
             if (state.codex && state.codex.events && state.codex.events.facilities) {
               state.codex.events.facilities.merchant.purchased++;
             }
             stock.soldOut = true;
             playSound("gold");
-            addLog(`[!] 商人から[${name}]を${stock.price}Gで購入した。`);
+            addLog(`[!] 商人から[${name}]を${price}Gで購入した。`);
             saveAutosave();
             openSubmenu("event_merchant_result", "商人「毎度あり。」");
           }

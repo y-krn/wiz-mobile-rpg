@@ -1,5 +1,5 @@
-import { state, saveGame, saveAutosave, syncPartyToRoster } from "./state.js";
-import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT, getItemBaseId, isSpecialOrQuestItem, ITEMS, getItemData } from "./data.js";
+import { state, saveGame, saveAutosave, syncPartyToRoster, addLog } from "./state.js";
+import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT, getItemBaseId, isSpecialOrQuestItem, ITEMS, getItemData, getCoreLogText } from "./data.js";
 import { updateUI } from "./ui.js";
 import { checkActiveContract, generateContractsList } from "./contracts.js";
 import { trapPersistenceByDepth } from "./systems/traps.js";
@@ -363,6 +363,7 @@ export function triggerRunResult(reason) {
   let contractResult = null;
   if (state.activeContract) {
     contractResult = checkActiveContract(state, state.currentRun, true);
+    if (contractResult?.bountyHunterActivated) addLog(getCoreLogText("CORE_BOUNTY_HUNTER"));
   } else {
     if (!state.contracts || state.contracts.length === 0) {
       state.contracts = generateContractsList(state);

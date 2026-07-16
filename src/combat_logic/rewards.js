@@ -1,32 +1,42 @@
 import {
-  generateRandomAccessory, generateRandomEquipment, getItemData, checkCharLevelUp
+  generateRandomAccessory, generateRandomEquipment, getItemData, checkCharLevelUp,
+  getPartyMaxAffix, partyHasCoreAffix, getContractProgressIncrement, getCoreLogText
 } from "../data.js";
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
 import { applyOpenedGatesToMap } from "../state/warden_gates.js";
 import { recordWardenDefeat } from "../contracts.js";
 
-function rollCombatAccessoryDrop(state) {
-  const roll = Math.random();
+function rollCombatAccessoryDrop(state, rng) {
+  const roll = rng();
   if (state.combatState.isBoss) {
-    return roll > 0 && roll < 0.35 ? generateRandomAccessory(state.floor, "epic", Math.random, state.party) : null;
+    return roll > 0 && roll < 0.35 ? generateRandomAccessory(state.floor, "epic", rng, state.party) : null;
   }
   if (state.combatState.isMidboss || state.combatState.isRoamingFlack) {
-    return roll > 0 && roll < 0.25 ? generateRandomAccessory(state.floor, "rare", Math.random, state.party) : null;
+    return roll > 0 && roll < 0.25 ? generateRandomAccessory(state.floor, "rare", rng, state.party) : null;
   }
   const isRare = state.combatState.monsters?.some(m => m.isRare);
   const chance = isRare ? 0.12 : 0.03;
-  return roll > 0 && roll < chance ? generateRandomAccessory(state.floor, null, Math.random, state.party) : null;
+  return roll > 0 && roll < chance ? generateRandomAccessory(state.floor, null, rng, state.party) : null;
 }
 
-export function applyCombatRewards(state, monsters, logQueue) {
+export function applyCombatRewards(state, monsters, logQueue, rng = Math.random) {
   const nonFledMonsters = monsters.filter(m => !m.fled);
   const totalExp = nonFledMonsters.reduce((sum, m) => sum + m.exp, 0);
-  const totalGold = nonFledMonsters.reduce((sum, m) => {
+  const rawGold = nonFledMonsters.reduce((sum, m) => {
     const g = m.isBoss || m.isRare ? m.gold : Math.max(1, Math.round(m.gold * 0.15));
     return sum + g;
   }, 0);
+  const goldBonus = getPartyMaxAffix(state.party, "goldBonus");
+  const totalGold = Math.floor(rawGold * (1 + goldBonus / 100));
   const livingChars = state.party.filter(c => c.status !== "dead");
+  const bountyHunter = partyHasCoreAffix(state.party, "CORE_BOUNTY_HUNTER");
+  const scholarEye = partyHasCoreAffix(state.party, "CORE_SCHOLAR_EYE");
+  const uncataloguedNames = new Set(nonFledMonsters.filter(m => {
+    const baseName = m.name.replace(/\s[A-Z]$/, "");
+    return (state.codex?.monsters?.[baseName]?.killed || 0) === 0;
+  }).map(m => m.name.replace(/\s[A-Z]$/, "")));
+  let bountyHunterActivated = false;
 
   // Check First Kill Bonuses
   let bonusGold = 0;
@@ -93,7 +103,9 @@ export function applyCombatRewards(state, monsters, logQueue) {
       }
       
       if (state.activeContract && state.activeContract.type === "kill" && state.activeContract.targetMonsterName === baseName) {
-        state.activeContract.currentValue = (state.activeContract.currentValue || 0) + 1;
+        state.activeContract.currentValue = (state.activeContract.currentValue || 0)
+          + getContractProgressIncrement(state.party, 1);
+        bountyHunterActivated ||= bountyHunter;
       }
     });
   }
@@ -120,8 +132,16 @@ export function applyCombatRewards(state, monsters, logQueue) {
 
   // 素材ドロップの実行
   const runMats = {};
+  const materialFind = getPartyMaxAffix(state.party, "materialFind") / 100;
+  let scholarActivated = false;
   nonFledMonsters.forEach(m => {
-    const drops = determineMonsterDrop(m, state.floor);
+    const baseName = m.name.replace(/\s[A-Z]$/, "");
+    const guaranteed = scholarEye && uncataloguedNames.has(baseName);
+    const drops = determineMonsterDrop(m, state.floor, rng, {
+      chanceBonus: materialFind,
+      guaranteed
+    });
+    scholarActivated ||= guaranteed;
     Object.entries(drops).forEach(([mat, qty]) => {
       runMats[mat] = (runMats[mat] || 0) + qty;
       
@@ -136,6 +156,19 @@ export function applyCombatRewards(state, monsters, logQueue) {
       }
     });
   });
+
+  const victoryMaterial = getPartyMaxAffix(state.party, "victoryMaterial");
+  if (nonFledMonsters.length > 0 && victoryMaterial > 0 && rng() * 100 < victoryMaterial) {
+    const mat = getMonsterMainMaterial(nonFledMonsters[Math.floor(rng() * nonFledMonsters.length)]);
+    runMats[mat] = (runMats[mat] || 0) + 1;
+    state.materials ||= {};
+    state.materials[mat] = (state.materials[mat] || 0) + 1;
+    if (state.currentRun) {
+      state.currentRun.materialsFound ||= {};
+      state.currentRun.materialsFound[mat] = (state.currentRun.materialsFound[mat] || 0) + 1;
+    }
+    logQueue.push({ msg: `[拾得] 勝利の跡から${mat}を見つけた！`, sound: "gold" });
+  }
 
   logQueue.push({ msg: "======================================" });
   if (nonFledMonsters.length > 0) {
@@ -158,6 +191,12 @@ export function applyCombatRewards(state, monsters, logQueue) {
         msg: `  -> 素材を獲得した: [${matStr}]`,
         sound: "gold"
       });
+    }
+    if (bountyHunterActivated) {
+      logQueue.push({ msg: getCoreLogText("CORE_BOUNTY_HUNTER") });
+    }
+    if (scholarActivated) {
+      logQueue.push({ msg: getCoreLogText("CORE_SCHOLAR_EYE") });
     }
 
     if (firstKilledNames.length > 0) {
@@ -214,18 +253,18 @@ export function applyCombatRewards(state, monsters, logQueue) {
   // 敵撃破時の未鑑定装備ドロップ判定
   let dropEquipment = null;
   if (state.combatState.isBoss) {
-    dropEquipment = generateRandomEquipment(state.floor, "epic", Math.random, state.party);
+    dropEquipment = generateRandomEquipment(state.floor, "epic", rng, state.party);
   } else if (state.combatState.isMidboss) {
-    const rarity = Math.random() < 0.25 ? "epic" : "rare";
-    dropEquipment = generateRandomEquipment(state.floor, rarity, Math.random, state.party);
+    const rarity = rng() < 0.25 ? "epic" : "rare";
+    dropEquipment = generateRandomEquipment(state.floor, rarity, rng, state.party);
   } else if (state.combatState.isRoamingFlack) {
-    const rarity = Math.random() < 0.30 ? "epic" : "rare";
-    dropEquipment = generateRandomEquipment(state.floor, rarity, Math.random, state.party);
+    const rarity = rng() < 0.30 ? "epic" : "rare";
+    dropEquipment = generateRandomEquipment(state.floor, rarity, rng, state.party);
   } else {
     const isRare = state.combatState.monsters && state.combatState.monsters.some(m => m.isRare);
     const chance = isRare ? 0.55 : 0.14;
-    if (Math.random() < chance) {
-      dropEquipment = generateRandomEquipment(state.floor, null, Math.random, state.party);
+    if (rng() < chance) {
+      dropEquipment = generateRandomEquipment(state.floor, null, rng, state.party);
     }
   }
 
@@ -248,7 +287,7 @@ export function applyCombatRewards(state, monsters, logQueue) {
     }
   }
 
-  const dropAccessory = rollCombatAccessoryDrop(state);
+  const dropAccessory = rollCombatAccessoryDrop(state, rng);
   if (dropAccessory) {
     const added = addInventoryItemToState(state, dropAccessory);
     if (added) {
@@ -291,6 +330,9 @@ export function applyCombatRewards(state, monsters, logQueue) {
 
     if (isWarden) {
       recordWardenDefeat(state, gateId);
+      if (bountyHunter && state.activeContract?.type === "warden") {
+        logQueue.push({ msg: getCoreLogText("CORE_BOUNTY_HUNTER") });
+      }
       if (gateId) {
         if (!state.openedGates) state.openedGates = [];
         if (!state.openedGates.includes(gateId)) {
@@ -317,7 +359,7 @@ export function applyCombatRewards(state, monsters, logQueue) {
       }
     }
   } else {
-    if (Math.random() < 0.20) {
+    if (rng() < 0.20) {
       logQueue.push({
         msg: "モンスターが宝箱を残していった！",
         triggerChest: true

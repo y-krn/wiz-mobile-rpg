@@ -9,6 +9,35 @@ import { descendToFloor, findCellCoordsByType } from "../movement.js";
 import { MAP_WIDTH, MAP_HEIGHT, START_X, START_Y, DX, DY, getPartyMaxAffix } from "../data.js";
 import { armControlsGuard } from "../controls_guard.js";
 
+const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
+
+export function increaseChestTrapTier(trap, levels = 1) {
+  const index = CHEST_TRAP_TIERS.indexOf(trap);
+  if (index < 0) return trap;
+  return CHEST_TRAP_TIERS[Math.min(CHEST_TRAP_TIERS.length - 1, index + levels)];
+}
+
+function getBestDisarmer() {
+  return (state.party || []).filter(char => char?.hp > 0 && !["dead", "ash"].includes(char.status))
+    .reduce((best, char) => {
+      const classBonus = char.class === "Thief" ? char.level * 2 + 15
+        : char.class === "Ninja" ? char.level * 1.5 + 10
+          : char.class === "Ranger" ? char.level + 5 : 0;
+      const score = char.luk + char.agi + classBonus;
+      return !best || score > best.score ? { char, score } : best;
+    }, null)?.char || null;
+}
+
+function awardTrapGold(char) {
+  const affix = getPartyMaxAffix(char ? [char] : [], "trapGold");
+  if (affix <= 0) return 0;
+  const amount = state.floor * 2 + affix;
+  state.gold += amount;
+  if (state.currentRun) state.currentRun.goldGained += amount;
+  addLog(`[罠銭] 罠の機構から${amount}Gを回収した！`);
+  return amount;
+}
+
 // 罠設定値
 export const weakenedModifiers = {
   triggerRate: 0.5,
@@ -45,16 +74,13 @@ export function calculateSuccessRate(trap) {
   let disarmerSkill = 0;
   
   // 生存しているパーティメンバーから最高スキル値を取得
-  const disarmers = state.party.filter(c => c.hp > 0);
-  if (disarmers.length > 0) {
-    const skills = disarmers.map(c => {
-      let bonus = 0;
-      if (c.class === "Thief") bonus = c.level * 2 + 15;
-      else if (c.class === "Ninja") bonus = c.level * 1.5 + 10;
-      else if (c.class === "Ranger") bonus = c.level * 1.0 + 5;
-      return c.luk + c.agi + bonus;
-    });
-    disarmerSkill = Math.max(...skills);
+  const disarmer = getBestDisarmer();
+  if (disarmer) {
+    let bonus = 0;
+    if (disarmer.class === "Thief") bonus = disarmer.level * 2 + 15;
+    else if (disarmer.class === "Ninja") bonus = disarmer.level * 1.5 + 10;
+    else if (disarmer.class === "Ranger") bonus = disarmer.level + 5;
+    disarmerSkill = disarmer.luk + disarmer.agi + bonus;
   }
 
   let weakenedBonus = 0;
@@ -433,6 +459,7 @@ export function handleTrapAction(action) {
           state.currentRun.trapsDisarmed++;
         }
         recordTrapCodex("pitfall", "disarmed");
+        awardTrapGold(getBestDisarmer());
         state.gameState = "explore";
         state.activeTrapState = null;
         saveAutosave();
@@ -462,6 +489,7 @@ export function handleTrapAction(action) {
       }
       const codexTrapType = trap.type === "damage" ? "poison needle" : (trap.type === "mpDrain" ? "gas bomb" : "flash bomb");
       recordTrapCodex(codexTrapType, "disarmed");
+      awardTrapGold(getBestDisarmer());
       state.gameState = "explore";
       state.activeTrapState = null;
       saveAutosave();
