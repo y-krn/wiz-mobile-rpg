@@ -1,15 +1,59 @@
 import { getAffixDefinition } from "../data/affixes.js";
 import { getCharAffixSum } from "./item_rules.js";
 
-export function getEquippedCoreAffixes(char, { activeOnly = true } = {}) {
+const halveMultiplier = value => 1 + (value - 1) / 2;
+const halveConstant = value => Math.floor(value / 2);
+
+const CORE_SEAL_RULES = {
+  CORE_LAST_STAND: params => ({ ...params, damageMultiplier: halveMultiplier(params.damageMultiplier) }),
+  CORE_OPENER: params => ({ ...params, followUpChance: params.followUpChance / 2 }),
+  CORE_BLOOD_WAND: params => ({ ...params, hpCostMultiplier: params.hpCostMultiplier * 2 }),
+  CORE_PURIFY_RING: () => null,
+  CORE_TRAP_EATER: params => ({
+    ...params,
+    attackPerDisarm: halveConstant(params.attackPerDisarm),
+    maxAttack: halveConstant(params.maxAttack)
+  }),
+  CORE_CURSE_KEEPER: params => ({ ...params, statsPerCurse: halveConstant(params.statsPerCurse) }),
+  CORE_GIANT_SLAYER: params => ({ ...params, damageMultiplier: halveMultiplier(params.damageMultiplier) }),
+  CORE_REARGUARD: () => null,
+  CORE_THORN_SHIELD: params => ({
+    ...params,
+    counterChance: params.counterChance / 2,
+    counterPower: params.counterPower / 2
+  }),
+  CORE_EXECUTIONER: params => ({ ...params, damageMultiplier: halveMultiplier(params.damageMultiplier) }),
+  CORE_SNEAK_STEP: params => ({
+    ...params,
+    detectionRangeMultiplier: halveMultiplier(params.detectionRangeMultiplier),
+    auraRangeBonus: halveConstant(params.auraRangeBonus)
+  }),
+  CORE_TOMB_RAIDER: () => null,
+  CORE_KEEN_EYE: () => null,
+  CORE_CAMP_MASTER: params => ({ ...params, recoveryMultiplier: halveMultiplier(params.recoveryMultiplier) }),
+  CORE_BOUNTY_HUNTER: () => null,
+  CORE_SCHOLAR_EYE: () => null
+};
+
+export function getSealedCoreParams(coreId, params) {
+  if (!params) return null;
+  return CORE_SEAL_RULES[coreId]?.(params) ?? null;
+}
+
+function getEquippedCoreEntries(char, { activeOnly = true } = {}) {
   if (!char?.equipment) return [];
   return Object.values(char.equipment).flatMap(item => {
     if (!item || typeof item !== "object" || (activeOnly && !item.identified)) return [];
-    return (item.affixes || []).filter(affix => {
+    return (item.affixes || []).flatMap(affix => {
       const definition = getAffixDefinition(affix);
-      return (affix.kind || definition?.kind) === "core" && definition?.enabled;
+      const isCore = (affix.kind || definition?.kind) === "core" && definition?.enabled;
+      return isCore ? [{ affix, item }] : [];
     });
   });
+}
+
+export function getEquippedCoreAffixes(char, { activeOnly = true } = {}) {
+  return getEquippedCoreEntries(char, { activeOnly }).map(entry => entry.affix);
 }
 
 export function hasCoreAffix(item) {
@@ -36,7 +80,10 @@ export function getCharCoreDefinition(char, coreId) {
 }
 
 export function getCharCoreParams(char, coreId) {
-  return getCharCoreDefinition(char, coreId)?.params || null;
+  const entry = getEquippedCoreEntries(char).find(({ affix }) => (affix.id || affix.type) === coreId);
+  if (!entry) return null;
+  const params = getAffixDefinition(coreId)?.params || null;
+  return entry.item.coreSealed ? getSealedCoreParams(coreId, params) : params;
 }
 
 export function partyHasCoreAffix(party, coreId) {
@@ -48,7 +95,12 @@ export function partyHasCoreAffix(party, coreId) {
 }
 
 export function getPartyCoreParams(party, coreId) {
-  return partyHasCoreAffix(party, coreId) ? getAffixDefinition(coreId)?.params || null : null;
+  if (!Array.isArray(party)) return null;
+  const wearer = party.find(char => {
+    if (!char || char.hp <= 0 || ["dead", "ash"].includes(char.status)) return false;
+    return Boolean(getCharCoreAffix(char, coreId));
+  });
+  return wearer ? getCharCoreParams(wearer, coreId) : null;
 }
 
 export function canEquipUnidentifiedItem(char, item) {

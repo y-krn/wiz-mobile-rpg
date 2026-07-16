@@ -14,8 +14,13 @@ import {
   partyHasCoreAffix,
   canEquipUnidentifiedItem,
   getItemData,
-  getPartyMaxAffix
+  getPartyMaxAffix,
+  getAffixDefinition,
+  formatAffixText,
+  TAG_EFFECT_MAP,
+  MATERIAL_TAGS
 } from "../src/data.js";
+import { applyCurseSeal, getDismantleResults, getPolishCost, polishSupportAffix } from "../src/craft.js";
 import { getCharStr, getCharInt, getCharWeaponAtk } from "../src/rules/character_stats.js";
 import {
   applyKillAffixEffects,
@@ -115,6 +120,62 @@ test("Phase 3サポートenabled・浅層経済3/戦闘1・深層逆転", () => 
   assert.ok(phase3.every(id => SUPPORT_AFFIXES.find(affix => affix.id === id)?.enabled));
   assert.deepEqual(AFFIX_BALANCE.corePoolWeights.shallow, { combat: 1, economy: 3 });
   assert.deepEqual(AFFIX_BALANCE.corePoolWeights.deep, { combat: 3, economy: 1 });
+});
+
+test("刻印20種: cost範囲・サポートtype・素材割当が整合", () => {
+  const entries = Object.entries(TAG_EFFECT_MAP);
+  assert.equal(entries.length, 20);
+  const assignedTags = new Set(Object.values(MATERIAL_TAGS).flat());
+  entries.forEach(([tag, effect]) => {
+    assert.ok(effect.gold >= 50 && effect.gold <= 300, `${tag}: gold`);
+    assert.ok(effect.matCost >= 1 && effect.matCost <= 4, `${tag}: matCost`);
+    assert.ok(assignedTags.has(tag), `${tag}: material assignment`);
+    if (effect.type !== "curse") {
+      const definition = getAffixDefinition(effect.type);
+      assert.equal(definition?.kind, "support", `${tag}: support type`);
+      assert.equal(definition?.enabled, true, `${tag}: enabled`);
+    }
+  });
+});
+
+test("研磨: サポートを切り上げ1.5倍・1アイテム1回・コア除外", () => {
+  const item = supportItem("statusResistance", 5);
+  assert.deepEqual(getPolishCost(item), AFFIX_BALANCE.polishCost);
+  assert.equal(polishSupportAffix(item, 0), true);
+  assert.equal(item.affixes[0].value, 8);
+  assert.equal(item.polished, true);
+  assert.equal(polishSupportAffix(item, 0), false);
+
+  const coreOnly = coreItem("CORE_LAST_STAND");
+  assert.equal(getPolishCost(coreOnly), null);
+  assert.equal(polishSupportAffix(coreOnly, 0), false);
+  assert.equal(coreOnly.affixes[0].value, 1);
+  assert.equal(coreOnly.polished, undefined);
+  assert.equal(getDismantleResults(coreOnly), null);
+});
+
+test("封印半減: 倍率系は基準差半減・定数系は切捨て・boolean系は無効", () => {
+  const multiplierChar = makeChar("CORE_LAST_STAND");
+  multiplierChar.equipment.weapon.tags = ["curse"];
+  multiplierChar.equipment.weapon.curseEffectId = "curse_blood_thirst";
+  assert.equal(applyCurseSeal(multiplierChar.equipment.weapon), true);
+  assert.equal(multiplierChar.equipment.weapon.coreSealed, true);
+  assert.equal(multiplierChar.equipment.weapon.tags.includes("curse"), false);
+  assert.equal(multiplierChar.equipment.weapon.curseEffectId, null);
+  assert.ok(formatAffixText(multiplierChar.equipment.weapon.affixes[0], ": ", { coreSealed: true }).startsWith("◆(封)背水:"));
+  multiplierChar.hp = 25;
+  assert.equal(getCharCoreParams(multiplierChar, "CORE_LAST_STAND").damageMultiplier, 1.2);
+  assert.equal(getDamageAffixResult(multiplierChar, { maxHp: 50 }, 100).damage, 120);
+
+  const constantChar = makeChar(null);
+  constantChar.equipment.accessory = coreItem("CORE_CURSE_KEEPER", "AMULET_HP", "curse_spectral_decay");
+  constantChar.equipment.accessory.coreSealed = true;
+  assert.equal(getCharCoreParams(constantChar, "CORE_CURSE_KEEPER").statsPerCurse, 1);
+
+  const booleanChar = makeChar("CORE_REARGUARD");
+  booleanChar.equipment.weapon.coreSealed = true;
+  assert.equal(getCharCoreParams(booleanChar, "CORE_REARGUARD"), null);
+  assert.equal(getMeleeModifiers(booleanChar, 2), 0.5);
 });
 
 test("忍び足: 生存装備者のみパーティ有効、感知4→2、オーラ値+1", () => {

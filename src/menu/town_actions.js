@@ -3,10 +3,10 @@ import { playSound } from "../audio.js";
 import { updateUI, openArchivesOverlay, openContractsOverlay, openWarehouseOverlay } from "../ui.js";
 import { openSubmenu } from "../navigation.js";
 import { generateContractsList } from "../contracts.js";
-import { getCharMaxHp, getCharMaxMp, getItemBaseId, getItemData, getClassJpName } from "../data.js";
+import { getCharMaxHp, getCharMaxMp, getItemBaseId, getItemData, getClassJpName, formatAffixText, getAffixDefinition } from "../data.js";
 import { renderMaterialsHUD } from "./materials_hud.js";
 import { renderCraftRecipesView } from "./craft_recipes_view.js";
-import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, executeDismantle, getDismantleResults, executeTagInscription } from "../craft.js";
+import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, getPolishCost, executePolish, executeDismantle, getDismantleResults, executeTagInscription } from "../craft.js";
 import { MATERIAL_TAGS, TAG_EFFECT_MAP } from "../data/tags.js";
 
 import { openEquipOverlay } from "../equip.js";
@@ -239,6 +239,14 @@ export function renderCraftMain(optGrid) {
     openSubmenu("craft_enhance", "工房 - 装備の強化(+1)：");
   });
   optGrid.appendChild(btnEnhance);
+
+  const btnPolish = document.createElement("button");
+  btnPolish.className = "btn btn-neon btn-block";
+  btnPolish.textContent = "💎 サポートを研磨する";
+  btnPolish.addEventListener("click", () => {
+    openSubmenu("craft_polish", "工房 - サポートアフィックスの研磨：");
+  });
+  optGrid.appendChild(btnPolish);
 
   const btnInscription = document.createElement("button");
   btnInscription.className = "btn btn-neon btn-block";
@@ -562,7 +570,7 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
       sealBtn.style.borderColor = "var(--neon-red)";
       
       const matColor = hasEnough ? "var(--neon-green)" : "var(--neon-red)";
-      sealBtn.innerHTML = `<strong>封印の儀 (呪い封印)</strong> - デメリット効果を無効化する<br>` +
+      sealBtn.innerHTML = `<strong>封印の儀 (呪い封印)</strong> - 呪いを無効化し、コアの力も弱める<br>` +
                           `<small style="color:var(--text-muted)">コスト: ${sealGold}G / ` +
                           `<span style="color:${matColor}">霊粉 ${curQty}/${sealMat}個</span></small>`;
       
@@ -639,7 +647,7 @@ export function renderCraftInscriptionSelectEngrave(optGrid) {
   let canSubmit = false;
 
   if (currentActionType === "seal") {
-    submitBtn.textContent = `封印の儀を実行 (${goldCost}G / 霊粉 ${matCost}個)`;
+    submitBtn.textContent = `封印の儀を実行・コア効果半減 (${goldCost}G / 霊粉 ${matCost}個)`;
     canSubmit = hasEnoughGold && hasEnoughMat && currentSelectedMat === "霊粉";
   } else if (currentSelectedTag) {
     const effect = TAG_EFFECT_MAP[currentSelectedTag];
@@ -852,6 +860,91 @@ export function renderCraftEnhance(optGrid) {
     emptyMsg.style.fontSize = "11px";
     emptyMsg.style.padding = "20px";
     emptyMsg.textContent = "強化可能な装備品がありません。";
+    optGrid.appendChild(emptyMsg);
+  }
+}
+
+export function renderCraftPolish(optGrid) {
+  renderMaterialsHUD(optGrid);
+  let polishableCount = 0;
+
+  const appendItem = (itemKey, itemRef, ownerName = "") => {
+    const item = getItemData(itemKey);
+    const cost = getPolishCost(itemKey);
+    if (!item || !cost || !["weapon", "shield", "armor", "accessory"].includes(item.type)) return;
+
+    const supportAffixes = itemKey.affixes
+      .map((affix, index) => ({ affix, index, definition: getAffixDefinition(affix) }))
+      .filter(({ affix, definition }) => (affix.kind || definition?.kind || "support") === "support" && definition?.enabled);
+    if (supportAffixes.length === 0) return;
+    polishableCount++;
+
+    const container = document.createElement("div");
+    container.style.gridColumn = "span 2";
+    container.style.border = "1px solid #333";
+    container.style.padding = "8px";
+    container.style.borderRadius = "4px";
+    container.style.background = "rgba(0,0,0,0.2)";
+    container.style.marginBottom = "4px";
+
+    const title = document.createElement("div");
+    title.style.fontFamily = "var(--font-mono)";
+    title.style.fontSize = "11px";
+    title.style.marginBottom = "6px";
+    const itemName = document.createElement("strong");
+    itemName.style.color = "#fff";
+    itemName.textContent = item.name;
+    title.appendChild(itemName);
+    if (ownerName) {
+      const owner = document.createElement("span");
+      owner.style.color = "var(--neon-blue)";
+      owner.textContent = ` [装備中] (${ownerName})`;
+      title.appendChild(owner);
+    }
+    title.appendChild(document.createElement("br"));
+    const matsReq = Object.entries(cost.mats).map(([mat, qty]) => `${mat} ${state.materials[mat] || 0}/${qty}`).join(", ");
+    const costText = document.createElement("span");
+    costText.style.color = "var(--text-muted)";
+    costText.textContent = `1つ選択して1.5倍（切り上げ） / ${cost.gold}G・${matsReq}`;
+    title.appendChild(costText);
+    container.appendChild(title);
+
+    const canAfford = state.gold >= cost.gold && Object.entries(cost.mats)
+      .every(([mat, qty]) => (state.materials[mat] || 0) >= qty);
+    supportAffixes.forEach(({ affix, index }) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-secondary btn-block";
+      button.style.minHeight = "44px";
+      button.style.marginTop = "4px";
+      button.textContent = `${formatAffixText(affix)} → ${formatAffixText({ ...affix, value: Math.ceil(affix.value * 1.5) })}`;
+      button.disabled = !canAfford;
+      if (!canAfford) button.classList.add("disabled");
+      button.addEventListener("click", () => {
+        if (executePolish(itemRef, index)) {
+          openSubmenu("craft_polish", "工房 - サポートアフィックスの研磨：", true);
+        }
+      });
+      container.appendChild(button);
+    });
+    optGrid.appendChild(container);
+  };
+
+  state.party.forEach((char, actorIdx) => {
+    Object.entries(char.equipment || {}).forEach(([slot, itemKey]) => {
+      if (itemKey) appendItem(itemKey, { type: "equipped", actorIdx, slot }, char.name);
+    });
+  });
+  state.inventory.forEach((itemKey, index) => appendItem(itemKey, { type: "inventory", index }));
+
+  if (polishableCount === 0) {
+    const emptyMsg = document.createElement("div");
+    emptyMsg.style.gridColumn = "span 2";
+    emptyMsg.style.textAlign = "center";
+    emptyMsg.style.color = "var(--text-muted)";
+    emptyMsg.style.fontSize = "11px";
+    emptyMsg.style.padding = "20px";
+    emptyMsg.textContent = "研磨可能なサポートアフィックスがありません。";
     optGrid.appendChild(emptyMsg);
   }
 }

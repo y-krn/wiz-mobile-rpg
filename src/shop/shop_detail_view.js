@@ -115,7 +115,7 @@ export function renderShopDetail() {
           ].map(group => {
             const lines = eqItem.affixes
               .filter(aff => (aff.kind || "support") === group.kind)
-              .map(aff => `<div style="font-size: 11px; margin-bottom: 2px;">${group.kind === "support" ? "・" : ""}${formatAffixText(aff)}</div>`)
+              .map(aff => `<div style="font-size: 11px; margin-bottom: 2px;">${group.kind === "support" ? "・" : ""}${formatAffixText(aff, ": ", { coreSealed: eqItem.coreSealed })}</div>`)
               .join("");
             return lines ? `<div style="color:var(--text-muted); margin-top:4px;">${group.label}</div>${lines}` : "";
           }).join("");

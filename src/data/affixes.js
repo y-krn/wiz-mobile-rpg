@@ -1,4 +1,8 @@
 export const AFFIX_BALANCE = {
+  polishCost: {
+    gold: 200,
+    mats: { "魔石片": 2 }
+  },
   supportCosts: {
     atk: 3,
     def: 3,
@@ -328,10 +332,11 @@ export function getAffixDefinition(affixOrId) {
   return AFFIX_BY_ID.get(id) || null;
 }
 
-export function formatAffixText(affix, supportSeparator = ": ") {
+export function formatAffixText(affix, supportSeparator = ": ", { coreSealed = false } = {}) {
   const definition = getAffixDefinition(affix);
   if ((affix.kind || definition?.kind) === "core") {
-    return `◆${definition?.jpName || affix.id || affix.type}: ${definition?.desc || affix.desc || "特殊効果"}`;
+    const sealLabel = coreSealed ? "(封)" : "";
+    return `◆${sealLabel}${definition?.jpName || affix.id || affix.type}: ${definition?.desc || affix.desc || "特殊効果"}`;
   }
   const label = definition?.jpName || affix.type || affix.id;
   const sign = affix.value >= 0 ? "+" : "";

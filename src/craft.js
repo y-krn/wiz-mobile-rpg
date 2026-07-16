@@ -2,6 +2,7 @@ import { state, saveAutosave, addLog, addInventoryItem } from "./state.js";
 import { getItemData, getItemBaseId } from "./data.js";
 import { playSound } from "./audio.js";
 import { TAG_EFFECT_MAP } from "./data/tags.js";
+import { AFFIX_BALANCE, getAffixDefinition } from "./data/affixes.js";
 import { CURSE_EFFECTS } from "./data/items.js";
 
 export const CRAFT_RECIPES = [
@@ -183,6 +184,12 @@ export function getDismantleResults(eqItem) {
   const item = getItemData(eqItem);
   if (!item || !["weapon", "shield", "armor", "accessory"].includes(item.type)) return null;
 
+  const hasCore = typeof eqItem === "object" && (eqItem.affixes || []).some(affix => {
+    const definition = getAffixDefinition(affix);
+    return (affix.kind || definition?.kind) === "core";
+  });
+  if (hasCore) return null;
+
   // 未鑑定装備の場合は分解不可
   if (typeof eqItem === "object" && eqItem.identified === false) {
     return null;
@@ -270,6 +277,109 @@ export function executeDismantle(itemIdx) {
   return true;
 }
 
+export function getPolishCost(eqItem) {
+  if (!eqItem || typeof eqItem !== "object" || eqItem.identified === false || eqItem.polished) return null;
+  const hasSupport = (eqItem.affixes || []).some(affix => {
+    const definition = getAffixDefinition(affix);
+    return (affix.kind || definition?.kind || "support") === "support" && definition?.enabled;
+  });
+  return hasSupport ? AFFIX_BALANCE.polishCost : null;
+}
+
+export function polishSupportAffix(eqItem, affixIdx) {
+  if (!getPolishCost(eqItem)) return false;
+  const affix = eqItem.affixes?.[affixIdx];
+  const definition = getAffixDefinition(affix);
+  if (!affix || (affix.kind || definition?.kind || "support") !== "support" || !definition?.enabled) {
+    return false;
+  }
+  affix.value = Math.ceil(affix.value * 1.5);
+  eqItem.polished = true;
+  return true;
+}
+
+export function executePolish(itemIdx, affixIdx) {
+  let eqItem;
+  let isEquipped = false;
+  let actorIdx;
+  let slot;
+
+  if (itemIdx && typeof itemIdx === "object") {
+    if (itemIdx.type === "equipped") {
+      isEquipped = true;
+      actorIdx = itemIdx.actorIdx;
+      slot = itemIdx.slot;
+      eqItem = state.party[actorIdx].equipment[slot];
+    } else {
+      eqItem = state.inventory[itemIdx.index];
+    }
+  } else {
+    eqItem = state.inventory[itemIdx];
+  }
+
+  const cost = getPolishCost(eqItem);
+  if (!cost) {
+    addLog("この装備は研磨できません。");
+    return false;
+  }
+  if (state.gold < cost.gold) {
+    addLog("ゴールドが不足しています。");
+    return false;
+  }
+  for (const [mat, reqQty] of Object.entries(cost.mats)) {
+    if ((state.materials[mat] || 0) < reqQty) {
+      addLog(`素材 [${mat}] が不足しています。`);
+      return false;
+    }
+  }
+
+  const polishedItem = {
+    ...eqItem,
+    affixes: (eqItem.affixes || []).map(affix => ({ ...affix }))
+  };
+  if (!polishSupportAffix(polishedItem, affixIdx)) {
+    addLog("コアは研磨できません。");
+    return false;
+  }
+
+  state.gold -= cost.gold;
+  for (const [mat, reqQty] of Object.entries(cost.mats)) {
+    state.materials[mat] -= reqQty;
+  }
+  if (isEquipped) {
+    state.party[actorIdx].equipment[slot] = polishedItem;
+  } else {
+    const idx = itemIdx && typeof itemIdx === "object" ? itemIdx.index : itemIdx;
+    state.inventory[idx] = polishedItem;
+  }
+
+  const item = getItemData(polishedItem);
+  const affix = polishedItem.affixes[affixIdx];
+  addLog(`[工房] [${item.name}] の [${getAffixDefinition(affix)?.jpName || affix.type}] を研磨しました！`);
+  playSound("level_up");
+  saveAutosave();
+  return true;
+}
+
+export function applyCurseSeal(eqItem) {
+  eqItem.tags = (eqItem.tags || []).filter(tag => tag !== "curse");
+  if (eqItem.curseEffectId) {
+    eqItem.sealedCurseEffectId = eqItem.curseEffectId;
+    eqItem.curseEffectId = null;
+  }
+  eqItem.inscription = {
+    type: "sealed",
+    value: 0,
+    name: "封印印",
+    tag: "holy"
+  };
+  eqItem.coreSealed = true;
+  return (eqItem.affixes || []).some(affix => {
+    const definition = getAffixDefinition(affix);
+    return (affix.kind || definition?.kind) === "core";
+  });
+}
+
 export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTagIdx, actionType = "add") {
   let eqItem;
   let isEquipped = false;
@@ -333,18 +443,10 @@ export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTag
 
   if (actionType === "seal") {
     // 呪いの封印
-    upgradedItem.tags = upgradedItem.tags.filter(t => t !== "curse");
-    if (upgradedItem.curseEffectId) {
-      upgradedItem.sealedCurseEffectId = upgradedItem.curseEffectId;
-      upgradedItem.curseEffectId = null;
-    }
-    upgradedItem.inscription = {
-      type: "sealed",
-      value: 0,
-      name: "封印印",
-      tag: "holy"
-    };
-    addLog(`[工房] [${item.name}] の呪いを封印しました！`);
+    const hasCore = applyCurseSeal(upgradedItem);
+    addLog(hasCore
+      ? `[工房] [${item.name}] の呪いを封印し、コアの力を弱めました！`
+      : `[工房] [${item.name}] の呪いを封印しました！`);
   } else {
     // タグの付与/上書き
     const effectInfo = TAG_EFFECT_MAP[tagToApply];
