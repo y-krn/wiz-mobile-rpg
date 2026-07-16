@@ -51,6 +51,10 @@ module under the matching directory (`src/data/*`, `src/state/*`,
   balance proposal against it.
 - `game-design.md`: current progression/economy design for XP, gold, shops,
   materials, workshop, reward roles, and post-clear save behavior.
+- `game-design-equipment-builds.md`: the core/support affix system —
+  16 cores, 47 supports, budget-based generation, inscriptions, polish, and
+  curse-seal rules. Canonical for any change to affixes, `AFFIX_BALANCE`,
+  `CORE_SEAL_RULES`, or workshop actions.
 
 ## File Routing
 

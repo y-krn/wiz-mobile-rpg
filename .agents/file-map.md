@@ -20,6 +20,9 @@ to verify the change.
 - Browser/mobile coverage: `tests/ui-ux.spec.js`
 - Unit-style deterministic checks: `scratch/test_*.js`
 - Progression/economy design: `.agents/game-design.md`
+- Equipment affixes (cores/supports), workshop inscriptions/polish/seal:
+  `src/data/affixes.js`, `src/rules/affix_rules.js`, `src/craft.js`,
+  `src/systems/equipment_generation.js`, `.agents/game-design-equipment-builds.md`
 
 ## Module Boundaries
 
@@ -77,6 +80,7 @@ to verify the change.
 | Combat UI and action selection | `src/combat.js`, `src/combat_ui/*`, `src/ui.js`, `src/ui/*`, `src/styles/overlays-combat.css`, `src/styles/controls.css` | `src/combat_logic.js`, `src/combat_logic/*`, `src/data.js`, `src/data/*`, `src/state.js`, `src/state/*` | `npm run test:unit`, `npm run test:browser` |
 | Combat rules and deterministic resolution | `src/combat_logic.js`, `src/combat_logic/*`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*` | `src/combat.js`, `src/combat_ui/*`, `src/state.js`, `src/state/*`, `scratch/test_combat_inventory.js` | `npm run test:unit` |
 | Enemies, items, spells, classes, formulas | `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*`, `src/constants/*` | `src/combat_logic.js`, `src/combat_logic/*`, `src/state.js`, `src/state/*`, affected screen module | `npm run test:unit` |
+| Affix cores/supports, budgets, seal/polish rules | `src/data/affixes.js`, `src/rules/affix_rules.js`, `.agents/game-design-equipment-builds.md` | `src/systems/equipment_generation.js`, `src/craft.js`, `src/combat_logic/damage.js`, `src/combat_logic/round.js`, `scratch/test_affixes.js`, `scratch/test_core_affixes.js` | `npm run test:unit` |
 | Treasure chest, traps, drops | `src/chest.js`, `src/data.js`, `src/data/*`, `src/systems/*` | `src/state.js`, `src/state/*`, `src/combat.js`, `src/combat_ui/*`, `src/contracts.js` | `npm run test:unit` |
 | Contracts and codex/progress tracking | `src/contracts.js`, `src/state.js`, `src/state/*` | `src/ui.js`, `src/ui/*`, `src/result.js`, `scratch/test_contracts.js` | `npm run test:unit`, `npm run test:browser` |
 | Run result, rewards, return reasons | `src/result.js`, `src/state.js`, `src/state/*` | `src/contracts.js`, `src/chest.js`, `src/combat.js`, `src/combat_logic/*` | `npm run test:unit`, `npm run test:browser` |
@@ -111,6 +115,9 @@ to verify the change.
   include the `balance-simulation` review lens.
 - If the request changes XP, gold, shops, loot, materials, workshop actions,
   contracts, or B5F clear behavior, read `.agents/game-design.md` before
+  implementation or review.
+- If the request changes equipment affixes, cores, inscriptions, polish, or
+  seal behavior, read `.agents/game-design-equipment-builds.md` before
   implementation or review.
 - If a facade file is touched, inspect the concrete module it re-exports from;
   avoid changing facade behavior without checking direct importers.
