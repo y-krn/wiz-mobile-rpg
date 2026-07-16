@@ -8,6 +8,7 @@ import { renderMaterialsHUD } from "./materials_hud.js";
 import { renderCraftRecipesView } from "./craft_recipes_view.js";
 import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, getPolishCost, executePolish, executeDismantle, getDismantleResults, executeTagInscription } from "../craft.js";
 import { MATERIAL_TAGS, TAG_EFFECT_MAP } from "../data/tags.js";
+import { getReviveCost } from "../rules/revive_rules.js";
 
 import { openEquipOverlay } from "../equip.js";
 
@@ -67,13 +68,13 @@ export function renderTempleMain(optGrid) {
       let statusText;
       
       if (char.status === "dead") {
-        price = char.level * 100;
+        price = getReviveCost(char);
         text = "蘇生";
         actionType = "revive_dead";
         statusClass = "status-dead";
         statusText = "死亡";
       } else if (char.status === "ash") {
-        price = char.level * 300;
+        price = getReviveCost(char);
         text = "灰蘇生";
         actionType = "revive_ash";
         statusClass = "status-ash";

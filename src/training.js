@@ -7,13 +7,19 @@ export let trainingState = {
   tab: "roster", // "roster" or "party"
   selectedName: null,
   rescueCandidates: null,
-  showRescueSelection: false
+  showRescueSelection: false,
+  rescueReplacementCandidate: null
 };
 
 export function renderTraining() {
   const overlay = document.getElementById("training-overlay");
   if (!overlay) return;
   overlay.innerHTML = "";
+
+  if (trainingState.rescueReplacementCandidate) {
+    renderRescueReplacement(overlay);
+    return;
+  }
 
   if (trainingState.showRescueSelection && trainingState.rescueCandidates) {
     renderRescueSelection(overlay);
@@ -345,24 +351,23 @@ export function renderTraining() {
     const isFull = state.roster.length >= 8;
     if (isFull) {
       btnRescue.textContent = `⚠️ 志願者を募る (名簿満員) ${aliveCount}/2`;
-      btnRescue.disabled = true;
 
       const infoMsg = document.createElement("div");
       infoMsg.style.color = "var(--danger-color, #ff3366)";
       infoMsg.style.fontSize = "12px";
       infoMsg.style.textAlign = "center";
-      infoMsg.textContent = "名簿が満員です。死亡したメンバーを諦めて空き枠を作ってください。";
+      infoMsg.textContent = "死亡・灰化メンバーと入れ替えて迎えられます。";
       rescueRow.appendChild(infoMsg);
     } else {
       btnRescue.textContent = `🆕 志願者を募る (0G) ${aliveCount}/2`;
-      btnRescue.addEventListener("click", () => {
-        if (!trainingState.rescueCandidates) {
-          trainingState.rescueCandidates = createRescueCandidates();
-        }
-        trainingState.showRescueSelection = true;
-        renderTraining();
-      });
     }
+    btnRescue.addEventListener("click", () => {
+      if (!trainingState.rescueCandidates) {
+        trainingState.rescueCandidates = createRescueCandidates();
+      }
+      trainingState.showRescueSelection = true;
+      renderTraining();
+    });
     rescueRow.appendChild(btnRescue);
     footer.appendChild(rescueRow);
   }
@@ -377,6 +382,7 @@ export function renderTraining() {
   btnClose.addEventListener("click", () => {
     trainingState.rescueCandidates = null;
     trainingState.showRescueSelection = false;
+    trainingState.rescueReplacementCandidate = null;
     goBackSubmenu();
   });
   closeRow.appendChild(btnClose);
@@ -533,6 +539,12 @@ function renderRescueSelection(overlay) {
       const selectedCandidate = { ...cand };
       delete selectedCandidate.roleDesc;
 
+      if (state.roster.length >= 8) {
+        trainingState.rescueReplacementCandidate = selectedCandidate;
+        renderTraining();
+        return;
+      }
+
       trainingState.rescueCandidates = null;
       trainingState.showRescueSelection = false;
 
@@ -567,6 +579,87 @@ function renderRescueSelection(overlay) {
   overlay.appendChild(footer);
 }
 
+function renderRescueReplacement(overlay) {
+  const candidate = trainingState.rescueReplacementCandidate;
+  const replaceableChars = state.roster.filter(char => char.status === "dead" || char.status === "ash");
+
+  const header = document.createElement("div");
+  header.className = "training-header";
+  header.innerHTML = `
+    <span class="training-title">訓練場 - 名簿入れ替え</span>
+    <span class="training-subtitle">${candidate.name}と入れ替えるメンバーを選択</span>
+  `;
+  overlay.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "training-body";
+
+  const listContainer = document.createElement("div");
+  listContainer.className = "rescue-candidates-list training-list";
+
+  replaceableChars.forEach(char => {
+    const card = document.createElement("div");
+    card.className = "rescue-candidate-card";
+
+    const info = document.createElement("div");
+    info.className = "rescue-candidate-info";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "rescue-candidate-name";
+    nameSpan.textContent = char.name;
+
+    const metaSpan = document.createElement("span");
+    metaSpan.className = "rescue-candidate-meta";
+    const statusText = char.status === "ash" ? "灰" : "死亡";
+    const partyText = state.party.some(member => member.name === char.name) ? " / 編成中" : "";
+    metaSpan.textContent = `${getClassJpName(char.class)} Lv.${char.level} / ${statusText}${partyText}`;
+
+    info.appendChild(nameSpan);
+    info.appendChild(metaSpan);
+    card.appendChild(info);
+
+    const btnReplace = document.createElement("button");
+    btnReplace.type = "button";
+    btnReplace.className = "btn btn-neon btn-rescue-select";
+    btnReplace.textContent = `↔ ${candidate.name}と入れ替える`;
+    btnReplace.addEventListener("click", () => {
+      if (!confirm(`${char.name}を名簿から完全に削除し、${candidate.name}を迎えますか？`)) return;
+
+      state.party = state.party.filter(member => member.name !== char.name);
+      state.roster = state.roster.filter(member => member.name !== char.name);
+      trainingState.rescueCandidates = null;
+      trainingState.showRescueSelection = false;
+      trainingState.rescueReplacementCandidate = null;
+      addNewbieToRoster(candidate);
+    });
+
+    card.appendChild(btnReplace);
+    listContainer.appendChild(card);
+  });
+
+  body.appendChild(listContainer);
+  overlay.appendChild(body);
+
+  const footer = document.createElement("div");
+  footer.className = "bottom-actions-container";
+
+  const closeRow = document.createElement("div");
+  closeRow.className = "bottom-actions-row";
+
+  const btnCancel = document.createElement("button");
+  btnCancel.className = "btn btn-danger";
+  btnCancel.style.width = "100%";
+  btnCancel.textContent = "❌ 志願者選択へ戻る";
+  btnCancel.addEventListener("click", () => {
+    trainingState.rescueReplacementCandidate = null;
+    renderTraining();
+  });
+
+  closeRow.appendChild(btnCancel);
+  footer.appendChild(closeRow);
+  overlay.appendChild(footer);
+}
+
 function addNewbieToRoster(candidate) {
   state.roster.push(candidate);
   addLog(`新しい冒険者 ${candidate.name} が訓練場にやってきた！`);
@@ -574,6 +667,12 @@ function addNewbieToRoster(candidate) {
   if (state.party.length < 4) {
     state.party.push(candidate);
     addLog(`${candidate.name} をパーティに編成した！`);
+  } else {
+    const replaceIdx = state.party.findIndex(char => char.status === "dead" || char.status === "ash");
+    if (replaceIdx !== -1) {
+      state.party[replaceIdx] = candidate;
+      addLog(`${candidate.name} をパーティに編成した！`);
+    }
   }
 
   saveGame();

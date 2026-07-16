@@ -1,4 +1,5 @@
 import { DIR_N, START_X, START_Y } from "../data.js";
+import { getReviveCost } from "../rules/revive_rules.js";
 
 // Main State Object
 export const state = {
@@ -158,9 +159,7 @@ export function isSoftlocked() {
     return true;
   }
 
-  const minCost = Math.min(...deadOrAsh.map(char => {
-    return char.status === "dead" ? char.level * 50 : char.level * 150;
-  }));
+  const minCost = Math.min(...deadOrAsh.map(getReviveCost));
 
   return state.gold < minCost;
 }
@@ -172,12 +171,10 @@ export function canRecruitRescueNewcomer() {
 
   const deadOrAsh = state.roster.filter(char => char.status === "dead" || char.status === "ash");
   if (deadOrAsh.length === 0) {
-    return false;
+    return true;
   }
 
-  const minCost = Math.min(...deadOrAsh.map(char => {
-    return char.status === "dead" ? char.level * 50 : char.level * 150;
-  }));
+  const minCost = Math.min(...deadOrAsh.map(getReviveCost));
 
   return state.gold < minCost;
 }
