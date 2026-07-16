@@ -298,66 +298,32 @@ economy with high-end bases. Move `KATANA`, `DRAGON_SCALE`, and similar
 late-game answers toward dangerous chests, rare enemies, elites, bosses, or very
 low-probability sources.
 
-## Tag Synergy (SYNERGY)
+## Equipment Affix System (Core / Support)
 
-Synergies (`SYNERGIES` in `src/data/tags.js`) are party-wide bonuses that trigger
-when the party collectively holds two specific tags at once. Tags come from
-class, learned spells, and **identified** equipment only
-(`getPartyActiveTags`); unidentified gear contributes nothing, so synergies can
-flicker on and off with identification state.
+The tag-synergy system (`SYNERGIES`, TICKET-069) was **removed** (issue #120,
+PR #126). Party-wide tag bonuses no longer exist; all equipment power is
+attributed to the individual wearer. Detailed design and balance rules live in
+`.agents/game-design-equipment-builds.md` — treat that document as canonical
+for cores, supports, inscriptions, polish, and seal behavior. Summary:
 
-Each synergy exposes a `mod` object. Mods reach gameplay through two paths;
-keep both in mind when adding or retuning a synergy:
-
-- Affix-path mods (`antiUndead`, `antiDemon`, `guardian`, `firstStrike`,
-  `followUp`, `treasureSense`, `poisonWard`) apply via `getCharAffixSum`
-  (`src/rules/item_rules.js`).
-- Direct-stat mods (`atk`, `def`, `trapBonus`, `healMod`) apply via dedicated
-  getters (`getCharWeaponAtk`, `getCharDef`, `getCharTrapBonus`,
-  `getEffectiveHealAmount`) using `getActiveSynergyMod`, which returns the
-  synergy contribution only so it does not double-count equipment affixes.
-
-Before adding a mod key, confirm a consumer path exists. A key with no consumer
-(the former `healMod`) is a dead parameter.
-
-### Power budget
-
-- Target each synergy at roughly **net +5-10% effective power**. Normalize by
-  uptime and breadth, not by nominal number: an always-on effect and a
-  situational one at the same value are not equal.
-- Situational effects (`antiUndead`/`antiDemon` apply to ~12% / ~7% of the
-  roster) should be priced up as **specialist spikes**, not spread thin to match
-  always-on mods.
-- Combat-strong synergies carry a downside; situational and exploration-only
-  synergies may be pure upside. Avoid all-upside combat synergies, which remove
-  the party-building decision.
-- `guardian` only triggers at **HP <= 25%** (`src/combat_logic/damage.js`) and
-  ignores negative values, so it is a clutch stat, not always-on mitigation and
-  not a valid demerit channel.
-- Negative `def` is intentionally not floored in `getCharDef`; the combat
-  formula floors the sum downstream, so the penalty transmits. Negative
-  `firstStrike` and `healMod` are safe (`healMod` is clamped to a 0.25 floor
-  after stacking).
-
-### Current values (TICKET-069)
-
-| Synergy | Role | Mods |
-| --- | --- | --- |
-| holy_priest | Anti-undead specialist | antiUndead +35 / antiDemon +15 |
-| poison_thief | Exploration | trapBonus +30 / poisonWard +20 / firstStrike -3 |
-| fire_curse | Offense, high-risk core | atk +4 / healMod -30 |
-| iron_ward | Tank | def +3 / guardian +12 / firstStrike -4 |
-| beast_search | Initiative + light exploration | firstStrike +8 / treasureSense +8 |
-| spirit_analysis | Pure exploration | treasureSense +18 / trapBonus +10 |
-| ambush_poison | First-strike damage | firstStrike +10 / followUp +8 / def -3 |
-| blood_blade | Glass cannon | followUp +14 / def -3 |
-
-`fire_curse` is the deliberate high-risk outlier; its `healMod -30` applies to
-both spell and potion healing. Any value change here needs a balance-simulation
-pass, not feel-based tuning.
-
-Out of scope for TICKET-069, still open: relaxing the identified-only trigger and
-the party-wide (non-positional) tag pool.
+- Equipment affixes are two-tier: **cores** (16 rule-changing effects, drop-only,
+  one per character) and **supports** (47 numeric/small effects, workshop-
+  inscribable). Registry: `src/data/affixes.js`; per-core logic:
+  `src/rules/affix_rules.js`.
+- Generation is point-budget based (`AFFIX_BALANCE`): common = 1 support,
+  rare = 2 supports or 1 core, epic = 1 core + 2 supports. Core drops are 30%
+  cursed. Shops, roaming merchants, and contract rewards never produce cores
+  (`allowCores: false`).
+- Floor pools weight economy cores toward B1-B2 and combat cores toward B3+.
+- The workshop can inscribe/polish **supports only**; sealing a curse halves
+  the item's core (`CORE_SEAL_RULES`; boolean-style cores are disabled
+  instead). Cores cannot be created, moved, or removed by the workshop.
+- Balance knobs live in exactly two places: `AFFIX_BALANCE` (costs, budgets,
+  roll composition, curse rate, polish cost) and `CORE_SEAL_RULES` (seal
+  penalties). Tune there, not at hook sites.
+- Power budget rule carried over from the synergy era: value a core by
+  **expected uptime**, capped at roughly an unconditional +15% equivalent.
+  `guardian` still only triggers at HP <= 25% and ignores negative values.
 
 ## B5F Clear Flow
 
