@@ -250,6 +250,7 @@ export function normalizeSavePayload(data) {
   normalized.logs = data.logs ?? ["冒険を再開しました。"];
   normalized.floorChestsOpened = data.floorChestsOpened ?? [0, 0, 0, 0, 0];
   normalized.firstKills = data.firstKills ?? [];
+  normalized.firstKills = normalized.firstKills.filter(name => !/の分裂体\d+/.test(name));
   normalized.currentRun = data.currentRun ?? null;
   if (normalized.currentRun) {
     delete normalized.currentRun.seenOmenFloors;
@@ -259,6 +260,11 @@ export function normalizeSavePayload(data) {
   normalized.deathLogs = data.deathLogs ?? [];
   normalized.remains = data.remains ?? [];
   normalized.codex = data.codex ?? createDefaultCodex();
+  if (normalized.codex?.monsters) {
+    Object.keys(normalized.codex.monsters).forEach(name => {
+      if (/の分裂体\d+/.test(name)) delete normalized.codex.monsters[name];
+    });
+  }
   if (normalized.codex && normalized.codex.events) {
     delete normalized.codex.events.omens;
   }

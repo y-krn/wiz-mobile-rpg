@@ -94,6 +94,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
     
     if (!state.codex.monsters) state.codex.monsters = {};
     nonFledMonsters.forEach(m => {
+      if (m.hasSplit === true) return;
       const baseName = m.name.replace(/\s[A-Z]$/, "");
       if (!state.codex.monsters[baseName]) {
         state.codex.monsters[baseName] = { encountered: 1, killed: 0, firstKilled: false };
