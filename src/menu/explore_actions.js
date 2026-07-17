@@ -633,10 +633,3 @@ export function renderChestOpenerSelect(optGrid) {
     optGrid.appendChild(btn);
   });
 }
-
-export function clearSaveData() {
-  localStorage.removeItem("mobile_wiz_rpg_save");
-  localStorage.removeItem("mobile_wiz_rpg_autosave");
-  localStorage.removeItem("mobile_wiz_rpg_backup");
-  localStorage.removeItem("mobile_wiz_rpg_corrupt");
-}
