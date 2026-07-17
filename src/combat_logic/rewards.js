@@ -45,6 +45,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   let bonusTickets = 0;
   
   nonFledMonsters.forEach(m => {
+    if (m.hasSplit === true) return;
     const baseName = m.name.replace(/\s[A-Z]$/, "");
     if (state.firstKills && !state.firstKills.includes(baseName)) {
       if (!state.firstKills) state.firstKills = [];
