@@ -35,6 +35,8 @@ const DEAD_END_TARGET_RANGE = [15, 38];
 
 export const WARDEN_GATE_FLOORS = [1, 2, 3, 4, 5];
 export const WARDEN_GATE_DETOUR_STAGES = [8, 6, 4];
+const WARDEN_GATE_CANDIDATE_LIMIT = 40;
+const WARDEN_GATE_CANDIDATE_LIMIT_RETRY = 80;
 
 function isPassageCell(grid, x, y) {
   return x >= 0 &&
@@ -636,7 +638,7 @@ function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng
   return placed;
 }
 
-export function placeWardenGate(grid, floor, start, stairsDownCoord, rng = Math.random) {
+export function placeWardenGate(grid, floor, start, stairsDownCoord, rng = Math.random, candidateLimit = WARDEN_GATE_CANDIDATE_LIMIT) {
   if (!WARDEN_GATE_FLOORS.includes(floor) || !stairsDownCoord) return null;
 
   const openedDistance = getDirectedDistance(grid, start, stairsDownCoord);
@@ -644,20 +646,20 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord, rng = Math.
   const minStartDistance = Math.max(5, Math.floor(openedDistance * 0.3));
   const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, null);
 
-  const openEdges = getOpenPassageEdges(grid)
+  const openEdgeCandidates = getOpenPassageEdges(grid)
     .map(edge => ({
       ...edge,
       roughPotential: -(manhattan(start, { x: edge.x, y: edge.y }) + manhattan({ x: edge.nx, y: edge.ny }, stairsDownCoord))
     }))
-    .sort((a, b) => b.roughPotential - a.roughPotential)
-    .slice(0, 40);
-  const carvedEdges = getCarvedShortcutEdges(grid)
+    .sort((a, b) => b.roughPotential - a.roughPotential);
+  const openEdges = openEdgeCandidates.slice(0, candidateLimit);
+  const carvedEdgeCandidates = getCarvedShortcutEdges(grid)
     .map(edge => ({
       ...edge,
       roughPotential: openedDistance - (manhattan(start, { x: edge.nx, y: edge.ny }) + 2 + manhattan(edge.home, stairsDownCoord))
     }))
-    .sort((a, b) => b.roughPotential - a.roughPotential)
-    .slice(0, 40);
+    .sort((a, b) => b.roughPotential - a.roughPotential);
+  const carvedEdges = carvedEdgeCandidates.slice(0, candidateLimit);
 
   const candidates = [...openEdges, ...carvedEdges]
     .map(edge => {
@@ -725,6 +727,11 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord, rng = Math.
       openWall(grid, fallback.x, fallback.y, fallback.carveDir);
     }
     return setSealedGate(grid, floor, fallback, start);
+  }
+  const candidatesWereTruncated = openEdgeCandidates.length > candidateLimit ||
+    carvedEdgeCandidates.length > candidateLimit;
+  if (candidateLimit < WARDEN_GATE_CANDIDATE_LIMIT_RETRY && candidatesWereTruncated) {
+    return placeWardenGate(grid, floor, start, stairsDownCoord, rng, WARDEN_GATE_CANDIDATE_LIMIT_RETRY);
   }
   return null;
 }
@@ -1152,9 +1159,23 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   // Set stairs-down for B1F - B4F
   if (floor < 5) {
     if (deadEnds.length > 0) {
-      const idx = Math.floor(rng() * deadEnds.length);
-      stairsDownCoord = deadEnds[idx];
-      deadEnds.splice(idx, 1);
+      const rankedDeadEnds = deadEnds
+        .map((coord, index) => ({
+          coord,
+          index,
+          dist: Math.abs(coord.x - suCoord.x) + Math.abs(coord.y - suCoord.y),
+        }))
+        .sort((a, b) => b.dist - a.dist);
+      const topCount = Math.min(
+        rankedDeadEnds.length,
+        Math.max(3, Math.ceil(rankedDeadEnds.length / 2)),
+      );
+      const topCandidates = rankedDeadEnds.slice(0, topCount);
+      const distantCandidates = topCandidates.filter(candidate => candidate.dist >= 10);
+      const candidates = distantCandidates.length > 0 ? distantCandidates : topCandidates;
+      const selected = candidates[Math.floor(rng() * candidates.length)];
+      stairsDownCoord = selected.coord;
+      deadEnds.splice(selected.index, 1);
     } else {
       stairsDownCoord = [...reachableKeys]
         .map(key => {
