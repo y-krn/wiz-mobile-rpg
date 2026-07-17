@@ -25,11 +25,15 @@ function restoreScrollState(element, scrollState) {
   element.scrollTop = scrollState.followsTail ? element.scrollHeight : scrollState.scrollTop;
 }
 
+function isFocusableElement(element) {
+  return element && typeof element.focus === "function";
+}
+
 function renderPreservingOverlayFocus(overlay, render) {
   const activeElement = document.activeElement;
   let focusTarget = null;
 
-  if (activeElement instanceof HTMLElement && overlay.contains(activeElement)) {
+  if (isFocusableElement(activeElement) && overlay.contains(activeElement)) {
     if (activeElement.id) {
       focusTarget = { id: activeElement.id };
     } else {
@@ -51,7 +55,7 @@ function renderPreservingOverlayFocus(overlay, render) {
   } else if (focusTarget.index >= 0) {
     nextActiveElement = overlay.getElementsByTagName(focusTarget.tagName)[focusTarget.index] || null;
   }
-  if (nextActiveElement instanceof HTMLElement) nextActiveElement.focus({ preventScroll: true });
+  if (isFocusableElement(nextActiveElement)) nextActiveElement.focus({ preventScroll: true });
 }
 
 export function showFloorEntryStinger(floor, firstVisit) {

@@ -43,6 +43,37 @@ Docker build fails on Apple Silicon due to platform mismatch
 
 ---
 
+## [LRN-20260717-003] correction
+
+**Logged**: 2026-07-17T21:04:33+09:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+ブラウザとNode DOMスタブの両方で読み込まれるUIモジュールは、`HTMLElement`などのbrowser-onlyグローバルへ直接依存させない。
+
+### Details
+overlay focus復元で`instanceof HTMLElement`を使った結果、`HTMLElement`グローバルを定義しないNode unit環境で`ReferenceError`が発生した。DOMスタブが存在してもbrowser constructorの存在は保証されない。必要な能力はfocus可能かどうかだけなので、`focus`関数の有無で判定できる。
+
+### Suggested Action
+Node unitからimportされるUIコードでは、DOM constructorによる型判定より必要メソッド・プロパティのduck typingを優先する。browser-onlyグローバルを使う場合は`typeof`ガードを付け、変更後にbrowser testだけでなく`npm run test:unit`も実行する。
+
+### Metadata
+- Source: user_feedback
+- Related Files: src/ui/ui_root.js, scratch/run_tests.js
+- Tags: node, dom-stub, browser-global, HTMLElement, unit-test
+- Pattern-Key: harden.ui_browser_globals_in_node
+- Recurrence-Count: 1
+- First-Seen: 2026-07-17
+- Last-Seen: 2026-07-17
+
+### Resolution
+- **Resolved**: 2026-07-17T21:04:33+09:00
+- **Notes**: focus可能判定を`focus`関数のduck typingへ変更し、Node unitとlintで検証。
+
+---
+
 ## [LRN-20260717-002] correction
 
 **Logged**: 2026-07-17T20:54:05+09:00
