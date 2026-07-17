@@ -129,6 +129,8 @@ export function openLogOverlay() {
   if (!overlay) return;
   overlay.style.display = "flex";
   renderLogOverlay();
+  const body = document.getElementById("log-overlay-body");
+  if (body) body.scrollTop = body.scrollHeight;
 }
 
 export function closeLogOverlay() {

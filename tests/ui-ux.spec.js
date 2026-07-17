@@ -182,6 +182,30 @@ test('Full log overlay preserves history scroll and follows new logs at the tail
   expect(historyScroll.before).toBeLessThan(historyScroll.maxScroll - 24);
   expect(historyScroll.after).toBe(historyScroll.before);
 
+  const reopenedScroll = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { closeLogOverlay, openLogOverlay } = await import('/src/ui.js');
+    const body = document.querySelector('#log-overlay-body');
+    const maxScroll = body.scrollHeight - body.clientHeight;
+
+    body.scrollTop = Math.floor(maxScroll / 2);
+    const before = body.scrollTop;
+    closeLogOverlay();
+    state.logs.push('閉じている間に追加されたログ');
+    openLogOverlay();
+
+    return {
+      before,
+      maxScroll,
+      distanceFromTail: body.scrollHeight - body.scrollTop - body.clientHeight,
+      lastLine: body.lastElementChild?.textContent,
+    };
+  });
+
+  expect(reopenedScroll.before).toBeLessThan(reopenedScroll.maxScroll - 24);
+  expect(reopenedScroll.distanceFromTail).toBeLessThanOrEqual(1);
+  expect(reopenedScroll.lastLine).toBe('閉じている間に追加されたログ');
+
   const tailScroll = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { updateUI } = await import('/src/ui.js');

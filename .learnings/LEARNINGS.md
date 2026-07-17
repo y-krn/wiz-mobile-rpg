@@ -43,6 +43,37 @@ Docker build fails on Apple Silicon due to platform mismatch
 
 ---
 
+## [LRN-20260717-002] correction
+
+**Logged**: 2026-07-17T20:54:05+09:00
+**Priority**: medium
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+再描画時のUI状態保持を追加する際は、明示的な再オープンで従来の初期位置へ戻す挙動を分離する。
+
+### Details
+full-log overlayの再描画でスクロール位置を保持した結果、閉じてから再オープンした場合も途中位置が残り、閉じている間の新規ログが見えなくなった。`updateUI`による背景更新では位置保持が必要だが、ユーザー操作による明示オープンでは従来どおり末尾表示が必要。
+
+### Suggested Action
+スクロール、フォーカス、選択状態の保持をrendererへ追加する場合、同じrendererを呼ぶ「更新」と「明示オープン」を別シナリオとして確認する。更新時の保持テストに加え、閉じる→状態変化→再オープン時の初期化テストを追加する。
+
+### Metadata
+- Source: user_feedback
+- Related Files: src/ui/ui_root.js, tests/ui-ux.spec.js
+- Tags: overlay, scroll-restoration, reopen, regression, e2e
+- Pattern-Key: harden.preserve_update_reset_reopen
+- Recurrence-Count: 1
+- First-Seen: 2026-07-17
+- Last-Seen: 2026-07-17
+
+### Resolution
+- **Resolved**: 2026-07-17T20:54:05+09:00
+- **Notes**: `openLogOverlay`で描画後に末尾へ移動し、full-log E2Eへ閉じる→ログ追加→再オープンの回帰ケースを追加。
+
+---
+
 ## [LRN-20260717-001] correction
 
 **Logged**: 2026-07-17T20:15:18+09:00
