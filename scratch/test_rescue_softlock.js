@@ -20,6 +20,7 @@ function setRoster(roster, gold) {
 }
 
 const levelFiveDead = () => ({ name: "死亡者", class: "Fighter", level: 5, status: "dead" });
+const alive = (index) => ({ name: `生存者${index}`, class: "Fighter", level: 1, status: "ok" });
 
 setRoster([levelFiveDead()], 300);
 check(
@@ -44,13 +45,38 @@ check(
 );
 check(isSoftlocked() === false, "最安蘇生費を支払える場合は詰みでない", `actual: ${isSoftlocked()}`);
 
-setRoster([
-  { name: "生存者1", class: "Fighter", level: 1, status: "ok" },
-  { name: "生存者2", class: "Priest", level: 1, status: "ok" }
-], 0);
+setRoster([alive(1), alive(2)], 0);
+check(
+  canRecruitRescueNewcomer() === true,
+  "生存者2人・死者なしでは募集できる",
+  `actual: ${canRecruitRescueNewcomer()}`
+);
+
+setRoster([alive(1), alive(2), alive(3)], 0);
+check(
+  canRecruitRescueNewcomer() === true,
+  "生存者3人・死者なしでは募集できる",
+  `actual: ${canRecruitRescueNewcomer()}`
+);
+
+setRoster([alive(1), alive(2), alive(3), alive(4)], 0);
 check(
   canRecruitRescueNewcomer() === false,
-  "生存者2人以上では募集できない",
+  "生存者4人では募集できない",
+  `actual: ${canRecruitRescueNewcomer()}`
+);
+
+setRoster([alive(1), alive(2), levelFiveDead()], 500);
+check(
+  canRecruitRescueNewcomer() === false,
+  "生存者2人・死者ありで蘇生費を支払える場合は募集できない",
+  `actual: ${canRecruitRescueNewcomer()}`
+);
+
+setRoster([alive(1), alive(2), levelFiveDead()], 499);
+check(
+  canRecruitRescueNewcomer() === true,
+  "生存者2人・死者ありで蘇生費不足なら募集できる",
   `actual: ${canRecruitRescueNewcomer()}`
 );
 

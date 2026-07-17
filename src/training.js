@@ -350,7 +350,7 @@ export function renderTraining() {
     const aliveCount = state.roster.filter(char => char.status !== "dead" && char.status !== "ash").length;
     const isFull = state.roster.length >= 8;
     if (isFull) {
-      btnRescue.textContent = `⚠️ 志願者を募る (名簿満員) ${aliveCount}/2`;
+      btnRescue.textContent = `⚠️ 志願者を募る (名簿満員) ${aliveCount}/4`;
 
       const infoMsg = document.createElement("div");
       infoMsg.style.color = "var(--danger-color, #ff3366)";
@@ -359,7 +359,7 @@ export function renderTraining() {
       infoMsg.textContent = "死亡・灰化メンバーと入れ替えて迎えられます。";
       rescueRow.appendChild(infoMsg);
     } else {
-      btnRescue.textContent = `🆕 志願者を募る (0G) ${aliveCount}/2`;
+      btnRescue.textContent = `🆕 志願者を募る (0G) ${aliveCount}/4`;
     }
     btnRescue.addEventListener("click", () => {
       if (!trainingState.rescueCandidates) {

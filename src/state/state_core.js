@@ -164,10 +164,10 @@ export function isSoftlocked() {
   return state.gold < minCost;
 }
 
-// 詰み救済の新人を迎えられるか判定 (生存メンバー数2人未満かつ蘇生費不足)
+// 詰み救済の新人を迎えられるか判定 (生存メンバー数4人未満かつ蘇生費不足)
 export function canRecruitRescueNewcomer() {
   const aliveCount = state.roster.filter(char => char.status !== "dead" && char.status !== "ash").length;
-  if (aliveCount >= 2) return false;
+  if (aliveCount >= 4) return false;
 
   const deadOrAsh = state.roster.filter(char => char.status === "dead" || char.status === "ash");
   if (deadOrAsh.length === 0) {
