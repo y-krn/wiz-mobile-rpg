@@ -43,6 +43,37 @@ Docker build fails on Apple Silicon due to platform mismatch
 
 ---
 
+## [LRN-20260717-001] correction
+
+**Logged**: 2026-07-17T20:15:18+09:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+仕様の閾値やUI表記を変更する際は、unitテストだけでなく関連E2Eテストの期待値も検索する。
+
+### Details
+救済募集の上限を生存2人未満から4人未満へ変更した際、`scratch/test_rescue_softlock.js` は更新したが、`tests/verify-softlock-rescue.spec.js` の `/2` 表記と2人到達時のボタン消滅期待を見落とした。unitテストは成功した一方、レビュー環境のE2Eで旧期待値が失敗した。
+
+### Suggested Action
+状態閾値やUI表記を変更する際は、対象シンボルだけでなく旧表示文字列、旧境界値、関連する利用者向け文言を `src`、`scratch`、`tests` 全体から検索する。ブラウザ実行不可でもE2E期待値の静的整合を確認する。
+
+### Metadata
+- Source: user_feedback
+- Related Files: src/state/state_core.js, src/training.js, scratch/test_rescue_softlock.js, tests/verify-softlock-rescue.spec.js
+- Tags: testing, e2e, regression, boundary-condition, static-review
+- Pattern-Key: harden.cross_layer_test_expectations
+- Recurrence-Count: 1
+- First-Seen: 2026-07-17
+- Last-Seen: 2026-07-17
+
+### Resolution
+- **Resolved**: 2026-07-17T20:15:18+09:00
+- **Notes**: E2E期待値を `/4` へ更新し、生存2人時も救済募集ボタンが表示されることを確認するフローへ修正。
+
+---
+
 ## [LRN-20260705-001] best_practice
 
 **Logged**: 2026-07-05T00:00:00Z
