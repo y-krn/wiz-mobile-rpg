@@ -49,16 +49,37 @@ export const trapPersistenceByDepth = {
   shallow: {
     keepWeakenedRate: 0.85,
     reactivateRate: 0.05,
+    permanentDisarmCount: 2,
   },
   middle: {
     keepWeakenedRate: 0.6,
     reactivateRate: 0.2,
+    permanentDisarmCount: 3,
   },
   deep: {
     keepWeakenedRate: 0.35,
     reactivateRate: 0.4,
+    permanentDisarmCount: Infinity,
   },
 };
+
+export function getDepthCategory(floor) {
+  if (floor <= 2) return "shallow";
+  if (floor <= 4) return "middle";
+  return "deep";
+}
+
+function addDisarmPersistenceLog(trap) {
+  const depth = getDepthCategory(state.floor);
+  const nextWeakenLevel = (trap.weakenLevel || 0) + 1;
+  if (nextWeakenLevel >= trapPersistenceByDepth[depth].permanentDisarmCount) {
+    addLog(trap.type === "pitfall" ? "落とし穴を完全に塞いだ！" : "罠を完全に破壊した！");
+  } else {
+    addLog(trap.type === "pitfall"
+      ? "落とし穴は崩れやすくなったが残っている。"
+      : "罠は弱体化して残るかもしれない。");
+  }
+}
 
 function recordTrapCodex(type, field) {
   const record = state.codex?.events?.traps?.[type];
@@ -451,6 +472,7 @@ export function handleTrapAction(action) {
         addLog("[味方] 【回避成功】慎重に縁を伝い、落とし穴を渡りきった！");
         playSound("gold");
         trap.state = "disabled";
+        addDisarmPersistenceLog(trap);
         if (state.currentRun) {
           state.currentRun.steps += 3;
           if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
@@ -484,6 +506,7 @@ export function handleTrapAction(action) {
       addLog("[味方] 【解除成功】罠の機能を完全に停止した！");
       playSound("gold");
       trap.state = "disabled";
+      addDisarmPersistenceLog(trap);
       if (state.currentRun) {
         state.currentRun.trapsDisarmed++;
       }
