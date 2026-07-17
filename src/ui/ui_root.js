@@ -12,6 +12,47 @@ import { renderResultScreen } from "./result_screen.js";
 import { getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
 
 let floorStingerTimer = null;
+const LOG_AUTOSCROLL_THRESHOLD = 24;
+
+function captureScrollState(element) {
+  return {
+    scrollTop: element.scrollTop,
+    followsTail: element.scrollHeight - element.scrollTop - element.clientHeight <= LOG_AUTOSCROLL_THRESHOLD,
+  };
+}
+
+function restoreScrollState(element, scrollState) {
+  element.scrollTop = scrollState.followsTail ? element.scrollHeight : scrollState.scrollTop;
+}
+
+function renderPreservingOverlayFocus(overlay, render) {
+  const activeElement = document.activeElement;
+  let focusTarget = null;
+
+  if (activeElement instanceof HTMLElement && overlay.contains(activeElement)) {
+    if (activeElement.id) {
+      focusTarget = { id: activeElement.id };
+    } else {
+      const sameTagElements = Array.from(overlay.getElementsByTagName(activeElement.tagName));
+      focusTarget = {
+        tagName: activeElement.tagName,
+        index: sameTagElements.indexOf(activeElement),
+      };
+    }
+  }
+
+  render();
+
+  if (!focusTarget) return;
+  let nextActiveElement = null;
+  if (focusTarget.id) {
+    const element = document.getElementById(focusTarget.id);
+    if (element && overlay.contains(element)) nextActiveElement = element;
+  } else if (focusTarget.index >= 0) {
+    nextActiveElement = overlay.getElementsByTagName(focusTarget.tagName)[focusTarget.index] || null;
+  }
+  if (nextActiveElement instanceof HTMLElement) nextActiveElement.focus({ preventScroll: true });
+}
 
 export function showFloorEntryStinger(floor, firstVisit) {
   const stinger = document.getElementById("floor-entry-stinger");
@@ -75,11 +116,12 @@ function createLogEntry(line) {
 export function renderLogOverlay() {
   const body = document.getElementById("log-overlay-body");
   if (!body) return;
+  const scrollState = captureScrollState(body);
   body.replaceChildren();
   flattenLogLines(state.logs).forEach(line => {
     body.appendChild(createLogEntry(line));
   });
-  body.scrollTop = body.scrollHeight;
+  restoreScrollState(body, scrollState);
 }
 
 export function openLogOverlay() {
@@ -220,7 +262,7 @@ export function updateUI() {
   if (resultOverlay) {
     if (state.gameState === "result") {
       resultOverlay.style.display = "flex";
-      renderResultScreen();
+      renderPreservingOverlayFocus(resultOverlay, renderResultScreen);
     } else {
       resultOverlay.style.display = "none";
     }
@@ -297,13 +339,13 @@ export function updateUI() {
   // recent lines here. Full history is available via the expand overlay.
   const RECENT_LOG_LINES = 12;
   const logContent = document.getElementById("log-content");
+  const logPanel = document.getElementById("log-panel");
+  const logScrollState = captureScrollState(logPanel);
   logContent.replaceChildren();
   flattenLogLines(state.logs).slice(-RECENT_LOG_LINES).forEach(line => {
     logContent.appendChild(createLogEntry(line));
   });
-  // Auto scroll logs
-  const logPanel = document.getElementById("log-panel");
-  logPanel.scrollTop = logPanel.scrollHeight;
+  restoreScrollState(logPanel, logScrollState);
 
   // Keep the full-log overlay content fresh if it happens to be open
   const logOverlayEl = document.getElementById("log-overlay");
@@ -443,7 +485,7 @@ export function updateUI() {
   if (combatOverlay) {
     if (isCombatOverlaySubmenu) {
       combatOverlay.style.display = "flex";
-      renderCombatOverlay();
+      renderPreservingOverlayFocus(combatOverlay, renderCombatOverlay);
     } else {
       combatOverlay.style.display = "none";
     }
@@ -454,7 +496,7 @@ export function updateUI() {
   if (equipOverlay) {
     if (state.gameState === "equip_overlay") {
       equipOverlay.style.display = "flex";
-      renderEquip();
+      renderPreservingOverlayFocus(equipOverlay, renderEquip);
     } else {
       equipOverlay.style.display = "none";
     }
@@ -465,7 +507,7 @@ export function updateUI() {
   if (spellOverlay) {
     if (state.gameState === "submenu" && (menuContext.type === "spell_caster_select" || menuContext.type === "spell_select" || menuContext.type === "spell_target_ally")) {
       spellOverlay.style.display = "flex";
-      renderSpellOverlay();
+      renderPreservingOverlayFocus(spellOverlay, renderSpellOverlay);
     } else {
       spellOverlay.style.display = "none";
     }
@@ -476,7 +518,7 @@ export function updateUI() {
   if (campOverlay) {
     if (state.gameState === "submenu" && (menuContext.type === "camp_main" || menuContext.type === "camp" || menuContext.type === "camp_status" || menuContext.type === "camp_formation")) {
       campOverlay.style.display = "flex";
-      renderCampOverlay();
+      renderPreservingOverlayFocus(campOverlay, renderCampOverlay);
     } else {
       campOverlay.style.display = "none";
     }

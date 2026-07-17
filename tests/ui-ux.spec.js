@@ -155,6 +155,123 @@ test('Archives list restores scroll after detail and resets on navigation', asyn
   await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBe(0);
 });
 
+test('Full log overlay preserves history scroll and follows new logs at the tail', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  const historyScroll = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openLogOverlay, updateUI } = await import('/src/ui.js');
+
+    state.gameState = 'town';
+    state.logs = Array.from({ length: 80 }, (_, index) => `過去ログ ${index + 1}`);
+    updateUI();
+    openLogOverlay();
+
+    const body = document.querySelector('#log-overlay-body');
+    const maxScroll = body.scrollHeight - body.clientHeight;
+    body.scrollTop = Math.floor(maxScroll / 2);
+    const before = body.scrollTop;
+    state.logs.push('遡り中に追加されたログ');
+    updateUI();
+
+    return { before, after: body.scrollTop, maxScroll };
+  });
+
+  expect(historyScroll.maxScroll).toBeGreaterThan(48);
+  expect(historyScroll.before).toBeLessThan(historyScroll.maxScroll - 24);
+  expect(historyScroll.after).toBe(historyScroll.before);
+
+  const tailScroll = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const body = document.querySelector('#log-overlay-body');
+
+    body.scrollTop = body.scrollHeight;
+    state.logs.push('末尾で追加されたログ');
+    updateUI();
+
+    return {
+      distanceFromTail: body.scrollHeight - body.scrollTop - body.clientHeight,
+      lastLine: body.lastElementChild?.textContent,
+    };
+  });
+
+  expect(tailScroll.distanceFromTail).toBeLessThanOrEqual(1);
+  expect(tailScroll.lastLine).toBe('末尾で追加されたログ');
+});
+
+test('Inline log preserves history scroll and follows new logs at the tail', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  const historyScroll = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+
+    state.gameState = 'town';
+    state.logs = Array.from(
+      { length: 12 },
+      (_, index) => `インラインログ ${index + 1} ${'詳細 '.repeat(8)}`,
+    );
+    updateUI();
+
+    const panel = document.querySelector('#log-panel');
+    const maxScroll = panel.scrollHeight - panel.clientHeight;
+    panel.scrollTop = Math.floor(maxScroll / 2);
+    const before = panel.scrollTop;
+    state.logs.push(`インラインログ 13 ${'詳細 '.repeat(8)}`);
+    updateUI();
+
+    return { before, after: panel.scrollTop, maxScroll };
+  });
+
+  expect(historyScroll.maxScroll).toBeGreaterThan(48);
+  expect(historyScroll.before).toBeLessThan(historyScroll.maxScroll - 24);
+  expect(historyScroll.after).toBe(historyScroll.before);
+
+  const tailScroll = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    const panel = document.querySelector('#log-panel');
+
+    panel.scrollTop = panel.scrollHeight;
+    state.logs.push(`末尾追従ログ ${'長い内容 '.repeat(30)}`);
+    updateUI();
+
+    return panel.scrollHeight - panel.scrollTop - panel.clientHeight;
+  });
+
+  expect(tailScroll).toBeLessThanOrEqual(1);
+  await expect(page.locator('#log-content')).toContainText('末尾追従ログ');
+});
+
+test('Camp overlay keeps button focus when updateUI rerenders it', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { menuContext } = await import('/src/navigation.js');
+    const { updateUI } = await import('/src/ui.js');
+
+    state.gameState = 'submenu';
+    menuContext.type = 'camp_main';
+    menuContext.prevGameState = 'explore';
+    updateUI();
+  });
+
+  const statusButton = page.getByRole('button', { name: /ステータス/ });
+  await statusButton.focus();
+  await expect(statusButton).toBeFocused();
+
+  await page.evaluate(async () => {
+    const { updateUI } = await import('/src/ui.js');
+    updateUI();
+  });
+
+  await expect(page.getByRole('button', { name: /ステータス/ })).toBeFocused();
+});
+
 for (const vp of VIEWPORTS) {
   test(`Floor identity fits ${vp.name} (${vp.width}x${vp.height})`, async ({ page }) => {
     await page.setViewportSize(vp);
