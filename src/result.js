@@ -2,18 +2,12 @@ import { state, saveGame, saveAutosave, syncPartyToRoster, addLog } from "./stat
 import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT, getItemBaseId, isSpecialOrQuestItem, ITEMS, getItemData, getCoreLogText } from "./data.js";
 import { updateUI } from "./ui.js";
 import { checkActiveContract, generateContractsList } from "./contracts.js";
-import { trapPersistenceByDepth } from "./systems/traps.js";
+import { getDepthCategory, trapPersistenceByDepth } from "./systems/traps.js";
 
 export function persistDungeonTraps() {
   if (!state.dungeonMemory) {
     state.dungeonMemory = { traps: {}, mapFragments: {}, visitedFloors: [1] };
   }
-
-  const getDepthCategory = (floor) => {
-    if (floor <= 2) return "shallow";
-    if (floor <= 4) return "middle";
-    return "deep";
-  };
 
   if (state.maps) {
     for (let f = 1; f <= 5; f++) {

@@ -63,13 +63,21 @@ export const trapPersistenceByDepth = {
   },
 };
 
+export function getDepthCategory(floor) {
+  if (floor <= 2) return "shallow";
+  if (floor <= 4) return "middle";
+  return "deep";
+}
+
 function addDisarmPersistenceLog(trap) {
-  const depth = state.floor <= 2 ? "shallow" : state.floor <= 4 ? "middle" : "deep";
+  const depth = getDepthCategory(state.floor);
   const nextWeakenLevel = (trap.weakenLevel || 0) + 1;
   if (nextWeakenLevel >= trapPersistenceByDepth[depth].permanentDisarmCount) {
-    addLog("罠を完全に破壊した！");
+    addLog(trap.type === "pitfall" ? "落とし穴を完全に塞いだ！" : "罠を完全に破壊した！");
   } else {
-    addLog("罠は弱体化して残るかもしれない。");
+    addLog(trap.type === "pitfall"
+      ? "落とし穴は崩れやすくなったが残っている。"
+      : "罠は弱体化して残るかもしれない。");
   }
 }
 

@@ -33,13 +33,28 @@ const {
   calculateSuccessRate,
   triggerTrap,
   triggerPitfall,
-  getExpectedEffectText
+  getExpectedEffectText,
+  getDepthCategory
 } = await import("../src/systems/traps.js");
 
 const { persistDungeonTraps } = await import("../src/result.js");
 const { applyDungeonMemoryToMaps } = await import("../src/state.js");
 
 console.log("=== DUNGEON TRAP SYSTEM VERIFICATION ===");
+
+const depthCategoryCases = [
+  [1, "shallow"],
+  [2, "shallow"],
+  [3, "middle"],
+  [4, "middle"],
+  [5, "deep"]
+];
+for (const [floor, expected] of depthCategoryCases) {
+  if (getDepthCategory(floor) !== expected) {
+    console.error(`FAIL: B${floor} depth category should be ${expected}.`);
+    process.exit(1);
+  }
+}
 
 // 1. Verify Trap Placement in Map Generation
 console.log("\n[1] Verifying trap generation on passages:");
