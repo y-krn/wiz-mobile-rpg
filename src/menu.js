@@ -1,6 +1,6 @@
 export { renderSubmenu } from "./menu/submenu_router.js";
 export { handleTownOption } from "./menu/town_actions.js";
-export { handleExploreAction, clearSaveData } from "./menu/explore_actions.js";
+export { handleExploreAction } from "./menu/explore_actions.js";
 export { generateMerchantStock } from "./menu/merchant.js";
 export { renderMaterialsHUD } from "./menu/materials_hud.js";
 
