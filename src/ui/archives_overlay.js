@@ -1,6 +1,5 @@
 import { state, createDefaultCodex } from "../state.js";
-import { MONSTERS, ITEMS } from "../data.js";
-import { getMonsterContractInfo } from "../contracts.js";
+import { getClassJpName, MONSTERS, ITEMS } from "../data.js";
 import { updateUI } from "./ui_root.js";
 import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
 
@@ -34,17 +33,8 @@ export function getMonsterCodexDetailHtml(m, record) {
       <p><strong>戦利品傾向:</strong> ${m.isRare ? "未鑑定装備と希少素材" : "グループ別素材"}</p>
     `;
   } else {
-    html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[撃破すると特徴と報酬が解放されます]</p>`;
+    html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[初討伐で特徴とメタ素材報酬が解放されます]</p>`;
   }
-
-  // 撃破数に応じた契約連動の推奨情報表示
-  const contractInfo = getMonsterContractInfo(m.name, kil);
-  html += `
-    <div style="border-top: 1px solid #333; border-bottom: 1px solid #333; margin: 8px 0; padding: 6px 0;">
-      <p><strong>特性:</strong> ${contractInfo.features}</p>
-      <p style="color: var(--neon-green);"><strong>推奨:</strong> ${contractInfo.recommended}</p>
-    </div>
-  `;
   
   if (kil >= 3) {
     html += `
@@ -186,14 +176,21 @@ export function getEventsCodexHtml() {
   
   // スタッツセクション
   const stats = state.codex?.stats || { totalRuns: 0, totalDeaths: 0, deepestFloor: 1, totalKills: 0, totalChests: 0 };
+  const records = state.records || { deepestRetreat: 0, deepestDeath: 0, deepestByClass: {}, totalRuns: 0 };
+  const classRecords = Object.entries(records.deepestByClass || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([className, floor]) => `${getClassJpName(className)}: B${floor}F`)
+    .join(" / ") || "記録なし";
   html += `<div><div class="archives-section-title">📊 累計スタッツ</div>`;
   html += `
     <div style="background-color: #14141a; border: 1px solid var(--neon-cyan); border-radius: 4px; padding: 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
-      <div>探索回数: <strong style="color: var(--neon-cyan);">${stats.totalRuns}</strong> 回</div>
+      <div>潜行回数: <strong style="color: var(--neon-cyan);">${records.totalRuns}</strong> 回</div>
       <div>全滅死亡: <strong style="color: var(--neon-red);">${stats.totalDeaths}</strong> 回</div>
-      <div>最深到達: <strong style="color: var(--neon-cyan);">B${stats.deepestFloor}F</strong></div>
+      <div>撤退最深: <strong style="color: var(--neon-green);">${records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録"}</strong></div>
+      <div>死亡最深: <strong style="color: var(--neon-red);">${records.deepestDeath ? `B${records.deepestDeath}F` : "未記録"}</strong></div>
       <div>累計撃破: <strong style="color: var(--neon-green);">${stats.totalKills}</strong> 匹</div>
       <div style="grid-column: span 2;">宝箱開封: <strong style="color: var(--neon-yellow);">${stats.totalChests}</strong> 個</div>
+      <div style="grid-column: span 2;">クラス最深: <strong>${classRecords}</strong></div>
     </div>
   `;
   html += `</div>`;

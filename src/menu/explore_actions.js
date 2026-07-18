@@ -132,6 +132,8 @@ export function handleExploreAction(action) {
     openSubmenu("item_inventory", `共有バッグ (${state.inventory.length}個) - 道具を使う:`);
   } else if (action === "item" || action === "equip") {
     openEquipOverlay(0);
+  } else if (action === "quests") {
+    openSubmenu("run_quests", "ランクエスト");
   }
 }
 

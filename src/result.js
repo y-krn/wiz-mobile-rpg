@@ -1,8 +1,9 @@
-import { state, saveGame, saveAutosave } from "./state.js";
-import { START_X, START_Y, DIR_N } from "./data.js";
+import { state, saveGame, saveAutosave, finalizeRunRecords } from "./state.js";
+import { START_X, START_Y, DIR_N, getPartyMaxAffix } from "./data.js";
 import { updateUI } from "./ui.js";
 import { getDepthCategory, trapPersistenceByDepth } from "./systems/traps.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
+import { updateRunQuests } from "./systems/run_quests.js";
 
 export function persistDungeonTraps() {
   if (!state.dungeonMemory) {
@@ -103,6 +104,8 @@ export function triggerRunResult(reason) {
   const run = state.currentRun;
   run.returnReason = reason;
   const isSuccess = reason !== "gameover";
+  updateRunQuests(run, getPartyMaxAffix(state.party, "contractReward"));
+  run.materialsBeforeBanking = { ...(run.materials || {}) };
   const banking = bankRunMaterials(
     state.metaMaterials,
     run.materials,
@@ -110,6 +113,14 @@ export function triggerRunResult(reason) {
   );
   state.metaMaterials = banking.balance;
   run.bankedMaterials = banking.banked;
+  const recordResult = finalizeRunRecords(
+    state.records,
+    run,
+    isSuccess ? "retreat" : "death",
+    run.characterClass || state.party[0]?.class
+  );
+  state.records = recordResult.records;
+  run.recordResult = recordResult;
   const danger = calculateDangerScore();
   run.dangerScore = danger.score;
   run.dangerRank = danger.rank;
@@ -158,7 +169,7 @@ export function triggerRunResult(reason) {
 
   if (state.codex) {
     state.codex.stats ||= { totalRuns: 0, totalDeaths: 0, deepestFloor: 1, totalKills: 0, totalChests: 0 };
-    state.codex.stats.totalRuns++;
+    state.codex.stats.totalRuns = state.records.totalRuns;
     if (!isSuccess) state.codex.stats.totalDeaths++;
     state.codex.stats.deepestFloor = Math.max(state.codex.stats.deepestFloor || 1, run.deepestFloor);
     state.codex.stats.totalChests += run.chestsOpened;
@@ -180,8 +191,6 @@ export function triggerRunResult(reason) {
   state.runHistory ||= [];
   state.runHistory.unshift(runSummary);
   state.runHistory = state.runHistory.slice(0, 20);
-
-  run.contractResult = null;
 
   state.x = START_X;
   state.y = START_Y;

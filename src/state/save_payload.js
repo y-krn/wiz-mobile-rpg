@@ -51,6 +51,7 @@ export function createSavePayload() {
     floorChestsTotal: state.floorChestsTotal,
     firstKills: state.firstKills,
     currentRun: state.currentRun,
+    records: state.records,
     unlockedMilestones: state.unlockedMilestones,
     runHistory: state.runHistory,
     deathLogs: state.deathLogs,
@@ -66,9 +67,6 @@ export function createSavePayload() {
     noiseEvents: state.noiseEvents,
     openedGates: state.openedGates,
     firstChestUnidentifiedGuaranteed: state.firstChestUnidentifiedGuaranteed,
-    contracts: state.contracts,
-    activeContract: state.activeContract,
-    completedContracts: state.completedContracts,
     storage: state.storage,
     storageMax: state.storageMax,
     identifyTickets: state.identifyTickets,
@@ -108,6 +106,7 @@ export function applySavePayload(data) {
   state.firstKills = data.firstKills;
   state.sessionMaxFloor = data.floor;
   state.currentRun = data.currentRun;
+  state.records = data.records;
   state.unlockedMilestones = data.unlockedMilestones;
   state.runHistory = data.runHistory;
   state.deathLogs = data.deathLogs;
@@ -117,9 +116,6 @@ export function applySavePayload(data) {
   state.roamingMovementStepCount = data.roamingMovementStepCount;
   state.noiseEvents = data.noiseEvents ?? [];
   state.openedGates = data.openedGates;
-  state.contracts = data.contracts;
-  state.activeContract = data.activeContract;
-  state.completedContracts = data.completedContracts;
   state.storage = data.storage;
   state.storageMax = data.storageMax;
   state.identifyTickets = data.identifyTickets;

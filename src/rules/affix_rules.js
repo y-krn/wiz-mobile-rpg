@@ -225,7 +225,7 @@ export function getCoreLogText(coreId) {
     CORE_TOMB_RAIDER: "危険な罠ごと宝を奪い取った！",
     CORE_KEEN_EYE: "未知の装備の真価を引き出した！",
     CORE_CAMP_MASTER: "野営の知恵で回復を高めた！",
-    CORE_BOUNTY_HUNTER: "契約対象を確実に仕留めた！",
+    CORE_BOUNTY_HUNTER: "ランクエスト対象を確実に仕留めた！",
     CORE_SCHOLAR_EYE: "未知の魔物から素材を見抜いた！"
   };
   return `[${name}] ${messages[coreId] || "コアが発動した！"}`;

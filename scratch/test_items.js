@@ -567,10 +567,10 @@ import { state } from "../src/state.js";
       assert.strictEqual(state.party[0].exp, 100, "Should only gain normal exp (100)");
       assert.strictEqual(state.currentRun.expGained, 100, "Current run exp should be 100");
 
-      // Check Materials (Should gain normal drop from drops.js, plus 1 flat 獣の牙 for first kill)
-      // Let's check how many "獣の牙" we have
+      // 初討伐分はbanking対象外のメタ素材へ直接入り、ラン結果にも内訳を残す。
       const wolfMainMat = "獣の牙";
-      assert.ok(state.currentRun.materials[wolfMainMat] >= 1, "Should have recorded run material");
+      assert.ok(state.metaMaterials[wolfMainMat] >= 1, "Should have recorded meta material");
+      assert.strictEqual(state.currentRun.codexRewards[wolfMainMat], 1, "Should record codex meta reward");
 
       // Check state.firstKills
       assert.deepStrictEqual(state.firstKills, ["ワーウルフ"], "First kills list should contain ワーウルフ");

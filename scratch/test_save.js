@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { applySavePayload, createSavePayload } from "../src/state/save_payload.js";
 import { SAVE_VERSION, migrateSavePayload } from "../src/state/save_migrations.js";
-import { SOLO_CLASSES, createSoloCharacter, state } from "../src/state.js";
+import { SOLO_CLASSES, createDefaultCurrentRun, createSoloCharacter, state } from "../src/state.js";
 import { menuContext } from "../src/navigation.js";
 import { applyFloorTransitionHeal } from "../src/movement.js";
 
@@ -36,6 +36,9 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   state.metaMaterials = { "獣の牙": 7, "竜鱗": 2 };
   state.workshop = { ranks: { gear_rapier: 1, stat_str: 3 } };
   state.unlockedMilestones = [5, 10];
+  state.records = { deepestRetreat: 12, deepestDeath: 9, deepestByClass: { Mage: 12 }, totalRuns: 7 };
+  state.currentRun = createDefaultCurrentRun();
+  state.currentRun.quests = [{ id: "depth", currentValue: 4, targetValue: 5, completed: false }];
   menuContext.type = "solo_start";
   menuContext.prevGameState = "town";
 
@@ -44,12 +47,18 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.equal(payload.party.length, 1);
   assert.equal(payload.gameState, "town");
   assert.deepEqual(payload.unlockedMilestones, [5, 10]);
+  assert.deepEqual(payload.records, state.records);
+  assert.equal(payload.currentRun.quests[0].currentValue, 4);
+  assert.equal(Object.hasOwn(payload, "contracts"), false);
+  assert.equal(Object.hasOwn(payload, "activeContract"), false);
   assert.equal(Object.hasOwn(payload, "roster"), false);
   assert.equal(Object.hasOwn(payload, "remains"), false);
   assert.equal(Object.hasOwn(payload, "gold"), false);
 
   state.party = [];
   state.gameState = "combat";
+  state.records = {};
+  state.currentRun = null;
   applySavePayload(JSON.parse(JSON.stringify(payload)));
   assert.equal(state.party.length, 1);
   assert.equal(state.party[0].class, "Mage");
@@ -58,6 +67,8 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.deepEqual(state.metaMaterials, { "獣の牙": 7, "竜鱗": 2 });
   assert.deepEqual(state.workshop, { ranks: { gear_rapier: 1, stat_str: 3 } });
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
+  assert.deepEqual(state.records, { deepestRetreat: 12, deepestDeath: 9, deepestByClass: { Mage: 12 }, totalRuns: 7 });
+  assert.equal(state.currentRun.quests[0].currentValue, 4);
 });
 
 check("legacy saves are rejected instead of migrated", () => {

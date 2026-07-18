@@ -15,6 +15,80 @@ const SOLO_HUD_VIEWPORTS = [
 const SOLO_HUD_STATES = ['town', 'explore', 'combat', 'submenu'];
 
 for (const vp of VIEWPORTS) {
+  test(`Records, run quests, and result focus stay visible at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { updateUI } = await import('/src/ui.js');
+      state.gameState = 'town';
+      state.currentRun = null;
+      state.records = {
+        deepestRetreat: 12,
+        deepestDeath: 9,
+        deepestByClass: { Mage: 12 },
+        totalRuns: 7,
+      };
+      updateUI();
+    });
+
+    const recordsStrip = page.locator('#records-strip');
+    await expect(recordsStrip).toBeVisible();
+    await expect(recordsStrip).toContainText('撤退最深');
+    await expect(recordsStrip).toContainText('B12F');
+    await expect(recordsStrip).toContainText('死亡最深');
+    const titleBox = await recordsStrip.boundingBox();
+    expect(titleBox.x).toBeGreaterThanOrEqual(0);
+    expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(vp.width);
+
+    await page.evaluate(async () => {
+      const { createDefaultCurrentRun, createSoloCharacter, state } = await import('/src/state.js');
+      const { updateUI } = await import('/src/ui.js');
+      state.party = [createSoloCharacter('Mage')];
+      state.currentRun = createDefaultCurrentRun();
+      state.currentRun.deepestFloor = 6;
+      state.currentRun.quests = [{
+        id: 'depth:1:5', templateId: 'reach_milestone', type: 'depth', name: '次の節目へ',
+        description: '次の5階ごとの節目まで到達する。', targetValue: 5, currentValue: 5,
+        completed: true, rewardClaimed: true, reward: { materials: { '鉄片': 3 } },
+      }];
+      state.gameState = 'explore';
+      updateUI();
+    });
+    await expect(page.locator('.quest-hud-list')).toContainText('次の節目へ');
+    await page.locator('#btn-run-quests').click();
+    await expect(page.locator('#submenu-title')).toContainText('ランクエスト');
+    await expect(page.locator('.run-quest-card')).toContainText('達成');
+
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { updateUI } = await import('/src/ui.js');
+      const run = state.currentRun;
+      run.returnReason = 'milestone_portal';
+      run.deepestFloor = 13;
+      run.materialsBeforeBanking = { '獣の牙': 5, '鉄片': 3 };
+      run.bankedMaterials = { '獣の牙': 5, '鉄片': 3 };
+      run.codexRewards = { '霊粉': 1 };
+      run.recordResult = { updated: true, updates: ['撤退最深', 'Mage最深'], depth: 13 };
+      state.gameState = 'result';
+      updateUI();
+    });
+
+    const result = page.locator('#result-overlay');
+    await expect(result).toBeVisible();
+    await expect(result).toContainText('今回の深度 B13F');
+    await expect(result).toContainText('NEW DEPTH RECORD');
+    await expect(result).toContainText('素材収支');
+    await expect(result).toContainText('ランクエスト');
+    const button = page.locator('#btn-result-castle');
+    const buttonBox = await button.boundingBox();
+    expect(buttonBox.height).toBeGreaterThanOrEqual(44);
+    expect(buttonBox.y).toBeGreaterThan(vp.height * 0.5);
+    expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(vp.height);
+  });
+}
+
+for (const vp of VIEWPORTS) {
   test(`Equipment gamble stays explicit and thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');

@@ -100,6 +100,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   const firstKills = originalState.firstKills ? [...originalState.firstKills] : [];
   const codex = originalState.codex ? JSON.parse(JSON.stringify(originalState.codex)) : null;
   const currentRun = originalState.currentRun ? JSON.parse(JSON.stringify(originalState.currentRun)) : null;
+  const metaMaterials = { ...(originalState.metaMaterials || {}) };
   const roamingMonsters = originalState.roamingMonsters ? originalState.roamingMonsters.map(rm => ({...rm})) : [];
   const floorChestsTotal = originalState.floorChestsTotal ? [...originalState.floorChestsTotal] : [];
   const openedGates = originalState.openedGates ? [...originalState.openedGates] : [];
@@ -115,6 +116,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     firstKills,
     codex,
     currentRun,
+    metaMaterials,
     roamingMonsters,
     floorChestsTotal,
     openedGates

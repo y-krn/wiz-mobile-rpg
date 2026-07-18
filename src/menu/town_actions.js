@@ -2,7 +2,7 @@ import { state, saveAutosave, addLog } from "../state.js";
 import { playSound } from "../audio.js";
 import { openArchivesOverlay } from "../ui.js";
 import { openSubmenu } from "../navigation.js";
-import { getItemBaseId } from "../data.js";
+import { getClassJpName, getItemBaseId } from "../data.js";
 
 export function handleTownOption(option) {
   if (option === "castle") {
@@ -19,6 +19,22 @@ export function renderCastleMain(optGrid) {
   optGrid.style.display = "flex";
   optGrid.style.flexDirection = "column";
   optGrid.style.gap = "8px";
+  const records = state.records || { deepestRetreat: 0, deepestDeath: 0, deepestByClass: {}, totalRuns: 0 };
+  const summary = document.createElement("div");
+  summary.className = "records-menu-summary";
+  summary.innerHTML = `
+    <div><span>撤退最深</span><strong>${records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録"}</strong></div>
+    <div><span>死亡最深</span><strong>${records.deepestDeath ? `B${records.deepestDeath}F` : "未記録"}</strong></div>
+    <div><span>総潜行</span><strong>${records.totalRuns}回</strong></div>
+  `;
+  optGrid.appendChild(summary);
+  const classRecords = document.createElement("div");
+  classRecords.className = "records-class-list";
+  const entries = Object.entries(records.deepestByClass || {}).sort((a, b) => b[1] - a[1]);
+  classRecords.textContent = entries.length
+    ? entries.map(([className, floor]) => `${getClassJpName(className)} B${floor}F`).join(" / ")
+    : "クラス別記録なし";
+  optGrid.appendChild(classRecords);
   const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
   if (hasCrystal) {
     const button = document.createElement("button");
