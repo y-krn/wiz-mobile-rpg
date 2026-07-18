@@ -7,5 +7,5 @@ test('Workshop replaces the retired town shop', async ({ page }) => {
   await page.locator('#btn-town-workshop').click();
   await expect(page.locator('#submenu-title')).toContainText('工房');
   await expect(page.locator('.workshop-node')).toHaveCount(12);
-  await expect(page.locator('#submenu-options')).toContainText('暫定帰還手段');
+  await expect(page.locator('#submenu-options')).toContainText('任意のフロアから撤退できる');
 });

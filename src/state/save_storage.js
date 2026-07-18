@@ -76,6 +76,7 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.firstKills = [];
   state.sessionMaxFloor = 1;
   state.currentRun = null;
+  state.unlockedMilestones = [];
   state.runHistory = [];
   state.deathLogs = [];
   state.codex = createDefaultCodex();

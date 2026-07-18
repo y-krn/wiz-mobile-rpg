@@ -22,12 +22,8 @@ export function revealEquipmentOnEquip(item) {
   return { revealed, cursed: isCurseLocked(item) };
 }
 
-export function removeEquipmentCurse(stateLike, item) {
+export function purifyEquipmentCurse(item) {
   if (!isCurseLocked(item)) return { ok: false, reason: "not_cursed" };
-  if ((stateLike.identifyTickets || 0) < IDENTIFICATION_BALANCE.removeCurseCost) {
-    return { ok: false, reason: "insufficient_powder" };
-  }
-  stateLike.identifyTickets -= IDENTIFICATION_BALANCE.removeCurseCost;
   item.curseEffectId = null;
   item.curseLocked = false;
   item.curseSuspected = false;

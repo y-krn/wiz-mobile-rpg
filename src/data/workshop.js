@@ -69,7 +69,7 @@ const WORKSHOP_BASE_NODES = [
     id: "kit_return_wing",
     category: "convenience",
     name: "帰還の翼支給",
-    description: "潜行開始時に帰還の翼を1個持つ。暫定帰還手段。",
+    description: "潜行開始時に帰還の翼を1個持つ。任意のフロアから撤退できる。",
     costs: [{ "黒角": 4, "竜鱗": 1 }],
     grants: { returnItem: "TOWN_PORTAL" }
   }

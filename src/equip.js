@@ -21,7 +21,6 @@ import {
 import { CURSE_EFFECTS } from "./data/items.js";
 import {
   identifyEquipment,
-  removeEquipmentCurse,
   revealEquipmentOnEquip
 } from "./systems/identification.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
@@ -644,22 +643,9 @@ function createDetailPanel(char) {
     const actionBtn = document.createElement("button");
     actionBtn.type = "button";
     if (locked) {
-      const canRemove = (state.identifyTickets || 0) >= IDENTIFICATION_BALANCE.removeCurseCost;
-      actionBtn.className = canRemove ? "btn btn-danger btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
-      actionBtn.disabled = !canRemove;
-      actionBtn.textContent = canRemove
-        ? `暫定解呪する（鑑定粉${IDENTIFICATION_BALANCE.removeCurseCost}）`
-        : `解呪に鑑定粉${IDENTIFICATION_BALANCE.removeCurseCost}必要（所持${state.identifyTickets || 0}）`;
-      actionBtn.addEventListener("click", () => {
-        const currentChar = state.party[equipState.actorIdx];
-        const currentItem = currentChar.equipment[equipState.selectedSlot];
-        if (!removeEquipmentCurse(state, currentItem).ok) return;
-        addLog(`${currentChar.name}の${getItemData(currentItem).name}から呪いを解いた。`);
-        playSound("heal");
-        saveAutosave();
-        renderEquip();
-        updateUI();
-      });
+      actionBtn.className = "btn btn-block equip-action-btn disabled";
+      actionBtn.disabled = true;
+      actionBtn.textContent = "節目商人で解呪できます";
       actions.appendChild(actionBtn);
       detailCol.appendChild(actions);
       return detailCol;

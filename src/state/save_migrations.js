@@ -67,7 +67,7 @@ export function migrateCharSpells(char) {
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 
 // 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
 // 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
@@ -204,6 +204,9 @@ export function normalizeSavePayload(data) {
     delete normalized.currentRun.seenOmenFloors;
     delete normalized.currentRun.matchedOmenFloors;
   }
+  normalized.unlockedMilestones = Array.from(new Set(data.unlockedMilestones ?? []))
+    .filter(floor => Number.isInteger(floor) && floor > 0 && floor % 5 === 0)
+    .sort((a, b) => a - b);
   normalized.runHistory = data.runHistory ?? [];
   normalized.deathLogs = data.deathLogs ?? [];
   normalized.codex = data.codex ?? createDefaultCodex();
@@ -248,7 +251,10 @@ export function normalizeSavePayload(data) {
 
   let loadedMaps = data.maps;
   let needsMigration = false;
-  if (!loadedMaps || loadedMaps.length < 5) {
+  const generatedRunMaps = Boolean(normalized.currentRun?.runSeed);
+  if (generatedRunMaps) {
+    needsMigration = !loadedMaps?.some(Boolean);
+  } else if (!loadedMaps || loadedMaps.length < 5) {
     needsMigration = true;
   } else {
     const firstMap = loadedMaps[0];
@@ -281,13 +287,9 @@ export function normalizeSavePayload(data) {
     ];
     normalized.visitedMaps[0][START_Y][START_X] = true;
   } else {
-    normalized.visitedMaps = data.visitedMaps ?? [
-      Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-      Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-      Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-      Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-      Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
-    ];
+    normalized.visitedMaps = data.visitedMaps ?? loadedMaps.map(map =>
+      map ? map.map(row => row.map(() => false)) : null
+    );
   }
 
   loadedMaps.forEach(map => {

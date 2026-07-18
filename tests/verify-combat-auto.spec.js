@@ -12,6 +12,7 @@ test('Combat Auto button test', async ({ page }) => {
   const enterBtn = page.locator('#btn-town-dungeon');
   await enterBtn.click();
   await page.getByRole('button', { name: /戦士/ }).click();
+  await page.getByRole('button', { name: /B1Fから開始/ }).click();
 
   // 強制的に戦闘を開始する
   await page.evaluate(async () => {

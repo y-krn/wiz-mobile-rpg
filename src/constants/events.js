@@ -4,6 +4,7 @@ export const EVENT_TYPES = {
   CAMP: "event_camp",
   TABLET: "event_tablet",
   MERCHANT: "event_merchant",
+  RETURN_PORTAL: "return_portal",
   MIDBOSS: "midboss",
   BOSS: "boss"
 };

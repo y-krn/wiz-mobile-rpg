@@ -123,3 +123,27 @@
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
+
+.solo-start-floor-grid {
+  grid-template-columns: 1fr;
+  grid-auto-rows: auto;
+  align-content: end;
+}
+
+.solo-start-change,
+.solo-start-floor-option,
+.milestone-portal-action {
+  min-height: var(--tap-min);
+}
+
+.solo-start-floor-option {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.solo-start-floor-option span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}

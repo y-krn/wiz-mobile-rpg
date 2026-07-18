@@ -35,6 +35,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   state.gameState = "submenu";
   state.metaMaterials = { "獣の牙": 7, "竜鱗": 2 };
   state.workshop = { ranks: { gear_rapier: 1, stat_str: 3 } };
+  state.unlockedMilestones = [5, 10];
   menuContext.type = "solo_start";
   menuContext.prevGameState = "town";
 
@@ -42,6 +43,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.equal(payload.version, SAVE_VERSION);
   assert.equal(payload.party.length, 1);
   assert.equal(payload.gameState, "town");
+  assert.deepEqual(payload.unlockedMilestones, [5, 10]);
   assert.equal(Object.hasOwn(payload, "roster"), false);
   assert.equal(Object.hasOwn(payload, "remains"), false);
   assert.equal(Object.hasOwn(payload, "gold"), false);
@@ -55,6 +57,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.equal(state.gameState, "town");
   assert.deepEqual(state.metaMaterials, { "獣の牙": 7, "竜鱗": 2 });
   assert.deepEqual(state.workshop, { ranks: { gear_rapier: 1, stat_str: 3 } });
+  assert.deepEqual(state.unlockedMilestones, [5, 10]);
 });
 
 check("legacy saves are rejected instead of migrated", () => {

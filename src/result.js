@@ -1,5 +1,5 @@
 import { state, saveGame, saveAutosave } from "./state.js";
-import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
+import { START_X, START_Y, DIR_N } from "./data.js";
 import { updateUI } from "./ui.js";
 import { getDepthCategory, trapPersistenceByDepth } from "./systems/traps.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
@@ -10,15 +10,15 @@ export function persistDungeonTraps() {
   }
 
   if (state.maps) {
-    for (let f = 1; f <= 5; f++) {
+    for (let f = 1; f <= state.maps.length; f++) {
       const grid = state.maps[f - 1];
       if (!grid) continue;
       
       const depth = getDepthCategory(f);
       const conf = trapPersistenceByDepth[depth];
 
-      for (let y = 0; y < MAP_HEIGHT; y++) {
-        for (let x = 0; x < MAP_WIDTH; x++) {
+      for (let y = 0; y < grid.length; y++) {
+        for (let x = 0; x < grid[y].length; x++) {
           const cell = grid[y]?.[x];
           if (cell && cell.trap) {
             const trap = cell.trap;

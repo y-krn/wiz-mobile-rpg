@@ -21,6 +21,8 @@ export * from "./data/tags.js";
 export * from "./data/affixes.js";
 export * from "./data/floor_templates.js";
 export * from "./data/encounters.js";
+export * from "./data/biomes.js";
+export * from "./rules/depth_scaling.js";
 
 
 // Re-export constants/data with wrapper compatibility

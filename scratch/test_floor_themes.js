@@ -22,7 +22,7 @@ check("未踏階は名前を隠し、進入で開示する", () => {
   const state = { dungeonMemory: { traps: {}, mapFragments: {}, visitedFloors: [1] } };
   assert.equal(getFloorLabel(state, 2), "???（地下2階）");
   assert.equal(revealFloor(state, 2), true);
-  assert.equal(getFloorDisplayName(state, 2), "忘れられた地下墓地");
+  assert.equal(getFloorDisplayName(state, 2), "崩れた坑道");
   assert.equal(revealFloor(state, 2), false);
   assert.deepEqual(state.dungeonMemory.visitedFloors, [1, 2]);
 });
@@ -34,8 +34,8 @@ check("場所開示時に既存契約の未知名を更新する", () => {
     activeContract: null
   };
   revealFloor(state, 3);
-  assert.equal(state.contracts[0].name, "大裂溝の巣窟への到達");
-  assert.match(state.contracts[0].description, /大裂溝の巣窟/);
+  assert.equal(state.contracts[0].name, "崩れた坑道への到達");
+  assert.match(state.contracts[0].description, /崩れた坑道/);
 });
 
 check("旧セーブは到達済み最深階まで訪問済みにする", () => {

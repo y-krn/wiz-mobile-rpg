@@ -20,6 +20,7 @@ for (const vp of VIEWPORTS) {
     // 1. Mageを選択して潜行
     await page.click('#btn-town-dungeon');
     await page.getByRole('button', { name: /魔術師/ }).click();
+    await page.getByRole('button', { name: /B1Fから開始/ }).click();
 
     // 3. Open Spell overlay
     await page.click('#btn-cast');
