@@ -135,7 +135,7 @@ for (let seedIndex = 0; seedIndex < 100; seedIndex++) {
     assert((events[EVENT_TYPES.CHEST] || 0) >= 6, `${label} chest count ${events[EVENT_TYPES.CHEST]}`);
     assert.equal(events[EVENT_TYPES.SPRING] || 0, 2, `${label} spring count`);
     assert((events[EVENT_TYPES.TABLET] || 0) >= 2, `${label} tablet count ${events[EVENT_TYPES.TABLET]}`);
-    assert.equal(events[EVENT_TYPES.MERCHANT] || 0, 1, `${label} merchant count`);
+    assert.equal(events[EVENT_TYPES.MERCHANT] || 0, 0, `${label} retired merchant count`);
 
     parentStairsCoord = generated.stairsDownCoord;
   }

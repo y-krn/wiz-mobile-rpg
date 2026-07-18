@@ -959,21 +959,25 @@ for (const vp of VIEWPORTS) {
 
       await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
-        const { openSubmenu } = await import('/src/navigation.js');
-        state.map[state.y][state.x].event = 'event_merchant';
-        openSubmenu('event_merchant', 'フードを被ったさまよう商人が現れた！');
+        const { checkCellEvents } = await import('/src/movement.js');
+        const { updateUI } = await import('/src/ui.js');
+        const cell = state.map[state.y][state.x];
+        state.gameState = 'explore';
+        cell.type = 'passage';
+        cell.message = null;
+        cell.event = 'event_merchant';
+        checkCellEvents();
+        updateUI();
       });
-      await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
-      await expect(page.locator('#log-panel')).toBeHidden();
-      await page.getByRole('button', { name: '取引をする' }).click();
-      await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
-      await expect(page.locator('#log-panel')).toBeHidden();
-      await expect(page.getByRole('button', { name: /傷薬/ })).toBeVisible();
-      await page.getByRole('button', { name: /傷薬/ }).click();
       await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
       await expect(page.locator('#log-panel')).toBeVisible();
-      await expect(page.locator('#log-content')).toContainText('商人から');
-      await expect(page.getByRole('button', { name: '取引を続ける' })).toBeVisible();
+      await expect(page.locator('#log-content')).toContainText('一時休業中');
+      await expect(page.getByRole('button', { name: '取引をする' })).toHaveCount(0);
+      const merchantResult = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return { gameState: state.gameState, event: state.map[state.y][state.x].event };
+      });
+      expect(merchantResult).toEqual({ gameState: 'explore', event: null });
     });
 
     test('Movement-triggered event and trap panels ignore immediate taps', async ({ page }) => {

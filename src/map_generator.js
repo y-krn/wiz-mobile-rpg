@@ -1465,20 +1465,12 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     tabletCount++;
   }
 
-  let merchantCount = 0;
-  for (let i = chestCount + 4; i < Math.min(chestCount + 5, deadEnds.length); i++) {
-    const spot = deadEnds[i];
-    grid[spot.y][spot.x].event = EVENT_TYPES.MERCHANT;
-    merchantCount++;
-  }
-
   // Fallback if sparse
   let totalChestNeeded = 6 - chestCount;
   let totalSpringNeeded = 2 - springCount;
   let totalTabletNeeded = 2 - tabletCount;
-  let totalMerchantNeeded = 1 - merchantCount;
 
-  if (totalChestNeeded > 0 || totalSpringNeeded > 0 || totalTabletNeeded > 0 || totalMerchantNeeded > 0) {
+  if (totalChestNeeded > 0 || totalSpringNeeded > 0 || totalTabletNeeded > 0) {
     const passages = [];
     for (let y = 1; y < mapHeight - 1; y++) {
       for (let x = 1; x < mapWidth - 1; x++) {
@@ -1508,10 +1500,6 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     for (let i = 0; i < totalTabletNeeded && pIdx < passages.length; i++) {
       const spot = passages[pIdx++];
       grid[spot.y][spot.x].event = EVENT_TYPES.TABLET;
-    }
-    for (let i = 0; i < totalMerchantNeeded && pIdx < passages.length; i++) {
-      const spot = passages[pIdx++];
-      grid[spot.y][spot.x].event = EVENT_TYPES.MERCHANT;
     }
   }
 
