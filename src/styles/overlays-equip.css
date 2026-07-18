@@ -445,6 +445,15 @@
   color: var(--neon-purple);
 }
 
+.equip-affix-group.curse {
+  border-color: var(--neon-red);
+}
+
+.equip-affix-group.curse strong,
+.equip-affix-group.curse span {
+  color: var(--neon-red);
+}
+
 .equip-stat-pill {
   background-color: #0c0c0e;
   border: 1px solid #22222d;
@@ -497,6 +506,12 @@
   min-height: var(--tap-min) !important;
   font-size: var(--fs-base) !important;
   padding: 8px 12px !important;
+}
+
+.equip-detail-actions {
+  display: grid;
+  gap: var(--sp-sm);
+  grid-template-columns: 1fr;
 }
 
 /* Equip list category headings */

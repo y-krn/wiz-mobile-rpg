@@ -538,7 +538,7 @@ import { createSoloCharacter } from "../src/state.js";
       const { state, initNewGame } = await import("../src/state.js");
       const { generateRandomEquipment } = await import("../src/systems/equipment_generation.js");
       const { getItemData, getCharAffixSum } = await import("../src/rules/item_rules.js");
-      const { executeHalfAppraise, executeFullAppraise } = await import("../src/shop/appraisal.js");
+      const { identifyEquipment, revealEquipmentOnEquip } = await import("../src/systems/identification.js");
       const { executeTagInscription } = await import("../src/craft.js");
 
       console.log("=== STARTING INTEGRATED EQUIPMENT SYSTEM VERIFICATION ===");
@@ -563,36 +563,22 @@ import { createSoloCharacter } from "../src/state.js";
       }
       console.log("-> [PASS] Test 1: Random Equipment Generation verified");
 
-      // Test 2: Double Appraisal Flow
-      console.log("\n[Test 2] Double Appraisal Flow...");
+      // Test 2: In-run identification flow
+      console.log("\n[Test 2] In-run Identification Flow...");
       state.inventory = [eq];
-      state.gold = 500;
+      state.identifyTickets = 1;
       
       const itemDataUnidentified = getItemData(eq);
       console.log("Unidentified Description:", itemDataUnidentified.desc);
-      if (!itemDataUnidentified.desc.includes("未鑑定のまま装備可能")) {
+      if (!itemDataUnidentified.desc.includes("鑑定粉を使うか")) {
         throw new Error("Unidentified description mismatch");
       }
 
-      // 2.1. Half Appraisal
-      console.log("Executing Half Appraisal...");
-      executeHalfAppraise(0, 30);
-      const eqHalf = state.inventory[0];
-      if (!eqHalf.halfIdentified || eqHalf.identified) {
-        throw new Error("State should be half-identified but not fully identified");
-      }
-      const itemDataHalf = getItemData(eqHalf);
-      console.log("Half Identified Description:", itemDataHalf.desc);
-      if (!itemDataHalf.desc.includes("気配:") || !itemDataHalf.name.includes("簡易鑑定済")) {
-        throw new Error("Half-identified description mismatch");
-      }
-
-      // 2.2. Full Appraisal
-      console.log("Executing Full Appraisal...");
-      executeFullAppraise(0, 100, false);
+      console.log("Consuming identification powder...");
+      identifyEquipment(state, eq);
       const eqFull = state.inventory[0];
-      if (!eqFull.identified) {
-        throw new Error("State should be fully identified");
+      if (!eqFull.identified || state.identifyTickets !== 0) {
+        throw new Error("Identification should reveal equipment and consume one powder");
       }
       const itemDataFull = getItemData(eqFull);
       console.log("Fully Identified Name:", itemDataFull.name);
@@ -600,7 +586,7 @@ import { createSoloCharacter } from "../src/state.js";
       if (!itemDataFull.desc.includes("<タグ:")) {
         throw new Error("Fully identified tags not rendered in description");
       }
-      console.log("-> [PASS] Test 2: Double Appraisal Flow verified");
+      console.log("-> [PASS] Test 2: In-run Identification Flow verified");
 
       // Test 3: Curse Debuffs Application
       console.log("\n[Test 3] Curse Debuffs Application...");
@@ -617,23 +603,19 @@ import { createSoloCharacter } from "../src/state.js";
         halfIdentified: false,
         tags: ["curse", "spirit"],
         curseEffectId: "curse_blood_thirst", // atk+15, devotion-20
+        cursePower: 1,
         affixes: [{ type: "atk", value: 5 }]
       };
 
       const char = state.party[0]; // Fighter
+      const reveal = revealEquipmentOnEquip(cursedWand);
       char.equipment.weapon = cursedWand;
 
-      // Unidentified cursed equip: Benefits (affixes, basic stats) must be 0, but curse debuff (devotion-20) MUST apply
-      const atkSumUnidentified = getCharAffixSum(char, "atk");
-      const devotionSumUnidentified = getCharAffixSum(char, "devotion");
-      console.log("Unidentified wear - atkSum:", atkSumUnidentified, "(expected 0)");
-      console.log("Unidentified wear - devotionSum:", devotionSumUnidentified, "(expected -20)");
+      if (!reveal.revealed || !reveal.cursed || !cursedWand.curseLocked) {
+        throw new Error("Blind equip should reveal and lock cursed equipment");
+      }
 
-      if (atkSumUnidentified !== 0) throw new Error("Benefits should not apply to unidentified gear");
-      if (devotionSumUnidentified !== -20) throw new Error("Curse debuff should apply to unidentified gear");
-
-      // Fully Identified cursed equip: Both benefits (affix: atk+5, curse: atk+15) and debuffs (curse: devotion-20) apply
-      cursedWand.identified = true;
+      // Revealed cursed equip: Both benefits (affix: atk+5, curse: atk+15) and debuffs apply
       const atkSumIdentified = getCharAffixSum(char, "atk");
       const devotionSumIdentified = getCharAffixSum(char, "devotion");
       console.log("Identified wear - atkSum:", atkSumIdentified, "(expected 20 = 5 + 15)");
@@ -921,8 +903,8 @@ import { createSoloCharacter } from "../src/state.js";
       const accessory = generateRandomAccessory(5, rarity, rng, [baseChar], false);
       assert.strictEqual(accessory.kind, "equipment");
       assert.strictEqual(accessory.identified, false);
-      assert.strictEqual(accessory.curseEffectId, null);
-      assert.strictEqual(accessory.curseSuspected, false);
+      assert.ok(accessory.affixes.every(affix => affix.kind !== "core"));
+      if (accessory.curseEffectId) assert.strictEqual(accessory.curseSuspected, true);
       assert.strictEqual(getItemData(accessory).type, "accessory");
       assert.ok(accessory.unidentifiedName.includes("未鑑定"));
       assert.ok(accessory.affixes.length <= (rarity === "epic" ? 2 : 1));

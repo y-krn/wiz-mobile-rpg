@@ -28,7 +28,7 @@ export function generateMerchantStock(floor) {
     choices.push({ type: "item", key: eq1, price: Math.floor(ITEMS[eq1].price * 0.8), soldOut: false });
     choices.push({ type: "item", key: eq2, price: Math.floor(ITEMS[eq2].price * 0.8), soldOut: false });
 
-    choices.push({ type: "ticket", key: "IDENTIFY_TICKET", price: 100, soldOut: false });
+    choices.push({ type: "ticket", key: "IDENTIFY_POWDER", price: 180, soldOut: false });
 
     const mat = matPool[Math.floor(Math.random() * matPool.length)];
     let price = 60;
@@ -116,8 +116,8 @@ export function renderEventMerchantBuy(optGrid) {
       let desc;
       
       if (stockType === "ticket") {
-        name = "鑑定割引券";
-        desc = "鑑定時にゴールドの代わりに使用できる。";
+        name = "鑑定粉";
+        desc = "ラン中、未鑑定装備の正体を確定する。";
       } else if (stockType === "material") {
         name = stock.key;
         desc = `[素材] 工房で使用する。`;

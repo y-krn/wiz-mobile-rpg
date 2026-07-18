@@ -200,7 +200,7 @@ export function renderResultScreen() {
     let rewardText;
     if (cr.success) {
       const awarded = cr.awardedReward || cr.contract.reward;
-      const tickets = awarded.identifyTickets > 0 ? ` / 鑑定割引券: ${awarded.identifyTickets}枚` : "";
+      const tickets = awarded.identifyTickets > 0 ? ` / 鑑定粉: ${awarded.identifyTickets}個` : "";
       rewardText = `獲得：${awarded.gold} G${tickets}`;
       const materials = Object.entries(awarded.materials || {});
       if (materials.length > 0) {

@@ -9,7 +9,7 @@ export const contractsState = {
 
 function formatContractReward(contract) {
   let text = `${contract.reward.gold} G`;
-  if (contract.reward.identifyTickets > 0) text += ` / 鑑定券:${contract.reward.identifyTickets}枚`;
+  if (contract.reward.identifyTickets > 0) text += ` / 鑑定粉:${contract.reward.identifyTickets}個`;
   const materials = Object.entries(contract.reward.materials || {});
   if (materials.length > 0) text += ` / ${materials.map(([name, qty]) => `${name}:${qty}`).join("、")}`;
   if (contract.reward.mapFragmentFloor) text += ` / B${contract.reward.mapFragmentFloor}F 地図の断片`;

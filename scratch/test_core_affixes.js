@@ -213,7 +213,7 @@ test("盗掘王: 開錠者本人で素材+1と罠強度+1を両立", () => {
     Object.values(baseMats).reduce((a, b) => a + b, 0) + 1);
 });
 
-test("慧眼: 未鑑定装備可・能力適用・表示隠匿", () => {
+test("未鑑定装備: 全員装備可・鑑定前表示隠匿", () => {
   const char = makeChar(null);
   char.equipment.accessory = coreItem("CORE_KEEN_EYE", "AMULET_HP");
   const unknown = {
@@ -224,14 +224,11 @@ test("慧眼: 未鑑定装備可・能力適用・表示隠匿", () => {
     affixes: [{ id: "str", type: "str", kind: "support", value: 3 }]
   };
   assert.equal(canEquipUnidentifiedItem(char, unknown), true);
-  assert.equal(canEquipUnidentifiedItem(makeChar(null), unknown), false);
+  assert.equal(canEquipUnidentifiedItem(makeChar(null), unknown), true);
   const hidden = getItemData(unknown);
   assert.deepEqual(hidden.statsBonus, {});
   assert.deepEqual(hidden.affixes, []);
   assert.ok(!hidden.desc.includes("力+3"));
-  char.equipment.weapon = unknown;
-  assert.equal(getCharStr(char), char.str + 3);
-  assert.equal(getCharWeaponAtk(char), getItemData({ ...unknown, identified: true }).atk);
 });
 
 test("野営の達人: 装備者本人のキャンプ回復量2倍", () => {

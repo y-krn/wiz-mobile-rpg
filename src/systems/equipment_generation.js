@@ -1,6 +1,10 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { ACCESSORY_CANDIDATES_BY_FLOOR, EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
 import { AFFIX_BALANCE, CORE_AFFIXES, SUPPORT_AFFIXES, getAffixBudget } from "../data/affixes.js";
+import {
+  IDENTIFICATION_BALANCE,
+  getIdentificationGambleProfile
+} from "../rules/identification_rules.js";
 
 const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
 
@@ -110,6 +114,7 @@ export function buildUnidentifiedMeta(tags, rarity, typeName, rng = Math.random,
 }
 
 export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true } = {}) {
+  const gambleProfile = getIdentificationGambleProfile(floor);
   let baseCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[floor] || EQUIPMENT_CANDIDATES_BY_FLOOR[5];
 
   // 通常チェストなど高級ベースを出したくないソースでは除外する。
@@ -177,15 +182,8 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     rarity = forceRarity;
   } else {
     const roll = rng();
-    let epicChance = 0.03;
-    let rareChance = 0.20;
-    if (floor === 4) {
-      epicChance = 0.05;
-      rareChance = 0.25;
-    } else if (floor >= 5) {
-      epicChance = 0.08;
-      rareChance = 0.30;
-    }
+    const epicChance = gambleProfile.epicChance;
+    const rareChance = gambleProfile.rareChance;
     if (roll < epicChance) rarity = "epic";
     else if (roll < rareChance) rarity = "rare";
     else rarity = "magic";
@@ -364,9 +362,10 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   const isKatanaOrSealed = baseId === "KATANA" || baseId === "SEALED_EXCALIBUR";
   const rollCurse = rng();
   const hasCoreAffix = affixes.some(affix => affix.kind === "core");
-  const curseChance = hasCoreAffix
-    ? AFFIX_BALANCE.coreCurseChance
-    : (rarity === "epic" ? 0.25 : 0.15);
+  const curseChance = Math.min(
+    IDENTIFICATION_BALANCE.maxCurseChance,
+    gambleProfile.curseChance + (hasCoreAffix ? IDENTIFICATION_BALANCE.coreCurseBonus : 0)
+  );
   if (isKatanaOrSealed || rollCurse < curseChance) {
     const curseKeys = Object.keys(CURSE_EFFECTS);
     curseEffectId = curseKeys[Math.floor(rng() * curseKeys.length)];
@@ -401,7 +400,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     else if (baseId === "MACE") typeName = "メイス";
   }
   const meta = buildUnidentifiedMeta(tags, rarity, typeName, rng, { curseEffectId });
-  meta.unidentifiedName = `${prefix}未鑑定の${typeName}`;
+  meta.unidentifiedName = `${prefix}${baseItem.name}（未鑑定・${typeName}）`;
 
   return {
     kind: "equipment",
@@ -414,6 +413,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     tags,
     hintTags: meta.hintTags,
     curseEffectId,
+    cursePower: gambleProfile.cursePower,
     curseSuspected: meta.curseSuspected,
     unidentifiedName: meta.unidentifiedName,
     affixes
@@ -421,6 +421,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
 }
 
 export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.random, party = null, allowCores = true } = {}) {
+  const gambleProfile = getIdentificationGambleProfile(floor);
   let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[floor] || ACCESSORY_CANDIDATES_BY_FLOOR[5];
 
   if (party && party.length > 0) {
@@ -443,15 +444,8 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     rarity = forceRarity;
   } else {
     const roll = rng();
-    let epicChance = 0.02;
-    let rareChance = 0.16;
-    if (floor === 4) {
-      epicChance = 0.035;
-      rareChance = 0.20;
-    } else if (floor >= 5) {
-      epicChance = 0.05;
-      rareChance = 0.24;
-    }
+    const epicChance = gambleProfile.epicChance;
+    const rareChance = gambleProfile.rareChance;
     if (roll < epicChance) rarity = "epic";
     else if (roll < rareChance) rarity = "rare";
   }
@@ -525,7 +519,11 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
 
   const hasCoreAffix = affixes.some(affix => affix.kind === "core");
   let curseEffectId = null;
-  if (hasCoreAffix && rng() < AFFIX_BALANCE.coreCurseChance) {
+  const curseChance = Math.min(
+    IDENTIFICATION_BALANCE.maxCurseChance,
+    gambleProfile.curseChance + (hasCoreAffix ? IDENTIFICATION_BALANCE.coreCurseBonus : 0)
+  );
+  if (rng() < curseChance) {
     const curseKeys = Object.keys(CURSE_EFFECTS);
     curseEffectId = curseKeys[Math.floor(rng() * curseKeys.length)];
     if (!tags.includes("curse")) tags.push("curse");
@@ -544,6 +542,7 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
   }
 
   const meta = buildUnidentifiedMeta(tags, rarity, typeName, rng, { curseEffectId });
+  meta.unidentifiedName = `${baseItem.name}（未鑑定・${typeName}）`;
 
   return {
     kind: "equipment",
@@ -556,7 +555,8 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     tags,
     hintTags: meta.hintTags,
     curseEffectId,
-    curseSuspected: hasCoreAffix ? meta.curseSuspected : false,
+    cursePower: gambleProfile.cursePower,
+    curseSuspected: meta.curseSuspected,
     unidentifiedName: meta.unidentifiedName,
     affixes
   };

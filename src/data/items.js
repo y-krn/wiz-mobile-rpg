@@ -116,5 +116,19 @@ export const CURSE_EFFECTS = {
     desc: "防御+10 / 守護適性-15%",
     tags: ["curse", "ward"],
     mod: { def: 10, guardian: -15 }
+  },
+  curse_leaden_steps: {
+    id: "curse_leaden_steps",
+    name: "鉛足の呪い",
+    desc: "防御力+6 / 素早さ-4",
+    tags: ["curse", "ward"],
+    mod: { def: 6, agi: -4 }
+  },
+  curse_hollow_soul: {
+    id: "curse_hollow_soul",
+    name: "虚魂の呪い",
+    desc: "呪文威力+15% / 生命-4",
+    tags: ["curse", "spirit"],
+    mod: { arcane: 15, vit: -4 }
   }
 };

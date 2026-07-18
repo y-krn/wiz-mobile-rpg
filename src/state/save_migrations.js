@@ -1,6 +1,7 @@
 import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT } from "../data.js";
 import { generateRandomMap, removeIsolatedInternalWalls } from "../map_generator.js";
 import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
+import { getIdentificationGambleProfile } from "../rules/identification_rules.js";
 
 export function migrateCharSpells(char) {
   if (!char.spells) char.spells = [];
@@ -83,6 +84,7 @@ function normalizeCharEquipment(char) {
 
 function backfillItemAffixes(item) {
   if (!item || typeof item !== "object" || !Array.isArray(item.affixes)) return;
+  item.cursePower ??= getIdentificationGambleProfile(item.level || 1).cursePower;
   item.affixes.forEach(affix => {
     if (!affix || typeof affix !== "object") return;
     affix.id ||= affix.type;
