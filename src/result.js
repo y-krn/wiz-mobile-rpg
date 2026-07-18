@@ -158,6 +158,9 @@ export function triggerRunResult(reason) {
       character: state.party[0]
         ? { name: state.party[0].name, class: state.party[0].class, level: state.party[0].level }
         : null,
+      lostItems: Object.entries(run.lostMaterials)
+        .filter(([, quantity]) => quantity > 0)
+        .map(([name, quantity]) => `${name}x${quantity}`),
       deepestFloor: run.deepestFloor,
       kills: run.kills,
       chestsOpened: run.chestsOpened,

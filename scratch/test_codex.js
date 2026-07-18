@@ -46,6 +46,7 @@ Object.defineProperty(global, "navigator", {
 (async () => {
   const { state, initNewGame, saveGame, loadGame, recordEquipmentDiscovery, createDefaultCodex } = await import("../src/state.js");
   const { triggerRunResult } = await import("../src/menu.js");
+  const { getDeathLogsHtml } = await import("../src/ui/archives_overlay.js");
   const assert = await import("assert");
 
   console.log("Starting Codex & Logs Verification Tests...");
@@ -142,7 +143,8 @@ Object.defineProperty(global, "navigator", {
     chestsOpened: 4,
     goldGained: 500,
     itemsFound: ["HEAL_POTION"],
-    equipmentFound: [randEquip]
+    equipmentFound: [randEquip],
+    materials: { "獣の牙": 10, "硬い皮": 1 }
   };
   state.inventory = [randEquip];
   state.party = [
@@ -158,6 +160,12 @@ Object.defineProperty(global, "navigator", {
   assert.strictEqual(latestDeath.deepestFloor, 3, "deepestFloor in death log should be 3");
   assert.strictEqual(latestDeath.kills, 12, "kills in death log should be 12");
   assert.strictEqual(latestDeath.character.name, "Arthur", "Death log should identify the solo character");
+  assert.strictEqual(latestDeath.character.level, 3, "Death log should retain the character level");
+  assert.deepStrictEqual(latestDeath.lostItems, ["獣の牙x7", "硬い皮x1"], "Death log should summarize lost materials");
+  assert.match(getDeathLogsHtml(), /<strong>Lv:<\/strong> 3/, "Death log HTML should display the character level");
+  latestDeath.character = null;
+  assert.match(getDeathLogsHtml(), /<strong>Lv:<\/strong> \?/, "Death log HTML should fall back when character data is missing");
+  latestDeath.character = { name: "Arthur", class: "Fighter", level: 3 };
 
 
   // Test 5: Persistence (Save & Load)
@@ -176,4 +184,7 @@ Object.defineProperty(global, "navigator", {
   assert.strictEqual(state.codex.equipment["SHORT_SWORD"].bestBonus, 3, "Loaded SHORT_SWORD bestBonus should be 3");
 
   console.log("All Codex & Logs verification tests passed successfully!");
-})();
+})().catch(error => {
+  console.error(error);
+  process.exit(1);
+});

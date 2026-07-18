@@ -248,7 +248,7 @@ export function getDeathLogsHtml() {
         <div style="color: #ddd; font-size: 10px; display: flex; flex-direction: column; gap: 2px;">
           <div><strong>日時:</strong> ${dateStr}</div>
           <div><strong>死因:</strong> ${d.cause}</div>
-          <div><strong>平均Lv:</strong> ${d.partyLevelAvg} | 撃破数: ${d.kills}</div>
+          <div><strong>Lv:</strong> ${d.character?.level ?? "?"} | 撃破数: ${d.kills}</div>
           <div style="color: var(--neon-yellow); white-space: normal; word-break: break-all;"><strong>紛失戦利品:</strong> ${lostItemsText}</div>
         </div>
       </div>
