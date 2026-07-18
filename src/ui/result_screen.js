@@ -72,6 +72,7 @@ export function renderResultScreen() {
   const getReasonJp = (r) => {
     if (r === "stairs") return "迷宮の階段からお城へ帰還";
     if (r === "escape_scroll") return "帰還の翼で撤退";
+    if (r === "milestone_portal") return "節目ポータルで撤退";
     if (r === "gameover") return "魔物に敗北（全滅）";
     return r || "不明";
   };

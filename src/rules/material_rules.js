@@ -33,7 +33,10 @@ export function bankRunMaterials(metaMaterials, runMaterials, outcome) {
 }
 
 export function getDepthMaterialExpectedQuantity(depth, { startFloor = 1 } = {}) {
-  const raw = 1 + Math.max(0, depth - 1) * MATERIAL_DROP_BALANCE.depthQuantityPerFloor;
+  const floor = Math.max(1, Math.floor(Number(depth) || 1));
+  const milestoneTier = Math.floor((floor - 1) / 5);
+  const raw = (1 + (floor - 1) * MATERIAL_DROP_BALANCE.depthQuantityPerFloor)
+    * (1 + milestoneTier * 0.08);
   return startFloor > 1 ? raw * MATERIAL_DROP_BALANCE.milestoneStartMultiplier : raw;
 }
 

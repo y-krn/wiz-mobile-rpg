@@ -3,12 +3,16 @@ import { setRenderSubmenuCallback } from "../navigation.js";
 import { renderSoloStart } from "./solo_start.js";
 import { renderCastleMain, renderCastleDeathLogs } from "./town_actions.js";
 import { renderWorkshop } from "./workshop_view.js";
+import { renderMilestoneMerchant } from "./milestone_merchant.js";
+import { renderMilestonePortal } from "./milestone_portal.js";
 import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect, renderWardenConfirm } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 
 const SUBMENU_RENDERERS = {
   chest_menu: () => openChestMenu(),
   workshop_main: (optGrid) => renderWorkshop(optGrid),
+  milestone_merchant: (optGrid) => renderMilestoneMerchant(optGrid),
+  milestone_portal: (optGrid) => renderMilestonePortal(optGrid),
   item_inventory: (optGrid) => renderItemInventory(optGrid),
   item_target_select: (optGrid) => renderItemTargetSelect(optGrid),
   item_direction_select: (optGrid) => renderItemDirectionSelect(optGrid),

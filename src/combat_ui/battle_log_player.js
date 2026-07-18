@@ -6,6 +6,7 @@ import { updateUI } from "../ui.js";
 import { resetSubmenuBackButton } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
 import { setupChestState } from "../chest.js";
+import { recordMilestoneVictory } from "../state/run_state.js";
 import { checkCombatStatus } from "./combat_status.js";
 import { triggerGameOver } from "./game_over.js";
 
@@ -92,41 +93,13 @@ export function playBattleLogs(queue, index) {
     return;
   }
 
-  if (log.giveCrystal) {
+  if (log.milestoneVictory) {
     state.transitioning = true;
     if (state.map[state.y]?.[state.x]?.event === "boss") {
       state.map[state.y][state.x].event = null;
     }
-    addInventoryItem("ANTIGRAVITY_CRYSTAL");
-    if (state.currentRun) {
-      state.currentRun.itemsFound.push("ANTIGRAVITY_CRYSTAL");
-    }
-    
-    // ボス報酬: Epic装備（未鑑定） + 竜鱗x3
-    const rewardEquip = generateRandomEquipment(5, "epic", Math.random, state.party);
-    if (rewardEquip) {
-      rewardEquip.identified = false;
-      const added = addInventoryItem(rewardEquip);
-      if (added && state.currentRun) {
-        state.currentRun.equipmentFound.push(rewardEquip);
-      }
-    }
-    if (Math.random() < 0.35) {
-      const rewardAccessory = generateRandomAccessory(5, "epic", Math.random, state.party);
-      if (rewardAccessory) {
-        const added = addInventoryItem(rewardAccessory);
-        if (added && state.currentRun) {
-          state.currentRun.equipmentFound.push(rewardAccessory);
-        }
-      }
-    }
-    
-    if (state.currentRun) {
-      state.currentRun.materials ||= {};
-      state.currentRun.materials["竜鱗"] = (state.currentRun.materials["竜鱗"] || 0) + 3;
-    }
-    
-    addLog("巨大な魔物を撃破した！お宝: [未鑑定のエピック装備] と [竜鱗 x3] を手に入れた！");
+    recordMilestoneVictory(state, log.milestoneVictory);
+    addLog(`B${log.milestoneVictory}F開始を恒久アンロックした。`);
 
     setTimeout(() => {
       state.gameState = "explore";

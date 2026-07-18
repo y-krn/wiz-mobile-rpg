@@ -1,4 +1,6 @@
 import { getFloorTemplate } from "./data/floor_templates.js";
+import { getBiomeForFloor, getBiomeCycle } from "./data/biomes.js";
+import { EVENT_TYPES } from "./constants/events.js";
 import { generateRandomMap } from "./map_generator.js";
 import { deriveFloorAttemptSeed, deriveFloorSeed } from "./seed_rng.js";
 
@@ -31,6 +33,42 @@ function isWalkable(cell) {
     cell.type !== "empty" ||
     Boolean(cell.event) ||
     Boolean(cell.trap);
+}
+
+export function isMilestoneFloor(floor) {
+  return Number.isInteger(floor) && floor > 0 && floor % 5 === 0;
+}
+
+function placeMilestoneEvents(grid, floor) {
+  if (!isMilestoneFloor(floor)) return null;
+  const start = findCell(grid, cell => cell.type === "stairs-up");
+  const distances = getDistances(grid, start, { revealGimmicks: true });
+  const candidates = [];
+  grid.forEach((row, y) => row.forEach((cell, x) => {
+    if (!isWalkable(cell) || cell.type !== "empty" || cell.event || cell.trap) return;
+    const distance = distances.get(`${x},${y}`);
+    if (Number.isFinite(distance)) candidates.push({ x, y, distance });
+  }));
+  candidates.sort((a, b) => b.distance - a.distance);
+  if (candidates.length < 3) throw new Error("milestone event cells unavailable");
+  const [boss, merchant, portal] = candidates;
+  grid[boss.y][boss.x].event = EVENT_TYPES.BOSS;
+  grid[boss.y][boss.x].milestoneFloor = floor;
+  grid[merchant.y][merchant.x].event = EVENT_TYPES.MERCHANT;
+  grid[merchant.y][merchant.x].milestoneFloor = floor;
+  grid[portal.y][portal.x].event = EVENT_TYPES.RETURN_PORTAL;
+  grid[portal.y][portal.x].milestoneFloor = floor;
+  return { boss, merchant, portal };
+}
+
+export function getMilestoneEventCounts(grid) {
+  const counts = { boss: 0, merchant: 0, portal: 0 };
+  grid.flat().forEach(cell => {
+    if (cell.event === EVENT_TYPES.BOSS) counts.boss++;
+    if (cell.event === EVENT_TYPES.MERCHANT) counts.merchant++;
+    if (cell.event === EVENT_TYPES.RETURN_PORTAL) counts.portal++;
+  });
+  return counts;
 }
 
 function getDistances(grid, start, { revealGimmicks = false } = {}) {
@@ -122,6 +160,7 @@ export function generateRunFloor({
   }
 
   const template = getFloorTemplate(floor);
+  const biome = getBiomeForFloor(floor);
   const floorSeed = deriveFloorSeed(runSeed, floor);
   let lastErrors = [];
 
@@ -132,14 +171,15 @@ export function generateRunFloor({
         size: template.size,
         roomCountRange: template.roomCountRange,
         mazeProfile: template.mazeProfile,
-        oneWayPassageCount: template.gimmickDensity.oneWayPassages,
+        oneWayPassageCount: template.gimmickDensity.oneWayPassages + biome.gimmicks.oneWayBonus,
         secretDoorCounts: template.gimmickDensity.secretDoors,
-        trapCount: template.gimmickDensity.traps,
+        trapCount: template.gimmickDensity.traps + biome.gimmicks.trapBonus,
         criticalPathRange: template.criticalPathRange,
         generateStairsDown: true,
         legacyMilestones: false,
         generateWardenGate: false
       });
+      const milestoneEvents = placeMilestoneEvents(generated.grid, floor);
       const validation = validateGeneratedFloor(generated, template);
       if (validation.valid) {
         return {
@@ -150,6 +190,10 @@ export function generateRunFloor({
           generationSeed,
           generationAttempt: attempt,
           templateId: template.id,
+          biomeId: biome.id,
+          biomeCycle: getBiomeCycle(floor),
+          gimmickSet: biome.gimmicks,
+          milestoneEvents,
           validation
         };
       }

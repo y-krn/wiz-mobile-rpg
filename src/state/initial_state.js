@@ -59,7 +59,9 @@ export const createDefaultCurrentRun = () => ({
   dangerScore: 0,
   returnReason: "",
   deathLogs: [],
-  campRested: {}
+  campRested: {},
+  defeatedMilestones: [],
+  visitedMilestoneMerchants: []
 });
 
 const SOLO_CLASS_PRESETS = [

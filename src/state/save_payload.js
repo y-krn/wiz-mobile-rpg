@@ -25,6 +25,7 @@ function resolvePersistedGameState() {
     return "town";
   }
   if (t.startsWith("combat")) return "combat";
+  if (t.startsWith("milestone")) return "explore";
   return "explore";
 }
 
@@ -50,6 +51,7 @@ export function createSavePayload() {
     floorChestsTotal: state.floorChestsTotal,
     firstKills: state.firstKills,
     currentRun: state.currentRun,
+    unlockedMilestones: state.unlockedMilestones,
     runHistory: state.runHistory,
     deathLogs: state.deathLogs,
     codex: state.codex,
@@ -106,6 +108,7 @@ export function applySavePayload(data) {
   state.firstKills = data.firstKills;
   state.sessionMaxFloor = data.floor;
   state.currentRun = data.currentRun;
+  state.unlockedMilestones = data.unlockedMilestones;
   state.runHistory = data.runHistory;
   state.deathLogs = data.deathLogs;
   state.codex = data.codex;

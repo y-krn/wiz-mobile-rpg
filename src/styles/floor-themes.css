@@ -47,6 +47,14 @@
   --floor-banner-bg: #160905;
 }
 
+#game-container.floor-theme-b6 {
+  --floor-border: #7c3aed;
+  --floor-glow: 0 0 10px rgba(124, 58, 237, 0.55);
+  --floor-bg: #08030f;
+  --floor-header-bg: #120720;
+  --floor-banner-bg: #0d0518;
+}
+
 /* Overlay effects for viewport-panel */
 #viewport-panel::after {
   content: "";
@@ -84,6 +92,12 @@
 .floor-theme-b5 #viewport-panel::after {
   background: radial-gradient(circle, rgba(255, 179, 0, 0.08) 0%, rgba(204, 34, 34, 0.08) 40%, rgba(30, 10, 5, 0.75) 100%);
   opacity: 0.75;
+  animation: heatwave 4s infinite alternate ease-in-out;
+}
+
+.floor-theme-b6 #viewport-panel::after {
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.12) 0%, rgba(20, 5, 35, 0.7) 70%, rgba(0, 0, 0, 0.9) 100%);
+  opacity: 0.8;
   animation: heatwave 4s infinite alternate ease-in-out;
 }
 
@@ -144,5 +158,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .floor-entry-stinger { transition: none; }
-  .floor-theme-b5 #viewport-panel::after { animation: none; }
+  .floor-theme-b5 #viewport-panel::after,
+  .floor-theme-b6 #viewport-panel::after { animation: none; }
 }

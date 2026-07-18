@@ -187,42 +187,13 @@ export function getCurrentGoal() {
   }
 
   if (state.gameState === "town") {
-    if (state.inventory.includes("ANTIGRAVITY_CRYSTAL")) {
-      return "おしろに行き、浮遊石を渡してゲームをクリアせよ！";
-    }
-    return "迷宮に入り、地下深くを探索せよ！";
+    return "開始地点とクラスを選び、自己最深記録を更新せよ";
   }
 
-  // Inside dungeon
-  if (state.inventory.includes("ANTIGRAVITY_CRYSTAL")) {
-    return "街（リルガミン）に戻り、おしろへ浮遊石を届けよ！";
+  if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
+    return `${getFloorDisplayName(state, state.floor)}: B${state.floor}Fの節目ボスを倒せ`;
   }
-
-  const hasKey = state.inventory.includes("DRAGON_KEY");
-
-  switch (state.floor) {
-    case 1:
-      return `${getFloorDisplayName(state, 1)}: ${getFloorLabel(state, 2)}への下り階段を探せ`;
-    case 2:
-      return `${getFloorDisplayName(state, 2)}: ${getFloorLabel(state, 3)}への下り階段を探せ`;
-    case 3:
-      if (hasKey) {
-        return `${getFloorDisplayName(state, 3)}: ${getFloorLabel(state, 4)}への下り階段を探せ`;
-      }
-      return `${getFloorDisplayName(state, 3)}: デーモンガードを倒し「竜の鍵」を入手せよ`;
-    case 4:
-      if (hasKey) {
-        return `${getFloorDisplayName(state, 4)}: ${getFloorLabel(state, 5)}への下り階段を探せ`;
-      }
-      return `${getFloorLabel(state, 3)}に戻り、デーモンガードから「竜の鍵」を奪え`;
-    case 5:
-      if (hasKey) {
-        return `${getFloorDisplayName(state, 5)}: 竜の鍵を使い、最深部の「いにしえの竜」を倒せ`;
-      }
-      return `${getFloorLabel(state, 3)}に戻り、デーモンガードから「竜の鍵」を奪え`;
-    default:
-      return "迷宮を探索せよ";
-  }
+  return `${getFloorDisplayName(state, state.floor)}: ${getFloorLabel(state, state.floor + 1)}への下り階段を探せ`;
 }
 
 export function updateUI() {
@@ -237,13 +208,15 @@ export function updateUI() {
     "event_camp",
     "event_tablet",
     "event_merchant",
-    "event_merchant_buy"
+    "event_merchant_buy",
+    "milestone_merchant",
+    "milestone_portal"
   ];
 
   // Reset/Apply floor-theme class on #game-container
   const container = document.getElementById("game-container");
   if (container) {
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 6; i++) {
       container.classList.remove(`floor-theme-b${i}`);
     }
     container.classList.toggle("result-mode", state.gameState === "result");
@@ -253,9 +226,8 @@ export function updateUI() {
         state.gameState !== "gameover" &&
         state.gameState !== "victory" &&
         state.gameState !== "result" &&
-        state.floor >= 1 &&
-        state.floor <= 5) {
-      container.classList.add(`floor-theme-b${state.floor}`);
+        state.floor >= 1) {
+      container.classList.add(getFloorTheme(state.floor).cssClass);
     }
   }
 

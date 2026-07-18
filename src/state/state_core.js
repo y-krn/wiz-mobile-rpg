@@ -40,6 +40,7 @@ export const state = {
   sessionMaxFloor: 1,
 
   currentRun: null,
+  unlockedMilestones: [],
   runHistory: [],
   deathLogs: [],
   codex: {

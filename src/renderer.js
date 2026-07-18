@@ -1,4 +1,4 @@
-import { DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, getPartyMaxAffix } from "./data.js";
+import { DX, DY, EVENT_TYPES, getPartyMaxAffix } from "./data.js";
 import { state } from "./state.js";
 import { menuContext } from "./navigation.js";
 
@@ -75,7 +75,10 @@ export class DungeonRenderer {
     ctx.fillStyle = "#0c0c0e";
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    if (state.gameState === "town" || (state.gameState === "submenu" && (menuContext.prevGameState === "town" || menuContext.type === "solo_start"))) {
+    const showTownBackground = !state.map ||
+      ["town", "result", "gameover", "victory"].includes(state.gameState) ||
+      (state.gameState === "submenu" && (menuContext.prevGameState === "town" || menuContext.type === "solo_start"));
+    if (showTownBackground) {
       this.drawTownBackground(ctx);
     } else {
       // Exploration or Combat or Chest
@@ -217,7 +220,7 @@ export class DungeonRenderer {
         const nextRight = XR[z + 1] + nextWidth * column;
 
         // Check out of bounds
-        if (cx < 0 || cx >= MAP_WIDTH || cy < 0 || cy >= MAP_HEIGHT) {
+        if (cx < 0 || cy < 0 || cy >= state.map.length || cx >= state.map[cy].length) {
           // Render a solid wall block at depth z
           this.renderSolidWall(ctx, z, outOfBoundsColor, column); // Red glow for out of bounds
           continue;
@@ -845,8 +848,10 @@ export class DungeonRenderer {
     const desiredOffsetX = (minimapSize / 2) - (state.x * cellS + cellS / 2);
     const desiredOffsetY = (minimapSize / 2) - (state.y * cellS + cellS / 2);
 
-    const mapPixelW = MAP_WIDTH * cellS;
-    const mapPixelH = MAP_HEIGHT * cellS;
+    const mapWidth = Math.max(...state.map.map(row => row.length));
+    const mapHeight = state.map.length;
+    const mapPixelW = mapWidth * cellS;
+    const mapPixelH = mapHeight * cellS;
 
     const minOffsetX = minimapSize - mapPixelW;
     const minOffsetY = minimapSize - mapPixelH;
@@ -859,9 +864,9 @@ export class DungeonRenderer {
     const lightRad = state.dumapicTurns > 0 ? 5 : (state.lightPower === "lomilwa" ? 5 : (state.lightTurns > 0 ? 3 : 0));
     const fragmentCells = new Set(state.dungeonMemory?.mapFragments?.[state.floor] || []);
 
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-      for (let x = 0; x < MAP_WIDTH; x++) {
-        const isVisited = state.visitedMap[y][x];
+      for (let y = 0; y < state.map.length; y++) {
+        for (let x = 0; x < state.map[y].length; x++) {
+          const isVisited = Boolean(state.visitedMap?.[y]?.[x]);
         const isFragmentRevealed = fragmentCells.has(`${x},${y}`);
         const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
         const isLightRevealed = (lightRad > 0 && dist <= lightRad);
@@ -964,9 +969,9 @@ export class DungeonRenderer {
     }
 
     // Draw secret event auras (faint glowing circles)
-    for (let y = 0; y < MAP_HEIGHT; y++) {
+    for (let y = 0; y < state.map.length; y++) {
       if (!state.map[y]) continue;
-      for (let x = 0; x < MAP_WIDTH; x++) {
+      for (let x = 0; x < state.map[y].length; x++) {
         if (!state.map[y][x]) continue;
         const cell = state.map[y][x];
         const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
@@ -977,12 +982,13 @@ export class DungeonRenderer {
         // 上り階段は探索済みのときだけ気配グローを出す（落とし穴でランダム着地した際、
         // 未探索の上り階段が距離4以内グローで露出してしまう問題を防ぐ）。
         const hasStairs = cell.type === "stairs-down" ||
-          (cell.type === "stairs-up" && state.visitedMap[y][x]);
+          (cell.type === "stairs-up" && state.visitedMap?.[y]?.[x]);
         const hasEvent = cell.event === EVENT_TYPES.CHEST || 
                           cell.event === EVENT_TYPES.SPRING || 
                           cell.event === EVENT_TYPES.CAMP ||
                           cell.event === EVENT_TYPES.TABLET || 
                           cell.event === EVENT_TYPES.MERCHANT || 
+                          cell.event === EVENT_TYPES.RETURN_PORTAL ||
                           cell.event === EVENT_TYPES.MIDBOSS || 
                           cell.event === EVENT_TYPES.BOSS;
 
@@ -1023,9 +1029,9 @@ export class DungeonRenderer {
     }
 
     // Draw sealed gates on minimap
-    for (let y = 0; y < MAP_HEIGHT; y++) {
+    for (let y = 0; y < state.map.length; y++) {
       if (!state.map[y]) continue;
-      for (let x = 0; x < MAP_WIDTH; x++) {
+      for (let x = 0; x < state.map[y].length; x++) {
         const cell = state.map[y][x];
         if (!cell?.sealedGate?.some(Boolean)) continue;
         const screenX = margin + x * cellS + offsetX;

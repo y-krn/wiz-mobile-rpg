@@ -5,10 +5,10 @@ import { dungeonRenderer as renderer } from "./renderer.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
 import { showFloorEntryStinger, updateUI } from "./ui.js";
 import { getFloorTheme, revealFloor } from "./data/floor_themes.js";
+import { ensureRunFloor, resetRunFloors } from "./state/run_floor_state.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
 import { openGuardedSubmenu, openSubmenu } from "./navigation.js";
-import { triggerRunResult } from "./result.js";
 import { detectAdjacentTrapsByTraceRead, handleTrapStepCheck } from "./systems/traps.js";
 import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/warden_perception.js";
@@ -199,6 +199,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
   }
 
   setTimeout(() => {
+    ensureRunFloor(state, nextFloor);
     state.floor = nextFloor;
     state.sessionMaxFloor = Math.max(state.sessionMaxFloor, state.floor);
     if (state.currentRun) {
@@ -416,48 +417,20 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   const cell = state.map[state.y][state.x];
   applyStairsHeal(cell);
 
-  // Stairs Up (exit to town or go to previous floor)
+  // Floors are one-way during a run. The entrance stairs never return upward.
   if (cell.type === "stairs-up") {
-    if (state.floor === 1) {
-      state.transitioning = true;
-      addLog("階段を上がります。お城へ戻る...");
-      setTimeout(() => {
-        state.transitioning = false;
-        triggerRunResult("stairs");
-      }, 1200);
-    } else {
-      state.transitioning = true;
-      const prevFloor = state.floor - 1;
-      addLog(`階段を上がります。地下${prevFloor}階へ...`);
-      playSound("move");
-      setTimeout(() => {
-        state.floor = prevFloor;
-        if (state.currentRun) {
-          if (!state.currentRun.floorsVisited.includes(prevFloor)) {
-            state.currentRun.floorsVisited.push(prevFloor);
-          }
-          state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, prevFloor);
-        }
-        const target = findCellCoordsByType(state.maps[prevFloor - 1], "stairs-down");
-        state.x = target.x;
-        state.y = target.y;
-        state.visitedMap[state.y][state.x] = true;
-        
-        const theme = getFloorTheme(prevFloor);
-        addLog(`【${theme.name}】${theme.entryText.revisit}`);
-        checkFloorOmenMessage();
-        
-        state.transitioning = false;
-        saveAutosave();
-        updateUI();
-        showFloorEntryStinger(prevFloor, false);
-      }, 1200);
-    }
+    addLog("上り階段は崩れ、前のフロアには戻れない。");
+    playSound("bump");
     return;
   }
 
   // Stairs Down (go to next floor)
   if (cell.type === "stairs-down") {
+    if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
+      addLog("節目ボスを倒すまで下り階段は封じられている。");
+      playSound("bump");
+      return;
+    }
     descendToFloor(state.floor + 1);
     return;
   }
@@ -481,7 +454,8 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 
   // Boss encounter
   if (cell.event === "boss") {
-    if (!state.inventory.includes("DRAGON_KEY")) {
+    const milestoneBoss = cell.milestoneFloor === state.floor;
+    if (!milestoneBoss && !state.inventory.includes("DRAGON_KEY")) {
       addLog("扉は閉ざされている。「竜の鍵」がなければ開かないようだ…");
       playSound("bump");
       if (renderer) renderer.triggerShake(4, 150);
@@ -490,8 +464,8 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       return;
     }
     state.transitioning = true;
-    addLog("竜の鍵を使って頑丈な扉を開けた！");
-    addLog("警告：ただならぬ巨大な気配が立ちふさがる！戦闘準備！");
+    if (!milestoneBoss) addLog("竜の鍵を使って頑丈な扉を開けた！");
+    addLog(`警告：B${state.floor}Fの節目ボスが立ちふさがる！戦闘準備！`);
     playSound("chest_trap");
     setTimeout(() => {
       state.transitioning = false;
@@ -538,8 +512,26 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 
   // Merchant encounter
   if (cell.event === EVENT_TYPES.MERCHANT) {
-    cell.event = null;
-    addLog("商人の跡地がある。節目商人への転生まで一時休業中。 (#152)");
+    if (!state.currentRun?.defeatedMilestones?.includes(state.floor)) {
+      addLog("節目商人はボスを退けるまで取引に応じない。");
+      return;
+    }
+    state.currentRun.visitedMilestoneMerchants ||= [];
+    if (!state.currentRun.visitedMilestoneMerchants.includes(state.floor)) {
+      state.currentRun.visitedMilestoneMerchants.push(state.floor);
+      state.codex.events.facilities.merchant.found++;
+    }
+    const skin = getFloorTheme(state.floor)?.eventSkins.merchant || "節目商人";
+    openGuardedSubmenu("milestone_merchant", `${skin}：素材で補給する`);
+    return;
+  }
+
+  if (cell.event === EVENT_TYPES.RETURN_PORTAL) {
+    if (!state.currentRun?.defeatedMilestones?.includes(state.floor)) {
+      addLog("帰還ポータルは節目ボスの力で封じられている。");
+      return;
+    }
+    openGuardedSubmenu("milestone_portal", `B${state.floor}F 帰還ポータル`);
     return;
   }
 
@@ -547,6 +539,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // 宝箱はランダム出現させない（固定配置のみ）/ No random chests here, fixed positions only
   const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
                         cell.event === EVENT_TYPES.MIDBOSS || cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.CHEST ||
+                        cell.event === EVENT_TYPES.MERCHANT || cell.event === EVENT_TYPES.RETURN_PORTAL ||
                         cell.message;
   const cooldownActive = state.eventCooldownTurns && state.eventCooldownTurns > 0;
   if (!isSpecialCell && !cooldownActive && Math.random() < 0.03) {
@@ -657,10 +650,19 @@ export function executeEnterDungeon(floor) {
   state.sessionMaxFloor = floor; // セッション最深階を初期化
   state.currentRun = createDefaultCurrentRun();
   state.currentRun.startedAt = Date.now();
+  state.currentRun.runSeed = `${state.seed}:run:${state.currentRun.startedAt}`;
   state.currentRun.startFloor = floor;
   state.currentRun.deepestFloor = floor;
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
+  resetRunFloors(state);
+  ensureRunFloor(state, floor);
+  if (floor > 1) {
+    state.currentRun.defeatedMilestones = [floor];
+    state.maps[floor - 1].flat().forEach(cell => {
+      if (cell.event === EVENT_TYPES.BOSS && cell.milestoneFloor === floor) cell.event = null;
+    });
+  }
   const workshopGrants = getWorkshopGrants(state.workshop);
   state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder + workshopGrants.identifyPowder;
   state.inventory = ["HEAL_POTION", "HEAL_POTION", ...workshopGrants.returnItems];
@@ -668,20 +670,9 @@ export function executeEnterDungeon(floor) {
     char.runTrapAttackBonus = 0;
   });
 
-  if (floor === 1) {
-    state.x = START_X;
-    state.y = START_Y;
-  } else {
-    // 2階以上は上り階段マスから開始
-    const target = findCellCoordsByType(state.maps[floor - 1], "stairs-up");
-    if (target) {
-      state.x = target.x;
-      state.y = target.y;
-    } else {
-      state.x = START_X;
-      state.y = START_Y;
-    }
-  }
+  const target = findCellCoordsByType(state.maps[floor - 1], "stairs-up");
+  state.x = target.x;
+  state.y = target.y;
 
   state.dir = DIR_N;
   state.visitedMap[state.y][state.x] = true;
@@ -877,6 +868,7 @@ export function processExplorationResolution(prevX, prevY) {
   // 3. Regular floor events
   const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
                         cell.event === "midboss" || cell.event === "boss" || cell.event === "chest" ||
+                        cell.event === EVENT_TYPES.MERCHANT || cell.event === EVENT_TYPES.RETURN_PORTAL ||
                         cell.message;
 
   if (state.flameTrapCooldownTurns && state.flameTrapCooldownTurns > 0) {

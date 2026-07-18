@@ -117,5 +117,17 @@ globalThis.localStorage = (() => {
   );
   console.log("-> [PASS] ダンジョンイベント結果保存→再開でexplore復帰");
 
+  // [F] 節目商人も付随コンテキストを持つため explore へ畳む
+  localStorage.clear();
+  initNewGame();
+  state.gameState = "explore";
+  state.floor = 5;
+  openSubmenu("milestone_merchant", "節目商人");
+  saveAutosave();
+  state.gameState = "town";
+  loadGame();
+  assert.strictEqual(state.gameState, "explore", "milestone merchant should resume as explore");
+  console.log("-> [PASS] 節目商人保存→再開でexplore復帰");
+
   console.log("\n[TEST_SUBMENU_RESUME PASSED]");
 })();

@@ -146,6 +146,31 @@
   font-size: var(--fs-xs);
 }
 
+.milestone-merchant-grid {
+  grid-template-columns: 1fr;
+  grid-auto-rows: auto;
+  align-content: start;
+}
+
+.milestone-merchant-heading,
+.milestone-merchant-empty {
+  min-width: 0;
+  padding: var(--space-xs);
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.milestone-merchant-heading {
+  color: var(--neon-cyan);
+}
+
+.milestone-merchant-option {
+  min-height: var(--tap-min);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 
 
 #combat-controls.active {

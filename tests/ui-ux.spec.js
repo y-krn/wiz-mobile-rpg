@@ -56,7 +56,7 @@ for (const vp of VIEWPORTS) {
     await gambleButton.click();
     await page.locator('.equip-item-row', { hasText: '呪い・外せない' }).click();
     await expect(page.locator('.equip-detail-content')).toContainText('呪いで固定中');
-    const removeButton = page.getByRole('button', { name: /暫定解呪する/ });
+    const removeButton = page.getByRole('button', { name: /節目商人で解呪できます/ });
     await expect(removeButton).toBeVisible();
     expect((await removeButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
   });
@@ -330,7 +330,7 @@ for (const vp of VIEWPORTS) {
       state.floor = 1;
       state.dungeonMemory = { traps: {}, mapFragments: {}, visitedFloors: [1] };
       updateUI();
-      showFloorEntryStinger(4, true);
+      showFloorEntryStinger(16, true);
     });
 
     await expect(page.locator('#location-label')).toContainText('崩れた坑道');
@@ -718,6 +718,7 @@ for (const vp of VIEWPORTS) {
       await page.locator('#btn-town-dungeon').click();
       await expect(page.locator('#submenu-controls')).toBeVisible();
       await page.getByRole('button', { name: /戦士/ }).click();
+      await page.getByRole('button', { name: /B1Fから開始/ }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
 
       const panelBox = await page.locator('#controls-panel').boundingBox();
@@ -959,25 +960,29 @@ for (const vp of VIEWPORTS) {
 
       await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
+        const { createDefaultCurrentRun } = await import('/src/state.js');
         const { checkCellEvents } = await import('/src/movement.js');
         const { updateUI } = await import('/src/ui.js');
-        const cell = state.map[state.y][state.x];
         state.gameState = 'explore';
+        state.floor = 5;
+        const cell = state.map[state.y][state.x];
+        state.currentRun = createDefaultCurrentRun();
+        state.currentRun.defeatedMilestones = [5];
+        state.currentRun.materials = { '霊粉': 2 };
         cell.type = 'passage';
         cell.message = null;
         cell.event = 'event_merchant';
         checkCellEvents();
         updateUI();
       });
-      await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
-      await expect(page.locator('#log-panel')).toBeVisible();
-      await expect(page.locator('#log-content')).toContainText('一時休業中');
-      await expect(page.getByRole('button', { name: '取引をする' })).toHaveCount(0);
+      await expect(page.locator('#game-container')).toHaveClass(/event-mode/);
+      await expect(page.locator('#log-panel')).toBeHidden();
+      await expect(page.getByRole('button', { name: /鑑定粉/ })).toBeVisible();
       const merchantResult = await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
         return { gameState: state.gameState, event: state.map[state.y][state.x].event };
       });
-      expect(merchantResult).toEqual({ gameState: 'explore', event: null });
+      expect(merchantResult).toEqual({ gameState: 'submenu', event: 'event_merchant' });
     });
 
     test('Movement-triggered event and trap panels ignore immediate taps', async ({ page }) => {
@@ -1097,6 +1102,7 @@ for (const vp of VIEWPORTS) {
       await page.locator('#btn-town-dungeon').click();
       await expect(page.locator('#submenu-title')).toContainText('クラスを選択');
       await page.getByRole('button', { name: /盗賊/ }).click();
+      await page.getByRole('button', { name: /B1Fから開始/ }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
       const character = await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
@@ -1105,5 +1111,69 @@ for (const vp of VIEWPORTS) {
       expect(character).toEqual({ count: 1, className: 'Thief', level: 1 });
       await expect(page.locator('#character-hud .character-card')).toHaveCount(1);
     });
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Milestone start, merchant, and portal stay thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      state.unlockedMilestones = [5];
+    });
+    await page.locator('#btn-town-dungeon').click();
+    await page.getByRole('button', { name: /戦士/ }).first().click();
+    const shortcut = page.getByRole('button', { name: /B5Fから開始/ });
+    await expect(shortcut).toContainText('素材収入 60%');
+    expect((await shortcut.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await shortcut.click();
+    const started = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return { floor: state.floor, startFloor: state.currentRun.startFloor, count: state.party.length };
+    });
+    expect(started).toEqual({ floor: 5, startFloor: 5, count: 1 });
+
+    await page.evaluate(async () => {
+      const { createDefaultCurrentRun, createSoloCharacter, state } = await import('/src/state.js');
+      const { revealEquipmentOnEquip } = await import('/src/systems/identification.js');
+      const { openSubmenu } = await import('/src/navigation.js');
+      const cursed = {
+        kind: 'equipment', instanceId: 'merchant_curse', baseId: 'SHORT_SWORD', rarity: 'rare', level: 5,
+        identified: false, tags: ['blade', 'curse'], curseEffectId: 'curse_hollow_soul', curseSuspected: true,
+        affixes: [], unidentifiedName: 'ショートソード（未鑑定）',
+      };
+      revealEquipmentOnEquip(cursed);
+      state.party = [createSoloCharacter('Fighter')];
+      state.party[0].equipment.weapon = cursed;
+      state.currentRun = createDefaultCurrentRun();
+      state.currentRun.startFloor = 5;
+      state.currentRun.deepestFloor = 5;
+      state.currentRun.defeatedMilestones = [5];
+      state.currentRun.materials = { '霊粉': 9, '呪布': 5, '黒角': 3, '獣の牙': 2 };
+      state.floor = 5;
+      state.gameState = 'explore';
+      openSubmenu('milestone_merchant', '節目商人');
+    });
+    const powder = page.getByRole('button', { name: /鑑定粉/ });
+    const uncurse = page.getByRole('button', { name: /呪いを解く/ });
+    expect((await powder.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    expect((await uncurse.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await expect(page.locator('.milestone-merchant-option[data-stock-kind="equipment"]')).toHaveCount(0);
+    await powder.click();
+    await expect(page.locator('#log-content')).toContainText('鑑定粉を購入した');
+
+    await page.evaluate(async () => {
+      const { openSubmenu } = await import('/src/navigation.js');
+      openSubmenu('milestone_portal', '帰還ポータル');
+    });
+    const retreat = page.getByRole('button', { name: /素材を100%持ち帰る/ });
+    expect((await retreat.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await retreat.click();
+    const result = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return { gameState: state.gameState, reason: state.currentRun.returnReason };
+    });
+    expect(result).toEqual({ gameState: 'result', reason: 'milestone_portal' });
   });
 }

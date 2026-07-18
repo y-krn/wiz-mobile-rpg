@@ -283,9 +283,9 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
 
   if (state.combatState.isBoss) {
     logQueue.push({
-      msg: "ついに伝説の [浮遊石 (クリスタル)] を手に入れた！おしろに持ち帰ろう！",
+      msg: `B${state.floor}Fの節目ボスを撃破した！帰還ポータルと商人が解放された。`,
       sound: "item",
-      giveCrystal: true
+      milestoneVictory: state.floor
     });
   } else if (state.combatState.isMidboss) {
     logQueue.push({
