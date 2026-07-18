@@ -85,6 +85,13 @@ export function applyKillAffixEffects(char, target, state, logQueue) {
     char.hp = Math.min(getCharMaxHp(char), char.hp + killHeal);
   }
 
+  const killMp = getCharAffixSum(char, "killMp");
+  if (killMp > 0 && char.hp > 0 && char.mp < getCharMaxMp(char)) {
+    const recovered = Math.min(killMp, getCharMaxMp(char) - char.mp);
+    char.mp += recovered;
+    logQueue.push({ msg: `[職業特性] ${char.name}は敵撃破でMPが${recovered}回復した！` });
+  }
+
   const purify = getCharCoreParams(char, "CORE_PURIFY_RING");
   if (purify && purify.targetTags.some(tag => target.tags?.includes(tag))) {
     char.mp = Math.min(getCharMaxMp(char), char.mp + purify.mpRecovery);
