@@ -3,13 +3,11 @@
 @import "./styles/app-shell.css";
 @import "./styles/buttons.css";
 @import "./styles/controls.css";
-@import "./styles/party-hud.css";
+@import "./styles/solo-hud.css";
 @import "./styles/overlays-shop.css";
-@import "./styles/overlays-training.css";
 @import "./styles/overlays-combat.css";
 @import "./styles/overlays-equip.css";
 @import "./styles/overlays-spell.css";
-@import "./styles/overlays-camp.css";
 @import "./styles/overlays-result.css";
 @import "./styles/overlays-archives.css";
 @import "./styles/mobile-touch.css";

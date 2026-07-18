@@ -79,9 +79,6 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
       if (char.level === 8 && !char.spells.includes("DIALMA")) {
         char.spells.push("DIALMA");
       }
-      if (char.level === 9 && !char.spells.includes("KADORTO")) {
-        char.spells.push("KADORTO");
-      }
     } else if (char.class === "Mage") {
       if (char.level === 2 && !char.spells.includes("LAHALITO")) {
         char.spells.push("LAHALITO");
@@ -144,9 +141,6 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
       if (char.level === 8 && !char.spells.includes("DIALMA")) {
         char.spells.push("DIALMA");
       }
-      if (char.level === 10 && !char.spells.includes("KADORTO")) {
-        char.spells.push("KADORTO");
-      }
     } else if (char.class === "Bishop") {
       if (char.level === 2) {
         ["MILWA", "DIURCO", "BADIOS", "DUMAPIC"].forEach(s => {
@@ -175,9 +169,6 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
         ["DIALMA", "MADALTO", "MADI"].forEach(s => {
           if (!char.spells.includes(s)) char.spells.push(s);
         });
-      }
-      if (char.level === 9 && !char.spells.includes("KADORTO")) {
-        char.spells.push("KADORTO");
       }
       if (char.level === 10 && !char.spells.includes("TILTOWAIT")) {
         char.spells.push("TILTOWAIT");

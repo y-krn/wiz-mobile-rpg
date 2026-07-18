@@ -56,7 +56,7 @@ Object.defineProperty(global, "navigator", {
 
   const bannedB1B2Keys = [
     "ELIXIR", "SEALED_EXCALIBUR", "HOLY_BLADE", "DRAGON_CHARM", 
-    "EXCALIBUR_FRAGMENT", "SACRED_ASHES", "LIFE_WATER", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "DRAGON_SCALE"
+    "EXCALIBUR_FRAGMENT", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "DRAGON_SCALE"
   ];
 
   // Simulator B1-B2 Stock Generation (1000 trials)
@@ -72,12 +72,12 @@ Object.defineProperty(global, "navigator", {
       );
     });
   }
-  console.log("-> [PASS] B1-B2 merchant restriction verified (no legendary/dragon/ashes)");
+  console.log("-> [PASS] B1-B2 merchant restriction verified (no legendary/dragon)");
 
   // Simulator B3 Stock Generation (1000 trials)
   const bannedB3Keys = [
     "ELIXIR", "SEALED_EXCALIBUR", "HOLY_BLADE", "DRAGON_CHARM", 
-    "EXCALIBUR_FRAGMENT", "SACRED_ASHES", "LIFE_WATER", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "DRAGON_SCALE",
+    "EXCALIBUR_FRAGMENT", "LEGENDARY_SWORD", "LEGENDARY_SHIELD", "DRAGON_SCALE",
     "LONG_SWORD", "CHAIN_MAIL", "MAGIC_SHIELD", "PRIEST_ROBE", "PLATE_MAIL", "CLAYMORE", "KATANA"
   ];
   let b3TicketFound = 0;
@@ -102,52 +102,11 @@ Object.defineProperty(global, "navigator", {
   assert.strictEqual(b3UnidentifiedFound, 0, "B3 merchant should not offer unidentified equipment");
   console.log(`-> [PASS] B3 merchant restriction verified (no mid/high tier gear, offers tickets/mats, no unidentified)`);
 
-  // Simulator B4 Stock Generation (1000 trials)
-  let ashesFoundWithoutOwning = false;
-  let ashesFoundWithOwning = false;
   for (let i = 0; i < 1000; i++) {
-    const stockWithout = generateMerchantStock(4, []); // Not holding ashes
-    if (stockWithout.some(item => item.key === "SACRED_ASHES")) {
-      ashesFoundWithoutOwning = true;
-    }
-
-    const stockWith = generateMerchantStock(4, ["SACRED_ASHES"]); // Holding ashes as string
-    if (stockWith.some(item => item.key === "SACRED_ASHES")) {
-      ashesFoundWithOwning = true;
-    }
-    
-    const stockWithObject = generateMerchantStock(4, [{ baseId: "SACRED_ASHES" }]); // Holding ashes as object
-    if (stockWithObject.some(item => item.key === "SACRED_ASHES")) {
-      ashesFoundWithOwning = true;
-    }
+    const stock = generateMerchantStock(5);
+    assert.strictEqual(stock.some(item => item.key === "LEGENDARY_SWORD"), false);
   }
-  assert.ok(ashesFoundWithoutOwning, "B4 merchant should offer SACRED_ASHES if not owned");
-  assert.strictEqual(ashesFoundWithOwning, false, "B4 merchant must not offer SACRED_ASHES if already owned");
-  console.log("-> [PASS] B4 merchant restriction verified (Ashes inventory constraint works)");
-
-  // Simulator B5 Stock Generation (1000 trials)
-  let legendarySwordFound = false;
-  let lifeWaterFoundWithoutOwning = false;
-  let lifeWaterFoundWithOwning = false;
-  for (let i = 0; i < 1000; i++) {
-    const stock = generateMerchantStock(5, []);
-    if (stock.some(item => item.key === "LEGENDARY_SWORD")) {
-      legendarySwordFound = true;
-    }
-    if (stock.some(item => item.key === "LIFE_WATER")) {
-      lifeWaterFoundWithoutOwning = true;
-    }
-
-    const stockWithLifeWater = generateMerchantStock(5, ["LIFE_WATER"]);
-    if (stockWithLifeWater.some(item => item.key === "LIFE_WATER")) {
-      lifeWaterFoundWithOwning = true;
-    }
-  }
-  assert.strictEqual(legendarySwordFound, false, "B5 merchant must not offer LEGENDARY_SWORD");
-  assert.ok(lifeWaterFoundWithoutOwning, "B5 merchant should offer LIFE_WATER if not owned");
-  assert.strictEqual(lifeWaterFoundWithOwning, false, "B5 merchant must not offer LIFE_WATER if already owned");
-  console.log("-> [PASS] B5 merchant restriction verified (excludes legendaries, LIFE_WATER constraint works)");
-
+  console.log("-> [PASS] Deep-floor merchant excludes legendary equipment");
 
   // --- Test 2: Tablet (Monument) floor-scaling formulas ---
   console.log("Running Test 2: Tablet scale formula verification...");
@@ -174,7 +133,7 @@ Object.defineProperty(global, "navigator", {
   console.log("-> [PASS] Flame trap damage range verified (8-16 damage)");
 
 
-  // --- Test 4: Inventory Limit Enforcements & Sacred Ashes Constraint ---
+  // --- Test 4: Inventory Limit Enforcement ---
   console.log("Running Test 4: Inventory limit checks...");
   initNewGame();
   state.inventory = []; // Ensure empty initially
@@ -189,19 +148,7 @@ Object.defineProperty(global, "navigator", {
   const overfilled = addInventoryItem("HEAL_POTION");
   assert.strictEqual(overfilled, false, "Should block 21st item when inventory is full");
   
-  // Clear inventory, test Sacred Ashes constraint
-  state.inventory = [];
-  const addedAshes1 = addInventoryItem("SACRED_ASHES");
-  assert.strictEqual(addedAshes1, true, "Should allow first SACRED_ASHES");
-  
-  const addedAshes2 = addInventoryItem("SACRED_ASHES");
-  assert.strictEqual(addedAshes2, false, "Should block duplicate SACRED_ASHES");
-  const addedLifeWater1 = addInventoryItem("LIFE_WATER");
-  assert.strictEqual(addedLifeWater1, true, "Should allow first LIFE_WATER");
-  
-  const addedLifeWater2 = addInventoryItem("LIFE_WATER");
-  assert.strictEqual(addedLifeWater2, false, "Should block duplicate LIFE_WATER");
-  console.log("-> [PASS] Inventory capacity and unique constraints verified");
+  console.log("-> [PASS] Inventory capacity verified");
 
 
   // --- Test 5: Flame Trap Cooldown ---

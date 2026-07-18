@@ -116,7 +116,7 @@ export function renderContracts() {
     // Footer - Close only
     const btnClose = document.createElement("button");
     btnClose.type = "button";
-    btnClose.className = "btn btn-danger btn-camp-close";
+    btnClose.className = "btn btn-danger btn-overlay-close";
     btnClose.textContent = "❌ 街に戻る";
     btnClose.style.width = "100%";
     btnClose.style.minHeight = "44px";
@@ -190,7 +190,7 @@ export function renderContracts() {
 
         const btnClose = document.createElement("button");
         btnClose.type = "button";
-        btnClose.className = "btn btn-danger btn-camp-close";
+        btnClose.className = "btn btn-danger btn-overlay-close";
         btnClose.textContent = "❌ 街に戻る";
         btnClose.style.flex = "1";
         btnClose.style.minHeight = "44px";
@@ -244,7 +244,7 @@ export function renderContracts() {
       // Footer - Close only
       const btnClose = document.createElement("button");
       btnClose.type = "button";
-      btnClose.className = "btn btn-danger btn-camp-close";
+      btnClose.className = "btn btn-danger btn-overlay-close";
       btnClose.textContent = "❌ 街に戻る";
       btnClose.style.width = "100%";
       btnClose.style.minHeight = "44px";

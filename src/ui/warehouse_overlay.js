@@ -316,7 +316,7 @@ export function renderWarehouse() {
 
   const btnClose = document.createElement("button");
   btnClose.type = "button";
-  btnClose.className = "btn btn-danger btn-camp-close";
+  btnClose.className = "btn btn-danger btn-overlay-close";
   btnClose.textContent = "❌ 街に戻る";
   btnClose.style.width = "100%";
   btnClose.style.minHeight = "44px";

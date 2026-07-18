@@ -30,7 +30,6 @@ export function getSpellCombatSummary(spellName) {
     LOMILWA: { tag: "探索", effect: "永続明かり", category: "utility" },
     DIALMA: { tag: "単体", effect: "回復 70-120", category: "single" },
     MADI: { tag: "全体", effect: "回復 25-40", category: "all" },
-    KADORTO: { tag: "戦闘不可", effect: "蘇生", category: "dead" },
     MABARRIER: { tag: "補助", effect: "味方全体 魔法軽減", category: "buff" },
     MONTINO: { tag: "全体", effect: "沈黙 2T", category: "all" },
     MORLIS: { tag: "弱体", effect: "全体魔防低下", category: "debuff" }
@@ -48,15 +47,10 @@ export function isSpellTargetAvailable(spell) {
     if (!hasLivingEnemy) return false;
   }
 
-  // 3. 味方対象呪文：生存している（またはKADORTOなら死亡している）味方がいるか
+  // 3. 味方対象呪文：生存している味方がいるか
   if (spell.target === "single_ally" || spell.target === "all_allies") {
-    if (spell.name === "KADORTO") {
-      const hasDeadAlly = state.party.some(c => c.status === "dead");
-      if (!hasDeadAlly) return false;
-    } else {
-      const hasLivingAlly = state.party.some(c => ["ok", "poisoned", "blind"].includes(c.status));
-      if (!hasLivingAlly) return false;
-    }
+    const hasLivingAlly = state.party.some(c => ["ok", "poisoned", "blind"].includes(c.status));
+    if (!hasLivingAlly) return false;
   }
 
   // 4. 特定の状態異常治療呪文の対象不在チェック

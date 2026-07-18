@@ -46,17 +46,17 @@ globalThis.document = {
 };
 
 const root = new FakeElement();
-const partyPanel = new FakeElement();
-partyPanel.id = "party-panel";
-root.appendChild(partyPanel);
-const partyGrid = new FakeElement();
-partyGrid.id = "party-grid";
-partyPanel.appendChild(partyGrid);
+const characterPanel = new FakeElement();
+characterPanel.id = "character-panel";
+root.appendChild(characterPanel);
+const characterHud = new FakeElement();
+characterHud.id = "character-hud";
+characterPanel.appendChild(characterHud);
 
-const [{ getItemData }, { runCombatRoundCalculation }, { updatePartyHUD }, { state }] = await Promise.all([
+const [{ getItemData }, { runCombatRoundCalculation }, { updateSoloHUD }, { state }] = await Promise.all([
   import("../src/rules/item_rules.js"),
   import("../src/combat_logic/round.js"),
-  import("../src/ui/hud.js"),
+  import("../src/ui/solo_hud.js"),
   import("../src/state.js")
 ]);
 
@@ -102,7 +102,7 @@ function makeChar(index) {
   };
 }
 
-const party = Array.from({ length: 4 }, (_, index) => makeChar(index));
+const party = [makeChar(0)];
 const combatState = {
   party,
   inventory: [],
@@ -139,11 +139,11 @@ function runCombatRound() {
   return runCombatRoundCalculation(combatState, combatSelection);
 }
 
-function renderPartyHud() {
+function renderSoloHud() {
   state.party = party;
   state.gameState = "explore";
   state.combatState = null;
-  updatePartyHUD();
+  updateSoloHUD();
 }
 
 function post(session, method, params = {}) {
@@ -193,13 +193,13 @@ try {
     directSink += getItemData(dynamicItem).atk;
   }, 100_000);
   const combatCalls = await countGetItemDataCalls(runCombatRound);
-  const hudCalls = await countGetItemDataCalls(renderPartyHud);
+  const hudCalls = await countGetItemDataCalls(renderSoloHud);
   const combatMs = timePerRun(runCombatRound, 5_000);
-  const hudMs = timePerRun(renderPartyHud, 5_000);
+  const hudMs = timePerRun(renderSoloHud, 5_000);
 
   console.log(JSON.stringify({
     node: process.version,
-    fixture: "4 characters x 4 dynamic equipment items",
+    fixture: "1 character x 4 dynamic equipment items",
     directSink,
     directGetItemDataMs: directMs,
     combatRound: {
@@ -207,7 +207,7 @@ try {
       totalMs: combatMs,
       estimatedGetItemDataMs: directMs * combatCalls
     },
-    partyHudUpdate: {
+    soloHudUpdate: {
       getItemDataCalls: hudCalls,
       totalMs: hudMs,
       estimatedGetItemDataMs: directMs * hudCalls

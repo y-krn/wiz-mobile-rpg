@@ -68,8 +68,6 @@ export const ITEMS = {
   ESCAPE_SCROLL: { id: "ESCAPE_SCROLL", name: "離脱のスクロール", type: "usable", price: 300, desc: "使用すると戦闘から逃れ、その場に留まる。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
   PANACEA: { id: "PANACEA", name: "万能薬", type: "usable", price: 300, desc: "毒・盲目・麻痺・睡眠を治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   ELIXIR: { id: "ELIXIR", name: "エリクサー", type: "usable", price: 1500, desc: "HP・MPが全回復し、毒・麻痺・盲目も治療する究極の霊薬。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
-  SACRED_ASHES: { id: "SACRED_ASHES", name: "聖灰", type: "usable", price: 2500, desc: "死亡した仲間をキャンプ中にHP1で蘇生させる（所持制限：バッグに1個まで）。", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], campOnly: true },
-  LIFE_WATER: { id: "LIFE_WATER", name: "生命の水", type: "usable", price: 4000, desc: "死亡した仲間をキャンプ中にHP全回復で蘇生させる（所持制限：バッグに1個まで）。", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], campOnly: true },
   LEGENDARY_SWORD: { id: "LEGENDARY_SWORD", name: "神剣エクスカリバー", type: "weapon", atk: 40, price: 3000, desc: "聖なる光を放つ伝説の神剣。攻撃力+40 [戦・侍用]", classes: ["Fighter", "Samurai"], tags: ["holy", "blade"] },
   LEGENDARY_SHIELD: { id: "LEGENDARY_SHIELD", name: "イージスの盾", type: "shield", def: 15, price: 2500, desc: "あらゆる厄災を払う神の盾。防御力+15 [戦・侍用]", classes: ["Fighter", "Samurai"], tags: ["holy", "ward"] },
   SEALED_EXCALIBUR: { id: "SEALED_EXCALIBUR", name: "封印された聖剣", type: "weapon", atk: 26, price: 2400, desc: "封印が施された伝説の聖剣。攻撃力+26 [戦・侍用]", classes: ["Fighter", "Samurai"], tags: ["curse", "blade"] },

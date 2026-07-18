@@ -1,5 +1,4 @@
 import { DIR_N, START_X, START_Y } from "../data.js";
-import { getReviveCost } from "../rules/revive_rules.js";
 
 // Main State Object
 export const state = {
@@ -10,9 +9,8 @@ export const state = {
   prevX: START_X,
   prevY: START_Y,
 
-  // Party, Roster & Inventory
+  // Solo character (kept as a one-element array for combat compatibility) & Inventory
   party: [],
-  roster: [],
   gold: 150,
   inventory: ["HEAL_POTION", "HEAL_POTION"],
 
@@ -45,7 +43,6 @@ export const state = {
   currentRun: null,
   runHistory: [],
   deathLogs: [],
-  remains: [],
   codex: {
     monsters: {},
     equipment: {},
@@ -147,34 +144,4 @@ export function recordCharDeath(stateObj, char, cause) {
 
   const turnText = turn !== null ? ` (ターン ${turn})` : "";
   addLog(`☠️ [!] ${char.name}は B${stateObj.floor}F で${cause}により倒れた。${turnText}`);
-}
-
-// 詰み判定 (全員死亡かつ蘇生費不足)
-export function isSoftlocked() {
-  const hasAlive = state.roster.some(char => char.status !== "dead" && char.status !== "ash");
-  if (hasAlive) return false;
-
-  const deadOrAsh = state.roster.filter(char => char.status === "dead" || char.status === "ash");
-  if (deadOrAsh.length === 0) {
-    return true;
-  }
-
-  const minCost = Math.min(...deadOrAsh.map(getReviveCost));
-
-  return state.gold < minCost;
-}
-
-// 詰み救済の新人を迎えられるか判定 (生存メンバー数4人未満かつ蘇生費不足)
-export function canRecruitRescueNewcomer() {
-  const aliveCount = state.roster.filter(char => char.status !== "dead" && char.status !== "ash").length;
-  if (aliveCount >= 4) return false;
-
-  const deadOrAsh = state.roster.filter(char => char.status === "dead" || char.status === "ash");
-  if (deadOrAsh.length === 0) {
-    return true;
-  }
-
-  const minCost = Math.min(...deadOrAsh.map(getReviveCost));
-
-  return state.gold < minCost;
 }

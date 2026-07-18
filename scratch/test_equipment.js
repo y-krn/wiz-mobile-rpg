@@ -10,7 +10,7 @@ global.localStorage = {
 import assert from "assert";
 import { getCharAgi, getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharStr, getCharTrapBonus, generateRandomAccessory, getItemData } from "../src/data.js";
 import { migrateSavePayload, SAVE_VERSION } from "../src/state/save_migrations.js";
-import { generateRandomMap } from "../src/map_generator.js";
+import { createSoloCharacter } from "../src/state.js";
 
 (async () => {
 
@@ -70,7 +70,7 @@ import { generateRandomMap } from "../src/map_generator.js";
 
       console.log("=== STARTING EQUIPPED CRAFT VERIFICATION ===");
       initNewGame();
-      state.party = [ ...state.roster.slice(0, 4) ];
+      state.party = [createSoloCharacter("Fighter")];
 
       // キャラクターと装備の初期化
       const char = state.party[0];
@@ -605,7 +605,7 @@ import { generateRandomMap } from "../src/map_generator.js";
       // Test 3: Curse Debuffs Application
       console.log("\n[Test 3] Curse Debuffs Application...");
       initNewGame();
-      state.party = [ ...state.roster.slice(0, 4) ];
+      state.party = [createSoloCharacter("Fighter")];
       
       // Make a cursed wand manually
       const cursedWand = {
@@ -647,7 +647,7 @@ import { generateRandomMap } from "../src/map_generator.js";
       // Test 4: Tag Inscription Crafting
       console.log("\n[Test 4] Tag Inscription Crafting...");
       initNewGame();
-      state.party = [ ...state.roster.slice(0, 4) ];
+      state.party = [createSoloCharacter("Fighter")];
       
       const testArmor = {
         kind: "equipment",
@@ -872,44 +872,10 @@ import { generateRandomMap } from "../src/map_generator.js";
     };
     assert.strictEqual(getCharAffixSum(unidentWard, "spellGuard"), 0);
 
-    const migrated = migrateSavePayload({
-      version: 1,
-      party: [{ ...baseChar, equipment: { weapon: "DAGGER", shield: null, armor: null } }],
-      roster: [{ ...baseChar, equipment: {} }],
-      remains: [{ ...baseChar, equipment: { weapon: null, shield: null, armor: null } }],
-      inventory: [{
-        kind: "equipment",
-        baseId: "DAGGER",
-        affixes: [{ type: "agi", value: 1 }]
-      }]
-    });
-
-    assert.strictEqual(migrated.version, SAVE_VERSION);
-    assert.deepStrictEqual(migrated.party[0].equipment, {
-      weapon: "DAGGER",
-      shield: null,
-      armor: null,
-      accessory: null
-    });
-    assert.strictEqual(migrated.roster[0].equipment.accessory, null);
-    assert.strictEqual(migrated.remains[0].equipment.accessory, null);
-    assert.strictEqual(migrated.party[0].runTrapAttackBonus, 0);
-    assert.strictEqual(migrated.roster[0].runTrapAttackBonus, 0);
-    assert.deepStrictEqual(migrated.inventory[0].affixes[0], {
-      id: "agi",
-      kind: "support",
-      type: "agi",
-      value: 1
-    });
-
-    const oldMap = generateRandomMap(1, null, "ACCESSORY-MIGRATION-MAP").grid;
-    delete oldMap[1][1].blockEnter;
-    delete oldMap[1][1].secretDoor;
-    delete oldMap[1][1].secretFound;
-    const migratedMapSave = migrateSavePayload({ version: 3, maps: [oldMap, oldMap, oldMap, oldMap, oldMap] });
-    assert.deepStrictEqual(migratedMapSave.maps[0][1][1].blockEnter, [false, false, false, false]);
-    assert.deepStrictEqual(migratedMapSave.maps[0][1][1].secretDoor, [false, false, false, false]);
-    assert.deepStrictEqual(migratedMapSave.maps[0][1][1].secretFound, [false, false, false, false]);
+    assert.throws(
+      () => migrateSavePayload({ version: SAVE_VERSION - 1 }),
+      error => error.name === "IncompatibleSaveVersionError"
+    );
 
     function lcg(seed) {
       let value = seed;

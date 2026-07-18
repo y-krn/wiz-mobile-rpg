@@ -1,4 +1,4 @@
-import { state, syncPartyToRoster } from "../state.js";
+import { state } from "../state.js";
 import { runCombatRoundCalculation } from "../combat_logic.js";
 import { combatSelection } from "./combat_state.js";
 import { playBattleLogs } from "./battle_log_player.js";
@@ -14,7 +14,7 @@ export function resolveCombatRound() {
   const { logQueue, state: nextState } = runCombatRoundCalculation(state, combatSelection);
   
   // Apply state mutations calculated in pure combat_logic
-  syncPartyToRoster(nextState.party);
+  state.party = nextState.party.slice(0, 1);
   state.combatState = nextState.combatState;
   state.inventory = nextState.inventory;
   state.firstKills = nextState.firstKills;

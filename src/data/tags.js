@@ -54,7 +54,6 @@ export const SPELL_TAGS = {
   LATUMOFIS: ["heal", "poison"],
   DIURCO: ["heal"],
   BADIOS: ["holy"],
-  KADORTO: ["holy"],
   MILWA: ["holy", "analysis"],
   LOMILWA: ["holy", "analysis"],
   MABARRIER: ["ward"],

@@ -2,7 +2,6 @@ import { state, saveGame, saveAutosave, addLog } from "../state.js";
 import { getItemData, getItemBaseId } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
-import { openSubmenu } from "../navigation.js";
 import { getFloorLabel } from "../data/floor_themes.js";
 
 export function getEvaluationText(run, isSuccess) {
@@ -230,7 +229,9 @@ export function renderResultScreen() {
   }
 
   if (!isSuccess) {
-    // 全滅専用のレイアウトを表示
+    const lostMaterialsText = Object.entries(run.lostMaterials || {})
+      .map(([name, qty]) => `${name} x${qty}`)
+      .join("、") || "なし";
     overlay.innerHTML = `
       <div class="result-header failed">
         <div class="result-title">${titleText}</div>
@@ -239,86 +240,36 @@ export function renderResultScreen() {
       <div class="result-body">
         <div class="result-summary-section" style="border-color: var(--neon-red); background: rgba(255, 0, 51, 0.05); margin-bottom: 12px;">
           <div class="result-summary-item">
-            <span class="result-summary-label">全滅階層</span>
+            <span class="result-summary-label">到達階層</span>
             <span class="result-summary-val" style="color: var(--neon-red);">${getFloorLabel(state, run.wipedFloor || run.deepestFloor)}</span>
           </div>
           <div class="result-summary-item">
-            <span class="result-summary-label">救出費損失</span>
-            <span class="result-summary-val" style="color: var(--neon-red);">${run.lostGold || 0} G</span>
-          </div>
-          <div class="result-summary-item">
-            <span class="result-summary-label">遺留品アイテム</span>
-            <span class="result-summary-val" style="color: var(--neon-cyan);">${run.remainsItemCount || 0} 個</span>
+            <span class="result-summary-label">失った素材</span>
+            <span class="result-summary-val" style="color: var(--neon-gold);">${lostMaterialsText}</span>
           </div>
         </div>
-
         <div class="result-eval-section failed" style="border-color: var(--neon-red); margin-bottom: 12px; text-align: left;">
-          <div class="result-eval-title" style="color: var(--neon-red);">💀 損失の報告</div>
+          <div class="result-eval-title" style="color: var(--neon-red);">ラン終了</div>
           <div style="font-size: 11px; line-height: 1.6;">
-            ・パーティメンバー全員が<strong>死亡状態</strong>になりました。<br>
-            ・所持金から救出費として <strong>${run.lostGold || 0} G</strong> を失いました。<br>
-            ・今回の遠征で獲得した未確定の戦利品 <strong>${totalLootCount} 個</strong> が消滅しました。<br>
-            ・出発前から所持していたアイテムのうち <strong>${run.remainsItemCount || 0} 個</strong> が遺留品として <strong>B${run.wipedFloor || run.deepestFloor}F (X:${run.wipedX || 0} Y:${run.wipedY || 0})</strong> に残されました。
+            冒険者は力尽きた。獲得素材の30%を保持し、次のランは新しいクラス選択からLv1で始まる。
           </div>
         </div>
-
         ${deathLogsHtml}
-
-        <div class="result-eval-section" style="border-color: var(--neon-gold); background: rgba(255, 170, 0, 0.05); text-align: left; margin-bottom: 12px;">
-          <div class="result-eval-title" style="color: var(--neon-gold);">💡 次の推奨アクション</div>
-          <div style="font-size: 11px; line-height: 1.5;">
-            1. <strong>カント寺院</strong>で死亡したメンバーの蘇生を試みます（灰化・ロストのリスクあり）。<br>
-            2. 不足メンバーを<strong>訓練場</strong>で新しく編成します。<br>
-            3. 態勢を整え、全滅地点へ<strong>遺留品の回収</strong>に向かいます。
-          </div>
-        </div>
-
         <div class="result-history-section">
-          <div class="result-section-title" style="font-size: 10px; color: var(--neon-cyan); text-shadow: var(--neon-glow-cyan);">📜 最近の探索履歴</div>
-          <div class="result-history-list">
-            ${historyHtml}
-          </div>
+          <div class="result-section-title">最近の探索履歴</div>
+          <div class="result-history-list">${historyHtml}</div>
         </div>
       </div>
-      <div class="result-footer-actions" style="display: flex; flex-direction: column; gap: 8px; padding-bottom: 20px;">
-        <button id="btn-result-temple" class="btn btn-neon btn-block" style="border-color: var(--neon-red); color: var(--neon-red); height: 44px;">⛪ 寺院で蘇生する</button>
-        <button id="btn-result-training" class="btn btn-neon btn-block" style="border-color: var(--neon-green); color: var(--neon-green); height: 44px;">👥 訓練場で編成する</button>
-        <button id="btn-result-remains" class="btn btn-neon btn-block" style="border-color: var(--neon-cyan); color: var(--neon-cyan); height: 44px;">📦 遺留品を確認する</button>
-        <button id="btn-result-close" class="btn btn-secondary btn-block" style="height: 44px;">❌ 街に戻る</button>
+      <div class="result-footer-actions">
+        <button id="btn-result-close" class="btn btn-neon btn-block">街へ戻る</button>
       </div>
     `;
-
-    document.getElementById("btn-result-temple").addEventListener("click", () => {
-      overlay.style.display = "none";
-      state.gameState = "town";
-      state.currentRun = null;
-      saveAutosave();
-      updateUI();
-      openSubmenu("temple_main", "カント寺院 - 蘇生と治療：");
-    });
-
-    document.getElementById("btn-result-training").addEventListener("click", () => {
-      overlay.style.display = "none";
-      state.gameState = "town";
-      state.currentRun = null;
-      saveAutosave();
-      updateUI();
-      openSubmenu("party_assemble", "訓練場 - パーティ編成:");
-    });
-
-    document.getElementById("btn-result-remains").addEventListener("click", () => {
-      overlay.style.display = "none";
-      state.gameState = "town";
-      state.currentRun = null;
-      saveAutosave();
-      updateUI();
-      openSubmenu("castle_remains_list", "おしろ - 遺留品情報：");
-    });
 
     document.getElementById("btn-result-close").addEventListener("click", () => {
       overlay.style.display = "none";
       state.gameState = "town";
       state.currentRun = null;
+      state.party = [];
       saveAutosave();
       updateUI();
     });
@@ -405,6 +356,7 @@ export function renderResultScreen() {
         overlay.style.display = "none";
         state.gameState = "town";
         state.currentRun = null;
+        state.party = [];
         addLog("おしろ：探索から無事帰還した。");
 
         const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");

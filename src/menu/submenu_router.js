@@ -2,10 +2,10 @@ import { openChestMenu } from "../chest.js";
 import { openSubmenu, setRenderSubmenuCallback } from "../navigation.js";
 import { renderShop } from "../shop/shop_view.js";
 import { shopState } from "../shop/shop_state.js";
-import { renderTraining } from "../training.js";
+import { renderSoloStart } from "./solo_start.js";
 import { renderEventMerchant, renderEventMerchantBuy, renderEventMerchantResult } from "./merchant.js";
-import { renderTempleMain, renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftPolish, renderCraftDismantle, renderCraftInscriptionSelectEquip, renderCraftInscriptionSelectEngrave, renderCastleMain, renderCastleDeadList, renderCastleRemainsList, renderCastleDeathLogs } from "./town_actions.js";
-import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderCampMain, renderGameOverMain, renderEnterDungeonSelect, renderCampStatus, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect, renderWardenConfirm } from "./explore_actions.js";
+import { renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftPolish, renderCraftDismantle, renderCraftInscriptionSelectEquip, renderCraftInscriptionSelectEngrave, renderCastleMain, renderCastleDeathLogs } from "./town_actions.js";
+import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect, renderWardenConfirm } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 
 const SUBMENU_RENDERERS = {
@@ -20,11 +20,9 @@ const SUBMENU_RENDERERS = {
   item_inventory: (optGrid) => renderItemInventory(optGrid),
   item_target_select: (optGrid) => renderItemTargetSelect(optGrid),
   item_direction_select: (optGrid) => renderItemDirectionSelect(optGrid),
-  camp_main: (optGrid) => renderCampMain(optGrid),
-  camp: (optGrid) => renderCampMain(optGrid),
   gameover_main: (optGrid) => renderGameOverMain(optGrid),
   enter_dungeon_select: (optGrid) => renderEnterDungeonSelect(optGrid),
-  camp_status: (optGrid) => renderCampStatus(optGrid),
+  solo_start: (optGrid) => renderSoloStart(optGrid),
   shop_main: (optGrid) => {
     optGrid.innerHTML = "";
     const info = document.createElement("div");
@@ -51,27 +49,11 @@ const SUBMENU_RENDERERS = {
   shop_sell: () => {
     openSubmenu("shop_main", "ボルタック商店");
   },
-  temple_main: (optGrid) => renderTempleMain(optGrid),
   castle_main: (optGrid) => renderCastleMain(optGrid),
-  castle_dead_list: (optGrid) => renderCastleDeadList(optGrid),
-  castle_remains_list: (optGrid) => renderCastleRemainsList(optGrid),
   castle_death_logs: (optGrid) => renderCastleDeathLogs(optGrid),
   chest_disarmer_select: (optGrid) => renderChestDisarmerSelect(optGrid),
   chest_opener_select: (optGrid) => renderChestOpenerSelect(optGrid),
   warden_confirm: (optGrid) => renderWardenConfirm(optGrid),
-  party_assemble: (optGrid) => {
-    optGrid.innerHTML = "";
-    const info = document.createElement("div");
-    info.style.color = "var(--text-muted)";
-    info.style.textAlign = "center";
-    info.style.marginTop = "20px";
-    info.style.fontFamily = "var(--font-mono)";
-    info.style.fontSize = "11px";
-    info.textContent = "訓練場でパーティ編成中...";
-    optGrid.appendChild(info);
-
-    renderTraining();
-  },
   event_spring: (optGrid) => renderEventSpring(optGrid),
   event_camp: (optGrid) => renderEventCamp(optGrid),
   event_spring_result: (optGrid) => renderEventSpringResult(optGrid),
@@ -86,7 +68,7 @@ export function renderSubmenu(type) {
   const optGrid = document.getElementById("submenu-options");
   if (!optGrid) return;
 
-  if (type === "spell_caster_select" || type === "spell_select" || type === "spell_target_ally" || type === "camp_main" || type === "camp" || type === "camp_status" || type === "camp_formation") {
+  if (type === "spell_caster_select" || type === "spell_select" || type === "spell_target_ally") {
     return;
   }
 

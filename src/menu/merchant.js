@@ -8,10 +8,8 @@ export function getMerchantPrice(basePrice, party) {
   return Math.max(1, Math.floor(basePrice * (1 - discount / 100)));
 }
 
-export function generateMerchantStock(floor, inventory) {
+export function generateMerchantStock(floor) {
   const generated = [];
-  const alreadyHasAshes = inventory.some(i => getItemBaseId(i) === "SACRED_ASHES");
-  const alreadyHasLifeWater = inventory.some(i => getItemBaseId(i) === "LIFE_WATER");
 
   const allowlist = ["SHORT_SWORD", "SMALL_SHIELD", "LEATHER_ARMOR", "DAGGER", "WAND", "ROBE", "NINJA_SUIT"];
 
@@ -38,12 +36,6 @@ export function generateMerchantStock(floor, inventory) {
     if (mat === "竜鱗") price = 300;
     choices.push({ type: "material", key: mat, price, soldOut: false });
 
-    if (floor >= 4 && !alreadyHasAshes && Math.random() < 0.1) {
-      choices.push({ type: "item", key: "SACRED_ASHES", price: ITEMS.SACRED_ASHES.price, soldOut: false });
-    }
-    if (floor >= 5 && !alreadyHasLifeWater && Math.random() < 0.08) {
-      choices.push({ type: "item", key: "LIFE_WATER", price: ITEMS.LIFE_WATER.price, soldOut: false });
-    }
     if (floor >= 3 && Math.random() < 0.08) {
       choices.push({ type: "unidentified_accessory", rarity: "magic", price: floor >= 5 ? 900 : 650, soldOut: false });
     }
@@ -149,7 +141,7 @@ export function renderEventMerchantBuy(optGrid) {
         btn.disabled = true;
       } else {
         const price = getMerchantPrice(stock.price, state.party);
-        const isLimitedItem = stock.key === "SACRED_ASHES" || stock.key === "LIFE_WATER" || stock.key === "TOWN_PORTAL";
+        const isLimitedItem = stock.key === "TOWN_PORTAL";
         const hasLimitedItem = state.inventory.some(i => getItemBaseId(i) === stock.key);
         const bagFull = state.inventory.length >= 20;
         

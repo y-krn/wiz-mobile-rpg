@@ -2,13 +2,12 @@ import { state, initNewGame, saveAutosave, addLog } from "../state.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, getCharTrapBonus, getPartyMaxAffix, canEquipCoreAffix, EXP_LEVELS, DX, DY, DIR_NAMES } from "../data.js";
+import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, getCharTrapBonus, getPartyMaxAffix, canEquipCoreAffix, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
 import { advanceRoamingTurn, challengePendingWarden, checkCellEvents, createNoiseEvent, executeEnterDungeon, getEncounterChance, recordExplorationSteps, retreatPendingWarden, tickExplorationSpellEffects } from "../movement.js";
 import { WARDEN_PERCEPTION_HINTS } from "../systems/warden_perception.js";
 import { getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
 import { startCombat, triggerGameOver } from "../combat.js";
-import { openCampMenu } from "../camp.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
 import { executeDisarm, openChestDirectly } from "../chest.js";
 import { openWall } from "../map_generator.js";
@@ -124,8 +123,6 @@ export function handleExploreAction(action) {
     } else {
       searchSecretDoor();
     }
-  } else if (action === "camp") {
-    openCampMenu();
   } else if (action === "spell") {
     const firstCasterIdx = state.party.findIndex(c => c.status !== "dead" && isSpellcaster(c) && c.maxMp > 0);
     menuContext.actorIdx = firstCasterIdx !== -1 ? firstCasterIdx : 0;
@@ -258,7 +255,7 @@ export function renderItemTargetSelect(optGrid) {
       btn.addEventListener("click", () => {
         if (item.type === "usable") {
           if (menuContext.itemKey === "TOWN_PORTAL") {
-            addLog("帰還のスクロールを読んだ！パーティ全員が眩い光に包まれ、一瞬でお城へ戻った！");
+            addLog("帰還のスクロールを読んだ！冒険者は眩い光に包まれ、一瞬でお城へ戻った！");
             playSound("cast_spell");
             state.inventory.splice(menuContext.itemIdx, 1);
             closeSubmenu();
@@ -301,39 +298,10 @@ export function renderItemTargetSelect(optGrid) {
   });
 }
 
-export function renderCampMain(optGrid) {
-  const btnRest = document.createElement("button");
-  btnRest.className = "btn btn-neon btn-block";
-  btnRest.textContent = "パーティの強さ";
-  btnRest.addEventListener("click", () => {
-    openSubmenu("camp_status", "パーティ詳細ステータス:");
-  });
-  optGrid.appendChild(btnRest);
-
-  const btnItems = document.createElement("button");
-  btnItems.className = "btn btn-neon btn-block";
-  btnItems.textContent = "装備変更";
-  btnItems.addEventListener("click", () => {
-    openEquipOverlay(0);
-  });
-  optGrid.appendChild(btnItems);
-
-  const btnDiscard = document.createElement("button");
-  btnDiscard.className = "btn btn-danger btn-block";
-  btnDiscard.textContent = "冒険を最初からやり直す";
-  btnDiscard.addEventListener("click", () => {
-    if (confirm("セーブデータを削除して、最初からやり直しますか？")) {
-      initNewGame();
-      closeSubmenu();
-    }
-  });
-  optGrid.appendChild(btnDiscard);
-}
-
 export function renderGameOverMain(optGrid) {
   const btnBack = document.createElement("button");
   btnBack.className = "btn btn-neon btn-block";
-  btnBack.textContent = "街へ戻る（寺院で蘇生・訓練場で編成）";
+  btnBack.textContent = "街へ戻り、新しいランを始める";
   btnBack.addEventListener("click", () => {
     state.gameState = "town";
     closeSubmenu();
@@ -366,30 +334,6 @@ export function renderEnterDungeonSelect(optGrid) {
   optGrid.appendChild(btnB1F);
 }
 
-export function renderCampStatus(optGrid) {
-  state.party.forEach(char => {
-    const card = document.createElement("div");
-    card.style.fontFamily = "var(--font-mono)";
-    card.style.fontSize = "11px";
-    card.style.border = "1px solid var(--border-color)";
-    card.style.padding = "4px";
-    card.style.display = "flex";
-    card.style.flexDirection = "column";
-    const classJp = getClassJpName(char.class);
-    const nextReq = char.class === "Ninja" ? Math.floor(EXP_LEVELS[char.level + 1] * 1.5) : EXP_LEVELS[char.level + 1];
-    const nextText = nextReq ? `${char.exp}/${nextReq}` : `${char.exp}/MAX`;
-    card.innerHTML = `
-      <strong style="color:var(--neon-gold)">${char.name} (${classJp})</strong>
-      <span>HP: ${char.hp}/${char.maxHp} | MP: ${char.mp}/${char.maxMp}</span>
-      <span>力:${char.str} 知恵:${char.int} 信仰:${char.pie}</span>
-      <span>生命:${char.vit} 素早:${char.agi} 運:${char.luk}</span>
-      <span>攻撃:+${getCharWeaponAtk(char)} | 守備:${getCharDef(char)}</span>
-      <span style="color:var(--neon-cyan)">EXP: ${nextText}</span>
-    `;
-    optGrid.appendChild(card);
-  });
-}
-
 export function renderEventSpring(optGrid) {
   document.getElementById("btn-submenu-back").style.display = "none";
 
@@ -408,7 +352,7 @@ export function renderEventSpring(optGrid) {
         }
       });
       playSound("heal");
-      addLog("[!] 泉の水は清らかだった！パーティ全員のHPが20回復した。");
+      addLog("[!] 泉の水は清らかだった！冒険者のHPが20回復した。");
     } else if (rand < 0.70) {
       state.party.forEach(char => {
         if (char.status !== "dead" && char.maxMp > 0) {
@@ -416,7 +360,7 @@ export function renderEventSpring(optGrid) {
         }
       });
       playSound("heal");
-      addLog("[!] 泉の水から神秘的な力を感じた！パーティ全員のMPが3回復した。");
+      addLog("[!] 泉の水から神秘的な力を感じた！冒険者のMPが3回復した。");
     } else if (rand < 0.85) {
       const aliveChars = state.party.filter(char => char.status !== "dead");
       if (aliveChars.length > 0) {
@@ -475,7 +419,7 @@ export function renderEventCamp(optGrid) {
       if (!result.available) return;
       playSound("heal");
       if (result.coreUsers?.length) addLog(`[野営の達人] ${result.coreUsers.join("・")}の休息効果が倍増した！`);
-      addLog(`[!] 野営地で休息した。パーティ合計 HP ${result.hpRecovered} / MP ${result.mpRecovered} 回復。`);
+      addLog(`[!] 野営地で休息した。HP ${result.hpRecovered} / MP ${result.mpRecovered} 回復。`);
       saveAutosave();
       closeSubmenu();
     });

@@ -466,7 +466,7 @@ export function renderArchives() {
   closeRow.className = "bottom-actions-row";
 
   const btnClose = document.createElement("button");
-  btnClose.className = "btn btn-danger btn-camp-close";
+  btnClose.className = "btn btn-danger btn-overlay-close";
   btnClose.textContent = "❌ 閉じる";
   btnClose.style.width = "100%";
   btnClose.style.minHeight = "44px";

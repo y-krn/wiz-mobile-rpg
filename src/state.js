@@ -1,11 +1,11 @@
-export { state, addLog, isSoftlocked, canRecruitRescueNewcomer, recordCharDeath } from "./state/state_core.js";
+export { state, addLog, recordCharDeath } from "./state/state_core.js";
 
 export {
   generateRandomSeed,
   createDefaultCodex,
   createDefaultCurrentRun,
-  createDefaultRoster,
-  createDefaultParty
+  SOLO_CLASSES,
+  createSoloCharacter
 } from "./state/initial_state.js";
 
 export {
@@ -18,7 +18,7 @@ export {
 
 export {
   createSavePayload,
-  syncPartyToRoster
+  applySavePayload
 } from "./state/save_payload.js";
 
 export {

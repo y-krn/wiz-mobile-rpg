@@ -1,11 +1,10 @@
 import { state } from "../state.js";
 import { getIsMuted } from "../audio.js";
-import { menuContext, openSubmenu } from "../navigation.js";
+import { menuContext } from "../navigation.js";
 import { renderEquip } from "../equip.js";
 import { renderSpellOverlay } from "../spell_menu.js";
-import { renderCampOverlay } from "../camp.js";
 import { renderCombatOverlay, combatSelection } from "../combat.js";
-import { updatePartyHUD } from "./hud.js";
+import { updateSoloHUD } from "./solo_hud.js";
 import { updateCombatPrompt } from "./combat_prompt.js";
 import { updateViewportHUD } from "./viewport_hud.js";
 import { renderResultScreen } from "./result_screen.js";
@@ -476,16 +475,6 @@ export function updateUI() {
     }
   }
 
-  // Update Training Overlay visibility
-  const trainingOverlay = document.getElementById("training-overlay");
-  if (trainingOverlay) {
-    if (state.gameState === "submenu" && menuContext.type === "party_assemble") {
-      trainingOverlay.style.display = "flex";
-    } else {
-      trainingOverlay.style.display = "none";
-    }
-  }
-
   // Update Combat Overlay visibility
   const combatOverlay = document.getElementById("combat-overlay");
   if (combatOverlay) {
@@ -519,17 +508,6 @@ export function updateUI() {
     }
   }
 
-  // Update Camp Overlay visibility
-  const campOverlay = document.getElementById("camp-overlay");
-  if (campOverlay) {
-    if (state.gameState === "submenu" && (menuContext.type === "camp_main" || menuContext.type === "camp" || menuContext.type === "camp_status" || menuContext.type === "camp_formation")) {
-      campOverlay.style.display = "flex";
-      renderPreservingOverlayFocus(campOverlay, renderCampOverlay);
-    } else {
-      campOverlay.style.display = "none";
-    }
-  }
-
   // Disable interaction during transition
   if (controlsPanel) {
     if (state.transitioning) {
@@ -541,30 +519,7 @@ export function updateUI() {
     }
   }
 
-  // Update Party HUD & Header visibility in town mode
-  const partyHeader = document.getElementById("party-hud-header");
-  const partyPanel = document.getElementById("party-panel");
-  if (partyHeader && partyPanel) {
-    if (state.gameState === "town") {
-      partyHeader.style.display = "flex";
-      partyPanel.style.height = "78px";
-      partyPanel.style.minHeight = "78px";
-      partyPanel.classList.add("interactive-hud");
-      partyHeader.onclick = () => {
-        menuContext.actorIdx = 0;
-        openSubmenu("camp_status", "パーティの強さ");
-      };
-    } else {
-      partyHeader.style.display = "none";
-      partyPanel.style.height = "56px";
-      partyPanel.style.minHeight = "56px";
-      partyPanel.classList.remove("interactive-hud");
-      partyHeader.onclick = null;
-    }
-  }
-
-  // Update Party HUD
-  updatePartyHUD();
+  updateSoloHUD();
 
   // Update Viewport accessibility Text HUD
   updateViewportHUD();

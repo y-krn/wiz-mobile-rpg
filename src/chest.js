@@ -114,13 +114,6 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
           state.firstChestUnidentifiedGuaranteed = true;
         }
       } else {
-        const hasAshes = state.inventory.some(i => {
-          if (typeof i === "string") return i === "SACRED_ASHES";
-          return i.baseId === "SACRED_ASHES";
-        });
-        if (state.floor >= 3 && !hasAshes && rng() < 0.05) {
-        item = "SACRED_ASHES";
-      } else {
         let candidates = [];
         if (state.floor === 1) {
           candidates = ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "WAKE_POWDER"];
@@ -179,8 +172,7 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
             
             if (rng() < randChance) {
               item = generateRandomEquipment(state.floor, null, rng, state.party, true, state.floor >= 3);
-            }
-          }
+      }
         }
       }
     }

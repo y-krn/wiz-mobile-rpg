@@ -1,0 +1,125 @@
+/* Single-character HUD. Compact and always visible below the thumb controls. */
+#character-panel {
+  min-height: 64px;
+  background-color: var(--hud-chrome-bg);
+  border-top: 1.5px solid var(--hud-frame);
+  box-shadow: var(--hud-frame-glow);
+  padding: 6px;
+  flex-shrink: 0;
+}
+
+#character-hud {
+  min-height: 52px;
+}
+
+.character-card {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(150px, 1.2fr);
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  position: relative;
+  background: #181822;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+}
+
+.character-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.character-identity strong {
+  overflow: hidden;
+  color: #fff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.character-identity span,
+.character-empty {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.character-vitals {
+  display: grid;
+  gap: 5px;
+}
+
+.bar-container {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: var(--fs-xs);
+}
+
+.bar-label {
+  width: 20px;
+  color: var(--text-muted);
+}
+
+.bar {
+  height: 5px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 2px;
+  background: #09090b;
+}
+
+.bar-fill {
+  height: 100%;
+}
+
+.bar-fill.hp {
+  background: var(--neon-green);
+}
+
+.bar-fill.mp {
+  background: var(--neon-cyan);
+}
+
+.bar-value {
+  min-width: 44px;
+  text-align: right;
+}
+
+.character-status {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  padding: 1px 4px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--neon-red);
+  font-size: var(--fs-xs);
+}
+
+.character-empty {
+  display: grid;
+  min-height: 52px;
+  place-items: center;
+}
+
+.solo-start-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+}
+
+.solo-class-option {
+  display: flex;
+  min-height: var(--tap-min);
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.solo-class-option span {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}

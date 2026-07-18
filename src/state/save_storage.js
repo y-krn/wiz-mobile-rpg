@@ -1,6 +1,6 @@
 import { state, addLog } from "./state_core.js";
 import { Sentry } from "../sentry.js";
-import { generateRandomSeed, createDefaultRoster, createDefaultCodex } from "./initial_state.js";
+import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 import { createSavePayload, applySavePayload } from "./save_payload.js";
 import { migrateSavePayload } from "./save_migrations.js";
 import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
@@ -21,8 +21,7 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.dir = DIR_N;
   state.prevX = START_X;
   state.prevY = START_Y;
-  state.roster = createDefaultRoster();
-  state.party = []; // Start with empty party
+  state.party = [];
   state.gold = 150;
   state.inventory = ["HEAL_POTION", "HEAL_POTION"];
   state.firstChestUnidentifiedGuaranteed = false;
@@ -97,8 +96,7 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.transitioning = false;
   state.cleared = false;
   state.materials = {};
-  state.remains = []; // 遺留品の初期化
-  state.logs = ["リルガミンの街へようこそ。準備を整えて迷宮に入りましょう！"];
+  state.logs = ["クラスを選び、ひとりで迷宮へ潜ろう。"];
   saveAutosave();
 }
 
@@ -156,6 +154,7 @@ export function loadGame() {
   ];
 
   let firstCorrupt = null;
+  let foundIncompatibleSave = false;
   for (const src of sources) {
     const raw = localStorage.getItem(src.key);
     if (!raw) continue;
@@ -168,6 +167,10 @@ export function loadGame() {
       saveAutosave();
       return;
     } catch (err) {
+      if (err?.name === "IncompatibleSaveVersionError") {
+        foundIncompatibleSave = true;
+        continue;
+      }
       console.error(`Failed to load save from ${src.label}, trying fallback.`, err);
       // 破損検知(fallbackで復旧しても)。migration不具合の早期発見に有用。
       Sentry.captureException(err, {
@@ -177,6 +180,16 @@ export function loadGame() {
       });
       if (firstCorrupt === null) firstCorrupt = raw;
     }
+  }
+
+  if (foundIncompatibleSave) {
+    localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(BACKUP_KEY);
+    localStorage.removeItem(OLD_SAVE_KEY);
+    initNewGame();
+    state.logs = ["旧バージョンのセーブはソロ仕様と互換性がないため破棄しました。クラスを選んで新しく開始してください。"];
+    saveAutosave();
+    return;
   }
 
   // 全滅時のみ新規開始。破損データは上書きせずCORRUPT_KEYへ退避して残す。

@@ -138,15 +138,6 @@ export const SPELLS = {
     target: "single_ally",
     desc: "高度の治療 (70-120 HP回復)"
   },
-  KADORTO: {
-    name: "KADORTO",
-    type: "priest",
-    level: 9,
-    cost: 8,
-    target: "single_ally",
-    desc: "神聖蘇生呪文 (死亡した仲間をキャンプ中に蘇生)",
-    campOnly: true
-  },
   MADI: {
     name: "MADI",
     type: "priest",

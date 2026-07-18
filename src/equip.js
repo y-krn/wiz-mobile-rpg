@@ -202,13 +202,8 @@ export function getItemUseStatus(char, itemKey) {
   }
 
   if (char.status === "dead") {
-    if (itemKey !== "SACRED_ASHES" && itemKey !== "LIFE_WATER") {
-      return { usable: false, reason: "死亡中は回復アイテムを使用できません" };
-    }
+    return { usable: false, reason: "死亡中はアイテムを使用できません" };
   } else {
-    if (itemKey === "SACRED_ASHES" || itemKey === "LIFE_WATER") {
-      return { usable: false, reason: "蘇生アイテムは死亡キャラの画面で使用できます" };
-    }
     if ((itemKey === "HEAL_POTION" || itemKey === "GREATER_HEAL") && char.hp >= getCharMaxHp(char)) {
       return { usable: false, reason: "HPはすでに満タンです" };
     }
