@@ -38,6 +38,10 @@ export const WARDEN_GATE_DETOUR_STAGES = [8, 6, 4];
 const WARDEN_GATE_CANDIDATE_LIMIT = 40;
 const WARDEN_GATE_CANDIDATE_LIMIT_RETRY = 80;
 
+function isWalkableCell(cell) {
+  return cell.walls.some(w => !w) || cell.secretDoor.some(Boolean);
+}
+
 function isPassageCell(grid, x, y) {
   return x >= 0 &&
     x < MAP_WIDTH &&
@@ -512,22 +516,23 @@ function removeInvalidOneWayPassages(grid, start) {
   } while (removed);
 }
 
-function placeSecretShortcuts(grid, targetCount, rng) {
+function placeSecretShortcuts(grid, targetCount, protectedRoomKeys, rng) {
   const candidates = [];
 
   for (let y = 1; y < MAP_HEIGHT - 1; y++) {
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
-      if (!isPassageCell(grid, x, y)) continue;
+      const cell = grid[y][x];
+      if (cell.type !== "empty" || cell.event || cell.walls.some(w => !w) || cell.secretDoor.some(Boolean)) continue;
+      if ([0, 1, 2, 3].some(dir => protectedRoomKeys.has(`${x + DX[dir]},${y + DY[dir]}`))) continue;
 
-      [DIR_E, DIR_S].forEach(dir => {
+      const adjacentDirs = [];
+      for (let dir = 0; dir < 4; dir++) {
         const nx = x + DX[dir];
         const ny = y + DY[dir];
         const next = grid[ny]?.[nx];
-        if (!next || !isPassageCell(grid, nx, ny)) return;
-        if (!grid[y][x].walls[dir] || !next.walls[OPPOSITE_DIR[dir]]) return;
-        if (grid[y][x].secretDoor[dir] || next.secretDoor[OPPOSITE_DIR[dir]]) return;
-        candidates.push({ x, y, dir });
-      });
+        if (next && isWalkableCell(next)) adjacentDirs.push(dir);
+      }
+      if (adjacentDirs.length === 2) candidates.push({ x, y });
     }
   }
 
@@ -535,12 +540,24 @@ function placeSecretShortcuts(grid, targetCount, rng) {
   let placed = 0;
   for (const candidate of candidates) {
     if (placed >= targetCount) break;
-    if (setSecretDoor(grid, candidate.x, candidate.y, candidate.dir)) placed++;
+    const cell = grid[candidate.y][candidate.x];
+    if (cell.type !== "empty" || cell.event || cell.walls.some(w => !w) || cell.secretDoor.some(Boolean)) continue;
+    if ([0, 1, 2, 3].some(dir => protectedRoomKeys.has(`${candidate.x + DX[dir]},${candidate.y + DY[dir]}`))) continue;
+
+    const adjacentDirs = [];
+    for (let dir = 0; dir < 4; dir++) {
+      const next = grid[candidate.y + DY[dir]]?.[candidate.x + DX[dir]];
+      if (next && isWalkableCell(next)) adjacentDirs.push(dir);
+    }
+    if (adjacentDirs.length !== 2) continue;
+
+    adjacentDirs.forEach(dir => setSecretDoor(grid, candidate.x, candidate.y, dir));
+    placed++;
   }
   return placed;
 }
 
-function placeSecretRooms(grid, targetCount, requiredKeys, start, rng) {
+function getSecretRoomCandidates(grid, requiredKeys, start) {
   const candidates = [];
   const reachableKeys = getDirectedReachableCellKeys(grid, start);
 
@@ -550,7 +567,14 @@ function placeSecretRooms(grid, targetCount, requiredKeys, start, rng) {
       if (!roomCell.walls.every(Boolean) || roomCell.event || roomCell.type !== "empty") continue;
       if (requiredKeys.has(`${x},${y}`)) continue;
 
+      const walkableDirs = [];
       for (let dir = 0; dir < 4; dir++) {
+        const neighbor = grid[y + DY[dir]]?.[x + DX[dir]];
+        if (neighbor && isWalkableCell(neighbor)) walkableDirs.push(dir);
+      }
+      if (walkableDirs.length !== 1) continue;
+
+      for (const dir of walkableDirs) {
         const px = x + DX[dir];
         const py = y + DY[dir];
         const passage = grid[py]?.[px];
@@ -564,13 +588,84 @@ function placeSecretRooms(grid, targetCount, requiredKeys, start, rng) {
     }
   }
 
+  return candidates;
+}
+
+function ensureSecretRoomCandidates(grid, targetCount, requiredKeys, start, rng) {
+  let candidates = getSecretRoomCandidates(grid, requiredKeys, start);
+  let protectedCount = selectProtectedSecretRoomKeys(candidates, targetCount).size;
+  while (protectedCount < targetCount) {
+    const reachableKeys = getDirectedReachableCellKeys(grid, start);
+    const deadEnds = [];
+    for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+      for (let x = 1; x < MAP_WIDTH - 1; x++) {
+        const cell = grid[y][x];
+        const openDir = cell.walls.findIndex(wall => !wall);
+        if (cell.walls.filter(wall => !wall).length !== 1 || cell.event || cell.trap || cell.type !== "empty") continue;
+        if (cell.secretDoor.some(Boolean) || cell.blockEnter.some(Boolean) || requiredKeys.has(`${x},${y}`)) continue;
+        if (!reachableKeys.has(`${x},${y}`)) continue;
+
+        const nx = x + DX[openDir];
+        const ny = y + DY[openDir];
+        const neighbor = grid[ny]?.[nx];
+        if (!neighbor || neighbor.event || neighbor.type !== "empty" || neighbor.blockEnter.some(Boolean)) continue;
+        deadEnds.push({ x, y, openDir });
+      }
+    }
+
+    shuffleInPlace(deadEnds, rng);
+    let created = false;
+    for (const deadEnd of deadEnds) {
+      closeWall(grid, deadEnd.x, deadEnd.y, deadEnd.openDir);
+      const nextCandidates = getSecretRoomCandidates(grid, requiredKeys, start);
+      const nextProtectedCount = selectProtectedSecretRoomKeys(nextCandidates, targetCount).size;
+      if (nextProtectedCount > protectedCount) {
+        candidates = nextCandidates;
+        protectedCount = nextProtectedCount;
+        created = true;
+        break;
+      }
+      openWall(grid, deadEnd.x, deadEnd.y, deadEnd.openDir);
+    }
+    if (!created) break;
+  }
+  return candidates;
+}
+
+function selectProtectedSecretRoomKeys(candidates, targetCount, initialKeys = new Set()) {
+  const keys = new Set(initialKeys);
+  for (const candidate of candidates) {
+    if (keys.size >= targetCount) break;
+    const touchesProtected = [...keys].some(key => {
+      const [x, y] = key.split(",").map(Number);
+      return Math.abs(candidate.roomX - x) + Math.abs(candidate.roomY - y) === 1;
+    });
+    if (!touchesProtected) keys.add(`${candidate.roomX},${candidate.roomY}`);
+  }
+  return keys;
+}
+
+function placeSecretRooms(grid, targetCount, requiredKeys, start, protectedRoomKeys, rng) {
+  const candidates = getSecretRoomCandidates(grid, requiredKeys, start);
+
   shuffleInPlace(candidates, rng);
+  candidates.sort((a, b) =>
+    Number(protectedRoomKeys.has(`${b.roomX},${b.roomY}`)) -
+    Number(protectedRoomKeys.has(`${a.roomX},${a.roomY}`))
+  );
   let placed = 0;
   for (const candidate of candidates) {
     if (placed >= targetCount) break;
 
     const room = grid[candidate.roomY][candidate.roomX];
     if (!room.walls.every(Boolean) || room.event || room.type !== "empty") continue;
+
+    const walkableDirs = [];
+    for (let dir = 0; dir < 4; dir++) {
+      const neighbor = grid[candidate.roomY + DY[dir]]?.[candidate.roomX + DX[dir]];
+      if (neighbor && isWalkableCell(neighbor)) walkableDirs.push(dir);
+    }
+    if (walkableDirs.length !== 1 || walkableDirs[0] !== OPPOSITE_DIR[candidate.passageDir]) continue;
     if (!setSecretDoor(grid, candidate.passageX, candidate.passageY, candidate.passageDir)) continue;
 
     room.event = rng() < 0.75 ? EVENT_TYPES.CHEST : EVENT_TYPES.TABLET;
@@ -582,8 +677,12 @@ function placeSecretRooms(grid, targetCount, requiredKeys, start, rng) {
 function placeSecretDoors(grid, floor, start, stairsDownCoord, bossCoord, rng) {
   const counts = SECRET_DOOR_COUNTS[floor] || { shortcut: 0, room: 0 };
   const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, bossCoord);
-  const shortcuts = placeSecretShortcuts(grid, counts.shortcut, rng);
-  const rooms = placeSecretRooms(grid, counts.room, requiredKeys, start, rng);
+  const initialRoomCandidates = getSecretRoomCandidates(grid, requiredKeys, start);
+  let protectedRoomKeys = selectProtectedSecretRoomKeys(initialRoomCandidates, counts.room);
+  const shortcuts = placeSecretShortcuts(grid, counts.shortcut, protectedRoomKeys, rng);
+  const roomCandidates = ensureSecretRoomCandidates(grid, counts.room, requiredKeys, start, rng);
+  protectedRoomKeys = selectProtectedSecretRoomKeys(roomCandidates, counts.room, protectedRoomKeys);
+  const rooms = placeSecretRooms(grid, counts.room, requiredKeys, start, protectedRoomKeys, rng);
 
   if (!canReachAllRequired(grid, start, requiredKeys)) {
     throw new Error(`B${floor}F required path blocked by secret doors`);
@@ -654,6 +753,10 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord, rng = Math.
     .sort((a, b) => b.roughPotential - a.roughPotential);
   const openEdges = openEdgeCandidates.slice(0, candidateLimit);
   const carvedEdgeCandidates = getCarvedShortcutEdges(grid)
+    .filter(edge => !grid[edge.y][edge.x].secretDoor.some(Boolean) &&
+      [0, 1, 2, 3].every(dir =>
+        !grid[edge.y + DY[dir]][edge.x + DX[dir]].secretDoor.some(Boolean)
+      ))
     .map(edge => ({
       ...edge,
       roughPotential: openedDistance - (manhattan(start, { x: edge.nx, y: edge.ny }) + 2 + manhattan(edge.home, stairsDownCoord))
@@ -833,6 +936,21 @@ function countRoomEntrances(grid, room) {
   return entrances;
 }
 
+function hasClosedWallBesideWalkableCell(grid, room) {
+  for (let y = room.y; y < room.y + room.h; y++) {
+    for (let x = room.x; x < room.x + room.w; x++) {
+      for (let dir = 0; dir < 4; dir++) {
+        const nx = x + DX[dir];
+        const ny = y + DY[dir];
+        if (isInsideRoom(room, nx, ny)) continue;
+        const outside = grid[ny]?.[nx];
+        if (outside && isWalkableCell(outside) && grid[y][x].walls[dir]) return true;
+      }
+    }
+  }
+  return false;
+}
+
 // Overlapping or directly adjacent rooms would merge into one large hall.
 function roomsTooClose(a, b) {
   return a.x <= b.x + b.w && b.x <= a.x + a.w &&
@@ -864,6 +982,7 @@ export function carveRooms(grid, rng, visited = null) {
       rooms.some(room => room.w === 3 && room.h === 3)) continue;
     if (rooms.some(room => roomsTooClose(room, candidate))) continue;
     if (countRoomEntrances(grid, candidate) < 2) continue;
+    if (hasClosedWallBesideWalkableCell(grid, candidate)) continue;
 
     for (let y = candidate.y; y < candidate.y + candidate.h; y++) {
       for (let x = candidate.x; x < candidate.x + candidate.w; x++) {
@@ -1250,6 +1369,19 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     grid[bossCoord.y][bossCoord.x].message = "周囲にただならぬ気配が漂っている…！いにしえの竜が姿を現した！";
   }
 
+  const secretCounts = SECRET_DOOR_COUNTS[floor] || { shortcut: 0, room: 0 };
+  const preEventRequiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, bossCoord);
+  const preEventRoomCandidates = ensureSecretRoomCandidates(grid, secretCounts.room, preEventRequiredKeys, suCoord, rng);
+  const reservedRoomKeys = selectProtectedSecretRoomKeys(preEventRoomCandidates, secretCounts.room);
+  const reservedPassageKeys = new Set(preEventRoomCandidates
+    .filter(candidate => reservedRoomKeys.has(`${candidate.roomX},${candidate.roomY}`))
+    .map(candidate => `${candidate.passageX},${candidate.passageY}`));
+  deadEnds = deadEnds.filter(({ x, y }) =>
+    grid[y][x].walls.some(wall => !wall) &&
+    !reservedRoomKeys.has(`${x},${y}`) &&
+    !reservedPassageKeys.has(`${x},${y}`)
+  );
+
   // 6. Place chest events randomly at dead ends
   const shuffle = (array) => shuffleInPlace(array, rng);
   shuffle(deadEnds);
@@ -1294,9 +1426,11 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
         const isStart = (x === START_X && y === START_Y);
         const isStairs = (stairsUpCoord && x === stairsUpCoord.x && y === stairsUpCoord.y) || (stairsDownCoord && x === stairsDownCoord.x && y === stairsDownCoord.y);
         const isBossCell = (bossCoord && x === bossCoord.x && y === bossCoord.y);
-        if (isStart || isStairs || isBossCell || grid[y][x].event) continue;
+        const key = `${x},${y}`;
+        if (isStart || isStairs || isBossCell || grid[y][x].event ||
+            reservedRoomKeys.has(key) || reservedPassageKeys.has(key)) continue;
 
-        if (reachableKeys.has(`${x},${y}`) && grid[y][x].walls.some(w => !w)) {
+        if (reachableKeys.has(key) && grid[y][x].walls.some(w => !w)) {
           passages.push({ x, y });
         }
       }
