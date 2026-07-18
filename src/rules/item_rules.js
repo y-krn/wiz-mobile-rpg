@@ -1,6 +1,7 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { getClassPassiveBonus } from "./class_rules.js";
 import { formatAffixText, getAffixDefinition } from "../data/affixes.js";
+import { getScaledCurseModifier } from "./identification_rules.js";
 
 export function getItemBaseId(item) {
   if (!item) return "";
@@ -70,16 +71,14 @@ export function getCharAffixSum(char, affixType) {
         // 完全鑑定済みかつ呪われ装備の場合、呪いの全効果を適用
         if (eqKey.curseEffectId) {
           const curse = CURSE_EFFECTS[eqKey.curseEffectId];
-          if (curse && curse.mod && curse.mod[affixType] !== undefined) {
-            sum += curse.mod[affixType];
-          }
+          sum += getScaledCurseModifier(curse, affixType, eqKey.cursePower);
         }
       } else {
         // 未鑑定で装備している場合、呪いのデメリット（負の補正値）のみ適用するリスク
         if (eqKey.curseEffectId) {
           const curse = CURSE_EFFECTS[eqKey.curseEffectId];
           if (curse && curse.mod && curse.mod[affixType] !== undefined) {
-            const val = curse.mod[affixType];
+            const val = getScaledCurseModifier(curse, affixType, eqKey.cursePower);
             if (val < 0) {
               sum += val;
             }
@@ -144,10 +143,10 @@ export function getItemData(itemOrKey) {
       if (itemOrKey.curseEffectId) {
         const curse = CURSE_EFFECTS[itemOrKey.curseEffectId];
         if (curse && curse.mod) {
-          if (curse.mod.atk !== undefined && curse.mod.atk < 0) curseAtk = curse.mod.atk;
-          if (curse.mod.def !== undefined && curse.mod.def < 0) curseDef = curse.mod.def;
-          if (curse.mod.hp !== undefined && curse.mod.hp < 0) curseHp = curse.mod.hp;
-          if (curse.mod.mp !== undefined && curse.mod.mp < 0) curseMp = curse.mod.mp;
+          if (curse.mod.atk !== undefined && curse.mod.atk < 0) curseAtk = getScaledCurseModifier(curse, "atk", itemOrKey.cursePower);
+          if (curse.mod.def !== undefined && curse.mod.def < 0) curseDef = getScaledCurseModifier(curse, "def", itemOrKey.cursePower);
+          if (curse.mod.hp !== undefined && curse.mod.hp < 0) curseHp = getScaledCurseModifier(curse, "hp", itemOrKey.cursePower);
+          if (curse.mod.mp !== undefined && curse.mod.mp < 0) curseMp = getScaledCurseModifier(curse, "mp", itemOrKey.cursePower);
         }
       }
 
@@ -185,7 +184,7 @@ export function getItemData(itemOrKey) {
           ...base,
           id: itemOrKey,
           name: unidentName,
-          desc: `${unidentName}。商店で鑑定できます。未鑑定のまま装備可能ですが、能力ボーナスは得られず、呪いのデメリットだけを受けるリスクがあります。`,
+          desc: `${unidentName}。付与効果は不明。鑑定粉を使うか、装備して正体を確かめます。`,
           price: base.price,
           atk: curseAtk,
           def: curseDef,
@@ -213,10 +212,10 @@ export function getItemData(itemOrKey) {
     if (itemOrKey.curseEffectId) {
       const curse = CURSE_EFFECTS[itemOrKey.curseEffectId];
       if (curse && curse.mod) {
-        if (curse.mod.atk !== undefined) atkBonus += curse.mod.atk;
-        if (curse.mod.def !== undefined) defBonus += curse.mod.def;
-        if (curse.mod.hp !== undefined) hpBonus += curse.mod.hp;
-        if (curse.mod.mp !== undefined) mpBonus += curse.mod.mp;
+        if (curse.mod.atk !== undefined) atkBonus += getScaledCurseModifier(curse, "atk", itemOrKey.cursePower);
+        if (curse.mod.def !== undefined) defBonus += getScaledCurseModifier(curse, "def", itemOrKey.cursePower);
+        if (curse.mod.hp !== undefined) hpBonus += getScaledCurseModifier(curse, "hp", itemOrKey.cursePower);
+        if (curse.mod.mp !== undefined) mpBonus += getScaledCurseModifier(curse, "mp", itemOrKey.cursePower);
       }
     }
     const statsBonus = {
@@ -317,6 +316,11 @@ export function getItemData(itemOrKey) {
         antiDragon: "竜特効"
       }[ins.type] || ins.type;
       desc += ` <刻印: ${ins.name} (${label}+${ins.value}%)>`;
+    }
+    if (itemOrKey.curseEffectId) {
+      const curse = CURSE_EFFECTS[itemOrKey.curseEffectId];
+      const power = Math.max(1, itemOrKey.cursePower || 1);
+      desc += ` <呪い: ${curse?.name || "不明"} / 負荷×${power.toFixed(2)}>`;
     }
     if (itemOrKey.rarity) {
       const rarityLabel = {

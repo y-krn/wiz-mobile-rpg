@@ -14,6 +14,7 @@ export {
 } from "./rules/item_rules.js";
 export * from "./rules/character_stats.js";
 export * from "./rules/affix_rules.js";
+export * from "./rules/identification_rules.js";
 export * from "./rules/spell_rules.js";
 export * from "./systems/leveling.js";
 export * from "./data/tags.js";

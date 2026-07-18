@@ -12,6 +12,7 @@ import { triggerRunResult } from "./result.js";
 import { detectAdjacentTrapsByTraceRead, handleTrapStepCheck } from "./systems/traps.js";
 import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/warden_perception.js";
+import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -668,6 +669,7 @@ export function executeEnterDungeon(floor) {
   state.currentRun.deepestFloor = floor;
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
+  state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder;
   state.party.forEach(char => {
     char.runTrapAttackBonus = 0;
   });
@@ -692,6 +694,7 @@ export function executeEnterDungeon(floor) {
   const theme = getFloorTheme(floor);
   const firstVisit = revealFloor(state, floor);
   addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
+  addLog(`鑑定粉を${state.identifyTickets}個持ってランを開始した。`);
   checkFloorOmenMessage();
   playSound("move");
   saveAutosave();

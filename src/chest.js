@@ -8,6 +8,7 @@ import { triggerGameOver } from "./combat.js";
 import { createRng } from "./seed_rng.js";
 import { increaseChestTrapTier } from "./systems/traps.js";
 import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
+import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 
 export function applyTombRaiderTrapTier(chest, opener) {
   const params = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
@@ -627,6 +628,11 @@ export function openChestDirectly(opener = null, rng = Math.random) {
     const matStr = Object.entries(mats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
     addLog(`宝箱から素材束: [${matStr}] を獲得した！`);
     if (tombRaiderActivated || tombRaider) addLog(getCoreLogText("CORE_TOMB_RAIDER"));
+  }
+
+  if (rng() < IDENTIFICATION_BALANCE.chestPowderChance) {
+    state.identifyTickets = (state.identifyTickets || 0) + 1;
+    addLog("宝箱から鑑定粉を1個見つけた！");
   }
   
   if (state.codex && state.codex.events && state.codex.events.facilities) {

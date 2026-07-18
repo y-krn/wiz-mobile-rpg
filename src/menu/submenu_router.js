@@ -34,9 +34,7 @@ const SUBMENU_RENDERERS = {
     info.textContent = "ボルタック商店で取引中...";
     optGrid.appendChild(info);
 
-    if (shopState.mode !== "appraise") {
-      shopState.mode = "buy";
-    }
+    shopState.mode = "buy";
     shopState.filter = "all";
     shopState.selectedKey = null;
     shopState.selectedIdx = -1;

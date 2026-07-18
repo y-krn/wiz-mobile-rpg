@@ -14,6 +14,54 @@ const SOLO_HUD_VIEWPORTS = [
 
 const SOLO_HUD_STATES = ['town', 'explore', 'combat', 'submenu'];
 
+for (const vp of VIEWPORTS) {
+  test(`Equipment gamble stays explicit and thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      state.party = [createSoloCharacter('Fighter')];
+      state.identifyTickets = 4;
+      state.inventory = [
+        {
+          kind: 'equipment', instanceId: 'ui_safe', baseId: 'SHORT_SWORD', rarity: 'rare', level: 3,
+          identified: false, halfIdentified: false, tags: ['blade'], hintTags: ['blade'],
+          curseEffectId: null, cursePower: 1.3, curseSuspected: false,
+          unidentifiedName: 'ショートソード（未鑑定）',
+          affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 4 }]
+        },
+        {
+          kind: 'equipment', instanceId: 'ui_curse', baseId: 'LEATHER_ARMOR', rarity: 'rare', level: 5,
+          identified: false, halfIdentified: false, tags: ['ward', 'curse'], hintTags: ['ward'],
+          curseEffectId: 'curse_hollow_soul', cursePower: 1.6, curseSuspected: true,
+          unidentifiedName: 'レザーアーマー（未鑑定）',
+          affixes: [{ id: 'def', type: 'def', kind: 'support', value: 4 }]
+        }
+      ];
+      openEquipOverlay(0);
+    });
+
+    await page.locator('.equip-item-row', { hasText: 'ショートソード（未鑑定）' }).click();
+    await expect(page.locator('.equip-detail-content')).toContainText('比較不能');
+    const identifyButton = page.getByRole('button', { name: /鑑定する/ });
+    await expect(identifyButton).toBeVisible();
+    expect((await identifyButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await identifyButton.click();
+    await expect(page.locator('.equip-detail-content')).not.toContainText('比較不能');
+
+    await page.locator('.equip-item-row', { hasText: 'レザーアーマー（未鑑定）' }).click();
+    const gambleButton = page.getByRole('button', { name: '未鑑定で装備する（正体開示）' });
+    expect((await gambleButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await gambleButton.click();
+    await page.locator('.equip-item-row', { hasText: '呪い・外せない' }).click();
+    await expect(page.locator('.equip-detail-content')).toContainText('呪いで固定中');
+    const removeButton = page.getByRole('button', { name: /暫定解呪する/ });
+    await expect(removeButton).toBeVisible();
+    expect((await removeButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  });
+}
+
 test('Three-column corridor renderer draws adjacent front walls', async ({ page }) => {
   await page.goto('/');
   const cyanPixels = await page.evaluate(async () => {

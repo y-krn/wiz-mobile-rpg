@@ -3,7 +3,7 @@ import { ITEMS, getItemData } from "../data.js";
 import { goBackSubmenu } from "../navigation.js";
 import { shopState } from "./shop_state.js";
 import { SHOP_STOCK } from "./shop_stock.js";
-import { getItemOwnership, getAppraisalCost, canSellItem, getSalePrice, isDisposalSaleItem } from "./shop_rules.js";
+import { getItemOwnership, canSellItem, getSalePrice, isDisposalSaleItem } from "./shop_rules.js";
 import { renderShopDetail } from "./shop_detail_view.js";
 
 export function renderShop() {
@@ -92,19 +92,6 @@ export function renderShop() {
   });
   tabRow.appendChild(tabSell);
 
-  const tabAppraise = document.createElement("button");
-  tabAppraise.className = `shop-tab ${shopState.mode === "appraise" ? "active" : ""}`;
-  tabAppraise.textContent = "🔍 鑑定";
-  tabAppraise.setAttribute("aria-pressed", shopState.mode === "appraise" ? "true" : "false");
-  tabAppraise.addEventListener("click", () => {
-    shopState.mode = "appraise";
-    shopState.filter = "all";
-    shopState.selectedKey = null;
-    shopState.selectedIdx = -1;
-    shopState.lastAppraised = null;
-    renderShop();
-  });
-  tabRow.appendChild(tabAppraise);
   header.appendChild(tabRow);
 
   if (shopState.mode === "buy") {
@@ -367,94 +354,6 @@ export function renderShop() {
             row.setAttribute("aria-selected", "true");
 
             renderShopDetail();
-          }
-        });
-
-        itemsList.appendChild(row);
-      });
-    }
-  } else if (shopState.mode === "appraise") {
-    const unidentifiedItems = [];
-    state.inventory.forEach((itemKey, idx) => {
-      const isLastAppraised = shopState.lastAppraised && shopState.lastAppraised.idx === idx;
-      if (isLastAppraised || (typeof itemKey === "object" && !itemKey.identified)) {
-        unidentifiedItems.push({ itemKey, idx });
-      }
-    });
-
-    unidentifiedItems.sort((a, b) => {
-      const itemA = getItemData(a.itemKey);
-      const itemB = getItemData(b.itemKey);
-      const priA = TYPE_PRIORITIES[itemA.type] ?? 3;
-      const priB = TYPE_PRIORITIES[itemB.type] ?? 3;
-      return priA - priB;
-    });
-
-    if (unidentifiedItems.length === 0) {
-      const emptyMsg = document.createElement("div");
-      emptyMsg.className = "detail-placeholder";
-      emptyMsg.textContent = "未鑑定のアイテムがありません。";
-      itemsList.appendChild(emptyMsg);
-    } else {
-      const heading = document.createElement("div");
-      heading.className = "shop-list-heading";
-      heading.textContent = "未鑑定品";
-      itemsList.appendChild(heading);
-
-      unidentifiedItems.forEach(({ itemKey, idx }) => {
-        const isLastAppraised = shopState.lastAppraised && shopState.lastAppraised.idx === idx;
-        const itemData = getItemData(itemKey);
-        const cost = getAppraisalCost(itemKey);
-
-        const row = document.createElement("button");
-        row.type = "button";
-        const isSelected = shopState.selectedIdx === idx;
-        row.className = `shop-item-row ${isSelected ? "selected" : ""}`;
-        row.setAttribute("aria-selected", isSelected ? "true" : "false");
-        row.style.minHeight = "44px";
-
-        const nameSpan = document.createElement("span");
-        nameSpan.className = "shop-item-name";
-        
-        if (isLastAppraised) {
-          nameSpan.innerHTML = `${itemData.name} <span class="shop-owned-badge" style="border-color: var(--neon-green); color: var(--neon-green); background-color: rgba(0, 255, 102, 0.08);">鑑定済</span>`;
-        } else {
-          nameSpan.textContent = itemData.name;
-        }
-        row.appendChild(nameSpan);
-
-        if (!isLastAppraised && state.gold < cost) {
-          row.classList.add("not-purchasable");
-          const badge = document.createElement("span");
-          badge.className = "shop-row-badge cant";
-          badge.textContent = "金不足";
-          row.appendChild(badge);
-        }
-
-        const priceSpan = document.createElement("span");
-        priceSpan.className = "shop-item-price";
-        priceSpan.textContent = `${cost}G`;
-        row.appendChild(priceSpan);
-
-        row.addEventListener("click", () => {
-          if (isLastAppraised) {
-            shopState.selectedKey = itemKey;
-            shopState.selectedIdx = idx;
-
-            const rows = itemsList.querySelectorAll(".shop-item-row");
-            rows.forEach(r => {
-              r.classList.remove("selected");
-              r.setAttribute("aria-selected", "false");
-            });
-            row.classList.add("selected");
-            row.setAttribute("aria-selected", "true");
-
-            renderShopDetail();
-          } else {
-            shopState.lastAppraised = null;
-            shopState.selectedKey = itemKey;
-            shopState.selectedIdx = idx;
-            renderShop();
           }
         });
 

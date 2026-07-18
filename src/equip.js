@@ -16,9 +16,15 @@ import {
   canUseMageSpells,
   canUsePriestSpells,
   canEquipCoreAffix,
-  canEquipUnidentifiedItem,
-  getCoreLogText
+  isCurseLocked
 } from "./data.js";
+import { CURSE_EFFECTS } from "./data/items.js";
+import {
+  identifyEquipment,
+  removeEquipmentCurse,
+  revealEquipmentOnEquip
+} from "./systems/identification.js";
+import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
 
@@ -270,8 +276,8 @@ function canEquip(char, itemKey) {
   if (item.classes && !item.classes.includes(char.class)) {
     return { ok: false, reason: `${getClassJpName(char.class)}は装備できません` };
   }
-  if (!canEquipUnidentifiedItem(char, itemKey)) {
-    return { ok: false, reason: "未鑑定装備には慧眼が必要です" };
+  if (isCurseLocked(char.equipment?.[item.type])) {
+    return { ok: false, reason: "現在の呪い装備を外せません" };
   }
   if (!canEquipCoreAffix(char, itemKey, item.type)) {
     return { ok: false, reason: "コアは1人につき1個までです" };
@@ -387,7 +393,7 @@ function createEquipmentList(char, savedScrollTop) {
 
     const summary = document.createElement("span");
     summary.className = "equip-item-row-tag";
-    summary.textContent = `${label} ${item ? `/ ${isIdentified(itemKey) ? getItemSummary(item) : "???"}` : ""}`;
+    summary.textContent = `${label} ${item ? `/ ${isCurseLocked(itemKey) ? "🔒 呪い・外せない" : (isIdentified(itemKey) ? getItemSummary(item) : "比較不能")}` : ""}`;
     left.appendChild(summary);
     row.appendChild(left);
 
@@ -452,7 +458,7 @@ function createEquipmentList(char, savedScrollTop) {
 
       const summary = document.createElement("span");
       summary.className = "equip-item-row-tag";
-      summary.textContent = `${SLOT_LABELS[item.type]} / ${isIdentified(itemKey) ? getItemSummary(item) : "???"}`;
+      summary.textContent = `${SLOT_LABELS[item.type]} / ${isIdentified(itemKey) ? getItemSummary(item) : "比較不能"}`;
       left.appendChild(summary);
       row.appendChild(left);
 
@@ -507,7 +513,7 @@ function createStatPill(row) {
 }
 
 function createAffixDetails(itemKey) {
-  if (typeof itemKey !== "object" || !itemKey.identified || !itemKey.affixes?.length) return null;
+  if (typeof itemKey !== "object" || !itemKey.identified) return null;
 
   const details = document.createElement("div");
   details.className = "equip-affix-details";
@@ -531,6 +537,19 @@ function createAffixDetails(itemKey) {
     });
     details.appendChild(section);
   });
+
+  if (itemKey.curseEffectId) {
+    const curse = CURSE_EFFECTS[itemKey.curseEffectId];
+    const section = document.createElement("div");
+    section.className = "equip-affix-group curse";
+    const label = document.createElement("strong");
+    label.textContent = "🔒 呪い・装備解除不可";
+    section.appendChild(label);
+    const line = document.createElement("span");
+    line.textContent = `${curse?.name || "不明な呪い"}: ${curse?.desc || "効果不明"}`;
+    section.appendChild(line);
+    details.appendChild(section);
+  }
 
   return details.childElementCount > 0 ? details : null;
 }
@@ -601,14 +620,14 @@ function createDetailPanel(char) {
   } else if (preview && availability.ok && hidden) {
     const hiddenStats = document.createElement("div");
     hiddenStats.className = "equip-detail-placeholder";
-    hiddenStats.textContent = "能力・付与効果: ???";
+    hiddenStats.textContent = "比較不能：アフィックス・呪い不明";
     content.appendChild(hiddenStats);
   }
 
   const compat = document.createElement("div");
   if (isEquipped) {
-    compat.className = "equip-detail-compat yes";
-    compat.textContent = "現在装備しています";
+    compat.className = `equip-detail-compat ${isCurseLocked(itemKey) ? "no" : "yes"}`;
+    compat.textContent = isCurseLocked(itemKey) ? "🔒 呪いで固定中：通常は外せません" : "現在装備しています";
   } else {
     compat.className = `equip-detail-compat ${availability.ok ? "yes" : "no"}`;
     compat.textContent = availability.ok ? "装備できます" : availability.reason;
@@ -617,10 +636,34 @@ function createDetailPanel(char) {
 
   detailCol.appendChild(content);
 
-  const actionBtn = document.createElement("button");
-  actionBtn.type = "button";
+  const actions = document.createElement("div");
+  actions.className = "equip-detail-actions";
   if (isEquipped) {
     const bagFull = state.inventory.length >= 20;
+    const locked = isCurseLocked(itemKey);
+    const actionBtn = document.createElement("button");
+    actionBtn.type = "button";
+    if (locked) {
+      const canRemove = (state.identifyTickets || 0) >= IDENTIFICATION_BALANCE.removeCurseCost;
+      actionBtn.className = canRemove ? "btn btn-danger btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
+      actionBtn.disabled = !canRemove;
+      actionBtn.textContent = canRemove
+        ? `暫定解呪する（鑑定粉${IDENTIFICATION_BALANCE.removeCurseCost}）`
+        : `解呪に鑑定粉${IDENTIFICATION_BALANCE.removeCurseCost}必要（所持${state.identifyTickets || 0}）`;
+      actionBtn.addEventListener("click", () => {
+        const currentChar = state.party[equipState.actorIdx];
+        const currentItem = currentChar.equipment[equipState.selectedSlot];
+        if (!removeEquipmentCurse(state, currentItem).ok) return;
+        addLog(`${currentChar.name}の${getItemData(currentItem).name}から呪いを解いた。`);
+        playSound("heal");
+        saveAutosave();
+        renderEquip();
+        updateUI();
+      });
+      actions.appendChild(actionBtn);
+      detailCol.appendChild(actions);
+      return detailCol;
+    }
     actionBtn.className = bagFull ? "btn btn-block equip-action-btn disabled" : "btn btn-neon btn-block equip-action-btn";
     actionBtn.disabled = bagFull;
     actionBtn.textContent = bagFull ? "バッグが満杯です" : "外す";
@@ -641,10 +684,37 @@ function createDetailPanel(char) {
       renderEquip();
       updateUI();
     });
+    actions.appendChild(actionBtn);
   } else {
+    if (hidden) {
+      const identifyBtn = document.createElement("button");
+      identifyBtn.type = "button";
+      const canIdentify = (state.identifyTickets || 0) >= IDENTIFICATION_BALANCE.identifyCost;
+      identifyBtn.className = canIdentify ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
+      identifyBtn.disabled = !canIdentify;
+      identifyBtn.textContent = canIdentify
+        ? `鑑定する（鑑定粉1 / 所持${state.identifyTickets || 0}）`
+        : "鑑定粉がありません";
+      identifyBtn.addEventListener("click", () => {
+        const selectedItem = state.inventory[equipState.selectedIdx];
+        const result = identifyEquipment(state, selectedItem);
+        if (!result.ok) return;
+        const revealedData = getItemData(selectedItem);
+        addLog(`[鑑定] ${revealedData.name}。${result.cursed ? "呪いを確認した。" : "呪いはない。"}`);
+        playSound("level_up");
+        saveAutosave();
+        equipState.selectedKey = selectedItem;
+        renderEquip();
+        updateUI();
+      });
+      actions.appendChild(identifyBtn);
+    }
+
+    const actionBtn = document.createElement("button");
+    actionBtn.type = "button";
     actionBtn.className = availability.ok ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
     actionBtn.disabled = !availability.ok;
-    actionBtn.textContent = availability.ok ? "装備する" : "装備できません";
+    actionBtn.textContent = availability.ok ? (hidden ? "未鑑定で装備する（正体開示）" : "装備する") : "装備できません";
     actionBtn.addEventListener("click", () => {
       if (!availability.ok) return;
       const currentChar = state.party[equipState.actorIdx];
@@ -660,9 +730,15 @@ function createDetailPanel(char) {
         state.inventory.splice(equipState.selectedIdx, 1);
       }
 
-      addLog(`${currentChar.name}は${selectedData.name}を装備した。`);
-      if (typeof selectedItem === "object" && !selectedItem.identified) {
-        addLog(getCoreLogText("CORE_KEEN_EYE"));
+      const reveal = revealEquipmentOnEquip(selectedItem);
+      const revealedData = getItemData(selectedItem);
+      addLog(`${currentChar.name}は${revealedData.name}を装備した。`);
+      if (reveal.revealed) {
+        addLog(reveal.cursed
+          ? `[呪い発動] ${revealedData.name}は外せなくなった！`
+          : `[賭け成功] ${revealedData.name}に呪いはなかった。`);
+      } else if (reveal.cursed) {
+        addLog(`[呪い装備] ${revealedData.name}は外せない。`);
       }
       playSound("move");
       saveAutosave();
@@ -670,8 +746,9 @@ function createDetailPanel(char) {
       renderEquip();
       updateUI();
     });
+    actions.appendChild(actionBtn);
   }
-  detailCol.appendChild(actionBtn);
+  detailCol.appendChild(actions);
   return detailCol;
 }
 

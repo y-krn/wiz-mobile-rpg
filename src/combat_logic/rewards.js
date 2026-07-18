@@ -61,7 +61,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
         firstKilledMats[mat] = (firstKilledMats[mat] || 0) + 1;
       }
       
-      // 5種類討伐ごとに鑑定割引券+1枚
+      // 5種類討伐ごとにラン内鑑定粉+1個
       if (state.firstKills.length % 5 === 0) {
         bonusTickets++;
       }
@@ -212,7 +212,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
         rewardMsg += ` / 素材: [${matListStr}]`;
       }
       if (bonusTickets > 0) {
-        rewardMsg += ` / 鑑定割引券 +${bonusTickets}枚`;
+        rewardMsg += ` / 鑑定粉 +${bonusTickets}個`;
       }
       logQueue.push({
         msg: rewardMsg

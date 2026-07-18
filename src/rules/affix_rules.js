@@ -104,8 +104,7 @@ export function getPartyCoreParams(party, coreId) {
 }
 
 export function canEquipUnidentifiedItem(char, item) {
-  if (!item || typeof item !== "object" || item.identified) return true;
-  return Boolean(getCharCoreParams(char, "CORE_KEEN_EYE")?.applyUnidentifiedEffects);
+  return Boolean(char) && Boolean(item);
 }
 
 export function hasHiddenEquipmentEffects(char) {
