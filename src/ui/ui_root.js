@@ -104,7 +104,7 @@ function createLogEntry(line) {
     entry.classList.add("damage");
   } else if (line.includes("回復") || line.includes("レベルアップ") || line.includes("強さ") || line.includes("休息")) {
     entry.classList.add("heal");
-  } else if (line.includes("ゴールド") || line.includes("手に入れた") || line.includes("獲得した") || line.includes("購入") || line.includes("売却")) {
+  } else if (line.includes("手に入れた") || line.includes("獲得した") || line.includes("解放した")) {
     entry.classList.add("loot");
   } else if (line.includes("唱えた") || line.includes("明かり") || line.includes("座標") || line.includes("DUMAPIC")) {
     entry.classList.add("info");
@@ -259,9 +259,9 @@ export function updateUI() {
     }
   }
 
-  // Update locations & gold labels
+  // Update location and material balance labels
   const locLabel = document.getElementById("location-label");
-  const goldLabel = document.getElementById("gold-counter");
+  const materialLabel = document.getElementById("material-counter");
   
   const resultOverlay = document.getElementById("result-overlay");
   if (resultOverlay) {
@@ -292,7 +292,11 @@ export function updateUI() {
     locLabel.textContent = "GAME OVER";
   }
   
-  goldLabel.textContent = `GOLD: ${state.gold}`;
+  if (materialLabel) {
+    const balance = state.currentRun?.materials || state.metaMaterials || {};
+    const total = Object.values(balance).reduce((sum, quantity) => sum + quantity, 0);
+    materialLabel.textContent = `${state.currentRun ? "ラン素材" : "メタ素材"}: ${total}`;
+  }
 
   // Update Goal HUD
   const goalBanner = document.getElementById("goal-banner");
@@ -391,7 +395,7 @@ export function updateUI() {
       discovered: "発見済み",
       weakened: "解除痕跡あり (弱体化)"
     };
-    const statusColor = trap.state === "weakened" ? "var(--neon-green)" : "var(--neon-gold)";
+    const statusColor = trap.state === "weakened" ? "var(--neon-green)" : "var(--neon-amber)";
     document.getElementById("trap-status").innerHTML = `状態: <span style="color:${statusColor}">${trapStates[trap.state] || trap.state}</span>`;
     const difficultyText = revealLevel >= 3
       ? `危険度: B${trap.floorId.replace("B", "")}F (難易度: ${trap.difficulty})`
@@ -405,7 +409,7 @@ export function updateUI() {
     if (btnDisarm) btnDisarm.textContent = isPitfall ? "縁を伝う" : "解除する";
     if (btnForce) btnForce.textContent = isPitfall ? "飛び越える" : "強行突破";
 
-    const rateColor = successRate >= 75 ? "var(--neon-green)" : (successRate >= 45 ? "var(--neon-gold)" : "var(--neon-red)");
+    const rateColor = successRate >= 75 ? "var(--neon-green)" : (successRate >= 45 ? "var(--neon-amber)" : "var(--neon-red)");
     const rateText = isPitfall ? "回避成功率" : "解除成功率";
     document.getElementById("trap-success-rate").innerHTML = `${rateText}: <span style="color:${rateColor}; font-weight:bold;">${successRate}%</span>`;
   } else if (state.gameState === "combat") {
@@ -463,16 +467,6 @@ export function updateUI() {
     document.getElementById("town-controls").classList.add("active");
   } else if (state.gameState === "submenu" && !isCombatOverlaySubmenu) {
     document.getElementById("submenu-controls").classList.add("active");
-  }
-
-  // Update Shop Overlay visibility
-  const shopOverlay = document.getElementById("shop-overlay");
-  if (shopOverlay) {
-    if (state.gameState === "submenu" && (menuContext.type === "shop_main" || menuContext.type === "shop_buy" || menuContext.type === "shop_sell")) {
-      shopOverlay.style.display = "flex";
-    } else {
-      shopOverlay.style.display = "none";
-    }
   }
 
   // Update Combat Overlay visibility

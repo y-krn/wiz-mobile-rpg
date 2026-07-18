@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath } from "./state.js";
-import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomAccessory, generateRandomEquipment, getCharAffixSum, getPartyMaxAffix, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
+import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomAccessory, generateRandomEquipment, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
@@ -31,7 +31,8 @@ function rollChestAccessory(floor, rng, party) {
   return generateRandomAccessory(floor, rarity, rng, party, floor >= 3);
 }
 
-export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem = null, customRng = null) {
+export function setupChestState(forcedTrap = null, _legacyReward = null, forcedItem = null, customRng = null) {
+  void _legacyReward;
   if (state.codex && state.codex.events && state.codex.events.facilities) {
     if (!state.codex.events.facilities.chest) {
       state.codex.events.facilities.chest = { found: 0, opened: 0 };
@@ -69,19 +70,6 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
     }
     const randIdx = Math.floor(rng() * traps.length);
     trap = traps[randIdx];
-  }
-
-  // Gold reward scale by floor (reduced)
-  let gold;
-  if (forcedGold !== null) {
-    gold = forcedGold;
-  } else {
-    gold = Math.floor(rng() * 16) + 5; // Default B1-B3: 5-20G
-    if (state.floor === 4) {
-      gold = Math.floor(rng() * 21) + 10; // B4F: 10-30G
-    } else if (state.floor === 5) {
-      gold = Math.floor(rng() * 31) + 20; // B5F: 20-50G
-    }
   }
 
   // Item reward scale by floor
@@ -226,7 +214,6 @@ export function setupChestState(forcedTrap = null, forcedGold = null, forcedItem
 
   state.chestState = {
     trap,
-    gold,
     item,
     accessoryItem,
     inspected: false,
@@ -473,13 +460,6 @@ export function executeDisarm(char, rng = Math.random) {
     if (char.runTrapAttackBonus > previousTrapBonus) {
       addLog(getCoreLogText("CORE_TRAP_EATER"));
     }
-    const trapGold = getCharAffixSum(char, "trapGold");
-    if (trapGold > 0) {
-      const amount = state.floor * 2 + trapGold;
-      state.gold += amount;
-      if (state.currentRun) state.currentRun.goldGained += amount;
-      addLog(`[罠銭] 罠の機構から${amount}Gを回収した！`);
-    }
     state.chestState.trap = "none";
     playSound("heal");
   } else {
@@ -601,28 +581,14 @@ export function openChestDirectly(opener = null, rng = Math.random) {
     triggerChestTrap(trapTarget);
   }
 
-  // Award Gold
-  const goldBonus = getPartyMaxAffix(state.party, "goldBonus");
-  const awardedGold = Math.floor(chest.gold * (1 + goldBonus / 100));
-  state.gold += awardedGold;
-  if (state.currentRun) {
-    state.currentRun.goldGained += awardedGold;
-  }
-  addLog(`宝箱から ${awardedGold} ゴールドを見つけた！`);
-  
   // 素材束の獲得
   const tombRaider = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
   const mats = generateChestMaterials(state.floor, rng, tombRaider?.materialBonus || 0);
   if (Object.keys(mats).length > 0) {
     Object.entries(mats).forEach(([mat, qty]) => {
-      if (!state.materials) state.materials = {};
-      state.materials[mat] = (state.materials[mat] || 0) + qty;
-      
       if (state.currentRun) {
-        if (!state.currentRun.materialsFound) {
-          state.currentRun.materialsFound = {};
-        }
-        state.currentRun.materialsFound[mat] = (state.currentRun.materialsFound[mat] || 0) + qty;
+        state.currentRun.materials ||= {};
+        state.currentRun.materials[mat] = (state.currentRun.materials[mat] || 0) + qty;
       }
     });
     const matStr = Object.entries(mats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");

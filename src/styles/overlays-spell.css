@@ -302,8 +302,8 @@
 
 /* DUMAPIC Active Style */
 .dumapic-active {
-  color: var(--neon-gold) !important;
-  text-shadow: var(--neon-glow-gold) !important;
+  color: var(--neon-amber) !important;
+  text-shadow: var(--neon-glow-amber) !important;
   animation: dumapic-pulse 2s infinite ease-in-out;
 }
 
@@ -455,7 +455,7 @@
 }
 
 .unidentified-tag {
-  color: var(--neon-gold);
+  color: var(--neon-amber);
   font-weight: bold;
   margin-right: 4px;
   text-shadow: 0 0 3px rgba(255, 214, 10, 0.4);
@@ -649,7 +649,7 @@
 /* Tag style mapping */
 .tag-mp-short {
   background-color: rgba(255, 179, 0, 0.1);
-  color: var(--neon-gold);
+  color: var(--neon-amber);
   border: 1px solid rgba(255, 179, 0, 0.3);
 }
 

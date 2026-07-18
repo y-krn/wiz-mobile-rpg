@@ -1,52 +1,20 @@
 import { openChestMenu } from "../chest.js";
-import { openSubmenu, setRenderSubmenuCallback } from "../navigation.js";
-import { renderShop } from "../shop/shop_view.js";
-import { shopState } from "../shop/shop_state.js";
+import { setRenderSubmenuCallback } from "../navigation.js";
 import { renderSoloStart } from "./solo_start.js";
-import { renderEventMerchant, renderEventMerchantBuy, renderEventMerchantResult } from "./merchant.js";
-import { renderCraftMain, renderCraftRecipes, renderCraftEnhance, renderCraftPolish, renderCraftDismantle, renderCraftInscriptionSelectEquip, renderCraftInscriptionSelectEngrave, renderCastleMain, renderCastleDeathLogs } from "./town_actions.js";
+import { renderCastleMain, renderCastleDeathLogs } from "./town_actions.js";
+import { renderWorkshop } from "./workshop_view.js";
 import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect, renderWardenConfirm } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 
 const SUBMENU_RENDERERS = {
   chest_menu: () => openChestMenu(),
-  craft_main: (optGrid) => renderCraftMain(optGrid),
-  craft_recipes: (optGrid) => renderCraftRecipes(optGrid),
-  craft_enhance: (optGrid) => renderCraftEnhance(optGrid),
-  craft_polish: (optGrid) => renderCraftPolish(optGrid),
-  craft_dismantle: (optGrid) => renderCraftDismantle(optGrid),
-  craft_inscription_select_equip: (optGrid) => renderCraftInscriptionSelectEquip(optGrid),
-  craft_inscription_select_engrave: (optGrid) => renderCraftInscriptionSelectEngrave(optGrid),
+  workshop_main: (optGrid) => renderWorkshop(optGrid),
   item_inventory: (optGrid) => renderItemInventory(optGrid),
   item_target_select: (optGrid) => renderItemTargetSelect(optGrid),
   item_direction_select: (optGrid) => renderItemDirectionSelect(optGrid),
   gameover_main: (optGrid) => renderGameOverMain(optGrid),
   enter_dungeon_select: (optGrid) => renderEnterDungeonSelect(optGrid),
   solo_start: (optGrid) => renderSoloStart(optGrid),
-  shop_main: (optGrid) => {
-    optGrid.innerHTML = "";
-    const info = document.createElement("div");
-    info.style.color = "var(--text-muted)";
-    info.style.textAlign = "center";
-    info.style.marginTop = "20px";
-    info.style.fontFamily = "var(--font-mono)";
-    info.style.fontSize = "11px";
-    info.textContent = "ボルタック商店で取引中...";
-    optGrid.appendChild(info);
-
-    shopState.mode = "buy";
-    shopState.filter = "all";
-    shopState.selectedKey = null;
-    shopState.selectedIdx = -1;
-    shopState.lastAppraised = null;
-    renderShop();
-  },
-  shop_buy: () => {
-    openSubmenu("shop_main", "ボルタック商店");
-  },
-  shop_sell: () => {
-    openSubmenu("shop_main", "ボルタック商店");
-  },
   castle_main: (optGrid) => renderCastleMain(optGrid),
   castle_death_logs: (optGrid) => renderCastleDeathLogs(optGrid),
   chest_disarmer_select: (optGrid) => renderChestDisarmerSelect(optGrid),
@@ -56,10 +24,7 @@ const SUBMENU_RENDERERS = {
   event_camp: (optGrid) => renderEventCamp(optGrid),
   event_spring_result: (optGrid) => renderEventSpringResult(optGrid),
   event_tablet: (optGrid) => renderEventTablet(optGrid),
-  event_tablet_result: (optGrid) => renderEventTabletResult(optGrid),
-  event_merchant: (optGrid) => renderEventMerchant(optGrid),
-  event_merchant_buy: (optGrid) => renderEventMerchantBuy(optGrid),
-  event_merchant_result: (optGrid) => renderEventMerchantResult(optGrid)
+  event_tablet_result: (optGrid) => renderEventTabletResult(optGrid)
 };
 
 export function renderSubmenu(type) {

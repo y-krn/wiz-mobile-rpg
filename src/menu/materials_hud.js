@@ -16,7 +16,8 @@ export function renderMaterialsHUD(container) {
   matsContainer.style.boxSizing = "border-box";
 
   const matPool = ["獣の牙", "硬い皮", "毒腺", "骨片", "霊粉", "魔石片", "鉄片", "呪布", "黒角", "竜鱗"];
-  const ownedMats = matPool.filter(m => (state.materials[m] || 0) > 0);
+  const balance = state.currentRun?.materials || state.metaMaterials || {};
+  const ownedMats = matPool.filter(m => (balance[m] || 0) > 0);
 
   if (ownedMats.length === 0) {
     const empty = document.createElement("span");
@@ -36,7 +37,7 @@ export function renderMaterialsHUD(container) {
       badge.style.color = "var(--neon-green)";
       badge.style.display = "inline-flex";
       badge.style.alignItems = "center";
-      badge.textContent = `${m}: ${state.materials[m]}`;
+      badge.textContent = `${m}: ${balance[m]}`;
       matsContainer.appendChild(badge);
     });
   }

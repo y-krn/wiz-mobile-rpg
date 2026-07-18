@@ -7,6 +7,7 @@ import {
 } from "../rules/identification_rules.js";
 
 const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
+const META_LOCKED_AFFIX_IDS = new Set(["CORE_BLOOD_WAND"]);
 
 export function rollAffixes(pool, count, rng = Math.random, budget = Infinity) {
   const affixes = [];
@@ -49,13 +50,16 @@ function withSupportDefinition(candidate) {
   };
 }
 
-function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores) {
+function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds = []) {
   const budget = getAffixBudget(rarity, floor);
   const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
     ? AFFIX_BALANCE.corePoolWeights.shallow
     : AFFIX_BALANCE.corePoolWeights.deep;
   const corePool = allowCores ? CORE_AFFIXES
-    .filter(affix => affix.enabled && affix.slot === slot && affix.cost <= budget)
+    .filter(affix => affix.enabled
+      && affix.slot === slot
+      && affix.cost <= budget
+      && (!META_LOCKED_AFFIX_IDS.has(affix.id) || unlockedAffixIds.includes(affix.id)))
     .map(affix => ({
       ...affix,
       type: affix.id,
@@ -325,16 +329,14 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   }
   addAffix(3, "lastSurvivorStats", () => floor >= 5 ? 3 : 2, 1);
   addAffix(2, "statusResistance", () => floor >= 5 ? 20 : 12, 2);
-  addAffix(1, "trapGold", () => 1, 1);
   addAffix(2, "victoryMaterial", () => 5, 1);
   addAffix(1, "stairsHeal", () => floor >= 4 ? 4 : 2, 1);
   addAffix(1, "identifyDiscount", () => 10, 2);
   addAffix(1, "materialFind", () => 10, 2);
-  addAffix(1, "goldBonus", () => 10, 2);
   addAffix(1, "contractReward", () => 10, 2);
-  addAffix(1, "merchantDiscount", () => 5, 2);
   
-  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores);
+  const unlockedAffixIds = party?.[0]?.unlockedAffixIds || [];
+  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds);
   
   const instanceId = `eq_${rng().toString(36).substr(2, 9)}`;
 
@@ -479,19 +481,17 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     { type: "killHeal", getVal: () => 2, weight: floor >= 3 ? 1 : 0 },
     { type: "followUpMp", getVal: () => 1, weight: floor >= 3 ? 1 : 0 },
     { type: "hitFlinch", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 1 : 0 },
-    { type: "trapGold", getVal: () => 1, weight: 1 },
     { type: "victoryMaterial", getVal: () => 5, weight: floor >= 2 ? 1 : 0 },
     { type: "stairsHeal", getVal: () => floor >= 4 ? 4 : 2, weight: 1 },
     { type: "identifyDiscount", getVal: () => 10, weight: 2 },
     { type: "materialFind", getVal: () => 10, weight: 2 },
-    { type: "goldBonus", getVal: () => 10, weight: 2 },
-    { type: "contractReward", getVal: () => 10, weight: 2 },
-    { type: "merchantDiscount", getVal: () => 5, weight: 2 }
+    { type: "contractReward", getVal: () => 10, weight: 2 }
   ].filter(aff => aff.weight > 0)
     .map(withSupportDefinition)
     .filter(Boolean);
 
-  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores);
+  const unlockedAffixIds = party?.[0]?.unlockedAffixIds || [];
+  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds);
   const tags = [...(baseItem.tags || [])];
   affixes.forEach(aff => {
     const affixTags = {

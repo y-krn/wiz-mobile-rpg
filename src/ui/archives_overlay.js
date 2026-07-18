@@ -31,7 +31,7 @@ export function getMonsterCodexDetailHtml(m, record) {
   if (kil >= 1) {
     html += `
       <p><strong>特徴:</strong> ${m.isPoisonous ? "毒攻撃を放つ" : m.isRare ? (m.name === "メタルパピー" ? "希少な魔物" : "非常に強力な強敵") : "標準的なモンスター"}</p>
-      <p><strong>戦利品傾向:</strong> ${m.isRare ? "未鑑定装備の期待値が高い" : "通常戦利品とGOLD"} / ${m.gold} GOLD</p>
+      <p><strong>戦利品傾向:</strong> ${m.isRare ? "未鑑定装備と希少素材" : "グループ別素材"}</p>
     `;
   } else {
     html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[撃破すると特徴と報酬が解放されます]</p>`;
@@ -223,7 +223,7 @@ export function getRunHistoryHtml() {
           <div>到達階: B${h.deepestFloor}F</div>
           <div>撃破数: ${h.kills} 匹</div>
           <div>宝箱開封: ${h.chestsOpened} 個</div>
-          <div>獲得金: ${h.goldGained} G</div>
+          <div>持帰素材: ${Object.values(h.bankedMaterials || {}).reduce((sum, quantity) => sum + quantity, 0)} 個</div>
         </div>
       </div>
     `;

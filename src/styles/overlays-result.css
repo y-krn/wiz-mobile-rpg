@@ -104,7 +104,7 @@
 
 .rank-s { color: var(--neon-purple); }
 .rank-a { color: var(--neon-red); }
-.rank-b { color: var(--neon-gold); }
+.rank-b { color: var(--neon-amber); }
 .rank-c { color: var(--neon-cyan); }
 .rank-d { color: var(--neon-green); }
 .rank-e { color: #8e8e93; }
@@ -178,8 +178,8 @@
 .result-section-title {
   font-size: var(--fs-sm);
   font-weight: bold;
-  color: var(--neon-gold);
-  text-shadow: var(--neon-glow-gold);
+  color: var(--neon-amber);
+  text-shadow: var(--neon-glow-amber);
   margin-bottom: 2px;
 }
 

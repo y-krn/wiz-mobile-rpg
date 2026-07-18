@@ -25,7 +25,7 @@
       <!-- Top HUD -->
       <header id="game-header">
         <span id="location-label">リルガミンの街</span>
-        <span id="gold-counter">ゴールド: 150</span>
+        <span id="material-counter">メタ素材: 0</span>
         <button id="btn-mute" class="btn btn-mute sound-on" title="ミュート切替">🎵 ON</button>
       </header>
 
@@ -44,9 +44,6 @@
         <div id="result-overlay" class="result-overlay-container" style="display: none;"></div>
       </div>
 
-      <!-- Shop overlay (moved outside viewport for full game area layout) -->
-      <div id="shop-overlay" class="shop-overlay-container" style="display: none;"></div>
-
       <!-- Equip overlay (moved outside viewport for full game area layout) -->
       <div id="equip-overlay" class="equip-overlay-container" style="display: none;"></div>
 
@@ -55,13 +52,6 @@
 
       <!-- Archives overlay -->
       <div id="archives-overlay" class="archives-overlay-container" style="display: none;"></div>
-
-      <!-- Contracts overlay -->
-      <div id="contracts-overlay" class="contracts-overlay-container" style="display: none;"></div>
-
-      <!-- Warehouse overlay -->
-      <div id="warehouse-overlay" class="warehouse-overlay-container" style="display: none;"></div>
-
 
       <!-- Log Messages -->
       <div id="log-panel">
@@ -116,10 +106,7 @@
           <div class="town-grid">
             <button id="btn-town-dungeon" class="btn btn-neon btn-town">迷宮に入る</button>
             <button id="btn-town-castle" class="btn btn-neon btn-town">おしろ (記録)</button>
-            <button id="btn-town-contracts" class="btn btn-neon btn-town" style="border-color: var(--neon-gold); color: var(--neon-gold);">おしろの依頼書</button>
-            <button id="btn-town-warehouse" class="btn btn-neon btn-town" style="border-color: var(--neon-cyan); color: var(--neon-cyan);">倉庫</button>
-            <button id="btn-town-shop" class="btn btn-neon btn-town">ボルタック商店</button>
-            <button id="btn-town-craft" class="btn btn-neon btn-town" style="border-color: var(--neon-green); color: var(--neon-green);">工房</button>
+            <button id="btn-town-workshop" class="btn btn-neon btn-town" style="border-color: var(--neon-green); color: var(--neon-green);">工房</button>
             <button id="btn-town-archives" class="btn btn-neon btn-town">書庫 (図鑑・記録)</button>
           </div>
         </div>

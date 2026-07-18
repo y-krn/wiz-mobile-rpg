@@ -121,11 +121,9 @@ export function playBattleLogs(queue, index) {
       }
     }
     
-    if (!state.materials) state.materials = {};
-    state.materials["竜鱗"] = (state.materials["竜鱗"] || 0) + 3;
     if (state.currentRun) {
-      if (!state.currentRun.materialsFound) state.currentRun.materialsFound = {};
-      state.currentRun.materialsFound["竜鱗"] = (state.currentRun.materialsFound["竜鱗"] || 0) + 3;
+      state.currentRun.materials ||= {};
+      state.currentRun.materials["竜鱗"] = (state.currentRun.materials["竜鱗"] || 0) + 3;
     }
     
     addLog("巨大な魔物を撃破した！お宝: [未鑑定のエピック装備] と [竜鱗 x3] を手に入れた！");
@@ -172,11 +170,9 @@ export function playBattleLogs(queue, index) {
       }
     }
 
-    if (!state.materials) state.materials = {};
-    state.materials["黒角"] = (state.materials["黒角"] || 0) + 2;
     if (state.currentRun) {
-      if (!state.currentRun.materialsFound) state.currentRun.materialsFound = {};
-      state.currentRun.materialsFound["黒角"] = (state.currentRun.materialsFound["黒角"] || 0) + 2;
+      state.currentRun.materials ||= {};
+      state.currentRun.materials["黒角"] = (state.currentRun.materials["黒角"] || 0) + 2;
     }
     
     addLog("迷宮の守護者を撃破した！お宝: [未鑑定のレア装備] と [黒角 x2] を手に入れた！");

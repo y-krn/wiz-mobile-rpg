@@ -345,7 +345,7 @@ for (const vp of VIEWPORTS) {
 }
 
 for (const vp of VIEWPORTS) {
-  test(`Craft polishing exposes support affixes only on ${vp.name}`, async ({ page }) => {
+  test(`Workshop purchase is thumb-safe on ${vp.name}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
@@ -353,87 +353,35 @@ for (const vp of VIEWPORTS) {
       const { openSubmenu } = await import('/src/navigation.js');
 
       state.gameState = 'town';
-      state.gold = 500;
-      state.materials = { '魔石片': 3 };
-      state.inventory = [{
-        kind: 'equipment',
-        baseId: 'LEATHER_ARMOR',
-        identified: true,
-        affixes: [
-          { id: 'CORE_SNEAK_STEP', type: 'CORE_SNEAK_STEP', kind: 'core', value: 1 },
-          { id: 'statusResistance', type: 'statusResistance', kind: 'support', value: 5 },
-          { id: 'goldBonus', type: 'goldBonus', kind: 'support', value: 10 },
-        ],
-      }];
-      openSubmenu('craft_main', '工房 - 製作と装備強化：');
+      state.metaMaterials = { '獣の牙': 20, '鉄片': 10 };
+      state.workshop = { ranks: {} };
+      openSubmenu('workshop_main', '工房 - 恒久アンロック');
     });
 
-    await page.getByRole('button', { name: '💎 サポートを研磨する' }).click();
-    await expect(page.locator('#submenu-title')).toHaveText('工房 - サポートアフィックスの研磨：');
-    await expect(page.getByRole('button', { name: /忍び足/ })).toHaveCount(0);
-    await expect(page.locator('#submenu-options button')).toHaveCount(2);
+    await expect(page.locator('.workshop-node')).toHaveCount(12);
 
-    const layout = await page.locator('#submenu-options button').evaluateAll((buttons) => ({
+    const layout = await page.locator('.workshop-node').evaluateAll((buttons) => ({
       buttons: buttons.map((button) => button.getBoundingClientRect().toJSON()),
       hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
     }));
     expect(layout.hasHorizontalOverflow).toBe(false);
     for (const button of layout.buttons) {
-      expect(button.height, `Polish button should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
-      expect(button.left, `Polish button should stay inside viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
-      expect(button.right, `Polish button should stay inside viewport on ${vp.name}`).toBeLessThanOrEqual(vp.width);
+      expect(button.height, `Workshop button should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(button.left, `Workshop button should stay inside viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
+      expect(button.right, `Workshop button should stay inside viewport on ${vp.name}`).toBeLessThanOrEqual(vp.width);
     }
 
-    await page.getByRole('button', { name: /不屈/ }).click();
+    await page.getByRole('button', { name: /軽量武器候補/ }).click();
     const result = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       return {
-        gold: state.gold,
-        magicStone: state.materials['魔石片'],
-        item: state.inventory[0],
+        beastFang: state.metaMaterials['獣の牙'],
+        iron: state.metaMaterials['鉄片'],
+        rank: state.workshop.ranks.gear_rapier,
       };
     });
-    expect(result.gold).toBe(300);
-    expect(result.magicStone).toBe(1);
-    expect(result.item.polished).toBe(true);
-    expect(result.item.affixes.map((affix) => affix.value)).toEqual([1, 8, 10]);
-    await expect(page.locator('#submenu-options')).toContainText('研磨可能なサポートアフィックスがありません。');
-  });
-}
-
-for (const vp of VIEWPORTS) {
-  test(`Warden contract details fit ${vp.name} (${vp.width}x${vp.height})`, async ({ page }) => {
-    await page.setViewportSize(vp);
-    await page.goto('/');
-    await page.evaluate(async () => {
-      const { state } = await import('/src/state.js');
-      const { openContractsOverlay } = await import('/src/ui.js');
-      state.activeContract = {
-        id: 'WARDEN-UI',
-        name: 'フラックの討伐',
-        description: 'B4Fの封印門を守るフラックを討伐して帰還',
-        type: 'warden',
-        danger: 'A',
-        targetValue: 1,
-        currentValue: 0,
-        reward: { gold: 80, identifyTickets: 1, item: null, materials: { 黒角: 2 } },
-        recommended: '生還者の証言: 距離で獲物を捉える',
-      };
-      openContractsOverlay();
-    });
-
-    const overlay = page.locator('#contracts-overlay');
-    await expect(overlay).toBeVisible();
-    await expect(overlay).toContainText('生還者の証言: 距離で獲物を捉える');
-    await expect(overlay).toContainText('黒角:2');
-    const bounds = await overlay.evaluate((element) => ({
-      clientWidth: element.clientWidth,
-      scrollWidth: element.scrollWidth,
-    }));
-    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
-    for (const button of await overlay.locator('button:visible').all()) {
-      expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
-    }
+    expect(result).toEqual({ beastFang: 16, iron: 8, rank: 1 });
+    await expect(page.getByRole('button', { name: /軽量武器候補/ })).toBeDisabled();
   });
 }
 
@@ -531,23 +479,17 @@ test('Standalone safe-area full-screen overlays keep controls outside system bar
   });
 
   const overlayCases = [
-    { name: 'shop', selector: '#shop-overlay' },
     { name: 'equip', selector: '#equip-overlay' },
     { name: 'spell', selector: '#spell-overlay' },
     { name: 'archives', selector: '#archives-overlay' },
-    { name: 'contracts', selector: '#contracts-overlay' },
-    { name: 'warehouse', selector: '#warehouse-overlay' },
   ];
 
   for (const overlayCase of overlayCases) {
     await page.evaluate(async (name) => {
       const overlays = [
-        'shop-overlay',
         'equip-overlay',
         'spell-overlay',
         'archives-overlay',
-        'contracts-overlay',
-        'warehouse-overlay',
       ];
       overlays.forEach((id) => {
         const el = document.getElementById(id);
@@ -565,9 +507,7 @@ test('Standalone safe-area full-screen overlays keep controls outside system bar
         char.maxMp = getCharMaxMp(char);
       });
 
-      if (name === 'shop') {
-        openSubmenu('shop_main', 'ボルタック商店 - アイテムの売買:');
-      } else if (name === 'equip') {
+      if (name === 'equip') {
         const { openEquipOverlay } = await import('/src/equip.js');
         openEquipOverlay(0);
       } else if (name === 'spell') {
@@ -575,12 +515,6 @@ test('Standalone safe-area full-screen overlays keep controls outside system bar
       } else if (name === 'archives') {
         const { openArchivesOverlay } = await import('/src/ui.js');
         openArchivesOverlay();
-      } else if (name === 'contracts') {
-        const { openContractsOverlay } = await import('/src/ui.js');
-        openContractsOverlay();
-      } else if (name === 'warehouse') {
-        const { openWarehouseOverlay } = await import('/src/ui.js');
-        openWarehouseOverlay();
       }
     }, overlayCase.name);
 
@@ -605,8 +539,7 @@ test('Standalone safe-area full-screen overlays keep controls outside system bar
         .filter((el) => {
           const style = getComputedStyle(el);
           const box = el.getBoundingClientRect();
-          const isScrollRow = el.classList.contains('shop-item-row') ||
-            el.classList.contains('equip-item-row') ||
+          const isScrollRow = el.classList.contains('equip-item-row') ||
             el.classList.contains('char-row');
           return style.display !== 'none' &&
             style.visibility !== 'hidden' &&
@@ -653,14 +586,13 @@ for (const vp of VIEWPORTS) {
       await page.waitForTimeout(1000);
 
       const verifyScreenButtons = async (screenName) => {
-        let buttons = await page.locator('button:visible, [role="button"]:visible, .btn:visible, .shop-item-row:visible, .equip-item-row:visible, .char-row:visible, .archives-tab:visible').all();
+        let buttons = await page.locator('button:visible, [role="button"]:visible, .btn:visible, .equip-item-row:visible, .char-row:visible, .archives-tab:visible').all();
         
         // Active overlay detection to avoid back-button pollution
         const activeOverlayId = await page.evaluate(() => {
           const overlays = [
-            'combat-overlay', 'result-overlay', 'shop-overlay',
+            'combat-overlay', 'result-overlay',
             'equip-overlay', 'spell-overlay', 'archives-overlay',
-            'contracts-overlay', 'warehouse-overlay'
           ];
           for (const id of overlays) {
             const el = document.getElementById(id);
@@ -682,7 +614,7 @@ for (const vp of VIEWPORTS) {
           const filtered = [];
           for (const btn of buttons) {
             const inside = await btn.evaluate((el) => {
-              return el.closest('.combat-overlay-container, .result-overlay-container, .shop-overlay-container, .equip-overlay-container, .spell-overlay-container, .archives-overlay-container, .contracts-overlay-container, .warehouse-overlay-container') !== null;
+              return el.closest('.combat-overlay-container, .result-overlay-container, .equip-overlay-container, .spell-overlay-container, .archives-overlay-container') !== null;
             });
             if (!inside) filtered.push(btn);
           }
@@ -758,12 +690,12 @@ for (const vp of VIEWPORTS) {
       // 1. Town Screen
       await verifyScreenButtons('Town Screen');
 
-      // 2. Shop Screen
-      const shopBtn = page.locator('#btn-town-shop');
-      if (await shopBtn.isVisible()) {
-        await shopBtn.click();
+      // 2. Workshop Screen
+      const workshopBtn = page.locator('#btn-town-workshop');
+      if (await workshopBtn.isVisible()) {
+        await workshopBtn.click();
         await page.waitForTimeout(500);
-        await verifyScreenButtons('Shop Screen');
+        await verifyScreenButtons('Workshop Screen');
         const backBtn = page.locator('button:has-text("閉じる"):visible, #btn-submenu-back:visible').first();
         await backBtn.click();
         await page.waitForTimeout(500);
@@ -780,27 +712,6 @@ for (const vp of VIEWPORTS) {
         await page.waitForTimeout(500);
       }
 
-      // 6. Contracts Screen
-      const contractsBtn = page.locator('#btn-town-contracts');
-      if (await contractsBtn.isVisible()) {
-        await contractsBtn.click();
-        await page.waitForTimeout(500);
-        await verifyScreenButtons('Contracts Screen');
-        const backBtn = page.locator('button:has-text("閉じる"):visible, #btn-submenu-back:visible, button:has-text("街に戻る"):visible').first();
-        await backBtn.click();
-        await page.waitForTimeout(500);
-      }
-
-      // 7. Warehouse Screen
-      const warehouseBtn = page.locator('#btn-town-warehouse');
-      if (await warehouseBtn.isVisible()) {
-        await warehouseBtn.click();
-        await page.waitForTimeout(500);
-        await verifyScreenButtons('Warehouse Screen');
-        const backBtn = page.locator('button:has-text("閉じる"):visible, #btn-submenu-back:visible, button:has-text("街に戻る"):visible').first();
-        await backBtn.click();
-        await page.waitForTimeout(500);
-      }
     });
 
     test('Dungeon exploration controls stay compact after entering the dungeon', async ({ page }) => {
@@ -903,7 +814,6 @@ for (const vp of VIEWPORTS) {
           identifiedTrap: 'poison needle',
           inspected: true,
           inspectChance: 0.30,
-          gold: 120,
           item: 'HEAL_POTION',
           lootHint: { label: '古い魔力', aura: 'medium' },
         };
@@ -1000,7 +910,7 @@ for (const vp of VIEWPORTS) {
       await page.getByRole('button', { name: /Ged .*開ける/ }).click();
       await expect(page.locator('#log-panel')).toBeVisible();
       await expect(page.locator('#log-content')).toContainText('Gedは12のダメージを受けた');
-      await expect(page.locator('#log-content')).toContainText('宝箱から 120 ゴールドを見つけた！');
+      await expect(page.locator('#log-content')).toContainText('宝箱から素材束');
       await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
     });
 
@@ -1014,7 +924,6 @@ for (const vp of VIEWPORTS) {
         state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
         state.gameState = 'explore';
         state.floor = 2;
-        state.gold = 100;
         state.inventory = [];
         state.activeMerchantStock = [
           { type: 'item', key: 'HEAL_POTION', price: 1, soldOut: false },
@@ -1192,64 +1101,5 @@ for (const vp of VIEWPORTS) {
       expect(character).toEqual({ count: 1, className: 'Thief', level: 1 });
       await expect(page.locator('#character-hud .character-card')).toHaveCount(1);
     });
-  });
-}
-
-for (const vp of VIEWPORTS) {
-  test(`Craft recipes preserve action flow and tap targets on ${vp.name}`, async ({ page }) => {
-    await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
-    await page.evaluate(async () => {
-      const { state } = await import('/src/state.js');
-      const { openSubmenu } = await import('/src/navigation.js');
-
-      state.gameState = 'town';
-      state.gold = 500;
-      state.materials = { '硬い皮': 1, '獣の牙': 1 };
-      state.inventory = [];
-      openSubmenu('craft_main', '工房 - 製作と装備強化：');
-    });
-
-    await page.getByRole('button', { name: '🛡️ 消耗品を製作する' }).click();
-    await expect(page.locator('#submenu-title')).toHaveText('工房 - 消耗品の製作：');
-    await expect(page.locator('#submenu-options')).toContainText('傷薬 (回復薬)');
-
-    const layout = await page.locator('#submenu-options button').evaluateAll((buttons) => ({
-      buttons: buttons.map((button) => button.getBoundingClientRect().toJSON()),
-      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    }));
-    expect(layout.buttons).toHaveLength(4);
-    expect(layout.hasHorizontalOverflow).toBe(false);
-    for (const button of layout.buttons) {
-      expect(button.height, `Craft button should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
-      expect(button.left, `Craft button should stay inside viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
-      expect(button.right, `Craft button should stay inside viewport on ${vp.name}`).toBeLessThanOrEqual(vp.width);
-    }
-
-    await page.locator('#submenu-options button').first().click();
-    const result = await page.evaluate(async () => {
-      const { state } = await import('/src/state.js');
-      return {
-        gold: state.gold,
-        hardHide: state.materials['硬い皮'],
-        beastFang: state.materials['獣の牙'],
-        inventory: state.inventory,
-      };
-    });
-    expect(result).toEqual({
-      gold: 460,
-      hardHide: 0,
-      beastFang: 0,
-      inventory: ['HEAL_POTION'],
-    });
-    await expect(page.locator('#submenu-options button').first()).toBeDisabled();
-
-    await page.locator('#btn-submenu-back').click();
-    await expect(page.getByRole('button', { name: '🛡️ 消耗品を製作する' })).toBeVisible();
-    await page.locator('#btn-submenu-back').click();
-    await expect.poll(() => page.evaluate(async () => {
-      const { state } = await import('/src/state.js');
-      return state.gameState;
-    })).toBe('town');
   });
 }

@@ -377,7 +377,7 @@ import { state } from "../src/state.js";
 
     const fleeOnlyResult = runForcedFleeOnlyCombat();
     assert.strictEqual(fleeOnlyResult.state.inventory.length, 0, "Fled-only combat should not add drops");
-    assert.strictEqual(fleeOnlyResult.state.gold, 0, "Fled-only combat should not award gold");
+    assert.deepStrictEqual(fleeOnlyResult.state.currentRun.materials || {}, {}, "Fled-only combat should not award materials");
     assert.strictEqual(fleeOnlyResult.state.currentRun.kills, 0, "Fled-only combat should not count kills");
     assert.ok(fleeOnlyResult.logQueue.some(log => log.endCombat), "Fled-only combat should end without chest");
     assert.ok(!fleeOnlyResult.logQueue.some(log => log.triggerChest), "Fled-only combat should not trigger a chest");
@@ -542,8 +542,6 @@ import { state } from "../src/state.js";
         { name: "Fighter", class: "Fighter", level: 1, hp: 20, maxHp: 20, mp: 0, maxMp: 0, status: "ok", exp: 0 }
       ];
       state.firstKills = [];
-      state.materials = {};
-      state.gold = 0;
       state.identifyTickets = 0;
       
       const wolf = { name: "ワーウルフ", hp: 0, maxHp: 36, level: 3, exp: 100, gold: 60, fled: false, tags: [], spriteType: "wolf" };
@@ -555,9 +553,8 @@ import { state } from "../src/state.js";
       };
       state.currentRun = {
         kills: 0,
-        goldGained: 0,
         expGained: 0,
-        materialsFound: {},
+        materials: {},
         equipmentFound: []
       };
 
@@ -570,33 +567,25 @@ import { state } from "../src/state.js";
       assert.strictEqual(state.party[0].exp, 100, "Should only gain normal exp (100)");
       assert.strictEqual(state.currentRun.expGained, 100, "Current run exp should be 100");
 
-      // Check Gold (Normal gold: 60 * 0.15 = 9. Bonus gold: flat 100. Total = 109)
-      assert.strictEqual(state.gold, 109, "Gold should be 109 (9 normal + 100 bonus)");
-      assert.strictEqual(state.currentRun.goldGained, 109, "Current run gold should be 109");
-
       // Check Materials (Should gain normal drop from drops.js, plus 1 flat 獣の牙 for first kill)
       // Let's check how many "獣の牙" we have
       const wolfMainMat = "獣の牙";
-      assert.ok(state.materials[wolfMainMat] >= 1, "Should have gained at least 1 main material");
-      assert.ok(state.currentRun.materialsFound[wolfMainMat] >= 1, "Should have recorded in current run");
+      assert.ok(state.currentRun.materials[wolfMainMat] >= 1, "Should have recorded run material");
 
       // Check state.firstKills
       assert.deepStrictEqual(state.firstKills, ["ワーウルフ"], "First kills list should contain ワーウルフ");
 
-      console.log("[PASS] Test 1: First kill reward changes verified (No bonus exp, flat +100 gold, material added).");
+      console.log("[PASS] Test 1: First kill material reward verified.");
 
       // 3. Duplicate Kill Test (Same monster, no first-kill bonus)
-      const initialGold = state.gold;
       const initialExp = state.party[0].exp;
-      const initialMaterials = { ...state.materials };
 
       const wolf2 = { name: "ワーウルフ A", hp: 0, maxHp: 36, level: 3, exp: 100, gold: 60, fled: false, tags: [], spriteType: "wolf" };
       state.combatState.monsters = [wolf2];
       applyCombatRewards(state, [wolf2], logQueue);
 
-      // Exp should increase by 100 (total 200). Gold should increase by 9. Materials might increase by normal drop, but NO bonus flat +1 material.
+      // Exp should increase by 100; duplicate first-kill bonus must not fire.
       assert.strictEqual(state.party[0].exp, initialExp + 100, "Duplicate: normal exp gained");
-      assert.strictEqual(state.gold, initialGold + 9, "Duplicate: normal gold gained (no bonus)");
       
       console.log("[PASS] Test 2: Duplicate kill does not trigger bonuses.");
 

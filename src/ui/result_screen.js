@@ -7,7 +7,7 @@ import { getFloorLabel } from "../data/floor_themes.js";
 export function getEvaluationText(run, isSuccess) {
   if (!run) return "";
   if (!isSuccess) {
-    return "無念…！迷宮の暗闇に呑まれ、探索は失敗した。全滅により獲得ゴールドが失われ、未鑑定装備の一部が紛失した。今回の教訓を胸に、次の冒険に備えよう。";
+    return "迷宮で力尽きた。ラン素材の30%をメタ残高へ移し、未鑑定装備を失った。";
   }
   
   let lines = [];
@@ -71,7 +71,7 @@ export function renderResultScreen() {
 
   const getReasonJp = (r) => {
     if (r === "stairs") return "迷宮の階段からお城へ帰還";
-    if (r === "escape_scroll") return "帰還のスクロールでお城へ帰還";
+    if (r === "escape_scroll") return "帰還の翼で撤退";
     if (r === "gameover") return "魔物に敗北（全滅）";
     return r || "不明";
   };
@@ -115,7 +115,7 @@ export function renderResultScreen() {
     const lootListHtml = displayedLoot.map(eq => {
       const eqData = getItemData(eq);
       const color = eq.rarity === "epic" ? "var(--neon-purple)" :
-                    eq.rarity === "rare" ? "var(--neon-gold)" :
+                    eq.rarity === "rare" ? "var(--neon-amber)" :
                     "var(--neon-cyan)";
       
       let hintText = "";
@@ -177,53 +177,14 @@ export function renderResultScreen() {
 
   // 今回獲得した素材
   let materialsHtml = "";
-  if (run.materialsFound && Object.keys(run.materialsFound).length > 0) {
-    const matList = Object.entries(run.materialsFound)
+  if (run.materials && Object.keys(run.materials).length > 0) {
+    const matList = Object.entries(run.materials)
       .map(([name, qty]) => `<span style="display:inline-block; margin:2px 4px; padding:2px 6px; background:#222; border:1px solid #444; border-radius:3px; font-size:10px; color:var(--neon-green)">${name} x${qty}</span>`)
       .join(" ");
     materialsHtml = `
       <div class="result-eval-section" style="margin-top: 10px; border-color: var(--neon-green); padding: 8px 10px; background: rgba(0, 255, 102, 0.05); text-align: left;">
         <div class="result-eval-title" style="color: var(--neon-green); font-size: 11px; margin-bottom: 6px; border-bottom: 1px solid rgba(0, 255, 102, 0.2); padding-bottom: 2px;">🍁 今回獲得した素材</div>
         <div style="line-height: 1.5;">${matList}</div>
-      </div>
-    `;
-  }
-
-  // 探索契約の判定表示HTML
-  let contractHtml = "";
-  if (run.contractResult) {
-    const cr = run.contractResult;
-    const resClass = cr.success ? "success" : "failed";
-    const resTitle = cr.success ? "🎉 探索契約 達成！" : "❌ 探索契約 未達成";
-    const statusColor = cr.success ? "var(--neon-green)" : "var(--neon-red)";
-    
-    let rewardText;
-    if (cr.success) {
-      const awarded = cr.awardedReward || cr.contract.reward;
-      const tickets = awarded.identifyTickets > 0 ? ` / 鑑定粉: ${awarded.identifyTickets}個` : "";
-      rewardText = `獲得：${awarded.gold} G${tickets}`;
-      const materials = Object.entries(awarded.materials || {});
-      if (materials.length > 0) {
-        rewardText += ` / ${materials.map(([name, qty]) => `${name}: ${qty}`).join("、")}`;
-      }
-      if (cr.revealedCells > 0) {
-        rewardText += `<br>B${cr.contract.reward.mapFragmentFloor}Fの地図を${cr.revealedCells}区画開示`;
-      }
-      if (cr.itemMsg) {
-        rewardText += `<br><span style="font-size: 10px; color: var(--neon-cyan);">${cr.itemMsg}</span>`;
-      }
-    } else {
-      rewardText = cr.reason || "目標を達成できませんでした。";
-    }
-
-    contractHtml = `
-      <div class="result-eval-section ${resClass}" style="margin-top: 10px; border-color: ${statusColor};">
-        <div class="result-eval-title" style="color: ${statusColor};">${resTitle}</div>
-        <div style="font-size: 11px; font-weight: bold; margin-bottom: 4px;">契約: ${cr.contract.name}</div>
-        <div style="font-size: 10px; color: var(--text-muted);">${cr.contract.description}</div>
-        <div style="font-size: 11px; margin-top: 6px; border-top: 1px dashed #333; padding-top: 4px;">
-          ${rewardText}
-        </div>
       </div>
     `;
   }
@@ -245,7 +206,7 @@ export function renderResultScreen() {
           </div>
           <div class="result-summary-item">
             <span class="result-summary-label">失った素材</span>
-            <span class="result-summary-val" style="color: var(--neon-gold);">${lostMaterialsText}</span>
+            <span class="result-summary-val" style="color: var(--neon-amber);">${lostMaterialsText}</span>
           </div>
         </div>
         <div class="result-eval-section failed" style="border-color: var(--neon-red); margin-bottom: 12px; text-align: left;">
@@ -293,14 +254,14 @@ export function renderResultScreen() {
           </div>
           <div class="result-summary-item">
             <span class="result-summary-label">未鑑定装備</span>
-            <span class="result-summary-val" style="color: var(--neon-gold);">${unidentifiedCount} 個</span>
+            <span class="result-summary-val" style="color: var(--neon-amber);">${unidentifiedCount} 個</span>
           </div>
         </div>
 
         <div class="result-details-section">
           <div class="result-detail-row">
-            <span>戦利品 / GOLD:</span>
-            <span class="result-detail-val">${totalLootCount} 個 / ${run.goldGained} G</span>
+            <span>戦利品 / 持ち帰り素材:</span>
+            <span class="result-detail-val">${totalLootCount} 個 / ${Object.values(run.bankedMaterials || {}).reduce((sum, quantity) => sum + quantity, 0)} 個</span>
           </div>
           <div class="result-detail-row">
             <span>戦闘回数 / 総撃破数:</span>
@@ -328,7 +289,6 @@ export function renderResultScreen() {
         ${deathLogsHtml}
 
         ${materialsHtml}
-        ${contractHtml}
         ${featuredLootHtml}
 
         <div class="result-items-section">

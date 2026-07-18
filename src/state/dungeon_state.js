@@ -155,7 +155,6 @@ export function calculateSeedProperties() {
 
   let totalChests = 0;
   let trappedChests = 0;
-  let goldSum = 0;
   let equipChanceSum = 0;
   
   for (let f = 1; f <= 5; f++) {
@@ -183,11 +182,6 @@ export function calculateSeedProperties() {
           if (trap !== "none") {
             trappedChests++;
           }
-          
-          let gold = Math.floor(rng() * 81) + 20;
-          if (f === 4) gold = Math.floor(rng() * 201) + 100;
-          else if (f === 5) gold = Math.floor(rng() * 301) + 150;
-          goldSum += gold;
           
           const itemChance = f === 4 ? 0.75 : 0.50;
           if (rng() < itemChance) {
@@ -251,11 +245,6 @@ export function calculateSeedProperties() {
     biases.push("罠多め");
   } else if (trapRate < 0.4) {
     biases.push("安全な宝箱");
-  }
-  
-  const avgGold = totalChests > 0 ? goldSum / totalChests : 0;
-  if (avgGold > 120) {
-    biases.push("ゴールド豊富");
   }
   
   const equipRate = totalChests > 0 ? equipChanceSum / totalChests : 0;

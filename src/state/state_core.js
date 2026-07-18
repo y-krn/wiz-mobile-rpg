@@ -11,7 +11,6 @@ export const state = {
 
   // Solo character (kept as a one-element array for combat compatibility) & Inventory
   party: [],
-  gold: 150,
   inventory: ["HEAL_POTION", "HEAL_POTION"],
 
   // Map & Light
@@ -92,7 +91,8 @@ export const state = {
   transitioning: false,
   controlsGuardUntil: 0,
   cleared: false,
-  materials: {},
+  metaMaterials: {},
+  workshop: { ranks: {} },
 
   // Dynamic getters for floor-specific maps to maintain backwards compatibility
   get map() {

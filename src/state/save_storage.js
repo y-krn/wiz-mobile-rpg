@@ -22,7 +22,6 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.prevX = START_X;
   state.prevY = START_Y;
   state.party = [];
-  state.gold = 150;
   state.inventory = ["HEAL_POTION", "HEAL_POTION"];
   state.firstChestUnidentifiedGuaranteed = false;
   state.openedGates = [];
@@ -95,7 +94,8 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.chestState = null;
   state.transitioning = false;
   state.cleared = false;
-  state.materials = {};
+  state.metaMaterials = {};
+  state.workshop = { ranks: {} };
   state.logs = ["クラスを選び、ひとりで迷宮へ潜ろう。"];
   saveAutosave();
 }

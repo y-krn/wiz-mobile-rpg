@@ -29,16 +29,6 @@ function getBestDisarmer() {
     }, null)?.char || null;
 }
 
-function awardTrapGold(char) {
-  const affix = getPartyMaxAffix(char ? [char] : [], "trapGold");
-  if (affix <= 0) return 0;
-  const amount = state.floor * 2 + affix;
-  state.gold += amount;
-  if (state.currentRun) state.currentRun.goldGained += amount;
-  addLog(`[罠銭] 罠の機構から${amount}Gを回収した！`);
-  return amount;
-}
-
 // 罠設定値
 export const weakenedModifiers = {
   triggerRate: 0.5,
@@ -473,7 +463,7 @@ export function handleTrapAction(action) {
     if (trap.type === "pitfall") {
       if (roll < successRate) {
         addLog("[味方] 【回避成功】慎重に縁を伝い、落とし穴を渡りきった！");
-        playSound("gold");
+        playSound("item");
         trap.state = "disabled";
         addDisarmPersistenceLog(trap);
         if (state.currentRun) {
@@ -484,7 +474,6 @@ export function handleTrapAction(action) {
           state.currentRun.trapsDisarmed++;
         }
         recordTrapCodex("pitfall", "disarmed");
-        awardTrapGold(getBestDisarmer());
         state.gameState = "explore";
         state.activeTrapState = null;
         saveAutosave();
@@ -507,7 +496,7 @@ export function handleTrapAction(action) {
 
     if (roll < successRate) {
       addLog("[味方] 【解除成功】罠の機能を完全に停止した！");
-      playSound("gold");
+      playSound("item");
       trap.state = "disabled";
       addDisarmPersistenceLog(trap);
       if (state.currentRun) {
@@ -515,7 +504,6 @@ export function handleTrapAction(action) {
       }
       const codexTrapType = trap.type === "damage" ? "poison needle" : (trap.type === "mpDrain" ? "gas bomb" : "flash bomb");
       recordTrapCodex(codexTrapType, "disarmed");
-      awardTrapGold(getBestDisarmer());
       state.gameState = "explore";
       state.activeTrapState = null;
       saveAutosave();

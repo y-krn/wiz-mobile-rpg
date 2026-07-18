@@ -65,8 +65,6 @@ import { createSoloCharacter } from "../src/state.js";
     (async () => {
       const { state, initNewGame } = await import("../src/state.js");
       const { getEnhanceCost, executeEnhance, executeTagInscription } = await import("../src/craft.js");
-      const { getEquipmentPreview, formatEquipmentPreview } = await import("../src/shop/shop_rules.js");
-      const { renderCraftEnhance, renderCraftInscriptionSelectEquip } = await import("../src/menu/town_actions.js");
 
       console.log("=== STARTING EQUIPPED CRAFT VERIFICATION ===");
       initNewGame();
@@ -92,8 +90,7 @@ import { createSoloCharacter } from "../src/state.js";
       };
 
       // ゴールドと素材を付与 (武器強化コスト: 鉄片x2, 魔石片x1, 200G)
-      state.gold = 1000;
-      state.materials = {
+      state.metaMaterials = {
         "鉄片": 10,
         "魔石片": 10
       };
@@ -127,16 +124,7 @@ import { createSoloCharacter } from "../src/state.js";
       assert.strictEqual(accessoryEnhance, false, "Accessory enhancement should stay disabled");
       assert.strictEqual(char.equipment.accessory.enhanceLevel, 0);
 
-      const accessoryPreviewChar = {
-        ...char,
-        maxHp: char.maxHp || 20,
-        equipment: { ...char.equipment, accessory: null }
-      };
-      const accessoryPreview = getEquipmentPreview(accessoryPreviewChar, "RING_STR");
-      assert.strictEqual(formatEquipmentPreview(accessoryPreview), "攻撃+2 / 力+2");
-      const hpAccessoryPreview = getEquipmentPreview(accessoryPreviewChar, "AMULET_HP");
-      assert.strictEqual(formatEquipmentPreview(hpAccessoryPreview), "最大HP+10");
-      console.log("-> [PASS] Accessory enhancement disabled and shop comparison verified");
+      console.log("-> [PASS] Accessory enhancement disabled");
 
       // 2. 装備中装備の刻印テスト
       console.log("\n[Test 2] Inscribing equipped armor...");
@@ -154,8 +142,7 @@ import { createSoloCharacter } from "../src/state.js";
       };
 
       // ゴールドと素材を付与 (毒避刻印コスト: 毒腺x2, 硬い皮x2, 100G)
-      state.gold = 1000;
-      state.materials = {
+      state.metaMaterials = {
         "毒腺": 10,
         "硬い皮": 10
       };
@@ -183,15 +170,6 @@ import { createSoloCharacter } from "../src/state.js";
       }
       console.log("-> [PASS] Equipped armor successfully inscribed. Inscription tag: " + armor.inscription.tag);
 
-
-      // 3. UI 描画関数の煙幕テスト (Smoke Test)
-      console.log("\n[Test 3] UI Rendering Smoke Test...");
-      const dummyGrid = createDummyElement();
-      
-      // エラーなく呼び出せることを確認
-      renderCraftEnhance(dummyGrid);
-      renderCraftInscriptionSelectEquip(dummyGrid);
-      console.log("-> [PASS] UI Render functions executed without throwing errors");
 
       console.log("\n=== ALL EQUIPPED CRAFT VERIFICATION TESTS PASSED SUCCESSFULLY! ===");
     })();
@@ -255,7 +233,7 @@ import { createSoloCharacter } from "../src/state.js";
       // Initialize
       initNewGame();
       state.inventory = [];
-      state.materials = {};
+      state.metaMaterials = {};
 
       // Test 1: getDismantleResults mapping
       const mockWeaponMagic = {
@@ -304,22 +282,16 @@ import { createSoloCharacter } from "../src/state.js";
 
       console.log("-> [PASS] Dismantle mapping verified");
 
-      // Test 2: executeDismantle execution and inventory deletion
+      // Test 2: dismantling is retired; it must not create meta currency
       state.inventory = [mockWeaponMagic, mockWeaponRare, mockArmorEpic];
-      state.materials = {};
+      state.metaMaterials = {};
 
       const success1 = executeDismantle(0); // Short Sword (magic)
-      assert.strictEqual(success1, true, "Dismantle should succeed");
-      assert.strictEqual(state.inventory.length, 2, "Inventory size should decrease");
-      assert.strictEqual(state.materials["鉄片"], 1, "Should gain 1 Iron Scrap");
+      assert.strictEqual(success1, false, "Retired dismantling should fail");
+      assert.strictEqual(state.inventory.length, 3, "Inventory must remain unchanged");
+      assert.deepStrictEqual(state.metaMaterials, {}, "Dismantling must not create meta currency");
 
-      const success2 = executeDismantle(0); // Short Sword (rare) - index shifted
-      assert.strictEqual(success2, true);
-      assert.strictEqual(state.inventory.length, 1);
-      assert.strictEqual(state.materials["鉄片"], 3, "Should have 3 Iron Scrap total");
-      assert.strictEqual(state.materials["骨片"], 1, "Should gain 1 Bone Fragment");
-
-      console.log("-> [PASS] executeDismantle execution verified");
+      console.log("-> [PASS] retired dismantling verified");
       console.log("All Workshop Dismantle Verification Tests PASSED!");
     })();
   })();
@@ -375,7 +347,7 @@ import { createSoloCharacter } from "../src/state.js";
     (async () => {
       const { state, initNewGame } = await import("../src/state.js");
       const { executeTagInscription } = await import("../src/craft.js");
-      const { getCharAffixSum, getItemData } = await import("../src/rules/item_rules.js");
+      const { getCharAffixSum } = await import("../src/rules/item_rules.js");
       const { applyTargetedDamageBonus } = await import("../src/combat_logic/damage.js");
       const assert = await import("assert");
 
@@ -384,8 +356,7 @@ import { createSoloCharacter } from "../src/state.js";
       // Initialize
       initNewGame();
       state.inventory = [];
-      state.materials = {};
-      state.gold = 1000;
+      state.metaMaterials = {};
 
       const mockSword = {
         kind: "equipment",
@@ -407,25 +378,18 @@ import { createSoloCharacter } from "../src/state.js";
         affixes: []
       };
 
-      // Test 1: 素材・ゴールド不足のチェック
+      // Test 1: 素材不足のチェック
       state.inventory = [mockSword];
-      state.materials = { "霊粉": 0 }; // 聖印には 霊粉3 が必要
-      state.gold = 1000;
+      state.metaMaterials = { "霊粉": 0 }; // 聖印には 霊粉3 が必要
 
       let success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
       assert.strictEqual(success, false, "Should fail when materials are missing");
 
-      state.materials = { "霊粉": 3 };
-      state.gold = 50; // 聖印には 150G 必要
-      success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
-      assert.strictEqual(success, false, "Should fail when gold is insufficient");
-
-      console.log("-> [PASS] Material and gold insufficiency validation verified");
+      console.log("-> [PASS] Material insufficiency validation verified");
 
       // Test 2: 未鑑定装備への刻印不可チェック
       state.inventory = [mockUnidentifiedSword];
-      state.materials = { "霊粉": 3 };
-      state.gold = 1000;
+      state.metaMaterials = { "霊粉": 3 };
       success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
       assert.strictEqual(success, false, "Should not allow inscription on unidentified items");
 
@@ -433,13 +397,11 @@ import { createSoloCharacter } from "../src/state.js";
 
       // Test 3: 正常な刻印実行と、複数刻印（3枠制限）
       state.inventory = [{ ...mockSword }]; // clone to prevent mutating original mock
-      state.materials = { "霊粉": 3 };
-      state.gold = 1000;
+      state.metaMaterials = { "霊粉": 3 };
       
       success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
-      assert.strictEqual(success, true, "Inscription should succeed with enough materials and gold");
-      assert.strictEqual(state.gold, 850, "Gold should be deducted (1000 - 150)");
-      assert.strictEqual(state.materials["霊粉"], 0, "Materials should be consumed");
+      assert.strictEqual(success, true, "Inscription should succeed with enough materials");
+      assert.strictEqual(state.metaMaterials["霊粉"], 0, "Materials should be consumed");
 
       const inscribedItem = state.inventory[0];
       assert.ok(inscribedItem.inscription, "Item should have inscription field");
@@ -447,19 +409,11 @@ import { createSoloCharacter } from "../src/state.js";
       assert.strictEqual(inscribedItem.inscription.value, 20);
 
       // 2つ目の刻印が許可されること (複数刻印のサポート)
-      state.materials = { "霊粉": 3 };
-      state.gold = 1000;
+      state.metaMaterials = { "霊粉": 3 };
       success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
       assert.strictEqual(success, true, "Should allow multiple inscriptions");
 
       console.log("-> [PASS] Successful inscription and multiple inscription support verified");
-
-      // Test 4: 刻印済み装備の売却益のチェック（金策ループ防止）
-      const normalItemData = getItemData(mockSword); // 刻印なし
-      const inscribedItemData = getItemData(inscribedItem); // 刻印あり
-      assert.strictEqual(normalItemData.price, inscribedItemData.price, "Sale price should not increase with inscription");
-
-      console.log("-> [PASS] Sale price verification (no money loop) verified");
 
       // Test 5: 戦闘効果への反映
       const char = {
@@ -639,8 +593,7 @@ import { createSoloCharacter } from "../src/state.js";
         affixes: []
       };
       state.inventory = [testArmor];
-      state.gold = 500;
-      state.materials = { "霊粉": 5 };
+      state.metaMaterials = { "霊粉": 5 };
 
       console.log("Plate Mail tags before:", testArmor.tags);
 
@@ -657,7 +610,7 @@ import { createSoloCharacter } from "../src/state.js";
       }
 
       // Overwrite tag at index 0 ("iron" -> "poison") using "毒腺"
-      state.materials["毒腺"] = 5;
+      state.metaMaterials["毒腺"] = 5;
       executeTagInscription(0, "毒腺", "poison", 0, "add");
       const overwrittenArmor = state.inventory[0];
       console.log("Plate Mail tags after overwriting index 0:", overwrittenArmor.tags);
@@ -676,7 +629,7 @@ import { createSoloCharacter } from "../src/state.js";
         affixes: []
       };
       state.inventory = [cursedArmor];
-      state.materials["霊粉"] = 5;
+      state.metaMaterials["霊粉"] = 5;
 
       executeTagInscription(0, "霊粉", null, undefined, "seal");
       const sealedArmor = state.inventory[0];

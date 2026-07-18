@@ -308,7 +308,7 @@ function createHeader(overlay) {
   const statusBar = document.createElement("div");
   statusBar.className = "equip-status-bar";
   statusBar.innerHTML = `
-    <span>所持金 ${state.gold}G</span>
+    <span>ラン素材 ${Object.values(state.currentRun?.materials || {}).reduce((sum, quantity) => sum + quantity, 0)}</span>
     <span class="${state.inventory.length >= 20 ? "full" : ""}">バッグ ${state.inventory.length}/20</span>
   `;
   header.appendChild(statusBar);

@@ -75,7 +75,7 @@ export class DungeonRenderer {
     ctx.fillStyle = "#0c0c0e";
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    if (state.gameState === "town" || (state.gameState === "submenu" && (menuContext.prevGameState === "town" || menuContext.type.startsWith("shop") || menuContext.type === "solo_start"))) {
+    if (state.gameState === "town" || (state.gameState === "submenu" && (menuContext.prevGameState === "town" || menuContext.type === "solo_start"))) {
       this.drawTownBackground(ctx);
     } else {
       // Exploration or Combat or Chest
@@ -195,7 +195,7 @@ export class DungeonRenderer {
       wallColor = "#cc2222"; // Death Red
       gridColor = "rgba(204, 34, 34, 0.15)";
     } else if (state.floor === 5) {
-      wallColor = "#cc8800"; // Dragon Gold
+      wallColor = "#cc8800"; // Dragon amber
       gridColor = "rgba(204, 136, 0, 0.2)";
     }
 
@@ -492,7 +492,7 @@ export class DungeonRenderer {
     const cx = VIEW_W / 2;
     const cy = VIEW_H / 2 + 20;
     
-    ctx.strokeStyle = "#ffb300"; // Glowing gold chest
+    ctx.strokeStyle = "#ffb300"; // Glowing amber chest
     ctx.shadowColor = "#ffb300";
     ctx.shadowBlur = 8;
     ctx.lineWidth = 2.5;
@@ -804,7 +804,7 @@ export class DungeonRenderer {
     }
 
     if (omenText) {
-      ctx.fillStyle = "#ffcc00"; // Gold color for warnings
+      ctx.fillStyle = "#ffcc00"; // Amber color for warnings
       ctx.font = "bold 12px 'Share Tech Mono', monospace";
       ctx.fillText(omenText, cx, cy - 88);
     }
@@ -1082,7 +1082,7 @@ export class DungeonRenderer {
     const px = margin + state.x * cellS + cellS / 2 + offsetX;
     const py = margin + state.y * cellS + cellS / 2 + offsetY;
     
-    // Draw background glow circle for player location (gold/cyan depending on dumapic)
+    // Draw background glow circle for player location (amber/cyan depending on dumapic)
     ctx.fillStyle = isDumapic ? "rgba(255, 215, 0, 0.3)" : "rgba(0, 229, 255, 0.25)";
     ctx.beginPath();
     ctx.arc(px, py, 7, 0, Math.PI * 2);

@@ -136,12 +136,12 @@
 }
 
 .enemy-row-tag.back {
-  color: var(--neon-gold);
+  color: var(--neon-amber);
 }
 
 .combat-target-card .card-note {
   margin-top: 3px;
-  color: var(--neon-gold);
+  color: var(--neon-amber);
   font-size: var(--fs-xs);
 }
 
@@ -228,9 +228,9 @@
 }
 
 .combat-item-card.item:hover, .combat-item-card.item:active {
-  border-color: var(--neon-gold);
+  border-color: var(--neon-amber);
   background-color: rgba(255, 179, 0, 0.05);
-  box-shadow: 0 0 4px var(--neon-gold);
+  box-shadow: 0 0 4px var(--neon-amber);
 }
 
 /* 各無効状態のスタイル */

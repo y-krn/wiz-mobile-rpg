@@ -67,7 +67,7 @@ export function migrateCharSpells(char) {
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 // 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
 // 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
@@ -182,7 +182,6 @@ export function normalizeSavePayload(data) {
   normalized.prevX = data.prevX ?? START_X;
   normalized.prevY = data.prevY ?? START_Y;
   normalized.party = Array.isArray(data.party) ? data.party.slice(0, 1) : [];
-  normalized.gold = data.gold ?? 150;
   normalized.inventory = data.inventory ?? [];
   normalized.seed = data.seed ?? generateRandomSeed();
   normalized.floor = data.floor ?? 1;
@@ -232,7 +231,8 @@ export function normalizeSavePayload(data) {
   normalized.storageMax = data.storageMax ?? 30;
   normalized.identifyTickets = data.identifyTickets ?? 0;
   normalized.cleared = data.cleared ?? false;
-  normalized.materials = data.materials ?? {};
+  normalized.metaMaterials = data.metaMaterials ?? {};
+  normalized.workshop = data.workshop ?? { ranks: {} };
   normalized.dungeonMemory = data.dungeonMemory ?? { traps: {}, mapFragments: {} };
   normalized.dungeonMemory.traps ||= {};
   normalized.dungeonMemory.mapFragments ||= {};

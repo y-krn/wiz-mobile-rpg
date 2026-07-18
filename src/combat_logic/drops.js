@@ -1,84 +1,56 @@
-export function getMonsterMainMaterial(monster) {
+import { MATERIAL_DROP_BALANCE } from "../data/materials.js";
+import { getDepthMaterialDropChance, rollDepthMaterialQuantity } from "../rules/material_rules.js";
+
+function getMonsterGroup(monster) {
   const name = monster.name.replace(/\s[A-Z]$/, "");
   const tags = monster.tags || [];
   const spriteType = monster.spriteType || "";
-  const isPoisonous = monster.isPoisonous || false;
-
-  if (tags.includes("dragon") || spriteType === "dragon") {
-    return "竜鱗";
-  } else if (tags.includes("demon") || spriteType === "flack") {
-    return "黒角";
-  } else if (name.includes("鎧") || name.includes("石") || name.includes("アイアン") || name.includes("ストーン") || name.includes("ゴーレム")) {
-    return "鉄片";
-  } else if (spriteType === "mage" || name.includes("魔術") || name.includes("魔女")) {
-    return "魔石片";
-  } else if (tags.includes("spirit") || spriteType === "spirit" || spriteType === "wisp") {
-    return "霊粉";
-  } else if (tags.includes("undead") || spriteType === "skeleton" || spriteType === "zombie") {
-    return "骨片";
-  } else if (isPoisonous || spriteType === "spider" || name.includes("蜘蛛") || name.includes("毒")) {
-    return "毒腺";
-  } else {
-    return "獣の牙";
-  }
+  if (tags.includes("dragon") || spriteType === "dragon") return "dragon";
+  if (tags.includes("demon") || spriteType === "flack") return "demon";
+  if (name.includes("鎧") || name.includes("石") || name.includes("アイアン") || name.includes("ストーン") || name.includes("ゴーレム")) return "armor";
+  if (spriteType === "mage" || name.includes("魔術") || name.includes("魔女") || name.includes("術士")) return "caster";
+  if (tags.includes("spirit") || spriteType === "spirit" || spriteType === "wisp") return "spirit";
+  if (tags.includes("undead") || spriteType === "skeleton" || spriteType === "zombie") return "undead";
+  if (monster.isPoisonous || spriteType === "spider" || name.includes("蜘蛛") || name.includes("毒") || name.includes("腐")) return "poison";
+  return "beast";
 }
 
-export function determineMonsterDrop(monster, floor, rng = Math.random, { chanceBonus = 0, guaranteed = false } = {}) {
-  const name = monster.name.replace(/\s[A-Z]$/, "");
-  const tags = monster.tags || [];
-  const spriteType = monster.spriteType || "";
-  const isRare = monster.isRare || false;
-  const isBoss = monster.isBoss || false;
-  const isPoisonous = monster.isPoisonous || false;
+const GROUP_MATERIALS = Object.freeze({
+  beast: { primary: "獣の牙", secondary: ["硬い皮", "毒腺"] },
+  poison: { primary: "毒腺", secondary: ["硬い皮"] },
+  undead: { primary: "骨片", secondary: ["霊粉", "呪布"] },
+  spirit: { primary: "霊粉", secondary: ["魔石片"] },
+  caster: { primary: "魔石片", secondary: ["呪布"] },
+  armor: { primary: "鉄片", secondary: ["魔石片"] },
+  demon: { primary: "黒角", secondary: ["魔石片", "呪布"] },
+  dragon: { primary: "竜鱗", secondary: ["獣の牙"] }
+});
 
-  const main = getMonsterMainMaterial(monster);
-  let sub;
-  
-  if (name === "メタルパピー") {
-    const rareMat = floor >= 4 ? "竜鱗" : "黒角";
-    return {
-      "獣の牙": 2,
-      "硬い皮": 1,
-      [rareMat]: 1
-    };
-  }
-  
-  if (tags.includes("dragon") || spriteType === "dragon") {
-    sub = "獣の牙";
-  } else if (tags.includes("demon") || spriteType === "flack") {
-    sub = "魔石片";
-  } else if (name.includes("鎧") || name.includes("石") || name.includes("アイアン") || name.includes("ストーン") || name.includes("ゴーレム")) {
-    sub = "魔石片";
-  } else if (spriteType === "mage" || name.includes("魔術") || name.includes("魔女")) {
-    sub = "呪布";
-  } else if (tags.includes("spirit") || spriteType === "spirit" || spriteType === "wisp") {
-    sub = "魔石片";
-  } else if (tags.includes("undead") || spriteType === "skeleton" || spriteType === "zombie") {
-    sub = "霊粉";
-  } else if (isPoisonous || spriteType === "spider" || name.includes("蜘蛛") || name.includes("毒")) {
-    sub = "硬い皮";
-  } else {
-    sub = "硬い皮";
-  }
+export function getMonsterMainMaterial(monster) {
+  return GROUP_MATERIALS[getMonsterGroup(monster)].primary;
+}
 
+export function determineMonsterDrop(monster, floor, rng = Math.random, { chanceBonus = 0, guaranteed = false, startFloor = 1 } = {}) {
+  const group = GROUP_MATERIALS[getMonsterGroup(monster)];
+  const isRare = Boolean(monster.isRare);
+  const isBoss = Boolean(monster.isBoss);
   const drops = {};
-  
-  let dropChance = 0.45;
-  if (isRare) dropChance = 0.85;
-  if (isBoss) dropChance = 1.0;
+  const quantity = rollDepthMaterialQuantity(floor, rng, { startFloor });
+  const dropChance = isBoss ? 1 : isRare ? 0.9 : getDepthMaterialDropChance(floor);
 
   if (guaranteed || rng() < Math.min(1, dropChance + chanceBonus)) {
-    const qty = (isBoss ? 2 : 1) + (isRare ? 1 : 0);
-    drops[main] = qty;
-    
-    if (sub && (isBoss || isRare || rng() < 0.25)) {
-      drops[sub] = 1;
+    drops[group.primary] = quantity
+      + (isRare ? MATERIAL_DROP_BALANCE.rareBonus : 0)
+      + (isBoss ? MATERIAL_DROP_BALANCE.bossBonus : 0);
+    if (isBoss || isRare || rng() < MATERIAL_DROP_BALANCE.secondaryChance) {
+      const secondary = group.secondary[Math.floor(rng() * group.secondary.length)];
+      drops[secondary] = Math.max(1, Math.floor(quantity / 2));
     }
   }
 
   if (isBoss || isRare) {
-    const rareMat = floor >= 4 ? "竜鱗" : "黒角";
-    drops[rareMat] = (drops[rareMat] || 0) + (isBoss ? 2 : 1);
+    const rareMaterial = floor >= 10 ? "竜鱗" : "黒角";
+    drops[rareMaterial] = (drops[rareMaterial] || 0) + (isBoss ? 2 : 1);
   }
 
   return drops;
