@@ -38,7 +38,7 @@ global.window = {
 };
 
 import { MONSTERS } from "../src/data/monsters.js";
-import { ENCOUNTER_PACKS } from "../src/combat_ui/encounter.js";
+import { ENCOUNTER_POOLS, ENCOUNTER_SIZE_WEIGHTS } from "../src/data/encounters.js";
 
 console.log("=== TOWN PORTAL RECOVERY BALANCE AUDIT ===");
 
@@ -72,20 +72,12 @@ function getMonsterGold(monsterName) {
 
 // 各階層の戦闘1回あたりの期待値
 function calculateEncounterGoldAvg(floor) {
-  const packs = ENCOUNTER_PACKS[floor];
-  if (!packs) return 0;
-  
-  let totalGoldSum = 0;
-  packs.forEach(pack => {
-    let packGold = 0;
-    pack.members.forEach(member => {
-      const avgCount = (member.min + member.max) / 2;
-      packGold += getMonsterGold(member.name) * avgCount;
-    });
-    totalGoldSum += packGold;
-  });
-  
-  return totalGoldSum / packs.length;
+  const pool = ENCOUNTER_POOLS[floor];
+  const weights = ENCOUNTER_SIZE_WEIGHTS[floor];
+  if (!pool || !weights) return 0;
+  const averageMonsterGold = pool.reduce((sum, name) => sum + getMonsterGold(name), 0) / pool.length;
+  const averageSize = weights.reduce((sum, weight, index) => sum + weight * (index + 1), 0);
+  return averageMonsterGold * averageSize;
 }
 
 // 帰還スクロール価格（新500G）

@@ -9,7 +9,7 @@ global.localStorage = {
 
 import assert from "assert";
 import { CRAFT_RECIPES } from "../src/craft.js";
-import { ENCOUNTER_PACKS } from "../src/combat_ui/encounter.js";
+import { ENCOUNTER_POOLS } from "../src/data/encounters.js";
 import { MONSTERS } from "../src/data/monsters.js";
 import { SHOP_STOCK } from "../src/shop/shop_stock.js";
 import { checkCharLevelUp } from "../src/data.js";
@@ -575,18 +575,16 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
     }
 
     // --- Test 1: Monster Name Consistency ---
-    console.log("Checking monster name consistency in ENCOUNTER_PACKS...");
+    console.log("Checking monster name consistency in ENCOUNTER_POOLS...");
     let consistencyFailed = false;
 
-    for (const [floor, packs] of Object.entries(ENCOUNTER_PACKS)) {
+    for (const [floor, names] of Object.entries(ENCOUNTER_POOLS)) {
       const f = parseInt(floor);
-      for (const pack of packs) {
-        for (const member of pack.members) {
-          const found = MONSTERS.some(m => m.name === member.name);
-          if (!found) {
-            console.error(`Error: Monster "${member.name}" in floor ${f} pack is not defined in MONSTERS.`);
-            consistencyFailed = true;
-          }
+      for (const name of names) {
+        const found = MONSTERS.some(m => m.name === name);
+        if (!found) {
+          console.error(`Error: Monster "${name}" in floor ${f} pool is not defined in MONSTERS.`);
+          consistencyFailed = true;
         }
       }
     }
@@ -606,11 +604,9 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
     console.log("Monster name consistency check passed.");
 
     // --- Test 1.5: Sleep/paralysis placement curve ---
-    const packsByMonster = (name) => Object.entries(ENCOUNTER_PACKS).flatMap(([floor, packs]) =>
-      packs.flatMap(pack => pack.members
-        .filter(member => member.name === name)
-        .map(member => ({ floor: Number(floor), member, pack })))
-    );
+    const poolsByMonster = (name) => Object.entries(ENCOUNTER_POOLS)
+      .filter(([, names]) => names.includes(name))
+      .map(([floor]) => ({ floor: Number(floor) }));
     const monsterByName = (name) => MONSTERS.find(m => m.name === name);
     const sleepIntro = monsterByName("まどろみ胞子");
     const sleepGroup = monsterByName("催眠コウモリ");
@@ -619,37 +615,28 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
 
     assert.ok(sleepIntro?.isSleepInflicting, "B1 sleep intro monster should inflict sleep.");
     assert.strictEqual(sleepIntro.statusChance, 0.2, "B1 sleep intro should use a low status chance.");
-    assert.strictEqual(packsByMonster("まどろみ胞子")[0]?.floor, 1, "Sleep intro monster should appear on B1.");
-    assert.strictEqual(packsByMonster("まどろみ胞子")[0]?.member.min, 1, "B1 sleep intro should be single-target education.");
-    assert.strictEqual(packsByMonster("まどろみ胞子")[0]?.member.max, 1, "B1 sleep intro should be single-target education.");
+    assert.strictEqual(poolsByMonster("まどろみ胞子")[0]?.floor, 1, "Sleep intro monster should appear on B1.");
 
     assert.ok(sleepGroup?.isSleepInflicting, "B2 sleep group monster should inflict sleep.");
     assert.strictEqual(sleepGroup.statusChance, 0.3, "B2 sleep group should use the stronger status chance.");
-    assert.strictEqual(packsByMonster("催眠コウモリ")[0]?.floor, 2, "Sleep group monster should appear on B2.");
-    assert.strictEqual(packsByMonster("催眠コウモリ")[0]?.member.min, 2, "B2 sleep group should appear in groups.");
-    assert.strictEqual(packsByMonster("催眠コウモリ")[0]?.member.max, 3, "B2 sleep group should appear in groups.");
+    assert.strictEqual(poolsByMonster("催眠コウモリ")[0]?.floor, 2, "Sleep group monster should appear on B2.");
 
-    assert.strictEqual(packsByMonster("カースドハンド")[0]?.floor, 3, "Paralysis should debut on B3.");
+    assert.strictEqual(poolsByMonster("カースドハンド")[0]?.floor, 3, "Paralysis should debut on B3.");
     assert.ok(werewolf?.isParalyzing, "Werewolf should remain a paralyzing monster.");
     assert.ok(banshee?.isParalyzing, "Banshee should remain a paralyzing monster.");
     assert.ok(werewolf.statusChance >= 0.3 && werewolf.statusChance <= 0.35, "Werewolf paralysis chance should match B4 curve.");
     assert.ok(banshee.statusChance >= 0.3 && banshee.statusChance <= 0.35, "Banshee paralysis chance should match B4 curve.");
-    assert.ok(ENCOUNTER_PACKS[4].some(pack =>
-      pack.members.filter(member => monsterByName(member.name)?.isParalyzing).length === 2
-    ), "B4 should contain a two-paralyzer pack.");
     console.log("Sleep/paralysis placement curve check passed.");
 
     // --- Test 2: Counterplay Availability Audit ---
     console.log("\nAuditing counterplay availability per floor...");
 
     const monsterMinFloors = {};
-    for (const [floor, packs] of Object.entries(ENCOUNTER_PACKS)) {
+    for (const [floor, names] of Object.entries(ENCOUNTER_POOLS)) {
       const f = parseInt(floor);
-      for (const pack of packs) {
-        for (const member of pack.members) {
-          if (!monsterMinFloors[member.name] || monsterMinFloors[member.name] > f) {
-            monsterMinFloors[member.name] = f;
-          }
+      for (const name of names) {
+        if (!monsterMinFloors[name] || monsterMinFloors[name] > f) {
+          monsterMinFloors[name] = f;
         }
       }
     }

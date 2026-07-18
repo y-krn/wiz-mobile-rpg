@@ -19,6 +19,7 @@ export * from "./systems/leveling.js";
 export * from "./data/tags.js";
 export * from "./data/affixes.js";
 export * from "./data/floor_templates.js";
+export * from "./data/encounters.js";
 
 
 // Re-export constants/data with wrapper compatibility
