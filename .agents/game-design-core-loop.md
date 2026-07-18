@@ -6,248 +6,166 @@ playable in a mobile browser. Use it when evaluating any feature, ticket, or
 balance change against the question "does this strengthen the loop or dilute
 it?"
 
-`.agents/game-design.md` (Expedition Economy) is the economy-level refinement
-of this document. When the two conflict, resolve toward this document's loop
-and pillars, then update the economy document.
+**Direction change (2026-07-18).** The party-based, fixed-labyrinth,
+town-economy game was retired and replaced by a solo depth-attack roguelite.
+The approved pivot design lives in
+`docs/superpowers/specs/2026-07-18-solo-depth-roguelite-design.md`; this
+document is the durable distillation of it. Where an older ticket or document
+assumes a 6-character party, a fixed map, or the town gold economy, this
+document wins.
 
 ## Core Loop
 
 ```text
-explore an unknown dungeon
+town (meta screen): pick class and starting gear
         ↓
-survive on limited resources
+descend from B1F at Lv1 (or an unlocked milestone start)
         ↓
-find unknown (unidentified) equipment
+explore generated floors, fight, pick up unidentified gear,
+build the character within the run
         ↓
-return, identify, and study it
+every 5th floor: milestone (boss, return portal, merchant)
         ↓
-a new strategy or build emerges
+"retreat with everything, or push one more floor?"
         ↓
-re-challenge places that previously blocked you
+retreat = keep 100% of materials; death = keep 30%
+        ↓
+spend materials on permanent unlocks in the workshop
+        ↓
+descend again, deeper than before
 ```
 
-Every major system must feed this loop. A system that creates its own separate
-goal (level grinding, gold farming, identify-and-sell profit) competes with the
-loop and should be redesigned or cut.
+Depth is both the score and the progression axis. The personal best (deepest
+floor, retreat and death recorded separately) is always visible on the title
+screen, in town, and on the run result.
 
 ## Design Pillars
 
-The game deliberately combines three lineages. Each contributes one pillar, and
-each pillar covers a weakness of the others.
+1. **Depth as the question.** The game asks one thing: "how deep can you go
+   this run?" Every system must either help the player descend, make the
+   descent decision harder, or record it. A system that creates a separate
+   goal (farming loops, side economies) competes with the question and should
+   be redesigned or cut.
+2. **Push-your-luck with real stakes.** Retreat (via milestone portal or a
+   finite return item) banks everything; death forfeits 70% of materials.
+   The recurring decision "bank now or push one more floor?" must never be
+   fully purchasable away, and must stay a decision — never a die roll the
+   player cannot influence.
+3. **In-run builds from unknown loot.** The character is assembled during the
+   run from found equipment and skills. Loot is unidentified by default:
+   spend a scarce identify resource, or equip it blind and risk a curse. The
+   identify-or-gamble moment is this game's signature hook; protect its
+   frequency and its stakes.
 
-1. **Dungeon as puzzle** (Etrian Odyssey lineage). The floor itself is the
-   content: layout, shortcuts, gimmicks, one-way passages, hidden doors, and
-   avoid-for-now enemies. The question the player answers is "how do I crack
-   this labyrinth?"
-2. **Survival as decision** (Torneko / roguelike lineage). Resources inside the
-   dungeon are finite: healing, identification support, return means, and
-   supplies. Each step is a small judgment; the recurring big judgment is
-   "return now, or push one more floor?" This tension must never be fully
-   purchasable away.
-3. **Unknown loot as motivation** (Diablo lineage). Unidentified equipment is
-   the primary long-term reward. The moment of identifying a find and having it
-   change your build is a peak experience; protect its rarity and its impact.
+**Decided: floors are generated per run** (2026-07-18). This supersedes the
+2026-07-10 fixed-labyrinth decision, which belonged to the retired game.
+Repeated runs over known ground are dead time in a depth-attack loop, so maps
+reseed every run (`src/map_generator.js` + `src/seed_rng.js`), with floor
+templates (size, room count, gimmick density) selected by depth. Generation
+quality is the top v1 risk and is verified first in the implementation order.
 
-**Decided: the labyrinth is fixed, not regenerated per run** (2026-07-10).
-Per-run map regeneration (full roguelike / Torneko-style dungeons) was
-considered and rejected. The map stays fixed within a save (TICKET-054);
-mastery, shortcuts, and "come back for that enemy later" depend on it. The
-Torneko lineage contributes resource management and push-your-luck decisions
-(pillar 2), not map randomness. Unknownness comes from unexplored floors and
-unidentified loot (pillars 1 and 3), not from reshuffling known ground.
+**Decided: solo character, hybrid meta progression** (2026-07-18). One
+character per run, Lv1 each run. Between runs the player buys unlocks
+(classes, starting-gear options, skill/affix pools) and small permanent stats
+with an explicit cap. Depth reached must be a function of judgment and build,
+not run count — the stat cap is the levee.
+
+## Run Structure
+
+- Floors are one-way: the only exits are down stairs, a milestone portal, or
+  a return item. No backtracking to earlier floors within a run.
+- Milestones every 5 floors: a boss, then a breather with a permanent return
+  portal and a merchant (identify resources, consumables, return items,
+  curse removal — priced in materials).
+- Biomes rotate every 5 floors: enemy pool, gimmicks, and visual theme
+  change. v1 ships ~6 handcrafted biomes (~30 floors) and recycles them at
+  higher scaling beyond that.
+- Milestone starts: defeating a milestone boss unlocks starting future runs
+  from that milestone, with a material-income penalty. Record runs start
+  deep; material runs start at B1F.
+- Suspend/resume anywhere via autosave (multi-session runs are expected on
+  mobile). Autosave overwrites on outcome so reload-scumming is not possible.
 
 ## Information Disclosure
 
-The smallest unit of the exploration pillar is not the step — it is **the
-information a step discloses**. A step is interesting when what it reveals
-forces the player to re-evaluate the current plan:
+The smallest unit of exploration is not the step — it is **the information a
+step discloses**. Generated maps make this stronger, not weaker: nothing is
+known from a previous run, so every reveal is live.
 
 ```text
 take a step -> new information appears -> re-evaluate the plan ->
 advance, retreat, or prepare -> take another step
 ```
 
-Darkness and hidden things are not the point; the *process of coming into
-view* is. Never add opacity for its own sake — a corridor where nothing is
-revealed step by step is dead space, however dark it is.
+The four-rung ladder still governs reveal mechanics (unknown → presence →
+identification → detail). A new reveal mechanic should state which rung it
+serves and what decision changes when the player climbs to it. Gaining
+information must cost something (exposure, light, steps), or
+maximum-visibility gear becomes the only correct build.
 
-### The four-rung ladder
+Unidentified equipment sits on the same ladder: presence (a drop),
+identification (base type visible), detail (identified affixes). Pillar 3's
+gamble is the choice to act from the identification rung without paying for
+detail.
 
-Information about any entity (enemy, trap, door, treasure) moves through
-stages, and reveal mechanics should land on a rung rather than jump from
-nothing to everything:
+## Combat
 
-1. **Unknown** — nothing.
-2. **Presence** — something exists: a sound, a glow, an aura, a trace.
-3. **Identification** — what kind of thing: a large shadow, an iron door,
-   a chest-like light.
-4. **Detail** — exact type and state: the specific enemy, the trap type,
-   the threat rating.
+Combat paces the descent; it is not the goal. Turn-based menu combat is
+retained (mobile one-handed play, existing `combat_logic` assets), rebalanced
+for one character:
 
-Existing systems already sit on this ladder: the proximity/sensory aura is
-presence; trap traces (TICKET-037) are presence-to-identification; the danger
-telegraph (TICKET-015) and the warden threat display (TICKET-078) are
-identification-to-detail. A new reveal mechanic should state which rung it
-serves and what decision changes when the player climbs to it. The gap
-between rungs is where decisions live: "do I get closer to identify it,
-knowing it may notice me?"
-
-### Information vs exposure
-
-Gaining information must have a price, or maximum-visibility gear becomes the
-only correct build. The trade is information against exposure and resources:
-approaching to identify risks being noticed; light costs fuel. Today light is
-pure upside (encounter rate 0.10 -> 0.07 -> 0.05); that is an accepted
-simplification, already flagged as a watch item under Combat pacing. Any
-future light rebalance should consider pricing light with exposure, not just
-supply.
-
-The same logic bounds caution: checking must cost something (light duration,
-the step budget that TICKET-077 pacing implies), so the ideal state is
-"checking makes you safe, but you cannot afford to check everything."
-
-### Growth along this axis
-
-Level-less growth lives here: perception (identify from further away),
-interpretation (read traces into predictions), options (more actions to take
-on information), and equipment (hearing range, wall sense, trace reading).
-Information-gathering gear is a first-class reward category alongside combat
-stats, and feeds pillar 3's build variety.
-
-Design test for any new exploration feature: **what does a step disclose,
-and what decision does that change?** If the answer is "nothing" or "none",
-the feature is scenery.
-
-### Places, not floors
-
-Each floor is a named place with its own grammar and rules (TICKET-084): a
-fixed set of guaranteed elements re-skinned per theme, a local "law" that is
-the world-fiction reading of its perception rules and trap distribution
-(TICKET-079), and a name that is itself on the ladder — unknown ("???") until
-first entry. The player's reward for descending is not a bigger number but a
-new culture to read. Layout stays fixed (see the fixed-labyrinth decision);
-place identity is what makes the fixed map worth remembering.
-
-## Combat Is Subordinate To Exploration
-
-Combat exists to gate and pace exploration, not as the goal.
-
-- The desired chain is: explore -> a fight blocks progress -> want better gear
-  or a build change -> loot and identify -> explore further.
-- The rejected chain is: fight to get gear -> use gear to fight more, with
-  exploration reduced to a corridor between fights.
-- When a change makes fighting the most efficient way to progress on its own
-  (XP or gold farming loops), it violates this principle. See the level and
-  gold rules in `.agents/game-design.md`.
+- Enemy groups of 1–3. The 6-member-party encounter tables are retired.
+- Enemy roles: aggressor (damage), disruptor (status/hindrance), amplifier
+  (buffs other enemies). The solo-combat skill axis is kill order.
+- Status effects must never be "one hit = run over": paralysis/sleep last at
+  most 1 turn and break on hit; instant death is removed (deep-floor bosses
+  use heavy damage that resistance builds mitigate instead).
+- Fleeing always succeeds, with a cost (fall back one tile, take one parting
+  hit). A solo character's escape judgment is never killed by RNG.
+- Healing: consumables, a small heal on floor transition, and healing
+  affixes. In-combat healing is priced high so it does not dominate.
 
 ## Floor Density Targets
 
-Browser and mobile play means short sessions. Long, sparse floors kill the
-game. Targets below were calibrated against the TICKET-076 audit
-(`scratch/sim_floor_density.js`, 100 seeds x B1F-B5F); measured means in
-parentheses.
+Short mobile sessions still rule. These are generation-tuning targets, not
+validation rules; a floor far outside them needs a stated reason.
 
-- **Critical path** (entry to down stairs; B3/B5 also to boss): 20-30 steps
-  (measured 22-28 — on target). This, not total tile count, is the per-run
-  pacing metric.
-- **Full-loot route** (all normal chests, then stairs): 80-110 steps
-  (measured 92-99). A first-visit cost; revisits should beeline.
-- **Total reachable tiles** (~320 per floor) are exploration capacity
-  amortized across runs under the fixed labyrinth, not a per-run cost. There
-  is no per-run tile cap; do not shrink the map to chase one (TICKET-076 kept
-  map size, plan A on hold).
-- **Combat pacing**: ~5-6 fights on the frontier floor being explored; 2-3 on
-  known transit floors is acceptable and desirable. Implemented via per-floor
-  step decay (TICKET-077): encounter rate 0.10 for the first 30 steps on a
-  floor this run, 0.04 after (measured: full-loot 5.4-5.7 fights, beeline
-  2.0-2.6 — both on target). Light spells still subtract flat (-0.03 / -0.05),
-  which means past 30 steps LOMILWA reaches a 0% encounter rate. Light supply,
-  MP cost, and duration are therefore the real balance valve on frontier
-  combat — a cheap LOMILWA collapses the 5-6 target to ~1.5. Watch this when
-  touching light-spell cost or availability.
-- **Gimmick learning load**: introduce at most 1-2 *new gimmick concepts* per
-  floor. Instance counts (one-way 2-5, secret doors 1-2, pitfalls 0-1) are
-  balance tuning numbers, not capped at 1-2; with a fixed labyrinth they
-  amortize into route knowledge.
-- **Avoid-for-now threats**: at most 1 *roaming* threat per floor. Bosses and
-  midbosses are destination fights, not avoid targets, and do not count.
-  B1-B3 currently have 0 — a gap owned by the FOE design track.
+- Critical path (entry to down stairs): 20–30 steps.
+- Fights per floor: ~4–6 on the natural path; a floor must be clearable
+  without visiting every room.
+- New gimmick concepts: at most 1–2 per biome, introduced on its first floor.
+- At most one roaming avoid-for-now threat per floor; milestone bosses are
+  destination fights and do not count.
 
-These are pacing targets, not hard validation rules. Use them when reviewing
-map generation, encounter rates, and gimmick placement. A floor far outside
-these ranges needs a stated reason.
-
-## Push-Your-Luck Structure
-
-The "return now or go deeper?" decision is a core pillar, and it only exists
-while returning is constrained and in-dungeon resources are finite.
-
-- Free or trivial return to town destroys the decision. Existing direction:
-  no free full heal at the castle (TICKET-040), scarce town-portal supply
-  (TICKET-042).
-- Recovery scarcity inside the dungeon is part of the same budget
-  (TICKET-018).
-- **Every expedition starts at B1F.** There is no save-state resume from a
-  deeper floor. The return-mark resume introduced by TICKET-041 is retired
-  (TICKET-075); TOWN_PORTAL is a pure emergency escape — it brings the party
-  and its loot home safely, nothing more. Depth must be re-earned each run.
-- Depth persistence is spatial, not save-state: opened shortcuts, one-way
-  routes, hidden doors (TICKET-045/046), and the persistent map seed
-  (TICKET-054) are what make re-descending faster. If re-descent still feels
-  like padding, fix it with more shortcuts or floor density, not by
-  reintroducing resume.
-- Camps (TICKET-082) are **in-run waypoints, not cross-run resume points**:
-  a partial rest once per run at B2/B4, unlocked permanently by defeating
-  that floor's warden. They segment the run ("push to the next camp?")
-  without banking depth between runs — TICKET-075's B1F start is untouched.
-  Session interruption is already covered by autosave; camps owe it nothing.
-
-## FOE-Like Enemies (Designed: TICKET-078)
-
-Visible, avoidable, clearly-unwinnable-for-now enemies give exploration a
-mid-term goal that pure floor progression lacks. The concrete design is
-TICKET-078 ("warden" enemies guarding sealed gates; defeating one permanently
-opens a shortcut on that floor). This section stays as the design intent the
-ticket must satisfy.
-
-Intended cycle:
-
-```text
-encounter -> cannot win -> route around it -> gear/build improves ->
-defeat it -> a new route, shortcut, or reward opens
-```
-
-Requirements when this is designed:
-
-- The threat must be telegraphed before commitment (extends TICKET-015/016;
-  the player must be able to read "do not fight this yet" at a glance).
-- Defeating one must open something spatial (route, shortcut, camp access),
-  not just drop loot; otherwise it is only an elite fight.
-- At most one per floor (see Floor Density Targets).
-
-Implementation scope, phasing, and data shape live in TICKET-078; this
-section records only the intent it must satisfy.
+The old fixed-map amortization arguments (total-tile capacity across runs,
+revisit beelines) are retired with the fixed map. Every floor is a first
+visit now; density targets are per-run costs.
 
 ## Avoid
 
-- Level grinding as the dominant progression strategy.
-- Combat loops that are self-justifying (fight to gear up to fight).
-- Long sparse floors and corridor padding.
-- Free, reliable, or purchasable-at-will return to safety.
-- Making unidentified gear common enough that identification stops being an
-  event.
-- Adding a fourth pillar. New systems must serve exploration, survival, or
-  unknown loot; a system serving none of them is out of scope.
-- Per-run map regeneration. See the fixed-labyrinth decision under Design
-  Pillars; do not reintroduce it as a feature, difficulty mode, or "fresh
-  content" fix without revisiting that decision explicitly.
+- Anything that makes depth a function of run count: uncapped permanent
+  stats, stacking meta bonuses, or farm-to-win unlocks.
+- Free, reliable, or purchasable-at-will retreat. The gap between retreat
+  and death is the game.
+- Making unidentified gear common enough (or identify resources cheap
+  enough) that the identify-or-gamble choice stops being an event.
+- Reintroducing a town economy: gold, shops with baseline gear, or any
+  between-run system that competes with "descend again."
+- Carrying equipment between runs. Rejected as approach C in the pivot
+  design; revisit only as an explicit v2 decision.
+- Adding a fourth pillar. New systems must serve depth, push-your-luck, or
+  in-run builds; a system serving none of them is out of scope.
 
 ## Relationship To Other Documents
 
-- `.agents/game-design.md`: economy-level rules (XP, gold, shops, materials,
-  workshop, rewards, contracts, clear flow). It implements pillars 2 and 3 at
-  the numbers level.
-- `.agents/balance-simulation.md`: use its checklist when tuning any number
-  referenced here (encounter counts, recovery budgets, loot rates).
-- `.agents/game-logic.md`: use its checklist when implementing gimmicks,
-  camps, or FOE-like enemy behavior.
+- `docs/superpowers/specs/2026-07-18-solo-depth-roguelite-design.md`: the
+  approved pivot design this document distills, including the module
+  survival map and implementation order.
+- `.agents/game-design.md`: meta-economy rules (materials as the only
+  currency, workshop unlock tree, milestone merchants, run quests).
+- `.agents/game-design-equipment-builds.md`: affix system (cores/supports);
+  now the backbone of pillar 3's in-run builds.
+- `.agents/balance-simulation.md`: checklist for tuning any number
+  referenced here (encounter counts, scaling curves, material income).
+- `.agents/game-logic.md`: checklist for implementing generation, combat,
+  and run-state changes.
