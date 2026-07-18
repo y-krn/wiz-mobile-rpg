@@ -3,7 +3,7 @@ export const IDENTIFICATION_BALANCE = {
   identifyCost: 1,
   chestPowderChance: 0.18,
   baseCurseChance: 0.10,
-  curseChancePerFloor: 0.035,
+  curseChancePerFloor: 0.0225,
   maxCurseChance: 0.42,
   coreCurseBonus: 0.08,
   cursePowerPerFloor: 0.15,

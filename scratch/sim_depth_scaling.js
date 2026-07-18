@@ -4,6 +4,11 @@ import { getEncounterSizeWeightsForFloor } from "../src/data/encounters.js";
 import { getDepthScaling, scaleEnemyForDepth } from "../src/rules/depth_scaling.js";
 import { getDepthMaterialDropChance, getDepthMaterialExpectedQuantity } from "../src/rules/material_rules.js";
 
+const LEGACY_POOLS = Object.freeze({
+  dragon_forge: ["ドラゴンワーム", "ワイバーン", "レッドドラゴン", "反逆の鎧", "黒曜の魔導士", "竜血の再生者", "結界の守護者", "双頭の番犬", "盾持ちデーモン", "灰燼の術士"],
+  abyssal_throne: ["マスターデーモン", "プリーストデーモン", "命喰いの影", "深淵の分裂体", "破滅の導師", "盾持ちデーモン", "結界の守護者", "黒曜の魔導士", "灰燼の術士"]
+});
+
 function lcg(seed) {
   let value = seed >>> 0;
   return () => {
@@ -32,7 +37,10 @@ function playerProfile(floor) {
 
 function simulateFight(floor, rng) {
   const biome = getBiomeForFloor(floor);
-  const pool = biome.enemyPool.map(name => MONSTERS.find(monster => monster.name === name)).filter(Boolean);
+  const poolNames = process.env.SIM_LEGACY_BALANCE === "1"
+    ? LEGACY_POOLS[biome.id] || biome.enemyPool
+    : biome.enemyPool;
+  const pool = poolNames.map(name => MONSTERS.find(monster => monster.name === name)).filter(Boolean);
   const size = pickWeighted(getEncounterSizeWeightsForFloor(floor), rng);
   const enemies = Array.from({ length: size }, () => {
     const template = pool[Math.floor(rng() * pool.length)];
@@ -85,5 +93,13 @@ rows.forEach(row => {
 });
 const monotonicMaterials = rows.every((row, index) => index === 0 || row.expectedMaterials >= rows[index - 1].expectedMaterials);
 const viableCombat = rows.every(row => row.winRate >= 0.55 && row.damageRate >= 0.04 && row.damageRate <= 0.85);
-console.log(`material_monotonic=${monotonicMaterials} combat_viable=${viableCombat}`);
-if (!monotonicMaterials || !viableCombat) process.exit(1);
+const lateRows = rows.slice(15);
+const intentionalLateRhythm = lateRows.every((row, index) => (
+  index === 0 || row.winRate >= lateRows[index - 1].winRate - 0.10
+));
+const lateTensionRemains = lateRows.some(row => row.winRate < 0.95 && row.damageRate > 0.35);
+console.log(
+  `material_monotonic=${monotonicMaterials} combat_viable=${viableCombat} ` +
+  `late_rhythm=${intentionalLateRhythm} late_tension=${lateTensionRemains}`
+);
+if (!monotonicMaterials || !viableCombat || !intentionalLateRhythm || !lateTensionRemains) process.exit(1);

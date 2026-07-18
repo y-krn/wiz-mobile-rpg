@@ -63,7 +63,7 @@ export const BIOMES = Object.freeze([
   biome({
     id: "dragon_forge", name: "竜火の鍛造殿", cssClass: "floor-theme-b5",
     bossName: "レッドドラゴン",
-    enemyPool: ["ドラゴンワーム", "ワイバーン", "レッドドラゴン", "反逆の鎧", "黒曜の魔導士", "竜血の再生者", "結界の守護者", "双頭の番犬", "盾持ちデーモン", "灰燼の術士"],
+    enemyPool: ["ドラゴンワーム", "ワイバーン", "黒曜の魔導士", "結界の守護者", "盾持ちデーモン", "灰燼の術士", "ストーンガード", "鋼殻ビートル", "双頭の番犬"],
     gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 2, trapBonus: 2 },
     theme: {
       entryText: { first: "赤熱した鍛造炉が脈打ち、竜火が石床の溝を走る。", revisit: "竜火の鍛造殿へ戻った。金床の残響が低く続く。" },
@@ -75,7 +75,7 @@ export const BIOMES = Object.freeze([
   biome({
     id: "abyssal_throne", name: "深淵の玉座", cssClass: "floor-theme-b6",
     bossName: "いにしえの竜",
-    enemyPool: ["マスターデーモン", "プリーストデーモン", "命喰いの影", "深淵の分裂体", "破滅の導師", "盾持ちデーモン", "結界の守護者", "黒曜の魔導士", "灰燼の術士"],
+    enemyPool: ["マスターデーモン", "プリーストデーモン", "命喰いの影", "深淵の分裂体", "破滅の導師", "盾持ちデーモン", "結界の守護者", "反逆の鎧", "竜血の再生者"],
     gimmicks: { trapSet: ["mpDrain", "pitfall", "alarm"], oneWayBonus: 2, trapBonus: 3 },
     theme: {
       entryText: { first: "光の届かない玉座で、深淵の脈動が床を震わせる。", revisit: "深淵の玉座へ戻った。見えない視線が一歩ごとに追う。" },
