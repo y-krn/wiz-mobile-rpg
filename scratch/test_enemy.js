@@ -13,7 +13,7 @@ import { ENCOUNTER_PACKS } from "../src/combat_ui/encounter.js";
 import { MONSTERS } from "../src/data/monsters.js";
 import { SHOP_STOCK } from "../src/shop/shop_stock.js";
 import { checkCharLevelUp } from "../src/data.js";
-import { createDefaultRoster } from "../src/state.js";
+import { createSoloCharacter } from "../src/state.js";
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
 
 (async () => {
@@ -372,11 +372,10 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
     console.log("=== START ENEMY ROW SYSTEM VERIFICATION ===");
 
     // 1. Create a party
-    const roster = createDefaultRoster();
-    const arthur = roster.find(c => c.name === "Arthur");
-    const robin = roster.find(c => c.name === "Robin");
-    const maria = roster.find(c => c.name === "Maria");
-    const ged = roster.find(c => c.name === "Ged");
+    const arthur = createSoloCharacter("Fighter");
+    const robin = createSoloCharacter("Thief");
+    const maria = createSoloCharacter("Priest");
+    const ged = createSoloCharacter("Mage");
     const party = [arthur, robin, maria, ged];
 
     // Base State setup

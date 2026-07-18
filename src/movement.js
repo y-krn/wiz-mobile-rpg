@@ -212,6 +212,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
 
     const theme = getFloorTheme(nextFloor);
     const firstVisit = revealFloor(state, nextFloor);
+    applyFloorTransitionHeal();
     if (isPitfall) {
       addLog(`ドスン！地下${nextFloor}階の冷たい床に叩きつけられた！`);
     } else {
@@ -229,6 +230,17 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
       onLanding();
     }
   }, 1200);
+}
+
+export function applyFloorTransitionHeal() {
+  const char = state.party[0];
+  if (!char || char.hp <= 0 || char.status === "dead") return 0;
+  const maxHp = getCharMaxHp(char);
+  const healed = Math.min(maxHp - char.hp, Math.max(1, Math.floor(maxHp * 0.15)));
+  if (healed <= 0) return 0;
+  char.hp += healed;
+  addLog(`階層移動の小休止でHPが${healed}回復した。`);
+  return healed;
 }
 
 function checkSensoryAura() {
@@ -398,35 +410,6 @@ export function applyStairsHeal(cell) {
 }
 
 export function checkCellEvents(prevX = START_X, prevY = START_Y) {
-  // 遺留品の回収チェック
-  if (state.remains && state.remains.length > 0) {
-    const remainsIdx = state.remains.findIndex(rem => rem.floor === state.floor && rem.x === state.x && rem.y === state.y);
-    if (remainsIdx !== -1) {
-      const remains = state.remains[remainsIdx];
-      addLog(`【遺留品回収】かつて全滅した地点にたどり着いた。遺留品を発見し、回収した！`);
-      playSound("gold");
-      
-      let recoveredCount = 0;
-      remains.items.forEach(item => {
-        // インベントリに戻す (上限20個を一時的に超過可能)
-        state.inventory.push(item);
-        recoveredCount++;
-      });
-
-      if (recoveredCount > 0) {
-        addLog(`遺留品からアイテムを ${recoveredCount} 個回収しました。`);
-      } else {
-        addLog(`遺留品の中身は空だった。`);
-      }
-
-      // 遺留品データを削除
-      state.remains.splice(remainsIdx, 1);
-      
-      saveAutosave();
-      updateUI();
-    }
-  }
-
   const cell = state.map[state.y][state.x];
   applyStairsHeal(cell);
 
@@ -669,25 +652,11 @@ export function triggerFlameTrap() {
 }
 
 export function enterDungeon() {
-  if (!state.party || state.party.length === 0) {
-    addLog("【警告】迷宮に入るには、まずお城の「訓練場」でパーティを編成してください。");
-    playSound("bump");
-    updateUI();
-    return;
-  }
-
-  const hasLivingMember = state.party.some(c => c.status !== "dead" && c.status !== "ash");
-  if (!hasLivingMember) {
-    addLog("【警告】生存している冒険者がいません。カント寺院で蘇生するか、訓練場で編成してください。");
-    playSound("bump");
-    updateUI();
-    return;
-  }
-
-  executeEnterDungeon(1);
+  openSubmenu("solo_start", "クラスを選択：毎ラン Lv1 から開始");
 }
 
 export function executeEnterDungeon(floor) {
+  state.party = state.party.slice(0, 1);
   state.gameState = "explore";
   state.floor = floor;
   state.sessionMaxFloor = floor; // セッション最深階を初期化

@@ -1,30 +1,21 @@
-import { state, saveAutosave, addLog, isSoftlocked } from "../state.js";
+import { state, saveAutosave, addLog } from "../state.js";
 import { playSound } from "../audio.js";
-import { updateUI, openArchivesOverlay, openContractsOverlay, openWarehouseOverlay } from "../ui.js";
+import { openArchivesOverlay, openContractsOverlay, openWarehouseOverlay } from "../ui.js";
 import { openSubmenu } from "../navigation.js";
 import { generateContractsList } from "../contracts.js";
-import { getCharMaxHp, getCharMaxMp, getItemBaseId, getItemData, getClassJpName, formatAffixText, getAffixDefinition } from "../data.js";
+import { getItemBaseId, getItemData, formatAffixText, getAffixDefinition } from "../data.js";
 import { renderMaterialsHUD } from "./materials_hud.js";
 import { renderCraftRecipesView } from "./craft_recipes_view.js";
 import { CRAFT_RECIPES, getEnhanceCost, executeCraft, executeEnhance, getPolishCost, executePolish, executeDismantle, getDismantleResults, executeTagInscription } from "../craft.js";
 import { MATERIAL_TAGS, TAG_EFFECT_MAP } from "../data/tags.js";
-import { getReviveCost } from "../rules/revive_rules.js";
-
-import { openEquipOverlay } from "../equip.js";
 
 export function handleTownOption(option) {
   if (option === "castle") {
-    openSubmenu("castle_main", "おしろ - 冒険者管理と記録：");
+    openSubmenu("castle_main", "おしろ - 記録：");
   } else if (option === "shop") {
     openSubmenu("shop_main", "ボルタック商店 - アイテムの売買：");
-  } else if (option === "temple") {
-    openSubmenu("temple_main", "カント寺院 - 蘇生と治療：");
-  } else if (option === "camp") {
-    openEquipOverlay(0);
   } else if (option === "craft") {
     openSubmenu("craft_main", "工房 - 製作と装備強化：");
-  } else if (option === "training") {
-    openSubmenu("party_assemble", "訓練場 - パーティ編成:");
   } else if (option === "archives") {
     openArchivesOverlay();
   } else if (option === "contracts") {
@@ -34,191 +25,6 @@ export function handleTownOption(option) {
     openContractsOverlay();
   } else if (option === "warehouse") {
     openWarehouseOverlay();
-  }
-}
-
-export function renderTempleMain(optGrid) {
-  optGrid.innerHTML = "";
-  optGrid.classList.add("temple-list-mode");
-  
-  // ロースター全体から、死亡・状態異常・灰化などのキャラを対象にする
-  const targetChars = state.roster.filter(char => {
-    return char.status === "dead" || 
-           char.status === "ash" || 
-           ["sleep", "paralyze", "paralyzed", "poisoned", "blind"].includes(char.status);
-  });
-
-  if (targetChars.length === 0) {
-    const info = document.createElement("div");
-    info.className = "detail-placeholder";
-    info.style.textAlign = "center";
-    info.style.padding = "20px 0";
-    info.textContent = "治療や蘇生が必要な冒険者は名簿にいません。";
-    optGrid.appendChild(info);
-  } else {
-    let hasAffordableAction = false;
-    targetChars.forEach((char) => {
-      const card = document.createElement("div");
-      card.className = "temple-card";
-      
-      let price = 0;
-      let text;
-      let actionType;
-      let statusClass;
-      let statusText;
-      
-      if (char.status === "dead") {
-        price = getReviveCost(char);
-        text = "蘇生";
-        actionType = "revive_dead";
-        statusClass = "status-dead";
-        statusText = "死亡";
-      } else if (char.status === "ash") {
-        price = getReviveCost(char);
-        text = "灰蘇生";
-        actionType = "revive_ash";
-        statusClass = "status-ash";
-        statusText = "灰";
-      } else {
-        price = 50;
-        text = "治療";
-        actionType = "cure";
-        statusClass = "status-other";
-        if (char.status === "sleep") statusText = "睡眠";
-        else if (char.status === "paralyze" || char.status === "paralyzed") statusText = "麻痺";
-        else if (char.status === "poisoned") statusText = "毒";
-        else if (char.status === "blind") statusText = "暗闇";
-        else statusText = char.status;
-      }
-
-      const charJpClass = getClassJpName(char.class);
-
-      // キャラクター情報
-      const infoDiv = document.createElement("div");
-      infoDiv.className = "temple-char-info";
-      
-      const nameSpan = document.createElement("span");
-      nameSpan.className = "temple-char-name";
-      nameSpan.textContent = char.name;
-      
-      const metaSpan = document.createElement("span");
-      metaSpan.className = "temple-char-meta";
-      metaSpan.textContent = `${charJpClass} Lv.${char.level}`;
-      
-      infoDiv.appendChild(nameSpan);
-      infoDiv.appendChild(metaSpan);
-
-      // ステータスと費用
-      const statusCostDiv = document.createElement("div");
-      statusCostDiv.className = "temple-status-cost";
-      
-      const statusSpan = document.createElement("span");
-      statusSpan.className = `temple-status ${statusClass}`;
-      statusSpan.textContent = statusText;
-      
-      const costSpan = document.createElement("span");
-      costSpan.className = "temple-cost";
-      costSpan.textContent = `${price}G`;
-      
-      statusCostDiv.appendChild(statusSpan);
-      statusCostDiv.appendChild(costSpan);
-
-      // アクションボタン
-      const btn = document.createElement("button");
-      btn.className = "btn btn-neon btn-temple-action";
-      btn.textContent = text;
-      
-      if (price === 0 || state.gold < price) {
-        btn.disabled = true;
-      } else {
-        hasAffordableAction = true;
-      }
-      
-      btn.addEventListener("click", () => {
-        state.gold -= price;
-        
-        // 最新の全滅ログで運命を追記するためのヘルパー
-        const updateLatestDeathLog = (outcome) => {
-          if (state.deathLogs && state.deathLogs.length > 0) {
-            const latestLog = state.deathLogs.find(log => log.outcomes && log.outcomes[char.name] !== undefined);
-            if (latestLog) {
-              latestLog.outcomes[char.name] = outcome;
-            }
-          }
-        };
-
-        if (actionType === "revive_dead") {
-          const successChance = Math.min(95, 70 + char.vit);
-          const success = Math.random() * 100 < successChance;
-          if (success) {
-            char.status = "ok";
-            char.hp = 1;
-            playSound("heal");
-            addLog(`僧侶が祈りを捧げる... ${char.name}は生存へ蘇生成功した！`);
-            updateLatestDeathLog("生存へ蘇生成功");
-          } else {
-            char.status = "ash";
-            char.hp = 0;
-            playSound("chest_trap"); // 失敗時の不穏な音
-            addLog(`僧侶が祈りを捧げるが、力及ばず... ${char.name}は灰になってしまった！`);
-            updateLatestDeathLog("灰化");
-          }
-        } else if (actionType === "revive_ash") {
-          const successChance = Math.min(85, 40 + char.vit);
-          const success = Math.random() * 100 < successChance;
-          if (success) {
-            char.status = "ok";
-            char.hp = 1;
-            playSound("heal");
-            addLog(`奇跡が起きた！ ${char.name}は灰から生存へ蘇生成功した！`);
-            updateLatestDeathLog("生存へ蘇生成功 (灰から)");
-          } else {
-            playSound("game_over"); // ロスト時の悲劇的な音
-            addLog(`天に祈りは届かなかった... ${char.name}は冷たい灰のまま崩れ去り、完全にロストした。`);
-            updateLatestDeathLog("完全ロスト");
-            
-            // ロースターとパーティーから完全削除
-            state.party = state.party.filter(c => c.name !== char.name);
-            state.roster = state.roster.filter(c => c.name !== char.name);
-          }
-        } else if (actionType === "cure") {
-          char.status = "ok";
-          if (char.hp === 0) char.hp = 1;
-          playSound("heal");
-          addLog(`僧侶が治癒 of 光を放つ... ${char.name}は正常な状態に戻った！`);
-        }
-        
-        saveAutosave();
-        openSubmenu("temple_main", "カント寺院 - 蘇生と治療：", true); // refresh
-      });
-
-      card.appendChild(infoDiv);
-      card.appendChild(statusCostDiv);
-      card.appendChild(btn);
-      optGrid.appendChild(card);
-    });
-
-    if (!hasAffordableAction) {
-      const info = document.createElement("div");
-      info.className = "detail-placeholder";
-      info.style.textAlign = "center";
-      info.style.padding = "10px";
-      if (isSoftlocked()) {
-        info.textContent = "蘇生・治療に必要な金貨が足りません。訓練場で新人を迎えて編成を立て直してください。";
-      } else {
-        info.textContent = "蘇生・治療に必要な金貨が足りません。待機メンバーがいる場合は訓練場で編成を立て直せます。";
-      }
-      optGrid.appendChild(info);
-
-      const btnTraining = document.createElement("button");
-      btnTraining.className = "btn btn-neon btn-block";
-      btnTraining.style.height = "44px";
-      btnTraining.textContent = "👥 訓練場で編成する";
-      btnTraining.addEventListener("click", () => {
-        openSubmenu("party_assemble", "訓練場 - パーティ編成：");
-      });
-      optGrid.appendChild(btnTraining);
-    }
   }
 }
 
@@ -1014,126 +820,27 @@ export function renderCastleMain(optGrid) {
   optGrid.style.flexDirection = "column";
   optGrid.style.gap = "8px";
   
-  const aliveMembers = state.party.filter(char => char.status !== "dead" && char.status !== "ash");
-  const totalLv = aliveMembers.reduce((sum, char) => sum + char.level, 0);
-  const innCost = totalLv * 10;
   const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
 
-  // 🛌 馬小屋で休む (無料 / MPのみ回復)
-  const btnStable = document.createElement("button");
-  btnStable.className = "btn btn-neon btn-block";
-  btnStable.style.height = "44px";
-  btnStable.textContent = "🛌 馬小屋で休む (無料 / MP回復)";
-  btnStable.addEventListener("click", () => {
-    state.party.forEach(char => {
-      if (char.status !== "dead" && char.status !== "ash") {
-        char.mp = getCharMaxMp(char);
-      }
-    });
-    
-    if (hasCrystal) {
+  if (hasCrystal) {
+    const btnCrystal = document.createElement("button");
+    btnCrystal.className = "btn btn-neon btn-block";
+    btnCrystal.style.height = "44px";
+    btnCrystal.textContent = "浮遊石を王へ献上する";
+    btnCrystal.addEventListener("click", () => {
       playSound("level_up");
       state.cleared = true;
       state.inventory = state.inventory.filter(item => getItemBaseId(item) !== "ANTIGRAVITY_CRYSTAL");
-      state.party.forEach(char => {
-        if (char.status !== "dead" && char.status !== "ash") {
-          char.hp = getCharMaxHp(char);
-        }
-      });
       addLog("**************************************************");
       addLog("おめでとうございます！浮遊石を持ち帰りました！");
       addLog("王より名誉勲章が授与され、初踏破が記録されました！");
       addLog("以後も、街からさらなる探索を続けられます。");
       addLog("**************************************************");
       saveAutosave();
-    } else {
-      playSound("heal");
-      addLog("おしろ（馬小屋）：パーティは休息した。MPが全回復した！（HPは回復していません）");
-      saveAutosave();
-    }
-    updateUI();
-    renderCastleMain(optGrid);
-  });
-  optGrid.appendChild(btnStable);
-
-  // 🛌 宿屋で休む (有料 / HP・MP全回復)
-  const btnInn = document.createElement("button");
-  btnInn.className = "btn btn-neon btn-block";
-  btnInn.style.height = "44px";
-  btnInn.textContent = `🛌 宿屋で休む (${innCost}G / HP・MP全回復)`;
-  if (state.gold < innCost && !hasCrystal) {
-    btnInn.disabled = true;
+      renderCastleMain(optGrid);
+    });
+    optGrid.appendChild(btnCrystal);
   }
-  btnInn.addEventListener("click", () => {
-    if (!hasCrystal) {
-      state.gold -= innCost;
-    }
-    state.party.forEach(char => {
-      if (char.status !== "dead" && char.status !== "ash") {
-        char.hp = getCharMaxHp(char);
-        char.mp = getCharMaxMp(char);
-      }
-    });
-    
-    if (hasCrystal) {
-      playSound("level_up");
-      state.cleared = true;
-      state.inventory = state.inventory.filter(item => getItemBaseId(item) !== "ANTIGRAVITY_CRYSTAL");
-      addLog("**************************************************");
-      addLog("おめでとうございます！浮遊石を持ち帰りました！");
-      addLog("王より名誉勲章が授与され、初踏破が記録されました！");
-      addLog("以後も、街からさらなる探索を続けられます。");
-      addLog("**************************************************");
-      saveAutosave();
-    } else {
-      playSound("heal");
-      addLog(`おしろ（宿屋）：${innCost}Gを支払い、宿屋で休息した。HPとMPが全回復した！`);
-      saveAutosave();
-    }
-    updateUI();
-    renderCastleMain(optGrid);
-  });
-  optGrid.appendChild(btnInn);
-
-  // 👥 メンバー編成 (訓練場)
-  const btnAssemble = document.createElement("button");
-  btnAssemble.className = "btn btn-neon btn-block";
-  btnAssemble.style.height = "44px";
-  btnAssemble.textContent = "👥 メンバー編成 (訓練場)";
-  btnAssemble.addEventListener("click", () => {
-    openSubmenu("party_assemble", "訓練場 - パーティ編成:");
-  });
-  optGrid.appendChild(btnAssemble);
-
-  // ⛪ 寺院で蘇生・治療
-  const btnTemple = document.createElement("button");
-  btnTemple.className = "btn btn-neon btn-block";
-  btnTemple.style.height = "44px";
-  btnTemple.textContent = "⛪ 寺院で蘇生・治療する";
-  btnTemple.addEventListener("click", () => {
-    openSubmenu("temple_main", "カント寺院 - 蘇生と治療：");
-  });
-  optGrid.appendChild(btnTemple);
-
-  // 💀 死亡者・ロスト確認
-  const btnDeadList = document.createElement("button");
-  btnDeadList.className = "btn btn-neon btn-block";
-  btnDeadList.style.height = "44px";
-  btnDeadList.textContent = "💀 死亡者・完全ロスト名簿";
-  btnDeadList.addEventListener("click", () => {
-    openSubmenu("castle_dead_list", "おしろ - 死亡者・完全ロスト名簿：");
-  });
-  optGrid.appendChild(btnDeadList);
-
-  // 📦 遺留品情報確認
-  const btnRemains = document.createElement("button");
-  btnRemains.className = "btn btn-neon btn-block";
-  btnRemains.style.height = "44px";
-  btnRemains.textContent = "📦 遺留品情報確認";
-  btnRemains.addEventListener("click", () => {
-    openSubmenu("castle_remains_list", "おしろ - 遺留品情報：");
-  });
-  optGrid.appendChild(btnRemains);
 
   // 📜 全滅ログ確認
   const btnDeathLogs = document.createElement("button");
@@ -1154,77 +861,6 @@ export function renderCastleMain(optGrid) {
   info.style.fontSize = "9px";
   info.textContent = "● 記録済み (オートセーブ)";
   optGrid.appendChild(info);
-}
-
-export function renderCastleDeadList(optGrid) {
-  optGrid.innerHTML = "";
-  optGrid.style.display = "flex";
-  optGrid.style.flexDirection = "column";
-  optGrid.style.gap = "8px";
-  
-  const deadOrAshChars = state.roster.filter(c => c.status === "dead" || c.status === "ash");
-  
-  if (deadOrAshChars.length === 0) {
-    const emptyMsg = document.createElement("div");
-    emptyMsg.className = "detail-placeholder";
-    emptyMsg.style.textAlign = "center";
-    emptyMsg.style.padding = "20px 0";
-    emptyMsg.textContent = "死亡または灰化している冒険者は名簿にいません。";
-    optGrid.appendChild(emptyMsg);
-  } else {
-    deadOrAshChars.forEach(char => {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-neon btn-block";
-      btn.style.height = "44px";
-      btn.style.borderColor = char.status === "ash" ? "var(--neon-red)" : "var(--neon-gold)";
-      btn.style.color = char.status === "ash" ? "var(--neon-red)" : "var(--neon-gold)";
-      
-      const statusJp = char.status === "ash" ? "灰化" : "死亡";
-      btn.textContent = `${char.name} (${getClassJpName(char.class)} Lv.${char.level}) - 状態: ${statusJp} (蘇生へ)`;
-      
-      btn.addEventListener("click", () => {
-        openSubmenu("temple_main", "カント寺院 - 蘇生と治療：");
-      });
-      optGrid.appendChild(btn);
-    });
-  }
-
-}
-
-export function renderCastleRemainsList(optGrid) {
-  optGrid.innerHTML = "";
-  optGrid.style.display = "flex";
-  optGrid.style.flexDirection = "column";
-  optGrid.style.gap = "8px";
-  
-  if (!state.remains || state.remains.length === 0) {
-    const emptyMsg = document.createElement("div");
-    emptyMsg.className = "detail-placeholder";
-    emptyMsg.style.textAlign = "center";
-    emptyMsg.style.padding = "20px 0";
-    emptyMsg.textContent = "迷宮内に回収されていない遺留品はありません。";
-    optGrid.appendChild(emptyMsg);
-  } else {
-    state.remains.forEach((rem, idx) => {
-      const div = document.createElement("div");
-      div.className = "detail-placeholder";
-      div.style.border = "1px solid var(--neon-cyan)";
-      div.style.padding = "8px";
-      div.style.textAlign = "left";
-      
-      const dateStr = new Date(rem.timestamp).toLocaleString("ja-JP", { hour: '2-digit', minute: '2-digit', month: 'numeric', day: 'numeric' });
-      div.innerHTML = `
-        <div style="font-weight: bold; color: var(--neon-cyan); font-size: 11px;">📍 遺留品 #${idx + 1} (${dateStr})</div>
-        <div style="font-size: 10px; margin-top: 4px;">場所: 地下${rem.floor}階 (X:${rem.x} Y:${rem.y})</div>
-        <div style="font-size: 10px;">残されたアイテム: ${rem.items.length}個</div>
-        <div style="font-size: 8px; color: var(--text-muted); margin-top: 4px; border-top: 1px dashed #333; padding-top: 4px; max-height: 80px; overflow-y: auto;">
-          ${rem.items.map(item => `・${getItemData(item)?.name || item}`).join("<br>")}
-        </div>
-      `;
-      optGrid.appendChild(div);
-    });
-  }
-
 }
 
 export function renderCastleDeathLogs(optGrid) {
@@ -1267,7 +903,7 @@ export function renderCastleDeathLogs(optGrid) {
 
       div.innerHTML = `
         <div style="font-weight: bold; color: var(--neon-red); font-size: 11px;">💀 全滅記録 #${idx + 1} (${dateStr})</div>
-        <div style="font-size: 10px; margin-top: 4px;">第${log.floor}階層 (X:${log.x} Y:${log.y}) でパーティは全滅した。</div>
+        <div style="font-size: 10px; margin-top: 4px;">第${log.floor}階層 (X:${log.x} Y:${log.y}) で冒険者は倒れた。</div>
         <div style="font-size: 10px; color: var(--text-muted);">原因: ${log.cause || "戦闘"}</div>
         <div style="font-size: 10px; margin-top: 2px;">・銀貨 ${log.lostGold || 0} 枚を失った。</div>
         <div style="font-size: 10px;">・未確定の戦利品 ${log.lostItemsCount || 0} 個を失った。</div>

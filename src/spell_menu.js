@@ -1,12 +1,45 @@
-import { state } from "./state.js";
-import { getClassJpName, isSpellcaster, SPELLS, getSpellPayment } from "./data.js";
+import { state, saveAutosave, addLog } from "./state.js";
+import { getClassJpName, isSpellcaster, SPELLS, getSpellPayment, paySpellCost, getCoreLogText } from "./data.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
-import { executeAllySpell, executeUtilitySpell } from "./menu.js";
+import { playSound } from "./audio.js";
+import { dungeonRenderer as renderer } from "./renderer.js";
 
 export let spellMenuState = {
   filter: "all", // "all", "usable", "heal", "utility", "combat"
   selectedKey: null
 };
+
+function executeUtilitySpell() {
+  const caster = state.party[menuContext.actorIdx];
+  const spell = SPELLS[menuContext.spellName];
+  const payment = paySpellCost(caster, spell.cost);
+  if (!payment.canCast) return;
+  if (payment.resource === "hp") addLog(getCoreLogText("CORE_BLOOD_WAND"));
+  playSound("cast_spell");
+  if (menuContext.spellName === "DUMAPIC") state.dumapicTurns = 30;
+  const result = spell.effect(caster, state, state.party);
+  addLog(result.log);
+  saveAutosave();
+  closeSubmenu();
+}
+
+function executeAllySpell(targetIdx) {
+  const caster = state.party[menuContext.actorIdx];
+  const spell = SPELLS[menuContext.spellName];
+  const payment = paySpellCost(caster, spell.cost);
+  if (!payment.canCast) return;
+  if (payment.resource === "hp") addLog(getCoreLogText("CORE_BLOOD_WAND"));
+  playSound("cast_spell");
+  const target = spell.target === "all_allies" ? state.party : state.party[targetIdx];
+  const result = spell.effect(caster, target, state.party);
+  addLog(result.log);
+  if (result.heal) {
+    playSound("heal");
+    renderer?.addDamageText(`+${result.heal}`, "#00ff66");
+  }
+  saveAutosave();
+  closeSubmenu();
+}
 
 // Helper function to check spell usability in camps
 export function getSpellUsability(caster, spKey) {
@@ -28,11 +61,6 @@ export function getSpellUsability(caster, spKey) {
   if (["DIOS", "MADIOS", "DIALMA", "MADI"].includes(spKey)) {
     const hasDamaged = state.party.some(c => c.status !== "dead" && c.hp < c.maxHp);
     if (!hasDamaged) {
-      return { usable: false, reason: "対象なし" };
-    }
-  } else if (spKey === "KADORTO") {
-    const hasDead = state.party.some(c => c.status === "dead");
-    if (!hasDead) {
       return { usable: false, reason: "対象なし" };
     }
   } else if (spKey === "LATUMOFIS") {
@@ -57,10 +85,9 @@ export function getSpellUsability(caster, spKey) {
 
 // Helper function to categorize spells
 export function getSpellCategory(spKey) {
-  const healSpells = ["DIOS", "MADIOS", "DIALMA", "MADI", "DIALKO", "DIURCO", "LATUMOFIS", "KADORTO"];
+  const healSpells = ["DIOS", "MADIOS", "DIALMA", "MADI", "DIALKO", "DIURCO", "LATUMOFIS"];
   const utilitySpells = ["DUMAPIC", "MILWA", "LOMILWA", "MASFEAL"];
   if (healSpells.includes(spKey)) {
-    if (spKey === "KADORTO") return { cat: "heal", name: "蘇生" };
     if (["DIALKO", "DIURCO", "LATUMOFIS"].includes(spKey)) return { cat: "heal", name: "治療" };
     return { cat: "heal", name: "回復" };
   }
@@ -166,7 +193,7 @@ export function renderSpellOverlay() {
 
     // Sort spells
     // 1. Usable (使用可能)
-    // 2. Category order: heal (回復 -> 治療 -> 蘇生) -> utility (探索) -> combat (戦闘)
+    // 2. Category order: heal (回復 -> 治療) -> utility (探索) -> combat (戦闘)
     // 3. Unusable reason order: 戦闘のみ -> MP不足 -> 対象なし
     filteredSpells.sort((a, b) => {
       const statusA = getSpellUsability(caster, a);
@@ -185,7 +212,7 @@ export function renderSpellOverlay() {
           return catOrder[catA.cat] - catOrder[catB.cat];
         }
         if (catA.cat === "heal") {
-          const subOrder = { "回復": 0, "治療": 1, "蘇生": 2 };
+          const subOrder = { "回復": 0, "治療": 1 };
           return subOrder[catA.name] - subOrder[catB.name];
         }
         return 0;
@@ -334,18 +361,10 @@ export function renderSpellOverlay() {
       let isRecommended = false;
 
       if (char.status === "dead") {
-        if (menuContext.spellName === "KADORTO") {
-          reason = "蘇生可";
-          isRecommended = true;
-        } else {
-          isDisabled = true;
-          reason = "対象外";
-        }
+        isDisabled = true;
+        reason = "対象外";
       } else {
-        if (menuContext.spellName === "KADORTO") {
-          isDisabled = true;
-          reason = "生存中";
-        } else if (["DIOS", "MADIOS", "DIALMA"].includes(menuContext.spellName)) {
+        if (["DIOS", "MADIOS", "DIALMA"].includes(menuContext.spellName)) {
           if (char.hp >= char.maxHp) {
             isDisabled = true;
             reason = "HP満タン";

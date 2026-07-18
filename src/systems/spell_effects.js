@@ -382,25 +382,6 @@ export const SPELL_EFFECTS = {
       log: `${caster.name}はマディを唱えた！味方全員のHPを回復した。[${details}]`
     };
   },
-  KADORTO: ({ caster, target, rng = Math.random }) => {
-    let logMsg;
-    if (target.status === "dead") {
-      const successChance = Math.min(95, 70 + (target.vit || 10));
-      const roll = rng() * 100;
-      if (roll < successChance) {
-        target.status = "ok";
-        target.hp = 1;
-        logMsg = `${caster.name}は${target.name}にカドルトを唱えた。奇跡が起き、息を吹き返した！`;
-      } else {
-        target.status = "ash";
-        target.hp = 0;
-        logMsg = `${caster.name}は${target.name}にカドルトを唱えたが、力及ばず... ${target.name}は灰になってしまった！`;
-      }
-    } else {
-      logMsg = `${caster.name}は${target.name}にカドルトを唱えた。しかし効果がなかった。`;
-    }
-    return { log: logMsg };
-  },
   MABARRIER: ({ caster, target: allies }) => {
     allies.forEach(char => {
       if (char.status !== "dead") {

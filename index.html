@@ -2,7 +2,7 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -44,9 +44,6 @@
         <div id="result-overlay" class="result-overlay-container" style="display: none;"></div>
       </div>
 
-      <!-- Training overlay -->
-      <div id="training-overlay" class="training-overlay-container" style="display: none;"></div>
-
       <!-- Shop overlay (moved outside viewport for full game area layout) -->
       <div id="shop-overlay" class="shop-overlay-container" style="display: none;"></div>
 
@@ -55,9 +52,6 @@
 
       <!-- Spell overlay (moved outside viewport for full game area layout) -->
       <div id="spell-overlay" class="spell-overlay-container" style="display: none;"></div>
-
-      <!-- Camp overlay (moved outside viewport for full game area layout) -->
-      <div id="camp-overlay" class="camp-overlay-container" style="display: none;"></div>
 
       <!-- Archives overlay -->
       <div id="archives-overlay" class="archives-overlay-container" style="display: none;"></div>
@@ -100,7 +94,6 @@
             <button id="btn-inspect" class="btn btn-neon btn-action">道具</button>
             <button id="btn-cast" class="btn btn-neon btn-action">呪文</button>
             <button id="btn-item" class="btn btn-neon btn-action">装備</button>
-            <button id="btn-camp" class="btn btn-neon btn-action">キャンプ</button>
           </div>
         </div>
 
@@ -122,14 +115,11 @@
         <div id="town-controls" class="controls-group">
           <div class="town-grid">
             <button id="btn-town-dungeon" class="btn btn-neon btn-town">迷宮に入る</button>
-            <button id="btn-town-castle" class="btn btn-neon btn-town">おしろ (冒険者管理)</button>
+            <button id="btn-town-castle" class="btn btn-neon btn-town">おしろ (記録)</button>
             <button id="btn-town-contracts" class="btn btn-neon btn-town" style="border-color: var(--neon-gold); color: var(--neon-gold);">おしろの依頼書</button>
             <button id="btn-town-warehouse" class="btn btn-neon btn-town" style="border-color: var(--neon-cyan); color: var(--neon-cyan);">倉庫</button>
             <button id="btn-town-shop" class="btn btn-neon btn-town">ボルタック商店</button>
-            <button id="btn-town-temple" class="btn btn-neon btn-town">カント寺院</button>
             <button id="btn-town-craft" class="btn btn-neon btn-town" style="border-color: var(--neon-green); color: var(--neon-green);">工房</button>
-            <button id="btn-town-training" class="btn btn-neon btn-town">訓練場 (パーティ編成)</button>
-            <button id="btn-town-camp" class="btn btn-neon btn-town">装備変更</button>
             <button id="btn-town-archives" class="btn btn-neon btn-town">書庫 (図鑑・記録)</button>
           </div>
         </div>
@@ -164,15 +154,9 @@
         </div>
       </div>
 
-      <!-- Party HUD (Bottom) -->
-      <footer id="party-panel">
-        <div id="party-hud-header" class="party-hud-header" style="display: none;">
-          <span class="party-hud-title">PARTY</span>
-          <span class="party-hud-detail-btn">詳細</span>
-        </div>
-        <div id="party-grid">
-          <!-- Dynamically populated from JS -->
-        </div>
+      <!-- Solo character HUD (Bottom) -->
+      <footer id="character-panel">
+        <div id="character-hud"></div>
       </footer>
     </div>
 

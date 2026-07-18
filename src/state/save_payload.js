@@ -6,7 +6,7 @@ import { menuContext } from "../navigation.js";
 // 再開時に壊れる。基底画面へ畳んでから保存する。
 //
 // - "submenu": 親画面情報(menuContext)が未保存。gameState="submenu" のまま保存すると
-//   再開時に menuContext が初期化され、街サブメニュー(お城/宿屋/寺院 等)にいても
+//   再開時に menuContext が初期化され、街サブメニュー(お城/工房 等)にいても
 //   renderer が街と判定できず、floor=1/START座標(=地下1F登り階段)のダンジョンを描画。
 //   closeSubmenu と同じ規則で親画面へ畳む。
 // - "trap_encounter": activeTrapState が未保存。gameState="trap_encounter" のまま保存すると
@@ -19,9 +19,8 @@ function resolvePersistedGameState() {
   const t = menuContext.type || "";
   if (
     t.startsWith("shop") ||
-    t.startsWith("temple") ||
     t.startsWith("castle") ||
-    t.startsWith("party_assemble") ||
+    t.startsWith("solo_start") ||
     t.startsWith("craft")
   ) {
     return "town";
@@ -31,14 +30,12 @@ function resolvePersistedGameState() {
 }
 
 export function createSavePayload() {
-  syncPartyToRoster();
   return {
     version: SAVE_VERSION,
     x: state.x,
     y: state.y,
     dir: state.dir,
-    party: state.party,
-    roster: state.roster,
+    party: state.party.slice(0, 1),
     gold: state.gold,
     inventory: state.inventory,
     floor: state.floor,
@@ -57,7 +54,6 @@ export function createSavePayload() {
     currentRun: state.currentRun,
     runHistory: state.runHistory,
     deathLogs: state.deathLogs,
-    remains: state.remains,
     codex: state.codex,
     seed: state.seed,
     gameState: resolvePersistedGameState(),
@@ -89,8 +85,7 @@ export function applySavePayload(data) {
   state.dir = data.dir;
   state.prevX = data.prevX;
   state.prevY = data.prevY;
-  state.party = data.party;
-  state.roster = data.roster;
+  state.party = data.party.slice(0, 1);
   state.gold = data.gold;
   state.inventory = data.inventory;
   state.seed = data.seed;
@@ -115,7 +110,6 @@ export function applySavePayload(data) {
   state.currentRun = data.currentRun;
   state.runHistory = data.runHistory;
   state.deathLogs = data.deathLogs;
-  state.remains = data.remains ?? [];
   state.codex = data.codex;
   state.roamingMonsters = data.roamingMonsters;
   state.firstChestUnidentifiedGuaranteed = data.firstChestUnidentifiedGuaranteed;
@@ -132,21 +126,4 @@ export function applySavePayload(data) {
   state.materials = data.materials;
   state.dungeonMemory = data.dungeonMemory || { traps: {}, mapFragments: {}, visitedFloors: [1] };
   state.dungeonMemory.visitedFloors ||= [1];
-  
-  syncPartyToRoster();
-}
-
-// rosterをキャラクター状態の正本とし、partyの最新状態を書き戻して同一参照へ再リンクする。
-// 戦闘結果反映、帰還、save/loadの各境界はこの関数を通す。
-export function syncPartyToRoster(party = state.party) {
-  if (party && state.roster) {
-    state.party = party.map(partyChar => {
-      const idx = state.roster.findIndex(c => c.name === partyChar.name);
-      if (idx !== -1) {
-        state.roster[idx] = Object.assign(state.roster[idx], partyChar);
-        return state.roster[idx];
-      }
-      return partyChar;
-    });
-  }
 }

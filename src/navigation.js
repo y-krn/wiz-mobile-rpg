@@ -3,7 +3,7 @@ import { armControlsGuard } from "./controls_guard.js";
 
 // Submenu navigation tracker
 export let menuContext = {
-  type: "", // "camp", "spell", "item", "equip", "shop_buy", "shop_sell", "temple", "target_enemy", "target_ally"
+  type: "", // "spell", "item", "equip", "shop_buy", "shop_sell", "target_enemy", "target_ally"
   actorIdx: -1,
   spellName: "",
   itemKey: "",
@@ -88,9 +88,8 @@ export function closeSubmenu() {
       menuContext.prevGameState = null;
     } else {
       if (menuContext.type.startsWith("shop") || 
-          menuContext.type.startsWith("temple") || 
           menuContext.type.startsWith("castle") || 
-          menuContext.type.startsWith("party_assemble") || 
+          menuContext.type.startsWith("solo_start") ||
           menuContext.type.startsWith("craft")) {
         state.gameState = "town";
       } else if (menuContext.type.startsWith("combat")) {

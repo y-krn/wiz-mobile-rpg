@@ -56,7 +56,7 @@ const result = restAtCamp(state);
 assert.equal(result.available, true, "opened gate enables camp rest");
 assert.equal(fighter.hp, 56, "rest heals 40% of missing max HP including equipment bonus");
 assert.equal(fighter.mp, 13, "rest heals 40% of missing MP");
-assert.equal(dead.hp, 0, "rest does not revive dead members");
+assert.equal(dead.hp, 0, "rest does not restore a defeated character");
 assert.equal(state.currentRun.campRested[2], true, "rest records floor usage");
 assert.equal(restAtCamp(state).reason, "used", "second rest in same run is rejected");
 

@@ -90,11 +90,7 @@ export function renderCombatOverlay() {
         card.className = "combat-target-card ally";
         
         let disabled = false;
-        if (menuContext.spellName === "KADORTO") {
-          if (char.status !== "dead") disabled = true;
-        } else {
-          if (char.status === "dead") disabled = true;
-        }
+        if (char.status === "dead") disabled = true;
 
         if (disabled) {
           card.classList.add("dead");

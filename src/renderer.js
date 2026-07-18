@@ -75,7 +75,7 @@ export class DungeonRenderer {
     ctx.fillStyle = "#0c0c0e";
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    if (state.gameState === "town" || (state.gameState === "submenu" && (menuContext.prevGameState === "town" || menuContext.type.startsWith("shop") || menuContext.type.startsWith("temple") || menuContext.type === "party_assemble"))) {
+    if (state.gameState === "town" || (state.gameState === "submenu" && (menuContext.prevGameState === "town" || menuContext.type.startsWith("shop") || menuContext.type === "solo_start"))) {
       this.drawTownBackground(ctx);
     } else {
       // Exploration or Combat or Chest

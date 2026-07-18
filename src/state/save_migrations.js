@@ -1,6 +1,6 @@
 import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT } from "../data.js";
 import { generateRandomMap, removeIsolatedInternalWalls } from "../map_generator.js";
-import { generateRandomSeed, createDefaultRoster, createDefaultCodex } from "./initial_state.js";
+import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 
 export function migrateCharSpells(char) {
   if (!char.spells) char.spells = [];
@@ -9,9 +9,6 @@ export function migrateCharSpells(char) {
     if (!char.spells.includes("BADIOS")) char.spells.push("BADIOS");
     if (char.level < 8 && char.spells.includes("DIALMA")) {
       char.spells = char.spells.filter(s => s !== "DIALMA");
-    }
-    if (char.level < 9 && char.spells.includes("KADORTO")) {
-      char.spells = char.spells.filter(s => s !== "KADORTO");
     }
     if (char.spells.includes("MASFEAL")) {
       char.spells = char.spells.filter(s => s !== "MASFEAL");
@@ -42,9 +39,6 @@ export function migrateCharSpells(char) {
     }
   }
   if (char.class === "Ranger") {
-    if (char.level < 10 && char.spells.includes("KADORTO")) {
-      char.spells = char.spells.filter(s => s !== "KADORTO");
-    }
     if (char.level < 8 && char.spells.includes("DIALMA")) {
       char.spells = char.spells.filter(s => s !== "DIALMA");
     }
@@ -61,9 +55,6 @@ export function migrateCharSpells(char) {
     if (char.level < 10 && char.spells.includes("TILTOWAIT")) {
       char.spells = char.spells.filter(s => s !== "TILTOWAIT");
     }
-    if (char.level < 9 && char.spells.includes("KADORTO")) {
-      char.spells = char.spells.filter(s => s !== "KADORTO");
-    }
     if (char.level < 7 && char.spells.includes("DIALMA")) {
       char.spells = char.spells.filter(s => s !== "DIALMA");
     }
@@ -75,7 +66,7 @@ export function migrateCharSpells(char) {
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 // 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
 // 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
@@ -103,7 +94,7 @@ function backfillAffixMetadata(data) {
   [data.inventory, data.storage, data.activeMerchantStock].forEach(collection => {
     collection?.forEach(backfillItemAffixes);
   });
-  [data.party, data.roster, data.remains].forEach(characters => {
+  [data.party].forEach(characters => {
     characters?.forEach(char => {
       Object.values(char?.equipment || {}).forEach(backfillItemAffixes);
     });
@@ -112,7 +103,7 @@ function backfillAffixMetadata(data) {
 }
 
 function backfillRunAffixState(data) {
-  [data.party, data.roster, data.remains].forEach(characters => {
+  [data.party].forEach(characters => {
     characters?.forEach(char => {
       char.runTrapAttackBonus = Number.isFinite(char.runTrapAttackBonus)
         ? char.runTrapAttackBonus
@@ -167,58 +158,14 @@ function backfillMapSealedGates(data) {
   return data;
 }
 
-const MIGRATIONS = {
-  2: (data) => {
-    data.party?.forEach(normalizeCharEquipment);
-    data.roster?.forEach(normalizeCharEquipment);
-    data.remains?.forEach(normalizeCharEquipment);
-    return data;
-  },
-  3: (data) => {
-    if (data.currentRun) {
-      delete data.currentRun.seenOmenFloors;
-      delete data.currentRun.matchedOmenFloors;
-    }
-    if (data.codex?.events) {
-      delete data.codex.events.omens;
-    }
-    return data;
-  },
-  4: (data) => {
-    return backfillMapBlockEnter(data);
-  },
-  5: (data) => {
-    return backfillMapSecretDoors(data);
-  },
-  6: (data) => {
-    data.openedGates = data.openedGates ?? [];
-    return backfillMapSealedGates(data);
-  },
-  7: (data) => {
-    return backfillAffixMetadata(data);
-  },
-  8: (data) => {
-    return backfillRunAffixState(data);
-  }
-};
-
-// version番号に基づく段階migration。旧shapeを現行shapeへ引き上げてから
-// normalizeSavePayloadでデフォルト補完する。
 export function migrateSavePayload(data) {
   const from = typeof data.version === "number" ? data.version : 0;
-
-  // 未来セーブ(新版で保存→旧版コードで読込)は変換不能。normalizeは通すが警告を残す。
-  if (from > SAVE_VERSION) {
-    console.warn(`Save version ${from} is newer than supported ${SAVE_VERSION}. Loading best-effort.`);
+  if (from !== SAVE_VERSION) {
+    const error = new Error(`Save version ${from} is incompatible with solo save version ${SAVE_VERSION}.`);
+    error.name = "IncompatibleSaveVersionError";
+    throw error;
   }
-
-  let migrated = data;
-  for (let v = from + 1; v <= SAVE_VERSION; v++) {
-    const step = MIGRATIONS[v];
-    if (step) migrated = step(migrated);
-  }
-
-  const normalized = normalizeSavePayload(migrated);
+  const normalized = normalizeSavePayload(data);
   normalized.version = SAVE_VERSION;
   return normalized;
 }
@@ -232,7 +179,7 @@ export function normalizeSavePayload(data) {
   normalized.dir = data.dir ?? DIR_N;
   normalized.prevX = data.prevX ?? START_X;
   normalized.prevY = data.prevY ?? START_Y;
-  normalized.party = data.party ?? [];
+  normalized.party = Array.isArray(data.party) ? data.party.slice(0, 1) : [];
   normalized.gold = data.gold ?? 150;
   normalized.inventory = data.inventory ?? [];
   normalized.seed = data.seed ?? generateRandomSeed();
@@ -258,7 +205,6 @@ export function normalizeSavePayload(data) {
   }
   normalized.runHistory = data.runHistory ?? [];
   normalized.deathLogs = data.deathLogs ?? [];
-  normalized.remains = data.remains ?? [];
   normalized.codex = data.codex ?? createDefaultCodex();
   if (normalized.codex?.monsters) {
     Object.keys(normalized.codex.monsters).forEach(name => {
@@ -293,28 +239,9 @@ export function normalizeSavePayload(data) {
     (_, index) => index + 1
   );
 
-  if (!data.roster) {
-    let roster = [];
-    if (data.party && data.party.length > 0) {
-      roster = [...data.party];
-    }
-    const defRoster = createDefaultRoster();
-    defRoster.forEach(defChar => {
-      if (!roster.some(c => c.name === defChar.name)) {
-        roster.push(defChar);
-      }
-    });
-    normalized.roster = roster;
-  } else {
-    normalized.roster = data.roster;
-  }
-
   normalized.party.forEach(normalizeCharEquipment);
-  normalized.roster.forEach(normalizeCharEquipment);
-  normalized.remains.forEach(normalizeCharEquipment);
   backfillAffixMetadata(normalized);
   normalized.party.forEach(migrateCharSpells);
-  normalized.roster.forEach(migrateCharSpells);
   backfillRunAffixState(normalized);
 
   let loadedMaps = data.maps;

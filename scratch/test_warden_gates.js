@@ -1,7 +1,6 @@
 import { generateRandomMap, openWall } from "../src/map_generator.js";
 import { state } from "../src/state/state_core.js";
 import { applySavePayload, createSavePayload } from "../src/state/save_payload.js";
-import { migrateSavePayload } from "../src/state/save_migrations.js";
 import { applyDungeonMemoryToMaps } from "../src/state/dungeon_state.js";
 import { applyOpenedGatesToMap, findMapCellByType, findWardenGate, getWardenGateId } from "../src/state/warden_gates.js";
 import { menuContext } from "../src/navigation.js";
@@ -113,50 +112,6 @@ function assertGatePlacementConstraints() {
   assert(missingGates === 0, `gate placement regressed: ${missingGates}/500 missing`);
 }
 
-function assertOldSaveBackfill() {
-  const seed = "CASTLE-BBBB0000";
-  const maps = generateMaps(seed);
-  const oldMaps = maps.map(mapData => JSON.parse(JSON.stringify(mapData.grid)));
-  oldMaps.forEach((grid, index) => {
-    const gate = maps[index].wardenGate;
-    if (gate) openWall(grid, gate.x, gate.y, gate.dir);
-    grid.forEach(row => row.forEach(cell => {
-      delete cell.sealedGate;
-    }));
-  });
-
-  const createMigratedPayload = () => migrateSavePayload({
-    version: 5,
-    x: 1,
-    y: 1,
-    dir: 0,
-    party: [],
-    roster: [],
-    gold: 150,
-    inventory: [],
-    seed,
-    floor: 1,
-    maps: [...oldMaps.map(grid => JSON.parse(JSON.stringify(grid))), null, null],
-    visitedMaps: oldMaps.map(grid => grid.map(row => row.map(() => false))),
-    roamingMonsters: [],
-    logs: []
-  });
-  const backfill = () => {
-    applySavePayload(createMigratedPayload());
-    applyDungeonMemoryToMaps();
-    return [1, 2, 3].map(floor => {
-      const gate = findWardenGate(state.maps[floor - 1], floor);
-      assert(gate, `old save B${floor}F gate not backfilled`);
-      assert(state.roamingMonsters.some(rm => rm.kind === "warden" && rm.floor === floor), `old save B${floor}F warden not backfilled`);
-      return gate;
-    });
-  };
-
-  const firstBackfill = backfill();
-  const secondBackfill = backfill();
-  assert(JSON.stringify(firstBackfill) === JSON.stringify(secondBackfill), "old save gate backfill is not reproducible");
-}
-
 function assertOpenedGateRestores() {
   const seed = "WARDEN-OPENED";
   const maps = generateMaps(seed);
@@ -178,7 +133,6 @@ function assertWardenConfirmSaveCollapses() {
 
 ["CASTLE-TEST-0", "CASTLE-TEST-4", "CASTLE-TEST-5", "CASTLE-TEST-10", "CASTLE-TEST-11"].forEach(assertGateShortcut);
 assertGatePlacementConstraints();
-assertOldSaveBackfill();
 assertOpenedGateRestores();
 assertWardenConfirmSaveCollapses();
 

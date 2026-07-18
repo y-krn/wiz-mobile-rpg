@@ -6,13 +6,13 @@ const VIEWPORTS = [
   { width: 430, height: 932, name: 'iPhone 14 Pro Max' },
 ];
 
-const PARTY_HUD_VIEWPORTS = [
+const SOLO_HUD_VIEWPORTS = [
   { width: 402, height: 874, name: 'iPhone 16 Pro standalone', safeArea: true },
   { width: 375, height: 667, name: 'iPhone SE' },
   ...VIEWPORTS,
 ];
 
-const PARTY_HUD_STATES = ['town', 'explore', 'combat', 'submenu', 'trap_encounter'];
+const SOLO_HUD_STATES = ['town', 'explore', 'combat', 'submenu'];
 
 test('Three-column corridor renderer draws adjacent front walls', async ({ page }) => {
   await page.goto('/');
@@ -270,32 +270,6 @@ test('Inline log preserves history scroll and follows new logs at the tail', asy
   await expect(page.locator('#log-content')).toContainText('末尾追従ログ');
 });
 
-test('Camp overlay keeps button focus when updateUI rerenders it', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    const { menuContext } = await import('/src/navigation.js');
-    const { updateUI } = await import('/src/ui.js');
-
-    state.gameState = 'submenu';
-    menuContext.type = 'camp_main';
-    menuContext.prevGameState = 'explore';
-    updateUI();
-  });
-
-  const statusButton = page.getByRole('button', { name: /ステータス/ });
-  await statusButton.focus();
-  await expect(statusButton).toBeFocused();
-
-  await page.evaluate(async () => {
-    const { updateUI } = await import('/src/ui.js');
-    updateUI();
-  });
-
-  await expect(page.getByRole('button', { name: /ステータス/ })).toBeFocused();
-});
-
 for (const vp of VIEWPORTS) {
   test(`Floor identity fits ${vp.name} (${vp.width}x${vp.height})`, async ({ page }) => {
     await page.setViewportSize(vp);
@@ -415,107 +389,43 @@ for (const vp of VIEWPORTS) {
   });
 }
 
-for (const vp of PARTY_HUD_VIEWPORTS) {
-  test.describe(`Party HUD MP visibility on ${vp.name} (${vp.width}x${vp.height})`, () => {
-    test.beforeEach(async ({ page }) => {
-      await page.setViewportSize({ width: vp.width, height: vp.height });
-      await page.goto('/');
-      await page.evaluate(() => {
-        localStorage.clear();
-      });
-      await page.goto('/');
-      if (vp.safeArea) {
-        await page.addStyleTag({
-          content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,
-        });
-      }
-    });
-
-    for (const gameState of PARTY_HUD_STATES) {
-      test(`MP row remains visible in ${gameState}`, async ({ page }) => {
+for (const vp of SOLO_HUD_VIEWPORTS) {
+  test.describe(`Solo HUD on ${vp.name} (${vp.width}x${vp.height})`, () => {
+    for (const gameState of SOLO_HUD_STATES) {
+      test(`shows one Mage with visible MP in ${gameState}`, async ({ page }) => {
+        await page.setViewportSize({ width: vp.width, height: vp.height });
+        await page.goto('/');
+        if (vp.safeArea) {
+          await page.addStyleTag({ content: ':root { --safe-area-top: 59px; --safe-area-bottom: 34px; }' });
+        }
         await page.evaluate(async (nextGameState) => {
-          const { state } = await import('/src/state.js');
-          const { getCharMaxMp } = await import('/src/data.js');
+          const { state, createSoloCharacter } = await import('/src/state.js');
           const { menuContext } = await import('/src/navigation.js');
           const { updateUI } = await import('/src/ui.js');
-
-          state.party = state.roster.slice(0, 4);
-          state.party.forEach((char) => {
-            char.hp = Math.max(1, char.hp);
-            char.mp = getCharMaxMp(char);
-          });
+          state.party = [createSoloCharacter('Mage')];
           state.gameState = nextGameState;
-          state.combatState = {
-            phase: 'choose_actions',
-            enemies: [],
-            monsters: [],
-            playerActions: [],
-          };
-          menuContext.type = 'camp_main';
+          state.combatState = { phase: 'choose_actions', monsters: [], playerActions: [] };
+          menuContext.type = nextGameState === 'submenu' ? 'item_inventory' : '';
           menuContext.prevGameState = 'explore';
-          state.activeTrapState = {
-            trap: {
-              type: 'mpDrain',
-              state: 'discovered',
-              floorId: 'B1',
-              difficulty: 1,
-            },
-            successRate: 80,
-            expectedEffect: 'MP減少',
-          };
-
           updateUI();
         }, gameState);
 
-        const hud = await page.evaluate(async () => {
-          const { state } = await import('/src/state.js');
-          const { isSpellcaster } = await import('/src/data.js');
-          const panel = document.querySelector('#party-panel').getBoundingClientRect();
+        const hud = await page.evaluate(() => {
+          const panel = document.querySelector('#character-panel').getBoundingClientRect();
+          const cards = Array.from(document.querySelectorAll('#character-hud .character-card'));
+          const mpRow = cards[0].querySelector('.mp-row');
           return {
             panel: panel.toJSON(),
-            rows: Array.from(document.querySelectorAll('#party-grid .party-card')).map((card, idx) => {
-              const mpRow = card.querySelector('.mp-row');
-              const mpValue = card.querySelector('.mp-row .bar-value');
-              const mpFill = card.querySelector('.mp-row .bar-fill.mp');
-              const cardRect = card.getBoundingClientRect();
-              const rowRect = mpRow.getBoundingClientRect();
-              const valueRect = mpValue.getBoundingClientRect();
-              const fillRect = mpFill.getBoundingClientRect();
-              return {
-                name: state.party[idx].name,
-                spellcaster: isSpellcaster(state.party[idx]),
-                value: mpValue.textContent,
-                visibility: getComputedStyle(mpRow).visibility,
-                card: cardRect.toJSON(),
-                row: rowRect.toJSON(),
-                valueBox: valueRect.toJSON(),
-                fill: fillRect.toJSON(),
-              };
-            }),
+            cards: cards.map(card => card.getBoundingClientRect().toJSON()),
+            mpHidden: mpRow.hidden,
+            mpText: mpRow.querySelector('.bar-value').textContent,
           };
         });
-
-        expect(hud.rows).toHaveLength(4);
-        expect(hud.panel.bottom, `Party HUD should stay inside viewport on ${vp.name}/${gameState}`).toBeLessThanOrEqual(vp.height - (vp.safeArea ? 34 : 0));
-        if (gameState !== 'town') {
-          expect(hud.panel.height, `Compact party HUD should keep the 56px height budget on ${vp.name}/${gameState}`).toBeLessThanOrEqual(56.5);
-        }
-
-        for (const row of hud.rows) {
-          expect(row.row.height, `MP placeholder row should keep layout height for ${row.name} on ${vp.name}/${gameState}`).toBeGreaterThan(0);
-          expect(row.row.top, `MP row should not clip above card for ${row.name} on ${vp.name}/${gameState}`).toBeGreaterThanOrEqual(row.card.top - 0.5);
-          expect(row.row.bottom, `MP row should not clip below card for ${row.name} on ${vp.name}/${gameState}`).toBeLessThanOrEqual(row.card.bottom + 0.5);
-          expect(row.row.bottom, `MP row should not clip below HUD for ${row.name} on ${vp.name}/${gameState}`).toBeLessThanOrEqual(hud.panel.bottom + 0.5);
-
-          if (row.spellcaster) {
-            expect(row.visibility, `Spellcaster MP row should be visible for ${row.name} on ${vp.name}/${gameState}`).toBe('visible');
-            expect(row.value, `Spellcaster MP value should be shown for ${row.name} on ${vp.name}/${gameState}`).not.toBe('');
-            expect(row.valueBox.width, `Spellcaster MP value should have visible width for ${row.name} on ${vp.name}/${gameState}`).toBeGreaterThan(0);
-            expect(row.fill.width, `Spellcaster MP bar should have visible fill for ${row.name} on ${vp.name}/${gameState}`).toBeGreaterThan(0);
-          } else {
-            expect(row.visibility, `Non-spellcaster MP row should remain a hidden placeholder for ${row.name} on ${vp.name}/${gameState}`).toBe('hidden');
-          }
-        }
+        expect(hud.cards).toHaveLength(1);
+        expect(hud.mpHidden).toBe(false);
+        expect(hud.mpText).toMatch(/\d+\/\d+/);
+        expect(hud.cards[0].bottom).toBeLessThanOrEqual(hud.panel.bottom + 0.5);
+        expect(hud.panel.bottom).toBeLessThanOrEqual(vp.height - (vp.safeArea ? 34 : 0));
       });
     }
   });
@@ -573,11 +483,9 @@ test('Standalone safe-area full-screen overlays keep controls outside system bar
   });
 
   const overlayCases = [
-    { name: 'training', selector: '#training-overlay' },
     { name: 'shop', selector: '#shop-overlay' },
     { name: 'equip', selector: '#equip-overlay' },
     { name: 'spell', selector: '#spell-overlay' },
-    { name: 'camp', selector: '#camp-overlay' },
     { name: 'archives', selector: '#archives-overlay' },
     { name: 'contracts', selector: '#contracts-overlay' },
     { name: 'warehouse', selector: '#warehouse-overlay' },
@@ -586,11 +494,9 @@ test('Standalone safe-area full-screen overlays keep controls outside system bar
   for (const overlayCase of overlayCases) {
     await page.evaluate(async (name) => {
       const overlays = [
-        'training-overlay',
         'shop-overlay',
         'equip-overlay',
         'spell-overlay',
-        'camp-overlay',
         'archives-overlay',
         'contracts-overlay',
         'warehouse-overlay',
@@ -604,25 +510,20 @@ test('Standalone safe-area full-screen overlays keep controls outside system bar
       const { getCharMaxMp } = await import('/src/data.js');
       const { openSubmenu } = await import('/src/navigation.js');
 
-      state.party = state.roster.slice(0, 4);
+      state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
       state.party.forEach((char) => {
         char.hp = Math.max(1, char.hp);
         char.mp = getCharMaxMp(char);
         char.maxMp = getCharMaxMp(char);
       });
 
-      if (name === 'training') {
-        openSubmenu('party_assemble', '訓練場 - パーティ編成:');
-      } else if (name === 'shop') {
+      if (name === 'shop') {
         openSubmenu('shop_main', 'ボルタック商店 - アイテムの売買:');
       } else if (name === 'equip') {
         const { openEquipOverlay } = await import('/src/equip.js');
         openEquipOverlay(0);
       } else if (name === 'spell') {
         openSubmenu('spell_caster_select', '呪文選択:');
-      } else if (name === 'camp') {
-        const { openCampMenu } = await import('/src/camp.js');
-        openCampMenu();
       } else if (name === 'archives') {
         const { openArchivesOverlay } = await import('/src/ui.js');
         openArchivesOverlay();
@@ -709,8 +610,8 @@ for (const vp of VIEWPORTS) {
         // Active overlay detection to avoid back-button pollution
         const activeOverlayId = await page.evaluate(() => {
           const overlays = [
-            'combat-overlay', 'result-overlay', 'training-overlay', 'shop-overlay',
-            'equip-overlay', 'spell-overlay', 'camp-overlay', 'archives-overlay',
+            'combat-overlay', 'result-overlay', 'shop-overlay',
+            'equip-overlay', 'spell-overlay', 'archives-overlay',
             'contracts-overlay', 'warehouse-overlay'
           ];
           for (const id of overlays) {
@@ -733,7 +634,7 @@ for (const vp of VIEWPORTS) {
           const filtered = [];
           for (const btn of buttons) {
             const inside = await btn.evaluate((el) => {
-              return el.closest('.combat-overlay-container, .result-overlay-container, .training-overlay-container, .shop-overlay-container, .equip-overlay-container, .spell-overlay-container, .camp-overlay-container, .archives-overlay-container, .contracts-overlay-container, .warehouse-overlay-container') !== null;
+              return el.closest('.combat-overlay-container, .result-overlay-container, .shop-overlay-container, .equip-overlay-container, .spell-overlay-container, .archives-overlay-container, .contracts-overlay-container, .warehouse-overlay-container') !== null;
             });
             if (!inside) filtered.push(btn);
           }
@@ -809,32 +710,7 @@ for (const vp of VIEWPORTS) {
       // 1. Town Screen
       await verifyScreenButtons('Town Screen');
 
-      // 2. Training Screen
-      const trainingBtn = page.locator('#btn-town-training');
-      if (await trainingBtn.isVisible()) {
-        await trainingBtn.click();
-        await page.waitForTimeout(500);
-
-        // Debug helper: select character and add to party so camp/equip screen can be opened
-        const charRow = page.locator('.char-row').first();
-        if (await charRow.isVisible()) {
-          await charRow.click();
-          await page.waitForTimeout(200);
-          const addBtn = page.locator('button:has-text("加える"):visible').first();
-          if (await addBtn.isVisible()) {
-            await addBtn.click();
-            await page.waitForTimeout(200);
-          }
-        }
-
-        await verifyScreenButtons('Training Screen');
-        // Back
-        const backBtn = page.locator('#btn-submenu-back:visible, .btn-camp-close:visible, button:has-text("戻る"):visible, button:has-text("閉じる"):visible').first();
-        await backBtn.click();
-        await page.waitForTimeout(500);
-      }
-
-      // 3. Shop Screen
+      // 2. Shop Screen
       const shopBtn = page.locator('#btn-town-shop');
       if (await shopBtn.isVisible()) {
         await shopBtn.click();
@@ -845,18 +721,7 @@ for (const vp of VIEWPORTS) {
         await page.waitForTimeout(500);
       }
 
-      // 4. Equip Screen
-      const equipBtn = page.locator('#btn-town-camp');
-      if (await equipBtn.isVisible()) {
-        await equipBtn.click();
-        await page.waitForTimeout(500);
-        await verifyScreenButtons('Equip Screen');
-        const backBtn = page.locator('button:has-text("戻る"):visible, button:has-text("閉じる"):visible, #btn-submenu-back:visible').first();
-        await backBtn.click();
-        await page.waitForTimeout(500);
-      }
-
-      // 5. Archives Screen
+      // 3. Archives Screen
       const archivesBtn = page.locator('#btn-town-archives');
       if (await archivesBtn.isVisible()) {
         await archivesBtn.click();
@@ -891,24 +756,16 @@ for (const vp of VIEWPORTS) {
     });
 
     test('Dungeon exploration controls stay compact after entering the dungeon', async ({ page }) => {
-      await page.locator('#btn-town-training').click();
-      await expect(page.locator('#training-overlay')).toBeVisible();
-      await page.locator('.char-row').first().click();
-      await page.locator('button:has-text("加える"):visible').first().click();
-      await page.locator('button:has-text("閉じる"):visible').first().click();
-      await expect(page.locator('#town-controls')).toBeVisible();
-
       await page.locator('#btn-town-dungeon').click();
-      if (await page.locator('#submenu-controls').isVisible()) {
-        await page.getByRole('button', { name: '迷宮へ入る' }).click();
-      }
+      await expect(page.locator('#submenu-controls')).toBeVisible();
+      await page.getByRole('button', { name: /戦士/ }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
 
       const panelBox = await page.locator('#controls-panel').boundingBox();
       expect(panelBox.height, `Explore controls panel should stay compact on ${vp.name}`).toBeLessThanOrEqual(130);
 
       const exploreButtons = await page.locator('#explore-controls button:visible').all();
-      expect(exploreButtons.length).toBe(9);
+      expect(exploreButtons.length).toBe(8);
       for (const btn of exploreButtons) {
         const box = await btn.boundingBox();
         const text = (await btn.textContent()).trim();
@@ -935,7 +792,7 @@ for (const vp of VIEWPORTS) {
         const { createDefaultCurrentRun } = await import('/src/state/initial_state.js');
         const { updateUI } = await import('/src/ui.js');
 
-        state.party = state.roster.slice(0, 4);
+        state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
         state.gameState = 'result';
         state.currentRun = createDefaultCurrentRun();
         state.currentRun.returnReason = 'stairs';
@@ -960,7 +817,7 @@ for (const vp of VIEWPORTS) {
           viewport: rect('#viewport-panel'),
           overlay: rect('#result-overlay'),
           button: rect('#btn-result-castle'),
-          party: rect('#party-panel'),
+          party: rect('#character-panel'),
           height: window.innerHeight,
         };
       });
@@ -973,10 +830,10 @@ for (const vp of VIEWPORTS) {
       expect(layout.overlay.height, `Result overlay should fill expanded viewport on ${vp.name}`).toBeCloseTo(layout.viewport.height, 1);
       expect(layout.button.height, `Result return button should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
       expect(layout.button.top, `Result return button should stay in bottom thumb zone on ${vp.name}`).toBeGreaterThan(vp.height * 0.5);
-      expect(layout.party.bottom, `Party HUD should stay visible below result viewport on ${vp.name}`).toBeLessThanOrEqual(layout.height);
+      expect(layout.party.bottom, `Solo HUD should stay visible below result viewport on ${vp.name}`).toBeLessThanOrEqual(layout.height);
     });
 
-    test('Standalone safe-area chest menu keeps HUD and party visible', async ({ page }) => {
+    test('Standalone safe-area chest menu keeps solo HUD visible', async ({ page }) => {
       await page.addStyleTag({
         content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,
       });
@@ -985,7 +842,7 @@ for (const vp of VIEWPORTS) {
         const { createDefaultCurrentRun } = await import('/src/state/initial_state.js');
         const { openChestMenu } = await import('/src/chest.js');
 
-        state.party = state.roster.slice(0, 4);
+        state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
         state.gameState = 'combat';
         state.floor = 5;
         state.currentRun = createDefaultCurrentRun();
@@ -1040,10 +897,10 @@ for (const vp of VIEWPORTS) {
           goal: rect('#goal-banner'),
           viewport: chestLayout.viewport,
           controls: rect('#controls-panel'),
-          party: rect('#party-panel'),
+          party: rect('#character-panel'),
           buttons: Array.from(document.querySelectorAll('#submenu-options button'))
             .map((el) => el.getBoundingClientRect().toJSON()),
-          partyCards: Array.from(document.querySelectorAll('#party-grid .party-card'))
+          characterCards: Array.from(document.querySelectorAll('#character-hud .character-card'))
             .map((el) => el.getBoundingClientRect().toJSON()),
           height: window.innerHeight,
           hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -1056,22 +913,22 @@ for (const vp of VIEWPORTS) {
       expect(layout.viewport.height, `Chest viewport should grow when logs are hidden on ${vp.name}`).toBeGreaterThan(layout.resultViewport.height);
       expect(layout.header.top, `Header should clear standalone top safe area on ${vp.name}`).toBeGreaterThanOrEqual(59);
       expect(layout.goal.bottom, `Goal banner should not be covered by viewport on ${vp.name}`).toBeLessThanOrEqual(layout.viewport.top);
-      expect(layout.party.bottom, `Party HUD should clear standalone bottom safe area on ${vp.name}`).toBeLessThanOrEqual(layout.height - 34);
+      expect(layout.party.bottom, `Solo HUD should clear standalone bottom safe area on ${vp.name}`).toBeLessThanOrEqual(layout.height - 34);
       expect(layout.buttons).toHaveLength(4);
       expect(layout.hasHorizontalOverflow, `Chest menu should not create horizontal overflow on ${vp.name}`).toBe(false);
       for (const button of layout.buttons) {
         expect(button.height, `Chest action buttons should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
         expect(button.bottom, `Chest action buttons should stay within controls on ${vp.name}`).toBeLessThanOrEqual(layout.controls.bottom);
       }
-      expect(layout.partyCards).toHaveLength(4);
-      for (const card of layout.partyCards) {
-        expect(card.bottom, `Party card should remain inside party panel on ${vp.name}`).toBeLessThanOrEqual(layout.party.bottom);
+      expect(layout.characterCards).toHaveLength(1);
+      for (const card of layout.characterCards) {
+        expect(card.bottom, `Character card should remain inside character panel on ${vp.name}`).toBeLessThanOrEqual(layout.party.bottom);
       }
-      expect(layout.controls.bottom, `Controls should not push party panel offscreen on ${vp.name}`).toBeLessThanOrEqual(layout.party.top);
+      expect(layout.controls.bottom, `Controls should not push character panel offscreen on ${vp.name}`).toBeLessThanOrEqual(layout.party.top);
 
       await page.getByRole('button', { name: '宝箱を開ける' }).click();
       await expect(page.locator('#submenu-title')).toContainText('宝箱を開けるキャラクターを選択');
-      await expect(page.getByRole('button', { name: /Robin .*開ける/ })).toBeVisible();
+      await expect(page.getByRole('button', { name: /Ged .*開ける/ })).toBeVisible();
 
       const openerLayout = await page.evaluate(() => {
         const controls = document.querySelector('#controls-panel').getBoundingClientRect().toJSON();
@@ -1085,16 +942,16 @@ for (const vp of VIEWPORTS) {
           hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         };
       });
-      expect(openerLayout.buttons).toHaveLength(4);
+      expect(openerLayout.buttons).toHaveLength(1);
       expect(openerLayout.hasHorizontalOverflow, `Chest opener select should not create horizontal overflow on ${vp.name}`).toBe(false);
       for (const button of openerLayout.buttons) {
         expect(button.rect.height, `Chest opener button "${button.text}" should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
         expect(button.rect.bottom, `Chest opener button "${button.text}" should stay within controls on ${vp.name}`).toBeLessThanOrEqual(openerLayout.controls.bottom);
       }
 
-      await page.getByRole('button', { name: /Robin .*開ける/ }).click();
+      await page.getByRole('button', { name: /Ged .*開ける/ }).click();
       await expect(page.locator('#log-panel')).toBeVisible();
-      await expect(page.locator('#log-content')).toContainText('Robinは12のダメージを受けた');
+      await expect(page.locator('#log-content')).toContainText('Gedは12のダメージを受けた');
       await expect(page.locator('#log-content')).toContainText('宝箱から 120 ゴールドを見つけた！');
       await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
     });
@@ -1106,7 +963,7 @@ for (const vp of VIEWPORTS) {
         const { updateUI } = await import('/src/ui.js');
 
         Math.random = () => 0.1;
-        state.party = state.roster.slice(0, 4);
+        state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
         state.gameState = 'explore';
         state.floor = 2;
         state.gold = 100;
@@ -1189,7 +1046,7 @@ for (const vp of VIEWPORTS) {
         state.controlsGuardUntil = 0;
         const userSubmenu = clickProbe(document.getElementById('submenu-controls'));
 
-        state.party = state.roster.slice(0, 4);
+        state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
         startTrapEncounter({ type: 'damage', state: 'discovered', floorId: 'B1', difficulty: 10 });
         const trap = clickProbe(document.getElementById('trap-controls'));
         return { event, userSubmenu, trap };
@@ -1205,7 +1062,7 @@ for (const vp of VIEWPORTS) {
         const { state, createDefaultCurrentRun } = await import('/src/state.js');
         const { getWardenGateId } = await import('/src/state/warden_gates.js');
         const { openSubmenu } = await import('/src/navigation.js');
-        state.party = state.roster.slice(0, 4);
+        state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
         state.party.forEach(char => {
           char.hp = Math.max(1, Math.floor(char.maxHp / 2));
           char.mp = Math.floor(char.maxMp / 2);
@@ -1232,7 +1089,7 @@ for (const vp of VIEWPORTS) {
       await expect(page.getByRole('button', { name: '立ち去る' })).toBeVisible();
     });
 
-    test('Standalone safe-area town menu is scroll-contained above party HUD', async ({ page }) => {
+    test('Standalone safe-area town menu is scroll-contained above solo HUD', async ({ page }) => {
       await page.addStyleTag({
         content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,
       });
@@ -1246,14 +1103,14 @@ for (const vp of VIEWPORTS) {
         const grid = document.querySelector('.town-grid');
         return {
           controls: rect('#controls-panel'),
-          party: rect('#party-panel'),
+          party: rect('#character-panel'),
           grid: rect('.town-grid'),
           scrollHeight: grid ? grid.scrollHeight : 0,
           clientHeight: grid ? grid.clientHeight : 0,
         };
       });
 
-      expect(initialLayout.controls.bottom, `Town controls should not overlap party HUD on ${vp.name}`).toBeLessThanOrEqual(initialLayout.party.top);
+      expect(initialLayout.controls.bottom, `Town controls should not overlap solo HUD on ${vp.name}`).toBeLessThanOrEqual(initialLayout.party.top);
       expect(initialLayout.grid.bottom, `Town grid should be clipped inside controls panel on ${vp.name}`).toBeLessThanOrEqual(initialLayout.controls.bottom);
 
       await page.locator('.town-grid').evaluate((el) => {
@@ -1275,108 +1132,20 @@ for (const vp of VIEWPORTS) {
       expect(scrolledLayout.last.top, `Last town button should remain below the top of the town grid on ${vp.name}`).toBeGreaterThanOrEqual(scrolledLayout.grid.top - 1);
     });
 
-    test('Party formation reordering works in adventure camp menu', async ({ page }) => {
-      // 1. Add characters to party at Training Ground
-      await page.locator('#btn-town-training').click();
-      await expect(page.locator('#training-overlay')).toBeVisible();
-
-      // Add character 1
-      await page.locator('.char-row').nth(0).click();
-      await page.waitForTimeout(100);
-      await page.locator('button:has-text("加える"):visible').first().click();
-      await page.waitForTimeout(200);
-
-      // Add character 2
-      await page.locator('.char-row').nth(0).click();
-      await page.waitForTimeout(100);
-      await page.locator('button:has-text("加える"):visible').first().click();
-      await page.waitForTimeout(200);
-
-      // Close training
-      await page.locator('button:has-text("閉じる"):visible').first().click();
-      await page.waitForTimeout(200);
-
-      // 2. Enter Dungeon
+    test('Class selection starts exactly one Lv1 solo character', async ({ page }) => {
       await page.locator('#btn-town-dungeon').click();
-      if (await page.locator('#submenu-controls').isVisible()) {
-        await page.getByRole('button', { name: '地下1階から潜る' }).click();
-      }
+      await expect(page.locator('#submenu-title')).toContainText('クラスを選択');
+      await page.getByRole('button', { name: /盗賊/ }).click();
       await expect(page.locator('#explore-controls')).toBeVisible();
-
-      // 3. Open Camp
-      await page.locator('#btn-camp').click();
-      await expect(page.locator('#camp-overlay')).toBeVisible();
-
-      // 4. Go to Formation Screen
-      const btnFormation = page.locator('button:has-text("隊列変更"):visible');
-      await expect(btnFormation).toBeVisible();
-      await btnFormation.click();
-      await page.waitForTimeout(200);
-
-      // 5. Select character and perform swap
-      const cards = page.locator('.camp-formation-card');
-      await expect(cards).toHaveCount(4);
-
-      // Get initial names
-      const name1 = await cards.nth(0).locator('.camp-formation-name').textContent();
-      const name2 = await cards.nth(1).locator('.camp-formation-name').textContent();
-
-      // Select first character card
-      await cards.nth(0).click();
-      await expect(cards.nth(0)).toHaveClass(/selected/);
-
-      // Click Down button
-      const btnDown = page.locator('button:has-text("下へ"):visible');
-      await expect(btnDown).toBeEnabled();
-      await btnDown.click();
-      await page.waitForTimeout(200);
-
-      // Names should be swapped
-      const newName1 = await cards.nth(0).locator('.camp-formation-name').textContent();
-      const newName2 = await cards.nth(1).locator('.camp-formation-name').textContent();
-      expect(newName1).toBe(name2);
-      expect(newName2).toBe(name1);
-
-      // Back to camp main
-      const btnBack = page.locator('button:has-text("メニューに戻る"):visible');
-      await btnBack.click();
-      await page.waitForTimeout(200);
-      await expect(btnFormation).toBeVisible();
-
-      // Close camp
-      const btnClose = page.locator('button:has-text("探索に戻る"):visible');
-      await btnClose.click();
-      await page.waitForTimeout(200);
-      await expect(page.locator('#explore-controls')).toBeVisible();
+      const character = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return { count: state.party.length, className: state.party[0].class, level: state.party[0].level };
+      });
+      expect(character).toEqual({ count: 1, className: 'Thief', level: 1 });
+      await expect(page.locator('#character-hud .character-card')).toHaveCount(1);
+    });
   });
-});
 }
-
-test('Castle record submenus show a single back button', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  await page.evaluate(() => {
-    localStorage.clear();
-  });
-  await page.goto('/');
-
-  await page.locator('#btn-town-castle').click();
-  await expect(page.locator('#submenu-controls')).toBeVisible();
-
-  const recordButtons = [
-    '死亡者・完全ロスト名簿',
-    '遺留品情報確認',
-    '全滅ログ確認',
-  ];
-
-  for (const label of recordButtons) {
-    await page.getByRole('button', { name: new RegExp(label) }).click();
-    await expect(page.locator('#btn-submenu-back')).toBeVisible();
-    await expect(page.locator('button:visible').filter({ hasText: '戻る' })).toHaveCount(1);
-    await page.locator('#btn-submenu-back').click();
-    await expect(page.getByRole('button', { name: new RegExp(label) })).toBeVisible();
-  }
-});
 
 for (const vp of VIEWPORTS) {
   test(`Craft recipes preserve action flow and tap targets on ${vp.name}`, async ({ page }) => {

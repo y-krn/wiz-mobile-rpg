@@ -88,24 +88,6 @@ export const ITEM_EFFECTS = {
     }
     return `${char.name}はエリクサーを飲んだ！HP・MPが全回復し、全ての状態異常が消え去った！`;
   },
-  SACRED_ASHES: ({ char }) => {
-    let cured = false;
-    if (char.status === "dead") {
-      char.status = "ok";
-      char.hp = 1;
-      cured = true;
-    }
-    return `${char.name}に聖灰を振りかけると、${cured ? "奇跡が起き、HP1で息を吹き返した！" : "しかし何も起こらなかった。"}`;
-  },
-  LIFE_WATER: ({ char }) => {
-    let cured = false;
-    if (char.status === "dead") {
-      char.status = "ok";
-      char.hp = getCharMaxHp(char);
-      cured = true;
-    }
-    return `${char.name}に生命の水を注ぐと、${cured ? "命が満ち、HP全快で息を吹き返した！" : "しかし何も起こらなかった。"}`;
-  },
   STR_POTION: ({ char }) => {
     addCharBuff(char, "atk", 10, 5);
     return `${char.name}は剛力の薬を使用し、攻撃力が上昇した！`;

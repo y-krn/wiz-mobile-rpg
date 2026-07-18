@@ -15,9 +15,6 @@ import { SPELL_EFFECTS } from "../src/systems/spell_effects.js";
 import { ITEM_EFFECTS } from "../src/systems/item_effects.js";
 import { getEffectiveAtk } from "../src/combat_logic/damage.js";
 import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
-import { state, initNewGame } from "../src/state.js";
-import { executeAllySpell } from "../src/camp.js";
-import { menuContext } from "../src/navigation.js";
 
 // ========================================================================
 // Single-target spell damage/balance  (元: test_spell_single_target_balance.js)
@@ -1169,45 +1166,6 @@ import { menuContext } from "../src/navigation.js";
     const resultAllFull = SPELL_EFFECTS.MADI({ caster, target: allFull, rng });
     assert.strictEqual(resultAllFull.heal, 0, "Heal amount should be 0 when everyone is full");
     assert.ok(resultAllFull.log.includes("最大だった"), "Log should mention HP was max");
-  }
-
-  // Test 3: Camp casting integration
-  {
-    console.log("- Test 3: Camp cast integration (executeAllySpell on all_allies)");
-
-    initNewGame();
-    state.party = JSON.parse(JSON.stringify(state.roster.slice(0, 4)));
-    
-    // Set actor, spell, and damage state
-    let casterIdx = state.party.findIndex(c => c.class === "Priest");
-    if (casterIdx === -1) {
-      state.party.push({ name: "PriestChar", class: "Priest", hp: 30, maxHp: 30, mp: 10, maxMp: 10, spells: [], status: "ok" });
-      casterIdx = state.party.length - 1;
-    }
-    const caster = state.party[casterIdx];
-    caster.mp = 10;
-    if (!caster.spells.includes("MADI")) {
-      caster.spells.push("MADI");
-    }
-
-    state.party.forEach((char, idx) => {
-      if (idx !== casterIdx) {
-        char.hp = 1; // set damaged
-      }
-    });
-
-    menuContext.actorIdx = casterIdx;
-    menuContext.spellName = "MADI";
-
-    // executeAllySpell should target party and reduce mp
-    executeAllySpell();
-
-    assert.strictEqual(caster.mp, 5, "Caster MP should decrease by cost 5");
-    state.party.forEach((char, idx) => {
-      if (idx !== casterIdx && char.status !== "dead") {
-        assert.ok(char.hp > 1, `Ally ${char.name} should be healed`);
-      }
-    });
   }
 
   // Test 4: Combat cast integration

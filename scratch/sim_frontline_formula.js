@@ -2,7 +2,7 @@
 // 決定論。roll[0-4]は平均2/最小0/最大4で評価。TTK=撃破必要ヒット数。
 import { MONSTERS } from "../src/data/monsters.js";
 
-// --- 前衛キャラ(訓練場初期値, training.js) ---
+// --- 前衛キャラ（初期クラス相当値） ---
 const FRONT = {
   Fighter: { str: 15, hp: 20, meleeRate: 1.00 },
   Samurai: { str: 14, hp: 18, meleeRate: 0.95 }

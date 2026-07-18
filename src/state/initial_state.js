@@ -61,8 +61,7 @@ export const createDefaultCurrentRun = () => ({
   campRested: {}
 });
 
-// Default roster (all 8 classes)
-export const createDefaultRoster = () => [
+const SOLO_CLASS_PRESETS = [
   {
     name: "Arthur",
     class: "Fighter",
@@ -255,7 +254,13 @@ export const createDefaultRoster = () => [
   }
 ];
 
-export const createDefaultParty = () => [];
+export const SOLO_CLASSES = SOLO_CLASS_PRESETS.map(({ class: className }) => className);
+
+export function createSoloCharacter(className) {
+  const preset = SOLO_CLASS_PRESETS.find(char => char.class === className);
+  if (!preset) return null;
+  return structuredClone(preset);
+}
 
 export function findSuitableRoamingMonsterStart(mapData) {
   const grid = mapData.grid;

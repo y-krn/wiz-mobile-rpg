@@ -16,11 +16,9 @@
   box-sizing: border-box;
 }
 
-.training-overlay-container,
 .shop-overlay-container,
 .equip-overlay-container,
 .spell-overlay-container,
-.camp-overlay-container,
 .archives-overlay-container,
 .contracts-overlay-container,
 .warehouse-overlay-container {

@@ -157,7 +157,7 @@ Object.defineProperty(global, "navigator", {
   assert.strictEqual(latestDeath.floor, 1, "Death floor should be 1 (reset coordinates)");
   assert.strictEqual(latestDeath.deepestFloor, 3, "deepestFloor in death log should be 3");
   assert.strictEqual(latestDeath.kills, 12, "kills in death log should be 12");
-  assert.strictEqual(latestDeath.lostItems.length, 1, "Lost items count should be 1");
+  assert.strictEqual(latestDeath.character.name, "Arthur", "Death log should identify the solo character");
 
 
   // Test 5: Persistence (Save & Load)

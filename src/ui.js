@@ -9,8 +9,8 @@ export {
 } from "./ui/ui_root.js";
 
 export {
-  updatePartyHUD
-} from "./ui/hud.js";
+  updateSoloHUD
+} from "./ui/solo_hud.js";
 
 export {
   updateCombatPrompt

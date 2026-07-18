@@ -8,11 +8,10 @@
 }
 
 #controls-panel,
-#party-panel,
+#character-panel,
 #viewport-panel,
 .shop-overlay-container,
 .equip-overlay-container,
-.training-overlay-container,
 .combat-overlay-container {
   user-select: none;
   -webkit-user-select: none;
@@ -34,4 +33,3 @@ html, body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
-

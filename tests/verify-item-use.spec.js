@@ -5,7 +5,7 @@ test('Verify HEAL_POTION use in explore menu on mobile layout', async ({ page })
   await page.goto('/');
   await page.waitForTimeout(1000);
 
-  // 1. ブラウザコンテキスト内で state を初期化し、パーティを編成してダンジョンに入る
+  // 1. ブラウザコンテキスト内でソロ状態を初期化してダンジョンに入る
   await page.evaluate(async () => {
     const stateMod = await import('/src/state.js');
     const moveMod = await import('/src/movement.js');
@@ -13,11 +13,10 @@ test('Verify HEAL_POTION use in explore menu on mobile layout', async ({ page })
     
     // ニューゲームの初期状態をロード
     stateMod.initNewGame();
-    // ロースターのメンバーをパーティに追加
-    stateMod.state.party = stateMod.state.roster.slice(0, 4);
+    stateMod.state.party = [stateMod.createSoloCharacter('Fighter')];
     
     // ダンジョンに入る
-    moveMod.enterDungeon();
+    moveMod.executeEnterDungeon(1);
     
     // バッグに HEAL_POTION を追加
     stateMod.state.inventory.push("HEAL_POTION");
@@ -33,7 +32,7 @@ test('Verify HEAL_POTION use in explore menu on mobile layout', async ({ page })
   // HUD (body) に Arthur の HP が 5 であることを示すテキスト ("H 5" または "HP: 5" 等) が含まれていることを確認
   const body = page.locator('body');
   await expect(body).toContainText('Arthur');
-  await expect(body).toContainText('H 5');
+  await expect(body).toContainText('5/20');
 
   // 2. 「調べる」（実際には「道具」を起動するボタン）をクリック
   const inspectBtn = page.locator('#btn-inspect');
@@ -56,7 +55,7 @@ test('Verify HEAL_POTION use in explore menu on mobile layout', async ({ page })
 
   // 5. 回復結果の確認
   // Arthur の HP が 20 に回復しているか ("H 20")
-  await expect(body).toContainText('H 20');
+  await expect(body).toContainText('20/20');
 
   // ログに回復メッセージが出ているか
   await expect(body).toContainText('Arthurは傷薬を使い、HPが15回復した。');
