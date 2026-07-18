@@ -3,7 +3,7 @@ import { armControlsGuard } from "./controls_guard.js";
 
 // Submenu navigation tracker
 export let menuContext = {
-  type: "", // "spell", "item", "equip", "shop_buy", "shop_sell", "target_enemy", "target_ally"
+  type: "", // "spell", "item", "equip", "workshop_main", "target_enemy", "target_ally"
   actorIdx: -1,
   spellName: "",
   itemKey: "",
@@ -55,10 +55,9 @@ export function openSubmenu(type, title, isBack = false) {
   const titleEl = document.getElementById("submenu-title");
   // Dynamic replacement of bag/inventory item counts to prevent historical desync
   let displayTitle = title;
-  if (displayTitle.includes("バッグ: ") || displayTitle.includes("共有バッグ (") || displayTitle.includes("売却 (バッグ: ")) {
+  if (displayTitle.includes("バッグ: ") || displayTitle.includes("共有バッグ (")) {
     displayTitle = displayTitle.replace(/(バッグ:\s*)\d+(個)/g, `$1${state.inventory.length}$2`);
     displayTitle = displayTitle.replace(/(共有バッグ\s*\()\d+(個)/g, `$1${state.inventory.length}$2`);
-    displayTitle = displayTitle.replace(/(売却\s*\(バッグ:\s*)\d+(個)/g, `$1${state.inventory.length}$2`);
   }
   titleEl.textContent = displayTitle;
 
@@ -87,10 +86,9 @@ export function closeSubmenu() {
       state.gameState = menuContext.prevGameState;
       menuContext.prevGameState = null;
     } else {
-      if (menuContext.type.startsWith("shop") || 
-          menuContext.type.startsWith("castle") || 
+      if (menuContext.type.startsWith("castle") ||
           menuContext.type.startsWith("solo_start") ||
-          menuContext.type.startsWith("craft")) {
+          menuContext.type.startsWith("workshop")) {
         state.gameState = "town";
       } else if (menuContext.type.startsWith("combat")) {
         state.gameState = "combat";

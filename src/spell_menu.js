@@ -422,7 +422,7 @@ export function renderSpellOverlay() {
         statusColor = "var(--neon-cyan)";
       }
 
-      const hpColor = char.hp <= char.maxHp * 0.3 ? "var(--neon-red)" : (char.hp <= char.maxHp * 0.5 ? "var(--neon-gold)" : "#fff");
+      const hpColor = char.hp <= char.maxHp * 0.3 ? "var(--neon-red)" : (char.hp <= char.maxHp * 0.5 ? "var(--neon-amber)" : "#fff");
       const statusSuffix = char.status !== "ok" && char.status !== "dead" ? ` [${char.status.toUpperCase()}]` : "";
 
       let hpOrStatusHtml = `<div class="target-card-hp" style="color: ${hpColor}">HP: ${char.hp}/${char.maxHp}</div>`;

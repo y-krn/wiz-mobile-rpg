@@ -1,8 +1,8 @@
-import { state, saveGame, saveAutosave, addLog } from "./state.js";
-import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT, getCoreLogText } from "./data.js";
+import { state, saveGame, saveAutosave } from "./state.js";
+import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT } from "./data.js";
 import { updateUI } from "./ui.js";
-import { checkActiveContract, generateContractsList } from "./contracts.js";
 import { getDepthCategory, trapPersistenceByDepth } from "./systems/traps.js";
+import { bankRunMaterials } from "./rules/material_rules.js";
 
 export function persistDungeonTraps() {
   if (!state.dungeonMemory) {
@@ -103,6 +103,13 @@ export function triggerRunResult(reason) {
   const run = state.currentRun;
   run.returnReason = reason;
   const isSuccess = reason !== "gameover";
+  const banking = bankRunMaterials(
+    state.metaMaterials,
+    run.materials,
+    isSuccess ? "retreat" : "death"
+  );
+  state.metaMaterials = banking.balance;
+  run.bankedMaterials = banking.banked;
   const danger = calculateDangerScore();
   run.dangerScore = danger.score;
   run.dangerRank = danger.rank;
@@ -123,14 +130,10 @@ export function triggerRunResult(reason) {
       if (activeEnemy) cause = `${activeEnemy.name.replace(/\\s[A-Z]$/, "")}との戦闘`;
     }
 
-    const lostMaterials = {};
-    Object.entries(run.materialsFound || {}).forEach(([name, found]) => {
-      const loss = Math.ceil(found * 0.7);
-      if (loss <= 0) return;
-      state.materials[name] = Math.max(0, (state.materials[name] || 0) - loss);
-      lostMaterials[name] = loss;
-    });
-    run.lostMaterials = lostMaterials;
+    run.lostMaterials = Object.fromEntries(Object.entries(run.materials || {}).map(([name, found]) => [
+      name,
+      found - (banking.banked[name] || 0)
+    ]));
     run.wipedFloor = state.floor;
 
     const deathEntry = {
@@ -169,8 +172,7 @@ export function triggerRunResult(reason) {
     kills: run.kills,
     chestsOpened: run.chestsOpened,
     dangerRank: danger.rank,
-    goldGained: isSuccess ? run.goldGained : 0,
-    lostGold: 0,
+    bankedMaterials: banking.banked,
     lostUnidentifiedCount: isSuccess ? 0 : run.equipmentFound.length,
     itemCount: run.itemsFound.length + run.equipmentFound.length,
     returnReason: reason,
@@ -179,14 +181,7 @@ export function triggerRunResult(reason) {
   state.runHistory.unshift(runSummary);
   state.runHistory = state.runHistory.slice(0, 20);
 
-  let contractResult = null;
-  if (state.activeContract) {
-    contractResult = checkActiveContract(state, run, isSuccess);
-    if (contractResult?.bountyHunterActivated) addLog(getCoreLogText("CORE_BOUNTY_HUNTER"));
-  } else if (isSuccess && (!state.contracts || state.contracts.length === 0)) {
-    state.contracts = generateContractsList(state);
-  }
-  run.contractResult = contractResult;
+  run.contractResult = null;
 
   state.x = START_X;
   state.y = START_Y;

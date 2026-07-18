@@ -69,7 +69,7 @@ export const ITEM_EFFECTS = {
     return `${char.name}は祝福の聖水を使い、HPが${heal}回復した。${cured ? "毒も綺麗に消え去った！" : ""}`;
   },
   TOWN_PORTAL: ({ char }) => {
-    return `${char.name}は帰還のスクロールを読んだ！`;
+    return `${char.name}は帰還の翼を掲げた！`;
   },
   PANACEA: ({ char }) => {
     if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {

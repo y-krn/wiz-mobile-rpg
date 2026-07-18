@@ -105,6 +105,47 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.workshop-grid {
+  grid-template-columns: 1fr;
+  grid-auto-rows: auto;
+  align-content: start;
+}
+
+.workshop-grid .materials-hud,
+.workshop-category {
+  grid-column: 1 / -1;
+}
+
+.workshop-grid .materials-hud {
+  color: var(--neon-green);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+.workshop-category {
+  margin: var(--space-xs) 0 0;
+  color: var(--neon-cyan);
+  font-size: var(--fs-sm);
+  text-wrap: balance;
+}
+
+.workshop-node {
+  min-height: var(--tap-min);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.workshop-node span,
+.workshop-node small {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
 
 
 #combat-controls.active {
@@ -148,7 +189,7 @@
 #submenu-title {
   font-family: var(--font-mono);
   font-size: var(--fs-md);
-  color: var(--neon-gold);
+  color: var(--neon-amber);
   text-align: center;
 }
 .submenu-grid {

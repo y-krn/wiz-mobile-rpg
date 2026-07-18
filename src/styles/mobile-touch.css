@@ -16,7 +16,6 @@
 .town-grid,
 .equip-item-list,
 .equip-detail-content,
-.shop-items-list,
 .detail-scroll-content {
   touch-action: pan-y;
 }
@@ -43,7 +42,6 @@
 }
 
 .bottom-actions-row .btn,
-.bottom-actions-row .shop-tab,
 .bottom-actions-row .equip-filter-chip,
 .bottom-actions-row .filter-chip {
   flex: 1;

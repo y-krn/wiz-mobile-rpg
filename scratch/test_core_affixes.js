@@ -112,22 +112,20 @@ test("全コア16種がenabled", () => {
   ]);
 });
 
-test("Phase 3サポートenabled・浅層経済3/戦闘1・深層逆転", () => {
+test("素材経済サポートenabled・浅層経済3/戦闘1・深層逆転", () => {
   const phase3 = [
-    "trapGold", "victoryMaterial", "stairsHeal", "identifyDiscount", "materialFind",
-    "goldBonus", "contractReward", "merchantDiscount"
+    "victoryMaterial", "stairsHeal", "identifyDiscount", "materialFind", "contractReward"
   ];
   assert.ok(phase3.every(id => SUPPORT_AFFIXES.find(affix => affix.id === id)?.enabled));
   assert.deepEqual(AFFIX_BALANCE.corePoolWeights.shallow, { combat: 1, economy: 3 });
   assert.deepEqual(AFFIX_BALANCE.corePoolWeights.deep, { combat: 3, economy: 1 });
 });
 
-test("刻印20種: cost範囲・サポートtype・素材割当が整合", () => {
+test("刻印19種: 素材cost・サポートtype・素材割当が整合", () => {
   const entries = Object.entries(TAG_EFFECT_MAP);
-  assert.equal(entries.length, 20);
+  assert.equal(entries.length, 19);
   const assignedTags = new Set(Object.values(MATERIAL_TAGS).flat());
   entries.forEach(([tag, effect]) => {
-    assert.ok(effect.gold >= 50 && effect.gold <= 300, `${tag}: gold`);
     assert.ok(effect.matCost >= 1 && effect.matCost <= 4, `${tag}: matCost`);
     assert.ok(assignedTags.has(tag), `${tag}: material assignment`);
     if (effect.type !== "curse") {
@@ -260,20 +258,18 @@ function makeRewardState(coreId, contract = null) {
     combatState: { isBoss: false, isMidboss: false, isRoamingFlack: false, monsters: [] },
     currentRun: {
       kills: 0, goldGained: 0, expGained: 0, bossesKilled: 0, elitesKilled: 0,
-      materialsFound: {}, equipmentFound: []
+      materials: {}, equipmentFound: []
     },
     codex: { stats: {}, monsters: { ゴブリン: { encountered: 1, killed: 0, firstKilled: false } } },
     firstKills: ["ゴブリン"],
-    materials: {},
     inventory: [],
-    gold: 0,
     activeContract: contract,
     floorChestsTotal: [0]
   };
 }
 
 function goblin() {
-  return { name: "ゴブリン", hp: 0, maxHp: 10, exp: 0, gold: 0, tags: [], fled: false };
+  return { name: "ゴブリン", hp: 0, maxHp: 10, exp: 0, tags: [], fled: false };
 }
 
 test("賞金稼ぎ: 契約対象キルを2倍カウント", () => {
@@ -291,16 +287,16 @@ test("学者の眼: 図鑑未登録敵からrng不発でも素材確定", () => 
   rewardState.combatState.monsters = [goblin()];
   const logs = [];
   applyCombatRewards(rewardState, rewardState.combatState.monsters, logs, () => 1);
-  assert.equal(rewardState.materials["獣の牙"], 1);
+  assert.equal(rewardState.currentRun.materials["獣の牙"], 1);
   assert.ok(logs.some(entry => entry.msg.startsWith("[学者の眼]")));
 });
 
-test("経済サポート: パーティ合算でなく最大値1人分", () => {
+test("素材サポート: パーティ合算でなく最大値1人分", () => {
   const a = makeChar(null);
   const b = makeChar(null);
-  a.equipment.armor = supportItem("goldBonus", 10);
-  b.equipment.armor = supportItem("goldBonus", 10);
-  assert.equal(getPartyMaxAffix([a, b], "goldBonus"), 10);
+  a.equipment.armor = supportItem("materialFind", 10);
+  b.equipment.armor = supportItem("materialFind", 10);
+  assert.equal(getPartyMaxAffix([a, b], "materialFind"), 10);
 });
 
 test("背水: params閾値と倍率", () => {

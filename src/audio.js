@@ -174,7 +174,7 @@ export const playSound = (type) => {
         });
         break;
       }
-      case "gold": {
+      case "item": {
         // Metallic coin sound (double chime)
         [987.77, 1318.51].forEach((freq, idx) => { // B5, E6
           const osc = ctx.createOscillator();

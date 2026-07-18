@@ -13,6 +13,7 @@ import { detectAdjacentTrapsByTraceRead, handleTrapStepCheck } from "./systems/t
 import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/warden_perception.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
+import { getWorkshopGrants } from "./systems/workshop.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -502,7 +503,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // Chest encounter
   if (cell.event === "chest") {
     addLog("鍵のかかった宝箱を見つけた！");
-    playSound("gold");
+    playSound("item");
     state.gameState = "chest";
     // Setup chest contents
     setupChestState();
@@ -537,11 +538,8 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
 
   // Merchant encounter
   if (cell.event === EVENT_TYPES.MERCHANT) {
-    const skin = getFloorTheme(state.floor)?.eventSkins.merchant || "さまよう商人";
-    if (state.codex && state.codex.events && state.codex.events.facilities) {
-      state.codex.events.facilities.merchant.found++;
-    }
-    openGuardedSubmenu(EVENT_TYPES.MERCHANT, `${skin}が暗がりから姿を現した。`);
+    cell.event = null;
+    addLog("商人の跡地がある。節目商人への転生まで一時休業中。 (#152)");
     return;
   }
 
@@ -553,7 +551,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   const cooldownActive = state.eventCooldownTurns && state.eventCooldownTurns > 0;
   if (!isSpecialCell && !cooldownActive && Math.random() < 0.03) {
     state.eventCooldownTurns = 15; // Set 15 steps cooldown
-    const events = [EVENT_TYPES.SPRING, EVENT_TYPES.TABLET, EVENT_TYPES.MERCHANT];
+    const events = [EVENT_TYPES.SPRING, EVENT_TYPES.TABLET];
     const chosen = events[Math.floor(Math.random() * events.length)];
     if (chosen === EVENT_TYPES.SPRING) {
       const skin = getFloorTheme(state.floor)?.eventSkins.spring || "怪しい泉";
@@ -567,12 +565,6 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
         state.codex.events.facilities.tablet.found++;
       }
       openGuardedSubmenu(EVENT_TYPES.TABLET, `${skin}が残されている。古い文字が刻まれている…`);
-    } else {
-      const skin = getFloorTheme(state.floor)?.eventSkins.merchant || "さまよう商人";
-      if (state.codex && state.codex.events && state.codex.events.facilities) {
-        state.codex.events.facilities.merchant.found++;
-      }
-      openGuardedSubmenu(EVENT_TYPES.MERCHANT, `${skin}が暗がりから姿を現した。`);
     }
     return;
   }
@@ -669,7 +661,9 @@ export function executeEnterDungeon(floor) {
   state.currentRun.deepestFloor = floor;
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
-  state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder;
+  const workshopGrants = getWorkshopGrants(state.workshop);
+  state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder + workshopGrants.identifyPowder;
+  state.inventory = ["HEAL_POTION", "HEAL_POTION", ...workshopGrants.returnItems];
   state.party.forEach(char => {
     char.runTrapAttackBonus = 0;
   });

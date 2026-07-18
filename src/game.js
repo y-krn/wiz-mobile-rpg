@@ -101,10 +101,7 @@ function bindButtons() {
   // Town
   document.getElementById("btn-town-dungeon").addEventListener("click", () => enterDungeon());
   document.getElementById("btn-town-castle").addEventListener("click", () => handleTownOption("castle"));
-  document.getElementById("btn-town-contracts").addEventListener("click", () => handleTownOption("contracts"));
-  document.getElementById("btn-town-warehouse").addEventListener("click", () => handleTownOption("warehouse"));
-  document.getElementById("btn-town-shop").addEventListener("click", () => handleTownOption("shop"));
-  document.getElementById("btn-town-craft").addEventListener("click", () => handleTownOption("craft"));
+  document.getElementById("btn-town-workshop").addEventListener("click", () => handleTownOption("workshop"));
   document.getElementById("btn-town-archives").addEventListener("click", () => handleTownOption("archives"));
 
   // Combat actions

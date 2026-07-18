@@ -1,6 +1,5 @@
 export const AFFIX_BALANCE = {
   polishCost: {
-    gold: 200,
     mats: { "魔石片": 2 }
   },
   supportCosts: {
@@ -42,15 +41,12 @@ export const AFFIX_BALANCE = {
     spellAccuracy: 2,
     killHeal: 2,
     followUpMp: 2,
-    trapGold: 1,
     hitFlinch: 2,
     victoryMaterial: 2,
     stairsHeal: 1,
     identifyDiscount: 1,
     materialFind: 2,
-    goldBonus: 2,
-    contractReward: 2,
-    merchantDiscount: 2
+    contractReward: 2
   },
   budgetsByRarityAndFloor: {
     magic: [0, 3, 3, 3, 3, 3],
@@ -130,16 +126,13 @@ export const SUPPORT_AFFIXES = [
 
   support("killHeal", "吸命", "敵撃破時にHPを2回復する。", "trigger"),
   support("followUpMp", "連環", "追撃時にMPを1回復する。", "trigger"),
-  support("trapGold", "罠銭", "罠解除時に少額のGOLDを得る。", "trigger"),
   support("hitFlinch", "威圧", "被弾時に低確率で敵を怯ませる。", "trigger"),
   support("victoryMaterial", "拾得", "勝利時に低確率で素材を得る。", "trigger", { unit: "%" }),
   support("stairsHeal", "踏破の息吹", "階段発見時にHPを回復する。", "trigger"),
 
   support("identifyDiscount", "鑑定眼", "鑑定費用を軽減する。", "economy", { unit: "%" }),
   support("materialFind", "素材探し", "素材発見率が10%増加する。", "economy", { unit: "%" }),
-  support("goldBonus", "金運", "獲得GOLDが10%増加する。", "economy", { unit: "%" }),
   support("contractReward", "契約巧者", "契約報酬が10%増加する。", "economy", { unit: "%" }),
-  support("merchantDiscount", "商談", "商人価格を5%軽減する。", "economy", { unit: "%" })
 ];
 
 export const CORE_AFFIXES = [

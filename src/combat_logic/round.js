@@ -117,8 +117,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     currentRun,
     roamingMonsters,
     floorChestsTotal,
-    openedGates,
-    gold: originalState.gold
+    openedGates
   };
   let escaped = false;
   const roundNumber = state.combatState.roundNumber || 1;

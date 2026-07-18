@@ -20,14 +20,12 @@ function makeRewardState() {
     party: [],
     combatState: { isBoss: false, isMidboss: false, isRoamingFlack: false, monsters: [] },
     currentRun: {
-      kills: 0, goldGained: 0, expGained: 0, bossesKilled: 0, elitesKilled: 0,
-      materialsFound: {}, equipmentFound: []
+      kills: 0, expGained: 0, bossesKilled: 0, elitesKilled: 0,
+      materials: {}, equipmentFound: []
     },
     codex: { stats: { totalKills: 0 }, monsters: {} },
     firstKills: [],
-    materials: {},
     inventory: [],
-    gold: 0,
     floorChestsTotal: [0]
   };
 }
@@ -38,7 +36,6 @@ function monster(overrides = {}) {
     hp: 0,
     maxHp: 10,
     exp: 0,
-    gold: 0,
     tags: [],
     fled: false,
     ...overrides
@@ -52,7 +49,7 @@ test("分裂体は初討伐ボーナス対象外", () => {
   applyCombatRewards(state, state.combatState.monsters, [], () => 1);
 
   assert.deepEqual(state.firstKills, []);
-  assert.equal(state.gold, 1);
+  assert.deepEqual(state.currentRun.materials, {});
 });
 
 test("通常の新種は初討伐ボーナス対象", () => {
@@ -62,7 +59,7 @@ test("通常の新種は初討伐ボーナス対象", () => {
   applyCombatRewards(state, state.combatState.monsters, [], () => 1);
 
   assert.deepEqual(state.firstKills, ["スライム"]);
-  assert.equal(state.gold, 101);
+  assert.equal(state.currentRun.materials["獣の牙"], 1);
 });
 
 test("分裂体は図鑑に登録されない", () => {

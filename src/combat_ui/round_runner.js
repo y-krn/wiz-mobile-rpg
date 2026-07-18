@@ -23,7 +23,6 @@ export function resolveCombatRound() {
   state.roamingMonsters = nextState.roamingMonsters;
   state.floorChestsTotal = nextState.floorChestsTotal;
   state.openedGates = nextState.openedGates;
-  state.gold = nextState.gold;
   state.x = nextState.x;
   state.y = nextState.y;
   

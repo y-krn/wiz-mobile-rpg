@@ -52,12 +52,12 @@
 
 /* Town buttons */
 .btn-town {
-  border-color: var(--neon-gold);
-  color: var(--neon-gold);
+  border-color: var(--neon-amber);
+  color: var(--neon-amber);
 }
 .btn-town:active {
   background-color: rgba(255, 179, 0, 0.12);
-  box-shadow: var(--neon-glow-gold);
+  box-shadow: var(--neon-glow-amber);
 }
 
 /* Combat buttons */

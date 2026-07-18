@@ -18,10 +18,9 @@ function resolvePersistedGameState() {
   if (menuContext.prevGameState) return menuContext.prevGameState;
   const t = menuContext.type || "";
   if (
-    t.startsWith("shop") ||
     t.startsWith("castle") ||
     t.startsWith("solo_start") ||
-    t.startsWith("craft")
+    t.startsWith("workshop")
   ) {
     return "town";
   }
@@ -36,7 +35,6 @@ export function createSavePayload() {
     y: state.y,
     dir: state.dir,
     party: state.party.slice(0, 1),
-    gold: state.gold,
     inventory: state.inventory,
     floor: state.floor,
     maps: state.maps,
@@ -73,7 +71,8 @@ export function createSavePayload() {
     storageMax: state.storageMax,
     identifyTickets: state.identifyTickets,
     cleared: state.cleared,
-    materials: state.materials,
+    metaMaterials: state.metaMaterials,
+    workshop: state.workshop,
     dungeonMemory: state.dungeonMemory,
     logs: state.logs.slice(-30)
   };
@@ -86,7 +85,6 @@ export function applySavePayload(data) {
   state.prevX = data.prevX;
   state.prevY = data.prevY;
   state.party = data.party.slice(0, 1);
-  state.gold = data.gold;
   state.inventory = data.inventory;
   state.seed = data.seed;
   state.floor = data.floor;
@@ -123,7 +121,8 @@ export function applySavePayload(data) {
   state.storageMax = data.storageMax;
   state.identifyTickets = data.identifyTickets;
   state.cleared = data.cleared;
-  state.materials = data.materials;
+  state.metaMaterials = data.metaMaterials;
+  state.workshop = data.workshop;
   state.dungeonMemory = data.dungeonMemory || { traps: {}, mapFragments: {}, visitedFloors: [1] };
   state.dungeonMemory.visitedFloors ||= [1];
 }

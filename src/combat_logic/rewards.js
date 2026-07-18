@@ -23,12 +23,6 @@ function rollCombatAccessoryDrop(state, rng) {
 export function applyCombatRewards(state, monsters, logQueue, rng = Math.random) {
   const nonFledMonsters = monsters.filter(m => !m.fled);
   const totalExp = nonFledMonsters.reduce((sum, m) => sum + m.exp, 0);
-  const rawGold = nonFledMonsters.reduce((sum, m) => {
-    const g = m.isBoss || m.isRare ? m.gold : Math.max(1, Math.round(m.gold * 0.15));
-    return sum + g;
-  }, 0);
-  const goldBonus = getPartyMaxAffix(state.party, "goldBonus");
-  const totalGold = Math.floor(rawGold * (1 + goldBonus / 100));
   const livingChars = state.party.filter(c => c.status !== "dead");
   const bountyHunter = Boolean(getPartyCoreParams(state.party, "CORE_BOUNTY_HUNTER"));
   const scholarEye = Boolean(getPartyCoreParams(state.party, "CORE_SCHOLAR_EYE"));
@@ -39,7 +33,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   let bountyHunterActivated = false;
 
   // Check First Kill Bonuses
-  let bonusGold = 0;
   const firstKilledNames = [];
   const firstKilledMats = {};
   let bonusTickets = 0;
@@ -51,9 +44,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       if (!state.firstKills) state.firstKills = [];
       state.firstKills.push(baseName);
       firstKilledNames.push(baseName);
-      
-      // ゴールドは一律 100G 定額
-      bonusGold += 100;
       
       // 素材付与
       const mat = getMonsterMainMaterial(m);
@@ -75,14 +65,9 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
 
   // 素材報酬の反映
   Object.entries(firstKilledMats).forEach(([mat, qty]) => {
-    if (!state.materials) state.materials = {};
-    state.materials[mat] = (state.materials[mat] || 0) + qty;
-    
     if (state.currentRun) {
-      if (!state.currentRun.materialsFound) {
-        state.currentRun.materialsFound = {};
-      }
-      state.currentRun.materialsFound[mat] = (state.currentRun.materialsFound[mat] || 0) + qty;
+      state.currentRun.materials ||= {};
+      state.currentRun.materials[mat] = (state.currentRun.materials[mat] || 0) + qty;
     }
   });
 
@@ -117,7 +102,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
 
   if (state.currentRun) {
     state.currentRun.kills += nonFledMonsters.length;
-    state.currentRun.goldGained += (totalGold + bonusGold);
     state.currentRun.expGained += (expShare + bonusExpShare);
     if (state.combatState.isBoss) {
       state.currentRun.bossesKilled += nonFledMonsters.length;
@@ -141,20 +125,16 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
     const guaranteed = scholarEye && uncataloguedNames.has(baseName);
     const drops = determineMonsterDrop(m, state.floor, rng, {
       chanceBonus: materialFind,
-      guaranteed
+      guaranteed,
+      startFloor: state.currentRun?.startFloor || 1
     });
     scholarActivated ||= guaranteed;
     Object.entries(drops).forEach(([mat, qty]) => {
       runMats[mat] = (runMats[mat] || 0) + qty;
       
-      if (!state.materials) state.materials = {};
-      state.materials[mat] = (state.materials[mat] || 0) + qty;
-      
       if (state.currentRun) {
-        if (!state.currentRun.materialsFound) {
-          state.currentRun.materialsFound = {};
-        }
-        state.currentRun.materialsFound[mat] = (state.currentRun.materialsFound[mat] || 0) + qty;
+        state.currentRun.materials ||= {};
+        state.currentRun.materials[mat] = (state.currentRun.materials[mat] || 0) + qty;
       }
     });
   });
@@ -163,24 +143,18 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   if (nonFledMonsters.length > 0 && victoryMaterial > 0 && rng() * 100 < victoryMaterial) {
     const mat = getMonsterMainMaterial(nonFledMonsters[Math.floor(rng() * nonFledMonsters.length)]);
     runMats[mat] = (runMats[mat] || 0) + 1;
-    state.materials ||= {};
-    state.materials[mat] = (state.materials[mat] || 0) + 1;
     if (state.currentRun) {
-      state.currentRun.materialsFound ||= {};
-      state.currentRun.materialsFound[mat] = (state.currentRun.materialsFound[mat] || 0) + 1;
+      state.currentRun.materials ||= {};
+      state.currentRun.materials[mat] = (state.currentRun.materials[mat] || 0) + 1;
     }
-    logQueue.push({ msg: `[拾得] 勝利の跡から${mat}を見つけた！`, sound: "gold" });
+    logQueue.push({ msg: `[拾得] 勝利の跡から${mat}を見つけた！`, sound: "item" });
   }
 
   logQueue.push({ msg: "======================================" });
   if (nonFledMonsters.length > 0) {
     let msg = "戦闘に勝利した！";
-    if (expShare > 0 && totalGold > 0) {
-      msg += `パーティは${totalGold}ゴールドを獲得した。`;
-    } else if (expShare > 0) {
+    if (expShare > 0) {
       msg += `パーティは戦闘経験を積んだ。`;
-    } else if (totalGold > 0) {
-      msg += `パーティは${totalGold}ゴールドを獲得した。`;
     }
     logQueue.push({
       msg,
@@ -191,7 +165,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       const matStr = Object.entries(runMats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
       logQueue.push({
         msg: `  -> 素材を獲得した: [${matStr}]`,
-        sound: "gold"
+        sound: "item"
       });
     }
     if (bountyHunterActivated) {
@@ -204,9 +178,9 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
     if (firstKilledNames.length > 0) {
       logQueue.push({
         msg: `🎉【初回討伐ボーナス！】初めて [${firstKilledNames.join(", ")}] を討伐した！`,
-        sound: "gold"
+        sound: "item"
       });
-      let rewardMsg = `  -> 初討伐の追加報酬：パーティ +${bonusGold} ゴールド`;
+      let rewardMsg = "  -> 初討伐の追加報酬";
       const matListStr = Object.entries(firstKilledMats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
       if (matListStr) {
         rewardMsg += ` / 素材: [${matListStr}]`;
@@ -233,8 +207,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
     });
     return true; // ended
   }
-
-  state.gold += totalGold + bonusGold;
 
   livingChars.forEach(c => {
     c.exp += (expShare + bonusExpShare);
@@ -279,7 +251,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       const eqData = getItemData(dropEquipment);
       logQueue.push({
         msg: `モンスターの骸から [${eqData.name}] を手に入れた！`,
-        sound: "gold"
+        sound: "item"
       });
     } else {
       logQueue.push({
@@ -299,7 +271,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       const itemData = getItemData(dropAccessory);
       logQueue.push({
         msg: `モンスターの骸から [${itemData.name}] を手に入れた！`,
-        sound: "gold"
+        sound: "item"
       });
     } else {
       logQueue.push({
@@ -312,13 +284,13 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   if (state.combatState.isBoss) {
     logQueue.push({
       msg: "ついに伝説の [浮遊石 (クリスタル)] を手に入れた！おしろに持ち帰ろう！",
-      sound: "gold",
+      sound: "item",
       giveCrystal: true
     });
   } else if (state.combatState.isMidboss) {
     logQueue.push({
       msg: "デーモンガードの骸から [竜の鍵] を手に入れた！これであの扉を開けられるはずだ！",
-      sound: "gold",
+      sound: "item",
       giveKey: true
     });
   } else if (state.combatState.isRoamingFlack) {
@@ -344,13 +316,13 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       }
       logQueue.push({
         msg: "封印門の門番を撃破した！封印門が開き、精鋭の戦利品を得た。",
-        sound: "gold",
+        sound: "item",
         endCombat: true
       });
     } else {
       logQueue.push({
         msg: "強敵「フラック」を見事に撃破した！",
-        sound: "gold"
+        sound: "item"
       });
       logQueue.push({
         msg: "フラックの残骸の影に宝箱を見つけた！",

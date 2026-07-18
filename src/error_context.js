@@ -10,7 +10,7 @@ function buildSnapshot(state) {
     floor: state.floor,
     pos: `${state.x},${state.y}`,
     dir: state.dir,
-    gold: state.gold,
+    runMaterialCount: Object.values(state.currentRun?.materials || {}).reduce((sum, quantity) => sum + quantity, 0),
     // party: 名前・Lv・HP・状態のみ。オブジェクト全体は巨大なので要約する。
     party: (state.party || []).map((c) => ({
       name: c.name,

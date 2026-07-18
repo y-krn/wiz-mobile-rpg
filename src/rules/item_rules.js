@@ -166,7 +166,6 @@ export function getItemData(itemOrKey) {
           id: itemOrKey,
           name: `${unidentName} (簡易鑑定済)`,
           desc: `${unidentName}。気配: ${hints}。${curseText} 完全鑑定で真価が確定します。`,
-          price: base.price,
           atk: curseAtk,
           def: curseDef,
           affixes: [],
@@ -185,7 +184,6 @@ export function getItemData(itemOrKey) {
           id: itemOrKey,
           name: unidentName,
           desc: `${unidentName}。付与効果は不明。鑑定粉を使うか、装備して正体を確かめます。`,
-          price: base.price,
           atk: curseAtk,
           def: curseDef,
           affixes: [],
@@ -331,8 +329,6 @@ export function getItemData(itemOrKey) {
       desc = `[${rarityLabel}] ${desc}`;
     }
     
-    const multiplier = { magic: 1.5, rare: 2.5, epic: 4.0 }[itemOrKey.rarity || "magic"] || 1.5;
-    
     return {
       ...base,
       id: itemOrKey,
@@ -344,7 +340,6 @@ export function getItemData(itemOrKey) {
       mpBonus,
       statsBonus,
       trapBonus,
-      price: Math.floor(base.price * multiplier),
       classes: base.classes,
       type: base.type
     };

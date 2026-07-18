@@ -35,16 +35,16 @@
 
 .btn-select-item {
   border-color: rgba(255, 179, 0, 0.5);
-  color: var(--neon-gold);
+  color: var(--neon-amber);
   padding: 8px 6px !important;
   font-size: var(--fs-md) !important;
   min-height: var(--tap-min);
   font-weight: bold;
 }
 .btn-select-item:hover, .btn-select-item:active {
-  border-color: var(--neon-gold);
+  border-color: var(--neon-amber);
   background-color: rgba(255, 179, 0, 0.12);
-  box-shadow: var(--neon-glow-gold);
+  box-shadow: var(--neon-glow-amber);
 }
 
 .equip-overlay-container {

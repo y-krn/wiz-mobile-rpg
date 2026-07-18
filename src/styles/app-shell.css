@@ -58,8 +58,8 @@
   color: var(--floor-border, var(--neon-cyan));
 }
 
-#gold-counter {
-  color: var(--neon-gold);
+#material-counter {
+  color: var(--neon-amber);
 }
 
 /* Goal HUD Banner */
@@ -75,8 +75,8 @@
   border-bottom: 1px solid var(--floor-border, var(--border-color));
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  color: var(--neon-gold);
-  text-shadow: var(--neon-glow-gold);
+  color: var(--neon-amber);
+  text-shadow: var(--neon-glow-amber);
   letter-spacing: 0.5px;
   gap: 4px;
 }
@@ -279,7 +279,7 @@
 }
 
 .log-entry.loot {
-  color: var(--neon-gold);
+  color: var(--neon-amber);
 }
 
 .log-entry.info {
@@ -323,8 +323,8 @@
 }
 .hud-dir {
   font-weight: bold;
-  color: var(--neon-gold);
-  text-shadow: var(--neon-glow-gold);
+  color: var(--neon-amber);
+  text-shadow: var(--neon-glow-amber);
 }
 
 /* On short screens, shrink the map floor further so buttons and party HUD keep

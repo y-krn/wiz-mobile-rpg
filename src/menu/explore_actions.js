@@ -83,7 +83,7 @@ function revealSecretDoor(candidate) {
   next.secretFound[candidate.opposite] = true;
   openWall(state.map, candidate.x, candidate.y, candidate.dir);
   addLog(`【隠し扉発見！】${DIR_NAMES[candidate.dir]}の壁に秘密の通路を見つけた！`);
-  playSound("gold");
+  playSound("item");
 }
 
 function searchSecretDoor() {

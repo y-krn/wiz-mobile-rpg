@@ -11,7 +11,6 @@ import assert from "assert";
 import { CRAFT_RECIPES } from "../src/craft.js";
 import { ENCOUNTER_POOLS } from "../src/data/encounters.js";
 import { MONSTERS } from "../src/data/monsters.js";
-import { SHOP_STOCK } from "../src/shop/shop_stock.js";
 import { checkCharLevelUp } from "../src/data.js";
 import { createSoloCharacter } from "../src/state.js";
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
@@ -303,29 +302,21 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
       assert.ok(puppy, "メタルパピー definition should exist in MONSTERS");
       assert.strictEqual(puppy.level, 4, "メタルパピー level should be 4");
       assert.strictEqual(puppy.exp, 600, "メタルパピー exp should be 600");
-      assert.strictEqual(puppy.gold, 500, "メタルパピー gold should be 500");
+      assert.equal(Object.hasOwn(puppy, "gold"), false, "legacy currency reward must be absent");
       assert.strictEqual(puppy.fleeChance, 0.50, "メタルパピー fleeChance should be 0.50");
       assert.strictEqual(puppy.isRare, true, "メタルパピー isRare should be true");
       assert.strictEqual(puppy.treasureRare, true, "メタルパピー treasureRare should be true");
       console.log("[PASS] Test 1: Monster definition verified.");
 
-      // 2. Verify Guaranteed Drops
-      // Floor 3 (Should drop 獣の牙 x2, 硬い皮 x1, 黒角 x1)
-      const dropsF3 = determineMonsterDrop(puppy, 3);
-      assert.deepStrictEqual(dropsF3, {
-        "獣の牙": 2,
-        "硬い皮": 1,
-        "黒角": 1
-      }, "Floor 3 drop should be guaranteed: 獣の牙x2, 硬い皮x1, 黒角x1");
-
-      // Floor 4 (Should drop 獣の牙 x2, 硬い皮 x1, 竜鱗 x1)
-      const dropsF4 = determineMonsterDrop(puppy, 4);
-      assert.deepStrictEqual(dropsF4, {
-        "獣の牙": 2,
-        "硬い皮": 1,
-        "竜鱗": 1
-      }, "Floor 4 drop should be guaranteed: 獣の牙x2, 硬い皮x1, 竜鱗x1");
-      console.log("[PASS] Test 2: Guaranteed drops verified.");
+      // 2. Verify group-classified rare drops
+      const dropsF3 = determineMonsterDrop(puppy, 3, () => 0, { guaranteed: true });
+      assert.ok(dropsF3["獣の牙"] >= 2);
+      assert.ok(dropsF3["硬い皮"] >= 1);
+      assert.ok(dropsF3["黒角"] >= 1);
+      const dropsF10 = determineMonsterDrop(puppy, 10, () => 0, { guaranteed: true });
+      assert.ok(dropsF10["竜鱗"] >= 1);
+      assert.ok(dropsF10["獣の牙"] > dropsF3["獣の牙"]);
+      console.log("[PASS] Test 2: classified depth-scaled drops verified.");
 
       // 3. Verify B1 Encounter Prevention
       // We simulate state on Floor 1 with different distance.
@@ -566,12 +557,12 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
       return Infinity;
     }
 
-    // 消耗品がそのフロアで入手可能か（ショップまたはクラフト）
+    // 消耗品がそのフロアで入手可能か（旧ショップ廃止後はラン内生成のみ）
     function getItemAvailableFloor(itemId) {
-      // ショップは最初から利用可能 (floor 1)
-      const shopAvailable = SHOP_STOCK.some(stock => stock.key === itemId);
+      const chestLoot = new Set(["ANTIDOTE", "PARALYZE_CURE", "EYE_DROPS", "MANA_POTION"]);
+      if (chestLoot.has(itemId)) return 1;
       const craftFloor = getCraftFloor(itemId);
-      return Math.min(shopAvailable ? 1 : Infinity, craftFloor);
+      return craftFloor;
     }
 
     // --- Test 1: Monster Name Consistency ---

@@ -10,28 +10,24 @@ export const CRAFT_RECIPES = [
     resultId: "HEAL_POTION",
     name: "傷薬 (回復薬)",
     mats: { "硬い皮": 1, "獣の牙": 1 },
-    gold: 40,
     desc: "使用するとHPを15回復する。"
   },
   {
     resultId: "ANTIDOTE",
     name: "解毒薬",
     mats: { "毒腺": 1 },
-    gold: 50,
     desc: "使用すると毒状態を解除する。"
   },
   {
     resultId: "HOLY_WATER",
     name: "祝福の聖水",
     mats: { "霊粉": 1, "骨片": 1 },
-    gold: 100,
     desc: "HPを15回復し、毒状態も治療する。"
   },
   {
     resultId: "MANA_POTION",
     name: "魔力草",
     mats: { "魔石片": 3, "呪布": 1 },
-    gold: 250,
     desc: "使用するとMPを3回復する。"
   }
 ];
@@ -46,13 +42,11 @@ export function getEnhanceCost(eqItem) {
 
   if (item.type === "weapon") {
     return {
-      mats: { "鉄片": 2, "魔石片": 1 },
-      gold: 200
+      mats: { "鉄片": 2, "魔石片": 1 }
     };
   } else if (item.type === "shield" || item.type === "armor") {
     return {
-      mats: { "鉄片": 1, "硬い皮": 2 },
-      gold: 150
+      mats: { "鉄片": 1, "硬い皮": 2 }
     };
   }
   return null;
@@ -79,12 +73,6 @@ export function executeCraft(recipeId) {
   const recipe = CRAFT_RECIPES.find(r => r.resultId === recipeId);
   if (!recipe) return false;
 
-  // ゴールドチェック
-  if (state.gold < recipe.gold) {
-    addLog("ゴールドが不足しています。");
-    return false;
-  }
-
   // バッグ空きチェック
   if (state.inventory.length >= 20) {
     addLog("バッグがいっぱいです。");
@@ -93,7 +81,7 @@ export function executeCraft(recipeId) {
 
   // 素材チェック
   for (const [mat, reqQty] of Object.entries(recipe.mats)) {
-    const curQty = state.materials[mat] || 0;
+    const curQty = state.metaMaterials[mat] || 0;
     if (curQty < reqQty) {
       addLog(`素材 [${mat}] が不足しています。`);
       return false;
@@ -101,9 +89,8 @@ export function executeCraft(recipeId) {
   }
 
   // 消費
-  state.gold -= recipe.gold;
   for (const [mat, reqQty] of Object.entries(recipe.mats)) {
-    state.materials[mat] -= reqQty;
+    state.metaMaterials[mat] -= reqQty;
   }
 
   // アイテム獲得
@@ -140,15 +127,9 @@ export function executeEnhance(itemIdx) {
     return false;
   }
 
-  // ゴールドチェック
-  if (state.gold < cost.gold) {
-    addLog("ゴールドが不足しています。");
-    return false;
-  }
-
   // 素材チェック
   for (const [mat, reqQty] of Object.entries(cost.mats)) {
-    const curQty = state.materials[mat] || 0;
+    const curQty = state.metaMaterials[mat] || 0;
     if (curQty < reqQty) {
       addLog(`素材 [${mat}] が不足しています。`);
       return false;
@@ -156,9 +137,8 @@ export function executeEnhance(itemIdx) {
   }
 
   // 消費
-  state.gold -= cost.gold;
   for (const [mat, reqQty] of Object.entries(cost.mats)) {
-    state.materials[mat] -= reqQty;
+    state.metaMaterials[mat] -= reqQty;
   }
 
   // 強化実行（文字列IDの場合はオブジェクトに変換）
@@ -251,30 +231,8 @@ export function getDismantleResults(eqItem) {
 export function executeDismantle(itemIdx) {
   const eqItem = state.inventory[itemIdx];
   if (!eqItem) return false;
-
-  const results = getDismantleResults(eqItem);
-  if (!results) {
-    addLog("このアイテムは分解できません。");
-    return false;
-  }
-
-  const itemData = getItemData(eqItem);
-  const itemName = itemData.name;
-
-  // インベントリから削除
-  state.inventory.splice(itemIdx, 1);
-
-  // 素材追加
-  const gainedMats = [];
-  for (const [mat, qty] of Object.entries(results)) {
-    state.materials[mat] = (state.materials[mat] || 0) + qty;
-    gainedMats.push(`${mat}x${qty}`);
-  }
-
-  playSound("level_up");
-  addLog(`[工房] [${itemName}] を分解し、[${gainedMats.join(", ")}] を獲得しました！`);
-  saveAutosave();
-  return true;
+  addLog("工房はアンロック専用です。装備の分解は廃止されました。");
+  return false;
 }
 
 export function getPolishCost(eqItem) {
@@ -322,12 +280,8 @@ export function executePolish(itemIdx, affixIdx) {
     addLog("この装備は研磨できません。");
     return false;
   }
-  if (state.gold < cost.gold) {
-    addLog("ゴールドが不足しています。");
-    return false;
-  }
   for (const [mat, reqQty] of Object.entries(cost.mats)) {
-    if ((state.materials[mat] || 0) < reqQty) {
+    if ((state.metaMaterials[mat] || 0) < reqQty) {
       addLog(`素材 [${mat}] が不足しています。`);
       return false;
     }
@@ -342,9 +296,8 @@ export function executePolish(itemIdx, affixIdx) {
     return false;
   }
 
-  state.gold -= cost.gold;
   for (const [mat, reqQty] of Object.entries(cost.mats)) {
-    state.materials[mat] -= reqQty;
+    state.metaMaterials[mat] -= reqQty;
   }
   if (isEquipped) {
     state.party[actorIdx].equipment[slot] = polishedItem;
@@ -413,29 +366,21 @@ export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTag
   }
 
   // コスト取得
-  const effectInfo = actionType === "seal" ? { gold: 150, matCost: 3 } : TAG_EFFECT_MAP[tagToApply];
+  const effectInfo = actionType === "seal" ? { matCost: 3 } : TAG_EFFECT_MAP[tagToApply];
   if (!effectInfo) {
     addLog("無効な刻印効果です。");
     return false;
   }
 
-  const goldCost = effectInfo.gold;
   const matCost = effectInfo.matCost;
 
-  // ゴールドチェック
-  if (state.gold < goldCost) {
-    addLog("ゴールドが不足しています。");
-    return false;
-  }
-
   // 素材チェック＆消費
-  if ((state.materials[matName] || 0) < matCost) {
+  if ((state.metaMaterials[matName] || 0) < matCost) {
     addLog(`素材 [${matName}] が不足しています。`);
     return false;
   }
 
-  state.gold -= goldCost;
-  state.materials[matName] -= matCost;
+  state.metaMaterials[matName] -= matCost;
 
   // 刻印付与
   const upgradedItem = convertToEquipObject(eqItem);
