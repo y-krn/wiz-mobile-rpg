@@ -11,6 +11,7 @@ import { startCombat, triggerGameOver } from "../combat.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
 import { executeDisarm, openChestDirectly } from "../chest.js";
 import { openWall } from "../map_generator.js";
+import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
 
 function getSecretSearchDirs() {
   return [
@@ -483,6 +484,7 @@ export function renderEventTablet(optGrid) {
         const target = aliveChars[Math.floor(Math.random() * aliveChars.length)];
         const trapDmg = 6 + currentFloor * 3;
         target.hp = Math.max(0, target.hp - trapDmg);
+        clearCharIncapacitationOnDamage(target);
         if (target.hp === 0) {
           target.status = "dead";
         }

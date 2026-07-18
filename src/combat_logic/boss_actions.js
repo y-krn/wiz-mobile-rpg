@@ -1,6 +1,7 @@
 import { reduceIncomingDamage } from "./damage.js";
 import { recordCharDeath } from "../state.js";
 import { getStatusEffectChance } from "../rules/affix_rules.js";
+import { clearCharIncapacitationOnDamage } from "./status_effects.js";
 
 /**
  * Executes a boss custom action for Flack or Old Dragon.
@@ -29,11 +30,12 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue });
           c.hp = Math.max(0, c.hp - dmg);
+          const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
             c.status = "dead";
             recordCharDeath(state, c, "フラックのラハリト");
           }
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
       });
       return true;
@@ -86,11 +88,12 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue });
           c.hp = Math.max(0, c.hp - dmg);
+          const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
             c.status = "dead";
             recordCharDeath(state, c, "フラックの自爆");
           }
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。` });
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
       });
       return true;
@@ -164,11 +167,12 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           }
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
           c.hp = Math.max(0, c.hp - dmg);
+          const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
             c.status = "dead";
             recordCharDeath(state, c, "いにしえの竜のティルトウェイト");
           }
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。` });
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
       });
       return true;
@@ -190,11 +194,12 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
           c.hp = Math.max(0, c.hp - dmg);
+          const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
             c.status = "dead";
             recordCharDeath(state, c, "いにしえの竜の炎の息");
           }
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
       });
       return true;
@@ -220,11 +225,12 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
           c.hp = Math.max(0, c.hp - dmg);
+          const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
             c.status = "dead";
             recordCharDeath(state, c, "いにしえの竜のマダルト");
           }
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
       });
       return true;

@@ -8,6 +8,7 @@ import { createRng } from "../seed_rng.js";
 import { descendToFloor, findCellCoordsByType } from "../movement.js";
 import { MAP_WIDTH, MAP_HEIGHT, START_X, START_Y, DX, DY, getPartyMaxAffix } from "../data.js";
 import { armControlsGuard } from "../controls_guard.js";
+import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
 
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
 
@@ -289,6 +290,7 @@ export function triggerPitfall(trap, isWeakenedOverride = null, isPartialSuccess
         const dmg = Math.max(1, Math.floor(rawDmg * powerMultiplier));
         
         c.hp = Math.max(0, c.hp - dmg);
+        clearCharIncapacitationOnDamage(c);
         addLog(`[!] ${c.name}は落下で${dmg}のダメージを受けた。`);
         
         if (c.hp === 0) {
@@ -354,6 +356,7 @@ export function triggerTrap(trap, isWeakenedOverride = null, isPartialSuccess = 
         const rawDmg = Math.floor(Math.random() * dmgRange) + baseMin;
         const dmg = Math.max(1, Math.floor(rawDmg * powerMultiplier));
         c.hp = Math.max(0, c.hp - dmg);
+        clearCharIncapacitationOnDamage(c);
         addLog(`[!] ${c.name}は${dmg}のダメージを受けた。`);
         if (c.hp === 0) {
           c.status = "dead";

@@ -529,38 +529,25 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
 
   console.log("Starting Combat Paralyze Verification Tests...");
 
-  // 1. 全員麻痺時の警告ログとカウント増加の検証
-  // Math.random を常に 0.99 にして、麻痺の自然回復（20%未満）が起きないようにする。
+  // 1. 麻痺は次の行動機会を1回だけ失わせ、確率に依存せず解除される。
   const originalRandom = Math.random;
   Math.random = () => 0.99;
 
   try {
-    // 1ターン目 (allParalyzedTurns: 0)
     const state1 = createParalyzedState(["paralyzed", "dead", "dead", "dead"], 0);
     const result1 = runCombatRoundCalculation(state1, { actions: [] });
 
-    assert.ok(result1.logQueue.some(log => log.msg?.includes("全員が麻痺して動けない")), "全員麻痺時の警告ログ(動けない)が出力されること");
-    assert.ok(result1.logQueue.some(log => log.msg?.includes("敵の攻撃を受けるしかない")), "全員麻痺時の警告ログ(受けるしかない)が出力されること");
-    assert.strictEqual(result1.state.combatState.allParalyzedTurns, 1, "全員麻痺カウントが1になること");
-
-    // 2ターン目 (allParalyzedTurns: 1)
-    const state2 = createParalyzedState(["paralyzed", "dead", "dead", "dead"], 1);
-    const result2 = runCombatRoundCalculation(state2, { actions: [] });
-    assert.strictEqual(result2.state.combatState.allParalyzedTurns, 2, "全員麻痺カウントが2になること");
-
-    // 3ターン目 (allParalyzedTurns: 2 -> 3に達して全滅)
-    const state3 = createParalyzedState(["paralyzed", "dead", "dead", "dead"], 2);
-    const result3 = runCombatRoundCalculation(state3, { actions: [] });
-    assert.strictEqual(result3.state.combatState.allParalyzedTurns, 3, "全員麻痺カウントが3になること");
-    assert.ok(result3.logQueue.some(log => log.msg?.includes("全員が麻痺したまま力尽きた")), "全滅ログが出力されること");
-    assert.ok(result3.state.party.every(c => c.status === "dead"), "パーティ全員が死亡状態になること");
+    assert.ok(result1.logQueue.some(log => log.msg?.includes("Char0は動けない")), "麻痺で行動を失うログが出力されること");
+    assert.ok(result1.logQueue.some(log => log.msg?.includes("麻痺から回復した")), "麻痺回復ログが出力されること");
+    assert.strictEqual(result1.state.party[0].status, "ok", "1行動後に麻痺が解除されること");
+    assert.strictEqual(result1.state.combatState.allParalyzedTurns, 0, "麻痺敗北カウントを使用しないこと");
+    assert.ok(result1.state.party[0].hp > 0, "麻痺自体では死亡しないこと");
 
   } finally {
     Math.random = originalRandom;
   }
 
-  // 2. 麻痺の自然回復とカウントリセットの検証
-  // Math.random を 0.05 にして、20%の確率の自然回復が確実に発生するようにする。
+  // 2. 解除は乱数値に依存しない。
   Math.random = () => 0.05;
 
   try {
@@ -574,20 +561,18 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
     Math.random = originalRandom;
   }
 
-  // 3. 一部が麻痺で、行動可能キャラがいる場合
-  // 行動可能なキャラクター(ok)がいるのでカウントは進まない/リセットされること
+  // 3. 一部麻痺でも対象者は1行動後に解除される。
   try {
     const state = createParalyzedState(["paralyzed", "ok", "dead", "dead"], 1);
     const result = runCombatRoundCalculation(state, { actions: [] });
 
+    assert.strictEqual(result.state.party[0].status, "ok", "麻痺キャラクターが1行動後に回復すること");
     assert.strictEqual(result.state.combatState.allParalyzedTurns, 0, "行動可能なキャラクターがいる場合はカウントがリセットされること");
   } finally {
     Math.random = originalRandom;
   }
 
-  // 4. 非全員麻痺から全員麻痺への状態遷移テスト
-  // ターン開始時は麻痺+毒(生存)であり、ターン終了時の毒ダメージで毒キャラが死亡。
-  // 結果として生存メンバーが全員麻痺になり、allParalyzedTurns が 1 に増えることを検証。
+  // 4. 他キャラクターが毒死しても麻痺敗北へ遷移しない。
   try {
     Math.random = () => 0.99;
     const state = createParalyzedState(["paralyzed", "poisoned", "dead", "dead"], 0);
@@ -598,7 +583,8 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
     const result = runCombatRoundCalculation(state, { actions: [] });
 
     assert.strictEqual(result.state.party[1].status, "dead", "毒キャラが死亡していること");
-    assert.strictEqual(result.state.combatState.allParalyzedTurns, 1, "毒キャラ死亡により全員麻痺になり、カウントが1になること");
+    assert.strictEqual(result.state.party[0].status, "ok", "麻痺キャラは1行動後に回復していること");
+    assert.strictEqual(result.state.combatState.allParalyzedTurns, 0, "毒キャラ死亡後も麻痺敗北カウントを進めないこと");
   } finally {
     Math.random = originalRandom;
   }
@@ -613,7 +599,7 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
     const result = runCombatRoundCalculation(state, { actions: [] });
 
     assert.ok(result.logQueue.some(log => log.msg?.includes("戦闘に勝利した") || log.msg?.includes("静寂が戻った")), "戦闘勝利または静寂ログが出力されること");
-    assert.strictEqual(result.state.party[0].status, "paralyzed", "キャラクターは麻痺状態のままであること");
+    assert.strictEqual(result.state.party[0].status, "ok", "戦闘終了時も1行動分の麻痺は解除されること");
   } finally {
     Math.random = originalRandom;
   }
@@ -716,7 +702,7 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
     }));
 
     assert.strictEqual(result.state.party[0].status, "sleep", "Sleep-inflicting monster should put an ok ally to sleep.");
-    assert.strictEqual(result.state.party[0].sleepTurns, 1, "Newly inflicted ally sleep should tick from 2 to 1 at round end.");
+    assert.strictEqual(result.state.party[0].sleepTurns, 2, "Newly inflicted ally sleep should remain until one action is skipped.");
     assert.ok(result.logQueue.some(log => log.msg?.includes("眠りに落ちた")), "Sleep infliction log should be emitted.");
   }
 
@@ -727,8 +713,8 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
     }));
 
     assert.strictEqual(result.state.combatState.monsters[0].hp, 20, "Sleeping ally should skip selected actions.");
-    assert.strictEqual(result.state.party[0].status, "sleep", "Sleeping ally should remain asleep when damage wake roll fails.");
-    assert.strictEqual(result.state.party[0].sleepTurns, 1, "Sleeping ally duration should tick at round end.");
+    assert.strictEqual(result.state.party[0].status, "ok", "Sleeping ally should wake after skipping one selected action.");
+    assert.strictEqual(result.state.party[0].sleepTurns, undefined, "One skipped action should clear sleepTurns.");
   }
 
   {
@@ -737,9 +723,9 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
       actions: []
     }));
 
-    assert.strictEqual(result.state.party[0].status, "ok", "Damage wake roll should clear ally sleep.");
-    assert.strictEqual(result.state.party[0].sleepTurns, undefined, "Damage wake should clear ally sleepTurns.");
-    assert.ok(result.logQueue.some(log => log.msg?.includes("目を覚ました")), "Damage wake log should be emitted.");
+    assert.strictEqual(result.state.party[0].status, "ok", "One skipped action should clear ally sleep.");
+    assert.strictEqual(result.state.party[0].sleepTurns, undefined, "Natural wake should clear ally sleepTurns.");
+    assert.ok(result.logQueue.some(log => log.msg?.includes("目を覚ました")), "Natural wake log should be emitted.");
   }
 
   {

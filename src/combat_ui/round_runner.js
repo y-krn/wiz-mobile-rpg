@@ -24,6 +24,8 @@ export function resolveCombatRound() {
   state.floorChestsTotal = nextState.floorChestsTotal;
   state.openedGates = nextState.openedGates;
   state.gold = nextState.gold;
+  state.x = nextState.x;
+  state.y = nextState.y;
   
   playBattleLogs(logQueue, 0);
 }

@@ -10,6 +10,7 @@ import { setupChestState } from "./chest.js";
 import { openGuardedSubmenu, openSubmenu } from "./navigation.js";
 import { triggerRunResult } from "./result.js";
 import { detectAdjacentTrapsByTraceRead, handleTrapStepCheck } from "./systems/traps.js";
+import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/warden_perception.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
@@ -633,6 +634,7 @@ export function triggerFlameTrap() {
     if (c.status !== "dead") {
       const dmg = Math.floor(Math.random() * 9) + 8; // 8-16 damage
       c.hp = Math.max(0, c.hp - dmg);
+      clearCharIncapacitationOnDamage(c);
       addLog(`${c.name}は${dmg}の炎ダメージを受けた。`);
       if (c.hp === 0) {
         c.status = "dead";

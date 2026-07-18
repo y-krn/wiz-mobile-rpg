@@ -36,11 +36,28 @@ export function wakeSleepingMonsterOnDamage(mon, rng = Math.random) {
   return true;
 }
 
-export function wakeSleepingCharOnDamage(char, rng = Math.random) {
-  if (char.status !== "sleep" || char.hp <= 0) return false;
-  if (rng() >= 0.5) return false;
+export function clearCharIncapacitationOnDamage(char) {
+  if (!["sleep", "paralyze", "paralyzed"].includes(char.status) || char.hp <= 0) return false;
   char.status = "ok";
   delete char.sleepTurns;
+  delete char.paralyzeTurns;
+  return true;
+}
+
+export const wakeSleepingCharOnDamage = clearCharIncapacitationOnDamage;
+
+export function consumeCharIncapacitation(char, logQueue = []) {
+  if (!["sleep", "paralyze", "paralyzed"].includes(char.status) || char.hp <= 0) return false;
+  const wasSleep = char.status === "sleep";
+  char.status = "ok";
+  delete char.sleepTurns;
+  delete char.paralyzeTurns;
+  logQueue.push({
+    msg: wasSleep
+      ? `[味方] ${char.name}は眠りから目を覚ました！`
+      : `[味方] ${char.name}は麻痺から回復した！`,
+    sound: "heal"
+  });
   return true;
 }
 
@@ -55,23 +72,5 @@ export function tickCharBuffs(party) {
     char.buffs = char.buffs
       .map(buff => ({ ...buff, turns: buff.turns - 1 }))
       .filter(buff => buff.turns > 0);
-  });
-}
-
-export function tickCharSleep(party, logQueue = []) {
-  party.forEach(char => {
-    if (char.status === "sleep" && char.hp > 0) {
-      char.sleepTurns = Math.max(0, (char.sleepTurns ?? 1) - 1);
-      if (char.sleepTurns === 0) {
-        char.status = "ok";
-        delete char.sleepTurns;
-        logQueue.push({
-          msg: `[味方] ${char.name}は目を覚ました！`,
-          sound: "heal"
-        });
-      }
-    } else if (char.sleepTurns) {
-      delete char.sleepTurns;
-    }
   });
 }

@@ -29,9 +29,9 @@ import {
   tickMonsterBuffs,
   wakeSleepingMonsterOnDamage,
   wakeSleepingCharOnDamage,
+  consumeCharIncapacitation,
   getBuffTotal,
-  tickCharBuffs,
-  tickCharSleep
+  tickCharBuffs
 } from "./status_effects.js";
 import {
   hasTrait,
@@ -48,6 +48,39 @@ import { getCharCoreParams, getFollowUpChance, getStatusEffectChance } from "../
 
 function findMonsterTemplate(name) {
   return MONSTERS.find(m => m.name === name);
+}
+
+function applyFleePartingAttack(state, monsters, logQueue) {
+  const attacker = monsters.find(mon => mon.hp > 0);
+  const target = state.party.find(char => char.status !== "dead");
+  if (!attacker || !target) return;
+
+  const finalAtk = getEffectiveAtk(attacker) + Math.floor(Math.random() * 4);
+  const finalDef = Math.max(0, getCharDef(target) + Math.floor(getCharVit(target) / 4));
+  let dmg = Math.max(1, finalAtk - finalDef);
+  dmg = reduceIncomingDamage(target, dmg, { logQueue });
+  target.hp = Math.max(0, target.hp - dmg);
+  const recovered = wakeSleepingCharOnDamage(target);
+  logQueue.push({
+    msg: `[ 敵 ] ${attacker.name}の追撃！${target.name}は${dmg}のダメージを受けた。${recovered ? `${target.name}は状態異常から回復した！` : ""}`,
+    sound: "hit",
+    shake: 8,
+    floatText: `${dmg}`,
+    floatColor: "#ff3b30"
+  });
+  if (target.hp === 0) {
+    target.status = "dead";
+    recordCharDeath(state, target, `${attacker.name}の逃走追撃`);
+    logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
+  }
+}
+
+function applyFleeRetreat(state) {
+  const retreat = state.combatState.retreatPosition;
+  if (!retreat) return false;
+  state.x = retreat.x;
+  state.y = retreat.y;
+  return true;
 }
 
 
@@ -90,23 +123,16 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   let escaped = false;
   const roundNumber = state.combatState.roundNumber || 1;
 
-  // 全員麻痺のときの警告メッセージ
   const currentLivingParty = state.party.filter(c => c.status !== "dead");
   currentLivingParty.forEach(char => {
     char.combatLastSurvivor = currentLivingParty.length === 1;
   });
-  const currentAllParalyzed = currentLivingParty.length > 0 && currentLivingParty.every(c => c.status === "paralyzed");
-  if (currentAllParalyzed) {
-    logQueue.push({ msg: "全員が麻痺して動けない！" });
-    logQueue.push({ msg: "敵の攻撃を受けるしかない。" });
-  }
-
   // Build Turn Order: All active characters + all active monsters
   const turns = [];
 
   // Characters
   state.party.forEach((char, idx) => {
-    if (char.status === "ok" || char.status === "poisoned" || char.status === "blind") {
+    if (char.status !== "dead") {
       const chosen = combatSelection.actions.find(a => a.actorIdx === idx);
       const speed = getCharAgi(char) + getBuffTotal(char, "agi") + Math.floor(Math.random() * 10) + getCharAffixSum(char, "firstStrike");
       turns.push({
@@ -159,6 +185,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     });
     if (turn.type === "char") {
       const char = turn.char;
+      if (["sleep", "paralyze", "paralyzed"].includes(char.status)) {
+        logQueue.push({ msg: `[味方] ${char.name}は動けない！`, sound: "miss" });
+        consumeCharIncapacitation(char, logQueue);
+        return;
+      }
       if (char.status !== "ok" && char.status !== "poisoned" && char.status !== "blind") return; // Died/slept earlier in the round
       
       const act = turn.action;
@@ -227,20 +258,21 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             dmg = Math.max(1, Math.round(dmg * guard.mon.guard.damageRate));
           }
 
-          // Ninja decapitation (instant death)
-          let isDecap = false;
+          let isCritical = false;
           if (char.class === "Ninja" && !finalTarget.isBoss) {
-            const decapChance = Math.min(0.15, 0.05 + 0.01 * char.level);
-            if (Math.random() < decapChance) {
-              isDecap = true;
+            const criticalChance = Math.min(0.15, 0.05 + 0.01 * char.level);
+            if (Math.random() < criticalChance) {
+              isCritical = true;
             }
           }
 
-          if (isDecap) {
-            dmg = finalTarget.hp;
-            finalTarget.hp = 0;
-            msg = `[味方] 【🗡️急所攻撃！】${char.name}の必殺の一撃！${finalTarget.name}の首をはねた！`;
-            floatText = "即死";
+          if (isCritical) {
+            dmg = Math.max(1, dmg * 3);
+            finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
+            tryApplyHitFlinch(char, finalTarget, logQueue);
+            msg = `[味方] 【🗡️急所攻撃！】${char.name}の必殺の一撃！${finalTarget.name}に${dmg}の大ダメージ！`;
+            if (wakeSleepingMonsterOnDamage(finalTarget)) msg += `${finalTarget.name}は目を覚ました！`;
+            floatText = `${dmg}`;
             sound = "kill";
             shake = 15;
           } else {
@@ -268,9 +300,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             }
           }
 
-          if (!isDecap && hasTrait(finalTarget, "reflectPhysical") && dmg > 0) {
+          if (hasTrait(finalTarget, "reflectPhysical") && dmg > 0) {
             const reflected = Math.max(1, Math.floor(dmg * (finalTarget.physicalReflect?.rate ?? 0.3)));
             char.hp = Math.max(0, char.hp - reflected);
+            wakeSleepingCharOnDamage(char);
             if (char.hp === 0) {
               char.status = "dead";
               recordCharDeath(state, char, `${finalTarget.name}の物理反射`);
@@ -283,10 +316,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             });
           }
 
-          if (!isDecap && hasTrait(finalTarget, "counterSpell") && finalTarget.hp > 0 && Math.random() < (finalTarget.counterSpell?.chance ?? 0.2)) {
+          if (hasTrait(finalTarget, "counterSpell") && finalTarget.hp > 0 && Math.random() < (finalTarget.counterSpell?.chance ?? 0.2)) {
             let counterDmg = Math.floor(Math.random() * 11) + 5;
             counterDmg = reduceIncomingDamage(char, counterDmg, { spell: true, logQueue });
             char.hp = Math.max(0, char.hp - counterDmg);
+            wakeSleepingCharOnDamage(char);
             if (char.hp === 0) {
               char.status = "dead";
               recordCharDeath(state, char, `${finalTarget.name}の反撃ハリト`);
@@ -366,21 +400,16 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       } else if (act.type === "defend") {
         logQueue.push({ msg: `[味方] ${char.name}は身を固めて防御している。` });
       } else if (act.type === "run") {
-        if (state.combatState.isBoss || state.combatState.isMidboss) {
-          logQueue.push({ msg: `[味方] ${char.name}は逃げ出そうとしたが、強敵の前からは逃げられない！` });
-        } else {
-          const escape = Math.random() < 0.40;
-          if (escape) {
-            logQueue.push({
-              msg: "[味方] パーティは戦闘から逃げ出した！",
-              sound: "miss",
-              runEscape: true
-            });
-            escaped = true;
-          } else {
-            logQueue.push({ msg: `[味方] ${char.name}は逃げ出そうとしたが、失敗した！` });
-          }
-        }
+        applyFleePartingAttack(state, monsters, logQueue);
+        const retreated = applyFleeRetreat(state);
+        logQueue.push({
+          msg: retreated
+            ? "[味方] 追撃を受けながら戦闘から逃れ、1マス後退した！"
+            : "[味方] 追撃を受けながら戦闘から逃れた！後退先がないため、その場に留まった。",
+          sound: "miss",
+          runEscape: true
+        });
+        escaped = true;
       }
     } else {
       const mon = turn.mon;
@@ -658,6 +687,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
                 dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
                 c.hp = Math.max(0, c.hp - dmg);
+                wakeSleepingCharOnDamage(c);
                 if (c.hp === 0) {
                   c.status = "dead";
                   recordCharDeath(state, c, `${mon.name}のラハリト`);
@@ -689,6 +719,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
                 dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
                 c.hp = Math.max(0, c.hp - dmg);
+                wakeSleepingCharOnDamage(c);
                 if (c.hp === 0) {
                   c.status = "dead";
                   recordCharDeath(state, c, `${mon.name}のマダルト`);
@@ -710,6 +741,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           dmg = reduceIncomingDamage(target, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
           target.hp = Math.max(0, target.hp - dmg);
+          wakeSleepingCharOnDamage(target);
           logQueue.push({
             msg: `[ 敵 ] ${mon.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${isDefending ? "(半減)" : ""}`,
             sound: "cast_spell",
@@ -731,6 +763,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
               dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
               c.hp = Math.max(0, c.hp - dmg);
+              wakeSleepingCharOnDamage(c);
               if (c.hp === 0) {
                 c.status = "dead";
                 recordCharDeath(state, c, `${mon.name}のティルトウェイト`);
@@ -939,45 +972,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
     });
 
-    // 味方各キャラクターの麻痺自然回復判定
-    state.party.forEach(c => {
-      if (c.status === "paralyzed" && c.hp > 0) {
-        if (Math.random() < 0.20) { // 20% の確率で回復
-          c.status = "ok";
-          logQueue.push({
-            msg: `[味方] ${c.name}は麻痺から回復した！`,
-            sound: "heal"
-          });
-        }
-      }
-    });
-
-    tickCharSleep(state.party, logQueue);
-
-    // 全員麻痺の判定と全滅処理
-    const nextLivingParty = state.party.filter(c => c.status !== "dead");
-    const nextAllParalyzed = nextLivingParty.length > 0 && nextLivingParty.every(c => c.status === "paralyzed");
-
-    if (nextAllParalyzed) {
-      state.combatState.allParalyzedTurns = (state.combatState.allParalyzedTurns || 0) + 1;
-      logQueue.push({
-        msg: `[警告] 全員麻痺状態が続いている！（${state.combatState.allParalyzedTurns}/3ターン）`
-      });
-      if (state.combatState.allParalyzedTurns >= 3) {
-        logQueue.push({
-          msg: "全員が麻痺したまま力尽きた…"
-        });
-        state.party.forEach(c => {
-          c.hp = 0;
-          c.status = "dead";
-          recordCharDeath(state, c, "麻痺による衰弱");
-        });
-      }
-    } else {
-      if (state.combatState) {
-        state.combatState.allParalyzedTurns = 0;
-      }
-    }
+    state.combatState.allParalyzedTurns = 0;
   }
 
   state.combatState.roundNumber = roundNumber + 1;
