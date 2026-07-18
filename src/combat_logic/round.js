@@ -776,8 +776,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       } else {
         // Ninja physical attack evasion (25% chance to balance with row system)
         let isEvaded = false;
+        const evasion = getCharAffixSum(target, "evasion") / 100;
         const rearEvasion = targetSelect.i >= 2 ? getCharAffixSum(target, "rearEvasion") / 100 : 0;
-        if ((target.class === "Ninja" && Math.random() < 0.25) || (rearEvasion > 0 && Math.random() < rearEvasion)) {
+        if (
+          (target.class === "Ninja" && Math.random() < 0.25)
+          || (evasion > 0 && Math.random() < evasion)
+          || (rearEvasion > 0 && Math.random() < rearEvasion)
+        ) {
           isEvaded = true;
         }
 
