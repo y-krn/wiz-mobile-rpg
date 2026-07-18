@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { applyCombatRewards } from "../src/combat_logic/rewards.js";
+import { normalizeSavePayload } from "../src/state/save_migrations.js";
 
 let failures = 0;
 
@@ -62,6 +63,43 @@ test("通常の新種は初討伐ボーナス対象", () => {
 
   assert.deepEqual(state.firstKills, ["スライム"]);
   assert.equal(state.gold, 101);
+});
+
+test("分裂体は図鑑に登録されない", () => {
+  const state = makeRewardState();
+  const splitName = "スライムの分裂体1";
+  state.combatState.monsters = [monster({ name: splitName, hasSplit: true })];
+
+  applyCombatRewards(state, state.combatState.monsters, [], () => 1);
+
+  assert.equal(Object.hasOwn(state.codex.monsters, splitName), false);
+});
+
+test("通常種は図鑑の討伐数が増える", () => {
+  const state = makeRewardState();
+  state.codex.monsters["スライム"] = { encountered: 1, killed: 2, firstKilled: true };
+  state.combatState.monsters = [monster()];
+
+  applyCombatRewards(state, state.combatState.monsters, [], () => 1);
+
+  assert.equal(state.codex.monsters["スライム"].killed, 3);
+});
+
+test("normalizeSavePayloadは分裂体の図鑑汚染を除去する", () => {
+  const normalized = normalizeSavePayload({
+    codex: {
+      monsters: {
+        "スライム": { encountered: 1, killed: 3, firstKilled: true },
+        "スライムの分裂体1": { encountered: 1, killed: 1, firstKilled: true }
+      }
+    },
+    firstKills: ["スライム", "スライムの分裂体2"]
+  });
+
+  assert.deepEqual(normalized.codex.monsters, {
+    "スライム": { encountered: 1, killed: 3, firstKilled: true }
+  });
+  assert.deepEqual(normalized.firstKills, ["スライム"]);
 });
 
 if (failures > 0) {
