@@ -178,12 +178,20 @@
 }
 
 .quest-hud-list span {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-xs);
+  min-width: 0;
+}
+
+.quest-hud-list strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.quest-hud-list small { flex-shrink: 0; font-size: inherit; }
 .quest-hud-list span.completed { color: var(--neon-green); }
 
 #game-container.result-mode #goal-banner,

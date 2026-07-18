@@ -293,7 +293,11 @@ export function updateUI() {
       state.currentRun.quests.forEach(quest => {
         const item = document.createElement("span");
         item.className = quest.completed ? "completed" : "";
-        item.textContent = `${quest.name} ${formatRunQuestProgress(quest, state.currentRun)}`;
+        const name = document.createElement("strong");
+        name.textContent = quest.name;
+        const progress = document.createElement("small");
+        progress.textContent = formatRunQuestProgress(quest, state.currentRun);
+        item.append(name, progress);
         questList.appendChild(item);
       });
       goalBanner.appendChild(questList);

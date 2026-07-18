@@ -55,10 +55,13 @@ for (const vp of VIEWPORTS) {
       state.gameState = 'explore';
       updateUI();
     });
-    await expect(page.locator('.quest-hud-list')).toContainText('次の節目へ');
-    await page.locator('#btn-run-quests').click();
-    await expect(page.locator('#submenu-title')).toContainText('ランクエスト');
-    await expect(page.locator('.run-quest-card')).toContainText('達成');
+    const questHud = page.locator('.quest-hud-list');
+    await expect(questHud.getByText('次の節目へ')).toBeVisible();
+    await expect(questHud.getByText('達成')).toBeVisible();
+    await expect(page.locator('#btn-run-quests')).toHaveCount(0);
+    const questHudBox = await questHud.boundingBox();
+    expect(questHudBox.x).toBeGreaterThanOrEqual(0);
+    expect(questHudBox.x + questHudBox.width).toBeLessThanOrEqual(vp.width);
 
     await page.evaluate(async () => {
       const { state } = await import('/src/state.js');

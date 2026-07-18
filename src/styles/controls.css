@@ -111,22 +111,6 @@
   align-content: start;
 }
 
-.run-quest-grid { grid-template-columns: 1fr; }
-.run-quest-card {
-  padding: var(--sp-md);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: #181822;
-  font-family: var(--font-mono);
-}
-.run-quest-card.completed { border-color: var(--neon-green); }
-.run-quest-heading { display: flex; justify-content: space-between; gap: var(--sp-md); }
-.run-quest-heading strong { color: var(--neon-cyan); }
-.run-quest-heading span { color: var(--neon-amber); }
-.run-quest-card.completed .run-quest-heading span { color: var(--neon-green); }
-.run-quest-card p { margin: var(--sp-xs) 0; color: var(--text-main); font-size: var(--fs-xs); }
-.run-quest-card small { color: var(--text-muted); }
-
 .records-menu-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-xs); }
 .records-menu-summary > div { display: grid; gap: var(--sp-xxs); padding: var(--sp-sm); border: 1px solid var(--border-color); text-align: center; }
 .records-menu-summary span, .records-class-list { color: var(--text-muted); font-size: var(--fs-xs); }

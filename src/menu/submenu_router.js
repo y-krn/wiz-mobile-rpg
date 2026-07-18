@@ -7,7 +7,6 @@ import { renderMilestoneMerchant } from "./milestone_merchant.js";
 import { renderMilestonePortal } from "./milestone_portal.js";
 import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect, renderWardenConfirm } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
-import { renderRunQuests } from "./run_quest_view.js";
 
 const SUBMENU_RENDERERS = {
   chest_menu: () => openChestMenu(),
@@ -20,7 +19,6 @@ const SUBMENU_RENDERERS = {
   gameover_main: (optGrid) => renderGameOverMain(optGrid),
   enter_dungeon_select: (optGrid) => renderEnterDungeonSelect(optGrid),
   solo_start: (optGrid) => renderSoloStart(optGrid),
-  run_quests: (optGrid) => renderRunQuests(optGrid),
   castle_main: (optGrid) => renderCastleMain(optGrid),
   castle_death_logs: (optGrid) => renderCastleDeathLogs(optGrid),
   chest_disarmer_select: (optGrid) => renderChestDisarmerSelect(optGrid),
