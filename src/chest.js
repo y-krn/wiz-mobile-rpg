@@ -7,6 +7,7 @@ import { menuContext, openSubmenu, resetSubmenuBackButton } from "./navigation.j
 import { triggerGameOver } from "./combat.js";
 import { createRng } from "./seed_rng.js";
 import { increaseChestTrapTier } from "./systems/traps.js";
+import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
 
 export function applyTombRaiderTrapTier(chest, opener) {
   const params = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
@@ -511,6 +512,7 @@ export function triggerChestTrap(char) {
 
   if (trap === "poison needle") {
     char.hp = Math.max(0, char.hp - 12);
+    clearCharIncapacitationOnDamage(char);
     const ward = getCharAffixSum(char, "poisonWard");
     const resisted = char.hp > 0 && ward > 0 && Math.random() * 100 < ward;
     if (char.hp === 0) {
@@ -527,6 +529,7 @@ export function triggerChestTrap(char) {
       if (c.status !== "dead") {
         const dmg = Math.floor(Math.random() * 8) + 5; // 5-12
         c.hp = Math.max(0, c.hp - dmg);
+        clearCharIncapacitationOnDamage(c);
         if (c.hp === 0) {
           c.status = "dead";
           recordCharDeath(state, c, "宝箱の罠「ガス爆弾」");

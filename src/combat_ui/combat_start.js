@@ -5,6 +5,17 @@ import { generateEncounter } from "./encounter.js";
 import { advanceActionSelection } from "./action_selection.js";
 import { getCharCoreParams, getCoreLogText, getEquippedCurseCount } from "../data.js";
 
+function getRetreatPosition() {
+  const { x, y, prevX, prevY, map } = state;
+  if (![x, y, prevX, prevY].every(Number.isInteger)) return null;
+  if (Math.abs(x - prevX) + Math.abs(y - prevY) !== 1) return null;
+  if (!map?.[y]?.[x] || !map?.[prevY]?.[prevX]) return null;
+
+  const retreatDir = prevY < y ? 0 : prevX > x ? 1 : prevY > y ? 2 : 3;
+  if (map[y][x].walls?.[retreatDir]) return null;
+  return { x: prevX, y: prevY };
+}
+
 export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, roamingMonster = null) {
   state.gameState = "combat";
   if (state.currentRun) {
@@ -50,6 +61,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     isAuto: false,
     allParalyzedTurns: 0,
     roundNumber: 1,
+    retreatPosition: getRetreatPosition(),
     loggedCoreActivations: []
   };
   state.chestState = null;

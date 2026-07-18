@@ -41,11 +41,6 @@ export function playBattleLogs(queue, index) {
         state.transitioning = false;
         triggerGameOver();
       } else {
-        if (state.combatState && state.combatState.isRoamingFlack) {
-          // Push player back to prevX, prevY
-          state.x = state.prevX;
-          state.y = state.prevY;
-        }
         state.gameState = "explore";
         cleanupCombatState();
         resetSubmenuBackButton();
