@@ -134,7 +134,7 @@ export function recordCharDeath(stateObj, char, cause) {
   const alreadyRecorded = stateObj.currentRun.deathLogs.some(log => log.charName === char.name);
   if (alreadyRecorded) return;
 
-  const turn = stateObj.combatState ? stateObj.combatState.turn : null;
+  const turn = stateObj.combatState ? stateObj.combatState.roundNumber ?? null : null;
   stateObj.currentRun.deathLogs.push({
     charName: char.name,
     cause: cause,
@@ -142,6 +142,6 @@ export function recordCharDeath(stateObj, char, cause) {
     turn: turn
   });
 
-  const turnText = turn !== null ? ` (ターン ${turn})` : "";
+  const turnText = turn != null ? ` (ターン ${turn})` : "";
   addLog(`☠️ [!] ${char.name}は B${stateObj.floor}F で${cause}により倒れた。${turnText}`);
 }
