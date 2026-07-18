@@ -30,3 +30,23 @@ export function createRng(seedStr) {
   const seedParts = cyrb128(seedStr);
   return mulberry32(seedParts[0]);
 }
+
+export function deriveFloorSeed(runSeed, floor) {
+  if (typeof runSeed !== "string" || runSeed.length === 0) {
+    throw new TypeError("runSeed must be a non-empty string");
+  }
+  if (!Number.isInteger(floor) || floor < 1) {
+    throw new TypeError(`floor must be a positive integer: ${floor}`);
+  }
+  return `${runSeed}:floor:${floor}`;
+}
+
+export function deriveFloorAttemptSeed(floorSeed, attempt) {
+  if (typeof floorSeed !== "string" || floorSeed.length === 0) {
+    throw new TypeError("floorSeed must be a non-empty string");
+  }
+  if (!Number.isInteger(attempt) || attempt < 0) {
+    throw new TypeError(`attempt must be a non-negative integer: ${attempt}`);
+  }
+  return `${floorSeed}:attempt:${attempt}`;
+}

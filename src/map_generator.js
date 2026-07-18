@@ -1,4 +1,4 @@
-import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, START_Y, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, TRAP_TYPES } from "./data.js";
+import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, TRAP_TYPES } from "./data.js";
 import { createRng } from "./seed_rng.js";
 
 // Directions helper
@@ -42,11 +42,19 @@ function isWalkableCell(cell) {
   return cell.walls.some(w => !w) || cell.secretDoor.some(Boolean);
 }
 
+function getMapWidth(grid) {
+  return grid[0]?.length ?? 0;
+}
+
+function getMapHeight(grid) {
+  return grid.length;
+}
+
 function isPassageCell(grid, x, y) {
   return x >= 0 &&
-    x < MAP_WIDTH &&
+    x < getMapWidth(grid) &&
     y >= 0 &&
-    y < MAP_HEIGHT &&
+    y < getMapHeight(grid) &&
     grid[y][x].walls.some(w => !w);
 }
 
@@ -67,8 +75,8 @@ function countCreatedTightUTurns(grid, x, y, dir) {
     : [{ x: middleX, y: middleY - 1 }, { x: middleX, y: middleY + 1 }];
 
   return faceCenters.filter(center =>
-    center.x > 0 && center.x < MAP_WIDTH - 1 &&
-    center.y > 0 && center.y < MAP_HEIGHT - 1 &&
+    center.x > 0 && center.x < getMapWidth(grid) - 1 &&
+    center.y > 0 && center.y < getMapHeight(grid) - 1 &&
     grid[center.y][center.x].walls.every(Boolean) &&
     countOpenFaceEdges(grid, center.x, center.y) === 2
   ).length;
@@ -77,8 +85,8 @@ function countCreatedTightUTurns(grid, x, y, dir) {
 function collectReachableDeadEnds(grid, start, protectedKeys) {
   const reachableKeys = getReachableCellKeys(grid, start);
   const deadEnds = [];
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       if (protectedKeys.has(`${x},${y}`) || !reachableKeys.has(`${x},${y}`)) continue;
       if (grid[y][x].walls.filter(wall => !wall).length === 1) deadEnds.push({ x, y });
     }
@@ -100,8 +108,8 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
   while (deadEnds.length < target) {
     const reachableKeys = getReachableCellKeys(grid, start);
     const candidates = [];
-    for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-      for (let x = 1; x < MAP_WIDTH - 1; x++) {
+    for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+      for (let x = 1; x < getMapWidth(grid) - 1; x++) {
         if (protectedKeys.has(`${x},${y}`) || !grid[y][x].walls.every(Boolean)) continue;
         const attachmentDirs = [];
         const passageNeighborDirs = [];
@@ -132,8 +140,8 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
 function getInternalWallEdges(grid) {
   const edges = [];
 
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       if (!isPassageCell(grid, x, y)) continue;
 
       if (grid[y][x].walls[DIR_E] && !grid[y][x].secretDoor?.[DIR_E] && !grid[y][x].sealedGate?.[DIR_E] && isPassageCell(grid, x + 1, y)) {
@@ -164,7 +172,7 @@ function getInternalWallEdges(grid) {
 export function openWall(grid, x, y, dir) {
   const nx = x + DX[dir];
   const ny = y + DY[dir];
-  if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) return;
+  if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) return;
 
   grid[y][x].walls[dir] = false;
   grid[ny][nx].walls[OPPOSITE_DIR[dir]] = false;
@@ -253,7 +261,7 @@ function getReachableCellKeys(grid, start) {
 
       const nx = pos.x + DX[dir];
       const ny = pos.y + DY[dir];
-      if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
 
       const key = `${nx},${ny}`;
       if (!seen.has(key)) {
@@ -264,6 +272,29 @@ function getReachableCellKeys(grid, start) {
   }
 
   return seen;
+}
+
+function getDistanceMap(grid, start) {
+  const queue = [{ ...start, distance: 0 }];
+  const distances = new Map([[`${start.x},${start.y}`, 0]]);
+
+  for (const pos of queue) {
+    const cell = grid[pos.y]?.[pos.x];
+    if (!cell) continue;
+
+    for (let dir = 0; dir < 4; dir++) {
+      if (cell.walls[dir]) continue;
+      const nx = pos.x + DX[dir];
+      const ny = pos.y + DY[dir];
+      const key = `${nx},${ny}`;
+      if (!grid[ny]?.[nx] || distances.has(key)) continue;
+      const distance = pos.distance + 1;
+      distances.set(key, distance);
+      queue.push({ x: nx, y: ny, distance });
+    }
+  }
+
+  return distances;
 }
 
 function getDirectedReachableCellKeys(grid, start) {
@@ -279,7 +310,7 @@ function getDirectedReachableCellKeys(grid, start) {
 
       const nx = pos.x + DX[dir];
       const ny = pos.y + DY[dir];
-      if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
 
       const key = `${nx},${ny}`;
       if (!seen.has(key)) {
@@ -313,7 +344,7 @@ function getDetourDistanceWithoutEdge(grid, edge) {
 
       const nx = pos.x + DX[dir];
       const ny = pos.y + DY[dir];
-      if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
 
       const key = `${nx},${ny}`;
       if (!seen.has(key)) {
@@ -341,7 +372,7 @@ function getDirectedDistance(grid, start, target) {
 
       const nx = pos.x + DX[dir];
       const ny = pos.y + DY[dir];
-      if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
 
       const key = `${nx},${ny}`;
       if (!seen.has(key)) {
@@ -357,8 +388,8 @@ function getDirectedDistance(grid, start, target) {
 function getNonBridgePassageEdges(grid) {
   const edges = [];
 
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       const cell = grid[y][x];
       if (!isPassageCell(grid, x, y)) continue;
 
@@ -380,8 +411,8 @@ function getNonBridgePassageEdges(grid) {
 function getOpenPassageEdges(grid) {
   const edges = [];
 
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       const cell = grid[y][x];
       if (!isPassageCell(grid, x, y)) continue;
 
@@ -403,8 +434,8 @@ function getOpenPassageEdges(grid) {
 function getCarvedShortcutEdges(grid) {
   const edges = [];
 
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       const cell = grid[y][x];
       if (cell.type !== "empty" || cell.event || cell.walls.some(w => !w)) continue;
 
@@ -444,8 +475,8 @@ function getRequiredReachableKeys(grid, stairsDownCoord, bossCoord) {
   if (stairsDownCoord) keys.add(`${stairsDownCoord.x},${stairsDownCoord.y}`);
   if (bossCoord) keys.add(`${bossCoord.x},${bossCoord.y}`);
 
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       const cell = grid[y][x];
       if (cell.event || cell.type === "stairs-down") keys.add(`${x},${y}`);
     }
@@ -479,8 +510,8 @@ function getOneWayReverseDetourDistance(grid, option) {
 }
 
 function hasValidOneWayReverseDetours(grid) {
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       for (let blockDir = 0; blockDir < 4; blockDir++) {
         if (!grid[y][x].blockEnter[blockDir]) continue;
         const distance = getOneWayReverseDetourDistance(grid, { x, y, blockDir });
@@ -497,8 +528,8 @@ function removeInvalidOneWayPassages(grid, start) {
   let removed;
   do {
     removed = false;
-    for (let y = 1; y < MAP_HEIGHT - 1 && !removed; y++) {
-      for (let x = 1; x < MAP_WIDTH - 1 && !removed; x++) {
+    for (let y = 1; y < getMapHeight(grid) - 1 && !removed; y++) {
+      for (let x = 1; x < getMapWidth(grid) - 1 && !removed; x++) {
         for (let blockDir = 0; blockDir < 4; blockDir++) {
           if (!grid[y][x].blockEnter[blockDir]) continue;
           const distance = getOneWayReverseDetourDistance(grid, { x, y, blockDir });
@@ -519,8 +550,8 @@ function removeInvalidOneWayPassages(grid, start) {
 function placeSecretShortcuts(grid, targetCount, protectedRoomKeys, rng) {
   const candidates = [];
 
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       const cell = grid[y][x];
       if (cell.type !== "empty" || cell.event || cell.walls.some(w => !w) || cell.secretDoor.some(Boolean)) continue;
       if ([0, 1, 2, 3].some(dir => protectedRoomKeys.has(`${x + DX[dir]},${y + DY[dir]}`))) continue;
@@ -561,8 +592,8 @@ function getSecretRoomCandidates(grid, requiredKeys, start) {
   const candidates = [];
   const reachableKeys = getDirectedReachableCellKeys(grid, start);
 
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       const roomCell = grid[y][x];
       if (!roomCell.walls.every(Boolean) || roomCell.event || roomCell.type !== "empty") continue;
       if (requiredKeys.has(`${x},${y}`)) continue;
@@ -597,8 +628,8 @@ function ensureSecretRoomCandidates(grid, targetCount, requiredKeys, start, rng)
   while (protectedCount < targetCount) {
     const reachableKeys = getDirectedReachableCellKeys(grid, start);
     const deadEnds = [];
-    for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-      for (let x = 1; x < MAP_WIDTH - 1; x++) {
+    for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+      for (let x = 1; x < getMapWidth(grid) - 1; x++) {
         const cell = grid[y][x];
         const openDir = cell.walls.findIndex(wall => !wall);
         if (cell.walls.filter(wall => !wall).length !== 1 || cell.event || cell.trap || cell.type !== "empty") continue;
@@ -674,8 +705,8 @@ function placeSecretRooms(grid, targetCount, requiredKeys, start, protectedRoomK
   return placed;
 }
 
-function placeSecretDoors(grid, floor, start, stairsDownCoord, bossCoord, rng) {
-  const counts = SECRET_DOOR_COUNTS[floor] || { shortcut: 0, room: 0 };
+function placeSecretDoors(grid, floor, start, stairsDownCoord, bossCoord, rng, counts = null) {
+  counts ||= SECRET_DOOR_COUNTS[floor] || { shortcut: 0, room: 0 };
   const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, bossCoord);
   const initialRoomCandidates = getSecretRoomCandidates(grid, requiredKeys, start);
   let protectedRoomKeys = selectProtectedSecretRoomKeys(initialRoomCandidates, counts.room);
@@ -691,10 +722,10 @@ function placeSecretDoors(grid, floor, start, stairsDownCoord, bossCoord, rng) {
   return { shortcuts, rooms };
 }
 
-function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng) {
+function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng, requestedCount = null) {
   const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, bossCoord);
   const edges = getNonBridgePassageEdges(grid);
-  const targetCount = Math.min(ONE_WAY_PASSAGE_COUNTS[floor] || 0, edges.length);
+  const targetCount = Math.min(requestedCount ?? ONE_WAY_PASSAGE_COUNTS[floor] ?? 0, edges.length);
   let placed = 0;
   const usedEdges = new Set();
 
@@ -876,7 +907,7 @@ export function placeWardenGateWithStairFallback(grid, floor, start, stairsDownC
     trial[candidate.y][candidate.x].message = `【下り階段】地下${floor + 1}階へ進む階段です。`;
     const gate = placeWardenGate(trial, floor, start, candidate, rng);
     if (!gate) continue;
-    for (let y = 0; y < MAP_HEIGHT; y++) {
+    for (let y = 0; y < getMapHeight(grid); y++) {
       grid[y] = trial[y];
     }
     return { gate, stairsDownCoord: { x: candidate.x, y: candidate.y } };
@@ -961,14 +992,14 @@ function roomsTooClose(a, b) {
 // rectangle. The rectangle always contains existing passage cells, so the
 // hall stays connected to the main maze; never-dug pillar cells inside the
 // rectangle simply become hall floor.
-export function carveRooms(grid, rng, visited = null) {
-  const targetCount = ROOM_COUNT_RANGE[0] +
-    Math.floor(rng() * (ROOM_COUNT_RANGE[1] - ROOM_COUNT_RANGE[0] + 1));
+export function carveRooms(grid, rng, visited = null, roomCountRange = ROOM_COUNT_RANGE) {
+  const targetCount = roomCountRange[0] +
+    Math.floor(rng() * (roomCountRange[1] - roomCountRange[0] + 1));
 
   const candidates = [];
   for (const size of ROOM_SIZES) {
-    for (let y = 1; y <= MAP_HEIGHT - 1 - size.h; y++) {
-      for (let x = 1; x <= MAP_WIDTH - 1 - size.w; x++) {
+    for (let y = 1; y <= getMapHeight(grid) - 1 - size.h; y++) {
+      for (let x = 1; x <= getMapWidth(grid) - 1 - size.w; x++) {
         candidates.push({ x, y, w: size.w, h: size.h });
       }
     }
@@ -1004,8 +1035,10 @@ export const MAZE_PROFILE_RANGES = {
   5: { straightBias: [0.00, 0.40], loopRate: [0.10, 0.28] }
 };
 
-export function createMazeProfile(floor, rng) {
-  const range = MAZE_PROFILE_RANGES[floor] || MAZE_PROFILE_RANGES[5];
+export function createMazeProfile(floor, rng, profileRange = null, size = null) {
+  const range = profileRange || MAZE_PROFILE_RANGES[floor] || MAZE_PROFILE_RANGES[5];
+  const mapWidth = size?.width ?? MAP_WIDTH;
+  const mapHeight = size?.height ?? MAP_HEIGHT;
   const randomInRange = ([min, max]) => min + rng() * (max - min);
   // Favor visibly sparse or dense layouts over clustering near the mean.
   const randomNearRangeEdge = ([min, max]) => {
@@ -1015,8 +1048,8 @@ export function createMazeProfile(floor, rng) {
       ? min + edgeRoll * (max - min) * 0.25
       : max - edgeRoll * (max - min) * 0.25;
   };
-  const digColumns = Math.floor((MAP_WIDTH - 1) / 2);
-  const digRows = Math.floor((MAP_HEIGHT - 2) / 2);
+  const digColumns = Math.floor((mapWidth - 1) / 2);
+  const digRows = Math.floor((mapHeight - 2) / 2);
 
   return {
     straightBias: randomInRange(range.straightBias),
@@ -1028,12 +1061,14 @@ export function createMazeProfile(floor, rng) {
   };
 }
 
-export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = null) {
+export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = null, options = {}) {
+  const mapWidth = options.size?.width ?? MAP_WIDTH;
+  const mapHeight = options.size?.height ?? MAP_HEIGHT;
   const rng = seed ? createRng(`${seed}:map:B${floor}`) : Math.random;
-  const mazeProfile = createMazeProfile(floor, rng);
+  const mazeProfile = createMazeProfile(floor, rng, options.mazeProfile, { width: mapWidth, height: mapHeight });
   // 1. Initialize grid with all walls closed
-  const grid = Array.from({ length: MAP_HEIGHT }, () =>
-    Array.from({ length: MAP_WIDTH }, () => ({
+  const grid = Array.from({ length: mapHeight }, () =>
+    Array.from({ length: mapWidth }, () => ({
       walls: [true, true, true, true], // N, E, S, W starts closed
       blockEnter: [false, false, false, false],
       secretDoor: [false, false, false, false],
@@ -1046,10 +1081,10 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   );
 
   // Helper to check boundaries for maze generation
-  const isValid = (x, y) => x > 0 && x < MAP_WIDTH - 1 && y > 0 && y < MAP_HEIGHT - 1;
+  const isValid = (x, y) => x > 0 && x < mapWidth - 1 && y > 0 && y < mapHeight - 1;
 
   // DFS Digging algorithm
-  const visited = Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false));
+  const visited = Array.from({ length: mapHeight }, () => Array(mapWidth).fill(false));
   const stack = [];
 
   // Start digging from a seeded random cell on the DFS lattice.
@@ -1132,8 +1167,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   }
 
   // 2. Open additional walls once per undirected DFS-lattice edge.
-  for (let y = 2; y < MAP_HEIGHT - 1; y += 2) {
-    for (let x = 1; x < MAP_WIDTH - 1; x += 2) {
+  for (let y = 2; y < mapHeight - 1; y += 2) {
+    for (let x = 1; x < mapWidth - 1; x += 2) {
       if (visited[y][x]) {
         for (const dir of [DIR_E, DIR_S]) {
           const nx = x + DX[dir] * 2;
@@ -1165,17 +1200,20 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   removeIsolatedInternalWalls(grid);
 
-  const rooms = carveRooms(grid, rng, visited);
+  const rooms = carveRooms(grid, rng, visited, options.roomCountRange);
 
-  const stairsUpCoord = (floor > 1) ? (parentStairsCoord || { x: MAP_WIDTH - 2, y: 1 }) : null;
-  const suCoord = floor > 1 ? (stairsUpCoord || { x: MAP_WIDTH - 2, y: 1 }) : { x: START_X, y: START_Y };
+  const entryCoord = floor > 1
+    ? (parentStairsCoord || { x: mapWidth - 2, y: 1 })
+    : { x: START_X, y: mapHeight - 2 };
+  const stairsUpCoord = floor > 1 ? entryCoord : null;
+  const suCoord = entryCoord;
 
   // 3. Setup floor specific connections & detect dead ends
   // Make sure start position is connected
   if (floor === 1) {
-    if (grid[START_Y][START_X].walls.every(w => w)) {
-      grid[START_Y][START_X].walls[DIR_N] = false;
-      grid[START_Y - 1][START_X].walls[DIR_S] = false;
+    if (grid[suCoord.y][suCoord.x].walls.every(w => w)) {
+      grid[suCoord.y][suCoord.x].walls[DIR_N] = false;
+      grid[suCoord.y - 1][suCoord.x].walls[DIR_S] = false;
     }
   } else if (floor > 1) {
     if (grid[suCoord.y][suCoord.x].walls.every(w => w)) {
@@ -1271,18 +1309,28 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     grid[suCoord.y][suCoord.x].type = "stairs-up";
     grid[suCoord.y][suCoord.x].message = `【上り階段】地下${floor - 1}階へ戻る階段です。`;
   } else {
-    grid[START_Y][START_X].type = "stairs-up";
-    grid[START_Y][START_X].message = "【上り階段】街へ戻る階段です。";
+    grid[suCoord.y][suCoord.x].type = "stairs-up";
+    grid[suCoord.y][suCoord.x].message = "【上り階段】街へ戻る階段です。";
   }
 
-  // Set stairs-down for B1F - B4F
-  if (floor < 5) {
-    if (deadEnds.length > 0) {
-      const rankedDeadEnds = deadEnds
-        .map((coord, index) => ({
+  // Set stairs-down for B1F - B4F, or every floor in the endless-run generator.
+  if (options.generateStairsDown ?? (floor < 5)) {
+    const criticalPathRange = options.criticalPathRange;
+    const distances = criticalPathRange ? getDistanceMap(grid, suCoord) : null;
+    const isInCriticalPathRange = coord => {
+      if (!criticalPathRange) return true;
+      const distance = distances.get(`${coord.x},${coord.y}`);
+      return distance >= criticalPathRange[0] && distance <= criticalPathRange[1];
+    };
+    const targetDeadEnds = deadEnds.filter(isInCriticalPathRange);
+
+    if (targetDeadEnds.length > 0 || (!criticalPathRange && deadEnds.length > 0)) {
+      const eligibleDeadEnds = targetDeadEnds.length > 0 ? targetDeadEnds : deadEnds;
+      const rankedDeadEnds = eligibleDeadEnds
+        .map(coord => ({
           coord,
-          index,
-          dist: Math.abs(coord.x - suCoord.x) + Math.abs(coord.y - suCoord.y),
+          dist: distances?.get(`${coord.x},${coord.y}`) ??
+            Math.abs(coord.x - suCoord.x) + Math.abs(coord.y - suCoord.y),
         }))
         .sort((a, b) => b.dist - a.dist);
       const topCount = Math.min(
@@ -1294,15 +1342,25 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       const candidates = distantCandidates.length > 0 ? distantCandidates : topCandidates;
       const selected = candidates[Math.floor(rng() * candidates.length)];
       stairsDownCoord = selected.coord;
-      deadEnds.splice(selected.index, 1);
+      const deadEndIndex = deadEnds.findIndex(coord =>
+        coord.x === stairsDownCoord.x && coord.y === stairsDownCoord.y
+      );
+      if (deadEndIndex !== -1) deadEnds.splice(deadEndIndex, 1);
     } else {
-      stairsDownCoord = [...reachableKeys]
+      const reachableCandidates = [...reachableKeys]
         .map(key => {
           const [x, y] = key.split(",").map(Number);
-          return { x, y, dist: Math.abs(x - suCoord.x) + Math.abs(y - suCoord.y) };
+          return {
+            x,
+            y,
+            dist: distances?.get(key) ?? Math.abs(x - suCoord.x) + Math.abs(y - suCoord.y)
+          };
         })
         .filter(cell => cell.x !== suCoord.x || cell.y !== suCoord.y)
-        .sort((a, b) => b.dist - a.dist)[0] || { x: suCoord.x, y: suCoord.y };
+        .filter(isInCriticalPathRange)
+        .sort((a, b) => b.dist - a.dist);
+      stairsDownCoord = reachableCandidates[Math.floor(rng() * reachableCandidates.length)] ||
+        { x: suCoord.x, y: suCoord.y };
     }
     if (grid[stairsDownCoord.y][stairsDownCoord.x].type !== "stairs-up") {
       grid[stairsDownCoord.y][stairsDownCoord.x].type = "stairs-down";
@@ -1311,7 +1369,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   }
 
   // Place Midboss on Floor 3, Boss on Floor 5
-  if (floor === 3) {
+  const legacyMilestones = options.legacyMilestones ?? true;
+  if (legacyMilestones && floor === 3) {
     if (deadEnds.length > 0) {
       deadEnds.forEach(de => {
         de.dist = Math.abs(de.x - suCoord.x) + Math.abs(de.y - suCoord.y);
@@ -1339,7 +1398,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     }
     grid[bossCoord.y][bossCoord.x].event = "midboss";
     grid[bossCoord.y][bossCoord.x].message = "不気味な魔力の気配を感じる…！デーモンガードが立ち塞がった！";
-  } else if (floor === 5) {
+  } else if (legacyMilestones && floor === 5) {
     if (deadEnds.length > 0) {
       deadEnds.forEach(de => {
         de.dist = Math.abs(de.x - suCoord.x) + Math.abs(de.y - suCoord.y);
@@ -1369,7 +1428,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     grid[bossCoord.y][bossCoord.x].message = "周囲にただならぬ気配が漂っている…！いにしえの竜が姿を現した！";
   }
 
-  const secretCounts = SECRET_DOOR_COUNTS[floor] || { shortcut: 0, room: 0 };
+  const secretCounts = options.secretDoorCounts || SECRET_DOOR_COUNTS[floor] || { shortcut: 0, room: 0 };
   const preEventRequiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, bossCoord);
   const preEventRoomCandidates = ensureSecretRoomCandidates(grid, secretCounts.room, preEventRequiredKeys, suCoord, rng);
   const reservedRoomKeys = selectProtectedSecretRoomKeys(preEventRoomCandidates, secretCounts.room);
@@ -1421,9 +1480,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   if (totalChestNeeded > 0 || totalSpringNeeded > 0 || totalTabletNeeded > 0 || totalMerchantNeeded > 0) {
     const passages = [];
-    for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-      for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        const isStart = (x === START_X && y === START_Y);
+    for (let y = 1; y < mapHeight - 1; y++) {
+      for (let x = 1; x < mapWidth - 1; x++) {
+        const isStart = (x === suCoord.x && y === suCoord.y);
         const isStairs = (stairsUpCoord && x === stairsUpCoord.x && y === stairsUpCoord.y) || (stairsDownCoord && x === stairsDownCoord.x && y === stairsDownCoord.y);
         const isBossCell = (bossCoord && x === bossCoord.x && y === bossCoord.y);
         const key = `${x},${y}`;
@@ -1458,9 +1517,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   // 7. Place traps randomly on passage cells
   const trapCandidates = [];
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
-      const isStart = (x === START_X && y === START_Y);
+  for (let y = 1; y < mapHeight - 1; y++) {
+    for (let x = 1; x < mapWidth - 1; x++) {
+      const isStart = (x === suCoord.x && y === suCoord.y);
       const isStairs = (stairsUpCoord && x === stairsUpCoord.x && y === stairsUpCoord.y) || (stairsDownCoord && x === stairsDownCoord.x && y === stairsDownCoord.y);
       const isBossCell = (bossCoord && x === bossCoord.x && y === bossCoord.y);
       const cell = grid[y][x];
@@ -1474,7 +1533,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   }
 
   shuffle(trapCandidates);
-  const trapCount = Math.min(6 + floor, trapCandidates.length);
+  const trapCount = Math.min(options.trapCount ?? 6 + floor, trapCandidates.length);
   
   for (let i = 0; i < trapCount; i++) {
     const spot = trapCandidates[i];
@@ -1517,13 +1576,16 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     };
   }
 
-  placeOneWayPassages(grid, floor, suCoord, stairsDownCoord, bossCoord, rng);
-  placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng);
-  let wardenPlacement = stairsDownCoord
-    ? placeWardenGateWithStairFallback(grid, floor, suCoord, stairsDownCoord, rng)
-    : { gate: placeWardenGate(grid, floor, suCoord, bossCoord, rng), stairsDownCoord };
-  if (!wardenPlacement.gate && bossCoord && stairsDownCoord) {
-    wardenPlacement = { gate: placeWardenGate(grid, floor, suCoord, bossCoord, rng), stairsDownCoord };
+  placeOneWayPassages(grid, floor, suCoord, stairsDownCoord, bossCoord, rng, options.oneWayPassageCount);
+  placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng, secretCounts);
+  let wardenPlacement = { gate: null, stairsDownCoord };
+  if (options.generateWardenGate ?? true) {
+    wardenPlacement = stairsDownCoord
+      ? placeWardenGateWithStairFallback(grid, floor, suCoord, stairsDownCoord, rng)
+      : { gate: placeWardenGate(grid, floor, suCoord, bossCoord, rng), stairsDownCoord };
+    if (!wardenPlacement.gate && bossCoord && stairsDownCoord) {
+      wardenPlacement = { gate: placeWardenGate(grid, floor, suCoord, bossCoord, rng), stairsDownCoord };
+    }
   }
   const wardenGate = wardenPlacement.gate;
   if (stairsDownCoord) stairsDownCoord = wardenPlacement.stairsDownCoord;
@@ -1545,8 +1607,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
       if (displacedEvent || displacedTrap) {
         const relocation = [];
-        for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-          for (let x = 1; x < MAP_WIDTH - 1; x++) {
+        for (let y = 1; y < mapHeight - 1; y++) {
+          for (let x = 1; x < mapWidth - 1; x++) {
             const candidate = grid[y][x];
             if (candidate.type === "empty" && !candidate.event && !candidate.trap &&
                 candidate.walls.some(wall => !wall) && relocationReachableKeys.has(`${x},${y}`)) {
