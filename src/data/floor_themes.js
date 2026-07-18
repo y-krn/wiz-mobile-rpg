@@ -34,13 +34,6 @@ export function revealFloor(stateInstance, floor) {
   if (stateInstance.dungeonMemory.visitedFloors.includes(value)) return false;
   stateInstance.dungeonMemory.visitedFloors.push(value);
   stateInstance.dungeonMemory.visitedFloors.sort((a, b) => a - b);
-  const theme = getFloorTheme(value);
-  [...(stateInstance.contracts || []), stateInstance.activeContract]
-    .filter(contract => contract?.locationFloor === value)
-    .forEach(contract => {
-      contract.name = contract.name.replaceAll("???", theme.name);
-      contract.description = contract.description.replaceAll("???", theme.name);
-    });
   return true;
 }
 

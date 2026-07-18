@@ -5,7 +5,7 @@ import {
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
 import { applyOpenedGatesToMap } from "../state/warden_gates.js";
-import { recordWardenDefeat } from "../contracts.js";
+import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js";
 
 function rollCombatAccessoryDrop(state, rng) {
   const roll = rng();
@@ -63,12 +63,13 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
     state.identifyTickets = (state.identifyTickets || 0) + bonusTickets;
   }
 
-  // 素材報酬の反映
+  // 初討伐報酬はbanking対象外のメタ素材へ直接加算する。
   Object.entries(firstKilledMats).forEach(([mat, qty]) => {
-    if (state.currentRun) {
-      state.currentRun.materials ||= {};
-      state.currentRun.materials[mat] = (state.currentRun.materials[mat] || 0) + qty;
-    }
+    state.metaMaterials ||= {};
+    state.metaMaterials[mat] = (state.metaMaterials[mat] || 0) + qty;
+    if (!state.currentRun) return;
+    state.currentRun.codexRewards ||= {};
+    state.currentRun.codexRewards[mat] = (state.currentRun.codexRewards[mat] || 0) + qty;
   });
 
   if (state.codex) {
@@ -89,11 +90,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
         state.codex.monsters[baseName].firstKilled = true;
       }
       
-      if (state.activeContract && state.activeContract.type === "kill" && state.activeContract.targetMonsterName === baseName) {
-        state.activeContract.currentValue = (state.activeContract.currentValue || 0)
-          + getContractProgressIncrement(state.party, 1);
-        bountyHunterActivated ||= bountyHunter;
-      }
     });
   }
 
@@ -114,6 +110,14 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
         }
       });
     }
+    const questIncrement = getContractProgressIncrement(state.party, 1);
+    recordRunQuestDefeats(state.currentRun, nonFledMonsters, questIncrement);
+    bountyHunterActivated = bountyHunter && questIncrement > 1 && state.currentRun.quests?.some(quest =>
+      quest.type === "role_kill" && nonFledMonsters.some(monster => !monster.hasSplit && monster.role === quest.role)
+    );
+    updateRunQuests(state.currentRun, getPartyMaxAffix(state.party, "contractReward")).forEach(quest => {
+      logQueue.push({ msg: `【ランクエスト達成】${quest.name}：素材ボーナスを獲得した。`, sound: "item" });
+    });
   }
 
   // 素材ドロップの実行
@@ -183,7 +187,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       let rewardMsg = "  -> 初討伐の追加報酬";
       const matListStr = Object.entries(firstKilledMats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
       if (matListStr) {
-        rewardMsg += ` / 素材: [${matListStr}]`;
+        rewardMsg += ` / メタ素材: [${matListStr}]`;
       }
       if (bonusTickets > 0) {
         rewardMsg += ` / 鑑定粉 +${bonusTickets}個`;
@@ -303,10 +307,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
     });
 
     if (isWarden) {
-      recordWardenDefeat(state, gateId);
-      if (bountyHunter && state.activeContract?.type === "warden") {
-        logQueue.push({ msg: getCoreLogText("CORE_BOUNTY_HUNTER") });
-      }
       if (gateId) {
         if (!state.openedGates) state.openedGates = [];
         if (!state.openedGates.includes(gateId)) {

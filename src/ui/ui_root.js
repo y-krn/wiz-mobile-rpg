@@ -9,6 +9,8 @@ import { updateCombatPrompt } from "./combat_prompt.js";
 import { updateViewportHUD } from "./viewport_hud.js";
 import { renderResultScreen } from "./result_screen.js";
 import { getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
+import { formatRunQuestProgress } from "../systems/run_quests.js";
+import { updateRecordsStrip } from "./records_view.js";
 
 let floorStingerTimer = null;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
@@ -170,22 +172,6 @@ export function resetViewportZoom() {
 }
 
 export function getCurrentGoal() {
-  if (state.activeContract) {
-    const contract = state.activeContract;
-    let progressText = "";
-    if (contract.type === "kill") {
-      progressText = `(${contract.targetMonsterName} 討伐: ${contract.currentValue || 0}/${contract.targetValue})`;
-    } else if (contract.type === "chest") {
-      progressText = `(宝箱: ${state.currentRun ? (state.currentRun.chestsOpened || 0) : 0}/${contract.targetValue})`;
-    } else if (contract.type === "recovery") {
-      const currentUnid = state.inventory.filter(item => typeof item === "object" && !item.identified).length;
-      progressText = `(未鑑定品: ${currentUnid}/${contract.targetValue})`;
-    } else if (contract.type === "reach" || contract.type === "weekly" || contract.type === "limit") {
-      progressText = `(到達目標: B${contract.targetValue}F)`;
-    }
-    return `探索契約「${contract.name}」進行中 ${progressText}`;
-  }
-
   if (state.gameState === "town") {
     return "開始地点とクラスを選び、自己最深記録を更新せよ";
   }
@@ -198,6 +184,7 @@ export function getCurrentGoal() {
 
 export function updateUI() {
   resetViewportZoom();
+  updateRecordsStrip();
   const combatOverlayTypes = ["combat_target", "combat_spell", "combat_item"];
   const isCombatOverlaySubmenu = state.gameState === "submenu" && combatOverlayTypes.includes(menuContext.type);
   const eventModeSubmenus = [
@@ -300,6 +287,21 @@ export function updateUI() {
       goalRow.appendChild(statsContainer);
     }
     goalBanner.appendChild(goalRow);
+    if (state.currentRun?.quests?.length && !["result", "gameover", "victory"].includes(state.gameState)) {
+      const questList = document.createElement("div");
+      questList.className = "quest-hud-list";
+      state.currentRun.quests.forEach(quest => {
+        const item = document.createElement("span");
+        item.className = quest.completed ? "completed" : "";
+        const name = document.createElement("strong");
+        name.textContent = quest.name;
+        const progress = document.createElement("small");
+        progress.textContent = formatRunQuestProgress(quest, state.currentRun);
+        item.append(name, progress);
+        questList.appendChild(item);
+      });
+      goalBanner.appendChild(questList);
+    }
   }
 
   // Update mute button display

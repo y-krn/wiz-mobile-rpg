@@ -111,6 +111,12 @@
   align-content: start;
 }
 
+.records-menu-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-xs); }
+.records-menu-summary > div { display: grid; gap: var(--sp-xxs); padding: var(--sp-sm); border: 1px solid var(--border-color); text-align: center; }
+.records-menu-summary span, .records-class-list { color: var(--text-muted); font-size: var(--fs-xs); }
+.records-menu-summary strong { color: var(--neon-cyan); }
+.records-class-list { padding: var(--sp-sm); line-height: 1.5; }
+
 .workshop-grid .materials-hud,
 .workshop-category {
   grid-column: 1 / -1;

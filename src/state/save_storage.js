@@ -6,6 +6,7 @@ import { migrateSavePayload } from "./save_migrations.js";
 import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";
 import { applyDungeonMemoryToMaps } from "./dungeon_state.js";
+import { createDefaultRecords } from "./records_state.js";
 
 const SAVE_KEY = "mobile_wiz_rpg_autosave";
 const OLD_SAVE_KEY = "mobile_wiz_rpg_save";
@@ -76,15 +77,13 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.firstKills = [];
   state.sessionMaxFloor = 1;
   state.currentRun = null;
+  state.records = createDefaultRecords();
   state.unlockedMilestones = [];
   state.runHistory = [];
   state.deathLogs = [];
   state.codex = createDefaultCodex();
 
-  // Contracts & Storage initialization
-  state.contracts = [];
-  state.activeContract = null;
-  state.completedContracts = [];
+  // Storage initialization
   state.storage = [];
   state.storageMax = 30;
   state.identifyTickets = 0;

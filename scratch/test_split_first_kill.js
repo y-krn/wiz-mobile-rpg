@@ -24,6 +24,7 @@ function makeRewardState() {
       materials: {}, equipmentFound: []
     },
     codex: { stats: { totalKills: 0 }, monsters: {} },
+    metaMaterials: {},
     firstKills: [],
     inventory: [],
     floorChestsTotal: [0]
@@ -59,7 +60,9 @@ test("通常の新種は初討伐ボーナス対象", () => {
   applyCombatRewards(state, state.combatState.monsters, [], () => 1);
 
   assert.deepEqual(state.firstKills, ["スライム"]);
-  assert.equal(state.currentRun.materials["獣の牙"], 1);
+  assert.equal(state.metaMaterials["獣の牙"], 1);
+  assert.equal(state.currentRun.codexRewards["獣の牙"], 1);
+  assert.deepEqual(state.currentRun.materials, {});
 });
 
 test("分裂体は図鑑に登録されない", () => {

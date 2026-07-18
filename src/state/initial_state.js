@@ -61,7 +61,11 @@ export const createDefaultCurrentRun = () => ({
   deathLogs: [],
   campRested: {},
   defeatedMilestones: [],
-  visitedMilestoneMerchants: []
+  visitedMilestoneMerchants: [],
+  quests: [],
+  defeatsByRole: {},
+  codexRewards: {},
+  recordResult: null
 });
 
 const SOLO_CLASS_PRESETS = [

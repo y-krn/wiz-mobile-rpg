@@ -249,7 +249,7 @@ test("野営の達人: 装備者本人のキャンプ回復量2倍", () => {
   assert.deepEqual(result.coreUsers, [master.name]);
 });
 
-function makeRewardState(coreId, contract = null) {
+function makeRewardState(coreId, quest = null) {
   const char = makeChar(null);
   char.equipment.accessory = coreId ? coreItem(coreId, "AMULET_HP") : null;
   return {
@@ -258,12 +258,12 @@ function makeRewardState(coreId, contract = null) {
     combatState: { isBoss: false, isMidboss: false, isRoamingFlack: false, monsters: [] },
     currentRun: {
       kills: 0, goldGained: 0, expGained: 0, bossesKilled: 0, elitesKilled: 0,
-      materials: {}, equipmentFound: []
+      materials: {}, equipmentFound: [], quests: quest ? [quest] : [], defeatsByRole: {}
     },
     codex: { stats: {}, monsters: { ゴブリン: { encountered: 1, killed: 0, firstKilled: false } } },
     firstKills: ["ゴブリン"],
     inventory: [],
-    activeContract: contract,
+    metaMaterials: {},
     floorChestsTotal: [0]
   };
 }
@@ -272,13 +272,14 @@ function goblin() {
   return { name: "ゴブリン", hp: 0, maxHp: 10, exp: 0, tags: [], fled: false };
 }
 
-test("賞金稼ぎ: 契約対象キルを2倍カウント", () => {
-  const contract = { type: "kill", targetMonsterName: "ゴブリン", currentValue: 0, targetValue: 4 };
-  const rewardState = makeRewardState("CORE_BOUNTY_HUNTER", contract);
+test("賞金稼ぎ: ランクエスト対象キルを2倍カウント", () => {
+  const quest = { type: "role_kill", role: "aggressor", currentValue: 0, targetValue: 4, completed: false, reward: { materials: {} } };
+  const rewardState = makeRewardState("CORE_BOUNTY_HUNTER", quest);
   rewardState.combatState.monsters = [goblin()];
+  rewardState.combatState.monsters[0].role = "aggressor";
   const logs = [];
   applyCombatRewards(rewardState, rewardState.combatState.monsters, logs, () => 1);
-  assert.equal(contract.currentValue, 2);
+  assert.equal(quest.currentValue, 2);
   assert.ok(logs.some(entry => entry.msg.startsWith("[賞金稼ぎ]")));
 });
 

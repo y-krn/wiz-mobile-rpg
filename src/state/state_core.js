@@ -1,4 +1,5 @@
 import { DIR_N, START_X, START_Y } from "../data.js";
+import { createDefaultRecords } from "./records_state.js";
 
 // Main State Object
 export const state = {
@@ -40,6 +41,7 @@ export const state = {
   sessionMaxFloor: 1,
 
   currentRun: null,
+  records: createDefaultRecords(),
   unlockedMilestones: [],
   runHistory: [],
   deathLogs: [],
@@ -71,10 +73,7 @@ export const state = {
   },
   seed: "",
 
-  // Castle Contracts & Warehouse System
-  contracts: [],
-  activeContract: null,
-  completedContracts: [],
+  // Warehouse System
   storage: [],
   storageMax: 30,
   identifyTickets: 0,

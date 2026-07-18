@@ -2,6 +2,7 @@ import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT } from "../data.js";
 import { generateRandomMap, removeIsolatedInternalWalls } from "../map_generator.js";
 import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 import { getIdentificationGambleProfile } from "../rules/identification_rules.js";
+import { normalizeRecords } from "./records_state.js";
 
 export function migrateCharSpells(char) {
   if (!char.spells) char.spells = [];
@@ -67,7 +68,7 @@ export function migrateCharSpells(char) {
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 // 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
 // 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
@@ -203,7 +204,12 @@ export function normalizeSavePayload(data) {
   if (normalized.currentRun) {
     delete normalized.currentRun.seenOmenFloors;
     delete normalized.currentRun.matchedOmenFloors;
+    normalized.currentRun.quests ??= [];
+    normalized.currentRun.defeatsByRole ??= {};
+    normalized.currentRun.codexRewards ??= {};
+    normalized.currentRun.recordResult ??= null;
   }
+  normalized.records = normalizeRecords(data.records);
   normalized.unlockedMilestones = Array.from(new Set(data.unlockedMilestones ?? []))
     .filter(floor => Number.isInteger(floor) && floor > 0 && floor % 5 === 0)
     .sort((a, b) => a - b);
@@ -223,13 +229,6 @@ export function normalizeSavePayload(data) {
   normalized.roamingMovementStepCount = data.roamingMovementStepCount ?? 0;
   normalized.noiseEvents = data.noiseEvents ?? [];
   normalized.openedGates = data.openedGates ?? [];
-  normalized.contracts = (data.contracts ?? []).filter(contract =>
-    !(contract.type === "kill" && contract.targetMonsterName === "フラック")
-  );
-  normalized.activeContract = data.activeContract?.type === "kill" && data.activeContract.targetMonsterName === "フラック"
-    ? null
-    : (data.activeContract ?? null);
-  normalized.completedContracts = data.completedContracts ?? [];
   normalized.storage = data.storage ?? [];
   normalized.storageMax = data.storageMax ?? 30;
   normalized.identifyTickets = data.identifyTickets ?? 0;

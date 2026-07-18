@@ -20,6 +20,7 @@ export function resolveCombatRound() {
   state.firstKills = nextState.firstKills;
   state.codex = nextState.codex;
   state.currentRun = nextState.currentRun;
+  state.metaMaterials = nextState.metaMaterials;
   state.roamingMonsters = nextState.roamingMonsters;
   state.floorChestsTotal = nextState.floorChestsTotal;
   state.openedGates = nextState.openedGates;

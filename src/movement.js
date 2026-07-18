@@ -14,6 +14,7 @@ import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.j
 import { getPerceptionIntent } from "./systems/warden_perception.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { getWorkshopGrants } from "./systems/workshop.js";
+import { assignRunQuests, updateRunQuests } from "./systems/run_quests.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -207,6 +208,9 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
         state.currentRun.floorsVisited.push(nextFloor);
       }
       state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
+      updateRunQuests(state.currentRun, getPartyMaxAffix(state.party, "contractReward")).forEach(quest => {
+        addLog(`【ランクエスト達成】${quest.name}：素材ボーナスを獲得した。`);
+      });
     }
 
     const target = landingCoord || findCellCoordsByType(state.maps[nextFloor - 1], "stairs-up");
@@ -653,8 +657,10 @@ export function executeEnterDungeon(floor) {
   state.currentRun.runSeed = `${state.seed}:run:${state.currentRun.startedAt}`;
   state.currentRun.startFloor = floor;
   state.currentRun.deepestFloor = floor;
+  state.currentRun.characterClass = state.party[0]?.class || null;
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
+  assignRunQuests(state.currentRun);
   resetRunFloors(state);
   ensureRunFloor(state, floor);
   if (floor > 1) {
@@ -680,6 +686,7 @@ export function executeEnterDungeon(floor) {
   const firstVisit = revealFloor(state, floor);
   addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
   addLog(`鑑定粉を${state.identifyTickets}個持ってランを開始した。`);
+  addLog(`ランクエスト：${state.currentRun.quests.map(quest => quest.name).join(" / ")}`);
   checkFloorOmenMessage();
   playSound("move");
   saveAutosave();
