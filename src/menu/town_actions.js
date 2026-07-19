@@ -1,8 +1,12 @@
-import { state, saveAutosave, addLog } from "../state.js";
+import { state, saveAutosave, addLog, clearSave } from "../state.js";
 import { playSound } from "../audio.js";
-import { openArchivesOverlay } from "../ui.js";
-import { openSubmenu } from "../navigation.js";
+import { openArchivesOverlay, updateUI } from "../ui.js";
+import { openSubmenu, closeSubmenu } from "../navigation.js";
 import { getClassJpName, getItemBaseId } from "../data.js";
+
+function isDebugMode() {
+  return import.meta.env.DEV || new URLSearchParams(location.search).has("debug");
+}
 
 export function handleTownOption(option) {
   if (option === "castle") {
@@ -55,6 +59,21 @@ export function renderCastleMain(optGrid) {
   deathLogs.textContent = "全滅ログ確認";
   deathLogs.addEventListener("click", () => openSubmenu("castle_death_logs", "おしろ - 全滅ログ"));
   optGrid.appendChild(deathLogs);
+
+  if (isDebugMode()) {
+    const debugReset = document.createElement("button");
+    debugReset.className = "btn btn-danger btn-block";
+    debugReset.textContent = "デバッグ: データ全初期化";
+    debugReset.addEventListener("click", () => {
+      if (confirm("【デバッグ】全データを初期化します。よろしいですか？")) {
+        clearSave();
+        state.gameState = "town";
+        closeSubmenu();
+        updateUI();
+      }
+    });
+    optGrid.appendChild(debugReset);
+  }
 }
 
 export function renderCastleDeathLogs(optGrid) {
