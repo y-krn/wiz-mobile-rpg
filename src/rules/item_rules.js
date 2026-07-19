@@ -156,7 +156,8 @@ export function getItemData(itemOrKey) {
           dragon: "竜", iron: "鉄", blood: "血", curse: "呪",
           ward: "守勢", appraisal: "鑑定", beast: "獣", ambush: "奇襲",
           blade: "刃", trap: "罠", search: "探索", exorcism: "退魔",
-          analysis: "解析", follow_up: "連撃", record: "記録", evasion: "回避"
+          analysis: "解析", follow_up: "連撃", record: "記録", evasion: "回避",
+          decay: "衰"
         };
         const hints = itemOrKey.hintTags ? itemOrKey.hintTags.map(t => hintLabels[t] || t).join("・") : "なし";
         const curseText = itemOrKey.curseSuspected ? "呪いの疑いあり。" : "呪いの兆候なし。";
@@ -299,7 +300,8 @@ export function getItemData(itemOrKey) {
         dragon: "竜", iron: "鉄", blood: "血", curse: "呪",
         ward: "守勢", appraisal: "鑑定", beast: "獣", ambush: "奇襲",
         blade: "刃", trap: "罠", search: "探索", exorcism: "退魔",
-        analysis: "解析", follow_up: "連撃", record: "記録", evasion: "回避"
+        analysis: "解析", follow_up: "連撃", record: "記録", evasion: "回避",
+        decay: "衰"
       };
       const tagList = itemOrKey.tags.map(t => hintLabels[t] || t).join("・");
       desc = `<タグ: ${tagList}> ${desc}`;

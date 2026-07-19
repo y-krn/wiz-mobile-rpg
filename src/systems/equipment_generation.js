@@ -9,6 +9,14 @@ import {
 const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
 const META_LOCKED_AFFIX_IDS = new Set(["CORE_BLOOD_WAND"]);
 
+export function pickCurseEffectId(rng, heavyCurseShare) {
+  const curseEffectIds = Object.keys(CURSE_EFFECTS);
+  const heavyCurseIds = curseEffectIds.filter(id => CURSE_EFFECTS[id].heavy);
+  const normalCurseIds = curseEffectIds.filter(id => !CURSE_EFFECTS[id].heavy);
+  const pool = rng() < heavyCurseShare ? heavyCurseIds : normalCurseIds;
+  return pool[Math.floor(rng() * pool.length)];
+}
+
 export function rollAffixes(pool, count, rng = Math.random, budget = Infinity) {
   const affixes = [];
   const selectedIds = new Set();
@@ -378,8 +386,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     gambleProfile.curseChance + (hasCoreAffix ? IDENTIFICATION_BALANCE.coreCurseBonus : 0)
   );
   if (isKatanaOrSealed || rollCurse < curseChance) {
-    const curseKeys = Object.keys(CURSE_EFFECTS);
-    curseEffectId = curseKeys[Math.floor(rng() * curseKeys.length)];
+    curseEffectId = pickCurseEffectId(rng, gambleProfile.heavyCurseShare);
     if (!tags.includes("curse")) tags.push("curse");
     CURSE_EFFECTS[curseEffectId].tags.forEach(t => {
       if (!tags.includes(t)) tags.push(t);
@@ -536,8 +543,7 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     gambleProfile.curseChance + (hasCoreAffix ? IDENTIFICATION_BALANCE.coreCurseBonus : 0)
   );
   if (rng() < curseChance) {
-    const curseKeys = Object.keys(CURSE_EFFECTS);
-    curseEffectId = curseKeys[Math.floor(rng() * curseKeys.length)];
+    curseEffectId = pickCurseEffectId(rng, gambleProfile.heavyCurseShare);
     if (!tags.includes("curse")) tags.push("curse");
     CURSE_EFFECTS[curseEffectId].tags.forEach(tag => {
       if (!tags.includes(tag)) tags.push(tag);
