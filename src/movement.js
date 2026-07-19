@@ -8,7 +8,7 @@ import { getFloorTheme, revealFloor } from "./data/floor_themes.js";
 import { ensureRunFloor, resetRunFloors } from "./state/run_floor_state.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
-import { openGuardedSubmenu, openSubmenu } from "./navigation.js";
+import { menuContext, openGuardedSubmenu, openSubmenu } from "./navigation.js";
 import { detectAdjacentTrapsByTraceRead, handleTrapStepCheck } from "./systems/traps.js";
 import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/warden_perception.js";
@@ -650,6 +650,7 @@ export function enterDungeon() {
 export function executeEnterDungeon(floor) {
   state.party = state.party.slice(0, 1);
   state.gameState = "explore";
+  menuContext.prevGameState = null;
   state.floor = floor;
   state.sessionMaxFloor = floor; // セッション最深階を初期化
   state.currentRun = createDefaultCurrentRun();

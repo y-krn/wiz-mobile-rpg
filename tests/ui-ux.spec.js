@@ -270,6 +270,70 @@ test('Five-column corridor renderer draws outer front walls', async ({ page }) =
   expect(cyanPixels.occluded[1]).toBeLessThan(10);
 });
 
+test('Chest opened immediately after entering the dungeon does not draw the town background', async ({ page }) => {
+  await page.goto('/');
+
+  const result = await page.evaluate(async () => {
+    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { closeSubmenu, menuContext } = await import('/src/navigation.js');
+    const { enterDungeon, executeEnterDungeon } = await import('/src/movement.js');
+    const { openChestMenu } = await import('/src/chest.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+
+    state.party = [createSoloCharacter('Fighter')];
+    state.gameState = 'town';
+    enterDungeon();
+    const prevGameStateAfterSoloStart = menuContext.prevGameState;
+
+    executeEnterDungeon(1);
+    const prevGameStateAfterEntry = menuContext.prevGameState;
+    state.chestState = {
+      trap: 'none',
+      item: 'HEAL_POTION',
+      inspected: false,
+      identifiedTrap: '',
+      x: state.x,
+      y: state.y,
+      lootHint: { label: '静かな気配', aura: 'weak' },
+    };
+    openChestMenu();
+
+    let townBackgroundDraws = 0;
+    let chestDraws = 0;
+    const originalDrawTownBackground = dungeonRenderer.drawTownBackground;
+    const originalDrawChest = dungeonRenderer.drawChest;
+    const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
+    dungeonRenderer.drawTownBackground = () => { townBackgroundDraws++; };
+    dungeonRenderer.drawChest = () => { chestDraws++; };
+    dungeonRenderer.draw3DCorridors = () => {};
+
+    dungeonRenderer.draw();
+
+    dungeonRenderer.drawTownBackground = originalDrawTownBackground;
+    dungeonRenderer.drawChest = originalDrawChest;
+    dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
+
+    const prevGameStateInChest = menuContext.prevGameState;
+    closeSubmenu();
+
+    return {
+      prevGameStateAfterSoloStart,
+      prevGameStateAfterEntry,
+      prevGameStateInChest,
+      townBackgroundDraws,
+      chestDraws,
+      gameStateAfterClose: state.gameState,
+    };
+  });
+
+  expect(result.prevGameStateAfterSoloStart).toBe('town');
+  expect(result.prevGameStateAfterEntry).toBeNull();
+  expect(result.prevGameStateInChest).toBeNull();
+  expect(result.townBackgroundDraws).toBe(0);
+  expect(result.chestDraws).toBe(1);
+  expect(result.gameStateAfterClose).toBe('explore');
+});
+
 for (const vp of VIEWPORTS) {
   test(`Combat and chest canvases hide the mini-map at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
