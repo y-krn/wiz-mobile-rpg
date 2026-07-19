@@ -11,6 +11,8 @@ export const IDENTIFICATION_BALANCE = {
   coreCurseBonus: 0.08,
   cursePowerPerFloor: 0.15,
   maxCursePower: 2.5,
+  heavyCurseSharePerFloor: 0.05,
+  maxHeavyCurseShare: 0.6,
   qualityPerFloor: 0.06,
   maxQualityMultiplier: 1.75
 };
@@ -31,6 +33,10 @@ export function getIdentificationGambleProfile(floor = 1) {
     cursePower: Math.min(
       IDENTIFICATION_BALANCE.maxCursePower,
       1 + steps * IDENTIFICATION_BALANCE.cursePowerPerFloor
+    ),
+    heavyCurseShare: Math.min(
+      IDENTIFICATION_BALANCE.maxHeavyCurseShare,
+      steps * IDENTIFICATION_BALANCE.heavyCurseSharePerFloor
     ),
     qualityMultiplier: Math.min(
       IDENTIFICATION_BALANCE.maxQualityMultiplier,

@@ -130,5 +130,37 @@ export const CURSE_EFFECTS = {
     desc: "呪文威力+15% / 生命-4",
     tags: ["curse", "spirit"],
     mod: { arcane: 15, vit: -4 }
+  },
+  curse_withering: {
+    id: "curse_withering",
+    name: "衰弱の呪い",
+    desc: "攻撃力-8",
+    tags: ["curse", "decay"],
+    mod: { atk: -8 },
+    heavy: true
+  },
+  curse_brittle_shell: {
+    id: "curse_brittle_shell",
+    name: "脆殻の呪い",
+    desc: "防御-6 / 最大HP-8",
+    tags: ["curse", "ward"],
+    mod: { def: -6, hp: -8 },
+    heavy: true
+  },
+  curse_mana_rot: {
+    id: "curse_mana_rot",
+    name: "枯魔の呪い",
+    desc: "最大MP-4 / 呪文威力-10%",
+    tags: ["curse", "spirit"],
+    mod: { mp: -4, arcane: -10 },
+    heavy: true
+  },
+  curse_dulled_senses: {
+    id: "curse_dulled_senses",
+    name: "鈍麻の呪い",
+    desc: "素早さ-5 / 毒耐性-20%",
+    tags: ["curse", "poison"],
+    mod: { agi: -5, poisonWard: -20 },
+    heavy: true
   }
 };
