@@ -218,9 +218,8 @@ export function updateUI() {
     }
   }
 
-  // Update location and material balance labels
+  // Update location label
   const locLabel = document.getElementById("location-label");
-  const materialLabel = document.getElementById("material-counter");
   
   const resultOverlay = document.getElementById("result-overlay");
   if (resultOverlay) {
@@ -251,12 +250,6 @@ export function updateUI() {
     locLabel.textContent = "GAME OVER";
   }
   
-  if (materialLabel) {
-    const balance = state.currentRun?.materials || state.metaMaterials || {};
-    const total = Object.values(balance).reduce((sum, quantity) => sum + quantity, 0);
-    materialLabel.textContent = `${state.currentRun ? "ラン素材" : "メタ素材"}: ${total}`;
-  }
-
   // Update Goal HUD
   const goalBanner = document.getElementById("goal-banner");
   if (goalBanner) {
