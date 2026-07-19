@@ -236,7 +236,7 @@ for (const vp of VIEWPORTS) {
       const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
 
       ctx.fillText = (text, ...args) => {
-        labels.push(String(text));
+        labels.push({ text: String(text), x: args[0], y: args[1] });
         return originalFillText(text, ...args);
       };
       dungeonRenderer.drawMiniMap = () => { miniMapDraws++; };
@@ -252,12 +252,14 @@ for (const vp of VIEWPORTS) {
           hp: 10,
           maxHp: 10,
           color: '#ff3b30',
-          spriteType: 'biter'
+          spriteType: 'biter',
+          summonQueued: index < 3
         }))
       };
 
       state.gameState = 'combat';
       dungeonRenderer.draw();
+      const combatLabels = [...labels];
       const combatMiniMapDraws = miniMapDraws;
 
       state.gameState = 'submenu';
@@ -278,7 +280,7 @@ for (const vp of VIEWPORTS) {
       dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
 
       return {
-        labels,
+        combatLabels,
         combatMiniMapDraws,
         submenuMiniMapDraws,
         exploreMiniMapDraws: miniMapDraws,
@@ -288,8 +290,11 @@ for (const vp of VIEWPORTS) {
     });
 
     for (let index = 1; index <= 6; index++) {
-      expect(result.labels.some(label => label.includes(`敵${index}`))).toBe(true);
+      expect(result.combatLabels.some(label => label.text.includes(`敵${index}`))).toBe(true);
     }
+    const topRowOmenLabels = result.combatLabels.filter(label => label.text.includes('召喚の予兆'));
+    expect(topRowOmenLabels).toHaveLength(3);
+    expect(topRowOmenLabels.every(label => label.y >= 10)).toBe(true);
     expect(result.combatMiniMapDraws).toBe(0);
     expect(result.submenuMiniMapDraws).toBe(0);
     expect(result.exploreMiniMapDraws).toBe(1);

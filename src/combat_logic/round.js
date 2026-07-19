@@ -618,7 +618,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       let targetSelect = null;
       let isSnipeAttack = false;
 
-      if (mon.isSniper || hasTrait(mon, "targetBackRow")) {
+      if (mon.isSniper) {
         if (mon.snipeQueued) {
           mon.snipeQueued = false;
           isSnipeAttack = true;

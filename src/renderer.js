@@ -568,7 +568,7 @@ export class DungeonRenderer {
       const rowCount = Math.min(columns, alive.length - rowStart);
       const slotWidth = VIEW_W / rowCount;
       const cx = slotWidth * (index - rowStart + 0.5);
-      const cy = rows === 1 ? VIEW_H / 2 + 15 : row === 0 ? 90 : 210;
+      const cy = rows === 1 ? VIEW_H / 2 + 15 : row === 0 ? 100 : 210;
       this.drawMonster(ctx, monster, cx, cy, scale, slotWidth - 8);
     });
   }
