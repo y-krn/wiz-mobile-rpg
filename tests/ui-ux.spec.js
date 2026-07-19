@@ -53,7 +53,7 @@ test('Debug reset clears all progression and persists the initial state', async 
     };
   });
   const initialProgress = {
-    inventory: ['HEAL_POTION', 'HEAL_POTION'],
+    inventory: ['HEAL_POTION', 'HEAL_POTION', 'ANTIDOTE'],
     totalRuns: 0,
     monsterKills: 0,
     visitedFloors: [1],
