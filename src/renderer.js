@@ -1,6 +1,7 @@
 import { DX, DY, EVENT_TYPES, getPartyMaxAffix } from "./data.js";
 import { state } from "./state.js";
 import { menuContext } from "./navigation.js";
+import { EVENT_SUBMENU_TYPES } from "./constants/events.js";
 
 export let dungeonRenderer = null;
 export function setDungeonRenderer(r) {
@@ -91,6 +92,8 @@ export class DungeonRenderer {
       );
       const showChest = state.gameState === "chest"
         || (state.gameState === "submenu" && state.chestState);
+      const showEventScene = state.gameState === "trap_encounter"
+        || (state.gameState === "submenu" && EVENT_SUBMENU_TYPES.includes(menuContext.type));
       
       // Draw monsters only for combat and combat-derived submenus.
       if (showCombat) {
@@ -102,8 +105,8 @@ export class DungeonRenderer {
         this.drawChest(ctx);
       }
 
-      // Keep combat and chest scenes unobstructed; restore the mini-map afterward.
-      if (!showCombat && !showChest) this.drawMiniMap(ctx);
+      // Keep combat, chest, and event scenes unobstructed; restore the mini-map afterward.
+      if (!showCombat && !showChest && !showEventScene) this.drawMiniMap(ctx);
     }
 
     // Draw Damage / Floating Texts

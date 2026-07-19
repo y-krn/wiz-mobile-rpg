@@ -335,7 +335,7 @@ test('Chest opened immediately after entering the dungeon does not draw the town
 });
 
 for (const vp of VIEWPORTS) {
-  test(`Combat and chest canvases hide the mini-map at ${vp.width}x${vp.height}`, async ({ page }) => {
+  test(`Combat, chest, and event canvases hide the mini-map at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
 
@@ -410,6 +410,33 @@ for (const vp of VIEWPORTS) {
       dungeonRenderer.draw();
       const postChestExploreMiniMapDraws = miniMapDraws - exploreMiniMapDrawsBeforeChest;
 
+      miniMapDraws = 0;
+      state.gameState = 'trap_encounter';
+      dungeonRenderer.draw();
+      const trapMiniMapDraws = miniMapDraws;
+
+      const eventSubmenuTypes = [
+        'event_spring',
+        'event_camp',
+        'event_tablet',
+        'event_merchant',
+        'event_merchant_buy',
+        'milestone_merchant',
+        'milestone_portal',
+      ];
+      const eventMiniMapDraws = {};
+      state.gameState = 'submenu';
+      for (const type of eventSubmenuTypes) {
+        menuContext.type = type;
+        dungeonRenderer.draw();
+        eventMiniMapDraws[type] = miniMapDraws;
+      }
+
+      state.gameState = 'explore';
+      menuContext.type = '';
+      dungeonRenderer.draw();
+      const postEventExploreMiniMapDraws = miniMapDraws;
+
       ctx.fillText = originalFillText;
       dungeonRenderer.drawMiniMap = originalDrawMiniMap;
       dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
@@ -422,6 +449,9 @@ for (const vp of VIEWPORTS) {
         chestMiniMapDraws,
         chestSubmenuMiniMapDraws,
         postChestExploreMiniMapDraws,
+        trapMiniMapDraws,
+        eventMiniMapDraws,
+        postEventExploreMiniMapDraws,
         monsterLabelCountBeforeExplore,
         monsterLabelCountAfterExplore,
         targetCards,
@@ -441,6 +471,9 @@ for (const vp of VIEWPORTS) {
     expect(result.chestMiniMapDraws).toBe(0);
     expect(result.chestSubmenuMiniMapDraws).toBe(0);
     expect(result.postChestExploreMiniMapDraws).toBe(1);
+    expect(result.trapMiniMapDraws).toBe(0);
+    expect(Object.values(result.eventMiniMapDraws)).toEqual(Array(7).fill(0));
+    expect(result.postEventExploreMiniMapDraws).toBe(1);
     expect(result.monsterLabelCountAfterExplore).toBe(result.monsterLabelCountBeforeExplore);
     expect(result.targetCards).toBe(6);
     expect(result.rowTags).toBe(0);
