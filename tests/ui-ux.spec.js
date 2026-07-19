@@ -270,10 +270,12 @@ for (const vp of VIEWPORTS) {
       renderCombatOverlay();
       const targetCards = document.querySelectorAll('#combat-overlay .combat-target-card.enemy').length;
       const rowTags = document.querySelectorAll('#combat-overlay .enemy-row-tag').length;
+      const monsterLabelCountBeforeExplore = labels.filter(label => label.text.includes('敵')).length;
 
       state.gameState = 'explore';
       menuContext.type = '';
       dungeonRenderer.draw();
+      const monsterLabelCountAfterExplore = labels.filter(label => label.text.includes('敵')).length;
 
       ctx.fillText = originalFillText;
       dungeonRenderer.drawMiniMap = originalDrawMiniMap;
@@ -284,6 +286,8 @@ for (const vp of VIEWPORTS) {
         combatMiniMapDraws,
         submenuMiniMapDraws,
         exploreMiniMapDraws: miniMapDraws,
+        monsterLabelCountBeforeExplore,
+        monsterLabelCountAfterExplore,
         targetCards,
         rowTags
       };
@@ -298,6 +302,7 @@ for (const vp of VIEWPORTS) {
     expect(result.combatMiniMapDraws).toBe(0);
     expect(result.submenuMiniMapDraws).toBe(0);
     expect(result.exploreMiniMapDraws).toBe(1);
+    expect(result.monsterLabelCountAfterExplore).toBe(result.monsterLabelCountBeforeExplore);
     expect(result.targetCards).toBe(6);
     expect(result.rowTags).toBe(0);
   });
