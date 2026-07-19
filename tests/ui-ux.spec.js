@@ -904,7 +904,17 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('.chest-info-panel')).toContainText('[!] 外れる可能性あり');
       await expect(page.getByRole('button', { name: '解除する' })).toBeVisible();
       await expect(page.getByRole('button', { name: '宝箱を開ける' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '叩き壊す' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'キットで解除' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '立ち去る' })).toBeVisible();
+
+      await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { openChestMenu } = await import('/src/chest.js');
+        state.inventory.push('TRAP_KIT');
+        openChestMenu();
+      });
+      await expect(page.getByRole('button', { name: 'キットで解除' })).toBeVisible();
 
       const layout = await page.evaluate(async () => {
         const { menuContext } = await import('/src/navigation.js');
@@ -933,9 +943,12 @@ for (const vp of VIEWPORTS) {
           goal: rect('#goal-banner'),
           viewport: chestLayout.viewport,
           controls: rect('#controls-panel'),
+          options: rect('#submenu-options'),
+          optionsScrollHeight: document.querySelector('#submenu-options').scrollHeight,
+          optionsClientHeight: document.querySelector('#submenu-options').clientHeight,
           party: rect('#character-panel'),
           buttons: Array.from(document.querySelectorAll('#submenu-options button'))
-            .map((el) => el.getBoundingClientRect().toJSON()),
+            .map((el) => ({ text: el.textContent, rect: el.getBoundingClientRect().toJSON() })),
           characterCards: Array.from(document.querySelectorAll('#character-hud .character-card'))
             .map((el) => el.getBoundingClientRect().toJSON()),
           height: window.innerHeight,
@@ -950,17 +963,31 @@ for (const vp of VIEWPORTS) {
       expect(layout.header.top, `Header should clear standalone top safe area on ${vp.name}`).toBeGreaterThanOrEqual(59);
       expect(layout.goal.bottom, `Goal banner should not be covered by viewport on ${vp.name}`).toBeLessThanOrEqual(layout.viewport.top);
       expect(layout.party.bottom, `Solo HUD should clear standalone bottom safe area on ${vp.name}`).toBeLessThanOrEqual(layout.height - 34);
-      expect(layout.buttons).toHaveLength(4);
+      expect(layout.buttons).toHaveLength(6);
+      expect(layout.buttons.map(button => button.text)).toEqual([
+        '調査済み', '解除する', 'キットで解除', '宝箱を開ける', '叩き壊す', '立ち去る',
+      ]);
       expect(layout.hasHorizontalOverflow, `Chest menu should not create horizontal overflow on ${vp.name}`).toBe(false);
       for (const button of layout.buttons) {
-        expect(button.height, `Chest action buttons should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
-        expect(button.bottom, `Chest action buttons should stay within controls on ${vp.name}`).toBeLessThanOrEqual(layout.controls.bottom);
+        expect(button.rect.height, `Chest action buttons should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
       }
+      expect(layout.options.bottom, `Scrollable chest actions should stay within controls on ${vp.name}`).toBeLessThanOrEqual(layout.controls.bottom);
+      expect(layout.optionsScrollHeight, `Worst-case chest actions should scroll on ${vp.name}`).toBeGreaterThan(layout.optionsClientHeight);
       expect(layout.characterCards).toHaveLength(1);
       for (const card of layout.characterCards) {
         expect(card.bottom, `Character card should remain inside character panel on ${vp.name}`).toBeLessThanOrEqual(layout.party.bottom);
       }
       expect(layout.controls.bottom, `Controls should not push character panel offscreen on ${vp.name}`).toBeLessThanOrEqual(layout.party.top);
+
+      const lastActionLayout = await page.getByRole('button', { name: '立ち去る' }).evaluate((button) => {
+        button.scrollIntoView({ block: 'nearest' });
+        return {
+          button: button.getBoundingClientRect().toJSON(),
+          options: document.querySelector('#submenu-options').getBoundingClientRect().toJSON(),
+        };
+      });
+      expect(lastActionLayout.button.top, `Last chest action should scroll into view on ${vp.name}`).toBeGreaterThanOrEqual(lastActionLayout.options.top);
+      expect(lastActionLayout.button.bottom, `Last chest action should scroll into view on ${vp.name}`).toBeLessThanOrEqual(lastActionLayout.options.bottom + 1);
 
       await page.getByRole('button', { name: '宝箱を開ける' }).click();
       await expect(page.locator('#submenu-title')).toContainText('宝箱を開けるキャラクターを選択');

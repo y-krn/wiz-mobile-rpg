@@ -78,7 +78,8 @@ export const ITEMS = {
   DRAGON_KEY: { id: "DRAGON_KEY", name: "竜の鍵", type: "quest", desc: "いにしえの竜の巣へと通じる刻印が刻まれた鍵。" },
   STR_POTION: { id: "STR_POTION", name: "剛力の薬", type: "usable", desc: "使用すると数ターンの間、攻撃力が上昇する。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
   GUARD_POTION: { id: "GUARD_POTION", name: "守りの薬", type: "usable", desc: "使用すると数ターンの間、防御力が上昇する。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
-  HASTE_POTION: { id: "HASTE_POTION", name: "疾風の薬", type: "usable", desc: "使用すると数ターンの間、敏捷性が上昇する。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true }
+  HASTE_POTION: { id: "HASTE_POTION", name: "疾風の薬", type: "usable", desc: "使用すると数ターンの間、敏捷性が上昇する。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
+  TRAP_KIT: { id: "TRAP_KIT", name: "罠外しキット", type: "usable", desc: "宝箱の罠を1つ確実に外す。[全員用]" }
 };
 
 export const CURSE_EFFECTS = {
