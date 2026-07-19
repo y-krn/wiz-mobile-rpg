@@ -14,6 +14,11 @@ import { MONSTERS } from "../src/data/monsters.js";
 import { checkCharLevelUp } from "../src/data.js";
 import { createSoloCharacter } from "../src/state.js";
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
+import {
+  canMeleeTargetEnemy,
+  findMeleeFallbackTarget,
+  getLivingTargetCandidates
+} from "../src/combat_logic/targeting.js";
 
 (async () => {
 
@@ -21,6 +26,25 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
   // 元: test_enemy_traits.js
   // ========================================================================
   await (async () => {
+    const legacyRows = [
+      { hp: 10, row: "front" },
+      { hp: 10, row: "back" },
+      { hp: 0, row: "front" }
+    ];
+    assert.equal(canMeleeTargetEnemy(legacyRows, legacyRows[1]), true);
+    assert.equal(findMeleeFallbackTarget(legacyRows), 0);
+
+    const party = [
+      { name: "A", hp: 10, maxHp: 10, status: "ok" },
+      { name: "B", hp: 3, maxHp: 10, status: "ok" },
+      { name: "C", hp: 8, maxHp: 10, status: "ok" },
+      { name: "D", hp: 0, maxHp: 10, status: "dead" }
+    ];
+    assert.deepEqual(getLivingTargetCandidates(party, "front").map(x => x.i), [0, 1, 2]);
+    assert.deepEqual(getLivingTargetCandidates(party, "back").map(x => x.i), [0, 1, 2]);
+    assert.deepEqual(getLivingTargetCandidates(party, "lowHp").map(x => x.i), [1, 2, 0]);
+    console.log("[PASS] Row-free target candidates include every living combatant.");
+
     console.log("Starting Enemy Traits Verification Tests...");
 
     // 1. guardAdjacent / guardAdjacentReduce (庇う) のテスト
@@ -383,15 +407,14 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
       }
     });
 
-    // Scenario A: Melee attack on backrow while frontrow is alive
-    // Setup: 1 front monster (Biter), 1 back monster (Goblin Mage)
+    // Scenario A: legacy row data does not block a selected melee target.
     const monstersA = [
       { name: "かみつき蟲 A", level: 1, hp: 10, maxHp: 10, def: 0, status: "ok", row: "front" },
       { name: "ゴブリンの呪術師 A", level: 1, hp: 10, maxHp: 10, def: 0, status: "ok", row: "back" }
     ];
 
     const stateA = createBaseState(monstersA);
-    // Arthur (idx: 0) attacks backrow monster (targetIdx: 1)
+    // Arthur (idx: 0) attacks the monster carrying legacy row data (targetIdx: 1).
     const selectionA = {
       actions: [
         { actorIdx: 0, type: "fight", targetIdx: 1 }
@@ -402,15 +425,16 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
     const logsA = resultA.logQueue.map(l => l.msg);
     console.log("- Scenario A Logs:", logsA);
 
-    // Verify that it was blocked and the "miss" log was produced
-    assert(logsA.some(msg => msg.includes("前列の敵に阻まれて") && msg.includes("ゴブリンの呪術師 Aには届かない")), 
-           "Error: Arthur's physical attack should have been blocked by the front row.");
-    console.log("✔ Scenario A Passed: Melee attack to backrow was successfully blocked by frontrow.");
+    assert(resultA.state.combatState.monsters[1].hp < 10,
+           "Error: Arthur's physical attack should hit the selected living monster.");
+    assert(!logsA.some(msg => msg.includes("前列の敵に阻まれて")),
+           "Error: Legacy row data must not block melee attacks.");
+    console.log("✔ Scenario A Passed: Legacy row data is ignored for melee targeting.");
 
 
-    // Scenario B: Single target Spell (HALITO) targeting backrow while frontrow is alive
+    // Scenario B: Single target Spell (HALITO) remains targetable.
     const stateB = createBaseState(monstersA);
-    // Maria (Priest) casts HALITO (single target damage) on backrow monster (targetIdx: 1)
+    // Maria (Priest) casts HALITO (single target damage) on targetIdx: 1.
     // Give Maria enough MP
     stateB.party[2].mp = 10;
     const selectionB = {
@@ -423,14 +447,14 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
     const logsB = resultB.logQueue.map(l => l.msg);
     console.log("- Scenario B Logs:", logsB);
 
-    // Verify that HALITO landed on the backrow
+    // Verify that HALITO landed on the selected target.
     assert(logsB.some(msg => msg.includes("ハリト") && msg.includes("ゴブリンの呪術師 A")),
            "Error: HALITO should target and hit the backrow monster.");
-    assert(resultB.state.combatState.monsters[1].hp < 10, "Error: Backrow monster HP should have decreased.");
-    console.log("✔ Scenario B Passed: Single target spell successfully targeted backrow.");
+    assert(resultB.state.combatState.monsters[1].hp < 10, "Error: Selected monster HP should have decreased.");
+    console.log("✔ Scenario B Passed: Single target spell successfully targeted the monster.");
 
 
-    // Scenario C: All enemies target spell (LAHALITO) hitting both rows
+    // Scenario C: All-enemy spell (LAHALITO) hits every monster.
     const stateC = createBaseState(monstersA);
     stateC.party[3].mp = 10; // Ged
     const selectionC = {
@@ -444,17 +468,17 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
     console.log("- Scenario C Logs:", logsC);
 
     // Verify both monsters took damage
-    assert(resultC.state.combatState.monsters[0].hp < 10, "Error: Frontrow monster should have taken LAHALITO damage.");
-    assert(resultC.state.combatState.monsters[1].hp < 10, "Error: Backrow monster should have taken LAHALITO damage.");
-    console.log("✔ Scenario C Passed: Area spell successfully hit both front and back rows.");
+    assert(resultC.state.combatState.monsters[0].hp < 10, "Error: First monster should have taken LAHALITO damage.");
+    assert(resultC.state.combatState.monsters[1].hp < 10, "Error: Second monster should have taken LAHALITO damage.");
+    console.log("✔ Scenario C Passed: Area spell successfully hit all monsters.");
 
 
-    // Scenario D: Frontrow is defeated, backrow becomes targetable by melee, and collapse log triggers
+    // Scenario D: Multiple characters can independently select living monsters.
     const stateD = createBaseState(monstersA);
     // Arthur (idx: 0) goes first (high agi), Robin (idx: 1) goes second (low agi)
     stateD.party[0].agi = 99;
     stateD.party[1].agi = 1;
-    // Set frontrow HP to 1 so Arthur can kill it, then Robin attacks backrow
+    // Set first monster HP to 1 so Arthur can kill it, then Robin attacks the second.
     stateD.combatState.monsters[0].hp = 1;
     const selectionD = {
       actions: [
@@ -467,27 +491,11 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
     const logsD = resultD.logQueue.map(l => l.msg);
     console.log("- Scenario D Logs:", logsD);
 
-    // After the frontrow dies this round, the backrow becomes targetable by melee.
-    assert(resultD.state.combatState.monsters[1].hp < 10, "Error: Robin should have hit backrow monster after frontrow collapsed.");
-    console.log("✔ Scenario D Passed: Front row collapse makes backrow targetable by melee.");
+    assert(resultD.state.combatState.monsters[1].hp < 10, "Error: Robin should have hit the independently selected monster.");
+    console.log("✔ Scenario D Passed: Independent melee target selection works.");
 
 
-    // Scenario E: Row default fallback check
-    const monstersE = [
-      { name: "かみつき蟲 A", level: 1, hp: 10, maxHp: 10, status: "ok" } // No row specified
-    ];
-    const stateE = createBaseState(monstersE);
-    const selectionE = {
-      actions: [
-        { actorIdx: 0, type: "fight", targetIdx: 0 }
-      ]
-    };
-    const resultE = runCombatRoundCalculation(stateE, selectionE);
-    assert(resultE.state.combatState.monsters[0].row === undefined || resultE.state.combatState.monsters[0].row === "front",
-           "Error: Row fallback should treat undefined as frontrow.");
-    console.log("✔ Scenario E Passed: Undefined row successfully defaults to front.");
-
-    console.log("=== ALL ENEMY ROW SYSTEM TESTS PASSED SUCCESSFULLY! ===");
+    console.log("=== ALL ROW-FREE ENEMY TARGETING TESTS PASSED SUCCESSFULLY! ===");
   })();
 
   // ========================================================================

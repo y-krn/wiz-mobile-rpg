@@ -282,7 +282,7 @@ function simulateEncounter(monsterTemplate, count, strategy, level = 5, fixture 
           const healTargetIdx = state.party.findIndex(c => c.status !== "dead" && c.hp < c.maxHp * 0.5);
           actions.push({ type: "spell", actorIdx: idx, targetIdx: healTargetIdx, spellName: "DIOS" });
         } else {
-          // Prioritize back row or low hp enemy if sniper or targeted
+          // Attack the first living enemy.
           const targetIdx = state.combatState.monsters.findIndex(m => m.hp > 0);
           actions.push({ type: "fight", actorIdx: idx, targetIdx });
         }

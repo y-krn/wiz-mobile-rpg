@@ -5,7 +5,6 @@ import {
   getCharAffixSum, getCharMaxHp, getCharMaxMp
 } from "../data.js";
 import {
-  hasLivingEnemyFrontRow,
   canMeleeTargetEnemy,
   findMeleeFallbackTarget,
   findAdjacentGuard,
@@ -198,10 +197,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (act.type === "fight") {
         const target = monsters[act.targetIdx];
         if (!canMeleeTargetEnemy(monsters, target)) {
-          if (target?.hp > 0 && (target.row || "front") === "back" && hasLivingEnemyFrontRow(monsters)) {
-            logQueue.push({ msg: `[味方] 前列の敵に阻まれて、後列の${target.name}には届かない！` });
-          }
-          // Find another random living target
+          // Find the first living target if the selected target is no longer available.
           const livingTargetIdx = findMeleeFallbackTarget(monsters);
           if (livingTargetIdx === -1) return; // All dead
           act.targetIdx = livingTargetIdx;
@@ -530,7 +526,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       if (hasTrait(mon, "drainMp") && Math.random() < (mon.traitChance ?? 0.25)) {
-        const targetSelect = pickTarget(state.party, "back");
+        const targetSelect = pickTarget(state.party);
         if (targetSelect && targetSelect.c.mp > 0) {
           const amount = Math.min(targetSelect.c.mp, mon.drainMpAmount ?? 1);
           targetSelect.c.mp -= amount;
@@ -541,7 +537,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       if (hasTrait(mon, "silence") && Math.random() < (mon.traitChance ?? 0.25)) {
-        const targetSelect = pickTarget(state.party, hasTrait(mon, "targetBackRow") ? "back" : "front");
+        const targetSelect = pickTarget(state.party);
         if (targetSelect) {
           if (Math.random() >= getStatusEffectChance(targetSelect.c, 1)) {
             logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は不屈の意志で沈黙を退けた！`, sound: "miss" });
@@ -622,7 +618,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       let targetSelect = null;
       let isSnipeAttack = false;
 
-      if (mon.isSniper || hasTrait(mon, "targetBackRow")) {
+      if (mon.isSniper) {
         if (mon.snipeQueued) {
           mon.snipeQueued = false;
           isSnipeAttack = true;
@@ -631,20 +627,20 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             const idx = state.party.indexOf(targetChar);
             targetSelect = { c: targetChar, i: idx };
           } else {
-            targetCandidates = getLivingTargetCandidates(state.party, "back");
+            targetCandidates = getLivingTargetCandidates(state.party);
             if (targetCandidates.length > 0) {
               targetSelect = targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
             }
           }
         } else {
           if (Math.random() < (mon.traitChance ?? 0.35)) {
-            targetCandidates = getLivingTargetCandidates(state.party, "back");
+            targetCandidates = getLivingTargetCandidates(state.party);
             if (targetCandidates.length > 0) {
               const selected = targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
               mon.snipeQueued = true;
               mon.snipeTargetIdx = selected.i;
               logQueue.push({
-                msg: `[警告] ${mon.name}が後列の${selected.c.name}を狙い定めている！次のターン、狙撃の予兆！`,
+                msg: `[警告] ${mon.name}が${selected.c.name}を狙い定めている！次のターン、狙撃の予兆！`,
                 sound: "cast_spell"
               });
               return;
@@ -656,9 +652,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (!targetSelect) {
         targetCandidates = hasTrait(mon, "targetLowHp")
           ? getLivingTargetCandidates(state.party, "lowHp")
-          : (mon.isSniper || hasTrait(mon, "targetBackRow"))
-            ? getLivingTargetCandidates(state.party, "back")
-            : getLivingTargetCandidates(state.party, "front");
+          : getLivingTargetCandidates(state.party);
 
         if (targetCandidates.length === 0) return;
         targetSelect = hasTrait(mon, "targetLowHp") ? targetCandidates[0] : targetCandidates[Math.floor(Math.random() * targetCandidates.length)];
@@ -774,7 +768,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           });
         }
       } else {
-        // Ninja physical attack evasion (25% chance to balance with row system)
+        // Ninja physical attack evasion (25% chance)
         let isEvaded = false;
         const evasion = getCharAffixSum(target, "evasion") / 100;
         const rearEvasion = targetSelect.i >= 2 ? getCharAffixSum(target, "rearEvasion") / 100 : 0;

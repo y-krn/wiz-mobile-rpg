@@ -218,6 +218,96 @@ test('Five-column corridor renderer draws outer front walls', async ({ page }) =
   expect(cyanPixels.occluded[1]).toBeLessThan(10);
 });
 
+for (const vp of VIEWPORTS) {
+  test(`Combat canvas shows all monsters without mini-map at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
+      const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
+      const labels = [];
+      let miniMapDraws = 0;
+      const originalFillText = ctx.fillText.bind(ctx);
+      const originalDrawMiniMap = dungeonRenderer.drawMiniMap;
+      const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
+
+      ctx.fillText = (text, ...args) => {
+        labels.push({ text: String(text), x: args[0], y: args[1] });
+        return originalFillText(text, ...args);
+      };
+      dungeonRenderer.drawMiniMap = () => { miniMapDraws++; };
+      dungeonRenderer.draw3DCorridors = () => {};
+
+      state.map = [[{ walls: [false, false, false, false], type: 'empty' }]];
+      state.party = [{ name: '勇者', hp: 10, maxHp: 10, status: 'ok' }];
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: Array.from({ length: 6 }, (_, index) => ({
+          name: `敵${index + 1}`,
+          level: 1,
+          hp: 10,
+          maxHp: 10,
+          color: '#ff3b30',
+          spriteType: 'biter',
+          summonQueued: index < 3
+        }))
+      };
+
+      state.gameState = 'combat';
+      dungeonRenderer.draw();
+      const combatLabels = [...labels];
+      const combatMiniMapDraws = miniMapDraws;
+
+      state.gameState = 'submenu';
+      menuContext.type = 'combat_target';
+      menuContext.targetType = 'enemy';
+      dungeonRenderer.draw();
+      const submenuMiniMapDraws = miniMapDraws;
+      renderCombatOverlay();
+      const targetCards = document.querySelectorAll('#combat-overlay .combat-target-card.enemy').length;
+      const rowTags = document.querySelectorAll('#combat-overlay .enemy-row-tag').length;
+      const monsterLabelCountBeforeExplore = labels.filter(label => label.text.includes('敵')).length;
+
+      state.gameState = 'explore';
+      menuContext.type = '';
+      dungeonRenderer.draw();
+      const monsterLabelCountAfterExplore = labels.filter(label => label.text.includes('敵')).length;
+
+      ctx.fillText = originalFillText;
+      dungeonRenderer.drawMiniMap = originalDrawMiniMap;
+      dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
+
+      return {
+        combatLabels,
+        combatMiniMapDraws,
+        submenuMiniMapDraws,
+        exploreMiniMapDraws: miniMapDraws,
+        monsterLabelCountBeforeExplore,
+        monsterLabelCountAfterExplore,
+        targetCards,
+        rowTags
+      };
+    });
+
+    for (let index = 1; index <= 6; index++) {
+      expect(result.combatLabels.some(label => label.text.includes(`敵${index}`))).toBe(true);
+    }
+    const topRowOmenLabels = result.combatLabels.filter(label => label.text.includes('召喚の予兆'));
+    expect(topRowOmenLabels).toHaveLength(3);
+    expect(topRowOmenLabels.every(label => label.y >= 10)).toBe(true);
+    expect(result.combatMiniMapDraws).toBe(0);
+    expect(result.submenuMiniMapDraws).toBe(0);
+    expect(result.exploreMiniMapDraws).toBe(1);
+    expect(result.monsterLabelCountAfterExplore).toBe(result.monsterLabelCountBeforeExplore);
+    expect(result.targetCards).toBe(6);
+    expect(result.rowTags).toBe(0);
+  });
+}
+
 test('Archives list restores scroll after detail and resets on navigation', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

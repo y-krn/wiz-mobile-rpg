@@ -118,33 +118,6 @@
   margin-left: 2px;
 }
 
-.enemy-row-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 16px;
-  margin-right: 4px;
-  border: 1px solid currentColor;
-  border-radius: 3px;
-  font-size: var(--fs-xs);
-  line-height: 1;
-}
-
-.enemy-row-tag.front {
-  color: var(--neon-red);
-}
-
-.enemy-row-tag.back {
-  color: var(--neon-amber);
-}
-
-.combat-target-card .card-note {
-  margin-top: 3px;
-  color: var(--neon-amber);
-  font-size: var(--fs-xs);
-}
-
 .card-hp-bar-container, .card-mp-bar-container {
   width: 100%;
   height: 4px;

@@ -17,7 +17,6 @@ export function processMonsterDefeat(monsters, mon, logQueue) {
       hp,
       maxHp: hp,
       exp: Math.max(1, Math.floor(mon.exp * 0.25)),
-      row: "front",
       hasSplit: true,
       deathProcessed: false,
       fled: false

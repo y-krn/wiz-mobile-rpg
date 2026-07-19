@@ -1,16 +1,8 @@
-export function hasLivingEnemyFrontRow(monsters) {
-  return monsters.some(m => m.hp > 0 && (m.row || "front") === "front");
-}
-
-export function canMeleeTargetEnemy(monsters, target) {
-  if (!target || target.hp <= 0) return false;
-  if ((target.row || "front") === "front") return true;
-  return !hasLivingEnemyFrontRow(monsters);
+export function canMeleeTargetEnemy(_monsters, target) {
+  return Boolean(target && target.hp > 0);
 }
 
 export function findMeleeFallbackTarget(monsters) {
-  const frontIdx = monsters.findIndex(m => m.hp > 0 && (m.row || "front") === "front");
-  if (frontIdx !== -1) return frontIdx;
   return monsters.findIndex(m => m.hp > 0);
 }
 
@@ -24,22 +16,17 @@ export function findAdjacentGuard(monsters, targetIdx) {
   return guard || null;
 }
 
-export function getLivingTargetCandidates(party, mode = "front") {
+export function getLivingTargetCandidates(party, mode = "random") {
   const active = party
     .map((c, i) => ({ c, i }))
     .filter(x => x.c.status !== "dead");
-  if (mode === "back") {
-    const back = active.filter(x => x.i >= 2);
-    return back.length > 0 ? back : active;
-  }
   if (mode === "lowHp") {
     return [...active].sort((a, b) => (a.c.hp / a.c.maxHp) - (b.c.hp / b.c.maxHp));
   }
-  const front = active.filter(x => x.i < 2);
-  return front.length > 0 ? front : active;
+  return active;
 }
 
-export function pickTarget(party, mode = "front") {
+export function pickTarget(party, mode = "random") {
   const candidates = getLivingTargetCandidates(party, mode);
   if (candidates.length === 0) return null;
   if (mode === "lowHp") return candidates[0];

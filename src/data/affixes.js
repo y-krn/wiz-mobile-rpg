@@ -217,12 +217,12 @@ export const CORE_AFFIXES = [
     id: "CORE_REARGUARD",
     kind: "core",
     jpName: "殿の構え",
-    desc: "後列からの近接攻撃に距離ペナルティが発生しない。",
+    desc: "廃止済み。所持していても効果はない。",
     slot: "weapon",
     cost: 10,
     params: { rowRate: 1 },
     poolGroup: "combat",
-    enabled: true
+    enabled: false
   },
   {
     id: "CORE_THORN_SHIELD",

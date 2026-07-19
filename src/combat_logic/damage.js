@@ -1,4 +1,4 @@
-import { getItemBaseId, getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharWeaponAtk, getCharStr } from "../data.js";
+import { getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharWeaponAtk, getCharStr } from "../data.js";
 import { recordCharDeath } from "../state.js";
 import { getBuffTotal, wakeSleepingCharOnDamage } from "./status_effects.js";
 import { getCharCoreParams, getCoreLogText, getDamageAffixResult } from "../rules/affix_rules.js";
@@ -12,7 +12,7 @@ export function logCoreActivation(state, logQueue, char, coreId, { once = true }
   logQueue.push({ msg: getCoreLogText(coreId) });
 }
 
-export function getMeleeModifiers(char, actorIdx, options = {}) {
+export function getMeleeModifiers(char) {
   const classMeleeRates = {
     Fighter: 1.00,
     Samurai: 0.95,
@@ -23,25 +23,7 @@ export function getMeleeModifiers(char, actorIdx, options = {}) {
     Bishop: 0.50,
     Mage: 0.35
   };
-  const classRate = classMeleeRates[char.class] ?? 1.00;
-  
-  let rowRate = 1.00;
-  if (actorIdx >= 2) {
-    const rearguard = getCharCoreParams(char, "CORE_REARGUARD");
-    if (rearguard) {
-      rowRate = rearguard.rowRate;
-      logCoreActivation(options.state, options.logQueue, char, "CORE_REARGUARD");
-    } else {
-      const weaponId = char.equipment.weapon;
-      const baseId = getItemBaseId(weaponId);
-      if (baseId === "DAGGER" || baseId === "WAND") {
-        rowRate = 0.35;
-      } else {
-        rowRate = 0.50;
-      }
-    }
-  }
-  return classRate * rowRate;
+  return classMeleeRates[char.class] ?? 1.00;
 }
 
 export function getEffectiveDef(mon) {

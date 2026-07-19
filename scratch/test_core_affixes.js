@@ -102,11 +102,11 @@ function makeChar(coreId, baseId = "SHORT_SWORD") {
   };
 }
 
-test("全コア16種がenabled", () => {
+test("廃止済みの殿の構えを除くコア15種がenabled", () => {
   const enabled = CORE_AFFIXES.filter(core => core.enabled).map(core => core.id);
   assert.deepEqual(enabled, [
     "CORE_LAST_STAND", "CORE_OPENER", "CORE_BLOOD_WAND", "CORE_PURIFY_RING",
-    "CORE_TRAP_EATER", "CORE_CURSE_KEEPER", "CORE_GIANT_SLAYER", "CORE_REARGUARD",
+    "CORE_TRAP_EATER", "CORE_CURSE_KEEPER", "CORE_GIANT_SLAYER",
     "CORE_THORN_SHIELD", "CORE_EXECUTIONER", "CORE_SNEAK_STEP", "CORE_TOMB_RAIDER",
     "CORE_KEEN_EYE", "CORE_CAMP_MASTER", "CORE_BOUNTY_HUNTER", "CORE_SCHOLAR_EYE"
   ]);
@@ -173,7 +173,7 @@ test("封印半減: 倍率系は基準差半減・定数系は切捨て・boolea
   const booleanChar = makeChar("CORE_REARGUARD");
   booleanChar.equipment.weapon.coreSealed = true;
   assert.equal(getCharCoreParams(booleanChar, "CORE_REARGUARD"), null);
-  assert.equal(getMeleeModifiers(booleanChar, 2), 0.5);
+  assert.equal(getMeleeModifiers(booleanChar, 2), 1);
 });
 
 test("忍び足: 生存装備者のみパーティ有効、感知4→2、オーラ値+1", () => {
@@ -355,9 +355,10 @@ test("巨人殺し: maxHPが高い敵だけ1.3倍", () => {
   assert.equal(getDamageAffixResult(char, { maxHp: 100 }, 100).damage, 100);
 });
 
-test("殿の構え: 後列rowRateをparamsの1へ変更", () => {
+test("殿の構え: 既存装備でも無害・無効果", () => {
   const char = makeChar("CORE_REARGUARD");
   assert.equal(getMeleeModifiers(char, 2), 1);
+  assert.equal(getAffixDefinition("CORE_REARGUARD").enabled, false);
 });
 
 test("反撃の棘: rng注入で発動と不発を固定", () => {
