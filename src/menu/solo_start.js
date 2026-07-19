@@ -1,5 +1,6 @@
 import { SOLO_CLASSES, addLog, createSoloCharacter, state } from "../state.js";
 import { getClassJpName } from "../data.js";
+import { ELITE_CLASSES } from "../data/classes.js";
 import { executeEnterDungeon } from "../movement.js";
 import { ITEMS } from "../data/items.js";
 import { applyWorkshopToCharacter, getWorkshopGrants } from "../systems/workshop.js";
@@ -42,7 +43,7 @@ export function renderSoloStart(optGrid) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-grid";
 
-  SOLO_CLASSES.forEach(className => {
+  SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className)).forEach(className => {
     const character = createSoloCharacter(className);
     const button = document.createElement("button");
     button.className = "btn btn-neon btn-block solo-class-option";

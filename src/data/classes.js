@@ -9,6 +9,8 @@ export const CLASSES = {
   Ninja: { name: "Ninja", jpName: "忍者" }
 };
 
+export const ELITE_CLASSES = ["Samurai", "Bishop", "Ranger", "Ninja"];
+
 export const CLASS_PASSIVES = {
   Mage: { label: "魔導適性", bonuses: { arcane: 20, killMp: 1 } },
   Priest: { label: "祈祷・退魔適性", bonuses: { devotion: 20, antiUndead: 20, killMp: 1 } },
