@@ -108,15 +108,15 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
         if (state.floor === 1) {
           candidates = ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "WAKE_POWDER"];
         } else if (state.floor === 2) {
-          candidates = ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL"];
+          candidates = ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL", "TRAP_KIT"];
         } else if (state.floor === 3) {
-          candidates = ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "VENOM_FANG", "LONG_SWORD", "MACE", "SACRED_MACE", "SAGE_STAFF", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL"];
+          candidates = ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "VENOM_FANG", "LONG_SWORD", "MACE", "SACRED_MACE", "SAGE_STAFF", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT"];
         } else if (state.floor === 4) {
           // B4F: Standard standard chests only drop high-level store gear (e.g. Claymore)
-          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA"];
+          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT"];
         } else if (state.floor === 5) {
           // B5F: Standard standard chests drop high-level gear
-          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL"];
+          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT"];
         }
 
         if (candidates.length > 0) {
@@ -389,6 +389,19 @@ export function openChestMenu() {
   optGrid.appendChild(btnInspect);
   optGrid.appendChild(btnDisarm);
 
+  // Disarm with a consumable kit without inspection or class-based rewards.
+  if (state.inventory.includes("TRAP_KIT")) {
+    const btnKit = document.createElement("button");
+    btnKit.id = "btn-chest-trap-kit";
+    btnKit.className = "btn btn-neon btn-block";
+    btnKit.textContent = "キットで解除";
+    btnKit.style.minHeight = "44px";
+    btnKit.addEventListener("click", () => {
+      if (useTrapKit()) openChestMenu();
+    });
+    optGrid.appendChild(btnKit);
+  }
+
   // Open Chest
   const btnOpen = document.createElement("button");
   btnOpen.className = "btn btn-neon btn-block";
@@ -398,6 +411,18 @@ export function openChestMenu() {
     openSubmenu("chest_opener_select", "宝箱を開けるキャラクターを選択：");
   });
   optGrid.appendChild(btnOpen);
+
+  // Smash Chest
+  const btnSmash = document.createElement("button");
+  btnSmash.id = "btn-chest-smash";
+  btnSmash.className = "btn btn-danger btn-block";
+  btnSmash.textContent = "叩き壊す";
+  btnSmash.style.minHeight = "44px";
+  btnSmash.addEventListener("click", () => {
+    btnSmash.disabled = true;
+    smashChest();
+  }, { once: true });
+  optGrid.appendChild(btnSmash);
 
   // Leave Chest
   const btnLeave = document.createElement("button");
@@ -431,6 +456,8 @@ export function executeDisarm(char, rng = Math.random) {
   let chance = 0.25;
   if (char.class === "Thief") {
     chance = 0.85;
+  } else if (char.class === "Ninja") {
+    chance = 0.70;
   } else if (char.class === "Ranger") {
     chance = 0.60;
   }
@@ -467,7 +494,7 @@ export function executeDisarm(char, rng = Math.random) {
     if (state.currentRun) {
       state.currentRun.trapsTriggered++;
     }
-    triggerChestTrap(char);
+    triggerChestTrap(char, false, rng);
   }
   
   // Open the chest after disarm attempt resolves
@@ -476,7 +503,7 @@ export function executeDisarm(char, rng = Math.random) {
   }, 1500);
 }
 
-export function triggerChestTrap(char) {
+export function triggerChestTrap(char, weakened = false, rng = Math.random) {
   if (!state.chestState || state.chestState.trap === "none") return;
   const trap = state.chestState.trap;
   if (state.codex && state.codex.events && state.codex.events.traps) {
@@ -492,23 +519,28 @@ export function triggerChestTrap(char) {
   if (renderer) renderer.triggerShake(10, 400);
 
   if (trap === "poison needle") {
-    char.hp = Math.max(0, char.hp - 12);
+    const damage = weakened ? 6 : 12;
+    char.hp = Math.max(0, char.hp - damage);
     clearCharIncapacitationOnDamage(char);
     const ward = getCharAffixSum(char, "poisonWard");
-    const resisted = char.hp > 0 && ward > 0 && Math.random() * 100 < ward;
+    const poisonTriggered = !weakened || rng() < 0.50;
+    const resisted = char.hp > 0 && poisonTriggered && ward > 0 && rng() * 100 < ward;
     if (char.hp === 0) {
       char.status = "dead";
       recordCharDeath(state, char, "宝箱の罠「毒針」");
-    } else {
-      char.status = resisted ? char.status : "poisoned";
+    } else if (poisonTriggered && !resisted) {
+      char.status = "poisoned";
     }
-    addLog(`毒針が作動！${char.name}は12のダメージを受けた。${resisted ? "毒避けの備えで毒は免れた！" : "毒状態になった！"}`);
-    if (renderer) renderer.addDamageText("12", "#ff3b30");
+    const poisonResult = resisted
+      ? "毒避けの備えで毒は免れた！"
+      : (poisonTriggered ? "毒状態になった！" : "毒は付着しなかった。");
+    addLog(`毒針が作動！${char.name}は${damage}のダメージを受けた。${poisonResult}`);
+    if (renderer) renderer.addDamageText(String(damage), "#ff3b30");
   } else if (trap === "gas bomb") {
     addLog("ガス爆弾が作動！パーティ全体にガスが充満した！");
     state.party.forEach(c => {
       if (c.status !== "dead") {
-        const dmg = Math.floor(Math.random() * 8) + 5; // 5-12
+        const dmg = weakened ? Math.floor(rng() * 5) + 2 : Math.floor(rng() * 8) + 5;
         c.hp = Math.max(0, c.hp - dmg);
         clearCharIncapacitationOnDamage(c);
         if (c.hp === 0) {
@@ -519,6 +551,10 @@ export function triggerChestTrap(char) {
       }
     });
   } else if (trap === "teleporter") {
+    if (weakened && rng() < 0.50) {
+      addLog("テレポーターは衝撃で壊れ、不発に終わった！");
+      return;
+    }
     // Teleport to random coordinates inside map paths
     // Find empty spots (must not be isolated "stone/wall" cells - i.e. must have at least one open wall)
     const emptySpots = [];
@@ -531,7 +567,7 @@ export function triggerChestTrap(char) {
         }
       }
     }
-    const spot = emptySpots[Math.floor(Math.random() * emptySpots.length)];
+    const spot = emptySpots[Math.floor(rng() * emptySpots.length)];
     state.x = spot.x;
     state.y = spot.y;
     state.visitedMap[state.y][state.x] = true;
@@ -542,12 +578,45 @@ export function triggerChestTrap(char) {
       renderer.triggerFlash(400);
     }
     state.party.forEach(c => {
-      if (c.status === "ok" && Math.random() < 0.60) {
+      if (c.status === "ok" && rng() < (weakened ? 0.30 : 0.60)) {
         c.status = "blind";
         addLog(`${c.name}は光に目がくらみ、盲目状態になった！`);
       }
     });
   }
+}
+
+export function useTrapKit() {
+  if (!state.chestState) return false;
+  const kitIndex = state.inventory.indexOf("TRAP_KIT");
+  if (kitIndex < 0) return false;
+
+  state.inventory.splice(kitIndex, 1);
+  state.chestState.trap = "none";
+  addLog("罠外しキットを使い、宝箱の罠を確実に解除した。キットは壊れた。");
+  playSound("heal");
+  return true;
+}
+
+export function smashChest(rng = Math.random) {
+  if (!state.chestState) return false;
+  const chest = state.chestState;
+  const trapTarget = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
+  addLog("宝箱を力任せに叩き壊した！");
+
+  if (chest.trap && chest.trap !== "none") {
+    if (state.currentRun) state.currentRun.trapsTriggered++;
+    triggerChestTrap(trapTarget, true, rng);
+  }
+
+  const item = chest.item ? getItemData(chest.item) : null;
+  if (item?.type === "usable" && rng() < 0.30) {
+    chest.item = null;
+    addLog("衝撃で中身の一部が砕けた…");
+  }
+
+  openChestDirectly(null, rng);
+  return true;
 }
 
 export function openChestDirectly(opener = null, rng = Math.random) {
@@ -578,7 +647,7 @@ export function openChestDirectly(opener = null, rng = Math.random) {
     if (state.currentRun) {
       state.currentRun.trapsTriggered++;
     }
-    triggerChestTrap(trapTarget);
+    triggerChestTrap(trapTarget, false, rng);
   }
 
   // 素材束の獲得
