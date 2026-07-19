@@ -89,6 +89,8 @@ export class DungeonRenderer {
           || (state.gameState === "submenu" && menuContext.type.startsWith("combat"))
         )
       );
+      const showChest = state.gameState === "chest"
+        || (state.gameState === "submenu" && state.chestState);
       
       // Draw monsters only for combat and combat-derived submenus.
       if (showCombat) {
@@ -96,12 +98,12 @@ export class DungeonRenderer {
       }
 
       // Draw Chest if looting
-      if (state.gameState === "chest" || (state.gameState === "submenu" && state.chestState)) {
+      if (showChest) {
         this.drawChest(ctx);
       }
 
-      // Keep the combat field unobstructed; restore the mini-map after combat.
-      if (!showCombat) this.drawMiniMap(ctx);
+      // Keep combat and chest scenes unobstructed; restore the mini-map afterward.
+      if (!showCombat && !showChest) this.drawMiniMap(ctx);
     }
 
     // Draw Damage / Floating Texts
