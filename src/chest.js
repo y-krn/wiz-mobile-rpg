@@ -232,6 +232,7 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
 }
 
 export function openChestMenu() {
+  menuContext.prevGameState = null;
   state.gameState = "submenu";
   menuContext.type = "chest_menu";
 
