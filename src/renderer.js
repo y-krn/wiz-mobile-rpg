@@ -83,9 +83,15 @@ export class DungeonRenderer {
     } else {
       // Exploration or Combat or Chest
       this.draw3DCorridors(ctx);
+      const showCombat = Boolean(
+        state.combatState && (
+          state.gameState === "combat"
+          || (state.gameState === "submenu" && menuContext.type.startsWith("combat"))
+        )
+      );
       
-      // Draw Monster if in Combat
-      if (state.combatState && (state.gameState === "combat" || (state.gameState === "submenu" && !state.chestState))) {
+      // Draw monsters only for combat and combat-derived submenus.
+      if (showCombat) {
         this.drawMonsters(ctx);
       }
 
@@ -94,8 +100,8 @@ export class DungeonRenderer {
         this.drawChest(ctx);
       }
 
-      // Draw Mini-map overlay
-      this.drawMiniMap(ctx);
+      // Keep the combat field unobstructed; restore the mini-map after combat.
+      if (!showCombat) this.drawMiniMap(ctx);
     }
 
     // Draw Damage / Floating Texts
@@ -552,17 +558,30 @@ export class DungeonRenderer {
     const alive = monsters.filter(m => m.hp > 0);
     if (alive.length === 0) return;
 
-    // Render the first active monster in detail
-    const monster = alive[0];
-    
+    const columns = alive.length >= 4 ? Math.ceil(alive.length / 2) : alive.length;
+    const rows = alive.length >= 4 ? 2 : 1;
+    const scale = alive.length >= 4 ? 0.52 : alive.length >= 2 ? 0.72 : 1;
+
+    alive.forEach((monster, index) => {
+      const row = Math.floor(index / columns);
+      const rowStart = row * columns;
+      const rowCount = Math.min(columns, alive.length - rowStart);
+      const slotWidth = VIEW_W / rowCount;
+      const cx = slotWidth * (index - rowStart + 0.5);
+      const cy = rows === 1 ? VIEW_H / 2 + 15 : row === 0 ? 90 : 210;
+      this.drawMonster(ctx, monster, cx, cy, scale, slotWidth - 8);
+    });
+  }
+
+  drawMonster(ctx, monster, cx, cy, scale, maxLabelWidth) {
     ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
     ctx.shadowColor = monster.color || "#ff3b30";
     ctx.shadowBlur = 10;
     ctx.strokeStyle = monster.color || "#ff3b30";
     ctx.lineWidth = 3;
-
-    const cx = VIEW_W / 2;
-    const cy = VIEW_H / 2 + 10;
 
     // Different wireframe drawing based on stable sprite type.
     const spriteType = this.getMonsterSpriteType(monster);
@@ -787,9 +806,9 @@ export class DungeonRenderer {
 
     // Draw Monster Name & HP bar above it
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 13px 'Share Tech Mono', monospace";
+    ctx.font = `bold ${scale < 0.6 ? 10 : scale < 1 ? 11 : 13}px 'Share Tech Mono', monospace`;
     ctx.textAlign = "center";
-    ctx.fillText(`${monster.name} (Lv.${monster.level})`, cx, cy - 70);
+    ctx.fillText(`${monster.name} (Lv.${monster.level})`, cx, cy - 70, maxLabelWidth);
 
     // Draw Omen (danger telegraph) if any
     let omenText = "";
@@ -803,17 +822,17 @@ export class DungeonRenderer {
     else if (monster.summonQueued) omenText = "⚠️召喚の予兆";
     else if (monster.snipeQueued) {
       const targetChar = state.party[monster.snipeTargetIdx];
-      omenText = `⚠️狙撃準備 (後列: ${targetChar ? targetChar.name : "後列"})`;
+      omenText = `⚠️狙撃準備 (対象: ${targetChar ? targetChar.name : "仲間"})`;
     }
 
     if (omenText) {
       ctx.fillStyle = "#ffcc00"; // Amber color for warnings
-      ctx.font = "bold 12px 'Share Tech Mono', monospace";
-      ctx.fillText(omenText, cx, cy - 88);
+      ctx.font = `bold ${scale < 0.6 ? 9 : 12}px 'Share Tech Mono', monospace`;
+      ctx.fillText(omenText, cx, cy - 88, maxLabelWidth);
     }
 
     // HP Bar
-    const barW = 100;
+    const barW = Math.min(100, maxLabelWidth);
     const barH = 5;
     const pct = Math.max(0, monster.hp / monster.maxHp);
     ctx.fillStyle = "rgba(255, 255, 255, 0.1)";

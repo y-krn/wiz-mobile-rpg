@@ -7,10 +7,6 @@ import {
 import { isEncounterCompositionAllowed, pickEncounterSize } from "../rules/encounter_rules.js";
 import { scaleEnemyForDepth } from "../rules/depth_scaling.js";
 
-export function getEnemyRow(monster) {
-  return monster.row || "front";
-}
-
 export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roamingMonster = null, rng = Math.random) {
   const monsters = [];
   let isRare = false;
