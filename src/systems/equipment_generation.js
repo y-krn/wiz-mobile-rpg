@@ -91,7 +91,13 @@ function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCo
   return [...coreAffixes, ...supportAffixes];
 }
 
-export function buildUnidentifiedMeta(tags, rarity, typeName, rng = Math.random, { curseEffectId = null } = {}) {
+export function buildUnidentifiedMeta(
+  tags,
+  rarity,
+  typeName,
+  rng = Math.random,
+  { curseEffectId = null, curseDetectChance = 1 } = {}
+) {
   const nonCurseTags = tags.filter(t => t !== "curse");
   const hintTags = [];
   if (nonCurseTags.length > 0) {
@@ -110,9 +116,12 @@ export function buildUnidentifiedMeta(tags, rarity, typeName, rng = Math.random,
     prefix = "紫光を放つ";
   }
 
+  const suspicionRoll = rng();
   return {
     hintTags,
-    curseSuspected: curseEffectId ? true : (rng() < 0.20),
+    curseSuspected: curseEffectId
+      ? suspicionRoll < curseDetectChance
+      : suspicionRoll < 0.20,
     unidentifiedName: `${prefix}未鑑定の${typeName}`
   };
 }
@@ -401,7 +410,10 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     else if (["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "NINJA_BLADE", "MOONSHADOW", "FLAME_SWORD"].includes(baseId)) typeName = "剣";
     else if (baseId === "MACE") typeName = "メイス";
   }
-  const meta = buildUnidentifiedMeta(tags, rarity, typeName, rng, { curseEffectId });
+  const meta = buildUnidentifiedMeta(tags, rarity, typeName, rng, {
+    curseEffectId,
+    curseDetectChance: gambleProfile.curseDetectChance
+  });
   meta.unidentifiedName = `${prefix}${baseItem.name}（未鑑定・${typeName}）`;
 
   return {
@@ -541,7 +553,10 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     typeName = "護符";
   }
 
-  const meta = buildUnidentifiedMeta(tags, rarity, typeName, rng, { curseEffectId });
+  const meta = buildUnidentifiedMeta(tags, rarity, typeName, rng, {
+    curseEffectId,
+    curseDetectChance: gambleProfile.curseDetectChance
+  });
   meta.unidentifiedName = `${baseItem.name}（未鑑定・${typeName}）`;
 
   return {

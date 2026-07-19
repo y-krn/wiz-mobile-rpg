@@ -5,6 +5,9 @@ export const IDENTIFICATION_BALANCE = {
   baseCurseChance: 0.10,
   curseChancePerFloor: 0.0225,
   maxCurseChance: 0.42,
+  baseCurseDetect: 0.9,
+  curseDetectDecayPerFloor: 0.05,
+  minCurseDetect: 0.4,
   coreCurseBonus: 0.08,
   cursePowerPerFloor: 0.15,
   maxCursePower: 2.5,
@@ -20,6 +23,10 @@ export function getIdentificationGambleProfile(floor = 1) {
     curseChance: Math.min(
       IDENTIFICATION_BALANCE.maxCurseChance,
       IDENTIFICATION_BALANCE.baseCurseChance + steps * IDENTIFICATION_BALANCE.curseChancePerFloor
+    ),
+    curseDetectChance: Math.max(
+      IDENTIFICATION_BALANCE.minCurseDetect,
+      IDENTIFICATION_BALANCE.baseCurseDetect - steps * IDENTIFICATION_BALANCE.curseDetectDecayPerFloor
     ),
     cursePower: Math.min(
       IDENTIFICATION_BALANCE.maxCursePower,
