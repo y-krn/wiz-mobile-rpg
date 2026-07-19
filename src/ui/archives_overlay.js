@@ -33,7 +33,7 @@ export function getMonsterCodexDetailHtml(m, record) {
       <p><strong>戦利品傾向:</strong> ${m.isRare ? "未鑑定装備と希少素材" : "グループ別素材"}</p>
     `;
   } else {
-    html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[初討伐で特徴とメタ素材報酬が解放されます]</p>`;
+    html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[初討伐で特徴と素材報酬が解放されます]</p>`;
   }
   
   if (kil >= 3) {

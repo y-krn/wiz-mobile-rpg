@@ -22,7 +22,7 @@ export function renderMilestoneMerchant(optGrid) {
   optGrid.classList.add("milestone-merchant-grid");
   const materials = state.currentRun?.materials || {};
   const total = Object.values(materials).reduce((sum, value) => sum + value, 0);
-  optGrid.appendChild(createSection(`節目商人：ラン素材 ${total}`));
+  optGrid.appendChild(createSection(`節目商人：素材 ${total}`));
 
   MILESTONE_MERCHANT_STOCK.forEach(entry => {
     const button = document.createElement("button");

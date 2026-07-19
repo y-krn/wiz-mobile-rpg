@@ -58,10 +58,6 @@
   color: var(--floor-border, var(--neon-cyan));
 }
 
-#material-counter {
-  color: var(--neon-amber);
-}
-
 /* Goal HUD Banner */
 #goal-banner {
   min-height: 24px;

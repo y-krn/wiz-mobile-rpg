@@ -10,11 +10,11 @@ function formatCost(cost) {
 function renderBalance(container) {
   const balance = document.createElement("div");
   balance.className = "materials-hud";
-  balance.setAttribute("aria-label", "メタ素材残高");
+  balance.setAttribute("aria-label", "素材残高");
   const owned = MATERIAL_TYPES.filter(name => (state.metaMaterials?.[name] || 0) > 0);
   balance.textContent = owned.length > 0
     ? owned.map(name => `${name}:${state.metaMaterials[name]}`).join(" / ")
-    : "メタ素材なし";
+    : "素材なし";
   container.appendChild(balance);
 }
 
@@ -53,4 +53,3 @@ export function renderWorkshop(optGrid) {
     });
   });
 }
-

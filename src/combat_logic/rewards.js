@@ -187,7 +187,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       let rewardMsg = "  -> 初討伐の追加報酬";
       const matListStr = Object.entries(firstKilledMats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
       if (matListStr) {
-        rewardMsg += ` / メタ素材: [${matListStr}]`;
+        rewardMsg += ` / 素材: [${matListStr}]`;
       }
       if (bonusTickets > 0) {
         rewardMsg += ` / 鑑定粉 +${bonusTickets}個`;
