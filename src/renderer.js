@@ -85,7 +85,7 @@ export class DungeonRenderer {
       this.draw3DCorridors(ctx);
       
       // Draw Monster if in Combat
-      if (state.combatState && (state.gameState === "combat" || (state.gameState === "submenu" && !state.chestState))) {
+      if (state.combatState && (state.gameState === "combat" || (state.gameState === "submenu" && menuContext.type.startsWith("combat")))) {
         this.drawMonsters(ctx);
       }
 

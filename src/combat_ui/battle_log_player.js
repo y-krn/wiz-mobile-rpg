@@ -165,6 +165,7 @@ export function playBattleLogs(queue, index) {
     state.transitioning = true;
     setTimeout(() => {
       state.gameState = "chest";
+      cleanupCombatState();
       state.transitioning = false;
       setupChestState();
       saveAutosave();

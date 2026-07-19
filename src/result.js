@@ -170,6 +170,11 @@ export function triggerRunResult(reason) {
     state.deathLogs = state.deathLogs.slice(0, 20);
   }
 
+  state.combatState = null;
+  state.party.forEach(char => {
+    delete char.buffs;
+  });
+
   if (state.codex) {
     state.codex.stats ||= { totalRuns: 0, totalDeaths: 0, deepestFloor: 1, totalKills: 0, totalChests: 0 };
     state.codex.stats.totalRuns = state.records.totalRuns;
