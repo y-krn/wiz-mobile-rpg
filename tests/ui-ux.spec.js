@@ -14,6 +14,58 @@ const SOLO_HUD_VIEWPORTS = [
 
 const SOLO_HUD_STATES = ['town', 'explore', 'combat', 'submenu'];
 
+test('Debug reset clears all progression and persists the initial state', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { saveAutosave, state } = await import('/src/state.js');
+    state.inventory = ['HEAL_POTION', 'ANTIGRAVITY_CRYSTAL'];
+    state.records.totalRuns = 9;
+    state.codex.monsters.GOBLIN = { killed: 4 };
+    state.dungeonMemory.visitedFloors = [1, 2, 3];
+    state.metaMaterials = { '鉄片': 12 };
+    state.workshop = { ranks: { gear_rapier: 2 } };
+    saveAutosave();
+  });
+
+  await page.locator('#btn-town-castle').click();
+  const resetButton = page.getByRole('button', { name: 'デバッグ: データ全初期化' });
+  await expect(resetButton).toBeVisible();
+
+  page.once('dialog', dialog => dialog.dismiss());
+  await resetButton.click();
+  expect(await page.evaluate(async () => (await import('/src/state.js')).state.records.totalRuns)).toBe(9);
+
+  page.once('dialog', dialog => dialog.accept());
+  await resetButton.click();
+  await expect(page.locator('#town-controls')).toBeVisible();
+  await expect(page.locator('#log-content')).toContainText('クラスを選び、ひとりで迷宮へ潜ろう。');
+
+  const readProgress = () => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      inventory: state.inventory,
+      totalRuns: state.records.totalRuns,
+      monsterKills: state.codex.monsters.GOBLIN?.killed || 0,
+      visitedFloors: state.dungeonMemory.visitedFloors,
+      metaMaterials: state.metaMaterials,
+      workshopRanks: state.workshop.ranks,
+    };
+  });
+  const initialProgress = {
+    inventory: ['HEAL_POTION', 'HEAL_POTION'],
+    totalRuns: 0,
+    monsterKills: 0,
+    visitedFloors: [1],
+    metaMaterials: {},
+    workshopRanks: {},
+  };
+  expect(await readProgress()).toEqual(initialProgress);
+
+  await page.reload();
+  expect(await readProgress()).toEqual(initialProgress);
+});
+
 for (const vp of VIEWPORTS) {
   test(`Records, run quests, and result focus stay visible at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
