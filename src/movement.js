@@ -672,7 +672,7 @@ export function executeEnterDungeon(floor) {
   }
   const workshopGrants = getWorkshopGrants(state.workshop);
   state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder + workshopGrants.identifyPowder;
-  state.inventory = ["HEAL_POTION", "HEAL_POTION", ...workshopGrants.returnItems];
+  state.inventory = ["HEAL_POTION", "HEAL_POTION", "ANTIDOTE", ...workshopGrants.returnItems];
   state.party.forEach(char => {
     char.runTrapAttackBonus = 0;
   });

@@ -12,7 +12,7 @@ export const state = {
 
   // Solo character (kept as a one-element array for combat compatibility) & Inventory
   party: [],
-  inventory: ["HEAL_POTION", "HEAL_POTION"],
+  inventory: ["HEAL_POTION", "HEAL_POTION", "ANTIDOTE"],
 
   // Map & Light
   floor: 1,
