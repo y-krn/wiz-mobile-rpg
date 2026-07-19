@@ -9,6 +9,16 @@ export const EVENT_TYPES = {
   BOSS: "boss"
 };
 
+export const EVENT_SUBMENU_TYPES = [
+  "event_spring",
+  "event_camp",
+  "event_tablet",
+  "event_merchant",
+  "event_merchant_buy",
+  "milestone_merchant",
+  "milestone_portal"
+];
+
 export const TRAP_TYPES = {
   DAMAGE: "damage",
   MP_DRAIN: "mpDrain",

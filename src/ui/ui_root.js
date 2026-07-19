@@ -11,6 +11,7 @@ import { renderResultScreen } from "./result_screen.js";
 import { getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
 import { formatRunQuestProgress } from "../systems/run_quests.js";
 import { updateRecordsStrip } from "./records_view.js";
+import { EVENT_SUBMENU_TYPES } from "../constants/events.js";
 
 let floorStingerTimer = null;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
@@ -191,13 +192,7 @@ export function updateUI() {
     "chest_menu",
     "chest_disarmer_select",
     "chest_opener_select",
-    "event_spring",
-    "event_camp",
-    "event_tablet",
-    "event_merchant",
-    "event_merchant_buy",
-    "milestone_merchant",
-    "milestone_portal"
+    ...EVENT_SUBMENU_TYPES
   ];
 
   // Reset/Apply floor-theme class on #game-container
