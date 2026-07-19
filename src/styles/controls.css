@@ -123,6 +123,12 @@
 }
 
 .workshop-grid .materials-hud {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-bottom: var(--sp-xs);
+  background-color: var(--hud-chrome-bg);
+  border-bottom: 1px solid var(--border-color);
   color: var(--neon-green);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
