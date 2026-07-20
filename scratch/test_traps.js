@@ -186,4 +186,68 @@ for (const row of genMap.grid) {
 }
 console.log("PASS: Trap persistence removed.");
 
+// 5. Adjacent trap detection
+console.log("\n[5] Verifying adjacent trap detection:");
+const { detectAdjacentTraps } = await import("../src/systems/traps.js");
+
+// Build a 3x3 test grid: player at (1,1). Walls are [N, E, S, W].
+function makeCell(walls) {
+  return { walls, blockEnter: [false, false, false, false], type: "empty", event: null };
+}
+const openAll = () => makeCell([false, false, false, false]);
+
+// East neighbour (2,1) has a trap and is open. West neighbour (0,1) has a
+// trap but is walled off, so it must never be detected.
+const grid = [
+  [openAll(), openAll(), openAll()],
+  [openAll(), makeCell([false, false, false, true]), openAll()],
+  [openAll(), openAll(), openAll()]
+];
+grid[1][2].trap = { id: "t_east", type: "damage", state: "hidden", difficulty: 30 };
+grid[1][0].trap = { id: "t_west", type: "damage", state: "hidden", difficulty: 30 };
+
+state.maps = [grid];
+state.floor = 1;
+state.x = 1;
+state.y = 1;
+state.party = [{ name: "Robin", class: "Fighter", level: 1, hp: 20, maxHp: 20, luk: 10, agi: 10, status: "ok" }];
+
+// Force detection to always succeed
+const realRandom = Math.random;
+Math.random = () => 0;
+detectAdjacentTraps();
+Math.random = realRandom;
+
+if (grid[1][2].trap.state !== "discovered") {
+  console.error("FAIL: open adjacent trap should be discovered.");
+  process.exit(1);
+}
+if (grid[1][0].trap.state !== "hidden") {
+  console.error("FAIL: trap behind a wall must not be detected.");
+  process.exit(1);
+}
+console.log("- open neighbour discovered, walled neighbour untouched");
+
+// Detection is rolled once per trap: a guaranteed-fail reroll must not
+// downgrade an already-discovered trap, and must not re-roll a failed one.
+grid[2][1].trap = { id: "t_south", type: "damage", state: "hidden", difficulty: 30 };
+Math.random = () => 0.99;
+detectAdjacentTraps();
+if (grid[2][1].trap.state !== "hidden") {
+  console.error("FAIL: failed detection should leave trap hidden.");
+  process.exit(1);
+}
+if (grid[2][1].trap.detectRolled !== true) {
+  console.error("FAIL: failed detection must still mark detectRolled.");
+  process.exit(1);
+}
+Math.random = () => 0;
+detectAdjacentTraps();
+if (grid[2][1].trap.state !== "hidden") {
+  console.error("FAIL: detection must not be rolled twice for the same trap.");
+  process.exit(1);
+}
+Math.random = realRandom;
+console.log("PASS: Adjacent detection verified.");
+
 console.log("\n=== ALL TRAP TESTS PASSED ===");

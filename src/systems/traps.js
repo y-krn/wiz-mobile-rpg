@@ -9,7 +9,7 @@ import { descendToFloor, findCellCoordsByType } from "../movement.js";
 import { MAP_WIDTH, MAP_HEIGHT, DX, DY, getPartyMaxAffix } from "../data.js";
 import { armControlsGuard } from "../controls_guard.js";
 import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
-import { calculateDisarmRate, PITFALL_EDGE_BONUS } from "../rules/trap_rules.js";
+import { calculateDisarmRate, calculateDetectRate, PITFALL_EDGE_BONUS } from "../rules/trap_rules.js";
 
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
 
@@ -82,67 +82,41 @@ export function startTrapEncounter(trap) {
   if (typeof document !== "undefined") updateUI();
 }
 
-export function detectAdjacentTrapsByTraceRead() {
+// 罠はルート選択の障害物なので、察知はクラス非依存で全員に配る。
+// 壁越しは察知しない（行けない場所の情報でマップが汚れるため）。
+// 1つの罠につき判定は生涯1回（引き直せると判定が作業に化けるため）。
+export function detectAdjacentTraps() {
+  const rate = calculateDetectRate({ floor: state.floor });
   const traceRead = getPartyMaxAffix(state.party, "traceRead");
-  if (traceRead <= 0) return false;
   const found = [];
+
   for (let dir = 0; dir < 4; dir++) {
+    const cell = state.map[state.y]?.[state.x];
+    if (!cell || cell.walls[dir]) continue;
+
     const x = state.x + DX[dir];
     const y = state.y + DY[dir];
     const trap = state.map[y]?.[x]?.trap;
-    if (!trap || trap.state !== "hidden") continue;
+    if (!trap || trap.state !== "hidden" || trap.detectRolled) continue;
+
+    trap.detectRolled = true;
+    if (Math.random() >= rate) continue;
+
     trap.state = "discovered";
-    trap.traceReadLevel = traceRead;
+    if (traceRead > 0) trap.traceReadLevel = traceRead;
     found.push(trap);
   }
+
   if (found.length === 0) return false;
+
   const lead = found[0];
   if (traceRead >= 2) {
-    addLog(`【痕跡】近くに${getExpectedEffectText(lead)}の罠の痕跡がある。`);
+    addLog(`【痕跡】隣接する床に${getExpectedEffectText(lead)}の罠がある。`);
   } else {
-    addLog("【痕跡】近くの床に不自然な傷跡がある。罠かもしれない。");
+    addLog("【痕跡】隣接する床に罠の気配がある。");
   }
   playSound("miss");
   return true;
-}
-
-export function handleTrapStepCheck(trap) {
-  if (trap.state === "hidden") {
-    let detectionRate = 0.30;
-    const scouts = state.party.filter(c => ["Thief", "Ninja", "Ranger"].includes(c.class) && c.hp > 0);
-    if (scouts.length > 0) {
-      const bestScout = scouts.sort((a, b) => b.luk - a.luk)[0];
-      detectionRate += 0.20 + (bestScout.luk + bestScout.agi) * 0.01;
-    }
-    detectionRate -= (state.floor - 1) * 0.05;
-    detectionRate = Math.max(0.10, Math.min(0.95, detectionRate));
-
-    if (Math.random() < detectionRate) {
-      trap.state = "discovered";
-      addLog("【⚠️罠発見！】足元に仕掛けられた罠を察知した！");
-      playSound("miss");
-      startTrapEncounter(trap);
-      return true;
-    } else {
-      if (trap.type === "pitfall") {
-        addLog("【⚠️罠発動！】不意に罠を踏み抜いてしまった！");
-        triggerPitfall(trap);
-        trap.state = "disabled";
-        return true; // 落下中なので、このターンの他のイベントを抑止するために true を返す
-      } else {
-        addLog("【⚠️罠発動！】不意に罠を踏み抜いてしまった！");
-        triggerTrap(trap);
-        trap.state = "disabled";
-        saveAutosave();
-        updateUI();
-        return false; // 発動した場合はそのまま元の移動処理を進める
-      }
-    }
-  } else {
-    // discovered
-    startTrapEncounter(trap);
-    return true;
-  }
 }
 
 export function triggerPitfall(trap, isPartialSuccess = false) {

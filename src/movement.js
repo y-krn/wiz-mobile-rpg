@@ -9,7 +9,7 @@ import { ensureRunFloor, resetRunFloors } from "./state/run_floor_state.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
 import { menuContext, openGuardedSubmenu, openSubmenu } from "./navigation.js";
-import { detectAdjacentTrapsByTraceRead, handleTrapStepCheck } from "./systems/traps.js";
+import { detectAdjacentTraps } from "./systems/traps.js";
 import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/warden_perception.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
@@ -831,16 +831,10 @@ export function processExplorationResolution(prevX, prevY) {
   // 2. Move Flacks if it's their turn
   if (advanceRoamingTurn(true, prevX, prevY)) return;
 
-  // 2.5. Check standard traps on standard passage cells
+  // 2.5. Detect traps on adjacent cells. Stepping onto a trap is intercepted
+  // before the move happens (see handleMove), so there is no step check here.
   const cell = state.map[state.y][state.x];
-  if (cell.trap && cell.trap.state !== "disabled") {
-    const encountered = handleTrapStepCheck(cell.trap);
-    if (encountered) {
-      return;
-    }
-  } else {
-    detectAdjacentTrapsByTraceRead();
-  }
+  detectAdjacentTraps();
 
   // 3. Regular floor events
   const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
