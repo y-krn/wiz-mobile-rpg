@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { getCharAffixSum } from "../src/data.js";
-import { applyKillAffixEffects } from "../src/combat_logic/damage.js";
-import { createSoloCharacter } from "../src/state.js";
+import { applyKillAffixEffects, getMeleeModifiers } from "../src/combat_logic/damage.js";
+import { SOLO_CLASSES, createSoloCharacter } from "../src/state.js";
 
 let failures = 0;
 
@@ -19,7 +19,13 @@ test("僧侶はメイスとソロ用耐久・MPを持つ", () => {
   const priest = createSoloCharacter("Priest");
   assert.equal(priest.equipment.weapon, "MACE");
   assert.equal(priest.maxHp, 14);
-  assert.equal(priest.maxMp, 5);
+  assert.equal(priest.maxMp, 7);
+});
+
+test("全職の近接倍率は等倍", () => {
+  for (const className of SOLO_CLASSES) {
+    assert.equal(getMeleeModifiers({ class: className }), 1, className);
+  }
 });
 
 test("魔術師はソロ用耐久・MPを持つ", () => {

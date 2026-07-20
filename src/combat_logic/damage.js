@@ -15,13 +15,13 @@ export function logCoreActivation(state, logQueue, char, coreId, { once = true }
 export function getMeleeModifiers(char) {
   const classMeleeRates = {
     Fighter: 1.00,
-    Samurai: 0.95,
-    Ninja: 0.95,
-    Ranger: 0.85,
-    Thief: 0.75,
-    Priest: 0.60,
-    Bishop: 0.50,
-    Mage: 0.35
+    Samurai: 1.00,
+    Ninja: 1.00,
+    Ranger: 1.00,
+    Thief: 1.00,
+    Priest: 1.00,
+    Bishop: 1.00,
+    Mage: 1.00
   };
   return classMeleeRates[char.class] ?? 1.00;
 }

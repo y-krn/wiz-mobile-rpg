@@ -75,7 +75,7 @@ function getDangerHint(state) {
 export const SPELL_EFFECTS = {
   // Mage Spells
   HALITO: ({ caster, target, rng = Math.random }) => {
-    let dmg = Math.floor(rng() * 11) + 8;
+    let dmg = Math.floor(rng() * 11) + 12;
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;

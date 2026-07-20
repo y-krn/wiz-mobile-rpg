@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import {
   ENCOUNTER_COMPOSITION_RULES,
   ENCOUNTER_POOLS,
-  ENCOUNTER_SIZE_WEIGHTS
+  ENCOUNTER_SIZE_WEIGHTS,
+  getEncounterSizeWeightsForFloor
 } from "../src/data/encounters.js";
 import { ENEMY_ROLES, MONSTERS, MONSTER_ROLE_BY_NAME } from "../src/data/monsters.js";
 import { generateEncounter } from "../src/combat_ui/encounter.js";
@@ -21,6 +22,11 @@ function baseName(name) {
 }
 
 function run() {
+  assert.deepEqual(ENCOUNTER_SIZE_WEIGHTS[1], [0.70, 0.30, 0.00]);
+  assert.deepEqual(ENCOUNTER_SIZE_WEIGHTS[2], [0.55, 0.45, 0.00]);
+  assert.equal(getEncounterSizeWeightsForFloor(6), ENCOUNTER_SIZE_WEIGHTS[1]);
+  assert.equal(getEncounterSizeWeightsForFloor(7), ENCOUNTER_SIZE_WEIGHTS[2]);
+
   const validRoles = new Set(Object.values(ENEMY_ROLES));
   assert.equal(Object.keys(MONSTER_ROLE_BY_NAME).length, MONSTERS.length, "Every monster must have one role mapping.");
   for (const monster of MONSTERS) {
@@ -58,7 +64,9 @@ function run() {
         monsters.length
       ), `B${floor} generated an invalid role composition.`);
     }
-    assert.deepEqual([...seenSizes].sort(), [1, 2, 3], `B${floor} must generate all supported group sizes.`);
+    const localFloor = ((floor - 1) % 5) + 1;
+    const expectedSizes = localFloor <= 2 ? [1, 2] : [1, 2, 3];
+    assert.deepEqual([...seenSizes].sort(), expectedSizes, `B${floor} must generate its weighted group sizes.`);
   }
 }
 
