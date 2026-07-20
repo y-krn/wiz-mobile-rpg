@@ -9,6 +9,7 @@ import { descendToFloor, findCellCoordsByType } from "../movement.js";
 import { MAP_WIDTH, MAP_HEIGHT, DX, DY, getPartyMaxAffix } from "../data.js";
 import { armControlsGuard } from "../controls_guard.js";
 import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
+import { calculateDisarmRate, PITFALL_EDGE_BONUS } from "../rules/trap_rules.js";
 
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
 
@@ -18,15 +19,10 @@ export function increaseChestTrapTier(trap, levels = 1) {
   return CHEST_TRAP_TIERS[Math.min(CHEST_TRAP_TIERS.length - 1, index + levels)];
 }
 
-function getBestDisarmer() {
-  return (state.party || []).filter(char => char?.hp > 0 && !["dead", "ash"].includes(char.status))
-    .reduce((best, char) => {
-      const classBonus = char.class === "Thief" ? char.level * 2 + 15
-        : char.class === "Ninja" ? char.level * 1.5 + 10
-          : char.class === "Ranger" ? char.level + 5 : 0;
-      const score = char.luk + char.agi + classBonus;
-      return !best || score > best.score ? { char, score } : best;
-    }, null)?.char || null;
+function getActiveCharacter() {
+  return (state.party || []).find(
+    char => char?.hp > 0 && !["dead", "ash"].includes(char.status)
+  ) || null;
 }
 
 function recordTrapCodex(type, field) {
@@ -39,24 +35,17 @@ function recordTrapCodex(type, field) {
 }
 
 export function calculateSuccessRate(trap) {
-  const baseRate = 50;
-  let disarmerSkill = 0;
-  
-  // 生存しているパーティメンバーから最高スキル値を取得
-  const disarmer = getBestDisarmer();
-  if (disarmer) {
-    let bonus = 0;
-    if (disarmer.class === "Thief") bonus = disarmer.level * 2 + 15;
-    else if (disarmer.class === "Ninja") bonus = disarmer.level * 1.5 + 10;
-    else if (disarmer.class === "Ranger") bonus = disarmer.level + 5;
-    disarmerSkill = disarmer.luk + disarmer.agi + bonus;
-  }
+  const char = getActiveCharacter();
+  if (!char) return 0;
 
-  let rate = baseRate + disarmerSkill - trap.difficulty - (state.floor - 1) * 5;
-  if (trap.type === "pitfall") {
-    rate += 20; // 「縁を伝う」は成功率高なので+20%のボーナス
-  }
-  return Math.max(10, Math.min(95, rate));
+  const rate = calculateDisarmRate({
+    className: char.class,
+    level: char.level,
+    floor: state.floor,
+    affixBonus: getPartyMaxAffix(state.party, "disarmBonus") || 0
+  });
+
+  return trap.type === "pitfall" ? Math.min(100, rate + PITFALL_EDGE_BONUS) : rate;
 }
 
 export function getExpectedEffectText(trap) {

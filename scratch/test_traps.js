@@ -65,7 +65,7 @@ if (b1TrapCount !== 7 || !validTraps) {
   console.log("PASS: Map trap placement verified.");
 }
 
-// 2. Verify Success Rate Calculation
+// 2. Verify Success Rate Calculation (delegates to trap_rules)
 console.log("\n[2] Verifying trap disarm success rate calculation:");
 const testTrap = {
   id: "trap_1_5_5",
@@ -77,13 +77,9 @@ const testTrap = {
 };
 
 state.floor = 1;
-state.party = []; // Empty party
-
-// Rate should use base 50 - difficulty (30) - floorPenalty (0) = 20%
-let rate = calculateSuccessRate(testTrap);
-console.log(`- Rate with empty party: ${rate}% (Expected: 20% or min-capped at 10%)`);
-if (rate !== 20) {
-  console.error("FAIL: Success rate calculation failed for empty party.");
+state.party = [];
+if (calculateSuccessRate(testTrap) !== 0) {
+  console.error("FAIL: empty party should yield 0.");
   process.exit(1);
 }
 
@@ -98,20 +94,25 @@ state.party = [{
   agi: 16,
   status: "ok"
 }];
-// Thief skill bonus = luk(15) + agi(16) + level*2(10) + 15 = 56
-// Rate = 50 + 56 - 30 - 0 = 76%
-rate = calculateSuccessRate(testTrap);
-console.log(`- Rate with level 5 Thief: ${rate}% (Expected: 76%)`);
-if (rate !== 76) {
-  console.error("FAIL: Success rate calculation failed for Thief.");
+// apt: 80 + 5*1.0 - 0 = 85
+const thiefRate = calculateSuccessRate(testTrap);
+if (thiefRate !== 85) {
+  console.error(`FAIL: Thief lv5 B1 should be 85, got ${thiefRate}.`);
   process.exit(1);
 }
 
-// Weakened state is abolished. A trap that is not hidden/discovered/disabled is invalid.
-testTrap.state = "discovered";
-const discoveredRate = calculateSuccessRate(testTrap);
-if (discoveredRate !== 76) {
-  console.error(`FAIL: discovered trap rate should stay 76, got ${discoveredRate}.`);
+// difficulty must no longer affect the rate
+testTrap.difficulty = 90;
+if (calculateSuccessRate(testTrap) !== 85) {
+  console.error("FAIL: trap.difficulty must not affect disarm rate.");
+  process.exit(1);
+}
+
+// pitfall gets the edge bonus: 85 + 20 = 105, clamped to 100
+const pitTrap = { ...testTrap, type: "pitfall" };
+const pitRate = calculateSuccessRate(pitTrap);
+if (pitRate !== 100) {
+  console.error(`FAIL: pitfall rate should be 100, got ${pitRate}.`);
   process.exit(1);
 }
 console.log("PASS: Success rate calculations verified.");
