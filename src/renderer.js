@@ -324,6 +324,10 @@ export class DungeonRenderer {
           this.drawStairsIcon(ctx, z, cell.type);
         }
 
+        if (column === 0 && z > 0 && cell.event === EVENT_TYPES.CHEST) {
+          this.drawChestIcon(ctx, z);
+        }
+
         // Check if there is a roaming monster at this coordinate (cx, cy)
         if (column === 0 && state.roamingMonsters) {
           const hasFlack = state.roamingMonsters.some(
@@ -467,6 +471,44 @@ export class DungeonRenderer {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(label, xl + w * 0.5, yb - 18);
+    ctx.restore();
+  }
+
+  drawChestIcon(ctx, z) {
+    const xl = XL[z];
+    const xr = XR[z];
+    const yb = YB[z];
+
+    const corridorWidth = xr - xl;
+    const chestWidth = corridorWidth * 0.28;
+    const chestHeight = chestWidth * 0.58;
+    const x = xl + (corridorWidth - chestWidth) / 2;
+    const y = yb - chestHeight - 2;
+    const lidHeight = chestHeight * 0.38;
+    const bandWidth = chestWidth * 0.12;
+    const color = "#ffd60a";
+
+    ctx.save();
+    ctx.fillStyle = "#6b3a00";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1, corridorWidth * 0.008);
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 6;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y + lidHeight);
+    ctx.lineTo(x + chestWidth * 0.12, y);
+    ctx.lineTo(x + chestWidth * 0.88, y);
+    ctx.lineTo(x + chestWidth, y + lidHeight);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillRect(x, y + lidHeight, chestWidth, chestHeight - lidHeight);
+    ctx.strokeRect(x, y + lidHeight, chestWidth, chestHeight - lidHeight);
+
+    ctx.fillStyle = color;
+    ctx.fillRect(x + (chestWidth - bandWidth) / 2, y, bandWidth, chestHeight);
     ctx.restore();
   }
 
