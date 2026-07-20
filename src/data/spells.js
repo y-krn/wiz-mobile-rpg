@@ -6,7 +6,7 @@ export const SPELLS = {
     level: 1,
     cost: 1,
     target: "single_enemy",
-    desc: "火の玉 (8-18 DMG)"
+    desc: "火の玉 (12-22 DMG)"
   },
   KATINO: {
     name: "KATINO",

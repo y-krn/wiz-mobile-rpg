@@ -14,8 +14,8 @@ export const ENCOUNTER_COMPOSITION_RULES = Object.freeze({
 });
 
 export const ENCOUNTER_SIZE_WEIGHTS = Object.freeze({
-  1: Object.freeze([0.55, 0.42, 0.03]),
-  2: Object.freeze([0.40, 0.55, 0.05]),
+  1: Object.freeze([0.70, 0.30, 0.00]),
+  2: Object.freeze([0.55, 0.45, 0.00]),
   3: Object.freeze([0.30, 0.65, 0.05]),
   4: Object.freeze([0.25, 0.70, 0.05]),
   5: Object.freeze([0.20, 0.75, 0.05]),

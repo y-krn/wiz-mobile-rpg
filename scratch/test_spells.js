@@ -31,8 +31,8 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
     }).damage;
   }
 
-  assert.strictEqual(damage("HALITO", 0), 8, "HALITO minimum should be 8.");
-  assert.strictEqual(damage("HALITO", 0.999), 18, "HALITO maximum should be 18.");
+  assert.strictEqual(damage("HALITO", 0), 12, "HALITO minimum should be 12.");
+  assert.strictEqual(damage("HALITO", 0.999), 22, "HALITO maximum should be 22.");
   assert.strictEqual(damage("MAHALITO", 0), 30, "MAHALITO minimum should be 30.");
   assert.strictEqual(damage("MAHALITO", 0.999), 50, "MAHALITO maximum should be 50.");
   assert.strictEqual(damage("BADIOS", 0), 8, "BADIOS minimum should be 8.");

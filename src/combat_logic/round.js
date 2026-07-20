@@ -1,6 +1,6 @@
 import {
   MONSTERS,
-  getCharStr, getCharAgi, getCharVit,
+  getCharStr, getCharInt, getCharAgi, getCharVit,
   getCharWeaponAtk, getCharDef,
   getCharAffixSum, getCharMaxHp, getCharMaxMp
 } from "../data.js";
@@ -242,6 +242,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
           dmg = Math.max(1, Math.floor(((weaponAtk + buffAtk) * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod));
+          if (char.class === "Mage" || char.class === "Bishop") {
+            const magicBolt = Math.max(
+              1,
+              Math.floor(getCharInt(char) / 3) + Math.floor(Math.random() * 3) - Math.floor(def / 4)
+            );
+            dmg = Math.max(dmg, magicBolt);
+          }
           
           if (char.status === "blind") {
             dmg = Math.max(1, Math.floor(dmg / 2));
