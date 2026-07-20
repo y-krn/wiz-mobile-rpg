@@ -698,6 +698,24 @@ test('Archives list restores scroll after detail and resets on navigation', asyn
   await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBe(0);
 });
 
+test('Archives shows flash bat combat traits after its first defeat', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openArchivesOverlay } = await import('/src/ui.js');
+
+    state.codex.monsters['フラッシュバット'] = { encountered: 1, killed: 1 };
+    openArchivesOverlay();
+  });
+
+  await page.locator('#archives-overlay .codex-row', { hasText: 'フラッシュバット' }).click();
+  const traits = page.locator('#archives-overlay .codex-traits');
+  await expect(traits).toBeVisible();
+  await expect(traits).toContainText('盲目を付与');
+  await expect(traits).toContainText('妨害役');
+});
+
 test('Full log overlay preserves history scroll and follows new logs at the tail', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

@@ -175,3 +175,66 @@ export const MONSTERS = MONSTER_DATA.map(monster => ({
   ...monster,
   role: MONSTER_ROLE_BY_NAME[monster.name]
 }));
+
+export const MONSTER_TRAIT_LABELS = Object.freeze({
+  multiAction: "1ターンに複数回行動",
+  chargeAttack: "溜めて大打撃",
+  summonAlly: "仲間を呼ぶ",
+  regen: "自己再生",
+  selfDestruct: "自爆",
+  drainMp: "MPを吸収",
+  silence: "呪文を封じる",
+  antiHeal: "回復を阻害",
+  splitOnDeath: "撃破時に分裂",
+  reflectPhysical: "物理を反射",
+  reflectMagic: "呪文を反射",
+  counterSpell: "呪文に反撃",
+  guardAdjacent: "隣の敵をかばう",
+  targetLowHp: "瀕死の味方を狙う",
+  cleanseAlly: "味方の状態異常を治す",
+  buffAtk: "味方の攻撃力を上げる",
+  buffPhysicalDef: "味方の物理防御を上げる",
+  buffMagicDef: "味方の魔法防御を上げる",
+  debuffPhysicalDef: "こちらの物理防御を下げる",
+  debuffMagicDef: "こちらの魔法防御を下げる"
+});
+
+const MONSTER_ROLE_LABELS = Object.freeze({
+  [ENEMY_ROLES.AGGRESSOR]: "攻撃役",
+  [ENEMY_ROLES.DISRUPTOR]: "妨害役",
+  [ENEMY_ROLES.AMPLIFIER]: "支援役"
+});
+
+export function describeMonsterTraits(monster) {
+  const descriptions = [];
+  const statusPrefix = monster.statusChance >= 0.5 ? "高確率で" : "";
+  const statusTraits = [
+    ["isPoisonous", "毒を付与"],
+    ["isParalyzing", "麻痺を付与"],
+    ["isSleepInflicting", "睡眠を付与"],
+    ["isBlinding", "盲目を付与"]
+  ];
+
+  for (const [flag, label] of statusTraits) {
+    if (monster[flag]) descriptions.push(`${statusPrefix}${label}`);
+  }
+
+  if (monster.isSniper) descriptions.push("後列を狙う");
+  if (monster.fleeChance) descriptions.push("逃走することがある");
+
+  const traits = new Set(monster.traits || []);
+  for (const [trait, label] of Object.entries(MONSTER_TRAIT_LABELS)) {
+    if (traits.has(trait)) descriptions.push(label);
+  }
+
+  const role = monster.role || MONSTER_ROLE_BY_NAME[monster.name];
+  if (MONSTER_ROLE_LABELS[role]) descriptions.push(MONSTER_ROLE_LABELS[role]);
+
+  if (monster.isBoss) descriptions.push("ボス");
+  if (monster.isMidboss) descriptions.push("中ボス");
+  if (monster.isRare) {
+    descriptions.push(monster.name === "メタルパピー" ? "希少な魔物" : "非常に強力な強敵");
+  }
+
+  return descriptions.length > 0 ? descriptions : ["標準的なモンスター"];
+}

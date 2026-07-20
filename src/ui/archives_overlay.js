@@ -1,5 +1,5 @@
 import { state, createDefaultCodex } from "../state.js";
-import { getClassJpName, MONSTERS, ITEMS } from "../data.js";
+import { describeMonsterTraits, getClassJpName, MONSTERS, ITEMS } from "../data.js";
 import { updateUI } from "./ui_root.js";
 import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
 
@@ -29,7 +29,10 @@ export function getMonsterCodexDetailHtml(m, record) {
   
   if (kil >= 1) {
     html += `
-      <p><strong>特徴:</strong> ${m.isPoisonous ? "毒攻撃を放つ" : m.isRare ? (m.name === "メタルパピー" ? "希少な魔物" : "非常に強力な強敵") : "標準的なモンスター"}</p>
+      <p><strong>特徴:</strong></p>
+      <ul class="codex-traits">
+        ${describeMonsterTraits(m).map(trait => `<li>${trait}</li>`).join("")}
+      </ul>
       <p><strong>戦利品傾向:</strong> ${m.isRare ? "未鑑定装備と希少素材" : "グループ別素材"}</p>
     `;
   } else {
