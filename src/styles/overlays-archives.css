@@ -154,3 +154,10 @@
   line-height: 1.5;
   color: #ddd;
 }
+
+.codex-traits {
+  list-style: disc;
+  margin: 2px 0 4px 1.5em;
+  padding: 0;
+  font-size: var(--fs-sm);
+}
