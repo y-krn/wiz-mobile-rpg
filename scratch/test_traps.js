@@ -340,4 +340,45 @@ if (state.x !== 1 || state.y !== 1) {
 console.log("- bypass: removed");
 console.log("PASS: Trap encounter choices verified.");
 
+// 7. Choke-aware trap placement
+console.log("\n[7] Verifying choke rate scaling:");
+const { getTrapChokeRate } = await import("../src/map_generator.js");
+
+const chokeCases = [
+  [1, 0.1],
+  [5, 0.26],
+  [10, 0.46],
+  [12, 0.55],
+  [30, 0.55]
+];
+for (const [floor, expected] of chokeCases) {
+  const actual = getTrapChokeRate(floor);
+  if (Math.abs(actual - expected) > 0.001) {
+    console.error(`FAIL: B${floor} choke rate should be ${expected}, got ${actual}.`);
+    process.exit(1);
+  }
+}
+console.log("- choke rate curve verified");
+
+// Trap count must be capped at 16
+console.log("\n[8] Verifying trap count cap:");
+for (const floor of [1, 10, 30]) {
+  const m = generateRandomMap(floor, null, `CAP_SEED_${floor}`);
+  let count = 0;
+  for (const row of m.grid) {
+    for (const cell of row) if (cell.trap) count++;
+  }
+  const expected = Math.min(6 + floor, 16);
+  if (count > 16) {
+    console.error(`FAIL: B${floor} produced ${count} traps, cap is 16.`);
+    process.exit(1);
+  }
+  console.log(`- B${floor}: ${count} traps (target ${expected})`);
+  if (!m.trapMeta || typeof m.trapMeta.choke !== "number") {
+    console.error("FAIL: generateRandomMap should report trapMeta.choke.");
+    process.exit(1);
+  }
+}
+console.log("PASS: Trap placement verified.");
+
 console.log("\n=== ALL TRAP TESTS PASSED ===");
