@@ -270,6 +270,85 @@ test('Five-column corridor renderer draws outer front walls', async ({ page }) =
   expect(cyanPixels.occluded[1]).toBeLessThan(10);
 });
 
+test('3D corridor draws unopened chest icons at perspective-scaled depths', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const { EVENT_TYPES } = await import('/src/data.js');
+    const { state } = await import('/src/state.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const makeCell = () => ({
+      walls: [false, false, false, false],
+      type: 'empty',
+      event: null,
+    });
+
+    state.gameState = 'explore';
+    state.floor = 1;
+    state.x = 5;
+    state.y = 5;
+    state.dir = 0;
+    state.maps[0] = Array.from({ length: 24 }, () => Array.from({ length: 24 }, makeCell));
+    state.map[4][5].event = EVENT_TYPES.CHEST;
+    state.map[3][5].event = EVENT_TYPES.CHEST;
+    state.map[2][5].event = EVENT_TYPES.CHEST;
+    state.map[4][6].event = EVENT_TYPES.CHEST;
+
+    const originalDrawChestIcon = dungeonRenderer.drawChestIcon;
+    const depths = [];
+    dungeonRenderer.drawChestIcon = (ctx, z) => {
+      depths.push(z);
+      originalDrawChestIcon.call(dungeonRenderer, ctx, z);
+    };
+    dungeonRenderer.draw3DCorridors(dungeonRenderer.ctx);
+
+    const boundsAtDepth = (z) => {
+      const points = [];
+      const captureCtx = new Proxy({}, {
+        set(target, property, value) {
+          target[property] = value;
+          return true;
+        },
+        get(target, property) {
+          if (property === 'moveTo' || property === 'lineTo') {
+            return (x, y) => points.push({ x, y });
+          }
+          if (property === 'fillRect' || property === 'strokeRect') {
+            return (x, y, width, height) => {
+              points.push({ x, y }, { x: x + width, y: y + height });
+            };
+          }
+          return () => {};
+        },
+      });
+      originalDrawChestIcon.call(dungeonRenderer, captureCtx, z);
+      return {
+        width: Math.max(...points.map(point => point.x)) - Math.min(...points.map(point => point.x)),
+        height: Math.max(...points.map(point => point.y)) - Math.min(...points.map(point => point.y)),
+      };
+    };
+
+    const initialDepths = [...depths];
+    state.map[4][5].event = null;
+    state.map[3][5].event = null;
+    state.map[2][5].event = null;
+    depths.length = 0;
+    dungeonRenderer.draw3DCorridors(dungeonRenderer.ctx);
+    dungeonRenderer.drawChestIcon = originalDrawChestIcon;
+
+    return {
+      initialDepths,
+      afterOpenedDepths: depths,
+      near: boundsAtDepth(1),
+      far: boundsAtDepth(3),
+    };
+  });
+
+  expect(result.initialDepths).toEqual([3, 2, 1]);
+  expect(result.afterOpenedDepths).toEqual([]);
+  expect(result.near.width).toBeGreaterThan(result.far.width);
+  expect(result.near.height).toBeGreaterThan(result.far.height);
+});
+
 test('Mini-map hides stairs-up markers and glows on every floor', async ({ page }) => {
   await page.goto('/');
 
