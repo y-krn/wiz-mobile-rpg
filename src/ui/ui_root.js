@@ -354,10 +354,9 @@ export function updateUI() {
     
     const trapStates = {
       hidden: "未解除",
-      discovered: "発見済み",
-      weakened: "解除痕跡あり (弱体化)"
+      discovered: "発見済み"
     };
-    const statusColor = trap.state === "weakened" ? "var(--neon-green)" : "var(--neon-amber)";
+    const statusColor = "var(--neon-amber)";
     document.getElementById("trap-status").innerHTML = `状態: <span style="color:${statusColor}">${trapStates[trap.state] || trap.state}</span>`;
     const difficultyText = revealLevel >= 3
       ? `危険度: B${trap.floorId.replace("B", "")}F (難易度: ${trap.difficulty})`
@@ -369,7 +368,7 @@ export function updateUI() {
     const btnDisarm = document.getElementById("btn-trap-disarm");
     const btnForce = document.getElementById("btn-trap-force");
     if (btnDisarm) btnDisarm.textContent = isPitfall ? "縁を伝う" : "解除する";
-    if (btnForce) btnForce.textContent = isPitfall ? "飛び越える" : "強行突破";
+    if (btnForce) btnForce.textContent = isPitfall ? "飛び込む" : "強行突破";
 
     const rateColor = successRate >= 75 ? "var(--neon-green)" : (successRate >= 45 ? "var(--neon-amber)" : "var(--neon-red)");
     const rateText = isPitfall ? "回避成功率" : "解除成功率";

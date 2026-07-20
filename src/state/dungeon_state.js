@@ -56,36 +56,13 @@ export function rebuildDungeonMaps() {
 }
 
 export function applyDungeonMemoryToMaps() {
-  if (!state.dungeonMemory || !state.dungeonMemory.traps) {
-    state.dungeonMemory = { traps: {}, mapFragments: {}, visitedFloors: [1] };
+  if (!state.dungeonMemory) {
+    state.dungeonMemory = { mapFragments: {}, visitedFloors: [1] };
   }
   state.dungeonMemory.mapFragments ||= {};
   state.dungeonMemory.visitedFloors ||= [1];
 
   if (state.maps) {
-    for (let f = 1; f <= 5; f++) {
-      const grid = state.maps[f - 1];
-      if (!grid) continue;
-
-      for (let y = 0; y < MAP_HEIGHT; y++) {
-        for (let x = 0; x < MAP_WIDTH; x++) {
-          const cell = grid[y]?.[x];
-          if (cell && cell.trap) {
-            const trapId = cell.trap.id;
-            const memory = state.dungeonMemory.traps[trapId];
-            if (memory) {
-              cell.trap.state = memory.state;
-              if (memory.weakenLevel !== undefined) {
-                cell.trap.weakenLevel = memory.weakenLevel;
-              }
-            } else {
-              cell.trap.state = "hidden";
-            }
-          }
-        }
-      }
-    }
-
     for (let floor = 1; floor <= 5; floor++) {
       const grid = state.maps[floor - 1];
       if (!grid) continue;

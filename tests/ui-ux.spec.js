@@ -387,7 +387,7 @@ test('Mini-map hides stairs-up markers and glows on every floor', async ({ page 
     state.lightTurns = 0;
     state.lightPower = '';
     state.roamingMonsters = [];
-    state.dungeonMemory = { traps: {}, mapFragments: {} };
+    state.dungeonMemory = { mapFragments: {} };
 
     const upstairs = [];
     for (const floor of [1, 2]) {
@@ -841,7 +841,7 @@ for (const vp of VIEWPORTS) {
       state.gameState = 'explore';
       state.currentRun = { floorsVisited: [1], deepestFloor: 1 };
       state.floor = 1;
-      state.dungeonMemory = { traps: {}, mapFragments: {}, visitedFloors: [1] };
+      state.dungeonMemory = { mapFragments: {}, visitedFloors: [1] };
       updateUI();
       showFloorEntryStinger(16, true);
     });

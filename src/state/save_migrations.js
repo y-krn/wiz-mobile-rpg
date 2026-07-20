@@ -237,13 +237,13 @@ export function normalizeSavePayload(data) {
   normalized.cleared = data.cleared ?? false;
   normalized.metaMaterials = data.metaMaterials ?? {};
   normalized.workshop = data.workshop ?? { ranks: {} };
-  normalized.dungeonMemory = data.dungeonMemory ?? { traps: {}, mapFragments: {} };
-  normalized.dungeonMemory.traps ||= {};
-  normalized.dungeonMemory.mapFragments ||= {};
-  normalized.dungeonMemory.visitedFloors ||= Array.from(
+  normalized.dungeonMemory = {
+    mapFragments: data.dungeonMemory?.mapFragments || {},
+    visitedFloors: data.dungeonMemory?.visitedFloors || Array.from(
     { length: Math.max(1, data.codex?.stats?.deepestFloor || data.floor || 1) },
     (_, index) => index + 1
-  );
+    )
+  };
 
   normalized.party.forEach(normalizeCharEquipment);
   backfillAffixMetadata(normalized);

@@ -361,6 +361,52 @@ function getReachableCellKeys(grid, start) {
   return seen;
 }
 
+// そのマスを塞ぐと下り階段へ到達できなくなるならチョークポイント。
+// Tarjanの関節点は「グラフ全体を切る点」であって「スタートと階段を切る点」
+// ではないため使わない。30x30・歩行可能セル数百なら総当たりBFSで足りる。
+export function isChokeCell(grid, cell, start, stairsDown) {
+  if (!stairsDown) return false;
+  if (cell.x === start.x && cell.y === start.y) return false;
+
+  const blocked = `${cell.x},${cell.y}`;
+  const startKey = `${start.x},${start.y}`;
+  if (blocked === startKey) return false;
+
+  const queue = [start];
+  const seen = new Set([startKey]);
+  const targetKey = `${stairsDown.x},${stairsDown.y}`;
+
+  for (const pos of queue) {
+    const current = grid[pos.y]?.[pos.x];
+    if (!current) continue;
+
+    for (let dir = 0; dir < 4; dir++) {
+      if (current.walls[dir] || !canEnterFrom(grid, pos.x, pos.y, dir)) continue;
+
+      const nx = pos.x + DX[dir];
+      const ny = pos.y + DY[dir];
+      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
+
+      const key = `${nx},${ny}`;
+      if (key === blocked || seen.has(key)) continue;
+      if (key === targetKey) return false;
+
+      seen.add(key);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+
+  return !seen.has(targetKey);
+}
+
+// 深度は無限スケールなので、B5でカンストする段階分類は使わず連続式にする。
+// 上限0.55は必須。全てを関所にすると回避判断が消える。
+export function getTrapChokeRate(floor) {
+  const depth = Math.max(1, Math.floor(Number(floor) || 1));
+  const raw = depth >= 12 ? 0.55 : 0.10 + 0.04 * (depth - 1);
+  return Math.round(Math.min(0.55, raw) * 1000) / 1000;
+}
+
 function getDistanceMap(grid, start) {
   const queue = [{ ...start, distance: 0 }];
   const distances = new Map([[`${start.x},${start.y}`, 0]]);
@@ -1616,10 +1662,27 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   }
 
   shuffle(trapCandidates);
-  const trapCount = Math.min(options.trapCount ?? 6 + floor, trapCandidates.length);
-  
-  for (let i = 0; i < trapCount; i++) {
-    const spot = trapCandidates[i];
+  const trapCount = Math.min(options.trapCount ?? Math.min(6 + floor, 16), trapCandidates.length);
+
+  const chokeTargeted = Math.round(trapCount * getTrapChokeRate(floor));
+  const chokePool = [];
+  const openPool = [];
+  for (const candidate of trapCandidates) {
+    if (chokePool.length < chokeTargeted && isChokeCell(grid, candidate, suCoord, stairsDownCoord)) {
+      chokePool.push(candidate);
+    } else {
+      openPool.push(candidate);
+    }
+  }
+
+  // チョーク候補が目標に届かない迷路形状もある。足りない分は通常候補で埋める。
+  const chosen = chokePool.slice(0, chokeTargeted);
+  for (const candidate of openPool) {
+    if (chosen.length >= trapCount) break;
+    chosen.push(candidate);
+  }
+
+  for (const spot of chosen) {
     const trapId = `trap_${floor}_${spot.x}_${spot.y}`;
     
     let trapType;
@@ -1654,8 +1717,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       position: { x: spot.x, y: spot.y },
       type: trapType,
       state: "hidden",
-      difficulty: difficulty,
-      weakenLevel: 0
+      difficulty: difficulty
     };
   }
 
@@ -1717,6 +1779,11 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     stairsDownCoord,
     bossCoord,
     wardenGate,
-    rooms
+    rooms,
+    trapMeta: {
+      total: chosen.length,
+      choke: chokePool.slice(0, chokeTargeted).length,
+      chokeTargeted
+    }
   };
 }

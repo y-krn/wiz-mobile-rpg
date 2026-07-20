@@ -33,28 +33,10 @@ const {
   calculateSuccessRate,
   triggerTrap,
   triggerPitfall,
-  getExpectedEffectText,
-  getDepthCategory
+  getExpectedEffectText
 } = await import("../src/systems/traps.js");
 
-const { persistDungeonTraps } = await import("../src/result.js");
-const { applyDungeonMemoryToMaps } = await import("../src/state.js");
-
 console.log("=== DUNGEON TRAP SYSTEM VERIFICATION ===");
-
-const depthCategoryCases = [
-  [1, "shallow"],
-  [2, "shallow"],
-  [3, "middle"],
-  [4, "middle"],
-  [5, "deep"]
-];
-for (const [floor, expected] of depthCategoryCases) {
-  if (getDepthCategory(floor) !== expected) {
-    console.error(`FAIL: B${floor} depth category should be ${expected}.`);
-    process.exit(1);
-  }
-}
 
 // 1. Verify Trap Placement in Map Generation
 console.log("\n[1] Verifying trap generation on passages:");
@@ -83,7 +65,7 @@ if (b1TrapCount !== 7 || !validTraps) {
   console.log("PASS: Map trap placement verified.");
 }
 
-// 2. Verify Success Rate Calculation
+// 2. Verify Success Rate Calculation (delegates to trap_rules)
 console.log("\n[2] Verifying trap disarm success rate calculation:");
 const testTrap = {
   id: "trap_1_5_5",
@@ -91,18 +73,13 @@ const testTrap = {
   position: { x: 5, y: 5 },
   type: "damage",
   state: "hidden",
-  difficulty: 30,
-  weakenLevel: 0
+  difficulty: 30
 };
 
 state.floor = 1;
-state.party = []; // Empty party
-
-// Rate should use base 50 - difficulty (30) - floorPenalty (0) = 20%
-let rate = calculateSuccessRate(testTrap);
-console.log(`- Rate with empty party: ${rate}% (Expected: 20% or min-capped at 10%)`);
-if (rate !== 20) {
-  console.error("FAIL: Success rate calculation failed for empty party.");
+state.party = [];
+if (calculateSuccessRate(testTrap) !== 0) {
+  console.error("FAIL: empty party should yield 0.");
   process.exit(1);
 }
 
@@ -117,21 +94,25 @@ state.party = [{
   agi: 16,
   status: "ok"
 }];
-// Thief skill bonus = luk(15) + agi(16) + level*2(10) + 15 = 56
-// Rate = 50 + 56 - 30 - 0 = 76%
-rate = calculateSuccessRate(testTrap);
-console.log(`- Rate with level 5 Thief: ${rate}% (Expected: 76%)`);
-if (rate !== 76) {
-  console.error("FAIL: Success rate calculation failed for Thief.");
+// apt: 80 + 5*1.0 - 0 = 85
+const thiefRate = calculateSuccessRate(testTrap);
+if (thiefRate !== 85) {
+  console.error(`FAIL: Thief lv5 B1 should be 85, got ${thiefRate}.`);
   process.exit(1);
 }
 
-// Weakened trap bonus (+20% success rate)
-testTrap.state = "weakened";
-rate = calculateSuccessRate(testTrap);
-console.log(`- Rate with weakened trap: ${rate}% (Expected: 95% because 76 + 20 = 96%, capped at 95%)`);
-if (rate !== 95) {
-  console.error("FAIL: Success rate calculation failed for weakened trap.");
+// difficulty must no longer affect the rate
+testTrap.difficulty = 90;
+if (calculateSuccessRate(testTrap) !== 85) {
+  console.error("FAIL: trap.difficulty must not affect disarm rate.");
+  process.exit(1);
+}
+
+// pitfall gets the edge bonus: 85 + 20 = 105, clamped to 100
+const pitTrap = { ...testTrap, type: "pitfall" };
+const pitRate = calculateSuccessRate(pitTrap);
+if (pitRate !== 100) {
+  console.error(`FAIL: pitfall rate should be 100, got ${pitRate}.`);
   process.exit(1);
 }
 console.log("PASS: Success rate calculations verified.");
@@ -146,7 +127,7 @@ state.floor = 1;
 
 // Test Damage trap without Thief (no scout damage reduction)
 const dmgTrap = { type: "damage", state: "discovered" };
-triggerTrap(dmgTrap, false, false);
+triggerTrap(dmgTrap, false);
 let arthurDmg = 20 - state.party[0].hp;
 console.log(`- Fighter HP after trap: ${state.party[0].hp}/20 (Took ${arthurDmg} damage)`);
 if (arthurDmg <= 0) {
@@ -162,7 +143,7 @@ state.party.forEach(c => {
 
 // Test MP Drain trap
 const mpTrap = { type: "mpDrain", state: "discovered" };
-triggerTrap(mpTrap, false, false);
+triggerTrap(mpTrap, false);
 console.log(`- Priest MP after drain: ${state.party[1].mp}/5`);
 if (state.party[1].mp >= 5) {
   console.error("FAIL: Priest MP was not drained.");
@@ -172,7 +153,7 @@ if (state.party[1].mp >= 5) {
 // Test Alarm trap
 state.alarmActive = false;
 const alarmTrap = { type: "alarm", state: "discovered" };
-triggerTrap(alarmTrap, false, false);
+triggerTrap(alarmTrap, false);
 console.log(`- state.alarmActive: ${state.alarmActive} (Expected: true)`);
 if (!state.alarmActive) {
   console.error("FAIL: Alarm trap did not activate alarm state.");
@@ -180,166 +161,224 @@ if (!state.alarmActive) {
 }
 console.log("PASS: Trap trigger effects verified.");
 
-// 4. Verify Dungeon Traps Memory Persistence
-console.log("\n[4] Verifying state memory persistence and synchronization:");
-state.maps = [mapB1.grid, null, null, null, null];
-state.dungeonMemory = { traps: {} };
-
-// Set one trap as disabled
-const targetCell = mapB1.grid[5][5];
-targetCell.trap = {
-  id: "trap_1_5_5",
-  floorId: "B1",
-  type: "damage",
-  state: "disabled",
-  difficulty: 30,
-  weakenLevel: 0
-};
-
-// Force persistDungeonTraps
-// F1 keepWeakenedRate is 0.85. We mock Math.random temporarily to guarantee true.
-const originalRandom = Math.random;
-Math.random = () => 0.1; // Force success
-
-persistDungeonTraps();
-console.log("- Dungeon memory after persistence:", state.dungeonMemory.traps["trap_1_5_5"]);
-if (!state.dungeonMemory.traps["trap_1_5_5"] || state.dungeonMemory.traps["trap_1_5_5"].state !== "weakened") {
-  console.error("FAIL: Below-threshold trap did not preserve current weakened behavior.");
+// 4. Verify traps are never written to dungeonMemory
+console.log("\n[4] Verifying trap persistence is removed:");
+state.dungeonMemory = { mapFragments: {}, visitedFloors: [1] };
+if (state.dungeonMemory.traps !== undefined) {
+  console.error("FAIL: dungeonMemory.traps should not exist.");
   process.exit(1);
 }
 
-// Check applyDungeonMemoryToMaps
-targetCell.trap.state = "hidden";
-applyDungeonMemoryToMaps();
-console.log("- Map trap state after synchronization:", targetCell.trap.state);
-if (targetCell.trap.state !== "weakened" || targetCell.trap.weakenLevel !== 1) {
-  console.error("FAIL: Synchronization to map failed.");
-  process.exit(1);
+// Generated traps must never carry weakenLevel or weakened state
+const genMap = generateRandomMap(3, null, "TEST_SEED");
+for (const row of genMap.grid) {
+  for (const cell of row) {
+    if (!cell.trap) continue;
+    if (cell.trap.weakenLevel !== undefined) {
+      console.error("FAIL: generated trap still has weakenLevel.");
+      process.exit(1);
+    }
+    if (!["hidden", "discovered", "disabled"].includes(cell.trap.state)) {
+      console.error(`FAIL: invalid trap state ${cell.trap.state}.`);
+      process.exit(1);
+    }
+  }
 }
+console.log("PASS: Trap persistence removed.");
 
-// Threshold reached on B1: the second disarm becomes permanent.
-targetCell.trap.state = "disabled";
-targetCell.trap.weakenLevel = 1;
-state.dungeonMemory.traps = {};
-persistDungeonTraps();
-const permanentTrap = state.dungeonMemory.traps["trap_1_5_5"];
-if (permanentTrap?.state !== "disabled" || permanentTrap.weakenLevel !== 2) {
-  console.error("FAIL: Threshold disarm was not saved as permanently disabled.");
-  process.exit(1);
+// 5. Adjacent trap detection
+console.log("\n[5] Verifying adjacent trap detection:");
+const { detectAdjacentTraps } = await import("../src/systems/traps.js");
+
+// Build a 3x3 test grid: player at (1,1). Walls are [N, E, S, W].
+function makeCell(walls) {
+  return { walls, blockEnter: [false, false, false, false], type: "empty", event: null };
 }
+const openAll = () => makeCell([false, false, false, false]);
 
-// B5 never becomes permanent, regardless of weaken level.
-targetCell.trap.state = "disabled";
-targetCell.trap.weakenLevel = 99;
-state.maps = [null, null, null, null, mapB1.grid];
-state.dungeonMemory.traps = {};
-persistDungeonTraps();
-const deepTrap = state.dungeonMemory.traps["trap_1_5_5"];
-if (deepTrap?.state !== "weakened" || deepTrap.weakenLevel !== 100) {
-  console.error("FAIL: Deep trap was incorrectly made permanent.");
-  process.exit(1);
-}
-
-// A permanently disabled memory entry must never be rerolled or degraded.
-targetCell.trap.state = "disabled";
-targetCell.trap.weakenLevel = 0;
-state.maps = [mapB1.grid, null, null, null, null];
-state.dungeonMemory.traps = {
-  "trap_1_5_5": { state: "disabled", weakenLevel: 2, lastUpdatedAt: 123 }
-};
-Math.random = () => 0.99;
-persistDungeonTraps();
-const preservedTrap = state.dungeonMemory.traps["trap_1_5_5"];
-if (preservedTrap.state !== "disabled" || preservedTrap.weakenLevel !== 2 || preservedTrap.lastUpdatedAt !== 123) {
-  console.error("FAIL: Permanently disabled trap was degraded by persistence.");
-  process.exit(1);
-}
-
-// Restore Math.random
-Math.random = originalRandom;
-console.log("PASS: Persistence and synchronization verified.");
-
-// 5. Verify Pitfall Trap Behavior
-console.log("\n[5] Verifying pitfall trap specific behavior:");
-
-const pitfallTrap = {
-  id: "trap_1_6_6",
-  floorId: "B1",
-  position: { x: 6, y: 6 },
-  type: "pitfall",
-  state: "hidden",
-  difficulty: 30,
-  weakenLevel: 0
-};
-
-// Success rate of pitfall should have +20% bonus
-state.floor = 1;
-state.party = [{
-  name: "Robin",
-  class: "Thief",
-  level: 5,
-  hp: 20,
-  maxHp: 20,
-  luk: 15,
-  agi: 16,
-  status: "ok"
-}];
-const pfRate = calculateSuccessRate(pitfallTrap);
-console.log(`- Pitfall success rate with Thief: ${pfRate}% (Expected: 95% because 76 + 20 = 96% capped at 95%)`);
-if (pfRate !== 95) {
-  console.error("FAIL: Pitfall success rate bonus not applied.");
-  process.exit(1);
-}
-
-// Expected effect text should specify floor dropping
-const pfEffect = getExpectedEffectText(pitfallTrap);
-console.log(`- Expected effect text: "${pfEffect}" (Expected to include "地下2階へ落下")`);
-if (!pfEffect.includes("地下2階へ落下")) {
-  console.error("FAIL: Pitfall expected effect text mismatch.");
-  process.exit(1);
-}
-
-// Mock maps for floor transition validation
-const mapB2 = generateRandomMap(2, null, "TEST_SEED");
-state.maps = [mapB1.grid, mapB2.grid, null, null, null];
-state.visitedMaps = [
-  Array(mapB1.grid.length).fill().map(() => Array(mapB1.grid[0].length).fill(false)),
-  Array(mapB2.grid.length).fill().map(() => Array(mapB2.grid[0].length).fill(false)),
-  null, null, null
+// East neighbour (2,1) has a trap and is open. West neighbour (0,1) has a
+// trap but is walled off, so it must never be detected.
+const grid = [
+  [openAll(), openAll(), openAll()],
+  [openAll(), makeCell([false, false, false, true]), openAll()],
+  [openAll(), openAll(), openAll()]
 ];
-state.currentRun = { steps: 0, pitfallsFallen: 0, trapsTriggered: 0, floorsVisited: [1], deepestFloor: 1 };
-state.transitioning = false;
+grid[1][2].trap = { id: "t_east", type: "damage", state: "hidden", difficulty: 30 };
+grid[1][0].trap = { id: "t_west", type: "damage", state: "hidden", difficulty: 30 };
 
-// Trigger pitfall (forces transition to B2)
-console.log("- Triggering pitfall...");
-triggerPitfall(pitfallTrap, false, false);
+state.maps = [grid];
+state.floor = 1;
+state.x = 1;
+state.y = 1;
+state.party = [{ name: "Robin", class: "Fighter", level: 1, hp: 20, maxHp: 20, luk: 10, agi: 10, status: "ok" }];
 
-if (!state.transitioning) {
-  console.error("FAIL: state.transitioning should be true immediately after triggering pitfall.");
+// Force detection to always succeed
+const realRandom = Math.random;
+Math.random = () => 0;
+detectAdjacentTraps();
+Math.random = realRandom;
+
+if (grid[1][2].trap.state !== "discovered") {
+  console.error("FAIL: open adjacent trap should be discovered.");
   process.exit(1);
 }
-
-// Wait for transition timer (1200ms)
-await new Promise(resolve => setTimeout(resolve, 1300));
-
-console.log(`- State floor after fall: ${state.floor} (Expected: 2)`);
-if (state.floor !== 2) {
-  console.error("FAIL: Party did not drop to floor 2.");
+if (grid[1][0].trap.state !== "hidden") {
+  console.error("FAIL: trap behind a wall must not be detected.");
   process.exit(1);
 }
+console.log("- open neighbour discovered, walled neighbour untouched");
 
-console.log(`- Fighter HP after fall damage: ${state.party[0].hp}/20`);
+// Detection is rolled once per trap: a guaranteed-fail reroll must not
+// downgrade an already-discovered trap, and must not re-roll a failed one.
+grid[2][1].trap = { id: "t_south", type: "damage", state: "hidden", difficulty: 30 };
+Math.random = () => 0.99;
+detectAdjacentTraps();
+if (grid[2][1].trap.state !== "hidden") {
+  console.error("FAIL: failed detection should leave trap hidden.");
+  process.exit(1);
+}
+if (grid[2][1].trap.detectRolled !== true) {
+  console.error("FAIL: failed detection must still mark detectRolled.");
+  process.exit(1);
+}
+Math.random = () => 0;
+detectAdjacentTraps();
+if (grid[2][1].trap.state !== "hidden") {
+  console.error("FAIL: detection must not be rolled twice for the same trap.");
+  process.exit(1);
+}
+Math.random = realRandom;
+console.log("PASS: Adjacent detection verified.");
+
+// 6. Three-choice trap encounter
+console.log("\n[6] Verifying trap encounter choices:");
+const { startTrapEncounter, handleTrapAction } = await import("../src/systems/traps.js");
+
+function setupEncounter(trapType) {
+  const g = [
+    [openAll(), openAll(), openAll()],
+    [openAll(), openAll(), openAll()],
+    [openAll(), openAll(), openAll()]
+  ];
+  g[1][2].trap = {
+    id: "t_enc",
+    floorId: "B1",
+    position: { x: 2, y: 1 },
+    type: trapType,
+    state: "discovered",
+    difficulty: 30
+  };
+  state.maps = [g, g];
+  state.floor = 1;
+  state.x = 1;
+  state.y = 1;
+  state.gameState = "explore";
+  state.party = [{
+    name: "Robin", class: "Fighter", level: 1,
+    hp: 20, maxHp: 20, mp: 5, maxMp: 5,
+    luk: 10, agi: 10, status: "ok"
+  }];
+  startTrapEncounter(g[1][2].trap, { x: 2, y: 1 });
+  return g;
+}
+
+// "back" leaves the player where they were and costs nothing
+let g6 = setupEncounter("damage");
+handleTrapAction("back");
+if (state.x !== 1 || state.y !== 1) {
+  console.error(`FAIL: back should not move the player, got (${state.x},${state.y}).`);
+  process.exit(1);
+}
+if (g6[1][2].trap.state !== "discovered") {
+  console.error("FAIL: back should leave the trap armed.");
+  process.exit(1);
+}
+console.log("- back: stays put, trap stays armed");
+
+// "force" always moves the player through and always disables the trap
+g6 = setupEncounter("damage");
+handleTrapAction("force");
+if (state.x !== 2 || state.y !== 1) {
+  console.error(`FAIL: force should complete the move, got (${state.x},${state.y}).`);
+  process.exit(1);
+}
+if (g6[1][2].trap.state !== "disabled") {
+  console.error("FAIL: force should disable the trap.");
+  process.exit(1);
+}
 if (state.party[0].hp >= 20) {
-  console.error("FAIL: No fall damage applied.");
+  console.error("FAIL: force should deal reduced damage.");
   process.exit(1);
 }
+console.log(`- force: moved through, took ${20 - state.party[0].hp} damage`);
 
-console.log(`- pitfallsFallen count: ${state.currentRun.pitfallsFallen} (Expected: 1)`);
-if (state.currentRun.pitfallsFallen !== 1) {
-  console.error("FAIL: pitfallsFallen count not incremented.");
+// "disarm" completes the move regardless of the roll outcome
+for (const roll of [0, 0.99]) {
+  g6 = setupEncounter("damage");
+  const realRandom6 = Math.random;
+  Math.random = () => roll;
+  handleTrapAction("disarm");
+  Math.random = realRandom6;
+  if (state.x !== 2 || state.y !== 1) {
+    console.error(`FAIL: disarm (roll=${roll}) should complete the move.`);
+    process.exit(1);
+  }
+  if (g6[1][2].trap.state !== "disabled") {
+    console.error(`FAIL: disarm (roll=${roll}) should disable the trap.`);
+    process.exit(1);
+  }
+}
+console.log("- disarm: completes the move on both success and failure");
+
+// "bypass" is removed and must be a no-op
+g6 = setupEncounter("damage");
+handleTrapAction("bypass");
+if (state.x !== 1 || state.y !== 1) {
+  console.error("FAIL: bypass should no longer exist.");
   process.exit(1);
 }
+console.log("- bypass: removed");
+console.log("PASS: Trap encounter choices verified.");
 
-console.log("PASS: Pitfall trap behavior verified.");
+// 7. Choke-aware trap placement
+console.log("\n[7] Verifying choke rate scaling:");
+const { getTrapChokeRate } = await import("../src/map_generator.js");
 
-console.log("\n=== ALL DUNGEON TRAP TESTS PASSED SUCCESSFULLY! ===");
+const chokeCases = [
+  [1, 0.1],
+  [5, 0.26],
+  [10, 0.46],
+  [12, 0.55],
+  [30, 0.55]
+];
+for (const [floor, expected] of chokeCases) {
+  const actual = getTrapChokeRate(floor);
+  if (Math.abs(actual - expected) > 0.001) {
+    console.error(`FAIL: B${floor} choke rate should be ${expected}, got ${actual}.`);
+    process.exit(1);
+  }
+}
+console.log("- choke rate curve verified");
+
+// Trap count must be capped at 16
+console.log("\n[8] Verifying trap count cap:");
+for (const floor of [1, 10, 30]) {
+  const m = generateRandomMap(floor, null, `CAP_SEED_${floor}`);
+  let count = 0;
+  for (const row of m.grid) {
+    for (const cell of row) if (cell.trap) count++;
+  }
+  const expected = Math.min(6 + floor, 16);
+  if (count > 16) {
+    console.error(`FAIL: B${floor} produced ${count} traps, cap is 16.`);
+    process.exit(1);
+  }
+  console.log(`- B${floor}: ${count} traps (target ${expected})`);
+  if (!m.trapMeta || typeof m.trapMeta.choke !== "number") {
+    console.error("FAIL: generateRandomMap should report trapMeta.choke.");
+    process.exit(1);
+  }
+}
+console.log("PASS: Trap placement verified.");
+
+console.log("\n=== ALL TRAP TESTS PASSED ===");

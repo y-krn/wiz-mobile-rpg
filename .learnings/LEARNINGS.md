@@ -43,6 +43,44 @@ Docker build fails on Apple Silicon due to platform mismatch
 
 ---
 
+## [LRN-20260720-001] correction
+
+**Logged**: 2026-07-20T10:04:29Z
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+生成系 simulation は低層レガシー API の既定値ではなく、本番 orchestration 経路を呼んで測定する。
+
+### Details
+`scratch/sim_trap_choke.js` が `generateRandomMap(floor, null, seed)` を直接呼び、
+本番の `generateRunFloor` と異なる設定を測っていた。レガシー API は
+`generateStairsDown ?? (floor < 5)` のため B5 以降に下り階段を作らず、
+`isChokeCell` が全候補で false となった。これを迷路形状由来の候補不足と誤認し、
+虚偽の shortfall 100% を spec と PR に記録した。
+
+### Suggested Action
+生成・バランス simulation 作成時は本番 caller を先に特定し、その caller が渡す
+options、retry、template、biome を含む入口を使う。低レベル API を直接使う場合は、
+本番 options と一致することを明示的にテストする。
+
+### Metadata
+- Source: user_feedback
+- Related Files: scratch/sim_trap_choke.js, src/run_map_generator.js, src/map_generator.js
+- Tags: simulation, production-path, map-generation, false-observation
+- Pattern-Key: harden.simulation_production_path
+- Recurrence-Count: 1
+- First-Seen: 2026-07-20
+- Last-Seen: 2026-07-20
+
+### Resolution
+- **Resolved**: 2026-07-20T10:04:29Z
+- **Commit/PR**: PR #221（この修正コミット）
+- **Notes**: simulation を `generateRunFloor({ runSeed, floor })` へ変更し、実測値で spec と PR 本文を訂正。
+
+---
+
 ## [LRN-20260717-003] correction
 
 **Logged**: 2026-07-17T21:04:33+09:00

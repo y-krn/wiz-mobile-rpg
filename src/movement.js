@@ -9,7 +9,7 @@ import { ensureRunFloor, resetRunFloors } from "./state/run_floor_state.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
 import { menuContext, openGuardedSubmenu, openSubmenu } from "./navigation.js";
-import { detectAdjacentTrapsByTraceRead, handleTrapStepCheck } from "./systems/traps.js";
+import { detectAdjacentTraps, startTrapEncounter, triggerTrap, triggerPitfall } from "./systems/traps.js";
 import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/warden_perception.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
@@ -126,8 +126,19 @@ export function handleMove(action) {
       blockOneWayMove();
     } else {
       // Step forward
-      state.x += DX[state.dir];
-      state.y += DY[state.dir];
+      // Traps are route obstacles: decide before entering the cell, so that
+      // backing out costs nothing.
+      const nextX = state.x + DX[state.dir];
+      const nextY = state.y + DY[state.dir];
+      const nextTrap = state.map[nextY]?.[nextX]?.trap;
+      if (nextTrap && nextTrap.state === "discovered") {
+        startTrapEncounter(nextTrap, { x: nextX, y: nextY });
+        saveAutosave();
+        updateUI();
+        return;
+      }
+      state.x = nextX;
+      state.y = nextY;
       
       recordExplorationSteps();
       
@@ -151,8 +162,17 @@ export function handleMove(action) {
     } else if (isBlockedByOneWayPassage(state.x, state.y, backDir)) {
       blockOneWayMove();
     } else {
-      state.x += DX[backDir];
-      state.y += DY[backDir];
+      const backX = state.x + DX[backDir];
+      const backY = state.y + DY[backDir];
+      const backTrap = state.map[backY]?.[backX]?.trap;
+      if (backTrap && backTrap.state === "discovered") {
+        startTrapEncounter(backTrap, { x: backX, y: backY });
+        saveAutosave();
+        updateUI();
+        return;
+      }
+      state.x = backX;
+      state.y = backY;
       recordExplorationSteps();
       tickExplorationSpellEffects();
       state.visitedMap[state.y][state.x] = true;
@@ -831,16 +851,22 @@ export function processExplorationResolution(prevX, prevY) {
   // 2. Move Flacks if it's their turn
   if (advanceRoamingTurn(true, prevX, prevY)) return;
 
-  // 2.5. Check standard traps on standard passage cells
+  // 2.5. Detect traps on adjacent cells. Stepping onto a trap is intercepted
+  // before the move happens (see handleMove), so there is no step check here.
   const cell = state.map[state.y][state.x];
-  if (cell.trap && cell.trap.state !== "disabled") {
-    const encountered = handleTrapStepCheck(cell.trap);
-    if (encountered) {
+  // A trap that was never spotted fires without offering a choice.
+  const steppedTrap = cell.trap;
+  if (steppedTrap && steppedTrap.state === "hidden") {
+    addLog("【⚠️罠発動！】不意に罠を踏み抜いてしまった！");
+    steppedTrap.state = "disabled";
+    if (state.currentRun) state.currentRun.trapsTriggered++;
+    if (steppedTrap.type === "pitfall") {
+      triggerPitfall(steppedTrap, false);
       return;
     }
-  } else {
-    detectAdjacentTrapsByTraceRead();
+    triggerTrap(steppedTrap, false);
   }
+  detectAdjacentTraps();
 
   // 3. Regular floor events
   const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 

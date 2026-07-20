@@ -328,6 +328,10 @@ export class DungeonRenderer {
           this.drawChestIcon(ctx, z);
         }
 
+        if (column === 0 && z > 0 && cell.trap && cell.trap.state === "discovered") {
+          this.drawTrapIcon(ctx, z, (cell.trap.traceReadLevel || 0) >= 2);
+        }
+
         // Check if there is a roaming monster at this coordinate (cx, cy)
         if (column === 0 && state.roamingMonsters) {
           const hasFlack = state.roamingMonsters.some(
@@ -509,6 +513,39 @@ export class DungeonRenderer {
 
     ctx.fillStyle = color;
     ctx.fillRect(x + (chestWidth - bandWidth) / 2, y, bandWidth, chestHeight);
+    ctx.restore();
+  }
+
+  drawTrapIcon(ctx, z, revealSpecies) {
+    const xl = XL[z];
+    const xr = XR[z];
+    const yb = YB[z];
+
+    const corridorWidth = xr - xl;
+    const size = corridorWidth * 0.22;
+    const cx = xl + corridorWidth / 2;
+    const cy = yb - size * 0.6 - 2;
+
+    ctx.save();
+    ctx.strokeStyle = "#ff3b30";
+    ctx.shadowColor = "#ff3b30";
+    ctx.shadowBlur = 6;
+    ctx.lineWidth = 2;
+
+    // Hazard triangle on the floor ahead
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - size * 0.5);
+    ctx.lineTo(cx + size * 0.55, cy + size * 0.4);
+    ctx.lineTo(cx - size * 0.55, cy + size * 0.4);
+    ctx.closePath();
+    ctx.stroke();
+
+    ctx.fillStyle = "#ff3b30";
+    ctx.font = `bold ${Math.max(8, Math.round(size * 0.5))}px monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(revealSpecies ? "!" : "?", cx, cy + size * 0.05);
+
     ctx.restore();
   }
 
@@ -1011,9 +1048,8 @@ export class DungeonRenderer {
 
         if (cell.trap && cell.trap.state !== "hidden") {
           const isDisabled = cell.trap.state === "disabled";
-          const isWeakened = cell.trap.state === "weakened";
-          const markerColor = isDisabled ? "#2fd66d" : (isWeakened ? "#ffb300" : "#ff3b30");
-          const markerBg = isDisabled ? "rgba(47, 214, 109, 0.22)" : (isWeakened ? "rgba(255, 179, 0, 0.24)" : "rgba(255, 59, 48, 0.24)");
+          const markerColor = isDisabled ? "#2fd66d" : "#ff3b30";
+          const markerBg = isDisabled ? "rgba(47, 214, 109, 0.22)" : "rgba(255, 59, 48, 0.24)";
 
           ctx.fillStyle = markerBg;
           ctx.beginPath();

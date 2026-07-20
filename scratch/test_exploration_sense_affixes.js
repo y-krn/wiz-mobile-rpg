@@ -1,6 +1,6 @@
 import { getItemData, getPartyMaxAffix } from "../src/data.js";
 import { state } from "../src/state.js";
-import { detectAdjacentTrapsByTraceRead, startTrapEncounter } from "../src/systems/traps.js";
+import { detectAdjacentTraps, startTrapEncounter } from "../src/systems/traps.js";
 import { processExplorationResolution } from "../src/movement.js";
 
 function assert(condition, message) {
@@ -78,7 +78,10 @@ function assertTraceReadDetectsAdjacentTrap() {
     difficulty: 10,
   };
 
-  const detected = detectAdjacentTrapsByTraceRead();
+  const originalRandom = Math.random;
+  Math.random = () => 0;
+  const detected = detectAdjacentTraps();
+  Math.random = originalRandom;
   const trap = state.map[2][3].trap;
 
   assert(detected, "traceRead should report detection");
@@ -105,7 +108,12 @@ function assertTraceReadLv1HidesEffect() {
     difficulty: 10,
   };
 
-  assert(detectAdjacentTrapsByTraceRead(), "traceRead Lv1 should detect adjacent trap");
+  const originalRandom = Math.random;
+  let randomCalls = 0;
+  Math.random = () => randomCalls++ === 0 ? 0 : 0.99;
+  const detected = detectAdjacentTraps();
+  Math.random = originalRandom;
+  assert(detected, "traceRead Lv1 should detect adjacent trap");
   startTrapEncounter(state.map[2][1].trap);
   assert(state.activeTrapState.revealLevel === 1, "traceRead Lv1 reveal level mismatch");
   assert(state.activeTrapState.expectedEffect === "不明", "traceRead Lv1 should not identify trap effect");
@@ -131,7 +139,8 @@ function assertMovementRunsTraceConsumer() {
   };
 
   const originalRandom = Math.random;
-  Math.random = () => 0.99;
+  let movementRandomCalls = 0;
+  Math.random = () => movementRandomCalls++ === 0 ? 0 : 0.99;
   try {
     processExplorationResolution(2, 1);
   } finally {

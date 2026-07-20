@@ -92,7 +92,7 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.storage = [];
   state.storageMax = 30;
   state.identifyTickets = 0;
-  state.dungeonMemory = { traps: {}, mapFragments: {}, visitedFloors: [1] };
+  state.dungeonMemory = { mapFragments: {}, visitedFloors: [1] };
 
   state.gameState = "town";
   state.combatState = null;
