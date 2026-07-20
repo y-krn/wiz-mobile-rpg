@@ -8,7 +8,7 @@ global.localStorage = {
 import { createRng } from "../src/seed_rng.js";
 import { generateRandomMap } from "../src/map_generator.js";
 import { generateRandomEquipment } from "../src/data.js";
-import { state, rebuildDungeonMaps, calculateSeedProperties } from "../src/state.js";
+import { state, initNewGame, rebuildDungeonMaps, calculateSeedProperties } from "../src/state.js";
 import { normalizeSavePayload } from "../src/state/save_migrations.js";
 import assert from "assert";
 
@@ -59,6 +59,36 @@ assert.deepStrictEqual({ x: migrated.x, y: migrated.y }, migratedStart,
   "Map migration should reset position to generated B1F stairs-up");
 assert.strictEqual(migrated.visitedMaps[0][migratedStart.y][migratedStart.x], true,
   "Map migration should mark generated B1F stairs-up as visited");
+
+const startSyncSeeds = ["START-SYNC-1", "START-SYNC-2", "START-SYNC-3", "START-SYNC-4", "START-SYNC-5"];
+for (const seed of startSyncSeeds) {
+  state.seed = seed;
+  initNewGame({ preserveSeed: true });
+  const initStart = findStairsUp({ grid: state.maps[0] });
+  assert.deepStrictEqual({ x: state.x, y: state.y }, initStart,
+    `initNewGame should place the player at B1F stairs-up for seed ${seed}`);
+  assert.deepStrictEqual({ x: state.prevX, y: state.prevY }, initStart,
+    `initNewGame should synchronize the previous position for seed ${seed}`);
+  assert.strictEqual(state.visitedMaps[0][initStart.y][initStart.x], true,
+    `initNewGame should mark B1F stairs-up visited for seed ${seed}`);
+}
+
+for (const seed of startSyncSeeds) {
+  state.seed = `REBUILD-${seed}`;
+  state.x = 1;
+  state.y = 22;
+  state.prevX = 1;
+  state.prevY = 22;
+  rebuildDungeonMaps();
+  const rebuiltStart = findStairsUp({ grid: state.maps[0] });
+  assert.deepStrictEqual({ x: state.x, y: state.y }, rebuiltStart,
+    `rebuildDungeonMaps should place the player at B1F stairs-up for seed ${seed}`);
+  assert.deepStrictEqual({ x: state.prevX, y: state.prevY }, rebuiltStart,
+    `rebuildDungeonMaps should synchronize the previous position for seed ${seed}`);
+  assert.strictEqual(state.visitedMaps[0][rebuiltStart.y][rebuiltStart.x], true,
+    `rebuildDungeonMaps should mark B1F stairs-up visited for seed ${seed}`);
+}
+console.log("[PASS] New-game and rebuild start positions follow B1F stairs-up across multiple seeds.");
 
 // Check stairs-down coordinates match
 assert.strictEqual(map1_a.stairsDownCoord.x, map1_b.stairsDownCoord.x, "Stairs down X should match for same seed");

@@ -4,7 +4,7 @@ import { findSuitableRoamingMonsterStart } from "./initial_state.js";
 import { generateRandomMap } from "../map_generator.js";
 import { createRng } from "../seed_rng.js";
 import { MAP_WIDTH, MAP_HEIGHT } from "../data.js";
-import { applyOpenedGatesToMap, createWardenMonster, ensureWardenGate } from "./warden_gates.js";
+import { applyOpenedGatesToMap, createWardenMonster, ensureWardenGate, findMapCellByType } from "./warden_gates.js";
 import { getWardenPerception } from "../systems/warden_perception.js";
 
 function createUngatedWarden(mapData, floor) {
@@ -25,6 +25,12 @@ export function rebuildDungeonMaps() {
   const b4 = generateRandomMap(4, b3.stairsDownCoord, state.seed);
   const b5 = generateRandomMap(5, b4.stairsDownCoord, state.seed);
   state.maps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
+  const start = findMapCellByType(b1.grid, "stairs-up");
+  state.floor = 1;
+  state.x = start.x;
+  state.y = start.y;
+  state.prevX = start.x;
+  state.prevY = start.y;
   
   state.roamingMonsters = [];
   [b1, b2, b3, b4, b5].forEach((mapData, index) => {

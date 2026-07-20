@@ -1220,13 +1220,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   const suCoord = entryCoord;
 
   // 3. Setup floor specific connections & detect dead ends
-  // Make sure start position is connected
-  if (floor === 1) {
-    if (grid[suCoord.y][suCoord.x].walls.every(w => w)) {
-      grid[suCoord.y][suCoord.x].walls[DIR_N] = false;
-      grid[suCoord.y - 1][suCoord.x].walls[DIR_S] = false;
-    }
-  } else if (floor > 1) {
+  // B1F candidates already have at least two open walls.
+  if (floor > 1) {
     if (grid[suCoord.y][suCoord.x].walls.every(w => w)) {
       // Find a visited (passage) neighbor first to guarantee connection to the main maze
       let opened = false;

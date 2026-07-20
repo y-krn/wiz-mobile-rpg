@@ -6,7 +6,7 @@ import { triggerGameOver } from "../combat.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
 import { createRng } from "../seed_rng.js";
 import { descendToFloor, findCellCoordsByType } from "../movement.js";
-import { MAP_WIDTH, MAP_HEIGHT, START_X, START_Y, DX, DY, getPartyMaxAffix } from "../data.js";
+import { MAP_WIDTH, MAP_HEIGHT, DX, DY, getPartyMaxAffix } from "../data.js";
 import { armControlsGuard } from "../controls_guard.js";
 import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
 
@@ -223,9 +223,8 @@ export function triggerPitfall(trap, isWeakenedOverride = null, isPartialSuccess
       const isNotStairs = cell.type !== "stairs-up" && cell.type !== "stairs-down";
       const hasNoEvent = !cell.event;
       const hasNoTrap = !cell.trap;
-      const isNotStart = !(x === START_X && y === START_Y);
       
-      if (isPassable && isNotStairs && hasNoEvent && hasNoTrap && isNotStart) {
+      if (isPassable && isNotStairs && hasNoEvent && hasNoTrap) {
         candidates.push({ x, y });
       }
     }

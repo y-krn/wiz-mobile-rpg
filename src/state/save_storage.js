@@ -7,6 +7,7 @@ import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";
 import { applyDungeonMemoryToMaps } from "./dungeon_state.js";
 import { createDefaultRecords } from "./records_state.js";
+import { findMapCellByType } from "./warden_gates.js";
 
 const SAVE_KEY = "mobile_wiz_rpg_autosave";
 const OLD_SAVE_KEY = "mobile_wiz_rpg_save";
@@ -38,6 +39,11 @@ export function initNewGame({ preserveSeed = false } = {}) {
   const b4 = generateRandomMap(4, b3.stairsDownCoord, state.seed);
   const b5 = generateRandomMap(5, b4.stairsDownCoord, state.seed);
   state.maps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
+  const start = findMapCellByType(b1.grid, "stairs-up");
+  state.x = start.x;
+  state.y = start.y;
+  state.prevX = start.x;
+  state.prevY = start.y;
   state.roamingMovementStepCount = 0;
   state.noiseEvents = [];
   state.roamingMonsters = [];
