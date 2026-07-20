@@ -1,6 +1,5 @@
 import { state, saveAutosave, addLog, recordCharDeath } from "../state.js";
 import { updateUI } from "../ui.js";
-import { startCombat } from "../combat_ui/combat_start.js";
 import { playSound } from "../audio.js";
 import { triggerGameOver } from "../combat.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
@@ -9,7 +8,13 @@ import { descendToFloor, findCellCoordsByType } from "../movement.js";
 import { MAP_WIDTH, MAP_HEIGHT, DX, DY, getPartyMaxAffix } from "../data.js";
 import { armControlsGuard } from "../controls_guard.js";
 import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
-import { calculateDisarmRate, calculateDetectRate, PITFALL_EDGE_BONUS } from "../rules/trap_rules.js";
+import {
+  calculateDisarmRate,
+  calculateDetectRate,
+  PITFALL_EDGE_BONUS,
+  PARTIAL_SUCCESS_BAND,
+  FORCE_DAMAGE_MULTIPLIER
+} from "../rules/trap_rules.js";
 
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
 
@@ -69,12 +74,13 @@ function getTrapRevealLevel(trap) {
   return 0;
 }
 
-export function startTrapEncounter(trap) {
+export function startTrapEncounter(trap, pendingMove) {
   const revealLevel = getTrapRevealLevel(trap);
   armControlsGuard();
   state.gameState = "trap_encounter";
   state.activeTrapState = {
     trap,
+    pendingMove,
     successRate: calculateSuccessRate(trap),
     expectedEffect: revealLevel >= 2 ? getExpectedEffectText(trap) : "不明",
     revealLevel
@@ -170,7 +176,7 @@ export function triggerPitfall(trap, isPartialSuccess = false) {
   }
 
   const onLanding = () => {
-    let powerMultiplier = isPartialSuccess ? 0.5 : 1;
+    let powerMultiplier = isPartialSuccess ? FORCE_DAMAGE_MULTIPLIER : 1;
     
     const hasScout = state.party.some(c => ["Thief", "Ninja"].includes(c.class) && c.hp > 0);
     if (hasScout) {
@@ -218,7 +224,7 @@ export function triggerPitfall(trap, isPartialSuccess = false) {
 }
 
 export function triggerTrap(trap, isPartialSuccess = false) {
-  let powerMultiplier = isPartialSuccess ? 0.5 : 1;
+  let powerMultiplier = isPartialSuccess ? FORCE_DAMAGE_MULTIPLIER : 1;
 
   // 探索能力に応じた失敗時の被害軽減（ThiefやNinjaが生存していると30%軽減）
   const hasScout = state.party.some(c => ["Thief", "Ninja"].includes(c.class) && c.hp > 0);
@@ -285,151 +291,101 @@ export function triggerTrap(trap, isPartialSuccess = false) {
   }
 }
 
+function completePendingMove() {
+  const move = state.activeTrapState?.pendingMove;
+  if (!move) return;
+  state.x = move.x;
+  state.y = move.y;
+  if (state.visitedMap?.[move.y]) state.visitedMap[move.y][move.x] = true;
+}
+
+function endTrapEncounter() {
+  state.gameState = "explore";
+  state.activeTrapState = null;
+  saveAutosave();
+  updateUI();
+}
+
 export function handleTrapAction(action) {
   if (!state.activeTrapState) return;
   const { trap, successRate } = state.activeTrapState;
-  
+
   if (action === "back") {
-    state.x = state.prevX;
-    state.y = state.prevY;
-    addLog("罠を前にして、元のマスに引き返した。");
-    state.gameState = "explore";
-    state.activeTrapState = null;
+    addLog("罠を前にして、その場に留まった。");
     playSound("move");
-    saveAutosave();
-    updateUI();
+    endTrapEncounter();
     return;
   }
-  
-  if (action === "bypass") {
-    if (state.currentRun) {
-      state.currentRun.steps += 5;
-      if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
-      const key = String(state.floor);
-      state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + 5;
-    }
-    
-    if (Math.random() < 0.25) {
-      addLog("遠回りして迂回を試みたが、途中で魔物と遭遇してしまった！");
-      state.gameState = "explore";
-      state.activeTrapState = null;
-      playSound("chest_trap");
-      startCombat(false, false);
-    } else {
-      addLog("時間はかかったが、慎重に罠を迂回した。");
-      state.gameState = "explore";
-      state.activeTrapState = null;
-      playSound("move");
-      saveAutosave();
-      updateUI();
-    }
-    return;
-  }
-  
+
   if (action === "force") {
     if (trap.type === "pitfall") {
-      addLog("助走をつけて落とし穴を一気に飛び越える！");
-      const roll = Math.random() * 100;
-      const jumpSuccessRate = successRate - 20; // 飛び越える際は「縁を伝う」の+20%ボーナスを除く
-      if (roll < jumpSuccessRate) {
-        addLog("[味方] 【跳躍成功】見事に落とし穴を飛び越えた！");
-        playSound("move");
-        trap.state = "disabled";
-        state.gameState = "explore";
-        state.activeTrapState = null;
-        saveAutosave();
-        updateUI();
-      } else {
-        addLog("【跳躍失敗】向こう岸に届かず、奈落へと落下した！");
-        triggerPitfall(trap, false);
-        trap.state = "disabled";
-        state.gameState = "explore";
-        state.activeTrapState = null;
-      }
+      addLog("意を決して落とし穴へ飛び込んだ！");
+      trap.state = "disabled";
+      state.gameState = "explore";
+      state.activeTrapState = null;
+      triggerPitfall(trap, true);
       return;
     }
 
-    addLog("罠を顧みず、強引に駆け抜けた！");
-    triggerTrap(trap, false);
+    // 強行は必ず通れる。チョーク罠でフロア突破不能にしないための保証。
+    addLog("罠を承知で強引に駆け抜けた！");
+    triggerTrap(trap, true);
     trap.state = "disabled";
-    
-    state.gameState = "explore";
-    state.activeTrapState = null;
-    saveAutosave();
-    updateUI();
+    completePendingMove();
+    endTrapEncounter();
     return;
   }
-  
+
   if (action === "disarm") {
     const roll = Math.random() * 100;
+
     if (trap.type === "pitfall") {
       if (roll < successRate) {
         addLog("[味方] 【回避成功】慎重に縁を伝い、落とし穴を渡りきった！");
         playSound("item");
         trap.state = "disabled";
-        if (state.currentRun) {
-          state.currentRun.steps += 3;
-          if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
-          const key = String(state.floor);
-          state.currentRun.floorSteps[key] = (state.currentRun.floorSteps[key] || 0) + 3;
-          state.currentRun.trapsDisarmed++;
-        }
+        if (state.currentRun) state.currentRun.trapsDisarmed++;
         recordTrapCodex("pitfall", "disarmed");
-        state.gameState = "explore";
-        state.activeTrapState = null;
-        saveAutosave();
-        updateUI();
-      } else if (roll < successRate + 15) {
-        addLog("[味方] 【部分成功】足が滑った！しかし身を乗り出して衝撃を緩和した！");
-        triggerPitfall(trap, true);
-        trap.state = "disabled";
-        state.gameState = "explore";
-        state.activeTrapState = null;
+        completePendingMove();
+        endTrapEncounter();
       } else {
-        addLog("【失敗】バランスを崩して落とし穴に真っ逆さまに落ちてしまった！");
-        triggerPitfall(trap, false);
+        addLog("【失敗】バランスを崩して落とし穴に落ちてしまった！");
         trap.state = "disabled";
+        if (state.currentRun) state.currentRun.trapsTriggered++;
+        recordTrapCodex("pitfall", "triggered");
         state.gameState = "explore";
         state.activeTrapState = null;
+        triggerPitfall(trap, false);
       }
       return;
     }
 
+    const codexTrapType = trap.type === "damage"
+      ? "poison needle"
+      : (trap.type === "mpDrain" ? "gas bomb" : "flash bomb");
+
     if (roll < successRate) {
       addLog("[味方] 【解除成功】罠の機能を完全に停止した！");
       playSound("item");
-      trap.state = "disabled";
-      if (state.currentRun) {
-        state.currentRun.trapsDisarmed++;
-      }
-      const codexTrapType = trap.type === "damage" ? "poison needle" : (trap.type === "mpDrain" ? "gas bomb" : "flash bomb");
+      if (state.currentRun) state.currentRun.trapsDisarmed++;
       recordTrapCodex(codexTrapType, "disarmed");
-      state.gameState = "explore";
-      state.activeTrapState = null;
-      saveAutosave();
-      updateUI();
-    } else if (roll < successRate + 15) {
-      addLog("[味方] 【部分成功】完全に解除できなかったが、被害を最小限に抑えた！");
+    } else if (roll < successRate + PARTIAL_SUCCESS_BAND) {
+      addLog("[味方] 【部分成功】完全には解除できなかったが、被害を最小限に抑えた！");
       triggerTrap(trap, true);
-      trap.state = "discovered";
-      state.gameState = "explore";
-      state.activeTrapState = null;
-      saveAutosave();
-      updateUI();
+      if (state.currentRun) state.currentRun.trapsTriggered++;
+      recordTrapCodex(codexTrapType, "triggered");
     } else {
       addLog("【解除失敗】仕掛けが暴発した！");
       triggerTrap(trap, false);
-      trap.state = "disabled";
-      if (state.currentRun) {
-        state.currentRun.trapsTriggered++;
-      }
-      const codexTrapType = trap.type === "damage" ? "poison needle" : (trap.type === "mpDrain" ? "gas bomb" : "flash bomb");
+      if (state.currentRun) state.currentRun.trapsTriggered++;
       recordTrapCodex(codexTrapType, "triggered");
-      state.gameState = "explore";
-      state.activeTrapState = null;
-      saveAutosave();
-      updateUI();
     }
+
+    // 解除は成功・部分成功・失敗のいずれでも罠を使い切って通過する。
+    // 同じ罠を再度踏んで判定を引き直せる状態を残さない。
+    trap.state = "disabled";
+    completePendingMove();
+    endTrapEncounter();
     return;
   }
 }

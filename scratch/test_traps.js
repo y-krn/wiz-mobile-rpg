@@ -250,4 +250,94 @@ if (grid[2][1].trap.state !== "hidden") {
 Math.random = realRandom;
 console.log("PASS: Adjacent detection verified.");
 
+// 6. Three-choice trap encounter
+console.log("\n[6] Verifying trap encounter choices:");
+const { startTrapEncounter, handleTrapAction } = await import("../src/systems/traps.js");
+
+function setupEncounter(trapType) {
+  const g = [
+    [openAll(), openAll(), openAll()],
+    [openAll(), openAll(), openAll()],
+    [openAll(), openAll(), openAll()]
+  ];
+  g[1][2].trap = {
+    id: "t_enc",
+    floorId: "B1",
+    position: { x: 2, y: 1 },
+    type: trapType,
+    state: "discovered",
+    difficulty: 30
+  };
+  state.maps = [g, g];
+  state.floor = 1;
+  state.x = 1;
+  state.y = 1;
+  state.gameState = "explore";
+  state.party = [{
+    name: "Robin", class: "Fighter", level: 1,
+    hp: 20, maxHp: 20, mp: 5, maxMp: 5,
+    luk: 10, agi: 10, status: "ok"
+  }];
+  startTrapEncounter(g[1][2].trap, { x: 2, y: 1 });
+  return g;
+}
+
+// "back" leaves the player where they were and costs nothing
+let g6 = setupEncounter("damage");
+handleTrapAction("back");
+if (state.x !== 1 || state.y !== 1) {
+  console.error(`FAIL: back should not move the player, got (${state.x},${state.y}).`);
+  process.exit(1);
+}
+if (g6[1][2].trap.state !== "discovered") {
+  console.error("FAIL: back should leave the trap armed.");
+  process.exit(1);
+}
+console.log("- back: stays put, trap stays armed");
+
+// "force" always moves the player through and always disables the trap
+g6 = setupEncounter("damage");
+handleTrapAction("force");
+if (state.x !== 2 || state.y !== 1) {
+  console.error(`FAIL: force should complete the move, got (${state.x},${state.y}).`);
+  process.exit(1);
+}
+if (g6[1][2].trap.state !== "disabled") {
+  console.error("FAIL: force should disable the trap.");
+  process.exit(1);
+}
+if (state.party[0].hp >= 20) {
+  console.error("FAIL: force should deal reduced damage.");
+  process.exit(1);
+}
+console.log(`- force: moved through, took ${20 - state.party[0].hp} damage`);
+
+// "disarm" completes the move regardless of the roll outcome
+for (const roll of [0, 0.99]) {
+  g6 = setupEncounter("damage");
+  const realRandom6 = Math.random;
+  Math.random = () => roll;
+  handleTrapAction("disarm");
+  Math.random = realRandom6;
+  if (state.x !== 2 || state.y !== 1) {
+    console.error(`FAIL: disarm (roll=${roll}) should complete the move.`);
+    process.exit(1);
+  }
+  if (g6[1][2].trap.state !== "disabled") {
+    console.error(`FAIL: disarm (roll=${roll}) should disable the trap.`);
+    process.exit(1);
+  }
+}
+console.log("- disarm: completes the move on both success and failure");
+
+// "bypass" is removed and must be a no-op
+g6 = setupEncounter("damage");
+handleTrapAction("bypass");
+if (state.x !== 1 || state.y !== 1) {
+  console.error("FAIL: bypass should no longer exist.");
+  process.exit(1);
+}
+console.log("- bypass: removed");
+console.log("PASS: Trap encounter choices verified.");
+
 console.log("\n=== ALL TRAP TESTS PASSED ===");
