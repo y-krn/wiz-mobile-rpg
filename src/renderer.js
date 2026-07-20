@@ -324,7 +324,7 @@ export class DungeonRenderer {
           this.drawStairsIcon(ctx, z, cell.type);
         }
 
-        if (column === 0 && cell.event === EVENT_TYPES.CHEST) {
+        if (column === 0 && z > 0 && cell.event === EVENT_TYPES.CHEST) {
           this.drawChestIcon(ctx, z);
         }
 

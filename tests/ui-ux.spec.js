@@ -282,7 +282,7 @@ test('3D corridor draws unopened chest icons at perspective-scaled depths', asyn
       event: null,
     });
 
-    state.gameState = 'explore';
+    state.gameState = 'chest';
     state.floor = 1;
     state.x = 5;
     state.y = 5;
@@ -291,6 +291,7 @@ test('3D corridor draws unopened chest icons at perspective-scaled depths', asyn
     state.map[4][5].event = EVENT_TYPES.CHEST;
     state.map[3][5].event = EVENT_TYPES.CHEST;
     state.map[2][5].event = EVENT_TYPES.CHEST;
+    state.map[5][5].event = EVENT_TYPES.CHEST;
     state.map[4][6].event = EVENT_TYPES.CHEST;
 
     const originalDrawChestIcon = dungeonRenderer.drawChestIcon;
