@@ -45,7 +45,6 @@ export function createSavePayload() {
     repelTurns: state.repelTurns,
     dumapicTurns: state.dumapicTurns,
     dumapicHint: state.dumapicHint,
-    eventCooldownTurns: state.eventCooldownTurns,
     activeMerchantStock: state.activeMerchantStock,
     floorChestsOpened: state.floorChestsOpened,
     floorChestsTotal: state.floorChestsTotal,
@@ -95,7 +94,6 @@ export function applySavePayload(data) {
   state.repelTurns = data.repelTurns;
   state.dumapicTurns = data.dumapicTurns;
   state.dumapicHint = data.dumapicHint;
-  state.eventCooldownTurns = data.eventCooldownTurns;
   state.activeMerchantStock = data.activeMerchantStock;
   state.gameState = data.gameState;
   state.combatState = data.combatState;
