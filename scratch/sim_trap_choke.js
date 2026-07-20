@@ -1,4 +1,8 @@
-const { generateRandomMap, getTrapChokeRate } = await import("../src/map_generator.js");
+// 本番のラン内生成と同じ階段・テンプレート・バイオーム設定を測る。
+// generateRandomMap のレガシー既定値では B5 以降に下り階段がなく、
+// isChokeCell が常に false になるため、simulation から直接呼ばない。
+const { generateRunFloor } = await import("../src/run_map_generator.js");
+const { getTrapChokeRate } = await import("../src/map_generator.js");
 
 console.log("=== TRAP CHOKE DISTRIBUTION ===");
 console.log("floor | traps | choke | actual | target | shortfall");
@@ -12,7 +16,7 @@ for (const floor of FLOORS) {
   let shortfalls = 0;
 
   for (let i = 0; i < SAMPLES; i++) {
-    const map = generateRandomMap(floor, null, `CHOKE_SIM_${floor}_${i}`);
+    const map = generateRunFloor({ runSeed: `CHOKE_SIM_${floor}_${i}`, floor });
     const meta = map.trapMeta;
     totalTraps += meta.total;
     totalChoke += meta.choke;
