@@ -5,7 +5,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     id: "shallow",
     minDepth: 1,
     maxDepth: 10,
-    size: Object.freeze({ width: 18, height: 18 }),
+    size: Object.freeze({ width: 24, height: 24 }),
     roomCountRange: Object.freeze([2, 3]),
     mazeProfile: Object.freeze({
       straightBias: Object.freeze([0.35, 0.60]),
@@ -14,7 +14,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     gimmickDensity: Object.freeze({
       oneWayPassages: 1,
       secretDoors: Object.freeze({ shortcut: 1, room: 1 }),
-      traps: 5
+      traps: 7
     }),
     criticalPathRange: Object.freeze([20, 30])
   }),
@@ -22,7 +22,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     id: "middle",
     minDepth: 11,
     maxDepth: 20,
-    size: Object.freeze({ width: 21, height: 21 }),
+    size: Object.freeze({ width: 27, height: 27 }),
     roomCountRange: Object.freeze([3, 4]),
     mazeProfile: Object.freeze({
       straightBias: Object.freeze([0.20, 0.50]),
@@ -31,7 +31,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     gimmickDensity: Object.freeze({
       oneWayPassages: 2,
       secretDoors: Object.freeze({ shortcut: 2, room: 1 }),
-      traps: 7
+      traps: 9
     }),
     criticalPathRange: Object.freeze([20, 30])
   }),
@@ -48,7 +48,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     gimmickDensity: Object.freeze({
       oneWayPassages: 3,
       secretDoors: Object.freeze({ shortcut: 2, room: 2 }),
-      traps: 9
+      traps: 11
     }),
     criticalPathRange: Object.freeze([20, 30])
   })

@@ -69,8 +69,8 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.floorChestsTotal = state.maps.map(grid => {
     let count = 0;
     if (grid) {
-      for (let y = 0; y < MAP_HEIGHT; y++) {
-        for (let x = 0; x < MAP_WIDTH; x++) {
+      for (let y = 0; y < grid.length; y++) {
+        for (let x = 0; x < grid[y].length; x++) {
           if (grid[y] && grid[y][x] && grid[y][x].event === "chest") {
             count++;
           }

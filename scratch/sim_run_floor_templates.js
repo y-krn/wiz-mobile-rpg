@@ -10,11 +10,11 @@ const DIRECTIONS = [
   { dx: 0, dy: 1, dir: 2 },
   { dx: -1, dy: 0, dir: 3 }
 ];
-// origin/main baseline with run-floor-template-{floor}-{seed}; limits allow roughly 20% shape variance.
+// 24/27/30 map baseline with run-floor-template-{floor}-{seed}; limits allow roughly 20% shape variance.
 const SHAPE_LIMITS = Object.freeze({
-  shallow: { minimumMeanDeadEnds: 13, maximumMeanTightUTurns: 18 },
-  middle: { minimumMeanDeadEnds: 18, maximumMeanTightUTurns: 23 },
-  deep: { minimumMeanDeadEnds: 22, maximumMeanTightUTurns: 28 }
+  shallow: { minimumMeanDeadEnds: 13, maximumMeanTightUTurns: 23 },
+  middle: { minimumMeanDeadEnds: 18, maximumMeanTightUTurns: 30 },
+  deep: { minimumMeanDeadEnds: 22, maximumMeanTightUTurns: 35 }
 });
 const MINIMUM_ONE_WAY_PLACEMENT_RATE = 0.75;
 const failures = [];
