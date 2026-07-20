@@ -1,4 +1,4 @@
-import { DIR_N, DIR_E, DIR_S, DIR_W, START_X, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, TRAP_TYPES } from "./data.js";
+import { DIR_N, DIR_E, DIR_S, DIR_W, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, TRAP_TYPES } from "./data.js";
 import { createRng } from "./seed_rng.js";
 
 // Directions helper
@@ -1202,9 +1202,20 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   const rooms = carveRooms(grid, rng, visited, options.roomCountRange);
 
+  const b1EntryCandidates = [];
+  if (floor === 1) {
+    for (let y = 1; y < mapHeight - 1; y++) {
+      for (let x = 1; x < mapWidth - 1; x++) {
+        if (visited[y][x] && grid[y][x].walls.filter(wall => !wall).length >= 2) {
+          b1EntryCandidates.push({ x, y });
+        }
+      }
+    }
+  }
   const entryCoord = floor > 1
     ? (parentStairsCoord || { x: mapWidth - 2, y: 1 })
-    : { x: START_X, y: mapHeight - 2 };
+    : b1EntryCandidates[Math.floor(rng() * b1EntryCandidates.length)];
+  if (!entryCoord) throw new Error("B1F entry candidate unavailable");
   const stairsUpCoord = floor > 1 ? entryCoord : null;
   const suCoord = entryCoord;
 

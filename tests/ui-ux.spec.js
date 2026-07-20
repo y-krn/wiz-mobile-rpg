@@ -270,6 +270,82 @@ test('Five-column corridor renderer draws outer front walls', async ({ page }) =
   expect(cyanPixels.occluded[1]).toBeLessThan(10);
 });
 
+test('Mini-map hides stairs-up markers and glows on every floor', async ({ page }) => {
+  await page.goto('/');
+
+  const result = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
+    const makeGrid = type => Array.from({ length: 7 }, (_, y) =>
+      Array.from({ length: 7 }, (_, x) => ({
+        walls: [false, false, false, false],
+        blockEnter: [false, false, false, false],
+        sealedGate: [null, null, null, null],
+        type: x === 4 && y === 3 ? type : 'empty',
+        event: null,
+      }))
+    );
+
+    const originalIcon = dungeonRenderer.drawStairMiniMapIcon;
+    const originalArc = ctx.arc;
+    const icons = [];
+    const glowArcs = [];
+    dungeonRenderer.drawStairMiniMapIcon = (...args) => {
+      icons.push(args[4]);
+      return originalIcon.call(dungeonRenderer, ...args);
+    };
+    ctx.arc = (x, y, radius, ...args) => {
+      if (radius === 9) glowArcs.push(radius);
+      return originalArc.call(ctx, x, y, radius, ...args);
+    };
+
+    state.x = 3;
+    state.y = 3;
+    state.dir = 0;
+    state.dumapicTurns = 0;
+    state.lightTurns = 0;
+    state.lightPower = '';
+    state.roamingMonsters = [];
+    state.dungeonMemory = { traps: {}, mapFragments: {} };
+
+    const upstairs = [];
+    for (const floor of [1, 2]) {
+      state.floor = floor;
+      state.maps[floor - 1] = makeGrid('stairs-up');
+      state.visitedMaps[floor - 1] = Array.from({ length: 7 }, () => Array(7).fill(true));
+      const iconStart = icons.length;
+      const glowStart = glowArcs.length;
+      dungeonRenderer.drawMiniMap(ctx);
+      upstairs.push({
+        floor,
+        icons: icons.length - iconStart,
+        glows: glowArcs.length - glowStart,
+      });
+    }
+
+    state.maps[1] = makeGrid('stairs-down');
+    const iconStart = icons.length;
+    const glowStart = glowArcs.length;
+    dungeonRenderer.drawMiniMap(ctx);
+    const downstairs = {
+      icons: icons.slice(iconStart),
+      glows: glowArcs.length - glowStart,
+    };
+
+    dungeonRenderer.drawStairMiniMapIcon = originalIcon;
+    ctx.arc = originalArc;
+    return { upstairs, downstairs };
+  });
+
+  expect(result.upstairs).toEqual([
+    { floor: 1, icons: 0, glows: 0 },
+    { floor: 2, icons: 0, glows: 0 },
+  ]);
+  expect(result.downstairs.icons).toEqual([false]);
+  expect(result.downstairs.glows).toBe(1);
+});
+
 test('Chest opened immediately after entering the dungeon does not draw the town background', async ({ page }) => {
   await page.goto('/');
 

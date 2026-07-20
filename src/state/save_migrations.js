@@ -3,6 +3,7 @@ import { generateRandomMap, removeIsolatedInternalWalls } from "../map_generator
 import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 import { getIdentificationGambleProfile } from "../rules/identification_rules.js";
 import { normalizeRecords } from "./records_state.js";
+import { findMapCellByType } from "./warden_gates.js";
 
 export function migrateCharSpells(char) {
   if (!char.spells) char.spells = [];
@@ -177,15 +178,17 @@ export function migrateSavePayload(data) {
 export function normalizeSavePayload(data) {
   const normalized = { ...data };
 
-  normalized.x = data.x ?? START_X;
-  normalized.y = data.y ?? START_Y;
+  normalized.floor = data.floor ?? 1;
+  const defaultStart = findMapCellByType(data.maps?.[normalized.floor - 1], "stairs-up") ||
+    { x: START_X, y: START_Y };
+  normalized.x = data.x ?? defaultStart.x;
+  normalized.y = data.y ?? defaultStart.y;
   normalized.dir = data.dir ?? DIR_N;
-  normalized.prevX = data.prevX ?? START_X;
-  normalized.prevY = data.prevY ?? START_Y;
+  normalized.prevX = data.prevX ?? defaultStart.x;
+  normalized.prevY = data.prevY ?? defaultStart.y;
   normalized.party = Array.isArray(data.party) ? data.party.slice(0, 1) : [];
   normalized.inventory = data.inventory ?? [];
   normalized.seed = data.seed ?? generateRandomSeed();
-  normalized.floor = data.floor ?? 1;
   normalized.lightTurns = data.lightTurns ?? 0;
   normalized.lightPower = data.lightPower ?? "";
   normalized.repelTurns = data.repelTurns ?? 0;
@@ -269,8 +272,9 @@ export function normalizeSavePayload(data) {
     const b5 = generateRandomMap(5, b4.stairsDownCoord, normalized.seed);
     loadedMaps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
 
-    normalized.x = START_X;
-    normalized.y = START_Y;
+    const migratedStart = findMapCellByType(b1.grid, "stairs-up") || { x: START_X, y: START_Y };
+    normalized.x = migratedStart.x;
+    normalized.y = migratedStart.y;
     normalized.floor = 1;
     normalized.dir = DIR_N;
 
@@ -283,7 +287,7 @@ export function normalizeSavePayload(data) {
       Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
       Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
     ];
-    normalized.visitedMaps[0][START_Y][START_X] = true;
+    normalized.visitedMaps[0][migratedStart.y][migratedStart.x] = true;
   } else {
     normalized.visitedMaps = data.visitedMaps ?? loadedMaps.map(map =>
       map ? map.map(row => row.map(() => false)) : null

@@ -3,7 +3,7 @@ import { saveAutosave } from "./save_storage.js";
 import { findSuitableRoamingMonsterStart } from "./initial_state.js";
 import { generateRandomMap } from "../map_generator.js";
 import { createRng } from "../seed_rng.js";
-import { MAP_WIDTH, MAP_HEIGHT, START_X, START_Y } from "../data.js";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data.js";
 import { applyOpenedGatesToMap, createWardenMonster, ensureWardenGate } from "./warden_gates.js";
 import { getWardenPerception } from "../systems/warden_perception.js";
 
@@ -129,14 +129,8 @@ export function calculateSeedProperties() {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const cell = grid[y]?.[x];
         if (!cell) continue;
-        if (f === 1) {
-          if (x === START_X && y === START_Y) {
-            up = { x, y };
-          }
-        } else {
-          if (cell.type === "stairs-up") {
-            up = { x, y };
-          }
+        if (cell.type === "stairs-up") {
+          up = { x, y };
         }
         if (cell.type === "stairs-down") {
           down = { x, y };

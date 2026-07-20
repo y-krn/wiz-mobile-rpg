@@ -9,6 +9,7 @@ import { createRng } from "../src/seed_rng.js";
 import { generateRandomMap } from "../src/map_generator.js";
 import { generateRandomEquipment } from "../src/data.js";
 import { state, rebuildDungeonMaps, calculateSeedProperties } from "../src/state.js";
+import { normalizeSavePayload } from "../src/state/save_migrations.js";
 import assert from "assert";
 
 console.log("Starting Seed Verification Tests...");
@@ -33,6 +34,31 @@ console.log("[PASS] Seed PRNG consistency verified.");
 const map1_a = generateRandomMap(1, null, "CASTLE-SEED1");
 const map1_b = generateRandomMap(1, null, "CASTLE-SEED1");
 const map2 = generateRandomMap(1, null, "CASTLE-SEED2");
+
+const findStairsUp = map => {
+  for (let y = 0; y < map.grid.length; y++) {
+    for (let x = 0; x < map.grid[y].length; x++) {
+      if (map.grid[y][x].type === "stairs-up") return { x, y };
+    }
+  }
+  return null;
+};
+const start1A = findStairsUp(map1_a);
+const start1B = findStairsUp(map1_b);
+const start2 = findStairsUp(map2);
+
+assert.deepStrictEqual(start1A, start1B, "B1F stairs-up should match for same seed");
+assert.notDeepStrictEqual(start1A, start2, "B1F stairs-up should vary across different seeds");
+assert(start1A, "B1F stairs-up should exist");
+assert(map1_a.grid[start1A.y][start1A.x].walls.filter(wall => !wall).length >= 2,
+  "B1F stairs-up should not be a dead end");
+
+const migrated = normalizeSavePayload({ seed: "CASTLE-MIGRATION", party: [] });
+const migratedStart = findStairsUp({ grid: migrated.maps[0] });
+assert.deepStrictEqual({ x: migrated.x, y: migrated.y }, migratedStart,
+  "Map migration should reset position to generated B1F stairs-up");
+assert.strictEqual(migrated.visitedMaps[0][migratedStart.y][migratedStart.x], true,
+  "Map migration should mark generated B1F stairs-up as visited");
 
 // Check stairs-down coordinates match
 assert.strictEqual(map1_a.stairsDownCoord.x, map1_b.stairsDownCoord.x, "Stairs down X should match for same seed");

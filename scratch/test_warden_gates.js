@@ -4,7 +4,6 @@ import { applySavePayload, createSavePayload } from "../src/state/save_payload.j
 import { applyDungeonMemoryToMaps } from "../src/state/dungeon_state.js";
 import { applyOpenedGatesToMap, findMapCellByType, findWardenGate, getWardenGateId } from "../src/state/warden_gates.js";
 import { menuContext } from "../src/navigation.js";
-import { START_X, START_Y } from "../src/data.js";
 
 const DIRS = [
   { dx: 0, dy: -1, dir: 0 },
@@ -61,7 +60,7 @@ function assertGateShortcut(seed) {
     assert(gate.id === getWardenGateId(floor), `${seed} B${floor}F gate id mismatch`);
     assert(mapData.wardenGate?.id === gate.id, `${seed} B${floor}F metadata missing`);
 
-    const start = floor === 1 ? { x: START_X, y: START_Y } : findMapCellByType(grid, "stairs-up");
+    const start = findMapCellByType(grid, "stairs-up");
     const stairsDown = findMapCellByType(grid, "stairs-down");
     const closedDistance = distance(grid, start, stairsDown);
     const openedGrid = JSON.parse(JSON.stringify(grid));
@@ -90,7 +89,7 @@ function assertGatePlacementConstraints() {
       if (!gate) {
         missingGates++;
       } else {
-        const start = floor === 1 ? { x: START_X, y: START_Y } : findMapCellByType(mapData.grid, "stairs-up");
+        const start = findMapCellByType(mapData.grid, "stairs-up");
         const destination = mapData.stairsDownCoord || mapData.bossCoord;
         const openedGrid = JSON.parse(JSON.stringify(mapData.grid));
         applyOpenedGatesToMap(openedGrid, [gate.id]);

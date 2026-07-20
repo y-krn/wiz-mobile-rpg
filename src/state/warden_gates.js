@@ -1,4 +1,4 @@
-import { START_X, START_Y, MAP_WIDTH, MAP_HEIGHT, DX, DY } from "../data.js";
+import { MAP_WIDTH, MAP_HEIGHT, DX, DY } from "../data.js";
 import { openWall, placeWardenGateWithStairFallback } from "../map_generator.js";
 import { getWardenPerception } from "../systems/warden_perception.js";
 
@@ -9,8 +9,9 @@ export function getWardenGateId(floor) {
 }
 
 export function findMapCellByType(grid, type) {
-  for (let y = 0; y < MAP_HEIGHT; y++) {
-    for (let x = 0; x < MAP_WIDTH; x++) {
+  if (!grid) return null;
+  for (let y = 0; y < grid.length; y++) {
+    for (let x = 0; x < grid[y].length; x++) {
       if (grid[y]?.[x]?.type === type) return { x, y };
     }
   }
@@ -72,7 +73,7 @@ export function ensureWardenGate(grid, floor, generatedGate = null, rng = Math.r
   if (existing) return existing;
   if (generatedGate) return generatedGate;
 
-  const start = floor === 1 ? { x: START_X, y: START_Y } : findMapCellByType(grid, "stairs-up");
+  const start = findMapCellByType(grid, "stairs-up");
   const stairsDown = findMapCellByType(grid, "stairs-down");
   if (!start || !stairsDown) return null;
   return placeWardenGateWithStairFallback(grid, floor, start, stairsDown, rng).gate;
@@ -103,7 +104,7 @@ export function applyOpenedGatesToMap(grid, openedGates = []) {
 
 export function createWardenMonster(floor, gate, grid) {
   if (!gate || floor < 1 || floor > 5) return null;
-  const start = floor === 1 ? { x: START_X, y: START_Y } : findMapCellByType(grid, "stairs-up");
+  const start = findMapCellByType(grid, "stairs-up");
   const home = getGateHome(grid, gate, start || { x: gate.x, y: gate.y });
   const safeHome = grid[home.y]?.[home.x]?.event === "boss" ? { x: gate.x, y: gate.y } : home;
   return {
