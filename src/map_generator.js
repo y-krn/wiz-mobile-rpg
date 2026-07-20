@@ -95,6 +95,71 @@ function collectReachableDeadEnds(grid, start, protectedKeys) {
   return deadEnds;
 }
 
+function isNubDeadEnd(grid, leaf) {
+  const openDirs = grid[leaf.y][leaf.x].walls
+    .map((wall, dir) => wall ? -1 : dir)
+    .filter(dir => dir !== -1);
+  if (openDirs.length !== 1) return false;
+
+  const openDir = openDirs[0];
+  const neighbor = grid[leaf.y + DY[openDir]]?.[leaf.x + DX[openDir]];
+  return neighbor?.walls.filter(wall => !wall).length >= 3;
+}
+
+function isSealedCell(grid, x, y, protectedKeys) {
+  return x > 0 &&
+    x < getMapWidth(grid) - 1 &&
+    y > 0 &&
+    y < getMapHeight(grid) - 1 &&
+    !protectedKeys.has(`${x},${y}`) &&
+    grid[y][x].walls.every(Boolean);
+}
+
+function collectBranchGrowthCandidates(grid, protectedKeys, reachableKeys) {
+  const candidates = [];
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
+      if (!isSealedCell(grid, x, y, protectedKeys)) continue;
+
+      const passageNeighborDirs = [];
+      for (let dir = 0; dir < 4; dir++) {
+        if (isPassageCell(grid, x + DX[dir], y + DY[dir])) passageNeighborDirs.push(dir);
+      }
+      if (passageNeighborDirs.length !== 1) continue;
+
+      const attachDir = passageNeighborDirs[0];
+      const attachX = x + DX[attachDir];
+      const attachY = y + DY[attachDir];
+      const attachCell = grid[attachY][attachX];
+      if (!reachableKeys.has(`${attachX},${attachY}`) || attachCell.walls.filter(wall => !wall).length < 2) continue;
+
+      for (let extendDir = 0; extendDir < 4; extendDir++) {
+        if (extendDir === attachDir) continue;
+        const bx = x + DX[extendDir];
+        const by = y + DY[extendDir];
+        if (!isSealedCell(grid, bx, by, protectedKeys)) continue;
+
+        let touchesPassage = false;
+        for (let dir = 0; dir < 4; dir++) {
+          if (isPassageCell(grid, bx + DX[dir], by + DY[dir])) {
+            touchesPassage = true;
+            break;
+          }
+        }
+        if (touchesPassage) continue;
+
+        candidates.push({
+          a: { x, y },
+          attachDir,
+          extendDir,
+          straight: extendDir === OPPOSITE_DIR[attachDir]
+        });
+      }
+    }
+  }
+  return candidates;
+}
+
 function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
   let deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
 
@@ -107,7 +172,9 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
       return !closesStartEdge || grid[start.y][start.x].walls.filter(wall => !wall).length > 2;
     });
     if (prunableDeadEnds.length === 0) break;
-    const leaf = prunableDeadEnds[Math.floor(rng() * prunableDeadEnds.length)];
+    const nubDeadEnds = prunableDeadEnds.filter(leaf => isNubDeadEnd(grid, leaf));
+    const prunePool = nubDeadEnds.length > 0 ? nubDeadEnds : prunableDeadEnds;
+    const leaf = prunePool[Math.floor(rng() * prunePool.length)];
     const openDir = leaf && grid[leaf.y][leaf.x].walls.findIndex(wall => !wall);
     if (openDir === -1) break;
     closeWall(grid, leaf.x, leaf.y, openDir);
@@ -116,6 +183,17 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
 
   while (deadEnds.length < target) {
     const reachableKeys = getReachableCellKeys(grid, start);
+    const branchCandidates = collectBranchGrowthCandidates(grid, protectedKeys, reachableKeys);
+    if (branchCandidates.length > 0) {
+      const straightCandidates = branchCandidates.filter(candidate => candidate.straight);
+      const growthPool = straightCandidates.length > 0 ? straightCandidates : branchCandidates;
+      const candidate = growthPool[Math.floor(rng() * growthPool.length)];
+      openWall(grid, candidate.a.x, candidate.a.y, candidate.attachDir);
+      openWall(grid, candidate.a.x, candidate.a.y, candidate.extendDir);
+      deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
+      continue;
+    }
+
     const candidates = [];
     for (let y = 1; y < getMapHeight(grid) - 1; y++) {
       for (let x = 1; x < getMapWidth(grid) - 1; x++) {
