@@ -1,4 +1,4 @@
-import { START_X, START_Y, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
+import { START_X, START_Y } from "../data.js";
 import { findMapCellByType } from "./warden_gates.js";
 
 export function generateRandomSeed() {
@@ -276,8 +276,8 @@ export function findSuitableRoamingMonsterStart(mapData) {
   const stairsDown = mapData.stairsDownCoord || { x: -1, y: -1 };
   const boss = mapData.bossCoord || { x: -1, y: -1 };
   const candidates = [];
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < grid.length - 1; y++) {
+    for (let x = 1; x < grid[y].length - 1; x++) {
       const cell = grid[y][x];
       if (cell.walls.some(w => !w)) {
         const isStairsUp = (x === stairsUp.x && y === stairsUp.y);
@@ -296,8 +296,8 @@ export function findSuitableRoamingMonsterStart(mapData) {
   if (candidates.length > 0) {
     return candidates[Math.floor(Math.random() * candidates.length)];
   }
-  for (let y = 1; y < MAP_HEIGHT - 1; y++) {
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+  for (let y = 1; y < grid.length - 1; y++) {
+    for (let x = 1; x < grid[y].length - 1; x++) {
       const cell = grid[y][x];
       if (cell.walls.some(w => !w)) {
         if (x !== stairsUp.x || y !== stairsUp.y) {
