@@ -191,7 +191,6 @@ export function normalizeSavePayload(data) {
   normalized.repelTurns = data.repelTurns ?? 0;
   normalized.dumapicTurns = data.dumapicTurns ?? 0;
   normalized.dumapicHint = data.dumapicHint ?? "";
-  normalized.eventCooldownTurns = data.eventCooldownTurns ?? 0;
   normalized.activeMerchantStock = data.activeMerchantStock ?? [];
   normalized.gameState = data.gameState ?? "town";
   normalized.combatState = data.combatState ?? null;

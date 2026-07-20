@@ -71,10 +71,6 @@ export function tickExplorationSpellEffects() {
       addLog("デュマピックの効果が切れた。詳細な座標探知が停止した。");
     }
   }
-
-  if (state.eventCooldownTurns > 0) {
-    state.eventCooldownTurns--;
-  }
 }
 
 function isBlockedByOneWayPassage(x, y, dir) {
@@ -536,33 +532,6 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       return;
     }
     openGuardedSubmenu("milestone_portal", `B${state.floor}F 帰還ポータル`);
-    return;
-  }
-
-  // Random Event (3% chance) on standard cells with cooldown constraint
-  // 宝箱はランダム出現させない（固定配置のみ）/ No random chests here, fixed positions only
-  const isSpecialCell = cell.type === "stairs-up" || cell.type === "stairs-down" || 
-                        cell.event === EVENT_TYPES.MIDBOSS || cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.CHEST ||
-                        cell.event === EVENT_TYPES.MERCHANT || cell.event === EVENT_TYPES.RETURN_PORTAL ||
-                        cell.message;
-  const cooldownActive = state.eventCooldownTurns && state.eventCooldownTurns > 0;
-  if (!isSpecialCell && !cooldownActive && Math.random() < 0.03) {
-    state.eventCooldownTurns = 15; // Set 15 steps cooldown
-    const events = [EVENT_TYPES.SPRING, EVENT_TYPES.TABLET];
-    const chosen = events[Math.floor(Math.random() * events.length)];
-    if (chosen === EVENT_TYPES.SPRING) {
-      const skin = getFloorTheme(state.floor)?.eventSkins.spring || "怪しい泉";
-      if (state.codex && state.codex.events && state.codex.events.facilities) {
-        state.codex.events.facilities.spring.found++;
-      }
-      openGuardedSubmenu(EVENT_TYPES.SPRING, `${skin}を見つけた。水面がかすかに揺れている…`);
-    } else if (chosen === EVENT_TYPES.TABLET) {
-      const skin = getFloorTheme(state.floor)?.eventSkins.tablet || "謎の石碑";
-      if (state.codex && state.codex.events && state.codex.events.facilities) {
-        state.codex.events.facilities.tablet.found++;
-      }
-      openGuardedSubmenu(EVENT_TYPES.TABLET, `${skin}が残されている。古い文字が刻まれている…`);
-    }
     return;
   }
 

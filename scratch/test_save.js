@@ -3,7 +3,8 @@ import { applySavePayload, createSavePayload } from "../src/state/save_payload.j
 import { SAVE_VERSION, migrateSavePayload } from "../src/state/save_migrations.js";
 import { SOLO_CLASSES, createDefaultCurrentRun, createSoloCharacter, state } from "../src/state.js";
 import { menuContext } from "../src/navigation.js";
-import { applyFloorTransitionHeal } from "../src/movement.js";
+import { EVENT_TYPES } from "../src/data.js";
+import { applyFloorTransitionHeal, checkCellEvents } from "../src/movement.js";
 
 let failures = 0;
 function check(label, test) {
@@ -54,6 +55,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.equal(Object.hasOwn(payload, "roster"), false);
   assert.equal(Object.hasOwn(payload, "remains"), false);
   assert.equal(Object.hasOwn(payload, "gold"), false);
+  assert.equal(Object.hasOwn(payload, "eventCooldownTurns"), false);
 
   state.party = [];
   state.gameState = "combat";
@@ -69,6 +71,66 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
   assert.deepEqual(state.records, { deepestRetreat: 12, deepestDeath: 9, deepestByClass: { Mage: 12 }, totalRuns: 7 });
   assert.equal(state.currentRun.quests[0].currentValue, 4);
+});
+
+check("legacy event cooldown field is ignored during load", () => {
+  const legacyPayload = createSavePayload();
+  legacyPayload.eventCooldownTurns = 15;
+
+  applySavePayload(migrateSavePayload(legacyPayload));
+
+  assert.equal(Object.hasOwn(state, "eventCooldownTurns"), false);
+  assert.equal(Object.hasOwn(createSavePayload(), "eventCooldownTurns"), false);
+});
+
+check("ordinary cells never become random facilities", () => {
+  const originalRandom = Math.random;
+  Math.random = () => 0;
+  state.floor = 1;
+  state.maps[0] = [[{ type: "floor", event: null }]];
+  state.x = 0;
+  state.y = 0;
+  state.gameState = "explore";
+  state.repelTurns = 1;
+  state.roamingMonsters = [];
+  const springFound = state.codex.events.facilities.spring.found;
+  const tabletFound = state.codex.events.facilities.tablet.found;
+
+  try {
+    checkCellEvents();
+  } finally {
+    Math.random = originalRandom;
+  }
+
+  assert.equal(state.gameState, "explore");
+  assert.equal(state.codex.events.facilities.spring.found, springFound);
+  assert.equal(state.codex.events.facilities.tablet.found, tabletFound);
+});
+
+check("fixed spring and tablet cells still open their facilities", () => {
+  const originalDocument = global.document;
+  global.document = {
+    getElementById: () => ({ style: {}, textContent: "", className: "", innerHTML: "" })
+  };
+  state.floor = 1;
+  state.maps[0] = [[{ type: "floor", event: EVENT_TYPES.SPRING }]];
+  state.x = 0;
+  state.y = 0;
+  state.gameState = "explore";
+
+  try {
+    checkCellEvents();
+    assert.equal(state.gameState, "submenu");
+    assert.equal(menuContext.type, EVENT_TYPES.SPRING);
+
+    state.maps[0][0][0].event = EVENT_TYPES.TABLET;
+    state.gameState = "explore";
+    checkCellEvents();
+    assert.equal(state.gameState, "submenu");
+    assert.equal(menuContext.type, EVENT_TYPES.TABLET);
+  } finally {
+    global.document = originalDocument;
+  }
 });
 
 check("legacy saves are rejected instead of migrated", () => {

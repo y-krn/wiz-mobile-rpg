@@ -23,7 +23,6 @@ export const state = {
   repelTurns: 0,
   dumapicTurns: 0,
   dumapicHint: "",
-  eventCooldownTurns: 0,
   activeMerchantStock: [],
 
   // New tracking properties for short-term rewards
