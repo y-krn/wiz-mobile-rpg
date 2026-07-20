@@ -11,6 +11,13 @@ function run() {
   assert.ok(describeMonsterTraits(flashBat).includes("盲目を付与"));
   assert.ok(describeMonsterTraits(flashBat).includes("妨害役"));
 
+  const demonGuard = MONSTERS.find(monster => monster.name === "デーモンガード");
+  assert.ok(demonGuard, "デーモンガード must exist.");
+  assert.deepEqual(
+    describeMonsterTraits(demonGuard).filter(label => label === "ボス" || label === "中ボス"),
+    ["ボス"]
+  );
+
   for (const monster of MONSTERS) {
     for (const trait of monster.traits || []) {
       assert.ok(
@@ -48,7 +55,6 @@ function run() {
       "味方の魔法防御を上げる",
       "支援役",
       "ボス",
-      "中ボス",
       "非常に強力な強敵"
     ]
   );

@@ -231,7 +231,7 @@ export function describeMonsterTraits(monster) {
   if (MONSTER_ROLE_LABELS[role]) descriptions.push(MONSTER_ROLE_LABELS[role]);
 
   if (monster.isBoss) descriptions.push("ボス");
-  if (monster.isMidboss) descriptions.push("中ボス");
+  else if (monster.isMidboss) descriptions.push("中ボス");
   if (monster.isRare) {
     descriptions.push(monster.name === "メタルパピー" ? "希少な魔物" : "非常に強力な強敵");
   }
