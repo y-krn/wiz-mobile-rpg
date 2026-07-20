@@ -21,6 +21,7 @@ const ONE_WAY_PASSAGE_COUNTS = {
 };
 export const ONE_WAY_MIN_DETOUR = 6;
 export const ONE_WAY_MAX_DETOUR = 64;
+export const CHEST_COUNT_RANGE = [8, 12];
 
 const SECRET_DOOR_COUNTS = {
   1: { shortcut: 1, room: 1 },
@@ -1459,7 +1460,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   const shuffle = (array) => shuffleInPlace(array, rng);
   shuffle(deadEnds);
 
-  const chestCount = Math.min(6, deadEnds.length);
+  const targetChestCount = CHEST_COUNT_RANGE[0] +
+    Math.floor(rng() * (CHEST_COUNT_RANGE[1] - CHEST_COUNT_RANGE[0] + 1));
+  const chestCount = Math.min(targetChestCount, deadEnds.length);
   for (let i = 0; i < chestCount; i++) {
     const spot = deadEnds[i];
     grid[spot.y][spot.x].event = EVENT_TYPES.CHEST;
@@ -1480,7 +1483,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   }
 
   // Fallback if sparse
-  let totalChestNeeded = 6 - chestCount;
+  let totalChestNeeded = targetChestCount - chestCount;
   let totalSpringNeeded = 2 - springCount;
   let totalTabletNeeded = 2 - tabletCount;
 
