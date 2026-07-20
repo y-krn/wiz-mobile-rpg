@@ -354,10 +354,9 @@ export function updateUI() {
     
     const trapStates = {
       hidden: "未解除",
-      discovered: "発見済み",
-      weakened: "解除痕跡あり (弱体化)"
+      discovered: "発見済み"
     };
-    const statusColor = trap.state === "weakened" ? "var(--neon-green)" : "var(--neon-amber)";
+    const statusColor = "var(--neon-amber)";
     document.getElementById("trap-status").innerHTML = `状態: <span style="color:${statusColor}">${trapStates[trap.state] || trap.state}</span>`;
     const difficultyText = revealLevel >= 3
       ? `危険度: B${trap.floorId.replace("B", "")}F (難易度: ${trap.difficulty})`

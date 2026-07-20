@@ -120,6 +120,8 @@ export function applySavePayload(data) {
   state.cleared = data.cleared;
   state.metaMaterials = data.metaMaterials;
   state.workshop = data.workshop;
-  state.dungeonMemory = data.dungeonMemory || { traps: {}, mapFragments: {}, visitedFloors: [1] };
-  state.dungeonMemory.visitedFloors ||= [1];
+  state.dungeonMemory = {
+    mapFragments: data.dungeonMemory?.mapFragments || {},
+    visitedFloors: data.dungeonMemory?.visitedFloors || [1]
+  };
 }

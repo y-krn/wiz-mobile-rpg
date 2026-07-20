@@ -19,7 +19,7 @@ function check(name, fn) {
 }
 
 check("未踏階は名前を隠し、進入で開示する", () => {
-  const state = { dungeonMemory: { traps: {}, mapFragments: {}, visitedFloors: [1] } };
+  const state = { dungeonMemory: { mapFragments: {}, visitedFloors: [1] } };
   assert.equal(getFloorLabel(state, 2), "???（地下2階）");
   assert.equal(revealFloor(state, 2), true);
   assert.equal(getFloorDisplayName(state, 2), "崩れた坑道");
@@ -31,7 +31,7 @@ check("旧セーブは到達済み最深階まで訪問済みにする", () => {
   const normalized = normalizeSavePayload({
     floor: 3,
     codex: { stats: { deepestFloor: 4 } },
-    dungeonMemory: { traps: {}, mapFragments: {} }
+    dungeonMemory: { mapFragments: {} }
   });
   assert.deepEqual(normalized.dungeonMemory.visitedFloors, [1, 2, 3, 4]);
 });

@@ -33,28 +33,10 @@ const {
   calculateSuccessRate,
   triggerTrap,
   triggerPitfall,
-  getExpectedEffectText,
-  getDepthCategory
+  getExpectedEffectText
 } = await import("../src/systems/traps.js");
 
-const { persistDungeonTraps } = await import("../src/result.js");
-const { applyDungeonMemoryToMaps } = await import("../src/state.js");
-
 console.log("=== DUNGEON TRAP SYSTEM VERIFICATION ===");
-
-const depthCategoryCases = [
-  [1, "shallow"],
-  [2, "shallow"],
-  [3, "middle"],
-  [4, "middle"],
-  [5, "deep"]
-];
-for (const [floor, expected] of depthCategoryCases) {
-  if (getDepthCategory(floor) !== expected) {
-    console.error(`FAIL: B${floor} depth category should be ${expected}.`);
-    process.exit(1);
-  }
-}
 
 // 1. Verify Trap Placement in Map Generation
 console.log("\n[1] Verifying trap generation on passages:");
@@ -91,8 +73,7 @@ const testTrap = {
   position: { x: 5, y: 5 },
   type: "damage",
   state: "hidden",
-  difficulty: 30,
-  weakenLevel: 0
+  difficulty: 30
 };
 
 state.floor = 1;
@@ -126,12 +107,11 @@ if (rate !== 76) {
   process.exit(1);
 }
 
-// Weakened trap bonus (+20% success rate)
-testTrap.state = "weakened";
-rate = calculateSuccessRate(testTrap);
-console.log(`- Rate with weakened trap: ${rate}% (Expected: 95% because 76 + 20 = 96%, capped at 95%)`);
-if (rate !== 95) {
-  console.error("FAIL: Success rate calculation failed for weakened trap.");
+// Weakened state is abolished. A trap that is not hidden/discovered/disabled is invalid.
+testTrap.state = "discovered";
+const discoveredRate = calculateSuccessRate(testTrap);
+if (discoveredRate !== 76) {
+  console.error(`FAIL: discovered trap rate should stay 76, got ${discoveredRate}.`);
   process.exit(1);
 }
 console.log("PASS: Success rate calculations verified.");
@@ -146,7 +126,7 @@ state.floor = 1;
 
 // Test Damage trap without Thief (no scout damage reduction)
 const dmgTrap = { type: "damage", state: "discovered" };
-triggerTrap(dmgTrap, false, false);
+triggerTrap(dmgTrap, false);
 let arthurDmg = 20 - state.party[0].hp;
 console.log(`- Fighter HP after trap: ${state.party[0].hp}/20 (Took ${arthurDmg} damage)`);
 if (arthurDmg <= 0) {
@@ -162,7 +142,7 @@ state.party.forEach(c => {
 
 // Test MP Drain trap
 const mpTrap = { type: "mpDrain", state: "discovered" };
-triggerTrap(mpTrap, false, false);
+triggerTrap(mpTrap, false);
 console.log(`- Priest MP after drain: ${state.party[1].mp}/5`);
 if (state.party[1].mp >= 5) {
   console.error("FAIL: Priest MP was not drained.");
@@ -172,7 +152,7 @@ if (state.party[1].mp >= 5) {
 // Test Alarm trap
 state.alarmActive = false;
 const alarmTrap = { type: "alarm", state: "discovered" };
-triggerTrap(alarmTrap, false, false);
+triggerTrap(alarmTrap, false);
 console.log(`- state.alarmActive: ${state.alarmActive} (Expected: true)`);
 if (!state.alarmActive) {
   console.error("FAIL: Alarm trap did not activate alarm state.");
@@ -180,166 +160,29 @@ if (!state.alarmActive) {
 }
 console.log("PASS: Trap trigger effects verified.");
 
-// 4. Verify Dungeon Traps Memory Persistence
-console.log("\n[4] Verifying state memory persistence and synchronization:");
-state.maps = [mapB1.grid, null, null, null, null];
-state.dungeonMemory = { traps: {} };
-
-// Set one trap as disabled
-const targetCell = mapB1.grid[5][5];
-targetCell.trap = {
-  id: "trap_1_5_5",
-  floorId: "B1",
-  type: "damage",
-  state: "disabled",
-  difficulty: 30,
-  weakenLevel: 0
-};
-
-// Force persistDungeonTraps
-// F1 keepWeakenedRate is 0.85. We mock Math.random temporarily to guarantee true.
-const originalRandom = Math.random;
-Math.random = () => 0.1; // Force success
-
-persistDungeonTraps();
-console.log("- Dungeon memory after persistence:", state.dungeonMemory.traps["trap_1_5_5"]);
-if (!state.dungeonMemory.traps["trap_1_5_5"] || state.dungeonMemory.traps["trap_1_5_5"].state !== "weakened") {
-  console.error("FAIL: Below-threshold trap did not preserve current weakened behavior.");
+// 4. Verify traps are never written to dungeonMemory
+console.log("\n[4] Verifying trap persistence is removed:");
+state.dungeonMemory = { mapFragments: {}, visitedFloors: [1] };
+if (state.dungeonMemory.traps !== undefined) {
+  console.error("FAIL: dungeonMemory.traps should not exist.");
   process.exit(1);
 }
 
-// Check applyDungeonMemoryToMaps
-targetCell.trap.state = "hidden";
-applyDungeonMemoryToMaps();
-console.log("- Map trap state after synchronization:", targetCell.trap.state);
-if (targetCell.trap.state !== "weakened" || targetCell.trap.weakenLevel !== 1) {
-  console.error("FAIL: Synchronization to map failed.");
-  process.exit(1);
+// Generated traps must never carry weakenLevel or weakened state
+const genMap = generateRandomMap(3, null, "TEST_SEED");
+for (const row of genMap.grid) {
+  for (const cell of row) {
+    if (!cell.trap) continue;
+    if (cell.trap.weakenLevel !== undefined) {
+      console.error("FAIL: generated trap still has weakenLevel.");
+      process.exit(1);
+    }
+    if (!["hidden", "discovered", "disabled"].includes(cell.trap.state)) {
+      console.error(`FAIL: invalid trap state ${cell.trap.state}.`);
+      process.exit(1);
+    }
+  }
 }
+console.log("PASS: Trap persistence removed.");
 
-// Threshold reached on B1: the second disarm becomes permanent.
-targetCell.trap.state = "disabled";
-targetCell.trap.weakenLevel = 1;
-state.dungeonMemory.traps = {};
-persistDungeonTraps();
-const permanentTrap = state.dungeonMemory.traps["trap_1_5_5"];
-if (permanentTrap?.state !== "disabled" || permanentTrap.weakenLevel !== 2) {
-  console.error("FAIL: Threshold disarm was not saved as permanently disabled.");
-  process.exit(1);
-}
-
-// B5 never becomes permanent, regardless of weaken level.
-targetCell.trap.state = "disabled";
-targetCell.trap.weakenLevel = 99;
-state.maps = [null, null, null, null, mapB1.grid];
-state.dungeonMemory.traps = {};
-persistDungeonTraps();
-const deepTrap = state.dungeonMemory.traps["trap_1_5_5"];
-if (deepTrap?.state !== "weakened" || deepTrap.weakenLevel !== 100) {
-  console.error("FAIL: Deep trap was incorrectly made permanent.");
-  process.exit(1);
-}
-
-// A permanently disabled memory entry must never be rerolled or degraded.
-targetCell.trap.state = "disabled";
-targetCell.trap.weakenLevel = 0;
-state.maps = [mapB1.grid, null, null, null, null];
-state.dungeonMemory.traps = {
-  "trap_1_5_5": { state: "disabled", weakenLevel: 2, lastUpdatedAt: 123 }
-};
-Math.random = () => 0.99;
-persistDungeonTraps();
-const preservedTrap = state.dungeonMemory.traps["trap_1_5_5"];
-if (preservedTrap.state !== "disabled" || preservedTrap.weakenLevel !== 2 || preservedTrap.lastUpdatedAt !== 123) {
-  console.error("FAIL: Permanently disabled trap was degraded by persistence.");
-  process.exit(1);
-}
-
-// Restore Math.random
-Math.random = originalRandom;
-console.log("PASS: Persistence and synchronization verified.");
-
-// 5. Verify Pitfall Trap Behavior
-console.log("\n[5] Verifying pitfall trap specific behavior:");
-
-const pitfallTrap = {
-  id: "trap_1_6_6",
-  floorId: "B1",
-  position: { x: 6, y: 6 },
-  type: "pitfall",
-  state: "hidden",
-  difficulty: 30,
-  weakenLevel: 0
-};
-
-// Success rate of pitfall should have +20% bonus
-state.floor = 1;
-state.party = [{
-  name: "Robin",
-  class: "Thief",
-  level: 5,
-  hp: 20,
-  maxHp: 20,
-  luk: 15,
-  agi: 16,
-  status: "ok"
-}];
-const pfRate = calculateSuccessRate(pitfallTrap);
-console.log(`- Pitfall success rate with Thief: ${pfRate}% (Expected: 95% because 76 + 20 = 96% capped at 95%)`);
-if (pfRate !== 95) {
-  console.error("FAIL: Pitfall success rate bonus not applied.");
-  process.exit(1);
-}
-
-// Expected effect text should specify floor dropping
-const pfEffect = getExpectedEffectText(pitfallTrap);
-console.log(`- Expected effect text: "${pfEffect}" (Expected to include "地下2階へ落下")`);
-if (!pfEffect.includes("地下2階へ落下")) {
-  console.error("FAIL: Pitfall expected effect text mismatch.");
-  process.exit(1);
-}
-
-// Mock maps for floor transition validation
-const mapB2 = generateRandomMap(2, null, "TEST_SEED");
-state.maps = [mapB1.grid, mapB2.grid, null, null, null];
-state.visitedMaps = [
-  Array(mapB1.grid.length).fill().map(() => Array(mapB1.grid[0].length).fill(false)),
-  Array(mapB2.grid.length).fill().map(() => Array(mapB2.grid[0].length).fill(false)),
-  null, null, null
-];
-state.currentRun = { steps: 0, pitfallsFallen: 0, trapsTriggered: 0, floorsVisited: [1], deepestFloor: 1 };
-state.transitioning = false;
-
-// Trigger pitfall (forces transition to B2)
-console.log("- Triggering pitfall...");
-triggerPitfall(pitfallTrap, false, false);
-
-if (!state.transitioning) {
-  console.error("FAIL: state.transitioning should be true immediately after triggering pitfall.");
-  process.exit(1);
-}
-
-// Wait for transition timer (1200ms)
-await new Promise(resolve => setTimeout(resolve, 1300));
-
-console.log(`- State floor after fall: ${state.floor} (Expected: 2)`);
-if (state.floor !== 2) {
-  console.error("FAIL: Party did not drop to floor 2.");
-  process.exit(1);
-}
-
-console.log(`- Fighter HP after fall damage: ${state.party[0].hp}/20`);
-if (state.party[0].hp >= 20) {
-  console.error("FAIL: No fall damage applied.");
-  process.exit(1);
-}
-
-console.log(`- pitfallsFallen count: ${state.currentRun.pitfallsFallen} (Expected: 1)`);
-if (state.currentRun.pitfallsFallen !== 1) {
-  console.error("FAIL: pitfallsFallen count not incremented.");
-  process.exit(1);
-}
-
-console.log("PASS: Pitfall trap behavior verified.");
-
-console.log("\n=== ALL DUNGEON TRAP TESTS PASSED SUCCESSFULLY! ===");
+console.log("\n=== ALL TRAP TESTS PASSED ===");

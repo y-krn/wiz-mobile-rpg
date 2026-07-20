@@ -29,49 +29,6 @@ function getBestDisarmer() {
     }, null)?.char || null;
 }
 
-// 罠設定値
-export const weakenedModifiers = {
-  triggerRate: 0.5,
-  effectPower: 0.5,
-  difficulty: -20,
-};
-
-export const trapPersistenceByDepth = {
-  shallow: {
-    keepWeakenedRate: 0.85,
-    reactivateRate: 0.05,
-    permanentDisarmCount: 2,
-  },
-  middle: {
-    keepWeakenedRate: 0.6,
-    reactivateRate: 0.2,
-    permanentDisarmCount: 3,
-  },
-  deep: {
-    keepWeakenedRate: 0.35,
-    reactivateRate: 0.4,
-    permanentDisarmCount: Infinity,
-  },
-};
-
-export function getDepthCategory(floor) {
-  if (floor <= 2) return "shallow";
-  if (floor <= 4) return "middle";
-  return "deep";
-}
-
-function addDisarmPersistenceLog(trap) {
-  const depth = getDepthCategory(state.floor);
-  const nextWeakenLevel = (trap.weakenLevel || 0) + 1;
-  if (nextWeakenLevel >= trapPersistenceByDepth[depth].permanentDisarmCount) {
-    addLog(trap.type === "pitfall" ? "落とし穴を完全に塞いだ！" : "罠を完全に破壊した！");
-  } else {
-    addLog(trap.type === "pitfall"
-      ? "落とし穴は崩れやすくなったが残っている。"
-      : "罠は弱体化して残るかもしれない。");
-  }
-}
-
 function recordTrapCodex(type, field) {
   const record = state.codex?.events?.traps?.[type];
   if (!record) return;
@@ -82,7 +39,7 @@ function recordTrapCodex(type, field) {
 }
 
 export function calculateSuccessRate(trap) {
-  let baseRate = 50;
+  const baseRate = 50;
   let disarmerSkill = 0;
   
   // 生存しているパーティメンバーから最高スキル値を取得
@@ -95,12 +52,7 @@ export function calculateSuccessRate(trap) {
     disarmerSkill = disarmer.luk + disarmer.agi + bonus;
   }
 
-  let weakenedBonus = 0;
-  if (trap.state === "weakened") {
-    weakenedBonus = 20; // 解除難度低下(-20)を確率ボーナス(+20%)として表現
-  }
-
-  let rate = baseRate + disarmerSkill - trap.difficulty - (state.floor - 1) * 5 + weakenedBonus;
+  let rate = baseRate + disarmerSkill - trap.difficulty - (state.floor - 1) * 5;
   if (trap.type === "pitfall") {
     rate += 20; // 「縁を伝う」は成功率高なので+20%のボーナス
   }
@@ -108,19 +60,15 @@ export function calculateSuccessRate(trap) {
 }
 
 export function getExpectedEffectText(trap) {
-  let powerText = "";
-  if (trap.state === "weakened") {
-    powerText = " (弱体化)";
-  }
   switch (trap.type) {
     case "damage":
-      return `HPダメージ${powerText}`;
+      return "HPダメージ";
     case "mpDrain":
-      return `MP減少${powerText}`;
+      return "MP減少";
     case "alarm":
-      return `警報発報(次回敵強化/遭遇率上昇)${powerText}`;
+      return "警報発報(次回敵強化/遭遇率上昇)";
     case "pitfall":
-      return `地下${state.floor + 1}階へ落下${powerText}`;
+      return `地下${state.floor + 1}階へ落下`;
     default:
       return "不明な効果";
   }
@@ -128,7 +76,7 @@ export function getExpectedEffectText(trap) {
 
 function getTrapRevealLevel(trap) {
   if (Number.isFinite(trap.traceReadLevel)) return trap.traceReadLevel;
-  if (trap.state === "discovered" || trap.state === "weakened") return 3;
+  if (trap.state === "discovered") return 3;
   return 0;
 }
 
@@ -202,15 +150,13 @@ export function handleTrapStepCheck(trap) {
       }
     }
   } else {
-    // discovered / weakened
+    // discovered
     startTrapEncounter(trap);
     return true;
   }
 }
 
-export function triggerPitfall(trap, isWeakenedOverride = null, isPartialSuccess = false) {
-  const isWeakened = isWeakenedOverride !== null ? isWeakenedOverride : (trap.state === "weakened");
-  
+export function triggerPitfall(trap, isPartialSuccess = false) {
   const nextFloor = state.floor + 1;
   const nextMap = state.maps[nextFloor - 1];
   
@@ -261,9 +207,7 @@ export function triggerPitfall(trap, isWeakenedOverride = null, isPartialSuccess
   }
 
   const onLanding = () => {
-    let powerMultiplier = 1.0;
-    if (isWeakened) powerMultiplier *= weakenedModifiers.effectPower;
-    if (isPartialSuccess) powerMultiplier *= 0.5;
+    let powerMultiplier = isPartialSuccess ? 0.5 : 1;
     
     const hasScout = state.party.some(c => ["Thief", "Ninja"].includes(c.class) && c.hp > 0);
     if (hasScout) {
@@ -310,12 +254,8 @@ export function triggerPitfall(trap, isWeakenedOverride = null, isPartialSuccess
   descendToFloor(nextFloor, landingCoord, true, onLanding);
 }
 
-export function triggerTrap(trap, isWeakenedOverride = null, isPartialSuccess = false) {
-  const isWeakened = isWeakenedOverride !== null ? isWeakenedOverride : (trap.state === "weakened");
-  
-  let powerMultiplier = 1.0;
-  if (isWeakened) powerMultiplier *= weakenedModifiers.effectPower; // 0.5
-  if (isPartialSuccess) powerMultiplier *= 0.5;
+export function triggerTrap(trap, isPartialSuccess = false) {
+  let powerMultiplier = isPartialSuccess ? 0.5 : 1;
 
   // 探索能力に応じた失敗時の被害軽減（ThiefやNinjaが生存していると30%軽減）
   const hasScout = state.party.some(c => ["Thief", "Ninja"].includes(c.class) && c.hp > 0);
@@ -375,7 +315,7 @@ export function triggerTrap(trap, isWeakenedOverride = null, isPartialSuccess = 
     });
   } else if (trap.type === "alarm") {
     state.alarmActive = true;
-    state.alarmWeakened = isWeakened || isPartialSuccess;
+    state.alarmWeakened = isPartialSuccess;
     if (!state.noiseEvents) state.noiseEvents = [];
     state.noiseEvents.push({ floor: state.floor, x: state.x, y: state.y, ttl: 4 });
     addLog("【⚠️警報】けたたましい警報音が響き渡った！");
@@ -438,7 +378,7 @@ export function handleTrapAction(action) {
         updateUI();
       } else {
         addLog("【跳躍失敗】向こう岸に届かず、奈落へと落下した！");
-        triggerPitfall(trap, trap.state === "weakened", false);
+        triggerPitfall(trap, false);
         trap.state = "disabled";
         state.gameState = "explore";
         state.activeTrapState = null;
@@ -447,7 +387,7 @@ export function handleTrapAction(action) {
     }
 
     addLog("罠を顧みず、強引に駆け抜けた！");
-    triggerTrap(trap, false, false);
+    triggerTrap(trap, false);
     trap.state = "disabled";
     
     state.gameState = "explore";
@@ -464,7 +404,6 @@ export function handleTrapAction(action) {
         addLog("[味方] 【回避成功】慎重に縁を伝い、落とし穴を渡りきった！");
         playSound("item");
         trap.state = "disabled";
-        addDisarmPersistenceLog(trap);
         if (state.currentRun) {
           state.currentRun.steps += 3;
           if (!state.currentRun.floorSteps) state.currentRun.floorSteps = {};
@@ -479,13 +418,13 @@ export function handleTrapAction(action) {
         updateUI();
       } else if (roll < successRate + 15) {
         addLog("[味方] 【部分成功】足が滑った！しかし身を乗り出して衝撃を緩和した！");
-        triggerPitfall(trap, trap.state === "weakened", true);
+        triggerPitfall(trap, true);
         trap.state = "disabled";
         state.gameState = "explore";
         state.activeTrapState = null;
       } else {
         addLog("【失敗】バランスを崩して落とし穴に真っ逆さまに落ちてしまった！");
-        triggerPitfall(trap, trap.state === "weakened", false);
+        triggerPitfall(trap, false);
         trap.state = "disabled";
         state.gameState = "explore";
         state.activeTrapState = null;
@@ -497,7 +436,6 @@ export function handleTrapAction(action) {
       addLog("[味方] 【解除成功】罠の機能を完全に停止した！");
       playSound("item");
       trap.state = "disabled";
-      addDisarmPersistenceLog(trap);
       if (state.currentRun) {
         state.currentRun.trapsDisarmed++;
       }
@@ -509,7 +447,7 @@ export function handleTrapAction(action) {
       updateUI();
     } else if (roll < successRate + 15) {
       addLog("[味方] 【部分成功】完全に解除できなかったが、被害を最小限に抑えた！");
-      triggerTrap(trap, trap.state === "weakened", true);
+      triggerTrap(trap, true);
       trap.state = "discovered";
       state.gameState = "explore";
       state.activeTrapState = null;
@@ -517,7 +455,7 @@ export function handleTrapAction(action) {
       updateUI();
     } else {
       addLog("【解除失敗】仕掛けが暴発した！");
-      triggerTrap(trap, trap.state === "weakened", false);
+      triggerTrap(trap, false);
       trap.state = "disabled";
       if (state.currentRun) {
         state.currentRun.trapsTriggered++;

@@ -1011,9 +1011,8 @@ export class DungeonRenderer {
 
         if (cell.trap && cell.trap.state !== "hidden") {
           const isDisabled = cell.trap.state === "disabled";
-          const isWeakened = cell.trap.state === "weakened";
-          const markerColor = isDisabled ? "#2fd66d" : (isWeakened ? "#ffb300" : "#ff3b30");
-          const markerBg = isDisabled ? "rgba(47, 214, 109, 0.22)" : (isWeakened ? "rgba(255, 179, 0, 0.24)" : "rgba(255, 59, 48, 0.24)");
+          const markerColor = isDisabled ? "#2fd66d" : "#ff3b30";
+          const markerBg = isDisabled ? "rgba(47, 214, 109, 0.22)" : "rgba(255, 59, 48, 0.24)";
 
           ctx.fillStyle = markerBg;
           ctx.beginPath();

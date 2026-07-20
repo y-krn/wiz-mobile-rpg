@@ -28,7 +28,7 @@ export function isFloorVisited(stateInstance, floor) {
 }
 
 export function revealFloor(stateInstance, floor) {
-  stateInstance.dungeonMemory ||= { traps: {}, mapFragments: {} };
+  stateInstance.dungeonMemory ||= { mapFragments: {}, visitedFloors: [1] };
   stateInstance.dungeonMemory.visitedFloors ||= [];
   const value = Number(floor);
   if (stateInstance.dungeonMemory.visitedFloors.includes(value)) return false;

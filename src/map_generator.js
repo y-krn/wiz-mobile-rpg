@@ -1654,8 +1654,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       position: { x: spot.x, y: spot.y },
       type: trapType,
       state: "hidden",
-      difficulty: difficulty,
-      weakenLevel: 0
+      difficulty: difficulty
     };
   }
 
