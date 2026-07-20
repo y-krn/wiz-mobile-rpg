@@ -5,7 +5,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     id: "shallow",
     minDepth: 1,
     maxDepth: 10,
-    size: Object.freeze({ width: 18, height: 18 }),
+    size: Object.freeze({ width: 24, height: 24 }),
     roomCountRange: Object.freeze([2, 3]),
     mazeProfile: Object.freeze({
       straightBias: Object.freeze([0.35, 0.60]),
@@ -22,7 +22,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     id: "middle",
     minDepth: 11,
     maxDepth: 20,
-    size: Object.freeze({ width: 21, height: 21 }),
+    size: Object.freeze({ width: 27, height: 27 }),
     roomCountRange: Object.freeze([3, 4]),
     mazeProfile: Object.freeze({
       straightBias: Object.freeze([0.20, 0.50]),

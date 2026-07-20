@@ -98,7 +98,15 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
   let deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
 
   while (deadEnds.length > target) {
-    const leaf = deadEnds[Math.floor(rng() * deadEnds.length)];
+    const prunableDeadEnds = deadEnds.filter(leaf => {
+      const openDir = grid[leaf.y][leaf.x].walls.findIndex(wall => !wall);
+      const neighborX = leaf.x + DX[openDir];
+      const neighborY = leaf.y + DY[openDir];
+      const closesStartEdge = neighborX === start.x && neighborY === start.y;
+      return !closesStartEdge || grid[start.y][start.x].walls.filter(wall => !wall).length > 2;
+    });
+    if (prunableDeadEnds.length === 0) break;
+    const leaf = prunableDeadEnds[Math.floor(rng() * prunableDeadEnds.length)];
     const openDir = leaf && grid[leaf.y][leaf.x].walls.findIndex(wall => !wall);
     if (openDir === -1) break;
     closeWall(grid, leaf.x, leaf.y, openDir);
