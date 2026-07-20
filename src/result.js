@@ -4,6 +4,7 @@ import { updateUI } from "./ui.js";
 import { getDepthCategory, trapPersistenceByDepth } from "./systems/traps.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
 import { updateRunQuests } from "./systems/run_quests.js";
+import { findMapCellByType } from "./state/warden_gates.js";
 
 export function persistDungeonTraps() {
   if (!state.dungeonMemory) {
@@ -200,8 +201,9 @@ export function triggerRunResult(reason) {
   state.runHistory.unshift(runSummary);
   state.runHistory = state.runHistory.slice(0, 20);
 
-  state.x = START_X;
-  state.y = START_Y;
+  const start = findMapCellByType(state.maps?.[0], "stairs-up") || { x: START_X, y: START_Y };
+  state.x = start.x;
+  state.y = start.y;
   state.dir = DIR_N;
   state.floor = 1;
   state.gameState = "result";

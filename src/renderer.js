@@ -956,16 +956,15 @@ export class DungeonRenderer {
         this.drawOneWayMiniMapMarkers(ctx, screenX, screenY, cellS, cell, isLightOnly);
 
         // Special cell colors
-        if (cell.type === "stairs-up" || cell.type === "stairs-down") {
-          const isUp = cell.type === "stairs-up";
-          const fill = isUp ? "0, 183, 255" : "255, 179, 0";
-          const stroke = isUp ? "#00b7ff" : "#ffb300";
+        if (cell.type === "stairs-down") {
+          const fill = "255, 179, 0";
+          const stroke = "#ffb300";
           ctx.fillStyle = isLightOnly ? `rgba(${fill}, 0.2)` : `rgba(${fill}, 0.5)`;
           ctx.fillRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
           ctx.strokeStyle = isLightOnly ? `rgba(${fill}, 0.4)` : stroke;
           ctx.lineWidth = 1;
           ctx.strokeRect(screenX + 1, screenY + 1, cellS - 2, cellS - 2);
-          this.drawStairMiniMapIcon(ctx, screenX, screenY, cellS, isUp, stroke);
+          this.drawStairMiniMapIcon(ctx, screenX, screenY, cellS, false, stroke);
         }
 
         if (cell.trap && cell.trap.state !== "hidden") {
@@ -1003,10 +1002,7 @@ export class DungeonRenderer {
         // Aura range is within 4 steps
         if (dist > 4) continue;
 
-        // 上り階段は探索済みのときだけ気配グローを出す（落とし穴でランダム着地した際、
-        // 未探索の上り階段が距離4以内グローで露出してしまう問題を防ぐ）。
-        const hasStairs = cell.type === "stairs-down" ||
-          (cell.type === "stairs-up" && state.visitedMap?.[y]?.[x]);
+        const hasStairs = cell.type === "stairs-down";
         const hasEvent = cell.event === EVENT_TYPES.CHEST || 
                           cell.event === EVENT_TYPES.SPRING || 
                           cell.event === EVENT_TYPES.CAMP ||
@@ -1023,8 +1019,7 @@ export class DungeonRenderer {
 
         ctx.save();
         if (hasStairs) {
-          const isUp = cell.type === "stairs-up";
-          ctx.fillStyle = isUp ? "rgba(0, 183, 255, 0.12)" : "rgba(255, 179, 0, 0.12)";
+          ctx.fillStyle = "rgba(255, 179, 0, 0.12)";
           ctx.beginPath();
           ctx.arc(screenX + cellS / 2, screenY + cellS / 2, cellS * 0.9, 0, Math.PI * 2);
           ctx.fill();

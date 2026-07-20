@@ -1,4 +1,5 @@
 import { START_X, START_Y, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
+import { findMapCellByType } from "./warden_gates.js";
 
 export function generateRandomSeed() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -271,14 +272,7 @@ export function createSoloCharacter(className) {
 
 export function findSuitableRoamingMonsterStart(mapData) {
   const grid = mapData.grid;
-  let stairsUp = { x: START_X, y: START_Y };
-  for (let y = 0; y < MAP_HEIGHT; y++) {
-    for (let x = 0; x < MAP_WIDTH; x++) {
-      if (grid[y] && grid[y][x] && grid[y][x].type === "stairs-up") {
-        stairsUp = { x, y };
-      }
-    }
-  }
+  const stairsUp = findMapCellByType(grid, "stairs-up") || { x: START_X, y: START_Y };
   const stairsDown = mapData.stairsDownCoord || { x: -1, y: -1 };
   const boss = mapData.bossCoord || { x: -1, y: -1 };
   const candidates = [];
