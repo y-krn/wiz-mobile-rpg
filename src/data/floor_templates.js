@@ -14,7 +14,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     gimmickDensity: Object.freeze({
       oneWayPassages: 1,
       secretDoors: Object.freeze({ shortcut: 1, room: 1 }),
-      traps: 5
+      traps: 7
     }),
     criticalPathRange: Object.freeze([20, 30])
   }),
@@ -31,7 +31,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     gimmickDensity: Object.freeze({
       oneWayPassages: 2,
       secretDoors: Object.freeze({ shortcut: 2, room: 1 }),
-      traps: 7
+      traps: 9
     }),
     criticalPathRange: Object.freeze([20, 30])
   }),
@@ -48,7 +48,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     gimmickDensity: Object.freeze({
       oneWayPassages: 3,
       secretDoors: Object.freeze({ shortcut: 2, room: 2 }),
-      traps: 9
+      traps: 11
     }),
     criticalPathRange: Object.freeze([20, 30])
   })

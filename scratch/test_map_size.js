@@ -7,6 +7,11 @@ const EXPECTED_TEMPLATE_SIZES = Object.freeze({
   middle: 27,
   deep: 30
 });
+const EXPECTED_TEMPLATE_TRAPS = Object.freeze({
+  shallow: 7,
+  middle: 9,
+  deep: 11
+});
 const SAMPLE_FLOORS = [1, 5, 10, 11, 15, 20, 21, 25, 30];
 const failures = [];
 
@@ -28,6 +33,12 @@ check(
 for (const floor of SAMPLE_FLOORS) {
   const template = getFloorTemplate(floor);
   const expected = EXPECTED_TEMPLATE_SIZES[template.id];
+  const expectedTraps = EXPECTED_TEMPLATE_TRAPS[template.id];
+  check(
+    template.gimmickDensity.traps === expectedTraps,
+    `floor ${floor} (${template.id}) traps expected ${expectedTraps} `
+      + `but got ${template.gimmickDensity.traps}`
+  );
   check(
     template.size.width === expected && template.size.height === expected,
     `floor ${floor} (${template.id}) size expected ${expected}x${expected} `
@@ -51,4 +62,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`[PASS] map size: ${SAMPLE_FLOORS.length} floors match template sizes 24/27/30.`);
+console.log(
+  `[PASS] map size and trap density: ${SAMPLE_FLOORS.length} floors match `
+    + `sizes 24/27/30 and traps 7/9/11.`
+);
