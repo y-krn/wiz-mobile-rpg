@@ -7,7 +7,7 @@ globalThis.document = {
 };
 
 const assert = (await import("assert")).default;
-const { state } = await import("../src/state.js");
+const { markMapChanged, markMapCellVisited, state } = await import("../src/state.js");
 const { menuContext } = await import("../src/navigation.js");
 const { DungeonRenderer } = await import("../src/renderer.js");
 
@@ -52,6 +52,7 @@ state.party = [];
 state.lightTurns = 0;
 state.lightPower = "";
 state.dumapicTurns = 0;
+state.mapRevision = 0;
 menuContext.type = "";
 menuContext.prevGameState = null;
 
@@ -59,32 +60,43 @@ const idleSignature = renderer.getDrawSignature();
 check(idleSignature === renderer.getDrawSignature(), "静止状態の描画シグネチャは安定");
 check(!renderer.isAnimating(), "通常探索の静止状態は非アニメーション");
 
-state.visitedMap[0][1] = true;
+const visitedRevision = state.mapRevision;
+markMapCellVisited(1, 0);
 const visitedSignature = renderer.getDrawSignature();
 check(visitedSignature !== idleSignature, "同一座標で探索済みセル更新を検知");
+check(state.mapRevision === visitedRevision + 1, "探索済みセル更新でmapRevision増加");
 
 state.map[0][0].walls[0] = false;
+markMapChanged();
 const secretDoorSignature = renderer.getDrawSignature();
 check(secretDoorSignature !== visitedSignature, "同一座標で隠し扉開通を検知");
 
 state.map[0][0].event = "chest";
+markMapChanged();
 const chestSignature = renderer.getDrawSignature();
 state.map[0][0].event = null;
+markMapChanged();
 check(renderer.getDrawSignature() !== chestSignature, "同一座標で宝箱開封済み化を検知");
 
 state.map[0][0].trap = { state: "hidden", traceReadLevel: 0 };
+markMapChanged();
 const hiddenTrapSignature = renderer.getDrawSignature();
 state.map[0][0].trap.state = "discovered";
+markMapChanged();
 check(renderer.getDrawSignature() !== hiddenTrapSignature, "罠発見状態の更新を検知");
 
 state.map[0][0].sealedGate[0] = { open: false };
+markMapChanged();
 const closedGateSignature = renderer.getDrawSignature();
 state.map[0][0].sealedGate[0].open = true;
+markMapChanged();
 check(renderer.getDrawSignature() !== closedGateSignature, "封印門の開放を検知");
 
 state.dungeonMemory.mapFragments[1] = ["1,1"];
+markMapChanged();
 const fragmentSignature = renderer.getDrawSignature();
 state.dungeonMemory.mapFragments[1].push("0,1");
+markMapChanged();
 check(renderer.getDrawSignature() !== fragmentSignature, "マップ断片の更新を検知");
 
 state.combatState = { monsters: [{ name: "Biter", level: 1, hp: 10, maxHp: 10 }] };
@@ -97,11 +109,14 @@ state.gameState = "explore";
 state.combatState = null;
 state.map[0][0].event = null;
 renderer.damageTexts = [{ age: 0, maxAge: 1 }];
-const animatedSignature = renderer.getDrawSignature();
-check(renderer.isAnimating(), "ダメージテキスト表示中は毎フレーム描画");
+renderer.lastSignature = renderer.getDrawSignature();
+const animatedVisibility = renderer.getSceneVisibility();
+check(renderer.isAnimating(animatedVisibility), "ダメージテキスト表示中は毎フレーム描画");
+if (renderer.isAnimating(animatedVisibility)) renderer.lastSignature = null;
+check(renderer.lastSignature === null, "アニメーション中はlastSignatureをリセット");
 renderer.update(16);
 const settledSignature = renderer.getDrawSignature();
-check(animatedSignature !== settledSignature, "アニメーション終了時の最終クリア描画を要求");
+check(settledSignature !== renderer.lastSignature, "アニメーション終了後はnull signatureから再描画");
 check(!renderer.isAnimating(), "ダメージテキスト終了後は静止状態へ復帰");
 
 state.floor = 5;

@@ -1,4 +1,4 @@
-import { state, addLog } from "./state_core.js";
+import { markMapChanged, markMapCellVisited, state, addLog } from "./state_core.js";
 import { Sentry } from "../sentry.js";
 import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 import { createSavePayload, applySavePayload } from "./save_payload.js";
@@ -57,7 +57,7 @@ export function initNewGame({ preserveSeed = false } = {}) {
   ];
 
   // Mark initial coordinate as visited
-  state.visitedMap[state.y][state.x] = true;
+  markMapCellVisited(state.x, state.y);
   state.lightTurns = 0;
   state.lightPower = "";
   state.repelTurns = 0;
@@ -102,6 +102,7 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.metaMaterials = {};
   state.workshop = { ranks: {} };
   state.logs = ["クラスを選び、ひとりで迷宮へ潜ろう。"];
+  markMapChanged();
   saveAutosave();
 }
 

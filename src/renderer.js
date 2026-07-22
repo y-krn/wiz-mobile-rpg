@@ -83,8 +83,8 @@ export class DungeonRenderer {
     return { showTownBackground, showCombat, showChest, showEventScene };
   }
 
-  getDrawSignature() {
-    const { showTownBackground } = this.getSceneVisibility();
+  getDrawSignature(sceneVisibility = this.getSceneVisibility()) {
+    const { showTownBackground } = sceneVisibility;
     const signature = [
       state.gameState,
       state.floor,
@@ -96,21 +96,11 @@ export class DungeonRenderer {
       menuContext.prevGameState,
       Boolean(state.combatState),
       Boolean(state.chestState),
-      this.isAnimating()
+      state.mapRevision
     ];
 
-    if (showTownBackground) return JSON.stringify(signature);
+    if (showTownBackground) return signature.join("|");
 
-    const mapCells = state.map.map((row, y) => row.map((cell, x) => [
-      Boolean(state.visitedMap?.[y]?.[x]),
-      cell.walls,
-      cell.blockEnter,
-      cell.sealedGate?.map(gate => gate ? Boolean(gate.open) : null),
-      cell.type,
-      cell.event,
-      cell.trap?.state,
-      cell.trap?.traceReadLevel
-    ]));
     const combatMonsters = state.combatState?.monsters?.map(monster => [
       monster.name,
       monster.level,
@@ -128,44 +118,49 @@ export class DungeonRenderer {
       monster.summonQueued,
       monster.snipeQueued,
       monster.snipeTargetIdx
-    ]);
+    ].join(",")).join(";") || "";
     const roamingMonsters = state.roamingMonsters?.map(monster => [
       monster.floor,
       monster.x,
       monster.y,
       monster.kind,
       monster.perception
-    ]);
+    ].join(",")).join(";") || "";
 
     signature.push(
-      mapCells,
       state.dumapicTurns > 0,
       state.lightTurns > 0,
       state.lightPower,
-      state.dungeonMemory?.mapFragments?.[state.floor] || [],
       roamingMonsters,
       getPartyMaxAffix(state.party, "arcaneSense"),
       combatMonsters,
-      state.party.map(char => char?.name)
+      state.party.map(char => char?.name).join(",")
     );
-    return JSON.stringify(signature);
+    return signature.join("|");
   }
 
-  isAnimating() {
+  isAnimating(sceneVisibility = this.getSceneVisibility()) {
     if (this.shakeTime > 0 || this.flashTime > 0 || this.damageTexts.length > 0) return true;
 
-    const { showTownBackground, showCombat, showChest, showEventScene } = this.getSceneVisibility();
+    const { showTownBackground, showCombat, showChest, showEventScene } = sceneVisibility;
     if (showTownBackground) return false;
 
     // These layers use Date.now() for visual pulses and must keep redrawing.
     if (state.floor === 5) return true;
     if (showCombat || showChest || showEventScene) return false;
 
-    const hasPulsingEvent = state.map.some((row, y) => row.some((cell, x) =>
-      Math.abs(x - state.x) + Math.abs(y - state.y) <= 4
-      && (cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS)
-    ));
-    if (hasPulsingEvent) return true;
+    const minY = Math.max(0, state.y - 4);
+    const maxY = Math.min(state.map.length - 1, state.y + 4);
+    for (let y = minY; y <= maxY; y++) {
+      const row = state.map[y];
+      const minX = Math.max(0, state.x - 4);
+      const maxX = Math.min(row.length - 1, state.x + 4);
+      for (let x = minX; x <= maxX; x++) {
+        if (Math.abs(x - state.x) + Math.abs(y - state.y) > 4) continue;
+        const event = row[x]?.event;
+        if (event === EVENT_TYPES.BOSS || event === EVENT_TYPES.MIDBOSS) return true;
+      }
+    }
 
     const hasArcaneSense = getPartyMaxAffix(state.party, "arcaneSense") >= 1;
     return Boolean(state.roamingMonsters?.some(monster => {
@@ -176,7 +171,7 @@ export class DungeonRenderer {
     }));
   }
 
-  draw() {
+  draw(sceneVisibility = this.getSceneVisibility()) {
     if (!this.ctx) return;
     const ctx = this.ctx;
 
@@ -192,7 +187,7 @@ export class DungeonRenderer {
     ctx.fillStyle = "#0c0c0e";
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    const { showTownBackground, showCombat, showChest, showEventScene } = this.getSceneVisibility();
+    const { showTownBackground, showCombat, showChest, showEventScene } = sceneVisibility;
     if (showTownBackground) {
       this.drawTownBackground(ctx);
     } else {

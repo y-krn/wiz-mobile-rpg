@@ -59,10 +59,16 @@ function gameLoop(time) {
 
   if (renderer) {
     renderer.update(dt);
-    const signature = renderer.getDrawSignature();
-    if (renderer.isAnimating() || signature !== renderer.lastSignature) {
-      renderer.draw();
-      renderer.lastSignature = signature;
+    const sceneVisibility = renderer.getSceneVisibility();
+    if (renderer.isAnimating(sceneVisibility)) {
+      renderer.draw(sceneVisibility);
+      renderer.lastSignature = null;
+    } else {
+      const signature = renderer.getDrawSignature(sceneVisibility);
+      if (signature !== renderer.lastSignature) {
+        renderer.draw(sceneVisibility);
+        renderer.lastSignature = signature;
+      }
     }
   }
 
