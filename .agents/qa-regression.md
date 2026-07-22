@@ -12,10 +12,10 @@ game flows.
 - `playwright.config.js`
 - `package.json`
 - Facade modules such as `src/data.js`, `src/state.js`, `src/combat.js`,
-  `src/combat_logic.js`, `src/menu.js`, `src/shop.js`, and `src/ui.js`
+  `src/combat_logic.js`, `src/menu.js`, and `src/ui.js`
 - Concrete modules under `src/data/*`, `src/rules/*`, `src/systems/*`,
   `src/state/*`, `src/combat_logic/*`, `src/combat_ui/*`, `src/menu/*`,
-  `src/shop/*`, and `src/ui/*`
+  and `src/ui/*`
 - Any source files touched by the change under review
 
 ## Initial File Routing

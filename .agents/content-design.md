@@ -15,11 +15,9 @@ implementation cost.
 - `src/ui/*`
 - `src/menu.js`
 - `src/menu/*`
-- `src/shop.js`
-- `src/shop/*`
 - `src/combat_ui/*`
 - User-facing text in source files
-- Enemy, item, spell, contract, class, reward, and event proposals
+- Enemy, item, spell, run quest, class, reward, and event proposals
 
 ## Initial File Routing
 
