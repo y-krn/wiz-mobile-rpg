@@ -456,40 +456,6 @@ function getDirectedReachableCellKeys(grid, start) {
   return seen;
 }
 
-function isSameUndirectedEdge(x, y, dir, edge) {
-  return (x === edge.x && y === edge.y && dir === edge.dir) ||
-    (x === edge.nx && y === edge.ny && dir === OPPOSITE_DIR[edge.dir]);
-}
-
-function getDetourDistanceWithoutEdge(grid, edge) {
-  const start = { x: edge.x, y: edge.y };
-  const targetKey = `${edge.nx},${edge.ny}`;
-  const queue = [{ ...start, dist: 0 }];
-  const seen = new Set([`${start.x},${start.y}`]);
-
-  for (const pos of queue) {
-    if (`${pos.x},${pos.y}` === targetKey) return pos.dist;
-    const cell = grid[pos.y]?.[pos.x];
-    if (!cell) continue;
-
-    for (let dir = 0; dir < 4; dir++) {
-      if (cell.walls[dir] || isSameUndirectedEdge(pos.x, pos.y, dir, edge)) continue;
-
-      const nx = pos.x + DX[dir];
-      const ny = pos.y + DY[dir];
-      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
-
-      const key = `${nx},${ny}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        queue.push({ x: nx, y: ny, dist: pos.dist + 1 });
-      }
-    }
-  }
-
-  return Infinity;
-}
-
 function getDirectedDistance(grid, start, target) {
   const targetKey = `${target.x},${target.y}`;
   const queue = [{ ...start, dist: 0 }];
@@ -518,8 +484,80 @@ function getDirectedDistance(grid, start, target) {
   return Infinity;
 }
 
+function getDirectedDistanceMap(grid, start) {
+  const queue = [{ ...start, dist: 0 }];
+  const distances = new Map([[`${start.x},${start.y}`, 0]]);
+
+  for (const pos of queue) {
+    const cell = grid[pos.y]?.[pos.x];
+    if (!cell) continue;
+
+    for (let dir = 0; dir < 4; dir++) {
+      if (cell.walls[dir] || !canEnterFrom(grid, pos.x, pos.y, dir)) continue;
+
+      const nx = pos.x + DX[dir];
+      const ny = pos.y + DY[dir];
+      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
+
+      const key = `${nx},${ny}`;
+      if (!distances.has(key)) {
+        const distance = pos.dist + 1;
+        distances.set(key, distance);
+        queue.push({ x: nx, y: ny, dist: distance });
+      }
+    }
+  }
+
+  return distances;
+}
+
+function getUndirectedEdgeKey(x, y, nx, ny) {
+  return y < ny || (y === ny && x < nx)
+    ? `${x},${y}:${nx},${ny}`
+    : `${nx},${ny}:${x},${y}`;
+}
+
 function getNonBridgePassageEdges(grid) {
   const edges = [];
+  const discovery = new Map();
+  const lowLink = new Map();
+  const bridges = new Set();
+  let nextDiscovery = 0;
+
+  function visit(x, y, parentKey = null) {
+    const key = `${x},${y}`;
+    const discoveredAt = nextDiscovery++;
+    discovery.set(key, discoveredAt);
+    lowLink.set(key, discoveredAt);
+
+    const cell = grid[y][x];
+    for (let dir = 0; dir < 4; dir++) {
+      if (cell.walls[dir]) continue;
+      const nx = x + DX[dir];
+      const ny = y + DY[dir];
+      if (!isPassageCell(grid, nx, ny)) continue;
+
+      const neighborKey = `${nx},${ny}`;
+      if (neighborKey === parentKey) continue;
+
+      if (!discovery.has(neighborKey)) {
+        visit(nx, ny, key);
+        lowLink.set(key, Math.min(lowLink.get(key), lowLink.get(neighborKey)));
+        if (lowLink.get(neighborKey) > discoveredAt) {
+          bridges.add(getUndirectedEdgeKey(x, y, nx, ny));
+        }
+      } else {
+        lowLink.set(key, Math.min(lowLink.get(key), discovery.get(neighborKey)));
+      }
+    }
+  }
+
+  for (let y = 0; y < getMapHeight(grid); y++) {
+    for (let x = 0; x < getMapWidth(grid); x++) {
+      const key = `${x},${y}`;
+      if (isPassageCell(grid, x, y) && !discovery.has(key)) visit(x, y);
+    }
+  }
 
   for (let y = 1; y < getMapHeight(grid) - 1; y++) {
     for (let x = 1; x < getMapWidth(grid) - 1; x++) {
@@ -533,7 +571,7 @@ function getNonBridgePassageEdges(grid) {
         if (!isPassageCell(grid, nx, ny)) return;
 
         const edge = { x, y, nx, ny, dir };
-        if (getDetourDistanceWithoutEdge(grid, edge) < Infinity) edges.push(edge);
+        if (!bridges.has(getUndirectedEdgeKey(x, y, nx, ny))) edges.push(edge);
       });
     }
   }
@@ -904,7 +942,8 @@ function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng
 export function placeWardenGate(grid, floor, start, stairsDownCoord, rng = Math.random, candidateLimit = WARDEN_GATE_CANDIDATE_LIMIT) {
   if (!WARDEN_GATE_FLOORS.includes(floor) || !stairsDownCoord) return null;
 
-  const openedDistance = getDirectedDistance(grid, start, stairsDownCoord);
+  const startDistances = getDirectedDistanceMap(grid, start);
+  const openedDistance = startDistances.get(`${stairsDownCoord.x},${stairsDownCoord.y}`) ?? Infinity;
   if (!Number.isFinite(openedDistance)) return null;
   const minStartDistance = Math.max(5, Math.floor(openedDistance * 0.3));
   const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, null);
@@ -951,8 +990,8 @@ export function placeWardenGate(grid, floor, start, stairsDownCoord, rng = Math.
         requiredReachable = canReachAllRequired(grid, start, requiredKeys);
         shortcutDelta = candidateDistance - openedDistance;
         openWall(grid, edge.x, edge.y, edge.dir);
-        startToA = getDirectedDistance(grid, start, { x: edge.x, y: edge.y });
-        startToB = getDirectedDistance(grid, start, { x: edge.nx, y: edge.ny });
+        startToA = startDistances.get(`${edge.x},${edge.y}`) ?? Infinity;
+        startToB = startDistances.get(`${edge.nx},${edge.ny}`) ?? Infinity;
       }
       return {
         ...edge,
