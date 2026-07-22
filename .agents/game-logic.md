@@ -20,7 +20,6 @@ existing state and data structures.
 - `src/rules/*`
 - `src/systems/*`
 - `src/constants/*`
-- `src/contracts.js`
 - `src/chest.js`
 - `src/equip.js`
 - `src/spell_menu.js`
@@ -31,7 +30,7 @@ existing state and data structures.
 Before searching broadly, read `.agents/file-map.md`. Start with the mechanic
 module named by the request, then inspect the concrete module behind any facade
 (`src/state.js`, `src/data.js`, `src/combat.js`, `src/combat_logic.js`,
-`src/menu.js`, `src/shop.js`, or `src/ui.js`). Expand to state, data/rules,
+`src/menu.js`, or `src/ui.js`). Expand to state, data/rules,
 systems, and direct callers only when the state shape, formulas, random
 behavior, or flow wiring are affected.
 
@@ -57,7 +56,7 @@ behavior, or flow wiring are affected.
 - State mutations are localized and predictable.
 - Existing save data shape is preserved or migration risk is explicitly handled.
 - Random behavior is deterministic when seeded tests require it.
-- Combat, inventory, equipment, contract, and reward flows remain consistent.
+- Combat, inventory, equipment, run quest, and reward flows remain consistent.
 - Facade files remain thin and do not hide divergent behavior from direct
   module imports.
 - Shared rules such as inventory addition, equipment generation, and target

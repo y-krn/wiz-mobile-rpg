@@ -8,7 +8,7 @@ Use these checklists to review plans, diffs, tests, and content proposals. They
 do not drive direct implementation unless the user explicitly changes the
 operating mode.
 
-For progression, economy, materials, workshop, rewards, contracts, or B5F clear
+For progression, economy, materials, workshop, rewards, run quests, or B5F clear
 behavior, review against `.agents/game-design.md` in addition to the relevant
 checklist definition.
 
@@ -17,11 +17,10 @@ files listed for the request area. Expand only to direct imports, touched files,
 or verification targets.
 
 The codebase uses thin facade modules such as `src/data.js`, `src/state.js`,
-`src/combat.js`, `src/combat_logic.js`, `src/menu.js`, `src/shop.js`, and
-`src/ui.js`. When a review touches one of these files, inspect the concrete
-module under the matching directory (`src/data/*`, `src/state/*`,
-`src/combat_ui/*`, `src/combat_logic/*`, `src/menu/*`, `src/shop/*`, or
-`src/ui/*`) before drawing conclusions.
+`src/combat.js`, `src/combat_logic.js`, `src/menu.js`, and `src/ui.js`. When a
+review touches one of these files, inspect the concrete module under the
+matching directory (`src/data/*`, `src/state/*`, `src/combat_ui/*`,
+`src/combat_logic/*`, `src/menu/*`, or `src/ui/*`) before drawing conclusions.
 
 ## Operating Mode
 
@@ -49,7 +48,7 @@ module under the matching directory (`src/data/*`, `src/state/*`,
   information-disclosure principles, floor density and pacing targets,
   push-your-luck structure, and FOE/camp direction. Check any feature or
   balance proposal against it.
-- `game-design.md`: current progression/economy design for XP, gold, shops,
+- `game-design.md`: current progression/economy design for XP, gold, milestone merchants,
   materials, workshop, reward roles, and post-clear save behavior.
 - `game-design-equipment-builds.md`: the core/support affix system —
   16 cores, 47 supports, budget-based generation, inscriptions, polish, and
@@ -65,15 +64,15 @@ checklist covers.
 ## Scope Overlap Resolution
 
 Many source paths (for example `src/data/*`, `src/rules/*`, `src/systems/*`,
-`src/combat*`, `src/ui/*`, `src/menu/*`, `src/shop/*`, `src/contracts.js`,
-`src/chest.js`, `src/equip.js`, `src/spell_menu.js`) appear in more than one
+`src/combat*`, `src/ui/*`, `src/menu/*`, `src/chest.js`, `src/equip.js`,
+`src/spell_menu.js`) appear in more than one
 checklist `Scope`. A shared path does not mean every checklist applies. Select
 by the nature of the change, not the file alone:
 
 - Mechanics, state shape, or rule correctness -> `game-logic.md`.
 - Progression, economy, drops, difficulty, or reward pacing ->
   `balance-simulation.md`.
-- New or reworded player-facing content, items, enemies, spells, contracts, or
+- New or reworded player-facing content, items, enemies, spells, run quests, or
   display text -> `content-design.md`.
 - Layout, tap flow, one-handed reach, or CSS -> `mobile-ui-ux.md`.
 - Test, reproduction, or regression risk -> `qa-regression.md`.

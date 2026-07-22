@@ -13,15 +13,10 @@ transitions.
 - `src/menu/*`
 - `src/style.css`
 - `src/styles/*`
-- `src/shop.js`
-- `src/shop/*`
 - `src/combat.js`
 - `src/combat_ui/*`
-- `src/training.js`
 - `src/equip.js`
-- `src/camp.js`
 - `src/spell_menu.js`
-- `src/contracts.js`
 - `src/chest.js`
 - `src/result.js`
 - `tests/ui-ux.spec.js`
@@ -58,7 +53,7 @@ behavior may be relevant.
 - Current state, selected target, and next action are visible without guessing.
 - Lists, filters, tabs, and execution buttons form a continuous flow.
 - Overlay flows use one rendering path per choice surface. Do not duplicate the
-  same combat/shop/menu controls in both an overlay and `submenu-options`.
+  same combat/menu controls in both an overlay and `submenu-options`.
 - Combat action flows explicitly cover `combat_target`, `combat_spell`, and
   `combat_item`.
 - No horizontal scrolling or tiny tap targets are introduced.
