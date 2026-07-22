@@ -131,10 +131,11 @@
   /* Map absorbs spare vertical space (priority: buttons > party HUD > map > log).
      The canvas is object-fit:contain so the 400x260 render never distorts when
      the panel grows taller or shorter. Buttons and party HUD are fixed-height
-     and never shrink; the map takes what's left, capped so it can't crowd them. */
-  flex: 1 1 auto;
+     and never shrink; the map keeps the render aspect ratio and yields only
+     when the viewport is too short. */
+  flex: 0 1 auto;
+  aspect-ratio: 400 / 260;
   min-height: 132px;
-  max-height: 340px;
   background-color: var(--floor-bg, #000);
   position: relative;
   display: flex;
@@ -197,6 +198,8 @@
 }
 
 #game-container.result-mode #viewport-panel {
+  flex: 1 1 auto;
+  aspect-ratio: auto;
   max-height: none;
   min-height: 0;
 }
@@ -206,6 +209,8 @@
 }
 
 #game-container.event-mode #viewport-panel {
+  flex: 1 1 auto;
+  aspect-ratio: auto;
   max-height: 480px;
 }
 
@@ -376,7 +381,6 @@
 @media (max-height: 700px) {
   #viewport-panel {
     min-height: 104px;
-    max-height: 240px;
   }
 
   #log-panel {
