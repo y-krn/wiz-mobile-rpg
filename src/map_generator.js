@@ -181,7 +181,8 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
     deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
   }
 
-  while (deadEnds.length < target) {
+  const growTarget = Math.min(target, DEAD_END_TARGET_RANGE[0]);
+  while (deadEnds.length < growTarget) {
     const reachableKeys = getReachableCellKeys(grid, start);
     const branchCandidates = collectBranchGrowthCandidates(grid, protectedKeys, reachableKeys);
     if (branchCandidates.length > 0) {
@@ -195,8 +196,8 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
     }
 
     const candidates = [];
-    for (let y = 1; y < getMapHeight(grid) - 1; y++) {
-      for (let x = 1; x < getMapWidth(grid) - 1; x++) {
+    for (let y = 2; y < getMapHeight(grid) - 2; y++) {
+      for (let x = 2; x < getMapWidth(grid) - 2; x++) {
         if (protectedKeys.has(`${x},${y}`) || !grid[y][x].walls.every(Boolean)) continue;
         const attachmentDirs = [];
         const passageNeighborDirs = [];
