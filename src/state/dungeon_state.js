@@ -19,12 +19,18 @@ function createUngatedWarden(mapData, floor) {
 }
 
 export function rebuildDungeonMaps() {
-  const b1 = generateRandomMap(1, null, state.seed);
-  const b2 = generateRandomMap(2, b1.stairsDownCoord, state.seed);
-  const b3 = generateRandomMap(3, b2.stairsDownCoord, state.seed);
-  const b4 = generateRandomMap(4, b3.stairsDownCoord, state.seed);
-  const b5 = generateRandomMap(5, b4.stairsDownCoord, state.seed);
-  state.maps = [b1.grid, b2.grid, b3.grid, b4.grid, b5.grid];
+  const generatedMaps = [];
+  let parentStairsCoord = null;
+  for (let floor = 1; floor <= 5; floor++) {
+    const mapData = generateRandomMap(floor, parentStairsCoord, state.seed);
+    const ensured = ensureWardenGate(mapData.grid, floor, mapData.wardenGate);
+    if (ensured.stairsDownCoord) mapData.stairsDownCoord = ensured.stairsDownCoord;
+    mapData.wardenGate = ensured.gate;
+    generatedMaps.push(mapData);
+    parentStairsCoord = mapData.stairsDownCoord;
+  }
+  state.maps = generatedMaps.map(mapData => mapData.grid);
+  const [b1] = generatedMaps;
   const start = findMapCellByType(b1.grid, "stairs-up");
   state.floor = 1;
   state.x = start.x;
@@ -33,9 +39,9 @@ export function rebuildDungeonMaps() {
   state.prevY = start.y;
   
   state.roamingMonsters = [];
-  [b1, b2, b3, b4, b5].forEach((mapData, index) => {
+  generatedMaps.forEach((mapData, index) => {
     const floor = index + 1;
-    const gate = ensureWardenGate(mapData.grid, floor, mapData.wardenGate);
+    const gate = mapData.wardenGate;
     applyOpenedGatesToMap(mapData.grid, state.openedGates);
     if (!gate?.id || !state.openedGates?.includes(gate.id)) {
       const warden = createWardenMonster(floor, gate, mapData.grid) || createUngatedWarden(mapData, floor);
@@ -67,7 +73,10 @@ export function applyDungeonMemoryToMaps() {
       const grid = state.maps[floor - 1];
       if (!grid) continue;
       const rng = createRng(`${state.seed}:warden-backfill:B${floor}`);
-      const gate = ensureWardenGate(grid, floor, null, rng);
+      const { gate, stairsDownCoord } = ensureWardenGate(grid, floor, null, rng);
+      if (stairsDownCoord) {
+        console.warn(`B${floor}F warden gate backfill relocated stairs-down to (${stairsDownCoord.x}, ${stairsDownCoord.y})`);
+      }
       applyOpenedGatesToMap(grid, state.openedGates);
       if (gate && state.openedGates?.includes(gate.id) && state.roamingMonsters) {
         state.roamingMonsters = state.roamingMonsters.filter(rm => rm.gateId !== gate.id);

@@ -1080,7 +1080,11 @@ export function placeWardenGateWithStairFallback(grid, floor, start, stairsDownC
     const gate = placeWardenGate(trial, floor, start, candidate, rng);
     if (!gate) continue;
     for (let y = 0; y < getMapHeight(grid); y++) {
-      grid[y] = trial[y];
+      for (let x = 0; x < getMapWidth(grid); x++) {
+        const target = grid[y][x];
+        for (const key of Object.keys(target)) delete target[key];
+        Object.assign(target, trial[y][x]);
+      }
     }
     return { gate, stairsDownCoord: { x: candidate.x, y: candidate.y } };
   }
