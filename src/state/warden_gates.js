@@ -68,15 +68,20 @@ function getGateHome(grid, gate, start) {
 }
 
 export function ensureWardenGate(grid, floor, generatedGate = null, rng = Math.random) {
-  if (!grid || floor < 1 || floor > 5) return null;
+  if (!grid || floor < 1 || floor > 5) return { gate: null, stairsDownCoord: null };
   const existing = findWardenGate(grid, floor);
-  if (existing) return existing;
-  if (generatedGate) return generatedGate;
+  if (existing) return { gate: existing, stairsDownCoord: null };
+  if (generatedGate) return { gate: generatedGate, stairsDownCoord: null };
 
   const start = findMapCellByType(grid, "stairs-up");
   const stairsDown = findMapCellByType(grid, "stairs-down");
-  if (!start || !stairsDown) return null;
-  return placeWardenGateWithStairFallback(grid, floor, start, stairsDown, rng).gate;
+  if (!start || !stairsDown) return { gate: null, stairsDownCoord: null };
+  const placement = placeWardenGateWithStairFallback(grid, floor, start, stairsDown, rng);
+  const stairsDownCoord = placement.stairsDownCoord.x === stairsDown.x &&
+    placement.stairsDownCoord.y === stairsDown.y
+    ? null
+    : placement.stairsDownCoord;
+  return { gate: placement.gate, stairsDownCoord };
 }
 
 export function applyOpenedGatesToMap(grid, openedGates = []) {
