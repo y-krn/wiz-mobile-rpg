@@ -185,10 +185,9 @@ This gate applies to:
 
 - `src/ui.js`, `src/ui/*`
 - `src/menu.js`, `src/menu/*`, `src/navigation.js`
-- `src/shop.js`, `src/shop/*`
 - `src/combat.js`, `src/combat_ui/*`
-- `src/training.js`, `src/equip.js`, `src/camp.js`, `src/spell_menu.js`
-- `src/contracts.js`, `src/chest.js`, `src/result.js`
+- `src/equip.js`, `src/spell_menu.js`
+- `src/chest.js`, `src/result.js`
 - `src/style.css`, `src/styles/*`
 - `tests/ui-ux.spec.js`, `playwright.config.js`
 
@@ -216,10 +215,10 @@ it; use them only when the added scrutiny is worth the cost.
 - `.agents/mobile-ui-ux.md`: UI, CSS, transitions, tap operation, mobile
   display.
 - `.agents/game-logic.md`: combat, exploration, state, map generation,
-  equipment, spells, contracts, and other game rules.
+  equipment, spells, run quests, and other game rules.
 - `.agents/balance-simulation.md`: enemies, rewards, drops, growth, economy,
   difficulty, and progression speed.
-- `.agents/content-design.md`: items, enemies, spells, contracts, descriptions,
+- `.agents/content-design.md`: items, enemies, spells, run quests, descriptions,
   and display text.
 
 Each file owns its own scope, checklist, and required verification; do not

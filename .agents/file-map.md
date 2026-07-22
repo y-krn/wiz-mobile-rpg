@@ -13,7 +13,6 @@ to verify the change.
 - Global UI rendering and HUD: `src/ui.js`, `src/ui/*`
 - Submenu routing and history: `src/navigation.js`, `src/menu.js`,
   `src/menu/*`
-- Shop flow: `src/shop.js`, `src/shop/*`
 - Combat UI flow: `src/combat.js`, `src/combat_ui/*`
 - Combat deterministic rules: `src/combat_logic.js`, `src/combat_logic/*`
 - Mobile styling: `src/style.css`, `src/styles/*`
@@ -27,17 +26,16 @@ to verify the change.
 ## Module Boundaries
 
 - Facade files (`src/data.js`, `src/state.js`, `src/combat.js`,
-  `src/combat_logic.js`, `src/menu.js`, `src/shop.js`, `src/ui.js`) preserve
+  `src/combat_logic.js`, `src/menu.js`, `src/ui.js`) preserve
   existing imports and should stay thin.
 - Data modules (`src/data/*`, `src/constants/*`) should not read runtime state,
   mutate game objects, or call random functions.
-- Rules modules (`src/rules/*`, `src/shop/shop_rules.js`,
-  `src/combat_logic/damage.js`, `src/combat_logic/targeting.js`) should prefer
+- Rules modules (`src/rules/*`, `src/combat_logic/damage.js`,
+  `src/combat_logic/targeting.js`) should prefer
   explicit inputs over global state.
-- System/action modules (`src/systems/*`, `src/state/*`, `src/combat_ui/*`,
-  `src/shop/appraisal.js`, `src/shop/purchase.js`) may mutate state for a
-  specific flow.
-- UI modules (`src/ui/*`, `src/shop/*_view.js`, `src/combat_ui/*_menu.js`,
+- System/action modules (`src/systems/*`, `src/state/*`, `src/combat_ui/*`) may
+  mutate state for a specific flow.
+- UI modules (`src/ui/*`, `src/combat_ui/*_menu.js`,
   `src/combat_ui/combat_overlay.js`) own DOM construction. Avoid duplicating
   the same control in both an overlay and `submenu-options`.
 - `src/style.css` is the CSS entrypoint and should stay limited to `@import`
@@ -52,15 +50,12 @@ to verify the change.
 | App shell, header, goal banner, viewport, logs | `src/styles/app-shell.css` |
 | Shared buttons and focus states | `src/styles/buttons.css` |
 | Explore, town, combat, and submenu controls | `src/styles/controls.css` |
-| Party HUD | `src/styles/party-hud.css` |
-| Shop overlay | `src/styles/overlays-shop.css` |
-| Training overlay | `src/styles/overlays-training.css` |
+| Solo HUD and character display | `src/styles/solo-hud.css` |
 | Combat target, spell, and item overlays | `src/styles/overlays-combat.css` |
 | Equipment overlay | `src/styles/overlays-equip.css` |
 | Spell overlay and spell target selection | `src/styles/overlays-spell.css` |
-| Camp overlay | `src/styles/overlays-camp.css` |
 | Result overlay | `src/styles/overlays-result.css` |
-| Archives, contracts, warehouse, codex overlays | `src/styles/overlays-archives.css` |
+| Archives and codex overlays | `src/styles/overlays-archives.css` |
 | Touch behavior and bottom action bars | `src/styles/mobile-touch.css` |
 | Floor themes and viewport effects | `src/styles/floor-themes.css` |
 
@@ -71,20 +66,18 @@ to verify the change.
 | App startup, button binding, viewport lock | `src/game.js`, `src/main.js` | `index.html`, `src/navigation.js`, `src/ui.js` | `npm run build`, `npm run test:browser` |
 | Global HUD, logs, goal banner, overlays | `src/ui.js`, `src/ui/*`, `src/styles/app-shell.css` | `src/state.js`, `src/state/*`, screen module being rendered, relevant `src/styles/overlays-*.css` | `npm run test:browser` |
 | Town menu and generic submenu flow | `src/menu.js`, `src/menu/*`, `src/navigation.js`, `src/styles/controls.css` | `src/ui.js`, `src/ui/*`, `src/styles/buttons.css`, `src/styles/mobile-touch.css` | `npm run test:browser` |
-| Shop | `src/shop.js`, `src/shop/*`, `src/styles/overlays-shop.css` | `src/data.js`, `src/data/*`, `src/rules/*`, `src/state.js`, `src/state/*`, `src/menu.js`, `src/menu/*`, `src/styles/mobile-touch.css` | `npm run test:browser` |
-| Training and party changes | `src/training.js`, `src/state.js`, `src/state/*` | `src/data.js`, `src/data/*`, `src/rules/*`, `src/menu.js`, `src/menu/*`, `tests/ui-ux.spec.js` | `npm run test:unit`, `npm run test:browser` |
-| Equipment and inventory | `src/equip.js`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/state.js`, `src/state/*` | `src/menu.js`, `src/menu/*`, `src/shop.js`, `src/shop/*`, `src/chest.js`, `src/styles/overlays-equip.css` | `npm run test:unit`, `npm run test:browser` |
-| Camp, spells, recovery, utility effects | `src/camp.js`, `src/spell_menu.js`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*` | `src/state.js`, `src/state/*`, `src/menu.js`, `src/menu/*`, `src/combat.js`, `src/combat_ui/*` | `npm run test:unit`, `npm run test:browser` |
+| Equipment and inventory | `src/equip.js`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/state.js`, `src/state/*` | `src/menu.js`, `src/menu/*`, `src/chest.js`, `src/styles/overlays-equip.css` | `npm run test:unit`, `npm run test:browser` |
+| Spells, camp recovery, utility effects | `src/spell_menu.js`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*` | `src/state.js`, `src/state/*`, `src/menu.js`, `src/menu/*`, `src/combat.js`, `src/combat_ui/*` | `npm run test:unit`, `npm run test:browser` |
 | Dungeon movement and cell events | `src/movement.js`, `src/map_generator.js` | `src/state.js`, `src/state/*`, `src/data.js`, `src/data/*`, `src/constants/*`, `src/renderer.js`, `src/result.js` | `npm run test:unit` |
 | Map generation and reachability | `src/map_generator.js`, `src/seed_rng.js` | `scratch/test_map_reachability.js`, `scratch/test_reachability_loop.js` | `npm run test:unit` |
 | Combat UI and action selection | `src/combat.js`, `src/combat_ui/*`, `src/ui.js`, `src/ui/*`, `src/styles/overlays-combat.css`, `src/styles/controls.css` | `src/combat_logic.js`, `src/combat_logic/*`, `src/data.js`, `src/data/*`, `src/state.js`, `src/state/*` | `npm run test:unit`, `npm run test:browser` |
-| Combat rules and deterministic resolution | `src/combat_logic.js`, `src/combat_logic/*`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*` | `src/combat.js`, `src/combat_ui/*`, `src/state.js`, `src/state/*`, `scratch/test_combat_inventory.js` | `npm run test:unit` |
+| Combat rules and deterministic resolution | `src/combat_logic.js`, `src/combat_logic/*`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*` | `src/combat.js`, `src/combat_ui/*`, `src/state.js`, `src/state/*` | `npm run test:unit` |
 | Enemies, items, spells, classes, formulas | `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*`, `src/constants/*` | `src/combat_logic.js`, `src/combat_logic/*`, `src/state.js`, `src/state/*`, affected screen module | `npm run test:unit` |
 | Affix cores/supports, budgets, seal/polish rules | `src/data/affixes.js`, `src/rules/affix_rules.js`, `.agents/game-design-equipment-builds.md` | `src/systems/equipment_generation.js`, `src/craft.js`, `src/combat_logic/damage.js`, `src/combat_logic/round.js`, `scratch/test_affixes.js`, `scratch/test_core_affixes.js` | `npm run test:unit` |
-| Treasure chest, traps, drops | `src/chest.js`, `src/data.js`, `src/data/*`, `src/systems/*` | `src/state.js`, `src/state/*`, `src/combat.js`, `src/combat_ui/*`, `src/contracts.js` | `npm run test:unit` |
-| Contracts and codex/progress tracking | `src/contracts.js`, `src/state.js`, `src/state/*` | `src/ui.js`, `src/ui/*`, `src/result.js`, `scratch/test_contracts.js` | `npm run test:unit`, `npm run test:browser` |
-| Run result, rewards, return reasons | `src/result.js`, `src/state.js`, `src/state/*` | `src/contracts.js`, `src/chest.js`, `src/combat.js`, `src/combat_logic/*` | `npm run test:unit`, `npm run test:browser` |
-| Progression economy, materials, workshop, post-clear loop | `.agents/game-design.md`, `src/data.js`, `src/data/*`, `src/state.js`, `src/state/*` | `src/combat_logic.js`, `src/combat_logic/*`, `src/chest.js`, `src/menu.js`, `src/menu/*`, `src/contracts.js`, `src/result.js`, `scratch/test_*.js`, `tests/ui-ux.spec.js` | `npm run test:unit`, `npm run build`, `npm run test:browser` |
+| Treasure chest, traps, drops | `src/chest.js`, `src/data.js`, `src/data/*`, `src/systems/*` | `src/state.js`, `src/state/*`, `src/combat.js`, `src/combat_ui/*` | `npm run test:unit` |
+| Run quests and codex/progress tracking | `src/data/run_quests.js`, `src/systems/run_quests.js`, `src/state.js`, `src/state/*` | `src/ui.js`, `src/ui/*`, `src/result.js`, `scratch/test_run_quests_records.js` | `npm run test:unit`, `npm run test:browser` |
+| Run result, rewards, return reasons | `src/result.js`, `src/state.js`, `src/state/*` | `src/chest.js`, `src/combat.js`, `src/combat_logic/*` | `npm run test:unit`, `npm run test:browser` |
+| Progression economy, materials, workshop, post-clear loop | `.agents/game-design.md`, `src/data.js`, `src/data/*`, `src/state.js`, `src/state/*` | `src/combat_logic.js`, `src/combat_logic/*`, `src/chest.js`, `src/menu.js`, `src/menu/*`, `src/result.js`, `scratch/test_*.js`, `tests/ui-ux.spec.js` | `npm run test:unit`, `npm run build`, `npm run test:browser` |
 | Audio toggle or sound effects | `src/audio.js`, `src/game.js` | Calling module for the changed event | `npm run build` |
 | Mobile layout, tap targets, thumb flow | Relevant `src/styles/*.css`, affected UI module | `tests/ui-ux.spec.js`, `index.html`, `src/style.css` import order when cascade changes are suspected | `npm run test:browser` |
 | Browser/mobile test changes | `tests/ui-ux.spec.js`, `playwright.config.js` | Affected UI module, relevant `src/styles/*.css` | `npm run test:browser` |
@@ -111,10 +104,11 @@ to verify the change.
 - If mobile UI changes, always include the relevant `src/styles/*.css` file and
   `tests/ui-ux.spec.js` in review and verification. Inspect `src/style.css`
   only when import order or cascade behavior may be relevant.
-- If numbers affect enemies, drops, rewards, XP, gold, contracts, or map pacing,
+- If numbers affect enemies, drops, rewards, XP, gold, run quests, or map pacing,
   include the `balance-simulation` review lens.
-- If the request changes XP, gold, shops, loot, materials, workshop actions,
-  contracts, or B5F clear behavior, read `.agents/game-design.md` before
+- If the request changes XP, gold, milestone merchant purchases, loot,
+  materials, workshop actions, run quests, or B5F clear behavior, read
+  `.agents/game-design.md` before
   implementation or review.
 - If the request changes equipment affixes, cores, inscriptions, polish, or
   seal behavior, read `.agents/game-design-equipment-builds.md` before
