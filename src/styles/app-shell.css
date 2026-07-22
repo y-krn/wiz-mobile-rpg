@@ -198,6 +198,7 @@
 }
 
 #game-container.result-mode #viewport-panel {
+  flex: 1 1 auto;
   aspect-ratio: auto;
   max-height: none;
   min-height: 0;
@@ -208,6 +209,7 @@
 }
 
 #game-container.event-mode #viewport-panel {
+  flex: 1 1 auto;
   aspect-ratio: auto;
   max-height: 480px;
 }

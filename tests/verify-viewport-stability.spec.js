@@ -16,6 +16,7 @@ const MODES = [
 
 const EXCLUDED_COMBINATIONS = new Set(['375x667/submenu']);
 const MAX_LAYOUT_SHIFT_PX = 1;
+const EVENT_VIEWPORT_MAX_HEIGHT_PX = 480;
 
 async function activateControlsMode(page, mode) {
   await page.evaluate(({ panelClass, groupId }) => {
@@ -110,5 +111,69 @@ test('canvas top and height stay stable across controls modes', async ({ page })
   }
 
   console.log(`VIEWPORT_STABILITY ${JSON.stringify(measurements)}`);
+  expect(failures, failures.join('\n')).toEqual([]);
+});
+
+test('result and event viewports preserve their flexible heights', async ({ page }) => {
+  const failures = [];
+  const measurements = {};
+
+  for (const viewport of VIEWPORTS) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await expect(page.locator('#viewport-panel')).toBeVisible();
+
+    const viewportKey = `${viewport.width}x${viewport.height}`;
+    const modeMeasurements = {};
+
+    for (const mode of ['result', 'event']) {
+      const layout = await page.evaluate(async (containerMode) => {
+        const gameContainer = document.querySelector('#game-container');
+        const controlsPanel = document.querySelector('#controls-panel');
+
+        gameContainer.className = `${containerMode}-mode`;
+        controlsPanel.className = 'town-mode';
+        document.querySelectorAll('.controls-group').forEach((group) => {
+          group.classList.toggle('active', group.id === 'town-controls');
+        });
+        await new Promise((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        });
+
+        const rect = (selector) => document.querySelector(selector).getBoundingClientRect().toJSON();
+        return {
+          container: rect('#game-container'),
+          header: rect('#game-header'),
+          goal: rect('#goal-banner'),
+          viewportPanel: rect('#viewport-panel'),
+          controls: rect('#controls-panel'),
+          character: rect('#character-panel'),
+        };
+      }, mode);
+
+      const occupiedHeight = mode === 'result'
+        ? layout.header.height + layout.character.height
+        : layout.header.height + layout.goal.height + layout.controls.height + layout.character.height;
+      const availableHeight = layout.container.height - occupiedHeight;
+      const expectedHeight = mode === 'result'
+        ? availableHeight
+        : Math.min(EVENT_VIEWPORT_MAX_HEIGHT_PX, availableHeight);
+      const heightDifference = Math.abs(layout.viewportPanel.height - expectedHeight);
+
+      modeMeasurements[mode] = {
+        height: layout.viewportPanel.height,
+        expectedHeight,
+      };
+      if (heightDifference >= MAX_LAYOUT_SHIFT_PX) {
+        failures.push(
+          `${viewportKey}/${mode}: height=${layout.viewportPanel.height.toFixed(2)}px, expected=${expectedHeight.toFixed(2)}px`,
+        );
+      }
+    }
+
+    measurements[viewportKey] = modeMeasurements;
+  }
+
+  console.log(`SPECIAL_VIEWPORT_HEIGHTS ${JSON.stringify(measurements)}`);
   expect(failures, failures.join('\n')).toEqual([]);
 });
