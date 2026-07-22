@@ -1,4 +1,4 @@
-import { state } from "./state_core.js";
+import { markMapChanged, state } from "./state_core.js";
 import { SAVE_VERSION } from "./save_migrations.js";
 import { menuContext } from "../navigation.js";
 
@@ -124,4 +124,5 @@ export function applySavePayload(data) {
     mapFragments: data.dungeonMemory?.mapFragments || {},
     visitedFloors: data.dungeonMemory?.visitedFloors || [1]
   };
+  markMapChanged();
 }

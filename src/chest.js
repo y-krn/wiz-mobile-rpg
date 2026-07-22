@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath } from "./state.js";
+import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, markMapChanged, markMapCellVisited } from "./state.js";
 import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomAccessory, generateRandomEquipment, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -434,6 +434,7 @@ export function openChestMenu() {
     addLog("宝箱を開けずに立ち去った。");
     // Clear chest event on current cell
     state.map[state.y][state.x].event = null;
+    markMapChanged();
     if (state.floorChestsOpened) {
       state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
     }
@@ -571,7 +572,7 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
     const spot = emptySpots[Math.floor(rng() * emptySpots.length)];
     state.x = spot.x;
     state.y = spot.y;
-    state.visitedMap[state.y][state.x] = true;
+    markMapCellVisited(state.x, state.y);
     addLog("テレポーターが作動！パーティは別の場所にテレポートした！");
   } else if (trap === "flash bomb") {
     addLog("閃光弾が作動！まばゆい光がパーティを包み込んだ！");
@@ -719,6 +720,7 @@ export function openChestDirectly(opener = null, rng = Math.random) {
 
   // Clear the original chest cell even if a trap moved the party.
   chestMap[chestY][chestX].event = null;
+  markMapChanged();
   if (state.floorChestsOpened) {
     state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
   }

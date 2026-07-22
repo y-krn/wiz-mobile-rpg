@@ -5,6 +5,7 @@ import {
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
 import { applyOpenedGatesToMap } from "../state/warden_gates.js";
+import { markMapChanged } from "../state/state_core.js";
 import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js";
 
 function rollCombatAccessoryDrop(state, rng) {
@@ -313,6 +314,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
           state.openedGates.push(gateId);
         }
         applyOpenedGatesToMap(state.maps?.[state.floor - 1], state.openedGates);
+        markMapChanged(state);
       }
       logQueue.push({
         msg: "封印門の門番を撃破した！封印門が開き、精鋭の戦利品を得た。",

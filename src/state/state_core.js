@@ -23,6 +23,7 @@ export const state = {
   repelTurns: 0,
   dumapicTurns: 0,
   dumapicHint: "",
+  mapRevision: 0,
   activeMerchantStock: [],
 
   // New tracking properties for short-term rewards
@@ -101,6 +102,19 @@ export const state = {
     return this.visitedMaps[this.floor - 1];
   }
 };
+
+export function markMapChanged(stateLike = state) {
+  stateLike.mapRevision = (stateLike.mapRevision ?? 0) + 1;
+  return stateLike.mapRevision;
+}
+
+export function markMapCellVisited(x, y) {
+  const row = state.visitedMap?.[y];
+  if (!row || row[x]) return false;
+  row[x] = true;
+  markMapChanged();
+  return true;
+}
 
 // Log message helper.
 // Collapses consecutive identical messages into a single "… ×N" entry so

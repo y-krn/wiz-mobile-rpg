@@ -1,4 +1,4 @@
-export { state, addLog, recordCharDeath } from "./state/state_core.js";
+export { state, addLog, recordCharDeath, markMapChanged, markMapCellVisited } from "./state/state_core.js";
 
 export {
   generateRandomSeed,

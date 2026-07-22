@@ -1,4 +1,5 @@
 import { generateRunFloor } from "../run_map_generator.js";
+import { markMapChanged } from "./state_core.js";
 
 function createVisitedGrid(grid) {
   return grid.map(row => row.map(() => false));
@@ -23,6 +24,7 @@ export function ensureRunFloor(stateLike, floor) {
   stateLike.visitedMaps[floor - 1] = createVisitedGrid(generated.grid);
   stateLike.floorChestsOpened[floor - 1] = 0;
   stateLike.floorChestsTotal[floor - 1] = countChests(generated.grid);
+  markMapChanged(stateLike);
   return generated.grid;
 }
 
@@ -31,4 +33,5 @@ export function resetRunFloors(stateLike) {
   stateLike.visitedMaps = [];
   stateLike.floorChestsOpened = [];
   stateLike.floorChestsTotal = [];
+  markMapChanged(stateLike);
 }

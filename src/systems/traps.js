@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, recordCharDeath } from "../state.js";
+import { state, saveAutosave, addLog, recordCharDeath, markMapChanged, markMapCellVisited } from "../state.js";
 import { updateUI } from "../ui.js";
 import { playSound } from "../audio.js";
 import { triggerGameOver } from "../combat.js";
@@ -114,6 +114,7 @@ export function detectAdjacentTraps() {
   }
 
   if (found.length === 0) return false;
+  markMapChanged();
 
   const lead = found[0];
   if (traceRead >= 2) {
@@ -296,7 +297,7 @@ function completePendingMove() {
   if (!move) return;
   state.x = move.x;
   state.y = move.y;
-  if (state.visitedMap?.[move.y]) state.visitedMap[move.y][move.x] = true;
+  markMapCellVisited(move.x, move.y);
 }
 
 function endTrapEncounter() {
@@ -321,6 +322,7 @@ export function handleTrapAction(action) {
     if (trap.type === "pitfall") {
       addLog("意を決して落とし穴へ飛び込んだ！");
       trap.state = "disabled";
+      markMapChanged();
       state.gameState = "explore";
       state.activeTrapState = null;
       triggerPitfall(trap, true);
@@ -331,6 +333,7 @@ export function handleTrapAction(action) {
     addLog("罠を承知で強引に駆け抜けた！");
     triggerTrap(trap, true);
     trap.state = "disabled";
+    markMapChanged();
     completePendingMove();
     endTrapEncounter();
     return;
@@ -344,6 +347,7 @@ export function handleTrapAction(action) {
         addLog("[味方] 【回避成功】慎重に縁を伝い、落とし穴を渡りきった！");
         playSound("item");
         trap.state = "disabled";
+        markMapChanged();
         if (state.currentRun) state.currentRun.trapsDisarmed++;
         recordTrapCodex("pitfall", "disarmed");
         completePendingMove();
@@ -351,6 +355,7 @@ export function handleTrapAction(action) {
       } else {
         addLog("【失敗】バランスを崩して落とし穴に落ちてしまった！");
         trap.state = "disabled";
+        markMapChanged();
         if (state.currentRun) state.currentRun.trapsTriggered++;
         recordTrapCodex("pitfall", "triggered");
         state.gameState = "explore";
@@ -384,6 +389,7 @@ export function handleTrapAction(action) {
     // 解除は成功・部分成功・失敗のいずれでも罠を使い切って通過する。
     // 同じ罠を再度踏んで判定を引き直せる状態を残さない。
     trap.state = "disabled";
+    markMapChanged();
     completePendingMove();
     endTrapEncounter();
     return;

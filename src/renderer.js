@@ -30,6 +30,7 @@ export class DungeonRenderer {
     this.shakeIntensity = 0;
     this.flashTime = 0;
     this.damageTexts = []; // Array of { text, x, y, age, color }
+    this.lastSignature = null;
   }
 
   triggerShake(intensity = 10, duration = 300) {
@@ -60,7 +61,117 @@ export class DungeonRenderer {
     this.damageTexts = this.damageTexts.filter(t => t.age < t.maxAge);
   }
 
-  draw() {
+  getSceneVisibility() {
+    const showTownBackground = !state.map ||
+      ["town", "result", "gameover", "victory"].includes(state.gameState) ||
+      (state.gameState === "submenu" && (menuContext.prevGameState === "town" || menuContext.type === "solo_start"));
+    const showCombat = !showTownBackground && Boolean(
+      state.combatState && (
+        state.gameState === "combat"
+        || (state.gameState === "submenu" && menuContext.type.startsWith("combat"))
+      )
+    );
+    const showChest = !showTownBackground && (
+      state.gameState === "chest"
+      || (state.gameState === "submenu" && state.chestState)
+    );
+    const showEventScene = !showTownBackground && (
+      state.gameState === "trap_encounter"
+      || (state.gameState === "submenu" && EVENT_SUBMENU_TYPES.includes(menuContext.type))
+    );
+
+    return { showTownBackground, showCombat, showChest, showEventScene };
+  }
+
+  getDrawSignature(sceneVisibility = this.getSceneVisibility()) {
+    const { showTownBackground } = sceneVisibility;
+    const signature = [
+      state.gameState,
+      state.floor,
+      state.x,
+      state.y,
+      state.dir,
+      Boolean(state.map),
+      menuContext.type,
+      menuContext.prevGameState,
+      Boolean(state.combatState),
+      Boolean(state.chestState),
+      state.mapRevision
+    ];
+
+    if (showTownBackground) return signature.join("|");
+
+    const combatMonsters = state.combatState?.monsters?.map(monster => [
+      monster.name,
+      monster.level,
+      monster.hp,
+      monster.maxHp,
+      monster.color,
+      monster.spriteType,
+      monster.chargeQueued,
+      monster.selfDestructQueued,
+      monster.lahalitoQueued,
+      monster.madaltoQueued,
+      monster.tiltowaitQueued,
+      monster.dragonBreathQueued,
+      monster.multiActionQueued,
+      monster.summonQueued,
+      monster.snipeQueued,
+      monster.snipeTargetIdx
+    ].join(",")).join(";") || "";
+    const roamingMonsters = state.roamingMonsters?.map(monster => [
+      monster.floor,
+      monster.x,
+      monster.y,
+      monster.kind,
+      monster.perception
+    ].join(",")).join(";") || "";
+
+    signature.push(
+      state.dumapicTurns > 0,
+      state.lightTurns > 0,
+      state.lightPower,
+      roamingMonsters,
+      getPartyMaxAffix(state.party, "arcaneSense"),
+      combatMonsters,
+      state.party.map(char => char?.name).join(",")
+    );
+    return signature.join("|");
+  }
+
+  isAnimating(sceneVisibility = this.getSceneVisibility()) {
+    if (this.shakeTime > 0 || this.flashTime > 0 || this.damageTexts.length > 0) return true;
+
+    const { showTownBackground, showCombat, showChest, showEventScene } = sceneVisibility;
+    if (showTownBackground) return false;
+
+    // These layers use Date.now() for visual pulses and must keep redrawing.
+    if (state.floor === 5) return true;
+    if (showCombat || showChest || showEventScene) return false;
+
+    const minY = Math.max(0, state.y - 4);
+    const maxY = Math.min(state.map.length - 1, state.y + 4);
+    for (let y = minY; y <= maxY; y++) {
+      const row = state.map[y];
+      const minX = Math.max(0, state.x - 4);
+      const maxX = Math.min(row.length - 1, state.x + 4);
+      for (let x = minX; x <= maxX; x++) {
+        if (Math.abs(x - state.x) + Math.abs(y - state.y) > 4) continue;
+        const event = row[x]?.event;
+        if (event === EVENT_TYPES.BOSS || event === EVENT_TYPES.MIDBOSS) return true;
+      }
+    }
+
+    const hasArcaneSense = getPartyMaxAffix(state.party, "arcaneSense") >= 1;
+    return Boolean(state.roamingMonsters?.some(monster => {
+      if (monster.floor !== state.floor) return false;
+      if (monster.perception === "afterimage" && !hasArcaneSense) return false;
+      const distance = Math.abs(monster.x - state.x) + Math.abs(monster.y - state.y);
+      return monster.kind === "warden" || distance <= 4;
+    }));
+  }
+
+  draw(sceneVisibility = this.getSceneVisibility()) {
     if (!this.ctx) return;
     const ctx = this.ctx;
 
@@ -76,24 +187,12 @@ export class DungeonRenderer {
     ctx.fillStyle = "#0c0c0e";
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    const showTownBackground = !state.map ||
-      ["town", "result", "gameover", "victory"].includes(state.gameState) ||
-      (state.gameState === "submenu" && (menuContext.prevGameState === "town" || menuContext.type === "solo_start"));
+    const { showTownBackground, showCombat, showChest, showEventScene } = sceneVisibility;
     if (showTownBackground) {
       this.drawTownBackground(ctx);
     } else {
       // Exploration or Combat or Chest
       this.draw3DCorridors(ctx);
-      const showCombat = Boolean(
-        state.combatState && (
-          state.gameState === "combat"
-          || (state.gameState === "submenu" && menuContext.type.startsWith("combat"))
-        )
-      );
-      const showChest = state.gameState === "chest"
-        || (state.gameState === "submenu" && state.chestState);
-      const showEventScene = state.gameState === "trap_encounter"
-        || (state.gameState === "submenu" && EVENT_SUBMENU_TYPES.includes(menuContext.type));
       
       // Draw monsters only for combat and combat-derived submenus.
       if (showCombat) {

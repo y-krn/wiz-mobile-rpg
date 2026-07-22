@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, addInventoryItem } from "../state.js";
+import { state, saveAutosave, addLog, addInventoryItem, markMapChanged } from "../state.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../data.js";
 import { playSound } from "../audio.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
@@ -97,6 +97,7 @@ export function playBattleLogs(queue, index) {
     state.transitioning = true;
     if (state.map[state.y]?.[state.x]?.event === "boss") {
       state.map[state.y][state.x].event = null;
+      markMapChanged();
     }
     recordMilestoneVictory(state, log.milestoneVictory);
     addLog(`B${log.milestoneVictory}F開始を恒久アンロックした。`);
@@ -116,6 +117,7 @@ export function playBattleLogs(queue, index) {
     state.transitioning = true;
     if (state.map[state.y]?.[state.x]?.event === "midboss") {
       state.map[state.y][state.x].event = null;
+      markMapChanged();
     }
     if (!state.inventory.some(item => (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY")) {
       addInventoryItem("DRAGON_KEY");

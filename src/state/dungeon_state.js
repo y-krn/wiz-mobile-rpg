@@ -1,4 +1,4 @@
-import { state } from "./state_core.js";
+import { markMapChanged, markMapCellVisited, state } from "./state_core.js";
 import { saveAutosave } from "./save_storage.js";
 import { findSuitableRoamingMonsterStart } from "./initial_state.js";
 import { generateRandomMap } from "../map_generator.js";
@@ -57,7 +57,8 @@ export function rebuildDungeonMaps() {
     Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
   ];
   applyDungeonMemoryToMaps();
-  state.visitedMap[state.y][state.x] = true;
+  markMapCellVisited(state.x, state.y);
+  markMapChanged();
   saveAutosave();
 }
 
@@ -100,6 +101,7 @@ export function applyDungeonMemoryToMaps() {
       }
     }
   }
+  markMapChanged();
 }
 
 export function calculateSeedProperties() {

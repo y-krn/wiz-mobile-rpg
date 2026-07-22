@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath } from "./state.js";
+import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, markMapChanged, markMapCellVisited } from "./state.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -145,7 +145,7 @@ export function handleMove(action) {
       tickExplorationSpellEffects();
       
       // Mark as visited
-      state.visitedMap[state.y][state.x] = true;
+      markMapCellVisited(state.x, state.y);
 
       processExplorationResolution(prevX, prevY);
     }
@@ -175,7 +175,7 @@ export function handleMove(action) {
       state.y = backY;
       recordExplorationSteps();
       tickExplorationSpellEffects();
-      state.visitedMap[state.y][state.x] = true;
+      markMapCellVisited(state.x, state.y);
       
       processExplorationResolution(prevX, prevY);
     }
@@ -232,7 +232,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     const target = landingCoord || findCellCoordsByType(state.maps[nextFloor - 1], "stairs-up");
     state.x = target.x;
     state.y = target.y;
-    state.visitedMap[state.y][state.x] = true;
+    markMapCellVisited(state.x, state.y);
 
     const theme = getFloorTheme(nextFloor);
     const firstVisit = revealFloor(state, nextFloor);
@@ -655,9 +655,14 @@ export function executeEnterDungeon(floor) {
   ensureRunFloor(state, floor);
   if (floor > 1) {
     state.currentRun.defeatedMilestones = [floor];
+    let removedBoss = false;
     state.maps[floor - 1].flat().forEach(cell => {
-      if (cell.event === EVENT_TYPES.BOSS && cell.milestoneFloor === floor) cell.event = null;
+      if (cell.event === EVENT_TYPES.BOSS && cell.milestoneFloor === floor) {
+        cell.event = null;
+        removedBoss = true;
+      }
     });
+    if (removedBoss) markMapChanged();
   }
   const workshopGrants = getWorkshopGrants(state.workshop);
   state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder + workshopGrants.identifyPowder;
@@ -671,7 +676,7 @@ export function executeEnterDungeon(floor) {
   state.y = target.y;
 
   state.dir = DIR_N;
-  state.visitedMap[state.y][state.x] = true;
+  markMapCellVisited(state.x, state.y);
   const theme = getFloorTheme(floor);
   const firstVisit = revealFloor(state, floor);
   addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
@@ -859,6 +864,7 @@ export function processExplorationResolution(prevX, prevY) {
   if (steppedTrap && steppedTrap.state === "hidden") {
     addLog("【⚠️罠発動！】不意に罠を踏み抜いてしまった！");
     steppedTrap.state = "disabled";
+    markMapChanged();
     if (state.currentRun) state.currentRun.trapsTriggered++;
     if (steppedTrap.type === "pitfall") {
       triggerPitfall(steppedTrap, false);
