@@ -2,29 +2,29 @@
 
 Tracking issue: y-krn/wiz-mobile-rpg#120 (closed — all phases merged)
 
-Status: **implemented** via PR #126 (Phase 1), #127 (Phase 2), #128 (Phase 3),
-#129 (Phase 4). This document is the canonical reference for the system's
-design intent and its tuning surfaces. Numbers below reflect the merged
-implementation; when code and this document disagree, fix whichever is wrong
-against the design intent stated here.
+Implementation history: PR #126 (Phase 1), #127 (Phase 2), #128 (Phase 3),
+#129 (Phase 4). Phase 4 の実装は残っているが、現在のゲーム画面からは到達不能。
+
+**Direction change (2026-07-18).** This document reflects the pivot to a solo
+depth-attack roguelite. It is subordinate to `.agents/game-design-core-loop.md`
+and `.agents/game-design.md`; resolve conflicts toward those documents.
 
 # 概要
 
 ビルド多様性の欠如（実効ビルド数 ≈ 職業選択8通りのみ）を解消するため、装備を
 「コア」「サポート」の2階層アフィックスに再設計した。シナジーシステム
-（`SYNERGIES` / `getActiveSynergyMod`）は Phase 1 で廃止済み。パーティ横断の
-自動発動ボーナスは存在せず、効果はすべて装備者個人に帰属する（例外は明示的な
-パーティ効果型コア3種のみ）。
+（`SYNERGIES` / `getActiveSynergyMod`）は Phase 1 で廃止済み。現在はソロ1キャラ
+前提で、効果は装備者に帰属する。
 
 目標: 実効ビルド空間 ≈ 16コア × 職業適性2〜3 × サポート構成 ≈ 60〜80。
 
 # 全体構造
 
-- **コア16種**: ルールを変える効果。ドロップ限定。商店・行商・契約報酬からは
-  出ない（生成APIの `allowCores: false`）。1キャラにつきコア装備は1個まで
-  （装備UIで強制）。1アイテムにつきコアは1個まで（生成側で強制）。
-- **サポート47種**: 数値・小効果。刻印（工房）で付与・上書き可能。
-  内訳: basic 25 / conditional 11 / trigger 6 / economy 5。
+- **コア16種**: ルールを変える効果。ダンジョン産のみ。節目商人は装備を売らない。
+  1キャラにつきコア装備は1個まで（装備UIで強制）。1アイテムにつきコアは1個まで
+  （生成側で強制）。
+- **サポート44種**: 数値・小効果。刻印・研磨・封印の実装では付与・上書き可能。
+  内訳: basic 25 / conditional 11 / trigger 5 / economy 3。
 - 純粋な数値上位のコアは作らない。全コアはサイドグレード。
 - レジストリ: `src/data/affixes.js`（データのみ）。判定・効果ヘルパー:
   `src/rules/affix_rules.js`。
@@ -59,19 +59,19 @@ against the design intent stated here.
 | 盗掘王 | CORE_TOMB_RAIDER | 宝箱素材+1個、罠強度+1段階 | 装飾 |
 | 慧眼 | CORE_KEEN_EYE | 未鑑定装備を装備可能(効果適用・表示は鑑定まで隠匿) | 装飾 |
 | 野営の達人 | CORE_CAMP_MASTER | キャンプ休息の回復量2倍(本人のみ) | 鎧 |
-| 賞金稼ぎ | CORE_BOUNTY_HUNTER | 契約対象のキル・納品を2倍カウント | 装飾 |
+| 賞金稼ぎ | CORE_BOUNTY_HUNTER | ランクエスト対象の撃破数を2倍カウント | 装飾 |
 | 学者の眼 | CORE_SCHOLAR_EYE | 図鑑未登録の敵から素材確定ドロップ | 装飾 |
 
-パーティ効果型（忍び足・賞金稼ぎ・学者の眼）は装備者1人で有効。判定は必ず
-`getPartyCoreParams`（封印を考慮する）経由で行い、`partyHasCoreAffix` を
-効果判定に直接使わない。装備者が hp0 / dead / ash のときは無効。
+現在はソロ1キャラ前提。忍び足・賞金稼ぎ・学者の眼も、その1人の装備と生存状態を
+参照する。実装上は `getPartyCoreParams` / `partyHasCoreAffix` など既存名の
+ヘルパーが引き続き使われ、装備者が hp0 / dead / ash のときは無効。
 
 慧眼の効果適用は表示レイヤーでなく機構レイヤー
 （`getCharAffixSum` 内 `canApplyUnidentifiedEquipmentEffects`）で行う。
 慧眼コア自体は鑑定済み装備でのみ有効（循環なし）。呪い付き未鑑定を装備した
 場合に呪いが発動するのは仕様（このコアのリスク）。
 
-# サポート47種
+# サポート44種
 
 - basic 25（Phase 1 で既存移行）: str/int/pie/vit/agi/luk, hp/mp, atk/def,
   antiUndead/antiDragon/antiDemon, poisonWard, spellGuard, trapBonus,
@@ -80,13 +80,12 @@ against the design intent stated here.
 - conditional 11（Phase 2）: deepAssault(B3F以深攻+) / frontGuard /
   rearEvasion / fullHpDamage / firstTurnAttack / antiBeast / antiSpirit /
   firstStrikeDefense / lastSurvivorStats / statusResistance / spellAccuracy
-- trigger 6（Phase 2/3）: killHeal / followUpMp / hitFlinch / trapGold /
+- trigger 5（Phase 2/3）: killHeal / followUpMp / hitFlinch /
   victoryMaterial / stairsHeal
-- economy 5（Phase 3）: identifyDiscount / materialFind / goldBonus /
-  contractReward / merchantDiscount
+- economy 3（Phase 3）: identifyDiscount / materialFind / contractReward
 
-倍率系経済サポート（goldBonus / materialFind / contractReward）はパーティ内
-**最大値1人分**（`getPartyMaxAffix`）で適用し、積み重ねインフレを防ぐ。
+`materialFind` / `contractReward` はソロキャラ1人の装備値を
+`getPartyMaxAffix` 経由で取得する。`contractReward` の対象はランクエスト報酬。
 
 当初案の「疲労中ペナルティ半減」は疲労システム未実装のため見送り（実装時に
 conditional として追加を検討）。
@@ -99,16 +98,24 @@ conditional として追加を検討）。
   深度（`AFFIX_BALANCE.budgetsByRarityAndFloor`）
 - コア付きドロップの30%は呪い付き（`AFFIX_BALANCE.coreCurseChance`）
 - フロア別コアプール重み: B1-B2=経済系中心、B3+=戦闘系中心
-- コア入手源は迷宮由来のみ。商店・行商・契約報酬の生成呼び出しは
-  `allowCores: false`
+- コア入手源はダンジョン由来のみ。節目商人は装備を販売しない
 
 # 工房（Phase 4）
+
+用語注意: 本節の「工房」は PR #129 で実装された刻印・研磨・封印を指す。
+`.agents/game-design.md` の「工房」（ラン間の恒久アンロック木）とは別物であり、
+命名の最終決定は本Issueの範囲外。
+
+現在 `src/craft.js` に実装は存在するが、`src` 配下の画面から import されず到達不能。
+装備もラン間で持ち越されないため、出荷中のゲームには適用先がない。削除または
+再接続の判断には別Issueが必要。
 
 境界: **工房で扱えるのはサポートのみ**。コアは工房で作成・付与・移動・削除
 できない。唯一の例外は封印によるコア弱体化。
 
-- **刻印20種**（`TAG_EFFECT_MAP`）: 既存12種＋経済系4種（素材探し/金運/
-  契約巧者/商談）＋条件数値系4種（深層攻勢/無傷の猛攻/不屈/精唱）
+- **刻印19種**（`TAG_EFFECT_MAP`）: 既存12種＋経済系3種
+  （`material` / `fortune` / `contract`）＋条件数値系4種
+  （深層攻勢/無傷の猛攻/不屈/精唱）
 - **研磨**: サポートアフィックス1つを value 1.5倍（切り上げ）。1装備1回
   （`polished` フラグ）。コアは対象外。コスト: `AFFIX_BALANCE.polishCost`
 - **封印のコア半減**: 呪い封印時に `coreSealed: true` を付与。半減規則は
