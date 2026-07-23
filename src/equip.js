@@ -295,13 +295,6 @@ function createHeader(overlay) {
   title.className = "equip-title";
   title.textContent = "装備";
   titleRow.appendChild(title);
-
-  const btnClose = document.createElement("button");
-  btnClose.id = "btn-equip-close";
-  btnClose.className = "btn btn-danger";
-  btnClose.textContent = "閉じる";
-  btnClose.addEventListener("click", closeEquipOverlay);
-  titleRow.appendChild(btnClose);
   header.appendChild(titleRow);
 
   const statusBar = document.createElement("div");
@@ -311,9 +304,31 @@ function createHeader(overlay) {
     <span class="${state.inventory.length >= 20 ? "full" : ""}">バッグ ${state.inventory.length}/20</span>
   `;
   header.appendChild(statusBar);
+  overlay.appendChild(header);
+}
+
+function createFooter(overlay) {
+  const footer = document.createElement("div");
+  footer.className = "bottom-actions-container";
+
+  const filterRow = document.createElement("div");
+  filterRow.className = "bottom-actions-row equip-filters";
+  EQUIP_FILTERS.forEach((filter) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = `equip-filter-chip ${equipState.filter === filter.id ? "active" : ""}`;
+    chip.textContent = filter.label;
+    chip.addEventListener("click", () => {
+      equipState.filter = filter.id;
+      clearSelection();
+      renderEquip();
+    });
+    filterRow.appendChild(chip);
+  });
+  footer.appendChild(filterRow);
 
   const actorRow = document.createElement("div");
-  actorRow.className = "equip-actor-row";
+  actorRow.className = "bottom-actions-row equip-actor-row";
   state.party.forEach((char, idx) => {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -329,24 +344,19 @@ function createHeader(overlay) {
     });
     actorRow.appendChild(btn);
   });
-  header.appendChild(actorRow);
+  footer.appendChild(actorRow);
 
-  const filterRow = document.createElement("div");
-  filterRow.className = "equip-filters";
-  EQUIP_FILTERS.forEach((filter) => {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = `equip-filter-chip ${equipState.filter === filter.id ? "active" : ""}`;
-    chip.textContent = filter.label;
-    chip.addEventListener("click", () => {
-      equipState.filter = filter.id;
-      clearSelection();
-      renderEquip();
-    });
-    filterRow.appendChild(chip);
-  });
-  header.appendChild(filterRow);
-  overlay.appendChild(header);
+  const closeRow = document.createElement("div");
+  closeRow.className = "bottom-actions-row";
+  const btnClose = document.createElement("button");
+  btnClose.id = "btn-equip-close";
+  btnClose.className = "btn btn-danger";
+  btnClose.textContent = "閉じる";
+  btnClose.addEventListener("click", closeEquipOverlay);
+  closeRow.appendChild(btnClose);
+  footer.appendChild(closeRow);
+
+  overlay.appendChild(footer);
 }
 
 function createEquipmentList(char, savedScrollTop) {
@@ -759,4 +769,5 @@ export function renderEquip() {
   body.appendChild(createEquipmentList(char, savedScrollTop));
   body.appendChild(createDetailPanel(char));
   overlay.appendChild(body);
+  createFooter(overlay);
 }

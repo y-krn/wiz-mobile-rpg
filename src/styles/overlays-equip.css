@@ -65,10 +65,10 @@
 .equip-header-area {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
   border-bottom: 1.5px solid var(--neon-cyan);
-  padding-bottom: 8px;
+  padding-bottom: 6px;
   margin-bottom: 8px;
 }
 
@@ -76,11 +76,6 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.equip-title-row .btn {
-  min-height: var(--tap-min);
-  padding: 0 16px;
 }
 
 .equip-body {
@@ -108,8 +103,7 @@
 }
 
 .equip-filters {
-  display: flex;
-  gap: 6px;
+  flex-shrink: 0;
 }
 
 .equip-filter-chip {
@@ -152,9 +146,11 @@
 }
 
 .equip-actor-row {
-  display: grid;
-  gap: 6px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex-shrink: 0;
+}
+
+.equip-actor-row .equip-actor-chip {
+  flex: 1 1 0;
 }
 
 .equip-actor-chip {
