@@ -5,6 +5,8 @@ import { applyDungeonMemoryToMaps } from "../src/state/dungeon_state.js";
 import { applyOpenedGatesToMap, findMapCellByType, findWardenGate, getWardenGateId } from "../src/state/warden_gates.js";
 import { menuContext } from "../src/navigation.js";
 
+const FAST = process.env.FAST === "1";
+const SEED_COUNT = Number(process.env.WARDEN_SEEDS) || (FAST ? 60 : 100);
 const DIRS = [
   { dx: 0, dy: -1, dir: 0 },
   { dx: 1, dy: 0, dir: 1 },
@@ -75,7 +77,7 @@ function assertGateShortcut(seed) {
 function assertGatePlacementConstraints() {
   let missingGates = 0;
 
-  for (let seedIndex = 0; seedIndex < 100; seedIndex++) {
+  for (let seedIndex = 0; seedIndex < SEED_COUNT; seedIndex++) {
     const seed = `WARDEN-DISTANCE-${seedIndex}`;
     let parentStairs = null;
     let repeatedParentStairs = null;
@@ -108,7 +110,7 @@ function assertGatePlacementConstraints() {
     }
   }
 
-  assert(missingGates === 0, `gate placement regressed: ${missingGates}/500 missing`);
+  assert(missingGates === 0, `gate placement regressed: ${missingGates}/${SEED_COUNT * 5} missing`);
 }
 
 function assertOpenedGateRestores() {

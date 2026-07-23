@@ -1,5 +1,7 @@
 import { generateRandomMap, ONE_WAY_MAX_DETOUR, ONE_WAY_MIN_DETOUR } from "../src/map_generator.js";
 
+const FAST = process.env.FAST === "1";
+const SEED_COUNT = Number(process.env.REACH_SEEDS) || (FAST ? 60 : 500);
 const DIRS = [
   { dx: 0, dy: -1, dir: 0 },
   { dx: 1, dy: 0, dir: 1 },
@@ -223,8 +225,7 @@ function generateDungeon(seed) {
 console.log("Starting Loop verification of Map Reachability...");
 
 let failCount = 0;
-const ITERATIONS = 500;
-const seeds = ["DIAG-118", ...Array.from({ length: ITERATIONS }, (_, i) => `SEED-LOOP-${i}`)];
+const seeds = ["DIAG-118", ...Array.from({ length: SEED_COUNT }, (_, i) => `SEED-LOOP-${i}`)];
 for (const seed of seeds) {
   try {
     const { b1, b2, b3, b4, b5 } = generateDungeon(seed);
