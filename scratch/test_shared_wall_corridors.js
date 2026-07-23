@@ -1,10 +1,11 @@
 import { generateRandomMap } from "../src/map_generator.js";
 
+const FAST = process.env.FAST === "1";
+const SEED_COUNT = Number(process.env.SHARED_WALL_SEEDS) || (FAST ? 60 : 400);
 const EDGE_DIRS = [
   { dir: 1, dx: 1, dy: 0, opposite: 3 },
   { dir: 2, dx: 0, dy: 1, opposite: 0 }
 ];
-const SEED_COUNT = 400;
 const FLOOR_COUNT = 5;
 const DEAD_END_RANGE = [15, 38];
 

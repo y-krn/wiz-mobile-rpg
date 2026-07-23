@@ -1,7 +1,8 @@
 import { generateRandomMap } from "../src/map_generator.js";
 import { MAP_WIDTH } from "../src/constants/map.js";
 
-const SEED_COUNT = 1000;
+const FAST = process.env.FAST === "1";
+const SEED_COUNT = Number(process.env.STAIRS_SEEDS) || (FAST ? 100 : 1000);
 // Allow fallback placement below the preferred distance threshold of 10 when dead ends are scarce or nearby.
 const MIN_DISTANCE = 5;
 const FLOOR_RANGE = [1, 2, 3, 4];
