@@ -27,6 +27,20 @@ const { EVENT_TYPES } = await import("../src/constants/events.js");
 const { generateChestMaterials } = await import("../src/chest.js");
 const { MATERIAL_DROP_BALANCE } = await import("../src/data/materials.js");
 const { bankRunMaterials, getBankedMaterials } = await import("../src/rules/material_rules.js");
+const {
+  canEquipCoreAffix,
+  getCharAffixSum,
+  getCharAgi,
+  getCharDef,
+  getCharInt,
+  getCharMaxHp,
+  getCharPie,
+  getCharStr,
+  getCharVit,
+  getCharWeaponAtk,
+  getItemData
+} = await import("../src/data.js");
+const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
 
 const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 500));
 const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
@@ -39,6 +53,29 @@ const EXPLORATION_FACTOR = 1.4;
 const CHEST_PICKUP_RATE = 0.7;
 // 仮値・感度分析対象: 戦闘1ターンを探索3歩相当と置く。
 const COMBAT_TURN_WEIGHT = 3;
+// 実run開始準拠: 傷薬2個のみ補給対象とし、宝箱・商人からの追加補給はモデル化しない。
+const INITIAL_HEAL_POTIONS = 2;
+// 仮値・感度分析対象: 戦闘中/戦闘後HPが最大HPの35%以下なら傷薬を1個使う。
+const HEAL_POTION_THRESHOLD = 0.35;
+// 仮定: 装備スコアは攻防を主軸に、HP・主要能力・戦闘affixを下記重みで合算する。
+const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
+  weaponAtk: 2,
+  defense: 2,
+  maxHp: 0.25,
+  str: 1,
+  vit: 1,
+  int: 0.5,
+  pie: 0.5,
+  agi: 0.25,
+  guardian: 0.2,
+  spellGuard: 0.15,
+  followUp: 0.15,
+  firstStrike: 0.1,
+  arcane: 0.1,
+  devotion: 0.1
+});
+// #231では素材EV比較に集中するため、ドロップ装備は鑑定済み・呪いなしとして評価する。
+// 未鑑定・呪いリスクは#236の対象。コア1個制限は実canEquipCoreAffixで維持する。
 
 const HOLY_TAGS = new Set(["undead", "spirit", "demon"]);
 
@@ -63,7 +100,10 @@ function createSimulationState(className, startFloor, runSeed) {
   return {
     party: [createSoloCharacter(className)],
     combatState: null,
-    inventory: [],
+    inventory: [
+      ...Array(INITIAL_HEAL_POTIONS).fill("HEAL_POTION"),
+      "ANTIDOTE"
+    ],
     firstKills: [],
     codex: null,
     currentRun,
@@ -105,7 +145,14 @@ function selectCombatAction(state) {
   const monsters = state.combatState.monsters;
   const lowestHpIdx = getLowestHpEnemyIndex(monsters);
 
-  if (hasSpell(character, "DIOS") && character.hp < character.maxHp * 0.35 && character.mp >= 1) {
+  if (
+    character.hp <= getCharMaxHp(character) * HEAL_POTION_THRESHOLD &&
+    state.inventory.includes("HEAL_POTION")
+  ) {
+    return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "HEAL_POTION" };
+  }
+
+  if (hasSpell(character, "DIOS") && character.hp < getCharMaxHp(character) * 0.35 && character.mp >= 1) {
     return { type: "spell", actorIdx: 0, targetIdx: 0, spellName: "DIOS" };
   }
 
@@ -163,39 +210,139 @@ function runEncounter(state) {
   };
 
   let rounds = 0;
+  let healPotionsUsed = 0;
   for (; rounds < MAX_COMBAT_TURNS; rounds++) {
     const character = state.party[0];
-    if (!isAlive(character)) return { result: "death", rounds, state };
+    if (!isAlive(character)) return { result: "death", rounds, healPotionsUsed, state };
     if (state.combatState.monsters.every(monster => monster.hp <= 0)) {
-      return { result: "victory", rounds, state };
+      return { result: "victory", rounds, healPotionsUsed, state };
     }
 
+    const action = selectCombatAction(state);
+    const potionCountBefore = state.inventory.filter(item => item === "HEAL_POTION").length;
     const roundResult = runCombatRoundCalculation(state, {
-      actions: [selectCombatAction(state)]
+      actions: [action]
     });
     state = roundResult.state;
+    const potionCountAfter = state.inventory.filter(item => item === "HEAL_POTION").length;
+    healPotionsUsed += potionCountBefore - potionCountAfter;
 
-    if (!isAlive(state.party[0])) return { result: "death", rounds: rounds + 1, state };
+    if (!isAlive(state.party[0])) {
+      return { result: "death", rounds: rounds + 1, healPotionsUsed, state };
+    }
     if (state.combatState.monsters.every(monster => monster.hp <= 0)) {
-      return { result: "victory", rounds: rounds + 1, state };
+      return { result: "victory", rounds: rounds + 1, healPotionsUsed, state };
     }
   }
 
-  return { result: "stalemate", rounds, state };
+  return { result: "stalemate", rounds, healPotionsUsed, state };
 }
 
 function applyPostCombatRecovery(character) {
-  while (hasSpell(character, "DIOS") && character.mp > 0 && character.hp < character.maxHp * 0.70) {
+  while (hasSpell(character, "DIOS") && character.mp > 0 && character.hp < getCharMaxHp(character) * 0.70) {
     character.mp -= 1;
     SPELL_EFFECTS.DIOS({ caster: character, target: character });
   }
 }
 
+function useHealPotionIfNeeded(state) {
+  const character = state.party[0];
+  const maxHp = getCharMaxHp(character);
+  if (!isAlive(character) || character.hp > maxHp * HEAL_POTION_THRESHOLD) return false;
+  const potionIndex = state.inventory.indexOf("HEAL_POTION");
+  if (potionIndex < 0) return false;
+  state.inventory.splice(potionIndex, 1);
+  ITEM_EFFECTS.HEAL_POTION({ char: character });
+  return true;
+}
+
+function identifyWithoutCurse(item) {
+  if (!item || typeof item !== "object") return item;
+  return {
+    ...item,
+    identified: true,
+    halfIdentified: false,
+    curseEffectId: null,
+    cursePower: 0,
+    curseSuspected: false
+  };
+}
+
+function isEquipment(item) {
+  return ["weapon", "shield", "armor", "accessory"].includes(item?.type);
+}
+
+function canEquipForSimulation(character, item) {
+  const itemData = getItemData(item);
+  if (!isEquipment(itemData)) return false;
+  if (itemData.classes && !itemData.classes.includes(character.class)) return false;
+  return canEquipCoreAffix(character, item, itemData.type);
+}
+
+function getEquipmentScore(character) {
+  return (
+    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk +
+    getCharDef(character) * EQUIPMENT_SCORE_WEIGHTS.defense +
+    getCharMaxHp(character) * EQUIPMENT_SCORE_WEIGHTS.maxHp +
+    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str +
+    getCharVit(character) * EQUIPMENT_SCORE_WEIGHTS.vit +
+    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int +
+    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie +
+    getCharAgi(character) * EQUIPMENT_SCORE_WEIGHTS.agi +
+    getCharAffixSum(character, "guardian") * EQUIPMENT_SCORE_WEIGHTS.guardian +
+    getCharAffixSum(character, "spellGuard") * EQUIPMENT_SCORE_WEIGHTS.spellGuard +
+    getCharAffixSum(character, "followUp") * EQUIPMENT_SCORE_WEIGHTS.followUp +
+    getCharAffixSum(character, "firstStrike") * EQUIPMENT_SCORE_WEIGHTS.firstStrike +
+    getCharAffixSum(character, "arcane") * EQUIPMENT_SCORE_WEIGHTS.arcane +
+    getCharAffixSum(character, "devotion") * EQUIPMENT_SCORE_WEIGHTS.devotion
+  );
+}
+
+function equipGreedyUpgrades(state) {
+  const character = state.party[0];
+  let upgrades = 0;
+
+  while (true) {
+    const currentScore = getEquipmentScore(character);
+    let best = null;
+
+    state.inventory.forEach((inventoryItem, index) => {
+      const candidate = identifyWithoutCurse(inventoryItem);
+      const itemData = getItemData(candidate);
+      if (!canEquipForSimulation(character, candidate)) return;
+
+      const slot = itemData.type;
+      const oldEquipment = character.equipment[slot];
+      character.equipment[slot] = candidate;
+      const candidateScore = getEquipmentScore(character);
+      character.equipment[slot] = oldEquipment;
+
+      if (candidateScore <= currentScore || (best && candidateScore <= best.score)) return;
+      best = { candidate, index, oldEquipment, score: candidateScore, slot };
+    });
+
+    if (!best) break;
+    character.equipment[best.slot] = best.candidate;
+    if (best.oldEquipment) {
+      state.inventory[best.index] = best.oldEquipment;
+    } else {
+      state.inventory.splice(best.index, 1);
+    }
+    character.hp = Math.min(character.hp, getCharMaxHp(character));
+    upgrades++;
+  }
+
+  // 現装備を上回らない装備は将来も使わない、という貪欲仮定で破棄しバッグ枯渇を防ぐ。
+  state.inventory = state.inventory.filter(item => !isEquipment(getItemData(item)));
+  return upgrades;
+}
+
 function applyFloorTransitionHeal(character) {
   if (!isAlive(character)) return 0;
+  const maxHp = getCharMaxHp(character);
   const healed = Math.min(
-    character.maxHp - character.hp,
-    Math.max(1, Math.floor(character.maxHp * 0.15))
+    maxHp - character.hp,
+    Math.max(1, Math.floor(maxHp * 0.15))
   );
   character.hp += healed;
   return healed;
@@ -259,7 +406,10 @@ function finishRun(state, outcome, metrics) {
     bankedMaterials: totalMaterials(banked),
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     reachedFloor: state.currentRun.deepestFloor,
-    stalemate: metrics.stalemate
+    stalemate: metrics.stalemate,
+    finalLevel: state.party[0].level,
+    equipmentUpgrades: metrics.equipmentUpgrades,
+    healPotionsUsed: metrics.healPotionsUsed
   };
 }
 
@@ -274,9 +424,16 @@ function descendToNextFloor(state, nextFloor) {
 function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   let state = createSimulationState(className, startFloor, runSeed);
-  const metrics = { steps: 0, combatRounds: 0, stalemate: false };
+  const metrics = {
+    steps: 0,
+    combatRounds: 0,
+    stalemate: false,
+    equipmentUpgrades: 0,
+    healPotionsUsed: 0
+  };
 
-  for (let floor = startFloor; floor <= targetDepth; floor++) {
+  // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
+  for (let floor = startFloor; floor < targetDepth; floor++) {
     state.floor = floor;
     const generated = generateRunFloor({ runSeed, floor });
     const floorSteps = getFloorStepCount(generated, floor);
@@ -300,6 +457,7 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
       const combatResult = runEncounter(state);
       state = combatResult.state;
       metrics.combatRounds += combatResult.rounds;
+      metrics.healPotionsUsed += combatResult.healPotionsUsed;
 
       if (combatResult.result !== "victory") {
         metrics.stalemate = combatResult.result === "stalemate";
@@ -310,11 +468,13 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
       while (checkCharLevelUp(state.party[0])) {
         // applyCombatRewards performs the first possible level-up.
       }
+      metrics.equipmentUpgrades += equipGreedyUpgrades(state);
       applyPostCombatRecovery(state.party[0]);
+      metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
       if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
     }
 
-    if (floor < targetDepth) descendToNextFloor(state, floor + 1);
+    descendToNextFloor(state, floor + 1);
   }
 
   return finishRun(state, "retreat", metrics);
@@ -327,7 +487,10 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
     bankedMaterials: 0,
     timeCost: 0,
     reachedFloor: 0,
-    stalemates: 0
+    stalemates: 0,
+    finalLevels: 0,
+    equipmentUpgrades: 0,
+    healPotionsUsed: 0
   };
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
@@ -339,6 +502,9 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
     totals.timeCost += result.timeCost;
     totals.reachedFloor += result.reachedFloor;
     totals.stalemates += Number(result.stalemate);
+    totals.finalLevels += result.finalLevel;
+    totals.equipmentUpgrades += result.equipmentUpgrades;
+    totals.healPotionsUsed += result.healPotionsUsed;
   }
 
   const bankedMaterialEv = totals.bankedMaterials / RUNS_PER_CASE;
@@ -353,7 +519,10 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
     averageTimeCost,
     materialEvPerTime: bankedMaterialEv / averageTimeCost,
     averageReachedFloor: totals.reachedFloor / RUNS_PER_CASE,
-    stalemateRate: totals.stalemates / RUNS_PER_CASE
+    stalemateRate: totals.stalemates / RUNS_PER_CASE,
+    averageFinalLevel: totals.finalLevels / RUNS_PER_CASE,
+    averageEquipmentUpgrades: totals.equipmentUpgrades / RUNS_PER_CASE,
+    averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE
   };
 }
 
@@ -362,14 +531,15 @@ function formatPercent(rate) {
 }
 
 function printTable(results) {
-  console.log("戦略       | 生還率 | 死亡率 | bank素材EV | 平均時間 | 素材EV/時間 | 平均到達階");
-  console.log("-----------|--------|--------|------------|----------|-------------|-----------");
+  console.log("戦略       | 生還率 | 死亡率 | bank素材EV | 平均時間 | 素材EV/時間 | 平均到達階 | 平均Lv | 平均換装 | 平均薬");
+  console.log("-----------|--------|--------|------------|----------|-------------|------------|--------|----------|-------");
   results.forEach(result => {
     console.log(
       `${result.label.padEnd(10)} | ${formatPercent(result.survivalRate).padStart(6)} | ` +
       `${formatPercent(result.deathRate).padStart(6)} | ${result.bankedMaterialEv.toFixed(2).padStart(10)} | ` +
       `${result.averageTimeCost.toFixed(2).padStart(8)} | ${result.materialEvPerTime.toFixed(4).padStart(11)} | ` +
-      `${result.averageReachedFloor.toFixed(2).padStart(9)}`
+      `${result.averageReachedFloor.toFixed(2).padStart(10)} | ${result.averageFinalLevel.toFixed(2).padStart(6)} | ` +
+      `${result.averageEquipmentUpgrades.toFixed(2).padStart(8)} | ${result.averageHealPotionsUsed.toFixed(2).padStart(5)}`
     );
   });
 }
@@ -431,6 +601,10 @@ console.log(`乱数seed: ${SIM_SEED}`);
 console.log(
   `仮定: 探索係数=${EXPLORATION_FACTOR}, 宝箱拾得率=${CHEST_PICKUP_RATE}, ` +
   `戦闘ターン重み=${COMBAT_TURN_WEIGHT}`
+);
+console.log(
+  `生存仮定: 初期傷薬=${INITIAL_HEAL_POTIONS}個, 使用閾値=${HEAL_POTION_THRESHOLD}, ` +
+  "装備=実制限付き貪欲スコア更新, 鑑定済み・呪いなし"
 );
 console.log("時間単位: 1歩=1、1戦闘ターン=3");
 console.log("撤退=100% bank、死亡=30% bank");
