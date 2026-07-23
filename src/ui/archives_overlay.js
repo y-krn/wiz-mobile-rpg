@@ -268,7 +268,8 @@ export function openArchivesOverlay() {
   
   const overlay = document.getElementById("archives-overlay");
   if (overlay) {
-    overlay.style.display = "flex";
+    overlay.removeAttribute("style");
+    overlay.classList.remove("is-hidden");
   }
   
   renderArchives();
@@ -310,7 +311,6 @@ export function renderArchives() {
       const btnBack = document.createElement("button");
       btnBack.className = "btn btn-neon btn-block";
       btnBack.textContent = "一覧に戻る";
-      btnBack.style.marginTop = "8px";
       btnBack.addEventListener("click", () => {
         archivesState.selectedId = null;
         renderArchives();
@@ -370,7 +370,6 @@ export function renderArchives() {
       const btnBack = document.createElement("button");
       btnBack.className = "btn btn-neon btn-block";
       btnBack.textContent = "一覧に戻る";
-      btnBack.style.marginTop = "8px";
       btnBack.addEventListener("click", () => {
         archivesState.selectedId = null;
         renderArchives();
@@ -466,12 +465,10 @@ export function renderArchives() {
   closeRow.className = "bottom-actions-row";
 
   const btnClose = document.createElement("button");
-  btnClose.className = "btn btn-danger btn-overlay-close";
+  btnClose.className = "btn btn-danger";
   btnClose.textContent = "❌ 閉じる";
-  btnClose.style.width = "100%";
-  btnClose.style.minHeight = "44px";
   btnClose.addEventListener("click", () => {
-    overlay.style.display = "none";
+    overlay.classList.add("is-hidden");
     state.gameState = "town";
     updateUI();
   });

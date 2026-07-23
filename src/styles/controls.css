@@ -164,17 +164,17 @@
   align-content: start;
 }
 
-.milestone-merchant-heading,
-.milestone-merchant-empty {
+.milestone-merchant-heading {
   min-width: 0;
   padding: var(--space-xs);
   overflow-wrap: anywhere;
-  color: var(--text-muted);
+  color: var(--neon-cyan);
   font-size: var(--fs-xs);
 }
 
-.milestone-merchant-heading {
-  color: var(--neon-cyan);
+.milestone-merchant-grid > .list-empty {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .milestone-merchant-option {

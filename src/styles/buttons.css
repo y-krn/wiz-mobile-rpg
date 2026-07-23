@@ -69,11 +69,35 @@
   background-color: rgba(255, 59, 48, 0.12);
   box-shadow: var(--neon-glow-red);
 }
-.btn-combat-auto.active {
-  border-color: var(--neon-green) !important;
-  color: var(--neon-green) !important;
-  background-color: rgba(0, 255, 102, 0.12) !important;
-  box-shadow: var(--neon-glow-green) !important;
+
+.archives-tab.active,
+.equip-filter-chip.active,
+.equip-actor-chip.active,
+.spell-item-row.active,
+.spell-filters .filter-chip.active,
+.spell-mini-caster-btn.active,
+.spell-caster-btn.active,
+.spell-item-row-card.active {
+  background-color: var(--sel-bg);
+  border-color: var(--sel-accent);
+  box-shadow: var(--sel-shadow, 0 0 4px var(--sel-accent));
+  color: var(--sel-color, var(--sel-accent));
+}
+
+.btn-combat-auto,
+#btn-combat-auto {
+  --sel-accent: var(--neon-green);
+  --sel-bg: rgba(0, 255, 102, 0.12);
+  --sel-color: var(--neon-green);
+  --sel-shadow: var(--neon-glow-green);
+}
+
+.btn-combat-auto.active,
+#btn-combat-auto.active {
+  background-color: var(--sel-bg) !important;
+  border-color: var(--sel-accent) !important;
+  box-shadow: var(--sel-shadow) !important;
+  color: var(--sel-color) !important;
 }
 
 .btn-dpad {
@@ -101,6 +125,7 @@
 
 /* Focus Visible outline rules */
 .btn:focus-visible,
+.filter-chip:focus-visible,
 .equip-filter-chip:focus-visible,
 .equip-item-row:focus-visible,
 .equip-actor-chip:focus-visible {

@@ -49,7 +49,7 @@ export function renderMilestoneMerchant(optGrid) {
   optGrid.appendChild(createSection(`解呪｜${formatCost(MILESTONE_UNCURSE_COST)}`));
   if (cursed.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "milestone-merchant-empty";
+    empty.className = "list-empty";
     empty.textContent = "解呪できる装備なし";
     optGrid.appendChild(empty);
   }
