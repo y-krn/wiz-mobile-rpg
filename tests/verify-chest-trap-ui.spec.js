@@ -42,9 +42,6 @@ test('Verify Chest Trap Inspection and Disarm Button UI state flow (with trap)',
   await expect(btnDisarm).toHaveText("解除（要調査）");
   await expect(btnDisarm).toBeDisabled();
 
-  // Take screenshot of initial chest state
-  await page.screenshot({ path: '/Users/ottan/.gemini/antigravity/brain/db27a367-cee3-4ce8-9cef-1a756fb5ab8a/chest_initial_trap.png' });
-
   // 3. Perform inspection
   await btnInspect.click();
   await page.waitForTimeout(1000);
@@ -87,8 +84,6 @@ test('Verify Chest Trap Inspection and Disarm Button UI state flow (with trap)',
     await expect(btnInspectBack).toBeDisabled();
   }
 
-  // Take screenshot of post-inspection state
-  await page.screenshot({ path: '/Users/ottan/.gemini/antigravity/brain/db27a367-cee3-4ce8-9cef-1a756fb5ab8a/chest_inspected_trap.png' });
 });
 
 test('Verify Chest Trap Inspection and Disarm Button UI state flow (no trap)', async ({ page }) => {
@@ -133,9 +128,6 @@ test('Verify Chest Trap Inspection and Disarm Button UI state flow (no trap)', a
   await expect(btnDisarm).toHaveText("解除（要調査）");
   await expect(btnDisarm).toBeDisabled();
 
-  // Take screenshot of initial chest state
-  await page.screenshot({ path: '/Users/ottan/.gemini/antigravity/brain/db27a367-cee3-4ce8-9cef-1a756fb5ab8a/chest_initial_notrap.png' });
-
   // 3. Perform inspection
   await btnInspect.click();
   await page.waitForTimeout(1000);
@@ -163,6 +155,4 @@ test('Verify Chest Trap Inspection and Disarm Button UI state flow (no trap)', a
     await expect(btnDisarmAfter).toBeEnabled();
   }
 
-  // Take screenshot of post-inspection state
-  await page.screenshot({ path: '/Users/ottan/.gemini/antigravity/brain/db27a367-cee3-4ce8-9cef-1a756fb5ab8a/chest_inspected_notrap.png' });
 });
