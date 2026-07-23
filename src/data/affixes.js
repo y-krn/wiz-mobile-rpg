@@ -53,6 +53,11 @@ export const AFFIX_BALANCE = {
     rare: [0, 6, 7, 8, 9, 10],
     epic: [0, 12, 13, 14, 15, 16]
   },
+  deepBudgetSlopePerFloor: {
+    magic: 0,
+    rare: 0.28,
+    epic: 0.48
+  },
   rollComposition: {
     magic: { support: 1, core: 0 },
     rare: { support: 2, core: 1, coreChance: 0.5 },
@@ -339,8 +344,12 @@ export function formatAffixText(affix, supportSeparator = ": ", { coreSealed = f
 }
 
 export function getAffixBudget(rarity, floor) {
-  const table = AFFIX_BALANCE.budgetsByRarityAndFloor[rarity]
-    || AFFIX_BALANCE.budgetsByRarityAndFloor.magic;
-  const normalizedFloor = Math.max(1, Math.min(5, floor || 1));
-  return table[normalizedFloor];
+  const normalizedRarity = AFFIX_BALANCE.budgetsByRarityAndFloor[rarity] ? rarity : "magic";
+  const table = AFFIX_BALANCE.budgetsByRarityAndFloor[normalizedRarity];
+  const requestedFloor = floor || 1;
+  const normalizedFloor = Math.max(1, Math.min(5, requestedFloor));
+  if (requestedFloor <= 5) return table[normalizedFloor];
+
+  const slope = AFFIX_BALANCE.deepBudgetSlopePerFloor[normalizedRarity];
+  return Math.round(table[5] + (requestedFloor - 5) * slope);
 }
