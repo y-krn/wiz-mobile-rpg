@@ -191,6 +191,74 @@ for (const vp of VIEWPORTS) {
   });
 }
 
+for (const vp of VIEWPORTS) {
+  test(`Equipment controls stay in the bottom reach zone at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      const classes = ['Fighter', 'Mage', 'Priest', 'Thief'];
+      state.party = classes.map((className, index) => {
+        const char = createSoloCharacter(className);
+        char.name = `長い冒険者名${index + 1}`;
+        return char;
+      });
+      state.inventory = Array.from({ length: 20 }, (_, index) => ({
+        kind: 'equipment',
+        instanceId: `bottom_bar_${index}`,
+        baseId: index % 2 === 0 ? 'SHORT_SWORD' : 'LEATHER_ARMOR',
+        rarity: 'common',
+        level: 1,
+        identified: true,
+        affixes: [],
+      }));
+      state.gameState = 'town';
+      openEquipOverlay(0);
+    });
+
+    const overlay = page.locator('#equip-overlay');
+    const footer = overlay.locator('.bottom-actions-container');
+    await expect(footer).toBeVisible();
+    await expect(overlay.locator(':scope > .equip-header-area button')).toHaveCount(0);
+    await expect(overlay.locator(':scope > .equip-header-area .equip-title')).toHaveCount(1);
+    await expect(overlay.locator(':scope > .equip-body + .bottom-actions-container')).toHaveCount(1);
+
+    const controls = footer.locator('button');
+    const controlCount = await controls.count();
+    for (let index = 0; index < controlCount; index += 1) {
+      const control = controls.nth(index);
+      const box = await control.boundingBox();
+      expect(box.height, `${await control.textContent()} should be at least 44px on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(box.x, `${await control.textContent()} should not overflow left on ${vp.name}`).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width, `${await control.textContent()} should not overflow right on ${vp.name}`).toBeLessThanOrEqual(vp.width);
+    }
+
+    for (const control of await footer.locator('.equip-filter-chip, #btn-equip-close').all()) {
+      const box = await control.boundingBox();
+      expect(vp.height - box.y, `${await control.textContent()} should start within 200px of the bottom on ${vp.name}`).toBeLessThanOrEqual(200);
+    }
+
+    const itemList = overlay.locator('.equip-item-list');
+    const savedScrollTop = await itemList.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+      return element.scrollTop;
+    });
+    expect(savedScrollTop).toBeGreaterThan(0);
+    await footer.locator('.equip-actor-chip').nth(1).click();
+    await expect.poll(() => itemList.evaluate((element) => element.scrollTop)).toBe(savedScrollTop);
+
+    await footer.getByRole('button', { name: '鎧' }).click();
+    await expect(footer.getByRole('button', { name: '鎧' })).toHaveClass(/active/);
+    await expect(overlay.locator('.equip-item-row-name', { hasText: 'ショートソード' })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
+
+    await page.locator('#btn-equip-close').click();
+    await expect(overlay).toBeHidden();
+    expect(await page.evaluate(async () => (await import('/src/state.js')).state.gameState)).toBe('town');
+  });
+}
+
 test('Three-column corridor renderer draws adjacent front walls', async ({ page }) => {
   await page.goto('/');
   const cyanPixels = await page.evaluate(async () => {
