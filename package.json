@@ -7,8 +7,10 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "npm run test:unit && npm run test:browser",
+    "test": "npm run test:unit:full && npm run test:browser",
     "test:unit": "node scratch/run_tests.js",
+    "test:unit:fast": "FAST=1 node scratch/run_tests.js",
+    "test:unit:full": "FULL_TEST=1 node scratch/run_tests.js",
     "test:browser": "playwright test",
     "lint:css": "stylelint \"src/style.css\" \"src/styles/**/*.css\"",
     "lint": "npm run lint:css && eslint . --cache"

@@ -12,7 +12,7 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'npx vite --port 5175',
+    command: 'npx vite --port 5175 --host 127.0.0.1',
     url: 'http://localhost:5175',
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',
