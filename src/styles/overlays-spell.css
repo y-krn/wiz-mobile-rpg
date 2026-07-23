@@ -120,6 +120,10 @@
 }
 
 .spell-item-row {
+  --sel-accent: var(--neon-purple);
+  --sel-bg: rgba(191, 90, 242, 0.05);
+  --sel-color: var(--text-main);
+
   background-color: #14141a;
   border: 1px solid #22222d;
   border-radius: 6px;
@@ -132,12 +136,6 @@
   width: 100%;
   text-align: left;
   box-sizing: border-box;
-}
-
-.spell-item-row.active {
-  border-color: var(--neon-purple);
-  box-shadow: 0 0 4px var(--neon-purple);
-  background-color: rgba(191, 90, 242, 0.05);
 }
 
 .spell-row-name {
@@ -218,13 +216,6 @@
   color: var(--text-muted);
   font-size: var(--fs-base);
   text-align: center;
-}
-
-.spell-empty-text {
-  color: var(--text-muted);
-  font-size: var(--fs-base);
-  text-align: center;
-  padding: 20px 0;
 }
 
 .spell-detail-header {
@@ -328,12 +319,19 @@
   box-sizing: border-box;
 }
 
-/* Spell filters active state override */
-.spell-filters .filter-chip.active {
-  color: var(--neon-purple);
-  border-color: var(--neon-purple);
-  box-shadow: 0 0 4px rgba(191, 90, 242, 0.2);
-  background-color: rgba(191, 90, 242, 0.05);
+.spell-filters {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-sm);
+  margin-bottom: var(--sp-md);
+  width: 100%;
+}
+
+.spell-filters .filter-chip {
+  --sel-accent: var(--neon-purple);
+  --sel-bg: rgba(191, 90, 242, 0.05);
+  --sel-color: var(--neon-purple);
+  --sel-shadow: 0 0 4px rgba(191, 90, 242, 0.2);
 }
 
 /* Spell Mini Casters bottom switcher bar */
@@ -345,6 +343,11 @@
 }
 
 .spell-mini-caster-btn {
+  --sel-accent: var(--neon-purple);
+  --sel-bg: rgba(191, 90, 242, 0.12);
+  --sel-color: var(--text-main);
+  --sel-shadow: var(--neon-glow-purple);
+
   background-color: #14141a;
   border: 1px solid #22222d;
   border-radius: 4px;
@@ -359,14 +362,8 @@
   cursor: pointer;
   box-sizing: border-box;
   text-align: center;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
   touch-action: manipulation;
-}
-
-.spell-mini-caster-btn.active {
-  background-color: rgba(191, 90, 242, 0.12);
-  border-color: var(--neon-purple);
-  box-shadow: var(--neon-glow-purple);
 }
 
 .spell-mini-caster-btn:focus-visible {
@@ -388,7 +385,9 @@
 .spell-target-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  flex: 1;
   gap: 8px;
+  max-height: none;
   width: 100%;
   margin-top: 6px;
   box-sizing: border-box;
@@ -412,6 +411,7 @@
   touch-action: manipulation;
   color: var(--text-main);
   font-family: inherit;
+  min-height: 80px;
 }
 
 .spell-target-card.recommended {
@@ -474,7 +474,7 @@
   margin-bottom: 2px;
 }
 
-.spell-item-list.grid-mode .spell-empty-text {
+.spell-item-list.grid-mode .list-empty {
   grid-column: span 2;
 }
 
@@ -528,6 +528,10 @@
 }
 
 .spell-caster-btn {
+  --sel-accent: var(--neon-cyan);
+  --sel-bg: rgba(0, 229, 255, 0.05);
+  --sel-color: var(--text-main);
+
   flex: 1;
   background-color: #14141a;
   border: 1px solid #22222d;
@@ -542,13 +546,7 @@
   cursor: pointer;
   box-sizing: border-box;
   color: var(--text-main);
-  transition: all 0.15s ease;
-}
-
-.spell-caster-btn.active {
-  border-color: var(--neon-cyan);
-  box-shadow: 0 0 4px var(--neon-cyan);
-  background-color: rgba(0, 229, 255, 0.05);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .spell-caster-btn.disabled {
@@ -577,6 +575,10 @@
 
 /* Spell Card styles for 2-row layout */
 .spell-item-row-card {
+  --sel-accent: var(--neon-purple);
+  --sel-bg: rgba(191, 90, 242, 0.05);
+  --sel-color: var(--neon-green);
+
   background-color: #14141a;
   border: 1px solid #22222d;
   border-radius: 6px;
@@ -588,13 +590,7 @@
   width: 100%;
   box-sizing: border-box;
   cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.spell-item-row-card.active {
-  border-color: var(--neon-purple);
-  box-shadow: 0 0 4px var(--neon-purple);
-  background-color: rgba(191, 90, 242, 0.05);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .spell-item-row-card.disabled {

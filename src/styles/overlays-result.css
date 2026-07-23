@@ -70,8 +70,6 @@
 .result-material-chip strong { color: var(--neon-green); }
 .result-codex-bonus { margin-top: var(--sp-xs); padding-top: var(--sp-xs); border-top: 1px dashed var(--border-color); color: var(--neon-amber); font-size: var(--fs-xs); }
 .result-codex-bonus > div { margin-top: var(--sp-xs); color: var(--text-main); }
-.result-empty { color: var(--text-muted); font-size: var(--fs-xs); }
-
 .result-quest-list { display: grid; gap: var(--sp-xs); margin-top: var(--sp-sm); }
 .result-quest-row { display: grid; grid-template-columns: auto 1fr auto; gap: var(--sp-sm); align-items: center; font-size: var(--fs-xs); }
 .result-quest-row > span { color: var(--neon-red); }

@@ -229,7 +229,7 @@ export function renderSpellOverlay() {
 
     if (filteredSpells.length === 0) {
       const emptyDiv = document.createElement("div");
-      emptyDiv.className = "spell-empty-text";
+      emptyDiv.className = "list-empty";
       emptyDiv.textContent = "該当する呪文がありません";
       listContainer.appendChild(emptyDiv);
     } else {
@@ -277,11 +277,6 @@ export function renderSpellOverlay() {
     // 2.2 Spell Filter (呪文フィルタ) - Moved here to be closer to bottom action area
     const filterRow = document.createElement("div");
     filterRow.className = "spell-filters";
-    filterRow.style.display = "grid";
-    filterRow.style.gridTemplateColumns = "repeat(3, 1fr)";
-    filterRow.style.gap = "6px";
-    filterRow.style.marginBottom = "8px";
-    filterRow.style.width = "100%";
 
     const categories = [
       { id: "all", label: "すべて" },
@@ -297,8 +292,6 @@ export function renderSpellOverlay() {
       const isActive = spellMenuState.filter === cat.id;
       chip.className = `filter-chip ${isActive ? "active" : ""}`;
       chip.textContent = cat.label;
-      chip.style.minHeight = "44px";
-      chip.style.fontSize = "11px";
       chip.addEventListener("click", () => {
         spellMenuState.filter = cat.id;
         spellMenuState.selectedKey = null; // Clear selected spell on filter switch
@@ -348,8 +341,6 @@ export function renderSpellOverlay() {
     // 2x2 Grid Container
     const gridContainer = document.createElement("div");
     gridContainer.className = "spell-target-grid";
-    gridContainer.style.flex = "1";
-    gridContainer.style.maxHeight = "none";
 
     state.party.forEach((char, idx) => {
       const card = document.createElement("button");
@@ -403,7 +394,6 @@ export function renderSpellOverlay() {
       }
 
       card.className = `spell-target-card ${isDisabled ? "disabled" : ""} ${isRecommended ? "recommended" : ""}`;
-      card.style.minHeight = "80px";
 
       if (isDisabled) {
         card.disabled = true;
@@ -453,7 +443,6 @@ export function renderSpellOverlay() {
   btnBack.type = "button";
   btnBack.className = "btn btn-danger btn-block";
   btnBack.textContent = "◀ 戻る";
-  btnBack.style.minHeight = "44px";
   btnBack.addEventListener("click", () => {
     if (menuContext.type === "spell_select") {
       closeSubmenu();

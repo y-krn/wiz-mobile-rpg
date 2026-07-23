@@ -39,8 +39,7 @@
   white-space: nowrap;
 }
 
-.character-identity span,
-.character-empty {
+.character-identity span {
   color: var(--text-muted);
   font-size: var(--fs-xs);
 }
@@ -100,7 +99,7 @@
   font-size: var(--fs-xs);
 }
 
-.character-empty {
+#character-hud > .list-empty {
   display: grid;
   min-height: 52px;
   place-items: center;

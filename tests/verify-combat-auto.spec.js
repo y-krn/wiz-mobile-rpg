@@ -35,6 +35,16 @@ test('Combat Auto button test', async ({ page }) => {
   // 初期状態では「オート」であるべき
   expect(text).toBe('オート');
   expect(className).not.toContain('active');
+
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui.js');
+    state.combatState.isAuto = true;
+    updateUI();
+  });
+  await expect(autoBtn).toHaveClass(/active/);
+  await expect.poll(() => autoBtn.evaluate((element) => getComputedStyle(element).borderColor))
+    .toBe('rgb(0, 255, 102)');
 });
 
 const COMBAT_OVERLAY_VIEWPORTS = [

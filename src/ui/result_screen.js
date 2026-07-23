@@ -6,7 +6,7 @@ import { getFloorLabel } from "../data/floor_themes.js";
 
 function formatMaterials(materials) {
   const entries = Object.entries(materials || {}).filter(([, quantity]) => quantity > 0);
-  if (entries.length === 0) return '<span class="result-empty">なし</span>';
+  if (entries.length === 0) return '<span class="list-empty">なし</span>';
   return entries.map(([name, quantity]) => `<span class="result-material-chip">${name}<strong>×${quantity}</strong></span>`).join("");
 }
 
@@ -37,7 +37,7 @@ function getRecordHtml(run) {
 
 function getQuestHtml(run) {
   const quests = run.quests || [];
-  if (quests.length === 0) return '<div class="result-empty">クエストなし</div>';
+  if (quests.length === 0) return '<div class="list-empty">クエストなし</div>';
   return quests.map(quest => {
     const reward = Object.entries(quest.reward?.materials || {})
       .map(([name, quantity]) => `${name}×${quantity}`)

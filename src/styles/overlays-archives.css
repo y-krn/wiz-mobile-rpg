@@ -14,6 +14,10 @@
   box-sizing: border-box;
 }
 
+.archives-overlay-container.is-hidden {
+  display: none;
+}
+
 .equip-overlay-container,
 .spell-overlay-container,
 .archives-overlay-container {
@@ -48,6 +52,10 @@
 }
 
 .archives-tab {
+  --sel-accent: var(--neon-cyan);
+  --sel-bg: #121216;
+  --sel-color: var(--neon-cyan);
+
   flex: 1;
   background-color: #1a1a24;
   border: 1px solid #333;
@@ -64,11 +72,10 @@
   align-items: center;
   justify-content: center;
 }
-.archives-tab.active {
-  background-color: #121216;
-  border-color: var(--neon-cyan);
-  color: var(--neon-cyan);
-  box-shadow: 0 0 4px var(--neon-cyan);
+
+#archives-overlay .bottom-actions-row .btn-danger {
+  min-height: var(--tap-min);
+  width: 100%;
 }
 
 .archives-body {
@@ -81,6 +88,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.archives-body .btn-block {
+  margin-top: var(--sp-md);
 }
 
 .archives-section-title {

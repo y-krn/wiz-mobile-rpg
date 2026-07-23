@@ -9,7 +9,7 @@ export function updateSoloHUD() {
   const char = state.party[0];
   if (!char) {
     const empty = document.createElement("div");
-    empty.className = "character-empty";
+    empty.className = "list-empty";
     empty.textContent = "クラス未選択";
     hud.appendChild(empty);
     return;
