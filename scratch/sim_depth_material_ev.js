@@ -26,10 +26,20 @@ const { generateRunFloor } = await import("../src/run_map_generator.js");
 const { getFloorTemplate } = await import("../src/data/floor_templates.js");
 const { EVENT_TYPES } = await import("../src/constants/events.js");
 const { generateChestMaterials } = await import("../src/chest.js");
+const { AFFIX_BALANCE, CORE_AFFIXES } = await import("../src/data/affixes.js");
+const { ITEMS } = await import("../src/data/items.js");
 const { MATERIAL_DROP_BALANCE } = await import("../src/data/materials.js");
-const { bankRunMaterials, getBankedMaterials } = await import("../src/rules/material_rules.js");
+const { IDENTIFICATION_BALANCE } = await import("../src/rules/identification_rules.js");
 const {
   canEquipCoreAffix,
+  getEquippedCoreAffixes,
+  hasCoreAffix
+} = await import("../src/rules/affix_rules.js");
+const { bankRunMaterials, getBankedMaterials } = await import("../src/rules/material_rules.js");
+const { addInventoryItemToState } = await import("../src/state/inventory_state.js");
+const {
+  generateRandomAccessory,
+  generateRandomEquipment,
   getCharAffixSum,
   getCharAgi,
   getCharDef,
@@ -61,6 +71,8 @@ const HEAL_POTION_THRESHOLD = 0.35;
 // 仮値・感度分析対象: 最大HPの35%以下なら次の自ターンで逃走する。
 const FLEE_HP_THRESHOLD = 0.35;
 const SIM_CLASSES = SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className));
+const CORE_AFFIX_IDS = new Set(CORE_AFFIXES.map(affix => affix.id));
+const EARLY_BUILD_MAX_FLOOR = 10;
 // 仮定: 装備スコアは攻防を主軸に、HP・主要能力・戦闘affixを下記重みで合算する。
 const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
   weaponAtk: 2,
@@ -82,6 +94,13 @@ const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
 // 未鑑定・呪いリスクは#236の対象。コア1個制限は実canEquipCoreAffixで維持する。
 
 const HOLY_TAGS = new Set(["undead", "spirit", "demon"]);
+const CHEST_ITEM_CANDIDATES_BY_FLOOR = Object.freeze({
+  1: ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "WAKE_POWDER"],
+  2: ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL", "TRAP_KIT"],
+  3: ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "VENOM_FANG", "LONG_SWORD", "MACE", "SACRED_MACE", "SAGE_STAFF", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT"],
+  4: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT"],
+  5: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT"]
+});
 
 let randomState = SIM_SEED;
 Math.random = () => {
@@ -116,6 +135,7 @@ function createSimulationState(className, startFloor, runSeed) {
     metaMaterials: {},
     identifyTickets: 0,
     gold: 0,
+    firstChestUnidentifiedGuaranteed: false,
     floor: startFloor
   };
 }
@@ -387,6 +407,126 @@ function schedulePickedUpChests(chestCount, floorSteps) {
   return schedule;
 }
 
+function rollChestTrap(floor, rng) {
+  if (floor === 1) {
+    const roll = rng();
+    if (roll < 0.35) return "none";
+    if (roll < 0.60) return "poison needle";
+    if (roll < 0.85) return "flash bomb";
+    return "gas bomb";
+  }
+
+  let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
+  if (floor === 2) {
+    traps = ["poison needle", "poison needle", "gas bomb", "teleporter", "flash bomb", "none", "none"];
+  } else if (floor === 4) {
+    traps = ["gas bomb", "gas bomb", "teleporter", "teleporter", "flash bomb", "poison needle", "poison needle", "none"];
+  } else if (floor === 5) {
+    traps = ["gas bomb", "gas bomb", "teleporter", "teleporter", "teleporter", "teleporter", "poison needle", "poison needle", "flash bomb", "flash bomb", "flash bomb", "none"];
+  }
+  return traps[Math.floor(rng() * traps.length)];
+}
+
+function rollChestAccessory(floor, rng, party) {
+  const chance = floor >= 5 ? 0.16 : (floor === 4 ? 0.14 : (floor === 3 ? 0.12 : 0.08));
+  if (rng() >= chance) return null;
+  const rarityRoll = rng();
+  let rarity = null;
+  if (floor >= 4 && rarityRoll < 0.10) {
+    rarity = "epic";
+  } else if (rarityRoll < 0.35) {
+    rarity = "rare";
+  }
+  return generateRandomAccessory(floor, rarity, rng, party, floor >= 3);
+}
+
+// setupChestStateの装備供給分岐をNode sim用stateで再現する。
+function rollChestItems(state, floor, rng) {
+  const trap = rollChestTrap(floor, rng);
+  if (floor === 1) {
+    state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
+  }
+
+  let item = null;
+  let isGuaranteed = false;
+  if (floor === 1) {
+    const b1Opened = state.currentRun.b1ChestsOpened || 0;
+    const b1Found = state.currentRun.b1EquipFound || 0;
+    if (b1Opened >= 3 && b1Found === 0) isGuaranteed = true;
+    if (!isGuaranteed && !state.firstChestUnidentifiedGuaranteed) isGuaranteed = true;
+  }
+
+  let itemChance = floor >= 5 ? 0.85 : (floor === 4 ? 0.75 : 0.50);
+  if (floor === 1 && (state.currentRun.b1EquipFound || 0) === 0) {
+    const b1Opened = state.currentRun.b1ChestsOpened || 1;
+    itemChance += (b1Opened - 1) * 0.15;
+  }
+
+  if (isGuaranteed || rng() < itemChance) {
+    if (isGuaranteed) {
+      item = generateRandomEquipment(floor, "magic", rng, state.party, true, floor >= 3);
+      state.firstChestUnidentifiedGuaranteed = true;
+    } else {
+      const candidates = CHEST_ITEM_CANDIDATES_BY_FLOOR[floor]
+        || Object.keys(ITEMS).filter(key => key !== "ANTIGRAVITY_CRYSTAL");
+      item = candidates[Math.floor(rng() * candidates.length)];
+      const itemData = ITEMS[item];
+      if (itemData && ["weapon", "armor", "shield"].includes(itemData.type)) {
+        const dangerousTrap = ["poison needle", "gas bomb", "teleporter"].includes(trap);
+        let equipmentChance;
+        if (floor === 4) {
+          equipmentChance = dangerousTrap ? 0.80 : 0.70;
+        } else if (floor === 5) {
+          equipmentChance = 0.90;
+        } else {
+          equipmentChance = dangerousTrap ? 0.70 : 0.50;
+        }
+        if (state.currentRun.equipmentFound.length === 0 && state.currentRun.chestsOpened >= 2) {
+          equipmentChance += 0.20;
+        }
+        const treasureSense = state.party.reduce((sum, character) => {
+          return character.status === "dead"
+            ? sum
+            : sum + getCharAffixSum(character, "treasureSense");
+        }, 0);
+        equipmentChance = Math.min(0.90, equipmentChance + Math.min(25, treasureSense) / 100);
+        if (rng() < equipmentChance) {
+          item = generateRandomEquipment(floor, null, rng, state.party, true, floor >= 3);
+        }
+      }
+    }
+  }
+
+  return [item, rollChestAccessory(floor, rng, state.party)].filter(Boolean);
+}
+
+function hasBuildCoreAffix(item) {
+  if (!hasCoreAffix(item)) return false;
+  return item.affixes.some(affix => CORE_AFFIX_IDS.has(affix.id || affix.type));
+}
+
+function hasEquippedBuildCore(character) {
+  return getEquippedCoreAffixes(character)
+    .some(affix => CORE_AFFIX_IDS.has(affix.id || affix.type));
+}
+
+function recordEquipmentAcquisitions(metrics, equipmentItems, floor) {
+  equipmentItems.forEach(item => {
+    metrics.equipmentFound++;
+    if (floor <= EARLY_BUILD_MAX_FLOOR) metrics.earlyEquipmentFound++;
+    else metrics.deepEquipmentFound++;
+    if (!hasBuildCoreAffix(item)) return;
+    metrics.coreEquipmentFound++;
+    if (metrics.firstCoreDepth === null) metrics.firstCoreDepth = floor;
+  });
+}
+
+function recordEquipmentUpgrades(metrics, upgrades, floor) {
+  metrics.equipmentUpgrades += upgrades;
+  if (floor <= EARLY_BUILD_MAX_FLOOR) metrics.earlyEquipmentUpgrades += upgrades;
+  else metrics.deepEquipmentUpgrades += upgrades;
+}
+
 function addMaterials(target, additions) {
   Object.entries(additions).forEach(([name, quantity]) => {
     target[name] = (target[name] || 0) + quantity;
@@ -421,6 +561,14 @@ function finishRun(state, outcome, metrics) {
     stalemate: metrics.stalemate,
     finalLevel: state.party[0].level,
     equipmentUpgrades: metrics.equipmentUpgrades,
+    earlyEquipmentUpgrades: metrics.earlyEquipmentUpgrades,
+    deepEquipmentUpgrades: metrics.deepEquipmentUpgrades,
+    equipmentFound: metrics.equipmentFound,
+    earlyEquipmentFound: metrics.earlyEquipmentFound,
+    deepEquipmentFound: metrics.deepEquipmentFound,
+    coreEquipmentFound: metrics.coreEquipmentFound,
+    firstCoreDepth: metrics.firstCoreDepth,
+    coreEquipped: hasEquippedBuildCore(state.party[0]),
     healPotionsUsed: metrics.healPotionsUsed,
     fleeCount: metrics.fleeCount
   };
@@ -442,6 +590,13 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
     combatRounds: 0,
     stalemate: false,
     equipmentUpgrades: 0,
+    earlyEquipmentUpgrades: 0,
+    deepEquipmentUpgrades: 0,
+    equipmentFound: 0,
+    earlyEquipmentFound: 0,
+    deepEquipmentFound: 0,
+    coreEquipmentFound: 0,
+    firstCoreDepth: null,
     healPotionsUsed: 0,
     fleeCount: 0
   };
@@ -462,7 +617,28 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
       const pickedUpChests = chestSchedule.get(step) || 0;
       for (let chest = 0; chest < pickedUpChests; chest++) {
         addMaterials(state.currentRun.materials, generateChestMaterials(floor, Math.random, 0));
+        const chestItems = rollChestItems(state, floor, Math.random);
+        const acquiredEquipment = [];
+        chestItems.forEach(item => {
+          if (!addInventoryItemToState(state, item)) return;
+          const itemData = getItemData(item);
+          if (!isEquipment(itemData)) {
+            state.currentRun.itemsFound.push(item);
+            return;
+          }
+          acquiredEquipment.push(item);
+          if (typeof item === "string") {
+            state.currentRun.itemsFound.push(item);
+          } else {
+            state.currentRun.equipmentFound.push(item);
+            if (floor === 1) {
+              state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
+            }
+          }
+        });
+        recordEquipmentAcquisitions(metrics, acquiredEquipment, floor);
         state.currentRun.chestsOpened++;
+        recordEquipmentUpgrades(metrics, equipGreedyUpgrades(state), floor);
       }
 
       if (Math.random() >= getEncounterChance(step)) continue;
@@ -486,11 +662,17 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
         return finishRun(state, "death", metrics);
       }
 
+      const equipmentFoundBeforeRewards = state.currentRun.equipmentFound.length;
       applyCombatRewards(state, state.combatState.monsters, [], Math.random);
+      recordEquipmentAcquisitions(
+        metrics,
+        state.currentRun.equipmentFound.slice(equipmentFoundBeforeRewards),
+        floor
+      );
       while (checkCharLevelUp(state.party[0])) {
         // applyCombatRewards performs the first possible level-up.
       }
-      metrics.equipmentUpgrades += equipGreedyUpgrades(state);
+      recordEquipmentUpgrades(metrics, equipGreedyUpgrades(state), floor);
       applyPostCombatRecovery(state.party[0]);
       metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
       if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
@@ -512,6 +694,16 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
     stalemates: 0,
     finalLevels: 0,
     equipmentUpgrades: 0,
+    earlyEquipmentUpgrades: 0,
+    deepEquipmentUpgrades: 0,
+    equipmentFound: 0,
+    earlyEquipmentFound: 0,
+    deepEquipmentFound: 0,
+    coreEquipmentFound: 0,
+    runsWithCoreEncounter: 0,
+    runsWithEarlyCoreEncounter: 0,
+    runsWithCoreEquipped: 0,
+    firstCoreDepthCounts: {},
     healPotionsUsed: 0,
     fleeCount: 0,
     runsWithFlee: 0
@@ -528,6 +720,20 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
     totals.stalemates += Number(result.stalemate);
     totals.finalLevels += result.finalLevel;
     totals.equipmentUpgrades += result.equipmentUpgrades;
+    totals.earlyEquipmentUpgrades += result.earlyEquipmentUpgrades;
+    totals.deepEquipmentUpgrades += result.deepEquipmentUpgrades;
+    totals.equipmentFound += result.equipmentFound;
+    totals.earlyEquipmentFound += result.earlyEquipmentFound;
+    totals.deepEquipmentFound += result.deepEquipmentFound;
+    totals.coreEquipmentFound += result.coreEquipmentFound;
+    totals.runsWithCoreEncounter += Number(result.firstCoreDepth !== null);
+    totals.runsWithEarlyCoreEncounter += Number(
+      result.firstCoreDepth !== null && result.firstCoreDepth <= EARLY_BUILD_MAX_FLOOR
+    );
+    totals.runsWithCoreEquipped += Number(result.coreEquipped);
+    const firstCoreDepthKey = result.firstCoreDepth === null ? "none" : String(result.firstCoreDepth);
+    totals.firstCoreDepthCounts[firstCoreDepthKey] =
+      (totals.firstCoreDepthCounts[firstCoreDepthKey] || 0) + 1;
     totals.healPotionsUsed += result.healPotionsUsed;
     totals.fleeCount += result.fleeCount;
     totals.runsWithFlee += Number(result.fleeCount > 0);
@@ -548,6 +754,18 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
     stalemateRate: totals.stalemates / RUNS_PER_CASE,
     averageFinalLevel: totals.finalLevels / RUNS_PER_CASE,
     averageEquipmentUpgrades: totals.equipmentUpgrades / RUNS_PER_CASE,
+    averageEarlyEquipmentUpgrades: totals.earlyEquipmentUpgrades / RUNS_PER_CASE,
+    averageDeepEquipmentUpgrades: totals.deepEquipmentUpgrades / RUNS_PER_CASE,
+    averageEquipmentFound: totals.equipmentFound / RUNS_PER_CASE,
+    averageEarlyEquipmentFound: totals.earlyEquipmentFound / RUNS_PER_CASE,
+    averageDeepEquipmentFound: totals.deepEquipmentFound / RUNS_PER_CASE,
+    coreEquipmentShare: totals.equipmentFound > 0
+      ? totals.coreEquipmentFound / totals.equipmentFound
+      : 0,
+    coreEncounterRate: totals.runsWithCoreEncounter / RUNS_PER_CASE,
+    earlyCoreEncounterRate: totals.runsWithEarlyCoreEncounter / RUNS_PER_CASE,
+    coreEquippedRate: totals.runsWithCoreEquipped / RUNS_PER_CASE,
+    firstCoreDepthCounts: totals.firstCoreDepthCounts,
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
     averageFleeCount: totals.fleeCount / RUNS_PER_CASE,
     runsWithFleeRate: totals.runsWithFlee / RUNS_PER_CASE
@@ -570,6 +788,32 @@ function printTable(results) {
       `${result.averageEquipmentUpgrades.toFixed(2).padStart(8)} | ${result.averageHealPotionsUsed.toFixed(2).padStart(6)} | ` +
       `${result.averageFleeCount.toFixed(2).padStart(8)} | ${formatPercent(result.runsWithFleeRate).padStart(8)}`
     );
+  });
+}
+
+function printBuildSupplyMetrics(results) {
+  console.log("戦略       | 装備入手 | 前半入手 | 深層入手 | core/装備 | core遭遇run率 | 前半core遭遇run率 | core装備run率 | 平均換装 | 前半換装 | 深層換装");
+  console.log("-----------|----------|----------|----------|-----------|---------------|-------------------|-------------|----------|----------|----------");
+  results.forEach(result => {
+    console.log(
+      `${result.label.padEnd(10)} | ${result.averageEquipmentFound.toFixed(2).padStart(8)} | ` +
+      `${result.averageEarlyEquipmentFound.toFixed(2).padStart(8)} | ${result.averageDeepEquipmentFound.toFixed(2).padStart(8)} | ` +
+      `${formatPercent(result.coreEquipmentShare).padStart(9)} | ${formatPercent(result.coreEncounterRate).padStart(13)} | ` +
+      `${formatPercent(result.earlyCoreEncounterRate).padStart(17)} | ${formatPercent(result.coreEquippedRate).padStart(11)} | ` +
+      `${result.averageEquipmentUpgrades.toFixed(2).padStart(8)} | ` +
+      `${result.averageEarlyEquipmentUpgrades.toFixed(2).padStart(8)} | ${result.averageDeepEquipmentUpgrades.toFixed(2).padStart(8)}`
+    );
+    const depthLabels = Object.entries(result.firstCoreDepthCounts)
+      .sort(([left], [right]) => {
+        if (left === "none") return 1;
+        if (right === "none") return -1;
+        return Number(left) - Number(right);
+      })
+      .map(([depth, count]) => {
+        const label = depth === "none" ? "未遭遇" : `B${depth}`;
+        return `${label}=${count} (${formatPercent(count / RUNS_PER_CASE)})`;
+      });
+    console.log(`  初回core遭遇深さ: ${depthLabels.join(", ")}`);
   });
 }
 
@@ -635,6 +879,15 @@ console.log(
   `生存仮定: 初期傷薬=${INITIAL_HEAL_POTIONS}個, 使用閾値=${HEAL_POTION_THRESHOLD}, ` +
   `逃走閾値=${FLEE_HP_THRESHOLD}, 装備=実制限付き貪欲スコア更新, 鑑定済み・呪いなし`
 );
+console.log(
+  `供給仮定: 宝箱の本体/装身具分岐を実ロジック準拠で反映、` +
+  `core判定=CORE_AFFIXES ${CORE_AFFIXES.length}種+affix_rules helper`
+);
+console.log(
+  `core呪い設定: AFFIX_BALANCE.coreCurseChance=${AFFIX_BALANCE.coreCurseChance}は現generator未参照、` +
+  `実生成はIDENTIFICATION_BALANCE.coreCurseBonus=${IDENTIFICATION_BALANCE.coreCurseBonus}; ` +
+  "simは#236分離のため呪い除外"
+);
 console.log("逃走=常時成功（自ターン到達時）、先行攻撃＋離脱時追撃1発、報酬なし、探索継続");
 console.log("時間単位: 1歩=1、1戦闘ターン=3");
 console.log("撤退=100% bank、死亡=30% bank");
@@ -648,6 +901,8 @@ const depthResults = TARGET_DEPTHS.map(targetDepth => simulateCase({
 
 console.log("\n【B1開始 深度別系列】");
 printTable(depthResults);
+console.log("\n【B1開始 ビルド供給】");
+printBuildSupplyMetrics(depthResults);
 
 const monotonic = isMonotonicallyIncreasing(depthResults);
 const bestDepthResult = [...depthResults].sort((a, b) => b.materialEvPerTime - a.materialEvPerTime)[0];
@@ -677,6 +932,8 @@ console.log(
   `milestoneStartMultiplier=${MATERIAL_DROP_BALANCE.milestoneStartMultiplier} を適用`
 );
 printTable(milestoneResults);
+console.log("\n【マイルストーン開始 ビルド供給】");
+printBuildSupplyMetrics(milestoneResults);
 const milestoneDominated =
   milestoneResults[0].materialEvPerTime < milestoneResults[1].materialEvPerTime;
 console.log(
