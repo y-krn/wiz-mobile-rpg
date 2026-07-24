@@ -57,6 +57,22 @@ screen, in town, and on the run result.
    identify-or-gamble moment is this game's signature hook; protect its
    frequency and its stakes.
 
+**Decided: the core experience is improvised build completion** (2026-07-24).
+Pillar 3 is the game's primary motive, refined by
+`docs/superpowers/specs/2026-07-24-build-completion-core-experience-design.md`:
+the player improvises a build from what drops (not a planned collection), and
+**depth is the arena that tests that build's quality** — the floor reached is
+the build's answer key. This implies a two-phase run with a continuous
+transition centered on ~B10: an early **build-up phase** (loot-rich, survivable,
+where the improvised build comes together) and a **deep evaluation phase**
+(weak improvisations die, well-matched builds pass). The player should die from
+build quality, not from raw stat/level deficit. Lever priority under this
+motive: **build supply first** (drop frequency, core-affix availability — the
+lifeblood of the build-up phase), then deep-difficulty made build-dependent,
+then the unidentified gamble as the core improvisation decision; growth speed
+is a support lever and material time-efficiency (the "B5 retreat is optimal"
+finding) is orthogonal and low priority.
+
 **Decided: floors are generated per run** (2026-07-18). This supersedes the
 2026-07-10 fixed-labyrinth decision, which belonged to the retired game.
 Repeated runs over known ground are dead time in a depth-attack loop, so maps
