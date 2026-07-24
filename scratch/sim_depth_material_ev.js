@@ -12,6 +12,7 @@ Object.defineProperty(globalThis, "localStorage", {
 
 const {
   SOLO_CLASSES,
+  createDefaultCodex,
   createDefaultCurrentRun,
   createSoloCharacter
 } = await import("../src/state/initial_state.js");
@@ -34,9 +35,15 @@ const {
   canEquipCoreAffix,
   getEquippedCurseCount,
   getEquippedCoreAffixes,
+  getCharCoreParams,
   hasCoreAffix
 } = await import("../src/rules/affix_rules.js");
-const { bankRunMaterials, getBankedMaterials } = await import("../src/rules/material_rules.js");
+const {
+  bankRunMaterials,
+  getBankedMaterials,
+  getDepthMaterialDropChance,
+  getDepthMaterialExpectedQuantity
+} = await import("../src/rules/material_rules.js");
 const { addInventoryItemToState } = await import("../src/state/inventory_state.js");
 const {
   generateRandomAccessory,
@@ -87,6 +94,12 @@ const ECONOMY_CORE_IDS = new Set(
 );
 const EARLY_BUILD_MAX_FLOOR = 10;
 const ECONOMY_CORE_KEEP_RATIO = 0.95;
+const HOLD_ONLY_ECONOMY_CORE_IDS = new Set(["CORE_SNEAK_STEP", "CORE_KEEN_EYE"]);
+// 素材1個のrun EVを装備score 1点へ換算する感度分析用の基準。
+const MATERIAL_EV_SCORE_WEIGHT = 1;
+// 盗掘王の罠tier上昇は現simが罠被害を解決しないため、素材直益を50%割り引く。
+const TOMB_RAIDER_TRAP_RISK_DISCOUNT = 0.5;
+const CAMP_FLOORS = new Set([2, 4]);
 // src/chest.js executeDisarmの職別基礎率をそのまま参照値化する。
 const DISARM_BASE_CHANCE_BY_CLASS = Object.freeze({
   Thief: 0.85,
@@ -134,6 +147,13 @@ function createCoreObservations() {
     trappedChests: 0,
     expectedTrapDisarms: 0,
     expectedTrapDisarmsByFloor: Array(21).fill(0),
+    pickedChestsByFloor: Array(21).fill(0),
+    campBonusHpByFloor: Array(21).fill(0),
+    campBonusMpByFloor: Array(21).fill(0),
+    scholarMaterialBonusByFloor: Array(21).fill(0),
+    disruptorKills: 0,
+    amplifierKills: 0,
+    bountyBonusMaterials: 0,
     curseSamples: 0,
     equippedCurseTotal: 0
   };
@@ -186,7 +206,8 @@ function createSimulationState(className, startFloor, runSeed) {
       "ANTIDOTE"
     ],
     firstKills: [],
-    codex: null,
+    // 学者の眼は永続codexの未登録判定を使うため、空codexから実更新させる。
+    codex: createDefaultCodex(),
     currentRun,
     roamingMonsters: [],
     floorChestsTotal: [],
@@ -225,7 +246,11 @@ function hasHolyTag(monster) {
 function selectCombatAction(state) {
   const character = state.party[0];
   const monsters = state.combatState.monsters;
-  const lowestHpIdx = getLowestHpEnemyIndex(monsters);
+  const statusTargetIdx = getLowestHpEnemyIndex(
+    monsters,
+    monster => monster.status && !["ok", "dead"].includes(monster.status)
+  );
+  const lowestHpIdx = statusTargetIdx >= 0 ? statusTargetIdx : getLowestHpEnemyIndex(monsters);
 
   if (character.hp <= getCharMaxHp(character) * FLEE_HP_THRESHOLD) {
     return { type: "run", actorIdx: 0 };
@@ -243,6 +268,17 @@ function selectCombatAction(state) {
   }
 
   const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
+  const livingMonsters = monsters.filter(monster => monster.hp > 0);
+  // 実ゲームのKATINOを、初手・複数敵・回復MP確保時だけ使う保守的方針。
+  if (
+    state.combatState.roundNumber === 1 &&
+    livingMonsters.length >= 2 &&
+    hasSpell(character, "KATINO") &&
+    character.mp >= SPELLS.KATINO.cost + reserveMp
+  ) {
+    return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "KATINO" };
+  }
+
   if (character.mp > reserveMp) {
     if (character.class === "Priest" && hasSpell(character, "BADIOS")) {
       const holyTargetIdx = monsters.findIndex(monster => monster.hp > 0 && hasHolyTag(monster));
@@ -338,6 +374,24 @@ function getLoggedDiosHealing(logQueue, character) {
   return match ? Number(match[1]) : 0;
 }
 
+function getHpAtOffensiveAction(logQueue, characterBefore, action) {
+  const actionIndex = logQueue.findIndex(({ msg = "" }) => {
+    if (!msg.startsWith("[味方]")) return false;
+    if (action.type === "fight") {
+      return msg.includes(characterBefore.name) && /(攻撃|必殺の一撃)/.test(msg);
+    }
+    return msg.includes(`${characterBefore.name}は`) && msg.includes("唱えた");
+  });
+  if (actionIndex < 0) return null;
+
+  const damageBeforeAction = logQueue.slice(0, actionIndex).reduce((sum, { msg = "" }) => {
+    if (!msg.startsWith("[ 敵 ]") || msg.includes("反射")) return sum;
+    const match = msg.match(new RegExp(`${characterBefore.name}に(\\d+)の[^！。]*ダメージ`));
+    return sum + (match ? Number(match[1]) : 0);
+  }, 0);
+  return Math.max(0, characterBefore.hp - damageBeforeAction);
+}
+
 function recordRoundCoreObservations(
   observations,
   characterBefore,
@@ -350,12 +404,17 @@ function recordRoundCoreObservations(
   const characterAfter = roundResult.state.party[0];
   const logQueue = roundResult.logQueue;
   const spell = action.type === "spell" ? SPELLS[action.spellName] : null;
-  const offensive = action.type === "fight" || spell?.target?.includes("enemy");
+  const offensive = action.type === "fight" ||
+    (spell?.target?.includes("enemy") && action.spellName !== "KATINO");
 
   if (offensive) {
     observations.offensiveTurns++;
     const lastStand = CORE_AFFIX_BY_ID.get("CORE_LAST_STAND").params;
-    if (characterBefore.hp / Math.max(1, getCharMaxHp(characterBefore)) <= lastStand.hpThreshold) {
+    const hpAtAction = getHpAtOffensiveAction(logQueue, characterBefore, action);
+    if (
+      hpAtAction !== null &&
+      hpAtAction / Math.max(1, getCharMaxHp(characterBefore)) <= lastStand.hpThreshold
+    ) {
       observations.lowHpOffensiveTurns++;
     }
     if (targetBeforeRound?.maxHp > getCharMaxHp(characterBefore)) {
@@ -373,7 +432,7 @@ function recordRoundCoreObservations(
     observations.fightDamageActions++;
     observations.fightDamage += sumLoggedDamage(logQueue, characterAfter, "fight");
     observations.openerFirstStrikeFightTurns += Number(firstStrikeSucceeded);
-  } else if (spell?.target?.includes("enemy")) {
+  } else if (spell?.target?.includes("enemy") && action.spellName !== "KATINO") {
     observations.spellDamageActions++;
     observations.spellDamage += sumLoggedDamage(logQueue, characterAfter, "spell");
   } else if (action.type === "spell" && action.spellName === "DIOS") {
@@ -401,6 +460,10 @@ function recordRoundCoreObservations(
 
 function runEncounter(state, observations) {
   const { monsters } = generateEncounter(state, false, false, false, null);
+  monsters.forEach(monster => {
+    const baseName = monster.name.replace(/\s[A-Z]$/, "");
+    monster.simWasUncatalogued = (state.codex?.monsters?.[baseName]?.killed || 0) === 0;
+  });
   state.combatState = {
     monsters,
     isBoss: false,
@@ -569,6 +632,15 @@ function createCoreScoringProfile(observations, runCount) {
     remainingTrapDisarms += observations.expectedTrapDisarmsByFloor[floor] || 0;
     expectedTrapDisarmsFromFloor[floor] = divide(remainingTrapDisarms, runCount);
   }
+  const sumRemainingByFloor = values => {
+    const result = {};
+    let remaining = 0;
+    for (let floor = values.length - 1; floor >= 1; floor--) {
+      remaining += values[floor] || 0;
+      result[floor] = divide(remaining, runCount);
+    }
+    return result;
+  };
   return {
     lowHpOffensiveRate: divide(observations.lowHpOffensiveTurns, observations.offensiveTurns),
     giantTargetRate: divide(observations.giantTargetTurns, observations.offensiveTurns),
@@ -595,6 +667,13 @@ function createCoreScoringProfile(observations, runCount) {
     ),
     expectedTrapDisarmsPerRun: divide(observations.expectedTrapDisarms, runCount),
     expectedTrapDisarmsFromFloor,
+    expectedPickedChestsFromFloor: sumRemainingByFloor(observations.pickedChestsByFloor),
+    expectedCampBonusHpFromFloor: sumRemainingByFloor(observations.campBonusHpByFloor),
+    expectedCampBonusMpFromFloor: sumRemainingByFloor(observations.campBonusMpByFloor),
+    expectedScholarMaterialsFromFloor: sumRemainingByFloor(
+      observations.scholarMaterialBonusByFloor
+    ),
+    expectedBountyMaterialsPerRun: divide(observations.bountyBonusMaterials, runCount),
     averageEquippedCurseCount: divide(
       observations.equippedCurseTotal,
       observations.curseSamples
@@ -680,8 +759,46 @@ function getCombatCoreScore(character, scoringProfile, floor) {
   return 0;
 }
 
+function getEconomyCoreScore(character, scoringProfile, floor) {
+  if (!scoringProfile) return 0;
+  const coreId = getEquippedCoreAffixes(character)
+    .map(affix => affix.id || affix.type)
+    .find(id => ECONOMY_CORE_IDS.has(id));
+  if (!coreId) return 0;
+
+  const params = CORE_AFFIX_BY_ID.get(coreId).params;
+  const scoringFloor = Math.max(1, Math.floor(floor));
+  if (coreId === "CORE_TOMB_RAIDER") {
+    return (scoringProfile.expectedPickedChestsFromFloor[scoringFloor] || 0) *
+      params.materialBonus *
+      MATERIAL_EV_SCORE_WEIGHT *
+      TOMB_RAIDER_TRAP_RISK_DISCOUNT;
+  }
+  if (coreId === "CORE_CAMP_MASTER") {
+    const hpEv = (scoringProfile.expectedCampBonusHpFromFloor[scoringFloor] || 0) *
+      EQUIPMENT_SCORE_WEIGHTS.maxHp;
+    const mpEv = (scoringProfile.expectedCampBonusMpFromFloor[scoringFloor] || 0) *
+      Math.max(0, scoringProfile.averageSpellDamage - scoringProfile.averageFightDamage);
+    return hpEv + mpEv;
+  }
+  if (coreId === "CORE_BOUNTY_HUNTER") {
+    const remainingRunShare = Math.max(0, 21 - scoringFloor) / 20;
+    return scoringProfile.expectedBountyMaterialsPerRun *
+      remainingRunShare *
+      MATERIAL_EV_SCORE_WEIGHT;
+  }
+  if (coreId === "CORE_SCHOLAR_EYE") {
+    return (scoringProfile.expectedScholarMaterialsFromFloor[scoringFloor] || 0) *
+      MATERIAL_EV_SCORE_WEIGHT;
+  }
+  // 忍び足はwarden追跡、慧眼は#236の未鑑定判断が未再現。両者は保持規則のみ。
+  return 0;
+}
+
 function getEquipmentScore(character, scoringProfile, floor) {
-  return getBaseEquipmentScore(character) + getCombatCoreScore(character, scoringProfile, floor);
+  return getBaseEquipmentScore(character) +
+    getCombatCoreScore(character, scoringProfile, floor) +
+    getEconomyCoreScore(character, scoringProfile, floor);
 }
 
 function recordCoreDecision(metrics, item, reason) {
@@ -726,17 +843,18 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       const candidateCoreId = getItemCoreId(candidate);
       const oldCoreId = getItemCoreId(oldEquipment);
       const candidateIsEconomyCore = ECONOMY_CORE_IDS.has(candidateCoreId);
+      const candidateIsHoldOnlyCore = HOLD_ONLY_ECONOMY_CORE_IDS.has(candidateCoreId);
       let selectionScore = candidateScore;
       let qualifies = candidateScore > currentScore;
       let rejectionReason = candidateCoreId && COMBAT_CORE_IDS.has(candidateCoreId)
         ? "combat-score-not-higher"
-        : "score-not-higher";
+        : (candidateIsEconomyCore ? "economy-ev-not-higher" : "score-not-higher");
 
-      // economyコアは別軸価値。戦闘スコア95%以上なら同スロット候補より優先する。
+      // EV算出不能な探索コアだけ、従来の95%保持規則を残す。
       if (candidateIsEconomyCore && oldCoreId) {
         qualifies = candidateScore > currentScore;
         rejectionReason = "economy-core-retained";
-      } else if (candidateIsEconomyCore) {
+      } else if (candidateIsHoldOnlyCore) {
         qualifies = candidateScore >= currentScore * ECONOMY_CORE_KEEP_RATIO;
         selectionScore = candidateScore / ECONOMY_CORE_KEEP_RATIO;
         rejectionReason = "economy-below-95pct";
@@ -819,6 +937,49 @@ function schedulePickedUpChests(chestCount, floorSteps) {
     schedule.set(step, (schedule.get(step) || 0) + 1);
   }
   return schedule;
+}
+
+function applySimulatedCampRest(state, observations) {
+  if (!CAMP_FLOORS.has(state.floor)) return;
+  const character = state.party[0];
+  if (!isAlive(character)) return;
+  const maxHp = getCharMaxHp(character);
+  const maxMp = getCharMaxMp(character);
+  const hpDeficit = Math.max(0, maxHp - character.hp);
+  const mpDeficit = Math.max(0, maxMp - character.mp);
+  const normalHpGain = Math.min(hpDeficit, Math.ceil(hpDeficit * 0.4));
+  const normalMpGain = Math.min(mpDeficit, Math.ceil(mpDeficit * 0.4));
+  const coreHpGain = Math.min(hpDeficit, Math.ceil(hpDeficit * 0.8));
+  const coreMpGain = Math.min(mpDeficit, Math.ceil(mpDeficit * 0.8));
+  observations.campBonusHpByFloor[state.floor] += coreHpGain - normalHpGain;
+  observations.campBonusMpByFloor[state.floor] += coreMpGain - normalMpGain;
+
+  // camp_rest.jsと同じ回復式。門番突破して次階へ進むsimではcamp到達済みと置く。
+  const multiplier = getCharCoreParams(character, "CORE_CAMP_MASTER")?.recoveryMultiplier || 1;
+  character.hp += Math.min(hpDeficit, Math.ceil(hpDeficit * 0.4 * multiplier));
+  character.mp += Math.min(mpDeficit, Math.ceil(mpDeficit * 0.4 * multiplier));
+}
+
+function getScholarMaterialBonus(monsters, state) {
+  return monsters.reduce((sum, monster) => {
+    if (monster.fled || monster.hasSplit) return sum;
+    if (!monster.simWasUncatalogued) return sum;
+    const normalDropChance = monster.isBoss
+      ? 1
+      : (monster.isRare ? 0.9 : getDepthMaterialDropChance(state.floor));
+    const quantity = getDepthMaterialExpectedQuantity(state.floor, {
+      startFloor: state.currentRun?.startFloor || 1
+    });
+    const primaryQuantity = quantity +
+      (monster.isRare ? MATERIAL_DROP_BALANCE.rareBonus : 0) +
+      (monster.isBoss ? MATERIAL_DROP_BALANCE.bossBonus : 0);
+    const secondaryChance = (monster.isBoss || monster.isRare)
+      ? 1
+      : MATERIAL_DROP_BALANCE.secondaryChance;
+    const secondaryQuantity = Math.max(1, Math.floor(quantity / 2));
+    return sum + (1 - normalDropChance) *
+      (primaryQuantity + secondaryChance * secondaryQuantity);
+  }, 0);
 }
 
 function rollChestTrap(floor, rng) {
@@ -969,6 +1130,19 @@ function totalMaterials(materials) {
 }
 
 function finishRun(state, outcome, metrics) {
+  const roleKills = {
+    disruptor: metrics.coreObservations.disruptorKills,
+    amplifier: metrics.coreObservations.amplifierKills
+  };
+  state.currentRun.quests
+    .filter(quest => quest.type === "role_kill")
+    .forEach(quest => {
+      const kills = roleKills[quest.role] || 0;
+      if (kills < quest.targetValue && kills * 2 >= quest.targetValue) {
+        metrics.coreObservations.bountyBonusMaterials += totalMaterials(quest.reward.materials);
+      }
+    });
+
   const { banked, balance } = bankRunMaterials(
     state.metaMaterials,
     state.currentRun.materials,
@@ -1056,6 +1230,8 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId, s
     const generated = generateRunFloor({ runSeed, floor });
     const floorSteps = getFloorStepCount(generated, floor);
     const chestSchedule = schedulePickedUpChests(countFloorChests(generated.grid), floorSteps);
+    metrics.coreObservations.pickedChestsByFloor[floor] +=
+      [...chestSchedule.values()].reduce((sum, count) => sum + count, 0);
 
     for (let step = 1; step <= floorSteps; step++) {
       metrics.steps++;
@@ -1065,7 +1241,11 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId, s
 
       const pickedUpChests = chestSchedule.get(step) || 0;
       for (let chest = 0; chest < pickedUpChests; chest++) {
-        addMaterials(state.currentRun.materials, generateChestMaterials(floor, Math.random, 0));
+        const tombRaider = getCharCoreParams(state.party[0], "CORE_TOMB_RAIDER");
+        addMaterials(
+          state.currentRun.materials,
+          generateChestMaterials(floor, Math.random, tombRaider?.materialBonus || 0)
+        );
         const chestItems = rollChestItems(state, floor, Math.random, metrics.coreObservations);
         const acquiredEquipment = [];
         chestItems.forEach(item => {
@@ -1116,6 +1296,13 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId, s
       }
 
       const equipmentFoundBeforeRewards = state.currentRun.equipmentFound.length;
+      const scholarMaterialBonus = getScholarMaterialBonus(state.combatState.monsters, state);
+      metrics.coreObservations.scholarMaterialBonusByFloor[floor] += scholarMaterialBonus;
+      state.combatState.monsters.forEach(monster => {
+        if (monster.fled || monster.hasSplit) return;
+        if (monster.role === "disruptor") metrics.coreObservations.disruptorKills++;
+        if (monster.role === "amplifier") metrics.coreObservations.amplifierKills++;
+      });
       applyCombatRewards(state, state.combatState.monsters, [], Math.random);
       recordEquipmentAcquisitions(
         metrics,
@@ -1135,6 +1322,7 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId, s
       if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
     }
 
+    applySimulatedCampRest(state, metrics.coreObservations);
     descendToNextFloor(state, floor + 1);
   }
 
@@ -1147,6 +1335,7 @@ function getUnequippedCoreReason(result, coreId) {
   if (reasons.includes("class-incompatible")) return "職業制限";
   if (reasons.includes("core-slot-conflict")) return "既存coreと競合";
   if (reasons.includes("economy-below-95pct")) return "戦闘スコア95%未満";
+  if (reasons.includes("economy-ev-not-higher")) return "探索EV込みスコア不足";
   if (reasons.includes("combat-score-not-higher")) return "期待戦闘スコア不足";
   if (reasons.includes("economy-core-retained")) return "装備済みeconomy coreを保持";
   return "生スコア不足";
@@ -1325,7 +1514,7 @@ function calibrateCoreScoringProfile() {
 function printCoreScoringProfile(profile) {
   console.log("\n【core期待戦闘価値 calibration（B1→B20）】");
   console.log(
-    `背水: HP25%以下攻撃turn率=${formatPercent(profile.lowHpOffensiveRate)}; ` +
+    `背水: 自攻撃直前HP25%以下turn率=${formatPercent(profile.lowHpOffensiveRate)}; ` +
     "攻撃score×率×(1.4-1)"
   );
   console.log(
@@ -1362,10 +1551,35 @@ function printCoreScoringProfile(profile) {
   );
   console.log(
     `執行人: 状態異常敵への攻撃turn率=${formatPercent(profile.statusTargetRate)}; ` +
-    "攻撃score×率×(2-1)"
+    "実KATINO初手方針で実測、攻撃score×率×(2-1)"
   );
   console.log("殿の構え: enabled=false → 判定・スコア・集計から除外");
-  console.log("economy 6種: 戦闘score加算なし; 95%互角優先＋装備後保持");
+  console.log(
+    "血杖: 実generatorのmeta解放対象。未解放simではpool外 → 遭遇0は仕様"
+  );
+  console.log("\n【economy探索価値 calibration（B1→B20）】");
+  console.log(
+    `盗掘王: 残り拾得宝箱 B1=${profile.expectedPickedChestsFromFloor[1].toFixed(2)}, ` +
+    `B10=${profile.expectedPickedChestsFromFloor[10].toFixed(2)}; ` +
+    `素材+1×素材score ${MATERIAL_EV_SCORE_WEIGHT}×罠risk割引 ${TOMB_RAIDER_TRAP_RISK_DISCOUNT}`
+  );
+  console.log(
+    `野営の達人: 追加回復EV B1=` +
+    `HP${profile.expectedCampBonusHpFromFloor[1].toFixed(2)}/` +
+    `MP${profile.expectedCampBonusMpFromFloor[1].toFixed(2)}; ` +
+    "HP重み＋MP1点当たりspell/fight実測damage差"
+  );
+  console.log(
+    `賞金稼ぎ: 通常未達→2倍なら達成となるquest素材EV/run=` +
+    `${profile.expectedBountyMaterialsPerRun.toFixed(3)}; 残りrun比で逓減`
+  );
+  console.log(
+    `学者の眼: 未登録敵の確定化による残り素材EV ` +
+    `B1=${profile.expectedScholarMaterialsFromFloor[1].toFixed(2)}, ` +
+    `B10=${profile.expectedScholarMaterialsFromFloor[10].toFixed(2)}`
+  );
+  console.log("忍び足: warden追跡未再現 → 定量化保留、95%保持のみ");
+  console.log("慧眼: #236分離で全装備を鑑定済み化 → 定量化保留、95%保持のみ");
 }
 
 function printTable(results) {
