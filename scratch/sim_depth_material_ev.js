@@ -15,6 +15,7 @@ const {
   createDefaultCurrentRun,
   createSoloCharacter
 } = await import("../src/state/initial_state.js");
+const { ELITE_CLASSES } = await import("../src/data/classes.js");
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
 const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
 const { applyCombatRewards } = await import("../src/combat_logic/rewards.js");
@@ -57,6 +58,9 @@ const COMBAT_TURN_WEIGHT = 3;
 const INITIAL_HEAL_POTIONS = 2;
 // 仮値・感度分析対象: 戦闘中/戦闘後HPが最大HPの35%以下なら傷薬を1個使う。
 const HEAL_POTION_THRESHOLD = 0.35;
+// 仮値・感度分析対象: 最大HPの35%以下なら次の自ターンで逃走する。
+const FLEE_HP_THRESHOLD = 0.35;
+const SIM_CLASSES = SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className));
 // 仮定: 装備スコアは攻防を主軸に、HP・主要能力・戦闘affixを下記重みで合算する。
 const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
   weaponAtk: 2,
@@ -145,6 +149,10 @@ function selectCombatAction(state) {
   const monsters = state.combatState.monsters;
   const lowestHpIdx = getLowestHpEnemyIndex(monsters);
 
+  if (character.hp <= getCharMaxHp(character) * FLEE_HP_THRESHOLD) {
+    return { type: "run", actorIdx: 0 };
+  }
+
   if (
     character.hp <= getCharMaxHp(character) * HEAL_POTION_THRESHOLD &&
     state.inventory.includes("HEAL_POTION")
@@ -226,9 +234,13 @@ function runEncounter(state) {
     state = roundResult.state;
     const potionCountAfter = state.inventory.filter(item => item === "HEAL_POTION").length;
     healPotionsUsed += potionCountBefore - potionCountAfter;
+    const fled = roundResult.logQueue.some(entry => entry.runEscape);
 
     if (!isAlive(state.party[0])) {
       return { result: "death", rounds: rounds + 1, healPotionsUsed, state };
+    }
+    if (fled) {
+      return { result: "flee", rounds: rounds + 1, healPotionsUsed, state };
     }
     if (state.combatState.monsters.every(monster => monster.hp <= 0)) {
       return { result: "victory", rounds: rounds + 1, healPotionsUsed, state };
@@ -409,7 +421,8 @@ function finishRun(state, outcome, metrics) {
     stalemate: metrics.stalemate,
     finalLevel: state.party[0].level,
     equipmentUpgrades: metrics.equipmentUpgrades,
-    healPotionsUsed: metrics.healPotionsUsed
+    healPotionsUsed: metrics.healPotionsUsed,
+    fleeCount: metrics.fleeCount
   };
 }
 
@@ -429,7 +442,8 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
     combatRounds: 0,
     stalemate: false,
     equipmentUpgrades: 0,
-    healPotionsUsed: 0
+    healPotionsUsed: 0,
+    fleeCount: 0
   };
 
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
@@ -458,6 +472,14 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
       state = combatResult.state;
       metrics.combatRounds += combatResult.rounds;
       metrics.healPotionsUsed += combatResult.healPotionsUsed;
+
+      if (combatResult.result === "flee") {
+        metrics.fleeCount++;
+        applyPostCombatRecovery(state.party[0]);
+        metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
+        if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
+        continue;
+      }
 
       if (combatResult.result !== "victory") {
         metrics.stalemate = combatResult.result === "stalemate";
@@ -490,11 +512,13 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
     stalemates: 0,
     finalLevels: 0,
     equipmentUpgrades: 0,
-    healPotionsUsed: 0
+    healPotionsUsed: 0,
+    fleeCount: 0,
+    runsWithFlee: 0
   };
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
-    const className = SOLO_CLASSES[runIndex % SOLO_CLASSES.length];
+    const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
     const result = simulateRun({ className, startFloor, targetDepth, runIndex, seriesId });
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
@@ -505,6 +529,8 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
     totals.finalLevels += result.finalLevel;
     totals.equipmentUpgrades += result.equipmentUpgrades;
     totals.healPotionsUsed += result.healPotionsUsed;
+    totals.fleeCount += result.fleeCount;
+    totals.runsWithFlee += Number(result.fleeCount > 0);
   }
 
   const bankedMaterialEv = totals.bankedMaterials / RUNS_PER_CASE;
@@ -522,7 +548,9 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
     stalemateRate: totals.stalemates / RUNS_PER_CASE,
     averageFinalLevel: totals.finalLevels / RUNS_PER_CASE,
     averageEquipmentUpgrades: totals.equipmentUpgrades / RUNS_PER_CASE,
-    averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE
+    averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
+    averageFleeCount: totals.fleeCount / RUNS_PER_CASE,
+    runsWithFleeRate: totals.runsWithFlee / RUNS_PER_CASE
   };
 }
 
@@ -531,15 +559,16 @@ function formatPercent(rate) {
 }
 
 function printTable(results) {
-  console.log("戦略       | 生還率 | 死亡率 | bank素材EV | 平均時間 | 素材EV/時間 | 平均到達階 | 平均Lv | 平均換装 | 平均薬");
-  console.log("-----------|--------|--------|------------|----------|-------------|------------|--------|----------|-------");
+  console.log("戦略       | 生還率 | 死亡率 | bank素材EV | 平均時間 | 素材EV/時間 | 平均到達階 | 平均Lv | 平均換装 | 平均薬 | 平均逃走 | 逃走run率");
+  console.log("-----------|--------|--------|------------|----------|-------------|------------|--------|----------|--------|----------|----------");
   results.forEach(result => {
     console.log(
       `${result.label.padEnd(10)} | ${formatPercent(result.survivalRate).padStart(6)} | ` +
       `${formatPercent(result.deathRate).padStart(6)} | ${result.bankedMaterialEv.toFixed(2).padStart(10)} | ` +
       `${result.averageTimeCost.toFixed(2).padStart(8)} | ${result.materialEvPerTime.toFixed(4).padStart(11)} | ` +
       `${result.averageReachedFloor.toFixed(2).padStart(10)} | ${result.averageFinalLevel.toFixed(2).padStart(6)} | ` +
-      `${result.averageEquipmentUpgrades.toFixed(2).padStart(8)} | ${result.averageHealPotionsUsed.toFixed(2).padStart(5)}`
+      `${result.averageEquipmentUpgrades.toFixed(2).padStart(8)} | ${result.averageHealPotionsUsed.toFixed(2).padStart(6)} | ` +
+      `${result.averageFleeCount.toFixed(2).padStart(8)} | ${formatPercent(result.runsWithFleeRate).padStart(8)}`
     );
   });
 }
@@ -596,7 +625,7 @@ function printFailureComment(results) {
 }
 
 console.log("深度別 リスク調整後素材EVシミュレーション");
-console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（全${SOLO_CLASSES.length}職をround-robin集約）`);
+console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（基本${SIM_CLASSES.length}職をround-robin集約）`);
 console.log(`乱数seed: ${SIM_SEED}`);
 console.log(
   `仮定: 探索係数=${EXPLORATION_FACTOR}, 宝箱拾得率=${CHEST_PICKUP_RATE}, ` +
@@ -604,8 +633,9 @@ console.log(
 );
 console.log(
   `生存仮定: 初期傷薬=${INITIAL_HEAL_POTIONS}個, 使用閾値=${HEAL_POTION_THRESHOLD}, ` +
-  "装備=実制限付き貪欲スコア更新, 鑑定済み・呪いなし"
+  `逃走閾値=${FLEE_HP_THRESHOLD}, 装備=実制限付き貪欲スコア更新, 鑑定済み・呪いなし`
 );
+console.log("逃走=常時成功（自ターン到達時）、先行攻撃＋離脱時追撃1発、報酬なし、探索継続");
 console.log("時間単位: 1歩=1、1戦闘ターン=3");
 console.log("撤退=100% bank、死亡=30% bank");
 
