@@ -32,6 +32,7 @@ const { MATERIAL_DROP_BALANCE } = await import("../src/data/materials.js");
 const { IDENTIFICATION_BALANCE } = await import("../src/rules/identification_rules.js");
 const {
   canEquipCoreAffix,
+  getEquippedCurseCount,
   getEquippedCoreAffixes,
   hasCoreAffix
 } = await import("../src/rules/affix_rules.js");
@@ -45,13 +46,17 @@ const {
   getCharDef,
   getCharInt,
   getCharMaxHp,
+  getCharMaxMp,
   getCharPie,
   getCharStr,
+  getCharTrapBonus,
   getCharVit,
   getCharWeaponAtk,
-  getItemData
+  getItemData,
+  SPELLS
 } = await import("../src/data.js");
 const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
+const { getBuffTotal } = await import("../src/combat_logic/status_effects.js");
 
 const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 500));
 const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
@@ -71,8 +76,24 @@ const HEAL_POTION_THRESHOLD = 0.35;
 // 仮値・感度分析対象: 最大HPの35%以下なら次の自ターンで逃走する。
 const FLEE_HP_THRESHOLD = 0.35;
 const SIM_CLASSES = SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className));
-const CORE_AFFIX_IDS = new Set(CORE_AFFIXES.map(affix => affix.id));
+const ENABLED_CORE_AFFIXES = CORE_AFFIXES.filter(affix => affix.enabled);
+const CORE_AFFIX_IDS = new Set(ENABLED_CORE_AFFIXES.map(affix => affix.id));
+const CORE_AFFIX_BY_ID = new Map(ENABLED_CORE_AFFIXES.map(affix => [affix.id, affix]));
+const COMBAT_CORE_IDS = new Set(
+  ENABLED_CORE_AFFIXES.filter(affix => affix.poolGroup === "combat").map(affix => affix.id)
+);
+const ECONOMY_CORE_IDS = new Set(
+  ENABLED_CORE_AFFIXES.filter(affix => affix.poolGroup === "economy").map(affix => affix.id)
+);
 const EARLY_BUILD_MAX_FLOOR = 10;
+const ECONOMY_CORE_KEEP_RATIO = 0.95;
+// src/chest.js executeDisarmの職別基礎率をそのまま参照値化する。
+const DISARM_BASE_CHANCE_BY_CLASS = Object.freeze({
+  Thief: 0.85,
+  Ninja: 0.70,
+  Ranger: 0.60,
+  default: 0.25
+});
 // 仮定: 装備スコアは攻防を主軸に、HP・主要能力・戦闘affixを下記重みで合算する。
 const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
   weaponAtk: 2,
@@ -90,6 +111,43 @@ const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
   arcane: 0.1,
   devotion: 0.1
 });
+
+function createCoreObservations() {
+  return {
+    offensiveTurns: 0,
+    fightTurns: 0,
+    lowHpOffensiveTurns: 0,
+    giantTargetTurns: 0,
+    statusTargetTurns: 0,
+    openerFirstStrikeFightTurns: 0,
+    bloodWandSpellOpportunities: 0,
+    bloodWandHealOpportunities: 0,
+    purifyKillsWithMpRoom: 0,
+    incomingPhysicalAttempts: 0,
+    incomingPhysicalHits: 0,
+    fightDamage: 0,
+    spellDamage: 0,
+    fightDamageActions: 0,
+    spellDamageActions: 0,
+    diosHealing: 0,
+    diosHealActions: 0,
+    trappedChests: 0,
+    expectedTrapDisarms: 0,
+    expectedTrapDisarmsByFloor: Array(21).fill(0),
+    curseSamples: 0,
+    equippedCurseTotal: 0
+  };
+}
+
+function addCoreObservations(target, additions) {
+  Object.keys(target).forEach(key => {
+    if (Array.isArray(target[key])) {
+      target[key] = target[key].map((value, index) => value + (additions[key]?.[index] || 0));
+    } else {
+      target[key] += additions[key] || 0;
+    }
+  });
+}
 // #231では素材EV比較に集中するため、ドロップ装備は鑑定済み・呪いなしとして評価する。
 // 未鑑定・呪いリスクは#236の対象。コア1個制限は実canEquipCoreAffixで維持する。
 
@@ -225,7 +283,123 @@ function selectCombatAction(state) {
   return { type: "fight", actorIdx: 0, targetIdx: lowestHpIdx };
 }
 
-function runEncounter(state) {
+function getPreferredOffensiveSpellName(character) {
+  if (character.class === "Priest" && hasSpell(character, "BADIOS")) return "BADIOS";
+  if ((character.class === "Mage" || character.class === "Samurai") && hasSpell(character, "HALITO")) {
+    return "HALITO";
+  }
+  if (character.class === "Bishop") {
+    if (hasSpell(character, "BADIOS")) return "BADIOS";
+    if (hasSpell(character, "HALITO")) return "HALITO";
+  }
+  if (character.class === "Ranger" && hasSpell(character, "BADIOS")) return "BADIOS";
+  return null;
+}
+
+function getBloodWandOpportunity(state, action) {
+  if (action.type !== "fight") return null;
+  const character = state.party[0];
+  const hpCostMultiplier = CORE_AFFIX_BY_ID.get("CORE_BLOOD_WAND").params.hpCostMultiplier;
+  if (
+    hasSpell(character, "DIOS") &&
+    character.hp < getCharMaxHp(character) * 0.35 &&
+    !state.inventory.includes("HEAL_POTION")
+  ) {
+    const spell = SPELLS.DIOS;
+    if (character.mp < spell.cost && character.hp >= spell.cost * hpCostMultiplier) return "heal";
+  }
+
+  const spellName = getPreferredOffensiveSpellName(character);
+  if (!spellName) return null;
+  const spell = SPELLS[spellName];
+  return character.mp < spell.cost && character.hp >= spell.cost * hpCostMultiplier
+    ? "offense"
+    : null;
+}
+
+function sumLoggedDamage(logQueue, character, actionType) {
+  return logQueue.reduce((sum, entry) => {
+    const msg = entry.msg || "";
+    if (!msg.startsWith("[味方]") || !msg.includes(character.name) || !msg.includes("ダメージ")) {
+      return sum;
+    }
+    if (actionType === "fight" && !/(攻撃|必殺の一撃|素早い追加攻撃)/.test(msg)) return sum;
+    if (actionType === "spell" && !msg.includes("唱えた")) return sum;
+    const match = msg.match(/に(\d+)の[^！。]*ダメージ/);
+    return sum + (match ? Number(match[1]) : 0);
+  }, 0);
+}
+
+function getLoggedDiosHealing(logQueue, character) {
+  const entry = logQueue.find(({ msg = "" }) =>
+    msg.startsWith("[味方]") && msg.includes(`${character.name}はディオスを唱えた`)
+  );
+  const match = entry?.msg.match(/HPを(\d+)回復/);
+  return match ? Number(match[1]) : 0;
+}
+
+function recordRoundCoreObservations(
+  observations,
+  characterBefore,
+  action,
+  targetBeforeRound,
+  monstersBeforeRound,
+  roundResult,
+  firstStrikeSucceeded
+) {
+  const characterAfter = roundResult.state.party[0];
+  const logQueue = roundResult.logQueue;
+  const spell = action.type === "spell" ? SPELLS[action.spellName] : null;
+  const offensive = action.type === "fight" || spell?.target?.includes("enemy");
+
+  if (offensive) {
+    observations.offensiveTurns++;
+    const lastStand = CORE_AFFIX_BY_ID.get("CORE_LAST_STAND").params;
+    if (characterBefore.hp / Math.max(1, getCharMaxHp(characterBefore)) <= lastStand.hpThreshold) {
+      observations.lowHpOffensiveTurns++;
+    }
+    if (targetBeforeRound?.maxHp > getCharMaxHp(characterBefore)) {
+      observations.giantTargetTurns++;
+    }
+    if (targetBeforeRound?.status && !["ok", "dead"].includes(targetBeforeRound.status)) {
+      observations.statusTargetTurns++;
+    }
+    observations.curseSamples++;
+    observations.equippedCurseTotal += getEquippedCurseCount(characterBefore);
+  }
+
+  if (action.type === "fight") {
+    observations.fightTurns++;
+    observations.fightDamageActions++;
+    observations.fightDamage += sumLoggedDamage(logQueue, characterAfter, "fight");
+    observations.openerFirstStrikeFightTurns += Number(firstStrikeSucceeded);
+  } else if (spell?.target?.includes("enemy")) {
+    observations.spellDamageActions++;
+    observations.spellDamage += sumLoggedDamage(logQueue, characterAfter, "spell");
+  } else if (action.type === "spell" && action.spellName === "DIOS") {
+    observations.diosHealActions++;
+    observations.diosHealing += getLoggedDiosHealing(logQueue, characterAfter);
+  }
+
+  const incomingPhysicalLogs = logQueue.filter(({ msg = "" }) =>
+    msg.startsWith("[ 敵 ]") && /の(?:攻撃|狙撃)！/.test(msg)
+  );
+  observations.incomingPhysicalAttempts += incomingPhysicalLogs.length;
+  observations.incomingPhysicalHits += incomingPhysicalLogs.filter(({ msg = "" }) =>
+    /に\d+のダメージ/.test(msg)
+  ).length;
+
+  const newlyDefeatedPurifyTargets = monstersBeforeRound.filter(({ hp, tags }, index) =>
+    hp > 0 &&
+    roundResult.state.combatState.monsters[index]?.hp <= 0 &&
+    CORE_AFFIX_BY_ID.get("CORE_PURIFY_RING").params.targetTags.some(tag => tags?.includes(tag))
+  ).length;
+  if (characterAfter.mp < getCharMaxMp(characterAfter)) {
+    observations.purifyKillsWithMpRoom += newlyDefeatedPurifyTargets;
+  }
+}
+
+function runEncounter(state, observations) {
   const { monsters } = generateEncounter(state, false, false, false, null);
   state.combatState = {
     monsters,
@@ -247,10 +421,56 @@ function runEncounter(state) {
     }
 
     const action = selectCombatAction(state);
+    const targetBeforeRound = action.targetIdx === undefined
+      ? null
+      : structuredClone(state.combatState.monsters[action.targetIdx]);
+    const monstersBeforeRound = structuredClone(state.combatState.monsters);
+    const characterBeforeRound = structuredClone(character);
+    const bloodWandOpportunity = getBloodWandOpportunity(state, action);
+    observations.bloodWandSpellOpportunities += Number(bloodWandOpportunity === "offense");
+    observations.bloodWandHealOpportunities += Number(bloodWandOpportunity === "heal");
+
+    const roundNumber = state.combatState.roundNumber;
+    const roundRandomDraws = [];
+    const simulationRandom = Math.random;
+    Math.random = () => {
+      const value = simulationRandom();
+      roundRandomDraws.push(value);
+      return value;
+    };
     const potionCountBefore = state.inventory.filter(item => item === "HEAL_POTION").length;
-    const roundResult = runCombatRoundCalculation(state, {
-      actions: [action]
-    });
+    let roundResult;
+    try {
+      roundResult = runCombatRoundCalculation(state, {
+        actions: [action]
+      });
+    } finally {
+      Math.random = simulationRandom;
+    }
+    const characterSpeed =
+      getCharAgi(character) +
+      getBuffTotal(character, "agi") +
+      Math.floor(roundRandomDraws[0] * 10) +
+      getCharAffixSum(character, "firstStrike");
+    const livingMonsterCount = monstersBeforeRound.filter(monster => monster.hp > 0).length;
+    const fastestMonsterSpeed = Math.max(
+      ...roundRandomDraws
+        .slice(1, 1 + livingMonsterCount)
+        .map(value => 10 + Math.floor(value * 10))
+    );
+    // round.jsは同速時、先にturnsへ入るcharacterを先行扱いする。
+    const firstStrikeSucceeded =
+      roundNumber === 1 &&
+      (livingMonsterCount === 0 || characterSpeed >= fastestMonsterSpeed);
+    recordRoundCoreObservations(
+      observations,
+      characterBeforeRound,
+      action,
+      targetBeforeRound,
+      monstersBeforeRound,
+      roundResult,
+      firstStrikeSucceeded
+    );
     state = roundResult.state;
     const potionCountAfter = state.inventory.filter(item => item === "HEAL_POTION").length;
     healPotionsUsed += potionCountBefore - potionCountAfter;
@@ -304,14 +524,13 @@ function isEquipment(item) {
   return ["weapon", "shield", "armor", "accessory"].includes(item?.type);
 }
 
-function canEquipForSimulation(character, item) {
-  const itemData = getItemData(item);
-  if (!isEquipment(itemData)) return false;
-  if (itemData.classes && !itemData.classes.includes(character.class)) return false;
-  return canEquipCoreAffix(character, item, itemData.type);
+function getItemCoreId(item) {
+  if (!item || typeof item !== "object") return null;
+  const affix = item.affixes?.find(candidate => CORE_AFFIX_IDS.has(candidate.id || candidate.type));
+  return affix ? (affix.id || affix.type) : null;
 }
 
-function getEquipmentScore(character) {
+function getBaseEquipmentScore(character) {
   return (
     getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk +
     getCharDef(character) * EQUIPMENT_SCORE_WEIGHTS.defense +
@@ -330,31 +549,226 @@ function getEquipmentScore(character) {
   );
 }
 
-function equipGreedyUpgrades(state) {
+function getOffenseEquipmentScore(character) {
+  return (
+    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk +
+    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str +
+    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int +
+    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie
+  );
+}
+
+function createCoreScoringProfile(observations, runCount) {
+  const divide = (numerator, denominator) => denominator > 0 ? numerator / denominator : 0;
+  const averageFightDamage = divide(observations.fightDamage, observations.fightDamageActions);
+  const averageSpellDamage = divide(observations.spellDamage, observations.spellDamageActions);
+  const averageDiosHealing = divide(observations.diosHealing, observations.diosHealActions);
+  const expectedTrapDisarmsFromFloor = {};
+  let remainingTrapDisarms = 0;
+  for (let floor = observations.expectedTrapDisarmsByFloor.length - 1; floor >= 1; floor--) {
+    remainingTrapDisarms += observations.expectedTrapDisarmsByFloor[floor] || 0;
+    expectedTrapDisarmsFromFloor[floor] = divide(remainingTrapDisarms, runCount);
+  }
+  return {
+    lowHpOffensiveRate: divide(observations.lowHpOffensiveTurns, observations.offensiveTurns),
+    giantTargetRate: divide(observations.giantTargetTurns, observations.offensiveTurns),
+    statusTargetRate: divide(observations.statusTargetTurns, observations.offensiveTurns),
+    openerFirstStrikeRate: divide(
+      observations.openerFirstStrikeFightTurns,
+      observations.fightTurns
+    ),
+    bloodWandSpellOpportunityRate: divide(
+      observations.bloodWandSpellOpportunities,
+      observations.offensiveTurns
+    ),
+    bloodWandHealOpportunityRate: divide(
+      observations.bloodWandHealOpportunities,
+      observations.offensiveTurns
+    ),
+    purifyMpPerOffensiveTurn: divide(
+      observations.purifyKillsWithMpRoom,
+      observations.offensiveTurns
+    ),
+    incomingPhysicalHitRate: divide(
+      observations.incomingPhysicalHits,
+      observations.incomingPhysicalAttempts
+    ),
+    expectedTrapDisarmsPerRun: divide(observations.expectedTrapDisarms, runCount),
+    expectedTrapDisarmsFromFloor,
+    averageEquippedCurseCount: divide(
+      observations.equippedCurseTotal,
+      observations.curseSamples
+    ),
+    averageFightDamage,
+    averageSpellDamage,
+    averageDiosHealing,
+    spellDamageUplift: averageFightDamage > 0
+      ? Math.max(0, averageSpellDamage / averageFightDamage - 1)
+      : 0,
+    observations
+  };
+}
+
+function getCombatCoreScore(character, scoringProfile, floor) {
+  if (!scoringProfile) return 0;
+  const coreId = getEquippedCoreAffixes(character)
+    .map(affix => affix.id || affix.type)
+    .find(id => COMBAT_CORE_IDS.has(id));
+  if (!coreId) return 0;
+
+  const params = CORE_AFFIX_BY_ID.get(coreId).params;
+  const offenseScore = getOffenseEquipmentScore(character);
+  const statWeight =
+    EQUIPMENT_SCORE_WEIGHTS.str +
+    EQUIPMENT_SCORE_WEIGHTS.vit +
+    EQUIPMENT_SCORE_WEIGHTS.int +
+    EQUIPMENT_SCORE_WEIGHTS.pie +
+    EQUIPMENT_SCORE_WEIGHTS.agi;
+
+  // 倍率コアは既存攻撃スコア×calibration実測稼働率×実params増分。
+  if (coreId === "CORE_LAST_STAND") {
+    return offenseScore * scoringProfile.lowHpOffensiveRate * (params.damageMultiplier - 1);
+  }
+  if (coreId === "CORE_GIANT_SLAYER") {
+    return offenseScore * scoringProfile.giantTargetRate * (params.damageMultiplier - 1);
+  }
+  if (coreId === "CORE_EXECUTIONER") {
+    return offenseScore * scoringProfile.statusTargetRate * (params.damageMultiplier - 1);
+  }
+  // 追撃100%を既存followUpの%重みへ載せ、実先制成功率だけ稼働させる。
+  if (coreId === "CORE_OPENER") {
+    return scoringProfile.openerFirstStrikeRate *
+      params.followUpChance * 100 * EQUIPMENT_SCORE_WEIGHTS.followUp;
+  }
+  // MP不足時の追加詠唱は、実測spell/fightダメージ差。回復詠唱は実測DIOS回復量をHP重み換算。
+  if (coreId === "CORE_BLOOD_WAND") {
+    return offenseScore *
+      scoringProfile.bloodWandSpellOpportunityRate *
+      scoringProfile.spellDamageUplift +
+      EQUIPMENT_SCORE_WEIGHTS.maxHp *
+      scoringProfile.bloodWandHealOpportunityRate *
+      scoringProfile.averageDiosHealing;
+  }
+  // 対象撃破で得る1MPを追加詠唱1回とみなし、実測spell/fight差へ換算。
+  if (coreId === "CORE_PURIFY_RING") {
+    return offenseScore *
+      scoringProfile.purifyMpPerOffensiveTurn *
+      params.mpRecovery *
+      scoringProfile.spellDamageUplift;
+  }
+  // 罠出現と実解除率からrun当たり累積攻撃を算出。上限・増分とも実params。
+  if (coreId === "CORE_TRAP_EATER") {
+    const expectedRemainingDisarms =
+      scoringProfile.expectedTrapDisarmsFromFloor[Math.max(1, Math.floor(floor))] || 0;
+    const expectedAttack = Math.min(
+      params.maxAttack,
+      expectedRemainingDisarms * params.attackPerDisarm
+    );
+    return expectedAttack * EQUIPMENT_SCORE_WEIGHTS.weaponAtk;
+  }
+  // #236分離で呪い除外中。実測装備呪い数が0なら価値も0。
+  if (coreId === "CORE_CURSE_KEEPER") {
+    return scoringProfile.averageEquippedCurseCount * params.statsPerCurse * statWeight;
+  }
+  // 物理攻撃の実被弾率×反撃率×威力を既存攻撃スコアへ換算。
+  if (coreId === "CORE_THORN_SHIELD") {
+    return offenseScore *
+      scoringProfile.incomingPhysicalHitRate *
+      params.counterChance *
+      params.counterPower;
+  }
+  return 0;
+}
+
+function getEquipmentScore(character, scoringProfile, floor) {
+  return getBaseEquipmentScore(character) + getCombatCoreScore(character, scoringProfile, floor);
+}
+
+function recordCoreDecision(metrics, item, reason) {
+  const coreId = getItemCoreId(item);
+  if (!coreId) return;
+  if (!metrics.coreDecisionReasons[coreId]) metrics.coreDecisionReasons[coreId] = new Set();
+  metrics.coreDecisionReasons[coreId].add(reason);
+}
+
+function equipGreedyUpgrades(state, metrics, scoringProfile) {
   const character = state.party[0];
   let upgrades = 0;
+  const maxIterations = state.inventory.length * 2 + Object.keys(character.equipment).length;
 
   while (true) {
-    const currentScore = getEquipmentScore(character);
+    if (upgrades > maxIterations) {
+      throw new Error("equipment upgrade loop did not converge");
+    }
+    const currentScore = getEquipmentScore(character, scoringProfile, state.floor);
     let best = null;
 
     state.inventory.forEach((inventoryItem, index) => {
       const candidate = identifyWithoutCurse(inventoryItem);
       const itemData = getItemData(candidate);
-      if (!canEquipForSimulation(character, candidate)) return;
+      if (!isEquipment(itemData)) return;
+      recordCoreItemEncounter(metrics, candidate, state.floor);
+      if (itemData.classes && !itemData.classes.includes(character.class)) {
+        recordCoreDecision(metrics, candidate, "class-incompatible");
+        return;
+      }
+      if (!canEquipCoreAffix(character, candidate, itemData.type)) {
+        recordCoreDecision(metrics, candidate, "core-slot-conflict");
+        return;
+      }
 
       const slot = itemData.type;
       const oldEquipment = character.equipment[slot];
       character.equipment[slot] = candidate;
-      const candidateScore = getEquipmentScore(character);
+      const candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
       character.equipment[slot] = oldEquipment;
 
-      if (candidateScore <= currentScore || (best && candidateScore <= best.score)) return;
-      best = { candidate, index, oldEquipment, score: candidateScore, slot };
+      const candidateCoreId = getItemCoreId(candidate);
+      const oldCoreId = getItemCoreId(oldEquipment);
+      const candidateIsEconomyCore = ECONOMY_CORE_IDS.has(candidateCoreId);
+      let selectionScore = candidateScore;
+      let qualifies = candidateScore > currentScore;
+      let rejectionReason = candidateCoreId && COMBAT_CORE_IDS.has(candidateCoreId)
+        ? "combat-score-not-higher"
+        : "score-not-higher";
+
+      // economyコアは別軸価値。戦闘スコア95%以上なら同スロット候補より優先する。
+      if (candidateIsEconomyCore && oldCoreId) {
+        qualifies = candidateScore > currentScore;
+        rejectionReason = "economy-core-retained";
+      } else if (candidateIsEconomyCore) {
+        qualifies = candidateScore >= currentScore * ECONOMY_CORE_KEEP_RATIO;
+        selectionScore = candidateScore / ECONOMY_CORE_KEEP_RATIO;
+        rejectionReason = "economy-below-95pct";
+      // 装備済みcoreは、非coreが保持幅を明確に超えた場合だけ外す。
+      } else if (oldCoreId && !candidateCoreId) {
+        qualifies = candidateScore > currentScore / ECONOMY_CORE_KEEP_RATIO;
+        rejectionReason = "equipped-core-retained";
+      }
+
+      if (!qualifies) {
+        recordCoreDecision(metrics, candidate, rejectionReason);
+        return;
+      }
+      if (best && selectionScore <= best.selectionScore) return;
+      best = {
+        candidate,
+        candidateCoreId,
+        index,
+        oldEquipment,
+        oldCoreId,
+        selectionScore,
+        slot
+      };
     });
 
     if (!best) break;
     character.equipment[best.slot] = best.candidate;
+    if (best.candidateCoreId) {
+      metrics.coreEverEquippedIds.add(best.candidateCoreId);
+      recordCoreDecision(metrics, best.candidate, "equipped");
+    }
+    if (best.oldCoreId) recordCoreDecision(metrics, best.oldEquipment, "replaced");
     if (best.oldEquipment) {
       state.inventory[best.index] = best.oldEquipment;
     } else {
@@ -441,8 +855,19 @@ function rollChestAccessory(floor, rng, party) {
 }
 
 // setupChestStateの装備供給分岐をNode sim用stateで再現する。
-function rollChestItems(state, floor, rng) {
+function rollChestItems(state, floor, rng, observations) {
   const trap = rollChestTrap(floor, rng);
+  if (trap !== "none") {
+    const character = state.party[0];
+    let disarmChance =
+      (DISARM_BASE_CHANCE_BY_CLASS[character.class] || DISARM_BASE_CHANCE_BY_CLASS.default) +
+      getCharTrapBonus(character);
+    if (character.status === "blind") disarmChance /= 2;
+    observations.trappedChests++;
+    const expectedDisarm = Math.max(0, Math.min(1, disarmChance));
+    observations.expectedTrapDisarms += expectedDisarm;
+    observations.expectedTrapDisarmsByFloor[floor] += expectedDisarm;
+  }
   if (floor === 1) {
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
   }
@@ -505,20 +930,26 @@ function hasBuildCoreAffix(item) {
   return item.affixes.some(affix => CORE_AFFIX_IDS.has(affix.id || affix.type));
 }
 
-function hasEquippedBuildCore(character) {
-  return getEquippedCoreAffixes(character)
-    .some(affix => CORE_AFFIX_IDS.has(affix.id || affix.type));
-}
-
 function recordEquipmentAcquisitions(metrics, equipmentItems, floor) {
   equipmentItems.forEach(item => {
     metrics.equipmentFound++;
     if (floor <= EARLY_BUILD_MAX_FLOOR) metrics.earlyEquipmentFound++;
     else metrics.deepEquipmentFound++;
-    if (!hasBuildCoreAffix(item)) return;
-    metrics.coreEquipmentFound++;
-    if (metrics.firstCoreDepth === null) metrics.firstCoreDepth = floor;
+    recordCoreItemEncounter(metrics, item, floor);
   });
+}
+
+function recordCoreItemEncounter(metrics, item, floor) {
+  if (!hasBuildCoreAffix(item)) return;
+  const instanceKey = item.instanceId || item;
+  const coreId = getItemCoreId(item);
+  metrics.coreEncounteredIds.add(coreId);
+  if (!metrics.coreEquipmentInstanceIds.has(instanceKey)) {
+    metrics.coreEquipmentInstanceIds.add(instanceKey);
+    metrics.coreEquipmentFound++;
+    metrics.coreEquipmentFoundById[coreId] = (metrics.coreEquipmentFoundById[coreId] || 0) + 1;
+  }
+  if (metrics.firstCoreDepth === null) metrics.firstCoreDepth = floor;
 }
 
 function recordEquipmentUpgrades(metrics, upgrades, floor) {
@@ -552,6 +983,9 @@ function finishRun(state, outcome, metrics) {
     throw new Error("bank material calculation mismatch");
   }
 
+  const finalCoreId = getEquippedCoreAffixes(state.party[0])
+    .map(affix => affix.id || affix.type)
+    .find(id => CORE_AFFIX_IDS.has(id)) || null;
   return {
     survived: outcome === "retreat",
     died: outcome === "death",
@@ -567,8 +1001,17 @@ function finishRun(state, outcome, metrics) {
     earlyEquipmentFound: metrics.earlyEquipmentFound,
     deepEquipmentFound: metrics.deepEquipmentFound,
     coreEquipmentFound: metrics.coreEquipmentFound,
+    coreEquipmentFoundById: metrics.coreEquipmentFoundById,
+    coreEncounteredIds: [...metrics.coreEncounteredIds],
+    coreEverEquippedIds: [...metrics.coreEverEquippedIds],
+    coreDecisionReasons: Object.fromEntries(
+      Object.entries(metrics.coreDecisionReasons)
+        .map(([coreId, reasons]) => [coreId, [...reasons]])
+    ),
     firstCoreDepth: metrics.firstCoreDepth,
-    coreEquipped: hasEquippedBuildCore(state.party[0]),
+    coreEquipped: Boolean(finalCoreId),
+    finalCoreId,
+    coreObservations: metrics.coreObservations,
     healPotionsUsed: metrics.healPotionsUsed,
     fleeCount: metrics.fleeCount
   };
@@ -582,7 +1025,7 @@ function descendToNextFloor(state, nextFloor) {
   applyFloorTransitionHeal(state.party[0]);
 }
 
-function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId }) {
+function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId, scoringProfile }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   let state = createSimulationState(className, startFloor, runSeed);
   const metrics = {
@@ -596,6 +1039,12 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
     coreEquipmentFound: 0,
+    coreEquipmentFoundById: {},
+    coreEquipmentInstanceIds: new Set(),
+    coreEncounteredIds: new Set(),
+    coreEverEquippedIds: new Set(),
+    coreDecisionReasons: {},
+    coreObservations: createCoreObservations(),
     firstCoreDepth: null,
     healPotionsUsed: 0,
     fleeCount: 0
@@ -617,7 +1066,7 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
       const pickedUpChests = chestSchedule.get(step) || 0;
       for (let chest = 0; chest < pickedUpChests; chest++) {
         addMaterials(state.currentRun.materials, generateChestMaterials(floor, Math.random, 0));
-        const chestItems = rollChestItems(state, floor, Math.random);
+        const chestItems = rollChestItems(state, floor, Math.random, metrics.coreObservations);
         const acquiredEquipment = [];
         chestItems.forEach(item => {
           if (!addInventoryItemToState(state, item)) return;
@@ -638,13 +1087,17 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
         });
         recordEquipmentAcquisitions(metrics, acquiredEquipment, floor);
         state.currentRun.chestsOpened++;
-        recordEquipmentUpgrades(metrics, equipGreedyUpgrades(state), floor);
+        recordEquipmentUpgrades(
+          metrics,
+          equipGreedyUpgrades(state, metrics, scoringProfile),
+          floor
+        );
       }
 
       if (Math.random() >= getEncounterChance(step)) continue;
 
       state.currentRun.battles++;
-      const combatResult = runEncounter(state);
+      const combatResult = runEncounter(state, metrics.coreObservations);
       state = combatResult.state;
       metrics.combatRounds += combatResult.rounds;
       metrics.healPotionsUsed += combatResult.healPotionsUsed;
@@ -672,7 +1125,11 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
       while (checkCharLevelUp(state.party[0])) {
         // applyCombatRewards performs the first possible level-up.
       }
-      recordEquipmentUpgrades(metrics, equipGreedyUpgrades(state), floor);
+      recordEquipmentUpgrades(
+        metrics,
+        equipGreedyUpgrades(state, metrics, scoringProfile),
+        floor
+      );
       applyPostCombatRecovery(state.party[0]);
       metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
       if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
@@ -684,7 +1141,18 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId })
   return finishRun(state, "retreat", metrics);
 }
 
-function simulateCase({ startFloor, targetDepth, label, seriesId }) {
+function getUnequippedCoreReason(result, coreId) {
+  if (result.coreEverEquippedIds.includes(coreId)) return "後続装備に置換";
+  const reasons = result.coreDecisionReasons[coreId] || [];
+  if (reasons.includes("class-incompatible")) return "職業制限";
+  if (reasons.includes("core-slot-conflict")) return "既存coreと競合";
+  if (reasons.includes("economy-below-95pct")) return "戦闘スコア95%未満";
+  if (reasons.includes("combat-score-not-higher")) return "期待戦闘スコア不足";
+  if (reasons.includes("economy-core-retained")) return "装備済みeconomy coreを保持";
+  return "生スコア不足";
+}
+
+function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile }) {
   const totals = {
     survived: 0,
     died: 0,
@@ -703,7 +1171,15 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
     runsWithCoreEncounter: 0,
     runsWithEarlyCoreEncounter: 0,
     runsWithCoreEquipped: 0,
+    runsWithCombatCoreEncounter: 0,
+    runsWithEconomyCoreEncounter: 0,
+    runsWithCombatCoreEquipped: 0,
+    runsWithEconomyCoreEquipped: 0,
+    coreEncounterRunsById: {},
+    coreEquippedRunsById: {},
+    unequippedCoreReasonsById: {},
     firstCoreDepthCounts: {},
+    coreObservations: createCoreObservations(),
     healPotionsUsed: 0,
     fleeCount: 0,
     runsWithFlee: 0
@@ -711,7 +1187,14 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
     const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
-    const result = simulateRun({ className, startFloor, targetDepth, runIndex, seriesId });
+    const result = simulateRun({
+      className,
+      startFloor,
+      targetDepth,
+      runIndex,
+      seriesId,
+      scoringProfile
+    });
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
     totals.bankedMaterials += result.bankedMaterials;
@@ -731,6 +1214,35 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
       result.firstCoreDepth !== null && result.firstCoreDepth <= EARLY_BUILD_MAX_FLOOR
     );
     totals.runsWithCoreEquipped += Number(result.coreEquipped);
+    const encounteredCombat = result.coreEncounteredIds.some(id => COMBAT_CORE_IDS.has(id));
+    const encounteredEconomy = result.coreEncounteredIds.some(id => ECONOMY_CORE_IDS.has(id));
+    totals.runsWithCombatCoreEncounter += Number(encounteredCombat);
+    totals.runsWithEconomyCoreEncounter += Number(encounteredEconomy);
+    totals.runsWithCombatCoreEquipped += Number(COMBAT_CORE_IDS.has(result.finalCoreId));
+    totals.runsWithEconomyCoreEquipped += Number(ECONOMY_CORE_IDS.has(result.finalCoreId));
+    if (result.finalCoreId && !result.coreEncounteredIds.includes(result.finalCoreId)) {
+      throw new Error(
+        `final core missing from encounter metrics: ${seriesId}/${runIndex}/${result.finalCoreId}; ` +
+        `encountered=${result.coreEncounteredIds.join(",")}; ` +
+        `everEquipped=${result.coreEverEquippedIds.join(",")}; ` +
+        `found=${JSON.stringify(result.coreEquipmentFoundById)}`
+      );
+    }
+    result.coreEncounteredIds.forEach(coreId => {
+      totals.coreEncounterRunsById[coreId] = (totals.coreEncounterRunsById[coreId] || 0) + 1;
+      if (result.finalCoreId === coreId) return;
+      const reason = getUnequippedCoreReason(result, coreId);
+      if (!totals.unequippedCoreReasonsById[coreId]) {
+        totals.unequippedCoreReasonsById[coreId] = {};
+      }
+      totals.unequippedCoreReasonsById[coreId][reason] =
+        (totals.unequippedCoreReasonsById[coreId][reason] || 0) + 1;
+    });
+    if (result.finalCoreId) {
+      totals.coreEquippedRunsById[result.finalCoreId] =
+        (totals.coreEquippedRunsById[result.finalCoreId] || 0) + 1;
+    }
+    addCoreObservations(totals.coreObservations, result.coreObservations);
     const firstCoreDepthKey = result.firstCoreDepth === null ? "none" : String(result.firstCoreDepth);
     totals.firstCoreDepthCounts[firstCoreDepthKey] =
       (totals.firstCoreDepthCounts[firstCoreDepthKey] || 0) + 1;
@@ -765,6 +1277,23 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
     coreEncounterRate: totals.runsWithCoreEncounter / RUNS_PER_CASE,
     earlyCoreEncounterRate: totals.runsWithEarlyCoreEncounter / RUNS_PER_CASE,
     coreEquippedRate: totals.runsWithCoreEquipped / RUNS_PER_CASE,
+    coreRetentionRate: totals.runsWithCoreEncounter > 0
+      ? totals.runsWithCoreEquipped / totals.runsWithCoreEncounter
+      : 0,
+    combatCoreEncounterRate: totals.runsWithCombatCoreEncounter / RUNS_PER_CASE,
+    economyCoreEncounterRate: totals.runsWithEconomyCoreEncounter / RUNS_PER_CASE,
+    combatCoreEquippedRate: totals.runsWithCombatCoreEquipped / RUNS_PER_CASE,
+    economyCoreEquippedRate: totals.runsWithEconomyCoreEquipped / RUNS_PER_CASE,
+    combatCoreRetentionRate: totals.runsWithCombatCoreEncounter > 0
+      ? totals.runsWithCombatCoreEquipped / totals.runsWithCombatCoreEncounter
+      : 0,
+    economyCoreRetentionRate: totals.runsWithEconomyCoreEncounter > 0
+      ? totals.runsWithEconomyCoreEquipped / totals.runsWithEconomyCoreEncounter
+      : 0,
+    coreEncounterRunsById: totals.coreEncounterRunsById,
+    coreEquippedRunsById: totals.coreEquippedRunsById,
+    unequippedCoreReasonsById: totals.unequippedCoreReasonsById,
+    coreObservations: totals.coreObservations,
     firstCoreDepthCounts: totals.firstCoreDepthCounts,
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
     averageFleeCount: totals.fleeCount / RUNS_PER_CASE,
@@ -774,6 +1303,69 @@ function simulateCase({ startFloor, targetDepth, label, seriesId }) {
 
 function formatPercent(rate) {
   return `${(rate * 100).toFixed(1)}%`;
+}
+
+function calibrateCoreScoringProfile() {
+  const observations = createCoreObservations();
+  for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
+    const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
+    const result = simulateRun({
+      className,
+      startFloor: 1,
+      targetDepth: 20,
+      runIndex,
+      seriesId: "core-score-calibration",
+      scoringProfile: null
+    });
+    addCoreObservations(observations, result.coreObservations);
+  }
+  return createCoreScoringProfile(observations, RUNS_PER_CASE);
+}
+
+function printCoreScoringProfile(profile) {
+  console.log("\n【core期待戦闘価値 calibration（B1→B20）】");
+  console.log(
+    `背水: HP25%以下攻撃turn率=${formatPercent(profile.lowHpOffensiveRate)}; ` +
+    "攻撃score×率×(1.4-1)"
+  );
+  console.log(
+    `先手必勝: 先制成功fight率=${formatPercent(profile.openerFirstStrikeRate)}; ` +
+    "率×100%追撃×followUp重み0.15"
+  );
+  console.log(
+    `血杖: MP不足攻撃spell機会率=${formatPercent(profile.bloodWandSpellOpportunityRate)}, ` +
+    `MP不足DIOS機会率=${formatPercent(profile.bloodWandHealOpportunityRate)}, ` +
+    `spell/fight実測damage=${profile.averageSpellDamage.toFixed(2)}/${profile.averageFightDamage.toFixed(2)}, ` +
+    `DIOS実測回復=${profile.averageDiosHealing.toFixed(2)}; ` +
+    "攻撃score×攻撃機会率×damage差 + maxHP重み×回復機会率×回復量"
+  );
+  console.log(
+    `浄化の環: MP回復可能対象撃破/攻撃turn=${profile.purifyMpPerOffensiveTurn.toFixed(4)}; ` +
+    "攻撃score×対象撃破率×MP1×spell/fight実測damage差"
+  );
+  console.log(
+    `罠喰い: 残り罠解除期待回数 B1=${profile.expectedTrapDisarmsFromFloor[1].toFixed(3)}, ` +
+    `B10=${profile.expectedTrapDisarmsFromFloor[10].toFixed(3)}; ` +
+    "min(20, 現floor以降の解除回数×攻撃+2)×weaponAtk重み2"
+  );
+  console.log(
+    `呪飼いの鎖: 装備呪い実測平均=${profile.averageEquippedCurseCount.toFixed(4)}; ` +
+    "呪い数×全能力+3×既存能力重み合計（#236分離で呪い除外中）"
+  );
+  console.log(
+    `巨人殺し: 自分よりmaxHP高い敵への攻撃turn率=${formatPercent(profile.giantTargetRate)}; ` +
+    "攻撃score×率×(1.3-1)"
+  );
+  console.log(
+    `反撃の棘: 物理被弾率=${formatPercent(profile.incomingPhysicalHitRate)}; ` +
+    "攻撃score×率×反撃率0.3×威力0.5"
+  );
+  console.log(
+    `執行人: 状態異常敵への攻撃turn率=${formatPercent(profile.statusTargetRate)}; ` +
+    "攻撃score×率×(2-1)"
+  );
+  console.log("殿の構え: enabled=false → 判定・スコア・集計から除外");
+  console.log("economy 6種: 戦闘score加算なし; 95%互角優先＋装備後保持");
 }
 
 function printTable(results) {
@@ -814,6 +1406,37 @@ function printBuildSupplyMetrics(results) {
         return `${label}=${count} (${formatPercent(count / RUNS_PER_CASE)})`;
       });
     console.log(`  初回core遭遇深さ: ${depthLabels.join(", ")}`);
+  });
+}
+
+function printCoreRetentionDetail(result) {
+  console.log(`\n【${result.label} core定着詳細】`);
+  console.log(
+    `全core: 遭遇=${formatPercent(result.coreEncounterRate)}, ` +
+    `終了時装備=${formatPercent(result.coreEquippedRate)}, ` +
+    `遭遇→装備定着=${formatPercent(result.coreRetentionRate)}`
+  );
+  console.log(
+    `combat: 遭遇=${formatPercent(result.combatCoreEncounterRate)}, ` +
+    `終了時装備=${formatPercent(result.combatCoreEquippedRate)}, ` +
+    `定着=${formatPercent(result.combatCoreRetentionRate)}`
+  );
+  console.log(
+    `economy: 遭遇=${formatPercent(result.economyCoreEncounterRate)}, ` +
+    `終了時装備=${formatPercent(result.economyCoreEquippedRate)}, ` +
+    `定着=${formatPercent(result.economyCoreRetentionRate)}`
+  );
+  console.log("遭遇core別（run数。未装備理由は最終非装備runの主因）:");
+  ENABLED_CORE_AFFIXES.forEach(affix => {
+    const encountered = result.coreEncounterRunsById[affix.id] || 0;
+    const equipped = result.coreEquippedRunsById[affix.id] || 0;
+    const reasons = Object.entries(result.unequippedCoreReasonsById[affix.id] || {})
+      .map(([reason, count]) => `${reason}=${count}`)
+      .join(", ");
+    console.log(
+      `  ${affix.id} [${affix.poolGroup}]: 遭遇=${encountered}, 終了時装備=${equipped}, ` +
+      `未装備=${Math.max(0, encountered - equipped)}${reasons ? ` (${reasons})` : ""}`
+    );
   });
 }
 
@@ -868,9 +1491,14 @@ function printFailureComment(results) {
   }
 }
 
+const coreScoringProfile = calibrateCoreScoringProfile();
+// calibrationが本計測の乱数列をずらさないよう、baselineと同じseed先頭へ戻す。
+randomState = SIM_SEED;
+
 console.log("深度別 リスク調整後素材EVシミュレーション");
 console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（基本${SIM_CLASSES.length}職をround-robin集約）`);
 console.log(`乱数seed: ${SIM_SEED}`);
+console.log(`core価値calibration: B1→B20 N=${RUNS_PER_CASE}`);
 console.log(
   `仮定: 探索係数=${EXPLORATION_FACTOR}, 宝箱拾得率=${CHEST_PICKUP_RATE}, ` +
   `戦闘ターン重み=${COMBAT_TURN_WEIGHT}`
@@ -881,7 +1509,7 @@ console.log(
 );
 console.log(
   `供給仮定: 宝箱の本体/装身具分岐を実ロジック準拠で反映、` +
-  `core判定=CORE_AFFIXES ${CORE_AFFIXES.length}種+affix_rules helper`
+  `core判定=enabled ${ENABLED_CORE_AFFIXES.length}/${CORE_AFFIXES.length}種+affix_rules helper`
 );
 console.log(
   `core呪い設定: AFFIX_BALANCE.coreCurseChance=${AFFIX_BALANCE.coreCurseChance}は現generator未参照、` +
@@ -891,18 +1519,21 @@ console.log(
 console.log("逃走=常時成功（自ターン到達時）、先行攻撃＋離脱時追撃1発、報酬なし、探索継続");
 console.log("時間単位: 1歩=1、1戦闘ターン=3");
 console.log("撤退=100% bank、死亡=30% bank");
+printCoreScoringProfile(coreScoringProfile);
 
 const depthResults = TARGET_DEPTHS.map(targetDepth => simulateCase({
   startFloor: 1,
   targetDepth,
   label: `B${targetDepth}撤退`,
-  seriesId: `depth-${targetDepth}`
+  seriesId: `depth-${targetDepth}`,
+  scoringProfile: coreScoringProfile
 }));
 
 console.log("\n【B1開始 深度別系列】");
 printTable(depthResults);
 console.log("\n【B1開始 ビルド供給】");
 printBuildSupplyMetrics(depthResults);
+printCoreRetentionDetail(depthResults.at(-1));
 
 const monotonic = isMonotonicallyIncreasing(depthResults);
 const bestDepthResult = [...depthResults].sort((a, b) => b.materialEvPerTime - a.materialEvPerTime)[0];
@@ -916,13 +1547,15 @@ const milestoneResults = [
     startFloor: 10,
     targetDepth: 15,
     label: "B10→B15",
-    seriesId: "milestone-10-15"
+    seriesId: "milestone-10-15",
+    scoringProfile: coreScoringProfile
   }),
   simulateCase({
     startFloor: 1,
     targetDepth: 15,
     label: "B1→B15",
-    seriesId: "baseline-1-15"
+    seriesId: "baseline-1-15",
+    scoringProfile: coreScoringProfile
   })
 ];
 
