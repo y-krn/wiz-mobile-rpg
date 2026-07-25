@@ -1,1 +1,11 @@
-export const EXP_LEVELS = [0, 0, 200, 800, 2000, 4500, 9000, 16000, 25000, 40000, 60000];
+const BASE_EXP_LEVELS = [
+  0, 0, 200, 800, 2000, 4500, 9000, 16000, 25000, 40000, 60000,
+  90000, 135000, 202500, 303750, 455625, 683438, 1025156, 1537734, 2306602, 3459902
+];
+
+// #275のsim実測で平均到達10.98・平均Lv5.00を達成した確定値。
+const EXP_CURVE_SCALE = 0.5;
+
+export const EXP_LEVELS = BASE_EXP_LEVELS.map((exp, level) => (
+  level < 2 ? exp : Math.round(exp * EXP_CURVE_SCALE)
+));
