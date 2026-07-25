@@ -76,12 +76,50 @@ const EXPLORATION_FACTOR = 1.4;
 const CHEST_PICKUP_RATE = 0.7;
 // 仮値・感度分析対象: 戦闘1ターンを探索3歩相当と置く。
 const COMBAT_TURN_WEIGHT = 3;
-// 実run開始準拠: 傷薬2個のみ補給対象とし、宝箱・商人からの追加補給はモデル化しない。
+// 実run開始準拠: 傷薬2個。
 const INITIAL_HEAL_POTIONS = 2;
+// 実run開始準拠: 解毒薬1個。現simは毒状態・解毒効果をモデル化しない。
+const INITIAL_ANTIDOTES = 1;
 // 仮値・感度分析対象: 戦闘中/戦闘後HPが最大HPの35%以下なら傷薬を1個使う。
 const HEAL_POTION_THRESHOLD = 0.35;
 // 仮値・感度分析対象: 最大HPの35%以下なら次の自ターンで逃走する。
 const FLEE_HP_THRESHOLD = 0.35;
+// 仮値・感度分析対象: 危険域で傷薬が尽きていれば帰還の翼を使う。
+const PORTAL_HP_THRESHOLD = Number(process.env.PORTAL_HP_THRESHOLD || 0.35);
+const PORTAL_MAX_HEAL_POTIONS = Math.max(
+  0,
+  Number(process.env.PORTAL_MAX_HEAL_POTIONS || 0)
+);
+const PORTAL_MIN_FLOOR = Math.max(1, Number(process.env.PORTAL_MIN_FLOOR || 3));
+const SCENARIOS = Object.freeze([
+  {
+    id: "workshop-locked",
+    label: "工房未解放",
+    workshopReturnItem: null,
+    useTownPortal: true
+  },
+  {
+    id: "workshop-unlocked",
+    label: "工房解放済",
+    workshopReturnItem: "TOWN_PORTAL",
+    useTownPortal: true
+  },
+  {
+    id: "legacy-no-portal",
+    label: "従来(翼不使用)",
+    workshopReturnItem: null,
+    useTownPortal: false
+  }
+]);
+const SCENARIO_FILTER = new Set(
+  String(process.env.SIM_SCENARIOS || "")
+    .split(",")
+    .map(value => value.trim())
+    .filter(Boolean)
+);
+const ACTIVE_SCENARIOS = SCENARIO_FILTER.size === 0
+  ? SCENARIOS
+  : SCENARIOS.filter(scenario => SCENARIO_FILTER.has(scenario.id));
 const SIM_CLASSES = SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className));
 const ENABLED_CORE_AFFIXES = CORE_AFFIXES.filter(affix => affix.enabled);
 const CORE_AFFIX_IDS = new Set(ENABLED_CORE_AFFIXES.map(affix => affix.id));
@@ -189,7 +227,7 @@ Math.random = () => {
   return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 };
 
-function createSimulationState(className, startFloor, runSeed) {
+function createSimulationState(className, startFloor, runSeed, scenario) {
   const currentRun = createDefaultCurrentRun();
   currentRun.runSeed = runSeed;
   currentRun.startFloor = startFloor;
@@ -203,7 +241,8 @@ function createSimulationState(className, startFloor, runSeed) {
     combatState: null,
     inventory: [
       ...Array(INITIAL_HEAL_POTIONS).fill("HEAL_POTION"),
-      "ANTIDOTE"
+      ...Array(INITIAL_ANTIDOTES).fill("ANTIDOTE"),
+      ...(scenario.workshopReturnItem ? [scenario.workshopReturnItem] : [])
     ],
     firstKills: [],
     // 学者の眼は永続codexの未登録判定を使うため、空codexから実更新させる。
@@ -568,6 +607,24 @@ function useHealPotionIfNeeded(state) {
   if (potionIndex < 0) return false;
   state.inventory.splice(potionIndex, 1);
   ITEM_EFFECTS.HEAL_POTION({ char: character });
+  return true;
+}
+
+function shouldUseTownPortal(state, scenario) {
+  if (!scenario.useTownPortal || !isAlive(state.party[0])) return false;
+  if (state.floor < PORTAL_MIN_FLOOR) return false;
+  if (!state.inventory.includes("TOWN_PORTAL")) return false;
+  const character = state.party[0];
+  const hpRate = character.hp / Math.max(1, getCharMaxHp(character));
+  const healPotions = state.inventory.filter(item => item === "HEAL_POTION").length;
+  return hpRate <= PORTAL_HP_THRESHOLD && healPotions <= PORTAL_MAX_HEAL_POTIONS;
+}
+
+function useTownPortalIfNeeded(state, scenario, metrics) {
+  if (!shouldUseTownPortal(state, scenario)) return false;
+  const portalIndex = state.inventory.indexOf("TOWN_PORTAL");
+  state.inventory.splice(portalIndex, 1);
+  metrics.townPortalsUsed++;
   return true;
 }
 
@@ -1143,6 +1200,7 @@ function finishRun(state, outcome, metrics) {
       }
     });
 
+  const carriedMaterials = totalMaterials(state.currentRun.materials);
   const { banked, balance } = bankRunMaterials(
     state.metaMaterials,
     state.currentRun.materials,
@@ -1163,6 +1221,7 @@ function finishRun(state, outcome, metrics) {
   return {
     survived: outcome === "retreat",
     died: outcome === "death",
+    carriedMaterials,
     bankedMaterials: totalMaterials(banked),
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     reachedFloor: state.currentRun.deepestFloor,
@@ -1187,6 +1246,7 @@ function finishRun(state, outcome, metrics) {
     finalCoreId,
     coreObservations: metrics.coreObservations,
     healPotionsUsed: metrics.healPotionsUsed,
+    townPortalsUsed: metrics.townPortalsUsed,
     fleeCount: metrics.fleeCount
   };
 }
@@ -1199,9 +1259,17 @@ function descendToNextFloor(state, nextFloor) {
   applyFloorTransitionHeal(state.party[0]);
 }
 
-function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId, scoringProfile }) {
+function simulateRun({
+  className,
+  startFloor,
+  targetDepth,
+  runIndex,
+  seriesId,
+  scoringProfile,
+  scenario
+}) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
-  let state = createSimulationState(className, startFloor, runSeed);
+  let state = createSimulationState(className, startFloor, runSeed, scenario);
   const metrics = {
     steps: 0,
     combatRounds: 0,
@@ -1221,6 +1289,7 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId, s
     coreObservations: createCoreObservations(),
     firstCoreDepth: null,
     healPotionsUsed: 0,
+    townPortalsUsed: 0,
     fleeCount: 0
   };
 
@@ -1287,6 +1356,9 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId, s
         applyPostCombatRecovery(state.party[0]);
         metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
         if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
+        if (useTownPortalIfNeeded(state, scenario, metrics)) {
+          return finishRun(state, "retreat", metrics);
+        }
         continue;
       }
 
@@ -1320,10 +1392,16 @@ function simulateRun({ className, startFloor, targetDepth, runIndex, seriesId, s
       applyPostCombatRecovery(state.party[0]);
       metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
       if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
+      if (useTownPortalIfNeeded(state, scenario, metrics)) {
+        return finishRun(state, "retreat", metrics);
+      }
     }
 
     applySimulatedCampRest(state, metrics.coreObservations);
     descendToNextFloor(state, floor + 1);
+    if (useTownPortalIfNeeded(state, scenario, metrics)) {
+      return finishRun(state, "retreat", metrics);
+    }
   }
 
   return finishRun(state, "retreat", metrics);
@@ -1341,10 +1419,11 @@ function getUnequippedCoreReason(result, coreId) {
   return "生スコア不足";
 }
 
-function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile }) {
+function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile, scenario }) {
   const totals = {
     survived: 0,
     died: 0,
+    carriedMaterials: 0,
     bankedMaterials: 0,
     timeCost: 0,
     reachedFloor: 0,
@@ -1370,6 +1449,8 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
     firstCoreDepthCounts: {},
     coreObservations: createCoreObservations(),
     healPotionsUsed: 0,
+    townPortalsUsed: 0,
+    runsUsingTownPortal: 0,
     fleeCount: 0,
     runsWithFlee: 0
   };
@@ -1382,10 +1463,12 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
       targetDepth,
       runIndex,
       seriesId,
-      scoringProfile
+      scoringProfile,
+      scenario
     });
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
+    totals.carriedMaterials += result.carriedMaterials;
     totals.bankedMaterials += result.bankedMaterials;
     totals.timeCost += result.timeCost;
     totals.reachedFloor += result.reachedFloor;
@@ -1436,6 +1519,8 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
     totals.firstCoreDepthCounts[firstCoreDepthKey] =
       (totals.firstCoreDepthCounts[firstCoreDepthKey] || 0) + 1;
     totals.healPotionsUsed += result.healPotionsUsed;
+    totals.townPortalsUsed += result.townPortalsUsed;
+    totals.runsUsingTownPortal += Number(result.townPortalsUsed > 0);
     totals.fleeCount += result.fleeCount;
     totals.runsWithFlee += Number(result.fleeCount > 0);
   }
@@ -1448,6 +1533,10 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
     targetDepth,
     survivalRate: totals.survived / RUNS_PER_CASE,
     deathRate: totals.died / RUNS_PER_CASE,
+    townPortalUseRate: totals.runsUsingTownPortal / RUNS_PER_CASE,
+    bankRetentionRate: totals.carriedMaterials > 0
+      ? totals.bankedMaterials / totals.carriedMaterials
+      : 1,
     bankedMaterialEv,
     averageTimeCost,
     materialEvPerTime: bankedMaterialEv / averageTimeCost,
@@ -1485,6 +1574,7 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
     coreObservations: totals.coreObservations,
     firstCoreDepthCounts: totals.firstCoreDepthCounts,
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
+    averageTownPortalsUsed: totals.townPortalsUsed / RUNS_PER_CASE,
     averageFleeCount: totals.fleeCount / RUNS_PER_CASE,
     runsWithFleeRate: totals.runsWithFlee / RUNS_PER_CASE
   };
@@ -1495,6 +1585,7 @@ function formatPercent(rate) {
 }
 
 function calibrateCoreScoringProfile() {
+  const calibrationScenario = SCENARIOS.find(scenario => scenario.id === "legacy-no-portal");
   const observations = createCoreObservations();
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
     const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
@@ -1504,7 +1595,8 @@ function calibrateCoreScoringProfile() {
       targetDepth: 20,
       runIndex,
       seriesId: "core-score-calibration",
-      scoringProfile: null
+      scoringProfile: null,
+      scenario: calibrationScenario
     });
     addCoreObservations(observations, result.coreObservations);
   }
@@ -1583,12 +1675,13 @@ function printCoreScoringProfile(profile) {
 }
 
 function printTable(results) {
-  console.log("戦略       | 生還率 | 死亡率 | bank素材EV | 平均時間 | 素材EV/時間 | 平均到達階 | 平均Lv | 平均換装 | 平均薬 | 平均逃走 | 逃走run率");
-  console.log("-----------|--------|--------|------------|----------|-------------|------------|--------|----------|--------|----------|----------");
+  console.log("戦略       | 生還率 | 死亡率 | 翼使用率 | bank保持率 | bank素材EV | 平均時間 | 素材EV/時間 | 平均到達階 | 平均Lv | 平均換装 | 平均薬 | 平均逃走 | 逃走run率");
+  console.log("-----------|--------|--------|----------|------------|------------|----------|-------------|------------|--------|----------|--------|----------|----------");
   results.forEach(result => {
     console.log(
       `${result.label.padEnd(10)} | ${formatPercent(result.survivalRate).padStart(6)} | ` +
-      `${formatPercent(result.deathRate).padStart(6)} | ${result.bankedMaterialEv.toFixed(2).padStart(10)} | ` +
+      `${formatPercent(result.deathRate).padStart(6)} | ${formatPercent(result.townPortalUseRate).padStart(8)} | ` +
+      `${formatPercent(result.bankRetentionRate).padStart(10)} | ${result.bankedMaterialEv.toFixed(2).padStart(10)} | ` +
       `${result.averageTimeCost.toFixed(2).padStart(8)} | ${result.materialEvPerTime.toFixed(4).padStart(11)} | ` +
       `${result.averageReachedFloor.toFixed(2).padStart(10)} | ${result.averageFinalLevel.toFixed(2).padStart(6)} | ` +
       `${result.averageEquipmentUpgrades.toFixed(2).padStart(8)} | ${result.averageHealPotionsUsed.toFixed(2).padStart(6)} | ` +
@@ -1718,12 +1811,29 @@ console.log(
   `戦闘ターン重み=${COMBAT_TURN_WEIGHT}`
 );
 console.log(
-  `生存仮定: 初期傷薬=${INITIAL_HEAL_POTIONS}個, 使用閾値=${HEAL_POTION_THRESHOLD}, ` +
+  `初期inventory: 傷薬=${INITIAL_HEAL_POTIONS}個, 解毒薬=${INITIAL_ANTIDOTES}個, ` +
+  "工房解放済条件のみ帰還の翼=1個"
+);
+console.log(
+  `生存仮定: 傷薬使用閾値=${HEAL_POTION_THRESHOLD}, ` +
   `逃走閾値=${FLEE_HP_THRESHOLD}, 装備=実制限付き貪欲スコア更新, 鑑定済み・呪いなし`
 );
 console.log(
+  `帰還の翼ポリシー（仮値・感度分析対象）: B${PORTAL_MIN_FLOOR}以降, ` +
+  `HP<=${PORTAL_HP_THRESHOLD}, 傷薬<=${PORTAL_MAX_HEAL_POTIONS}個で1個消費し即時撤退・100% bank`
+);
+console.log(
   `供給仮定: 宝箱の本体/装身具分岐を実ロジック準拠で反映、` +
+  `宝箱TOWN_PORTALをinventory追加・使用対象化、` +
   `core判定=enabled ${ENABLED_CORE_AFFIXES.length}/${CORE_AFFIXES.length}種+affix_rules helper`
+);
+console.log(
+  "非モデル化: マイルストーン商人購入、毒/盲目/麻痺等の罠被害と解毒薬/状態回復薬、" +
+  "傷薬以外の回復・MP消費アイテム、プレイヤー任意判断（固定閾値で代理）"
+);
+console.log(
+  "感度指定: PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
+  "SIM_SCENARIOS=workshop-locked,workshop-unlocked,legacy-no-portal"
 );
 console.log(
   `core呪い設定: AFFIX_BALANCE.coreCurseChance=${AFFIX_BALANCE.coreCurseChance}は現generator未参照、` +
@@ -1735,41 +1845,63 @@ console.log("時間単位: 1歩=1、1戦闘ターン=3");
 console.log("撤退=100% bank、死亡=30% bank");
 printCoreScoringProfile(coreScoringProfile);
 
-const depthResults = TARGET_DEPTHS.map(targetDepth => simulateCase({
-  startFloor: 1,
-  targetDepth,
-  label: `B${targetDepth}撤退`,
-  seriesId: `depth-${targetDepth}`,
-  scoringProfile: coreScoringProfile
-}));
+if (ACTIVE_SCENARIOS.length === 0) {
+  throw new Error(`SIM_SCENARIOSに有効な条件がない: ${[...SCENARIO_FILTER].join(",")}`);
+}
 
-console.log("\n【B1開始 深度別系列】");
-printTable(depthResults);
-console.log("\n【B1開始 ビルド供給】");
-printBuildSupplyMetrics(depthResults);
-printCoreRetentionDetail(depthResults.at(-1));
+const scenarioResults = ACTIVE_SCENARIOS.map(scenario => {
+  // 条件比較で各系列のMath.random開始位置を揃える。
+  randomState = SIM_SEED;
+  const results = TARGET_DEPTHS.map(targetDepth => simulateCase({
+    startFloor: 1,
+    targetDepth,
+    label: `B${targetDepth}撤退`,
+    seriesId: `depth-${targetDepth}`,
+    scoringProfile: coreScoringProfile,
+    scenario
+  }));
 
-const monotonic = isMonotonicallyIncreasing(depthResults);
-const bestDepthResult = [...depthResults].sort((a, b) => b.materialEvPerTime - a.materialEvPerTime)[0];
-const b5IsBest = bestDepthResult.targetDepth === 5;
-console.log(`単位時間EVは深度について単調増加: ${monotonic ? "Yes" : "No"}`);
-console.log(`B5が単位時間EV最上位でない: ${b5IsBest ? "不合格" : "合格"}（最上位=${bestDepthResult.label}）`);
-if (!monotonic || b5IsBest) printFailureComment(depthResults);
+  console.log(`\n【${scenario.label} B1開始 深度別系列】`);
+  printTable(results);
+  console.log(`\n【${scenario.label} B1開始 ビルド供給】`);
+  printBuildSupplyMetrics(results);
+  printCoreRetentionDetail(results.at(-1));
 
+  const monotonic = isMonotonicallyIncreasing(results);
+  const bestDepthResult = [...results]
+    .sort((a, b) => b.materialEvPerTime - a.materialEvPerTime)[0];
+  const b5IsBest = bestDepthResult.targetDepth === 5;
+  console.log(`単位時間EVは深度について単調増加: ${monotonic ? "Yes" : "No"}`);
+  console.log(
+    `B5が単位時間EV最上位でない: ${b5IsBest ? "不合格" : "合格"}` +
+    `（最上位=${bestDepthResult.label}）`
+  );
+  if (!monotonic || b5IsBest) printFailureComment(results);
+  console.log(
+    `深度カーブ: bank保持率=${results.map(result => formatPercent(result.bankRetentionRate)).join(" / ")}, ` +
+    `EV/時間=${results.map(result => result.materialEvPerTime.toFixed(4)).join(" / ")}`
+  );
+  return { scenario, results };
+});
+
+const legacyScenario = SCENARIOS.find(scenario => scenario.id === "legacy-no-portal");
+randomState = SIM_SEED;
 const milestoneResults = [
   simulateCase({
     startFloor: 10,
     targetDepth: 15,
     label: "B10→B15",
     seriesId: "milestone-10-15",
-    scoringProfile: coreScoringProfile
+    scoringProfile: coreScoringProfile,
+    scenario: legacyScenario
   }),
   simulateCase({
     startFloor: 1,
     targetDepth: 15,
     label: "B1→B15",
     seriesId: "baseline-1-15",
-    scoringProfile: coreScoringProfile
+    scoringProfile: coreScoringProfile,
+    scenario: legacyScenario
   })
 ];
 
@@ -1788,7 +1920,10 @@ console.log(
   `${milestoneDominated ? "Yes" : "No"}`
 );
 
-const stalemateCases = [...depthResults, ...milestoneResults].filter(result => result.stalemateRate > 0);
+const stalemateCases = [
+  ...scenarioResults.flatMap(({ results }) => results),
+  ...milestoneResults
+].filter(result => result.stalemateRate > 0);
 if (stalemateCases.length > 0) {
   console.log(
     `注: ${MAX_COMBAT_TURNS}ターン上限到達は進行不能として死亡bank扱い: ` +
