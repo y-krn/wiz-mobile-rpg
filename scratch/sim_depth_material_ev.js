@@ -1,5 +1,7 @@
 /* global console, process */
 
+import { pathToFileURL } from "node:url";
+
 // Mock localStorage for the Node.js simulation environment before imports.
 Object.defineProperty(globalThis, "localStorage", {
   value: {
@@ -64,6 +66,10 @@ const {
 } = await import("../src/data.js");
 const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
 const { getBuffTotal } = await import("../src/combat_logic/status_effects.js");
+const {
+  applyWorkshopToCharacter,
+  getWorkshopGrants
+} = await import("../src/systems/workshop.js");
 
 const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 500));
 const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
@@ -227,7 +233,19 @@ Math.random = () => {
   return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 };
 
-function createSimulationState(className, startFloor, runSeed, scenario) {
+function equipBestWorkshopStartingGear(character, workshop) {
+  const candidates = getWorkshopGrants(workshop).startingGear
+    .map(itemId => ITEMS[itemId])
+    .filter(item => item && (!item.classes || item.classes.includes(character.class)))
+    .sort((left, right) => (right.atk || 0) - (left.atk || 0));
+  const best = candidates[0];
+  const equipped = ITEMS[character.equipment.weapon];
+  if (best && (best.atk || 0) > (equipped?.atk || 0)) {
+    character.equipment[best.type] = best.id;
+  }
+}
+
+function createSimulationState(className, startFloor, runSeed, scenario, workshop) {
   const currentRun = createDefaultCurrentRun();
   currentRun.runSeed = runSeed;
   currentRun.startFloor = startFloor;
@@ -236,12 +254,17 @@ function createSimulationState(className, startFloor, runSeed, scenario) {
   currentRun.floorsVisited = [startFloor];
   assignRunQuests(currentRun);
 
+  const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
+  const workshopGrants = getWorkshopGrants(workshop);
+  equipBestWorkshopStartingGear(character, workshop);
+
   return {
-    party: [createSoloCharacter(className)],
+    party: [character],
     combatState: null,
     inventory: [
       ...Array(INITIAL_HEAL_POTIONS).fill("HEAL_POTION"),
       ...Array(INITIAL_ANTIDOTES).fill("ANTIDOTE"),
+      ...workshopGrants.returnItems,
       ...(scenario.workshopReturnItem ? [scenario.workshopReturnItem] : [])
     ],
     firstKills: [],
@@ -251,7 +274,7 @@ function createSimulationState(className, startFloor, runSeed, scenario) {
     roamingMonsters: [],
     floorChestsTotal: [],
     metaMaterials: {},
-    identifyTickets: 0,
+    identifyTickets: workshopGrants.identifyPowder,
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
     floor: startFloor
@@ -1223,6 +1246,8 @@ function finishRun(state, outcome, metrics) {
     died: outcome === "death",
     carriedMaterials,
     bankedMaterials: totalMaterials(banked),
+    carriedMaterialCounts: { ...state.currentRun.materials },
+    bankedMaterialCounts: { ...banked },
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     reachedFloor: state.currentRun.deepestFloor,
     stalemate: metrics.stalemate,
@@ -1259,17 +1284,18 @@ function descendToNextFloor(state, nextFloor) {
   applyFloorTransitionHeal(state.party[0]);
 }
 
-function simulateRun({
+export function simulateRun({
   className,
   startFloor,
   targetDepth,
   runIndex,
   seriesId,
   scoringProfile,
-  scenario
+  scenario,
+  workshop = { ranks: {} }
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
-  let state = createSimulationState(className, startFloor, runSeed, scenario);
+  let state = createSimulationState(className, startFloor, runSeed, scenario, workshop);
   const metrics = {
     steps: 0,
     combatRounds: 0,
@@ -1584,10 +1610,10 @@ function formatPercent(rate) {
   return `${(rate * 100).toFixed(1)}%`;
 }
 
-function calibrateCoreScoringProfile() {
+export function calibrateCoreScoringProfile(runCount = RUNS_PER_CASE) {
   const calibrationScenario = SCENARIOS.find(scenario => scenario.id === "legacy-no-portal");
   const observations = createCoreObservations();
-  for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
+  for (let runIndex = 0; runIndex < runCount; runIndex++) {
     const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
     const result = simulateRun({
       className,
@@ -1600,8 +1626,14 @@ function calibrateCoreScoringProfile() {
     });
     addCoreObservations(observations, result.coreObservations);
   }
-  return createCoreScoringProfile(observations, RUNS_PER_CASE);
+  return createCoreScoringProfile(observations, runCount);
 }
+
+export function resetSimulationRandom(seed = SIM_SEED) {
+  randomState = Number(seed) >>> 0;
+}
+
+export { SCENARIOS, SIM_CLASSES };
 
 function printCoreScoringProfile(profile) {
   console.log("\n【core期待戦闘価値 calibration（B1→B20）】");
@@ -1798,6 +1830,7 @@ function printFailureComment(results) {
   }
 }
 
+export function runDepthMaterialSimulation() {
 const coreScoringProfile = calibrateCoreScoringProfile();
 // calibrationが本計測の乱数列をずらさないよう、baselineと同じseed先頭へ戻す。
 randomState = SIM_SEED;
@@ -1929,4 +1962,9 @@ if (stalemateCases.length > 0) {
     `注: ${MAX_COMBAT_TURNS}ターン上限到達は進行不能として死亡bank扱い: ` +
     stalemateCases.map(result => `${result.label}=${formatPercent(result.stalemateRate)}`).join(", ")
   );
+}
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runDepthMaterialSimulation();
 }
