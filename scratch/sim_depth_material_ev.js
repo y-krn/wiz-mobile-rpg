@@ -26,6 +26,7 @@ const { checkCharLevelUp } = await import("../src/systems/leveling.js");
 const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
 const { assignRunQuests, updateRunQuests } = await import("../src/systems/run_quests.js");
 const { generateRunFloor } = await import("../src/run_map_generator.js");
+const { isMilestoneFloor } = await import("../src/run_map_generator.js");
 const { getFloorTemplate } = await import("../src/data/floor_templates.js");
 const { EVENT_TYPES } = await import("../src/constants/events.js");
 const { generateChestMaterials } = await import("../src/chest.js");
@@ -70,6 +71,7 @@ const {
   applyWorkshopToCharacter,
   getWorkshopGrants
 } = await import("../src/systems/workshop.js");
+const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
 
 const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 500));
 const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
@@ -256,6 +258,13 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
 
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
   const workshopGrants = getWorkshopGrants(workshop);
+  const workshopReturnItems = scenario.ignoreWorkshopReturnItems
+    ? []
+    : workshopGrants.returnItems;
+  const scenarioReturnItems = [
+    ...(scenario.workshopReturnItem ? [scenario.workshopReturnItem] : []),
+    ...Array(Math.max(0, scenario.startingTownPortals || 0)).fill("TOWN_PORTAL")
+  ];
   equipBestWorkshopStartingGear(character, workshop);
 
   return {
@@ -264,8 +273,12 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     inventory: [
       ...Array(INITIAL_HEAL_POTIONS).fill("HEAL_POTION"),
       ...Array(INITIAL_ANTIDOTES).fill("ANTIDOTE"),
-      ...workshopGrants.returnItems,
-      ...(scenario.workshopReturnItem ? [scenario.workshopReturnItem] : [])
+      ...workshopReturnItems,
+      ...scenarioReturnItems
+    ],
+    simPortalSources: [
+      ...workshopReturnItems.map(() => "workshop"),
+      ...scenarioReturnItems.map(() => scenario.startingPortalSource || "workshop-supply")
     ],
     firstKills: [],
     // 学者の眼は永続codexの未登録判定を使うため、空codexから実更新させる。
@@ -643,12 +656,39 @@ function shouldUseTownPortal(state, scenario) {
   return hpRate <= PORTAL_HP_THRESHOLD && healPotions <= PORTAL_MAX_HEAL_POTIONS;
 }
 
-function useTownPortalIfNeeded(state, scenario, metrics) {
+function useTownPortalIfNeeded(state, scenario, metrics, situation) {
   if (!shouldUseTownPortal(state, scenario)) return false;
+  const character = state.party[0];
   const portalIndex = state.inventory.indexOf("TOWN_PORTAL");
   state.inventory.splice(portalIndex, 1);
+  const source = state.simPortalSources.shift() || "unknown";
   metrics.townPortalsUsed++;
+  metrics.portalUsesBySource[source] = (metrics.portalUsesBySource[source] || 0) + 1;
+  metrics.portalUseEvents.push({
+    floor: state.floor,
+    situation,
+    source,
+    hpRate: character.hp / Math.max(1, getCharMaxHp(character)),
+    healPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
+    carriedMaterials: totalMaterials(state.currentRun.materials)
+  });
   return true;
+}
+
+function maybePurchaseMerchantWing(state, scenario, metrics) {
+  if (!scenario.buyMerchantTownPortal || !isMilestoneFloor(state.floor)) return;
+  if (state.inventory.includes("TOWN_PORTAL")) return;
+  metrics.merchantWingAttempts++;
+  const result = purchaseMilestoneStock(state, "return_wing");
+  if (!result.ok) {
+    metrics.merchantWingFailures[result.reason] =
+      (metrics.merchantWingFailures[result.reason] || 0) + 1;
+    return;
+  }
+  metrics.merchantWingsPurchased++;
+  metrics.merchantPurchaseFloors.push(state.floor);
+  metrics.portalAcquisitions.merchant++;
+  state.simPortalSources.push("merchant");
 }
 
 function identifyWithoutCurse(item) {
@@ -1096,7 +1136,7 @@ function rollChestAccessory(floor, rng, party) {
 }
 
 // setupChestStateの装備供給分岐をNode sim用stateで再現する。
-function rollChestItems(state, floor, rng, observations) {
+function rollChestItems(state, floor, rng, observations, scenario) {
   const trap = rollChestTrap(floor, rng);
   if (trap !== "none") {
     const character = state.party[0];
@@ -1133,8 +1173,10 @@ function rollChestItems(state, floor, rng, observations) {
       item = generateRandomEquipment(floor, "magic", rng, state.party, true, floor >= 3);
       state.firstChestUnidentifiedGuaranteed = true;
     } else {
-      const candidates = CHEST_ITEM_CANDIDATES_BY_FLOOR[floor]
-        || Object.keys(ITEMS).filter(key => key !== "ANTIGRAVITY_CRYSTAL");
+      const candidates = (
+        CHEST_ITEM_CANDIDATES_BY_FLOOR[floor]
+        || Object.keys(ITEMS).filter(key => key !== "ANTIGRAVITY_CRYSTAL")
+      ).filter(itemId => scenario.allowChestTownPortal !== false || itemId !== "TOWN_PORTAL");
       item = candidates[Math.floor(rng() * candidates.length)];
       const itemData = ITEMS[item];
       if (itemData && ["weapon", "armor", "shield"].includes(itemData.type)) {
@@ -1272,6 +1314,15 @@ function finishRun(state, outcome, metrics) {
     coreObservations: metrics.coreObservations,
     healPotionsUsed: metrics.healPotionsUsed,
     townPortalsUsed: metrics.townPortalsUsed,
+    portalUseEvents: metrics.portalUseEvents,
+    portalUsesBySource: metrics.portalUsesBySource,
+    portalAcquisitions: metrics.portalAcquisitions,
+    merchantWingAttempts: metrics.merchantWingAttempts,
+    merchantWingsPurchased: metrics.merchantWingsPurchased,
+    merchantPurchaseFloors: metrics.merchantPurchaseFloors,
+    merchantWingFailures: metrics.merchantWingFailures,
+    milestoneDecisions: metrics.milestoneDecisions,
+    outcome,
     fleeCount: metrics.fleeCount
   };
 }
@@ -1316,6 +1367,19 @@ export function simulateRun({
     firstCoreDepth: null,
     healPotionsUsed: 0,
     townPortalsUsed: 0,
+    portalUseEvents: [],
+    portalUsesBySource: {},
+    portalAcquisitions: {
+      workshop: state.simPortalSources.filter(source => source === "workshop").length,
+      workshopSupply: state.simPortalSources.filter(source => source === "workshop-supply").length,
+      chest: 0,
+      merchant: 0
+    },
+    merchantWingAttempts: 0,
+    merchantWingsPurchased: 0,
+    merchantPurchaseFloors: [],
+    merchantWingFailures: {},
+    milestoneDecisions: [],
     fleeCount: 0
   };
 
@@ -1341,10 +1405,21 @@ export function simulateRun({
           state.currentRun.materials,
           generateChestMaterials(floor, Math.random, tombRaider?.materialBonus || 0)
         );
-        const chestItems = rollChestItems(state, floor, Math.random, metrics.coreObservations);
+        const chestItems = rollChestItems(
+          state,
+          floor,
+          Math.random,
+          metrics.coreObservations,
+          scenario
+        );
         const acquiredEquipment = [];
         chestItems.forEach(item => {
+          if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal) return;
           if (!addInventoryItemToState(state, item)) return;
+          if (item === "TOWN_PORTAL") {
+            state.simPortalSources.push("chest");
+            metrics.portalAcquisitions.chest++;
+          }
           const itemData = getItemData(item);
           if (!isEquipment(itemData)) {
             state.currentRun.itemsFound.push(item);
@@ -1382,7 +1457,7 @@ export function simulateRun({
         applyPostCombatRecovery(state.party[0]);
         metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
         if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
-        if (useTownPortalIfNeeded(state, scenario, metrics)) {
+        if (useTownPortalIfNeeded(state, scenario, metrics, "post-flee")) {
           return finishRun(state, "retreat", metrics);
         }
         continue;
@@ -1418,14 +1493,29 @@ export function simulateRun({
       applyPostCombatRecovery(state.party[0]);
       metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
       if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
-      if (useTownPortalIfNeeded(state, scenario, metrics)) {
+      if (useTownPortalIfNeeded(state, scenario, metrics, "post-combat")) {
         return finishRun(state, "retreat", metrics);
       }
     }
 
     applySimulatedCampRest(state, metrics.coreObservations);
+    maybePurchaseMerchantWing(state, scenario, metrics);
+    if (isMilestoneFloor(floor)) {
+      metrics.milestoneDecisions.push({
+        floor,
+        hasTownPortal: state.inventory.includes("TOWN_PORTAL"),
+        hpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
+        carriedMaterials: totalMaterials(state.currentRun.materials)
+      });
+      if (
+        scenario.retreatAtMilestoneWithoutTownPortal &&
+        !state.inventory.includes("TOWN_PORTAL")
+      ) {
+        return finishRun(state, "retreat", metrics);
+      }
+    }
     descendToNextFloor(state, floor + 1);
-    if (useTownPortalIfNeeded(state, scenario, metrics)) {
+    if (useTownPortalIfNeeded(state, scenario, metrics, "floor-transition")) {
       return finishRun(state, "retreat", metrics);
     }
   }

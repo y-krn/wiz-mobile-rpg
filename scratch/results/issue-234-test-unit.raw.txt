@@ -1,0 +1,890 @@
+
+> wiz-mobile-rpg@0.0.0 test:unit
+> node scratch/run_tests.js
+
+Found 54 test files.
+skip: test_stairs_min_distance.js (deps unchanged)
+skip: test_reachability_loop.js (deps unchanged)
+skip: test_shared_wall_corridors.js (deps unchanged)
+skip: test_warden_gates.js (deps unchanged)
+Using 14 parallel workers.
+
+========================================
+Completed: test_affixes.js
+========================================
+[PASS] affix registry and budget generation
+
+========================================
+Completed: test_encounter_roles.js
+========================================
+[PASS] Enemy roles and 1-3 member encounter rules verified across 10,000 deterministic samples.
+
+========================================
+Completed: test_explore_item.js
+========================================
+=== STARTING EXPLORE ITEM VERIFICATION TESTS ===
+[PASS] HEAL_POTION data exists
+[PASS] HEAL_POTION has effect function
+[PASS] GREATER_HEAL data exists
+[PASS] GREATER_HEAL has effect function
+[PASS] DAGGER data exists
+[PASS] DAGGER does not have effect function
+[PASS] HP recovered to max (expected 20, got 20)
+[PASS] Log message correct: "テスト戦士は傷薬を使い、HPが15回復した。"
+[PASS] ANTIDOTE has effect function
+[PASS] Poison cured
+[PASS] Correct cure log message
+=== ALL EXPLORE ITEM TESTS PASSED SUCCESSFULLY! ===
+
+========================================
+Completed: test_death_log_turn.js
+========================================
+[PASS] records the combat round number in the death log
+[PASS] records null and omits the turn text outside combat
+
+========================================
+Completed: test_curse_mod.js
+========================================
+=== TICKET-048 CURSE MOD TEST ===
+--- 1. Blood Thirst Curse Test ---
+--- 2. Cowardly Shield Curse Test ---
+--- 3. Spectral Decay Curse Test ---
+--- 4. Purging Flame Fire Rite Test ---
+HALITO Average DMG: No Curse = 17, With Curse = 22
+--- 5. Poisonous Vein Combat Test ---
+Combat Log Queue: [
+  { msg: '[味方] [!] Heroの攻撃により、Slime Aは毒に侵された！', sound: 'poison' },
+  {
+    msg: '[味方] Heroの攻撃！Slime Aに1のダメージ。',
+    sound: 'hit',
+    shake: 8,
+    floatText: '1',
+    floatColor: undefined
+  },
+  {
+    msg: '[ 敵 ] Slime Aの攻撃！しかし、Heroは身軽に回避した！',
+    sound: 'miss',
+    shake: 0,
+    floatText: 'AVOID',
+    floatColor: '#00ff66'
+  },
+  {
+    msg: '[ 敵 ] [!] 毒のダメージ！Slime Aは2のダメージを受けた。',
+    sound: 'hit',
+    floatText: '2',
+    floatColor: '#ff3b30'
+  }
+]
+Monster status after attack: poisoned
+Turn-end log message: [ 敵 ] [!] 毒のダメージ！Slime Aは2のダメージを受けた。
+All curse mod tests passed!
+
+========================================
+Completed: test_danger_telegraph.js
+========================================
+[PASS] charge警告キュー: chargeQueued=true
+[PASS] 防御軽減: 非防御=18, 防御=9
+[PASS] silenceによるMADALTOキュー解除: madaltoQueued=false
+
+========================================
+Completed: test_encounter_rate.js
+========================================
+[PASS] encounter rate stays high through floor step 30
+[PASS] encounter rate decays after floor step 30
+[PASS] MILWA and LOMILWA reduce the active base rate
+[PASS] recordExplorationSteps updates total and current floor only
+(node:50118) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+========================================
+Completed: test_core_affixes.js
+========================================
+[PASS] 廃止済みの殿の構えを除くコア15種がenabled
+[PASS] 素材経済サポートenabled・浅層経済3/戦闘1・深層逆転
+[PASS] 刻印19種: 素材cost・サポートtype・素材割当が整合
+[PASS] 研磨: サポートを切り上げ1.5倍・1アイテム1回・コア除外
+[PASS] 封印半減: 倍率系は基準差半減・定数系は切捨て・boolean系は無効
+[PASS] 忍び足: 生存装備者のみパーティ有効、感知4→2、オーラ値+1
+[PASS] 盗掘王: 開錠者本人で素材+1と罠強度+1を両立
+[PASS] 未鑑定装備: 全員装備可・鑑定前表示隠匿
+[PASS] 野営の達人: 装備者本人のキャンプ回復量2倍
+[PASS] 賞金稼ぎ: ランクエスト対象キルを2倍カウント
+[PASS] 学者の眼: 図鑑未登録敵からrng不発でも素材確定
+[PASS] 素材サポート: パーティ合算でなく最大値1人分
+[PASS] 背水: params閾値と倍率
+[PASS] 先手必勝: 先制成功時のみ追撃100%
+[PASS] 血杖: HP代替、HP不足、最低HP1
+[PASS] 浄化の環: undead/demonキルでMP回復
+[PASS] 罠喰い: 1キャラ累積、上限20
+[PASS] 呪飼いの鎖: 呪い数×全ステ+3
+[PASS] 巨人殺し: maxHPが高い敵だけ1.3倍
+[PASS] 殿の構え: 既存装備でも無害・無効果
+[PASS] 反撃の棘: rng注入で発動と不発を固定
+[PASS] 執行人: 状態異常中だけ2倍
+[PASS] 戦闘サポート: 条件倍率・状態耐性・キル回復・威圧
+[PASS] 生成API: allowCores=falseでエピック商人相当にもコアなし
+[PASS] 迷宮アクセサリ: コア生成とcoreCurseChance経路
+[PASS] 装備制約: 2個目のコアを拒否、同スロット交換は許可
+[PASS] core affix deterministic suite
+(node:50114) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+========================================
+Completed: test_enemy.js
+========================================
+[PASS] Row-free target candidates include every living combatant.
+Starting Enemy Traits Verification Tests...
+[PASS] guardAdjacent verified (guarded 49/50 times).
+[PASS] reflectPhysical verified.
+[PASS] reflectMagic verified (reflected 48/50 times).
+[PASS] splitOnDeath verified.
+[PASS] regen verified.
+[PASS] silence verified.
+[PASS] level up scaling suppression verified.
+All Enemy and Stats Traits Verification Tests passed successfully!
+=== START ENEMY ROW SYSTEM VERIFICATION ===
+- Scenario A Logs: [
+  '[味方] Robinは身を固めて防御している。',
+  '[味方] Mariaは身を固めて防御している。',
+  '[ 敵 ] ゴブリンの呪術師 Aの攻撃！ArthurにNaNのダメージ！',
+  '[味方] Gedは身を固めて防御している。',
+  '[ 敵 ] かみつき蟲 Aの攻撃！GedにNaNのダメージ！',
+  '[味方] Arthurの攻撃！ゴブリンの呪術師 Aに14のダメージ。',
+  '[味方] [!] ゴブリンの呪術師 Aを倒した！'
+]
+✔ Scenario A Passed: Legacy row data is ignored for melee targeting.
+- Scenario B Logs: [
+  '[味方] Robinは身を固めて防御している。',
+  '[味方] Arthurは身を固めて防御している。',
+  '[ 敵 ] ゴブリンの呪術師 Aの攻撃！ArthurにNaNのダメージ！',
+  '[味方] Gedは身を固めて防御している。',
+  '[ 敵 ] かみつき蟲 Aの攻撃！しかし、Robinは身軽に回避した！',
+  '[味方] Mariaはハリトを唱えた！ゴブリンの呪術師 Aに22の炎ダメージ！',
+  '[味方] [!] ゴブリンの呪術師 Aを倒した！'
+]
+✔ Scenario B Passed: Single target spell successfully targeted the monster.
+- Scenario C Logs: [
+  '[味方] Robinは身を固めて防御している。',
+  '[味方] Gedはラハリトを唱えた！激しい炎が敵全体を焼き尽くす！(かみつき蟲 Aに35のダメージ, ゴブリンの呪術師 Aに39のダメージ)',
+  '[味方] [!] かみつき蟲 Aを倒した！',
+  '[味方] [!] ゴブリンの呪術師 Aを倒した！',
+  '[味方] Arthurは身を固めて防御している。',
+  '[味方] Mariaは身を固めて防御している。',
+  '======================================',
+  '戦闘に勝利した！',
+  '  -> 素材を獲得した: [獣の牙 x1]',
+  '🎉【初回討伐ボーナス！】初めて [かみつき蟲, ゴブリンの呪術師] を討伐した！',
+  '  -> 初討伐の追加報酬 / 素材: [獣の牙 x2]',
+  '======================================',
+  '周囲に静寂が戻った。'
+]
+✔ Scenario C Passed: Area spell successfully hit all monsters.
+- Scenario D Logs: [
+  '[味方] Arthurの攻撃！かみつき蟲 Aに15のダメージ。',
+  '[味方] [!] かみつき蟲 Aを倒した！',
+  '[味方] Gedは身を固めて防御している。',
+  '[ 敵 ] ゴブリンの呪術師 Aの攻撃！RobinにNaNのダメージ！',
+  '[味方] Mariaは身を固めて防御している。',
+  '[味方] Robinの攻撃！ゴブリンの呪術師 Aに12のダメージ。',
+  '[味方] [!] ゴブリンの呪術師 Aを倒した！',
+  '======================================',
+  '戦闘に勝利した！',
+  '  -> 素材を獲得した: [獣の牙 x1, 毒腺 x1]',
+  '🎉【初回討伐ボーナス！】初めて [かみつき蟲, ゴブリンの呪術師] を討伐した！',
+  '  -> 初討伐の追加報酬 / 素材: [獣の牙 x2]',
+  '======================================',
+  '周囲に静寂が戻った。'
+]
+✔ Scenario D Passed: Independent melee target selection works.
+=== ALL ROW-FREE ENEMY TARGETING TESTS PASSED SUCCESSFULLY! ===
+Checking monster name consistency in ENCOUNTER_POOLS...
+Monster name consistency check passed.
+Sleep/paralysis placement curve check passed.
+
+Auditing counterplay availability per floor...
+
+Threat Floor Mapping:
+-----------------------------------------------------------------
+| Threat               | Min Floor | Counterplay (Floor)        |
+-----------------------------------------------------------------
+| 毒 (Poison)           | Floor 2   | LATUMOFIS(Spell:Fl1), ANTIDOTE(Item:Fl1, Craft:Fl2) |
+| 麻痺 (Paralysis)       | Floor 3   | DIALKO(Spell:Fl1), PARALYZE_CURE(Item:Fl1, Craft:FlInfinity) |
+| 盲目 (Blind)           | Floor 1   | DIURCO(Spell:Fl1), EYE_DROPS(Item:Fl1, Craft:FlInfinity) |
+| 沈黙 (Silence)         | Floor 3   | MONTINO(Spell:Fl3)         |
+| MPドレイン (MP Drain)    | Floor 2   | MANA_POTION(Item:Fl1, Craft:Fl3) |
+| 全体魔法 LAHALITO        | Floor 3   | MABARRIER(Spell:Fl3)       |
+| 全体魔法 MADALTO         | Floor 6   | MABARRIER(Spell:Fl3)       |
+| 全体魔法 TILTOWAIT       | Floor 5   | MABARRIER(Spell:Fl3)       |
+-----------------------------------------------------------------
+
+Audit PASSED: All threats have valid counterplays available at or before their appearance floor.
+
+[TEST_ENEMY PASSED]
+=== STARTING METAL PUPPY BALANCE VERIFICATION ===
+[PASS] Test 1: Monster definition verified.
+[PASS] Test 2: classified depth-scaled drops verified.
+[PASS] Test 3: Floor 1 spawn prevention verified.
+[PASS] Test 4: Floor 2 Far spawn eligibility verified.
+=== ALL METAL PUPPY BALANCE VERIFICATION TESTS PASSED SUCCESSFULLY! ===
+(node:50120) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+========================================
+Completed: test_exploration_sense_affixes.js
+========================================
+[PASS] exploration sense affixes
+(node:50122) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+========================================
+Completed: test_log_history_cap.js
+========================================
+=== LOG HISTORY CAP VERIFICATION ===
+-> [PASS] runtime logs keep 500 messages
+-> [PASS] first message remains at the 500 message cap
+-> [PASS] runtime logs stay capped after overflow
+-> [PASS] oldest message is shifted only after 501st message
+-> [PASS] newest message remains available after overflow
+-> [PASS] save payload still persists only the last 30 logs
+-> [PASS] save payload keeps the expected 30-log tail
+
+=== LOG HISTORY CAP TESTS PASSED ===
+
+========================================
+Completed: test_magic_bolt.js
+========================================
+[PASS] Mage and Bishop attacks use the deterministic INT magic-bolt formula
+[PASS] Bishop keeps stronger physical weapon and attack-affix damage
+[PASS] spell-learning non-casters do not receive magic-bolt damage
+[PASS] magic-bolt attack damage remains at least one against high DEF
+[PASS] Magic-bolt combat rules
+
+========================================
+Completed: test_identification_gamble.js
+========================================
+[PASS] 生成時に中身を確定し、ベース名だけ表示する
+[PASS] 鑑定粉あり/なしで消費と開示を分岐する
+[PASS] 未鑑定装備の賭けは装備時に開示し、呪いだけ固定する
+[PASS] 解呪処理は支払いを担当せず、固定と負効果だけを除く
+[PASS] save→load roundtripでマスク・確定中身・呪い固定・鑑定粉を保持する
+[PASS] 深度プロファイルは当たり質・呪い率・呪い強度が単調増加する
+[PASS] 呪い検知率は1階0.9から減衰し、11階以降0.4を下限とする
+[PASS] 重呪選出率は1階0から増加し、13階以降0.6を上限とする
+[PASS] 重呪プールは純デメリット4種だけで構成される
+[PASS] 重呪選出率が指定shareの期待レンジに収まる
+[PASS] 呪い選出のrng消費回数はプールと呪い種に関係なく2回
+[PASS] 呪い検知率と非呪い偽陽性率が期待レンジに収まる
+[PASS] 疑いロールのrng消費回数は呪い有無で同じ
+[PASS] identification gamble deterministic suite
+
+========================================
+Completed: test_merchant_floors.js
+========================================
+[PASS] legacy merchants remain removed and milestone merchant is routed
+
+========================================
+Completed: test_meta_economy.js
+========================================
+[PASS] retreat banks all run materials without changing the run balance
+[PASS] death banks floor of 30 percent and no other bonus
+[PASS] workshop purchase spends declared materials and records unlock
+[PASS] permanent stat line stops at rank 5
+
+========================================
+Completed: test_floor_themes.js
+========================================
+[PASS] 未踏階は名前を隠し、進入で開示する
+[PASS] 旧セーブは到達済み最深階まで訪問済みにする
+
+========================================
+Completed: test_map_size.js
+========================================
+[PASS] map size and trap density: 9 floors match sizes 24/27/30 and traps 7/9/11.
+
+========================================
+Completed: test_monster_traits.js
+========================================
+[PASS] Monster trait descriptions and label coverage verified.
+
+========================================
+Completed: test_codex.js
+========================================
+Starting Codex & Logs Verification Tests...
+Running Test 1: Monster Encounter & Kill...
+Running Test 2: Equipment Discovery...
+Running Test 3: Events & Facilities...
+Running Test 4: Death Logs...
+Running Test 5: Persistence...
+All Codex & Logs verification tests passed successfully!
+
+========================================
+Completed: test_recovery_audit.js
+========================================
+=== TOWN PORTAL RECOVERY BALANCE AUDIT ===
+
+--- Floor B1F ---
+  適正平均Lv: 1.5 (合計Lv: 9)
+  遠征収入期待値: NaNG
+    - 戦闘(8回): NaNG
+    - 宝箱(2個): 25G
+    - 契約(1回): 50G
+  深層再開コスト: 790G
+    - 宿屋: 90G
+    - 帰還スクロール: 500G
+    - 消耗品補充: 200G
+  収支バランス (収入 - コスト): NaNG (赤字)
+
+--- Floor B2F ---
+  適正平均Lv: 3.5 (合計Lv: 21)
+  遠征収入期待値: NaNG
+    - 戦闘(8回): NaNG
+    - 宝箱(2個): 25G
+    - 契約(1回): 50G
+  深層再開コスト: 910G
+    - 宿屋: 210G
+    - 帰還スクロール: 500G
+    - 消耗品補充: 200G
+  収支バランス (収入 - コスト): NaNG (赤字)
+
+--- Floor B3F ---
+  適正平均Lv: 6.5 (合計Lv: 39)
+  遠征収入期待値: NaNG
+    - 戦闘(8回): NaNG
+    - 宝箱(2個): 25G
+    - 契約(1回): 100G
+  深層再開コスト: 1090G
+    - 宿屋: 390G
+    - 帰還スクロール: 500G
+    - 消耗品補充: 200G
+  収支バランス (収入 - コスト): NaNG (赤字)
+
+--- Floor B4F ---
+  適正平均Lv: 10 (合計Lv: 60)
+  遠征収入期待値: NaNG
+    - 戦闘(8回): NaNG
+    - 宝箱(3個): 60G
+    - 契約(1回): 190G
+  深層再開コスト: 1300G
+    - 宿屋: 600G
+    - 帰還スクロール: 500G
+    - 消耗品補充: 200G
+  収支バランス (収入 - コスト): NaNG (赤字)
+
+--- Floor B5F ---
+  適正平均Lv: 13.5 (合計Lv: 81)
+  遠征収入期待値: NaNG
+    - 戦闘(8回): NaNG
+    - 宝箱(3個): 105G
+    - 契約(1回): 190G
+  深層再開コスト: 1510G
+    - 宿屋: 810G
+    - 帰還スクロール: 500G
+    - 消耗品補充: 200G
+  収支バランス (収入 - コスト): NaNG (赤字)
+
+========================================
+Completed: test_items.js
+========================================
+=== Buff Potions System Tests ===
+1. Testing non-combat item usage restrictions...
+-> [PASS] Potion is restricted in non-combat state
+2. Testing combat item usage authorization...
+-> [PASS] Potion is usable in combat state
+3. Testing potion effects...
+-> [PASS] Buff values applied correctly
+4. Testing combat round integration (Attack/Defense/Speed modifications)...
+-> [PASS] Round tick and buff decay verified
+5. Testing manual buff ticks...
+-> [PASS] tickCharBuffs works correctly
+=== ALL BUFF POTIONS TESTS PASSED ===
+Starting Combat Escape Scroll (ESCAPE_SCROLL) Verification Tests...
+[PASS] ESCAPE_SCROLL resolution, agility-based rates, and consumption verified.
+[PASS] ESCAPE_SCROLL getItemUseStatus restrictions verified.
+All ESCAPE_SCROLL verification tests passed successfully!
+Starting Combat Inventory Verification Tests...
+[PASS] New combat consumables resolve effects, consumption, and floatText.
+[PASS] Enemy drop is added at 11/20.
+[PASS] Enemy drop is rejected at 20/20.
+[PASS] Fled-only combat ends without rewards or chest.
+All Combat Inventory verification tests passed successfully!
+Starting Special Items Verification Tests...
+Running Test 1: isSpecialOrQuestItem...
+-> [PASS] isSpecialOrQuestItem verified
+Running Test 2: getCharAffixSum with HOLY_BLADE & DRAGON_CHARM...
+-> [PASS] getCharAffixSum verified (both string and object equipment states)
+Running Test 3: Class equip limits...
+-> [PASS] Class equip limits verified
+Running Test 4: Targeted damage bonus logic...
+-> [PASS] Targeted damage bonus calculations verified
+Running Test 5: runCombatRoundCalculation integrating demon tags...
+-> [PASS] Combat calculation integration verified
+All Special Items verification tests passed successfully!
+
+[TEST_ITEMS PASSED]
+=== STARTING FIRST KILL REWARDS REDESIGN VERIFICATION ===
+[PASS] Test 1: First kill material reward verified.
+[PASS] Test 2: Duplicate kill does not trigger bonuses.
+[PASS] Test 3: Identify ticket reward on 5th first-kill triggered successfully.
+=== ALL TICKET-009 VERIFICATION TESTS PASSED SUCCESSFULLY! ===
+(node:50126) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+========================================
+Completed: test_combat_state_cleanup.js
+========================================
+[PASS] triggerChest clears combat state and party buffs
+[PASS] gameover keeps enemy cause before clearing combat state and buffs
+
+========================================
+Completed: test_omens.js
+========================================
+=== OMEN SYSTEM VERIFICATION ===
+
+[1] Verifying seed-based deterministic selection:
+Omen Distribution over 5000 floor samples:
+{
+  claw_marks: 644,
+  scorched_floor: 602,
+  broken_sigil: 637,
+  blood_chest: 627,
+  dry_bell: 607,
+  stale_air: 632,
+  cold_draft: 630,
+  iron_dust: 621
+}
+Min: 602, Max: 644, Ratio Max/Min: 1.07
+Omen distribution is reasonably uniform.
+
+=== VERIFICATION COMPLETE ===
+
+========================================
+Completed: test_run_quests_records.js
+========================================
+[PASS] 潜行開始時に重複なしで1〜2件を抽選する
+[PASS] 全テンプレが深度またはリスクへ向け、浅層周回目標を持たない
+[PASS] 役割討伐は分裂体を除外し、達成報酬を一度だけ付与する
+[PASS] 撤退と死亡の最深を分離し、死亡ランも総潜行・クラス記録へ確定する
+
+========================================
+Completed: test_mutual_annihilation.js
+========================================
+=== MUTUAL ANNIHILATION / POISON WIPE -> GAME OVER TEST ===
+[PASS] 相互全滅は常に GAMEOVER（勝利扱いにしない）
+[PASS] 純毒による味方全滅は常に GAMEOVER
+[PASS] 通常勝利は VICTORY のまま（誤ってゲームオーバーにしない）
+
+=== ALL MUTUAL ANNIHILATION TESTS PASSED ===
+
+========================================
+Completed: test_renderer_idle_draw.js
+========================================
+=== RENDERER IDLE DRAW VERIFICATION ===
+-> [PASS] 静止状態の描画シグネチャは安定
+-> [PASS] 通常探索の静止状態は非アニメーション
+-> [PASS] 同一座標で探索済みセル更新を検知
+-> [PASS] 探索済みセル更新でmapRevision増加
+-> [PASS] 同一座標で隠し扉開通を検知
+-> [PASS] 同一座標で宝箱開封済み化を検知
+-> [PASS] 罠発見状態の更新を検知
+-> [PASS] 封印門の開放を検知
+-> [PASS] マップ断片の更新を検知
+-> [PASS] 戦闘モンスター表示の更新を検知
+-> [PASS] ダメージテキスト表示中は毎フレーム描画
+-> [PASS] アニメーション中はlastSignatureをリセット
+-> [PASS] アニメーション終了後はnull signatureから再描画
+-> [PASS] ダメージテキスト終了後は静止状態へ復帰
+-> [PASS] B5F熱波の時間依存描画を維持
+-> [PASS] 近距離ボスオーラの時間依存描画を維持
+
+=== RENDERER IDLE DRAW TESTS PASSED ===
+
+========================================
+Completed: test_solo_class_engines.js
+========================================
+[PASS] 僧侶はメイスとソロ用耐久・MPを持つ
+[PASS] 全職の近接倍率は等倍
+[PASS] 魔術師はソロ用耐久・MPを持つ
+[PASS] 僧侶と魔術師は敵撃破時にMPを1回復する
+[PASS] 盗賊は技巧を35%回避へ転用する
+[PASS] 基本4職ソロエンジン
+
+========================================
+Completed: test_spells.js
+========================================
+Single-target spell balance checks passed.
+Starting magic reflect AoE tests...
+- Test 1: single-target spell reflection still prevents spell damage
+- Test 2: AoE spell reflects per target and still hits non-reflectors
+- Test 3: multiple AoE reflectors combine reflected damage
+Magic reflect AoE tests passed.
+Starting KATINO sleep tests...
+- Test 1: KATINO sleep naturally expires
+- Test 2: damage can wake a sleeping monster
+- Test 3: boss sleep chance is reduced
+KATINO sleep tests passed.
+Starting WEAKEN spell tests...
+- Test 1: WEAKEN is learned at correct levels
+- Test 2: WEAKEN effect decreases effective ATK
+- Test 3: WEAKEN reduces incoming physical damage
+WEAKEN spell tests passed.
+Starting Combat Paralyze Verification Tests...
+All Combat Paralyze verification tests passed successfully!
+Starting Ally Sleep verification tests...
+All Ally Sleep verification tests passed successfully!
+Starting Lahalito Countermeasure Tests...
+- Test 1: MABARRIER mechanics
+- Test 2: MONTINO mechanics
+- Test 3: MORLIS mechanics
+- Test 4: Lahalito warning mechanism
+All Lahalito Countermeasure tests passed successfully!
+Starting MADI spell tests...
+- Test 1: MADI is learned at correct levels
+- Test 2: MADI effect rules (dead skips, max Hp clamp, stat bonuses)
+- Test 4: Combat round casting integration
+MADI spell tests passed.
+
+[ALL SPELL TESTS PASSED]
+
+========================================
+Completed: test_milestones_biomes.js
+========================================
+[PASS] B1-B30は5フロアごとに6バイオームへ切り替わる
+[PASS] 5の倍数だけボス・商人・帰還ポータルを各1件生成する
+[PASS] 節目開始は既存0.6定数を参照し素材期待値を減額する
+[PASS] 節目ボス撃破は開始地点を恒久アンロックする
+[PASS] 節目商人は装備を売らず、素材で補給品を購入する
+[PASS] 解呪は節目商人の高額素材払いでのみ成立する
+[PASS] milestones, biomes, shortcut penalty, and merchant rules verified.
+
+========================================
+Completed: test_save.js
+========================================
+[PASS] all class choices create one fresh Lv1 character
+[PASS] solo save/load roundtrip preserves one character and stable screen
+[PASS] legacy event cooldown field is ignored during load
+[PASS] ordinary cells never become random facilities
+[PASS] fixed spring and tablet cells still open their facilities
+[PASS] legacy saves are rejected instead of migrated
+[PASS] floor transition applies provisional 15 percent solo heal
+(node:50144) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+========================================
+Completed: test_status_flee.js
+========================================
+[PASS] sleep and paralysis always clear when a surviving character takes damage
+[PASS] sleep costs exactly one action opportunity and then naturally clears
+[PASS] paralysis costs exactly one action opportunity without defeat countdown
+[PASS] flee always succeeds against a boss, takes one parting hit, and retreats
+[PASS] flee succeeds in place when no retreat tile was captured
+[PASS] Ninja critical is heavy resisted damage, never forced instant death
+All status/flee tests passed.
+
+========================================
+Completed: test_split_first_kill.js
+========================================
+[PASS] 分裂体は初討伐ボーナス対象外
+[PASS] 通常の新種は初討伐ボーナス対象
+[PASS] 分裂体は図鑑に登録されない
+[PASS] 通常種は図鑑の討伐数が増える
+[PASS] normalizeSavePayloadは分裂体の図鑑汚染を除去する
+
+========================================
+Completed: test_tablet.js
+========================================
+=== TABLET EVENT GOLD REMOVAL VERIFICATION ===
+[Result] Gold after event: 500G (Expected: 500G)
+[Result] Character 1 EXP: 200 (Expected: 200)
+[Result] Character 2 EXP: 200 (Expected: 200)
+
+=== VERIFICATION COMPLETE: ALL PASSED ===
+
+========================================
+Completed: test_trap_rules.js
+========================================
+=== TRAP RULES VERIFICATION ===
+
+[1] Aptitude class detection:
+- Thief is apt: true
+- Ninja is apt: true
+- Ranger is apt: true
+- Fighter is not apt: false
+- Mage is not apt: false
+- Priest is not apt: false
+- Bishop is not apt: false
+- Lord is not apt: false
+- Samurai is not apt: false
+
+[2] Disarm rate (apt):
+- Thief lv1 B1: 81
+- Thief lv10 B10: 72
+- Ninja lv20 B20: 62
+- apt upper clamp: 90
+- apt lower clamp: 20
+
+[3] Disarm rate (non-apt):
+- Fighter lv1 B1: 41
+- Fighter lv10 B10: 27
+- Mage lv20 B20: 12
+- non-apt upper clamp: 60
+- non-apt lower clamp: 5
+
+[4] Affix bonus:
+- Fighter lv1 B1 +10 affix: 51
+- affix cannot exceed upper clamp: 90
+
+[5] Detect rate:
+- B1 detect: 0.85
+- B11 detect: 0.7
+- B30 detect (clamped): 0.6
+
+[6] Constants:
+- force damage multiplier: 0.5
+- partial success band: 15
+- pitfall edge bonus: 20
+
+=== ALL TRAP RULES TESTS PASSED ===
+
+========================================
+Completed: test_equipment.js
+========================================
+=== STARTING EQUIPPED CRAFT VERIFICATION ===
+
+[Test 1] Enhancing equipped weapon...
+-> [PASS] Equipped weapon successfully enhanced. Level: 1
+-> [PASS] Accessory enhancement disabled
+
+[Test 2] Inscribing equipped armor...
+-> [PASS] Equipped armor successfully inscribed. Inscription tag: poison
+
+=== ALL EQUIPPED CRAFT VERIFICATION TESTS PASSED SUCCESSFULLY! ===
+Running equipment variety plan A checks...
+MOONSHADOW estimated DPS: 31.30 (Fighter ceiling sample: 67.75)
+Equipment variety plan A checks passed.
+=== STARTING INTEGRATED EQUIPMENT SYSTEM VERIFICATION ===
+
+[Test 1] Random Equipment Generation...
+Generated Equip baseId: SHORT_SWORD
+rarity: epic
+tags: [ 'iron', 'blade', 'curse', 'decay' ]
+curseEffectId: curse_withering
+curseSuspected: true
+unidentifiedName: 紫光を放つショートソード（未鑑定・短剣）
+-> [PASS] Test 1: Random Equipment Generation verified
+
+[Test 2] In-run Identification Flow...
+Unidentified Description: 紫光を放つショートソード（未鑑定・短剣）。付与効果は不明。鑑定粉を使うか、装備して正体を確かめます。
+Consuming identification powder...
+Fully Identified Name: ショートソード
+Fully Identified Description: [Epic] <タグ: 鉄・刃・呪・衰> 使いやすい鉄の小太刀。攻撃力+6 [戦・盗・侍・野用] [◆背水: HP25%以下で与ダメージが40%増加する。 / 攻撃+1 / 踏破の息吹+2] <呪い: 衰弱の呪い / 負荷×1.30>
+-> [PASS] Test 2: In-run Identification Flow verified
+
+[Test 3] Curse Debuffs Application...
+Identified wear - atkSum: 20 (expected 20 = 5 + 15)
+Identified wear - devotionSum: -20 (expected -20)
+-> [PASS] Test 3: Curse Debuffs Application verified
+
+[Test 4] Tag Inscription Crafting...
+Plate Mail tags before: [ 'iron', 'ward' ]
+Plate Mail tags after holy inscription: [ 'iron', 'ward', 'holy' ]
+Plate Mail tags after overwriting index 0: [ 'poison', 'ward', 'holy' ]
+Testing Curse Sealing...
+Sealed armor tags: [ 'iron' ]
+curseEffectId: null (expected null)
+sealedCurseEffectId: curse_blood_thirst (expected curse_blood_thirst)
+-> [PASS] Test 4: Tag Inscription Crafting verified
+
+=== ALL INTEGRATED EQUIPMENT SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY! ===
+[PASS] accessory slot
+
+[TEST_EQUIPMENT PASSED]
+Starting Workshop Dismantle Verification Tests...
+-> [PASS] Dismantle mapping verified
+-> [PASS] retired dismantling verified
+All Workshop Dismantle Verification Tests PASSED!
+Starting Inscription Verification Tests...
+-> [PASS] Material insufficiency validation verified
+-> [PASS] Unidentified items protection verified
+-> [PASS] Successful inscription and multiple inscription support verified
+-> [PASS] Combat calculation integration verified
+All Inscription Verification Tests PASSED!
+
+========================================
+Completed: test_transition_input_guard.js
+========================================
+[PASS] transition input guard
+
+========================================
+Completed: test_unidentified_accessory.js
+========================================
+=== UNIDENTIFIED ACCESSORY BONUS LEAK TEST ===
+Unidentified Amulet Item Data hpBonus: 0
+Character maxHp with Unidentified Amulet: 20
+Half-Identified Ring Item Data statsBonus: {}
+Character str with Half-Identified Ring: 12
+Identified Ring Item Data statsBonus: { str: 2, int: 0, pie: 0, vit: 0, agi: 0, luk: 0 }
+Character str with Identified Ring: 14
+Character spellGuard with Unidentified Charm: 0
+Character spellGuard with Identified Charm: 15
+=== ALL ACCESSORY LEAK TESTS PASSED ===
+
+========================================
+Completed: test_warden_perception.js
+========================================
+[PASS] warden perception
+
+========================================
+Completed: test_loot.js
+========================================
+Starting Chest Trap Inspect Verification Tests...
+[PASS] Initial chest state verified.
+[PASS] Initial UI button states verified.
+[PASS] Inspection execution verified.
+[PASS] Post-inspection UI button states verified.
+[PASS] Selected chest opener trap target verified.
+[PASS] Delayed chest trap game-over path verified.
+All chest trap inspect tests passed successfully!
+
+[TEST_LOOT PASSED]
+Starting Chest Guarantee & Smart Drop Verification Tests...
+-> [PASS] B1F 3rd Chest Guarantee verified
+Simulation stats (100 seeds): Weapons: 11, Shields: 10, Armors: 79
+-> [PASS] Smart Drop priority bias verified
+All Chest Guarantee & Smart Drop Verification Tests PASSED!
+Starting Unidentified Equipment System Verification Tests...
+Running Test 1: Unidentified Name Customization...
+[PASS] Unidentified names verified.
+Running Test 2: Smart Drop Validation...
+ARCANE_ROBE count: 145/200 (72.5%)
+[PASS] Smart drop verified.
+Running Test 3: Loot Hint (宝気)...
+[PASS] Loot hint verified.
+Running Test 4: New Affixes Integration...
+Guardian HP: guarded=4, unguarded=3
+[PASS] New affixes verified.
+All Unidentified Equipment verification tests passed successfully!
+
+========================================
+Completed: test_traps.js
+========================================
+=== DUNGEON TRAP SYSTEM VERIFICATION ===
+
+[1] Verifying trap generation on passages:
+- Floor 1 generated 7 traps (Expected: 7)
+PASS: Map trap placement verified.
+
+[2] Verifying trap disarm success rate calculation:
+PASS: Success rate calculations verified.
+
+[3] Verifying trap effects and damage scaling:
+- Fighter HP after trap: 12/20 (Took 8 damage)
+- Priest MP after drain: 3/5
+- state.alarmActive: true (Expected: true)
+PASS: Trap trigger effects verified.
+
+[4] Verifying trap persistence is removed:
+PASS: Trap persistence removed.
+
+[5] Verifying adjacent trap detection:
+- open neighbour discovered, walled neighbour untouched
+PASS: Adjacent detection verified.
+
+[6] Verifying trap encounter choices:
+- back: stays put, trap stays armed
+- force: moved through, took 6 damage
+- disarm: completes the move on both success and failure
+- bypass: removed
+PASS: Trap encounter choices verified.
+
+[7] Verifying choke rate scaling:
+- choke rate curve verified
+
+[8] Verifying trap count cap:
+- B1: 7 traps (target 7)
+- B10: 16 traps (target 16)
+- B30: 16 traps (target 16)
+PASS: Trap placement verified.
+
+=== ALL TRAP TESTS PASSED ===
+
+========================================
+Completed: test_warden_gate_fallback.js
+========================================
+[PASS] warden gate stair fallback preserves identity and consistency
+
+========================================
+Completed: test_chest_relief.js
+========================================
+[PASS] 弱体毒針は6ダメージ、毒付与率50%
+[PASS] 弱体ガスは全体2〜6ダメージ
+[PASS] 弱体閃光は盲目率30%
+[PASS] 弱体テレポーターは50%で不発
+[PASS] 叩き壊すとusableだけ30%で破損し、素材と装身具は残る
+[PASS] キットは1個消費して確定解除し、解除数を増やさない
+[PASS] 忍者の解除率は0.70
+[PASS] 罠外しキットの定義と商人在庫
+
+All chest relief tests passed.
+
+========================================
+Completed: test_submenu_resume.js
+========================================
+=== SUBMENU SAVE COLLAPSE VERIFICATION ===
+-> [PASS] 城サブメニュー保存→再開でtown復帰
+-> [PASS] 探索サブメニュー保存→再開でexplore復帰
+-> [PASS] 罠遭遇中保存→再開でexplore復帰
+-> [PASS] 非submenu状態はそのまま保存
+-> [PASS] ダンジョンイベント結果保存→再開でexplore復帰
+-> [PASS] 節目商人保存→再開でexplore復帰
+
+[TEST_SUBMENU_RESUME PASSED]
+
+========================================
+Completed: test_chest_count.js
+========================================
+[PASS] chest count: 100 floors within 8-12 (+secret rooms), observed values 8,9,10,11,12,13,14.
+
+========================================
+Completed: test_seed.js
+========================================
+Starting Seed Verification Tests...
+[PASS] Seed PRNG consistency verified.
+[PASS] New-game and rebuild start positions follow B1F stairs-up across multiple seeds.
+[PASS] Map generator consistency verified.
+[PASS] Equipment generator consistency verified.
+TESTSEED123 danger: A (64) biases: 不死・霊体多め,竜族多め,罠多め
+DIFFSEED789 danger: B (46) biases: 巨人族多め,罠多め,泉豊富
+[PASS] Seed properties evaluation consistency verified.
+All seed verification tests passed successfully!
+
+========================================
+Completed: test_run_map_generation.js
+========================================
+shallow: generated=100, criticalPath=20-30 (avg 24.88), reachable=258.21, deadEnds=16.20, tightUTurns=15.54, oneWays=97.0%, attempts=104
+middle: generated=100, criticalPath=20-30 (avg 25.15), reachable=324.68, deadEnds=18.97, tightUTurns=20.91, oneWays=99.0%, attempts=103
+deep: generated=100, criticalPath=20-30 (avg 25.37), reachable=396.79, deadEnds=23.67, tightUTurns=26.59, oneWays=100.0%, attempts=101
+[PASS] 10 seeds x B1-B30; template density and shape failures=0.
+[PASS] 3 templates: reseed, resume, reachability, and retry bounds verified.
+
+========================================
+Completed: test_map_reachability.js
+========================================
+[PASS] 100 B1F seeds: reproducible non-dead-end starts, 93 unique coordinates, all required cells reachable.
+
+========================================
+Completed: test_camp_waypoints.js
+========================================
+[PASS] camp waypoints
+
+========================================
+Completed: test_maze_diversity.js
+========================================
+[PASS] 100 seeds x 5 floors preserve reachability, repeatability, and increased structural variation.
+
+========================================
+Completed: test_room_generation.js
+========================================
+[PASS] 100 seeds x 5 floors carve 2-4 reachable halls with at most one 3x3 hall without breaking events or gates.
+
+実行 50本 / skip 4本 / 合計時間 6.1s
+All tests passed successfully!
