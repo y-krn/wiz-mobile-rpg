@@ -1002,6 +1002,9 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     character.equipment[best.slot] = best.candidate;
     if (best.candidateCoreId) {
       metrics.coreEverEquippedIds.add(best.candidateCoreId);
+      if (metrics.firstCoreEquippedFloor === null) {
+        metrics.firstCoreEquippedFloor = state.floor;
+      }
       recordCoreDecision(metrics, best.candidate, "equipped");
     }
     if (best.oldCoreId) recordCoreDecision(metrics, best.oldEquipment, "replaced");
@@ -1133,8 +1136,61 @@ function rollChestAccessory(floor, rng, party) {
   return generateRandomAccessory(floor, rarity, rng, party, floor >= 3);
 }
 
+function rollSupplyOverrideRarity(floor, supplyOverride, rng) {
+  const rarity = supplyOverride?.earlyRarity;
+  if (!rarity || floor > EARLY_BUILD_MAX_FLOOR) return null;
+  const transitionSteps = Math.max(1, EARLY_BUILD_MAX_FLOOR - 1);
+  const progress = Math.max(0, floor - 1) / transitionSteps;
+  const epicChance = rarity.epicStart +
+    (rarity.epicAtB10 - rarity.epicStart) * progress;
+  const rareChance = rarity.rareStart +
+    (rarity.rareAtB10 - rarity.rareStart) * progress;
+  const roll = rng();
+  if (roll < epicChance) return "epic";
+  if (roll < rareChance) return "rare";
+  return "magic";
+}
+
+function rerollSupplyEquipment(item, state, floor, source, supplyOverride, rng) {
+  const rarity = rollSupplyOverrideRarity(floor, supplyOverride, rng);
+  if (!rarity || !isEquipment(getItemData(item))) return item;
+  const itemData = getItemData(item);
+  const allowCores = source === "combat" || floor >= 3;
+  if (itemData.type === "accessory") {
+    return generateRandomAccessory(floor, rarity, rng, state.party, allowCores);
+  }
+  return generateRandomEquipment(
+    floor,
+    rarity,
+    rng,
+    state.party,
+    source === "chest",
+    allowCores
+  );
+}
+
+function generateExtraSupplyEquipment(state, floor, source, supplyOverride, rng) {
+  const chance = floor <= EARLY_BUILD_MAX_FLOOR
+    ? (supplyOverride?.earlyExtraEquipmentChancePerEvent || 0)
+    : 0;
+  if (chance <= 0 || rng() >= chance) return null;
+  const rarity = rollSupplyOverrideRarity(floor, supplyOverride, rng);
+  const allowCores = source === "combat" || floor >= 3;
+  if (rng() < 0.15) {
+    return generateRandomAccessory(floor, rarity, rng, state.party, allowCores);
+  }
+  return generateRandomEquipment(
+    floor,
+    rarity,
+    rng,
+    state.party,
+    source === "chest",
+    allowCores
+  );
+}
+
 // setupChestStateの装備供給分岐をNode sim用stateで再現する。
-function rollChestItems(state, floor, rng, observations, scenario) {
+function rollChestItems(state, floor, rng, observations, scenario, supplyOverride = null) {
   const trap = rollChestTrap(floor, rng);
   if (trap !== "none") {
     const character = state.party[0];
@@ -1203,7 +1259,24 @@ function rollChestItems(state, floor, rng, observations, scenario) {
     }
   }
 
-  return [item, rollChestAccessory(floor, rng, state.party)].filter(Boolean);
+  const baselineItems = [item, rollChestAccessory(floor, rng, state.party)]
+    .filter(Boolean)
+    .map(found => rerollSupplyEquipment(
+      found,
+      state,
+      floor,
+      "chest",
+      supplyOverride,
+      rng
+    ));
+  const extra = generateExtraSupplyEquipment(
+    state,
+    floor,
+    "chest",
+    supplyOverride,
+    rng
+  );
+  return extra ? [...baselineItems, extra] : baselineItems;
 }
 
 function hasBuildCoreAffix(item) {
@@ -1211,24 +1284,78 @@ function hasBuildCoreAffix(item) {
   return item.affixes.some(affix => CORE_AFFIX_IDS.has(affix.id || affix.type));
 }
 
-function recordEquipmentAcquisitions(metrics, equipmentItems, floor) {
+function createFloorSupplyStats() {
+  return Array.from({ length: 21 }, () => ({
+    equipment: 0,
+    core: 0,
+    cursed: 0,
+    rarity: { magic: 0, rare: 0, epic: 0, other: 0 },
+    source: { combat: 0, chest: 0, other: 0 },
+    coreSource: { combat: 0, chest: 0, other: 0 }
+  }));
+}
+
+function createSupportCountDistribution() {
+  return { 0: 0, 1: 0, 2: 0, 3: 0, "4+": 0 };
+}
+
+function recordSupportCount(metrics, item, rarity) {
+  const supportCount = Array.isArray(item?.affixes)
+    ? item.affixes.filter(affix => affix.kind !== "core").length
+    : 0;
+  const bucket = supportCount >= 4 ? "4+" : String(supportCount);
+  metrics.supportCountDistribution[bucket]++;
+  metrics.supportCountByRarity[rarity][bucket]++;
+  metrics.totalSupportAffixesFound += supportCount;
+  if (rarity === "rare" && hasBuildCoreAffix(item)) {
+    metrics.rareCoreSupportCountDistribution[bucket]++;
+  }
+  if (rarity === "epic" && hasBuildCoreAffix(item)) {
+    metrics.epicCoreSupportCountDistribution[bucket]++;
+  }
+}
+
+function recordEquipmentAcquisitions(metrics, equipmentItems, floor, source = "other") {
   equipmentItems.forEach(item => {
+    const normalizedSource = ["combat", "chest"].includes(source) ? source : "other";
+    const rarity = ["magic", "rare", "epic"].includes(item?.rarity)
+      ? item.rarity
+      : "other";
     metrics.equipmentFound++;
+    metrics.equipmentFoundBySource[normalizedSource]++;
+    metrics.equipmentFoundByFloor[floor]++;
+    metrics.floorSupplyStats[floor].equipment++;
+    metrics.floorSupplyStats[floor].source[normalizedSource]++;
+    metrics.rarityFound[rarity]++;
+    metrics.floorSupplyStats[floor].rarity[rarity]++;
+    recordSupportCount(metrics, item, rarity);
+    if (item?.curseEffectId) {
+      metrics.cursedEquipmentFound++;
+      metrics.floorSupplyStats[floor].cursed++;
+    }
     if (floor <= EARLY_BUILD_MAX_FLOOR) metrics.earlyEquipmentFound++;
     else metrics.deepEquipmentFound++;
-    recordCoreItemEncounter(metrics, item, floor);
+    recordCoreItemEncounter(metrics, item, floor, normalizedSource);
   });
 }
 
-function recordCoreItemEncounter(metrics, item, floor) {
+function recordCoreItemEncounter(metrics, item, floor, source = null) {
   if (!hasBuildCoreAffix(item)) return;
   const instanceKey = item.instanceId || item;
   const coreId = getItemCoreId(item);
   metrics.coreEncounteredIds.add(coreId);
+  metrics.coreEncounterFloors.add(floor);
   if (!metrics.coreEquipmentInstanceIds.has(instanceKey)) {
+    const normalizedSource = source || "other";
     metrics.coreEquipmentInstanceIds.add(instanceKey);
+    metrics.coreEncounterSources.add(normalizedSource);
     metrics.coreEquipmentFound++;
     metrics.coreEquipmentFoundById[coreId] = (metrics.coreEquipmentFoundById[coreId] || 0) + 1;
+    metrics.coreEquipmentFoundBySource[normalizedSource]++;
+    metrics.coreEquipmentFoundByFloor[floor]++;
+    metrics.floorSupplyStats[floor].core++;
+    metrics.floorSupplyStats[floor].coreSource[normalizedSource]++;
+    if (item?.curseEffectId) metrics.cursedCoreEquipmentFound++;
   }
   if (metrics.firstCoreDepth === null) metrics.firstCoreDepth = floor;
 }
@@ -1374,15 +1501,33 @@ function finishRun(state, outcome, metrics) {
     equipmentFound: metrics.equipmentFound,
     earlyEquipmentFound: metrics.earlyEquipmentFound,
     deepEquipmentFound: metrics.deepEquipmentFound,
+    equipmentFoundBySource: metrics.equipmentFoundBySource,
+    equipmentFoundByFloor: metrics.equipmentFoundByFloor,
+    rarityFound: metrics.rarityFound,
+    supportCountDistribution: metrics.supportCountDistribution,
+    supportCountByRarity: metrics.supportCountByRarity,
+    rareCoreSupportCountDistribution: metrics.rareCoreSupportCountDistribution,
+    epicCoreSupportCountDistribution: metrics.epicCoreSupportCountDistribution,
+    totalSupportAffixesFound: metrics.totalSupportAffixesFound,
+    cursedEquipmentFound: metrics.cursedEquipmentFound,
     coreEquipmentFound: metrics.coreEquipmentFound,
     coreEquipmentFoundById: metrics.coreEquipmentFoundById,
+    coreEquipmentFoundBySource: metrics.coreEquipmentFoundBySource,
+    coreEquipmentFoundByFloor: metrics.coreEquipmentFoundByFloor,
     coreEncounteredIds: [...metrics.coreEncounteredIds],
+    coreEncounterFloors: [...metrics.coreEncounterFloors],
+    coreEncounterSources: [...metrics.coreEncounterSources],
     coreEverEquippedIds: [...metrics.coreEverEquippedIds],
     coreDecisionReasons: Object.fromEntries(
       Object.entries(metrics.coreDecisionReasons)
         .map(([coreId, reasons]) => [coreId, [...reasons]])
     ),
     firstCoreDepth: metrics.firstCoreDepth,
+    firstCoreEquippedFloor: metrics.firstCoreEquippedFloor,
+    earlyCoreEquipped: metrics.firstCoreEquippedFloor !== null &&
+      metrics.firstCoreEquippedFloor <= EARLY_BUILD_MAX_FLOOR,
+    cursedCoreEquipmentFound: metrics.cursedCoreEquipmentFound,
+    floorSupplyStats: metrics.floorSupplyStats,
     coreEquipped: Boolean(finalCoreId),
     finalCoreId,
     coreObservations: metrics.coreObservations,
@@ -1423,7 +1568,8 @@ export function simulateRun({
   seriesId,
   scoringProfile,
   scenario,
-  workshop = { ranks: {} }
+  workshop = { ranks: {} },
+  supplyOverride = null
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   let state = createSimulationState(className, startFloor, runSeed, scenario, workshop);
@@ -1440,14 +1586,35 @@ export function simulateRun({
     equipmentFound: 0,
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
+    equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
+    equipmentFoundByFloor: Array(21).fill(0),
+    rarityFound: { magic: 0, rare: 0, epic: 0, other: 0 },
+    supportCountDistribution: createSupportCountDistribution(),
+    supportCountByRarity: {
+      magic: createSupportCountDistribution(),
+      rare: createSupportCountDistribution(),
+      epic: createSupportCountDistribution(),
+      other: createSupportCountDistribution()
+    },
+    rareCoreSupportCountDistribution: createSupportCountDistribution(),
+    epicCoreSupportCountDistribution: createSupportCountDistribution(),
+    totalSupportAffixesFound: 0,
+    cursedEquipmentFound: 0,
     coreEquipmentFound: 0,
     coreEquipmentFoundById: {},
+    coreEquipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
+    coreEquipmentFoundByFloor: Array(21).fill(0),
     coreEquipmentInstanceIds: new Set(),
     coreEncounteredIds: new Set(),
+    coreEncounterFloors: new Set(),
+    coreEncounterSources: new Set(),
     coreEverEquippedIds: new Set(),
     coreDecisionReasons: {},
     coreObservations: createCoreObservations(),
     firstCoreDepth: null,
+    firstCoreEquippedFloor: null,
+    cursedCoreEquipmentFound: 0,
+    floorSupplyStats: createFloorSupplyStats(),
     healPotionsUsed: 0,
     townPortalsUsed: 0,
     portalUseEvents: [],
@@ -1503,7 +1670,8 @@ export function simulateRun({
           floor,
           Math.random,
           metrics.coreObservations,
-          scenario
+          scenario,
+          supplyOverride
         );
         const acquiredEquipment = [];
         chestItems.forEach(item => {
@@ -1528,7 +1696,7 @@ export function simulateRun({
             }
           }
         });
-        recordEquipmentAcquisitions(metrics, acquiredEquipment, floor);
+        recordEquipmentAcquisitions(metrics, acquiredEquipment, floor, "chest");
         state.currentRun.chestsOpened++;
         recordEquipmentUpgrades(
           metrics,
@@ -1596,10 +1764,49 @@ export function simulateRun({
       metrics.materialSources.quest += totalMaterials(questRewards);
       metrics.combatMaterialEvents++;
       metrics.combatMaterialHitEvents += Number(totalMaterials(transformedDrops) > 0);
+      const baselineCombatEquipment = state.currentRun.equipmentFound
+        .slice(equipmentFoundBeforeRewards);
+      const overriddenCombatEquipment = baselineCombatEquipment.map(item => {
+        const replacement = rerollSupplyEquipment(
+          item,
+          state,
+          floor,
+          "combat",
+          supplyOverride,
+          Math.random
+        );
+        if (replacement === item) return item;
+        const inventoryIndex = state.inventory.findIndex(candidate =>
+          candidate === item ||
+          (
+            candidate?.instanceId &&
+            item?.instanceId &&
+            candidate.instanceId === item.instanceId
+          )
+        );
+        if (inventoryIndex >= 0) state.inventory[inventoryIndex] = replacement;
+        return replacement;
+      });
+      const extraCombatEquipment = generateExtraSupplyEquipment(
+        state,
+        floor,
+        "combat",
+        supplyOverride,
+        Math.random
+      );
+      if (extraCombatEquipment && addInventoryItemToState(state, extraCombatEquipment)) {
+        overriddenCombatEquipment.push(extraCombatEquipment);
+      }
+      state.currentRun.equipmentFound.splice(
+        equipmentFoundBeforeRewards,
+        state.currentRun.equipmentFound.length - equipmentFoundBeforeRewards,
+        ...overriddenCombatEquipment
+      );
       recordEquipmentAcquisitions(
         metrics,
-        state.currentRun.equipmentFound.slice(equipmentFoundBeforeRewards),
-        floor
+        overriddenCombatEquipment,
+        floor,
+        "combat"
       );
       recordEquipmentUpgrades(
         metrics,
@@ -1837,6 +2044,10 @@ export function calibrateCoreScoringProfile(runCount = RUNS_PER_CASE) {
 
 export function resetSimulationRandom(seed = SIM_SEED) {
   randomState = Number(seed) >>> 0;
+}
+
+export function getSimulationRandomState() {
+  return randomState;
 }
 
 export { SCENARIOS, SIM_CLASSES };

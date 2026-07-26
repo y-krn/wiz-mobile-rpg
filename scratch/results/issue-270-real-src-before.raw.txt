@@ -1,0 +1,55 @@
+=== #270 rare予算 最終比較測定（what-if試算） ===
+N=500/条件/scenario, calibration N=500, seed=231, target=B20, src変更なし
+注意: override経路は実src変更後と乱数消費順が異なる。 採用判断は実src変更後N=500再測定前提。
+=== 構成・呼び出し経路監査 ===
+実経路: generateRunFloor → runCombatRoundCalculation → 勝利時applyCombatRewards 1回 → 実src装備generator。sim直applyなし。
+宝箱: generateRunFloor配置 → 拾得 → chest.js分岐のsim再現 → 実src装備generator。本体最大1回+装身具最大1回/宝箱。
+B1-B2宝箱はallowCores=false。予算>=10でもcore不可。 戦闘はB1からallowCores=true、宝箱はB3からtrue。
+core cost実値=10（全16種）
+rare: corePool空ならlegacy supportへfallback。 corePool有り時だけcoreChance判定。core側選択時はcore1のみ、support追加なし。
+従って「core側を選んだが予算不足で空」は発生しない。 予算不足時はcoreChance自体が評価されずsupport構成になる。
+epic: core1取得後の残予算でsupport最大2を順次抽選。 B1予算12では残2のためsupport2保証なし。実測分布を各条件で出力。
+
+--- baseline / workshop-locked 保存完了 ---
+現状 / 工房未解放: overrideなし
+前半core遭遇=64.8%, 前半core装備=57.0%, core定着=88.0%, 最終core装備=55.0%
+装備=28.20/run, 前半換装=7.24, 全換装=7.32, rarity=magic=48.6%,rare=19.7%,epic=6.4%,other=25.3%
+深層core遭遇=11.8%, 深層到達内=67.0%, 未鑑定ギャンブル=21.08/run, 呪い=20.2%, core呪い=29.4%
+平均到達=B6.86, 生還=47.2%, EV/時間=0.1952, support=0.863/装備
+support全装備分布: 0=30.5%,1=53.0%,2=16.2%,3=0.3%,4+=0.0%
+support rare分布: 0=26.5%,1=22.2%,2=51.3%,3=0.0%,4+=0.0%
+support rare-core分布: 0=100.0%,1=0.0%,2=0.0%,3=0.0%,4+=0.0%
+support epic-core分布: 0=0.0%,1=0.4%,2=99.6%,3=0.0%,4+=0.0%
+
+--- baseline / workshop-unlocked 保存完了 ---
+現状 / 工房解放済: overrideなし
+前半core遭遇=44.2%, 前半core装備=36.2%, core定着=81.9%, 最終core装備=34.6%
+装備=20.18/run, 前半換装=5.87, 全換装=5.89, rarity=magic=52.2%,rare=19.2%,epic=5.0%,other=23.6%
+深層core遭遇=3.0%, 深層到達内=46.9%, 未鑑定ギャンブル=15.41/run, 呪い=17.6%, core呪い=31.2%
+平均到達=B4.95, 生還=73.2%, EV/時間=0.2447, support=0.879/装備
+support全装備分布: 0=27.5%,1=57.5%,2=14.6%,3=0.4%,4+=0.0%
+support rare分布: 0=20.1%,1=27.3%,2=52.5%,3=0.0%,4+=0.0%
+support rare-core分布: 0=100.0%,1=0.0%,2=0.0%,3=0.0%,4+=0.0%
+support epic-core分布: 0=0.0%,1=1.5%,2=98.5%,3=0.0%,4+=0.0%
+
+--- baseline / legacy-no-portal 保存完了 ---
+現状 / 従来(翼不使用): overrideなし
+前半core遭遇=68.4%, 前半core装備=62.8%, core定着=91.8%, 最終core装備=59.0%
+装備=36.19/run, 前半換装=7.92, 全換装=8.16, rarity=magic=46.3%,rare=19.3%,epic=7.0%,other=27.4%
+深層core遭遇=22.4%, 深層到達内=65.5%, 未鑑定ギャンブル=26.26/run, 呪い=21.4%, core呪い=34.0%
+平均到達=B8.91, 生還=10.4%, EV/時間=0.1292, support=0.831/装備
+support全装備分布: 0=33.6%,1=50.0%,2=16.2%,3=0.2%,4+=0.0%
+support rare分布: 0=31.9%,1=18.7%,2=49.4%,3=0.0%,4+=0.0%
+support rare-core分布: 0=100.0%,1=0.0%,2=0.0%,3=0.0%,4+=0.0%
+support epic-core分布: 0=0.0%,1=0.5%,2=99.5%,3=0.0%,4+=0.0%
+
+=== 主軸比較: 工房解放済（翼あり） ===
+条件 | 前半core遭遇 | 前半core装備 | 定着 | 装備/run | 前半換装 | rarity magic/rare/epic/base | deep | gamble | 呪い/core呪い | support/装備 | 平均到達 | 生還 | EV/時間
+現状 | 44.2% | 36.2% | 81.9% | 20.18 | 5.87 | magic=52.2%,rare=19.2%,epic=5.0%,other=23.6% | 3.0% | 15.41 | 17.6%/31.2% | 0.879 | B4.95 | 73.2% | 0.2447
+
+=== 参考条件比較 ===
+scenario | 条件 | 前半core遭遇 | 前半core装備 | 装備/run | 前半換装 | 平均到達 | 生還
+工房未解放 | 現状 | 64.8% | 57.0% | 28.20 | 7.24 | B6.86 | 47.2%
+従来(翼不使用) | 現状 | 68.4% | 62.8% | 36.19 | 7.92 | B8.91 | 10.4%
+
+=== 実行完了 ===
