@@ -1247,6 +1247,69 @@ function addMaterials(target, additions) {
   });
 }
 
+function subtractMaterials(target, subtractions) {
+  Object.entries(subtractions).forEach(([name, quantity]) => {
+    target[name] = Math.max(0, (target[name] || 0) - quantity);
+  });
+}
+
+function createMaterialOverrideRandom(seedText) {
+  let seed = 2166136261;
+  for (let index = 0; index < seedText.length; index++) {
+    seed ^= seedText.charCodeAt(index);
+    seed = Math.imul(seed, 16777619);
+  }
+  return () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+}
+
+function getMaterialDelta(before, after) {
+  return Object.fromEntries(
+    Object.keys({ ...before, ...after })
+      .map(name => [name, Math.max(0, (after[name] || 0) - (before[name] || 0))])
+      .filter(([, quantity]) => quantity > 0)
+  );
+}
+
+function getNewQuestRewards(beforeCompletedIds, quests) {
+  const rewards = {};
+  quests
+    .filter(quest => quest.completed && !beforeCompletedIds.has(quest.id))
+    .forEach(quest => addMaterials(rewards, quest.reward?.materials || {}));
+  return rewards;
+}
+
+function thinMaterialQuantity(quantity, keepRate, rng) {
+  let kept = 0;
+  for (let unit = 0; unit < quantity; unit++) kept += Number(rng() < keepRate);
+  return kept;
+}
+
+function transformCombatMaterialDrops(additions, floor, override, rng) {
+  if (!override || override.shape === "baseline") return additions;
+  let keepRate = override.scale;
+  if (override.shape === "depth-slope") {
+    const baselineExpected = getDepthMaterialExpectedQuantity(floor);
+    const milestoneTier = Math.floor((Math.max(1, floor) - 1) / 5);
+    const overriddenExpected =
+      (1 + Math.max(0, floor - 1) * override.depthQuantityPerFloor) *
+      (1 + milestoneTier * 0.08);
+    keepRate = Math.min(1, overriddenExpected / baselineExpected);
+  }
+  return Object.fromEntries(
+    Object.entries(additions)
+      .map(([name, quantity]) => {
+        if (override.shape === "probability") {
+          return [name, rng() < keepRate ? quantity : 0];
+        }
+        return [name, thinMaterialQuantity(quantity, keepRate, rng)];
+      })
+      .filter(([, quantity]) => quantity > 0)
+  );
+}
+
 function totalMaterials(materials) {
   return Object.values(materials).reduce((sum, quantity) => sum + quantity, 0);
 }
@@ -1266,6 +1329,10 @@ function finishRun(state, outcome, metrics) {
     });
 
   const carriedMaterials = totalMaterials(state.currentRun.materials);
+  metrics.materialSources.other = Math.max(
+    0,
+    carriedMaterials - totalMaterials(metrics.materialSources)
+  );
   const { banked, balance } = bankRunMaterials(
     state.metaMaterials,
     state.currentRun.materials,
@@ -1323,7 +1390,10 @@ function finishRun(state, outcome, metrics) {
     merchantWingFailures: metrics.merchantWingFailures,
     milestoneDecisions: metrics.milestoneDecisions,
     outcome,
-    fleeCount: metrics.fleeCount
+    fleeCount: metrics.fleeCount,
+    materialSources: metrics.materialSources,
+    combatMaterialEvents: metrics.combatMaterialEvents,
+    combatMaterialHitEvents: metrics.combatMaterialHitEvents
   };
 }
 
@@ -1347,6 +1417,9 @@ export function simulateRun({
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   let state = createSimulationState(className, startFloor, runSeed, scenario, workshop);
+  const materialOverrideRandom = createMaterialOverrideRandom(
+    `${runSeed}:${scenario.materialDropOverride?.id || "baseline"}`
+  );
   const metrics = {
     steps: 0,
     combatRounds: 0,
@@ -1380,7 +1453,14 @@ export function simulateRun({
     merchantPurchaseFloors: [],
     merchantWingFailures: {},
     milestoneDecisions: [],
-    fleeCount: 0
+    fleeCount: 0,
+    materialSources: {
+      chest: 0,
+      combat: 0,
+      quest: 0
+    },
+    combatMaterialEvents: 0,
+    combatMaterialHitEvents: 0
   };
 
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
@@ -1401,10 +1481,13 @@ export function simulateRun({
       const pickedUpChests = chestSchedule.get(step) || 0;
       for (let chest = 0; chest < pickedUpChests; chest++) {
         const tombRaider = getCharCoreParams(state.party[0], "CORE_TOMB_RAIDER");
-        addMaterials(
-          state.currentRun.materials,
-          generateChestMaterials(floor, Math.random, tombRaider?.materialBonus || 0)
+        const chestMaterials = generateChestMaterials(
+          floor,
+          Math.random,
+          tombRaider?.materialBonus || 0
         );
+        addMaterials(state.currentRun.materials, chestMaterials);
+        metrics.materialSources.chest += totalMaterials(chestMaterials);
         const chestItems = rollChestItems(
           state,
           floor,
@@ -1476,7 +1559,34 @@ export function simulateRun({
         if (monster.role === "disruptor") metrics.coreObservations.disruptorKills++;
         if (monster.role === "amplifier") metrics.coreObservations.amplifierKills++;
       });
+      const materialsBeforeRewards = { ...state.currentRun.materials };
+      const completedQuestIds = new Set(
+        state.currentRun.quests.filter(quest => quest.completed).map(quest => quest.id)
+      );
       applyCombatRewards(state, state.combatState.monsters, [], Math.random);
+      const totalRewardDelta = getMaterialDelta(
+        materialsBeforeRewards,
+        state.currentRun.materials
+      );
+      const questRewards = getNewQuestRewards(completedQuestIds, state.currentRun.quests);
+      const combatDropDelta = { ...totalRewardDelta };
+      subtractMaterials(combatDropDelta, questRewards);
+      let transformedDrops = combatDropDelta;
+      if (scenario.materialDropOverride) {
+        transformedDrops = transformCombatMaterialDrops(
+          combatDropDelta,
+          floor,
+          scenario.materialDropOverride,
+          materialOverrideRandom
+        );
+        state.currentRun.materials = { ...materialsBeforeRewards };
+        addMaterials(state.currentRun.materials, questRewards);
+        addMaterials(state.currentRun.materials, transformedDrops);
+      }
+      metrics.materialSources.combat += totalMaterials(transformedDrops);
+      metrics.materialSources.quest += totalMaterials(questRewards);
+      metrics.combatMaterialEvents++;
+      metrics.combatMaterialHitEvents += Number(totalMaterials(transformedDrops) > 0);
       recordEquipmentAcquisitions(
         metrics,
         state.currentRun.equipmentFound.slice(equipmentFoundBeforeRewards),

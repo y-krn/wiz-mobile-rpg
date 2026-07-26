@@ -1,0 +1,52 @@
+Issue #234 流入削減 診断sim
+格子: N=50, 40run/試行, 深度比較 N=500/点, seed=234275, core calibration N=100
+実装経路: generateRunFloor / applyCombatRewards / generateRandomEquipment / generateChestMaterials / bankRunMaterials / purchaseWorkshopNode を既存sim経由で実srcから使用。
+what-if試算: applyCombatRewards後の戦闘drop差分だけsim内override。宝箱素材・新規quest報酬は非対象。確率絞りはmaterial種類×戦闘バッチ単位、数量絞りは1個単位。override専用乱数を使うため、実src経路と乱数消費順・分布は一致しない。BANKING_RATESは実srcのretreat=1/death=0.3固定。
+finite反復6x: 毎run開始時に黒角24+竜鱗6で翼1個を購入可能なら購入。標準11ノード買切を有限工房完了と定義し、翼費用を予約して購入。
+【A: sim内 override 定義】
+baseline src MATERIAL_DROP_BALANCE: baseChance=0.55, depthChancePerFloor=0.025, maxChance=0.95, secondaryChance=0.28, depthQuantityPerFloor=0.12
+×1.0: 実src値、overrideなし
+確率×0.5: baseChance=0.27500, depthChancePerFloor=0.01250, maxChance=0.47500, secondaryChance=0.14000
+確率×0.25: baseChance=0.13750, depthChancePerFloor=0.00625, maxChance=0.23750, secondaryChance=0.07000
+確率×0.1: baseChance=0.05500, depthChancePerFloor=0.00250, maxChance=0.09500, secondaryChance=0.02800
+確率×0: baseChance=0.00000, depthChancePerFloor=0.00000, maxChance=0.00000, secondaryChance=0.00000
+数量×0.5: combat drop個数を単位ごとにkeep=0.5; depthQuantityPerFloor=0.12維持
+数量×0.25: combat drop個数を単位ごとにkeep=0.25; depthQuantityPerFloor=0.12維持
+数量×0.1: combat drop個数を単位ごとにkeep=0.1; depthQuantityPerFloor=0.12維持
+数量×0: combat drop個数を単位ごとにkeep=0; depthQuantityPerFloor=0.12維持
+深度数量傾斜×0.5: depthQuantityPerFloor=0.06000
+深度数量傾斜×0.25: depthQuantityPerFloor=0.03000
+深度数量傾斜×0.1: depthQuantityPerFloor=0.01200
+深度数量傾斜×0: depthQuantityPerFloor=0.00000
+
+【深層優位: bank素材EV 深度単調性】
+条件 | bank素材EV B5/B10/B15/B20 | 単調 | EV/時間 B5/B10/B15/B20 | 単調
+×1.0 | 72.25/107.11/115.32/117.82 | Yes | 0.3030/0.3125/0.3113/0.3141 | No
+確率×0.5 | 66.41/97.41/104.90/106.70 | Yes | 0.2785/0.2842/0.2831/0.2845 | No
+確率×0.25 | 63.42/92.79/99.48/101.22 | Yes | 0.2659/0.2708/0.2685/0.2699 | No
+確率×0.1 | 61.71/89.99/96.55/98.32 | Yes | 0.2588/0.2626/0.2606/0.2621 | No
+確率×0 | 60.53/88.12/94.56/96.00 | Yes | 0.2538/0.2571/0.2552/0.2559 | No
+数量×0.5 | 66.51/97.66/104.96/106.92 | Yes | 0.2789/0.2850/0.2833/0.2851 | No
+数量×0.25 | 63.50/92.89/99.81/101.44 | Yes | 0.2663/0.2711/0.2694/0.2705 | No
+数量×0.1 | 61.58/89.94/96.58/98.10 | Yes | 0.2582/0.2624/0.2607/0.2615 | No
+数量×0 | 60.53/88.12/94.56/96.00 | Yes | 0.2538/0.2571/0.2552/0.2559 | No
+深度数量傾斜×0.5 | 71.43/104.81/112.46/114.51 | Yes | 0.2995/0.3058/0.3036/0.3053 | No
+深度数量傾斜×0.25 | 71.01/103.70/111.24/113.03 | Yes | 0.2978/0.3026/0.3003/0.3013 | No
+深度数量傾斜×0.1 | 70.77/102.91/110.52/111.97 | Yes | 0.2968/0.3003/0.2983/0.2985 | No
+深度数量傾斜×0 | 70.56/102.58/109.82/111.40 | Yes | 0.2959/0.2993/0.2964/0.2970 | No
+
+【確率絞り vs 数量絞り: B20戦闘drop体験】
+条件 | combat素材/run | 戦闘drop非空率
+×1.0 | 22.90 | 76.5%
+確率×0.5 | 11.23 | 47.3%
+確率×0.25 | 5.45 | 25.0%
+確率×0.1 | 2.43 | 11.6%
+確率×0 | 0.00 | 0.0%
+数量×0.5 | 11.49 | 57.3%
+数量×0.25 | 5.71 | 35.9%
+数量×0.1 | 2.19 | 16.1%
+数量×0 | 0.00 | 0.0%
+深度数量傾斜×0.5 | 19.49 | 74.1%
+深度数量傾斜×0.25 | 17.94 | 72.6%
+深度数量傾斜×0.1 | 16.87 | 71.4%
+深度数量傾斜×0 | 16.25 | 70.9%
