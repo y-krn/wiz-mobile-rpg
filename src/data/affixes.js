@@ -48,14 +48,17 @@ export const AFFIX_BALANCE = {
     materialFind: 2,
     contractReward: 2
   },
+  // #270: 実src経路のsim（N=500、工房解放済み・帰還の翼あり）で
+  // 前半core遭遇 44.2%→65.4%、前半core装備 36.2%→58.2%。
+  // 注: sim内オーバーライドでの試算値(67.6%/61.8%)は乱数消費順が異なるため一致しない。
   budgetsByRarityAndFloor: {
     magic: [0, 3, 3, 3, 3, 3],
-    rare: [0, 6, 7, 8, 9, 10],
+    rare: [0, 10, 10, 10, 10, 10],
     epic: [0, 12, 13, 14, 15, 16]
   },
   rollComposition: {
     magic: { support: 1, core: 0 },
-    rare: { support: 2, core: 1, coreChance: 0.5 },
+    rare: { support: 2, core: 1, coreChance: 0.75 },
     epic: { support: 2, core: 1 }
   },
   legacySupportCounts: {
