@@ -21,11 +21,10 @@ const {
 const { ELITE_CLASSES } = await import("../src/data/classes.js");
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
 const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
-const { applyCombatRewards } = await import("../src/combat_logic/rewards.js");
-const { checkCharLevelUp } = await import("../src/systems/leveling.js");
 const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
 const { assignRunQuests, updateRunQuests } = await import("../src/systems/run_quests.js");
 const { generateRunFloor } = await import("../src/run_map_generator.js");
+const { isMilestoneFloor } = await import("../src/run_map_generator.js");
 const { getFloorTemplate } = await import("../src/data/floor_templates.js");
 const { EVENT_TYPES } = await import("../src/constants/events.js");
 const { generateChestMaterials } = await import("../src/chest.js");
@@ -70,6 +69,7 @@ const {
   applyWorkshopToCharacter,
   getWorkshopGrants
 } = await import("../src/systems/workshop.js");
+const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
 
 const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 500));
 const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
@@ -256,6 +256,13 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
 
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
   const workshopGrants = getWorkshopGrants(workshop);
+  const workshopReturnItems = scenario.ignoreWorkshopReturnItems
+    ? []
+    : workshopGrants.returnItems;
+  const scenarioReturnItems = [
+    ...(scenario.workshopReturnItem ? [scenario.workshopReturnItem] : []),
+    ...Array(Math.max(0, scenario.startingTownPortals || 0)).fill("TOWN_PORTAL")
+  ];
   equipBestWorkshopStartingGear(character, workshop);
 
   return {
@@ -264,8 +271,12 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     inventory: [
       ...Array(INITIAL_HEAL_POTIONS).fill("HEAL_POTION"),
       ...Array(INITIAL_ANTIDOTES).fill("ANTIDOTE"),
-      ...workshopGrants.returnItems,
-      ...(scenario.workshopReturnItem ? [scenario.workshopReturnItem] : [])
+      ...workshopReturnItems,
+      ...scenarioReturnItems
+    ],
+    simPortalSources: [
+      ...workshopReturnItems.map(() => "workshop"),
+      ...scenarioReturnItems.map(() => scenario.startingPortalSource || "workshop-supply")
     ],
     firstKills: [],
     // 学者の眼は永続codexの未登録判定を使うため、空codexから実更新させる。
@@ -643,12 +654,39 @@ function shouldUseTownPortal(state, scenario) {
   return hpRate <= PORTAL_HP_THRESHOLD && healPotions <= PORTAL_MAX_HEAL_POTIONS;
 }
 
-function useTownPortalIfNeeded(state, scenario, metrics) {
+function useTownPortalIfNeeded(state, scenario, metrics, situation) {
   if (!shouldUseTownPortal(state, scenario)) return false;
+  const character = state.party[0];
   const portalIndex = state.inventory.indexOf("TOWN_PORTAL");
   state.inventory.splice(portalIndex, 1);
+  const source = state.simPortalSources.shift() || "unknown";
   metrics.townPortalsUsed++;
+  metrics.portalUsesBySource[source] = (metrics.portalUsesBySource[source] || 0) + 1;
+  metrics.portalUseEvents.push({
+    floor: state.floor,
+    situation,
+    source,
+    hpRate: character.hp / Math.max(1, getCharMaxHp(character)),
+    healPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
+    carriedMaterials: totalMaterials(state.currentRun.materials)
+  });
   return true;
+}
+
+function maybePurchaseMerchantWing(state, scenario, metrics) {
+  if (!scenario.buyMerchantTownPortal || !isMilestoneFloor(state.floor)) return;
+  if (state.inventory.includes("TOWN_PORTAL")) return;
+  metrics.merchantWingAttempts++;
+  const result = purchaseMilestoneStock(state, "return_wing");
+  if (!result.ok) {
+    metrics.merchantWingFailures[result.reason] =
+      (metrics.merchantWingFailures[result.reason] || 0) + 1;
+    return;
+  }
+  metrics.merchantWingsPurchased++;
+  metrics.merchantPurchaseFloors.push(state.floor);
+  metrics.portalAcquisitions.merchant++;
+  state.simPortalSources.push("merchant");
 }
 
 function identifyWithoutCurse(item) {
@@ -1096,7 +1134,7 @@ function rollChestAccessory(floor, rng, party) {
 }
 
 // setupChestStateの装備供給分岐をNode sim用stateで再現する。
-function rollChestItems(state, floor, rng, observations) {
+function rollChestItems(state, floor, rng, observations, scenario) {
   const trap = rollChestTrap(floor, rng);
   if (trap !== "none") {
     const character = state.party[0];
@@ -1133,8 +1171,10 @@ function rollChestItems(state, floor, rng, observations) {
       item = generateRandomEquipment(floor, "magic", rng, state.party, true, floor >= 3);
       state.firstChestUnidentifiedGuaranteed = true;
     } else {
-      const candidates = CHEST_ITEM_CANDIDATES_BY_FLOOR[floor]
-        || Object.keys(ITEMS).filter(key => key !== "ANTIGRAVITY_CRYSTAL");
+      const candidates = (
+        CHEST_ITEM_CANDIDATES_BY_FLOOR[floor]
+        || Object.keys(ITEMS).filter(key => key !== "ANTIGRAVITY_CRYSTAL")
+      ).filter(itemId => scenario.allowChestTownPortal !== false || itemId !== "TOWN_PORTAL");
       item = candidates[Math.floor(rng() * candidates.length)];
       const itemData = ITEMS[item];
       if (itemData && ["weapon", "armor", "shield"].includes(itemData.type)) {
@@ -1205,11 +1245,83 @@ function addMaterials(target, additions) {
   });
 }
 
+function subtractMaterials(target, subtractions) {
+  Object.entries(subtractions).forEach(([name, quantity]) => {
+    target[name] = Math.max(0, (target[name] || 0) - quantity);
+  });
+}
+
+function createMaterialOverrideRandom(seedText) {
+  let seed = 2166136261;
+  for (let index = 0; index < seedText.length; index++) {
+    seed ^= seedText.charCodeAt(index);
+    seed = Math.imul(seed, 16777619);
+  }
+  return () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+}
+
+function getMaterialDelta(before, after) {
+  return Object.fromEntries(
+    Object.keys({ ...before, ...after })
+      .map(name => [name, Math.max(0, (after[name] || 0) - (before[name] || 0))])
+      .filter(([, quantity]) => quantity > 0)
+  );
+}
+
+function getNewQuestRewards(beforeCompletedIds, quests) {
+  const rewards = {};
+  quests
+    .filter(quest => quest.completed && !beforeCompletedIds.has(quest.id))
+    .forEach(quest => addMaterials(rewards, quest.reward?.materials || {}));
+  return rewards;
+}
+
+function thinMaterialQuantity(quantity, keepRate, rng) {
+  let kept = 0;
+  for (let unit = 0; unit < quantity; unit++) kept += Number(rng() < keepRate);
+  return kept;
+}
+
+function transformCombatMaterialDrops(additions, floor, override, rng) {
+  if (!override || override.shape === "baseline") return additions;
+  let keepRate = override.scale;
+  if (override.shape === "depth-slope") {
+    const baselineExpected = getDepthMaterialExpectedQuantity(floor);
+    const milestoneTier = Math.floor((Math.max(1, floor) - 1) / 5);
+    const overriddenExpected =
+      (1 + Math.max(0, floor - 1) * override.depthQuantityPerFloor) *
+      (1 + milestoneTier * 0.08);
+    keepRate = Math.min(1, overriddenExpected / baselineExpected);
+  }
+  return Object.fromEntries(
+    Object.entries(additions)
+      .map(([name, quantity]) => {
+        if (override.shape === "probability") {
+          return [name, rng() < keepRate ? quantity : 0];
+        }
+        return [name, thinMaterialQuantity(quantity, keepRate, rng)];
+      })
+      .filter(([, quantity]) => quantity > 0)
+  );
+}
+
 function totalMaterials(materials) {
   return Object.values(materials).reduce((sum, quantity) => sum + quantity, 0);
 }
 
 function finishRun(state, outcome, metrics) {
+  const materialsBeforeFinalQuests = { ...state.currentRun.materials };
+  updateRunQuests(
+    state.currentRun,
+    getCharAffixSum(state.party[0], "contractReward")
+  );
+  metrics.materialSources.quest += totalMaterials(
+    getMaterialDelta(materialsBeforeFinalQuests, state.currentRun.materials)
+  );
+
   const roleKills = {
     disruptor: metrics.coreObservations.disruptorKills,
     amplifier: metrics.coreObservations.amplifierKills
@@ -1224,6 +1336,10 @@ function finishRun(state, outcome, metrics) {
     });
 
   const carriedMaterials = totalMaterials(state.currentRun.materials);
+  metrics.materialSources.other = Math.max(
+    0,
+    carriedMaterials - totalMaterials(metrics.materialSources)
+  );
   const { banked, balance } = bankRunMaterials(
     state.metaMaterials,
     state.currentRun.materials,
@@ -1272,7 +1388,19 @@ function finishRun(state, outcome, metrics) {
     coreObservations: metrics.coreObservations,
     healPotionsUsed: metrics.healPotionsUsed,
     townPortalsUsed: metrics.townPortalsUsed,
-    fleeCount: metrics.fleeCount
+    portalUseEvents: metrics.portalUseEvents,
+    portalUsesBySource: metrics.portalUsesBySource,
+    portalAcquisitions: metrics.portalAcquisitions,
+    merchantWingAttempts: metrics.merchantWingAttempts,
+    merchantWingsPurchased: metrics.merchantWingsPurchased,
+    merchantPurchaseFloors: metrics.merchantPurchaseFloors,
+    merchantWingFailures: metrics.merchantWingFailures,
+    milestoneDecisions: metrics.milestoneDecisions,
+    outcome,
+    fleeCount: metrics.fleeCount,
+    materialSources: metrics.materialSources,
+    combatMaterialEvents: metrics.combatMaterialEvents,
+    combatMaterialHitEvents: metrics.combatMaterialHitEvents
   };
 }
 
@@ -1280,7 +1408,10 @@ function descendToNextFloor(state, nextFloor) {
   state.floor = nextFloor;
   state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
   state.currentRun.floorsVisited.push(nextFloor);
-  updateRunQuests(state.currentRun);
+  updateRunQuests(
+    state.currentRun,
+    getCharAffixSum(state.party[0], "contractReward")
+  );
   applyFloorTransitionHeal(state.party[0]);
 }
 
@@ -1296,6 +1427,9 @@ export function simulateRun({
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   let state = createSimulationState(className, startFloor, runSeed, scenario, workshop);
+  const materialOverrideRandom = createMaterialOverrideRandom(
+    `${runSeed}:${scenario.materialDropOverride?.id || "baseline"}`
+  );
   const metrics = {
     steps: 0,
     combatRounds: 0,
@@ -1316,7 +1450,27 @@ export function simulateRun({
     firstCoreDepth: null,
     healPotionsUsed: 0,
     townPortalsUsed: 0,
-    fleeCount: 0
+    portalUseEvents: [],
+    portalUsesBySource: {},
+    portalAcquisitions: {
+      workshop: state.simPortalSources.filter(source => source === "workshop").length,
+      workshopSupply: state.simPortalSources.filter(source => source === "workshop-supply").length,
+      chest: 0,
+      merchant: 0
+    },
+    merchantWingAttempts: 0,
+    merchantWingsPurchased: 0,
+    merchantPurchaseFloors: [],
+    merchantWingFailures: {},
+    milestoneDecisions: [],
+    fleeCount: 0,
+    materialSources: {
+      chest: 0,
+      combat: 0,
+      quest: 0
+    },
+    combatMaterialEvents: 0,
+    combatMaterialHitEvents: 0
   };
 
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
@@ -1337,14 +1491,28 @@ export function simulateRun({
       const pickedUpChests = chestSchedule.get(step) || 0;
       for (let chest = 0; chest < pickedUpChests; chest++) {
         const tombRaider = getCharCoreParams(state.party[0], "CORE_TOMB_RAIDER");
-        addMaterials(
-          state.currentRun.materials,
-          generateChestMaterials(floor, Math.random, tombRaider?.materialBonus || 0)
+        const chestMaterials = generateChestMaterials(
+          floor,
+          Math.random,
+          tombRaider?.materialBonus || 0
         );
-        const chestItems = rollChestItems(state, floor, Math.random, metrics.coreObservations);
+        addMaterials(state.currentRun.materials, chestMaterials);
+        metrics.materialSources.chest += totalMaterials(chestMaterials);
+        const chestItems = rollChestItems(
+          state,
+          floor,
+          Math.random,
+          metrics.coreObservations,
+          scenario
+        );
         const acquiredEquipment = [];
         chestItems.forEach(item => {
+          if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal) return;
           if (!addInventoryItemToState(state, item)) return;
+          if (item === "TOWN_PORTAL") {
+            state.simPortalSources.push("chest");
+            metrics.portalAcquisitions.chest++;
+          }
           const itemData = getItemData(item);
           if (!isEquipment(itemData)) {
             state.currentRun.itemsFound.push(item);
@@ -1372,6 +1540,11 @@ export function simulateRun({
       if (Math.random() >= getEncounterChance(step)) continue;
 
       state.currentRun.battles++;
+      const equipmentFoundBeforeRewards = state.currentRun.equipmentFound.length;
+      const materialsBeforeRewards = { ...state.currentRun.materials };
+      const completedQuestIds = new Set(
+        state.currentRun.quests.filter(quest => quest.completed).map(quest => quest.id)
+      );
       const combatResult = runEncounter(state, metrics.coreObservations);
       state = combatResult.state;
       metrics.combatRounds += combatResult.rounds;
@@ -1382,7 +1555,7 @@ export function simulateRun({
         applyPostCombatRecovery(state.party[0]);
         metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
         if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
-        if (useTownPortalIfNeeded(state, scenario, metrics)) {
+        if (useTownPortalIfNeeded(state, scenario, metrics, "post-flee")) {
           return finishRun(state, "retreat", metrics);
         }
         continue;
@@ -1393,7 +1566,6 @@ export function simulateRun({
         return finishRun(state, "death", metrics);
       }
 
-      const equipmentFoundBeforeRewards = state.currentRun.equipmentFound.length;
       const scholarMaterialBonus = getScholarMaterialBonus(state.combatState.monsters, state);
       metrics.coreObservations.scholarMaterialBonusByFloor[floor] += scholarMaterialBonus;
       state.combatState.monsters.forEach(monster => {
@@ -1401,15 +1573,34 @@ export function simulateRun({
         if (monster.role === "disruptor") metrics.coreObservations.disruptorKills++;
         if (monster.role === "amplifier") metrics.coreObservations.amplifierKills++;
       });
-      applyCombatRewards(state, state.combatState.monsters, [], Math.random);
+      const totalRewardDelta = getMaterialDelta(
+        materialsBeforeRewards,
+        state.currentRun.materials
+      );
+      const questRewards = getNewQuestRewards(completedQuestIds, state.currentRun.quests);
+      const combatDropDelta = { ...totalRewardDelta };
+      subtractMaterials(combatDropDelta, questRewards);
+      let transformedDrops = combatDropDelta;
+      if (scenario.materialDropOverride) {
+        transformedDrops = transformCombatMaterialDrops(
+          combatDropDelta,
+          floor,
+          scenario.materialDropOverride,
+          materialOverrideRandom
+        );
+        state.currentRun.materials = { ...materialsBeforeRewards };
+        addMaterials(state.currentRun.materials, questRewards);
+        addMaterials(state.currentRun.materials, transformedDrops);
+      }
+      metrics.materialSources.combat += totalMaterials(transformedDrops);
+      metrics.materialSources.quest += totalMaterials(questRewards);
+      metrics.combatMaterialEvents++;
+      metrics.combatMaterialHitEvents += Number(totalMaterials(transformedDrops) > 0);
       recordEquipmentAcquisitions(
         metrics,
         state.currentRun.equipmentFound.slice(equipmentFoundBeforeRewards),
         floor
       );
-      while (checkCharLevelUp(state.party[0])) {
-        // applyCombatRewards performs the first possible level-up.
-      }
       recordEquipmentUpgrades(
         metrics,
         equipGreedyUpgrades(state, metrics, scoringProfile),
@@ -1418,14 +1609,29 @@ export function simulateRun({
       applyPostCombatRecovery(state.party[0]);
       metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
       if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
-      if (useTownPortalIfNeeded(state, scenario, metrics)) {
+      if (useTownPortalIfNeeded(state, scenario, metrics, "post-combat")) {
         return finishRun(state, "retreat", metrics);
       }
     }
 
     applySimulatedCampRest(state, metrics.coreObservations);
+    maybePurchaseMerchantWing(state, scenario, metrics);
+    if (isMilestoneFloor(floor)) {
+      metrics.milestoneDecisions.push({
+        floor,
+        hasTownPortal: state.inventory.includes("TOWN_PORTAL"),
+        hpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
+        carriedMaterials: totalMaterials(state.currentRun.materials)
+      });
+      if (
+        scenario.retreatAtMilestoneWithoutTownPortal &&
+        !state.inventory.includes("TOWN_PORTAL")
+      ) {
+        return finishRun(state, "retreat", metrics);
+      }
+    }
     descendToNextFloor(state, floor + 1);
-    if (useTownPortalIfNeeded(state, scenario, metrics)) {
+    if (useTownPortalIfNeeded(state, scenario, metrics, "floor-transition")) {
       return finishRun(state, "retreat", metrics);
     }
   }

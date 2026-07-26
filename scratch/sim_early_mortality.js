@@ -18,8 +18,6 @@ const {
 const { ELITE_CLASSES } = await import("../src/data/classes.js");
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
 const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
-const { applyCombatRewards } = await import("../src/combat_logic/rewards.js");
-const { checkCharLevelUp } = await import("../src/systems/leveling.js");
 const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
 const { assignRunQuests, updateRunQuests } = await import("../src/systems/run_quests.js");
 const { generateRunFloor } = await import("../src/run_map_generator.js");
@@ -665,12 +663,6 @@ function simulateRun({ className, runIndex }) {
         };
       }
 
-      // Keep the established #231 model exactly: round resolution grants rewards,
-      // then the simulation applies its explicit reward pass and drains level-ups.
-      applyCombatRewards(state, state.combatState.monsters, [], Math.random);
-      while (checkCharLevelUp(state.party[0])) {
-        // applyCombatRewards performs the first possible level-up.
-      }
       equipmentUpgrades += equipGreedyUpgrades(state);
       applyPostCombatRecovery(state.party[0]);
       useHealPotionIfNeeded(state);
