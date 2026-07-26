@@ -12,7 +12,6 @@ import {
 } from "../src/state/initial_state.js";
 import { generateEncounter } from "../src/combat_ui/encounter.js";
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
-import { checkCharLevelUp } from "../src/systems/leveling.js";
 import { SPELL_EFFECTS } from "../src/systems/spell_effects.js";
 
 const RUNS_PER_CASE = Number(process.env.SIM_RUNS || 2000);
@@ -223,9 +222,6 @@ function simulateRun(className, stepRange, useMilwa) {
     }
 
     victories += 1;
-    while (checkCharLevelUp(state.party[0])) {
-      // applyCombatRewards already grants EXP and performs the first possible level-up.
-    }
     applyPostCombatRecovery(state.party[0]);
     if (!isAlive(state.party[0])) {
       return { success: false, death: true, stalemate: false, steps: step, victories, level: state.party[0].level, mpDepleted };

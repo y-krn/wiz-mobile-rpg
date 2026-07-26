@@ -1,0 +1,72 @@
+Issue #280 戦闘報酬二重適用修正・再検証要約
+
+測定条件
+- depth: N=500、seed=231、B1開始、generateRunFloor経由
+- workshop: N=50 trial × 50 run、seed=278234
+- inflow: N=50 trial × 40 run、深度比較N=120/点、seed=234275
+- BANKING_RATES: retreat=1 / death=0.3（変更なし）
+- what-ifはsim内overrideによる試算値。実src採用時と乱数消費順・分布は一致しない。
+
+修正
+- sim_depth_material_ev.js: runCombatRoundCalculation内で適用済みのapplyCombatRewardsを勝利後に再度呼ぶ処理を削除。報酬前snapshotを戦闘前に移し、実srcの1 victory 1 reward passを集計。
+- sim_workshop_progression.js / sim_inflow_reduction.js: 独自のapplyCombatRewards呼び出しなし。共通simulateRun修正で波及解消。
+- sim_early_mortality.js: 同じ二重適用を発見し削除。
+- sim_depth_material_ev.js / sim_early_mortality.js / sim_solo_b1f.js: 実srcにない追加while(checkCharLevelUp)を削除。
+- sim_depth_material_ev.js: triggerRunResultにある終了時updateRunQuestsの適用漏れを補完。階移動時updateRunQuestsへcontractRewardを渡す。
+- 回帰テスト test_sim_reward_paths.js を追加。失敗期待を一時反転し、非zero終了を確認後に復元。
+
+同一seed 修正前後（工房未解放・B20）
+- 装備入手/run: 32.59 -> 28.20（-4.39、-13.5%）
+- 前半換装: 8.35 -> 7.24（-1.11、-13.3%）
+- core遭遇率: 72.0% -> 64.8%（-7.2pt）
+- core装備率: 62.2% -> 55.0%（-7.2pt）
+- core定着率: 86.4% -> 84.9%（-1.5pt）
+- 平均Lv: 4.89 -> 3.63（-1.26）
+- 平均到達階: 7.88 -> 6.86（-1.02）
+- bank素材EV: 122.57 -> 82.49（-40.08、-32.7%）
+- EV/時間: 0.2475 -> 0.1952（-21.1%）
+
+#270
+- 修正後: 装備28.20/run、前半換装7.24、core遭遇64.8%、core装備55.0%、core定着84.9%。
+- 目標「前半換装4〜5回」は満たす。coreは平均3.19個/run相当（28.20×11.3%）で、前半core遭遇run率64.8%。
+- 結論: 数値は悪化したが「前半供給は不足していない」は維持。装備が半減する仮説は棄却。
+
+#275 論点3（bank素材EV / EV時間、B5/B10/B15/B20）
+- 工房未解放: 55.27/76.46/78.93/82.49（単調Yes） / 0.2384/0.2126/0.2035/0.1952（単調No、B5最高）
+- 工房解放済: 52.68/77.21/80.64/80.29（単調No） / 0.2351/0.2409/0.2445/0.2447（単調Yes、B20最高）
+- 翼不使用: 55.65/76.83/79.94/68.47（単調No） / 0.2323/0.1944/0.1592/0.1292（単調No、B5最高）
+
+#276
+- 現行EXPカーブ×0.5、翼不使用B20: 平均到達10.26 -> 8.91、平均Lv4.84 -> 3.72。
+- 既存Acceptance「平均到達>B10」「平均Lv>=5」は両方不達。現行×0.5では足りない。
+
+#234 / #279
+- 工房買い切り（翼優先）: 平均4.28 -> 5.56、中央4 -> 5、p90 6 -> 8。
+- 買い切り後余剰: 179.06 -> 128.02素材/run。
+- 買い切り後の進行有効死亡損失: 0.0%（不変）。10/40素材の反復sink what-ifは死亡損失有価値率100%を維持。
+- inflow baseline: 買切4.86/中央5/p90 7、素材期有効損失1.41/run・有価値率25.5%・stake有run率10.3%、買切後余剰128.36/run。
+- finite反復6x baseline（試算値）: 買切7.22/中央7/p90 12、有価値率29.4%、stake有run率11.4%、買切後余剰106.31/run。
+
+#237
+- 影響なし。B5 epic予算16、core最大cost 10、support最大cost 3×2枠=6、合計16の構造はドロップ回数から独立。
+
+検証
+- node scratch/sim_depth_material_ev.js: exit 0
+- node scratch/sim_workshop_progression.js: exit 0
+- node scratch/sim_inflow_reduction.js: exit 0
+- SIM_RUNS=20 node scratch/sim_early_mortality.js: exit 0
+- npm run lint: exit 0
+- npm run test:unit: 51 pass / 4 skip / exit 0
+- src差分: 0
+
+生出力
+- issue-280-before.raw.txt
+- issue-280-after.raw.txt
+- issue-280-before-after.diff.txt
+- issue-280-workshop.raw.txt
+- issue-280-inflow.raw.txt
+- issue-280-early-mortality-smoke.raw.txt
+- issue-280-lint.raw.txt
+- issue-280-test-unit.raw.txt
+
+Closes #280

@@ -21,8 +21,6 @@ const {
 const { ELITE_CLASSES } = await import("../src/data/classes.js");
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
 const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
-const { applyCombatRewards } = await import("../src/combat_logic/rewards.js");
-const { checkCharLevelUp } = await import("../src/systems/leveling.js");
 const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
 const { assignRunQuests, updateRunQuests } = await import("../src/systems/run_quests.js");
 const { generateRunFloor } = await import("../src/run_map_generator.js");
@@ -1315,6 +1313,15 @@ function totalMaterials(materials) {
 }
 
 function finishRun(state, outcome, metrics) {
+  const materialsBeforeFinalQuests = { ...state.currentRun.materials };
+  updateRunQuests(
+    state.currentRun,
+    getCharAffixSum(state.party[0], "contractReward")
+  );
+  metrics.materialSources.quest += totalMaterials(
+    getMaterialDelta(materialsBeforeFinalQuests, state.currentRun.materials)
+  );
+
   const roleKills = {
     disruptor: metrics.coreObservations.disruptorKills,
     amplifier: metrics.coreObservations.amplifierKills
@@ -1401,7 +1408,10 @@ function descendToNextFloor(state, nextFloor) {
   state.floor = nextFloor;
   state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
   state.currentRun.floorsVisited.push(nextFloor);
-  updateRunQuests(state.currentRun);
+  updateRunQuests(
+    state.currentRun,
+    getCharAffixSum(state.party[0], "contractReward")
+  );
   applyFloorTransitionHeal(state.party[0]);
 }
 
@@ -1530,6 +1540,11 @@ export function simulateRun({
       if (Math.random() >= getEncounterChance(step)) continue;
 
       state.currentRun.battles++;
+      const equipmentFoundBeforeRewards = state.currentRun.equipmentFound.length;
+      const materialsBeforeRewards = { ...state.currentRun.materials };
+      const completedQuestIds = new Set(
+        state.currentRun.quests.filter(quest => quest.completed).map(quest => quest.id)
+      );
       const combatResult = runEncounter(state, metrics.coreObservations);
       state = combatResult.state;
       metrics.combatRounds += combatResult.rounds;
@@ -1551,7 +1566,6 @@ export function simulateRun({
         return finishRun(state, "death", metrics);
       }
 
-      const equipmentFoundBeforeRewards = state.currentRun.equipmentFound.length;
       const scholarMaterialBonus = getScholarMaterialBonus(state.combatState.monsters, state);
       metrics.coreObservations.scholarMaterialBonusByFloor[floor] += scholarMaterialBonus;
       state.combatState.monsters.forEach(monster => {
@@ -1559,11 +1573,6 @@ export function simulateRun({
         if (monster.role === "disruptor") metrics.coreObservations.disruptorKills++;
         if (monster.role === "amplifier") metrics.coreObservations.amplifierKills++;
       });
-      const materialsBeforeRewards = { ...state.currentRun.materials };
-      const completedQuestIds = new Set(
-        state.currentRun.quests.filter(quest => quest.completed).map(quest => quest.id)
-      );
-      applyCombatRewards(state, state.combatState.monsters, [], Math.random);
       const totalRewardDelta = getMaterialDelta(
         materialsBeforeRewards,
         state.currentRun.materials
@@ -1592,9 +1601,6 @@ export function simulateRun({
         state.currentRun.equipmentFound.slice(equipmentFoundBeforeRewards),
         floor
       );
-      while (checkCharLevelUp(state.party[0])) {
-        // applyCombatRewards performs the first possible level-up.
-      }
       recordEquipmentUpgrades(
         metrics,
         equipGreedyUpgrades(state, metrics, scoringProfile),

@@ -5,4 +5,3 @@
 
 > wiz-mobile-rpg@0.0.0 lint:css
 > stylelint "src/style.css" "src/styles/**/*.css"
-
