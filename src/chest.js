@@ -34,7 +34,7 @@ function rollChestAccessory(floor, rng, party) {
   return generateRandomAccessory(floor, rarity, rng, party, floor >= 2);
 }
 
-export function setupChestState(forcedTrap = null, _legacyReward = null, forcedItem = null, customRng = null) {
+export function setupChestState(forcedTrap = null, _legacyReward = null, forcedItem = null, customRng = null, options = {}) {
   void _legacyReward;
   if (state.codex && state.codex.events && state.codex.events.facilities) {
     if (!state.codex.events.facilities.chest) {
@@ -223,6 +223,7 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
     identifiedTrap: "",
     x: state.x,
     y: state.y,
+    fromDrop: options.fromDrop ?? false,
     lootHint: {
       hasEquipmentSignal,
       aura,
@@ -438,7 +439,7 @@ export function openChestMenu() {
     // Clear chest event on current cell
     state.map[state.y][state.x].event = null;
     markMapChanged();
-    if (state.floorChestsOpened) {
+    if (!state.chestState.fromDrop && state.floorChestsOpened) {
       state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
     }
     state.chestState = null;
@@ -631,6 +632,7 @@ export function openChestDirectly(opener = null, rng = Math.random) {
   const chestMap = state.map;
   const chestX = chest.x;
   const chestY = chest.y;
+  const fromDrop = chest.fromDrop;
   const tombRaiderActivated = applyTombRaiderTrapTier(chest, opener);
   
   if (state.currentRun) {
@@ -724,7 +726,7 @@ export function openChestDirectly(opener = null, rng = Math.random) {
   // Clear the original chest cell even if a trap moved the party.
   chestMap[chestY][chestX].event = null;
   markMapChanged();
-  if (state.floorChestsOpened) {
+  if (!fromDrop && state.floorChestsOpened) {
     state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
   }
 
