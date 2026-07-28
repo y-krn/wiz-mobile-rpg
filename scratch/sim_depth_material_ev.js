@@ -1002,6 +1002,15 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     character.equipment[best.slot] = best.candidate;
     if (best.candidateCoreId) {
       metrics.coreEverEquippedIds.add(best.candidateCoreId);
+      const poolGroup = ENABLED_CORE_AFFIXES.find(
+        affix => affix.id === best.candidateCoreId
+      )?.poolGroup;
+      if (
+        poolGroup &&
+        metrics.coreFirstEquippedFloorByGroup[poolGroup] === null
+      ) {
+        metrics.coreFirstEquippedFloorByGroup[poolGroup] = state.floor;
+      }
       if (metrics.firstCoreEquippedFloor === null) {
         metrics.firstCoreEquippedFloor = state.floor;
       }
@@ -1123,7 +1132,15 @@ function rollChestTrap(floor, rng) {
   return traps[Math.floor(rng() * traps.length)];
 }
 
-function rollChestAccessory(floor, rng, party) {
+function getChestCoreMinFloor(supplyOverride, itemKind) {
+  const overrideKey = itemKind === "accessory"
+    ? "chestAccessoryCoreMinFloor"
+    : "chestEquipmentCoreMinFloor";
+  const sourceMinFloor = itemKind === "accessory" ? 2 : 3;
+  return supplyOverride?.[overrideKey] ?? sourceMinFloor;
+}
+
+function rollChestAccessory(floor, rng, party, supplyOverride = null) {
   const chance = floor >= 5 ? 0.16 : (floor === 4 ? 0.14 : (floor === 3 ? 0.12 : 0.08));
   if (rng() >= chance) return null;
   const rarityRoll = rng();
@@ -1133,7 +1150,13 @@ function rollChestAccessory(floor, rng, party) {
   } else if (rarityRoll < 0.35) {
     rarity = "rare";
   }
-  return generateRandomAccessory(floor, rarity, rng, party, floor >= 3);
+  return generateRandomAccessory(
+    floor,
+    rarity,
+    rng,
+    party,
+    floor >= getChestCoreMinFloor(supplyOverride, "accessory")
+  );
 }
 
 function rollSupplyOverrideRarity(floor, supplyOverride, rng) {
@@ -1224,7 +1247,14 @@ function rollChestItems(state, floor, rng, observations, scenario, supplyOverrid
 
   if (isGuaranteed || rng() < itemChance) {
     if (isGuaranteed) {
-      item = generateRandomEquipment(floor, "magic", rng, state.party, true, floor >= 3);
+      item = generateRandomEquipment(
+        floor,
+        "magic",
+        rng,
+        state.party,
+        true,
+        floor >= getChestCoreMinFloor(supplyOverride, "equipment")
+      );
       state.firstChestUnidentifiedGuaranteed = true;
     } else {
       const candidates = (
@@ -1253,13 +1283,23 @@ function rollChestItems(state, floor, rng, observations, scenario, supplyOverrid
         }, 0);
         equipmentChance = Math.min(0.90, equipmentChance + Math.min(25, treasureSense) / 100);
         if (rng() < equipmentChance) {
-          item = generateRandomEquipment(floor, null, rng, state.party, true, floor >= 3);
+          item = generateRandomEquipment(
+            floor,
+            null,
+            rng,
+            state.party,
+            true,
+            floor >= getChestCoreMinFloor(supplyOverride, "equipment")
+          );
         }
       }
     }
   }
 
-  const baselineItems = [item, rollChestAccessory(floor, rng, state.party)]
+  const baselineItems = [
+    item,
+    rollChestAccessory(floor, rng, state.party, supplyOverride)
+  ]
     .filter(Boolean)
     .map(found => rerollSupplyEquipment(
       found,
@@ -1343,8 +1383,18 @@ function recordCoreItemEncounter(metrics, item, floor, source = null) {
   if (!hasBuildCoreAffix(item)) return;
   const instanceKey = item.instanceId || item;
   const coreId = getItemCoreId(item);
+  const poolGroup = ENABLED_CORE_AFFIXES.find(affix => affix.id === coreId)?.poolGroup;
   metrics.coreEncounteredIds.add(coreId);
   metrics.coreEncounterFloors.add(floor);
+  if (
+    poolGroup &&
+    (
+      metrics.coreFirstEncounterFloorByGroup[poolGroup] === null ||
+      floor < metrics.coreFirstEncounterFloorByGroup[poolGroup]
+    )
+  ) {
+    metrics.coreFirstEncounterFloorByGroup[poolGroup] = floor;
+  }
   if (!metrics.coreEquipmentInstanceIds.has(instanceKey)) {
     const normalizedSource = source || "other";
     metrics.coreEquipmentInstanceIds.add(instanceKey);
@@ -1353,6 +1403,9 @@ function recordCoreItemEncounter(metrics, item, floor, source = null) {
     metrics.coreEquipmentFoundById[coreId] = (metrics.coreEquipmentFoundById[coreId] || 0) + 1;
     metrics.coreEquipmentFoundBySource[normalizedSource]++;
     metrics.coreEquipmentFoundByFloor[floor]++;
+    if (poolGroup) {
+      metrics.coreEquipmentFoundByGroupAndFloor[poolGroup][floor]++;
+    }
     metrics.floorSupplyStats[floor].core++;
     metrics.floorSupplyStats[floor].coreSource[normalizedSource]++;
     if (item?.curseEffectId) metrics.cursedCoreEquipmentFound++;
@@ -1514,10 +1567,20 @@ function finishRun(state, outcome, metrics) {
     coreEquipmentFoundById: metrics.coreEquipmentFoundById,
     coreEquipmentFoundBySource: metrics.coreEquipmentFoundBySource,
     coreEquipmentFoundByFloor: metrics.coreEquipmentFoundByFloor,
+    coreEquipmentFoundByGroupAndFloor: {
+      combat: [...metrics.coreEquipmentFoundByGroupAndFloor.combat],
+      economy: [...metrics.coreEquipmentFoundByGroupAndFloor.economy]
+    },
     coreEncounteredIds: [...metrics.coreEncounteredIds],
     coreEncounterFloors: [...metrics.coreEncounterFloors],
     coreEncounterSources: [...metrics.coreEncounterSources],
     coreEverEquippedIds: [...metrics.coreEverEquippedIds],
+    coreFirstEncounterFloorByGroup: {
+      ...metrics.coreFirstEncounterFloorByGroup
+    },
+    coreFirstEquippedFloorByGroup: {
+      ...metrics.coreFirstEquippedFloorByGroup
+    },
     coreDecisionReasons: Object.fromEntries(
       Object.entries(metrics.coreDecisionReasons)
         .map(([coreId, reasons]) => [coreId, [...reasons]])
@@ -1604,11 +1667,23 @@ export function simulateRun({
     coreEquipmentFoundById: {},
     coreEquipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
     coreEquipmentFoundByFloor: Array(21).fill(0),
+    coreEquipmentFoundByGroupAndFloor: {
+      combat: Array(21).fill(0),
+      economy: Array(21).fill(0)
+    },
     coreEquipmentInstanceIds: new Set(),
     coreEncounteredIds: new Set(),
     coreEncounterFloors: new Set(),
     coreEncounterSources: new Set(),
     coreEverEquippedIds: new Set(),
+    coreFirstEncounterFloorByGroup: {
+      combat: null,
+      economy: null
+    },
+    coreFirstEquippedFloorByGroup: {
+      combat: null,
+      economy: null
+    },
     coreDecisionReasons: {},
     coreObservations: createCoreObservations(),
     firstCoreDepth: null,
