@@ -28,7 +28,10 @@ function rollChestAccessory(floor, rng, party) {
   } else if (rarityRoll < 0.35) {
     rarity = "rare";
   }
-  return generateRandomAccessory(floor, rarity, rng, party, floor >= 3);
+  // #270: 宝箱の装身具のみ B2 から core を解禁。実src経路のsim（N=500、工房解放済み）で
+  // 前半core遭遇 65.4%→71.6%、前半core装備 58.2%→66.8%、平均到達 B4.77→B5.04。
+  // 本体装備は B3 のまま（B2両方の解禁は深層core遭遇が 2.6%→1.8% に落ち二相構造が薄れるため）。
+  return generateRandomAccessory(floor, rarity, rng, party, floor >= 2);
 }
 
 export function setupChestState(forcedTrap = null, _legacyReward = null, forcedItem = null, customRng = null) {
