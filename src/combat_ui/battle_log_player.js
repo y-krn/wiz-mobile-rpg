@@ -169,7 +169,7 @@ export function playBattleLogs(queue, index) {
       state.gameState = "chest";
       cleanupCombatState();
       state.transitioning = false;
-      setupChestState();
+      setupChestState(null, null, null, null, { fromDrop: true });
       saveAutosave();
     }, isAuto ? 150 : 1500);
     return;

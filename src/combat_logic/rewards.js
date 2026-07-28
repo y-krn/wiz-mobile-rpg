@@ -330,9 +330,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
         msg: "フラックの残骸の影に宝箱を見つけた！",
         triggerChest: true
       });
-      if (state.floorChestsTotal) {
-        state.floorChestsTotal[state.floor - 1] = (state.floorChestsTotal[state.floor - 1] ?? 0) + 1;
-      }
     }
   } else {
     if (rng() < 0.20) {
@@ -340,9 +337,6 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
         msg: "モンスターが宝箱を残していった！",
         triggerChest: true
       });
-      if (state.floorChestsTotal) {
-        state.floorChestsTotal[state.floor - 1] = (state.floorChestsTotal[state.floor - 1] ?? 0) + 1;
-      }
     } else {
       logQueue.push({
         msg: "周囲に静寂が戻った。",

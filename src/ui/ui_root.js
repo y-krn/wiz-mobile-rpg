@@ -266,12 +266,10 @@ export function updateUI() {
 
     if (state.gameState !== "gameover" && state.gameState !== "victory" && state.gameState !== "town") {
       const expRate = getFloorExplorationRate();
-      const chestsOpened = state.floorChestsOpened ? (state.floorChestsOpened[state.floor - 1] ?? 0) : 0;
-      const chestsTotal = state.floorChestsTotal ? (state.floorChestsTotal[state.floor - 1] ?? 0) : 0;
       
       const statsContainer = document.createElement("span");
       statsContainer.className = "goal-stats-container";
-      statsContainer.innerHTML = `<span>🗺️ 探索率: ${expRate}%</span> <span>📦 宝箱: ${chestsOpened}/${chestsTotal}</span>`;
+      statsContainer.innerHTML = `<span>🗺️ 探索率: ${expRate}%</span>`;
       goalRow.appendChild(statsContainer);
     }
     goalBanner.appendChild(goalRow);
