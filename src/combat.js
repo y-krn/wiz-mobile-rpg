@@ -1,5 +1,6 @@
 export {
-  startCombat
+  startCombat,
+  resumeCombat
 } from "./combat_ui/combat_start.js";
 
 export {

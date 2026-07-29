@@ -1,9 +1,11 @@
-import { state, addLog } from "../state.js";
+import { state, addLog, saveAutosave } from "../state.js";
 import { menuContext, menuHistory } from "../navigation.js";
 import { combatSelection } from "./combat_state.js";
 import { generateEncounter } from "./encounter.js";
 import { advanceActionSelection } from "./action_selection.js";
+import { triggerGameOver } from "./game_over.js";
 import { getCharCoreParams, getCoreLogText, getEquippedCurseCount } from "../data.js";
+import { updateUI } from "../ui.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;
@@ -93,5 +95,28 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     });
   }
   
+  advanceActionSelection();
+}
+
+export function resumeCombat() {
+  if (!state.combatState) return;
+
+  state.combatState.phase = "choose_actions";
+  combatSelection.charIdx = 0;
+  combatSelection.actions = [];
+
+  if (state.party.every(char => char.status === "dead")) {
+    triggerGameOver();
+    return;
+  }
+
+  if (state.combatState.monsters.every(monster => monster.hp <= 0)) {
+    state.gameState = "explore";
+    state.combatState = null;
+    saveAutosave();
+    updateUI();
+    return;
+  }
+
   advanceActionSelection();
 }

@@ -11,7 +11,7 @@ import { blockGuardedControlsEvent } from "./controls_guard.js";
 import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
 import { handleMove, enterDungeon } from "./movement.js";
 import { handleExploreAction, handleTownOption } from "./menu.js";
-import { selectCombatAction, cancelCombatAction, toggleCombatAuto } from "./combat.js";
+import { selectCombatAction, cancelCombatAction, toggleCombatAuto, resumeCombat } from "./combat.js";
 
 // Re-exports for external use and backward compatibility
 export { updateUI } from "./ui.js";
@@ -43,6 +43,9 @@ export function initGame() {
 
   // Load Initial UI state
   updateUI();
+  if (state.gameState === "combat" && state.combatState) {
+    resumeCombat();
+  }
 }
 
 function lockViewportScale() {
