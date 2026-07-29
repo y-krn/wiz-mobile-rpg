@@ -1,14 +1,13 @@
-import { state, saveAutosave, addLog, addInventoryItem, markMapChanged } from "../state.js";
-import { generateRandomAccessory, generateRandomEquipment } from "../data.js";
+import { state, saveAutosave, addLog } from "../state.js";
 import { playSound } from "../audio.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
 import { updateUI } from "../ui.js";
 import { resetSubmenuBackButton } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
 import { setupChestState } from "../chest.js";
-import { recordMilestoneVictory } from "../state/run_state.js";
 import { checkCombatStatus } from "./combat_status.js";
 import { triggerGameOver } from "./game_over.js";
+import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 
 function cleanupCombatState() {
   state.combatState = null;
@@ -32,6 +31,17 @@ function savePendingOutcomeCheckpoint() {
   if (state.combatState) {
     state.combatState.phase = livePhase;
   }
+}
+
+function applyOutcomeRewards() {
+  const pendingOutcome = state.combatState?.pendingOutcome;
+  if (!pendingOutcome) return;
+  applyPendingOutcomeRewards(state, pendingOutcome).forEach(addLog);
+  state.combatState.pendingOutcome = {
+    ...pendingOutcome,
+    rewardsApplied: true
+  };
+  savePendingOutcomeCheckpoint();
 }
 
 export function playBattleLogs(queue, index) {
@@ -119,13 +129,7 @@ export function playBattleLogs(queue, index) {
 
   if (log.milestoneVictory) {
     state.transitioning = true;
-    if (state.map[state.y]?.[state.x]?.event === "boss") {
-      state.map[state.y][state.x].event = null;
-      markMapChanged();
-    }
-    recordMilestoneVictory(state, log.milestoneVictory);
-    addLog(`B${log.milestoneVictory}F開始を恒久アンロックした。`);
-    savePendingOutcomeCheckpoint();
+    applyOutcomeRewards();
 
     setTimeout(() => {
       state.gameState = "explore";
@@ -141,43 +145,7 @@ export function playBattleLogs(queue, index) {
 
   if (log.giveKey) {
     state.transitioning = true;
-    if (state.map[state.y]?.[state.x]?.event === "midboss") {
-      state.map[state.y][state.x].event = null;
-      markMapChanged();
-    }
-    if (!state.inventory.some(item => (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY")) {
-      addInventoryItem("DRAGON_KEY");
-      if (state.currentRun) {
-        state.currentRun.itemsFound.push("DRAGON_KEY");
-      }
-    }
-    
-    // 中ボス報酬: Rare装備（未鑑定） + 黒角x2
-    const rewardEquip = generateRandomEquipment(4, "rare", Math.random, state.party);
-    if (rewardEquip) {
-      rewardEquip.identified = false;
-      const added = addInventoryItem(rewardEquip);
-      if (added && state.currentRun) {
-        state.currentRun.equipmentFound.push(rewardEquip);
-      }
-    }
-    if (Math.random() < 0.25) {
-      const rewardAccessory = generateRandomAccessory(4, "rare", Math.random, state.party);
-      if (rewardAccessory) {
-        const added = addInventoryItem(rewardAccessory);
-        if (added && state.currentRun) {
-          state.currentRun.equipmentFound.push(rewardAccessory);
-        }
-      }
-    }
-
-    if (state.currentRun) {
-      state.currentRun.materials ||= {};
-      state.currentRun.materials["黒角"] = (state.currentRun.materials["黒角"] || 0) + 2;
-    }
-    
-    addLog("迷宮の守護者を撃破した！お宝: [未鑑定のレア装備] と [黒角 x2] を手に入れた！");
-    savePendingOutcomeCheckpoint();
+    applyOutcomeRewards();
 
     setTimeout(() => {
       state.gameState = "explore";

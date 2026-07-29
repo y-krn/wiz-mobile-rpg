@@ -9,9 +9,13 @@ function resolvePendingOutcome(logQueue) {
     if (log.escapeToTown) return { kind: "escapeToTown" };
     if (log.fleeCombat) return { kind: "fleeCombat" };
     if (log.milestoneVictory) {
-      return { kind: "milestoneVictory", floor: log.milestoneVictory };
+      return {
+        kind: "milestoneVictory",
+        floor: log.milestoneVictory,
+        rewardsApplied: false
+      };
     }
-    if (log.giveKey) return { kind: "giveKey" };
+    if (log.giveKey) return { kind: "giveKey", rewardsApplied: false };
     if (log.triggerChest) return { kind: "triggerChest" };
     if (log.endCombat) return { kind: "endCombat" };
   }

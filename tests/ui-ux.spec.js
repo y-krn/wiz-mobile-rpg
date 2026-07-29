@@ -24,6 +24,9 @@ async function startSoloRun(page) {
 }
 
 async function beginPendingOutcomePlayback(page, kind, floor = 1) {
+  await page.addInitScript(() => {
+    Math.random = () => 0.99;
+  });
   return page.evaluate(async ({ outcomeKind, outcomeFloor }) => {
     const { state, saveAutosave } = await import('/src/state.js');
     const { playBattleLogs } = await import('/src/combat.js');
@@ -42,8 +45,11 @@ async function beginPendingOutcomePlayback(page, kind, floor = 1) {
       isRoamingFlack: false,
       isAuto: false,
       pendingOutcome: outcomeKind === 'milestoneVictory'
-        ? { kind: outcomeKind, floor: outcomeFloor }
-        : { kind: outcomeKind },
+        ? { kind: outcomeKind, floor: outcomeFloor, rewardsApplied: false }
+        : {
+            kind: outcomeKind,
+            ...(outcomeKind === 'giveKey' ? { rewardsApplied: false } : {}),
+          },
     };
     state.party[0].buffs = [];
 
@@ -69,7 +75,16 @@ async function beginPendingOutcomePlayback(page, kind, floor = 1) {
     } else {
       log[outcomeKind] = true;
     }
-    playBattleLogs([log], 0);
+    const queue = ['giveKey', 'milestoneVictory'].includes(outcomeKind)
+      ? [
+          { msg: '検証: 先行攻撃ログ' },
+          { msg: '検証: 撃破ログ' },
+          { msg: '検証: 経験値ログ' },
+          log,
+        ]
+      : [log];
+    Math.random = () => 0.99;
+    playBattleLogs(queue, 0);
 
     return {
       transitioning: state.transitioning,
@@ -844,11 +859,11 @@ test('Victory outcome resumes once with EXP and materials preserved', async ({ p
   });
 });
 
-test('giveKey outcome reload does not duplicate key, rare equipment, or materials', async ({ page }) => {
+test('giveKey outcome reload before reward log applies missing rewards once', async ({ page }) => {
   await startSoloRun(page);
   const playback = await beginPendingOutcomePlayback(page, 'giveKey');
-  expect(playback.transitioning).toBe(true);
-  expect(playback.pendingOutcome).toEqual({ kind: 'giveKey' });
+  expect(playback.transitioning).toBe(false);
+  expect(playback.pendingOutcome).toEqual({ kind: 'giveKey', rewardsApplied: false });
   expect(playback.savedPhase).toBe('choose_actions');
 
   await page.reload();
@@ -865,6 +880,8 @@ test('giveKey outcome reload does not duplicate key, rare equipment, or material
       )).length,
       runEquipmentCount: state.currentRun.equipmentFound.length,
       blackHorn: state.currentRun.materials['黒角'] || 0,
+      keyFoundCount: state.currentRun.itemsFound.filter(item => item === 'DRAGON_KEY').length,
+      cellEvent: state.map[state.y][state.x].event,
     };
   });
   expect(resumed).toEqual({
@@ -874,15 +891,95 @@ test('giveKey outcome reload does not duplicate key, rare equipment, or material
     rareEquipmentCount: 1,
     runEquipmentCount: 1,
     blackHorn: 2,
+    keyFoundCount: 1,
+    cellEvent: null,
   });
 });
 
-test('milestoneVictory outcome reload records once and keeps the boss cell removed', async ({ page }) => {
+test('giveKey outcome reload after reward log does not duplicate rewards', async ({ page }) => {
+  await startSoloRun(page);
+  const playback = await beginPendingOutcomePlayback(page, 'giveKey');
+  expect(playback.pendingOutcome).toEqual({ kind: 'giveKey', rewardsApplied: false });
+
+  await expect.poll(() => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return state.combatState?.pendingOutcome?.rewardsApplied;
+  })).toBe(true);
+
+  await page.reload();
+  const resumed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      combatState: state.combatState,
+      keyCount: state.inventory.filter(item => (
+        (typeof item === 'object' ? item.baseId : item) === 'DRAGON_KEY'
+      )).length,
+      rareEquipmentCount: state.inventory.filter(item => (
+        typeof item === 'object' && item.kind === 'equipment' && item.rarity === 'rare'
+      )).length,
+      runEquipmentCount: state.currentRun.equipmentFound.length,
+      blackHorn: state.currentRun.materials['黒角'] || 0,
+      keyFoundCount: state.currentRun.itemsFound.filter(item => item === 'DRAGON_KEY').length,
+      cellEvent: state.map[state.y][state.x].event,
+    };
+  });
+  expect(resumed).toEqual({
+    gameState: 'explore',
+    combatState: null,
+    keyCount: 1,
+    rareEquipmentCount: 1,
+    runEquipmentCount: 1,
+    blackHorn: 2,
+    keyFoundCount: 1,
+    cellEvent: null,
+  });
+});
+
+test('milestoneVictory outcome reload before reward log applies missing rewards once', async ({ page }) => {
   await startSoloRun(page);
   const playback = await beginPendingOutcomePlayback(page, 'milestoneVictory', 5);
-  expect(playback.transitioning).toBe(true);
-  expect(playback.pendingOutcome).toEqual({ kind: 'milestoneVictory', floor: 5 });
+  expect(playback.transitioning).toBe(false);
+  expect(playback.pendingOutcome).toEqual({
+    kind: 'milestoneVictory',
+    floor: 5,
+    rewardsApplied: false,
+  });
   expect(playback.savedPhase).toBe('choose_actions');
+
+  await page.reload();
+  const resumed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      combatState: state.combatState,
+      defeatedMilestones: state.currentRun.defeatedMilestones,
+      unlockedMilestones: state.unlockedMilestones,
+      cellEvent: state.map[state.y][state.x].event,
+    };
+  });
+  expect(resumed).toEqual({
+    gameState: 'explore',
+    combatState: null,
+    defeatedMilestones: [5],
+    unlockedMilestones: [5],
+    cellEvent: null,
+  });
+});
+
+test('milestoneVictory outcome reload after reward log does not duplicate rewards', async ({ page }) => {
+  await startSoloRun(page);
+  const playback = await beginPendingOutcomePlayback(page, 'milestoneVictory', 5);
+  expect(playback.pendingOutcome).toEqual({
+    kind: 'milestoneVictory',
+    floor: 5,
+    rewardsApplied: false,
+  });
+
+  await expect.poll(() => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return state.combatState?.pendingOutcome?.rewardsApplied;
+  })).toBe(true);
 
   await page.reload();
   const resumed = await page.evaluate(async () => {

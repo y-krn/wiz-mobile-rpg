@@ -9,6 +9,7 @@ import { updateUI } from "../ui.js";
 import { resetSubmenuBackButton } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
 import { setupChestState } from "../chest.js";
+import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;
@@ -111,6 +112,15 @@ export function resumeCombat() {
 
   const pendingOutcome = state.combatState.pendingOutcome ?? null;
   if (pendingOutcome) {
+    if (pendingOutcome.rewardsApplied === false) {
+      applyPendingOutcomeRewards(state, pendingOutcome).forEach(addLog);
+      state.combatState.pendingOutcome = {
+        ...pendingOutcome,
+        rewardsApplied: true
+      };
+      saveAutosave();
+    }
+
     if (
       ["runEscape", "escapeToTown", "fleeCombat"].includes(pendingOutcome.kind)
       && state.party.every(char => char.status === "dead")
