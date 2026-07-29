@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { applySavePayload, createSavePayload } from "../src/state/save_payload.js";
 import { SAVE_VERSION, migrateSavePayload } from "../src/state/save_migrations.js";
 import { SOLO_CLASSES, createDefaultCurrentRun, createSoloCharacter, state } from "../src/state.js";
-import { menuContext } from "../src/navigation.js";
+import { menuContext, openGuardedSubmenu } from "../src/navigation.js";
 import { EVENT_TYPES } from "../src/data.js";
 import { applyFloorTransitionHeal, checkCellEvents } from "../src/movement.js";
 
@@ -148,6 +148,28 @@ check("floor transition applies provisional 15 percent solo heal", () => {
   assert.equal(healed, 3);
   assert.equal(state.party[0].hp, 13);
   assert.match(state.logs.at(-1), /HPが3回復/);
+});
+
+check("下り階段サブメニュー中のセーブはexploreに畳まれる", () => {
+  const originalDocument = global.document;
+  global.document = {
+    getElementById: () => ({ style: {}, textContent: "", className: "", innerHTML: "" })
+  };
+  try {
+    state.party = [createSoloCharacter("Fighter")];
+    state.floor = 3;
+    state.gameState = "explore";
+    state.currentRun = createDefaultCurrentRun();
+    openGuardedSubmenu("stairs_down", "B4Fへの下り階段");
+    assert.equal(state.gameState, "submenu");
+    assert.equal(menuContext.type, "stairs_down");
+    const payload = createSavePayload();
+    assert.equal(payload.gameState, "explore");
+    applySavePayload(payload);
+    assert.equal(state.gameState, "explore");
+  } finally {
+    global.document = originalDocument;
+  }
 });
 
 if (failures > 0) {

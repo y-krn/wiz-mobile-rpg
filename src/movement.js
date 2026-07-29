@@ -4,7 +4,7 @@ import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
 import { showFloorEntryStinger, updateUI } from "./ui.js";
-import { getFloorTheme, revealFloor } from "./data/floor_themes.js";
+import { getFloorLabel, getFloorTheme, revealFloor } from "./data/floor_themes.js";
 import { ensureRunFloor, resetRunFloors } from "./state/run_floor_state.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
@@ -444,14 +444,14 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     return;
   }
 
-  // Stairs Down (go to next floor)
+  // Stairs Down (ask before descending so corridors stay walkable)
   if (cell.type === "stairs-down") {
     if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
       addLog("節目ボスを倒すまで下り階段は封じられている。");
       playSound("bump");
       return;
     }
-    descendToFloor(state.floor + 1);
+    openGuardedSubmenu("stairs_down", `${getFloorLabel(state, state.floor + 1)}への下り階段`);
     return;
   }
 
