@@ -2145,6 +2145,66 @@ for (const vp of VIEWPORTS) {
       expect(merchantResult).toEqual({ gameState: 'submenu', event: 'event_merchant' });
     });
 
+    test('Down stairs ask before descending and can be skipped', async ({ page }) => {
+      const before = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { createDefaultCurrentRun } = await import('/src/state.js');
+        const { checkCellEvents } = await import('/src/movement.js');
+        const { updateUI } = await import('/src/ui.js');
+        state.gameState = 'explore';
+        state.floor = 2;
+        state.currentRun = createDefaultCurrentRun();
+        const cell = state.map[state.y][state.x];
+        cell.type = 'stairs-down';
+        cell.event = null;
+        cell.message = null;
+        checkCellEvents();
+        updateUI();
+        return { gameState: state.gameState, floor: state.floor, x: state.x, y: state.y };
+      });
+      expect(before).toMatchObject({ gameState: 'submenu', floor: 2 });
+
+      await expect(page.getByRole('button', { name: '降りずに進む' })).toBeVisible();
+      const stairsLayout = await page.evaluate(() => ({
+        buttons: Array.from(document.querySelectorAll('#submenu-options button'))
+          .map((button) => button.getBoundingClientRect().toJSON()),
+        hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      }));
+      expect(stairsLayout.hasHorizontalOverflow).toBe(false);
+      expect(stairsLayout.buttons).toHaveLength(2);
+      for (const button of stairsLayout.buttons) {
+        expect(button.height).toBeGreaterThanOrEqual(44);
+      }
+      await page.waitForTimeout(400);
+      await page.getByRole('button', { name: '降りずに進む' }).click();
+
+      const afterStay = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return { gameState: state.gameState, floor: state.floor, x: state.x, y: state.y };
+      });
+      expect(afterStay).toMatchObject({ gameState: 'explore', floor: 2, x: before.x, y: before.y });
+
+      await page.evaluate(async () => {
+        const { checkCellEvents } = await import('/src/movement.js');
+        const { updateUI } = await import('/src/ui.js');
+        checkCellEvents();
+        updateUI();
+      });
+      await page.waitForTimeout(400);
+      await page.getByRole('button', { name: /へ降りる$/ }).click();
+      await expect.poll(async () => page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return state.floor;
+      })).toBe(3);
+
+      const afterDescend = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return { gameState: state.gameState, floor: state.floor };
+      });
+      expect(afterDescend.floor).toBe(3);
+      expect(afterDescend.gameState).toBe('explore');
+    });
+
     test('Movement-triggered event and trap panels ignore immediate taps', async ({ page }) => {
       const result = await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
