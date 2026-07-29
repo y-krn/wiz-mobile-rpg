@@ -57,11 +57,35 @@ smallest deterministic scratch check that exercises the changed values.
 - Prefer deterministic seed checks over anecdotal play results.
 - Flag balance changes hidden inside UI or unrelated logic diffs.
 
+## Simulation Validity
+
+Before trusting a `scratch/sim_*.js` result, confirm the simulation reproduces a
+real run. Each item below has already produced a wrong conclusion at least once.
+
+- A simulation that measures depth, EV, or progression pace must drive floors
+  through `generateRunFloor` (`src/run_map_generator.js`). A hand-rolled floor
+  loop diverges silently at depth. Narrow formula checks that never place a
+  floor are exempt.
+- Player-side mitigations must be modeled before any depth conclusion:
+  `TOWN_PORTAL` retreat and status-cure consumables. Omitting them measures a
+  self-imposed restriction, and can invert the sign of a depth EV result rather
+  than just its magnitude.
+- Equipment scoring must count `CORE_AFFIXES` (`src/data/affixes.js`), not only
+  support affixes. Ignoring cores understates build completion.
+- Rewards and level-ups must be reached through round resolution. Calling
+  `applyCombatRewards` or `checkCharLevelUp` directly double counts;
+  `scratch/test_sim_reward_paths.js` enforces this.
+- State which mitigations the simulation models and which it omits in the
+  written summary, so a later reader can tell the measured scenario from the
+  real one.
+
 ## Required Verification
 
 - `npm run test:unit`
 - Deterministic scratch simulation when changing enemy, reward, map, drop, or
   progression values.
+- `node scratch/test_sim_reward_paths.js` when adding or changing a
+  `scratch/sim_*.js` file.
 - Short written summary of expected player impact.
 
 ## Must Not Do
@@ -70,6 +94,12 @@ smallest deterministic scratch check that exercises the changed values.
 - Do not request complex simulation infrastructure unless a simple scratch check
   cannot answer the question.
 - Do not optimize for perfect balance before the core rule is stable.
+- Do not fix a threshold from an override-based what-if run. Overrides shift
+  random consumption order, so the number does not survive the equivalent change
+  in `src/`; re-measure against the real source change before settling on a
+  value.
+- Do not carry forward a prior simulation conclusion without checking which
+  mitigations that run modeled.
 
 ## Output
 
