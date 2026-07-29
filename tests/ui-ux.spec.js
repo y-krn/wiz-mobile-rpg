@@ -558,6 +558,71 @@ test('Chest opened immediately after entering the dungeon does not draw the town
   expect(result.gameStateAfterClose).toBe('explore');
 });
 
+test('Combat autosave resumes action selection without persisting resolving phase', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.locator('#btn-town-dungeon').click();
+  await page.getByRole('button', { name: /戦士/ }).click();
+  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  await expect(page.locator('#explore-controls')).toBeVisible();
+
+  const beforeReload = await page.evaluate(async () => {
+    const { startCombat } = await import('/src/combat.js');
+    const { state } = await import('/src/state.js');
+    startCombat(false, false);
+    const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
+    return {
+      live: {
+        gameState: state.gameState,
+        phase: state.combatState.phase,
+        monsters: state.combatState.monsters.map(({ name, hp }) => ({ name, hp })),
+      },
+      saved: {
+        gameState: saved.gameState,
+        phase: saved.combatState.phase,
+        monsters: saved.combatState.monsters.map(({ name, hp }) => ({ name, hp })),
+      },
+    };
+  });
+
+  expect(beforeReload.live.gameState).toBe('combat');
+  expect(beforeReload.live.phase).toBe('choose_actions');
+  expect(beforeReload.saved).toEqual(beforeReload.live);
+
+  await page.reload();
+
+  const resumed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      phase: state.combatState?.phase,
+      monsters: state.combatState?.monsters.map(({ name, hp }) => ({ name, hp })),
+      logCount: state.logs.length,
+    };
+  });
+  expect(resumed.gameState).toBe('combat');
+  expect(resumed.phase).toBe('choose_actions');
+  expect(resumed.monsters).toEqual(beforeReload.live.monsters);
+  await expect(page.locator('#combat-controls')).toHaveClass(/active/);
+
+  await page.locator('#btn-combat-fight').click();
+  await expect(page.locator('#combat-overlay')).toBeVisible();
+  await page.locator('#combat-overlay .combat-target-card.enemy:not(.dead)').first().click();
+
+  const duringResolution = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
+    return {
+      livePhase: state.combatState?.phase,
+      savedPhase: saved.combatState?.phase,
+      logCount: state.logs.length,
+    };
+  });
+  expect(duringResolution.livePhase).toBe('resolving');
+  expect(duringResolution.savedPhase).toBe('choose_actions');
+  expect(duringResolution.logCount).toBeGreaterThan(resumed.logCount);
+});
+
 for (const vp of VIEWPORTS) {
   test(`Combat, chest, and event canvases hide the mini-map at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });

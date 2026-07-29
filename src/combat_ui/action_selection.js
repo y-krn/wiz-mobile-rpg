@@ -1,4 +1,4 @@
-import { state, addLog } from "../state.js";
+import { state, addLog, saveAutosave } from "../state.js";
 import { SPELLS, ITEMS, getSpellPayment } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
@@ -49,6 +49,7 @@ export function advanceActionSelection() {
     // All characters chose actions! Run turn resolution.
     resolveCombatRound();
   } else {
+    saveAutosave();
     updateUI();
   }
 }
