@@ -17,8 +17,26 @@ function cleanupCombatState() {
   });
 }
 
+function clearPendingOutcome() {
+  if (state.combatState) {
+    state.combatState.pendingOutcome = null;
+  }
+}
+
+function savePendingOutcomeCheckpoint() {
+  const livePhase = state.combatState?.phase;
+  if (state.combatState) {
+    state.combatState.phase = "choose_actions";
+  }
+  saveAutosave();
+  if (state.combatState) {
+    state.combatState.phase = livePhase;
+  }
+}
+
 export function playBattleLogs(queue, index) {
   if (index >= queue.length) {
+    state.transitioning = false;
     checkCombatStatus();
     return;
   }
@@ -40,9 +58,11 @@ export function playBattleLogs(queue, index) {
       const allPartyDead = state.party.every(c => c.status === "dead");
       if (allPartyDead) {
         state.transitioning = false;
+        clearPendingOutcome();
         triggerGameOver();
       } else {
         state.gameState = "explore";
+        clearPendingOutcome();
         cleanupCombatState();
         resetSubmenuBackButton();
         state.transitioning = false;
@@ -59,8 +79,10 @@ export function playBattleLogs(queue, index) {
       const allPartyDead = state.party.every(c => c.status === "dead");
       if (allPartyDead) {
         state.transitioning = false;
+        clearPendingOutcome();
         triggerGameOver();
       } else {
+        clearPendingOutcome();
         cleanupCombatState();
         resetSubmenuBackButton();
         state.transitioning = false;
@@ -76,6 +98,7 @@ export function playBattleLogs(queue, index) {
       const allPartyDead = state.party.every(c => c.status === "dead");
       if (allPartyDead) {
         state.transitioning = false;
+        clearPendingOutcome();
         triggerGameOver();
       } else {
         if (state.combatState && state.combatState.isRoamingFlack) {
@@ -83,6 +106,7 @@ export function playBattleLogs(queue, index) {
           state.y = state.prevY;
         }
         state.gameState = "explore";
+        clearPendingOutcome();
         cleanupCombatState();
         resetSubmenuBackButton();
         state.transitioning = false;
@@ -101,9 +125,11 @@ export function playBattleLogs(queue, index) {
     }
     recordMilestoneVictory(state, log.milestoneVictory);
     addLog(`B${log.milestoneVictory}F開始を恒久アンロックした。`);
+    savePendingOutcomeCheckpoint();
 
     setTimeout(() => {
       state.gameState = "explore";
+      clearPendingOutcome();
       cleanupCombatState();
       resetSubmenuBackButton();
       state.transitioning = false;
@@ -151,9 +177,11 @@ export function playBattleLogs(queue, index) {
     }
     
     addLog("迷宮の守護者を撃破した！お宝: [未鑑定のレア装備] と [黒角 x2] を手に入れた！");
+    savePendingOutcomeCheckpoint();
 
     setTimeout(() => {
       state.gameState = "explore";
+      clearPendingOutcome();
       cleanupCombatState();
       resetSubmenuBackButton();
       state.transitioning = false;
@@ -167,6 +195,7 @@ export function playBattleLogs(queue, index) {
     state.transitioning = true;
     setTimeout(() => {
       state.gameState = "chest";
+      clearPendingOutcome();
       cleanupCombatState();
       state.transitioning = false;
       setupChestState(null, null, null, null, { fromDrop: true });
@@ -179,6 +208,7 @@ export function playBattleLogs(queue, index) {
     state.transitioning = true;
     setTimeout(() => {
       state.gameState = "explore";
+      clearPendingOutcome();
       cleanupCombatState();
       resetSubmenuBackButton();
       state.transitioning = false;
