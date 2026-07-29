@@ -14,6 +14,88 @@ const SOLO_HUD_VIEWPORTS = [
 
 const SOLO_HUD_STATES = ['town', 'explore', 'combat', 'submenu'];
 
+async function startSoloRun(page) {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.locator('#btn-town-dungeon').click();
+  await page.getByRole('button', { name: /戦士/ }).click();
+  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  await expect(page.locator('#explore-controls')).toBeVisible();
+}
+
+async function beginPendingOutcomePlayback(page, kind, floor = 1) {
+  await page.addInitScript(() => {
+    Math.random = () => 0.99;
+  });
+  return page.evaluate(async ({ outcomeKind, outcomeFloor }) => {
+    const { state, saveAutosave } = await import('/src/state.js');
+    const { playBattleLogs } = await import('/src/combat.js');
+
+    if (outcomeKind === 'milestoneVictory' && !state.maps[outcomeFloor - 1]) {
+      state.maps[outcomeFloor - 1] = structuredClone(state.maps[0]);
+    }
+    state.floor = outcomeFloor;
+    state.gameState = 'combat';
+    state.transitioning = false;
+    state.combatState = {
+      monsters: [{ name: '検証用モンスター', hp: 0, maxHp: 1 }],
+      phase: 'choose_actions',
+      isBoss: outcomeKind === 'milestoneVictory',
+      isMidboss: outcomeKind === 'giveKey',
+      isRoamingFlack: false,
+      isAuto: false,
+      pendingOutcome: outcomeKind === 'milestoneVictory'
+        ? { kind: outcomeKind, floor: outcomeFloor, rewardsApplied: false }
+        : {
+            kind: outcomeKind,
+            ...(outcomeKind === 'giveKey' ? { rewardsApplied: false } : {}),
+          },
+    };
+    state.party[0].buffs = [];
+
+    if (outcomeKind === 'giveKey') {
+      state.inventory = state.inventory.filter(item => (
+        (typeof item === 'object' ? item.baseId : item) !== 'DRAGON_KEY'
+        && typeof item !== 'object'
+      ));
+      state.currentRun.itemsFound = state.currentRun.itemsFound.filter(item => item !== 'DRAGON_KEY');
+      state.currentRun.equipmentFound = [];
+      state.currentRun.materials['黒角'] = 0;
+      state.map[state.y][state.x].event = 'midboss';
+    } else if (outcomeKind === 'milestoneVictory') {
+      state.currentRun.defeatedMilestones = [];
+      state.unlockedMilestones = [];
+      state.map[state.y][state.x].event = 'boss';
+    }
+
+    saveAutosave();
+    const log = { msg: `検証: ${outcomeKind}` };
+    if (outcomeKind === 'milestoneVictory') {
+      log.milestoneVictory = outcomeFloor;
+    } else {
+      log[outcomeKind] = true;
+    }
+    const queue = ['giveKey', 'milestoneVictory'].includes(outcomeKind)
+      ? [
+          { msg: '検証: 先行攻撃ログ' },
+          { msg: '検証: 撃破ログ' },
+          { msg: '検証: 経験値ログ' },
+          log,
+        ]
+      : [log];
+    Math.random = () => 0.99;
+    playBattleLogs(queue, 0);
+
+    return {
+      transitioning: state.transitioning,
+      pendingOutcome: state.combatState?.pendingOutcome,
+      savedPhase: JSON.parse(
+        localStorage.getItem('mobile_wiz_rpg_autosave')
+      ).combatState.phase,
+    };
+  }, { outcomeKind: kind, outcomeFloor: floor });
+}
+
 test('Debug reset clears all progression and persists the initial state', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/');
@@ -621,6 +703,411 @@ test('Combat autosave resumes action selection without persisting resolving phas
   expect(duringResolution.livePhase).toBe('resolving');
   expect(duringResolution.savedPhase).toBe('choose_actions');
   expect(duringResolution.logCount).toBeGreaterThan(resumed.logCount);
+});
+
+test('Round resolution autosave preserves resolved party and monster HP on reload', async ({ page }) => {
+  await startSoloRun(page);
+
+  const resolved = await page.evaluate(async () => {
+    const { startCombat, resolveCombatRound, combatSelection } = await import('/src/combat.js');
+    const { state } = await import('/src/state.js');
+    startCombat(false, false);
+    state.combatState.monsters = [state.combatState.monsters[0]];
+    Object.assign(state.combatState.monsters[0], {
+      hp: 50,
+      maxHp: 50,
+      str: 1,
+      status: 'poisoned',
+      traits: [],
+    });
+    Object.assign(state.party[0], {
+      hp: state.party[0].maxHp,
+      status: 'poisoned',
+    });
+    const before = {
+      partyHp: state.party[0].hp,
+      monsterHp: state.combatState.monsters[0].hp,
+    };
+    combatSelection.charIdx = 1;
+    combatSelection.actions = [{ type: 'defend', actorIdx: 0 }];
+    Math.random = () => 0.99;
+    resolveCombatRound();
+    const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
+    return {
+      before,
+      live: {
+        partyHp: state.party[0].hp,
+        monsterHp: state.combatState.monsters[0].hp,
+        phase: state.combatState.phase,
+        pendingOutcome: state.combatState.pendingOutcome,
+      },
+      saved: {
+        partyHp: saved.party[0].hp,
+        monsterHp: saved.combatState.monsters[0].hp,
+        phase: saved.combatState.phase,
+        pendingOutcome: saved.combatState.pendingOutcome,
+      },
+    };
+  });
+
+  expect(resolved.live.partyHp).toBeLessThan(resolved.before.partyHp);
+  expect(resolved.live.monsterHp).toBeLessThan(resolved.before.monsterHp);
+  expect(resolved.saved.partyHp).toBe(resolved.live.partyHp);
+  expect(resolved.saved.monsterHp).toBe(resolved.live.monsterHp);
+  expect(resolved.saved.pendingOutcome).toBe(resolved.live.pendingOutcome);
+  expect(resolved.live.phase).toBe('resolving');
+  expect(resolved.saved.phase).toBe('choose_actions');
+  expect(resolved.saved.pendingOutcome).toBeNull();
+
+  await page.reload();
+  const resumed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      partyHp: state.party[0].hp,
+      monsterHp: state.combatState?.monsters[0].hp,
+      phase: state.combatState?.phase,
+    };
+  });
+  expect(resumed).toEqual({
+    gameState: 'combat',
+    partyHp: resolved.live.partyHp,
+    monsterHp: resolved.live.monsterHp,
+    phase: 'choose_actions',
+  });
+});
+
+test('Victory outcome resumes once with EXP and materials preserved', async ({ page }) => {
+  await startSoloRun(page);
+
+  const before = await page.evaluate(async () => {
+    const { startCombat, resolveCombatRound, combatSelection } = await import('/src/combat.js');
+    const { state } = await import('/src/state.js');
+    startCombat(false, false);
+    state.combatState.monsters = [state.combatState.monsters[0]];
+    Object.assign(state.combatState.monsters[0], {
+      hp: 1,
+      maxHp: 1,
+      exp: 37,
+      isRare: true,
+      traits: [],
+    });
+    Object.assign(state.party[0], {
+      str: 999,
+      agi: 999,
+      status: 'ok',
+    });
+    const baseline = {
+      exp: state.party[0].exp,
+      blackHorn: state.currentRun.materials['黒角'] || 0,
+      kills: state.currentRun.kills,
+    };
+    combatSelection.charIdx = 1;
+    combatSelection.actions = [{ type: 'fight', actorIdx: 0, targetIdx: 0 }];
+    Math.random = () => 0.99;
+    resolveCombatRound();
+    return baseline;
+  });
+
+  await expect.poll(
+    () => page.evaluate(async () => (await import('/src/state.js')).state.transitioning),
+    { timeout: 15000 }
+  ).toBe(true);
+
+  const awarded = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
+    return {
+      live: {
+        exp: state.party[0].exp,
+        blackHorn: state.currentRun.materials['黒角'] || 0,
+        kills: state.currentRun.kills,
+        pendingOutcome: state.combatState.pendingOutcome,
+      },
+      saved: {
+        exp: saved.party[0].exp,
+        blackHorn: saved.currentRun.materials['黒角'] || 0,
+        kills: saved.currentRun.kills,
+        pendingOutcome: saved.combatState.pendingOutcome,
+        phase: saved.combatState.phase,
+      },
+    };
+  });
+  expect(awarded.live.exp).toBeGreaterThan(before.exp);
+  expect(awarded.live.blackHorn).toBe(before.blackHorn + 1);
+  expect(awarded.live.kills).toBe(before.kills + 1);
+  expect(awarded.saved).toEqual({ ...awarded.live, phase: 'choose_actions' });
+  expect(awarded.saved.pendingOutcome).toEqual({ kind: 'endCombat' });
+
+  await page.reload();
+  const resumed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      combatState: state.combatState,
+      exp: state.party[0].exp,
+      blackHorn: state.currentRun.materials['黒角'] || 0,
+      kills: state.currentRun.kills,
+    };
+  });
+  expect(resumed).toEqual({
+    gameState: 'explore',
+    combatState: null,
+    exp: awarded.live.exp,
+    blackHorn: awarded.live.blackHorn,
+    kills: awarded.live.kills,
+  });
+});
+
+test('giveKey outcome reload before reward log applies missing rewards once', async ({ page }) => {
+  await startSoloRun(page);
+  const playback = await beginPendingOutcomePlayback(page, 'giveKey');
+  expect(playback.transitioning).toBe(false);
+  expect(playback.pendingOutcome).toEqual({ kind: 'giveKey', rewardsApplied: false });
+  expect(playback.savedPhase).toBe('choose_actions');
+
+  await page.reload();
+  const resumed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      combatState: state.combatState,
+      keyCount: state.inventory.filter(item => (
+        (typeof item === 'object' ? item.baseId : item) === 'DRAGON_KEY'
+      )).length,
+      rareEquipmentCount: state.inventory.filter(item => (
+        typeof item === 'object' && item.kind === 'equipment' && item.rarity === 'rare'
+      )).length,
+      runEquipmentCount: state.currentRun.equipmentFound.length,
+      blackHorn: state.currentRun.materials['黒角'] || 0,
+      keyFoundCount: state.currentRun.itemsFound.filter(item => item === 'DRAGON_KEY').length,
+      cellEvent: state.map[state.y][state.x].event,
+    };
+  });
+  expect(resumed).toEqual({
+    gameState: 'explore',
+    combatState: null,
+    keyCount: 1,
+    rareEquipmentCount: 1,
+    runEquipmentCount: 1,
+    blackHorn: 2,
+    keyFoundCount: 1,
+    cellEvent: null,
+  });
+});
+
+test('giveKey outcome reload after reward log does not duplicate rewards', async ({ page }) => {
+  await startSoloRun(page);
+  const playback = await beginPendingOutcomePlayback(page, 'giveKey');
+  expect(playback.pendingOutcome).toEqual({ kind: 'giveKey', rewardsApplied: false });
+
+  await expect.poll(() => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return state.combatState?.pendingOutcome?.rewardsApplied;
+  })).toBe(true);
+
+  await page.reload();
+  const resumed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      combatState: state.combatState,
+      keyCount: state.inventory.filter(item => (
+        (typeof item === 'object' ? item.baseId : item) === 'DRAGON_KEY'
+      )).length,
+      rareEquipmentCount: state.inventory.filter(item => (
+        typeof item === 'object' && item.kind === 'equipment' && item.rarity === 'rare'
+      )).length,
+      runEquipmentCount: state.currentRun.equipmentFound.length,
+      blackHorn: state.currentRun.materials['黒角'] || 0,
+      keyFoundCount: state.currentRun.itemsFound.filter(item => item === 'DRAGON_KEY').length,
+      cellEvent: state.map[state.y][state.x].event,
+    };
+  });
+  expect(resumed).toEqual({
+    gameState: 'explore',
+    combatState: null,
+    keyCount: 1,
+    rareEquipmentCount: 1,
+    runEquipmentCount: 1,
+    blackHorn: 2,
+    keyFoundCount: 1,
+    cellEvent: null,
+  });
+});
+
+test('milestoneVictory outcome reload before reward log applies missing rewards once', async ({ page }) => {
+  await startSoloRun(page);
+  const playback = await beginPendingOutcomePlayback(page, 'milestoneVictory', 5);
+  expect(playback.transitioning).toBe(false);
+  expect(playback.pendingOutcome).toEqual({
+    kind: 'milestoneVictory',
+    floor: 5,
+    rewardsApplied: false,
+  });
+  expect(playback.savedPhase).toBe('choose_actions');
+
+  await page.reload();
+  const resumed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      combatState: state.combatState,
+      defeatedMilestones: state.currentRun.defeatedMilestones,
+      unlockedMilestones: state.unlockedMilestones,
+      cellEvent: state.map[state.y][state.x].event,
+    };
+  });
+  expect(resumed).toEqual({
+    gameState: 'explore',
+    combatState: null,
+    defeatedMilestones: [5],
+    unlockedMilestones: [5],
+    cellEvent: null,
+  });
+});
+
+test('milestoneVictory outcome reload after reward log does not duplicate rewards', async ({ page }) => {
+  await startSoloRun(page);
+  const playback = await beginPendingOutcomePlayback(page, 'milestoneVictory', 5);
+  expect(playback.pendingOutcome).toEqual({
+    kind: 'milestoneVictory',
+    floor: 5,
+    rewardsApplied: false,
+  });
+
+  await expect.poll(() => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return state.combatState?.pendingOutcome?.rewardsApplied;
+  })).toBe(true);
+
+  await page.reload();
+  const resumed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      combatState: state.combatState,
+      defeatedMilestones: state.currentRun.defeatedMilestones,
+      unlockedMilestones: state.unlockedMilestones,
+      cellEvent: state.map[state.y][state.x].event,
+    };
+  });
+  expect(resumed).toEqual({
+    gameState: 'explore',
+    combatState: null,
+    defeatedMilestones: [5],
+    unlockedMilestones: [5],
+    cellEvent: null,
+  });
+});
+
+test('triggerChest outcome reload enters the dropped chest screen', async ({ page }) => {
+  await startSoloRun(page);
+  const playback = await beginPendingOutcomePlayback(page, 'triggerChest');
+  expect(playback.transitioning).toBe(true);
+  expect(playback.pendingOutcome).toEqual({ kind: 'triggerChest' });
+
+  await page.reload();
+  const resumed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      combatState: state.combatState,
+      fromDrop: state.chestState?.fromDrop,
+    };
+  });
+  expect(resumed).toEqual({
+    gameState: 'submenu',
+    combatState: null,
+    fromDrop: true,
+  });
+  await expect(page.locator('#submenu-title')).toHaveText('宝箱の調査・解除');
+});
+
+test('Defeat during battle log playback reloads into game over', async ({ page }) => {
+  await startSoloRun(page);
+  const playback = await page.evaluate(async () => {
+    const { state, saveAutosave } = await import('/src/state.js');
+    const { startCombat, resolveCombatRound, combatSelection } = await import('/src/combat.js');
+    startCombat(false, false);
+    state.combatState.monsters = [state.combatState.monsters[0]];
+    Object.assign(state.combatState.monsters[0], {
+      hp: 100,
+      maxHp: 100,
+      str: 999,
+      traits: [],
+    });
+    Object.assign(state.party[0], {
+      hp: 1,
+      agi: -999,
+      status: 'ok',
+    });
+    combatSelection.charIdx = 1;
+    combatSelection.actions = [{ type: 'defend', actorIdx: 0 }];
+    saveAutosave();
+    Math.random = () => 0.99;
+    resolveCombatRound();
+    const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
+    return {
+      gameState: state.gameState,
+      status: state.party[0].status,
+      savedStatus: saved.party[0].status,
+      savedPhase: saved.combatState.phase,
+    };
+  });
+  expect(playback).toEqual({
+    gameState: 'combat',
+    status: 'dead',
+    savedStatus: 'dead',
+    savedPhase: 'choose_actions',
+  });
+
+  await page.reload();
+  const resumed = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      combatState: state.combatState,
+      status: state.party[0].status,
+      returnReason: state.currentRun.returnReason,
+    };
+  });
+  expect(resumed).toEqual({
+    gameState: 'result',
+    combatState: null,
+    status: 'dead',
+    returnReason: 'gameover',
+  });
+});
+
+test('visibilitychange hidden saves only when no transition is active', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'hidden',
+    });
+
+    state.transitioning = false;
+    state.x += 1;
+    const savedX = state.x;
+    document.dispatchEvent(new Event('visibilitychange'));
+    const savedAfterVisibleFlow = JSON.parse(
+      localStorage.getItem('mobile_wiz_rpg_autosave')
+    ).x;
+
+    state.transitioning = true;
+    state.x += 1;
+    document.dispatchEvent(new Event('visibilitychange'));
+    const savedDuringTransition = JSON.parse(
+      localStorage.getItem('mobile_wiz_rpg_autosave')
+    ).x;
+
+    return { savedX, savedAfterVisibleFlow, savedDuringTransition };
+  });
+  expect(result.savedAfterVisibleFlow).toBe(result.savedX);
+  expect(result.savedDuringTransition).toBe(result.savedX);
 });
 
 for (const vp of VIEWPORTS) {

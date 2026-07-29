@@ -6,6 +6,10 @@ import { advanceActionSelection } from "./action_selection.js";
 import { triggerGameOver } from "./game_over.js";
 import { getCharCoreParams, getCoreLogText, getEquippedCurseCount } from "../data.js";
 import { updateUI } from "../ui.js";
+import { resetSubmenuBackButton } from "../navigation.js";
+import { triggerRunResult } from "../result.js";
+import { setupChestState } from "../chest.js";
+import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;
@@ -64,7 +68,8 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     allParalyzedTurns: 0,
     roundNumber: 1,
     retreatPosition: getRetreatPosition(),
-    loggedCoreActivations: []
+    loggedCoreActivations: [],
+    pendingOutcome: null
   };
   state.chestState = null;
 
@@ -104,6 +109,67 @@ export function resumeCombat() {
   state.combatState.phase = "choose_actions";
   combatSelection.charIdx = 0;
   combatSelection.actions = [];
+
+  const pendingOutcome = state.combatState.pendingOutcome ?? null;
+  if (pendingOutcome) {
+    if (pendingOutcome.rewardsApplied === false) {
+      applyPendingOutcomeRewards(state, pendingOutcome).forEach(addLog);
+      state.combatState.pendingOutcome = {
+        ...pendingOutcome,
+        rewardsApplied: true
+      };
+      saveAutosave();
+    }
+
+    if (
+      ["runEscape", "escapeToTown", "fleeCombat"].includes(pendingOutcome.kind)
+      && state.party.every(char => char.status === "dead")
+    ) {
+      state.combatState.pendingOutcome = null;
+      triggerGameOver();
+      return;
+    }
+
+    if (pendingOutcome.kind === "fleeCombat" && state.combatState.isRoamingFlack) {
+      state.x = state.prevX;
+      state.y = state.prevY;
+    }
+
+    if (pendingOutcome.kind === "escapeToTown") {
+      state.combatState.pendingOutcome = null;
+      state.combatState = null;
+      state.party.forEach(char => {
+        delete char.buffs;
+      });
+      resetSubmenuBackButton();
+      triggerRunResult("escape_scroll");
+      return;
+    }
+
+    if (pendingOutcome.kind === "triggerChest") {
+      state.gameState = "chest";
+      state.combatState.pendingOutcome = null;
+      state.combatState = null;
+      state.party.forEach(char => {
+        delete char.buffs;
+      });
+      setupChestState(null, null, null, null, { fromDrop: true });
+      saveAutosave();
+      updateUI();
+      return;
+    }
+
+    state.gameState = "explore";
+    state.combatState.pendingOutcome = null;
+    state.combatState = null;
+    state.party.forEach(char => {
+      delete char.buffs;
+    });
+    resetSubmenuBackButton();
+    saveAutosave();
+    updateUI();
+    return;
+  }
 
   if (state.party.every(char => char.status === "dead")) {
     triggerGameOver();

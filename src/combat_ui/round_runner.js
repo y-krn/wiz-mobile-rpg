@@ -1,7 +1,26 @@
-import { state } from "../state.js";
+import { state, saveAutosave } from "../state.js";
 import { runCombatRoundCalculation } from "../combat_logic.js";
 import { combatSelection } from "./combat_state.js";
 import { playBattleLogs } from "./battle_log_player.js";
+
+function resolvePendingOutcome(logQueue) {
+  for (const log of logQueue) {
+    if (log.runEscape) return { kind: "runEscape" };
+    if (log.escapeToTown) return { kind: "escapeToTown" };
+    if (log.fleeCombat) return { kind: "fleeCombat" };
+    if (log.milestoneVictory) {
+      return {
+        kind: "milestoneVictory",
+        floor: log.milestoneVictory,
+        rewardsApplied: false
+      };
+    }
+    if (log.giveKey) return { kind: "giveKey", rewardsApplied: false };
+    if (log.triggerChest) return { kind: "triggerChest" };
+    if (log.endCombat) return { kind: "endCombat" };
+  }
+  return null;
+}
 
 export function resolveCombatRound() {
   state.gameState = "combat";
@@ -27,6 +46,12 @@ export function resolveCombatRound() {
   state.mapRevision = nextState.mapRevision;
   state.x = nextState.x;
   state.y = nextState.y;
-  
+
+  state.combatState.phase = "choose_actions";
+  state.combatState.pendingOutcome = resolvePendingOutcome(logQueue);
+  saveAutosave();
+
+  state.combatState.phase = "resolving";
+  state.transitioning = true;
   playBattleLogs(logQueue, 0);
 }

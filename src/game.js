@@ -1,4 +1,4 @@
-import { loadGame, state } from "./state.js";
+import { loadGame, saveAutosave, state } from "./state.js";
 import { initErrorContext } from "./error_context.js";
 import { addGameBreadcrumb } from "./sentry.js";
 import { DungeonRenderer, setDungeonRenderer } from "./renderer.js";
@@ -28,6 +28,11 @@ export function initGame() {
   setUiUpdateCallback(updateUI);
   lockViewportScale();
   loadGame();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && state.transitioning === false) {
+      saveAutosave();
+    }
+  });
 
   // エラー発生時にゲーム状態をSentryへ添付できるよう登録（stateはロード済み）
   initErrorContext(state);
