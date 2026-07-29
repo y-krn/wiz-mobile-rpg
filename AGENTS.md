@@ -80,11 +80,16 @@ first, then read only the relevant part.
   region directly and skip the search step.
 - Read files in ranges. Prefer partial reads (offset/limit, `head`, `tail`,
   targeted `grep -n`) over reading whole large files.
-- Delegate broad searches to a search-only sub-agent when the work fans out
-  across many files or directories, or when the volume read greatly exceeds the
-  answer returned. Take back the conclusion, not the raw file dumps.
+- Default to doing the work yourself. Delegate to a sub-agent only when the user
+  asks for it, or when the task is both large and independent — a search that
+  fans out across many files or directories and whose volume read greatly
+  exceeds the answer returned. A task that is merely multi-part or thorough is
+  not a reason to delegate.
 - Do not delegate narrow, context-dependent lookups (one function, a few known
   files); a direct `grep`/ranged read is cheaper than a cold-start sub-agent.
+- When you do delegate, take back the conclusion, not the raw file dumps.
+- If the active tool's own instructions restrict sub-agent use further, follow
+  the stricter rule.
 - For large command output or logs, prefer the context-mode skill
   (`ctx_execute` / `ctx_execute_file`) so full stdout is summarized outside the
   main context instead of being loaded in full. It is installed cross-agent
