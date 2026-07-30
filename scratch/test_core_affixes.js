@@ -21,7 +21,12 @@ import {
   MATERIAL_TAGS
 } from "../src/data.js";
 import { applyCurseSeal, getDismantleResults, getPolishCost, polishSupportAffix } from "../src/craft.js";
-import { getCharStr, getCharInt, getCharWeaponAtk } from "../src/rules/character_stats.js";
+import {
+  getCharDef,
+  getCharInt,
+  getCharStr,
+  getCharWeaponAtk
+} from "../src/rules/character_stats.js";
 import {
   applyKillAffixEffects,
   getMeleeModifiers,
@@ -134,6 +139,42 @@ test("刻印19種: 素材cost・サポートtype・素材割当が整合", () =>
       assert.equal(definition?.enabled, true, `${tag}: enabled`);
     }
   });
+});
+
+test("atk/def supportと刻印を装備値へ各1回だけ反映", () => {
+  const char = makeChar(null);
+  char.runTrapAttackBonus = 2;
+  char.equipment.weapon = {
+    ...supportItem("atk", 4, "SHORT_SWORD"),
+    curseEffectId: "curse_blood_thirst",
+    cursePower: 1,
+    inscription: { name: "火印", type: "atk", value: 3 }
+  };
+  char.equipment.armor = {
+    ...supportItem("def", 3, "LEATHER_ARMOR"),
+    curseEffectId: "curse_cowardly_shield",
+    cursePower: 1,
+    inscription: { name: "鉄印", type: "def", value: 3 }
+  };
+
+  assert.equal(
+    getCharWeaponAtk(char),
+    30,
+    "基礎6 + support4 + 火印3 + 呪い15 + runTrapAttackBonus2"
+  );
+  assert.equal(
+    getCharDef(char),
+    20,
+    "基礎4 + support3 + 鉄印3 + 呪い10"
+  );
+});
+
+test("Ninja素手攻撃はatk刻印修正後も維持", () => {
+  const char = makeChar(null);
+  char.class = "Ninja";
+  char.level = 5;
+  char.equipment.weapon = null;
+  assert.equal(getCharWeaponAtk(char), 10);
 });
 
 test("研磨: サポートを切り上げ1.5倍・1アイテム1回・コア除外", () => {

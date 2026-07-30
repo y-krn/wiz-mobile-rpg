@@ -250,6 +250,12 @@ export function getItemData(itemOrKey) {
         }
       });
     }
+
+    if (itemOrKey.inscription?.type === "atk") {
+      atkBonus += itemOrKey.inscription.value;
+    } else if (itemOrKey.inscription?.type === "def") {
+      defBonus += itemOrKey.inscription.value;
+    }
     
     // prefix の決定
     let prefix = "";
