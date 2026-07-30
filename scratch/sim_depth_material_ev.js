@@ -21,6 +21,7 @@ const {
 } = await import("../src/state/initial_state.js");
 const { ELITE_CLASSES } = await import("../src/data/classes.js");
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
+const { applyPendingOutcomeRewards } = await import("../src/combat_ui/outcome_rewards.js");
 const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
 const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
 const { assignRunQuests, updateRunQuests } = await import("../src/systems/run_quests.js");
@@ -85,12 +86,23 @@ const CHEST_PICKUP_RATE = 0.7;
 const COMBAT_TURN_WEIGHT = 3;
 // 実run開始準拠: 傷薬2個。
 const INITIAL_HEAL_POTIONS = 2;
-// 実run開始準拠: 解毒薬1個。現simは毒状態・解毒効果をモデル化しない。
+// 実run開始準拠: 解毒薬1個。
 const INITIAL_ANTIDOTES = 1;
 // 仮値・感度分析対象: 戦闘中/戦闘後HPが最大HPの35%以下なら傷薬を1個使う。
 const HEAL_POTION_THRESHOLD = 0.35;
-// 仮値・感度分析対象: 最大HPの35%以下なら次の自ターンで逃走する。
-const FLEE_HP_THRESHOLD = 0.35;
+// 仮値・感度分析対象: 最大HPの指定割合以下なら次の自ターンで逃走する。
+const DEFAULT_FLEE_HP_THRESHOLD = process.env.FLEE_POLICY === "never"
+  ? null
+  : Math.max(0, Math.min(1, Number(process.env.FLEE_HP_THRESHOLD || 0.35)));
+const DEFAULT_STATUS_CURE_HP_THRESHOLD = Math.max(
+  0,
+  Math.min(1, Number(process.env.STATUS_CURE_HP_THRESHOLD || 1))
+);
+const DEFAULT_STATUS_CURE_POLICY = process.env.STATUS_CURE_POLICY === "never"
+  ? "never"
+  : "smart";
+const DEFAULT_STATUS_CURE_MERCHANT_POLICY =
+  process.env.STATUS_CURE_MERCHANT_POLICY === "never" ? "never" : "missing";
 // 仮値・感度分析対象: 危険域で傷薬が尽きていれば帰還の翼を使う。
 const PORTAL_HP_THRESHOLD = Number(process.env.PORTAL_HP_THRESHOLD || 0.35);
 const PORTAL_MAX_HEAL_POTIONS = Math.max(
@@ -217,6 +229,19 @@ function addCoreObservations(target, additions) {
 // 未鑑定・呪いリスクは#236の対象。コア1個制限は実canEquipCoreAffixで維持する。
 
 const HOLY_TAGS = new Set(["undead", "spirit", "demon"]);
+const STATUS_CURE_ITEMS = Object.freeze({
+  poisoned: ["ANTIDOTE", "HOLY_WATER", "PANACEA"],
+  blind: ["EYE_DROPS", "PANACEA"],
+  paralyze: ["PARALYZE_CURE", "PANACEA"],
+  paralyzed: ["PARALYZE_CURE", "PANACEA"],
+  sleep: ["WAKE_POWDER", "PANACEA"]
+});
+const STATUS_CURE_ITEM_IDS = new Set(Object.values(STATUS_CURE_ITEMS).flat());
+const MERCHANT_STATUS_CURE_STOCK = Object.freeze([
+  { stockId: "antidote", itemId: "ANTIDOTE" },
+  { stockId: "wake_powder", itemId: "WAKE_POWDER" },
+  { stockId: "paralyze_cure", itemId: "PARALYZE_CURE" }
+]);
 const CHEST_ITEM_CANDIDATES_BY_FLOOR = Object.freeze({
   1: ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "WAKE_POWDER"],
   2: ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL", "TRAP_KIT"],
@@ -289,6 +314,19 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     identifyTickets: workshopGrants.identifyPowder,
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
+    simPolicy: {
+      fleeHpThreshold: Object.hasOwn(scenario, "fleeHpThreshold")
+        ? scenario.fleeHpThreshold
+        : DEFAULT_FLEE_HP_THRESHOLD,
+      statusCurePolicy: scenario.statusCurePolicy || DEFAULT_STATUS_CURE_POLICY,
+      statusCureHpThreshold: Object.hasOwn(scenario, "statusCureHpThreshold")
+        ? scenario.statusCureHpThreshold
+        : DEFAULT_STATUS_CURE_HP_THRESHOLD,
+      statusCureMerchantPolicy:
+        scenario.statusCureMerchantPolicy || DEFAULT_STATUS_CURE_MERCHANT_POLICY,
+      bossOverride: scenario.bossOverride || null,
+      forcedBossAffixes: scenario.forcedBossAffixes || null
+    },
     floor: startFloor
   };
 }
@@ -317,7 +355,73 @@ function hasHolyTag(monster) {
   return monster.tags?.some(tag => HOLY_TAGS.has(tag)) === true;
 }
 
-function selectCombatAction(state) {
+function countInventoryItems(inventory, itemIds = STATUS_CURE_ITEM_IDS) {
+  const counts = Object.fromEntries([...itemIds].map(itemId => [itemId, 0]));
+  inventory.forEach(item => {
+    if (itemIds.has(item)) counts[item]++;
+  });
+  return counts;
+}
+
+function addItemCount(target, itemId, count = 1) {
+  if (count <= 0) return;
+  target[itemId] = (target[itemId] || 0) + count;
+}
+
+function recordStatusCureAcquisitions(
+  metrics,
+  before,
+  after,
+  source,
+  usedBefore = null
+) {
+  STATUS_CURE_ITEM_IDS.forEach(itemId => {
+    const consumed = usedBefore
+      ? (metrics.statusCureItemsUsed[itemId] || 0) - (usedBefore[itemId] || 0)
+      : 0;
+    const gained = (after[itemId] || 0) - (before[itemId] || 0) + consumed;
+    if (gained <= 0) return;
+    addItemCount(metrics.statusCureItemsAcquired[source], itemId, gained);
+  });
+}
+
+function createStatusCureDecision(state, inCombat = true) {
+  const character = state.party[0];
+  const status = character.status;
+  const candidates = STATUS_CURE_ITEMS[status];
+  if (!candidates) return null;
+  const itemKey = candidates.find(candidate => state.inventory.includes(candidate)) || null;
+  if (!itemKey) return { kind: "unavailable", status, itemKey: null };
+  if (state.simPolicy.statusCurePolicy === "never") {
+    return { kind: "policy-deferred", status, itemKey };
+  }
+  const hpRate = character.hp / Math.max(1, getCharMaxHp(character));
+  if (hpRate > state.simPolicy.statusCureHpThreshold) {
+    return { kind: "policy-deferred", status, itemKey };
+  }
+  if (inCombat && ["sleep", "paralyze", "paralyzed"].includes(status)) {
+    return { kind: "incapacitated", status, itemKey };
+  }
+  return { kind: "selected", status, itemKey };
+}
+
+function recordStatusCureDecision(metrics, decision, context) {
+  if (!metrics || !decision) return;
+  metrics.statusCureDecisions[decision.kind] =
+    (metrics.statusCureDecisions[decision.kind] || 0) + 1;
+  metrics.statusCureDecisionContexts[context] =
+    (metrics.statusCureDecisionContexts[context] || 0) + 1;
+  if (decision.kind === "unavailable") {
+    metrics.statusCureUnavailableStatuses[decision.status] =
+      (metrics.statusCureUnavailableStatuses[decision.status] || 0) + 1;
+  }
+  if (["policy-deferred", "incapacitated"].includes(decision.kind)) {
+    metrics.statusCureHeldNotUsedStatuses[decision.status] =
+      (metrics.statusCureHeldNotUsedStatuses[decision.status] || 0) + 1;
+  }
+}
+
+function selectCombatAction(state, metrics) {
   const character = state.party[0];
   const monsters = state.combatState.monsters;
   const statusTargetIdx = getLowestHpEnemyIndex(
@@ -326,8 +430,24 @@ function selectCombatAction(state) {
   );
   const lowestHpIdx = statusTargetIdx >= 0 ? statusTargetIdx : getLowestHpEnemyIndex(monsters);
 
-  if (character.hp <= getCharMaxHp(character) * FLEE_HP_THRESHOLD) {
+  const fleeThreshold = state.simPolicy.fleeHpThreshold;
+  if (
+    fleeThreshold !== null &&
+    character.hp <= getCharMaxHp(character) * fleeThreshold
+  ) {
     return { type: "run", actorIdx: 0 };
+  }
+
+  const cureDecision = createStatusCureDecision(state);
+  recordStatusCureDecision(metrics, cureDecision, "combat");
+  if (cureDecision?.kind === "selected") {
+    return {
+      type: "item",
+      actorIdx: 0,
+      targetIdx: 0,
+      itemKey: cureDecision.itemKey,
+      simStatusBefore: cureDecision.status
+    };
   }
 
   if (
@@ -532,32 +652,141 @@ function recordRoundCoreObservations(
   }
 }
 
-function runEncounter(state, observations) {
-  const { monsters } = generateEncounter(state, false, false, false, null);
+function runEncounter(
+  state,
+  observations,
+  diagnostics = null,
+  metrics = null,
+  {
+    isBoss = false,
+    isMidboss = false,
+    encounterCoord = null,
+    retreatCoord = null
+  } = {}
+) {
+  const { monsters } = generateEncounter(
+    state,
+    isBoss,
+    isMidboss,
+    false,
+    null
+  );
+  if (isBoss && state.simPolicy.bossOverride?.floor === state.floor) {
+    const override = state.simPolicy.bossOverride;
+    monsters.forEach(monster => {
+      if (Number.isFinite(override.hpMultiplier)) {
+        monster.maxHp = Math.max(1, Math.round(monster.maxHp * override.hpMultiplier));
+        monster.hp = monster.maxHp;
+      }
+      if (Number.isFinite(override.atkMultiplier)) {
+        monster.atk = Math.max(1, Math.round(monster.atk * override.atkMultiplier));
+      }
+      if (override.disableSpell) {
+        monster.spell = null;
+        monster.spellChance = 0;
+      }
+    });
+  }
+  if (isBoss && state.simPolicy.forcedBossAffixes?.floor === state.floor) {
+    const character = state.party[0];
+    character.equipment.simBossAffixes = {
+      baseId: "SIM_BOSS_AFFIXES",
+      identified: true,
+      affixes: Object.entries(state.simPolicy.forcedBossAffixes.values || {}).map(
+        ([type, value]) => ({ id: type, kind: "support", type, value })
+      )
+    };
+  }
   monsters.forEach(monster => {
     const baseName = monster.name.replace(/\s[A-Z]$/, "");
     monster.simWasUncatalogued = (state.codex?.monsters?.[baseName]?.killed || 0) === 0;
   });
   state.combatState = {
     monsters,
-    isBoss: false,
-    isMidboss: false,
+    isBoss,
+    isMidboss,
     isRoamingFlack: false,
+    retreatPosition: retreatCoord ? { ...retreatCoord } : null,
     allParalyzedTurns: 0,
     phase: "choose_actions",
     roundNumber: 1
+  };
+  if (encounterCoord) {
+    state.x = encounterCoord.x;
+    state.y = encounterCoord.y;
+  }
+  const encounterType = isBoss ? "boss" : (isMidboss ? "midboss" : "normal");
+  const startBuild = (isBoss || isMidboss) && metrics?.collectSpecialBattles
+    ? createBuildSnapshot(state, metrics?.scoringProfile || null, `${encounterType}-start`)
+    : null;
+  const telemetry = {
+    type: encounterType,
+    floor: state.floor,
+    enemyNames: monsters.map(monster => monster.name),
+    enemyAttack: Math.max(...monsters.map(monster => monster.atk || 0)),
+    playerMaxHp: getCharMaxHp(state.party[0]),
+    incomingHits: 0,
+    incomingDamage: 0,
+    maxIncomingHit: 0,
+    maxIncomingHitRate: 0
+  };
+  const encounterDiagnostic = diagnostics
+    ? {
+        floor: state.floor,
+        type: encounterType,
+        monsters: monsters.map(monster => ({
+          name: monster.name,
+          atk: monster.atk,
+          maxHp: monster.maxHp,
+          spell: monster.spell || null,
+          traits: [...(monster.traits || [])],
+          statuses: [
+            monster.isPoisonous ? "poison" : null,
+            monster.isParalyzing ? "paralyze" : null,
+            monster.isSleepInflicting ? "sleep" : null,
+            monster.isBlinding ? "blind" : null
+          ].filter(Boolean)
+        })),
+        startHp: state.party[0].hp,
+        startPlayerName: state.party[0].name,
+        startMaxHp: getCharMaxHp(state.party[0]),
+        startRawMaxHp: state.party[0].maxHp,
+        startMp: state.party[0].mp,
+        startHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
+        startStatusCures: countInventoryItems(state.inventory),
+        startBuild: startBuild ? structuredClone(startBuild) : null,
+        rounds: []
+      }
+    : null;
+  const finishEncounter = (result, rounds, healPotionsUsed) => {
+    if (encounterDiagnostic) {
+      encounterDiagnostic.result = result;
+      encounterDiagnostic.endHp = state.party[0].hp;
+      encounterDiagnostic.endMp = state.party[0].mp;
+      encounterDiagnostic.endStatus = state.party[0].status;
+      encounterDiagnostic.endHealPotions =
+        state.inventory.filter(item => item === "HEAL_POTION").length;
+      encounterDiagnostic.endStatusCures = countInventoryItems(state.inventory);
+      encounterDiagnostic.endEnemyHp = state.combatState.monsters.map(monster => ({
+        name: monster.name,
+        hp: monster.hp,
+        maxHp: monster.maxHp
+      }));
+      diagnostics.encounters.push(encounterDiagnostic);
+    }
+    return { result, rounds, healPotionsUsed, state, startBuild, telemetry };
   };
 
   let rounds = 0;
   let healPotionsUsed = 0;
   for (; rounds < MAX_COMBAT_TURNS; rounds++) {
     const character = state.party[0];
-    if (!isAlive(character)) return { result: "death", rounds, healPotionsUsed, state };
+    if (!isAlive(character)) return finishEncounter("death", rounds, healPotionsUsed);
     if (state.combatState.monsters.every(monster => monster.hp <= 0)) {
-      return { result: "victory", rounds, healPotionsUsed, state };
+      return finishEncounter("victory", rounds, healPotionsUsed);
     }
 
-    const action = selectCombatAction(state);
+    const action = selectCombatAction(state, metrics);
     const targetBeforeRound = action.targetIdx === undefined
       ? null
       : structuredClone(state.combatState.monsters[action.targetIdx]);
@@ -576,6 +805,13 @@ function runEncounter(state, observations) {
       return value;
     };
     const potionCountBefore = state.inventory.filter(item => item === "HEAL_POTION").length;
+    const selectedCureCountBefore = action.simStatusBefore
+      ? state.inventory.filter(item => item === action.itemKey).length
+      : 0;
+    const itemsFoundBeforeRound = state.currentRun.itemsFound.length;
+    const diagnosticCureCountsBefore = encounterDiagnostic
+      ? countInventoryItems(state.inventory)
+      : null;
     let roundResult;
     try {
       roundResult = runCombatRoundCalculation(state, {
@@ -611,20 +847,81 @@ function runEncounter(state, observations) {
     state = roundResult.state;
     const potionCountAfter = state.inventory.filter(item => item === "HEAL_POTION").length;
     healPotionsUsed += potionCountBefore - potionCountAfter;
+    if (metrics && action.simStatusBefore) {
+      const selectedCureCountAfter =
+        state.inventory.filter(item => item === action.itemKey).length;
+      const sameItemRewardCount = state.currentRun.itemsFound
+        .slice(itemsFoundBeforeRound)
+        .filter(item => item === action.itemKey)
+        .length;
+      const used = Math.max(
+        0,
+        selectedCureCountBefore + sameItemRewardCount - selectedCureCountAfter
+      );
+      addItemCount(metrics.statusCureItemsUsed, action.itemKey, used);
+      if (used > 0) {
+        metrics.statusesCured[action.simStatusBefore] =
+          (metrics.statusesCured[action.simStatusBefore] || 0) + 1;
+      }
+    }
     const fled = roundResult.logQueue.some(entry => entry.runEscape);
+    if (encounterDiagnostic) {
+      encounterDiagnostic.rounds.push({
+        round: roundNumber,
+        action: action.type,
+        spellName: action.spellName || null,
+        itemKey: action.itemKey || null,
+        hpBefore: characterBeforeRound.hp,
+        hpAfter: state.party[0].hp,
+        maxHp: getCharMaxHp(characterBeforeRound),
+        rawMaxHp: characterBeforeRound.maxHp,
+        mpBefore: characterBeforeRound.mp,
+        mpAfter: state.party[0].mp,
+        statusBefore: characterBeforeRound.status,
+        statusAfter: state.party[0].status,
+        healPotionsBefore: potionCountBefore,
+        healPotionsAfter: potionCountAfter,
+        statusCuresBefore: diagnosticCureCountsBefore,
+        statusCuresAfter: countInventoryItems(state.inventory),
+        enemiesBefore: monstersBeforeRound.map(monster => ({
+          name: monster.name,
+          hp: monster.hp,
+          maxHp: monster.maxHp
+        })),
+        enemiesAfter: state.combatState.monsters.map(monster => ({
+          name: monster.name,
+          hp: monster.hp,
+          maxHp: monster.maxHp
+        })),
+        log: roundResult.logQueue.map(entry => entry.msg || "")
+      });
+    }
+    roundResult.logQueue.forEach(({ msg = "" }) => {
+      if (!msg.startsWith("[ 敵 ]")) return;
+      const match = msg.match(/は(\d+)の(?:[^ ]*?)ダメージを受けた/);
+      if (!match) return;
+      const damage = Number(match[1]);
+      telemetry.incomingHits++;
+      telemetry.incomingDamage += damage;
+      telemetry.maxIncomingHit = Math.max(telemetry.maxIncomingHit, damage);
+      telemetry.maxIncomingHitRate = Math.max(
+        telemetry.maxIncomingHitRate,
+        damage / Math.max(1, telemetry.playerMaxHp)
+      );
+    });
 
     if (!isAlive(state.party[0])) {
-      return { result: "death", rounds: rounds + 1, healPotionsUsed, state };
+      return finishEncounter("death", rounds + 1, healPotionsUsed);
     }
     if (fled) {
-      return { result: "flee", rounds: rounds + 1, healPotionsUsed, state };
+      return finishEncounter("flee", rounds + 1, healPotionsUsed);
     }
     if (state.combatState.monsters.every(monster => monster.hp <= 0)) {
-      return { result: "victory", rounds: rounds + 1, healPotionsUsed, state };
+      return finishEncounter("victory", rounds + 1, healPotionsUsed);
     }
   }
 
-  return { result: "stalemate", rounds, healPotionsUsed, state };
+  return finishEncounter("stalemate", rounds, healPotionsUsed);
 }
 
 function applyPostCombatRecovery(character) {
@@ -642,6 +939,22 @@ function useHealPotionIfNeeded(state) {
   if (potionIndex < 0) return false;
   state.inventory.splice(potionIndex, 1);
   ITEM_EFFECTS.HEAL_POTION({ char: character });
+  return true;
+}
+
+function useStatusCureIfNeeded(state, metrics, context) {
+  if (!isAlive(state.party[0])) return false;
+  const decision = createStatusCureDecision(state, false);
+  recordStatusCureDecision(metrics, decision, context);
+  if (decision?.kind !== "selected") return false;
+  const character = state.party[0];
+  const itemIndex = state.inventory.indexOf(decision.itemKey);
+  if (itemIndex < 0) return false;
+  state.inventory.splice(itemIndex, 1);
+  ITEM_EFFECTS[decision.itemKey]({ char: character });
+  addItemCount(metrics.statusCureItemsUsed, decision.itemKey);
+  metrics.statusesCured[decision.status] =
+    (metrics.statusesCured[decision.status] || 0) + 1;
   return true;
 }
 
@@ -688,6 +1001,23 @@ function maybePurchaseMerchantWing(state, scenario, metrics) {
   metrics.merchantPurchaseFloors.push(state.floor);
   metrics.portalAcquisitions.merchant++;
   state.simPortalSources.push("merchant");
+}
+
+function maybePurchaseMerchantStatusCures(state, metrics) {
+  if (
+    state.simPolicy.statusCureMerchantPolicy === "never" ||
+    !isMilestoneFloor(state.floor)
+  ) return;
+  MERCHANT_STATUS_CURE_STOCK.forEach(({ stockId, itemId }) => {
+    if (state.inventory.includes(itemId)) return;
+    const result = purchaseMilestoneStock(state, stockId);
+    if (!result.ok) {
+      metrics.statusCureMerchantFailures[result.reason] =
+        (metrics.statusCureMerchantFailures[result.reason] || 0) + 1;
+      return;
+    }
+    addItemCount(metrics.statusCureItemsAcquired.merchant, itemId);
+  });
 }
 
 function identifyWithoutCurse(item) {
@@ -920,6 +1250,77 @@ function getEquipmentScore(character, scoringProfile, floor) {
     getEconomyCoreScore(character, scoringProfile, floor);
 }
 
+function createBuildSnapshot(state, scoringProfile, point) {
+  const character = state.party[0];
+  const withoutEquipment = {
+    ...structuredClone(character),
+    equipment: {}
+  };
+  const supportAffixes = {};
+  const coreIds = [];
+  const equipment = Object.entries(character.equipment || {}).map(([slot, equipped]) => {
+    const item = getItemData(equipped);
+    const affixes = equipped && typeof equipped === "object"
+      ? (equipped.affixes || [])
+      : (item?.affixes || []);
+    affixes.forEach(affix => {
+      const id = affix.id || affix.type;
+      if (CORE_AFFIX_IDS.has(id)) {
+        coreIds.push(id);
+      } else {
+        supportAffixes[id] = (supportAffixes[id] || 0) + (affix.value || 0);
+      }
+    });
+    return {
+      slot,
+      id: equipped && typeof equipped === "object" ? equipped.baseId : equipped,
+      name: item?.name || null,
+      type: item?.type || null,
+      rarity: equipped && typeof equipped === "object" ? equipped.rarity : null,
+      atk: item?.atk || 0,
+      def: item?.def || 0,
+      affixes: affixes.map(affix => ({
+        id: affix.id || affix.type,
+        kind: affix.kind || (CORE_AFFIX_IDS.has(affix.id || affix.type) ? "core" : "support"),
+        value: affix.value || 0
+      }))
+    };
+  });
+  const equipmentStatScore =
+    getBaseEquipmentScore(character) - getBaseEquipmentScore(withoutEquipment);
+  const combatCoreScore = getCombatCoreScore(character, scoringProfile, state.floor);
+
+  return {
+    point,
+    floor: state.floor,
+    level: character.level,
+    hp: character.hp,
+    maxHp: getCharMaxHp(character),
+    mp: character.mp,
+    maxMp: getCharMaxMp(character),
+    atk: getCharWeaponAtk(character),
+    def: getCharDef(character),
+    str: getCharStr(character),
+    vit: getCharVit(character),
+    int: getCharInt(character),
+    pie: getCharPie(character),
+    agi: getCharAgi(character),
+    equipmentStatScore,
+    combatCoreScore,
+    combatBuildScore: equipmentStatScore + combatCoreScore,
+    totalGreedyScore: getEquipmentScore(character, scoringProfile, state.floor),
+    coreIds: [...new Set(coreIds)],
+    supportAffixes,
+    effectiveAffixes: Object.fromEntries(
+      ["guardian", "spellGuard", "poisonWard", "statusResistance", "antiDemon"]
+        .map(id => [id, getCharAffixSum(character, id)])
+    ),
+    resistanceScore:
+      (supportAffixes.poisonWard || 0) + (supportAffixes.statusResistance || 0),
+    equipment
+  };
+}
+
 function recordCoreDecision(metrics, item, reason) {
   const coreId = getItemCoreId(item);
   if (!coreId) return;
@@ -1054,6 +1455,196 @@ function getFloorStepCount(generated, floor) {
     ? generated.validation.criticalPath
     : fallback;
   return Math.max(1, Math.round(criticalPath * EXPLORATION_FACTOR));
+}
+
+const ROUTE_DIRECTIONS = Object.freeze([
+  { dx: 0, dy: -1, dir: 0 },
+  { dx: 1, dy: 0, dir: 1 },
+  { dx: 0, dy: 1, dir: 2 },
+  { dx: -1, dy: 0, dir: 3 }
+]);
+
+function routeKey(coord) {
+  return `${coord.x},${coord.y}`;
+}
+
+function findFloorCell(grid, predicate) {
+  for (let y = 0; y < grid.length; y++) {
+    for (let x = 0; x < grid[y].length; x++) {
+      if (predicate(grid[y][x])) return { x, y };
+    }
+  }
+  return null;
+}
+
+function canTraverseRouteEdge(grid, current, direction) {
+  const cell = grid[current.y]?.[current.x];
+  const nextX = current.x + direction.dx;
+  const nextY = current.y + direction.dy;
+  const next = grid[nextY]?.[nextX];
+  if (!cell || !next) return false;
+  const revealedSecret = Boolean(cell.secretDoor?.[direction.dir]);
+  const openGate = Boolean(cell.sealedGate?.[direction.dir]?.open);
+  if (cell.walls?.[direction.dir] && !revealedSecret && !openGate) return false;
+  return !next.blockEnter?.[(direction.dir + 2) % 4];
+}
+
+function findShortestFloorPath(grid, start, target, blockedKeys = new Set()) {
+  if (!start || !target) return null;
+  const startKey = routeKey(start);
+  const targetKey = routeKey(target);
+  const queue = [{ ...start }];
+  const previous = new Map([[startKey, null]]);
+
+  for (const current of queue) {
+    const currentKey = routeKey(current);
+    if (currentKey === targetKey) break;
+    for (const direction of ROUTE_DIRECTIONS) {
+      if (!canTraverseRouteEdge(grid, current, direction)) continue;
+      const next = {
+        x: current.x + direction.dx,
+        y: current.y + direction.dy
+      };
+      const nextKey = routeKey(next);
+      if (
+        previous.has(nextKey) ||
+        (blockedKeys.has(nextKey) && nextKey !== targetKey)
+      ) {
+        continue;
+      }
+      previous.set(nextKey, currentKey);
+      queue.push(next);
+    }
+  }
+
+  if (!previous.has(targetKey)) return null;
+  const reversed = [];
+  let cursor = targetKey;
+  while (cursor) {
+    const [x, y] = cursor.split(",").map(Number);
+    reversed.push({ x, y });
+    cursor = previous.get(cursor);
+  }
+  return reversed.reverse();
+}
+
+function createFloorRoutePlan(generated, floor, bossPolicy = "engage") {
+  const grid = generated.grid;
+  const start = findFloorCell(grid, cell => cell.type === "stairs-up");
+  const stairs = findFloorCell(grid, cell => cell.type === "stairs-down");
+  const specialCells = [];
+  grid.forEach((row, y) => row.forEach((cell, x) => {
+    if (![EVENT_TYPES.BOSS, "midboss"].includes(cell.event)) return;
+    specialCells.push({
+      x,
+      y,
+      type: cell.event,
+      milestone: cell.event === EVENT_TYPES.BOSS && cell.milestoneFloor === floor
+    });
+  }));
+  const specialByKey = new Map(specialCells.map(cell => [routeKey(cell), cell]));
+  const path = [];
+  const routeEvents = [];
+  const visitedEvents = new Set();
+  const appendPath = segment => {
+    if (!segment) return false;
+    const offset = path.length === 0 ? 0 : 1;
+    segment.slice(offset).forEach(coord => {
+      path.push(coord);
+      const special = specialByKey.get(routeKey(coord));
+      if (!special || visitedEvents.has(routeKey(special))) return;
+      visitedEvents.add(routeKey(special));
+      routeEvents.push({
+        ...special,
+        routeDistance: Math.max(0, path.length - 1),
+        retreatCoord: path.length >= 2 ? { ...path[path.length - 2] } : { ...start }
+      });
+    });
+    if (path.length === 0) path.push(...segment);
+    return true;
+  };
+
+  if (!start || !stairs) {
+    return {
+      path: [],
+      routeEvents,
+      floorSteps: getFloorStepCount(generated, floor),
+      specialCells,
+      avoidedPathExists: false,
+      milestoneForced: false
+    };
+  }
+
+  path.push({ ...start });
+  let current = start;
+  let avoidedPathExists = false;
+  let milestoneForced = false;
+
+  if (bossPolicy === "avoid") {
+    const blocked = new Set(specialCells.map(routeKey));
+    const milestone = specialCells.find(cell => cell.milestone);
+    const pathToStairs = findShortestFloorPath(grid, current, stairs, blocked);
+    const stairsToMilestone = milestone
+      ? findShortestFloorPath(grid, stairs, milestone)
+      : null;
+    const milestoneToStairs = milestone
+      ? findShortestFloorPath(grid, milestone, stairs)
+      : null;
+    const canReturnForMilestone =
+      !milestone || (stairsToMilestone && milestoneToStairs);
+    if (pathToStairs && canReturnForMilestone) {
+      avoidedPathExists = true;
+      appendPath(pathToStairs);
+      current = stairs;
+    } else {
+      if (milestone) {
+        appendPath(findShortestFloorPath(grid, current, milestone));
+        current = milestone;
+      }
+      appendPath(findShortestFloorPath(grid, current, stairs));
+      current = stairs;
+    }
+
+    const remainingMilestone = specialCells.find(
+      cell => cell.milestone && !visitedEvents.has(routeKey(cell))
+    );
+    if (remainingMilestone) {
+      milestoneForced = true;
+      appendPath(findShortestFloorPath(grid, current, remainingMilestone));
+      current = remainingMilestone;
+      appendPath(findShortestFloorPath(grid, current, stairs));
+    }
+  } else {
+    const pending = [...specialCells];
+    while (pending.length > 0) {
+      const candidates = pending
+        .map(cell => ({
+          cell,
+          segment: findShortestFloorPath(grid, current, cell)
+        }))
+        .filter(candidate => candidate.segment)
+        .sort((left, right) => left.segment.length - right.segment.length);
+      if (candidates.length === 0) break;
+      const selected = candidates[0];
+      appendPath(selected.segment);
+      current = selected.cell;
+      pending.splice(pending.indexOf(selected.cell), 1);
+    }
+    appendPath(findShortestFloorPath(grid, current, stairs));
+  }
+
+  const routeDistance = Math.max(1, path.length - 1);
+  return {
+    path,
+    routeEvents,
+    floorSteps: Math.max(
+      getFloorStepCount(generated, floor),
+      Math.ceil(routeDistance * EXPLORATION_FACTOR)
+    ),
+    specialCells,
+    avoidedPathExists,
+    milestoneForced
+  };
 }
 
 function countFloorChests(grid) {
@@ -1368,6 +1959,13 @@ function recordEquipmentAcquisitions(metrics, equipmentItems, floor, source = "o
     metrics.floorSupplyStats[floor].equipment++;
     metrics.floorSupplyStats[floor].source[normalizedSource]++;
     metrics.rarityFound[rarity]++;
+    (item?.affixes || [])
+      .filter(affix => affix.kind !== "core")
+      .forEach(affix => {
+        const id = affix.id || affix.type;
+        metrics.supportAffixFoundById[id] =
+          (metrics.supportAffixFoundById[id] || 0) + 1;
+      });
     metrics.floorSupplyStats[floor].rarity[rarity]++;
     recordSupportCount(metrics, item, rarity);
     if (item?.curseEffectId) {
@@ -1538,6 +2136,14 @@ function finishRun(state, outcome, metrics) {
   const finalCoreId = getEquippedCoreAffixes(state.party[0])
     .map(affix => affix.id || affix.type)
     .find(id => CORE_AFFIX_IDS.has(id)) || null;
+  if (metrics.diagnostics) {
+    metrics.diagnostics.finalBuild = createBuildSnapshot(
+      state,
+      metrics.scoringProfile,
+      "finish"
+    );
+    metrics.diagnostics.deathLogs = structuredClone(state.currentRun.deathLogs || []);
+  }
   return {
     survived: outcome === "retreat",
     died: outcome === "death",
@@ -1557,6 +2163,7 @@ function finishRun(state, outcome, metrics) {
     deepEquipmentFound: metrics.deepEquipmentFound,
     equipmentFoundBySource: metrics.equipmentFoundBySource,
     equipmentFoundByFloor: metrics.equipmentFoundByFloor,
+    supportAffixFoundById: { ...metrics.supportAffixFoundById },
     rarityFound: metrics.rarityFound,
     supportCountDistribution: metrics.supportCountDistribution,
     supportCountByRarity: metrics.supportCountByRarity,
@@ -1596,6 +2203,16 @@ function finishRun(state, outcome, metrics) {
     finalCoreId,
     coreObservations: metrics.coreObservations,
     healPotionsUsed: metrics.healPotionsUsed,
+    finalHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
+    statusCureItemsAcquired: metrics.statusCureItemsAcquired,
+    statusCureItemsUsed: metrics.statusCureItemsUsed,
+    finalStatusCureInventory: countInventoryItems(state.inventory),
+    statusCureDecisions: metrics.statusCureDecisions,
+    statusCureDecisionContexts: metrics.statusCureDecisionContexts,
+    statusCureUnavailableStatuses: metrics.statusCureUnavailableStatuses,
+    statusCureHeldNotUsedStatuses: metrics.statusCureHeldNotUsedStatuses,
+    statusesCured: metrics.statusesCured,
+    statusCureMerchantFailures: metrics.statusCureMerchantFailures,
     townPortalsUsed: metrics.townPortalsUsed,
     portalUseEvents: metrics.portalUseEvents,
     portalUsesBySource: metrics.portalUsesBySource,
@@ -1607,9 +2224,18 @@ function finishRun(state, outcome, metrics) {
     milestoneDecisions: metrics.milestoneDecisions,
     outcome,
     fleeCount: metrics.fleeCount,
+    bossPolicy: metrics.bossPolicy,
+    specialCellsDetected: metrics.specialCellsDetected,
+    specialRouteFloors: metrics.specialRouteFloors,
+    specialBattles: metrics.specialBattles,
+    deathEncounterType: metrics.deathEncounterType,
+    dragonKeysAcquired: metrics.dragonKeysAcquired,
+    dragonKeyUses: metrics.dragonKeyUses,
+    normalCombatTelemetry: metrics.normalCombatTelemetry,
     materialSources: metrics.materialSources,
     combatMaterialEvents: metrics.combatMaterialEvents,
-    combatMaterialHitEvents: metrics.combatMaterialHitEvents
+    combatMaterialHitEvents: metrics.combatMaterialHitEvents,
+    diagnostics: metrics.diagnostics
   };
 }
 
@@ -1633,7 +2259,8 @@ export function simulateRun({
   scoringProfile,
   scenario,
   workshop = { ranks: {} },
-  supplyOverride = null
+  supplyOverride = null,
+  collectDiagnostics = false
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   let state = createSimulationState(className, startFloor, runSeed, scenario, workshop);
@@ -1652,6 +2279,7 @@ export function simulateRun({
     deepEquipmentFound: 0,
     equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
     equipmentFoundByFloor: Array(21).fill(0),
+    supportAffixFoundById: {},
     rarityFound: { magic: 0, rare: 0, epic: 0, other: 0 },
     supportCountDistribution: createSupportCountDistribution(),
     supportCountByRarity: {
@@ -1692,6 +2320,24 @@ export function simulateRun({
     cursedCoreEquipmentFound: 0,
     floorSupplyStats: createFloorSupplyStats(),
     healPotionsUsed: 0,
+    statusCureItemsAcquired: {
+      initial: countInventoryItems(state.inventory),
+      chest: {},
+      combat: {},
+      merchant: {}
+    },
+    statusCureItemsUsed: {},
+    statusCureDecisions: {
+      selected: 0,
+      unavailable: 0,
+      "policy-deferred": 0,
+      incapacitated: 0
+    },
+    statusCureDecisionContexts: {},
+    statusCureUnavailableStatuses: {},
+    statusCureHeldNotUsedStatuses: {},
+    statusesCured: {},
+    statusCureMerchantFailures: {},
     townPortalsUsed: 0,
     portalUseEvents: [],
     portalUsesBySource: {},
@@ -1707,25 +2353,90 @@ export function simulateRun({
     merchantWingFailures: {},
     milestoneDecisions: [],
     fleeCount: 0,
+    bossPolicy: scenario.bossPolicy || "engage",
+    collectSpecialBattles: collectDiagnostics,
+    specialCellsDetected: { boss: 0, midboss: 0 },
+    specialRouteFloors: [],
+    specialBattles: [],
+    deathEncounterType: null,
+    dragonKeysAcquired: 0,
+    dragonKeyUses: 0,
+    normalCombatTelemetry: {
+      encounters: 0,
+      incomingHits: 0,
+      incomingDamage: 0,
+      maxIncomingHit: 0,
+      heavyHitCount: 0
+    },
     materialSources: {
       chest: 0,
       combat: 0,
       quest: 0
     },
     combatMaterialEvents: 0,
-    combatMaterialHitEvents: 0
+    combatMaterialHitEvents: 0,
+    scoringProfile,
+    diagnostics: collectDiagnostics
+      ? {
+          buildSnapshots: [],
+          encounters: [],
+          deathLogs: [],
+          finalBuild: null
+        }
+      : null
   };
 
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
   for (let floor = startFloor; floor < targetDepth; floor++) {
     state.floor = floor;
+    if (metrics.diagnostics) {
+      metrics.diagnostics.buildSnapshots.push(
+        createBuildSnapshot(state, scoringProfile, "floor-start")
+      );
+    }
     const generated = generateRunFloor({ runSeed, floor });
-    const floorSteps = getFloorStepCount(generated, floor);
+    const routePlan = createFloorRoutePlan(generated, floor, metrics.bossPolicy);
+    const floorSteps = routePlan.floorSteps;
+    const specialSchedule = new Map();
+    routePlan.routeEvents.forEach(event => {
+      const step = Math.min(
+        floorSteps,
+        Math.max(1, Math.ceil(event.routeDistance * EXPLORATION_FACTOR))
+      );
+      if (!specialSchedule.has(step)) specialSchedule.set(step, []);
+      specialSchedule.get(step).push(event);
+    });
+    state.map = generated.grid;
+    const floorStart = findFloorCell(generated.grid, cell => cell.type === "stairs-up");
+    if (floorStart) {
+      state.x = floorStart.x;
+      state.y = floorStart.y;
+    }
+    metrics.specialCellsDetected.boss += routePlan.specialCells.filter(
+      cell => cell.type === EVENT_TYPES.BOSS
+    ).length;
+    metrics.specialCellsDetected.midboss += routePlan.specialCells.filter(
+      cell => cell.type === "midboss"
+    ).length;
+    metrics.specialRouteFloors.push({
+      floor,
+      policy: metrics.bossPolicy,
+      floorSteps,
+      routeDistance: Math.max(0, routePlan.path.length - 1),
+      detectedBosses: routePlan.specialCells.filter(
+        cell => cell.type === EVENT_TYPES.BOSS
+      ).length,
+      detectedMidbosses: routePlan.specialCells.filter(
+        cell => cell.type === "midboss"
+      ).length,
+      avoidedPathExists: routePlan.avoidedPathExists,
+      milestoneForced: routePlan.milestoneForced
+    });
     const chestSchedule = schedulePickedUpChests(countFloorChests(generated.grid), floorSteps);
     metrics.coreObservations.pickedChestsByFloor[floor] +=
       [...chestSchedule.values()].reduce((sum, count) => sum + count, 0);
 
-    for (let step = 1; step <= floorSteps; step++) {
+    stepLoop: for (let step = 1; step <= floorSteps; step++) {
       metrics.steps++;
       state.currentRun.steps++;
       state.currentRun.floorSteps[String(floor)] =
@@ -1749,6 +2460,7 @@ export function simulateRun({
           scenario,
           supplyOverride
         );
+        const cureCountsBeforeChest = countInventoryItems(state.inventory);
         const acquiredEquipment = [];
         chestItems.forEach(item => {
           if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal) return;
@@ -1772,6 +2484,12 @@ export function simulateRun({
             }
           }
         });
+        recordStatusCureAcquisitions(
+          metrics,
+          cureCountsBeforeChest,
+          countInventoryItems(state.inventory),
+          "chest"
+        );
         recordEquipmentAcquisitions(metrics, acquiredEquipment, floor, "chest");
         state.currentRun.chestsOpened++;
         recordEquipmentUpgrades(
@@ -1781,124 +2499,255 @@ export function simulateRun({
         );
       }
 
-      if (Math.random() >= getEncounterChance(step)) continue;
+      const scheduledSpecials = specialSchedule.get(step) || [];
+      const hasRandomEncounter =
+        scheduledSpecials.length === 0 && Math.random() < getEncounterChance(step);
+      if (scheduledSpecials.length === 0 && !hasRandomEncounter) continue;
+      const encountersThisStep = scheduledSpecials.length > 0
+        ? scheduledSpecials
+        : [null];
 
-      state.currentRun.battles++;
-      const equipmentFoundBeforeRewards = state.currentRun.equipmentFound.length;
-      const materialsBeforeRewards = { ...state.currentRun.materials };
-      const completedQuestIds = new Set(
-        state.currentRun.quests.filter(quest => quest.completed).map(quest => quest.id)
-      );
-      const combatResult = runEncounter(state, metrics.coreObservations);
-      state = combatResult.state;
-      metrics.combatRounds += combatResult.rounds;
-      metrics.healPotionsUsed += combatResult.healPotionsUsed;
+      for (const specialEvent of encountersThisStep) {
+        const isBoss = specialEvent?.type === EVENT_TYPES.BOSS;
+        const isMidboss = specialEvent?.type === "midboss";
+        const encounterType = isBoss ? "boss" : (isMidboss ? "midboss" : "normal");
+        const specialBattle = specialEvent && metrics.collectSpecialBattles
+          ? {
+              type: encounterType,
+              floor,
+              milestone: Boolean(specialEvent.milestone),
+              policy: metrics.bossPolicy,
+              attempts: [],
+              firstBuild: null,
+              finalResult: null
+            }
+          : null;
 
-      if (combatResult.result === "flee") {
-        metrics.fleeCount++;
-        applyPostCombatRecovery(state.party[0]);
-        metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
-        if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
-        if (useTownPortalIfNeeded(state, scenario, metrics, "post-flee")) {
-          return finishRun(state, "retreat", metrics);
+        if (isBoss && !specialEvent.milestone) {
+          if (!state.inventory.includes("DRAGON_KEY")) {
+            specialBattle.finalResult = "blocked-no-key";
+            metrics.specialBattles.push(specialBattle);
+            continue;
+          }
+          // movement.jsは所持確認と使用logのみで、鍵をinventoryから消費しない。
+          metrics.dragonKeyUses++;
         }
-        continue;
-      }
 
-      if (combatResult.result !== "victory") {
-        metrics.stalemate = combatResult.result === "stalemate";
-        return finishRun(state, "death", metrics);
-      }
+        for (let attempt = 1; ; attempt++) {
+          state.currentRun.battles++;
+          const equipmentFoundBeforeRewards = state.currentRun.equipmentFound.length;
+          const materialsBeforeRewards = { ...state.currentRun.materials };
+          const completedQuestIds = new Set(
+            state.currentRun.quests.filter(quest => quest.completed).map(quest => quest.id)
+          );
+          const cureCountsBeforeCombat = countInventoryItems(state.inventory);
+          const cureItemsUsedBeforeCombat = { ...metrics.statusCureItemsUsed };
+          const combatResult = runEncounter(
+            state,
+            metrics.coreObservations,
+            metrics.diagnostics,
+            metrics,
+            {
+              isBoss,
+              isMidboss,
+              encounterCoord: specialEvent,
+              retreatCoord: specialEvent?.retreatCoord || null
+            }
+          );
+          state = combatResult.state;
+          metrics.combatRounds += combatResult.rounds;
+          metrics.healPotionsUsed += combatResult.healPotionsUsed;
 
-      const scholarMaterialBonus = getScholarMaterialBonus(state.combatState.monsters, state);
-      metrics.coreObservations.scholarMaterialBonusByFloor[floor] += scholarMaterialBonus;
-      state.combatState.monsters.forEach(monster => {
-        if (monster.fled || monster.hasSplit) return;
-        if (monster.role === "disruptor") metrics.coreObservations.disruptorKills++;
-        if (monster.role === "amplifier") metrics.coreObservations.amplifierKills++;
-      });
-      const totalRewardDelta = getMaterialDelta(
-        materialsBeforeRewards,
-        state.currentRun.materials
-      );
-      const questRewards = getNewQuestRewards(completedQuestIds, state.currentRun.quests);
-      const combatDropDelta = { ...totalRewardDelta };
-      subtractMaterials(combatDropDelta, questRewards);
-      let transformedDrops = combatDropDelta;
-      if (scenario.materialDropOverride) {
-        transformedDrops = transformCombatMaterialDrops(
-          combatDropDelta,
-          floor,
-          scenario.materialDropOverride,
-          materialOverrideRandom
-        );
-        state.currentRun.materials = { ...materialsBeforeRewards };
-        addMaterials(state.currentRun.materials, questRewards);
-        addMaterials(state.currentRun.materials, transformedDrops);
-      }
-      metrics.materialSources.combat += totalMaterials(transformedDrops);
-      metrics.materialSources.quest += totalMaterials(questRewards);
-      metrics.combatMaterialEvents++;
-      metrics.combatMaterialHitEvents += Number(totalMaterials(transformedDrops) > 0);
-      const baselineCombatEquipment = state.currentRun.equipmentFound
-        .slice(equipmentFoundBeforeRewards);
-      const overriddenCombatEquipment = baselineCombatEquipment.map(item => {
-        const replacement = rerollSupplyEquipment(
-          item,
-          state,
-          floor,
-          "combat",
-          supplyOverride,
-          Math.random
-        );
-        if (replacement === item) return item;
-        const inventoryIndex = state.inventory.findIndex(candidate =>
-          candidate === item ||
-          (
-            candidate?.instanceId &&
-            item?.instanceId &&
-            candidate.instanceId === item.instanceId
-          )
-        );
-        if (inventoryIndex >= 0) state.inventory[inventoryIndex] = replacement;
-        return replacement;
-      });
-      const extraCombatEquipment = generateExtraSupplyEquipment(
-        state,
-        floor,
-        "combat",
-        supplyOverride,
-        Math.random
-      );
-      if (extraCombatEquipment && addInventoryItemToState(state, extraCombatEquipment)) {
-        overriddenCombatEquipment.push(extraCombatEquipment);
-      }
-      state.currentRun.equipmentFound.splice(
-        equipmentFoundBeforeRewards,
-        state.currentRun.equipmentFound.length - equipmentFoundBeforeRewards,
-        ...overriddenCombatEquipment
-      );
-      recordEquipmentAcquisitions(
-        metrics,
-        overriddenCombatEquipment,
-        floor,
-        "combat"
-      );
-      recordEquipmentUpgrades(
-        metrics,
-        equipGreedyUpgrades(state, metrics, scoringProfile),
-        floor
-      );
-      applyPostCombatRecovery(state.party[0]);
-      metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
-      if (!isAlive(state.party[0])) return finishRun(state, "death", metrics);
-      if (useTownPortalIfNeeded(state, scenario, metrics, "post-combat")) {
-        return finishRun(state, "retreat", metrics);
+          if (specialBattle) {
+            specialBattle.firstBuild ||= combatResult.startBuild;
+            specialBattle.attempts.push({
+              attempt,
+              result: combatResult.result,
+              rounds: combatResult.rounds,
+              telemetry: combatResult.telemetry
+            });
+          } else {
+            metrics.normalCombatTelemetry.encounters++;
+            metrics.normalCombatTelemetry.incomingHits +=
+              combatResult.telemetry.incomingHits;
+            metrics.normalCombatTelemetry.incomingDamage +=
+              combatResult.telemetry.incomingDamage;
+            metrics.normalCombatTelemetry.maxIncomingHit = Math.max(
+              metrics.normalCombatTelemetry.maxIncomingHit,
+              combatResult.telemetry.maxIncomingHit
+            );
+            metrics.normalCombatTelemetry.heavyHitCount += Number(
+              combatResult.telemetry.maxIncomingHitRate >= 0.5
+            );
+          }
+
+          if (combatResult.result === "flee") {
+            metrics.fleeCount++;
+            applyPostCombatRecovery(state.party[0]);
+            metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
+            useStatusCureIfNeeded(state, metrics, "post-flee");
+            if (!isAlive(state.party[0])) {
+              metrics.deathEncounterType = encounterType;
+              if (specialBattle) {
+                specialBattle.finalResult = "death";
+                metrics.specialBattles.push(specialBattle);
+              }
+              return finishRun(state, "death", metrics);
+            }
+            if (useTownPortalIfNeeded(state, scenario, metrics, "post-flee")) {
+              if (specialBattle) {
+                specialBattle.finalResult = "flee-retreat";
+                metrics.specialBattles.push(specialBattle);
+              }
+              return finishRun(state, "retreat", metrics);
+            }
+            if (specialEvent) {
+              // 逃走ではeventセルが消えない。1マス後退後、同じセルへ再侵入する。
+              continue;
+            }
+            continue stepLoop;
+          }
+
+          if (combatResult.result !== "victory") {
+            metrics.stalemate = combatResult.result === "stalemate";
+            metrics.deathEncounterType = encounterType;
+            if (specialBattle) {
+              specialBattle.finalResult = combatResult.result;
+              metrics.specialBattles.push(specialBattle);
+            }
+            return finishRun(state, "death", metrics);
+          }
+
+          if (specialEvent) {
+            const keyCountBefore = state.inventory.filter(
+              item => (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY"
+            ).length;
+            applyPendingOutcomeRewards(
+              state,
+              isBoss
+                ? { kind: "milestoneVictory", floor }
+                : { kind: "giveKey" },
+              Math.random
+            );
+            const keyCountAfter = state.inventory.filter(
+              item => (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY"
+            ).length;
+            metrics.dragonKeysAcquired += Math.max(0, keyCountAfter - keyCountBefore);
+          }
+
+          recordStatusCureAcquisitions(
+            metrics,
+            cureCountsBeforeCombat,
+            countInventoryItems(state.inventory),
+            "combat",
+            cureItemsUsedBeforeCombat
+          );
+
+          const scholarMaterialBonus = getScholarMaterialBonus(state.combatState.monsters, state);
+          metrics.coreObservations.scholarMaterialBonusByFloor[floor] += scholarMaterialBonus;
+          state.combatState.monsters.forEach(monster => {
+            if (monster.fled || monster.hasSplit) return;
+            if (monster.role === "disruptor") metrics.coreObservations.disruptorKills++;
+            if (monster.role === "amplifier") metrics.coreObservations.amplifierKills++;
+          });
+          const totalRewardDelta = getMaterialDelta(
+            materialsBeforeRewards,
+            state.currentRun.materials
+          );
+          const questRewards = getNewQuestRewards(completedQuestIds, state.currentRun.quests);
+          const combatDropDelta = { ...totalRewardDelta };
+          subtractMaterials(combatDropDelta, questRewards);
+          let transformedDrops = combatDropDelta;
+          if (scenario.materialDropOverride) {
+            transformedDrops = transformCombatMaterialDrops(
+              combatDropDelta,
+              floor,
+              scenario.materialDropOverride,
+              materialOverrideRandom
+            );
+            state.currentRun.materials = { ...materialsBeforeRewards };
+            addMaterials(state.currentRun.materials, questRewards);
+            addMaterials(state.currentRun.materials, transformedDrops);
+          }
+          metrics.materialSources.combat += totalMaterials(transformedDrops);
+          metrics.materialSources.quest += totalMaterials(questRewards);
+          metrics.combatMaterialEvents++;
+          metrics.combatMaterialHitEvents += Number(totalMaterials(transformedDrops) > 0);
+          const baselineCombatEquipment = state.currentRun.equipmentFound
+            .slice(equipmentFoundBeforeRewards);
+          const overriddenCombatEquipment = baselineCombatEquipment.map(item => {
+            const replacement = rerollSupplyEquipment(
+              item,
+              state,
+              floor,
+              "combat",
+              supplyOverride,
+              Math.random
+            );
+            if (replacement === item) return item;
+            const inventoryIndex = state.inventory.findIndex(candidate =>
+              candidate === item ||
+              (
+                candidate?.instanceId &&
+                item?.instanceId &&
+                candidate.instanceId === item.instanceId
+              )
+            );
+            if (inventoryIndex >= 0) state.inventory[inventoryIndex] = replacement;
+            return replacement;
+          });
+          const extraCombatEquipment = generateExtraSupplyEquipment(
+            state,
+            floor,
+            "combat",
+            supplyOverride,
+            Math.random
+          );
+          if (extraCombatEquipment && addInventoryItemToState(state, extraCombatEquipment)) {
+            overriddenCombatEquipment.push(extraCombatEquipment);
+          }
+          state.currentRun.equipmentFound.splice(
+            equipmentFoundBeforeRewards,
+            state.currentRun.equipmentFound.length - equipmentFoundBeforeRewards,
+            ...overriddenCombatEquipment
+          );
+          recordEquipmentAcquisitions(
+            metrics,
+            overriddenCombatEquipment,
+            floor,
+            "combat"
+          );
+          recordEquipmentUpgrades(
+            metrics,
+            equipGreedyUpgrades(state, metrics, scoringProfile),
+            floor
+          );
+          applyPostCombatRecovery(state.party[0]);
+          metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
+          useStatusCureIfNeeded(state, metrics, "post-combat");
+          if (!isAlive(state.party[0])) {
+            metrics.deathEncounterType = encounterType;
+            if (specialBattle) {
+              specialBattle.finalResult = "death";
+              metrics.specialBattles.push(specialBattle);
+            }
+            return finishRun(state, "death", metrics);
+          }
+          if (specialBattle) {
+            specialBattle.finalResult = "victory";
+            metrics.specialBattles.push(specialBattle);
+          }
+          if (useTownPortalIfNeeded(state, scenario, metrics, "post-combat")) {
+            return finishRun(state, "retreat", metrics);
+          }
+          break;
+        }
       }
     }
 
     applySimulatedCampRest(state, metrics.coreObservations);
     maybePurchaseMerchantWing(state, scenario, metrics);
+    maybePurchaseMerchantStatusCures(state, metrics);
     if (isMilestoneFloor(floor)) {
       metrics.milestoneDecisions.push({
         floor,
@@ -2099,8 +2948,14 @@ function formatPercent(rate) {
   return `${(rate * 100).toFixed(1)}%`;
 }
 
-export function calibrateCoreScoringProfile(runCount = RUNS_PER_CASE) {
-  const calibrationScenario = SCENARIOS.find(scenario => scenario.id === "legacy-no-portal");
+export function calibrateCoreScoringProfile(
+  runCount = RUNS_PER_CASE,
+  scenarioOverrides = {}
+) {
+  const calibrationScenario = {
+    ...SCENARIOS.find(scenario => scenario.id === "legacy-no-portal"),
+    ...scenarioOverrides
+  };
   const observations = createCoreObservations();
   for (let runIndex = 0; runIndex < runCount; runIndex++) {
     const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
@@ -2377,7 +3232,9 @@ console.log(
 );
 console.log(
   `生存仮定: 傷薬使用閾値=${HEAL_POTION_THRESHOLD}, ` +
-  `逃走閾値=${FLEE_HP_THRESHOLD}, 装備=実制限付き貪欲スコア更新, 鑑定済み・呪いなし`
+  `逃走閾値=${DEFAULT_FLEE_HP_THRESHOLD ?? "逃走なし"}, ` +
+  `状態回復=${DEFAULT_STATUS_CURE_POLICY}(HP<=${DEFAULT_STATUS_CURE_HP_THRESHOLD}), ` +
+  `装備=実制限付き貪欲スコア更新, 鑑定済み・呪いなし`
 );
 console.log(
   `帰還の翼ポリシー（仮値・感度分析対象）: B${PORTAL_MIN_FLOOR}以降, ` +
@@ -2385,15 +3242,20 @@ console.log(
 );
 console.log(
   `供給仮定: 宝箱の本体/装身具分岐を実ロジック準拠で反映、` +
-  `宝箱TOWN_PORTALをinventory追加・使用対象化、` +
+  `宝箱TOWN_PORTAL/状態回復薬をinventory追加・使用対象化、` +
+  `マイルストーン商人の不足状態回復薬を実素材で購入、` +
   `core判定=enabled ${ENABLED_CORE_AFFIXES.length}/${CORE_AFFIXES.length}種+affix_rules helper`
 );
 console.log(
-  "非モデル化: マイルストーン商人購入、毒/盲目/麻痺等の罠被害と解毒薬/状態回復薬、" +
-  "傷薬以外の回復・MP消費アイテム、プレイヤー任意判断（固定閾値で代理）"
+  "非モデル化: 宝箱罠の実被害、商人での傷薬/罠外し/鑑定粉購入、" +
+  "上薬・MP消費/強化アイテムの能動使用、マップ上の任意寄り道、" +
+  "人間の敵別判断（固定閾値で代理）"
 );
 console.log(
-  "感度指定: PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
+  "感度指定: FLEE_POLICY=never / FLEE_HP_THRESHOLD, " +
+  "STATUS_CURE_POLICY=smart|never / STATUS_CURE_HP_THRESHOLD / " +
+  "STATUS_CURE_MERCHANT_POLICY=missing|never, " +
+  "PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
   "SIM_SCENARIOS=workshop-locked,workshop-unlocked,legacy-no-portal"
 );
 console.log(

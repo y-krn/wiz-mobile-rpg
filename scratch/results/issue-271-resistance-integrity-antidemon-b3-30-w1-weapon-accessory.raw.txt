@@ -1,0 +1,79 @@
+Issue #271 B5ボス敗因分解 mode=baseline
+seed=2715, SIM_PARALLEL=15, calibration N=500, batch=1000
+経路: generateRunFloor=各到達floor1回、generateEncounter=各試行1回、runCombatRoundCalculation=各turn1回、applyCombatRewards=勝利round内部1回のみ。
+モデル: 実grid bossセル、実装備/消耗品/状態薬/確定逃走+追撃+再挑戦、実combat round/outcome reward。非モデル: 人間の予兆防御判断、宝箱罠実被害、任意寄り道。
+antiDemon B3+/30/w1/weapon+accessory: 1000/8000 run完了, batch B5 event=338
+antiDemon B3+/30/w1/weapon+accessory: 2000/8000 run完了, batch B5 event=312
+antiDemon B3+/30/w1/weapon+accessory: 3000/8000 run完了, batch B5 event=313
+antiDemon B3+/30/w1/weapon+accessory: 4000/8000 run完了, batch B5 event=328
+antiDemon B3+/30/w1/weapon+accessory: 5000/8000 run完了, batch B5 event=336
+antiDemon B3+/30/w1/weapon+accessory: 6000/8000 run完了, batch B5 event=331
+antiDemon B3+/30/w1/weapon+accessory: 7000/8000 run完了, batch B5 event=332
+antiDemon B3+/30/w1/weapon+accessory: 8000/8000 run完了, batch B5 event=346
+
+【フェーズ1: B5敗因分解】
+- run N=8000、B5 event N=2636、attempt N=3506
+- 試行: 勝利 3.6% / 逃走 38.0% / 敗北 58.4%
+- event最終: 勝利 4.8% / 逃走撤退 17.5% / 敗北 77.7%
+- 敗北: 3.07 turn、敵HP削減 14.9%
+- 勝利: 7.44 turn
+- 実効与damage: 13.18/combat turn、18.37/offense turn。HP230理論 17.45 turn
+- physical: 6554 hit、damage share 65.0%、平均 6.83、p10/p50/p90=1.00/6.00/14.00
+- LAHALITO: 1465 hit、damage share 35.0%、平均 16.46、p10/p50/p90=11.00/16.00/22.00
+- 状態異常発生attempt 14.7%
+
+- death resource N=2048: 傷薬 1.46→1.46（枯渇 24.8%）、MP 0.65→0.37（枯渇 76.0%）、状態薬 3.54→3.54（枯渇 0.0%）
+- flee resource N=1331: 傷薬 1.30→1.30（枯渇 30.0%）、MP 0.24→0.16（枯渇 84.7%）、状態薬 3.65→3.64（枯渇 0.0%）
+- victory resource N=127: 傷薬 1.20→1.20（枯渇 29.1%）、MP 0.06→0.06（枯渇 94.5%）、状態薬 3.71→3.71（枯渇 0.0%）
+
+## 勝敗要因（勝利−敗北、職内調整）
+
+- level: 勝利 4.37 / 敗北 4.29 / 職内差 0.05
+- maxHp: 勝利 53.15 / 敗北 39.37 / 職内差 3.15
+- atk: 勝利 17.80 / 敗北 9.04 / 職内差 2.25
+- def: 勝利 21.43 / 敗北 8.98 / 職内差 7.64
+- equipmentStatScore: 勝利 82.98 / 敗北 39.92 / 職内差 20.98
+- combatBuildScore: 勝利 85.05 / 敗北 41.37 / 職内差 20.89
+
+## 装備素点 quartile
+
+- Q1: N=543、score 23.09、勝率 0.0%
+- Q2: N=544、score 38.35、勝率 0.0%
+- Q3: N=544、score 44.94、勝率 0.0%
+- Q4: N=544、score 63.30、勝率 23.3%
+
+【フェーズ2: resistance / antiDemon】
+- 実装式: guardianはHP25%以下のみ物理軽減、spellGuardは呪文へ常時、poisonWard/statusResistanceは状態異常だけ、antiDemonはdemonタグ対象への与damage。
+- デーモンガードは状態異常能力なし。poisonWard/statusResistanceの戦闘寄与は0。
+- guardian軽減log 333回、spellGuard軽減log 258回。
+- support cost: guardian=3、spellGuard=3、poisonWard=2、statusResistance=2、antiDemon=3。
+
+- guardian: 入手 347/2175=16.0%、平均値 20.46、勝率 有 36.6% / 無 0.0%、職内差 0.0%
+- spellGuard: 入手 386/2175=17.7%、平均値 15.73、勝率 有 3.9% / 無 6.3%、職内差 -0.8%
+- poisonWard: 入手 28/2175=1.3%、平均値 19.64、勝率 有 7.1% / 無 5.8%、職内差 1.1%
+- statusResistance: 入手 193/2175=8.9%、平均値 14.88、勝率 有 7.3% / 無 5.7%、職内差 0.8%
+- antiDemon: 入手 42/2175=1.9%、平均値 30.00、勝率 有 14.3% / 無 5.7%、職内差 6.4%
+
+【職業別】
+Fighter: N=301, 勝率=42.2%, Lv 勝/敗=4.37/4.32, HP=53.15/50.00, ATK=17.80/15.55, DEF=21.43/13.79, 装備素点=82.98/62.00
+Thief: N=789, 勝率=0.0%, Lv 勝/敗=NA/4.43, HP=NA/40.66, ATK=NA/13.22, DEF=NA/7.65, 装備素点=NA/45.41
+Priest: N=675, 勝率=0.0%, Lv 勝/敗=NA/4.24, HP=NA/36.48, ATK=NA/6.39, DEF=NA/11.31, 装備素点=NA/39.74
+Mage: N=410, 勝率=0.0%, Lv 勝/敗=NA/4.09, HP=NA/37.13, ATK=NA/2.57, DEF=NA/5.64, 装備素点=NA/20.25
+
+【core別】
+CORE_TRAP_EATER: N=309, 勝率=4.9%
+CORE_CAMP_MASTER: N=292, 勝率=4.8%
+CORE_SNEAK_STEP: N=191, 勝率=6.3%
+CORE_OPENER: N=183, 勝率=3.3%
+CORE_THORN_SHIELD: N=166, 勝率=9.6%
+CORE_TOMB_RAIDER: N=127, 勝率=9.4%
+CORE_GIANT_SLAYER: N=101, 勝率=7.9%
+CORE_SCHOLAR_EYE: N=92, 勝率=5.4%
+CORE_KEEN_EYE: N=82, 勝率=0.0%
+CORE_EXECUTIONER: N=71, 勝率=8.5%
+CORE_CURSE_KEEPER: N=71, 勝率=7.0%
+CORE_LAST_STAND: N=55, 勝率=5.5%
+CORE_BOUNTY_HUNTER: N=55, 勝率=3.6%
+CORE_PURIFY_RING: N=53, 勝率=9.4%
+生行データ: scratch/results/issue-271-resistance-integrity-antidemon-b3-30-w1-weapon-accessory-baseline-rows.jsonl
+生出力: scratch/results/issue-271-resistance-integrity-antidemon-b3-30-w1-weapon-accessory.raw.txt

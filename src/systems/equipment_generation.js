@@ -339,6 +339,8 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     addAffix(1, "firstTurnAttack", () => floor >= 4 ? 4 : 2, 2);
     addAffix(2, "antiBeast", () => floor >= 4 ? 25 : 15, 1);
     addAffix(2, "antiSpirit", () => floor >= 4 ? 25 : 15, 1);
+    // #271実src N=8,000: B5装備2.0%、職内r=0.065 [0.027, 0.103]、event勝率4.9%→4.8%。
+    addAffix(2, "antiDemon", () => floor >= 4 ? 25 : 15, 1);
     addAffix(3, "spellAccuracy", () => floor >= 5 ? 15 : 10, 1);
     addAffix(3, "killHeal", () => 2, 1);
     addAffix(3, "followUpMp", () => 1, 1);
@@ -485,6 +487,7 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     { type: "spellGuard", getVal: () => floor >= 4 ? 15 : 10, weight: 1 },
     { type: "antiDragon", getVal: () => 15, weight: floor >= 4 ? 1 : 0 },
     { type: "antiUndead", getVal: () => 15, weight: floor >= 3 ? 1 : 0 },
+    { type: "antiDemon", getVal: () => floor >= 4 ? 25 : 15, weight: floor >= 2 ? 1 : 0 },
     { type: "poisonWard", getVal: () => floor >= 4 ? 25 : 15, weight: 1 },
     { type: "treasureSense", getVal: () => floor >= 4 ? 8 : 5, weight: 1 },
     { type: "hearRange", getVal: () => floor >= 4 ? 2 : 1, weight: 2 },
