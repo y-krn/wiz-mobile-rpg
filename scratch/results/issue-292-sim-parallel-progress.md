@@ -56,3 +56,37 @@
 - `npm run lint`: exit 0
 - `git diff --check`: 問題なし
 - `git diff --name-only -- src`: 出力なし（`src/`変更なし）
+
+## 2026-07-30 本番N 並列度別計測と完全一致確認
+
+### depth (`sim_depth_material_ev.js`, SIM_RUNS=500, seed 231, 全3 scenario)
+| 並列度 | wall | user | sys | 最大RSS | stdout SHA-256 |
+|---|---:|---:|---:|---:|---|
+| before(origin/main 逐次) | 156.74s | 161.66s | 2.32s | 261MB | f0aaf11f... |
+| 1 | 149.91s | 155.64s | 1.47s | 257MB | f0aaf11f... |
+| 4 | **71.59s** | 181.78s | 1.95s | 925MB | f0aaf11f... |
+| 8 | 72.70s | 187.53s | 1.89s | 981MB | f0aaf11f... |
+| max(15) | 73.35s | 187.61s | 1.96s | 949MB | f0aaf11f... |
+
+2.1倍速。P=4 で頭打ち。分割単位が scenario 3個のため。
+
+### workshop (`sim_workshop_progression.js`, 50 trials x 50 runs, seed 278234)
+| 並列度 | wall | user | sys | 最大RSS | stdout SHA-256 |
+|---|---:|---:|---:|---:|---|
+| before(逐次) | 788.20s | 806.88s | 7.95s | 281MB | bcb79c3e... |
+| 4 | 236.59s | 943.93s | 8.81s | 1.04GB | bcb79c3e... |
+| 8 | 142.92s | 1134.55s | 7.66s | 1.76GB | bcb79c3e... |
+| 15 | **105.80s** | 1410.07s | 8.84s | 3.02GB | bcb79c3e... |
+
+7.5倍速（13分8秒 → 1分46秒）。分割単位が trial 50個のため並列度15まで効く。
+
+### 完全一致の確認
+両simとも **before基準・全並列度で stdout SHA-256 が完全一致**。
+本番Nで結果が1ビットも変わらないことを確認した。
+
+### 所見
+- **分割単位の粒度が高速化の上限を決める**。depth=scenario 3個で2.1倍、workshop=trial 50個で7.5倍。
+- user時間は並列度に応じて増える（worker起動・V8 isolate・効率コアの単位効率低下）。wallは縮む。
+- メモリは isolate ごとにモジュールを読むため増加。workshop P=15 で 3.02GB。
+- 既定 `DEFAULT_SIM_PARALLEL = 4` は妥当。`taskCount` で上限クランプ済みなので分割数を超える worker は作られない。
+- 長時間simは `SIM_PARALLEL=15` を明示指定すると効果が大きい。
