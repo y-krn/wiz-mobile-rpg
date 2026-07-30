@@ -1,5 +1,8 @@
 /* global console, process */
 
+import { pathToFileURL } from "node:url";
+import { runSimTasks } from "./sim_parallel.js";
+
 const {
   calibrateCoreScoringProfile,
   resetSimulationRandom,
@@ -260,7 +263,98 @@ function percentile(values, ratio) {
   return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))];
 }
 
-function simulateProgressionCase(strategy, scoringProfile, options = {}) {
+function createProgressionPhaseResult(result) {
+  return {
+    survived: result.survived,
+    carriedMaterials: result.carriedMaterials,
+    bankedMaterials: result.bankedMaterials,
+    timeCost: result.timeCost,
+    reachedFloor: result.reachedFloor,
+    carriedMaterialCounts: result.carriedMaterialCounts,
+    bankedMaterialCounts: result.bankedMaterialCounts
+  };
+}
+
+function simulateProgressionTrial(trial, strategy, scoringProfile, options = {}) {
+  resetSimulationRandom(BASE_SEED + trial * 104729);
+  let bank = emptyMaterials();
+  let workshop = { ranks: {} };
+  let wingRun = null;
+  let buyoutRun = null;
+  const surplusSeen = new Set();
+  const firstSurplusRuns = {};
+  const phaseEvents = [];
+  const timeline = [];
+  const replay = [];
+
+  for (let run = 1; run <= RUNS_PER_TRIAL; run++) {
+    const phase = getPhase(workshop);
+    const hasWing = phase !== "preWing";
+    const result = simulateRun({
+      className: SIM_CLASSES[(trial * RUNS_PER_TRIAL + run - 1) % SIM_CLASSES.length],
+      startFloor: 1,
+      targetDepth: hasWing ? POST_WING_TARGET : PRE_WING_TARGET,
+      runIndex: trial * RUNS_PER_TRIAL + run,
+      seriesId: "workshop-progression",
+      scoringProfile,
+      scenario: PROGRESSION_SCENARIO,
+      workshop
+    });
+    const bankBefore = { ...bank };
+    const workshopBefore = cloneWorkshop(workshop);
+    const stake = getStakeMetrics({
+      bankBefore,
+      workshopBefore,
+      result,
+      strategyId: strategy.id,
+      options
+    });
+    phaseEvents.push({
+      phase,
+      result: createProgressionPhaseResult(result),
+      stake
+    });
+    addMaterials(bank, result.bankedMaterialCounts);
+    const purchaseResult = purchaseAvailable(bank, workshop, strategy.id, options);
+    bank = purchaseResult.bank;
+    workshop = purchaseResult.workshop;
+
+    if (wingRun === null && isNodeComplete(workshop, WING_NODE_ID)) wingRun = run;
+    if (buyoutRun === null && isWorkshopComplete(workshop)) buyoutRun = run;
+    const remaining = getRemainingDemand(workshop, options.wingCostOverride);
+    MATERIALS.forEach(material => {
+      if (!surplusSeen.has(material) && (bank[material] || 0) > (remaining[material] || 0)) {
+        surplusSeen.add(material);
+        firstSurplusRuns[material] = run;
+      }
+    });
+    timeline.push({
+      wingUnlocked: Number(isNodeComplete(workshop, WING_NODE_ID)),
+      workshopComplete: Number(isWorkshopComplete(workshop)),
+      averageBank: totalMaterials(bank)
+    });
+    replay.push({
+      run,
+      phase,
+      bankedMaterialCounts: { ...result.bankedMaterialCounts },
+      lostMaterialCounts: subtractMaterials(
+        result.carriedMaterialCounts,
+        result.bankedMaterialCounts
+      )
+    });
+  }
+
+  return {
+    wingRun,
+    buyoutRun,
+    firstSurplusRuns,
+    phaseEvents,
+    timeline,
+    replay
+  };
+}
+
+function aggregateProgressionCase(strategy, options, trialResults) {
   const phaseTotals = {
     preWing: createPhaseMetrics(),
     midWorkshop: createPhaseMetrics(),
@@ -278,70 +372,26 @@ function simulateProgressionCase(strategy, scoringProfile, options = {}) {
   }));
   const trialReplays = [];
 
-  for (let trial = 0; trial < TRIALS; trial++) {
-    resetSimulationRandom(BASE_SEED + trial * 104729);
-    let bank = emptyMaterials();
-    let workshop = { ranks: {} };
-    let wingRun = null;
-    let buyoutRun = null;
-    const surplusSeen = new Set();
-    const replay = [];
-
-    for (let run = 1; run <= RUNS_PER_TRIAL; run++) {
-      const phase = getPhase(workshop);
-      const hasWing = phase !== "preWing";
-      const result = simulateRun({
-        className: SIM_CLASSES[(trial * RUNS_PER_TRIAL + run - 1) % SIM_CLASSES.length],
-        startFloor: 1,
-        targetDepth: hasWing ? POST_WING_TARGET : PRE_WING_TARGET,
-        runIndex: trial * RUNS_PER_TRIAL + run,
-        seriesId: "workshop-progression",
-        scoringProfile,
-        scenario: PROGRESSION_SCENARIO,
-        workshop
-      });
-      const bankBefore = { ...bank };
-      const workshopBefore = cloneWorkshop(workshop);
-      const stake = getStakeMetrics({
-        bankBefore,
-        workshopBefore,
-        result,
-        strategyId: strategy.id,
-        options
-      });
+  for (const trialResult of trialResults) {
+    trialResult.phaseEvents.forEach(({ phase, result, stake }) => {
       recordPhase(phaseTotals[phase], result, stake);
-      addMaterials(bank, result.bankedMaterialCounts);
-      const purchaseResult = purchaseAvailable(bank, workshop, strategy.id, options);
-      bank = purchaseResult.bank;
-      workshop = purchaseResult.workshop;
-
-      if (wingRun === null && isNodeComplete(workshop, WING_NODE_ID)) wingRun = run;
-      if (buyoutRun === null && isWorkshopComplete(workshop)) buyoutRun = run;
-      const remaining = getRemainingDemand(workshop, options.wingCostOverride);
-      MATERIALS.forEach(material => {
-        if (!surplusSeen.has(material) && (bank[material] || 0) > (remaining[material] || 0)) {
-          surplusSeen.add(material);
-          firstSurplusRuns[material].push(run);
-        }
-      });
-      timeline[run - 1].wingUnlocked += Number(isNodeComplete(workshop, WING_NODE_ID));
-      timeline[run - 1].workshopComplete += Number(isWorkshopComplete(workshop));
-      timeline[run - 1].averageBank += totalMaterials(bank);
-      replay.push({
-        run,
-        phase,
-        bankedMaterialCounts: { ...result.bankedMaterialCounts },
-        lostMaterialCounts: subtractMaterials(
-          result.carriedMaterialCounts,
-          result.bankedMaterialCounts
-        )
-      });
+    });
+    wingRuns.push(trialResult.wingRun ?? RUNS_PER_TRIAL + 1);
+    buyoutRuns.push(trialResult.buyoutRun ?? RUNS_PER_TRIAL + 1);
+    if (trialResult.wingRun !== null && trialResult.buyoutRun !== null) {
+      afterWingToBuyoutRuns.push(trialResult.buyoutRun - trialResult.wingRun);
     }
-
-    wingRuns.push(wingRun ?? RUNS_PER_TRIAL + 1);
-    buyoutRuns.push(buyoutRun ?? RUNS_PER_TRIAL + 1);
-    if (wingRun !== null && buyoutRun !== null) afterWingToBuyoutRuns.push(buyoutRun - wingRun);
-    trialReplays.push(replay);
+    MATERIALS.forEach(material => {
+      if (trialResult.firstSurplusRuns[material] !== undefined) {
+        firstSurplusRuns[material].push(trialResult.firstSurplusRuns[material]);
+      }
+    });
+    trialResult.timeline.forEach((point, index) => {
+      timeline[index].wingUnlocked += point.wingUnlocked;
+      timeline[index].workshopComplete += point.workshopComplete;
+      timeline[index].averageBank += point.averageBank;
+    });
+    trialReplays.push(trialResult.replay);
   }
 
   return {
@@ -469,112 +519,6 @@ function printCase(result, includeTimeline = true) {
   printSurplus(result);
   if (includeTimeline) printTimeline(result);
 }
-
-console.log("工房進行シミュレーション（Issue #234 + #278）");
-console.log(
-  `試行: 戦略ごと N=${TRIALS}, ${RUNS_PER_TRIAL}ラン/試行, seed=${BASE_SEED}, ` +
-  `core calibration N=${CALIBRATION_RUNS}`
-);
-const initialDemand = getRemainingDemand({ ranks: {} });
-const workshopSteps = WORKSHOP_NODES.reduce(
-  (sum, node) => sum + getNodeMaxRank(node),
-  0
-);
-if (workshopSteps !== 36 || totalMaterials(initialDemand) !== 131) {
-  throw new Error(
-    `workshop demand mismatch: steps=${workshopSteps}, materials=${totalMaterials(initialDemand)}`
-  );
-}
-console.log(
-  `工房実需要検算: ${WORKSHOP_NODES.length}ノード / ${workshopSteps}購入step / ` +
-  `総${totalMaterials(initialDemand)}個。`
-);
-console.log(
-  `撤退方針: 翼解放前=B${PRE_WING_TARGET}到達時撤退（B5を探索して竜鱗橋渡し）、` +
-  `解放後=B${POST_WING_TARGET}到達時撤退。危険時は既存simの翼使用閾値。`
-);
-console.log(
-  "実装経路: generateRunFloor / applyCombatRewards / generateRandomEquipment / " +
-  "bankRunMaterials / purchaseWorkshopNode / applyWorkshopToCharacter を実srcから使用。"
-);
-console.log(
-  "grants反映: 恒久stat、affix/spell pool、鑑定粉、帰還item。初期装備は職適合かつ現装備よりatkが高い候補を選択。"
-);
-console.log(
-  "stake代理指標: 死亡で失う70%のうち、run開始時bank控除後の未購入工房需要に充当可能な個数。" +
-  "遅延購入stepは同runを100%bankした反実仮想との差。買い切り後は有限工房需要ゼロ。"
-);
-console.log(
-  "非モデル化: マイルストーン商人、罠状態被害、任意装備/クラス選択の最適化、run間codex継承、" +
-  "プレイヤー可変撤退判断。既存sim同様、固定閾値・round-robin職で代理。"
-);
-
-const scoringProfile = calibrateCoreScoringProfile(CALIBRATION_RUNS);
-const baselineResults = STRATEGIES.map(strategy =>
-  simulateProgressionCase(strategy, scoringProfile, { id: "baseline" })
-);
-baselineResults.forEach(result => printCase(result));
-
-console.log("\n【what-if 試算: 帰還の翼から竜鱗ゲート除去】");
-console.log(
-  "sim内override: kit_return_wing costを黒角4のみへ置換。実src経路と乱数消費順が異なる試算値。"
-);
-const noScaleResults = STRATEGIES.map(strategy =>
-  simulateProgressionCase(strategy, scoringProfile, {
-    id: "wing-no-scale",
-    label: "竜鱗不要",
-    wingCostOverride: { "黒角": 4 }
-  })
-);
-noScaleResults.forEach(result => printCase(result, false));
-
-console.log("\n【what-if 試算: 買い切り後の反復可変素材シンク】");
-console.log(
-  "baseline run列を再利用し、買い切り後に任意素材合計10/40個で毎run反復購入する仮想prepを追加。" +
-  "戦闘条件不変の会計replayで、実src未実装。無限需要のため死亡損失は将来sinkに対して100%有価値。"
-);
-for (const result of baselineResults) {
-  for (const sinkPerRun of [10, 40]) {
-    const replay = replayFlexibleSink(result, sinkPerRun);
-    console.log(
-      `${result.strategy.label} / ${sinkPerRun}個: sink充足=${formatRate(replay.sinkCoverage)}, ` +
-      `実消費=${replay.consumedPerRun.toFixed(2)}/run, 純余剰=${replay.netPerRun.toFixed(2)}/run, ` +
-      `post-buyout死亡損失有価値率=${replay.rawDeathLoss > 0 ? "100.0%" : "死亡なし"}`
-    );
-  }
-}
-
-const wingFirst = baselineResults.find(result => result.strategy.id === "wing-first");
-const statsFirst = baselineResults.find(result => result.strategy.id === "stats-first");
-const wingFirstNoScale = noScaleResults.find(result => result.strategy.id === "wing-first");
-const postWorkshopIncome = wingFirst.phaseTotals.postWorkshop.banked /
-  wingFirst.phaseTotals.postWorkshop.runs;
-console.log("\n【構造判定】");
-console.log(
-  `#278 鶏卵ボトルネック: 実用上No。翼優先は中央値${percentile(wingFirst.wingRuns, 0.5)}run、` +
-  `p90 ${percentile(wingFirst.wingRuns, 0.9)}run。翼前B5到達率=` +
-  `${formatRate(wingFirst.phaseTotals.preWing.b5Reached / wingFirst.phaseTotals.preWing.runs)}、` +
-  `竜鱗入手run率=${formatRate(
-    wingFirst.phaseTotals.preWing.dragonScaleAcquired / wingFirst.phaseTotals.preWing.runs
-  )}でB5橋渡しが機能。`
-);
-console.log(
-  `竜鱗gate除去は翼優先平均 ${(
-    wingFirst.wingRuns.reduce((sum, value) => sum + value, 0) / TRIALS
-  ).toFixed(2)}→${(
-    wingFirstNoScale.wingRuns.reduce((sum, value) => sum + value, 0) / TRIALS
-  ).toFixed(2)}run、恒久優先は不変。`
-);
-console.log(
-  `#234 ステーク消滅: Yes。買い切り中央値は翼優先${percentile(wingFirst.buyoutRuns, 0.5)}run、` +
-  `恒久優先${percentile(statsFirst.buyoutRuns, 0.5)}run。翼解放後の追加中央値は` +
-  `${percentile(wingFirst.afterWingToBuyoutRuns, 0.5)}run。買い切り後の進行有効死亡損失=0%。`
-);
-console.log(
-  `唯一sink構造: 翼解放後約3runで深層アクセスと同じ工房が枯渇し、以後bank素材は` +
-  `${postWorkshopIncome.toFixed(2)}個/runで無価値蓄積。10/40個sinkでは在庫増加を止められず、` +
-  `収支均衡には約${postWorkshopIncome.toFixed(0)}個/run規模が必要。`
-);
 
 const FINITE_PORTAL_SCENARIOS = [
   {
@@ -713,53 +657,119 @@ function addWingSpend(totals, cost) {
   addMaterials(totals.wingSpentByMaterial, cost);
 }
 
-function simulateFinitePortalScenario(scenario, scoringProfile) {
-  const totals = createFiniteTotals();
-  for (let trial = 0; trial < TRIALS; trial++) {
-    resetSimulationRandom(BASE_SEED + trial * 104729);
-    let bank = emptyMaterials();
-    let workshop = { ranks: {} };
-    let wingUnlockedRun = null;
-    let standardCompleteRun = null;
-    let firstMerchantPurchaseRun = null;
-    const bankTimeline = [];
+function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
+  resetSimulationRandom(BASE_SEED + trial * 104729);
+  let bank = emptyMaterials();
+  let workshop = { ranks: {} };
+  let wingUnlockedRun = null;
+  let standardCompleteRun = null;
+  let firstMerchantPurchaseRun = null;
+  const bankTimeline = [];
+  const events = [];
 
-    for (let run = 1; run <= RUNS_PER_TRIAL; run++) {
-      const standardCompleteAtStart = isStandardWorkshopComplete(workshop);
-      let startingTownPortals = 0;
-      if (scenario.workshopMode === "permanent" && isNodeComplete(workshop, WING_NODE_ID)) {
-        const firstSupplyRun = (wingUnlockedRun || 0) + 1;
-        if ((run - firstSupplyRun) % scenario.supplyEvery === 0) startingTownPortals = 1;
-      } else if (scenario.workshopMode === "repeat") {
-        const paid = spendMaterials(bank, scenario.repeatCost);
-        if (paid) {
-          bank = paid;
-          startingTownPortals = 1;
-          addWingSpend(totals, scenario.repeatCost);
-        }
+  for (let run = 1; run <= RUNS_PER_TRIAL; run++) {
+    const standardCompleteAtStart = isStandardWorkshopComplete(workshop);
+    const wingSpend = emptyMaterials();
+    let startingTownPortals = 0;
+    if (scenario.workshopMode === "permanent" && isNodeComplete(workshop, WING_NODE_ID)) {
+      const firstSupplyRun = (wingUnlockedRun || 0) + 1;
+      if ((run - firstSupplyRun) % scenario.supplyEvery === 0) startingTownPortals = 1;
+    } else if (scenario.workshopMode === "repeat") {
+      const paid = spendMaterials(bank, scenario.repeatCost);
+      if (paid) {
+        bank = paid;
+        startingTownPortals = 1;
+        addMaterials(wingSpend, scenario.repeatCost);
       }
+    }
 
-      const result = simulateRun({
-        className: SIM_CLASSES[(trial * RUNS_PER_TRIAL + run - 1) % SIM_CLASSES.length],
-        startFloor: 1,
-        targetDepth: POST_WING_TARGET,
-        runIndex: trial * RUNS_PER_TRIAL + run,
-        seriesId: `finite-portal-${scenario.id}`,
-        scoringProfile,
-        scenario: {
-          ...PROGRESSION_SCENARIO,
-          id: scenario.id,
-          ignoreWorkshopReturnItems: true,
-          startingTownPortals,
-          startingPortalSource: "workshop-supply",
-          allowChestTownPortal: scenario.allowChestTownPortal,
-          buyMerchantTownPortal: true,
-          retreatAtMilestoneWithoutTownPortal: true
-        },
-        workshop
-      });
+    const result = simulateRun({
+      className: SIM_CLASSES[(trial * RUNS_PER_TRIAL + run - 1) % SIM_CLASSES.length],
+      startFloor: 1,
+      targetDepth: POST_WING_TARGET,
+      runIndex: trial * RUNS_PER_TRIAL + run,
+      seriesId: `finite-portal-${scenario.id}`,
+      scoringProfile,
+      scenario: {
+        ...PROGRESSION_SCENARIO,
+        id: scenario.id,
+        ignoreWorkshopReturnItems: true,
+        startingTownPortals,
+        startingPortalSource: "workshop-supply",
+        allowChestTownPortal: scenario.allowChestTownPortal,
+        buyMerchantTownPortal: true,
+        retreatAtMilestoneWithoutTownPortal: true
+      },
+      workshop
+    });
 
-      const stake = getFiniteStake(result, bank, workshop, scenario);
+    const stake = getFiniteStake(result, bank, workshop, scenario);
+    if (firstMerchantPurchaseRun === null && result.merchantWingsPurchased > 0) {
+      firstMerchantPurchaseRun = run;
+    }
+
+    addMaterials(bank, result.bankedMaterialCounts);
+    if (scenario.workshopMode === "permanent") {
+      const wingWasComplete = isNodeComplete(workshop, WING_NODE_ID);
+      const purchaseResult = purchaseAvailable(bank, workshop, "wing-first");
+      bank = purchaseResult.bank;
+      workshop = purchaseResult.workshop;
+      if (!wingWasComplete && isNodeComplete(workshop, WING_NODE_ID)) {
+        wingUnlockedRun = run;
+        addMaterials(
+          wingSpend,
+          getWorkshopNodeCost(WORKSHOP_NODES.find(node => node.id === WING_NODE_ID), 0)
+        );
+      }
+    } else {
+      const reserve = scenario.workshopMode === "repeat" ? scenario.repeatCost : null;
+      const purchaseResult = purchaseStandardAvailable(bank, workshop, reserve);
+      bank = purchaseResult.bank;
+      workshop = purchaseResult.workshop;
+    }
+
+    if (standardCompleteRun === null && isStandardWorkshopComplete(workshop)) {
+      standardCompleteRun = run;
+    }
+    bankTimeline.push(totalMaterials(bank));
+    events.push({
+      standardCompleteAtStart,
+      startingTownPortals,
+      wingSpend,
+      stake,
+      result: {
+        survived: result.survived,
+        carriedMaterials: result.carriedMaterials,
+        bankedMaterials: result.bankedMaterials,
+        timeCost: result.timeCost,
+        reachedFloor: result.reachedFloor,
+        townPortalsUsed: result.townPortalsUsed,
+        portalAcquisitions: result.portalAcquisitions,
+        merchantWingAttempts: result.merchantWingAttempts,
+        merchantWingsPurchased: result.merchantWingsPurchased,
+        merchantWingFailures: result.merchantWingFailures,
+        milestoneDecisions: result.milestoneDecisions
+      }
+    });
+  }
+
+  const halfway = Math.floor(RUNS_PER_TRIAL / 2);
+  const halfwayBalance = halfway > 0 ? bankTimeline[halfway - 1] : 0;
+  return {
+    events,
+    surplusPerRun:
+      (bankTimeline.at(-1) - halfwayBalance) / Math.max(1, RUNS_PER_TRIAL - halfway),
+    endingBankTotal: bankTimeline.at(-1),
+    firstMerchantPurchaseRun,
+    standardCompleteRun
+  };
+}
+
+function aggregateFinitePortalScenario(scenario, trialResults) {
+  const totals = createFiniteTotals();
+  for (const trialResult of trialResults) {
+    trialResult.events.forEach(event => {
+      const { result, stake } = event;
       totals.runs++;
       totals.survived += Number(result.survived);
       totals.carried += result.carriedMaterials;
@@ -770,13 +780,13 @@ function simulateFinitePortalScenario(scenario, scoringProfile) {
       totals.reachedB15 += Number(result.reachedFloor >= 15);
       totals.rawDeathLoss += stake.raw;
       totals.usefulDeathLoss += stake.useful;
-      if (standardCompleteAtStart) {
+      if (event.standardCompleteAtStart) {
         totals.steadyRuns++;
         totals.steadyRawDeathLoss += stake.raw;
         totals.steadyUsefulDeathLoss += stake.useful;
       }
       totals.portalUses += result.townPortalsUsed;
-      totals.portalAcquisitions.workshopSupply += startingTownPortals;
+      totals.portalAcquisitions.workshopSupply += event.startingTownPortals;
       totals.portalAcquisitions.chest += result.portalAcquisitions.chest;
       totals.portalAcquisitions.merchant += result.portalAcquisitions.merchant;
       totals.merchantAttempts += result.merchantWingAttempts;
@@ -784,51 +794,31 @@ function simulateFinitePortalScenario(scenario, scoringProfile) {
       Object.entries(result.merchantWingFailures).forEach(([reason, count]) => {
         totals.merchantFailures[reason] = (totals.merchantFailures[reason] || 0) + count;
       });
-      if (firstMerchantPurchaseRun === null && result.merchantWingsPurchased > 0) {
-        firstMerchantPurchaseRun = run;
-      }
       totals.milestoneDecisions += result.milestoneDecisions.length;
       totals.insuredMilestoneDecisions += result.milestoneDecisions
         .filter(decision => decision.hasTownPortal)
         .length;
-
-      addMaterials(bank, result.bankedMaterialCounts);
-      if (scenario.workshopMode === "permanent") {
-        const wingWasComplete = isNodeComplete(workshop, WING_NODE_ID);
-        const purchaseResult = purchaseAvailable(bank, workshop, "wing-first");
-        bank = purchaseResult.bank;
-        workshop = purchaseResult.workshop;
-        if (!wingWasComplete && isNodeComplete(workshop, WING_NODE_ID)) {
-          wingUnlockedRun = run;
-          addWingSpend(
-            totals,
-            getWorkshopNodeCost(WORKSHOP_NODES.find(node => node.id === WING_NODE_ID), 0)
-          );
-        }
-      } else {
-        const reserve = scenario.workshopMode === "repeat" ? scenario.repeatCost : null;
-        const purchaseResult = purchaseStandardAvailable(bank, workshop, reserve);
-        bank = purchaseResult.bank;
-        workshop = purchaseResult.workshop;
-      }
-
-      if (standardCompleteRun === null && isStandardWorkshopComplete(workshop)) {
-        standardCompleteRun = run;
-      }
-      bankTimeline.push(totalMaterials(bank));
+      addWingSpend(totals, event.wingSpend);
+    });
+    totals.surplusPerRun += trialResult.surplusPerRun;
+    totals.endingBankTotal += trialResult.endingBankTotal;
+    if (trialResult.firstMerchantPurchaseRun !== null) {
+      totals.firstMerchantPurchaseRuns.push(trialResult.firstMerchantPurchaseRun);
     }
-
-    const halfway = Math.floor(RUNS_PER_TRIAL / 2);
-    const halfwayBalance = halfway > 0 ? bankTimeline[halfway - 1] : 0;
-    totals.surplusPerRun +=
-      (bankTimeline.at(-1) - halfwayBalance) / Math.max(1, RUNS_PER_TRIAL - halfway);
-    totals.endingBankTotal += bankTimeline.at(-1);
-    if (firstMerchantPurchaseRun !== null) {
-      totals.firstMerchantPurchaseRuns.push(firstMerchantPurchaseRun);
+    if (trialResult.standardCompleteRun !== null) {
+      totals.standardCompleteRuns.push(trialResult.standardCompleteRun);
     }
-    if (standardCompleteRun !== null) totals.standardCompleteRuns.push(standardCompleteRun);
   }
   return { scenario, totals };
+}
+
+export function runWorkshopTrialTask(task, { scoringProfile }) {
+  if (task.kind === "progression") {
+    const strategy = STRATEGIES.find(candidate => candidate.id === task.strategyId);
+    return simulateProgressionTrial(task.trial, strategy, scoringProfile, task.options);
+  }
+  const scenario = FINITE_PORTAL_SCENARIOS.find(candidate => candidate.id === task.scenarioId);
+  return simulateFinitePortalTrial(task.trial, scenario, scoringProfile);
 }
 
 function formatFiniteResult(result) {
@@ -869,32 +859,181 @@ function formatFiniteResult(result) {
   );
 }
 
-console.log("\n【Issue #234 what-if 試算: 帰還の翼 finite 供給比較】");
-console.log(
-  "sim内override。実src経路と乱数消費順が異なる試算値。各runはB20を目標とし、" +
-  "B5/B10/B15 milestoneで翼を持たなければ100% bank撤退。翼があれば次のmilestoneへpushする。"
-);
-console.log(
-  "商人は実purchaseMilestoneStockを各milestone探索後に呼び、currentRun.materialsのみで" +
-  "黒角36+呪布27を支払う。宝箱・戦闘drop・装備生成・mapは既存実src経路を維持。"
-);
-console.log(
-  "余剰蓄積は各trial後半25runのbank純増。進行有効損失は未購入の通常工房需要、" +
-  "反復購入条件では将来の翼費用に使える素材を有価値と数える。" +
-  "比較値は通常工房買い切り済みrunだけを集計する。"
-);
-const finitePortalResults = FINITE_PORTAL_SCENARIOS.map(scenario =>
-  simulateFinitePortalScenario(scenario, scoringProfile)
-);
-finitePortalResults.forEach(result => console.log(formatFiniteResult(result)));
-
-console.log("\n【finite供給 商人経路判定】");
-finitePortalResults.forEach(({ scenario, totals }) => {
+export async function runWorkshopProgressionSimulation() {
+  console.log("工房進行シミュレーション（Issue #234 + #278）");
   console.log(
-    `${scenario.label}: insufficient=${totals.merchantFailures.insufficient_materials || 0}, ` +
-    `inventory_full=${totals.merchantFailures.inventory_full || 0}, ` +
-    `成立trial=${totals.firstMerchantPurchaseRuns.length}/${TRIALS}, ` +
-    `通常工房買切trial=${totals.standardCompleteRuns.length}/${TRIALS}, ` +
-    `終了bank平均=${(totals.endingBankTotal / TRIALS).toFixed(1)}`
+    `試行: 戦略ごと N=${TRIALS}, ${RUNS_PER_TRIAL}ラン/試行, seed=${BASE_SEED}, ` +
+    `core calibration N=${CALIBRATION_RUNS}`
   );
-});
+  const initialDemand = getRemainingDemand({ ranks: {} });
+  const workshopSteps = WORKSHOP_NODES.reduce(
+    (sum, node) => sum + getNodeMaxRank(node),
+    0
+  );
+  if (workshopSteps !== 36 || totalMaterials(initialDemand) !== 131) {
+    throw new Error(
+      `workshop demand mismatch: steps=${workshopSteps}, materials=${totalMaterials(initialDemand)}`
+    );
+  }
+  console.log(
+    `工房実需要検算: ${WORKSHOP_NODES.length}ノード / ${workshopSteps}購入step / ` +
+    `総${totalMaterials(initialDemand)}個。`
+  );
+  console.log(
+    `撤退方針: 翼解放前=B${PRE_WING_TARGET}到達時撤退（B5を探索して竜鱗橋渡し）、` +
+    `解放後=B${POST_WING_TARGET}到達時撤退。危険時は既存simの翼使用閾値。`
+  );
+  console.log(
+    "実装経路: generateRunFloor / applyCombatRewards / generateRandomEquipment / " +
+    "bankRunMaterials / purchaseWorkshopNode / applyWorkshopToCharacter を実srcから使用。"
+  );
+  console.log(
+    "grants反映: 恒久stat、affix/spell pool、鑑定粉、帰還item。初期装備は職適合かつ現装備よりatkが高い候補を選択。"
+  );
+  console.log(
+    "stake代理指標: 死亡で失う70%のうち、run開始時bank控除後の未購入工房需要に充当可能な個数。" +
+    "遅延購入stepは同runを100%bankした反実仮想との差。買い切り後は有限工房需要ゼロ。"
+  );
+  console.log(
+    "非モデル化: マイルストーン商人、罠状態被害、任意装備/クラス選択の最適化、run間codex継承、" +
+    "プレイヤー可変撤退判断。既存sim同様、固定閾値・round-robin職で代理。"
+  );
+
+  const scoringProfile = calibrateCoreScoringProfile(CALIBRATION_RUNS);
+  const progressionCases = [
+    ...STRATEGIES.map(strategy => ({
+      strategy,
+      options: { id: "baseline" }
+    })),
+    ...STRATEGIES.map(strategy => ({
+      strategy,
+      options: {
+        id: "wing-no-scale",
+        label: "竜鱗不要",
+        wingCostOverride: { "黒角": 4 }
+      }
+    }))
+  ];
+  const progressionTasks = progressionCases.flatMap(({ strategy, options }) =>
+    Array.from({ length: TRIALS }, (_, trial) => ({
+      kind: "progression",
+      strategyId: strategy.id,
+      options,
+      trial
+    }))
+  );
+  const finiteTasks = FINITE_PORTAL_SCENARIOS.flatMap(scenario =>
+    Array.from({ length: TRIALS }, (_, trial) => ({
+      kind: "finite",
+      scenarioId: scenario.id,
+      trial
+    }))
+  );
+  const taskResults = await runSimTasks({
+    moduleUrl: import.meta.url,
+    exportName: "runWorkshopTrialTask",
+    runTask: runWorkshopTrialTask,
+    tasks: [...progressionTasks, ...finiteTasks],
+    context: { scoringProfile }
+  });
+  let resultOffset = 0;
+  const progressionResults = progressionCases.map(({ strategy, options }) => {
+    const trialResults = taskResults.slice(resultOffset, resultOffset + TRIALS);
+    resultOffset += TRIALS;
+    return aggregateProgressionCase(strategy, options, trialResults);
+  });
+  const finitePortalResults = FINITE_PORTAL_SCENARIOS.map(scenario => {
+    const trialResults = taskResults.slice(resultOffset, resultOffset + TRIALS);
+    resultOffset += TRIALS;
+    return aggregateFinitePortalScenario(scenario, trialResults);
+  });
+  const baselineResults = progressionResults.slice(0, STRATEGIES.length);
+  const noScaleResults = progressionResults.slice(STRATEGIES.length);
+
+  baselineResults.forEach(result => printCase(result));
+
+  console.log("\n【what-if 試算: 帰還の翼から竜鱗ゲート除去】");
+  console.log(
+    "sim内override: kit_return_wing costを黒角4のみへ置換。実src経路と乱数消費順が異なる試算値。"
+  );
+  noScaleResults.forEach(result => printCase(result, false));
+
+  console.log("\n【what-if 試算: 買い切り後の反復可変素材シンク】");
+  console.log(
+    "baseline run列を再利用し、買い切り後に任意素材合計10/40個で毎run反復購入する仮想prepを追加。" +
+    "戦闘条件不変の会計replayで、実src未実装。無限需要のため死亡損失は将来sinkに対して100%有価値。"
+  );
+  for (const result of baselineResults) {
+    for (const sinkPerRun of [10, 40]) {
+      const replay = replayFlexibleSink(result, sinkPerRun);
+      console.log(
+        `${result.strategy.label} / ${sinkPerRun}個: sink充足=${formatRate(replay.sinkCoverage)}, ` +
+        `実消費=${replay.consumedPerRun.toFixed(2)}/run, 純余剰=${replay.netPerRun.toFixed(2)}/run, ` +
+        `post-buyout死亡損失有価値率=${replay.rawDeathLoss > 0 ? "100.0%" : "死亡なし"}`
+      );
+    }
+  }
+
+  const wingFirst = baselineResults.find(result => result.strategy.id === "wing-first");
+  const statsFirst = baselineResults.find(result => result.strategy.id === "stats-first");
+  const wingFirstNoScale = noScaleResults.find(result => result.strategy.id === "wing-first");
+  const postWorkshopIncome = wingFirst.phaseTotals.postWorkshop.banked /
+    wingFirst.phaseTotals.postWorkshop.runs;
+  console.log("\n【構造判定】");
+  console.log(
+    `#278 鶏卵ボトルネック: 実用上No。翼優先は中央値${percentile(wingFirst.wingRuns, 0.5)}run、` +
+    `p90 ${percentile(wingFirst.wingRuns, 0.9)}run。翼前B5到達率=` +
+    `${formatRate(wingFirst.phaseTotals.preWing.b5Reached / wingFirst.phaseTotals.preWing.runs)}、` +
+    `竜鱗入手run率=${formatRate(
+      wingFirst.phaseTotals.preWing.dragonScaleAcquired / wingFirst.phaseTotals.preWing.runs
+    )}でB5橋渡しが機能。`
+  );
+  console.log(
+    `竜鱗gate除去は翼優先平均 ${(
+      wingFirst.wingRuns.reduce((sum, value) => sum + value, 0) / TRIALS
+    ).toFixed(2)}→${(
+      wingFirstNoScale.wingRuns.reduce((sum, value) => sum + value, 0) / TRIALS
+    ).toFixed(2)}run、恒久優先は不変。`
+  );
+  console.log(
+    `#234 ステーク消滅: Yes。買い切り中央値は翼優先${percentile(wingFirst.buyoutRuns, 0.5)}run、` +
+    `恒久優先${percentile(statsFirst.buyoutRuns, 0.5)}run。翼解放後の追加中央値は` +
+    `${percentile(wingFirst.afterWingToBuyoutRuns, 0.5)}run。買い切り後の進行有効死亡損失=0%。`
+  );
+  console.log(
+    `唯一sink構造: 翼解放後約3runで深層アクセスと同じ工房が枯渇し、以後bank素材は` +
+    `${postWorkshopIncome.toFixed(2)}個/runで無価値蓄積。10/40個sinkでは在庫増加を止められず、` +
+    `収支均衡には約${postWorkshopIncome.toFixed(0)}個/run規模が必要。`
+  );
+
+  console.log("\n【Issue #234 what-if 試算: 帰還の翼 finite 供給比較】");
+  console.log(
+    "sim内override。実src経路と乱数消費順が異なる試算値。各runはB20を目標とし、" +
+    "B5/B10/B15 milestoneで翼を持たなければ100% bank撤退。翼があれば次のmilestoneへpushする。"
+  );
+  console.log(
+    "商人は実purchaseMilestoneStockを各milestone探索後に呼び、currentRun.materialsのみで" +
+    "黒角36+呪布27を支払う。宝箱・戦闘drop・装備生成・mapは既存実src経路を維持。"
+  );
+  console.log(
+    "余剰蓄積は各trial後半25runのbank純増。進行有効損失は未購入の通常工房需要、" +
+    "反復購入条件では将来の翼費用に使える素材を有価値と数える。" +
+    "比較値は通常工房買い切り済みrunだけを集計する。"
+  );
+  finitePortalResults.forEach(result => console.log(formatFiniteResult(result)));
+
+  console.log("\n【finite供給 商人経路判定】");
+  finitePortalResults.forEach(({ scenario, totals }) => {
+    console.log(
+      `${scenario.label}: insufficient=${totals.merchantFailures.insufficient_materials || 0}, ` +
+      `inventory_full=${totals.merchantFailures.inventory_full || 0}, ` +
+      `成立trial=${totals.firstMerchantPurchaseRuns.length}/${TRIALS}, ` +
+      `通常工房買切trial=${totals.standardCompleteRuns.length}/${TRIALS}, ` +
+      `終了bank平均=${(totals.endingBankTotal / TRIALS).toFixed(1)}`
+    );
+  });
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await runWorkshopProgressionSimulation();
+}
