@@ -1,6 +1,7 @@
 /* global console, process */
 
 import { pathToFileURL } from "node:url";
+import { runSimTasks } from "./sim_parallel.js";
 
 // Mock localStorage for the Node.js simulation environment before imports.
 Object.defineProperty(globalThis, "localStorage", {
@@ -2322,7 +2323,42 @@ function printFailureComment(results) {
   }
 }
 
-export function runDepthMaterialSimulation() {
+export function runDepthSimulationTask({ kind, scenarioId }, { scoringProfile }) {
+  resetSimulationRandom(SIM_SEED);
+  if (kind === "scenario") {
+    const scenario = SCENARIOS.find(candidate => candidate.id === scenarioId);
+    return TARGET_DEPTHS.map(targetDepth => simulateCase({
+      startFloor: 1,
+      targetDepth,
+      label: `B${targetDepth}撤退`,
+      seriesId: `depth-${targetDepth}`,
+      scoringProfile,
+      scenario
+    }));
+  }
+
+  const legacyScenario = SCENARIOS.find(scenario => scenario.id === "legacy-no-portal");
+  return [
+    simulateCase({
+      startFloor: 10,
+      targetDepth: 15,
+      label: "B10→B15",
+      seriesId: "milestone-10-15",
+      scoringProfile,
+      scenario: legacyScenario
+    }),
+    simulateCase({
+      startFloor: 1,
+      targetDepth: 15,
+      label: "B1→B15",
+      seriesId: "baseline-1-15",
+      scoringProfile,
+      scenario: legacyScenario
+    })
+  ];
+}
+
+export async function runDepthMaterialSimulation() {
 const coreScoringProfile = calibrateCoreScoringProfile();
 // calibrationが本計測の乱数列をずらさないよう、baselineと同じseed先頭へ戻す。
 randomState = SIM_SEED;
@@ -2374,18 +2410,25 @@ if (ACTIVE_SCENARIOS.length === 0) {
   throw new Error(`SIM_SCENARIOSに有効な条件がない: ${[...SCENARIO_FILTER].join(",")}`);
 }
 
-const scenarioResults = ACTIVE_SCENARIOS.map(scenario => {
-  // 条件比較で各系列のMath.random開始位置を揃える。
-  randomState = SIM_SEED;
-  const results = TARGET_DEPTHS.map(targetDepth => simulateCase({
-    startFloor: 1,
-    targetDepth,
-    label: `B${targetDepth}撤退`,
-    seriesId: `depth-${targetDepth}`,
-    scoringProfile: coreScoringProfile,
-    scenario
-  }));
+const taskResults = await runSimTasks({
+  moduleUrl: import.meta.url,
+  exportName: "runDepthSimulationTask",
+  runTask: runDepthSimulationTask,
+  tasks: [
+    ...ACTIVE_SCENARIOS.map(scenario => ({
+      kind: "scenario",
+      scenarioId: scenario.id
+    })),
+    { kind: "milestone" }
+  ],
+  context: { scoringProfile: coreScoringProfile }
+});
+const scenarioResults = ACTIVE_SCENARIOS.map((scenario, index) => ({
+  scenario,
+  results: taskResults[index]
+}));
 
+scenarioResults.forEach(({ scenario, results }) => {
   console.log(`\n【${scenario.label} B1開始 深度別系列】`);
   printTable(results);
   console.log(`\n【${scenario.label} B1開始 ビルド供給】`);
@@ -2406,29 +2449,9 @@ const scenarioResults = ACTIVE_SCENARIOS.map(scenario => {
     `深度カーブ: bank保持率=${results.map(result => formatPercent(result.bankRetentionRate)).join(" / ")}, ` +
     `EV/時間=${results.map(result => result.materialEvPerTime.toFixed(4)).join(" / ")}`
   );
-  return { scenario, results };
 });
 
-const legacyScenario = SCENARIOS.find(scenario => scenario.id === "legacy-no-portal");
-randomState = SIM_SEED;
-const milestoneResults = [
-  simulateCase({
-    startFloor: 10,
-    targetDepth: 15,
-    label: "B10→B15",
-    seriesId: "milestone-10-15",
-    scoringProfile: coreScoringProfile,
-    scenario: legacyScenario
-  }),
-  simulateCase({
-    startFloor: 1,
-    targetDepth: 15,
-    label: "B1→B15",
-    seriesId: "baseline-1-15",
-    scoringProfile: coreScoringProfile,
-    scenario: legacyScenario
-  })
-];
+const milestoneResults = taskResults.at(-1);
 
 console.log("\n【マイルストーン開始比較】");
 console.log(
@@ -2458,5 +2481,5 @@ if (stalemateCases.length > 0) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  runDepthMaterialSimulation();
+  await runDepthMaterialSimulation();
 }
