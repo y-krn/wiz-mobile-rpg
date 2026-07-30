@@ -112,7 +112,7 @@ export const SUPPORT_AFFIXES = [
   support("followUp", "追加攻撃", "追加攻撃率が増加する。", "basic", { unit: "%" }),
   support("arcane", "呪文威力", "呪文威力が増加する。", "basic", { unit: "%" }),
   support("devotion", "回復威力", "回復威力が増加する。", "basic", { unit: "%" }),
-  support("guardian", "守護", "物理ダメージを軽減する。", "basic", { unit: "%" }),
+  support("guardian", "守護", "HP25%以下のとき、物理ダメージを軽減する。", "basic", { unit: "%" }),
   support("firstStrike", "先制", "先制率が増加する。", "basic"),
 
   support("deepAssault", "深層攻勢", "B3F以深で与ダメージが増加する。", "conditional", { unit: "%" }),

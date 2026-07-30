@@ -11,6 +11,7 @@ import {
   generateRandomAccessory,
   generateRandomEquipment
 } from "../src/systems/equipment_generation.js";
+import { ITEMS } from "../src/data/items.js";
 
 function lcg(seed) {
   let value = seed;
@@ -45,6 +46,10 @@ assert.deepStrictEqual(
 assert.strictEqual(getAffixDefinition("CORE_REARGUARD").enabled, false);
 assert.strictEqual(new Set(CORE_AFFIXES.map(affix => affix.id)).size, 16, "core IDs unique");
 assert.ok(formatAffixText(CORE_AFFIXES[0]).startsWith("◆背水: HP25%以下"));
+assert.ok(
+  getAffixDefinition("guardian").desc.includes("HP25%以下"),
+  "guardian description states its activation condition"
+);
 
 for (const [source, generator, expectedCounts] of [
   ["equipment", generateRandomEquipment, { magic: 1, rare: 2, epic: 3 }],
@@ -68,5 +73,46 @@ for (let seed = 1; seed <= 50 && !generatedCore; seed++) {
 assert.ok(generatedCore, "enabled core enters compatible slot pool");
 assert.strictEqual(generatedCore.affixes.filter(affix => affix.kind === "core").length, 1);
 assert.strictEqual(generatedCore.affixes.filter(affix => affix.kind === "support").length, 2);
+
+function findGeneratedAffix(generator, floor, type, maxSeed = 5000) {
+  for (let seed = 1; seed <= maxSeed; seed++) {
+    const item = generator(floor, {
+      forceRarity: "epic",
+      rng: lcg(seed),
+      allowCores: false
+    });
+    const affix = item.affixes.find(candidate => candidate.type === type);
+    if (affix) return { item, affix };
+  }
+  return null;
+}
+
+for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
+  assert.strictEqual(
+    findGeneratedAffix(generator, 1, "antiDemon"),
+    null,
+    "antiDemon is unavailable on B1"
+  );
+  assert.strictEqual(
+    findGeneratedAffix(generator, 2, "antiDemon")?.affix.value,
+    15,
+    "antiDemon enters the B2 pool at 15%"
+  );
+  assert.strictEqual(
+    findGeneratedAffix(generator, 4, "antiDemon")?.affix.value,
+    25,
+    "antiDemon scales to 25% on B4"
+  );
+}
+const generatedAntiDemonEquipment = findGeneratedAffix(
+  generateRandomEquipment,
+  2,
+  "antiDemon"
+);
+assert.strictEqual(
+  ITEMS[generatedAntiDemonEquipment.item.baseId].type,
+  "weapon",
+  "equipment antiDemon is limited to weapons"
+);
 
 console.log("[PASS] affix registry and budget generation");
