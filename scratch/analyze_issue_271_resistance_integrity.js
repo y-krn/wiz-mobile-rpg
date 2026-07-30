@@ -150,11 +150,9 @@ function summarize(conditionId, rows) {
       .map(hit => ({ ...hit, build: attempt.build }))
   );
   const guardianStreamReduction = physicalHits.length
-    ? physicalHits.reduce((sum, hit) => {
-      const guardian = hit.build?.effectiveAffixes?.guardian || 0;
-      const active = guardian > 0 &&
-        (meta.guardianAlways || hit.hpBefore / hit.rawMaxHp <= 0.25);
-      return sum + (active ? Math.min(100, guardian) / 100 : 0);
+    ? attempts.reduce((sum, attempt) => {
+      const guardian = attempt.build?.effectiveAffixes?.guardian || 0;
+      return sum + attempt.guardianActivations * Math.min(100, guardian) / 100;
     }, 0) / physicalHits.length
     : 0;
   const antiDemonEquipped = event =>

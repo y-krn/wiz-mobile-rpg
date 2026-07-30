@@ -33,7 +33,7 @@
 
 ## 2026-07-30 フェーズ1-3: guardian A/B/C
 
-- A 常時/Fighter20: event 6.2%、試行4.5%。Fighter 22.2%、他3職0%。physical stream軽減11.8%。格差拡大で棄却。
+- A 常時/Fighter20: event 6.2%、試行4.5%。Fighter 22.2%、他3職0%。physical stream軽減8.8%。格差拡大で棄却。
 - B HP25%以下の実装維持・説明修正: baseline同一。event 4.9%、試行3.7%。Fighter19.0%、他3職0%。実装と説明の不整合だけ解消するため採用。
 - C 常時/Fighter10: event 5.6%、試行4.1%。Fighter20.8%、他3職0%。格差拡大で棄却。
 - C 常時/Fighter0: event 5.1%、試行3.9%。Fighter19.7%、他3職0%。改善先がFighterのみで、クラスパッシブも消失するため棄却。
@@ -46,7 +46,7 @@
 - 職別event: Fighter 126/682=18.5%、Thief 0/833、Priest 0/710、Mage 0/419。Fighterだけの伸長なし。格差は拡大していないが、他職0勝構造も未解決。
 - boss到達: B5 33.1%、B10 0.3%。boss死/全死52.5%。
 - antiDemon: 入手run 703/8,000、item 753、B5装備53/2,644=2.0%。
-- guardian実効軽減: physical stream 0.4%（挙動変更なし）。
+- guardian実効軽減: physical stream 1.1%（baseline約1.1%、挙動変更なし）。
 - 平均到達B4.02、生還50.9%、EV/時間0.14558、前半core遭遇69.9%。baseline B4.02/50.8%/0.14554/69.9%から悪化なし。
 - B5装備素点×勝利 職内r=0.352 [0.318, 0.385]。antiDemon装備×勝利 職内r=0.065 [0.027, 0.103]で有意。
 - what-if同一候補との差は0。フェーズ1も一時的な実src差分で測定し、scratch overrideを使わなかったため乱数消費順が同一。

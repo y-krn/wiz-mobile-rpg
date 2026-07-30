@@ -660,7 +660,7 @@ CORE_LAST_STAND: N=52, 勝率=5.8%
 - 生還 50.8% / boss死÷全死 52.5%
 - antiDemon入手: run 0/8000、item 0、全装備比 0.0%
 - antiDemon装備: B5 event 0/2640=0.0%
-- guardian実効軽減: physical stream 0.3%
+- guardian実効軽減: physical stream 1.1%
 - EV/時間: bank EV 47.080 / time 323.47 / 0.14554
 - 前半core遭遇: 69.9%
 - B5装備素点×勝利 職内r [95%CI]: 0.361 [0.327, 0.394] N=2640
@@ -676,7 +676,7 @@ CORE_LAST_STAND: N=52, 勝率=5.8%
 - 生還 50.8% / boss死÷全死 52.5%
 - antiDemon入手: run 402/8000、item 425、全装備比 0.3%
 - antiDemon装備: B5 event 29/2642=1.1%
-- guardian実効軽減: physical stream 0.3%
+- guardian実効軽減: physical stream 1.0%
 - EV/時間: bank EV 47.184 / time 323.95 / 0.14565
 - 前半core遭遇: 69.9%
 - B5装備素点×勝利 職内r [95%CI]: 0.363 [0.330, 0.396] N=2642
@@ -692,7 +692,7 @@ CORE_LAST_STAND: N=52, 勝率=5.8%
 - 生還 50.9% / boss死÷全死 52.5%
 - antiDemon入手: run 703/8000、item 753、全装備比 0.6%
 - antiDemon装備: B5 event 53/2644=2.0%
-- guardian実効軽減: physical stream 0.4%
+- guardian実効軽減: physical stream 1.1%
 - EV/時間: bank EV 47.154 / time 323.90 / 0.14558
 - 前半core遭遇: 69.9%
 - B5装備素点×勝利 職内r [95%CI]: 0.352 [0.318, 0.385] N=2644
@@ -708,7 +708,7 @@ CORE_LAST_STAND: N=52, 勝率=5.8%
 - 生還 51.1% / boss死÷全死 52.3%
 - antiDemon入手: run 514/8000、item 547、全装備比 0.4%
 - antiDemon装備: B5 event 48/2636=1.8%
-- guardian実効軽減: physical stream 0.3%
+- guardian実効軽減: physical stream 1.0%
 - EV/時間: bank EV 47.250 / time 323.55 / 0.14604
 - 前半core遭遇: 69.9%
 - B5装備素点×勝利 職内r [95%CI]: 0.355 [0.321, 0.388] N=2636
@@ -724,7 +724,7 @@ CORE_LAST_STAND: N=52, 勝率=5.8%
 - 生還 52.2% / boss死÷全死 52.4%
 - antiDemon入手: run 0/8000、item 0、全装備比 0.0%
 - antiDemon装備: B5 event 0/2699=0.0%
-- guardian実効軽減: physical stream 11.8%
+- guardian実効軽減: physical stream 8.8%
 - EV/時間: bank EV 49.153 / time 329.81 / 0.14903
 - 前半core遭遇: 70.3%
 - B5装備素点×勝利 職内r [95%CI]: 0.377 [0.344, 0.409] N=2699
@@ -740,7 +740,7 @@ CORE_LAST_STAND: N=52, 勝率=5.8%
 - 生還 51.6% / boss死÷全死 52.2%
 - antiDemon入手: run 0/8000、item 0、全装備比 0.0%
 - antiDemon装備: B5 event 0/2665=0.0%
-- guardian実効軽減: physical stream 6.2%
+- guardian実効軽減: physical stream 3.6%
 - EV/時間: bank EV 48.135 / time 326.20 / 0.14756
 - 前半core遭遇: 70.1%
 - B5装備素点×勝利 職内r [95%CI]: 0.368 [0.335, 0.400] N=2665
@@ -756,7 +756,7 @@ CORE_LAST_STAND: N=52, 勝率=5.8%
 - 生還 50.6% / boss死÷全死 52.6%
 - antiDemon入手: run 0/8000、item 0、全装備比 0.0%
 - antiDemon装備: B5 event 0/2635=0.0%
-- guardian実効軽減: physical stream 1.2%
+- guardian実効軽減: physical stream 1.0%
 - EV/時間: bank EV 47.004 / time 323.82 / 0.14516
 - 前半core遭遇: 69.9%
 - B5装備素点×勝利 職内r [95%CI]: 0.364 [0.330, 0.397] N=2635
@@ -772,7 +772,7 @@ CORE_LAST_STAND: N=52, 勝率=5.8%
 - 生還 50.9% / boss死÷全死 52.5%
 - antiDemon入手: run 703/8000、item 753、全装備比 0.6%
 - antiDemon装備: B5 event 53/2644=2.0%
-- guardian実効軽減: physical stream 0.4%
+- guardian実効軽減: physical stream 1.1%
 - EV/時間: bank EV 47.154 / time 323.90 / 0.14558
 - 前半core遭遇: 69.9%
 - B5装備素点×勝利 職内r [95%CI]: 0.352 [0.318, 0.385] N=2644
