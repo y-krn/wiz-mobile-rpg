@@ -77,7 +77,7 @@ export const ITEMS = {
   ANTIGRAVITY_CRYSTAL: { id: "ANTIGRAVITY_CRYSTAL", name: "浮遊石 (クリスタル)", type: "quest", desc: "青く浮かび上がる伝説の結晶。城に持ち帰ると勝利。" },
   DRAGON_KEY: { id: "DRAGON_KEY", name: "竜の鍵", type: "quest", desc: "いにしえの竜の巣へと通じる刻印が刻まれた鍵。" },
   STR_POTION: { id: "STR_POTION", name: "剛力の薬", type: "usable", desc: "使用すると数ターンの間、攻撃力が上昇する。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
-  GUARD_POTION: { id: "GUARD_POTION", name: "守りの薬", type: "usable", desc: "5ターンの間、物理ダメージを40%軽減する。逃走時の追撃にも効く。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
+  GUARD_POTION: { id: "GUARD_POTION", name: "守りの薬", type: "usable", desc: "その戦闘の間、物理ダメージを40%軽減する。逃走時の追撃にも効く。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
   HASTE_POTION: { id: "HASTE_POTION", name: "疾風の薬", type: "usable", desc: "使用すると数ターンの間、敏捷性が上昇する。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
   TRAP_KIT: { id: "TRAP_KIT", name: "罠外しキット", type: "usable", desc: "宝箱の罠を1つ確実に外す。[全員用]" }
 };

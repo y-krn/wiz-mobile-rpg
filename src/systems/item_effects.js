@@ -95,7 +95,10 @@ export const ITEM_EFFECTS = {
   GUARD_POTION: ({ char }) => {
     // #271: 旧実装の def+10 は逃走追撃の防御式に入らず、深層では敵atk上昇で
     // 相対的に無力化していた。割合軽減へ変更し、被弾経路の共通部分で効かせる。
-    addCharBuff(char, "physGuard", 40, 5);
+    // 持続はその戦闘の間（combat_start.js が戦闘開始時にbuffsを消すため、
+    // 十分大きいturnsが「この戦闘中ずっと」と同義になる）。5ターン版は実測で
+    // 生還率+4.3pt に留まり、1run1個の希少性に対して窓が短すぎた。
+    addCharBuff(char, "physGuard", 40, 99);
     return `${char.name}は守りの薬を使用し、体を守る膜が張られた！`;
   },
   HASTE_POTION: ({ char }) => {
