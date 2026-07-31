@@ -1,5 +1,6 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, markMapChanged, markMapCellVisited } from "./state.js";
-import { ITEMS, MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, generateRandomAccessory, generateRandomEquipment, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
+import { MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
+import { rollChestTrap, rollChestAccessory, rollChestReward } from "./rules/chest_rules.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
@@ -18,22 +19,6 @@ export function applyTombRaiderTrapTier(chest, opener) {
   return true;
 }
 
-function rollChestAccessory(floor, rng, party) {
-  const chance = floor >= 5 ? 0.16 : (floor === 4 ? 0.14 : (floor === 3 ? 0.12 : 0.08));
-  if (rng() >= chance) return null;
-  const rarityRoll = rng();
-  let rarity = null;
-  if (floor >= 4 && rarityRoll < 0.10) {
-    rarity = "epic";
-  } else if (rarityRoll < 0.35) {
-    rarity = "rare";
-  }
-  // #270: 宝箱の装身具のみ B2 から core を解禁。実src経路のsim（N=500、工房解放済み）で
-  // 前半core遭遇 65.4%→71.6%、前半core装備 58.2%→66.8%、平均到達 B4.77→B5.04。
-  // 本体装備は B3 のまま（B2両方の解禁は深層core遭遇が 2.6%→1.8% に落ち二相構造が薄れるため）。
-  return generateRandomAccessory(floor, rarity, rng, party, floor >= 2);
-}
-
 export function setupChestState(forcedTrap = null, _legacyReward = null, forcedItem = null, customRng = null, options = {}) {
   void _legacyReward;
   if (state.codex && state.codex.events && state.codex.events.facilities) {
@@ -50,126 +35,25 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
   const rng = customRng || (state.seed ? createRng(chestSeed) : Math.random);
 
   // Traps are floor dependent
-  let trap;
-  if (forcedTrap !== null) {
-    trap = forcedTrap;
-  } else if (state.floor === 1) {
-    const r = rng();
-    if (r < 0.35) trap = "none";
-    else if (r < 0.60) trap = "poison needle";
-    else if (r < 0.85) trap = "flash bomb";
-    else trap = "gas bomb";
-  } else {
-    let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
-    if (state.floor === 2) {
-      // B2F: Moderate poison needle rate (around 28% chance)
-      traps = ["poison needle", "poison needle", "gas bomb", "teleporter", "flash bomb", "none", "none"];
-    } else if (state.floor === 4) {
-      // B4F: Higher teleporter and gas bomb chance, 12.5% none (1/8)
-      traps = ["gas bomb", "gas bomb", "teleporter", "teleporter", "flash bomb", "poison needle", "poison needle", "none"];
-    } else if (state.floor === 5) {
-      // B5F: Extremely dangerous traps, high chance of teleporter, 8.3% none (1/12)
-      traps = ["gas bomb", "gas bomb", "teleporter", "teleporter", "teleporter", "teleporter", "poison needle", "poison needle", "flash bomb", "flash bomb", "flash bomb", "none"];
-    }
-    const randIdx = Math.floor(rng() * traps.length);
-    trap = traps[randIdx];
-  }
+  const trap = forcedTrap !== null ? forcedTrap : rollChestTrap(state.floor, rng);
 
   // Item reward scale by floor
-  let item = null;
+  let item;
   if (forcedItem !== null) {
     item = forcedItem;
   } else {
-    let isGuaranteed = false;
-    if (state.floor === 1) {
-      if (state.currentRun) {
-        const b1Opened = state.currentRun.b1ChestsOpened || 0;
-        const b1Found = state.currentRun.b1EquipFound || 0;
-        if (b1Opened >= 3 && b1Found === 0) {
-          isGuaranteed = true;
-        }
-      }
-      if (!isGuaranteed && !state.firstChestUnidentifiedGuaranteed) {
-        isGuaranteed = true;
-      }
+    const reward = rollChestReward({
+      floor: state.floor,
+      rng,
+      party: state.party,
+      currentRun: state.currentRun,
+      trap,
+      firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed
+    });
+    item = reward.item;
+    if (reward.consumedFirstChestGuarantee) {
+      state.firstChestUnidentifiedGuaranteed = true;
     }
-
-    let itemChance = state.floor >= 5 ? 0.85 : (state.floor === 4 ? 0.75 : 0.50);
-    if (state.floor === 1 && state.currentRun && (state.currentRun.b1EquipFound || 0) === 0) {
-      const b1Opened = state.currentRun.b1ChestsOpened || 1;
-      itemChance += (b1Opened - 1) * 0.15;
-    }
-
-    if (isGuaranteed || rng() < itemChance) {
-      if (isGuaranteed) {
-        item = generateRandomEquipment(state.floor, "magic", rng, state.party, true, state.floor >= 3);
-        if (state.floor === 1) {
-          state.firstChestUnidentifiedGuaranteed = true;
-        }
-      } else {
-        let candidates = [];
-        if (state.floor === 1) {
-          candidates = ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "WAKE_POWDER"];
-        } else if (state.floor === 2) {
-          candidates = ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL", "TRAP_KIT"];
-        } else if (state.floor === 3) {
-          candidates = ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "VENOM_FANG", "LONG_SWORD", "MACE", "SACRED_MACE", "SAGE_STAFF", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT"];
-        } else if (state.floor === 4) {
-          // B4F: Standard standard chests only drop high-level store gear (e.g. Claymore)
-          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT"];
-        } else if (state.floor === 5) {
-          // B5F: Standard standard chests drop high-level gear
-          candidates = ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT"];
-        }
-
-        if (candidates.length > 0) {
-          item = candidates[Math.floor(rng() * candidates.length)];
-        } else {
-          const itemKeys = Object.keys(ITEMS).filter(k => k !== "ANTIGRAVITY_CRYSTAL");
-          const randItemIdx = Math.floor(rng() * itemKeys.length);
-          item = itemKeys[randItemIdx];
-        }
-
-        if (item) {
-          const itemData = ITEMS[item];
-          if (itemData && (itemData.type === "weapon" || itemData.type === "armor" || itemData.type === "shield")) {
-            let randChance;
-            if (state.floor === 4) {
-              const isDangerousTrap = ["poison needle", "gas bomb", "teleporter"].includes(trap);
-              randChance = isDangerousTrap ? 0.80 : 0.70;
-            } else if (state.floor === 5) {
-              randChance = 0.90;
-            } else {
-              // B1F/B2F/B3F
-              const isDangerousTrap = ["poison needle", "gas bomb", "teleporter"].includes(trap);
-              randChance = isDangerousTrap ? 0.70 : 0.50;
-            }
-            
-            // Rescue mechanism: if no equipment found yet and chestsOpened >= 2 (i.e. 3rd chest onwards)
-            if (state.currentRun && state.currentRun.equipmentFound && state.currentRun.equipmentFound.length === 0 && state.currentRun.chestsOpened >= 2) {
-              randChance += 0.20;
-            }
-            
-            // treasureSense bonus
-            if (state.party) {
-              const senseSum = state.party.reduce((sum, c) => {
-                if (c.status !== "dead") {
-                  return sum + getCharAffixSum(c, "treasureSense");
-                }
-                return sum;
-              }, 0);
-              randChance += Math.min(25, senseSum) / 100;
-            }
-
-            randChance = Math.min(0.90, randChance);
-            
-            if (rng() < randChance) {
-              item = generateRandomEquipment(state.floor, null, rng, state.party, true, state.floor >= 3);
-      }
-        }
-      }
-    }
-  }
   }
   const accessoryItem = forcedItem === null ? rollChestAccessory(state.floor, rng, state.party) : null;
 

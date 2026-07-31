@@ -31,6 +31,14 @@ const { isMilestoneFloor } = await import("../src/run_map_generator.js");
 const { getFloorTemplate } = await import("../src/data/floor_templates.js");
 const { EVENT_TYPES } = await import("../src/constants/events.js");
 const { generateChestMaterials } = await import("../src/chest.js");
+// 宝箱の抽選は src と同一の出所を叩く（#273）。写経すると src 変更に追随しない。
+const {
+  CHEST_ACCESSORY_CORE_MIN_FLOOR,
+  CHEST_EQUIPMENT_CORE_MIN_FLOOR,
+  rollChestAccessory,
+  rollChestReward,
+  rollChestTrap
+} = await import("../src/rules/chest_rules.js");
 const { AFFIX_BALANCE, CORE_AFFIXES } = await import("../src/data/affixes.js");
 const { ITEMS } = await import("../src/data/items.js");
 const { MATERIAL_DROP_BALANCE } = await import("../src/data/materials.js");
@@ -245,14 +253,6 @@ const MERCHANT_STATUS_CURE_STOCK = Object.freeze([
   { stockId: "wake_powder", itemId: "WAKE_POWDER" },
   { stockId: "paralyze_cure", itemId: "PARALYZE_CURE" }
 ]);
-const CHEST_ITEM_CANDIDATES_BY_FLOOR = Object.freeze({
-  1: ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "WAKE_POWDER"],
-  2: ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL", "TRAP_KIT"],
-  3: ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "VENOM_FANG", "LONG_SWORD", "MACE", "SACRED_MACE", "SAGE_STAFF", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT"],
-  4: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT"],
-  5: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT"]
-});
-
 let randomState = SIM_SEED;
 Math.random = () => {
   randomState += 0x6D2B79F5;
@@ -1718,51 +1718,14 @@ function getScholarMaterialBonus(monsters, state) {
   }, 0);
 }
 
-function rollChestTrap(floor, rng) {
-  if (floor === 1) {
-    const roll = rng();
-    if (roll < 0.35) return "none";
-    if (roll < 0.60) return "poison needle";
-    if (roll < 0.85) return "flash bomb";
-    return "gas bomb";
-  }
-
-  let traps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
-  if (floor === 2) {
-    traps = ["poison needle", "poison needle", "gas bomb", "teleporter", "flash bomb", "none", "none"];
-  } else if (floor === 4) {
-    traps = ["gas bomb", "gas bomb", "teleporter", "teleporter", "flash bomb", "poison needle", "poison needle", "none"];
-  } else if (floor === 5) {
-    traps = ["gas bomb", "gas bomb", "teleporter", "teleporter", "teleporter", "teleporter", "poison needle", "poison needle", "flash bomb", "flash bomb", "flash bomb", "none"];
-  }
-  return traps[Math.floor(rng() * traps.length)];
-}
-
 function getChestCoreMinFloor(supplyOverride, itemKind) {
   const overrideKey = itemKind === "accessory"
     ? "chestAccessoryCoreMinFloor"
     : "chestEquipmentCoreMinFloor";
-  const sourceMinFloor = itemKind === "accessory" ? 2 : 3;
+  const sourceMinFloor = itemKind === "accessory"
+    ? CHEST_ACCESSORY_CORE_MIN_FLOOR
+    : CHEST_EQUIPMENT_CORE_MIN_FLOOR;
   return supplyOverride?.[overrideKey] ?? sourceMinFloor;
-}
-
-function rollChestAccessory(floor, rng, party, supplyOverride = null) {
-  const chance = floor >= 5 ? 0.16 : (floor === 4 ? 0.14 : (floor === 3 ? 0.12 : 0.08));
-  if (rng() >= chance) return null;
-  const rarityRoll = rng();
-  let rarity = null;
-  if (floor >= 4 && rarityRoll < 0.10) {
-    rarity = "epic";
-  } else if (rarityRoll < 0.35) {
-    rarity = "rare";
-  }
-  return generateRandomAccessory(
-    floor,
-    rarity,
-    rng,
-    party,
-    floor >= getChestCoreMinFloor(supplyOverride, "accessory")
-  );
 }
 
 function rollSupplyOverrideRarity(floor, supplyOverride, rng) {
@@ -1818,7 +1781,8 @@ function generateExtraSupplyEquipment(state, floor, source, supplyOverride, rng)
   );
 }
 
-// setupChestStateの装備供給分岐をNode sim用stateで再現する。
+// 抽選そのものは src/rules/chest_rules.js（src/chest.js と同一の出所）を叩き、
+// sim 固有の what-if（core解禁階の前倒し、TOWN_PORTAL の除外）だけを引数で渡す。
 function rollChestItems(state, floor, rng, observations, scenario, supplyOverride = null) {
   const trap = rollChestTrap(floor, rng);
   if (trap !== "none") {
@@ -1836,75 +1800,26 @@ function rollChestItems(state, floor, rng, observations, scenario, supplyOverrid
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
   }
 
-  let item = null;
-  let isGuaranteed = false;
-  if (floor === 1) {
-    const b1Opened = state.currentRun.b1ChestsOpened || 0;
-    const b1Found = state.currentRun.b1EquipFound || 0;
-    if (b1Opened >= 3 && b1Found === 0) isGuaranteed = true;
-    if (!isGuaranteed && !state.firstChestUnidentifiedGuaranteed) isGuaranteed = true;
-  }
-
-  let itemChance = floor >= 5 ? 0.85 : (floor === 4 ? 0.75 : 0.50);
-  if (floor === 1 && (state.currentRun.b1EquipFound || 0) === 0) {
-    const b1Opened = state.currentRun.b1ChestsOpened || 1;
-    itemChance += (b1Opened - 1) * 0.15;
-  }
-
-  if (isGuaranteed || rng() < itemChance) {
-    if (isGuaranteed) {
-      item = generateRandomEquipment(
-        floor,
-        "magic",
-        rng,
-        state.party,
-        true,
-        floor >= getChestCoreMinFloor(supplyOverride, "equipment")
-      );
-      state.firstChestUnidentifiedGuaranteed = true;
-    } else {
-      const candidates = (
-        CHEST_ITEM_CANDIDATES_BY_FLOOR[floor]
-        || Object.keys(ITEMS).filter(key => key !== "ANTIGRAVITY_CRYSTAL")
-      ).filter(itemId => scenario.allowChestTownPortal !== false || itemId !== "TOWN_PORTAL");
-      item = candidates[Math.floor(rng() * candidates.length)];
-      const itemData = ITEMS[item];
-      if (itemData && ["weapon", "armor", "shield"].includes(itemData.type)) {
-        const dangerousTrap = ["poison needle", "gas bomb", "teleporter"].includes(trap);
-        let equipmentChance;
-        if (floor === 4) {
-          equipmentChance = dangerousTrap ? 0.80 : 0.70;
-        } else if (floor === 5) {
-          equipmentChance = 0.90;
-        } else {
-          equipmentChance = dangerousTrap ? 0.70 : 0.50;
-        }
-        if (state.currentRun.equipmentFound.length === 0 && state.currentRun.chestsOpened >= 2) {
-          equipmentChance += 0.20;
-        }
-        const treasureSense = state.party.reduce((sum, character) => {
-          return character.status === "dead"
-            ? sum
-            : sum + getCharAffixSum(character, "treasureSense");
-        }, 0);
-        equipmentChance = Math.min(0.90, equipmentChance + Math.min(25, treasureSense) / 100);
-        if (rng() < equipmentChance) {
-          item = generateRandomEquipment(
-            floor,
-            null,
-            rng,
-            state.party,
-            true,
-            floor >= getChestCoreMinFloor(supplyOverride, "equipment")
-          );
-        }
-      }
-    }
+  const reward = rollChestReward({
+    floor,
+    rng,
+    party: state.party,
+    currentRun: state.currentRun,
+    trap,
+    firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
+    coreMinFloor: getChestCoreMinFloor(supplyOverride, "equipment"),
+    itemCandidateFilter: scenario.allowChestTownPortal === false
+      ? itemId => itemId !== "TOWN_PORTAL"
+      : null
+  });
+  const item = reward.item;
+  if (reward.consumedFirstChestGuarantee) {
+    state.firstChestUnidentifiedGuaranteed = true;
   }
 
   const baselineItems = [
     item,
-    rollChestAccessory(floor, rng, state.party, supplyOverride)
+    rollChestAccessory(floor, rng, state.party, getChestCoreMinFloor(supplyOverride, "accessory"))
   ]
     .filter(Boolean)
     .map(found => rerollSupplyEquipment(
