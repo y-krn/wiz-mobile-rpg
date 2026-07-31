@@ -123,8 +123,10 @@ const SOLO_CLASS_PRESETS = [
     exp: 0,
     hp: 14,
     maxHp: 14,
-    mp: 7,
-    maxMp: 7,
+    // #267: B5到達時点の残MPが平均1.64しかなく、ボス戦の呪文使用ターンが0.80turn
+    // （必要17.80turnに対し）だった。火力窓を延長するため +6。
+    mp: 13,
+    maxMp: 13,
     str: 9,
     int: 10,
     pie: 15,
@@ -147,8 +149,9 @@ const SOLO_CLASS_PRESETS = [
     exp: 0,
     hp: 19,
     maxHp: 19,
-    mp: 6,
-    maxMp: 6,
+    // #267: B5到達時点の残MPが平均2.95、ボス戦の呪文使用ターンが0.96turn だった。+6。
+    mp: 12,
+    maxMp: 12,
     str: 7,
     int: 16,
     pie: 9,
