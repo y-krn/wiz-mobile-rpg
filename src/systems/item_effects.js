@@ -93,8 +93,10 @@ export const ITEM_EFFECTS = {
     return `${char.name}は剛力の薬を使用し、攻撃力が上昇した！`;
   },
   GUARD_POTION: ({ char }) => {
-    addCharBuff(char, "def", 10, 5);
-    return `${char.name}は守りの薬を使用し、防御力が上昇した！`;
+    // #271: 旧実装の def+10 は逃走追撃の防御式に入らず、深層では敵atk上昇で
+    // 相対的に無力化していた。割合軽減へ変更し、被弾経路の共通部分で効かせる。
+    addCharBuff(char, "physGuard", 40, 5);
+    return `${char.name}は守りの薬を使用し、体を守る膜が張られた！`;
   },
   HASTE_POTION: ({ char }) => {
     addCharBuff(char, "agi", 5, 5);

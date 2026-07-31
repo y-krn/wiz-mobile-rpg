@@ -88,6 +88,8 @@ const COMBAT_TURN_WEIGHT = 3;
 const INITIAL_HEAL_POTIONS = 2;
 // 実run開始準拠: 解毒薬1個。
 const INITIAL_ANTIDOTES = 1;
+// 実run開始準拠: 守りの薬1個（#271の確実供給）。
+const INITIAL_GUARD_POTIONS = 1;
 // 仮値・感度分析対象: 戦闘中/戦闘後HPが最大HPの35%以下なら傷薬を1個使う。
 const HEAL_POTION_THRESHOLD = 0.35;
 // 仮値・感度分析対象: 最大HPの指定割合以下なら次の自ターンで逃走する。
@@ -297,6 +299,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     inventory: [
       ...Array(INITIAL_HEAL_POTIONS).fill("HEAL_POTION"),
       ...Array(INITIAL_ANTIDOTES).fill("ANTIDOTE"),
+      ...Array(INITIAL_GUARD_POTIONS).fill("GUARD_POTION"),
       ...workshopReturnItems,
       ...scenarioReturnItems
     ],
@@ -448,6 +451,16 @@ function selectCombatAction(state, metrics) {
       itemKey: cureDecision.itemKey,
       simStatusBefore: cureDecision.status
     };
+  }
+
+  // #271: 守りの薬はボス/中ボス戦の開幕に使う保守的方針。通常戦では温存する。
+  // combat_start.js が戦闘開始時にbuffsを消すため、戦闘外の事前使用は無意味。
+  if (
+    state.combatState.roundNumber === 1 &&
+    monsters.some(monster => monster.isBoss || monster.isMidboss) &&
+    state.inventory.includes("GUARD_POTION")
+  ) {
+    return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "GUARD_POTION" };
   }
 
   if (
