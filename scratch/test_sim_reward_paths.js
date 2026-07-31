@@ -41,6 +41,15 @@ for (const name of simulationFiles) {
     failures.push(`${name}: checkCharLevelUp must not be repeated after round rewards`);
   }
 
+  // 宝箱の抽選を sim 内に写経すると src/rules/chest_rules.js の変更に追随せず、
+  // 供給の測定だけが静かに古くなる（#273）。定義を持たせず import させる。
+  for (const symbol of ["rollChestTrap", "rollChestAccessory", "rollChestReward", "CHEST_ITEM_CANDIDATES_BY_FLOOR"]) {
+    const definition = new RegExp(`(?:function|const|let|var)\\s+${symbol}\\b`);
+    if (definition.test(source)) {
+      failures.push(`${name}: ${symbol} must be imported from src/rules/chest_rules.js, not redefined`);
+    }
+  }
+
   const scope = readScope(source);
   if (!scope) {
     failures.push(
