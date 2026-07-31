@@ -1,3 +1,4 @@
+// sim-scope: run
 /* global console, process */
 
 // Mock localStorage before importing game modules.

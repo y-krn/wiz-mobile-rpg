@@ -1,3 +1,4 @@
+// sim-scope: formula
 // Mock localStorage for Node.js test environment before imports
 global.localStorage = {
   getItem: () => null,

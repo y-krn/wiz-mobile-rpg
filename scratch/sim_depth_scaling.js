@@ -1,3 +1,4 @@
+// sim-scope: formula
 import { MONSTERS } from "../src/data/monsters.js";
 import { getBiomeForFloor } from "../src/data/biomes.js";
 import { getEncounterSizeWeightsForFloor } from "../src/data/encounters.js";

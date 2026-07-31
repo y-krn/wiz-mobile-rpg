@@ -1,3 +1,4 @@
+// sim-scope: run
 /* global console, process */
 
 import fs from "node:fs";

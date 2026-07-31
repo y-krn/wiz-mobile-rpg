@@ -1,3 +1,4 @@
+// sim-scope: formula
 import assert from "node:assert/strict";
 import { determineMonsterDrop } from "../src/combat_logic/drops.js";
 import { getBiomeForFloor } from "../src/data/biomes.js";

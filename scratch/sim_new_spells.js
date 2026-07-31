@@ -1,3 +1,4 @@
+// sim-scope: formula
 // Balance impact sim for PROPOSED spells (ZILWAN / DEF-down / ATK-down / MADI).
 // Prototype spells are registered into the live SPELLS object and exercised via
 // the real combat engine. Baseline and enhanced arms share ONE base plan; the
