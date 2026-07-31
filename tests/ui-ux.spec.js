@@ -135,7 +135,8 @@ test('Debug reset clears all progression and persists the initial state', async 
     };
   });
   const initialProgress = {
-    inventory: ['HEAL_POTION', 'HEAL_POTION', 'ANTIDOTE'],
+    // #271: 守りの薬は初期所持で確実供給する
+    inventory: ['HEAL_POTION', 'HEAL_POTION', 'ANTIDOTE', 'GUARD_POTION'],
     totalRuns: 0,
     monsterKills: 0,
     visitedFloors: [1],

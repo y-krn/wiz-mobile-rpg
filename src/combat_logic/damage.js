@@ -138,6 +138,17 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
       }
     }
   }
+  if (!options.spell) {
+    // #271: 物理版マバリア。通常被弾と逃走追撃は同じ経路を通るため、
+    // ここに置くだけで死因の大半を占める追撃にも効く。
+    // 呪文側（マバリア＋魔除け）と対称に上限60%。
+    const physGuard = Math.min(60, getBuffTotal(char, "physGuard"));
+    if (physGuard > 0) {
+      const before = next;
+      next = Math.max(1, Math.round(next * (1 - physGuard / 100)));
+      if (next < before) reductions.push("守りの薬");
+    }
+  }
   if (options.dragon) {
     const dragonGuard = getCharAffixSum(char, "antiDragon");
     if (dragonGuard > 0) {

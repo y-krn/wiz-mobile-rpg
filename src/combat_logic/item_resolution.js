@@ -59,6 +59,8 @@ export function resolvePlayerItem(char, act, state, logQueue) {
     floatText = restored > 0 ? `+${restored} MP` : "無効";
   } else if (["ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "PANACEA"].includes(act.itemKey)) {
     floatText = oldStatus !== target.status ? "CURED" : "無効";
+  } else if (act.itemKey === "GUARD_POTION") {
+    floatText = "GUARD";
   }
   logQueue.push({
     msg: `[味方] ${log}`,

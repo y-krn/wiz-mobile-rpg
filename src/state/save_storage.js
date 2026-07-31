@@ -24,7 +24,7 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.prevX = START_X;
   state.prevY = START_Y;
   state.party = [];
-  state.inventory = ["HEAL_POTION", "HEAL_POTION", "ANTIDOTE"];
+  state.inventory = ["HEAL_POTION", "HEAL_POTION", "ANTIDOTE", "GUARD_POTION"];
   state.firstChestUnidentifiedGuaranteed = false;
   state.openedGates = [];
   

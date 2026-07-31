@@ -13,6 +13,7 @@ import { ITEM_EFFECTS } from "../src/systems/item_effects.js";
 import { addCharBuff, tickCharBuffs, getBuffTotal } from "../src/combat_logic/status_effects.js";
 import { getItemUseStatus } from "../src/equip.js";
 import { resolvePlayerItem } from "../src/combat_logic/item_resolution.js";
+import { reduceIncomingDamage } from "../src/combat_logic/damage.js";
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
 import { state } from "../src/state.js";
 
@@ -64,7 +65,9 @@ import { state } from "../src/state.js";
     ITEM_EFFECTS.HASTE_POTION({ char: fighter });
 
     assert.strictEqual(getBuffTotal(fighter, "atk"), 10);
-    assert.strictEqual(getBuffTotal(fighter, "def"), 10);
+    // #271: 守りの薬は def+10 から物理割合軽減 physGuard 40% へ変更
+    assert.strictEqual(getBuffTotal(fighter, "physGuard"), 40);
+    assert.strictEqual(getBuffTotal(fighter, "def"), 0);
     assert.strictEqual(getBuffTotal(fighter, "agi"), 5);
     console.log("-> [PASS] Buff values applied correctly");
 
@@ -108,6 +111,19 @@ import { state } from "../src/state.js";
     assert.strictEqual(getBuffTotal(dummyChar, "agi"), 0);
     assert.strictEqual(dummyChar.buffs.length, 0);
     console.log("-> [PASS] tickCharBuffs works correctly");
+
+    // 7. #271: physGuard は物理と逃走追撃に効き、呪文には効かない
+    console.log("6. Testing physGuard mitigation scope...");
+    const warded = { name: "Warded", maxHp: 40, hp: 40, buffs: [{ type: "physGuard", value: 40, turns: 5 }] };
+    assert.strictEqual(reduceIncomingDamage(warded, 10, {}), 6);
+    // 逃走追撃は options.spell なしで同じ経路を通る
+    assert.strictEqual(reduceIncomingDamage(warded, 20, { logQueue: [] }), 12);
+    // 呪文側は非対象
+    assert.strictEqual(reduceIncomingDamage(warded, 10, { spell: true }), 10);
+    // 上限60%
+    const overWarded = { name: "Over", maxHp: 40, hp: 40, buffs: [{ type: "physGuard", value: 90, turns: 5 }] };
+    assert.strictEqual(reduceIncomingDamage(overWarded, 10, {}), 4);
+    console.log("-> [PASS] physGuard applies to physical and parting attacks only");
 
     console.log("=== ALL BUFF POTIONS TESTS PASSED ===");
   })();
