@@ -4,10 +4,34 @@ import { getEffectiveMagicResist, applyMagicResistBuffs, applyKillAffixEffects, 
 import { hasTrait, processMonsterDefeat } from "./monster_traits.js";
 import { clearCharIncapacitationOnDamage, wakeSleepingMonsterOnDamage } from "./status_effects.js";
 import { getSpellPayment, paySpellCost } from "../rules/affix_rules.js";
+import { getClassPassiveBonus } from "../rules/class_rules.js";
+import { getCharMaxMp } from "../rules/character_stats.js";
 
 /**
  * Resolves player spell casting logic.
  */
+
+/**
+ * #267: 攻撃呪文が spellCycleMp 回ヒットするごとにMPを1返す。
+ * ボス戦は単体戦のため killMp（撃破時MP+1）が発動せず、後衛は
+ * B5到達時点で残MP1.64-2.95、ボス戦の呪文使用は1turn未満だった。
+ * miss・反射・回復呪文は数えない（ダメージが出たヒットのみ）。
+ */
+function creditSpellCycleMp(char, hits) {
+  if (hits <= 0) return 0;
+  const cycle = getClassPassiveBonus(char, "spellCycleMp");
+  if (cycle <= 0) return 0;
+
+  char.spellHitStreak = (char.spellHitStreak || 0) + hits;
+  const gained = Math.floor(char.spellHitStreak / cycle);
+  if (gained <= 0) return 0;
+
+  char.spellHitStreak -= gained * cycle;
+  const maxMp = getCharMaxMp(char);
+  const before = char.mp;
+  char.mp = Math.min(maxMp, char.mp + gained);
+  return char.mp - before;
+}
 function tryReflectMagic(target) {
   if (!hasTrait(target, "reflectMagic")) return 0;
   if (Math.random() >= (target.magicReflect?.chance ?? 0.5)) return 0;
@@ -85,6 +109,11 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
       floatColor: target.color
     });
 
+    const cycledMp = creditSpellCycleMp(char, result.damage > 0 ? 1 : 0);
+    if (cycledMp > 0) {
+      logQueue.push({ msg: `[味方] ${char.name}は詠唱の余韻でMPを${cycledMp}回復した。` });
+    }
+
     if (target.hp === 0) {
       applyKillAffixEffects(char, target, state, logQueue);
       logQueue.push({ msg: `[味方] [!] ${target.name}を倒した！` });
@@ -118,7 +147,13 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
         logQueue
       );
     }
-    
+
+    const damagedCount = monsters.filter((mon, idx) => beforeHp[idx] > mon.hp).length;
+    const cycledMp = creditSpellCycleMp(char, damagedCount);
+    if (cycledMp > 0) {
+      logQueue.push({ msg: `[味方] ${char.name}は詠唱の余韻でMPを${cycledMp}回復した。` });
+    }
+
     monsters.forEach(m => {
       if (m.hp === 0 && !m.loggedDeath) {
         m.loggedDeath = true;

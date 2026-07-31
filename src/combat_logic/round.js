@@ -44,6 +44,17 @@ import { resolveBossAction } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
 import { resolvePlayerSpell } from "./spell_resolution.js";
 import { getCharCoreParams, getFollowUpChance, getStatusEffectChance } from "../rules/affix_rules.js";
+import { getClassPassiveBonus } from "../rules/class_rules.js";
+
+/**
+ * #267: 攻撃呪文を撃てるMPが残る間だけ働く防御。MP枯渇で消えるため
+ * 前衛のような常時防御にはならず、後衛の「火力窓」という個性を保つ。
+ * 攻撃呪文の最小コストが1なので MP>=1 を発動条件とする。
+ */
+export function getMpWardDef(char) {
+  if (!char || (char.mp || 0) < 1) return 0;
+  return getClassPassiveBonus(char, "mpWard");
+}
 
 function findMonsterTemplate(name) {
   return MONSTERS.find(m => m.name === name);
@@ -55,7 +66,7 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   if (!attacker || !target) return;
 
   const finalAtk = getEffectiveAtk(attacker) + Math.floor(Math.random() * 4);
-  const finalDef = Math.max(0, getCharDef(target) + Math.floor(getCharVit(target) / 4));
+  const finalDef = Math.max(0, getCharDef(target) + Math.floor(getCharVit(target) / 4) + getMpWardDef(target));
   let dmg = Math.max(1, finalAtk - finalDef);
   dmg = reduceIncomingDamage(target, dmg, { logQueue });
   target.hp = Math.max(0, target.hp - dmg);
@@ -806,7 +817,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           }
           const frontGuard = targetSelect.i < 2 ? getCharAffixSum(target, "frontGuard") : 0;
           const firstStrikeDefense = target.combatFirstStrikeActive ? getCharAffixSum(target, "firstStrikeDefense") : 0;
-          const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4) + getBuffTotal(target, "def") + frontGuard + firstStrikeDefense) - (target.tempDefDown || 0));
+          const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4) + getBuffTotal(target, "def") + frontGuard + firstStrikeDefense + getMpWardDef(target)) - (target.tempDefDown || 0));
           let dmg = Math.max(1, finalAtk - finalDef);
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
           
