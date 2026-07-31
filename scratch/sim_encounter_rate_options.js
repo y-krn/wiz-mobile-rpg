@@ -1,3 +1,4 @@
+// sim-scope: map — 未移行の負債。遭遇率ポリシー比較をレガシー生成器の上で歩いており、run 経路への移行が必要
 import { EVENT_TYPES, START_X, START_Y } from "../src/data.js";
 import { generateRandomMap } from "../src/map_generator.js";
 

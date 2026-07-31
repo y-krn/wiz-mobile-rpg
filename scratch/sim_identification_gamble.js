@@ -1,3 +1,4 @@
+// sim-scope: formula
 import assert from "node:assert/strict";
 import { IDENTIFICATION_BALANCE, getIdentificationGambleProfile } from "../src/rules/identification_rules.js";
 import { generateRandomEquipment } from "../src/systems/equipment_generation.js";

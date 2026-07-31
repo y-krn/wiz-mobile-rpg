@@ -1,3 +1,4 @@
+// sim-scope: formula
 import assert from "node:assert/strict";
 import { WORKSHOP_NODES } from "../src/data/workshop.js";
 import { getDepthMaterialDropChance, getDepthMaterialExpectedQuantity } from "../src/rules/material_rules.js";

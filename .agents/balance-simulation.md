@@ -62,10 +62,14 @@ smallest deterministic scratch check that exercises the changed values.
 Before trusting a `scratch/sim_*.js` result, confirm the simulation reproduces a
 real run. Each item below has already produced a wrong conclusion at least once.
 
-- A simulation that measures depth, EV, or progression pace must drive floors
-  through `generateRunFloor` (`src/run_map_generator.js`). A hand-rolled floor
-  loop diverges silently at depth. Narrow formula checks that never place a
-  floor are exempt.
+- Every `scratch/sim_*.js` must declare its scope in the first 20 lines with
+  `// sim-scope: <run|formula|map|infra>`; `scratch/test_sim_reward_paths.js`
+  fails without it. `run` measures depth, EV, or progression pace and must drive
+  floors through `generateRunFloor` (`src/run_map_generator.js`) — a hand-rolled
+  floor loop diverges silently at depth. `formula` is a narrow check that never
+  places a floor. `map` measures the generator itself and is the only scope that
+  may call `generateRandomMap`; it requires a reason on the same line. `infra` is
+  a harness that measures nothing.
 - Player-side mitigations must be modeled before any depth conclusion:
   `TOWN_PORTAL` retreat and status-cure consumables. Omitting them measures a
   self-imposed restriction, and can invert the sign of a depth EV result rather

@@ -1,3 +1,4 @@
+// sim-scope: infra
 import { parentPort, workerData } from "node:worker_threads";
 
 const module = await import(workerData.moduleUrl);

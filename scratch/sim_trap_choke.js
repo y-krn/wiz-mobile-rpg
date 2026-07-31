@@ -1,3 +1,4 @@
+// sim-scope: run
 // 本番のラン内生成と同じ階段・テンプレート・バイオーム設定を測る。
 // generateRandomMap のレガシー既定値では B5 以降に下り階段がなく、
 // isChokeCell が常に false になるため、simulation から直接呼ばない。

@@ -1,3 +1,4 @@
+// sim-scope: infra
 import { availableParallelism } from "node:os";
 import { Worker } from "node:worker_threads";
 

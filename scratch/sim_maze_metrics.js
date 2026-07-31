@@ -1,3 +1,4 @@
+// sim-scope: map — generateRandomMap が生成する迷路構造そのものを測るため、ラン経路を通さない
 import { generateRandomMap } from "../src/map_generator.js";
 
 const SEED_COUNT = 100;
