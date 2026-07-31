@@ -115,6 +115,57 @@ if (pitRate !== 100) {
   console.error(`FAIL: pitfall rate should be 100, got ${pitRate}.`);
   process.exit(1);
 }
+
+// 2b. trapBonus は宝箱罠とフロア罠の共通ステータス。3つの供給経路すべてが効くこと。
+// Thief lv1 / B5: 80 + 1.0 - 8.0 = 73（clamp外）
+testTrap.difficulty = 30;
+state.floor = 5;
+const makeThief = equipment => [{
+  name: "Robin",
+  class: "Thief",
+  level: 1,
+  hp: 20,
+  maxHp: 20,
+  luk: 10,
+  agi: 10,
+  status: "ok",
+  equipment
+}];
+
+state.party = makeThief({});
+const bareRate = calculateSuccessRate(testTrap);
+if (bareRate !== 73) {
+  console.error(`FAIL: Thief lv1 B5 baseline should be 73, got ${bareRate}.`);
+  process.exit(1);
+}
+
+const trapBonusCases = [
+  ["affix", { weapon: { baseId: "SHORT_SWORD", identified: true, affixes: [{ type: "trapBonus", value: 10 }] } }],
+  ["inscription", { weapon: { baseId: "SHORT_SWORD", identified: true, inscription: { type: "trapBonus", value: 10 } } }],
+  ["base item (THIEF_EYE)", { accessory: "THIEF_EYE" }]
+];
+for (const [label, equipment] of trapBonusCases) {
+  state.party = makeThief(equipment);
+  const rate = calculateSuccessRate(testTrap);
+  if (rate !== 83) {
+    console.error(`FAIL: trapBonus via ${label} should give 83, got ${rate}.`);
+    process.exit(1);
+  }
+  console.log(`- trapBonus via ${label}: ${bareRate} -> ${rate}`);
+}
+
+// 未鑑定の装備は affix 効果を渡さない（getItemData が trapBonus 0 を返す）
+state.party = makeThief({
+  weapon: { baseId: "SHORT_SWORD", identified: false, affixes: [{ type: "trapBonus", value: 10 }] }
+});
+const unidentifiedRate = calculateSuccessRate(testTrap);
+if (unidentifiedRate !== 73) {
+  console.error(`FAIL: unidentified trapBonus must not apply, got ${unidentifiedRate}.`);
+  process.exit(1);
+}
+console.log("- unidentified trapBonus: not applied");
+
+state.floor = 1;
 console.log("PASS: Success rate calculations verified.");
 
 // 3. Verify Trap Triggers and Damage/Effect Reduction

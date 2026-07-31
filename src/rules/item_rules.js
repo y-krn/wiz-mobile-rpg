@@ -255,6 +255,8 @@ export function getItemData(itemOrKey) {
       atkBonus += itemOrKey.inscription.value;
     } else if (itemOrKey.inscription?.type === "def") {
       defBonus += itemOrKey.inscription.value;
+    } else if (itemOrKey.inscription?.type === "trapBonus") {
+      trapBonus += itemOrKey.inscription.value;
     }
     
     // prefix の決定

@@ -5,7 +5,7 @@ import { triggerGameOver } from "../combat.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
 import { createRng } from "../seed_rng.js";
 import { descendToFloor, findCellCoordsByType } from "../movement.js";
-import { MAP_WIDTH, MAP_HEIGHT, DX, DY, getPartyMaxAffix } from "../data.js";
+import { MAP_WIDTH, MAP_HEIGHT, DX, DY, getPartyMaxAffix, getCharTrapBonus } from "../data.js";
 import { armControlsGuard } from "../controls_guard.js";
 import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
 import {
@@ -47,7 +47,9 @@ export function calculateSuccessRate(trap) {
     className: char.class,
     level: char.level,
     floor: state.floor,
-    affixBonus: getPartyMaxAffix(state.party, "disarmBonus") || 0
+    // 罠解除は宝箱罠と共通ステータス。getCharTrapBonus は 0.1 = 10% の小数を返すため、
+    // 0〜100 スケールの calculateDisarmRate 用に整数パーセントへ戻す。
+    affixBonus: Math.round(getCharTrapBonus(char) * 100)
   });
 
   return trap.type === "pitfall" ? Math.min(100, rate + PITFALL_EDGE_BONUS) : rate;
