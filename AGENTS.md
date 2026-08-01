@@ -36,6 +36,7 @@ creating, updating, commenting on, reviewing, and merging pull requests on this
 repository are pre-approved — just do them and report the result. Committing and
 pushing to a feature branch for that PR is likewise pre-approved. Do not commit
 directly to `main`.
+Branch protection and the PreToolUse hook enforce this rule.
 
 - Before starting or resuming work, scan open issues:
   `gh issue list --state open`. Read the target issue with
