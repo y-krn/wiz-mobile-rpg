@@ -203,6 +203,10 @@ function createCoreObservations() {
     bloodWandSpellOpportunities: 0,
     bloodWandHealOpportunities: 0,
     purifyKillsWithMpRoom: 0,
+    totalKills: 0,
+    killsWithMpRoom: 0,
+    purifyTagKills: 0,
+    purifyTagKillsByCaster: 0,
     incomingPhysicalAttempts: 0,
     incomingPhysicalHits: 0,
     fightDamage: 0,
@@ -655,13 +659,22 @@ function recordRoundCoreObservations(
     /に\d+のダメージ/.test(msg)
   ).length;
 
-  const newlyDefeatedPurifyTargets = monstersBeforeRound.filter(({ hp, tags }, index) =>
-    hp > 0 &&
-    roundResult.state.combatState.monsters[index]?.hp <= 0 &&
+  // #312: 発動を潰しているのが「対象タグ」なのか「MPに空き」なのかを切り分けるため、
+  // 撃破総数・タグ一致撃破・MP空きあり撃破の3段を数える。
+  const newlyDefeated = monstersBeforeRound.filter(({ hp }, index) =>
+    hp > 0 && roundResult.state.combatState.monsters[index]?.hp <= 0
+  );
+  const newlyDefeatedPurifyTargets = newlyDefeated.filter(({ tags }) =>
     CORE_AFFIX_BY_ID.get("CORE_PURIFY_RING").params.targetTags.some(tag => tags?.includes(tag))
   ).length;
+  observations.totalKills += newlyDefeated.length;
+  observations.purifyTagKills += newlyDefeatedPurifyTargets;
   if (characterAfter.mp < getCharMaxMp(characterAfter)) {
     observations.purifyKillsWithMpRoom += newlyDefeatedPurifyTargets;
+    observations.killsWithMpRoom += newlyDefeated.length;
+  }
+  if (getCharMaxMp(characterAfter) > 0) {
+    observations.purifyTagKillsByCaster += newlyDefeatedPurifyTargets;
   }
 }
 
@@ -1123,6 +1136,14 @@ function createCoreScoringProfile(observations, runCount) {
       observations.purifyKillsWithMpRoom,
       observations.offensiveTurns
     ),
+    // #312: 二重条件のどちらが効いているかの内訳
+    purifyFunnel: {
+      totalKills: observations.totalKills,
+      tagKills: observations.purifyTagKills,
+      tagKillsByCaster: observations.purifyTagKillsByCaster,
+      killsWithMpRoom: observations.killsWithMpRoom,
+      tagKillsWithMpRoom: observations.purifyKillsWithMpRoom
+    },
     incomingPhysicalHitRate: divide(
       observations.incomingPhysicalHits,
       observations.incomingPhysicalAttempts
@@ -2926,6 +2947,15 @@ function printCoreScoringProfile(profile) {
   console.log(
     `浄化の環: MP回復可能対象撃破/攻撃turn=${profile.purifyMpPerOffensiveTurn.toFixed(4)}; ` +
     "攻撃score×対象撃破率×MP1×spell/fight実測damage差"
+  );
+  const funnel = profile.purifyFunnel;
+  console.log(
+    `  発動ファネル: 撃破${funnel.totalKills} → タグ一致${funnel.tagKills}` +
+    `(${formatPercent(funnel.tagKills / Math.max(1, funnel.totalKills))}) → ` +
+    `MP空きあり${funnel.tagKillsWithMpRoom}` +
+    `(タグ一致の${formatPercent(funnel.tagKillsWithMpRoom / Math.max(1, funnel.tagKills))})。` +
+    `MP持ち職の撃破に限ればタグ一致${funnel.tagKillsByCaster}、` +
+    `全撃破のうちMP空きは${formatPercent(funnel.killsWithMpRoom / Math.max(1, funnel.totalKills))}`
   );
   console.log(
     `罠喰い: 残り罠解除期待回数 B1=${profile.expectedTrapDisarmsFromFloor[1].toFixed(3)}, ` +

@@ -178,10 +178,12 @@ export const CORE_AFFIXES = [
     id: "CORE_PURIFY_RING",
     kind: "core",
     jpName: "浄化の環",
-    desc: "不死・悪魔を倒すたびにMPを1回復する。",
+    desc: "不死・霊・悪魔を倒すたびにMPを1回復する。",
     slot: "accessory",
     cost: 10,
-    params: { mpRecovery: 1, targetTags: ["undead", "demon"] },
+    // 対象を霊まで広げる。不死・悪魔だけでは実プレイ深度の遭遇プールに対象がおらず、
+    // 発動機会が撃破13,730回中93回（0.7%）しかなかった（#312）。
+    params: { mpRecovery: 1, targetTags: ["undead", "spirit", "demon"] },
     poolGroup: "combat",
     enabled: true
   },
