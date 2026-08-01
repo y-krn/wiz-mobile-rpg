@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getStartingHealPotionCount } from '../src/rules/recovery_rules.js';
 
 test('Verify HEAL_POTION use in explore menu on mobile layout', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -42,8 +43,8 @@ test('Verify HEAL_POTION use in explore menu on mobile layout', async ({ page })
 
   // 3. 「傷薬 (ディオス薬)」を選択
   const potionBtns = page.locator('button:has-text("傷薬 (ディオス薬)")');
-  // 初期状態で3つあることを確認
-  await expect(potionBtns).toHaveCount(3);
+  // executeEnterDungeon()の開始数に、テストで追加した1個を足した数
+  await expect(potionBtns).toHaveCount(getStartingHealPotionCount() + 1);
   await potionBtns.first().click();
   await page.waitForTimeout(500);
 
@@ -61,6 +62,6 @@ test('Verify HEAL_POTION use in explore menu on mobile layout', async ({ page })
   await expect(body).toContainText('Arthurは傷薬を使い、HPが15回復した。');
 
   // 使用後、対象選択画面に残らず、元のバッグ一覧に戻って個数が減少していることを確認
-  // 3つあった「傷薬 (ディオス薬)」が、使用後に2つになっているはず
-  await expect(potionBtns).toHaveCount(2);
+  // 開始数+1個あった「傷薬 (ディオス薬)」が、使用後に開始数へ戻るはず
+  await expect(potionBtns).toHaveCount(getStartingHealPotionCount());
 });

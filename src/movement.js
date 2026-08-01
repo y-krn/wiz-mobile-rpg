@@ -14,6 +14,7 @@ import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.j
 import { getPerceptionIntent } from "./systems/elite_perception.js";
 import { ELITE_PATROL_RADIUS } from "./systems/roaming_elites.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
+import { getStartingHealPotionCount } from "./rules/recovery_rules.js";
 import { getDepartureKitGrants, getWorkshopGrants } from "./systems/workshop.js";
 import { assignRunQuests, updateRunQuests } from "./systems/run_quests.js";
 
@@ -649,8 +650,7 @@ export function executeEnterDungeon(floor, { departureKit = false } = {}) {
     + workshopGrants.identifyPowder
     + kitGrants.identifyPowder;
   state.inventory = [
-    "HEAL_POTION",
-    "HEAL_POTION",
+    ...Array.from({ length: getStartingHealPotionCount() }, () => "HEAL_POTION"),
     "ANTIDOTE",
     ...workshopGrants.returnItems,
     ...kitGrants.returnItems
