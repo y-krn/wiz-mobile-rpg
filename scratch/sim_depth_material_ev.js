@@ -40,6 +40,16 @@ const {
   rollChestReward,
   rollChestTrap
 } = await import("../src/rules/chest_rules.js");
+const {
+  calculateChestDisarmChance,
+  calculateDetectRate,
+  calculateFloorTrapSuccessRate,
+  resolveTrapAction
+} = await import("../src/rules/trap_rules.js");
+const {
+  resolveChestTrapEffect,
+  resolveFloorTrapEffect
+} = await import("../src/rules/trap_effect_rules.js");
 const { AFFIX_BALANCE, CORE_AFFIXES } = await import("../src/data/affixes.js");
 const { ITEMS } = await import("../src/data/items.js");
 const { MATERIAL_DROP_BALANCE } = await import("../src/data/materials.js");
@@ -76,13 +86,17 @@ const {
   getCharPie,
   getCharStr,
   getCharTrapBonus,
+  getTrapEaterBonusAfterDisarm,
   getCharVit,
   getCharWeaponAtk,
   getItemData,
   SPELLS
 } = await import("../src/data.js");
 const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
-const { getBuffTotal } = await import("../src/combat_logic/status_effects.js");
+const {
+  clearCharIncapacitationOnDamage,
+  getBuffTotal
+} = await import("../src/combat_logic/status_effects.js");
 const {
   applyWorkshopToCharacter,
   getDepartureKitGrants,
@@ -156,6 +170,24 @@ const DEFAULT_STATUS_CURE_POLICY = process.env.STATUS_CURE_POLICY === "never"
 const DEFAULT_STATUS_CURE_MERCHANT_POLICY =
   process.env.STATUS_CURE_MERCHANT_POLICY === "never" ? "never" : "missing";
 const DEFAULT_ELITE_POLICY = process.env.ELITE_POLICY === "engage" ? "engage" : "avoid";
+const TRAP_POLICY_DEFINITIONS = Object.freeze({
+  legacy: Object.freeze({
+    id: "legacy",
+    label: "従来（罠効果なし）"
+  }),
+  conservative: Object.freeze({
+    id: "conservative",
+    label: "保守（キット優先・回避優先）"
+  })
+});
+const DEFAULT_TRAP_POLICY_ID = process.env.TRAP_POLICY || "conservative";
+if (!TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID]) {
+  throw new Error(
+    `TRAP_POLICY must be legacy|conservative: ${DEFAULT_TRAP_POLICY_ID}`
+  );
+}
+const CHEST_DISARM_POLICY_MIN_CHANCE = 0.50;
+const FLOOR_DISARM_POLICY_MIN_RATE = 50;
 // 仮値・感度分析対象: 危険域で傷薬が尽きていれば帰還の翼を使う。
 const PORTAL_HP_THRESHOLD = Number(process.env.PORTAL_HP_THRESHOLD || 0.35);
 const PORTAL_MAX_HEAL_POTIONS = Math.max(
@@ -207,16 +239,9 @@ const ECONOMY_CORE_KEEP_RATIO = 0.95;
 const HOLD_ONLY_ECONOMY_CORE_IDS = new Set(["CORE_SNEAK_STEP", "CORE_KEEN_EYE"]);
 // 素材1個のrun EVを装備score 1点へ換算する感度分析用の基準。
 const MATERIAL_EV_SCORE_WEIGHT = 1;
-// 盗掘王の罠tier上昇は現simが罠被害を解決しないため、素材直益を50%割り引く。
+// 盗掘王の素材EVは、罠被害を測定する既定経路でも感度分析として50%割引を残す。
 const TOMB_RAIDER_TRAP_RISK_DISCOUNT = 0.5;
 const CAMP_FLOORS = new Set([2, 4]);
-// src/chest.js executeDisarmの職別基礎率をそのまま参照値化する。
-const DISARM_BASE_CHANCE_BY_CLASS = Object.freeze({
-  Thief: 0.85,
-  Ninja: 0.70,
-  Ranger: 0.60,
-  default: 0.25
-});
 // 仮定: 装備スコアは攻防を主軸に、HP・主要能力・戦闘affixを下記重みで合算する。
 const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
   weaponAtk: 2,
@@ -270,6 +295,56 @@ function createCoreObservations() {
     bountyBonusMaterials: 0,
     curseSamples: 0,
     equippedCurseTotal: 0
+  };
+}
+
+function createTrapAggregate() {
+  return {
+    runs: 0,
+    activations: 0,
+    damageHp: 0,
+    healPotionsUsed: 0,
+    healPotionShortages: 0,
+    disarms: 0,
+    avoided: 0,
+    forced: 0,
+    kitsAcquired: 0,
+    kitsUsed: 0,
+    detections: 0,
+    runsWithHealPotionShortage: 0
+  };
+}
+
+function addTrapAggregate(target, result) {
+  target.runs++;
+  target.activations += result.trapActivations;
+  target.damageHp += result.trapDamageHp;
+  target.healPotionsUsed += result.trapHealPotionsUsed;
+  target.healPotionShortages += result.trapHealPotionShortages;
+  target.disarms += result.trapDisarms;
+  target.avoided += result.trapAvoided;
+  target.forced += result.trapForced;
+  target.kitsAcquired += result.trapKitsAcquired;
+  target.kitsUsed += result.trapKitsUsed;
+  target.detections += result.trapDetections;
+  target.runsWithHealPotionShortage += Number(result.trapHealPotionShortages > 0);
+}
+
+function finalizeTrapAggregate(aggregate) {
+  const runs = Math.max(1, aggregate.runs);
+  return {
+    runs: aggregate.runs,
+    averageTrapActivations: aggregate.activations / runs,
+    averageTrapDamageHp: aggregate.damageHp / runs,
+    averageTrapHealPotionsUsed: aggregate.healPotionsUsed / runs,
+    averageTrapHealPotionShortages: aggregate.healPotionShortages / runs,
+    trapHealPotionShortageRunRate: aggregate.runsWithHealPotionShortage / runs,
+    averageTrapDisarms: aggregate.disarms / runs,
+    averageTrapAvoided: aggregate.avoided / runs,
+    averageTrapForced: aggregate.forced / runs,
+    averageTrapKitsAcquired: aggregate.kitsAcquired / runs,
+    averageTrapKitsUsed: aggregate.kitsUsed / runs,
+    averageTrapDetections: aggregate.detections / runs
   };
 }
 
@@ -384,6 +459,9 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       ...scenarioReturnItems.map(() => scenario.startingPortalSource || "workshop-supply")
     ],
     firstKills: [],
+    alarmActive: false,
+    alarmWeakened: false,
+    noiseEvents: [],
     // 学者の眼は永続codexの未登録判定を使うため、空codexから実更新させる。
     codex: createDefaultCodex(),
     currentRun,
@@ -405,6 +483,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
         : DEFAULT_STATUS_CURE_HP_THRESHOLD,
       statusCureMerchantPolicy:
         scenario.statusCureMerchantPolicy || DEFAULT_STATUS_CURE_MERCHANT_POLICY,
+      trapPolicy: scenario.trapPolicy || DEFAULT_TRAP_POLICY_ID,
       bossOverride: scenario.bossOverride || null,
       forcedBossAffixes: scenario.forcedBossAffixes || null,
       elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY
@@ -794,6 +873,17 @@ function runEncounter(
     isElite,
     roamingMonster
   );
+  if (state.alarmActive) {
+    const multiplier = state.alarmWeakened ? 1.10 : 1.20;
+    monsters.forEach(monster => {
+      monster.maxHp = Math.round(monster.maxHp * multiplier);
+      monster.hp = monster.maxHp;
+      if (monster.str) monster.str = Math.round(monster.str * multiplier);
+      if (monster.int) monster.int = Math.round(monster.int * multiplier);
+    });
+    state.alarmActive = false;
+    state.alarmWeakened = false;
+  }
   if (isBoss && state.simPolicy.bossOverride?.floor === state.floor) {
     const override = state.simPolicy.bossOverride;
     monsters.forEach(monster => {
@@ -1088,6 +1178,112 @@ function useStatusCureIfNeeded(state, metrics, context) {
   metrics.statusesCured[decision.status] =
     (metrics.statusesCured[decision.status] || 0) + 1;
   return true;
+}
+
+function recordTrapActivation(metrics, source, type) {
+  metrics.trapActivations++;
+  metrics.trapActivationsBySource[source]++;
+  metrics.trapActivationsByType[type] = (metrics.trapActivationsByType[type] || 0) + 1;
+}
+
+function recordTrapDamage(metrics, source, type, damage) {
+  metrics.trapDamageHp += damage;
+  metrics.trapDamageHpBySource[source] += damage;
+  metrics.trapDamageHpByType[type] = (metrics.trapDamageHpByType[type] || 0) + damage;
+}
+
+function useTrapRecoveryIfNeeded(state, metrics) {
+  const character = state.party[0];
+  if (!isAlive(character)) return false;
+  const needsPotion = character.hp <= getCharMaxHp(character) * HEAL_POTION_THRESHOLD;
+  if (needsPotion) {
+    const potionIndex = state.inventory.indexOf("HEAL_POTION");
+    if (potionIndex < 0) {
+      metrics.trapHealPotionShortages++;
+    } else {
+      state.inventory.splice(potionIndex, 1);
+      ITEM_EFFECTS.HEAL_POTION({ char: character });
+      metrics.healPotionsUsed++;
+      metrics.trapHealPotionsUsed++;
+    }
+  }
+  useStatusCureIfNeeded(state, metrics, "post-trap");
+  return needsPotion;
+}
+
+function applyChestTrapEffect(state, trap, weakened, metrics) {
+  const character = state.party[0];
+  const targetIndex = Math.max(0, state.party.indexOf(character));
+  const effect = resolveChestTrapEffect({
+    trap,
+    weakened,
+    party: state.party,
+    targetIndex,
+    poisonWard: getCharAffixSum(character, "poisonWard"),
+    rng: Math.random
+  });
+  recordTrapActivation(metrics, "chest", trap);
+
+  if (trap === "poison needle") {
+    character.hp = Math.max(0, character.hp - effect.targetDamage);
+    clearCharIncapacitationOnDamage(character);
+    if (character.hp === 0) {
+      character.status = "dead";
+    } else if (effect.targetPoisonTriggered && !effect.targetPoisonResisted) {
+      character.status = "poisoned";
+    }
+    recordTrapDamage(metrics, "chest", trap, effect.targetDamage);
+  } else if (trap === "gas bomb") {
+    effect.partyDamage.forEach((damage, index) => {
+      const target = state.party[index];
+      if (damage <= 0) return;
+      target.hp = Math.max(0, target.hp - damage);
+      clearCharIncapacitationOnDamage(target);
+      if (target.hp === 0) target.status = "dead";
+      recordTrapDamage(metrics, "chest", trap, damage);
+    });
+  } else if (trap === "teleporter") {
+    metrics.trapTeleports += Number(effect.teleported);
+  } else if (trap === "flash bomb") {
+    effect.partyBlind.forEach((blinded, index) => {
+      if (blinded) state.party[index].status = "blind";
+    });
+  }
+
+  useTrapRecoveryIfNeeded(state, metrics);
+  return effect;
+}
+
+function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
+  const effect = resolveFloorTrapEffect({
+    trap,
+    floor,
+    party: state.party,
+    weakened,
+    rng: Math.random
+  });
+  recordTrapActivation(metrics, "floor", trap.type);
+
+  effect.partyDamage.forEach((damage, index) => {
+    const target = state.party[index];
+    if (damage <= 0) return;
+    target.hp = Math.max(0, target.hp - damage);
+    clearCharIncapacitationOnDamage(target);
+    if (target.hp === 0) target.status = "dead";
+    recordTrapDamage(metrics, "floor", trap.type, damage);
+  });
+  effect.partyMpDrain.forEach((drain, index) => {
+    if (drain > 0) {
+      state.party[index].mp = Math.max(0, state.party[index].mp - drain);
+    }
+  });
+  if (effect.alarm) {
+    state.alarmActive = true;
+    state.alarmWeakened = effect.alarmWeakened;
+  }
+
+  useTrapRecoveryIfNeeded(state, metrics);
+  return effect;
 }
 
 function shouldUseTownPortal(state, scenario) {
@@ -1921,6 +2117,107 @@ function schedulePickedUpChests(chestCount, floorSteps) {
   return schedule;
 }
 
+function scheduleFloorTraps(generated, routePlan, floorSteps) {
+  const schedule = new Map();
+  const seen = new Set();
+  routePlan.path.slice(1).forEach((coord, index) => {
+    const trap = generated.grid[coord.y]?.[coord.x]?.trap;
+    if (!trap || seen.has(trap.id)) return;
+    seen.add(trap.id);
+    const step = Math.min(
+      floorSteps,
+      Math.max(1, Math.ceil((index + 1) * EXPLORATION_FACTOR))
+    );
+    if (!schedule.has(step)) schedule.set(step, []);
+    schedule.get(step).push({
+      trap,
+      previousCoord: routePlan.path[index]
+    });
+  });
+  return schedule;
+}
+
+function getTrapAvoidancePlan(generated, currentCoord, trap) {
+  const stairs = findFloorCell(generated.grid, cell => cell.type === "stairs-down");
+  const blocked = new Set([routeKey(trap.position)]);
+  const directPath = findShortestFloorPath(generated.grid, currentCoord, stairs);
+  const alternatePath = findShortestFloorPath(
+    generated.grid,
+    currentCoord,
+    stairs,
+    blocked
+  );
+  if (!directPath || !alternatePath) return null;
+  return {
+    extraSteps: Math.ceil(
+      Math.max(0, alternatePath.length - directPath.length) * EXPLORATION_FACTOR
+    )
+  };
+}
+
+function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
+  const { trap, previousCoord } = scheduled;
+  if (state.simPolicy.trapPolicy === "legacy" || trap.state === "disabled") {
+    return { pitfallTriggered: false };
+  }
+
+  if (trap.state === "hidden") {
+    if (Math.random() < calculateDetectRate({ floor })) {
+      trap.state = "discovered";
+      metrics.trapDetections++;
+    }
+  }
+
+  if (trap.state === "discovered") {
+    const avoidance = getTrapAvoidancePlan(generated, previousCoord, trap);
+    if (avoidance) {
+      metrics.trapAvoided++;
+      metrics.steps += avoidance.extraSteps;
+      state.currentRun.steps += avoidance.extraSteps;
+      return { pitfallTriggered: false };
+    }
+  }
+
+  const character = state.party[0];
+  const successRate = calculateFloorTrapSuccessRate({
+    trap,
+    className: character.class,
+    level: character.level,
+    floor,
+    affixBonus: Math.round(getCharTrapBonus(character) * 100)
+  });
+  const action = trap.state === "hidden"
+    ? "trigger"
+    : (successRate >= FLOOR_DISARM_POLICY_MIN_RATE ? "disarm" : "force");
+  const resolution = action === "trigger"
+    ? { outcome: "triggered", partialSuccess: false }
+    : resolveTrapAction({
+      action,
+      trap,
+      successRate,
+      rng: Math.random
+    });
+
+  if (action === "force") metrics.trapForced++;
+  if (resolution.outcome === "disarmed") {
+    trap.state = "disabled";
+    state.currentRun.trapsDisarmed++;
+    metrics.trapDisarms++;
+    recordTrapDisarmObservation(metrics.coreObservations, floor);
+    return { pitfallTriggered: false };
+  }
+
+  trap.state = "disabled";
+  state.currentRun.trapsTriggered++;
+  if (trap.type === "pitfall") {
+    descendToNextFloor(state, floor + 1);
+    applyFloorTrapEffect(state, trap, state.floor, resolution.partialSuccess, metrics);
+    return { pitfallTriggered: true };
+  }
+  applyFloorTrapEffect(state, trap, floor, resolution.partialSuccess, metrics);
+  return { pitfallTriggered: false };
+}
+
 function applySimulatedCampRest(state, observations) {
   if (!CAMP_FLOORS.has(state.floor)) return;
   const character = state.party[0];
@@ -2027,6 +2324,66 @@ function generateExtraSupplyEquipment(state, floor, source, supplyOverride, rng)
   );
 }
 
+function recordTrapDisarmObservation(observations, floor) {
+  observations.expectedTrapDisarms++;
+  observations.expectedTrapDisarmsByFloor[floor]++;
+}
+
+function resolveChestTrapForSimulation(
+  state,
+  floor,
+  trap,
+  mainItem,
+  observations,
+  metrics
+) {
+  const character = state.party[0];
+  const chance = calculateChestDisarmChance({
+    className: character.class,
+    trapBonus: getCharTrapBonus(character),
+    blind: character.status === "blind"
+  });
+  observations.trappedChests++;
+
+  if (state.simPolicy.trapPolicy === "legacy") {
+    const expectedDisarm = Math.max(0, Math.min(1, chance));
+    observations.expectedTrapDisarms += expectedDisarm;
+    observations.expectedTrapDisarmsByFloor[floor] += expectedDisarm;
+    return { mainItemLost: false };
+  }
+
+  const kitIndex = state.inventory.indexOf("TRAP_KIT");
+  if (kitIndex >= 0) {
+    state.inventory.splice(kitIndex, 1);
+    metrics.trapKitsUsed++;
+    return { mainItemLost: false };
+  }
+
+  if (chance >= CHEST_DISARM_POLICY_MIN_CHANCE) {
+    if (Math.random() < chance) {
+      state.currentRun.trapsDisarmed++;
+      metrics.trapDisarms++;
+      recordTrapDisarmObservation(observations, floor);
+      const previousTrapBonus = character.runTrapAttackBonus || 0;
+      character.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(
+        character,
+        previousTrapBonus
+      );
+      return { mainItemLost: false };
+    }
+    state.currentRun.trapsTriggered++;
+    applyChestTrapEffect(state, trap, false, metrics);
+    return { mainItemLost: false };
+  }
+
+  metrics.trapForced++;
+  state.currentRun.trapsTriggered++;
+  applyChestTrapEffect(state, trap, true, metrics);
+  const itemData = getItemData(mainItem);
+  const mainItemLost = itemData?.type === "usable" && Math.random() < 0.30;
+  return { mainItemLost };
+}
+
 // 抽選そのものは src/rules/chest_rules.js（src/chest.js と同一の出所）を叩き、
 // sim 固有の what-if（core解禁階の前倒し、TOWN_PORTAL の除外）だけを引数で渡す。
 function rollChestItems(
@@ -2039,17 +2396,6 @@ function rollChestItems(
   metrics = null
 ) {
   const trap = rollChestTrap(floor, rng);
-  if (trap !== "none") {
-    const character = state.party[0];
-    let disarmChance =
-      (DISARM_BASE_CHANCE_BY_CLASS[character.class] || DISARM_BASE_CHANCE_BY_CLASS.default) +
-      getCharTrapBonus(character);
-    if (character.status === "blind") disarmChance /= 2;
-    observations.trappedChests++;
-    const expectedDisarm = Math.max(0, Math.min(1, disarmChance));
-    observations.expectedTrapDisarms += expectedDisarm;
-    observations.expectedTrapDisarmsByFloor[floor] += expectedDisarm;
-  }
   maybeAcquireChestIdentificationPowder(state, metrics, rng);
   if (floor === 1) {
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
@@ -2092,7 +2438,22 @@ function rollChestItems(
     supplyOverride,
     rng
   );
-  return extra ? [...baselineItems, extra] : baselineItems;
+  const items = extra ? [...baselineItems, extra] : baselineItems;
+  const trapResult = trap === "none"
+    ? { mainItemLost: false }
+    : resolveChestTrapForSimulation(
+      state,
+      floor,
+      trap,
+      item,
+      observations,
+      metrics
+    );
+  return {
+    items,
+    mainItem: item,
+    mainItemLost: trapResult.mainItemLost
+  };
 }
 
 function hasBuildCoreAffix(item) {
@@ -2402,6 +2763,22 @@ function finishRun(state, outcome, metrics) {
     finalCoreId,
     coreObservations: metrics.coreObservations,
     healPotionsUsed: metrics.healPotionsUsed,
+    trapPolicy: state.simPolicy.trapPolicy,
+    trapActivations: metrics.trapActivations,
+    trapActivationsBySource: { ...metrics.trapActivationsBySource },
+    trapActivationsByType: { ...metrics.trapActivationsByType },
+    trapDamageHp: metrics.trapDamageHp,
+    trapDamageHpBySource: { ...metrics.trapDamageHpBySource },
+    trapDamageHpByType: { ...metrics.trapDamageHpByType },
+    trapHealPotionsUsed: metrics.trapHealPotionsUsed,
+    trapHealPotionShortages: metrics.trapHealPotionShortages,
+    trapDisarms: metrics.trapDisarms,
+    trapAvoided: metrics.trapAvoided,
+    trapForced: metrics.trapForced,
+    trapKitsAcquired: metrics.trapKitsAcquired,
+    trapKitsUsed: metrics.trapKitsUsed,
+    trapDetections: metrics.trapDetections,
+    trapTeleports: metrics.trapTeleports,
     finalHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
     statusCureItemsAcquired: metrics.statusCureItemsAcquired,
     statusCureItemsUsed: metrics.statusCureItemsUsed,
@@ -2533,6 +2910,21 @@ export function simulateRun({
     cursedCoreEquipmentFound: 0,
     floorSupplyStats: createFloorSupplyStats(),
     healPotionsUsed: 0,
+    trapActivations: 0,
+    trapActivationsBySource: { chest: 0, floor: 0 },
+    trapActivationsByType: {},
+    trapDamageHp: 0,
+    trapDamageHpBySource: { chest: 0, floor: 0 },
+    trapDamageHpByType: {},
+    trapHealPotionsUsed: 0,
+    trapHealPotionShortages: 0,
+    trapDisarms: 0,
+    trapAvoided: 0,
+    trapForced: 0,
+    trapKitsAcquired: 0,
+    trapKitsUsed: 0,
+    trapDetections: 0,
+    trapTeleports: 0,
     statusCureItemsAcquired: {
       initial: countInventoryItems(state.inventory),
       chest: {},
@@ -2681,14 +3073,36 @@ export function simulateRun({
       milestoneForced: routePlan.milestoneForced
     });
     const chestSchedule = schedulePickedUpChests(countFloorChests(generated.grid), floorSteps);
+    const floorTrapSchedule = scheduleFloorTraps(generated, routePlan, floorSteps);
     metrics.coreObservations.pickedChestsByFloor[floor] +=
       [...chestSchedule.values()].reduce((sum, count) => sum + count, 0);
+    let floorEndedByPitfall = false;
 
     stepLoop: for (let step = 1; step <= floorSteps; step++) {
       metrics.steps++;
       state.currentRun.steps++;
       state.currentRun.floorSteps[String(floor)] =
         (state.currentRun.floorSteps[String(floor)] || 0) + 1;
+
+      const scheduledFloorTraps = floorTrapSchedule.get(step) || [];
+      for (const scheduledTrap of scheduledFloorTraps) {
+        const trapResult = resolveFloorTrapAtPath(
+          state,
+          generated,
+          floor,
+          scheduledTrap,
+          metrics
+        );
+        if (!isAlive(state.party[0])) {
+          metrics.deathEncounterType = "floor-trap";
+          return finishRun(state, "death", metrics);
+        }
+        if (trapResult.pitfallTriggered) {
+          floorEndedByPitfall = true;
+          break;
+        }
+      }
+      if (floorEndedByPitfall) break stepLoop;
 
       const pickedUpChests = chestSchedule.get(step) || 0;
       for (let chest = 0; chest < pickedUpChests; chest++) {
@@ -2711,9 +3125,15 @@ export function simulateRun({
         );
         const cureCountsBeforeChest = countInventoryItems(state.inventory);
         const acquiredEquipment = [];
-        chestItems.forEach(item => {
+        chestItems.items.forEach((item, itemIndex) => {
+          if (
+            chestItems.mainItemLost &&
+            itemIndex === 0 &&
+            item === chestItems.mainItem
+          ) return;
           if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal) return;
           if (!addInventoryItemToState(state, item)) return;
+          if (item === "TRAP_KIT") metrics.trapKitsAcquired++;
           if (item === "TOWN_PORTAL") {
             state.simPortalSources.push("chest");
             metrics.portalAcquisitions.chest++;
@@ -2746,6 +3166,10 @@ export function simulateRun({
           equipGreedyUpgrades(state, metrics, scoringProfile),
           floor
         );
+      }
+      if (!isAlive(state.party[0])) {
+        metrics.deathEncounterType = "chest-trap";
+        return finishRun(state, "death", metrics);
       }
 
       const scheduledSpecials = specialSchedule.get(step) || [];
@@ -3010,6 +3434,10 @@ export function simulateRun({
       }
     }
 
+    if (floorEndedByPitfall) {
+      continue;
+    }
+
     applySimulatedCampRest(state, metrics.coreObservations);
     maybePurchaseMerchantWing(state, scenario, metrics);
     maybePurchaseMerchantStatusCures(state, metrics);
@@ -3099,6 +3527,7 @@ function simulateCase({
     firstCoreDepthCounts: {},
     coreObservations: createCoreObservations(),
     healPotionsUsed: 0,
+    trap: createTrapAggregate(),
     townPortalsUsed: 0,
     runsUsingTownPortal: 0,
     fleeCount: 0,
@@ -3112,6 +3541,9 @@ function simulateCase({
     eliteAvoidDetourSteps: 0,
     eliteAvoidNoRouteFloors: 0
   };
+  const classTrapTotals = Object.fromEntries(
+    SIM_CLASSES.map(className => [className, createTrapAggregate()])
+  );
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
     const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
@@ -3127,6 +3559,8 @@ function simulateCase({
         identificationPolicy: identificationPolicy.id || identificationPolicy
       }
     });
+    addTrapAggregate(totals.trap, result);
+    addTrapAggregate(classTrapTotals[className], result);
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
     totals.carriedMaterials += result.carriedMaterials;
@@ -3209,6 +3643,7 @@ function simulateCase({
     label,
     startFloor,
     targetDepth,
+    trapPolicy: scenario.trapPolicy || DEFAULT_TRAP_POLICY_ID,
     survivalRate: totals.survived / RUNS_PER_CASE,
     deathRate: totals.died / RUNS_PER_CASE,
     townPortalUseRate: totals.runsUsingTownPortal / RUNS_PER_CASE,
@@ -3264,6 +3699,13 @@ function simulateCase({
     coreObservations: totals.coreObservations,
     firstCoreDepthCounts: totals.firstCoreDepthCounts,
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
+    ...finalizeTrapAggregate(totals.trap),
+    trapMetricsByClass: Object.fromEntries(
+      Object.entries(classTrapTotals).map(([className, aggregate]) => [
+        className,
+        finalizeTrapAggregate(aggregate)
+      ])
+    ),
     averageTownPortalsUsed: totals.townPortalsUsed / RUNS_PER_CASE,
     averageFleeCount: totals.fleeCount / RUNS_PER_CASE,
     runsWithFleeRate: totals.runsWithFlee / RUNS_PER_CASE,
@@ -3358,7 +3800,7 @@ function printCoreScoringProfile(profile, policy = null) {
     `全撃破のうちMP空きは${formatPercent(funnel.killsWithMpRoom / Math.max(1, funnel.totalKills))}`
   );
   console.log(
-    `罠喰い: 残り罠解除期待回数 B1=${profile.expectedTrapDisarmsFromFloor[1].toFixed(3)}, ` +
+    `罠喰い: 残り罠解除実績 B1=${profile.expectedTrapDisarmsFromFloor[1].toFixed(3)}, ` +
     `B10=${profile.expectedTrapDisarmsFromFloor[10].toFixed(3)}; ` +
     "min(20, 現floor以降の解除回数×攻撃+2)×weaponAtk重み2"
   );
@@ -3419,6 +3861,30 @@ function printTable(results) {
       `${result.averageReachedFloor.toFixed(2).padStart(10)} | ${result.averageFinalLevel.toFixed(2).padStart(6)} | ` +
       `${result.averageEquipmentUpgrades.toFixed(2).padStart(8)} | ${result.averageHealPotionsUsed.toFixed(2).padStart(6)} | ` +
       `${result.averageFleeCount.toFixed(2).padStart(8)} | ${formatPercent(result.runsWithFleeRate).padStart(8)}`
+    );
+  });
+}
+
+function printTrapMetrics(result) {
+  console.log(`\n【${result.label} 罠計測 / 職業別 / 方針=${result.trapPolicy}】`);
+  console.log(
+    "職業    | 発動/run | 被害HP/run | 罠傷薬/run | 傷薬不足/run | 不足run率 | 解除/run | 回避/run | 強行/run | kit入手/run | kit使用/run"
+  );
+  console.log(
+    "--------|----------|------------|------------|--------------|-----------|----------|----------|----------|------------|------------"
+  );
+  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
+    console.log(
+      `${className.padEnd(7)} | ${metrics.averageTrapActivations.toFixed(2).padStart(8)} | ` +
+      `${metrics.averageTrapDamageHp.toFixed(2).padStart(10)} | ` +
+      `${metrics.averageTrapHealPotionsUsed.toFixed(2).padStart(10)} | ` +
+      `${metrics.averageTrapHealPotionShortages.toFixed(2).padStart(12)} | ` +
+      `${formatPercent(metrics.trapHealPotionShortageRunRate).padStart(9)} | ` +
+      `${metrics.averageTrapDisarms.toFixed(2).padStart(8)} | ` +
+      `${metrics.averageTrapAvoided.toFixed(2).padStart(8)} | ` +
+      `${metrics.averageTrapForced.toFixed(2).padStart(8)} | ` +
+      `${metrics.averageTrapKitsAcquired.toFixed(2).padStart(10)} | ` +
+      `${metrics.averageTrapKitsUsed.toFixed(2).padStart(10)}`
     );
   });
 }
@@ -3665,6 +4131,7 @@ console.log("深度別 リスク調整後素材EVシミュレーション");
 console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（基本${SIM_CLASSES.length}職をround-robin集約）`);
 console.log(`乱数seed: ${SIM_SEED}`);
 console.log(`徘徊エリート方針: ${DEFAULT_ELITE_POLICY}`);
+console.log(`罠方針: ${TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID].label} / TRAP_POLICY=${DEFAULT_TRAP_POLICY_ID}`);
 console.log(`core価値calibration: B1→B20 N=${RUNS_PER_CASE} / 方針=${ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id).join(",")}`);
 console.log(`識別方針切替: IDENTIFICATION_POLICY=${process.env.IDENTIFICATION_POLICY || "legacy"}`);
 console.log(
@@ -3694,7 +4161,7 @@ console.log(
   `core判定=enabled ${ENABLED_CORE_AFFIXES.length}/${CORE_AFFIXES.length}種+affix_rules helper`
 );
 console.log(
-  "非モデル化: 宝箱罠の実被害、商人での傷薬/罠外し/鑑定粉購入、" +
+  "非モデル化: テレポーター移動先の再経路化、商人での傷薬/罠外し/鑑定粉購入、" +
   "上薬・MP消費/強化アイテムの能動使用、マップ上の任意寄り道、" +
   "徘徊エリートの移動・知覚・偶発接触、人間の敵別判断（固定閾値で代理）"
 );
@@ -3707,7 +4174,7 @@ console.log(
   "STATUS_CURE_POLICY=smart|never / STATUS_CURE_HP_THRESHOLD / " +
   "STATUS_CURE_MERCHANT_POLICY=missing|never, " +
   "PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
-  "ELITE_POLICY=avoid|engage; " +
+  "ELITE_POLICY=avoid|engage / TRAP_POLICY=legacy|conservative; " +
   "SIM_SCENARIOS=workshop-locked,workshop-unlocked,legacy-no-portal"
 );
 console.log(
@@ -3760,6 +4227,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   scenarioResults.forEach(({ scenario, results }) => {
   console.log(`\n【${scenario.label} B1開始 深度別系列】`);
   printTable(results);
+  results.forEach(printTrapMetrics);
   console.log(`\n【${scenario.label} 徘徊エリート】`);
   printEliteMetrics(results);
   printIdentificationMetrics(results, policy);
@@ -3789,6 +4257,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
     `milestoneStartMultiplier=${MATERIAL_DROP_BALANCE.milestoneStartMultiplier} を適用`
   );
   printTable(milestoneResults);
+  milestoneResults.forEach(printTrapMetrics);
   console.log("\n【マイルストーン開始 徘徊エリート】");
   printEliteMetrics(milestoneResults);
   printIdentificationMetrics(milestoneResults, policy);

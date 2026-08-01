@@ -10,6 +10,8 @@ import { createRng } from "./seed_rng.js";
 import { increaseChestTrapTier } from "./systems/traps.js";
 import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
+import { calculateChestDisarmChance } from "./rules/trap_rules.js";
+import { resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
 
 export function applyTombRaiderTrapTier(chest, opener) {
   const params = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
@@ -343,18 +345,11 @@ export function openChestMenu() {
 
 export function executeDisarm(char, rng = Math.random) {
   applyTombRaiderTrapTier(state.chestState, char);
-  let chance = 0.25;
-  if (char.class === "Thief") {
-    chance = 0.85;
-  } else if (char.class === "Ninja") {
-    chance = 0.70;
-  } else if (char.class === "Ranger") {
-    chance = 0.60;
-  }
-  chance += getCharTrapBonus(char);
-  if (char.status === "blind") {
-    chance = chance / 2.0;
-  }
+  const chance = calculateChestDisarmChance({
+    className: char.class,
+    trapBonus: getCharTrapBonus(char),
+    blind: char.status === "blind"
+  });
   const success = rng() < chance;
   
   state.transitioning = true;
@@ -408,13 +403,21 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
   playSound("chest_trap");
   if (renderer) renderer.triggerShake(10, 400);
 
+  const effect = resolveChestTrapEffect({
+    trap,
+    weakened,
+    party: state.party,
+    targetIndex: Math.max(0, state.party.indexOf(char)),
+    poisonWard: getCharAffixSum(char, "poisonWard"),
+    rng
+  });
+
   if (trap === "poison needle") {
-    const damage = weakened ? 6 : 12;
+    const damage = effect.targetDamage;
     char.hp = Math.max(0, char.hp - damage);
     clearCharIncapacitationOnDamage(char);
-    const ward = getCharAffixSum(char, "poisonWard");
-    const poisonTriggered = !weakened || rng() < 0.50;
-    const resisted = char.hp > 0 && poisonTriggered && ward > 0 && rng() * 100 < ward;
+    const poisonTriggered = effect.targetPoisonTriggered;
+    const resisted = effect.targetPoisonResisted;
     if (char.hp === 0) {
       char.status = "dead";
       recordCharDeath(state, char, "宝箱の罠「毒針」");
@@ -428,9 +431,9 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
     if (renderer) renderer.addDamageText(String(damage), "#ff3b30");
   } else if (trap === "gas bomb") {
     addLog("ガス爆弾が作動！パーティ全体にガスが充満した！");
-    state.party.forEach(c => {
-      if (c.status !== "dead") {
-        const dmg = weakened ? Math.floor(rng() * 5) + 2 : Math.floor(rng() * 8) + 5;
+    state.party.forEach((c, index) => {
+      const dmg = effect.partyDamage[index];
+      if (dmg > 0) {
         c.hp = Math.max(0, c.hp - dmg);
         clearCharIncapacitationOnDamage(c);
         if (c.hp === 0) {
@@ -441,7 +444,7 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
       }
     });
   } else if (trap === "teleporter") {
-    if (weakened && rng() < 0.50) {
+    if (effect.teleporterFailed) {
       addLog("テレポーターは衝撃で壊れ、不発に終わった！");
       return;
     }
@@ -467,8 +470,8 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
     if (renderer && typeof renderer.triggerFlash === "function") {
       renderer.triggerFlash(400);
     }
-    state.party.forEach(c => {
-      if (c.status === "ok" && rng() < (weakened ? 0.30 : 0.60)) {
+    state.party.forEach((c, index) => {
+      if (effect.partyBlind[index]) {
         c.status = "blind";
         addLog(`${c.name}は光に目がくらみ、盲目状態になった！`);
       }

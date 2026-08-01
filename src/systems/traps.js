@@ -9,12 +9,11 @@ import { MAP_WIDTH, MAP_HEIGHT, DX, DY, getPartyMaxAffix, getCharTrapBonus } fro
 import { armControlsGuard } from "../controls_guard.js";
 import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
 import {
-  calculateDisarmRate,
   calculateDetectRate,
-  PITFALL_EDGE_BONUS,
-  PARTIAL_SUCCESS_BAND,
-  FORCE_DAMAGE_MULTIPLIER
+  calculateFloorTrapSuccessRate,
+  resolveTrapAction
 } from "../rules/trap_rules.js";
+import { resolveFloorTrapEffect } from "../rules/trap_effect_rules.js";
 
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
 
@@ -43,7 +42,8 @@ export function calculateSuccessRate(trap) {
   const char = getActiveCharacter();
   if (!char) return 0;
 
-  const rate = calculateDisarmRate({
+  return calculateFloorTrapSuccessRate({
+    trap,
     className: char.class,
     level: char.level,
     floor: state.floor,
@@ -51,8 +51,6 @@ export function calculateSuccessRate(trap) {
     // 0〜100 スケールの calculateDisarmRate 用に整数パーセントへ戻す。
     affixBonus: Math.round(getCharTrapBonus(char) * 100)
   });
-
-  return trap.type === "pitfall" ? Math.min(100, rate + PITFALL_EDGE_BONUS) : rate;
 }
 
 export function getExpectedEffectText(trap) {
@@ -179,21 +177,20 @@ export function triggerPitfall(trap, isPartialSuccess = false) {
   }
 
   const onLanding = () => {
-    let powerMultiplier = isPartialSuccess ? FORCE_DAMAGE_MULTIPLIER : 1;
-    
-    const hasScout = state.party.some(c => ["Thief", "Ninja"].includes(c.class) && c.hp > 0);
-    if (hasScout) {
-      powerMultiplier *= 0.7;
+    const effect = resolveFloorTrapEffect({
+      trap,
+      floor: state.floor,
+      party: state.party,
+      weakened: isPartialSuccess,
+      rng: Math.random
+    });
+    if (effect.scoutMitigated) {
       addLog("[味方] 盗賊の素早い身のこなしにより、着地時の衝撃が和らいだ！");
     }
-    
-    state.party.forEach(c => {
-      if (c.status !== "dead") {
-        const baseDmg = state.floor * 2;
-        const randDmg = Math.floor(Math.random() * 7) + 4; // 4..10
-        const rawDmg = baseDmg + randDmg;
-        const dmg = Math.max(1, Math.floor(rawDmg * powerMultiplier));
-        
+
+    state.party.forEach((c, index) => {
+      const dmg = effect.partyDamage[index];
+      if (dmg > 0) {
         c.hp = Math.max(0, c.hp - dmg);
         clearCharIncapacitationOnDamage(c);
         addLog(`[!] ${c.name}は落下で${dmg}のダメージを受けた。`);
@@ -227,12 +224,16 @@ export function triggerPitfall(trap, isPartialSuccess = false) {
 }
 
 export function triggerTrap(trap, isPartialSuccess = false) {
-  let powerMultiplier = isPartialSuccess ? FORCE_DAMAGE_MULTIPLIER : 1;
+  const effect = resolveFloorTrapEffect({
+    trap,
+    floor: state.floor,
+    party: state.party,
+    weakened: isPartialSuccess,
+    rng: Math.random
+  });
 
   // 探索能力に応じた失敗時の被害軽減（ThiefやNinjaが生存していると30%軽減）
-  const hasScout = state.party.some(c => ["Thief", "Ninja"].includes(c.class) && c.hp > 0);
-  if (hasScout && !isPartialSuccess) {
-    powerMultiplier *= 0.7;
+  if (effect.scoutMitigated && !isPartialSuccess) {
     addLog("[味方] 盗賊の素早い身のこなしにより、罠の被害が抑えられた！");
   }
 
@@ -248,14 +249,9 @@ export function triggerTrap(trap, isPartialSuccess = false) {
   }
 
   if (trap.type === "damage") {
-    const baseMin = 6 + state.floor * 2;
-    const baseMax = 12 + state.floor * 4;
-    const dmgRange = baseMax - baseMin + 1;
-    
-    state.party.forEach(c => {
-      if (c.status !== "dead") {
-        const rawDmg = Math.floor(Math.random() * dmgRange) + baseMin;
-        const dmg = Math.max(1, Math.floor(rawDmg * powerMultiplier));
+    state.party.forEach((c, index) => {
+      const dmg = effect.partyDamage[index];
+      if (dmg > 0) {
         c.hp = Math.max(0, c.hp - dmg);
         clearCharIncapacitationOnDamage(c);
         addLog(`[!] ${c.name}は${dmg}のダメージを受けた。`);
@@ -273,21 +269,16 @@ export function triggerTrap(trap, isPartialSuccess = false) {
       return;
     }
   } else if (trap.type === "mpDrain") {
-    const baseMin = 1;
-    const baseMax = Math.max(2, Math.floor(state.floor * 1.2));
-    const drainRange = baseMax - baseMin + 1;
-
-    state.party.forEach(c => {
-      if (c.status !== "dead" && c.maxMp > 0) {
-        const rawDrain = Math.floor(Math.random() * drainRange) + baseMin;
-        const drain = Math.max(1, Math.floor(rawDrain * powerMultiplier));
+    state.party.forEach((c, index) => {
+      const drain = effect.partyMpDrain[index];
+      if (drain > 0) {
         c.mp = Math.max(0, c.mp - drain);
         addLog(`[!] ${c.name}のMPが${drain}減少した。`);
       }
     });
   } else if (trap.type === "alarm") {
     state.alarmActive = true;
-    state.alarmWeakened = isPartialSuccess;
+    state.alarmWeakened = effect.alarmWeakened;
     if (!state.noiseEvents) state.noiseEvents = [];
     state.noiseEvents.push({ floor: state.floor, x: state.x, y: state.y, ttl: 4 });
     addLog("【⚠️警報】けたたましい警報音が響き渡った！");
@@ -321,19 +312,25 @@ export function handleTrapAction(action) {
   }
 
   if (action === "force") {
+    const resolution = resolveTrapAction({
+      action,
+      trap,
+      successRate,
+      rng: Math.random
+    });
     if (trap.type === "pitfall") {
       addLog("意を決して落とし穴へ飛び込んだ！");
       trap.state = "disabled";
       markMapChanged();
       state.gameState = "explore";
       state.activeTrapState = null;
-      triggerPitfall(trap, true);
+      triggerPitfall(trap, resolution.partialSuccess);
       return;
     }
 
     // 強行は必ず通れる。チョーク罠でフロア突破不能にしないための保証。
     addLog("罠を承知で強引に駆け抜けた！");
-    triggerTrap(trap, true);
+    triggerTrap(trap, resolution.partialSuccess);
     trap.state = "disabled";
     markMapChanged();
     completePendingMove();
@@ -342,10 +339,15 @@ export function handleTrapAction(action) {
   }
 
   if (action === "disarm") {
-    const roll = Math.random() * 100;
+    const resolution = resolveTrapAction({
+      action,
+      trap,
+      successRate,
+      rng: Math.random
+    });
 
     if (trap.type === "pitfall") {
-      if (roll < successRate) {
+      if (resolution.outcome === "disarmed") {
         addLog("[味方] 【回避成功】慎重に縁を伝い、落とし穴を渡りきった！");
         playSound("item");
         trap.state = "disabled";
@@ -371,12 +373,12 @@ export function handleTrapAction(action) {
       ? "poison needle"
       : (trap.type === "mpDrain" ? "gas bomb" : "flash bomb");
 
-    if (roll < successRate) {
+    if (resolution.outcome === "disarmed") {
       addLog("[味方] 【解除成功】罠の機能を完全に停止した！");
       playSound("item");
       if (state.currentRun) state.currentRun.trapsDisarmed++;
       recordTrapCodex(codexTrapType, "disarmed");
-    } else if (roll < successRate + PARTIAL_SUCCESS_BAND) {
+    } else if (resolution.partialSuccess) {
       addLog("[味方] 【部分成功】完全には解除できなかったが、被害を最小限に抑えた！");
       triggerTrap(trap, true);
       if (state.currentRun) state.currentRun.trapsTriggered++;
