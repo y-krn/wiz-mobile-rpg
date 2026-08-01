@@ -103,6 +103,7 @@ const {
   getWorkshopGrants
 } = await import("../src/systems/workshop.js");
 const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
+const { getStartingHealPotionCount } = await import("../src/rules/recovery_rules.js");
 
 const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 500));
 const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
@@ -148,8 +149,8 @@ const EXPLORATION_FACTOR = 1.4;
 const CHEST_PICKUP_RATE = 0.7;
 // 仮値・感度分析対象: 戦闘1ターンを探索3歩相当と置く。
 const COMBAT_TURN_WEIGHT = 3;
-// 実run開始準拠: 傷薬2個。
-const INITIAL_HEAL_POTIONS = 2;
+// 実run開始準拠: src/rules/recovery_rules.js と同じ開始傷薬数。
+const INITIAL_HEAL_POTIONS = getStartingHealPotionCount();
 // 実run開始準拠: 解毒薬1個。
 const INITIAL_ANTIDOTES = 1;
 // 実run開始準拠: 守りの薬1個（#271の確実供給）。
@@ -169,6 +170,8 @@ const DEFAULT_STATUS_CURE_POLICY = process.env.STATUS_CURE_POLICY === "never"
   : "smart";
 const DEFAULT_STATUS_CURE_MERCHANT_POLICY =
   process.env.STATUS_CURE_MERCHANT_POLICY === "never" ? "never" : "missing";
+const DEFAULT_HEAL_POTION_MERCHANT_POLICY =
+  process.env.HEAL_POTION_MERCHANT_POLICY === "never" ? "never" : "missing";
 const DEFAULT_ELITE_POLICY = process.env.ELITE_POLICY === "engage" ? "engage" : "avoid";
 const TRAP_POLICY_DEFINITIONS = Object.freeze({
   legacy: Object.freeze({
@@ -311,7 +314,23 @@ function createTrapAggregate() {
     kitsAcquired: 0,
     kitsUsed: 0,
     detections: 0,
-    runsWithHealPotionShortage: 0
+    runsWithHealPotionShortage: 0,
+    combatDamageHp: 0,
+    stairsHealingHp: 0,
+    campHealingHp: 0,
+    diosHealingHp: 0,
+    healPotionsAcquiredBySource: {
+      starting: 0,
+      chest: 0,
+      merchant: 0,
+      other: 0
+    },
+    healPotionsConsumedBySource: {
+      starting: 0,
+      chest: 0,
+      merchant: 0,
+      other: 0
+    }
   };
 }
 
@@ -328,6 +347,18 @@ function addTrapAggregate(target, result) {
   target.kitsUsed += result.trapKitsUsed;
   target.detections += result.trapDetections;
   target.runsWithHealPotionShortage += Number(result.trapHealPotionShortages > 0);
+  target.combatDamageHp += result.combatDamageHp;
+  target.stairsHealingHp += result.stairsHealingHp;
+  target.campHealingHp += result.campHealingHp;
+  target.diosHealingHp += result.diosHealingHp;
+  Object.entries(result.healPotionsAcquiredBySource).forEach(([source, amount]) => {
+    target.healPotionsAcquiredBySource[source] =
+      (target.healPotionsAcquiredBySource[source] || 0) + amount;
+  });
+  Object.entries(result.healPotionsConsumedBySource).forEach(([source, amount]) => {
+    target.healPotionsConsumedBySource[source] =
+      (target.healPotionsConsumedBySource[source] || 0) + amount;
+  });
 }
 
 function finalizeTrapAggregate(aggregate) {
@@ -344,7 +375,25 @@ function finalizeTrapAggregate(aggregate) {
     averageTrapForced: aggregate.forced / runs,
     averageTrapKitsAcquired: aggregate.kitsAcquired / runs,
     averageTrapKitsUsed: aggregate.kitsUsed / runs,
-    averageTrapDetections: aggregate.detections / runs
+    averageTrapDetections: aggregate.detections / runs,
+    averageCombatDamageHp: aggregate.combatDamageHp / runs,
+    averageStairsHealingHp: aggregate.stairsHealingHp / runs,
+    averageCampHealingHp: aggregate.campHealingHp / runs,
+    averageDiosHealingHp: aggregate.diosHealingHp / runs,
+    averageHealPotionsAcquiredBySource: Object.fromEntries(
+      Object.entries(aggregate.healPotionsAcquiredBySource).map(([source, amount]) => [
+        source,
+        amount / runs
+      ])
+    ),
+    averageHealPotionsConsumed: Object.values(aggregate.healPotionsConsumedBySource)
+      .reduce((sum, amount) => sum + amount, 0) / runs,
+    averageHealPotionsConsumedBySource: Object.fromEntries(
+      Object.entries(aggregate.healPotionsConsumedBySource).map(([source, amount]) => [
+        source,
+        amount / runs
+      ])
+    )
   };
 }
 
@@ -453,6 +502,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       ...departureKitReturnItems,
       ...scenarioReturnItems
     ],
+    simHealPotionSources: Array(INITIAL_HEAL_POTIONS).fill("starting"),
     simPortalSources: [
       ...workshopReturnItems.map(() => "workshop"),
       ...departureKitReturnItems.map(() => "departure-kit"),
@@ -483,6 +533,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
         : DEFAULT_STATUS_CURE_HP_THRESHOLD,
       statusCureMerchantPolicy:
         scenario.statusCureMerchantPolicy || DEFAULT_STATUS_CURE_MERCHANT_POLICY,
+      healPotionMerchantPolicy:
+        scenario.healPotionMerchantPolicy || DEFAULT_HEAL_POTION_MERCHANT_POLICY,
       trapPolicy: scenario.trapPolicy || DEFAULT_TRAP_POLICY_ID,
       bossOverride: scenario.bossOverride || null,
       forcedBossAffixes: scenario.forcedBossAffixes || null,
@@ -527,6 +579,24 @@ function countInventoryItems(inventory, itemIds = STATUS_CURE_ITEM_IDS) {
 function addItemCount(target, itemId, count = 1) {
   if (count <= 0) return;
   target[itemId] = (target[itemId] || 0) + count;
+}
+
+function recordHealPotionAcquisition(state, metrics, source, count = 1) {
+  if (!metrics || count <= 0) return;
+  metrics.healPotionsAcquiredBySource[source] =
+    (metrics.healPotionsAcquiredBySource[source] || 0) + count;
+  for (let index = 0; index < count; index++) {
+    state.simHealPotionSources.push(source);
+  }
+}
+
+function recordHealPotionConsumption(state, metrics, count = 1) {
+  if (!metrics || count <= 0) return;
+  for (let index = 0; index < count; index++) {
+    const source = state.simHealPotionSources.shift() || "other";
+    metrics.healPotionsConsumedBySource[source] =
+      (metrics.healPotionsConsumedBySource[source] || 0) + 1;
+  }
 }
 
 function recordStatusCureAcquisitions(
@@ -749,6 +819,20 @@ function sumLoggedDamage(logQueue, character, actionType) {
     const match = msg.match(/に(\d+)の[^！。]*ダメージ/);
     return sum + (match ? Number(match[1]) : 0);
   }, 0);
+}
+
+function sumLoggedIncomingDamage(logQueue, characterName) {
+  const escapedName = characterName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const damagePattern = new RegExp(`${escapedName}(?:は|に)(\\d+)の[^。！]*ダメージ`, "g");
+  return logQueue.reduce((result, { msg = "" }) => {
+    let match;
+    while ((match = damagePattern.exec(msg)) !== null) {
+      result.hits++;
+      result.damage += Number(match[1]);
+    }
+    damagePattern.lastIndex = 0;
+    return result;
+  }, { hits: 0, damage: 0 });
 }
 
 function getLoggedDiosHealing(logQueue, character) {
@@ -1068,7 +1152,13 @@ function runEncounter(
       "codex"
     );
     const potionCountAfter = state.inventory.filter(item => item === "HEAL_POTION").length;
-    healPotionsUsed += potionCountBefore - potionCountAfter;
+    const potionDelta = potionCountBefore - potionCountAfter;
+    healPotionsUsed += potionDelta;
+    if (potionDelta > 0) {
+      recordHealPotionConsumption(state, metrics, potionDelta);
+    } else if (potionDelta < 0) {
+      recordHealPotionAcquisition(state, metrics, "other", -potionDelta);
+    }
     if (metrics && action.simStatusBefore) {
       const selectedCureCountAfter =
         state.inventory.filter(item => item === action.itemKey).length;
@@ -1118,19 +1208,24 @@ function runEncounter(
         log: roundResult.logQueue.map(entry => entry.msg || "")
       });
     }
-    roundResult.logQueue.forEach(({ msg = "" }) => {
-      if (!msg.startsWith("[ 敵 ]")) return;
-      const match = msg.match(/は(\d+)の(?:[^ ]*?)ダメージを受けた/);
-      if (!match) return;
-      const damage = Number(match[1]);
-      telemetry.incomingHits++;
-      telemetry.incomingDamage += damage;
-      telemetry.maxIncomingHit = Math.max(telemetry.maxIncomingHit, damage);
-      telemetry.maxIncomingHitRate = Math.max(
-        telemetry.maxIncomingHitRate,
-        damage / Math.max(1, telemetry.playerMaxHp)
-      );
-    });
+    const incomingDamage = sumLoggedIncomingDamage(
+      roundResult.logQueue,
+      character.name
+    );
+    telemetry.incomingHits += incomingDamage.hits;
+    telemetry.incomingDamage += incomingDamage.damage;
+    telemetry.maxIncomingHit = Math.max(
+      telemetry.maxIncomingHit,
+      ...roundResult.logQueue.flatMap(({ msg = "" }) => {
+        const escapedName = character.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const match = msg.match(new RegExp(`${escapedName}(?:は|に)(\\d+)の[^。！]*ダメージ`));
+        return match ? [Number(match[1])] : [];
+      })
+    );
+    telemetry.maxIncomingHitRate = Math.max(
+      telemetry.maxIncomingHitRate,
+      telemetry.maxIncomingHit / Math.max(1, telemetry.playerMaxHp)
+    );
 
     if (!isAlive(state.party[0])) {
       return finishEncounter("death", rounds + 1, healPotionsUsed);
@@ -1146,20 +1241,23 @@ function runEncounter(
   return finishEncounter("stalemate", rounds, healPotionsUsed);
 }
 
-function applyPostCombatRecovery(character) {
+function applyPostCombatRecovery(character, metrics = null) {
   while (hasSpell(character, "DIOS") && character.mp > 0 && character.hp < getCharMaxHp(character) * 0.70) {
+    const hpBefore = character.hp;
     character.mp -= 1;
     SPELL_EFFECTS.DIOS({ caster: character, target: character });
+    if (metrics) metrics.diosHealingHp += Math.max(0, character.hp - hpBefore);
   }
 }
 
-function useHealPotionIfNeeded(state) {
+function useHealPotionIfNeeded(state, metrics) {
   const character = state.party[0];
   const maxHp = getCharMaxHp(character);
   if (!isAlive(character) || character.hp > maxHp * HEAL_POTION_THRESHOLD) return false;
   const potionIndex = state.inventory.indexOf("HEAL_POTION");
   if (potionIndex < 0) return false;
   state.inventory.splice(potionIndex, 1);
+  recordHealPotionConsumption(state, metrics);
   ITEM_EFFECTS.HEAL_POTION({ char: character });
   return true;
 }
@@ -1202,6 +1300,7 @@ function useTrapRecoveryIfNeeded(state, metrics) {
       metrics.trapHealPotionShortages++;
     } else {
       state.inventory.splice(potionIndex, 1);
+      recordHealPotionConsumption(state, metrics);
       ITEM_EFFECTS.HEAL_POTION({ char: character });
       metrics.healPotionsUsed++;
       metrics.trapHealPotionsUsed++;
@@ -1346,6 +1445,22 @@ function maybePurchaseMerchantStatusCures(state, metrics) {
     }
     addItemCount(metrics.statusCureItemsAcquired.merchant, itemId);
   });
+}
+
+function maybePurchaseMerchantHealPotion(state, metrics) {
+  if (
+    state.simPolicy.healPotionMerchantPolicy === "never" ||
+    !isMilestoneFloor(state.floor) ||
+    state.inventory.includes("HEAL_POTION")
+  ) return;
+  metrics.healPotionMerchantAttempts++;
+  const result = purchaseMilestoneStock(state, "heal_potion");
+  if (!result.ok) {
+    metrics.healPotionMerchantFailures[result.reason] =
+      (metrics.healPotionMerchantFailures[result.reason] || 0) + 1;
+    return;
+  }
+  recordHealPotionAcquisition(state, metrics, "merchant");
 }
 
 function identifyWithoutCurse(item) {
@@ -1857,6 +1972,17 @@ function applyFloorTransitionHeal(character) {
   return healed;
 }
 
+function applySimulatedStairsHeal(character, metrics) {
+  if (!isAlive(character)) return 0;
+  const amount = getCharAffixSum(character, "stairsHeal");
+  if (amount <= 0) return 0;
+  const before = character.hp;
+  character.hp = Math.min(getCharMaxHp(character), character.hp + amount);
+  const healed = character.hp - before;
+  if (metrics) metrics.stairsHealingHp += healed;
+  return healed;
+}
+
 function getEncounterChance(floorStep) {
   return floorStep <= 30 ? 0.10 : 0.04;
 }
@@ -2218,7 +2344,7 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   return { pitfallTriggered: false };
 }
 
-function applySimulatedCampRest(state, observations) {
+function applySimulatedCampRest(state, observations, metrics = null) {
   if (!CAMP_FLOORS.has(state.floor)) return;
   const character = state.party[0];
   if (!isAlive(character)) return;
@@ -2235,8 +2361,10 @@ function applySimulatedCampRest(state, observations) {
 
   // camp_rest.jsと同じ回復式。門番突破して次階へ進むsimではcamp到達済みと置く。
   const multiplier = getCharCoreParams(character, "CORE_CAMP_MASTER")?.recoveryMultiplier || 1;
-  character.hp += Math.min(hpDeficit, Math.ceil(hpDeficit * 0.4 * multiplier));
+  const hpGain = Math.min(hpDeficit, Math.ceil(hpDeficit * 0.4 * multiplier));
+  character.hp += hpGain;
   character.mp += Math.min(mpDeficit, Math.ceil(mpDeficit * 0.4 * multiplier));
+  if (metrics) metrics.campHealingHp += hpGain;
 }
 
 function getScholarMaterialBonus(monsters, state) {
@@ -2637,6 +2765,13 @@ function totalMaterials(materials) {
 }
 
 function finishRun(state, outcome, metrics) {
+  const healPotionCount = state.inventory.filter(item => item === "HEAL_POTION").length;
+  if (healPotionCount !== state.simHealPotionSources.length) {
+    throw new Error(
+      `heal potion provenance mismatch: inventory=${healPotionCount}, ` +
+      `sources=${state.simHealPotionSources.length}`
+    );
+  }
   const materialsBeforeFinalQuests = { ...state.currentRun.materials };
   updateRunQuests(
     state.currentRun,
@@ -2763,6 +2898,15 @@ function finishRun(state, outcome, metrics) {
     finalCoreId,
     coreObservations: metrics.coreObservations,
     healPotionsUsed: metrics.healPotionsUsed,
+    healPotionsAcquiredBySource: { ...metrics.healPotionsAcquiredBySource },
+    healPotionsConsumedBySource: { ...metrics.healPotionsConsumedBySource },
+    healPotionMerchantAttempts: metrics.healPotionMerchantAttempts,
+    healPotionMerchantFailures: { ...metrics.healPotionMerchantFailures },
+    combatDamageHp: metrics.combatDamageHp,
+    combatDamageHpByType: { ...metrics.combatDamageHpByType },
+    stairsHealingHp: metrics.stairsHealingHp,
+    campHealingHp: metrics.campHealingHp,
+    diosHealingHp: metrics.diosHealingHp + metrics.coreObservations.diosHealing,
     trapPolicy: state.simPolicy.trapPolicy,
     trapActivations: metrics.trapActivations,
     trapActivationsBySource: { ...metrics.trapActivationsBySource },
@@ -2815,7 +2959,7 @@ function finishRun(state, outcome, metrics) {
   };
 }
 
-function descendToNextFloor(state, nextFloor) {
+function descendToNextFloor(state, nextFloor, metrics = null, { stairsHeal = false } = {}) {
   state.floor = nextFloor;
   state.currentRun.deepestFloor = Math.max(state.currentRun.deepestFloor, nextFloor);
   state.currentRun.floorsVisited.push(nextFloor);
@@ -2823,6 +2967,7 @@ function descendToNextFloor(state, nextFloor) {
     state.currentRun,
     getCharAffixSum(state.party[0], "contractReward")
   );
+  if (stairsHeal) applySimulatedStairsHeal(state.party[0], metrics);
   applyFloorTransitionHeal(state.party[0]);
 }
 
@@ -2910,6 +3055,21 @@ export function simulateRun({
     cursedCoreEquipmentFound: 0,
     floorSupplyStats: createFloorSupplyStats(),
     healPotionsUsed: 0,
+    stairsHealingHp: 0,
+    campHealingHp: 0,
+    diosHealingHp: 0,
+    healPotionsAcquiredBySource: {
+      starting: INITIAL_HEAL_POTIONS,
+      chest: 0,
+      merchant: 0,
+      other: 0
+    },
+    healPotionsConsumedBySource: {
+      starting: 0,
+      chest: 0,
+      merchant: 0,
+      other: 0
+    },
     trapActivations: 0,
     trapActivationsBySource: { chest: 0, floor: 0 },
     trapActivationsByType: {},
@@ -2925,6 +3085,8 @@ export function simulateRun({
     trapKitsUsed: 0,
     trapDetections: 0,
     trapTeleports: 0,
+    combatDamageHp: 0,
+    combatDamageHpByType: {},
     statusCureItemsAcquired: {
       initial: countInventoryItems(state.inventory),
       chest: {},
@@ -2943,6 +3105,8 @@ export function simulateRun({
     statusCureHeldNotUsedStatuses: {},
     statusesCured: {},
     statusCureMerchantFailures: {},
+    healPotionMerchantAttempts: 0,
+    healPotionMerchantFailures: {},
     townPortalsUsed: 0,
     portalUseEvents: [],
     portalUsesBySource: {},
@@ -3133,6 +3297,9 @@ export function simulateRun({
           ) return;
           if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal) return;
           if (!addInventoryItemToState(state, item)) return;
+          if (item === "HEAL_POTION") {
+            recordHealPotionAcquisition(state, metrics, "chest");
+          }
           if (item === "TRAP_KIT") metrics.trapKitsAcquired++;
           if (item === "TOWN_PORTAL") {
             state.simPortalSources.push("chest");
@@ -3237,6 +3404,10 @@ export function simulateRun({
           state = combatResult.state;
           metrics.combatRounds += combatResult.rounds;
           metrics.healPotionsUsed += combatResult.healPotionsUsed;
+          metrics.combatDamageHp += combatResult.telemetry.incomingDamage;
+          metrics.combatDamageHpByType[combatResult.telemetry.type] =
+            (metrics.combatDamageHpByType[combatResult.telemetry.type] || 0) +
+            combatResult.telemetry.incomingDamage;
           metrics.eliteEncounters += Number(isElite);
 
           if (specialBattle) {
@@ -3265,8 +3436,8 @@ export function simulateRun({
           if (combatResult.result === "flee") {
             metrics.fleeCount++;
             metrics.eliteFlees += Number(isElite);
-            applyPostCombatRecovery(state.party[0]);
-            metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
+            applyPostCombatRecovery(state.party[0], metrics);
+            metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state, metrics));
             useStatusCureIfNeeded(state, metrics, "post-flee");
             if (!isAlive(state.party[0])) {
               metrics.deathEncounterType = encounterType;
@@ -3411,8 +3582,8 @@ export function simulateRun({
             equipGreedyUpgrades(state, metrics, scoringProfile),
             floor
           );
-          applyPostCombatRecovery(state.party[0]);
-          metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
+          applyPostCombatRecovery(state.party[0], metrics);
+          metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state, metrics));
           useStatusCureIfNeeded(state, metrics, "post-combat");
           if (!isAlive(state.party[0])) {
             metrics.deathEncounterType = encounterType;
@@ -3438,9 +3609,10 @@ export function simulateRun({
       continue;
     }
 
-    applySimulatedCampRest(state, metrics.coreObservations);
+    applySimulatedCampRest(state, metrics.coreObservations, metrics);
     maybePurchaseMerchantWing(state, scenario, metrics);
     maybePurchaseMerchantStatusCures(state, metrics);
+    maybePurchaseMerchantHealPotion(state, metrics);
     if (isMilestoneFloor(floor)) {
       metrics.milestoneDecisions.push({
         floor,
@@ -3455,7 +3627,7 @@ export function simulateRun({
         return finishRun(state, "retreat", metrics);
       }
     }
-    descendToNextFloor(state, floor + 1);
+    descendToNextFloor(state, floor + 1, metrics, { stairsHeal: true });
     if (useTownPortalIfNeeded(state, scenario, metrics, "floor-transition")) {
       return finishRun(state, "retreat", metrics);
     }
@@ -3868,23 +4040,37 @@ function printTable(results) {
 function printTrapMetrics(result) {
   console.log(`\n【${result.label} 罠計測 / 職業別 / 方針=${result.trapPolicy}】`);
   console.log(
-    "職業    | 発動/run | 被害HP/run | 罠傷薬/run | 傷薬不足/run | 不足run率 | 解除/run | 回避/run | 強行/run | kit入手/run | kit使用/run"
+    "職業    | 発動/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 宝箱入手 | 商人入手 | 開始消費 | 宝箱消費 | 商人消費 | 解除 | 回避 | 強行 | kit入手 | kit使用"
   );
   console.log(
-    "--------|----------|------------|------------|--------------|-----------|----------|----------|----------|------------|------------"
+    "--------|----------|----------|------------|------------|----------|----------|--------|----------|----------|----------|----------|----------|----------|------|------|------|--------|--------"
   );
   Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
+    const acquired = metrics.averageHealPotionsAcquiredBySource;
+    const consumed = metrics.averageHealPotionsConsumedBySource;
     console.log(
       `${className.padEnd(7)} | ${metrics.averageTrapActivations.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapDamageHp.toFixed(2).padStart(10)} | ` +
+      `${metrics.averageTrapDamageHp.toFixed(2).padStart(8)} | ` +
+      `${metrics.averageCombatDamageHp.toFixed(2).padStart(10)} | ` +
       `${metrics.averageTrapHealPotionsUsed.toFixed(2).padStart(10)} | ` +
-      `${metrics.averageTrapHealPotionShortages.toFixed(2).padStart(12)} | ` +
-      `${formatPercent(metrics.trapHealPotionShortageRunRate).padStart(9)} | ` +
-      `${metrics.averageTrapDisarms.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapAvoided.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapForced.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapKitsAcquired.toFixed(2).padStart(10)} | ` +
-      `${metrics.averageTrapKitsUsed.toFixed(2).padStart(10)}`
+      `${metrics.averageHealPotionsConsumed.toFixed(2).padStart(8)} | ` +
+      `${metrics.averageTrapHealPotionShortages.toFixed(2).padStart(8)} | ` +
+      `${formatPercent(metrics.trapHealPotionShortageRunRate).padStart(6)} | ` +
+      `${acquired.starting.toFixed(2).padStart(8)} | ${acquired.chest.toFixed(2).padStart(8)} | ` +
+      `${acquired.merchant.toFixed(2).padStart(8)} | ` +
+      `${consumed.starting.toFixed(2).padStart(8)} | ${consumed.chest.toFixed(2).padStart(8)} | ` +
+      `${consumed.merchant.toFixed(2).padStart(8)} | ` +
+      `${metrics.averageTrapDisarms.toFixed(2).padStart(4)} | ${metrics.averageTrapAvoided.toFixed(2).padStart(4)} | ` +
+      `${metrics.averageTrapForced.toFixed(2).padStart(4)} | ${metrics.averageTrapKitsAcquired.toFixed(2).padStart(6)} | ` +
+      `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)}`
+    );
+  });
+  console.log("非薬回復HP/run (camp / stairsHeal / DIOS)");
+  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
+    console.log(
+      `${className.padEnd(7)} | ${metrics.averageCampHealingHp.toFixed(2).padStart(5)} / ` +
+      `${metrics.averageStairsHealingHp.toFixed(2).padStart(5)} / ` +
+      `${metrics.averageDiosHealingHp.toFixed(2).padStart(6)}`
     );
   });
 }
@@ -4132,6 +4318,7 @@ console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（基本${SIM_CLASSES.le
 console.log(`乱数seed: ${SIM_SEED}`);
 console.log(`徘徊エリート方針: ${DEFAULT_ELITE_POLICY}`);
 console.log(`罠方針: ${TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID].label} / TRAP_POLICY=${DEFAULT_TRAP_POLICY_ID}`);
+console.log(`傷薬商人方針: ${DEFAULT_HEAL_POTION_MERCHANT_POLICY}（マイルストーンで所持0時に1個購入）`);
 console.log(`core価値calibration: B1→B20 N=${RUNS_PER_CASE} / 方針=${ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id).join(",")}`);
 console.log(`識別方針切替: IDENTIFICATION_POLICY=${process.env.IDENTIFICATION_POLICY || "legacy"}`);
 console.log(
@@ -4161,7 +4348,7 @@ console.log(
   `core判定=enabled ${ENABLED_CORE_AFFIXES.length}/${CORE_AFFIXES.length}種+affix_rules helper`
 );
 console.log(
-  "非モデル化: テレポーター移動先の再経路化、商人での傷薬/罠外し/鑑定粉購入、" +
+  "非モデル化: テレポーター移動先の再経路化、商人での罠外し/鑑定粉購入、" +
   "上薬・MP消費/強化アイテムの能動使用、マップ上の任意寄り道、" +
   "徘徊エリートの移動・知覚・偶発接触、人間の敵別判断（固定閾値で代理）"
 );
