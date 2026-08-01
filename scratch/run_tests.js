@@ -7,11 +7,12 @@ import { fileURLToPath } from 'url';
 // `test_` 接頭辞のファイルのみスイート対象。バランス調整用の数値シミュは
 // sim_ 接頭辞(例: sim_balance.js)にして命名で除外している。
 const EXCLUDE_LIST = [];
-const HEAVY_TESTS = [
-  'test_stairs_min_distance.js',
-  'test_reachability_loop.js',
-  'test_shared_wall_corridors.js',
-];
+const HEAVY_TESTS = {
+  'test_stairs_min_distance.js': 4,
+  'test_reachability_loop.js': 4,
+  'test_shared_wall_corridors.js': 3,
+};
+const heavyTestFiles = Object.keys(HEAVY_TESTS);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratchDir = path.join(repoRoot, 'scratch');
@@ -113,14 +114,14 @@ function findChangedFiles() {
 
 function selectHeavyTests() {
   if (process.env.FULL_TEST === '1') {
-    return new Set(HEAVY_TESTS);
+    return new Set(heavyTestFiles);
   }
 
   try {
     const changedFiles = findChangedFiles();
     const selected = new Set();
 
-    for (const testFile of HEAVY_TESTS) {
+    for (const testFile of heavyTestFiles) {
       const dependencies = collectHeavyDependencies(testFile);
       if ([...dependencies].some(dependency => changedFiles.has(dependency))) {
         selected.add(testFile);
@@ -130,27 +131,38 @@ function selectHeavyTests() {
     return selected;
   } catch (error) {
     console.warn(`[WARN] Scope detection failed; running all HEAVY tests: ${error.message}`);
-    return new Set(HEAVY_TESTS);
+    return new Set(heavyTestFiles);
   }
+}
+
+function formatTestName({ file, shardIndex, shardCount }) {
+  return shardCount ? `${file} [${shardIndex + 1}/${shardCount}]` : file;
 }
 
 function printResult(result) {
   const separator = '========================================';
   console.log(`\n${separator}`);
-  console.log(`Completed: ${result.file}`);
+  console.log(`Completed: ${result.name}`);
   console.log(separator);
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
   if (result.code !== 0) {
-    console.error(`\n[FAIL] ${result.file} failed (exit ${result.code ?? 'unknown'})`);
+    console.error(`\n[FAIL] ${result.name} failed (exit ${result.code ?? 'unknown'})`);
   }
 }
 
-function runTest(file) {
+function runTest(task) {
+  const { file, shardIndex, shardCount } = task;
+  const env = { ...process.env };
+  if (shardCount) {
+    env.SHARD_INDEX = String(shardIndex);
+    env.SHARD_COUNT = String(shardCount);
+  }
+
   return new Promise(resolve => {
     const child = spawn(process.execPath, [path.join(scratchDir, file)], {
       cwd: repoRoot,
-      env: process.env,
+      env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     const stdout = [];
@@ -170,6 +182,7 @@ function runTest(file) {
       settled = true;
       resolve({
         file,
+        name: formatTestName(task),
         code,
         stdout: Buffer.concat(stdout).toString(),
         stderr: Buffer.concat(stderr).toString(),
@@ -178,17 +191,17 @@ function runTest(file) {
   });
 }
 
-async function runPool(testFiles) {
-  const workerCount = Math.max(1, Math.min(os.cpus().length - 1, testFiles.length));
+async function runPool(tasks) {
+  const workerCount = Math.max(1, Math.min(os.cpus().length - 1, tasks.length));
   const results = [];
   let nextIndex = 0;
 
   console.log(`Using ${workerCount} parallel workers.`);
 
   async function worker() {
-    while (nextIndex < testFiles.length) {
-      const file = testFiles[nextIndex++];
-      const result = await runTest(file);
+    while (nextIndex < tasks.length) {
+      const task = tasks[nextIndex++];
+      const result = await runTest(task);
       results.push(result);
       printResult(result);
     }
@@ -207,11 +220,18 @@ const testFiles = files
   )
   .sort();
 const selectedHeavyTests = selectHeavyTests();
-const skippedHeavyTests = HEAVY_TESTS.filter(file => !selectedHeavyTests.has(file));
-const cheapTests = testFiles.filter(file => !HEAVY_TESTS.includes(file));
+const skippedHeavyTests = heavyTestFiles.filter(file => !selectedHeavyTests.has(file));
+const cheapTests = testFiles.filter(file => !heavyTestFiles.includes(file));
 const scheduledTests = [
-  ...HEAVY_TESTS.filter(file => selectedHeavyTests.has(file)),
-  ...cheapTests,
+  ...heavyTestFiles
+    .filter(file => selectedHeavyTests.has(file))
+    .flatMap(file => {
+      const shardCount = process.env.CI ? 1 : HEAVY_TESTS[file];
+      return Array.from({ length: shardCount }, (_, shardIndex) =>
+        shardCount === 1 ? { file } : { file, shardIndex, shardCount }
+      );
+    }),
+  ...cheapTests.map(file => ({ file })),
 ];
 
 console.log(`Found ${testFiles.length} test files.`);
@@ -226,7 +246,7 @@ const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
 console.log(`\n実行 ${scheduledTests.length}本 / skip ${skippedHeavyTests.length}本 / 合計時間 ${elapsedSeconds}s`);
 
 if (failed.length > 0) {
-  console.error(`Some tests failed: ${failed.map(result => result.file).join(', ')}`);
+  console.error(`Some tests failed: ${failed.map(result => result.name).join(', ')}`);
   process.exit(1);
 }
 
