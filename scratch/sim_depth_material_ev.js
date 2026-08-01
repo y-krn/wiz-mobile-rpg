@@ -330,7 +330,9 @@ function createTrapAggregate() {
       chest: 0,
       merchant: 0,
       other: 0
-    }
+    },
+    healPotionMerchantAttempts: 0,
+    healPotionMerchantFailures: {}
   };
 }
 
@@ -358,6 +360,11 @@ function addTrapAggregate(target, result) {
   Object.entries(result.healPotionsConsumedBySource).forEach(([source, amount]) => {
     target.healPotionsConsumedBySource[source] =
       (target.healPotionsConsumedBySource[source] || 0) + amount;
+  });
+  target.healPotionMerchantAttempts += result.healPotionMerchantAttempts;
+  Object.entries(result.healPotionMerchantFailures).forEach(([reason, count]) => {
+    target.healPotionMerchantFailures[reason] =
+      (target.healPotionMerchantFailures[reason] || 0) + count;
   });
 }
 
@@ -393,7 +400,16 @@ function finalizeTrapAggregate(aggregate) {
         source,
         amount / runs
       ])
-    )
+    ),
+    averageHealPotionMerchantAttempts: aggregate.healPotionMerchantAttempts / runs,
+    healPotionMerchantAttempts: aggregate.healPotionMerchantAttempts,
+    averageHealPotionMerchantFailures: Object.fromEntries(
+      Object.entries(aggregate.healPotionMerchantFailures).map(([reason, count]) => [
+        reason,
+        count / runs
+      ])
+    ),
+    healPotionMerchantFailureCounts: { ...aggregate.healPotionMerchantFailures }
   };
 }
 
@@ -4063,6 +4079,16 @@ function printTrapMetrics(result) {
       `${metrics.averageTrapDisarms.toFixed(2).padStart(4)} | ${metrics.averageTrapAvoided.toFixed(2).padStart(4)} | ` +
       `${metrics.averageTrapForced.toFixed(2).padStart(4)} | ${metrics.averageTrapKitsAcquired.toFixed(2).padStart(6)} | ` +
       `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)}`
+    );
+  });
+  console.log("商人傷薬 | 試行/run | 失敗理由/run");
+  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
+    const failures = Object.entries(metrics.averageHealPotionMerchantFailures)
+      .map(([reason, count]) => `${reason}=${count.toFixed(2)} (${metrics.healPotionMerchantFailureCounts[reason]})`)
+      .join(", ") || "なし";
+    console.log(
+      `${className.padEnd(7)} | ${metrics.averageHealPotionMerchantAttempts.toFixed(2).padStart(8)} ` +
+      `(${metrics.healPotionMerchantAttempts}/${metrics.runs}) | ${failures}`
     );
   });
   console.log("非薬回復HP/run (camp / stairsHeal / DIOS)");
