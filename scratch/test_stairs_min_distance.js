@@ -3,6 +3,9 @@ import { MAP_WIDTH } from "../src/constants/map.js";
 
 const FAST = process.env.FAST === "1";
 const SEED_COUNT = Number(process.env.STAIRS_SEEDS) || (FAST ? 100 : 1000);
+const SHARD_COUNT = Number(process.env.SHARD_COUNT) || 1;
+const SHARD_INDEX = Number(process.env.SHARD_INDEX) || 0;
+const SHARD_LABEL = SHARD_COUNT > 1 ? `[shard ${SHARD_INDEX + 1}/${SHARD_COUNT}] ` : "";
 // Allow fallback placement below the preferred distance threshold of 10 when dead ends are scarce or nearby.
 const MIN_DISTANCE = 5;
 const FLOOR_RANGE = [1, 2, 3, 4];
@@ -34,8 +37,11 @@ function formatSummary(label, distances) {
 const distancesByFloor = new Map(FLOOR_RANGE.map(floor => [floor, []]));
 const distanceDistribution = new Map();
 const failures = [];
+let processedSeedCount = 0;
 
 for (let seedIndex = 0; seedIndex < SEED_COUNT; seedIndex++) {
+  if (seedIndex % SHARD_COUNT !== SHARD_INDEX) continue;
+  processedSeedCount++;
   const seed = `stairs-min-distance-${seedIndex}`;
   let parentStairsCoord = null;
 
@@ -68,18 +74,18 @@ for (let seedIndex = 0; seedIndex < SEED_COUNT; seedIndex++) {
 
 const allDistances = [...distancesByFloor.values()].flat();
 for (const floor of FLOOR_RANGE) {
-  console.log(formatSummary(`B${floor}`, distancesByFloor.get(floor)));
+  console.log(formatSummary(`${SHARD_LABEL}B${floor}`, distancesByFloor.get(floor)));
 }
-console.log(formatSummary("All", allDistances));
-console.log(`Distance distribution: ${[...distanceDistribution.entries()]
+console.log(formatSummary(`${SHARD_LABEL}All`, allDistances));
+console.log(`${SHARD_LABEL}Distance distribution: ${[...distanceDistribution.entries()]
   .sort(([a], [b]) => a - b)
   .map(([distance, count]) => `${distance}:${count}`)
   .join(", ")}`);
 
 if (failures.length > 0) {
-  failures.slice(0, 20).forEach(failure => console.error(`[FAIL] ${failure}`));
-  if (failures.length > 20) console.error(`[FAIL] ... ${failures.length - 20} more`);
+  failures.slice(0, 20).forEach(failure => console.error(`${SHARD_LABEL}[FAIL] ${failure}`));
+  if (failures.length > 20) console.error(`${SHARD_LABEL}[FAIL] ... ${failures.length - 20} more`);
   process.exit(1);
 }
 
-console.log(`[PASS] ${SEED_COUNT} seeds x ${FLOOR_RANGE.length} floors satisfy stairs distance >= ${MIN_DISTANCE}.`);
+console.log(`[PASS] ${SHARD_LABEL}${processedSeedCount} seeds x ${FLOOR_RANGE.length} floors satisfy stairs distance >= ${MIN_DISTANCE}.`);

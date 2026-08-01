@@ -2,6 +2,9 @@ import { generateRandomMap, ONE_WAY_MAX_DETOUR, ONE_WAY_MIN_DETOUR } from "../sr
 
 const FAST = process.env.FAST === "1";
 const SEED_COUNT = Number(process.env.REACH_SEEDS) || (FAST ? 60 : 500);
+const SHARD_COUNT = Number(process.env.SHARD_COUNT) || 1;
+const SHARD_INDEX = Number(process.env.SHARD_INDEX) || 0;
+const SHARD_LABEL = SHARD_COUNT > 1 ? `[shard ${SHARD_INDEX + 1}/${SHARD_COUNT}] ` : "";
 const DIRS = [
   { dx: 0, dy: -1, dir: 0 },
   { dx: 1, dy: 0, dir: 1 },
@@ -222,11 +225,14 @@ function generateDungeon(seed) {
   return { b1, b2, b3, b4, b5 };
 }
 
-console.log("Starting Loop verification of Map Reachability...");
+console.log(`${SHARD_LABEL}Starting Loop verification of Map Reachability...`);
 
 let failCount = 0;
+let processedSeedCount = 0;
 const seeds = ["DIAG-118", ...Array.from({ length: SEED_COUNT }, (_, i) => `SEED-LOOP-${i}`)];
-for (const seed of seeds) {
+for (const [seedIndex, seed] of seeds.entries()) {
+  if (seedIndex % SHARD_COUNT !== SHARD_INDEX) continue;
+  processedSeedCount++;
   try {
     const { b1, b2, b3, b4, b5 } = generateDungeon(seed);
 
@@ -293,7 +299,7 @@ for (const seed of seeds) {
     });
 
   } catch (err) {
-    console.error(`[FAIL] Seed: ${seed}, Error: ${err.message}`);
+    console.error(`${SHARD_LABEL}[FAIL] Seed: ${seed}, Error: ${err.message}`);
     failCount++;
     if (failCount >= 5) {
       process.exit(1);
@@ -302,8 +308,8 @@ for (const seed of seeds) {
 }
 
 if (failCount === 0) {
-  console.log(`[PASS] ${seeds.length} seeds verified. No reachability bugs found in generator.`);
+  console.log(`[PASS] ${SHARD_LABEL}${processedSeedCount} seeds verified. No reachability bugs found in generator.`);
 } else {
-  console.log(`[FAIL] Total failures: ${failCount}`);
+  console.log(`[FAIL] ${SHARD_LABEL}Total failures: ${failCount}`);
   process.exit(1);
 }

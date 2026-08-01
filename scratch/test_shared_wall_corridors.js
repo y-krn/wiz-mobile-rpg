@@ -2,6 +2,9 @@ import { generateRandomMap } from "../src/map_generator.js";
 
 const FAST = process.env.FAST === "1";
 const SEED_COUNT = Number(process.env.SHARED_WALL_SEEDS) || (FAST ? 60 : 400);
+const SHARD_COUNT = Number(process.env.SHARD_COUNT) || 1;
+const SHARD_INDEX = Number(process.env.SHARD_INDEX) || 0;
+const SHARD_LABEL = SHARD_COUNT > 1 ? `[shard ${SHARD_INDEX + 1}/${SHARD_COUNT}] ` : "";
 const EDGE_DIRS = [
   { dir: 1, dx: 1, dy: 0, opposite: 3 },
   { dir: 2, dx: 0, dy: 1, opposite: 0 }
@@ -35,8 +38,11 @@ function findSharedWallViolations(grid) {
 let violationCount = 0;
 let firstViolation = null;
 let totalDeadEnds = 0;
+let processedSeedCount = 0;
 
 for (let seedIndex = 0; seedIndex < SEED_COUNT; seedIndex++) {
+  if (seedIndex % SHARD_COUNT !== SHARD_INDEX) continue;
+  processedSeedCount++;
   const seed = `shared-wall-corridors-${seedIndex}`;
   let parentStairsCoord = null;
   for (let floor = 1; floor <= FLOOR_COUNT; floor++) {
@@ -53,7 +59,7 @@ for (let seedIndex = 0; seedIndex < SEED_COUNT; seedIndex++) {
   }
 }
 
-const mapCount = SEED_COUNT * FLOOR_COUNT;
+const mapCount = processedSeedCount * FLOOR_COUNT;
 const averageDeadEnds = totalDeadEnds / mapCount;
 const failures = [];
 if (violationCount !== 0) {
@@ -64,8 +70,8 @@ if (averageDeadEnds < DEAD_END_RANGE[0] || averageDeadEnds > DEAD_END_RANGE[1]) 
 }
 
 if (failures.length > 0) {
-  failures.forEach(failure => console.error(`[FAIL] ${failure}`));
+  failures.forEach(failure => console.error(`${SHARD_LABEL}[FAIL] ${failure}`));
   process.exit(1);
 }
 
-console.log(`[PASS] ${SEED_COUNT} chained seeds x ${FLOOR_COUNT} floors have no shared-wall corridor edges; average dead ends ${averageDeadEnds.toFixed(2)}.`);
+console.log(`[PASS] ${SHARD_LABEL}${processedSeedCount} chained seeds x ${FLOOR_COUNT} floors have no shared-wall corridor edges; average dead ends ${averageDeadEnds.toFixed(2)}.`);
