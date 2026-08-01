@@ -61,11 +61,8 @@ checklist covers.
 
 ## Scope Overlap Resolution
 
-Many source paths (for example `src/data/*`, `src/rules/*`, `src/systems/*`,
-`src/combat*`, `src/ui/*`, `src/menu/*`, `src/chest.js`, `src/equip.js`,
-`src/spell_menu.js`) appear in more than one
-checklist `Scope`. A shared path does not mean every checklist applies. Select
-by the nature of the change, not the file alone:
+Checklist scopes may overlap. Select by the nature of the change, not the file
+alone:
 
 - Mechanics, state shape, or rule correctness -> `game-logic.md`.
 - Progression, economy, drops, difficulty, or reward pacing ->
