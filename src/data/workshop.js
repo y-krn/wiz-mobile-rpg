@@ -67,7 +67,7 @@ export const DEPARTURE_KIT = Object.freeze({
   id: "departure_kit",
   name: "出発準備",
   description: "潜行のたびに素材を支払い、帰還の翼1個と鑑定粉1個を持って出発する。",
-  materialCost: 60,
+  materialCost: 30,
   grants: Object.freeze({ identifyPowder: 1, returnItem: "TOWN_PORTAL" })
 });
 

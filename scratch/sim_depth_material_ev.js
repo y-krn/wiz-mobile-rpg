@@ -180,7 +180,7 @@ const TRAP_POLICY_DEFINITIONS = Object.freeze({
     label: "保守（キット優先・回避優先）"
   })
 });
-const DEFAULT_TRAP_POLICY_ID = process.env.TRAP_POLICY || "conservative";
+export const DEFAULT_TRAP_POLICY_ID = process.env.TRAP_POLICY || "conservative";
 if (!TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID]) {
   throw new Error(
     `TRAP_POLICY must be legacy|conservative: ${DEFAULT_TRAP_POLICY_ID}`
