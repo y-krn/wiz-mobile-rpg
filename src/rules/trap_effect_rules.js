@@ -1,6 +1,9 @@
-import { FORCE_DAMAGE_MULTIPLIER } from "./trap_rules.js";
+import {
+  FORCE_DAMAGE_MULTIPLIER,
+  SCOUT_TRAP_DAMAGE_MULTIPLIER
+} from "./trap_rules.js";
 
-function hasScout(party) {
+export function hasTrapScout(party = []) {
   return party.some(char => ["Thief", "Ninja"].includes(char?.class) && char?.hp > 0);
 }
 
@@ -60,7 +63,7 @@ export function resolveFloorTrapEffect({
   weakened = false,
   rng = Math.random
 }) {
-  const scoutMitigated = hasScout(party);
+  const scoutMitigated = hasTrapScout(party);
   const effect = {
     type: trap?.type,
     partyDamage: party.map(() => 0),
@@ -71,7 +74,7 @@ export function resolveFloorTrapEffect({
   };
   let powerMultiplier = weakened ? FORCE_DAMAGE_MULTIPLIER : 1;
   if (scoutMitigated && (trap?.type === "pitfall" || !weakened)) {
-    powerMultiplier *= 0.7;
+    powerMultiplier *= SCOUT_TRAP_DAMAGE_MULTIPLIER;
   }
 
   if (trap?.type === "damage") {
