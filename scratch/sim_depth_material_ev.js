@@ -84,6 +84,7 @@ const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
 const { getBuffTotal } = await import("../src/combat_logic/status_effects.js");
 const {
   applyWorkshopToCharacter,
+  getDepartureKitGrants,
   getWorkshopGrants
 } = await import("../src/systems/workshop.js");
 const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
@@ -328,9 +329,36 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
 
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
   const workshopGrants = getWorkshopGrants(workshop);
+  const identificationPolicy = scenario.identificationPolicy || "legacy";
+  // legacyは既存の鑑定済み経路と乱数列を維持し、比較対象だけ実runの初期支給を使う。
+  const useRealIdentificationSupply = identificationPolicy !== "legacy";
+  const departureKitPurchased = Object.hasOwn(scenario, "departureKit")
+    ? scenario.departureKit
+    : useRealIdentificationSupply;
+  const departureKitGrants = getDepartureKitGrants(departureKitPurchased);
+  const startingPowder = useRealIdentificationSupply
+    ? IDENTIFICATION_BALANCE.startingPowder
+    : 0;
+  const departureKitPowder = useRealIdentificationSupply
+    ? departureKitGrants.identifyPowder
+    : 0;
+  const initialIdentificationPowder = {
+    starting: startingPowder,
+    workshop: workshopGrants.identifyPowder,
+    departureKit: departureKitPowder
+  };
+  // src/movement.js:669の式と同じ初期値（legacyのみ旧sim互換の工房粉だけ）。
+  const initialIdentifyTickets = useRealIdentificationSupply
+    ? IDENTIFICATION_BALANCE.startingPowder +
+      workshopGrants.identifyPowder +
+      departureKitGrants.identifyPowder
+    : workshopGrants.identifyPowder;
   const workshopReturnItems = scenario.ignoreWorkshopReturnItems
     ? []
     : workshopGrants.returnItems;
+  const departureKitReturnItems = departureKitPurchased
+    ? departureKitGrants.returnItems
+    : [];
   const scenarioReturnItems = [
     ...(scenario.workshopReturnItem ? [scenario.workshopReturnItem] : []),
     ...Array(Math.max(0, scenario.startingTownPortals || 0)).fill("TOWN_PORTAL")
@@ -345,10 +373,12 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       ...Array(INITIAL_ANTIDOTES).fill("ANTIDOTE"),
       ...Array(INITIAL_GUARD_POTIONS).fill("GUARD_POTION"),
       ...workshopReturnItems,
+      ...departureKitReturnItems,
       ...scenarioReturnItems
     ],
     simPortalSources: [
       ...workshopReturnItems.map(() => "workshop"),
+      ...departureKitReturnItems.map(() => "departure-kit"),
       ...scenarioReturnItems.map(() => scenario.startingPortalSource || "workshop-supply")
     ],
     firstKills: [],
@@ -358,11 +388,12 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     roamingMonsters: [],
     floorChestsTotal: [],
     metaMaterials: {},
-    identifyTickets: workshopGrants.identifyPowder,
+    identifyTickets: initialIdentifyTickets,
+    simIdentificationPowderAcquired: initialIdentificationPowder,
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
     simPolicy: {
-      identificationPolicy: scenario.identificationPolicy || "legacy",
+      identificationPolicy,
       fleeHpThreshold: Object.hasOwn(scenario, "fleeHpThreshold")
         ? scenario.fleeHpThreshold
         : DEFAULT_FLEE_HP_THRESHOLD,
@@ -895,6 +926,7 @@ function runEncounter(
     const selectedCureCountBefore = action.simStatusBefore
       ? state.inventory.filter(item => item === action.itemKey).length
       : 0;
+    const identifyTicketsBeforeRound = state.identifyTickets || 0;
     const itemsFoundBeforeRound = state.currentRun.itemsFound.length;
     const diagnosticCureCountsBefore = encounterDiagnostic
       ? countInventoryItems(state.inventory)
@@ -932,6 +964,11 @@ function runEncounter(
       firstStrikeSucceeded
     );
     state = roundResult.state;
+    recordIdentificationPowderAcquisition(
+      metrics,
+      Math.max(0, (state.identifyTickets || 0) - identifyTicketsBeforeRound),
+      "codex"
+    );
     const potionCountAfter = state.inventory.filter(item => item === "HEAL_POTION").length;
     healPotionsUsed += potionCountBefore - potionCountAfter;
     if (metrics && action.simStatusBefore) {
@@ -1126,6 +1163,21 @@ function isUnidentifiedEquipment(item) {
     item.identified === false &&
     isEquipment(getItemData(item))
   );
+}
+
+function recordIdentificationPowderAcquisition(metrics, amount, source) {
+  if (!metrics || amount <= 0) return;
+  metrics.identificationPowderAcquired += amount;
+  metrics.identificationPowderAcquiredBySource[source] =
+    (metrics.identificationPowderAcquiredBySource[source] || 0) + amount;
+}
+
+function maybeAcquireChestIdentificationPowder(state, metrics, rng = Math.random) {
+  if (state.simPolicy.identificationPolicy === "legacy") return;
+  // src/chest.jsのopenChestと同じ抽選位置。純粋な供給関数がないため、実定数を直接使う。
+  if (rng() >= IDENTIFICATION_BALANCE.chestPowderChance) return;
+  state.identifyTickets = (state.identifyTickets || 0) + 1;
+  recordIdentificationPowderAcquisition(metrics, 1, "chest");
 }
 
 function identifyAvailableEquipment(state, metrics) {
@@ -1921,7 +1973,15 @@ function generateExtraSupplyEquipment(state, floor, source, supplyOverride, rng)
 
 // 抽選そのものは src/rules/chest_rules.js（src/chest.js と同一の出所）を叩き、
 // sim 固有の what-if（core解禁階の前倒し、TOWN_PORTAL の除外）だけを引数で渡す。
-function rollChestItems(state, floor, rng, observations, scenario, supplyOverride = null) {
+function rollChestItems(
+  state,
+  floor,
+  rng,
+  observations,
+  scenario,
+  supplyOverride = null,
+  metrics = null
+) {
   const trap = rollChestTrap(floor, rng);
   if (trap !== "none") {
     const character = state.party[0];
@@ -1934,6 +1994,7 @@ function rollChestItems(state, floor, rng, observations, scenario, supplyOverrid
     observations.expectedTrapDisarms += expectedDisarm;
     observations.expectedTrapDisarmsByFloor[floor] += expectedDisarm;
   }
+  maybeAcquireChestIdentificationPowder(state, metrics, rng);
   if (floor === 1) {
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
   }
@@ -2228,7 +2289,10 @@ function finishRun(state, outcome, metrics) {
     equipmentFound: metrics.equipmentFound,
     earlyEquipmentFound: metrics.earlyEquipmentFound,
     deepEquipmentFound: metrics.deepEquipmentFound,
+    identificationPowderAcquired: metrics.identificationPowderAcquired,
+    identificationPowderAcquiredBySource: { ...metrics.identificationPowderAcquiredBySource },
     identificationPowderUsed: metrics.identificationPowderUsed,
+    identificationCount: metrics.identificationPowderUsed,
     unidentifiedWearCount: metrics.unidentifiedWearCount,
     curseHitCount: metrics.curseHitCount,
     equipmentFoundBySource: metrics.equipmentFoundBySource,
@@ -2347,6 +2411,16 @@ export function simulateRun({
     equipmentFound: 0,
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
+    identificationPowderAcquired: Object.values(
+      state.simIdentificationPowderAcquired || {}
+    ).reduce((sum, amount) => sum + amount, 0),
+    identificationPowderAcquiredBySource: {
+      starting: state.simIdentificationPowderAcquired?.starting || 0,
+      workshop: state.simIdentificationPowderAcquired?.workshop || 0,
+      departureKit: state.simIdentificationPowderAcquired?.departureKit || 0,
+      chest: 0,
+      codex: 0
+    },
     identificationPowderUsed: 0,
     unidentifiedWearCount: 0,
     curseHitCount: 0,
@@ -2417,6 +2491,7 @@ export function simulateRun({
     portalAcquisitions: {
       workshop: state.simPortalSources.filter(source => source === "workshop").length,
       workshopSupply: state.simPortalSources.filter(source => source === "workshop-supply").length,
+      departureKit: state.simPortalSources.filter(source => source === "departure-kit").length,
       chest: 0,
       merchant: 0
     },
@@ -2531,7 +2606,8 @@ export function simulateRun({
           Math.random,
           metrics.coreObservations,
           scenario,
-          supplyOverride
+          supplyOverride,
+          metrics
         );
         const cureCountsBeforeChest = countInventoryItems(state.inventory);
         const acquiredEquipment = [];
@@ -2881,6 +2957,14 @@ function simulateCase({
     equipmentFound: 0,
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
+    identificationPowderAcquired: 0,
+    identificationPowderAcquiredBySource: {
+      starting: 0,
+      workshop: 0,
+      departureKit: 0,
+      chest: 0,
+      codex: 0
+    },
     identificationPowderUsed: 0,
     unidentifiedWearCount: 0,
     curseHitCount: 0,
@@ -2932,6 +3016,11 @@ function simulateCase({
     totals.equipmentFound += result.equipmentFound;
     totals.earlyEquipmentFound += result.earlyEquipmentFound;
     totals.deepEquipmentFound += result.deepEquipmentFound;
+    totals.identificationPowderAcquired += result.identificationPowderAcquired;
+    Object.entries(result.identificationPowderAcquiredBySource).forEach(([source, amount]) => {
+      totals.identificationPowderAcquiredBySource[source] =
+        (totals.identificationPowderAcquiredBySource[source] || 0) + amount;
+    });
     totals.identificationPowderUsed += result.identificationPowderUsed;
     totals.unidentifiedWearCount += result.unidentifiedWearCount;
     totals.curseHitCount += result.curseHitCount;
@@ -3004,7 +3093,16 @@ function simulateCase({
     averageEquipmentFound: totals.equipmentFound / RUNS_PER_CASE,
     averageEarlyEquipmentFound: totals.earlyEquipmentFound / RUNS_PER_CASE,
     averageDeepEquipmentFound: totals.deepEquipmentFound / RUNS_PER_CASE,
+    averageIdentificationPowderAcquired:
+      totals.identificationPowderAcquired / RUNS_PER_CASE,
+    averageIdentificationPowderAcquiredBySource: Object.fromEntries(
+      Object.entries(totals.identificationPowderAcquiredBySource).map(([source, amount]) => [
+        source,
+        amount / RUNS_PER_CASE
+      ])
+    ),
     averageIdentificationPowderUsed: totals.identificationPowderUsed / RUNS_PER_CASE,
+    averageIdentificationCount: totals.identificationPowderUsed / RUNS_PER_CASE,
     averageUnidentifiedWearCount: totals.unidentifiedWearCount / RUNS_PER_CASE,
     averageCurseHitCount: totals.curseHitCount / RUNS_PER_CASE,
     coreEquipmentShare: totals.equipmentFound > 0
@@ -3177,14 +3275,27 @@ function printTable(results) {
 
 function printIdentificationMetrics(results, policy) {
   console.log(`\n【${policy.label} 未鑑定判断・呪い実測】`);
-  console.log("目標深度 | 平均到達深度 | 生還率 | EV/時間 | 未鑑定着用/Run | 呪い被弾/Run");
-  console.log("---------|--------------|--------|----------|----------------|--------------");
+  console.log(
+    "目標深度 | 平均到達深度 | 生還率 | EV/時間 | 粉入手/Run | 粉消費/Run | 鑑定回数/Run | 未鑑定着用/Run | 呪い被弾/Run"
+  );
+  console.log(
+    "---------|--------------|--------|----------|------------|------------|--------------|----------------|--------------"
+  );
   results.forEach(result => {
     console.log(
       `${result.label.padEnd(8)} | ${result.averageReachedFloor.toFixed(2).padStart(12)} | ` +
       `${formatPercent(result.survivalRate).padStart(6)} | ${result.materialEvPerTime.toFixed(4).padStart(8)} | ` +
+      `${result.averageIdentificationPowderAcquired.toFixed(2).padStart(10)} | ` +
+      `${result.averageIdentificationPowderUsed.toFixed(2).padStart(10)} | ` +
+      `${result.averageIdentificationCount.toFixed(2).padStart(12)} | ` +
       `${result.averageUnidentifiedWearCount.toFixed(2).padStart(14)} | ` +
       `${result.averageCurseHitCount.toFixed(2).padStart(12)}`
+    );
+    const source = result.averageIdentificationPowderAcquiredBySource;
+    console.log(
+      `  粉入手内訳/Run: 開始=${source.starting.toFixed(2)}, 工房=${source.workshop.toFixed(2)}, ` +
+      `出発準備=${source.departureKit.toFixed(2)}, 宝箱=${source.chest.toFixed(2)}, ` +
+      `図鑑初撃破=${source.codex.toFixed(2)}`
     );
   });
 }
@@ -3394,7 +3505,7 @@ console.log(
 );
 console.log(
   `初期inventory: 傷薬=${INITIAL_HEAL_POTIONS}個, 解毒薬=${INITIAL_ANTIDOTES}個, ` +
-  "工房解放済条件のみ帰還の翼=1個"
+  "工房解放済条件の既定翼=1個、方針A/Bは出発準備の翼も1個"
 );
 console.log(
   `生存仮定: 傷薬使用閾値=${HEAL_POTION_THRESHOLD}, ` +
@@ -3409,6 +3520,8 @@ console.log(
 console.log(
   `供給仮定: 宝箱の本体/装身具分岐を実ロジック準拠で反映、` +
   `宝箱TOWN_PORTAL/状態回復薬をinventory追加・使用対象化、` +
+  `方針A/Bの鑑定粉は開始${IDENTIFICATION_BALANCE.startingPowder}個+出発準備1個を含み、` +
+  `宝箱${IDENTIFICATION_BALANCE.chestPowderChance * 100}%と実applyCombatRewardsの図鑑5種ごと+1を計測、` +
   `マイルストーン商人の不足状態回復薬を実素材で購入、` +
   `core判定=enabled ${ENABLED_CORE_AFFIXES.length}/${CORE_AFFIXES.length}種+affix_rules helper`
 );
