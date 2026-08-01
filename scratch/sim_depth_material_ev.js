@@ -1188,13 +1188,18 @@ function maybeAcquireChestIdentificationPowder(state, metrics, rng = Math.random
   recordIdentificationPowderAcquisition(metrics, 1, "chest");
 }
 
-function identifyAvailableEquipment(state, metrics) {
+function identifyAvailableEquipment(state, metrics, rng = Math.random) {
   if (state.simPolicy.identificationPolicy !== "powder") return;
   for (const item of state.inventory) {
     if (!isUnidentifiedEquipment(item)) continue;
-    const result = identifyEquipment(state, item);
+    const identifyTicketsBefore = state.identifyTickets || 0;
+    const result = identifyEquipment(state, item, state.party[0], rng);
     if (!result.ok) break;
-    metrics.identificationPowderUsed++;
+    metrics.identificationCount++;
+    metrics.identificationPowderUsed += Math.max(
+      0,
+      identifyTicketsBefore - (state.identifyTickets || 0)
+    );
   }
 }
 
@@ -1515,7 +1520,7 @@ function recordCoreDecision(metrics, item, reason) {
 
 function equipGreedyUpgrades(state, metrics, scoringProfile) {
   const character = state.party[0];
-  identifyAvailableEquipment(state, metrics);
+  identifyAvailableEquipment(state, metrics, Math.random);
   let upgrades = 0;
   const maxIterations = state.inventory.length * 2 + Object.keys(character.equipment).length;
 
@@ -2352,7 +2357,7 @@ function finishRun(state, outcome, metrics) {
     identificationPowderAcquired: metrics.identificationPowderAcquired,
     identificationPowderAcquiredBySource: { ...metrics.identificationPowderAcquiredBySource },
     identificationPowderUsed: metrics.identificationPowderUsed,
-    identificationCount: metrics.identificationPowderUsed,
+    identificationCount: metrics.identificationCount,
     unidentifiedWearCount: metrics.unidentifiedWearCount,
     curseHitCount: metrics.curseHitCount,
     equipmentFoundBySource: metrics.equipmentFoundBySource,
@@ -2482,6 +2487,7 @@ export function simulateRun({
       codex: 0
     },
     identificationPowderUsed: 0,
+    identificationCount: 0,
     unidentifiedWearCount: 0,
     curseHitCount: 0,
     equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
@@ -3076,6 +3082,7 @@ function simulateCase({
       codex: 0
     },
     identificationPowderUsed: 0,
+    identificationCount: 0,
     unidentifiedWearCount: 0,
     curseHitCount: 0,
     coreEquipmentFound: 0,
@@ -3140,6 +3147,7 @@ function simulateCase({
         (totals.identificationPowderAcquiredBySource[source] || 0) + amount;
     });
     totals.identificationPowderUsed += result.identificationPowderUsed;
+    totals.identificationCount += result.identificationCount;
     totals.unidentifiedWearCount += result.unidentifiedWearCount;
     totals.curseHitCount += result.curseHitCount;
     totals.coreEquipmentFound += result.coreEquipmentFound;
@@ -3228,7 +3236,7 @@ function simulateCase({
       ])
     ),
     averageIdentificationPowderUsed: totals.identificationPowderUsed / RUNS_PER_CASE,
-    averageIdentificationCount: totals.identificationPowderUsed / RUNS_PER_CASE,
+    averageIdentificationCount: totals.identificationCount / RUNS_PER_CASE,
     averageUnidentifiedWearCount: totals.unidentifiedWearCount / RUNS_PER_CASE,
     averageCurseHitCount: totals.curseHitCount / RUNS_PER_CASE,
     coreEquipmentShare: totals.equipmentFound > 0

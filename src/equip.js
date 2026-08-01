@@ -691,7 +691,8 @@ function createDetailPanel(char) {
         : "鑑定粉がありません";
       identifyBtn.addEventListener("click", () => {
         const selectedItem = state.inventory[equipState.selectedIdx];
-        const result = identifyEquipment(state, selectedItem);
+        const currentChar = state.party[equipState.actorIdx];
+        const result = identifyEquipment(state, selectedItem, currentChar);
         if (!result.ok) return;
         const revealedData = getItemData(selectedItem);
         addLog(`[鑑定] ${revealedData.name}。${result.cursed ? "呪いを確認した。" : "呪いはない。"}`);
