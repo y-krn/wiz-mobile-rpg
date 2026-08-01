@@ -7,19 +7,11 @@ transitions.
 
 ## Scope
 
-- `src/ui.js`
-- `src/ui/*`
-- `src/menu.js`
-- `src/menu/*`
-- `src/style.css`
-- `src/styles/*`
-- `src/combat.js`
-- `src/combat_ui/*`
-- `src/equip.js`
-- `src/spell_menu.js`
-- `src/chest.js`
-- `src/result.js`
-- `tests/ui-ux.spec.js`
+- Screen layout, touch targets, one-handed reach, overlay open/close, and state transitions
+- CSS cascade, feature styles, responsive behavior, and mobile viewport regressions
+- Interaction flow continuity across affected controls and browser coverage
+
+Target files are determined from the UI rows and CSS Style Routing table in `.agents/file-map.md`.
 
 ## Initial File Routing
 

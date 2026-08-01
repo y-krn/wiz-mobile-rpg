@@ -7,16 +7,11 @@ game flows.
 
 ## Scope
 
-- `scratch/test_*.js`
-- `tests/ui-ux.spec.js`
-- `playwright.config.js`
-- `package.json`
-- Facade modules such as `src/data.js`, `src/state.js`, `src/combat.js`,
-  `src/combat_logic.js`, `src/menu.js`, and `src/ui.js`
-- Concrete modules under `src/data/*`, `src/rules/*`, `src/systems/*`,
-  `src/state/*`, `src/combat_logic/*`, `src/combat_ui/*`, `src/menu/*`,
-  and `src/ui/*`
-- Any source files touched by the change under review
+- Unit-test, browser-test, and reproducible game-flow regression coverage
+- Test configuration, package scripts, and changed source behavior
+- Facade wiring, concrete module behavior, and change-specific integration risk
+
+Target files are determined from the relevant rows in `.agents/file-map.md`.
 
 ## Initial File Routing
 

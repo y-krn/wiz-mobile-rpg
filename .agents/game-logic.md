@@ -7,23 +7,11 @@ existing state and data structures.
 
 ## Scope
 
-- `src/combat.js`
-- `src/combat_ui/*`
-- `src/combat_logic.js`
-- `src/combat_logic/*`
-- `src/map_generator.js`
-- `src/movement.js`
-- `src/state.js`
-- `src/state/*`
-- `src/data.js`
-- `src/data/*`
-- `src/rules/*`
-- `src/systems/*`
-- `src/constants/*`
-- `src/chest.js`
-- `src/equip.js`
-- `src/spell_menu.js`
-- `src/game.js`
+- Combat, movement, map generation, state transitions, data/rule/system boundaries, and compatibility
+- Deterministic resolution, random behavior, save/state shape, and flow wiring
+- Facade-to-concrete module behavior for mechanics
+
+Target files are determined from the relevant rows in `.agents/file-map.md`.
 
 ## Initial File Routing
 

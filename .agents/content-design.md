@@ -7,17 +7,11 @@ implementation cost.
 
 ## Scope
 
-- `src/data.js`
-- `src/data/*`
-- `src/rules/*`
-- `src/systems/*`
-- `src/ui.js`
-- `src/ui/*`
-- `src/menu.js`
-- `src/menu/*`
-- `src/combat_ui/*`
-- User-facing text in source files
-- Enemy, item, spell, run quest, class, reward, and event proposals
+- Clarity, theme fit, player motivation, and consistency of player-facing RPG content
+- Items, enemies, spells, classes, run quests, rewards, events, descriptions, labels, and display text
+- Implementation cost and interactions with progression, mechanics, balance, and mobile presentation
+
+Target files are determined from the relevant rows in `.agents/file-map.md`.
 
 ## Initial File Routing
 
