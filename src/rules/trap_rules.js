@@ -1,5 +1,12 @@
 const DISARM_APT_CLASSES = new Set(["Thief", "Ninja", "Ranger"]);
 
+export const CHEST_DISARM_BASE_CHANCE_BY_CLASS = Object.freeze({
+  Thief: 0.85,
+  Ninja: 0.70,
+  Ranger: 0.60,
+  default: 0.25
+});
+
 export const FORCE_DAMAGE_MULTIPLIER = 0.5;
 export const PARTIAL_SUCCESS_BAND = 15;
 export const PITFALL_EDGE_BONUS = 20;
@@ -23,6 +30,42 @@ export function calculateDisarmRate({ className, level, floor, affixBonus = 0 })
 
   const raw = base + levelGain - depthLoss + affixBonus;
   return Math.round(Math.max(min, Math.min(max, raw)));
+}
+
+export function calculateChestDisarmChance({ className, trapBonus = 0, blind = false }) {
+  const base = CHEST_DISARM_BASE_CHANCE_BY_CLASS[className] ||
+    CHEST_DISARM_BASE_CHANCE_BY_CLASS.default;
+  const chance = base + trapBonus;
+  return blind ? chance / 2 : chance;
+}
+
+export function calculateFloorTrapSuccessRate({
+  trap,
+  className,
+  level,
+  floor,
+  affixBonus = 0
+}) {
+  const rate = calculateDisarmRate({ className, level, floor, affixBonus });
+  return trap?.type === "pitfall" ? Math.min(100, rate + PITFALL_EDGE_BONUS) : rate;
+}
+
+export function resolveTrapAction({ action, trap, successRate, rng = Math.random }) {
+  if (action === "force") {
+    return { outcome: "triggered", partialSuccess: true };
+  }
+  if (action !== "disarm") {
+    return { outcome: "avoided", partialSuccess: false };
+  }
+
+  const roll = rng() * 100;
+  if (roll < successRate) {
+    return { outcome: "disarmed", partialSuccess: false };
+  }
+  if (trap?.type !== "pitfall" && roll < successRate + PARTIAL_SUCCESS_BAND) {
+    return { outcome: "triggered", partialSuccess: true };
+  }
+  return { outcome: "triggered", partialSuccess: false };
 }
 
 // 察知はクラス非依存。罠がルート選択の障害物である以上、
