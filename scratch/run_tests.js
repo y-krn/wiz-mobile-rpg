@@ -192,8 +192,7 @@ function runTest(task) {
 }
 
 async function runPool(tasks) {
-  const availableWorkers = process.env.CI ? os.cpus().length : os.cpus().length - 1;
-  const workerCount = Math.max(1, Math.min(availableWorkers, tasks.length));
+  const workerCount = Math.max(1, Math.min(os.cpus().length - 1, tasks.length));
   const results = [];
   let nextIndex = 0;
 
@@ -226,11 +225,12 @@ const cheapTests = testFiles.filter(file => !heavyTestFiles.includes(file));
 const scheduledTests = [
   ...heavyTestFiles
     .filter(file => selectedHeavyTests.has(file))
-    .flatMap(file => Array.from({ length: HEAVY_TESTS[file] }, (_, shardIndex) => ({
-      file,
-      shardIndex,
-      shardCount: HEAVY_TESTS[file],
-    }))),
+    .flatMap(file => {
+      const shardCount = process.env.CI ? 1 : HEAVY_TESTS[file];
+      return Array.from({ length: shardCount }, (_, shardIndex) =>
+        shardCount === 1 ? { file } : { file, shardIndex, shardCount }
+      );
+    }),
   ...cheapTests.map(file => ({ file })),
 ];
 
