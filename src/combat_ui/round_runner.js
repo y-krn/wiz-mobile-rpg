@@ -42,7 +42,6 @@ export function resolveCombatRound() {
   state.metaMaterials = nextState.metaMaterials;
   state.roamingMonsters = nextState.roamingMonsters;
   state.floorChestsTotal = nextState.floorChestsTotal;
-  state.openedGates = nextState.openedGates;
   state.mapRevision = nextState.mapRevision;
   state.x = nextState.x;
   state.y = nextState.y;

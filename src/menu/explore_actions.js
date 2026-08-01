@@ -4,8 +4,7 @@ import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
 import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, getCharTrapBonus, getPartyMaxAffix, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
-import { advanceRoamingTurn, challengePendingWarden, checkCellEvents, createNoiseEvent, executeEnterDungeon, getEncounterChance, recordExplorationSteps, retreatPendingWarden, tickExplorationSpellEffects } from "../movement.js";
-import { WARDEN_PERCEPTION_HINTS } from "../systems/warden_perception.js";
+import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
 import { getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
 import { startCombat, triggerGameOver } from "../combat.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
@@ -161,33 +160,6 @@ export function renderItemInventory(optGrid) {
   }
 }
 
-export function renderWardenConfirm(optGrid) {
-  const info = document.createElement("div");
-  info.className = "submenu-info";
-  const monster = state.roamingMonsters?.find(rm => rm.id === state.pendingWardenEncounter?.monsterId);
-  const perceptionHint = WARDEN_PERCEPTION_HINTS[monster?.perception] || "未知の方法でこちらを捉えている";
-  info.textContent = `格上の強敵。${perceptionHint}。`;
-  optGrid.appendChild(info);
-
-  const fightBtn = document.createElement("button");
-  fightBtn.className = "btn btn-danger btn-block";
-  fightBtn.textContent = "挑む";
-  fightBtn.addEventListener("click", () => {
-    closeSubmenu();
-    challengePendingWarden();
-  });
-  optGrid.appendChild(fightBtn);
-
-  const backBtn = document.createElement("button");
-  backBtn.className = "btn btn-neon btn-block";
-  backBtn.textContent = "引き返す";
-  backBtn.addEventListener("click", () => {
-    closeSubmenu();
-    retreatPendingWarden();
-  });
-  optGrid.appendChild(backBtn);
-}
-
 export function renderItemDirectionSelect(optGrid) {
   const item = getItemData(menuContext.itemKey);
   if (!item?.exploreDirectional) return;
@@ -210,7 +182,7 @@ export function renderItemDirectionSelect(optGrid) {
       addLog(`鳴らし玉を${name}へ投げた。甲高い音が迷宮に響く。`);
       playSound("bump");
       closeSubmenu();
-      advanceRoamingTurn(false, state.x, state.y);
+      advanceRoamingTurn(false);
       saveAutosave();
       updateUI();
     });
@@ -401,11 +373,9 @@ export function renderEventCamp(optGrid) {
 
   const info = document.createElement("p");
   info.className = "submenu-description";
-  info.textContent = status.reason === "locked"
-    ? "門番が徘徊する間は休めない。封印門の門番を倒せば、この野営地を使える。"
-    : status.reason === "used"
-      ? "この野営地では、すでに今回の遠征中に休息した。"
-      : "生存メンバーの失ったHP・MPを40%回復する。状態異常や死亡は回復しない。";
+  info.textContent = status.reason === "used"
+    ? "この野営地では、すでに今回の遠征中に休息した。"
+    : "生存メンバーの失ったHP・MPを40%回復する。状態異常や死亡は回復しない。";
   optGrid.appendChild(info);
 
   if (status.available) {

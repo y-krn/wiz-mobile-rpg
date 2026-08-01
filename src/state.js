@@ -36,7 +36,6 @@ export {
 } from "./state/codex_state.js";
 
 export {
-  rebuildDungeonMaps,
   calculateSeedProperties,
   applyDungeonMemoryToMaps
 } from "./state/dungeon_state.js";

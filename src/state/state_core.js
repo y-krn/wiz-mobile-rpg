@@ -37,7 +37,6 @@ export const state = {
   roamingMonsters: [],
   roamingMovementStepCount: 0,
   noiseEvents: [],
-  openedGates: [],
 
   // Tracking properties for the current descent
   sessionMaxFloor: 1,

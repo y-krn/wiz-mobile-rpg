@@ -1,5 +1,5 @@
 import { START_X, START_Y } from "../data.js";
-import { findMapCellByType } from "./warden_gates.js";
+import { findMapCellByType } from "../rules/map_queries.js";
 
 export function generateRandomSeed() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";

@@ -4,8 +4,6 @@ import {
 } from "../data.js";
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
-import { applyOpenedGatesToMap } from "../state/warden_gates.js";
-import { markMapChanged } from "../state/state_core.js";
 import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js";
 
 function rollCombatAccessoryDrop(state, rng) {
@@ -300,37 +298,20 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
     });
   } else if (state.combatState.isRoamingFlack) {
     const defeatedId = state.combatState.roamingMonsterId;
-    const gateId = state.combatState.gateId;
-    const isWarden = state.combatState.roamingMonsterKind === "warden";
+    const eliteName = state.combatState.monsters?.[0]?.name || "強敵";
     state.roamingMonsters = state.roamingMonsters.filter(rm => {
       if (defeatedId) return rm.id !== defeatedId;
       return !(rm.floor === state.floor && rm.x === state.x && rm.y === state.y);
     });
 
-    if (isWarden) {
-      if (gateId) {
-        if (!state.openedGates) state.openedGates = [];
-        if (!state.openedGates.includes(gateId)) {
-          state.openedGates.push(gateId);
-        }
-        applyOpenedGatesToMap(state.maps?.[state.floor - 1], state.openedGates);
-        markMapChanged(state);
-      }
-      logQueue.push({
-        msg: "封印門の門番を撃破した！封印門が開き、精鋭の戦利品を得た。",
-        sound: "item",
-        endCombat: true
-      });
-    } else {
-      logQueue.push({
-        msg: "強敵「フラック」を見事に撃破した！",
-        sound: "item"
-      });
-      logQueue.push({
-        msg: "フラックの残骸の影に宝箱を見つけた！",
-        triggerChest: true
-      });
-    }
+    logQueue.push({
+      msg: `強敵「${eliteName}」を見事に撃破した！`,
+      sound: "item"
+    });
+    logQueue.push({
+      msg: `${eliteName}の残骸の影に宝箱を見つけた！`,
+      triggerChest: true
+    });
   } else {
     if (rng() < 0.20) {
       logQueue.push({

@@ -1,106 +1,14 @@
-import { markMapChanged, markMapCellVisited, state } from "./state_core.js";
-import { saveAutosave } from "./save_storage.js";
-import { findSuitableRoamingMonsterStart } from "./initial_state.js";
-import { generateRandomMap } from "../map_generator.js";
-import { createRng } from "../seed_rng.js";
+import { markMapChanged, state } from "./state_core.js";
 import { MAP_WIDTH, MAP_HEIGHT } from "../data.js";
-import { applyOpenedGatesToMap, createWardenMonster, ensureWardenGate, findMapCellByType } from "./warden_gates.js";
-import { getWardenPerception } from "../systems/warden_perception.js";
+import { createRng } from "../seed_rng.js";
 
-function createUngatedWarden(mapData, floor) {
-  const start = findSuitableRoamingMonsterStart(mapData, floor);
-  if (!start) return null;
-  return {
-    id: `B${floor}_WARDEN`, floor, x: start.x, y: start.y,
-    name: floor === 4 ? "フラック" : `封印門の門番 B${floor}`,
-    kind: "warden", perception: getWardenPerception(floor),
-    homeX: start.x, homeY: start.y, gateId: null
-  };
-}
-
-export function rebuildDungeonMaps() {
-  const generatedMaps = [];
-  let parentStairsCoord = null;
-  for (let floor = 1; floor <= 5; floor++) {
-    const mapData = generateRandomMap(floor, parentStairsCoord, state.seed);
-    const ensured = ensureWardenGate(mapData.grid, floor, mapData.wardenGate);
-    if (ensured.stairsDownCoord) mapData.stairsDownCoord = ensured.stairsDownCoord;
-    mapData.wardenGate = ensured.gate;
-    generatedMaps.push(mapData);
-    parentStairsCoord = mapData.stairsDownCoord;
-  }
-  state.maps = generatedMaps.map(mapData => mapData.grid);
-  const [b1] = generatedMaps;
-  const start = findMapCellByType(b1.grid, "stairs-up");
-  state.floor = 1;
-  state.x = start.x;
-  state.y = start.y;
-  state.prevX = start.x;
-  state.prevY = start.y;
-  
-  state.roamingMonsters = [];
-  generatedMaps.forEach((mapData, index) => {
-    const floor = index + 1;
-    const gate = mapData.wardenGate;
-    applyOpenedGatesToMap(mapData.grid, state.openedGates);
-    if (!gate?.id || !state.openedGates?.includes(gate.id)) {
-      const warden = createWardenMonster(floor, gate, mapData.grid) || createUngatedWarden(mapData, floor);
-      if (warden) state.roamingMonsters.push(warden);
-    }
-  });
-  
-  state.visitedMaps = [
-    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false)),
-    Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false))
-  ];
-  applyDungeonMemoryToMaps();
-  markMapCellVisited(state.x, state.y);
-  markMapChanged();
-  saveAutosave();
-}
-
+// 保存済みマップに探索メモリを重ねるだけの処理。床の生成そのものはラン側が持つ。
 export function applyDungeonMemoryToMaps() {
   if (!state.dungeonMemory) {
     state.dungeonMemory = { mapFragments: {}, visitedFloors: [1] };
   }
   state.dungeonMemory.mapFragments ||= {};
   state.dungeonMemory.visitedFloors ||= [1];
-
-  if (state.maps) {
-    for (let floor = 1; floor <= 5; floor++) {
-      const grid = state.maps[floor - 1];
-      if (!grid) continue;
-      const rng = createRng(`${state.seed}:warden-backfill:B${floor}`);
-      const { gate, stairsDownCoord } = ensureWardenGate(grid, floor, null, rng);
-      if (stairsDownCoord) {
-        console.warn(`B${floor}F warden gate backfill relocated stairs-down to (${stairsDownCoord.x}, ${stairsDownCoord.y})`);
-      }
-      applyOpenedGatesToMap(grid, state.openedGates);
-      if (gate && state.openedGates?.includes(gate.id) && state.roamingMonsters) {
-        state.roamingMonsters = state.roamingMonsters.filter(rm => rm.gateId !== gate.id);
-      }
-      if (gate && !state.openedGates?.includes(gate.id)) {
-        if (!state.roamingMonsters) state.roamingMonsters = [];
-        const existing = state.roamingMonsters.find(rm => rm.kind === "warden" && rm.gateId === gate.id);
-        if (existing && !existing.perception) {
-          existing.perception = createWardenMonster(floor, gate, grid)?.perception;
-        }
-        const exists = Boolean(existing);
-        if (!exists) {
-          const warden = createWardenMonster(floor, gate, grid);
-          if (warden) state.roamingMonsters.push(warden);
-        }
-      }
-      if (!gate && !state.roamingMonsters?.some(rm => rm.id === `B${floor}_WARDEN`)) {
-        if (!state.roamingMonsters) state.roamingMonsters = [];
-        const warden = createUngatedWarden({ grid }, floor);
-        if (warden) state.roamingMonsters.push(warden);
-      }
-    }
-  }
   markMapChanged();
 }
 

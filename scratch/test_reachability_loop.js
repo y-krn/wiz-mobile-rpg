@@ -56,7 +56,7 @@ function getFullExplorationReachableKeys(grid, start) {
       const nx = pos.x + dx;
       const ny = pos.y + dy;
       const next = grid[ny]?.[nx];
-      const canOpen = cell.secretDoor?.[dir] || cell.sealedGate?.[dir];
+      const canOpen = cell.secretDoor?.[dir];
       if (!next || (cell.walls[dir] && !canOpen)) continue;
       if (next.blockEnter?.[(dir + 2) % 4]) continue;
 

@@ -37,7 +37,7 @@ import {
   generateRandomAccessory,
   generateRandomEquipment
 } from "../src/systems/equipment_generation.js";
-import { getPerceptionIntent } from "../src/systems/warden_perception.js";
+import { getPerceptionIntent } from "../src/systems/elite_perception.js";
 import { applyTombRaiderTrapTier, generateChestMaterials } from "../src/chest.js";
 import { increaseChestTrapTier } from "../src/systems/traps.js";
 import { restAtCamp } from "../src/systems/camp_rest.js";
@@ -280,7 +280,6 @@ test("野営の達人: 装備者本人のキャンプ回復量2倍", () => {
   normal.mp = 0;
   const campState = {
     floor: 2,
-    openedGates: ["B2_WARDEN_GATE"],
     currentRun: { campRested: {} },
     party: [master, normal]
   };

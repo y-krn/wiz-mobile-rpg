@@ -11,7 +11,6 @@ const HEAVY_TESTS = [
   'test_stairs_min_distance.js',
   'test_reachability_loop.js',
   'test_shared_wall_corridors.js',
-  'test_warden_gates.js',
 ];
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

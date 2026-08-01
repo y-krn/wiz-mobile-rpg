@@ -26,7 +26,7 @@ function getReachableKeys(grid, start) {
       const nx = pos.x + dx;
       const ny = pos.y + dy;
       const next = grid[ny]?.[nx];
-      const canReveal = cell.secretDoor?.[dir] || cell.sealedGate?.[dir];
+      const canReveal = cell.secretDoor?.[dir];
       if (!next || (cell.walls[dir] && !canReveal)) continue;
       if (next.blockEnter?.[(dir + 2) % 4]) continue;
       const key = `${nx},${ny}`;

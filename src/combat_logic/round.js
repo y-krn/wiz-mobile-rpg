@@ -113,7 +113,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   const metaMaterials = { ...(originalState.metaMaterials || {}) };
   const roamingMonsters = originalState.roamingMonsters ? originalState.roamingMonsters.map(rm => ({...rm})) : [];
   const floorChestsTotal = originalState.floorChestsTotal ? [...originalState.floorChestsTotal] : [];
-  const openedGates = originalState.openedGates ? [...originalState.openedGates] : [];
   
   const state = {
     ...originalState,
@@ -128,8 +127,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     currentRun,
     metaMaterials,
     roamingMonsters,
-    floorChestsTotal,
-    openedGates
+    floorChestsTotal
   };
   let escaped = false;
   const roundNumber = state.combatState.roundNumber || 1;

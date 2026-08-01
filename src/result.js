@@ -3,7 +3,7 @@ import { START_X, START_Y, DIR_N, getPartyMaxAffix } from "./data.js";
 import { updateUI } from "./ui.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
 import { updateRunQuests } from "./systems/run_quests.js";
-import { findMapCellByType } from "./state/warden_gates.js";
+import { findMapCellByType } from "./rules/map_queries.js";
 
 export function triggerRunResult(reason) {
   if (!state.currentRun) return;

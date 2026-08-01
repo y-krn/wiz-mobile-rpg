@@ -14,7 +14,7 @@ const biome = (definition) => Object.freeze({
 export const BIOMES = Object.freeze([
   biome({
     id: "collapsed_mine", name: "崩れた坑道", cssClass: "floor-theme-b1",
-    bossName: "デーモンガード",
+    bossName: "デーモンガード", eliteName: "フラック",
     enemyPool: ["かみつき蟲", "コボルトの斥候", "マッドスライム", "フラッシュバット", "分裂スライム", "錆びた盾兵", "ゴブリンの呪術師", "群れネズミ", "火薬コウモリ", "まどろみ胞子", "泥の呪い子"],
     gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 0, trapBonus: 0 },
     theme: {
@@ -26,7 +26,7 @@ export const BIOMES = Object.freeze([
   }),
   biome({
     id: "forgotten_catacomb", name: "忘れられた地下墓地", cssClass: "floor-theme-b2",
-    bossName: "ストーンガード",
+    bossName: "ストーンガード", eliteName: "墓守の巨躯",
     enemyPool: ["リビングアーマー", "ゾンビ", "ジャイアントスパイダー", "針甲虫", "呪いの小鏡", "鉄皮のゴブリン", "祈祷ゴブリン", "マナドレイン", "スケルトンアーチャー", "煙幕盗賊", "腐毒の蛆", "催眠コウモリ"],
     gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 0, trapBonus: 1 },
     theme: {
@@ -38,7 +38,7 @@ export const BIOMES = Object.freeze([
   }),
   biome({
     id: "rift_nest", name: "大裂溝の巣窟", cssClass: "floor-theme-b3",
-    bossName: "ポイズンジャイアント",
+    bossName: "ポイズンジャイアント", eliteName: "這い寄る影",
     enemyPool: ["スピリット", "はぐれ魔術師", "呪文喰い", "オークの戦士", "カースドハンド", "アイアンゴーレム", "霧の亡霊", "骨の鼓手", "弱体の魔女", "魔封じの目玉", "解呪の司祭"],
     gimmicks: { trapSet: ["damage", "pitfall"], oneWayBonus: 1, trapBonus: 1 },
     theme: {
@@ -50,7 +50,7 @@ export const BIOMES = Object.freeze([
   }),
   biome({
     id: "sunken_library", name: "水没した魔導書庫", cssClass: "floor-theme-b4",
-    bossName: "マスターデーモン",
+    bossName: "マスターデーモン", eliteName: "禁書の番人",
     enemyPool: ["ストーンガード", "マスターメイジ", "バンシー", "ブラッドバット群", "石像兵", "魔鏡の司祭", "鋼殻ビートル", "弱体の魔女", "沈黙の修道士", "召喚する悪魔", "魔防崩しの蛇"],
     gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 1, trapBonus: 2 },
     theme: {
@@ -62,7 +62,7 @@ export const BIOMES = Object.freeze([
   }),
   biome({
     id: "dragon_forge", name: "竜火の鍛造殿", cssClass: "floor-theme-b5",
-    bossName: "レッドドラゴン",
+    bossName: "レッドドラゴン", eliteName: "灼熱の徘徊者",
     enemyPool: ["ドラゴンワーム", "ワイバーン", "黒曜の魔導士", "結界の守護者", "盾持ちデーモン", "灰燼の術士", "ストーンガード", "鋼殻ビートル", "双頭の番犬"],
     gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 2, trapBonus: 2 },
     theme: {
@@ -74,7 +74,7 @@ export const BIOMES = Object.freeze([
   }),
   biome({
     id: "abyssal_throne", name: "深淵の玉座", cssClass: "floor-theme-b6",
-    bossName: "いにしえの竜",
+    bossName: "いにしえの竜", eliteName: "深淵の徘徊者",
     enemyPool: ["マスターデーモン", "プリーストデーモン", "命喰いの影", "深淵の分裂体", "破滅の導師", "盾持ちデーモン", "結界の守護者", "反逆の鎧", "竜血の再生者"],
     gimmicks: { trapSet: ["mpDrain", "pitfall", "alarm"], oneWayBonus: 2, trapBonus: 3 },
     theme: {

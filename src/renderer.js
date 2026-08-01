@@ -167,7 +167,7 @@ export class DungeonRenderer {
       if (monster.floor !== state.floor) return false;
       if (monster.perception === "afterimage" && !hasArcaneSense) return false;
       const distance = Math.abs(monster.x - state.x) + Math.abs(monster.y - state.y);
-      return monster.kind === "warden" || distance <= 4;
+      return monster.kind === "elite" || distance <= 4;
     }));
   }
 
@@ -349,7 +349,6 @@ export class DungeonRenderer {
         const frontY = cy + DY[dirFront];
         const frontEnterFace = (dirFront + 2) % 4;
         const hasFrontOneWayBarrier = column === 0 && !hasFrontWall && Boolean(state.map[frontY]?.[frontX]?.blockEnter?.[frontEnterFace]);
-        const hasFrontSealedGate = column === 0 && hasFrontWall && Boolean(cell.sealedGate?.[dirFront] && !cell.sealedGate[dirFront].open);
 
         // 1. Draw floor/ceiling segments
         ctx.strokeStyle = gridColor;
@@ -406,9 +405,7 @@ export class DungeonRenderer {
         }
 
         // 4. Front Wall (at z + 1 depth)
-        if (hasFrontSealedGate) {
-          this.drawSealedGate(ctx, z);
-        } else if (hasFrontWall) {
+        if (hasFrontWall) {
           ctx.fillStyle = "#0c0c0e";
           ctx.fillRect(nextLeft, YT[z + 1], nextWidth, YB[z + 1] - YT[z + 1]);
 
@@ -497,35 +494,6 @@ export class DungeonRenderer {
       ctx.lineTo(midX + chevronW, cy - chevronH);
       ctx.stroke();
     }
-  }
-
-  drawSealedGate(ctx, z) {
-    const x = XL[z + 1];
-    const y = YT[z + 1];
-    const w = XR[z + 1] - XL[z + 1];
-    const h = YB[z + 1] - YT[z + 1];
-    const midX = x + w / 2;
-    const midY = y + h / 2;
-    const r = Math.max(8, Math.min(w, h) * 0.18);
-
-    ctx.fillStyle = "#10080a";
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = "#ff3b30";
-    ctx.lineWidth = 1.5;
-    ctx.shadowColor = "#ff3b30";
-    ctx.shadowBlur = 8;
-    ctx.strokeRect(x, y, w, h);
-
-    ctx.strokeStyle = "#ffb300";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(midX, midY, r, 0, Math.PI * 2);
-    ctx.moveTo(midX - r * 0.7, midY - r * 0.7);
-    ctx.lineTo(midX + r * 0.7, midY + r * 0.7);
-    ctx.moveTo(midX + r * 0.7, midY - r * 0.7);
-    ctx.lineTo(midX - r * 0.7, midY + r * 0.7);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
   }
 
   drawStairsIcon(ctx, z, type) {
@@ -1217,38 +1185,13 @@ export class DungeonRenderer {
       }
     }
 
-    // Draw sealed gates on minimap
-    for (let y = 0; y < state.map.length; y++) {
-      if (!state.map[y]) continue;
-      for (let x = 0; x < state.map[y].length; x++) {
-        const cell = state.map[y][x];
-        if (!cell?.sealedGate?.some(Boolean)) continue;
-        const screenX = margin + x * cellS + offsetX;
-        const screenY = margin + y * cellS + offsetY;
-        cell.sealedGate.forEach((gate, dir) => {
-          if (!gate || gate.open) return;
-          const gx = screenX + cellS / 2 + DX[dir] * cellS * 0.42;
-          const gy = screenY + cellS / 2 + DY[dir] * cellS * 0.42;
-          ctx.save();
-          ctx.fillStyle = "#ffb300";
-          ctx.strokeStyle = "#ff3b30";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.arc(gx, gy, 3, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          ctx.restore();
-        });
-      }
-    }
-
     // Draw roaming Flack on minimap
     if (state.roamingMonsters) {
       state.roamingMonsters.forEach(rm => {
         if (rm.floor !== state.floor) return;
         if (rm.perception === "afterimage" && getPartyMaxAffix(state.party, "arcaneSense") < 1) return;
         const dist = Math.abs(rm.x - state.x) + Math.abs(rm.y - state.y);
-        if (rm.kind === "warden" || dist <= 4) {
+        if (rm.kind === "elite" || dist <= 4) {
           const rx = margin + rm.x * cellS + cellS / 2 + offsetX;
           const ry = margin + rm.y * cellS + cellS / 2 + offsetY;
           
@@ -1256,14 +1199,14 @@ export class DungeonRenderer {
           const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 150);
           ctx.save();
           const perceptionColors = { sound: "255, 179, 0", blind_charge: "255, 92, 92", vibration: "89, 214, 138", standard: "255, 59, 48", afterimage: "190, 120, 255" };
-          const color = perceptionColors[rm.perception] || (rm.kind === "warden" ? "255, 179, 0" : "255, 59, 48");
+          const color = perceptionColors[rm.perception] || (rm.kind === "elite" ? "255, 179, 0" : "255, 59, 48");
           ctx.fillStyle = `rgba(${color}, ${pulse})`;
           ctx.shadowBlur = 6;
-          ctx.shadowColor = rm.kind === "warden" ? "#ffb300" : "#ff3b30";
+          ctx.shadowColor = rm.kind === "elite" ? "#ffb300" : "#ff3b30";
           ctx.beginPath();
-          ctx.arc(rx, ry, rm.kind === "warden" ? 4.5 : 3.5, 0, Math.PI * 2);
+          ctx.arc(rx, ry, rm.kind === "elite" ? 4.5 : 3.5, 0, Math.PI * 2);
           ctx.fill();
-          if (rm.kind === "warden") {
+          if (rm.kind === "elite") {
             ctx.strokeStyle = "#ff3b30";
             ctx.lineWidth = 1.2;
             ctx.stroke();

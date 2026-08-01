@@ -18,7 +18,7 @@ function reachableKeys(grid, start) {
       const nx = x + dx;
       const ny = y + dy;
       const next = grid[ny]?.[nx];
-      const canOpen = cell.secretDoor?.[dir] || cell.sealedGate?.[dir];
+      const canOpen = cell.secretDoor?.[dir];
       if (!next || (cell.walls[dir] && !canOpen) || next.blockEnter?.[opposite]) return;
       const key = `${nx},${ny}`;
       if (!seen.has(key)) {
@@ -43,8 +43,8 @@ function isInsideRoom(room, x, y) {
   return x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
 }
 
-// Entrances may have been converted into a warden gate or secret door after
-// carving; both are openable in play, so count them as entrances.
+// Entrances may have been converted into a secret door after carving;
+// secret doors are openable in play, so count them as entrances.
 function countOpenableEntrances(grid, room) {
   let entrances = 0;
   for (let y = room.y; y < room.y + room.h; y++) {
@@ -52,7 +52,7 @@ function countOpenableEntrances(grid, room) {
       const cell = grid[y][x];
       DIRS.forEach(({ dx, dy }, dir) => {
         if (isInsideRoom(room, x + dx, y + dy)) return;
-        if (!cell.walls[dir] || cell.sealedGate?.[dir] || cell.secretDoor?.[dir]) entrances++;
+        if (!cell.walls[dir] || cell.secretDoor?.[dir]) entrances++;
       });
     }
   }
@@ -70,8 +70,7 @@ function assertRoomGeometry(grid, room, label) {
       const cell = grid[y][x];
       DIRS.forEach(({ dx, dy }, dir) => {
         if (!isInsideRoom(room, x + dx, y + dy)) return;
-        // A warden gate may seal an internal edge after carving; anything else must stay open.
-        assert(!cell.walls[dir] || cell.sealedGate?.[dir],
+        assert(!cell.walls[dir],
           `${label} internal wall closed at ${x},${y} dir ${dir}`);
       });
     }
@@ -89,7 +88,6 @@ function countEvents(grid) {
 
 assert(ROOM_SIZES.some(size => size.w === 3 && size.h === 3), "ROOM_SIZES must include 3x3 halls");
 
-let missingGates = 0;
 for (let seedIndex = 0; seedIndex < 100; seedIndex++) {
   const seed = `room-carving-${seedIndex}`;
   let parentStairsCoord = null;
@@ -129,8 +127,6 @@ for (let seedIndex = 0; seedIndex < 100; seedIndex++) {
       }
     }
 
-    if (!generated.wardenGate) missingGates++;
-
     const events = countEvents(grid);
     assert((events[EVENT_TYPES.CHEST] || 0) >= 6, `${label} chest count ${events[EVENT_TYPES.CHEST]}`);
     assert.equal(events[EVENT_TYPES.SPRING] || 0, 2, `${label} spring count`);
@@ -141,7 +137,6 @@ for (let seedIndex = 0; seedIndex < 100; seedIndex++) {
   }
 }
 
-assert.equal(missingGates, 0, `gate placement regressed with rooms: ${missingGates}/500 missing`);
 
 const first = generateRandomMap(1, null, "room-repeatability");
 const second = generateRandomMap(1, null, "room-repeatability");

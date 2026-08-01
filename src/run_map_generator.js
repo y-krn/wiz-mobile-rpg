@@ -12,6 +12,7 @@ const DIRECTIONS = [
 ];
 
 export const MAX_FLOOR_GENERATION_ATTEMPTS = 12;
+const CAMP_MIN_DISTANCE = 5;
 
 function keyOf({ x, y }) {
   return `${x},${y}`;
@@ -29,7 +30,6 @@ function findCell(grid, predicate) {
 function isWalkable(cell) {
   return cell.walls.some(wall => !wall) ||
     cell.secretDoor?.some(Boolean) ||
-    cell.sealedGate?.some(Boolean) ||
     cell.type !== "empty" ||
     Boolean(cell.event) ||
     Boolean(cell.trap);
@@ -61,6 +61,27 @@ function placeMilestoneEvents(grid, floor) {
   return { boss, merchant, portal };
 }
 
+// 野営はバイオームの世界観に野営地がある階だけに置く。
+// 以前は封印門の端点セルに寄生していたため、門を廃した経路では一度も出現しなかった。
+function placeCampEvent(grid, floor) {
+  const biome = getBiomeForFloor(floor);
+  if (!biome.theme.eventSkins.camp) return null;
+  const start = findCell(grid, cell => cell.type === "stairs-up");
+  const distances = getDistances(grid, start);
+  const candidates = [];
+  grid.forEach((row, y) => row.forEach((cell, x) => {
+    if (!isWalkable(cell) || cell.type !== "empty" || cell.event || cell.trap) return;
+    const distance = distances.get(`${x},${y}`);
+    if (Number.isFinite(distance) && distance >= CAMP_MIN_DISTANCE) candidates.push({ x, y, distance });
+  }));
+  if (candidates.length === 0) return null;
+  // 最遠はマイルストーンイベントが使う。中間距離を決定的に選ぶ。
+  candidates.sort((a, b) => a.distance - b.distance || a.y - b.y || a.x - b.x);
+  const chosen = candidates[Math.floor(candidates.length / 2)];
+  grid[chosen.y][chosen.x].event = EVENT_TYPES.CAMP;
+  return chosen;
+}
+
 export function getMilestoneEventCounts(grid) {
   const counts = { boss: 0, merchant: 0, portal: 0 };
   grid.flat().forEach(cell => {
@@ -85,8 +106,7 @@ function getDistances(grid, start, { revealGimmicks = false } = {}) {
       const ny = pos.y + dy;
       const next = grid[ny]?.[nx];
       if (!next || next.blockEnter?.[(dir + 2) % 4]) continue;
-      const canReveal = revealGimmicks &&
-        (cell.secretDoor?.[dir] || cell.sealedGate?.[dir]);
+      const canReveal = revealGimmicks && cell.secretDoor?.[dir];
       if (cell.walls[dir] && !canReveal) continue;
 
       const key = `${nx},${ny}`;
@@ -176,10 +196,10 @@ export function generateRunFloor({
         trapCount: template.gimmickDensity.traps + biome.gimmicks.trapBonus,
         criticalPathRange: template.criticalPathRange,
         generateStairsDown: true,
-        legacyMilestones: false,
-        generateWardenGate: false
+        legacyMilestones: false
       });
       const milestoneEvents = placeMilestoneEvents(generated.grid, floor);
+      placeCampEvent(generated.grid, floor);
       const validation = validateGeneratedFloor(generated, template);
       if (validation.valid) {
         return {
