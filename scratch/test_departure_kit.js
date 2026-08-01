@@ -21,6 +21,8 @@ const { normalizeSavePayload } = await import("../src/state/save_migrations.js")
 
 console.log("=== DEPARTURE KIT (#234) ===");
 
+check("departure kit uses the selected measured price", DEPARTURE_KIT.materialCost === 30);
+
 // 1. 総量支払いは在庫の多い素材から削る
 const stock = { "霊粉": 30, "魔石片": 10, "骨片": 5 };
 const paid = spendAnyMaterials(stock, 32);

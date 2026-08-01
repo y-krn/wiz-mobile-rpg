@@ -9,7 +9,8 @@ const {
   resetSimulationRandom,
   SCENARIOS,
   SIM_CLASSES,
-  simulateRun
+  simulateRun,
+  DEFAULT_TRAP_POLICY_ID
 } = await import("./sim_depth_material_ev.js");
 const { WORKSHOP_NODES } = await import("../src/data/workshop.js");
 const {
@@ -25,6 +26,13 @@ const RUNS_PER_TRIAL = Math.max(1, Number(process.env.PROGRESSION_RUNS || 50));
 const CALIBRATION_RUNS = Math.max(1, Number(process.env.PROGRESSION_CALIBRATION_RUNS || 100));
 const BASE_SEED = Number(process.env.PROGRESSION_SEED || 278234) >>> 0;
 const POST_WING_TARGET = Math.max(6, Number(process.env.PROGRESSION_POST_WING_TARGET || 20));
+const DEFAULT_KIT_COST_SWEEP = [10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80];
+const KIT_COST_SWEEP = [...new Set(
+  (process.env.PROGRESSION_KIT_COSTS || DEFAULT_KIT_COST_SWEEP.join(","))
+    .split(",")
+    .map(value => Math.floor(Number(value)))
+    .filter(value => value > 0)
+)].sort((left, right) => left - right);
 const MATERIALS = [
   "霊粉",
   "魔石片",
@@ -128,7 +136,7 @@ const FINITE_PORTAL_SCENARIOS = [
   },
   // 出発準備は種別を問わない総量課金。種別固定のコストでは需要のない素材が
   // 無価値のまま残り、stakeが戻らない（#234 の掃引で確認済み）。
-  ...[20, 40, DEPARTURE_KIT.materialCost, 80].map(kitCost => ({
+  ...[...new Set([...KIT_COST_SWEEP, DEPARTURE_KIT.materialCost])].sort((left, right) => left - right).map(kitCost => ({
     id: `kit-${kitCost}`,
     label: kitCost === DEPARTURE_KIT.materialCost
       ? `出発準備 素材${kitCost}個（実装値）`
@@ -397,6 +405,9 @@ function formatFiniteResult(result) {
   const firstMerchant = totals.firstMerchantPurchaseRuns.length > 0
     ? `中央run ${percentile(totals.firstMerchantPurchaseRuns, 0.5)}`
     : "50run内なし";
+  const paymentRate = scenario.kitCost > 0
+    ? totals.kitMaterialSpent / (scenario.kitCost * totals.runs)
+    : null;
   return (
     `${scenario.label}: 平均到達=B${(totals.reached / totals.runs).toFixed(2)}, ` +
     `生還率=${formatRate(totals.survived / totals.runs)}, ` +
@@ -409,7 +420,11 @@ function formatFiniteResult(result) {
     ).toFixed(2)}/run, ` +
     `買切後死亡損失有価値率=${formatRate(usefulRate)}, ` +
     `出発準備素材消費=${(totals.kitMaterialSpent / totals.runs).toFixed(2)}/run, ` +
+    `支払い成立率=${paymentRate === null ? "-" : formatRate(paymentRate)}, ` +
+    `工房翼=${(totals.portalAcquisitions.workshopSupply / totals.runs).toFixed(3)}/run, ` +
     `余剰蓄積=${(totals.surplusPerRun / TRIALS).toFixed(2)}/run, ` +
+    `40run後bank=${(totals.endingBankTotal / TRIALS).toFixed(1)}, ` +
+    `工房買切=${totals.standardCompleteRuns.length}/${TRIALS}, ` +
     `翼入手 工房/宝箱/商人=${(totals.portalAcquisitions.workshopSupply / totals.runs).toFixed(3)}/` +
     `${(totals.portalAcquisitions.chest / totals.runs).toFixed(3)}/` +
     `${(totals.portalAcquisitions.merchant / totals.runs).toFixed(3)}/run, ` +
@@ -461,7 +476,9 @@ export async function runWorkshopProgressionSimulation() {
     "遅延購入stepは同runを100%bankした反実仮想との差。買い切り後は有限工房需要ゼロ。"
   );
   console.log(
-    "非モデル化: マイルストーン商人、罠状態被害、任意装備/クラス選択の最適化、run間codex継承、" +
+    `罠モデル: simulateRun内でgenerateRunFloor経由、宝箱/フロア罠、傷薬、状態異常を適用。` +
+    `TRAP_POLICY=${DEFAULT_TRAP_POLICY_ID}（既定conservative）。` +
+    "非モデル化: マイルストーン商人、任意装備/クラス選択の最適化、run間codex継承、" +
     "プレイヤー可変撤退判断。既存sim同様、固定閾値・round-robin職で代理。"
   );
 
