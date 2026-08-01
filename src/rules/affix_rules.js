@@ -64,13 +64,6 @@ export function hasCoreAffix(item) {
   });
 }
 
-export function canEquipCoreAffix(char, item, slot) {
-  if (!hasCoreAffix(item)) return true;
-  return Object.entries(char?.equipment || {}).every(([equippedSlot, equippedItem]) => {
-    return equippedSlot === slot || !hasCoreAffix(equippedItem);
-  });
-}
-
 export function getCharCoreAffix(char, coreId) {
   return getEquippedCoreAffixes(char).find(affix => (affix.id || affix.type) === coreId) || null;
 }

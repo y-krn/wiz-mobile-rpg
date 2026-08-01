@@ -2,7 +2,7 @@ import { state, initNewGame, saveAutosave, addLog, markMapChanged } from "../sta
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, getCharTrapBonus, getPartyMaxAffix, canEquipCoreAffix, DX, DY, DIR_NAMES } from "../data.js";
+import { isSpellcaster, getClassJpName, getItemData, getCharWeaponAtk, getCharDef, getCharTrapBonus, getPartyMaxAffix, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
 import { advanceRoamingTurn, challengePendingWarden, checkCellEvents, createNoiseEvent, executeEnterDungeon, getEncounterChance, recordExplorationSteps, retreatPendingWarden, tickExplorationSpellEffects } from "../movement.js";
 import { WARDEN_PERCEPTION_HINTS } from "../systems/warden_perception.js";
@@ -244,11 +244,6 @@ export function renderItemTargetSelect(optGrid) {
     } else if (["weapon", "shield", "armor", "accessory"].includes(item.type)) {
       isAllowed = !item.classes || item.classes.includes(char.class);
       reason = isAllowed ? "" : "この職業は装備不可";
-      const itemKey = state.inventory[menuContext.itemIdx];
-      if (isAllowed && !canEquipCoreAffix(char, itemKey, item.type)) {
-        isAllowed = false;
-        reason = "コアは1人につき1個まで";
-      }
     }
 
     if (isAllowed) {
