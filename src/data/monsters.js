@@ -114,11 +114,11 @@ const MONSTER_DATA = [
   
   { name: "フラック", level: 4, hp: 90, atk: 13, def: 4, exp: 3000, spriteType: "flack", spell: "LAHALITO", spellChance: 0.15, physResist: 0.1, magicResist: 0.1, isRare: true, dangerRare: true, tags: ["demon"], color: "#ff3b30" },
   // バイオームごとの徘徊エリート。避けるのが正解、倒せば跳ねる任意チャレンジ。
-  { name: "墓守の巨躯", level: 5, hp: 300, atk: 20, def: 18, exp: 3000, spriteType: "zombie", physResist: 0.3, magicResist: 0.1, isRare: true, dangerRare: true, tags: ["undead"], color: "#ff3b30" },
-  { name: "這い寄る影", level: 5, hp: 240, atk: 24, def: 8, exp: 3000, spriteType: "spirit", physResist: 0.1, magicResist: 0.5, isRare: true, dangerRare: true, tags: ["spirit"], color: "#ff3b30" },
-  { name: "禁書の番人", level: 6, hp: 260, atk: 18, def: 12, exp: 3200, spriteType: "mage", spell: "LAHALITO", spellChance: 0.35, magicResist: 0.3, isRare: true, dangerRare: true, tags: ["spirit"], color: "#ff3b30" },
-  { name: "灼熱の徘徊者", level: 7, hp: 320, atk: 26, def: 13, exp: 3500, spriteType: "dragon", spell: "MADALTO", spellChance: 0.15, physResist: 0.2, isRare: true, dangerRare: true, tags: ["dragon"], color: "#ff3b30" },
-  { name: "深淵の徘徊者", level: 8, hp: 380, atk: 28, def: 15, exp: 4000, spriteType: "flack", spell: "MADALTO", spellChance: 0.20, physResist: 0.25, magicResist: 0.25, isRare: true, dangerRare: true, tags: ["demon"], color: "#ff3b30" },
+  { name: "墓守の巨躯", level: 5, hp: 95, atk: 13, def: 18, exp: 3000, spriteType: "zombie", physResist: 0.3, magicResist: 0.1, isRare: true, dangerRare: true, tags: ["undead"], color: "#ff3b30" },
+  { name: "這い寄る影", level: 5, hp: 90, atk: 14, def: 8, exp: 3000, spriteType: "spirit", physResist: 0.1, magicResist: 0.5, isRare: true, dangerRare: true, tags: ["spirit"], color: "#ff3b30" },
+  { name: "禁書の番人", level: 6, hp: 90, atk: 13, def: 12, exp: 3200, spriteType: "mage", spell: "LAHALITO", spellChance: 0.35, magicResist: 0.3, isRare: true, dangerRare: true, tags: ["spirit"], color: "#ff3b30" },
+  { name: "灼熱の徘徊者", level: 7, hp: 90, atk: 14, def: 13, exp: 3500, spriteType: "dragon", spell: "MADALTO", spellChance: 0.15, physResist: 0.2, isRare: true, dangerRare: true, tags: ["dragon"], color: "#ff3b30" },
+  { name: "深淵の徘徊者", level: 8, hp: 90, atk: 14, def: 15, exp: 4000, spriteType: "flack", spell: "MADALTO", spellChance: 0.20, physResist: 0.25, magicResist: 0.25, isRare: true, dangerRare: true, tags: ["demon"], color: "#ff3b30" },
   { name: "ドラゴンパピー", level: 4, hp: 90, atk: 12, def: 5, exp: 600, spriteType: "dragon", spell: "HALITO", tags: ["dragon"], color: "#ffc0cb" },
   { name: "ワイバーン", level: 5, hp: 130, atk: 17, def: 7, exp: 1200, spriteType: "dragon", spell: "LAHALITO", spellChance: 0.10, tags: ["dragon"], color: "#ffa500" },
   { name: "レッドドラゴン", level: 7, hp: 200, atk: 22, def: 10, exp: 3500, spriteType: "dragon", spell: "MADALTO", spellChance: 0.12, tags: ["dragon"], color: "#ff3b30" },

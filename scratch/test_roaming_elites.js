@@ -6,6 +6,7 @@ import { MONSTERS } from "../src/data/monsters.js";
 import { ensureRunFloor, resetRunFloors } from "../src/state/run_floor_state.js";
 import { getCampRestStatus, restAtCamp } from "../src/systems/camp_rest.js";
 import { generateRunFloor } from "../src/run_map_generator.js";
+import { scaleEnemyForDepth } from "../src/rules/depth_scaling.js";
 
 const FAST = process.env.FAST === "1";
 const SEED_COUNT = Number(process.env.ELITE_SEEDS) || (FAST ? 20 : 60);
@@ -145,6 +146,26 @@ check("the elite matches the biome roster and exists in the monster table", () =
   }
 });
 
+check("roaming elite effective HP and ATK rise without biome-boundary spikes", () => {
+  let previous = null;
+  for (let floor = ELITE_MIN_FLOOR; floor <= 30; floor++) {
+    const eliteName = getBiomeForFloor(floor).eliteName;
+    const template = MONSTERS.find(monster => monster.name === eliteName);
+    const scaled = scaleEnemyForDepth(template, floor);
+    if (previous) {
+      assert.ok(scaled.hp >= previous.hp,
+        `B${floor}F ${eliteName} HP ${scaled.hp} must not fall below ${previous.hp}`);
+      assert.ok(scaled.atk >= previous.atk,
+        `B${floor}F ${eliteName} ATK ${scaled.atk} must not fall below ${previous.atk}`);
+      assert.ok(scaled.hp / previous.hp <= 1.16,
+        `B${floor}F ${eliteName} HP jumped from ${previous.hp} to ${scaled.hp}`);
+      assert.ok(scaled.atk / previous.atk <= 1.16,
+        `B${floor}F ${eliteName} ATK jumped from ${previous.atk} to ${scaled.atk}`);
+    }
+    previous = scaled;
+  }
+});
+
 check("perception is drawn from the shared pool and varies across runs", () => {
   const drawn = new Set();
   for (let seed = 0; seed < SEED_COUNT; seed++) {
@@ -171,4 +192,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`[PASS] roaming elites: spawn depth, reachability (${SEED_COUNT} seeds), determinism, biome roster, perception pool, camp rest.`);
+console.log(`[PASS] roaming elites: spawn depth, reachability (${SEED_COUNT} seeds), determinism, biome roster, stat curve, perception pool, camp rest.`);
