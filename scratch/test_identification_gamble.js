@@ -90,6 +90,22 @@ function character(equipment = {}) {
   };
 }
 
+function characterWithIdentifyDiscount({ className = "Fighter", affixValue = 0, inscriptionValue = 0 } = {}) {
+  const char = character();
+  char.class = className;
+  char.equipment.accessory = {
+    ...unknownItem(),
+    identified: true,
+    affixes: affixValue > 0
+      ? [{ id: "identifyDiscount", type: "identifyDiscount", kind: "support", value: affixValue }]
+      : [],
+    inscription: inscriptionValue > 0
+      ? { type: "identifyDiscount", value: inscriptionValue }
+      : null
+  };
+  return char;
+}
+
 test("生成時に中身を確定し、ベース名だけ表示する", () => {
   const item = generateRandomEquipment(5, { forceRarity: "rare", rng: lcg(150) });
   assert.equal(item.identified, false);
@@ -112,6 +128,43 @@ test("鑑定粉あり/なしで消費と開示を分岐する", () => {
   assert.equal(holder.identifyTickets, 1);
   assert.equal(item.identified, true);
   assert.equal(isCurseLocked(item), true);
+});
+
+test("鑑定割引は0%/100%と中間値のrngで粉消費を分岐する", () => {
+  const noDiscountHolder = { identifyTickets: 1 };
+  identifyEquipment(
+    noDiscountHolder,
+    unknownItem(),
+    characterWithIdentifyDiscount(),
+    () => 0
+  );
+  assert.equal(noDiscountHolder.identifyTickets, 0);
+
+  const fullDiscountCharacter = characterWithIdentifyDiscount({ affixValue: 100 });
+  assert.equal(getCharAffixSum(fullDiscountCharacter, "identifyDiscount"), 100);
+  const fullDiscountHolder = { identifyTickets: 1 };
+  identifyEquipment(
+    fullDiscountHolder,
+    unknownItem(),
+    fullDiscountCharacter,
+    () => 0.999
+  );
+  assert.equal(fullDiscountHolder.identifyTickets, 1);
+
+  const combinedCharacter = characterWithIdentifyDiscount({
+    className: "Bishop",
+    affixValue: 15,
+    inscriptionValue: 5
+  });
+  assert.equal(getCharAffixSum(combinedCharacter, "identifyDiscount"), 40);
+
+  const savedAtThreshold = { identifyTickets: 1 };
+  identifyEquipment(savedAtThreshold, unknownItem(), combinedCharacter, () => 0.39);
+  assert.equal(savedAtThreshold.identifyTickets, 1);
+
+  const consumedAtThreshold = { identifyTickets: 1 };
+  identifyEquipment(consumedAtThreshold, unknownItem(), combinedCharacter, () => 0.4);
+  assert.equal(consumedAtThreshold.identifyTickets, 0);
 });
 
 test("未鑑定装備の賭けは装備時に開示し、呪いだけ固定する", () => {

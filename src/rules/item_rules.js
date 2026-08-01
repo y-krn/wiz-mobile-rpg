@@ -113,7 +113,8 @@ export function getCharAffixSum(char, affixType) {
     spellGuard: 50,
     arcane: 50,
     devotion: 50,
-    followUp: 50
+    followUp: 50,
+    identifyDiscount: 100
   };
   return caps[affixType] ? Math.min(caps[affixType], total) : total;
 }
