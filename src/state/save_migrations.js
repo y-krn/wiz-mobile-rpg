@@ -4,6 +4,8 @@ import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 import { getIdentificationGambleProfile } from "../rules/identification_rules.js";
 import { normalizeRecords } from "./records_state.js";
 import { findMapCellByType } from "./warden_gates.js";
+import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
+import { addMaterials } from "../rules/material_rules.js";
 
 export function migrateCharSpells(char) {
   if (!char.spells) char.spells = [];
@@ -162,6 +164,27 @@ function backfillMapSealedGates(data) {
   return data;
 }
 
+// 出発準備（反復購入）へ統合して撤去した買い切りノードの後始末。ランクを消し、
+// 支払い済みの素材を銀行へ返す。ノード定義が消えても払った分は失わせない（#234）。
+function refundRetiredWorkshopNodes(normalized) {
+  const ranks = normalized.workshop?.ranks;
+  if (!ranks) return;
+  let refund = null;
+  RETIRED_WORKSHOP_NODES.forEach(node => {
+    const rank = Math.max(0, Math.floor(Number(ranks[node.id]) || 0));
+    if (rank <= 0) {
+      delete ranks[node.id];
+      return;
+    }
+    for (let step = 0; step < rank; step++) {
+      const cost = node.costs[Math.min(step, node.costs.length - 1)];
+      refund = addMaterials(refund || normalized.metaMaterials, cost);
+    }
+    delete ranks[node.id];
+  });
+  if (refund) normalized.metaMaterials = refund;
+}
+
 export function migrateSavePayload(data) {
   const from = typeof data.version === "number" ? data.version : 0;
   if (from !== SAVE_VERSION) {
@@ -237,6 +260,7 @@ export function normalizeSavePayload(data) {
   normalized.cleared = data.cleared ?? false;
   normalized.metaMaterials = data.metaMaterials ?? {};
   normalized.workshop = data.workshop ?? { ranks: {} };
+  refundRetiredWorkshopNodes(normalized);
   normalized.dungeonMemory = {
     mapFragments: data.dungeonMemory?.mapFragments || {},
     visitedFloors: data.dungeonMemory?.visitedFloors || Array.from(

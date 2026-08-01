@@ -13,7 +13,7 @@ import { detectAdjacentTraps, startTrapEncounter, triggerTrap, triggerPitfall } 
 import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/warden_perception.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
-import { getWorkshopGrants } from "./systems/workshop.js";
+import { getDepartureKitGrants, getWorkshopGrants } from "./systems/workshop.js";
 import { assignRunQuests, updateRunQuests } from "./systems/run_quests.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
@@ -636,7 +636,7 @@ export function enterDungeon() {
   openSubmenu("solo_start", "クラスを選択：毎ラン Lv1 から開始");
 }
 
-export function executeEnterDungeon(floor) {
+export function executeEnterDungeon(floor, { departureKit = false } = {}) {
   state.party = state.party.slice(0, 1);
   state.gameState = "explore";
   menuContext.prevGameState = null;
@@ -665,8 +665,17 @@ export function executeEnterDungeon(floor) {
     if (removedBoss) markMapChanged();
   }
   const workshopGrants = getWorkshopGrants(state.workshop);
-  state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder + workshopGrants.identifyPowder;
-  state.inventory = ["HEAL_POTION", "HEAL_POTION", "ANTIDOTE", ...workshopGrants.returnItems];
+  const kitGrants = getDepartureKitGrants(departureKit);
+  state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder
+    + workshopGrants.identifyPowder
+    + kitGrants.identifyPowder;
+  state.inventory = [
+    "HEAL_POTION",
+    "HEAL_POTION",
+    "ANTIDOTE",
+    ...workshopGrants.returnItems,
+    ...kitGrants.returnItems
+  ];
   state.party.forEach(char => {
     char.runTrapAttackBonus = 0;
   });

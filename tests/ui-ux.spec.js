@@ -1492,7 +1492,7 @@ for (const vp of VIEWPORTS) {
       openSubmenu('workshop_main', '工房 - 恒久アンロック');
     });
 
-    await expect(page.locator('.workshop-node')).toHaveCount(12);
+    await expect(page.locator('.workshop-node')).toHaveCount(10);
 
     const layout = await page.locator('.workshop-node').evaluateAll((buttons) => ({
       buttons: buttons.map((button) => button.getBoundingClientRect().toJSON()),
@@ -2398,3 +2398,67 @@ for (const vp of VIEWPORTS) {
     expect(result).toEqual({ gameState: 'result', reason: 'milestone_portal' });
   });
 }
+
+for (const vp of VIEWPORTS) {
+  test(`Departure kit toggle is thumb-safe on ${vp.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { openSubmenu } = await import('/src/navigation.js');
+
+      state.gameState = 'town';
+      state.metaMaterials = { '獣の牙': 40, '鉄片': 40 };
+      state.workshop = { ranks: {} };
+      state.unlockedMilestones = [];
+      openSubmenu('solo_start', '単独潜行');
+    });
+
+    await page.locator('.solo-class-option').first().click();
+    const kit = page.locator('.solo-start-kit');
+    await expect(kit).toHaveCount(1);
+    await expect(kit).toContainText('出発準備');
+    await expect(kit).toHaveAttribute('aria-pressed', 'false');
+
+    const layout = await page.evaluate(() => {
+      const button = document.querySelector('.solo-start-kit');
+      const floors = [...document.querySelectorAll('.solo-start-floor-option')];
+      return {
+        kit: button.getBoundingClientRect().toJSON(),
+        lowestFloorTop: Math.min(...floors.map((floor) => floor.getBoundingClientRect().top)),
+        hasHorizontalOverflow:
+          document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    expect(layout.hasHorizontalOverflow).toBe(false);
+    expect(layout.kit.height, 'Departure kit toggle stays tappable').toBeGreaterThanOrEqual(44);
+    expect(layout.kit.left).toBeGreaterThanOrEqual(0);
+    expect(layout.kit.right).toBeLessThanOrEqual(vp.width);
+    // 実行操作（階選択）は親指帯に残す。トグルはその上。
+    expect(layout.kit.top).toBeLessThan(layout.lowestFloorTop);
+
+    await kit.click();
+    await expect(page.locator('.solo-start-kit')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.solo-start-kit')).toContainText('持って行く');
+  });
+}
+
+test('Departure kit toggle is disabled without enough materials', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openSubmenu } = await import('/src/navigation.js');
+
+    state.gameState = 'town';
+    state.metaMaterials = { '獣の牙': 1 };
+    state.workshop = { ranks: {} };
+    state.unlockedMilestones = [];
+    openSubmenu('solo_start', '単独潜行');
+  });
+
+  await page.locator('.solo-class-option').first().click();
+  const kit = page.locator('.solo-start-kit');
+  await expect(kit).toBeDisabled();
+  await expect(kit).toContainText('素材不足');
+});

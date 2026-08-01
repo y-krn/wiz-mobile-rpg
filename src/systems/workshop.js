@@ -1,5 +1,5 @@
-import { WORKSHOP_NODE_BY_ID, WORKSHOP_NODES } from "../data/workshop.js";
-import { spendMaterials } from "../rules/material_rules.js";
+import { DEPARTURE_KIT, WORKSHOP_NODE_BY_ID, WORKSHOP_NODES } from "../data/workshop.js";
+import { getTotalMaterialCount, spendAnyMaterials, spendMaterials } from "../rules/material_rules.js";
 
 export function createDefaultWorkshopState() {
   return { ranks: {} };
@@ -26,6 +26,26 @@ export function purchaseWorkshopNode(metaMaterials, workshop, nodeId) {
     ok: true,
     metaMaterials: balance,
     workshop: { ...workshop, ranks: { ...(workshop?.ranks || {}), [nodeId]: rank + 1 } }
+  };
+}
+
+export function canAffordDepartureKit(metaMaterials) {
+  return getTotalMaterialCount(metaMaterials) >= DEPARTURE_KIT.materialCost;
+}
+
+// 出発準備を1回分購入する。支払えた場合のみ残高と内訳を返す。
+export function purchaseDepartureKit(metaMaterials) {
+  const paid = spendAnyMaterials(metaMaterials, DEPARTURE_KIT.materialCost);
+  if (!paid) return { ok: false, reason: "insufficient_materials" };
+  return { ok: true, metaMaterials: paid.balance, spent: paid.spent };
+}
+
+// 支払い済みの出発準備が与える支給品。潜行開始時にのみ適用する。
+export function getDepartureKitGrants(purchased) {
+  if (!purchased) return { identifyPowder: 0, returnItems: [] };
+  return {
+    identifyPowder: DEPARTURE_KIT.grants.identifyPowder,
+    returnItems: [DEPARTURE_KIT.grants.returnItem]
   };
 }
 

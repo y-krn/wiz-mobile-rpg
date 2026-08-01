@@ -57,23 +57,26 @@ const WORKSHOP_BASE_NODES = [
     costs: statCosts(material),
     grants: { stat, amount: 1 }
   })),
-  {
-    id: "kit_identify_powder",
-    category: "convenience",
-    name: "鑑定粉の小袋",
-    description: "潜行開始時の鑑定粉を1個増やす。",
-    costs: [{ "霊粉": 5, "呪布": 2 }],
-    grants: { identifyPowder: 1 }
-  },
-  {
-    id: "kit_return_wing",
-    category: "convenience",
-    name: "帰還の翼支給",
-    description: "潜行開始時に帰還の翼を1個持つ。任意のフロアから撤退できる。",
-    costs: [{ "黒角": 4, "竜鱗": 1 }],
-    grants: { returnItem: "TOWN_PORTAL" }
-  }
 ];
+
+// 出発準備。工房の恒久ノードと違い、潜行のたびに素材を支払う恒常シンク。
+// 買い切りにすると全ノード購入後に素材が無価値化し、撤退100%/死亡30%のステークが
+// 消える（#234）。種別固定のコストでは需要のない素材が余ったままになるため、
+// 種別を問わない合計個数で受け取る。
+export const DEPARTURE_KIT = Object.freeze({
+  id: "departure_kit",
+  name: "出発準備",
+  description: "潜行のたびに素材を支払い、帰還の翼1個と鑑定粉1個を持って出発する。",
+  materialCost: 60,
+  grants: Object.freeze({ identifyPowder: 1, returnItem: "TOWN_PORTAL" })
+});
+
+// 出発準備へ統合して撤去した買い切りノード。既存セーブのランクを消して素材を
+// 返還するためだけに残す（`src/state/save_migrations.js`）。
+export const RETIRED_WORKSHOP_NODES = Object.freeze([
+  { id: "kit_identify_powder", costs: [{ "霊粉": 5, "呪布": 2 }] },
+  { id: "kit_return_wing", costs: [{ "黒角": 4, "竜鱗": 1 }] }
+]);
 
 // 全クラス開放済み。将来は同じshapeのnode追加だけで拡張できる。
 export const WORKSHOP_CLASS_NODES = Object.freeze([]);

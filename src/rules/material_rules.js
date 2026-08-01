@@ -61,6 +61,31 @@ export function canAffordMaterials(balance, cost) {
   return Object.entries(cost || {}).every(([name, quantity]) => (balance?.[name] || 0) >= quantity);
 }
 
+export function getTotalMaterialCount(balance) {
+  const normalized = normalizeMaterialBalance(balance);
+  return MATERIAL_TYPES.reduce((sum, name) => sum + normalized[name], 0);
+}
+
+// 種別を問わず合計 total 個を支払う。在庫の多い素材から削るので、偏った余剰から
+// 先に減る。種別固定のコストでは需要のない素材が無価値のまま残るため、恒常シンクは
+// この形で受け取る（#234）。
+export function spendAnyMaterials(balance, total) {
+  const required = Math.max(0, Math.floor(Number(total) || 0));
+  const next = normalizeMaterialBalance(balance);
+  if (getTotalMaterialCount(next) < required) return null;
+  const spent = createEmptyMaterialBalance();
+  let remaining = required;
+  const byStock = [...MATERIAL_TYPES].sort((left, right) => next[right] - next[left]);
+  for (const name of byStock) {
+    if (remaining <= 0) break;
+    const paid = Math.min(next[name], remaining);
+    next[name] -= paid;
+    spent[name] += paid;
+    remaining -= paid;
+  }
+  return { balance: next, spent };
+}
+
 export function spendMaterials(balance, cost) {
   if (!canAffordMaterials(balance, cost)) return null;
   const next = normalizeMaterialBalance(balance);
