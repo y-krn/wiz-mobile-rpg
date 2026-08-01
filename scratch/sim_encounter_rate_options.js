@@ -1,6 +1,6 @@
-// sim-scope: map — 未移行の負債。遭遇率ポリシー比較をレガシー生成器の上で歩いており、run 経路への移行が必要
-import { EVENT_TYPES, START_X, START_Y } from "../src/data.js";
-import { generateRandomMap } from "../src/map_generator.js";
+// sim-scope: run — generateRunFloor 実生成フロア上で遭遇率ポリシーを比較
+import { EVENT_TYPES } from "../src/data.js";
+import { generateRunFloor } from "../src/run_map_generator.js";
 
 const SEED_COUNT = 100;
 const FLOORS = [1, 2, 3, 4, 5];
@@ -167,7 +167,7 @@ function expectedCombats(route, policyName, initiallyVisited = new Set(), light 
 
 function measureFloor(seed, floor, generated) {
   const { grid, stairsDownCoord, bossCoord } = generated;
-  const start = floor === 1 ? { x: START_X, y: START_Y } : findCell(grid, cell => cell.type === "stairs-up");
+  const start = findCell(grid, cell => cell.type === "stairs-up");
   const down = stairsDownCoord || findCell(grid, cell => cell.type === "stairs-down");
   const midboss = findCell(grid, cell => cell.event === EVENT_TYPES.MIDBOSS || cell.event === "midboss");
   const boss = bossCoord || findCell(grid, cell => cell.event === EVENT_TYPES.BOSS || cell.event === "boss");
@@ -217,7 +217,7 @@ for (let i = 0; i < SEED_COUNT; i++) {
   let parentStairsCoord = null;
   for (const floor of FLOORS) {
     try {
-      const generated = generateRandomMap(floor, parentStairsCoord, seed);
+      const generated = generateRunFloor({ runSeed: seed, floor, parentStairsCoord });
       rows.push(measureFloor(seed, floor, generated));
       parentStairsCoord = generated.stairsDownCoord;
     } catch (error) {
