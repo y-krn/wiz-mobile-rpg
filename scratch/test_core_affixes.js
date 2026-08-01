@@ -10,8 +10,8 @@ import {
   getTrapEaterBonusAfterDisarm,
   getFollowUpChance,
   getStatusEffectChance,
-  canEquipCoreAffix,
   partyHasCoreAffix,
+  getEquippedCoreAffixes,
   canEquipUnidentifiedItem,
   getItemData,
   getPartyMaxAffix,
@@ -462,11 +462,15 @@ test("迷宮アクセサリ: コア生成とcoreCurseChance経路", () => {
   assert.ok(cursedCoreAccessory.tags.includes("curse"));
 });
 
-test("装備制約: 2個目のコアを拒否、同スロット交換は許可", () => {
+// #311: コア1個制限を撤廃。スロットが許す限り複数のコアが同時に効く。
+test("装備制約: 複数スロットのコアが同時に有効", () => {
   const char = makeChar("CORE_LAST_STAND");
-  const accessoryCore = coreItem("CORE_OPENER", "AMULET_HP");
-  assert.equal(canEquipCoreAffix(char, accessoryCore, "accessory"), false);
-  assert.equal(canEquipCoreAffix(char, coreItem("CORE_GIANT_SLAYER"), "weapon"), true);
+  char.equipment.accessory = coreItem("CORE_OPENER", "AMULET_HP");
+  const equipped = getEquippedCoreAffixes(char).map(affix => affix.id || affix.type);
+  assert.ok(equipped.includes("CORE_LAST_STAND"), "weapon core stays active");
+  assert.ok(equipped.includes("CORE_OPENER"), "accessory core is active at the same time");
+  assert.ok(getCharCoreParams(char, "CORE_LAST_STAND"));
+  assert.ok(getCharCoreParams(char, "CORE_OPENER"));
 });
 
 if (failures > 0) {

@@ -15,7 +15,6 @@ import {
   formatAffixText,
   canUseMageSpells,
   canUsePriestSpells,
-  canEquipCoreAffix,
   isCurseLocked
 } from "./data.js";
 import { CURSE_EFFECTS } from "./data/items.js";
@@ -277,9 +276,6 @@ function canEquip(char, itemKey) {
   }
   if (isCurseLocked(char.equipment?.[item.type])) {
     return { ok: false, reason: "現在の呪い装備を外せません" };
-  }
-  if (!canEquipCoreAffix(char, itemKey, item.type)) {
-    return { ok: false, reason: "コアは1人につき1個までです" };
   }
   return { ok: true, reason: "" };
 }

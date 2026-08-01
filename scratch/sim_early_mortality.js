@@ -26,7 +26,6 @@ const { getFloorTemplate } = await import("../src/data/floor_templates.js");
 const { EVENT_TYPES } = await import("../src/constants/events.js");
 const { generateChestMaterials } = await import("../src/chest.js");
 const {
-  canEquipCoreAffix,
   getCharAffixSum,
   getCharAgi,
   getCharDef,
@@ -480,7 +479,7 @@ function canEquipForSimulation(character, item) {
   const itemData = getItemData(item);
   if (!isEquipment(itemData)) return false;
   if (itemData.classes && !itemData.classes.includes(character.class)) return false;
-  return canEquipCoreAffix(character, item, itemData.type);
+  return true;
 }
 
 function getEquipmentScore(character) {

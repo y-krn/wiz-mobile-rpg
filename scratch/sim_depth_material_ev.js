@@ -44,7 +44,6 @@ const { ITEMS } = await import("../src/data/items.js");
 const { MATERIAL_DROP_BALANCE } = await import("../src/data/materials.js");
 const { IDENTIFICATION_BALANCE } = await import("../src/rules/identification_rules.js");
 const {
-  canEquipCoreAffix,
   getEquippedCurseCount,
   getEquippedCoreAffixes,
   getCharCoreParams,
@@ -237,7 +236,7 @@ function addCoreObservations(target, additions) {
   });
 }
 // #231では素材EV比較に集中するため、ドロップ装備は鑑定済み・呪いなしとして評価する。
-// 未鑑定・呪いリスクは#236の対象。コア1個制限は実canEquipCoreAffixで維持する。
+// 未鑑定・呪いリスクは#236の対象。コアの装備個数制限は撤廃済み（#311）。
 
 const HOLY_TAGS = new Set(["undead", "spirit", "demon"]);
 const STATUS_CURE_ITEMS = Object.freeze({
@@ -1361,10 +1360,6 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       recordCoreItemEncounter(metrics, candidate, state.floor);
       if (itemData.classes && !itemData.classes.includes(character.class)) {
         recordCoreDecision(metrics, candidate, "class-incompatible");
-        return;
-      }
-      if (!canEquipCoreAffix(character, candidate, itemData.type)) {
-        recordCoreDecision(metrics, candidate, "core-slot-conflict");
         return;
       }
 
@@ -2704,7 +2699,6 @@ function getUnequippedCoreReason(result, coreId) {
   if (result.coreEverEquippedIds.includes(coreId)) return "後続装備に置換";
   const reasons = result.coreDecisionReasons[coreId] || [];
   if (reasons.includes("class-incompatible")) return "職業制限";
-  if (reasons.includes("core-slot-conflict")) return "既存coreと競合";
   if (reasons.includes("economy-below-95pct")) return "戦闘スコア95%未満";
   if (reasons.includes("economy-ev-not-higher")) return "探索EV込みスコア不足";
   if (reasons.includes("combat-score-not-higher")) return "期待戦闘スコア不足";

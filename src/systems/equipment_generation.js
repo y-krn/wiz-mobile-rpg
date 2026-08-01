@@ -194,8 +194,8 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     }
   }
   
-  const baseId = baseCandidates[Math.floor(rng() * baseCandidates.length)];
-  const baseItem = ITEMS[baseId];
+  let baseId = baseCandidates[Math.floor(rng() * baseCandidates.length)];
+  let baseItem = ITEMS[baseId];
   if (!baseItem) return null;
   
   let rarity = "magic";
@@ -356,6 +356,24 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds || [];
   const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds);
+
+  // #311: コアは誰も装備できないベースに乗ると丸ごと死ぬ。職業ごとの装備制限そのものは
+  // 個性として残し、コアが付いたときだけベースを同スロットの装備可能候補へ寄せる。
+  if (party?.length > 0 && affixes.some(affix => affix.kind === "core")) {
+    const livingParty = party.filter(char => char.status !== "dead");
+    const usableByParty = item =>
+      !item.classes || livingParty.some(char => item.classes.includes(char.class));
+    if (livingParty.length > 0 && !usableByParty(baseItem)) {
+      const sameSlotUsable = baseCandidates.filter(candidateId => {
+        const candidate = ITEMS[candidateId];
+        return candidate && candidate.type === baseItem.type && usableByParty(candidate);
+      });
+      if (sameSlotUsable.length > 0) {
+        baseId = sameSlotUsable[Math.floor(rng() * sameSlotUsable.length)];
+        baseItem = ITEMS[baseId];
+      }
+    }
+  }
   
   const instanceId = `eq_${rng().toString(36).substr(2, 9)}`;
 
