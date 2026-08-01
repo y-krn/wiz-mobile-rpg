@@ -28,8 +28,8 @@ and `.agents/game-design.md`; resolve conflicts toward those documents.
   （`src/systems/equipment_generation.js`）。職業ごとの装備制限そのものは個性として
   維持し、コアだけが無駄にならないようにする。盾を装備できない職に盾コアが出た場合は
   差し替え候補がないため、その分は死に札のまま残る。
-- **サポート44種**: 数値・小効果。刻印・研磨・封印の実装では付与・上書き可能。
-  内訳: basic 25 / conditional 11 / trigger 5 / economy 3。
+- **サポート45種**: 数値・小効果。刻印・研磨・封印の実装では付与・上書き可能。
+  内訳: basic 25 / conditional 11 / trigger 6 / economy 3。
 - 純粋な数値上位のコアは作らない。全コアはサイドグレード。
 - レジストリ: `src/data/affixes.js`（データのみ）。判定・効果ヘルパー:
   `src/rules/affix_rules.js`。
@@ -42,10 +42,10 @@ and `.agents/game-design.md`; resolve conflicts toward those documents.
 
 | 名称 | id | 効果 | 部位 |
 |------|----|------|------|
-| 背水 | CORE_LAST_STAND | HP25%以下で与ダメ+40% | 武器 |
+| 背水 | CORE_LAST_STAND | HP40%以下で与ダメ+40% | 武器 |
 | 先手必勝 | CORE_OPENER | 先制成功時、初撃に追撃確定 | 装飾 |
 | 血杖 | CORE_BLOOD_WAND | MP不足時、呪文をHP(コスト×2)で発動可(HP下限1) | 武器 |
-| 浄化の環 | CORE_PURIFY_RING | undead・demonキル毎にMP1回復 | 装飾 |
+| 浄化の環 | CORE_PURIFY_RING | undead・spirit・demonキル毎にMP1回復 | 装飾 |
 | 罠喰い | CORE_TRAP_EATER | 罠解除毎に遠征中攻+2累積(上限+20、帰還でリセット) | 装飾 |
 | 呪飼いの鎖 | CORE_CURSE_KEEPER | 装備中の呪い1個毎に全ステ+3 | 装飾 |
 | 巨人殺し | CORE_GIANT_SLAYER | 自分よりmaxHPの高い敵へ与ダメ+30% | 武器 |
@@ -76,7 +76,7 @@ and `.agents/game-design.md`; resolve conflicts toward those documents.
 慧眼コア自体は鑑定済み装備でのみ有効（循環なし）。呪い付き未鑑定を装備した
 場合に呪いが発動するのは仕様（このコアのリスク）。
 
-# サポート44種
+# サポート45種
 
 - basic 25（Phase 1 で既存移行）: str/int/pie/vit/agi/luk, hp/mp, atk/def,
   antiUndead/antiDragon/antiDemon, poisonWard, spellGuard, trapBonus,
@@ -85,7 +85,7 @@ and `.agents/game-design.md`; resolve conflicts toward those documents.
 - conditional 11（Phase 2）: deepAssault(B3F以深攻+) / frontGuard /
   rearEvasion / fullHpDamage / firstTurnAttack / antiBeast / antiSpirit /
   firstStrikeDefense / lastSurvivorStats / statusResistance / spellAccuracy
-- trigger 5（Phase 2/3）: killHeal / followUpMp / hitFlinch /
+- trigger 6（Phase 2/3）: killHeal / followUpMp / hitFlinch / poisonAtk /
   victoryMaterial / stairsHeal
 - economy 3（Phase 3）: identifyDiscount / materialFind / contractReward
 

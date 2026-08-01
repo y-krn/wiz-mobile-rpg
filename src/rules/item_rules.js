@@ -286,6 +286,7 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "antiDragon") prefix = "竜殺しの";
       else if (primaryAff.type === "spellGuard") prefix = "魔除けの";
       else if (primaryAff.type === "poisonWard") prefix = "毒避けの";
+      else if (primaryAff.type === "poisonAtk") prefix = "毒刃の";
       else if (primaryAff.type === "firstStrike") prefix = "先制の";
     }
     

@@ -73,7 +73,8 @@ const STAT_ROWS = [
   { key: "antiDragon", label: "竜特効" },
   { key: "antiUndead", label: "不死特効" },
   { key: "firstStrike", label: "先制" },
-  { key: "poisonWard", label: "毒耐性" }
+  { key: "poisonWard", label: "毒耐性" },
+  { key: "poisonAtk", label: "毒付与" }
 ];
 
 export function openEquipOverlay(actorIdx = 0) {
@@ -141,7 +142,8 @@ function getDisplayStats(char) {
     antiDragon: getCharAffixSum(char, "antiDragon"),
     antiUndead: getCharAffixSum(char, "antiUndead"),
     firstStrike: getCharAffixSum(char, "firstStrike"),
-    poisonWard: getCharAffixSum(char, "poisonWard")
+    poisonWard: getCharAffixSum(char, "poisonWard"),
+    poisonAtk: getCharAffixSum(char, "poisonAtk")
   };
 }
 

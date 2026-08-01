@@ -345,6 +345,8 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     addAffix(3, "killHeal", () => 2, 1);
     addAffix(3, "followUpMp", () => 1, 1);
     addAffix(3, "hitFlinch", () => floor >= 5 ? 15 : 10, 1);
+    // #313: 前衛が自力で状態異常を撒ける唯一の手段。執行人の前提でもある。
+    addAffix(3, "poisonAtk", () => floor >= 4 ? 12 : 8, 1);
   }
   addAffix(3, "lastSurvivorStats", () => floor >= 5 ? 3 : 2, 1);
   addAffix(2, "statusResistance", () => floor >= 5 ? 20 : 12, 2);

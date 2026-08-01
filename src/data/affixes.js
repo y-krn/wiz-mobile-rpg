@@ -42,6 +42,7 @@ export const AFFIX_BALANCE = {
     killHeal: 2,
     followUpMp: 2,
     hitFlinch: 2,
+    poisonAtk: 2,
     victoryMaterial: 2,
     stairsHeal: 1,
     identifyDiscount: 1,
@@ -130,6 +131,9 @@ export const SUPPORT_AFFIXES = [
   support("killHeal", "吸命", "敵撃破時にHPを2回復する。", "trigger"),
   support("followUpMp", "連環", "追撃時にMPを1回復する。", "trigger"),
   support("hitFlinch", "威圧", "被弾時に低確率で敵を怯ませる。", "trigger"),
+  // 消費側は round.js の攻撃命中処理に実装済みだったが、供給が「毒脈の呪い」しか
+  // なく、プレイヤー側の状態異常付与手段が実質 KATINO だけになっていた（#313）。
+  support("poisonAtk", "毒刃", "攻撃命中時に低確率で敵を毒にする。", "trigger", { unit: "%" }),
   support("victoryMaterial", "拾得", "勝利時に低確率で素材を得る。", "trigger", { unit: "%" }),
   support("stairsHeal", "踏破の息吹", "階段発見時にHPを回復する。", "trigger"),
 
