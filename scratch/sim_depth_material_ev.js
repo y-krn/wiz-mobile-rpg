@@ -467,6 +467,26 @@ function selectCombatAction(state, metrics) {
     return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "GUARD_POTION" };
   }
 
+  // #304: 攻勢バフもボス/中ボス戦の開幕へ寄せる。1ラウンド1個で 守り → 剛力 → 疾風 の順。
+  // 使用ターンは攻撃を捨てるため代価がある。実測は B5撤退 生還 87.8%→86.2%、
+  // B20撤退 51.4%（+1.0pt）で、浅層では割に合わず深層では見合う。
+  // なお中ボス（デーモンガード）は isBoss も持つため、isBoss だけに絞っても挙動は同じ。
+  if (
+    state.combatState.roundNumber === 2 &&
+    monsters.some(monster => monster.isBoss || monster.isMidboss) &&
+    state.inventory.includes("STR_POTION")
+  ) {
+    return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "STR_POTION" };
+  }
+
+  if (
+    state.combatState.roundNumber === 3 &&
+    monsters.some(monster => monster.isBoss || monster.isMidboss) &&
+    state.inventory.includes("HASTE_POTION")
+  ) {
+    return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "HASTE_POTION" };
+  }
+
   if (
     character.hp <= getCharMaxHp(character) * HEAL_POTION_THRESHOLD &&
     state.inventory.includes("HEAL_POTION")
