@@ -21,14 +21,14 @@ function lcg(seed) {
   };
 }
 
-assert.strictEqual(SUPPORT_AFFIXES.length, 44, "support registry count");
-assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 44, "enabled support count");
+assert.strictEqual(SUPPORT_AFFIXES.length, 45, "support registry count");
+assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 45, "enabled support count");
 assert.deepStrictEqual(
   Object.fromEntries(["basic", "conditional", "trigger", "economy"].map(category => [
     category,
     SUPPORT_AFFIXES.filter(affix => affix.category === category).length
   ])),
-  { basic: 25, conditional: 11, trigger: 5, economy: 3 }
+  { basic: 25, conditional: 11, trigger: 6, economy: 3 }
 );
 SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.kind, "support");
@@ -113,6 +113,31 @@ assert.strictEqual(
   ITEMS[generatedAntiDemonEquipment.item.baseId].type,
   "weapon",
   "equipment antiDemon is limited to weapons"
+);
+
+// #313: 毒刃は前衛が自力で状態異常を撒ける唯一の供給経路。武器限定で生成される。
+const generatedPoisonAtk = findGeneratedAffix(generateRandomEquipment, 4, "poisonAtk");
+assert.ok(generatedPoisonAtk, "poisonAtk enters the equipment pool");
+assert.strictEqual(generatedPoisonAtk.affix.value, 12, "poisonAtk scales to 12% on B4");
+assert.strictEqual(
+  ITEMS[generatedPoisonAtk.item.baseId].type,
+  "weapon",
+  "poisonAtk is limited to weapons"
+);
+assert.strictEqual(
+  findGeneratedAffix(generateRandomEquipment, 2, "poisonAtk"),
+  null,
+  "poisonAtk is unavailable before B3, matching the other trigger supports"
+);
+assert.strictEqual(
+  findGeneratedAffix(generateRandomEquipment, 3, "poisonAtk")?.affix.value,
+  8,
+  "poisonAtk enters the B3 pool at 8%"
+);
+assert.strictEqual(
+  findGeneratedAffix(generateRandomAccessory, 4, "poisonAtk"),
+  null,
+  "poisonAtk does not enter the accessory pool"
 );
 
 console.log("[PASS] affix registry and budget generation");
