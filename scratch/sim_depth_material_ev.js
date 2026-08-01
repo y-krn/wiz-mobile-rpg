@@ -43,7 +43,14 @@ const {
 const { AFFIX_BALANCE, CORE_AFFIXES } = await import("../src/data/affixes.js");
 const { ITEMS } = await import("../src/data/items.js");
 const { MATERIAL_DROP_BALANCE } = await import("../src/data/materials.js");
-const { IDENTIFICATION_BALANCE } = await import("../src/rules/identification_rules.js");
+const {
+  IDENTIFICATION_BALANCE,
+  isCurseLocked
+} = await import("../src/rules/identification_rules.js");
+const {
+  identifyEquipment,
+  revealEquipmentOnEquip
+} = await import("../src/systems/identification.js");
 const {
   getEquippedCurseCount,
   getEquippedCoreAffixes,
@@ -78,6 +85,7 @@ const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
 const { getBuffTotal } = await import("../src/combat_logic/status_effects.js");
 const {
   applyWorkshopToCharacter,
+  getDepartureKitGrants,
   getWorkshopGrants
 } = await import("../src/systems/workshop.js");
 const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
@@ -86,6 +94,39 @@ const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 500));
 const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
 const TARGET_DEPTHS = [5, 10, 15, 20];
 const MAX_COMBAT_TURNS = 50;
+
+const IDENTIFICATION_POLICY_DEFINITIONS = Object.freeze({
+  legacy: Object.freeze({
+    id: "legacy",
+    label: "既定（鑑定済み・呪いなし）"
+  }),
+  powder: Object.freeze({
+    id: "powder",
+    label: "方針A（粉があれば鑑定、なければ保持）"
+  }),
+  gamble: Object.freeze({
+    id: "gamble",
+    label: "方針B（更新候補を即着用）"
+  })
+});
+
+function resolveIdentificationPolicies() {
+  const requested = String(process.env.IDENTIFICATION_POLICY || "legacy")
+    .trim()
+    .toLowerCase();
+  const policyIds = requested === "compare"
+    ? ["powder", "gamble"]
+    : requested.split(",").map(value => value.trim()).filter(Boolean);
+  const invalid = policyIds.filter(id => !IDENTIFICATION_POLICY_DEFINITIONS[id]);
+  if (invalid.length > 0 || policyIds.length === 0) {
+    throw new Error(
+      `IDENTIFICATION_POLICY must be legacy|powder|gamble|compare: ${requested}`
+    );
+  }
+  return [...new Set(policyIds)].map(id => IDENTIFICATION_POLICY_DEFINITIONS[id]);
+}
+
+const ACTIVE_IDENTIFICATION_POLICIES = resolveIdentificationPolicies();
 
 // 仮値・感度分析対象: critical pathに対する寄り道込み歩数を1.4倍と置く。
 const EXPLORATION_FACTOR = 1.4;
@@ -241,8 +282,8 @@ function addCoreObservations(target, additions) {
     }
   });
 }
-// #231では素材EV比較に集中するため、ドロップ装備は鑑定済み・呪いなしとして評価する。
-// 未鑑定・呪いリスクは#236の対象。コアの装備個数制限は撤廃済み（#311）。
+// 既定legacyは#231の既存比較を再現する。#236のpowder/gambleでは、
+// 実生成された未鑑定装備と呪いをそのまま評価する。コアの装備個数制限は撤廃済み（#311）。
 
 const HOLY_TAGS = new Set(["undead", "spirit", "demon"]);
 const STATUS_CURE_ITEMS = Object.freeze({
@@ -290,9 +331,36 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
 
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
   const workshopGrants = getWorkshopGrants(workshop);
+  const identificationPolicy = scenario.identificationPolicy || "legacy";
+  // legacyは既存の鑑定済み経路と乱数列を維持し、比較対象だけ実runの初期支給を使う。
+  const useRealIdentificationSupply = identificationPolicy !== "legacy";
+  const departureKitPurchased = Object.hasOwn(scenario, "departureKit")
+    ? scenario.departureKit
+    : useRealIdentificationSupply;
+  const departureKitGrants = getDepartureKitGrants(departureKitPurchased);
+  const startingPowder = useRealIdentificationSupply
+    ? IDENTIFICATION_BALANCE.startingPowder
+    : 0;
+  const departureKitPowder = useRealIdentificationSupply
+    ? departureKitGrants.identifyPowder
+    : 0;
+  const initialIdentificationPowder = {
+    starting: startingPowder,
+    workshop: workshopGrants.identifyPowder,
+    departureKit: departureKitPowder
+  };
+  // src/movement.js:669の式と同じ初期値（legacyのみ旧sim互換の工房粉だけ）。
+  const initialIdentifyTickets = useRealIdentificationSupply
+    ? IDENTIFICATION_BALANCE.startingPowder +
+      workshopGrants.identifyPowder +
+      departureKitGrants.identifyPowder
+    : workshopGrants.identifyPowder;
   const workshopReturnItems = scenario.ignoreWorkshopReturnItems
     ? []
     : workshopGrants.returnItems;
+  const departureKitReturnItems = departureKitPurchased
+    ? departureKitGrants.returnItems
+    : [];
   const scenarioReturnItems = [
     ...(scenario.workshopReturnItem ? [scenario.workshopReturnItem] : []),
     ...Array(Math.max(0, scenario.startingTownPortals || 0)).fill("TOWN_PORTAL")
@@ -307,10 +375,12 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       ...Array(INITIAL_ANTIDOTES).fill("ANTIDOTE"),
       ...Array(INITIAL_GUARD_POTIONS).fill("GUARD_POTION"),
       ...workshopReturnItems,
+      ...departureKitReturnItems,
       ...scenarioReturnItems
     ],
     simPortalSources: [
       ...workshopReturnItems.map(() => "workshop"),
+      ...departureKitReturnItems.map(() => "departure-kit"),
       ...scenarioReturnItems.map(() => scenario.startingPortalSource || "workshop-supply")
     ],
     firstKills: [],
@@ -320,10 +390,12 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     roamingMonsters: [],
     floorChestsTotal: [],
     metaMaterials: {},
-    identifyTickets: workshopGrants.identifyPowder,
+    identifyTickets: initialIdentifyTickets,
+    simIdentificationPowderAcquired: initialIdentificationPowder,
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
     simPolicy: {
+      identificationPolicy,
       fleeHpThreshold: Object.hasOwn(scenario, "fleeHpThreshold")
         ? scenario.fleeHpThreshold
         : DEFAULT_FLEE_HP_THRESHOLD,
@@ -862,6 +934,7 @@ function runEncounter(
     const selectedCureCountBefore = action.simStatusBefore
       ? state.inventory.filter(item => item === action.itemKey).length
       : 0;
+    const identifyTicketsBeforeRound = state.identifyTickets || 0;
     const itemsFoundBeforeRound = state.currentRun.itemsFound.length;
     const diagnosticCureCountsBefore = encounterDiagnostic
       ? countInventoryItems(state.inventory)
@@ -899,6 +972,11 @@ function runEncounter(
       firstStrikeSucceeded
     );
     state = roundResult.state;
+    recordIdentificationPowderAcquisition(
+      metrics,
+      Math.max(0, (state.identifyTickets || 0) - identifyTicketsBeforeRound),
+      "codex"
+    );
     const potionCountAfter = state.inventory.filter(item => item === "HEAL_POTION").length;
     healPotionsUsed += potionCountBefore - potionCountAfter;
     if (metrics && action.simStatusBefore) {
@@ -1086,6 +1164,51 @@ function identifyWithoutCurse(item) {
   };
 }
 
+function isUnidentifiedEquipment(item) {
+  return Boolean(
+    item &&
+    typeof item === "object" &&
+    item.identified === false &&
+    isEquipment(getItemData(item))
+  );
+}
+
+function recordIdentificationPowderAcquisition(metrics, amount, source) {
+  if (!metrics || amount <= 0) return;
+  metrics.identificationPowderAcquired += amount;
+  metrics.identificationPowderAcquiredBySource[source] =
+    (metrics.identificationPowderAcquiredBySource[source] || 0) + amount;
+}
+
+function maybeAcquireChestIdentificationPowder(state, metrics, rng = Math.random) {
+  if (state.simPolicy.identificationPolicy === "legacy") return;
+  // src/chest.jsのopenChestと同じ抽選位置。純粋な供給関数がないため、実定数を直接使う。
+  if (rng() >= IDENTIFICATION_BALANCE.chestPowderChance) return;
+  state.identifyTickets = (state.identifyTickets || 0) + 1;
+  recordIdentificationPowderAcquisition(metrics, 1, "chest");
+}
+
+function identifyAvailableEquipment(state, metrics) {
+  if (state.simPolicy.identificationPolicy !== "powder") return;
+  for (const item of state.inventory) {
+    if (!isUnidentifiedEquipment(item)) continue;
+    const result = identifyEquipment(state, item);
+    if (!result.ok) break;
+    metrics.identificationPowderUsed++;
+  }
+}
+
+function getUnidentifiedSelectionScore(item) {
+  const rarityScore = { magic: 1, rare: 2, epic: 3 }[item?.rarity] || 0;
+  return (item?.level || 0) * 10 + rarityScore;
+}
+
+function isPotentialUnidentifiedUpgrade(item, oldEquipment) {
+  if (isCurseLocked(oldEquipment)) return false;
+  if (!oldEquipment) return true;
+  return (item?.level || 0) >= (oldEquipment.level || 0);
+}
+
 function isEquipment(item) {
   return ["weapon", "shield", "armor", "accessory"].includes(item?.type);
 }
@@ -1256,7 +1379,7 @@ function getCombatCoreScore(character, scoringProfile, floor) {
     );
     return expectedAttack * EQUIPMENT_SCORE_WEIGHTS.weaponAtk;
   }
-  // #236分離で呪い除外中。実測装備呪い数が0なら価値も0。
+  // legacyでは実測装備呪い数が0、powder/gambleでは実生成呪いを反映。
   if (coreId === "CORE_CURSE_KEEPER") {
     return scoringProfile.averageEquippedCurseCount * params.statsPerCurse * statWeight;
   }
@@ -1392,6 +1515,7 @@ function recordCoreDecision(metrics, item, reason) {
 
 function equipGreedyUpgrades(state, metrics, scoringProfile) {
   const character = state.party[0];
+  identifyAvailableEquipment(state, metrics);
   let upgrades = 0;
   const maxIterations = state.inventory.length * 2 + Object.keys(character.equipment).length;
 
@@ -1403,43 +1527,66 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     let best = null;
 
     state.inventory.forEach((inventoryItem, index) => {
-      const candidate = identifyWithoutCurse(inventoryItem);
-      const itemData = getItemData(candidate);
+      const itemData = getItemData(inventoryItem);
       if (!isEquipment(itemData)) return;
-      recordCoreItemEncounter(metrics, candidate, state.floor);
+      recordCoreItemEncounter(metrics, inventoryItem, state.floor);
       if (itemData.classes && !itemData.classes.includes(character.class)) {
-        recordCoreDecision(metrics, candidate, "class-incompatible");
+        recordCoreDecision(metrics, inventoryItem, "class-incompatible");
         return;
       }
 
       const slot = itemData.type;
       const oldEquipment = character.equipment[slot];
-      character.equipment[slot] = candidate;
-      const candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
-      character.equipment[slot] = oldEquipment;
-
+      if (isCurseLocked(oldEquipment)) {
+        recordCoreDecision(metrics, inventoryItem, "current-curse-locked");
+        return;
+      }
+      const policy = state.simPolicy.identificationPolicy;
+      const candidateIsUnidentified = isUnidentifiedEquipment(inventoryItem);
+      const candidate = policy === "legacy"
+        ? identifyWithoutCurse(inventoryItem)
+        : inventoryItem;
       const candidateCoreId = getItemCoreId(candidate);
       const oldCoreId = getItemCoreId(oldEquipment);
       const candidateIsEconomyCore = ECONOMY_CORE_IDS.has(candidateCoreId);
       const candidateIsHoldOnlyCore = HOLD_ONLY_ECONOMY_CORE_IDS.has(candidateCoreId);
-      let selectionScore = candidateScore;
-      let qualifies = candidateScore > currentScore;
-      let rejectionReason = candidateCoreId && COMBAT_CORE_IDS.has(candidateCoreId)
-        ? "combat-score-not-higher"
-        : (candidateIsEconomyCore ? "economy-ev-not-higher" : "score-not-higher");
+      let selectionScore;
+      let candidateScore = null;
+      let qualifies;
+      let rejectionReason;
 
-      // EV算出不能な探索コアだけ、従来の95%保持規則を残す。
-      if (candidateIsEconomyCore && oldCoreId) {
+      if (policy === "gamble" && candidateIsUnidentified) {
+        // 未鑑定品は真値を見ず、同階層以上の装備なら「更新になりうる」として着用候補化。
+        qualifies = isPotentialUnidentifiedUpgrade(inventoryItem, oldEquipment);
+        selectionScore = getUnidentifiedSelectionScore(inventoryItem);
+        rejectionReason = "unidentified-not-potential-upgrade";
+      } else if (policy === "powder" && candidateIsUnidentified) {
+        qualifies = false;
+        selectionScore = -Infinity;
+        rejectionReason = "unidentified-held";
+      } else {
+        character.equipment[slot] = candidate;
+        candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
+        character.equipment[slot] = oldEquipment;
+        selectionScore = candidateScore;
         qualifies = candidateScore > currentScore;
-        rejectionReason = "economy-core-retained";
-      } else if (candidateIsHoldOnlyCore) {
-        qualifies = candidateScore >= currentScore * ECONOMY_CORE_KEEP_RATIO;
-        selectionScore = candidateScore / ECONOMY_CORE_KEEP_RATIO;
-        rejectionReason = "economy-below-95pct";
-      // 装備済みcoreは、非coreが保持幅を明確に超えた場合だけ外す。
-      } else if (oldCoreId && !candidateCoreId) {
-        qualifies = candidateScore > currentScore / ECONOMY_CORE_KEEP_RATIO;
-        rejectionReason = "equipped-core-retained";
+        rejectionReason = candidateCoreId && COMBAT_CORE_IDS.has(candidateCoreId)
+          ? "combat-score-not-higher"
+          : (candidateIsEconomyCore ? "economy-ev-not-higher" : "score-not-higher");
+
+        // EV算出不能な探索コアだけ、従来の95%保持規則を残す。
+        if (candidateIsEconomyCore && oldCoreId) {
+          qualifies = candidateScore > currentScore;
+          rejectionReason = "economy-core-retained";
+        } else if (candidateIsHoldOnlyCore) {
+          qualifies = candidateScore >= currentScore * ECONOMY_CORE_KEEP_RATIO;
+          selectionScore = candidateScore / ECONOMY_CORE_KEEP_RATIO;
+          rejectionReason = "economy-below-95pct";
+        // 装備済みcoreは、非coreが保持幅を明確に超えた場合だけ外す。
+        } else if (oldCoreId && !candidateCoreId) {
+          qualifies = candidateScore > currentScore / ECONOMY_CORE_KEEP_RATIO;
+          rejectionReason = "equipped-core-retained";
+        }
       }
 
       if (!qualifies) {
@@ -1450,6 +1597,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       best = {
         candidate,
         candidateCoreId,
+        candidateIsUnidentified,
         index,
         oldEquipment,
         oldCoreId,
@@ -1459,7 +1607,13 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     });
 
     if (!best) break;
+    const wasUnidentified = best.candidateIsUnidentified;
     character.equipment[best.slot] = best.candidate;
+    if (wasUnidentified && state.simPolicy.identificationPolicy === "gamble") {
+      revealEquipmentOnEquip(best.candidate);
+      metrics.unidentifiedWearCount++;
+    }
+    if (best.candidate.curseEffectId) metrics.curseHitCount++;
     if (best.candidateCoreId) {
       metrics.coreEverEquippedIds.add(best.candidateCoreId);
       const poolGroup = ENABLED_CORE_AFFIXES.find(
@@ -1870,7 +2024,15 @@ function generateExtraSupplyEquipment(state, floor, source, supplyOverride, rng)
 
 // 抽選そのものは src/rules/chest_rules.js（src/chest.js と同一の出所）を叩き、
 // sim 固有の what-if（core解禁階の前倒し、TOWN_PORTAL の除外）だけを引数で渡す。
-function rollChestItems(state, floor, rng, observations, scenario, supplyOverride = null) {
+function rollChestItems(
+  state,
+  floor,
+  rng,
+  observations,
+  scenario,
+  supplyOverride = null,
+  metrics = null
+) {
   const trap = rollChestTrap(floor, rng);
   if (trap !== "none") {
     const character = state.party[0];
@@ -1883,6 +2045,7 @@ function rollChestItems(state, floor, rng, observations, scenario, supplyOverrid
     observations.expectedTrapDisarms += expectedDisarm;
     observations.expectedTrapDisarmsByFloor[floor] += expectedDisarm;
   }
+  maybeAcquireChestIdentificationPowder(state, metrics, rng);
   if (floor === 1) {
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
   }
@@ -2186,6 +2349,12 @@ function finishRun(state, outcome, metrics) {
     equipmentFound: metrics.equipmentFound,
     earlyEquipmentFound: metrics.earlyEquipmentFound,
     deepEquipmentFound: metrics.deepEquipmentFound,
+    identificationPowderAcquired: metrics.identificationPowderAcquired,
+    identificationPowderAcquiredBySource: { ...metrics.identificationPowderAcquiredBySource },
+    identificationPowderUsed: metrics.identificationPowderUsed,
+    identificationCount: metrics.identificationPowderUsed,
+    unidentifiedWearCount: metrics.unidentifiedWearCount,
+    curseHitCount: metrics.curseHitCount,
     equipmentFoundBySource: metrics.equipmentFoundBySource,
     equipmentFoundByFloor: metrics.equipmentFoundByFloor,
     supportAffixFoundById: { ...metrics.supportAffixFoundById },
@@ -2302,6 +2471,19 @@ export function simulateRun({
     equipmentFound: 0,
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
+    identificationPowderAcquired: Object.values(
+      state.simIdentificationPowderAcquired || {}
+    ).reduce((sum, amount) => sum + amount, 0),
+    identificationPowderAcquiredBySource: {
+      starting: state.simIdentificationPowderAcquired?.starting || 0,
+      workshop: state.simIdentificationPowderAcquired?.workshop || 0,
+      departureKit: state.simIdentificationPowderAcquired?.departureKit || 0,
+      chest: 0,
+      codex: 0
+    },
+    identificationPowderUsed: 0,
+    unidentifiedWearCount: 0,
+    curseHitCount: 0,
     equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
     equipmentFoundByFloor: Array(21).fill(0),
     supportAffixFoundById: {},
@@ -2369,6 +2551,7 @@ export function simulateRun({
     portalAcquisitions: {
       workshop: state.simPortalSources.filter(source => source === "workshop").length,
       workshopSupply: state.simPortalSources.filter(source => source === "workshop-supply").length,
+      departureKit: state.simPortalSources.filter(source => source === "departure-kit").length,
       chest: 0,
       merchant: 0
     },
@@ -2517,7 +2700,8 @@ export function simulateRun({
           Math.random,
           metrics.coreObservations,
           scenario,
-          supplyOverride
+          supplyOverride,
+          metrics
         );
         const cureCountsBeforeChest = countInventoryItems(state.inventory);
         const acquiredEquipment = [];
@@ -2853,11 +3037,21 @@ function getUnequippedCoreReason(result, coreId) {
   if (reasons.includes("economy-below-95pct")) return "戦闘スコア95%未満";
   if (reasons.includes("economy-ev-not-higher")) return "探索EV込みスコア不足";
   if (reasons.includes("combat-score-not-higher")) return "期待戦闘スコア不足";
+  if (reasons.includes("unidentified-held")) return "粉不足で未鑑定保持";
+  if (reasons.includes("current-curse-locked")) return "呪い装備を交換不能";
   if (reasons.includes("economy-core-retained")) return "装備済みeconomy coreを保持";
   return "生スコア不足";
 }
 
-function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile, scenario }) {
+function simulateCase({
+  startFloor,
+  targetDepth,
+  label,
+  seriesId,
+  scoringProfile,
+  scenario,
+  identificationPolicy = "legacy"
+}) {
   const totals = {
     survived: 0,
     died: 0,
@@ -2873,6 +3067,17 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
     equipmentFound: 0,
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
+    identificationPowderAcquired: 0,
+    identificationPowderAcquiredBySource: {
+      starting: 0,
+      workshop: 0,
+      departureKit: 0,
+      chest: 0,
+      codex: 0
+    },
+    identificationPowderUsed: 0,
+    unidentifiedWearCount: 0,
+    curseHitCount: 0,
     coreEquipmentFound: 0,
     runsWithCoreEncounter: 0,
     runsWithEarlyCoreEncounter: 0,
@@ -2910,7 +3115,10 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
       runIndex,
       seriesId,
       scoringProfile,
-      scenario
+      scenario: {
+        ...scenario,
+        identificationPolicy: identificationPolicy.id || identificationPolicy
+      }
     });
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
@@ -2926,6 +3134,14 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
     totals.equipmentFound += result.equipmentFound;
     totals.earlyEquipmentFound += result.earlyEquipmentFound;
     totals.deepEquipmentFound += result.deepEquipmentFound;
+    totals.identificationPowderAcquired += result.identificationPowderAcquired;
+    Object.entries(result.identificationPowderAcquiredBySource).forEach(([source, amount]) => {
+      totals.identificationPowderAcquiredBySource[source] =
+        (totals.identificationPowderAcquiredBySource[source] || 0) + amount;
+    });
+    totals.identificationPowderUsed += result.identificationPowderUsed;
+    totals.unidentifiedWearCount += result.unidentifiedWearCount;
+    totals.curseHitCount += result.curseHitCount;
     totals.coreEquipmentFound += result.coreEquipmentFound;
     totals.runsWithCoreEncounter += Number(result.firstCoreDepth !== null);
     totals.runsWithEarlyCoreEncounter += Number(
@@ -3003,6 +3219,18 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
     averageEquipmentFound: totals.equipmentFound / RUNS_PER_CASE,
     averageEarlyEquipmentFound: totals.earlyEquipmentFound / RUNS_PER_CASE,
     averageDeepEquipmentFound: totals.deepEquipmentFound / RUNS_PER_CASE,
+    averageIdentificationPowderAcquired:
+      totals.identificationPowderAcquired / RUNS_PER_CASE,
+    averageIdentificationPowderAcquiredBySource: Object.fromEntries(
+      Object.entries(totals.identificationPowderAcquiredBySource).map(([source, amount]) => [
+        source,
+        amount / RUNS_PER_CASE
+      ])
+    ),
+    averageIdentificationPowderUsed: totals.identificationPowderUsed / RUNS_PER_CASE,
+    averageIdentificationCount: totals.identificationPowderUsed / RUNS_PER_CASE,
+    averageUnidentifiedWearCount: totals.unidentifiedWearCount / RUNS_PER_CASE,
+    averageCurseHitCount: totals.curseHitCount / RUNS_PER_CASE,
     coreEquipmentShare: totals.equipmentFound > 0
       ? totals.coreEquipmentFound / totals.equipmentFound
       : 0,
@@ -3055,12 +3283,14 @@ function formatPercent(rate) {
 
 export function calibrateCoreScoringProfile(
   runCount = RUNS_PER_CASE,
-  scenarioOverrides = {}
+  scenarioOverrides = {},
+  identificationPolicy = "legacy"
 ) {
   const calibrationScenario = {
     ...SCENARIOS.find(scenario => scenario.id === "legacy-no-portal"),
     elitePolicy: "avoid",
-    ...scenarioOverrides
+    ...scenarioOverrides,
+    identificationPolicy: identificationPolicy.id || identificationPolicy
   };
   const observations = createCoreObservations();
   for (let runIndex = 0; runIndex < runCount; runIndex++) {
@@ -3089,8 +3319,8 @@ export function getSimulationRandomState() {
 
 export { SCENARIOS, SIM_CLASSES };
 
-function printCoreScoringProfile(profile) {
-  console.log("\n【core期待戦闘価値 calibration（B1→B20）】");
+function printCoreScoringProfile(profile, policy = null) {
+  console.log(`\n【core期待戦闘価値 calibration（B1→B20）${policy ? ` / ${policy.label}` : ""}】`);
   console.log(
     `背水: 自攻撃直前HP${formatPercent(CORE_AFFIX_BY_ID.get("CORE_LAST_STAND").params.hpThreshold)}` +
     `以下turn率=${formatPercent(profile.lowHpOffensiveRate)}; 攻撃score×率×(1.4-1)`
@@ -3126,7 +3356,7 @@ function printCoreScoringProfile(profile) {
   );
   console.log(
     `呪飼いの鎖: 装備呪い実測平均=${profile.averageEquippedCurseCount.toFixed(4)}; ` +
-    "呪い数×全能力+3×既存能力重み合計（#236分離で呪い除外中）"
+    "呪い数×全能力+3×既存能力重み合計（legacyでは0、powder/gambleでは実測）"
   );
   console.log(
     `巨人殺し: 自分よりmaxHP高い敵への攻撃turn率=${formatPercent(profile.giantTargetRate)}; ` +
@@ -3166,7 +3396,7 @@ function printCoreScoringProfile(profile) {
     `B10=${profile.expectedScholarMaterialsFromFloor[10].toFixed(2)}`
   );
   console.log("忍び足: 徘徊エリート追跡未再現 → 定量化保留、95%保持のみ");
-  console.log("慧眼: #236分離で全装備を鑑定済み化 → 定量化保留、95%保持のみ");
+  console.log("慧眼: 未鑑定判断経路を実測、未鑑定効果EVは定量化保留");
 }
 
 function printTable(results) {
@@ -3203,6 +3433,59 @@ function printEliteMetrics(results) {
   });
 }
 
+function printIdentificationMetrics(results, policy) {
+  console.log(`\n【${policy.label} 未鑑定判断・呪い実測】`);
+  console.log(
+    "目標深度 | 平均到達深度 | 生還率 | EV/時間 | 粉入手/Run | 粉消費/Run | 鑑定回数/Run | 未鑑定着用/Run | 呪い被弾/Run"
+  );
+  console.log(
+    "---------|--------------|--------|----------|------------|------------|--------------|----------------|--------------"
+  );
+  results.forEach(result => {
+    console.log(
+      `${result.label.padEnd(8)} | ${result.averageReachedFloor.toFixed(2).padStart(12)} | ` +
+      `${formatPercent(result.survivalRate).padStart(6)} | ${result.materialEvPerTime.toFixed(4).padStart(8)} | ` +
+      `${result.averageIdentificationPowderAcquired.toFixed(2).padStart(10)} | ` +
+      `${result.averageIdentificationPowderUsed.toFixed(2).padStart(10)} | ` +
+      `${result.averageIdentificationCount.toFixed(2).padStart(12)} | ` +
+      `${result.averageUnidentifiedWearCount.toFixed(2).padStart(14)} | ` +
+      `${result.averageCurseHitCount.toFixed(2).padStart(12)}`
+    );
+    const source = result.averageIdentificationPowderAcquiredBySource;
+    console.log(
+      `  粉入手内訳/Run: 開始=${source.starting.toFixed(2)}, 工房=${source.workshop.toFixed(2)}, ` +
+      `出発準備=${source.departureKit.toFixed(2)}, 宝箱=${source.chest.toFixed(2)}, ` +
+      `図鑑初撃破=${source.codex.toFixed(2)}`
+    );
+  });
+}
+
+function printIdentificationComparison(resultsByPolicy, scenario) {
+  const powderResults = resultsByPolicy.get("powder");
+  const gambleResults = resultsByPolicy.get("gamble");
+  if (!powderResults || !gambleResults) return;
+
+  console.log(`\n【${scenario.label} 方針A/B 合否判定】`);
+  TARGET_DEPTHS.forEach(targetDepth => {
+    const powder = powderResults.find(result => result.targetDepth === targetDepth);
+    const gamble = gambleResults.find(result => result.targetDepth === targetDepth);
+    const depthOk = powder.averageReachedFloor >= gamble.averageReachedFloor;
+    const survivalOk = powder.survivalRate >= gamble.survivalRate;
+    console.log(
+      `B${targetDepth}: 到達深度 A=${powder.averageReachedFloor.toFixed(2)} / B=${gamble.averageReachedFloor.toFixed(2)}, ` +
+      `生還率 A=${formatPercent(powder.survivalRate)} / B=${formatPercent(gamble.survivalRate)} -> ` +
+      `${depthOk && survivalOk ? "先送り優位" : "先送り支配でない"}`
+    );
+  });
+  const powderB20 = powderResults.find(result => result.targetDepth === 20);
+  const gambleB20 = gambleResults.find(result => result.targetDepth === 20);
+  const holdDominates =
+    powderB20.averageReachedFloor >= gambleB20.averageReachedFloor &&
+    powderB20.survivalRate >= gambleB20.survivalRate;
+  console.log(
+    `合否（B20基準）: ${holdDominates ? "先送りが支配戦略" : "不合格（先送りが支配戦略ではない）"}`
+  );
+}
 function printBuildSupplyMetrics(results) {
   console.log("戦略       | 装備入手 | 前半入手 | 深層入手 | core/装備 | core遭遇run率 | 前半core遭遇run率 | core装備run率 | 平均換装 | 前半換装 | 深層換装");
   console.log("-----------|----------|----------|----------|-----------|---------------|-------------------|-------------|----------|----------|----------");
@@ -3311,8 +3594,16 @@ function printFailureComment(results) {
   }
 }
 
-export function runDepthSimulationTask({ kind, scenarioId }, { scoringProfile }) {
+export function runDepthSimulationTask(
+  { kind, scenarioId, identificationPolicyId = "legacy" },
+  { scoringProfile, scoringProfiles = {} }
+) {
   resetSimulationRandom(SIM_SEED);
+  const scoringProfileForPolicy =
+    scoringProfiles[identificationPolicyId] || scoringProfile;
+  const identificationPolicy =
+    IDENTIFICATION_POLICY_DEFINITIONS[identificationPolicyId] ||
+    IDENTIFICATION_POLICY_DEFINITIONS.legacy;
   if (kind === "scenario") {
     const scenario = SCENARIOS.find(candidate => candidate.id === scenarioId);
     return TARGET_DEPTHS.map(targetDepth => simulateCase({
@@ -3320,8 +3611,9 @@ export function runDepthSimulationTask({ kind, scenarioId }, { scoringProfile })
       targetDepth,
       label: `B${targetDepth}撤退`,
       seriesId: `depth-${targetDepth}`,
-      scoringProfile,
-      scenario
+      scoringProfile: scoringProfileForPolicy,
+      scenario,
+      identificationPolicy
     }));
   }
 
@@ -3332,22 +3624,32 @@ export function runDepthSimulationTask({ kind, scenarioId }, { scoringProfile })
       targetDepth: 15,
       label: "B10→B15",
       seriesId: "milestone-10-15",
-      scoringProfile,
-      scenario: legacyScenario
+      scoringProfile: scoringProfileForPolicy,
+      scenario: legacyScenario,
+      identificationPolicy
     }),
     simulateCase({
       startFloor: 1,
       targetDepth: 15,
       label: "B1→B15",
       seriesId: "baseline-1-15",
-      scoringProfile,
-      scenario: legacyScenario
+      scoringProfile: scoringProfileForPolicy,
+      scenario: legacyScenario,
+      identificationPolicy
     })
   ];
 }
 
 export async function runDepthMaterialSimulation() {
-const coreScoringProfile = calibrateCoreScoringProfile();
+const coreScoringProfiles = Object.fromEntries(
+  ACTIVE_IDENTIFICATION_POLICIES.map(policy => {
+    resetSimulationRandom(SIM_SEED);
+    return [
+      policy.id,
+      calibrateCoreScoringProfile(RUNS_PER_CASE, {}, policy.id)
+    ];
+  })
+);
 // calibrationが本計測の乱数列をずらさないよう、baselineと同じseed先頭へ戻す。
 randomState = SIM_SEED;
 
@@ -3355,20 +3657,21 @@ console.log("深度別 リスク調整後素材EVシミュレーション");
 console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（基本${SIM_CLASSES.length}職をround-robin集約）`);
 console.log(`乱数seed: ${SIM_SEED}`);
 console.log(`徘徊エリート方針: ${DEFAULT_ELITE_POLICY}`);
-console.log(`core価値calibration: B1→B20 N=${RUNS_PER_CASE}`);
+console.log(`core価値calibration: B1→B20 N=${RUNS_PER_CASE} / 方針=${ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id).join(",")}`);
+console.log(`識別方針切替: IDENTIFICATION_POLICY=${process.env.IDENTIFICATION_POLICY || "legacy"}`);
 console.log(
   `仮定: 探索係数=${EXPLORATION_FACTOR}, 宝箱拾得率=${CHEST_PICKUP_RATE}, ` +
   `戦闘ターン重み=${COMBAT_TURN_WEIGHT}`
 );
 console.log(
   `初期inventory: 傷薬=${INITIAL_HEAL_POTIONS}個, 解毒薬=${INITIAL_ANTIDOTES}個, ` +
-  "工房解放済条件のみ帰還の翼=1個"
+  "工房解放済条件の既定翼=1個、方針A/Bは出発準備の翼も1個"
 );
 console.log(
   `生存仮定: 傷薬使用閾値=${HEAL_POTION_THRESHOLD}, ` +
   `逃走閾値=${DEFAULT_FLEE_HP_THRESHOLD ?? "逃走なし"}, ` +
   `状態回復=${DEFAULT_STATUS_CURE_POLICY}(HP<=${DEFAULT_STATUS_CURE_HP_THRESHOLD}), ` +
-  `装備=実制限付き貪欲スコア更新, 鑑定済み・呪いなし`
+  "装備=識別方針別の実制限付き更新"
 );
 console.log(
   `帰還の翼ポリシー（仮値・感度分析対象）: B${PORTAL_MIN_FLOOR}以降, ` +
@@ -3377,6 +3680,8 @@ console.log(
 console.log(
   `供給仮定: 宝箱の本体/装身具分岐を実ロジック準拠で反映、` +
   `宝箱TOWN_PORTAL/状態回復薬をinventory追加・使用対象化、` +
+  `方針A/Bの鑑定粉は開始${IDENTIFICATION_BALANCE.startingPowder}個+出発準備1個を含み、` +
+  `宝箱${IDENTIFICATION_BALANCE.chestPowderChance * 100}%と実applyCombatRewardsの図鑑5種ごと+1を計測、` +
   `マイルストーン商人の不足状態回復薬を実素材で購入、` +
   `core判定=enabled ${ENABLED_CORE_AFFIXES.length}/${CORE_AFFIXES.length}種+affix_rules helper`
 );
@@ -3400,12 +3705,14 @@ console.log(
 console.log(
   `core呪い設定: AFFIX_BALANCE.coreCurseChance=${AFFIX_BALANCE.coreCurseChance}は現generator未参照、` +
   `実生成はIDENTIFICATION_BALANCE.coreCurseBonus=${IDENTIFICATION_BALANCE.coreCurseBonus}; ` +
-  "simは#236分離のため呪い除外"
+  "legacyのみ呪い除外、powder/gambleは実生成呪いを適用"
 );
 console.log("逃走=常時成功（自ターン到達時）、先行攻撃＋離脱時追撃1発、報酬なし、探索継続");
 console.log("時間単位: 1歩=1、1戦闘ターン=3");
 console.log("撤退=100% bank、死亡=30% bank");
-printCoreScoringProfile(coreScoringProfile);
+ACTIVE_IDENTIFICATION_POLICIES.forEach(policy => {
+  printCoreScoringProfile(coreScoringProfiles[policy.id], policy);
+});
 
 if (ACTIVE_SCENARIOS.length === 0) {
   throw new Error(`SIM_SCENARIOSに有効な条件がない: ${[...SCENARIO_FILTER].join(",")}`);
@@ -3415,25 +3722,39 @@ const taskResults = await runSimTasks({
   moduleUrl: import.meta.url,
   exportName: "runDepthSimulationTask",
   runTask: runDepthSimulationTask,
-  tasks: [
+  tasks: ACTIVE_IDENTIFICATION_POLICIES.flatMap(policy => [
     ...ACTIVE_SCENARIOS.map(scenario => ({
       kind: "scenario",
-      scenarioId: scenario.id
+      scenarioId: scenario.id,
+      identificationPolicyId: policy.id
     })),
-    { kind: "milestone" }
-  ],
-  context: { scoringProfile: coreScoringProfile }
+    { kind: "milestone", identificationPolicyId: policy.id }
+  ]),
+  context: {
+    scoringProfile: coreScoringProfiles.legacy || coreScoringProfiles[ACTIVE_IDENTIFICATION_POLICIES[0].id],
+    scoringProfiles: coreScoringProfiles
+  }
 });
-const scenarioResults = ACTIVE_SCENARIOS.map((scenario, index) => ({
-  scenario,
-  results: taskResults[index]
-}));
+const resultsByPolicy = ACTIVE_IDENTIFICATION_POLICIES.map((policy, policyIndex) => {
+  const offset = policyIndex * (ACTIVE_SCENARIOS.length + 1);
+  return {
+    policy,
+    scenarioResults: ACTIVE_SCENARIOS.map((scenario, scenarioIndex) => ({
+      scenario,
+      results: taskResults[offset + scenarioIndex]
+    })),
+    milestoneResults: taskResults[offset + ACTIVE_SCENARIOS.length]
+  };
+});
 
-scenarioResults.forEach(({ scenario, results }) => {
+resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
+  console.log(`\n【識別方針: ${policy.label}】`);
+  scenarioResults.forEach(({ scenario, results }) => {
   console.log(`\n【${scenario.label} B1開始 深度別系列】`);
   printTable(results);
   console.log(`\n【${scenario.label} 徘徊エリート】`);
   printEliteMetrics(results);
+  printIdentificationMetrics(results, policy);
   console.log(`\n【${scenario.label} B1開始 ビルド供給】`);
   printBuildSupplyMetrics(results);
   printCoreRetentionDetail(results.at(-1));
@@ -3452,30 +3773,42 @@ scenarioResults.forEach(({ scenario, results }) => {
     `深度カーブ: bank保持率=${results.map(result => formatPercent(result.bankRetentionRate)).join(" / ")}, ` +
     `EV/時間=${results.map(result => result.materialEvPerTime.toFixed(4)).join(" / ")}`
   );
+  });
+
+  console.log("\n【マイルストーン開始比較】");
+  console.log(
+    `B10開始は currentRun.startFloor=10 により実ドロップ量へ ` +
+    `milestoneStartMultiplier=${MATERIAL_DROP_BALANCE.milestoneStartMultiplier} を適用`
+  );
+  printTable(milestoneResults);
+  console.log("\n【マイルストーン開始 徘徊エリート】");
+  printEliteMetrics(milestoneResults);
+  printIdentificationMetrics(milestoneResults, policy);
+  console.log("\n【マイルストーン開始 ビルド供給】");
+  printBuildSupplyMetrics(milestoneResults);
+  const milestoneDominated =
+    milestoneResults[0].materialEvPerTime < milestoneResults[1].materialEvPerTime;
+  console.log(
+    `Issue #237 裏取り: B10開始はB1開始より単位時間EVで劣後(dominated): ` +
+    `${milestoneDominated ? "Yes" : "No"}`
+  );
 });
 
-const milestoneResults = taskResults.at(-1);
-
-console.log("\n【マイルストーン開始比較】");
-console.log(
-  `B10開始は currentRun.startFloor=10 により実ドロップ量へ ` +
-  `milestoneStartMultiplier=${MATERIAL_DROP_BALANCE.milestoneStartMultiplier} を適用`
-);
-printTable(milestoneResults);
-console.log("\n【マイルストーン開始 徘徊エリート】");
-printEliteMetrics(milestoneResults);
-console.log("\n【マイルストーン開始 ビルド供給】");
-printBuildSupplyMetrics(milestoneResults);
-const milestoneDominated =
-  milestoneResults[0].materialEvPerTime < milestoneResults[1].materialEvPerTime;
-console.log(
-  `Issue #237 裏取り: B10開始はB1開始より単位時間EVで劣後(dominated): ` +
-  `${milestoneDominated ? "Yes" : "No"}`
-);
+ACTIVE_SCENARIOS.forEach(scenario => {
+  const scenarioPolicyResults = new Map(
+    resultsByPolicy.map(({ policy, scenarioResults }) => [
+      policy.id,
+      scenarioResults.find(result => result.scenario.id === scenario.id)?.results
+    ])
+  );
+  printIdentificationComparison(scenarioPolicyResults, scenario);
+});
 
 const stalemateCases = [
-  ...scenarioResults.flatMap(({ results }) => results),
-  ...milestoneResults
+  ...resultsByPolicy.flatMap(({ scenarioResults, milestoneResults }) => [
+    ...scenarioResults.flatMap(({ results }) => results),
+    ...milestoneResults
+  ])
 ].filter(result => result.stalemateRate > 0);
 if (stalemateCases.length > 0) {
   console.log(
