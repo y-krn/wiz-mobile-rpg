@@ -382,3 +382,31 @@ full-log overlayの再描画でスクロール位置を保持した結果、閉�
 - **Notes**: result/event両モードへ`flex: 1 1 auto`を追加し、全対象viewportで期待可能高を検証するPlaywrightテストを追加。
 
 ---
+
+## [LRN-20260801-001] correction
+
+**Logged**: 2026-08-01T00:00:00+09:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+開始inventoryを変更した場合、UIレイアウト変更がなくてもinventoryを検証するbrowser E2Eを実行対象にする。
+
+### Details
+開始傷薬数を2個から4個へ変更した結果、開始後に1個追加するE2Eの固定期待値3が5にずれた。E2E対象の判断はレイアウト変更の有無ではなく、変更した状態をassertするテストへの影響で行う。
+
+### Suggested Action
+開始inventoryの個数をassertするテストはルールの純関数から値を導出し、開始inventory変更後は`npm run test:browser`を必ず実行する。
+
+### Metadata
+- Source: user_feedback
+- Related Files: tests/verify-item-use.spec.js, src/rules/recovery_rules.js
+- Tags: browser-e2e, inventory, balance, regression
+
+### Resolution
+- **Resolved**: 2026-08-01T00:00:00+09:00
+- **Commit/PR**: #331
+- **Notes**: E2E期待値を`getStartingHealPotionCount()`から導出し、`npm run test:browser`（120 passed）を実行。PR本文のQA対象も訂正。
+
+---
