@@ -131,8 +131,27 @@
 
 .solo-start-change,
 .solo-start-floor-option,
+.solo-start-kit,
 .milestone-portal-action {
   min-height: var(--tap-min);
+}
+
+.solo-start-kit {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.solo-start-kit span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.solo-start-kit.is-selected {
+  border-color: var(--neon-cyan);
+  box-shadow: var(--neon-glow-cyan);
+  color: var(--neon-cyan);
 }
 
 .solo-start-floor-option {
