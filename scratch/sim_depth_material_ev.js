@@ -2915,8 +2915,8 @@ export { SCENARIOS, SIM_CLASSES };
 function printCoreScoringProfile(profile) {
   console.log("\n【core期待戦闘価値 calibration（B1→B20）】");
   console.log(
-    `背水: 自攻撃直前HP25%以下turn率=${formatPercent(profile.lowHpOffensiveRate)}; ` +
-    "攻撃score×率×(1.4-1)"
+    `背水: 自攻撃直前HP${formatPercent(CORE_AFFIX_BY_ID.get("CORE_LAST_STAND").params.hpThreshold)}` +
+    `以下turn率=${formatPercent(profile.lowHpOffensiveRate)}; 攻撃score×率×(1.4-1)`
   );
   console.log(
     `先手必勝: 先制成功fight率=${formatPercent(profile.openerFirstStrikeRate)}; ` +

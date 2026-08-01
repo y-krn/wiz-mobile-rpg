@@ -143,10 +143,12 @@ export const CORE_AFFIXES = [
     id: "CORE_LAST_STAND",
     kind: "core",
     jpName: "背水",
-    desc: "HP25%以下で与ダメージが40%増加する。",
+    desc: "HP40%以下で与ダメージが40%増加する。",
     slot: "weapon",
     cost: 10,
-    params: { hpThreshold: 0.25, damageMultiplier: 1.4 },
+    // 閾値25%は撤退・逃走を選ぶ水準より下にあり、窓へ入る前に戦闘が終わっていた
+    // （自攻撃直前にHP25%以下だったturnは実測0.3%）。逃走判断より上へ出す（#272）。
+    params: { hpThreshold: 0.40, damageMultiplier: 1.4 },
     poolGroup: "combat",
     enabled: true
   },

@@ -45,7 +45,7 @@ assert.deepStrictEqual(
 );
 assert.strictEqual(getAffixDefinition("CORE_REARGUARD").enabled, false);
 assert.strictEqual(new Set(CORE_AFFIXES.map(affix => affix.id)).size, 16, "core IDs unique");
-assert.ok(formatAffixText(CORE_AFFIXES[0]).startsWith("◆背水: HP25%以下"));
+assert.ok(formatAffixText(CORE_AFFIXES[0]).startsWith("◆背水: HP40%以下"));
 assert.ok(
   getAffixDefinition("guardian").desc.includes("HP25%以下"),
   "guardian description states its activation condition"
