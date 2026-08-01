@@ -16,11 +16,9 @@ Before broad repository searches, read `.agents/file-map.md` and start from the
 files listed for the request area. Expand only to direct imports, touched files,
 or verification targets.
 
-The codebase uses thin facade modules such as `src/data.js`, `src/state.js`,
-`src/combat.js`, `src/combat_logic.js`, `src/menu.js`, and `src/ui.js`. When a
-review touches one of these files, inspect the concrete module under the
-matching directory (`src/data/*`, `src/state/*`, `src/combat_ui/*`,
-`src/combat_logic/*`, `src/menu/*`, or `src/ui/*`) before drawing conclusions.
+The codebase uses thin facade modules. Facade-to-concrete-module mappings are
+defined in `.agents/file-map.md` under `## Module Boundaries`. When a review
+touches a facade, inspect the concrete module before drawing conclusions.
 
 ## Operating Mode
 
@@ -63,11 +61,8 @@ checklist covers.
 
 ## Scope Overlap Resolution
 
-Many source paths (for example `src/data/*`, `src/rules/*`, `src/systems/*`,
-`src/combat*`, `src/ui/*`, `src/menu/*`, `src/chest.js`, `src/equip.js`,
-`src/spell_menu.js`) appear in more than one
-checklist `Scope`. A shared path does not mean every checklist applies. Select
-by the nature of the change, not the file alone:
+Checklist scopes may overlap. Select by the nature of the change, not the file
+alone:
 
 - Mechanics, state shape, or rule correctness -> `game-logic.md`.
 - Progression, economy, drops, difficulty, or reward pacing ->

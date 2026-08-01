@@ -7,20 +7,14 @@ repeatable checks.
 
 ## Scope
 
-- `src/data.js`
-- `src/data/*`
-- `src/rules/*`
-- `src/systems/*`
-- `src/combat_logic.js`
-- `src/combat_logic/*`
-- `src/combat.js`
-- `src/combat_ui/*`
-- `src/map_generator.js`
-- `src/chest.js`
-- `src/data/run_quests.js`
-- `src/systems/run_quests.js`
-- `scratch/*`
-- Existing build or simulation logs, when relevant
+- Progression, economy, materials, drops, enemies, rewards, difficulty, growth,
+  and run pacing
+- Repeatable simulations, deterministic seeds, outcome distributions, and
+  resource/reward curves
+- Interactions between data, rules, systems, combat, map, chest, and quest
+  behavior
+
+Target files are determined from the relevant rows in `.agents/file-map.md`.
 
 ## Initial File Routing
 

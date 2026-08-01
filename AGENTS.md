@@ -187,15 +187,9 @@ Mobile browser one-handed use is a hard requirement for UI work.
 
 ## UI Change Gate
 
-This gate applies to:
-
-- `src/ui.js`, `src/ui/*`
-- `src/menu.js`, `src/menu/*`, `src/navigation.js`
-- `src/combat.js`, `src/combat_ui/*`
-- `src/equip.js`, `src/spell_menu.js`
-- `src/chest.js`, `src/result.js`
-- `src/style.css`, `src/styles/*`
-- `tests/ui-ux.spec.js`, `playwright.config.js`
+This gate applies to UI modules (screen rendering, menu navigation, overlays,
+styles, and browser tests). Determine target files using the UI-related rows and
+CSS Style Routing table in `.agents/file-map.md`.
 
 Before editing UI:
 
