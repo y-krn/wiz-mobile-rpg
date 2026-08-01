@@ -10,6 +10,44 @@ export const CHEST_DISARM_BASE_CHANCE_BY_CLASS = Object.freeze({
 export const FORCE_DAMAGE_MULTIPLIER = 0.5;
 export const PARTIAL_SUCCESS_BAND = 15;
 export const PITFALL_EDGE_BONUS = 20;
+export const SCOUT_TRAP_DAMAGE_MULTIPLIER = 0.7;
+
+export const CHEST_WEAKENED_RISK_MULTIPLIER = 0.5;
+
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, value));
+}
+
+// 解除と強行の期待被害を等しくするsuccessRate。trap_effect_rules.jsの
+// scout条件とpartial bandを入力へ反映し、sim側の閾値写経を防ぐ。
+export function calculateFloorDisarmEvThreshold({
+  trapType,
+  scoutMitigated = false
+} = {}) {
+  const isPitfall = trapType === "pitfall";
+  const partialBand = isPitfall ? 0 : PARTIAL_SUCCESS_BAND;
+  const partialMultiplier = FORCE_DAMAGE_MULTIPLIER;
+  const fullMultiplier = scoutMitigated ? SCOUT_TRAP_DAMAGE_MULTIPLIER : 1;
+  const forcedMultiplier = FORCE_DAMAGE_MULTIPLIER *
+    (scoutMitigated && isPitfall ? SCOUT_TRAP_DAMAGE_MULTIPLIER : 1);
+  if (fullMultiplier <= 0) return 100;
+  const threshold = 100 - partialBand - (
+    100 * forcedMultiplier - partialBand * partialMultiplier
+  ) / fullMultiplier;
+  return clampPercent(threshold);
+}
+
+// 宝箱の代表的な比較（完全効果1.0 vs 弱体効果0.5）における解除確率閾値。
+// gasの期待ダメージ、teleporter、usableの30%破損は別効用のため個別閾値でない。
+export function calculateChestDisarmEvThreshold({
+  fullRiskMultiplier = 1,
+  weakenedRiskMultiplier = CHEST_WEAKENED_RISK_MULTIPLIER
+} = {}) {
+  const fullRisk = Math.max(0, Number(fullRiskMultiplier));
+  const weakenedRisk = Math.max(0, Number(weakenedRiskMultiplier));
+  if (fullRisk <= 0) return 0;
+  return Math.max(0, Math.min(1, 1 - weakenedRisk / fullRisk));
+}
 
 export function isDisarmAptClass(className) {
   return DISARM_APT_CLASSES.has(className);

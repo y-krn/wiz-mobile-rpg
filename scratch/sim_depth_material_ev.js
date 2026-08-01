@@ -42,11 +42,14 @@ const {
 } = await import("../src/rules/chest_rules.js");
 const {
   calculateChestDisarmChance,
+  calculateChestDisarmEvThreshold,
   calculateDetectRate,
+  calculateFloorDisarmEvThreshold,
   calculateFloorTrapSuccessRate,
   resolveTrapAction
 } = await import("../src/rules/trap_rules.js");
 const {
+  hasTrapScout,
   resolveChestTrapEffect,
   resolveFloorTrapEffect
 } = await import("../src/rules/trap_effect_rules.js");
@@ -173,20 +176,26 @@ const DEFAULT_STATUS_CURE_MERCHANT_POLICY =
 const DEFAULT_HEAL_POTION_MERCHANT_POLICY =
   process.env.HEAL_POTION_MERCHANT_POLICY === "never" ? "never" : "missing";
 const DEFAULT_ELITE_POLICY = process.env.ELITE_POLICY === "engage" ? "engage" : "avoid";
+const LEGACY_FLOOR_DISARM_MIN_RATE = 50;
 const TRAP_POLICY_DEFINITIONS = Object.freeze({
+  disabled: Object.freeze({
+    id: "disabled",
+    label: "旧sim互換（罠効果なし）"
+  }),
   legacy: Object.freeze({
     id: "legacy",
-    label: "従来（罠効果なし）"
+    label: "旧解除方針（罠効果あり・50%）",
+    floorDisarmMinRate: LEGACY_FLOOR_DISARM_MIN_RATE
   }),
   conservative: Object.freeze({
     id: "conservative",
-    label: "保守（キット優先・回避優先）"
+    label: "EV分岐（キット優先・回避優先）"
   })
 });
 export const DEFAULT_TRAP_POLICY_ID = process.env.TRAP_POLICY || "conservative";
 if (!TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID]) {
   throw new Error(
-    `TRAP_POLICY must be legacy|conservative: ${DEFAULT_TRAP_POLICY_ID}`
+    `TRAP_POLICY must be disabled|legacy|conservative: ${DEFAULT_TRAP_POLICY_ID}`
   );
 }
 const trapBonusOverrideInput = process.env.TRAP_BONUS_OVERRIDE;
@@ -199,8 +208,7 @@ if (
 ) {
   throw new Error(`TRAP_BONUS_OVERRIDE must be a non-negative number: ${trapBonusOverrideInput}`);
 }
-const CHEST_DISARM_POLICY_MIN_CHANCE = 0.50;
-const FLOOR_DISARM_POLICY_MIN_RATE = 50;
+const CHEST_DISARM_POLICY_MIN_CHANCE = calculateChestDisarmEvThreshold();
 // 仮値・感度分析対象: 危険域で傷薬が尽きていれば帰還の翼を使う。
 const PORTAL_HP_THRESHOLD = Number(process.env.PORTAL_HP_THRESHOLD || 0.35);
 const PORTAL_MAX_HEAL_POTIONS = Math.max(
@@ -315,6 +323,17 @@ function getSimulationTrapBonus(character) {
   return TRAP_BONUS_OVERRIDE_PERCENT === null
     ? getCharTrapBonus(character)
     : TRAP_BONUS_OVERRIDE_PERCENT / 100;
+}
+
+function getFloorDisarmPolicyThreshold(state, trap) {
+  const policy = TRAP_POLICY_DEFINITIONS[state.simPolicy.trapPolicy];
+  if (Number.isFinite(policy.floorDisarmMinRate)) {
+    return policy.floorDisarmMinRate;
+  }
+  return calculateFloorDisarmEvThreshold({
+    trapType: trap?.type,
+    scoutMitigated: hasTrapScout(state.party)
+  });
 }
 
 function createTrapAggregate() {
@@ -2366,7 +2385,7 @@ function getTrapAvoidancePlan(generated, currentCoord, trap) {
 
 function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   const { trap, previousCoord } = scheduled;
-  if (state.simPolicy.trapPolicy === "legacy" || trap.state === "disabled") {
+  if (state.simPolicy.trapPolicy === "disabled" || trap.state === "disabled") {
     return { pitfallTriggered: false };
   }
 
@@ -2397,7 +2416,7 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   });
   const action = trap.state === "hidden"
     ? "trigger"
-    : (successRate >= FLOOR_DISARM_POLICY_MIN_RATE ? "disarm" : "force");
+    : (successRate >= getFloorDisarmPolicyThreshold(state, trap) ? "disarm" : "force");
   const resolution = action === "trigger"
     ? { outcome: "triggered", partialSuccess: false }
     : resolveTrapAction({
@@ -2556,7 +2575,7 @@ function resolveChestTrapForSimulation(
   });
   observations.trappedChests++;
 
-  if (state.simPolicy.trapPolicy === "legacy") {
+  if (state.simPolicy.trapPolicy === "disabled") {
     const expectedDisarm = Math.max(0, Math.min(1, chance));
     observations.expectedTrapDisarms += expectedDisarm;
     observations.expectedTrapDisarmsByFloor[floor] += expectedDisarm;
@@ -4538,6 +4557,12 @@ console.log(`乱数seed: ${SIM_SEED}`);
 console.log(`徘徊エリート方針: ${DEFAULT_ELITE_POLICY}`);
 console.log(`罠方針: ${TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID].label} / TRAP_POLICY=${DEFAULT_TRAP_POLICY_ID}`);
 console.log(
+  `罠解除EV閾値: 床非pitfall scoutなし=${calculateFloorDisarmEvThreshold({ trapType: "damage" }).toFixed(2)}%, ` +
+  `scoutあり=${calculateFloorDisarmEvThreshold({ trapType: "damage", scoutMitigated: true }).toFixed(2)}%, ` +
+  `pitfall=${calculateFloorDisarmEvThreshold({ trapType: "pitfall" }).toFixed(2)}%, ` +
+  `宝箱代表=${(CHEST_DISARM_POLICY_MIN_CHANCE * 100).toFixed(2)}%`
+);
+console.log(
   `trapBonus測定値: ${TRAP_BONUS_OVERRIDE_PERCENT === null
     ? "実生成値"
     : `${TRAP_BONUS_OVERRIDE_PERCENT}%固定（装備由来値を上書き）`}`
@@ -4585,7 +4610,7 @@ console.log(
   "STATUS_CURE_POLICY=smart|never / STATUS_CURE_HP_THRESHOLD / " +
   "STATUS_CURE_MERCHANT_POLICY=missing|never, " +
   "PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
-  "ELITE_POLICY=avoid|engage / TRAP_POLICY=legacy|conservative; " +
+  "ELITE_POLICY=avoid|engage / TRAP_POLICY=disabled|legacy|conservative; " +
   "SIM_SCENARIOS=workshop-locked,workshop-unlocked,legacy-no-portal"
 );
 console.log(
