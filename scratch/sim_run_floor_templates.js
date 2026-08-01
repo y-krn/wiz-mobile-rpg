@@ -33,7 +33,7 @@ const summaries = new Map(FLOOR_TEMPLATES.map(template => [template.id, {
 }]));
 
 function canTraverse(cell, next, dir) {
-  const canReveal = cell.secretDoor?.[dir] || cell.sealedGate?.[dir];
+  const canReveal = cell.secretDoor?.[dir];
   return (!cell.walls[dir] || canReveal) && !next.blockEnter?.[(dir + 2) % 4];
 }
 

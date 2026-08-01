@@ -30,9 +30,7 @@ function isolateCell(grid, target) {
     const neighbor = grid[target.y + dy][target.x + dx];
     neighbor.walls[opposite] = true;
     neighbor.secretDoor[opposite] = false;
-    neighbor.sealedGate[opposite] = null;
     grid[target.y][target.x].secretDoor[dir] = false;
-    grid[target.y][target.x].sealedGate[dir] = null;
   });
 }
 

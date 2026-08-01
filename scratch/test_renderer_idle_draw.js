@@ -27,7 +27,6 @@ function createCell() {
   return {
     walls: [true, true, true, true],
     blockEnter: [false, false, false, false],
-    sealedGate: [null, null, null, null],
     type: "empty",
     event: null,
     trap: null
@@ -84,13 +83,6 @@ const hiddenTrapSignature = renderer.getDrawSignature();
 state.map[0][0].trap.state = "discovered";
 markMapChanged();
 check(renderer.getDrawSignature() !== hiddenTrapSignature, "罠発見状態の更新を検知");
-
-state.map[0][0].sealedGate[0] = { open: false };
-markMapChanged();
-const closedGateSignature = renderer.getDrawSignature();
-state.map[0][0].sealedGate[0].open = true;
-markMapChanged();
-check(renderer.getDrawSignature() !== closedGateSignature, "封印門の開放を検知");
 
 state.dungeonMemory.mapFragments[1] = ["1,1"];
 markMapChanged();

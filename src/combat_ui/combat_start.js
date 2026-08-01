@@ -62,8 +62,6 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     isMidboss,
     isRoamingFlack,
     roamingMonsterId: roamingMonster?.id ?? null,
-    roamingMonsterKind: roamingMonster?.kind ?? "flack",
-    gateId: roamingMonster?.gateId ?? null,
     isAuto: false,
     allParalyzedTurns: 0,
     roundNumber: 1,

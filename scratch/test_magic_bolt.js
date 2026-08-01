@@ -51,7 +51,6 @@ function createState(className, { int = 16, str = 7, weapon = "WAND", def = 0, s
     currentRun: { itemsFound: [], equipmentFound: [], deathLogs: [] },
     roamingMonsters: [],
     floorChestsTotal: [],
-    openedGates: [],
     gold: 0,
     floor: 1
   };

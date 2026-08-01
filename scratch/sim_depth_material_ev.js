@@ -28,6 +28,7 @@ const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
 const { assignRunQuests, updateRunQuests } = await import("../src/systems/run_quests.js");
 const { generateRunFloor } = await import("../src/run_map_generator.js");
 const { isMilestoneFloor } = await import("../src/run_map_generator.js");
+const { createFloorElite } = await import("../src/systems/roaming_elites.js");
 const { getFloorTemplate } = await import("../src/data/floor_templates.js");
 const { EVENT_TYPES } = await import("../src/constants/events.js");
 const { generateChestMaterials } = await import("../src/chest.js");
@@ -113,6 +114,7 @@ const DEFAULT_STATUS_CURE_POLICY = process.env.STATUS_CURE_POLICY === "never"
   : "smart";
 const DEFAULT_STATUS_CURE_MERCHANT_POLICY =
   process.env.STATUS_CURE_MERCHANT_POLICY === "never" ? "never" : "missing";
+const DEFAULT_ELITE_POLICY = process.env.ELITE_POLICY === "engage" ? "engage" : "avoid";
 // 仮値・感度分析対象: 危険域で傷薬が尽きていれば帰還の翼を使う。
 const PORTAL_HP_THRESHOLD = Number(process.env.PORTAL_HP_THRESHOLD || 0.35);
 const PORTAL_MAX_HEAL_POTIONS = Math.max(
@@ -332,7 +334,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       statusCureMerchantPolicy:
         scenario.statusCureMerchantPolicy || DEFAULT_STATUS_CURE_MERCHANT_POLICY,
       bossOverride: scenario.bossOverride || null,
-      forcedBossAffixes: scenario.forcedBossAffixes || null
+      forcedBossAffixes: scenario.forcedBossAffixes || null,
+      elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY
     },
     floor: startFloor
   };
@@ -706,6 +709,8 @@ function runEncounter(
   {
     isBoss = false,
     isMidboss = false,
+    isElite = false,
+    roamingMonster = null,
     encounterCoord = null,
     retreatCoord = null
   } = {}
@@ -714,8 +719,8 @@ function runEncounter(
     state,
     isBoss,
     isMidboss,
-    false,
-    null
+    isElite,
+    roamingMonster
   );
   if (isBoss && state.simPolicy.bossOverride?.floor === state.floor) {
     const override = state.simPolicy.bossOverride;
@@ -751,7 +756,8 @@ function runEncounter(
     monsters,
     isBoss,
     isMidboss,
-    isRoamingFlack: false,
+    isRoamingFlack: isElite,
+    roamingMonsterId: roamingMonster?.id || null,
     retreatPosition: retreatCoord ? { ...retreatCoord } : null,
     allParalyzedTurns: 0,
     phase: "choose_actions",
@@ -761,8 +767,10 @@ function runEncounter(
     state.x = encounterCoord.x;
     state.y = encounterCoord.y;
   }
-  const encounterType = isBoss ? "boss" : (isMidboss ? "midboss" : "normal");
-  const startBuild = (isBoss || isMidboss) && metrics?.collectSpecialBattles
+  const encounterType = isBoss
+    ? "boss"
+    : (isMidboss ? "midboss" : (isElite ? "elite" : "normal"));
+  const startBuild = (isBoss || isMidboss || isElite) && metrics?.collectSpecialBattles
     ? createBuildSnapshot(state, metrics?.scoringProfile || null, `${encounterType}-start`)
     : null;
   const telemetry = {
@@ -1294,7 +1302,7 @@ function getEconomyCoreScore(character, scoringProfile, floor) {
     return (scoringProfile.expectedScholarMaterialsFromFloor[scoringFloor] || 0) *
       MATERIAL_EV_SCORE_WEIGHT;
   }
-  // 忍び足はwarden追跡、慧眼は#236の未鑑定判断が未再現。両者は保持規則のみ。
+  // 忍び足は徘徊エリート追跡、慧眼は#236の未鑑定判断が未再現。両者は保持規則のみ。
   return 0;
 }
 
@@ -1534,8 +1542,7 @@ function canTraverseRouteEdge(grid, current, direction) {
   const next = grid[nextY]?.[nextX];
   if (!cell || !next) return false;
   const revealedSecret = Boolean(cell.secretDoor?.[direction.dir]);
-  const openGate = Boolean(cell.sealedGate?.[direction.dir]?.open);
-  if (cell.walls?.[direction.dir] && !revealedSecret && !openGate) return false;
+  if (cell.walls?.[direction.dir] && !revealedSecret) return false;
   return !next.blockEnter?.[(direction.dir + 2) % 4];
 }
 
@@ -1576,6 +1583,50 @@ function findShortestFloorPath(grid, start, target, blockedKeys = new Set()) {
     cursor = previous.get(cursor);
   }
   return reversed.reverse();
+}
+
+// 徘徊AIそのものは再現せず、実配置を基準に「回避の寄り道」と「意図的な挑戦」を比較する。
+// 戦闘は実round/reward経路へ流し、sim内の敵・報酬オーバーライドは使わない。
+function createEliteRoutePlan(generated, floor, runSeed, policy) {
+  const elite = createFloorElite({ runSeed, floor, mapData: generated });
+  if (!elite) return { elite: null, extraSteps: 0, encounterStep: null, avoidNoRoute: false };
+
+  const grid = generated.grid;
+  const start = findFloorCell(grid, cell => cell.type === "stairs-up");
+  const stairs = findFloorCell(grid, cell => cell.type === "stairs-down");
+  const directPath = findShortestFloorPath(grid, start, stairs);
+  if (!start || !stairs || !directPath) {
+    return { elite, extraSteps: 0, encounterStep: 1, avoidNoRoute: true };
+  }
+
+  const directDistance = Math.max(0, directPath.length - 1);
+  if (policy === "engage") {
+    const toElite = findShortestFloorPath(grid, start, elite);
+    const fromElite = findShortestFloorPath(grid, elite, stairs);
+    if (!toElite || !fromElite) {
+      return { elite, extraSteps: 0, encounterStep: 1, avoidNoRoute: true };
+    }
+    const challengeDistance = Math.max(0, toElite.length - 1) + Math.max(0, fromElite.length - 1);
+    return {
+      elite,
+      extraSteps: Math.ceil(Math.max(0, challengeDistance - directDistance) * EXPLORATION_FACTOR),
+      encounterStep: Math.max(1, Math.ceil((toElite.length - 1) * EXPLORATION_FACTOR)),
+      avoidNoRoute: false
+    };
+  }
+
+  const avoidedPath = findShortestFloorPath(grid, start, stairs, new Set([routeKey(elite)]));
+  if (!avoidedPath) {
+    return { elite, extraSteps: 0, encounterStep: null, avoidNoRoute: true };
+  }
+  return {
+    elite,
+    extraSteps: Math.ceil(
+      Math.max(0, avoidedPath.length - directPath.length) * EXPLORATION_FACTOR
+    ),
+    encounterStep: null,
+    avoidNoRoute: false
+  };
 }
 
 function createFloorRoutePlan(generated, floor, bossPolicy = "engage") {
@@ -2120,6 +2171,15 @@ function finishRun(state, outcome, metrics) {
     reachedFloor: state.currentRun.deepestFloor,
     stalemate: metrics.stalemate,
     finalLevel: state.party[0].level,
+    elitePolicy: metrics.elitePolicy,
+    eliteEncounters: metrics.eliteEncounters,
+    eliteVictories: metrics.eliteVictories,
+    eliteFlees: metrics.eliteFlees,
+    eliteDeaths: metrics.eliteDeaths,
+    eliteLevelsGained: metrics.eliteLevelsGained,
+    eliteExpGained: metrics.eliteExpGained,
+    eliteAvoidDetourSteps: metrics.eliteAvoidDetourSteps,
+    eliteAvoidNoRouteFloors: metrics.eliteAvoidNoRouteFloors,
     equipmentUpgrades: metrics.equipmentUpgrades,
     earlyEquipmentUpgrades: metrics.earlyEquipmentUpgrades,
     deepEquipmentUpgrades: metrics.deepEquipmentUpgrades,
@@ -2318,6 +2378,15 @@ export function simulateRun({
     merchantWingFailures: {},
     milestoneDecisions: [],
     fleeCount: 0,
+    elitePolicy: state.simPolicy.elitePolicy,
+    eliteEncounters: 0,
+    eliteVictories: 0,
+    eliteFlees: 0,
+    eliteDeaths: 0,
+    eliteLevelsGained: 0,
+    eliteExpGained: 0,
+    eliteAvoidDetourSteps: 0,
+    eliteAvoidNoRouteFloors: 0,
     bossPolicy: scenario.bossPolicy || "engage",
     collectSpecialBattles: collectDiagnostics,
     specialCellsDetected: { boss: 0, midboss: 0 },
@@ -2361,7 +2430,19 @@ export function simulateRun({
     }
     const generated = generateRunFloor({ runSeed, floor });
     const routePlan = createFloorRoutePlan(generated, floor, metrics.bossPolicy);
-    const floorSteps = routePlan.floorSteps;
+    const elitePlan = createEliteRoutePlan(
+      generated,
+      floor,
+      runSeed,
+      state.simPolicy.elitePolicy
+    );
+    const floorSteps = routePlan.floorSteps + elitePlan.extraSteps;
+    metrics.eliteAvoidDetourSteps += state.simPolicy.elitePolicy === "avoid"
+      ? elitePlan.extraSteps
+      : 0;
+    metrics.eliteAvoidNoRouteFloors += Number(
+      state.simPolicy.elitePolicy === "avoid" && elitePlan.avoidNoRoute
+    );
     const specialSchedule = new Map();
     routePlan.routeEvents.forEach(event => {
       const step = Math.min(
@@ -2371,6 +2452,19 @@ export function simulateRun({
       if (!specialSchedule.has(step)) specialSchedule.set(step, []);
       specialSchedule.get(step).push(event);
     });
+    if (elitePlan.elite) {
+      state.roamingMonsters.push(elitePlan.elite);
+    }
+    if (elitePlan.elite && elitePlan.encounterStep !== null) {
+      const step = Math.min(floorSteps, elitePlan.encounterStep);
+      if (!specialSchedule.has(step)) specialSchedule.set(step, []);
+      specialSchedule.get(step).push({
+        ...elitePlan.elite,
+        type: "elite",
+        roamingMonster: elitePlan.elite,
+        retreatCoord: findFloorCell(generated.grid, cell => cell.type === "stairs-up")
+      });
+    }
     state.map = generated.grid;
     const floorStart = findFloorCell(generated.grid, cell => cell.type === "stairs-up");
     if (floorStart) {
@@ -2475,7 +2569,10 @@ export function simulateRun({
       for (const specialEvent of encountersThisStep) {
         const isBoss = specialEvent?.type === EVENT_TYPES.BOSS;
         const isMidboss = specialEvent?.type === "midboss";
-        const encounterType = isBoss ? "boss" : (isMidboss ? "midboss" : "normal");
+        const isElite = specialEvent?.type === "elite";
+        const encounterType = isBoss
+          ? "boss"
+          : (isMidboss ? "midboss" : (isElite ? "elite" : "normal"));
         const specialBattle = specialEvent && metrics.collectSpecialBattles
           ? {
               type: encounterType,
@@ -2507,6 +2604,8 @@ export function simulateRun({
           );
           const cureCountsBeforeCombat = countInventoryItems(state.inventory);
           const cureItemsUsedBeforeCombat = { ...metrics.statusCureItemsUsed };
+          const levelBeforeCombat = state.party[0].level;
+          const expBeforeCombat = state.party[0].exp;
           const combatResult = runEncounter(
             state,
             metrics.coreObservations,
@@ -2515,6 +2614,8 @@ export function simulateRun({
             {
               isBoss,
               isMidboss,
+              isElite,
+              roamingMonster: specialEvent?.roamingMonster || null,
               encounterCoord: specialEvent,
               retreatCoord: specialEvent?.retreatCoord || null
             }
@@ -2522,6 +2623,7 @@ export function simulateRun({
           state = combatResult.state;
           metrics.combatRounds += combatResult.rounds;
           metrics.healPotionsUsed += combatResult.healPotionsUsed;
+          metrics.eliteEncounters += Number(isElite);
 
           if (specialBattle) {
             specialBattle.firstBuild ||= combatResult.startBuild;
@@ -2531,7 +2633,7 @@ export function simulateRun({
               rounds: combatResult.rounds,
               telemetry: combatResult.telemetry
             });
-          } else {
+          } else if (!isElite) {
             metrics.normalCombatTelemetry.encounters++;
             metrics.normalCombatTelemetry.incomingHits +=
               combatResult.telemetry.incomingHits;
@@ -2548,6 +2650,7 @@ export function simulateRun({
 
           if (combatResult.result === "flee") {
             metrics.fleeCount++;
+            metrics.eliteFlees += Number(isElite);
             applyPostCombatRecovery(state.party[0]);
             metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state));
             useStatusCureIfNeeded(state, metrics, "post-flee");
@@ -2566,7 +2669,7 @@ export function simulateRun({
               }
               return finishRun(state, "retreat", metrics);
             }
-            if (specialEvent) {
+            if (specialEvent && !isElite) {
               // 逃走ではeventセルが消えない。1マス後退後、同じセルへ再侵入する。
               continue;
             }
@@ -2576,6 +2679,7 @@ export function simulateRun({
           if (combatResult.result !== "victory") {
             metrics.stalemate = combatResult.result === "stalemate";
             metrics.deathEncounterType = encounterType;
+            metrics.eliteDeaths += Number(isElite);
             if (specialBattle) {
               specialBattle.finalResult = combatResult.result;
               metrics.specialBattles.push(specialBattle);
@@ -2583,7 +2687,13 @@ export function simulateRun({
             return finishRun(state, "death", metrics);
           }
 
-          if (specialEvent) {
+          if (isElite) {
+            metrics.eliteVictories++;
+            metrics.eliteLevelsGained += state.party[0].level - levelBeforeCombat;
+            metrics.eliteExpGained += state.party[0].exp - expBeforeCombat;
+          }
+
+          if (specialEvent && !isElite) {
             const keyCountBefore = state.inventory.filter(
               item => (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY"
             ).length;
@@ -2780,7 +2890,15 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
     townPortalsUsed: 0,
     runsUsingTownPortal: 0,
     fleeCount: 0,
-    runsWithFlee: 0
+    runsWithFlee: 0,
+    eliteEncounters: 0,
+    eliteVictories: 0,
+    eliteFlees: 0,
+    eliteDeaths: 0,
+    eliteLevelsGained: 0,
+    eliteExpGained: 0,
+    eliteAvoidDetourSteps: 0,
+    eliteAvoidNoRouteFloors: 0
   };
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
@@ -2851,6 +2969,14 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
     totals.runsUsingTownPortal += Number(result.townPortalsUsed > 0);
     totals.fleeCount += result.fleeCount;
     totals.runsWithFlee += Number(result.fleeCount > 0);
+    totals.eliteEncounters += result.eliteEncounters;
+    totals.eliteVictories += result.eliteVictories;
+    totals.eliteFlees += result.eliteFlees;
+    totals.eliteDeaths += result.eliteDeaths;
+    totals.eliteLevelsGained += result.eliteLevelsGained;
+    totals.eliteExpGained += result.eliteExpGained;
+    totals.eliteAvoidDetourSteps += result.eliteAvoidDetourSteps;
+    totals.eliteAvoidNoRouteFloors += result.eliteAvoidNoRouteFloors;
   }
 
   const bankedMaterialEv = totals.bankedMaterials / RUNS_PER_CASE;
@@ -2904,7 +3030,22 @@ function simulateCase({ startFloor, targetDepth, label, seriesId, scoringProfile
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
     averageTownPortalsUsed: totals.townPortalsUsed / RUNS_PER_CASE,
     averageFleeCount: totals.fleeCount / RUNS_PER_CASE,
-    runsWithFleeRate: totals.runsWithFlee / RUNS_PER_CASE
+    runsWithFleeRate: totals.runsWithFlee / RUNS_PER_CASE,
+    elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY,
+    averageEliteEncounters: totals.eliteEncounters / RUNS_PER_CASE,
+    eliteVictoryRate: totals.eliteEncounters > 0
+      ? totals.eliteVictories / totals.eliteEncounters
+      : 0,
+    eliteFleeRate: totals.eliteEncounters > 0 ? totals.eliteFlees / totals.eliteEncounters : 0,
+    eliteDeathRate: totals.eliteEncounters > 0 ? totals.eliteDeaths / totals.eliteEncounters : 0,
+    averageLevelsPerEliteVictory: totals.eliteVictories > 0
+      ? totals.eliteLevelsGained / totals.eliteVictories
+      : 0,
+    averageExpPerEliteVictory: totals.eliteVictories > 0
+      ? totals.eliteExpGained / totals.eliteVictories
+      : 0,
+    averageEliteAvoidDetourSteps: totals.eliteAvoidDetourSteps / RUNS_PER_CASE,
+    averageEliteAvoidNoRouteFloors: totals.eliteAvoidNoRouteFloors / RUNS_PER_CASE
   };
 }
 
@@ -2918,6 +3059,7 @@ export function calibrateCoreScoringProfile(
 ) {
   const calibrationScenario = {
     ...SCENARIOS.find(scenario => scenario.id === "legacy-no-portal"),
+    elitePolicy: "avoid",
     ...scenarioOverrides
   };
   const observations = createCoreObservations();
@@ -3023,7 +3165,7 @@ function printCoreScoringProfile(profile) {
     `B1=${profile.expectedScholarMaterialsFromFloor[1].toFixed(2)}, ` +
     `B10=${profile.expectedScholarMaterialsFromFloor[10].toFixed(2)}`
   );
-  console.log("忍び足: warden追跡未再現 → 定量化保留、95%保持のみ");
+  console.log("忍び足: 徘徊エリート追跡未再現 → 定量化保留、95%保持のみ");
   console.log("慧眼: #236分離で全装備を鑑定済み化 → 定量化保留、95%保持のみ");
 }
 
@@ -3039,6 +3181,24 @@ function printTable(results) {
       `${result.averageReachedFloor.toFixed(2).padStart(10)} | ${result.averageFinalLevel.toFixed(2).padStart(6)} | ` +
       `${result.averageEquipmentUpgrades.toFixed(2).padStart(8)} | ${result.averageHealPotionsUsed.toFixed(2).padStart(6)} | ` +
       `${result.averageFleeCount.toFixed(2).padStart(8)} | ${formatPercent(result.runsWithFleeRate).padStart(8)}`
+    );
+  });
+}
+
+function printEliteMetrics(results) {
+  console.log("戦略       | 方針 | 平均遭遇 | 勝率 | 逃走率 | 死亡率 | 勝利時Lv上昇 | 勝利時EXP | 回避追加歩数 | 回避不能初期配置");
+  console.log("-----------|------|----------|------|--------|--------|--------------|-----------|--------------|------------------");
+  results.forEach(result => {
+    console.log(
+      `${result.label.padEnd(10)} | ${result.elitePolicy.padEnd(6)} | ` +
+      `${result.averageEliteEncounters.toFixed(2).padStart(8)} | ` +
+      `${formatPercent(result.eliteVictoryRate).padStart(4)} | ` +
+      `${formatPercent(result.eliteFleeRate).padStart(6)} | ` +
+      `${formatPercent(result.eliteDeathRate).padStart(6)} | ` +
+      `${result.averageLevelsPerEliteVictory.toFixed(2).padStart(12)} | ` +
+      `${result.averageExpPerEliteVictory.toFixed(0).padStart(9)} | ` +
+      `${result.averageEliteAvoidDetourSteps.toFixed(2).padStart(12)} | ` +
+      `${result.averageEliteAvoidNoRouteFloors.toFixed(2).padStart(16)}`
     );
   });
 }
@@ -3194,6 +3354,7 @@ randomState = SIM_SEED;
 console.log("深度別 リスク調整後素材EVシミュレーション");
 console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（基本${SIM_CLASSES.length}職をround-robin集約）`);
 console.log(`乱数seed: ${SIM_SEED}`);
+console.log(`徘徊エリート方針: ${DEFAULT_ELITE_POLICY}`);
 console.log(`core価値calibration: B1→B20 N=${RUNS_PER_CASE}`);
 console.log(
   `仮定: 探索係数=${EXPLORATION_FACTOR}, 宝箱拾得率=${CHEST_PICKUP_RATE}, ` +
@@ -3222,13 +3383,18 @@ console.log(
 console.log(
   "非モデル化: 宝箱罠の実被害、商人での傷薬/罠外し/鑑定粉購入、" +
   "上薬・MP消費/強化アイテムの能動使用、マップ上の任意寄り道、" +
-  "人間の敵別判断（固定閾値で代理）"
+  "徘徊エリートの移動・知覚・偶発接触、人間の敵別判断（固定閾値で代理）"
+);
+console.log(
+  "エリートモデル: generateRunFloor→実配置。avoid=初期セルを塞ぐ最短路の追加歩数、" +
+  "engage=初期位置へ寄り道して実round/reward経路で各階1戦"
 );
 console.log(
   "感度指定: FLEE_POLICY=never / FLEE_HP_THRESHOLD, " +
   "STATUS_CURE_POLICY=smart|never / STATUS_CURE_HP_THRESHOLD / " +
   "STATUS_CURE_MERCHANT_POLICY=missing|never, " +
   "PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
+  "ELITE_POLICY=avoid|engage; " +
   "SIM_SCENARIOS=workshop-locked,workshop-unlocked,legacy-no-portal"
 );
 console.log(
@@ -3266,6 +3432,8 @@ const scenarioResults = ACTIVE_SCENARIOS.map((scenario, index) => ({
 scenarioResults.forEach(({ scenario, results }) => {
   console.log(`\n【${scenario.label} B1開始 深度別系列】`);
   printTable(results);
+  console.log(`\n【${scenario.label} 徘徊エリート】`);
+  printEliteMetrics(results);
   console.log(`\n【${scenario.label} B1開始 ビルド供給】`);
   printBuildSupplyMetrics(results);
   printCoreRetentionDetail(results.at(-1));
@@ -3294,6 +3462,8 @@ console.log(
   `milestoneStartMultiplier=${MATERIAL_DROP_BALANCE.milestoneStartMultiplier} を適用`
 );
 printTable(milestoneResults);
+console.log("\n【マイルストーン開始 徘徊エリート】");
+printEliteMetrics(milestoneResults);
 console.log("\n【マイルストーン開始 ビルド供給】");
 printBuildSupplyMetrics(milestoneResults);
 const milestoneDominated =
@@ -3315,6 +3485,6 @@ if (stalemateCases.length > 0) {
 }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await runDepthMaterialSimulation();
 }

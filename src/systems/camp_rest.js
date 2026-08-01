@@ -1,14 +1,8 @@
 import { getCharMaxHp, getCharMaxMp, getCharCoreParams } from "../data.js";
-import { getWardenGateId } from "../state/warden_gates.js";
 
-const CAMP_FLOORS = new Set([2, 4]);
-
+// 野営セルはマップ生成側でバイオームを見て配置する。ここは1ランに1階1回の制限だけを持つ。
 export function getCampRestStatus(stateObj) {
   const floor = stateObj.floor;
-  if (!CAMP_FLOORS.has(floor)) return { available: false, reason: "invalid_floor" };
-  if (!stateObj.openedGates?.includes(getWardenGateId(floor))) {
-    return { available: false, reason: "locked" };
-  }
   if (!stateObj.currentRun) return { available: false, reason: "no_run" };
   if (stateObj.currentRun.campRested?.[floor]) return { available: false, reason: "used" };
   return { available: true, reason: null };

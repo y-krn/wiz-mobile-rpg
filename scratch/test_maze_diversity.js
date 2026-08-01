@@ -18,7 +18,7 @@ function reachableKeys(grid, start) {
       const nx = x + dx;
       const ny = y + dy;
       const next = grid[ny]?.[nx];
-      const canOpen = cell.secretDoor?.[dir] || cell.sealedGate?.[dir];
+      const canOpen = cell.secretDoor?.[dir];
       if (!next || (cell.walls[dir] && !canOpen) || next.blockEnter?.[opposite]) return;
       const key = `${nx},${ny}`;
       if (!seen.has(key)) {

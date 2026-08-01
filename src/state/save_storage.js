@@ -7,7 +7,7 @@ import { START_X, START_Y, DIR_N, MAP_HEIGHT, MAP_WIDTH } from "../data.js";
 import { generateRandomMap } from "../map_generator.js";
 import { applyDungeonMemoryToMaps } from "./dungeon_state.js";
 import { createDefaultRecords } from "./records_state.js";
-import { findMapCellByType } from "./warden_gates.js";
+import { findMapCellByType } from "../rules/map_queries.js";
 
 const SAVE_KEY = "mobile_wiz_rpg_autosave";
 const OLD_SAVE_KEY = "mobile_wiz_rpg_save";
@@ -26,7 +26,6 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.party = [];
   state.inventory = ["HEAL_POTION", "HEAL_POTION", "ANTIDOTE", "GUARD_POTION"];
   state.firstChestUnidentifiedGuaranteed = false;
-  state.openedGates = [];
   
   if (!preserveSeed || !state.seed) {
     state.seed = generateRandomSeed();

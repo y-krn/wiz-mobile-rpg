@@ -34,10 +34,6 @@ const SECRET_DOOR_COUNTS = {
 // Preserve the existing sparse/dense profile split while bounding endpoint counts.
 const DEAD_END_TARGET_RANGE = [15, 38];
 
-export const WARDEN_GATE_FLOORS = [1, 2, 3, 4, 5];
-export const WARDEN_GATE_DETOUR_STAGES = [8, 6, 4];
-const WARDEN_GATE_CANDIDATE_LIMIT = 40;
-const WARDEN_GATE_CANDIDATE_LIMIT_RETRY = 80;
 
 function isWalkableCell(cell) {
   return cell.walls.some(w => !w) || cell.secretDoor.some(Boolean);
@@ -232,7 +228,7 @@ function getInternalWallEdges(grid) {
     for (let x = 1; x < getMapWidth(grid) - 1; x++) {
       if (!isPassageCell(grid, x, y)) continue;
 
-      if (grid[y][x].walls[DIR_E] && !grid[y][x].secretDoor?.[DIR_E] && !grid[y][x].sealedGate?.[DIR_E] && isPassageCell(grid, x + 1, y)) {
+      if (grid[y][x].walls[DIR_E] && !grid[y][x].secretDoor?.[DIR_E] && isPassageCell(grid, x + 1, y)) {
         edges.push({
           x,
           y,
@@ -242,7 +238,7 @@ function getInternalWallEdges(grid) {
         });
       }
 
-      if (grid[y][x].walls[DIR_S] && !grid[y][x].secretDoor?.[DIR_S] && !grid[y][x].sealedGate?.[DIR_S] && isPassageCell(grid, x, y + 1)) {
+      if (grid[y][x].walls[DIR_S] && !grid[y][x].secretDoor?.[DIR_S] && isPassageCell(grid, x, y + 1)) {
         edges.push({
           x,
           y,
@@ -280,43 +276,6 @@ function setSecretDoor(grid, x, y, dir) {
   cell.walls[dir] = true;
   next.walls[OPPOSITE_DIR[dir]] = true;
   return true;
-}
-
-function ensureSealedGateArrays(cell) {
-  if (!Array.isArray(cell.sealedGate) || cell.sealedGate.length !== 4) {
-    cell.sealedGate = [null, null, null, null];
-  }
-}
-
-function setSealedGate(grid, floor, edge, start) {
-  const id = `B${floor}_WARDEN_GATE`;
-  const cell = grid[edge.y][edge.x];
-  const next = grid[edge.ny][edge.nx];
-  ensureSealedGateArrays(cell);
-  ensureSealedGateArrays(next);
-
-  const startToA = getDirectedDistance(grid, start, { x: edge.x, y: edge.y });
-  const startToB = getDirectedDistance(grid, start, { x: edge.nx, y: edge.ny });
-  const home = edge.home || (startToB >= startToA ? { x: edge.nx, y: edge.ny } : { x: edge.x, y: edge.y });
-
-  const gate = {
-    id,
-    floor,
-    x: edge.x,
-    y: edge.y,
-    dir: edge.dir,
-    nx: edge.nx,
-    ny: edge.ny,
-    homeX: home.x,
-    homeY: home.y,
-    shortcutDelta: edge.shortcutDelta
-  };
-
-  cell.walls[edge.dir] = true;
-  next.walls[OPPOSITE_DIR[edge.dir]] = true;
-  cell.sealedGate[edge.dir] = { id, open: false };
-  next.sealedGate[OPPOSITE_DIR[edge.dir]] = { id, open: false };
-  return gate;
 }
 
 function closeWall(grid, x, y, dir) {
@@ -485,33 +444,6 @@ function getDirectedDistance(grid, start, target) {
   return Infinity;
 }
 
-function getDirectedDistanceMap(grid, start) {
-  const queue = [{ ...start, dist: 0 }];
-  const distances = new Map([[`${start.x},${start.y}`, 0]]);
-
-  for (const pos of queue) {
-    const cell = grid[pos.y]?.[pos.x];
-    if (!cell) continue;
-
-    for (let dir = 0; dir < 4; dir++) {
-      if (cell.walls[dir] || !canEnterFrom(grid, pos.x, pos.y, dir)) continue;
-
-      const nx = pos.x + DX[dir];
-      const ny = pos.y + DY[dir];
-      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
-
-      const key = `${nx},${ny}`;
-      if (!distances.has(key)) {
-        const distance = pos.dist + 1;
-        distances.set(key, distance);
-        queue.push({ x: nx, y: ny, dist: distance });
-      }
-    }
-  }
-
-  return distances;
-}
-
 function getUndirectedEdgeKey(x, y, nx, ny) {
   return y < ny || (y === ny && x < nx)
     ? `${x},${y}:${nx},${ny}`
@@ -580,67 +512,6 @@ function getNonBridgePassageEdges(grid) {
   return edges;
 }
 
-function getOpenPassageEdges(grid) {
-  const edges = [];
-
-  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
-    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
-      const cell = grid[y][x];
-      if (!isPassageCell(grid, x, y)) continue;
-
-      [DIR_E, DIR_S].forEach(dir => {
-        if (cell.walls[dir] || cell.blockEnter?.[dir]) return;
-        const nx = x + DX[dir];
-        const ny = y + DY[dir];
-        const next = grid[ny]?.[nx];
-        if (!next || next.walls[OPPOSITE_DIR[dir]] || next.blockEnter?.[OPPOSITE_DIR[dir]]) return;
-        if (!isPassageCell(grid, nx, ny)) return;
-        edges.push({ x, y, nx, ny, dir });
-      });
-    }
-  }
-
-  return edges;
-}
-
-function getCarvedShortcutEdges(grid) {
-  const edges = [];
-
-  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
-    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
-      const cell = grid[y][x];
-      if (cell.type !== "empty" || cell.event || cell.walls.some(w => !w)) continue;
-
-      const adjacent = [];
-      for (let dir = 0; dir < 4; dir++) {
-        const nx = x + DX[dir];
-        const ny = y + DY[dir];
-        if (isPassageCell(grid, nx, ny)) adjacent.push({ x: nx, y: ny, dir });
-      }
-      if (adjacent.length !== 2) continue;
-
-      for (let i = 0; i < adjacent.length; i++) {
-        for (let j = 0; j < adjacent.length; j++) {
-          if (i === j) continue;
-          const gateSide = adjacent[i];
-          const openSide = adjacent[j];
-          edges.push({
-            x,
-            y,
-            nx: gateSide.x,
-            ny: gateSide.y,
-            dir: gateSide.dir,
-            carveDir: openSide.dir,
-            home: { x: openSide.x, y: openSide.y }
-          });
-        }
-      }
-    }
-  }
-
-  return edges;
-}
-
 function getRequiredReachableKeys(grid, stairsDownCoord, bossCoord) {
   const keys = new Set();
 
@@ -667,10 +538,6 @@ function shuffleInPlace(array, rng) {
     const j = Math.floor(rng() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
   }
-}
-
-function manhattan(a, b) {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
 function getOneWayReverseDetourDistance(grid, option) {
@@ -940,159 +807,6 @@ function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng
   return placed;
 }
 
-export function placeWardenGate(grid, floor, start, stairsDownCoord, rng = Math.random, candidateLimit = WARDEN_GATE_CANDIDATE_LIMIT) {
-  if (!WARDEN_GATE_FLOORS.includes(floor) || !stairsDownCoord) return null;
-
-  const startDistances = getDirectedDistanceMap(grid, start);
-  const openedDistance = startDistances.get(`${stairsDownCoord.x},${stairsDownCoord.y}`) ?? Infinity;
-  if (!Number.isFinite(openedDistance)) return null;
-  const minStartDistance = Math.max(5, Math.floor(openedDistance * 0.3));
-  const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, null);
-
-  const openEdgeCandidates = getOpenPassageEdges(grid)
-    .map(edge => ({
-      ...edge,
-      roughPotential: -(manhattan(start, { x: edge.x, y: edge.y }) + manhattan({ x: edge.nx, y: edge.ny }, stairsDownCoord))
-    }))
-    .sort((a, b) => b.roughPotential - a.roughPotential);
-  const openEdges = openEdgeCandidates.slice(0, candidateLimit);
-  const carvedEdgeCandidates = getCarvedShortcutEdges(grid)
-    .filter(edge => !grid[edge.y][edge.x].secretDoor.some(Boolean) &&
-      [0, 1, 2, 3].every(dir =>
-        !grid[edge.y + DY[dir]][edge.x + DX[dir]].secretDoor.some(Boolean)
-      ))
-    .map(edge => ({
-      ...edge,
-      roughPotential: openedDistance - (manhattan(start, { x: edge.nx, y: edge.ny }) + 2 + manhattan(edge.home, stairsDownCoord))
-    }))
-    .sort((a, b) => b.roughPotential - a.roughPotential);
-  const carvedEdges = carvedEdgeCandidates.slice(0, candidateLimit);
-
-  const candidates = [...openEdges, ...carvedEdges]
-    .map(edge => {
-      let candidateDistance;
-      let requiredReachable;
-      let shortcutDelta;
-      let startToA;
-      let startToB;
-      if (edge.carveDir !== undefined) {
-        openWall(grid, edge.x, edge.y, edge.carveDir);
-        openWall(grid, edge.x, edge.y, edge.dir);
-        candidateDistance = getDirectedDistance(grid, start, stairsDownCoord);
-        shortcutDelta = openedDistance - candidateDistance;
-        requiredReachable = Number.isFinite(openedDistance);
-        startToA = getDirectedDistance(grid, start, { x: edge.x, y: edge.y });
-        startToB = getDirectedDistance(grid, start, { x: edge.nx, y: edge.ny });
-        closeWall(grid, edge.x, edge.y, edge.dir);
-        closeWall(grid, edge.x, edge.y, edge.carveDir);
-      } else {
-        closeWall(grid, edge.x, edge.y, edge.dir);
-        candidateDistance = getDirectedDistance(grid, start, stairsDownCoord);
-        requiredReachable = canReachAllRequired(grid, start, requiredKeys);
-        shortcutDelta = candidateDistance - openedDistance;
-        openWall(grid, edge.x, edge.y, edge.dir);
-        startToA = startDistances.get(`${edge.x},${edge.y}`) ?? Infinity;
-        startToB = startDistances.get(`${edge.nx},${edge.ny}`) ?? Infinity;
-      }
-      return {
-        ...edge,
-        openedDistance,
-        candidateDistance,
-        requiredReachable,
-        shortcutDelta,
-        startToA,
-        startToB
-      };
-    })
-    .filter(edge => {
-      return edge.requiredReachable &&
-        Number.isFinite(edge.candidateDistance) &&
-        edge.shortcutDelta >= 0 &&
-        edge.startToA >= minStartDistance &&
-        edge.startToB >= minStartDistance;
-    });
-
-  for (const minDetour of WARDEN_GATE_DETOUR_STAGES) {
-    const stageCandidates = candidates.filter(edge => edge.shortcutDelta >= minDetour);
-    const candidate = stageCandidates.length > 0
-      ? stageCandidates[Math.floor(rng() * stageCandidates.length)]
-      : null;
-    if (candidate) {
-      if (candidate.carveDir !== undefined) {
-        openWall(grid, candidate.x, candidate.y, candidate.carveDir);
-      }
-      return setSealedGate(grid, floor, candidate, start);
-    }
-  }
-
-  const fallbackCandidates = candidates.filter(edge => edge.carveDir !== undefined);
-  const fallback = fallbackCandidates.length > 0
-    ? fallbackCandidates[Math.floor(rng() * fallbackCandidates.length)]
-    : null;
-  if (fallback) {
-    if (fallback.carveDir !== undefined) {
-      openWall(grid, fallback.x, fallback.y, fallback.carveDir);
-    }
-    return setSealedGate(grid, floor, fallback, start);
-  }
-  const candidatesWereTruncated = openEdgeCandidates.length > candidateLimit ||
-    carvedEdgeCandidates.length > candidateLimit;
-  if (candidateLimit < WARDEN_GATE_CANDIDATE_LIMIT_RETRY && candidatesWereTruncated) {
-    return placeWardenGate(grid, floor, start, stairsDownCoord, rng, WARDEN_GATE_CANDIDATE_LIMIT_RETRY);
-  }
-  return null;
-}
-
-export function placeWardenGateWithStairFallback(grid, floor, start, stairsDownCoord, rng = Math.random) {
-  const firstGate = placeWardenGate(grid, floor, start, stairsDownCoord, rng);
-  if (firstGate || !WARDEN_GATE_FLOORS.includes(floor) || !stairsDownCoord) {
-    return { gate: firstGate, stairsDownCoord };
-  }
-
-  const reachable = getDirectedReachableCellKeys(grid, start);
-  const candidates = [...reachable]
-    .map(key => {
-      const [x, y] = key.split(",").map(Number);
-      return {
-        x,
-        y,
-        dist: Math.abs(x - start.x) + Math.abs(y - start.y)
-      };
-    })
-    .filter(pos => {
-      const cell = grid[pos.y]?.[pos.x];
-      if (!cell) return false;
-      if (pos.x === start.x && pos.y === start.y) return false;
-      if (cell.type !== "empty" || cell.event || cell.trap) return false;
-      return cell.walls.some(w => !w);
-    })
-    .sort((a, b) => b.dist - a.dist)
-    .slice(0, 8);
-
-  for (const candidate of candidates) {
-    const trial = JSON.parse(JSON.stringify(grid));
-    const oldStairs = trial[stairsDownCoord.y]?.[stairsDownCoord.x];
-    if (oldStairs?.type === "stairs-down") {
-      oldStairs.type = "empty";
-      oldStairs.message = null;
-    }
-    trial[candidate.y][candidate.x].type = "stairs-down";
-    trial[candidate.y][candidate.x].message = `【下り階段】地下${floor + 1}階へ進む階段です。`;
-    const gate = placeWardenGate(trial, floor, start, candidate, rng);
-    if (!gate) continue;
-    for (let y = 0; y < getMapHeight(grid); y++) {
-      for (let x = 0; x < getMapWidth(grid); x++) {
-        const target = grid[y][x];
-        for (const key of Object.keys(target)) delete target[key];
-        Object.assign(target, trial[y][x]);
-      }
-    }
-    return { gate, stairsDownCoord: { x: candidate.x, y: candidate.y } };
-  }
-
-  return { gate: null, stairsDownCoord };
-}
-
 export function removeIsolatedInternalWalls(grid) {
   let removed = 0;
   let changed = true;
@@ -1250,7 +964,6 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       blockEnter: [false, false, false, false],
       secretDoor: [false, false, false, false],
       secretFound: [false, false, false, false],
-      sealedGate: [null, null, null, null],
       type: "empty",
       event: null,
       message: null
@@ -1767,62 +1480,12 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   placeOneWayPassages(grid, floor, suCoord, stairsDownCoord, bossCoord, rng, options.oneWayPassageCount);
   placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng, secretCounts);
-  let wardenPlacement = { gate: null, stairsDownCoord };
-  if (options.generateWardenGate ?? true) {
-    wardenPlacement = stairsDownCoord
-      ? placeWardenGateWithStairFallback(grid, floor, suCoord, stairsDownCoord, rng)
-      : { gate: placeWardenGate(grid, floor, suCoord, bossCoord, rng), stairsDownCoord };
-    if (!wardenPlacement.gate && bossCoord && stairsDownCoord) {
-      wardenPlacement = { gate: placeWardenGate(grid, floor, suCoord, bossCoord, rng), stairsDownCoord };
-    }
-  }
-  const wardenGate = wardenPlacement.gate;
-  if (stairsDownCoord) stairsDownCoord = wardenPlacement.stairsDownCoord;
   removeInvalidOneWayPassages(grid, suCoord);
 
-  if ((floor === 2 || floor === 4) && wardenGate) {
-    const relocationReachableKeys = getDirectedReachableCellKeys(grid, suCoord);
-    const endpoints = [
-      { x: wardenGate.x, y: wardenGate.y },
-      { x: wardenGate.nx, y: wardenGate.ny }
-    ].filter(({ x, y }) => grid[y]?.[x]?.type === "empty");
-    const camp = endpoints.find(({ x, y }) => !grid[y][x].event && !grid[y][x].trap) || endpoints[0];
-    if (camp) {
-      const cell = grid[camp.y][camp.x];
-      const displacedEvent = cell.event;
-      const displacedTrap = cell.trap;
-      cell.event = EVENT_TYPES.CAMP;
-      delete cell.trap;
-
-      if (displacedEvent || displacedTrap) {
-        const relocation = [];
-        for (let y = 1; y < mapHeight - 1; y++) {
-          for (let x = 1; x < mapWidth - 1; x++) {
-            const candidate = grid[y][x];
-            if (candidate.type === "empty" && !candidate.event && !candidate.trap &&
-                candidate.walls.some(wall => !wall) && relocationReachableKeys.has(`${x},${y}`)) {
-              relocation.push({ x, y });
-            }
-          }
-        }
-        shuffleInPlace(relocation, rng);
-        const target = relocation[0];
-        if (target && displacedEvent) grid[target.y][target.x].event = displacedEvent;
-        if (target && displacedTrap) {
-          grid[target.y][target.x].trap = {
-            ...displacedTrap,
-            id: `trap_${floor}_${target.x}_${target.y}`,
-            position: { x: target.x, y: target.y }
-          };
-        }
-      }
-    }
-  }
   return {
     grid,
     stairsDownCoord,
     bossCoord,
-    wardenGate,
     rooms,
     trapMeta: {
       total: chosen.length,

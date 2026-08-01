@@ -23,13 +23,10 @@ export function generateEncounter(state, isBoss, isMidboss, isRoamingFlack, roam
       maxHp: midbossTemplate.hp
     });
   } else if (isRoamingFlack) {
-    const monsterName = roamingMonster?.kind === "warden" ? roamingMonster.name : "フラック";
-    const flackTemplate = MONSTERS.find(m => m.name === monsterName) || MONSTERS.find(m => m.name === "フラック");
-    monsters.push({
-      ...flackTemplate,
-      hp: flackTemplate.hp,
-      maxHp: flackTemplate.hp
-    });
+    const eliteName = roamingMonster?.name || getBiomeForFloor(state.floor).eliteName;
+    const eliteTemplate = MONSTERS.find(m => m.name === eliteName) || MONSTERS.find(m => m.name === "フラック");
+    // 深層でも脅威として成立させるため、通常敵と同じ深度スケールを掛ける。
+    monsters.push(scaleEnemyForDepth(eliteTemplate, state.floor));
   } else {
     // Regular random encounter
     const poolNames = getEncounterPoolForFloor(state.floor);

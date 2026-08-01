@@ -53,7 +53,6 @@ function createState({ status = "ok", isBoss = false, retreatPosition = null, ch
     currentRun: { itemsFound: [], equipmentFound: [], deathLogs: [] },
     roamingMonsters: [],
     floorChestsTotal: [],
-    openedGates: [],
     gold: 0,
     floor: 3,
     x: 5,

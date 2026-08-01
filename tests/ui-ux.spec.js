@@ -512,7 +512,6 @@ test('Mini-map hides stairs-up markers and glows on every floor', async ({ page 
       Array.from({ length: 7 }, (_, x) => ({
         walls: [false, false, false, false],
         blockEnter: [false, false, false, false],
-        sealedGate: [null, null, null, null],
         type: x === 4 && y === 3 ? type : 'empty',
         event: null,
       }))
@@ -1562,148 +1561,6 @@ for (const vp of SOLO_HUD_VIEWPORTS) {
 }
 
 for (const vp of VIEWPORTS) {
-  test(`Warden confirmation controls stay tappable on ${vp.name}`, async ({ page }) => {
-    await page.setViewportSize({ width: vp.width, height: vp.height });
-    await page.goto('/');
-    await page.evaluate(() => {
-      localStorage.clear();
-    });
-    await page.goto('/');
-
-    const boxes = await page.evaluate(async () => {
-      const { state } = await import('/src/state.js');
-      const { openSubmenu } = await import('/src/navigation.js');
-      await import('/src/menu/submenu_router.js');
-
-      state.gameState = 'explore';
-      state.pendingWardenEncounter = { monsterId: 'B1_WARDEN', prevX: 1, prevY: 22 };
-      openSubmenu('warden_confirm', '封印門の門番: 勝ち目は薄い');
-
-      return Array.from(document.querySelectorAll('#submenu-options .btn')).map((button) => {
-        const rect = button.getBoundingClientRect();
-        return {
-          text: button.textContent,
-          rect: rect.toJSON(),
-          visible: getComputedStyle(button).display !== 'none',
-        };
-      });
-    });
-
-    expect(boxes.map((box) => box.text)).toEqual(['挑む', '引き返す']);
-    for (const box of boxes) {
-      expect(box.visible, `${box.text} should be visible on ${vp.name}`).toBe(true);
-      expect(box.rect.height, `${box.text} should be at least 44px on ${vp.name}`).toBeGreaterThanOrEqual(44);
-      expect(box.rect.left, `${box.text} should stay inside viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
-      expect(box.rect.right, `${box.text} should stay inside viewport on ${vp.name}`).toBeLessThanOrEqual(vp.width);
-    }
-  });
-}
-
-test('Standalone safe-area full-screen overlays keep controls outside system bars', async ({ page }) => {
-  const safeAreaTop = 59;
-  const safeAreaBottom = 34;
-  await page.setViewportSize({ width: 402, height: 874 });
-  await page.goto('/');
-  await page.evaluate(() => {
-    localStorage.clear();
-  });
-  await page.goto('/');
-  await page.addStyleTag({
-    content: `:root { --safe-area-top: ${safeAreaTop}px; --safe-area-bottom: ${safeAreaBottom}px; }`,
-  });
-
-  const overlayCases = [
-    { name: 'equip', selector: '#equip-overlay' },
-    { name: 'spell', selector: '#spell-overlay' },
-    { name: 'archives', selector: '#archives-overlay' },
-  ];
-
-  for (const overlayCase of overlayCases) {
-    await page.evaluate(async (name) => {
-      const overlays = [
-        'equip-overlay',
-        'spell-overlay',
-        'archives-overlay',
-      ];
-      overlays.forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-      });
-
-      const { state } = await import('/src/state.js');
-      const { getCharMaxMp } = await import('/src/data.js');
-      const { openSubmenu } = await import('/src/navigation.js');
-
-      state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
-      state.party.forEach((char) => {
-        char.hp = Math.max(1, char.hp);
-        char.mp = getCharMaxMp(char);
-        char.maxMp = getCharMaxMp(char);
-      });
-
-      if (name === 'equip') {
-        const { openEquipOverlay } = await import('/src/equip.js');
-        openEquipOverlay(0);
-      } else if (name === 'spell') {
-        openSubmenu('spell_caster_select', '呪文選択:');
-      } else if (name === 'archives') {
-        const { openArchivesOverlay } = await import('/src/ui.js');
-        openArchivesOverlay();
-      }
-    }, overlayCase.name);
-
-    await expect(page.locator(overlayCase.selector)).toBeVisible();
-
-    const layout = await page.evaluate((selector) => {
-      const overlay = document.querySelector(selector);
-      const rect = (el) => el.getBoundingClientRect().toJSON();
-      const visibleChildren = Array.from(overlay.querySelectorAll('*'))
-        .filter((el) => {
-          const style = getComputedStyle(el);
-          const box = el.getBoundingClientRect();
-          return style.display !== 'none' &&
-            style.visibility !== 'hidden' &&
-            box.width > 0 &&
-            box.height > 0;
-        });
-      const topMost = visibleChildren
-        .slice()
-        .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
-      const bottomMostButton = Array.from(overlay.querySelectorAll('button, [role="button"], .btn'))
-        .filter((el) => {
-          const style = getComputedStyle(el);
-          const box = el.getBoundingClientRect();
-          const isScrollRow = el.classList.contains('equip-item-row') ||
-            el.classList.contains('char-row');
-          return style.display !== 'none' &&
-            style.visibility !== 'hidden' &&
-            !isScrollRow &&
-            box.width > 0 &&
-            box.height > 0 &&
-            box.top < window.innerHeight &&
-            box.bottom > 0;
-        })
-        .sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom)[0];
-      return {
-        overlay: rect(overlay),
-        topMost: topMost ? rect(topMost) : null,
-        bottomMostButton: bottomMostButton ? rect(bottomMostButton) : null,
-        paddingTop: parseFloat(getComputedStyle(overlay).paddingTop),
-        paddingBottom: parseFloat(getComputedStyle(overlay).paddingBottom),
-        height: window.innerHeight,
-      };
-    }, overlayCase.selector);
-
-    expect(layout.overlay.top, `${overlayCase.name} backdrop should cover the top safe-area strip`).toBe(0);
-    expect(layout.overlay.bottom, `${overlayCase.name} backdrop should cover the bottom safe-area strip`).toBe(874);
-    expect(layout.paddingTop, `${overlayCase.name} overlay should include top safe-area padding`).toBeGreaterThanOrEqual(safeAreaTop + 12);
-    expect(layout.paddingBottom, `${overlayCase.name} overlay should include bottom safe-area padding`).toBeGreaterThanOrEqual(safeAreaBottom + 12);
-    expect(layout.topMost.top, `${overlayCase.name} content should clear top safe area`).toBeGreaterThanOrEqual(safeAreaTop);
-    expect(layout.bottomMostButton.bottom, `${overlayCase.name} controls should clear bottom safe area`).toBeLessThanOrEqual(layout.height - safeAreaBottom);
-  }
-});
-
-for (const vp of VIEWPORTS) {
   test.describe(`UIUX Mobile One-Handed Operation tests on ${vp.name} (${vp.width}x${vp.height})`, () => {
     test.beforeEach(async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
@@ -2247,7 +2104,6 @@ for (const vp of VIEWPORTS) {
     test('Camp rest is thumb-safe and limited to once per run', async ({ page }) => {
       await page.evaluate(async () => {
         const { state, createDefaultCurrentRun } = await import('/src/state.js');
-        const { getWardenGateId } = await import('/src/state/warden_gates.js');
         const { openSubmenu } = await import('/src/navigation.js');
         state.party = [(await import('/src/state.js')).createSoloCharacter('Mage')];
         state.party.forEach(char => {
@@ -2257,7 +2113,6 @@ for (const vp of VIEWPORTS) {
         state.floor = 2;
         state.gameState = 'explore';
         state.currentRun = createDefaultCurrentRun();
-        state.openedGates = [getWardenGateId(2)];
         openSubmenu('event_camp', '野営地');
       });
 

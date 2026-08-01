@@ -3,7 +3,7 @@ import { generateRandomMap, removeIsolatedInternalWalls } from "../map_generator
 import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 import { getIdentificationGambleProfile } from "../rules/identification_rules.js";
 import { normalizeRecords } from "./records_state.js";
-import { findMapCellByType } from "./warden_gates.js";
+import { findMapCellByType } from "../rules/map_queries.js";
 import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
 import { addMaterials } from "../rules/material_rules.js";
 
@@ -71,7 +71,7 @@ export function migrateCharSpells(char) {
 
 // 現行セーブスキーマのバージョン。破壊的shape変更を入れる際にインクリメントし、
 // MIGRATIONSへ「前バージョン→このバージョン」の変換stepを追加する。
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 
 // 段階migrationレジストリ。key = 到達バージョン、value = (data) => data の変換関数。
 // 各stepは「1つ前のバージョンのshape」を受け取り「そのバージョンのshape」を返す純変換。
@@ -143,20 +143,6 @@ function backfillMapSecretDoors(data) {
         }
         if (!Array.isArray(cell.secretFound) || cell.secretFound.length !== 4) {
           cell.secretFound = [false, false, false, false];
-        }
-      });
-    });
-  });
-  return data;
-}
-
-function backfillMapSealedGates(data) {
-  data.maps?.forEach(map => {
-    map?.forEach(row => {
-      row?.forEach(cell => {
-        if (!cell) return;
-        if (!Array.isArray(cell.sealedGate) || cell.sealedGate.length !== 4) {
-          cell.sealedGate = [null, null, null, null];
         }
       });
     });
@@ -253,7 +239,6 @@ export function normalizeSavePayload(data) {
   normalized.firstChestUnidentifiedGuaranteed = data.firstChestUnidentifiedGuaranteed ?? false;
   normalized.roamingMovementStepCount = data.roamingMovementStepCount ?? 0;
   normalized.noiseEvents = data.noiseEvents ?? [];
-  normalized.openedGates = data.openedGates ?? [];
   normalized.storage = data.storage ?? [];
   normalized.storageMax = data.storageMax ?? 30;
   normalized.identifyTickets = data.identifyTickets ?? 0;
@@ -321,7 +306,6 @@ export function normalizeSavePayload(data) {
   loadedMaps.forEach(map => {
     backfillMapBlockEnter({ maps: [map] });
     backfillMapSecretDoors({ maps: [map] });
-    backfillMapSealedGates({ maps: [map] });
     if (map) removeIsolatedInternalWalls(map);
   });
   normalized.maps = loadedMaps;

@@ -8,7 +8,7 @@ global.localStorage = {
 import { createRng } from "../src/seed_rng.js";
 import { generateRandomMap } from "../src/map_generator.js";
 import { generateRandomEquipment } from "../src/data.js";
-import { state, initNewGame, rebuildDungeonMaps, calculateSeedProperties } from "../src/state.js";
+import { state, initNewGame, calculateSeedProperties } from "../src/state.js";
 import { normalizeSavePayload } from "../src/state/save_migrations.js";
 import assert from "assert";
 
@@ -79,16 +79,16 @@ for (const seed of startSyncSeeds) {
   state.y = 22;
   state.prevX = 1;
   state.prevY = 22;
-  rebuildDungeonMaps();
+  initNewGame({ preserveSeed: true });
   const rebuiltStart = findStairsUp({ grid: state.maps[0] });
   assert.deepStrictEqual({ x: state.x, y: state.y }, rebuiltStart,
-    `rebuildDungeonMaps should place the player at B1F stairs-up for seed ${seed}`);
+    `re-initializing should place the player at B1F stairs-up for seed ${seed}`);
   assert.deepStrictEqual({ x: state.prevX, y: state.prevY }, rebuiltStart,
-    `rebuildDungeonMaps should synchronize the previous position for seed ${seed}`);
+    `re-initializing should synchronize the previous position for seed ${seed}`);
   assert.strictEqual(state.visitedMaps[0][rebuiltStart.y][rebuiltStart.x], true,
-    `rebuildDungeonMaps should mark B1F stairs-up visited for seed ${seed}`);
+    `re-initializing should mark B1F stairs-up visited for seed ${seed}`);
 }
-console.log("[PASS] New-game and rebuild start positions follow B1F stairs-up across multiple seeds.");
+console.log("[PASS] New-game start positions follow B1F stairs-up across multiple seeds.");
 
 // Check stairs-down coordinates match
 assert.strictEqual(map1_a.stairsDownCoord.x, map1_b.stairsDownCoord.x, "Stairs down X should match for same seed");
@@ -126,7 +126,7 @@ console.log("[PASS] Equipment generator consistency verified.");
 
 // Test 4: calculateSeedProperties consistency
 state.seed = "TESTSEED123";
-rebuildDungeonMaps();
+initNewGame({ preserveSeed: true });
 const props1_a = calculateSeedProperties();
 const props1_b = calculateSeedProperties();
 
@@ -135,7 +135,7 @@ assert.strictEqual(props1_a.score, props1_b.score, "Seed properties score should
 assert.deepStrictEqual(props1_a.biases, props1_b.biases, "Seed properties biases should be identical for same seed");
 
 state.seed = "DIFFSEED789";
-rebuildDungeonMaps();
+initNewGame({ preserveSeed: true });
 const props2 = calculateSeedProperties();
 
 console.log(`TESTSEED123 danger: ${props1_a.rank} (${props1_a.score}) biases: ${props1_a.biases.join(",")}`);

@@ -125,7 +125,6 @@ const combatState = {
   firstKills: [],
   roamingMonsters: [],
   floorChestsTotal: [0, 0, 0, 0, 0],
-  openedGates: [],
   gold: 0,
   floor: 1,
   materials: {},

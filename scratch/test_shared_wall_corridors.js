@@ -24,7 +24,6 @@ function findSharedWallViolations(grid) {
         const next = grid[ny]?.[nx];
         if (!next || !cell.walls[dir] || !next.walls[opposite]) continue;
         if (cell.secretDoor?.[dir] || next.secretDoor?.[opposite]) continue;
-        if (cell.sealedGate?.[dir] || next.sealedGate?.[opposite]) continue;
         if (!isWalkableCell(cell) || !isWalkableCell(next)) continue;
         violations.push({ x, y, nx, ny });
       }

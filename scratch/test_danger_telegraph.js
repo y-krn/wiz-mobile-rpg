@@ -68,7 +68,6 @@ function createState(party, monsters) {
     firstKills: [],
     roamingMonsters: [],
     floorChestsTotal: [],
-    openedGates: [],
     metaMaterials: {},
     gold: 0,
     floor: 1,
