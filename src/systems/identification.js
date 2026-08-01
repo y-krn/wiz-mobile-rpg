@@ -5,6 +5,7 @@ export function identifyEquipment(stateLike, item, character = null, rng = Math.
   if (!item || typeof item !== "object" || item.identified) {
     return { ok: false, reason: "already_identified" };
   }
+  // 所持チェックは割引ロールより前。粉0では100%割引でも鑑定不可。
   if ((stateLike.identifyTickets || 0) < IDENTIFICATION_BALANCE.identifyCost) {
     return { ok: false, reason: "insufficient_powder" };
   }

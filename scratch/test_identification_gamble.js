@@ -130,7 +130,7 @@ test("鑑定粉あり/なしで消費と開示を分岐する", () => {
   assert.equal(isCurseLocked(item), true);
 });
 
-test("鑑定割引は0%/100%と中間値のrngで粉消費を分岐する", () => {
+test("鑑定割引は0%/上限50%と中間値のrngで粉消費を分岐する", () => {
   const noDiscountHolder = { identifyTickets: 1 };
   identifyEquipment(
     noDiscountHolder,
@@ -140,16 +140,16 @@ test("鑑定割引は0%/100%と中間値のrngで粉消費を分岐する", () =
   );
   assert.equal(noDiscountHolder.identifyTickets, 0);
 
-  const fullDiscountCharacter = characterWithIdentifyDiscount({ affixValue: 100 });
-  assert.equal(getCharAffixSum(fullDiscountCharacter, "identifyDiscount"), 100);
-  const fullDiscountHolder = { identifyTickets: 1 };
+  const maxDiscountCharacter = characterWithIdentifyDiscount({ affixValue: 100 });
+  assert.equal(getCharAffixSum(maxDiscountCharacter, "identifyDiscount"), 50);
+  const maxDiscountHolder = { identifyTickets: 1 };
   identifyEquipment(
-    fullDiscountHolder,
+    maxDiscountHolder,
     unknownItem(),
-    fullDiscountCharacter,
-    () => 0.999
+    maxDiscountCharacter,
+    () => 0
   );
-  assert.equal(fullDiscountHolder.identifyTickets, 1);
+  assert.equal(maxDiscountHolder.identifyTickets, 1);
 
   const combinedCharacter = characterWithIdentifyDiscount({
     className: "Bishop",
