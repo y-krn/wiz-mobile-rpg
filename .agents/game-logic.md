@@ -7,7 +7,8 @@ existing state and data structures.
 
 ## Scope
 
-- Combat, movement, map generation, state transitions, data/rule/system boundaries, and compatibility
+- Combat, movement, map generation, state transitions, data/rule/system
+  boundaries, and compatibility
 - Deterministic resolution, random behavior, save/state shape, and flow wiring
 - Facade-to-concrete module behavior for mechanics
 

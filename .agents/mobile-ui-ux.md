@@ -7,11 +7,14 @@ transitions.
 
 ## Scope
 
-- Screen layout, touch targets, one-handed reach, overlay open/close, and state transitions
-- CSS cascade, feature styles, responsive behavior, and mobile viewport regressions
+- Screen layout, touch targets, one-handed reach, overlay open/close, and state
+  transitions
+- CSS cascade, feature styles, responsive behavior, and mobile viewport
+  regressions
 - Interaction flow continuity across affected controls and browser coverage
 
-Target files are determined from the UI rows and CSS Style Routing table in `.agents/file-map.md`.
+Target files are determined from the UI rows and CSS Style Routing table in
+`.agents/file-map.md`.
 
 ## Initial File Routing
 

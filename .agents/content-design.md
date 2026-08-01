@@ -7,9 +7,12 @@ implementation cost.
 
 ## Scope
 
-- Clarity, theme fit, player motivation, and consistency of player-facing RPG content
-- Items, enemies, spells, classes, run quests, rewards, events, descriptions, labels, and display text
-- Implementation cost and interactions with progression, mechanics, balance, and mobile presentation
+- Clarity, theme fit, player motivation, and consistency of player-facing RPG
+  content
+- Items, enemies, spells, classes, run quests, rewards, events, descriptions,
+  labels, and display text
+- Implementation cost and interactions with progression, mechanics, balance, and
+  mobile presentation
 
 Target files are determined from the relevant rows in `.agents/file-map.md`.
 

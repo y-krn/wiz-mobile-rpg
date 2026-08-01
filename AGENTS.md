@@ -187,7 +187,9 @@ Mobile browser one-handed use is a hard requirement for UI work.
 
 ## UI Change Gate
 
-This gate applies to UI modules (screen rendering, menu navigation, overlays, styles, and browser tests). Determine target files using the UI-related rows and CSS Style Routing table in `.agents/file-map.md`.
+This gate applies to UI modules (screen rendering, menu navigation, overlays,
+styles, and browser tests). Determine target files using the UI-related rows and
+CSS Style Routing table in `.agents/file-map.md`.
 
 Before editing UI:
 

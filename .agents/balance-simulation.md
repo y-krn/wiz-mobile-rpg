@@ -7,9 +7,12 @@ repeatable checks.
 
 ## Scope
 
-- Progression, economy, materials, drops, enemies, rewards, difficulty, growth, and run pacing
-- Repeatable simulations, deterministic seeds, outcome distributions, and resource/reward curves
-- Interactions between data, rules, systems, combat, map, chest, and quest behavior
+- Progression, economy, materials, drops, enemies, rewards, difficulty, growth,
+  and run pacing
+- Repeatable simulations, deterministic seeds, outcome distributions, and
+  resource/reward curves
+- Interactions between data, rules, systems, combat, map, chest, and quest
+  behavior
 
 Target files are determined from the relevant rows in `.agents/file-map.md`.
 
