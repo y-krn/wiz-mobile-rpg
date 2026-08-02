@@ -136,6 +136,20 @@
   min-height: var(--tap-min);
 }
 
+.solo-start-craft-stepper {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: var(--sp-xs);
+  align-items: stretch;
+}
+
+.solo-start-craft-decrement {
+  min-height: var(--tap-min);
+  padding: 0;
+  font-size: var(--fs-lg);
+}
+
 .solo-start-craft-summary {
   position: sticky;
   top: 0;

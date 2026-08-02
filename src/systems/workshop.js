@@ -1,9 +1,12 @@
 import { CRAFT_RECIPES } from "../craft.js";
 import {
-  DEPARTURE_CRAFT_MAX_SLOTS,
   WORKSHOP_NODE_BY_ID,
   WORKSHOP_NODES
 } from "../data/workshop.js";
+import {
+  getDepartureCraftCost as getDepartureCraftCostSummary,
+  spendDepartureCraftRecipes
+} from "../rules/craft_rules.js";
 import { spendMaterials } from "../rules/material_rules.js";
 
 export function createDefaultWorkshopState() {
@@ -35,7 +38,7 @@ export function purchaseWorkshopNode(metaMaterials, workshop, nodeId) {
 }
 
 function normalizeDepartureCraftSelection(recipeIds) {
-  return [...new Set(Array.isArray(recipeIds) ? recipeIds : [])];
+  return Array.isArray(recipeIds) ? [...recipeIds] : [];
 }
 
 export function getDepartureCraftRecipes(recipeIds) {
@@ -44,48 +47,40 @@ export function getDepartureCraftRecipes(recipeIds) {
 }
 
 export function getDepartureCraftCost(recipeIds) {
-  const cost = {};
-  getDepartureCraftRecipes(recipeIds).forEach(recipe => {
-    Object.entries(recipe.mats).forEach(([material, quantity]) => {
-      cost[material] = (cost[material] || 0) + quantity;
-    });
-  });
-  return cost;
+  return getDepartureCraftCostSummary(getDepartureCraftRecipes(recipeIds));
 }
 
-export function canAffordDepartureCraft(
-  metaMaterials,
-  recipeIds,
-  maxSlots = DEPARTURE_CRAFT_MAX_SLOTS
-) {
+function purchaseSelectedDepartureCraft(metaMaterials, recipes) {
+  return spendDepartureCraftRecipes(metaMaterials, recipes);
+}
+
+export function canAffordDepartureCraft(metaMaterials, recipeIds) {
   const selected = normalizeDepartureCraftSelection(recipeIds);
-  if (selected.length > maxSlots) return false;
   if (selected.some(recipeId => !CRAFT_RECIPES.some(recipe => recipe.resultId === recipeId))) {
     return false;
   }
-  return spendMaterials(metaMaterials, getDepartureCraftCost(selected)) !== null;
+  return purchaseSelectedDepartureCraft(
+    metaMaterials,
+    getDepartureCraftRecipes(selected)
+  ) !== null;
 }
 
 // 選択内容を1回だけ購入する。失敗時は残高を変更しない。
-export function purchaseDepartureCraft(
-  metaMaterials,
-  recipeIds,
-  maxSlots = DEPARTURE_CRAFT_MAX_SLOTS
-) {
+export function purchaseDepartureCraft(metaMaterials, recipeIds) {
   const selected = normalizeDepartureCraftSelection(recipeIds);
-  if (selected.length > maxSlots) return { ok: false, reason: "slot_limit" };
   if (selected.some(recipeId => !CRAFT_RECIPES.some(recipe => recipe.resultId === recipeId))) {
     return { ok: false, reason: "unknown_recipe" };
   }
-  const cost = getDepartureCraftCost(selected);
-  const balance = spendMaterials(metaMaterials, cost);
-  if (!balance) return { ok: false, reason: "insufficient_materials" };
+  const recipes = getDepartureCraftRecipes(selected);
+  const purchase = purchaseSelectedDepartureCraft(metaMaterials, recipes);
+  if (!purchase) return { ok: false, reason: "insufficient_materials" };
   return {
     ok: true,
     recipeIds: selected,
     itemIds: selected,
-    cost,
-    metaMaterials: balance
+    cost: purchase.spent,
+    payment: getDepartureCraftCost(selected),
+    metaMaterials: purchase.balance
   };
 }
 

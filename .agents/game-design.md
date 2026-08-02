@@ -77,10 +77,11 @@ Permanent unlocks include:
 5. Convenience: +1 starting identify resource, a starting return item, and
    similar small run-start kits.
 
-Departure craft is the separate run-start path: select recipes, pay their
-material costs for that run, and carry the crafted consumables into the run.
-Each item uses one slot; the slot cap is `DEPARTURE_CRAFT_MAX_SLOTS` in
-`src/data/workshop.js`. Leaving without crafted items remains valid.
+Departure craft is the separate run-start path: choose quantities per recipe,
+pay their material costs for that run, and carry the crafted consumables into
+the run. There is no recipe-count or item-count cap; the available material
+balance is the only purchase limit. Leaving without crafted items remains
+valid.
 
 Defer: dismantling, random-property crafting, and any feature that replaces
 the in-run build system. Builds live inside the run.
