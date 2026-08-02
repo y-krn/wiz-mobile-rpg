@@ -82,7 +82,8 @@ const {
   bankRunMaterials,
   getBankedMaterials,
   getDepthMaterialDropChance,
-  getDepthMaterialExpectedQuantity
+  getDepthMaterialExpectedQuantity,
+  spendMaterials
 } = await import("../src/rules/material_rules.js");
 const { addInventoryItemToState } = await import("../src/state/inventory_state.js");
 const {
@@ -111,9 +112,13 @@ const {
 } = await import("../src/combat_logic/status_effects.js");
 const {
   applyWorkshopToCharacter,
-  getDepartureKitGrants,
+  getDepartureCraftCost,
+  getDepartureCraftGrants,
+  purchaseDepartureCraft,
   getWorkshopGrants
 } = await import("../src/systems/workshop.js");
+const { DEPARTURE_CRAFT_MAX_SLOTS: SOURCE_DEPARTURE_CRAFT_MAX_SLOTS } =
+  await import("../src/data/workshop.js");
 const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
 const { getStartingHealPotionCount } = await import("../src/rules/recovery_rules.js");
 
@@ -163,10 +168,9 @@ const CHEST_PICKUP_RATE = 0.7;
 const COMBAT_TURN_WEIGHT = 3;
 // 実run開始準拠: src/rules/recovery_rules.js と同じ開始傷薬数。
 const INITIAL_HEAL_POTIONS = getStartingHealPotionCount();
-// 実run開始準拠: 解毒薬1個。
-const INITIAL_ANTIDOTES = 1;
-// 実run開始準拠: 守りの薬1個（#271の確実供給）。
-const INITIAL_GUARD_POTIONS = 1;
+// 実run開始準拠: 初期持ち道具は完全ゼロ。出発クラフト分は別sourceで計測する。
+const INITIAL_ANTIDOTES = 0;
+const INITIAL_GUARD_POTIONS = 0;
 // 仮値・感度分析対象: 戦闘中/戦闘後HPが最大HPの35%以下なら傷薬を1個使う。
 const HEAL_POTION_THRESHOLD = 0.35;
 // 仮値・感度分析対象: 最大HPの指定割合以下なら次の自ターンで逃走する。
@@ -252,6 +256,16 @@ const PORTAL_MAX_HEAL_POTIONS = Math.max(
   Number(process.env.PORTAL_MAX_HEAL_POTIONS || 0)
 );
 const PORTAL_MIN_FLOOR = Math.max(1, Number(process.env.PORTAL_MIN_FLOOR || 3));
+const DEPARTURE_CRAFT_MAX_SLOTS = Math.max(
+  0,
+  Math.floor(Number(process.env.DEPARTURE_CRAFT_SLOTS || SOURCE_DEPARTURE_CRAFT_MAX_SLOTS))
+);
+const REQUESTED_DEPARTURE_CRAFT_IDS = String(process.env.DEPARTURE_CRAFT_IDS || "")
+  .split(",")
+  .map(value => value.trim())
+  .filter(Boolean);
+const ACTIVE_DEPARTURE_CRAFT_IDS = [...new Set(REQUESTED_DEPARTURE_CRAFT_IDS)]
+  .slice(0, DEPARTURE_CRAFT_MAX_SLOTS);
 const SCENARIOS = Object.freeze([
   {
     id: "workshop-locked",
@@ -261,8 +275,7 @@ const SCENARIOS = Object.freeze([
   },
   {
     id: "workshop-unlocked",
-    label: "工房空・翼あり（旧ID）",
-    workshopReturnItem: "TOWN_PORTAL",
+    label: "工房空（旧ID）",
     useTownPortal: true
   },
   {
@@ -330,44 +343,38 @@ const WORKSHOP_STATE_RANKS = Object.freeze({
 const DEPTH_SCENARIOS = Object.freeze([
   {
     id: "workshop-empty",
-    label: "工房空・翼あり",
+    label: "工房空",
     workshop: { ranks: WORKSHOP_STATE_RANKS.empty },
-    workshopReturnItem: "TOWN_PORTAL",
     useTownPortal: true
   },
   {
     id: "workshop-stats",
     label: "工房ステータス投資中",
     workshop: { ranks: WORKSHOP_STATE_RANKS.stats },
-    workshopReturnItem: "TOWN_PORTAL",
     useTownPortal: true
   },
   {
     id: "workshop-gear",
     label: "工房初期装備解放済み",
     workshop: { ranks: WORKSHOP_STATE_RANKS.gear },
-    workshopReturnItem: "TOWN_PORTAL",
     useTownPortal: true
   },
   {
     id: "workshop-blood-wand",
     label: "工房血杖解放済み",
     workshop: { ranks: WORKSHOP_STATE_RANKS.bloodWand },
-    workshopReturnItem: "TOWN_PORTAL",
     useTownPortal: true
   },
   {
     id: "workshop-blood-wand-spells",
     label: "工房血杖・深層呪文解放済み",
     workshop: { ranks: WORKSHOP_STATE_RANKS.bloodWandDeepSpells },
-    workshopReturnItem: "TOWN_PORTAL",
     useTownPortal: true
   },
   {
     id: "workshop-complete",
     label: "工房買い切り済み",
     workshop: { ranks: WORKSHOP_STATE_RANKS.complete },
-    workshopReturnItem: "TOWN_PORTAL",
     useTownPortal: true
   },
   {
@@ -598,6 +605,18 @@ function createTrapAggregate() {
     avoidanceExpectedDirectDamage: 0,
     kitsAcquired: 0,
     kitsUsed: 0,
+    trapKitsAcquiredBySource: {
+      starting: 0,
+      departureCraft: 0,
+      chest: 0,
+      other: 0
+    },
+    trapKitsConsumedBySource: {
+      starting: 0,
+      departureCraft: 0,
+      chest: 0,
+      other: 0
+    },
     detections: 0,
     runsWithHealPotionShortage: 0,
     combatDamageHp: 0,
@@ -606,12 +625,14 @@ function createTrapAggregate() {
     diosHealingHp: 0,
     healPotionsAcquiredBySource: {
       starting: 0,
+      departureCraft: 0,
       chest: 0,
       merchant: 0,
       other: 0
     },
     healPotionsConsumedBySource: {
       starting: 0,
+      departureCraft: 0,
       chest: 0,
       merchant: 0,
       other: 0
@@ -639,6 +660,14 @@ function addTrapAggregate(target, result) {
   target.avoidanceExpectedDirectDamage += result.trapAvoidanceExpectedDirectDamage;
   target.kitsAcquired += result.trapKitsAcquired;
   target.kitsUsed += result.trapKitsUsed;
+  Object.entries(result.trapKitsAcquiredBySource).forEach(([source, amount]) => {
+    target.trapKitsAcquiredBySource[source] =
+      (target.trapKitsAcquiredBySource[source] || 0) + amount;
+  });
+  Object.entries(result.trapKitsConsumedBySource).forEach(([source, amount]) => {
+    target.trapKitsConsumedBySource[source] =
+      (target.trapKitsConsumedBySource[source] || 0) + amount;
+  });
   target.detections += result.trapDetections;
   target.runsWithHealPotionShortage += Number(result.trapHealPotionShortages > 0);
   target.combatDamageHp += result.combatDamageHp;
@@ -684,6 +713,18 @@ function finalizeTrapAggregate(aggregate) {
       aggregate.avoidanceExpectedDirectDamage / runs,
     averageTrapKitsAcquired: aggregate.kitsAcquired / runs,
     averageTrapKitsUsed: aggregate.kitsUsed / runs,
+    averageTrapKitsAcquiredBySource: Object.fromEntries(
+      Object.entries(aggregate.trapKitsAcquiredBySource).map(([source, amount]) => [
+        source,
+        amount / runs
+      ])
+    ),
+    averageTrapKitsConsumedBySource: Object.fromEntries(
+      Object.entries(aggregate.trapKitsConsumedBySource).map(([source, amount]) => [
+        source,
+        amount / runs
+      ])
+    ),
     averageTrapDetections: aggregate.detections / runs,
     averageCombatDamageHp: aggregate.combatDamageHp / runs,
     averageStairsHealingHp: aggregate.stairsHealingHp / runs,
@@ -807,6 +848,22 @@ function equipBestWorkshopStartingGear(character, workshop) {
   }
 }
 
+function resolveDepartureCraftIds(scenario) {
+  const requested = Object.hasOwn(scenario, "departureCraft")
+    ? scenario.departureCraft
+    : ACTIVE_DEPARTURE_CRAFT_IDS;
+  const slotLimit = getDepartureCraftSlotLimit(scenario);
+  return [...new Set(Array.isArray(requested) ? requested : [])]
+    .slice(0, slotLimit);
+}
+
+function getDepartureCraftSlotLimit(scenario) {
+  if (!Object.hasOwn(scenario, "departureCraftSlotLimit")) {
+    return DEPARTURE_CRAFT_MAX_SLOTS;
+  }
+  return Math.max(0, Math.floor(Number(scenario.departureCraftSlotLimit)));
+}
+
 function createSimulationState(className, startFloor, runSeed, scenario, workshop) {
   const currentRun = createDefaultCurrentRun();
   currentRun.runSeed = runSeed;
@@ -819,38 +876,78 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
   const workshopGrants = getWorkshopGrants(workshop);
   const identificationPolicy = scenario.identificationPolicy || "legacy";
-  // legacyは既存の鑑定済み経路と乱数列を維持し、比較対象だけ実runの初期支給を使う。
+  // legacyは既存の鑑定済み経路と乱数列を維持し、powder/gambleだけ実runの初期支給を使う。
   const useRealIdentificationSupply = identificationPolicy !== "legacy";
-  const departureKitPurchased = Object.hasOwn(scenario, "departureKit")
-    ? scenario.departureKit
-    : useRealIdentificationSupply;
-  const departureKitGrants = getDepartureKitGrants(departureKitPurchased);
+  const departureCraftIds = resolveDepartureCraftIds(scenario);
+  const sourceDepartureCraftCost = getDepartureCraftCost(departureCraftIds);
+  const departureCraftCost = scenario.departureCraftCostOverride || sourceDepartureCraftCost;
+  const departureCraftBank = {
+    ...sourceDepartureCraftCost,
+    ...(scenario.departureCraftMaterials || {})
+  };
+  const departureCraftSlotLimit = getDepartureCraftSlotLimit(scenario);
+  const departureCraftPurchaseValidation = purchaseDepartureCraft(
+    departureCraftBank,
+    departureCraftIds,
+    departureCraftSlotLimit
+  );
+  const departureCraftBalance = spendMaterials(departureCraftBank, departureCraftCost);
+  const departureCraftPurchase = departureCraftPurchaseValidation.ok && departureCraftBalance
+    ? {
+        ...departureCraftPurchaseValidation,
+        cost: departureCraftCost,
+        metaMaterials: departureCraftBalance
+      }
+    : {
+        ok: false,
+        reason: departureCraftPurchaseValidation.ok
+          ? "insufficient_materials"
+          : departureCraftPurchaseValidation.reason
+      };
+  if (!departureCraftPurchase.ok) {
+    throw new Error(
+      `departure craft purchase failed: ${departureCraftPurchase.reason} ` +
+      `ids=${departureCraftIds.join(",")}`
+    );
+  }
+  const departureCraftGrants = getDepartureCraftGrants(departureCraftPurchase.recipeIds);
+  const departureCraftItems = departureCraftGrants.items;
   const startingPowder = useRealIdentificationSupply
     ? IDENTIFICATION_BALANCE.startingPowder
-    : 0;
-  const departureKitPowder = useRealIdentificationSupply
-    ? departureKitGrants.identifyPowder
     : 0;
   const initialIdentificationPowder = {
     starting: startingPowder,
     workshop: workshopGrants.identifyPowder,
-    departureKit: departureKitPowder
+    departureCraft: departureCraftGrants.identifyPowder
   };
-  // src/movement.js:669の式と同じ初期値（legacyのみ旧sim互換の工房粉だけ）。
+  // src/movement.jsと同じ初期値。legacyだけ開始時粉を旧sim互換で省略する。
   const initialIdentifyTickets = useRealIdentificationSupply
     ? IDENTIFICATION_BALANCE.startingPowder +
       workshopGrants.identifyPowder +
-      departureKitGrants.identifyPowder
-    : workshopGrants.identifyPowder;
+      departureCraftGrants.identifyPowder
+    : workshopGrants.identifyPowder + departureCraftGrants.identifyPowder;
   const workshopReturnItems = scenario.ignoreWorkshopReturnItems
     ? []
     : workshopGrants.returnItems;
-  const departureKitReturnItems = departureKitPurchased
-    ? departureKitGrants.returnItems
-    : [];
+  const startingHealPotions = Object.hasOwn(scenario, "startingHealPotions")
+    ? Math.max(0, Math.floor(Number(scenario.startingHealPotions)))
+    : INITIAL_HEAL_POTIONS;
+  const startingAntidotes = Object.hasOwn(scenario, "startingAntidotes")
+    ? Math.max(0, Math.floor(Number(scenario.startingAntidotes)))
+    : INITIAL_ANTIDOTES;
+  const startingGuardPotions = Object.hasOwn(scenario, "startingGuardPotions")
+    ? Math.max(0, Math.floor(Number(scenario.startingGuardPotions)))
+    : INITIAL_GUARD_POTIONS;
   const scenarioReturnItems = [
     ...(scenario.workshopReturnItem ? [scenario.workshopReturnItem] : []),
     ...Array(Math.max(0, scenario.startingTownPortals || 0)).fill("TOWN_PORTAL")
+  ];
+  const startingInventory = [
+    ...Array(startingHealPotions).fill("HEAL_POTION"),
+    ...Array(startingAntidotes).fill("ANTIDOTE"),
+    ...Array(startingGuardPotions).fill("GUARD_POTION"),
+    ...workshopReturnItems,
+    ...scenarioReturnItems
   ];
   const initialWeaponId = character.equipment.weapon;
   equipBestWorkshopStartingGear(character, workshop);
@@ -872,17 +969,25 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     workshopEffects,
     combatState: null,
     inventory: [
-      ...Array(INITIAL_HEAL_POTIONS).fill("HEAL_POTION"),
-      ...Array(INITIAL_ANTIDOTES).fill("ANTIDOTE"),
-      ...Array(INITIAL_GUARD_POTIONS).fill("GUARD_POTION"),
-      ...workshopReturnItems,
-      ...departureKitReturnItems,
-      ...scenarioReturnItems
+      ...startingInventory,
+      ...departureCraftItems
     ],
-    simHealPotionSources: Array(INITIAL_HEAL_POTIONS).fill("starting"),
+    simStartingInventory: startingInventory,
+    simDepartureCraftItems: departureCraftItems,
+    simHealPotionSources: [
+      ...Array(startingHealPotions).fill("starting"),
+      ...departureCraftItems
+        .filter(item => item === "HEAL_POTION")
+        .map(() => "departureCraft")
+    ],
+    simTrapKitSources: departureCraftItems
+      .filter(item => item === "TRAP_KIT")
+      .map(() => "departureCraft"),
     simPortalSources: [
       ...workshopReturnItems.map(() => "workshop"),
-      ...departureKitReturnItems.map(() => "departure-kit"),
+      ...departureCraftItems
+        .filter(item => item === "TOWN_PORTAL")
+        .map(() => "departure-craft"),
       ...scenarioReturnItems.map(() => scenario.startingPortalSource || "workshop-supply")
     ],
     firstKills: [],
@@ -897,6 +1002,10 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     metaMaterials: {},
     identifyTickets: initialIdentifyTickets,
     simIdentificationPowderAcquired: initialIdentificationPowder,
+    simDepartureCraft: {
+      recipeIds: departureCraftPurchase.recipeIds,
+      cost: departureCraftPurchase.cost
+    },
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
     simPolicy: {
@@ -975,6 +1084,26 @@ function recordHealPotionConsumption(state, metrics, count = 1) {
     const source = state.simHealPotionSources.shift() || "other";
     metrics.healPotionsConsumedBySource[source] =
       (metrics.healPotionsConsumedBySource[source] || 0) + 1;
+  }
+}
+
+function recordTrapKitAcquisition(state, metrics, source, count = 1) {
+  if (!metrics || count <= 0) return;
+  metrics.trapKitsAcquired += count;
+  metrics.trapKitsAcquiredBySource[source] =
+    (metrics.trapKitsAcquiredBySource[source] || 0) + count;
+  for (let index = 0; index < count; index++) {
+    state.simTrapKitSources.push(source);
+  }
+}
+
+function recordTrapKitConsumption(state, metrics, count = 1) {
+  if (!metrics || count <= 0) return;
+  for (let index = 0; index < count; index++) {
+    const source = state.simTrapKitSources.shift() || "other";
+    metrics.trapKitsUsed++;
+    metrics.trapKitsConsumedBySource[source] =
+      (metrics.trapKitsConsumedBySource[source] || 0) + 1;
   }
 }
 
@@ -2923,7 +3052,7 @@ function resolveChestTrapForSimulation(
   const kitIndex = state.inventory.indexOf("TRAP_KIT");
   if (kitIndex >= 0) {
     state.inventory.splice(kitIndex, 1);
-    metrics.trapKitsUsed++;
+    recordTrapKitConsumption(state, metrics);
     return { mainItemLost: false };
   }
 
@@ -3230,6 +3359,13 @@ function finishRun(state, outcome, metrics) {
       `sources=${state.simHealPotionSources.length}`
     );
   }
+  const trapKitCount = state.inventory.filter(item => item === "TRAP_KIT").length;
+  if (trapKitCount !== state.simTrapKitSources.length) {
+    throw new Error(
+      `trap kit provenance mismatch: inventory=${trapKitCount}, ` +
+      `sources=${state.simTrapKitSources.length}`
+    );
+  }
   const materialsBeforeFinalQuests = { ...state.currentRun.materials };
   updateRunQuests(
     state.currentRun,
@@ -3392,9 +3528,16 @@ function finishRun(state, outcome, metrics) {
     trapAvoidanceExpectedDirectDamage: metrics.trapAvoidanceExpectedDirectDamage,
     trapKitsAcquired: metrics.trapKitsAcquired,
     trapKitsUsed: metrics.trapKitsUsed,
+    trapKitsAcquiredBySource: { ...metrics.trapKitsAcquiredBySource },
+    trapKitsConsumedBySource: { ...metrics.trapKitsConsumedBySource },
     trapDetections: metrics.trapDetections,
     trapTeleports: metrics.trapTeleports,
     finalHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
+    departureCraft: {
+      recipeIds: [...state.simDepartureCraft.recipeIds],
+      cost: { ...state.simDepartureCraft.cost },
+      items: [...state.simDepartureCraftItems]
+    },
     statusCureItemsAcquired: metrics.statusCureItemsAcquired,
     statusCureItemsUsed: metrics.statusCureItemsUsed,
     finalStatusCureInventory: countInventoryItems(state.inventory),
@@ -3475,7 +3618,7 @@ export function simulateRun({
     identificationPowderAcquiredBySource: {
       starting: state.simIdentificationPowderAcquired?.starting || 0,
       workshop: state.simIdentificationPowderAcquired?.workshop || 0,
-      departureKit: state.simIdentificationPowderAcquired?.departureKit || 0,
+      departureCraft: state.simIdentificationPowderAcquired?.departureCraft || 0,
       chest: 0,
       codex: 0
     },
@@ -3534,13 +3677,15 @@ export function simulateRun({
     campHealingHp: 0,
     diosHealingHp: 0,
     healPotionsAcquiredBySource: {
-      starting: INITIAL_HEAL_POTIONS,
+      starting: state.simStartingInventory.filter(item => item === "HEAL_POTION").length,
+      departureCraft: state.simDepartureCraftItems.filter(item => item === "HEAL_POTION").length,
       chest: 0,
       merchant: 0,
       other: 0
     },
     healPotionsConsumedBySource: {
       starting: 0,
+      departureCraft: 0,
       chest: 0,
       merchant: 0,
       other: 0
@@ -3563,14 +3708,27 @@ export function simulateRun({
     trapAvoidanceExpectedEncounterCount: 0,
     trapAvoidanceExpectedEncounterDamage: 0,
     trapAvoidanceExpectedDirectDamage: 0,
-    trapKitsAcquired: 0,
+    trapKitsAcquired: state.simTrapKitSources.length,
     trapKitsUsed: 0,
+    trapKitsAcquiredBySource: {
+      starting: 0,
+      departureCraft: state.simTrapKitSources.length,
+      chest: 0,
+      other: 0
+    },
+    trapKitsConsumedBySource: {
+      starting: 0,
+      departureCraft: 0,
+      chest: 0,
+      other: 0
+    },
     trapDetections: 0,
     trapTeleports: 0,
     combatDamageHp: 0,
     combatDamageHpByType: {},
     statusCureItemsAcquired: {
-      initial: countInventoryItems(state.inventory),
+      initial: countInventoryItems(state.simStartingInventory),
+      departureCraft: countInventoryItems(state.simDepartureCraftItems),
       chest: {},
       combat: {},
       merchant: {}
@@ -3595,7 +3753,7 @@ export function simulateRun({
     portalAcquisitions: {
       workshop: state.simPortalSources.filter(source => source === "workshop").length,
       workshopSupply: state.simPortalSources.filter(source => source === "workshop-supply").length,
-      departureKit: state.simPortalSources.filter(source => source === "departure-kit").length,
+      departureCraft: state.simPortalSources.filter(source => source === "departure-craft").length,
       chest: 0,
       merchant: 0
     },
@@ -3782,7 +3940,9 @@ export function simulateRun({
           if (item === "HEAL_POTION") {
             recordHealPotionAcquisition(state, metrics, "chest");
           }
-          if (item === "TRAP_KIT") metrics.trapKitsAcquired++;
+          if (item === "TRAP_KIT") {
+            recordTrapKitAcquisition(state, metrics, "chest");
+          }
           if (item === "TOWN_PORTAL") {
             state.simPortalSources.push("chest");
             metrics.portalAcquisitions.chest++;
@@ -4159,7 +4319,7 @@ function simulateCase({
     identificationPowderAcquiredBySource: {
       starting: 0,
       workshop: 0,
-      departureKit: 0,
+      departureCraft: 0,
       chest: 0,
       codex: 0
     },
@@ -4213,6 +4373,8 @@ function simulateCase({
     trapSense: createTrapSenseAggregate(),
     townPortalsUsed: 0,
     runsUsingTownPortal: 0,
+    portalAcquisitions: {},
+    portalUsesBySource: {},
     fleeCount: 0,
     runsWithFlee: 0,
     eliteEncounters: 0,
@@ -4354,6 +4516,14 @@ function simulateCase({
     totals.healPotionsUsed += result.healPotionsUsed;
     totals.townPortalsUsed += result.townPortalsUsed;
     totals.runsUsingTownPortal += Number(result.townPortalsUsed > 0);
+    Object.entries(result.portalAcquisitions).forEach(([source, amount]) => {
+      totals.portalAcquisitions[source] =
+        (totals.portalAcquisitions[source] || 0) + amount;
+    });
+    Object.entries(result.portalUsesBySource).forEach(([source, amount]) => {
+      totals.portalUsesBySource[source] =
+        (totals.portalUsesBySource[source] || 0) + amount;
+    });
     totals.fleeCount += result.fleeCount;
     totals.runsWithFlee += Number(result.fleeCount > 0);
     totals.eliteEncounters += result.eliteEncounters;
@@ -4504,6 +4674,18 @@ function simulateCase({
       ])
     ),
     averageTownPortalsUsed: totals.townPortalsUsed / RUNS_PER_CASE,
+    averagePortalAcquisitions: Object.fromEntries(
+      Object.entries(totals.portalAcquisitions).map(([source, amount]) => [
+        source,
+        amount / RUNS_PER_CASE
+      ])
+    ),
+    averagePortalUsesBySource: Object.fromEntries(
+      Object.entries(totals.portalUsesBySource).map(([source, amount]) => [
+        source,
+        amount / RUNS_PER_CASE
+      ])
+    ),
     averageFleeCount: totals.fleeCount / RUNS_PER_CASE,
     runsWithFleeRate: totals.runsWithFlee / RUNS_PER_CASE,
     elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY,
@@ -4703,14 +4885,16 @@ function printTrapMetrics(result) {
     `回避=${result.trapAvoidancePolicy}】`
   );
   console.log(
-    "職業    | 発動/run | 察知/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 宝箱入手 | 商人入手 | 開始消費 | 宝箱消費 | 商人消費 | 解除 | 回避 | 回避追加歩数 | 強行 | kit入手 | kit使用"
+    "職業    | 発動/run | 察知/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 出発入手 | 宝箱入手 | 商人入手 | 開始消費 | 出発消費 | 宝箱消費 | 商人消費 | 解除 | 回避 | 回避追加歩数 | 強行 | kit入手 | kit使用 | 出発kit入手 | 出発kit消費"
   );
   console.log(
-    "--------|----------|----------|----------|------------|------------|----------|----------|--------|----------|----------|----------|----------|----------|----------|------|------|--------------|------|--------|--------"
+    "--------|----------|----------|----------|------------|------------|----------|----------|--------|----------|----------|----------|----------|----------|----------|----------|----------|------|------|--------------|------|--------|--------|------------|------------"
   );
   Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
     const acquired = metrics.averageHealPotionsAcquiredBySource;
     const consumed = metrics.averageHealPotionsConsumedBySource;
+    const kitsAcquired = metrics.averageTrapKitsAcquiredBySource;
+    const kitsConsumed = metrics.averageTrapKitsConsumedBySource;
     console.log(
       `${className.padEnd(7)} | ${metrics.averageTrapActivations.toFixed(2).padStart(8)} | ` +
       `${metrics.averageTrapDetections.toFixed(2).padStart(8)} | ` +
@@ -4720,14 +4904,18 @@ function printTrapMetrics(result) {
       `${metrics.averageHealPotionsConsumed.toFixed(2).padStart(8)} | ` +
       `${metrics.averageTrapHealPotionShortages.toFixed(2).padStart(8)} | ` +
       `${formatPercent(metrics.trapHealPotionShortageRunRate).padStart(6)} | ` +
-      `${acquired.starting.toFixed(2).padStart(8)} | ${acquired.chest.toFixed(2).padStart(8)} | ` +
+      `${acquired.starting.toFixed(2).padStart(8)} | ${acquired.departureCraft.toFixed(2).padStart(8)} | ` +
+      `${acquired.chest.toFixed(2).padStart(8)} | ` +
       `${acquired.merchant.toFixed(2).padStart(8)} | ` +
-      `${consumed.starting.toFixed(2).padStart(8)} | ${consumed.chest.toFixed(2).padStart(8)} | ` +
+      `${consumed.starting.toFixed(2).padStart(8)} | ${consumed.departureCraft.toFixed(2).padStart(8)} | ` +
+      `${consumed.chest.toFixed(2).padStart(8)} | ` +
       `${consumed.merchant.toFixed(2).padStart(8)} | ` +
       `${metrics.averageTrapDisarms.toFixed(2).padStart(4)} | ${metrics.averageTrapAvoided.toFixed(2).padStart(4)} | ` +
       `${metrics.averageTrapAvoidanceExtraSteps.toFixed(2).padStart(8)} | ` +
       `${metrics.averageTrapForced.toFixed(2).padStart(4)} | ${metrics.averageTrapKitsAcquired.toFixed(2).padStart(6)} | ` +
-      `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)}`
+      `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)} | ` +
+      `${kitsAcquired.departureCraft.toFixed(2).padStart(8)} | ` +
+      `${kitsConsumed.departureCraft.toFixed(2).padStart(8)}`
     );
   });
   console.log("回避EV評価 | 候補/run | 却下/run | 観測不足/run | 追加遭遇/run | 遭遇被害HP/run | 直接対応HP/run");
@@ -4759,6 +4947,20 @@ function printTrapMetrics(result) {
       `${metrics.averageDiosHealingHp.toFixed(2).padStart(6)}`
     );
   });
+}
+
+function printConsumableSummary(result) {
+  const healAcquired = Object.values(result.averageHealPotionsAcquiredBySource)
+    .reduce((sum, amount) => sum + amount, 0);
+  const departureWingAcquired = result.averagePortalAcquisitions?.departureCraft || 0;
+  const departureWingUsed = result.averagePortalUsesBySource?.["departure-craft"] || 0;
+  console.log(
+    `消耗品/run: 傷薬入手/消費=${healAcquired.toFixed(2)}/${result.averageHealPotionsConsumed.toFixed(2)}, ` +
+    `罠kit入手/消費=${result.averageTrapKitsAcquired.toFixed(2)}/${result.averageTrapKitsUsed.toFixed(2)}, ` +
+    `翼(出発)入手/消費=${departureWingAcquired.toFixed(2)}/${departureWingUsed.toFixed(2)}, ` +
+    `鑑定粉入手/消費=${result.averageIdentificationPowderAcquired.toFixed(2)}/` +
+    `${result.averageIdentificationPowderUsed.toFixed(2)}`
+  );
 }
 
 function printEliteMetrics(results) {
@@ -4800,7 +5002,7 @@ function printIdentificationMetrics(results, policy) {
     const source = result.averageIdentificationPowderAcquiredBySource;
     console.log(
       `  粉入手内訳/Run: 開始=${source.starting.toFixed(2)}, 工房=${source.workshop.toFixed(2)}, ` +
-      `出発準備=${source.departureKit.toFixed(2)}, 宝箱=${source.chest.toFixed(2)}, ` +
+      `出発クラフト=${source.departureCraft.toFixed(2)}, 宝箱=${source.chest.toFixed(2)}, ` +
       `図鑑初撃破=${source.codex.toFixed(2)}`
     );
   });
@@ -5198,7 +5400,8 @@ console.log(
 );
 console.log(
   `初期inventory: 傷薬=${INITIAL_HEAL_POTIONS}個, 解毒薬=${INITIAL_ANTIDOTES}個, ` +
-  "工房状態比較は各条件で翼1個、方針A/Bは出発準備の翼も1個"
+  `出発クラフト=${ACTIVE_DEPARTURE_CRAFT_IDS.join(",") || "なし"} ` +
+  `(総枠${DEPARTURE_CRAFT_MAX_SLOTS}, cost=${JSON.stringify(getDepartureCraftCost(ACTIVE_DEPARTURE_CRAFT_IDS))})`
 );
 console.log(
   `生存仮定: 傷薬使用閾値=${HEAL_POTION_THRESHOLD}, ` +
@@ -5213,7 +5416,7 @@ console.log(
 console.log(
   `供給仮定: 宝箱の本体/装身具分岐を実ロジック準拠で反映、` +
   `宝箱TOWN_PORTAL/状態回復薬をinventory追加・使用対象化、` +
-  `方針A/Bの鑑定粉は開始${IDENTIFICATION_BALANCE.startingPowder}個+出発準備1個を含み、` +
+  `方針A/Bの鑑定粉は開始${IDENTIFICATION_BALANCE.startingPowder}個+出発クラフト分を含み、` +
   `宝箱${IDENTIFICATION_BALANCE.chestPowderChance * 100}%と実applyCombatRewardsの図鑑5種ごと+1を計測、` +
   `マイルストーン商人の不足状態回復薬を実素材で購入、` +
   `core判定=enabled ${ENABLED_CORE_AFFIXES.length}/${CORE_AFFIXES.length}種+affix_rules helper`
@@ -5293,7 +5496,10 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   scenarioResults.forEach(({ scenario, results }) => {
   console.log(`\n【${scenario.label} B1開始 深度別系列】`);
   printTable(results);
-  results.forEach(printTrapMetrics);
+  results.forEach(result => {
+    printTrapMetrics(result);
+    printConsumableSummary(result);
+  });
   console.log(`\n【${scenario.label} 徘徊エリート】`);
   printEliteMetrics(results);
   printIdentificationMetrics(results, policy);
@@ -5324,7 +5530,10 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
     `milestoneStartMultiplier=${MATERIAL_DROP_BALANCE.milestoneStartMultiplier} を適用`
   );
   printTable(milestoneResults);
-  milestoneResults.forEach(printTrapMetrics);
+  milestoneResults.forEach(result => {
+    printTrapMetrics(result);
+    printConsumableSummary(result);
+  });
   console.log("\n【マイルストーン開始 徘徊エリート】");
   printEliteMetrics(milestoneResults);
   printIdentificationMetrics(milestoneResults, policy);

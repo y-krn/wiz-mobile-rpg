@@ -29,6 +29,37 @@ export const CRAFT_RECIPES = [
     name: "魔力草",
     mats: { "魔石片": 3, "呪布": 1 },
     desc: "使用するとMPを3回復する。"
+  },
+  {
+    resultId: "TRAP_KIT",
+    name: "罠外しキット",
+    mats: { "鉄片": 2, "硬い皮": 1 },
+    desc: "宝箱の罠を1つ確実に外す。"
+  },
+  {
+    resultId: "TOWN_PORTAL",
+    name: "帰還の翼",
+    mats: { "獣の牙": 4, "硬い皮": 3, "霊粉": 2, "鉄片": 1 },
+    desc: "任意のフロアから撤退し、素材を100%持ち帰る。"
+  },
+  {
+    resultId: "GREATER_HEAL",
+    name: "上薬",
+    mats: { "黒角": 2, "骨片": 2 },
+    desc: "使用するとHPを40回復する。"
+  },
+  {
+    resultId: "GUARD_POTION",
+    name: "守りの薬",
+    mats: { "竜鱗": 1, "鉄片": 2 },
+    desc: "その戦闘の間、物理ダメージを40%軽減する。"
+  },
+  {
+    resultId: "IDENTIFY_POWDER",
+    name: "鑑定粉",
+    mats: { "霊粉": 5, "呪布": 2 },
+    identifyPowder: 1,
+    desc: "未鑑定装備を1つ鑑定する。"
   }
 ];
 
@@ -72,6 +103,12 @@ export function convertToEquipObject(itemKey) {
 export function executeCraft(recipeId) {
   const recipe = CRAFT_RECIPES.find(r => r.resultId === recipeId);
   if (!recipe) return false;
+
+  // 鑑定粉はITEMSに存在しない出発クラフト専用の疑似レシピ。
+  if (recipe.identifyPowder) {
+    addLog("鑑定粉は出発時のクラフトでのみ作成できます。");
+    return false;
+  }
 
   // バッグ空きチェック
   if (state.inventory.length >= 20) {

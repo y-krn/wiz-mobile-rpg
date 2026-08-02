@@ -126,29 +126,47 @@
 .solo-start-floor-grid {
   grid-template-columns: 1fr;
   grid-auto-rows: auto;
-  align-content: end;
+  align-content: start;
 }
 
 .solo-start-change,
 .solo-start-floor-option,
-.solo-start-kit,
+.solo-start-craft-option,
 .milestone-portal-action {
   min-height: var(--tap-min);
 }
 
-.solo-start-kit {
+.solo-start-craft-summary {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  grid-column: 1 / -1;
+  padding: var(--sp-sm);
+  border: 1px solid var(--border-color);
+  background: var(--hud-chrome-bg);
+  color: var(--neon-cyan);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.solo-start-craft-option {
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 2px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
-.solo-start-kit span {
+.solo-start-craft-option span,
+.solo-start-floor-option span {
   color: var(--text-muted);
   font-size: var(--fs-xs);
 }
 
-.solo-start-kit.is-selected {
+.solo-start-craft-option.is-selected {
   border-color: var(--neon-cyan);
   box-shadow: var(--neon-glow-cyan);
   color: var(--neon-cyan);
@@ -159,9 +177,4 @@
   flex-direction: column;
   justify-content: center;
   gap: 2px;
-}
-
-.solo-start-floor-option span {
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
 }

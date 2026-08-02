@@ -1,33 +1,31 @@
-// sim-scope: formula
-// Mock localStorage for Node.js test environment before imports
-global.localStorage = {
-  getItem: () => null,
-  setItem: () => {},
-  removeItem: () => {}
-};
+// sim-scope: run
+/* global console, process */
 
-import {
-  SOLO_CLASSES,
-  createDefaultCurrentRun,
-  createSoloCharacter
-} from "../src/state/initial_state.js";
-import { generateEncounter } from "../src/combat_ui/encounter.js";
-import { runCombatRoundCalculation } from "../src/combat_logic.js";
-import { SPELL_EFFECTS } from "../src/systems/spell_effects.js";
+import { pathToFileURL } from "node:url";
 
-const RUNS_PER_CASE = Number(process.env.SIM_RUNS || 2000);
+const {
+  calibrateCoreScoringProfile,
+  resetSimulationRandom,
+  simulateRun
+} = await import("./sim_depth_material_ev.js");
+const { SOLO_CLASSES } = await import("../src/state/initial_state.js");
+const { getDepartureCraftCost } = await import("../src/systems/workshop.js");
+
+const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 800));
+const CALIBRATION_RUNS = Math.max(
+  1,
+  Number(process.env.B1_CALIBRATION_RUNS || Math.min(200, RUNS_PER_CASE))
+);
 const SIM_SEED = Number(process.env.SIM_SEED || 173) >>> 0;
-const MAX_COMBAT_TURNS = 50;
-const MAIN_RANGE = { min: 40, max: 70, label: "40〜70歩（主分析）" };
-const STEP_RANGES = [
-  { min: 30, max: 50, label: "30〜50歩" },
-  MAIN_RANGE,
-  { min: 60, max: 90, label: "60〜90歩" }
+const CRAFT_RECIPE_IDS = [
+  "TOWN_PORTAL",
+  "HEAL_POTION",
+  "ANTIDOTE",
+  "TRAP_KIT",
+  "IDENTIFY_POWDER"
 ];
-const MILWA_CONDITIONS = [
-  { useMilwa: false, label: "条件A: MILWAなし" },
-  { useMilwa: true, label: "条件B: MILWAあり" }
-];
+const CRAFT_MATERIALS = getDepartureCraftCost(CRAFT_RECIPE_IDS);
+const B1_CLASSES = SOLO_CLASSES;
 const CLASS_LABELS = {
   Fighter: "戦士",
   Thief: "盗賊",
@@ -38,301 +36,149 @@ const CLASS_LABELS = {
   Ranger: "野伏",
   Ninja: "忍者"
 };
-const HOLY_TAGS = new Set(["undead", "spirit", "demon"]);
 
-let randomState = SIM_SEED;
-Math.random = () => {
-  randomState += 0x6D2B79F5;
-  let value = randomState;
-  value = Math.imul(value ^ (value >>> 15), value | 1);
-  value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-  return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-};
+const CONDITIONS = [
+  {
+    id: "legacy-free-items",
+    label: "ゼロ化前（傷薬4+解毒薬1）",
+    startingHealPotions: 4,
+    startingAntidotes: 1,
+    departureCraft: []
+  },
+  {
+    id: "zero-no-craft",
+    label: "ゼロ化後（クラフトなし）",
+    startingHealPotions: 0,
+    startingAntidotes: 0,
+    departureCraft: []
+  },
+  {
+    id: "zero-departure-craft",
+    label: "ゼロ化後（無料what-if上限N=5）",
+    startingHealPotions: 0,
+    startingAntidotes: 0,
+    departureCraft: CRAFT_RECIPE_IDS,
+    departureCraftMaterials: CRAFT_MATERIALS
+  }
+];
 
-function randomIntInclusive(min, max) {
-  return min + Math.floor(Math.random() * (max - min + 1));
-}
-
-function createSimulationState(character) {
+function createScenario(condition) {
   return {
-    party: [character],
-    combatState: null,
-    inventory: [],
-    firstKills: [],
-    codex: null,
-    currentRun: createDefaultCurrentRun(),
-    roamingMonsters: [],
-    floorChestsTotal: [],
-    gold: 0,
-    floor: 1
-  };
-}
-
-function isAlive(character) {
-  return character.status !== "dead" && character.hp > 0;
-}
-
-function hasSpell(character, spellName) {
-  return character.spells?.includes(spellName) === true;
-}
-
-function getLowestHpEnemyIndex(monsters, predicate = () => true) {
-  let selectedIdx = -1;
-  let selectedHp = Infinity;
-  monsters.forEach((monster, idx) => {
-    if (monster.hp > 0 && predicate(monster) && monster.hp < selectedHp) {
-      selectedIdx = idx;
-      selectedHp = monster.hp;
-    }
-  });
-  return selectedIdx;
-}
-
-function hasHolyTag(monster) {
-  return monster.tags?.some(tag => HOLY_TAGS.has(tag)) === true;
-}
-
-function selectCombatAction(state) {
-  const character = state.party[0];
-  const monsters = state.combatState.monsters;
-  const lowestHpIdx = getLowestHpEnemyIndex(monsters);
-
-  if (hasSpell(character, "DIOS") && character.hp < character.maxHp * 0.35 && character.mp >= 1) {
-    return { type: "spell", actorIdx: 0, targetIdx: 0, spellName: "DIOS" };
-  }
-
-  const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
-  if (character.mp > reserveMp) {
-    if (character.class === "Priest" && hasSpell(character, "BADIOS")) {
-      const holyTargetIdx = monsters.findIndex(monster => monster.hp > 0 && hasHolyTag(monster));
-      const firstLivingIdx = monsters.findIndex(monster => monster.hp > 0);
-      return {
-        type: "spell",
-        actorIdx: 0,
-        targetIdx: holyTargetIdx >= 0 ? holyTargetIdx : firstLivingIdx,
-        spellName: "BADIOS"
-      };
-    }
-
-    if (character.class === "Bishop") {
-      const holyTargetIdx = getLowestHpEnemyIndex(monsters, hasHolyTag);
-      if (holyTargetIdx >= 0 && hasSpell(character, "BADIOS")) {
-        return { type: "spell", actorIdx: 0, targetIdx: holyTargetIdx, spellName: "BADIOS" };
-      }
-      if (hasSpell(character, "HALITO")) {
-        return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "HALITO" };
-      }
-    }
-
-    if ((character.class === "Mage" || character.class === "Samurai") && hasSpell(character, "HALITO")) {
-      return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "HALITO" };
-    }
-
-    if (character.class === "Ranger" && hasSpell(character, "BADIOS")) {
-      const holyTargetIdx = getLowestHpEnemyIndex(monsters, hasHolyTag);
-      return {
-        type: "spell",
-        actorIdx: 0,
-        targetIdx: holyTargetIdx >= 0 ? holyTargetIdx : lowestHpIdx,
-        spellName: "BADIOS"
-      };
-    }
-  }
-
-  return { type: "fight", actorIdx: 0, targetIdx: lowestHpIdx };
-}
-
-function runEncounter(state) {
-  const { monsters } = generateEncounter(state, false, false, false, null);
-  state.combatState = {
-    monsters,
-    isBoss: false,
-    isMidboss: false,
-    isRoamingFlack: false,
-    allParalyzedTurns: 0,
-    phase: "choose_actions",
-    roundNumber: 1
-  };
-
-  let mpDepleted = false;
-  for (let turn = 0; turn < MAX_COMBAT_TURNS; turn++) {
-    const character = state.party[0];
-    if (!isAlive(character)) return { result: "death", mpDepleted };
-    if (state.combatState.monsters.every(monster => monster.hp <= 0)) {
-      return { result: "victory", mpDepleted };
-    }
-
-    const mpBefore = character.mp || 0;
-    const roundResult = runCombatRoundCalculation(state, {
-      actions: [selectCombatAction(state)]
-    });
-    state = roundResult.state;
-    const mpAfter = state.party[0].mp || 0;
-    if (mpBefore > 0 && mpAfter === 0) mpDepleted = true;
-
-    if (!isAlive(state.party[0])) return { result: "death", mpDepleted, state };
-    if (state.combatState.monsters.every(monster => monster.hp <= 0)) {
-      return { result: "victory", mpDepleted, state };
-    }
-  }
-
-  return { result: "stalemate", mpDepleted, state };
-}
-
-function applyPostCombatRecovery(character) {
-  while (hasSpell(character, "DIOS") && character.mp > 0 && character.hp < character.maxHp * 0.70) {
-    character.mp -= 1;
-    SPELL_EFFECTS.DIOS({ caster: character, target: character });
-  }
-}
-
-function maintainMilwa(state, enabled) {
-  const character = state.party[0];
-  if (!enabled || state.lightTurns > 0 || !hasSpell(character, "MILWA") || character.mp < 2) return;
-  character.mp -= 1;
-  state.lightTurns = 30;
-}
-
-function getEncounterChance(step, lightTurns) {
-  const baseRate = step <= 30 ? 0.10 : 0.04;
-  return Math.max(0, baseRate - (lightTurns > 0 ? 0.03 : 0));
-}
-
-function simulateRun(className, stepRange, useMilwa) {
-  let state = createSimulationState(createSoloCharacter(className));
-  const stepsToStairs = randomIntInclusive(stepRange.min, stepRange.max);
-  let victories = 0;
-  let mpDepleted = false;
-
-  for (let step = 1; step <= stepsToStairs; step++) {
-    maintainMilwa(state, useMilwa);
-    const encounterChance = getEncounterChance(step, state.lightTurns || 0);
-    if (state.lightTurns > 0) state.lightTurns -= 1;
-
-    if (Math.random() >= encounterChance) continue;
-
-    const combatResult = runEncounter(state);
-    state = combatResult.state || state;
-    mpDepleted ||= combatResult.mpDepleted;
-
-    if (combatResult.result === "death") {
-      return { success: false, death: true, stalemate: false, steps: step, victories, level: state.party[0].level, mpDepleted };
-    }
-    if (combatResult.result === "stalemate") {
-      return { success: false, death: false, stalemate: true, steps: step, victories, level: state.party[0].level, mpDepleted };
-    }
-
-    victories += 1;
-    applyPostCombatRecovery(state.party[0]);
-    if (!isAlive(state.party[0])) {
-      return { success: false, death: true, stalemate: false, steps: step, victories, level: state.party[0].level, mpDepleted };
-    }
-  }
-
-  return {
-    success: true,
-    death: false,
-    stalemate: false,
-    steps: stepsToStairs,
-    victories,
-    level: state.party[0].level,
-    mpDepleted
-  };
-}
-
-function simulateCase(className, stepRange, useMilwa) {
-  const totals = {
-    successes: 0,
-    victories: 0,
-    levels: 0,
-    deathSteps: 0,
-    deaths: 0,
-    mpDepleted: 0,
-    stalemates: 0
-  };
-
-  for (let run = 0; run < RUNS_PER_CASE; run++) {
-    const result = simulateRun(className, stepRange, useMilwa);
-    totals.successes += Number(result.success);
-    totals.victories += result.victories;
-    totals.levels += result.level;
-    totals.deathSteps += result.death ? result.steps : 0;
-    totals.deaths += Number(result.death);
-    totals.mpDepleted += Number(result.mpDepleted);
-    totals.stalemates += Number(result.stalemate);
-  }
-
-  return {
-    className,
-    successRate: totals.successes / RUNS_PER_CASE * 100,
-    averageVictories: totals.victories / RUNS_PER_CASE,
-    averageLevel: totals.levels / RUNS_PER_CASE,
-    averageDeathSteps: totals.deaths > 0 ? totals.deathSteps / totals.deaths : null,
-    mpDepletionRate: totals.mpDepleted / RUNS_PER_CASE * 100,
-    stalemateRate: totals.stalemates / RUNS_PER_CASE * 100
+    id: `b1-${condition.id}`,
+    label: condition.label,
+    useTownPortal: false,
+    allowChestTownPortal: false,
+    ignoreWorkshopReturnItems: true,
+    startingHealPotions: condition.startingHealPotions,
+    startingAntidotes: condition.startingAntidotes,
+    departureCraft: condition.departureCraft,
+    departureCraftMaterials: condition.departureCraftMaterials || {},
+    departureCraftSlotLimit: CRAFT_RECIPE_IDS.length
   };
 }
 
 function formatPercent(value) {
-  return `${value.toFixed(1)}%`;
+  return `${(value * 100).toFixed(1)}%`;
 }
 
-function printDetailedTable(results) {
-  console.log("職業     | 突破率 | 平均戦闘回数(勝利数) | 平均到達Lv | 死亡ラン平均歩数 | MP枯渇経験率 | スタルメイト率");
-  console.log("---------|--------|----------------------|------------|------------------|--------------|----------------");
-  results.forEach(result => {
-    const deathSteps = result.averageDeathSteps === null ? "-" : result.averageDeathSteps.toFixed(1);
+function runCondition(condition, scoringProfile) {
+  const scenario = createScenario(condition);
+  resetSimulationRandom(SIM_SEED);
+  const totals = Object.fromEntries(B1_CLASSES.map(className => [className, {
+    runs: 0,
+    survived: 0,
+    died: 0,
+    stalemates: 0,
+    reachedFloor: 0,
+    healPotionsAcquired: 0,
+    healPotionsConsumed: 0,
+    trapKitsAcquired: 0,
+    trapKitsConsumed: 0,
+    portalsAcquired: 0,
+    portalsConsumed: 0,
+    powderAcquired: 0,
+    powderConsumed: 0
+  }]));
+
+  for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
+    const className = B1_CLASSES[runIndex % B1_CLASSES.length];
+    const result = simulateRun({
+      className,
+      startFloor: 1,
+      targetDepth: 2,
+      runIndex,
+      seriesId: `b1-${condition.id}`,
+      scoringProfile,
+      scenario
+    });
+    const classTotals = totals[className];
+    classTotals.runs++;
+    classTotals.survived += Number(result.survived);
+    classTotals.died += Number(result.died);
+    classTotals.stalemates += Number(result.stalemate);
+    classTotals.reachedFloor += result.reachedFloor;
+    classTotals.healPotionsAcquired += Object.values(result.healPotionsAcquiredBySource)
+      .reduce((sum, amount) => sum + amount, 0);
+    classTotals.healPotionsConsumed += Object.values(result.healPotionsConsumedBySource)
+      .reduce((sum, amount) => sum + amount, 0);
+    classTotals.trapKitsAcquired += result.trapKitsAcquired;
+    classTotals.trapKitsConsumed += result.trapKitsUsed;
+    classTotals.portalsAcquired += Object.values(result.portalAcquisitions)
+      .reduce((sum, amount) => sum + amount, 0);
+    classTotals.portalsConsumed += result.townPortalsUsed;
+    classTotals.powderAcquired += result.identificationPowderAcquired;
+    classTotals.powderConsumed += result.identificationPowderUsed;
+  }
+  return { condition, totals };
+}
+
+function printConditionTable(result) {
+  console.log(`\n【${result.condition.label}】`);
+  console.log(
+    "職業 | B1F突破率 | 生還/死亡/膠着 | 平均到達階 | 傷薬入手/消費 | 罠kit入手/消費 | 翼入手/消費 | 粉入手/消費"
+  );
+  console.log(
+    "-----|----------|----------------|------------|--------------|----------------|------------|------------"
+  );
+  B1_CLASSES.forEach(className => {
+    const values = result.totals[className];
+    const runs = Math.max(1, values.runs);
+    const survivedRate = values.survived / runs;
     console.log(
-      `${CLASS_LABELS[result.className].padEnd(8)} | ${formatPercent(result.successRate).padStart(6)} | ` +
-      `${result.averageVictories.toFixed(2).padStart(20)} | ${result.averageLevel.toFixed(2).padStart(10)} | ` +
-      `${deathSteps.padStart(16)} | ${formatPercent(result.mpDepletionRate).padStart(12)} | ` +
-      `${formatPercent(result.stalemateRate).padStart(14)}`
+      `${CLASS_LABELS[className].padEnd(4)} | ${formatPercent(survivedRate).padStart(8)} | ` +
+      `${formatPercent(survivedRate)}/${formatPercent(values.died / runs)}/` +
+      `${formatPercent(values.stalemates / runs)} | ` +
+      `B${(values.reachedFloor / runs).toFixed(2).padStart(5)} | ` +
+      `${(values.healPotionsAcquired / runs).toFixed(2)}/` +
+      `${(values.healPotionsConsumed / runs).toFixed(2)} | ` +
+      `${(values.trapKitsAcquired / runs).toFixed(2)}/` +
+      `${(values.trapKitsConsumed / runs).toFixed(2)} | ` +
+      `${(values.portalsAcquired / runs).toFixed(2)}/` +
+      `${(values.portalsConsumed / runs).toFixed(2)} | ` +
+      `${(values.powderAcquired / runs).toFixed(2)}/` +
+      `${(values.powderConsumed / runs).toFixed(2)}`
     );
   });
 }
 
-function printCompactTable(resultsByCondition) {
-  console.log("条件               | " + SOLO_CLASSES.map(className => CLASS_LABELS[className].padStart(6)).join(" | "));
-  console.log("-------------------|" + SOLO_CLASSES.map(() => "--------").join("|") );
-  resultsByCondition.forEach(({ condition, results }) => {
-    console.log(`${condition.label.padEnd(18)} | ${results.map(result => formatPercent(result.successRate).padStart(6)).join(" | ")}`);
-  });
-}
-
-function printSummary(condition, results) {
-  const sorted = [...results].sort((a, b) => b.successRate - a.successRate);
-  const highest = sorted[0];
-  const lowest = sorted.at(-1);
-  const gap = highest.successRate - lowest.successRate;
+async function main() {
+  console.log("全8職 ソロB1F突破率（実ラン生成）");
   console.log(
-    `${condition.label}: 最高 ${CLASS_LABELS[highest.className]} ${formatPercent(highest.successRate)} / ` +
-    `最低 ${CLASS_LABELS[lowest.className]} ${formatPercent(lowest.successRate)} / 差 ${gap.toFixed(1)}pt`
+    `試行数: 条件×職業 round-robin N=${RUNS_PER_CASE}, seed=${SIM_SEED}, ` +
+    `calibration N=${CALIBRATION_RUNS}`
   );
+  console.log(
+    "B1F突破定義: generateRunFloorで生成したB1FをsimulateRun(targetDepth=2)で踏破し、" +
+    "死亡せずB2F入口へ到達。#215の司教/忍者を含む。"
+  );
+  console.log(
+    `出発クラフト: ${CRAFT_RECIPE_IDS.join(",")} / cost=${JSON.stringify(CRAFT_MATERIALS)}`
+  );
+  const scoringProfile = calibrateCoreScoringProfile(CALIBRATION_RUNS);
+  CONDITIONS.map(condition => runCondition(condition, scoringProfile))
+    .forEach(printConditionTable);
 }
 
-console.log("全8職 ソロB1F突破率シミュレーション");
-console.log(`試行数: 各 職業×条件×歩数レンジ N=${RUNS_PER_CASE}`);
-console.log(`乱数seed: ${SIM_SEED}`);
-console.log("突破定義: 規定歩数を生存して歩き切る（ボス戦なし）");
-
-const allResults = new Map();
-for (const stepRange of STEP_RANGES) {
-  const resultsByCondition = MILWA_CONDITIONS.map(condition => ({
-    condition,
-    results: SOLO_CLASSES.map(className => simulateCase(className, stepRange, condition.useMilwa))
-  }));
-  allResults.set(stepRange.label, resultsByCondition);
-
-  console.log(`\n【歩数レンジ ${stepRange.label}】`);
-  if (stepRange === MAIN_RANGE) {
-    resultsByCondition.forEach(({ condition, results }) => {
-      console.log(`\n${condition.label}`);
-      printDetailedTable(results);
-    });
-  } else {
-    printCompactTable(resultsByCondition);
-  }
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
 }
-
-console.log("\n【サマリ: 40〜70歩】");
-allResults.get(MAIN_RANGE.label).forEach(({ condition, results }) => printSummary(condition, results));

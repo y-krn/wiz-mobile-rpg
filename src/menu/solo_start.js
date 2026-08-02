@@ -5,27 +5,39 @@ import { executeEnterDungeon } from "../movement.js";
 import { ITEMS } from "../data/items.js";
 import {
   applyWorkshopToCharacter,
-  canAffordDepartureKit,
+  canAffordDepartureCraft,
+  getDepartureCraftCost,
+  getDepartureCraftRecipes,
   getWorkshopGrants,
-  purchaseDepartureKit
+  purchaseDepartureCraft
 } from "../systems/workshop.js";
-import { DEPARTURE_KIT } from "../data/workshop.js";
-import { getTotalMaterialCount } from "../rules/material_rules.js";
+import { DEPARTURE_CRAFT_MAX_SLOTS } from "../data/workshop.js";
+import { CRAFT_RECIPES } from "../craft.js";
 import { MATERIAL_DROP_BALANCE } from "../data/materials.js";
 
-// 出発準備を持って行くかどうかは階を選ぶまで確定しない。支払いは startRun で1回だけ。
-let departureKitSelected = false;
+// 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
+let departureCraftSelectedIds = new Set();
+
+function formatCraftCost(cost) {
+  return Object.entries(cost)
+    .map(([material, quantity]) => `${material}${quantity}`)
+    .join("・");
+}
 
 function startRun(className, startingGear = null, startFloor = 1) {
-  let departureKit = false;
-  if (departureKitSelected) {
-    const purchase = purchaseDepartureKit(state.metaMaterials);
+  const selectedRecipeIds = [...departureCraftSelectedIds];
+  let departureCraft = [];
+  if (selectedRecipeIds.length > 0) {
+    const purchase = purchaseDepartureCraft(state.metaMaterials, selectedRecipeIds);
     if (purchase.ok) {
       state.metaMaterials = purchase.metaMaterials;
-      departureKit = true;
-      addLog(`${DEPARTURE_KIT.name}に素材${DEPARTURE_KIT.materialCost}個を支払った。`);
+      departureCraft = purchase.recipeIds;
+      addLog(`出発クラフト：${purchase.recipeIds.length}品を製作した（${formatCraftCost(purchase.cost)}）。`);
+    } else {
+      addLog("出発クラフトの素材が不足したため、何も持たずに出発する。");
     }
   }
+  departureCraftSelectedIds = new Set();
   const character = applyWorkshopToCharacter(createSoloCharacter(className), state.workshop);
   if (startingGear) {
     const item = ITEMS[startingGear];
@@ -33,7 +45,7 @@ function startRun(className, startingGear = null, startFloor = 1) {
   }
   state.party = [character];
   addLog(`${character.name}（${getClassJpName(className)}）が単独で潜行を開始する。`);
-  executeEnterDungeon(startFloor, { departureKit });
+  executeEnterDungeon(startFloor, { departureCraft });
 }
 
 function appendLabelledLines(button, title, detail) {
@@ -44,29 +56,44 @@ function appendLabelledLines(button, title, detail) {
   button.append(strong, span);
 }
 
-function renderDepartureKitToggle(optGrid, className, startingGear) {
-  const stock = getTotalMaterialCount(state.metaMaterials);
-  const affordable = canAffordDepartureKit(state.metaMaterials);
-  if (!affordable) departureKitSelected = false;
+function renderDepartureCraftOptions(optGrid, className, startingGear) {
+  const summary = document.createElement("div");
+  summary.className = "solo-start-craft-summary";
+  summary.setAttribute("aria-live", "polite");
+  const selectedRecipes = getDepartureCraftRecipes([...departureCraftSelectedIds]);
+  const selectedCost = getDepartureCraftCost([...departureCraftSelectedIds]);
+  summary.textContent = selectedRecipes.length > 0
+    ? `出発クラフト ${selectedRecipes.length}/${DEPARTURE_CRAFT_MAX_SLOTS}枠：${formatCraftCost(selectedCost)}`
+    : `出発クラフト 0/${DEPARTURE_CRAFT_MAX_SLOTS}枠：何も持たずに出発可`;
+  optGrid.appendChild(summary);
 
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = `btn btn-block solo-start-kit${departureKitSelected ? " is-selected" : ""}`;
-  button.disabled = !affordable;
-  button.setAttribute("aria-pressed", String(departureKitSelected));
-  const status = affordable
-    ? (departureKitSelected ? "持って行く" : "持って行かない")
-    : "素材不足";
-  appendLabelledLines(
-    button,
-    `${DEPARTURE_KIT.name}：${status}`,
-    `帰還の翼1 / 鑑定粉1 ・ 素材${DEPARTURE_KIT.materialCost}（所持 ${stock}）`
-  );
-  button.addEventListener("click", () => {
-    departureKitSelected = !departureKitSelected;
-    renderStartFloorChoices(optGrid, className, startingGear);
+  CRAFT_RECIPES.forEach(recipe => {
+    const selected = departureCraftSelectedIds.has(recipe.resultId);
+    const candidateIds = selected
+      ? [...departureCraftSelectedIds]
+      : [...departureCraftSelectedIds, recipe.resultId];
+    const canSelect = selected || canAffordDepartureCraft(state.metaMaterials, candidateIds);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `btn btn-block solo-start-craft-option${selected ? " is-selected" : ""}`;
+    button.dataset.recipeId = recipe.resultId;
+    button.disabled = !selected && !canSelect;
+    button.setAttribute("aria-pressed", String(selected));
+    appendLabelledLines(
+      button,
+      `${recipe.name}：${selected ? "選択中" : canSelect ? "選択" : "素材不足"}`,
+      `${formatCraftCost(recipe.mats)} ・ 1枠`
+    );
+    button.addEventListener("click", () => {
+      if (departureCraftSelectedIds.has(recipe.resultId)) {
+        departureCraftSelectedIds.delete(recipe.resultId);
+      } else if (departureCraftSelectedIds.size < DEPARTURE_CRAFT_MAX_SLOTS) {
+        departureCraftSelectedIds.add(recipe.resultId);
+      }
+      renderStartFloorChoices(optGrid, className, startingGear);
+    });
+    optGrid.appendChild(button);
   });
-  optGrid.appendChild(button);
 }
 
 function renderStartFloorChoices(optGrid, className, startingGear) {
@@ -79,7 +106,7 @@ function renderStartFloorChoices(optGrid, className, startingGear) {
   changeClass.addEventListener("click", () => renderSoloStart(optGrid));
   optGrid.appendChild(changeClass);
 
-  renderDepartureKitToggle(optGrid, className, startingGear);
+  renderDepartureCraftOptions(optGrid, className, startingGear);
 
   const floors = [1, ...(state.unlockedMilestones || [])];
   floors.forEach(floor => {
@@ -96,6 +123,7 @@ function renderStartFloorChoices(optGrid, className, startingGear) {
 export function renderSoloStart(optGrid) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-grid";
+  departureCraftSelectedIds = new Set();
 
   SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className)).forEach(className => {
     const character = createSoloCharacter(className);

@@ -12,28 +12,29 @@ const {
   simulateRun,
   DEFAULT_TRAP_POLICY_ID
 } = await import("./sim_depth_material_ev.js");
-const { WORKSHOP_NODES } = await import("../src/data/workshop.js");
 const {
+  DEPARTURE_CRAFT_MAX_SLOTS,
+  WORKSHOP_NODES
+} = await import("../src/data/workshop.js");
+const { CRAFT_RECIPES } = await import("../src/craft.js");
+const {
+  getDepartureCraftCost,
   getWorkshopNodeCost,
   getWorkshopRank,
   getWorkshopGrants,
+  purchaseDepartureCraft,
   purchaseWorkshopNode
 } = await import("../src/systems/workshop.js");
-const { spendAnyMaterials } = await import("../src/rules/material_rules.js");
-const { DEPARTURE_KIT } = await import("../src/data/workshop.js");
+const { spendMaterials } = await import("../src/rules/material_rules.js");
 
 const TRIALS = Math.max(1, Number(process.env.PROGRESSION_TRIALS || 50));
 const RUNS_PER_TRIAL = Math.max(1, Number(process.env.PROGRESSION_RUNS || 50));
-const CALIBRATION_RUNS = Math.max(1, Number(process.env.PROGRESSION_CALIBRATION_RUNS || 100));
+const CALIBRATION_RUNS = Math.max(
+  1,
+  Number(process.env.PROGRESSION_CALIBRATION_RUNS || 100)
+);
 const BASE_SEED = Number(process.env.PROGRESSION_SEED || 278234) >>> 0;
 const POST_WING_TARGET = Math.max(6, Number(process.env.PROGRESSION_POST_WING_TARGET || 20));
-const DEFAULT_KIT_COST_SWEEP = [10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80];
-const KIT_COST_SWEEP = [...new Set(
-  (process.env.PROGRESSION_KIT_COSTS || DEFAULT_KIT_COST_SWEEP.join(","))
-    .split(",")
-    .map(value => Math.floor(Number(value)))
-    .filter(value => value > 0)
-)].sort((left, right) => left - right);
 const MATERIALS = [
   "霊粉",
   "魔石片",
@@ -46,6 +47,59 @@ const MATERIALS = [
   "鉄片",
   "竜鱗"
 ];
+const CRAFT_RECIPE_ORDER = [
+  "TOWN_PORTAL",
+  "HEAL_POTION",
+  "ANTIDOTE",
+  "TRAP_KIT",
+  "IDENTIFY_POWDER",
+  "GUARD_POTION",
+  "HOLY_WATER",
+  "MANA_POTION",
+  "GREATER_HEAL"
+];
+const CRAFT_PRIORITY_MODES = new Set(["wing-first", "cheap-first"]);
+const CRAFT_PRIORITY = process.env.PROGRESSION_CRAFT_PRIORITY || "wing-first";
+if (!CRAFT_PRIORITY_MODES.has(CRAFT_PRIORITY)) {
+  throw new Error(
+    `PROGRESSION_CRAFT_PRIORITY must be ${[...CRAFT_PRIORITY_MODES].join("|")}: ${CRAFT_PRIORITY}`
+  );
+}
+const DEFAULT_SLOT_SWEEP = [3, 4, 5, 6, 8, 9];
+const DEFAULT_WING_COST_SWEEP = [6, 8, 10, 11, 12, 14, 16];
+const PROGRESSION_POLICIES = new Set([
+  "craft-first",
+  "workshop-first",
+  "workshop-complete"
+]);
+const PROGRESSION_POLICY = process.env.PROGRESSION_POLICY || "workshop-first";
+if (!PROGRESSION_POLICIES.has(PROGRESSION_POLICY)) {
+  throw new Error(
+    `PROGRESSION_POLICY must be ${[...PROGRESSION_POLICIES].join("|")}: ${PROGRESSION_POLICY}`
+  );
+}
+
+function parseNumberSweep(value, fallback) {
+  const values = (value || fallback.join(","))
+    .split(",")
+    .map(entry => Math.floor(Number(entry.trim())))
+    .filter(Number.isFinite)
+    .filter(entry => entry >= 0);
+  return [...new Set(values)].sort((left, right) => left - right);
+}
+
+const SLOT_SWEEP = parseNumberSweep(
+  process.env.PROGRESSION_SLOT_SWEEP,
+  DEFAULT_SLOT_SWEEP
+);
+const WING_COST_SWEEP = parseNumberSweep(
+  process.env.PROGRESSION_WING_COSTS,
+  DEFAULT_WING_COST_SWEEP
+);
+const PORTAL_BASE_COST = getDepartureCraftCost(["TOWN_PORTAL"]);
+const PORTAL_BASE_TOTAL = totalMaterials(PORTAL_BASE_COST);
+const REFERENCE_WING_COST = PORTAL_BASE_TOTAL;
+
 const STAT_NODE_IDS = WORKSHOP_NODES
   .filter(node => node.category === "permanentStats")
   .map(node => node.id);
@@ -56,9 +110,12 @@ const PROGRESSION_SCENARIO = {
   ...DEPTH_SCENARIOS.find(scenario => scenario.id === "workshop-empty-no-portal"),
   id: "workshop-progression",
   label: "工房進行",
-  workshopReturnItem: null,
   useTownPortal: true
 };
+
+function totalMaterials(materials) {
+  return MATERIALS.reduce((sum, material) => sum + (materials?.[material] || 0), 0);
+}
 
 function emptyMaterials() {
   return Object.fromEntries(MATERIALS.map(material => [material, 0]));
@@ -78,24 +135,15 @@ function subtractMaterials(left, right) {
   ]));
 }
 
-function totalMaterials(materials) {
-  return MATERIALS.reduce((sum, material) => sum + (materials?.[material] || 0), 0);
-}
-
 function cloneWorkshop(workshop) {
   return { ranks: { ...(workshop?.ranks || {}) } };
 }
 
 function getNodeMaxRank(node) {
-  return node.maxRank || 1;
+  return node?.maxRank || 1;
 }
 
-function isNodeComplete(workshop, nodeId) {
-  const node = WORKSHOP_NODES.find(candidate => candidate.id === nodeId);
-  return getWorkshopRank(workshop, nodeId) >= getNodeMaxRank(node);
-}
-
-function isWorkshopComplete(workshop) {
+function isStandardWorkshopComplete(workshop) {
   return WORKSHOP_NODES.every(node =>
     getWorkshopRank(workshop, node.id) >= getNodeMaxRank(node)
   );
@@ -149,80 +197,20 @@ function summarizeWorkshopState(workshop) {
   };
 }
 
-function percentile(values, ratio) {
-  const sorted = [...values].sort((left, right) => left - right);
-  if (sorted.length === 0) return null;
-  return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))];
+function getNodeCost(nodeId, workshop) {
+  const node = WORKSHOP_NODES.find(candidate => candidate.id === nodeId);
+  return node ? getWorkshopNodeCost(node, getWorkshopRank(workshop, nodeId)) : null;
 }
 
-function formatRate(value) {
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-const FINITE_PORTAL_SCENARIOS = [
-  {
-    id: "kit-off",
-    label: "出発準備なし（宝箱・商人のみ）",
-    kitCost: 0,
-    allowChestTownPortal: true
-  },
-  {
-    id: "merchant-only",
-    label: "商人のみ",
-    kitCost: 0,
-    allowChestTownPortal: false
-  },
-  // 出発準備は種別を問わない総量課金。種別固定のコストでは需要のない素材が
-  // 無価値のまま残り、stakeが戻らない（#234 の掃引で確認済み）。
-  ...[...new Set([...KIT_COST_SWEEP, DEPARTURE_KIT.materialCost])].sort((left, right) => left - right).map(kitCost => ({
-    id: `kit-${kitCost}`,
-    label: kitCost === DEPARTURE_KIT.materialCost
-      ? `出発準備 素材${kitCost}個（実装値）`
-      : `出発準備 素材${kitCost}個`,
-    kitCost,
-    allowChestTownPortal: true
-  }))
-];
-
-
-// 出発準備は工房ノードではなくなったため、工房需要は全ノードが対象（#234）。
-const STANDARD_WORKSHOP_NODES = WORKSHOP_NODES;
-
-function isStandardWorkshopComplete(workshop) {
-  return STANDARD_WORKSHOP_NODES.every(node =>
-    getWorkshopRank(workshop, node.id) >= getNodeMaxRank(node)
-  );
-}
-
-function getStandardRemainingDemand(workshop) {
-  const demand = emptyMaterials();
-  STANDARD_WORKSHOP_NODES.forEach(node => {
-    const rank = getWorkshopRank(workshop, node.id);
-    for (let index = rank; index < getNodeMaxRank(node); index++) {
-      addMaterials(demand, getWorkshopNodeCost(node, index));
-    }
-  });
-  return demand;
-}
-
-function canSpendAndKeepReserve(bank, cost, reserve) {
-  return MATERIALS.every(material =>
-    (bank[material] || 0) - (cost?.[material] || 0) >= (reserve?.[material] || 0)
-  );
-}
-
-function purchaseStandardAvailable(initialBank, initialWorkshop, reserve = null) {
+function purchaseStandardAvailable(initialBank, initialWorkshop) {
   let bank = { ...initialBank };
   let workshop = cloneWorkshop(initialWorkshop);
   let changed = true;
   while (changed) {
     changed = false;
     for (const nodeId of [...STAT_NODE_IDS, ...OTHER_NODE_IDS]) {
-      const node = WORKSHOP_NODES.find(candidate => candidate.id === nodeId);
-      const rank = getWorkshopRank(workshop, nodeId);
-      if (rank >= getNodeMaxRank(node)) continue;
-      const cost = getWorkshopNodeCost(node, rank);
-      if (reserve && !canSpendAndKeepReserve(bank, cost, reserve)) continue;
+      const cost = getNodeCost(nodeId, workshop);
+      if (!cost) continue;
       const result = purchaseWorkshopNode(bank, workshop, nodeId);
       if (!result.ok) continue;
       bank = result.metaMaterials;
@@ -233,23 +221,169 @@ function purchaseStandardAvailable(initialBank, initialWorkshop, reserve = null)
   return { bank, workshop };
 }
 
+function scaleCostToTotal(baseCost, targetTotal) {
+  const target = Math.max(0, Math.floor(Number(targetTotal) || 0));
+  if (target === totalMaterials(baseCost)) return { ...baseCost };
+  const entries = Object.entries(baseCost);
+  if (entries.length === 0) return {};
+  let remaining = target;
+  const scaled = {};
+  entries.forEach(([material, quantity], index) => {
+    if (index === entries.length - 1) {
+      scaled[material] = remaining;
+      return;
+    }
+    const amount = Math.max(
+      0,
+      Math.min(remaining, Math.round((quantity / totalMaterials(baseCost)) * target))
+    );
+    scaled[material] = amount;
+    remaining -= amount;
+  });
+  return scaled;
+}
+
+function getScenarioRecipeIds(scenario) {
+  return [...(scenario.recipeIds || [])];
+}
+
+function getScenarioCraftCost(scenario) {
+  const recipeIds = getScenarioRecipeIds(scenario);
+  const baseCost = getDepartureCraftCost(recipeIds);
+  if (!scenario.wingCostOverride || !recipeIds.includes("TOWN_PORTAL")) {
+    return baseCost;
+  }
+  const portalCost = scaleCostToTotal(PORTAL_BASE_COST, scenario.wingCostOverride);
+  const cost = { ...baseCost };
+  Object.entries(PORTAL_BASE_COST).forEach(([material, quantity]) => {
+    cost[material] = Math.max(0, (cost[material] || 0) - quantity);
+  });
+  addMaterials(cost, portalCost);
+  return cost;
+}
+
+function getSimulationCraftBank(scenario, recipeIds = getScenarioRecipeIds(scenario)) {
+  const sourceCost = getDepartureCraftCost(recipeIds);
+  const scenarioCost = getScenarioCraftCost({ ...scenario, recipeIds });
+  const bank = { ...sourceCost };
+  MATERIALS.forEach(material => {
+    bank[material] = Math.max(bank[material] || 0, scenarioCost[material] || 0);
+  });
+  return bank;
+}
+
+function emptyCraftPurchase() {
+  return { purchased: false, cost: {}, balance: null, recipeIds: [] };
+}
+
+function getCraftPriorityRecipeIds(scenario, priority = CRAFT_PRIORITY) {
+  const recipeIds = getScenarioRecipeIds(scenario);
+  if (priority === "wing-first") return recipeIds;
+  return recipeIds
+    .map((recipeId, index) => ({
+      recipeId,
+      index,
+      cost: totalMaterials(getScenarioCraftCost({ ...scenario, recipeIds: [recipeId] }))
+    }))
+    .sort((left, right) => left.cost - right.cost || left.index - right.index)
+    .map(entry => entry.recipeId);
+}
+
+export function purchaseCraftFromBank(bank, scenario, priority = CRAFT_PRIORITY) {
+  const recipeIds = getScenarioRecipeIds(scenario);
+  if (recipeIds.length === 0) {
+    return { purchased: false, cost: {}, balance: { ...bank }, recipeIds: [] };
+  }
+  const slotLimit = Math.max(0, Math.floor(Number(scenario.slotLimit)));
+  let balance = { ...bank };
+  const selectedRecipeIds = [];
+  const cost = {};
+  for (const recipeId of getCraftPriorityRecipeIds(scenario, priority)) {
+    if (selectedRecipeIds.length >= slotLimit) break;
+    const sourceCost = getDepartureCraftCost([recipeId]);
+    const validation = purchaseDepartureCraft(sourceCost, [recipeId], 1);
+    if (!validation.ok) {
+      throw new Error(`craft sweep recipe validation failed: ${validation.reason}`);
+    }
+    const recipeCost = getScenarioCraftCost({ ...scenario, recipeIds: [recipeId] });
+    const nextBalance = spendMaterials(balance, recipeCost);
+    // 実装UIと同じく、払えない品だけ飛ばして次の候補へ進む。
+    if (!nextBalance) continue;
+    balance = nextBalance;
+    selectedRecipeIds.push(recipeId);
+    addMaterials(cost, recipeCost);
+  }
+  if (selectedRecipeIds.length === 0) {
+    return { purchased: false, cost: {}, balance: { ...bank }, recipeIds: [] };
+  }
+  return {
+    purchased: true,
+    cost,
+    balance,
+    recipeIds: selectedRecipeIds
+  };
+}
+
+function createScenarioList() {
+  const scenarios = [
+    {
+      id: "craft-off",
+      label: "出発クラフトなし（宝箱・商人のみ）",
+      recipeIds: [],
+      slotLimit: 0,
+      allowChestTownPortal: true
+    },
+    {
+      id: "merchant-only",
+      label: "出発クラフトなし（商人のみ）",
+      recipeIds: [],
+      slotLimit: 0,
+      allowChestTownPortal: false
+    }
+  ];
+  SLOT_SWEEP.forEach(slotLimit => {
+    const recipeIds = [...CRAFT_RECIPE_ORDER];
+    scenarios.push({
+      id: `slots-${slotLimit}`,
+      label: `出発クラフト 総枠N=${slotLimit}`,
+      recipeIds,
+      slotLimit,
+      allowChestTownPortal: true,
+      sweep: "slots",
+      isReference: slotLimit === DEPARTURE_CRAFT_MAX_SLOTS
+    });
+  });
+  WING_COST_SWEEP.forEach(wingCost => {
+    scenarios.push({
+      id: `wing-${wingCost}`,
+      label: `出発クラフト 翼コスト=${wingCost}`,
+      recipeIds: [...CRAFT_RECIPE_ORDER],
+      slotLimit: DEPARTURE_CRAFT_MAX_SLOTS,
+      wingCostOverride: wingCost,
+      allowChestTownPortal: true,
+      sweep: "wing-cost",
+      isReference: wingCost === REFERENCE_WING_COST
+    });
+  });
+  return scenarios;
+}
+
+const FINITE_PORTAL_SCENARIOS = createScenarioList();
+
 function getFiniteStake(result, bank, workshop, scenario) {
   if (!result.died) return { raw: 0, useful: 0 };
   const lost = subtractMaterials(result.carriedMaterialCounts, result.bankedMaterialCounts);
-  const raw = totalMaterials(lost);
-  const remaining = getStandardRemainingDemand(workshop);
-  const unmet = subtractMaterials(remaining, bank);
-  // 出発準備は需要が尽きない恒常シンク。総量課金なので全種が支払いに使える。
-  if (scenario.kitCost > 0) {
-    MATERIALS.forEach(material => {
-      unmet[material] = Number.POSITIVE_INFINITY;
-    });
-  }
-  const useful = MATERIALS.reduce(
-    (sum, material) => sum + Math.min(lost[material], unmet[material]),
-    0
-  );
-  return { raw, useful };
+  const unmet = subtractMaterials(getRemainingDemand(workshop), bank);
+  Object.keys(getScenarioCraftCost(scenario)).forEach(material => {
+    unmet[material] = Number.POSITIVE_INFINITY;
+  });
+  return {
+    raw: totalMaterials(lost),
+    useful: MATERIALS.reduce(
+      (sum, material) => sum + Math.min(lost[material], unmet[material]),
+      0
+    )
+  };
 }
 
 function createFiniteTotals() {
@@ -268,12 +402,33 @@ function createFiniteTotals() {
     steadyRawDeathLoss: 0,
     steadyUsefulDeathLoss: 0,
     portalUses: 0,
-    portalAcquisitions: { workshopSupply: 0, chest: 0, merchant: 0 },
+    portalAcquisitions: {
+      departureCraft: 0,
+      workshop: 0,
+      workshopSupply: 0,
+      chest: 0,
+      merchant: 0
+    },
+    portalUsesBySource: {},
     merchantAttempts: 0,
     merchantPurchases: 0,
     merchantFailures: {},
-    kitMaterialSpent: 0,
-    kitSpentByMaterial: emptyMaterials(),
+    craftPurchases: 0,
+    craftItems: 0,
+    craftItemsByRecipe: Object.fromEntries(CRAFT_RECIPE_ORDER.map(recipeId => [recipeId, 0])),
+    craftMaterialSpent: 0,
+    craftSpentByMaterial: emptyMaterials(),
+    healPotionsAcquired: 0,
+    healPotionsConsumed: 0,
+    healPotionsAcquiredBySource: {},
+    healPotionsConsumedBySource: {},
+    trapKitsAcquired: 0,
+    trapKitsUsed: 0,
+    trapKitsAcquiredBySource: {},
+    trapKitsConsumedBySource: {},
+    identificationPowderAcquired: 0,
+    identificationPowderUsed: 0,
+    identificationPowderAcquiredBySource: {},
     milestoneDecisions: 0,
     insuredMilestoneDecisions: 0,
     endingBankTotal: 0,
@@ -287,15 +442,22 @@ function createFiniteTotals() {
   };
 }
 
-function addKitSpend(totals, cost) {
-  totals.kitMaterialSpent += totalMaterials(cost);
-  addMaterials(totals.kitSpentByMaterial, cost);
+function addSourceCounts(target, additions) {
+  Object.entries(additions || {}).forEach(([source, amount]) => {
+    target[source] = (target[source] || 0) + amount;
+  });
+}
+
+function addCraftSpend(totals, cost) {
+  totals.craftMaterialSpent += totalMaterials(cost);
+  addMaterials(totals.craftSpentByMaterial, cost);
 }
 
 function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
   resetSimulationRandom(BASE_SEED + trial * 104729);
   let bank = emptyMaterials();
   let workshop = { ranks: {} };
+  let pendingCraftPurchase = emptyCraftPurchase();
   let standardCompleteRun = null;
   let firstMerchantPurchaseRun = null;
   const bankTimeline = [];
@@ -305,58 +467,70 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
     const workshopAtStart = cloneWorkshop(workshop);
     const workshopStateAtStart = summarizeWorkshopState(workshopAtStart);
     const standardCompleteAtStart = isStandardWorkshopComplete(workshop);
-    const kitSpend = emptyMaterials();
-    let startingTownPortals = 0;
-    // 出発準備は潜行のたびに素材を支払う。払えた run だけ翼を持って出発する。
-    if (scenario.kitCost > 0) {
-      const paid = spendAnyMaterials(bank, scenario.kitCost);
-      if (paid) {
-        bank = paid.balance;
-        startingTownPortals = 1;
-        addMaterials(kitSpend, paid.spent);
-      }
-    }
-
+    const craftPurchase = pendingCraftPurchase;
+    pendingCraftPurchase = emptyCraftPurchase();
+    const className = SIM_CLASSES[(trial * RUNS_PER_TRIAL + run - 1) % SIM_CLASSES.length];
+    const craftScenario = craftPurchase.purchased
+      ? {
+          departureCraft: craftPurchase.recipeIds,
+          departureCraftSlotLimit: scenario.slotLimit,
+          departureCraftCostOverride: craftPurchase.cost,
+          // 外側で実bankから支払済み。ここはsimulateRun内の購入API検証用。
+          departureCraftMaterials: getSimulationCraftBank(scenario, craftPurchase.recipeIds)
+        }
+      : {
+          departureCraft: [],
+          departureCraftSlotLimit: scenario.slotLimit,
+          departureCraftMaterials: {}
+        };
     const result = simulateRun({
-      className: SIM_CLASSES[(trial * RUNS_PER_TRIAL + run - 1) % SIM_CLASSES.length],
+      className,
       startFloor: 1,
       targetDepth: POST_WING_TARGET,
       runIndex: trial * RUNS_PER_TRIAL + run,
-      seriesId: `finite-portal-${scenario.id}`,
+      seriesId: `finite-craft-${scenario.id}-${CRAFT_PRIORITY}`,
       scoringProfile,
       scenario: {
         ...PROGRESSION_SCENARIO,
         id: scenario.id,
-        ignoreWorkshopReturnItems: true,
-        startingTownPortals,
-        startingPortalSource: "workshop-supply",
         allowChestTownPortal: scenario.allowChestTownPortal,
         buyMerchantTownPortal: true,
-        retreatAtMilestoneWithoutTownPortal: true
+        retreatAtMilestoneWithoutTownPortal: true,
+        ignoreWorkshopReturnItems: true,
+        ...craftScenario
       },
       workshop
     });
-
     const stake = getFiniteStake(result, bank, workshop, scenario);
     if (firstMerchantPurchaseRun === null && result.merchantWingsPurchased > 0) {
       firstMerchantPurchaseRun = run;
     }
 
     addMaterials(bank, result.bankedMaterialCounts);
-    // 出発準備は種別を問わない総量課金なので、特定素材の取り置きでは表現できない。
-    // 工房の恒久ノードが先に銀行を吸うぶん、買い切りが終わるまでは翼を落とす run が出る。
-    const purchaseResult = purchaseStandardAvailable(bank, workshop, null);
-    bank = purchaseResult.bank;
-    workshop = purchaseResult.workshop;
+    if (run < RUNS_PER_TRIAL) {
+      if (PROGRESSION_POLICY === "craft-first") {
+        pendingCraftPurchase = purchaseCraftFromBank(bank, scenario);
+        if (pendingCraftPurchase.purchased) bank = pendingCraftPurchase.balance;
+      }
 
+      const purchaseResult = purchaseStandardAvailable(bank, workshop);
+      bank = purchaseResult.bank;
+      workshop = purchaseResult.workshop;
+
+      const canCraftAfterWorkshop = PROGRESSION_POLICY === "workshop-first" ||
+        (PROGRESSION_POLICY === "workshop-complete" && isStandardWorkshopComplete(workshop));
+      if (canCraftAfterWorkshop) {
+        pendingCraftPurchase = purchaseCraftFromBank(bank, scenario);
+        if (pendingCraftPurchase.purchased) bank = pendingCraftPurchase.balance;
+      }
+    }
     if (standardCompleteRun === null && isStandardWorkshopComplete(workshop)) {
       standardCompleteRun = run;
     }
     bankTimeline.push(totalMaterials(bank));
     events.push({
       standardCompleteAtStart,
-      startingTownPortals,
-      kitSpend,
+      craftPurchase,
       workshop: workshopAtStart,
       workshopState: workshopStateAtStart,
       stake,
@@ -368,10 +542,20 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
         reachedFloor: result.reachedFloor,
         townPortalsUsed: result.townPortalsUsed,
         portalAcquisitions: result.portalAcquisitions,
+        portalUsesBySource: result.portalUsesBySource,
         merchantWingAttempts: result.merchantWingAttempts,
         merchantWingsPurchased: result.merchantWingsPurchased,
         merchantWingFailures: result.merchantWingFailures,
-        milestoneDecisions: result.milestoneDecisions
+        milestoneDecisions: result.milestoneDecisions,
+        healPotionsAcquiredBySource: result.healPotionsAcquiredBySource,
+        healPotionsConsumedBySource: result.healPotionsConsumedBySource,
+        trapKitsAcquired: result.trapKitsAcquired,
+        trapKitsUsed: result.trapKitsUsed,
+        trapKitsAcquiredBySource: result.trapKitsAcquiredBySource,
+        trapKitsConsumedBySource: result.trapKitsConsumedBySource,
+        identificationPowderAcquired: result.identificationPowderAcquired,
+        identificationPowderUsed: result.identificationPowderUsed,
+        identificationPowderAcquiredBySource: result.identificationPowderAcquiredBySource
       }
     });
   }
@@ -409,9 +593,11 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
         totals.steadyUsefulDeathLoss += stake.useful;
       }
       totals.portalUses += result.townPortalsUsed;
-      totals.portalAcquisitions.workshopSupply += event.startingTownPortals;
-      totals.portalAcquisitions.chest += result.portalAcquisitions.chest;
-      totals.portalAcquisitions.merchant += result.portalAcquisitions.merchant;
+      addSourceCounts(totals.portalUsesBySource, result.portalUsesBySource);
+      Object.entries(result.portalAcquisitions).forEach(([source, amount]) => {
+        totals.portalAcquisitions[source] =
+          (totals.portalAcquisitions[source] || 0) + amount;
+      });
       totals.merchantAttempts += result.merchantWingAttempts;
       totals.merchantPurchases += result.merchantWingsPurchased;
       Object.entries(result.merchantWingFailures).forEach(([reason, count]) => {
@@ -421,7 +607,32 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
       totals.insuredMilestoneDecisions += result.milestoneDecisions
         .filter(decision => decision.hasTownPortal)
         .length;
-      addKitSpend(totals, event.kitSpend);
+      if (event.craftPurchase.purchased) {
+        totals.craftPurchases++;
+        totals.craftItems += event.craftPurchase.recipeIds.length;
+        event.craftPurchase.recipeIds.forEach(recipeId => {
+          totals.craftItemsByRecipe[recipeId] = (totals.craftItemsByRecipe[recipeId] || 0) + 1;
+        });
+        addCraftSpend(totals, event.craftPurchase.cost);
+      }
+      const acquiredHeal = Object.values(result.healPotionsAcquiredBySource)
+        .reduce((sum, amount) => sum + amount, 0);
+      const consumedHeal = Object.values(result.healPotionsConsumedBySource)
+        .reduce((sum, amount) => sum + amount, 0);
+      totals.healPotionsAcquired += acquiredHeal;
+      totals.healPotionsConsumed += consumedHeal;
+      addSourceCounts(totals.healPotionsAcquiredBySource, result.healPotionsAcquiredBySource);
+      addSourceCounts(totals.healPotionsConsumedBySource, result.healPotionsConsumedBySource);
+      totals.trapKitsAcquired += result.trapKitsAcquired;
+      totals.trapKitsUsed += result.trapKitsUsed;
+      addSourceCounts(totals.trapKitsAcquiredBySource, result.trapKitsAcquiredBySource);
+      addSourceCounts(totals.trapKitsConsumedBySource, result.trapKitsConsumedBySource);
+      totals.identificationPowderAcquired += result.identificationPowderAcquired;
+      totals.identificationPowderUsed += result.identificationPowderUsed;
+      addSourceCounts(
+        totals.identificationPowderAcquiredBySource,
+        result.identificationPowderAcquiredBySource
+      );
       totals.workshopStepCounts[event.workshopState.purchasedSteps] =
         (totals.workshopStepCounts[event.workshopState.purchasedSteps] || 0) + 1;
       totals.workshopPhaseCounts[event.workshopState.phase] =
@@ -455,7 +666,28 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
 
 export function runWorkshopTrialTask(task, { scoringProfile }) {
   const scenario = FINITE_PORTAL_SCENARIOS.find(candidate => candidate.id === task.scenarioId);
+  if (!scenario) throw new Error(`unknown workshop scenario: ${task.scenarioId}`);
   return simulateFinitePortalTrial(task.trial, scenario, scoringProfile);
+}
+
+function average(total, totals) {
+  return total / Math.max(1, totals.runs);
+}
+
+function formatRate(value) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function sourceAverage(totals, field, source) {
+  return average(totals[field][source] || 0, totals);
+}
+
+function craftMetricSummary(totals) {
+  const successRate = totals.craftPurchases / Math.max(1, totals.runs);
+  const itemRates = CRAFT_RECIPE_ORDER
+    .map(recipeId => `${recipeId}=${formatRate((totals.craftItemsByRecipe[recipeId] || 0) / Math.max(1, totals.runs))}`)
+    .join(",");
+  return `1品以上=${formatRate(successRate)}, 平均品数=${average(totals.craftItems, totals).toFixed(2)}, 品目別=${itemRates}`;
 }
 
 function formatFiniteResult(result) {
@@ -468,39 +700,71 @@ function formatFiniteResult(result) {
     : 0;
   const firstMerchant = totals.firstMerchantPurchaseRuns.length > 0
     ? `中央run ${percentile(totals.firstMerchantPurchaseRuns, 0.5)}`
-    : "50run内なし";
-  const paymentRate = scenario.kitCost > 0
-    ? totals.kitMaterialSpent / (scenario.kitCost * totals.runs)
-    : null;
+    : "期間内なし";
   return (
-    `${scenario.label}: 平均到達=B${(totals.reached / totals.runs).toFixed(2)}, ` +
-    `生還率=${formatRate(totals.survived / totals.runs)}, ` +
-    `EV/時間=${(totals.banked / totals.time).toFixed(4)}, ` +
-    `bank保持率=${formatRate(totals.banked / totals.carried)}, ` +
-    `B10/B15到達率=${formatRate(totals.reachedB10 / totals.runs)}/` +
-    `${formatRate(totals.reachedB15 / totals.runs)}, ` +
-    `買切後進行有効損失=${(
-      totals.steadyUsefulDeathLoss / Math.max(1, totals.steadyRuns)
-    ).toFixed(2)}/run, ` +
-    `買切後死亡損失有価値率=${formatRate(usefulRate)}, ` +
-    `出発準備素材消費=${(totals.kitMaterialSpent / totals.runs).toFixed(2)}/run, ` +
-    `支払い成立率=${paymentRate === null ? "-" : formatRate(paymentRate)}, ` +
-    `工房翼=${(totals.portalAcquisitions.workshopSupply / totals.runs).toFixed(3)}/run, ` +
-    `余剰蓄積=${(totals.surplusPerRun / TRIALS).toFixed(2)}/run, ` +
-    `40run後bank=${(totals.endingBankTotal / TRIALS).toFixed(1)}, ` +
-    `工房買切=${totals.standardCompleteRuns.length}/${TRIALS}, ` +
-    `翼入手 工房/宝箱/商人=${(totals.portalAcquisitions.workshopSupply / totals.runs).toFixed(3)}/` +
-    `${(totals.portalAcquisitions.chest / totals.runs).toFixed(3)}/` +
-    `${(totals.portalAcquisitions.merchant / totals.runs).toFixed(3)}/run, ` +
+    `[${PROGRESSION_POLICY}/${CRAFT_PRIORITY}] ${scenario.label}: 平均到達=B${average(totals.reached, totals).toFixed(2)}, ` +
+    `生還率=${formatRate(average(totals.survived, totals))}, ` +
+    `EV/時間=${(totals.banked / Math.max(1, totals.time)).toFixed(4)}, ` +
+    `B10/B15到達率=${formatRate(average(totals.reachedB10, totals))}/` +
+    `${formatRate(average(totals.reachedB15, totals))}, ` +
+    `クラフト=${craftMetricSummary(totals)}, ` +
+    `素材消費=${average(totals.craftMaterialSpent, totals).toFixed(2)}/run, ` +
+    `買切後有効損失=${(totals.steadyUsefulDeathLoss / Math.max(1, totals.steadyRuns)).toFixed(2)}/run, ` +
+    `買切後損失有価値率=${formatRate(usefulRate)}, ` +
+    `翼入手(出発/宝箱/商人)=${sourceAverage(totals, "portalAcquisitions", "departureCraft").toFixed(3)}/` +
+    `${sourceAverage(totals, "portalAcquisitions", "chest").toFixed(3)}/` +
+    `${sourceAverage(totals, "portalAcquisitions", "merchant").toFixed(3)}, ` +
+    `翼使用=${formatRate(totals.portalUses / Math.max(1, totals.runs))}, ` +
+    `傷薬入手/消費=${average(totals.healPotionsAcquired, totals).toFixed(2)}/` +
+    `${average(totals.healPotionsConsumed, totals).toFixed(2)}, ` +
+    `罠kit入手/消費=${average(totals.trapKitsAcquired, totals).toFixed(2)}/` +
+    `${average(totals.trapKitsUsed, totals).toFixed(2)}, ` +
+    `鑑定粉入手/消費=${average(totals.identificationPowderAcquired, totals).toFixed(2)}/` +
+    `${average(totals.identificationPowderUsed, totals).toFixed(2)}, ` +
     `商人成立=${totals.merchantPurchases}/${totals.merchantAttempts} ` +
     `(${formatRate(merchantSuccessRate)}, ${firstMerchant}), ` +
-    `翼使用率=${formatRate(totals.portalUses / totals.runs)}, ` +
-    `insured push=${formatRate(
-      totals.milestoneDecisions > 0
-        ? totals.insuredMilestoneDecisions / totals.milestoneDecisions
-        : 0
-    )}`
+    `工房買切trial=${totals.standardCompleteRuns.length}/${TRIALS}, ` +
+    `余剰蓄積=${(totals.surplusPerRun / TRIALS).toFixed(2)}/run, ` +
+    `終了bank=${(totals.endingBankTotal / TRIALS).toFixed(1)}`
   );
+}
+
+function percentile(values, ratio) {
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))];
+}
+
+function printSweepTable(results, sweep, label, keyLabel) {
+  console.log(`\n【${label} / 測定値】`);
+  console.log(
+    `${keyLabel} | 生還率 | 平均到達 | B10 | B15 | EV/時間 | ` +
+    "クラフト(成立/平均品数) | 翼入手/消費 | 傷薬入手/消費 | 罠kit入手/消費 | 粉入手/消費"
+  );
+  results
+    .filter(result => result.scenario.sweep === sweep)
+    .forEach(result => {
+      const { scenario, totals } = result;
+      const key = sweep === "slots"
+        ? scenario.slotLimit
+        : scenario.wingCostOverride;
+      console.log(
+        `${String(key).padStart(2)} | ${formatRate(average(totals.survived, totals)).padStart(6)} | ` +
+        `B${average(totals.reached, totals).toFixed(2).padStart(5)} | ` +
+        `${formatRate(average(totals.reachedB10, totals)).padStart(5)} | ` +
+        `${formatRate(average(totals.reachedB15, totals)).padStart(5)} | ` +
+        `${(totals.banked / Math.max(1, totals.time)).toFixed(4).padStart(8)} | ` +
+        `${formatRate(totals.craftPurchases / Math.max(1, totals.runs)).padStart(6)}/` +
+        `${average(totals.craftItems, totals).toFixed(2).padStart(5)} | ` +
+        `${sourceAverage(totals, "portalAcquisitions", "departureCraft").toFixed(2)}/` +
+        `${((totals.portalUsesBySource["departure-craft"] || 0) / Math.max(1, totals.runs)).toFixed(2)} | ` +
+        `${sourceAverage(totals, "healPotionsAcquiredBySource", "departureCraft").toFixed(2)}/` +
+        `${sourceAverage(totals, "healPotionsConsumedBySource", "departureCraft").toFixed(2)} | ` +
+        `${sourceAverage(totals, "trapKitsAcquiredBySource", "departureCraft").toFixed(2)}/` +
+        `${sourceAverage(totals, "trapKitsConsumedBySource", "departureCraft").toFixed(2)} | ` +
+        `${average(totals.identificationPowderAcquired, totals).toFixed(2)}/` +
+        `${average(totals.identificationPowderUsed, totals).toFixed(2)}`
+      );
+    });
 }
 
 function formatWorkshopState(state) {
@@ -518,25 +782,17 @@ function formatWorkshopState(state) {
 }
 
 function printWorkshopStateDistribution(result) {
-  if (result.scenario.kitCost !== DEPARTURE_KIT.materialCost) return;
+  if (!result.scenario.isReference || result.scenario.sweep !== "slots") return;
   const { totals } = result;
   console.log(
     `\n【工房状態分布 / ${result.scenario.label}】` +
-    `（40ラン×${TRIALS}試行、各run開始時点、実装値${DEPARTURE_KIT.materialCost}個）`
+    `（${RUNS_PER_TRIAL}ラン×${TRIALS}試行、各run開始時点）`
   );
   const stepDistribution = Object.entries(totals.workshopStepCounts)
     .sort(([left], [right]) => Number(left) - Number(right))
     .map(([step, count]) => `${step}step=${formatRate(count / totals.runs)}`)
     .join(" / ");
   console.log(`購入step分布: ${stepDistribution}`);
-  const phaseOrder = [
-    "empty",
-    "stats-in-progress",
-    "starting-gear-unlocked",
-    "blood-wand-unlocked",
-    "blood-wand+deep-spells",
-    "complete"
-  ];
   const phaseLabels = {
     empty: "空",
     "stats-in-progress": "ステータス投資中",
@@ -545,10 +801,9 @@ function printWorkshopStateDistribution(result) {
     "blood-wand+deep-spells": "血杖+深層呪文解放済み",
     complete: "買い切り済み"
   };
-  console.log("機能別状態分布（代表値は各状態の平均購入stepに最も近い実観測state）:");
-  phaseOrder
-    .filter(phase => totals.workshopPhaseCounts[phase])
-    .forEach(phase => {
+  Object.entries(phaseLabels)
+    .filter(([phase]) => totals.workshopPhaseCounts[phase])
+    .forEach(([phase, label]) => {
       const samples = totals.workshopPhaseSamples[phase];
       const meanSteps = samples.reduce(
         (sum, sample) => sum + sample.state.purchasedSteps,
@@ -562,7 +817,7 @@ function printWorkshopStateDistribution(result) {
         )[0];
       const count = totals.workshopPhaseCounts[phase];
       console.log(
-        `  ${phaseLabels[phase]}: ${formatRate(count / totals.runs)} ` +
+        `  ${label}: ${formatRate(count / totals.runs)} ` +
         `(${count}/${totals.runs}), 平均step=${meanSteps.toFixed(1)}, ` +
         `代表 ${formatWorkshopState(representative.state)}`
       );
@@ -580,17 +835,25 @@ function printWorkshopStateDistribution(result) {
 }
 
 export async function runWorkshopProgressionSimulation() {
-  console.log("工房進行シミュレーション（Issue #234: 出発準備の恒常シンク）");
+  console.log("工房進行シミュレーション（Issue #348: 出発クラフト）");
   console.log(
     `試行: 条件ごと N=${TRIALS}, ${RUNS_PER_TRIAL}ラン/試行, seed=${BASE_SEED}, ` +
     `core calibration N=${CALIBRATION_RUNS}`
+  );
+  console.log(
+    `工房/クラフト優先方針: ${PROGRESSION_POLICY} ` +
+    "（craft-first=クラフト→工房 / workshop-first=工房→クラフト / " +
+    "workshop-complete=工房買切り後のみクラフト）"
+  );
+  console.log(
+    `クラフト品目優先順位: ${CRAFT_PRIORITY} ` +
+    "（wing-first=翼優先 / cheap-first=単品コスト昇順。払えない品は次へ進む）"
   );
   const initialDemand = getRemainingDemand({ ranks: {} });
   const workshopSteps = WORKSHOP_NODES.reduce(
     (sum, node) => sum + getNodeMaxRank(node),
     0
   );
-  // 工房ノードが変わったら測定前提が崩れるので落とす。出発準備の撤去分を反映済み。
   if (workshopSteps !== 34 || totalMaterials(initialDemand) !== 119) {
     throw new Error(
       `workshop demand mismatch: steps=${workshopSteps}, materials=${totalMaterials(initialDemand)}`
@@ -601,25 +864,25 @@ export async function runWorkshopProgressionSimulation() {
     `総${totalMaterials(initialDemand)}個。`
   );
   console.log(
-    `撤退方針: B${POST_WING_TARGET}到達時撤退。危険時は既存simの翼使用閾値。` +
-    `翼を持たずにmilestoneへ着いたら100% bank撤退する。`
+    `出発クラフト実装値: N=${DEPARTURE_CRAFT_MAX_SLOTS}, ` +
+    `翼コスト合計=${REFERENCE_WING_COST}, ` +
+    `候補レシピ=${CRAFT_RECIPE_ORDER.join(",")}`
   );
   console.log(
     "実装経路: generateRunFloor / applyCombatRewards / generateRandomEquipment / " +
-    "bankRunMaterials / purchaseWorkshopNode / applyWorkshopToCharacter を実srcから使用。"
+    "bankRunMaterials / purchaseWorkshopNode / purchaseDepartureCraft を実srcから使用。"
   );
   console.log(
-    "grants反映: 恒久stat、affix/spell pool、鑑定粉、帰還item。初期装備は職適合かつ現装備よりatkが高い候補を選択。"
+    "クラフト支払: 各run終了後、実bankから次run分を支払。simulateRunへ渡すbankは " +
+    "外側支払済みレシピのAPI検証用であり、素材無料注入ではない。"
   );
   console.log(
-    "stake代理指標: 死亡で失う70%のうち、run開始時bank控除後の未購入工房需要に充当可能な個数。" +
-    "遅延購入stepは同runを100%bankした反実仮想との差。買い切り後は有限工房需要ゼロ。"
+    `罠モデル: simulateRun内でgenerateRunFloor経由、宝箱/フロア罠、傷薬、罠kit、翼、鑑定粉を ` +
+    `入手数・消費数付きで集計。TRAP_POLICY=${DEFAULT_TRAP_POLICY_ID}。`
   );
   console.log(
-    `罠モデル: simulateRun内でgenerateRunFloor経由、宝箱/フロア罠、傷薬、状態異常を適用。` +
-    `TRAP_POLICY=${DEFAULT_TRAP_POLICY_ID}（既定conservative）。` +
-    "非モデル化: マイルストーン商人、任意装備/クラス選択の最適化、run間codex継承、" +
-    "プレイヤー可変撤退判断。既存sim同様、固定閾値・round-robin職で代理。"
+    "N/翼コストの表はsim内what-if。最終値は実srcのレシピ変更後に同じrun経路で再測定し、" +
+    "乱数消費順の違いによる閾値合わせはしない。"
   );
 
   const scoringProfile = calibrateCoreScoringProfile(CALIBRATION_RUNS);
@@ -638,39 +901,30 @@ export async function runWorkshopProgressionSimulation() {
     context: { scoringProfile }
   });
   let resultOffset = 0;
-  const finitePortalResults = FINITE_PORTAL_SCENARIOS.map(scenario => {
+  const finiteResults = FINITE_PORTAL_SCENARIOS.map(scenario => {
     const trialResults = taskResults.slice(resultOffset, resultOffset + TRIALS);
     resultOffset += TRIALS;
     return aggregateFinitePortalScenario(scenario, trialResults);
   });
 
-  console.log("\n【Issue #234 出発準備の価格比較】");
-  console.log(
-    "sim内override。実src経路と乱数消費順が異なる試算値。各runはB20を目標とし、" +
-    "B5/B10/B15 milestoneで翼を持たなければ100% bank撤退。翼があれば次のmilestoneへpushする。"
-  );
-  console.log(
-    "商人は実purchaseMilestoneStockを各milestone探索後に呼び、currentRun.materialsのみで" +
-    "黒角36+呪布27を支払う。宝箱・戦闘drop・装備生成・mapは既存実src経路を維持。"
-  );
-  console.log(
-    "余剰蓄積は各trial後半25runのbank純増。進行有効損失は未購入の通常工房需要、" +
-    "反復購入条件では将来の翼費用に使える素材を有価値と数える。" +
-    "比較値は通常工房買い切り済みrunだけを集計する。"
-  );
-  finitePortalResults.forEach(result => console.log(formatFiniteResult(result)));
-  finitePortalResults.forEach(printWorkshopStateDistribution);
+  console.log("\n【出発クラフト条件別の測定値】");
+  finiteResults.forEach(result => console.log(formatFiniteResult(result)));
+  printSweepTable(finiteResults, "slots", "総枠N sweep", "N");
+  printSweepTable(finiteResults, "wing-cost", "帰還の翼コスト sweep", "cost");
+  finiteResults.forEach(printWorkshopStateDistribution);
 
-  console.log("\n【finite供給 商人経路判定】");
-  finitePortalResults.forEach(({ scenario, totals }) => {
-    console.log(
-      `${scenario.label}: insufficient=${totals.merchantFailures.insufficient_materials || 0}, ` +
-      `inventory_full=${totals.merchantFailures.inventory_full || 0}, ` +
-      `成立trial=${totals.firstMerchantPurchaseRuns.length}/${TRIALS}, ` +
-      `通常工房買切trial=${totals.standardCompleteRuns.length}/${TRIALS}, ` +
-      `終了bank平均=${(totals.endingBankTotal / TRIALS).toFixed(1)}`
-    );
-  });
+  console.log("\n【素材コスト集計】");
+  finiteResults
+    .filter(result => result.scenario.isReference)
+    .forEach(result => {
+      console.log(
+        `${result.scenario.label}: ` +
+        `spent=${JSON.stringify(Object.fromEntries(
+          Object.entries(result.totals.craftSpentByMaterial)
+            .map(([material, amount]) => [material, amount / Math.max(1, result.totals.craftPurchases)])
+        ))}`
+      );
+    });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

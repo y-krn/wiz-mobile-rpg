@@ -59,19 +59,11 @@ const WORKSHOP_BASE_NODES = [
   })),
 ];
 
-// 出発準備。工房の恒久ノードと違い、潜行のたびに素材を支払う恒常シンク。
-// 買い切りにすると全ノード購入後に素材が無価値化し、撤退100%/死亡30%のステークが
-// 消える（#234）。種別固定のコストでは需要のない素材が余ったままになるため、
-// 種別を問わない合計個数で受け取る。
-export const DEPARTURE_KIT = Object.freeze({
-  id: "departure_kit",
-  name: "出発準備",
-  description: "潜行のたびに素材を支払い、帰還の翼1個と鑑定粉1個を持って出発する。",
-  materialCost: 30,
-  grants: Object.freeze({ identifyPowder: 1, returnItem: "TOWN_PORTAL" })
-});
+// 出発クラフトは潜行ごとに素材を支払う恒常シンク。1品目1個で1枠。
+// sweepの実測を踏まえ、現在の上限は5枠に確定している。
+export const DEPARTURE_CRAFT_MAX_SLOTS = 5;
 
-// 出発準備へ統合して撤去した買い切りノード。既存セーブのランクを消して素材を
+// 旧出発準備へ統合して撤去した買い切りノード。既存セーブのランクを消して素材を
 // 返還するためだけに残す（`src/state/save_migrations.js`）。
 export const RETIRED_WORKSHOP_NODES = Object.freeze([
   { id: "kit_identify_powder", costs: [{ "霊粉": 5, "呪布": 2 }] },
