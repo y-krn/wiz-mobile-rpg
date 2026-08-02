@@ -19,6 +19,12 @@ export const EVENT_SUBMENU_TYPES = [
   "milestone_portal"
 ];
 
+export const ITEM_SUBMENU_TYPES = [
+  "item_inventory",
+  "item_target_select",
+  "item_direction_select"
+];
+
 export const TRAP_TYPES = {
   DAMAGE: "damage",
   MP_DRAIN: "mpDrain",
