@@ -1,15 +1,25 @@
-// Future documentation checks (#361): add a function returning diagnostics in
+// Future documentation checks: add a function returning diagnostics in
 // { file, line, message } form, then append it to CHECKS below. Keep each
 // check independent so the runner reports every failure before exiting.
+// Source-driven checks should search a bounded document section for known
+// source values instead of parsing variable prose or list formatting.
+// The support-affix check is intentionally one-way: it enumerates affixes
+// from src and checks their presence/category in the document, but does not
+// enumerate document-only affix types.
 // `.learnings/*.md` is intentionally not part of DOCUMENT_NAMES or DOCUMENT_DIRS.
 
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = process.cwd();
+import { SUPPORT_AFFIXES } from "../src/data/affixes.js";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DOCUMENT_NAMES = ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "README.md"];
 const DOCUMENT_DIRS = [".agents"];
 const PATH_PREFIXES = ["src", "tests", "scratch", "scripts", "public"];
+const SUPPORT_AFFIX_DOCUMENT = ".agents/game-design-equipment-builds.md";
+const SUPPORT_AFFIX_HEADING = "サポートアフィックス";
 const ROOT_PATHS = new Set([
   "index.html",
   "package.json",
@@ -151,7 +161,160 @@ function checkDocPaths() {
   return getDocumentPaths().flatMap(readInlineReferences);
 }
 
-const CHECKS = [checkDocPaths];
+function readHeadingSection(filePath, headingText) {
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  const headingIndex = lines.findIndex((line) => {
+    const match = line.match(/^(#+)\s+(.+)$/);
+    return match !== null && match[2].startsWith(headingText);
+  });
+
+  if (headingIndex === -1) return null;
+
+  const heading = lines[headingIndex].match(/^(#+)\s+/);
+  const headingLevel = heading?.[1].length ?? 1;
+  let endIndex = lines.length;
+
+  for (let index = headingIndex + 1; index < lines.length; index += 1) {
+    const nextHeading = lines[index].match(/^(#+)\s+/);
+    if (nextHeading !== null && nextHeading[1].length <= headingLevel) {
+      endIndex = index;
+      break;
+    }
+  }
+
+  return {
+    startLine: headingIndex + 2,
+    text: lines.slice(headingIndex + 1, endIndex).join("\n"),
+  };
+}
+
+function isIdentifierCharacter(character) {
+  return character !== undefined && /[A-Za-z0-9_$]/.test(character);
+}
+
+function findIdentifierOccurrences(text, identifier) {
+  const positions = [];
+  let position = text.indexOf(identifier);
+
+  while (position !== -1) {
+    const before = text[position - 1];
+    const after = text[position + identifier.length];
+    if (!isIdentifierCharacter(before) && !isIdentifierCharacter(after)) {
+      positions.push(position);
+    }
+    position = text.indexOf(identifier, position + identifier.length);
+  }
+
+  return positions;
+}
+
+function getCategoryAnchors(text) {
+  const anchors = [];
+  const categoryAnchorPattern = /^\s*-\s*(basic|conditional|trigger|economy)\b/gm;
+
+  for (const match of text.matchAll(categoryAnchorPattern)) {
+    const category = match[1];
+    anchors.push({
+      category,
+      position: match.index + match[0].indexOf(category),
+    });
+  }
+
+  return anchors;
+}
+
+function getCategoryListRanges(text) {
+  const ranges = [];
+  let currentRange = null;
+  let offset = 0;
+
+  for (const line of text.split("\n")) {
+    if (/^\s*-\s*(basic|conditional|trigger|economy)\b/.test(line)) {
+      currentRange = { start: offset, end: offset + line.length };
+      ranges.push(currentRange);
+    } else if (currentRange !== null && /^[ \t]{2,}\S/.test(line)) {
+      currentRange.end = offset + line.length;
+    } else {
+      currentRange = null;
+    }
+    offset += line.length + 1;
+  }
+
+  return ranges;
+}
+
+function isInCategoryList(position, ranges) {
+  return ranges.some((range) => position >= range.start && position <= range.end);
+}
+
+function getCategoryAtPosition(position, anchors) {
+  let category = null;
+
+  for (const anchor of anchors) {
+    if (anchor.position > position) break;
+    category = anchor.category;
+  }
+
+  return category;
+}
+
+function getSectionLine(section, position) {
+  return section.startLine + section.text.slice(0, position).split("\n").length - 1;
+}
+
+function checkSupportAffixes() {
+  const filePath = path.join(ROOT, SUPPORT_AFFIX_DOCUMENT);
+  const relativeFile = toPosix(path.relative(ROOT, filePath));
+
+  if (!fs.existsSync(filePath)) {
+    return [{ file: relativeFile, line: 1, message: "support affix document is missing" }];
+  }
+
+  const section = readHeadingSection(filePath, SUPPORT_AFFIX_HEADING);
+  if (section === null) {
+    return [{ file: relativeFile, line: 1, message: "support affix section is missing" }];
+  }
+
+  const categoryAnchors = getCategoryAnchors(section.text);
+  const categoryListRanges = getCategoryListRanges(section.text);
+  const sourceOnly = [];
+  const categoryMismatches = [];
+
+  for (const affix of SUPPORT_AFFIXES) {
+    const positions = findIdentifierOccurrences(section.text, affix.type)
+      .filter((position) => isInCategoryList(position, categoryListRanges));
+    if (positions.length === 0) {
+      sourceOnly.push(affix.type);
+      continue;
+    }
+
+    const observedCategories = new Set(
+      positions.map((position) => getCategoryAtPosition(position, categoryAnchors))
+    );
+    if (observedCategories.size !== 1 || !observedCategories.has(affix.category)) {
+      const firstPosition = positions[0];
+      const observed = [...observedCategories].map((category) => category ?? "unknown").join(", ");
+      categoryMismatches.push({
+        file: relativeFile,
+        line: getSectionLine(section, firstPosition),
+        message: `doc側のみ: ${affix.type} (category=${observed}) / src側のみ: ${affix.type} (category=${affix.category})`,
+      });
+    }
+  }
+
+  const diagnostics = [];
+  if (sourceOnly.length > 0) {
+    diagnostics.push({
+      file: relativeFile,
+      line: section.startLine - 1,
+      message: `src側のみ: ${sourceOnly.join(", ")}`,
+    });
+  }
+  diagnostics.push(...categoryMismatches);
+  return diagnostics;
+}
+
+const CHECKS = [checkDocPaths, checkSupportAffixes];
 const diagnostics = CHECKS.flatMap((check) => check());
 
 if (diagnostics.length > 0) {
