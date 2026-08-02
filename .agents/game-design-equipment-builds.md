@@ -16,11 +16,11 @@ redesigned into a 2-tier affix system of “core” and “support.” The syner
 (`SYNERGIES` / `getActiveSynergyMod`) was retired in Phase 1. The current design assumes 1 solo character,
 and effects belong to the wearer.
 
-Goal: effective build space ≈ 16 cores × 2〜3 class fits × support configurations ≈ 60〜80.
+Goal: effective build space ≈ `CORE_AFFIXES.length` cores × 2〜3 class fits × support configurations ≈ 60〜80.
 
 # Overall Structure
 
-- **16 core types**: Rule-changing effects. Dungeon-sourced only. Milestone merchants do not sell equipment.
+- **Core types** (`CORE_AFFIXES`): Rule-changing effects. Dungeon-sourced only. Milestone merchants do not sell equipment.
   For 1 item, at most 1 core (enforced during generation). A 1-character loadout has no upper limit on the number of equipped items,
   and all cores are active simultaneously as long as the slots allow (#311 removed the 1-core limit; it accounted for 50% of unequipped reasons,
   and was the main reason lower-tier cores could not compete).
@@ -34,7 +34,7 @@ Goal: effective build space ≈ 16 cores × 2〜3 class fits × support configur
 - Registry: `src/data/affixes.js` (data only). Rule and effect helpers:
   `src/rules/affix_rules.js`.
 
-# 16 Core Types
+# Core Types
 
 The actual value of each effect parameter is defined by `params` in `src/data/affixes.js`, the single source of truth.
 

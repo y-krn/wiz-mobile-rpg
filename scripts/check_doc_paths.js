@@ -6,13 +6,14 @@
 // The support-affix check is intentionally one-way: it enumerates affixes
 // from src and checks their presence/category in the document, but does not
 // enumerate document-only affix types.
+// The core-affix check below follows the same one-way rule.
 // `.learnings/*.md` is intentionally not part of DOCUMENT_NAMES or DOCUMENT_DIRS.
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { SUPPORT_AFFIXES } from "../src/data/affixes.js";
+import { CORE_AFFIXES, SUPPORT_AFFIXES } from "../src/data/affixes.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DOCUMENT_NAMES = ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "README.md"];
@@ -20,6 +21,8 @@ const DOCUMENT_DIRS = [".agents"];
 const PATH_PREFIXES = ["src", "tests", "scratch", "scripts", "public"];
 const SUPPORT_AFFIX_DOCUMENT = ".agents/game-design-equipment-builds.md";
 const SUPPORT_AFFIX_HEADING = "Support Affixes";
+const CORE_AFFIX_DOCUMENT = ".agents/game-design-equipment-builds.md";
+const CORE_AFFIX_HEADING = "Core Types";
 const ROOT_PATHS = new Set([
   "index.html",
   "package.json",
@@ -314,7 +317,109 @@ function checkSupportAffixes() {
   return diagnostics;
 }
 
-const CHECKS = [checkDocPaths, checkSupportAffixes];
+function getCoreTableRanges(text) {
+  const ranges = [];
+  let currentPoolGroup = null;
+  let tableStarted = false;
+  let offset = 0;
+
+  for (const line of text.split("\n")) {
+    const heading = line.match(/^##\s+(.+)$/);
+    if (heading !== null) {
+      if (/^Combat(?:\s|$)/.test(heading[1])) {
+        currentPoolGroup = "combat";
+      } else if (/^Economy\s*\/\s*Exploration(?:\s|$)/.test(heading[1])) {
+        currentPoolGroup = "economy";
+      } else {
+        currentPoolGroup = null;
+      }
+      tableStarted = false;
+    }
+
+    const isTableRow = /^\s*\|.*\|\s*$/.test(line);
+    const isTableSeparator = /^\s*\|(?:\s*:?-{2,}:?\s*\|)+\s*$/.test(line);
+
+    if (currentPoolGroup === null) {
+      offset += line.length + 1;
+      continue;
+    }
+
+    if (isTableSeparator) {
+      tableStarted = true;
+    } else if (tableStarted && isTableRow) {
+      ranges.push({
+        poolGroup: currentPoolGroup,
+        start: offset,
+        end: offset + line.length,
+      });
+    } else if (!isTableRow) {
+      tableStarted = false;
+    }
+
+    offset += line.length + 1;
+  }
+
+  return ranges;
+}
+
+function getCorePoolAtPosition(position, tableRanges) {
+  return tableRanges.find(range => position >= range.start && position <= range.end)?.poolGroup ?? null;
+}
+
+function checkCoreAffixes() {
+  const filePath = path.join(ROOT, CORE_AFFIX_DOCUMENT);
+  const relativeFile = toPosix(path.relative(ROOT, filePath));
+
+  if (!fs.existsSync(filePath)) {
+    return [{ file: relativeFile, line: 1, message: "core affix document is missing" }];
+  }
+
+  const section = readHeadingSection(filePath, CORE_AFFIX_HEADING);
+  if (section === null) {
+    return [{ file: relativeFile, line: 1, message: "core affix section is missing" }];
+  }
+
+  // Only Markdown table data rows count. Prose containing CORE_* or pool names
+  // must not become an accidental match or subsection anchor.
+  const tableRanges = getCoreTableRanges(section.text);
+  const sourceOnly = [];
+  const poolMismatches = [];
+
+  for (const affix of CORE_AFFIXES) {
+    const positions = findIdentifierOccurrences(section.text, affix.id)
+      .filter(position => getCorePoolAtPosition(position, tableRanges) !== null);
+    if (positions.length === 0) {
+      sourceOnly.push(affix.id);
+      continue;
+    }
+
+    const observedPoolGroups = new Set(
+      positions.map(position => getCorePoolAtPosition(position, tableRanges))
+    );
+    if (observedPoolGroups.size !== 1 || !observedPoolGroups.has(affix.poolGroup)) {
+      const firstPosition = positions[0];
+      const observed = [...observedPoolGroups].map(poolGroup => poolGroup ?? "unknown").join(", ");
+      poolMismatches.push({
+        file: relativeFile,
+        line: getSectionLine(section, firstPosition),
+        message: `poolGroup不一致: ${affix.id} (doc=${observed} / src=${affix.poolGroup})`,
+      });
+    }
+  }
+
+  const diagnostics = [];
+  if (sourceOnly.length > 0) {
+    diagnostics.push({
+      file: relativeFile,
+      line: section.startLine - 1,
+      message: `src側のみ: ${sourceOnly.join(", ")}`,
+    });
+  }
+  diagnostics.push(...poolMismatches);
+  return diagnostics;
+}
+
+const CHECKS = [checkDocPaths, checkSupportAffixes, checkCoreAffixes];
 const diagnostics = CHECKS.flatMap((check) => check());
 
 if (diagnostics.length > 0) {
