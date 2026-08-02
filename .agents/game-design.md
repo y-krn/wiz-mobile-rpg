@@ -39,7 +39,7 @@ milestone merchants inside a run and by the workshop between runs.
 
 | Enemy group | Primary material | Secondary material |
 | --- | --- | --- |
-| Beast, insect, small creature | 獣の牙 | 魔石片, 毒腺 |
+| Beast, insect, small creature | 獣の牙 | 硬い皮, 毒腺 |
 | Poison, spider, rot | 毒腺 | 硬い皮 |
 | `undead` | 骨片 | 霊粉, 呪布 |
 | `spirit`, wisp | 霊粉 | 魔石片 |
@@ -49,13 +49,13 @@ milestone merchants inside a run and by the workshop between runs.
 | `dragon` | 竜鱗 | 獣の牙 |
 | Rare or boss | Normal group material | Extra rare material |
 
-Issue #380 acquisition balancing keeps the drop quantity and rare/boss depth
-gate unchanged. The default chest profile adds 鉄片 and 竜鱗 to the B2 chest
-pool, and the beast secondary profile uses 魔石片/毒腺; these are allocation
-changes only. Explicit monster tags take precedence over sprite predicates,
-with `spell`, poison flags, and strong armor-name predicates filling measured
-classification gaps. Workshop node costs and departure-craft costs are not
-part of this correction.
+Issue #380 classification correction keeps the default material allocation,
+drop quantity, and rare/boss depth gate unchanged. Explicit monster tags take
+precedence over sprite predicates, with `spell`, poison flags, and strong
+armor-name predicates filling measured classification gaps. Chest and beast
+secondary profiles remain available to the simulation as rejected comparison
+profiles; they are not production defaults. Workshop node costs and
+departure-craft costs are not part of this correction.
 
 - Material species vary by biome and depth, so "I need 黒角, so I dive to the
   demon biome" is a real routing decision.

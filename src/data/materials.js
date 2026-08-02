@@ -19,8 +19,8 @@ export const MATERIAL_DROP_BALANCE = Object.freeze({
   rareBonus: 1,
   bossBonus: 2,
   rareMaterialFloor: 10,
-  chestMaterialProfile: "early-rare",
-  secondaryMaterialProfile: "magic-poison",
+  chestMaterialProfile: "default",
+  secondaryMaterialProfile: "default",
   depthQuantityPerFloor: 0.12,
   milestoneStartMultiplier: 0.6
 });

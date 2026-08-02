@@ -10,7 +10,7 @@ import {
 export { getMonsterGroup, getMonsterGroupClassification } from "../rules/material_rules.js";
 
 const GROUP_MATERIALS = Object.freeze({
-  beast: { primary: "獣の牙", secondary: ["魔石片", "毒腺"] },
+  beast: { primary: "獣の牙", secondary: ["硬い皮", "毒腺"] },
   poison: { primary: "毒腺", secondary: ["硬い皮"] },
   undead: { primary: "骨片", secondary: ["霊粉", "呪布"] },
   spirit: { primary: "霊粉", secondary: ["魔石片"] },

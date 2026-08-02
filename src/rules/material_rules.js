@@ -2,6 +2,41 @@ import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES, createEmptyMaterialBalance } fro
 
 export const BANKING_RATES = Object.freeze({ retreat: 1, death: 0.3 });
 
+// Measurement-only comparator for the pre-#380 predicate order.
+export function getLegacyMonsterGroupClassification(monster = {}) {
+  const name = String(monster.name || "").replace(/\s[A-Z]$/, "");
+  const tags = monster.tags || [];
+  const spriteType = monster.spriteType || "";
+  if (tags.includes("dragon") || spriteType === "dragon") {
+    return { group: "dragon", source: "legacy" };
+  }
+  if (tags.includes("demon") || spriteType === "flack") {
+    return { group: "demon", source: "legacy" };
+  }
+  if (
+    name.includes("鎧") ||
+    name.includes("石") ||
+    name.includes("アイアン") ||
+    name.includes("ストーン") ||
+    name.includes("ゴーレム")
+  ) {
+    return { group: "armor", source: "legacy" };
+  }
+  if (spriteType === "mage" || name.includes("魔術") || name.includes("魔女") || name.includes("術士")) {
+    return { group: "caster", source: "legacy" };
+  }
+  if (tags.includes("spirit") || spriteType === "spirit" || spriteType === "wisp") {
+    return { group: "spirit", source: "legacy" };
+  }
+  if (tags.includes("undead") || spriteType === "skeleton" || spriteType === "zombie") {
+    return { group: "undead", source: "legacy" };
+  }
+  if (monster.isPoisonous || spriteType === "spider" || name.includes("蜘蛛") || name.includes("毒") || name.includes("腐")) {
+    return { group: "poison", source: "legacy" };
+  }
+  return { group: "beast", source: "legacy" };
+}
+
 export function getMonsterGroupClassification(monster = {}) {
   const name = String(monster.name || "").replace(/\s[A-Z]$/, "");
   const tags = monster.tags || [];

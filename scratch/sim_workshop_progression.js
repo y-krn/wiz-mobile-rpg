@@ -23,7 +23,11 @@ const {
   purchaseWorkshopNode
 } = await import("../src/systems/workshop.js");
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
-const { getMonsterGroupClassification } = await import("../src/rules/material_rules.js");
+const {
+  getLegacyMonsterGroupClassification,
+  getMonsterGroupClassification
+} = await import("../src/rules/material_rules.js");
+const { MONSTERS } = await import("../src/data/monsters.js");
 const {
   getDepartureCraftCost: summarizeDepartureCraftCost,
   getDepartureCraftPaymentTotal,
@@ -590,7 +594,7 @@ function createScenarioList() {
   ];
   scenarios.push({
     id: "unlimited-reference",
-    label: `出発クラフト 無制限（翼コスト=${REFERENCE_WING_COST}）`,
+    label: `分類修正のみ（旧配分、翼コスト=${REFERENCE_WING_COST}）`,
     recipeIds: [...CRAFT_RECIPE_ORDER],
     allowChestTownPortal: true,
     comparisonSeries: "material-reference",
@@ -599,7 +603,7 @@ function createScenarioList() {
   });
   scenarios.push({
     id: "material-baseline",
-    label: "素材配分 before（旧宝箱配分・比較用）",
+    label: "分類修正のみ baseline（旧配分・比較用）",
     recipeIds: [...CRAFT_RECIPE_ORDER],
     materialDropOverride: {
       chestMaterialProfile: "default",
@@ -660,8 +664,8 @@ function createScenarioList() {
     });
   });
   scenarios.push({
-    id: "material-candidate",
-    label: "素材配分 candidate（宝箱early-rare＋戦闘magic-poison）",
+    id: "rejected-material-profile",
+    label: "不採用比較（宝箱early-rare＋戦闘magic-poison）",
     recipeIds: [...CRAFT_RECIPE_ORDER],
     materialDropOverride: {
       chestMaterialProfile: "early-rare",
@@ -669,7 +673,7 @@ function createScenarioList() {
     },
     allowChestTownPortal: true,
     comparisonSeries: "material-reference",
-    sweep: "material-candidate"
+    sweep: "rejected-material-profile"
   });
   return scenarios;
 }
@@ -746,6 +750,30 @@ function createFiniteTotals() {
 function addSourceCounts(target, additions) {
   Object.entries(additions || {}).forEach(([source, amount]) => {
     target[source] = (target[source] || 0) + amount;
+  });
+}
+
+function printMonsterClassificationAudit() {
+  console.log("全モンスター分類（旧→新）:");
+  const changed = [];
+  MONSTERS.forEach(monster => {
+    const before = getLegacyMonsterGroupClassification(monster);
+    const after = getMonsterGroupClassification(monster);
+    const isChanged = before.group !== after.group;
+    if (isChanged) changed.push({ monster, before, after });
+    console.log(
+      `${isChanged ? "*" : " "} ${monster.name} | ` +
+      `tags=${monster.tags?.join(",") || "-"} | spriteType=${monster.spriteType || "-"} | ` +
+      `${before.group}(${before.source}) -> ${after.group}(${after.source})`
+    );
+  });
+  console.log(`分類変更=${changed.length}/${MONSTERS.length}`);
+  console.log("分類変更個体:");
+  changed.forEach(({ monster, before, after }) => {
+    console.log(
+      `  ${monster.name}: ${before.group} -> ${after.group} ` +
+      `(tags=${monster.tags?.join(",") || "-"}, spriteType=${monster.spriteType || "-"})`
+    );
   });
 }
 
@@ -1073,10 +1101,8 @@ function formatMaterialAmount(amount, digits = 2) {
 }
 
 function printMaterialEconomy(result) {
-  if (
-    (!result.scenario.isReference || result.scenario.sweep !== "reference") &&
-    result.scenario.sweep !== "material-baseline"
-  ) return;
+  const printableSweeps = new Set(["material-baseline", "rejected-material-profile"]);
+  if (!result.scenario.isReference && !printableSweeps.has(result.scenario.sweep)) return;
   const { totals } = result;
   console.log(`\n【素材種別ボトルネック / ${CRAFT_PRIORITY} / ${result.scenario.label}】`);
   console.log(
@@ -1149,7 +1175,7 @@ function percentile(values, ratio) {
 function printSweepTable(results, sweep, label, keyLabel) {
   console.log(`\n【${label} / 測定値】`);
   console.log(
-    `${keyLabel} | 生還率 | 平均到達 | B10 | B15 | EV/時間 | ` +
+    `${keyLabel} | 生還率 | 平均到達 | B10 | B15 | EV/時間 | 工房買切 | ` +
     "クラフト(成立/平均品数) | 翼入手/消費 | 傷薬入手/消費 | 罠kit入手/消費 | 粉入手/消費"
   );
   results
@@ -1171,6 +1197,7 @@ function printSweepTable(results, sweep, label, keyLabel) {
         `${formatRate(average(totals.reachedB10, totals)).padStart(5)} | ` +
         `${formatRate(average(totals.reachedB15, totals)).padStart(5)} | ` +
         `${(totals.banked / Math.max(1, totals.time)).toFixed(4).padStart(8)} | ` +
+        `${totals.standardCompleteRuns.length}/${TRIALS} | ` +
         `${formatRate(totals.craftPurchases / Math.max(1, totals.runs)).padStart(6)}/` +
         `${average(totals.craftItems, totals).toFixed(2).padStart(5)} | ` +
         `${sourceAverage(totals, "portalAcquisitions", "departureCraft").toFixed(2)}/` +
@@ -1334,7 +1361,10 @@ export async function runWorkshopProgressionSimulation() {
   console.log("\n【出発クラフト条件別の測定値】");
   finiteResults.forEach(result => console.log(formatFiniteResult(result)));
   const referenceResult = finiteResults.find(result => result.scenario.isReference);
-  if (referenceResult) printEncounterGroupDiagnostics(referenceResult);
+  if (referenceResult) {
+    printEncounterGroupDiagnostics(referenceResult);
+    printMonsterClassificationAudit();
+  }
   printSweepTable(finiteResults, "wing-cost", "帰還の翼コスト sweep", "cost");
   printSweepTable(finiteResults, "powder-cost", "鑑定粉コスト sweep", "cost");
   printSweepTable(finiteResults, "rare-material-floor", "竜鱗ゲート sweep", "floor");

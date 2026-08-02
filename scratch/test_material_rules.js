@@ -2,6 +2,7 @@ import assert from "assert";
 import { determineMonsterDrop } from "../src/combat_logic/drops.js";
 import {
   getChestMaterialPool,
+  getLegacyMonsterGroupClassification,
   getMonsterGroupClassification,
   getRareMaterialForFloor
 } from "../src/rules/material_rules.js";
@@ -62,6 +63,27 @@ check("strong armor name fills armor gap", () => {
   );
 });
 
+check("classification audit exposes intended old-to-new changes", () => {
+  const monster = {
+    name: "禁書の番人",
+    tags: ["spirit"],
+    spriteType: "mage",
+    spell: "LAHALITO"
+  };
+  assert.equal(getLegacyMonsterGroupClassification(monster).group, "caster");
+  assert.equal(getMonsterGroupClassification(monster).group, "spirit");
+});
+
+check("explicit beast tag beats dragon sprite", () => {
+  const monster = {
+    name: "双頭の番犬",
+    tags: ["beast"],
+    spriteType: "dragon"
+  };
+  assert.equal(getLegacyMonsterGroupClassification(monster).group, "dragon");
+  assert.equal(getMonsterGroupClassification(monster).group, "beast");
+});
+
 check("ambiguous kobold remains explicit fallback", () => {
   assert.deepEqual(
     getMonsterGroupClassification({
@@ -103,9 +125,21 @@ check("secondary profile preserves total drop quantity", () => {
   );
 });
 
+check("production defaults keep the legacy material allocation", () => {
+  assert.deepEqual(getChestMaterialPool(2), ["獣の牙", "硬い皮", "毒腺", "骨片"]);
+  const drops = determineMonsterDrop(
+    { name: "狼", tags: ["beast"], spriteType: "wolf" },
+    2,
+    () => 0,
+    { guaranteed: true }
+  );
+  assert.ok(drops["硬い皮"] >= 1);
+  assert.equal(drops["魔石片"] || 0, 0);
+});
+
 if (failures.length > 0) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
 
-console.log(`[PASS] material rules: ${8 - failures.length} assertions`);
+console.log(`[PASS] material rules: ${11 - failures.length} assertions`);

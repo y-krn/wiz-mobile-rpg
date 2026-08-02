@@ -335,7 +335,7 @@ import {
       // 2. Verify group-classified rare drops
       const dropsF3 = determineMonsterDrop(puppy, 3, () => 0, { guaranteed: true });
       assert.ok(dropsF3["獣の牙"] >= 2);
-      assert.ok(dropsF3["魔石片"] >= 1);
+      assert.ok(dropsF3["硬い皮"] >= 1);
       assert.ok(dropsF3["黒角"] >= 1);
       const dropsF10 = determineMonsterDrop(puppy, 10, () => 0, { guaranteed: true });
       assert.ok(dropsF10["竜鱗"] >= 1);
