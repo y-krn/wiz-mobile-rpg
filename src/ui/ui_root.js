@@ -16,6 +16,10 @@ import { EVENT_SUBMENU_TYPES } from "../constants/events.js";
 let floorStingerTimer = null;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
 
+function isDeparturePrepSubmenu() {
+  return state.gameState === "submenu" && menuContext.type === "solo_start";
+}
+
 function captureScrollState(element) {
   return {
     scrollTop: element.scrollTop,
@@ -173,7 +177,7 @@ export function resetViewportZoom() {
 }
 
 export function getCurrentGoal() {
-  if (state.gameState === "town") {
+  if (state.gameState === "town" || isDeparturePrepSubmenu()) {
     return "開始地点とクラスを選び、自己最深記録を更新せよ";
   }
 
@@ -194,7 +198,8 @@ export function updateUI() {
     "chest_opener_select",
     ...EVENT_SUBMENU_TYPES
   ];
-  const isDeparturePrepSubmenu = state.gameState === "submenu" && menuContext.type === "solo_start";
+  const departurePrepSubmenu = isDeparturePrepSubmenu();
+  const isTownLikeGoal = state.gameState === "town" || departurePrepSubmenu;
 
   // Reset/Apply floor-theme class on #game-container
   const container = document.getElementById("game-container");
@@ -204,7 +209,7 @@ export function updateUI() {
     }
     container.classList.toggle("result-mode", state.gameState === "result");
     container.classList.toggle("event-mode", state.gameState === "submenu" && eventModeSubmenus.includes(menuContext.type));
-    container.classList.toggle("departure-mode", isDeparturePrepSubmenu);
+    container.classList.toggle("departure-mode", departurePrepSubmenu);
     if (state.currentRun &&
         state.gameState !== "town" &&
         state.gameState !== "gameover" &&
@@ -259,14 +264,14 @@ export function updateUI() {
       goalText.textContent = "🎯 目標: 全滅した。街に戻って立て直せ";
     } else if (state.gameState === "victory") {
       goalText.textContent = "🎯 目標: おめでとう！ゲームクリア！";
-    } else if (state.gameState === "town") {
+    } else if (isTownLikeGoal) {
       goalText.textContent = `🎯 目標: ${getCurrentGoal()}`;
     } else {
       goalText.textContent = `🎯 目標: ${getCurrentGoal()}`;
     }
     goalRow.appendChild(goalText);
 
-    if (state.gameState !== "gameover" && state.gameState !== "victory" && state.gameState !== "town") {
+    if (state.gameState !== "gameover" && state.gameState !== "victory" && !isTownLikeGoal) {
       const expRate = getFloorExplorationRate();
       
       const statsContainer = document.createElement("span");
