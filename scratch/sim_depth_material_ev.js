@@ -98,6 +98,7 @@ const {
   getCharVit,
   getCharWeaponAtk,
   getItemData,
+  getPartyMaxAffix,
   SPELLS
 } = await import("../src/data.js");
 const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
@@ -473,6 +474,10 @@ function getSimulationTrapBonus(character) {
     : TRAP_BONUS_OVERRIDE_PERCENT / 100;
 }
 
+function getSimulationTrapSense(state) {
+  return getPartyMaxAffix(state.party, "trapSense") / 100;
+}
+
 function getFloorDisarmPolicyThreshold(state, trap) {
   const policy = TRAP_POLICY_DEFINITIONS[state.simPolicy.trapPolicy];
   if (Number.isFinite(policy.floorDisarmMinRate)) {
@@ -494,6 +499,7 @@ function createTrapAggregate() {
     disarms: 0,
     avoided: 0,
     forced: 0,
+    avoidanceExtraSteps: 0,
     kitsAcquired: 0,
     kitsUsed: 0,
     detections: 0,
@@ -528,6 +534,7 @@ function addTrapAggregate(target, result) {
   target.disarms += result.trapDisarms;
   target.avoided += result.trapAvoided;
   target.forced += result.trapForced;
+  target.avoidanceExtraSteps += result.trapAvoidanceExtraSteps;
   target.kitsAcquired += result.trapKitsAcquired;
   target.kitsUsed += result.trapKitsUsed;
   target.detections += result.trapDetections;
@@ -563,6 +570,7 @@ function finalizeTrapAggregate(aggregate) {
     averageTrapDisarms: aggregate.disarms / runs,
     averageTrapAvoided: aggregate.avoided / runs,
     averageTrapForced: aggregate.forced / runs,
+    averageTrapAvoidanceExtraSteps: aggregate.avoidanceExtraSteps / runs,
     averageTrapKitsAcquired: aggregate.kitsAcquired / runs,
     averageTrapKitsUsed: aggregate.kitsUsed / runs,
     averageTrapDetections: aggregate.detections / runs,
@@ -2589,7 +2597,10 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   }
 
   if (trap.state === "hidden") {
-    if (Math.random() < calculateDetectRate({ floor })) {
+    if (Math.random() < calculateDetectRate({
+      floor,
+      scoutBonus: getSimulationTrapSense(state)
+    })) {
       trap.state = "discovered";
       metrics.trapDetections++;
     }
@@ -2599,6 +2610,7 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
     const avoidance = getTrapAvoidancePlan(generated, previousCoord, trap);
     if (avoidance) {
       metrics.trapAvoided++;
+      metrics.trapAvoidanceExtraSteps += avoidance.extraSteps;
       metrics.steps += avoidance.extraSteps;
       state.currentRun.steps += avoidance.extraSteps;
       return { pitfallTriggered: false };
@@ -2942,6 +2954,15 @@ function recordEquipmentAcquisitions(metrics, equipmentItems, floor, source = "o
       metrics.trapBonusFoundByValue[value] =
         (metrics.trapBonusFoundByValue[value] || 0) + 1;
     });
+    const trapSenseAffixes = (item?.affixes || []).filter(affix =>
+      (affix.id || affix.type) === "trapSense"
+    );
+    if (trapSenseAffixes.length > 0) metrics.trapSenseItemsFound++;
+    trapSenseAffixes.forEach(affix => {
+      const value = String(affix.value || 0);
+      metrics.trapSenseFoundByValue[value] =
+        (metrics.trapSenseFoundByValue[value] || 0) + 1;
+    });
     (item?.affixes || [])
       .filter(affix => affix.kind !== "core")
       .forEach(affix => {
@@ -3172,6 +3193,8 @@ function finishRun(state, outcome, metrics) {
     supportAffixFoundById: { ...metrics.supportAffixFoundById },
     trapBonusItemsFound: metrics.trapBonusItemsFound,
     trapBonusFoundByValue: { ...metrics.trapBonusFoundByValue },
+    trapSenseItemsFound: metrics.trapSenseItemsFound,
+    trapSenseFoundByValue: { ...metrics.trapSenseFoundByValue },
     rarityFound: metrics.rarityFound,
     supportCountDistribution: metrics.supportCountDistribution,
     supportCountByRarity: metrics.supportCountByRarity,
@@ -3232,6 +3255,7 @@ function finishRun(state, outcome, metrics) {
     trapDisarms: metrics.trapDisarms,
     trapAvoided: metrics.trapAvoided,
     trapForced: metrics.trapForced,
+    trapAvoidanceExtraSteps: metrics.trapAvoidanceExtraSteps,
     trapKitsAcquired: metrics.trapKitsAcquired,
     trapKitsUsed: metrics.trapKitsUsed,
     trapDetections: metrics.trapDetections,
@@ -3330,6 +3354,8 @@ export function simulateRun({
     supportAffixFoundById: {},
     trapBonusItemsFound: 0,
     trapBonusFoundByValue: {},
+    trapSenseItemsFound: 0,
+    trapSenseFoundByValue: {},
     rarityFound: { magic: 0, rare: 0, epic: 0, other: 0 },
     supportCountDistribution: createSupportCountDistribution(),
     supportCountByRarity: {
@@ -3396,6 +3422,7 @@ export function simulateRun({
     trapDisarms: 0,
     trapAvoided: 0,
     trapForced: 0,
+    trapAvoidanceExtraSteps: 0,
     trapKitsAcquired: 0,
     trapKitsUsed: 0,
     trapDetections: 0,
@@ -4043,6 +4070,7 @@ function simulateCase({
     healPotionsUsed: 0,
     trap: createTrapAggregate(),
     trapBonus: createTrapBonusAggregate(),
+    trapSense: createTrapSenseAggregate(),
     townPortalsUsed: 0,
     runsUsingTownPortal: 0,
     fleeCount: 0,
@@ -4061,6 +4089,9 @@ function simulateCase({
   );
   const classTrapBonusTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapBonusAggregate()])
+  );
+  const classTrapSenseTotals = Object.fromEntries(
+    SIM_CLASSES.map(className => [className, createTrapSenseAggregate()])
   );
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
@@ -4097,6 +4128,8 @@ function simulateCase({
     addTrapAggregate(classTrapTotals[className], result);
     addTrapBonusAggregate(totals.trapBonus, result);
     addTrapBonusAggregate(classTrapBonusTotals[className], result);
+    addTrapSenseAggregate(totals.trapSense, result);
+    addTrapSenseAggregate(classTrapSenseTotals[className], result);
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
     totals.carriedMaterials += result.carriedMaterials;
@@ -4316,6 +4349,13 @@ function simulateCase({
         finalizeTrapBonusAggregate(aggregate)
       ])
     ),
+    trapSenseSupply: finalizeTrapSenseAggregate(totals.trapSense),
+    trapSenseSupplyByClass: Object.fromEntries(
+      Object.entries(classTrapSenseTotals).map(([className, aggregate]) => [
+        className,
+        finalizeTrapSenseAggregate(aggregate)
+      ])
+    ),
     trapMetricsByClass: Object.fromEntries(
       Object.entries(classTrapTotals).map(([className, aggregate]) => [
         className,
@@ -4519,16 +4559,17 @@ function printTable(results) {
 function printTrapMetrics(result) {
   console.log(`\n【${result.label} 罠計測 / 職業別 / 方針=${result.trapPolicy}】`);
   console.log(
-    "職業    | 発動/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 宝箱入手 | 商人入手 | 開始消費 | 宝箱消費 | 商人消費 | 解除 | 回避 | 強行 | kit入手 | kit使用"
+    "職業    | 発動/run | 察知/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 宝箱入手 | 商人入手 | 開始消費 | 宝箱消費 | 商人消費 | 解除 | 回避 | 回避追加歩数 | 強行 | kit入手 | kit使用"
   );
   console.log(
-    "--------|----------|----------|------------|------------|----------|----------|--------|----------|----------|----------|----------|----------|----------|------|------|------|--------|--------"
+    "--------|----------|----------|----------|------------|------------|----------|----------|--------|----------|----------|----------|----------|----------|----------|------|------|--------------|------|--------|--------"
   );
   Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
     const acquired = metrics.averageHealPotionsAcquiredBySource;
     const consumed = metrics.averageHealPotionsConsumedBySource;
     console.log(
       `${className.padEnd(7)} | ${metrics.averageTrapActivations.toFixed(2).padStart(8)} | ` +
+      `${metrics.averageTrapDetections.toFixed(2).padStart(8)} | ` +
       `${metrics.averageTrapDamageHp.toFixed(2).padStart(8)} | ` +
       `${metrics.averageCombatDamageHp.toFixed(2).padStart(10)} | ` +
       `${metrics.averageTrapHealPotionsUsed.toFixed(2).padStart(10)} | ` +
@@ -4540,6 +4581,7 @@ function printTrapMetrics(result) {
       `${consumed.starting.toFixed(2).padStart(8)} | ${consumed.chest.toFixed(2).padStart(8)} | ` +
       `${consumed.merchant.toFixed(2).padStart(8)} | ` +
       `${metrics.averageTrapDisarms.toFixed(2).padStart(4)} | ${metrics.averageTrapAvoided.toFixed(2).padStart(4)} | ` +
+      `${metrics.averageTrapAvoidanceExtraSteps.toFixed(2).padStart(8)} | ` +
       `${metrics.averageTrapForced.toFixed(2).padStart(4)} | ${metrics.averageTrapKitsAcquired.toFixed(2).padStart(6)} | ` +
       `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)}`
     );
@@ -4659,6 +4701,7 @@ function printBuildSupplyMetrics(results) {
       });
     console.log(`  初回core遭遇深さ: ${depthLabels.join(", ")}`);
     printTrapBonusSupplyMetrics(result);
+    printTrapSenseSupplyMetrics(result);
   });
 }
 
@@ -4684,6 +4727,75 @@ function printTrapBonusSupplyMetrics(result) {
     })
     .join(" / ");
   console.log(`  trapBonus職業別: ${classParts}`);
+}
+
+function createTrapSenseAggregate() {
+  return {
+    runs: 0,
+    equipmentItems: 0,
+    trapSenseItems: 0,
+    trapSenseValues: {}
+  };
+}
+
+function addTrapSenseAggregate(target, result) {
+  target.runs++;
+  target.equipmentItems += result.equipmentFound;
+  target.trapSenseItems += result.trapSenseItemsFound;
+  Object.entries(result.trapSenseFoundByValue).forEach(([value, count]) => {
+    target.trapSenseValues[value] = (target.trapSenseValues[value] || 0) + count;
+  });
+}
+
+function finalizeTrapSenseAggregate(aggregate) {
+  const runs = Math.max(1, aggregate.runs);
+  const totalAffixes = Object.values(aggregate.trapSenseValues)
+    .reduce((sum, count) => sum + count, 0);
+  return {
+    equipmentItems: aggregate.equipmentItems,
+    trapSenseItems: aggregate.trapSenseItems,
+    trapSenseItemRate: aggregate.equipmentItems > 0
+      ? aggregate.trapSenseItems / aggregate.equipmentItems
+      : 0,
+    averageTrapSenseItems: aggregate.trapSenseItems / runs,
+    averageTrapSenseByValue: Object.fromEntries(
+      Object.entries(aggregate.trapSenseValues).map(([value, count]) => [
+        value,
+        count / runs
+      ])
+    ),
+    trapSenseValueDistribution: Object.fromEntries(
+      Object.entries(aggregate.trapSenseValues).map(([value, count]) => [
+        value,
+        totalAffixes > 0 ? count / totalAffixes : 0
+      ])
+    ),
+    totalTrapSenseAffixes: totalAffixes
+  };
+}
+
+function printTrapSenseSupplyMetrics(result) {
+  const supply = result.trapSenseSupply;
+  const values = Object.entries(supply.averageTrapSenseByValue)
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .map(([value, average]) =>
+      `${value}%=${average.toFixed(3)}/run (${formatPercent(supply.trapSenseValueDistribution[value])})`
+    )
+    .join(", ") || "なし";
+  console.log(
+    `  trapSense供給: 装備${supply.equipmentItems}, 付与装備率=${formatPercent(supply.trapSenseItemRate)}, ` +
+    `値別=${values}`
+  );
+  const classParts = Object.entries(result.trapSenseSupplyByClass)
+    .map(([className, classSupply]) => {
+      const classValues = Object.entries(classSupply.averageTrapSenseByValue)
+        .sort(([left], [right]) => Number(left) - Number(right))
+        .map(([value, average]) => `${value}%:${average.toFixed(3)}`)
+        .join(", ") || "なし";
+      return `${className} ${formatPercent(classSupply.trapSenseItemRate)} [${classValues}]`;
+    })
+    .join(" / ");
+  console.log(`  trapSense職業別: ${classParts}`);
 }
 
 function printCoreRetentionDetail(result) {
