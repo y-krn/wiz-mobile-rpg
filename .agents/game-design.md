@@ -64,10 +64,10 @@ milestone merchants inside a run and by the workshop between runs.
 
 ## Workshop (Between Runs)
 
-The workshop is the only material sink between runs: an unlock tree, not a
-crafting bench. First version stays narrow.
+The workshop is the only material sink between runs, with two systems:
+permanent unlocks and departure craft.
 
-Purchasable categories:
+Permanent unlocks include:
 
 1. New classes.
 2. Starting-gear options (choices offered at run start, not carried gear).
@@ -77,8 +77,13 @@ Purchasable categories:
 5. Convenience: +1 starting identify resource, a starting return item, and
    similar small run-start kits.
 
-Defer: recipe trees, dismantling, random-property crafting, anything that
-turns the workshop into a second build system. Builds live inside the run.
+Departure craft is the separate run-start path: select recipes, pay their
+material costs for that run, and carry the crafted consumables into the run.
+Each item uses one slot; the slot cap is `DEPARTURE_CRAFT_MAX_SLOTS` in
+`src/data/workshop.js`. Leaving without crafted items remains valid.
+
+Defer: dismantling, random-property crafting, and any feature that replaces
+the in-run build system. Builds live inside the run.
 
 ## Milestone Merchants (Inside A Run)
 

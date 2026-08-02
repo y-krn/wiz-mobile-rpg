@@ -105,9 +105,9 @@ to verify the change.
 - If mobile UI changes, always include the relevant `src/styles/*.css` file and
   `tests/ui-ux.spec.js` in review and verification. Inspect `src/style.css`
   only when import order or cascade behavior may be relevant.
-- If numbers affect enemies, drops, rewards, XP, gold, run quests, or map pacing,
+- If numbers affect enemies, drops, rewards, XP, materials, run quests, or map pacing,
   include the `balance-simulation` review lens.
-- If the request changes XP, gold, milestone merchant purchases, loot,
+- If the request changes XP, milestone merchant purchases, loot,
   materials, workshop actions, run quests, or B5F clear behavior, read
   `.agents/game-design.md` before
   implementation or review.

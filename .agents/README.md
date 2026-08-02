@@ -46,12 +46,13 @@ touches a facade, inspect the concrete module before drawing conclusions.
   information-disclosure principles, floor density and pacing targets,
   push-your-luck structure, and FOE/camp direction. Check any feature or
   balance proposal against it.
-- `game-design.md`: current progression/economy design for XP, gold, milestone merchants,
+- `game-design.md`: current progression/economy design for XP, milestone merchants,
   materials, workshop, reward roles, and post-clear save behavior.
 - `game-design-equipment-builds.md`: the core/support affix system —
-  16 cores, 47 supports, budget-based generation, inscriptions, polish, and
-  curse-seal rules. Canonical for any change to affixes, `AFFIX_BALANCE`,
-  `CORE_SEAL_RULES`, or workshop actions.
+  `CORE_AFFIXES` and `SUPPORT_AFFIXES` (support count:
+  `SUPPORT_AFFIXES.length`), budget-based generation, inscriptions, polish, and
+  curse-seal rules. The source of truth is `src/data/affixes.js`. Canonical for
+  any change to affixes, `AFFIX_BALANCE`, `CORE_SEAL_RULES`, or workshop actions.
 
 ## File Routing
 
