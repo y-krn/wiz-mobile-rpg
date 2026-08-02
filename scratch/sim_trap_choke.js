@@ -7,9 +7,17 @@
 const { generateRunFloor } = await import("../src/run_map_generator.js");
 const { createRng } = await import("../src/seed_rng.js");
 const { generateRandomAccessory, generateRandomEquipment } = await import("../src/systems/equipment_generation.js");
-const { ITEMS, MATERIAL_TAGS, TAG_EFFECT_MAP, getPartyMaxAffix } = await import("../src/data.js");
+const {
+  ITEMS,
+  MATERIAL_TAGS,
+  TAG_EFFECT_MAP,
+  getBiomeForFloor,
+  getCharMaxHp,
+  getPartyMaxAffix
+} = await import("../src/data.js");
 const { createSoloCharacter, state } = await import("../src/state.js");
 const { detectAdjacentTraps } = await import("../src/systems/traps.js");
+const { resolveFloorTrapEffect } = await import("../src/rules/trap_effect_rules.js");
 const { getTrapChokeRate } = await import("../src/map_generator.js");
 const { executeTagInscription } = await import("../src/craft.js");
 
@@ -38,6 +46,8 @@ const INVESTMENTS = [
   { id: "full", label: "全振り", slots: ["accessory", "weapon"] }
 ];
 const CLASSES = ["Fighter", "Thief", "Samurai"];
+const TRAP_TYPES = ["damage", "pitfall", "mpDrain", "alarm"];
+const EXPECTED_HP_GAIN_BY_CLASS = Object.freeze({ Fighter: 8, Thief: 6, Samurai: 7 });
 const SAMPLES = 1000;
 
 function keyOf(position) {
@@ -179,7 +189,7 @@ function buildInvestmentParty(floor, investment, className) {
       ));
     }
   }
-  return [character];
+  return [applyExpectedProgression(character, floor)];
 }
 
 function describeWeapon(character) {
@@ -188,6 +198,47 @@ function describeWeapon(character) {
   const base = ITEMS[baseId];
   const inscription = weapon?.inscription?.type === "trapSense" ? "*" : "";
   return `${baseId || "none"}${inscription}(${base?.atk || 0})`;
+}
+
+function createTrapEffectTotals() {
+  return Object.fromEntries(TRAP_TYPES.map(type => [type, {
+    count: 0,
+    hpDamage: 0,
+    mpDrain: 0
+  }]));
+}
+
+// 深度想定レベルはマイルストーンごとに1上昇させる（B1=1、B5=2、…、B20=5）。
+function getExpectedLevel(floor) {
+  return 1 + Math.floor(floor / 5);
+}
+
+function applyExpectedProgression(character, floor) {
+  const expectedLevel = getExpectedLevel(floor);
+  const expectedHpGain = EXPECTED_HP_GAIN_BY_CLASS[character.class];
+  if (expectedHpGain === undefined) {
+    throw new Error(`missing expected HP gain: ${character.class}`);
+  }
+  character.level = expectedLevel;
+  character.maxHp += expectedHpGain * (expectedLevel - 1);
+  return character;
+}
+
+function getExpectedHpProfile(floor, className) {
+  const character = createSoloCharacter(className);
+  applyExpectedProgression(character, floor);
+  return {
+    level: character.level,
+    maxHp: getCharMaxHp(character)
+  };
+}
+
+function addTrapEffectTotals(target, source) {
+  for (const type of TRAP_TYPES) {
+    target[type].count += source[type].count;
+    target[type].hpDamage += source[type].hpDamage;
+    target[type].mpDrain += source[type].mpDrain;
+  }
 }
 
 function walkFloor({ floor, grid, path, party, runSeed }) {
@@ -205,6 +256,7 @@ function walkFloor({ floor, grid, path, party, runSeed }) {
   let stepped = 0;
   let ambush = 0;
   let detected = 0;
+  const trapEffects = createTrapEffectTotals();
   const previousRandom = Math.random;
   // 判定そのものは実装側の detectAdjacentTraps に任せ、再現性のためだけに RNG を注入する。
   Math.random = createRng(`${runSeed}:trap-detect`);
@@ -225,6 +277,18 @@ function walkFloor({ floor, grid, path, party, runSeed }) {
       stepped++;
       if (trap.state === "hidden") {
         ambush++;
+        const effect = resolveFloorTrapEffect({
+          trap,
+          floor,
+          party,
+          weakened: false,
+          rng: createRng(`${runSeed}:trap-effect:${trap.id}`)
+        });
+        const typeTotals = trapEffects[trap.type];
+        if (!typeTotals) throw new Error(`unexpected trap type: ${trap.type}`);
+        typeTotals.count++;
+        typeTotals.hpDamage += effect.partyDamage.reduce((sum, damage) => sum + damage, 0);
+        typeTotals.mpDrain += effect.partyMpDrain.reduce((sum, drain) => sum + drain, 0);
       } else if (trap.state === "discovered") {
         detected++;
       } else {
@@ -238,7 +302,7 @@ function walkFloor({ floor, grid, path, party, runSeed }) {
     Math.random = previousRandom;
   }
 
-  return { stepped, ambush, detected };
+  return { stepped, ambush, detected, trapEffects };
 }
 
 console.log("=== TRAP CHOKE DISTRIBUTION ===");
@@ -252,10 +316,13 @@ for (const floor of FLOORS) {
   const loadoutKey = (className, investmentId) => `${className}:${investmentId}`;
   const loadouts = new Map(CLASSES.flatMap(className => INVESTMENTS.map(investment => {
     const party = buildInvestmentParty(floor, investment, className);
+    const expectedHp = getExpectedHpProfile(floor, className);
     return [loadoutKey(className, investment.id), {
       party,
       trapSense: getPartyMaxAffix(party, "trapSense"),
-      weapon: describeWeapon(party[0])
+      weapon: describeWeapon(party[0]),
+      expectedLevel: expectedHp.level,
+      maxHp: expectedHp.maxHp
     }];
   })));
   const detectionTotals = new Map(CLASSES.flatMap(className => INVESTMENTS.map(investment => {
@@ -265,9 +332,12 @@ for (const floor of FLOORS) {
       investmentId: investment.id,
       trapSense: loadouts.get(key).trapSense,
       weapon: loadouts.get(key).weapon,
+      expectedLevel: loadouts.get(key).expectedLevel,
+      maxHp: loadouts.get(key).maxHp,
       stepped: 0,
       ambush: 0,
-      detected: 0
+      detected: 0,
+      trapEffects: createTrapEffectTotals()
     }];
   })));
 
@@ -295,6 +365,7 @@ for (const floor of FLOORS) {
         result.stepped += scenario.stepped;
         result.ambush += scenario.ambush;
         result.detected += scenario.detected;
+        addTrapEffectTotals(result.trapEffects, scenario.trapEffects);
       }
     }
   }
@@ -342,3 +413,51 @@ console.log("ambush = 察知失敗で3択UIを経ず発動、detected = 察知�
 console.log("trapSense は実生成装備を createSoloCharacter に装備し、getPartyMaxAffix で取得した値。");
 console.log("全振りの weapon * は実生成装備へ executeTagInscription を通した主力武器。");
 console.log("各歩行位置で detectAdjacentTraps を呼び、detectRolled の生涯1回制限も実装経路で適用。");
+
+console.log("\n=== TRAP SURPRISE DAMAGE ===");
+console.log("floor | biome            | trapSet                 | class   | investment | level | maxHP | ambush/run | HP/run | HP/maxHP | MP/run | damage n/hp | pitfall n/hp | mpDrain n/mp | alarm n");
+
+function formatTrapType(result, type) {
+  const totals = result.trapEffects[type];
+  const countPerRun = totals.count / SAMPLES;
+  if (type === "alarm") return countPerRun.toFixed(2);
+  const impactPerRun = (type === "mpDrain" ? totals.mpDrain : totals.hpDamage) / SAMPLES;
+  return `${countPerRun.toFixed(2)}/${impactPerRun.toFixed(2)}`;
+}
+
+for (const floor of FLOORS) {
+  const biome = getBiomeForFloor(floor);
+  const totals = detectionTotalsByFloor.get(floor);
+  for (const className of CLASSES) {
+    for (const investment of INVESTMENTS) {
+      const result = totals.get(`${className}:${investment.id}`);
+      const hpPerRun = TRAP_TYPES.reduce(
+        (sum, type) => sum + result.trapEffects[type].hpDamage,
+        0
+      ) / SAMPLES;
+      const mpPerRun = result.trapEffects.mpDrain.mpDrain / SAMPLES;
+      const hpShare = result.maxHp > 0 ? (hpPerRun / result.maxHp) * 100 : 0;
+      console.log(
+        `B${String(floor).padStart(2)}   | ` +
+        `${biome.id.padEnd(16)} | ` +
+        `${biome.gimmicks.trapSet.join("+").padEnd(23)} | ` +
+        `${className.padEnd(7)} | ` +
+        `${investment.label.padEnd(10)} | ` +
+        `${String(result.expectedLevel).padStart(5)} | ` +
+        `${String(result.maxHp).padStart(5)} | ` +
+        `${(result.ambush / SAMPLES).toFixed(2).padStart(10)} | ` +
+        `${hpPerRun.toFixed(2).padStart(6)} | ` +
+        `${hpShare.toFixed(1).padStart(7)}% | ` +
+        `${mpPerRun.toFixed(2).padStart(6)} | ` +
+        `${formatTrapType(result, "damage").padStart(11)} | ` +
+        `${formatTrapType(result, "pitfall").padStart(12)} | ` +
+        `${formatTrapType(result, "mpDrain").padStart(12)} | ` +
+        `${formatTrapType(result, "alarm").padStart(7)}`
+      );
+    }
+  }
+}
+
+console.log("想定level = 1 + floor / 5。想定HPは職業別level gain期待値（Fighter+8 / Thief+6 / Samurai+7）を加算し、基準装備込み getCharMaxHp で取得。");
+console.log("HP/run は不意打ち時 resolveFloorTrapEffect の partyDamage 合計、HP/maxHP は想定最大HP比。MP/run は partyMpDrain、各型 n/値 は回数/型別被害。");
+console.log("罠型・trapSet は generateRunFloor が生成した実マップから集計。回復・撤退・戦闘は不意打ち圧力の単独測定対象外。");
