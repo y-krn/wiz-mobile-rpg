@@ -237,6 +237,9 @@ When reporting checklist use, include:
 ## Context Hygiene
 
 - Keep always-loaded instructions minimal and durable.
+- Design specs and implementation plans are working artifacts, not records.
+  When the work ships, distill what stays true into `.agents/*.md` and delete
+  the spec or plan file. Git history keeps the rest.
 - Put task-specific, path-specific, or reviewer-specific detail in `.agents/*`
   instead of expanding this file.
 - Avoid conflicting rules, repeated lint/test instructions, and tool-specific

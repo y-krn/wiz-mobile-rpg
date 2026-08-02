@@ -8,11 +8,9 @@ it?"
 
 **Direction change (2026-07-18).** The party-based, fixed-labyrinth,
 town-economy game was retired and replaced by a solo depth-attack roguelite.
-The approved pivot design lives in
-`docs/superpowers/specs/2026-07-18-solo-depth-roguelite-design.md`; this
-document is the durable distillation of it. Where an older ticket or document
-assumes a 6-character party, a fixed map, or the town gold economy, this
-document wins.
+This document is the durable design record for the pivot. Where an older
+ticket or document assumes a 6-character party, a fixed map, or the town gold
+economy, this document wins.
 
 ## Core Loop
 
@@ -58,8 +56,7 @@ screen, in town, and on the run result.
    frequency and its stakes.
 
 **Decided: the core experience is improvised build completion** (2026-07-24).
-Pillar 3 is the game's primary motive, refined by
-`docs/superpowers/specs/2026-07-24-build-completion-core-experience-design.md`:
+Pillar 3 is the game's primary motive:
 the player improvises a build from what drops (not a planned collection), and
 **depth is the arena that tests that build's quality** — the floor reached is
 the build's answer key. This implies a two-phase run with a continuous
@@ -76,9 +73,10 @@ finding) is orthogonal and low priority.
 **Decided: floors are generated per run** (2026-07-18). This supersedes the
 2026-07-10 fixed-labyrinth decision, which belonged to the retired game.
 Repeated runs over known ground are dead time in a depth-attack loop, so maps
-reseed every run (`src/map_generator.js` + `src/seed_rng.js`), with floor
-templates (size, room count, gimmick density) selected by depth. Generation
-quality is the top v1 risk and is verified first in the implementation order.
+reseed every run (orchestrated by `src/run_map_generator.js` over
+`src/map_generator.js` + `src/seed_rng.js`), with floor templates (size, room
+count, gimmick density) selected by depth. Generation quality is the top v1
+risk and is verified first in the implementation order.
 
 **Decided: solo character, hybrid meta progression** (2026-07-18). One
 character per run, Lv1 each run. Between runs the player buys unlocks
@@ -90,6 +88,9 @@ not run count — the stat cap is the levee.
 
 - Floors are one-way: the only exits are down stairs, a milestone portal, or
   a return item. No backtracking to earlier floors within a run.
+- Down stairs are an explicit choice: entering offers descend or continue;
+  staying leaves the character on the stair, and leaving then re-entering asks
+  again. Milestone stairs remain locked until that floor's boss is defeated.
 - Milestones every 5 floors: a boss, then a breather with a permanent return
   portal and a merchant (identify resources, consumables, return items,
   curse removal — priced in materials).
@@ -119,6 +120,13 @@ serves and what decision changes when the player climbs to it. Gaining
 information must cost something (exposure, light, steps), or
 maximum-visibility gear becomes the only correct build.
 
+Floor traps are route-choice obstacles: base adjacent detection is shared,
+disarm is class-sensitive, forced traversal always passes with reduced damage, and
+choke placement is capped so avoidance remains meaningful. Chest traps keep a
+risk/reward branch: every class can leave, smash for a weaker trap effect with
+possible consumable loss, or use a kit, while specialist classes retain safer
+disarm rates.
+
 Unidentified equipment sits on the same ladder: presence (a drop),
 identification (base type visible), detail (identified affixes). Pillar 3's
 gamble is the choice to act from the identification rung without paying for
@@ -131,6 +139,8 @@ retained (mobile one-handed play, existing `combat_logic` assets), rebalanced
 for one character:
 
 - Enemy groups of 1–3. The 6-member-party encounter tables are retired.
+- Shallow encounters lean toward one enemy while two-enemy kill-order choices
+  remain part of the solo skill axis.
 - Enemy roles: aggressor (damage), disruptor (status/hindrance), amplifier
   (buffs other enemies). The solo-combat skill axis is kill order.
 - Status effects must never be "one hit = run over": paralysis/sleep last at
@@ -149,6 +159,8 @@ validation rules; a floor far outside them needs a stated reason.
 - Critical path (entry to down stairs): 20–30 steps.
 - Fights per floor: ~4–6 on the natural path; a floor must be clearable
   without visiting every room.
+- v1 floor templates use 24×24 / 27×27 / 30×30 grids; regular chest placement
+  is randomized to 8–12, and chest presence is not revealed by minimap aura.
 - New gimmick concepts: at most 1–2 per biome, introduced on its first floor.
 - At most one roaming avoid-for-now threat per floor; milestone bosses are
   destination fights and do not count.
@@ -174,9 +186,6 @@ visit now; density targets are per-run costs.
 
 ## Relationship To Other Documents
 
-- `docs/superpowers/specs/2026-07-18-solo-depth-roguelite-design.md`: the
-  approved pivot design this document distills, including the module
-  survival map and implementation order.
 - `.agents/game-design.md`: meta-economy rules (materials as the only
   currency, workshop unlock tree, milestone merchants, run quests).
 - `.agents/game-design-equipment-builds.md`: affix system (cores/supports);
