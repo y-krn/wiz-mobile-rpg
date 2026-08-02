@@ -108,6 +108,11 @@ function appendLabelledLines(button, title, detail, detailClass = "") {
   button.append(strong, span);
 }
 
+function clearDepartureStartFooter() {
+  const footer = document.getElementById("departure-start-footer");
+  if (footer) footer.replaceChildren();
+}
+
 function renderDepartureCraftOptions(optGrid, className, startingGear) {
   const summary = document.createElement("div");
   summary.className = "solo-start-craft-summary";
@@ -193,6 +198,8 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
 function renderStartFloorChoices(optGrid, className, startingGear) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-floor-grid";
+  const footer = document.getElementById("departure-start-footer");
+  if (footer) footer.replaceChildren();
   const changeClass = document.createElement("button");
   changeClass.type = "button";
   changeClass.className = "btn btn-block solo-start-change";
@@ -210,13 +217,14 @@ function renderStartFloorChoices(optGrid, className, startingGear) {
     button.className = "btn btn-neon btn-block solo-start-floor-option";
     button.innerHTML = `<strong>B${floor}Fから開始</strong><span>素材収入 ${Math.round(multiplier * 100)}%</span>`;
     button.addEventListener("click", () => startRun(className, startingGear, floor));
-    optGrid.appendChild(button);
+    if (footer) footer.appendChild(button);
   });
 }
 
 export function renderSoloStart(optGrid) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-grid";
+  clearDepartureStartFooter();
   departureCraftQuantities = new Map();
 
   SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className)).forEach(className => {

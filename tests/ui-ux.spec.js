@@ -23,6 +23,29 @@ async function startSoloRun(page) {
   await expect(page.locator('#explore-controls')).toBeVisible();
 }
 
+async function openDeparturePreparation(page, vp, unlockedMilestones = []) {
+  await page.setViewportSize({ width: vp.width, height: vp.height });
+  await page.goto('/');
+  await page.evaluate(async (milestones) => {
+    const { state } = await import('/src/state.js');
+    const { openSubmenu } = await import('/src/navigation.js');
+
+    state.gameState = 'town';
+    state.metaMaterials = {
+      '獣の牙': 10,
+      '硬い皮': 10,
+      '毒腺': 3,
+      '骨片': 3,
+      '霊粉': 10,
+      '鉄片': 10,
+    };
+    state.workshop = { ranks: {} };
+    state.unlockedMilestones = milestones;
+    openSubmenu('solo_start', '単独潜行');
+  }, unlockedMilestones);
+  await page.locator('.solo-class-option').first().click();
+}
+
 async function beginPendingOutcomePlayback(page, kind, floor = 1) {
   await page.addInitScript(() => {
     Math.random = () => 0.99;
@@ -2323,6 +2346,60 @@ for (const vp of VIEWPORTS) {
       return { gameState: state.gameState, reason: state.currentRun.returnReason };
     });
     expect(result).toEqual({ gameState: 'result', reason: 'milestone_portal' });
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Departure start button fits after selecting two crafts on ${vp.name}`, async ({ page }) => {
+    await openDeparturePreparation(page, vp, [5, 10]);
+    const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
+    await heal.click();
+    await heal.click();
+
+    const starts = page.locator('.solo-start-floor-option');
+    await expect(starts).toHaveCount(3);
+    for (let index = 0; index < await starts.count(); index++) {
+      const start = starts.nth(index);
+      const box = await start.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box.y, `Start button must stay inside the viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height, `Start button must fit in the viewport on ${vp.name}`).toBeLessThanOrEqual(vp.height);
+      expect(box.height, `Start button must stay tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      for (const child of ['strong', 'span']) {
+        const childBox = await start.locator(child).boundingBox();
+        expect(childBox, `${child} must remain visible on ${vp.name}`).not.toBeNull();
+        expect(childBox.y, `${child} must stay inside the viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
+        expect(childBox.y + childBox.height, `${child} must fit in the viewport on ${vp.name}`).toBeLessThanOrEqual(vp.height);
+      }
+    }
+  });
+
+  test(`Departure start button is independent from craft scrolling on ${vp.name}`, async ({ page }) => {
+    await openDeparturePreparation(page, vp);
+    const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
+    await heal.click();
+    await heal.click();
+
+    const start = page.getByRole('button', { name: /B1Fから開始/ });
+    const before = await start.boundingBox();
+    expect(before).not.toBeNull();
+    await page.locator('#submenu-options').evaluate((options) => {
+      options.scrollTop = options.scrollHeight;
+    });
+    const after = await start.boundingBox();
+    expect(after).not.toBeNull();
+    expect(after.y, `Start button y must not move with craft scrolling on ${vp.name}`).toBeCloseTo(before.y, 3);
+    expect(after.height, `Start button height must not change with craft scrolling on ${vp.name}`).toBeCloseTo(before.height, 3);
+    expect(await start.evaluate((element) => Boolean(element.closest('#submenu-options')))).toBe(false);
+  });
+
+  test(`Departure class reselection clears start buttons on ${vp.name}`, async ({ page }) => {
+    await openDeparturePreparation(page, vp);
+    await expect(page.getByRole('button', { name: /B1Fから開始/ })).toBeVisible();
+    await page.getByRole('button', { name: 'クラスを選び直す' }).click();
+    await expect(page.locator('.solo-class-option').first()).toBeVisible();
+    await expect(page.locator('.solo-start-floor-option')).toHaveCount(0);
+    await expect(page.locator('#departure-start-footer .solo-start-floor-option')).toHaveCount(0);
   });
 }
 
