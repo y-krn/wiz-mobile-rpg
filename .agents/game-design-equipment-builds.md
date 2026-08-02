@@ -28,8 +28,8 @@ and `.agents/game-design.md`; resolve conflicts toward those documents.
   （`src/systems/equipment_generation.js`）。職業ごとの装備制限そのものは個性として
   維持し、コアだけが無駄にならないようにする。盾を装備できない職に盾コアが出た場合は
   差し替え候補がないため、その分は死に札のまま残る。
-- **サポート45種**: 数値・小効果。刻印・研磨・封印の実装では付与・上書き可能。
-  内訳: basic 25 / conditional 11 / trigger 6 / economy 3。
+- **サポート数**: `SUPPORT_AFFIXES.length`（正本: `src/data/affixes.js`）。数値・小効果。
+  刻印・研磨・封印の実装では付与・上書き可能。
 - 純粋な数値上位のコアは作らない。全コアはサイドグレード。
 - レジストリ: `src/data/affixes.js`（データのみ）。判定・効果ヘルパー:
   `src/rules/affix_rules.js`。
@@ -76,18 +76,18 @@ and `.agents/game-design.md`; resolve conflicts toward those documents.
 慧眼コア自体は鑑定済み装備でのみ有効（循環なし）。呪い付き未鑑定を装備した
 場合に呪いが発動するのは仕様（このコアのリスク）。
 
-# サポート45種
+# サポートアフィックス（`SUPPORT_AFFIXES`）
 
-- basic 25（Phase 1 で既存移行）: str/int/pie/vit/agi/luk, hp/mp, atk/def,
+- basic（Phase 1 で既存移行）: str/int/pie/vit/agi/luk, hp/mp, atk/def,
   antiUndead/antiDragon/antiDemon, poisonWard, spellGuard, trapBonus,
   treasureSense, arcaneSense, hearRange, traceRead, followUp, arcane,
-  devotion, guardian, firstStrike
-- conditional 11（Phase 2）: deepAssault(B3F以深攻+) / frontGuard /
+  devotion, guardian, firstStrike, trapSense（罠察知: 床罠の察知率が増加）
+- conditional（Phase 2）: deepAssault(B3F以深攻+) / frontGuard /
   rearEvasion / fullHpDamage / firstTurnAttack / antiBeast / antiSpirit /
   firstStrikeDefense / lastSurvivorStats / statusResistance / spellAccuracy
-- trigger 6（Phase 2/3）: killHeal / followUpMp / hitFlinch / poisonAtk /
+- trigger（Phase 2/3）: killHeal / followUpMp / hitFlinch / poisonAtk /
   victoryMaterial / stairsHeal
-- economy 3（Phase 3）: identifyDiscount / materialFind / contractReward
+- economy（Phase 3）: identifyDiscount / materialFind / contractReward
 
 `materialFind` / `contractReward` はソロキャラ1人の装備値を
 `getPartyMaxAffix` 経由で取得する。`contractReward` の対象はランクエスト報酬。

@@ -43,9 +43,9 @@ smallest deterministic scratch check that exercises the changed values.
 
 - Identify whether the change affects early, mid, or late progression.
 - Compare risk, reward, cost, and recovery pressure.
-- Check whether gold, items, XP, or run quest rewards create runaway growth.
+- Check whether materials, items, XP, or run quest rewards create runaway growth.
 - Check whether enemy damage, HP, traits, and encounter frequency match expected
-  party capability.
+  solo-character capability.
 - Confirm balance-affecting values did not move into UI or action modules where
   deterministic checks are harder to target.
 - Prefer deterministic seed checks over anecdotal play results.
