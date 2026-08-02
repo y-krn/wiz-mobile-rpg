@@ -7,7 +7,7 @@ import { runSimTasks } from "./sim_parallel.js";
 const {
   calibrateCoreScoringProfile,
   resetSimulationRandom,
-  SCENARIOS,
+  DEPTH_SCENARIOS,
   SIM_CLASSES,
   simulateRun,
   DEFAULT_TRAP_POLICY_ID
@@ -16,6 +16,7 @@ const { WORKSHOP_NODES } = await import("../src/data/workshop.js");
 const {
   getWorkshopNodeCost,
   getWorkshopRank,
+  getWorkshopGrants,
   purchaseWorkshopNode
 } = await import("../src/systems/workshop.js");
 const { spendAnyMaterials } = await import("../src/rules/material_rules.js");
@@ -52,7 +53,7 @@ const OTHER_NODE_IDS = WORKSHOP_NODES
   .filter(node => !STAT_NODE_IDS.includes(node.id))
   .map(node => node.id);
 const PROGRESSION_SCENARIO = {
-  ...SCENARIOS.find(scenario => scenario.id === "workshop-locked"),
+  ...DEPTH_SCENARIOS.find(scenario => scenario.id === "workshop-empty-no-portal"),
   id: "workshop-progression",
   label: "工房進行",
   workshopReturnItem: null,
@@ -109,6 +110,43 @@ function getRemainingDemand(workshop) {
     }
   });
   return demand;
+}
+
+function summarizeWorkshopState(workshop) {
+  const ranks = WORKSHOP_NODES
+    .map(node => [node.id, getWorkshopRank(workshop, node.id)])
+    .filter(([, rank]) => rank > 0);
+  const grants = getWorkshopGrants(workshop);
+  const totalSteps = WORKSHOP_NODES.reduce(
+    (sum, node) => sum + getNodeMaxRank(node),
+    0
+  );
+  const purchasedSteps = ranks.reduce((sum, [, rank]) => sum + rank, 0);
+  const phase = purchasedSteps === 0
+    ? "empty"
+    : purchasedSteps === totalSteps
+      ? "complete"
+      : grants.spellIds.length > 0
+        ? "blood-wand+deep-spells"
+        : grants.affixIds.includes("CORE_BLOOD_WAND")
+          ? "blood-wand-unlocked"
+          : grants.startingGear.length > 0
+            ? "starting-gear-unlocked"
+            : "stats-in-progress";
+  return {
+    signature: ranks.map(([nodeId, rank]) => `${nodeId}=${rank}`).join(",") || "empty",
+    purchasedSteps,
+    phase,
+    ranks,
+    grants: {
+      stats: { ...grants.stats },
+      startingGear: [...grants.startingGear],
+      affixIds: [...grants.affixIds],
+      spellIds: [...grants.spellIds],
+      identifyPowder: grants.identifyPowder,
+      returnItems: [...grants.returnItems]
+    }
+  };
 }
 
 function percentile(values, ratio) {
@@ -241,7 +279,11 @@ function createFiniteTotals() {
     endingBankTotal: 0,
     surplusPerRun: 0,
     firstMerchantPurchaseRuns: [],
-    standardCompleteRuns: []
+    standardCompleteRuns: [],
+    workshopStepCounts: {},
+    workshopStateCounts: {},
+    workshopPhaseCounts: {},
+    workshopPhaseSamples: {}
   };
 }
 
@@ -260,6 +302,8 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
   const events = [];
 
   for (let run = 1; run <= RUNS_PER_TRIAL; run++) {
+    const workshopAtStart = cloneWorkshop(workshop);
+    const workshopStateAtStart = summarizeWorkshopState(workshopAtStart);
     const standardCompleteAtStart = isStandardWorkshopComplete(workshop);
     const kitSpend = emptyMaterials();
     let startingTownPortals = 0;
@@ -313,6 +357,8 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
       standardCompleteAtStart,
       startingTownPortals,
       kitSpend,
+      workshop: workshopAtStart,
+      workshopState: workshopStateAtStart,
       stake,
       result: {
         survived: result.survived,
@@ -376,6 +422,24 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
         .filter(decision => decision.hasTownPortal)
         .length;
       addKitSpend(totals, event.kitSpend);
+      totals.workshopStepCounts[event.workshopState.purchasedSteps] =
+        (totals.workshopStepCounts[event.workshopState.purchasedSteps] || 0) + 1;
+      totals.workshopPhaseCounts[event.workshopState.phase] =
+        (totals.workshopPhaseCounts[event.workshopState.phase] || 0) + 1;
+      if (!totals.workshopPhaseSamples[event.workshopState.phase]) {
+        totals.workshopPhaseSamples[event.workshopState.phase] = [];
+      }
+      totals.workshopPhaseSamples[event.workshopState.phase].push({
+        workshop: event.workshop,
+        state: event.workshopState
+      });
+      const stateTotal = totals.workshopStateCounts[event.workshopState.signature] || {
+        ...event.workshopState,
+        workshop: event.workshop,
+        count: 0
+      };
+      stateTotal.count++;
+      totals.workshopStateCounts[event.workshopState.signature] = stateTotal;
     });
     totals.surplusPerRun += trialResult.surplusPerRun;
     totals.endingBankTotal += trialResult.endingBankTotal;
@@ -437,6 +501,82 @@ function formatFiniteResult(result) {
         : 0
     )}`
   );
+}
+
+function formatWorkshopState(state) {
+  const ranks = state.ranks.map(([nodeId, rank]) => `${nodeId}=${rank}`).join(",") || "-";
+  const grants = state.grants;
+  const statGrant = Object.entries(grants.stats)
+    .map(([stat, amount]) => `${stat}+${amount}`)
+    .join(",") || "-";
+  return `step=${state.purchasedSteps}/${WORKSHOP_NODES.reduce(
+    (sum, node) => sum + getNodeMaxRank(node),
+    0
+  )}, nodes=${ranks}, stats=${statGrant}, gear=${grants.startingGear.join(",") || "-"}, ` +
+    `affix=${grants.affixIds.join(",") || "-"}, spell=${grants.spellIds.join(",") || "-"}, ` +
+    `powder=${grants.identifyPowder}, return=${grants.returnItems.join(",") || "-"}`;
+}
+
+function printWorkshopStateDistribution(result) {
+  if (result.scenario.kitCost !== DEPARTURE_KIT.materialCost) return;
+  const { totals } = result;
+  console.log(
+    `\n【工房状態分布 / ${result.scenario.label}】` +
+    `（40ラン×${TRIALS}試行、各run開始時点、実装値${DEPARTURE_KIT.materialCost}個）`
+  );
+  const stepDistribution = Object.entries(totals.workshopStepCounts)
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .map(([step, count]) => `${step}step=${formatRate(count / totals.runs)}`)
+    .join(" / ");
+  console.log(`購入step分布: ${stepDistribution}`);
+  const phaseOrder = [
+    "empty",
+    "stats-in-progress",
+    "starting-gear-unlocked",
+    "blood-wand-unlocked",
+    "blood-wand+deep-spells",
+    "complete"
+  ];
+  const phaseLabels = {
+    empty: "空",
+    "stats-in-progress": "ステータス投資中",
+    "starting-gear-unlocked": "初期装備解放済み",
+    "blood-wand-unlocked": "血杖解放済み",
+    "blood-wand+deep-spells": "血杖+深層呪文解放済み",
+    complete: "買い切り済み"
+  };
+  console.log("機能別状態分布（代表値は各状態の平均購入stepに最も近い実観測state）:");
+  phaseOrder
+    .filter(phase => totals.workshopPhaseCounts[phase])
+    .forEach(phase => {
+      const samples = totals.workshopPhaseSamples[phase];
+      const meanSteps = samples.reduce(
+        (sum, sample) => sum + sample.state.purchasedSteps,
+        0
+      ) / samples.length;
+      const representative = samples
+        .slice()
+        .sort((left, right) =>
+          Math.abs(left.state.purchasedSteps - meanSteps) -
+          Math.abs(right.state.purchasedSteps - meanSteps)
+        )[0];
+      const count = totals.workshopPhaseCounts[phase];
+      console.log(
+        `  ${phaseLabels[phase]}: ${formatRate(count / totals.runs)} ` +
+        `(${count}/${totals.runs}), 平均step=${meanSteps.toFixed(1)}, ` +
+        `代表 ${formatWorkshopState(representative.state)}`
+      );
+    });
+  console.log("上位の完全一致state:");
+  Object.values(totals.workshopStateCounts)
+    .sort((left, right) => right.count - left.count || left.purchasedSteps - right.purchasedSteps)
+    .slice(0, 8)
+    .forEach(state => {
+      console.log(
+        `  ${formatRate(state.count / totals.runs)} (${state.count}/${totals.runs}): ` +
+        formatWorkshopState(state)
+      );
+    });
 }
 
 export async function runWorkshopProgressionSimulation() {
@@ -519,6 +659,7 @@ export async function runWorkshopProgressionSimulation() {
     "比較値は通常工房買い切り済みrunだけを集計する。"
   );
   finitePortalResults.forEach(result => console.log(formatFiniteResult(result)));
+  finitePortalResults.forEach(printWorkshopStateDistribution);
 
   console.log("\n【finite供給 商人経路判定】");
   finitePortalResults.forEach(({ scenario, totals }) => {

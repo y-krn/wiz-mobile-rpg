@@ -2,6 +2,7 @@
 /* global console, process */
 
 import { pathToFileURL } from "node:url";
+import { isMainThread } from "node:worker_threads";
 import { runSimTasks } from "./sim_parallel.js";
 
 // Mock localStorage for the Node.js simulation environment before imports.
@@ -219,13 +220,13 @@ const PORTAL_MIN_FLOOR = Math.max(1, Number(process.env.PORTAL_MIN_FLOOR || 3));
 const SCENARIOS = Object.freeze([
   {
     id: "workshop-locked",
-    label: "工房未解放",
+    label: "工房空・翼なし（旧ID）",
     workshopReturnItem: null,
     useTownPortal: true
   },
   {
     id: "workshop-unlocked",
-    label: "工房解放済",
+    label: "工房空・翼あり（旧ID）",
     workshopReturnItem: "TOWN_PORTAL",
     useTownPortal: true
   },
@@ -236,15 +237,153 @@ const SCENARIOS = Object.freeze([
     useTownPortal: false
   }
 ]);
-const SCENARIO_FILTER = new Set(
+const WORKSHOP_STATE_RANKS = Object.freeze({
+  empty: Object.freeze({}),
+  stats: Object.freeze({
+    stat_str: 4,
+    stat_int: 1,
+    stat_vit: 3,
+    stat_agi: 1,
+    stat_luk: 1
+  }),
+  gear: Object.freeze({
+    gear_rapier: 1,
+    stat_str: 5,
+    stat_int: 2,
+    stat_pie: 2,
+    stat_vit: 5,
+    stat_agi: 2,
+    stat_luk: 3
+  }),
+  bloodWand: Object.freeze({
+    gear_rapier: 1,
+    pool_blood_wand: 1,
+    stat_str: 5,
+    stat_int: 4,
+    stat_pie: 4,
+    stat_vit: 5,
+    stat_agi: 4,
+    stat_luk: 5
+  }),
+  bloodWandDeepSpells: Object.freeze({
+    gear_rapier: 1,
+    gear_sage_staff: 1,
+    pool_blood_wand: 1,
+    pool_deep_spells: 1,
+    stat_str: 5,
+    stat_int: 5,
+    stat_pie: 3,
+    stat_vit: 5,
+    stat_agi: 5,
+    stat_luk: 5
+  }),
+  complete: Object.freeze({
+    gear_rapier: 1,
+    gear_sage_staff: 1,
+    pool_blood_wand: 1,
+    pool_deep_spells: 1,
+    stat_str: 5,
+    stat_int: 5,
+    stat_pie: 5,
+    stat_vit: 5,
+    stat_agi: 5,
+    stat_luk: 5
+  })
+});
+
+// #343: progression simの実観測stateから選んだ代表値。ゲーム設計値の変更ではない。
+const DEPTH_SCENARIOS = Object.freeze([
+  {
+    id: "workshop-empty",
+    label: "工房空・翼あり",
+    workshop: { ranks: WORKSHOP_STATE_RANKS.empty },
+    workshopReturnItem: "TOWN_PORTAL",
+    useTownPortal: true
+  },
+  {
+    id: "workshop-stats",
+    label: "工房ステータス投資中",
+    workshop: { ranks: WORKSHOP_STATE_RANKS.stats },
+    workshopReturnItem: "TOWN_PORTAL",
+    useTownPortal: true
+  },
+  {
+    id: "workshop-gear",
+    label: "工房初期装備解放済み",
+    workshop: { ranks: WORKSHOP_STATE_RANKS.gear },
+    workshopReturnItem: "TOWN_PORTAL",
+    useTownPortal: true
+  },
+  {
+    id: "workshop-blood-wand",
+    label: "工房血杖解放済み",
+    workshop: { ranks: WORKSHOP_STATE_RANKS.bloodWand },
+    workshopReturnItem: "TOWN_PORTAL",
+    useTownPortal: true
+  },
+  {
+    id: "workshop-blood-wand-spells",
+    label: "工房血杖・深層呪文解放済み",
+    workshop: { ranks: WORKSHOP_STATE_RANKS.bloodWandDeepSpells },
+    workshopReturnItem: "TOWN_PORTAL",
+    useTownPortal: true
+  },
+  {
+    id: "workshop-complete",
+    label: "工房買い切り済み",
+    workshop: { ranks: WORKSHOP_STATE_RANKS.complete },
+    workshopReturnItem: "TOWN_PORTAL",
+    useTownPortal: true
+  },
+  {
+    id: "workshop-empty-no-portal",
+    label: "工房空・翼なし",
+    workshop: { ranks: WORKSHOP_STATE_RANKS.empty },
+    workshopReturnItem: null,
+    useTownPortal: true
+  },
+  {
+    id: "legacy-no-portal",
+    label: "従来(翼不使用)",
+    workshop: { ranks: WORKSHOP_STATE_RANKS.empty },
+    workshopReturnItem: null,
+    useTownPortal: false
+  }
+]);
+const DEFAULT_DEPTH_SCENARIO_IDS = new Set([
+  "workshop-empty",
+  "workshop-stats",
+  "workshop-gear",
+  "workshop-blood-wand",
+  "workshop-blood-wand-spells",
+  "workshop-complete"
+]);
+const SCENARIO_ALIASES = Object.freeze({
+  "workshop-locked": "workshop-empty-no-portal",
+  "workshop-unlocked": "workshop-empty"
+});
+const REQUESTED_SCENARIO_IDS = new Set(
   String(process.env.SIM_SCENARIOS || "")
     .split(",")
     .map(value => value.trim())
     .filter(Boolean)
 );
-const ACTIVE_SCENARIOS = SCENARIO_FILTER.size === 0
-  ? SCENARIOS
-  : SCENARIOS.filter(scenario => SCENARIO_FILTER.has(scenario.id));
+const DEPRECATED_SCENARIO_IDS = [...REQUESTED_SCENARIO_IDS]
+  .filter(id => Object.hasOwn(SCENARIO_ALIASES, id));
+if (isMainThread) {
+  DEPRECATED_SCENARIO_IDS.forEach(id => {
+    console.warn(
+      `[deprecated] SIM_SCENARIOS=${id} は ${SCENARIO_ALIASES[id]} の旧ID。` +
+      "警告の上で同一挙動へ移行する。新IDへ移行すること。"
+    );
+  });
+}
+const RESOLVED_SCENARIO_IDS = new Set(
+  [...REQUESTED_SCENARIO_IDS].map(id => SCENARIO_ALIASES[id] || id)
+);
+const ACTIVE_SCENARIOS = REQUESTED_SCENARIO_IDS.size === 0
+  ? DEPTH_SCENARIOS.filter(scenario => DEFAULT_DEPTH_SCENARIO_IDS.has(scenario.id))
+  : DEPTH_SCENARIOS.filter(scenario => RESOLVED_SCENARIO_IDS.has(scenario.id));
 const SIM_CLASSES = SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className));
 const ENABLED_CORE_AFFIXES = CORE_AFFIXES.filter(affix => affix.enabled);
 const CORE_AFFIX_IDS = new Set(ENABLED_CORE_AFFIXES.map(affix => affix.id));
@@ -585,10 +724,24 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     ...(scenario.workshopReturnItem ? [scenario.workshopReturnItem] : []),
     ...Array(Math.max(0, scenario.startingTownPortals || 0)).fill("TOWN_PORTAL")
   ];
+  const initialWeaponId = character.equipment.weapon;
   equipBestWorkshopStartingGear(character, workshop);
+  const finalWeaponId = character.equipment.weapon;
+  const workshopEffects = {
+    stats: { ...workshopGrants.stats },
+    startingGearCandidates: [...workshopGrants.startingGear],
+    startingGearApplied: finalWeaponId !== initialWeaponId ? finalWeaponId : null,
+    initialWeapon: initialWeaponId,
+    finalWeapon: finalWeaponId,
+    startingGearAttackDelta:
+      (ITEMS[finalWeaponId]?.atk || 0) - (ITEMS[initialWeaponId]?.atk || 0),
+    affixIds: [...workshopGrants.affixIds],
+    spellIds: [...workshopGrants.spellIds]
+  };
 
   return {
     party: [character],
+    workshopEffects,
     combatState: null,
     inventory: [
       ...Array(INITIAL_HEAL_POTIONS).fill("HEAL_POTION"),
@@ -2946,6 +3099,7 @@ function finishRun(state, outcome, metrics) {
     reachedFloor: state.currentRun.deepestFloor,
     stalemate: metrics.stalemate,
     finalLevel: state.party[0].level,
+    workshopEffects: state.workshopEffects,
     elitePolicy: metrics.elitePolicy,
     eliteEncounters: metrics.eliteEncounters,
     eliteVictories: metrics.eliteVictories,
@@ -3819,6 +3973,15 @@ function simulateCase({
         equippedById: {}
       }])
     ),
+    workshopEffectsByClass: Object.fromEntries(
+      SIM_CLASSES.map(className => [className, {
+        runs: 0,
+        stats: {},
+        startingGearCandidates: {},
+        startingGearApplied: {},
+        startingGearAttackDelta: 0
+      }])
+    ),
     healPotionsUsed: 0,
     trap: createTrapAggregate(),
     trapBonus: createTrapBonusAggregate(),
@@ -3854,8 +4017,24 @@ function simulateCase({
       scenario: {
         ...scenario,
         identificationPolicy: identificationPolicy.id || identificationPolicy
-      }
+      },
+      workshop: scenario.workshop || { ranks: {} }
     });
+    const workshopEffects = totals.workshopEffectsByClass[className];
+    workshopEffects.runs++;
+    Object.entries(result.workshopEffects.stats).forEach(([stat, amount]) => {
+      workshopEffects.stats[stat] = (workshopEffects.stats[stat] || 0) + amount;
+    });
+    result.workshopEffects.startingGearCandidates.forEach(itemId => {
+      workshopEffects.startingGearCandidates[itemId] =
+        (workshopEffects.startingGearCandidates[itemId] || 0) + 1;
+    });
+    if (result.workshopEffects.startingGearApplied) {
+      const itemId = result.workshopEffects.startingGearApplied;
+      workshopEffects.startingGearApplied[itemId] =
+        (workshopEffects.startingGearApplied[itemId] || 0) + 1;
+    }
+    workshopEffects.startingGearAttackDelta += result.workshopEffects.startingGearAttackDelta;
     addTrapAggregate(totals.trap, result);
     addTrapAggregate(classTrapTotals[className], result);
     addTrapBonusAggregate(totals.trapBonus, result);
@@ -3951,6 +4130,7 @@ function simulateCase({
     label,
     startFloor,
     targetDepth,
+    workshop: scenario.workshop || { ranks: {} },
     trapPolicy: scenario.trapPolicy || DEFAULT_TRAP_POLICY_ID,
     survivalRate: totals.survived / RUNS_PER_CASE,
     deathRate: totals.died / RUNS_PER_CASE,
@@ -4018,6 +4198,27 @@ function simulateCase({
         }))
       ])
     ),
+    workshopEffectsByClass: Object.fromEntries(
+      Object.entries(totals.workshopEffectsByClass).map(([className, values]) => {
+        const runs = Math.max(1, values.runs);
+        return [className, {
+          stats: Object.fromEntries(
+            Object.entries(values.stats).map(([stat, amount]) => [stat, amount / runs])
+          ),
+          startingGearCandidates: Object.fromEntries(
+            Object.entries(values.startingGearCandidates)
+              .map(([itemId, count]) => [itemId, count / runs])
+          ),
+          startingGearApplied: Object.fromEntries(
+            Object.entries(values.startingGearApplied)
+              .map(([itemId, count]) => [itemId, count / runs])
+          ),
+          startingGearAppliedRate: Object.values(values.startingGearApplied)
+            .reduce((sum, count) => sum + count, 0) / runs,
+          averageStartingGearAttackDelta: values.startingGearAttackDelta / runs
+        }];
+      })
+    ),
     coreObservations: totals.coreObservations,
     firstCoreDepthCounts: totals.firstCoreDepthCounts,
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
@@ -4063,7 +4264,8 @@ function formatPercent(rate) {
 export function calibrateCoreScoringProfile(
   runCount = RUNS_PER_CASE,
   scenarioOverrides = {},
-  identificationPolicy = "legacy"
+  identificationPolicy = "legacy",
+  workshop = { ranks: {} }
 ) {
   const calibrationScenario = {
     ...SCENARIOS.find(scenario => scenario.id === "legacy-no-portal"),
@@ -4085,7 +4287,8 @@ export function calibrateCoreScoringProfile(
       runIndex,
       seriesId: "core-score-calibration",
       scoringProfile: null,
-      scenario: calibrationScenario
+      scenario: calibrationScenario,
+      workshop
     });
     addCoreObservations(observations, result.coreObservations);
     addCoreObservations(observationsByClass[className], result.coreObservations);
@@ -4112,7 +4315,7 @@ export function getSimulationRandomState() {
   return randomState;
 }
 
-export { SCENARIOS, SIM_CLASSES };
+export { SCENARIOS, DEPTH_SCENARIOS, SIM_CLASSES };
 
 function printCoreScoringProfile(profile, policy = null) {
   console.log(`\n【core期待戦闘価値 calibration（B1→B20）${policy ? ` / ${policy.label}` : ""}】`);
@@ -4181,9 +4384,7 @@ function printCoreScoringProfile(profile, policy = null) {
     "実KATINO初手方針で実測、攻撃score×率×(2-1)"
   );
   console.log("殿の構え: enabled=false → 判定・スコア・集計から除外");
-  console.log(
-    "血杖: 実generatorのmeta解放対象。未解放simではpool外 → 遭遇0は仕様"
-  );
+  console.log("血杖: 実generatorのmeta解放対象。工房state別calibrationを使用");
   console.log("\n【economy探索価値 calibration（B1→B20）】");
   console.log(
     `盗掘王: 残り拾得宝箱 B1=${profile.expectedPickedChestsFromFloor[1].toFixed(2)}, ` +
@@ -4441,6 +4642,28 @@ function printCoreRetentionDetail(result) {
   });
 }
 
+function printWorkshopEffects(result) {
+  const grants = getWorkshopGrants(result.workshop);
+  const stats = Object.entries(grants.stats)
+    .map(([stat, amount]) => `${stat}+${amount}`)
+    .join(", ") || "なし";
+  console.log(
+    `工房付与内訳: stats=${stats}, 初期装備候補=${grants.startingGear.join(",") || "なし"}, ` +
+    `affix=${grants.affixIds.join(",") || "なし"}, ` +
+    `spell=${grants.spellIds.join(",") || "なし"}`
+  );
+  Object.entries(result.workshopEffectsByClass).forEach(([className, effects]) => {
+    const applied = Object.entries(effects.startingGearApplied)
+      .map(([itemId, rate]) => `${itemId}=${formatPercent(rate)}`)
+      .join(", ") || "なし";
+    console.log(
+      `  ${className}: 初期装備適用=${applied}, ` +
+      `適用率=${formatPercent(effects.startingGearAppliedRate)}, ` +
+      `攻撃力差=${effects.averageStartingGearAttackDelta.toFixed(2)}/run`
+    );
+  });
+}
+
 function isMonotonicallyIncreasing(results) {
   return results.every((result, index) =>
     index === 0 || result.materialEvPerTime >= results[index - 1].materialEvPerTime
@@ -4494,16 +4717,18 @@ function printFailureComment(results) {
 
 export function runDepthSimulationTask(
   { kind, scenarioId, identificationPolicyId = "legacy" },
-  { scoringProfile, scoringProfiles = {} }
+  { scoringProfile, scoringProfiles = {}, scoringProfilesByScenario = {} }
 ) {
   resetSimulationRandom(SIM_SEED);
   const scoringProfileForPolicy =
-    scoringProfiles[identificationPolicyId] || scoringProfile;
+    scoringProfilesByScenario[`${identificationPolicyId}:${scenarioId}`] ||
+    scoringProfiles[identificationPolicyId] ||
+    scoringProfile;
   const identificationPolicy =
     IDENTIFICATION_POLICY_DEFINITIONS[identificationPolicyId] ||
     IDENTIFICATION_POLICY_DEFINITIONS.legacy;
   if (kind === "scenario") {
-    const scenario = SCENARIOS.find(candidate => candidate.id === scenarioId);
+    const scenario = DEPTH_SCENARIOS.find(candidate => candidate.id === scenarioId);
     return TARGET_DEPTHS.map(targetDepth => simulateCase({
       startFloor: 1,
       targetDepth,
@@ -4515,7 +4740,7 @@ export function runDepthSimulationTask(
     }));
   }
 
-  const legacyScenario = SCENARIOS.find(scenario => scenario.id === "legacy-no-portal");
+  const legacyScenario = DEPTH_SCENARIOS.find(scenario => scenario.id === "legacy-no-portal");
   return [
     simulateCase({
       startFloor: 10,
@@ -4548,6 +4773,22 @@ const coreScoringProfiles = Object.fromEntries(
     ];
   })
 );
+const coreScoringProfilesByScenario = Object.fromEntries(
+  ACTIVE_IDENTIFICATION_POLICIES.flatMap(policy =>
+    ACTIVE_SCENARIOS.map(scenario => {
+      resetSimulationRandom(SIM_SEED);
+      return [
+        `${policy.id}:${scenario.id}`,
+        calibrateCoreScoringProfile(
+          RUNS_PER_CASE,
+          {},
+          policy.id,
+          scenario.workshop
+        )
+      ];
+    })
+  )
+);
 // calibrationが本計測の乱数列をずらさないよう、baselineと同じseed先頭へ戻す。
 randomState = SIM_SEED;
 
@@ -4576,7 +4817,7 @@ console.log(
 );
 console.log(
   `初期inventory: 傷薬=${INITIAL_HEAL_POTIONS}個, 解毒薬=${INITIAL_ANTIDOTES}個, ` +
-  "工房解放済条件の既定翼=1個、方針A/Bは出発準備の翼も1個"
+  "工房状態比較は各条件で翼1個、方針A/Bは出発準備の翼も1個"
 );
 console.log(
   `生存仮定: 傷薬使用閾値=${HEAL_POTION_THRESHOLD}, ` +
@@ -4611,7 +4852,8 @@ console.log(
   "STATUS_CURE_MERCHANT_POLICY=missing|never, " +
   "PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
   "ELITE_POLICY=avoid|engage / TRAP_POLICY=disabled|legacy|conservative; " +
-  "SIM_SCENARIOS=workshop-locked,workshop-unlocked,legacy-no-portal"
+  "SIM_SCENARIOS=workshop-empty,workshop-stats,workshop-gear,workshop-blood-wand," +
+  "workshop-blood-wand-spells,workshop-complete;旧ID=workshop-locked|workshop-unlocked"
 );
 console.log(
   `core呪い設定: AFFIX_BALANCE.coreCurseChance=${AFFIX_BALANCE.coreCurseChance}は現generator未参照、` +
@@ -4622,11 +4864,16 @@ console.log("逃走=常時成功（自ターン到達時）、先行攻撃＋離
 console.log("時間単位: 1歩=1、1戦闘ターン=3");
 console.log("撤退=100% bank、死亡=30% bank");
 ACTIVE_IDENTIFICATION_POLICIES.forEach(policy => {
-  printCoreScoringProfile(coreScoringProfiles[policy.id], policy);
+  ACTIVE_SCENARIOS.forEach(scenario => {
+    printCoreScoringProfile(
+      coreScoringProfilesByScenario[`${policy.id}:${scenario.id}`],
+      { ...policy, label: `${policy.label} / ${scenario.label}` }
+    );
+  });
 });
 
 if (ACTIVE_SCENARIOS.length === 0) {
-  throw new Error(`SIM_SCENARIOSに有効な条件がない: ${[...SCENARIO_FILTER].join(",")}`);
+  throw new Error(`SIM_SCENARIOSに有効な条件がない: ${[...REQUESTED_SCENARIO_IDS].join(",")}`);
 }
 
 const taskResults = await runSimTasks({
@@ -4643,7 +4890,8 @@ const taskResults = await runSimTasks({
   ]),
   context: {
     scoringProfile: coreScoringProfiles.legacy || coreScoringProfiles[ACTIVE_IDENTIFICATION_POLICIES[0].id],
-    scoringProfiles: coreScoringProfiles
+    scoringProfiles: coreScoringProfiles,
+    scoringProfilesByScenario: coreScoringProfilesByScenario
   }
 });
 const resultsByPolicy = ACTIVE_IDENTIFICATION_POLICIES.map((policy, policyIndex) => {
@@ -4669,6 +4917,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   printIdentificationMetrics(results, policy);
   console.log(`\n【${scenario.label} B1開始 ビルド供給】`);
   printBuildSupplyMetrics(results);
+  printWorkshopEffects(results.at(-1));
   printCoreRetentionDetail(results.at(-1));
 
   const monotonic = isMonotonicallyIncreasing(results);
