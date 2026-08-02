@@ -135,8 +135,7 @@ test('Debug reset clears all progression and persists the initial state', async 
     };
   });
   const initialProgress = {
-    // #271: 守りの薬は初期所持で確実供給する
-    inventory: ['HEAL_POTION', 'HEAL_POTION', 'ANTIDOTE', 'GUARD_POTION'],
+    inventory: [],
     totalRuns: 0,
     monsterKills: 0,
     visitedFloors: [1],
@@ -2255,7 +2254,7 @@ for (const vp of VIEWPORTS) {
 }
 
 for (const vp of VIEWPORTS) {
-  test(`Departure kit toggle is thumb-safe on ${vp.name}`, async ({ page }) => {
+  test(`Departure craft choices are thumb-safe on ${vp.name}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
@@ -2263,42 +2262,55 @@ for (const vp of VIEWPORTS) {
       const { openSubmenu } = await import('/src/navigation.js');
 
       state.gameState = 'town';
-      state.metaMaterials = { '獣の牙': 40, '鉄片': 40 };
+      state.metaMaterials = {
+        '獣の牙': 10,
+        '硬い皮': 10,
+        '毒腺': 3,
+        '骨片': 3,
+        '霊粉': 10,
+        '鉄片': 10,
+      };
       state.workshop = { ranks: {} };
       state.unlockedMilestones = [];
       openSubmenu('solo_start', '単独潜行');
     });
 
     await page.locator('.solo-class-option').first().click();
-    const kit = page.locator('.solo-start-kit');
-    await expect(kit).toHaveCount(1);
-    await expect(kit).toContainText('出発準備');
-    await expect(kit).toHaveAttribute('aria-pressed', 'false');
+    const summary = page.locator('.solo-start-craft-summary');
+    const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
+    const portal = page.locator('[data-recipe-id="TOWN_PORTAL"]');
+    await expect(summary).toContainText('0/4枠');
+    await expect(heal).toHaveCount(1);
+    await expect(heal).toHaveAttribute('aria-pressed', 'false');
+    await expect(portal).toBeEnabled();
 
     const layout = await page.evaluate(() => {
-      const button = document.querySelector('.solo-start-kit');
+      const button = document.querySelector('[data-recipe-id="HEAL_POTION"]');
       const floors = [...document.querySelectorAll('.solo-start-floor-option')];
       return {
-        kit: button.getBoundingClientRect().toJSON(),
+        craft: button.getBoundingClientRect().toJSON(),
         lowestFloorTop: Math.min(...floors.map((floor) => floor.getBoundingClientRect().top)),
         hasHorizontalOverflow:
           document.documentElement.scrollWidth > document.documentElement.clientWidth,
       };
     });
     expect(layout.hasHorizontalOverflow).toBe(false);
-    expect(layout.kit.height, 'Departure kit toggle stays tappable').toBeGreaterThanOrEqual(44);
-    expect(layout.kit.left).toBeGreaterThanOrEqual(0);
-    expect(layout.kit.right).toBeLessThanOrEqual(vp.width);
-    // 実行操作（階選択）は親指帯に残す。トグルはその上。
-    expect(layout.kit.top).toBeLessThan(layout.lowestFloorTop);
+    expect(layout.craft.height, 'Departure craft choice stays tappable').toBeGreaterThanOrEqual(44);
+    expect(layout.craft.left).toBeGreaterThanOrEqual(0);
+    expect(layout.craft.right).toBeLessThanOrEqual(vp.width);
+    expect(layout.craft.top).toBeLessThan(layout.lowestFloorTop);
 
-    await kit.click();
-    await expect(page.locator('.solo-start-kit')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.solo-start-kit')).toContainText('持って行く');
+    await heal.click();
+    await expect(heal).toHaveAttribute('aria-pressed', 'true');
+    await expect(summary).toContainText('1/4枠');
+    await portal.click();
+    await expect(summary).toContainText('2/4枠');
+    await heal.click();
+    await expect(summary).toContainText('1/4枠');
   });
 }
 
-test('Departure kit toggle is disabled without enough materials', async ({ page }) => {
+test('Departure craft allows empty-handed departure without materials', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
@@ -2306,14 +2318,17 @@ test('Departure kit toggle is disabled without enough materials', async ({ page 
     const { openSubmenu } = await import('/src/navigation.js');
 
     state.gameState = 'town';
-    state.metaMaterials = { '獣の牙': 1 };
+    state.metaMaterials = {};
     state.workshop = { ranks: {} };
     state.unlockedMilestones = [];
     openSubmenu('solo_start', '単独潜行');
   });
 
   await page.locator('.solo-class-option').first().click();
-  const kit = page.locator('.solo-start-kit');
-  await expect(kit).toBeDisabled();
-  await expect(kit).toContainText('素材不足');
+  const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
+  await expect(heal).toBeDisabled();
+  await expect(page.locator('.solo-start-floor-option').first()).toBeEnabled();
+  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+  await expect(page.locator('#explore-controls')).toBeVisible();
+  expect(await page.evaluate(async () => (await import('/src/state.js')).state.inventory)).toEqual([]);
 });

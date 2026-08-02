@@ -1,4 +1,10 @@
-// 出発準備（反復シンク, #234）の支払い・支給・撤去ノード返還を固定する。
+// 出発クラフト（#348）のレシピ・枠・支払い・初期inventoryを固定する。
+globalThis.localStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {}
+};
+
 const failures = [];
 
 function check(label, condition, detail = "") {
@@ -6,117 +12,127 @@ function check(label, condition, detail = "") {
   failures.push(detail ? `${label}: ${detail}` : label);
 }
 
+const { CRAFT_RECIPES } = await import("../src/craft.js");
+const { MATERIAL_TYPES } = await import("../src/data/materials.js");
 const {
-  getTotalMaterialCount,
-  spendAnyMaterials
-} = await import("../src/rules/material_rules.js");
-const { DEPARTURE_KIT, RETIRED_WORKSHOP_NODES, WORKSHOP_NODES } = await import("../src/data/workshop.js");
+  DEPARTURE_CRAFT_MAX_SLOTS,
+  RETIRED_WORKSHOP_NODES,
+  WORKSHOP_NODES
+} = await import("../src/data/workshop.js");
 const {
-  canAffordDepartureKit,
-  getDepartureKitGrants,
+  canAffordDepartureCraft,
+  getDepartureCraftCost,
+  getDepartureCraftGrants,
+  getDepartureCraftRecipes,
   getWorkshopGrants,
-  purchaseDepartureKit
+  purchaseDepartureCraft
 } = await import("../src/systems/workshop.js");
 const { normalizeSavePayload } = await import("../src/state/save_migrations.js");
+const { RECOVERY_BALANCE } = await import("../src/rules/recovery_rules.js");
+const { state, initNewGame } = await import("../src/state.js");
 
-console.log("=== DEPARTURE KIT (#234) ===");
+console.log("=== DEPARTURE CRAFT (#348) ===");
 
-check("departure kit uses the selected measured price", DEPARTURE_KIT.materialCost === 30);
-
-// 1. 総量支払いは在庫の多い素材から削る
-const stock = { "霊粉": 30, "魔石片": 10, "骨片": 5 };
-const paid = spendAnyMaterials(stock, 32);
-check("spendAnyMaterials returns a result", paid !== null);
-check(
-  "spendAnyMaterials spends the requested total",
-  paid && getTotalMaterialCount(paid.spent) === 32,
-  `spent=${paid && getTotalMaterialCount(paid.spent)}`
+const recipeMaterialNames = new Set(
+  CRAFT_RECIPES.flatMap(recipe => Object.keys(recipe.mats))
 );
 check(
-  "spendAnyMaterials drains the largest stock first",
-  paid && paid.spent["霊粉"] === 30 && paid.balance["霊粉"] === 0,
-  `霊粉 spent=${paid?.spent["霊粉"]}, left=${paid?.balance["霊粉"]}`
+  "all ten material types appear in departure recipes",
+  MATERIAL_TYPES.every(material => recipeMaterialNames.has(material)),
+  `missing=${MATERIAL_TYPES.filter(material => !recipeMaterialNames.has(material)).join(",")}`
+);
+check("departure craft has a finite slot cap", DEPARTURE_CRAFT_MAX_SLOTS === 4);
+check("starting heal potion supply is removed", RECOVERY_BALANCE.startingHealPotions === 0);
+
+const recipeIds = ["HEAL_POTION", "ANTIDOTE", "TRAP_KIT", "TOWN_PORTAL"];
+const recipeRows = getDepartureCraftRecipes(recipeIds);
+const recipeCost = getDepartureCraftCost(recipeIds);
+check("selected recipes resolve without duplication", recipeRows.length === recipeIds.length);
+check(
+  "selected recipe costs include the expected item costs",
+  recipeCost["獣の牙"] === 6
+    && recipeCost["硬い皮"] === 5
+    && recipeCost["毒腺"] === 1
+    && recipeCost["霊粉"] === 2
+    && !recipeCost["骨片"]
+    && recipeCost["鉄片"] === 4,
+  JSON.stringify(recipeCost)
+);
+
+const bank = {
+  "獣の牙": 10,
+  "硬い皮": 10,
+  "毒腺": 2,
+  "霊粉": 5,
+  "骨片": 2,
+  "鉄片": 4
+};
+check("selected recipes are affordable", canAffordDepartureCraft(bank, recipeIds));
+const purchase = purchaseDepartureCraft(bank, recipeIds);
+check("departure craft purchase succeeds", purchase.ok);
+check(
+  "purchase returns each selected item once",
+  purchase.ok && JSON.stringify(purchase.itemIds) === JSON.stringify(recipeIds),
+  JSON.stringify(purchase?.itemIds)
 );
 check(
-  "spendAnyMaterials keeps the remaining balance consistent",
-  paid && getTotalMaterialCount(paid.balance) === 45 - 32,
-  `left=${paid && getTotalMaterialCount(paid.balance)}`
+  "purchase subtracts exact typed costs",
+  purchase.ok
+    && purchase.metaMaterials["獣の牙"] === 4
+    && purchase.metaMaterials["硬い皮"] === 5
+    && purchase.metaMaterials["毒腺"] === 1
+    && purchase.metaMaterials["霊粉"] === 3
+    && purchase.metaMaterials["骨片"] === 2
+    && purchase.metaMaterials["鉄片"] === 0,
+  JSON.stringify(purchase?.metaMaterials)
 );
-check("spendAnyMaterials rejects an unaffordable total", spendAnyMaterials(stock, 46) === null);
-
-// 2. 出発準備の購入は合計コストちょうどを引く
-const bank = { "霊粉": 40, "魔石片": 40 };
-check("kit is affordable with 80 materials", canAffordDepartureKit(bank));
-const purchase = purchaseDepartureKit(bank);
-check("kit purchase succeeds", purchase.ok);
 check(
-  "kit purchase costs exactly materialCost",
-  purchase.ok && getTotalMaterialCount(purchase.metaMaterials) === 80 - DEPARTURE_KIT.materialCost,
-  `left=${purchase.ok && getTotalMaterialCount(purchase.metaMaterials)}`
+  "craft grants match purchased items",
+  JSON.stringify(getDepartureCraftGrants(recipeIds).items) === JSON.stringify(recipeIds)
 );
-const poor = purchaseDepartureKit({ "霊粉": DEPARTURE_KIT.materialCost - 1 });
-check("kit purchase fails when short by one", !poor.ok && poor.reason === "insufficient_materials");
-check("canAffordDepartureKit is false when short by one", !canAffordDepartureKit({ "霊粉": DEPARTURE_KIT.materialCost - 1 }));
 
-// 3. 支給は支払った run だけに乗る
-const paidGrants = getDepartureKitGrants(true);
-check("paid kit grants a town portal", paidGrants.returnItems.includes("TOWN_PORTAL"));
-check("paid kit grants identify powder", paidGrants.identifyPowder === 1);
-const unpaidGrants = getDepartureKitGrants(false);
-check("unpaid kit grants nothing", unpaidGrants.returnItems.length === 0 && unpaidGrants.identifyPowder === 0);
+const short = { "獣の牙": 5, "硬い皮": 5, "毒腺": 1, "霊粉": 3, "骨片": 1, "鉄片": 3 };
+const shortPurchase = purchaseDepartureCraft(short, recipeIds);
+check("purchase fails when one material is short", !shortPurchase.ok && shortPurchase.reason === "insufficient_materials");
+check("affordability fails when one material is short", !canAffordDepartureCraft(short, recipeIds));
+check("failed purchase does not mutate the source balance", short["獣の牙"] === 5 && short["鉄片"] === 3);
 
-// 4. 買い切りノードからは翼・鑑定粉が出ない（出発準備へ移管済み）
+const tooMany = [...recipeIds, "MANA_POTION"];
+const slotPurchase = purchaseDepartureCraft(bank, tooMany);
+check("purchase rejects selections over the slot cap", !slotPurchase.ok && slotPurchase.reason === "slot_limit");
+check("empty selection is valid", purchaseDepartureCraft({}, []).ok);
+
 const fullWorkshop = { ranks: Object.fromEntries(WORKSHOP_NODES.map(node => [node.id, node.maxRank || 1])) };
 const workshopGrants = getWorkshopGrants(fullWorkshop);
-check(
-  "workshop nodes no longer grant return items",
-  workshopGrants.returnItems.length === 0,
-  `returnItems=${JSON.stringify(workshopGrants.returnItems)}`
-);
-check(
-  "workshop nodes no longer grant identify powder",
-  workshopGrants.identifyPowder === 0,
-  `identifyPowder=${workshopGrants.identifyPowder}`
-);
+check("workshop nodes no longer grant departure items", workshopGrants.returnItems.length === 0);
+check("workshop nodes no longer grant departure powder", workshopGrants.identifyPowder === 0);
 
-// 5. 撤去ノードのランクは消え、支払い済み素材が返る
 const retiredRanks = Object.fromEntries(RETIRED_WORKSHOP_NODES.map(node => [node.id, 1]));
 const restored = normalizeSavePayload({
-  version: 12,
+  version: 13,
   workshop: { ranks: { ...retiredRanks, stat_str: 2 } },
-  metaMaterials: { "霊粉": 1 }
+  metaMaterials: { "霊粉": 1 },
+  inventory: ["HEAL_POTION"]
 });
 RETIRED_WORKSHOP_NODES.forEach(node => {
-  check(
-    `retired node ${node.id} is removed from save`,
-    restored.workshop.ranks[node.id] === undefined,
-    `rank=${restored.workshop.ranks[node.id]}`
-  );
+  check(`retired node ${node.id} is removed from save`, restored.workshop.ranks[node.id] === undefined);
 });
 check("surviving node ranks are untouched", restored.workshop.ranks.stat_str === 2);
-// 霊粉5+呪布2 と 黒角4+竜鱗1 が返る
 check(
   "retired node costs are refunded",
   restored.metaMaterials["霊粉"] === 6
     && restored.metaMaterials["呪布"] === 2
     && restored.metaMaterials["黒角"] === 4
     && restored.metaMaterials["竜鱗"] === 1,
-  JSON.stringify({
-    霊粉: restored.metaMaterials["霊粉"],
-    呪布: restored.metaMaterials["呪布"],
-    黒角: restored.metaMaterials["黒角"],
-    竜鱗: restored.metaMaterials["竜鱗"]
-  })
+  JSON.stringify(restored.metaMaterials)
 );
-const untouched = normalizeSavePayload({
-  version: 12,
-  workshop: { ranks: { stat_str: 1 } },
-  metaMaterials: { "霊粉": 3 }
-});
-check("saves without retired ranks are not refunded", untouched.metaMaterials["霊粉"] === 3);
+check("existing save inventory is preserved", restored.inventory.length === 1 && restored.inventory[0] === "HEAL_POTION");
+
+initNewGame();
+check("new game starts with an empty inventory", state.inventory.length === 0, JSON.stringify(state.inventory));
 
 if (failures.length > 0) {
   failures.forEach(failure => console.error(`[FAIL] ${failure}`));
   process.exit(1);
 }
-console.log(`[PASS] departure kit: ${DEPARTURE_KIT.materialCost} materials per run, retired nodes refunded`);
+console.log(`[PASS] departure craft: ${CRAFT_RECIPES.length} recipes, ${DEPARTURE_CRAFT_MAX_SLOTS} slots, all materials covered`);

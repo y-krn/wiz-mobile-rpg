@@ -12,9 +12,7 @@ export const state = {
 
   // Solo character (kept as a one-element array for combat compatibility) & Inventory
   party: [],
-  // #271: 守りの薬は「必ず1個持って潜る」確実供給。乱数供給では有効強度が
-  // 成立しないと実測済みのため、初期所持で100%供給を保証する。
-  inventory: ["HEAL_POTION", "HEAL_POTION", "ANTIDOTE", "GUARD_POTION"],
+  inventory: [],
 
   // Map & Light
   floor: 1,

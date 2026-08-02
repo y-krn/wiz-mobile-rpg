@@ -45,7 +45,7 @@ const MAX_COMBAT_TURNS = 50;
 const MAX_FLOOR = 100;
 const EXPLORATION_FACTOR = 1.4;
 const CHEST_PICKUP_RATE = 0.7;
-const INITIAL_HEAL_POTIONS = 2;
+const INITIAL_HEAL_POTIONS = 0;
 const HEAL_POTION_THRESHOLD = 0.35;
 // 仮値・感度分析対象: 最大HPの35%以下なら次の自ターンで逃走する。
 const FLEE_HP_THRESHOLD = 0.35;
@@ -92,8 +92,7 @@ function createSimulationState(className, runSeed) {
     party: [createSoloCharacter(className)],
     combatState: null,
     inventory: [
-      ...Array(INITIAL_HEAL_POTIONS).fill("HEAL_POTION"),
-      "ANTIDOTE"
+      ...Array(INITIAL_HEAL_POTIONS).fill("HEAL_POTION")
     ],
     firstKills: [],
     codex: null,

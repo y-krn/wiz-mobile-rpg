@@ -1,5 +1,5 @@
 export const RECOVERY_BALANCE = Object.freeze({
-  startingHealPotions: 4
+  startingHealPotions: 0
 });
 
 export function getStartingHealPotionCount() {

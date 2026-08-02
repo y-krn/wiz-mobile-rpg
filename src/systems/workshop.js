@@ -1,5 +1,10 @@
-import { DEPARTURE_KIT, WORKSHOP_NODE_BY_ID, WORKSHOP_NODES } from "../data/workshop.js";
-import { getTotalMaterialCount, spendAnyMaterials, spendMaterials } from "../rules/material_rules.js";
+import { CRAFT_RECIPES } from "../craft.js";
+import {
+  DEPARTURE_CRAFT_MAX_SLOTS,
+  WORKSHOP_NODE_BY_ID,
+  WORKSHOP_NODES
+} from "../data/workshop.js";
+import { spendMaterials } from "../rules/material_rules.js";
 
 export function createDefaultWorkshopState() {
   return { ranks: {} };
@@ -29,23 +34,64 @@ export function purchaseWorkshopNode(metaMaterials, workshop, nodeId) {
   };
 }
 
-export function canAffordDepartureKit(metaMaterials) {
-  return getTotalMaterialCount(metaMaterials) >= DEPARTURE_KIT.materialCost;
+function normalizeDepartureCraftSelection(recipeIds) {
+  return [...new Set(Array.isArray(recipeIds) ? recipeIds : [])];
 }
 
-// 出発準備を1回分購入する。支払えた場合のみ残高と内訳を返す。
-export function purchaseDepartureKit(metaMaterials) {
-  const paid = spendAnyMaterials(metaMaterials, DEPARTURE_KIT.materialCost);
-  if (!paid) return { ok: false, reason: "insufficient_materials" };
-  return { ok: true, metaMaterials: paid.balance, spent: paid.spent };
+export function getDepartureCraftRecipes(recipeIds) {
+  const selected = normalizeDepartureCraftSelection(recipeIds);
+  return selected.map(recipeId => CRAFT_RECIPES.find(recipe => recipe.resultId === recipeId)).filter(Boolean);
 }
 
-// 支払い済みの出発準備が与える支給品。潜行開始時にのみ適用する。
-export function getDepartureKitGrants(purchased) {
-  if (!purchased) return { identifyPowder: 0, returnItems: [] };
+export function getDepartureCraftCost(recipeIds) {
+  const cost = {};
+  getDepartureCraftRecipes(recipeIds).forEach(recipe => {
+    Object.entries(recipe.mats).forEach(([material, quantity]) => {
+      cost[material] = (cost[material] || 0) + quantity;
+    });
+  });
+  return cost;
+}
+
+export function canAffordDepartureCraft(
+  metaMaterials,
+  recipeIds,
+  maxSlots = DEPARTURE_CRAFT_MAX_SLOTS
+) {
+  const selected = normalizeDepartureCraftSelection(recipeIds);
+  if (selected.length > maxSlots) return false;
+  if (selected.some(recipeId => !CRAFT_RECIPES.some(recipe => recipe.resultId === recipeId))) {
+    return false;
+  }
+  return spendMaterials(metaMaterials, getDepartureCraftCost(selected)) !== null;
+}
+
+// 選択内容を1回だけ購入する。失敗時は残高を変更しない。
+export function purchaseDepartureCraft(
+  metaMaterials,
+  recipeIds,
+  maxSlots = DEPARTURE_CRAFT_MAX_SLOTS
+) {
+  const selected = normalizeDepartureCraftSelection(recipeIds);
+  if (selected.length > maxSlots) return { ok: false, reason: "slot_limit" };
+  if (selected.some(recipeId => !CRAFT_RECIPES.some(recipe => recipe.resultId === recipeId))) {
+    return { ok: false, reason: "unknown_recipe" };
+  }
+  const cost = getDepartureCraftCost(selected);
+  const balance = spendMaterials(metaMaterials, cost);
+  if (!balance) return { ok: false, reason: "insufficient_materials" };
   return {
-    identifyPowder: DEPARTURE_KIT.grants.identifyPowder,
-    returnItems: [DEPARTURE_KIT.grants.returnItem]
+    ok: true,
+    recipeIds: selected,
+    itemIds: selected,
+    cost,
+    metaMaterials: balance
+  };
+}
+
+export function getDepartureCraftGrants(recipeIds) {
+  return {
+    items: getDepartureCraftRecipes(recipeIds).map(recipe => recipe.resultId)
   };
 }
 
@@ -80,4 +126,3 @@ export function applyWorkshopToCharacter(character, workshop) {
   character.unlockedSpellIds = grants.spellIds;
   return character;
 }
-
