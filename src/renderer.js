@@ -728,234 +728,263 @@ export class DungeonRenderer {
     });
   }
 
+  buildMonsterPaths(spriteType, cx, cy) {
+    const paths = [];
+
+    // Different wireframe paths based on stable sprite type.
+    if (spriteType === "biter") {
+      // Biter: floating orb with massive spike-teeth
+      const body = new Path2D();
+      body.arc(cx, cy - 10, 25, 0, Math.PI * 2);
+      paths.push(body);
+      
+      // Giant mouth
+      const mouth = new Path2D();
+      mouth.moveTo(cx - 20, cy - 10);
+      mouth.lineTo(cx + 20, cy - 10);
+      // Teeth
+      mouth.lineTo(cx + 10, cy + 10);
+      mouth.lineTo(cx, cy - 10);
+      mouth.lineTo(cx - 10, cy + 10);
+      mouth.closePath();
+      paths.push(mouth);
+    } else if (spriteType === "kobold") {
+      // Kobold: small beast with ears and a weapon
+      const path = new Path2D();
+      // Head
+      path.moveTo(cx - 15, cy - 35);
+      path.lineTo(cx + 15, cy - 35);
+      path.lineTo(cx + 20, cy - 15);
+      path.lineTo(cx - 20, cy - 15);
+      path.closePath();
+      // Ears
+      path.moveTo(cx - 15, cy - 35);
+      path.lineTo(cx - 25, cy - 50);
+      path.lineTo(cx - 5, cy - 35);
+      path.moveTo(cx + 15, cy - 35);
+      path.lineTo(cx + 25, cy - 50);
+      path.lineTo(cx + 5, cy - 35);
+      // Body
+      path.moveTo(cx, cy - 15);
+      path.lineTo(cx, cy + 25);
+      // Spear on left
+      path.moveTo(cx - 30, cy + 30);
+      path.lineTo(cx - 30, cy - 40);
+      path.lineTo(cx - 25, cy - 40);
+      path.lineTo(cx - 30, cy - 50);
+      path.lineTo(cx - 35, cy - 40);
+      path.closePath();
+      paths.push(path);
+    } else if (spriteType === "zombie") {
+      // Zombie: blocky creature with arms out
+      const path = new Path2D();
+      // Head
+      path.rect(cx - 15, cy - 45, 30, 20);
+      // Torso
+      path.rect(cx - 20, cy - 25, 40, 40);
+      // Left arm horizontal
+      path.moveTo(cx - 20, cy - 15);
+      path.lineTo(cx - 45, cy - 15);
+      path.lineTo(cx - 45, cy - 5);
+      // Right arm horizontal
+      path.moveTo(cx + 20, cy - 15);
+      path.lineTo(cx + 45, cy - 15);
+      path.lineTo(cx + 45, cy - 5);
+      paths.push(path);
+    } else if (spriteType === "skeleton") {
+      // Skeleton: Rib cage, skull, sword
+      const path = new Path2D();
+      // Skull
+      path.arc(cx, cy - 35, 12, 0, Math.PI * 2);
+      // Spine
+      path.moveTo(cx, cy - 23);
+      path.lineTo(cx, cy + 15);
+      // Ribs
+      path.moveTo(cx - 15, cy - 15); path.lineTo(cx + 15, cy - 15);
+      path.moveTo(cx - 18, cy - 5); path.lineTo(cx + 18, cy - 5);
+      path.moveTo(cx - 12, cy + 5); path.lineTo(cx + 12, cy + 5);
+      // Sword
+      path.moveTo(cx + 20, cy + 15);
+      path.lineTo(cx + 40, cy - 30);
+      path.moveTo(cx + 15, cy + 5); // Guard
+      path.lineTo(cx + 30, cy + 12);
+      paths.push(path);
+    } else if (spriteType === "orc") {
+      // Orc: horned brute with axes
+      const path = new Path2D();
+      // Head
+      path.rect(cx - 20, cy - 40, 40, 30);
+      // Snout
+      path.rect(cx - 10, cy - 25, 20, 12);
+      // Horns
+      path.moveTo(cx - 20, cy - 40);
+      path.quadraticCurveTo(cx - 35, cy - 55, cx - 30, cy - 30);
+      path.moveTo(cx + 20, cy - 40);
+      path.quadraticCurveTo(cx + 35, cy - 55, cx + 30, cy - 30);
+      // Massive body
+      path.moveTo(cx - 30, cy - 10);
+      path.lineTo(cx + 30, cy - 10);
+      path.lineTo(cx + 25, cy + 30);
+      path.lineTo(cx - 25, cy + 30);
+      path.closePath();
+      paths.push(path);
+    } else if (spriteType === "mage") {
+      // Mage: hooded cloak, glowing staff
+      const body = new Path2D();
+      // Hood triangle
+      body.moveTo(cx, cy - 45);
+      body.lineTo(cx - 20, cy - 15);
+      body.lineTo(cx + 20, cy - 15);
+      body.closePath();
+      // Cloak
+      body.moveTo(cx - 25, cy - 15);
+      body.lineTo(cx - 35, cy + 30);
+      body.lineTo(cx + 35, cy + 30);
+      body.lineTo(cx + 25, cy - 15);
+      body.closePath();
+      // Staff with glowing circle
+      body.moveTo(cx - 25, cy + 30);
+      body.lineTo(cx - 25, cy - 35);
+      paths.push(body);
+      
+      const staffOrb = new Path2D();
+      staffOrb.arc(cx - 25, cy - 40, 7, 0, Math.PI * 2);
+      paths.push(staffOrb);
+    } else if (spriteType === "spirit") {
+      const body = new Path2D();
+      body.arc(cx, cy - 18, 24, 0, Math.PI * 2);
+      body.moveTo(cx - 18, cy + 4);
+      body.quadraticCurveTo(cx - 8, cy + 24, cx, cy + 6);
+      body.quadraticCurveTo(cx + 8, cy + 24, cx + 18, cy + 4);
+      paths.push(body);
+
+      const eyes = new Path2D();
+      eyes.arc(cx - 8, cy - 20, 3, 0, Math.PI * 2);
+      eyes.arc(cx + 8, cy - 20, 3, 0, Math.PI * 2);
+      paths.push(eyes);
+    } else if (spriteType === "wisp") {
+      const path = new Path2D();
+      path.arc(cx, cy - 10, 26, 0, Math.PI * 2);
+      path.arc(cx, cy - 10, 14, 0, Math.PI * 2);
+      path.moveTo(cx, cy - 48);
+      path.quadraticCurveTo(cx + 12, cy - 28, cx, cy - 10);
+      path.quadraticCurveTo(cx - 12, cy + 8, cx, cy + 28);
+      paths.push(path);
+    } else if (spriteType === "spider") {
+      const path = new Path2D();
+      path.ellipse(cx, cy - 10, 28, 18, 0, 0, Math.PI * 2);
+      path.arc(cx, cy - 35, 12, 0, Math.PI * 2);
+      for (let i = 0; i < 4; i++) {
+        const y = cy - 22 + i * 8;
+        path.moveTo(cx - 18, y);
+        path.lineTo(cx - 50, y - 14 + i * 8);
+        path.moveTo(cx + 18, y);
+        path.lineTo(cx + 50, y - 14 + i * 8);
+      }
+      paths.push(path);
+    } else if (spriteType === "bat") {
+      const path = new Path2D();
+      path.arc(cx, cy - 12, 10, 0, Math.PI * 2);
+      path.moveTo(cx - 10, cy - 12);
+      path.lineTo(cx - 55, cy - 38);
+      path.lineTo(cx - 38, cy - 4);
+      path.lineTo(cx - 20, cy - 22);
+      path.moveTo(cx + 10, cy - 12);
+      path.lineTo(cx + 55, cy - 38);
+      path.lineTo(cx + 38, cy - 4);
+      path.lineTo(cx + 20, cy - 22);
+      paths.push(path);
+    } else if (spriteType === "rabbit") {
+      const path = new Path2D();
+      path.ellipse(cx, cy, 20, 28, 0, 0, Math.PI * 2);
+      path.arc(cx, cy - 34, 14, 0, Math.PI * 2);
+      path.moveTo(cx - 8, cy - 45);
+      path.lineTo(cx - 18, cy - 78);
+      path.lineTo(cx - 4, cy - 48);
+      path.moveTo(cx + 8, cy - 45);
+      path.lineTo(cx + 18, cy - 78);
+      path.lineTo(cx + 4, cy - 48);
+      paths.push(path);
+    } else if (spriteType === "flack") {
+      const path = new Path2D();
+      path.arc(cx, cy - 12, 36, 0, Math.PI * 2);
+      path.moveTo(cx - 26, cy - 38);
+      path.lineTo(cx + 26, cy + 14);
+      path.moveTo(cx + 26, cy - 38);
+      path.lineTo(cx - 26, cy + 14);
+      path.moveTo(cx, cy - 58);
+      path.lineTo(cx, cy + 32);
+      path.moveTo(cx - 45, cy - 12);
+      path.lineTo(cx + 45, cy - 12);
+      paths.push(path);
+    } else if (spriteType === "dragon") {
+      // Ancient Dragon: massive head, wings, horns
+      const path = new Path2D();
+      // Dragon snout/jaw
+      path.moveTo(cx - 40, cy - 10);
+      path.lineTo(cx - 20, cy - 40);
+      path.lineTo(cx + 20, cy - 40);
+      path.lineTo(cx + 40, cy - 10);
+      path.lineTo(cx + 20, cy + 20);
+      path.lineTo(cx - 20, cy + 20);
+      path.closePath();
+      
+      // Eyes
+      path.moveTo(cx - 15, cy - 20); path.lineTo(cx - 5, cy - 15);
+      path.moveTo(cx + 15, cy - 20); path.lineTo(cx + 5, cy - 15);
+      
+      // Horns
+      path.moveTo(cx - 15, cy - 40);
+      path.lineTo(cx - 35, cy - 70);
+      path.lineTo(cx - 5, cy - 40);
+      path.moveTo(cx + 15, cy - 40);
+      path.lineTo(cx + 35, cy - 70);
+      path.lineTo(cx + 5, cy - 40);
+
+      // Wings outline in background
+      path.moveTo(cx - 40, cy - 20);
+      path.quadraticCurveTo(cx - 90, cy - 50, cx - 80, cy + 10);
+      path.moveTo(cx + 40, cy - 20);
+      path.quadraticCurveTo(cx + 90, cy - 50, cx + 80, cy + 10);
+      paths.push(path);
+    }
+
+    return paths;
+  }
+
+  strokeNeonPaths(ctx, paths, color, scale) {
+    const px = width => Math.max(width, 0.9 / scale);
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = px(7);
+    ctx.globalAlpha = 0.28;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
+    paths.forEach(path => ctx.stroke(path));
+
+    ctx.lineWidth = px(3);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    paths.forEach(path => ctx.stroke(path));
+
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = px(1.2);
+    ctx.globalAlpha = 0.9;
+    paths.forEach(path => ctx.stroke(path));
+
+    ctx.globalAlpha = 1;
+  }
+
   drawMonster(ctx, monster, cx, cy, scale, maxLabelWidth) {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(scale, scale);
     ctx.translate(-cx, -cy);
-    ctx.shadowColor = monster.color || "#ff3b30";
-    ctx.shadowBlur = 10;
-    ctx.strokeStyle = monster.color || "#ff3b30";
-    ctx.lineWidth = 3;
 
-    // Different wireframe drawing based on stable sprite type.
+    const color = monster.color || "#ff3b30";
     const spriteType = this.getMonsterSpriteType(monster);
-    if (spriteType === "biter") {
-      // Biter: floating orb with massive spike-teeth
-      ctx.beginPath();
-      ctx.arc(cx, cy - 10, 25, 0, Math.PI * 2);
-      ctx.stroke();
-      
-      // Giant mouth
-      ctx.beginPath();
-      ctx.moveTo(cx - 20, cy - 10);
-      ctx.lineTo(cx + 20, cy - 10);
-      // Teeth
-      ctx.lineTo(cx + 10, cy + 10);
-      ctx.lineTo(cx, cy - 10);
-      ctx.lineTo(cx - 10, cy + 10);
-      ctx.closePath();
-      ctx.stroke();
-    } else if (spriteType === "kobold") {
-      // Kobold: small beast with ears and a weapon
-      ctx.beginPath();
-      // Head
-      ctx.moveTo(cx - 15, cy - 35);
-      ctx.lineTo(cx + 15, cy - 35);
-      ctx.lineTo(cx + 20, cy - 15);
-      ctx.lineTo(cx - 20, cy - 15);
-      ctx.closePath();
-      // Ears
-      ctx.moveTo(cx - 15, cy - 35);
-      ctx.lineTo(cx - 25, cy - 50);
-      ctx.lineTo(cx - 5, cy - 35);
-      ctx.moveTo(cx + 15, cy - 35);
-      ctx.lineTo(cx + 25, cy - 50);
-      ctx.lineTo(cx + 5, cy - 35);
-      // Body
-      ctx.moveTo(cx, cy - 15);
-      ctx.lineTo(cx, cy + 25);
-      // Spear on left
-      ctx.moveTo(cx - 30, cy + 30);
-      ctx.lineTo(cx - 30, cy - 40);
-      ctx.lineTo(cx - 25, cy - 40);
-      ctx.lineTo(cx - 30, cy - 50);
-      ctx.lineTo(cx - 35, cy - 40);
-      ctx.closePath();
-      ctx.stroke();
-    } else if (spriteType === "zombie") {
-      // Zombie: blocky creature with arms out
-      ctx.beginPath();
-      // Head
-      ctx.rect(cx - 15, cy - 45, 30, 20);
-      // Torso
-      ctx.rect(cx - 20, cy - 25, 40, 40);
-      // Left arm horizontal
-      ctx.moveTo(cx - 20, cy - 15);
-      ctx.lineTo(cx - 45, cy - 15);
-      ctx.lineTo(cx - 45, cy - 5);
-      // Right arm horizontal
-      ctx.moveTo(cx + 20, cy - 15);
-      ctx.lineTo(cx + 45, cy - 15);
-      ctx.lineTo(cx + 45, cy - 5);
-      ctx.stroke();
-    } else if (spriteType === "skeleton") {
-      // Skeleton: Rib cage, skull, sword
-      ctx.beginPath();
-      // Skull
-      ctx.arc(cx, cy - 35, 12, 0, Math.PI * 2);
-      // Spine
-      ctx.moveTo(cx, cy - 23);
-      ctx.lineTo(cx, cy + 15);
-      // Ribs
-      ctx.moveTo(cx - 15, cy - 15); ctx.lineTo(cx + 15, cy - 15);
-      ctx.moveTo(cx - 18, cy - 5); ctx.lineTo(cx + 18, cy - 5);
-      ctx.moveTo(cx - 12, cy + 5); ctx.lineTo(cx + 12, cy + 5);
-      // Sword
-      ctx.moveTo(cx + 20, cy + 15);
-      ctx.lineTo(cx + 40, cy - 30);
-      ctx.moveTo(cx + 15, cy + 5); // Guard
-      ctx.lineTo(cx + 30, cy + 12);
-      ctx.stroke();
-    } else if (spriteType === "orc") {
-      // Orc: horned brute with axes
-      ctx.beginPath();
-      // Head
-      ctx.rect(cx - 20, cy - 40, 40, 30);
-      // Snout
-      ctx.rect(cx - 10, cy - 25, 20, 12);
-      // Horns
-      ctx.moveTo(cx - 20, cy - 40);
-      ctx.quadraticCurveTo(cx - 35, cy - 55, cx - 30, cy - 30);
-      ctx.moveTo(cx + 20, cy - 40);
-      ctx.quadraticCurveTo(cx + 35, cy - 55, cx + 30, cy - 30);
-      // Massive body
-      ctx.moveTo(cx - 30, cy - 10);
-      ctx.lineTo(cx + 30, cy - 10);
-      ctx.lineTo(cx + 25, cy + 30);
-      ctx.lineTo(cx - 25, cy + 30);
-      ctx.closePath();
-      ctx.stroke();
-    } else if (spriteType === "mage") {
-      // Mage: hooded cloak, glowing staff
-      ctx.beginPath();
-      // Hood triangle
-      ctx.moveTo(cx, cy - 45);
-      ctx.lineTo(cx - 20, cy - 15);
-      ctx.lineTo(cx + 20, cy - 15);
-      ctx.closePath();
-      // Cloak
-      ctx.moveTo(cx - 25, cy - 15);
-      ctx.lineTo(cx - 35, cy + 30);
-      ctx.lineTo(cx + 35, cy + 30);
-      ctx.lineTo(cx + 25, cy - 15);
-      ctx.closePath();
-      // Staff with glowing circle
-      ctx.moveTo(cx - 25, cy + 30);
-      ctx.lineTo(cx - 25, cy - 35);
-      ctx.stroke();
-      
-      ctx.beginPath();
-      ctx.arc(cx - 25, cy - 40, 7, 0, Math.PI * 2);
-      ctx.stroke();
-    } else if (spriteType === "spirit") {
-      ctx.beginPath();
-      ctx.arc(cx, cy - 18, 24, 0, Math.PI * 2);
-      ctx.moveTo(cx - 18, cy + 4);
-      ctx.quadraticCurveTo(cx - 8, cy + 24, cx, cy + 6);
-      ctx.quadraticCurveTo(cx + 8, cy + 24, cx + 18, cy + 4);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(cx - 8, cy - 20, 3, 0, Math.PI * 2);
-      ctx.arc(cx + 8, cy - 20, 3, 0, Math.PI * 2);
-      ctx.stroke();
-    } else if (spriteType === "wisp") {
-      ctx.beginPath();
-      ctx.arc(cx, cy - 10, 26, 0, Math.PI * 2);
-      ctx.arc(cx, cy - 10, 14, 0, Math.PI * 2);
-      ctx.moveTo(cx, cy - 48);
-      ctx.quadraticCurveTo(cx + 12, cy - 28, cx, cy - 10);
-      ctx.quadraticCurveTo(cx - 12, cy + 8, cx, cy + 28);
-      ctx.stroke();
-    } else if (spriteType === "spider") {
-      ctx.beginPath();
-      ctx.ellipse(cx, cy - 10, 28, 18, 0, 0, Math.PI * 2);
-      ctx.arc(cx, cy - 35, 12, 0, Math.PI * 2);
-      for (let i = 0; i < 4; i++) {
-        const y = cy - 22 + i * 8;
-        ctx.moveTo(cx - 18, y);
-        ctx.lineTo(cx - 50, y - 14 + i * 8);
-        ctx.moveTo(cx + 18, y);
-        ctx.lineTo(cx + 50, y - 14 + i * 8);
-      }
-      ctx.stroke();
-    } else if (spriteType === "bat") {
-      ctx.beginPath();
-      ctx.arc(cx, cy - 12, 10, 0, Math.PI * 2);
-      ctx.moveTo(cx - 10, cy - 12);
-      ctx.lineTo(cx - 55, cy - 38);
-      ctx.lineTo(cx - 38, cy - 4);
-      ctx.lineTo(cx - 20, cy - 22);
-      ctx.moveTo(cx + 10, cy - 12);
-      ctx.lineTo(cx + 55, cy - 38);
-      ctx.lineTo(cx + 38, cy - 4);
-      ctx.lineTo(cx + 20, cy - 22);
-      ctx.stroke();
-    } else if (spriteType === "rabbit") {
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, 20, 28, 0, 0, Math.PI * 2);
-      ctx.arc(cx, cy - 34, 14, 0, Math.PI * 2);
-      ctx.moveTo(cx - 8, cy - 45);
-      ctx.lineTo(cx - 18, cy - 78);
-      ctx.lineTo(cx - 4, cy - 48);
-      ctx.moveTo(cx + 8, cy - 45);
-      ctx.lineTo(cx + 18, cy - 78);
-      ctx.lineTo(cx + 4, cy - 48);
-      ctx.stroke();
-    } else if (spriteType === "flack") {
-      ctx.beginPath();
-      ctx.arc(cx, cy - 12, 36, 0, Math.PI * 2);
-      ctx.moveTo(cx - 26, cy - 38);
-      ctx.lineTo(cx + 26, cy + 14);
-      ctx.moveTo(cx + 26, cy - 38);
-      ctx.lineTo(cx - 26, cy + 14);
-      ctx.moveTo(cx, cy - 58);
-      ctx.lineTo(cx, cy + 32);
-      ctx.moveTo(cx - 45, cy - 12);
-      ctx.lineTo(cx + 45, cy - 12);
-      ctx.stroke();
-    } else if (spriteType === "dragon") {
-      // Ancient Dragon: massive head, wings, horns
-      ctx.beginPath();
-      // Dragon snout/jaw
-      ctx.moveTo(cx - 40, cy - 10);
-      ctx.lineTo(cx - 20, cy - 40);
-      ctx.lineTo(cx + 20, cy - 40);
-      ctx.lineTo(cx + 40, cy - 10);
-      ctx.lineTo(cx + 20, cy + 20);
-      ctx.lineTo(cx - 20, cy + 20);
-      ctx.closePath();
-      
-      // Eyes
-      ctx.moveTo(cx - 15, cy - 20); ctx.lineTo(cx - 5, cy - 15);
-      ctx.moveTo(cx + 15, cy - 20); ctx.lineTo(cx + 5, cy - 15);
-      
-      // Horns
-      ctx.moveTo(cx - 15, cy - 40);
-      ctx.lineTo(cx - 35, cy - 70);
-      ctx.lineTo(cx - 5, cy - 40);
-      ctx.moveTo(cx + 15, cy - 40);
-      ctx.lineTo(cx + 35, cy - 70);
-      ctx.lineTo(cx + 5, cy - 40);
-
-      // Wings outline in background
-      ctx.moveTo(cx - 40, cy - 20);
-      ctx.quadraticCurveTo(cx - 90, cy - 50, cx - 80, cy + 10);
-      ctx.moveTo(cx + 40, cy - 20);
-      ctx.quadraticCurveTo(cx + 90, cy - 50, cx + 80, cy + 10);
-      ctx.stroke();
-    }
+    const paths = this.buildMonsterPaths(spriteType, cx, cy);
+    this.strokeNeonPaths(ctx, paths, color, scale);
 
     ctx.restore();
 

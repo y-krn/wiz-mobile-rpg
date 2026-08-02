@@ -375,6 +375,64 @@ test('Three-column corridor renderer draws adjacent front walls', async ({ page 
   expect(cyanPixels[1]).toBeGreaterThan(100);
 });
 
+test('Combat monsters render colored neon bodies with visible white cores at four-enemy scale', async ({ page }) => {
+  await page.goto('/');
+
+  const pixelCounts = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const canvas = document.querySelector('#dungeon-canvas');
+    const ctx = canvas.getContext('2d');
+    const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
+
+    state.map = [[{ walls: [false, false, false, false], type: 'empty' }]];
+    state.floor = 1;
+    state.gameState = 'combat';
+    state.combatState = {
+      phase: 'choose_actions',
+      monsters: Array.from({ length: 4 }, (_, index) => ({
+        name: `ネオン検証${index + 1}`,
+        level: 1,
+        hp: 10,
+        maxHp: 10,
+        color: '#00e5ff',
+        spriteType: 'biter',
+      })),
+    };
+    dungeonRenderer.draw3DCorridors = () => {};
+    dungeonRenderer.draw();
+    dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
+
+    const countPixels = ({ x, y, width, height }) => {
+      const pixels = ctx.getImageData(x, y, width, height).data;
+      let color = 0;
+      let white = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        const red = pixels[i];
+        const green = pixels[i + 1];
+        const blue = pixels[i + 2];
+        const alpha = pixels[i + 3];
+        if (alpha > 0 && red < 80 && green > 160 && blue > 190) color++;
+        if (alpha > 0 && red > 180 && green > 220 && blue > 220) white++;
+      }
+      return { color, white };
+    };
+
+    return [
+      { x: 65, y: 60, width: 70, height: 65 },
+      { x: 265, y: 60, width: 70, height: 65 },
+      { x: 65, y: 170, width: 70, height: 65 },
+      { x: 265, y: 170, width: 70, height: 65 },
+    ].map(countPixels);
+  });
+
+  expect(pixelCounts).toHaveLength(4);
+  for (const counts of pixelCounts) {
+    expect(counts.color).toBeGreaterThan(20);
+    expect(counts.white).toBeGreaterThan(5);
+  }
+});
+
 test('Five-column corridor renderer draws outer front walls', async ({ page }) => {
   await page.goto('/');
   const cyanPixels = await page.evaluate(async () => {
