@@ -49,9 +49,8 @@ touches a facade, inspect the concrete module before drawing conclusions.
 - `game-design.md`: current progression/economy design for XP, milestone merchants,
   materials, workshop, reward roles, and post-clear save behavior.
 - `game-design-equipment-builds.md`: the core/support affix system —
-  `CORE_AFFIXES` and `SUPPORT_AFFIXES` (counts:
-  `CORE_AFFIXES.length` / `SUPPORT_AFFIXES.length`), budget-based generation,
-  inscriptions, polish, and
+  `CORE_AFFIXES` and `SUPPORT_AFFIXES` (counts: `CORE_AFFIXES.length` /
+  `SUPPORT_AFFIXES.length`), budget-based generation, inscriptions, polish, and
   curse-seal rules. The source of truth is `src/data/affixes.js`. Canonical for
   any change to affixes, `AFFIX_BALANCE`, `CORE_SEAL_RULES`, or workshop actions.
 
