@@ -19,7 +19,7 @@ const DOCUMENT_NAMES = ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "README.md"];
 const DOCUMENT_DIRS = [".agents"];
 const PATH_PREFIXES = ["src", "tests", "scratch", "scripts", "public"];
 const SUPPORT_AFFIX_DOCUMENT = ".agents/game-design-equipment-builds.md";
-const SUPPORT_AFFIX_HEADING = "サポートアフィックス";
+const SUPPORT_AFFIX_HEADING = "Support Affixes";
 const ROOT_PATHS = new Set([
   "index.html",
   "package.json",
