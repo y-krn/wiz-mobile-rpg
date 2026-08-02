@@ -185,7 +185,7 @@ export function renderCombatOverlay() {
     if (usableItems.length === 0) {
       const emptyMsg = document.createElement("div");
       emptyMsg.className = "detail-placeholder";
-      emptyMsg.textContent = "共有バッグは空っぽです。";
+      emptyMsg.textContent = "使える道具がありません";
       itemGrid.appendChild(emptyMsg);
     } else {
       usableItems.forEach(({ itemKey, idx, item }) => {

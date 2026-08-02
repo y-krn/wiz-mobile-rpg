@@ -130,7 +130,7 @@ export function handleExploreAction(action) {
     menuContext.actorIdx = firstCasterIdx !== -1 ? firstCasterIdx : 0;
     openSubmenu("spell_select", "呪文選択:");
   } else if (action === "tool") {
-    openSubmenu("item_inventory", `共有バッグ (${state.inventory.length}個) - 道具を使う:`);
+    openSubmenu("item_inventory", `共有バッグ (${getUsableInventoryItems(state.inventory).length}個) - 道具を使う:`);
   } else if (action === "item" || action === "equip") {
     openEquipOverlay(0);
   }
@@ -141,7 +141,7 @@ export function renderItemInventory(optGrid) {
   if (usableItems.length === 0) {
     const btn = document.createElement("button");
     btn.className = "btn btn-block";
-    btn.textContent = "バッグは空っぽです";
+    btn.textContent = "使える道具がありません";
     btn.disabled = true;
     optGrid.appendChild(btn);
   } else {
