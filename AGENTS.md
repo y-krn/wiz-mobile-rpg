@@ -243,6 +243,8 @@ When reporting checklist use, include:
 
 ## Context Hygiene
 
+- `.learnings/` is the self-improvement skill's own log, not project canon.
+  Durable rules belong in this file or `.agents/*.md`; do not load it by default.
 - Keep always-loaded instructions minimal and durable.
 - Design specs and implementation plans are working artifacts, not records.
   When the work ships, distill what stays true into `.agents/*.md` and delete

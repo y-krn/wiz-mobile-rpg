@@ -26,23 +26,6 @@ When a learning is promoted to a skill, add these fields:
 **Skill-Path**: skills/skill-name
 ```
 
-Example:
-```markdown
-## [LRN-20250115-001] best_practice
-
-**Logged**: 2025-01-15T10:00:00Z
-**Priority**: high
-**Status**: promoted_to_skill
-**Skill-Path**: skills/docker-m1-fixes
-**Area**: infra
-
-### Summary
-Docker build fails on Apple Silicon due to platform mismatch
-...
-```
-
----
-
 ## [LRN-20260720-001] correction
 
 **Logged**: 2026-07-20T10:04:29Z
@@ -200,7 +183,7 @@ full-log overlayの再描画でスクロール位置を保持した結果、閉�
 - Source: conversation
 - Related Files: src/state/save_payload.js, src/state/save_migrations.js, src/state/dungeon_state.js, src/map_generator.js
 - Tags: save-migration, dungeon-map, gotcha
-- See Also: tickets/TICKET-045-one-way-passage.md, tickets/TICKET-046-hidden-door.md
+- See Also: FEAT-20260705-001 (maze mechanics)
 - Promotion-Candidate: AGENTS.md (map/save 構造変更ルール。広く適用・再発防止価値あり)
 
 ---
