@@ -39,7 +39,7 @@ const DIRECTIONS = [
   { dx: 0, dy: 1, dir: 2 },
   { dx: -1, dy: 0, dir: 3 }
 ];
-const FLOORS = [1, 3, 5, 8, 10, 12, 15, 20];
+const FLOORS = [1, 3, 5, 8, 10, 12, 15, 20, 25, 30];
 const INVESTMENTS = [
   { id: "none", label: "無投資", slots: [] },
   { id: "mid", label: "中", slots: ["accessory"] },
@@ -309,10 +309,12 @@ console.log("=== TRAP CHOKE DISTRIBUTION ===");
 console.log("floor | traps | choke | actual | target | shortfall");
 
 const detectionTotalsByFloor = new Map();
+const trapTypeTotalsByFloor = new Map();
 for (const floor of FLOORS) {
   let totalTraps = 0;
   let totalChoke = 0;
   let shortfalls = 0;
+  const trapTypeTotals = Object.fromEntries(TRAP_TYPES.map(type => [type, 0]));
   const loadoutKey = (className, investmentId) => `${className}:${investmentId}`;
   const loadouts = new Map(CLASSES.flatMap(className => INVESTMENTS.map(investment => {
     const party = buildInvestmentParty(floor, investment, className);
@@ -347,6 +349,18 @@ for (const floor of FLOORS) {
     const meta = map.trapMeta;
     totalTraps += meta.total;
     totalChoke += meta.choke;
+    let generatedTrapTotal = 0;
+    for (const cell of map.grid.flat()) {
+      if (!cell.trap) continue;
+      if (!(cell.trap.type in trapTypeTotals)) {
+        throw new Error(`unexpected generated trap type: ${cell.trap.type}`);
+      }
+      trapTypeTotals[cell.trap.type]++;
+      generatedTrapTotal++;
+    }
+    if (generatedTrapTotal !== meta.total) {
+      throw new Error(`trapMeta total mismatch at B${floor}: ${generatedTrapTotal} !== ${meta.total}`);
+    }
     if (meta.choke < meta.chokeTargeted) shortfalls++;
 
     const path = shortestPath(map.grid);
@@ -371,6 +385,7 @@ for (const floor of FLOORS) {
   }
 
   detectionTotalsByFloor.set(floor, detectionTotals);
+  trapTypeTotalsByFloor.set(floor, trapTypeTotals);
 
   const actualRate = totalChoke / totalTraps;
   const targetRate = getTrapChokeRate(floor);
@@ -383,6 +398,44 @@ for (const floor of FLOORS) {
     `${((shortfalls / SAMPLES) * 100).toFixed(0).padStart(3)}%`
   );
 }
+
+console.log("\n=== TRAP TYPE DISTRIBUTION ===");
+console.log("floor | biome            | declared trapSet      | actual cell.trap.type (count/share)                         | declared regular share | undeclared regular | pitfall policy");
+
+for (const floor of FLOORS) {
+  const biome = getBiomeForFloor(floor);
+  const totals = trapTypeTotalsByFloor.get(floor);
+  const totalTraps = TRAP_TYPES.reduce((sum, type) => sum + totals[type], 0);
+  const regularTypes = TRAP_TYPES.filter(type => type !== "pitfall");
+  const regularTotal = regularTypes.reduce((sum, type) => sum + totals[type], 0);
+  const declaredRegularCount = biome.gimmicks.trapSet
+    .filter(type => regularTypes.includes(type))
+    .reduce((sum, type) => sum + totals[type], 0);
+  const actualTypes = TRAP_TYPES.filter(type => totals[type] > 0);
+  const missingDeclared = biome.gimmicks.trapSet.filter(type =>
+    regularTypes.includes(type) && totals[type] === 0
+  );
+  if (missingDeclared.length > 0) {
+    throw new Error(`declared trapSet type missing at B${floor}: ${missingDeclared.join(",")}`);
+  }
+  const undeclaredRegular = actualTypes.filter(type =>
+    type !== "pitfall" && !biome.gimmicks.trapSet.includes(type)
+  );
+  const actualSummary = TRAP_TYPES.map(type =>
+    `${type}:${totals[type]}/${((totals[type] / totalTraps) * 100).toFixed(1)}%`
+  ).join(" ");
+  console.log(
+    `B${String(floor).padStart(2)}   | ` +
+    `${biome.id.padEnd(16)} | ` +
+    `${biome.gimmicks.trapSet.join("+").padEnd(21)} | ` +
+    `${actualSummary.padEnd(59)} | ` +
+    `${((declaredRegularCount / regularTotal) * 100).toFixed(1).padStart(7)}% | ` +
+    `${(undeclaredRegular.join("+") || "-").padEnd(17)} | ` +
+    `${floor <= 3 ? "B1-B3 only" : "none"}`
+  );
+}
+
+console.log("actual = SAMPLES個の実生成 grid 全 cell.trap.type 集計。trapSet は regular trap の2倍重み対象、pitfall は浅層専用別枠。");
 
 console.log("\n=== TRAP SURPRISE DETECTION ===");
 console.log("floor | class   | investment | trapSense | weapon           | stepped | ambush | detected | ambush rate");
