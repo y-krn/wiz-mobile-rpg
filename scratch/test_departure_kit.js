@@ -12,7 +12,7 @@ function check(label, condition, detail = "") {
   failures.push(detail ? `${label}: ${detail}` : label);
 }
 
-const { CRAFT_RECIPES } = await import("../src/craft.js");
+const { CRAFT_RECIPES, executeCraft } = await import("../src/craft.js");
 const { MATERIAL_TYPES } = await import("../src/data/materials.js");
 const { RUN_QUEST_TEMPLATES } = await import("../src/data/run_quests.js");
 const {
@@ -46,8 +46,8 @@ check("departure craft has a finite slot cap", DEPARTURE_CRAFT_MAX_SLOTS === 5);
 check("starting heal potion supply is removed", RECOVERY_BALANCE.startingHealPotions === 0);
 const milestoneQuest = RUN_QUEST_TEMPLATES.find(quest => quest.id === "reach_milestone");
 check(
-  "guard material has a reachable milestone reward",
-  milestoneQuest?.reward?.materials?.["竜鱗"] === 1,
+  "guard material is not added to the shallow milestone reward",
+  milestoneQuest?.reward?.materials?.["竜鱗"] === undefined,
   JSON.stringify(milestoneQuest?.reward?.materials)
 );
 
@@ -149,6 +149,14 @@ check("existing save inventory is preserved", restored.inventory.length === 1 &&
 
 initNewGame();
 check("new game starts with an empty inventory", state.inventory.length === 0, JSON.stringify(state.inventory));
+const inventoryBeforePseudoCraft = [...state.inventory];
+const materialsBeforePseudoCraft = { ...state.metaMaterials };
+check(
+  "identify powder pseudo-recipe cannot enter inventory through executeCraft",
+  executeCraft("IDENTIFY_POWDER") === false
+    && JSON.stringify(state.inventory) === JSON.stringify(inventoryBeforePseudoCraft)
+    && JSON.stringify(state.metaMaterials) === JSON.stringify(materialsBeforePseudoCraft)
+);
 
 if (failures.length > 0) {
   failures.forEach(failure => console.error(`[FAIL] ${failure}`));

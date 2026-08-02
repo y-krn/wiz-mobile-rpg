@@ -104,6 +104,12 @@ export function executeCraft(recipeId) {
   const recipe = CRAFT_RECIPES.find(r => r.resultId === recipeId);
   if (!recipe) return false;
 
+  // 鑑定粉はITEMSに存在しない出発クラフト専用の疑似レシピ。
+  if (recipe.identifyPowder) {
+    addLog("鑑定粉は出発時のクラフトでのみ作成できます。");
+    return false;
+  }
+
   // バッグ空きチェック
   if (state.inventory.length >= 20) {
     addLog("バッグがいっぱいです。");
