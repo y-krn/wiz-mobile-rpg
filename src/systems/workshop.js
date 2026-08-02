@@ -65,6 +65,27 @@ export function canAffordDepartureCraft(metaMaterials, recipeIds) {
   ) !== null;
 }
 
+export function getDepartureCraftBalance(metaMaterials, recipeIds) {
+  const selected = normalizeDepartureCraftSelection(recipeIds);
+  if (selected.length === 0) return { ...metaMaterials };
+  const purchase = purchaseSelectedDepartureCraft(
+    metaMaterials,
+    getDepartureCraftRecipes(selected)
+  );
+  return purchase ? purchase.balance : { ...metaMaterials };
+}
+
+export function getAdditionalCraftableCount(metaMaterials, recipeIds, recipeId, cap = 99) {
+  let count = 0;
+  const candidate = [...normalizeDepartureCraftSelection(recipeIds)];
+  while (count < cap) {
+    candidate.push(recipeId);
+    if (!canAffordDepartureCraft(metaMaterials, candidate)) break;
+    count += 1;
+  }
+  return count;
+}
+
 // 選択内容を1回だけ購入する。失敗時は残高を変更しない。
 export function purchaseDepartureCraft(metaMaterials, recipeIds) {
   const selected = normalizeDepartureCraftSelection(recipeIds);

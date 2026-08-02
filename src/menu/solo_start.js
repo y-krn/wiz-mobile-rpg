@@ -6,13 +6,15 @@ import { ITEMS } from "../data/items.js";
 import {
   applyWorkshopToCharacter,
   canAffordDepartureCraft,
+  getAdditionalCraftableCount,
+  getDepartureCraftBalance,
   getDepartureCraftCost,
   getDepartureCraftRecipes,
   getWorkshopGrants,
   purchaseDepartureCraft
 } from "../systems/workshop.js";
 import { CRAFT_RECIPES } from "../craft.js";
-import { MATERIAL_DROP_BALANCE } from "../data/materials.js";
+import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
@@ -23,6 +25,24 @@ function formatCraftPayment(payment) {
     .join("・");
   const any = payment?.any > 0
     ? `素材${payment.any}個（種別不問）`
+    : "";
+  return [typed, any].filter(Boolean).join("・") || "素材0個";
+}
+
+function getMaterialBalanceTotal(balance) {
+  return Object.values(balance || {}).reduce(
+    (sum, quantity) => sum + Math.max(0, Math.floor(Number(quantity) || 0)),
+    0
+  );
+}
+
+function formatCraftPaymentWithBalance(recipe, balance) {
+  const payment = getDepartureCraftCost([recipe.resultId]);
+  const typed = Object.entries(payment.typed || {})
+    .map(([material, quantity]) => `${material} ${quantity}/${balance?.[material] || 0}`)
+    .join("・");
+  const any = payment.any > 0
+    ? `素材${payment.any}個（種別不問）/残${getMaterialBalanceTotal(balance)}個`
     : "";
   return [typed, any].filter(Boolean).join("・") || "素材0個";
 }
@@ -79,10 +99,11 @@ function changeDepartureCraftQuantity(optGrid, className, startingGear, recipeId
   renderStartFloorChoices(optGrid, className, startingGear);
 }
 
-function appendLabelledLines(button, title, detail) {
+function appendLabelledLines(button, title, detail, detailClass = "") {
   const strong = document.createElement("strong");
   strong.textContent = title;
   const span = document.createElement("span");
+  if (detailClass) span.className = detailClass;
   span.textContent = detail;
   button.append(strong, span);
 }
@@ -94,9 +115,28 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
   const selectedRecipeIds = getSelectedRecipeIds();
   const selectedRecipes = getDepartureCraftRecipes(selectedRecipeIds);
   const selectedCost = getDepartureCraftCost(selectedRecipeIds);
-  summary.textContent = selectedRecipes.length > 0
+  const summaryTitle = document.createElement("div");
+  summaryTitle.className = "solo-start-craft-summary-title";
+  summaryTitle.textContent = selectedRecipes.length > 0
     ? `出発クラフト ${selectedRecipes.length}品：${formatCraftPayment(selectedCost)}`
     : "出発クラフト 0品：何も持たずに出発可";
+  summary.appendChild(summaryTitle);
+
+  const selectedBalance = getDepartureCraftBalance(state.metaMaterials, selectedRecipeIds);
+  const balances = document.createElement("div");
+  balances.className = "solo-start-craft-balances";
+  MATERIAL_TYPES.forEach(material => {
+    const original = Math.max(0, Math.floor(Number(state.metaMaterials?.[material]) || 0));
+    const remaining = Math.max(0, Math.floor(Number(selectedBalance?.[material]) || 0));
+    if (remaining <= 0) return;
+    const badge = document.createElement("span");
+    badge.className = "solo-start-craft-balance";
+    badge.dataset.material = material;
+    badge.dataset.balance = String(remaining);
+    badge.textContent = `${material} ${remaining}${remaining < original ? ` (-${original - remaining})` : ""}`;
+    balances.appendChild(badge);
+  });
+  summary.appendChild(balances);
   optGrid.appendChild(summary);
 
   CRAFT_RECIPES.forEach(recipe => {
@@ -105,6 +145,11 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
       ...selectedRecipeIds,
       recipe.resultId
     ]);
+    const additionalCraftable = getAdditionalCraftableCount(
+      state.metaMaterials,
+      selectedRecipeIds,
+      recipe.resultId
+    );
     const stepper = document.createElement("div");
     stepper.className = "solo-start-craft-stepper";
     const decrement = document.createElement("button");
@@ -124,10 +169,18 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
     button.dataset.recipeId = recipe.resultId;
     button.disabled = !canAdd;
     button.setAttribute("aria-pressed", String(quantity > 0));
+    const availability = canAdd
+      ? `あと${additionalCraftable}個`
+      : "あと0個・素材不足";
+    const payment = getDepartureCraftCost([recipe.resultId]);
+    const hasEmptyMaterial = Object.keys(payment.typed || {}).some(
+      material => (selectedBalance?.[material] || 0) <= 0
+    ) || (payment.any > 0 && getMaterialBalanceTotal(selectedBalance) === 0);
     appendLabelledLines(
       button,
       `${recipe.name}：${quantity}個`,
-      `${formatCraftPayment(getDepartureCraftCost([recipe.resultId]))} ・ ${canAdd ? "+1個" : "素材不足"}`
+      `${formatCraftPaymentWithBalance(recipe, selectedBalance)} ・ ${availability}`,
+      `solo-start-craft-cost${hasEmptyMaterial ? " is-insufficient" : ""}`
     );
     button.addEventListener("click", () => {
       changeDepartureCraftQuantity(optGrid, className, startingGear, recipe.resultId, 1);

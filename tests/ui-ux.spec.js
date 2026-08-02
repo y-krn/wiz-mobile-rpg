@@ -2349,13 +2349,37 @@ for (const vp of VIEWPORTS) {
     });
 
     await page.locator('.solo-class-option').first().click();
+    await expect(page.locator('#game-container')).toHaveClass(/departure-mode/);
+    await expect(page.locator('#controls-panel')).toHaveClass(/departure-mode/);
+    await expect(page.locator('#log-panel')).toBeHidden();
+    await expect(page.locator('#viewport-panel')).toBeHidden();
+    const goalBanner = page.locator('#goal-banner');
+    await expect(goalBanner).toContainText('🎯 目標: 開始地点とクラスを選び、自己最深記録を更新せよ');
+    await expect(goalBanner).not.toContainText('探索率:');
+    await expect(goalBanner.locator('.goal-stats-container')).toHaveCount(0);
     const summary = page.locator('.solo-start-craft-summary');
     const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
     const portal = page.locator('[data-recipe-id="TOWN_PORTAL"]');
     const healDecrement = page.locator('[data-craft-recipe-id="HEAL_POTION"]');
+    const readCraftBalances = () => page.locator('.solo-start-craft-balance').evaluateAll((badges) => (
+      Object.fromEntries(badges.map((badge) => [badge.dataset.material, Number(badge.dataset.balance)]))
+    ));
+    const expectCraftBalancesToMatchState = async () => {
+      const expected = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return Object.fromEntries(
+          Object.entries(state.metaMaterials).filter(([, quantity]) => quantity > 0)
+        );
+      });
+      expect(await readCraftBalances()).toEqual(expected);
+    };
     await expect(summary).toContainText('0品');
     await expect(heal).toHaveCount(1);
     await expect(heal).toHaveAttribute('aria-pressed', 'false');
+    await expect(heal).toContainText('硬い皮 1/10');
+    await expect(heal).toContainText('獣の牙 1/10');
+    await expect(heal).toContainText('あと10個');
+    await expectCraftBalancesToMatchState();
     await expect(portal).toBeEnabled();
     await expect(portal).toContainText('素材8個（種別不問）');
     await expect(healDecrement).toHaveCount(1);
@@ -2376,12 +2400,29 @@ for (const vp of VIEWPORTS) {
     expect(layout.craft.left).toBeGreaterThanOrEqual(0);
     expect(layout.craft.right).toBeLessThanOrEqual(vp.width);
     expect(layout.craft.top).toBeLessThan(layout.lowestFloorTop);
+    await expect(page.locator('#btn-submenu-back')).toBeVisible();
+    const backBox = await page.locator('#btn-submenu-back').boundingBox();
+    expect(backBox.height, 'Departure back button stays tappable').toBeGreaterThanOrEqual(44);
+    expect(backBox.y + backBox.height).toBeLessThanOrEqual(vp.height);
 
     await heal.click();
     await expect(heal).toHaveAttribute('aria-pressed', 'true');
     await expect(summary).toContainText('1品');
+    await expect(summary).toContainText('硬い皮 9 (-1)');
+    await expect(summary).toContainText('獣の牙 9 (-1)');
+    await expect(heal).toContainText('あと9個');
+    await expect(page.locator('[data-material="硬い皮"]')).toContainText('9 (-1)');
+    await expect(page.locator('[data-material="獣の牙"]')).toContainText('9 (-1)');
     await expect(healDecrement).toBeEnabled();
+    await healDecrement.click();
+    await expect(summary).toContainText('0品');
+    await expect(summary).toContainText('硬い皮 10');
+    await expect(summary).toContainText('獣の牙 10');
+    await expect(heal).toContainText('あと10個');
+    await expectCraftBalancesToMatchState();
     await portal.click();
+    await expect(summary).toContainText('1品');
+    await heal.click();
     await expect(summary).toContainText('2品');
     await heal.click();
     await expect(summary).toContainText('3品');
@@ -2389,6 +2430,35 @@ for (const vp of VIEWPORTS) {
     await expect(summary).toContainText('2品');
   });
 }
+
+test('Departure craft disables the plus button at the displayed boundary', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openSubmenu } = await import('/src/navigation.js');
+
+    state.gameState = 'town';
+    state.metaMaterials = { '獣の牙': 2, '硬い皮': 2 };
+    state.workshop = { ranks: {} };
+    state.unlockedMilestones = [];
+    openSubmenu('solo_start', '単独潜行');
+  });
+
+  await page.locator('.solo-class-option').first().click();
+  const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
+  await expect(heal).toContainText('硬い皮 1/2');
+  await expect(heal).toContainText('獣の牙 1/2');
+  await expect(heal).toContainText('あと2個');
+  await heal.click();
+  await expect(heal).toContainText('あと1個');
+  await heal.click();
+  await expect(heal).toBeDisabled();
+  await expect(heal.locator('.solo-start-craft-cost')).toHaveClass(/is-insufficient/);
+  await expect(heal).toContainText('硬い皮 1/0');
+  await expect(heal).toContainText('獣の牙 1/0');
+  await expect(heal).toContainText('あと0個・素材不足');
+});
 
 test('Departure craft allows empty-handed departure without materials', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -2407,6 +2477,8 @@ test('Departure craft allows empty-handed departure without materials', async ({
   await page.locator('.solo-class-option').first().click();
   const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
   await expect(heal).toBeDisabled();
+  await expect(heal).toContainText('あと0個・素材不足');
+  await expect(page.locator('.solo-start-craft-balance')).toHaveCount(0);
   await expect(page.locator('.solo-start-floor-option').first()).toBeEnabled();
   await page.getByRole('button', { name: /B1Fから開始/ }).click();
   await expect(page.locator('#explore-controls')).toBeVisible();
