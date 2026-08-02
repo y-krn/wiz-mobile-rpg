@@ -2279,10 +2279,14 @@ for (const vp of VIEWPORTS) {
     const summary = page.locator('.solo-start-craft-summary');
     const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
     const portal = page.locator('[data-recipe-id="TOWN_PORTAL"]');
-    await expect(summary).toContainText('0/5枠');
+    const healDecrement = page.locator('[data-craft-recipe-id="HEAL_POTION"]');
+    await expect(summary).toContainText('0品');
     await expect(heal).toHaveCount(1);
     await expect(heal).toHaveAttribute('aria-pressed', 'false');
     await expect(portal).toBeEnabled();
+    await expect(portal).toContainText('素材8個（種別不問）');
+    await expect(healDecrement).toHaveCount(1);
+    await expect(healDecrement).toBeDisabled();
 
     const layout = await page.evaluate(() => {
       const button = document.querySelector('[data-recipe-id="HEAL_POTION"]');
@@ -2302,11 +2306,14 @@ for (const vp of VIEWPORTS) {
 
     await heal.click();
     await expect(heal).toHaveAttribute('aria-pressed', 'true');
-    await expect(summary).toContainText('1/5枠');
+    await expect(summary).toContainText('1品');
+    await expect(healDecrement).toBeEnabled();
     await portal.click();
-    await expect(summary).toContainText('2/5枠');
+    await expect(summary).toContainText('2品');
     await heal.click();
-    await expect(summary).toContainText('1/5枠');
+    await expect(summary).toContainText('3品');
+    await healDecrement.click();
+    await expect(summary).toContainText('2品');
   });
 }
 

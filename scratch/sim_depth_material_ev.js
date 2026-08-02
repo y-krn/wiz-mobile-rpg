@@ -82,8 +82,7 @@ const {
   bankRunMaterials,
   getBankedMaterials,
   getDepthMaterialDropChance,
-  getDepthMaterialExpectedQuantity,
-  spendMaterials
+  getDepthMaterialExpectedQuantity
 } = await import("../src/rules/material_rules.js");
 const { addInventoryItemToState } = await import("../src/state/inventory_state.js");
 const {
@@ -117,8 +116,6 @@ const {
   purchaseDepartureCraft,
   getWorkshopGrants
 } = await import("../src/systems/workshop.js");
-const { DEPARTURE_CRAFT_MAX_SLOTS: SOURCE_DEPARTURE_CRAFT_MAX_SLOTS } =
-  await import("../src/data/workshop.js");
 const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
 const { getStartingHealPotionCount } = await import("../src/rules/recovery_rules.js");
 
@@ -256,16 +253,11 @@ const PORTAL_MAX_HEAL_POTIONS = Math.max(
   Number(process.env.PORTAL_MAX_HEAL_POTIONS || 0)
 );
 const PORTAL_MIN_FLOOR = Math.max(1, Number(process.env.PORTAL_MIN_FLOOR || 3));
-const DEPARTURE_CRAFT_MAX_SLOTS = Math.max(
-  0,
-  Math.floor(Number(process.env.DEPARTURE_CRAFT_SLOTS || SOURCE_DEPARTURE_CRAFT_MAX_SLOTS))
-);
 const REQUESTED_DEPARTURE_CRAFT_IDS = String(process.env.DEPARTURE_CRAFT_IDS || "")
   .split(",")
   .map(value => value.trim())
   .filter(Boolean);
-const ACTIVE_DEPARTURE_CRAFT_IDS = [...new Set(REQUESTED_DEPARTURE_CRAFT_IDS)]
-  .slice(0, DEPARTURE_CRAFT_MAX_SLOTS);
+const ACTIVE_DEPARTURE_CRAFT_IDS = [...REQUESTED_DEPARTURE_CRAFT_IDS];
 const SCENARIOS = Object.freeze([
   {
     id: "workshop-locked",
@@ -852,16 +844,7 @@ function resolveDepartureCraftIds(scenario) {
   const requested = Object.hasOwn(scenario, "departureCraft")
     ? scenario.departureCraft
     : ACTIVE_DEPARTURE_CRAFT_IDS;
-  const slotLimit = getDepartureCraftSlotLimit(scenario);
-  return [...new Set(Array.isArray(requested) ? requested : [])]
-    .slice(0, slotLimit);
-}
-
-function getDepartureCraftSlotLimit(scenario) {
-  if (!Object.hasOwn(scenario, "departureCraftSlotLimit")) {
-    return DEPARTURE_CRAFT_MAX_SLOTS;
-  }
-  return Math.max(0, Math.floor(Number(scenario.departureCraftSlotLimit)));
+  return Array.isArray(requested) ? [...requested] : [];
 }
 
 function createSimulationState(className, startFloor, runSeed, scenario, workshop) {
@@ -880,23 +863,24 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   const useRealIdentificationSupply = identificationPolicy !== "legacy";
   const departureCraftIds = resolveDepartureCraftIds(scenario);
   const sourceDepartureCraftCost = getDepartureCraftCost(departureCraftIds);
-  const departureCraftCost = scenario.departureCraftCostOverride || sourceDepartureCraftCost;
   const departureCraftBank = {
-    ...sourceDepartureCraftCost,
+    ...sourceDepartureCraftCost.typed,
+    ...(sourceDepartureCraftCost.any > 0
+      ? {
+          "獣の牙":
+            (sourceDepartureCraftCost.typed["獣の牙"] || 0) + sourceDepartureCraftCost.any
+        }
+      : {}),
     ...(scenario.departureCraftMaterials || {})
   };
-  const departureCraftSlotLimit = getDepartureCraftSlotLimit(scenario);
   const departureCraftPurchaseValidation = purchaseDepartureCraft(
     departureCraftBank,
-    departureCraftIds,
-    departureCraftSlotLimit
+    departureCraftIds
   );
-  const departureCraftBalance = spendMaterials(departureCraftBank, departureCraftCost);
-  const departureCraftPurchase = departureCraftPurchaseValidation.ok && departureCraftBalance
+  const departureCraftPurchase = departureCraftPurchaseValidation.ok
     ? {
         ...departureCraftPurchaseValidation,
-        cost: departureCraftCost,
-        metaMaterials: departureCraftBalance
+        cost: scenario.departureCraftCostOverride || departureCraftPurchaseValidation.cost
       }
     : {
         ok: false,
@@ -5401,7 +5385,7 @@ console.log(
 console.log(
   `初期inventory: 傷薬=${INITIAL_HEAL_POTIONS}個, 解毒薬=${INITIAL_ANTIDOTES}個, ` +
   `出発クラフト=${ACTIVE_DEPARTURE_CRAFT_IDS.join(",") || "なし"} ` +
-  `(総枠${DEPARTURE_CRAFT_MAX_SLOTS}, cost=${JSON.stringify(getDepartureCraftCost(ACTIVE_DEPARTURE_CRAFT_IDS))})`
+  `(個数上限=素材残高, cost=${JSON.stringify(getDepartureCraftCost(ACTIVE_DEPARTURE_CRAFT_IDS))})`
 );
 console.log(
   `生存仮定: 傷薬使用閾値=${HEAL_POTION_THRESHOLD}, ` +

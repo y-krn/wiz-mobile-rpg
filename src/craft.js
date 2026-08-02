@@ -39,7 +39,7 @@ export const CRAFT_RECIPES = [
   {
     resultId: "TOWN_PORTAL",
     name: "帰還の翼",
-    mats: { "獣の牙": 4, "硬い皮": 3, "霊粉": 2, "鉄片": 1 },
+    departureCost: { mode: "any", total: 8 },
     desc: "任意のフロアから撤退し、素材を100%持ち帰る。"
   },
   {
@@ -57,7 +57,7 @@ export const CRAFT_RECIPES = [
   {
     resultId: "IDENTIFY_POWDER",
     name: "鑑定粉",
-    mats: { "霊粉": 5, "呪布": 2 },
+    departureCost: { mode: "any", total: 7 },
     identifyPowder: 1,
     desc: "未鑑定装備を1つ鑑定する。"
   }
@@ -113,6 +113,11 @@ export function executeCraft(recipeId) {
   // バッグ空きチェック
   if (state.inventory.length >= 20) {
     addLog("バッグがいっぱいです。");
+    return false;
+  }
+
+  if (!recipe.mats) {
+    addLog("このレシピは出発時のクラフトでのみ作成できます。");
     return false;
   }
 

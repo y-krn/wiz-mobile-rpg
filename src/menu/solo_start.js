@@ -11,33 +11,39 @@ import {
   getWorkshopGrants,
   purchaseDepartureCraft
 } from "../systems/workshop.js";
-import { DEPARTURE_CRAFT_MAX_SLOTS } from "../data/workshop.js";
 import { CRAFT_RECIPES } from "../craft.js";
 import { MATERIAL_DROP_BALANCE } from "../data/materials.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
-let departureCraftSelectedIds = new Set();
+let departureCraftQuantities = new Map();
 
-function formatCraftCost(cost) {
-  return Object.entries(cost)
+function formatCraftPayment(payment) {
+  const typed = Object.entries(payment?.typed || {})
     .map(([material, quantity]) => `${material}${quantity}`)
     .join("・");
+  const any = payment?.any > 0
+    ? `素材${payment.any}個（種別不問）`
+    : "";
+  return [typed, any].filter(Boolean).join("・") || "素材0個";
 }
 
 function startRun(className, startingGear = null, startFloor = 1) {
-  const selectedRecipeIds = [...departureCraftSelectedIds];
+  const selectedRecipeIds = getSelectedRecipeIds();
   let departureCraft = [];
   if (selectedRecipeIds.length > 0) {
     const purchase = purchaseDepartureCraft(state.metaMaterials, selectedRecipeIds);
     if (purchase.ok) {
       state.metaMaterials = purchase.metaMaterials;
       departureCraft = purchase.recipeIds;
-      addLog(`出発クラフト：${purchase.recipeIds.length}品を製作した（${formatCraftCost(purchase.cost)}）。`);
+      addLog(
+        `出発クラフト：${purchase.recipeIds.length}品を製作した（` +
+        `${formatCraftPayment(purchase.payment)}）。`
+      );
     } else {
       addLog("出発クラフトの素材が不足したため、何も持たずに出発する。");
     }
   }
-  departureCraftSelectedIds = new Set();
+  departureCraftQuantities = new Map();
   const character = applyWorkshopToCharacter(createSoloCharacter(className), state.workshop);
   if (startingGear) {
     const item = ITEMS[startingGear];
@@ -46,6 +52,31 @@ function startRun(className, startingGear = null, startFloor = 1) {
   state.party = [character];
   addLog(`${character.name}（${getClassJpName(className)}）が単独で潜行を開始する。`);
   executeEnterDungeon(startFloor, { departureCraft });
+}
+
+function getSelectedRecipeIds() {
+  return [...departureCraftQuantities.entries()].flatMap(([recipeId, quantity]) =>
+    Array.from({ length: quantity }, () => recipeId)
+  );
+}
+
+function getDepartureCraftQuantity(recipeId) {
+  return departureCraftQuantities.get(recipeId) || 0;
+}
+
+function changeDepartureCraftQuantity(optGrid, className, startingGear, recipeId, delta) {
+  const current = getDepartureCraftQuantity(recipeId);
+  const next = Math.max(0, current + delta);
+  if (next === current) return;
+  const candidateIds = getSelectedRecipeIds();
+  if (delta > 0) candidateIds.push(recipeId);
+  if (delta > 0 && !canAffordDepartureCraft(state.metaMaterials, candidateIds)) return;
+  if (next === 0) {
+    departureCraftQuantities.delete(recipeId);
+  } else {
+    departureCraftQuantities.set(recipeId, next);
+  }
+  renderStartFloorChoices(optGrid, className, startingGear);
 }
 
 function appendLabelledLines(button, title, detail) {
@@ -60,39 +91,49 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
   const summary = document.createElement("div");
   summary.className = "solo-start-craft-summary";
   summary.setAttribute("aria-live", "polite");
-  const selectedRecipes = getDepartureCraftRecipes([...departureCraftSelectedIds]);
-  const selectedCost = getDepartureCraftCost([...departureCraftSelectedIds]);
+  const selectedRecipeIds = getSelectedRecipeIds();
+  const selectedRecipes = getDepartureCraftRecipes(selectedRecipeIds);
+  const selectedCost = getDepartureCraftCost(selectedRecipeIds);
   summary.textContent = selectedRecipes.length > 0
-    ? `出発クラフト ${selectedRecipes.length}/${DEPARTURE_CRAFT_MAX_SLOTS}枠：${formatCraftCost(selectedCost)}`
-    : `出発クラフト 0/${DEPARTURE_CRAFT_MAX_SLOTS}枠：何も持たずに出発可`;
+    ? `出発クラフト ${selectedRecipes.length}品：${formatCraftPayment(selectedCost)}`
+    : "出発クラフト 0品：何も持たずに出発可";
   optGrid.appendChild(summary);
 
   CRAFT_RECIPES.forEach(recipe => {
-    const selected = departureCraftSelectedIds.has(recipe.resultId);
-    const candidateIds = selected
-      ? [...departureCraftSelectedIds]
-      : [...departureCraftSelectedIds, recipe.resultId];
-    const canSelect = selected || canAffordDepartureCraft(state.metaMaterials, candidateIds);
+    const quantity = getDepartureCraftQuantity(recipe.resultId);
+    const canAdd = canAffordDepartureCraft(state.metaMaterials, [
+      ...selectedRecipeIds,
+      recipe.resultId
+    ]);
+    const stepper = document.createElement("div");
+    stepper.className = "solo-start-craft-stepper";
+    const decrement = document.createElement("button");
+    decrement.type = "button";
+    decrement.className = "btn solo-start-craft-decrement";
+    decrement.dataset.craftRecipeId = recipe.resultId;
+    decrement.setAttribute("aria-label", `${recipe.name}を1個減らす`);
+    decrement.textContent = "−";
+    decrement.disabled = quantity === 0;
+    decrement.addEventListener("click", () => {
+      changeDepartureCraftQuantity(optGrid, className, startingGear, recipe.resultId, -1);
+    });
+
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `btn btn-block solo-start-craft-option${selected ? " is-selected" : ""}`;
+    button.className = `btn btn-block solo-start-craft-option${quantity > 0 ? " is-selected" : ""}`;
     button.dataset.recipeId = recipe.resultId;
-    button.disabled = !selected && !canSelect;
-    button.setAttribute("aria-pressed", String(selected));
+    button.disabled = !canAdd;
+    button.setAttribute("aria-pressed", String(quantity > 0));
     appendLabelledLines(
       button,
-      `${recipe.name}：${selected ? "選択中" : canSelect ? "選択" : "素材不足"}`,
-      `${formatCraftCost(recipe.mats)} ・ 1枠`
+      `${recipe.name}：${quantity}個`,
+      `${formatCraftPayment(getDepartureCraftCost([recipe.resultId]))} ・ ${canAdd ? "+1個" : "素材不足"}`
     );
     button.addEventListener("click", () => {
-      if (departureCraftSelectedIds.has(recipe.resultId)) {
-        departureCraftSelectedIds.delete(recipe.resultId);
-      } else if (departureCraftSelectedIds.size < DEPARTURE_CRAFT_MAX_SLOTS) {
-        departureCraftSelectedIds.add(recipe.resultId);
-      }
-      renderStartFloorChoices(optGrid, className, startingGear);
+      changeDepartureCraftQuantity(optGrid, className, startingGear, recipe.resultId, 1);
     });
-    optGrid.appendChild(button);
+    stepper.append(decrement, button);
+    optGrid.appendChild(stepper);
   });
 }
 
@@ -123,7 +164,7 @@ function renderStartFloorChoices(optGrid, className, startingGear) {
 export function renderSoloStart(optGrid) {
   optGrid.innerHTML = "";
   optGrid.className = "submenu-grid solo-start-grid";
-  departureCraftSelectedIds = new Set();
+  departureCraftQuantities = new Map();
 
   SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className)).forEach(className => {
     const character = createSoloCharacter(className);

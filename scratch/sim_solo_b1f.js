@@ -9,7 +9,6 @@ const {
   simulateRun
 } = await import("./sim_depth_material_ev.js");
 const { SOLO_CLASSES } = await import("../src/state/initial_state.js");
-const { getDepartureCraftCost } = await import("../src/systems/workshop.js");
 
 const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 800));
 const CALIBRATION_RUNS = Math.max(
@@ -24,7 +23,6 @@ const CRAFT_RECIPE_IDS = [
   "TRAP_KIT",
   "IDENTIFY_POWDER"
 ];
-const CRAFT_MATERIALS = getDepartureCraftCost(CRAFT_RECIPE_IDS);
 const B1_CLASSES = SOLO_CLASSES;
 const CLASS_LABELS = {
   Fighter: "戦士",
@@ -54,11 +52,10 @@ const CONDITIONS = [
   },
   {
     id: "zero-departure-craft",
-    label: "ゼロ化後（無料what-if上限N=5）",
+    label: "ゼロ化後（クラフト全支給what-if）",
     startingHealPotions: 0,
     startingAntidotes: 0,
-    departureCraft: CRAFT_RECIPE_IDS,
-    departureCraftMaterials: CRAFT_MATERIALS
+    departureCraft: CRAFT_RECIPE_IDS
   }
 ];
 
@@ -71,9 +68,7 @@ function createScenario(condition) {
     ignoreWorkshopReturnItems: true,
     startingHealPotions: condition.startingHealPotions,
     startingAntidotes: condition.startingAntidotes,
-    departureCraft: condition.departureCraft,
-    departureCraftMaterials: condition.departureCraftMaterials || {},
-    departureCraftSlotLimit: CRAFT_RECIPE_IDS.length
+    departureCraft: condition.departureCraft
   };
 }
 
@@ -172,7 +167,7 @@ async function main() {
     "死亡せずB2F入口へ到達。#215の司教/忍者を含む。"
   );
   console.log(
-    `出発クラフト: ${CRAFT_RECIPE_IDS.join(",")} / cost=${JSON.stringify(CRAFT_MATERIALS)}`
+    `出発クラフト: ${CRAFT_RECIPE_IDS.join(",")} / 個数上限=素材残高`
   );
   const scoringProfile = calibrateCoreScoringProfile(CALIBRATION_RUNS);
   CONDITIONS.map(condition => runCondition(condition, scoringProfile))
