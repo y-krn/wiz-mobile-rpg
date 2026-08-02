@@ -12,6 +12,7 @@ import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.j
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
+import { getChestMaterialPool } from "./rules/material_rules.js";
 
 export function applyTombRaiderTrapTier(chest, opener) {
   const params = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
@@ -637,14 +638,15 @@ export function openChestDirectly(opener = null, rng = Math.random) {
   }, 1800);
 }
 
-export function generateChestMaterials(floor, rng = Math.random, bonus = 0) {
+export function generateChestMaterials(
+  floor,
+  rng = Math.random,
+  bonus = 0,
+  { materialPoolProfile } = {}
+) {
   const mats = {};
   const qty = Math.floor(rng() * 3) + 1 + bonus; // 1-3個 + コア補正
-  let pool = ["獣の牙", "硬い皮"];
-  if (floor === 2) pool = ["獣の牙", "硬い皮", "毒腺", "骨片"];
-  else if (floor === 3) pool = ["骨片", "霊粉", "魔石片", "呪布"];
-  else if (floor === 4) pool = ["魔石片", "鉄片", "呪布", "黒角"];
-  else if (floor >= 5) pool = ["鉄片", "黒角", "竜鱗"];
+  const pool = getChestMaterialPool(floor, { profile: materialPoolProfile });
 
   for (let i = 0; i < qty; i++) {
     const mat = pool[Math.floor(rng() * pool.length)];

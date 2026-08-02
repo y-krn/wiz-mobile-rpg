@@ -22,6 +22,8 @@ const {
   getWorkshopGrants,
   purchaseWorkshopNode
 } = await import("../src/systems/workshop.js");
+const { generateEncounter } = await import("../src/combat_ui/encounter.js");
+const { getMonsterGroupClassification } = await import("../src/rules/material_rules.js");
 const {
   getDepartureCraftCost: summarizeDepartureCraftCost,
   getDepartureCraftPaymentTotal,
@@ -49,6 +51,21 @@ const MATERIALS = [
   "鉄片",
   "竜鱗"
 ];
+const ENCOUNTER_GROUPS = [
+  "beast",
+  "poison",
+  "undead",
+  "spirit",
+  "caster",
+  "armor",
+  "demon",
+  "dragon"
+];
+const ENCOUNTER_BANDS = ["B1-5", "B6-10", "B11-15", "B16-20"];
+const ENCOUNTER_SAMPLES_PER_FLOOR = Math.max(
+  100,
+  Number(process.env.PROGRESSION_ENCOUNTER_SAMPLES || 10000)
+);
 const CRAFT_RECIPE_ORDER = [
   "TOWN_PORTAL",
   "HEAL_POTION",
@@ -69,6 +86,9 @@ if (!CRAFT_PRIORITY_MODES.has(CRAFT_PRIORITY)) {
 }
 const DEFAULT_WING_COST_SWEEP = [6, 8, 10, 11, 12, 14, 16];
 const DEFAULT_POWDER_COST_SWEEP = [4, 5, 6, 7, 8, 10];
+const DEFAULT_RARE_MATERIAL_FLOOR_SWEEP = [3, 4, 5, 6, 8, 10];
+const DEFAULT_CHEST_MATERIAL_PROFILE_SWEEP = ["default", "early-rare", "early-balanced"];
+const DEFAULT_SECONDARY_MATERIAL_PROFILE_SWEEP = ["default", "arcane", "magic", "magic-poison", "scarce"];
 const PROGRESSION_POLICIES = new Set([
   "craft-first",
   "workshop-first",
@@ -98,6 +118,20 @@ const POWDER_COST_SWEEP = parseNumberSweep(
   process.env.PROGRESSION_POWDER_COSTS,
   DEFAULT_POWDER_COST_SWEEP
 );
+const RARE_MATERIAL_FLOOR_SWEEP = parseNumberSweep(
+  process.env.PROGRESSION_RARE_MATERIAL_FLOORS,
+  DEFAULT_RARE_MATERIAL_FLOOR_SWEEP
+);
+const CHEST_MATERIAL_PROFILE_SWEEP = (process.env.PROGRESSION_CHEST_MATERIAL_PROFILES ||
+  DEFAULT_CHEST_MATERIAL_PROFILE_SWEEP.join(","))
+  .split(",")
+  .map(value => value.trim())
+  .filter(Boolean);
+const SECONDARY_MATERIAL_PROFILE_SWEEP = (process.env.PROGRESSION_SECONDARY_MATERIAL_PROFILES ||
+  DEFAULT_SECONDARY_MATERIAL_PROFILE_SWEEP.join(","))
+  .split(",")
+  .map(value => value.trim())
+  .filter(Boolean);
 const PORTAL_BASE_RECIPE = CRAFT_RECIPES.find(recipe => recipe.resultId === "TOWN_PORTAL");
 const PORTAL_BASE_TOTAL = getDepartureCraftPaymentTotal(PORTAL_BASE_RECIPE);
 const REFERENCE_WING_COST = PORTAL_BASE_TOTAL;
@@ -121,6 +155,143 @@ const PROGRESSION_SCENARIO = {
 
 function totalMaterials(materials) {
   return MATERIALS.reduce((sum, material) => sum + (materials?.[material] || 0), 0);
+}
+
+function createEncounterGroupCounts() {
+  return Object.fromEntries(
+    ENCOUNTER_BANDS.map(band => [
+      band,
+      Object.fromEntries(ENCOUNTER_GROUPS.map(group => [group, 0]))
+    ])
+  );
+}
+
+function createMaterialCountsBySource() {
+  return Object.fromEntries(
+    ["combat", "chest", "quest", "other"].map(source => [
+      source,
+      Object.fromEntries(MATERIALS.map(material => [material, 0]))
+    ])
+  );
+}
+
+function addNestedCounts(target, additions) {
+  Object.entries(additions || {}).forEach(([key, values]) => {
+    target[key] ||= {};
+    Object.entries(values || {}).forEach(([name, amount]) => {
+      target[key][name] = (target[key][name] || 0) + amount;
+    });
+  });
+}
+
+function addMaterialCountsBySource(target, additions) {
+  Object.entries(additions || {}).forEach(([source, materials]) => {
+    target[source] ||= emptyMaterials();
+    addMaterials(target[source], materials);
+  });
+}
+
+function mergeEncounterFallbacks(target, additions) {
+  (additions || []).forEach(fallback => {
+    const current = target[fallback.name] || {
+      ...fallback,
+      groups: {},
+      count: 0
+    };
+    current.count += fallback.count || 0;
+    Object.entries(fallback.groups || {}).forEach(([group, amount]) => {
+      current.groups[group] = (current.groups[group] || 0) + amount;
+    });
+    current.minFloor = Math.min(current.minFloor, fallback.minFloor);
+    current.maxFloor = Math.max(current.maxFloor, fallback.maxFloor);
+    target[fallback.name] = current;
+  });
+}
+
+function createDiagnosticRandom(seed) {
+  let value = seed >>> 0;
+  return () => {
+    value = (Math.imul(value, 1664525) + 1013904223) >>> 0;
+    return value / 0x100000000;
+  };
+}
+
+function sampleEncounterGroupDistribution() {
+  const counts = createEncounterGroupCounts();
+  const fallbacks = {};
+  const rng = createDiagnosticRandom(BASE_SEED ^ 0x380380);
+  const state = { floor: 1 };
+  for (let floor = 1; floor <= 20; floor++) {
+    state.floor = floor;
+    const band = ENCOUNTER_BANDS[Math.min(3, Math.floor((floor - 1) / 5))];
+    for (let sample = 0; sample < ENCOUNTER_SAMPLES_PER_FLOOR; sample++) {
+      const { monsters } = generateEncounter(state, false, false, false, null, rng);
+      monsters.forEach(monster => {
+        const classification = getMonsterGroupClassification(monster);
+        counts[band][classification.group]++;
+        if (classification.source !== "fallback") return;
+        const name = String(monster.name || "").replace(/\s[A-Z]$/, "");
+        const current = fallbacks[name] || {
+          name,
+          tags: [...(monster.tags || [])],
+          spriteType: monster.spriteType || "",
+          groups: {},
+          count: 0,
+          minFloor: floor,
+          maxFloor: floor
+        };
+        current.count++;
+        current.groups[classification.group] = (current.groups[classification.group] || 0) + 1;
+        current.minFloor = Math.min(current.minFloor, floor);
+        current.maxFloor = Math.max(current.maxFloor, floor);
+        fallbacks[name] = current;
+      });
+    }
+  }
+  return { counts, fallbacks };
+}
+
+function formatGroupDistribution(groups) {
+  const total = Object.values(groups).reduce((sum, amount) => sum + amount, 0);
+  return ENCOUNTER_GROUPS
+    .map(group => `${group}=${groups[group]} (${formatRate(groups[group] / Math.max(1, total))})`)
+    .join(", ");
+}
+
+function printEncounterGroupDiagnostics(result) {
+  const sampled = sampleEncounterGroupDistribution();
+  console.log(
+    `\n【通常遭遇サンプル / floorごと${ENCOUNTER_SAMPLES_PER_FLOOR}回 / seed=${BASE_SEED ^ 0x380380}】`
+  );
+  ENCOUNTER_BANDS.forEach(band => {
+    console.log(`  ${band}: ${formatGroupDistribution(sampled.counts[band])}`);
+  });
+  console.log("fallback一覧（名前 / tags / spriteType / 群）:");
+  Object.values(sampled.fallbacks)
+    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name))
+    .forEach(monster => {
+      console.log(
+        `  ${monster.name} / tags=${monster.tags.join(",") || "-"} / ` +
+        `spriteType=${monster.spriteType || "-"} / ` +
+        `group=${Object.keys(monster.groups).join(",")} / ` +
+        `n=${monster.count} / floor=${monster.minFloor}-${monster.maxFloor}`
+      );
+    });
+  console.log("実run遭遇群（reference scenario）:");
+  ENCOUNTER_BANDS.forEach(band => {
+    console.log(`  ${band}: ${formatGroupDistribution(result.totals.encounterGroupCounts[band])}`);
+  });
+  console.log("実run fallback一覧:");
+  Object.values(result.totals.encounterFallbacks)
+    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name))
+    .forEach(monster => {
+      console.log(
+        `  ${monster.name} / tags=${monster.tags.join(",") || "-"} / ` +
+        `spriteType=${monster.spriteType || "-"} / ` +
+        `group=${Object.keys(monster.groups).join(",")} / ` +
+        `n=${monster.count} / floor=${monster.minFloor}-${monster.maxFloor}`
+      );
+    });
 }
 
 function emptyMaterials() {
@@ -422,8 +593,21 @@ function createScenarioList() {
     label: `出発クラフト 無制限（翼コスト=${REFERENCE_WING_COST}）`,
     recipeIds: [...CRAFT_RECIPE_ORDER],
     allowChestTownPortal: true,
+    comparisonSeries: "material-reference",
     sweep: "reference",
     isReference: true
+  });
+  scenarios.push({
+    id: "material-baseline",
+    label: "素材配分 before（旧宝箱配分・比較用）",
+    recipeIds: [...CRAFT_RECIPE_ORDER],
+    materialDropOverride: {
+      chestMaterialProfile: "default",
+      secondaryMaterialProfile: "default"
+    },
+    allowChestTownPortal: true,
+    comparisonSeries: "material-reference",
+    sweep: "material-baseline"
   });
   WING_COST_SWEEP.forEach(wingCost => {
     scenarios.push({
@@ -444,6 +628,48 @@ function createScenarioList() {
       allowChestTownPortal: true,
       sweep: "powder-cost"
     });
+  });
+  RARE_MATERIAL_FLOOR_SWEEP.forEach(rareMaterialFloor => {
+    scenarios.push({
+      id: `rare-material-floor-${rareMaterialFloor}`,
+      label: `竜鱗ゲート floor>=${rareMaterialFloor}`,
+      recipeIds: [...CRAFT_RECIPE_ORDER],
+      materialDropOverride: { rareMaterialFloor },
+      allowChestTownPortal: true,
+      sweep: "rare-material-floor"
+    });
+  });
+  CHEST_MATERIAL_PROFILE_SWEEP.forEach(chestMaterialProfile => {
+    scenarios.push({
+      id: `chest-material-profile-${chestMaterialProfile}`,
+      label: `宝箱素材配分=${chestMaterialProfile}`,
+      recipeIds: [...CRAFT_RECIPE_ORDER],
+      materialDropOverride: { chestMaterialProfile },
+      allowChestTownPortal: true,
+      sweep: "chest-material-profile"
+    });
+  });
+  SECONDARY_MATERIAL_PROFILE_SWEEP.forEach(secondaryMaterialProfile => {
+    scenarios.push({
+      id: `secondary-material-profile-${secondaryMaterialProfile}`,
+      label: `戦闘副素材配分=${secondaryMaterialProfile}`,
+      recipeIds: [...CRAFT_RECIPE_ORDER],
+      materialDropOverride: { secondaryMaterialProfile },
+      allowChestTownPortal: true,
+      sweep: "secondary-material-profile"
+    });
+  });
+  scenarios.push({
+    id: "material-candidate",
+    label: "素材配分 candidate（宝箱early-rare＋戦闘magic-poison）",
+    recipeIds: [...CRAFT_RECIPE_ORDER],
+    materialDropOverride: {
+      chestMaterialProfile: "early-rare",
+      secondaryMaterialProfile: "magic-poison"
+    },
+    allowChestTownPortal: true,
+    comparisonSeries: "material-reference",
+    sweep: "material-candidate"
   });
   return scenarios;
 }
@@ -487,8 +713,12 @@ function createFiniteTotals() {
     materialBankedByMaterial: emptyMaterials(),
     materialConsumedByCraft: emptyMaterials(),
     materialConsumedByWorkshop: emptyMaterials(),
+    materialConsumedByMerchant: emptyMaterials(),
+    materialSourceCounts: createMaterialCountsBySource(),
     endingBankByMaterial: emptyMaterials(),
     endingBankSamples: [],
+    encounterGroupCounts: createEncounterGroupCounts(),
+    encounterFallbacks: {},
     healPotionsAcquired: 0,
     healPotionsConsumed: 0,
     healPotionsAcquiredBySource: {},
@@ -565,7 +795,7 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
       startFloor: 1,
       targetDepth: POST_WING_TARGET,
       runIndex: trial * RUNS_PER_TRIAL + run,
-      seriesId: `finite-craft-${scenario.id}-${CRAFT_PRIORITY}`,
+      seriesId: `finite-craft-${scenario.comparisonSeries || scenario.id}-${CRAFT_PRIORITY}`,
       scoringProfile,
       scenario: {
         ...PROGRESSION_SCENARIO,
@@ -574,6 +804,7 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
         buyMerchantTownPortal: true,
         retreatAtMilestoneWithoutTownPortal: true,
         ignoreWorkshopReturnItems: true,
+        materialDropOverride: scenario.materialDropOverride || null,
         ...craftScenario
       },
       workshop
@@ -639,7 +870,11 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
         trapKitsConsumedBySource: result.trapKitsConsumedBySource,
         identificationPowderAcquired: result.identificationPowderAcquired,
         identificationPowderUsed: result.identificationPowderUsed,
-        identificationPowderAcquiredBySource: result.identificationPowderAcquiredBySource
+        identificationPowderAcquiredBySource: result.identificationPowderAcquiredBySource,
+        encounterGroupCounts: result.encounterGroupCounts,
+        encounterFallbacks: result.encounterFallbacks,
+        materialSourceCounts: result.materialSourceCounts,
+        materialConsumedByMerchant: result.materialConsumedByMerchant
       }
     });
   }
@@ -670,9 +905,18 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
       totals.reached += result.reachedFloor;
       totals.reachedB10 += Number(result.reachedFloor >= 10);
       totals.reachedB15 += Number(result.reachedFloor >= 15);
-      addMaterials(totals.materialAcquiredByMaterial, result.carriedMaterialCounts);
+      const grossMaterialCounts = Object.values(result.materialSourceCounts || {})
+        .reduce((materials, sourceCounts) => {
+          addMaterials(materials, sourceCounts);
+          return materials;
+        }, emptyMaterials());
+      addMaterials(totals.materialAcquiredByMaterial, grossMaterialCounts);
       addMaterials(totals.materialBankedByMaterial, result.bankedMaterialCounts);
       addMaterials(totals.materialConsumedByWorkshop, event.workshopSpent);
+      addMaterials(totals.materialConsumedByMerchant, result.materialConsumedByMerchant);
+      addMaterialCountsBySource(totals.materialSourceCounts, result.materialSourceCounts);
+      addNestedCounts(totals.encounterGroupCounts, result.encounterGroupCounts);
+      mergeEncounterFallbacks(totals.encounterFallbacks, result.encounterFallbacks);
       addCounts(totals.craftAttemptsByRecipe, event.craftPurchase.attempts);
       addCounts(totals.craftShortagesByRecipe, event.craftPurchase.shortages);
       Object.entries(event.craftPurchase.shortageMaterials).forEach(
@@ -829,28 +1073,59 @@ function formatMaterialAmount(amount, digits = 2) {
 }
 
 function printMaterialEconomy(result) {
-  if (!result.scenario.isReference || result.scenario.sweep !== "reference") return;
+  if (
+    (!result.scenario.isReference || result.scenario.sweep !== "reference") &&
+    result.scenario.sweep !== "material-baseline"
+  ) return;
   const { totals } = result;
   console.log(`\n【素材種別ボトルネック / ${CRAFT_PRIORITY} / ${result.scenario.label}】`);
   console.log(
-    "素材 | 入手/run | 銀行入庫/run | クラフト消費/run | 工房消費/run | 余剰/run | 終了bank平均 [P50/P90]"
+    "素材 | 入手/run | 銀行入庫/run | クラフト消費/run | 工房消費/run | 商人消費/run | 余剰/run | 終了bank平均 [P50/P90]"
   );
-  console.log("-----|----------|--------------|------------------|--------------|----------|-----------------------");
+  console.log("-----|----------|--------------|------------------|--------------|--------------|----------|-----------------------");
   MATERIALS.forEach(material => {
     const acquired = totals.materialAcquiredByMaterial[material] / Math.max(1, totals.runs);
     const banked = totals.materialBankedByMaterial[material] / Math.max(1, totals.runs);
     const craft = totals.materialConsumedByCraft[material] / Math.max(1, totals.runs);
     const workshop = totals.materialConsumedByWorkshop[material] / Math.max(1, totals.runs);
-    const surplus = banked - craft - workshop;
+    const merchant = totals.materialConsumedByMerchant[material] / Math.max(1, totals.runs);
+    const surplus = banked - craft - workshop - merchant;
     const samples = totals.endingBankSamples.map(sample => sample[material] || 0);
     const mean = totals.endingBankByMaterial[material] / Math.max(1, totals.endingBankSamples.length);
     console.log(
       `${material} | ${formatMaterialAmount(acquired).padStart(8)} | ` +
       `${formatMaterialAmount(banked).padStart(12)} | ${formatMaterialAmount(craft).padStart(16)} | ` +
-      `${formatMaterialAmount(workshop).padStart(12)} | ${formatMaterialAmount(surplus).padStart(8)} | ` +
+      `${formatMaterialAmount(workshop).padStart(12)} | ${formatMaterialAmount(merchant).padStart(12)} | ` +
+      `${formatMaterialAmount(surplus).padStart(8)} | ` +
       `${formatMaterialAmount(mean, 1)} [${formatMaterialAmount(percentile(samples, 0.5), 1)}/` +
       `${formatMaterialAmount(percentile(samples, 0.9), 1)}]`
     );
+  });
+  const totalAcquired = totalMaterials(totals.materialAcquiredByMaterial) / Math.max(1, totals.runs);
+  const totalBanked = totalMaterials(totals.materialBankedByMaterial) / Math.max(1, totals.runs);
+  const totalSurplus = MATERIALS.reduce(
+    (sum, material) => sum + (
+      totals.materialBankedByMaterial[material] -
+      totals.materialConsumedByCraft[material] -
+      totals.materialConsumedByWorkshop[material] -
+      totals.materialConsumedByMerchant[material]
+    ),
+    0
+  ) / Math.max(1, totals.runs);
+  console.log(
+    `総入手量/run=${totalAcquired.toFixed(2)}, 銀行入庫/run=${totalBanked.toFixed(2)}, ` +
+    `余剰蓄積/run=${totalSurplus.toFixed(2)}, 40run後bank=${(totals.endingBankTotal / TRIALS).toFixed(1)}`
+  );
+  console.log("入手源別（種別合計/run）:");
+  Object.entries(totals.materialSourceCounts).forEach(([source, materials]) => {
+    console.log(`  ${source}: ${(totalMaterials(materials) / Math.max(1, totals.runs)).toFixed(2)}`);
+  });
+  console.log("入手源別×素材（/run; combat/chest/quest/other）:");
+  MATERIALS.forEach(material => {
+    const bySource = ["combat", "chest", "quest", "other"]
+      .map(source => (totals.materialSourceCounts[source][material] / Math.max(1, totals.runs)).toFixed(2))
+      .join("/");
+    console.log(`  ${material}: ${bySource}`);
   });
   console.log("クラフト不足回数（候補として試行したが支払えなかった回数）:");
   CRAFT_RECIPE_ORDER.forEach(recipeId => {
@@ -883,7 +1158,13 @@ function printSweepTable(results, sweep, label, keyLabel) {
       const { scenario, totals } = result;
       const key = sweep === "wing-cost"
         ? scenario.wingCostOverride
-        : scenario.powderCostOverride;
+        : sweep === "powder-cost"
+          ? scenario.powderCostOverride
+          : sweep === "rare-material-floor"
+            ? scenario.materialDropOverride?.rareMaterialFloor
+            : sweep === "chest-material-profile"
+              ? scenario.materialDropOverride?.chestMaterialProfile
+              : scenario.materialDropOverride?.secondaryMaterialProfile;
       console.log(
         `${String(key).padStart(2)} | ${formatRate(average(totals.survived, totals)).padStart(6)} | ` +
         `B${average(totals.reached, totals).toFixed(2).padStart(5)} | ` +
@@ -919,7 +1200,10 @@ function formatWorkshopState(state) {
 }
 
 function printWorkshopStateDistribution(result) {
-  if (!result.scenario.isReference || result.scenario.sweep !== "reference") return;
+  if (
+    (!result.scenario.isReference || result.scenario.sweep !== "reference") &&
+    result.scenario.sweep !== "material-baseline"
+  ) return;
   const { totals } = result;
   console.log(
     `\n【工房状態分布 / ${result.scenario.label}】` +
@@ -1047,8 +1331,13 @@ export async function runWorkshopProgressionSimulation() {
 
   console.log("\n【出発クラフト条件別の測定値】");
   finiteResults.forEach(result => console.log(formatFiniteResult(result)));
+  const referenceResult = finiteResults.find(result => result.scenario.isReference);
+  if (referenceResult) printEncounterGroupDiagnostics(referenceResult);
   printSweepTable(finiteResults, "wing-cost", "帰還の翼コスト sweep", "cost");
   printSweepTable(finiteResults, "powder-cost", "鑑定粉コスト sweep", "cost");
+  printSweepTable(finiteResults, "rare-material-floor", "竜鱗ゲート sweep", "floor");
+  printSweepTable(finiteResults, "chest-material-profile", "宝箱素材配分 sweep", "profile");
+  printSweepTable(finiteResults, "secondary-material-profile", "戦闘副素材配分 sweep", "profile");
   finiteResults.forEach(printWorkshopStateDistribution);
   finiteResults.forEach(printMaterialEconomy);
 

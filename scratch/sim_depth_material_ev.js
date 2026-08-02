@@ -59,7 +59,7 @@ const {
 } = await import("../src/rules/trap_effect_rules.js");
 const { AFFIX_BALANCE, CORE_AFFIXES } = await import("../src/data/affixes.js");
 const { ITEMS } = await import("../src/data/items.js");
-const { MATERIAL_DROP_BALANCE } = await import("../src/data/materials.js");
+const { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } = await import("../src/data/materials.js");
 const {
   IDENTIFICATION_BALANCE,
   isCurseLocked
@@ -81,8 +81,9 @@ const {
 const {
   bankRunMaterials,
   getBankedMaterials,
-  getDepthMaterialDropChance,
-  getDepthMaterialExpectedQuantity
+  getDepthMaterialExpectedQuantity,
+  getMonsterGroupClassification,
+  getScholarMaterialBonus: getExpectedScholarMaterialBonus
 } = await import("../src/rules/material_rules.js");
 const { addInventoryItemToState } = await import("../src/state/inventory_state.js");
 const {
@@ -119,10 +120,89 @@ const {
 const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
 const { getStartingHealPotionCount } = await import("../src/rules/recovery_rules.js");
 
+function getScholarMaterialBonus(monsters, state) {
+  return monsters.reduce((sum, monster) => {
+    if (monster.fled || monster.hasSplit || !monster.simWasUncatalogued) return sum;
+    return sum + getExpectedScholarMaterialBonus(
+      monster,
+      state.floor,
+      { startFloor: state.currentRun?.startFloor || 1 }
+    );
+  }, 0);
+}
+
 const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 500));
 const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
 const TARGET_DEPTHS = [5, 10, 15, 20];
 const MAX_COMBAT_TURNS = 50;
+const ENCOUNTER_GROUPS = Object.freeze([
+  "beast",
+  "poison",
+  "undead",
+  "spirit",
+  "caster",
+  "armor",
+  "demon",
+  "dragon"
+]);
+const ENCOUNTER_BANDS = Object.freeze(["B1-5", "B6-10", "B11-15", "B16-20"]);
+
+function getEncounterBand(floor) {
+  const index = Math.min(
+    ENCOUNTER_BANDS.length - 1,
+    Math.floor((Math.max(1, Number(floor) || 1) - 1) / 5)
+  );
+  return ENCOUNTER_BANDS[index];
+}
+
+function createEncounterGroupCounts() {
+  return Object.fromEntries(
+    ENCOUNTER_BANDS.map(band => [
+      band,
+      Object.fromEntries(ENCOUNTER_GROUPS.map(group => [group, 0]))
+    ])
+  );
+}
+
+function createMaterialCountsBySource() {
+  return Object.fromEntries(
+    ["combat", "chest", "quest", "other"].map(source => [
+      source,
+      Object.fromEntries(MATERIAL_TYPES.map(material => [material, 0]))
+    ])
+  );
+}
+
+function cloneMaterialCountsBySource(counts) {
+  return Object.fromEntries(
+    Object.entries(counts).map(([source, materials]) => [source, { ...materials }])
+  );
+}
+
+function recordEncounterGroups(metrics, floor, monsters) {
+  if (!metrics?.encounterGroupCounts) return;
+  const band = getEncounterBand(floor);
+  monsters.forEach(monster => {
+    const classification = getMonsterGroupClassification(monster);
+    metrics.encounterGroupCounts[band][classification.group]++;
+    if (classification.source !== "fallback") return;
+    const name = String(monster.name || "").replace(/\s[A-Z]$/, "");
+    const current = metrics.encounterFallbacks[name] || {
+      name,
+      tags: [...(monster.tags || [])],
+      spriteType: monster.spriteType || "",
+      groups: {},
+      count: 0,
+      minFloor: floor,
+      maxFloor: floor
+    };
+    current.count++;
+    current.groups[classification.group] = (current.groups[classification.group] || 0) + 1;
+    current.minFloor = Math.min(current.minFloor, floor);
+    current.maxFloor = Math.max(current.maxFloor, floor);
+    metrics.encounterFallbacks[name] = current;
+  });
+}
 
 const IDENTIFICATION_POLICY_DEFINITIONS = Object.freeze({
   legacy: Object.freeze({
@@ -1010,7 +1090,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
         scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
       bossOverride: scenario.bossOverride || null,
       forcedBossAffixes: scenario.forcedBossAffixes || null,
-      elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY
+      elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY,
+      materialDropOverride: scenario.materialDropOverride || null
     },
     floor: startFloor
   };
@@ -1476,6 +1557,7 @@ function runEncounter(
     isElite,
     roamingMonster
   );
+  recordEncounterGroups(metrics, state.floor, monsters);
   if (state.alarmActive) {
     const multiplier = state.alarmWeakened ? 1.10 : 1.20;
     monsters.forEach(monster => {
@@ -1933,16 +2015,27 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
   return true;
 }
 
+function recordMerchantMaterialSpend(metrics, before, after) {
+  MATERIAL_TYPES.forEach(material => {
+    metrics.materialConsumedByMerchant[material] += Math.max(
+      0,
+      (before?.[material] || 0) - (after?.[material] || 0)
+    );
+  });
+}
+
 function maybePurchaseMerchantWing(state, scenario, metrics) {
   if (!scenario.buyMerchantTownPortal || !isMilestoneFloor(state.floor)) return;
   if (state.inventory.includes("TOWN_PORTAL")) return;
   metrics.merchantWingAttempts++;
+  const materialsBefore = { ...state.currentRun.materials };
   const result = purchaseMilestoneStock(state, "return_wing");
   if (!result.ok) {
     metrics.merchantWingFailures[result.reason] =
       (metrics.merchantWingFailures[result.reason] || 0) + 1;
     return;
   }
+  recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
   metrics.merchantWingsPurchased++;
   metrics.merchantPurchaseFloors.push(state.floor);
   metrics.portalAcquisitions.merchant++;
@@ -1956,12 +2049,14 @@ function maybePurchaseMerchantStatusCures(state, metrics) {
   ) return;
   MERCHANT_STATUS_CURE_STOCK.forEach(({ stockId, itemId }) => {
     if (state.inventory.includes(itemId)) return;
+    const materialsBefore = { ...state.currentRun.materials };
     const result = purchaseMilestoneStock(state, stockId);
     if (!result.ok) {
       metrics.statusCureMerchantFailures[result.reason] =
         (metrics.statusCureMerchantFailures[result.reason] || 0) + 1;
       return;
     }
+    recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
     addItemCount(metrics.statusCureItemsAcquired.merchant, itemId);
   });
 }
@@ -1973,12 +2068,14 @@ function maybePurchaseMerchantHealPotion(state, metrics) {
     state.inventory.includes("HEAL_POTION")
   ) return;
   metrics.healPotionMerchantAttempts++;
+  const materialsBefore = { ...state.currentRun.materials };
   const result = purchaseMilestoneStock(state, "heal_potion");
   if (!result.ok) {
     metrics.healPotionMerchantFailures[result.reason] =
       (metrics.healPotionMerchantFailures[result.reason] || 0) + 1;
     return;
   }
+  recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
   recordHealPotionAcquisition(state, metrics, "merchant");
 }
 
@@ -2920,28 +3017,6 @@ function applySimulatedCampRest(state, observations, metrics = null) {
   if (metrics) metrics.campHealingHp += hpGain;
 }
 
-function getScholarMaterialBonus(monsters, state) {
-  return monsters.reduce((sum, monster) => {
-    if (monster.fled || monster.hasSplit) return sum;
-    if (!monster.simWasUncatalogued) return sum;
-    const normalDropChance = monster.isBoss
-      ? 1
-      : (monster.isRare ? 0.9 : getDepthMaterialDropChance(state.floor));
-    const quantity = getDepthMaterialExpectedQuantity(state.floor, {
-      startFloor: state.currentRun?.startFloor || 1
-    });
-    const primaryQuantity = quantity +
-      (monster.isRare ? MATERIAL_DROP_BALANCE.rareBonus : 0) +
-      (monster.isBoss ? MATERIAL_DROP_BALANCE.bossBonus : 0);
-    const secondaryChance = (monster.isBoss || monster.isRare)
-      ? 1
-      : MATERIAL_DROP_BALANCE.secondaryChance;
-    const secondaryQuantity = Math.max(1, Math.floor(quantity / 2));
-    return sum + (1 - normalDropChance) *
-      (primaryQuantity + secondaryChance * secondaryQuantity);
-  }, 0);
-}
-
 function getChestCoreMinFloor(supplyOverride, itemKind) {
   const overrideKey = itemKind === "accessory"
     ? "chestAccessoryCoreMinFloor"
@@ -3309,7 +3384,10 @@ function thinMaterialQuantity(quantity, keepRate, rng) {
 }
 
 function transformCombatMaterialDrops(additions, floor, override, rng) {
-  if (!override || override.shape === "baseline") return additions;
+  if (
+    !override ||
+    !["baseline", "probability", "depth-slope"].includes(override.shape)
+  ) return additions;
   let keepRate = override.scale;
   if (override.shape === "depth-slope") {
     const baselineExpected = getDepthMaterialExpectedQuantity(floor);
@@ -3355,9 +3433,12 @@ function finishRun(state, outcome, metrics) {
     state.currentRun,
     getCharAffixSum(state.party[0], "contractReward")
   );
-  metrics.materialSources.quest += totalMaterials(
-    getMaterialDelta(materialsBeforeFinalQuests, state.currentRun.materials)
+  const finalQuestRewards = getMaterialDelta(
+    materialsBeforeFinalQuests,
+    state.currentRun.materials
   );
+  metrics.materialSources.quest += totalMaterials(finalQuestRewards);
+  addMaterials(metrics.materialSourceCounts.quest, finalQuestRewards);
 
   const roleKills = {
     disruptor: metrics.coreObservations.disruptorKills,
@@ -3377,6 +3458,16 @@ function finishRun(state, outcome, metrics) {
     0,
     carriedMaterials - totalMaterials(metrics.materialSources)
   );
+  MATERIAL_TYPES.forEach(material => {
+    const tracked = ["combat", "chest", "quest"].reduce(
+      (sum, source) => sum + metrics.materialSourceCounts[source][material],
+      0
+    );
+    metrics.materialSourceCounts.other[material] = Math.max(
+      0,
+      (state.currentRun.materials[material] || 0) - tracked
+    );
+  });
   const { banked, balance } = bankRunMaterials(
     state.metaMaterials,
     state.currentRun.materials,
@@ -3550,7 +3641,13 @@ function finishRun(state, outcome, metrics) {
     dragonKeysAcquired: metrics.dragonKeysAcquired,
     dragonKeyUses: metrics.dragonKeyUses,
     normalCombatTelemetry: metrics.normalCombatTelemetry,
+    encounterGroupCounts: Object.fromEntries(
+      Object.entries(metrics.encounterGroupCounts).map(([band, groups]) => [band, { ...groups }])
+    ),
+    encounterFallbacks: Object.values(metrics.encounterFallbacks),
     materialSources: metrics.materialSources,
+    materialSourceCounts: cloneMaterialCountsBySource(metrics.materialSourceCounts),
+    materialConsumedByMerchant: { ...metrics.materialConsumedByMerchant },
     combatMaterialEvents: metrics.combatMaterialEvents,
     combatMaterialHitEvents: metrics.combatMaterialHitEvents,
     diagnostics: metrics.diagnostics
@@ -3771,11 +3868,17 @@ export function simulateRun({
       maxIncomingHit: 0,
       heavyHitCount: 0
     },
+    encounterGroupCounts: createEncounterGroupCounts(),
+    encounterFallbacks: {},
     materialSources: {
       chest: 0,
       combat: 0,
       quest: 0
     },
+    materialSourceCounts: createMaterialCountsBySource(),
+    materialConsumedByMerchant: Object.fromEntries(
+      MATERIAL_TYPES.map(material => [material, 0])
+    ),
     combatMaterialEvents: 0,
     combatMaterialHitEvents: 0,
     scoringProfile,
@@ -3898,9 +4001,13 @@ export function simulateRun({
         const chestMaterials = generateChestMaterials(
           floor,
           Math.random,
-          tombRaider?.materialBonus || 0
+          tombRaider?.materialBonus || 0,
+          {
+            materialPoolProfile: state.simPolicy.materialDropOverride?.chestMaterialProfile
+          }
         );
         addMaterials(state.currentRun.materials, chestMaterials);
+        addMaterials(metrics.materialSourceCounts.chest, chestMaterials);
         metrics.materialSources.chest += totalMaterials(chestMaterials);
         const chestItems = rollChestItems(
           state,
@@ -4156,7 +4263,9 @@ export function simulateRun({
             addMaterials(state.currentRun.materials, transformedDrops);
           }
           metrics.materialSources.combat += totalMaterials(transformedDrops);
+          addMaterials(metrics.materialSourceCounts.combat, transformedDrops);
           metrics.materialSources.quest += totalMaterials(questRewards);
+          addMaterials(metrics.materialSourceCounts.quest, questRewards);
           metrics.combatMaterialEvents++;
           metrics.combatMaterialHitEvents += Number(totalMaterials(transformedDrops) > 0);
           const baselineCombatEquipment = state.currentRun.equipmentFound
