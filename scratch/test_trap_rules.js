@@ -69,6 +69,10 @@ console.log("\n[5] Detect rate:");
 assertEqual(calculateDetectRate({ floor: 1 }), 0.85, "B1 detect");
 assertEqual(calculateDetectRate({ floor: 11 }), 0.7, "B11 detect");
 assertEqual(calculateDetectRate({ floor: 30 }), 0.6, "B30 detect (clamped)");
+assertEqual(calculateDetectRate({ floor: 15, scoutBonus: 0.30 }), 0.94, "B15 full trapSense");
+assertEqual(calculateDetectRate({ floor: 20 }), 0.6, "B20 no trapSense unchanged");
+assertEqual(calculateDetectRate({ floor: 20, scoutBonus: 0.15 }), 0.775, "B20 mid trapSense deep bonus");
+assertEqual(calculateDetectRate({ floor: 20, scoutBonus: 0.30 }), 0.95, "B20 full trapSense reaches cap");
 
 console.log("\n[6] Constants:");
 assertEqual(FORCE_DAMAGE_MULTIPLIER, 0.5, "force damage multiplier");
