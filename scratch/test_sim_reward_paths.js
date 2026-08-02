@@ -21,6 +21,31 @@ const simulationFiles = fs.readdirSync(scratchDir)
   .filter(name => /^sim_.*\.js$/.test(name));
 const failures = [];
 
+const depthSimulationName = "sim_depth_material_ev.js";
+const depthSimulationSource = fs.readFileSync(
+  path.join(scratchDir, depthSimulationName),
+  "utf8"
+);
+const detectRateCalls = [...depthSimulationSource.matchAll(
+  /calculateDetectRate\s*\(\s*\{([\s\S]*?)\}\s*\)/g
+)];
+if (detectRateCalls.length === 0) {
+  failures.push(`${depthSimulationName}: calculateDetectRate call is missing`);
+} else {
+  detectRateCalls.forEach(([, args]) => {
+    if (!/\bscoutBonus\s*:/.test(args)) {
+      failures.push(
+        `${depthSimulationName}: calculateDetectRate must receive scoutBonus from the simulated party`
+      );
+    }
+  });
+  if (!/getPartyMaxAffix\s*\(\s*state\.party\s*,\s*["']trapSense["']\s*\)/.test(depthSimulationSource)) {
+    failures.push(
+      `${depthSimulationName}: trapSense must reach calculateDetectRate through getPartyMaxAffix`
+    );
+  }
+}
+
 function readScope(source) {
   const header = source.split(/\r?\n/).slice(0, 20).join("\n");
   // 区切りは同一行の空白のみ。`\s*` は改行を跨ぐため、理由を次行から拾ってしまう。

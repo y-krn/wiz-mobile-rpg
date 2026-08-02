@@ -3,6 +3,8 @@ const {
   calculateChestDisarmEvThreshold,
   calculateDisarmRate,
   calculateFloorDisarmEvThreshold,
+  calculateFloorTrapActionExpectedDamage,
+  calculateFloorTrapAvoidanceEv,
   calculateDetectRate,
   CHEST_WEAKENED_RISK_MULTIPLIER,
   FORCE_DAMAGE_MULTIPLIER,
@@ -100,6 +102,42 @@ assertClose(
   calculateChestDisarmEvThreshold(),
   1 - CHEST_WEAKENED_RISK_MULTIPLIER,
   "chest representative threshold"
+);
+
+console.log("\n[8] Trap action and avoidance EV:");
+const nonPitfallThreshold = calculateFloorDisarmEvThreshold({ trapType: "damage" });
+const forceExpectedDamage = calculateFloorTrapActionExpectedDamage({
+  action: "force",
+  trapType: "damage",
+  fullDamage: 10,
+  weakenedDamage: 10 * FORCE_DAMAGE_MULTIPLIER
+});
+assertClose(
+  calculateFloorTrapActionExpectedDamage({
+    action: "disarm",
+    trapType: "damage",
+    successRate: nonPitfallThreshold,
+    fullDamage: 10,
+    weakenedDamage: 10 * FORCE_DAMAGE_MULTIPLIER
+  }),
+  forceExpectedDamage,
+  "disarm threshold equals force expected damage"
+);
+const cheapDetour = calculateFloorTrapAvoidanceEv({
+  encounterChances: [0.04, 0.04],
+  expectedDamagePerEncounter: 100,
+  directExpectedDamage: 10
+});
+assertEqual(cheapDetour.shouldAvoid, true, "cheap detour is selected");
+assertClose(cheapDetour.expectedEncounters, 0.08, "detour encounter expectation");
+assertEqual(
+  calculateFloorTrapAvoidanceEv({
+    encounterChances: [0.04],
+    expectedDamagePerEncounter: null,
+    directExpectedDamage: 10
+  }).shouldAvoid,
+  false,
+  "detour without combat estimate is rejected"
 );
 
 console.log("\n=== ALL TRAP RULES TESTS PASSED ===");

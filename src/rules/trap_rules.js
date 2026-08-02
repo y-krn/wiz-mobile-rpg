@@ -38,6 +38,58 @@ export function calculateFloorDisarmEvThreshold({
   return clampPercent(threshold);
 }
 
+// 解除/強行の期待被害。解除成功率とpartial bandから導出し、
+// sim側で罠ダメージ式を再実装しない。
+export function calculateFloorTrapActionExpectedDamage({
+  action,
+  trapType,
+  successRate = 0,
+  fullDamage = 0,
+  weakenedDamage = 0
+} = {}) {
+  const full = Math.max(0, Number(fullDamage) || 0);
+  const weakened = Math.max(0, Number(weakenedDamage) || 0);
+  if (action === "force") return weakened;
+  if (action !== "disarm") return full;
+
+  const success = clampPercent(Number(successRate) || 0) / 100;
+  const partial = trapType === "pitfall"
+    ? 0
+    : Math.min(PARTIAL_SUCCESS_BAND, 100 - success * 100) / 100;
+  const fullFailure = Math.max(0, 1 - success - partial);
+  return partial * weakened + fullFailure * full;
+}
+
+// 迂回追加歩数を遭遇確率へ変換し、罠の直接対応と期待被害を比較する。
+// expectedDamagePerEncounter=null は測定値不足。保守的に回避しない。
+export function calculateFloorTrapAvoidanceEv({
+  encounterChances = [],
+  expectedDamagePerEncounter = null,
+  directExpectedDamage = 0
+} = {}) {
+  const expectedEncounters = encounterChances.reduce(
+    (sum, chance) => sum + Math.max(0, Number(chance) || 0),
+    0
+  );
+  const directDamage = Math.max(0, Number(directExpectedDamage) || 0);
+  const parsedCombatDamage = Number(expectedDamagePerEncounter);
+  const hasCombatDamageEstimate = expectedDamagePerEncounter !== null &&
+    expectedDamagePerEncounter !== undefined &&
+    Number.isFinite(parsedCombatDamage) &&
+    parsedCombatDamage >= 0;
+  const expectedEncounterDamage = hasCombatDamageEstimate
+    ? expectedEncounters * parsedCombatDamage
+    : null;
+
+  return {
+    expectedEncounters,
+    expectedEncounterDamage,
+    directExpectedDamage: directDamage,
+    hasCombatDamageEstimate,
+    shouldAvoid: hasCombatDamageEstimate && expectedEncounterDamage < directDamage
+  };
+}
+
 // 宝箱の代表的な比較（完全効果1.0 vs 弱体効果0.5）における解除確率閾値。
 // gasの期待ダメージ、teleporter、usableの30%破損は別効用のため個別閾値でない。
 export function calculateChestDisarmEvThreshold({

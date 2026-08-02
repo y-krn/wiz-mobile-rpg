@@ -4,6 +4,7 @@ import {
   resolveTrapAction
 } from "../src/rules/trap_rules.js";
 import {
+  calculateFloorTrapExpectedDamage,
   resolveChestTrapEffect,
   resolveFloorTrapEffect
 } from "../src/rules/trap_effect_rules.js";
@@ -81,6 +82,22 @@ const thiefDamage = resolveFloorTrapEffect({
   rng: () => 0
 });
 check("floor damage with scout mitigation", thiefDamage.partyDamage[0], 5);
+const expectedFighterDamage = calculateFloorTrapExpectedDamage({
+  trap: { type: "damage" },
+  floor: 1,
+  party: [soloFighter]
+})[0];
+const expectedThiefDamage = calculateFloorTrapExpectedDamage({
+  trap: { type: "damage" },
+  floor: 1,
+  party: [soloThief]
+})[0];
+check("expected damage follows full effect", expectedFighterDamage, 12);
+check(
+  "expected damage follows scout mitigation",
+  expectedThiefDamage,
+  8
+);
 
 check(
   "force action is partial",
