@@ -1,8 +1,0 @@
-工房進行シミュレーション（Issue #234 + #278）
-試行: 戦略ごと N=50, 50ラン/試行, seed=278234, core calibration N=100
-工房実需要検算: 12ノード / 36購入step / 総131個。
-撤退方針: 翼解放前=B6到達時撤退（B5を探索して竜鱗橋渡し）、解放後=B20到達時撤退。危険時は既存simの翼使用閾値。
-実装経路: generateRunFloor / applyCombatRewards / generateRandomEquipment / bankRunMaterials / purchaseWorkshopNode / applyWorkshopToCharacter を実srcから使用。
-grants反映: 恒久stat、affix/spell pool、鑑定粉、帰還item。初期装備は職適合かつ現装備よりatkが高い候補を選択。
-stake代理指標: 死亡で失う70%のうち、run開始時bank控除後の未購入工房需要に充当可能な個数。遅延購入stepは同runを100%bankした反実仮想との差。買い切り後は有限工房需要ゼロ。
-非モデル化: マイルストーン商人、罠状態被害、任意装備/クラス選択の最適化、run間codex継承、プレイヤー可変撤退判断。既存sim同様、固定閾値・round-robin職で代理。

@@ -23,6 +23,8 @@ files may point here, but should not duplicate these rules.
   requires it. When logs are needed, inspect only the tail or error area.
 - Review checklists live in `.agents/*.md`; apply them by reading the matching
   file. They are review-only unless the user explicitly changes that mode.
+- Generated raw dumps in `scratch/results/` (`*.raw.txt`, `*.jsonl`, `*.txt`) are not committed; keep only self-contained summary `.md` files without raw-dump path references.
+- When closing an Issue, delete its matching `issue-<number>-*` raw dumps under `scratch/results/` with `git rm`.
 
 ## Cross-Tool Tickets
 

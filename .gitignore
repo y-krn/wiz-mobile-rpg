@@ -29,3 +29,7 @@ test-results/
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+scratch/results/*.raw.txt
+scratch/results/*.jsonl
+scratch/results/*.txt

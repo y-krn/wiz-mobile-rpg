@@ -1,8 +1,0 @@
-
-> wiz-mobile-rpg@0.0.0 lint
-> npm run lint:css && eslint . --cache
-
-
-> wiz-mobile-rpg@0.0.0 lint:css
-> stylelint "src/style.css" "src/styles/**/*.css"
-
