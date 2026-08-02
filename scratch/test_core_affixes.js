@@ -4,6 +4,7 @@ import {
   SUPPORT_AFFIXES,
   AFFIX_BALANCE,
   getCharCoreParams,
+  getCharMaxMp,
   getDamageAffixResult,
   getSpellPayment,
   paySpellCost,
@@ -33,6 +34,7 @@ import {
   tryApplyHitFlinch,
   tryThornCounter
 } from "../src/combat_logic/damage.js";
+import { resolvePurifyRecovery } from "../src/rules/purify_rules.js";
 import {
   generateRandomAccessory,
   generateRandomEquipment
@@ -362,7 +364,50 @@ test("血杖: HP代替、HP不足、最低HP1", () => {
   assert.equal(getSpellPayment(char, 3).canCast, false);
 });
 
-test("浄化の環: undead/demonキルでMP回復", () => {
+test("浄化の環ルール: MP空き時はMP、満タン時はHPへ振替", () => {
+  const target = { name: "Undead", tags: ["undead"] };
+  assert.deepEqual(
+    resolvePurifyRecovery({
+      target,
+      targetTags: ["undead", "demon"],
+      hp: 50,
+      maxHp: 100,
+      mp: 0,
+      maxMp: 10,
+      mpRecovery: 1,
+      fullMpHpRecovery: 1
+    }),
+    { targetMatched: true, mpRecovered: 1, hpRecovered: 0 }
+  );
+  assert.deepEqual(
+    resolvePurifyRecovery({
+      target,
+      targetTags: ["undead", "demon"],
+      hp: 50,
+      maxHp: 100,
+      mp: 10,
+      maxMp: 10,
+      mpRecovery: 1,
+      fullMpHpRecovery: 1
+    }),
+    { targetMatched: true, mpRecovered: 0, hpRecovered: 1 }
+  );
+  assert.deepEqual(
+    resolvePurifyRecovery({
+      target: { name: "Beast", tags: ["beast"] },
+      targetTags: ["undead", "demon"],
+      hp: 50,
+      maxHp: 100,
+      mp: 10,
+      maxMp: 10,
+      mpRecovery: 1,
+      fullMpHpRecovery: 1
+    }),
+    { targetMatched: false, mpRecovered: 0, hpRecovered: 0 }
+  );
+});
+
+test("浄化の環: MP空き時はMP回復", () => {
   const char = makeChar(null);
   char.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_MP");
   const state = { combatState: {} };
@@ -370,6 +415,32 @@ test("浄化の環: undead/demonキルでMP回復", () => {
   applyKillAffixEffects(char, { name: "Undead", tags: ["undead"] }, state, logs);
   assert.equal(char.mp, getCharCoreParams(char, "CORE_PURIFY_RING").mpRecovery);
   assert.ok(logs.some(entry => entry.msg.startsWith("[浄化の環]")));
+});
+
+test("浄化の環: MP満タン時はHPへ振替、HP満タン時は発動ログなし", () => {
+  const char = makeChar(null);
+  char.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_MP");
+  char.mp = getCharMaxMp(char);
+  char.hp = 50;
+  const state = { combatState: {} };
+  const logs = [];
+  applyKillAffixEffects(char, { name: "Demon", tags: ["demon"] }, state, logs);
+  assert.equal(char.mp, getCharMaxMp(char));
+  assert.equal(char.hp, 52);
+  assert.match(logs[0].msg, /HPが2回復/);
+
+  const fullHpChar = makeChar(null);
+  fullHpChar.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_MP");
+  fullHpChar.mp = getCharMaxMp(fullHpChar);
+  const fullHpLogs = [];
+  applyKillAffixEffects(
+    fullHpChar,
+    { name: "Demon", tags: ["demon"] },
+    { combatState: {} },
+    fullHpLogs
+  );
+  assert.equal(fullHpChar.hp, fullHpChar.maxHp);
+  assert.equal(fullHpLogs.length, 0);
 });
 
 test("罠喰い: 1キャラ累積、上限20", () => {

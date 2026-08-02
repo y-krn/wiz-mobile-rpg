@@ -207,7 +207,7 @@ export function getCoreLogText(coreId) {
     CORE_LAST_STAND: "刃が燃え上がった！",
     CORE_OPENER: "先制の勢いで追撃した！",
     CORE_BLOOD_WAND: "生命を魔力へ変えた！",
-    CORE_PURIFY_RING: "邪気を祓い、魔力を取り戻した！",
+    CORE_PURIFY_RING: "邪気を祓い、力を取り戻した！",
     CORE_TRAP_EATER: "罠の力を喰らい、攻撃力が増した！",
     CORE_CURSE_KEEPER: "呪いを飼い慣らし、力へ変えた！",
     CORE_GIANT_SLAYER: "巨躯を断つ一撃が冴えた！",
