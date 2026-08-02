@@ -35,6 +35,7 @@ const {
   triggerPitfall,
   getExpectedEffectText
 } = await import("../src/systems/traps.js");
+const { calculateDetectRate } = await import("../src/rules/trap_rules.js");
 
 console.log("=== DUNGEON TRAP SYSTEM VERIFICATION ===");
 
@@ -241,6 +242,23 @@ console.log("PASS: Trap persistence removed.");
 console.log("\n[5] Verifying adjacent trap detection:");
 const { detectAdjacentTraps } = await import("../src/systems/traps.js");
 
+if (calculateDetectRate({ floor: 10 }) !== 0.715) {
+  console.error("FAIL: B10 baseline detect rate should remain 0.715.");
+  process.exit(1);
+}
+if (calculateDetectRate({ floor: 10, scoutBonus: 0.15 }) !== 0.865) {
+  console.error("FAIL: trap sense bonus should add 15 percentage points.");
+  process.exit(1);
+}
+if (calculateDetectRate({ floor: 10, scoutBonus: 1 }) !== 0.95) {
+  console.error("FAIL: detect rate must clamp at 0.95.");
+  process.exit(1);
+}
+if (calculateDetectRate({ floor: 10, scoutBonus: -1 }) !== 0.715) {
+  console.error("FAIL: negative detect bonus must not reduce the baseline.");
+  process.exit(1);
+}
+
 // Build a 3x3 test grid: player at (1,1). Walls are [N, E, S, W].
 function makeCell(walls) {
   return { walls, blockEnter: [false, false, false, false], type: "empty", event: null };
@@ -300,6 +318,35 @@ if (grid[2][1].trap.state !== "hidden") {
 }
 Math.random = realRandom;
 console.log("PASS: Adjacent detection verified.");
+
+// trapSense is a player investment, but detection remains class-independent.
+state.floor = 10;
+state.maps = Array.from({ length: 10 }, () => grid);
+state.party = [{
+  name: "Robin",
+  class: "Fighter",
+  level: 1,
+  hp: 20,
+  maxHp: 20,
+  status: "ok",
+  equipment: {
+    weapon: {
+      identified: true,
+      affixes: [{ type: "trapSense", value: 15 }]
+    }
+  }
+}];
+grid[0][1].trap = { id: "t_north", type: "damage", state: "hidden", difficulty: 30 };
+state.x = 1;
+state.y = 1;
+Math.random = () => 0.8;
+detectAdjacentTraps();
+Math.random = realRandom;
+if (grid[0][1].trap.state !== "discovered") {
+  console.error("FAIL: trapSense should raise B10 detection above an 0.8 roll.");
+  process.exit(1);
+}
+console.log("- trapSense investment raises detection for Fighter without class coupling");
 
 // 6. Three-choice trap encounter
 console.log("\n[6] Verifying trap encounter choices:");

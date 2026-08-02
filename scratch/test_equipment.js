@@ -834,6 +834,7 @@ import { createSoloCharacter } from "../src/state.js";
       spellGuard: 15,
       antiDragon: 15,
       antiUndead: 15,
+      antiDemon: 25,
       poisonWard: 25,
       treasureSense: 8,
       hearRange: 2,

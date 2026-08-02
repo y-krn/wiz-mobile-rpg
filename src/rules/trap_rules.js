@@ -11,6 +11,7 @@ export const FORCE_DAMAGE_MULTIPLIER = 0.5;
 export const PARTIAL_SUCCESS_BAND = 15;
 export const PITFALL_EDGE_BONUS = 20;
 export const SCOUT_TRAP_DAMAGE_MULTIPLIER = 0.7;
+export const DETECT_RATE_CAP = 0.95;
 
 export const CHEST_WEAKENED_RISK_MULTIPLIER = 0.5;
 
@@ -108,8 +109,10 @@ export function resolveTrapAction({ action, trap, successRate, rng = Math.random
 
 // 察知はクラス非依存。罠がルート選択の障害物である以上、
 // 情報を全員に配らないと選択が成立しない。
-export function calculateDetectRate({ floor }) {
+export function calculateDetectRate({ floor, scoutBonus = 0 }) {
   const depth = Math.max(1, Math.floor(Number(floor) || 1));
   const raw = 0.85 - 0.015 * (depth - 1);
-  return Math.round(Math.max(0.6, raw) * 1000) / 1000;
+  const base = Math.max(0.6, raw);
+  const bonus = Math.max(0, Number(scoutBonus) || 0);
+  return Math.round(Math.min(DETECT_RATE_CAP, base + bonus) * 1000) / 1000;
 }

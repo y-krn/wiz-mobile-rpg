@@ -283,6 +283,7 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "hearRange") prefix = "地獄耳の";
       else if (primaryAff.type === "arcaneSense") prefix = "霊視の";
       else if (primaryAff.type === "traceRead") prefix = "追跡者の";
+      else if (primaryAff.type === "trapSense") prefix = "罠察知の";
       else if (primaryAff.type === "antiUndead") prefix = "退魔の";
       else if (primaryAff.type === "antiDragon") prefix = "竜殺しの";
       else if (primaryAff.type === "spellGuard") prefix = "魔除けの";

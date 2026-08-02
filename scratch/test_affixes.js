@@ -21,14 +21,14 @@ function lcg(seed) {
   };
 }
 
-assert.strictEqual(SUPPORT_AFFIXES.length, 45, "support registry count");
-assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 45, "enabled support count");
+assert.strictEqual(SUPPORT_AFFIXES.length, 46, "support registry count");
+assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 46, "enabled support count");
 assert.deepStrictEqual(
   Object.fromEntries(["basic", "conditional", "trigger", "economy"].map(category => [
     category,
     SUPPORT_AFFIXES.filter(affix => affix.category === category).length
   ])),
-  { basic: 25, conditional: 11, trigger: 6, economy: 3 }
+  { basic: 26, conditional: 11, trigger: 6, economy: 3 }
 );
 SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.kind, "support");
@@ -139,5 +139,11 @@ assert.strictEqual(
   null,
   "poisonAtk does not enter the accessory pool"
 );
+const generatedTrapSenseEquipment = findGeneratedAffix(generateRandomEquipment, 5, "trapSense");
+assert.ok(generatedTrapSenseEquipment, "trapSense enters the equipment pool");
+assert.strictEqual(generatedTrapSenseEquipment.affix.value, 15, "trapSense scales to 15% on B5");
+const generatedTrapSenseAccessory = findGeneratedAffix(generateRandomAccessory, 5, "trapSense");
+assert.ok(generatedTrapSenseAccessory, "trapSense enters the accessory pool");
+assert.strictEqual(generatedTrapSenseAccessory.affix.value, 15, "accessory trapSense scales to 15% on B5");
 
 console.log("[PASS] affix registry and budget generation");
