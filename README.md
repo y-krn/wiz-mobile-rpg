@@ -12,4 +12,5 @@
 - `npm run test` — unit + browser
 - `npm run lint` — lint
 
-エージェント／コントリビューター向け規約: [`AGENTS.md`](./AGENTS.md)。設計正本: [`.agents/`](./.agents/)。
+エージェント／コントリビューター向けの規約は [`AGENTS.md`](./AGENTS.md)、
+設計正本は [`.agents/`](./.agents/) にある。
