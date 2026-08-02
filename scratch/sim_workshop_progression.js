@@ -59,6 +59,17 @@ const CRAFT_RECIPE_ORDER = [
 ];
 const DEFAULT_SLOT_SWEEP = [3, 4, 5, 6, 8];
 const DEFAULT_WING_COST_SWEEP = [6, 8, 10, 11, 12, 14, 16];
+const PROGRESSION_POLICIES = new Set([
+  "craft-first",
+  "workshop-first",
+  "workshop-complete"
+]);
+const PROGRESSION_POLICY = process.env.PROGRESSION_POLICY || "workshop-first";
+if (!PROGRESSION_POLICIES.has(PROGRESSION_POLICY)) {
+  throw new Error(
+    `PROGRESSION_POLICY must be ${[...PROGRESSION_POLICIES].join("|")}: ${PROGRESSION_POLICY}`
+  );
+}
 
 function parseNumberSweep(value, fallback) {
   const values = (value || fallback.join(","))
@@ -254,6 +265,10 @@ function getSimulationCraftBank(scenario) {
   return bank;
 }
 
+function emptyCraftPurchase() {
+  return { purchased: false, cost: {}, balance: null, recipeIds: [] };
+}
+
 function purchaseCraftFromBank(bank, scenario) {
   const recipeIds = getScenarioRecipeIds(scenario);
   if (recipeIds.length === 0) {
@@ -409,6 +424,7 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
   resetSimulationRandom(BASE_SEED + trial * 104729);
   let bank = emptyMaterials();
   let workshop = { ranks: {} };
+  let pendingCraftPurchase = emptyCraftPurchase();
   let standardCompleteRun = null;
   let firstMerchantPurchaseRun = null;
   const bankTimeline = [];
@@ -418,16 +434,15 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
     const workshopAtStart = cloneWorkshop(workshop);
     const workshopStateAtStart = summarizeWorkshopState(workshopAtStart);
     const standardCompleteAtStart = isStandardWorkshopComplete(workshop);
-    const craftPurchase = purchaseCraftFromBank(bank, scenario);
-    if (craftPurchase.purchased) {
-      bank = craftPurchase.balance;
-    }
+    const craftPurchase = pendingCraftPurchase;
+    pendingCraftPurchase = emptyCraftPurchase();
     const className = SIM_CLASSES[(trial * RUNS_PER_TRIAL + run - 1) % SIM_CLASSES.length];
     const craftScenario = craftPurchase.purchased
       ? {
           departureCraft: craftPurchase.recipeIds,
           departureCraftSlotLimit: scenario.slotLimit,
           departureCraftCostOverride: craftPurchase.cost,
+          // 外側で実bankから支払済み。ここはsimulateRun内の購入API検証用。
           departureCraftMaterials: getSimulationCraftBank(scenario)
         }
       : {
@@ -459,9 +474,23 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
     }
 
     addMaterials(bank, result.bankedMaterialCounts);
-    const purchaseResult = purchaseStandardAvailable(bank, workshop);
-    bank = purchaseResult.bank;
-    workshop = purchaseResult.workshop;
+    if (run < RUNS_PER_TRIAL) {
+      if (PROGRESSION_POLICY === "craft-first") {
+        pendingCraftPurchase = purchaseCraftFromBank(bank, scenario);
+        if (pendingCraftPurchase.purchased) bank = pendingCraftPurchase.balance;
+      }
+
+      const purchaseResult = purchaseStandardAvailable(bank, workshop);
+      bank = purchaseResult.bank;
+      workshop = purchaseResult.workshop;
+
+      const canCraftAfterWorkshop = PROGRESSION_POLICY === "workshop-first" ||
+        (PROGRESSION_POLICY === "workshop-complete" && isStandardWorkshopComplete(workshop));
+      if (canCraftAfterWorkshop) {
+        pendingCraftPurchase = purchaseCraftFromBank(bank, scenario);
+        if (pendingCraftPurchase.purchased) bank = pendingCraftPurchase.balance;
+      }
+    }
     if (standardCompleteRun === null && isStandardWorkshopComplete(workshop)) {
       standardCompleteRun = run;
     }
@@ -628,7 +657,7 @@ function formatFiniteResult(result) {
     ? `中央run ${percentile(totals.firstMerchantPurchaseRuns, 0.5)}`
     : "期間内なし";
   return (
-    `${scenario.label}: 平均到達=B${average(totals.reached, totals).toFixed(2)}, ` +
+    `[${PROGRESSION_POLICY}] ${scenario.label}: 平均到達=B${average(totals.reached, totals).toFixed(2)}, ` +
     `生還率=${formatRate(average(totals.survived, totals))}, ` +
     `EV/時間=${(totals.banked / Math.max(1, totals.time)).toFixed(4)}, ` +
     `B10/B15到達率=${formatRate(average(totals.reachedB10, totals))}/` +
@@ -765,6 +794,11 @@ export async function runWorkshopProgressionSimulation() {
     `試行: 条件ごと N=${TRIALS}, ${RUNS_PER_TRIAL}ラン/試行, seed=${BASE_SEED}, ` +
     `core calibration N=${CALIBRATION_RUNS}`
   );
+  console.log(
+    `工房/クラフト優先方針: ${PROGRESSION_POLICY} ` +
+    "（craft-first=クラフト→工房 / workshop-first=工房→クラフト / " +
+    "workshop-complete=工房買切り後のみクラフト）"
+  );
   const initialDemand = getRemainingDemand({ ranks: {} });
   const workshopSteps = WORKSHOP_NODES.reduce(
     (sum, node) => sum + getNodeMaxRank(node),
@@ -787,6 +821,10 @@ export async function runWorkshopProgressionSimulation() {
   console.log(
     "実装経路: generateRunFloor / applyCombatRewards / generateRandomEquipment / " +
     "bankRunMaterials / purchaseWorkshopNode / purchaseDepartureCraft を実srcから使用。"
+  );
+  console.log(
+    "クラフト支払: 各run終了後、実bankから次run分を支払。simulateRunへ渡すbankは " +
+    "外側支払済みレシピのAPI検証用であり、素材無料注入ではない。"
   );
   console.log(
     `罠モデル: simulateRun内でgenerateRunFloor経由、宝箱/フロア罠、傷薬、罠kit、翼、鑑定粉を ` +
