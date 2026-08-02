@@ -45,7 +45,7 @@ and `.agents/game-design.md`; resolve conflicts toward those documents.
 | 背水 | CORE_LAST_STAND | HP40%以下で与ダメ+40% | 武器 |
 | 先手必勝 | CORE_OPENER | 先制成功時、初撃に追撃確定 | 装飾 |
 | 血杖 | CORE_BLOOD_WAND | MP不足時、呪文をHP(コスト×2)で発動可(HP下限1) | 武器 |
-| 浄化の環 | CORE_PURIFY_RING | undead・spirit・demonキル毎にMP1回復 | 装飾 |
+| 浄化の環 | CORE_PURIFY_RING | undead・spirit・demonキル毎に、MP空き時MP1、満タン時HP2回復 | 装飾 |
 | 罠喰い | CORE_TRAP_EATER | 罠解除毎に遠征中攻+2累積(上限+20、帰還でリセット) | 装飾 |
 | 呪飼いの鎖 | CORE_CURSE_KEEPER | 装備中の呪い1個毎に全ステ+3 | 装飾 |
 | 巨人殺し | CORE_GIANT_SLAYER | 自分よりmaxHPの高い敵へ与ダメ+30% | 武器 |

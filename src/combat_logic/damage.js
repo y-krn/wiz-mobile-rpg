@@ -2,14 +2,24 @@ import { getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharWeaponAtk, getCharS
 import { recordCharDeath } from "../state.js";
 import { getBuffTotal, wakeSleepingCharOnDamage } from "./status_effects.js";
 import { getCharCoreParams, getCoreLogText, getDamageAffixResult } from "../rules/affix_rules.js";
+import { resolvePurifyRecovery } from "../rules/purify_rules.js";
 
-export function logCoreActivation(state, logQueue, char, coreId, { once = true } = {}) {
+export function logCoreActivation(
+  state,
+  logQueue,
+  char,
+  coreId,
+  { once = true, message = null, metadata = null } = {}
+) {
   if (!state?.combatState || !logQueue) return;
   const key = `${char.name}:${coreId}`;
   state.combatState.loggedCoreActivations ||= [];
   if (once && state.combatState.loggedCoreActivations.includes(key)) return;
   if (once) state.combatState.loggedCoreActivations.push(key);
-  logQueue.push({ msg: getCoreLogText(coreId) });
+  logQueue.push({
+    msg: message || getCoreLogText(coreId),
+    ...(metadata || {})
+  });
 }
 
 export function getMeleeModifiers(char) {
@@ -75,9 +85,29 @@ export function applyKillAffixEffects(char, target, state, logQueue) {
   }
 
   const purify = getCharCoreParams(char, "CORE_PURIFY_RING");
-  if (purify && purify.targetTags.some(tag => target.tags?.includes(tag))) {
-    char.mp = Math.min(getCharMaxMp(char), char.mp + purify.mpRecovery);
-    logCoreActivation(state, logQueue, char, "CORE_PURIFY_RING", { once: false });
+  if (purify) {
+    const recovery = resolvePurifyRecovery({
+      target,
+      targetTags: purify.targetTags,
+      hp: char.hp,
+      maxHp: getCharMaxHp(char),
+      mp: char.mp,
+      maxMp: getCharMaxMp(char),
+      mpRecovery: purify.mpRecovery,
+      fullMpHpRecovery: purify.fullMpHpRecovery
+    });
+    if (recovery.mpRecovered > 0 || recovery.hpRecovered > 0) {
+      char.mp += recovery.mpRecovered;
+      char.hp += recovery.hpRecovered;
+      const recovered = recovery.mpRecovered > 0
+        ? `MPが${recovery.mpRecovered}`
+        : `HPが${recovery.hpRecovered}`;
+      logCoreActivation(state, logQueue, char, "CORE_PURIFY_RING", {
+        once: false,
+        message: `[浄化の環] ${char.name}は${recovered}回復した！`,
+        metadata: { purifyRecovery: recovery }
+      });
+    }
   }
 }
 

@@ -72,6 +72,10 @@ const {
   hasCoreAffix
 } = await import("../src/rules/affix_rules.js");
 const {
+  isPurifyTarget,
+  resolvePurifyRecovery
+} = await import("../src/rules/purify_rules.js");
+const {
   bankRunMaterials,
   getBankedMaterials,
   getDepthMaterialDropChance,
@@ -431,6 +435,11 @@ function createCoreObservations() {
     bloodWandSpellOpportunities: 0,
     bloodWandHealOpportunities: 0,
     purifyKillsWithMpRoom: 0,
+    purifyPotentialMpRecovered: 0,
+    purifyPotentialHpRecovered: 0,
+    purifyMpRecovered: 0,
+    purifyHpRecovered: 0,
+    purifyEffectEvents: 0,
     totalKills: 0,
     killsWithMpRoom: 0,
     purifyTagKills: 0,
@@ -1171,18 +1180,45 @@ function recordRoundCoreObservations(
   const newlyDefeated = monstersBeforeRound.filter(({ hp }, index) =>
     hp > 0 && roundResult.state.combatState.monsters[index]?.hp <= 0
   );
-  const newlyDefeatedPurifyTargets = newlyDefeated.filter(({ tags }) =>
-    CORE_AFFIX_BY_ID.get("CORE_PURIFY_RING").params.targetTags.some(tag => tags?.includes(tag))
-  ).length;
+  const purifyParams = CORE_AFFIX_BY_ID.get("CORE_PURIFY_RING").params;
+  const newlyDefeatedPurifyTargets = newlyDefeated.filter(target =>
+    isPurifyTarget(target, purifyParams.targetTags)
+  );
   observations.totalKills += newlyDefeated.length;
-  observations.purifyTagKills += newlyDefeatedPurifyTargets;
+  observations.purifyTagKills += newlyDefeatedPurifyTargets.length;
   if (characterAfter.mp < getCharMaxMp(characterAfter)) {
-    observations.purifyKillsWithMpRoom += newlyDefeatedPurifyTargets;
+    observations.purifyKillsWithMpRoom += newlyDefeatedPurifyTargets.length;
     observations.killsWithMpRoom += newlyDefeated.length;
   }
   if (getCharMaxMp(characterAfter) > 0) {
-    observations.purifyTagKillsByCaster += newlyDefeatedPurifyTargets;
+    observations.purifyTagKillsByCaster += newlyDefeatedPurifyTargets.length;
   }
+
+  let potentialMp = characterAfter.mp;
+  let potentialHp = characterAfter.hp;
+  newlyDefeatedPurifyTargets.forEach(target => {
+    const recovery = resolvePurifyRecovery({
+      target,
+      targetTags: purifyParams.targetTags,
+      hp: potentialHp,
+      maxHp: getCharMaxHp(characterAfter),
+      mp: potentialMp,
+      maxMp: getCharMaxMp(characterAfter),
+      mpRecovery: purifyParams.mpRecovery,
+      fullMpHpRecovery: purifyParams.fullMpHpRecovery
+    });
+    potentialMp += recovery.mpRecovered;
+    potentialHp += recovery.hpRecovered;
+    observations.purifyPotentialMpRecovered += recovery.mpRecovered;
+    observations.purifyPotentialHpRecovered += recovery.hpRecovered;
+  });
+  roundResult.logQueue.forEach(entry => {
+    const recovery = entry.purifyRecovery;
+    if (!recovery) return;
+    observations.purifyEffectEvents++;
+    observations.purifyMpRecovered += recovery.mpRecovered || 0;
+    observations.purifyHpRecovered += recovery.hpRecovered || 0;
+  });
 }
 
 function runEncounter(
@@ -1849,16 +1885,27 @@ function createCoreScoringProfile(observations, runCount) {
       observations.offensiveTurns
     ),
     purifyMpPerOffensiveTurn: divide(
-      observations.purifyKillsWithMpRoom,
+      observations.purifyPotentialMpRecovered,
       observations.offensiveTurns
     ),
+    purifyHpPerOffensiveTurn: divide(
+      observations.purifyPotentialHpRecovered,
+      observations.offensiveTurns
+    ),
+    purifyActualMpRecovered: observations.purifyMpRecovered,
+    purifyActualHpRecovered: observations.purifyHpRecovered,
+    purifyActualEffectEvents: observations.purifyEffectEvents,
     // #312: 二重条件のどちらが効いているかの内訳
     purifyFunnel: {
       totalKills: observations.totalKills,
       tagKills: observations.purifyTagKills,
       tagKillsByCaster: observations.purifyTagKillsByCaster,
       killsWithMpRoom: observations.killsWithMpRoom,
-      tagKillsWithMpRoom: observations.purifyKillsWithMpRoom
+      tagKillsWithMpRoom: observations.purifyKillsWithMpRoom,
+      tagKillsWithFullMp: Math.max(
+        0,
+        observations.purifyTagKills - observations.purifyKillsWithMpRoom
+      )
     },
     incomingPhysicalHitRate: divide(
       observations.incomingPhysicalHits,
@@ -1934,10 +1981,9 @@ function getCombatCoreScore(character, scoringProfile, floor) {
   }
   // 対象撃破で得る1MPを追加詠唱1回とみなし、実測spell/fight差へ換算。
   if (coreId === "CORE_PURIFY_RING") {
-    return offenseScore *
-      classScoringProfile.purifyMpPerOffensiveTurn *
-      params.mpRecovery *
-      classScoringProfile.spellDamageUplift;
+    return offenseScore * classScoringProfile.purifyMpPerOffensiveTurn *
+      classScoringProfile.spellDamageUplift +
+      EQUIPMENT_SCORE_WEIGHTS.maxHp * classScoringProfile.purifyHpPerOffensiveTurn;
   }
   // 罠出現と実解除率からrun当たり累積攻撃を算出。上限・増分とも実params。
   if (coreId === "CORE_TRAP_EATER") {
@@ -3967,6 +4013,18 @@ function simulateCase({
     unequippedCoreReasonsById: {},
     firstCoreDepthCounts: {},
     coreObservations: createCoreObservations(),
+    purifyEffectsByClass: Object.fromEntries(
+      SIM_CLASSES.map(className => [className, {
+        runs: 0,
+        runsWithCore: 0,
+        tagKills: 0,
+        potentialMpRecovered: 0,
+        potentialHpRecovered: 0,
+        actualMpRecovered: 0,
+        actualHpRecovered: 0,
+        actualEffectEvents: 0
+      }])
+    ),
     coreRetentionByClass: Object.fromEntries(
       SIM_CLASSES.map(className => [className, {
         encounteredById: {},
@@ -4097,6 +4155,17 @@ function simulateCase({
         (totals.coreEquippedRunsById[result.finalCoreId] || 0) + 1;
     }
     addCoreObservations(totals.coreObservations, result.coreObservations);
+    const purifyEffects = totals.purifyEffectsByClass[className];
+    purifyEffects.runs++;
+    purifyEffects.runsWithCore += Number(
+      result.coreEverEquippedIds.includes("CORE_PURIFY_RING")
+    );
+    purifyEffects.tagKills += result.coreObservations.purifyTagKills;
+    purifyEffects.potentialMpRecovered += result.coreObservations.purifyPotentialMpRecovered;
+    purifyEffects.potentialHpRecovered += result.coreObservations.purifyPotentialHpRecovered;
+    purifyEffects.actualMpRecovered += result.coreObservations.purifyMpRecovered;
+    purifyEffects.actualHpRecovered += result.coreObservations.purifyHpRecovered;
+    purifyEffects.actualEffectEvents += result.coreObservations.purifyEffectEvents;
     const classCoreTotals = totals.coreRetentionByClass[className];
     result.coreEncounteredIds.forEach(coreId => {
       classCoreTotals.encounteredById[coreId] =
@@ -4184,6 +4253,23 @@ function simulateCase({
     coreEncounterRunsById: totals.coreEncounterRunsById,
     coreEquippedRunsById: totals.coreEquippedRunsById,
     unequippedCoreReasonsById: totals.unequippedCoreReasonsById,
+    purifyEffectsByClass: Object.fromEntries(
+      Object.entries(totals.purifyEffectsByClass).map(([className, values]) => {
+        const runs = Math.max(1, values.runs);
+        const coreRuns = Math.max(1, values.runsWithCore);
+        return [className, {
+          runsWithCore: values.runsWithCore,
+          averageTagKills: values.tagKills / runs,
+          averagePotentialMpRecovered: values.potentialMpRecovered / runs,
+          averagePotentialHpRecovered: values.potentialHpRecovered / runs,
+          averageActualMpRecovered: values.actualMpRecovered / runs,
+          averageActualHpRecovered: values.actualHpRecovered / runs,
+          averageActualEffectEvents: values.actualEffectEvents / runs,
+          averageActualMpPerCoreRun: values.actualMpRecovered / coreRuns,
+          averageActualHpPerCoreRun: values.actualHpRecovered / coreRuns
+        }];
+      })
+    ),
     coreRetentionByClass: Object.fromEntries(
       Object.entries(totals.coreRetentionByClass).map(([className, values]) => [
         className,
@@ -4335,8 +4421,9 @@ function printCoreScoringProfile(profile, policy = null) {
     "攻撃score×攻撃機会率×damage差 + maxHP重み×回復機会率×回復量"
   );
   console.log(
-    `浄化の環: MP回復可能対象撃破/攻撃turn=${profile.purifyMpPerOffensiveTurn.toFixed(4)}; ` +
-    "攻撃score×対象撃破率×MP1×spell/fight実測damage差"
+    `浄化の環: 潜在回復/攻撃turn MP=${profile.purifyMpPerOffensiveTurn.toFixed(4)}, ` +
+    `HP振替=${profile.purifyHpPerOffensiveTurn.toFixed(4)}; ` +
+    "MPは追加攻撃spell、HPは実回復をmaxHP重みへ換算"
   );
   const funnel = profile.purifyFunnel;
   console.log(
@@ -4345,7 +4432,8 @@ function printCoreScoringProfile(profile, policy = null) {
     `MP空きあり${funnel.tagKillsWithMpRoom}` +
     `(タグ一致の${formatPercent(funnel.tagKillsWithMpRoom / Math.max(1, funnel.tagKills))})。` +
     `MP持ち職の撃破に限ればタグ一致${funnel.tagKillsByCaster}、` +
-    `全撃破のうちMP空きは${formatPercent(funnel.killsWithMpRoom / Math.max(1, funnel.totalKills))}`
+    `全撃破のうちMP空きは${formatPercent(funnel.killsWithMpRoom / Math.max(1, funnel.totalKills))}、` +
+    `タグ一致のうちMP満タンは${formatPercent(funnel.tagKillsWithFullMp / Math.max(1, funnel.tagKills))}`
   );
   console.log(
     `罠喰い: 残り罠解除実績 B1=${profile.expectedTrapDisarmsFromFloor[1].toFixed(3)}, ` +
@@ -4363,7 +4451,9 @@ function printCoreScoringProfile(profile, policy = null) {
         `低HP攻撃=${formatPercent(classProfile.lowHpOffensiveRate)}, ` +
         `巨人対象=${formatPercent(classProfile.giantTargetRate)}, ` +
         `先制戦闘=${formatPercent(classProfile.openerFirstStrikeRate)}, ` +
-        `物理被弾=${formatPercent(classProfile.incomingPhysicalHitRate)}`
+        `物理被弾=${formatPercent(classProfile.incomingPhysicalHitRate)}, ` +
+        `浄化潜在MP=${classProfile.purifyMpPerOffensiveTurn.toFixed(4)}/turn, ` +
+        `HP=${classProfile.purifyHpPerOffensiveTurn.toFixed(4)}/turn`
       );
     });
   }
@@ -4639,6 +4729,17 @@ function printCoreRetentionDetail(result) {
       )
       .join(" > ");
     console.log(`  ${className}: ${ranking}`);
+  });
+  console.log("浄化の環 実効回復（core遭遇後の実ラン）:");
+  Object.entries(result.purifyEffectsByClass).forEach(([className, effect]) => {
+    console.log(
+      `  ${className}: core使用run=${effect.runsWithCore}, ` +
+      `タグ撃破=${effect.averageTagKills.toFixed(2)}/run, ` +
+      `実測MP=${effect.averageActualMpRecovered.toFixed(2)}/run, ` +
+      `HP=${effect.averageActualHpRecovered.toFixed(2)}/run ` +
+      `(core使用runあたりMP=${effect.averageActualMpPerCoreRun.toFixed(2)}, ` +
+      `HP=${effect.averageActualHpPerCoreRun.toFixed(2)})`
+    );
   });
 }
 
