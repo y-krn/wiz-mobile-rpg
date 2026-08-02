@@ -404,7 +404,8 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     }
     if (aff.type === "hearRange" && !tags.includes("search")) tags.push("search");
     if (aff.type === "arcaneSense" && !tags.includes("analysis")) tags.push("analysis");
-    if (["traceRead", "trapSense"].includes(aff.type) && !tags.includes("trap")) tags.push("trap");
+    if (aff.type === "traceRead" && !tags.includes("trap")) tags.push("trap");
+    if (aff.type === "trapSense" && !tags.includes("trap_sense")) tags.push("trap_sense");
   });
 
   let curseEffectId = null;
@@ -563,7 +564,7 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
       hearRange: "search",
       arcaneSense: "analysis",
       traceRead: "trap",
-      trapSense: "trap"
+      trapSense: "trap_sense"
     };
     const tag = affixTags[aff.type];
     if (tag && !tags.includes(tag)) tags.push(tag);

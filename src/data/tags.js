@@ -26,7 +26,8 @@ export const TAGS = {
   depth: { name: "深層", desc: "迷宮深部で力を引き出す覚悟" },
   vigor: { name: "無傷", desc: "万全の状態から放つ猛攻" },
   resistance: { name: "不屈", desc: "状態異常に抗う強い意志" },
-  precision: { name: "精唱", desc: "呪文を正確に導く集中力" }
+  precision: { name: "精唱", desc: "呪文を正確に導く集中力" },
+  trap_sense: { name: "察知", desc: "床罠を見抜く感覚" }
 };
 
 export const CLASS_TAGS = {
@@ -65,7 +66,7 @@ export const SPELL_TAGS = {
 
 export const MATERIAL_TAGS = {
   "霊粉": ["holy", "spirit", "appraisal", "contract", "precision"],
-  "毒腺": ["poison", "trap", "material", "resistance"],
+  "毒腺": ["poison", "trap", "material", "resistance", "trap_sense"],
   "鉄片": ["iron", "ward", "merchant", "vigor"],
   "竜鱗": ["dragon", "fire", "depth"],
   "黒角": ["curse", "demon", "blood", "fortune"]
@@ -90,5 +91,6 @@ export const TAG_EFFECT_MAP = {
   depth: { name: "深印", type: "deepAssault", value: 10, desc: "B3F以深で与ダメージ+10%", matCost: 4 },
   vigor: { name: "剛印", type: "fullHpDamage", value: 10, desc: "HP満タン時に与ダメージ+10%", matCost: 4 },
   resistance: { name: "忍印", type: "statusResistance", value: 12, desc: "状態異常耐性+12%", matCost: 3 },
-  precision: { name: "詠印", type: "spellAccuracy", value: 10, desc: "呪文命中率+10%", matCost: 3 }
+  precision: { name: "詠印", type: "spellAccuracy", value: 10, desc: "呪文命中率+10%", matCost: 3 },
+  trap_sense: { name: "察印", type: "trapSense", value: 15, desc: "床罠の察知率+15%", matCost: 3 }
 };

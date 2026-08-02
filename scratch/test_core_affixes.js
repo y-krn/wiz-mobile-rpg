@@ -18,10 +18,18 @@ import {
   getPartyMaxAffix,
   getAffixDefinition,
   formatAffixText,
+  TAGS,
   TAG_EFFECT_MAP,
   MATERIAL_TAGS
 } from "../src/data.js";
-import { applyCurseSeal, getDismantleResults, getPolishCost, polishSupportAffix } from "../src/craft.js";
+import { state } from "../src/state.js";
+import {
+  applyCurseSeal,
+  executeTagInscription,
+  getDismantleResults,
+  getPolishCost,
+  polishSupportAffix
+} from "../src/craft.js";
 import {
   getCharDef,
   getCharInt,
@@ -128,9 +136,9 @@ test("素材経済サポートenabled・浅層経済3/戦闘1・深層逆転", (
   assert.deepEqual(AFFIX_BALANCE.corePoolWeights.deep, { combat: 3, economy: 1 });
 });
 
-test("刻印19種: 素材cost・サポートtype・素材割当が整合", () => {
+test("刻印20種: 素材cost・サポートtype・素材割当が整合", () => {
   const entries = Object.entries(TAG_EFFECT_MAP);
-  assert.equal(entries.length, 19);
+  assert.equal(entries.length, 20);
   const assignedTags = new Set(Object.values(MATERIAL_TAGS).flat());
   entries.forEach(([tag, effect]) => {
     assert.ok(effect.matCost >= 1 && effect.matCost <= 4, `${tag}: matCost`);
@@ -141,6 +149,59 @@ test("刻印19種: 素材cost・サポートtype・素材割当が整合", () =>
       assert.equal(definition?.enabled, true, `${tag}: enabled`);
     }
   });
+});
+
+test("罠察知刻印: KATANAを維持してtrapSenseを付与", () => {
+  const previousLocalStorage = globalThis.localStorage;
+  const previousInventory = state.inventory;
+  const previousMaterials = state.metaMaterials;
+  const previousLogs = state.logs;
+  globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+
+  try {
+    const katana = {
+      kind: "equipment",
+      instanceId: "eq_katana_inscription_test",
+      baseId: "KATANA",
+      rarity: "magic",
+      identified: true,
+      enhanceLevel: 0,
+      tags: ["blood", "blade", "curse"],
+      affixes: []
+    };
+    state.inventory = [katana];
+    state.metaMaterials = { "毒腺": TAG_EFFECT_MAP.trap_sense.matCost };
+    state.logs = [];
+
+    assert.equal(executeTagInscription(0, "毒腺", "trap_sense"), true);
+    const inscribed = state.inventory[0];
+    assert.equal(inscribed.baseId, "KATANA");
+    assert.equal(inscribed.inscription.type, "trapSense");
+    assert.equal(inscribed.inscription.value, TAG_EFFECT_MAP.trap_sense.value);
+    assert.ok(inscribed.tags.includes("trap_sense"));
+    assert.equal(TAGS.trap_sense.name, "察知");
+    const itemData = getItemData(inscribed);
+    assert.match(itemData.desc, /<タグ: .*察知>/);
+    assert.ok(itemData.desc.includes("<刻印: 察印 (罠察知+15%)>"));
+
+    const character = {
+      class: "Fighter",
+      hp: 100,
+      maxHp: 100,
+      status: "ok",
+      equipment: { weapon: inscribed, shield: null, armor: null, accessory: null }
+    };
+    assert.equal(getPartyMaxAffix([character], "trapSense"), 15);
+  } finally {
+    state.inventory = previousInventory;
+    state.metaMaterials = previousMaterials;
+    state.logs = previousLogs;
+    if (previousLocalStorage === undefined) {
+      delete globalThis.localStorage;
+    } else {
+      globalThis.localStorage = previousLocalStorage;
+    }
+  }
 });
 
 test("atk/def supportと刻印を装備値へ各1回だけ反映", () => {

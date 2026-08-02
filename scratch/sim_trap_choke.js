@@ -7,10 +7,23 @@
 const { generateRunFloor } = await import("../src/run_map_generator.js");
 const { createRng } = await import("../src/seed_rng.js");
 const { generateRandomAccessory, generateRandomEquipment } = await import("../src/systems/equipment_generation.js");
-const { ITEMS, getPartyMaxAffix } = await import("../src/data.js");
+const { ITEMS, MATERIAL_TAGS, TAG_EFFECT_MAP, getPartyMaxAffix } = await import("../src/data.js");
 const { createSoloCharacter, state } = await import("../src/state.js");
 const { detectAdjacentTraps } = await import("../src/systems/traps.js");
 const { getTrapChokeRate } = await import("../src/map_generator.js");
+const { executeTagInscription } = await import("../src/craft.js");
+
+if (typeof globalThis.localStorage === "undefined") {
+  globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+}
+
+const trapSenseInscription = Object.entries(TAG_EFFECT_MAP)
+  .find(([, effect]) => effect.type === "trapSense");
+if (!trapSenseInscription) throw new Error("trapSense inscription is not registered");
+const [trapSenseTag, trapSenseEffect] = trapSenseInscription;
+const trapSenseMaterial = Object.entries(MATERIAL_TAGS)
+  .find(([, tags]) => tags.includes(trapSenseTag))?.[0];
+if (!trapSenseMaterial) throw new Error(`No material is assigned to ${trapSenseTag}`);
 
 const DIRECTIONS = [
   { dx: 0, dy: -1, dir: 0 },
@@ -24,6 +37,7 @@ const INVESTMENTS = [
   { id: "mid", label: "中", slots: ["accessory"] },
   { id: "full", label: "全振り", slots: ["accessory", "weapon"] }
 ];
+const CLASSES = ["Fighter", "Thief", "Samurai"];
 const SAMPLES = 1000;
 
 function keyOf(position) {
@@ -102,17 +116,78 @@ function findTrapSenseItem(floor, slot, character, loadoutSeed) {
   throw new Error(`trapSense item not found: B${floor} ${slot}`);
 }
 
-function buildInvestmentParty(floor, investment) {
-  const character = createSoloCharacter("Thief");
+function findPrimaryWeapon(floor, character, loadoutSeed) {
+  const isFrontline = ["Fighter", "Samurai"].includes(character.class);
+  const minimumAtk = isFrontline && floor >= 3 ? 12 : 0;
+  const preferredBaseId = isFrontline && floor >= 5 ? "KATANA" : null;
+  for (let attempt = 0; attempt < 10000; attempt++) {
+    const rng = createRng(`${loadoutSeed}:weapon:${attempt}`);
+    const item = generateRandomEquipment(floor, {
+      forceRarity: "magic",
+      rng,
+      party: [character],
+      allowCores: false
+    });
+    const base = ITEMS[item?.baseId];
+    if (base?.type !== "weapon" || !base.classes?.includes(character.class)) continue;
+    if (preferredBaseId && item.baseId !== preferredBaseId) continue;
+    if ((base.atk || 0) < minimumAtk) continue;
+    return { ...item, identified: true };
+  }
+  throw new Error(`primary weapon not found: B${floor} ${character.class}`);
+}
+
+function inscribeTrapSense(item) {
+  const previousInventory = state.inventory;
+  const previousMaterials = state.metaMaterials;
+  const previousLogs = state.logs;
+  const candidate = {
+    ...item,
+    identified: true,
+    tags: [...(item.tags || [])]
+  };
+  state.inventory = [candidate];
+  state.metaMaterials = { [trapSenseMaterial]: trapSenseEffect.matCost };
+  state.logs = [];
+  try {
+    if (!executeTagInscription(0, trapSenseMaterial, trapSenseTag)) {
+      throw new Error(`trapSense inscription failed for ${item.baseId}`);
+    }
+    return state.inventory[0];
+  } finally {
+    state.inventory = previousInventory;
+    state.metaMaterials = previousMaterials;
+    state.logs = previousLogs;
+  }
+}
+
+function buildInvestmentParty(floor, investment, className) {
+  const character = createSoloCharacter(className);
   for (const slot of investment.slots) {
-    character.equipment[slot] = findTrapSenseItem(
-      floor,
-      slot,
-      character,
-      `TRAP_LOADOUT_B${floor}:${investment.id}`
-    );
+    if (slot === "accessory") {
+      character.equipment.accessory = findTrapSenseItem(
+        floor,
+        slot,
+        character,
+        `TRAP_LOADOUT_B${floor}:${className}:${investment.id}`
+      );
+    } else if (slot === "weapon") {
+      character.equipment.weapon = inscribeTrapSense(findPrimaryWeapon(
+        floor,
+        character,
+        `TRAP_LOADOUT_B${floor}:${className}:${investment.id}`
+      ));
+    }
   }
   return [character];
+}
+
+function describeWeapon(character) {
+  const weapon = character.equipment?.weapon;
+  const baseId = typeof weapon === "object" ? weapon.baseId : weapon;
+  const base = ITEMS[baseId];
+  const inscription = weapon?.inscription?.type === "trapSense" ? "*" : "";
+  return `${baseId || "none"}${inscription}(${base?.atk || 0})`;
 }
 
 function walkFloor({ floor, grid, path, party, runSeed }) {
@@ -174,19 +249,27 @@ for (const floor of FLOORS) {
   let totalTraps = 0;
   let totalChoke = 0;
   let shortfalls = 0;
-  const loadouts = new Map(INVESTMENTS.map(investment => {
-    const party = buildInvestmentParty(floor, investment);
-    return [investment.id, {
+  const loadoutKey = (className, investmentId) => `${className}:${investmentId}`;
+  const loadouts = new Map(CLASSES.flatMap(className => INVESTMENTS.map(investment => {
+    const party = buildInvestmentParty(floor, investment, className);
+    return [loadoutKey(className, investment.id), {
       party,
-      trapSense: getPartyMaxAffix(party, "trapSense")
+      trapSense: getPartyMaxAffix(party, "trapSense"),
+      weapon: describeWeapon(party[0])
     }];
-  }));
-  const detectionTotals = new Map(INVESTMENTS.map(investment => [investment.id, {
-    trapSense: loadouts.get(investment.id).trapSense,
-    stepped: 0,
-    ambush: 0,
-    detected: 0
-  }]));
+  })));
+  const detectionTotals = new Map(CLASSES.flatMap(className => INVESTMENTS.map(investment => {
+    const key = loadoutKey(className, investment.id);
+    return [key, {
+      className,
+      investmentId: investment.id,
+      trapSense: loadouts.get(key).trapSense,
+      weapon: loadouts.get(key).weapon,
+      stepped: 0,
+      ambush: 0,
+      detected: 0
+    }];
+  })));
 
   for (let i = 0; i < SAMPLES; i++) {
     const runSeed = `TRAP_SIM_${floor}_${i}`;
@@ -197,19 +280,22 @@ for (const floor of FLOORS) {
     if (meta.choke < meta.chokeTargeted) shortfalls++;
 
     const path = shortestPath(map.grid);
-    for (const investment of INVESTMENTS) {
-      const result = detectionTotals.get(investment.id);
-      const loadout = loadouts.get(investment.id);
-      const scenario = walkFloor({
-        floor,
-        grid: structuredClone(map.grid),
-        path,
-        party: loadout.party,
-        runSeed: `${runSeed}:${investment.id}`
-      });
-      result.stepped += scenario.stepped;
-      result.ambush += scenario.ambush;
-      result.detected += scenario.detected;
+    for (const className of CLASSES) {
+      for (const investment of INVESTMENTS) {
+        const key = loadoutKey(className, investment.id);
+        const result = detectionTotals.get(key);
+        const loadout = loadouts.get(key);
+        const scenario = walkFloor({
+          floor,
+          grid: structuredClone(map.grid),
+          path,
+          party: loadout.party,
+          runSeed: `${runSeed}:${investment.id}`
+        });
+        result.stepped += scenario.stepped;
+        result.ambush += scenario.ambush;
+        result.detected += scenario.detected;
+      }
     }
   }
 
@@ -228,26 +314,31 @@ for (const floor of FLOORS) {
 }
 
 console.log("\n=== TRAP SURPRISE DETECTION ===");
-console.log("floor | investment | trapSense | stepped | ambush | detected | ambush rate");
+console.log("floor | class   | investment | trapSense | weapon           | stepped | ambush | detected | ambush rate");
 
 for (const floor of FLOORS) {
   const totals = detectionTotalsByFloor.get(floor);
-  for (const investment of INVESTMENTS) {
-    const result = totals.get(investment.id);
-    const ambushRate = result.stepped > 0 ? (result.ambush / result.stepped) * 100 : 0;
-    console.log(
-      `B${String(floor).padStart(2)}   | ` +
-      `${investment.label.padEnd(10)} | ` +
-      `${String(result.trapSense).padStart(9)} | ` +
-      `${String(result.stepped).padStart(7)} | ` +
-      `${String(result.ambush).padStart(6)} | ` +
-      `${String(result.detected).padStart(8)} | ` +
-      `${ambushRate.toFixed(1).padStart(10)}%`
-    );
+  for (const className of CLASSES) {
+    for (const investment of INVESTMENTS) {
+      const result = totals.get(`${className}:${investment.id}`);
+      const ambushRate = result.stepped > 0 ? (result.ambush / result.stepped) * 100 : 0;
+      console.log(
+        `B${String(floor).padStart(2)}   | ` +
+        `${className.padEnd(7)} | ` +
+        `${investment.label.padEnd(10)} | ` +
+        `${String(result.trapSense).padStart(9)} | ` +
+        `${result.weapon.padEnd(16)} | ` +
+        `${String(result.stepped).padStart(7)} | ` +
+        `${String(result.ambush).padStart(6)} | ` +
+        `${String(result.detected).padStart(8)} | ` +
+        `${ambushRate.toFixed(1).padStart(10)}%`
+      );
+    }
   }
 }
 
 console.log("\nstepped = stairs-up→stairs-down 最短経路上の床罠。");
 console.log("ambush = 察知失敗で3択UIを経ず発動、detected = 察知成功で3択UI経由想定。");
 console.log("trapSense は実生成装備を createSoloCharacter に装備し、getPartyMaxAffix で取得した値。");
+console.log("全振りの weapon * は実生成装備へ executeTagInscription を通した主力武器。");
 console.log("各歩行位置で detectAdjacentTraps を呼び、detectRolled の生涯1回制限も実装経路で適用。");
