@@ -23,8 +23,6 @@ files may point here, but should not duplicate these rules.
   requires it. When logs are needed, inspect only the tail or error area.
 - Review checklists live in `.agents/*.md`; apply them by reading the matching
   file. They are review-only unless the user explicitly changes that mode.
-- Generated raw dumps in `scratch/results/` (`*.raw.txt`, `*.jsonl`, `*.txt`) are not committed; keep only self-contained summary `.md` files without raw-dump path references.
-- When closing an Issue, delete its matching `issue-<number>-*` raw dumps under `scratch/results/` with `git rm`.
 
 ## Cross-Tool Tickets
 
@@ -251,6 +249,10 @@ When reporting checklist use, include:
 - Design specs and implementation plans are working artifacts, not records.
   When the work ships, distill what stays true into `.agents/*.md` and delete
   the spec or plan file. Git history keeps the rest.
+- Raw simulation dumps under `scratch/results/` (`*.raw.txt`, `*.jsonl`,
+  `*.txt`) are not committed. Commit only the summary `.md`, and keep it
+  self-contained: cite the reproducing command, not a raw-dump path. When an
+  Issue closes, `git rm` its `issue-<number>-*` raw dumps.
 - Put task-specific, path-specific, or reviewer-specific detail in `.agents/*`
   instead of expanding this file.
 - Avoid conflicting rules, repeated lint/test instructions, and tool-specific
