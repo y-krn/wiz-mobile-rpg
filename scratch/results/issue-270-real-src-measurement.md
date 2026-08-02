@@ -33,7 +33,7 @@
 - 工房未解放: core遭遇 64.8% / core装備 57.0% / 前半換装 7.24 / 平均到達 B6.86 / 生還 47.2%
 - 翼不使用: core遭遇 68.4% / core装備 62.8% / 前半換装 7.92 / 平均到達 B8.91 / 生還 10.4%
 
-生出力: `scratch/results/issue-270-real-src-before.raw.txt`
+再現コマンド（変更前src状態）: `node scratch/sim_depth_material_ev.js`
 
 ## After（実装後）
 
@@ -63,7 +63,7 @@
 - 工房未解放: core遭遇 78.4% / core装備 71.2% / 前半換装 7.10 / 平均到達 B6.78 / 生還 51.2%
 - 翼不使用: core遭遇 76.8% / core装備 74.6% / 前半換装 7.55 / 平均到達 B8.40 / 生還 9.0%
 
-生出力: `scratch/results/issue-270-real-src-after.raw.txt`
+再現コマンド（変更後src状態）: `node scratch/sim_depth_material_ev.js`
 
 ## 試算値との差
 
@@ -131,9 +131,9 @@
 - `node scratch/sim_workshop_progression.js`: exit 0
 - iOSシミュレータ: 未実施。リポジトリにXcode project/workspace、Capacitor、`ios/`構成なし。
 
-検証生出力:
+検証コマンド:
 
-- `scratch/results/issue-270-validation-lint.raw.txt`
-- `scratch/results/issue-270-validation-unit.raw.txt`
-- `scratch/results/issue-270-validation-sim-depth-material-ev.raw.txt`
-- `scratch/results/issue-270-validation-sim-workshop-progression.raw.txt`
+- `npm run lint`
+- `npm run test:unit`
+- `node scratch/sim_depth_material_ev.js`
+- `node scratch/sim_workshop_progression.js`

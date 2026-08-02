@@ -249,6 +249,10 @@ When reporting checklist use, include:
 - Design specs and implementation plans are working artifacts, not records.
   When the work ships, distill what stays true into `.agents/*.md` and delete
   the spec or plan file. Git history keeps the rest.
+- Raw simulation dumps under `scratch/results/` (`*.raw.txt`, `*.jsonl`,
+  `*.txt`) are not committed. Commit only the summary `.md`, and keep it
+  self-contained: cite the reproducing command, not a raw-dump path. When an
+  Issue closes, `git rm` its `issue-<number>-*` raw dumps.
 - Put task-specific, path-specific, or reviewer-specific detail in `.agents/*`
   instead of expanding this file.
 - Avoid conflicting rules, repeated lint/test instructions, and tool-specific
