@@ -155,6 +155,8 @@
   top: 0;
   z-index: 1;
   grid-column: 1 / -1;
+  display: grid;
+  gap: var(--sp-xs);
   padding: var(--sp-sm);
   border: 1px solid var(--border-color);
   background: var(--hud-chrome-bg);
@@ -163,6 +165,31 @@
   font-size: var(--fs-sm);
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.solo-start-craft-summary-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.solo-start-craft-balances {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-xxs) var(--sp-xs);
+  min-width: 0;
+}
+
+.solo-start-craft-balance {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-xxs) var(--sp-xs);
+  border: 1px solid rgba(0, 255, 102, 0.2);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 255, 102, 0.08);
+  color: var(--neon-green);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .solo-start-craft-option {
@@ -178,6 +205,10 @@
 .solo-start-floor-option span {
   color: var(--text-muted);
   font-size: var(--fs-xs);
+}
+
+.solo-start-craft-option .solo-start-craft-cost.is-insufficient {
+  color: var(--text-danger, var(--neon-red));
 }
 
 .solo-start-craft-option.is-selected {

@@ -194,6 +194,7 @@ export function updateUI() {
     "chest_opener_select",
     ...EVENT_SUBMENU_TYPES
   ];
+  const isDeparturePrepSubmenu = state.gameState === "submenu" && menuContext.type === "solo_start";
 
   // Reset/Apply floor-theme class on #game-container
   const container = document.getElementById("game-container");
@@ -203,6 +204,7 @@ export function updateUI() {
     }
     container.classList.toggle("result-mode", state.gameState === "result");
     container.classList.toggle("event-mode", state.gameState === "submenu" && eventModeSubmenus.includes(menuContext.type));
+    container.classList.toggle("departure-mode", isDeparturePrepSubmenu);
     if (state.currentRun &&
         state.gameState !== "town" &&
         state.gameState !== "gameover" &&
@@ -335,6 +337,7 @@ export function updateUI() {
     controlsPanel.classList.toggle("combat-mode", state.gameState === "combat");
     controlsPanel.classList.toggle("town-mode", state.gameState === "town");
     controlsPanel.classList.toggle("submenu-mode", state.gameState === "submenu");
+    controlsPanel.classList.toggle("departure-mode", isDeparturePrepSubmenu);
     controlsPanel.classList.toggle("chest-menu-mode", state.gameState === "submenu" && menuContext.type === "chest_menu");
     controlsPanel.classList.toggle("trap-mode", state.gameState === "trap_encounter");
   }

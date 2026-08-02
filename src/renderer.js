@@ -64,7 +64,7 @@ export class DungeonRenderer {
   getSceneVisibility() {
     const showTownBackground = !state.map ||
       ["town", "result", "gameover", "victory"].includes(state.gameState) ||
-      (state.gameState === "submenu" && (menuContext.prevGameState === "town" || menuContext.type === "solo_start"));
+      (state.gameState === "submenu" && menuContext.prevGameState === "town");
     const showCombat = !showTownBackground && Boolean(
       state.combatState && (
         state.gameState === "combat"

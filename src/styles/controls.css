@@ -28,6 +28,12 @@
   justify-content: flex-start;
 }
 
+#controls-panel.submenu-mode.departure-mode {
+  height: auto;
+  max-height: none;
+  flex: 1 1 auto;
+}
+
 #controls-panel.combat-mode {
   height: auto; /* Compact — buttons sized to content, no vertical stretch */
   min-height: 0;
