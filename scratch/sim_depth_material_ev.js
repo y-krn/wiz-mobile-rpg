@@ -46,10 +46,13 @@ const {
   calculateChestDisarmEvThreshold,
   calculateDetectRate,
   calculateFloorDisarmEvThreshold,
+  calculateFloorTrapActionExpectedDamage,
+  calculateFloorTrapAvoidanceEv,
   calculateFloorTrapSuccessRate,
   resolveTrapAction
 } = await import("../src/rules/trap_rules.js");
 const {
+  calculateFloorTrapExpectedDamage,
   hasTrapScout,
   resolveChestTrapEffect,
   resolveFloorTrapEffect
@@ -195,13 +198,30 @@ const TRAP_POLICY_DEFINITIONS = Object.freeze({
   }),
   conservative: Object.freeze({
     id: "conservative",
-    label: "EV分岐（キット優先・回避優先）"
+    label: "EV分岐（キット優先・回避費用評価）"
   })
 });
 export const DEFAULT_TRAP_POLICY_ID = process.env.TRAP_POLICY || "conservative";
 if (!TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID]) {
   throw new Error(
     `TRAP_POLICY must be disabled|legacy|conservative: ${DEFAULT_TRAP_POLICY_ID}`
+  );
+}
+const TRAP_AVOIDANCE_POLICY_DEFINITIONS = Object.freeze({
+  legacy: Object.freeze({
+    id: "legacy",
+    label: "旧方針（迂回路があれば無条件回避）"
+  }),
+  ev: Object.freeze({
+    id: "ev",
+    label: "回避EV（追加遭遇被害と直接対応を比較）"
+  })
+});
+export const DEFAULT_TRAP_AVOIDANCE_POLICY_ID =
+  process.env.TRAP_AVOIDANCE_POLICY || "ev";
+if (!TRAP_AVOIDANCE_POLICY_DEFINITIONS[DEFAULT_TRAP_AVOIDANCE_POLICY_ID]) {
+  throw new Error(
+    `TRAP_AVOIDANCE_POLICY must be legacy|ev: ${DEFAULT_TRAP_AVOIDANCE_POLICY_ID}`
   );
 }
 const trapBonusOverrideInput = process.env.TRAP_BONUS_OVERRIDE;
@@ -213,6 +233,16 @@ if (
   (!Number.isFinite(TRAP_BONUS_OVERRIDE_PERCENT) || TRAP_BONUS_OVERRIDE_PERCENT < 0)
 ) {
   throw new Error(`TRAP_BONUS_OVERRIDE must be a non-negative number: ${trapBonusOverrideInput}`);
+}
+const trapSenseOverrideInput = process.env.TRAP_SENSE_OVERRIDE;
+const TRAP_SENSE_OVERRIDE_PERCENT = trapSenseOverrideInput === undefined
+  ? null
+  : Number(trapSenseOverrideInput);
+if (
+  TRAP_SENSE_OVERRIDE_PERCENT !== null &&
+  (!Number.isFinite(TRAP_SENSE_OVERRIDE_PERCENT) || TRAP_SENSE_OVERRIDE_PERCENT < 0)
+) {
+  throw new Error(`TRAP_SENSE_OVERRIDE must be a non-negative number: ${trapSenseOverrideInput}`);
 }
 const CHEST_DISARM_POLICY_MIN_CHANCE = calculateChestDisarmEvThreshold();
 // 仮値・感度分析対象: 危険域で傷薬が尽きていれば帰還の翼を使う。
@@ -475,7 +505,9 @@ function getSimulationTrapBonus(character) {
 }
 
 function getSimulationTrapSense(state) {
-  return getPartyMaxAffix(state.party, "trapSense") / 100;
+  return TRAP_SENSE_OVERRIDE_PERCENT === null
+    ? getPartyMaxAffix(state.party, "trapSense") / 100
+    : TRAP_SENSE_OVERRIDE_PERCENT / 100;
 }
 
 function getFloorDisarmPolicyThreshold(state, trap) {
@@ -489,6 +521,64 @@ function getFloorDisarmPolicyThreshold(state, trap) {
   });
 }
 
+function getExpectedNormalCombatDamage(metrics) {
+  const encounters = metrics.normalCombatTelemetry.encounters;
+  if (encounters <= 0) return null;
+  return metrics.normalCombatTelemetry.incomingDamage / encounters;
+}
+
+function getFloorTrapExpectedDamageForAction(state, trap, floor, weakened) {
+  const effectFloor = trap.type === "pitfall" ? floor + 1 : floor;
+  return calculateFloorTrapExpectedDamage({
+    trap,
+    floor: effectFloor,
+    party: state.party,
+    weakened
+  }).reduce((sum, damage) => sum + damage, 0);
+}
+
+function getFloorTrapActionPlan(state, trap, floor) {
+  const character = state.party[0];
+  const successRate = calculateFloorTrapSuccessRate({
+    trap,
+    className: character.class,
+    level: character.level,
+    floor,
+    affixBonus: Math.round(getSimulationTrapBonus(character) * 100)
+  });
+  const action = successRate >= getFloorDisarmPolicyThreshold(state, trap)
+    ? "disarm"
+    : "force";
+  const fullDamage = getFloorTrapExpectedDamageForAction(state, trap, floor, false);
+  const weakenedDamage = getFloorTrapExpectedDamageForAction(state, trap, floor, true);
+  return {
+    action,
+    successRate,
+    expectedDamage: calculateFloorTrapActionExpectedDamage({
+      action,
+      trapType: trap.type,
+      successRate,
+      fullDamage,
+      weakenedDamage
+    })
+  };
+}
+
+function getTrapAvoidanceEvaluation(state, trap, floor, step, avoidance, metrics) {
+  const extraSteps = Math.max(0, Math.floor(Number(avoidance.extraSteps) || 0));
+  const encounterChances = Array.from(
+    { length: extraSteps },
+    (_, index) => getEncounterChance(step + index + 1)
+  );
+  const actionPlan = getFloorTrapActionPlan(state, trap, floor);
+  const evaluation = calculateFloorTrapAvoidanceEv({
+    encounterChances,
+    expectedDamagePerEncounter: getExpectedNormalCombatDamage(metrics),
+    directExpectedDamage: actionPlan.expectedDamage
+  });
+  return { ...evaluation, actionPlan, extraSteps };
+}
+
 function createTrapAggregate() {
   return {
     runs: 0,
@@ -500,6 +590,12 @@ function createTrapAggregate() {
     avoided: 0,
     forced: 0,
     avoidanceExtraSteps: 0,
+    avoidanceCandidates: 0,
+    avoidanceRejected: 0,
+    avoidanceNoEstimate: 0,
+    avoidanceExpectedEncounterCount: 0,
+    avoidanceExpectedEncounterDamage: 0,
+    avoidanceExpectedDirectDamage: 0,
     kitsAcquired: 0,
     kitsUsed: 0,
     detections: 0,
@@ -535,6 +631,12 @@ function addTrapAggregate(target, result) {
   target.avoided += result.trapAvoided;
   target.forced += result.trapForced;
   target.avoidanceExtraSteps += result.trapAvoidanceExtraSteps;
+  target.avoidanceCandidates += result.trapAvoidanceCandidates;
+  target.avoidanceRejected += result.trapAvoidanceRejected;
+  target.avoidanceNoEstimate += result.trapAvoidanceNoEstimate;
+  target.avoidanceExpectedEncounterCount += result.trapAvoidanceExpectedEncounterCount;
+  target.avoidanceExpectedEncounterDamage += result.trapAvoidanceExpectedEncounterDamage;
+  target.avoidanceExpectedDirectDamage += result.trapAvoidanceExpectedDirectDamage;
   target.kitsAcquired += result.trapKitsAcquired;
   target.kitsUsed += result.trapKitsUsed;
   target.detections += result.trapDetections;
@@ -571,6 +673,15 @@ function finalizeTrapAggregate(aggregate) {
     averageTrapAvoided: aggregate.avoided / runs,
     averageTrapForced: aggregate.forced / runs,
     averageTrapAvoidanceExtraSteps: aggregate.avoidanceExtraSteps / runs,
+    averageTrapAvoidanceCandidates: aggregate.avoidanceCandidates / runs,
+    averageTrapAvoidanceRejected: aggregate.avoidanceRejected / runs,
+    averageTrapAvoidanceNoEstimate: aggregate.avoidanceNoEstimate / runs,
+    averageTrapAvoidanceExpectedEncounterCount:
+      aggregate.avoidanceExpectedEncounterCount / runs,
+    averageTrapAvoidanceExpectedEncounterDamage:
+      aggregate.avoidanceExpectedEncounterDamage / runs,
+    averageTrapAvoidanceExpectedDirectDamage:
+      aggregate.avoidanceExpectedDirectDamage / runs,
     averageTrapKitsAcquired: aggregate.kitsAcquired / runs,
     averageTrapKitsUsed: aggregate.kitsUsed / runs,
     averageTrapDetections: aggregate.detections / runs,
@@ -802,6 +913,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       healPotionMerchantPolicy:
         scenario.healPotionMerchantPolicy || DEFAULT_HEAL_POTION_MERCHANT_POLICY,
       trapPolicy: scenario.trapPolicy || DEFAULT_TRAP_POLICY_ID,
+      trapAvoidancePolicy:
+        scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
       bossOverride: scenario.bossOverride || null,
       forcedBossAffixes: scenario.forcedBossAffixes || null,
       elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY
@@ -2566,7 +2679,8 @@ function scheduleFloorTraps(generated, routePlan, floorSteps) {
     if (!schedule.has(step)) schedule.set(step, []);
     schedule.get(step).push({
       trap,
-      previousCoord: routePlan.path[index]
+      previousCoord: routePlan.path[index],
+      step
     });
   });
   return schedule;
@@ -2591,7 +2705,7 @@ function getTrapAvoidancePlan(generated, currentCoord, trap) {
 }
 
 function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
-  const { trap, previousCoord } = scheduled;
+  const { trap, previousCoord, step } = scheduled;
   if (state.simPolicy.trapPolicy === "disabled" || trap.state === "disabled") {
     return { pitfallTriggered: false };
   }
@@ -2609,31 +2723,44 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   if (trap.state === "discovered") {
     const avoidance = getTrapAvoidancePlan(generated, previousCoord, trap);
     if (avoidance) {
-      metrics.trapAvoided++;
-      metrics.trapAvoidanceExtraSteps += avoidance.extraSteps;
-      metrics.steps += avoidance.extraSteps;
-      state.currentRun.steps += avoidance.extraSteps;
-      return { pitfallTriggered: false };
+      const evaluation = getTrapAvoidanceEvaluation(
+        state,
+        trap,
+        floor,
+        step,
+        avoidance,
+        metrics
+      );
+      metrics.trapAvoidanceCandidates++;
+      metrics.trapAvoidanceExpectedEncounterCount += evaluation.expectedEncounters;
+      metrics.trapAvoidanceExpectedEncounterDamage +=
+        evaluation.expectedEncounterDamage || 0;
+      metrics.trapAvoidanceExpectedDirectDamage += evaluation.directExpectedDamage;
+      if (!evaluation.hasCombatDamageEstimate) metrics.trapAvoidanceNoEstimate++;
+
+      const useAvoidance = state.simPolicy.trapAvoidancePolicy === "legacy"
+        ? true
+        : evaluation.shouldAvoid;
+      if (!useAvoidance && state.simPolicy.trapAvoidancePolicy === "ev") {
+        metrics.trapAvoidanceRejected++;
+      } else {
+        metrics.trapAvoided++;
+        metrics.trapAvoidanceExtraSteps += avoidance.extraSteps;
+        metrics.steps += avoidance.extraSteps;
+        state.currentRun.steps += avoidance.extraSteps;
+        return { pitfallTriggered: false };
+      }
     }
   }
 
-  const character = state.party[0];
-  const successRate = calculateFloorTrapSuccessRate({
-    trap,
-    className: character.class,
-    level: character.level,
-    floor,
-    affixBonus: Math.round(getSimulationTrapBonus(character) * 100)
-  });
-  const action = trap.state === "hidden"
-    ? "trigger"
-    : (successRate >= getFloorDisarmPolicyThreshold(state, trap) ? "disarm" : "force");
+  const actionPlan = getFloorTrapActionPlan(state, trap, floor);
+  const action = trap.state === "hidden" ? "trigger" : actionPlan.action;
   const resolution = action === "trigger"
     ? { outcome: "triggered", partialSuccess: false }
     : resolveTrapAction({
       action,
       trap,
-      successRate,
+      successRate: actionPlan.successRate,
       rng: Math.random
     });
 
@@ -3244,6 +3371,7 @@ function finishRun(state, outcome, metrics) {
     campHealingHp: metrics.campHealingHp,
     diosHealingHp: metrics.diosHealingHp + metrics.coreObservations.diosHealing,
     trapPolicy: state.simPolicy.trapPolicy,
+    trapAvoidancePolicy: state.simPolicy.trapAvoidancePolicy,
     trapActivations: metrics.trapActivations,
     trapActivationsBySource: { ...metrics.trapActivationsBySource },
     trapActivationsByType: { ...metrics.trapActivationsByType },
@@ -3256,6 +3384,12 @@ function finishRun(state, outcome, metrics) {
     trapAvoided: metrics.trapAvoided,
     trapForced: metrics.trapForced,
     trapAvoidanceExtraSteps: metrics.trapAvoidanceExtraSteps,
+    trapAvoidanceCandidates: metrics.trapAvoidanceCandidates,
+    trapAvoidanceRejected: metrics.trapAvoidanceRejected,
+    trapAvoidanceNoEstimate: metrics.trapAvoidanceNoEstimate,
+    trapAvoidanceExpectedEncounterCount: metrics.trapAvoidanceExpectedEncounterCount,
+    trapAvoidanceExpectedEncounterDamage: metrics.trapAvoidanceExpectedEncounterDamage,
+    trapAvoidanceExpectedDirectDamage: metrics.trapAvoidanceExpectedDirectDamage,
     trapKitsAcquired: metrics.trapKitsAcquired,
     trapKitsUsed: metrics.trapKitsUsed,
     trapDetections: metrics.trapDetections,
@@ -3423,6 +3557,12 @@ export function simulateRun({
     trapAvoided: 0,
     trapForced: 0,
     trapAvoidanceExtraSteps: 0,
+    trapAvoidanceCandidates: 0,
+    trapAvoidanceRejected: 0,
+    trapAvoidanceNoEstimate: 0,
+    trapAvoidanceExpectedEncounterCount: 0,
+    trapAvoidanceExpectedEncounterDamage: 0,
+    trapAvoidanceExpectedDirectDamage: 0,
     trapKitsAcquired: 0,
     trapKitsUsed: 0,
     trapDetections: 0,
@@ -4234,6 +4374,7 @@ function simulateCase({
     targetDepth,
     workshop: scenario.workshop || { ranks: {} },
     trapPolicy: scenario.trapPolicy || DEFAULT_TRAP_POLICY_ID,
+    trapAvoidancePolicy: scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
     survivalRate: totals.survived / RUNS_PER_CASE,
     deathRate: totals.died / RUNS_PER_CASE,
     townPortalUseRate: totals.runsUsingTownPortal / RUNS_PER_CASE,
@@ -4557,7 +4698,10 @@ function printTable(results) {
 }
 
 function printTrapMetrics(result) {
-  console.log(`\n【${result.label} 罠計測 / 職業別 / 方針=${result.trapPolicy}】`);
+  console.log(
+    `\n【${result.label} 罠計測 / 職業別 / 方針=${result.trapPolicy}, ` +
+    `回避=${result.trapAvoidancePolicy}】`
+  );
   console.log(
     "職業    | 発動/run | 察知/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 宝箱入手 | 商人入手 | 開始消費 | 宝箱消費 | 商人消費 | 解除 | 回避 | 回避追加歩数 | 強行 | kit入手 | kit使用"
   );
@@ -4584,6 +4728,17 @@ function printTrapMetrics(result) {
       `${metrics.averageTrapAvoidanceExtraSteps.toFixed(2).padStart(8)} | ` +
       `${metrics.averageTrapForced.toFixed(2).padStart(4)} | ${metrics.averageTrapKitsAcquired.toFixed(2).padStart(6)} | ` +
       `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)}`
+    );
+  });
+  console.log("回避EV評価 | 候補/run | 却下/run | 観測不足/run | 追加遭遇/run | 遭遇被害HP/run | 直接対応HP/run");
+  Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
+    console.log(
+      `${className.padEnd(7)} | ${metrics.averageTrapAvoidanceCandidates.toFixed(2).padStart(9)} | ` +
+      `${metrics.averageTrapAvoidanceRejected.toFixed(2).padStart(8)} | ` +
+      `${metrics.averageTrapAvoidanceNoEstimate.toFixed(2).padStart(11)} | ` +
+      `${metrics.averageTrapAvoidanceExpectedEncounterCount.toFixed(2).padStart(11)} | ` +
+      `${metrics.averageTrapAvoidanceExpectedEncounterDamage.toFixed(2).padStart(14)} | ` +
+      `${metrics.averageTrapAvoidanceExpectedDirectDamage.toFixed(2).padStart(14)}`
     );
   });
   console.log("商人傷薬 | 試行/run | 失敗理由/run");
@@ -5011,6 +5166,10 @@ console.log(`乱数seed: ${SIM_SEED}`);
 console.log(`徘徊エリート方針: ${DEFAULT_ELITE_POLICY}`);
 console.log(`罠方針: ${TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID].label} / TRAP_POLICY=${DEFAULT_TRAP_POLICY_ID}`);
 console.log(
+  `罠回避方針: ${TRAP_AVOIDANCE_POLICY_DEFINITIONS[DEFAULT_TRAP_AVOIDANCE_POLICY_ID].label} / ` +
+  `TRAP_AVOIDANCE_POLICY=${DEFAULT_TRAP_AVOIDANCE_POLICY_ID}`
+);
+console.log(
   `罠解除EV閾値: 床非pitfall scoutなし=${calculateFloorDisarmEvThreshold({ trapType: "damage" }).toFixed(2)}%, ` +
   `scoutあり=${calculateFloorDisarmEvThreshold({ trapType: "damage", scoutMitigated: true }).toFixed(2)}%, ` +
   `pitfall=${calculateFloorDisarmEvThreshold({ trapType: "pitfall" }).toFixed(2)}%, ` +
@@ -5020,6 +5179,15 @@ console.log(
   `trapBonus測定値: ${TRAP_BONUS_OVERRIDE_PERCENT === null
     ? "実生成値"
     : `${TRAP_BONUS_OVERRIDE_PERCENT}%固定（装備由来値を上書き）`}`
+);
+console.log(
+  `trapSense測定値: ${TRAP_SENSE_OVERRIDE_PERCENT === null
+    ? "実生成値"
+    : `${TRAP_SENSE_OVERRIDE_PERCENT}%固定（装備由来値を上書き）`}`
+);
+console.log(
+  "回避EV定義: 迂回追加歩数ごとのgetEncounterChance(step)合計×同一run直前の通常戦闘被害HP/回数。" +
+  "観測値なしは回避せず、直接対応（解除/強行の既存方針）を選ぶ。"
 );
 console.log(`傷薬商人方針: ${DEFAULT_HEAL_POTION_MERCHANT_POLICY}（マイルストーンで所持0時に1個購入）`);
 console.log(`core価値calibration: B1→B20 N=${RUNS_PER_CASE} / 方針=${ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id).join(",")}`);
@@ -5064,7 +5232,8 @@ console.log(
   "STATUS_CURE_POLICY=smart|never / STATUS_CURE_HP_THRESHOLD / " +
   "STATUS_CURE_MERCHANT_POLICY=missing|never, " +
   "PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
-  "ELITE_POLICY=avoid|engage / TRAP_POLICY=disabled|legacy|conservative; " +
+  "ELITE_POLICY=avoid|engage / TRAP_POLICY=disabled|legacy|conservative / " +
+  "TRAP_AVOIDANCE_POLICY=legacy|ev / TRAP_SENSE_OVERRIDE; " +
   "SIM_SCENARIOS=workshop-empty,workshop-stats,workshop-gear,workshop-blood-wand," +
   "workshop-blood-wand-spells,workshop-complete;旧ID=workshop-locked|workshop-unlocked"
 );
