@@ -61,7 +61,7 @@ const WORKSHOP_BASE_NODES = [
 
 // 出発クラフトは潜行ごとに素材を支払う恒常シンク。1品目1個で1枠。
 // 値は出発クラフトのバランスsimで掃引し、実測後に確定する。
-export const DEPARTURE_CRAFT_MAX_SLOTS = 4;
+export const DEPARTURE_CRAFT_MAX_SLOTS = 5;
 
 // 旧出発準備へ統合して撤去した買い切りノード。既存セーブのランクを消して素材を
 // 返還するためだけに残す（`src/state/save_migrations.js`）。

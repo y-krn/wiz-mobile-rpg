@@ -90,8 +90,15 @@ export function purchaseDepartureCraft(
 }
 
 export function getDepartureCraftGrants(recipeIds) {
+  const recipes = getDepartureCraftRecipes(recipeIds);
   return {
-    items: getDepartureCraftRecipes(recipeIds).map(recipe => recipe.resultId)
+    items: recipes
+      .filter(recipe => !recipe.identifyPowder)
+      .map(recipe => recipe.resultId),
+    identifyPowder: recipes.reduce(
+      (sum, recipe) => sum + (recipe.identifyPowder || 0),
+      0
+    )
   };
 }
 

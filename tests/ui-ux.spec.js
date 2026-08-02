@@ -2279,7 +2279,7 @@ for (const vp of VIEWPORTS) {
     const summary = page.locator('.solo-start-craft-summary');
     const heal = page.locator('[data-recipe-id="HEAL_POTION"]');
     const portal = page.locator('[data-recipe-id="TOWN_PORTAL"]');
-    await expect(summary).toContainText('0/4枠');
+    await expect(summary).toContainText('0/5枠');
     await expect(heal).toHaveCount(1);
     await expect(heal).toHaveAttribute('aria-pressed', 'false');
     await expect(portal).toBeEnabled();
@@ -2302,11 +2302,11 @@ for (const vp of VIEWPORTS) {
 
     await heal.click();
     await expect(heal).toHaveAttribute('aria-pressed', 'true');
-    await expect(summary).toContainText('1/4枠');
+    await expect(summary).toContainText('1/5枠');
     await portal.click();
-    await expect(summary).toContainText('2/4枠');
+    await expect(summary).toContainText('2/5枠');
     await heal.click();
-    await expect(summary).toContainText('1/4枠');
+    await expect(summary).toContainText('1/5枠');
   });
 }
 

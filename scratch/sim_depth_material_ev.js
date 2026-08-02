@@ -918,13 +918,14 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   const initialIdentificationPowder = {
     starting: startingPowder,
     workshop: workshopGrants.identifyPowder,
-    departureCraft: 0
+    departureCraft: departureCraftGrants.identifyPowder
   };
-  // src/movement.jsの式と同じ初期値（legacyのみ旧sim互換の工房粉だけ）。
+  // src/movement.jsと同じ初期値。legacyだけ開始時粉を旧sim互換で省略する。
   const initialIdentifyTickets = useRealIdentificationSupply
     ? IDENTIFICATION_BALANCE.startingPowder +
-      workshopGrants.identifyPowder
-    : workshopGrants.identifyPowder;
+      workshopGrants.identifyPowder +
+      departureCraftGrants.identifyPowder
+    : workshopGrants.identifyPowder + departureCraftGrants.identifyPowder;
   const workshopReturnItems = scenario.ignoreWorkshopReturnItems
     ? []
     : workshopGrants.returnItems;

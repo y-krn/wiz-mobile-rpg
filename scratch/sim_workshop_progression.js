@@ -52,12 +52,20 @@ const CRAFT_RECIPE_ORDER = [
   "HEAL_POTION",
   "ANTIDOTE",
   "TRAP_KIT",
+  "IDENTIFY_POWDER",
+  "GUARD_POTION",
   "HOLY_WATER",
   "MANA_POTION",
-  "GREATER_HEAL",
-  "GUARD_POTION"
+  "GREATER_HEAL"
 ];
-const DEFAULT_SLOT_SWEEP = [3, 4, 5, 6, 8];
+const CRAFT_PRIORITY_MODES = new Set(["wing-first", "cheap-first"]);
+const CRAFT_PRIORITY = process.env.PROGRESSION_CRAFT_PRIORITY || "wing-first";
+if (!CRAFT_PRIORITY_MODES.has(CRAFT_PRIORITY)) {
+  throw new Error(
+    `PROGRESSION_CRAFT_PRIORITY must be ${[...CRAFT_PRIORITY_MODES].join("|")}: ${CRAFT_PRIORITY}`
+  );
+}
+const DEFAULT_SLOT_SWEEP = [3, 4, 5, 6, 8, 9];
 const DEFAULT_WING_COST_SWEEP = [6, 8, 10, 11, 12, 14, 16];
 const PROGRESSION_POLICIES = new Set([
   "craft-first",
@@ -254,10 +262,9 @@ function getScenarioCraftCost(scenario) {
   return cost;
 }
 
-function getSimulationCraftBank(scenario) {
-  const recipeIds = getScenarioRecipeIds(scenario);
+function getSimulationCraftBank(scenario, recipeIds = getScenarioRecipeIds(scenario)) {
   const sourceCost = getDepartureCraftCost(recipeIds);
-  const scenarioCost = getScenarioCraftCost(scenario);
+  const scenarioCost = getScenarioCraftCost({ ...scenario, recipeIds });
   const bank = { ...sourceCost };
   MATERIALS.forEach(material => {
     bank[material] = Math.max(bank[material] || 0, scenarioCost[material] || 0);
@@ -269,27 +276,51 @@ function emptyCraftPurchase() {
   return { purchased: false, cost: {}, balance: null, recipeIds: [] };
 }
 
-function purchaseCraftFromBank(bank, scenario) {
+function getCraftPriorityRecipeIds(scenario, priority = CRAFT_PRIORITY) {
+  const recipeIds = getScenarioRecipeIds(scenario);
+  if (priority === "wing-first") return recipeIds;
+  return recipeIds
+    .map((recipeId, index) => ({
+      recipeId,
+      index,
+      cost: totalMaterials(getScenarioCraftCost({ ...scenario, recipeIds: [recipeId] }))
+    }))
+    .sort((left, right) => left.cost - right.cost || left.index - right.index)
+    .map(entry => entry.recipeId);
+}
+
+export function purchaseCraftFromBank(bank, scenario, priority = CRAFT_PRIORITY) {
   const recipeIds = getScenarioRecipeIds(scenario);
   if (recipeIds.length === 0) {
     return { purchased: false, cost: {}, balance: { ...bank }, recipeIds: [] };
   }
   const slotLimit = Math.max(0, Math.floor(Number(scenario.slotLimit)));
-  const sourceCost = getDepartureCraftCost(recipeIds);
-  const validation = purchaseDepartureCraft(sourceCost, recipeIds, slotLimit);
-  if (!validation.ok) {
-    throw new Error(`craft sweep recipe validation failed: ${validation.reason}`);
+  let balance = { ...bank };
+  const selectedRecipeIds = [];
+  const cost = {};
+  for (const recipeId of getCraftPriorityRecipeIds(scenario, priority)) {
+    if (selectedRecipeIds.length >= slotLimit) break;
+    const sourceCost = getDepartureCraftCost([recipeId]);
+    const validation = purchaseDepartureCraft(sourceCost, [recipeId], 1);
+    if (!validation.ok) {
+      throw new Error(`craft sweep recipe validation failed: ${validation.reason}`);
+    }
+    const recipeCost = getScenarioCraftCost({ ...scenario, recipeIds: [recipeId] });
+    const nextBalance = spendMaterials(balance, recipeCost);
+    // 実装UIと同じく、払えない品だけ飛ばして次の候補へ進む。
+    if (!nextBalance) continue;
+    balance = nextBalance;
+    selectedRecipeIds.push(recipeId);
+    addMaterials(cost, recipeCost);
   }
-  const cost = getScenarioCraftCost(scenario);
-  const balance = spendMaterials(bank, cost);
-  if (!balance) {
-    return { purchased: false, cost, balance: { ...bank }, recipeIds: [] };
+  if (selectedRecipeIds.length === 0) {
+    return { purchased: false, cost: {}, balance: { ...bank }, recipeIds: [] };
   }
   return {
     purchased: true,
     cost,
     balance,
-    recipeIds: validation.recipeIds
+    recipeIds: selectedRecipeIds
   };
 }
 
@@ -311,7 +342,7 @@ function createScenarioList() {
     }
   ];
   SLOT_SWEEP.forEach(slotLimit => {
-    const recipeIds = CRAFT_RECIPE_ORDER.slice(0, Math.min(slotLimit, CRAFT_RECIPE_ORDER.length));
+    const recipeIds = [...CRAFT_RECIPE_ORDER];
     scenarios.push({
       id: `slots-${slotLimit}`,
       label: `出発クラフト 総枠N=${slotLimit}`,
@@ -326,7 +357,7 @@ function createScenarioList() {
     scenarios.push({
       id: `wing-${wingCost}`,
       label: `出発クラフト 翼コスト=${wingCost}`,
-      recipeIds: CRAFT_RECIPE_ORDER.slice(0, DEPARTURE_CRAFT_MAX_SLOTS),
+      recipeIds: [...CRAFT_RECIPE_ORDER],
       slotLimit: DEPARTURE_CRAFT_MAX_SLOTS,
       wingCostOverride: wingCost,
       allowChestTownPortal: true,
@@ -383,6 +414,8 @@ function createFiniteTotals() {
     merchantPurchases: 0,
     merchantFailures: {},
     craftPurchases: 0,
+    craftItems: 0,
+    craftItemsByRecipe: Object.fromEntries(CRAFT_RECIPE_ORDER.map(recipeId => [recipeId, 0])),
     craftMaterialSpent: 0,
     craftSpentByMaterial: emptyMaterials(),
     healPotionsAcquired: 0,
@@ -443,7 +476,7 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
           departureCraftSlotLimit: scenario.slotLimit,
           departureCraftCostOverride: craftPurchase.cost,
           // 外側で実bankから支払済み。ここはsimulateRun内の購入API検証用。
-          departureCraftMaterials: getSimulationCraftBank(scenario)
+          departureCraftMaterials: getSimulationCraftBank(scenario, craftPurchase.recipeIds)
         }
       : {
           departureCraft: [],
@@ -455,7 +488,7 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
       startFloor: 1,
       targetDepth: POST_WING_TARGET,
       runIndex: trial * RUNS_PER_TRIAL + run,
-      seriesId: `finite-craft-${scenario.id}`,
+      seriesId: `finite-craft-${scenario.id}-${CRAFT_PRIORITY}`,
       scoringProfile,
       scenario: {
         ...PROGRESSION_SCENARIO,
@@ -576,6 +609,10 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
         .length;
       if (event.craftPurchase.purchased) {
         totals.craftPurchases++;
+        totals.craftItems += event.craftPurchase.recipeIds.length;
+        event.craftPurchase.recipeIds.forEach(recipeId => {
+          totals.craftItemsByRecipe[recipeId] = (totals.craftItemsByRecipe[recipeId] || 0) + 1;
+        });
         addCraftSpend(totals, event.craftPurchase.cost);
       }
       const acquiredHeal = Object.values(result.healPotionsAcquiredBySource)
@@ -645,6 +682,14 @@ function sourceAverage(totals, field, source) {
   return average(totals[field][source] || 0, totals);
 }
 
+function craftMetricSummary(totals) {
+  const successRate = totals.craftPurchases / Math.max(1, totals.runs);
+  const itemRates = CRAFT_RECIPE_ORDER
+    .map(recipeId => `${recipeId}=${formatRate((totals.craftItemsByRecipe[recipeId] || 0) / Math.max(1, totals.runs))}`)
+    .join(",");
+  return `1品以上=${formatRate(successRate)}, 平均品数=${average(totals.craftItems, totals).toFixed(2)}, 品目別=${itemRates}`;
+}
+
 function formatFiniteResult(result) {
   const { scenario, totals } = result;
   const usefulRate = totals.steadyRawDeathLoss > 0
@@ -657,12 +702,12 @@ function formatFiniteResult(result) {
     ? `中央run ${percentile(totals.firstMerchantPurchaseRuns, 0.5)}`
     : "期間内なし";
   return (
-    `[${PROGRESSION_POLICY}] ${scenario.label}: 平均到達=B${average(totals.reached, totals).toFixed(2)}, ` +
+    `[${PROGRESSION_POLICY}/${CRAFT_PRIORITY}] ${scenario.label}: 平均到達=B${average(totals.reached, totals).toFixed(2)}, ` +
     `生還率=${formatRate(average(totals.survived, totals))}, ` +
     `EV/時間=${(totals.banked / Math.max(1, totals.time)).toFixed(4)}, ` +
     `B10/B15到達率=${formatRate(average(totals.reachedB10, totals))}/` +
     `${formatRate(average(totals.reachedB15, totals))}, ` +
-    `クラフト成立率=${formatRate(totals.craftPurchases / Math.max(1, totals.runs))}, ` +
+    `クラフト=${craftMetricSummary(totals)}, ` +
     `素材消費=${average(totals.craftMaterialSpent, totals).toFixed(2)}/run, ` +
     `買切後有効損失=${(totals.steadyUsefulDeathLoss / Math.max(1, totals.steadyRuns)).toFixed(2)}/run, ` +
     `買切後損失有価値率=${formatRate(usefulRate)}, ` +
@@ -693,7 +738,7 @@ function printSweepTable(results, sweep, label, keyLabel) {
   console.log(`\n【${label} / 測定値】`);
   console.log(
     `${keyLabel} | 生還率 | 平均到達 | B10 | B15 | EV/時間 | ` +
-    "クラフト成立 | 翼入手/消費 | 傷薬入手/消費 | 罠kit入手/消費 | 粉入手/消費"
+    "クラフト(成立/平均品数) | 翼入手/消費 | 傷薬入手/消費 | 罠kit入手/消費 | 粉入手/消費"
   );
   results
     .filter(result => result.scenario.sweep === sweep)
@@ -708,7 +753,8 @@ function printSweepTable(results, sweep, label, keyLabel) {
         `${formatRate(average(totals.reachedB10, totals)).padStart(5)} | ` +
         `${formatRate(average(totals.reachedB15, totals)).padStart(5)} | ` +
         `${(totals.banked / Math.max(1, totals.time)).toFixed(4).padStart(8)} | ` +
-        `${formatRate(totals.craftPurchases / Math.max(1, totals.runs)).padStart(10)} | ` +
+        `${formatRate(totals.craftPurchases / Math.max(1, totals.runs)).padStart(6)}/` +
+        `${average(totals.craftItems, totals).toFixed(2).padStart(5)} | ` +
         `${sourceAverage(totals, "portalAcquisitions", "departureCraft").toFixed(2)}/` +
         `${((totals.portalUsesBySource["departure-craft"] || 0) / Math.max(1, totals.runs)).toFixed(2)} | ` +
         `${sourceAverage(totals, "healPotionsAcquiredBySource", "departureCraft").toFixed(2)}/` +
@@ -799,6 +845,10 @@ export async function runWorkshopProgressionSimulation() {
     "（craft-first=クラフト→工房 / workshop-first=工房→クラフト / " +
     "workshop-complete=工房買切り後のみクラフト）"
   );
+  console.log(
+    `クラフト品目優先順位: ${CRAFT_PRIORITY} ` +
+    "（wing-first=翼優先 / cheap-first=単品コスト昇順。払えない品は次へ進む）"
+  );
   const initialDemand = getRemainingDemand({ ranks: {} });
   const workshopSteps = WORKSHOP_NODES.reduce(
     (sum, node) => sum + getNodeMaxRank(node),
@@ -816,7 +866,7 @@ export async function runWorkshopProgressionSimulation() {
   console.log(
     `出発クラフト実装値: N=${DEPARTURE_CRAFT_MAX_SLOTS}, ` +
     `翼コスト合計=${REFERENCE_WING_COST}, ` +
-    `レシピ=${CRAFT_RECIPE_ORDER.slice(0, DEPARTURE_CRAFT_MAX_SLOTS).join(",")}`
+    `候補レシピ=${CRAFT_RECIPE_ORDER.join(",")}`
   );
   console.log(
     "実装経路: generateRunFloor / applyCombatRewards / generateRandomEquipment / " +

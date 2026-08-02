@@ -21,7 +21,8 @@ const CRAFT_RECIPE_IDS = [
   "TOWN_PORTAL",
   "HEAL_POTION",
   "ANTIDOTE",
-  "TRAP_KIT"
+  "TRAP_KIT",
+  "IDENTIFY_POWDER"
 ];
 const CRAFT_MATERIALS = getDepartureCraftCost(CRAFT_RECIPE_IDS);
 const B1_CLASSES = SOLO_CLASSES;
@@ -53,7 +54,7 @@ const CONDITIONS = [
   },
   {
     id: "zero-departure-craft",
-    label: "ゼロ化後（実装レシピN=4）",
+    label: "ゼロ化後（無料what-if上限N=5）",
     startingHealPotions: 0,
     startingAntidotes: 0,
     departureCraft: CRAFT_RECIPE_IDS,

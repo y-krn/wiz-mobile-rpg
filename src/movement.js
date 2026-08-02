@@ -645,7 +645,8 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   }
   const workshopGrants = getWorkshopGrants(state.workshop);
   const craftGrants = getDepartureCraftGrants(departureCraft);
-  state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder + workshopGrants.identifyPowder;
+  state.identifyTickets = IDENTIFICATION_BALANCE.startingPowder +
+    workshopGrants.identifyPowder + craftGrants.identifyPowder;
   state.inventory = [
     ...workshopGrants.returnItems,
     ...craftGrants.items

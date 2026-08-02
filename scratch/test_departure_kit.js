@@ -14,6 +14,7 @@ function check(label, condition, detail = "") {
 
 const { CRAFT_RECIPES } = await import("../src/craft.js");
 const { MATERIAL_TYPES } = await import("../src/data/materials.js");
+const { RUN_QUEST_TEMPLATES } = await import("../src/data/run_quests.js");
 const {
   DEPARTURE_CRAFT_MAX_SLOTS,
   RETIRED_WORKSHOP_NODES,
@@ -41,8 +42,14 @@ check(
   MATERIAL_TYPES.every(material => recipeMaterialNames.has(material)),
   `missing=${MATERIAL_TYPES.filter(material => !recipeMaterialNames.has(material)).join(",")}`
 );
-check("departure craft has a finite slot cap", DEPARTURE_CRAFT_MAX_SLOTS === 4);
+check("departure craft has a finite slot cap", DEPARTURE_CRAFT_MAX_SLOTS === 5);
 check("starting heal potion supply is removed", RECOVERY_BALANCE.startingHealPotions === 0);
+const milestoneQuest = RUN_QUEST_TEMPLATES.find(quest => quest.id === "reach_milestone");
+check(
+  "guard material has a reachable milestone reward",
+  milestoneQuest?.reward?.materials?.["竜鱗"] === 1,
+  JSON.stringify(milestoneQuest?.reward?.materials)
+);
 
 const recipeIds = ["HEAL_POTION", "ANTIDOTE", "TRAP_KIT", "TOWN_PORTAL"];
 const recipeRows = getDepartureCraftRecipes(recipeIds);
@@ -50,12 +57,12 @@ const recipeCost = getDepartureCraftCost(recipeIds);
 check("selected recipes resolve without duplication", recipeRows.length === recipeIds.length);
 check(
   "selected recipe costs include the expected item costs",
-  recipeCost["獣の牙"] === 6
+  recipeCost["獣の牙"] === 5
     && recipeCost["硬い皮"] === 5
     && recipeCost["毒腺"] === 1
     && recipeCost["霊粉"] === 2
     && !recipeCost["骨片"]
-    && recipeCost["鉄片"] === 4,
+    && recipeCost["鉄片"] === 3,
   JSON.stringify(recipeCost)
 );
 
@@ -78,12 +85,12 @@ check(
 check(
   "purchase subtracts exact typed costs",
   purchase.ok
-    && purchase.metaMaterials["獣の牙"] === 4
+    && purchase.metaMaterials["獣の牙"] === 5
     && purchase.metaMaterials["硬い皮"] === 5
     && purchase.metaMaterials["毒腺"] === 1
     && purchase.metaMaterials["霊粉"] === 3
     && purchase.metaMaterials["骨片"] === 2
-    && purchase.metaMaterials["鉄片"] === 0,
+    && purchase.metaMaterials["鉄片"] === 1,
   JSON.stringify(purchase?.metaMaterials)
 );
 check(
@@ -91,16 +98,28 @@ check(
   JSON.stringify(getDepartureCraftGrants(recipeIds).items) === JSON.stringify(recipeIds)
 );
 
-const short = { "獣の牙": 5, "硬い皮": 5, "毒腺": 1, "霊粉": 3, "骨片": 1, "鉄片": 3 };
+const short = { "獣の牙": 5, "硬い皮": 5, "毒腺": 1, "霊粉": 3, "骨片": 1, "鉄片": 2 };
 const shortPurchase = purchaseDepartureCraft(short, recipeIds);
 check("purchase fails when one material is short", !shortPurchase.ok && shortPurchase.reason === "insufficient_materials");
 check("affordability fails when one material is short", !canAffordDepartureCraft(short, recipeIds));
-check("failed purchase does not mutate the source balance", short["獣の牙"] === 5 && short["鉄片"] === 3);
+check("failed purchase does not mutate the source balance", short["獣の牙"] === 5 && short["鉄片"] === 2);
 
-const tooMany = [...recipeIds, "MANA_POTION"];
+const tooMany = [...recipeIds, "MANA_POTION", "HOLY_WATER"];
 const slotPurchase = purchaseDepartureCraft(bank, tooMany);
 check("purchase rejects selections over the slot cap", !slotPurchase.ok && slotPurchase.reason === "slot_limit");
 check("empty selection is valid", purchaseDepartureCraft({}, []).ok);
+
+const powderPurchase = purchaseDepartureCraft(
+  { "霊粉": 5, "呪布": 2 },
+  ["IDENTIFY_POWDER"]
+);
+check("identify powder recipe grants a ticket, not an inventory item", powderPurchase.ok);
+check(
+  "identify powder grant is separated from item grants",
+  powderPurchase.ok
+    && getDepartureCraftGrants(["IDENTIFY_POWDER"]).identifyPowder === 1
+    && getDepartureCraftGrants(["IDENTIFY_POWDER"]).items.length === 0
+);
 
 const fullWorkshop = { ranks: Object.fromEntries(WORKSHOP_NODES.map(node => [node.id, node.maxRank || 1])) };
 const workshopGrants = getWorkshopGrants(fullWorkshop);
