@@ -1,8 +1,9 @@
 import { state } from "../state.js";
-import { ITEMS, SPELLS, getClassJpName, getCharMaxHp, getCharMaxMp, getSpellPayment } from "../data.js";
+import { SPELLS, getClassJpName, getCharMaxHp, getCharMaxMp, getSpellPayment } from "../data.js";
 import { menuContext, goBackSubmenu } from "../navigation.js";
 import { combatCallbacks } from "./combat_state.js";
 import { isSpellTargetAvailable, getSpellCombatSummary } from "./spell_menu.js";
+import { getUsableInventoryItems } from "../rules/item_inventory.js";
 
 export function renderCombatOverlay() {
   const overlay = document.getElementById("combat-overlay");
@@ -180,18 +181,18 @@ export function renderCombatOverlay() {
     const itemGrid = document.createElement("div");
     itemGrid.className = "combat-selection-grid";
 
-    if (state.inventory.length === 0) {
+    const usableItems = getUsableInventoryItems(state.inventory);
+    if (usableItems.length === 0) {
       const emptyMsg = document.createElement("div");
       emptyMsg.className = "detail-placeholder";
-      emptyMsg.textContent = "共有バッグは空っぽです。";
+      emptyMsg.textContent = "使える道具がありません";
       itemGrid.appendChild(emptyMsg);
     } else {
-      state.inventory.forEach((itemKey, idx) => {
-        const item = ITEMS[itemKey];
+      usableItems.forEach(({ itemKey, idx, item }) => {
         const card = document.createElement("div");
         card.className = "combat-item-card item";
 
-        const usableCheck = item.type !== "usable" || item.campOnly;
+        const usableCheck = item.campOnly;
         if (usableCheck) {
           card.classList.add("disabled");
         }

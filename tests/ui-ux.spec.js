@@ -1167,6 +1167,17 @@ for (const vp of VIEWPORTS) {
       menuContext.type = '';
       dungeonRenderer.draw();
       const monsterLabelCountAfterExplore = labels.filter(label => label.text.includes('敵')).length;
+      const exploreMiniMapDrawsBeforeItemMenu = miniMapDraws;
+
+      state.gameState = 'submenu';
+      menuContext.type = 'item_inventory';
+      dungeonRenderer.draw();
+      const itemMenuMiniMapDraws = miniMapDraws - exploreMiniMapDrawsBeforeItemMenu;
+
+      state.gameState = 'explore';
+      menuContext.type = '';
+      dungeonRenderer.draw();
+      const postItemMenuExploreMiniMapDraws = miniMapDraws - exploreMiniMapDrawsBeforeItemMenu;
       const exploreMiniMapDrawsBeforeChest = miniMapDraws;
 
       state.chestState = { trap: 'none' };
@@ -1220,7 +1231,9 @@ for (const vp of VIEWPORTS) {
         combatLabels,
         combatMiniMapDraws,
         submenuMiniMapDraws,
-        exploreMiniMapDraws: exploreMiniMapDrawsBeforeChest,
+        itemMenuMiniMapDraws,
+        postItemMenuExploreMiniMapDraws,
+        exploreMiniMapDraws: postItemMenuExploreMiniMapDraws,
         chestMiniMapDraws,
         chestSubmenuMiniMapDraws,
         postChestExploreMiniMapDraws,
@@ -1242,6 +1255,8 @@ for (const vp of VIEWPORTS) {
     expect(topRowOmenLabels.every(label => label.y >= 10)).toBe(true);
     expect(result.combatMiniMapDraws).toBe(0);
     expect(result.submenuMiniMapDraws).toBe(0);
+    expect(result.itemMenuMiniMapDraws).toBe(0);
+    expect(result.postItemMenuExploreMiniMapDraws).toBe(1);
     expect(result.exploreMiniMapDraws).toBe(1);
     expect(result.chestMiniMapDraws).toBe(0);
     expect(result.chestSubmenuMiniMapDraws).toBe(0);

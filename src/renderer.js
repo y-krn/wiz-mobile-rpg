@@ -1,7 +1,7 @@
 import { DX, DY, EVENT_TYPES, getPartyMaxAffix } from "./data.js";
 import { state } from "./state.js";
 import { menuContext } from "./navigation.js";
-import { EVENT_SUBMENU_TYPES } from "./constants/events.js";
+import { EVENT_SUBMENU_TYPES, ITEM_SUBMENU_TYPES } from "./constants/events.js";
 
 export let dungeonRenderer = null;
 export function setDungeonRenderer(r) {
@@ -79,12 +79,15 @@ export class DungeonRenderer {
       state.gameState === "trap_encounter"
       || (state.gameState === "submenu" && EVENT_SUBMENU_TYPES.includes(menuContext.type))
     );
+    const showItemMenu = !showTownBackground && (
+      state.gameState === "submenu" && ITEM_SUBMENU_TYPES.includes(menuContext.type)
+    );
 
-    return { showTownBackground, showCombat, showChest, showEventScene };
+    return { showTownBackground, showCombat, showChest, showEventScene, showItemMenu };
   }
 
   getDrawSignature(sceneVisibility = this.getSceneVisibility()) {
-    const { showTownBackground } = sceneVisibility;
+    const { showTownBackground, showItemMenu } = sceneVisibility;
     const signature = [
       state.gameState,
       state.floor,
@@ -96,7 +99,8 @@ export class DungeonRenderer {
       menuContext.prevGameState,
       Boolean(state.combatState),
       Boolean(state.chestState),
-      state.mapRevision
+      state.mapRevision,
+      showItemMenu
     ];
 
     if (showTownBackground) return signature.join("|");
@@ -142,12 +146,12 @@ export class DungeonRenderer {
   isAnimating(sceneVisibility = this.getSceneVisibility()) {
     if (this.shakeTime > 0 || this.flashTime > 0 || this.damageTexts.length > 0) return true;
 
-    const { showTownBackground, showCombat, showChest, showEventScene } = sceneVisibility;
+    const { showTownBackground, showCombat, showChest, showEventScene, showItemMenu } = sceneVisibility;
     if (showTownBackground) return false;
 
     // These layers use Date.now() for visual pulses and must keep redrawing.
     if (state.floor === 5) return true;
-    if (showCombat || showChest || showEventScene) return false;
+    if (showCombat || showChest || showEventScene || showItemMenu) return false;
 
     const minY = Math.max(0, state.y - 4);
     const maxY = Math.min(state.map.length - 1, state.y + 4);
@@ -187,7 +191,7 @@ export class DungeonRenderer {
     ctx.fillStyle = "#0c0c0e";
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    const { showTownBackground, showCombat, showChest, showEventScene } = sceneVisibility;
+    const { showTownBackground, showCombat, showChest, showEventScene, showItemMenu } = sceneVisibility;
     if (showTownBackground) {
       this.drawTownBackground(ctx);
     } else {
@@ -204,8 +208,8 @@ export class DungeonRenderer {
         this.drawChest(ctx);
       }
 
-      // Keep combat, chest, and event scenes unobstructed; restore the mini-map afterward.
-      if (!showCombat && !showChest && !showEventScene) this.drawMiniMap(ctx);
+      // Keep combat, chest, event, and item scenes unobstructed; restore the mini-map afterward.
+      if (!showCombat && !showChest && !showEventScene && !showItemMenu) this.drawMiniMap(ctx);
     }
 
     // Draw Damage / Floating Texts
