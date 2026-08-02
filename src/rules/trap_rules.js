@@ -15,6 +15,11 @@ export const DETECT_RATE_CAP = 0.95;
 
 export const CHEST_WEAKENED_RISK_MULTIPLIER = 0.5;
 
+const DEEP_TRAP_SENSE_START_FLOOR = 16;
+const DEEP_TRAP_SENSE_CAP_FLOOR = 20;
+const DEEP_TRAP_SENSE_CAP_BONUS = 0.05;
+const DEEP_TRAP_SENSE_REFERENCE_BONUS = 0.30;
+
 function clampPercent(value) {
   return Math.max(0, Math.min(100, value));
 }
@@ -166,5 +171,13 @@ export function calculateDetectRate({ floor, scoutBonus = 0 }) {
   const raw = 0.85 - 0.015 * (depth - 1);
   const base = Math.max(0.6, raw);
   const bonus = Math.max(0, Number(scoutBonus) || 0);
-  return Math.round(Math.min(DETECT_RATE_CAP, base + bonus) * 1000) / 1000;
+  const depthProgress = Math.max(0, Math.min(1,
+    (depth - DEEP_TRAP_SENSE_START_FLOOR) /
+    (DEEP_TRAP_SENSE_CAP_FLOOR - DEEP_TRAP_SENSE_START_FLOOR)
+  ));
+  const investmentProgress = Math.max(0, Math.min(1,
+    bonus / DEEP_TRAP_SENSE_REFERENCE_BONUS
+  ));
+  const deepScoutBonus = DEEP_TRAP_SENSE_CAP_BONUS * depthProgress * investmentProgress;
+  return Math.round(Math.min(DETECT_RATE_CAP, base + bonus + deepScoutBonus) * 1000) / 1000;
 }
