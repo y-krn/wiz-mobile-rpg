@@ -3,158 +3,158 @@
 Tracking issue: y-krn/wiz-mobile-rpg#120 (closed — all phases merged)
 
 Implementation history: PR #126 (Phase 1), #127 (Phase 2), #128 (Phase 3),
-#129 (Phase 4). Phase 4 の実装は残っているが、現在のゲーム画面からは到達不能。
+#129 (Phase 4). The Phase 4 implementation remains, but is unreachable from the current game screens.
 
 **Direction change (2026-07-18).** This document reflects the pivot to a solo
 depth-attack roguelite. It is subordinate to `.agents/game-design-core-loop.md`
 and `.agents/game-design.md`; resolve conflicts toward those documents.
 
-# 概要
+# Overview
 
-ビルド多様性の欠如（実効ビルド数 ≈ 職業選択8通りのみ）を解消するため、装備を
-「コア」「サポート」の2階層アフィックスに再設計した。シナジーシステム
-（`SYNERGIES` / `getActiveSynergyMod`）は Phase 1 で廃止済み。現在はソロ1キャラ
-前提で、効果は装備者に帰属する。
+To address the lack of build diversity (effective build count ≈ only 8 class choices), equipment was
+redesigned into a 2-tier affix system of “core” and “support.” The synergy system
+(`SYNERGIES` / `getActiveSynergyMod`) was retired in Phase 1. The current design assumes 1 solo character,
+and effects belong to the wearer.
 
-目標: 実効ビルド空間 ≈ 16コア × 職業適性2〜3 × サポート構成 ≈ 60〜80。
+Goal: effective build space ≈ 16 cores × 2〜3 class fits × support configurations ≈ 60〜80.
 
-# 全体構造
+# Overall Structure
 
-- **コア16種**: ルールを変える効果。ダンジョン産のみ。節目商人は装備を売らない。
-  1アイテムにつきコアは1個まで（生成側で強制）。1キャラの装備個数に上限はなく、
-  スロットが許す限り同時に効く（#311 で1個制限を撤廃。未装備理由の50%を占めており、
-  下位コアが土俵に上がれない主因だった）。
-- コアが付いた装備は、生成時にベースをパーティが装備できる同スロット候補へ寄せる
-  （`src/systems/equipment_generation.js`）。職業ごとの装備制限そのものは個性として
-  維持し、コアだけが無駄にならないようにする。盾を装備できない職に盾コアが出た場合は
-  差し替え候補がないため、その分は死に札のまま残る。
-- **サポート数**: `SUPPORT_AFFIXES.length`（正本: `src/data/affixes.js`）。数値・小効果。
-  刻印・研磨・封印の実装では付与・上書き可能。
-- 純粋な数値上位のコアは作らない。全コアはサイドグレード。
-- レジストリ: `src/data/affixes.js`（データのみ）。判定・効果ヘルパー:
-  `src/rules/affix_rules.js`。
+- **16 core types**: Rule-changing effects. Dungeon-sourced only. Milestone merchants do not sell equipment.
+  For 1 item, at most 1 core (enforced during generation). A 1-character loadout has no upper limit on the number of equipped items,
+  and all cores are active simultaneously as long as the slots allow (#311 removed the 1-core limit; it accounted for 50% of unequipped reasons,
+  and was the main reason lower-tier cores could not compete).
+- Equipment with a core has its base shifted during generation toward a same-slot candidate the party can equip
+  (`src/systems/equipment_generation.js`). Class equipment restrictions themselves remain as part of class identity,
+  so the core itself is not wasted. If a shield core is generated for a class that cannot equip shields, it
+  remains a dead card because there is no replacement candidate.
+- **Support count**: `SUPPORT_AFFIXES.length` (source of truth: `src/data/affixes.js`). Numeric and minor effects.
+  The inscription, polishing, and sealing implementations can add or overwrite them.
+- No cores that are pure numeric upgrades. Every core is a sidegrade.
+- Registry: `src/data/affixes.js` (data only). Rule and effect helpers:
+  `src/rules/affix_rules.js`.
 
-# コア16種
+# 16 Core Types
 
-各効果パラメータの実値は `src/data/affixes.js` の `params` が単一の参照元。
+The actual value of each effect parameter is defined by `params` in `src/data/affixes.js`, the single source of truth.
 
-## 戦闘系（Phase 2）
+## Combat (Phase 2)
 
-| 名称 | id | 効果 | 部位 |
+| Name | id | Effect | Slot |
 |------|----|------|------|
-| 背水 | CORE_LAST_STAND | HP40%以下で与ダメ+40% | 武器 |
-| 先手必勝 | CORE_OPENER | 先制成功時、初撃に追撃確定 | 装飾 |
-| 血杖 | CORE_BLOOD_WAND | MP不足時、呪文をHP(コスト×2)で発動可(HP下限1) | 武器 |
-| 浄化の環 | CORE_PURIFY_RING | undead・spirit・demonキル毎に、MP空き時MP1、満タン時HP2回復 | 装飾 |
-| 罠喰い | CORE_TRAP_EATER | 罠解除毎に遠征中攻+2累積(上限+20、帰還でリセット) | 装飾 |
-| 呪飼いの鎖 | CORE_CURSE_KEEPER | 装備中の呪い1個毎に全ステ+3 | 装飾 |
-| 巨人殺し | CORE_GIANT_SLAYER | 自分よりmaxHPの高い敵へ与ダメ+30% | 武器 |
-| 殿の構え | CORE_REARGUARD | 後列の近接倍率ペナルティ無効 | 武器 |
-| 反撃の棘 | CORE_THORN_SHIELD | 被弾時30%で威力50%の反撃 | 盾 |
-| 執行人 | CORE_EXECUTIONER | 状態異常中の敵へ与ダメ2倍 | 武器 |
+| 背水 | CORE_LAST_STAND | +40% damage dealt at HP ≤40% | Weapon |
+| 先手必勝 | CORE_OPENER | On a successful first strike, a follow-up attack is guaranteed on the first hit | Accessory |
+| 血杖 | CORE_BLOOD_WAND | When MP is insufficient, a spell can be cast by paying HP (cost×2) (HP minimum 1) | Weapon |
+| 浄化の環 | CORE_PURIFY_RING | For each undead・spirit・demon kill, recover MP1 when MP is not full, or HP2 when full | Accessory |
+| 罠喰い | CORE_TRAP_EATER | Gain +2 attack per trap disarmed, accumulating during the expedition (cap +20, reset on return) | Accessory |
+| 呪飼いの鎖 | CORE_CURSE_KEEPER | +3 to all stats for each equipped curse | Accessory |
+| 巨人殺し | CORE_GIANT_SLAYER | +30% damage dealt to enemies with higher maxHP than self | Weapon |
+| 殿の構え | CORE_REARGUARD | Negates the rear-row melee multiplier penalty | Weapon |
+| 反撃の棘 | CORE_THORN_SHIELD | 30% chance to counterattack at 50% power when hit | Shield |
+| 執行人 | CORE_EXECUTIONER | 2× damage dealt to enemies with status ailments | Weapon |
 
-「先制」は本作では速度先行行動を指す: round 1 で敵より先に行動した場合のみ
-`combatFirstStrikeActive` が立ち、round終了で消える。
+“First strike” in this game refers to speed-based preemptive action: only when acting before the enemy in round 1
+does `combatFirstStrikeActive` become active, and it disappears at the end of the round.
 
-## 経済・探索系（Phase 3）
+## Economy / Exploration (Phase 3)
 
-| 名称 | id | 効果 | 部位 |
+| Name | id | Effect | Slot |
 |------|----|------|------|
-| 忍び足 | CORE_SNEAK_STEP | 門番・ボス感知範囲半減＋オーラ検知+1 | 鎧 |
-| 盗掘王 | CORE_TOMB_RAIDER | 宝箱素材+1個、罠強度+1段階 | 装飾 |
-| 慧眼 | CORE_KEEN_EYE | 未鑑定装備を装備可能(効果適用・表示は鑑定まで隠匿) | 装飾 |
-| 野営の達人 | CORE_CAMP_MASTER | キャンプ休息の回復量2倍(本人のみ) | 鎧 |
-| 賞金稼ぎ | CORE_BOUNTY_HUNTER | ランクエスト対象の撃破数を2倍カウント | 装飾 |
-| 学者の眼 | CORE_SCHOLAR_EYE | 図鑑未登録の敵から素材確定ドロップ | 装飾 |
+| 忍び足 | CORE_SNEAK_STEP | Gatekeeper and boss detection range halved + aura detection +1 | Armor |
+| 盗掘王 | CORE_TOMB_RAIDER | Chest materials +1, trap intensity +1 level | Accessory |
+| 慧眼 | CORE_KEEN_EYE | Can equip unidentified equipment (effects apply; display hidden until identified) | Accessory |
+| 野営の達人 | CORE_CAMP_MASTER | 2× camp-rest recovery (self only) | Armor |
+| 賞金稼ぎ | CORE_BOUNTY_HUNTER | Counts rank-quest target defeats 2× | Accessory |
+| 学者の眼 | CORE_SCHOLAR_EYE | Guaranteed material drop from enemies not registered in the codex | Accessory |
 
-現在はソロ1キャラ前提。忍び足・賞金稼ぎ・学者の眼も、その1人の装備と生存状態を
-参照する。実装上は `getPartyCoreParams` / `partyHasCoreAffix` など既存名の
-ヘルパーが引き続き使われ、装備者が hp0 / dead / ash のときは無効。
+The current design assumes 1 solo character. 忍び足・賞金稼ぎ・学者の眼 also refer to that character's equipment and survival state.
+In implementation, existing helpers such as `getPartyCoreParams` / `partyHasCoreAffix` continue to be used,
+and their effects are inactive when the wearer is hp0 / dead / ash.
 
-慧眼の効果適用は表示レイヤーでなく機構レイヤー
-（`getCharAffixSum` 内 `canApplyUnidentifiedEquipmentEffects`）で行う。
-慧眼コア自体は鑑定済み装備でのみ有効（循環なし）。呪い付き未鑑定を装備した
-場合に呪いが発動するのは仕様（このコアのリスク）。
+The effect of 慧眼 is applied at the mechanism layer rather than the display layer
+(`canApplyUnidentifiedEquipmentEffects` inside `getCharAffixSum`).
+The 慧眼 core itself is active only on identified equipment (no cycle). Equipping cursed unidentified equipment
+and triggering its curse is intended behavior (the risk of this core).
 
-# サポートアフィックス（`SUPPORT_AFFIXES`）
+# Support Affixes (`SUPPORT_AFFIXES`)
 
-- basic（Phase 1 で既存移行）: str/int/pie/vit/agi/luk, hp/mp, atk/def,
+- basic (migrated from existing effects in Phase 1): str/int/pie/vit/agi/luk, hp/mp, atk/def,
   antiUndead/antiDragon/antiDemon, poisonWard, spellGuard, trapBonus,
   treasureSense, arcaneSense, hearRange, traceRead, followUp, arcane,
-  devotion, guardian, firstStrike, trapSense（罠察知: 床罠の察知率が増加）
-- conditional（Phase 2）: deepAssault(B3F以深攻+) / frontGuard /
+  devotion, guardian, firstStrike, trapSense（罠察知: increases floor-trap detection rate）
+- conditional (Phase 2): deepAssault (attack+ from B3F onward) / frontGuard /
   rearEvasion / fullHpDamage / firstTurnAttack / antiBeast / antiSpirit /
   firstStrikeDefense / lastSurvivorStats / statusResistance / spellAccuracy
-- trigger（Phase 2/3）: killHeal / followUpMp / hitFlinch / poisonAtk /
+- trigger (Phase 2/3): killHeal / followUpMp / hitFlinch / poisonAtk /
   victoryMaterial / stairsHeal
-- economy（Phase 3）: identifyDiscount / materialFind / contractReward
+- economy (Phase 3): identifyDiscount / materialFind / contractReward
 
-`materialFind` / `contractReward` はソロキャラ1人の装備値を
-`getPartyMaxAffix` 経由で取得する。`contractReward` の対象はランクエスト報酬。
+`materialFind` / `contractReward` obtain the equipment values of 1 solo character via
+`getPartyMaxAffix`. The target of `contractReward` is rank-quest rewards.
 
-当初案の「疲労中ペナルティ半減」は疲労システム未実装のため見送り（実装時に
-conditional として追加を検討）。
+The original proposal, “half the fatigue penalty,” was shelved because the fatigue system is not implemented (consider
+adding it as a conditional when implemented).
 
-# 生成・入手規則
+# Generation and Acquisition Rules
 
-- レアリティ構成: コモン=サポート1 / レア=サポート2 or コア1(50%) /
-  エピック=コア1＋サポート2
-- ポイント予算制: サポート cost 1〜3、コア一律10。予算はレアリティ×フロア
-  深度（`AFFIX_BALANCE.budgetsByRarityAndFloor`）
-- コア付きドロップの30%は呪い付き（`AFFIX_BALANCE.coreCurseChance`）
-- フロア別コアプール重み: B1-B2=経済系中心、B3+=戦闘系中心
-- コア入手源はダンジョン由来のみ。節目商人は装備を販売しない
+- Rarity composition: Common=support1 / Rare=support2 or core1(50%) /
+  Epic=core1＋support2
+- Point budget: support cost 1〜3, core flat 10. The budget is determined by rarity × floor
+  depth (`AFFIX_BALANCE.budgetsByRarityAndFloor`)
+- 30% of core-bearing drops are cursed (`AFFIX_BALANCE.coreCurseChance`)
+- Floor-specific core pool weights: B1-B2=mostly economy, B3+=mostly combat
+- Core sources are dungeon-only. Milestone merchants do not sell equipment.
 
-# 工房（Phase 4）
+# Workshop (Phase 4)
 
-用語注意: 本節の「工房」は PR #129 で実装された刻印・研磨・封印を指す。
-`.agents/game-design.md` の「工房」（ラン間の恒久アンロック木）とは別物であり、
-命名の最終決定は本Issueの範囲外。
+Terminology note: “Workshop” in this section refers to the inscriptions, polishing, and sealing implemented in PR #129.
+It is distinct from “Workshop” in `.agents/game-design.md` (the permanent unlock tree between runs),
+and the final naming decision is outside the scope of this Issue.
 
-現在 `src/craft.js` に実装は存在するが、`src` 配下の画面から import されず到達不能。
-装備もラン間で持ち越されないため、出荷中のゲームには適用先がない。削除または
-再接続の判断には別Issueが必要。
+An implementation currently exists in `src/craft.js`, but it is unreachable because no screen under `src` imports it.
+Because equipment is not carried between runs, it has no applicable target in the shipped game. Deleting or
+reconnecting it requires a separate Issue.
 
-境界: **工房で扱えるのはサポートのみ**。コアは工房で作成・付与・移動・削除
-できない。唯一の例外は封印によるコア弱体化。
+Boundary: **only support affixes can be handled in the Workshop**. Cores cannot be created, granted, moved, or removed in
+the Workshop. The only exception is weakening a core through sealing.
 
-- **刻印19種**（`TAG_EFFECT_MAP`）: 既存12種＋経済系3種
-  （`material` / `fortune` / `contract`）＋条件数値系4種
+- **19 Inscriptions** (`TAG_EFFECT_MAP`): 12 existing types + 3 economy types
+  (`material` / `fortune` / `contract`) + 4 conditional numeric types
   （深層攻勢/無傷の猛攻/不屈/精唱）
-- **研磨**: サポートアフィックス1つを value 1.5倍（切り上げ）。1装備1回
-  （`polished` フラグ）。コアは対象外。コスト: `AFFIX_BALANCE.polishCost`
-- **封印のコア半減**: 呪い封印時に `coreSealed: true` を付与。半減規則は
-  `CORE_SEAL_RULES`（`src/rules/affix_rules.js`）に一元化 —
-  倍率系は「1+(x-1)/2」、確率・定数系は半分（切り捨て）、boolean系
-  （浄化の環/殿の構え/盗掘王/慧眼/賞金稼ぎ/学者の眼）は無効。血杖は
-  HPコスト2倍→4倍。装備表示は「◆(封)名称」
+- **Polishing**: Multiplies the value of 1 support affix by 1.5 (round up). 1 time per item
+  (`polished` flag). Cores are excluded. Cost: `AFFIX_BALANCE.polishCost`
+- **Core halving through sealing**: Adds `coreSealed: true` when a curse is sealed. Halving rules are
+  centralized in `CORE_SEAL_RULES` (`src/rules/affix_rules.js`) —
+  multiplier types use “1+(x-1)/2”, probability and constant types are halved (round down), boolean types
+  （浄化の環/殿の構え/盗掘王/慧眼/賞金稼ぎ/学者の眼）are disabled. 血杖
+  doubles HP cost from 2× to 4×. Equipment is displayed as “◆(封)名称”
 
-# バランス枠組み
+# Balance Framework
 
-- コアの評価規則: **期待稼働率換算で無条件+15%相当を上限**。
-  例: 背水+40%×稼働20%≒実効+8%
-- 調整つまみは2箇所のみ: `AFFIX_BALANCE`（cost / 予算 / ロール構成 /
-  呪い率 / 研磨費）と `CORE_SEAL_RULES`（封印弱体）。フック側に数値を
-  直書きしない
-- 数値変更は balance-simulation チェックリストを通す
+- Core evaluation rule: **an unconditional +15% equivalent is the upper limit when converted by expected uptime**.
+  Example: 背水 +40% × 20% uptime ≈ +8% effective.
+- Only 2 tuning knobs: `AFFIX_BALANCE` (cost / budget / role composition /
+  curse rate / polish cost) and `CORE_SEAL_RULES` (seal weakening). Do not hardcode numbers
+  on the hook side.
+- Numeric changes go through the balance-simulation checklist.
 
-# UI・可視化
+# UI and Visualization
 
-- 装備画面: コアは「◆名称: 条件文」1行、封印済みは「◆(封)名称」。
-  サポートは数値表示（`formatAffixText` に一元化）
-- 戦闘ログ: コア発動を必ず明示（`getCoreLogText` / `logCoreActivation`）。
-  常時系は戦闘中初回のみ、トリガー系は毎回。探索系は探索ログに出す
-- 慧眼で装備した未鑑定品は内容を「???」で隠す
+- Equipment screen: Cores show as “◆名称: 条件文” on 1 line; sealed cores as “◆(封)名称”.
+  Support affixes show numeric values (centralized in `formatAffixText`).
+- Battle log: Always explicitly show core activation (`getCoreLogText` / `logCoreActivation`).
+  Always-on effects appear only the first time in battle; trigger effects appear every time. Exploration effects appear in exploration logs.
+- Equipment identified via 慧眼 hides its contents as “???”.
 
-# 検証
+# Verification
 
-- deterministic unit: `scratch/test_affixes.js`（レジストリ整合・予算・生成）、
-  `scratch/test_core_affixes.js`（全コアの効果・封印半減・研磨制限）
+- deterministic unit: `scratch/test_affixes.js` (registry consistency, budget, generation),
+  `scratch/test_core_affixes.js` (all core effects, seal halving, polishing restrictions)
 - `npm run test:unit` / `npm run lint` / `npm run build` /
   `npm run test:browser`
 
-# 今後の課題
+# Future Work
 
-- コア期待稼働率の実測 → `AFFIX_BALANCE` 調整（実プレイデータ待ち）
-- 疲労システム実装時: 「疲労中ペナルティ半減」サポートの追加検討
-- 図鑑のコア発見録（16種コレクション表示）は未実装 — 実装する場合は別Issue
+- Measure expected core uptime → adjust `AFFIX_BALANCE` (pending live-play data).
+- When implementing the fatigue system: consider adding the 「疲労中ペナルティ半減」 support affix.
+- The codex core discovery record (16-type collection display) is not implemented — use a separate Issue if implementing it.
