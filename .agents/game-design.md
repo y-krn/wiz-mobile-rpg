@@ -8,8 +8,8 @@ Resolve conflicts toward that document.
 
 **Direction change (2026-07-18).** The former Expedition Economy (town shops,
 gold, identification-in-town, crafting, contracts board, B5F clear flow) was
-retired with the party-based game. The approved pivot design lives in
-`docs/superpowers/specs/2026-07-18-solo-depth-roguelite-design.md`.
+retired with the party-based game. This document defines the meta economy for
+the replacement solo depth-attack roguelite.
 
 ## Goal
 
