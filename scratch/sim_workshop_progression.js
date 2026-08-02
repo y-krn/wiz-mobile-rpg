@@ -1222,27 +1222,29 @@ function printWorkshopStateDistribution(result) {
     "blood-wand+deep-spells": "血杖+深層呪文解放済み",
     complete: "買い切り済み"
   };
-  Object.entries(phaseLabels)
-    .filter(([phase]) => totals.workshopPhaseCounts[phase])
-    .forEach(([phase, label]) => {
-      const samples = totals.workshopPhaseSamples[phase];
-      const meanSteps = samples.reduce(
-        (sum, sample) => sum + sample.state.purchasedSteps,
-        0
-      ) / samples.length;
-      const representative = samples
-        .slice()
-        .sort((left, right) =>
-          Math.abs(left.state.purchasedSteps - meanSteps) -
-          Math.abs(right.state.purchasedSteps - meanSteps)
-        )[0];
-      const count = totals.workshopPhaseCounts[phase];
-      console.log(
-        `  ${label}: ${formatRate(count / totals.runs)} ` +
-        `(${count}/${totals.runs}), 平均step=${meanSteps.toFixed(1)}, ` +
-        `代表 ${formatWorkshopState(representative.state)}`
-      );
-    });
+  Object.entries(phaseLabels).forEach(([phase, label]) => {
+    const count = totals.workshopPhaseCounts[phase] || 0;
+    if (!count) {
+      console.log(`  ${label}: 0.0% (0/${totals.runs})`);
+      return;
+    }
+    const samples = totals.workshopPhaseSamples[phase];
+    const meanSteps = samples.reduce(
+      (sum, sample) => sum + sample.state.purchasedSteps,
+      0
+    ) / samples.length;
+    const representative = samples
+      .slice()
+      .sort((left, right) =>
+        Math.abs(left.state.purchasedSteps - meanSteps) -
+        Math.abs(right.state.purchasedSteps - meanSteps)
+      )[0];
+    console.log(
+      `  ${label}: ${formatRate(count / totals.runs)} ` +
+      `(${count}/${totals.runs}), 平均step=${meanSteps.toFixed(1)}, ` +
+      `代表 ${formatWorkshopState(representative.state)}`
+    );
+  });
   console.log("上位の完全一致state:");
   Object.values(totals.workshopStateCounts)
     .sort((left, right) => right.count - left.count || left.purchasedSteps - right.purchasedSteps)
