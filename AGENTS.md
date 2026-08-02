@@ -169,6 +169,13 @@ If multiple interpretations are plausible, ask instead of choosing silently.
   create a temporary or focused Playwright spec and run it through the test
   runner.
 
+## Design Canon Gate
+
+Changes to game rules, balance, affixes, or the material economy must update
+the matching `.agents/game-design*.md` in the same pull request, or state in
+the PR why the canon is unaffected. Prefer referencing the source constant
+over copying its value into the document.
+
 ## Mobile UI/UX Requirements
 
 Mobile browser one-handed use is a hard requirement for UI work.
