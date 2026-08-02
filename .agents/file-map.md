@@ -79,7 +79,7 @@ to verify the change.
 | Run result, rewards, return reasons | `src/result.js`, `src/state.js`, `src/state/*` | `src/chest.js`, `src/combat.js`, `src/combat_logic/*` | `npm run test:unit`, `npm run test:browser` |
 | Progression economy, materials, workshop, post-clear loop | `.agents/game-design.md`, `src/data.js`, `src/data/*`, `src/state.js`, `src/state/*` | `src/systems/*`, `src/combat_logic.js`, `src/combat_logic/*`, `src/chest.js`, `src/menu.js`, `src/menu/*`, `src/result.js`, `scratch/test_*.js`, `tests/*.spec.js` | `npm run test:unit`, `npm run build`, `npm run test:browser` |
 | Audio toggle or sound effects | `src/audio.js`, `src/game.js` | Calling module for the changed event | `npm run build` |
-| Input guards and error telemetry | `src/controls_guard.js`, `src/error_context.js`, `src/sentry.js` | `src/game.js`, `src/navigation.js`, `src/state/save_storage.js`, `scratch/test_transition_input_guard.js` | `npm run lint` |
+| Input guards and error telemetry | `src/controls_guard.js`, `src/error_context.js`, `src/sentry.js` | `src/game.js`, `src/navigation.js`, `src/state/save_storage.js`, `scratch/test_transition_input_guard.js` | `npm run lint`, `npm run test:unit` |
 | Mobile layout, tap targets, thumb flow | Relevant `src/styles/*.css`, affected UI module | `tests/*.spec.js`, `index.html`, `src/style.css` import order when cascade changes are suspected | `npm run test:browser` |
 | Browser/mobile test changes | `tests/*.spec.js`, `playwright.config.js` | Affected UI module, relevant `src/styles/*.css` | `npm run test:browser` |
 | Unit test or simulation changes | Matching `scratch/test_*.js` | Source module under test, `package.json` | `npm run test:unit` |
