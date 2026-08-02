@@ -3,6 +3,9 @@
 // check independent so the runner reports every failure before exiting.
 // Source-driven checks should search a bounded document section for known
 // source values instead of parsing variable prose or list formatting.
+// The support-affix check is intentionally one-way: it enumerates affixes
+// from src and checks their presence/category in the document, but does not
+// enumerate document-only affix types.
 // `.learnings/*.md` is intentionally not part of DOCUMENT_NAMES or DOCUMENT_DIRS.
 
 import fs from "node:fs";
@@ -17,7 +20,6 @@ const DOCUMENT_DIRS = [".agents"];
 const PATH_PREFIXES = ["src", "tests", "scratch", "scripts", "public"];
 const SUPPORT_AFFIX_DOCUMENT = ".agents/game-design-equipment-builds.md";
 const SUPPORT_AFFIX_HEADING = "サポートアフィックス";
-const SUPPORT_CATEGORIES = ["basic", "conditional", "trigger", "economy"];
 const ROOT_PATHS = new Set([
   "index.html",
   "package.json",
@@ -207,9 +209,42 @@ function findIdentifierOccurrences(text, identifier) {
 }
 
 function getCategoryAnchors(text) {
-  return SUPPORT_CATEGORIES.flatMap((category) =>
-    findIdentifierOccurrences(text, category).map((position) => ({ category, position }))
-  ).sort((left, right) => left.position - right.position);
+  const anchors = [];
+  const categoryAnchorPattern = /^\s*-\s*(basic|conditional|trigger|economy)\b/gm;
+
+  for (const match of text.matchAll(categoryAnchorPattern)) {
+    const category = match[1];
+    anchors.push({
+      category,
+      position: match.index + match[0].indexOf(category),
+    });
+  }
+
+  return anchors;
+}
+
+function getCategoryListRanges(text) {
+  const ranges = [];
+  let currentRange = null;
+  let offset = 0;
+
+  for (const line of text.split("\n")) {
+    if (/^\s*-\s*(basic|conditional|trigger|economy)\b/.test(line)) {
+      currentRange = { start: offset, end: offset + line.length };
+      ranges.push(currentRange);
+    } else if (currentRange !== null && /^[ \t]{2,}\S/.test(line)) {
+      currentRange.end = offset + line.length;
+    } else {
+      currentRange = null;
+    }
+    offset += line.length + 1;
+  }
+
+  return ranges;
+}
+
+function isInCategoryList(position, ranges) {
+  return ranges.some((range) => position >= range.start && position <= range.end);
 }
 
 function getCategoryAtPosition(position, anchors) {
@@ -241,11 +276,13 @@ function checkSupportAffixes() {
   }
 
   const categoryAnchors = getCategoryAnchors(section.text);
+  const categoryListRanges = getCategoryListRanges(section.text);
   const sourceOnly = [];
   const categoryMismatches = [];
 
   for (const affix of SUPPORT_AFFIXES) {
-    const positions = findIdentifierOccurrences(section.text, affix.type);
+    const positions = findIdentifierOccurrences(section.text, affix.type)
+      .filter((position) => isInCategoryList(position, categoryListRanges));
     if (positions.length === 0) {
       sourceOnly.push(affix.type);
       continue;
@@ -270,7 +307,7 @@ function checkSupportAffixes() {
     diagnostics.push({
       file: relativeFile,
       line: section.startLine - 1,
-      message: `doc側のみ: なし / src側のみ: ${sourceOnly.join(", ")}`,
+      message: `src側のみ: ${sourceOnly.join(", ")}`,
     });
   }
   diagnostics.push(...categoryMismatches);
