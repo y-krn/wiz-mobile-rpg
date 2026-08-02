@@ -194,6 +194,7 @@ export function generateRunFloor({
         oneWayPassageCount: template.gimmickDensity.oneWayPassages + biome.gimmicks.oneWayBonus,
         secretDoorCounts: template.gimmickDensity.secretDoors,
         trapCount: template.gimmickDensity.traps + biome.gimmicks.trapBonus,
+        trapSet: biome.gimmicks.trapSet,
         criticalPathRange: template.criticalPathRange,
         generateStairsDown: true,
         legacyMilestones: false

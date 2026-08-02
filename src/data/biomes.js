@@ -40,7 +40,7 @@ export const BIOMES = Object.freeze([
     id: "rift_nest", name: "大裂溝の巣窟", cssClass: "floor-theme-b3",
     bossName: "ポイズンジャイアント", eliteName: "這い寄る影",
     enemyPool: ["スピリット", "はぐれ魔術師", "呪文喰い", "オークの戦士", "カースドハンド", "アイアンゴーレム", "霧の亡霊", "骨の鼓手", "弱体の魔女", "魔封じの目玉", "解呪の司祭"],
-    gimmicks: { trapSet: ["damage", "pitfall"], oneWayBonus: 1, trapBonus: 1 },
+    gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 1, trapBonus: 1 },
     theme: {
       entryText: { first: "底知れぬ裂け目を、無数の糸と獣の息遣いが覆う。", revisit: "大裂溝の巣窟へ戻った。足元の震えが巣へ伝わる。" },
       auraLexicon: { spring: "裂け目の底から水音が上がる…", tablet: "糸に覆われた碑から魔力を感じる…", merchant: "巣の向こうから布の擦れる音がする…", stairs: "深い裂け目から風が吹き上がる…", chest: "巣糸の塊に何かが包まれている気がする…", boss: "大地を伝う振動に、魔性の脈動が混じる…" },
@@ -76,7 +76,7 @@ export const BIOMES = Object.freeze([
     id: "abyssal_throne", name: "深淵の玉座", cssClass: "floor-theme-b6",
     bossName: "いにしえの竜", eliteName: "深淵の徘徊者",
     enemyPool: ["マスターデーモン", "プリーストデーモン", "命喰いの影", "深淵の分裂体", "破滅の導師", "盾持ちデーモン", "結界の守護者", "反逆の鎧", "竜血の再生者"],
-    gimmicks: { trapSet: ["mpDrain", "pitfall", "alarm"], oneWayBonus: 2, trapBonus: 3 },
+    gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 2, trapBonus: 3 },
     theme: {
       entryText: { first: "光の届かない玉座で、深淵の脈動が床を震わせる。", revisit: "深淵の玉座へ戻った。見えない視線が一歩ごとに追う。" },
       auraLexicon: { spring: "闇の底から水音が聞こえる…", tablet: "王の碑文から濃い魔力を感じる…", merchant: "玉座の陰から衣擦れが聞こえる…", stairs: "底なしの階段から冷気が流れる…", chest: "幻影の陰に財宝の気配が揺らぐ…", boss: "玉座から圧倒的な魔力が押し寄せる…" },
