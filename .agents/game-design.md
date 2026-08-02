@@ -49,6 +49,14 @@ milestone merchants inside a run and by the workshop between runs.
 | `dragon` | 竜鱗 | 獣の牙 |
 | Rare or boss | Normal group material | Extra rare material |
 
+Issue #380 classification correction keeps the default material allocation,
+drop quantity, and rare/boss depth gate unchanged. Explicit monster tags take
+precedence over sprite predicates, with `spell`, poison flags, and strong
+armor-name predicates filling measured classification gaps. Chest and beast
+secondary profiles remain available to the simulation as rejected comparison
+profiles; they are not production defaults. Workshop node costs and
+departure-craft costs are not part of this correction.
+
 - Material species vary by biome and depth, so "I need 黒角, so I dive to the
   demon biome" is a real routing decision.
 - Deeper floors pay more of everything; a milestone-start run applies a

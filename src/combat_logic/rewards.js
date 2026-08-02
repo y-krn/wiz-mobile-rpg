@@ -129,7 +129,9 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
     const drops = determineMonsterDrop(m, state.floor, rng, {
       chanceBonus: materialFind,
       guaranteed,
-      startFloor: state.currentRun?.startFloor || 1
+      startFloor: state.currentRun?.startFloor || 1,
+      rareMaterialFloor: state.simPolicy?.materialDropOverride?.rareMaterialFloor,
+      secondaryMaterialProfile: state.simPolicy?.materialDropOverride?.secondaryMaterialProfile
     });
     scholarActivated ||= guaranteed;
     Object.entries(drops).forEach(([mat, qty]) => {
