@@ -7,10 +7,69 @@ const DY = [-1, 0, 1, 0];
 const OPPOSITE_DIR = [DIR_S, DIR_W, DIR_N, DIR_E];
 
 const PITFALL_PROBABILITIES = {
+  // Pitfall is a shallow-only floor hazard. Keep it separate from biome
+  // trapSet because triggering it forces a one-floor descent.
   1: 0.05,
   2: 0.08,
   3: 0.12
 };
+
+// trapSet is a biome preference, not an exclusion list. Keep undeclared
+// regular types possible so the existing depth curve remains continuous.
+const TRAP_SET_WEIGHT_MULTIPLIER = 2;
+
+const REGULAR_TRAP_TYPES = [
+  TRAP_TYPES.DAMAGE,
+  TRAP_TYPES.MP_DRAIN,
+  TRAP_TYPES.ALARM
+];
+
+function getRegularTrapWeights(floor) {
+  if (floor <= 2) {
+    return {
+      [TRAP_TYPES.DAMAGE]: 0.70,
+      [TRAP_TYPES.MP_DRAIN]: 0.15,
+      [TRAP_TYPES.ALARM]: 0.15
+    };
+  }
+  if (floor <= 4) {
+    return {
+      [TRAP_TYPES.DAMAGE]: 0.30,
+      [TRAP_TYPES.MP_DRAIN]: 0.40,
+      [TRAP_TYPES.ALARM]: 0.30
+    };
+  }
+  return {
+    [TRAP_TYPES.DAMAGE]: 0.20,
+    [TRAP_TYPES.MP_DRAIN]: 0.40,
+    [TRAP_TYPES.ALARM]: 0.40
+  };
+}
+
+function selectTrapType(floor, rng, trapSet) {
+  const pitfallProb = PITFALL_PROBABILITIES[floor] || 0;
+  const roll = rng();
+  if (roll < pitfallProb) return TRAP_TYPES.PITFALL;
+
+  const r2 = pitfallProb > 0 ? (roll - pitfallProb) / (1 - pitfallProb) : roll;
+  const regularWeights = getRegularTrapWeights(floor);
+  const preferredTypes = new Set(
+    Array.isArray(trapSet) ? trapSet.filter(type => REGULAR_TRAP_TYPES.includes(type)) : []
+  );
+  const weightedTypes = REGULAR_TRAP_TYPES.map(type => ({
+    type,
+    weight: regularWeights[type] * (
+      preferredTypes.has(type) ? TRAP_SET_WEIGHT_MULTIPLIER : 1
+    )
+  }));
+  const totalWeight = weightedTypes.reduce((sum, entry) => sum + entry.weight, 0);
+  let threshold = r2 * totalWeight;
+  for (const entry of weightedTypes) {
+    if (threshold < entry.weight) return entry.type;
+    threshold -= entry.weight;
+  }
+  return weightedTypes.at(-1).type;
+}
 
 const ONE_WAY_PASSAGE_COUNTS = {
   1: 2,
@@ -1441,28 +1500,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   for (const spot of chosen) {
     const trapId = `trap_${floor}_${spot.x}_${spot.y}`;
-    
-    let trapType;
-    const r = rng();
-    const pitfallProb = PITFALL_PROBABILITIES[floor] || 0;
-    if (r < pitfallProb) {
-      trapType = TRAP_TYPES.PITFALL;
-    } else {
-      const r2 = pitfallProb > 0 ? (r - pitfallProb) / (1 - pitfallProb) : r;
-      if (floor <= 2) {
-        if (r2 < 0.70) trapType = TRAP_TYPES.DAMAGE;
-        else if (r2 < 0.85) trapType = TRAP_TYPES.MP_DRAIN;
-        else trapType = TRAP_TYPES.ALARM;
-      } else if (floor <= 4) {
-        if (r2 < 0.30) trapType = TRAP_TYPES.DAMAGE;
-        else if (r2 < 0.70) trapType = TRAP_TYPES.MP_DRAIN;
-        else trapType = TRAP_TYPES.ALARM;
-      } else {
-        if (r2 < 0.20) trapType = TRAP_TYPES.DAMAGE;
-        else if (r2 < 0.60) trapType = TRAP_TYPES.MP_DRAIN;
-        else trapType = TRAP_TYPES.ALARM;
-      }
-    }
+
+    const trapType = selectTrapType(floor, rng, options.trapSet);
     
     const baseDifficulty = 15 + floor * 15;
     const diffNoise = Math.floor(rng() * 11) - 5;
