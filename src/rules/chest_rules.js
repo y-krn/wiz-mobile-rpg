@@ -117,6 +117,7 @@ export function rollChestReward({
   }
 
   const chestFloor = Math.min(5, floor);
+  // 想定外の floor で候補キーが欠けても quest を出さない保険として fallback を残す。
   let candidates = CHEST_ITEM_CANDIDATES_BY_FLOOR[chestFloor]
     || Object.keys(ITEMS).filter(key => ITEMS[key].type !== "quest");
   if (itemCandidateFilter) {
