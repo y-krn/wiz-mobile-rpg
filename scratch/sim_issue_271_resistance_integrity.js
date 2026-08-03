@@ -15,7 +15,7 @@ const SEED = Number(process.env.B5_SEED || 2715) >>> 0;
 process.env.SIM_SEED = String(SEED);
 
 const {
-  SCENARIOS,
+  REFERENCE_SCENARIOS,
   SIM_CLASSES,
   calibrateCoreScoringProfile,
   resetSimulationRandom,
@@ -33,7 +33,7 @@ const PHASE2_PATH = path.join(RESULTS_DIR, `${PREFIX}-phase2.md`);
 const PHASE3_PATH = path.join(RESULTS_DIR, `${PREFIX}-phase3.md`);
 const PHASE4_PATH = path.join(RESULTS_DIR, `${PREFIX}-phase4.md`);
 
-const BASE_SCENARIO = SCENARIOS.find(scenario => scenario.id === "workshop-unlocked");
+const BASE_SCENARIO = REFERENCE_SCENARIOS.find(scenario => scenario.id === "workshop-empty");
 const BASELINE = Object.freeze({
   id: process.env.B5_CONDITION_ID || "baseline",
   label: process.env.B5_CONDITION_LABEL || "現行",

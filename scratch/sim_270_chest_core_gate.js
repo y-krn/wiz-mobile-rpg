@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const {
-  SCENARIOS,
+  REFERENCE_SCENARIOS,
   SIM_CLASSES,
   calibrateCoreScoringProfile,
   getSimulationRandomState,
@@ -446,7 +446,7 @@ function printComparison(resultsByScenario) {
     "economy遭遇/装備/定着 | 装備 | 換装 | deep | gamble |",
     "呪い/core呪い | support | 固定base | 平均到達 | 生還 | EV/時間"
   );
-  const workshop = resultsByScenario["workshop-unlocked"];
+  const workshop = resultsByScenario["workshop-empty"];
   ACTIVE_CONDITIONS.forEach(condition => {
     const summary = workshop[condition.id];
     const rarityTotal = Object.values(summary.rarity)
@@ -477,7 +477,7 @@ function printComparison(resultsByScenario) {
 
   emit("\n=== 参考条件比較 ===");
   emit("scenario | 条件 | core遭遇 | core装備 | 定着 | 装備 | 換装 | 平均到達 | 生還 | EV/時間");
-  SCENARIOS.filter(scenario => scenario.id !== "workshop-unlocked")
+  REFERENCE_SCENARIOS.filter(scenario => scenario.id !== "workshop-empty")
     .forEach(scenario => {
       ACTIVE_CONDITIONS.forEach(condition => {
         const summary = resultsByScenario[scenario.id][condition.id];
@@ -538,7 +538,7 @@ export function runChestCoreGateComparison() {
 
   const scoringProfile = calibrateCoreScoringProfile(CALIBRATION_RUNS);
   const initialStates = {};
-  for (const scenario of SCENARIOS) {
+  for (const scenario of REFERENCE_SCENARIOS) {
     initialStates[scenario.id] = getB20InitialRandomState(
       scenario,
       scoringProfile
@@ -546,7 +546,7 @@ export function runChestCoreGateComparison() {
   }
 
   const resultsByScenario = {};
-  for (const scenario of SCENARIOS) {
+  for (const scenario of REFERENCE_SCENARIOS) {
     resultsByScenario[scenario.id] = {};
     for (const condition of ACTIVE_CONDITIONS) {
       const summary = runCondition(

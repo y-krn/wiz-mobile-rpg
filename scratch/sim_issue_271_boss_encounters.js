@@ -15,7 +15,7 @@ const SEED = Number(process.env.BOSS_SEED || 271) >>> 0;
 process.env.SIM_SEED = String(SEED);
 
 const {
-  SCENARIOS,
+  REFERENCE_SCENARIOS,
   SIM_CLASSES,
   calibrateCoreScoringProfile,
   resetSimulationRandom,
@@ -65,18 +65,20 @@ const RESISTANCE_KEYS = Object.freeze([
   "guardian",
   "spellGuard"
 ]);
-const BASE_SCENARIOS = new Map(SCENARIOS.map(scenario => [scenario.id, scenario]));
+const BASE_SCENARIOS = new Map(
+  REFERENCE_SCENARIOS.map(scenario => [scenario.id, scenario])
+);
 const CONDITIONS = Object.freeze([
   {
-    id: "workshop-unlocked-engage",
-    scenarioId: "workshop-unlocked",
+    id: "workshop-empty-engage",
+    scenarioId: "workshop-empty",
     bossPolicy: "engage",
     fleeHpThreshold: 0.35,
     label: "翼あり・ボス先行A"
   },
   {
-    id: "workshop-unlocked-avoid",
-    scenarioId: "workshop-unlocked",
+    id: "workshop-empty-avoid",
+    scenarioId: "workshop-empty",
     bossPolicy: "avoid",
     fleeHpThreshold: 0.35,
     label: "翼あり・階段先行B"
@@ -698,10 +700,10 @@ async function main() {
   });
 
   emit("\n【A/B 差（A-B、paired 95%区間）】");
-  for (const scenarioId of ["workshop-unlocked", "legacy-no-portal"]) {
+  for (const scenarioId of ["workshop-empty", "legacy-no-portal"]) {
     const a = grouped.get(`${scenarioId}-engage`).rows;
     const b = grouped.get(`${scenarioId}-avoid`).rows;
-    const label = scenarioId === "workshop-unlocked" ? "翼あり" : "翼不使用";
+    const label = scenarioId === "workshop-empty" ? "翼あり" : "翼不使用";
     for (const [name, selector] of [
       ["到達深度", row => row.depth],
       ["素材EV", row => row.bankedMaterials],
@@ -763,7 +765,7 @@ async function main() {
     });
   });
 
-  const primary = grouped.get("workshop-unlocked-engage");
+  const primary = grouped.get("workshop-empty-engage");
   const primarySummary = primary.summary;
   const primaryBossRecords = flattenSpecialBattles(primary.rows);
   const primaryEffects = buildEffects(primaryBossRecords);
