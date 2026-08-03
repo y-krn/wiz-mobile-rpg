@@ -336,7 +336,7 @@
 }
 
 .equip-detail-desc {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-md);
   color: var(--text-muted);
   line-height: 1.25;
   overflow: hidden;
@@ -348,7 +348,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-md);
   font-weight: bold;
 }
 
@@ -398,7 +398,7 @@
   border: 1px solid #22222d;
   border-radius: 4px;
   color: var(--text-muted);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-md);
   overflow: hidden;
   padding: 5px 6px;
   text-overflow: ellipsis;
@@ -426,7 +426,7 @@
 
 .equip-affix-group span {
   color: #eee;
-  font-size: var(--fs-xs);
+  font-size: var(--fs-md);
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
