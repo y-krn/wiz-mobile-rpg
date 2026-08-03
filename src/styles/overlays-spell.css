@@ -271,7 +271,7 @@
 }
 
 .spell-detail-warning {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-md);
   color: var(--neon-red);
   text-shadow: var(--neon-glow-red);
   text-align: center;
@@ -627,7 +627,7 @@
 }
 
 .spell-card-desc {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-md);
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -699,13 +699,13 @@
 }
 
 .spell-detail-desc {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-md);
   color: var(--text-muted);
   line-height: 1.3;
 }
 
 .spell-detail-warning {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-md);
   color: var(--neon-red);
   font-weight: bold;
 }

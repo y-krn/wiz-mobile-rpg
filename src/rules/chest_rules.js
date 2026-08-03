@@ -116,8 +116,10 @@ export function rollChestReward({
     return { item, consumedFirstChestGuarantee: floor === 1 };
   }
 
-  let candidates = CHEST_ITEM_CANDIDATES_BY_FLOOR[floor]
-    || Object.keys(ITEMS).filter(key => key !== "ANTIGRAVITY_CRYSTAL");
+  const chestFloor = Math.min(5, floor);
+  // 想定外の floor で候補キーが欠けても quest を出さない保険として fallback を残す。
+  let candidates = CHEST_ITEM_CANDIDATES_BY_FLOOR[chestFloor]
+    || Object.keys(ITEMS).filter(key => ITEMS[key].type !== "quest");
   if (itemCandidateFilter) {
     candidates = candidates.filter(itemCandidateFilter);
   }
@@ -130,9 +132,9 @@ export function rollChestReward({
 
   const isDangerousTrap = DANGEROUS_TRAPS.includes(trap);
   let randChance;
-  if (floor === 4) {
+  if (chestFloor === 4) {
     randChance = isDangerousTrap ? 0.80 : 0.70;
-  } else if (floor === 5) {
+  } else if (chestFloor === 5) {
     randChance = 0.90;
   } else {
     // B1F/B2F/B3F
