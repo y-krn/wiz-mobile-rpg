@@ -1,5 +1,6 @@
 import { getAffixDefinition } from "../data/affixes.js";
 import { getCharAffixSum } from "./item_rules.js";
+import { getMilestoneBossExposureMultiplier } from "./boss_rules.js";
 
 const halveMultiplier = value => 1 + (value - 1) / 2;
 const halveConstant = value => Math.floor(value / 2);
@@ -152,6 +153,7 @@ export function getDamageAffixResult(char, target, damage, { floor = 1, maxHp = 
   if (target?.tags?.includes("beast")) supportPercent += getCharAffixSum(char, "antiBeast");
   if (target?.tags?.includes("spirit")) supportPercent += getCharAffixSum(char, "antiSpirit");
   multiplier *= 1 + supportPercent / 100;
+  multiplier *= getMilestoneBossExposureMultiplier(floor, target);
 
   return {
     damage: Math.max(1, Math.round(damage * multiplier)),
