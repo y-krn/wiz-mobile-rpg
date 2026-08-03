@@ -1269,7 +1269,12 @@ function hasSpell(character, spellName) {
   return character.spells?.includes(spellName) === true;
 }
 
-function getSpellActionPayment(state, spellName, reserveMp = 0) {
+function getSpellActionPayment(
+  state,
+  spellName,
+  reserveMp = 0,
+  { minHpAfterPaymentRate = state.simPolicy.bloodWandHpPaymentMinRate } = {}
+) {
   const character = state.party[0];
   if (!hasSpell(character, spellName)) return null;
   const spell = SPELLS[spellName];
@@ -1278,8 +1283,9 @@ function getSpellActionPayment(state, spellName, reserveMp = 0) {
   if (payment.resource === "mp") {
     return character.mp - reserveMp >= payment.cost ? payment : null;
   }
+  if (minHpAfterPaymentRate === null) return payment;
   const minHpAfterPayment =
-    getCharMaxHp(character) * state.simPolicy.bloodWandHpPaymentMinRate;
+    getCharMaxHp(character) * minHpAfterPaymentRate;
   return character.hp - payment.cost >= minHpAfterPayment ? payment : null;
 }
 
@@ -1471,7 +1477,8 @@ function selectCombatAction(state, metrics) {
 
   if (
     character.hp < getCharMaxHp(character) * 0.35 &&
-    getSpellActionPayment(state, "DIOS")
+    // DIOS already has a low-HP need gate; its HP payment is not offensive spending.
+    getSpellActionPayment(state, "DIOS", 0, { minHpAfterPaymentRate: null })
   ) {
     return { type: "spell", actorIdx: 0, targetIdx: 0, spellName: "DIOS" };
   }
