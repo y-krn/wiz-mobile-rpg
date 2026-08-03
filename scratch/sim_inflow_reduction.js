@@ -13,7 +13,7 @@ Object.defineProperty(globalThis, "localStorage", {
 const {
   calibrateCoreScoringProfile,
   resetSimulationRandom,
-  SCENARIOS,
+  REFERENCE_SCENARIOS,
   SIM_CLASSES,
   simulateRun
 } = await import("./sim_depth_material_ev.js");
@@ -36,7 +36,7 @@ const TARGET_DEPTH = 20;
 const WING_NODE_ID = "kit_return_wing";
 const REPEAT_COST = Object.freeze({ "黒角": 24, "竜鱗": 6 });
 const DEPTH_TARGETS = [5, 10, 15, 20];
-const BASE_SCENARIO = SCENARIOS.find(scenario => scenario.id === "workshop-unlocked");
+const BASE_SCENARIO = REFERENCE_SCENARIOS.find(scenario => scenario.id === "workshop-empty");
 
 const SCALES = [0.5, 0.25, 0.1, 0];
 const CONDITIONS = [

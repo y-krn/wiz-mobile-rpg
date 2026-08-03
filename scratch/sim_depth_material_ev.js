@@ -131,8 +131,148 @@ function getScholarMaterialBonus(monsters, state) {
   }, 0);
 }
 
-const RUNS_PER_CASE = Math.max(1, Number(process.env.SIM_RUNS || 500));
-const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
+const SIM_ENV_KEYS = Object.freeze([
+  "SIM_SEED",
+  "SIM_RUNS",
+  "SIM_CALIBRATION_RUNS",
+  "DEPARTURE_CRAFT_IDS",
+  "TRAP_POLICY",
+  "TRAP_AVOIDANCE_POLICY",
+  "TRAP_DAMAGE_MULTIPLIER",
+  "IDENTIFICATION_POLICY",
+  "STATUS_CURE_POLICY",
+  "STATUS_CURE_HP_THRESHOLD",
+  "STATUS_CURE_MERCHANT_POLICY",
+  "HEAL_POTION_MERCHANT_POLICY",
+  "FLEE_POLICY",
+  "FLEE_HP_THRESHOLD",
+  "PORTAL_HP_THRESHOLD",
+  "PORTAL_MAX_HEAL_POTIONS",
+  "PORTAL_MIN_FLOOR",
+  "ELITE_POLICY",
+  "SIM_SCENARIOS"
+]);
+const REVALIDATION_DEPARTURE_CRAFT_IDS =
+  "TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION";
+const DEFAULT_DEPTH_SCENARIOS_CSV =
+  "workshop-empty,workshop-stats,workshop-gear,workshop-blood-wand," +
+  "workshop-blood-wand-spells,workshop-complete";
+const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
+  SIM_SEED: "231",
+  SIM_RUNS: "500",
+  SIM_CALIBRATION_RUNS: process.env.SIM_RUNS || "500",
+  DEPARTURE_CRAFT_IDS: "",
+  TRAP_POLICY: "conservative",
+  TRAP_AVOIDANCE_POLICY: "ev",
+  TRAP_DAMAGE_MULTIPLIER: "1",
+  IDENTIFICATION_POLICY: "legacy",
+  STATUS_CURE_POLICY: "smart",
+  STATUS_CURE_HP_THRESHOLD: "1",
+  STATUS_CURE_MERCHANT_POLICY: "missing",
+  HEAL_POTION_MERCHANT_POLICY: "missing",
+  FLEE_POLICY: "threshold",
+  FLEE_HP_THRESHOLD: "0.35",
+  PORTAL_HP_THRESHOLD: "0.35",
+  PORTAL_MAX_HEAL_POTIONS: "0",
+  PORTAL_MIN_FLOOR: "3",
+  ELITE_POLICY: "avoid",
+  SIM_SCENARIOS: ""
+});
+const BALANCE_MAIN_PRESET = Object.freeze({
+  SIM_SEED: "231",
+  SIM_RUNS: "1000",
+  SIM_CALIBRATION_RUNS: "1000",
+  DEPARTURE_CRAFT_IDS: "",
+  TRAP_POLICY: "conservative",
+  TRAP_AVOIDANCE_POLICY: "ev",
+  TRAP_DAMAGE_MULTIPLIER: "1",
+  IDENTIFICATION_POLICY: "legacy",
+  STATUS_CURE_POLICY: "smart",
+  STATUS_CURE_HP_THRESHOLD: "1",
+  STATUS_CURE_MERCHANT_POLICY: "missing",
+  HEAL_POTION_MERCHANT_POLICY: "missing",
+  FLEE_POLICY: "threshold",
+  FLEE_HP_THRESHOLD: "0.35",
+  PORTAL_HP_THRESHOLD: "0.35",
+  PORTAL_MAX_HEAL_POTIONS: "0",
+  PORTAL_MIN_FLOOR: "3",
+  ELITE_POLICY: "avoid",
+  SIM_SCENARIOS: ""
+});
+const REVALIDATION_PRESET = Object.freeze({
+  ...BALANCE_MAIN_PRESET,
+  DEPARTURE_CRAFT_IDS: REVALIDATION_DEPARTURE_CRAFT_IDS,
+  STATUS_CURE_HP_THRESHOLD: "0.35",
+  SIM_SCENARIOS: DEFAULT_DEPTH_SCENARIOS_CSV
+});
+const SIM_PRESETS = Object.freeze({
+  "balance-main": BALANCE_MAIN_PRESET,
+  "workshop-complete": Object.freeze({
+    ...BALANCE_MAIN_PRESET,
+    SIM_RUNS: "2000",
+    SIM_CALIBRATION_RUNS: "2000",
+    SIM_SCENARIOS: "workshop-complete"
+  }),
+  "revalidation-main": REVALIDATION_PRESET,
+  "boss-diagnosis": Object.freeze({
+    ...REVALIDATION_PRESET,
+    SIM_SEED: "271",
+    SIM_RUNS: "2000",
+    SIM_CALIBRATION_RUNS: "1000",
+    SIM_SCENARIOS: "workshop-complete"
+  }),
+  "boss-diagnosis-no-flee": Object.freeze({
+    ...REVALIDATION_PRESET,
+    SIM_SEED: "271",
+    SIM_RUNS: "2000",
+    SIM_CALIBRATION_RUNS: "1000",
+    FLEE_POLICY: "never",
+    SIM_SCENARIOS: "workshop-complete"
+  })
+});
+const SIM_PRESET_NAME = String(process.env.SIM_PRESET || "").trim();
+if (SIM_PRESET_NAME && !Object.hasOwn(SIM_PRESETS, SIM_PRESET_NAME)) {
+  throw new Error(
+    `SIM_PRESET must be ${Object.keys(SIM_PRESETS).join("|")}: ${SIM_PRESET_NAME}`
+  );
+}
+const ACTIVE_SIM_PRESET = SIM_PRESETS[SIM_PRESET_NAME] || null;
+const SIM_ENV = Object.freeze(Object.fromEntries(
+  SIM_ENV_KEYS.map(key => [
+    key,
+    Object.hasOwn(process.env, key)
+      ? process.env[key]
+      : ACTIVE_SIM_PRESET?.[key] ?? CURRENT_SIM_ENV_DEFAULTS[key]
+  ])
+));
+const EXPLICIT_SIM_ENV_KEYS = SIM_ENV_KEYS.filter(key => Object.hasOwn(process.env, key));
+
+export function getResolvedSimulationEnv() {
+  return SIM_ENV;
+}
+
+export function printResolvedSimulationEnv() {
+  const source = SIM_PRESET_NAME || "(none; current defaults)";
+  const overrideLabel = EXPLICIT_SIM_ENV_KEYS.length > 0
+    ? EXPLICIT_SIM_ENV_KEYS.join(",")
+    : "(none)";
+  const lines = [
+    "=== SIM_ENV_BEGIN ===",
+    `# source: SIM_PRESET=${source}`,
+    `# explicit overrides: ${overrideLabel}`,
+    `SIM_PRESET=${SIM_PRESET_NAME}`,
+    ...SIM_ENV_KEYS.map(key => `${key}=${SIM_ENV[key]}`),
+    "=== SIM_ENV_END ==="
+  ];
+  process.stderr.write(`${lines.join("\n")}\n`);
+}
+
+const RUNS_PER_CASE = Math.max(1, Number(SIM_ENV.SIM_RUNS || 500));
+const CALIBRATION_RUNS = Math.max(
+  1,
+  Number(SIM_ENV.SIM_CALIBRATION_RUNS || RUNS_PER_CASE)
+);
+const SIM_SEED = Number(SIM_ENV.SIM_SEED || 231) >>> 0;
 const TARGET_DEPTHS = [5, 10, 15, 20];
 const MAX_COMBAT_TURNS = 50;
 const ENCOUNTER_GROUPS = Object.freeze([
@@ -220,7 +360,7 @@ const IDENTIFICATION_POLICY_DEFINITIONS = Object.freeze({
 });
 
 function resolveIdentificationPolicies() {
-  const requested = String(process.env.IDENTIFICATION_POLICY || "legacy")
+  const requested = String(SIM_ENV.IDENTIFICATION_POLICY || "legacy")
     .trim()
     .toLowerCase();
   const policyIds = requested === "compare"
@@ -251,21 +391,21 @@ const INITIAL_GUARD_POTIONS = 0;
 // 仮値・感度分析対象: 戦闘中/戦闘後HPが最大HPの35%以下なら傷薬を1個使う。
 const HEAL_POTION_THRESHOLD = 0.35;
 // 仮値・感度分析対象: 最大HPの指定割合以下なら次の自ターンで逃走する。
-const DEFAULT_FLEE_HP_THRESHOLD = process.env.FLEE_POLICY === "never"
+const DEFAULT_FLEE_HP_THRESHOLD = SIM_ENV.FLEE_POLICY === "never"
   ? null
-  : Math.max(0, Math.min(1, Number(process.env.FLEE_HP_THRESHOLD || 0.35)));
+  : Math.max(0, Math.min(1, Number(SIM_ENV.FLEE_HP_THRESHOLD || 0.35)));
 const DEFAULT_STATUS_CURE_HP_THRESHOLD = Math.max(
   0,
-  Math.min(1, Number(process.env.STATUS_CURE_HP_THRESHOLD || 1))
+  Math.min(1, Number(SIM_ENV.STATUS_CURE_HP_THRESHOLD || 1))
 );
-const DEFAULT_STATUS_CURE_POLICY = process.env.STATUS_CURE_POLICY === "never"
+const DEFAULT_STATUS_CURE_POLICY = SIM_ENV.STATUS_CURE_POLICY === "never"
   ? "never"
   : "smart";
 const DEFAULT_STATUS_CURE_MERCHANT_POLICY =
-  process.env.STATUS_CURE_MERCHANT_POLICY === "never" ? "never" : "missing";
+  SIM_ENV.STATUS_CURE_MERCHANT_POLICY === "never" ? "never" : "missing";
 const DEFAULT_HEAL_POTION_MERCHANT_POLICY =
-  process.env.HEAL_POTION_MERCHANT_POLICY === "never" ? "never" : "missing";
-const DEFAULT_ELITE_POLICY = process.env.ELITE_POLICY === "engage" ? "engage" : "avoid";
+  SIM_ENV.HEAL_POTION_MERCHANT_POLICY === "never" ? "never" : "missing";
+const DEFAULT_ELITE_POLICY = SIM_ENV.ELITE_POLICY === "engage" ? "engage" : "avoid";
 const LEGACY_FLOOR_DISARM_MIN_RATE = 50;
 const TRAP_POLICY_DEFINITIONS = Object.freeze({
   disabled: Object.freeze({
@@ -282,7 +422,7 @@ const TRAP_POLICY_DEFINITIONS = Object.freeze({
     label: "EV分岐（キット優先・回避費用評価）"
   })
 });
-export const DEFAULT_TRAP_POLICY_ID = process.env.TRAP_POLICY || "conservative";
+export const DEFAULT_TRAP_POLICY_ID = SIM_ENV.TRAP_POLICY || "conservative";
 if (!TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID]) {
   throw new Error(
     `TRAP_POLICY must be disabled|legacy|conservative: ${DEFAULT_TRAP_POLICY_ID}`
@@ -299,7 +439,7 @@ const TRAP_AVOIDANCE_POLICY_DEFINITIONS = Object.freeze({
   })
 });
 export const DEFAULT_TRAP_AVOIDANCE_POLICY_ID =
-  process.env.TRAP_AVOIDANCE_POLICY || "ev";
+  SIM_ENV.TRAP_AVOIDANCE_POLICY || "ev";
 if (!TRAP_AVOIDANCE_POLICY_DEFINITIONS[DEFAULT_TRAP_AVOIDANCE_POLICY_ID]) {
   throw new Error(
     `TRAP_AVOIDANCE_POLICY must be legacy|ev: ${DEFAULT_TRAP_AVOIDANCE_POLICY_ID}`
@@ -325,38 +465,26 @@ if (
 ) {
   throw new Error(`TRAP_SENSE_OVERRIDE must be a non-negative number: ${trapSenseOverrideInput}`);
 }
+const trapDamageMultiplierInput = SIM_ENV.TRAP_DAMAGE_MULTIPLIER;
+const TRAP_DAMAGE_MULTIPLIER = Number(trapDamageMultiplierInput);
+if (!Number.isFinite(TRAP_DAMAGE_MULTIPLIER) || TRAP_DAMAGE_MULTIPLIER < 0) {
+  throw new Error(
+    `TRAP_DAMAGE_MULTIPLIER must be a non-negative number: ${trapDamageMultiplierInput}`
+  );
+}
 const CHEST_DISARM_POLICY_MIN_CHANCE = calculateChestDisarmEvThreshold();
 // 仮値・感度分析対象: 危険域で傷薬が尽きていれば帰還の翼を使う。
-const PORTAL_HP_THRESHOLD = Number(process.env.PORTAL_HP_THRESHOLD || 0.35);
+const PORTAL_HP_THRESHOLD = Number(SIM_ENV.PORTAL_HP_THRESHOLD || 0.35);
 const PORTAL_MAX_HEAL_POTIONS = Math.max(
   0,
-  Number(process.env.PORTAL_MAX_HEAL_POTIONS || 0)
+  Number(SIM_ENV.PORTAL_MAX_HEAL_POTIONS || 0)
 );
-const PORTAL_MIN_FLOOR = Math.max(1, Number(process.env.PORTAL_MIN_FLOOR || 3));
-const REQUESTED_DEPARTURE_CRAFT_IDS = String(process.env.DEPARTURE_CRAFT_IDS || "")
+const PORTAL_MIN_FLOOR = Math.max(1, Number(SIM_ENV.PORTAL_MIN_FLOOR || 3));
+const REQUESTED_DEPARTURE_CRAFT_IDS = String(SIM_ENV.DEPARTURE_CRAFT_IDS || "")
   .split(",")
   .map(value => value.trim())
   .filter(Boolean);
 const ACTIVE_DEPARTURE_CRAFT_IDS = [...REQUESTED_DEPARTURE_CRAFT_IDS];
-const SCENARIOS = Object.freeze([
-  {
-    id: "workshop-locked",
-    label: "工房空・翼なし（旧ID）",
-    workshopReturnItem: null,
-    useTownPortal: true
-  },
-  {
-    id: "workshop-unlocked",
-    label: "工房空（旧ID）",
-    useTownPortal: true
-  },
-  {
-    id: "legacy-no-portal",
-    label: "従来(翼不使用)",
-    workshopReturnItem: null,
-    useTownPortal: false
-  }
-]);
 const WORKSHOP_STATE_RANKS = Object.freeze({
   empty: Object.freeze({}),
   stats: Object.freeze({
@@ -412,7 +540,7 @@ const WORKSHOP_STATE_RANKS = Object.freeze({
 });
 
 // #343: progression simの実観測stateから選んだ代表値。ゲーム設計値の変更ではない。
-const DEPTH_SCENARIOS = Object.freeze([
+const SCENARIOS = Object.freeze([
   {
     id: "workshop-empty",
     label: "工房空",
@@ -464,6 +592,7 @@ const DEPTH_SCENARIOS = Object.freeze([
     useTownPortal: false
   }
 ]);
+const DEPTH_SCENARIOS = SCENARIOS;
 const DEFAULT_DEPTH_SCENARIO_IDS = new Set([
   "workshop-empty",
   "workshop-stats",
@@ -476,8 +605,33 @@ const SCENARIO_ALIASES = Object.freeze({
   "workshop-locked": "workshop-empty-no-portal",
   "workshop-unlocked": "workshop-empty"
 });
+const SCENARIO_BY_ID = new Map(SCENARIOS.map(scenario => [scenario.id, scenario]));
+const REFERENCE_SCENARIO_IDS = Object.freeze([
+  "workshop-empty-no-portal",
+  "workshop-empty",
+  "legacy-no-portal"
+]);
+const REFERENCE_SCENARIOS = Object.freeze(
+  REFERENCE_SCENARIO_IDS.map(scenarioId => SCENARIO_BY_ID.get(scenarioId))
+);
+
+function warnDeprecatedScenarioId(scenarioId) {
+  if (!Object.hasOwn(SCENARIO_ALIASES, scenarioId) || !isMainThread) return;
+  console.warn(
+    `[deprecated] scenarioId=${scenarioId} は ${SCENARIO_ALIASES[scenarioId]} の旧ID。` +
+    "警告の上で同一挙動へ移行する。新IDへ移行すること。"
+  );
+}
+
+export function getScenarioById(scenarioId) {
+  warnDeprecatedScenarioId(scenarioId);
+  const resolvedId = SCENARIO_ALIASES[scenarioId] || scenarioId;
+  const scenario = SCENARIO_BY_ID.get(resolvedId);
+  if (!scenario) throw new Error(`unknown scenarioId: ${scenarioId}`);
+  return scenario;
+}
 const REQUESTED_SCENARIO_IDS = new Set(
-  String(process.env.SIM_SCENARIOS || "")
+  String(SIM_ENV.SIM_SCENARIOS || "")
     .split(",")
     .map(value => value.trim())
     .filter(Boolean)
@@ -486,10 +640,7 @@ const DEPRECATED_SCENARIO_IDS = [...REQUESTED_SCENARIO_IDS]
   .filter(id => Object.hasOwn(SCENARIO_ALIASES, id));
 if (isMainThread) {
   DEPRECATED_SCENARIO_IDS.forEach(id => {
-    console.warn(
-      `[deprecated] SIM_SCENARIOS=${id} は ${SCENARIO_ALIASES[id]} の旧ID。` +
-      "警告の上で同一挙動へ移行する。新IDへ移行すること。"
-    );
+    warnDeprecatedScenarioId(id);
   });
 }
 const RESOLVED_SCENARIO_IDS = new Set(
@@ -1967,10 +2118,11 @@ function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
   effect.partyDamage.forEach((damage, index) => {
     const target = state.party[index];
     if (damage <= 0) return;
-    target.hp = Math.max(0, target.hp - damage);
+    const appliedDamage = Math.max(1, Math.round(damage * TRAP_DAMAGE_MULTIPLIER));
+    target.hp = Math.max(0, target.hp - appliedDamage);
     clearCharIncapacitationOnDamage(target);
     if (target.hp === 0) target.status = "dead";
-    recordTrapDamage(metrics, "floor", trap.type, damage);
+    recordTrapDamage(metrics, "floor", trap.type, appliedDamage);
   });
   effect.partyMpDrain.forEach((drain, index) => {
     if (drain > 0) {
@@ -4810,7 +4962,7 @@ export function calibrateCoreScoringProfile(
   workshop = { ranks: {} }
 ) {
   const calibrationScenario = {
-    ...SCENARIOS.find(scenario => scenario.id === "legacy-no-portal"),
+    ...getScenarioById("legacy-no-portal"),
     elitePolicy: "avoid",
     ...scenarioOverrides,
     identificationPolicy: identificationPolicy.id || identificationPolicy
@@ -4857,7 +5009,12 @@ export function getSimulationRandomState() {
   return randomState;
 }
 
-export { SCENARIOS, DEPTH_SCENARIOS, SIM_CLASSES };
+export {
+  SCENARIOS,
+  DEPTH_SCENARIOS,
+  REFERENCE_SCENARIOS,
+  SIM_CLASSES
+};
 
 function printCoreScoringProfile(profile, policy = null) {
   console.log(`\n【core期待戦闘価値 calibration（B1→B20）${policy ? ` / ${policy.label}` : ""}】`);
@@ -5391,7 +5548,7 @@ export function runDepthSimulationTask(
     IDENTIFICATION_POLICY_DEFINITIONS[identificationPolicyId] ||
     IDENTIFICATION_POLICY_DEFINITIONS.legacy;
   if (kind === "scenario") {
-    const scenario = DEPTH_SCENARIOS.find(candidate => candidate.id === scenarioId);
+    const scenario = getScenarioById(scenarioId);
     return TARGET_DEPTHS.map(targetDepth => simulateCase({
       startFloor: 1,
       targetDepth,
@@ -5403,7 +5560,7 @@ export function runDepthSimulationTask(
     }));
   }
 
-  const legacyScenario = DEPTH_SCENARIOS.find(scenario => scenario.id === "legacy-no-portal");
+  const legacyScenario = getScenarioById("legacy-no-portal");
   return [
     simulateCase({
       startFloor: 10,
@@ -5427,12 +5584,13 @@ export function runDepthSimulationTask(
 }
 
 export async function runDepthMaterialSimulation() {
+printResolvedSimulationEnv();
 const coreScoringProfiles = Object.fromEntries(
   ACTIVE_IDENTIFICATION_POLICIES.map(policy => {
     resetSimulationRandom(SIM_SEED);
     return [
       policy.id,
-      calibrateCoreScoringProfile(RUNS_PER_CASE, {}, policy.id)
+    calibrateCoreScoringProfile(CALIBRATION_RUNS, {}, policy.id)
     ];
   })
 );
@@ -5443,7 +5601,7 @@ const coreScoringProfilesByScenario = Object.fromEntries(
       return [
         `${policy.id}:${scenario.id}`,
         calibrateCoreScoringProfile(
-          RUNS_PER_CASE,
+          CALIBRATION_RUNS,
           {},
           policy.id,
           scenario.workshop
@@ -5485,8 +5643,8 @@ console.log(
   "観測値なしは回避せず、直接対応（解除/強行の既存方針）を選ぶ。"
 );
 console.log(`傷薬商人方針: ${DEFAULT_HEAL_POTION_MERCHANT_POLICY}（マイルストーンで所持0時に1個購入）`);
-console.log(`core価値calibration: B1→B20 N=${RUNS_PER_CASE} / 方針=${ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id).join(",")}`);
-console.log(`識別方針切替: IDENTIFICATION_POLICY=${process.env.IDENTIFICATION_POLICY || "legacy"}`);
+console.log(`core価値calibration: B1→B20 N=${CALIBRATION_RUNS} / 方針=${ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id).join(",")}`);
+console.log(`識別方針切替: IDENTIFICATION_POLICY=${SIM_ENV.IDENTIFICATION_POLICY || "legacy"}`);
 console.log(
   `仮定: 探索係数=${EXPLORATION_FACTOR}, 宝箱拾得率=${CHEST_PICKUP_RATE}, ` +
   `戦闘ターン重み=${COMBAT_TURN_WEIGHT}`
