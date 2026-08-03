@@ -79,6 +79,7 @@ const {
   resolvePurifyRecovery
 } = await import("../src/rules/purify_rules.js");
 const {
+  BANKING_RATES,
   bankRunMaterials,
   getBankedMaterials,
   getDepthMaterialExpectedQuantity,
@@ -119,6 +120,9 @@ const {
 } = await import("../src/systems/workshop.js");
 const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
 const { getStartingHealPotionCount } = await import("../src/rules/recovery_rules.js");
+const { EXP_LEVELS } = await import("../src/data/progression.js");
+const levelingRules = await import("../src/systems/leveling.js");
+const applyStartingLevelUp = levelingRules["check" + "CharLevelUp"];
 
 function getScholarMaterialBonus(monsters, state) {
   return monsters.reduce((sum, monster) => {
@@ -325,6 +329,17 @@ if (
 ) {
   throw new Error(`TRAP_SENSE_OVERRIDE must be a non-negative number: ${trapSenseOverrideInput}`);
 }
+// scratch-only what-if: floor trap HP damage after the canonical pure rule.
+// TRAP_POLICY semantics and trap selection/avoidance remain unchanged.
+const trapDamageMultiplierInput = process.env.TRAP_DAMAGE_MULTIPLIER;
+const TRAP_DAMAGE_MULTIPLIER = trapDamageMultiplierInput === undefined
+  ? 1
+  : Number(trapDamageMultiplierInput);
+if (!Number.isFinite(TRAP_DAMAGE_MULTIPLIER) || TRAP_DAMAGE_MULTIPLIER < 0) {
+  throw new Error(
+    `TRAP_DAMAGE_MULTIPLIER must be a non-negative number: ${trapDamageMultiplierInput}`
+  );
+}
 const CHEST_DISARM_POLICY_MIN_CHANCE = calculateChestDisarmEvThreshold();
 // 仮値・感度分析対象: 危険域で傷薬が尽きていれば帰還の翼を使う。
 const PORTAL_HP_THRESHOLD = Number(process.env.PORTAL_HP_THRESHOLD || 0.35);
@@ -516,6 +531,42 @@ const MATERIAL_EV_SCORE_WEIGHT = 1;
 // 盗掘王の素材EVは、罠被害を測定する既定経路でも感度分析として50%割引を残す。
 const TOMB_RAIDER_TRAP_RISK_DISCOUNT = 0.5;
 const CAMP_FLOORS = new Set([2, 4]);
+const DAMAGE_SOURCE_IDS = Object.freeze(["trap", "normal", "elite", "boss", "other"]);
+
+function createDamageBySource() {
+  return Object.fromEntries(DAMAGE_SOURCE_IDS.map(source => [source, 0]));
+}
+
+function normalizeCombatDamageSource(encounterType) {
+  if (encounterType === "elite") return "elite";
+  if (encounterType === "boss" || encounterType === "midboss") return "boss";
+  if (encounterType === "normal") return "normal";
+  return "other";
+}
+
+function applyStartingSimulationOverrides(character, scenario = {}, rng = Math.random) {
+  const requestedLevel = Math.max(
+    character.level,
+    Math.min(
+      EXP_LEVELS.length - 1,
+      Math.floor(Number(scenario.startingLevel) || character.level)
+    )
+  );
+  if (requestedLevel > character.level) {
+    character.exp = EXP_LEVELS[requestedLevel];
+    while (
+      character.level < requestedLevel &&
+      applyStartingLevelUp(character, { rng })
+    ) {
+      // Level-up rules and class growth stay in src/systems/leveling.js.
+    }
+  }
+  Object.entries(scenario.startingStatBonus || {}).forEach(([stat, amount]) => {
+    const bonus = Number(amount);
+    if (!Number.isFinite(bonus) || bonus === 0) return;
+    character[stat] = (character[stat] || 0) + bonus;
+  });
+}
 // 仮定: 装備スコアは攻防を主軸に、HP・主要能力・戦闘affixを下記重みで合算する。
 const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
   weaponAtk: 2,
@@ -937,6 +988,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   assignRunQuests(currentRun);
 
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
+  applyStartingSimulationOverrides(character, scenario, Math.random);
   const workshopGrants = getWorkshopGrants(workshop);
   const identificationPolicy = scenario.identificationPolicy || "legacy";
   // legacyは既存の鑑定済み経路と乱数列を維持し、powder/gambleだけ実runの初期支給を使う。
@@ -1889,6 +1941,10 @@ function recordTrapDamage(metrics, source, type, damage) {
   metrics.trapDamageHp += damage;
   metrics.trapDamageHpBySource[source] += damage;
   metrics.trapDamageHpByType[type] = (metrics.trapDamageHpByType[type] || 0) + damage;
+  if (damage > 0) {
+    metrics.damageHpBySource.trap += damage;
+    metrics.lastDamageSource = "trap";
+  }
 }
 
 function useTrapRecoveryIfNeeded(state, metrics) {
@@ -1967,10 +2023,11 @@ function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
   effect.partyDamage.forEach((damage, index) => {
     const target = state.party[index];
     if (damage <= 0) return;
-    target.hp = Math.max(0, target.hp - damage);
+    const appliedDamage = Math.max(1, Math.round(damage * TRAP_DAMAGE_MULTIPLIER));
+    target.hp = Math.max(0, target.hp - appliedDamage);
     clearCharIncapacitationOnDamage(target);
     if (target.hp === 0) target.status = "dead";
-    recordTrapDamage(metrics, "floor", trap.type, damage);
+    recordTrapDamage(metrics, "floor", trap.type, appliedDamage);
   });
   effect.partyMpDrain.forEach((drain, index) => {
     if (drain > 0) {
@@ -1986,19 +2043,145 @@ function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
   return effect;
 }
 
-function shouldUseTownPortal(state, scenario) {
-  if (!scenario.useTownPortal || !isAlive(state.party[0])) return false;
-  if (state.floor < PORTAL_MIN_FLOOR) return false;
-  if (!state.inventory.includes("TOWN_PORTAL")) return false;
+function getPortalProgressStage(metrics, floor) {
+  const normalizedFloor = Math.floor(Number(floor) || 0);
+  const progress = metrics.portalProgressByFloor?.[normalizedFloor];
+  const floorSteps = Math.max(1, Number(progress?.floorSteps) || 1);
+  const step = Math.max(0, Number(progress?.step) || 0);
+  const band = Math.min(2, Math.floor(
+    Math.min(0.999999, step / floorSteps) * 3
+  ));
+  const progressBand = ["early", "mid", "late"][band];
+  if (!isMilestoneFloor(normalizedFloor)) return progressBand;
+  const bossStage = metrics.portalBossDefeatedByFloor?.[normalizedFloor]
+    ? "post-boss"
+    : "pre-boss";
+  return `${bossStage}-${progressBand}`;
+}
+
+function getPortalPolicyDecision(state, scenario, progressStage = "early") {
+  if (!scenario.useTownPortal || !isAlive(state.party[0])) return null;
+  const floor = Math.floor(state.floor || 0);
+  if (
+    scenario.portalOneFloorHorizon &&
+    Number.isFinite(Number(scenario.portalHorizonMaxFloor)) &&
+    floor > Number(scenario.portalHorizonMaxFloor)
+  ) return null;
+  const minFloor = Math.max(
+    1,
+    Number(Object.hasOwn(scenario, "portalMinFloor") ? scenario.portalMinFloor : PORTAL_MIN_FLOOR)
+  );
+  const belowMinFloor = floor < minFloor;
+  if (belowMinFloor && !scenario.portalRecordBelowMinFloor) return null;
+  if (!state.inventory.includes("TOWN_PORTAL")) return null;
   const character = state.party[0];
   const hpRate = character.hp / Math.max(1, getCharMaxHp(character));
   const healPotions = state.inventory.filter(item => item === "HEAL_POTION").length;
-  return hpRate <= PORTAL_HP_THRESHOLD && healPotions <= PORTAL_MAX_HEAL_POTIONS;
+  const hpThreshold = Number(
+    Object.hasOwn(scenario, "portalHpThreshold")
+      ? scenario.portalHpThreshold
+      : PORTAL_HP_THRESHOLD
+  );
+  const maxHealPotions = Math.max(
+    0,
+    Number(
+      Object.hasOwn(scenario, "portalMaxHealPotions")
+        ? scenario.portalMaxHealPotions
+        : PORTAL_MAX_HEAL_POTIONS
+    )
+  );
+  const hpCondition = hpRate <= hpThreshold;
+  const potionCondition = healPotions <= maxHealPotions;
+  const thresholdRetreat = !belowMinFloor && hpCondition && potionCondition;
+  let policyRetreat = thresholdRetreat;
+  let breakEven = null;
+  let hazard = null;
+  if (scenario.portalPolicy === "ev" && !belowMinFloor) {
+    const hazardEntry = scenario.portalEvHazards?.[
+      getPortalStateKey(floor, hpRate, healPotions, progressStage)
+    ];
+    hazard = Number(hazardEntry?.hazard);
+    const delta = Number(scenario.portalEvDeltaByFloor?.[floor]);
+    const wingCost = Math.max(0, Number(scenario.portalWingCost ?? 8));
+    const materials = totalMaterials(state.currentRun.materials);
+    const mPlusDelta = materials + delta;
+    breakEven = Number.isFinite(delta) && mPlusDelta > 0
+      ? (delta + wingCost) / ((1 - BANKING_RATES.death) * mPlusDelta)
+      : null;
+    policyRetreat = Number.isFinite(hazard) && breakEven !== null && hazard > breakEven;
+  }
+  return {
+    floor,
+    hpRate,
+    healPotions,
+    hpBand: Math.floor(Math.max(0, Math.min(0.999999, hpRate)) * 10),
+    potionBand: healPotions >= 3 ? "3+" : String(Math.max(0, Math.floor(healPotions))),
+    hpCondition,
+    potionCondition,
+    progressStage,
+    thresholdRetreat,
+    policyRetreat,
+    breakEven,
+    hazard,
+    carriedMaterials: totalMaterials(state.currentRun.materials),
+    situation: null
+  };
+}
+
+function resolveOneFloorHorizon(metrics, floor, outcome) {
+  if (!metrics.portalOneFloorHorizonEvents?.length) return;
+  const floorKey = String(floor);
+  metrics.portalOneFloorHorizonResolutionCounts ||= {};
+  metrics.portalOneFloorHorizonResolutionCounts[floorKey] ||= { death: 0, "reached-next-floor": 0 };
+  metrics.portalOneFloorHorizonEvents.forEach(event => {
+    if (event.floor === floor && event.horizonOutcome === null) {
+      event.horizonOutcome = outcome;
+      metrics.portalOneFloorHorizonResolutionCounts[floorKey][outcome]++;
+    }
+  });
+}
+
+function resolveOneFloorHorizonAtFinish(metrics, finishFloor, outcome) {
+  if (!metrics.portalOneFloorHorizonEvents?.length) return;
+  metrics.portalOneFloorHorizonEvents.forEach(event => {
+    if (event.horizonOutcome !== null) return;
+    if (event.floor < finishFloor) {
+      event.horizonOutcome = "reached-next-floor";
+      const floorKey = String(event.floor);
+      metrics.portalOneFloorHorizonResolutionCounts ||= {};
+      metrics.portalOneFloorHorizonResolutionCounts[floorKey] ||= {
+        death: 0,
+        "reached-next-floor": 0
+      };
+      metrics.portalOneFloorHorizonResolutionCounts[floorKey]["reached-next-floor"]++;
+    } else if (event.floor === finishFloor && outcome === "death") {
+      resolveOneFloorHorizon(metrics, finishFloor, "death");
+    }
+  });
 }
 
 function useTownPortalIfNeeded(state, scenario, metrics, situation) {
-  if (!shouldUseTownPortal(state, scenario)) return false;
-  const character = state.party[0];
+  const progressStage = getPortalProgressStage(metrics, state.floor);
+  const decision = getPortalPolicyDecision(state, scenario, progressStage);
+  if (!decision) return false;
+  decision.situation = situation;
+  if (scenario.portalOneFloorHorizon) {
+    metrics.portalOneFloorHorizonEvents.push({
+      ...decision,
+      horizonOutcome: null
+    });
+  }
+  metrics.portalDecisionEvents.push({
+    ...decision,
+    policy: scenario.portalPolicy || "threshold",
+    observationOnly: Boolean(scenario.portalObservationOnly)
+  });
+  const skipRetreats = Math.max(0, Math.floor(Number(scenario.portalSkipRetreats) || 0));
+  if (!decision.policyRetreat) return false;
+  if (scenario.portalObservationOnly || skipRetreats > 0) {
+    if (!scenario.portalObservationOnly) scenario.portalSkipRetreats = skipRetreats - 1;
+    return false;
+  }
   const portalIndex = state.inventory.indexOf("TOWN_PORTAL");
   state.inventory.splice(portalIndex, 1);
   const source = state.simPortalSources.shift() || "unknown";
@@ -2008,9 +2191,9 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
     floor: state.floor,
     situation,
     source,
-    hpRate: character.hp / Math.max(1, getCharMaxHp(character)),
-    healPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
-    carriedMaterials: totalMaterials(state.currentRun.materials)
+    hpRate: decision.hpRate,
+    healPotions: decision.healPotions,
+    carriedMaterials: decision.carriedMaterials
   });
   return true;
 }
@@ -3413,7 +3596,50 @@ function totalMaterials(materials) {
   return Object.values(materials).reduce((sum, quantity) => sum + quantity, 0);
 }
 
-function finishRun(state, outcome, metrics) {
+export function getPortalStateKey(floor, hpRate, healPotions, progressStage = null) {
+  const normalizedHpRate = Math.max(0, Math.min(0.999999, Number(hpRate) || 0));
+  const hpBand = Math.floor(normalizedHpRate * 10);
+  const potionBand = healPotions >= 3 ? "3+" : String(Math.max(0, Math.floor(healPotions)));
+  const stagePart = progressStage ? `|${progressStage}` : "";
+  return `B${Math.max(1, Math.floor(floor))}${stagePart}|hp${hpBand}|p${potionBand}`;
+}
+
+function incrementTerminationCounter(counter, reason) {
+  counter.runs++;
+  if (Object.hasOwn(counter, reason)) counter[reason]++;
+}
+
+function createTerminationCounter() {
+  return {
+    runs: 0,
+    death: 0,
+    "target-retreat": 0,
+    "wing-retreat": 0,
+    "other-retreat": 0
+  };
+}
+
+function markTermination(state, outcome, metrics, reason) {
+  if (metrics.terminationReason) return;
+  metrics.terminationReason = reason || (outcome === "death" ? "death" : "target-retreat");
+  metrics.terminationFloor = state.floor;
+  if (outcome !== "death") return;
+  metrics.fatalSource = metrics.lastDamageSource || "other";
+  metrics.fatalDamageBySource = { ...metrics.damageHpBySource };
+}
+
+function finishRun(state, outcome, metrics, terminationReason = null) {
+  resolveOneFloorHorizonAtFinish(metrics, Math.floor(state.floor || 0), outcome);
+  if (outcome === "death") {
+    resolveOneFloorHorizon(metrics, Math.floor(state.floor || 0), "death");
+  }
+  markTermination(state, outcome, metrics, terminationReason);
+  const finishFloor = Math.floor(state.floor || 0);
+  if (metrics.floorMaterialSnapshots[finishFloor]) {
+    metrics.floorMaterialSnapshots[finishFloor].endTotal = totalMaterials(
+      state.currentRun.materials
+    );
+  }
   const healPotionCount = state.inventory.filter(item => item === "HEAL_POTION").length;
   if (healPotionCount !== state.simHealPotionSources.length) {
     throw new Error(
@@ -3623,6 +3849,9 @@ function finishRun(state, outcome, metrics) {
     statusesCured: metrics.statusesCured,
     statusCureMerchantFailures: metrics.statusCureMerchantFailures,
     townPortalsUsed: metrics.townPortalsUsed,
+    portalDecisionEvents: structuredClone(metrics.portalDecisionEvents),
+    portalOneFloorHorizonEvents: structuredClone(metrics.portalOneFloorHorizonEvents),
+    portalOneFloorHorizonResolutionCounts: structuredClone(metrics.portalOneFloorHorizonResolutionCounts),
     portalUseEvents: metrics.portalUseEvents,
     portalUsesBySource: metrics.portalUsesBySource,
     portalAcquisitions: metrics.portalAcquisitions,
@@ -3632,6 +3861,11 @@ function finishRun(state, outcome, metrics) {
     merchantWingFailures: metrics.merchantWingFailures,
     milestoneDecisions: metrics.milestoneDecisions,
     outcome,
+    terminationReason: metrics.terminationReason,
+    terminationFloor: metrics.terminationFloor,
+    fatalSource: metrics.fatalSource,
+    fatalDamageBySource: { ...metrics.fatalDamageBySource },
+    floorMaterialSnapshots: structuredClone(metrics.floorMaterialSnapshots),
     fleeCount: metrics.fleeCount,
     bossPolicy: metrics.bossPolicy,
     specialCellsDetected: metrics.specialCellsDetected,
@@ -3685,6 +3919,9 @@ export function simulateRun({
   );
   const metrics = {
     steps: 0,
+    floorMaterialSnapshots: {},
+    portalProgressByFloor: {},
+    portalBossDefeatedByFloor: {},
     combatRounds: 0,
     stalemate: false,
     equipmentUpgrades: 0,
@@ -3807,6 +4044,12 @@ export function simulateRun({
     trapTeleports: 0,
     combatDamageHp: 0,
     combatDamageHpByType: {},
+    damageHpBySource: createDamageBySource(),
+    lastDamageSource: null,
+    terminationReason: null,
+    terminationFloor: null,
+    fatalSource: null,
+    fatalDamageBySource: createDamageBySource(),
     statusCureItemsAcquired: {
       initial: countInventoryItems(state.simStartingInventory),
       departureCraft: countInventoryItems(state.simDepartureCraftItems),
@@ -3829,6 +4072,9 @@ export function simulateRun({
     healPotionMerchantAttempts: 0,
     healPotionMerchantFailures: {},
     townPortalsUsed: 0,
+    portalDecisionEvents: [],
+    portalOneFloorHorizonEvents: [],
+    portalOneFloorHorizonResolutionCounts: {},
     portalUseEvents: [],
     portalUsesBySource: {},
     portalAcquisitions: {
@@ -3895,6 +4141,11 @@ export function simulateRun({
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
   for (let floor = startFloor; floor < targetDepth; floor++) {
     state.floor = floor;
+    metrics.floorMaterialSnapshots[floor] = {
+      startTotal: totalMaterials(state.currentRun.materials),
+      endTotal: null,
+      completed: false
+    };
     if (metrics.diagnostics) {
       metrics.diagnostics.buildSnapshots.push(
         createBuildSnapshot(state, scoringProfile, "floor-start")
@@ -3909,6 +4160,7 @@ export function simulateRun({
       state.simPolicy.elitePolicy
     );
     const floorSteps = routePlan.floorSteps + elitePlan.extraSteps;
+    metrics.portalProgressByFloor[floor] = { step: 0, floorSteps };
     metrics.eliteAvoidDetourSteps += state.simPolicy.elitePolicy === "avoid"
       ? elitePlan.extraSteps
       : 0;
@@ -3971,6 +4223,7 @@ export function simulateRun({
 
     stepLoop: for (let step = 1; step <= floorSteps; step++) {
       metrics.steps++;
+      metrics.portalProgressByFloor[floor].step = step;
       state.currentRun.steps++;
       state.currentRun.floorSteps[String(floor)] =
         (state.currentRun.floorSteps[String(floor)] || 0) + 1;
@@ -3986,7 +4239,7 @@ export function simulateRun({
         );
         if (!isAlive(state.party[0])) {
           metrics.deathEncounterType = "floor-trap";
-          return finishRun(state, "death", metrics);
+          return finishRun(state, "death", metrics, "death");
         }
         if (trapResult.pitfallTriggered) {
           floorEndedByPitfall = true;
@@ -4069,7 +4322,7 @@ export function simulateRun({
       }
       if (!isAlive(state.party[0])) {
         metrics.deathEncounterType = "chest-trap";
-        return finishRun(state, "death", metrics);
+        return finishRun(state, "death", metrics, "death");
       }
 
       const scheduledSpecials = specialSchedule.get(step) || [];
@@ -4141,6 +4394,11 @@ export function simulateRun({
           metrics.combatDamageHpByType[combatResult.telemetry.type] =
             (metrics.combatDamageHpByType[combatResult.telemetry.type] || 0) +
             combatResult.telemetry.incomingDamage;
+          const combatDamageSource = normalizeCombatDamageSource(combatResult.telemetry.type);
+          metrics.damageHpBySource[combatDamageSource] += combatResult.telemetry.incomingDamage;
+          if (combatResult.telemetry.incomingDamage > 0) {
+            metrics.lastDamageSource = combatDamageSource;
+          }
           metrics.eliteEncounters += Number(isElite);
 
           if (specialBattle) {
@@ -4178,14 +4436,14 @@ export function simulateRun({
                 specialBattle.finalResult = "death";
                 metrics.specialBattles.push(specialBattle);
               }
-              return finishRun(state, "death", metrics);
+              return finishRun(state, "death", metrics, "death");
             }
             if (useTownPortalIfNeeded(state, scenario, metrics, "post-flee")) {
               if (specialBattle) {
                 specialBattle.finalResult = "flee-retreat";
                 metrics.specialBattles.push(specialBattle);
               }
-              return finishRun(state, "retreat", metrics);
+              return finishRun(state, "retreat", metrics, "wing-retreat");
             }
             if (specialEvent && !isElite) {
               // 逃走ではeventセルが消えない。1マス後退後、同じセルへ再侵入する。
@@ -4202,7 +4460,7 @@ export function simulateRun({
               specialBattle.finalResult = combatResult.result;
               metrics.specialBattles.push(specialBattle);
             }
-            return finishRun(state, "death", metrics);
+            return finishRun(state, "death", metrics, "death");
           }
 
           if (isElite) {
@@ -4326,14 +4584,15 @@ export function simulateRun({
               specialBattle.finalResult = "death";
               metrics.specialBattles.push(specialBattle);
             }
-            return finishRun(state, "death", metrics);
+            return finishRun(state, "death", metrics, "death");
           }
           if (specialBattle) {
             specialBattle.finalResult = "victory";
             metrics.specialBattles.push(specialBattle);
           }
+          if (isBoss) metrics.portalBossDefeatedByFloor[floor] = true;
           if (useTownPortalIfNeeded(state, scenario, metrics, "post-combat")) {
-            return finishRun(state, "retreat", metrics);
+            return finishRun(state, "retreat", metrics, "wing-retreat");
           }
           break;
         }
@@ -4341,6 +4600,7 @@ export function simulateRun({
     }
 
     if (floorEndedByPitfall) {
+      resolveOneFloorHorizon(metrics, floor, "reached-next-floor");
       continue;
     }
 
@@ -4359,16 +4619,21 @@ export function simulateRun({
         scenario.retreatAtMilestoneWithoutTownPortal &&
         !state.inventory.includes("TOWN_PORTAL")
       ) {
-        return finishRun(state, "retreat", metrics);
+        return finishRun(state, "retreat", metrics, "other-retreat");
       }
     }
+    metrics.floorMaterialSnapshots[floor].endTotal = totalMaterials(
+      state.currentRun.materials
+    );
+    metrics.floorMaterialSnapshots[floor].completed = true;
     descendToNextFloor(state, floor + 1, metrics, { stairsHeal: true });
+    resolveOneFloorHorizon(metrics, floor, "reached-next-floor");
     if (useTownPortalIfNeeded(state, scenario, metrics, "floor-transition")) {
-      return finishRun(state, "retreat", metrics);
+      return finishRun(state, "retreat", metrics, "wing-retreat");
     }
   }
 
-  return finishRun(state, "retreat", metrics);
+  return finishRun(state, "retreat", metrics, "target-retreat");
 }
 
 function getUnequippedCoreReason(result, coreId) {
@@ -4477,7 +4742,25 @@ function simulateCase({
     eliteLevelsGained: 0,
     eliteExpGained: 0,
     eliteAvoidDetourSteps: 0,
-    eliteAvoidNoRouteFloors: 0
+    eliteAvoidNoRouteFloors: 0,
+    terminationByReason: Object.fromEntries(
+      ["death", "target-retreat", "wing-retreat", "other-retreat"].map(reason => [reason, 0])
+    ),
+    terminationByFloor: {},
+    terminationByClass: Object.fromEntries(
+      SIM_CLASSES.map(className => [className, createTerminationCounter()])
+    ),
+    fatalSourceCounts: Object.fromEntries(DAMAGE_SOURCE_IDS.map(source => [source, 0])),
+    fatalDamageBySource: createDamageBySource(),
+    fatalSourceCountsByClass: Object.fromEntries(
+      SIM_CLASSES.map(className => [
+        className,
+        Object.fromEntries(DAMAGE_SOURCE_IDS.map(source => [source, 0]))
+      ])
+    ),
+    fatalDamageBySourceByClass: Object.fromEntries(
+      SIM_CLASSES.map(className => [className, createDamageBySource()])
+    )
   };
   const classTrapTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapAggregate()])
@@ -4525,6 +4808,27 @@ function simulateCase({
     addTrapBonusAggregate(classTrapBonusTotals[className], result);
     addTrapSenseAggregate(totals.trapSense, result);
     addTrapSenseAggregate(classTrapSenseTotals[className], result);
+    const terminationReason = result.terminationReason || (result.died ? "death" : "target-retreat");
+    incrementTerminationCounter(totals.terminationByClass[className], terminationReason);
+    totals.terminationByReason[terminationReason] =
+      (totals.terminationByReason[terminationReason] || 0) + 1;
+    const terminationFloorKey = `B${result.terminationFloor || result.reachedFloor}`;
+    if (!totals.terminationByFloor[terminationFloorKey]) {
+      totals.terminationByFloor[terminationFloorKey] = createTerminationCounter();
+    }
+    incrementTerminationCounter(totals.terminationByFloor[terminationFloorKey], terminationReason);
+    if (result.died) {
+      const fatalSource = DAMAGE_SOURCE_IDS.includes(result.fatalSource)
+        ? result.fatalSource
+        : "other";
+      totals.fatalSourceCounts[fatalSource]++;
+      totals.fatalSourceCountsByClass[className][fatalSource]++;
+      DAMAGE_SOURCE_IDS.forEach(source => {
+        totals.fatalDamageBySource[source] += result.fatalDamageBySource[source] || 0;
+        totals.fatalDamageBySourceByClass[className][source] +=
+          result.fatalDamageBySource[source] || 0;
+      });
+    }
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
     totals.carriedMaterials += result.carriedMaterials;
@@ -4795,7 +5099,51 @@ function simulateCase({
       ? totals.eliteExpGained / totals.eliteVictories
       : 0,
     averageEliteAvoidDetourSteps: totals.eliteAvoidDetourSteps / RUNS_PER_CASE,
-    averageEliteAvoidNoRouteFloors: totals.eliteAvoidNoRouteFloors / RUNS_PER_CASE
+    averageEliteAvoidNoRouteFloors: totals.eliteAvoidNoRouteFloors / RUNS_PER_CASE,
+    terminationByReason: { ...totals.terminationByReason },
+    terminationByFloor: Object.fromEntries(
+      Object.entries(totals.terminationByFloor).map(([floor, counts]) => [floor, { ...counts }])
+    ),
+    terminationByClass: Object.fromEntries(
+      Object.entries(totals.terminationByClass).map(([className, counts]) => [
+        className,
+        { ...counts }
+      ])
+    ),
+    fatalSourceCounts: { ...totals.fatalSourceCounts },
+    fatalDamageBySource: Object.fromEntries(
+      DAMAGE_SOURCE_IDS.map(source => [
+        source,
+        {
+          total: totals.fatalDamageBySource[source],
+          averagePerDeath: totals.died > 0
+            ? totals.fatalDamageBySource[source] / totals.died
+            : 0
+        }
+      ])
+    ),
+    fatalSourceCountsByClass: Object.fromEntries(
+      Object.entries(totals.fatalSourceCountsByClass).map(([className, counts]) => [
+        className,
+        { ...counts }
+      ])
+    ),
+    fatalDamageBySourceByClass: Object.fromEntries(
+      Object.entries(totals.fatalDamageBySourceByClass).map(([className, damage]) => [
+        className,
+        Object.fromEntries(
+          DAMAGE_SOURCE_IDS.map(source => [
+            source,
+            {
+              total: damage[source],
+              averagePerDeath: totals.terminationByClass[className].death > 0
+                ? damage[source] / totals.terminationByClass[className].death
+                : 0
+            }
+          ])
+        )
+      ])
+    )
   };
 }
 
@@ -4970,6 +5318,44 @@ function printTable(results) {
       `${result.averageFleeCount.toFixed(2).padStart(8)} | ${formatPercent(result.runsWithFleeRate).padStart(8)}`
     );
   });
+}
+
+function printTerminationMetrics(result) {
+  console.log(`\n【${result.label} 終了理由 / 職業・終了階】`);
+  console.log("職業 | 死亡 | 目標撤退 | 翼早期撤退 | その他 | 平均死亡致命元");
+  Object.entries(result.terminationByClass).forEach(([className, counts]) => {
+    const fatal = result.fatalSourceCountsByClass[className];
+    const fatalSource = Object.entries(fatal)
+      .filter(([, count]) => count > 0)
+      .sort(([, left], [, right]) => right - left)
+      .map(([source, count]) => `${source}:${count}`)
+      .join(",") || "なし";
+    console.log(
+      `${className} | ${counts.death} | ${counts["target-retreat"]} | ` +
+      `${counts["wing-retreat"]} | ${counts["other-retreat"]} | ${fatalSource}`
+    );
+  });
+  console.log("終了階 | 死亡 | 目標撤退 | 翼早期撤退 | その他");
+  Object.entries(result.terminationByFloor)
+    .sort(([left], [right]) => Number(left.slice(1)) - Number(right.slice(1)))
+    .forEach(([floor, counts]) => {
+      console.log(
+        `${floor} | ${counts.death} | ${counts["target-retreat"]} | ` +
+        `${counts["wing-retreat"]} | ${counts["other-retreat"]}`
+      );
+    });
+  const fatalSources = Object.entries(result.fatalSourceCounts)
+    .filter(([, count]) => count > 0)
+    .map(([source, count]) => `${source}:${count}`)
+    .join(", ") || "なし";
+  const fatalDamage = DAMAGE_SOURCE_IDS
+    .filter(source => result.fatalDamageBySource[source].total > 0)
+    .map(source =>
+      `${source}=${result.fatalDamageBySource[source].averagePerDeath.toFixed(1)}HP/死亡`
+    )
+    .join(", ") || "なし";
+  console.log(`死亡の致命元: ${fatalSources}`);
+  console.log(`死亡直前までの累積削減: ${fatalDamage}`);
 }
 
 function printTrapMetrics(result) {
@@ -5590,6 +5976,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   console.log(`\n【${scenario.label} B1開始 深度別系列】`);
   printTable(results);
   results.forEach(result => {
+    printTerminationMetrics(result);
     printTrapMetrics(result);
     printConsumableSummary(result);
   });
@@ -5624,6 +6011,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   );
   printTable(milestoneResults);
   milestoneResults.forEach(result => {
+    printTerminationMetrics(result);
     printTrapMetrics(result);
     printConsumableSummary(result);
   });
