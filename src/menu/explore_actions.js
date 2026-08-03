@@ -12,6 +12,7 @@ import { executeDisarm, openChestDirectly } from "../chest.js";
 import { openWall } from "../map_generator.js";
 import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
+import { createRunStakesSummary } from "../ui/run_stakes.js";
 
 function getSecretSearchDirs() {
   return [
@@ -192,6 +193,10 @@ export function renderItemDirectionSelect(optGrid) {
 export function renderItemTargetSelect(optGrid) {
   const item = getItemData(menuContext.itemKey);
   if (!item || item.type !== "usable") return;
+
+  if (menuContext.itemKey === "TOWN_PORTAL") {
+    optGrid.appendChild(createRunStakesSummary());
+  }
 
   state.party.forEach((char) => {
     const btn = document.createElement("button");
