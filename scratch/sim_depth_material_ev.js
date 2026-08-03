@@ -5379,10 +5379,13 @@ function printFailureComment(results) {
 }
 
 export function runDepthSimulationTask(
-  { kind, scenarioId, identificationPolicyId = "legacy" },
+  { kind, scenarioId, targetDepth, identificationPolicyId = "legacy" },
   { scoringProfile, scoringProfiles = {}, scoringProfilesByScenario = {} }
 ) {
-  resetSimulationRandom(SIM_SEED);
+  const taskSeed = kind === "scenario-depth"
+    ? deriveSimulationTaskSeed("depth", identificationPolicyId, scenarioId, targetDepth)
+    : SIM_SEED;
+  resetSimulationRandom(taskSeed);
   const scoringProfileForPolicy =
     scoringProfilesByScenario[`${identificationPolicyId}:${scenarioId}`] ||
     scoringProfiles[identificationPolicyId] ||
@@ -5390,6 +5393,18 @@ export function runDepthSimulationTask(
   const identificationPolicy =
     IDENTIFICATION_POLICY_DEFINITIONS[identificationPolicyId] ||
     IDENTIFICATION_POLICY_DEFINITIONS.legacy;
+  if (kind === "scenario-depth") {
+    const scenario = DEPTH_SCENARIOS.find(candidate => candidate.id === scenarioId);
+    return simulateCase({
+      startFloor: 1,
+      targetDepth,
+      label: `B${targetDepth}撤退`,
+      seriesId: `depth-${targetDepth}`,
+      scoringProfile: scoringProfileForPolicy,
+      scenario,
+      identificationPolicy
+    });
+  }
   if (kind === "scenario") {
     const scenario = DEPTH_SCENARIOS.find(candidate => candidate.id === scenarioId);
     return TARGET_DEPTHS.map(targetDepth => simulateCase({
@@ -5424,6 +5439,16 @@ export function runDepthSimulationTask(
       identificationPolicy
     })
   ];
+}
+
+function deriveSimulationTaskSeed(...parts) {
+  const seedText = [SIM_SEED, ...parts].join(":");
+  let seed = 2166136261;
+  for (let index = 0; index < seedText.length; index++) {
+    seed ^= seedText.charCodeAt(index);
+    seed = Math.imul(seed, 16777619);
+  }
+  return seed >>> 0;
 }
 
 export async function runDepthMaterialSimulation() {
@@ -5559,11 +5584,12 @@ const taskResults = await runSimTasks({
   exportName: "runDepthSimulationTask",
   runTask: runDepthSimulationTask,
   tasks: ACTIVE_IDENTIFICATION_POLICIES.flatMap(policy => [
-    ...ACTIVE_SCENARIOS.map(scenario => ({
-      kind: "scenario",
+    ...ACTIVE_SCENARIOS.flatMap(scenario => TARGET_DEPTHS.map(targetDepth => ({
+      kind: "scenario-depth",
       scenarioId: scenario.id,
+      targetDepth,
       identificationPolicyId: policy.id
-    })),
+    }))),
     { kind: "milestone", identificationPolicyId: policy.id }
   ]),
   context: {
@@ -5573,14 +5599,17 @@ const taskResults = await runSimTasks({
   }
 });
 const resultsByPolicy = ACTIVE_IDENTIFICATION_POLICIES.map((policy, policyIndex) => {
-  const offset = policyIndex * (ACTIVE_SCENARIOS.length + 1);
+  const scenarioTaskCount = ACTIVE_SCENARIOS.length * TARGET_DEPTHS.length;
+  const offset = policyIndex * (scenarioTaskCount + 1);
   return {
     policy,
     scenarioResults: ACTIVE_SCENARIOS.map((scenario, scenarioIndex) => ({
       scenario,
-      results: taskResults[offset + scenarioIndex]
+      results: TARGET_DEPTHS.map((_, depthIndex) =>
+        taskResults[offset + scenarioIndex * TARGET_DEPTHS.length + depthIndex]
+      )
     })),
-    milestoneResults: taskResults[offset + ACTIVE_SCENARIOS.length]
+    milestoneResults: taskResults[offset + scenarioTaskCount]
   };
 });
 
