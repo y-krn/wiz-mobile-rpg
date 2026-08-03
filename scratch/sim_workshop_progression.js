@@ -420,8 +420,14 @@ function purchaseStandardAvailable(initialBank, initialWorkshop, scenario = null
     for (const nodeId of [...STAT_NODE_IDS, ...OTHER_NODE_IDS]) {
       const cost = getNodeCost(nodeId, workshop, scenario);
       if (!cost) continue;
-      const result = scenario?.workshopCostOverride !== undefined &&
-        ADDED_WORKSHOP_NODE_IDS.has(nodeId)
+      const sourceNode = WORKSHOP_NODES.find(node => node.id === nodeId);
+      const sourceCost = sourceNode
+        ? getWorkshopNodeCost(sourceNode, getWorkshopRank(workshop, nodeId))
+        : null;
+      const usesScenarioOverride = scenario?.workshopCostOverride !== undefined &&
+        ADDED_WORKSHOP_NODE_IDS.has(nodeId) &&
+        totalMaterials(cost) !== totalMaterials(sourceCost);
+      const result = usesScenarioOverride
         ? (() => {
             const balance = spendMaterials(bank, cost);
             if (!balance) return { ok: false };
@@ -692,6 +698,8 @@ function createScenarioList() {
       recipeIds: [...CRAFT_RECIPE_ORDER],
       workshopCostOverride: workshopCost,
       allowChestTownPortal: true,
+      // 代表 reference と同じ乱数系列で paired comparison する。
+      comparisonSeries: "material-reference",
       sweep: "workshop-cost"
     });
   });

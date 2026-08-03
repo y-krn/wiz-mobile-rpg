@@ -86,11 +86,13 @@ Permanent unlocks include:
    similar small run-start kits.
 
 Current workshop-pool expansion (issue #410) adds the measured sidegrade cores
-先手必勝・罠喰い・巨人殺し・反撃の棘・盗掘王・学者の眼. Convenience nodes remain
+先手必勝・罠喰い・巨人殺し・反撃の棘・盗掘王・学者の眼. These six pre-existing
+core IDs become workshop-gated, so this is a material sink with an explicit
+early-run access tradeoff, not purely new content. Convenience nodes remain
 deferred because departure craft already owns starting consumables, and no class
 roster or permanent-stat cap change is part of this expansion. The node data and
 material costs are source-of-truth in `src/data/workshop.js`; advanced classes
-remain deferred.
+remain deferred. Core measurement gaps are tracked separately in issue #416.
 
 Departure craft is the separate run-start path: choose quantities per recipe,
 pay their material costs for that run, and carry the crafted consumables into

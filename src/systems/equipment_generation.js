@@ -7,9 +7,10 @@ import {
 } from "../rules/identification_rules.js";
 
 const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
-// Workshop pool nodes gate only the newly expandable cores. Existing cores stay
-// in the default pool; a missing party context keeps this low-level generator
-// backward-compatible for standalone loot generation and tests.
+// Workshop pool nodes intentionally gate six pre-existing core IDs to make the
+// added nodes a real material sink. Blood Wand keeps its existing gate; a
+// missing party context keeps this low-level generator backward-compatible for
+// standalone loot generation and tests.
 const WORKSHOP_LOCKED_AFFIX_IDS = new Set([
   "CORE_BLOOD_WAND",
   "CORE_OPENER",
