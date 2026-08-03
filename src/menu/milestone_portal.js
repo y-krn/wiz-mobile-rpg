@@ -1,5 +1,6 @@
 import { closeSubmenu } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
+import { createRunStakesSummary } from "../ui/run_stakes.js";
 
 export function renderMilestonePortal(optGrid) {
   optGrid.innerHTML = "";
@@ -13,5 +14,5 @@ export function renderMilestonePortal(optGrid) {
   continueButton.className = "btn btn-block milestone-portal-action";
   continueButton.textContent = "探索を続ける";
   continueButton.addEventListener("click", closeSubmenu);
-  optGrid.append(retreat, continueButton);
+  optGrid.append(createRunStakesSummary(), retreat, continueButton);
 }

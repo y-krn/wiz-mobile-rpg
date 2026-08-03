@@ -2,6 +2,7 @@ import { getFloorLabel } from "../data/floor_themes.js";
 import { descendToFloor } from "../movement.js";
 import { closeSubmenu } from "../navigation.js";
 import { state } from "../state.js";
+import { createRunStakesSummary } from "../ui/run_stakes.js";
 
 export function renderStairsDown(optGrid) {
   optGrid.replaceChildren();
@@ -22,5 +23,5 @@ export function renderStairsDown(optGrid) {
   stay.textContent = "降りずに進む";
   stay.addEventListener("click", closeSubmenu);
 
-  optGrid.append(descend, stay);
+  optGrid.append(createRunStakesSummary(), descend, stay);
 }

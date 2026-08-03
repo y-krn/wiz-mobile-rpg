@@ -2158,6 +2158,62 @@ for (const vp of VIEWPORTS) {
       expect(afterDescend.gameState).toBe('explore');
     });
 
+    test('Run stake summary appears only at retreat decisions', async ({ page }) => {
+      const observed = await page.evaluate(async () => {
+        const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
+        const { menuContext, openSubmenu } = await import('/src/navigation.js');
+        const { updateUI } = await import('/src/ui.js');
+
+        state.party = [createSoloCharacter('Fighter')];
+        state.currentRun = createDefaultCurrentRun();
+        state.currentRun.materials = { '獣の牙': 5, '鉄片': 3, '霊粉': 2 };
+        state.gameState = 'explore';
+        updateUI();
+        const exploreSummaryCount = document.querySelectorAll('.run-stakes-summary').length;
+
+        const readSurface = () => {
+          const summary = document.querySelector('.run-stakes-summary');
+          return {
+            text: summary?.textContent || '',
+            box: summary?.getBoundingClientRect().toJSON() || null,
+            buttons: Array.from(document.querySelectorAll('#submenu-options button')).map(button => ({
+              text: button.textContent,
+              box: button.getBoundingClientRect().toJSON(),
+            })),
+          };
+        };
+
+        openSubmenu('stairs_down', 'B2Fへの下り階段');
+        const stairs = readSurface();
+
+        openSubmenu('milestone_portal', 'B5F帰還ポータル');
+        const portal = readSurface();
+
+        state.inventory = ['TOWN_PORTAL'];
+        menuContext.itemKey = 'TOWN_PORTAL';
+        menuContext.itemIdx = 0;
+        openSubmenu('item_target_select', '帰還の翼の対象');
+        const wing = readSurface();
+
+        return { exploreSummaryCount, stairs, portal, wing };
+      });
+
+      expect(observed.exploreSummaryCount).toBe(0);
+      for (const surface of [observed.stairs, observed.portal, observed.wing]) {
+        expect(surface.text).toContain('今回の素材 10個');
+        expect(surface.text).toMatch(/持ち帰れば\s*10個/);
+        expect(surface.text).toMatch(/死ねば\s*9個失う/);
+        expect(surface.text).not.toMatch(/危険|確率|推奨|%/);
+        expect(surface.box.left).toBeGreaterThanOrEqual(0);
+        expect(surface.box.right).toBeLessThanOrEqual(vp.width);
+        for (const button of surface.buttons) {
+          expect(button.box.height).toBeGreaterThanOrEqual(44);
+          expect(button.box.left).toBeGreaterThanOrEqual(0);
+          expect(button.box.right).toBeLessThanOrEqual(vp.width);
+        }
+      }
+    });
+
     test('Movement-triggered event and trap panels ignore immediate taps', async ({ page }) => {
       const result = await page.evaluate(async () => {
         const { state } = await import('/src/state.js');

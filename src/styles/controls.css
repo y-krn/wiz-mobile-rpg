@@ -295,6 +295,57 @@
   line-height: 1.35;
 }
 
+.run-stakes-summary {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--sp-xs);
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid rgba(255, 179, 0, 0.45);
+  border-radius: var(--radius-md);
+  background-color: rgba(39, 31, 18, 0.7);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+}
+
+.run-stakes-title {
+  color: var(--neon-amber);
+  font-size: var(--fs-md);
+}
+
+.run-stakes-title strong,
+.run-stakes-flow strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.run-stakes-flow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-xs);
+}
+
+.run-stakes-flow > div {
+  display: grid;
+  gap: var(--sp-xxs);
+  min-width: 0;
+  padding: var(--sp-xs);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background-color: rgba(0, 0, 0, 0.18);
+}
+
+.run-stakes-flow span {
+  color: var(--text-muted);
+}
+
+.run-stakes-flow strong {
+  color: var(--neon-cyan);
+}
+
+.run-stakes-flow > div:last-child strong {
+  color: var(--neon-amber);
+}
+
 
 .chest-info-panel {
   padding: var(--sp-md) 10px;
