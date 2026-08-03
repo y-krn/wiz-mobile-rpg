@@ -70,7 +70,7 @@
   background-color: var(--floor-banner-bg, #0e0e12);
   border-bottom: 1px solid var(--floor-border, var(--border-color));
   font-family: var(--font-mono);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-md);
   color: var(--neon-amber);
   text-shadow: var(--neon-glow-amber);
   letter-spacing: 0.5px;
@@ -362,7 +362,7 @@
   border-radius: 4px;
   padding: 6px 10px;
   font-family: var(--font-mono);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-md);
   color: var(--neon-cyan);
   text-shadow: var(--neon-glow-cyan);
   pointer-events: none;
