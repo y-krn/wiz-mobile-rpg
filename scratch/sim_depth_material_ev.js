@@ -72,6 +72,8 @@ const {
   getEquippedCurseCount,
   getEquippedCoreAffixes,
   getCharCoreParams,
+  getCoreLogText,
+  getSpellPayment,
   hasCoreAffix
 } = await import("../src/rules/affix_rules.js");
 const {
@@ -150,6 +152,7 @@ const SIM_ENV_KEYS = Object.freeze([
   "PORTAL_MAX_HEAL_POTIONS",
   "PORTAL_MIN_FLOOR",
   "ELITE_POLICY",
+  "BLOOD_WAND_HP_PAYMENT_MIN_RATE",
   "SIM_SCENARIOS"
 ]);
 const REVALIDATION_DEPARTURE_CRAFT_IDS =
@@ -176,6 +179,7 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   PORTAL_MAX_HEAL_POTIONS: "0",
   PORTAL_MIN_FLOOR: "3",
   ELITE_POLICY: "avoid",
+  BLOOD_WAND_HP_PAYMENT_MIN_RATE: "0.50",
   SIM_SCENARIOS: ""
 });
 const BALANCE_MAIN_PRESET = Object.freeze({
@@ -197,6 +201,7 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   PORTAL_MAX_HEAL_POTIONS: "0",
   PORTAL_MIN_FLOOR: "3",
   ELITE_POLICY: "avoid",
+  BLOOD_WAND_HP_PAYMENT_MIN_RATE: "0.50",
   SIM_SCENARIOS: ""
 });
 const REVALIDATION_PRESET = Object.freeze({
@@ -480,6 +485,11 @@ const PORTAL_MAX_HEAL_POTIONS = Math.max(
   Number(SIM_ENV.PORTAL_MAX_HEAL_POTIONS || 0)
 );
 const PORTAL_MIN_FLOOR = Math.max(1, Number(SIM_ENV.PORTAL_MIN_FLOOR || 3));
+// sim-only safety policy; payment eligibility remains owned by getSpellPayment.
+const bloodWandHpPaymentMinRateInput = Number(SIM_ENV.BLOOD_WAND_HP_PAYMENT_MIN_RATE);
+const BLOOD_WAND_HP_PAYMENT_MIN_RATE = Number.isFinite(bloodWandHpPaymentMinRateInput)
+  ? Math.max(0, Math.min(1, bloodWandHpPaymentMinRateInput))
+  : 0.50;
 const REQUESTED_DEPARTURE_CRAFT_IDS = String(SIM_ENV.DEPARTURE_CRAFT_IDS || "")
   .split(",")
   .map(value => value.trim())
@@ -695,6 +705,8 @@ function createCoreObservations() {
     openerFirstStrikeFightTurns: 0,
     bloodWandSpellOpportunities: 0,
     bloodWandHealOpportunities: 0,
+    bloodWandSpellActivations: 0,
+    bloodWandHealActivations: 0,
     purifyKillsWithMpRoom: 0,
     purifyPotentialMpRecovered: 0,
     purifyPotentialHpRecovered: 0,
@@ -1242,6 +1254,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       bossOverride: scenario.bossOverride || null,
       forcedBossAffixes: scenario.forcedBossAffixes || null,
       elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY,
+      bloodWandHpPaymentMinRate: BLOOD_WAND_HP_PAYMENT_MIN_RATE,
       materialDropOverride: scenario.materialDropOverride || null
     },
     floor: startFloor
@@ -1254,6 +1267,26 @@ function isAlive(character) {
 
 function hasSpell(character, spellName) {
   return character.spells?.includes(spellName) === true;
+}
+
+function getSpellActionPayment(
+  state,
+  spellName,
+  reserveMp = 0,
+  { minHpAfterPaymentRate = state.simPolicy.bloodWandHpPaymentMinRate } = {}
+) {
+  const character = state.party[0];
+  if (!hasSpell(character, spellName)) return null;
+  const spell = SPELLS[spellName];
+  const payment = getSpellPayment(character, spell.cost);
+  if (!payment.canCast) return null;
+  if (payment.resource === "mp") {
+    return character.mp - reserveMp >= payment.cost ? payment : null;
+  }
+  if (minHpAfterPaymentRate === null) return payment;
+  const minHpAfterPayment =
+    getCharMaxHp(character) * minHpAfterPaymentRate;
+  return character.hp - payment.cost >= minHpAfterPayment ? payment : null;
 }
 
 function getLowestHpEnemyIndex(monsters, predicate = () => true) {
@@ -1442,7 +1475,11 @@ function selectCombatAction(state, metrics) {
     return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "HEAL_POTION" };
   }
 
-  if (hasSpell(character, "DIOS") && character.hp < getCharMaxHp(character) * 0.35 && character.mp >= 1) {
+  if (
+    character.hp < getCharMaxHp(character) * 0.35 &&
+    // DIOS already has a low-HP need gate; its HP payment is not offensive spending.
+    getSpellActionPayment(state, "DIOS", 0, { minHpAfterPaymentRate: null })
+  ) {
     return { type: "spell", actorIdx: 0, targetIdx: 0, spellName: "DIOS" };
   }
 
@@ -1452,47 +1489,47 @@ function selectCombatAction(state, metrics) {
   if (
     state.combatState.roundNumber === 1 &&
     livingMonsters.length >= 2 &&
-    hasSpell(character, "KATINO") &&
-    character.mp >= SPELLS.KATINO.cost + reserveMp
+    getSpellActionPayment(state, "KATINO", reserveMp)
   ) {
     return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "KATINO" };
   }
 
-  if (character.mp > reserveMp) {
-    if (character.class === "Priest" && hasSpell(character, "BADIOS")) {
-      const holyTargetIdx = monsters.findIndex(monster => monster.hp > 0 && hasHolyTag(monster));
-      const firstLivingIdx = monsters.findIndex(monster => monster.hp > 0);
-      return {
-        type: "spell",
-        actorIdx: 0,
-        targetIdx: holyTargetIdx >= 0 ? holyTargetIdx : firstLivingIdx,
-        spellName: "BADIOS"
-      };
-    }
+  if (character.class === "Priest" && getSpellActionPayment(state, "BADIOS", reserveMp)) {
+    const holyTargetIdx = monsters.findIndex(monster => monster.hp > 0 && hasHolyTag(monster));
+    const firstLivingIdx = monsters.findIndex(monster => monster.hp > 0);
+    return {
+      type: "spell",
+      actorIdx: 0,
+      targetIdx: holyTargetIdx >= 0 ? holyTargetIdx : firstLivingIdx,
+      spellName: "BADIOS"
+    };
+  }
 
-    if (character.class === "Bishop") {
-      const holyTargetIdx = getLowestHpEnemyIndex(monsters, hasHolyTag);
-      if (holyTargetIdx >= 0 && hasSpell(character, "BADIOS")) {
-        return { type: "spell", actorIdx: 0, targetIdx: holyTargetIdx, spellName: "BADIOS" };
-      }
-      if (hasSpell(character, "HALITO")) {
-        return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "HALITO" };
-      }
+  if (character.class === "Bishop") {
+    const holyTargetIdx = getLowestHpEnemyIndex(monsters, hasHolyTag);
+    if (holyTargetIdx >= 0 && getSpellActionPayment(state, "BADIOS", reserveMp)) {
+      return { type: "spell", actorIdx: 0, targetIdx: holyTargetIdx, spellName: "BADIOS" };
     }
-
-    if ((character.class === "Mage" || character.class === "Samurai") && hasSpell(character, "HALITO")) {
+    if (getSpellActionPayment(state, "HALITO", reserveMp)) {
       return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "HALITO" };
     }
+  }
 
-    if (character.class === "Ranger" && hasSpell(character, "BADIOS")) {
-      const holyTargetIdx = getLowestHpEnemyIndex(monsters, hasHolyTag);
-      return {
-        type: "spell",
-        actorIdx: 0,
-        targetIdx: holyTargetIdx >= 0 ? holyTargetIdx : lowestHpIdx,
-        spellName: "BADIOS"
-      };
-    }
+  if (
+    (character.class === "Mage" || character.class === "Samurai") &&
+    getSpellActionPayment(state, "HALITO", reserveMp)
+  ) {
+    return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "HALITO" };
+  }
+
+  if (character.class === "Ranger" && getSpellActionPayment(state, "BADIOS", reserveMp)) {
+    const holyTargetIdx = getLowestHpEnemyIndex(monsters, hasHolyTag);
+    return {
+      type: "spell",
+      actorIdx: 0,
+      targetIdx: holyTargetIdx >= 0 ? holyTargetIdx : lowestHpIdx,
+      spellName: "BADIOS"
+    };
   }
 
   return { type: "fight", actorIdx: 0, targetIdx: lowestHpIdx };
@@ -1512,22 +1549,44 @@ function getPreferredOffensiveSpellName(character) {
 }
 
 function getBloodWandOpportunity(state, action) {
-  if (action.type !== "fight") return null;
   const character = state.party[0];
-  const hpCostMultiplier = CORE_AFFIX_BY_ID.get("CORE_BLOOD_WAND").params.hpCostMultiplier;
-  if (
-    hasSpell(character, "DIOS") &&
-    character.hp < getCharMaxHp(character) * 0.35 &&
-    !state.inventory.includes("HEAL_POTION")
-  ) {
-    const spell = SPELLS.DIOS;
-    if (character.mp < spell.cost && character.hp >= spell.cost * hpCostMultiplier) return "heal";
+  let spellName = null;
+  let opportunityType = null;
+  if (action.type === "fight") {
+    if (
+      character.hp < getCharMaxHp(character) * 0.35 &&
+      hasSpell(character, "DIOS") &&
+      !state.inventory.includes("HEAL_POTION")
+    ) {
+      spellName = "DIOS";
+      opportunityType = "heal";
+    } else {
+      spellName = getPreferredOffensiveSpellName(character);
+      opportunityType = spellName ? "offense" : null;
+    }
+  } else if (action.type === "spell") {
+    if (action.spellName === "DIOS") {
+      spellName = action.spellName;
+      opportunityType = "heal";
+    } else if (action.spellName === getPreferredOffensiveSpellName(character)) {
+      spellName = action.spellName;
+      opportunityType = "offense";
+    }
   }
-
-  const spellName = getPreferredOffensiveSpellName(character);
   if (!spellName) return null;
-  const spell = SPELLS[spellName];
-  return character.mp < spell.cost && character.hp >= spell.cost * hpCostMultiplier
+  const payment = getSpellPayment(character, SPELLS[spellName].cost);
+  return payment.canCast && payment.resource === "hp" ? opportunityType : null;
+}
+
+const BLOOD_WAND_ACTIVATION_LOG = getCoreLogText("CORE_BLOOD_WAND");
+
+function getBloodWandActivationType(character, action, logQueue) {
+  if (
+    action.type !== "spell" ||
+    !logQueue.some(entry => entry.msg === BLOOD_WAND_ACTIVATION_LOG)
+  ) return null;
+  if (action.spellName === "DIOS") return "heal";
+  return action.spellName === getPreferredOffensiveSpellName(character)
     ? "offense"
     : null;
 }
@@ -1771,6 +1830,14 @@ function runEncounter(
   const startBuild = (isBoss || isMidboss || isElite) && metrics?.collectSpecialBattles
     ? createBuildSnapshot(state, metrics?.scoringProfile || null, `${encounterType}-start`)
     : null;
+  const bloodWandObservationStart = isBoss
+    ? {
+        spellCandidates: observations.bloodWandSpellOpportunities,
+        healCandidates: observations.bloodWandHealOpportunities,
+        spellActivations: observations.bloodWandSpellActivations,
+        healActivations: observations.bloodWandHealActivations
+      }
+    : null;
   const telemetry = {
     type: encounterType,
     floor: state.floor,
@@ -1826,7 +1893,26 @@ function runEncounter(
       }));
       diagnostics.encounters.push(encounterDiagnostic);
     }
-    return { result, rounds, healPotionsUsed, state, startBuild, telemetry };
+    return {
+      result,
+      rounds,
+      healPotionsUsed,
+      state,
+      startBuild,
+      telemetry,
+      bloodWandObservations: bloodWandObservationStart
+        ? {
+            spellCandidates:
+              observations.bloodWandSpellOpportunities - bloodWandObservationStart.spellCandidates,
+            healCandidates:
+              observations.bloodWandHealOpportunities - bloodWandObservationStart.healCandidates,
+            spellActivations:
+              observations.bloodWandSpellActivations - bloodWandObservationStart.spellActivations,
+            healActivations:
+              observations.bloodWandHealActivations - bloodWandObservationStart.healActivations
+          }
+        : null
+    };
   };
 
   let rounds = 0;
@@ -1897,6 +1983,13 @@ function runEncounter(
       roundResult,
       firstStrikeSucceeded
     );
+    const bloodWandActivationType = getBloodWandActivationType(
+      characterBeforeRound,
+      action,
+      roundResult.logQueue
+    );
+    observations.bloodWandSpellActivations += Number(bloodWandActivationType === "offense");
+    observations.bloodWandHealActivations += Number(bloodWandActivationType === "heal");
     state = roundResult.state;
     recordIdentificationPowderAcquisition(
       metrics,
@@ -2367,6 +2460,22 @@ function createCoreScoringProfile(observations, runCount) {
       observations.bloodWandHealOpportunities,
       observations.offensiveTurns
     ),
+    bloodWandSpellActivationRate: divide(
+      observations.bloodWandSpellActivations,
+      observations.offensiveTurns
+    ),
+    bloodWandHealActivationRate: divide(
+      observations.bloodWandHealActivations,
+      observations.offensiveTurns
+    ),
+    bloodWandSpellCoverage: divide(
+      observations.bloodWandSpellActivations,
+      observations.bloodWandSpellOpportunities
+    ),
+    bloodWandHealCoverage: divide(
+      observations.bloodWandHealActivations,
+      observations.bloodWandHealOpportunities
+    ),
     purifyMpPerOffensiveTurn: divide(
       observations.purifyPotentialMpRecovered,
       observations.offensiveTurns
@@ -2456,10 +2565,10 @@ function getCombatCoreScore(character, scoringProfile, floor) {
   // MP不足時の追加詠唱は、実測spell/fightダメージ差。回復詠唱は実測DIOS回復量をHP重み換算。
   if (coreId === "CORE_BLOOD_WAND") {
     return offenseScore *
-      classScoringProfile.bloodWandSpellOpportunityRate *
+      classScoringProfile.bloodWandSpellActivationRate *
       classScoringProfile.spellDamageUplift +
       EQUIPMENT_SCORE_WEIGHTS.maxHp *
-      classScoringProfile.bloodWandHealOpportunityRate *
+      classScoringProfile.bloodWandHealActivationRate *
       classScoringProfile.averageDiosHealing;
   }
   // 対象撃破で得る1MPを追加詠唱1回とみなし、実測spell/fight差へ換算。
@@ -4301,7 +4410,8 @@ export function simulateRun({
               attempt,
               result: combatResult.result,
               rounds: combatResult.rounds,
-              telemetry: combatResult.telemetry
+              telemetry: combatResult.telemetry,
+              bloodWandObservations: combatResult.bloodWandObservations
             });
           } else if (!isElite) {
             metrics.normalCombatTelemetry.encounters++;
@@ -5027,11 +5137,15 @@ function printCoreScoringProfile(profile, policy = null) {
     "率×100%追撃×followUp重み0.15"
   );
   console.log(
-    `血杖: MP不足攻撃spell機会率=${formatPercent(profile.bloodWandSpellOpportunityRate)}, ` +
-    `MP不足DIOS機会率=${formatPercent(profile.bloodWandHealOpportunityRate)}, ` +
+    `血杖: HP支払い候補 攻撃=${formatPercent(profile.bloodWandSpellOpportunityRate)} ` +
+    `→実発動=${formatPercent(profile.bloodWandSpellActivationRate)} ` +
+    `(coverage=${formatPercent(profile.bloodWandSpellCoverage)}), ` +
+    `DIOS=${formatPercent(profile.bloodWandHealOpportunityRate)} ` +
+    `→実発動=${formatPercent(profile.bloodWandHealActivationRate)} ` +
+    `(coverage=${formatPercent(profile.bloodWandHealCoverage)}), ` +
     `spell/fight実測damage=${profile.averageSpellDamage.toFixed(2)}/${profile.averageFightDamage.toFixed(2)}, ` +
     `DIOS実測回復=${profile.averageDiosHealing.toFixed(2)}; ` +
-    "攻撃score×攻撃機会率×damage差 + maxHP重み×回復機会率×回復量"
+    "攻撃score×実発動率×damage差 + maxHP重み×実発動率×回復量"
   );
   console.log(
     `浄化の環: 潜在回復/攻撃turn MP=${profile.purifyMpPerOffensiveTurn.toFixed(4)}, ` +
@@ -5659,6 +5773,9 @@ console.log(
   `逃走閾値=${DEFAULT_FLEE_HP_THRESHOLD ?? "逃走なし"}, ` +
   `状態回復=${DEFAULT_STATUS_CURE_POLICY}(HP<=${DEFAULT_STATUS_CURE_HP_THRESHOLD}), ` +
   "装備=識別方針別の実制限付き更新"
+);
+console.log(
+  `血杖HP支払い方針: 支払い後残HP率>=${BLOOD_WAND_HP_PAYMENT_MIN_RATE}`
 );
 console.log(
   `帰還の翼ポリシー（仮値・感度分析対象）: B${PORTAL_MIN_FLOOR}以降, ` +
