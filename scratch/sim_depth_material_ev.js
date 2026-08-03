@@ -159,7 +159,8 @@ const REVALIDATION_DEPARTURE_CRAFT_IDS =
   "TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION";
 const DEFAULT_DEPTH_SCENARIOS_CSV =
   "workshop-empty,workshop-stats,workshop-gear,workshop-blood-wand," +
-  "workshop-blood-wand-spells,workshop-complete";
+  "workshop-blood-wand-spells,workshop-core-pools," +
+  "workshop-complete";
 const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_SEED: "231",
   SIM_RUNS: "500",
@@ -535,11 +536,33 @@ const WORKSHOP_STATE_RANKS = Object.freeze({
     stat_agi: 5,
     stat_luk: 5
   }),
+  corePools: Object.freeze({
+    gear_rapier: 1,
+    pool_blood_wand: 1,
+    pool_opener: 1,
+    pool_trap_eater: 1,
+    pool_giant_slayer: 1,
+    pool_thorn_shield: 1,
+    pool_tomb_raider: 1,
+    pool_scholar_eye: 1,
+    stat_str: 5,
+    stat_int: 4,
+    stat_pie: 4,
+    stat_vit: 5,
+    stat_agi: 4,
+    stat_luk: 5
+  }),
   complete: Object.freeze({
     gear_rapier: 1,
     gear_sage_staff: 1,
     pool_blood_wand: 1,
     pool_deep_spells: 1,
+    pool_opener: 1,
+    pool_trap_eater: 1,
+    pool_giant_slayer: 1,
+    pool_thorn_shield: 1,
+    pool_tomb_raider: 1,
+    pool_scholar_eye: 1,
     stat_str: 5,
     stat_int: 5,
     stat_pie: 5,
@@ -582,6 +605,12 @@ const SCENARIOS = Object.freeze([
     useTownPortal: true
   },
   {
+    id: "workshop-core-pools",
+    label: "工房コアプール拡張投資中",
+    workshop: { ranks: WORKSHOP_STATE_RANKS.corePools },
+    useTownPortal: true
+  },
+  {
     id: "workshop-complete",
     label: "工房買い切り済み",
     workshop: { ranks: WORKSHOP_STATE_RANKS.complete },
@@ -609,6 +638,7 @@ const DEFAULT_DEPTH_SCENARIO_IDS = new Set([
   "workshop-gear",
   "workshop-blood-wand",
   "workshop-blood-wand-spells",
+  "workshop-core-pools",
   "workshop-complete"
 ]);
 const SCENARIO_ALIASES = Object.freeze({
@@ -676,6 +706,15 @@ const HOLD_ONLY_ECONOMY_CORE_IDS = new Set(["CORE_SNEAK_STEP", "CORE_KEEN_EYE"])
 const MATERIAL_EV_SCORE_WEIGHT = 1;
 // 盗掘王の素材EVは、罠被害を測定する既定経路でも感度分析として50%割引を残す。
 const TOMB_RAIDER_TRAP_RISK_DISCOUNT = 0.5;
+
+const CORE_ACTIVATION_MEASUREMENT_NOTES = Object.freeze({
+  CORE_SNEAK_STEP: "sim未再現: movement.jsの徘徊エリート知覚経路を通らない",
+  CORE_KEEN_EYE: "legacy方針では未鑑定効果を能動適用しない"
+});
+
+function createCoreMeasurementCounts() {
+  return Object.fromEntries(CORE_AFFIXES.map(affix => [affix.id, 0]));
+}
 const CAMP_FLOORS = new Set([2, 4]);
 // 仮定: 装備スコアは攻防を主軸に、HP・主要能力・戦闘affixを下記重みで合算する。
 const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
@@ -736,7 +775,9 @@ function createCoreObservations() {
     amplifierKills: 0,
     bountyBonusMaterials: 0,
     curseSamples: 0,
-    equippedCurseTotal: 0
+    equippedCurseTotal: 0,
+    coreOpportunityCounts: createCoreMeasurementCounts(),
+    coreActivationCounts: createCoreMeasurementCounts()
   };
 }
 
@@ -1040,6 +1081,10 @@ function addCoreObservations(target, additions) {
   Object.keys(target).forEach(key => {
     if (Array.isArray(target[key])) {
       target[key] = target[key].map((value, index) => value + (additions[key]?.[index] || 0));
+    } else if (target[key] && typeof target[key] === "object") {
+      Object.keys(target[key]).forEach(name => {
+        target[key][name] += additions[key]?.[name] || 0;
+      });
     } else {
       target[key] += additions[key] || 0;
     }
@@ -1580,6 +1625,25 @@ function getBloodWandOpportunity(state, action) {
 
 const BLOOD_WAND_ACTIVATION_LOG = getCoreLogText("CORE_BLOOD_WAND");
 
+function countLoggedCoreActivations(observations, logQueue) {
+  const loggedCoreIds = [
+    "CORE_OPENER",
+    "CORE_THORN_SHIELD",
+    "CORE_BOUNTY_HUNTER",
+    "CORE_SCHOLAR_EYE"
+  ];
+  loggedCoreIds.forEach(coreId => {
+    const message = getCoreLogText(coreId);
+    observations.coreActivationCounts[coreId] += logQueue.filter(
+      entry => entry.msg === message
+    ).length;
+  });
+  observations.coreActivationCounts.CORE_PURIFY_RING += logQueue.filter(
+    entry => entry.purifyRecovery &&
+      (entry.purifyRecovery.mpRecovered > 0 || entry.purifyRecovery.hpRecovered > 0)
+  ).length;
+}
+
 function getBloodWandActivationType(character, action, logQueue) {
   if (
     action.type !== "spell" ||
@@ -1658,6 +1722,10 @@ function recordRoundCoreObservations(
   const spell = action.type === "spell" ? SPELLS[action.spellName] : null;
   const offensive = action.type === "fight" ||
     (spell?.target?.includes("enemy") && action.spellName !== "KATINO");
+  const lastStandParams = getCharCoreParams(characterBefore, "CORE_LAST_STAND");
+  const giantSlayerParams = getCharCoreParams(characterBefore, "CORE_GIANT_SLAYER");
+  const executionerParams = getCharCoreParams(characterBefore, "CORE_EXECUTIONER");
+  const curseKeeperParams = getCharCoreParams(characterBefore, "CORE_CURSE_KEEPER");
 
   if (offensive) {
     observations.offensiveTurns++;
@@ -1668,15 +1736,32 @@ function recordRoundCoreObservations(
       hpAtAction / Math.max(1, getCharMaxHp(characterBefore)) <= lastStand.hpThreshold
     ) {
       observations.lowHpOffensiveTurns++;
+      if (lastStandParams) {
+        observations.coreOpportunityCounts.CORE_LAST_STAND++;
+        observations.coreActivationCounts.CORE_LAST_STAND++;
+      }
     }
     if (targetBeforeRound?.maxHp > getCharMaxHp(characterBefore)) {
       observations.giantTargetTurns++;
+      if (giantSlayerParams) {
+        observations.coreOpportunityCounts.CORE_GIANT_SLAYER++;
+        observations.coreActivationCounts.CORE_GIANT_SLAYER++;
+      }
     }
     if (targetBeforeRound?.status && !["ok", "dead"].includes(targetBeforeRound.status)) {
       observations.statusTargetTurns++;
+      if (executionerParams) {
+        observations.coreOpportunityCounts.CORE_EXECUTIONER++;
+        observations.coreActivationCounts.CORE_EXECUTIONER++;
+      }
     }
     observations.curseSamples++;
-    observations.equippedCurseTotal += getEquippedCurseCount(characterBefore);
+    const equippedCurseCount = getEquippedCurseCount(characterBefore);
+    observations.equippedCurseTotal += equippedCurseCount;
+    if (curseKeeperParams && equippedCurseCount > 0) {
+      observations.coreOpportunityCounts.CORE_CURSE_KEEPER++;
+      observations.coreActivationCounts.CORE_CURSE_KEEPER++;
+    }
   }
 
   if (action.type === "fight") {
@@ -1684,6 +1769,12 @@ function recordRoundCoreObservations(
     observations.fightDamageActions++;
     observations.fightDamage += sumLoggedDamage(logQueue, characterAfter, "fight");
     observations.openerFirstStrikeFightTurns += Number(firstStrikeSucceeded);
+    if (
+      firstStrikeSucceeded &&
+      getCharCoreParams(characterBefore, "CORE_OPENER")
+    ) {
+      observations.coreOpportunityCounts.CORE_OPENER++;
+    }
   } else if (spell?.target?.includes("enemy") && action.spellName !== "KATINO") {
     observations.spellDamageActions++;
     observations.spellDamage += sumLoggedDamage(logQueue, characterAfter, "spell");
@@ -1699,6 +1790,9 @@ function recordRoundCoreObservations(
   observations.incomingPhysicalHits += incomingPhysicalLogs.filter(({ msg = "" }) =>
     /に\d+のダメージ/.test(msg)
   ).length;
+  if (getCharCoreParams(characterBefore, "CORE_THORN_SHIELD")) {
+    observations.coreOpportunityCounts.CORE_THORN_SHIELD += incomingPhysicalLogs.length;
+  }
 
   // #312: 発動を潰しているのが「対象タグ」なのか「MPに空き」なのかを切り分けるため、
   // 撃破総数・タグ一致撃破・MP空きあり撃破の3段を数える。
@@ -1736,6 +1830,9 @@ function recordRoundCoreObservations(
     potentialHp += recovery.hpRecovered;
     observations.purifyPotentialMpRecovered += recovery.mpRecovered;
     observations.purifyPotentialHpRecovered += recovery.hpRecovered;
+    if (getCharCoreParams(characterAfter, "CORE_PURIFY_RING")) {
+      observations.coreOpportunityCounts.CORE_PURIFY_RING++;
+    }
   });
   roundResult.logQueue.forEach(entry => {
     const recovery = entry.purifyRecovery;
@@ -1744,6 +1841,7 @@ function recordRoundCoreObservations(
     observations.purifyMpRecovered += recovery.mpRecovered || 0;
     observations.purifyHpRecovered += recovery.hpRecovered || 0;
   });
+  countLoggedCoreActivations(observations, logQueue);
 }
 
 function runEncounter(
@@ -1933,6 +2031,9 @@ function runEncounter(
     const bloodWandOpportunity = getBloodWandOpportunity(state, action);
     observations.bloodWandSpellOpportunities += Number(bloodWandOpportunity === "offense");
     observations.bloodWandHealOpportunities += Number(bloodWandOpportunity === "heal");
+    if (bloodWandOpportunity) {
+      observations.coreOpportunityCounts.CORE_BLOOD_WAND++;
+    }
 
     const roundNumber = state.combatState.roundNumber;
     const roundRandomDraws = [];
@@ -1990,6 +2091,7 @@ function runEncounter(
     );
     observations.bloodWandSpellActivations += Number(bloodWandActivationType === "offense");
     observations.bloodWandHealActivations += Number(bloodWandActivationType === "heal");
+    observations.coreActivationCounts.CORE_BLOOD_WAND += Number(Boolean(bloodWandActivationType));
     state = roundResult.state;
     recordIdentificationPowderAcquisition(
       metrics,
@@ -3240,7 +3342,20 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
     trap.state = "disabled";
     state.currentRun.trapsDisarmed++;
     metrics.trapDisarms++;
+    const character = state.party[0];
+    const trapEater = getCharCoreParams(character, "CORE_TRAP_EATER");
+    const previousTrapBonus = character.runTrapAttackBonus || 0;
+    if (trapEater && previousTrapBonus < trapEater.maxAttack) {
+      metrics.coreObservations.coreOpportunityCounts.CORE_TRAP_EATER++;
+    }
     recordTrapDisarmObservation(metrics.coreObservations, floor);
+    character.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(
+      character,
+      previousTrapBonus
+    );
+    if (character.runTrapAttackBonus > previousTrapBonus) {
+      metrics.coreObservations.coreActivationCounts.CORE_TRAP_EATER++;
+    }
     return { pitfallTriggered: false };
   }
 
@@ -3267,14 +3382,22 @@ function applySimulatedCampRest(state, observations, metrics = null) {
   const normalMpGain = Math.min(mpDeficit, Math.ceil(mpDeficit * 0.4));
   const coreHpGain = Math.min(hpDeficit, Math.ceil(hpDeficit * 0.8));
   const coreMpGain = Math.min(mpDeficit, Math.ceil(mpDeficit * 0.8));
-  observations.campBonusHpByFloor[state.floor] += coreHpGain - normalHpGain;
-  observations.campBonusMpByFloor[state.floor] += coreMpGain - normalMpGain;
+  const campMaster = getCharCoreParams(character, "CORE_CAMP_MASTER");
+  if (campMaster) {
+    observations.campBonusHpByFloor[state.floor] += coreHpGain - normalHpGain;
+    observations.campBonusMpByFloor[state.floor] += coreMpGain - normalMpGain;
+    observations.coreOpportunityCounts.CORE_CAMP_MASTER++;
+  }
 
   // camp_rest.jsと同じ回復式。門番突破して次階へ進むsimではcamp到達済みと置く。
-  const multiplier = getCharCoreParams(character, "CORE_CAMP_MASTER")?.recoveryMultiplier || 1;
+  const multiplier = campMaster?.recoveryMultiplier || 1;
   const hpGain = Math.min(hpDeficit, Math.ceil(hpDeficit * 0.4 * multiplier));
   character.hp += hpGain;
   character.mp += Math.min(mpDeficit, Math.ceil(mpDeficit * 0.4 * multiplier));
+  if (campMaster && (hpGain > normalHpGain ||
+    Math.min(mpDeficit, Math.ceil(mpDeficit * 0.4 * multiplier)) > normalMpGain)) {
+    observations.coreActivationCounts.CORE_CAMP_MASTER++;
+  }
   if (metrics) metrics.campHealingHp += hpGain;
 }
 
@@ -3380,12 +3503,19 @@ function resolveChestTrapForSimulation(
     if (Math.random() < chance) {
       state.currentRun.trapsDisarmed++;
       metrics.trapDisarms++;
-      recordTrapDisarmObservation(observations, floor);
       const previousTrapBonus = character.runTrapAttackBonus || 0;
+      const trapEater = getCharCoreParams(character, "CORE_TRAP_EATER");
+      if (trapEater && previousTrapBonus < trapEater.maxAttack) {
+        observations.coreOpportunityCounts.CORE_TRAP_EATER++;
+      }
+      recordTrapDisarmObservation(observations, floor);
       character.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(
         character,
         previousTrapBonus
       );
+      if (character.runTrapAttackBonus > previousTrapBonus) {
+        observations.coreActivationCounts.CORE_TRAP_EATER++;
+      }
       return { mainItemLost: false };
     }
     state.currentRun.trapsTriggered++;
@@ -3743,9 +3873,12 @@ function finishRun(state, outcome, metrics) {
     throw new Error("bank material calculation mismatch");
   }
 
-  const finalCoreId = getEquippedCoreAffixes(state.party[0])
-    .map(affix => affix.id || affix.type)
-    .find(id => CORE_AFFIX_IDS.has(id)) || null;
+  const finalCoreIds = [...new Set(
+    getEquippedCoreAffixes(state.party[0])
+      .map(affix => affix.id || affix.type)
+      .filter(id => CORE_AFFIX_IDS.has(id))
+  )];
+  const finalCoreId = finalCoreIds[0] || null;
   if (metrics.diagnostics) {
     metrics.diagnostics.finalBuild = createBuildSnapshot(
       state,
@@ -3763,6 +3896,7 @@ function finishRun(state, outcome, metrics) {
     bankedMaterialCounts: { ...banked },
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     reachedFloor: state.currentRun.deepestFloor,
+    deathFloor: outcome === "death" ? state.floor : null,
     stalemate: metrics.stalemate,
     finalLevel: state.party[0].level,
     workshopEffects: state.workshopEffects,
@@ -3829,7 +3963,8 @@ function finishRun(state, outcome, metrics) {
       metrics.firstCoreEquippedFloor <= EARLY_BUILD_MAX_FLOOR,
     cursedCoreEquipmentFound: metrics.cursedCoreEquipmentFound,
     floorSupplyStats: metrics.floorSupplyStats,
-    coreEquipped: Boolean(finalCoreId),
+    coreEquipped: finalCoreIds.length > 0,
+    finalCoreIds,
     finalCoreId,
     coreObservations: metrics.coreObservations,
     healPotionsUsed: metrics.healPotionsUsed,
@@ -4267,6 +4402,12 @@ export function simulateRun({
             materialPoolProfile: state.simPolicy.materialDropOverride?.chestMaterialProfile
           }
         );
+        if (tombRaider) {
+          metrics.coreObservations.coreOpportunityCounts.CORE_TOMB_RAIDER++;
+          if (totalMaterials(chestMaterials) > 0) {
+            metrics.coreObservations.coreActivationCounts.CORE_TOMB_RAIDER++;
+          }
+        }
         addMaterials(state.currentRun.materials, chestMaterials);
         addMaterials(metrics.materialSourceCounts.chest, chestMaterials);
         metrics.materialSources.chest += totalMaterials(chestMaterials);
@@ -4398,6 +4539,19 @@ export function simulateRun({
           state = combatResult.state;
           metrics.combatRounds += combatResult.rounds;
           metrics.healPotionsUsed += combatResult.healPotionsUsed;
+          const bountyHunter = getCharCoreParams(
+            state.party[0],
+            "CORE_BOUNTY_HUNTER"
+          );
+          if (bountyHunter) {
+            const hasRoleTarget = state.combatState.monsters.some(monster =>
+              !monster.fled && !monster.hasSplit && state.currentRun.quests?.some(quest =>
+                quest.type === "role_kill" && quest.role === monster.role
+              )
+            );
+            metrics.coreObservations.coreOpportunityCounts.CORE_BOUNTY_HUNTER +=
+              Number(hasRoleTarget);
+          }
           metrics.combatDamageHp += combatResult.telemetry.incomingDamage;
           metrics.combatDamageHpByType[combatResult.telemetry.type] =
             (metrics.combatDamageHpByType[combatResult.telemetry.type] || 0) +
@@ -4500,6 +4654,12 @@ export function simulateRun({
 
           const scholarMaterialBonus = getScholarMaterialBonus(state.combatState.monsters, state);
           metrics.coreObservations.scholarMaterialBonusByFloor[floor] += scholarMaterialBonus;
+          if (getCharCoreParams(state.party[0], "CORE_SCHOLAR_EYE")) {
+            metrics.coreObservations.coreOpportunityCounts.CORE_SCHOLAR_EYE +=
+              state.combatState.monsters.filter(monster =>
+                !monster.fled && !monster.hasSplit && monster.simWasUncatalogued
+              ).length;
+          }
           state.combatState.monsters.forEach(monster => {
             if (monster.fled || monster.hasSplit) return;
             if (monster.role === "disruptor") metrics.coreObservations.disruptorKills++;
@@ -4692,6 +4852,7 @@ function simulateCase({
     runsWithEconomyCoreEquipped: 0,
     coreEncounterRunsById: {},
     coreEquippedRunsById: {},
+    coreEquippedCountDistribution: {},
     unequippedCoreReasonsById: {},
     firstCoreDepthCounts: {},
     coreObservations: createCoreObservations(),
@@ -4815,13 +4976,23 @@ function simulateCase({
     totals.runsWithEarlyCoreEncounter += Number(
       result.firstCoreDepth !== null && result.firstCoreDepth <= EARLY_BUILD_MAX_FLOOR
     );
-    totals.runsWithCoreEquipped += Number(result.coreEquipped);
+    const finalCoreIds = Array.isArray(result.finalCoreIds)
+      ? result.finalCoreIds
+      : (result.finalCoreId ? [result.finalCoreId] : []);
+    const finalCoreCount = finalCoreIds.length;
+    totals.coreEquippedCountDistribution[finalCoreCount] =
+      (totals.coreEquippedCountDistribution[finalCoreCount] || 0) + 1;
+    totals.runsWithCoreEquipped += Number(finalCoreCount > 0);
     const encounteredCombat = result.coreEncounteredIds.some(id => COMBAT_CORE_IDS.has(id));
     const encounteredEconomy = result.coreEncounteredIds.some(id => ECONOMY_CORE_IDS.has(id));
     totals.runsWithCombatCoreEncounter += Number(encounteredCombat);
     totals.runsWithEconomyCoreEncounter += Number(encounteredEconomy);
-    totals.runsWithCombatCoreEquipped += Number(COMBAT_CORE_IDS.has(result.finalCoreId));
-    totals.runsWithEconomyCoreEquipped += Number(ECONOMY_CORE_IDS.has(result.finalCoreId));
+    totals.runsWithCombatCoreEquipped += Number(
+      finalCoreIds.some(coreId => COMBAT_CORE_IDS.has(coreId))
+    );
+    totals.runsWithEconomyCoreEquipped += Number(
+      finalCoreIds.some(coreId => ECONOMY_CORE_IDS.has(coreId))
+    );
     if (result.finalCoreId && !result.coreEncounteredIds.includes(result.finalCoreId)) {
       throw new Error(
         `final core missing from encounter metrics: ${seriesId}/${runIndex}/${result.finalCoreId}; ` +
@@ -4832,7 +5003,7 @@ function simulateCase({
     }
     result.coreEncounteredIds.forEach(coreId => {
       totals.coreEncounterRunsById[coreId] = (totals.coreEncounterRunsById[coreId] || 0) + 1;
-      if (result.finalCoreId === coreId) return;
+      if (finalCoreIds.includes(coreId)) return;
       const reason = getUnequippedCoreReason(result, coreId);
       if (!totals.unequippedCoreReasonsById[coreId]) {
         totals.unequippedCoreReasonsById[coreId] = {};
@@ -4840,10 +5011,10 @@ function simulateCase({
       totals.unequippedCoreReasonsById[coreId][reason] =
         (totals.unequippedCoreReasonsById[coreId][reason] || 0) + 1;
     });
-    if (result.finalCoreId) {
-      totals.coreEquippedRunsById[result.finalCoreId] =
-        (totals.coreEquippedRunsById[result.finalCoreId] || 0) + 1;
-    }
+    finalCoreIds.forEach(coreId => {
+      totals.coreEquippedRunsById[coreId] =
+        (totals.coreEquippedRunsById[coreId] || 0) + 1;
+    });
     addCoreObservations(totals.coreObservations, result.coreObservations);
     const purifyEffects = totals.purifyEffectsByClass[className];
     purifyEffects.runs++;
@@ -4861,10 +5032,10 @@ function simulateCase({
       classCoreTotals.encounteredById[coreId] =
         (classCoreTotals.encounteredById[coreId] || 0) + 1;
     });
-    if (result.finalCoreId) {
-      classCoreTotals.equippedById[result.finalCoreId] =
-        (classCoreTotals.equippedById[result.finalCoreId] || 0) + 1;
-    }
+    finalCoreIds.forEach(coreId => {
+      classCoreTotals.equippedById[coreId] =
+        (classCoreTotals.equippedById[coreId] || 0) + 1;
+    });
     const firstCoreDepthKey = result.firstCoreDepth === null ? "none" : String(result.firstCoreDepth);
     totals.firstCoreDepthCounts[firstCoreDepthKey] =
       (totals.firstCoreDepthCounts[firstCoreDepthKey] || 0) + 1;
@@ -4951,6 +5122,7 @@ function simulateCase({
       : 0,
     coreEncounterRunsById: totals.coreEncounterRunsById,
     coreEquippedRunsById: totals.coreEquippedRunsById,
+    coreEquippedCountDistribution: totals.coreEquippedCountDistribution,
     unequippedCoreReasonsById: totals.unequippedCoreReasonsById,
     purifyEffectsByClass: Object.fromEntries(
       Object.entries(totals.purifyEffectsByClass).map(([className, values]) => {
@@ -5063,6 +5235,24 @@ function simulateCase({
 
 function formatPercent(rate) {
   return `${(rate * 100).toFixed(1)}%`;
+}
+
+function wilsonInterval(successes, trials, z = 1.96) {
+  if (trials <= 0) return null;
+  const rate = successes / trials;
+  const denominator = 1 + (z * z) / trials;
+  const center = (rate + (z * z) / (2 * trials)) / denominator;
+  const margin = z * Math.sqrt(
+    (rate * (1 - rate) + (z * z) / (4 * trials)) / trials
+  ) / denominator;
+  return [Math.max(0, center - margin), Math.min(1, center + margin)];
+}
+
+function formatWilson(successes, trials) {
+  if (trials <= 0) return "未観測";
+  const interval = wilsonInterval(successes, trials);
+  const uncertain = trials < 30 ? " 未確定" : "";
+  return `${formatPercent(successes / trials)} [${formatPercent(interval[0])},${formatPercent(interval[1])}; N=${trials}]${uncertain}`;
 }
 
 export function calibrateCoreScoringProfile(
@@ -5526,6 +5716,11 @@ function printCoreRetentionDetail(result) {
     `終了時装備=${formatPercent(result.coreEquippedRate)}, ` +
     `遭遇→装備定着=${formatPercent(result.coreRetentionRate)}`
   );
+  const coreCountDistribution = Object.entries(result.coreEquippedCountDistribution)
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .map(([count, runs]) => `${count}個=${formatWilson(runs, RUNS_PER_CASE)}`)
+    .join(" / ");
+  console.log(`終了時core装備数分布（active core数/run）: ${coreCountDistribution}`);
   console.log(
     `combat: 遭遇=${formatPercent(result.combatCoreEncounterRate)}, ` +
     `終了時装備=${formatPercent(result.combatCoreEquippedRate)}, ` +
@@ -5546,6 +5741,22 @@ function printCoreRetentionDetail(result) {
     console.log(
       `  ${affix.id} [${affix.poolGroup}]: 遭遇=${encountered}, 終了時装備=${equipped}, ` +
       `未装備=${Math.max(0, encountered - equipped)}${reasons ? ` (${reasons})` : ""}`
+    );
+  });
+  console.log("core別（装備率 / 実発動率 / 定着率。実発動率のN=機会数）:");
+  CORE_AFFIXES.forEach(affix => {
+    const encountered = result.coreEncounterRunsById[affix.id] || 0;
+    const equipped = result.coreEquippedRunsById[affix.id] || 0;
+    const opportunities = result.coreObservations.coreOpportunityCounts[affix.id] || 0;
+    const activations = result.coreObservations.coreActivationCounts[affix.id] || 0;
+    const activation = !affix.enabled
+      ? "disabled / 未測定"
+      : CORE_ACTIVATION_MEASUREMENT_NOTES[affix.id] ||
+        formatWilson(activations, opportunities);
+    console.log(
+      `  ${affix.id}: 装備率=${formatWilson(equipped, RUNS_PER_CASE)} / ` +
+      `実発動率=${activation} / ` +
+      `定着率=${formatWilson(equipped, encountered)}`
     );
   });
   console.log("職業別core定着順位（遭遇→終了時装備）:");
@@ -5806,7 +6017,8 @@ console.log(
   "ELITE_POLICY=avoid|engage / TRAP_POLICY=disabled|legacy|conservative / " +
   "TRAP_AVOIDANCE_POLICY=legacy|ev / TRAP_SENSE_OVERRIDE; " +
   "SIM_SCENARIOS=workshop-empty,workshop-stats,workshop-gear,workshop-blood-wand," +
-  "workshop-blood-wand-spells,workshop-complete;旧ID=workshop-locked|workshop-unlocked"
+  "workshop-blood-wand-spells,workshop-core-pools," +
+  "workshop-complete;旧ID=workshop-locked|workshop-unlocked"
 );
 console.log(
   `core呪い設定: AFFIX_BALANCE.coreCurseChance=${AFFIX_BALANCE.coreCurseChance}は現generator未参照、` +

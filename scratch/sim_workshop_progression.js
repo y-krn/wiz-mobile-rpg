@@ -25,7 +25,8 @@ const {
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
 const {
   getLegacyMonsterGroupClassification,
-  getMonsterGroupClassification
+  getMonsterGroupClassification,
+  spendMaterials
 } = await import("../src/rules/material_rules.js");
 const { MONSTERS } = await import("../src/data/monsters.js");
 const {
@@ -90,6 +91,7 @@ if (!CRAFT_PRIORITY_MODES.has(CRAFT_PRIORITY)) {
 }
 const DEFAULT_WING_COST_SWEEP = [6, 8, 10, 11, 12, 14, 16];
 const DEFAULT_POWDER_COST_SWEEP = [4, 5, 6, 7, 8, 10];
+const DEFAULT_WORKSHOP_COST_SWEEP = [5, 6, 7, 8, 10];
 const DEFAULT_RARE_MATERIAL_FLOOR_SWEEP = [3, 4, 5, 6, 8, 10];
 const DEFAULT_CHEST_MATERIAL_PROFILE_SWEEP = ["default", "early-rare", "early-balanced"];
 const DEFAULT_SECONDARY_MATERIAL_PROFILE_SWEEP = ["default", "arcane", "magic", "magic-poison", "scarce"];
@@ -122,6 +124,10 @@ const POWDER_COST_SWEEP = parseNumberSweep(
   process.env.PROGRESSION_POWDER_COSTS,
   DEFAULT_POWDER_COST_SWEEP
 );
+const WORKSHOP_COST_SWEEP = parseNumberSweep(
+  process.env.PROGRESSION_WORKSHOP_COSTS,
+  DEFAULT_WORKSHOP_COST_SWEEP
+);
 const RARE_MATERIAL_FLOOR_SWEEP = parseNumberSweep(
   process.env.PROGRESSION_RARE_MATERIAL_FLOORS,
   DEFAULT_RARE_MATERIAL_FLOOR_SWEEP
@@ -143,6 +149,14 @@ const IDENTIFY_POWDER_RECIPE = CRAFT_RECIPES.find(
   recipe => recipe.resultId === "IDENTIFY_POWDER"
 );
 const REFERENCE_POWDER_COST = getDepartureCraftPaymentTotal(IDENTIFY_POWDER_RECIPE);
+const ADDED_WORKSHOP_NODE_IDS = new Set([
+  "pool_opener",
+  "pool_trap_eater",
+  "pool_giant_slayer",
+  "pool_thorn_shield",
+  "pool_tomb_raider",
+  "pool_scholar_eye"
+]);
 
 const STAT_NODE_IDS = WORKSHOP_NODES
   .filter(node => node.category === "permanentStats")
@@ -348,13 +362,22 @@ function summarizeWorkshopState(workshop) {
     ? "empty"
     : purchasedSteps === totalSteps
       ? "complete"
-      : grants.spellIds.length > 0
-        ? "blood-wand+deep-spells"
-        : grants.affixIds.includes("CORE_BLOOD_WAND")
-          ? "blood-wand-unlocked"
-          : grants.startingGear.length > 0
-            ? "starting-gear-unlocked"
-            : "stats-in-progress";
+      : grants.affixIds.some(coreId => [
+            "CORE_OPENER",
+            "CORE_TRAP_EATER",
+            "CORE_GIANT_SLAYER",
+            "CORE_THORN_SHIELD",
+            "CORE_TOMB_RAIDER",
+            "CORE_SCHOLAR_EYE"
+          ].includes(coreId))
+        ? "core-pools-in-progress"
+        : grants.spellIds.length > 0
+          ? "blood-wand+deep-spells"
+          : grants.affixIds.includes("CORE_BLOOD_WAND")
+            ? "blood-wand-unlocked"
+            : grants.startingGear.length > 0
+              ? "starting-gear-unlocked"
+              : "stats-in-progress";
   return {
     signature: ranks.map(([nodeId, rank]) => `${nodeId}=${rank}`).join(",") || "empty",
     purchasedSteps,
@@ -371,30 +394,59 @@ function summarizeWorkshopState(workshop) {
   };
 }
 
-function getNodeCost(nodeId, workshop) {
+function getNodeCost(nodeId, workshop, scenario = null) {
   const node = WORKSHOP_NODES.find(candidate => candidate.id === nodeId);
-  return node ? getWorkshopNodeCost(node, getWorkshopRank(workshop, nodeId)) : null;
+  if (!node) return null;
+  const rank = getWorkshopRank(workshop, nodeId);
+  const sourceCost = getWorkshopNodeCost(node, rank);
+  if (
+    !sourceCost ||
+    !scenario ||
+    !Number.isFinite(scenario.workshopCostOverride) ||
+    !ADDED_WORKSHOP_NODE_IDS.has(nodeId) ||
+    rank > 0
+  ) return sourceCost;
+  return scaleCostToTotal(sourceCost, scenario.workshopCostOverride);
 }
 
-function purchaseStandardAvailable(initialBank, initialWorkshop) {
+function purchaseStandardAvailable(initialBank, initialWorkshop, scenario = null) {
   let bank = { ...initialBank };
   let workshop = cloneWorkshop(initialWorkshop);
   const spent = emptyMaterials();
+  const purchasedNodeIds = [];
   let changed = true;
   while (changed) {
     changed = false;
     for (const nodeId of [...STAT_NODE_IDS, ...OTHER_NODE_IDS]) {
-      const cost = getNodeCost(nodeId, workshop);
+      const cost = getNodeCost(nodeId, workshop, scenario);
       if (!cost) continue;
-      const result = purchaseWorkshopNode(bank, workshop, nodeId);
+      const result = scenario?.workshopCostOverride !== undefined &&
+        ADDED_WORKSHOP_NODE_IDS.has(nodeId)
+        ? (() => {
+            const balance = spendMaterials(bank, cost);
+            if (!balance) return { ok: false };
+            return {
+              ok: true,
+              metaMaterials: balance,
+              workshop: {
+                ...workshop,
+                ranks: {
+                  ...(workshop?.ranks || {}),
+                  [nodeId]: getWorkshopRank(workshop, nodeId) + 1
+                }
+              }
+            };
+          })()
+        : purchaseWorkshopNode(bank, workshop, nodeId);
       if (!result.ok) continue;
       bank = result.metaMaterials;
       workshop = result.workshop;
       addMaterials(spent, cost);
+      purchasedNodeIds.push(nodeId);
       changed = true;
     }
   }
-  return { bank, workshop, spent };
+  return { bank, workshop, spent, purchasedNodeIds };
 }
 
 function scaleCostToTotal(baseCost, targetTotal) {
@@ -633,6 +685,16 @@ function createScenarioList() {
       sweep: "powder-cost"
     });
   });
+  WORKSHOP_COST_SWEEP.forEach(workshopCost => {
+    scenarios.push({
+      id: `workshop-cost-${workshopCost}`,
+      label: `追加工房ノード初段コスト=${workshopCost}`,
+      recipeIds: [...CRAFT_RECIPE_ORDER],
+      workshopCostOverride: workshopCost,
+      allowChestTownPortal: true,
+      sweep: "workshop-cost"
+    });
+  });
   RARE_MATERIAL_FLOOR_SWEEP.forEach(rareMaterialFloor => {
     scenarios.push({
       id: `rare-material-floor-${rareMaterialFloor}`,
@@ -688,7 +750,13 @@ function createFiniteTotals() {
     banked: 0,
     time: 0,
     reached: 0,
+    reachedSquared: 0,
+    reachedB5: 0,
+    b5Breakthrough: 0,
+    b5Deaths: 0,
     reachedB10: 0,
+    b10Breakthrough: 0,
+    b10Deaths: 0,
     reachedB15: 0,
     portalUses: 0,
     portalAcquisitions: {
@@ -743,7 +811,16 @@ function createFiniteTotals() {
     workshopStepCounts: {},
     workshopStateCounts: {},
     workshopPhaseCounts: {},
-    workshopPhaseSamples: {}
+    workshopPhaseSamples: {},
+    workshopNodeAcquisitionCounts: Object.fromEntries(
+      WORKSHOP_NODES.map(node => [node.id, 0])
+    ),
+    workshopNodeTrialCounts: Object.fromEntries(
+      WORKSHOP_NODES.map(node => [node.id, 0])
+    ),
+    workshopNodeAcquisitionPositionSums: Object.fromEntries(
+      WORKSHOP_NODES.map(node => [node.id, 0])
+    )
   };
 }
 
@@ -831,7 +908,6 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
         allowChestTownPortal: scenario.allowChestTownPortal,
         buyMerchantTownPortal: true,
         retreatAtMilestoneWithoutTownPortal: true,
-        ignoreWorkshopReturnItems: true,
         materialDropOverride: scenario.materialDropOverride || null,
         ...craftScenario
       },
@@ -844,16 +920,18 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
     addMaterials(bank, result.bankedMaterialCounts);
     const bankAfterRun = { ...bank };
     let workshopSpent = emptyMaterials();
+    let purchasedNodeIds = [];
     if (run < RUNS_PER_TRIAL) {
       if (PROGRESSION_POLICY === "craft-first") {
         pendingCraftPurchase = purchaseCraftFromBank(bank, scenario);
         if (pendingCraftPurchase.purchased) bank = pendingCraftPurchase.balance;
       }
 
-      const purchaseResult = purchaseStandardAvailable(bank, workshop);
+      const purchaseResult = purchaseStandardAvailable(bank, workshop, scenario);
       bank = purchaseResult.bank;
       workshop = purchaseResult.workshop;
       workshopSpent = purchaseResult.spent;
+      purchasedNodeIds = purchaseResult.purchasedNodeIds;
 
       const canCraftAfterWorkshop = PROGRESSION_POLICY === "workshop-first" ||
         (PROGRESSION_POLICY === "workshop-complete" && isStandardWorkshopComplete(workshop));
@@ -871,12 +949,15 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
       bankAfterRun,
       bankAtEnd: { ...bank },
       workshopSpent,
+      purchasedNodeIds: [...purchasedNodeIds],
       standardCompleteAtStart,
       craftPurchase,
       workshop: workshopAtStart,
       workshopState: workshopStateAtStart,
       result: {
         survived: result.survived,
+        died: result.died,
+        deathFloor: result.deathFloor,
         carriedMaterials: result.carriedMaterials,
         carriedMaterialCounts: { ...result.carriedMaterialCounts },
         bankedMaterials: result.bankedMaterials,
@@ -923,6 +1004,8 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
 function aggregateFinitePortalScenario(scenario, trialResults) {
   const totals = createFiniteTotals();
   for (const trialResult of trialResults) {
+    const trialNodeFirstPositions = new Map();
+    let trialPurchasePosition = 0;
     trialResult.events.forEach(event => {
       const { result } = event;
       totals.runs++;
@@ -931,7 +1014,13 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
       totals.banked += result.bankedMaterials;
       totals.time += result.timeCost;
       totals.reached += result.reachedFloor;
+      totals.reachedSquared += result.reachedFloor ** 2;
+      totals.reachedB5 += Number(result.reachedFloor >= 5);
+      totals.b5Breakthrough += Number(result.reachedFloor > 5);
+      totals.b5Deaths += Number(result.deathFloor === 5);
       totals.reachedB10 += Number(result.reachedFloor >= 10);
+      totals.b10Breakthrough += Number(result.reachedFloor > 10);
+      totals.b10Deaths += Number(result.deathFloor === 10);
       totals.reachedB15 += Number(result.reachedFloor >= 15);
       const grossMaterialCounts = Object.values(result.materialSourceCounts || {})
         .reduce((materials, sourceCounts) => {
@@ -999,6 +1088,15 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
       );
       totals.workshopStepCounts[event.workshopState.purchasedSteps] =
         (totals.workshopStepCounts[event.workshopState.purchasedSteps] || 0) + 1;
+      event.purchasedNodeIds.forEach(nodeId => {
+        totals.workshopNodeAcquisitionCounts[nodeId]++;
+      });
+      [...new Set(event.purchasedNodeIds)].forEach((nodeId, index) => {
+        if (!trialNodeFirstPositions.has(nodeId)) {
+          trialNodeFirstPositions.set(nodeId, trialPurchasePosition + index + 1);
+        }
+      });
+      trialPurchasePosition += event.purchasedNodeIds.length;
       totals.workshopPhaseCounts[event.workshopState.phase] =
         (totals.workshopPhaseCounts[event.workshopState.phase] || 0) + 1;
       if (!totals.workshopPhaseSamples[event.workshopState.phase]) {
@@ -1015,6 +1113,10 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
       };
       stateTotal.count++;
       totals.workshopStateCounts[event.workshopState.signature] = stateTotal;
+    });
+    trialNodeFirstPositions.forEach((position, nodeId) => {
+      totals.workshopNodeTrialCounts[nodeId]++;
+      totals.workshopNodeAcquisitionPositionSums[nodeId] += position;
     });
     totals.surplusPerRun += trialResult.surplusPerRun;
     totals.endingBankTotal += trialResult.endingBankTotal;
@@ -1044,6 +1146,59 @@ function formatRate(value) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function wilsonInterval(successes, trials, z = 1.96) {
+  if (trials <= 0) return null;
+  const rate = successes / trials;
+  const denominator = 1 + (z * z) / trials;
+  const center = (rate + (z * z) / (2 * trials)) / denominator;
+  const margin = z * Math.sqrt(
+    (rate * (1 - rate) + (z * z) / (4 * trials)) / trials
+  ) / denominator;
+  return [Math.max(0, center - margin), Math.min(1, center + margin)];
+}
+
+function formatWilson(successes, trials) {
+  if (trials <= 0) return "未観測";
+  const interval = wilsonInterval(successes, trials);
+  const uncertain = trials < 30 ? " 未確定" : "";
+  return `${formatRate(successes / trials)} [${formatRate(interval[0])},${formatRate(interval[1])}; N=${trials}]${uncertain}`;
+}
+
+function formatConditionalWilson(successes, denominator) {
+  return formatWilson(successes, denominator);
+}
+
+function formatWorkshopBuyout(totals) {
+  const totalSteps = WORKSHOP_NODES.reduce(
+    (sum, node) => sum + getNodeMaxRank(node),
+    0
+  );
+  return formatWilson(totals.workshopStepCounts[totalSteps] || 0, totals.runs);
+}
+
+function formatAverageDepth(totals) {
+  const runs = Math.max(1, totals.runs);
+  const mean = totals.reached / runs;
+  if (runs < 2) return `B${mean.toFixed(2)} [未確定; N=${runs}]`;
+  const variance = Math.max(
+    0,
+    (totals.reachedSquared - runs * mean * mean) / (runs - 1)
+  );
+  const margin = 1.96 * Math.sqrt(variance / runs);
+  return `B${mean.toFixed(2)} [B${Math.max(0, mean - margin).toFixed(2)},B${(mean + margin).toFixed(2)}; N=${runs}]`;
+}
+
+function formatMilestoneMetrics(totals, floor) {
+  const entrant = floor === 5 ? totals.reachedB5 : totals.reachedB10;
+  const breakthrough = floor === 5 ? totals.b5Breakthrough : totals.b10Breakthrough;
+  const deaths = floor === 5 ? totals.b5Deaths : totals.b10Deaths;
+  return {
+    entrant: formatWilson(entrant, totals.runs),
+    breakthrough: formatConditionalWilson(breakthrough, entrant),
+    death: formatConditionalWilson(deaths, entrant)
+  };
+}
+
 function sourceAverage(totals, field, source) {
   return average(totals[field][source] || 0, totals);
 }
@@ -1070,9 +1225,13 @@ function formatFiniteResult(result) {
   const firstMerchant = totals.firstMerchantPurchaseRuns.length > 0
     ? `中央run ${percentile(totals.firstMerchantPurchaseRuns, 0.5)}`
     : "期間内なし";
+  const b5 = formatMilestoneMetrics(totals, 5);
+  const b10 = formatMilestoneMetrics(totals, 10);
   return (
-    `[${PROGRESSION_POLICY}/${CRAFT_PRIORITY}] ${scenario.label}: 平均到達=B${average(totals.reached, totals).toFixed(2)}, ` +
-    `生還率=${formatRate(average(totals.survived, totals))}, ` +
+    `[${PROGRESSION_POLICY}/${CRAFT_PRIORITY}] ${scenario.label}: 平均到達=${formatAverageDepth(totals)}, ` +
+    `生還率=${formatWilson(totals.survived, totals.runs)}, ` +
+    `B5(entrant/突破/死亡)=${b5.entrant}/${b5.breakthrough}/${b5.death}, ` +
+    `B10(entrant/突破/死亡)=${b10.entrant}/${b10.breakthrough}/${b10.death}, ` +
     `EV/時間=${(totals.banked / Math.max(1, totals.time)).toFixed(4)}, ` +
     `B10/B15到達率=${formatRate(average(totals.reachedB10, totals))}/` +
     `${formatRate(average(totals.reachedB15, totals))}, ` +
@@ -1090,7 +1249,8 @@ function formatFiniteResult(result) {
     `${average(totals.identificationPowderUsed, totals).toFixed(2)}, ` +
     `商人成立=${totals.merchantPurchases}/${totals.merchantAttempts} ` +
     `(${formatRate(merchantSuccessRate)}, ${firstMerchant}), ` +
-    `工房買切trial=${totals.standardCompleteRuns.length}/${TRIALS}, ` +
+    `工房買切(run開始)=${formatWorkshopBuyout(totals)}, ` +
+    `工房買切trial=${formatWilson(totals.standardCompleteRuns.length, TRIALS)}, ` +
     `余剰蓄積=${(totals.surplusPerRun / TRIALS).toFixed(2)}/run, ` +
     `終了bank=${(totals.endingBankTotal / TRIALS).toFixed(1)}`
   );
@@ -1175,7 +1335,8 @@ function percentile(values, ratio) {
 function printSweepTable(results, sweep, label, keyLabel) {
   console.log(`\n【${label} / 測定値】`);
   console.log(
-    `${keyLabel} | 生還率 | 平均到達 | B10 | B15 | EV/時間 | 工房買切 | ` +
+    `${keyLabel} | 生還率(95%CI) | 平均到達(95%CI) | ` +
+    "B5 entrant | B5突破 | B5死亡 | B10 entrant | B10突破 | B10死亡 | 工房買切(95%CI) | EV/時間 | " +
     "クラフト(成立/平均品数) | 翼入手/消費 | 傷薬入手/消費 | 罠kit入手/消費 | 粉入手/消費"
   );
   results
@@ -1188,16 +1349,20 @@ function printSweepTable(results, sweep, label, keyLabel) {
           ? scenario.powderCostOverride
           : sweep === "rare-material-floor"
             ? scenario.materialDropOverride?.rareMaterialFloor
-            : sweep === "chest-material-profile"
+          : sweep === "chest-material-profile"
               ? scenario.materialDropOverride?.chestMaterialProfile
-              : scenario.materialDropOverride?.secondaryMaterialProfile;
+              : sweep === "secondary-material-profile"
+                ? scenario.materialDropOverride?.secondaryMaterialProfile
+                : scenario.workshopCostOverride;
+      const b5 = formatMilestoneMetrics(totals, 5);
+      const b10 = formatMilestoneMetrics(totals, 10);
       console.log(
-        `${String(key).padStart(2)} | ${formatRate(average(totals.survived, totals)).padStart(6)} | ` +
-        `B${average(totals.reached, totals).toFixed(2).padStart(5)} | ` +
-        `${formatRate(average(totals.reachedB10, totals)).padStart(5)} | ` +
-        `${formatRate(average(totals.reachedB15, totals)).padStart(5)} | ` +
+        `${String(key).padStart(2)} | ${formatWilson(totals.survived, totals.runs)} | ` +
+        `${formatAverageDepth(totals)} | ` +
+        `${b5.entrant} | ${b5.breakthrough} | ${b5.death} | ` +
+        `${b10.entrant} | ${b10.breakthrough} | ${b10.death} | ` +
+        `${formatWorkshopBuyout(totals)} | ` +
         `${(totals.banked / Math.max(1, totals.time)).toFixed(4).padStart(8)} | ` +
-        `${totals.standardCompleteRuns.length}/${TRIALS} | ` +
         `${formatRate(totals.craftPurchases / Math.max(1, totals.runs)).padStart(6)}/` +
         `${average(totals.craftItems, totals).toFixed(2).padStart(5)} | ` +
         `${sourceAverage(totals, "portalAcquisitions", "departureCraft").toFixed(2)}/` +
@@ -1238,7 +1403,7 @@ function printWorkshopStateDistribution(result) {
   );
   const stepDistribution = Object.entries(totals.workshopStepCounts)
     .sort(([left], [right]) => Number(left) - Number(right))
-    .map(([step, count]) => `${step}step=${formatRate(count / totals.runs)}`)
+    .map(([step, count]) => `${step}step=${formatWilson(count, totals.runs)}`)
     .join(" / ");
   console.log(`購入step分布: ${stepDistribution}`);
   const phaseLabels = {
@@ -1247,12 +1412,13 @@ function printWorkshopStateDistribution(result) {
     "starting-gear-unlocked": "初期装備解放済み",
     "blood-wand-unlocked": "血杖解放済み",
     "blood-wand+deep-spells": "血杖+深層呪文解放済み",
+    "core-pools-in-progress": "追加コアプール投資中",
     complete: "買い切り済み"
   };
   Object.entries(phaseLabels).forEach(([phase, label]) => {
     const count = totals.workshopPhaseCounts[phase] || 0;
     if (!count) {
-      console.log(`  ${label}: 0.0% (0/${totals.runs})`);
+      console.log(`  ${label}: ${formatWilson(0, totals.runs)} (0/${totals.runs})`);
       return;
     }
     const samples = totals.workshopPhaseSamples[phase];
@@ -1267,21 +1433,45 @@ function printWorkshopStateDistribution(result) {
         Math.abs(right.state.purchasedSteps - meanSteps)
       )[0];
     console.log(
-      `  ${label}: ${formatRate(count / totals.runs)} ` +
+      `  ${label}: ${formatWilson(count, totals.runs)} ` +
       `(${count}/${totals.runs}), 平均step=${meanSteps.toFixed(1)}, ` +
       `代表 ${formatWorkshopState(representative.state)}`
     );
   });
+  printWorkshopAcquisitionOrder(result);
   console.log("上位の完全一致state:");
   Object.values(totals.workshopStateCounts)
     .sort((left, right) => right.count - left.count || left.purchasedSteps - right.purchasedSteps)
     .slice(0, 8)
     .forEach(state => {
       console.log(
-        `  ${formatRate(state.count / totals.runs)} (${state.count}/${totals.runs}): ` +
+        `  ${formatWilson(state.count, totals.runs)} (${state.count}/${totals.runs}): ` +
         formatWorkshopState(state)
       );
     });
+}
+
+function printWorkshopAcquisitionOrder(result) {
+  if (
+    (!result.scenario.isReference || result.scenario.sweep !== "reference") &&
+    result.scenario.sweep !== "material-baseline"
+  ) return;
+  const { totals } = result;
+  console.log("工房ノード取得率・平均取得順（trial単位。0件は死に枝候補）:");
+  WORKSHOP_NODES.forEach(node => {
+    const rankCount = totals.workshopNodeAcquisitionCounts[node.id] || 0;
+    const trialCount = totals.workshopNodeTrialCounts[node.id] || 0;
+    const averagePosition = trialCount > 0
+      ? totals.workshopNodeAcquisitionPositionSums[node.id] / trialCount
+      : null;
+    console.log(
+      `  ${node.id} [${node.category}] ${node.name}: ` +
+      `取得試行=${trialCount}/${TRIALS} (${formatWilson(trialCount, TRIALS)}), ` +
+      `rank購入=${rankCount}, ` +
+      `平均順=${averagePosition === null ? "未取得" : averagePosition.toFixed(1)}` +
+      `${trialCount === 0 ? " / 死に枝候補" : ""}`
+    );
+  });
 }
 
 export async function runWorkshopProgressionSimulation() {
@@ -1304,7 +1494,7 @@ export async function runWorkshopProgressionSimulation() {
     (sum, node) => sum + getNodeMaxRank(node),
     0
   );
-  if (workshopSteps !== 34 || totalMaterials(initialDemand) !== 119) {
+  if (workshopSteps !== 40 || totalMaterials(initialDemand) !== 161) {
     throw new Error(
       `workshop demand mismatch: steps=${workshopSteps}, materials=${totalMaterials(initialDemand)}`
     );

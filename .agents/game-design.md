@@ -85,6 +85,13 @@ Permanent unlocks include:
 5. Convenience: +1 starting identify resource, a starting return item, and
    similar small run-start kits.
 
+Current workshop-pool expansion (issue #410) adds the measured sidegrade cores
+先手必勝・罠喰い・巨人殺し・反撃の棘・盗掘王・学者の眼. Convenience nodes remain
+deferred because departure craft already owns starting consumables, and no class
+roster or permanent-stat cap change is part of this expansion. The node data and
+material costs are source-of-truth in `src/data/workshop.js`; advanced classes
+remain deferred.
+
 Departure craft is the separate run-start path: choose quantities per recipe,
 pay their material costs for that run, and carry the crafted consumables into
 the run. There is no recipe-count or item-count cap; the available material

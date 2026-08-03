@@ -7,7 +7,18 @@ import {
 } from "../rules/identification_rules.js";
 
 const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
-const META_LOCKED_AFFIX_IDS = new Set(["CORE_BLOOD_WAND"]);
+// Workshop pool nodes gate only the newly expandable cores. Existing cores stay
+// in the default pool; a missing party context keeps this low-level generator
+// backward-compatible for standalone loot generation and tests.
+const WORKSHOP_LOCKED_AFFIX_IDS = new Set([
+  "CORE_BLOOD_WAND",
+  "CORE_OPENER",
+  "CORE_TRAP_EATER",
+  "CORE_GIANT_SLAYER",
+  "CORE_THORN_SHIELD",
+  "CORE_TOMB_RAIDER",
+  "CORE_SCHOLAR_EYE"
+]);
 
 export function pickCurseEffectId(rng, heavyCurseShare) {
   const curseEffectIds = Object.keys(CURSE_EFFECTS);
@@ -58,7 +69,7 @@ function withSupportDefinition(candidate) {
   };
 }
 
-function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds = []) {
+function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds) {
   const budget = getAffixBudget(rarity, floor);
   const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
     ? AFFIX_BALANCE.corePoolWeights.shallow
@@ -67,7 +78,11 @@ function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCo
     .filter(affix => affix.enabled
       && affix.slot === slot
       && affix.cost <= budget
-      && (!META_LOCKED_AFFIX_IDS.has(affix.id) || unlockedAffixIds.includes(affix.id)))
+      && (
+        !WORKSHOP_LOCKED_AFFIX_IDS.has(affix.id) ||
+        !Array.isArray(unlockedAffixIds) ||
+        unlockedAffixIds.includes(affix.id)
+      ))
     .map(affix => ({
       ...affix,
       type: affix.id,
@@ -364,7 +379,7 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   addAffix(1, "materialFind", () => 10, 2);
   addAffix(1, "contractReward", () => 10, 2);
   
-  const unlockedAffixIds = party?.[0]?.unlockedAffixIds || [];
+  const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
   const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds);
 
   // #311: コアは誰も装備できないベースに乗ると丸ごと死ぬ。職業ごとの装備制限そのものは
@@ -542,7 +557,7 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     .map(withSupportDefinition)
     .filter(Boolean);
 
-  const unlockedAffixIds = party?.[0]?.unlockedAffixIds || [];
+  const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
   const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds);
   const tags = [...(baseItem.tags || [])];
   affixes.forEach(aff => {

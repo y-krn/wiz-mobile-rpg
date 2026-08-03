@@ -1586,7 +1586,7 @@ for (const vp of VIEWPORTS) {
       openSubmenu('workshop_main', '工房 - 恒久アンロック');
     });
 
-    await expect(page.locator('.workshop-node')).toHaveCount(10);
+    await expect(page.locator('.workshop-node')).toHaveCount(16);
 
     const layout = await page.locator('.workshop-node').evaluateAll((buttons) => ({
       buttons: buttons.map((button) => button.getBoundingClientRect().toJSON()),
