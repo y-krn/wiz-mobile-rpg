@@ -1,0 +1,281 @@
+diff --git a/scratch/sim_depth_material_ev.js b/scratch/sim_depth_material_ev.js
+index ea9d0e3..008babb 100644
+--- a/scratch/sim_depth_material_ev.js
++++ b/scratch/sim_depth_material_ev.js
+@@ -4384,6 +4384,43 @@ function getUnequippedCoreReason(result, coreId) {
+   return "生スコア不足";
+ }
+ 
++function addSimulationAccumulatorValue(target, source) {
++  if (typeof source === "number") {
++    return (typeof target === "number" ? target : 0) + source;
++  }
++  if (Array.isArray(source)) {
++    const result = Array.isArray(target) ? target : [];
++    source.forEach((value, index) => {
++      result[index] = index in result
++        ? addSimulationAccumulatorValue(result[index], value)
++        : structuredClone(value);
++    });
++    return result;
++  }
++  if (source && typeof source === "object") {
++    const result = target && typeof target === "object" && !Array.isArray(target)
++      ? target
++      : {};
++    Object.entries(source).forEach(([key, value]) => {
++      result[key] = key in result
++        ? addSimulationAccumulatorValue(result[key], value)
++        : structuredClone(value);
++    });
++    return result;
++  }
++  return source;
++}
++
++function mergeSimulationAccumulators(accumulators) {
++  if (accumulators.length === 0) {
++    throw new Error("cannot merge empty simulation accumulator list");
++  }
++  return accumulators.slice(1).reduce(
++    (merged, accumulator) => addSimulationAccumulatorValue(merged, accumulator),
++    structuredClone(accumulators[0])
++  );
++}
++
+ function simulateCase({
+   startFloor,
+   targetDepth,
+@@ -4391,9 +4428,12 @@ function simulateCase({
+   seriesId,
+   scoringProfile,
+   scenario,
+-  identificationPolicy = "legacy"
++  identificationPolicy = "legacy",
++  runIndices = null,
++  accumulator = null,
++  returnAccumulator = false
+ }) {
+-  const totals = {
++  let totals = {
+     survived: 0,
+     died: 0,
+     carriedMaterials: 0,
+@@ -4479,17 +4519,28 @@ function simulateCase({
+     eliteAvoidDetourSteps: 0,
+     eliteAvoidNoRouteFloors: 0
+   };
+-  const classTrapTotals = Object.fromEntries(
++  let classTrapTotals = Object.fromEntries(
+     SIM_CLASSES.map(className => [className, createTrapAggregate()])
+   );
+-  const classTrapBonusTotals = Object.fromEntries(
++  let classTrapBonusTotals = Object.fromEntries(
+     SIM_CLASSES.map(className => [className, createTrapBonusAggregate()])
+   );
+-  const classTrapSenseTotals = Object.fromEntries(
++  let classTrapSenseTotals = Object.fromEntries(
+     SIM_CLASSES.map(className => [className, createTrapSenseAggregate()])
+   );
+ 
+-  for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
++  if (accumulator) {
++    totals = accumulator.totals;
++    classTrapTotals = accumulator.classTrapTotals;
++    classTrapBonusTotals = accumulator.classTrapBonusTotals;
++    classTrapSenseTotals = accumulator.classTrapSenseTotals;
++  }
++
++  const activeRunIndices = runIndices || Array.from(
++    { length: RUNS_PER_CASE },
++    (_, runIndex) => runIndex
++  );
++  for (const runIndex of activeRunIndices) {
+     const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
+     const result = simulateRun({
+       className,
+@@ -4629,6 +4680,10 @@ function simulateCase({
+     totals.eliteAvoidNoRouteFloors += result.eliteAvoidNoRouteFloors;
+   }
+ 
++  if (returnAccumulator) {
++    return { totals, classTrapTotals, classTrapBonusTotals, classTrapSenseTotals };
++  }
++
+   const bankedMaterialEv = totals.bankedMaterials / RUNS_PER_CASE;
+   const averageTimeCost = totals.timeCost / RUNS_PER_CASE;
+   return {
+@@ -5379,12 +5434,20 @@ function printFailureComment(results) {
+ }
+ 
+ export function runDepthSimulationTask(
+-  { kind, scenarioId, targetDepth, identificationPolicyId = "legacy" },
++  { kind, scenarioId, targetDepth, className, identificationPolicyId = "legacy" },
+   { scoringProfile, scoringProfiles = {}, scoringProfilesByScenario = {} }
+ ) {
+-  const taskSeed = kind === "scenario-depth"
+-    ? deriveSimulationTaskSeed("depth", identificationPolicyId, scenarioId, targetDepth)
+-    : SIM_SEED;
++  const taskSeed = kind === "scenario-depth-class"
++    ? deriveSimulationTaskSeed(
++      "depth",
++      identificationPolicyId,
++      scenarioId,
++      targetDepth,
++      className
++    )
++    : kind === "scenario-depth"
++      ? deriveSimulationTaskSeed("depth", identificationPolicyId, scenarioId, targetDepth)
++      : SIM_SEED;
+   resetSimulationRandom(taskSeed);
+   const scoringProfileForPolicy =
+     scoringProfilesByScenario[`${identificationPolicyId}:${scenarioId}`] ||
+@@ -5393,6 +5456,27 @@ export function runDepthSimulationTask(
+   const identificationPolicy =
+     IDENTIFICATION_POLICY_DEFINITIONS[identificationPolicyId] ||
+     IDENTIFICATION_POLICY_DEFINITIONS.legacy;
++  if (kind === "scenario-depth-class") {
++    const scenario = DEPTH_SCENARIOS.find(candidate => candidate.id === scenarioId);
++    if (!SIM_CLASSES.includes(className)) {
++      throw new Error(`unknown simulation class: ${className}`);
++    }
++    const classRunIndices = Array.from(
++      { length: RUNS_PER_CASE },
++      (_, runIndex) => runIndex
++    ).filter(runIndex => SIM_CLASSES[runIndex % SIM_CLASSES.length] === className);
++    return simulateCase({
++      startFloor: 1,
++      targetDepth,
++      label: `B${targetDepth}撤退`,
++      seriesId: `depth-${targetDepth}`,
++      scoringProfile: scoringProfileForPolicy,
++      scenario,
++      identificationPolicy,
++      runIndices: classRunIndices,
++      returnAccumulator: true
++    });
++  }
+   if (kind === "scenario-depth") {
+     const scenario = DEPTH_SCENARIOS.find(candidate => candidate.id === scenarioId);
+     return simulateCase({
+@@ -5584,12 +5668,17 @@ const taskResults = await runSimTasks({
+   exportName: "runDepthSimulationTask",
+   runTask: runDepthSimulationTask,
+   tasks: ACTIVE_IDENTIFICATION_POLICIES.flatMap(policy => [
+-    ...ACTIVE_SCENARIOS.flatMap(scenario => TARGET_DEPTHS.map(targetDepth => ({
+-      kind: "scenario-depth",
+-      scenarioId: scenario.id,
+-      targetDepth,
+-      identificationPolicyId: policy.id
+-    }))),
++    ...ACTIVE_SCENARIOS.flatMap(scenario =>
++      TARGET_DEPTHS.flatMap(targetDepth =>
++        SIM_CLASSES.map(className => ({
++          kind: "scenario-depth-class",
++          scenarioId: scenario.id,
++          targetDepth,
++          className,
++          identificationPolicyId: policy.id
++        }))
++      )
++    ),
+     { kind: "milestone", identificationPolicyId: policy.id }
+   ]),
+   context: {
+@@ -5599,16 +5688,42 @@ const taskResults = await runSimTasks({
+   }
+ });
+ const resultsByPolicy = ACTIVE_IDENTIFICATION_POLICIES.map((policy, policyIndex) => {
+-  const scenarioTaskCount = ACTIVE_SCENARIOS.length * TARGET_DEPTHS.length;
++  const classTaskCount = SIM_CLASSES.length;
++  const scenarioTaskCount = ACTIVE_SCENARIOS.length * TARGET_DEPTHS.length * classTaskCount;
+   const offset = policyIndex * (scenarioTaskCount + 1);
+   return {
+     policy,
+-    scenarioResults: ACTIVE_SCENARIOS.map((scenario, scenarioIndex) => ({
+-      scenario,
+-      results: TARGET_DEPTHS.map((_, depthIndex) =>
+-        taskResults[offset + scenarioIndex * TARGET_DEPTHS.length + depthIndex]
+-      )
+-    })),
++    scenarioResults: ACTIVE_SCENARIOS.map((scenario, scenarioIndex) => {
++      const results = TARGET_DEPTHS.map((targetDepth, depthIndex) => {
++        const firstClassTaskIndex = offset +
++          (scenarioIndex * TARGET_DEPTHS.length + depthIndex) * classTaskCount;
++        const accumulator = mergeSimulationAccumulators(
++          taskResults.slice(firstClassTaskIndex, firstClassTaskIndex + classTaskCount)
++        );
++        resetSimulationRandom(
++          deriveSimulationTaskSeed("depth", policy.id, scenario.id, targetDepth, "aggregate")
++        );
++        const scoringProfileForPolicy =
++          coreScoringProfilesByScenario[`${policy.id}:${scenario.id}`] ||
++          coreScoringProfiles[policy.id] ||
++          coreScoringProfiles.legacy;
++        const identificationPolicy =
++          IDENTIFICATION_POLICY_DEFINITIONS[policy.id] ||
++          IDENTIFICATION_POLICY_DEFINITIONS.legacy;
++        return simulateCase({
++          startFloor: 1,
++          targetDepth,
++          label: `B${targetDepth}撤退`,
++          seriesId: `depth-${targetDepth}`,
++          scoringProfile: scoringProfileForPolicy,
++          scenario,
++          identificationPolicy,
++          runIndices: [],
++          accumulator
++        });
++      });
++      return { scenario, results };
++    }),
+     milestoneResults: taskResults[offset + scenarioTaskCount]
+   };
+ });
+diff --git a/scratch/sim_parallel.js b/scratch/sim_parallel.js
+index a53816f..b5e7825 100644
+--- a/scratch/sim_parallel.js
++++ b/scratch/sim_parallel.js
+@@ -30,6 +30,7 @@ function createWorker(moduleUrl, exportName, context) {
+ function runWorkerPool(moduleUrl, exportName, tasks, context, workerCount) {
+   return new Promise((resolve, reject) => {
+     const results = Array(tasks.length);
++    const taskTimings = process.env.SIM_TASK_TIMING === "1" ? [] : null;
+     const workers = [];
+     let nextTaskIndex = 0;
+     let completed = 0;
+@@ -70,8 +71,14 @@ function runWorkerPool(moduleUrl, exportName, tasks, context, workerCount) {
+       if (message.type !== "result") return;
+ 
+       results[message.index] = message.result;
++      if (taskTimings) {
++        taskTimings.push({ index: message.index, durationMs: message.durationMs });
++      }
+       completed++;
+       if (completed === tasks.length) {
++        if (taskTimings) {
++          console.error(`SIM_TASK_TIMING ${JSON.stringify(taskTimings.sort((a, b) => a.index - b.index))}`);
++        }
+         settled = true;
+         stopWorkers();
+         resolve(results);
+diff --git a/scratch/sim_parallel_worker.js b/scratch/sim_parallel_worker.js
+index b92ce2d..f19a579 100644
+--- a/scratch/sim_parallel_worker.js
++++ b/scratch/sim_parallel_worker.js
+@@ -12,8 +12,14 @@ parentPort.on("message", async message => {
+   if (message.type !== "task") return;
+ 
+   try {
++    const startedAt = performance.now();
+     const result = await runTask(message.task, workerData.context);
+-    parentPort.postMessage({ type: "result", index: message.index, result });
++    parentPort.postMessage({
++      type: "result",
++      index: message.index,
++      result,
++      durationMs: performance.now() - startedAt
++    });
+   } catch (error) {
+     parentPort.postMessage({
+       type: "error",
