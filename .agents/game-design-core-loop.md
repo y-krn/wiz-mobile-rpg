@@ -150,6 +150,11 @@ for one character:
   hit). A solo character's escape judgment is never killed by RNG.
 - Healing: consumables, a small heal on floor transition, and healing
   affixes. In-combat healing is priced high so it does not dominate.
+- Milestone bosses may expose a telegraphed, build-dependent counter window.
+  The B5 Demon Guard implementation interrupts only its active LAHALITO
+  telegraph after sufficient encounter damage, then grants a short encounter-
+  local exposure window; it does not alter depth, rewards, materials, banking,
+  or non-milestone floors. Source of truth: `src/rules/boss_rules.js`.
 
 ## Floor Density Targets
 

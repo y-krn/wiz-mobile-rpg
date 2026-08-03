@@ -2,12 +2,51 @@ import { reduceIncomingDamage } from "./damage.js";
 import { recordCharDeath } from "../state.js";
 import { getStatusEffectChance } from "../rules/affix_rules.js";
 import { clearCharIncapacitationOnDamage } from "./status_effects.js";
+import {
+  getMilestoneBossRule,
+  shouldBreakMilestoneBossGuard
+} from "../rules/boss_rules.js";
+
+function resolveB5MilestoneBossAction(mon, state, logQueue) {
+  const rule = getMilestoneBossRule(
+    state.floor,
+    mon.name,
+    { isBoss: state.combatState?.isBoss }
+  );
+  if (!rule) return false;
+
+  if (
+    !mon.b5GuardBroken &&
+    mon.lahalitoQueued &&
+    shouldBreakMilestoneBossGuard(mon, rule)
+  ) {
+    mon.lahalitoQueued = false;
+    mon.b5GuardBroken = true;
+    mon.b5ExposureTurns = rule.exposureTurns;
+    logQueue.push({
+      msg: `[敵] ${mon.name}の詠唱が崩れ、装甲が砕けた！攻撃の隙が生まれている！`,
+      sound: "hit",
+      shake: 15
+    });
+    return true;
+  }
+
+  if (mon.b5GuardBroken && (mon.b5ExposureTurns || 0) > 0) {
+    mon.b5ExposureTurns -= 1;
+    logQueue.push({ msg: `[敵] ${mon.name}は砕けた装甲を立て直せず、攻撃できない！` });
+    return true;
+  }
+
+  return false;
+}
 
 /**
- * Executes a boss custom action for Flack or Old Dragon.
+ * Executes a scoped milestone action or a boss custom action.
  * Returns true if a custom action was executed, false otherwise.
  */
 export function resolveBossAction(mon, state, combatSelection, monsters, logQueue) {
+  if (resolveB5MilestoneBossAction(mon, state, logQueue)) return true;
+
   // フラック独自のギミック行動
   if (mon.name === "フラック") {
     const isSilenced = mon.silenceTurns > 0;
