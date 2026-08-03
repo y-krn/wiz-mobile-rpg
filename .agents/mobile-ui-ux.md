@@ -20,7 +20,7 @@ Target files are determined from the UI rows and CSS Style Routing table in
 
 Before searching broadly, read `.agents/file-map.md`. Start with the relevant
 `src/styles/*.css` file, the affected UI or overlay module, and
-`tests/ui-ux.spec.js`; expand only to direct UI callers such as `src/ui.js`,
+`tests/ui-*.spec.js`; expand only to direct UI callers such as `src/ui.js`,
 `src/ui/*`, `src/menu.js`, `src/menu/*`, `src/combat_ui/*`, or
 `src/navigation.js`. Read `src/style.css` only when import order or cascade
 behavior may be relevant.
@@ -108,7 +108,8 @@ behavior may be relevant.
   sees it.
 - Any UI invariant proven here (buttons unclipped inside `#controls-panel`, HUD
   MP row visible, overlay header below the safe area, tap targets ≥ `--tap-min`)
-  is added to `tests/ui-ux.spec.js` as a guard, not left to manual review.
+  is added to the corresponding domain spec under `tests/ui-*.spec.js` as a
+  guard, not left to manual review.
 - Manual or browser-driven check at:
   - 360x800
   - 390x844

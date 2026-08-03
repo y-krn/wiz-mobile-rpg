@@ -88,8 +88,8 @@ to verify the change.
 
 | Checklist | Start with | Expand to |
 | --- | --- | --- |
-| `qa-regression` | `package.json`, changed files, relevant `scratch/test_*.js` or `tests/ui-ux.spec.js` | Direct imports of changed files and failing test targets |
-| `mobile-ui-ux` | Relevant `src/styles/*.css`, affected UI module or overlay module, `tests/ui-ux.spec.js` | `src/style.css` import order, `src/ui.js`, `src/ui/*`, `src/menu.js`, `src/menu/*`, `src/combat_ui/*`, `src/navigation.js`, screenshots or browser observations |
+| `qa-regression` | `package.json`, changed files, relevant `scratch/test_*.js` or `tests/ui-*.spec.js` | Direct imports of changed files and failing test targets |
+| `mobile-ui-ux` | Relevant `src/styles/*.css`, affected UI module or overlay module, `tests/ui-*.spec.js` | `src/style.css` import order, `src/ui.js`, `src/ui/*`, `src/menu.js`, `src/menu/*`, `src/combat_ui/*`, `src/navigation.js`, screenshots or browser observations |
 | `game-logic` | Changed mechanic module from the lookup table | `src/state.js`, `src/state/*`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*`, direct caller/callee modules |
 | `balance-simulation` | `src/data.js`, `src/data/*`, `src/combat_logic.js`, `src/combat_logic/*`, changed reward/enemy/map module | Relevant scratch simulation or deterministic test |
 | `content-design` | `src/data.js`, `src/data/*`, and changed user-facing text | Affected UI module and `balance-simulation` lens if values change progression |
@@ -103,7 +103,7 @@ to verify the change.
 - If save data shape changes, always inspect `src/state.js`, `src/state/*`, and
   add migration or compatibility reasoning.
 - If mobile UI changes, always include the relevant `src/styles/*.css` file and
-  `tests/ui-ux.spec.js` in review and verification. Inspect `src/style.css`
+  `tests/ui-*.spec.js` in review and verification. Inspect `src/style.css`
   only when import order or cascade behavior may be relevant.
 - If numbers affect enemies, drops, rewards, XP, materials, run quests, or map pacing,
   include the `balance-simulation` review lens.
