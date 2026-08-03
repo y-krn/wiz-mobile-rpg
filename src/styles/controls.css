@@ -406,6 +406,7 @@
 #trap-info {
   font-family: var(--font-mono);
   font-size: var(--fs-md);
+  line-height: 1.25;
   color: var(--text-color);
   background-color: rgba(20, 20, 25, 0.95);
   border: 1px solid rgba(255, 59, 48, 0.4);
@@ -416,6 +417,7 @@
 
 #trap-header {
   font-size: var(--fs-base);
+  line-height: 1.35;
   font-weight: bold;
   color: var(--neon-red);
   margin-bottom: 6px;
