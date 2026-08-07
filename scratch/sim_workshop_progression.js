@@ -110,7 +110,7 @@ if (!PROGRESSION_POLICIES.has(PROGRESSION_POLICY)) {
 const PROGRESSION_IDENTIFICATION_POLICY =
   process.env.PROGRESSION_IDENTIFICATION_POLICY ||
   getResolvedSimulationEnv().IDENTIFICATION_POLICY ||
-  "legacy";
+  "powder";
 if (!["legacy", "powder", "gamble"].includes(PROGRESSION_IDENTIFICATION_POLICY)) {
   throw new Error(
     `PROGRESSION_IDENTIFICATION_POLICY must be legacy|powder|gamble: ${PROGRESSION_IDENTIFICATION_POLICY}`

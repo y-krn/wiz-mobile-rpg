@@ -17,7 +17,7 @@ const CALIBRATION_RUNS = Math.max(
   Number(process.env.STARTING_GEAR_SWEEP_CALIBRATION_RUNS || 1000)
 );
 const SEED = Number(process.env.SIM_SEED || 231) >>> 0;
-const IDENTIFICATION_POLICY = getResolvedSimulationEnv().IDENTIFICATION_POLICY || "legacy";
+const IDENTIFICATION_POLICY = getResolvedSimulationEnv().IDENTIFICATION_POLICY || "powder";
 const CANDIDATES = ["DAGGER", "MACE", "SHORT_SWORD", "FIGHTER_SABER", "LONG_SWORD"];
 
 function wilson(successes, trials) {
