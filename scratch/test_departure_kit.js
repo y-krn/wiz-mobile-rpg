@@ -151,7 +151,11 @@ check(
 const fullWorkshop = { ranks: Object.fromEntries(WORKSHOP_NODES.map(node => [node.id, node.maxRank || 1])) };
 const workshopGrants = getWorkshopGrants(fullWorkshop);
 check("workshop nodes no longer grant departure items", workshopGrants.returnItems.length === 0);
-check("workshop nodes no longer grant departure powder", workshopGrants.identifyPowder === 0);
+check("convenience node grants one starting powder", workshopGrants.identifyPowder === 1);
+check(
+  "fighter starting gear grant includes MACE",
+  workshopGrants.startingGear.includes("MACE")
+);
 
 const retiredRanks = Object.fromEntries(RETIRED_WORKSHOP_NODES.map(node => [node.id, 1]));
 const restored = normalizeSavePayload({

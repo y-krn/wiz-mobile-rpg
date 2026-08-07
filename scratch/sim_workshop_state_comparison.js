@@ -24,8 +24,11 @@ const CALIBRATION_RUNS = Math.max(
 const STATE_IDS = [
   "workshop-empty",
   "workshop-stats",
-  "workshop-gear"
+  "workshop-stats-plus-convenience",
+  "workshop-gear",
+  "workshop-gear-with-pure"
 ];
+const IDENTIFICATION_POLICY = getResolvedSimulationEnv().IDENTIFICATION_POLICY || "legacy";
 
 function wilson(successes, trials) {
   const z = 1.96;
@@ -71,7 +74,7 @@ for (const { stateId, scenario } of scenarios) {
   scoringProfiles.set(stateId, calibrateCoreScoringProfile(
     CALIBRATION_RUNS,
     {},
-    "legacy",
+    IDENTIFICATION_POLICY,
     scenario.workshop
   ));
 }
@@ -94,7 +97,7 @@ for (const { stateId, scenario } of scenarios) {
       // depth sim の B20 系列と一致させ、既存 report と同じ乱数列を使う。
       seriesId: "depth-20",
       scoringProfile,
-      scenario,
+      scenario: { ...scenario, identificationPolicy: IDENTIFICATION_POLICY },
       workshop: scenario.workshop
     });
     reachedFloors.push(result.reachedFloor);

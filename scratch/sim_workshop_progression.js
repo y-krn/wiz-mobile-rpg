@@ -6,6 +6,7 @@ import { runSimTasks } from "./sim_parallel.js";
 
 const {
   calibrateCoreScoringProfile,
+  getResolvedSimulationEnv,
   resetSimulationRandom,
   DEPTH_SCENARIOS,
   SIM_CLASSES,
@@ -104,6 +105,15 @@ const PROGRESSION_POLICY = process.env.PROGRESSION_POLICY || "workshop-first";
 if (!PROGRESSION_POLICIES.has(PROGRESSION_POLICY)) {
   throw new Error(
     `PROGRESSION_POLICY must be ${[...PROGRESSION_POLICIES].join("|")}: ${PROGRESSION_POLICY}`
+  );
+}
+const PROGRESSION_IDENTIFICATION_POLICY =
+  process.env.PROGRESSION_IDENTIFICATION_POLICY ||
+  getResolvedSimulationEnv().IDENTIFICATION_POLICY ||
+  "legacy";
+if (!["legacy", "powder", "gamble"].includes(PROGRESSION_IDENTIFICATION_POLICY)) {
+  throw new Error(
+    `PROGRESSION_IDENTIFICATION_POLICY must be legacy|powder|gamble: ${PROGRESSION_IDENTIFICATION_POLICY}`
   );
 }
 
@@ -912,6 +922,7 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
       scoringProfile,
       scenario: {
         ...PROGRESSION_SCENARIO,
+        identificationPolicy: PROGRESSION_IDENTIFICATION_POLICY,
         id: scenario.id,
         allowChestTownPortal: scenario.allowChestTownPortal,
         buyMerchantTownPortal: true,
@@ -1493,6 +1504,7 @@ export async function runWorkshopProgressionSimulation() {
     "（craft-first=クラフト→工房 / workshop-first=工房→クラフト / " +
     "workshop-complete=工房買切り後のみクラフト）"
   );
+  console.log(`識別方針: IDENTIFICATION_POLICY=${PROGRESSION_IDENTIFICATION_POLICY}`);
   console.log(
     `クラフト品目優先順位: ${CRAFT_PRIORITY} ` +
     "（wing-first=翼優先 / cheap-first=単品コスト昇順。払えない品は次へ進む）"
@@ -1502,7 +1514,13 @@ export async function runWorkshopProgressionSimulation() {
     (sum, node) => sum + getNodeMaxRank(node),
     0
   );
-  if (workshopSteps !== 40 || totalMaterials(initialDemand) !== 161) {
+  const expectedWorkshopShape = WORKSHOP_NODES.length === 18
+    ? { steps: 42, materials: 192 }
+    : null;
+  if (expectedWorkshopShape && (
+    workshopSteps !== expectedWorkshopShape.steps ||
+    totalMaterials(initialDemand) !== expectedWorkshopShape.materials
+  )) {
     throw new Error(
       `workshop demand mismatch: steps=${workshopSteps}, materials=${totalMaterials(initialDemand)}`
     );
@@ -1534,7 +1552,11 @@ export async function runWorkshopProgressionSimulation() {
     "乱数消費順の違いによる閾値合わせはしない。"
   );
 
-  const scoringProfile = calibrateCoreScoringProfile(CALIBRATION_RUNS);
+  const scoringProfile = calibrateCoreScoringProfile(
+    CALIBRATION_RUNS,
+    {},
+    PROGRESSION_IDENTIFICATION_POLICY
+  );
   const finiteTasks = FINITE_PORTAL_SCENARIOS.flatMap(scenario =>
     Array.from({ length: TRIALS }, (_, trial) => ({
       kind: "finite",

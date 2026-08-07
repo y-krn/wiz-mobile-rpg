@@ -505,8 +505,28 @@ const WORKSHOP_STATE_RANKS = Object.freeze({
     stat_agi: 1,
     stat_luk: 1
   }),
+  statsWithConvenience: Object.freeze({
+    stat_str: 4,
+    stat_int: 1,
+    stat_vit: 3,
+    stat_agi: 1,
+    stat_luk: 1,
+    convenience_identify_powder: 1
+  }),
   gear: Object.freeze({
     gear_rapier: 1,
+    gear_fighter_mace: 1,
+    stat_str: 5,
+    stat_int: 2,
+    stat_pie: 2,
+    stat_vit: 5,
+    stat_agi: 2,
+    stat_luk: 3
+  }),
+  gearWithPure: Object.freeze({
+    gear_rapier: 1,
+    gear_fighter_mace: 1,
+    convenience_identify_powder: 1,
     stat_str: 5,
     stat_int: 2,
     stat_pie: 2,
@@ -555,6 +575,7 @@ const WORKSHOP_STATE_RANKS = Object.freeze({
   complete: Object.freeze({
     gear_rapier: 1,
     gear_sage_staff: 1,
+    gear_fighter_mace: 1,
     pool_blood_wand: 1,
     pool_deep_spells: 1,
     pool_opener: 1,
@@ -563,6 +584,7 @@ const WORKSHOP_STATE_RANKS = Object.freeze({
     pool_thorn_shield: 1,
     pool_tomb_raider: 1,
     pool_scholar_eye: 1,
+    convenience_identify_powder: 1,
     stat_str: 5,
     stat_int: 5,
     stat_pie: 5,
@@ -587,9 +609,21 @@ const SCENARIOS = Object.freeze([
     useTownPortal: true
   },
   {
+    id: "workshop-stats-plus-convenience",
+    label: "工房ステータス＋鑑定粉備蓄",
+    workshop: { ranks: WORKSHOP_STATE_RANKS.statsWithConvenience },
+    useTownPortal: true
+  },
+  {
     id: "workshop-gear",
     label: "工房初期装備解放済み",
     workshop: { ranks: WORKSHOP_STATE_RANKS.gear },
+    useTownPortal: true
+  },
+  {
+    id: "workshop-gear-with-pure",
+    label: "工房初期装備＋純増",
+    workshop: { ranks: WORKSHOP_STATE_RANKS.gearWithPure },
     useTownPortal: true
   },
   {
@@ -1116,8 +1150,17 @@ Math.random = () => {
   return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 };
 
-function equipBestWorkshopStartingGear(character, workshop) {
-  const candidates = getWorkshopGrants(workshop).startingGear
+function equipBestWorkshopStartingGear(character, workshop, config = {}) {
+  const candidateIds = config.startingGearCandidatesOverride ||
+    getWorkshopGrants(workshop).startingGear;
+  const selectedId = config.startingGearChoice;
+  const selected = selectedId ? ITEMS[selectedId] : null;
+  if (selected && selected.type === "weapon" &&
+    (!selected.classes || selected.classes.includes(character.class))) {
+    character.equipment[selected.type] = selected.id;
+    return;
+  }
+  const candidates = candidateIds
     .map(itemId => ITEMS[itemId])
     .filter(item => item && (!item.classes || item.classes.includes(character.class)))
     .sort((left, right) => (right.atk || 0) - (left.atk || 0));
@@ -1222,11 +1265,17 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     ...scenarioReturnItems
   ];
   const initialWeaponId = character.equipment.weapon;
-  equipBestWorkshopStartingGear(character, workshop);
+  const startingGearConfig = {
+    startingGearCandidatesOverride: scenario.startingGearCandidatesOverride,
+    startingGearChoice: scenario.startingGearChoice
+  };
+  equipBestWorkshopStartingGear(character, workshop, startingGearConfig);
   const finalWeaponId = character.equipment.weapon;
   const workshopEffects = {
     stats: { ...workshopGrants.stats },
-    startingGearCandidates: [...workshopGrants.startingGear],
+    startingGearCandidates: [
+      ...(scenario.startingGearCandidatesOverride || workshopGrants.startingGear)
+    ],
     startingGearApplied: finalWeaponId !== initialWeaponId ? finalWeaponId : null,
     initialWeapon: initialWeaponId,
     finalWeapon: finalWeaponId,
