@@ -342,7 +342,7 @@ export function updateUI() {
     controlsPanel.classList.toggle("combat-mode", state.gameState === "combat");
     controlsPanel.classList.toggle("town-mode", state.gameState === "town");
     controlsPanel.classList.toggle("submenu-mode", state.gameState === "submenu");
-    controlsPanel.classList.toggle("departure-mode", isDeparturePrepSubmenu);
+    controlsPanel.classList.toggle("departure-mode", isDeparturePrepSubmenu());
     controlsPanel.classList.toggle("chest-menu-mode", state.gameState === "submenu" && menuContext.type === "chest_menu");
     controlsPanel.classList.toggle("trap-mode", state.gameState === "trap_encounter");
   }
