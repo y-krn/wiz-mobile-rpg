@@ -48,6 +48,7 @@ function formatCraftPaymentWithBalance(recipe, balance) {
 }
 
 function startRun(className, startingGear = null, startFloor = 1) {
+  clearDepartureStartFooter();
   const selectedRecipeIds = getSelectedRecipeIds();
   let departureCraft = [];
   if (selectedRecipeIds.length > 0) {
