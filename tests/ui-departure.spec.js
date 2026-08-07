@@ -116,6 +116,20 @@ for (const vp of VIEWPORTS) {
     await expect(page.locator('.solo-start-floor-option')).toHaveCount(0);
     await expect(page.locator('#departure-start-footer .solo-start-floor-option')).toHaveCount(0);
   });
+
+  test(`Departure start clears floor buttons before opening a submenu on ${vp.name}`, async ({ page }) => {
+    await openDeparturePreparation(page, vp);
+    await page.getByRole('button', { name: /B1Fから開始/ }).click();
+    await expect(page.locator('#explore-controls')).toBeVisible();
+
+    await page.evaluate(async () => {
+      const { openSubmenu } = await import('/src/navigation.js');
+      openSubmenu('item_inventory', '共有バッグ');
+    });
+    await expect(page.locator('#submenu-controls')).toBeVisible();
+    await expect(page.locator('#departure-start-footer .solo-start-floor-option')).toHaveCount(0);
+    await expect(page.locator('.solo-start-floor-option')).toHaveCount(0);
+  });
 }
 
 for (const vp of VIEWPORTS) {
