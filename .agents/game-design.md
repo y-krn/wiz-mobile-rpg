@@ -85,6 +85,19 @@ Permanent unlocks include:
 5. Convenience: +1 starting identify resource, a starting return item, and
    similar small run-start kits.
 
+Current workshop expansion (issue #410) adds measured sidegrade cores
+先手必勝・罠喰い・巨人殺し・反撃の棘・盗掘王・学者の眼, a Fighter starting-gear
+option (FIGHTER_SABER, atk8), and one permanent convenience node that grants
++1 starting identify powder. The six pre-existing core IDs are workshop-gated at the
+adopted 10-material total per first rank; the existing `pool_blood_wand` node
+remains unchanged at 7 materials. This keeps the explicit early-run access
+tradeoff while adding pure content. The identify-powder node is policy-sensitive
+in simulations (`IDENTIFICATION_POLICY=powder`); departure craft still owns
+starting consumables. No class roster or permanent-stat cap change is part of
+this expansion. The node data and material costs are source-of-truth in
+`src/data/workshop.js`; advanced classes remain deferred. Core measurement gaps
+are tracked separately in issue #416.
+
 Departure craft is the separate run-start path: choose quantities per recipe,
 pay their material costs for that run, and carry the crafted consumables into
 the run. There is no recipe-count or item-count cap; the available material

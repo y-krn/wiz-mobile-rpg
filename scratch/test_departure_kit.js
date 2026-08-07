@@ -13,6 +13,7 @@ function check(label, condition, detail = "") {
 }
 
 const { CRAFT_RECIPES, executeCraft } = await import("../src/craft.js");
+const { ITEMS } = await import("../src/data/items.js");
 const { MATERIAL_TYPES } = await import("../src/data/materials.js");
 const { RUN_QUEST_TEMPLATES } = await import("../src/data/run_quests.js");
 const workshopData = await import("../src/data/workshop.js");
@@ -151,7 +152,19 @@ check(
 const fullWorkshop = { ranks: Object.fromEntries(WORKSHOP_NODES.map(node => [node.id, node.maxRank || 1])) };
 const workshopGrants = getWorkshopGrants(fullWorkshop);
 check("workshop nodes no longer grant departure items", workshopGrants.returnItems.length === 0);
-check("workshop nodes no longer grant departure powder", workshopGrants.identifyPowder === 0);
+check("convenience node grants one starting powder", workshopGrants.identifyPowder === 1);
+check(
+  "fighter starting gear grant includes FIGHTER_SABER",
+  workshopGrants.startingGear.includes("FIGHTER_SABER")
+);
+check(
+  "FIGHTER_SABER is a moderate Fighter-only starting weapon",
+  ITEMS.FIGHTER_SABER?.atk === 8
+    && ITEMS.FIGHTER_SABER.classes?.length === 1
+    && ITEMS.FIGHTER_SABER.classes[0] === "Fighter"
+    && JSON.stringify(ITEMS.FIGHTER_SABER.tags) === JSON.stringify(["iron", "blade"]),
+  JSON.stringify(ITEMS.FIGHTER_SABER)
+);
 
 const retiredRanks = Object.fromEntries(RETIRED_WORKSHOP_NODES.map(node => [node.id, 1]));
 const restored = normalizeSavePayload({

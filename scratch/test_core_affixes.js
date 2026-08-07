@@ -127,6 +127,36 @@ test("廃止済みの殿の構えを除くコア15種がenabled", () => {
   ]);
 });
 
+test("工房追加coreはpoolノード解放前後で抽選が切り替わる", () => {
+  const addedCoreIds = [
+    "CORE_OPENER", "CORE_TRAP_EATER", "CORE_GIANT_SLAYER",
+    "CORE_THORN_SHIELD", "CORE_TOMB_RAIDER", "CORE_SCHOLAR_EYE"
+  ];
+  const collectGeneratedCoreIds = (unlockedAffixIds, count) => {
+    const party = [makeChar(null)];
+    party[0].status = "dead";
+    party[0].unlockedAffixIds = [...unlockedAffixIds];
+    const found = new Set();
+    for (let seed = 1; seed <= count; seed++) {
+      const rng = lcg(seed);
+      const items = [
+        generateRandomEquipment(5, { forceRarity: "epic", rng, party }),
+        generateRandomAccessory(5, { forceRarity: "epic", rng, party })
+      ];
+      items.flatMap(item => item?.affixes || []).forEach(affix => {
+        if (addedCoreIds.includes(affix.id)) found.add(affix.id);
+      });
+    }
+    return found;
+  };
+
+  assert.equal(collectGeneratedCoreIds([], 800).size, 0);
+  assert.deepEqual(
+    [...collectGeneratedCoreIds(addedCoreIds, 1600)].sort(),
+    [...addedCoreIds].sort()
+  );
+});
+
 test("素材経済サポートenabled・浅層経済3/戦闘1・深層逆転", () => {
   const phase3 = [
     "victoryMaterial", "stairsHeal", "identifyDiscount", "materialFind", "contractReward"

@@ -18,7 +18,7 @@ for (const vp of VIEWPORTS) {
 
       const verifyScreenButtons = async (screenName) => {
         let buttons = await page.locator('button:visible, [role="button"]:visible, .btn:visible, .equip-item-row:visible, .char-row:visible, .archives-tab:visible').all();
-        
+
         // Active overlay detection to avoid back-button pollution
         const activeOverlayId = await page.evaluate(() => {
           const overlays = [
@@ -59,11 +59,11 @@ for (const vp of VIEWPORTS) {
           const className = await btn.getAttribute('class') || '';
           console.log(`  - Button: "${text}" (id: "${id}", class: "${className}")`);
         }
-        
+
         for (const btn of buttons) {
           const box = await btn.boundingBox();
           if (!box) continue;
-          
+
           const text = (await btn.textContent()).trim();
           const id = await btn.getAttribute('id') || '';
           const className = await btn.getAttribute('class') || '';

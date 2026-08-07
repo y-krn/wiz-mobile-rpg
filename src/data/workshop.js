@@ -26,6 +26,14 @@ const WORKSHOP_BASE_NODES = [
     grants: { startingGear: "SAGE_STAFF" }
   },
   {
+    id: "gear_fighter_saber",
+    category: "startingGear",
+    name: "戦士武器候補",
+    description: "潜行開始時に鍛錬サーベルを選べる。",
+    costs: [{ "獣の牙": 4, "鉄片": 2 }],
+    grants: { startingGear: "FIGHTER_SABER" }
+  },
+  {
     id: "pool_blood_wand",
     category: "pools",
     name: "血杖の記憶",
@@ -40,6 +48,62 @@ const WORKSHOP_BASE_NODES = [
     description: "高位スペルをラン内抽選へ追加する。",
     costs: [{ "魔石片": 6, "霊粉": 4 }],
     grants: { spellIds: ["MADALTO", "DIALMA"] }
+  },
+  {
+    id: "pool_opener",
+    category: "pools",
+    name: "先手必勝の記憶",
+    description: "先手必勝コアをラン内抽選へ追加する。",
+    costs: [{ "鉄片": 7, "毒腺": 3 }],
+    grants: { affixIds: ["CORE_OPENER"] }
+  },
+  {
+    id: "pool_trap_eater",
+    category: "pools",
+    name: "罠喰いの記憶",
+    description: "罠喰いコアをラン内抽選へ追加する。",
+    costs: [{ "硬い皮": 7, "鉄片": 3 }],
+    grants: { affixIds: ["CORE_TRAP_EATER"] }
+  },
+  {
+    id: "pool_giant_slayer",
+    category: "pools",
+    name: "巨人殺しの記憶",
+    description: "巨人殺しコアをラン内抽選へ追加する。",
+    costs: [{ "獣の牙": 7, "黒角": 3 }],
+    grants: { affixIds: ["CORE_GIANT_SLAYER"] }
+  },
+  {
+    id: "pool_thorn_shield",
+    category: "pools",
+    name: "棘盾の記憶",
+    description: "棘盾コアをラン内抽選へ追加する。",
+    costs: [{ "硬い皮": 7, "呪布": 3 }],
+    grants: { affixIds: ["CORE_THORN_SHIELD"] }
+  },
+  {
+    id: "pool_tomb_raider",
+    category: "pools",
+    name: "盗掘王の記憶",
+    description: "盗掘王コアをラン内抽選へ追加する。",
+    costs: [{ "獣の牙": 7, "竜鱗": 3 }],
+    grants: { affixIds: ["CORE_TOMB_RAIDER"] }
+  },
+  {
+    id: "pool_scholar_eye",
+    category: "pools",
+    name: "学者の眼の記憶",
+    description: "学者の眼コアをラン内抽選へ追加する。",
+    costs: [{ "霊粉": 7, "骨片": 3 }],
+    grants: { affixIds: ["CORE_SCHOLAR_EYE"] }
+  },
+  {
+    id: "convenience_identify_powder",
+    category: "convenience",
+    name: "鑑定粉の備蓄",
+    description: "ラン開始時の鑑定粉が1個増える。",
+    costs: [{ "霊粉": 5, "呪布": 2 }],
+    grants: { identifyPowder: 1 }
   },
   ...[
     ["str", "力", "獣の牙"],

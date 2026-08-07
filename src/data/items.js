@@ -5,6 +5,7 @@ export const ITEMS = {
   SAGE_STAFF: { id: "SAGE_STAFF", name: "賢者の杖", type: "weapon", atk: 2, desc: "鑑定術に長けた賢者の杖。攻撃力+2 [僧・魔・司用]", classes: ["Priest", "Mage", "Bishop"], tags: ["spirit", "appraisal"] },
   ARCH_WAND: { id: "ARCH_WAND", name: "大魔道の杖", type: "weapon", atk: 3, desc: "禁呪の紋が刻まれた高位の杖。攻撃力+3 [魔・司用]", classes: ["Mage", "Bishop"], tags: ["spirit", "curse"] },
   SHORT_SWORD: { id: "SHORT_SWORD", name: "ショートソード", type: "weapon", atk: 6, desc: "使いやすい鉄の小太刀。攻撃力+6 [戦・盗・侍・野用]", classes: ["Fighter", "Thief", "Samurai", "Ranger"], tags: ["iron", "blade"] },
+  FIGHTER_SABER: { id: "FIGHTER_SABER", name: "鍛錬サーベル", type: "weapon", atk: 8, desc: "戦士向けに軽く鍛えた片刃剣。攻撃力+8 [戦用]", classes: ["Fighter"], tags: ["iron", "blade"] },
   RAPIER: { id: "RAPIER", name: "レイピア", type: "weapon", atk: 8, desc: "突きに優れた細身の剣。攻撃力+8 [盗・司・野・忍用]", classes: ["Thief", "Bishop", "Ranger", "Ninja"], tags: ["iron", "blade"] },
   NINJA_DAGGER: { id: "NINJA_DAGGER", name: "忍びの短刀", type: "weapon", atk: 9, desc: "暗殺用の鋭い短刀。攻撃力+9 [盗・忍用]", classes: ["Thief", "Ninja"], tags: ["ambush", "poison"] },
   VENOM_FANG: { id: "VENOM_FANG", name: "毒牙の短刀", type: "weapon", atk: 9, desc: "毒を仕込む溝を持つ短刀。攻撃力+9 [盗・忍用]", classes: ["Thief", "Ninja"], tags: ["poison", "ambush"] },
