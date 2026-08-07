@@ -28,7 +28,7 @@ const STATE_IDS = [
   "workshop-gear",
   "workshop-gear-with-pure"
 ];
-const IDENTIFICATION_POLICY = getResolvedSimulationEnv().IDENTIFICATION_POLICY || "legacy";
+const IDENTIFICATION_POLICY = getResolvedSimulationEnv().IDENTIFICATION_POLICY || "powder";
 
 function wilson(successes, trials) {
   const z = 1.96;

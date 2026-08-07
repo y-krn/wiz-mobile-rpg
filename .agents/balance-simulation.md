@@ -77,6 +77,27 @@ real run. Each item below has already produced a wrong conclusion at least once.
   written summary, so a later reader can tell the measured scenario from the
   real one.
 
+### Identification policy
+
+`scratch/sim_depth_material_ev.js` の既定は `IDENTIFICATION_POLICY=powder`。
+`powder` は `src/movement.js` の開始 `identifyTickets`、
+`src/systems/identification.js` の `identifyEquipment`、
+`src/rules/identification_rules.js` の `identifyCost` / `isCurseLocked`、
+`src/systems/equipment_generation.js` の未鑑定装備生成を通る実装モデル。
+`AFFIX_BALANCE.coreCurseChance` は設計定数だが現generatorからは参照されず、
+実測は `IDENTIFICATION_BALANCE.coreCurseBonus` 経路に従う。この不一致は別修正候補であり、
+このsimでは実装を再現して直さない。
+`gamble` は `revealEquipmentOnEquip` を通る即着用の行動反実仮想。
+`legacy` は全装備を鑑定済み・呪いなしとして扱う実装外反実仮想であり、
+既定・実装モデルと呼ばない。
+
+鑑定粉の入手経路は開始・工房・出発クラフト・宝箱・戦闘報酬（図鑑初撃破）を
+source別に出力する。節目商人の鑑定粉は任意購入で、既定 sim は自動購入しない。
+商人経路は「効果なし」ではなく、未観測・別購入方針が必要な経路として記録する。
+各結果は粉の入手数・消費数・終了残量・枯渇率を出力し、枯渇率・到達/突破/死亡率・
+core装備率/実発動率/定着率・終了時core数分布には Wilson 95% CI を付ける。
+率の試行数が30未満の場合は未確定として結論に使わない。
+
 ## Required Verification
 
 - `npm run test:unit`

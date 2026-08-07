@@ -169,7 +169,7 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   TRAP_POLICY: "conservative",
   TRAP_AVOIDANCE_POLICY: "ev",
   TRAP_DAMAGE_MULTIPLIER: "1",
-  IDENTIFICATION_POLICY: "legacy",
+  IDENTIFICATION_POLICY: "powder",
   STATUS_CURE_POLICY: "smart",
   STATUS_CURE_HP_THRESHOLD: "1",
   STATUS_CURE_MERCHANT_POLICY: "missing",
@@ -191,7 +191,7 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   TRAP_POLICY: "conservative",
   TRAP_AVOIDANCE_POLICY: "ev",
   TRAP_DAMAGE_MULTIPLIER: "1",
-  IDENTIFICATION_POLICY: "legacy",
+  IDENTIFICATION_POLICY: "powder",
   STATUS_CURE_POLICY: "smart",
   STATUS_CURE_HP_THRESHOLD: "1",
   STATUS_CURE_MERCHANT_POLICY: "missing",
@@ -353,20 +353,20 @@ function recordEncounterGroups(metrics, floor, monsters) {
 const IDENTIFICATION_POLICY_DEFINITIONS = Object.freeze({
   legacy: Object.freeze({
     id: "legacy",
-    label: "既定（鑑定済み・呪いなし）"
+    label: "反実仮想（鑑定済み・呪いなし／実装外）"
   }),
   powder: Object.freeze({
     id: "powder",
-    label: "方針A（粉があれば鑑定、なければ保持）"
+    label: "実装モデル（粉があれば鑑定、なければ保持）"
   }),
   gamble: Object.freeze({
     id: "gamble",
-    label: "方針B（更新候補を即着用）"
+    label: "行動反実仮想（更新候補を即着用）"
   })
 });
 
 function resolveIdentificationPolicies() {
-  const requested = String(SIM_ENV.IDENTIFICATION_POLICY || "legacy")
+  const requested = String(SIM_ENV.IDENTIFICATION_POLICY || "powder")
     .trim()
     .toLowerCase();
   const policyIds = requested === "compare"
@@ -743,7 +743,7 @@ const TOMB_RAIDER_TRAP_RISK_DISCOUNT = 0.5;
 
 const CORE_ACTIVATION_MEASUREMENT_NOTES = Object.freeze({
   CORE_SNEAK_STEP: "sim未再現: movement.jsの徘徊エリート知覚経路を通らない",
-  CORE_KEEN_EYE: "legacy方針では未鑑定効果を能動適用しない"
+  CORE_KEEN_EYE: "sim未再現: 未鑑定効果EVを能動適用しないため定量化保留"
 });
 
 function createCoreMeasurementCounts() {
@@ -1124,8 +1124,9 @@ function addCoreObservations(target, additions) {
     }
   });
 }
-// 既定legacyは#231の既存比較を再現する。#236のpowder/gambleでは、
-// 実生成された未鑑定装備と呪いをそのまま評価する。コアの装備個数制限は撤廃済み（#311）。
+// powderは実装の開始粉・鑑定・未鑑定保持経路を再現する既定モデル。
+// legacyは#231の旧sim比較を再現する、鑑定済み・呪いなしの実装外反実仮想。
+// gambleは#236の即着用反実仮想。コアの装備個数制限は撤廃済み（#311）。
 
 const HOLY_TAGS = new Set(["undead", "spirit", "demon"]);
 const STATUS_CURE_ITEMS = Object.freeze({
@@ -1189,8 +1190,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
 
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
   const workshopGrants = getWorkshopGrants(workshop);
-  const identificationPolicy = scenario.identificationPolicy || "legacy";
-  // legacyは既存の鑑定済み経路と乱数列を維持し、powder/gambleだけ実runの初期支給を使う。
+  const identificationPolicy = scenario.identificationPolicy || "powder";
+  // legacyは実装外反実仮想として開始粉を使わず、powder/gambleは実runの初期支給を使う。
   const useRealIdentificationSupply = identificationPolicy !== "legacy";
   const departureCraftIds = resolveDepartureCraftIds(scenario);
   const sourceDepartureCraftCost = getDepartureCraftCost(departureCraftIds);
@@ -1233,7 +1234,10 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   const initialIdentificationPowder = {
     starting: startingPowder,
     workshop: workshopGrants.identifyPowder,
-    departureCraft: departureCraftGrants.identifyPowder
+    departureCraft: departureCraftGrants.identifyPowder,
+    chest: 0,
+    codex: 0,
+    merchant: 0
   };
   // src/movement.jsと同じ初期値。legacyだけ開始時粉を旧sim互換で省略する。
   const initialIdentifyTickets = useRealIdentificationSupply
@@ -1678,8 +1682,7 @@ function countLoggedCoreActivations(observations, logQueue) {
   const loggedCoreIds = [
     "CORE_OPENER",
     "CORE_THORN_SHIELD",
-    "CORE_BOUNTY_HUNTER",
-    "CORE_SCHOLAR_EYE"
+    "CORE_BOUNTY_HUNTER"
   ];
   loggedCoreIds.forEach(coreId => {
     const message = getCoreLogText(coreId);
@@ -3893,6 +3896,13 @@ function finishRun(state, outcome, metrics) {
       }
     });
 
+  const materialAcquiredBySource = {
+    combat: metrics.materialSources.combat,
+    chest: metrics.materialSources.chest,
+    quest: metrics.materialSources.quest
+  };
+  const materialAcquired = totalMaterials(materialAcquiredBySource);
+  const materialConsumed = totalMaterials(metrics.materialConsumedByMerchant);
   const carriedMaterials = totalMaterials(state.currentRun.materials);
   metrics.materialSources.other = Math.max(
     0,
@@ -3941,6 +3951,9 @@ function finishRun(state, outcome, metrics) {
     died: outcome === "death",
     carriedMaterials,
     bankedMaterials: totalMaterials(banked),
+    materialAcquired,
+    materialAcquiredBySource,
+    materialConsumed,
     carriedMaterialCounts: { ...state.currentRun.materials },
     bankedMaterialCounts: { ...banked },
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
@@ -3967,6 +3980,8 @@ function finishRun(state, outcome, metrics) {
     identificationPowderAcquired: metrics.identificationPowderAcquired,
     identificationPowderAcquiredBySource: { ...metrics.identificationPowderAcquiredBySource },
     identificationPowderUsed: metrics.identificationPowderUsed,
+    identificationPowderRemaining: state.identifyTickets || 0,
+    identificationPowderDepleted: (state.identifyTickets || 0) === 0,
     identificationCount: metrics.identificationCount,
     unidentifiedWearCount: metrics.unidentifiedWearCount,
     curseHitCount: metrics.curseHitCount,
@@ -4146,7 +4161,8 @@ export function simulateRun({
       workshop: state.simIdentificationPowderAcquired?.workshop || 0,
       departureCraft: state.simIdentificationPowderAcquired?.departureCraft || 0,
       chest: 0,
-      codex: 0
+      codex: 0,
+      merchant: 0
     },
     identificationPowderUsed: 0,
     identificationCount: 0,
@@ -4704,10 +4720,17 @@ export function simulateRun({
           const scholarMaterialBonus = getScholarMaterialBonus(state.combatState.monsters, state);
           metrics.coreObservations.scholarMaterialBonusByFloor[floor] += scholarMaterialBonus;
           if (getCharCoreParams(state.party[0], "CORE_SCHOLAR_EYE")) {
+            // src/combat_logic/rewards.jsは対象が1体以上いる戦闘につき発動ログを1件出す。
+            // 分母もモンスター数ではなく、同じ戦闘単位に揃える。
+            const scholarOpportunity = state.combatState.monsters.some(monster =>
+            !monster.fled && !monster.hasSplit && monster.simWasUncatalogued
+          );
+            const scholarActivation = Number(scholarOpportunity);
             metrics.coreObservations.coreOpportunityCounts.CORE_SCHOLAR_EYE +=
-              state.combatState.monsters.filter(monster =>
-                !monster.fled && !monster.hasSplit && monster.simWasUncatalogued
-              ).length;
+              scholarActivation;
+            // applyCombatRewardsのguaranteed=true経路を通った対象戦闘なので、実発動も同じ件数。
+            metrics.coreObservations.coreActivationCounts.CORE_SCHOLAR_EYE +=
+              scholarActivation;
           }
           state.combatState.monsters.forEach(monster => {
             if (monster.fled || monster.hasSplit) return;
@@ -4862,15 +4885,36 @@ function simulateCase({
   seriesId,
   scoringProfile,
   scenario,
-  identificationPolicy = "legacy"
+  identificationPolicy = "powder"
 }) {
   const totals = {
     survived: 0,
     died: 0,
     carriedMaterials: 0,
     bankedMaterials: 0,
+    materialAcquired: 0,
+    materialAcquiredBySource: {
+      combat: 0,
+      chest: 0,
+      quest: 0
+    },
+    materialConsumed: 0,
     timeCost: 0,
     reachedFloor: 0,
+    entrantsByFloor: Array(21).fill(0),
+    breakthroughsByFloor: Array(21).fill(0),
+    deathsByFloor: Array(21).fill(0),
+    meanStats: createMeanStats([
+      "bankedMaterials",
+      "materialAcquired",
+      "materialConsumed",
+      "timeCost",
+      "materialEvPerTime",
+      "reachedFloor",
+      "identificationPowderAcquired",
+      "identificationPowderUsed",
+      "identificationPowderRemaining"
+    ]),
     stalemates: 0,
     finalLevels: 0,
     equipmentUpgrades: 0,
@@ -4885,9 +4929,12 @@ function simulateCase({
       workshop: 0,
       departureCraft: 0,
       chest: 0,
-      codex: 0
+      codex: 0,
+      merchant: 0
     },
     identificationPowderUsed: 0,
+    identificationPowderRemaining: 0,
+    runsWithPowderDepleted: 0,
     identificationCount: 0,
     unidentifiedWearCount: 0,
     curseHitCount: 0,
@@ -5001,8 +5048,29 @@ function simulateCase({
     totals.died += Number(result.died);
     totals.carriedMaterials += result.carriedMaterials;
     totals.bankedMaterials += result.bankedMaterials;
+    totals.materialAcquired += result.materialAcquired;
+    Object.entries(result.materialAcquiredBySource).forEach(([source, amount]) => {
+      totals.materialAcquiredBySource[source] =
+        (totals.materialAcquiredBySource[source] || 0) + amount;
+    });
+    totals.materialConsumed += result.materialConsumed;
     totals.timeCost += result.timeCost;
     totals.reachedFloor += result.reachedFloor;
+    addMeanSample(totals.meanStats.bankedMaterials, result.bankedMaterials);
+    addMeanSample(totals.meanStats.materialAcquired, result.materialAcquired);
+    addMeanSample(totals.meanStats.materialConsumed, result.materialConsumed);
+    addMeanSample(totals.meanStats.timeCost, result.timeCost);
+    addMeanSample(
+      totals.meanStats.materialEvPerTime,
+      result.timeCost > 0 ? result.bankedMaterials / result.timeCost : 0
+    );
+    addMeanSample(totals.meanStats.reachedFloor, result.reachedFloor);
+    for (let floor = 1; floor < totals.entrantsByFloor.length; floor++) {
+      if (result.reachedFloor < floor) continue;
+      totals.entrantsByFloor[floor]++;
+      if (result.reachedFloor > floor) totals.breakthroughsByFloor[floor]++;
+      if (result.deathFloor === floor) totals.deathsByFloor[floor]++;
+    }
     totals.stalemates += Number(result.stalemate);
     totals.finalLevels += result.finalLevel;
     totals.equipmentUpgrades += result.equipmentUpgrades;
@@ -5017,6 +5085,17 @@ function simulateCase({
         (totals.identificationPowderAcquiredBySource[source] || 0) + amount;
     });
     totals.identificationPowderUsed += result.identificationPowderUsed;
+    totals.identificationPowderRemaining += result.identificationPowderRemaining;
+    totals.runsWithPowderDepleted += Number(result.identificationPowderDepleted);
+    addMeanSample(
+      totals.meanStats.identificationPowderAcquired,
+      result.identificationPowderAcquired
+    );
+    addMeanSample(totals.meanStats.identificationPowderUsed, result.identificationPowderUsed);
+    addMeanSample(
+      totals.meanStats.identificationPowderRemaining,
+      result.identificationPowderRemaining
+    );
     totals.identificationCount += result.identificationCount;
     totals.unidentifiedWearCount += result.unidentifiedWearCount;
     totals.curseHitCount += result.curseHitCount;
@@ -5122,14 +5201,48 @@ function simulateCase({
     trapAvoidancePolicy: scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
     survivalRate: totals.survived / RUNS_PER_CASE,
     deathRate: totals.died / RUNS_PER_CASE,
+    survivedRuns: totals.survived,
+    diedRuns: totals.died,
     townPortalUseRate: totals.runsUsingTownPortal / RUNS_PER_CASE,
+    townPortalUseRuns: totals.runsUsingTownPortal,
     bankRetentionRate: totals.carriedMaterials > 0
       ? totals.bankedMaterials / totals.carriedMaterials
       : 1,
     bankedMaterialEv,
+    averageMaterialAcquired: totals.materialAcquired / RUNS_PER_CASE,
+    averageMaterialAcquiredBySource: Object.fromEntries(
+      Object.entries(totals.materialAcquiredBySource).map(([source, amount]) => [
+        source,
+        amount / RUNS_PER_CASE
+      ])
+    ),
+    averageMaterialConsumed: totals.materialConsumed / RUNS_PER_CASE,
     averageTimeCost,
     materialEvPerTime: bankedMaterialEv / averageTimeCost,
     averageReachedFloor: totals.reachedFloor / RUNS_PER_CASE,
+    mean95CI: {
+      bankedMaterialEv: meanInterval(totals.meanStats.bankedMaterials, RUNS_PER_CASE),
+      materialAcquired: meanInterval(totals.meanStats.materialAcquired, RUNS_PER_CASE),
+      materialConsumed: meanInterval(totals.meanStats.materialConsumed, RUNS_PER_CASE),
+      timeCost: meanInterval(totals.meanStats.timeCost, RUNS_PER_CASE),
+      materialEvPerTime: meanInterval(totals.meanStats.materialEvPerTime, RUNS_PER_CASE, 4),
+      reachedFloor: meanInterval(totals.meanStats.reachedFloor, RUNS_PER_CASE),
+      identificationPowderAcquired: meanInterval(
+        totals.meanStats.identificationPowderAcquired,
+        RUNS_PER_CASE
+      ),
+      identificationPowderUsed: meanInterval(
+        totals.meanStats.identificationPowderUsed,
+        RUNS_PER_CASE
+      ),
+      identificationPowderRemaining: meanInterval(
+        totals.meanStats.identificationPowderRemaining,
+        RUNS_PER_CASE
+      )
+    },
+    entrantsByFloor: [...totals.entrantsByFloor],
+    breakthroughsByFloor: [...totals.breakthroughsByFloor],
+    deathsByFloor: [...totals.deathsByFloor],
     stalemateRate: totals.stalemates / RUNS_PER_CASE,
     averageFinalLevel: totals.finalLevels / RUNS_PER_CASE,
     averageEquipmentUpgrades: totals.equipmentUpgrades / RUNS_PER_CASE,
@@ -5147,12 +5260,24 @@ function simulateCase({
       ])
     ),
     averageIdentificationPowderUsed: totals.identificationPowderUsed / RUNS_PER_CASE,
+    averageIdentificationPowderRemaining:
+      totals.identificationPowderRemaining / RUNS_PER_CASE,
+    identificationPowderDepletionRate:
+      totals.runsWithPowderDepleted / RUNS_PER_CASE,
     averageIdentificationCount: totals.identificationCount / RUNS_PER_CASE,
     averageUnidentifiedWearCount: totals.unidentifiedWearCount / RUNS_PER_CASE,
     averageCurseHitCount: totals.curseHitCount / RUNS_PER_CASE,
     coreEquipmentShare: totals.equipmentFound > 0
       ? totals.coreEquipmentFound / totals.equipmentFound
       : 0,
+    coreEquipmentFound: totals.coreEquipmentFound,
+    equipmentFound: totals.equipmentFound,
+    coreEncounterRuns: totals.runsWithCoreEncounter,
+    coreEquippedRuns: totals.runsWithCoreEquipped,
+    combatCoreEncounterRuns: totals.runsWithCombatCoreEncounter,
+    combatCoreEquippedRuns: totals.runsWithCombatCoreEquipped,
+    economyCoreEncounterRuns: totals.runsWithEconomyCoreEncounter,
+    economyCoreEquippedRuns: totals.runsWithEconomyCoreEquipped,
     coreEncounterRate: totals.runsWithCoreEncounter / RUNS_PER_CASE,
     earlyCoreEncounterRate: totals.runsWithEarlyCoreEncounter / RUNS_PER_CASE,
     coreEquippedRate: totals.runsWithCoreEquipped / RUNS_PER_CASE,
@@ -5304,10 +5429,33 @@ function formatWilson(successes, trials) {
   return `${formatPercent(successes / trials)} [${formatPercent(interval[0])},${formatPercent(interval[1])}; N=${trials}]${uncertain}`;
 }
 
+function createMeanStats(names) {
+  return Object.fromEntries(names.map(name => [name, { sum: 0, sumSquares: 0 }]));
+}
+
+function addMeanSample(stats, value) {
+  if (!Number.isFinite(value)) return;
+  stats.sum += value;
+  stats.sumSquares += value * value;
+}
+
+function meanInterval(stats, trials, digits = 2) {
+  if (trials <= 0) return "未観測";
+  const mean = stats.sum / trials;
+  if (trials < 2) return `${mean.toFixed(digits)} [未確定; N=${trials}]`;
+  const variance = Math.max(
+    0,
+    (stats.sumSquares - (stats.sum * stats.sum) / trials) / (trials - 1)
+  );
+  const margin = 1.96 * Math.sqrt(variance / trials);
+  return `${mean.toFixed(digits)} [${(mean - margin).toFixed(digits)},` +
+    `${(mean + margin).toFixed(digits)}; N=${trials}]`;
+}
+
 export function calibrateCoreScoringProfile(
   runCount = RUNS_PER_CASE,
   scenarioOverrides = {},
-  identificationPolicy = "legacy",
+  identificationPolicy = "powder",
   workshop = { ranks: {} }
 ) {
   const calibrationScenario = {
@@ -5467,12 +5615,13 @@ function printCoreScoringProfile(profile, policy = null) {
 }
 
 function printTable(results) {
-  console.log("戦略       | 生還率 | 死亡率 | 翼使用率 | bank保持率 | bank素材EV | 平均時間 | 素材EV/時間 | 平均到達階 | 平均Lv | 平均換装 | 平均薬 | 平均逃走 | 逃走run率");
-  console.log("-----------|--------|--------|----------|------------|------------|----------|-------------|------------|--------|----------|--------|----------|----------");
+  console.log("戦略       | 生還率(Wilson) | 死亡率(Wilson) | 翼使用率(Wilson) | bank保持率 | bank素材EV | 平均時間 | 素材EV/時間 | 平均到達階 | 平均Lv | 平均換装 | 平均薬 | 平均逃走 | 逃走run率");
+  console.log("-----------|--------------|--------------|----------------|------------|------------|----------|-------------|------------|--------|----------|--------|----------|----------");
   results.forEach(result => {
     console.log(
-      `${result.label.padEnd(10)} | ${formatPercent(result.survivalRate).padStart(6)} | ` +
-      `${formatPercent(result.deathRate).padStart(6)} | ${formatPercent(result.townPortalUseRate).padStart(8)} | ` +
+      `${result.label.padEnd(10)} | ${formatWilson(result.survivedRuns, RUNS_PER_CASE).padStart(18)} | ` +
+      `${formatWilson(result.diedRuns, RUNS_PER_CASE).padStart(18)} | ` +
+      `${formatWilson(result.townPortalUseRuns, RUNS_PER_CASE).padStart(20)} | ` +
       `${formatPercent(result.bankRetentionRate).padStart(10)} | ${result.bankedMaterialEv.toFixed(2).padStart(10)} | ` +
       `${result.averageTimeCost.toFixed(2).padStart(8)} | ${result.materialEvPerTime.toFixed(4).padStart(11)} | ` +
       `${result.averageReachedFloor.toFixed(2).padStart(10)} | ${result.averageFinalLevel.toFixed(2).padStart(6)} | ` +
@@ -5558,11 +5707,23 @@ function printConsumableSummary(result) {
   const departureWingAcquired = result.averagePortalAcquisitions?.departureCraft || 0;
   const departureWingUsed = result.averagePortalUsesBySource?.["departure-craft"] || 0;
   console.log(
+    `素材/run: 入手=${result.averageMaterialAcquired.toFixed(2)} ` +
+    `(戦闘=${result.averageMaterialAcquiredBySource.combat.toFixed(2)}, ` +
+    `宝箱=${result.averageMaterialAcquiredBySource.chest.toFixed(2)}, ` +
+    `クエスト=${result.averageMaterialAcquiredBySource.quest.toFixed(2)}), ` +
+    `節目商人消費=${result.averageMaterialConsumed.toFixed(2)}`
+  );
+  console.log(
     `消耗品/run: 傷薬入手/消費=${healAcquired.toFixed(2)}/${result.averageHealPotionsConsumed.toFixed(2)}, ` +
     `罠kit入手/消費=${result.averageTrapKitsAcquired.toFixed(2)}/${result.averageTrapKitsUsed.toFixed(2)}, ` +
     `翼(出発)入手/消費=${departureWingAcquired.toFixed(2)}/${departureWingUsed.toFixed(2)}, ` +
     `鑑定粉入手/消費=${result.averageIdentificationPowderAcquired.toFixed(2)}/` +
-    `${result.averageIdentificationPowderUsed.toFixed(2)}`
+    `${result.averageIdentificationPowderUsed.toFixed(2)}, ` +
+    `終了残量=${result.averageIdentificationPowderRemaining.toFixed(2)}, ` +
+    `枯渇率=${formatWilson(
+      result.identificationPowderDepletionRate * RUNS_PER_CASE,
+      RUNS_PER_CASE
+    )}`
   );
 }
 
@@ -5587,17 +5748,20 @@ function printEliteMetrics(results) {
 function printIdentificationMetrics(results, policy) {
   console.log(`\n【${policy.label} 未鑑定判断・呪い実測】`);
   console.log(
-    "目標深度 | 平均到達深度 | 生還率 | EV/時間 | 粉入手/Run | 粉消費/Run | 鑑定回数/Run | 未鑑定着用/Run | 呪い被弾/Run"
+    "目標深度 | 平均到達深度 | 生還率(Wilson) | EV/時間 | 粉入手/Run | 粉消費/Run | 粉残量/Run | 枯渇率 | 鑑定回数/Run | 未鑑定着用/Run | 呪い被弾/Run"
   );
-  console.log(
-    "---------|--------------|--------|----------|------------|------------|--------------|----------------|--------------"
-  );
+  console.log("---------|--------------|--------------|----------|------------|------------|------------|--------|--------------|----------------|--------------");
   results.forEach(result => {
     console.log(
       `${result.label.padEnd(8)} | ${result.averageReachedFloor.toFixed(2).padStart(12)} | ` +
-      `${formatPercent(result.survivalRate).padStart(6)} | ${result.materialEvPerTime.toFixed(4).padStart(8)} | ` +
+      `${formatWilson(result.survivedRuns, RUNS_PER_CASE).padStart(18)} | ${result.materialEvPerTime.toFixed(4).padStart(8)} | ` +
       `${result.averageIdentificationPowderAcquired.toFixed(2).padStart(10)} | ` +
       `${result.averageIdentificationPowderUsed.toFixed(2).padStart(10)} | ` +
+      `${result.averageIdentificationPowderRemaining.toFixed(2).padStart(10)} | ` +
+      `${formatWilson(
+        result.identificationPowderDepletionRate * RUNS_PER_CASE,
+        RUNS_PER_CASE
+      ).padStart(16)} | ` +
       `${result.averageIdentificationCount.toFixed(2).padStart(12)} | ` +
       `${result.averageUnidentifiedWearCount.toFixed(2).padStart(14)} | ` +
       `${result.averageCurseHitCount.toFixed(2).padStart(12)}`
@@ -5606,7 +5770,15 @@ function printIdentificationMetrics(results, policy) {
     console.log(
       `  粉入手内訳/Run: 開始=${source.starting.toFixed(2)}, 工房=${source.workshop.toFixed(2)}, ` +
       `出発クラフト=${source.departureCraft.toFixed(2)}, 宝箱=${source.chest.toFixed(2)}, ` +
-      `図鑑初撃破=${source.codex.toFixed(2)}`
+      `図鑑初撃破=${source.codex.toFixed(2)}, 節目商人=${source.merchant.toFixed(2)}`
+    );
+    console.log(
+      `  平均95%CI（正規近似）: 到達=${result.mean95CI.reachedFloor}, ` +
+      `bank=${result.mean95CI.bankedMaterialEv}, EV/時間=${result.mean95CI.materialEvPerTime}, ` +
+      `素材入手=${result.mean95CI.materialAcquired}, 素材消費=${result.mean95CI.materialConsumed}, ` +
+      `粉入手=${result.mean95CI.identificationPowderAcquired}, ` +
+      `粉消費=${result.mean95CI.identificationPowderUsed}, ` +
+      `粉残量=${result.mean95CI.identificationPowderRemaining}`
     );
   });
 }
@@ -5616,7 +5788,7 @@ function printIdentificationComparison(resultsByPolicy, scenario) {
   const gambleResults = resultsByPolicy.get("gamble");
   if (!powderResults || !gambleResults) return;
 
-  console.log(`\n【${scenario.label} 方針A/B 合否判定】`);
+  console.log(`\n【${scenario.label} 鑑定方針比較】`);
   TARGET_DEPTHS.forEach(targetDepth => {
     const powder = powderResults.find(result => result.targetDepth === targetDepth);
     const gamble = gambleResults.find(result => result.targetDepth === targetDepth);
@@ -5637,14 +5809,30 @@ function printIdentificationComparison(resultsByPolicy, scenario) {
     `合否（B20基準）: ${holdDominates ? "先送りが支配戦略" : "不合格（先送りが支配戦略ではない）"}`
   );
 }
+
+function printFloorMilestoneMetrics(result) {
+  console.log(`\n【${result.label} B5/B10 entrant・突破・死亡】`);
+  [5, 10].forEach(floor => {
+    const entrants = result.entrantsByFloor[floor] || 0;
+    const breakthroughs = result.breakthroughsByFloor[floor] || 0;
+    const deaths = result.deathsByFloor[floor] || 0;
+    console.log(
+      `B${floor}: entrant=${formatWilson(entrants, RUNS_PER_CASE)}, ` +
+      `突破=${formatWilson(breakthroughs, entrants)}, ` +
+      `死亡=${formatWilson(deaths, entrants)}`
+    );
+  });
+}
+
 function printBuildSupplyMetrics(results) {
-  console.log("戦略       | 装備入手 | 前半入手 | 深層入手 | core/装備 | core遭遇run率 | 前半core遭遇run率 | core装備run率 | 平均換装 | 前半換装 | 深層換装");
-  console.log("-----------|----------|----------|----------|-----------|---------------|-------------------|-------------|----------|----------|----------");
+  console.log("戦略       | 装備入手 | 前半入手 | 深層入手 | core/装備(95%CI) | core遭遇run率 | 前半core遭遇run率 | core装備run率 | 平均換装 | 前半換装 | 深層換装");
+  console.log("-----------|----------|----------|----------|------------------|---------------|-------------------|-------------|----------|----------|----------");
   results.forEach(result => {
     console.log(
       `${result.label.padEnd(10)} | ${result.averageEquipmentFound.toFixed(2).padStart(8)} | ` +
       `${result.averageEarlyEquipmentFound.toFixed(2).padStart(8)} | ${result.averageDeepEquipmentFound.toFixed(2).padStart(8)} | ` +
-      `${formatPercent(result.coreEquipmentShare).padStart(9)} | ${formatPercent(result.coreEncounterRate).padStart(13)} | ` +
+      `${formatWilson(result.coreEquipmentFound, result.equipmentFound).padStart(22)} | ` +
+      `${formatWilson(result.coreEncounterRuns, RUNS_PER_CASE).padStart(20)} | ` +
       `${formatPercent(result.earlyCoreEncounterRate).padStart(17)} | ${formatPercent(result.coreEquippedRate).padStart(11)} | ` +
       `${result.averageEquipmentUpgrades.toFixed(2).padStart(8)} | ` +
       `${result.averageEarlyEquipmentUpgrades.toFixed(2).padStart(8)} | ${result.averageDeepEquipmentUpgrades.toFixed(2).padStart(8)}`
@@ -5761,9 +5949,9 @@ function printTrapSenseSupplyMetrics(result) {
 function printCoreRetentionDetail(result) {
   console.log(`\n【${result.label} core定着詳細】`);
   console.log(
-    `全core: 遭遇=${formatPercent(result.coreEncounterRate)}, ` +
-    `終了時装備=${formatPercent(result.coreEquippedRate)}, ` +
-    `遭遇→装備定着=${formatPercent(result.coreRetentionRate)}`
+    `全core: 遭遇=${formatWilson(result.coreEncounterRuns, RUNS_PER_CASE)}, ` +
+    `終了時装備=${formatWilson(result.coreEquippedRuns, RUNS_PER_CASE)}, ` +
+    `遭遇→装備定着=${formatWilson(result.coreEquippedRuns, result.coreEncounterRuns)}`
   );
   const coreCountDistribution = Object.entries(result.coreEquippedCountDistribution)
     .sort(([left], [right]) => Number(left) - Number(right))
@@ -5771,14 +5959,14 @@ function printCoreRetentionDetail(result) {
     .join(" / ");
   console.log(`終了時core装備数分布（active core数/run）: ${coreCountDistribution}`);
   console.log(
-    `combat: 遭遇=${formatPercent(result.combatCoreEncounterRate)}, ` +
-    `終了時装備=${formatPercent(result.combatCoreEquippedRate)}, ` +
-    `定着=${formatPercent(result.combatCoreRetentionRate)}`
+    `combat: 遭遇=${formatWilson(result.combatCoreEncounterRuns, RUNS_PER_CASE)}, ` +
+    `終了時装備=${formatWilson(result.combatCoreEquippedRuns, RUNS_PER_CASE)}, ` +
+    `定着=${formatWilson(result.combatCoreEquippedRuns, result.combatCoreEncounterRuns)}`
   );
   console.log(
-    `economy: 遭遇=${formatPercent(result.economyCoreEncounterRate)}, ` +
-    `終了時装備=${formatPercent(result.economyCoreEquippedRate)}, ` +
-    `定着=${formatPercent(result.economyCoreRetentionRate)}`
+    `economy: 遭遇=${formatWilson(result.economyCoreEncounterRuns, RUNS_PER_CASE)}, ` +
+    `終了時装備=${formatWilson(result.economyCoreEquippedRuns, RUNS_PER_CASE)}, ` +
+    `定着=${formatWilson(result.economyCoreEquippedRuns, result.economyCoreEncounterRuns)}`
   );
   console.log("遭遇core別（run数。未装備理由は最終非装備runの主因）:");
   ENABLED_CORE_AFFIXES.forEach(affix => {
@@ -5910,7 +6098,7 @@ function printFailureComment(results) {
 }
 
 export function runDepthSimulationTask(
-  { kind, scenarioId, identificationPolicyId = "legacy" },
+  { kind, scenarioId, identificationPolicyId = "powder" },
   { scoringProfile, scoringProfiles = {}, scoringProfilesByScenario = {} }
 ) {
   resetSimulationRandom(SIM_SEED);
@@ -5920,7 +6108,7 @@ export function runDepthSimulationTask(
     scoringProfile;
   const identificationPolicy =
     IDENTIFICATION_POLICY_DEFINITIONS[identificationPolicyId] ||
-    IDENTIFICATION_POLICY_DEFINITIONS.legacy;
+    IDENTIFICATION_POLICY_DEFINITIONS.powder;
   if (kind === "scenario") {
     const scenario = getScenarioById(scenarioId);
     return TARGET_DEPTHS.map(targetDepth => simulateCase({
@@ -6018,7 +6206,7 @@ console.log(
 );
 console.log(`傷薬商人方針: ${DEFAULT_HEAL_POTION_MERCHANT_POLICY}（マイルストーンで所持0時に1個購入）`);
 console.log(`core価値calibration: B1→B20 N=${CALIBRATION_RUNS} / 方針=${ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id).join(",")}`);
-console.log(`識別方針切替: IDENTIFICATION_POLICY=${SIM_ENV.IDENTIFICATION_POLICY || "legacy"}`);
+console.log(`識別方針切替: IDENTIFICATION_POLICY=${SIM_ENV.IDENTIFICATION_POLICY || "powder"}`);
 console.log(
   `仮定: 探索係数=${EXPLORATION_FACTOR}, 宝箱拾得率=${CHEST_PICKUP_RATE}, ` +
   `戦闘ターン重み=${COMBAT_TURN_WEIGHT}`
@@ -6044,13 +6232,14 @@ console.log(
 console.log(
   `供給仮定: 宝箱の本体/装身具分岐を実ロジック準拠で反映、` +
   `宝箱TOWN_PORTAL/状態回復薬をinventory追加・使用対象化、` +
-  `方針A/Bの鑑定粉は開始${IDENTIFICATION_BALANCE.startingPowder}個+出発クラフト分を含み、` +
+  `powder/gambleの鑑定粉は開始${IDENTIFICATION_BALANCE.startingPowder}個+出発クラフト分を含み、` +
   `宝箱${IDENTIFICATION_BALANCE.chestPowderChance * 100}%と実applyCombatRewardsの図鑑5種ごと+1を計測、` +
+  "節目商人の鑑定粉は自動購入せず未観測（任意購入のため別感度が必要）、" +
   `マイルストーン商人の不足状態回復薬を実素材で購入、` +
   `core判定=enabled ${ENABLED_CORE_AFFIXES.length}/${CORE_AFFIXES.length}種+affix_rules helper`
 );
 console.log(
-  "非モデル化: テレポーター移動先の再経路化、商人での罠外し/鑑定粉購入、" +
+  "非モデル化: テレポーター移動先の再経路化、商人での罠外し/鑑定粉購入（任意行動）、" +
   "上薬・MP消費/強化アイテムの能動使用、マップ上の任意寄り道、" +
   "徘徊エリートの移動・知覚・偶発接触、人間の敵別判断（固定閾値で代理）"
 );
@@ -6103,7 +6292,7 @@ const taskResults = await runSimTasks({
     { kind: "milestone", identificationPolicyId: policy.id }
   ]),
   context: {
-    scoringProfile: coreScoringProfiles.legacy || coreScoringProfiles[ACTIVE_IDENTIFICATION_POLICIES[0].id],
+    scoringProfile: coreScoringProfiles[ACTIVE_IDENTIFICATION_POLICIES[0].id],
     scoringProfiles: coreScoringProfiles,
     scoringProfilesByScenario: coreScoringProfilesByScenario
   }
@@ -6136,6 +6325,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   printBuildSupplyMetrics(results);
   printWorkshopEffects(results.at(-1));
   printCoreRetentionDetail(results.at(-1));
+  printFloorMilestoneMetrics(results.at(-1));
 
   const monotonic = isMonotonicallyIncreasing(results);
   const bestDepthResult = [...results]
