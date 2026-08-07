@@ -87,8 +87,8 @@ Permanent unlocks include:
 
 Current workshop expansion (issue #410) adds measured sidegrade cores
 先手必勝・罠喰い・巨人殺し・反撃の棘・盗掘王・学者の眼, a Fighter starting-gear
-option (MACE), and one permanent convenience node that grants +1 starting
-identify powder. The six pre-existing core IDs are workshop-gated at the
+option (FIGHTER_SABER, atk8), and one permanent convenience node that grants
++1 starting identify powder. The six pre-existing core IDs are workshop-gated at the
 adopted 10-material total per first rank; the existing `pool_blood_wand` node
 remains unchanged at 7 materials. This keeps the explicit early-run access
 tradeoff while adding pure content. The identify-powder node is policy-sensitive

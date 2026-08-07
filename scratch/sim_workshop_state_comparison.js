@@ -83,6 +83,8 @@ resetSimulationRandom(Number(process.env.SIM_SEED || 231));
 
 for (const { stateId, scenario } of scenarios) {
   const scoringProfile = scoringProfiles.get(stateId);
+  // state間で同じ乱数系列を再利用し、差分を状態差として比較する。
+  resetSimulationRandom(Number(process.env.SIM_SEED || 231));
   const reachedFloors = [];
   let b5Breakthroughs = 0;
   let bankedMaterials = 0;

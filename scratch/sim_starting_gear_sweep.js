@@ -18,7 +18,7 @@ const CALIBRATION_RUNS = Math.max(
 );
 const SEED = Number(process.env.SIM_SEED || 231) >>> 0;
 const IDENTIFICATION_POLICY = getResolvedSimulationEnv().IDENTIFICATION_POLICY || "legacy";
-const CANDIDATES = ["DAGGER", "MACE", "SHORT_SWORD", "LONG_SWORD"];
+const CANDIDATES = ["DAGGER", "MACE", "SHORT_SWORD", "FIGHTER_SABER", "LONG_SWORD"];
 
 function wilson(successes, trials) {
   const z = 1.96;
@@ -51,15 +51,15 @@ const baseScenario = getScenarioById("workshop-gear");
 const purchased = purchaseWorkshopNode(
   { "獣の牙": 4, "鉄片": 2 },
   { ranks: {} },
-  "gear_fighter_mace"
+  "gear_fighter_saber"
 );
-if (!purchased.ok || purchased.workshop.ranks.gear_fighter_mace !== 1) {
-  throw new Error("startingGear sweep must use purchaseWorkshopNode for gear_fighter_mace");
+if (!purchased.ok || purchased.workshop.ranks.gear_fighter_saber !== 1) {
+  throw new Error("startingGear sweep must use purchaseWorkshopNode for gear_fighter_saber");
 }
 const workshop = {
   ranks: {
     ...baseScenario.workshop.ranks,
-    gear_fighter_mace: purchased.workshop.ranks.gear_fighter_mace
+    gear_fighter_saber: purchased.workshop.ranks.gear_fighter_saber
   }
 };
 
@@ -76,7 +76,7 @@ console.log(
   `calibration=${CALIBRATION_RUNS}, seed=${SEED}, ` +
   `IDENTIFICATION_POLICY=${IDENTIFICATION_POLICY}`
 );
-console.log("候補 | atk | 攻撃差 | 平均到達階(95%CI) | B5突破率(95%CI) | B5死亡率(95%CI) | bank/run | 素材EV/時間");
+console.log("候補 | atk | 攻撃差 | 平均到達階(95%CI) | B5突破率(95%CI) | B5死亡率(95%CI) | bank/run | 素材EV/時間 | 実装上の装備開始率(95%CI)");
 
 for (const candidateId of CANDIDATES) {
   const candidate = ITEMS[candidateId];
@@ -113,10 +113,30 @@ for (const candidateId of CANDIDATES) {
     bankedMaterials += result.bankedMaterials;
     timeCost += result.timeCost;
   }
+  resetSimulationRandom(SEED);
+  let automaticallyApplied = 0;
+  for (let runIndex = 0; runIndex < RUNS; runIndex++) {
+    const result = simulateRun({
+      className: "Fighter",
+      startFloor: 1,
+      targetDepth: 20,
+      runIndex,
+      seriesId: "starting-gear-sweep-usage",
+      scoringProfile,
+      scenario: {
+        ...baseScenario,
+        identificationPolicy: IDENTIFICATION_POLICY,
+        startingGearCandidatesOverride: [candidateId]
+      },
+      workshop
+    });
+    automaticallyApplied += Number(result.workshopEffects.startingGearApplied === candidateId);
+  }
   console.log(
     `${candidateId} | ${candidate.atk} | ${candidate.atk - ITEMS.SHORT_SWORD.atk} | ` +
     `${formatMean(reachedFloors)} | ${formatRate(b5Breakthroughs, RUNS)} | ` +
     `${formatRate(b5Deaths, b5Entrants)} | ${(bankedMaterials / RUNS).toFixed(2)} | ` +
-    `${(bankedMaterials / Math.max(1, timeCost)).toFixed(4)}`
+    `${(bankedMaterials / Math.max(1, timeCost)).toFixed(4)} | ` +
+    `${formatRate(automaticallyApplied, RUNS)}`
   );
 }

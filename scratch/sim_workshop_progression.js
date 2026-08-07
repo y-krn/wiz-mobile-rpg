@@ -829,6 +829,7 @@ function createFiniteTotals() {
     workshopStepCounts: {},
     workshopStateCounts: {},
     workshopPhaseCounts: {},
+    workshopPhaseOutcomeCounts: {},
     workshopPhaseSamples: {},
     workshopNodeAcquisitionCounts: Object.fromEntries(
       WORKSHOP_NODES.map(node => [node.id, 0])
@@ -1118,6 +1119,21 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
       trialPurchasePosition += event.purchasedNodeIds.length;
       totals.workshopPhaseCounts[event.workshopState.phase] =
         (totals.workshopPhaseCounts[event.workshopState.phase] || 0) + 1;
+      const phaseOutcome = totals.workshopPhaseOutcomeCounts[event.workshopState.phase] || {
+        runs: 0,
+        reachedB5: 0,
+        b5Breakthrough: 0,
+        b5Deaths: 0,
+        banked: 0,
+        time: 0
+      };
+      phaseOutcome.runs++;
+      phaseOutcome.reachedB5 += Number(result.reachedFloor >= 5);
+      phaseOutcome.b5Breakthrough += Number(result.reachedFloor > 5);
+      phaseOutcome.b5Deaths += Number(result.deathFloor === 5);
+      phaseOutcome.banked += result.bankedMaterials;
+      phaseOutcome.time += result.timeCost;
+      totals.workshopPhaseOutcomeCounts[event.workshopState.phase] = phaseOutcome;
       if (!totals.workshopPhaseSamples[event.workshopState.phase]) {
         totals.workshopPhaseSamples[event.workshopState.phase] = [];
       }
@@ -1457,6 +1473,19 @@ function printWorkshopStateDistribution(result) {
       `代表 ${formatWorkshopState(representative.state)}`
     );
   });
+  console.log("phase別 outcome（run開始時state、集計の購入軌跡を含む）:");
+  Object.entries(phaseLabels).forEach(([phase, label]) => {
+    const outcome = totals.workshopPhaseOutcomeCounts[phase];
+    if (!outcome) return;
+    console.log(
+      `  ${label}: ${formatWilson(outcome.runs, totals.runs)}, ` +
+      `B5到達=${formatWilson(outcome.reachedB5, outcome.runs)}, ` +
+      `B5突破=${formatConditionalWilson(outcome.b5Breakthrough, outcome.reachedB5)}, ` +
+      `B5死亡=${formatConditionalWilson(outcome.b5Deaths, outcome.reachedB5)}, ` +
+      `bank/run=${(outcome.banked / Math.max(1, outcome.runs)).toFixed(2)}, ` +
+      `EV/時間=${(outcome.banked / Math.max(1, outcome.time)).toFixed(4)}`
+    );
+  });
   printWorkshopAcquisitionOrder(result);
   console.log("上位の完全一致state:");
   Object.values(totals.workshopStateCounts)
@@ -1557,7 +1586,10 @@ export async function runWorkshopProgressionSimulation() {
     {},
     PROGRESSION_IDENTIFICATION_POLICY
   );
-  const finiteTasks = FINITE_PORTAL_SCENARIOS.flatMap(scenario =>
+  const activeFiniteScenarios = process.env.PROGRESSION_ONLY_REFERENCE === "1"
+    ? FINITE_PORTAL_SCENARIOS.filter(scenario => scenario.isReference)
+    : FINITE_PORTAL_SCENARIOS;
+  const finiteTasks = activeFiniteScenarios.flatMap(scenario =>
     Array.from({ length: TRIALS }, (_, trial) => ({
       kind: "finite",
       scenarioId: scenario.id,
@@ -1572,7 +1604,7 @@ export async function runWorkshopProgressionSimulation() {
     context: { scoringProfile }
   });
   let resultOffset = 0;
-  const finiteResults = FINITE_PORTAL_SCENARIOS.map(scenario => {
+  const finiteResults = activeFiniteScenarios.map(scenario => {
     const trialResults = taskResults.slice(resultOffset, resultOffset + TRIALS);
     resultOffset += TRIALS;
     return aggregateFinitePortalScenario(scenario, trialResults);

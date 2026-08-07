@@ -26,12 +26,12 @@ const WORKSHOP_BASE_NODES = [
     grants: { startingGear: "SAGE_STAFF" }
   },
   {
-    id: "gear_fighter_mace",
+    id: "gear_fighter_saber",
     category: "startingGear",
     name: "戦士武器候補",
-    description: "潜行開始時にメイスを選べる。",
+    description: "潜行開始時に鍛錬サーベルを選べる。",
     costs: [{ "獣の牙": 4, "鉄片": 2 }],
-    grants: { startingGear: "MACE" }
+    grants: { startingGear: "FIGHTER_SABER" }
   },
   {
     id: "pool_blood_wand",

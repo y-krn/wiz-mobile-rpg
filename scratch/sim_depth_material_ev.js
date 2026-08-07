@@ -515,7 +515,7 @@ const WORKSHOP_STATE_RANKS = Object.freeze({
   }),
   gear: Object.freeze({
     gear_rapier: 1,
-    gear_fighter_mace: 1,
+    gear_fighter_saber: 1,
     stat_str: 5,
     stat_int: 2,
     stat_pie: 2,
@@ -525,7 +525,7 @@ const WORKSHOP_STATE_RANKS = Object.freeze({
   }),
   gearWithPure: Object.freeze({
     gear_rapier: 1,
-    gear_fighter_mace: 1,
+    gear_fighter_saber: 1,
     convenience_identify_powder: 1,
     stat_str: 5,
     stat_int: 2,
@@ -575,7 +575,7 @@ const WORKSHOP_STATE_RANKS = Object.freeze({
   complete: Object.freeze({
     gear_rapier: 1,
     gear_sage_staff: 1,
-    gear_fighter_mace: 1,
+    gear_fighter_saber: 1,
     pool_blood_wand: 1,
     pool_deep_spells: 1,
     pool_opener: 1,
