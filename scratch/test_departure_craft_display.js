@@ -56,16 +56,23 @@ check(
   ]),
   JSON.stringify(CRAFT_RECIPES.map(recipe => recipe.resultId))
 );
+const sameCategoryCraftRecipeIds = getSortedCraftRecipes([
+  { resultId: "MANA_POTION" },
+  { resultId: "HEAL_POTION" },
+  { resultId: "IDENTIFY_POWDER" },
+  { resultId: "ANTIDOTE" },
+  { resultId: "UNKNOWN_RECIPE" }
+]).map(recipe => recipe.resultId);
 check(
   "same-category and unknown recipes retain input order",
-  getSortedCraftRecipes([
-    { resultId: "MANA_POTION" },
-    { resultId: "HEAL_POTION" },
-    { resultId: "IDENTIFY_POWDER" },
-    { resultId: "ANTIDOTE" },
-    { resultId: "UNKNOWN_RECIPE" }
-  ]).map(recipe => recipe.resultId),
-  ["MANA_POTION", "HEAL_POTION", "ANTIDOTE", "IDENTIFY_POWDER", "UNKNOWN_RECIPE"]
+  JSON.stringify(sameCategoryCraftRecipeIds) === JSON.stringify([
+    "MANA_POTION",
+    "HEAL_POTION",
+    "ANTIDOTE",
+    "IDENTIFY_POWDER",
+    "UNKNOWN_RECIPE"
+  ]),
+  JSON.stringify(sameCategoryCraftRecipeIds)
 );
 
 const HEAL_POTION = "HEAL_POTION";
