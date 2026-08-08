@@ -157,6 +157,30 @@ test("工房追加coreはpoolノード解放前後で抽選が切り替わる", 
   );
 });
 
+test("生成API: magic coreChanceがcorePoolの抽選へ反映", () => {
+  const originalComposition = AFFIX_BALANCE.rollComposition.magic;
+  const originalBudgets = AFFIX_BALANCE.budgetsByRarityAndFloor.magic;
+  try {
+    AFFIX_BALANCE.rollComposition.magic = { support: 1, core: 1, coreChance: 1 };
+    AFFIX_BALANCE.budgetsByRarityAndFloor.magic = [0, 10, 10, 10, 10, 10];
+    const guaranteedCore = generateRandomEquipment(5, {
+      forceRarity: "magic",
+      rng: () => 0
+    });
+    assert.equal(guaranteedCore.affixes.filter(affix => affix.kind === "core").length, 1);
+
+    AFFIX_BALANCE.rollComposition.magic.coreChance = 0;
+    const supportOnly = generateRandomEquipment(5, {
+      forceRarity: "magic",
+      rng: () => 0
+    });
+    assert.equal(supportOnly.affixes.filter(affix => affix.kind === "core").length, 0);
+  } finally {
+    AFFIX_BALANCE.rollComposition.magic = originalComposition;
+    AFFIX_BALANCE.budgetsByRarityAndFloor.magic = originalBudgets;
+  }
+});
+
 test("素材経済サポートenabled・浅層経済3/戦闘1・深層逆転", () => {
   const phase3 = [
     "victoryMaterial", "stairsHeal", "identifyDiscount", "materialFind", "contractReward"
