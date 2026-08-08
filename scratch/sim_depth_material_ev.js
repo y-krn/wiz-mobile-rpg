@@ -5951,6 +5951,12 @@ function simulateCase({
   };
 }
 
+function snapshotDepthResult(result) {
+  // workerが後続taskを処理する前に、深度ケースのtop-level所有権を切断する。
+  // 再現した汚染はscalar top-level fieldに限られ、nested集計はケース内で生成・複製済み。
+  return { ...result };
+}
+
 function formatPercent(rate) {
   return `${(rate * 100).toFixed(1)}%`;
 }
@@ -6801,9 +6807,8 @@ export function runDepthSimulationTask(
     IDENTIFICATION_POLICY_DEFINITIONS.powder;
   if (kind === "scenario") {
     const scenario = getScenarioById(scenarioId);
-    return TARGET_DEPTHS.map(targetDepth => ({
-      // 同じworkerで深度ケースを連続実行した際の後続ケース汚染を防ぐ。
-      ...simulateCase({
+    return TARGET_DEPTHS.map(targetDepth =>
+      snapshotDepthResult(simulateCase({
         startFloor: 1,
         targetDepth,
         label: `B${targetDepth}撤退`,
@@ -6811,34 +6816,30 @@ export function runDepthSimulationTask(
         scoringProfile: scoringProfileForPolicy,
         scenario,
         identificationPolicy
-      })
-    }));
+      }))
+    );
   }
 
   const legacyScenario = getScenarioById("legacy-no-portal");
   return [
-    {
-      ...simulateCase({
-        startFloor: 10,
-        targetDepth: 15,
-        label: "B10→B15",
-        seriesId: "milestone-10-15",
-        scoringProfile: scoringProfileForPolicy,
-        scenario: legacyScenario,
-        identificationPolicy
-      })
-    },
-    {
-      ...simulateCase({
-        startFloor: 1,
-        targetDepth: 15,
-        label: "B1→B15",
-        seriesId: "baseline-1-15",
-        scoringProfile: scoringProfileForPolicy,
-        scenario: legacyScenario,
-        identificationPolicy
-      })
-    }
+    snapshotDepthResult(simulateCase({
+      startFloor: 10,
+      targetDepth: 15,
+      label: "B10→B15",
+      seriesId: "milestone-10-15",
+      scoringProfile: scoringProfileForPolicy,
+      scenario: legacyScenario,
+      identificationPolicy
+    })),
+    snapshotDepthResult(simulateCase({
+      startFloor: 1,
+      targetDepth: 15,
+      label: "B1→B15",
+      seriesId: "baseline-1-15",
+      scoringProfile: scoringProfileForPolicy,
+      scenario: legacyScenario,
+      identificationPolicy
+    }))
   ];
 }
 

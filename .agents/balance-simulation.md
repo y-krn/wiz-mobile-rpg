@@ -105,6 +105,9 @@ core装備率/実発動率/定着率・終了時core数分布には Wilson 95% C
 `availableParallelism()`、CIで4を使い、タスク数を上限にする既定値へ任せる。
 過去の測定コマンドを再利用する場合も `SIM_PARALLEL=4` を付けず、実行環境の既定値を
 記録する。比較結果には出力 SHA、wall-clock、総 CPU 時間を併記する。
+`TARGET_DEPTHS` の複数結果を1 taskで返すsimは、各caseのtop-level resultを返却直前に
+snapshotする。同一workerのtask再利用時に後続caseの集計値が先行caseへ混入し得るため、
+scenario数・worker数だけで安全性を推測せず、raw resultとの差分で全フィールドを監査する。
 
 ## Required Verification
 
