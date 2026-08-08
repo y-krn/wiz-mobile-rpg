@@ -67,7 +67,6 @@ export const AFFIX_BALANCE = {
     equipment: { magic: 1, rare: 2, epic: 3 },
     accessory: { magic: 1, rare: 1, epic: 2 }
   },
-  coreCurseChance: 0.3,
   corePoolWeights: {
     shallowMaxFloor: 2,
     shallow: { combat: 1, economy: 3 },

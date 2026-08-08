@@ -84,9 +84,8 @@ real run. Each item below has already produced a wrong conclusion at least once.
 `src/systems/identification.js` の `identifyEquipment`、
 `src/rules/identification_rules.js` の `identifyCost` / `isCurseLocked`、
 `src/systems/equipment_generation.js` の未鑑定装備生成を通る実装モデル。
-`AFFIX_BALANCE.coreCurseChance` は設計定数だが現generatorからは参照されず、
-実測は `IDENTIFICATION_BALANCE.coreCurseBonus` 経路に従う。この不一致は別修正候補であり、
-このsimでは実装を再現して直さない。
+装備生成の呪い率は `IDENTIFICATION_BALANCE` の floor-scaled base chance と
+`coreCurseBonus` を通る。コア用の別定数は置かず、実測もこの generator 経路に従う。
 `gamble` は `revealEquipmentOnEquip` を通る即着用の行動反実仮想。
 `legacy` は全装備を鑑定済み・呪いなしとして扱う実装外反実仮想であり、
 既定・実装モデルと呼ばない。
