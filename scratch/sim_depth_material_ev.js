@@ -476,6 +476,10 @@ const CORE_SCORE_DROP_TOLERANCE = parseSimulationRateOverride(
   0,
   { max: 0.95 }
 );
+const CURSE_LOCK_MODE = process.env.SIM_CURSE_LOCK_MODE || "current";
+if (!new Set(["current", "off"]).has(CURSE_LOCK_MODE)) {
+  throw new Error(`SIM_CURSE_LOCK_MODE must be current or off: ${CURSE_LOCK_MODE}`);
+}
 
 // 仮値・感度分析対象: critical pathに対する寄り道込み歩数を1.4倍と置く。
 const EXPLORATION_FACTOR = 1.4;
@@ -2705,13 +2709,17 @@ function getUnidentifiedSelectionScore(item) {
 }
 
 function isPotentialUnidentifiedUpgrade(item, oldEquipment) {
-  if (isCurseLocked(oldEquipment)) return false;
+  if (isSimulationCurseLocked(oldEquipment)) return false;
   if (!oldEquipment) return true;
   return (item?.level || 0) >= (oldEquipment.level || 0);
 }
 
 function isEquipment(item) {
   return ["weapon", "shield", "armor", "accessory"].includes(item?.type);
+}
+
+function isSimulationCurseLocked(item) {
+  return CURSE_LOCK_MODE === "current" && isCurseLocked(item);
 }
 
 function getItemCoreId(item) {
@@ -3107,10 +3115,19 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
 
       const slot = itemData.type;
       const oldEquipment = character.equipment[slot];
-      if (isCurseLocked(oldEquipment)) {
+      if (isSimulationCurseLocked(oldEquipment)) {
         const blockedCoreId = getItemCoreId(inventoryItem);
         if (blockedCoreId) metrics.coreBlockedByCurseLockIds.add(blockedCoreId);
         recordCoreDecision(metrics, inventoryItem, "current-curse-locked");
+        if (metrics.equipmentTelemetry) {
+          metrics.equipmentTelemetry.push({
+            type: "lock-block",
+            floor: state.floor,
+            oldCoreId: getItemCoreId(oldEquipment),
+            candidateCoreId: blockedCoreId,
+            oldCursed: true
+          });
+        }
         return;
       }
       const policy = state.simPolicy.identificationPolicy;
@@ -3200,9 +3217,11 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         candidate,
         candidateCoreId,
         candidateIsUnidentified,
+        candidateScore,
         index,
         oldEquipment,
         oldCoreId,
+        scoreBefore: currentScore,
         selectionScore,
         slot
       };
@@ -3216,8 +3235,21 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       metrics.unidentifiedWearCount++;
     }
     if (best.candidate.curseEffectId) metrics.curseHitCount++;
-    if (best.candidateCoreId && isCurseLocked(best.candidate)) {
+    if (best.candidateCoreId && isSimulationCurseLocked(best.candidate)) {
       metrics.coreCursedLockedIds.add(best.candidateCoreId);
+    }
+    if (metrics.equipmentTelemetry) {
+      metrics.equipmentTelemetry.push({
+        type: "swap",
+        floor: state.floor,
+        scoreBefore: best.scoreBefore,
+        scoreAfter: getEquipmentScore(character, scoringProfile, state.floor),
+        oldCoreId: best.oldCoreId,
+        candidateCoreId: best.candidateCoreId,
+        oldCursed: Boolean(best.oldEquipment && isCurseLocked(best.oldEquipment)),
+        candidateCursed: Boolean(isCurseLocked(best.candidate)),
+        replacement: Boolean(best.oldEquipment)
+      });
     }
     if (best.candidateCoreId) {
       metrics.coreEverEquippedIds.add(best.candidateCoreId);
@@ -4270,7 +4302,7 @@ function finishRun(state, outcome, metrics) {
   )];
   const finalCoreCurseLockedIds = [...new Set(
     Object.values(state.party[0].equipment || {})
-      .filter(item => isCurseLocked(item))
+      .filter(item => isSimulationCurseLocked(item))
       .map(getItemCoreId)
       .filter(Boolean)
   )];
@@ -4459,7 +4491,10 @@ function finishRun(state, outcome, metrics) {
     materialConsumedByMerchant: { ...metrics.materialConsumedByMerchant },
     combatMaterialEvents: metrics.combatMaterialEvents,
     combatMaterialHitEvents: metrics.combatMaterialHitEvents,
-    diagnostics: metrics.diagnostics
+    diagnostics: metrics.diagnostics,
+    ...(metrics.equipmentTelemetry
+      ? { equipmentTelemetry: metrics.equipmentTelemetry }
+      : {})
   };
 }
 
@@ -4485,7 +4520,8 @@ export function simulateRun({
   scenario,
   workshop = { ranks: {} },
   supplyOverride = null,
-  collectDiagnostics = false
+  collectDiagnostics = false,
+  collectEquipmentTelemetry = false
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   let state = createSimulationState(className, startFloor, runSeed, scenario, workshop);
@@ -4499,6 +4535,7 @@ export function simulateRun({
     equipmentUpgrades: 0,
     earlyEquipmentUpgrades: 0,
     deepEquipmentUpgrades: 0,
+    equipmentTelemetry: collectEquipmentTelemetry ? [] : null,
     equipmentFound: 0,
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,

@@ -34,6 +34,7 @@ const CALIBRATION_RUNS = Math.max(
 const SEED = Number(process.env.SIM_SEED || 231) >>> 0;
 const IDENTIFICATION_POLICY = process.env.IDENTIFICATION_POLICY || "powder";
 const CONDITION_ID = process.env.ISSUE433_CONDITION || "unspecified";
+const COLLECT_EQUIPMENT_TELEMETRY = process.env.ISSUE433_TELEMETRY === "1";
 
 const REASON_KEYS = ["powder", "score", "curseLock", "replacement", "other"];
 
@@ -169,6 +170,68 @@ function milestoneMetrics(results, floor) {
   };
 }
 
+function summarizeEquipmentTelemetry(results) {
+  const byFloor = {};
+  let replacements = 0;
+  let upgrades = 0;
+  let scoreBefore = 0;
+  let scoreAfter = 0;
+  let eventCount = 0;
+  let lockBlocks = 0;
+  const lockBlockRuns = new Set();
+  results.forEach(result => {
+    (result.equipmentTelemetry || []).forEach(event => {
+      const floor = String(event.floor);
+      if (!byFloor[floor]) {
+        byFloor[floor] = {
+          events: 0,
+          replacements: 0,
+          cursedOld: 0,
+          lockBlocks: 0,
+          scoreBefore: 0,
+          scoreAfter: 0
+        };
+      }
+      const floorSummary = byFloor[floor];
+      if (event.type === "lock-block") {
+        floorSummary.lockBlocks++;
+        lockBlocks++;
+        lockBlockRuns.add(result);
+        return;
+      }
+      floorSummary.events++;
+      floorSummary.replacements += Number(event.replacement);
+      floorSummary.cursedOld += Number(event.oldCursed);
+      floorSummary.scoreBefore += event.scoreBefore;
+      floorSummary.scoreAfter += event.scoreAfter;
+      replacements += Number(event.replacement);
+      upgrades++;
+      scoreBefore += event.scoreBefore;
+      scoreAfter += event.scoreAfter;
+      eventCount++;
+    });
+  });
+  Object.values(byFloor).forEach(summary => {
+    summary.replacementRate = summary.replacements / summary.events;
+    summary.cursedOldRate = summary.cursedOld / summary.events;
+    summary.meanScoreBefore = summary.scoreBefore / summary.events;
+    summary.meanScoreAfter = summary.scoreAfter / summary.events;
+    delete summary.scoreBefore;
+    delete summary.scoreAfter;
+  });
+  return {
+    runs: results.length,
+    averageLockBlocks: lockBlocks / Math.max(1, results.length),
+    lockBlockRunRate: wilson(lockBlockRuns.size, results.length),
+    averageUpgrades: upgrades / Math.max(1, results.length),
+    averageReplacements: replacements / Math.max(1, results.length),
+    replacementRate: wilson(replacements, upgrades),
+    meanScoreBefore: eventCount ? scoreBefore / eventCount : null,
+    meanScoreAfter: eventCount ? scoreAfter / eventCount : null,
+    byFloor
+  };
+}
+
 function summarizeScenario(scenario) {
   const scoringProfile = (() => {
     resetSimulationRandom(SEED);
@@ -190,7 +253,8 @@ function summarizeScenario(scenario) {
       seriesId: "depth-20",
       scoringProfile,
       scenario: { ...scenario, identificationPolicy: IDENTIFICATION_POLICY },
-      workshop: scenario.workshop
+      workshop: scenario.workshop,
+      collectEquipmentTelemetry: COLLECT_EQUIPMENT_TELEMETRY
     }));
   }
 
@@ -203,7 +267,7 @@ function summarizeScenario(scenario) {
   const powderUsed = results.map(result => result.identificationPowderUsed);
   const powderRemaining = results.map(result => result.identificationPowderRemaining);
 
-  return {
+  const summary = {
     runs: RUNS,
     calibrationRuns: CALIBRATION_RUNS,
     mean: {
@@ -224,6 +288,10 @@ function summarizeScenario(scenario) {
     ),
     core: countCoreMetrics(results)
   };
+  if (COLLECT_EQUIPMENT_TELEMETRY) {
+    summary.equipmentTelemetry = summarizeEquipmentTelemetry(results);
+  }
+  return summary;
 }
 
 const scenarios = Object.fromEntries(
@@ -233,7 +301,7 @@ const scenarios = Object.fromEntries(
   })
 );
 
-console.log(JSON.stringify({
+const output = {
   issue: 433,
   kind: "ceiling",
   condition: CONDITION_ID,
@@ -249,6 +317,16 @@ console.log(JSON.stringify({
     detectDecay: process.env.SIM_CURSE_DETECT_DECAY_OVERRIDE || null,
     detectMin: process.env.SIM_CURSE_DETECT_MIN_OVERRIDE || null
   },
+  curseLockMode: process.env.SIM_CURSE_LOCK_MODE || "current",
   coreScoreDropTolerance: process.env.SIM_CORE_SCORE_DROP_TOLERANCE || "0",
   scenarios
-}, null, 2));
+};
+if (COLLECT_EQUIPMENT_TELEMETRY) {
+  output.equipmentTelemetry = Object.fromEntries(
+    Object.entries(scenarios).map(([scenarioId, summary]) => [
+      scenarioId,
+      summary.equipmentTelemetry
+    ])
+  );
+}
+console.log(JSON.stringify(output, null, 2));
