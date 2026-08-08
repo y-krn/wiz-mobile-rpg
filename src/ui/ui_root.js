@@ -20,6 +20,10 @@ function isDeparturePrepSubmenu() {
   return state.gameState === "submenu" && menuContext.type === "solo_start";
 }
 
+function isWorkshopSubmenu() {
+  return state.gameState === "submenu" && menuContext.type === "workshop_main";
+}
+
 function captureScrollState(element) {
   return {
     scrollTop: element.scrollTop,
@@ -199,6 +203,7 @@ export function updateUI() {
     ...EVENT_SUBMENU_TYPES
   ];
   const departurePrepSubmenu = isDeparturePrepSubmenu();
+  const workshopSubmenu = isWorkshopSubmenu();
   const isTownLikeGoal = state.gameState === "town" || departurePrepSubmenu;
 
   // Reset/Apply floor-theme class on #game-container
@@ -210,6 +215,7 @@ export function updateUI() {
     container.classList.toggle("result-mode", state.gameState === "result");
     container.classList.toggle("event-mode", state.gameState === "submenu" && eventModeSubmenus.includes(menuContext.type));
     container.classList.toggle("departure-mode", departurePrepSubmenu);
+    container.classList.toggle("workshop-mode", workshopSubmenu);
     if (state.currentRun &&
         state.gameState !== "town" &&
         state.gameState !== "gameover" &&
@@ -343,6 +349,7 @@ export function updateUI() {
     controlsPanel.classList.toggle("town-mode", state.gameState === "town");
     controlsPanel.classList.toggle("submenu-mode", state.gameState === "submenu");
     controlsPanel.classList.toggle("departure-mode", isDeparturePrepSubmenu());
+    controlsPanel.classList.toggle("workshop-mode", workshopSubmenu);
     controlsPanel.classList.toggle("chest-menu-mode", state.gameState === "submenu" && menuContext.type === "chest_menu");
     controlsPanel.classList.toggle("trap-mode", state.gameState === "trap_encounter");
   }

@@ -34,6 +34,13 @@
   flex: 1 1 auto;
 }
 
+#controls-panel.submenu-mode.workshop-mode {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
+}
+
 #controls-panel.combat-mode {
   height: auto; /* Compact — buttons sized to content, no vertical stretch */
   min-height: 0;
@@ -240,7 +247,8 @@
   gap: var(--sp-xs);
   width: 100%;
 }
-#controls-panel.departure-mode #submenu-options {
+#controls-panel.departure-mode #submenu-options,
+#controls-panel.workshop-mode #submenu-options {
   flex: 1 1 auto;
   min-height: 0;
 }
