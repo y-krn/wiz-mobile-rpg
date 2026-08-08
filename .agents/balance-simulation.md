@@ -97,6 +97,15 @@ source別に出力する。節目商人の鑑定粉は任意購入で、既定 s
 core装備率/実発動率/定着率・終了時core数分布には Wilson 95% CI を付ける。
 率の試行数が30未満の場合は未確定として結論に使わない。
 
+### Measurement defaults
+
+通常のバランス測定は `SIM_RUNS=500`、`SIM_CALIBRATION_RUNS=100` を既定とする。
+`SIM_CALIBRATION_RUNS=1000` は精度感度の比較時だけ明示する。
+`SIM_PARALLEL` は原則指定しない。未指定時はローカルで
+`availableParallelism()`、CIで4を使い、タスク数を上限にする既定値へ任せる。
+過去の測定コマンドを再利用する場合も `SIM_PARALLEL=4` を付けず、実行環境の既定値を
+記録する。比較結果には出力 SHA、wall-clock、総 CPU 時間を併記する。
+
 ## Required Verification
 
 - `npm run test:unit`

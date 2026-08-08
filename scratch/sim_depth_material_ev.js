@@ -169,7 +169,7 @@ const DEFAULT_DEPTH_SCENARIOS_CSV =
 const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_SEED: "231",
   SIM_RUNS: "500",
-  SIM_CALIBRATION_RUNS: process.env.SIM_RUNS || "500",
+  SIM_CALIBRATION_RUNS: "100",
   DEPARTURE_CRAFT_IDS: "",
   TRAP_POLICY: "conservative",
   TRAP_AVOIDANCE_POLICY: "ev",
@@ -192,8 +192,8 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
 });
 const BALANCE_MAIN_PRESET = Object.freeze({
   SIM_SEED: "231",
-  SIM_RUNS: "1000",
-  SIM_CALIBRATION_RUNS: "1000",
+  SIM_RUNS: "500",
+  SIM_CALIBRATION_RUNS: "100",
   DEPARTURE_CRAFT_IDS: "",
   TRAP_POLICY: "conservative",
   TRAP_AVOIDANCE_POLICY: "ev",
@@ -5113,7 +5113,9 @@ export function simulateRun({
             }
             if (specialEvent && !isElite) {
               // 逃走ではeventセルが消えない。1マス後退後、同じセルへ再侵入する。
-              continue;
+              // 同じstep内で再侵入すると、シミュレーション上は後退が起きず
+              // 無限に同じeventを試行する。次の探索stepへ進める。
+              continue stepLoop;
             }
             continue stepLoop;
           }
@@ -6799,66 +6801,122 @@ export function runDepthSimulationTask(
     IDENTIFICATION_POLICY_DEFINITIONS.powder;
   if (kind === "scenario") {
     const scenario = getScenarioById(scenarioId);
-    return TARGET_DEPTHS.map(targetDepth => simulateCase({
-      startFloor: 1,
-      targetDepth,
-      label: `B${targetDepth}撤退`,
-      seriesId: `depth-${targetDepth}`,
-      scoringProfile: scoringProfileForPolicy,
-      scenario,
-      identificationPolicy
+    return TARGET_DEPTHS.map(targetDepth => ({
+      // 同じworkerで深度ケースを連続実行した際の後続ケース汚染を防ぐ。
+      ...simulateCase({
+        startFloor: 1,
+        targetDepth,
+        label: `B${targetDepth}撤退`,
+        seriesId: `depth-${targetDepth}`,
+        scoringProfile: scoringProfileForPolicy,
+        scenario,
+        identificationPolicy
+      })
     }));
   }
 
   const legacyScenario = getScenarioById("legacy-no-portal");
   return [
-    simulateCase({
-      startFloor: 10,
-      targetDepth: 15,
-      label: "B10→B15",
-      seriesId: "milestone-10-15",
-      scoringProfile: scoringProfileForPolicy,
-      scenario: legacyScenario,
-      identificationPolicy
-    }),
-    simulateCase({
-      startFloor: 1,
-      targetDepth: 15,
-      label: "B1→B15",
-      seriesId: "baseline-1-15",
-      scoringProfile: scoringProfileForPolicy,
-      scenario: legacyScenario,
-      identificationPolicy
-    })
+    {
+      ...simulateCase({
+        startFloor: 10,
+        targetDepth: 15,
+        label: "B10→B15",
+        seriesId: "milestone-10-15",
+        scoringProfile: scoringProfileForPolicy,
+        scenario: legacyScenario,
+        identificationPolicy
+      })
+    },
+    {
+      ...simulateCase({
+        startFloor: 1,
+        targetDepth: 15,
+        label: "B1→B15",
+        seriesId: "baseline-1-15",
+        scoringProfile: scoringProfileForPolicy,
+        scenario: legacyScenario,
+        identificationPolicy
+      })
+    }
   ];
+}
+
+export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount }) {
+  resetSimulationRandom(SIM_SEED);
+  const workshop = scenarioId === null
+    ? undefined
+    : getScenarioById(scenarioId).workshop;
+  return {
+    policyId,
+    scenarioId,
+    profile: calibrateCoreScoringProfile(runCount, {}, policyId, workshop)
+  };
+}
+
+export function runCalibratedDepthSimulationTask(
+  { kind, scenarioId = null, identificationPolicyId = "powder", runCount },
+  context
+) {
+  const calibration = runCoreCalibrationTask({
+    policyId: identificationPolicyId,
+    scenarioId,
+    runCount
+  });
+  const scoringProfiles = {
+    [identificationPolicyId]: calibration.profile
+  };
+  const scoringProfilesByScenario = scenarioId === null
+    ? {}
+    : { [`${identificationPolicyId}:${scenarioId}`]: calibration.profile };
+  return {
+    policyId: identificationPolicyId,
+    scenarioId,
+    profile: calibration.profile,
+    results: runDepthSimulationTask(
+      { kind, scenarioId, identificationPolicyId },
+      {
+        ...context,
+        scoringProfile: calibration.profile,
+        scoringProfiles,
+        scoringProfilesByScenario
+      }
+    )
+  };
 }
 
 export async function runDepthMaterialSimulation() {
 printResolvedSimulationEnv();
-const coreScoringProfiles = Object.fromEntries(
-  ACTIVE_IDENTIFICATION_POLICIES.map(policy => {
-    resetSimulationRandom(SIM_SEED);
-    return [
-      policy.id,
-    calibrateCoreScoringProfile(CALIBRATION_RUNS, {}, policy.id)
-    ];
-  })
-);
+if (ACTIVE_SCENARIOS.length === 0) {
+  throw new Error(`SIM_SCENARIOSに有効な条件がない: ${[...REQUESTED_SCENARIO_IDS].join(",")}`);
+}
+const calibratedTaskResults = await runSimTasks({
+  moduleUrl: import.meta.url,
+  exportName: "runCalibratedDepthSimulationTask",
+  runTask: runCalibratedDepthSimulationTask,
+  tasks: ACTIVE_IDENTIFICATION_POLICIES.flatMap(policy => [
+    ...ACTIVE_SCENARIOS.map(scenario => ({
+      kind: "scenario",
+      scenarioId: scenario.id,
+      identificationPolicyId: policy.id,
+      runCount: CALIBRATION_RUNS
+    })),
+    {
+      kind: "milestone",
+      scenarioId: null,
+      identificationPolicyId: policy.id,
+      runCount: CALIBRATION_RUNS
+    }
+  ]),
+  context: {}
+});
 const coreScoringProfilesByScenario = Object.fromEntries(
-  ACTIVE_IDENTIFICATION_POLICIES.flatMap(policy =>
-    ACTIVE_SCENARIOS.map(scenario => {
-      resetSimulationRandom(SIM_SEED);
-      return [
-        `${policy.id}:${scenario.id}`,
-        calibrateCoreScoringProfile(
-          CALIBRATION_RUNS,
-          {},
-          policy.id,
-          scenario.workshop
-        )
-      ];
-    })
-  )
+  calibratedTaskResults
+    .filter(result => result.scenarioId !== null)
+    .map(result => [
+      `${result.policyId}:${result.scenarioId}`,
+      result.profile
+    ])
 );
 // calibrationが本計測の乱数列をずらさないよう、baselineと同じseed先頭へ戻す。
 randomState = SIM_SEED;
@@ -6979,28 +7037,7 @@ ACTIVE_IDENTIFICATION_POLICIES.forEach(policy => {
   });
 });
 
-if (ACTIVE_SCENARIOS.length === 0) {
-  throw new Error(`SIM_SCENARIOSに有効な条件がない: ${[...REQUESTED_SCENARIO_IDS].join(",")}`);
-}
-
-const taskResults = await runSimTasks({
-  moduleUrl: import.meta.url,
-  exportName: "runDepthSimulationTask",
-  runTask: runDepthSimulationTask,
-  tasks: ACTIVE_IDENTIFICATION_POLICIES.flatMap(policy => [
-    ...ACTIVE_SCENARIOS.map(scenario => ({
-      kind: "scenario",
-      scenarioId: scenario.id,
-      identificationPolicyId: policy.id
-    })),
-    { kind: "milestone", identificationPolicyId: policy.id }
-  ]),
-  context: {
-    scoringProfile: coreScoringProfiles[ACTIVE_IDENTIFICATION_POLICIES[0].id],
-    scoringProfiles: coreScoringProfiles,
-    scoringProfilesByScenario: coreScoringProfilesByScenario
-  }
-});
+const taskResults = calibratedTaskResults.map(result => result.results);
 const resultsByPolicy = ACTIVE_IDENTIFICATION_POLICIES.map((policy, policyIndex) => {
   const offset = policyIndex * (ACTIVE_SCENARIOS.length + 1);
   return {
