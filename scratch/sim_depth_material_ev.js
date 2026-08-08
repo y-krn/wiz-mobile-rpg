@@ -422,6 +422,65 @@ if (!Number.isInteger(IDENTIFICATION_COST) || IDENTIFICATION_COST < 0) {
 // identifyEquipment() remains the decision path; only its source balance is varied for sim sensitivity.
 IDENTIFICATION_BALANCE.identifyCost = IDENTIFICATION_COST;
 
+function parseSimulationRateOverride(name, fallback, { max = 1 } = {}) {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || value > max) {
+    throw new Error(`${name} must be a number in [0,${max}]: ${raw}`);
+  }
+  return value;
+}
+
+function parseSimulationNonNegativeOverride(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative number: ${raw}`);
+  }
+  return value;
+}
+
+// scratch-only sensitivity knobs. The default path keeps source values unchanged.
+IDENTIFICATION_BALANCE.baseCurseChance = parseSimulationRateOverride(
+  "SIM_CURSE_BASE_CHANCE_OVERRIDE",
+  IDENTIFICATION_BALANCE.baseCurseChance
+);
+IDENTIFICATION_BALANCE.curseChancePerFloor = parseSimulationNonNegativeOverride(
+  "SIM_CURSE_CHANCE_PER_FLOOR_OVERRIDE",
+  IDENTIFICATION_BALANCE.curseChancePerFloor
+);
+IDENTIFICATION_BALANCE.maxCurseChance = parseSimulationRateOverride(
+  "SIM_CURSE_MAX_CHANCE_OVERRIDE",
+  IDENTIFICATION_BALANCE.maxCurseChance
+);
+IDENTIFICATION_BALANCE.coreCurseBonus = parseSimulationRateOverride(
+  "SIM_CURSE_CORE_BONUS_OVERRIDE",
+  IDENTIFICATION_BALANCE.coreCurseBonus
+);
+IDENTIFICATION_BALANCE.baseCurseDetect = parseSimulationRateOverride(
+  "SIM_CURSE_DETECT_BASE_OVERRIDE",
+  IDENTIFICATION_BALANCE.baseCurseDetect
+);
+IDENTIFICATION_BALANCE.curseDetectDecayPerFloor = parseSimulationNonNegativeOverride(
+  "SIM_CURSE_DETECT_DECAY_OVERRIDE",
+  IDENTIFICATION_BALANCE.curseDetectDecayPerFloor
+);
+IDENTIFICATION_BALANCE.minCurseDetect = parseSimulationRateOverride(
+  "SIM_CURSE_DETECT_MIN_OVERRIDE",
+  IDENTIFICATION_BALANCE.minCurseDetect
+);
+const CORE_SCORE_DROP_TOLERANCE = parseSimulationRateOverride(
+  "SIM_CORE_SCORE_DROP_TOLERANCE",
+  0,
+  { max: 0.95 }
+);
+const CURSE_LOCK_MODE = process.env.SIM_CURSE_LOCK_MODE || "current";
+if (!new Set(["current", "off"]).has(CURSE_LOCK_MODE)) {
+  throw new Error(`SIM_CURSE_LOCK_MODE must be current or off: ${CURSE_LOCK_MODE}`);
+}
+
 // 仮値・感度分析対象: critical pathに対する寄り道込み歩数を1.4倍と置く。
 const EXPLORATION_FACTOR = 1.4;
 // 仮値・感度分析対象: 探索係数1.4に対応し、配置宝箱の70%を拾えると置く。
@@ -2650,13 +2709,17 @@ function getUnidentifiedSelectionScore(item) {
 }
 
 function isPotentialUnidentifiedUpgrade(item, oldEquipment) {
-  if (isCurseLocked(oldEquipment)) return false;
+  if (isSimulationCurseLocked(oldEquipment)) return false;
   if (!oldEquipment) return true;
   return (item?.level || 0) >= (oldEquipment.level || 0);
 }
 
 function isEquipment(item) {
   return ["weapon", "shield", "armor", "accessory"].includes(item?.type);
+}
+
+function isSimulationCurseLocked(item) {
+  return CURSE_LOCK_MODE === "current" && isCurseLocked(item);
 }
 
 function getItemCoreId(item) {
@@ -2944,6 +3007,11 @@ function getEquipmentScore(character, scoringProfile, floor) {
     getEconomyCoreScore(character, scoringProfile, floor);
 }
 
+function qualifiesAsBuildCore(candidateScore, currentScore) {
+  if (CORE_SCORE_DROP_TOLERANCE <= 0) return candidateScore > currentScore;
+  return candidateScore > currentScore * (1 - CORE_SCORE_DROP_TOLERANCE);
+}
+
 function createBuildSnapshot(state, scoringProfile, point) {
   const character = state.party[0];
   const withoutEquipment = {
@@ -3047,10 +3115,19 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
 
       const slot = itemData.type;
       const oldEquipment = character.equipment[slot];
-      if (isCurseLocked(oldEquipment)) {
+      if (isSimulationCurseLocked(oldEquipment)) {
         const blockedCoreId = getItemCoreId(inventoryItem);
         if (blockedCoreId) metrics.coreBlockedByCurseLockIds.add(blockedCoreId);
         recordCoreDecision(metrics, inventoryItem, "current-curse-locked");
+        if (metrics.equipmentTelemetry) {
+          metrics.equipmentTelemetry.push({
+            type: "lock-block",
+            floor: state.floor,
+            oldCoreId: getItemCoreId(oldEquipment),
+            candidateCoreId: blockedCoreId,
+            oldCursed: true
+          });
+        }
         return;
       }
       const policy = state.simPolicy.identificationPolicy;
@@ -3094,22 +3171,39 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
         character.equipment[slot] = oldEquipment;
         selectionScore = candidateScore;
-        qualifies = candidateScore > currentScore;
+        const coreSwap = Boolean(oldCoreId && candidateCoreId);
+        qualifies = candidateCoreId
+          ? (coreSwap
+            ? candidateScore > currentScore
+            : qualifiesAsBuildCore(candidateScore, currentScore))
+          : candidateScore > currentScore;
         rejectionReason = candidateCoreId && COMBAT_CORE_IDS.has(candidateCoreId)
           ? "combat-score-not-higher"
           : (candidateIsEconomyCore ? "economy-ev-not-higher" : "score-not-higher");
 
         // EV算出不能な探索コアだけ、従来の95%保持規則を残す。
         if (candidateIsEconomyCore && oldCoreId) {
-          qualifies = candidateScore > currentScore;
+          qualifies = coreSwap
+            ? candidateScore > currentScore
+            : qualifiesAsBuildCore(candidateScore, currentScore);
           rejectionReason = "economy-core-retained";
         } else if (candidateIsHoldOnlyCore) {
-          qualifies = candidateScore >= currentScore * ECONOMY_CORE_KEEP_RATIO;
-          selectionScore = candidateScore / ECONOMY_CORE_KEEP_RATIO;
+          const holdRatio = Math.min(
+            ECONOMY_CORE_KEEP_RATIO,
+            1 - CORE_SCORE_DROP_TOLERANCE
+          );
+          qualifies = coreSwap
+            ? (CORE_SCORE_DROP_TOLERANCE > 0
+              ? candidateScore > currentScore
+              : candidateScore >= currentScore * holdRatio)
+            : candidateScore >= currentScore * holdRatio;
+          selectionScore = candidateScore / holdRatio;
           rejectionReason = "economy-below-95pct";
         // 装備済みcoreは、非coreが保持幅を明確に超えた場合だけ外す。
         } else if (oldCoreId && !candidateCoreId) {
-          qualifies = candidateScore > currentScore / ECONOMY_CORE_KEEP_RATIO;
+          qualifies = CORE_SCORE_DROP_TOLERANCE > 0
+            ? false
+            : candidateScore > currentScore / ECONOMY_CORE_KEEP_RATIO;
           rejectionReason = "equipped-core-retained";
         }
       }
@@ -3123,9 +3217,11 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         candidate,
         candidateCoreId,
         candidateIsUnidentified,
+        candidateScore,
         index,
         oldEquipment,
         oldCoreId,
+        scoreBefore: currentScore,
         selectionScore,
         slot
       };
@@ -3139,8 +3235,21 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       metrics.unidentifiedWearCount++;
     }
     if (best.candidate.curseEffectId) metrics.curseHitCount++;
-    if (best.candidateCoreId && isCurseLocked(best.candidate)) {
+    if (best.candidateCoreId && isSimulationCurseLocked(best.candidate)) {
       metrics.coreCursedLockedIds.add(best.candidateCoreId);
+    }
+    if (metrics.equipmentTelemetry) {
+      metrics.equipmentTelemetry.push({
+        type: "swap",
+        floor: state.floor,
+        scoreBefore: best.scoreBefore,
+        scoreAfter: getEquipmentScore(character, scoringProfile, state.floor),
+        oldCoreId: best.oldCoreId,
+        candidateCoreId: best.candidateCoreId,
+        oldCursed: Boolean(best.oldEquipment && isCurseLocked(best.oldEquipment)),
+        candidateCursed: Boolean(isCurseLocked(best.candidate)),
+        replacement: Boolean(best.oldEquipment)
+      });
     }
     if (best.candidateCoreId) {
       metrics.coreEverEquippedIds.add(best.candidateCoreId);
@@ -4193,7 +4302,7 @@ function finishRun(state, outcome, metrics) {
   )];
   const finalCoreCurseLockedIds = [...new Set(
     Object.values(state.party[0].equipment || {})
-      .filter(item => isCurseLocked(item))
+      .filter(item => isSimulationCurseLocked(item))
       .map(getItemCoreId)
       .filter(Boolean)
   )];
@@ -4382,7 +4491,10 @@ function finishRun(state, outcome, metrics) {
     materialConsumedByMerchant: { ...metrics.materialConsumedByMerchant },
     combatMaterialEvents: metrics.combatMaterialEvents,
     combatMaterialHitEvents: metrics.combatMaterialHitEvents,
-    diagnostics: metrics.diagnostics
+    diagnostics: metrics.diagnostics,
+    ...(metrics.equipmentTelemetry
+      ? { equipmentTelemetry: metrics.equipmentTelemetry }
+      : {})
   };
 }
 
@@ -4408,7 +4520,8 @@ export function simulateRun({
   scenario,
   workshop = { ranks: {} },
   supplyOverride = null,
-  collectDiagnostics = false
+  collectDiagnostics = false,
+  collectEquipmentTelemetry = false
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   let state = createSimulationState(className, startFloor, runSeed, scenario, workshop);
@@ -4422,6 +4535,7 @@ export function simulateRun({
     equipmentUpgrades: 0,
     earlyEquipmentUpgrades: 0,
     deepEquipmentUpgrades: 0,
+    equipmentTelemetry: collectEquipmentTelemetry ? [] : null,
     equipmentFound: 0,
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
