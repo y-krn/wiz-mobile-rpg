@@ -747,6 +747,13 @@ const TOMB_RAIDER_TRAP_RISK_DISCOUNT = 0.5;
 const CORE_ACTIVATION_MEASUREMENT_NOTES = Object.freeze({
   CORE_REARGUARD: "設計上無効: 既存セーブ互換用 tombstone"
 });
+const PASSIVE_CORE_IDS = new Set([
+  "CORE_SNEAK_STEP",
+  "CORE_CURSE_KEEPER",
+  "CORE_TOMB_RAIDER",
+  "CORE_KEEN_EYE",
+  "CORE_TRAP_EATER"
+]);
 
 function createCoreMeasurementCounts() {
   return Object.fromEntries(CORE_AFFIXES.map(affix => [affix.id, 0]));
@@ -778,6 +785,13 @@ function createCoreObservations() {
     giantTargetTurns: 0,
     statusTargetTurns: 0,
     openerFirstStrikeFightTurns: 0,
+    bloodWandActiveRounds: 0,
+    bloodWandMpEmptyRounds: 0,
+    bloodWandSelectedSpellRounds: 0,
+    bloodWandNoEligibleSpellRounds: 0,
+    bloodWandMpInsufficientRounds: 0,
+    bloodWandHpPaymentReturns: 0,
+    bloodWandHpPaymentCanCast: 0,
     bloodWandSpellOpportunities: 0,
     bloodWandHealOpportunities: 0,
     bloodWandSpellActivations: 0,
@@ -812,7 +826,29 @@ function createCoreObservations() {
     bountyBonusMaterials: 0,
     curseSamples: 0,
     equippedCurseTotal: 0,
+    curseKeeperStrGainTotal: 0,
+    curseKeeperStrGainCases: 0,
     sneakStepReducedDetectionCases: 0,
+    keenEyeEffectApplications: 0,
+    keenEyeEffectDelta: {
+      atk: 0,
+      def: 0,
+      hpBonus: 0,
+      mpBonus: 0,
+      str: 0,
+      int: 0,
+      pie: 0,
+      vit: 0,
+      agi: 0,
+      luk: 0,
+      trapBonus: 0,
+      spellGuard: 0,
+      firstStrike: 0,
+      antiUndead: 0,
+      antiDragon: 0
+    },
+    tombRaiderMaterialBonusTotal: 0,
+    trapEaterAttackGainTotal: 0,
     coreOpportunityCounts: createCoreMeasurementCounts(),
     coreActivationCounts: createCoreMeasurementCounts()
   };
@@ -1649,7 +1685,7 @@ function getPreferredOffensiveSpellName(character) {
   return null;
 }
 
-function getBloodWandOpportunity(state, action) {
+function getBloodWandOpportunity(state, action, observations = null) {
   const character = state.party[0];
   let spellName = null;
   let opportunityType = null;
@@ -1676,6 +1712,10 @@ function getBloodWandOpportunity(state, action) {
   }
   if (!spellName) return null;
   const payment = getSpellPayment(character, SPELLS[spellName].cost);
+  if (observations && payment.resource === "hp") {
+    observations.bloodWandHpPaymentReturns++;
+    observations.bloodWandHpPaymentCanCast += Number(payment.canCast);
+  }
   return payment.canCast && payment.resource === "hp" ? opportunityType : null;
 }
 
@@ -1783,7 +1823,22 @@ function recordRoundCoreObservations(
   const lastStandParams = getCharCoreParams(characterBefore, "CORE_LAST_STAND");
   const giantSlayerParams = getCharCoreParams(characterBefore, "CORE_GIANT_SLAYER");
   const executionerParams = getCharCoreParams(characterBefore, "CORE_EXECUTIONER");
+  const bloodWandParams = getCharCoreParams(characterBefore, "CORE_BLOOD_WAND");
   const curseKeeperParams = getCharCoreParams(characterBefore, "CORE_CURSE_KEEPER");
+
+  if (bloodWandParams) {
+    observations.bloodWandActiveRounds++;
+    observations.bloodWandMpEmptyRounds += Number(characterBefore.mp <= 0);
+    const spellName = action.type === "spell"
+      ? action.spellName
+      : getPreferredOffensiveSpellName(characterBefore);
+    const spellCost = spellName ? SPELLS[spellName]?.cost : null;
+    observations.bloodWandSelectedSpellRounds += Number(Number.isFinite(spellCost));
+    observations.bloodWandNoEligibleSpellRounds += Number(!Number.isFinite(spellCost));
+    observations.bloodWandMpInsufficientRounds += Number(
+      Number.isFinite(spellCost) && characterBefore.mp < spellCost
+    );
+  }
 
   if (offensive) {
     observations.offensiveTurns++;
@@ -1815,9 +1870,14 @@ function recordRoundCoreObservations(
     observations.equippedCurseTotal += equippedCurseCount;
     if (curseKeeperParams && equippedCurseCount > 0) {
       observations.coreOpportunityCounts.CORE_CURSE_KEEPER++;
-      observations.coreActivationCounts.CORE_CURSE_KEEPER += Number(
-        getCharStr(characterBefore) > getCharStrWithoutCore(characterBefore, "CORE_CURSE_KEEPER")
+      const strGain = Math.max(
+        0,
+        getCharStr(characterBefore) -
+          getCharStrWithoutCore(characterBefore, "CORE_CURSE_KEEPER")
       );
+      observations.curseKeeperStrGainTotal += strGain;
+      observations.curseKeeperStrGainCases++;
+      observations.coreActivationCounts.CORE_CURSE_KEEPER += Number(strGain > 0);
     }
   }
 
@@ -2085,7 +2145,7 @@ function runEncounter(
       : structuredClone(state.combatState.monsters[action.targetIdx]);
     const monstersBeforeRound = structuredClone(state.combatState.monsters);
     const characterBeforeRound = structuredClone(character);
-    const bloodWandOpportunity = getBloodWandOpportunity(state, action);
+    const bloodWandOpportunity = getBloodWandOpportunity(state, action, observations);
     observations.bloodWandSpellOpportunities += Number(bloodWandOpportunity === "offense");
     observations.bloodWandHealOpportunities += Number(bloodWandOpportunity === "heal");
     if (bloodWandOpportunity) {
@@ -2566,18 +2626,29 @@ function getCharStrWithoutCore(character, coreId) {
   return getCharStr(baseline);
 }
 
-function isUnidentifiedEffectApplied(character, item) {
+function getUnidentifiedEffectDelta(character, item) {
   const hiddenData = getItemData(item);
   const appliedData = getEquippedItemData(character, item);
-  if (!hiddenData || !appliedData) return false;
-  return hiddenData.name !== appliedData.name ||
-    hiddenData.desc !== appliedData.desc ||
-    hiddenData.atk !== appliedData.atk ||
-    hiddenData.def !== appliedData.def ||
-    hiddenData.hpBonus !== appliedData.hpBonus ||
-    hiddenData.mpBonus !== appliedData.mpBonus ||
-    hiddenData.trapBonus !== appliedData.trapBonus ||
-    JSON.stringify(hiddenData.statsBonus) !== JSON.stringify(appliedData.statsBonus);
+  if (!hiddenData || !appliedData) return null;
+  const delta = {
+    atk: (appliedData.atk || 0) - (hiddenData.atk || 0),
+    def: (appliedData.def || 0) - (hiddenData.def || 0),
+    hpBonus: (appliedData.hpBonus || 0) - (hiddenData.hpBonus || 0),
+    mpBonus: (appliedData.mpBonus || 0) - (hiddenData.mpBonus || 0),
+    trapBonus: (appliedData.trapBonus || 0) - (hiddenData.trapBonus || 0),
+    spellGuard: (appliedData.affixBonus?.spellGuard || 0) - (hiddenData.affixBonus?.spellGuard || 0),
+    firstStrike: (appliedData.affixBonus?.firstStrike || 0) - (hiddenData.affixBonus?.firstStrike || 0),
+    antiUndead: (appliedData.affixBonus?.antiUndead || 0) - (hiddenData.affixBonus?.antiUndead || 0),
+    antiDragon: (appliedData.affixBonus?.antiDragon || 0) - (hiddenData.affixBonus?.antiDragon || 0)
+  };
+  ["str", "int", "pie", "vit", "agi", "luk"].forEach(stat => {
+    delta[stat] = (appliedData.statsBonus?.[stat] || 0) -
+      (hiddenData.statsBonus?.[stat] || 0);
+  });
+  return {
+    changed: Object.values(delta).some(value => value !== 0),
+    delta
+  };
 }
 
 function getBaseEquipmentScore(character) {
@@ -2963,10 +3034,17 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         rejectionReason = "unidentified-held";
       } else {
         if (policy === "powder" && candidateIsUnidentified && keenEyeActive) {
+          const effectDelta = getUnidentifiedEffectDelta(character, inventoryItem);
           metrics.coreObservations.coreOpportunityCounts.CORE_KEEN_EYE++;
           metrics.coreObservations.coreActivationCounts.CORE_KEEN_EYE += Number(
-            isUnidentifiedEffectApplied(character, inventoryItem)
+            effectDelta?.changed
           );
+          if (effectDelta?.changed) {
+            metrics.coreObservations.keenEyeEffectApplications++;
+            Object.entries(effectDelta.delta).forEach(([field, amount]) => {
+              metrics.coreObservations.keenEyeEffectDelta[field] += amount;
+            });
+          }
         }
         character.equipment[slot] = candidate;
         candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
@@ -3507,6 +3585,11 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
       previousTrapBonus
     );
     if (character.runTrapAttackBonus > previousTrapBonus) {
+      recordTrapEaterEffect(
+        metrics.coreObservations,
+        previousTrapBonus,
+        character.runTrapAttackBonus
+      );
       metrics.coreObservations.coreActivationCounts.CORE_TRAP_EATER++;
     }
     return { pitfallTriggered: false };
@@ -3622,6 +3705,11 @@ function recordTrapDisarmObservation(observations, floor) {
   observations.expectedTrapDisarmsByFloor[floor]++;
 }
 
+function recordTrapEaterEffect(observations, before, after) {
+  const gain = Math.max(0, after - before);
+  if (gain > 0) observations.trapEaterAttackGainTotal += gain;
+}
+
 function resolveChestTrapForSimulation(
   state,
   floor,
@@ -3667,6 +3755,11 @@ function resolveChestTrapForSimulation(
         previousTrapBonus
       );
       if (character.runTrapAttackBonus > previousTrapBonus) {
+        recordTrapEaterEffect(
+          observations,
+          previousTrapBonus,
+          character.runTrapAttackBonus
+        );
         observations.coreActivationCounts.CORE_TRAP_EATER++;
       }
       return { mainItemLost: false };
@@ -4613,6 +4706,8 @@ export function simulateRun({
         );
         if (tombRaider) {
           metrics.coreObservations.coreOpportunityCounts.CORE_TOMB_RAIDER++;
+          metrics.coreObservations.tombRaiderMaterialBonusTotal +=
+            tombRaider.materialBonus || 0;
           if (totalMaterials(chestMaterials) > 0) {
             metrics.coreObservations.coreActivationCounts.CORE_TOMB_RAIDER++;
           }
@@ -6191,7 +6286,49 @@ function printCoreRetentionDetail(result) {
       `未装備=${Math.max(0, encountered - equipped)}${reasons ? ` (${reasons})` : ""}`
     );
   });
-  console.log("core別（装備率 / 実発動率 / 定着率。実発動率のN=機会数）:");
+  const sneakOpportunities = result.coreObservations.coreOpportunityCounts.CORE_SNEAK_STEP || 0;
+  const sneakReducedCases = result.coreObservations.sneakStepReducedDetectionCases || 0;
+  const getPassiveEffectText = coreId => {
+    const observations = result.coreObservations;
+    const opportunities = observations.coreOpportunityCounts[coreId] || 0;
+    if (coreId === "CORE_REARGUARD") return "設計上無効";
+    if (coreId === "CORE_SNEAK_STEP") {
+      return `常時適用（定義上100%）; baseline検知→適用後非検知=${formatWilson(
+        sneakReducedCases,
+        sneakOpportunities
+      )}`;
+    }
+    if (coreId === "CORE_CURSE_KEEPER") {
+      const cases = observations.curseKeeperStrGainCases || 0;
+      const total = observations.curseKeeperStrGainTotal || 0;
+      return `常時適用（定義上100%）; STR差合計=+${total}（適用N=${cases}, 平均=+${
+        cases > 0 ? (total / cases).toFixed(2) : "0.00"
+      }/適用round）`;
+    }
+    if (coreId === "CORE_TOMB_RAIDER") {
+      const total = observations.tombRaiderMaterialBonusTotal || 0;
+      return `常時適用（定義上100%）; 宝箱素材差=+${total}（N=${opportunities}, 平均=+${
+        opportunities > 0 ? (total / opportunities).toFixed(2) : "0.00"
+      }/chest）`;
+    }
+    if (coreId === "CORE_KEEN_EYE") {
+      const applications = observations.keenEyeEffectApplications || 0;
+      const delta = Object.entries(observations.keenEyeEffectDelta || {})
+        .filter(([, amount]) => amount !== 0)
+        .map(([field, amount]) => `${field}${amount > 0 ? "+" : ""}${amount}`)
+        .join(", ") || "差分なし";
+      return `常時適用（定義上100%）; 未鑑定効果差=${delta}（適用N=${applications}）`;
+    }
+    if (coreId === "CORE_TRAP_EATER") {
+      const total = observations.trapEaterAttackGainTotal || 0;
+      const activations = observations.coreActivationCounts.CORE_TRAP_EATER || 0;
+      return `常時適用（定義上100%）; run攻撃bonus差=+${total}（発動N=${activations}, 平均=+${
+        activations > 0 ? (total / activations).toFixed(2) : "0.00"
+      }/発動）`;
+    }
+    return "条件付きcore: 実発動率を上欄で測定";
+  };
+  console.log("core別（装備率 / 発動指標 / 定着率 / 効果量。受動coreの100%は定義上）:");
   CORE_AFFIXES.forEach(affix => {
     const encountered = result.coreEncounterRunsById[affix.id] || 0;
     const equipped = result.coreEquippedRunsById[affix.id] || 0;
@@ -6199,16 +6336,31 @@ function printCoreRetentionDetail(result) {
     const activations = result.coreObservations.coreActivationCounts[affix.id] || 0;
     const activation = !affix.enabled
       ? "設計上無効 [N=0; CIなし]"
+      : affix.id === "CORE_BLOOD_WAND" && opportunities === 0
+        ? "未観測 [N=0; CIなし]（D: 到達深度・遭遇不足）"
+      : PASSIVE_CORE_IDS.has(affix.id)
+        ? `常時適用（定義上100%; 機会N=${opportunities}）`
       : CORE_ACTIVATION_MEASUREMENT_NOTES[affix.id] ||
         formatWilson(activations, opportunities);
     console.log(
       `  ${affix.id}: 装備率=${formatWilson(equipped, RUNS_PER_CASE)} / ` +
-      `実発動率=${activation} / ` +
-      `定着率=${formatWilson(equipped, encountered)}`
+      `発動指標=${activation} / ` +
+      `定着率=${formatWilson(equipped, encountered)} / ` +
+      `効果量=${getPassiveEffectText(affix.id)}`
     );
   });
-  const sneakOpportunities = result.coreObservations.coreOpportunityCounts.CORE_SNEAK_STEP || 0;
-  const sneakReducedCases = result.coreObservations.sneakStepReducedDetectionCases || 0;
+  const bloodWandEquippedRuns = result.coreEquippedRunsById.CORE_BLOOD_WAND || 0;
+  const bloodWandObservations = result.coreObservations;
+  console.log(
+    `血杖カバー: 終了時装備run=${bloodWandEquippedRuns}, ` +
+    `有効combat round=${bloodWandObservations.bloodWandActiveRounds}, ` +
+    `MP=0 round=${bloodWandObservations.bloodWandMpEmptyRounds}, ` +
+    `spell選択=${bloodWandObservations.bloodWandSelectedSpellRounds}, ` +
+    `対象spellなし=${bloodWandObservations.bloodWandNoEligibleSpellRounds}, ` +
+    `選択spell MP不足=${bloodWandObservations.bloodWandMpInsufficientRounds}, ` +
+    `getSpellPayment resource=hp=${bloodWandObservations.bloodWandHpPaymentReturns} ` +
+    `(canCast=${bloodWandObservations.bloodWandHpPaymentCanCast})`
+  );
   console.log(
     `忍び足カバー: getPerceptionIntent適用=${formatWilson(sneakOpportunities, sneakOpportunities)}, ` +
     `baseline検知→適用後非検知=${formatWilson(sneakReducedCases, sneakOpportunities)}`
