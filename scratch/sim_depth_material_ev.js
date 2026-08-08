@@ -58,7 +58,11 @@ const {
   resolveChestTrapEffect,
   resolveFloorTrapEffect
 } = await import("../src/rules/trap_effect_rules.js");
-const { AFFIX_BALANCE, CORE_AFFIXES } = await import("../src/data/affixes.js");
+const {
+  AFFIX_BALANCE,
+  CORE_AFFIXES,
+  SUPPORT_AFFIXES
+} = await import("../src/data/affixes.js");
 const { ITEMS } = await import("../src/data/items.js");
 const { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } = await import("../src/data/materials.js");
 const {
@@ -329,6 +333,38 @@ const CORE_ENCOUNTER_CEILING_MODE = String(
 const CORE_WORKSHOP_GATE_MODE = String(
   process.env.SIM_CORE_WORKSHOP_GATE || ""
 ).trim();
+const SUPPORT_SUPPLY_CEILING_MODE = String(
+  process.env.SIM_SUPPORT_SUPPLY_CEILING || "none"
+).trim();
+const EQUIPMENT_SLOT_MODE = String(
+  process.env.SIM_EQUIPMENT_SLOT_MODE || "standard"
+).trim();
+const EQUIPMENT_POLICY = String(
+  process.env.SIM_EQUIPMENT_POLICY || "individual-score"
+).trim();
+const MATCHING_DEFINITION = String(
+  process.env.SIM_MATCHING_DEFINITION || "exact"
+).trim();
+if (!["none", "exact"].includes(SUPPORT_SUPPLY_CEILING_MODE)) {
+  throw new Error(
+    `SIM_SUPPORT_SUPPLY_CEILING must be none|exact: ${SUPPORT_SUPPLY_CEILING_MODE}`
+  );
+}
+if (!["standard", "unlimited"].includes(EQUIPMENT_SLOT_MODE)) {
+  throw new Error(
+    `SIM_EQUIPMENT_SLOT_MODE must be standard|unlimited: ${EQUIPMENT_SLOT_MODE}`
+  );
+}
+if (!["individual-score", "compatibility-aware"].includes(EQUIPMENT_POLICY)) {
+  throw new Error(
+    `SIM_EQUIPMENT_POLICY must be individual-score|compatibility-aware: ${EQUIPMENT_POLICY}`
+  );
+}
+if (!["exact", "broad"].includes(MATCHING_DEFINITION)) {
+  throw new Error(
+    `SIM_MATCHING_DEFINITION must be exact|broad: ${MATCHING_DEFINITION}`
+  );
+}
 const TARGET_DEPTHS = [5, 10, 15, 20];
 const MAX_COMBAT_TURNS = 50;
 const ENCOUNTER_GROUPS = Object.freeze([
@@ -876,6 +912,21 @@ const ECONOMY_CORE_IDS = new Set(
 const EARLY_BUILD_MAX_FLOOR = 10;
 const ECONOMY_CORE_KEEP_RATIO = 0.95;
 const HOLD_ONLY_ECONOMY_CORE_IDS = new Set(["CORE_SNEAK_STEP", "CORE_KEEN_EYE"]);
+// #443の測定定義。ゲームルールではなく、core+対応support endpoint用。
+const CORE_SUPPORT_SYNERGY = Object.freeze({
+  CORE_LAST_STAND: ["hp", "vit", "guardian", "killHeal"],
+  CORE_OPENER: ["firstStrike", "firstTurnAttack", "fullHpDamage", "followUp"],
+  CORE_BLOOD_WAND: ["hp", "vit", "int", "pie", "arcane", "devotion"],
+  CORE_PURIFY_RING: ["antiUndead", "antiDemon", "arcane", "devotion"],
+  CORE_TRAP_EATER: ["trapBonus"],
+  CORE_CURSE_KEEPER: [],
+  CORE_GIANT_SLAYER: ["antiDragon", "antiBeast", "antiSpirit"],
+  CORE_THORN_SHIELD: ["guardian", "def", "vit", "hitFlinch"],
+  CORE_EXECUTIONER: []
+});
+const ENABLED_SUPPORT_AFFIXES = SUPPORT_AFFIXES.filter(affix => affix.enabled);
+const ALL_ENABLED_SUPPORT_IDS = ENABLED_SUPPORT_AFFIXES.map(affix => affix.id);
+const MATCHING_SUPPORT_BONUS = 1000;
 // 素材1個のrun EVを装備score 1点へ換算する感度分析用の基準。
 const MATERIAL_EV_SCORE_WEIGHT = 1;
 // 盗掘王の素材EVは、罠被害を測定する既定経路でも感度分析として50%割引を残す。
@@ -2799,6 +2850,66 @@ function getItemCoreId(item) {
   return affix ? (affix.id || affix.type) : null;
 }
 
+function getMatchingSupportIdsForCore(coreId) {
+  if (MATCHING_DEFINITION === "broad") return ALL_ENABLED_SUPPORT_IDS;
+  return CORE_SUPPORT_SYNERGY[coreId] || [];
+}
+
+function getItemSupportIds(item) {
+  if (!item || typeof item !== "object") return [];
+  return (item.affixes || [])
+    .map(affix => affix.id || affix.type)
+    .filter(id => id && !CORE_AFFIX_IDS.has(id));
+}
+
+function itemHasMatchingSupportForCore(item, coreId) {
+  const matchingIds = getMatchingSupportIdsForCore(coreId);
+  return getItemSupportIds(item).some(supportId => matchingIds.includes(supportId));
+}
+
+function applySupportSupplyCeiling(item) {
+  if (SUPPORT_SUPPLY_CEILING_MODE !== "exact" || !item || typeof item !== "object") {
+    return item;
+  }
+  const coreId = getItemCoreId(item);
+  const matchingIds = CORE_SUPPORT_SYNERGY[coreId] || [];
+  if (!coreId || matchingIds.length === 0 || !Array.isArray(item.affixes)) return item;
+
+  let supportIndex = 0;
+  item.affixes = item.affixes.map(affix => {
+    const id = affix.id || affix.type;
+    if (CORE_AFFIX_IDS.has(id)) return affix;
+    const supportId = matchingIds[supportIndex % matchingIds.length];
+    supportIndex++;
+    return {
+      ...affix,
+      id: supportId,
+      type: supportId,
+      kind: "support"
+    };
+  });
+  if (supportIndex === 0) {
+    const supportId = matchingIds[0];
+    item.affixes.push({
+      id: supportId,
+      type: supportId,
+      kind: "support",
+      value: 1
+    });
+  }
+  return item;
+}
+
+function applyEquipmentPostGenerationTransforms(items) {
+  return applySupportSupplyCeilingToItems(
+    applyCoreEncounterCeilingToItems(items)
+  );
+}
+
+function applySupportSupplyCeilingToItems(items) {
+  return items.map(applySupportSupplyCeiling);
+}
+
 function getCharStrWithoutCore(character, coreId) {
   const baseline = {
     ...character,
@@ -3161,6 +3272,34 @@ function recordCoreDecision(metrics, item, reason) {
   metrics.coreDecisionReasons[coreId].add(reason);
 }
 
+function candidateMatchesEquippedCore(character, candidate) {
+  if (EQUIPMENT_POLICY !== "compatibility-aware") return false;
+  // build snapshot と同じ affix metadataを使う。powder policyでも未鑑定候補は
+  // 既存guardで保持されるため、実際に選択するのは鑑定済み候補だけ。
+  const equippedCoreIds = Object.values(character.equipment || {})
+    .map(getItemCoreId)
+    .filter(Boolean);
+  return equippedCoreIds.some(coreId => itemHasMatchingSupportForCore(candidate, coreId));
+}
+
+function getEquipmentTargetSlot(character, itemType) {
+  if (EQUIPMENT_SLOT_MODE !== "unlimited" || !character.equipment[itemType]) {
+    return itemType;
+  }
+  let suffix = 2;
+  while (character.equipment[`${itemType}#${suffix}`]) suffix++;
+  return `${itemType}#${suffix}`;
+}
+
+function isEquipmentAlreadyEquipped(character, item) {
+  return Object.values(character.equipment || {}).some(equipped =>
+    equipped === item || (
+      equipped && item && equipped.instanceId &&
+      equipped.instanceId === item.instanceId
+    )
+  );
+}
+
 function equipGreedyUpgrades(state, metrics, scoringProfile) {
   const character = state.party[0];
   identifyAvailableEquipment(state, metrics, Math.random);
@@ -3183,9 +3322,18 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         recordCoreDecision(metrics, inventoryItem, "class-incompatible");
         return;
       }
+      if (
+        EQUIPMENT_SLOT_MODE === "unlimited" &&
+        isEquipmentAlreadyEquipped(character, inventoryItem)
+      ) {
+        recordCoreDecision(metrics, inventoryItem, "already-equipped-unlimited");
+        return;
+      }
 
-      const slot = itemData.type;
-      const oldEquipment = character.equipment[slot];
+      const slot = getEquipmentTargetSlot(character, itemData.type);
+      const oldEquipment = EQUIPMENT_SLOT_MODE === "unlimited"
+        ? null
+        : character.equipment[slot];
       if (isSimulationCurseLocked(oldEquipment)) {
         const blockedCoreId = getItemCoreId(inventoryItem);
         if (blockedCoreId) metrics.coreBlockedByCurseLockIds.add(blockedCoreId);
@@ -3241,13 +3389,24 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         character.equipment[slot] = candidate;
         candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
         character.equipment[slot] = oldEquipment;
-        selectionScore = candidateScore;
+        const matchingSupport = candidateMatchesEquippedCore(character, candidate);
+        const oldMatchingSupport = candidateMatchesEquippedCore(character, oldEquipment);
+        const compatibilityBonus = matchingSupport ? MATCHING_SUPPORT_BONUS : 0;
+        selectionScore = candidateScore + compatibilityBonus;
         const coreSwap = Boolean(oldCoreId && candidateCoreId);
         qualifies = candidateCoreId
           ? (coreSwap
             ? candidateScore > currentScore
             : qualifiesAsBuildCore(candidateScore, currentScore))
           : candidateScore > currentScore;
+        if (EQUIPMENT_POLICY === "compatibility-aware" && oldMatchingSupport) {
+          // 対応support同士の相互置換を防ぎ、対応装備を非対応候補で外さない。
+          qualifies = matchingSupport && candidateScore > currentScore;
+        } else if (matchingSupport && !candidateCoreId) {
+          // 相性を狙う方針では、対応supportを個別scoreの改善条件から解放する。
+          // 既存の対応装備を保持する分岐で置換ループは止める。
+          qualifies = true;
+        }
         rejectionReason = candidateCoreId && COMBAT_CORE_IDS.has(candidateCoreId)
           ? "combat-score-not-higher"
           : (candidateIsEconomyCore ? "economy-ev-not-higher" : "score-not-higher");
@@ -4961,7 +5120,7 @@ export function simulateRun({
           supplyOverride,
           metrics
         );
-        chestItems.items = applyCoreEncounterCeilingToItems(chestItems.items);
+        chestItems.items = applyEquipmentPostGenerationTransforms(chestItems.items);
         const cureCountsBeforeChest = countInventoryItems(state.inventory);
         const acquiredEquipment = [];
         recordEquipmentGenerations(metrics, chestItems.items);
@@ -5275,7 +5434,7 @@ export function simulateRun({
           if (extraCombatEquipment && addInventoryItemToState(state, extraCombatEquipment)) {
             overriddenCombatEquipment.push(extraCombatEquipment);
           }
-          const ceilingCombatEquipment = applyCoreEncounterCeilingToItems(
+          const ceilingCombatEquipment = applyEquipmentPostGenerationTransforms(
             overriddenCombatEquipment
           );
           state.currentRun.equipmentFound.splice(
