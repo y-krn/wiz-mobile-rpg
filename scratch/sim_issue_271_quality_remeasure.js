@@ -26,10 +26,12 @@ const B5 = 5;
 const TARGET_DEPTH = 21;
 const R95 = 1.959963984540054;
 const A2_SIGNAL = 0.20;
+const MIN_A3_TREND_N = 194;
+const ORDINAL_LEVELS = Object.freeze([0, 1, 2, 3]);
 
 const ENV_DEFAULTS = Object.freeze({
   SIM_SEED: "271",
-  SIM_RUNS: "500",
+  SIM_RUNS: "2200",
   SIM_CALIBRATION_RUNS: "100",
   DEPARTURE_CRAFT_IDS:
     "TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION",
@@ -117,6 +119,11 @@ const ENABLED_CORE_IDS = new Set(
 const COMBAT_CORE_IDS = new Set(
   CORE_AFFIXES
     .filter(affix => affix.enabled && affix.poolGroup === "combat")
+    .map(affix => affix.id)
+);
+const ECONOMY_CORE_IDS = new Set(
+  CORE_AFFIXES
+    .filter(affix => affix.enabled && affix.poolGroup === "economy")
     .map(affix => affix.id)
 );
 
@@ -246,6 +253,49 @@ function classCenteredEffect(rows, predicate, outcomeSelector) {
     withN: withValues.length,
     withoutN: withoutValues.length,
     classCounts
+  };
+}
+
+function classCenteredOrdinalEffect(rows, valueSelector, outcomeSelector) {
+  const byClass = new Map();
+  rows.forEach(row => {
+    const value = toNumber(valueSelector(row));
+    const outcome = toNumber(outcomeSelector(row));
+    if (!Number.isFinite(value) || !Number.isFinite(outcome)) return;
+    if (!byClass.has(row.className)) byClass.set(row.className, []);
+    byClass.get(row.className).push({ value, outcome });
+  });
+  const pairs = [];
+  byClass.forEach(classRows => {
+    const valueMean = mean(classRows.map(item => item.value));
+    const outcomeMean = mean(classRows.map(item => item.outcome));
+    classRows.forEach(item => {
+      pairs.push({
+        value: item.value - valueMean,
+        outcome: item.outcome - outcomeMean
+      });
+    });
+  });
+  const valueSquare = pairs.reduce((sum, pair) => sum + pair.value ** 2, 0);
+  const cross = pairs.reduce((sum, pair) => sum + pair.value * pair.outcome, 0);
+  const degreesOfFreedom = pairs.length - byClass.size - 1;
+  if (pairs.length < 4 || valueSquare === 0 || degreesOfFreedom <= 0) {
+    return { estimate: null, low: null, high: null, n: pairs.length };
+  }
+  const estimate = cross / valueSquare;
+  const residualSquare = pairs.reduce(
+    (sum, pair) => sum + (pair.outcome - estimate * pair.value) ** 2,
+    0
+  );
+  const standardError = Math.sqrt(
+    (residualSquare / degreesOfFreedom) / valueSquare
+  );
+  return {
+    estimate,
+    low: estimate - R95 * standardError,
+    high: estimate + R95 * standardError,
+    n: pairs.length,
+    degreesOfFreedom
   };
 }
 
@@ -558,15 +608,70 @@ function featureEffect(rows, predicate) {
   };
 }
 
-function calculateA3(rows) {
-  const features = {
-    core: row => row.b5.coreIds.length > 0,
-    combatCore: row => row.b5.coreIds.some(coreId => COMBAT_CORE_IDS.has(coreId)),
-    coreWithMatchingSupport: row => hasMatchedSupport(row.b5)
-  };
-  return Object.fromEntries(
-    Object.entries(features).map(([name, predicate]) => [name, featureEffect(rows, predicate)])
+function ordinalFeatureEffect(rows, valueSelector) {
+  // A3 uses a B5-time ordinal dose axis instead of the saturated core/no-core
+  // split. Values are capped at 3+; the 1 and 2 levels must each have N>=30.
+  const values = rows.map(row => Math.max(0, Math.min(3, valueSelector(row))));
+  const levelCounts = Object.fromEntries(
+    ORDINAL_LEVELS.map(level => [level === 3 ? "3+" : String(level), 0])
   );
+  values.forEach(value => {
+    const label = value === 3 ? "3+" : String(value);
+    levelCounts[label]++;
+  });
+  const endpoints = {
+    b5Breakthrough: classCenteredOrdinalEffect(rows, valueSelector, row => row.b5Breakthrough),
+    b5Death: classCenteredOrdinalEffect(rows, valueSelector, row => row.b5Death),
+    reachedFloor: classCenteredOrdinalEffect(rows, valueSelector, row => row.reachedFloor)
+  };
+  const expectedDirections = {
+    b5Breakthrough: "positive",
+    b5Death: "negative",
+    reachedFloor: "positive"
+  };
+  const endpointPass = Object.fromEntries(
+    Object.entries(endpoints).map(([key, effect]) => {
+      const direction = expectedDirections[key];
+      const excludesZero = direction === "positive" ? effect.low > 0 : effect.high < 0;
+      return [key, excludesZero];
+    })
+  );
+  const interiorLevelsAtLeast30 = levelCounts["1"] >= 30 && levelCounts["2"] >= 30;
+  const dataSufficient = values.length >= MIN_A3_TREND_N && interiorLevelsAtLeast30;
+  return {
+    axis: "ordinal",
+    levels: ["0", "1", "2", "3+"],
+    levelCounts,
+    n: values.length,
+    endpoints,
+    expectedDirections,
+    endpointPass,
+    dataSufficient,
+    status: !dataSufficient
+      ? "未確定（総N<194またはlevel 1/2のN<30）"
+      : Object.values(endpointPass).every(Boolean)
+        ? "成立"
+        : "不成立",
+    pass: dataSufficient && Object.values(endpointPass).every(Boolean)
+  };
+}
+
+function calculateA3(rows) {
+  const coreCount = row => Math.min(3, row.b5.coreIds.length);
+  const combatCoreCount = row => Math.min(
+    3,
+    row.b5.coreIds.filter(coreId => COMBAT_CORE_IDS.has(coreId)).length
+  );
+  const economyCoreCount = row => Math.min(
+    3,
+    row.b5.coreIds.filter(coreId => ECONOMY_CORE_IDS.has(coreId)).length
+  );
+  return {
+    coreCount: ordinalFeatureEffect(rows, coreCount),
+    combatCoreCount: ordinalFeatureEffect(rows, combatCoreCount),
+    economyCoreCount: ordinalFeatureEffect(rows, economyCoreCount),
+    coreWithMatchingSupport: featureEffect(rows, row => hasMatchedSupport(row.b5))
+  };
 }
 
 function aggregateCoreSupply(rows) {
@@ -754,12 +859,22 @@ function shortScenarioSummary(summary) {
       pass: summary.a2.pass
     },
     a3: Object.fromEntries(
-      Object.entries(summary.a3).map(([name, value]) => [name, {
-        withN: value.withN,
-        withoutN: value.withoutN,
-        status: value.status,
-        pass: value.pass
-      }])
+      Object.entries(summary.a3).map(([name, value]) => [name, value.axis === "ordinal"
+        ? {
+          axis: value.axis,
+          levelCounts: value.levelCounts,
+          n: value.n,
+          endpoints: value.endpoints,
+          status: value.status,
+          pass: value.pass
+        }
+        : {
+          withN: value.withN,
+          withoutN: value.withoutN,
+          endpoints: value.endpoints,
+          status: value.status,
+          pass: value.pass
+        }])
     ),
     overallCoreSupply: {
       coreEncounter: formatRate(summary.overallCoreSupply.coreEncounter),
