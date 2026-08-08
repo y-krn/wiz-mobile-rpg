@@ -288,6 +288,12 @@ const CALIBRATION_RUNS = Math.max(
   Number(SIM_ENV.SIM_CALIBRATION_RUNS || RUNS_PER_CASE)
 );
 const SIM_SEED = Number(SIM_ENV.SIM_SEED || 231) >>> 0;
+const CORE_ENCOUNTER_CEILING_MODE = String(
+  process.env.SIM_CORE_ENCOUNTER_CEILING || ""
+).trim();
+const CORE_WORKSHOP_GATE_MODE = String(
+  process.env.SIM_CORE_WORKSHOP_GATE || ""
+).trim();
 const TARGET_DEPTHS = [5, 10, 15, 20];
 const MAX_COMBAT_TURNS = 50;
 const ENCOUNTER_GROUPS = Object.freeze([
@@ -824,6 +830,7 @@ const ACTIVE_SCENARIOS = REQUESTED_SCENARIO_IDS.size === 0
 const SIM_CLASSES = SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className));
 const ENABLED_CORE_AFFIXES = CORE_AFFIXES.filter(affix => affix.enabled);
 const CORE_AFFIX_IDS = new Set(ENABLED_CORE_AFFIXES.map(affix => affix.id));
+const ALL_CORE_AFFIX_IDS = ENABLED_CORE_AFFIXES.map(affix => affix.id);
 const CORE_AFFIX_BY_ID = new Map(ENABLED_CORE_AFFIXES.map(affix => [affix.id, affix]));
 const COMBAT_CORE_IDS = new Set(
   ENABLED_CORE_AFFIXES.filter(affix => affix.poolGroup === "combat").map(affix => affix.id)
@@ -2718,6 +2725,35 @@ function isEquipment(item) {
   return ["weapon", "shield", "armor", "accessory"].includes(item?.type);
 }
 
+function applyCoreEncounterCeiling(item) {
+  if (CORE_ENCOUNTER_CEILING_MODE !== "epic-core" || !item || typeof item !== "object") {
+    return item;
+  }
+  const itemData = getItemData(item);
+  if (!isEquipment(itemData)) return item;
+
+  const existingCore = item.affixes?.some(affix =>
+    CORE_AFFIX_IDS.has(affix.id || affix.type)
+  );
+  const core = CORE_AFFIXES.find(affix =>
+    affix.enabled && affix.slot === itemData.type
+  );
+  if (!core) return item;
+
+  item.rarity = "epic";
+  if (!existingCore) {
+    item.affixes = [
+      ...(item.affixes || []),
+      { id: core.id, kind: "core", type: core.id, value: 1 }
+    ];
+  }
+  return item;
+}
+
+function applyCoreEncounterCeilingToItems(items) {
+  return items.map(applyCoreEncounterCeiling);
+}
+
 function isSimulationCurseLocked(item) {
   return CURSE_LOCK_MODE === "current" && isCurseLocked(item);
 }
@@ -4525,6 +4561,9 @@ export function simulateRun({
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   let state = createSimulationState(className, startFloor, runSeed, scenario, workshop);
+  if (CORE_WORKSHOP_GATE_MODE === "off") {
+    state.party[0].unlockedAffixIds = [...ALL_CORE_AFFIX_IDS];
+  }
   const materialOverrideRandom = createMaterialOverrideRandom(
     `${runSeed}:${scenario.materialDropOverride?.id || "baseline"}`
   );
@@ -4887,6 +4926,7 @@ export function simulateRun({
           supplyOverride,
           metrics
         );
+        chestItems.items = applyCoreEncounterCeilingToItems(chestItems.items);
         const cureCountsBeforeChest = countInventoryItems(state.inventory);
         const acquiredEquipment = [];
         recordEquipmentGenerations(metrics, chestItems.items);
@@ -5198,15 +5238,18 @@ export function simulateRun({
           if (extraCombatEquipment && addInventoryItemToState(state, extraCombatEquipment)) {
             overriddenCombatEquipment.push(extraCombatEquipment);
           }
+          const ceilingCombatEquipment = applyCoreEncounterCeilingToItems(
+            overriddenCombatEquipment
+          );
           state.currentRun.equipmentFound.splice(
             equipmentFoundBeforeRewards,
             state.currentRun.equipmentFound.length - equipmentFoundBeforeRewards,
-            ...overriddenCombatEquipment
+            ...ceilingCombatEquipment
           );
-          recordEquipmentGenerations(metrics, overriddenCombatEquipment);
+          recordEquipmentGenerations(metrics, ceilingCombatEquipment);
           recordEquipmentAcquisitions(
             metrics,
-            overriddenCombatEquipment,
+            ceilingCombatEquipment,
             floor,
             "combat"
           );
@@ -6852,6 +6895,12 @@ console.log(
 console.log(`傷薬商人方針: ${DEFAULT_HEAL_POTION_MERCHANT_POLICY}（マイルストーンで所持0時に1個購入）`);
 console.log(`core価値calibration: B1→B20 N=${CALIBRATION_RUNS} / 方針=${ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id).join(",")}`);
 console.log(`識別方針切替: IDENTIFICATION_POLICY=${SIM_ENV.IDENTIFICATION_POLICY || "powder"}`);
+if (CORE_ENCOUNTER_CEILING_MODE) {
+  console.log(`core遭遇率上界反実仮想: ${CORE_ENCOUNTER_CEILING_MODE}（生成後変換、乱数消費順維持）`);
+}
+if (CORE_WORKSHOP_GATE_MODE) {
+  console.log(`core工房ゲート反実仮想: ${CORE_WORKSHOP_GATE_MODE}（core解禁のみ変更）`);
+}
 console.log(
   `開始鑑定粉: ${IDENTIFICATION_POWDER_UNLIMITED
     ? "実質無制限"

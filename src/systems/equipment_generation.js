@@ -102,11 +102,12 @@ function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCo
     if (rng() >= composition.coreChance) {
       return rollAffixes(supportPool, composition.support, rng, budget);
     }
-    return rollAffixes(corePool, 1, rng, budget);
+    return rollAffixes(corePool, Math.max(1, composition.core || 1), rng, budget);
   }
 
-  const coreAffixes = composition.core > 0
-    ? rollAffixes(corePool, 1, rng, budget)
+  const coreCount = Math.max(0, composition.core || 0);
+  const coreAffixes = coreCount > 0
+    ? rollAffixes(corePool, coreCount, rng, budget)
     : [];
   const remainingBudget = budget - coreAffixes.reduce((sum, affix) => {
     return sum + (CORE_AFFIXES.find(definition => definition.id === affix.id)?.cost || 0);

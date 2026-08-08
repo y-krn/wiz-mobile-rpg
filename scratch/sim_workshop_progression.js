@@ -36,6 +36,7 @@ const {
   getDepartureCraftRecipePayment,
   spendDepartureCraftRecipes
 } = await import("../src/rules/craft_rules.js");
+const { AFFIX_BALANCE } = await import("../src/data/affixes.js");
 
 const TRIALS = Math.max(1, Number(process.env.PROGRESSION_TRIALS || 50));
 const RUNS_PER_TRIAL = Math.max(1, Number(process.env.PROGRESSION_RUNS || 50));
@@ -175,6 +176,50 @@ const ADDED_WORKSHOP_NODE_IDS = new Set([
   "pool_tomb_raider",
   "pool_scholar_eye"
 ]);
+
+const ISSUE_437_CONDITION = process.env.SIM_437_CONDITION || "current";
+
+function addIssue437Budget(budgets, amount) {
+  return budgets.map((budget, floor) => floor === 0 ? budget : budget + amount);
+}
+
+function applyIssue437Condition() {
+  if (ISSUE_437_CONDITION === "current") return;
+  if (ISSUE_437_CONDITION === "core2-no-budget") {
+    AFFIX_BALANCE.rollComposition.rare.core = 2;
+    AFFIX_BALANCE.rollComposition.epic.core = 2;
+    return;
+  }
+  if (ISSUE_437_CONDITION === "core2-budgeted") {
+    AFFIX_BALANCE.rollComposition.rare.core = 2;
+    AFFIX_BALANCE.rollComposition.epic.core = 2;
+    AFFIX_BALANCE.budgetsByRarityAndFloor.rare = addIssue437Budget(
+      AFFIX_BALANCE.budgetsByRarityAndFloor.rare,
+      10
+    );
+    AFFIX_BALANCE.budgetsByRarityAndFloor.epic = addIssue437Budget(
+      AFFIX_BALANCE.budgetsByRarityAndFloor.epic,
+      10
+    );
+    return;
+  }
+  if (ISSUE_437_CONDITION.startsWith("rare-chance-")) {
+    const chance = Number(ISSUE_437_CONDITION.slice("rare-chance-".length));
+    if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
+      throw new Error(`invalid rare chance condition: ${ISSUE_437_CONDITION}`);
+    }
+    AFFIX_BALANCE.rollComposition.rare.coreChance = chance;
+    return;
+  }
+  if (ISSUE_437_CONDITION === "magic-core") {
+    AFFIX_BALANCE.rollComposition.magic.core = 1;
+    AFFIX_BALANCE.budgetsByRarityAndFloor.magic = [0, 10, 10, 10, 10, 10];
+    return;
+  }
+  throw new Error(`invalid Issue #437 condition: ${ISSUE_437_CONDITION}`);
+}
+
+applyIssue437Condition();
 
 const STAT_NODE_IDS = WORKSHOP_NODES
   .filter(node => node.category === "permanentStats")
