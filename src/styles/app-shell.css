@@ -219,6 +219,11 @@
   display: none;
 }
 
+#game-container.workshop-mode #viewport-panel,
+#game-container.workshop-mode #log-panel {
+  display: none;
+}
+
 #dungeon-canvas {
   width: 100%;
   height: 100%;
