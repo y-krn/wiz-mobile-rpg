@@ -14,6 +14,7 @@ import {
   purchaseDepartureCraft
 } from "../systems/workshop.js";
 import { CRAFT_RECIPES } from "../craft.js";
+import { getSortedCraftRecipes } from "../rules/craft_rules.js";
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
@@ -145,7 +146,7 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
   summary.appendChild(balances);
   optGrid.appendChild(summary);
 
-  CRAFT_RECIPES.forEach(recipe => {
+  getSortedCraftRecipes(CRAFT_RECIPES).forEach(recipe => {
     const quantity = getDepartureCraftQuantity(recipe.resultId);
     const canAdd = canAffordDepartureCraft(state.metaMaterials, [
       ...selectedRecipeIds,

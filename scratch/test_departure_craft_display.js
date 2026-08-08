@@ -20,6 +20,53 @@ const {
   getAdditionalCraftableCount,
   getDepartureCraftBalance
 } = await import("../src/systems/workshop.js");
+const { getSortedCraftRecipes } = await import("../src/rules/craft_rules.js");
+const { CRAFT_RECIPES } = await import("../src/craft.js");
+
+const sortedCraftRecipeIds = getSortedCraftRecipes(CRAFT_RECIPES).map(recipe => recipe.resultId);
+check(
+  "departure craft recipes sort by category with unknown recipes last",
+  JSON.stringify(sortedCraftRecipeIds) === JSON.stringify([
+    "HEAL_POTION",
+    "HOLY_WATER",
+    "MANA_POTION",
+    "GREATER_HEAL",
+    "ANTIDOTE",
+    "EYE_DROPS",
+    "GUARD_POTION",
+    "TRAP_KIT",
+    "TOWN_PORTAL",
+    "IDENTIFY_POWDER"
+  ]),
+  JSON.stringify(sortedCraftRecipeIds)
+);
+check(
+  "sorting does not mutate the recipe definition order",
+  JSON.stringify(CRAFT_RECIPES.map(recipe => recipe.resultId)) === JSON.stringify([
+    "HEAL_POTION",
+    "ANTIDOTE",
+    "HOLY_WATER",
+    "MANA_POTION",
+    "TRAP_KIT",
+    "TOWN_PORTAL",
+    "GREATER_HEAL",
+    "GUARD_POTION",
+    "IDENTIFY_POWDER",
+    "EYE_DROPS"
+  ]),
+  JSON.stringify(CRAFT_RECIPES.map(recipe => recipe.resultId))
+);
+check(
+  "same-category and unknown recipes retain input order",
+  getSortedCraftRecipes([
+    { resultId: "MANA_POTION" },
+    { resultId: "HEAL_POTION" },
+    { resultId: "IDENTIFY_POWDER" },
+    { resultId: "ANTIDOTE" },
+    { resultId: "UNKNOWN_RECIPE" }
+  ]).map(recipe => recipe.resultId),
+  ["MANA_POTION", "HEAL_POTION", "ANTIDOTE", "IDENTIFY_POWDER", "UNKNOWN_RECIPE"]
+);
 
 const HEAL_POTION = "HEAL_POTION";
 const TOWN_PORTAL = "TOWN_PORTAL";
