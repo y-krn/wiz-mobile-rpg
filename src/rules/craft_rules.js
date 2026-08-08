@@ -1,11 +1,32 @@
 import { MATERIAL_TYPES } from "../data/materials.js";
+import { ITEM_CATEGORY, ITEM_CATEGORY_ORDER } from "../constants/item_categories.js";
 import {
   spendAnyMaterials,
   spendMaterials
 } from "./material_rules.js";
 
+const FALLBACK_CATEGORY_ORDER = ITEM_CATEGORY_ORDER.length;
+
 function normalizeAnyTotal(total) {
   return Math.max(0, Math.floor(Number(total) || 0));
+}
+
+function getCraftRecipeCategoryOrder(recipe) {
+  const order = ITEM_CATEGORY_ORDER.indexOf(ITEM_CATEGORY[recipe?.resultId]);
+  return order === -1 ? FALLBACK_CATEGORY_ORDER : order;
+}
+
+export function getSortedCraftRecipes(recipes) {
+  if (!Array.isArray(recipes)) return [];
+
+  return recipes
+    .map((recipe, index) => ({ recipe, index }))
+    .sort((a, b) => {
+      const categoryOrder = getCraftRecipeCategoryOrder(a.recipe) - getCraftRecipeCategoryOrder(b.recipe);
+      if (categoryOrder !== 0) return categoryOrder;
+      return a.index - b.index;
+    })
+    .map(({ recipe }) => recipe);
 }
 
 export function getDepartureCraftRecipePayment(recipe) {
