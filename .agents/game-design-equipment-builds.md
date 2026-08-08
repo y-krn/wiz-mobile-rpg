@@ -101,7 +101,9 @@ adding it as a conditional when implemented).
   Epic=core1＋support2
 - Point budget: support cost 1〜3, core flat 10. The budget is determined by rarity × floor
   depth (`AFFIX_BALANCE.budgetsByRarityAndFloor`)
-- 30% of core-bearing drops are cursed (`AFFIX_BALANCE.coreCurseChance`)
+- Equipment curse generation follows `IDENTIFICATION_BALANCE` in
+  `src/rules/identification_rules.js`; core-bearing equipment receives the
+  configured core bonus on top of the floor-scaled base chance.
 - Floor-specific core pool weights: B1-B2=mostly economy, B3+=mostly combat
 - Core sources are dungeon-only. Milestone merchants do not sell equipment.
 

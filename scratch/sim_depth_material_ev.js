@@ -32,6 +32,7 @@ const { isMilestoneFloor } = await import("../src/run_map_generator.js");
 const { createFloorElite } = await import("../src/systems/roaming_elites.js");
 const { getFloorTemplate } = await import("../src/data/floor_templates.js");
 const { EVENT_TYPES } = await import("../src/constants/events.js");
+const { DX, DY } = await import("../src/constants/directions.js");
 const { generateChestMaterials } = await import("../src/chest.js");
 // 宝箱の抽選は src と同一の出所を叩く（#273）。写経すると src 変更に追随しない。
 const {
@@ -104,6 +105,7 @@ const {
   getCharVit,
   getCharWeaponAtk,
   getItemData,
+  getEquippedItemData,
   getPartyMaxAffix,
   SPELLS
 } = await import("../src/data.js");
@@ -121,6 +123,7 @@ const {
 } = await import("../src/systems/workshop.js");
 const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
 const { getStartingHealPotionCount } = await import("../src/rules/recovery_rules.js");
+const { getPerceptionIntent } = await import("../src/systems/elite_perception.js");
 
 function getScholarMaterialBonus(monsters, state) {
   return monsters.reduce((sum, monster) => {
@@ -742,8 +745,7 @@ const MATERIAL_EV_SCORE_WEIGHT = 1;
 const TOMB_RAIDER_TRAP_RISK_DISCOUNT = 0.5;
 
 const CORE_ACTIVATION_MEASUREMENT_NOTES = Object.freeze({
-  CORE_SNEAK_STEP: "sim未再現: movement.jsの徘徊エリート知覚経路を通らない",
-  CORE_KEEN_EYE: "sim未再現: 未鑑定効果EVを能動適用しないため定量化保留"
+  CORE_REARGUARD: "設計上無効: 既存セーブ互換用 tombstone"
 });
 
 function createCoreMeasurementCounts() {
@@ -810,6 +812,7 @@ function createCoreObservations() {
     bountyBonusMaterials: 0,
     curseSamples: 0,
     equippedCurseTotal: 0,
+    sneakStepReducedDetectionCases: 0,
     coreOpportunityCounts: createCoreMeasurementCounts(),
     coreActivationCounts: createCoreMeasurementCounts()
   };
@@ -1680,9 +1683,12 @@ const BLOOD_WAND_ACTIVATION_LOG = getCoreLogText("CORE_BLOOD_WAND");
 
 function countLoggedCoreActivations(observations, logQueue) {
   const loggedCoreIds = [
+    "CORE_LAST_STAND",
     "CORE_OPENER",
+    "CORE_GIANT_SLAYER",
     "CORE_THORN_SHIELD",
-    "CORE_BOUNTY_HUNTER"
+    "CORE_BOUNTY_HUNTER",
+    "CORE_EXECUTIONER"
   ];
   loggedCoreIds.forEach(coreId => {
     const message = getCoreLogText(coreId);
@@ -1790,21 +1796,18 @@ function recordRoundCoreObservations(
       observations.lowHpOffensiveTurns++;
       if (lastStandParams) {
         observations.coreOpportunityCounts.CORE_LAST_STAND++;
-        observations.coreActivationCounts.CORE_LAST_STAND++;
       }
     }
     if (targetBeforeRound?.maxHp > getCharMaxHp(characterBefore)) {
       observations.giantTargetTurns++;
       if (giantSlayerParams) {
         observations.coreOpportunityCounts.CORE_GIANT_SLAYER++;
-        observations.coreActivationCounts.CORE_GIANT_SLAYER++;
       }
     }
     if (targetBeforeRound?.status && !["ok", "dead"].includes(targetBeforeRound.status)) {
       observations.statusTargetTurns++;
       if (executionerParams) {
         observations.coreOpportunityCounts.CORE_EXECUTIONER++;
-        observations.coreActivationCounts.CORE_EXECUTIONER++;
       }
     }
     observations.curseSamples++;
@@ -1812,7 +1815,9 @@ function recordRoundCoreObservations(
     observations.equippedCurseTotal += equippedCurseCount;
     if (curseKeeperParams && equippedCurseCount > 0) {
       observations.coreOpportunityCounts.CORE_CURSE_KEEPER++;
-      observations.coreActivationCounts.CORE_CURSE_KEEPER++;
+      observations.coreActivationCounts.CORE_CURSE_KEEPER += Number(
+        getCharStr(characterBefore) > getCharStrWithoutCore(characterBefore, "CORE_CURSE_KEEPER")
+      );
     }
   }
 
@@ -2550,6 +2555,31 @@ function getItemCoreId(item) {
   return affix ? (affix.id || affix.type) : null;
 }
 
+function getCharStrWithoutCore(character, coreId) {
+  const baseline = {
+    ...character,
+    equipment: { ...(character.equipment || {}) }
+  };
+  Object.entries(baseline.equipment || {}).forEach(([slot, item]) => {
+    if (getItemCoreId(item) === coreId) baseline.equipment[slot] = null;
+  });
+  return getCharStr(baseline);
+}
+
+function isUnidentifiedEffectApplied(character, item) {
+  const hiddenData = getItemData(item);
+  const appliedData = getEquippedItemData(character, item);
+  if (!hiddenData || !appliedData) return false;
+  return hiddenData.name !== appliedData.name ||
+    hiddenData.desc !== appliedData.desc ||
+    hiddenData.atk !== appliedData.atk ||
+    hiddenData.def !== appliedData.def ||
+    hiddenData.hpBonus !== appliedData.hpBonus ||
+    hiddenData.mpBonus !== appliedData.mpBonus ||
+    hiddenData.trapBonus !== appliedData.trapBonus ||
+    JSON.stringify(hiddenData.statsBonus) !== JSON.stringify(appliedData.statsBonus);
+}
+
 function getBaseEquipmentScore(character) {
   return (
     getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk +
@@ -2788,7 +2818,8 @@ function getEconomyCoreScore(character, scoringProfile, floor) {
     return (classScoringProfile.expectedScholarMaterialsFromFloor[scoringFloor] || 0) *
       MATERIAL_EV_SCORE_WEIGHT;
   }
-  // 忍び足は徘徊エリート追跡、慧眼は#236の未鑑定判断が未再現。両者は保持規則のみ。
+  // 忍び足と慧眼は、実際の判定経路の発動計測を行う。現時点では
+  // それぞれの探索効果をこのcoreスコアへ換算しない。
   return 0;
 }
 
@@ -2888,6 +2919,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     }
     const currentScore = getEquipmentScore(character, scoringProfile, state.floor);
     let best = null;
+    const keenEyeActive = Boolean(getCharCoreParams(character, "CORE_KEEN_EYE"));
 
     state.inventory.forEach((inventoryItem, index) => {
       const itemData = getItemData(inventoryItem);
@@ -2901,6 +2933,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       const slot = itemData.type;
       const oldEquipment = character.equipment[slot];
       if (isCurseLocked(oldEquipment)) {
+        const blockedCoreId = getItemCoreId(inventoryItem);
+        if (blockedCoreId) metrics.coreBlockedByCurseLockIds.add(blockedCoreId);
         recordCoreDecision(metrics, inventoryItem, "current-curse-locked");
         return;
       }
@@ -2923,11 +2957,17 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         qualifies = isPotentialUnidentifiedUpgrade(inventoryItem, oldEquipment);
         selectionScore = getUnidentifiedSelectionScore(inventoryItem);
         rejectionReason = "unidentified-not-potential-upgrade";
-      } else if (policy === "powder" && candidateIsUnidentified) {
+      } else if (policy === "powder" && candidateIsUnidentified && !keenEyeActive) {
         qualifies = false;
         selectionScore = -Infinity;
         rejectionReason = "unidentified-held";
       } else {
+        if (policy === "powder" && candidateIsUnidentified && keenEyeActive) {
+          metrics.coreObservations.coreOpportunityCounts.CORE_KEEN_EYE++;
+          metrics.coreObservations.coreActivationCounts.CORE_KEEN_EYE += Number(
+            isUnidentifiedEffectApplied(character, inventoryItem)
+          );
+        }
         character.equipment[slot] = candidate;
         candidateScore = getEquipmentScore(character, scoringProfile, state.floor);
         character.equipment[slot] = oldEquipment;
@@ -2977,6 +3017,9 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       metrics.unidentifiedWearCount++;
     }
     if (best.candidate.curseEffectId) metrics.curseHitCount++;
+    if (best.candidateCoreId && isCurseLocked(best.candidate)) {
+      metrics.coreCursedLockedIds.add(best.candidateCoreId);
+    }
     if (best.candidateCoreId) {
       metrics.coreEverEquippedIds.add(best.candidateCoreId);
       const poolGroup = ENABLED_CORE_AFFIXES.find(
@@ -3155,6 +3198,64 @@ function createEliteRoutePlan(generated, floor, runSeed, policy) {
     encounterStep: null,
     avoidNoRoute: false
   };
+}
+
+function getRouteDirection(previous, current, fallback = 0) {
+  if (!previous || !current) return fallback;
+  const dx = current.x - previous.x;
+  const dy = current.y - previous.y;
+  if (dx === 1) return 1;
+  if (dy === 1) return 2;
+  if (dx === -1) return 3;
+  if (dy === -1) return 0;
+  return fallback;
+}
+
+function observeSneakStepPerception({
+  state,
+  observations,
+  elite,
+  routePath,
+  grid,
+  floorSteps,
+  step
+}) {
+  const armor = state.party[0]?.equipment?.armor;
+  if (getItemCoreId(armor) !== "CORE_SNEAK_STEP") return;
+  const sneakStep = getCharCoreParams(state.party[0], "CORE_SNEAK_STEP");
+  if (!sneakStep || !elite || !routePath?.length || !grid || floorSteps <= 0) return;
+
+  const routeIndex = Math.min(
+    routePath.length - 1,
+    Math.floor((step / floorSteps) * Math.max(0, routePath.length - 1))
+  );
+  const current = routePath[routeIndex];
+  const previous = routePath[Math.max(0, routeIndex - 1)];
+  const player = {
+    x: current.x,
+    y: current.y,
+    dir: getRouteDirection(previous, current),
+    dx: DX,
+    dy: DY
+  };
+  const perceptionInput = {
+    monster: elite,
+    player,
+    noise: null,
+    playerMoved: true,
+    grid
+  };
+  // Use the same helper called by movement.js; baseline is only a coverage comparator.
+  const applied = getPerceptionIntent({
+    ...perceptionInput,
+    rangeMultiplier: sneakStep.detectionRangeMultiplier
+  });
+  const baseline = getPerceptionIntent({ ...perceptionInput, rangeMultiplier: 1 });
+  observations.coreOpportunityCounts.CORE_SNEAK_STEP++;
+  observations.coreActivationCounts.CORE_SNEAK_STEP++;
+  observations.sneakStepReducedDetectionCases += Number(
+    baseline.detected && !applied.detected
+  );
 }
 
 function createFloorRoutePlan(generated, floor, bossPolicy = "engage") {
@@ -3671,6 +3772,22 @@ function createFloorSupplyStats() {
   }));
 }
 
+function createCurseGenerationCounts() {
+  return {
+    core: { generated: 0, cursed: 0 },
+    nonCore: { generated: 0, cursed: 0 }
+  };
+}
+
+function recordEquipmentGenerations(metrics, equipmentItems) {
+  equipmentItems.forEach(item => {
+    if (!isEquipment(getItemData(item))) return;
+    const curseGroup = hasBuildCoreAffix(item) ? "core" : "nonCore";
+    metrics.curseGeneration[curseGroup].generated++;
+    if (item?.curseEffectId) metrics.curseGeneration[curseGroup].cursed++;
+  });
+}
+
 function createSupportCountDistribution() {
   return { 0: 0, 1: 0, 2: 0, 3: 0, "4+": 0 };
 }
@@ -3937,6 +4054,12 @@ function finishRun(state, outcome, metrics) {
       .map(affix => affix.id || affix.type)
       .filter(id => CORE_AFFIX_IDS.has(id))
   )];
+  const finalCoreCurseLockedIds = [...new Set(
+    Object.values(state.party[0].equipment || {})
+      .filter(item => isCurseLocked(item))
+      .map(getItemCoreId)
+      .filter(Boolean)
+  )];
   const finalCoreId = finalCoreIds[0] || null;
   if (metrics.diagnostics) {
     metrics.diagnostics.finalBuild = createBuildSnapshot(
@@ -3987,6 +4110,10 @@ function finishRun(state, outcome, metrics) {
     curseHitCount: metrics.curseHitCount,
     equipmentFoundBySource: metrics.equipmentFoundBySource,
     equipmentFoundByFloor: metrics.equipmentFoundByFloor,
+    curseGeneration: {
+      core: { ...metrics.curseGeneration.core },
+      nonCore: { ...metrics.curseGeneration.nonCore }
+    },
     supportAffixFoundById: { ...metrics.supportAffixFoundById },
     trapBonusItemsFound: metrics.trapBonusItemsFound,
     trapBonusFoundByValue: { ...metrics.trapBonusFoundByValue },
@@ -4011,6 +4138,8 @@ function finishRun(state, outcome, metrics) {
     coreEncounterFloors: [...metrics.coreEncounterFloors],
     coreEncounterSources: [...metrics.coreEncounterSources],
     coreEverEquippedIds: [...metrics.coreEverEquippedIds],
+    coreCursedLockedIds: [...metrics.coreCursedLockedIds],
+    coreBlockedByCurseLockIds: [...metrics.coreBlockedByCurseLockIds],
     coreFirstEncounterFloorByGroup: {
       ...metrics.coreFirstEncounterFloorByGroup
     },
@@ -4029,6 +4158,7 @@ function finishRun(state, outcome, metrics) {
     floorSupplyStats: metrics.floorSupplyStats,
     coreEquipped: finalCoreIds.length > 0,
     finalCoreIds,
+    finalCoreCurseLockedIds,
     finalCoreId,
     coreObservations: metrics.coreObservations,
     healPotionsUsed: metrics.healPotionsUsed,
@@ -4170,6 +4300,7 @@ export function simulateRun({
     curseHitCount: 0,
     equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
     equipmentFoundByFloor: Array(21).fill(0),
+    curseGeneration: createCurseGenerationCounts(),
     supportAffixFoundById: {},
     trapBonusItemsFound: 0,
     trapBonusFoundByValue: {},
@@ -4200,6 +4331,8 @@ export function simulateRun({
     coreEncounterFloors: new Set(),
     coreEncounterSources: new Set(),
     coreEverEquippedIds: new Set(),
+    coreCursedLockedIds: new Set(),
+    coreBlockedByCurseLockIds: new Set(),
     coreFirstEncounterFloorByGroup: {
       combat: null,
       economy: null
@@ -4435,6 +4568,17 @@ export function simulateRun({
       state.currentRun.steps++;
       state.currentRun.floorSteps[String(floor)] =
         (state.currentRun.floorSteps[String(floor)] || 0) + 1;
+      if (step % 2 === 0) {
+        observeSneakStepPerception({
+          state,
+          observations: metrics.coreObservations,
+          elite: elitePlan.elite,
+          routePath: routePlan.path,
+          grid: generated.grid,
+          floorSteps,
+          step
+        });
+      }
 
       const scheduledFloorTraps = floorTrapSchedule.get(step) || [];
       for (const scheduledTrap of scheduledFloorTraps) {
@@ -4487,6 +4631,7 @@ export function simulateRun({
         );
         const cureCountsBeforeChest = countInventoryItems(state.inventory);
         const acquiredEquipment = [];
+        recordEquipmentGenerations(metrics, chestItems.items);
         chestItems.items.forEach((item, itemIndex) => {
           if (
             chestItems.mainItemLost &&
@@ -4800,6 +4945,7 @@ export function simulateRun({
             state.currentRun.equipmentFound.length - equipmentFoundBeforeRewards,
             ...overriddenCombatEquipment
           );
+          recordEquipmentGenerations(metrics, overriddenCombatEquipment);
           recordEquipmentAcquisitions(
             metrics,
             overriddenCombatEquipment,
@@ -4938,6 +5084,7 @@ function simulateCase({
     identificationCount: 0,
     unidentifiedWearCount: 0,
     curseHitCount: 0,
+    curseGeneration: createCurseGenerationCounts(),
     coreEquipmentFound: 0,
     runsWithCoreEncounter: 0,
     runsWithEarlyCoreEncounter: 0,
@@ -4948,6 +5095,10 @@ function simulateCase({
     runsWithEconomyCoreEquipped: 0,
     coreEncounterRunsById: {},
     coreEquippedRunsById: {},
+    coreCurseLockedRetentionRunsById: {},
+    coreBlockedByCurseLockRunsById: {},
+    coreCurseAvoidedRunsById: {},
+    coreUnselectedWithoutCurseLockRunsById: {},
     coreEquippedCountDistribution: {},
     unequippedCoreReasonsById: {},
     firstCoreDepthCounts: {},
@@ -5099,6 +5250,10 @@ function simulateCase({
     totals.identificationCount += result.identificationCount;
     totals.unidentifiedWearCount += result.unidentifiedWearCount;
     totals.curseHitCount += result.curseHitCount;
+    Object.entries(result.curseGeneration).forEach(([group, counts]) => {
+      totals.curseGeneration[group].generated += counts.generated;
+      totals.curseGeneration[group].cursed += counts.cursed;
+    });
     totals.coreEquipmentFound += result.coreEquipmentFound;
     totals.runsWithCoreEncounter += Number(result.firstCoreDepth !== null);
     totals.runsWithEarlyCoreEncounter += Number(
@@ -5131,8 +5286,24 @@ function simulateCase({
     }
     result.coreEncounteredIds.forEach(coreId => {
       totals.coreEncounterRunsById[coreId] = (totals.coreEncounterRunsById[coreId] || 0) + 1;
-      if (finalCoreIds.includes(coreId)) return;
-      const reason = getUnequippedCoreReason(result, coreId);
+      const isFinalCore = finalCoreIds.includes(coreId);
+      const reason = isFinalCore ? null : getUnequippedCoreReason(result, coreId);
+      if (result.finalCoreCurseLockedIds.includes(coreId)) {
+        totals.coreCurseLockedRetentionRunsById[coreId] =
+          (totals.coreCurseLockedRetentionRunsById[coreId] || 0) + 1;
+      } else if (result.coreBlockedByCurseLockIds.includes(coreId)) {
+        totals.coreBlockedByCurseLockRunsById[coreId] =
+          (totals.coreBlockedByCurseLockRunsById[coreId] || 0) + 1;
+      } else if (!isFinalCore) {
+        if (reason === "粉不足で未鑑定保持") {
+          totals.coreCurseAvoidedRunsById[coreId] =
+            (totals.coreCurseAvoidedRunsById[coreId] || 0) + 1;
+        } else {
+          totals.coreUnselectedWithoutCurseLockRunsById[coreId] =
+            (totals.coreUnselectedWithoutCurseLockRunsById[coreId] || 0) + 1;
+        }
+      }
+      if (isFinalCore) return;
       if (!totals.unequippedCoreReasonsById[coreId]) {
         totals.unequippedCoreReasonsById[coreId] = {};
       }
@@ -5267,6 +5438,10 @@ function simulateCase({
     averageIdentificationCount: totals.identificationCount / RUNS_PER_CASE,
     averageUnidentifiedWearCount: totals.unidentifiedWearCount / RUNS_PER_CASE,
     averageCurseHitCount: totals.curseHitCount / RUNS_PER_CASE,
+    curseGeneration: {
+      core: { ...totals.curseGeneration.core },
+      nonCore: { ...totals.curseGeneration.nonCore }
+    },
     coreEquipmentShare: totals.equipmentFound > 0
       ? totals.coreEquipmentFound / totals.equipmentFound
       : 0,
@@ -5296,6 +5471,10 @@ function simulateCase({
       : 0,
     coreEncounterRunsById: totals.coreEncounterRunsById,
     coreEquippedRunsById: totals.coreEquippedRunsById,
+    coreCurseLockedRetentionRunsById: totals.coreCurseLockedRetentionRunsById,
+    coreBlockedByCurseLockRunsById: totals.coreBlockedByCurseLockRunsById,
+    coreCurseAvoidedRunsById: totals.coreCurseAvoidedRunsById,
+    coreUnselectedWithoutCurseLockRunsById: totals.coreUnselectedWithoutCurseLockRunsById,
     coreEquippedCountDistribution: totals.coreEquippedCountDistribution,
     unequippedCoreReasonsById: totals.unequippedCoreReasonsById,
     purifyEffectsByClass: Object.fromEntries(
@@ -5423,7 +5602,7 @@ function wilsonInterval(successes, trials, z = 1.96) {
 }
 
 function formatWilson(successes, trials) {
-  if (trials <= 0) return "未観測";
+  if (trials <= 0) return "未観測 [N=0; CIなし]";
   const interval = wilsonInterval(successes, trials);
   const uncertain = trials < 30 ? " 未確定" : "";
   return `${formatPercent(successes / trials)} [${formatPercent(interval[0])},${formatPercent(interval[1])}; N=${trials}]${uncertain}`;
@@ -5610,8 +5789,8 @@ function printCoreScoringProfile(profile, policy = null) {
     `B1=${profile.expectedScholarMaterialsFromFloor[1].toFixed(2)}, ` +
     `B10=${profile.expectedScholarMaterialsFromFloor[10].toFixed(2)}`
   );
-  console.log("忍び足: 徘徊エリート追跡未再現 → 定量化保留、95%保持のみ");
-  console.log("慧眼: 未鑑定判断経路を実測、未鑑定効果EVは定量化保留");
+  console.log("忍び足: src/systems/elite_perception.jsの実判定を実配置・経路へ適用。移動後の接触結果は未モデル化");
+  console.log("慧眼: powderで未鑑定候補をgetEquippedItemData経由で評価。効果EVの独立換算は保留");
 }
 
 function printTable(results) {
@@ -5779,6 +5958,38 @@ function printIdentificationMetrics(results, policy) {
       `粉入手=${result.mean95CI.identificationPowderAcquired}, ` +
       `粉消費=${result.mean95CI.identificationPowderUsed}, ` +
       `粉残量=${result.mean95CI.identificationPowderRemaining}`
+    );
+  });
+}
+
+function printCurseGenerationMetrics(result) {
+  console.log(`\n【${result.label} 呪い生成率・core定着区分】`);
+  [
+    ["core", "コア付き"],
+    ["nonCore", "非コア"]
+  ].forEach(([group, label]) => {
+    const counts = result.curseGeneration[group];
+    console.log(
+      `  ${label}: 呪い付き/生成=${formatWilson(counts.cursed, counts.generated)} ` +
+      `(生成=${counts.generated}, 呪い付き=${counts.cursed})`
+    );
+  });
+  console.log(
+    "core遭遇runを分母にした区分: 呪いロック定着 / 呪いロックで候補阻止 / " +
+    "呪い回避（粉不足で未鑑定保持） / その他の非ロック非装備"
+  );
+  CORE_AFFIXES.forEach(affix => {
+    const encountered = result.coreEncounterRunsById[affix.id] || 0;
+    const locked = result.coreCurseLockedRetentionRunsById[affix.id] || 0;
+    const blocked = result.coreBlockedByCurseLockRunsById[affix.id] || 0;
+    const avoided = result.coreCurseAvoidedRunsById[affix.id] || 0;
+    const otherUnselected = result.coreUnselectedWithoutCurseLockRunsById[affix.id] || 0;
+    console.log(
+      `  ${affix.id}: 遭遇=${formatWilson(encountered, RUNS_PER_CASE)}, ` +
+      `呪いロック定着=${formatWilson(locked, encountered)}, ` +
+      `呪いロック阻止=${formatWilson(blocked, encountered)}, ` +
+      `呪い回避=${formatWilson(avoided, encountered)}, ` +
+      `その他非ロック非装備=${formatWilson(otherUnselected, encountered)}`
     );
   });
 }
@@ -5987,7 +6198,7 @@ function printCoreRetentionDetail(result) {
     const opportunities = result.coreObservations.coreOpportunityCounts[affix.id] || 0;
     const activations = result.coreObservations.coreActivationCounts[affix.id] || 0;
     const activation = !affix.enabled
-      ? "disabled / 未測定"
+      ? "設計上無効 [N=0; CIなし]"
       : CORE_ACTIVATION_MEASUREMENT_NOTES[affix.id] ||
         formatWilson(activations, opportunities);
     console.log(
@@ -5996,6 +6207,12 @@ function printCoreRetentionDetail(result) {
       `定着率=${formatWilson(equipped, encountered)}`
     );
   });
+  const sneakOpportunities = result.coreObservations.coreOpportunityCounts.CORE_SNEAK_STEP || 0;
+  const sneakReducedCases = result.coreObservations.sneakStepReducedDetectionCases || 0;
+  console.log(
+    `忍び足カバー: getPerceptionIntent適用=${formatWilson(sneakOpportunities, sneakOpportunities)}, ` +
+    `baseline検知→適用後非検知=${formatWilson(sneakReducedCases, sneakOpportunities)}`
+  );
   console.log("職業別core定着順位（遭遇→終了時装備）:");
   Object.entries(result.coreRetentionByClass).forEach(([className, retentionById]) => {
     const ranking = Object.entries(retentionById)
@@ -6241,7 +6458,8 @@ console.log(
 console.log(
   "非モデル化: テレポーター移動先の再経路化、商人での罠外し/鑑定粉購入（任意行動）、" +
   "上薬・MP消費/強化アイテムの能動使用、マップ上の任意寄り道、" +
-  "徘徊エリートの移動・知覚・偶発接触、人間の敵別判断（固定閾値で代理）"
+  "徘徊エリートの移動後の接触結果（知覚判定は実helper経由で計測）、" +
+  "人間の敵別判断（固定閾値で代理）"
 );
 console.log(
   "エリートモデル: generateRunFloor→実配置。avoid=初期セルを塞ぐ最短路の追加歩数、" +
@@ -6259,8 +6477,8 @@ console.log(
   "workshop-complete;旧ID=workshop-locked|workshop-unlocked"
 );
 console.log(
-  `core呪い設定: AFFIX_BALANCE.coreCurseChance=${AFFIX_BALANCE.coreCurseChance}は現generator未参照、` +
-  `実生成はIDENTIFICATION_BALANCE.coreCurseBonus=${IDENTIFICATION_BALANCE.coreCurseBonus}; ` +
+  `core呪い設定: 実生成はIDENTIFICATION_BALANCE.baseCurseChance=${IDENTIFICATION_BALANCE.baseCurseChance}` +
+  `+floor slope+coreCurseBonus=${IDENTIFICATION_BALANCE.coreCurseBonus}（上限=${IDENTIFICATION_BALANCE.maxCurseChance}）; ` +
   "legacyのみ呪い除外、powder/gambleは実生成呪いを適用"
 );
 console.log("逃走=常時成功（自ターン到達時）、先行攻撃＋離脱時追撃1発、報酬なし、探索継続");
@@ -6324,6 +6542,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   console.log(`\n【${scenario.label} B1開始 ビルド供給】`);
   printBuildSupplyMetrics(results);
   printWorkshopEffects(results.at(-1));
+  printCurseGenerationMetrics(results.at(-1));
   printCoreRetentionDetail(results.at(-1));
   printFloorMilestoneMetrics(results.at(-1));
 

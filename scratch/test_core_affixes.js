@@ -608,7 +608,7 @@ test("生成API: allowCores=falseでエピック商人相当にもコアなし",
   assert.ok(accessory.affixes.every(affix => affix.kind !== "core"));
 });
 
-test("迷宮アクセサリ: コア生成とcoreCurseChance経路", () => {
+test("迷宮アクセサリ: コア生成とIDENTIFICATION_BALANCE経路", () => {
   let coreAccessory = null;
   let cursedCoreAccessory = null;
   for (let seed = 1; seed <= 200; seed++) {
