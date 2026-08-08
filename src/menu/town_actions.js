@@ -19,10 +19,8 @@ export function handleTownOption(option) {
 }
 
 export function renderCastleMain(optGrid) {
+  optGrid.className = "submenu-grid castle-grid";
   optGrid.innerHTML = "";
-  optGrid.style.display = "flex";
-  optGrid.style.flexDirection = "column";
-  optGrid.style.gap = "8px";
   const records = state.records || { deepestRetreat: 0, deepestDeath: 0, deepestByClass: {}, totalRuns: 0 };
   const summary = document.createElement("div");
   summary.className = "records-menu-summary";

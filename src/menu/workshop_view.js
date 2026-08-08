@@ -19,8 +19,8 @@ function renderBalance(container) {
 }
 
 export function renderWorkshop(optGrid) {
+  optGrid.className = "submenu-grid workshop-grid";
   optGrid.innerHTML = "";
-  optGrid.classList.add("workshop-grid");
   renderBalance(optGrid);
   Object.entries(WORKSHOP_CATEGORIES).forEach(([category, label]) => {
     const nodes = WORKSHOP_NODES.filter(node => node.category === category);
