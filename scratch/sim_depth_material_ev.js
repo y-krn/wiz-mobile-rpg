@@ -158,6 +158,8 @@ const SIM_ENV_KEYS = Object.freeze([
   "PORTAL_MIN_FLOOR",
   "ELITE_POLICY",
   "BLOOD_WAND_HP_PAYMENT_MIN_RATE",
+  "SIM_CORE_SCORE_DROP_TOLERANCE",
+  "SIM_440_CONDITION",
   "SIM_SCENARIOS"
 ]);
 const REVALIDATION_DEPARTURE_CRAFT_IDS =
@@ -188,6 +190,8 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   PORTAL_MIN_FLOOR: "3",
   ELITE_POLICY: "avoid",
   BLOOD_WAND_HP_PAYMENT_MIN_RATE: "0.50",
+  SIM_CORE_SCORE_DROP_TOLERANCE: "0",
+  SIM_440_CONDITION: "current",
   SIM_SCENARIOS: ""
 });
 const BALANCE_MAIN_PRESET = Object.freeze({
@@ -212,6 +216,8 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   PORTAL_MIN_FLOOR: "3",
   ELITE_POLICY: "avoid",
   BLOOD_WAND_HP_PAYMENT_MIN_RATE: "0.50",
+  SIM_CORE_SCORE_DROP_TOLERANCE: "0",
+  SIM_440_CONDITION: "current",
   SIM_SCENARIOS: ""
 });
 const REVALIDATION_PRESET = Object.freeze({
@@ -261,6 +267,35 @@ const SIM_ENV = Object.freeze(Object.fromEntries(
   ])
 ));
 const EXPLICIT_SIM_ENV_KEYS = SIM_ENV_KEYS.filter(key => Object.hasOwn(process.env, key));
+
+function applyIssue440Condition() {
+  const condition = String(SIM_ENV.SIM_440_CONDITION || "current").trim();
+  if (condition === "current") return;
+
+  const noBudget = condition.startsWith("magic-no-budget-chance-");
+  const prefix = noBudget ? "magic-no-budget-chance-" : "magic-chance-";
+  if (!condition.startsWith(prefix)) {
+    throw new Error(
+      `SIM_440_CONDITION must be current|magic-chance-<0..1>|` +
+        `magic-no-budget-chance-<0..1>: ${condition}`
+    );
+  }
+  const chance = Number(condition.slice(prefix.length));
+  if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
+    throw new Error(`SIM_440_CONDITIONのcoreChanceが不正: ${condition}`);
+  }
+
+  AFFIX_BALANCE.rollComposition.magic = {
+    ...AFFIX_BALANCE.rollComposition.magic,
+    core: 1,
+    coreChance: chance
+  };
+  AFFIX_BALANCE.budgetsByRarityAndFloor.magic = noBudget
+    ? [0, 3, 3, 3, 3, 3]
+    : [0, 10, 10, 10, 10, 10];
+}
+
+applyIssue440Condition();
 
 export function getResolvedSimulationEnv() {
   return SIM_ENV;
