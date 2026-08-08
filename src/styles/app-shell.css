@@ -197,6 +197,10 @@
   display: none;
 }
 
+#game-container.town-submenu-mode #goal-banner {
+  display: none;
+}
+
 #game-container.result-mode #viewport-panel {
   flex: 1 1 auto;
   aspect-ratio: auto;
