@@ -97,7 +97,9 @@ adding it as a conditional when implemented).
 
 # Generation and Acquisition Rules
 
-- Rarity composition: Common=support1 / Rare=support2 or core1(50%) /
+- Rarity composition: Magic=support1 or core1 (configured by
+  `AFFIX_BALANCE.rollComposition.magic.coreChance`) / Rare=support2 or core1
+  (configured by `AFFIX_BALANCE.rollComposition.rare.coreChance`) /
   Epic=core1＋support2
 - Point budget: support cost 1〜3, core flat 10. The budget is determined by rarity × floor
   depth (`AFFIX_BALANCE.budgetsByRarityAndFloor`)

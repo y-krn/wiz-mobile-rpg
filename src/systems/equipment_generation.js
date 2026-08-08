@@ -98,7 +98,7 @@ function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCo
 
   const composition = AFFIX_BALANCE.rollComposition[rarity]
     || AFFIX_BALANCE.rollComposition.magic;
-  if (rarity === "rare") {
+  if (typeof composition.coreChance === "number") {
     if (rng() >= composition.coreChance) {
       return rollAffixes(supportPool, composition.support, rng, budget);
     }
