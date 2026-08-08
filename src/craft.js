@@ -60,6 +60,12 @@ export const CRAFT_RECIPES = [
     departureCost: { mode: "any", total: 7 },
     identifyPowder: 1,
     desc: "未鑑定装備を1つ鑑定する。"
+  },
+  {
+    resultId: "EYE_DROPS",
+    name: "目薬",
+    mats: { "霊粉": 1 },
+    desc: "使用すると盲目状態を解除する。"
   }
 ];
 
