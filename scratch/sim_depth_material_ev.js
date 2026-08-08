@@ -783,6 +783,16 @@ const TOMB_RAIDER_TRAP_RISK_DISCOUNT = 0.5;
 const CORE_ACTIVATION_MEASUREMENT_NOTES = Object.freeze({
   CORE_REARGUARD: "設計上無効: 既存セーブ互換用 tombstone"
 });
+const CORE_SCORING_COVERAGE_NOTES = Object.freeze({
+  CORE_CURSE_KEEPER:
+    "getBaseEquipmentScore→getCharStr/Vit/Int/Pie/Agi→getCharAllStatsAffixBonusで実効果を一度だけ反映",
+  CORE_SNEAK_STEP:
+    "getPerceptionIntentの実適用を別計測。combat scoreへ任意のscalarは加えず、economy core保持閾値95%を適用",
+  CORE_TOMB_RAIDER:
+    "getEconomyCoreScoreへ実params.materialBonus×宝箱EV×罠risk割引を反映",
+  CORE_KEEN_EYE:
+    "activeな慧眼下のgetEquippedItemDataで未鑑定装備の実statsをcandidate scoreへ反映。core自体は95%保持閾値"
+});
 const PASSIVE_CORE_IDS = new Set([
   "CORE_SNEAK_STEP",
   "CORE_CURSE_KEEPER",
@@ -2835,13 +2845,6 @@ function getCombatCoreScore(character, scoringProfile, floor) {
 
   const params = CORE_AFFIX_BY_ID.get(coreId).params;
   const offenseScore = getOffenseEquipmentScore(character);
-  const statWeight =
-    EQUIPMENT_SCORE_WEIGHTS.str +
-    EQUIPMENT_SCORE_WEIGHTS.vit +
-    EQUIPMENT_SCORE_WEIGHTS.int +
-    EQUIPMENT_SCORE_WEIGHTS.pie +
-    EQUIPMENT_SCORE_WEIGHTS.agi;
-
   // 倍率コアは既存攻撃スコア×calibration実測稼働率×実params増分。
   if (coreId === "CORE_LAST_STAND") {
     return offenseScore * classScoringProfile.lowHpOffensiveRate * (params.damageMultiplier - 1);
@@ -2882,9 +2885,10 @@ function getCombatCoreScore(character, scoringProfile, floor) {
     );
     return expectedAttack * EQUIPMENT_SCORE_WEIGHTS.weaponAtk;
   }
-  // legacyでは実測装備呪い数が0、powder/gambleでは実生成呪いを反映。
+  // CURSE_KEEPERの全能力+はgetBaseEquipmentScore内のgetChar*→
+  // getCharAllStatsAffixBonusで既に反映済み。ここで再加算すると二重計上になる。
   if (coreId === "CORE_CURSE_KEEPER") {
-    return classScoringProfile.averageEquippedCurseCount * params.statsPerCurse * statWeight;
+    return 0;
   }
   // 物理攻撃の実被弾率×反撃率×威力を既存攻撃スコアへ換算。
   if (coreId === "CORE_THORN_SHIELD") {
@@ -5269,6 +5273,14 @@ function simulateCase({
     coreNonEquipmentReasonTotals: Object.fromEntries(
       Object.keys(CORE_NON_EQUIPMENT_REASON_LABELS).map(reason => [reason, 0])
     ),
+    coreNonEquipmentReasonCountsByGroup: Object.fromEntries(
+      ["combat", "economy"].map(poolGroup => [
+        poolGroup,
+        Object.fromEntries(
+          Object.keys(CORE_NON_EQUIPMENT_REASON_LABELS).map(reason => [reason, 0])
+        )
+      ])
+    ),
     coreNonEquipmentReasonCountsById: {},
     coreEquippedCountDistribution: {},
     unequippedCoreReasonsById: {},
@@ -5478,6 +5490,10 @@ function simulateCase({
       }
       if (isFinalCore) return;
       totals.coreNonEquipmentReasonTotals[reasonKey]++;
+      const poolGroup = CORE_AFFIX_BY_ID.get(coreId)?.poolGroup;
+      if (poolGroup && totals.coreNonEquipmentReasonCountsByGroup[poolGroup]) {
+        totals.coreNonEquipmentReasonCountsByGroup[poolGroup][reasonKey]++;
+      }
       if (!totals.coreNonEquipmentReasonCountsById[coreId]) {
         totals.coreNonEquipmentReasonCountsById[coreId] = Object.fromEntries(
           Object.keys(CORE_NON_EQUIPMENT_REASON_LABELS).map(key => [key, 0])
@@ -5657,6 +5673,10 @@ function simulateCase({
     coreCurseAvoidedRunsById: totals.coreCurseAvoidedRunsById,
     coreUnselectedWithoutCurseLockRunsById: totals.coreUnselectedWithoutCurseLockRunsById,
     coreNonEquipmentReasonTotals: { ...totals.coreNonEquipmentReasonTotals },
+    coreNonEquipmentReasonCountsByGroup: Object.fromEntries(
+      Object.entries(totals.coreNonEquipmentReasonCountsByGroup)
+        .map(([poolGroup, counts]) => [poolGroup, { ...counts }])
+    ),
     coreNonEquipmentReasonCountsById: Object.fromEntries(
       Object.entries(totals.coreNonEquipmentReasonCountsById)
         .map(([coreId, counts]) => [coreId, { ...counts }])
@@ -6389,6 +6409,19 @@ function printCoreRetentionDetail(result) {
     `非装備要因（全core、core-type遭遇runの非装備分母=${nonEquipmentReasonTotal}）: ` +
     nonEquipmentReasons
   );
+  console.log("非装備要因（poolGroup別。分母は各groupのcore遭遇後非装備件数）:");
+  ["combat", "economy"].forEach(poolGroup => {
+    const counts = result.coreNonEquipmentReasonCountsByGroup?.[poolGroup] || {};
+    const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+    const reasons = Object.entries(CORE_NON_EQUIPMENT_REASON_LABELS)
+      .map(([reason, label]) => `${label}=${formatWilson(counts[reason] || 0, total)}`)
+      .join(" / ");
+    console.log(`  ${poolGroup}: 非装備N=${total}; ${reasons}`);
+  });
+  console.log("装備スコア経路監査（score不足はsim方針上の判定。ゲーム制約と同一視しない）:");
+  Object.entries(CORE_SCORING_COVERAGE_NOTES).forEach(([coreId, note]) => {
+    console.log(`  ${coreId}: ${note}`);
+  });
   console.log(
     `combat: 遭遇=${formatWilson(result.combatCoreEncounterRuns, RUNS_PER_CASE)}, ` +
     `終了時装備=${formatWilson(result.combatCoreEquippedRuns, RUNS_PER_CASE)}, ` +
