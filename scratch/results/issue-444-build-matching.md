@@ -79,7 +79,30 @@ support supply ceilingは、individual-scoreでcore-pools **71.1% [67.0%, 74.9%]
 
 この表から言えるのは、(a)を極端に満たすとexact噛み合わせ率は70%台まで観測可能だった、という上界である。したがって、観測された9〜13%を「ゲームの対応support定義では到達不能」とは言えない。broadではbaseでも61〜68%、slots/bothでは約99%になるため、PR #443のexact定義が狭い可能性は、対応定義を変えた別estimandでは確認できる。ただし、これらはsupport供給変換・対応定義・sim方針を含む上限条件であり、ゲーム内の因果や実装可能な到達率を示さない。
 
-B5 endpointはsupport ceilingだけでは大きく動かず、slot条件では突破・死亡・到達floorも動く。しかしunlimited slotは仮想slotというsim条件であり、これをゲームのslot不足の因果効果とは扱わない。点推定の順位入れ替わりや重なるCIをknee、結論反転、効果なしとは呼ばない。
+この段落までの「押し上げる軸」は、噛み合わせ率の話だけである。endpointへの読みは次節で分ける。
+
+## 結論（endpointの読み）
+
+本issueの主目的は噛み合わせ率の最大化ではなく、噛み合わせが深層endpointを決めるかの確認。既存表の読みは次の通り。
+
+| workshop-complete | exact matching | B5死亡 | B5突破 | B5到達floor |
+| --- | ---: | --- | --- | ---: |
+| base | 12.1% | 29.0% [25.3, 33.0] | 34.7% [30.8, 38.9] | 6.33 [6.15, 6.52] |
+| support ceiling | **75.4%** | 26.9% [23.2, 30.8] | 37.3% [33.3, 41.5] | 6.41 [6.22, 6.59] |
+| unlimited slots | 23.4% | **15.5% [12.8, 18.7]** | **43.9% [39.9, 47.9]** | **7.06 [6.82, 7.29]** |
+| support + slots | 71.2% | 15.6% [12.9, 18.7] | 43.5% [39.5, 47.5] | 7.01 [6.78, 7.25] |
+
+1. 噛み合わせを12.1%→75.4%（6.2倍）へ上げても、死亡29.0%→26.9%、突破34.7%→37.3%、floor 6.33→6.41。CIは大きく重なる。core-poolsでも9.5%→71.1%に対し、死亡30.2%→27.7%、突破34.0%→35.3%で同じ読み。
+2. unlimited slotsは噛み合わせを12.1%→23.4%しか増やさない一方、死亡29.0%→15.5%、突破34.7%→43.9%、floor 6.33→7.06。死亡・突破CIは重ならない。
+3. support + slotsはunlimited slots単独とendpointが実質同一。噛み合わせ71.2%と23.4%の差に対応するendpoint差は観測されない。support ceilingのendpoint追加寄与は、この測定では観測されない（因果的に「ゼロ」と断定する意味ではない）。
+
+要約すると、深層突破endpointは噛み合わせでなく、装備できる総量（スロット数）と対応して変動した。ただし、これはsim条件の記述であり、因果ではない。
+
+したがって、**この測定でendpoint差を観測した軸は(c) slot条件だけ**。(a) support供給は噛み合わせ率を押し上げるが、endpointは動かさない記述結果。これは#271の「core + 対応supportの噛み合わせが深層突破を決める」という設計仮説を支持しない方向。Phase 2（深層脅威をビルドで対策できる形にする設計）着手前、この結果を前提に再検討が必要。
+
+ただし因果ではない。unlimited slotsは仮想slotを使うsim上界で、供給物自体は増やしていないが、装備総量増加による素の戦闘力・core数・affix数の強化を含む。「噛み合わせが効かない」のか、「slot増による素の強化が支配的で噛み合わせ寄与が埋もれた」のか、この測定では分離不能。matching有無の職内centering後差も大半のcellで0を跨ぐ（例: complete/baseの突破 +9.1pt [-1.8, +19.9]、死亡 -9.4pt [-19.9, +1.1]）。
+
+点推定の順位入れ替わりや重なるCIをknee、結論反転、効果なしとは呼ばない。専用support slotなどによる交絡分離は次測定の提案であり、本PR範囲外。
 
 ## 7シナリオ全結果: endpoint
 
@@ -267,14 +290,16 @@ B5 endpointはsupport ceilingだけでは大きく動かず、slot条件では�
 | support + slots + policy | complete | 421/170 | +5.7pt [-1.9, +13.2] | -4.9pt [-11.5, +1.7] | +39.9pt [-0.6, +80.5] | 確定 |
 exact matching群のNは全cellで30以上だが、CI幅は広い。少数群を根拠に因果・有意差・ゲーム制約を主張しない。
 
-## (a)(b)(c)の切り分け
+## (a)(b)(c)の切り分け：rate軸とendpoint軸の分離
 
-- (a) support供給不足: support ceiling。生成後変換でexact対応supportを供給した場合の上界を測った。ここが最も大きく率を押し上げる軸だった。
+以下はまず「どの軸が噛み合わせ率を押し上げるか」の切り分け。endpointの読みは前節で分離した。rateの上界とendpointの寄与を同じ意味で扱わない。
+
+- (a) support供給不足: support ceiling。生成後変換でexact対応supportを供給した場合の上界を測った。ここが最も大きく率を押し上げる軸だった。ただしendpointはbaseから動かない記述結果。
 - (b) 対応関係の狭さ: 同じrawについてexactとbroadを併記した。broadは全supportを対応扱いする別estimandであり、exactの判定を置き換えていない。
-- (c) slot不足: unlimited slots。standardとの差は仮想slotを使ったsim上界である。
+- (c) slot不足: unlimited slots。standardとの差は仮想slotを使ったsim上界。rateは20%台、endpoint差はこの条件で観測した。ただし因果効果ではない。
 - compatibility-aware policy: (d)の測定欠陥を補正する方針を直交させた。対応supportを狙う方針を入れても、support ceilingなしのexact率はbaseから大きく上がるとはCIだけでは確定できない。これはsim方針の結果であり、ゲームの制約ではない。
 
-天井が低い軸を理由に掃引を打ち切る条件には該当しなかった。support supplyは高い上界を示し、slot単独も20%台まで動くため、2×2とpolicy直交を完了させた。
+rate軸では天井が低い条件はなく、support supply・slot・両方・policy直交を完了させた。endpoint軸では(c)条件だけ差を観測したが、slot増による素の強化との分離不能。追加測定は提案に留める。
 
 ## 出力SHAと実行時間
 
@@ -315,7 +340,7 @@ raw JSONL/summary JSONは再現用の未追跡出力で、PRには要約Markdown
 
 実配置は generateRunFloor から生成し、既存のsimulateRun経路（戦闘・罠・装備・消耗品・帰還）を通した。7×2,200のraw rowsはscenario/run/class keyで監査し、重複を許していない。結果のCIはrate=Wilson、平均値=normal CI、centered endpoint=職内centering後の差である。
 
-src/ は変更していない。指定テストとlint/unitの結果は、完了時にこの節へ追記する。
+src/ は変更していない。今回の差し戻し対応は既存データの読み替えと本文更新だけで、再測定・テスト再実行はしていない。下記は初回PR実装時の検証結果。
 
 検証結果:
 
