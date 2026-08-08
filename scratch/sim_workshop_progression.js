@@ -79,6 +79,7 @@ const CRAFT_RECIPE_ORDER = [
   "TRAP_KIT",
   "IDENTIFY_POWDER",
   "GUARD_POTION",
+  "EYE_DROPS",
   "HOLY_WATER",
   "MANA_POTION",
   "GREATER_HEAL"
@@ -107,10 +108,17 @@ if (!PROGRESSION_POLICIES.has(PROGRESSION_POLICY)) {
     `PROGRESSION_POLICY must be ${[...PROGRESSION_POLICIES].join("|")}: ${PROGRESSION_POLICY}`
   );
 }
+const RESOLVED_SIM_ENV = getResolvedSimulationEnv();
 const PROGRESSION_IDENTIFICATION_POLICY =
   process.env.PROGRESSION_IDENTIFICATION_POLICY ||
-  getResolvedSimulationEnv().IDENTIFICATION_POLICY ||
+  RESOLVED_SIM_ENV.IDENTIFICATION_POLICY ||
   "powder";
+const PROGRESSION_IDENTIFICATION_STARTING_POWDER =
+  RESOLVED_SIM_ENV.IDENTIFICATION_STARTING_POWDER || "2";
+const PROGRESSION_IDENTIFICATION_COST =
+  RESOLVED_SIM_ENV.IDENTIFICATION_COST_OVERRIDE || "1";
+const PROGRESSION_IDENTIFICATION_POWDER_UNLIMITED =
+  PROGRESSION_IDENTIFICATION_STARTING_POWDER.toLowerCase() === "unlimited";
 if (!["legacy", "powder", "gamble"].includes(PROGRESSION_IDENTIFICATION_POLICY)) {
   throw new Error(
     `PROGRESSION_IDENTIFICATION_POLICY must be legacy|powder|gamble: ${PROGRESSION_IDENTIFICATION_POLICY}`
@@ -819,6 +827,8 @@ function createFiniteTotals() {
     trapKitsConsumedBySource: {},
     identificationPowderAcquired: 0,
     identificationPowderUsed: 0,
+    runsWithPowderDepleted: 0,
+    identificationPowderUnlimited: false,
     identificationPowderAcquiredBySource: {},
     milestoneDecisions: 0,
     insuredMilestoneDecisions: 0,
@@ -999,6 +1009,8 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
         trapKitsConsumedBySource: result.trapKitsConsumedBySource,
         identificationPowderAcquired: result.identificationPowderAcquired,
         identificationPowderUsed: result.identificationPowderUsed,
+        identificationPowderDepleted: result.identificationPowderDepleted,
+        identificationPowderUnlimited: result.identificationPowderUnlimited,
         identificationPowderAcquiredBySource: result.identificationPowderAcquiredBySource,
         encounterGroupCounts: result.encounterGroupCounts,
         encounterFallbacks: result.encounterFallbacks,
@@ -1102,6 +1114,8 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
       addSourceCounts(totals.trapKitsConsumedBySource, result.trapKitsConsumedBySource);
       totals.identificationPowderAcquired += result.identificationPowderAcquired;
       totals.identificationPowderUsed += result.identificationPowderUsed;
+      totals.runsWithPowderDepleted += Number(result.identificationPowderDepleted);
+      totals.identificationPowderUnlimited ||= result.identificationPowderUnlimited;
       addSourceCounts(
         totals.identificationPowderAcquiredBySource,
         result.identificationPowderAcquiredBySource
@@ -1238,6 +1252,21 @@ function sourceAverage(totals, field, source) {
   return average(totals[field][source] || 0, totals);
 }
 
+function formatIdentificationPowderAcquired(totals) {
+  if (!totals.identificationPowderUnlimited) {
+    return average(totals.identificationPowderAcquired, totals).toFixed(2);
+  }
+  const runSources = Object.entries(totals.identificationPowderAcquiredBySource)
+    .filter(([source]) => source !== "starting")
+    .reduce((sum, [, amount]) => sum + amount, 0) / Math.max(1, totals.runs);
+  return `開始=実質無制限+ラン中=${runSources.toFixed(2)}`;
+}
+
+function formatIdentificationPowderDepletion(totals) {
+  const rate = formatWilson(totals.runsWithPowderDepleted, totals.runs);
+  return totals.identificationPowderUnlimited ? `${rate}（無制限）` : rate;
+}
+
 function craftMetricSummary(totals) {
   const successRate = totals.craftPurchases / Math.max(1, totals.runs);
   const itemRates = CRAFT_RECIPE_ORDER
@@ -1267,6 +1296,7 @@ function formatFiniteResult(result) {
     `生還率=${formatWilson(totals.survived, totals.runs)}, ` +
     `B5(entrant/突破/死亡)=${b5.entrant}/${b5.breakthrough}/${b5.death}, ` +
     `B10(entrant/突破/死亡)=${b10.entrant}/${b10.breakthrough}/${b10.death}, ` +
+    `bank素材EV=${average(totals.banked, totals).toFixed(2)}, ` +
     `EV/時間=${(totals.banked / Math.max(1, totals.time)).toFixed(4)}, ` +
     `B10/B15到達率=${formatRate(average(totals.reachedB10, totals))}/` +
     `${formatRate(average(totals.reachedB15, totals))}, ` +
@@ -1280,8 +1310,9 @@ function formatFiniteResult(result) {
     `${average(totals.healPotionsConsumed, totals).toFixed(2)}, ` +
     `罠kit入手/消費=${average(totals.trapKitsAcquired, totals).toFixed(2)}/` +
     `${average(totals.trapKitsUsed, totals).toFixed(2)}, ` +
-    `鑑定粉入手/消費=${average(totals.identificationPowderAcquired, totals).toFixed(2)}/` +
+    `鑑定粉入手/消費=${formatIdentificationPowderAcquired(totals)}/` +
     `${average(totals.identificationPowderUsed, totals).toFixed(2)}, ` +
+    `枯渇率=${formatIdentificationPowderDepletion(totals)}, ` +
     `商人成立=${totals.merchantPurchases}/${totals.merchantAttempts} ` +
     `(${formatRate(merchantSuccessRate)}, ${firstMerchant}), ` +
     `工房買切(run開始)=${formatWorkshopBuyout(totals)}, ` +
@@ -1371,8 +1402,8 @@ function printSweepTable(results, sweep, label, keyLabel) {
   console.log(`\n【${label} / 測定値】`);
   console.log(
     `${keyLabel} | 生還率(95%CI) | 平均到達(95%CI) | ` +
-    "B5 entrant | B5突破 | B5死亡 | B10 entrant | B10突破 | B10死亡 | 工房買切(95%CI) | EV/時間 | " +
-    "クラフト(成立/平均品数) | 翼入手/消費 | 傷薬入手/消費 | 罠kit入手/消費 | 粉入手/消費"
+    "B5 entrant | B5突破 | B5死亡 | B10 entrant | B10突破 | B10死亡 | 工房買切(95%CI) | bank素材EV | EV/時間 | " +
+    "クラフト(成立/平均品数) | 翼入手/消費 | 傷薬入手/消費 | 罠kit入手/消費 | 粉入手/消費/枯渇"
   );
   results
     .filter(result => result.scenario.sweep === sweep)
@@ -1397,6 +1428,7 @@ function printSweepTable(results, sweep, label, keyLabel) {
         `${b5.entrant} | ${b5.breakthrough} | ${b5.death} | ` +
         `${b10.entrant} | ${b10.breakthrough} | ${b10.death} | ` +
         `${formatWorkshopBuyout(totals)} | ` +
+        `${average(totals.banked, totals).toFixed(2)} | ` +
         `${(totals.banked / Math.max(1, totals.time)).toFixed(4).padStart(8)} | ` +
         `${formatRate(totals.craftPurchases / Math.max(1, totals.runs)).padStart(6)}/` +
         `${average(totals.craftItems, totals).toFixed(2).padStart(5)} | ` +
@@ -1406,8 +1438,9 @@ function printSweepTable(results, sweep, label, keyLabel) {
         `${sourceAverage(totals, "healPotionsConsumedBySource", "departureCraft").toFixed(2)} | ` +
         `${sourceAverage(totals, "trapKitsAcquiredBySource", "departureCraft").toFixed(2)}/` +
         `${sourceAverage(totals, "trapKitsConsumedBySource", "departureCraft").toFixed(2)} | ` +
-        `${average(totals.identificationPowderAcquired, totals).toFixed(2)}/` +
-        `${average(totals.identificationPowderUsed, totals).toFixed(2)}`
+        `${formatIdentificationPowderAcquired(totals)}/` +
+        `${average(totals.identificationPowderUsed, totals).toFixed(2)}/` +
+        `${formatIdentificationPowderDepletion(totals)}`
       );
     });
 }
@@ -1534,6 +1567,12 @@ export async function runWorkshopProgressionSimulation() {
     "workshop-complete=工房買切り後のみクラフト）"
   );
   console.log(`識別方針: IDENTIFICATION_POLICY=${PROGRESSION_IDENTIFICATION_POLICY}`);
+  console.log(
+    `開始鑑定粉: ${PROGRESSION_IDENTIFICATION_POWDER_UNLIMITED
+      ? "実質無制限"
+      : PROGRESSION_IDENTIFICATION_STARTING_POWDER}`
+  );
+  console.log(`鑑定コスト: ${PROGRESSION_IDENTIFICATION_COST}`);
   console.log(
     `クラフト品目優先順位: ${CRAFT_PRIORITY} ` +
     "（wing-first=翼優先 / cheap-first=単品コスト昇順。払えない品は次へ進む）"

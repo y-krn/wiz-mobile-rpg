@@ -145,6 +145,8 @@ const SIM_ENV_KEYS = Object.freeze([
   "TRAP_AVOIDANCE_POLICY",
   "TRAP_DAMAGE_MULTIPLIER",
   "IDENTIFICATION_POLICY",
+  "IDENTIFICATION_STARTING_POWDER",
+  "IDENTIFICATION_COST_OVERRIDE",
   "STATUS_CURE_POLICY",
   "STATUS_CURE_HP_THRESHOLD",
   "STATUS_CURE_MERCHANT_POLICY",
@@ -173,6 +175,8 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   TRAP_AVOIDANCE_POLICY: "ev",
   TRAP_DAMAGE_MULTIPLIER: "1",
   IDENTIFICATION_POLICY: "powder",
+  IDENTIFICATION_STARTING_POWDER: "2",
+  IDENTIFICATION_COST_OVERRIDE: "1",
   STATUS_CURE_POLICY: "smart",
   STATUS_CURE_HP_THRESHOLD: "1",
   STATUS_CURE_MERCHANT_POLICY: "missing",
@@ -195,6 +199,8 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   TRAP_AVOIDANCE_POLICY: "ev",
   TRAP_DAMAGE_MULTIPLIER: "1",
   IDENTIFICATION_POLICY: "powder",
+  IDENTIFICATION_STARTING_POWDER: "2",
+  IDENTIFICATION_COST_OVERRIDE: "1",
   STATUS_CURE_POLICY: "smart",
   STATUS_CURE_HP_THRESHOLD: "1",
   STATUS_CURE_MERCHANT_POLICY: "missing",
@@ -385,6 +391,36 @@ function resolveIdentificationPolicies() {
 }
 
 const ACTIVE_IDENTIFICATION_POLICIES = resolveIdentificationPolicies();
+
+const IDENTIFICATION_STARTING_POWDER_INPUT = String(
+  SIM_ENV.IDENTIFICATION_STARTING_POWDER || IDENTIFICATION_BALANCE.startingPowder
+).trim().toLowerCase();
+const IDENTIFICATION_POWDER_UNLIMITED = IDENTIFICATION_STARTING_POWDER_INPUT === "unlimited";
+const IDENTIFICATION_UNLIMITED_CAP = 1_000_000;
+const parsedIdentificationStartingPowder = Number(IDENTIFICATION_STARTING_POWDER_INPUT);
+const IDENTIFICATION_STARTING_POWDER = IDENTIFICATION_POWDER_UNLIMITED
+  ? IDENTIFICATION_UNLIMITED_CAP
+  : parsedIdentificationStartingPowder;
+if (
+  !IDENTIFICATION_POWDER_UNLIMITED &&
+  (!Number.isInteger(IDENTIFICATION_STARTING_POWDER) || IDENTIFICATION_STARTING_POWDER < 0)
+) {
+  throw new Error(
+    `IDENTIFICATION_STARTING_POWDER must be a non-negative integer or unlimited: ${IDENTIFICATION_STARTING_POWDER_INPUT}`
+  );
+}
+
+const IDENTIFICATION_COST_INPUT = String(
+  SIM_ENV.IDENTIFICATION_COST_OVERRIDE || IDENTIFICATION_BALANCE.identifyCost
+).trim();
+const IDENTIFICATION_COST = Number(IDENTIFICATION_COST_INPUT);
+if (!Number.isInteger(IDENTIFICATION_COST) || IDENTIFICATION_COST < 0) {
+  throw new Error(
+    `IDENTIFICATION_COST_OVERRIDE must be a non-negative integer: ${IDENTIFICATION_COST_INPUT}`
+  );
+}
+// identifyEquipment() remains the decision path; only its source balance is varied for sim sensitivity.
+IDENTIFICATION_BALANCE.identifyCost = IDENTIFICATION_COST;
 
 // 仮値・感度分析対象: critical pathに対する寄り道込み歩数を1.4倍と置く。
 const EXPLORATION_FACTOR = 1.4;
@@ -746,6 +782,16 @@ const TOMB_RAIDER_TRAP_RISK_DISCOUNT = 0.5;
 
 const CORE_ACTIVATION_MEASUREMENT_NOTES = Object.freeze({
   CORE_REARGUARD: "設計上無効: 既存セーブ互換用 tombstone"
+});
+const CORE_SCORING_COVERAGE_NOTES = Object.freeze({
+  CORE_CURSE_KEEPER:
+    "getBaseEquipmentScore→getCharStr/Vit/Int/Pie/Agi→getCharAllStatsAffixBonusで実効果を一度だけ反映",
+  CORE_SNEAK_STEP:
+    "getPerceptionIntentの実適用を別計測。combat scoreへ任意のscalarは加えず、economy core保持閾値95%を適用",
+  CORE_TOMB_RAIDER:
+    "getEconomyCoreScoreへ実params.materialBonus×宝箱EV×罠risk割引を反映",
+  CORE_KEEN_EYE:
+    "activeな慧眼下のgetEquippedItemDataで未鑑定装備の実statsをcandidate scoreへ反映。core自体は95%保持閾値"
 });
 const PASSIVE_CORE_IDS = new Set([
   "CORE_SNEAK_STEP",
@@ -1268,10 +1314,12 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   const departureCraftGrants = getDepartureCraftGrants(departureCraftPurchase.recipeIds);
   const departureCraftItems = departureCraftGrants.items;
   const startingPowder = useRealIdentificationSupply
-    ? IDENTIFICATION_BALANCE.startingPowder
+    ? IDENTIFICATION_STARTING_POWDER
     : 0;
   const initialIdentificationPowder = {
-    starting: startingPowder,
+    starting: useRealIdentificationSupply && !IDENTIFICATION_POWDER_UNLIMITED
+      ? startingPowder
+      : 0,
     workshop: workshopGrants.identifyPowder,
     departureCraft: departureCraftGrants.identifyPowder,
     chest: 0,
@@ -1280,7 +1328,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   };
   // src/movement.jsと同じ初期値。legacyだけ開始時粉を旧sim互換で省略する。
   const initialIdentifyTickets = useRealIdentificationSupply
-    ? IDENTIFICATION_BALANCE.startingPowder +
+    ? startingPowder +
       workshopGrants.identifyPowder +
       departureCraftGrants.identifyPowder
     : workshopGrants.identifyPowder + departureCraftGrants.identifyPowder;
@@ -1366,6 +1414,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     metaMaterials: {},
     identifyTickets: initialIdentifyTickets,
     simIdentificationPowderAcquired: initialIdentificationPowder,
+    simIdentificationPowderUnlimited:
+      useRealIdentificationSupply && IDENTIFICATION_POWDER_UNLIMITED,
     simDepartureCraft: {
       recipeIds: departureCraftPurchase.recipeIds,
       cost: departureCraftPurchase.cost
@@ -2795,13 +2845,6 @@ function getCombatCoreScore(character, scoringProfile, floor) {
 
   const params = CORE_AFFIX_BY_ID.get(coreId).params;
   const offenseScore = getOffenseEquipmentScore(character);
-  const statWeight =
-    EQUIPMENT_SCORE_WEIGHTS.str +
-    EQUIPMENT_SCORE_WEIGHTS.vit +
-    EQUIPMENT_SCORE_WEIGHTS.int +
-    EQUIPMENT_SCORE_WEIGHTS.pie +
-    EQUIPMENT_SCORE_WEIGHTS.agi;
-
   // 倍率コアは既存攻撃スコア×calibration実測稼働率×実params増分。
   if (coreId === "CORE_LAST_STAND") {
     return offenseScore * classScoringProfile.lowHpOffensiveRate * (params.damageMultiplier - 1);
@@ -2842,9 +2885,10 @@ function getCombatCoreScore(character, scoringProfile, floor) {
     );
     return expectedAttack * EQUIPMENT_SCORE_WEIGHTS.weaponAtk;
   }
-  // legacyでは実測装備呪い数が0、powder/gambleでは実生成呪いを反映。
+  // CURSE_KEEPERの全能力+はgetBaseEquipmentScore内のgetChar*→
+  // getCharAllStatsAffixBonusで既に反映済み。ここで再加算すると二重計上になる。
   if (coreId === "CORE_CURSE_KEEPER") {
-    return classScoringProfile.averageEquippedCurseCount * params.statsPerCurse * statWeight;
+    return 0;
   }
   // 物理攻撃の実被弾率×反撃率×威力を既存攻撃スコアへ換算。
   if (coreId === "CORE_THORN_SHIELD") {
@@ -4196,8 +4240,13 @@ function finishRun(state, outcome, metrics) {
     identificationPowderAcquired: metrics.identificationPowderAcquired,
     identificationPowderAcquiredBySource: { ...metrics.identificationPowderAcquiredBySource },
     identificationPowderUsed: metrics.identificationPowderUsed,
-    identificationPowderRemaining: state.identifyTickets || 0,
-    identificationPowderDepleted: (state.identifyTickets || 0) === 0,
+    identificationCost: IDENTIFICATION_COST,
+    identificationPowderRemaining: state.simIdentificationPowderUnlimited
+      ? 0
+      : state.identifyTickets || 0,
+    identificationPowderUnlimited: Boolean(state.simIdentificationPowderUnlimited),
+    identificationPowderDepleted:
+      !state.simIdentificationPowderUnlimited && (state.identifyTickets || 0) === 0,
     identificationCount: metrics.identificationCount,
     unidentifiedWearCount: metrics.unidentifiedWearCount,
     curseHitCount: metrics.curseHitCount,
@@ -5119,6 +5168,32 @@ function getUnequippedCoreReason(result, coreId) {
   return "生スコア不足";
 }
 
+const CORE_NON_EQUIPMENT_REASON_LABELS = Object.freeze({
+  powder: "粉不足で未鑑定保持",
+  score: "期待戦闘スコア不足",
+  curseLock: "呪いロック",
+  replacement: "後続装備に置換",
+  other: "その他（職業制限等）"
+});
+
+function getCoreNonEquipmentReasonKey(result, coreId) {
+  if (result.coreEverEquippedIds.includes(coreId)) return "replacement";
+  const reasons = new Set(result.coreDecisionReasons[coreId] || []);
+  if (
+    reasons.has("current-curse-locked") ||
+    result.coreBlockedByCurseLockIds.includes(coreId)
+  ) return "curseLock";
+  if (reasons.has("unidentified-held")) return "powder";
+  if (
+    reasons.has("combat-score-not-higher") ||
+    reasons.has("economy-below-95pct") ||
+    reasons.has("economy-ev-not-higher") ||
+    reasons.has("economy-core-retained") ||
+    reasons.has("score-not-higher")
+  ) return "score";
+  return "other";
+}
+
 function simulateCase({
   startFloor,
   targetDepth,
@@ -5175,6 +5250,7 @@ function simulateCase({
     },
     identificationPowderUsed: 0,
     identificationPowderRemaining: 0,
+    identificationPowderUnlimited: false,
     runsWithPowderDepleted: 0,
     identificationCount: 0,
     unidentifiedWearCount: 0,
@@ -5194,6 +5270,18 @@ function simulateCase({
     coreBlockedByCurseLockRunsById: {},
     coreCurseAvoidedRunsById: {},
     coreUnselectedWithoutCurseLockRunsById: {},
+    coreNonEquipmentReasonTotals: Object.fromEntries(
+      Object.keys(CORE_NON_EQUIPMENT_REASON_LABELS).map(reason => [reason, 0])
+    ),
+    coreNonEquipmentReasonCountsByGroup: Object.fromEntries(
+      ["combat", "economy"].map(poolGroup => [
+        poolGroup,
+        Object.fromEntries(
+          Object.keys(CORE_NON_EQUIPMENT_REASON_LABELS).map(reason => [reason, 0])
+        )
+      ])
+    ),
+    coreNonEquipmentReasonCountsById: {},
     coreEquippedCountDistribution: {},
     unequippedCoreReasonsById: {},
     firstCoreDepthCounts: {},
@@ -5332,6 +5420,7 @@ function simulateCase({
     });
     totals.identificationPowderUsed += result.identificationPowderUsed;
     totals.identificationPowderRemaining += result.identificationPowderRemaining;
+    totals.identificationPowderUnlimited ||= result.identificationPowderUnlimited;
     totals.runsWithPowderDepleted += Number(result.identificationPowderDepleted);
     addMeanSample(
       totals.meanStats.identificationPowderAcquired,
@@ -5383,6 +5472,7 @@ function simulateCase({
       totals.coreEncounterRunsById[coreId] = (totals.coreEncounterRunsById[coreId] || 0) + 1;
       const isFinalCore = finalCoreIds.includes(coreId);
       const reason = isFinalCore ? null : getUnequippedCoreReason(result, coreId);
+      const reasonKey = isFinalCore ? null : getCoreNonEquipmentReasonKey(result, coreId);
       if (result.finalCoreCurseLockedIds.includes(coreId)) {
         totals.coreCurseLockedRetentionRunsById[coreId] =
           (totals.coreCurseLockedRetentionRunsById[coreId] || 0) + 1;
@@ -5390,7 +5480,7 @@ function simulateCase({
         totals.coreBlockedByCurseLockRunsById[coreId] =
           (totals.coreBlockedByCurseLockRunsById[coreId] || 0) + 1;
       } else if (!isFinalCore) {
-        if (reason === "粉不足で未鑑定保持") {
+        if (reasonKey === "powder") {
           totals.coreCurseAvoidedRunsById[coreId] =
             (totals.coreCurseAvoidedRunsById[coreId] || 0) + 1;
         } else {
@@ -5399,6 +5489,17 @@ function simulateCase({
         }
       }
       if (isFinalCore) return;
+      totals.coreNonEquipmentReasonTotals[reasonKey]++;
+      const poolGroup = CORE_AFFIX_BY_ID.get(coreId)?.poolGroup;
+      if (poolGroup && totals.coreNonEquipmentReasonCountsByGroup[poolGroup]) {
+        totals.coreNonEquipmentReasonCountsByGroup[poolGroup][reasonKey]++;
+      }
+      if (!totals.coreNonEquipmentReasonCountsById[coreId]) {
+        totals.coreNonEquipmentReasonCountsById[coreId] = Object.fromEntries(
+          Object.keys(CORE_NON_EQUIPMENT_REASON_LABELS).map(key => [key, 0])
+        );
+      }
+      totals.coreNonEquipmentReasonCountsById[coreId][reasonKey]++;
       if (!totals.unequippedCoreReasonsById[coreId]) {
         totals.unequippedCoreReasonsById[coreId] = {};
       }
@@ -5528,6 +5629,7 @@ function simulateCase({
     averageIdentificationPowderUsed: totals.identificationPowderUsed / RUNS_PER_CASE,
     averageIdentificationPowderRemaining:
       totals.identificationPowderRemaining / RUNS_PER_CASE,
+    identificationPowderUnlimited: totals.identificationPowderUnlimited,
     identificationPowderDepletionRate:
       totals.runsWithPowderDepleted / RUNS_PER_CASE,
     averageIdentificationCount: totals.identificationCount / RUNS_PER_CASE,
@@ -5570,6 +5672,15 @@ function simulateCase({
     coreBlockedByCurseLockRunsById: totals.coreBlockedByCurseLockRunsById,
     coreCurseAvoidedRunsById: totals.coreCurseAvoidedRunsById,
     coreUnselectedWithoutCurseLockRunsById: totals.coreUnselectedWithoutCurseLockRunsById,
+    coreNonEquipmentReasonTotals: { ...totals.coreNonEquipmentReasonTotals },
+    coreNonEquipmentReasonCountsByGroup: Object.fromEntries(
+      Object.entries(totals.coreNonEquipmentReasonCountsByGroup)
+        .map(([poolGroup, counts]) => [poolGroup, { ...counts }])
+    ),
+    coreNonEquipmentReasonCountsById: Object.fromEntries(
+      Object.entries(totals.coreNonEquipmentReasonCountsById)
+        .map(([coreId, counts]) => [coreId, { ...counts }])
+    ),
     coreEquippedCountDistribution: totals.coreEquippedCountDistribution,
     unequippedCoreReasonsById: totals.unequippedCoreReasonsById,
     purifyEffectsByClass: Object.fromEntries(
@@ -5683,6 +5794,23 @@ function simulateCase({
 
 function formatPercent(rate) {
   return `${(rate * 100).toFixed(1)}%`;
+}
+
+function formatPowderRemaining(result) {
+  return result.identificationPowderUnlimited
+    ? "実質無制限"
+    : result.averageIdentificationPowderRemaining.toFixed(2);
+}
+
+function formatPowderAcquired(result) {
+  if (!result.identificationPowderUnlimited) {
+    return result.averageIdentificationPowderAcquired.toFixed(2);
+  }
+  const source = result.averageIdentificationPowderAcquiredBySource;
+  const runSources = Object.entries(source)
+    .filter(([sourceName]) => sourceName !== "starting")
+    .reduce((sum, [, amount]) => sum + amount, 0);
+  return `開始=実質無制限+ラン中=${runSources.toFixed(2)}`;
 }
 
 function wilsonInterval(successes, trials, z = 1.96) {
@@ -5991,9 +6119,9 @@ function printConsumableSummary(result) {
     `消耗品/run: 傷薬入手/消費=${healAcquired.toFixed(2)}/${result.averageHealPotionsConsumed.toFixed(2)}, ` +
     `罠kit入手/消費=${result.averageTrapKitsAcquired.toFixed(2)}/${result.averageTrapKitsUsed.toFixed(2)}, ` +
     `翼(出発)入手/消費=${departureWingAcquired.toFixed(2)}/${departureWingUsed.toFixed(2)}, ` +
-    `鑑定粉入手/消費=${result.averageIdentificationPowderAcquired.toFixed(2)}/` +
+    `鑑定粉入手/消費=${formatPowderAcquired(result)}/` +
     `${result.averageIdentificationPowderUsed.toFixed(2)}, ` +
-    `終了残量=${result.averageIdentificationPowderRemaining.toFixed(2)}, ` +
+    `終了残量=${formatPowderRemaining(result)}, ` +
     `枯渇率=${formatWilson(
       result.identificationPowderDepletionRate * RUNS_PER_CASE,
       RUNS_PER_CASE
@@ -6029,9 +6157,9 @@ function printIdentificationMetrics(results, policy) {
     console.log(
       `${result.label.padEnd(8)} | ${result.averageReachedFloor.toFixed(2).padStart(12)} | ` +
       `${formatWilson(result.survivedRuns, RUNS_PER_CASE).padStart(18)} | ${result.materialEvPerTime.toFixed(4).padStart(8)} | ` +
-      `${result.averageIdentificationPowderAcquired.toFixed(2).padStart(10)} | ` +
+      `${formatPowderAcquired(result).padStart(18)} | ` +
       `${result.averageIdentificationPowderUsed.toFixed(2).padStart(10)} | ` +
-      `${result.averageIdentificationPowderRemaining.toFixed(2).padStart(10)} | ` +
+      `${formatPowderRemaining(result).padStart(10)} | ` +
       `${formatWilson(
         result.identificationPowderDepletionRate * RUNS_PER_CASE,
         RUNS_PER_CASE
@@ -6042,7 +6170,7 @@ function printIdentificationMetrics(results, policy) {
     );
     const source = result.averageIdentificationPowderAcquiredBySource;
     console.log(
-      `  粉入手内訳/Run: 開始=${source.starting.toFixed(2)}, 工房=${source.workshop.toFixed(2)}, ` +
+      `  粉入手内訳/Run: 開始=${result.identificationPowderUnlimited ? "実質無制限" : source.starting.toFixed(2)}, 工房=${source.workshop.toFixed(2)}, ` +
       `出発クラフト=${source.departureCraft.toFixed(2)}, 宝箱=${source.chest.toFixed(2)}, ` +
       `図鑑初撃破=${source.codex.toFixed(2)}, 節目商人=${source.merchant.toFixed(2)}`
     );
@@ -6052,7 +6180,7 @@ function printIdentificationMetrics(results, policy) {
       `素材入手=${result.mean95CI.materialAcquired}, 素材消費=${result.mean95CI.materialConsumed}, ` +
       `粉入手=${result.mean95CI.identificationPowderAcquired}, ` +
       `粉消費=${result.mean95CI.identificationPowderUsed}, ` +
-      `粉残量=${result.mean95CI.identificationPowderRemaining}`
+      `粉残量=${result.identificationPowderUnlimited ? "実質無制限" : result.mean95CI.identificationPowderRemaining}`
     );
   });
 }
@@ -6259,11 +6387,41 @@ function printCoreRetentionDetail(result) {
     `終了時装備=${formatWilson(result.coreEquippedRuns, RUNS_PER_CASE)}, ` +
     `遭遇→装備定着=${formatWilson(result.coreEquippedRuns, result.coreEncounterRuns)}`
   );
-  const coreCountDistribution = Object.entries(result.coreEquippedCountDistribution)
-    .sort(([left], [right]) => Number(left) - Number(right))
+  const coreCountBuckets = { 0: 0, 1: 0, 2: 0, "3+": 0 };
+  Object.entries(result.coreEquippedCountDistribution).forEach(([count, runs]) => {
+    const numericCount = Number(count);
+    const bucket = numericCount >= 3 ? "3+" : String(numericCount);
+    coreCountBuckets[bucket] += runs;
+  });
+  const coreCountDistribution = Object.entries(coreCountBuckets)
     .map(([count, runs]) => `${count}個=${formatWilson(runs, RUNS_PER_CASE)}`)
     .join(" / ");
   console.log(`終了時core装備数分布（active core数/run）: ${coreCountDistribution}`);
+  const nonEquipmentReasonTotal = Object.values(result.coreNonEquipmentReasonTotals)
+    .reduce((sum, count) => sum + count, 0);
+  const nonEquipmentReasons = Object.entries(CORE_NON_EQUIPMENT_REASON_LABELS)
+    .map(([reason, label]) => {
+      const count = result.coreNonEquipmentReasonTotals[reason] || 0;
+      return `${label}=${formatWilson(count, nonEquipmentReasonTotal)}`;
+    })
+    .join(" / ");
+  console.log(
+    `非装備要因（全core、core-type遭遇runの非装備分母=${nonEquipmentReasonTotal}）: ` +
+    nonEquipmentReasons
+  );
+  console.log("非装備要因（poolGroup別。分母は各groupのcore遭遇後非装備件数）:");
+  ["combat", "economy"].forEach(poolGroup => {
+    const counts = result.coreNonEquipmentReasonCountsByGroup?.[poolGroup] || {};
+    const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+    const reasons = Object.entries(CORE_NON_EQUIPMENT_REASON_LABELS)
+      .map(([reason, label]) => `${label}=${formatWilson(counts[reason] || 0, total)}`)
+      .join(" / ");
+    console.log(`  ${poolGroup}: 非装備N=${total}; ${reasons}`);
+  });
+  console.log("装備スコア経路監査（score不足はsim方針上の判定。ゲーム制約と同一視しない）:");
+  Object.entries(CORE_SCORING_COVERAGE_NOTES).forEach(([coreId, note]) => {
+    console.log(`  ${coreId}: ${note}`);
+  });
   console.log(
     `combat: 遭遇=${formatWilson(result.combatCoreEncounterRuns, RUNS_PER_CASE)}, ` +
     `終了時装備=${formatWilson(result.combatCoreEquippedRuns, RUNS_PER_CASE)}, ` +
@@ -6278,12 +6436,16 @@ function printCoreRetentionDetail(result) {
   ENABLED_CORE_AFFIXES.forEach(affix => {
     const encountered = result.coreEncounterRunsById[affix.id] || 0;
     const equipped = result.coreEquippedRunsById[affix.id] || 0;
-    const reasons = Object.entries(result.unequippedCoreReasonsById[affix.id] || {})
-      .map(([reason, count]) => `${reason}=${count}`)
+    const nonEquipped = Math.max(0, encountered - equipped);
+    const reasonCounts = result.coreNonEquipmentReasonCountsById[affix.id] || {};
+    const reasons = Object.entries(CORE_NON_EQUIPMENT_REASON_LABELS)
+      .map(([reason, label]) => [label, reasonCounts[reason] || 0])
+      .filter(([, count]) => count > 0)
+      .map(([label, count]) => `${label}=${formatWilson(count, nonEquipped)}`)
       .join(", ");
     console.log(
       `  ${affix.id} [${affix.poolGroup}]: 遭遇=${encountered}, 終了時装備=${equipped}, ` +
-      `未装備=${Math.max(0, encountered - equipped)}${reasons ? ` (${reasons})` : ""}`
+      `未装備=${nonEquipped}${reasons ? ` (${reasons})` : ""}`
     );
   });
   const sneakOpportunities = result.coreObservations.coreOpportunityCounts.CORE_SNEAK_STEP || 0;
@@ -6577,6 +6739,13 @@ console.log(`傷薬商人方針: ${DEFAULT_HEAL_POTION_MERCHANT_POLICY}（マイ
 console.log(`core価値calibration: B1→B20 N=${CALIBRATION_RUNS} / 方針=${ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id).join(",")}`);
 console.log(`識別方針切替: IDENTIFICATION_POLICY=${SIM_ENV.IDENTIFICATION_POLICY || "powder"}`);
 console.log(
+  `開始鑑定粉: ${IDENTIFICATION_POWDER_UNLIMITED
+    ? "実質無制限"
+    : IDENTIFICATION_STARTING_POWDER} ` +
+  `(IDENTIFICATION_STARTING_POWDER=${IDENTIFICATION_STARTING_POWDER_INPUT})`
+);
+console.log(`鑑定コスト: ${IDENTIFICATION_COST} (IDENTIFICATION_COST_OVERRIDE=${IDENTIFICATION_COST_INPUT})`);
+console.log(
   `仮定: 探索係数=${EXPLORATION_FACTOR}, 宝箱拾得率=${CHEST_PICKUP_RATE}, ` +
   `戦闘ターン重み=${COMBAT_TURN_WEIGHT}`
 );
@@ -6601,7 +6770,9 @@ console.log(
 console.log(
   `供給仮定: 宝箱の本体/装身具分岐を実ロジック準拠で反映、` +
   `宝箱TOWN_PORTAL/状態回復薬をinventory追加・使用対象化、` +
-  `powder/gambleの鑑定粉は開始${IDENTIFICATION_BALANCE.startingPowder}個+出発クラフト分を含み、` +
+  `powder/gambleの鑑定粉は開始${IDENTIFICATION_POWDER_UNLIMITED
+    ? "実質無制限"
+    : IDENTIFICATION_STARTING_POWDER}個+出発クラフト分を含み、` +
   `宝箱${IDENTIFICATION_BALANCE.chestPowderChance * 100}%と実applyCombatRewardsの図鑑5種ごと+1を計測、` +
   "節目商人の鑑定粉は自動購入せず未観測（任意購入のため別感度が必要）、" +
   `マイルストーン商人の不足状態回復薬を実素材で購入、` +
