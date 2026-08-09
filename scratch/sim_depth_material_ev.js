@@ -1624,6 +1624,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       bossOverride: scenario.bossOverride || null,
       forcedBossAffixes: scenario.forcedBossAffixes || null,
       statusScalingOverride: scenario.statusScalingOverride || null,
+      raceBiasOverride: scenario.raceBiasOverride || null,
       elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY,
       bloodWandHpPaymentMinRate: BLOOD_WAND_HP_PAYMENT_MIN_RATE,
       materialDropOverride: scenario.materialDropOverride || null
@@ -2255,6 +2256,107 @@ function applyStatusScalingOverride(monsters, floor, override) {
   });
 }
 
+function isRaceBiasCandidate(monster) {
+  return Boolean(monster?.tags?.length) &&
+    !monster.isBoss &&
+    !monster.isMidboss &&
+    !monster.isRare &&
+    !monster.dangerRare &&
+    !monster.treasureRare;
+}
+
+function getRaceBiasCandidates(targetRace, role = null) {
+  const candidates = MONSTERS.filter(monster =>
+    isRaceBiasCandidate(monster) && monster.tags.includes(targetRace)
+  );
+  const roleCandidates = role
+    ? candidates.filter(monster => monster.role === role)
+    : [];
+  return roleCandidates.length ? roleCandidates : candidates;
+}
+
+function applyRaceDifficultyOverride(monster, override) {
+  const hpMultiplier = Number.isFinite(override?.hpMultiplier)
+    ? override.hpMultiplier
+    : 1;
+  const atkMultiplier = Number.isFinite(override?.atkMultiplier)
+    ? override.atkMultiplier
+    : 1;
+  const defMultiplier = Number.isFinite(override?.defMultiplier)
+    ? override.defMultiplier
+    : 1;
+  const maxHp = Math.max(1, Math.round(monster.maxHp * hpMultiplier));
+  return {
+    ...monster,
+    maxHp,
+    hp: maxHp,
+    atk: Math.max(1, Math.round(monster.atk * atkMultiplier)),
+    def: Math.max(0, Math.round(monster.def * defMultiplier))
+  };
+}
+
+function applyRaceBiasOverride(monsters, floor, override) {
+  if (!override || !override.targetRace || floor < (Number(override.startFloor) || 3)) return;
+  const bias = override.forceRaceEncounter
+    ? 1
+    : Math.max(0, Math.min(1, Number(override.poolBias) || 0));
+  if (bias <= 0) return;
+
+  monsters.forEach((monster, index) => {
+    if (bias < 1 && Math.random() >= bias) return;
+    const candidates = getRaceBiasCandidates(override.targetRace, monster.role);
+    if (!candidates.length) return;
+    const template = candidates[Math.floor(Math.random() * candidates.length)];
+    const replacement = {
+      ...scaleEnemyForDepth(template, floor),
+      isRare: Boolean(monster.isRare)
+    };
+    monsters[index] = applyRaceDifficultyOverride(replacement, override);
+  });
+}
+
+const SIM_RACE_EFFECT_SLOT = "__sim_race_bias_effect";
+
+function applyRaceEffectScale(state, override) {
+  const multiplier = Number(override?.antiEffectMultiplier) || 1;
+  const affixType = override?.affixType;
+  if (!affixType || multiplier <= 1) return [];
+  const patches = [];
+  state.party.forEach(character => {
+    if (!character?.equipment) return;
+    const currentValue = getCharAffixSum(character, affixType);
+    const delta = currentValue * (multiplier - 1);
+    if (delta <= 0) return;
+    patches.push({
+      character,
+      hadPrevious: Object.hasOwn(character.equipment, SIM_RACE_EFFECT_SLOT),
+      previous: character.equipment[SIM_RACE_EFFECT_SLOT]
+    });
+    character.equipment[SIM_RACE_EFFECT_SLOT] = {
+      baseId: SIM_RACE_EFFECT_SLOT,
+      identified: true,
+      simOnly: true,
+      affixes: [{ id: affixType, type: affixType, kind: "support", value: delta }]
+    };
+  });
+  return patches;
+}
+
+function restoreRaceEffectScale(patches) {
+  patches.forEach(({ character, hadPrevious, previous }) => {
+    if (hadPrevious) character.equipment[SIM_RACE_EFFECT_SLOT] = previous;
+    else delete character.equipment[SIM_RACE_EFFECT_SLOT];
+  });
+}
+
+function removeRaceEffectScale(state) {
+  state?.party?.forEach(character => {
+    if (character?.equipment?.[SIM_RACE_EFFECT_SLOT]?.simOnly) {
+      delete character.equipment[SIM_RACE_EFFECT_SLOT];
+    }
+  });
+}
+
 function runEncounter(
   state,
   observations,
@@ -2312,6 +2414,13 @@ function runEncounter(
         ([type, value]) => ({ id: type, kind: "support", type, value })
       )
     };
+  }
+  if (!isBoss && !isMidboss && !isElite) {
+    applyRaceBiasOverride(
+      monsters,
+      state.floor,
+      state.simPolicy.raceBiasOverride
+    );
   }
   if (!isBoss && !isMidboss && !isElite) {
     applyStatusScalingOverride(
@@ -2375,6 +2484,8 @@ function runEncounter(
           maxHp: monster.maxHp,
           spell: monster.spell || null,
           traits: [...(monster.traits || [])],
+          tags: [...(monster.tags || [])],
+          spriteType: monster.spriteType || null,
           statusChance: monster.statusChance ?? null,
           statusCapable: isStatusCapableMonster(monster),
           statuses: [
@@ -2443,6 +2554,29 @@ function runEncounter(
     }
 
     const action = selectCombatAction(state, metrics);
+    const actionTarget = action.targetIdx === undefined
+      ? null
+      : state.combatState.monsters[action.targetIdx];
+    const raceBiasOverride = state.simPolicy.raceBiasOverride;
+    const raceEncountered = Boolean(
+      raceBiasOverride?.targetRace &&
+      state.combatState.monsters.some(monster =>
+        monster.tags?.includes(raceBiasOverride.targetRace)
+      )
+    );
+    const raceTargeted = Boolean(
+      raceBiasOverride?.targetRace &&
+      actionTarget?.tags?.includes(raceBiasOverride.targetRace)
+    );
+    const raceEffectActive = raceEncountered &&
+      !isBoss && !isMidboss && !isElite &&
+      state.floor >= (Number(raceBiasOverride?.startFloor) || 3);
+    const raceAffixValueBefore = raceEffectActive
+      ? getCharAffixSum(state.party[0], raceBiasOverride?.affixType)
+      : 0;
+    const raceEffectPatches = raceEffectActive
+      ? applyRaceEffectScale(state, raceBiasOverride)
+      : [];
     const targetBeforeRound = action.targetIdx === undefined
       ? null
       : structuredClone(state.combatState.monsters[action.targetIdx]);
@@ -2479,7 +2613,9 @@ function runEncounter(
       });
     } finally {
       Math.random = simulationRandom;
+      restoreRaceEffectScale(raceEffectPatches);
     }
+    removeRaceEffectScale(roundResult?.state);
     const characterSpeed =
       getCharAgi(character) +
       getBuffTotal(character, "agi") +
@@ -2550,6 +2686,9 @@ function runEncounter(
         action: action.type,
         spellName: action.spellName || null,
         itemKey: action.itemKey || null,
+        targetIdx: action.targetIdx ?? null,
+        raceTargeted,
+        raceAffixValueBefore,
         hpBefore: characterBeforeRound.hp,
         hpAfter: state.party[0].hp,
         maxHp: getCharMaxHp(characterBeforeRound),
@@ -3359,7 +3498,17 @@ function createBuildSnapshot(state, scoringProfile, point) {
     coreIds: [...new Set(coreIds)],
     supportAffixes,
     effectiveAffixes: Object.fromEntries(
-      ["guardian", "spellGuard", "poisonWard", "statusResistance", "antiDemon"]
+      [
+        "guardian",
+        "spellGuard",
+        "poisonWard",
+        "statusResistance",
+        "antiBeast",
+        "antiSpirit",
+        "antiUndead",
+        "antiDragon",
+        "antiDemon"
+      ]
         .map(id => [id, getCharAffixSum(character, id)])
     ),
     resistanceScore:
