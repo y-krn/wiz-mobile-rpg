@@ -1012,6 +1012,14 @@ function getCase(cases, conditionId, curePolicy, scenarioId = PRIMARY_SCENARIO) 
   return cases[conditionKey({ id: conditionId }, curePolicy, scenarioId)];
 }
 
+export {
+  CLASS_NAMES,
+  CURE_POLICIES,
+  buildScenario,
+  conditionKey,
+  summarizeCase
+};
+
 function survivalDifference(upper, base) {
   if (!upper || !base || upper.estimate === null || base.estimate === null) {
     return { estimate: null, low: null, high: null, intervalsOverlap: null };
@@ -1190,6 +1198,43 @@ function buildReport(summary, summarySha256) {
   const endpointTestCount = (attackConditions.length + defenseConditions.length) *
     CURE_POLICIES.length * REQUESTED_SCENARIOS.length * 3;
   const thresholdPoint = item => item ? `${item.multiplier}x` : "未観測";
+  const spellGuardReplication = (() => {
+    try {
+      return JSON.parse(readFileSync(
+        `${process.cwd()}/scratch/results/issue-271-spellguard-remeasure.json`,
+        "utf8"
+      ));
+    } catch {
+      return null;
+    }
+  })();
+  const spellGuardReplicationLines = spellGuardReplication
+    ? [
+        "",
+        "### spellGuard追加再測定（1x / 5x / 10x、主状態、N≥200）",
+        "",
+        `6セル全てで有群・なし群N≥200: ${spellGuardReplication.allGroupsMeetTarget ? "yes" : "no"}。` +
+          ` 5x A再現: ${spellGuardReplication.reproduced5x ? "yes" : "no"}。`,
+        ...spellGuardReplication.conditions.flatMap(condition =>
+          CURE_POLICIES.map(curePolicy => {
+            const item = spellGuardReplication.cases[
+              `${condition.id}:${curePolicy}:${PRIMARY_SCENARIO}`
+            ];
+            const group = item?.b5.group;
+            const threat = item?.exposure.threat;
+            return `- ${condition.label} / ${curePolicy}: 有/なし=${group?.matchedN || 0}/${group?.unmatchedN || 0}, ` +
+              `Δ死亡=${formatDifference(group?.endpointEffects.death)}, ` +
+              `なし生存=${formatRate(group?.unmatchedSurvival)}, ` +
+              `呪文round=${threat?.spellRoundCount || 0}, 魔除け軽減ログ=${threat?.spellGuardReductions || 0}。`;
+          })
+        ),
+        "`damage.js:136-168` の `reduceIncomingDamage` は spell 時だけ `getCharAffixSum(\"spellGuard\")` を読み、spellGuard と mabarrier の合計を最大60%として呪文ダメージを軽減する。物理、初手、罠、毒はこの分岐の対象外。強制HALITOのfull診断でroundと軽減ログを実測した。",
+        `追加測定 raw SHA-256: ${spellGuardReplication.measurement.rawSha256}。wall-clock ${spellGuardReplication.measurement.wallClockSeconds.toFixed(3)}s、total CPU ${spellGuardReplication.measurement.totalCpuSeconds.toFixed(3)}s。`
+      ]
+    : [];
+  const spellGuardWindowLine = spellGuardReplication?.reproduced5x
+    ? "spellGuardは追加測定で5x Aを再現し、既存100xでB未観測のためA<Bの窓を[5x, >100x]と観測する。"
+    : "spellGuardは追加再測定前の単発Aを結論に使わず、追加結果がなければ窓は未確定とする。";
   const exposureLines = attackConditions.flatMap(condition =>
     CURE_POLICIES.map(curePolicy => {
       const item = cases[conditionKey(condition, curePolicy, PRIMARY_SCENARIO)];
@@ -1216,6 +1261,11 @@ function buildReport(summary, summarySha256) {
     }));
   const lines = [
     "# Issue #271 Phase 2b: 対策affix強度測定",
+    "",
+    "## 結論（Step 2を先に）",
+    "",
+    "攻撃系の強化は初手・毒・罠を減らさず、これらが深層endpointを支配し得る。2倍ダメージで決着turnは約0.2短縮したが、深層の帰結は戦闘の攻撃力だけでは決まらない。",
+    "防御系では spellGuard だけが呪文被害という別経路に届く。追加再測定を含むA/B判定はStep 3に置く。",
     "",
     "## 曝露率監査（最初）",
     "",
@@ -1265,7 +1315,9 @@ function buildReport(summary, summarySha256) {
     `B（対策必須）: 対策なし生存率<${formatPercent(PRACTICAL_SURVIVAL_FLOOR)}を実用外と定義。first B=${thresholdPoint(thresholds.attack.firstB)}。`,
     `攻撃系の結論: ${thresholds.attack.relation}。A/Bの窓=${thresholds.attack.window === true ? "あり" : thresholds.attack.firstA && thresholds.attack.firstB ? "なし" : "判定不能（片方未観測）"}。`,
     `防御系: affix別に ${Object.entries(thresholds.defense).map(([affix, item]) => `${affix}=${item.relation}`).join(" / ")}。非単調な点推定はkneeと呼ばず、CIが重なる順位変化は結論反転と扱わない。`,
-    "B判定は各cellのB5 entrant内・対策なし群の生存率で行い、100xで20%未満にならない条件はB未観測と記す。Aだけ観測されても、B未観測のためA<Bの窓は未確定。",
+    "B判定は各cellのB5 entrant内・対策なし群の生存率で行い、100xで20%未満にならない条件はB未観測と記す。",
+    spellGuardWindowLine,
+    ...spellGuardReplicationLines,
     "",
     "## 難易度・選別",
     "",
