@@ -24,7 +24,11 @@
 
 ここで示した条件間の差CIは、各条件の entrant 比率・平均の95% CIから作った独立正規近似である。共通seedは使っているが、(2) は生成乱数の消費順が変わるため、対応runのpaired CIは使っていない。
 
-したがって、この sim 条件群では (1) と (2) の両方が unlimited slots の主状態 endpoint 改善を再現し、スロット数そのものと affix 総量を分離できない。これは sim 条件の記述であり、スロット数または affix 総量の因果効果の証明ではない。#409 と #404 のどちらか一方をこの測定だけで優先する根拠にはならず、追加の識別条件が必要。
+突破率と到達floorは (1) と (2) の点推定・CIが重なり、同等の改善水準と記述できる。一方、死亡率の変化量は同等ではない。(2) の **−6.3pt** は (1) の **−16.0pt** の約 **39%（4割）**に留まる。したがって「両方再現」は方向と endpoint 到達の再現を指し、効果量が等しいという意味ではない。
+
+したがって、この sim 条件群では (1) と (2) の両方が unlimited slots の主状態 endpoint 改善を再現し、スロット数そのものと affix 総量を分離できない。ただし実務上の次手を決められないという意味ではない。(2) は #404 の `rollComposition` / `budgetsByRarityAndFloor` のデータ変更経路で、(1) は #409 の `char.equipment` のキー分離を伴う実装経路である。実装コストの低い **#404 を先に試す根拠が得られた**。
+
+これは sim 条件の記述であり、スロット数または affix 総量の因果効果の証明ではない。#404 を先に試す際も、今回の (2) の極端な上界条件をそのまま balance 案として引用せず、現実的な変更量で再測定する。#404 で十分な改善が出ない場合は、#409 を次に検討する。
 
 両方再現したため「分離不能」と判定した。どちらも再現しないケースではないため「別機構」とは判定しない。
 
@@ -63,6 +67,19 @@
 | (1) | complete | 804 | 41.0% [37.7, 44.5] | 13.2% [11.0, 15.7] | 6.86 [6.67, 7.05] |
 | (2) | complete | 554 | 39.4% [35.4, 43.5] | 21.1% [17.9, 24.7] | 6.84 [6.62, 7.07] |
 
+## 全runの無条件 endpoint
+
+上表の突破率・死亡率・到達floorは B5 entrant に条件付けられている。主状態の B5 entrant は base **494**、unlimited **550**、(1) **761**、(2) **520**。条件 (1) は base の **1.54倍**であり、entrant 集団の選別がある。選別の影響を避ける補助指標として、全7シナリオの全15,400 run（2,200×7）を分母にした平均到達floorを raw JSONL から再集計した。B5 entrant filter は適用していない。CI は全run平均の normal 95% CI。
+
+| 条件 | 全run N | 平均到達floor |
+| --- | ---: | ---: |
+| base | 15,400 | 3.45 [3.42, 3.48] |
+| unlimited slots | 15,400 | 3.69 [3.66, 3.73] |
+| (1) slots↑ / affix総量据え置き | 15,400 | 4.18 [4.14, 4.22] |
+| (2) slots据え置き / affix総量↑ | 15,400 | 3.60 [3.56, 3.63] |
+
+この無条件指標でも (1)・(2) は base より高いが、(1) の上昇幅が (2) より大きい。これは entrant 条件付き endpoint の選別を補足する記述であり、機構の因果差や同等の効果量を証明しない。
+
 ## 7シナリオの affix/core 水準（点推定）
 
 `affix/core` は B5 entrant 平均。条件 (2) はシナリオ別に unlimited と一致しないセルがある。特に `empty` / `stats` は affix と core の差が大きく、主状態以外の条件 (2) endpoint は補助的記述に留める。
@@ -97,7 +114,7 @@ n = [1.96√(2 p̄(1−p̄)) + 0.842√(p0(1−p0)+p1(1−p1))]^2 / Δ^2
 - `base`: 現行 rollComposition/budget、standard slot。
 - `unlimited slots`: #445 の既存仮想slot。生成後の inventory item を同一typeの `type#2`、`type#3`…へ置ける。供給物・affixは増やさないが、装備中 item 数、素の装備値、core、support が増える。生成側乱数消費順は変えない。
 - (1): standard slot で通常装備選択後、occupied base slot それぞれへ2個の affixless virtual duplicate を追加。既存 duplicate は次の装備選択前に除去し、通常装備選択への影響を抑える。追加 duplicate は affix/core/curse を持たず、乱数を消費しない。これは post-selection 変換であり、#445 の inventory item を全て保持する unlimited slot と完全同一 estimandではない。
-- (2): sim import 前にメモリ上の `AFFIX_BALANCE` を変更。`rollComposition` は magic `{support:5, core:3, coreChance:.80}`、rare `{support:6, core:3, coreChance:.80}`、epic `{support:7, core:3}`。budget は magic/rare `[0,30,32,34,36,38]`、epic `[0,45,48,51,54,57]`。生成構成・coreChance・budget判定が変わるため、乱数消費順が変わる。`src/data/affixes.js` は変更していない。
+- (2): sim import 前にメモリ上の `AFFIX_BALANCE` を変更。`rollComposition` は magic `{support:5, core:3, coreChance:.80}`、rare `{support:6, core:3, coreChance:.80}`、epic `{support:7, core:3}`。budget は magic/rare `[0,30,32,34,36,38]`、epic `[0,45,48,51,54,57]`。生成構成・coreChance・budget判定が変わるため、乱数消費順が変わる。`src/data/affixes.js` は変更していない。これは unlimited slots の総 affix/core 水準に合わせるための **上界条件**であり、#404 の提案値ではない。現実的な #404 の変更では、ここで観測した endpoint 改善の一部しか出ない可能性があり、この数値を balance 案として引用してはならない。
 
 したがって (2) は生成構成変更 estimand、unlimited slots は生成後 slot変換 estimand。(1) は生成後の deterministic affixless duplicateだが、標準選択を維持するため、unlimited slots と同一ではない。すべて sim 条件の比較であり、ゲーム制約・因果効果の主張ではない。
 
@@ -143,5 +160,6 @@ wall-clock は calibration と run phase を分離。CPU は run phase の user+
 - `node scratch/test_eye_drops_craft.js` pass
 - `npm run lint` pass
 - `npm run test:unit` pass（62 tests、3 skip）
+- 既存 raw JSONL 4条件×15,400行を再集計し、上記の全run平均到達floorを算出。sim の再実行なし。
 
 Closes #446
