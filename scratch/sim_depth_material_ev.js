@@ -2275,6 +2275,26 @@ function getRaceBiasCandidates(targetRace, role = null) {
   return roleCandidates.length ? roleCandidates : candidates;
 }
 
+function applyRaceDifficultyOverride(monster, override) {
+  const hpMultiplier = Number.isFinite(override?.hpMultiplier)
+    ? override.hpMultiplier
+    : 1;
+  const atkMultiplier = Number.isFinite(override?.atkMultiplier)
+    ? override.atkMultiplier
+    : 1;
+  const defMultiplier = Number.isFinite(override?.defMultiplier)
+    ? override.defMultiplier
+    : 1;
+  const maxHp = Math.max(1, Math.round(monster.maxHp * hpMultiplier));
+  return {
+    ...monster,
+    maxHp,
+    hp: maxHp,
+    atk: Math.max(1, Math.round(monster.atk * atkMultiplier)),
+    def: Math.max(0, Math.round(monster.def * defMultiplier))
+  };
+}
+
 function applyRaceBiasOverride(monsters, floor, override) {
   if (!override || !override.targetRace || floor < (Number(override.startFloor) || 3)) return;
   const bias = override.forceRaceEncounter
@@ -2287,10 +2307,11 @@ function applyRaceBiasOverride(monsters, floor, override) {
     const candidates = getRaceBiasCandidates(override.targetRace, monster.role);
     if (!candidates.length) return;
     const template = candidates[Math.floor(Math.random() * candidates.length)];
-    monsters[index] = {
+    const replacement = {
       ...scaleEnemyForDepth(template, floor),
       isRare: Boolean(monster.isRare)
     };
+    monsters[index] = applyRaceDifficultyOverride(replacement, override);
   });
 }
 

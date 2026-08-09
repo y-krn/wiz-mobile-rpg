@@ -45,12 +45,30 @@ if (!Object.hasOwn(RACE_AFFIX_BY_TARGET, RACE_TARGET)) {
 }
 const RACE_AFFIX = RACE_AFFIX_BY_TARGET[RACE_TARGET];
 const RACE_LABEL = RACE_LABEL_BY_TARGET[RACE_TARGET];
+function readRaceDifficultyMultiplier(name) {
+  const value = process.env[name] === undefined ? 1 : Number(process.env[name]);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive number: ${process.env[name]}`);
+  }
+  return value;
+}
+const NO_RACE_DIFFICULTY = Object.freeze({
+  hpMultiplier: 1,
+  atkMultiplier: 1,
+  defMultiplier: 1
+});
+const RACE_DIFFICULTY = Object.freeze({
+  hpMultiplier: readRaceDifficultyMultiplier("RACE_HP_MULTIPLIER"),
+  atkMultiplier: readRaceDifficultyMultiplier("RACE_ATK_MULTIPLIER"),
+  defMultiplier: readRaceDifficultyMultiplier("RACE_DEF_MULTIPLIER")
+});
 const STATUS_START_FLOOR = RACE_START_FLOOR;
 const STATUS_END_FLOOR = RACE_END_FLOOR;
 const B5 = 5;
 const TARGET_DEPTH = 21;
 const R95 = 1.959963984540054;
 const MIN_GROUP_N = 30;
+const CALIBRATION_POINT_TOLERANCE = 0.04;
 const N_DESIGN_B5_ENTRANT_RATE = 507 / 2200;
 const N_DESIGN_RACE_AFFIX_RATE = 0.01;
 const N_DESIGN_REQUIRED_RUNS = Math.ceil(
@@ -68,10 +86,12 @@ const STATUS_CONDITIONS = Object.freeze({
       startFloor: RACE_START_FLOOR,
       endFloor: RACE_END_FLOOR,
       poolBias: 0,
-      antiEffectMultiplier: 1
+      antiEffectMultiplier: 1,
+      ...NO_RACE_DIFFICULTY
     }),
     poolBias: 0,
-    antiEffectMultiplier: 1
+    antiEffectMultiplier: 1,
+    raceDifficulty: NO_RACE_DIFFICULTY
   }),
   "pool-half-current": Object.freeze({
     id: "pool-half-current",
@@ -82,10 +102,12 @@ const STATUS_CONDITIONS = Object.freeze({
       startFloor: RACE_START_FLOOR,
       endFloor: RACE_END_FLOOR,
       poolBias: 0.5,
-      antiEffectMultiplier: 1
+      antiEffectMultiplier: 1,
+      ...NO_RACE_DIFFICULTY
     }),
     poolBias: 0.5,
-    antiEffectMultiplier: 1
+    antiEffectMultiplier: 1,
+    raceDifficulty: NO_RACE_DIFFICULTY
   }),
   "pool-ceiling-current": Object.freeze({
     id: "pool-ceiling-current",
@@ -97,10 +119,12 @@ const STATUS_CONDITIONS = Object.freeze({
       endFloor: RACE_END_FLOOR,
       poolBias: 1,
       forceRaceEncounter: true,
-      antiEffectMultiplier: 1
+      antiEffectMultiplier: 1,
+      ...NO_RACE_DIFFICULTY
     }),
     poolBias: 1,
-    antiEffectMultiplier: 1
+    antiEffectMultiplier: 1,
+    raceDifficulty: NO_RACE_DIFFICULTY
   }),
   "effect-strong-natural": Object.freeze({
     id: "effect-strong-natural",
@@ -111,14 +135,16 @@ const STATUS_CONDITIONS = Object.freeze({
       startFloor: RACE_START_FLOOR,
       endFloor: RACE_END_FLOOR,
       poolBias: 0,
-      antiEffectMultiplier: 5
+      antiEffectMultiplier: 5,
+      ...NO_RACE_DIFFICULTY
     }),
     poolBias: 0,
-    antiEffectMultiplier: 5
+    antiEffectMultiplier: 5,
+    raceDifficulty: NO_RACE_DIFFICULTY
   }),
   upper: Object.freeze({
     id: "upper",
-    label: `${RACE_LABEL}偏重 100% × 有利 5x（上界）`,
+    label: `${RACE_LABEL}偏重 100% × 有利 5x × 難易度校正（上界）`,
     override: Object.freeze({
       targetRace: RACE_TARGET,
       affixType: RACE_AFFIX,
@@ -126,10 +152,12 @@ const STATUS_CONDITIONS = Object.freeze({
       endFloor: RACE_END_FLOOR,
       poolBias: 1,
       forceRaceEncounter: true,
-      antiEffectMultiplier: 5
+      antiEffectMultiplier: 5,
+      ...RACE_DIFFICULTY
     }),
     poolBias: 1,
-    antiEffectMultiplier: 5
+    antiEffectMultiplier: 5,
+    raceDifficulty: RACE_DIFFICULTY
   })
 });
 const STATUS_CONDITION_ORDER = Object.freeze([
@@ -959,41 +987,56 @@ function buildMarkdown(fullSummary, summarySha256) {
     .filter(Boolean);
   const ceilingExposureDataSufficient = ceilingExposureSummaries.length > 0 &&
     ceilingExposureSummaries.every(exposure => exposure.reachedN >= MIN_GROUP_N);
-  const legacyCeilingJudgement = "base（現行）は対照。上界判定はB3開始・全通常遭遇単一種族・anti-X効果5xで行う。";
+  const coreCalibrationRows = hasConditionCase("base") && hasConditionCase("upper") &&
+    SELECTED_SCENARIO_IDS.includes("workshop-core-pools")
+    ? STATUS_CURE_POLICY_ORDER.map(curePolicy => {
+      const base = fullSummary.cases[caseKey("base", curePolicy, "workshop-core-pools")];
+      const upper = fullSummary.cases[caseKey("upper", curePolicy, "workshop-core-pools")];
+      const baseRate = base.b5.raceProtection.unmatchedSurvival;
+      const upperRate = upper.b5.raceProtection.unmatchedSurvival;
+      return {
+        curePolicy,
+        base,
+        upper,
+        baseRate,
+        upperRate,
+        delta: upperRate.estimate - baseRate.estimate,
+        intervalsOverlap: upperRate.low <= baseRate.high && baseRate.low <= upperRate.high
+      };
+    })
+    : [];
+  const coreCalibrationDataSufficient = coreCalibrationRows.length === STATUS_CURE_POLICY_ORDER.length &&
+    coreCalibrationRows.every(row =>
+      row.baseRate.trials >= MIN_GROUP_N &&
+      row.upperRate.trials >= MIN_GROUP_N
+    );
+  const coreCalibrationPass = coreCalibrationDataSufficient && coreCalibrationRows.every(row =>
+    Math.abs(row.delta) <= CALIBRATION_POINT_TOLERANCE && row.intervalsOverlap
+  );
+  const legacyCeilingJudgement = "base（現行）は対照。上界はB3開始・全通常遭遇単一種族・anti-X効果5xに、敵hp/atk/defの固定倍率を加えてbase難易度へ校正した。";
   const ceilingJudgement = !ceilingExposureDataSufficient
       ? `B${primaryCeilingStartFloor}開始上界は適用階到達母数不足で判定不能`
     : !ceilingProtectionDataSufficient
       ? `B${primaryCeilingStartFloor}開始上界は${RACE_AFFIX}群のN不足で判定不能`
+    : !coreCalibrationPass
+      ? `上界の難易度校正が未成立（core-poolsの${RACE_AFFIX}なし群でbaseとの一致条件を満たさない）ため、耐性有無のendpoint差は判定対象外`
       : ceilingNonCrossingDetails.length === 0
-        ? `B${primaryCeilingStartFloor}開始の上界（全通常遭遇を${RACE_LABEL}化、anti-X効果5x）でも、${RACE_AFFIX}有群−なし群の職内centered endpoint差（深層到達floorを含む）は全${ceilingCaseEntries.length}セルで95% CIが0を跨いだ。質依存化は未観測だが、効果なしと確定したわけではない。打ち切り条件に従い、中間条件の掃引は実施しない。`
-        : `B${primaryCeilingStartFloor}開始の上界では、${ceilingNonCrossingCells.size}/${ceilingCaseEntries.length}セルで少なくとも1つのendpoint差の95% CIが0を跨がなかった（${ceilingNonCrossingDetails.join("、")}）。この条件下のsim上の群差は観測されたが、種族偏重だけの因果効果とは確定せず、該当cellを中心に測定側も点検する。`;
-  const ceilingMeasurementGuardrail = primaryCeilingId === "upper" &&
-    fullSummary.cases[caseKey("upper", "never", "workshop-empty")]
-    ? (() => {
-      const summary = fullSummary.cases[caseKey("upper", "never", "workshop-empty")];
-      return `直感に反するcellの留保: 上界/never/empty は${RACE_AFFIX}有群−なし群が ` +
-        `Δ死亡 ${diffText(summary.b5.raceProtection.endpointEffects.death)}、Δ突破 ${diffText(summary.b5.raceProtection.endpointEffects.breakthrough)}。` +
-        "これは耐性の逆効果と断定せず、群構成・seed・計測経路を先に点検する。";
-    })()
-    : "";
-  const primaryCeilingCoreCases = hasConditionCase(primaryCeilingId) &&
-    SELECTED_SCENARIO_IDS.includes("workshop-core-pools")
-    ? STATUS_CURE_POLICY_ORDER.map(curePolicy =>
-      fullSummary.cases[caseKey(primaryCeilingId, curePolicy, "workshop-core-pools")]
-    )
-    : [];
-  const exposureComparison = primaryCeilingCoreCases.length === 2
-    ? STATUS_CURE_POLICY_ORDER.map((curePolicy, index) => {
-      const primary = primaryCeilingCoreCases[index];
+        ? `難易度校正済み上界でも、${RACE_AFFIX}有群−なし群の職内centered endpoint差（深層到達floorを含む）は全${ceilingCaseEntries.length}セルで95% CIが0を跨いだ。質依存化はsim上で未観測だが、効果なしと確定したわけではない。打ち切り条件に従い、中間条件の掃引は実施しない。`
+        : `難易度校正済み上界では、${ceilingNonCrossingCells.size}/${ceilingCaseEntries.length}セルで少なくとも1つのendpoint差の95% CIが0を跨がなかった（${ceilingNonCrossingDetails.join("、")}）。この条件下のsim上の群差は観測されたが、種族偏重だけの因果効果とは確定せず、測定側を点検する。`;
+  const exposureConditionIds = ["base", primaryCeilingId];
+  const exposureComparison = hasConditionCase(primaryCeilingId) &&
+    hasConditionCase("base") && SELECTED_SCENARIO_IDS.includes("workshop-core-pools")
+    ? exposureConditionIds.flatMap(conditionId => STATUS_CURE_POLICY_ORDER.map(curePolicy => {
+      const primary = fullSummary.cases[caseKey(conditionId, curePolicy, "workshop-core-pools")];
       const reached = primary.raceExposure.reachedRun;
-      return `${curePolicy}: ${RACE_LABEL}遭遇 ${number(primary.race.targetEncounterPerRun)}/run ` +
+      return `${conditionId}/${curePolicy}: ${RACE_LABEL}遭遇 ${number(primary.race.targetEncounterPerRun)}/run ` +
         `（遭遇率 ${rateText(primary.race.targetEncounterRate)}、monster率 ${rateText(primary.race.targetMonsterRate)}）、` +
         `種族monster ${number(primary.race.targetMonsterPerRun)}/run、` +
         `適用階到達率 ${rateText(primary.raceExposure.reachedRate)}、` +
         `到達run条件付き遭遇 ${number(reached?.targetEncounterPerRun)}/run、` +
         `monster ${number(reached?.targetMonsterPerRun)}/run、` +
         `anti-X対象攻撃 ${number(primary.race.antiEffectActionPerRun)}/run`;
-    }).join("、")
+    })).join("、")
     : "比較対象不足";
   const conditionStartFloor = condition =>
     Number(condition.override?.startFloor) || RACE_START_FLOOR;
@@ -1002,12 +1045,17 @@ function buildMarkdown(fullSummary, summarySha256) {
     const startFloor = conditionStartFloor(condition);
     const poolBias = percent(condition.poolBias);
     const effectMultiplier = number(condition.antiEffectMultiplier, 1) + "x";
+    const difficulty = condition.raceDifficulty || NO_RACE_DIFFICULTY;
     const meaning = conditionIsCeiling(condition)
       ? "B" + startFloor + "以降、通常遭遇を全て" + RACE_LABEL + "化"
       : condition.id === "base"
         ? "overrideなし（現行）"
         : "B" + startFloor + "以降、指定確率で" + RACE_LABEL + "化";
-    return "| " + [condition.label, "B" + startFloor, poolBias, effectMultiplier, meaning].join(" | ") + " |";
+    return "| " + [condition.label, "B" + startFloor, poolBias, effectMultiplier,
+      number(difficulty.hpMultiplier, 2) + "x",
+      number(difficulty.atkMultiplier, 2) + "x",
+      number(difficulty.defMultiplier, 2) + "x",
+      meaning].join(" | ") + " |";
   };
   const formatSweepRow = (condition, curePolicy, scenarioId, summary) => {
     const protection = summary.b5.raceProtection;
@@ -1038,6 +1086,13 @@ function buildMarkdown(fullSummary, summarySha256) {
       effectStatus(protection)
     ].join(" | ") + " |";
   };
+  const formatCalibrationRow = row => "| " + [
+    row.curePolicy,
+    rateText(row.baseRate),
+    rateText(row.upperRate),
+    `${row.delta >= 0 ? "+" : ""}${percent(row.delta)}`,
+    row.intervalsOverlap ? "重なる" : "重ならない"
+  ].join(" | ") + " |";
   const lines = [
     "# Issue #271 Phase 2a: race-biased threat ceiling",
     "",
@@ -1045,6 +1100,26 @@ function buildMarkdown(fullSummary, summarySha256) {
     "",
     "適用階はB3。分母を全runとB3到達runに分け、種族遭遇回数・種族モンスター率・anti-X対象攻撃回数を併記する。",
     `- 主状態 \`workshop-core-pools\` 上界: ${exposureComparison}`,
+    "",
+    "## 難易度校正",
+    "",
+    "前回PR #451の未校正 upper は、種族プールだけを100%不死化した条件だった。これはendpointの因果比較には使わず、プール構成が難易度を変える事実として残す。",
+    "",
+    "| 指標 | base smart | 未校正 upper smart | base never | 未校正 upper never |",
+    "| --- | --- | --- | --- | --- |",
+    "| B5死亡率 | 29.3% [27.7,30.9] | 18.4% [17.0,19.9] | 30.5% [29.0,32.2] | 17.3% [16.0,18.8] |",
+    "| B5突破率 | 33.5% [31.9,35.2] | 49.8% [48.0,51.6] | 32.4% [30.8,34.0] | 49.5% [47.6,51.3] |",
+    "| 全run平均floor | 3.57 [3.54,3.61] | 3.78 [3.74,3.82] | 3.53 [3.50,3.57] | 3.75 [3.70,3.79] |",
+    "| 耐性なし生存率 | 76.8% [74.8,78.8] | 88.9% [86.9,90.6] | 76.3% [74.2,78.2] | 88.3% [86.4,90.1] |",
+    "",
+    "baseの種族遭遇率16.1%・種族monster率9.3%を、未校正 upper でともに100%へ振ると、smartのB5死亡率は10.9pt（約11pt）、neverは13.2pt下がった。これは不死が他種族より弱く、遭遇プール自体が易しくなった観測であり、「耐性の効果なし」ではない。",
+    "",
+    "今回の upper は不死偏重100%・anti-X 5xを維持し、通常遭遇の置換後に敵 hp/atk/def を固定倍率で再スケールした。cure policyや耐性有無では倍率を変えていない。",
+    "",
+    "| cure | baseの耐性なし生存率 | 校正済み upperの耐性なし生存率 | upper−base | 95% CIの重なり |",
+    "| --- | --- | --- | ---: | --- |",
+    ...coreCalibrationRows.map(formatCalibrationRow),
+    `- 校正判定: ${coreCalibrationPass ? "成立（点推定差の絶対値4pt以内、かつ95% CIが重なる）" : "未成立。endpoint判定は行わない。"}。N<30の行は未確定。`,
     "",
     "## 結論の読み方",
     "",
@@ -1056,11 +1131,10 @@ function buildMarkdown(fullSummary, summarySha256) {
     "",
     legacyCeilingJudgement,
     ceilingJudgement,
-    ceilingMeasurementGuardrail,
     "",
     "## 測定条件",
     "",
-    `- 実行: \`SIM_RUNS=${fullSummary.measurement.SIM_RUNS} SIM_CALIBRATION_RUNS=100 IDENTIFICATION_POLICY=powder FLEE_POLICY=threshold node scratch/sim_issue_271_status_depth_scaling.js\``,
+    `- 実行: \`SIM_RUNS=${fullSummary.measurement.SIM_RUNS} SIM_CALIBRATION_RUNS=100 IDENTIFICATION_POLICY=powder FLEE_POLICY=threshold RACE_HP_MULTIPLIER=${number(fullSummary.measurement.raceDifficulty.hpMultiplier)} RACE_ATK_MULTIPLIER=${number(fullSummary.measurement.raceDifficulty.atkMultiplier)} RACE_DEF_MULTIPLIER=${number(fullSummary.measurement.raceDifficulty.defMultiplier)} node scratch/sim_issue_271_status_depth_scaling.js\``,
     `- seed=${fullSummary.measurement.seed}、基本4職、target depth=${fullSummary.measurement.targetDepth}、SIM_PARALLELは未指定（解決値=${fullSummary.measurement.resolvedParallelism}）`,
     `- 主状態: \`workshop-core-pools\`。7シナリオ ${SELECTED_SCENARIO_IDS.length === ALL_SCENARIO_IDS.length ? "測定" : "pilot"}。`,
     `- 対象種族: ${RACE_TARGET}（${RACE_LABEL}）、対応affix: \`${RACE_AFFIX}\`。B3以降通常遭遇を対象。`,
@@ -1068,7 +1142,7 @@ function buildMarkdown(fullSummary, summarySha256) {
     `- 課題記載の分布との差分（課題値→現行literal tags）: ${SOURCE_RACE_TAG_COUNT_MISMATCHES.length ? SOURCE_RACE_TAG_COUNT_MISMATCHES.join(" / ") : "なし"}。combat判定のsource-of-truthである現行tagsを採用した。`,
     `- cure policy: ${STATUS_CURE_POLICY_ORDER.join(" / ")}。smartはHP閾値0.35、merchant補充はmissing。`,
     `- 種族偏重: B${RACE_START_FLOOR}以降の通常遭遇を指定確率で対象種族へ置換。上界は全モンスター置換。`,
-    `- anti-X効果強度: 現行1xと5x。5xは単一+20%級を+100%級へ拡大する${RACE_TARGET === "dragon" ? "。竜では防御側も最小1まで軽減する" : "。防御側のdragonGuardは対象外"}。`,
+    `- anti-X効果強度: 現行1xと5x。5xは単一+20%級を+100%級へ拡大する${RACE_TARGET === "dragon" ? "。竜では防御側も最小1まで軽減する" : "。今回の不死条件は攻撃側のみで、防御側のdragonGuardは対象外。防御軽減0は整合的"}。`,
     "",
     "## N設計",
     "",
@@ -1078,10 +1152,15 @@ function buildMarkdown(fullSummary, summarySha256) {
     `- ${fullSummary.measurement.SIM_RUNS.toLocaleString()} runは${RACE_AFFIX}少数群を最低N30へ近づける設計。CI幅や80% powerは保証しない。`,
     "- target選定監査: 先行dragon上界は遭遇率こそ飽和したが、antiDragon有群が各cell 0〜1件でN<30のため判定対象外。現行ビルドでantiUndead群Nを確保できるundeadを本判定対象にした。",
     "",
+    "## anti-race供給制約",
+    "",
+    "- antiUndeadは僧侶・司教の職業ボーナス（各+20%、`src/data/classes.js:20,24`）とHOLY_BAND（+20%、`src/data/items.js:54`）で供給される。antiDragonはDRAGON_RING（+20%、`src/data/items.js:53`）が主な装備供給で、職業ボーナスはない。",
+    "- したがって基本4職で測定群Nを確保できることを実測できたのはundeadだけ。dragonは先行upperの各cell 0〜1件でN<30。beast / spirit / demonは現行供給ではN30を確保できる測定経路がなく、未測定・検証不能であり、効果なしとは書かない。質依存化を実装する前にanti-race供給を増やす必要がある。",
+    "",
     "## 種族偏重・効果量条件",
     "",
-    "| 条件 | 開始階 | 遭遇偏り | anti-X効果 | 意味 |",
-    "| --- | ---: | ---: | ---: | --- |",
+    "| 条件 | 開始階 | 遭遇偏り | anti-X効果 | hp倍率 | atk倍率 | def倍率 | 意味 |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ...STATUS_CONDITION_DEFINITIONS.map(formatRaceConditionDefinition),
     "",
     "## 掃引表",
@@ -1342,6 +1421,7 @@ async function main() {
     fleeHpThreshold: FLEE_HP_THRESHOLD,
     raceTarget: RACE_TARGET,
     raceAffix: RACE_AFFIX,
+    raceDifficulty: RACE_DIFFICULTY,
     raceStartFloor: RACE_START_FLOOR,
     raceEndFloor: RACE_END_FLOOR,
     sourceMonsterCount: MONSTERS.length,
@@ -1379,6 +1459,7 @@ async function main() {
       affixType: RACE_AFFIX,
       poolBias: condition.poolBias,
       antiEffectMultiplier: condition.antiEffectMultiplier,
+      raceDifficulty: condition.raceDifficulty,
       ceiling: Boolean(condition.override?.forceRaceEncounter)
     })),
     cases
