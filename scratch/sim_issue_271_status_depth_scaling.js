@@ -1,5 +1,5 @@
 // sim-scope: run
-// Issue #271 Phase 2a: status-threat depth-scaling ceiling measurement.
+// Issue #271 Phase 2a: race-biased threat ceiling measurement.
 
 /* global console, process */
 
@@ -23,99 +23,127 @@ const ALL_SCENARIO_IDS = Object.freeze([
 ]);
 const BASIC_CLASSES = Object.freeze(["Fighter", "Thief", "Priest", "Mage"]);
 const STATUS_NAMES = Object.freeze(["poisoned", "blind", "paralyzed", "sleep"]);
-const STATUS_START_FLOOR = 6;
-const STATUS_END_FLOOR = 20;
+const RACE_START_FLOOR = 3;
+const RACE_END_FLOOR = 20;
+const RACE_TARGET = String(process.env.RACE_TARGET || "undead").trim().toLowerCase();
+const RACE_AFFIX_BY_TARGET = Object.freeze({
+  beast: "antiBeast",
+  spirit: "antiSpirit",
+  undead: "antiUndead",
+  dragon: "antiDragon",
+  demon: "antiDemon"
+});
+const RACE_LABEL_BY_TARGET = Object.freeze({
+  beast: "獣",
+  spirit: "霊",
+  undead: "不死",
+  dragon: "竜",
+  demon: "悪魔"
+});
+if (!Object.hasOwn(RACE_AFFIX_BY_TARGET, RACE_TARGET)) {
+  throw new Error(`RACE_TARGET must be beast|spirit|undead|dragon|demon: ${RACE_TARGET}`);
+}
+const RACE_AFFIX = RACE_AFFIX_BY_TARGET[RACE_TARGET];
+const RACE_LABEL = RACE_LABEL_BY_TARGET[RACE_TARGET];
+const STATUS_START_FLOOR = RACE_START_FLOOR;
+const STATUS_END_FLOOR = RACE_END_FLOOR;
 const B5 = 5;
 const TARGET_DEPTH = 21;
 const R95 = 1.959963984540054;
 const MIN_GROUP_N = 30;
+const N_DESIGN_B5_ENTRANT_RATE = 507 / 2200;
+const N_DESIGN_RACE_AFFIX_RATE = 0.01;
+const N_DESIGN_REQUIRED_RUNS = Math.ceil(
+  MIN_GROUP_N / (N_DESIGN_B5_ENTRANT_RATE * N_DESIGN_RACE_AFFIX_RATE)
+);
+const N_DESIGN_PLANNED_RUNS = Math.ceil(N_DESIGN_REQUIRED_RUNS / 1000) * 1000;
 
 const STATUS_CONDITIONS = Object.freeze({
   base: Object.freeze({
     id: "base",
     label: "base（現行）",
-    override: null,
-    chanceMultiplierAtMax: 1,
-    encounterProbabilityAtMax: 0
-  }),
-  weak: Object.freeze({
-    id: "weak",
-    label: "status scale 弱",
     override: Object.freeze({
-      startFloor: STATUS_START_FLOOR,
-      endFloor: STATUS_END_FLOOR,
-      chanceMultiplierAtMax: 1.5,
-      encounterProbabilityAtMax: 0.25
+      targetRace: RACE_TARGET,
+      affixType: RACE_AFFIX,
+      startFloor: RACE_START_FLOOR,
+      endFloor: RACE_END_FLOOR,
+      poolBias: 0,
+      antiEffectMultiplier: 1
     }),
-    chanceMultiplierAtMax: 1.5,
-    encounterProbabilityAtMax: 0.25
+    poolBias: 0,
+    antiEffectMultiplier: 1
   }),
-  medium: Object.freeze({
-    id: "medium",
-    label: "status scale 中",
+  "pool-half-current": Object.freeze({
+    id: "pool-half-current",
+    label: `${RACE_LABEL}偏重 50%（現行効果）`,
     override: Object.freeze({
-      startFloor: STATUS_START_FLOOR,
-      endFloor: STATUS_END_FLOOR,
-      chanceMultiplierAtMax: 2,
-      encounterProbabilityAtMax: 0.5
+      targetRace: RACE_TARGET,
+      affixType: RACE_AFFIX,
+      startFloor: RACE_START_FLOOR,
+      endFloor: RACE_END_FLOOR,
+      poolBias: 0.5,
+      antiEffectMultiplier: 1
     }),
-    chanceMultiplierAtMax: 2,
-    encounterProbabilityAtMax: 0.5
+    poolBias: 0.5,
+    antiEffectMultiplier: 1
   }),
-  strong: Object.freeze({
-    id: "strong",
-    label: "status scale 強",
+  "pool-ceiling-current": Object.freeze({
+    id: "pool-ceiling-current",
+    label: `${RACE_LABEL}偏重 100%（現行効果）`,
     override: Object.freeze({
-      startFloor: STATUS_START_FLOOR,
-      endFloor: STATUS_END_FLOOR,
-      chanceMultiplierAtMax: 3,
-      encounterProbabilityAtMax: 0.75
+      targetRace: RACE_TARGET,
+      affixType: RACE_AFFIX,
+      startFloor: RACE_START_FLOOR,
+      endFloor: RACE_END_FLOOR,
+      poolBias: 1,
+      forceRaceEncounter: true,
+      antiEffectMultiplier: 1
     }),
-    chanceMultiplierAtMax: 3,
-    encounterProbabilityAtMax: 0.75
+    poolBias: 1,
+    antiEffectMultiplier: 1
   }),
-  ceiling: Object.freeze({
-    id: "ceiling",
-    label: "status scale 天井",
+  "effect-strong-natural": Object.freeze({
+    id: "effect-strong-natural",
+    label: `${RACE_LABEL}有利 5x（現行遭遇）`,
     override: Object.freeze({
-      startFloor: STATUS_START_FLOOR,
-      endFloor: STATUS_END_FLOOR,
-      forceStatusEncounter: true,
-      forceStatusChance: true,
-      chanceMultiplierAtMax: null,
-      encounterProbabilityAtMax: 1
+      targetRace: RACE_TARGET,
+      affixType: RACE_AFFIX,
+      startFloor: RACE_START_FLOOR,
+      endFloor: RACE_END_FLOOR,
+      poolBias: 0,
+      antiEffectMultiplier: 5
     }),
-    chanceMultiplierAtMax: 1,
-    encounterProbabilityAtMax: 1
+    poolBias: 0,
+    antiEffectMultiplier: 5
   }),
-  "ceiling-b3": Object.freeze({
-    id: "ceiling-b3",
-    label: "status scale 天井（B3開始）",
+  upper: Object.freeze({
+    id: "upper",
+    label: `${RACE_LABEL}偏重 100% × 有利 5x（上界）`,
     override: Object.freeze({
-      startFloor: 3,
-      endFloor: STATUS_END_FLOOR,
-      forceStatusEncounter: true,
-      forceStatusChance: true,
-      chanceMultiplierAtMax: null,
-      encounterProbabilityAtMax: 1
+      targetRace: RACE_TARGET,
+      affixType: RACE_AFFIX,
+      startFloor: RACE_START_FLOOR,
+      endFloor: RACE_END_FLOOR,
+      poolBias: 1,
+      forceRaceEncounter: true,
+      antiEffectMultiplier: 5
     }),
-    chanceMultiplierAtMax: 1,
-    encounterProbabilityAtMax: 1
+    poolBias: 1,
+    antiEffectMultiplier: 5
   })
 });
 const STATUS_CONDITION_ORDER = Object.freeze([
   "base",
-  "weak",
-  "medium",
-  "strong",
-  "ceiling",
-  "ceiling-b3"
+  "pool-half-current",
+  "pool-ceiling-current",
+  "effect-strong-natural",
+  "upper"
 ]);
 const REQUESTED_SCENARIOS = String(
-  process.env.STATUS_SCENARIOS || ALL_SCENARIO_IDS.join(",")
+  process.env.RACE_SCENARIOS || ALL_SCENARIO_IDS.join(",")
 ).split(",").map(value => value.trim()).filter(Boolean);
 const REQUESTED_CONDITIONS = String(
-  process.env.STATUS_CONDITIONS || STATUS_CONDITION_ORDER.join(",")
+  process.env.RACE_CONDITIONS || STATUS_CONDITION_ORDER.join(",")
 ).split(",").map(value => value.trim()).filter(Boolean);
 const CURE_POLICIES = String(
   process.env.STATUS_CURE_POLICIES || "smart,never"
@@ -123,7 +151,7 @@ const CURE_POLICIES = String(
 
 const ENV_DEFAULTS = Object.freeze({
   SIM_SEED: "271",
-  SIM_RUNS: "11000",
+  SIM_RUNS: String(N_DESIGN_PLANNED_RUNS),
   SIM_CALIBRATION_RUNS: "100",
   DEPARTURE_CRAFT_IDS:
     "TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION",
@@ -164,10 +192,10 @@ if (process.env.FLEE_POLICY !== "threshold") {
   throw new Error("FLEE_POLICY must be threshold for Issue #271 Phase 2a");
 }
 if (!REQUESTED_SCENARIOS.length || REQUESTED_SCENARIOS.some(id => !ALL_SCENARIO_IDS.includes(id))) {
-  throw new Error(`unknown STATUS_SCENARIOS: ${REQUESTED_SCENARIOS.join(",")}`);
+  throw new Error(`unknown RACE_SCENARIOS: ${REQUESTED_SCENARIOS.join(",")}`);
 }
 if (!REQUESTED_CONDITIONS.length || REQUESTED_CONDITIONS.some(id => !STATUS_CONDITION_ORDER.includes(id))) {
-  throw new Error(`unknown STATUS_CONDITIONS: ${REQUESTED_CONDITIONS.join(",")}`);
+  throw new Error(`unknown RACE_CONDITIONS: ${REQUESTED_CONDITIONS.join(",")}`);
 }
 if (!CURE_POLICIES.length || CURE_POLICIES.some(policy => !["smart", "never"].includes(policy))) {
   throw new Error(`STATUS_CURE_POLICIES must contain smart and/or never: ${CURE_POLICIES.join(",")}`);
@@ -189,10 +217,12 @@ const [
     resetSimulationRandom,
     simulateRun
   },
-  { CORE_AFFIXES, SUPPORT_AFFIXES }
+  { CORE_AFFIXES, SUPPORT_AFFIXES },
+  { MONSTERS }
 ] = await Promise.all([
   import("./sim_depth_material_ev.js"),
-  import("../src/data/affixes.js")
+  import("../src/data/affixes.js"),
+  import("../src/data/monsters.js")
 ]);
 
 const CLASS_NAMES = SIM_CLASSES.filter(className => BASIC_CLASSES.includes(className));
@@ -217,6 +247,22 @@ const ENABLED_CORE_IDS = new Set(
 const ENABLED_SUPPORT_IDS = SUPPORT_AFFIXES
   .filter(affix => affix.enabled)
   .map(affix => affix.id);
+const SOURCE_RACE_TAG_COUNTS = Object.fromEntries(
+  Object.keys(RACE_AFFIX_BY_TARGET).map(race => [
+    race,
+    MONSTERS.filter(monster => monster.tags?.includes(race)).length
+  ])
+);
+const TASK_NOTE_RACE_TAG_COUNTS = Object.freeze({
+  beast: 13,
+  spirit: 21,
+  undead: 10,
+  dragon: 15,
+  demon: 8
+});
+const SOURCE_RACE_TAG_COUNT_MISMATCHES = Object.entries(TASK_NOTE_RACE_TAG_COUNTS)
+  .filter(([race, count]) => SOURCE_RACE_TAG_COUNTS[race] !== count)
+  .map(([race, taskCount]) => `${race} ${taskCount}→${SOURCE_RACE_TAG_COUNTS[race]}`);
 
 function hashSeed(text) {
   let seed = 2166136261;
@@ -472,6 +518,50 @@ function collectStatusDiagnostics(result, statusStartFloor = STATUS_START_FLOOR)
   };
 }
 
+function collectRaceDiagnostics(result, raceStartFloor, targetRace, affixType) {
+  let normalEncounterCount = 0;
+  let targetEncounterCount = 0;
+  let normalMonsterCount = 0;
+  let targetMonsterCount = 0;
+  let targetActionCount = 0;
+  let antiEffectActionCount = 0;
+  let antiDefenseReductionCount = 0;
+  const encounters = result.diagnostics?.encounters || [];
+  encounters
+    .filter(encounter => encounter.type === "normal" && encounter.floor >= raceStartFloor)
+    .forEach(encounter => {
+      normalEncounterCount++;
+      normalMonsterCount += encounter.monsters.length;
+      const targetMonsters = encounter.monsters.filter(monster =>
+        monster.tags?.includes(targetRace)
+      );
+      targetMonsterCount += targetMonsters.length;
+      if (targetMonsters.length > 0) targetEncounterCount++;
+      encounter.rounds.forEach(round => {
+        if (round.raceTargeted) {
+          targetActionCount++;
+          if (Number(round.raceAffixValueBefore) > 0) antiEffectActionCount++;
+        }
+        if (targetRace === "dragon") {
+          antiDefenseReductionCount += round.log.filter(message =>
+            message.includes("竜殺し")
+          ).length;
+        }
+      });
+    });
+  return {
+    normalEncounterCount,
+    targetEncounterCount,
+    targetEncounterRate: wilson(targetEncounterCount, normalEncounterCount),
+    normalMonsterCount,
+    targetMonsterCount,
+    targetMonsterRate: wilson(targetMonsterCount, normalMonsterCount),
+    targetActionCount,
+    antiEffectActionCount,
+    antiDefenseReductionCount
+  };
+}
+
 function compactSnapshot(snapshot) {
   if (!snapshot) return null;
   return {
@@ -483,6 +573,7 @@ function compactSnapshot(snapshot) {
     combatBuildScore: snapshot.combatBuildScore,
     coreIds: [...(snapshot.coreIds || [])],
     supportAffixes: { ...(snapshot.supportAffixes || {}) },
+    effectiveAffixes: { ...(snapshot.effectiveAffixes || {}) },
     resistanceScore: Number(snapshot.resistanceScore || 0)
   };
 }
@@ -507,6 +598,14 @@ function getProtectionKind(snapshot) {
 
 function hasProtection(snapshot) {
   return getProtectionKind(snapshot) !== "none";
+}
+
+function getRaceAffixValue(snapshot) {
+  return Number(snapshot?.effectiveAffixes?.[RACE_AFFIX] || 0);
+}
+
+function hasRaceAffix(snapshot) {
+  return getRaceAffixValue(snapshot) > 0;
 }
 
 function getMatchingSupportIds(coreId) {
@@ -539,10 +638,13 @@ function compactRow(task, result, statusStartFloor) {
     deathFloor: result.deathFloor === null ? null : Number(result.deathFloor),
     b5,
     b5ProtectionKind: getProtectionKind(b5),
+    b5RaceAffixValue: getRaceAffixValue(b5),
+    b5HasRaceAffix: hasRaceAffix(b5),
     b5Death: Boolean(b5 && result.died && result.deathFloor === B5),
     b5Breakthrough: Boolean(b5 && b6),
     statusStartFloor,
-    status: collectStatusDiagnostics(result, statusStartFloor)
+    status: collectStatusDiagnostics(result, statusStartFloor),
+    race: collectRaceDiagnostics(result, statusStartFloor, RACE_TARGET, RACE_AFFIX)
   };
 }
 
@@ -558,7 +660,8 @@ function buildScenario(scenarioId, condition, curePolicy) {
     statusCureMerchantPolicy: process.env.STATUS_CURE_MERCHANT_POLICY,
     fleeHpThreshold: FLEE_HP_THRESHOLD,
     elitePolicy: process.env.ELITE_POLICY,
-    statusScalingOverride: condition.override
+    statusScalingOverride: null,
+    raceBiasOverride: condition.override
   };
 }
 
@@ -577,7 +680,7 @@ export function runStatusDepthScalingTask(task, context) {
     workshop: scenario.workshop,
     collectDiagnostics: true
   });
-  const statusStartFloor = Number(scenario.statusScalingOverride?.startFloor) || STATUS_START_FLOOR;
+  const statusStartFloor = Number(scenario.raceBiasOverride?.startFloor) || RACE_START_FLOOR;
   return compactRow(task, result, statusStartFloor);
 }
 
@@ -645,6 +748,32 @@ function summarizeStatus(rows) {
   };
 }
 
+function summarizeRace(rows) {
+  const normalEncounterCount = sumStatusRows(rows, row => row.race.normalEncounterCount);
+  const targetEncounterCount = sumStatusRows(rows, row => row.race.targetEncounterCount);
+  const normalMonsterCount = sumStatusRows(rows, row => row.race.normalMonsterCount);
+  const targetMonsterCount = sumStatusRows(rows, row => row.race.targetMonsterCount);
+  return {
+    normalEncounterCount,
+    targetEncounterCount,
+    targetEncounterRate: wilson(targetEncounterCount, normalEncounterCount),
+    normalMonsterCount,
+    targetMonsterCount,
+    targetMonsterRate: wilson(targetMonsterCount, normalMonsterCount),
+    targetEncounterPerRun: targetEncounterCount / rows.length,
+    targetMonsterPerRun: targetMonsterCount / rows.length,
+    targetActionCount: sumStatusRows(rows, row => row.race.targetActionCount),
+    targetActionPerRun: sumStatusRows(rows, row => row.race.targetActionCount) / rows.length,
+    antiEffectActionCount: sumStatusRows(rows, row => row.race.antiEffectActionCount),
+    antiEffectActionPerRun:
+      sumStatusRows(rows, row => row.race.antiEffectActionCount) / rows.length,
+    antiDefenseReductionCount:
+      sumStatusRows(rows, row => row.race.antiDefenseReductionCount),
+    antiDefenseReductionPerRun:
+      sumStatusRows(rows, row => row.race.antiDefenseReductionCount) / rows.length
+  };
+}
+
 function summarizeProtection(entrants, predicate) {
   const matched = entrants.filter(predicate);
   const unmatched = entrants.filter(row => !predicate(row));
@@ -668,8 +797,9 @@ function summarizeProtection(entrants, predicate) {
 
 function summarizeScenario(rows) {
   const entrants = rows.filter(row => row.b5);
-  const statusStartFloor = Number(rows[0]?.statusStartFloor) || STATUS_START_FLOOR;
+  const statusStartFloor = Number(rows[0]?.statusStartFloor) || RACE_START_FLOOR;
   const exposedRows = rows.filter(row => row.reachedFloor >= statusStartFloor);
+  const raceProtection = summarizeProtection(entrants, row => row.b5HasRaceAffix);
   const protection = summarizeProtection(entrants, row => hasProtection(row.b5));
   const statusResistance = summarizeProtection(
     entrants,
@@ -688,6 +818,7 @@ function summarizeScenario(rows) {
       breakthroughRate: wilson(entrants.filter(row => row.b5Breakthrough).length, entrants.length),
       deathRate: wilson(entrants.filter(row => row.b5Death).length, entrants.length),
       reachedFloor: meanInterval(entrants.map(row => row.reachedFloor)),
+      raceProtection,
       protection,
       statusResistance,
       poisonWard,
@@ -695,6 +826,14 @@ function summarizeScenario(rows) {
     },
     averageReachedFloor: meanInterval(rows.map(row => row.reachedFloor)),
     survivalRate: wilson(rows.filter(row => !row.died).length, rows.length),
+    race: summarizeRace(rows),
+    raceExposure: {
+      startFloor: statusStartFloor,
+      reachedN: exposedRows.length,
+      reachedRate: wilson(exposedRows.length, rows.length),
+      allRun: summarizeRace(rows),
+      reachedRun: exposedRows.length ? summarizeRace(exposedRows) : null
+    },
     status: summarizeStatus(rows),
     exposure: {
       startFloor: statusStartFloor,
@@ -772,9 +911,9 @@ function buildMarkdown(fullSummary, summarySha256) {
       STATUS_CURE_POLICY_ORDER[0],
       SELECTED_SCENARIO_IDS[0]
     )]);
-  const primaryCeilingId = hasConditionCase("ceiling-b3") ? "ceiling-b3" : "ceiling";
+  const primaryCeilingId = hasConditionCase("upper") ? "upper" : "pool-ceiling-current";
   const primaryCeilingStartFloor =
-    Number(STATUS_CONDITIONS[primaryCeilingId]?.override?.startFloor) || STATUS_START_FLOOR;
+    Number(STATUS_CONDITIONS[primaryCeilingId]?.override?.startFloor) || RACE_START_FLOOR;
   const ceilingCaseEntries = STATUS_CURE_POLICY_ORDER.flatMap(curePolicy =>
     SELECTED_SCENARIO_IDS.map(scenarioId => ({
       curePolicy,
@@ -783,26 +922,24 @@ function buildMarkdown(fullSummary, summarySha256) {
     }))
   );
   const ceilingSummaries = ceilingCaseEntries.map(entry => entry.summary);
-  const ceilingProtectionEffects = ceilingSummaries.flatMap(summary => [
-    summary.b5.protection.endpointEffects.reachedFloor,
-    summary.b5.protection.endpointEffects.death,
-    summary.b5.protection.endpointEffects.breakthrough
-  ]);
   const ceilingProtectionDataSufficient = ceilingSummaries.every(summary =>
-    summary.b5.protection.dataSufficient
+    summary.b5.raceProtection.dataSufficient
   );
- const ceilingAllIntervalsCrossZero = ceilingProtectionEffects.every(effect =>
-   effect.low <= 0 && effect.high >= 0
- );
   const endpointDefinitions = [
     ["reachedFloor", "到達floor"],
     ["death", "B5死亡"],
     ["breakthrough", "B5突破"]
   ];
+  const comparisonCellCount =
+    STATUS_CONDITION_DEFINITIONS.length *
+    STATUS_CURE_POLICY_ORDER.length *
+    SELECTED_SCENARIO_IDS.length;
+  const comparisonTestCount = comparisonCellCount * endpointDefinitions.length;
+  const expectedFalsePositives = comparisonTestCount * 0.05;
   const ceilingNonCrossingDetails = ceilingCaseEntries.flatMap(entry =>
     endpointDefinitions
       .filter(([key]) => {
-        const effect = entry.summary.b5.protection.endpointEffects[key];
+        const effect = entry.summary.b5.raceProtection.endpointEffects[key];
         return effect.low > 0 || effect.high < 0;
       })
       .map(([, label]) =>
@@ -812,42 +949,30 @@ function buildMarkdown(fullSummary, summarySha256) {
   const ceilingNonCrossingCells = new Set(
     ceilingCaseEntries
       .filter(entry => endpointDefinitions.some(([key]) => {
-        const effect = entry.summary.b5.protection.endpointEffects[key];
+        const effect = entry.summary.b5.raceProtection.endpointEffects[key];
         return effect.low > 0 || effect.high < 0;
       }))
       .map(entry => entry.curePolicy + "/" + entry.scenarioId)
   );
   const ceilingExposureSummaries = ceilingSummaries
-    .map(summary => summary.exposure)
+    .map(summary => summary.raceExposure)
     .filter(Boolean);
   const ceilingExposureDataSufficient = ceilingExposureSummaries.length > 0 &&
     ceilingExposureSummaries.every(exposure => exposure.reachedN >= MIN_GROUP_N);
-  const legacyCeilingCoreCases = hasConditionCase("ceiling") &&
-    SELECTED_SCENARIO_IDS.includes("workshop-core-pools")
-    ? STATUS_CURE_POLICY_ORDER.map(curePolicy =>
-      fullSummary.cases[caseKey("ceiling", curePolicy, "workshop-core-pools")]
-    )
-    : [];
-  const legacyCeilingJudgement = legacyCeilingCoreCases.length === 2
-    ? "旧B6開始 ceiling は、core-poolsの適用階到達率が " +
-      STATUS_CURE_POLICY_ORDER.map((curePolicy, index) =>
-        curePolicy + " " + rateText(legacyCeilingCoreCases[index].exposure.reachedRate)
-      ).join(" / ") +
-      " に留まるため、全run endpoint差による耐性効果は判定不能。B6到達run条件付き値は記述的に併記する。"
-    : "旧B6開始 ceiling は比較データ不足で判定不能。";
+  const legacyCeilingJudgement = "base（現行）は対照。上界判定はB3開始・全通常遭遇単一種族・anti-X効果5xで行う。";
   const ceilingJudgement = !ceilingExposureDataSufficient
-    ? `B${primaryCeilingStartFloor}開始 ceiling は適用階到達母数不足で判定不能`
+      ? `B${primaryCeilingStartFloor}開始上界は適用階到達母数不足で判定不能`
     : !ceilingProtectionDataSufficient
-      ? `B${primaryCeilingStartFloor}開始 ceiling は保護群のN不足で判定不能`
+      ? `B${primaryCeilingStartFloor}開始上界は${RACE_AFFIX}群のN不足で判定不能`
       : ceilingNonCrossingDetails.length === 0
-        ? `B${primaryCeilingStartFloor}開始のtrue ceiling（深層通常遭遇を全てstatus化、statusChance=100%）でも、statusResistance / poisonWard 有群−両方なし群の職内centered endpoint差（深層到達floorを含む）は全${ceilingCaseEntries.length}セルで95% CIが0を跨いだ。質依存化は未観測だが、耐性の効果が無いと確定したわけではない。`
-        : `B${primaryCeilingStartFloor}開始のtrue ceilingでは、${ceilingNonCrossingCells.size}/${ceilingCaseEntries.length}セルで少なくとも1つのendpoint差の95% CIが0を跨がなかった（${ceilingNonCrossingDetails.join("、")}）。この条件下のsim上の耐性群差は観測されたが、状態異常だけの因果効果とは確定せず、該当cellを中心に測定側も点検する。`;
-  const ceilingMeasurementGuardrail = primaryCeilingId === "ceiling-b3" &&
-    fullSummary.cases[caseKey("ceiling-b3", "never", "workshop-empty")]
+        ? `B${primaryCeilingStartFloor}開始の上界（全通常遭遇を${RACE_LABEL}化、anti-X効果5x）でも、${RACE_AFFIX}有群−なし群の職内centered endpoint差（深層到達floorを含む）は全${ceilingCaseEntries.length}セルで95% CIが0を跨いだ。質依存化は未観測だが、効果なしと確定したわけではない。打ち切り条件に従い、中間条件の掃引は実施しない。`
+        : `B${primaryCeilingStartFloor}開始の上界では、${ceilingNonCrossingCells.size}/${ceilingCaseEntries.length}セルで少なくとも1つのendpoint差の95% CIが0を跨がなかった（${ceilingNonCrossingDetails.join("、")}）。この条件下のsim上の群差は観測されたが、種族偏重だけの因果効果とは確定せず、該当cellを中心に測定側も点検する。`;
+  const ceilingMeasurementGuardrail = primaryCeilingId === "upper" &&
+    fullSummary.cases[caseKey("upper", "never", "workshop-empty")]
     ? (() => {
-      const summary = fullSummary.cases[caseKey("ceiling-b3", "never", "workshop-empty")];
-      return "直感に反するcellの留保: B3 ceiling/never/empty は保護群−なし群が " +
-        `Δ死亡 ${diffText(summary.b5.protection.endpointEffects.death)}、Δ突破 ${diffText(summary.b5.protection.endpointEffects.breakthrough)}。` +
+      const summary = fullSummary.cases[caseKey("upper", "never", "workshop-empty")];
+      return `直感に反するcellの留保: 上界/never/empty は${RACE_AFFIX}有群−なし群が ` +
+        `Δ死亡 ${diffText(summary.b5.raceProtection.endpointEffects.death)}、Δ突破 ${diffText(summary.b5.raceProtection.endpointEffects.breakthrough)}。` +
         "これは耐性の逆効果と断定せず、群構成・seed・計測経路を先に点検する。";
     })()
     : "";
@@ -857,43 +982,36 @@ function buildMarkdown(fullSummary, summarySha256) {
       fullSummary.cases[caseKey(primaryCeilingId, curePolicy, "workshop-core-pools")]
     )
     : [];
-  const exposureComparison = legacyCeilingCoreCases.length === 2 &&
-    primaryCeilingCoreCases.length === 2 &&
-    primaryCeilingId !== "ceiling"
+  const exposureComparison = primaryCeilingCoreCases.length === 2
     ? STATUS_CURE_POLICY_ORDER.map((curePolicy, index) => {
-      const legacy = legacyCeilingCoreCases[index];
       const primary = primaryCeilingCoreCases[index];
-     const ratio = primary.status.statusApplicationsPerRun > 0
-       ? legacy.status.statusApplicationsPerRun / primary.status.statusApplicationsPerRun
-       : null;
-      const legacyExposed = legacy.exposure.status?.statusApplicationsPerRun;
-      const primaryExposed = primary.exposure.status?.statusApplicationsPerRun;
-      const exposedRatio = primaryExposed > 0 ? legacyExposed / primaryExposed : null;
-     return `${curePolicy}: B6 ceiling ${number(legacy.status.statusApplicationsPerRun)}/run ` +
-       `vs B${primaryCeilingStartFloor} ceiling ${number(primary.status.statusApplicationsPerRun)}/run ` +
-        `(B6/B${primaryCeilingStartFloor}=${percent(ratio)}); ` +
-        `到達run条件付きは ${number(legacyExposed)}/run vs ${number(primaryExposed)}/run ` +
-        `(B6/B${primaryCeilingStartFloor}=${percent(exposedRatio)})`;
+      const reached = primary.raceExposure.reachedRun;
+      return `${curePolicy}: ${RACE_LABEL}遭遇 ${number(primary.race.targetEncounterPerRun)}/run ` +
+        `（遭遇率 ${rateText(primary.race.targetEncounterRate)}、monster率 ${rateText(primary.race.targetMonsterRate)}）、` +
+        `種族monster ${number(primary.race.targetMonsterPerRun)}/run、` +
+        `適用階到達率 ${rateText(primary.raceExposure.reachedRate)}、` +
+        `到達run条件付き遭遇 ${number(reached?.targetEncounterPerRun)}/run、` +
+        `monster ${number(reached?.targetMonsterPerRun)}/run、` +
+        `anti-X対象攻撃 ${number(primary.race.antiEffectActionPerRun)}/run`;
     }).join("、")
     : "比較対象不足";
   const conditionStartFloor = condition =>
-    Number(condition.override?.startFloor) || STATUS_START_FLOOR;
-  const conditionIsCeiling = condition => Boolean(condition.override?.forceStatusChance);
-  const formatStatusConditionDefinition = condition => {
+    Number(condition.override?.startFloor) || RACE_START_FLOOR;
+  const conditionIsCeiling = condition => Boolean(condition.override?.forceRaceEncounter);
+  const formatRaceConditionDefinition = condition => {
     const startFloor = conditionStartFloor(condition);
-    const chance = conditionIsCeiling(condition)
-      ? "100%固定"
-      : number(condition.chanceMultiplierAtMax, 2) + "x";
-    const promotion = percent(condition.encounterProbabilityAtMax);
+    const poolBias = percent(condition.poolBias);
+    const effectMultiplier = number(condition.antiEffectMultiplier, 1) + "x";
     const meaning = conditionIsCeiling(condition)
-      ? "B" + startFloor + "以降、全通常遭遇にstatus持ち・付与率100%"
+      ? "B" + startFloor + "以降、通常遭遇を全て" + RACE_LABEL + "化"
       : condition.id === "base"
         ? "overrideなし（現行）"
-        : "B" + startFloor + "からB" + STATUS_END_FLOOR + "へ線形増加";
-    return "| " + [condition.label, "B" + startFloor, chance, promotion, meaning].join(" | ") + " |";
+        : "B" + startFloor + "以降、指定確率で" + RACE_LABEL + "化";
+    return "| " + [condition.label, "B" + startFloor, poolBias, effectMultiplier, meaning].join(" | ") + " |";
   };
   const formatSweepRow = (condition, curePolicy, scenarioId, summary) => {
-    const protection = summary.b5.protection;
+    const protection = summary.b5.raceProtection;
+    const reached = summary.raceExposure.reachedRun;
     return "| " + [
       condition.id,
       curePolicy,
@@ -903,10 +1021,15 @@ function buildMarkdown(fullSummary, summarySha256) {
       rateText(summary.b5.breakthroughRate),
       rateText(summary.b5.deathRate),
       "B" + summary.statusStartFloor,
-      rateText(summary.status.deepStatusEncounterRate),
-      number(summary.status.statusApplicationsPerRun),
-      number(summary.status.statusCureItemsUsedPerRun),
-      rateText(summary.status.statusCureDepletedRate),
+      rateText(summary.raceExposure.reachedRate),
+      rateText(summary.race.targetEncounterRate),
+      rateText(summary.race.targetMonsterRate),
+      number(summary.race.targetEncounterPerRun),
+      number(reached?.targetEncounterPerRun),
+      number(summary.race.targetMonsterPerRun),
+      number(reached?.targetMonsterPerRun),
+      number(summary.race.antiEffectActionPerRun),
+      number(summary.race.antiDefenseReductionPerRun),
       protection.matchedN + "/" + protection.unmatchedN,
       diffText(protection.endpointEffects.reachedFloor),
       diffText(protection.endpointEffects.death),
@@ -916,55 +1039,57 @@ function buildMarkdown(fullSummary, summarySha256) {
     ].join(" | ") + " |";
   };
   const lines = [
-    "# Issue #271 Phase 2a: status depth-scaling ceiling",
+    "# Issue #271 Phase 2a: race-biased threat ceiling",
+    "",
+    "## 曝露率監査",
+    "",
+    "適用階はB3。分母を全runとB3到達runに分け、種族遭遇回数・種族モンスター率・anti-X対象攻撃回数を併記する。",
+    `- 主状態 \`workshop-core-pools\` 上界: ${exposureComparison}`,
     "",
     "## 結論の読み方",
     "",
     "Phase 2a は sim override のみ。`src/` は変更していない。主判定はB5開始時点の",
-    "`statusResistance` または `poisonWard` 有群−両方なし群の職内centered endpoint差。",
-    "深層が難化したかではなく、耐性有無で到達が分かれるかを判定する。CIが0を跨ぐ",
-    "差は「未確定」とし、効果なし・結論反転とは書かない。",
+    `\`${RACE_AFFIX}\` 有群−なし群の職内centered endpoint差。深層が難化したかではなく、ビルド構成で生死が分かれるかを判定する。`,
+    "CIが0を跨ぐ差は未確定。母数不足を効果なしと扱わない。",
     "",
     "## 天井判定",
     "",
-   legacyCeilingJudgement,
-   ceilingJudgement,
+    legacyCeilingJudgement,
+    ceilingJudgement,
     ceilingMeasurementGuardrail,
-   "",
-    "## 曝露率監査",
     "",
-    "条件付き分母は reachedFloor >= 適用開始階 のrun。旧B6 ceiling は全runの約7.6%しか適用階へ到達しないため、そのcell単独の全run値は判定材料にしない。",
-    "workshop-core-pools status付与/run のB6 ceiling対true ceiling比率は次行に示す。全run値と適用階到達run条件付き値を併記する。true ceilingは深層通常遭遇を全てstatus化し、statusChance=100%に固定した上界条件。",
-    `- ${exposureComparison}`,
-    "",
-   "## 測定条件",
+    "## 測定条件",
     "",
     `- 実行: \`SIM_RUNS=${fullSummary.measurement.SIM_RUNS} SIM_CALIBRATION_RUNS=100 IDENTIFICATION_POLICY=powder FLEE_POLICY=threshold node scratch/sim_issue_271_status_depth_scaling.js\``,
     `- seed=${fullSummary.measurement.seed}、基本4職、target depth=${fullSummary.measurement.targetDepth}、SIM_PARALLELは未指定（解決値=${fullSummary.measurement.resolvedParallelism}）`,
     `- 主状態: \`workshop-core-pools\`。7シナリオ ${SELECTED_SCENARIO_IDS.length === ALL_SCENARIO_IDS.length ? "測定" : "pilot"}。`,
+    `- 対象種族: ${RACE_TARGET}（${RACE_LABEL}）、対応affix: \`${RACE_AFFIX}\`。B3以降通常遭遇を対象。`,
+    `- source literal \`tags\` 分布（${MONSTERS.length}種）: ${Object.entries(SOURCE_RACE_TAG_COUNTS).map(([race, count]) => `${race} ${count}`).join(" / ")}。combat anti-X判定はこの \`tags\` を使用。`,
+    `- 課題記載の分布との差分（課題値→現行literal tags）: ${SOURCE_RACE_TAG_COUNT_MISMATCHES.length ? SOURCE_RACE_TAG_COUNT_MISMATCHES.join(" / ") : "なし"}。combat判定のsource-of-truthである現行tagsを採用した。`,
     `- cure policy: ${STATUS_CURE_POLICY_ORDER.join(" / ")}。smartはHP閾値0.35、merchant補充はmissing。`,
-    `- 状態異常スケール適用帯: 条件定義表の開始階〜B${STATUS_END_FLOOR}通常遭遇。baseはoverrideなし。`,
-    "- 状態異常持続/被害は深層 encounter diagnostic の実ログから集計。`statusActiveIncoming*` は状態開始後の被弾、`incapacitatedExtra*` は睡眠/麻痺中の被弾であり、因果効果の推定ではない。",
+    `- 種族偏重: B${RACE_START_FLOOR}以降の通常遭遇を指定確率で対象種族へ置換。上界は全モンスター置換。`,
+    `- anti-X効果強度: 現行1xと5x。5xは単一+20%級を+100%級へ拡大する${RACE_TARGET === "dragon" ? "。竜では防御側も最小1まで軽減する" : "。防御側のdragonGuardは対象外"}。`,
     "",
     "## N設計",
     "",
-    `- 保守値: B5 entrant率 0.2305、statusResistance群率 0.089、poisonWard群率 0.013（旧実測）。`,
-    `- statusResistanceの期待N=${number(fullSummary.nDesign.expectedStatusResistanceN, 1)}、poisonWardの期待N=${number(fullSummary.nDesign.expectedPoisonWardN, 1)}。`,
+    `- 保守値: B5 entrant率 ${number(fullSummary.nDesign.b5EntrantRate, 4)}、${RACE_AFFIX}群率 ${number(fullSummary.nDesign.raceAffixRate, 4)}。`,
+    `- ${RACE_AFFIX}群の期待N=${number(fullSummary.nDesign.expectedRaceAffixN, 1)}。`,
     `- ${fullSummary.nDesign.formula}。実測各cellの群Nを確認し、N<30は未確定扱い。`,
-    "- 11,000 runは、poisonWard単独を最低N30へ近づけるための設計。CI幅や80% powerを保証する数字ではない。",
+    `- ${fullSummary.measurement.SIM_RUNS.toLocaleString()} runは${RACE_AFFIX}少数群を最低N30へ近づける設計。CI幅や80% powerは保証しない。`,
+    "- target選定監査: 先行dragon上界は遭遇率こそ飽和したが、antiDragon有群が各cell 0〜1件でN<30のため判定対象外。現行ビルドでantiUndead群Nを確保できるundeadを本判定対象にした。",
     "",
-    "## status override の定義",
+    "## 種族偏重・効果量条件",
     "",
-    "| 条件 | 開始階 | B20 statusChance倍率 | 通常遭遇 promotion | ceiling意味 |",
+    "| 条件 | 開始階 | 遭遇偏り | anti-X効果 | 意味 |",
     "| --- | ---: | ---: | ---: | --- |",
-    ...STATUS_CONDITION_DEFINITIONS.map(formatStatusConditionDefinition),
+    ...STATUS_CONDITION_DEFINITIONS.map(formatRaceConditionDefinition),
     "",
     "## 掃引表",
     "",
-    "Δは耐性有−耐性なし。floorはB5 entrantの到達floor、括弧内95% CI。全run平均到達floorを別列に併記。",
+    `Δは${RACE_AFFIX}有−なし。floorはB5 entrantの到達floor、括弧内95% CI。全run平均到達floorは無条件指標。`,
     "",
-    "| 条件 | cure | scenario | B5 N | 全run平均floor | B5突破率 | B5死亡率 | 開始階 | status遭遇率 | 付与回数/run | cure消費/run | 枯渇率 | 耐性N | Δfloor | Δ死亡 | Δ突破 | 耐性なし生存率 | 状態 |",
-    "| --- | --- | --- | ---: | --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- |"
+    "| 条件 | cure | scenario | B5 N | 全run平均floor | B5突破率 | B5死亡率 | 適用階 | 適用階到達率 | 種族遭遇率 | 種族monster率 | 種族遭遇/run 全run | 種族遭遇/run 到達run | 種族monster/run 全run | 種族monster/run 到達run | anti-X対象攻撃/run | 防御軽減発動/run | affix N | Δfloor | Δ死亡 | Δ突破 | affixなし生存率 | 状態 |",
+    "| --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- |"
   ];
   for (const condition of STATUS_CONDITION_DEFINITIONS) {
     for (const curePolicy of STATUS_CURE_POLICY_ORDER) {
@@ -978,38 +1103,48 @@ function buildMarkdown(fullSummary, summarySha256) {
     "",
     "## 上位設計論点",
     "",
-    "B3開始は、現行の全run平均到達floor（約B3.6）で状態異常の脅威を観測可能にするためのsim上の測定条件であり、ゲームの到達制約を意味しない。",
+    "B3開始は、現行の全run平均到達floor（約B3.6）で種族脅威を観測可能にするためのsim上の測定条件であり、ゲームの到達制約を意味しない。",
     "現行の到達帯で深層を定義するか、到達深度を先に上げるかは、#264/#275と接続する上位判断である。",
   );
   lines.push(
     "",
-    "## 曝露率・条件付き状態指標",
+    "## 上界飽和（全run / 到達run）",
     "",
-    "条件付き分母は reachedFloor >= 適用開始階。付与/run、持続、被害はその分母で集計。全run値と条件付き値を並べ、到達帯でのtrue ceiling飽和を確認する。",
+    "上界の種族遭遇率とanti-X適用回数が何に張り付くかを確認する。適用階到達率は全run分母、右側は到達run分母。",
     "",
-    "| 条件 | cure | scenario | 開始階 | 到達N | 曝露率 | 全run付与/run | 到達run付与/run | 持続/run | 失turn/run | 状態中damage/run | 毒damage/run | cure/run |",
-    "| --- | --- | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+    "| 条件 | cure | scenario | 開始階 | 到達N | 適用階到達率 | 種族遭遇率 | 種族monster率 | 種族遭遇/run 全run | 種族遭遇/run 到達run | 種族monster/run 全run | 種族monster/run 到達run | anti-X対象攻撃/run | 防御軽減発動/run |",
+    "| --- | --- | --- | ---: | ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"
   );
   for (const condition of STATUS_CONDITION_DEFINITIONS.filter(item =>
-    item.override?.forceStatusEncounter
+    item.override?.forceRaceEncounter
   )) {
     for (const curePolicy of STATUS_CURE_POLICY_ORDER) {
       for (const scenarioId of SELECTED_SCENARIO_IDS) {
         const summary = fullSummary.cases[caseKey(condition.id, curePolicy, scenarioId)];
-        const exposure = summary.exposure;
-        const status = exposure.status;
+        const exposure = summary.raceExposure;
+        const reached = exposure.reachedRun;
         lines.push(
-         `| ${condition.id} | ${curePolicy} | ${scenarioId.replace("workshop-", "")} | ${exposure.startFloor} | ${exposure.reachedN} | ${rateText(exposure.reachedRate)} | ${number(summary.status.statusApplicationsPerRun)} | ${number(status?.statusApplicationsPerRun)} | ${number(status?.statusDurationTurnsPerRun)} | ${number(status?.statusLostTurnsPerRun)} | ${number(status?.statusActiveIncomingDamagePerRun)} | ${number(status?.poisonDamagePerRun)} | ${number(status?.statusCureItemsUsedPerRun)} |`
+         `| ${condition.id} | ${curePolicy} | ${scenarioId.replace("workshop-", "")} | ${exposure.startFloor} | ${exposure.reachedN} | ${rateText(exposure.reachedRate)} | ${rateText(summary.race.targetEncounterRate)} | ${rateText(summary.race.targetMonsterRate)} | ${number(summary.race.targetEncounterPerRun)} | ${number(reached?.targetEncounterPerRun)} | ${number(summary.race.targetMonsterPerRun)} | ${number(reached?.targetMonsterPerRun)} | ${number(summary.race.antiEffectActionPerRun)} | ${number(summary.race.antiDefenseReductionPerRun)} |`
        );
      }
-   }
+    }
   }
   lines.push(
     "",
-    "## 耐性種類別の再集計",
+    "## 多重比較",
     "",
-    "主表の合算群（statusResistance または poisonWard）を、個別の対策手段にも分解した。N<30 またはCIが0を跨ぐ差は、そのまま未確定として扱う。",
+    `全掃引は${STATUS_CONDITION_DEFINITIONS.length}条件 × ${STATUS_CURE_POLICY_ORDER.length} cure × ${SELECTED_SCENARIO_IDS.length} scenario = ${comparisonCellCount} cell、endpoint 3種で${comparisonTestCount}検定。α=0.05の期待偽陽性数は${number(expectedFalsePositives, 1)}本。`,
+    `上界判定だけでは${ceilingCaseEntries.length} cell × endpoint 3種 = ${ceilingCaseEntries.length * endpointDefinitions.length}検定、期待偽陽性数${number(ceilingCaseEntries.length * endpointDefinitions.length * 0.05, 1)}本。`,
+    "符号が揃わない単発の非交差はsignalとせず、CI・母数・上界飽和を併読する。"
+  );
+  lines.push(
     "",
+    "## 補助診断（前段status・主判定外）",
+    "",
+    "以下は前段PR #450との連続性のための補助集計。raceProtectionのendpoint差が主判定であり、状態異常の値はこのPhase 2aの結論に使わない。",
+    ""
+  );
+  lines.push(
     "| 条件 | cure | scenario | 種別 | N | Δfloor | Δ死亡 | Δ突破 | 耐性なし生存率 | 状態 |",
     "| --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- |"
   );
@@ -1031,9 +1166,9 @@ function buildMarkdown(fullSummary, summarySha256) {
   }
   lines.push(
     "",
-    "## PR #445 baselineとの噛み合わせ再集計",
+    "## 補助: PR #445 matching（主判定外）",
     "",
-    "exact matching（core + #445対応support）を同じ職内centered差で再集計した。これは状態異常耐性群とは別の対照である。",
+    "exact matching（core + #445対応support）を同じ職内centered差で再集計した。これはrace耐性群とは別の対照である。",
     "",
     "| 条件 | cure | scenario | matching N | Δfloor | Δ死亡 | Δ突破 | 状態 |",
     "| --- | --- | --- | ---: | --- | --- | --- | --- |"
@@ -1051,9 +1186,9 @@ function buildMarkdown(fullSummary, summarySha256) {
   }
   lines.push(
     "",
-    "## 状態異常の付与・持続・被害・消耗品",
+    "## 補助: 状態異常診断（主判定外）",
     "",
-    "数値は各case全run集計。付与回数は条件開始階〜B20 diagnostic log、消耗品はrun全体。",
+    "数値は各case全run集計。付与回数はB3〜B20 diagnostic log、消耗品はrun全体。",
     "",
     "| 条件 | cure | scenario | poison / blind / paralyze / sleep | 持続turn/run | 失ったturn/run | 状態中被弾hit/run | 状態中被弾damage/run | 睡眠/麻痺中hit/run | 毒damage/run | blind miss/run | cure unavailable/run |",
     "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
@@ -1071,7 +1206,7 @@ function buildMarkdown(fullSummary, summarySha256) {
   }
   lines.push(
     "",
-    "## 消耗品内訳",
+    "## 補助: 状態回復消耗品（主判定外）",
     "",
     "消費数・取得数は各case全run合計。枯渇率は終了時に状態回復薬5種が全て0のrun割合。",
     "",
@@ -1090,9 +1225,9 @@ function buildMarkdown(fullSummary, summarySha256) {
   }
   lines.push(
     "",
-    "## PR #445 baselineとの対比",
+    "## 補助: PR #445 baselineとの対比",
     "",
-    "PR #445はbase/core-poolsのexact matching 9.5% [7.2,12.4]、職内差は突破 +8.5pp [-5.2,+22.2]、死亡 +1.4pp [-12.7,+15.4]、到達floor +6.6pp [-46.3,+59.4]で、いずれもCIが0を跨いだ。上の再集計表で、status条件によりこの対照差が動いたかを確認する。support供給やslotの上界条件は追加しない。B5突破/死亡はB6開始のstatus overrideより前の記述的対照で、statusの因果判定は深層到達floor・状態診断を中心に読む。",
+    "PR #445の対照値は前段報告の記録。race条件の因果判定には使わない。",
     "",
     "## 出力監査",
     "",
@@ -1186,8 +1321,8 @@ async function main() {
   mkdirSync(resultDir, { recursive: true });
   const runLabel = STATUS_CONDITION_DEFINITIONS.map(condition => condition.id).join("-");
   const cureLabel = STATUS_CURE_POLICY_ORDER.join("-");
-  const rawPath = join(resultDir, `issue-271-status-depth-scaling-${runLabel}-${cureLabel}.jsonl`);
-  const summaryPath = join(resultDir, `issue-271-status-depth-scaling-${runLabel}-${cureLabel}.json`);
+  const rawPath = join(resultDir, `issue-271-status-depth-scaling-${RACE_TARGET}-${runLabel}-${cureLabel}.jsonl`);
+  const summaryPath = join(resultDir, `issue-271-status-depth-scaling-${RACE_TARGET}-${runLabel}-${cureLabel}.json`);
   const reportPath = join(resultDir, "issue-271-status-depth-scaling.md");
   const rawSha256 = writeRawRows(rawPath, rows);
   const cpuTotalSeconds = (
@@ -1205,6 +1340,12 @@ async function main() {
     identificationPolicy: process.env.IDENTIFICATION_POLICY,
     fleePolicy: process.env.FLEE_POLICY,
     fleeHpThreshold: FLEE_HP_THRESHOLD,
+    raceTarget: RACE_TARGET,
+    raceAffix: RACE_AFFIX,
+    raceStartFloor: RACE_START_FLOOR,
+    raceEndFloor: RACE_END_FLOOR,
+    sourceMonsterCount: MONSTERS.length,
+    sourceRaceTagCounts: SOURCE_RACE_TAG_COUNTS,
     statusCurePolicies: STATUS_CURE_POLICY_ORDER,
     statusConditions: STATUS_CONDITION_DEFINITIONS.map(condition => condition.id),
     scenarios: SELECTED_SCENARIO_IDS,
@@ -1219,14 +1360,12 @@ async function main() {
     rawPath: rawPath.replace(`${process.cwd()}/`, "")
   };
   const nDesign = {
-    b5EntrantRate: 507 / 2200,
-    statusResistanceRate: 194 / 2194,
-    poisonWardRate: 29 / 2188,
-    expectedStatusResistanceN: RUNS * (507 / 2200) * (194 / 2194),
-    expectedPoisonWardN: RUNS * (507 / 2200) * (29 / 2188),
-    targetPrimaryGroupN: 100,
-    targetPoisonWardN: 30,
-    formula: "ceil(30 / (0.2305 × 0.013)) = 10,012 → 11,000 run"
+    b5EntrantRate: N_DESIGN_B5_ENTRANT_RATE,
+    raceAffixRate: N_DESIGN_RACE_AFFIX_RATE,
+    expectedRaceAffixN: RUNS * N_DESIGN_B5_ENTRANT_RATE * N_DESIGN_RACE_AFFIX_RATE,
+    targetRaceAffixN: MIN_GROUP_N,
+    requiredRuns: N_DESIGN_REQUIRED_RUNS,
+    formula: `ceil(${MIN_GROUP_N} / (${N_DESIGN_B5_ENTRANT_RATE.toFixed(4)} × ${N_DESIGN_RACE_AFFIX_RATE.toFixed(3)})) = ${N_DESIGN_REQUIRED_RUNS.toLocaleString()} → ${N_DESIGN_PLANNED_RUNS.toLocaleString()} run`
   };
   const fullSummary = {
     measurement,
@@ -1234,11 +1373,13 @@ async function main() {
     statusConditions: STATUS_CONDITION_DEFINITIONS.map(condition => ({
       id: condition.id,
       label: condition.label,
-      startFloor: Number(condition.override?.startFloor) || STATUS_START_FLOOR,
-      endFloor: STATUS_END_FLOOR,
-      chanceMultiplierAtMax: condition.chanceMultiplierAtMax,
-      encounterProbabilityAtMax: condition.encounterProbabilityAtMax,
-      ceiling: Boolean(condition.override?.forceStatusChance)
+      startFloor: Number(condition.override?.startFloor) || RACE_START_FLOOR,
+      endFloor: RACE_END_FLOOR,
+      targetRace: RACE_TARGET,
+      affixType: RACE_AFFIX,
+      poolBias: condition.poolBias,
+      antiEffectMultiplier: condition.antiEffectMultiplier,
+      ceiling: Boolean(condition.override?.forceRaceEncounter)
     })),
     cases
   };
@@ -1260,6 +1401,17 @@ async function main() {
       averageReachedFloor: summary.averageReachedFloor,
       b5Breakthrough: rateText(summary.b5.breakthroughRate),
       b5Death: rateText(summary.b5.deathRate),
+      raceExposure: rateText(summary.raceExposure.reachedRate),
+      raceMonsterRate: rateText(summary.race.targetMonsterRate),
+      raceMonsterPerRun: summary.race.targetMonsterPerRun,
+      raceMonsterPerReachedRun: summary.raceExposure.reachedRun?.targetMonsterPerRun ?? null,
+      antiEffectActionPerRun: summary.race.antiEffectActionPerRun,
+      antiDefenseReductionPerRun: summary.race.antiDefenseReductionPerRun,
+      raceAffixN: `${summary.b5.raceProtection.matchedN}/${summary.b5.raceProtection.unmatchedN}`,
+      raceDeltaFloor: diffText(summary.b5.raceProtection.endpointEffects.reachedFloor),
+      raceDeltaDeath: diffText(summary.b5.raceProtection.endpointEffects.death),
+      raceDeltaBreakthrough: diffText(summary.b5.raceProtection.endpointEffects.breakthrough),
+      raceProtectionStatus: effectStatus(summary.b5.raceProtection),
       deepStatusEncounter: rateText(summary.status.deepStatusEncounterRate),
       statusApplicationsPerRun: summary.status.statusApplicationsPerRun,
       statusCureItemsUsedPerRun: summary.status.statusCureItemsUsedPerRun,
