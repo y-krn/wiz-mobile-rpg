@@ -1,5 +1,5 @@
 // sim-scope: run
-// Issue #446: separate virtual equipment slots from equipped affix volume.
+// Issue #404: sweep affix volume between current data and the #447 upper bound.
 
 /* global console, process */
 
@@ -10,7 +10,11 @@ import { performance } from "node:perf_hooks";
 import { isMainThread } from "node:worker_threads";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { resolveSimParallelism, runSimTasks } from "./sim_parallel.js";
+import { runSimTasks, resolveSimParallelism } from "./sim_parallel.js";
+import {
+  AFFIX_VOLUME_PROFILES,
+  applyAffixVolumeProfile
+} from "./issue_404_affix_profiles.js";
 
 const SCENARIO_IDS = Object.freeze([
   "workshop-empty",
@@ -25,63 +29,18 @@ const BASIC_CLASSES = Object.freeze(["Fighter", "Thief", "Priest", "Mage"]);
 const B5 = 5;
 const TARGET_DEPTH = 21;
 const R95 = 1.959963984540054;
+const PROFILE_ID = String(process.env.SIM_ISSUE404_PROFILE || "base").trim();
+const PROFILE = AFFIX_VOLUME_PROFILES[PROFILE_ID];
 
-const CONDITION_DEFINITIONS = Object.freeze({
-  base: Object.freeze({
-    label: "base",
-    slotMode: "standard",
-    slotAffixMode: "retain",
-    affixVolume: "current"
-  }),
-  unlimited: Object.freeze({
-    label: "unlimited slots",
-    slotMode: "unlimited",
-    slotAffixMode: "retain",
-    affixVolume: "current"
-  }),
-  "slots-affix-capped": Object.freeze({
-    label: "(1) slots↑ / affix総量据え置き",
-    slotMode: "affixless-duplicates",
-    slotAffixMode: "none",
-    affixVolume: "current",
-    affixlessDuplicateCount: 2,
-    affixlessDuplicateSlot: null
-  }),
-  "slots-affix-plus1": Object.freeze({
-    label: "#409 Phase 2: +1 slot / affix総量据え置き",
-    slotMode: "affixless-duplicates",
-    slotAffixMode: "none",
-    affixVolume: "current",
-    affixlessDuplicateCount: 1,
-    affixlessDuplicateSlot: "accessory"
-  }),
-  "affix-volume": Object.freeze({
-    label: "(2) slots据え置き / affix総量↑",
-    slotMode: "standard",
-    slotAffixMode: "retain",
-    affixVolume: "increased-composition"
-  })
-});
-
-// Pilot after N was fixed. The target is the measured B5 composition of
-// unlimited slots; these values are a sim-only mutation of the imported data
-// object, never a src/ balance change.
-const AFFIX_VOLUME_PROFILE = Object.freeze({
-  budgetsByRarityAndFloor: Object.freeze({
-    magic: Object.freeze([0, 30, 32, 34, 36, 38]),
-    rare: Object.freeze([0, 30, 32, 34, 36, 38]),
-    epic: Object.freeze([0, 45, 48, 51, 54, 57])
-  }),
-  rollComposition: Object.freeze({
-    magic: Object.freeze({ support: 5, core: 3, coreChance: 0.80 }),
-    rare: Object.freeze({ support: 6, core: 3, coreChance: 0.80 }),
-    epic: Object.freeze({ support: 7, core: 3 })
-  })
-});
+if (!PROFILE) {
+  throw new Error(
+    `SIM_ISSUE404_PROFILE must be ${Object.keys(AFFIX_VOLUME_PROFILES).join("|")}: ${PROFILE_ID}`
+  );
+}
 
 const ENV_DEFAULTS = Object.freeze({
   SIM_SEED: "444",
-  SIM_RUNS: "2200",
+  SIM_RUNS: "6600",
   SIM_CALIBRATION_RUNS: "100",
   DEPARTURE_CRAFT_IDS:
     "TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION",
@@ -114,38 +73,28 @@ for (const [key, value] of Object.entries(ENV_DEFAULTS)) {
   if (process.env[key] === undefined) process.env[key] = value;
 }
 if (process.env.SIM_PARALLEL) {
-  throw new Error("SIM_PARALLEL must be omitted for Issue #446 measurement");
+  throw new Error("SIM_PARALLEL must be omitted for Issue #404 measurement");
 }
 if (process.env.IDENTIFICATION_POLICY !== "powder") {
-  throw new Error("IDENTIFICATION_POLICY must be powder for Issue #446");
+  throw new Error("IDENTIFICATION_POLICY must be powder for Issue #404");
+}
+if (process.env.FLEE_POLICY !== "threshold") {
+  throw new Error("FLEE_POLICY must be threshold for Issue #404");
 }
 if (!SCENARIO_IDS.every(id => process.env.SIM_SCENARIOS.split(",").includes(id))) {
   throw new Error(`SIM_SCENARIOS must include all seven scenarios: ${SCENARIO_IDS.join(",")}`);
 }
 
-const CONDITION_ID = String(
-  process.env.SIM_ISSUE446_CONDITION || "base"
-).trim();
-const CONDITION = CONDITION_DEFINITIONS[CONDITION_ID];
-if (!CONDITION) {
-  throw new Error(
-    `SIM_ISSUE446_CONDITION must be ${Object.keys(CONDITION_DEFINITIONS).join("|")}: ${CONDITION_ID}`
-  );
-}
-process.env.SIM_EQUIPMENT_SLOT_MODE = CONDITION.slotMode;
-process.env.SIM_EQUIPMENT_SLOT_AFFIX_MODE = CONDITION.slotAffixMode;
-process.env.SIM_AFFIXLESS_DUPLICATE_COUNT = String(
-  CONDITION.affixlessDuplicateCount || 0
-);
-process.env.SIM_AFFIXLESS_DUPLICATE_SLOT = CONDITION.affixlessDuplicateSlot || "";
+process.env.SIM_EQUIPMENT_SLOT_MODE = "standard";
+process.env.SIM_EQUIPMENT_SLOT_AFFIX_MODE = "retain";
 
 const RUNS = Math.max(1, Number(process.env.SIM_RUNS));
 const CALIBRATION_RUNS = Math.max(1, Number(process.env.SIM_CALIBRATION_RUNS));
 const SEED = Number(process.env.SIM_SEED) >>> 0;
-const FLEE_POLICY = process.env.FLEE_POLICY === "never" ? "never" : "threshold";
-const FLEE_HP_THRESHOLD = FLEE_POLICY === "never"
-  ? null
-  : Math.max(0, Math.min(1, Number(process.env.FLEE_HP_THRESHOLD)));
+const FLEE_HP_THRESHOLD = Math.max(
+  0,
+  Math.min(1, Number(process.env.FLEE_HP_THRESHOLD))
+);
 
 function hashSeed(text) {
   let seed = 2166136261;
@@ -169,7 +118,7 @@ function sampleVariance(values) {
     (values.length - 1);
 }
 
-function meanInterval(values) {
+function meanInterval(values, digits = 4) {
   if (!values.length) return { n: 0, estimate: null, low: null, high: null };
   const estimate = mean(values);
   const standardError = values.length > 1
@@ -179,7 +128,8 @@ function meanInterval(values) {
     n: values.length,
     estimate,
     low: standardError === null ? null : estimate - R95 * standardError,
-    high: standardError === null ? null : estimate + R95 * standardError
+    high: standardError === null ? null : estimate + R95 * standardError,
+    digits
   };
 }
 
@@ -198,7 +148,8 @@ function wilson(successes, trials) {
     trials,
     estimate: p,
     low: Math.max(0, center - halfWidth),
-    high: Math.min(1, center + halfWidth)
+    high: Math.min(1, center + halfWidth),
+    nStatus: trials < 30 ? "未確定（N<30）" : "確定"
   };
 }
 
@@ -264,6 +215,9 @@ function compactRow(task, result, coreIds) {
   const b6 = result.diagnostics?.buildSnapshots?.some(
     snapshot => snapshot.floor === B5 + 1 && snapshot.point === "floor-start"
   );
+  const finalCoreCount = Array.isArray(result.finalCoreIds)
+    ? result.finalCoreIds.length
+    : Number(result.coreEquipped);
   return {
     scenarioId: task.scenarioId,
     runIndex: task.runIndex,
@@ -273,7 +227,22 @@ function compactRow(task, result, coreIds) {
     reachedFloor: Number(result.reachedFloor),
     deathFloor: result.deathFloor === null ? null : Number(result.deathFloor),
     bankedMaterials: Number(result.bankedMaterials || 0),
+    materialAcquired: Number(result.materialAcquired || 0),
+    materialConsumed: Number(result.materialConsumed || 0),
     timeCost: Number(result.timeCost || 0),
+    materialEvPerTime: result.timeCost > 0
+      ? Number(result.bankedMaterials || 0) / result.timeCost
+      : 0,
+    identificationPowderAcquired: Number(result.identificationPowderAcquired || 0),
+    identificationPowderUsed: Number(result.identificationPowderUsed || 0),
+    identificationPowderRemaining: Number(result.identificationPowderRemaining || 0),
+    identificationPowderDepleted: Boolean(result.identificationPowderDepleted),
+    identificationPowderAcquiredBySource: {
+      ...result.identificationPowderAcquiredBySource
+    },
+    finalCoreCount,
+    finalCoreEquipped: finalCoreCount > 0,
+    finalCoreTwoPlus: finalCoreCount >= 2,
     b5,
     b5Death: Boolean(b5 && result.died && result.deathFloor === B5),
     b5Breakthrough: Boolean(b5 && b6),
@@ -286,6 +255,16 @@ function summarizeScenario(rows) {
   const values = selector => entrants
     .map(selector)
     .filter(value => Number.isFinite(value));
+  const allValues = selector => rows
+    .map(selector)
+    .filter(value => Number.isFinite(value));
+  const averageOf = selector => meanInterval(allValues(selector));
+  const powderSourceTotals = {};
+  rows.forEach(row => {
+    Object.entries(row.identificationPowderAcquiredBySource).forEach(([source, amount]) => {
+      powderSourceTotals[source] = (powderSourceTotals[source] || 0) + amount;
+    });
+  });
   return {
     runs: rows.length,
     b5: {
@@ -310,8 +289,33 @@ function summarizeScenario(rows) {
       },
       nStatus: entrants.length < 30 ? "未確定（N<30）" : "確定"
     },
-    averageReachedFloor: meanInterval(rows.map(row => row.reachedFloor)),
-    bankedMaterialsPerRun: meanInterval(rows.map(row => row.bankedMaterials))
+    averageReachedFloor: averageOf(row => row.reachedFloor),
+    averageBankedMaterials: averageOf(row => row.bankedMaterials),
+    averageMaterialAcquired: averageOf(row => row.materialAcquired),
+    averageMaterialConsumed: averageOf(row => row.materialConsumed),
+    averageTimeCost: averageOf(row => row.timeCost),
+    materialEvPerTime: averageOf(row => row.materialEvPerTime),
+    identificationPowder: {
+      acquired: averageOf(row => row.identificationPowderAcquired),
+      used: averageOf(row => row.identificationPowderUsed),
+      remaining: averageOf(row => row.identificationPowderRemaining),
+      depletedRate: wilson(
+        rows.filter(row => row.identificationPowderDepleted).length,
+        rows.length
+      ),
+      acquiredBySourcePerRun: Object.fromEntries(
+        Object.entries(powderSourceTotals).map(([source, amount]) => [source, amount / rows.length])
+      )
+    },
+    coreEquipment: {
+      equippedRate: wilson(rows.filter(row => row.finalCoreEquipped).length, rows.length),
+      twoPlusRate: wilson(rows.filter(row => row.finalCoreTwoPlus).length, rows.length),
+      countDistribution: Object.fromEntries(
+        [...new Set(rows.map(row => row.finalCoreCount))]
+          .sort((left, right) => left - right)
+          .map(count => [count, rows.filter(row => row.finalCoreCount === count).length])
+      )
+    }
   };
 }
 
@@ -321,40 +325,31 @@ function sha256(value) {
 
 let resetSimulationRandom;
 let simulateRun;
-let SIM_CLASSES;
+let simClasses;
 let calibrateCoreScoringProfile;
 let getScenarioById;
-let CORE_AFFIXES;
-let SUPPORT_AFFIXES;
+let coreAffixes;
+let supportAffixes;
 
 async function initializeSimulation() {
-  const { AFFIX_BALANCE, CORE_AFFIXES: coreAffixes, SUPPORT_AFFIXES: supportAffixes } =
-    await import("../src/data/affixes.js");
-  CORE_AFFIXES = coreAffixes;
-  SUPPORT_AFFIXES = supportAffixes;
-  if (CONDITION.affixVolume === "increased-composition") {
-    Object.entries(AFFIX_VOLUME_PROFILE.rollComposition).forEach(([rarity, composition]) => {
-      AFFIX_BALANCE.rollComposition[rarity] = { ...composition };
-    });
-    Object.entries(AFFIX_VOLUME_PROFILE.budgetsByRarityAndFloor).forEach(([rarity, budgets]) => {
-      AFFIX_BALANCE.budgetsByRarityAndFloor[rarity] = [...budgets];
-    });
-  }
-
+  const affixData = await import("../src/data/affixes.js");
+  coreAffixes = affixData.CORE_AFFIXES;
+  supportAffixes = affixData.SUPPORT_AFFIXES;
+  applyAffixVolumeProfile(affixData.AFFIX_BALANCE, PROFILE_ID);
   const simulation = await import("./sim_depth_material_ev.js");
   resetSimulationRandom = simulation.resetSimulationRandom;
   simulateRun = simulation.simulateRun;
-  SIM_CLASSES = simulation.SIM_CLASSES;
+  simClasses = simulation.SIM_CLASSES;
   calibrateCoreScoringProfile = simulation.calibrateCoreScoringProfile;
   getScenarioById = simulation.getScenarioById;
 }
 
 async function runMain() {
-  const classNames = SIM_CLASSES.filter(className => BASIC_CLASSES.includes(className));
+  const classNames = simClasses.filter(className => BASIC_CLASSES.includes(className));
   if (classNames.length !== BASIC_CLASSES.length) {
     throw new Error(`basic classes missing: ${BASIC_CLASSES.join(",")}`);
   }
-  const coreIds = new Set(CORE_AFFIXES.map(affix => affix.id));
+  const coreIds = new Set(coreAffixes.map(affix => affix.id));
   const scenarios = Object.fromEntries(
     SCENARIO_IDS.map(id => [id, buildScenario(getScenarioById, id)])
   );
@@ -383,8 +378,8 @@ async function runMain() {
   const startedCpu = process.cpuUsage();
   const rows = await runSimTasks({
     moduleUrl: pathToFileURL(fileURLToPath(import.meta.url)).href,
-    exportName: "runIssue446Task",
-    runTask: runIssue446Task,
+    exportName: "runIssue404Task",
+    runTask: runIssue404Task,
     tasks,
     context: { seed: SEED, scenarios, scoringProfiles, coreIds }
   });
@@ -409,15 +404,16 @@ async function runMain() {
 
   const resultDir = join(process.cwd(), "scratch", "results");
   mkdirSync(resultDir, { recursive: true });
-  const rawPath = join(resultDir, `issue-446-slot-vs-affix-${CONDITION_ID}.jsonl`);
-  const summaryPath = join(resultDir, `issue-446-slot-vs-affix-${CONDITION_ID}.json`);
+  const rawPath = join(resultDir, `issue-404-affix-volume-${PROFILE_ID}.jsonl`);
+  const summaryPath = join(resultDir, `issue-404-affix-volume-${PROFILE_ID}.json`);
   const rawText = rows.map(row => JSON.stringify(row)).join("\n") + "\n";
   const rawSha256 = sha256(rawText);
   writeFileSync(rawPath, rawText);
   const measurement = {
-    issue: 446,
-    condition: CONDITION_ID,
-    conditionLabel: CONDITION.label,
+    issue: 404,
+    profile: PROFILE_ID,
+    profileLabel: PROFILE.label,
+    profileDefinition: PROFILE,
     seed: SEED,
     SIM_RUNS: RUNS,
     SIM_CALIBRATION_RUNS: CALIBRATION_RUNS,
@@ -425,17 +421,8 @@ async function runMain() {
     resolvedParallelism,
     availableParallelism: availableParallelism(),
     identificationPolicy: process.env.IDENTIFICATION_POLICY,
-    fleePolicy: FLEE_POLICY,
+    fleePolicy: process.env.FLEE_POLICY,
     fleeHpThreshold: FLEE_HP_THRESHOLD,
-    supportSupplyCeiling: process.env.SIM_SUPPORT_SUPPLY_CEILING,
-    equipmentSlotMode: CONDITION.slotMode,
-    equipmentSlotAffixMode: CONDITION.slotAffixMode,
-    affixlessDuplicateCount: CONDITION.affixlessDuplicateCount || 0,
-    affixlessDuplicateSlot: CONDITION.affixlessDuplicateSlot,
-    affixVolume: CONDITION.affixVolume,
-    affixVolumeProfile: CONDITION.affixVolume === "increased-composition"
-      ? AFFIX_VOLUME_PROFILE
-      : null,
     scenarios: SCENARIO_IDS,
     classes: classNames,
     targetDepth: TARGET_DEPTH,
@@ -446,8 +433,8 @@ async function runMain() {
     cpuTotalSeconds: (cpuUsage.user + cpuUsage.system) / 1e6,
     rawSha256,
     rawPath: rawPath.replace(`${process.cwd()}/`, ""),
-    supportAffixCount: SUPPORT_AFFIXES.length,
-    coreAffixCount: CORE_AFFIXES.length
+    supportAffixCount: supportAffixes.length,
+    coreAffixCount: coreAffixes.length
   };
   const fullSummary = { measurement, cases };
   writeFileSync(summaryPath, `${JSON.stringify(fullSummary, null, 2)}\n`);
@@ -457,12 +444,11 @@ async function runMain() {
     rawPath: rawPath.replace(`${process.cwd()}/`, ""),
     summarySha256,
     measurement,
-    corePools: cases["workshop-core-pools"],
-    complete: cases["workshop-complete"]
+    corePools: cases["workshop-core-pools"]
   }, null, 2));
 }
 
-export function runIssue446Task(task, context) {
+export function runIssue404Task(task, context) {
   const scenario = context.scenarios[task.scenarioId];
   resetSimulationRandom(hashSeed(`${context.seed}:${task.scenarioId}:${task.runIndex}`));
   const result = simulateRun({
