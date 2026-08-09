@@ -342,6 +342,12 @@ const EQUIPMENT_SLOT_MODE = String(
 const EQUIPMENT_SLOT_AFFIX_MODE = String(
   process.env.SIM_EQUIPMENT_SLOT_AFFIX_MODE || "retain"
 ).trim();
+const AFFIXLESS_DUPLICATE_COUNT = Number(
+  process.env.SIM_AFFIXLESS_DUPLICATE_COUNT || "2"
+);
+const AFFIXLESS_DUPLICATE_SLOT = String(
+  process.env.SIM_AFFIXLESS_DUPLICATE_SLOT || ""
+).trim();
 const EQUIPMENT_POLICY = String(
   process.env.SIM_EQUIPMENT_POLICY || "individual-score"
 ).trim();
@@ -361,6 +367,20 @@ if (!["standard", "unlimited", "affixless-duplicates"].includes(EQUIPMENT_SLOT_M
 if (!["retain", "none"].includes(EQUIPMENT_SLOT_AFFIX_MODE)) {
   throw new Error(
     `SIM_EQUIPMENT_SLOT_AFFIX_MODE must be retain|none: ${EQUIPMENT_SLOT_AFFIX_MODE}`
+  );
+}
+if (
+  !Number.isInteger(AFFIXLESS_DUPLICATE_COUNT) ||
+  AFFIXLESS_DUPLICATE_COUNT < 0 ||
+  AFFIXLESS_DUPLICATE_COUNT > 20
+) {
+  throw new Error(
+    `SIM_AFFIXLESS_DUPLICATE_COUNT must be an integer 0..20: ${AFFIXLESS_DUPLICATE_COUNT}`
+  );
+}
+if (AFFIXLESS_DUPLICATE_SLOT && !/^[a-z]+$/.test(AFFIXLESS_DUPLICATE_SLOT)) {
+  throw new Error(
+    `SIM_AFFIXLESS_DUPLICATE_SLOT must be a slot id: ${AFFIXLESS_DUPLICATE_SLOT}`
   );
 }
 if (!["individual-score", "compatibility-aware"].includes(EQUIPMENT_POLICY)) {
@@ -3325,8 +3345,11 @@ function addAffixlessVirtualSlots(character) {
     .filter(([slot, equipped]) =>
       !slot.includes("#") && isEquipment(getItemData(equipped))
     );
-  baseEquipment.forEach(([slot, equipped]) => {
-    for (let suffix = 2; suffix <= 3; suffix++) {
+  const duplicateSources = AFFIXLESS_DUPLICATE_SLOT
+    ? baseEquipment.filter(([slot]) => slot === AFFIXLESS_DUPLICATE_SLOT).slice(0, 1)
+    : baseEquipment;
+  duplicateSources.forEach(([slot, equipped]) => {
+    for (let suffix = 2; suffix <= 1 + AFFIXLESS_DUPLICATE_COUNT; suffix++) {
       const virtualSlot = `${slot}#${suffix}`;
       character.equipment[virtualSlot] = equipped && typeof equipped === "object"
         ? {

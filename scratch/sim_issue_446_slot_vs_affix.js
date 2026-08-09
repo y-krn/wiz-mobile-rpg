@@ -43,7 +43,17 @@ const CONDITION_DEFINITIONS = Object.freeze({
     label: "(1) slots↑ / affix総量据え置き",
     slotMode: "affixless-duplicates",
     slotAffixMode: "none",
-    affixVolume: "current"
+    affixVolume: "current",
+    affixlessDuplicateCount: 2,
+    affixlessDuplicateSlot: null
+  }),
+  "slots-affix-plus1": Object.freeze({
+    label: "#409 Phase 2: +1 slot / affix総量据え置き",
+    slotMode: "affixless-duplicates",
+    slotAffixMode: "none",
+    affixVolume: "current",
+    affixlessDuplicateCount: 1,
+    affixlessDuplicateSlot: "accessory"
   }),
   "affix-volume": Object.freeze({
     label: "(2) slots据え置き / affix総量↑",
@@ -124,6 +134,10 @@ if (!CONDITION) {
 }
 process.env.SIM_EQUIPMENT_SLOT_MODE = CONDITION.slotMode;
 process.env.SIM_EQUIPMENT_SLOT_AFFIX_MODE = CONDITION.slotAffixMode;
+process.env.SIM_AFFIXLESS_DUPLICATE_COUNT = String(
+  CONDITION.affixlessDuplicateCount || 0
+);
+process.env.SIM_AFFIXLESS_DUPLICATE_SLOT = CONDITION.affixlessDuplicateSlot || "";
 
 const RUNS = Math.max(1, Number(process.env.SIM_RUNS));
 const CALIBRATION_RUNS = Math.max(1, Number(process.env.SIM_CALIBRATION_RUNS));
@@ -416,6 +430,8 @@ async function runMain() {
     supportSupplyCeiling: process.env.SIM_SUPPORT_SUPPLY_CEILING,
     equipmentSlotMode: CONDITION.slotMode,
     equipmentSlotAffixMode: CONDITION.slotAffixMode,
+    affixlessDuplicateCount: CONDITION.affixlessDuplicateCount || 0,
+    affixlessDuplicateSlot: CONDITION.affixlessDuplicateSlot,
     affixVolume: CONDITION.affixVolume,
     affixVolumeProfile: CONDITION.affixVolume === "increased-composition"
       ? AFFIX_VOLUME_PROFILE

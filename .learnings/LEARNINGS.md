@@ -64,6 +64,37 @@ options、retry、template、biome を含む入口を使う。低レベル API �
 
 ---
 
+## [LRN-20260809-001] correction
+
+**Logged**: 2026-08-09T00:00:00+09:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+効果量の比較では、両方の経路を現実的な変更量へ揃え、上界同士の比較を根拠にしない。
+
+### Details
+Issue #404 の affix量 sweep は現実的な profile を測った一方、#409 との比較に #409 の7.5スロット相当の上界（+0.73）を使った。#409 Phase 2 の提案は+1スロットなので、#404の現実的な +0.075〜+0.133 と同じ土俵になっていなかった。
+
+### Suggested Action
+同一 seed・N・harness で #409 の affixless virtual duplicate 数だけを変え、まず+1スロットを測る。結論は #404 の各 profile と現実的な #409 条件を比較してから書く。
+
+### Metadata
+- Source: user_feedback
+- Related Files: scratch/results/issue-404-affix-volume.md, scratch/sim_issue_446_slot_vs_affix.js
+- Tags: balance-simulation, estimand, upper-bound, slot-vs-affix
+- Pattern-Key: harden.compare-matched-realistic-scales
+- Recurrence-Count: 1
+- First-Seen: 2026-08-09
+- Last-Seen: 2026-08-09
+
+### Resolution
+- **Resolved**: 2026-08-09T00:00:00+09:00
+- **Notes**: #409 Phase 2相当の+1 accessory slotをN=2200で追加測定し、#404現実的profileと同一スケールで比較する本文へ更新。
+
+---
+
 ## [LRN-20260717-003] correction
 
 **Logged**: 2026-07-17T21:04:33+09:00
