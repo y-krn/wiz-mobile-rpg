@@ -339,6 +339,9 @@ const SUPPORT_SUPPLY_CEILING_MODE = String(
 const EQUIPMENT_SLOT_MODE = String(
   process.env.SIM_EQUIPMENT_SLOT_MODE || "standard"
 ).trim();
+const EQUIPMENT_SLOT_AFFIX_MODE = String(
+  process.env.SIM_EQUIPMENT_SLOT_AFFIX_MODE || "retain"
+).trim();
 const EQUIPMENT_POLICY = String(
   process.env.SIM_EQUIPMENT_POLICY || "individual-score"
 ).trim();
@@ -350,9 +353,14 @@ if (!["none", "exact"].includes(SUPPORT_SUPPLY_CEILING_MODE)) {
     `SIM_SUPPORT_SUPPLY_CEILING must be none|exact: ${SUPPORT_SUPPLY_CEILING_MODE}`
   );
 }
-if (!["standard", "unlimited"].includes(EQUIPMENT_SLOT_MODE)) {
+if (!["standard", "unlimited", "affixless-duplicates"].includes(EQUIPMENT_SLOT_MODE)) {
   throw new Error(
-    `SIM_EQUIPMENT_SLOT_MODE must be standard|unlimited: ${EQUIPMENT_SLOT_MODE}`
+    `SIM_EQUIPMENT_SLOT_MODE must be standard|unlimited|affixless-duplicates: ${EQUIPMENT_SLOT_MODE}`
+  );
+}
+if (!["retain", "none"].includes(EQUIPMENT_SLOT_AFFIX_MODE)) {
+  throw new Error(
+    `SIM_EQUIPMENT_SLOT_AFFIX_MODE must be retain|none: ${EQUIPMENT_SLOT_AFFIX_MODE}`
   );
 }
 if (!["individual-score", "compatibility-aware"].includes(EQUIPMENT_POLICY)) {
@@ -3286,6 +3294,12 @@ function getEquipmentTargetSlot(character, itemType) {
   if (EQUIPMENT_SLOT_MODE !== "unlimited" || !character.equipment[itemType]) {
     return itemType;
   }
+  if (
+    EQUIPMENT_SLOT_AFFIX_MODE === "none" &&
+    typeof character.equipment[itemType] === "string"
+  ) {
+    return itemType;
+  }
   let suffix = 2;
   while (character.equipment[`${itemType}#${suffix}`]) suffix++;
   return `${itemType}#${suffix}`;
@@ -3300,8 +3314,37 @@ function isEquipmentAlreadyEquipped(character, item) {
   );
 }
 
+function clearAffixlessVirtualSlots(character) {
+  Object.keys(character.equipment || {})
+    .filter(slot => slot.includes("#"))
+    .forEach(slot => delete character.equipment[slot]);
+}
+
+function addAffixlessVirtualSlots(character) {
+  const baseEquipment = Object.entries(character.equipment || {})
+    .filter(([slot, equipped]) =>
+      !slot.includes("#") && isEquipment(getItemData(equipped))
+    );
+  baseEquipment.forEach(([slot, equipped]) => {
+    for (let suffix = 2; suffix <= 3; suffix++) {
+      const virtualSlot = `${slot}#${suffix}`;
+      character.equipment[virtualSlot] = equipped && typeof equipped === "object"
+        ? {
+            ...equipped,
+            affixes: [],
+            curseEffectId: null,
+            instanceId: `issue446-${slot}-${suffix}`
+          }
+        : equipped;
+    }
+  });
+}
+
 function equipGreedyUpgrades(state, metrics, scoringProfile) {
   const character = state.party[0];
+  if (EQUIPMENT_SLOT_MODE === "affixless-duplicates") {
+    clearAffixlessVirtualSlots(character);
+  }
   identifyAvailableEquipment(state, metrics, Math.random);
   let upgrades = 0;
   const maxIterations = state.inventory.length * 2 + Object.keys(character.equipment).length;
@@ -3331,7 +3374,8 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       }
 
       const slot = getEquipmentTargetSlot(character, itemData.type);
-      const oldEquipment = EQUIPMENT_SLOT_MODE === "unlimited"
+      const oldEquipment = EQUIPMENT_SLOT_MODE === "unlimited" &&
+          slot.includes("#")
         ? null
         : character.equipment[slot];
       if (isSimulationCurseLocked(oldEquipment)) {
@@ -3459,14 +3503,20 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
 
     if (!best) break;
     const wasUnidentified = best.candidateIsUnidentified;
-    character.equipment[best.slot] = best.candidate;
+    const selectedCandidate = EQUIPMENT_SLOT_MODE === "unlimited" &&
+        EQUIPMENT_SLOT_AFFIX_MODE === "none" &&
+        best.slot.includes("#")
+      ? { ...best.candidate, affixes: [] }
+      : best.candidate;
+    const selectedCandidateCoreId = getItemCoreId(selectedCandidate);
+    character.equipment[best.slot] = selectedCandidate;
     if (wasUnidentified && state.simPolicy.identificationPolicy === "gamble") {
-      revealEquipmentOnEquip(best.candidate);
+      revealEquipmentOnEquip(selectedCandidate);
       metrics.unidentifiedWearCount++;
     }
-    if (best.candidate.curseEffectId) metrics.curseHitCount++;
-    if (best.candidateCoreId && isSimulationCurseLocked(best.candidate)) {
-      metrics.coreCursedLockedIds.add(best.candidateCoreId);
+    if (selectedCandidate.curseEffectId) metrics.curseHitCount++;
+    if (selectedCandidateCoreId && isSimulationCurseLocked(selectedCandidate)) {
+      metrics.coreCursedLockedIds.add(selectedCandidateCoreId);
     }
     if (metrics.equipmentTelemetry) {
       metrics.equipmentTelemetry.push({
@@ -3475,16 +3525,16 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
         scoreBefore: best.scoreBefore,
         scoreAfter: getEquipmentScore(character, scoringProfile, state.floor),
         oldCoreId: best.oldCoreId,
-        candidateCoreId: best.candidateCoreId,
+        candidateCoreId: selectedCandidateCoreId,
         oldCursed: Boolean(best.oldEquipment && isCurseLocked(best.oldEquipment)),
         candidateCursed: Boolean(isCurseLocked(best.candidate)),
         replacement: Boolean(best.oldEquipment)
       });
     }
-    if (best.candidateCoreId) {
-      metrics.coreEverEquippedIds.add(best.candidateCoreId);
+    if (selectedCandidateCoreId) {
+      metrics.coreEverEquippedIds.add(selectedCandidateCoreId);
       const poolGroup = ENABLED_CORE_AFFIXES.find(
-        affix => affix.id === best.candidateCoreId
+        affix => affix.id === selectedCandidateCoreId
       )?.poolGroup;
       if (
         poolGroup &&
@@ -3495,7 +3545,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       if (metrics.firstCoreEquippedFloor === null) {
         metrics.firstCoreEquippedFloor = state.floor;
       }
-      recordCoreDecision(metrics, best.candidate, "equipped");
+      recordCoreDecision(metrics, selectedCandidate, "equipped");
     }
     if (best.oldCoreId) recordCoreDecision(metrics, best.oldEquipment, "replaced");
     if (best.oldEquipment) {
@@ -3509,6 +3559,9 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
 
   // 現装備を上回らない装備は将来も使わない、という貪欲仮定で破棄しバッグ枯渇を防ぐ。
   state.inventory = state.inventory.filter(item => !isEquipment(getItemData(item)));
+  if (EQUIPMENT_SLOT_MODE === "affixless-duplicates") {
+    addAffixlessVirtualSlots(character);
+  }
   return upgrades;
 }
 
