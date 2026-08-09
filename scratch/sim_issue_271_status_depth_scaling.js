@@ -4,7 +4,7 @@
 /* global console, process */
 
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync, writeFileSync, writeSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { performance } from "node:perf_hooks";
 import { isMainThread } from "node:worker_threads";
@@ -87,9 +87,30 @@ const STATUS_CONDITIONS = Object.freeze({
     }),
     chanceMultiplierAtMax: 1,
     encounterProbabilityAtMax: 1
+  }),
+  "ceiling-b3": Object.freeze({
+    id: "ceiling-b3",
+    label: "status scale 天井（B3開始）",
+    override: Object.freeze({
+      startFloor: 3,
+      endFloor: STATUS_END_FLOOR,
+      forceStatusEncounter: true,
+      forceStatusChance: true,
+      chanceMultiplierAtMax: null,
+      encounterProbabilityAtMax: 1
+    }),
+    chanceMultiplierAtMax: 1,
+    encounterProbabilityAtMax: 1
   })
 });
-const STATUS_CONDITION_ORDER = Object.freeze(["base", "weak", "medium", "strong", "ceiling"]);
+const STATUS_CONDITION_ORDER = Object.freeze([
+  "base",
+  "weak",
+  "medium",
+  "strong",
+  "ceiling",
+  "ceiling-b3"
+]);
 const REQUESTED_SCENARIOS = String(
   process.env.STATUS_SCENARIOS || ALL_SCENARIO_IDS.join(",")
 ).split(",").map(value => value.trim()).filter(Boolean);
@@ -339,7 +360,7 @@ function getPlayerPoisonDamage(log) {
     .filter(damage => damage > 0);
 }
 
-function collectStatusDiagnostics(result) {
+function collectStatusDiagnostics(result, statusStartFloor = STATUS_START_FLOOR) {
   const statusApplications = createStatusCounts();
   const statusDurationTurns = createStatusCounts();
   const statusLostTurns = createStatusCounts();
@@ -359,7 +380,7 @@ function collectStatusDiagnostics(result) {
 
   const encounters = result.diagnostics?.encounters || [];
   encounters
-    .filter(encounter => encounter.floor >= STATUS_START_FLOOR)
+    .filter(encounter => encounter.floor >= statusStartFloor)
     .forEach(encounter => {
       const normal = encounter.type === "normal";
       if (normal) {
@@ -501,7 +522,7 @@ function hasMatchingSupport(snapshot) {
   ));
 }
 
-function compactRow(task, result) {
+function compactRow(task, result, statusStartFloor) {
   const b5 = getB5Snapshot(result);
   const b6 = result.diagnostics?.buildSnapshots?.some(
     snapshot => snapshot.floor === B5 + 1 && snapshot.point === "floor-start"
@@ -520,7 +541,8 @@ function compactRow(task, result) {
     b5ProtectionKind: getProtectionKind(b5),
     b5Death: Boolean(b5 && result.died && result.deathFloor === B5),
     b5Breakthrough: Boolean(b5 && b6),
-    status: collectStatusDiagnostics(result)
+    statusStartFloor,
+    status: collectStatusDiagnostics(result, statusStartFloor)
   };
 }
 
@@ -555,7 +577,8 @@ export function runStatusDepthScalingTask(task, context) {
     workshop: scenario.workshop,
     collectDiagnostics: true
   });
-  return compactRow(task, result);
+  const statusStartFloor = Number(scenario.statusScalingOverride?.startFloor) || STATUS_START_FLOOR;
+  return compactRow(task, result, statusStartFloor);
 }
 
 function sumStatusRows(rows, selector) {
@@ -645,6 +668,8 @@ function summarizeProtection(entrants, predicate) {
 
 function summarizeScenario(rows) {
   const entrants = rows.filter(row => row.b5);
+  const statusStartFloor = Number(rows[0]?.statusStartFloor) || STATUS_START_FLOOR;
+  const exposedRows = rows.filter(row => row.reachedFloor >= statusStartFloor);
   const protection = summarizeProtection(entrants, row => hasProtection(row.b5));
   const statusResistance = summarizeProtection(
     entrants,
@@ -656,6 +681,7 @@ function summarizeScenario(rows) {
   );
   const matching = summarizeProtection(entrants, row => hasMatchingSupport(row.b5));
   return {
+    statusStartFloor,
     runs: rows.length,
     b5: {
       entrantsN: entrants.length,
@@ -669,12 +695,34 @@ function summarizeScenario(rows) {
     },
     averageReachedFloor: meanInterval(rows.map(row => row.reachedFloor)),
     survivalRate: wilson(rows.filter(row => !row.died).length, rows.length),
-    status: summarizeStatus(rows)
+    status: summarizeStatus(rows),
+    exposure: {
+      startFloor: statusStartFloor,
+      reachedN: exposedRows.length,
+      reachedRate: wilson(exposedRows.length, rows.length),
+      status: exposedRows.length ? summarizeStatus(exposedRows) : null
+    }
   };
 }
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function writeRawRows(rawPath, rows) {
+  const hash = createHash("sha256");
+  const file = openSync(rawPath, "w");
+  try {
+    const chunkSize = 1000;
+    for (let offset = 0; offset < rows.length; offset += chunkSize) {
+      const chunk = rows.slice(offset, offset + chunkSize).map(row => JSON.stringify(row)).join("\n") + "\n";
+      writeSync(file, chunk);
+      hash.update(chunk);
+    }
+  } finally {
+    closeSync(file);
+  }
+  return hash.digest("hex");
 }
 
 function percent(value, digits = 1) {
@@ -718,11 +766,23 @@ function caseKey(conditionId, curePolicy, scenarioId) {
 }
 
 function buildMarkdown(fullSummary, summarySha256) {
-  const ceilingSummaries = STATUS_CURE_POLICY_ORDER.flatMap(curePolicy =>
-    SELECTED_SCENARIO_IDS.map(scenarioId =>
-      fullSummary.cases[caseKey("ceiling", curePolicy, scenarioId)]
-    )
+  const hasConditionCase = conditionId =>
+    Boolean(fullSummary.cases[caseKey(
+      conditionId,
+      STATUS_CURE_POLICY_ORDER[0],
+      SELECTED_SCENARIO_IDS[0]
+    )]);
+  const primaryCeilingId = hasConditionCase("ceiling-b3") ? "ceiling-b3" : "ceiling";
+  const primaryCeilingStartFloor =
+    Number(STATUS_CONDITIONS[primaryCeilingId]?.override?.startFloor) || STATUS_START_FLOOR;
+  const ceilingCaseEntries = STATUS_CURE_POLICY_ORDER.flatMap(curePolicy =>
+    SELECTED_SCENARIO_IDS.map(scenarioId => ({
+      curePolicy,
+      scenarioId,
+      summary: fullSummary.cases[caseKey(primaryCeilingId, curePolicy, scenarioId)]
+    }))
   );
+  const ceilingSummaries = ceilingCaseEntries.map(entry => entry.summary);
   const ceilingProtectionEffects = ceilingSummaries.flatMap(summary => [
     summary.b5.protection.endpointEffects.reachedFloor,
     summary.b5.protection.endpointEffects.death,
@@ -731,12 +791,130 @@ function buildMarkdown(fullSummary, summarySha256) {
   const ceilingProtectionDataSufficient = ceilingSummaries.every(summary =>
     summary.b5.protection.dataSufficient
   );
-  const ceilingAllIntervalsCrossZero = ceilingProtectionEffects.every(effect =>
-    effect.low <= 0 && effect.high >= 0
+ const ceilingAllIntervalsCrossZero = ceilingProtectionEffects.every(effect =>
+   effect.low <= 0 && effect.high >= 0
+ );
+  const endpointDefinitions = [
+    ["reachedFloor", "到達floor"],
+    ["death", "B5死亡"],
+    ["breakthrough", "B5突破"]
+  ];
+  const ceilingNonCrossingDetails = ceilingCaseEntries.flatMap(entry =>
+    endpointDefinitions
+      .filter(([key]) => {
+        const effect = entry.summary.b5.protection.endpointEffects[key];
+        return effect.low > 0 || effect.high < 0;
+      })
+      .map(([, label]) =>
+        entry.curePolicy + "/" + entry.scenarioId.replace("workshop-", "") + ":" + label
+      )
   );
-  const ceilingJudgement = ceilingProtectionDataSufficient && ceilingAllIntervalsCrossZero
-    ? "天井でも、statusResistance / poisonWard 有群−両方なし群の職内centered endpoint差（深層到達floorを含む）は全セルで95% CIが0を跨いだ。耐性の効果が無いと確定したのではなく、この天井条件でも質依存化を観測できなかったため、weak / medium / strong の掃引は打ち切る。"
-    : "天井条件の保護群差に0を跨がないCIがある。該当セルを中心に解釈し、弱・中・強の掃引継続可否を別途判断する。";
+  const ceilingNonCrossingCells = new Set(
+    ceilingCaseEntries
+      .filter(entry => endpointDefinitions.some(([key]) => {
+        const effect = entry.summary.b5.protection.endpointEffects[key];
+        return effect.low > 0 || effect.high < 0;
+      }))
+      .map(entry => entry.curePolicy + "/" + entry.scenarioId)
+  );
+  const ceilingExposureSummaries = ceilingSummaries
+    .map(summary => summary.exposure)
+    .filter(Boolean);
+  const ceilingExposureDataSufficient = ceilingExposureSummaries.length > 0 &&
+    ceilingExposureSummaries.every(exposure => exposure.reachedN >= MIN_GROUP_N);
+  const legacyCeilingCoreCases = hasConditionCase("ceiling") &&
+    SELECTED_SCENARIO_IDS.includes("workshop-core-pools")
+    ? STATUS_CURE_POLICY_ORDER.map(curePolicy =>
+      fullSummary.cases[caseKey("ceiling", curePolicy, "workshop-core-pools")]
+    )
+    : [];
+  const legacyCeilingJudgement = legacyCeilingCoreCases.length === 2
+    ? "旧B6開始 ceiling は、core-poolsの適用階到達率が " +
+      STATUS_CURE_POLICY_ORDER.map((curePolicy, index) =>
+        curePolicy + " " + rateText(legacyCeilingCoreCases[index].exposure.reachedRate)
+      ).join(" / ") +
+      " に留まるため、全run endpoint差による耐性効果は判定不能。B6到達run条件付き値は記述的に併記する。"
+    : "旧B6開始 ceiling は比較データ不足で判定不能。";
+  const ceilingJudgement = !ceilingExposureDataSufficient
+    ? `B${primaryCeilingStartFloor}開始 ceiling は適用階到達母数不足で判定不能`
+    : !ceilingProtectionDataSufficient
+      ? `B${primaryCeilingStartFloor}開始 ceiling は保護群のN不足で判定不能`
+      : ceilingNonCrossingDetails.length === 0
+        ? `B${primaryCeilingStartFloor}開始のtrue ceiling（深層通常遭遇を全てstatus化、statusChance=100%）でも、statusResistance / poisonWard 有群−両方なし群の職内centered endpoint差（深層到達floorを含む）は全${ceilingCaseEntries.length}セルで95% CIが0を跨いだ。質依存化は未観測だが、耐性の効果が無いと確定したわけではない。`
+        : `B${primaryCeilingStartFloor}開始のtrue ceilingでは、${ceilingNonCrossingCells.size}/${ceilingCaseEntries.length}セルで少なくとも1つのendpoint差の95% CIが0を跨がなかった（${ceilingNonCrossingDetails.join("、")}）。この条件下のsim上の耐性群差は観測されたが、状態異常だけの因果効果とは確定せず、該当cellを中心に測定側も点検する。`;
+  const ceilingMeasurementGuardrail = primaryCeilingId === "ceiling-b3" &&
+    fullSummary.cases[caseKey("ceiling-b3", "never", "workshop-empty")]
+    ? (() => {
+      const summary = fullSummary.cases[caseKey("ceiling-b3", "never", "workshop-empty")];
+      return "直感に反するcellの留保: B3 ceiling/never/empty は保護群−なし群が " +
+        `Δ死亡 ${diffText(summary.b5.protection.endpointEffects.death)}、Δ突破 ${diffText(summary.b5.protection.endpointEffects.breakthrough)}。` +
+        "これは耐性の逆効果と断定せず、群構成・seed・計測経路を先に点検する。";
+    })()
+    : "";
+  const primaryCeilingCoreCases = hasConditionCase(primaryCeilingId) &&
+    SELECTED_SCENARIO_IDS.includes("workshop-core-pools")
+    ? STATUS_CURE_POLICY_ORDER.map(curePolicy =>
+      fullSummary.cases[caseKey(primaryCeilingId, curePolicy, "workshop-core-pools")]
+    )
+    : [];
+  const exposureComparison = legacyCeilingCoreCases.length === 2 &&
+    primaryCeilingCoreCases.length === 2 &&
+    primaryCeilingId !== "ceiling"
+    ? STATUS_CURE_POLICY_ORDER.map((curePolicy, index) => {
+      const legacy = legacyCeilingCoreCases[index];
+      const primary = primaryCeilingCoreCases[index];
+     const ratio = primary.status.statusApplicationsPerRun > 0
+       ? legacy.status.statusApplicationsPerRun / primary.status.statusApplicationsPerRun
+       : null;
+      const legacyExposed = legacy.exposure.status?.statusApplicationsPerRun;
+      const primaryExposed = primary.exposure.status?.statusApplicationsPerRun;
+      const exposedRatio = primaryExposed > 0 ? legacyExposed / primaryExposed : null;
+     return `${curePolicy}: B6 ceiling ${number(legacy.status.statusApplicationsPerRun)}/run ` +
+       `vs B${primaryCeilingStartFloor} ceiling ${number(primary.status.statusApplicationsPerRun)}/run ` +
+        `(B6/B${primaryCeilingStartFloor}=${percent(ratio)}); ` +
+        `到達run条件付きは ${number(legacyExposed)}/run vs ${number(primaryExposed)}/run ` +
+        `(B6/B${primaryCeilingStartFloor}=${percent(exposedRatio)})`;
+    }).join("、")
+    : "比較対象不足";
+  const conditionStartFloor = condition =>
+    Number(condition.override?.startFloor) || STATUS_START_FLOOR;
+  const conditionIsCeiling = condition => Boolean(condition.override?.forceStatusChance);
+  const formatStatusConditionDefinition = condition => {
+    const startFloor = conditionStartFloor(condition);
+    const chance = conditionIsCeiling(condition)
+      ? "100%固定"
+      : number(condition.chanceMultiplierAtMax, 2) + "x";
+    const promotion = percent(condition.encounterProbabilityAtMax);
+    const meaning = conditionIsCeiling(condition)
+      ? "B" + startFloor + "以降、全通常遭遇にstatus持ち・付与率100%"
+      : condition.id === "base"
+        ? "overrideなし（現行）"
+        : "B" + startFloor + "からB" + STATUS_END_FLOOR + "へ線形増加";
+    return "| " + [condition.label, "B" + startFloor, chance, promotion, meaning].join(" | ") + " |";
+  };
+  const formatSweepRow = (condition, curePolicy, scenarioId, summary) => {
+    const protection = summary.b5.protection;
+    return "| " + [
+      condition.id,
+      curePolicy,
+      scenarioId.replace("workshop-", ""),
+      summary.b5.entrantsN,
+      meanText(summary.averageReachedFloor),
+      rateText(summary.b5.breakthroughRate),
+      rateText(summary.b5.deathRate),
+      "B" + summary.statusStartFloor,
+      rateText(summary.status.deepStatusEncounterRate),
+      number(summary.status.statusApplicationsPerRun),
+      number(summary.status.statusCureItemsUsedPerRun),
+      rateText(summary.status.statusCureDepletedRate),
+      protection.matchedN + "/" + protection.unmatchedN,
+      diffText(protection.endpointEffects.reachedFloor),
+      diffText(protection.endpointEffects.death),
+      diffText(protection.endpointEffects.breakthrough),
+      rateText(protection.unmatchedSurvival),
+      effectStatus(protection)
+    ].join(" | ") + " |";
+  };
   const lines = [
     "# Issue #271 Phase 2a: status depth-scaling ceiling",
     "",
@@ -749,15 +927,23 @@ function buildMarkdown(fullSummary, summarySha256) {
     "",
     "## 天井判定",
     "",
-    ceilingJudgement,
+   legacyCeilingJudgement,
+   ceilingJudgement,
+    ceilingMeasurementGuardrail,
+   "",
+    "## 曝露率監査",
     "",
-    "## 測定条件",
+    "条件付き分母は reachedFloor >= 適用開始階 のrun。旧B6 ceiling は全runの約7.6%しか適用階へ到達しないため、そのcell単独の全run値は判定材料にしない。",
+    "workshop-core-pools status付与/run のB6 ceiling対true ceiling比率は次行に示す。全run値と適用階到達run条件付き値を併記する。true ceilingは深層通常遭遇を全てstatus化し、statusChance=100%に固定した上界条件。",
+    `- ${exposureComparison}`,
+    "",
+   "## 測定条件",
     "",
     `- 実行: \`SIM_RUNS=${fullSummary.measurement.SIM_RUNS} SIM_CALIBRATION_RUNS=100 IDENTIFICATION_POLICY=powder FLEE_POLICY=threshold node scratch/sim_issue_271_status_depth_scaling.js\``,
     `- seed=${fullSummary.measurement.seed}、基本4職、target depth=${fullSummary.measurement.targetDepth}、SIM_PARALLELは未指定（解決値=${fullSummary.measurement.resolvedParallelism}）`,
     `- 主状態: \`workshop-core-pools\`。7シナリオ ${SELECTED_SCENARIO_IDS.length === ALL_SCENARIO_IDS.length ? "測定" : "pilot"}。`,
     `- cure policy: ${STATUS_CURE_POLICY_ORDER.join(" / ")}。smartはHP閾値0.35、merchant補充はmissing。`,
-    `- 状態異常スケール適用帯: B${STATUS_START_FLOOR}–B${STATUS_END_FLOOR}通常遭遇。baseはoverrideなし。`,
+    `- 状態異常スケール適用帯: 条件定義表の開始階〜B${STATUS_END_FLOOR}通常遭遇。baseはoverrideなし。`,
     "- 状態異常持続/被害は深層 encounter diagnostic の実ログから集計。`statusActiveIncoming*` は状態開始後の被弾、`incapacitatedExtra*` は睡眠/麻痺中の被弾であり、因果効果の推定ではない。",
     "",
     "## N設計",
@@ -769,29 +955,54 @@ function buildMarkdown(fullSummary, summarySha256) {
     "",
     "## status override の定義",
     "",
-    "| 条件 | B20 statusChance倍率 | 深層通常遭遇 promotion | ceiling意味 |",
-    "| --- | ---: | ---: | --- |",
-    ...STATUS_CONDITION_DEFINITIONS.map(condition =>
-      `| ${condition.label} | ${condition.id === "ceiling" ? "100%固定" : `${number(condition.chanceMultiplierAtMax, 2)}x`} | ${percent(condition.encounterProbabilityAtMax)} | ${condition.id === "ceiling" ? "全深層通常遭遇にstatus持ち、付与率100%" : condition.id === "base" ? "overrideなし（現行）" : "B6からB20へ線形増加"} |`
-    ),
+    "| 条件 | 開始階 | B20 statusChance倍率 | 通常遭遇 promotion | ceiling意味 |",
+    "| --- | ---: | ---: | ---: | --- |",
+    ...STATUS_CONDITION_DEFINITIONS.map(formatStatusConditionDefinition),
     "",
     "## 掃引表",
     "",
     "Δは耐性有−耐性なし。floorはB5 entrantの到達floor、括弧内95% CI。全run平均到達floorを別列に併記。",
     "",
-    "| 条件 | cure | scenario | B5 N | 全run平均floor | B5突破率 | B5死亡率 | 深層status遭遇率 | 付与回数/run | cure消費/run | 枯渇率 | 耐性N | Δfloor | Δ死亡 | Δ突破 | 耐性なし生存率 | 状態 |",
-    "| --- | --- | --- | ---: | --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- |"
+    "| 条件 | cure | scenario | B5 N | 全run平均floor | B5突破率 | B5死亡率 | 開始階 | status遭遇率 | 付与回数/run | cure消費/run | 枯渇率 | 耐性N | Δfloor | Δ死亡 | Δ突破 | 耐性なし生存率 | 状態 |",
+    "| --- | --- | --- | ---: | --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- |"
   ];
   for (const condition of STATUS_CONDITION_DEFINITIONS) {
     for (const curePolicy of STATUS_CURE_POLICY_ORDER) {
       for (const scenarioId of SELECTED_SCENARIO_IDS) {
         const summary = fullSummary.cases[caseKey(condition.id, curePolicy, scenarioId)];
-        const protection = summary.b5.protection;
-        lines.push(
-          `| ${condition.id} | ${curePolicy} | ${scenarioId.replace("workshop-", "")} | ${summary.b5.entrantsN} | ${meanText(summary.averageReachedFloor)} | ${rateText(summary.b5.breakthroughRate)} | ${rateText(summary.b5.deathRate)} | ${rateText(summary.status.deepStatusEncounterRate)} | ${number(summary.status.statusApplicationsPerRun)} | ${number(summary.status.statusCureItemsUsedPerRun)} | ${rateText(summary.status.statusCureDepletedRate)} | ${protection.matchedN}/${protection.unmatchedN} | ${diffText(protection.endpointEffects.reachedFloor)} | ${diffText(protection.endpointEffects.death)} | ${diffText(protection.endpointEffects.breakthrough)} | ${rateText(protection.unmatchedSurvival)} | ${effectStatus(protection)} |`
-        );
+        lines.push(formatSweepRow(condition, curePolicy, scenarioId, summary));
       }
     }
+  }
+  lines.push(
+    "",
+    "## 上位設計論点",
+    "",
+    "B3開始は、現行の全run平均到達floor（約B3.6）で状態異常の脅威を観測可能にするためのsim上の測定条件であり、ゲームの到達制約を意味しない。",
+    "現行の到達帯で深層を定義するか、到達深度を先に上げるかは、#264/#275と接続する上位判断である。",
+  );
+  lines.push(
+    "",
+    "## 曝露率・条件付き状態指標",
+    "",
+    "条件付き分母は reachedFloor >= 適用開始階。付与/run、持続、被害はその分母で集計。全run値と条件付き値を並べ、到達帯でのtrue ceiling飽和を確認する。",
+    "",
+    "| 条件 | cure | scenario | 開始階 | 到達N | 曝露率 | 全run付与/run | 到達run付与/run | 持続/run | 失turn/run | 状態中damage/run | 毒damage/run | cure/run |",
+    "| --- | --- | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+  );
+  for (const condition of STATUS_CONDITION_DEFINITIONS.filter(item =>
+    item.override?.forceStatusEncounter
+  )) {
+    for (const curePolicy of STATUS_CURE_POLICY_ORDER) {
+      for (const scenarioId of SELECTED_SCENARIO_IDS) {
+        const summary = fullSummary.cases[caseKey(condition.id, curePolicy, scenarioId)];
+        const exposure = summary.exposure;
+        const status = exposure.status;
+        lines.push(
+         `| ${condition.id} | ${curePolicy} | ${scenarioId.replace("workshop-", "")} | ${exposure.startFloor} | ${exposure.reachedN} | ${rateText(exposure.reachedRate)} | ${number(summary.status.statusApplicationsPerRun)} | ${number(status?.statusApplicationsPerRun)} | ${number(status?.statusDurationTurnsPerRun)} | ${number(status?.statusLostTurnsPerRun)} | ${number(status?.statusActiveIncomingDamagePerRun)} | ${number(status?.poisonDamagePerRun)} | ${number(status?.statusCureItemsUsedPerRun)} |`
+       );
+     }
+   }
   }
   lines.push(
     "",
@@ -842,7 +1053,7 @@ function buildMarkdown(fullSummary, summarySha256) {
     "",
     "## 状態異常の付与・持続・被害・消耗品",
     "",
-    "数値は各case全run集計。付与回数はB6–B20 diagnostic log、消耗品はrun全体。",
+    "数値は各case全run集計。付与回数は条件開始階〜B20 diagnostic log、消耗品はrun全体。",
     "",
     "| 条件 | cure | scenario | poison / blind / paralyze / sleep | 持続turn/run | 失ったturn/run | 状態中被弾hit/run | 状態中被弾damage/run | 睡眠/麻痺中hit/run | 毒damage/run | blind miss/run | cure unavailable/run |",
     "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
@@ -978,8 +1189,7 @@ async function main() {
   const rawPath = join(resultDir, `issue-271-status-depth-scaling-${runLabel}-${cureLabel}.jsonl`);
   const summaryPath = join(resultDir, `issue-271-status-depth-scaling-${runLabel}-${cureLabel}.json`);
   const reportPath = join(resultDir, "issue-271-status-depth-scaling.md");
-  const rawText = rows.map(row => JSON.stringify(row)).join("\n") + "\n";
-  const rawSha256 = sha256(rawText);
+  const rawSha256 = writeRawRows(rawPath, rows);
   const cpuTotalSeconds = (
     calibrationCpu.user + calibrationCpu.system + runCpu.user + runCpu.system
   ) / 1e6;
@@ -1024,16 +1234,15 @@ async function main() {
     statusConditions: STATUS_CONDITION_DEFINITIONS.map(condition => ({
       id: condition.id,
       label: condition.label,
-      startFloor: STATUS_START_FLOOR,
+      startFloor: Number(condition.override?.startFloor) || STATUS_START_FLOOR,
       endFloor: STATUS_END_FLOOR,
       chanceMultiplierAtMax: condition.chanceMultiplierAtMax,
       encounterProbabilityAtMax: condition.encounterProbabilityAtMax,
-      ceiling: condition.id === "ceiling"
+      ceiling: Boolean(condition.override?.forceStatusChance)
     })),
     cases
   };
   const summaryText = `${JSON.stringify(fullSummary, null, 2)}\n`;
-  writeFileSync(rawPath, rawText);
   writeFileSync(summaryPath, summaryText);
   const summarySha256 = sha256(summaryText);
   writeFileSync(reportPath, buildMarkdown(fullSummary, summarySha256));
