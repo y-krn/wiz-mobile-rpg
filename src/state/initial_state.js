@@ -90,7 +90,8 @@ const SOLO_CLASS_PRESETS = [
       weapon: "SHORT_SWORD",
       shield: "SMALL_SHIELD",
       armor: "LEATHER_ARMOR",
-      accessory: null
+      accessory: null,
+      accessory2: null
     }
   },
   {
@@ -113,7 +114,8 @@ const SOLO_CLASS_PRESETS = [
       weapon: "SHORT_SWORD",
       shield: "SMALL_SHIELD",
       armor: "LEATHER_ARMOR",
-      accessory: null
+      accessory: null,
+      accessory2: null
     }
   },
   {
@@ -139,7 +141,8 @@ const SOLO_CLASS_PRESETS = [
       weapon: "MACE",
       shield: "SMALL_SHIELD",
       armor: "ROBE",
-      accessory: null
+      accessory: null,
+      accessory2: null
     }
   },
   {
@@ -164,7 +167,8 @@ const SOLO_CLASS_PRESETS = [
       weapon: "WAND",
       shield: null,
       armor: "ROBE",
-      accessory: null
+      accessory: null,
+      accessory2: null
     }
   },
   {
@@ -188,7 +192,8 @@ const SOLO_CLASS_PRESETS = [
       weapon: "SHORT_SWORD",
       shield: "SMALL_SHIELD",
       armor: "LEATHER_ARMOR",
-      accessory: null
+      accessory: null,
+      accessory2: null
     }
   },
   {
@@ -212,7 +217,8 @@ const SOLO_CLASS_PRESETS = [
       weapon: "WAND",
       shield: null,
       armor: "ROBE",
-      accessory: null
+      accessory: null,
+      accessory2: null
     }
   },
   {
@@ -236,7 +242,8 @@ const SOLO_CLASS_PRESETS = [
       weapon: "SHORT_SWORD",
       shield: "SMALL_SHIELD",
       armor: "LEATHER_ARMOR",
-      accessory: null
+      accessory: null,
+      accessory2: null
     }
   },
   {
@@ -260,7 +267,8 @@ const SOLO_CLASS_PRESETS = [
       weapon: null,
       shield: null,
       armor: "NINJA_SUIT",
-      accessory: null
+      accessory: null,
+      accessory2: null
     }
   }
 ];

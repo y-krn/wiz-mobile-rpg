@@ -25,6 +25,12 @@ import {
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
+import {
+  EQUIPMENT_SLOTS,
+  EQUIPMENT_TYPE_LABELS,
+  getEquipmentSlot,
+  getEquipmentSlotsForType
+} from "./rules/equipment_slots.js";
 
 export let equipState = {
   mode: "equip",
@@ -40,18 +46,12 @@ export let equipState = {
 
 const EQUIP_FILTERS = [
   { id: "all", label: "すべて" },
-  { id: "weapon", label: "武器" },
-  { id: "shield", label: "盾" },
-  { id: "armor", label: "鎧" },
-  { id: "accessory", label: "装飾" }
+  ...Object.entries(EQUIPMENT_TYPE_LABELS).map(([id, label]) => ({ id, label }))
 ];
 
-const SLOT_LABELS = {
-  weapon: "武器",
-  shield: "盾",
-  armor: "鎧",
-  accessory: "装飾"
-};
+const SLOT_LABELS = Object.fromEntries(
+  EQUIPMENT_SLOTS.map(({ id, label }) => [id, label])
+);
 
 const STAT_ROWS = [
   { key: "attack", label: "攻撃" },
@@ -122,6 +122,21 @@ function isEquipmentItem(item) {
   return item && (item.type === "weapon" || item.type === "shield" || item.type === "armor" || item.type === "accessory");
 }
 
+function getDefaultTargetSlot(char, itemType) {
+  const slots = getEquipmentSlotsForType(itemType);
+  const emptySlot = slots.find(({ id }) => !char.equipment?.[id]);
+  if (emptySlot) return emptySlot.id;
+  const replaceableSlot = slots.find(({ id }) => !isCurseLocked(char.equipment?.[id]));
+  return replaceableSlot?.id || slots[0]?.id || null;
+}
+
+function getTargetSlot(char, itemType, requestedSlot = null) {
+  const requested = getEquipmentSlot(requestedSlot);
+  return requested?.itemType === itemType
+    ? requested.id
+    : getDefaultTargetSlot(char, itemType);
+}
+
 function isIdentified(itemKey) {
   return typeof itemKey !== "object" || itemKey.identified;
 }
@@ -147,19 +162,20 @@ function getDisplayStats(char) {
   };
 }
 
-function getPrimaryDiff(slot, rows) {
-  if (slot === "weapon") return rows.find((row) => row.key === "attack")?.diff ?? 0;
-  if (slot === "shield" || slot === "armor") return rows.find((row) => row.key === "defense")?.diff ?? 0;
+function getPrimaryDiff(itemType, rows) {
+  if (itemType === "weapon") return rows.find((row) => row.key === "attack")?.diff ?? 0;
+  if (itemType === "shield" || itemType === "armor") return rows.find((row) => row.key === "defense")?.diff ?? 0;
   return rows.find((row) => row.diff !== 0)?.diff ?? 0;
 }
 
-function getEquipPreview(char, itemKey) {
+function getEquipPreview(char, itemKey, requestedSlot = null) {
   const item = getItemData(itemKey);
   if (!isEquipmentItem(item)) return null;
 
-  const slot = item.type;
+  const slot = getTargetSlot(char, item.type, requestedSlot);
+  if (!slot) return null;
   const current = getDisplayStats(char);
-  const oldEq = char.equipment[slot];
+  const oldEq = char.equipment?.[slot] || null;
   char.equipment[slot] = itemKey;
   const next = getDisplayStats(char);
   char.equipment[slot] = oldEq;
@@ -170,12 +186,12 @@ function getEquipPreview(char, itemKey) {
     next: next[stat.key],
     diff: next[stat.key] - current[stat.key]
   }));
-  const primaryDiff = getPrimaryDiff(slot, rows);
-  return { item, slot, rows, primaryDiff, oldEq };
+  const primaryDiff = getPrimaryDiff(item.type, rows);
+  return { item, itemType: item.type, slot, rows, primaryDiff, oldEq };
 }
 
 function getUnequipPreview(char, slot) {
-  const itemKey = char.equipment[slot];
+  const itemKey = char.equipment?.[slot];
   const item = getItemData(itemKey);
   if (!item) return null;
 
@@ -190,8 +206,8 @@ function getUnequipPreview(char, slot) {
     next: next[stat.key],
     diff: next[stat.key] - current[stat.key]
   }));
-  const primaryDiff = getPrimaryDiff(slot, rows);
-  return { item, slot, rows, primaryDiff, oldEq: null };
+  const primaryDiff = getPrimaryDiff(item.type, rows);
+  return { item, itemType: item.type, slot, rows, primaryDiff, oldEq: null };
 }
 
 export function getItemUseStatus(char, itemKey) {
@@ -268,7 +284,7 @@ function getItemSummary(item) {
   return "";
 }
 
-function canEquip(char, itemKey) {
+function canEquip(char, itemKey, requestedSlot = null) {
   const item = getItemData(itemKey);
   if (!isEquipmentItem(item)) {
     return { ok: false, reason: "装備品ではありません" };
@@ -276,10 +292,14 @@ function canEquip(char, itemKey) {
   if (item.classes && !item.classes.includes(char.class)) {
     return { ok: false, reason: `${getClassJpName(char.class)}は装備できません` };
   }
-  if (isCurseLocked(char.equipment?.[item.type])) {
+  const slot = getTargetSlot(char, item.type, requestedSlot);
+  if (!slot) {
+    return { ok: false, reason: "装備先がありません" };
+  }
+  if (isCurseLocked(char.equipment?.[slot])) {
     return { ok: false, reason: "現在の呪い装備を外せません" };
   }
-  return { ok: true, reason: "" };
+  return { ok: true, reason: "", slot };
 }
 
 function createHeader(overlay) {
@@ -370,14 +390,7 @@ function createEquipmentList(char, savedScrollTop) {
   headingEquipped.textContent = "装備中";
   itemList.appendChild(headingEquipped);
 
-  const slots = [
-    { id: "weapon", label: "武器" },
-    { id: "shield", label: "盾" },
-    { id: "armor", label: "鎧" },
-    { id: "accessory", label: "装飾" }
-  ];
-
-  const filteredSlots = slots.filter(s => equipState.filter === "all" || equipState.filter === s.id);
+  const filteredSlots = EQUIPMENT_SLOTS.filter(s => equipState.filter === "all" || equipState.filter === s.itemType);
   filteredSlots.forEach(({ id, label }) => {
     const itemKey = char.equipment[id];
     const item = itemKey ? getItemData(itemKey) : null;
@@ -444,13 +457,13 @@ function createEquipmentList(char, savedScrollTop) {
         currentType = item.type;
         const heading = document.createElement("div");
         heading.className = "equip-list-heading";
-        heading.textContent = SLOT_LABELS[currentType];
+        heading.textContent = EQUIPMENT_TYPE_LABELS[currentType];
         itemList.appendChild(heading);
       }
 
       const selected = !equipState.selectedIsEquipped && equipState.selectedIdx === idx;
-      const availability = canEquip(char, itemKey);
-      const preview = getEquipPreview(char, itemKey);
+      const preview = getEquipPreview(char, itemKey, equipState.selectedSlot);
+      const availability = canEquip(char, itemKey, preview?.slot);
       const row = document.createElement("button");
       row.type = "button";
       row.className = `equip-item-row ${selected ? "selected" : ""} ${availability.ok ? "" : "not-equipable"}`;
@@ -465,7 +478,7 @@ function createEquipmentList(char, savedScrollTop) {
 
       const summary = document.createElement("span");
       summary.className = "equip-item-row-tag";
-      summary.textContent = `${SLOT_LABELS[item.type]} / ${isIdentified(itemKey) ? getItemSummary(item) : "比較不能"}`;
+      summary.textContent = `${EQUIPMENT_TYPE_LABELS[item.type]} / ${isIdentified(itemKey) ? getItemSummary(item) : "比較不能"}`;
       left.appendChild(summary);
       row.appendChild(left);
 
@@ -490,7 +503,7 @@ function createEquipmentList(char, savedScrollTop) {
         } else {
           equipState.selectedIdx = idx;
           equipState.selectedKey = itemKey;
-          equipState.selectedSlot = item.type;
+          equipState.selectedSlot = preview?.slot || getDefaultTargetSlot(char, item.type);
           equipState.selectedActorIdx = equipState.actorIdx;
           equipState.selectedIsEquipped = false;
         }
@@ -561,6 +574,34 @@ function createAffixDetails(itemKey) {
   return details.childElementCount > 0 ? details : null;
 }
 
+function createAccessorySlotPicker(char, selectedSlot) {
+  const picker = document.createElement("div");
+  picker.className = "equip-slot-picker";
+
+  const label = document.createElement("strong");
+  label.textContent = "装備先";
+  picker.appendChild(label);
+
+  const choices = document.createElement("div");
+  choices.className = "equip-slot-choices";
+  getEquipmentSlotsForType("accessory").forEach(({ id }) => {
+    const currentKey = char.equipment?.[id];
+    const currentItem = currentKey ? getItemData(currentKey) : null;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `equip-slot-choice ${selectedSlot === id ? "active" : ""}`;
+    button.setAttribute("aria-pressed", selectedSlot === id ? "true" : "false");
+    button.textContent = `${SLOT_LABELS[id]}: ${currentItem?.name || "なし"}`;
+    button.addEventListener("click", () => {
+      equipState.selectedSlot = id;
+      renderEquip();
+    });
+    choices.appendChild(button);
+  });
+  picker.appendChild(choices);
+  return picker;
+}
+
 function createDetailPanel(char) {
   const detailCol = document.createElement("div");
   detailCol.className = "equip-detail-col";
@@ -584,8 +625,8 @@ function createDetailPanel(char) {
     preview = getUnequipPreview(char, equipState.selectedSlot);
     availability = { ok: true, reason: "" };
   } else {
-    preview = getEquipPreview(char, itemKey);
-    availability = canEquip(char, itemKey);
+    preview = getEquipPreview(char, itemKey, equipState.selectedSlot);
+    availability = canEquip(char, itemKey, preview?.slot);
   }
 
   const content = document.createElement("div");
@@ -608,9 +649,13 @@ function createDetailPanel(char) {
     exchange.textContent = `${SLOT_LABELS[equipState.selectedSlot]}: ${item.name} → なし`;
   } else {
     const currentEquip = preview?.oldEq ? getItemData(preview.oldEq) : null;
-    exchange.textContent = `${SLOT_LABELS[item.type]}: ${currentEquip ? currentEquip.name : "なし"} → ${item.name}`;
+    exchange.textContent = `${SLOT_LABELS[preview?.slot] || EQUIPMENT_TYPE_LABELS[item.type]}: ${currentEquip ? currentEquip.name : "なし"} → ${item.name}`;
   }
   content.appendChild(exchange);
+
+  if (!isEquipped && item.type === "accessory") {
+    content.appendChild(createAccessorySlotPicker(char, preview?.slot));
+  }
 
   const affixDetails = createAffixDetails(itemKey);
   if (affixDetails) content.appendChild(affixDetails);
@@ -715,7 +760,7 @@ function createDetailPanel(char) {
       const currentChar = state.party[equipState.actorIdx];
       const selectedItem = state.inventory[equipState.selectedIdx];
       const selectedData = getItemData(selectedItem);
-      const slot = selectedData.type;
+      const slot = preview?.slot || getDefaultTargetSlot(currentChar, selectedData.type);
       const oldEq = currentChar.equipment[slot];
 
       currentChar.equipment[slot] = selectedItem;

@@ -23,6 +23,12 @@ for (const vp of VIEWPORTS) {
           curseEffectId: 'curse_hollow_soul', cursePower: 1.6, curseSuspected: true,
           unidentifiedName: 'レザーアーマー（未鑑定）',
           affixes: [{ id: 'def', type: 'def', kind: 'support', value: 4 }]
+        },
+        {
+          kind: 'equipment', instanceId: 'ui_accessory', baseId: 'AMULET_HP', rarity: 'rare', level: 3,
+          identified: true, halfIdentified: false, tags: ['ward'], hintTags: ['ward'],
+          curseEffectId: null, cursePower: 1, curseSuspected: false,
+          affixes: [{ id: 'hp', type: 'hp', kind: 'support', value: 4 }]
         }
       ];
       openEquipOverlay(0);
@@ -35,6 +41,18 @@ for (const vp of VIEWPORTS) {
     expect((await identifyButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await identifyButton.click();
     await expect(page.locator('.equip-detail-content')).not.toContainText('比較不能');
+
+    await page.locator('.equip-item-row', { hasText: '生命の護符' }).click();
+    await expect(page.locator('.equip-slot-choice')).toHaveCount(2);
+    for (const choice of await page.locator('.equip-slot-choice').all()) {
+      expect((await choice.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    }
+    await page.getByRole('button', { name: '装飾2: なし' }).click();
+    await page.getByRole('button', { name: '装備する' }).click();
+    await expect.poll(() => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return state.party[0].equipment.accessory2?.instanceId || null;
+    })).toBe('ui_accessory');
 
     await page.locator('.equip-item-row', { hasText: 'レザーアーマー（未鑑定）' }).click();
     const gambleButton = page.getByRole('button', { name: '未鑑定で装備する（正体開示）' });

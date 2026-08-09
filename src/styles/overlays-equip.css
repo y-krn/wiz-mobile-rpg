@@ -405,6 +405,56 @@
   white-space: nowrap;
 }
 
+.equip-slot-picker {
+  display: grid;
+  gap: var(--sp-xs);
+}
+
+.equip-slot-picker > strong {
+  color: var(--neon-cyan);
+  font-size: var(--fs-xs);
+}
+
+.equip-slot-choices {
+  display: grid;
+  gap: var(--sp-xs);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.equip-slot-choice {
+  background-color: #14141a;
+  border: 1px solid #22222d;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  min-height: var(--tap-min);
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--sp-sm) var(--sp-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.equip-slot-choice:hover,
+.equip-slot-choice:active {
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+}
+
+.equip-slot-choice.active {
+  background-color: rgba(0, 229, 255, 0.08);
+  border-color: var(--neon-cyan);
+  box-shadow: var(--neon-glow-cyan);
+  color: #fff;
+}
+
+.equip-slot-choice:focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 2px;
+}
+
 .equip-affix-details {
   display: grid;
   gap: 4px;

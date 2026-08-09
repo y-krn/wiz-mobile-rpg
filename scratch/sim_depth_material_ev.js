@@ -359,9 +359,9 @@ if (!["none", "exact"].includes(SUPPORT_SUPPLY_CEILING_MODE)) {
     `SIM_SUPPORT_SUPPLY_CEILING must be none|exact: ${SUPPORT_SUPPLY_CEILING_MODE}`
   );
 }
-if (!["standard", "unlimited", "affixless-duplicates"].includes(EQUIPMENT_SLOT_MODE)) {
+if (!["standard", "unlimited", "affixless-duplicates", "second-accessory"].includes(EQUIPMENT_SLOT_MODE)) {
   throw new Error(
-    `SIM_EQUIPMENT_SLOT_MODE must be standard|unlimited|affixless-duplicates: ${EQUIPMENT_SLOT_MODE}`
+    `SIM_EQUIPMENT_SLOT_MODE must be standard|unlimited|affixless-duplicates|second-accessory: ${EQUIPMENT_SLOT_MODE}`
   );
 }
 if (!["retain", "none"].includes(EQUIPMENT_SLOT_AFFIX_MODE)) {
@@ -3230,7 +3230,9 @@ function createBuildSnapshot(state, scoringProfile, point) {
   };
   const supportAffixes = {};
   const coreIds = [];
-  const equipment = Object.entries(character.equipment || {}).map(([slot, equipped]) => {
+  const equipment = Object.entries(character.equipment || {})
+    .filter(([, equipped]) => Boolean(equipped))
+    .map(([slot, equipped]) => {
     const item = getItemData(equipped);
     const affixes = equipped && typeof equipped === "object"
       ? (equipped.affixes || [])
@@ -3257,7 +3259,7 @@ function createBuildSnapshot(state, scoringProfile, point) {
         value: affix.value || 0
       }))
     };
-  });
+    });
   const equipmentStatScore =
     getBaseEquipmentScore(character) - getBaseEquipmentScore(withoutEquipment);
   const combatCoreScore = getCombatCoreScore(character, scoringProfile, state.floor);
@@ -3311,6 +3313,11 @@ function candidateMatchesEquippedCore(character, candidate) {
 }
 
 function getEquipmentTargetSlot(character, itemType) {
+  if (EQUIPMENT_SLOT_MODE === "second-accessory" && itemType === "accessory") {
+    if (!character.equipment.accessory) return "accessory";
+    if (!character.equipment.accessory2) return "accessory2";
+    return "accessory";
+  }
   if (EQUIPMENT_SLOT_MODE !== "unlimited" || !character.equipment[itemType]) {
     return itemType;
   }
