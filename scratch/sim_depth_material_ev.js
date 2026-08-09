@@ -111,8 +111,11 @@ const {
   getItemData,
   getEquippedItemData,
   getPartyMaxAffix,
+  getEncounterPoolForFloor,
+  MONSTERS,
   SPELLS
 } = await import("../src/data.js");
+const { scaleEnemyForDepth } = await import("../src/rules/depth_scaling.js");
 const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
 const {
   clearCharIncapacitationOnDamage,
@@ -1620,6 +1623,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
         scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
       bossOverride: scenario.bossOverride || null,
       forcedBossAffixes: scenario.forcedBossAffixes || null,
+      statusScalingOverride: scenario.statusScalingOverride || null,
       elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY,
       bloodWandHpPaymentMinRate: BLOOD_WAND_HP_PAYMENT_MIN_RATE,
       materialDropOverride: scenario.materialDropOverride || null
@@ -2191,6 +2195,66 @@ function recordRoundCoreObservations(
   countLoggedCoreActivations(observations, logQueue);
 }
 
+function isStatusCapableMonster(monster) {
+  return Boolean(
+    monster?.isPoisonous ||
+    monster?.isBlinding ||
+    monster?.isParalyzing ||
+    monster?.isSleepInflicting
+  );
+}
+
+function getStatusScalingProgress(floor, override) {
+  const startFloor = Math.max(1, Number(override?.startFloor) || 6);
+  const endFloor = Math.max(startFloor, Number(override?.endFloor) || 20);
+  return Math.max(0, Math.min(1, (floor - startFloor) / (endFloor - startFloor)));
+}
+
+function addStatusEncounterMonster(monsters, floor) {
+  const poolNames = getEncounterPoolForFloor(floor);
+  const candidates = poolNames
+    .map(name => MONSTERS.find(monster => monster.name === name))
+    .filter(isStatusCapableMonster);
+  if (!candidates.length) return false;
+  const template = candidates[Math.floor(Math.random() * candidates.length)];
+  const replacementIndex = monsters.findIndex(monster => !isStatusCapableMonster(monster));
+  const index = replacementIndex >= 0 ? replacementIndex : 0;
+  const replacement = scaleEnemyForDepth(template, floor);
+  monsters[index] = {
+    ...replacement,
+    isRare: monsters[index]?.isRare || false
+  };
+  return true;
+}
+
+function applyStatusScalingOverride(monsters, floor, override) {
+  if (!override || floor < (Number(override.startFloor) || 6)) return;
+
+  const progress = getStatusScalingProgress(floor, override);
+  const encounterProbability = override.forceStatusEncounter
+    ? 1
+    : progress * Math.max(0, Math.min(1, Number(override.encounterProbabilityAtMax) || 0));
+  if (
+    !monsters.some(isStatusCapableMonster) &&
+    encounterProbability > 0 &&
+    Math.random() < encounterProbability
+  ) {
+    addStatusEncounterMonster(monsters, floor);
+  }
+
+  monsters.filter(isStatusCapableMonster).forEach(monster => {
+    const baseChance = Number.isFinite(monster.statusChance)
+      ? monster.statusChance
+      : 0.35;
+    const scaledChance = override.forceStatusChance
+      ? 1
+      : baseChance * (
+          1 + progress * (Math.max(1, Number(override.chanceMultiplierAtMax) || 1) - 1)
+        );
+    monster.statusChance = Math.max(0, Math.min(1, scaledChance));
+  });
+}
+
 function runEncounter(
   state,
   observations,
@@ -2212,7 +2276,6 @@ function runEncounter(
     isElite,
     roamingMonster
   );
-  recordEncounterGroups(metrics, state.floor, monsters);
   if (state.alarmActive) {
     const multiplier = state.alarmWeakened ? 1.10 : 1.20;
     monsters.forEach(monster => {
@@ -2250,6 +2313,14 @@ function runEncounter(
       )
     };
   }
+  if (!isBoss && !isMidboss && !isElite) {
+    applyStatusScalingOverride(
+      monsters,
+      state.floor,
+      state.simPolicy.statusScalingOverride
+    );
+  }
+  recordEncounterGroups(metrics, state.floor, monsters);
   monsters.forEach(monster => {
     const baseName = monster.name.replace(/\s[A-Z]$/, "");
     monster.simWasUncatalogued = (state.codex?.monsters?.[baseName]?.killed || 0) === 0;
@@ -2304,6 +2375,8 @@ function runEncounter(
           maxHp: monster.maxHp,
           spell: monster.spell || null,
           traits: [...(monster.traits || [])],
+          statusChance: monster.statusChance ?? null,
+          statusCapable: isStatusCapableMonster(monster),
           statuses: [
             monster.isPoisonous ? "poison" : null,
             monster.isParalyzing ? "paralyze" : null,
