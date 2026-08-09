@@ -16,6 +16,7 @@ import {
 import { CRAFT_RECIPES } from "../craft.js";
 import { getSortedCraftRecipes } from "../rules/craft_rules.js";
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
+import { getEquipmentSlotsForType } from "../rules/equipment_slots.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
@@ -69,7 +70,8 @@ function startRun(className, startingGear = null, startFloor = 1) {
   const character = applyWorkshopToCharacter(createSoloCharacter(className), state.workshop);
   if (startingGear) {
     const item = ITEMS[startingGear];
-    if (item) character.equipment[item.type] = startingGear;
+    const slot = getEquipmentSlotsForType(item?.type)[0]?.id;
+    if (slot) character.equipment[slot] = startingGear;
   }
   state.party = [character];
   addLog(`${character.name}（${getClassJpName(className)}）が単独で潜行を開始する。`);

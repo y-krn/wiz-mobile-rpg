@@ -30,12 +30,16 @@ const B5 = 5;
 const TARGET_DEPTH = 21;
 const R95 = 1.959963984540054;
 const PROFILE_ID = String(process.env.SIM_ISSUE404_PROFILE || "base").trim();
+const ISSUE409_SLOT_MODE = String(process.env.SIM_ISSUE409_SLOT_MODE || "").trim();
 const PROFILE = AFFIX_VOLUME_PROFILES[PROFILE_ID];
 
 if (!PROFILE) {
   throw new Error(
     `SIM_ISSUE404_PROFILE must be ${Object.keys(AFFIX_VOLUME_PROFILES).join("|")}: ${PROFILE_ID}`
   );
+}
+if (ISSUE409_SLOT_MODE && !["standard", "second-accessory"].includes(ISSUE409_SLOT_MODE)) {
+  throw new Error(`SIM_ISSUE409_SLOT_MODE must be standard|second-accessory: ${ISSUE409_SLOT_MODE}`);
 }
 
 const ENV_DEFAULTS = Object.freeze({
@@ -85,7 +89,7 @@ if (!SCENARIO_IDS.every(id => process.env.SIM_SCENARIOS.split(",").includes(id))
   throw new Error(`SIM_SCENARIOS must include all seven scenarios: ${SCENARIO_IDS.join(",")}`);
 }
 
-process.env.SIM_EQUIPMENT_SLOT_MODE = "standard";
+process.env.SIM_EQUIPMENT_SLOT_MODE = ISSUE409_SLOT_MODE || "standard";
 process.env.SIM_EQUIPMENT_SLOT_AFFIX_MODE = "retain";
 
 const RUNS = Math.max(1, Number(process.env.SIM_RUNS));
@@ -404,13 +408,16 @@ async function runMain() {
 
   const resultDir = join(process.cwd(), "scratch", "results");
   mkdirSync(resultDir, { recursive: true });
-  const rawPath = join(resultDir, `issue-404-affix-volume-${PROFILE_ID}.jsonl`);
-  const summaryPath = join(resultDir, `issue-404-affix-volume-${PROFILE_ID}.json`);
+  const outputPrefix = ISSUE409_SLOT_MODE
+    ? `issue-409-second-accessory-${ISSUE409_SLOT_MODE}`
+    : `issue-404-affix-volume-${PROFILE_ID}`;
+  const rawPath = join(resultDir, `${outputPrefix}.jsonl`);
+  const summaryPath = join(resultDir, `${outputPrefix}.json`);
   const rawText = rows.map(row => JSON.stringify(row)).join("\n") + "\n";
   const rawSha256 = sha256(rawText);
   writeFileSync(rawPath, rawText);
   const measurement = {
-    issue: 404,
+    issue: ISSUE409_SLOT_MODE ? 409 : 404,
     profile: PROFILE_ID,
     profileLabel: PROFILE.label,
     profileDefinition: PROFILE,
@@ -423,6 +430,7 @@ async function runMain() {
     identificationPolicy: process.env.IDENTIFICATION_POLICY,
     fleePolicy: process.env.FLEE_POLICY,
     fleeHpThreshold: FLEE_HP_THRESHOLD,
+    equipmentSlotMode: process.env.SIM_EQUIPMENT_SLOT_MODE,
     scenarios: SCENARIO_IDS,
     classes: classNames,
     targetDepth: TARGET_DEPTH,
