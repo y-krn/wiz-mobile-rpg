@@ -115,6 +115,33 @@ const {
   MONSTERS,
   SPELLS
 } = await import("../src/data.js");
+
+// Phase 2b scratch-only probe. It observes the real damage.js call without
+// changing src/. The wrapper is inactive unless the measurement opts in.
+const SIM_DAMAGE_PROBE_ENABLED = process.env.SIM_DAMAGE_PROBE === "1";
+if (SIM_DAMAGE_PROBE_ENABLED && !globalThis.__simDamageProbeMathRoundWrapped) {
+  const originalMathRound = Math.round;
+  Math.round = value => {
+    const result = originalMathRound(value);
+    const probe = globalThis.__simTargetedDamageProbe;
+    if (!probe) return result;
+    const stack = new Error().stack || "";
+    if (!probe.matchLines?.some(line => stack.includes(`damage.js:${line}`))) {
+      return result;
+    }
+    const multiplier = 1 + Number(probe.affixValueAfter || 0) / 100;
+    const beforeBonus = multiplier > 0 ? value / multiplier : value;
+    const counterfactual = originalMathRound(beforeBonus);
+    probe.calls.push({
+      beforeBonus,
+      counterfactual,
+      applied: result,
+      ratio: counterfactual > 0 ? result / counterfactual : null
+    });
+    return result;
+  };
+  globalThis.__simDamageProbeMathRoundWrapped = true;
+}
 const { scaleEnemyForDepth } = await import("../src/rules/depth_scaling.js");
 const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
 const {
@@ -1625,6 +1652,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       forcedBossAffixes: scenario.forcedBossAffixes || null,
       statusScalingOverride: scenario.statusScalingOverride || null,
       raceBiasOverride: scenario.raceBiasOverride || null,
+      countermeasureOverride: scenario.countermeasureOverride || null,
+      threatOverride: scenario.threatOverride || null,
       elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY,
       bloodWandHpPaymentMinRate: BLOOD_WAND_HP_PAYMENT_MIN_RATE,
       materialDropOverride: scenario.materialDropOverride || null
@@ -2316,6 +2345,7 @@ function applyRaceBiasOverride(monsters, floor, override) {
 }
 
 const SIM_RACE_EFFECT_SLOT = "__sim_race_bias_effect";
+const SIM_COUNTERMEASURE_EFFECT_SLOT = "__sim_countermeasure_effect";
 
 function applyRaceEffectScale(state, override) {
   const multiplier = Number(override?.antiEffectMultiplier) || 1;
@@ -2357,6 +2387,73 @@ function removeRaceEffectScale(state) {
   });
 }
 
+function applyCountermeasureScale(state, override) {
+  const multiplier = Number(override?.multiplier) || 1;
+  const affixType = override?.affixType;
+  if (!affixType || multiplier <= 1) return [];
+  const patches = [];
+  state.party.forEach(character => {
+    if (!character?.equipment) return;
+    const currentValue = getCharAffixSum(character, affixType);
+    const delta = currentValue * (multiplier - 1);
+    if (delta <= 0) return;
+    patches.push({
+      character,
+      hadPrevious: Object.hasOwn(character.equipment, SIM_COUNTERMEASURE_EFFECT_SLOT),
+      previous: character.equipment[SIM_COUNTERMEASURE_EFFECT_SLOT]
+    });
+    character.equipment[SIM_COUNTERMEASURE_EFFECT_SLOT] = {
+      baseId: SIM_COUNTERMEASURE_EFFECT_SLOT,
+      identified: true,
+      simOnly: true,
+      affixes: [{ id: affixType, type: affixType, kind: "support", value: delta }]
+    };
+  });
+  return patches;
+}
+
+function restoreCountermeasureScale(patches) {
+  patches.forEach(({ character, hadPrevious, previous }) => {
+    if (hadPrevious) character.equipment[SIM_COUNTERMEASURE_EFFECT_SLOT] = previous;
+    else delete character.equipment[SIM_COUNTERMEASURE_EFFECT_SLOT];
+  });
+}
+
+function removeCountermeasureScale(state) {
+  state?.party?.forEach(character => {
+    if (character?.equipment?.[SIM_COUNTERMEASURE_EFFECT_SLOT]?.simOnly) {
+      delete character.equipment[SIM_COUNTERMEASURE_EFFECT_SLOT];
+    }
+  });
+}
+
+function applyThreatOverride(monsters, floor, override, encounter = {}) {
+  if (!override || floor < (Number(override.startFloor) || 3)) return;
+  if (override.normalOnly && (encounter.isBoss || encounter.isMidboss || encounter.isElite)) return;
+  const atkMultiplier = Number(override.atkMultiplier);
+  if (Number.isFinite(atkMultiplier) && atkMultiplier > 0) {
+    monsters.forEach(monster => {
+      monster.atk = Math.max(1, Math.round(monster.atk * atkMultiplier));
+    });
+  }
+  if (override.forcePoison) {
+    monsters.forEach(monster => {
+      monster.isPoisonous = true;
+      monster.statusChance = Number.isFinite(override.statusChance)
+        ? Math.max(0, Math.min(1, override.statusChance))
+        : 1;
+    });
+  }
+  if (override.forceSpell) {
+    monsters.forEach(monster => {
+      monster.spell = override.spellName || "HALITO";
+      monster.spellChance = Number.isFinite(override.spellChance)
+        ? Math.max(0, Math.min(1, override.spellChance))
+        : 1;
+    });
+  }
+}
+
 function runEncounter(
   state,
   observations,
@@ -2371,6 +2468,9 @@ function runEncounter(
     retreatCoord = null
   } = {}
 ) {
+  const diagnosticLevel = metrics?.diagnosticLevel || "full";
+  const fullDiagnostics = diagnosticLevel === "full";
+  const compactDiagnostics = diagnosticLevel === "compact";
   const { monsters } = generateEncounter(
     state,
     isBoss,
@@ -2429,6 +2529,11 @@ function runEncounter(
       state.simPolicy.statusScalingOverride
     );
   }
+  applyThreatOverride(monsters, state.floor, state.simPolicy.threatOverride, {
+    isBoss,
+    isMidboss,
+    isElite
+  });
   recordEncounterGroups(metrics, state.floor, monsters);
   monsters.forEach(monster => {
     const baseName = monster.name.replace(/\s[A-Z]$/, "");
@@ -2474,8 +2579,9 @@ function runEncounter(
     maxIncomingHit: 0,
     maxIncomingHitRate: 0
   };
-  const encounterDiagnostic = diagnostics
-    ? {
+  const encounterDiagnostic = diagnostics && (fullDiagnostics || compactDiagnostics)
+    ? (fullDiagnostics
+      ? {
         floor: state.floor,
         type: encounterType,
         monsters: monsters.map(monster => ({
@@ -2505,21 +2611,33 @@ function runEncounter(
         startBuild: startBuild ? structuredClone(startBuild) : null,
         rounds: []
       }
+      : {
+          floor: state.floor,
+          type: encounterType,
+          monsters: monsters.map(monster => ({
+            tags: [...(monster.tags || [])],
+            statusCapable: isStatusCapableMonster(monster)
+          })),
+          rounds: []
+        }
+    )
     : null;
   const finishEncounter = (result, rounds, healPotionsUsed) => {
     if (encounterDiagnostic) {
       encounterDiagnostic.result = result;
-      encounterDiagnostic.endHp = state.party[0].hp;
-      encounterDiagnostic.endMp = state.party[0].mp;
-      encounterDiagnostic.endStatus = state.party[0].status;
-      encounterDiagnostic.endHealPotions =
-        state.inventory.filter(item => item === "HEAL_POTION").length;
-      encounterDiagnostic.endStatusCures = countInventoryItems(state.inventory);
-      encounterDiagnostic.endEnemyHp = state.combatState.monsters.map(monster => ({
-        name: monster.name,
-        hp: monster.hp,
-        maxHp: monster.maxHp
-      }));
+      if (fullDiagnostics) {
+        encounterDiagnostic.endHp = state.party[0].hp;
+        encounterDiagnostic.endMp = state.party[0].mp;
+        encounterDiagnostic.endStatus = state.party[0].status;
+        encounterDiagnostic.endHealPotions =
+          state.inventory.filter(item => item === "HEAL_POTION").length;
+        encounterDiagnostic.endStatusCures = countInventoryItems(state.inventory);
+        encounterDiagnostic.endEnemyHp = state.combatState.monsters.map(monster => ({
+          name: monster.name,
+          hp: monster.hp,
+          maxHp: monster.maxHp
+        }));
+      }
       diagnostics.encounters.push(encounterDiagnostic);
     }
     return {
@@ -2577,6 +2695,36 @@ function runEncounter(
     const raceEffectPatches = raceEffectActive
       ? applyRaceEffectScale(state, raceBiasOverride)
       : [];
+    const raceAffixValueAfter = raceEffectActive
+      ? getCharAffixSum(state.party[0], raceBiasOverride?.affixType)
+      : 0;
+    const countermeasureOverride = state.simPolicy.countermeasureOverride;
+    const countermeasureActive = Boolean(
+      countermeasureOverride?.affixType &&
+      state.floor >= (Number(countermeasureOverride.startFloor) || 3)
+    );
+    const countermeasureAffixValueBefore = countermeasureActive
+      ? getCharAffixSum(state.party[0], countermeasureOverride.affixType)
+      : 0;
+    const countermeasurePatches = countermeasureActive
+      ? applyCountermeasureScale(state, countermeasureOverride)
+      : [];
+    const countermeasureAffixValueAfter = countermeasureActive
+      ? getCharAffixSum(state.party[0], countermeasureOverride.affixType)
+      : 0;
+    const targetedDamageProbe = SIM_DAMAGE_PROBE_ENABLED &&
+      raceTargeted && raceEffectActive && raceBiasOverride?.affixType === "antiUndead"
+      && raceBiasOverride?.damageProbe
+      ? {
+          affixValueAfter: raceAffixValueAfter,
+          matchLines: [56],
+          calls: []
+        }
+      : null;
+    const previousTargetedDamageProbe = globalThis.__simTargetedDamageProbe;
+    if (targetedDamageProbe) {
+      globalThis.__simTargetedDamageProbe = targetedDamageProbe;
+    }
     const targetBeforeRound = action.targetIdx === undefined
       ? null
       : structuredClone(state.combatState.monsters[action.targetIdx]);
@@ -2603,7 +2751,7 @@ function runEncounter(
       : 0;
     const identifyTicketsBeforeRound = state.identifyTickets || 0;
     const itemsFoundBeforeRound = state.currentRun.itemsFound.length;
-    const diagnosticCureCountsBefore = encounterDiagnostic
+    const diagnosticCureCountsBefore = encounterDiagnostic && fullDiagnostics
       ? countInventoryItems(state.inventory)
       : null;
     let roundResult;
@@ -2613,9 +2761,14 @@ function runEncounter(
       });
     } finally {
       Math.random = simulationRandom;
+      if (targetedDamageProbe) {
+        globalThis.__simTargetedDamageProbe = previousTargetedDamageProbe;
+      }
+      restoreCountermeasureScale(countermeasurePatches);
       restoreRaceEffectScale(raceEffectPatches);
     }
     removeRaceEffectScale(roundResult?.state);
+    removeCountermeasureScale(roundResult?.state);
     const characterSpeed =
       getCharAgi(character) +
       getBuffTotal(character, "agi") +
@@ -2689,29 +2842,51 @@ function runEncounter(
         targetIdx: action.targetIdx ?? null,
         raceTargeted,
         raceAffixValueBefore,
-        hpBefore: characterBeforeRound.hp,
-        hpAfter: state.party[0].hp,
-        maxHp: getCharMaxHp(characterBeforeRound),
-        rawMaxHp: characterBeforeRound.maxHp,
-        mpBefore: characterBeforeRound.mp,
-        mpAfter: state.party[0].mp,
-        statusBefore: characterBeforeRound.status,
-        statusAfter: state.party[0].status,
-        healPotionsBefore: potionCountBefore,
-        healPotionsAfter: potionCountAfter,
+        raceAffixValueAfter,
+        raceDamageApplications: targetedDamageProbe?.calls.length || 0,
+        raceDamageBeforeBonus: targetedDamageProbe
+          ? targetedDamageProbe.calls.reduce((sum, call) => sum + call.beforeBonus, 0)
+          : 0,
+        raceDamageCounterfactual: targetedDamageProbe
+          ? targetedDamageProbe.calls.reduce((sum, call) => sum + call.counterfactual, 0)
+          : 0,
+        raceDamageApplied: targetedDamageProbe
+          ? targetedDamageProbe.calls.reduce((sum, call) => sum + call.applied, 0)
+          : 0,
+        raceDamageRatios: targetedDamageProbe
+          ? targetedDamageProbe.calls.map(call => call.ratio)
+          : [],
+        countermeasureAffixType: countermeasureActive
+          ? countermeasureOverride.affixType
+          : null,
+        countermeasureMultiplier: countermeasureActive
+          ? Number(countermeasureOverride.multiplier) || 1
+          : 1,
+        countermeasureAffixValueBefore,
+        countermeasureAffixValueAfter,
+        hpBefore: fullDiagnostics ? characterBeforeRound.hp : undefined,
+        hpAfter: fullDiagnostics ? state.party[0].hp : undefined,
+        maxHp: fullDiagnostics ? getCharMaxHp(characterBeforeRound) : undefined,
+        rawMaxHp: fullDiagnostics ? characterBeforeRound.maxHp : undefined,
+        mpBefore: fullDiagnostics ? characterBeforeRound.mp : undefined,
+        mpAfter: fullDiagnostics ? state.party[0].mp : undefined,
+        statusBefore: fullDiagnostics ? characterBeforeRound.status : undefined,
+        statusAfter: fullDiagnostics ? state.party[0].status : undefined,
+        healPotionsBefore: fullDiagnostics ? potionCountBefore : undefined,
+        healPotionsAfter: fullDiagnostics ? potionCountAfter : undefined,
         statusCuresBefore: diagnosticCureCountsBefore,
-        statusCuresAfter: countInventoryItems(state.inventory),
-        enemiesBefore: monstersBeforeRound.map(monster => ({
+        statusCuresAfter: fullDiagnostics ? countInventoryItems(state.inventory) : undefined,
+        enemiesBefore: fullDiagnostics ? monstersBeforeRound.map(monster => ({
           name: monster.name,
           hp: monster.hp,
           maxHp: monster.maxHp
-        })),
-        enemiesAfter: state.combatState.monsters.map(monster => ({
+        })) : undefined,
+        enemiesAfter: fullDiagnostics ? state.combatState.monsters.map(monster => ({
           name: monster.name,
           hp: monster.hp,
           maxHp: monster.maxHp
-        })),
-        log: roundResult.logQueue.map(entry => entry.msg || "")
+        })) : undefined,
+        log: fullDiagnostics ? roundResult.logQueue.map(entry => entry.msg || "") : []
       });
     }
     const incomingDamage = sumLoggedIncomingDamage(
@@ -3503,6 +3678,7 @@ function createBuildSnapshot(state, scoringProfile, point) {
         "spellGuard",
         "poisonWard",
         "statusResistance",
+        "frontGuard",
         "antiBeast",
         "antiSpirit",
         "antiUndead",
@@ -4842,7 +5018,7 @@ function finishRun(state, outcome, metrics) {
       .filter(Boolean)
   )];
   const finalCoreId = finalCoreIds[0] || null;
-  if (metrics.diagnostics) {
+  if (metrics.diagnostics && metrics.diagnosticLevel === "full") {
     metrics.diagnostics.finalBuild = createBuildSnapshot(
       state,
       metrics.scoringProfile,
@@ -5059,6 +5235,7 @@ export function simulateRun({
   collectEquipmentTelemetry = false
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
+  const diagnosticLevel = scenario?.simDiagnosticLevel || "full";
   let state = createSimulationState(className, startFloor, runSeed, scenario, workshop);
   if (CORE_WORKSHOP_GATE_MODE === "off") {
     state.party[0].unlockedAffixIds = [...ALL_CORE_AFFIX_IDS];
@@ -5242,7 +5419,8 @@ export function simulateRun({
     eliteAvoidDetourSteps: 0,
     eliteAvoidNoRouteFloors: 0,
     bossPolicy: scenario.bossPolicy || "engage",
-    collectSpecialBattles: collectDiagnostics,
+    diagnosticLevel,
+    collectSpecialBattles: collectDiagnostics && diagnosticLevel === "full",
     specialCellsDetected: { boss: 0, midboss: 0 },
     specialRouteFloors: [],
     specialBattles: [],
@@ -5272,6 +5450,7 @@ export function simulateRun({
     scoringProfile,
     diagnostics: collectDiagnostics
       ? {
+          level: diagnosticLevel,
           buildSnapshots: [],
           encounters: [],
           deathLogs: [],
