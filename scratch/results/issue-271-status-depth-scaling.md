@@ -9,7 +9,7 @@ Phase 2a は sim override のみ。`src/` は変更していない。主判定�
 
 ## 天井判定
 
-天井でも、statusResistance / poisonWard 有群−両方なし群の職内centered endpoint差は全セルで95% CIが0を跨いだ。耐性の効果が無いと確定したのではなく、この天井条件でも質依存化を観測できなかったため、weak / medium / strong の掃引は打ち切る。
+天井でも、statusResistance / poisonWard 有群−両方なし群の職内centered endpoint差（深層到達floorを含む）は全セルで95% CIが0を跨いだ。耐性の効果が無いと確定したのではなく、この天井条件でも質依存化を観測できなかったため、weak / medium / strong の掃引は打ち切る。
 
 ## 測定条件
 
@@ -239,7 +239,7 @@ exact matching（core + #445対応support）を同じ職内centered差で再集�
 
 ## PR #445 baselineとの対比
 
-PR #445はbase/core-poolsのexact matching 9.5% [7.2,12.4]、職内差は突破 +8.5pp [-5.2,+22.2]、死亡 +1.4pp [-12.7,+15.4]、到達floor +6.6pp [-46.3,+59.4]で、いずれもCIが0を跨いだ。上の再集計表で、status条件によりこの対照差が動いたかを確認する。support供給やslotの上界条件は追加しない。
+PR #445はbase/core-poolsのexact matching 9.5% [7.2,12.4]、職内差は突破 +8.5pp [-5.2,+22.2]、死亡 +1.4pp [-12.7,+15.4]、到達floor +6.6pp [-46.3,+59.4]で、いずれもCIが0を跨いだ。上の再集計表で、status条件によりこの対照差が動いたかを確認する。support供給やslotの上界条件は追加しない。B5突破/死亡はB6開始のstatus overrideより前の記述的対照で、statusの因果判定は深層到達floor・状態診断を中心に読む。
 
 ## 出力監査
 
