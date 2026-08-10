@@ -830,7 +830,7 @@ import { createSoloCharacter } from "../src/state.js";
       vit: 2,
       agi: 2,
       luk: 2,
-      trapBonus: 10,
+      trapBonus: 15,
       spellGuard: 15,
       antiDragon: 15,
       antiUndead: 15,

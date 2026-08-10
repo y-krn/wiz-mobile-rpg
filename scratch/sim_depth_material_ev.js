@@ -1854,6 +1854,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       trapAvoidancePolicy:
         scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
       trapOverride: scenario.trapOverride || null,
+      trapBonusValueOverride: scenario.trapBonusValueOverride || null,
       bossOverride: scenario.bossOverride || null,
       forcedBossAffixes: scenario.forcedBossAffixes || null,
       statusScalingOverride: scenario.statusScalingOverride || null,
@@ -3521,9 +3522,39 @@ function applySupportSupplyCeiling(item) {
   return item;
 }
 
-function applyEquipmentPostGenerationTransforms(items) {
+function applyTrapBonusValueOverride(items, floor, override) {
+  if (!override || !Number.isFinite(Number(floor))) return items;
+  const depth = Math.max(1, Math.floor(Number(floor)));
+  return items.map(item => {
+    if (!item || typeof item !== "object" || !Array.isArray(item.affixes)) {
+      return item;
+    }
+    const itemData = getItemData(item);
+    const group = itemData?.type === "accessory" ? "accessory" : "equipment";
+    const values = override[group];
+    if (!Array.isArray(values)) return item;
+    const band = group === "accessory"
+      ? (depth >= 4 ? 1 : 0)
+      : (depth >= 5 ? 2 : (depth >= 3 ? 1 : 0));
+    const value = Number(values[band]);
+    if (!Number.isFinite(value) || value < 0) return item;
+    item.affixes = item.affixes.map(affix =>
+      (affix.id || affix.type) === "trapBonus"
+        ? { ...affix, value }
+        : affix
+    );
+    return item;
+  });
+}
+
+function applyEquipmentPostGenerationTransforms(items, state = null) {
+  const valueAdjusted = applyTrapBonusValueOverride(
+    items,
+    state?.floor,
+    state?.simPolicy?.trapBonusValueOverride
+  );
   return applySupportSupplyCeilingToItems(
-    applyCoreEncounterCeilingToItems(items)
+    applyCoreEncounterCeilingToItems(valueAdjusted)
   );
 }
 
@@ -4824,16 +4855,20 @@ function resolveChestTrapForSimulation(
   if (kitIndex >= 0) {
     state.inventory.splice(kitIndex, 1);
     recordTrapKitConsumption(state, metrics);
+    metrics.chestDisarmAttempts++;
+    metrics.chestDisarmSuccesses++;
     metrics.trapDisarmAttempts++;
     metrics.trapDisarmSuccesses++;
     return { mainItemLost: false };
   }
 
   if (chance >= CHEST_DISARM_POLICY_MIN_CHANCE) {
+    metrics.chestDisarmAttempts++;
     metrics.trapDisarmAttempts++;
     if (Math.random() < chance) {
       state.currentRun.trapsDisarmed++;
       metrics.trapDisarms++;
+      metrics.chestDisarmSuccesses++;
       metrics.trapDisarmSuccesses++;
       const previousTrapBonus = character.runTrapAttackBonus || 0;
       const trapEater = getCharCoreParams(character, "CORE_TRAP_EATER");
@@ -5367,6 +5402,9 @@ function finishRun(state, outcome, metrics) {
     trapActivationsByType: { ...metrics.trapActivationsByType },
     trapEncounterCount: metrics.trapEncounterCount,
     trapEncounterBySource: { ...metrics.trapEncounterBySource },
+    chestsOpened: metrics.chestsOpened,
+    chestDisarmAttempts: metrics.chestDisarmAttempts,
+    chestDisarmSuccesses: metrics.chestDisarmSuccesses,
     trapDamageHp: metrics.trapDamageHp,
     trapDamageHpBySource: { ...metrics.trapDamageHpBySource },
     trapDamageHpByType: { ...metrics.trapDamageHpByType },
@@ -5582,6 +5620,9 @@ export function simulateRun({
     trapActivationsByType: {},
     trapEncounterCount: 0,
     trapEncounterBySource: { chest: 0, floor: 0 },
+    chestsOpened: 0,
+    chestDisarmAttempts: 0,
+    chestDisarmSuccesses: 0,
     trapDamageHp: 0,
     trapDamageHpBySource: { chest: 0, floor: 0 },
     trapDamageHpByType: {},
@@ -5828,6 +5869,7 @@ export function simulateRun({
 
       const pickedUpChests = chestSchedule.get(step) || 0;
       for (let chest = 0; chest < pickedUpChests; chest++) {
+        metrics.chestsOpened++;
         const tombRaider = getCharCoreParams(state.party[0], "CORE_TOMB_RAIDER");
         const chestMaterials = generateChestMaterials(
           floor,
@@ -5857,7 +5899,7 @@ export function simulateRun({
           supplyOverride,
           metrics
         );
-        chestItems.items = applyEquipmentPostGenerationTransforms(chestItems.items);
+        chestItems.items = applyEquipmentPostGenerationTransforms(chestItems.items, state);
         const cureCountsBeforeChest = countInventoryItems(state.inventory);
         const acquiredEquipment = [];
         recordEquipmentGenerations(metrics, chestItems.items);
@@ -6172,7 +6214,8 @@ export function simulateRun({
             overriddenCombatEquipment.push(extraCombatEquipment);
           }
           const ceilingCombatEquipment = applyEquipmentPostGenerationTransforms(
-            overriddenCombatEquipment
+            overriddenCombatEquipment,
+            state
           );
           state.currentRun.equipmentFound.splice(
             equipmentFoundBeforeRewards,
