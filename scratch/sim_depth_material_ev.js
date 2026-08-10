@@ -113,12 +113,15 @@ function getRunFloor(args) {
 const {
   CHEST_ACCESSORY_CORE_MIN_FLOOR,
   CHEST_EQUIPMENT_CORE_MIN_FLOOR,
+  calculateChestMainItemExpectedValue,
+  calculateChestMainItemForcedLossRate,
   rollChestAccessory,
   rollChestReward,
   rollChestTrap
 } = await import("../src/rules/chest_rules.js");
 const {
   calculateChestDisarmChance,
+  calculateChestDisarmActionEv,
   calculateChestDisarmEvThreshold,
   calculateDetectRate,
   calculateFloorDisarmEvThreshold,
@@ -129,6 +132,7 @@ const {
   resolveTrapAction
 } = await import("../src/rules/trap_rules.js");
 const {
+  calculateChestTrapExpectedRisk,
   calculateFloorTrapExpectedDamage,
   hasTrapScout,
   resolveChestTrapEffect,
@@ -722,6 +726,7 @@ const DEFAULT_HEAL_POTION_MERCHANT_POLICY =
   SIM_ENV.HEAL_POTION_MERCHANT_POLICY === "never" ? "never" : "missing";
 const DEFAULT_ELITE_POLICY = SIM_ENV.ELITE_POLICY === "engage" ? "engage" : "avoid";
 const LEGACY_FLOOR_DISARM_MIN_RATE = 50;
+const LEGACY_CHEST_DISARM_MIN_CHANCE = 0.50;
 const TRAP_POLICY_DEFINITIONS = Object.freeze({
   disabled: Object.freeze({
     id: "disabled",
@@ -734,7 +739,7 @@ const TRAP_POLICY_DEFINITIONS = Object.freeze({
   }),
   conservative: Object.freeze({
     id: "conservative",
-    label: "EV分岐（キット優先・回避費用評価）"
+    label: "EV分岐（床罠・宝箱、キット温存価値を含む）"
   })
 });
 export const DEFAULT_TRAP_POLICY_ID = SIM_ENV.TRAP_POLICY || "conservative";
@@ -787,7 +792,7 @@ if (!Number.isFinite(TRAP_DAMAGE_MULTIPLIER) || TRAP_DAMAGE_MULTIPLIER < 0) {
     `TRAP_DAMAGE_MULTIPLIER must be a non-negative number: ${trapDamageMultiplierInput}`
   );
 }
-const CHEST_DISARM_POLICY_MIN_CHANCE = calculateChestDisarmEvThreshold();
+const CHEST_DISARM_REPRESENTATIVE_THRESHOLD = calculateChestDisarmEvThreshold();
 // 仮値・感度分析対象: 危険域で傷薬が尽きていれば帰還の翼を使う。
 const PORTAL_HP_THRESHOLD = Number(SIM_ENV.PORTAL_HP_THRESHOLD || 0.35);
 const PORTAL_MAX_HEAL_POTIONS = Math.max(
@@ -4909,7 +4914,8 @@ function resolveChestTrapForSimulation(
   trap,
   mainItem,
   observations,
-  metrics
+  metrics,
+  { futureChestCount = 0 } = {}
 ) {
   const character = state.party[0];
   metrics.trapEncounterCount++;
@@ -4929,8 +4935,34 @@ function resolveChestTrapForSimulation(
     return { mainItemLost: false };
   }
 
+  const kitCount = state.inventory.filter(item => item === "TRAP_KIT").length;
   const kitIndex = state.inventory.indexOf("TRAP_KIT");
-  if (kitIndex >= 0) {
+  const action = state.simPolicy.trapPolicy === "legacy"
+    ? (kitIndex >= 0
+      ? "kit"
+      : (chance >= LEGACY_CHEST_DISARM_MIN_CHANCE ? "direct" : "force"))
+    : calculateChestDisarmActionEv({
+      successRate: chance,
+      fullRisk: calculateChestTrapExpectedRisk({
+        trap,
+        party: state.party,
+        targetIndex: Math.max(0, state.party.indexOf(character)),
+        poisonWard: getCharAffixSum(character, "poisonWard")
+      }).risk,
+      weakenedRisk: calculateChestTrapExpectedRisk({
+        trap,
+        weakened: true,
+        party: state.party,
+        targetIndex: Math.max(0, state.party.indexOf(character)),
+        poisonWard: getCharAffixSum(character, "poisonWard")
+      }).risk,
+      contentValue: calculateChestMainItemExpectedValue(mainItem),
+      forcedContentLossRate: calculateChestMainItemForcedLossRate(mainItem),
+      kitCount,
+      futureChestCount
+    }).action;
+
+  if (action === "kit" && kitIndex >= 0) {
     state.inventory.splice(kitIndex, 1);
     recordTrapKitConsumption(state, metrics);
     metrics.chestDisarmAttempts++;
@@ -4943,7 +4975,7 @@ function resolveChestTrapForSimulation(
     return { mainItemLost: false };
   }
 
-  if (chance >= CHEST_DISARM_POLICY_MIN_CHANCE) {
+  if (action === "direct") {
     metrics.chestDisarmAttempts++;
     metrics.chestDisarmAttemptsByFloor[floor]++;
     metrics.chestDisarmDirectAttemptsByFloor[floor]++;
@@ -4983,8 +5015,8 @@ function resolveChestTrapForSimulation(
   metrics.chestForcedByFloor[floor]++;
   state.currentRun.trapsTriggered++;
   applyChestTrapEffect(state, trap, true, metrics);
-  const itemData = getItemData(mainItem);
-  const mainItemLost = itemData?.type === "usable" && Math.random() < 0.30;
+  const mainItemLossRate = calculateChestMainItemForcedLossRate(mainItem);
+  const mainItemLost = mainItemLossRate > 0 && Math.random() < mainItemLossRate;
   return { mainItemLost };
 }
 
@@ -4997,7 +5029,8 @@ function rollChestItems(
   observations,
   scenario,
   supplyOverride = null,
-  metrics = null
+  metrics = null,
+  { futureChestCount = 0 } = {}
 ) {
   const trap = rollChestTrap(floor, rng);
   maybeAcquireChestIdentificationPowder(state, metrics, rng);
@@ -5051,7 +5084,8 @@ function rollChestItems(
       trap,
       item,
       observations,
-      metrics
+      metrics,
+      { futureChestCount }
     );
   return {
     items,
@@ -5998,7 +6032,12 @@ export function simulateRun({
           metrics.coreObservations,
           scenario,
           supplyOverride,
-          metrics
+          metrics,
+          {
+            // 次の階の宝箱はまだ生成していないため、機会費用へ数字を
+            // 作らず、現在 floor で既知の次 chest だけを見る。
+            futureChestCount: Math.max(0, pickedUpChests - chest - 1)
+          }
         );
         chestItems.items = applyEquipmentPostGenerationTransforms(chestItems.items, state);
         const cureCountsBeforeChest = countInventoryItems(state.inventory);
@@ -8032,7 +8071,7 @@ console.log(
   `罠解除EV閾値: 床非pitfall scoutなし=${calculateFloorDisarmEvThreshold({ trapType: "damage" }).toFixed(2)}%, ` +
   `scoutあり=${calculateFloorDisarmEvThreshold({ trapType: "damage", scoutMitigated: true }).toFixed(2)}%, ` +
   `pitfall=${calculateFloorDisarmEvThreshold({ trapType: "pitfall" }).toFixed(2)}%, ` +
-  `宝箱代表=${(CHEST_DISARM_POLICY_MIN_CHANCE * 100).toFixed(2)}%`
+  `宝箱代表閾値=${(CHEST_DISARM_REPRESENTATIVE_THRESHOLD * 100).toFixed(2)}%（実判定はtrap/effect/content/kitのEV）`
 );
 console.log(
   `trapBonus測定値: ${TRAP_BONUS_OVERRIDE_PERCENT === null

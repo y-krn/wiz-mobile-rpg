@@ -24,6 +24,10 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, value));
 }
 
+function clampUnit(value) {
+  return Math.max(0, Math.min(1, Number(value) || 0));
+}
+
 // 解除と強行の期待被害を等しくするsuccessRate。trap_effect_rules.jsの
 // scout条件とpartial bandを入力へ反映し、sim側の閾値写経を防ぐ。
 export function calculateFloorDisarmEvThreshold({
@@ -99,12 +103,65 @@ export function calculateFloorTrapAvoidanceEv({
 // gasの期待ダメージ、teleporter、usableの30%破損は別効用のため個別閾値でない。
 export function calculateChestDisarmEvThreshold({
   fullRiskMultiplier = 1,
-  weakenedRiskMultiplier = CHEST_WEAKENED_RISK_MULTIPLIER
+  weakenedRiskMultiplier = CHEST_WEAKENED_RISK_MULTIPLIER,
+  contentValue = 0,
+  forcedContentLossRate = 0
 } = {}) {
   const fullRisk = Math.max(0, Number(fullRiskMultiplier));
   const weakenedRisk = Math.max(0, Number(weakenedRiskMultiplier));
+  const contentLoss = Math.max(0, Number(contentValue) || 0) *
+    clampUnit(forcedContentLossRate);
   if (fullRisk <= 0) return 0;
-  return Math.max(0, Math.min(1, 1 - weakenedRisk / fullRisk));
+  return clampUnit(1 - (weakenedRisk + contentLoss) / fullRisk);
+}
+
+// 宝箱のdirect/force/kitを同一の近似リスク単位で比較する。
+// fullRisk/weakenedRiskはtrap_effect_rules.jsの純関数から渡す。item品質、状態異常時間、
+// teleporterの追加歩数を素材やHPへ換算する共通ルールはないため、呼び出し側で数字を作らない。
+// kitの将来価値は、未来chest数と現在chestの最良non-kit損失を1段先の近似として使う。
+export function calculateChestDisarmActionEv({
+  successRate = 0,
+  fullRisk = 1,
+  weakenedRisk = CHEST_WEAKENED_RISK_MULTIPLIER,
+  contentValue = 0,
+  forcedContentLossRate = 0,
+  kitCount = 0,
+  futureChestCount = 0
+} = {}) {
+  const chance = clampUnit(successRate);
+  const full = Math.max(0, Number(fullRisk) || 0);
+  const weakened = Math.max(0, Number(weakenedRisk) || 0);
+  const content = Math.max(0, Number(contentValue) || 0);
+  const contentLoss = content * clampUnit(forcedContentLossRate);
+  const directExpectedLoss = (1 - chance) * full;
+  const forceExpectedLoss = weakened + contentLoss;
+  const nonKitAction = directExpectedLoss <= forceExpectedLoss ? "direct" : "force";
+  const nonKitExpectedLoss = Math.min(directExpectedLoss, forceExpectedLoss);
+  const kits = Math.max(0, Math.floor(Number(kitCount) || 0));
+  const futureChests = Math.max(0, Math.floor(Number(futureChestCount) || 0));
+  const kitReservedForFuture = kits > 0 && futureChests > 0 && kits <= futureChests;
+  const kitOpportunityCost = kitReservedForFuture ? nonKitExpectedLoss : 0;
+  const kitExpectedLoss = kits > 0 ? kitOpportunityCost : Infinity;
+  const action = kits > 0 && kitExpectedLoss < nonKitExpectedLoss
+    ? "kit"
+    : nonKitAction;
+
+  return {
+    action,
+    nonKitAction,
+    threshold: calculateChestDisarmEvThreshold({
+      fullRiskMultiplier: full,
+      weakenedRiskMultiplier: weakened,
+      contentValue: content,
+      forcedContentLossRate
+    }),
+    directExpectedLoss,
+    forceExpectedLoss,
+    nonKitExpectedLoss,
+    kitExpectedLoss,
+    kitOpportunityCost,
+    kitReservedForFuture
+  };
 }
 
 export function isDisarmAptClass(className) {

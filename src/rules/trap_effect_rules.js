@@ -3,6 +3,15 @@ import {
   SCOUT_TRAP_DAMAGE_MULTIPLIER
 } from "./trap_rules.js";
 
+const CHEST_POISON_NEEDLE_DAMAGE = Object.freeze({ full: 12, weakened: 6 });
+const CHEST_GAS_BOMB_RANGE = Object.freeze({
+  full: Object.freeze({ min: 5, range: 8 }),
+  weakened: Object.freeze({ min: 2, range: 5 })
+});
+const CHEST_POISON_WEAKENED_TRIGGER_CHANCE = 0.50;
+const CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE = 0.50;
+const CHEST_FLASH_BLIND_CHANCE = Object.freeze({ full: 0.60, weakened: 0.30 });
+
 export function hasTrapScout(party = []) {
   return party.some(char => ["Thief", "Ninja"].includes(char?.class) && char?.hp > 0);
 }
@@ -28,31 +37,111 @@ export function resolveChestTrapEffect({
 
   if (trap === "poison needle") {
     const target = party[targetIndex] || party[0];
-    effect.targetDamage = weakened ? 6 : 12;
-    effect.targetPoisonTriggered = !weakened || rng() < 0.50;
+    effect.targetDamage = CHEST_POISON_NEEDLE_DAMAGE[weakened ? "weakened" : "full"];
+    effect.targetPoisonTriggered = !weakened ||
+      rng() < CHEST_POISON_WEAKENED_TRIGGER_CHANCE;
     const hpAfter = Math.max(0, (target?.hp || 0) - effect.targetDamage);
     effect.targetPoisonResisted = hpAfter > 0 && effect.targetPoisonTriggered &&
       poisonWard > 0 && rng() * 100 < poisonWard;
   } else if (trap === "gas bomb") {
-    const min = weakened ? 2 : 5;
-    const range = weakened ? 5 : 8;
+    const rangeData = CHEST_GAS_BOMB_RANGE[weakened ? "weakened" : "full"];
+    const { min, range } = rangeData;
     effect.partyDamage = party.map(char => {
       if (char?.status === "dead") return 0;
       return Math.floor(rng() * range) + min;
     });
   } else if (trap === "teleporter") {
-    if (weakened && rng() < 0.50) {
+    if (weakened && rng() < CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE) {
       effect.teleporterFailed = true;
     } else {
       effect.teleported = true;
     }
   } else if (trap === "flash bomb") {
-    const blindChance = weakened ? 0.30 : 0.60;
+    const blindChance = CHEST_FLASH_BLIND_CHANCE[weakened ? "weakened" : "full"];
     effect.partyBlind = party.map(char =>
       char?.status === "ok" && rng() < blindChance
     );
   }
 
+  return effect;
+}
+
+function isLivingCharacter(char) {
+  return char?.status !== "dead" && Number(char?.hp) > 0;
+}
+
+function uniformAtLeastProbability(min, range, hp) {
+  const max = min + range - 1;
+  if (hp <= min) return 1;
+  if (hp > max) return 0;
+  return (max - hp + 1) / range;
+}
+
+// 宝箱罠効果を乱数消費なしで期待値化する。riskは異種効果を共通通貨へ
+// 換算できないため、HP割合・致死・各状態/転送確率の最大成分を採用する保守近似。
+export function calculateChestTrapExpectedRisk({
+  trap,
+  weakened = false,
+  party = [],
+  targetIndex = 0,
+  poisonWard = 0
+} = {}) {
+  const effect = {
+    trap,
+    expectedDamageHp: 0,
+    poisonProbability: 0,
+    blindProbability: 0,
+    teleportProbability: 0,
+    fatalityProbability: 0,
+    partyMaxHp: 0,
+    risk: 0
+  };
+  const living = party.filter(isLivingCharacter);
+  effect.partyMaxHp = living.reduce(
+    (sum, char) => sum + Math.max(0, Number(char.maxHp) || Number(char.hp) || 0),
+    0
+  );
+
+  if (trap === "poison needle") {
+    const target = party[targetIndex] || party[0];
+    if (isLivingCharacter(target)) {
+      const damage = CHEST_POISON_NEEDLE_DAMAGE[weakened ? "weakened" : "full"];
+      const hpAfter = Math.max(0, target.hp - damage);
+      effect.expectedDamageHp = damage;
+      effect.poisonProbability = hpAfter > 0
+        ? (weakened ? CHEST_POISON_WEAKENED_TRIGGER_CHANCE : 1) *
+          (1 - Math.max(0, Math.min(100, Number(poisonWard) || 0)) / 100)
+        : 0;
+      effect.fatalityProbability = hpAfter <= 0 && living.length === 1 ? 1 : 0;
+    }
+  } else if (trap === "gas bomb") {
+    const { min, range } = CHEST_GAS_BOMB_RANGE[weakened ? "weakened" : "full"];
+    const expectedDamage = min + (range - 1) / 2;
+    effect.expectedDamageHp = living.length * expectedDamage;
+    effect.fatalityProbability = living.reduce(
+      (probability, char) => probability * uniformAtLeastProbability(min, range, char.hp),
+      living.length > 0 ? 1 : 0
+    );
+  } else if (trap === "teleporter") {
+    effect.teleportProbability = weakened
+      ? 1 - CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE
+      : 1;
+  } else if (trap === "flash bomb") {
+    const eligible = party.filter(char => char?.status === "ok" && isLivingCharacter(char));
+    const blindChance = CHEST_FLASH_BLIND_CHANCE[weakened ? "weakened" : "full"];
+    effect.blindProbability = 1 - Math.pow(1 - blindChance, eligible.length);
+  }
+
+  const damageRisk = effect.partyMaxHp > 0
+    ? effect.expectedDamageHp / effect.partyMaxHp
+    : 0;
+  effect.risk = Math.min(1, Math.max(
+    damageRisk,
+    effect.poisonProbability,
+    effect.blindProbability,
+    effect.teleportProbability,
+    effect.fatalityProbability
+  ));
   return effect;
 }
 

@@ -4,6 +4,7 @@ import {
   resolveTrapAction
 } from "../src/rules/trap_rules.js";
 import {
+  calculateChestTrapExpectedRisk,
   calculateFloorTrapExpectedDamage,
   resolveChestTrapEffect,
   resolveFloorTrapEffect
@@ -97,6 +98,23 @@ check(
   "expected damage follows scout mitigation",
   expectedThiefDamage,
   8
+);
+check(
+  "expected full gas risk uses source range",
+  calculateChestTrapExpectedRisk({
+    trap: "gas bomb",
+    party: [soloFighter]
+  }).expectedDamageHp,
+  8.5
+);
+check(
+  "expected weakened gas risk uses source range",
+  calculateChestTrapExpectedRisk({
+    trap: "gas bomb",
+    weakened: true,
+    party: [soloFighter]
+  }).expectedDamageHp,
+  4
 );
 
 check(
