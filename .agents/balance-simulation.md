@@ -208,6 +208,31 @@ SIM_MAP_CACHE_ENTRIES=<omitted; runtime default 1024>
 Q4 の A1 は Q3→Q4 の B5 死亡率が 21.2%→24.1% と上昇して不成立だったため、
 Q4 完成ビルド定義は採用せず、再定義課題として報告する。balance 値は変更しない。
 
+## Issue #470 固定結論（完成ビルド定義）
+
+Issue #470 では、深層生存（B5 `deathFloor === 5`）から完成度を判定する定義を採用しない。
+同一の Issue #461 固定条件・同一 raw run（B5 entrant N=2799）を使い、候補を再ランキングしても
+A1 の3条件を同時に満たす候補はなかった。したがって現時点の canon は
+「深層生存で完成度を判定できない。完成ビルド定義は未確定」とする。
+
+- B5 snapshot は `floor=5` / `point=floor-start`。`reachedFloor` は run 終了後の値であり、
+  B5 entry スコアの深度正規化へ使わない。B5 entrant 内の score と終了到達floorの相関は、
+  到達選別後の関連であって因果効果ではない。
+- 現行 total の Q1→Q4は B5死亡率 32.95%→26.47%→21.57%→24.03%。
+  Q4−Q1 職内 centered 差は −8.9pt [−13.5, −4.3] で単調条件だけ不成立。
+- 現行 total の寄与は equipmentStatScore が支配的。Q1/Q4で first combatCoreScore の
+  total寄与比は3.8%/5.3%、全 combat core 合計でも4.5%/7.1%。equipment-only の Q3→Q4も
+  +2.2pt [−2.2, 6.6] と反転方向で、all-core total化後も Q3→Q4は反転する。
+- B5 entrant の複数 combat core は24.9% [23.3, 26.5]。first coreのみの score は
+  16.8% [15.5, 18.3]で全core合計を過小評価し、複数core runの first→all 差は
+  3.28 [2.95, 3.61]。ただし all-core-only は A1のQ4−Q1 CI上限<0を満たさず、
+  core 1個制限の修正だけで判定力は生じない。
+- 正式候補7個、A1 predicate 21個。α=.05で期待偽陽性1.05件。絶対閾値は外部校正値がなく、
+  結果後の閾値選択を避けるため正式候補にしない。
+
+この定義が未確定のため、#271 の A1 / A2 と、完成ビルド率・quality quartile を入力にした
+派生測定は、定義確定後に取り直す。balance 値・src のゲーム挙動は変更しない。
+
 ## Required Verification
 
 - `npm run test:unit`
