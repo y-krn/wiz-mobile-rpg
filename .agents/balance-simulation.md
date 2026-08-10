@@ -134,6 +134,72 @@ paired CI は、条件の変換段階がコード上で `post-generation`、生�
 する場合も、paired差は同一生成runに対するoutcome差として扱うだけで、介入後の軌跡が
 同一だとは解釈しない。
 
+## Issue #461 固定条件（基本4職基準線）
+
+この節は Issue #461 の基準線を再測定する際の固定条件。値を調整するための what-if
+条件ではない。実行入口は `scratch/sim_issue_461_baseline.js`、`run` scope であり、
+`simulateRun` から `generateRunFloor` を経由する。
+
+- seed: `461`
+- 対象: Fighter / Thief / Priest / Mage。各職・各 phase N=3000、calibration N=1000。
+- 初回ラン: 素材0、departure craftなし、target depth=2。
+- baseline: target depth=21（B20終了）、現行の departure kit と工房状態を使用。
+- 工房状態は #343/#346 の観測分布を整数で固定する: empty 30/1200、stats 74/1200、
+  gear 69/1200、blood wand 216/1200、blood wand+deep spells 47/1200、complete
+  764/1200。各職へ同じ層化系列を適用する。
+- `IDENTIFICATION_POLICY=powder`、`FLEE_POLICY=threshold`、
+  `TRAP_POLICY=conservative`、`TRAP_AVOIDANCE_POLICY=ev`、
+  `STATUS_CURE_POLICY=smart`。`TOWN_PORTAL` と状態異常治療消耗品をモデルする。
+- `SIM_PARALLEL` と `SIM_MAP_CACHE_ENTRIES` は指定しない。runtime の既定 parallelism
+  と map cache（既定1024）を使い、実行時の resolved parallelism を記録する。
+- 完成ビルド候補は職内 `combatBuildScore` Q4。判定は B5 死亡率の Q4−Q1 CI上限<0、
+  Q1→Q4 単調減少、職内 centered の3条件。N<30 のセルは未確定とする。
+
+測定時の固定 environment は次の通り（空欄は override なし）。
+
+```text
+SIM_SEED=461
+SIM_RUNS=3000
+SIM_CALIBRATION_RUNS=1000
+SIM_SCENARIOS=workshop-empty,workshop-stats,workshop-gear,workshop-blood-wand,workshop-blood-wand-spells,workshop-complete
+DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION
+IDENTIFICATION_POLICY=powder
+IDENTIFICATION_STARTING_POWDER=2
+IDENTIFICATION_COST_OVERRIDE=1
+FLEE_POLICY=threshold
+FLEE_HP_THRESHOLD=0.35
+TRAP_POLICY=conservative
+TRAP_AVOIDANCE_POLICY=ev
+TRAP_DAMAGE_MULTIPLIER=1
+STATUS_CURE_POLICY=smart
+STATUS_CURE_HP_THRESHOLD=0.35
+STATUS_CURE_MERCHANT_POLICY=missing
+HEAL_POTION_MERCHANT_POLICY=missing
+PORTAL_HP_THRESHOLD=0.35
+PORTAL_MAX_HEAL_POTIONS=0
+PORTAL_MIN_FLOOR=3
+ELITE_POLICY=avoid
+SIM_440_CONDITION=current
+SIM_EQUIPMENT_POLICY=individual-score
+SIM_EQUIPMENT_SLOT_MODE=standard
+SIM_EQUIPMENT_SLOT_AFFIX_MODE=retain
+SIM_MATCHING_DEFINITION=exact
+SIM_CURSE_LOCK_MODE=current
+SIM_SUPPORT_SUPPLY_CEILING=none
+SIM_CORE_SCORE_DROP_TOLERANCE=0
+SIM_MAP_STATS=0
+SIM_DAMAGE_PROBE=0
+SIM_PRESET=
+SIM_PARALLEL=<omitted; runtime default>
+SIM_MAP_CACHE_ENTRIES=<omitted; runtime default 1024>
+```
+
+この測定の env hash は `e79d51f4d7ce5e701e0e73db97afc9ee051d609b9a652e278ab84b0518897bda`。
+出力 SHA-256 は raw JSONL `44770d377b6cbf86f319163d45876d4b2a9a4b88c30974d97f224701171cffcb`
+、summary JSON `007158b245fc002e54864a726c863c1c725605d496ef8a2f78ac4b10efe49618`。
+Q4 の A1 は Q3→Q4 の B5 死亡率が 21.2%→24.1% と上昇して不成立だったため、
+Q4 完成ビルド定義は採用せず、再定義課題として報告する。balance 値は変更しない。
+
 ## Required Verification
 
 - `npm run test:unit`
