@@ -27,13 +27,88 @@ const { applyPendingOutcomeRewards } = await import("../src/combat_ui/outcome_re
 const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
 const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
 const { assignRunQuests, updateRunQuests } = await import("../src/systems/run_quests.js");
-const { generateRunFloor } = await import("../src/run_map_generator.js");
+const { generateRunFloor: generateRunFloorSource } = await import("../src/run_map_generator.js");
 const { isMilestoneFloor } = await import("../src/run_map_generator.js");
 const { createFloorElite } = await import("../src/systems/roaming_elites.js");
 const { getFloorTemplate } = await import("../src/data/floor_templates.js");
 const { EVENT_TYPES } = await import("../src/constants/events.js");
 const { DX, DY } = await import("../src/constants/directions.js");
 const { generateChestMaterials } = await import("../src/chest.js");
+
+const SIM_MAP_STATS_ENABLED = process.env.SIM_MAP_STATS === "1";
+const mapGenerationStats = {
+  calls: 0,
+  keys: new Set()
+};
+const requestedMapCacheEntries = Number(process.env.SIM_MAP_CACHE_ENTRIES);
+const SIM_MAP_CACHE_ENTRIES = Number.isInteger(requestedMapCacheEntries) && requestedMapCacheEntries > 0
+  ? requestedMapCacheEntries
+  : 256;
+let localRunFloorCache = null;
+
+function resetMapGenerationStats() {
+  if (!SIM_MAP_STATS_ENABLED) return;
+  mapGenerationStats.calls = 0;
+  mapGenerationStats.keys.clear();
+}
+
+function getMapGenerationStats() {
+  if (!SIM_MAP_STATS_ENABLED) return null;
+  return {
+    calls: mapGenerationStats.calls,
+    keys: [...mapGenerationStats.keys]
+  };
+}
+
+function generateRunFloor({ runSeed, floor, ...options }) {
+  if (SIM_MAP_STATS_ENABLED) {
+    mapGenerationStats.calls++;
+    mapGenerationStats.keys.add(`${runSeed}:${floor}`);
+  }
+  return generateRunFloorSource({ runSeed, floor, ...options });
+}
+
+function cloneGeneratedFloorForSimulation(generated) {
+  return structuredClone(generated);
+}
+
+function createRunFloorCache(maxEntries = SIM_MAP_CACHE_ENTRIES) {
+  const entries = new Map();
+  return {
+    get({ runSeed, floor }) {
+      const key = `${runSeed}:${floor}`;
+      const cached = entries.get(key);
+      if (cached) {
+        entries.delete(key);
+        entries.set(key, cached);
+        return cached;
+      }
+      const generated = generateRunFloor({ runSeed, floor });
+      entries.set(key, generated);
+      while (entries.size > maxEntries) {
+        entries.delete(entries.keys().next().value);
+      }
+      return generated;
+    }
+  };
+}
+
+export function generateSharedRunFloor(args) {
+  return generateRunFloor(args);
+}
+
+function getRunFloor(args) {
+  const sharedMapRequest = globalThis.__simSharedMapRequest;
+  if (typeof sharedMapRequest === "function") {
+    // The broker returns a fresh v8-deserialized object, or an unretained generated object.
+    return sharedMapRequest(args);
+  }
+  const generated = localRunFloorCache
+    ? localRunFloorCache.get(args)
+    : generateRunFloor(args);
+  // The serial cache retains generated, so simulation mutations must not reach it.
+  return cloneGeneratedFloorForSimulation(generated);
+}
 // 宝箱の抽選は src と同一の出所を叩く（#273）。写経すると src 変更に追随しない。
 const {
   CHEST_ACCESSORY_CORE_MIN_FLOOR,
@@ -5645,7 +5720,7 @@ export function simulateRun({
     if (buildSnapshots) {
       buildSnapshots.push(createBuildSnapshot(state, scoringProfile, "floor-start"));
     }
-    const generated = generateRunFloor({ runSeed, floor });
+    const generated = getRunFloor({ runSeed, floor });
     const routePlan = createFloorRoutePlan(generated, floor, metrics.bossPolicy);
     const elitePlan = createEliteRoutePlan(
       generated,
@@ -7715,6 +7790,7 @@ export function runCalibratedDepthSimulationTask(
   { kind, scenarioId = null, identificationPolicyId = "powder", runCount },
   context
 ) {
+  resetMapGenerationStats();
   const calibration = runCoreCalibrationTask({
     policyId: identificationPolicyId,
     scenarioId,
@@ -7738,7 +7814,8 @@ export function runCalibratedDepthSimulationTask(
         scoringProfiles,
         scoringProfilesByScenario
       }
-    )
+    ),
+    ...(SIM_MAP_STATS_ENABLED ? { mapStats: getMapGenerationStats() } : {})
   };
 }
 
@@ -7747,26 +7824,46 @@ printResolvedSimulationEnv();
 if (ACTIVE_SCENARIOS.length === 0) {
   throw new Error(`SIM_SCENARIOSに有効な条件がない: ${[...REQUESTED_SCENARIO_IDS].join(",")}`);
 }
-const calibratedTaskResults = await runSimTasks({
-  moduleUrl: import.meta.url,
-  exportName: "runCalibratedDepthSimulationTask",
-  runTask: runCalibratedDepthSimulationTask,
-  tasks: ACTIVE_IDENTIFICATION_POLICIES.flatMap(policy => [
-    ...ACTIVE_SCENARIOS.map(scenario => ({
-      kind: "scenario",
-      scenarioId: scenario.id,
-      identificationPolicyId: policy.id,
-      runCount: CALIBRATION_RUNS
-    })),
-    {
-      kind: "milestone",
-      scenarioId: null,
-      identificationPolicyId: policy.id,
-      runCount: CALIBRATION_RUNS
-    }
-  ]),
-  context: {}
-});
+const previousLocalRunFloorCache = localRunFloorCache;
+localRunFloorCache = createRunFloorCache();
+let calibratedTaskResults;
+try {
+  calibratedTaskResults = await runSimTasks({
+    moduleUrl: import.meta.url,
+    exportName: "runCalibratedDepthSimulationTask",
+    runTask: runCalibratedDepthSimulationTask,
+    tasks: ACTIVE_IDENTIFICATION_POLICIES.flatMap(policy => [
+      ...ACTIVE_SCENARIOS.map(scenario => ({
+        kind: "scenario",
+        scenarioId: scenario.id,
+        identificationPolicyId: policy.id,
+        runCount: CALIBRATION_RUNS
+      })),
+      {
+        kind: "milestone",
+        scenarioId: null,
+        identificationPolicyId: policy.id,
+        runCount: CALIBRATION_RUNS
+      }
+    ]),
+    context: {},
+    mapGeneratorExportName: "generateSharedRunFloor"
+  });
+} finally {
+  localRunFloorCache = previousLocalRunFloorCache;
+}
+if (SIM_MAP_STATS_ENABLED) {
+  const uniqueMapKeys = new Set();
+  const generatedCalls = calibratedTaskResults.reduce((sum, taskResult) => {
+    taskResult.mapStats?.keys.forEach(key => uniqueMapKeys.add(key));
+    return sum + (taskResult.mapStats?.calls || 0);
+  }, 0);
+  console.log(
+    `map generation stats: calls=${generatedCalls}, ` +
+    `unique(runSeed,floor)=${uniqueMapKeys.size}, ` +
+    `redundancy=${generatedCalls / Math.max(1, uniqueMapKeys.size)}x`
+  );
+}
 const coreScoringProfilesByScenario = Object.fromEntries(
   calibratedTaskResults
     .filter(result => result.scenarioId !== null)

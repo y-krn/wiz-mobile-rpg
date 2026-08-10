@@ -1,6 +1,6 @@
 // sim-scope: infra
 import { availableParallelism } from "node:os";
-import { Worker } from "node:worker_threads";
+import { MessageChannel, Worker } from "node:worker_threads";
 
 const MAX_SIM_PARALLEL = Math.max(1, availableParallelism());
 const CI_SIM_PARALLEL = 4;
@@ -10,6 +10,15 @@ const IS_CI = ["1", "true"].includes(
 const DEFAULT_SIM_PARALLEL = IS_CI
   ? Math.min(CI_SIM_PARALLEL, MAX_SIM_PARALLEL)
   : MAX_SIM_PARALLEL;
+const DEFAULT_SIM_MAP_CACHE_ENTRIES = 256;
+
+function resolveSimMapCacheEntries() {
+  const requested = Number(process.env.SIM_MAP_CACHE_ENTRIES);
+  if (!Number.isInteger(requested) || requested < 1) {
+    return DEFAULT_SIM_MAP_CACHE_ENTRIES;
+  }
+  return requested;
+}
 
 export function resolveSimParallelism(taskCount) {
   const raw = String(process.env.SIM_PARALLEL || "").trim().toLowerCase();
@@ -27,16 +36,122 @@ function createWorker(moduleUrl, exportName, context) {
   });
 }
 
-function runWorkerPool(moduleUrl, exportName, tasks, context, workerCount) {
+function createMapBroker(generatorExportName) {
+  const maxEntries = resolveSimMapCacheEntries();
+  const cache = new Map();
+  const inFlight = new Map();
+
+  const touch = (key, payload) => {
+    cache.delete(key);
+    cache.set(key, payload);
+  };
+
+  const store = (key, payload) => {
+    touch(key, payload);
+    while (cache.size > maxEntries) {
+      const oldest = cache.keys().next().value;
+      cache.delete(oldest);
+    }
+  };
+
+  const reply = (workerState, message) => {
+    workerState.port.postMessage(message);
+    Atomics.store(workerState.control, 0, 1);
+    Atomics.notify(workerState.control, 0);
+  };
+
+  return {
+    createWorkerState() {
+      const channel = new MessageChannel();
+      const control = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
+      return {
+        port: channel.port1,
+        control: new Int32Array(control),
+        workerData: {
+          port: channel.port2,
+          control,
+          generatorExportName
+        }
+      };
+    },
+    handleRequest(workerState, message) {
+      const { key, requestId } = message;
+      const cached = cache.get(key);
+      if (cached) {
+        touch(key, cached);
+        reply(workerState, { type: "map-payload", requestId, payload: cached });
+        return;
+      }
+
+      const pending = inFlight.get(key);
+      if (pending) {
+        pending.push({ workerState, requestId });
+        return;
+      }
+
+      inFlight.set(key, [{ workerState, requestId }]);
+      reply(workerState, { type: "map-generate", requestId });
+    },
+    handleGenerated(workerState, message) {
+      const payload = message.payload instanceof Uint8Array
+        ? message.payload
+        : new Uint8Array(message.payload);
+      store(message.key, payload);
+      const pending = inFlight.get(message.key) || [];
+      inFlight.delete(message.key);
+      pending.forEach(waiter => {
+        if (waiter.workerState === workerState && waiter.requestId === message.requestId) {
+          return;
+        }
+        reply(waiter.workerState, {
+          type: "map-payload",
+          requestId: waiter.requestId,
+          payload
+        });
+      });
+    },
+    close() {
+      cache.clear();
+      inFlight.clear();
+    }
+  };
+}
+
+function createWorkerWithMapBroker(moduleUrl, exportName, context, mapBroker) {
+  const mapState = mapBroker.createWorkerState();
+  const worker = new Worker(new URL("./sim_parallel_worker.js", import.meta.url), {
+    workerData: {
+      moduleUrl,
+      exportName,
+      context,
+      mapBroker: mapState.workerData
+    },
+    transferList: [mapState.workerData.port]
+  });
+  return { worker, mapState };
+}
+
+function runWorkerPool(
+  moduleUrl,
+  exportName,
+  tasks,
+  context,
+  workerCount,
+  mapGeneratorExportName = null
+) {
   return new Promise((resolve, reject) => {
     const results = Array(tasks.length);
     const workers = [];
+    const mapBroker = mapGeneratorExportName
+      ? createMapBroker(mapGeneratorExportName)
+      : null;
     let nextTaskIndex = 0;
     let completed = 0;
     let settled = false;
 
     const stopWorkers = () => {
-      workers.forEach(worker => worker.terminate());
+      workers.forEach(({ worker }) => worker.terminate());
+      mapBroker?.close();
     };
 
     const fail = error => {
@@ -55,7 +170,16 @@ function runWorkerPool(moduleUrl, exportName, tasks, context, workerCount) {
       worker.postMessage({ type: "task", index, task: tasks[index] });
     };
 
-    const handleMessage = (worker, message) => {
+    const handleMessage = (workerState, message) => {
+      const { worker } = workerState;
+      if (message.type === "map-request") {
+        mapBroker?.handleRequest(workerState.mapState, message);
+        return;
+      }
+      if (message.type === "map-generated") {
+        mapBroker?.handleGenerated(workerState.mapState, message);
+        return;
+      }
       if (message.type === "ready") {
         dispatch(worker);
         return;
@@ -81,9 +205,17 @@ function runWorkerPool(moduleUrl, exportName, tasks, context, workerCount) {
     };
 
     for (let index = 0; index < workerCount; index++) {
-      const worker = createWorker(moduleUrl, exportName, context);
-      workers.push(worker);
-      worker.on("message", message => handleMessage(worker, message));
+      const workerState = mapBroker
+        ? createWorkerWithMapBroker(
+            moduleUrl,
+            exportName,
+            context,
+            mapBroker
+          )
+        : { worker: createWorker(moduleUrl, exportName, context), mapState: null };
+      const { worker } = workerState;
+      workers.push(workerState);
+      worker.on("message", message => handleMessage(workerState, message));
       worker.once("error", fail);
       worker.once("exit", code => {
         if (!settled && code !== 0) {
@@ -94,7 +226,14 @@ function runWorkerPool(moduleUrl, exportName, tasks, context, workerCount) {
   });
 }
 
-export async function runSimTasks({ moduleUrl, exportName, runTask, tasks, context }) {
+export async function runSimTasks({
+  moduleUrl,
+  exportName,
+  runTask,
+  tasks,
+  context,
+  mapGeneratorExportName = null
+}) {
   if (tasks.length === 0) return [];
   const parallelism = resolveSimParallelism(tasks.length);
   if (parallelism === 1) {
@@ -103,5 +242,12 @@ export async function runSimTasks({ moduleUrl, exportName, runTask, tasks, conte
     return results;
   }
 
-  return runWorkerPool(moduleUrl, exportName, tasks, context, parallelism);
+  return runWorkerPool(
+    moduleUrl,
+    exportName,
+    tasks,
+    context,
+    parallelism,
+    mapGeneratorExportName
+  );
 }
