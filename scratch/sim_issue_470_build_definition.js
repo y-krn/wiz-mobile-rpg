@@ -38,6 +38,8 @@ const WORKSHOP_SCENARIO_IDS = Object.freeze(
   OBSERVED_WORKSHOP_DISTRIBUTION.map(row => row.scenarioId)
 );
 const R95 = 1.959963984540054;
+const MONOTONIC_ALPHA = 0.05;
+const ORDINAL_SCORES = Object.freeze([0, 1, 2, 3]);
 const SEED = Number(process.env.SIM_SEED) >>> 0;
 const RUNS_PER_CLASS = Number(process.env.SIM_RUNS);
 const CALIBRATION_RUNS = Number(process.env.SIM_CALIBRATION_RUNS);
@@ -107,6 +109,10 @@ const CANDIDATES = Object.freeze([
     metric: "allCoreTotal",
     scope: "global"
   }
+]);
+const ADOPTION_PRIORITY = Object.freeze([
+  "current-total-class-quartile",
+  "all-combat-total-class-quartile"
 ]);
 
 function sha256(value) {
@@ -294,6 +300,73 @@ function normalDifference(left, right) {
     status: Math.min(left.length, right.length) < 30
       ? "未確定（N<30）"
       : "確定"
+  };
+}
+
+function normalCdf(value) {
+  const sign = value < 0 ? -1 : 1;
+  const x = Math.abs(value) / Math.SQRT2;
+  const t = 1 / (1 + 0.3275911 * x);
+  const polynomial = (((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t -
+    0.284496736) * t + 0.254829592) * t);
+  const erf = sign * (1 - polynomial * Math.exp(-x * x));
+  return 0.5 * (1 + erf);
+}
+
+function classStratifiedCochranArmitage(rows) {
+  const byClass = new Map();
+  rows.forEach(row => {
+    if (!byClass.has(row.className)) byClass.set(row.className, []);
+    byClass.get(row.className).push(row);
+  });
+  let numerator = 0;
+  let variance = 0;
+  let minCellN = Infinity;
+  byClass.forEach(classRows => {
+    const n = classRows.length;
+    const deaths = classRows.filter(outcomeValue).length;
+    const nullRate = deaths / n;
+    const counts = [1, 2, 3, 4].map(stratum =>
+      classRows.filter(row => row.stratum === stratum)
+    );
+    const stratumCounts = counts.map(group => group.length);
+    const stratumDeaths = counts.map(group => group.filter(outcomeValue).length);
+    minCellN = Math.min(minCellN, ...stratumCounts);
+    const scoreTotal = stratumCounts.reduce(
+      (sum, count, index) => sum + count * ORDINAL_SCORES[index],
+      0
+    );
+    const scoreMean = scoreTotal / n;
+    const scoreVariance = stratumCounts.reduce(
+      (sum, count, index) =>
+        sum + count * (ORDINAL_SCORES[index] - scoreMean) ** 2,
+      0
+    );
+    numerator += stratumDeaths.reduce(
+      (sum, deathCount, index) =>
+        sum + ORDINAL_SCORES[index] * (deathCount - stratumCounts[index] * nullRate),
+      0
+    );
+    variance += nullRate * (1 - nullRate) * scoreVariance;
+  });
+  if (variance === 0 || !Number.isFinite(variance)) {
+    return {
+      test: "class-stratified Cochran-Armitage",
+      z: null,
+      pValueDecreasing: null,
+      pValueIncreasing: null,
+      minCellN,
+      status: "未確定（分散0）"
+    };
+  }
+  const z = numerator / Math.sqrt(variance);
+  return {
+    test: "class-stratified Cochran-Armitage",
+    z,
+    pValueDecreasing: normalCdf(z),
+    pValueIncreasing: 1 - normalCdf(z),
+    minCellN,
+    status: minCellN < 30 ? "未確定（N<30）" : "確定"
   };
 }
 
@@ -543,9 +616,27 @@ function evaluateCandidate(rows, candidate) {
   );
   const rates = centeredRates(stratifiedRows);
   const q4MinusQ1Death = classCenteredDifference(stratifiedRows);
-  const monotonicNonIncreasing = rates.every((row, index) =>
-    row.estimate !== null && (index === 0 || row.estimate <= rates[index - 1].estimate)
+  const adjacentDifferences = [1, 2, 3].map(stratum => {
+    const previous = stratifiedRows
+      .filter(row => row.stratum === stratum)
+      .map(outcomeValue);
+    const next = stratifiedRows
+      .filter(row => row.stratum === stratum + 1)
+      .map(outcomeValue);
+    return {
+      fromStratum: stratum,
+      toStratum: stratum + 1,
+      ...normalDifference(next, previous)
+    };
+  });
+  const trendTest = classStratifiedCochranArmitage(stratifiedRows);
+  const statisticallyNonMonotonic = adjacentDifferences.some(
+    difference => difference.status === "確定" && difference.low > 0
   );
+  const monotonicNonIncreasing =
+    trendTest.status === "確定" &&
+    trendTest.pValueDecreasing < MONOTONIC_ALPHA &&
+    !statisticallyNonMonotonic;
   const sampleSizeSufficient = q4MinusQ1Death.allStrataAtLeast30;
   const conditions = {
     q4MinusQ1UpperBelowZero:
@@ -558,6 +649,9 @@ function evaluateCandidate(rows, candidate) {
     quartiles,
     centeredRates: rates,
     q4MinusQ1Death,
+    adjacentDifferences,
+    trendTest,
+    statisticallyNonMonotonic,
     conditions,
     sampleSizeSufficient,
     pass: sampleSizeSufficient && Object.values(conditions).every(Boolean),
@@ -678,13 +772,28 @@ function formatDifference(stat) {
   return `${(stat.estimate * 100).toFixed(1)}pt [${(stat.low * 100).toFixed(1)}, ${(stat.high * 100).toFixed(1)}]`;
 }
 
+function formatPValue(value) {
+  if (value === null || value === undefined) return "NA";
+  return value < 0.0001 ? "<0.0001" : value.toFixed(4);
+}
+
+function adjacentDifferenceLabel(difference) {
+  if (difference.status !== "確定") return "未確定（N<30）";
+  if (difference.low > 0) return "統計的反転";
+  if (difference.estimate > 0) return "点推定反転（CIは0を跨ぐ）";
+  if (difference.high < 0) return "統計的減少";
+  return "点推定減少（CIは0を跨ぐ）";
+}
+
 function renderCandidate(candidate) {
   const lines = [
     `### ${candidate.id}`,
     "",
     `- 定義: ${candidate.label}`,
     `- Q4−Q1（職内 centered）: ${formatDifference(candidate.q4MinusQ1Death)}。CI上限<0=${candidate.conditions.q4MinusQ1UpperBelowZero ? "成立" : "不成立"}`,
-    `- Q1→Q4 単調減少: ${candidate.conditions.monotonicNonIncreasing ? "成立" : "不成立"}`,
+    `- Q1→Q4 統計的単調減少: ${candidate.conditions.monotonicNonIncreasing ? "成立" : "不成立"}`,
+    `- trend test: ${candidate.trendTest.test}、z=${candidate.trendTest.z === null ? "NA" : candidate.trendTest.z.toFixed(3)}、減少方向 p=${formatPValue(candidate.trendTest.pValueDecreasing)}、増加方向 p=${formatPValue(candidate.trendTest.pValueIncreasing)}`,
+    `- 統計的非単調（隣接差CI下限>0）: ${candidate.statisticallyNonMonotonic ? "確認" : "確認なし"}`,
     `- 職内 centered: ${candidate.conditions.classCentered ? "成立" : "不成立"}`,
     `- サンプル十分性（全職・全層 N>=30）: ${candidate.sampleSizeSufficient ? "成立" : "未確定"}`,
     `- A1: ${candidate.pass ? "成立" : "不成立 / 未確定"}`,
@@ -697,10 +806,18 @@ function renderCandidate(candidate) {
       `| Q${quartile.stratum} | ${quartile.n} | ${formatMean(quartile.metricMean)} | ${formatRate(quartile.death)} | ${formatPercent(candidate.centeredRates[index].estimate)} |`
     );
   });
+  lines.push(
+    "",
+    "| 隣接 | 差（次−前、正規95% CI） | 判定 |",
+    "| --- | --- | --- |",
+    ...candidate.adjacentDifferences.map(difference =>
+      `| Q${difference.fromStratum}→Q${difference.toStratum} | ${formatDifference(difference)} | ${adjacentDifferenceLabel(difference)} |`
+    )
+  );
   return lines.join("\n");
 }
 
-function renderMarkdown(summary, rawSha256, summarySha256) {
+export function renderMarkdown(summary, rawSha256, summarySha256) {
   const lines = [
     "# Issue #470 完成ビルド定義測定",
     "",
@@ -728,9 +845,16 @@ function renderMarkdown(summary, rawSha256, summarySha256) {
       `| ${id} | ${value.estimate === null ? value.status : `${value.estimate.toFixed(3)} [${value.low.toFixed(3)}, ${value.high.toFixed(3)}; N=${value.n}]`} |`
     ),
     "",
+    "## 先決め判定基準（結果を見る前に固定）",
+    "",
+    "- 候補は既登録の7個から増やさず、A1の単調性は点推定の順序だけで判定しない。各隣接差を Δ=Q次−Q前 とし、各候補の実測 quartile 死亡率から正規近似95% CIを出す。",
+    "- Δの95% CI下限が0を上回る隣接ペアだけを、統計的に確認された非単調（有意な反転）とする。Δ>0でもCIが0を跨ぐ場合は点推定反転に留め、A1失格にしない。",
+    `- 全体の傾向は職を層とする Cochran–Armitage trend test（Q1〜Q4の順序 score=0〜3）で判定する。一側の減少方向 p<${MONOTONIC_ALPHA}、かつ統計的反転なしを「統計的単調減少 成立」とする。N<30セルまたは検定不能は未確定。`,
+    "- この基準は、隣接差が0を跨ぐことを効果なしと断定せず、N不足・測定誤差で区別不能な点推定反転を非単調と扱わないため採用。",
+    "",
     "## 候補別 A1",
     "",
-    `正式候補 ${summary.multipleComparisons.candidateCount} 個、A1 predicate ${summary.multipleComparisons.formalA1Checks} 個。α=.05の期待偽陽性数 ${summary.multipleComparisons.expectedFalsePositives.toFixed(2)}（Bonferroni family-wise α=${summary.multipleComparisons.bonferroniAlpha.toFixed(5)}）。候補追加による数字合わせはしない。`,
+    `正式候補 ${summary.multipleComparisons.candidateCount} 個、A1主条件 ${summary.multipleComparisons.formalA1Checks} 個。単調性の隣接差・trend補助チェック ${summary.multipleComparisons.monotonicitySubchecks} 個を含む報告総数 ${summary.multipleComparisons.totalReportedChecks} 個。α=.05の機械的な期待偽陽性数 ${summary.multipleComparisons.expectedFalsePositives.toFixed(2)}（Bonferroni family-wise α=${summary.multipleComparisons.bonferroniAlpha.toFixed(5)}）。候補追加による数字合わせはしない。`,
     "",
     ...summary.candidates.flatMap(candidate => [renderCandidate(candidate), ""]),
     "## 分解診断",
@@ -756,6 +880,8 @@ function renderMarkdown(summary, rawSha256, summarySha256) {
     ...summary.diagnostic.q3ToQ4ReversalByComponentRanking.map(row =>
       `| ${row.id} | ${formatRate(row.q3Death)} | ${formatRate(row.q4Death)} | ${formatDifference(row.q4MinusQ3Death)} |`
     ),
+    "",
+    "- 3比較とも差の95% CIが0を跨ぐ。点推定の方向は観測事実だが、反転の実在も主因もこのNでは確定しない。",
     "",
     "## 測定記録",
     "",
@@ -805,13 +931,105 @@ function renderMarkdown(summary, rawSha256, summarySha256) {
     "",
     "## 取り直し対象",
     "",
-    "- 完成ビルド定義が不成立なら、#271 の A1 / A2 は現行 `combatBuildScore` Q4 定義に依存するため、定義確定後に測定条件・判定対象を見直して再測定する。",
-    "- #271 の既存 depth-quality 関連表・要約・派生判断のうち、完成ビルド率または build quality quartile を入力にしたものを全て再集計する。",
+    `- 採用定義は ${summary.adoptedCandidate ?? "未確定"}。#271 の A1（Q4−Q1、統計的単調性、Q4安全性gate）を取り直す。`,
+    "- #271 の A2（class-centered score×depth、補助のscore×B5突破）と A3（combat core / core+対応support feature）を同じ固定条件で取り直す。",
+    "- 完成ビルド率、quality quartileを入力にしたdepth-quality表・要約・派生判断を全て再集計する。#470のB5 raw再測定は不要。",
     "",
     "Refs #470, #461, #469, #271",
     ""
   ];
   return lines.join("\n");
+}
+
+function validateRows(rows) {
+  const rowKeys = rows.map(row => `${row.phase}:${row.className}:${row.runIndex}`);
+  if (new Set(rowKeys).size !== rows.length) {
+    throw new Error("raw result audit failed: duplicate phase/class/run key");
+  }
+  rows.filter(row => row.phase === "baseline").forEach(row => {
+    if (row.endpoints.b5.entrant !== Boolean(row.b5Build)) {
+      throw new Error(`B5 snapshot mismatch: ${row.className}/${row.runIndex}`);
+    }
+    if (row.b5Build) {
+      const fields = [
+        "combatBuildScore",
+        "equipmentStatScore",
+        "combatCoreScore",
+        "combatCoreScoreAll"
+      ];
+      fields.forEach(field => {
+        if (!Number.isFinite(row.b5Build[field])) {
+          throw new Error(`B5 ${field} missing: ${row.className}/${row.runIndex}`);
+        }
+      });
+      if (row.b5Build.floor !== 5 || row.b5Build.point !== "floor-start") {
+        throw new Error(`B5 snapshot timing mismatch: ${row.className}/${row.runIndex}`);
+      }
+    }
+  });
+}
+
+export function summarizeIssue470Rows(rows, measurement) {
+  validateRows(rows);
+  const baselineRows = rows.filter(row => row.phase === "baseline");
+  const b5Rows = baselineRows.filter(row => row.b5Build);
+  const candidateResults = CANDIDATES.map(candidate =>
+    evaluateCandidate(b5Rows, candidate)
+  );
+  const diagnostic = contributionDiagnostic(b5Rows, candidateResults);
+  const depthAssociations = {
+    currentTotal: correlationByMetric(b5Rows, "currentTotal"),
+    equipmentOnly: correlationByMetric(b5Rows, "equipmentOnly"),
+    firstCoreOnly: correlationByMetric(b5Rows, "firstCoreOnly"),
+    allCoreOnly: correlationByMetric(b5Rows, "allCoreOnly"),
+    allCoreTotal: correlationByMetric(b5Rows, "allCoreTotal")
+  };
+  const candidateCount = CANDIDATES.length;
+  const formalA1Checks = candidateCount * 3;
+  const monotonicitySubchecks = candidateCount * 4;
+  const totalReportedChecks = formalA1Checks + monotonicitySubchecks;
+  const multipleComparisons = {
+    alpha: MONOTONIC_ALPHA,
+    candidateCount,
+    formalA1Checks,
+    monotonicitySubchecks,
+    totalReportedChecks,
+    expectedFalsePositives: totalReportedChecks * MONOTONIC_ALPHA,
+    bonferroniAlpha: 0.05 / totalReportedChecks,
+    note: "各候補のA1主条件と単調性補助チェックを並べる探索的比較。候補追加なし。"
+  };
+  const passed = candidateResults.filter(candidate => candidate.pass);
+  const adopted = ADOPTION_PRIORITY
+    .map(id => candidateResults.find(candidate => candidate.id === id))
+    .find(candidate => candidate?.pass);
+  const conclusion = adopted
+    ? `${adopted.label} の Q4 を完成ビルド定義として採用。隣接差CIで統計的反転は確認されず、trend testで減少傾向が成立。`
+    : "深層生存で完成度を判定できない（測定した候補に採用優先順位内のA1成立定義なし）";
+  return {
+    measurement,
+    conclusion,
+    adoptedCandidate: adopted?.id ?? null,
+    nDesign: nDesign(),
+    snapshotTiming: {
+      b5Entrants: b5Rows.length,
+      floor: 5,
+      point: "floor-start",
+      entrantMatch: b5Rows.length === baselineRows.filter(row => row.endpoints.b5.entrant).length
+    },
+    unconditionalAverageReachedFloor: normalMean(
+      baselineRows.map(row => row.reachedFloor)
+    ),
+    depthAssociations,
+    multipleComparisons,
+    candidates: candidateResults.map(({ stratifiedRows, ...candidate }) => candidate),
+    diagnostic: {
+      ...diagnostic,
+      currentQuartiles: candidateResults.find(
+        candidate => candidate.id === "current-total-class-quartile"
+      ).quartiles
+    },
+    passedCandidates: passed.map(candidate => candidate.id)
+  };
 }
 
 async function main() {
@@ -851,53 +1069,7 @@ async function main() {
   if (rows.length !== tasks.length) {
     throw new Error(`raw result audit failed: rows=${rows.length}/${tasks.length}`);
   }
-  const rowKeys = rows.map(row => `${row.phase}:${row.className}:${row.runIndex}`);
-  if (new Set(rowKeys).size !== rows.length) {
-    throw new Error("raw result audit failed: duplicate phase/class/run key");
-  }
-  rows.filter(row => row.phase === "baseline").forEach(row => {
-    if (row.endpoints.b5.entrant !== Boolean(row.b5Build)) {
-      throw new Error(`B5 snapshot mismatch: ${row.className}/${row.runIndex}`);
-    }
-    if (row.b5Build) {
-      const fields = [
-        "combatBuildScore",
-        "equipmentStatScore",
-        "combatCoreScore",
-        "combatCoreScoreAll"
-      ];
-      fields.forEach(field => {
-        if (!Number.isFinite(row.b5Build[field])) {
-          throw new Error(`B5 ${field} missing: ${row.className}/${row.runIndex}`);
-        }
-      });
-      if (row.b5Build.floor !== 5 || row.b5Build.point !== "floor-start") {
-        throw new Error(`B5 snapshot timing mismatch: ${row.className}/${row.runIndex}`);
-      }
-    }
-  });
-
-  const baselineRows = rows.filter(row => row.phase === "baseline");
-  const b5Rows = baselineRows.filter(row => row.b5Build);
-  const candidateResults = CANDIDATES.map(candidate =>
-    evaluateCandidate(b5Rows, candidate)
-  );
-  const diagnostic = contributionDiagnostic(b5Rows, candidateResults);
-  const depthAssociations = {
-    currentTotal: correlationByMetric(b5Rows, "currentTotal"),
-    equipmentOnly: correlationByMetric(b5Rows, "equipmentOnly"),
-    firstCoreOnly: correlationByMetric(b5Rows, "firstCoreOnly"),
-    allCoreOnly: correlationByMetric(b5Rows, "allCoreOnly"),
-    allCoreTotal: correlationByMetric(b5Rows, "allCoreTotal")
-  };
-  const multipleComparisons = {
-    alpha: 0.05,
-    candidateCount: CANDIDATES.length,
-    formalA1Checks: CANDIDATES.length * 3,
-    expectedFalsePositives: CANDIDATES.length * 3 * 0.05,
-    bonferroniAlpha: 0.05 / (CANDIDATES.length * 3),
-    note: "各候補の3条件を同時に並べる探索的比較。偶然通過の採用はしない。"
-  };
+  validateRows(rows);
   const cpuTotalSeconds = (
     calibrationCpu.user + calibrationCpu.system +
     simulationCpu.user + simulationCpu.system
@@ -929,34 +1101,7 @@ async function main() {
     totalCpuSeconds: cpuTotalSeconds,
     sourceCommit
   };
-  const passed = candidateResults.filter(candidate => candidate.pass);
-  const conclusion = passed.length === 0
-    ? "深層生存で完成度を判定できない（測定した候補に A1 を満たす定義なし）"
-    : `候補 ${passed.map(candidate => candidate.id).join(", ")} が A1 を満たしたが、多重比較を含む探索結果のため採用保留`;
-  const summary = {
-    measurement,
-    conclusion,
-    nDesign: nDesign(),
-    snapshotTiming: {
-      b5Entrants: b5Rows.length,
-      floor: 5,
-      point: "floor-start",
-      entrantMatch: b5Rows.length === baselineRows.filter(row => row.endpoints.b5.entrant).length
-    },
-    unconditionalAverageReachedFloor: normalMean(
-      baselineRows.map(row => row.reachedFloor)
-    ),
-    depthAssociations,
-    multipleComparisons,
-    candidates: candidateResults.map(({ stratifiedRows, ...candidate }) => candidate),
-    diagnostic: {
-      ...diagnostic,
-      currentQuartiles: candidateResults.find(
-        candidate => candidate.id === "current-total-class-quartile"
-      ).quartiles
-    },
-    passedCandidates: passed.map(candidate => candidate.id)
-  };
+  const summary = summarizeIssue470Rows(rows, measurement);
 
   const resultDir = join(process.cwd(), "scratch", "results");
   mkdirSync(resultDir, { recursive: true });
@@ -975,7 +1120,7 @@ async function main() {
     envHash: ENV_HASH,
     rawSha256,
     summarySha256,
-    b5Entrants: b5Rows.length,
+    b5Entrants: summary.snapshotTiming.b5Entrants,
     candidateCount: CANDIDATES.length,
     passedCandidates: summary.passedCandidates,
     conclusion,

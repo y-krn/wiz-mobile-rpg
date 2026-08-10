@@ -157,7 +157,9 @@ paired CI は、条件の変換段階がコード上で `post-generation`、生�
 - `SIM_PARALLEL` と `SIM_MAP_CACHE_ENTRIES` は指定しない。runtime の既定 parallelism
   と map cache（既定1024）を使い、実行時の resolved parallelism を記録する。
 - 完成ビルド候補は職内 `combatBuildScore` Q4。判定は B5 死亡率の Q4−Q1 CI上限<0、
-  Q1→Q4 単調減少、職内 centered の3条件。N<30 のセルは未確定とする。
+  統計的単調減少、職内 centered の3条件。単調性は点推定だけで決めず、隣接差
+  `Q次−Q前` の正規近似95% CI下限>0を統計的反転とし、職層調整 Cochran–Armitage
+  trend test の減少方向 p<.05、かつ統計的反転なしを成立条件とする。N<30 のセルは未確定。
 
 測定時の固定 environment は次の通り（空欄は override なし）。
 
@@ -205,15 +207,27 @@ SIM_MAP_CACHE_ENTRIES=<omitted; runtime default 1024>
 この再測定の env hash は `e79d51f4d7ce5e701e0e73db97afc9ee051d609b9a652e278ab84b0518897bda`。
 出力 SHA-256 は raw JSONL `560673693bdff8e87895faf12b88fcfe4e977c99e19c2a5f23d5907d81138cc0`
 、summary JSON `81fa80b96eb8aeac5a28f21815a6bf7ecddab15557d2eeb6b8a9a3965b1cf966`。
-Q4 の A1 は Q3→Q4 の B5 死亡率が 21.2%→24.1% と上昇して不成立だったため、
-Q4 完成ビルド定義は採用せず、再定義課題として報告する。balance 値は変更しない。
+Q4 の点推定は Q3→Q4 で 21.2%→24.1% と上昇したが、同一測定の隣接差95% CIは0を跨ぐ。
+点推定反転を統計的非単調と扱わず、Issue #470で全候補を再判定する。balance 値は変更しない。
 
 ## Issue #470 固定結論（完成ビルド定義）
 
-Issue #470 では、深層生存（B5 `deathFloor === 5`）から完成度を判定する定義を採用しない。
-同一の Issue #461 固定条件・同一 raw run（B5 entrant N=2799）を使い、候補を再ランキングしても
-A1 の3条件を同時に満たす候補はなかった。したがって現時点の canon は
-「深層生存で完成度を判定できない。完成ビルド定義は未確定」とする。
+Issue #470 の採用定義は、現行 `combatBuildScore`（equipment + first combat core）の職内
+quartile Q4。同一の Issue #461 固定条件・同一 raw run（B5 entrant N=2799）を使い、
+結果を見る前に固定した隣接差CI＋職層調整 Cochran–Armitage trend testで全7候補を再判定した。
+現行 total は A1 の3条件を満たすため、深層生存 B5 `deathFloor === 5` を完成度の主 endpointとして採用する。
+
+- 単調性判定: Δ=Q次−Q前の正規近似95% CIを全隣接ペアで出力。CI下限>0だけを統計的反転とし、
+  Δ>0でもCIが0を跨ぐ点推定反転は失格にしない。全体傾向は職を層とする Cochran–Armitage
+  trend test（Q1〜Q4 score=0〜3）の減少方向 p<.05、かつ統計的反転なしを成立とする。
+- 現行 total は Q1→Q4 B5死亡率 32.95%→26.47%→21.57%→24.03%。Q3→Q4 は
+  +2.46pt [-1.94, +6.86]で0を跨ぎ、点推定反転だが統計的非単調ではない。trend z=-4.357、
+  減少方向 p<0.0001。Q4−Q1 職内 centered 差は -8.9pt [-13.5, -4.3]。
+- equipment-only と equipment + 全 combat core も A1成立。ただし採用優先順位は既存の現行 totalを先とし、
+  all-core total は測定専用の有力な代替。first-core-only / all-core-only は減少 trend 不成立。
+- Q3→Q4切り分けの equipment-only +2.2pt [-2.2, +6.6]、first core-only -0.2pt [-4.8, +4.3]、
+  all-core-only -0.8pt [-5.4, +3.8]はいずれもCIが0を跨ぐ。反転の実在も主因もこのNでは確定せず、
+  「反転の主因はequipment側」とは書かない。
 
 - B5 snapshot は `floor=5` / `point=floor-start`。`reachedFloor` は run 終了後の値であり、
   B5 entry スコアの深度正規化へ使わない。B5 entrant 内の score と終了到達floorの相関は、
@@ -227,11 +241,15 @@ A1 の3条件を同時に満たす候補はなかった。したがって現時�
   16.8% [15.5, 18.3]で全core合計を過小評価し、複数core runの first→all 差は
   3.28 [2.95, 3.61]。ただし all-core-only は A1のQ4−Q1 CI上限<0を満たさず、
   core 1個制限の修正だけで判定力は生じない。
-- 正式候補7個、A1 predicate 21個。α=.05で期待偽陽性1.05件。絶対閾値は外部校正値がなく、
-  結果後の閾値選択を避けるため正式候補にしない。
-
-この定義が未確定のため、#271 の A1 / A2 と、完成ビルド率・quality quartile を入力にした
-派生測定は、定義確定後に取り直す。balance 値・src のゲーム挙動は変更しない。
+- 正式候補7個、A1主条件21個、単調性補助チェック28個、報告総数49個。α=.05の機械的な
+  期待偽陽性2.45件、Bonferroni family-wise α=.00102。候補追加・結果後の採用変更なし。
+- 絶対閾値は score の外部校正値がなく、結果後の threshold 選択が数字合わせになるため正式候補にしない。
+- B5 snapshot は全件 `floor=5` / `point=floor-start`。`reachedFloor` は run 終了後の値であり、
+  B5 entry scoreの深度正規化には使わない。B5 entrant内の score→終了到達floor は選別後の関連で、
+  因果効果ではない。
+- 採用定義により #271 の A1（Q4−Q1、統計的単調性、Q4安全性gate）/ A2（class-centered score×depth）/
+  A3（core / 対応support feature）、完成ビルド率、quality quartile入力のdepth-quality表・要約・派生判断を
+  同じ #461 固定条件で取り直す。#470のB5 raw再測定は不要。balance 値・srcのゲーム挙動は変更しない。
 
 ## Required Verification
 
