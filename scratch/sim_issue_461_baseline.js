@@ -1,4 +1,6 @@
 // sim-scope: run — Issue #461 weighted baseline through simulateRun/generateRunFloor
+// Historical runner: its rendered 35〜40% wording belongs to the #461-era record;
+// current canon is .agents/balance-simulation.md, Issue #471.
 /* global console, process */
 
 import { createHash } from "node:crypto";
