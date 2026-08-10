@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveSimParallelism, runSimTasks } from "./sim_parallel.js";
 
-const SCENARIO_IDS = Object.freeze([
+const ALL_SCENARIO_IDS = Object.freeze([
   "workshop-empty",
   "workshop-stats",
   "workshop-gear",
@@ -21,6 +21,13 @@ const SCENARIO_IDS = Object.freeze([
   "workshop-core-pools",
   "workshop-complete"
 ]);
+const REQUESTED_SCENARIO_IDS = String(
+  process.env.ISSUE271_SCENARIOS || ALL_SCENARIO_IDS.join(",")
+)
+  .split(",")
+  .map(value => value.trim())
+  .filter(Boolean);
+const SCENARIO_IDS = Object.freeze(REQUESTED_SCENARIO_IDS);
 const BASIC_CLASSES = Object.freeze(["Fighter", "Thief", "Priest", "Mage"]);
 const B5 = 5;
 const TARGET_DEPTH = 21;
@@ -28,6 +35,20 @@ const R95 = 1.959963984540054;
 const A2_SIGNAL = 0.20;
 const MIN_A3_TREND_N = 194;
 const ORDINAL_LEVELS = Object.freeze([0, 1, 2, 3]);
+const MONOTONIC_ALPHA = 0.05;
+// #467's published A3 numbers are the B5 combat-core count axis.
+const A3_ACCEPTANCE_AXIS = "combatCoreCount";
+const N_DESIGN = Object.freeze({
+  referenceRunsPerCell: 2200,
+  referenceB5Entrants: 524,
+  referenceEffect: -0.051,
+  referenceCiLow: -0.104,
+  referenceCiHigh: 0.002,
+  targetPower: 0.90,
+  marginFactor: 1.25,
+  plannedRunsPerCell: 8500,
+  finalRunsPerCell: 13000
+});
 
 const ENV_DEFAULTS = Object.freeze({
   SIM_SEED: "271",
@@ -63,11 +84,17 @@ for (const [key, value] of Object.entries(ENV_DEFAULTS)) {
 if (process.env.SIM_PARALLEL) {
   throw new Error("SIM_PARALLEL must be omitted for Issue #271 measurement");
 }
+if (process.env.SIM_MAP_CACHE_ENTRIES) {
+  throw new Error("SIM_MAP_CACHE_ENTRIES must be omitted for Issue #271 measurement");
+}
 if (process.env.IDENTIFICATION_POLICY !== "powder") {
   throw new Error("IDENTIFICATION_POLICY must be powder for Issue #271 Phase 1");
 }
+if (!SCENARIO_IDS.length || SCENARIO_IDS.some(id => !ALL_SCENARIO_IDS.includes(id))) {
+  throw new Error(`unknown ISSUE271_SCENARIOS: ${SCENARIO_IDS.join(",")}`);
+}
 if (!SCENARIO_IDS.every(id => process.env.SIM_SCENARIOS.split(",").includes(id))) {
-  throw new Error(`SIM_SCENARIOS must include all seven scenarios: ${SCENARIO_IDS.join(",")}`);
+  throw new Error(`SIM_SCENARIOS must include requested scenarios: ${SCENARIO_IDS.join(",")}`);
 }
 
 const RUNS = Math.max(1, Number(process.env.SIM_RUNS));
@@ -168,7 +195,14 @@ function wilson(successes, trials) {
 
 function normalDifference(left, right) {
   if (!left.length || !right.length) {
-    return { estimate: null, low: null, high: null };
+    return {
+      estimate: null,
+      low: null,
+      high: null,
+      leftN: left.length,
+      rightN: right.length,
+      status: "未観測"
+    };
   }
   const leftMean = mean(left);
   const rightMean = mean(right);
@@ -179,7 +213,113 @@ function normalDifference(left, right) {
   return {
     estimate,
     low: estimate - R95 * standardError,
-    high: estimate + R95 * standardError
+    high: estimate + R95 * standardError,
+    leftN: left.length,
+    rightN: right.length,
+    status: Math.min(left.length, right.length) < 30
+      ? "未確定（N<30）"
+      : "確定"
+  };
+}
+
+function normalCdf(value) {
+  const sign = value < 0 ? -1 : 1;
+  const x = Math.abs(value) / Math.SQRT2;
+  const t = 1 / (1 + 0.3275911 * x);
+  const polynomial = (((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t -
+    0.284496736) * t + 0.254829592) * t);
+  const erf = sign * (1 - polynomial * Math.exp(-x * x));
+  return 0.5 * (1 + erf);
+}
+
+function classCenteredQuartileDifference(rows, leftQuartile, rightQuartile, outcomeSelector) {
+  const byClass = new Map();
+  rows.forEach(row => {
+    if (!byClass.has(row.className)) byClass.set(row.className, []);
+    byClass.get(row.className).push(row);
+  });
+  const left = [];
+  const right = [];
+  const classCounts = {};
+  byClass.forEach((classRows, className) => {
+    const classMean = mean(classRows.map(outcomeSelector));
+    const leftRows = classRows.filter(row => row.qualityQuartile === leftQuartile);
+    const rightRows = classRows.filter(row => row.qualityQuartile === rightQuartile);
+    classCounts[className] = {
+      left: leftRows.length,
+      right: rightRows.length,
+      allQuartiles: [1, 2, 3, 4].map(quartile =>
+        classRows.filter(row => row.qualityQuartile === quartile).length
+      )
+    };
+    left.push(...leftRows.map(row => outcomeSelector(row) - classMean));
+    right.push(...rightRows.map(row => outcomeSelector(row) - classMean));
+  });
+  return {
+    ...normalDifference(left, right),
+    classCounts,
+    classCentered: Object.values(classCounts).every(counts =>
+      counts.left >= 30 && counts.right >= 30
+    ),
+    allQuartilesAtLeast30: Object.values(classCounts).every(counts =>
+      counts.allQuartiles.every(n => n >= 30)
+    )
+  };
+}
+
+function classStratifiedCochranArmitage(rows, outcomeSelector) {
+  const byClass = new Map();
+  rows.forEach(row => {
+    if (!byClass.has(row.className)) byClass.set(row.className, []);
+    byClass.get(row.className).push(row);
+  });
+  let numerator = 0;
+  let variance = 0;
+  let minCellN = Infinity;
+  byClass.forEach(classRows => {
+    const n = classRows.length;
+    const deaths = classRows.filter(outcomeSelector).length;
+    const nullRate = deaths / n;
+    const groups = [1, 2, 3, 4].map(quartile =>
+      classRows.filter(row => row.qualityQuartile === quartile)
+    );
+    const counts = groups.map(group => group.length);
+    const deathsByQuartile = groups.map(group => group.filter(outcomeSelector).length);
+    minCellN = Math.min(minCellN, ...counts);
+    const scores = [0, 1, 2, 3];
+    const scoreMean = counts.reduce(
+      (sum, count, index) => sum + count * scores[index],
+      0
+    ) / n;
+    const scoreVariance = counts.reduce(
+      (sum, count, index) => sum + count * (scores[index] - scoreMean) ** 2,
+      0
+    );
+    numerator += deathsByQuartile.reduce(
+      (sum, deathCount, index) =>
+        sum + scores[index] * (deathCount - counts[index] * nullRate),
+      0
+    );
+    variance += nullRate * (1 - nullRate) * scoreVariance;
+  });
+  if (variance === 0 || !Number.isFinite(variance)) {
+    return {
+      test: "class-stratified Cochran-Armitage",
+      z: null,
+      pValueDecreasing: null,
+      pValueIncreasing: null,
+      minCellN,
+      status: "未確定（分散0）"
+    };
+  }
+  const z = numerator / Math.sqrt(variance);
+  return {
+    test: "class-stratified Cochran-Armitage",
+    z,
+    pValueDecreasing: normalCdf(z),
+    pValueIncreasing: 1 - normalCdf(z),
+    minCellN,
+    status: minCellN < 30 ? "未確定（N<30）" : "確定"
   };
 }
 
@@ -489,49 +629,53 @@ function quartileStats(rows) {
 function calculateA1(rows) {
   const quartileRows = assignQuartiles(rows);
   const quartiles = quartileStats(quartileRows);
-  const q1 = quartileRows.filter(row => row.qualityQuartile === 1);
-  const q4 = quartileRows.filter(row => row.qualityQuartile === 4);
-  const q4q1Death = normalDifference(
-    q4.map(row => Number(row.b5Death)),
-    q1.map(row => Number(row.b5Death))
+  const q4q1Death = classCenteredQuartileDifference(
+    quartileRows,
+    4,
+    1,
+    row => Number(row.b5Death)
   );
   const adjacent = quartiles.slice(0, -1).map((left, index) => {
     const right = quartiles[index + 1];
-    const pointDrop = left.b5Death.estimate - right.b5Death.estimate;
-    const nonOverlapping = left.b5Death.low > right.b5Death.high ||
-      right.b5Death.low > left.b5Death.high;
+    const difference = classCenteredQuartileDifference(
+      quartileRows,
+      right.quartile,
+      left.quartile,
+      row => Number(row.b5Death)
+    );
     return {
       from: left.quartile,
       to: right.quartile,
-      pointDrop,
-      ciOverlap: !nonOverlapping,
-      favorableDirection: pointDrop > 0,
-      significantFavorableDrop: pointDrop > 0 && nonOverlapping &&
-        left.b5Death.low > right.b5Death.high
+      ...difference,
+      pointDrop: difference.estimate === null ? null : -difference.estimate,
+      favorableDirection: difference.estimate < 0,
+      significantFavorableDrop: difference.high < 0
     };
   });
-  const kneeCandidates = adjacent.filter(row => row.significantFavorableDrop);
-  const largestPointDrop = [...adjacent].sort((left, right) => right.pointDrop - left.pointDrop)[0] || null;
-  const monotonicNonIncreasing = quartiles.every((row, index) =>
-    index === 0 || row.b5Death.estimate <= quartiles[index - 1].b5Death.estimate
+  const trendTest = classStratifiedCochranArmitage(
+    quartileRows,
+    row => Boolean(row.b5Death)
   );
+  const statisticallyNonMonotonic = adjacent.some(row =>
+    row.status === "確定" && row.low > 0
+  );
+  const monotonicNonIncreasing = trendTest.status === "確定" &&
+    trendTest.pValueDecreasing < MONOTONIC_ALPHA &&
+    !statisticallyNonMonotonic;
   const conditions = {
-    q4MinusQ1UpperBelowZero: q4q1Death.high < 0,
+    q4MinusQ1UpperBelowZero: q4q1Death.high < 0 && q4q1Death.allQuartilesAtLeast30,
     monotonicNonIncreasing,
-    q4PointAtOrBelowGate: quartiles[3]?.b5Death.estimate <= 0.309
+    q4PointAtOrBelowGate: quartiles[3]?.b5Death.estimate <= 0.309,
+    classCentered: q4q1Death.classCentered
   };
   return {
     quartiles,
     q4MinusQ1Death: q4q1Death,
     adjacent,
-    largestPointDrop,
-    knee: kneeCandidates.length
-      ? kneeCandidates[0]
-      : monotonicNonIncreasing
-        ? "有意差なし"
-        : "非単調（kneeと呼ばない）",
+    trendTest,
+    statisticallyNonMonotonic,
     conditions,
-    pass: Object.values(conditions).every(Boolean)
+    pass: q4q1Death.allQuartilesAtLeast30 && Object.values(conditions).every(Boolean)
   };
 }
 
@@ -876,6 +1020,10 @@ function shortScenarioSummary(summary) {
           pass: value.pass
         }])
     ),
+    a3Acceptance: {
+      axis: A3_ACCEPTANCE_AXIS,
+      ...summary.a3[A3_ACCEPTANCE_AXIS]
+    },
     overallCoreSupply: {
       coreEncounter: formatRate(summary.overallCoreSupply.coreEncounter),
       finalEquipped: formatRate(summary.overallCoreSupply.finalEquipped),
@@ -893,6 +1041,7 @@ async function main() {
   const scenarios = Object.fromEntries(SCENARIO_IDS.map(id => [id, buildScenario(id)]));
   const scoringProfiles = {};
   const calibrationStarted = performance.now();
+  const calibrationCpuStarted = process.cpuUsage();
   for (const scenarioId of SCENARIO_IDS) {
     const scenario = scenarios[scenarioId];
     resetSimulationRandom(SEED);
@@ -903,6 +1052,7 @@ async function main() {
       scenario.workshop
     );
   }
+  const calibrationCpuUsage = process.cpuUsage(calibrationCpuStarted);
   const calibrationWallSeconds = (performance.now() - calibrationStarted) / 1000;
 
   const tasks = SCENARIO_IDS.flatMap(scenarioId =>
@@ -952,6 +1102,39 @@ async function main() {
   const rawText = rows.map(row => JSON.stringify(row)).join("\n") + "\n";
   const rawSha256 = sha256(rawText);
   writeFileSync(rawPath, rawText);
+  const environment = {
+    SIM_SEED: process.env.SIM_SEED,
+    SIM_RUNS: process.env.SIM_RUNS,
+    SIM_CALIBRATION_RUNS: process.env.SIM_CALIBRATION_RUNS,
+    DEPARTURE_CRAFT_IDS: process.env.DEPARTURE_CRAFT_IDS,
+    TRAP_POLICY: process.env.TRAP_POLICY,
+    TRAP_AVOIDANCE_POLICY: process.env.TRAP_AVOIDANCE_POLICY,
+    TRAP_DAMAGE_MULTIPLIER: process.env.TRAP_DAMAGE_MULTIPLIER,
+    IDENTIFICATION_POLICY: process.env.IDENTIFICATION_POLICY,
+    IDENTIFICATION_STARTING_POWDER: process.env.IDENTIFICATION_STARTING_POWDER,
+    IDENTIFICATION_COST_OVERRIDE: process.env.IDENTIFICATION_COST_OVERRIDE,
+    STATUS_CURE_POLICY: process.env.STATUS_CURE_POLICY,
+    STATUS_CURE_HP_THRESHOLD: process.env.STATUS_CURE_HP_THRESHOLD,
+    STATUS_CURE_MERCHANT_POLICY: process.env.STATUS_CURE_MERCHANT_POLICY,
+    HEAL_POTION_MERCHANT_POLICY: process.env.HEAL_POTION_MERCHANT_POLICY,
+    FLEE_POLICY: process.env.FLEE_POLICY,
+    FLEE_HP_THRESHOLD: process.env.FLEE_HP_THRESHOLD,
+    PORTAL_HP_THRESHOLD: process.env.PORTAL_HP_THRESHOLD,
+    PORTAL_MAX_HEAL_POTIONS: process.env.PORTAL_MAX_HEAL_POTIONS,
+    PORTAL_MIN_FLOOR: process.env.PORTAL_MIN_FLOOR,
+    ELITE_POLICY: process.env.ELITE_POLICY,
+    BLOOD_WAND_HP_PAYMENT_MIN_RATE: process.env.BLOOD_WAND_HP_PAYMENT_MIN_RATE,
+    SIM_CORE_SCORE_DROP_TOLERANCE: process.env.SIM_CORE_SCORE_DROP_TOLERANCE,
+    SIM_440_CONDITION: process.env.SIM_440_CONDITION,
+    SIM_SCENARIOS: process.env.SIM_SCENARIOS,
+    SIM_PARALLEL: "未指定",
+    SIM_MAP_CACHE_ENTRIES: "未指定"
+  };
+  const environmentText = Object.entries(environment)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("\n") + "\n";
+  const environmentSha256 = sha256(environmentText);
   const measurement = {
     phase: "1",
     seed: SEED,
@@ -960,44 +1143,29 @@ async function main() {
     SIM_PARALLEL: "未指定",
     resolvedParallelism,
     availableParallelism: availableParallelism(),
+    environmentSha256,
     identificationPolicy: process.env.IDENTIFICATION_POLICY,
     fleePolicy: FLEE_POLICY,
     fleeHpThreshold: FLEE_HP_THRESHOLD,
-    environment: {
-      SIM_SEED: process.env.SIM_SEED,
-      SIM_RUNS: process.env.SIM_RUNS,
-      SIM_CALIBRATION_RUNS: process.env.SIM_CALIBRATION_RUNS,
-      DEPARTURE_CRAFT_IDS: process.env.DEPARTURE_CRAFT_IDS,
-      TRAP_POLICY: process.env.TRAP_POLICY,
-      TRAP_AVOIDANCE_POLICY: process.env.TRAP_AVOIDANCE_POLICY,
-      TRAP_DAMAGE_MULTIPLIER: process.env.TRAP_DAMAGE_MULTIPLIER,
-      IDENTIFICATION_POLICY: process.env.IDENTIFICATION_POLICY,
-      IDENTIFICATION_STARTING_POWDER: process.env.IDENTIFICATION_STARTING_POWDER,
-      IDENTIFICATION_COST_OVERRIDE: process.env.IDENTIFICATION_COST_OVERRIDE,
-      STATUS_CURE_POLICY: process.env.STATUS_CURE_POLICY,
-      STATUS_CURE_HP_THRESHOLD: process.env.STATUS_CURE_HP_THRESHOLD,
-      STATUS_CURE_MERCHANT_POLICY: process.env.STATUS_CURE_MERCHANT_POLICY,
-      HEAL_POTION_MERCHANT_POLICY: process.env.HEAL_POTION_MERCHANT_POLICY,
-      FLEE_POLICY: process.env.FLEE_POLICY,
-      FLEE_HP_THRESHOLD: process.env.FLEE_HP_THRESHOLD,
-      PORTAL_HP_THRESHOLD: process.env.PORTAL_HP_THRESHOLD,
-      PORTAL_MAX_HEAL_POTIONS: process.env.PORTAL_MAX_HEAL_POTIONS,
-      PORTAL_MIN_FLOOR: process.env.PORTAL_MIN_FLOOR,
-      ELITE_POLICY: process.env.ELITE_POLICY,
-      BLOOD_WAND_HP_PAYMENT_MIN_RATE: process.env.BLOOD_WAND_HP_PAYMENT_MIN_RATE,
-      SIM_CORE_SCORE_DROP_TOLERANCE: process.env.SIM_CORE_SCORE_DROP_TOLERANCE,
-      SIM_440_CONDITION: process.env.SIM_440_CONDITION,
-      SIM_SCENARIOS: process.env.SIM_SCENARIOS,
-      SIM_PARALLEL: "未指定"
-    },
+    environment,
     scenarios: SCENARIO_IDS,
     classes: CLASS_NAMES,
     targetDepth: TARGET_DEPTH,
+    a3AcceptanceAxis: A3_ACCEPTANCE_AXIS,
+    nDesign: {
+      ...N_DESIGN,
+      actualRunsPerCell: RUNS
+    },
     calibrationWallSeconds,
     wallClockSeconds,
+    calibrationCpuSeconds: (calibrationCpuUsage.user + calibrationCpuUsage.system) / 1e6,
     cpuUserSeconds: cpuUsage.user / 1e6,
     cpuSystemSeconds: cpuUsage.system / 1e6,
-    cpuTotalSeconds: (cpuUsage.user + cpuUsage.system) / 1e6,
+    simulationCpuSeconds: (cpuUsage.user + cpuUsage.system) / 1e6,
+    totalCpuSeconds: (
+      calibrationCpuUsage.user + calibrationCpuUsage.system +
+      cpuUsage.user + cpuUsage.system
+    ) / 1e6,
     rawSha256,
     rawPath: rawPath.replace(`${process.cwd()}/`, "")
   };
