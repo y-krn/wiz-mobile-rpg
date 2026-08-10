@@ -15,72 +15,75 @@
 
 ## N設計
 
-- #467 の B5 entrant率 0.2199、有群率0.0271を ceiling 有群率1.0へ置換。target group N=200。
-- ceil(200 / (0.2199 × 1.0)) = 910 run/cell。実測 1,000 run/cell（上式以上）。
-- 現行 control の実trapBonus保有率は診断値。低Nなら有/なし群の結論へ使わない。ceilingのA1/A2は全B5 entrantを対象。
+- A1はB5 entrant全体を職内combatBuildScore quartileに分けたQ4−Q1差。#467参照値は workshop-core-pools=-0.0061、workshop-complete=-0.1630。A2はB5 entrant全体の職内centered相関。#467参照値は r=0.1650（受入gate r≥0.2000）。
+- #467と同オーダーの entrant N=11,000 を目標。有群率では割らない。ceiling 有群率1.0 は変換対象を決めるだけで、entrant分母を増やさない。
+- B5 entrant率0.2199から ceil(11,000 / (0.2199 × 1.0)) = 50,023 run/cell。実測 50,100 run/cell（上式以上）。
+- entrant N=11,000なら quartile 1つ約2750。A1の二群率差をBernoulli分散最大で近似した95%半幅は±0.0264（±2.64pt）。
+- A2のFisher-z標準誤差=0.00954、95%半幅 z=0.01869。r=0.1650で近似CI [0.1468, 0.1831]。
+- 現行 control の実trapBonus保有率は診断値。A1/A2の分母は常に全B5 entrant。
 
 ## A1 / A2 / A3
 
-- workshop-core-pools / smart: B5 entrant control=252 / placebo=252 / ceiling=252。
-  - A1 control=不成立 Q4−Q1=+0.054 [-0.108, 0.216] / ceiling=不成立 Q4−Q1=+0.068 [-0.093, 0.230]; Q4死亡率=38.7% [27.6%, 51.2%]; monotonic=不成立。
-  - A2 control=不成立 r=0.19 [0.07, 0.31] / ceiling=不成立 r=0.11 [-0.01, 0.23]。
-  - A3 ceiling: coreCount=不成立 / combatCoreCount=不成立 / economyCoreCount=不成立 / coreWithMatchingSupport=不成立。
-- workshop-core-pools / never: B5 entrant control=192 / placebo=192 / ceiling=192。
-  - A1 control=不成立 Q4−Q1=-0.029 [-0.211, 0.154] / ceiling=不成立 Q4−Q1=-0.194 [-0.374, -0.013]; Q4死亡率=27.7% [16.9%, 41.8%]; monotonic=不成立。
-  - A2 control=不成立 r=0.14 [0.00, 0.28] / ceiling=成立 r=0.20 [0.06, 0.33]。
-  - A3 ceiling: coreCount=未確定（総N<194またはlevel 1/2のN<30） / combatCoreCount=未確定（総N<194またはlevel 1/2のN<30） / economyCoreCount=未確定（総N<194またはlevel 1/2のN<30） / coreWithMatchingSupport=不成立。
-- workshop-complete / smart: B5 entrant control=226 / placebo=226 / ceiling=226。
-  - A1 control=成立 Q4−Q1=-0.188 [-0.343, -0.033] / ceiling=成立 Q4−Q1=-0.187 [-0.347, -0.028]; Q4死亡率=19.6% [11.3%, 31.8%]; monotonic=成立。
-  - A2 control=不成立 r=0.17 [0.04, 0.29] / ceiling=不成立 r=0.17 [0.04, 0.30]。
-  - A3 ceiling: coreCount=不成立 / combatCoreCount=不成立 / economyCoreCount=不成立 / coreWithMatchingSupport=不成立。
-- workshop-complete / never: B5 entrant control=224 / placebo=224 / ceiling=224。
-  - A1 control=不成立 Q4−Q1=-0.116 [-0.273, 0.042] / ceiling=成立 Q4−Q1=-0.239 [-0.397, -0.080]; Q4死亡率=18.5% [10.4%, 30.8%]; monotonic=成立。
-  - A2 control=不成立 r=0.20 [0.07, 0.32] / ceiling=成立 r=0.23 [0.10, 0.35]。
-  - A3 ceiling: coreCount=不成立 / combatCoreCount=不成立 / economyCoreCount=不成立 / coreWithMatchingSupport=不成立。
+- workshop-core-pools / smart: B5 entrant control=11203 / placebo=11203 / ceiling=11203。
+  - A1 control=不成立 Q4−Q1=-0.0673 [-0.0908, -0.0439] / ceiling=不成立 Q4−Q1=-0.0748 [-0.0983, -0.0514]; Q4死亡率=27.7% [26.1%, 29.4%]; monotonic=不成立。
+  - A2 control=不成立 r=0.1403 [0.1221, 0.1584] / ceiling=不成立 r=0.1314 [0.1132, 0.1496]。
+  - A3 ceiling: coreCount=成立 / combatCoreCount=成立 / economyCoreCount=不成立 / coreWithMatchingSupport=不成立。
+- workshop-core-pools / never: B5 entrant control=10955 / placebo=10955 / ceiling=10955。
+  - A1 control=不成立 Q4−Q1=-0.0815 [-0.1052, -0.0578] / ceiling=不成立 Q4−Q1=-0.0563 [-0.0798, -0.0328]; Q4死亡率=28.2% [26.6%, 30.0%]; monotonic=不成立。
+  - A2 control=不成立 r=0.1400 [0.1216, 0.1583] / ceiling=不成立 r=0.1290 [0.1105, 0.1474]。
+  - A3 ceiling: coreCount=成立 / combatCoreCount=成立 / economyCoreCount=不成立 / coreWithMatchingSupport=成立。
+- workshop-complete / smart: B5 entrant control=12359 / placebo=12359 / ceiling=12359。
+  - A1 control=不成立 Q4−Q1=-0.0703 [-0.0920, -0.0485] / ceiling=不成立 Q4−Q1=-0.0822 [-0.1040, -0.0605]; Q4死亡率=24.4% [23.0%, 26.0%]; monotonic=不成立。
+  - A2 control=不成立 r=0.1609 [0.1436, 0.1780] / ceiling=不成立 r=0.1473 [0.1300, 0.1645]。
+  - A3 ceiling: coreCount=成立 / combatCoreCount=成立 / economyCoreCount=不成立 / coreWithMatchingSupport=不成立。
+- workshop-complete / never: B5 entrant control=12141 / placebo=12141 / ceiling=12141。
+  - A1 control=不成立 Q4−Q1=-0.0867 [-0.1087, -0.0648] / ceiling=不成立 Q4−Q1=-0.0709 [-0.0931, -0.0487]; Q4死亡率=26.6% [25.0%, 28.2%]; monotonic=不成立。
+  - A2 control=不成立 r=0.1376 [0.1202, 0.1551] / ceiling=不成立 r=0.1113 [0.0937, 0.1288]。
+  - A3 ceiling: coreCount=成立 / combatCoreCount=成立 / economyCoreCount=不成立 / coreWithMatchingSupport=成立。
 - A1 Q4−Q1は職内centered、A2は職内centered Fisher z、A3も職内centered。率=Wilson 95% CI、相関=Fisher z 95% CI、平均/差=正規近似95% CI。
 - N<30は未確定。CIが0を跨ぐ指標は効果なしと断定しない。
 
 ## placebo / ceiling paired
 
-- placebo−current: paired。全 4000 pairで randomSequenceId監査。現行値・群定義のみの差は次の通り。
-- smart:workshop-core-pools: floor=+0.000 [0.000, 0.000] / B5死亡=+0.000 [0.000, 0.000] / B5突破=+0.000 [0.000, 0.000]; 同一結果pair=1000/1000。
-- smart:workshop-complete: floor=+0.000 [0.000, 0.000] / B5死亡=+0.000 [0.000, 0.000] / B5突破=+0.000 [0.000, 0.000]; 同一結果pair=1000/1000。
-- never:workshop-core-pools: floor=+0.000 [0.000, 0.000] / B5死亡=+0.000 [0.000, 0.000] / B5突破=+0.000 [0.000, 0.000]; 同一結果pair=1000/1000。
-- never:workshop-complete: floor=+0.000 [0.000, 0.000] / B5死亡=+0.000 [0.000, 0.000] / B5突破=+0.000 [0.000, 0.000]; 同一結果pair=1000/1000。
+- placebo−current: paired。全 200400 pairで randomSequenceId監査。現行値・群定義のみの差は次の通り。
+- smart:workshop-core-pools: floor=+0.000 [0.000, 0.000] / B5死亡=+0.000 [0.000, 0.000] / B5突破=+0.000 [0.000, 0.000]; 同一結果pair=50100/50100。
+- smart:workshop-complete: floor=+0.000 [0.000, 0.000] / B5死亡=+0.000 [0.000, 0.000] / B5突破=+0.000 [0.000, 0.000]; 同一結果pair=50100/50100。
+- never:workshop-core-pools: floor=+0.000 [0.000, 0.000] / B5死亡=+0.000 [0.000, 0.000] / B5突破=+0.000 [0.000, 0.000]; 同一結果pair=50100/50100。
+- never:workshop-complete: floor=+0.000 [0.000, 0.000] / B5死亡=+0.000 [0.000, 0.000] / B5突破=+0.000 [0.000, 0.000]; 同一結果pair=50100/50100。
 - ceiling−current: paired。post-generation / random consumption preserved / trajectory diverges。
-- smart:workshop-core-pools: floor=+0.040 [-0.018, 0.098] / B5死亡=-0.004 [-0.053, 0.045] / B5突破=+0.004 [-0.045, 0.053] / 生還=-0.010 [-0.024, 0.004]。
-- smart:workshop-complete: floor=+0.015 [-0.046, 0.076] / B5死亡=+0.040 [-0.010, 0.089] / B5突破=-0.022 [-0.067, 0.023] / 生還=+0.002 [-0.011, 0.015]。
-- never:workshop-core-pools: floor=+0.007 [-0.046, 0.060] / B5死亡=+0.052 [-0.014, 0.118] / B5突破=-0.016 [-0.078, 0.047] / 生還=-0.008 [-0.021, 0.005]。
-- never:workshop-complete: floor=-0.005 [-0.063, 0.053] / B5死亡=+0.036 [-0.015, 0.087] / B5突破=-0.018 [-0.064, 0.028] / 生還=-0.018 [-0.030, -0.006]。
+- smart:workshop-core-pools: floor=+0.0185 [0.0104, 0.0266] / B5死亡=+0.0107 [0.0031, 0.0183] / B5突破=+0.0006 [-0.0065, 0.0077] / 生還=-0.0088 [-0.0107, -0.0069]。
+- smart:workshop-complete: floor=+0.0237 [0.0153, 0.0322] / B5死亡=+0.0018 [-0.0053, 0.0088] / B5突破=+0.0072 [0.0007, 0.0137] / 生還=-0.0081 [-0.0101, -0.0061]。
+- never:workshop-core-pools: floor=+0.0247 [0.0169, 0.0325] / B5死亡=-0.0016 [-0.0091, 0.0060] / B5突破=+0.0106 [0.0035, 0.0177] / 生還=-0.0066 [-0.0085, -0.0047]。
+- never:workshop-complete: floor=+0.0147 [0.0063, 0.0230] / B5死亡=+0.0098 [0.0028, 0.0168] / B5突破=-0.0008 [-0.0075, 0.0058] / 生還=-0.0110 [-0.0129, -0.0090]。
 
 ## runを楽にしていないか
 
-- workshop-core-pools / smart: B5死亡 32.9% [27.4%, 39.0%]→32.5% [27.1%, 38.5%]、突破 29.8% [24.5%, 35.7%]→30.2% [24.8%, 36.1%]、全run平均floor 3.65 [3.53, 3.76]→3.69 [3.56, 3.81]。点推定方向=易化。
-- workshop-core-pools / never: B5死亡 25.5% [19.9%, 32.1%]→30.7% [24.6%, 37.6%]、突破 36.5% [30.0%, 43.5%]→34.9% [28.5%, 41.9%]、全run平均floor 3.45 [3.33, 3.56]→3.45 [3.33, 3.57]。点推定方向=混在/不明。
-- workshop-complete / smart: B5死亡 23.0% [18.0%, 28.9%]→27.0% [21.6%, 33.1%]、突破 39.8% [33.7%, 46.3%]→37.6% [31.6%, 44.1%]、全run平均floor 3.69 [3.56, 3.81]→3.70 [3.57, 3.83]。点推定方向=混在/不明。
-- workshop-complete / never: B5死亡 25.4% [20.2%, 31.5%]→29.0% [23.5%, 35.3%]、突破 36.6% [30.6%, 43.1%]→34.8% [28.9%, 41.3%]、全run平均floor 3.67 [3.55, 3.79]→3.67 [3.54, 3.79]。点推定方向=混在/不明。
-- 点推定が易化方向のcellはあるが、paired 95% CIは全run平均floor・B5死亡・B5突破の判定対象で0を跨ぐ。天井でrunが安定して楽になったとは判定しない。
+- workshop-core-pools / smart: B5死亡 28.7% [27.9%, 29.6%]→29.8% [28.9%, 30.6%]、突破 34.4% [33.6%, 35.3%]→34.5% [33.6%, 35.4%]、全run平均floor 3.58 [3.57, 3.60]→3.60 [3.58, 3.62]。paired ceiling−currentは floor=+0.0185 [0.0104, 0.0266] / B5死亡=+0.0107 [0.0031, 0.0183] / B5突破=+0.0006 [-0.0065, 0.0077]。点推定方向=混在/不明、CI判定=未確定。
+- workshop-core-pools / never: B5死亡 29.8% [28.9%, 30.7%]→29.6% [28.8%, 30.5%]、突破 33.3% [32.4%, 34.2%]→34.3% [33.5%, 35.2%]、全run平均floor 3.55 [3.53, 3.56]→3.57 [3.55, 3.59]。paired ceiling−currentは floor=+0.0247 [0.0169, 0.0325] / B5死亡=-0.0016 [-0.0091, 0.0060] / B5突破=+0.0106 [0.0035, 0.0177]。点推定方向=易化、CI判定=未確定。
+- workshop-complete / smart: B5死亡 26.8% [26.0%, 27.6%]→27.0% [26.2%, 27.8%]、突破 35.4% [34.5%, 36.2%]→36.1% [35.2%, 36.9%]、全run平均floor 3.74 [3.72, 3.75]→3.76 [3.74, 3.78]。paired ceiling−currentは floor=+0.0237 [0.0153, 0.0322] / B5死亡=+0.0018 [-0.0053, 0.0088] / B5突破=+0.0072 [0.0007, 0.0137]。点推定方向=混在/不明、CI判定=未確定。
+- workshop-complete / never: B5死亡 27.0% [26.3%, 27.8%]→28.0% [27.2%, 28.8%]、突破 36.0% [35.1%, 36.8%]→35.9% [35.0%, 36.7%]、全run平均floor 3.71 [3.69, 3.72]→3.72 [3.70, 3.74]。paired ceiling−currentは floor=+0.0147 [0.0063, 0.0230] / B5死亡=+0.0098 [0.0028, 0.0168] / B5突破=-0.0008 [-0.0075, 0.0058]。点推定方向=混在/不明、CI判定=未確定。
+- run易化は3指標すべてが望ましい方向へ95% CIで0を跨がない場合だけ「安定易化」。今回のセル別集計: 安定易化=0 / 安定悪化=0 / 未確定=4。
 
 ## 宝箱副作用・職業別
 
-- smart / 全職: 解除率 87.1% [86.2%, 88.1%]→88.6% [87.7%, 89.5%]、罠被害HP/run 39.29 [37.51, 41.07]→39.10 [37.28, 40.92]、素材/run 47.16 [45.25, 49.07]→47.59 [45.62, 49.55]、開封/run 23.13 [22.24, 24.01]→23.40 [22.46, 24.34]。
-  - Fighter: 解除率 100.0% [89.6%, 100.0%]→100.0% [89.6%, 100.0%]、罠被害 40.08 [38.00, 42.15]→40.10 [38.03, 42.18]、素材 37.11 [35.42, 38.80]→37.13 [35.43, 38.83]。
-  - Thief: 解除率 86.6% [85.6%, 87.6%]→88.2% [87.2%, 89.1%]、罠被害 20.33 [18.91, 21.76]→18.94 [17.53, 20.35]、素材 55.41 [51.91, 58.90]→56.86 [53.08, 60.64]。
-  - Priest: 解除率 100.0% [96.7%, 100.0%]→99.1% [95.3%, 99.8%]、罠被害 56.11 [50.58, 61.64]→56.73 [51.11, 62.34]、素材 56.77 [50.89, 62.65]→57.02 [51.03, 63.02]。
-  - Mage: 解除率 100.0% [92.1%, 100.0%]→100.0% [92.1%, 100.0%]、罠被害 40.64 [38.65, 42.64]→40.63 [38.63, 42.62]、素材 39.35 [37.43, 41.28]→39.33 [37.41, 41.25]。
-- never / 全職: 解除率 85.8% [84.7%, 86.9%]→87.7% [86.7%, 88.7%]、罠被害HP/run 37.93 [36.20, 39.65]→37.37 [35.66, 39.08]、素材/run 44.09 [42.26, 45.91]→44.17 [42.28, 46.06]、開封/run 21.65 [20.78, 22.52]→21.69 [20.79, 22.59]。
-  - Fighter: 解除率 100.0% [91.2%, 100.0%]→100.0% [91.6%, 100.0%]、罠被害 38.40 [36.30, 40.51]→38.38 [36.28, 40.49]、素材 35.48 [33.67, 37.29]→35.53 [33.70, 37.36]。
-  - Thief: 解除率 85.1% [84.0%, 86.2%]→87.2% [86.1%, 88.2%]、罠被害 20.15 [18.87, 21.43]→19.07 [17.77, 20.36]、素材 48.71 [45.28, 52.13]→50.76 [46.59, 54.94]。
-  - Priest: 解除率 100.0% [96.8%, 100.0%]→99.1% [95.3%, 99.8%]、罠被害 54.72 [49.34, 60.11]→53.50 [48.21, 58.79]、素材 54.11 [48.50, 59.72]→52.33 [46.87, 57.78]。
-  - Mage: 解除率 100.0% [91.4%, 100.0%]→100.0% [91.2%, 100.0%]、罠被害 38.43 [36.53, 40.33]→38.52 [36.62, 40.43]、素材 38.06 [36.18, 39.93]→38.06 [36.18, 39.93]。
+- smart / 全職: 解除率 86.8% [86.6%, 86.9%]→88.0% [87.8%, 88.1%]、罠被害HP/run 39.01 [38.75, 39.27]→38.68 [38.42, 38.94]、素材/run 46.01 [45.74, 46.28]→46.29 [46.01, 46.56]、開封/run 22.53 [22.40, 22.66]→22.67 [22.54, 22.80]。
+  - Fighter: 解除率 100.0% [99.8%, 100.0%]→99.2% [98.8%, 99.5%]、罠被害 38.51 [38.23, 38.80]→38.51 [38.23, 38.80]、素材 36.65 [36.40, 36.91]→36.65 [36.39, 36.91]。
+  - Thief: 解除率 86.1% [86.0%, 86.3%]→87.6% [87.4%, 87.7%]、罠被害 19.91 [19.71, 20.11]→18.79 [18.59, 18.99]、素材 52.24 [51.77, 52.70]→53.57 [53.05, 54.09]。
+  - Priest: 解除率 100.0% [99.9%, 100.0%]→93.8% [93.2%, 94.3%]、罠被害 56.83 [56.00, 57.65]→56.63 [55.80, 57.46]、素材 56.32 [55.46, 57.18]→56.10 [55.23, 56.97]。
+  - Mage: 解除率 100.0% [99.8%, 100.0%]→99.9% [99.7%, 100.0%]、罠被害 40.79 [40.51, 41.06]→40.78 [40.51, 41.06]、素材 38.82 [38.55, 39.08]→38.82 [38.56, 39.08]。
+- never / 全職: 解除率 86.7% [86.6%, 86.8%]→87.8% [87.7%, 88.0%]、罠被害HP/run 38.36 [38.10, 38.61]→38.15 [37.90, 38.41]、素材/run 45.30 [45.03, 45.56]→45.68 [45.40, 45.95]、開封/run 22.21 [22.08, 22.34]→22.40 [22.27, 22.53]。
+  - Fighter: 解除率 100.0% [99.8%, 100.0%]→99.8% [99.5%, 99.9%]、罠被害 38.26 [37.98, 38.54]→38.28 [38.00, 38.56]、素材 36.24 [35.98, 36.49]→36.26 [36.01, 36.52]。
+  - Thief: 解除率 86.1% [85.9%, 86.2%]→87.5% [87.3%, 87.6%]、罠被害 19.59 [19.39, 19.80]→18.54 [18.33, 18.74]、素材 51.53 [51.07, 51.99]→52.91 [52.38, 53.43]。
+  - Priest: 解除率 99.8% [99.6%, 99.9%]→93.0% [92.4%, 93.5%]、罠被害 55.40 [54.60, 56.20]→55.62 [54.81, 56.44]、素材 55.10 [54.26, 55.94]→55.20 [54.35, 56.05]。
+  - Mage: 解除率 100.0% [99.8%, 100.0%]→99.8% [99.5%, 99.9%]、罠被害 40.18 [39.90, 40.45]→40.18 [39.90, 40.45]、素材 38.34 [38.08, 38.59]→38.34 [38.08, 38.60]。
 - 盗賊はapt（base80/max90）、非apt職はbase40/max60の現行解除式を使用。盗賊の解除率は両cureで改善し、非apt職の上限張り付きを含めても格差悪化は確認されなかった。
 
 ## trapSense cap
 
-- workshop-core-pools / smart: detection cap-hit 0.0% [0.0%, 0.1%]→0.0% [0.0%, 0.1%]（attempt=5287）。trapBonus ceilingで trapSense 値は変更せず、cap張り付きだけ実測。
-- workshop-core-pools / never: detection cap-hit 0.0% [0.0%, 0.1%]→0.0% [0.0%, 0.1%]（attempt=4816）。trapBonus ceilingで trapSense 値は変更せず、cap張り付きだけ実測。
-- workshop-complete / smart: detection cap-hit 0.0% [0.0%, 0.1%]→0.0% [0.0%, 0.1%]（attempt=5419）。trapBonus ceilingで trapSense 値は変更せず、cap張り付きだけ実測。
-- workshop-complete / never: detection cap-hit 0.0% [0.0%, 0.1%]→0.0% [0.0%, 0.1%]（attempt=5233）。trapBonus ceilingで trapSense 値は変更せず、cap張り付きだけ実測。
+- workshop-core-pools / smart: detection cap-hit 0.0% [0.0%, 0.0%]→0.0% [0.0%, 0.0%]（attempt=258860）。trapBonus ceilingで trapSense 値は変更せず、cap張り付きだけ実測。
+- workshop-core-pools / never: detection cap-hit 0.0% [0.0%, 0.0%]→0.0% [0.0%, 0.0%]（attempt=254069）。trapBonus ceilingで trapSense 値は変更せず、cap張り付きだけ実測。
+- workshop-complete / smart: detection cap-hit 0.0% [0.0%, 0.0%]→0.0% [0.0%, 0.0%]（attempt=277611）。trapBonus ceilingで trapSense 値は変更せず、cap張り付きだけ実測。
+- workshop-complete / never: detection cap-hit 0.0% [0.0%, 0.0%]→0.0% [0.0%, 0.0%]（attempt=271614）。trapBonus ceilingで trapSense 値は変更せず、cap張り付きだけ実測。
 
 ## 多重比較
 
@@ -90,16 +93,16 @@
 ## 実行監査
 
 - node=v26.7.0 / platform=darwin / arch=arm64。availableParallelism=15、resolved parallelism=15。SIM_PARALLEL未指定、SIM_MAP_CACHE_ENTRIES未指定（runtime default）。
-- calibration wall=6.437s / simulation wall=24.648s / total wall=31.085s / total CPU=374.943s。
-- env SHA-256=fc13fc065ef0c4682540d2f0edea7933bcaea19e4f12e4c9abb838f212494570。
-- raw JSONL SHA-256=98aee48472df1fce9e01efbba7a867888765f37f706946adf0c1fa5551909526。
-- summary JSON SHA-256=8bf2d99a2e57eaab3d6419c69ebd1513eb18c720342e520e4fe9697d9918f547。
+- calibration wall=6.251s / simulation wall=1392.695s / total wall=1398.946s / total CPU=20715.376s。
+- env SHA-256=29816ff097a684942b1ad24ae0bf9a71a41092ec283c9e8c1dd85f6e3248380f。
+- raw JSONL SHA-256=5f7450f9a461be867a81f38a0a8fe897c9a69c74f0d74265f0f30b7c7ce2c82c。
+- summary JSON SHA-256=407cf426c2b5b62b8f25d750319978963766c75abec5b3bd9c7a0e83765bc761。
 
 ## 完全な env
 
 ```text
 SIM_SEED=271
-SIM_RUNS=1000
+SIM_RUNS=50100
 SIM_CALIBRATION_RUNS=100
 SIM_SCENARIOS=workshop-core-pools,workshop-complete
 DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION
@@ -138,12 +141,13 @@ SIM_MAP_CACHE_ENTRIES=<omitted>
 
 ## 実行コマンド
 
-SIM_SEED=271 SIM_RUNS=1000 SIM_CALIBRATION_RUNS=100 SIM_SCENARIOS=workshop-core-pools,workshop-complete DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION IDENTIFICATION_POLICY=powder IDENTIFICATION_STARTING_POWDER=2 IDENTIFICATION_COST_OVERRIDE=1 FLEE_POLICY=threshold FLEE_HP_THRESHOLD=0.35 TRAP_POLICY=conservative TRAP_AVOIDANCE_POLICY=ev TRAP_DAMAGE_MULTIPLIER=1 STATUS_CURE_POLICY=smart STATUS_CURE_HP_THRESHOLD=0.35 STATUS_CURE_MERCHANT_POLICY=missing HEAL_POTION_MERCHANT_POLICY=missing PORTAL_HP_THRESHOLD=0.35 PORTAL_MAX_HEAL_POTIONS=0 PORTAL_MIN_FLOOR=3 ELITE_POLICY=avoid SIM_440_CONDITION=current SIM_EQUIPMENT_POLICY=individual-score SIM_EQUIPMENT_SLOT_MODE=standard SIM_EQUIPMENT_SLOT_AFFIX_MODE=retain SIM_MATCHING_DEFINITION=exact SIM_CURSE_LOCK_MODE=current SIM_SUPPORT_SUPPLY_CEILING=none SIM_CORE_SCORE_DROP_TOLERANCE=0 SIM_MAP_STATS=0 SIM_DAMAGE_PROBE=0 SIM_PRESET= SIM_DIAGNOSTICS=off SIM_RESULT_BASENAME=issue-468-exposure-ceiling node scratch/sim_issue_468_exposure_ceiling.js（1000 run/cell）。
+SIM_SEED=271 SIM_RUNS=50100 SIM_CALIBRATION_RUNS=100 SIM_SCENARIOS=workshop-core-pools,workshop-complete DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION IDENTIFICATION_POLICY=powder IDENTIFICATION_STARTING_POWDER=2 IDENTIFICATION_COST_OVERRIDE=1 FLEE_POLICY=threshold FLEE_HP_THRESHOLD=0.35 TRAP_POLICY=conservative TRAP_AVOIDANCE_POLICY=ev TRAP_DAMAGE_MULTIPLIER=1 STATUS_CURE_POLICY=smart STATUS_CURE_HP_THRESHOLD=0.35 STATUS_CURE_MERCHANT_POLICY=missing HEAL_POTION_MERCHANT_POLICY=missing PORTAL_HP_THRESHOLD=0.35 PORTAL_MAX_HEAL_POTIONS=0 PORTAL_MIN_FLOOR=3 ELITE_POLICY=avoid SIM_440_CONDITION=current SIM_EQUIPMENT_POLICY=individual-score SIM_EQUIPMENT_SLOT_MODE=standard SIM_EQUIPMENT_SLOT_AFFIX_MODE=retain SIM_MATCHING_DEFINITION=exact SIM_CURSE_LOCK_MODE=current SIM_SUPPORT_SUPPLY_CEILING=none SIM_CORE_SCORE_DROP_TOLERANCE=0 SIM_MAP_STATS=0 SIM_DAMAGE_PROBE=0 SIM_PRESET= SIM_DIAGNOSTICS=off SIM_RESULT_BASENAME=issue-468-exposure-ceiling node scratch/sim_issue_468_exposure_ceiling.js（50100 run/cell）。
 
 ## Review checklist
 
 - 適用: .agents/balance-simulation.md。N設計、95% CI、class-centered、paired監査、無条件floor、複数比較、run易化、副作用を確認。
 - 未適用: UI/mobile、QA/browser、game-design canon。UI変更・balance source変更がなく、canonは unaffected。
-- 検証: node --check、import/export確認、N=1 smoke、scratch/test_sim_reward_paths.js、npm run lint、npm run test:unit。
+- 実施: node --check、import/export確認、N=1 smoke、scratch/test_sim_reward_paths.js、npm run lint、npm run test:unit（65 pass / 3 skip）。
+- 未実施: npm run build、npm run test:browser（UI変更なし）。
 
 Refs #468

@@ -25,7 +25,13 @@ const B5 = 5;
 const TARGET_DEPTH = 21;
 const R95 = 1.959963984540054;
 const MIN_GROUP_N = 30;
-const TARGET_GROUP_N = 200;
+const N_DESIGN_ENTRANT_RATE = 0.2199;
+const TARGET_ENTRANT_N = 11000;
+const N_DESIGN_A1_REFERENCE_Q4_MINUS_Q1 = Object.freeze({
+  "workshop-core-pools": -0.0061,
+  "workshop-complete": -0.163
+});
+const N_DESIGN_A2_REFERENCE_R = 0.165;
 const A2_SIGNAL = 0.20;
 const MIN_A3_TREND_N = 194;
 const ORDINAL_LEVELS = Object.freeze([0, 1, 2, 3]);
@@ -61,7 +67,7 @@ const CONDITION_IDS = Object.freeze(Object.keys(CONDITIONS));
 
 const ENV_DEFAULTS = Object.freeze({
   SIM_SEED: "271",
-  SIM_RUNS: "1000",
+  SIM_RUNS: "50100",
   SIM_CALIBRATION_RUNS: "100",
   SIM_SCENARIOS: SCENARIO_IDS.join(","),
   DEPARTURE_CRAFT_IDS:
@@ -176,6 +182,28 @@ function mean(values) {
     ? values.reduce((sum, value) => sum + value, 0) / values.length
     : null;
 }
+
+function calculateNDesignPrecision() {
+  const expectedQuartileN = TARGET_ENTRANT_N / 4;
+  const a1WorstCase95HalfWidth = R95 * Math.sqrt(
+    0.25 / expectedQuartileN + 0.25 / expectedQuartileN
+  );
+  const a2FisherZStandardError = 1 / Math.sqrt(TARGET_ENTRANT_N - 3);
+  const a2FisherZ95HalfWidth = R95 * a2FisherZStandardError;
+  const a2ReferenceZ = Math.atanh(N_DESIGN_A2_REFERENCE_R);
+  return {
+    expectedQuartileN,
+    a1WorstCase95HalfWidth,
+    a2FisherZStandardError,
+    a2FisherZ95HalfWidth,
+    a2ReferenceCi: {
+      low: Math.tanh(a2ReferenceZ - a2FisherZ95HalfWidth),
+      high: Math.tanh(a2ReferenceZ + a2FisherZ95HalfWidth)
+    }
+  };
+}
+
+const N_DESIGN_PRECISION = Object.freeze(calculateNDesignPrecision());
 
 function sampleVariance(values) {
   if (values.length < 2) return 0;
@@ -907,21 +935,60 @@ function measurementCommand(environment) {
   return `${assignments.join(" ")} node scratch/sim_issue_468_exposure_ceiling.js`;
 }
 
+function assessRunEase(cell) {
+  const metrics = {
+    floor: cell?.allRun?.averageReachedFloor,
+    b5Death: cell?.b5Entrant?.death,
+    b5Breakthrough: cell?.b5Entrant?.breakthrough
+  };
+  const intervals = Object.values(metrics);
+  if (intervals.some(interval =>
+    !interval || !Number.isFinite(interval.estimate) ||
+    !Number.isFinite(interval.low) || !Number.isFinite(interval.high)
+  )) {
+    return { status: "未確定", metrics };
+  }
+  const stablyEasier = metrics.floor.low > 0 &&
+    metrics.b5Death.high < 0 &&
+    metrics.b5Breakthrough.low > 0;
+  const stablyHarder = metrics.floor.high < 0 &&
+    metrics.b5Death.low > 0 &&
+    metrics.b5Breakthrough.high < 0;
+  return {
+    status: stablyEasier ? "安定易化" : stablyHarder ? "安定悪化" : "未確定",
+    metrics
+  };
+}
+
 function determineCeilingVerdict(cases) {
-  const cells = CURE_POLICIES.flatMap(curePolicy => SCENARIO_IDS.map(scenarioId =>
-    cases[cellKey("ceiling", curePolicy, scenarioId)]
-  ));
+  const cellEntries = CURE_POLICIES.flatMap(curePolicy => SCENARIO_IDS.map(scenarioId => ({
+    key: `${curePolicy}:${scenarioId}`,
+    summary: cases[cellKey("ceiling", curePolicy, scenarioId)]
+  })));
+  const cells = cellEntries.map(entry => entry.summary);
   const a1 = cells.every(summary => summary?.b5?.a1?.pass);
   const a2 = cells.every(summary => summary?.b5?.a2?.pass);
+  const a1Any = cells.some(summary => summary?.b5?.a1?.pass);
+  const a2Any = cells.some(summary => summary?.b5?.a2?.pass);
+  const movingCells = cellEntries
+    .filter(({ summary }) => summary?.b5?.a1?.pass || summary?.b5?.a2?.pass)
+    .map(({ key }) => key);
+  const allCellsPass = a1 && a2;
+  const anyCellPass = a1Any || a2Any;
   return {
-    verdict: a1 && a2 ? "動く" : "動かない",
+    verdict: allCellsPass ? "動く" : anyCellPass ? "動く（部分成立）" : "動かない",
     a1,
     a2,
+    a1Any,
+    a2Any,
+    movingCells,
     a3: cells.every(summary => Object.values(summary?.b5?.a3 || {})
       .some(metric => metric.pass)),
-    reason: a1 && a2
+    reason: allCellsPass
       ? "天井条件で #271 の A1 / A2 acceptance criteria が全主状態・両 cure で成立"
-      : "天井条件でも A1 / A2 acceptance criteria を全主状態・両 cure で満たさない"
+      : anyCellPass
+        ? "天井条件で #271 の A1 または A2 が少なくとも1セルで成立"
+        : "天井条件でも A1 / A2 acceptance criteria を全主状態・両 cure で満たさない"
   };
 }
 
@@ -947,9 +1014,12 @@ function buildReport(summary, summarySha256) {
     "",
     "## N設計",
     "",
-    `- #467 の B5 entrant率 0.2199、有群率0.0271を ceiling 有群率1.0へ置換。target group N=${TARGET_GROUP_N}。`,
-    `- ceil(${TARGET_GROUP_N} / (0.2199 × 1.0)) = ${summary.nDesign.requiredRuns.toLocaleString()} run/cell。実測 ${summary.measurement.runs.toLocaleString()} run/cell（上式以上）。`,
-    "- 現行 control の実trapBonus保有率は診断値。低Nなら有/なし群の結論へ使わない。ceilingのA1/A2は全B5 entrantを対象。",
+    `- A1はB5 entrant全体を職内combatBuildScore quartileに分けたQ4−Q1差。#467参照値は workshop-core-pools=${formatNumber(N_DESIGN_A1_REFERENCE_Q4_MINUS_Q1["workshop-core-pools"], 4)}、workshop-complete=${formatNumber(N_DESIGN_A1_REFERENCE_Q4_MINUS_Q1["workshop-complete"], 4)}。A2はB5 entrant全体の職内centered相関。#467参照値は r=${formatNumber(N_DESIGN_A2_REFERENCE_R, 4)}（受入gate r≥${formatNumber(A2_SIGNAL, 4)}）。`,
+    `- #467と同オーダーの entrant N=${summary.nDesign.targetEntrantN.toLocaleString()} を目標。有群率では割らない。ceiling 有群率1.0 は変換対象を決めるだけで、entrant分母を増やさない。`,
+    `- B5 entrant率${summary.nDesign.entrantRateReference}から ceil(${summary.nDesign.targetEntrantN.toLocaleString()} / (${summary.nDesign.entrantRateReference} × 1.0)) = ${summary.nDesign.requiredRuns.toLocaleString()} run/cell。実測 ${summary.measurement.runs.toLocaleString()} run/cell（上式以上）。`,
+    `- entrant N=${summary.nDesign.targetEntrantN.toLocaleString()}なら quartile 1つ約${formatNumber(summary.nDesign.expectedQuartileN, 0)}。A1の二群率差をBernoulli分散最大で近似した95%半幅は±${formatNumber(summary.nDesign.a1WorstCase95HalfWidth, 4)}（±${formatNumber(summary.nDesign.a1WorstCase95HalfWidth * 100, 2)}pt）。`,
+    `- A2のFisher-z標準誤差=${formatNumber(summary.nDesign.a2FisherZStandardError, 5)}、95%半幅 z=${formatNumber(summary.nDesign.a2FisherZ95HalfWidth, 5)}。r=${formatNumber(N_DESIGN_A2_REFERENCE_R, 4)}で近似CI [${formatNumber(summary.nDesign.a2ReferenceCi.low, 4)}, ${formatNumber(summary.nDesign.a2ReferenceCi.high, 4)}]。`,
+    "- 現行 control の実trapBonus保有率は診断値。A1/A2の分母は常に全B5 entrant。",
     "",
     "## A1 / A2 / A3",
     "",
@@ -959,8 +1029,8 @@ function buildReport(summary, summarySha256) {
       const ceiling = summary.cases[cellKey("ceiling", curePolicy, scenarioId)];
       return [
         `- ${scenarioId} / ${curePolicy}: B5 entrant control=${current.b5.entrantsN} / placebo=${placebo.b5.entrantsN} / ceiling=${ceiling.b5.entrantsN}。`,
-        `  - A1 control=${current.b5.a1.status} Q4−Q1=${formatDifference(current.b5.a1.q4MinusQ1Death)} / ceiling=${ceiling.b5.a1.status} Q4−Q1=${formatDifference(ceiling.b5.a1.q4MinusQ1Death)}; Q4死亡率=${formatRate(ceiling.b5.a1.quartiles[3]?.b5Death)}; monotonic=${ceiling.b5.a1.conditions.monotonicNonIncreasing ? "成立" : "不成立"}。`,
-        `  - A2 control=${current.b5.a2.status} r=${formatNumber(current.b5.a2.depth.r)} [${formatNumber(current.b5.a2.depth.low)}, ${formatNumber(current.b5.a2.depth.high)}] / ceiling=${ceiling.b5.a2.status} r=${formatNumber(ceiling.b5.a2.depth.r)} [${formatNumber(ceiling.b5.a2.depth.low)}, ${formatNumber(ceiling.b5.a2.depth.high)}]。`,
+        `  - A1 control=${current.b5.a1.status} Q4−Q1=${formatDifference(current.b5.a1.q4MinusQ1Death, 4)} / ceiling=${ceiling.b5.a1.status} Q4−Q1=${formatDifference(ceiling.b5.a1.q4MinusQ1Death, 4)}; Q4死亡率=${formatRate(ceiling.b5.a1.quartiles[3]?.b5Death)}; monotonic=${ceiling.b5.a1.conditions.monotonicNonIncreasing ? "成立" : "不成立"}。`,
+        `  - A2 control=${current.b5.a2.status} r=${formatNumber(current.b5.a2.depth.r, 4)} [${formatNumber(current.b5.a2.depth.low, 4)}, ${formatNumber(current.b5.a2.depth.high, 4)}] / ceiling=${ceiling.b5.a2.status} r=${formatNumber(ceiling.b5.a2.depth.r, 4)} [${formatNumber(ceiling.b5.a2.depth.low, 4)}, ${formatNumber(ceiling.b5.a2.depth.high, 4)}]。`,
         `  - A3 ceiling: ${Object.entries(ceiling.b5.a3).map(([key, value]) => `${key}=${value.status}`).join(" / ")}。`
       ];
     })),
@@ -975,7 +1045,7 @@ function buildReport(summary, summarySha256) {
     ),
     `- ceiling−current: ${summary.pairs.ceilingVsCurrent.eligibility.method}。post-generation / random consumption preserved / trajectory diverges。`,
     ...Object.entries(summary.pairs.ceilingVsCurrent.cells).map(([key, cell]) =>
-      `- ${key}: floor=${formatDifference(cell.allRun.averageReachedFloor)} / B5死亡=${formatDifference(cell.b5Entrant.death)} / B5突破=${formatDifference(cell.b5Entrant.breakthrough)} / 生還=${formatDifference(cell.allRun.survived)}。`
+      `- ${key}: floor=${formatDifference(cell.allRun.averageReachedFloor, 4)} / B5死亡=${formatDifference(cell.b5Entrant.death, 4)} / B5突破=${formatDifference(cell.b5Entrant.breakthrough, 4)} / 生還=${formatDifference(cell.allRun.survived, 4)}。`
     ),
     "",
     "## runを楽にしていないか",
@@ -983,12 +1053,15 @@ function buildReport(summary, summarySha256) {
     ...SCENARIO_IDS.flatMap(scenarioId => CURE_POLICIES.map(curePolicy => {
       const current = summary.cases[cellKey("current", curePolicy, scenarioId)];
       const ceiling = summary.cases[cellKey("ceiling", curePolicy, scenarioId)];
+      const key = `${curePolicy}:${scenarioId}`;
+      const paired = summary.pairs.ceilingVsCurrent.cells[key];
+      const runEase = summary.runEase[key];
       const deathImproved = ceiling.b5.death.estimate < current.b5.death.estimate;
       const breakthroughImproved = ceiling.b5.breakthrough.estimate > current.b5.breakthrough.estimate;
       const floorImproved = ceiling.averageReachedFloor.estimate > current.averageReachedFloor.estimate;
-      return `- ${scenarioId} / ${curePolicy}: B5死亡 ${formatRate(current.b5.death)}→${formatRate(ceiling.b5.death)}、突破 ${formatRate(current.b5.breakthrough)}→${formatRate(ceiling.b5.breakthrough)}、全run平均floor ${formatMean(current.averageReachedFloor)}→${formatMean(ceiling.averageReachedFloor)}。点推定方向=${deathImproved && breakthroughImproved && floorImproved ? "易化" : "混在/不明"}。`;
+      return `- ${scenarioId} / ${curePolicy}: B5死亡 ${formatRate(current.b5.death)}→${formatRate(ceiling.b5.death)}、突破 ${formatRate(current.b5.breakthrough)}→${formatRate(ceiling.b5.breakthrough)}、全run平均floor ${formatMean(current.averageReachedFloor)}→${formatMean(ceiling.averageReachedFloor)}。paired ceiling−currentは floor=${formatDifference(paired.allRun.averageReachedFloor, 4)} / B5死亡=${formatDifference(paired.b5Entrant.death, 4)} / B5突破=${formatDifference(paired.b5Entrant.breakthrough, 4)}。点推定方向=${deathImproved && breakthroughImproved && floorImproved ? "易化" : "混在/不明"}、CI判定=${runEase.status}。`;
     })),
-    "- 点推定が易化方向のcellはあるが、paired 95% CIは全run平均floor・B5死亡・B5突破の判定対象で0を跨ぐ。天井でrunが安定して楽になったとは判定しない。",
+    `- run易化は3指標すべてが望ましい方向へ95% CIで0を跨がない場合だけ「安定易化」。今回のセル別集計: 安定易化=${Object.values(summary.runEase).filter(value => value.status === "安定易化").length} / 安定悪化=${Object.values(summary.runEase).filter(value => value.status === "安定悪化").length} / 未確定=${Object.values(summary.runEase).filter(value => value.status === "未確定").length}。`,
     "",
     "## 宝箱副作用・職業別",
     "",
@@ -1041,7 +1114,8 @@ function buildReport(summary, summarySha256) {
     "",
     "- 適用: .agents/balance-simulation.md。N設計、95% CI、class-centered、paired監査、無条件floor、複数比較、run易化、副作用を確認。",
     "- 未適用: UI/mobile、QA/browser、game-design canon。UI変更・balance source変更がなく、canonは unaffected。",
-    "- 検証: node --check、import/export確認、N=1 smoke、scratch/test_sim_reward_paths.js、npm run lint、npm run test:unit。",
+    "- 実施: node --check、import/export確認、N=1 smoke、scratch/test_sim_reward_paths.js、npm run lint、npm run test:unit。",
+    "- 未実施: npm run build、npm run test:browser（UI変更なし）。",
     "",
     "Refs #468"
   ];
@@ -1146,7 +1220,9 @@ async function main() {
   ]));
   const currentPrimary = cases[cellKey("current", "smart", "workshop-core-pools")];
   const primaryEntrantRate = currentPrimary.b5.entrantsRate.estimate || 0.2199;
-  const requiredRuns = Math.ceil(TARGET_GROUP_N / (0.2199 * 1.0));
+  const requiredRuns = Math.ceil(
+    TARGET_ENTRANT_N / (N_DESIGN_ENTRANT_RATE * 1.0)
+  );
   const measurementEnvironment = envSnapshot();
   const measurement = {
     issue: 468,
@@ -1163,7 +1239,7 @@ async function main() {
     ceiling: CONDITIONS.ceiling.trapBonusExposure,
     command: measurementCommand(measurementEnvironment),
     primaryEntrantRateObserved: primaryEntrantRate,
-    nDesignEntrantRate: 0.2199,
+    nDesignEntrantRate: N_DESIGN_ENTRANT_RATE,
     nDesignCeilingGroupRate: 1.0,
     environment: measurementEnvironment,
     environmentSha256: envHash(measurementEnvironment),
@@ -1199,6 +1275,10 @@ async function main() {
       CONDITIONS.ceiling
     )
   };
+  const runEase = Object.fromEntries(Object.entries(pairs.ceilingVsCurrent.cells).map(([key, cell]) => [
+    key,
+    assessRunEase(cell)
+  ]));
   const multipleComparisons = {
     acceptanceTests: SCENARIO_IDS.length * CURE_POLICIES.length * 5,
     pairedTests: SCENARIO_IDS.length * CURE_POLICIES.length * 3 * 2,
@@ -1208,15 +1288,23 @@ async function main() {
   const summary = {
     measurement,
     nDesign: {
-      targetGroupN: TARGET_GROUP_N,
-      entrantRateReference: 0.2199,
+      targetEntrantN: TARGET_ENTRANT_N,
+      entrantRateReference: N_DESIGN_ENTRANT_RATE,
       ceilingGroupRate: 1.0,
       requiredRuns,
-      plannedRuns: RUNS
+      plannedRuns: RUNS,
+      expectedQuartileN: N_DESIGN_PRECISION.expectedQuartileN,
+      a1ReferenceQ4MinusQ1: N_DESIGN_A1_REFERENCE_Q4_MINUS_Q1,
+      a1WorstCase95HalfWidth: N_DESIGN_PRECISION.a1WorstCase95HalfWidth,
+      a2ReferenceR: N_DESIGN_A2_REFERENCE_R,
+      a2FisherZStandardError: N_DESIGN_PRECISION.a2FisherZStandardError,
+      a2FisherZ95HalfWidth: N_DESIGN_PRECISION.a2FisherZ95HalfWidth,
+      a2ReferenceCi: N_DESIGN_PRECISION.a2ReferenceCi
     },
     multipleComparisons,
     cases,
     pairs,
+    runEase,
     verdict: determineCeilingVerdict(cases)
   };
 
