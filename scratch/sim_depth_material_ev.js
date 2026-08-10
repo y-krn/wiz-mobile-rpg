@@ -224,6 +224,7 @@ if (SIM_DAMAGE_PROBE_ENABLED && !globalThis.__simDamageProbeMathRoundWrapped) {
 }
 const { scaleEnemyForDepth } = await import("../src/rules/depth_scaling.js");
 const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
+const { getEffectiveHealAmount } = await import("../src/rules/item_rules.js");
 const {
   clearCharIncapacitationOnDamage,
   getBuffTotal
@@ -1389,6 +1390,9 @@ function createTrapAggregate() {
     activations: 0,
     damageHp: 0,
     healPotionsUsed: 0,
+    greaterHealPotionsUsed: 0,
+    recoveryPotionsUsed: 0,
+    recoveryPotionShortages: 0,
     healPotionShortages: 0,
     disarms: 0,
     disarmAttempts: 0,
@@ -1440,6 +1444,20 @@ function createTrapAggregate() {
       merchant: 0,
       other: 0
     },
+    greaterHealPotionsAcquiredBySource: {
+      starting: 0,
+      departureCraft: 0,
+      chest: 0,
+      merchant: 0,
+      other: 0
+    },
+    greaterHealPotionsConsumedBySource: {
+      starting: 0,
+      departureCraft: 0,
+      chest: 0,
+      merchant: 0,
+      other: 0
+    },
     healPotionMerchantAttempts: 0,
     healPotionMerchantFailures: {}
   };
@@ -1455,6 +1473,9 @@ function addTrapAggregate(target, result) {
   target.activations += result.trapActivations;
   target.damageHp += result.trapDamageHp;
   target.healPotionsUsed += result.trapHealPotionsUsed;
+  target.greaterHealPotionsUsed += result.trapGreaterHealPotionsUsed;
+  target.recoveryPotionsUsed += result.recoveryPotionsUsed;
+  target.recoveryPotionShortages += result.recoveryPotionShortages;
   target.healPotionShortages += result.trapHealPotionShortages;
   target.disarms += result.trapDisarms;
   target.disarmAttempts += result.trapDisarmAttempts;
@@ -1496,6 +1517,14 @@ function addTrapAggregate(target, result) {
     target.healPotionsConsumedBySource[source] =
       (target.healPotionsConsumedBySource[source] || 0) + amount;
   });
+  Object.entries(result.greaterHealPotionsAcquiredBySource).forEach(([source, amount]) => {
+    target.greaterHealPotionsAcquiredBySource[source] =
+      (target.greaterHealPotionsAcquiredBySource[source] || 0) + amount;
+  });
+  Object.entries(result.greaterHealPotionsConsumedBySource).forEach(([source, amount]) => {
+    target.greaterHealPotionsConsumedBySource[source] =
+      (target.greaterHealPotionsConsumedBySource[source] || 0) + amount;
+  });
   target.healPotionMerchantAttempts += result.healPotionMerchantAttempts;
   Object.entries(result.healPotionMerchantFailures).forEach(([reason, count]) => {
     target.healPotionMerchantFailures[reason] =
@@ -1517,6 +1546,9 @@ function finalizeTrapAggregate(aggregate) {
     averageTrapActivations: aggregate.activations / runs,
     averageTrapDamageHp: aggregate.damageHp / runs,
     averageTrapHealPotionsUsed: aggregate.healPotionsUsed / runs,
+    averageTrapGreaterHealPotionsUsed: aggregate.greaterHealPotionsUsed / runs,
+    averageRecoveryPotionsUsed: aggregate.recoveryPotionsUsed / runs,
+    averageRecoveryPotionShortages: aggregate.recoveryPotionShortages / runs,
     averageTrapHealPotionShortages: aggregate.healPotionShortages / runs,
     trapHealPotionShortageRunRate: aggregate.runsWithHealPotionShortage / runs,
     averageTrapDisarms: aggregate.disarms / runs,
@@ -1570,6 +1602,20 @@ function finalizeTrapAggregate(aggregate) {
       .reduce((sum, amount) => sum + amount, 0) / runs,
     averageHealPotionsConsumedBySource: Object.fromEntries(
       Object.entries(aggregate.healPotionsConsumedBySource).map(([source, amount]) => [
+        source,
+        amount / runs
+      ])
+    ),
+    averageGreaterHealPotionsAcquiredBySource: Object.fromEntries(
+      Object.entries(aggregate.greaterHealPotionsAcquiredBySource).map(([source, amount]) => [
+        source,
+        amount / runs
+      ])
+    ),
+    averageGreaterHealPotionsConsumed: Object.values(aggregate.greaterHealPotionsConsumedBySource)
+      .reduce((sum, amount) => sum + amount, 0) / runs,
+    averageGreaterHealPotionsConsumedBySource: Object.fromEntries(
+      Object.entries(aggregate.greaterHealPotionsConsumedBySource).map(([source, amount]) => [
         source,
         amount / runs
       ])
@@ -1784,6 +1830,9 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   const startingHealPotions = Object.hasOwn(scenario, "startingHealPotions")
     ? Math.max(0, Math.floor(Number(scenario.startingHealPotions)))
     : INITIAL_HEAL_POTIONS;
+  const startingGreaterHeals = Object.hasOwn(scenario, "startingGreaterHeals")
+    ? Math.max(0, Math.floor(Number(scenario.startingGreaterHeals)))
+    : 0;
   const startingAntidotes = Object.hasOwn(scenario, "startingAntidotes")
     ? Math.max(0, Math.floor(Number(scenario.startingAntidotes)))
     : INITIAL_ANTIDOTES;
@@ -1796,6 +1845,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   ];
   const startingInventory = [
     ...Array(startingHealPotions).fill("HEAL_POTION"),
+    ...Array(startingGreaterHeals).fill("GREATER_HEAL"),
     ...Array(startingAntidotes).fill("ANTIDOTE"),
     ...Array(startingGuardPotions).fill("GUARD_POTION"),
     ...workshopReturnItems,
@@ -1839,6 +1889,12 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
         .filter(item => item === "HEAL_POTION")
         .map(() => "departureCraft")
     ],
+    simGreaterHealSources: [
+      ...Array(startingGreaterHeals).fill("starting"),
+      ...departureCraftItems
+        .filter(item => item === "GREATER_HEAL")
+        .map(() => "departureCraft")
+    ],
     simTrapKitSources: departureCraftItems
       .filter(item => item === "TRAP_KIT")
       .map(() => "departureCraft"),
@@ -1874,6 +1930,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     firstChestUnidentifiedGuaranteed: false,
     simPolicy: {
       identificationPolicy,
+      healPotionAmountOverride: scenario.healPotionAmountOverride || null,
       fleeHpThreshold: Object.hasOwn(scenario, "fleeHpThreshold")
         ? scenario.fleeHpThreshold
         : DEFAULT_FLEE_HP_THRESHOLD,
@@ -1980,6 +2037,86 @@ function recordHealPotionConsumption(state, metrics, count = 1) {
     const source = state.simHealPotionSources.shift() || "other";
     metrics.healPotionsConsumedBySource[source] =
       (metrics.healPotionsConsumedBySource[source] || 0) + 1;
+  }
+}
+
+function recordGreaterHealAcquisition(state, metrics, source, count = 1) {
+  if (!metrics || count <= 0) return;
+  metrics.greaterHealPotionsAcquiredBySource[source] =
+    (metrics.greaterHealPotionsAcquiredBySource[source] || 0) + count;
+  for (let index = 0; index < count; index++) {
+    state.simGreaterHealSources.push(source);
+  }
+}
+
+function recordGreaterHealConsumption(state, metrics, count = 1) {
+  if (!metrics || count <= 0) return;
+  for (let index = 0; index < count; index++) {
+    const source = state.simGreaterHealSources.shift() || "other";
+    metrics.greaterHealPotionsConsumedBySource[source] =
+      (metrics.greaterHealPotionsConsumedBySource[source] || 0) + 1;
+  }
+}
+
+function addRecoveryPotionUse(metrics, itemKey, count = 1) {
+  if (!metrics || count <= 0 || !["HEAL_POTION", "GREATER_HEAL"].includes(itemKey)) return;
+  metrics.recoveryPotionsUsed += count;
+  if (itemKey === "HEAL_POTION") metrics.healPotionsUsed += count;
+  if (itemKey === "GREATER_HEAL") metrics.greaterHealPotionsUsed += count;
+}
+
+function getRecoveryPotionItem(state) {
+  const character = state.party[0];
+  const maxHp = getCharMaxHp(character);
+  if (!isAlive(character) || character.hp > maxHp * HEAL_POTION_THRESHOLD) return null;
+  if (hasRecoveryPotion(state, "GREATER_HEAL")) return "GREATER_HEAL";
+  if (hasRecoveryPotion(state, "HEAL_POTION")) return "HEAL_POTION";
+  return null;
+}
+
+function hasRecoveryPotion(state, itemKey = null) {
+  return itemKey
+    ? state.inventory.includes(itemKey)
+    : state.inventory.includes("GREATER_HEAL") || state.inventory.includes("HEAL_POTION");
+}
+
+export function getSimulationHealAmount(state, itemKey) {
+  const character = state.party[0];
+  const maxHp = getCharMaxHp(character);
+  const override = itemKey === "HEAL_POTION"
+    ? state.simPolicy?.healPotionAmountOverride
+    : null;
+  let baseAmount = itemKey === "GREATER_HEAL" ? 40 : 15;
+  if (override?.kind === "fixed") {
+    baseAmount = Number(override.amount);
+  } else if (override?.kind === "max-hp-ratio") {
+    baseAmount = Math.round(maxHp * Number(override.ratio));
+  } else if (override?.kind === "floor-scale") {
+    baseAmount = Number(override.base ?? 15) +
+      Math.max(0, state.floor - 1) * Number(override.perFloor ?? 0);
+  }
+  return getEffectiveHealAmount(character, Math.max(0, Math.round(baseAmount)));
+}
+
+function applySimulationHealItem(state, itemKey, character = state.party[0]) {
+  const heal = getSimulationHealAmount(state, itemKey);
+  character.hp = Math.min(getCharMaxHp(character), character.hp + heal);
+  return `${character.name}は${itemKey === "GREATER_HEAL" ? "上薬" : "傷薬"}を使い、HPが${heal}回復した。`;
+}
+
+function withSimulationHealEffects(state, callback) {
+  const originalHealPotion = ITEM_EFFECTS.HEAL_POTION;
+  const originalGreaterHeal = ITEM_EFFECTS.GREATER_HEAL;
+  const healPotionOverride = state.simPolicy?.healPotionAmountOverride;
+  ITEM_EFFECTS.HEAL_POTION = ({ char }) => healPotionOverride
+    ? applySimulationHealItem(state, "HEAL_POTION", char)
+    : originalHealPotion({ char });
+  ITEM_EFFECTS.GREATER_HEAL = ({ char }) => originalGreaterHeal({ char });
+  try {
+    return callback();
+  } finally {
+    ITEM_EFFECTS.HEAL_POTION = originalHealPotion;
+    ITEM_EFFECTS.GREATER_HEAL = originalGreaterHeal;
   }
 }
 
@@ -2115,11 +2252,11 @@ function selectCombatAction(state, metrics) {
     return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "HASTE_POTION" };
   }
 
-  if (
-    character.hp <= getCharMaxHp(character) * HEAL_POTION_THRESHOLD &&
-    state.inventory.includes("HEAL_POTION")
-  ) {
-    return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "HEAL_POTION" };
+  if (character.hp <= getCharMaxHp(character) * HEAL_POTION_THRESHOLD) {
+    const recoveryItem = getRecoveryPotionItem(state);
+    if (recoveryItem) {
+      return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: recoveryItem };
+    }
   }
 
   if (
@@ -2203,7 +2340,7 @@ function getBloodWandOpportunity(state, action, observations = null) {
     if (
       character.hp < getCharMaxHp(character) * 0.35 &&
       hasSpell(character, "DIOS") &&
-      !state.inventory.includes("HEAL_POTION")
+      !hasRecoveryPotion(state)
     ) {
       spellName = "DIOS";
       opportunityType = "heal";
@@ -2868,7 +3005,7 @@ function runEncounter(
         }
     )
     : null;
-  const finishEncounter = (result, rounds, healPotionsUsed) => {
+  const finishEncounter = (result, rounds, healPotionsUsed, greaterHealPotionsUsed) => {
     if (encounterDiagnostic) {
       encounterDiagnostic.result = result;
       if (fullDiagnostics) {
@@ -2877,6 +3014,8 @@ function runEncounter(
         encounterDiagnostic.endStatus = state.party[0].status;
         encounterDiagnostic.endHealPotions =
           state.inventory.filter(item => item === "HEAL_POTION").length;
+        encounterDiagnostic.endGreaterHeals =
+          state.inventory.filter(item => item === "GREATER_HEAL").length;
         encounterDiagnostic.endStatusCures = countInventoryItems(state.inventory);
         encounterDiagnostic.endEnemyHp = state.combatState.monsters.map(monster => ({
           name: monster.name,
@@ -2890,6 +3029,7 @@ function runEncounter(
       result,
       rounds,
       healPotionsUsed,
+      greaterHealPotionsUsed,
       state,
       startBuild,
       telemetry,
@@ -2910,11 +3050,12 @@ function runEncounter(
 
   let rounds = 0;
   let healPotionsUsed = 0;
+  let greaterHealPotionsUsed = 0;
   for (; rounds < MAX_COMBAT_TURNS; rounds++) {
     const character = state.party[0];
-    if (!isAlive(character)) return finishEncounter("death", rounds, healPotionsUsed);
+    if (!isAlive(character)) return finishEncounter("death", rounds, healPotionsUsed, greaterHealPotionsUsed);
     if (state.combatState.monsters.every(monster => monster.hp <= 0)) {
-      return finishEncounter("victory", rounds, healPotionsUsed);
+      return finishEncounter("victory", rounds, healPotionsUsed, greaterHealPotionsUsed);
     }
 
     const action = selectCombatAction(state, metrics);
@@ -2992,6 +3133,7 @@ function runEncounter(
       return value;
     };
     const potionCountBefore = state.inventory.filter(item => item === "HEAL_POTION").length;
+    const greaterHealCountBefore = state.inventory.filter(item => item === "GREATER_HEAL").length;
     const selectedCureCountBefore = action.simStatusBefore
       ? state.inventory.filter(item => item === action.itemKey).length
       : 0;
@@ -3002,9 +3144,9 @@ function runEncounter(
       : null;
     let roundResult;
     try {
-      roundResult = runCombatRoundCalculation(state, {
+      roundResult = withSimulationHealEffects(state, () => runCombatRoundCalculation(state, {
         actions: [action]
-      });
+      }));
     } finally {
       Math.random = simulationRandom;
       if (targetedDamageProbe) {
@@ -3060,6 +3202,14 @@ function runEncounter(
       recordHealPotionConsumption(state, metrics, potionDelta);
     } else if (potionDelta < 0) {
       recordHealPotionAcquisition(state, metrics, "other", -potionDelta);
+    }
+    const greaterHealCountAfter = state.inventory.filter(item => item === "GREATER_HEAL").length;
+    const greaterHealDelta = greaterHealCountBefore - greaterHealCountAfter;
+    greaterHealPotionsUsed += greaterHealDelta;
+    if (greaterHealDelta > 0) {
+      recordGreaterHealConsumption(state, metrics, greaterHealDelta);
+    } else if (greaterHealDelta < 0) {
+      recordGreaterHealAcquisition(state, metrics, "other", -greaterHealDelta);
     }
     if (metrics && action.simStatusBefore) {
       const selectedCureCountAfter =
@@ -3155,17 +3305,17 @@ function runEncounter(
     );
 
     if (!isAlive(state.party[0])) {
-      return finishEncounter("death", rounds + 1, healPotionsUsed);
+      return finishEncounter("death", rounds + 1, healPotionsUsed, greaterHealPotionsUsed);
     }
     if (fled) {
-      return finishEncounter("flee", rounds + 1, healPotionsUsed);
+      return finishEncounter("flee", rounds + 1, healPotionsUsed, greaterHealPotionsUsed);
     }
     if (state.combatState.monsters.every(monster => monster.hp <= 0)) {
-      return finishEncounter("victory", rounds + 1, healPotionsUsed);
+      return finishEncounter("victory", rounds + 1, healPotionsUsed, greaterHealPotionsUsed);
     }
   }
 
-  return finishEncounter("stalemate", rounds, healPotionsUsed);
+  return finishEncounter("stalemate", rounds, healPotionsUsed, greaterHealPotionsUsed);
 }
 
 function applyPostCombatRecovery(character, metrics = null) {
@@ -3178,15 +3328,27 @@ function applyPostCombatRecovery(character, metrics = null) {
 }
 
 function useHealPotionIfNeeded(state, metrics) {
-  const character = state.party[0];
-  const maxHp = getCharMaxHp(character);
-  if (!isAlive(character) || character.hp > maxHp * HEAL_POTION_THRESHOLD) return false;
-  const potionIndex = state.inventory.indexOf("HEAL_POTION");
-  if (potionIndex < 0) return false;
-  state.inventory.splice(potionIndex, 1);
-  recordHealPotionConsumption(state, metrics);
-  ITEM_EFFECTS.HEAL_POTION({ char: character });
-  return true;
+  const itemKey = getRecoveryPotionItem(state);
+  if (!itemKey) {
+    const character = state.party[0];
+    if (isAlive(character) && character.hp <= getCharMaxHp(character) * HEAL_POTION_THRESHOLD) {
+      metrics.recoveryPotionShortages++;
+    }
+    return null;
+  }
+  const itemIndex = state.inventory.indexOf(itemKey);
+  state.inventory.splice(itemIndex, 1);
+  if (itemKey === "GREATER_HEAL") {
+    recordGreaterHealConsumption(state, metrics);
+  } else {
+    recordHealPotionConsumption(state, metrics);
+  }
+  if (itemKey === "HEAL_POTION" && state.simPolicy?.healPotionAmountOverride) {
+    applySimulationHealItem(state, itemKey);
+  } else {
+    ITEM_EFFECTS[itemKey]({ char: state.party[0] });
+  }
+  return itemKey;
 }
 
 function useStatusCureIfNeeded(state, metrics, context) {
@@ -3222,15 +3384,13 @@ function useTrapRecoveryIfNeeded(state, metrics) {
   if (!isAlive(character)) return false;
   const needsPotion = character.hp <= getCharMaxHp(character) * HEAL_POTION_THRESHOLD;
   if (needsPotion) {
-    const potionIndex = state.inventory.indexOf("HEAL_POTION");
-    if (potionIndex < 0) {
+    const itemKey = useHealPotionIfNeeded(state, metrics);
+    if (!itemKey) {
       metrics.trapHealPotionShortages++;
     } else {
-      state.inventory.splice(potionIndex, 1);
-      recordHealPotionConsumption(state, metrics);
-      ITEM_EFFECTS.HEAL_POTION({ char: character });
-      metrics.healPotionsUsed++;
+      addRecoveryPotionUse(metrics, itemKey);
       metrics.trapHealPotionsUsed++;
+      metrics.trapGreaterHealPotionsUsed += Number(itemKey === "GREATER_HEAL");
     }
   }
   useStatusCureIfNeeded(state, metrics, "post-trap");
@@ -3319,8 +3479,10 @@ function shouldUseTownPortal(state, scenario) {
   if (!state.inventory.includes("TOWN_PORTAL")) return false;
   const character = state.party[0];
   const hpRate = character.hp / Math.max(1, getCharMaxHp(character));
-  const healPotions = state.inventory.filter(item => item === "HEAL_POTION").length;
-  return hpRate <= PORTAL_HP_THRESHOLD && healPotions <= PORTAL_MAX_HEAL_POTIONS;
+  const recoveryPotions = state.inventory.filter(item =>
+    item === "HEAL_POTION" || item === "GREATER_HEAL"
+  ).length;
+  return hpRate <= PORTAL_HP_THRESHOLD && recoveryPotions <= PORTAL_MAX_HEAL_POTIONS;
 }
 
 function useTownPortalIfNeeded(state, scenario, metrics, situation) {
@@ -3337,6 +3499,7 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
     source,
     hpRate: character.hp / Math.max(1, getCharMaxHp(character)),
     healPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
+    greaterHealPotions: state.inventory.filter(item => item === "GREATER_HEAL").length,
     carriedMaterials: totalMaterials(state.currentRun.materials)
   });
   return true;
@@ -3392,7 +3555,7 @@ function maybePurchaseMerchantHealPotion(state, metrics) {
   if (
     state.simPolicy.healPotionMerchantPolicy === "never" ||
     !isMilestoneFloor(state.floor) ||
-    state.inventory.includes("HEAL_POTION")
+    hasRecoveryPotion(state)
   ) return;
   metrics.healPotionMerchantAttempts++;
   const materialsBefore = { ...state.currentRun.materials };
@@ -5346,6 +5509,13 @@ function finishRun(state, outcome, metrics) {
       `sources=${state.simHealPotionSources.length}`
     );
   }
+  const greaterHealCount = state.inventory.filter(item => item === "GREATER_HEAL").length;
+  if (greaterHealCount !== state.simGreaterHealSources.length) {
+    throw new Error(
+      `greater heal provenance mismatch: inventory=${greaterHealCount}, ` +
+      `sources=${state.simGreaterHealSources.length}`
+    );
+  }
   const trapKitCount = state.inventory.filter(item => item === "TRAP_KIT").length;
   if (trapKitCount !== state.simTrapKitSources.length) {
     throw new Error(
@@ -5532,8 +5702,13 @@ function finishRun(state, outcome, metrics) {
     finalCoreId,
     coreObservations: metrics.coreObservations,
     healPotionsUsed: metrics.healPotionsUsed,
+    greaterHealPotionsUsed: metrics.greaterHealPotionsUsed,
+    recoveryPotionsUsed: metrics.recoveryPotionsUsed,
+    recoveryPotionShortages: metrics.recoveryPotionShortages,
     healPotionsAcquiredBySource: { ...metrics.healPotionsAcquiredBySource },
     healPotionsConsumedBySource: { ...metrics.healPotionsConsumedBySource },
+    greaterHealPotionsAcquiredBySource: { ...metrics.greaterHealPotionsAcquiredBySource },
+    greaterHealPotionsConsumedBySource: { ...metrics.greaterHealPotionsConsumedBySource },
     healPotionMerchantAttempts: metrics.healPotionMerchantAttempts,
     healPotionMerchantFailures: { ...metrics.healPotionMerchantFailures },
     combatDamageHp: metrics.combatDamageHp,
@@ -5563,6 +5738,7 @@ function finishRun(state, outcome, metrics) {
     trapDamageHpBySource: { ...metrics.trapDamageHpBySource },
     trapDamageHpByType: { ...metrics.trapDamageHpByType },
     trapHealPotionsUsed: metrics.trapHealPotionsUsed,
+    trapGreaterHealPotionsUsed: metrics.trapGreaterHealPotionsUsed,
     trapHealPotionShortages: metrics.trapHealPotionShortages,
     trapDisarms: metrics.trapDisarms,
     trapDisarmAttempts: metrics.trapDisarmAttempts,
@@ -5591,6 +5767,10 @@ function finishRun(state, outcome, metrics) {
     trapSenseHolderDetectionAttempts: metrics.trapSenseHolderDetectionAttempts,
     trapTeleports: metrics.trapTeleports,
     finalHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
+    finalGreaterHeals: state.inventory.filter(item => item === "GREATER_HEAL").length,
+    finalRecoveryPotions: state.inventory.filter(item =>
+      item === "HEAL_POTION" || item === "GREATER_HEAL"
+    ).length,
     departureCraft: {
       recipeIds: [...state.simDepartureCraft.recipeIds],
       cost: { ...state.simDepartureCraft.cost },
@@ -5753,6 +5933,9 @@ export function simulateRun({
     cursedCoreEquipmentFound: 0,
     floorSupplyStats: createFloorSupplyStats(),
     healPotionsUsed: 0,
+    greaterHealPotionsUsed: 0,
+    recoveryPotionsUsed: 0,
+    recoveryPotionShortages: 0,
     stairsHealingHp: 0,
     campHealingHp: 0,
     diosHealingHp: 0,
@@ -5764,6 +5947,20 @@ export function simulateRun({
       other: 0
     },
     healPotionsConsumedBySource: {
+      starting: 0,
+      departureCraft: 0,
+      chest: 0,
+      merchant: 0,
+      other: 0
+    },
+    greaterHealPotionsAcquiredBySource: {
+      starting: state.simStartingInventory.filter(item => item === "GREATER_HEAL").length,
+      departureCraft: state.simDepartureCraftItems.filter(item => item === "GREATER_HEAL").length,
+      chest: 0,
+      merchant: 0,
+      other: 0
+    },
+    greaterHealPotionsConsumedBySource: {
       starting: 0,
       departureCraft: 0,
       chest: 0,
@@ -5789,6 +5986,7 @@ export function simulateRun({
     trapDamageHpBySource: { chest: 0, floor: 0 },
     trapDamageHpByType: {},
     trapHealPotionsUsed: 0,
+    trapGreaterHealPotionsUsed: 0,
     trapHealPotionShortages: 0,
     trapDisarms: 0,
     trapDisarmAttempts: 0,
@@ -6083,6 +6281,9 @@ export function simulateRun({
           if (item === "HEAL_POTION") {
             recordHealPotionAcquisition(state, metrics, "chest");
           }
+          if (item === "GREATER_HEAL") {
+            recordGreaterHealAcquisition(state, metrics, "chest");
+          }
           if (item === "TRAP_KIT") {
             recordTrapKitAcquisition(state, metrics, "chest");
           }
@@ -6189,6 +6390,9 @@ export function simulateRun({
           state = combatResult.state;
           metrics.combatRounds += combatResult.rounds;
           metrics.healPotionsUsed += combatResult.healPotionsUsed;
+          metrics.greaterHealPotionsUsed += combatResult.greaterHealPotionsUsed;
+          metrics.recoveryPotionsUsed +=
+            combatResult.healPotionsUsed + combatResult.greaterHealPotionsUsed;
           const bountyHunter = getCharCoreParams(
             state.party[0],
             "CORE_BOUNTY_HUNTER"
@@ -6236,7 +6440,8 @@ export function simulateRun({
             metrics.fleeCount++;
             metrics.eliteFlees += Number(isElite);
             applyPostCombatRecovery(state.party[0], metrics);
-            metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state, metrics));
+            const fleeRecoveryItem = useHealPotionIfNeeded(state, metrics);
+            addRecoveryPotionUse(metrics, fleeRecoveryItem);
             useStatusCureIfNeeded(state, metrics, "post-flee");
             if (!isAlive(state.party[0])) {
               metrics.deathEncounterType = encounterType;
@@ -6404,7 +6609,8 @@ export function simulateRun({
             floor
           );
           applyPostCombatRecovery(state.party[0], metrics);
-          metrics.healPotionsUsed += Number(useHealPotionIfNeeded(state, metrics));
+          const combatRecoveryItem = useHealPotionIfNeeded(state, metrics);
+          addRecoveryPotionUse(metrics, combatRecoveryItem);
           useStatusCureIfNeeded(state, metrics, "post-combat");
           if (!isAlive(state.party[0])) {
             metrics.deathEncounterType = encounterType;
@@ -7417,6 +7623,8 @@ function printTrapMetrics(result) {
 function printConsumableSummary(result) {
   const healAcquired = Object.values(result.averageHealPotionsAcquiredBySource)
     .reduce((sum, amount) => sum + amount, 0);
+  const greaterHealAcquired = Object.values(result.averageGreaterHealPotionsAcquiredBySource || {})
+    .reduce((sum, amount) => sum + amount, 0);
   const departureWingAcquired = result.averagePortalAcquisitions?.departureCraft || 0;
   const departureWingUsed = result.averagePortalUsesBySource?.["departure-craft"] || 0;
   console.log(
@@ -7428,6 +7636,7 @@ function printConsumableSummary(result) {
   );
   console.log(
     `消耗品/run: 傷薬入手/消費=${healAcquired.toFixed(2)}/${result.averageHealPotionsConsumed.toFixed(2)}, ` +
+    `上薬入手/消費=${greaterHealAcquired.toFixed(2)}/${(result.averageGreaterHealPotionsConsumed || 0).toFixed(2)}, ` +
     `罠kit入手/消費=${result.averageTrapKitsAcquired.toFixed(2)}/${result.averageTrapKitsUsed.toFixed(2)}, ` +
     `翼(出発)入手/消費=${departureWingAcquired.toFixed(2)}/${departureWingUsed.toFixed(2)}, ` +
     `鑑定粉入手/消費=${formatPowderAcquired(result)}/` +
@@ -8174,7 +8383,7 @@ console.log(
 );
 console.log(
   "非モデル化: テレポーター移動先の再経路化、商人での罠外し/鑑定粉購入（任意行動）、" +
-  "上薬・MP消費/強化アイテムの能動使用、マップ上の任意寄り道、" +
+  "MP消費/強化アイテムの能動使用、マップ上の任意寄り道、" +
   "徘徊エリートの移動後の接触結果（知覚判定は実helper経由で計測）、" +
   "人間の敵別判断（固定閾値で代理）"
 );
