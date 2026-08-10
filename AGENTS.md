@@ -257,3 +257,13 @@ When reporting checklist use, include:
   instead of expanding this file.
 - Avoid conflicting rules, repeated lint/test instructions, and tool-specific
   details that do not apply across agents.
+
+## 1 セッションの区切り方
+
+- 原則 1 Issue = 1 セッション。Issue を跨ぐ、約 100 ターン続く、測定・実装・レビューの性質が変わる時点で区切って畳む。
+- 畳む前、Issue コメントへ「原因 / 変更対象 / 検証 / 未解決」を残す。次セッションはコメントを起点にし、会話履歴・ログを持ち越さない。
+
+## バックグラウンド実行と `wait` の使い分け
+
+- 30 秒未満と見込めるコマンドは前景で 1 ターン実行する。未知の処理はスモークで測るか背景実行。
+- 分単位の処理だけ背景実行 + `wait` とし、背景時 `yield_time_ms` は上限で待つ。例: 本実行シミュレーション、`npm run test:browser`、`FULL_TEST=1`。
