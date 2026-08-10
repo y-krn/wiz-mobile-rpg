@@ -866,6 +866,10 @@ function formatNumber(value, digits = 2) {
     : Number(value).toFixed(digits);
 }
 
+function formatSignedNumber(value, digits = 3) {
+  return `${value >= 0 ? "+" : ""}${formatNumber(value, digits)}`;
+}
+
 function formatRate(rate) {
   if (!rate || rate.estimate === null) return "NA";
   const suffix = rate.trials < MIN_GROUP_N ? "; N<30 未確定" : "";
@@ -884,6 +888,12 @@ function formatDifference(diff, digits = 3) {
     : "";
   return `${diff.estimate >= 0 ? "+" : ""}${formatNumber(diff.estimate, digits)} ` +
     `[${formatNumber(diff.low, digits)}, ${formatNumber(diff.high, digits)}${suffix}]`;
+}
+
+function formatA3Statuses(a3) {
+  return Object.entries(a3)
+    .map(([key, value]) => `${key}=${value.status}`)
+    .join(" / ");
 }
 
 function shortQuality(summary) {
@@ -994,6 +1004,35 @@ function determineCeilingVerdict(cases) {
 
 function buildReport(summary, summarySha256) {
   const verdict = summary.verdict;
+  const pairedCells = summary.pairs.ceilingVsCurrent.cells;
+  const floorDiffs = Object.values(pairedCells)
+    .map(cell => cell.allRun.averageReachedFloor);
+  const floorMoved = floorDiffs.length > 0 && floorDiffs.every(diff => diff.low > 0);
+  const floorRange = floorDiffs.length > 0
+    ? `${formatSignedNumber(Math.min(...floorDiffs.map(diff => diff.estimate)), 4)}〜` +
+      `${formatSignedNumber(Math.max(...floorDiffs.map(diff => diff.estimate)), 4)}`
+    : "NA";
+  const deathWorseningCells = Object.entries(pairedCells)
+    .filter(([, cell]) => cell.b5Entrant.death.low > 0)
+    .map(([key, cell]) => `${key} ${formatDifference(cell.b5Entrant.death, 4)}`);
+  const priestCorePoolAnomaly = CURE_POLICIES.map(curePolicy => {
+    const current = summary.cases[cellKey("current", curePolicy, "workshop-core-pools")];
+    const ceiling = summary.cases[cellKey("ceiling", curePolicy, "workshop-core-pools")];
+    return `${curePolicy}: ${formatRate(current.chestByClass.Priest.disarmSuccessRate)}→` +
+      `${formatRate(ceiling.chestByClass.Priest.disarmSuccessRate)}`;
+  }).join(" / ");
+  const priestCorePoolOpening = CURE_POLICIES.map(curePolicy => {
+    const current = summary.cases[cellKey("current", curePolicy, "workshop-core-pools")];
+    const ceiling = summary.cases[cellKey("ceiling", curePolicy, "workshop-core-pools")];
+    return `${curePolicy}: ${formatMean(current.chestByClass.Priest.opened)}→` +
+      `${formatMean(ceiling.chestByClass.Priest.opened)}`;
+  }).join(" / ");
+  const smartCorePools = summary.cases[
+    cellKey("current", "smart", "workshop-core-pools")
+  ];
+  const smartCorePoolsCeiling = summary.cases[
+    cellKey("ceiling", "smart", "workshop-core-pools")
+  ];
   const lines = [
     "# Issue #468 第1段 — trapBonus露出天井",
     "",
@@ -1003,6 +1042,7 @@ function buildReport(summary, summarySha256) {
     verdict.verdict === "動かない"
       ? "露出は #271 の答えではない。第2段（保有率の掃引）は実施しない。"
       : "第2段（保有率の knee 掃引）へ進む価値あり。ただし本PRでは掃引しない。",
+    "- ここでの「動かない」は #271 の受入基準に対する判定。floorが動かないという意味ではない。",
     "",
     "## 測定条件",
     "",
@@ -1031,9 +1071,10 @@ function buildReport(summary, summarySha256) {
         `- ${scenarioId} / ${curePolicy}: B5 entrant control=${current.b5.entrantsN} / placebo=${placebo.b5.entrantsN} / ceiling=${ceiling.b5.entrantsN}。`,
         `  - A1 control=${current.b5.a1.status} Q4−Q1=${formatDifference(current.b5.a1.q4MinusQ1Death, 4)} / ceiling=${ceiling.b5.a1.status} Q4−Q1=${formatDifference(ceiling.b5.a1.q4MinusQ1Death, 4)}; Q4死亡率=${formatRate(ceiling.b5.a1.quartiles[3]?.b5Death)}; monotonic=${ceiling.b5.a1.conditions.monotonicNonIncreasing ? "成立" : "不成立"}。`,
         `  - A2 control=${current.b5.a2.status} r=${formatNumber(current.b5.a2.depth.r, 4)} [${formatNumber(current.b5.a2.depth.low, 4)}, ${formatNumber(current.b5.a2.depth.high, 4)}] / ceiling=${ceiling.b5.a2.status} r=${formatNumber(ceiling.b5.a2.depth.r, 4)} [${formatNumber(ceiling.b5.a2.depth.low, 4)}, ${formatNumber(ceiling.b5.a2.depth.high, 4)}]。`,
-        `  - A3 ceiling: ${Object.entries(ceiling.b5.a3).map(([key, value]) => `${key}=${value.status}`).join(" / ")}。`
+        `  - A3 control→ceiling: ${formatA3Statuses(current.b5.a3)} → ${formatA3Statuses(ceiling.b5.a3)}。`
       ];
     })),
+    "- #468のAcceptanceは A1 / A2 / A3 の3本すべて成立で #271解決。A1 / A2 は4セルすべて不成立なので、A3がcontrolで成立していても、ceilingで成立していても、打ち切り判定は変わらない。",
     "- A1 Q4−Q1は職内centered、A2は職内centered Fisher z、A3も職内centered。率=Wilson 95% CI、相関=Fisher z 95% CI、平均/差=正規近似95% CI。",
     "- N<30は未確定。CIが0を跨ぐ指標は効果なしと断定しない。",
     "",
@@ -1062,6 +1103,10 @@ function buildReport(summary, summarySha256) {
       return `- ${scenarioId} / ${curePolicy}: B5死亡 ${formatRate(current.b5.death)}→${formatRate(ceiling.b5.death)}、突破 ${formatRate(current.b5.breakthrough)}→${formatRate(ceiling.b5.breakthrough)}、全run平均floor ${formatMean(current.averageReachedFloor)}→${formatMean(ceiling.averageReachedFloor)}。paired ceiling−currentは floor=${formatDifference(paired.allRun.averageReachedFloor, 4)} / B5死亡=${formatDifference(paired.b5Entrant.death, 4)} / B5突破=${formatDifference(paired.b5Entrant.breakthrough, 4)}。点推定方向=${deathImproved && breakthroughImproved && floorImproved ? "易化" : "混在/不明"}、CI判定=${runEase.status}。`;
     })),
     `- run易化は3指標すべてが望ましい方向へ95% CIで0を跨がない場合だけ「安定易化」。今回のセル別集計: 安定易化=${Object.values(summary.runEase).filter(value => value.status === "安定易化").length} / 安定悪化=${Object.values(summary.runEase).filter(value => value.status === "安定悪化").length} / 未確定=${Object.values(summary.runEase).filter(value => value.status === "未確定").length}。`,
+    `- 天井は floor を動かす。paired ceiling−current は4セル全て ${floorRange}階、各95% CIが0を跨がない（floor移動=${floorMoved ? "成立" : "未確認"}）。ただし効果量は小さく、A1 / A2の受入基準は動かない。「動かない」は受入基準についての判定。`,
+    deathWorseningCells.length > 0
+      ? `- B5死亡は悪化方向かつ95% CIが0を跨がないセルあり: ${deathWorseningCells.join(" / ")}。floorが伸びて深層へ到達したrunの選別が変わった解釈と整合するが、今回出力だけでは因果を確定しない。`
+      : "- B5死亡は悪化方向かつ95% CIが0を跨がないセルなし。",
     "",
     "## 宝箱副作用・職業別",
     "",
@@ -1077,7 +1122,9 @@ function buildReport(summary, summarySha256) {
         })
       ];
     }),
-    "- 盗賊はapt（base80/max90）、非apt職はbase40/max60の現行解除式を使用。盗賊の解除率は両cureで改善し、非apt職の上限張り付きを含めても格差悪化は確認されなかった。",
+    `- 盗賊はapt（base80/max90）、非apt職はbase40/max60の現行解除式を使用。僧侶だけ解除率が大きく逆方向へ低下: ${priestCorePoolAnomaly}。直感に反する差はbalanceより測定側のバグを先に疑う（#441で結論が覆った前例）。`,
+    `- #461基準線では僧侶の到達floor=4.45で4職最深。ceilingでfloorがさらに伸び、深層の解除困難な宝箱を多く開けた選別なら整合する。ただし今回の出力は宝箱単位のfloorを保存せず、階層別解除率 / 開封宝箱のfloor分布を算出できない。全職 smart の開封/runは ${formatMean(smartCorePools.chest.opened)}→${formatMean(smartCorePoolsCeiling.chest.opened)}、僧侶は ${priestCorePoolOpening} で、仮説の裏づけ未確認。集計バグ可能性も残る。`,
+    "- よって「非apt職の上限張り付きを含めても格差悪化なし」とは結論しない。僧侶の低下は未説明として記録。",
     "",
     "## trapSense cap",
     "",
