@@ -380,6 +380,12 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
   （N=50,100 run/cell、4セル、95% CI）では、EV分岐で到達floorが `-0.15〜-0.19`、宝箱素材が
   `-2.3〜-2.9/run`、罠被害が `+0.45〜+0.88 HP/run`。4セルすべてでCI非重複。EV最大化の
   目的関数がendpointを悪化させたため、宝箱の既定へ採用しない。
+- #480の旧/新実装比較（`TRAP_POLICY`未指定、同一seed/env、1セル、N=100）では、乱数消費順と
+  run trajectory の出力SHAが一致した。したがって既定宝箱経路は旧挙動と同一であり、#461基準線
+  （env hash `e79d51f4d7ce5e701e0e73db97afc9ee051d609b9a652e278ab84b0518897bda`）は取り直し不要。
+  取り直し対象は、`TRAP_POLICY=conservative`を明示指定して宝箱EVを選ぶ測定だけ。宝箱を
+  `legacy`へ固定した#341の床罠のみの監査は対象外。素材EV、bank素材EV、工房投資額、#461再測定は
+  未実施であり、実施済みとは扱わない。
 - 方針変更のPRでは、新方針の値だけで判断せず、endpointのbefore/afterを全指標（到達floor、
   素材、罠被害など）について95% CI付きで出す。N<30のセルは未確定として結論に使わない。
 - 宝箱の保守EVは `src/rules/trap_effect_rules.js` の `calculateChestTrapExpectedRisk` と、
