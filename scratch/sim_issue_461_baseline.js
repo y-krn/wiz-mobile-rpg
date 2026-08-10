@@ -301,7 +301,10 @@ function compactBuildSnapshot(result) {
     combatBuildScore: snapshot.combatBuildScore,
     equipmentStatScore: snapshot.equipmentStatScore,
     combatCoreScore: snapshot.combatCoreScore,
-    coreIds: [...(snapshot.coreIds || [])]
+    combatCoreScoreAll: snapshot.combatCoreScoreAll,
+    combatCoreScoreById: { ...(snapshot.combatCoreScoreById || {}) },
+    coreIds: [...(snapshot.coreIds || [])],
+    combatCoreIds: [...(snapshot.combatCoreIds || [])]
   };
 }
 

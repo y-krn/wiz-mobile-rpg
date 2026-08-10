@@ -3784,14 +3784,9 @@ function getClassScoringProfile(scoringProfile, character) {
   return scoringProfile?.byClass?.[character.class] || scoringProfile;
 }
 
-function getCombatCoreScore(character, scoringProfile, floor) {
-  if (!scoringProfile) return 0;
+function getCombatCoreScoreForId(character, scoringProfile, floor, coreId) {
+  if (!scoringProfile || !coreId || !COMBAT_CORE_IDS.has(coreId)) return 0;
   const classScoringProfile = getClassScoringProfile(scoringProfile, character);
-  const coreId = getEquippedCoreAffixes(character)
-    .map(affix => affix.id || affix.type)
-    .find(id => COMBAT_CORE_IDS.has(id));
-  if (!coreId) return 0;
-
   const params = CORE_AFFIX_BY_ID.get(coreId).params;
   const offenseScore = getOffenseEquipmentScore(character);
   // 倍率コアは既存攻撃スコア×calibration実測稼働率×実params増分。
@@ -3847,6 +3842,25 @@ function getCombatCoreScore(character, scoringProfile, floor) {
       params.counterPower;
   }
   return 0;
+}
+
+function getCombatCoreScore(character, scoringProfile, floor) {
+  const coreId = getEquippedCoreAffixes(character)
+    .map(affix => affix.id || affix.type)
+    .find(id => COMBAT_CORE_IDS.has(id));
+  return getCombatCoreScoreForId(character, scoringProfile, floor, coreId);
+}
+
+function getCombatCoreScoreById(character, scoringProfile, floor) {
+  const scores = {};
+  getEquippedCoreAffixes(character)
+    .map(affix => affix.id || affix.type)
+    .filter(id => COMBAT_CORE_IDS.has(id))
+    .forEach(coreId => {
+      scores[coreId] = (scores[coreId] || 0) +
+        getCombatCoreScoreForId(character, scoringProfile, floor, coreId);
+    });
+  return scores;
 }
 
 function getEconomyCoreScore(character, scoringProfile, floor) {
@@ -3939,6 +3953,14 @@ function createBuildSnapshot(state, scoringProfile, point) {
   const equipmentStatScore =
     getBaseEquipmentScore(character) - getBaseEquipmentScore(withoutEquipment);
   const combatCoreScore = getCombatCoreScore(character, scoringProfile, state.floor);
+  const combatCoreScoreById = getCombatCoreScoreById(
+    character,
+    scoringProfile,
+    state.floor
+  );
+  const combatCoreScoreAll = Object.values(combatCoreScoreById)
+    .reduce((sum, score) => sum + score, 0);
+  const combatCoreIds = coreIds.filter(id => COMBAT_CORE_IDS.has(id));
 
   return {
     point,
@@ -3957,9 +3979,12 @@ function createBuildSnapshot(state, scoringProfile, point) {
     agi: getCharAgi(character),
     equipmentStatScore,
     combatCoreScore,
+    combatCoreScoreAll,
+    combatCoreScoreById,
     combatBuildScore: equipmentStatScore + combatCoreScore,
     totalGreedyScore: getEquipmentScore(character, scoringProfile, state.floor),
     coreIds: [...new Set(coreIds)],
+    combatCoreIds,
     supportAffixes,
     effectiveAffixes: Object.fromEntries(
       [
