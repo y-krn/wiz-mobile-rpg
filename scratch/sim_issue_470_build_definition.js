@@ -773,10 +773,8 @@ function renderMarkdown(summary, rawSha256, summarySha256) {
     "",
     "```text",
     ...Object.entries(summary.measurement.environment)
-      .sort(([left], [right]) => left.localeCompare(right))
+    .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${key}=${value}`),
-    "SIM_PARALLEL=<omitted>",
-    "SIM_MAP_CACHE_ENTRIES=<omitted; default=1024>",
     "```",
     "",
     "### 実行コマンド",
