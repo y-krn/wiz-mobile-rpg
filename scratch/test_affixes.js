@@ -146,4 +146,19 @@ const generatedTrapSenseAccessory = findGeneratedAffix(generateRandomAccessory, 
 assert.ok(generatedTrapSenseAccessory, "trapSense enters the accessory pool");
 assert.strictEqual(generatedTrapSenseAccessory.affix.value, 15, "accessory trapSense scales to 15% on B5");
 
+const trapBonusValues = [
+  [generateRandomEquipment, 1, 10],
+  [generateRandomEquipment, 3, 15],
+  [generateRandomEquipment, 5, 20],
+  [generateRandomAccessory, 1, 10],
+  [generateRandomAccessory, 4, 15]
+];
+for (const [generator, floor, expected] of trapBonusValues) {
+  assert.strictEqual(
+    findGeneratedAffix(generator, floor, "trapBonus")?.affix.value,
+    expected,
+    `trapBonus value on B${floor}`
+  );
+}
+
 console.log("[PASS] affix registry and budget generation");

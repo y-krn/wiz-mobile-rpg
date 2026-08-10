@@ -276,9 +276,9 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   const isTrapEligible = ["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "RAPIER", "LEATHER_ARMOR", "NINJA_SUIT", "EXPLORER_CLOAK", "BUCKLER"].includes(baseId);
   if (isTrapEligible) {
     addAffix(1, "trapBonus", () => {
-      if (floor >= 5) return 15;
-      if (floor >= 3) return 10;
-      return 5;
+      if (floor >= 5) return 20;
+      if (floor >= 3) return 15;
+      return 10;
     }, 2);
   }
 
@@ -529,7 +529,7 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     { type: "vit", getVal: () => statValue, weight: 2 },
     { type: "agi", getVal: () => statValue, weight: 2 },
     { type: "luk", getVal: () => statValue, weight: 2 },
-    { type: "trapBonus", getVal: () => floor >= 4 ? 10 : 5, weight: 2 },
+    { type: "trapBonus", getVal: () => floor >= 4 ? 15 : 10, weight: 2 },
     { type: "spellGuard", getVal: () => floor >= 4 ? 15 : 10, weight: 1 },
     { type: "antiDragon", getVal: () => 15, weight: floor >= 4 ? 1 : 0 },
     { type: "antiUndead", getVal: () => 15, weight: floor >= 3 ? 1 : 0 },

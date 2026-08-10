@@ -92,6 +92,11 @@ and triggering its curse is intended behavior (the risk of this core).
 `materialFind` / `contractReward` obtain the equipment values of 1 solo character via
 `getPartyMaxAffix`. The target of `contractReward` is rank-quest rewards.
 
+`trapBonus` generation values adopted in Phase 2b (#271) are 10/15/20% on equipment
+(B1-2/B3-4/B5+) and 10/15% on accessories (B1-3/B4+). The source of truth is
+`src/systems/equipment_generation.js`; the fixed `THIEF_EYE` accessory is a separate
+source and is not part of this sweep.
+
 The original proposal, “half the fatigue penalty,” was shelved because the fatigue system is not implemented (consider
 adding it as a conditional when implemented).
 

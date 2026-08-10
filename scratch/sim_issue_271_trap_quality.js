@@ -86,6 +86,19 @@ const raisedBonusConditions = [1, 5, 10, 25].map(multiplier => ({
     }
   }
 }));
+const trapBonusValueConditions = [0, 5, 10, 15, 20, 25].map(increment => {
+  const equipment = [5, 10, 15].map(value => value + increment);
+  const accessory = [5, 10].map(value => value + increment);
+  const suffix = increment === 0 ? "current" : `plus${increment}`;
+  return {
+    mode: "trapBonus",
+    groupAffixes: ["trapBonus"],
+    affixType: "trapBonus",
+    id: `trapBonus-values-${suffix}`,
+    label: `trapBonus値 E=${equipment.join("/")} A=${accessory.join("/")}`,
+    trapBonusValues: { equipment, accessory }
+  };
+});
 const trapSenseConditions = [
   { cap: 0.95, startFloor: 16 },
   { cap: 1.00, startFloor: 16 },
@@ -118,7 +131,10 @@ const ALL_CONDITIONS = Object.freeze([
   ...trapSenseConditions,
   combinedUpperCondition
 ]);
-const CONDITION_MAP = new Map(ALL_CONDITIONS.map(condition => [condition.id, condition]));
+const CONDITION_MAP = new Map(
+  [...ALL_CONDITIONS, ...trapBonusValueConditions]
+    .map(condition => [condition.id, condition])
+);
 const REQUESTED_SCENARIOS = parseList(
   process.env.TQ_SCENARIOS,
   ALL_SCENARIO_IDS.join(",")
@@ -403,6 +419,15 @@ function compactTrapRow(task, result, condition) {
       avoidanceRejected: Number(result.trapAvoidanceRejected || 0),
       kitsUsed: Number(result.trapKitsUsed || 0),
       damageHp: Number(result.trapDamageHp || 0)
+    },
+    chest: {
+      opened: Number(result.chestsOpened || 0),
+      trapEncounters: Number(result.trapEncounterBySource?.chest || 0),
+      trapActivations: Number(result.trapActivationsBySource?.chest || 0),
+      trapDamageHp: Number(result.trapDamageHpBySource?.chest || 0),
+      disarmAttempts: Number(result.chestDisarmAttempts || 0),
+      disarmSuccesses: Number(result.chestDisarmSuccesses || 0),
+      materialAcquired: Number(result.materialAcquiredBySource?.chest || 0)
     }
   };
 }
@@ -415,6 +440,7 @@ function buildScenario(scenarioId, condition, curePolicy) {
     trapPolicy: "conservative",
     trapAvoidancePolicy: "ev",
     trapOverride: condition.trapOverride,
+    trapBonusValueOverride: condition.trapBonusValues || null,
     statusCurePolicy: curePolicy,
     statusCureHpThreshold: Number(process.env.STATUS_CURE_HP_THRESHOLD || 0.35),
     statusCureMerchantPolicy: process.env.STATUS_CURE_MERCHANT_POLICY || "missing",
@@ -534,6 +560,22 @@ function summarizeTrap(rows) {
   };
 }
 
+function summarizeChest(rows) {
+  const sum = field => rows.reduce((total, row) => total + Number(row.chest[field] || 0), 0);
+  const attempts = sum("disarmAttempts");
+  return {
+    runs: rows.length,
+    opened: meanInterval(rows.map(row => row.chest.opened)),
+    trapEncounters: meanInterval(rows.map(row => row.chest.trapEncounters)),
+    trapActivations: meanInterval(rows.map(row => row.chest.trapActivations)),
+    trapDamageHp: meanInterval(rows.map(row => row.chest.trapDamageHp)),
+    materialAcquired: meanInterval(rows.map(row => row.chest.materialAcquired)),
+    disarmAttempts: attempts,
+    disarmSuccesses: sum("disarmSuccesses"),
+    disarmSuccessRate: wilson(sum("disarmSuccesses"), attempts)
+  };
+}
+
 function summarizeDistribution(rows, field) {
   const values = {};
   rows.forEach(row => {
@@ -589,6 +631,11 @@ function summarizeCase(rows, condition, curePolicy, scenarioId) {
     deathRate: wilson(rows.filter(row => row.died).length, rows.length),
     averageReachedFloor: meanInterval(rows.map(row => row.reachedFloor)),
     trap,
+    chest: summarizeChest(rows),
+    chestByClass: Object.fromEntries(CLASS_NAMES.map(className => [
+      className,
+      summarizeChest(rows.filter(row => row.className === className))
+    ])),
     b5TrapBonusDistribution: summarizeDistribution(entrants, "b5TrapBonus"),
     b5TrapSenseDistribution: summarizeDistribution(entrants, "b5TrapSense")
   };
@@ -752,6 +799,16 @@ function primarySweepLine(item, condition) {
     `全run生存=${formatRate(item.survivalRate)}, 全run平均floor=${formatMean(item.averageReachedFloor)}`;
 }
 
+function chestLine(item, label) {
+  const chest = item.chest;
+  return `- ${label}: ` +
+    `解除成功率=${formatRate(chest.disarmSuccessRate)} ` +
+    `(試行=${chest.disarmAttempts}, 成功=${chest.disarmSuccesses}), ` +
+    `罠被害HP/run=${formatMean(chest.trapDamageHp)}, ` +
+    `素材/run=${formatMean(chest.materialAcquired)}, ` +
+    `開封/run=${formatMean(chest.opened)}`;
+}
+
 function policyLine(item) {
   const totals = item.trap.all.totals;
   return `- ${item.conditionLabel} / ${item.curePolicy}: ` +
@@ -791,6 +848,14 @@ function buildReport(summary, summarySha256) {
     ...combinedConditions.flatMap(condition => primaryItems(condition)
       .map(item => primarySweepLine(item, condition)))
   ];
+  const chestLines = bonusConditions.flatMap(condition =>
+    primaryItems(condition).flatMap(item => [
+      chestLine(item, `${condition.label} / ${item.curePolicy} / 全職`),
+      ...Object.entries(item.chestByClass || {}).map(([className, chest]) =>
+        chestLine({ chest }, `${condition.label} / ${item.curePolicy} / ${className}`)
+      )
+    ])
+  );
   const clampLines = summary.clamp.primary;
   const scenarioLines = summary.scenarioHighlights.flatMap(highlight => [
     `- ${highlight.scenarioId}: ${highlight.lines.join(" / ")}`
@@ -833,6 +898,11 @@ function buildReport(summary, summarySha256) {
     "## 掃引表（主状態）",
     "",
     ...mainSweep,
+    "",
+    "## 宝箱副作用（主状態）",
+    "",
+    "解除成功率は宝箱罠の解除試行を分母とし、罠被害HP/run・宝箱素材/runは全run平均。各値に95% CIを付与。",
+    ...chestLines,
     "",
     "## 対策なし群の安定性",
     "",
