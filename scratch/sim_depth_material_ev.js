@@ -5367,6 +5367,7 @@ function finishRun(state, outcome, metrics) {
     combatMaterialEvents: metrics.combatMaterialEvents,
     combatMaterialHitEvents: metrics.combatMaterialHitEvents,
     diagnostics: metrics.diagnostics,
+    ...(metrics.buildSnapshots ? { buildSnapshots: metrics.buildSnapshots } : {}),
     ...(metrics.equipmentTelemetry
       ? { equipmentTelemetry: metrics.equipmentTelemetry }
       : {})
@@ -5396,6 +5397,7 @@ export function simulateRun({
   workshop = { ranks: {} },
   supplyOverride = null,
   collectDiagnostics = false,
+  collectBuildSnapshots = false,
   collectEquipmentTelemetry = false
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
@@ -5624,6 +5626,7 @@ export function simulateRun({
     combatMaterialEvents: 0,
     combatMaterialHitEvents: 0,
     scoringProfile,
+    buildSnapshots: collectBuildSnapshots && !collectDiagnostics ? [] : null,
     diagnostics: collectDiagnostics
       ? {
           level: diagnosticLevel,
@@ -5638,10 +5641,9 @@ export function simulateRun({
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
   for (let floor = startFloor; floor < targetDepth; floor++) {
     state.floor = floor;
-    if (metrics.diagnostics) {
-      metrics.diagnostics.buildSnapshots.push(
-        createBuildSnapshot(state, scoringProfile, "floor-start")
-      );
+    const buildSnapshots = metrics.diagnostics?.buildSnapshots || metrics.buildSnapshots;
+    if (buildSnapshots) {
+      buildSnapshots.push(createBuildSnapshot(state, scoringProfile, "floor-start"));
     }
     const generated = generateRunFloor({ runSeed, floor });
     const routePlan = createFloorRoutePlan(generated, floor, metrics.bossPolicy);

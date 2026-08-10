@@ -11,6 +11,11 @@ import { isMainThread } from "node:worker_threads";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveSimParallelism, runSimTasks } from "./sim_parallel.js";
+import {
+  getBuildSnapshot,
+  inferPairingEligibility,
+  resolveDiagnosticMode
+} from "./measurement_utils.js";
 
 const SCENARIO_IDS = Object.freeze([
   "workshop-empty",
@@ -107,7 +112,8 @@ const ENV_DEFAULTS = Object.freeze({
   SIM_SCENARIOS: SCENARIO_IDS.join(","),
   SIM_SUPPORT_SUPPLY_CEILING: "none",
   SIM_EQUIPMENT_POLICY: "individual-score",
-  SIM_MATCHING_DEFINITION: "exact"
+  SIM_MATCHING_DEFINITION: "exact",
+  SIM_DIAGNOSTICS: "off"
 });
 
 for (const [key, value] of Object.entries(ENV_DEFAULTS)) {
@@ -146,6 +152,7 @@ const FLEE_POLICY = process.env.FLEE_POLICY === "never" ? "never" : "threshold";
 const FLEE_HP_THRESHOLD = FLEE_POLICY === "never"
   ? null
   : Math.max(0, Math.min(1, Number(process.env.FLEE_HP_THRESHOLD)));
+const DIAGNOSTIC_MODE = resolveDiagnosticMode(process.env.SIM_DIAGNOSTICS);
 
 function hashSeed(text) {
   let seed = 2166136261;
@@ -246,28 +253,24 @@ function buildScenario(getScenarioById, scenarioId) {
     statusCureHpThreshold: Number(process.env.STATUS_CURE_HP_THRESHOLD),
     statusCureMerchantPolicy: process.env.STATUS_CURE_MERCHANT_POLICY,
     fleeHpThreshold: FLEE_HP_THRESHOLD,
-    elitePolicy: process.env.ELITE_POLICY
+    elitePolicy: process.env.ELITE_POLICY,
+    simDiagnosticLevel: DIAGNOSTIC_MODE
   };
 }
 
 function getB5Snapshot(result, coreIds) {
-  return compactSnapshot(
-    result.diagnostics?.buildSnapshots?.find(
-      snapshot => snapshot.floor === B5 && snapshot.point === "floor-start"
-    ) || null,
-    coreIds
-  );
+  return compactSnapshot(getBuildSnapshot(result, B5), coreIds);
 }
 
 function compactRow(task, result, coreIds) {
   const b5 = getB5Snapshot(result, coreIds);
-  const b6 = result.diagnostics?.buildSnapshots?.some(
-    snapshot => snapshot.floor === B5 + 1 && snapshot.point === "floor-start"
-  );
+  const b6 = Boolean(getBuildSnapshot(result, B5 + 1));
   return {
     scenarioId: task.scenarioId,
     runIndex: task.runIndex,
     className: task.className,
+    pairId: [task.scenarioId, task.className, task.runIndex].join(":"),
+    randomSequenceId: [task.scenarioId, task.className, task.runIndex].join(":"),
     survived: Boolean(result.survived),
     died: Boolean(result.died),
     reachedFloor: Number(result.reachedFloor),
@@ -444,6 +447,8 @@ async function runMain() {
     cpuUserSeconds: cpuUsage.user / 1e6,
     cpuSystemSeconds: cpuUsage.system / 1e6,
     cpuTotalSeconds: (cpuUsage.user + cpuUsage.system) / 1e6,
+    diagnosticMode: DIAGNOSTIC_MODE,
+    pairing: inferPairingEligibility(CONDITION),
     rawSha256,
     rawPath: rawPath.replace(`${process.cwd()}/`, ""),
     supportAffixCount: SUPPORT_AFFIXES.length,
@@ -474,7 +479,8 @@ export function runIssue446Task(task, context) {
     scoringProfile: context.scoringProfiles[task.scenarioId],
     scenario,
     workshop: scenario.workshop,
-    collectDiagnostics: true
+    collectDiagnostics: DIAGNOSTIC_MODE !== "off",
+    collectBuildSnapshots: true
   });
   return compactRow(task, result, context.coreIds);
 }

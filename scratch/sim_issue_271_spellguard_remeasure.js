@@ -22,7 +22,10 @@ import { resolveSimParallelism, runSimTasks } from "./sim_parallel.js";
 
 const PRIMARY_SCENARIO = "workshop-core-pools";
 const AFFIX_TYPE = "spellGuard";
-const STRENGTHS = Object.freeze([1, 5, 10]);
+const DEFAULT_STRENGTHS = Object.freeze([1, 5, 10]);
+const STRENGTHS = Object.freeze(String(
+  process.env.SG_STRENGTHS || DEFAULT_STRENGTHS.join(",")
+).split(",").map(value => Number(value.trim())).filter(Number.isFinite));
 const CURE_POLICIES = Object.freeze(["smart", "never"]);
 const BASIC_CLASSES = Object.freeze(["Fighter", "Thief", "Priest", "Mage"]);
 const CALIBRATION_RUNS = 100;
@@ -38,6 +41,11 @@ const RUNS = Math.max(1, Number(process.env.SIM_RUNS || PLANNED_RUNS));
 const SEED = Number(process.env.SIM_SEED || 271) >>> 0;
 const IDENTIFICATION_POLICY = "powder";
 const FLEE_HP_THRESHOLD = Number(process.env.FLEE_HP_THRESHOLD || 0.35);
+const RESULT_BASENAME = process.env.SIM_RESULT_BASENAME || "issue-271-spellguard-remeasure";
+
+if (!STRENGTHS.length || !STRENGTHS.includes(5)) {
+  throw new Error("SG_STRENGTHS must be non-empty and include 5");
+}
 
 if (process.env.SIM_PARALLEL) {
   throw new Error("SIM_PARALLEL must be omitted for Issue #271 measurement");
@@ -165,11 +173,11 @@ function buildReport(summary, summarySha256) {
   const lines = [
     "# Issue #271 spellGuard追加再測定",
     "",
-    "既存の全体掃引は再測定せず、`spellGuard` の `1x / 5x / 10x × smart / never`、主状態 `workshop-core-pools` の6セルだけを再測定した。",
+    `既存の全体掃引は再測定せず、spellGuard の ${STRENGTHS.map(value => `${value}x`).join(" / ")} × smart / never、主状態 ${PRIMARY_SCENARIO} の${STRENGTHS.length * CURE_POLICIES.length}セルだけを再測定した。`,
     "",
     "## 結論",
     "",
-    `追加測定の有群・なし群Nは全6セルで目標N≥${MIN_GROUP_N}を満たしたか: **${summary.allGroupsMeetTarget ? "yes" : "no"}**。`,
+    `追加測定の有群・なし群Nは全${STRENGTHS.length * CURE_POLICIES.length}セルで目標N≥${MIN_GROUP_N}を満たしたか: **${summary.allGroupsMeetTarget ? "yes" : "no"}**。`,
     `5xのA（両cureのB5 entrant死亡差の95% CIが0を跨がず、同符号）再現: **${summary.reproduced5x ? "yes" : "no"}**。`,
     summary.reproduced5x
       ? "したがって spellGuard については、A=5xが追加測定で再現され、既存100xでB（対策なし生存率20%未満）が未観測だったため、A<Bの窓を `[5x, >100x]` と観測する。これは単一affixについて #271 の「質依存化と自由度の両立」が成立しうることを示す。"
@@ -206,14 +214,14 @@ function buildReport(summary, summarySha256) {
     "",
     "## N設計・曝露・多重比較",
     "",
-    `既存14,000 runの spellGuard matched N は 1x smart/never=21/25、5x=45/50、10x=36/47。最小観測率は ${PILOT_MATCHED_N[0]}/${PILOT_RUNS}=${MIN_PILOT_GROUP_RATE.toFixed(4)}。したがって \`ceil(${MIN_GROUP_N} / ${MIN_PILOT_GROUP_RATE.toFixed(4)})=${REQUIRED_RUNS.toLocaleString()}\` run/cellが必要で、余裕を加えて ${RUNS.toLocaleString()} run/cell（6セル、${summary.measurement.rawRows.toLocaleString()} rows）とした。`,
+    `既存14,000 runの spellGuard matched N は 1x smart/never=21/25、5x=45/50、10x=36/47。最小観測率は ${PILOT_MATCHED_N[0]}/${PILOT_RUNS}=${MIN_PILOT_GROUP_RATE.toFixed(4)}。したがって \`ceil(${MIN_GROUP_N} / ${MIN_PILOT_GROUP_RATE.toFixed(4)})=${REQUIRED_RUNS.toLocaleString()}\` run/cellが必要で、余裕を加えて ${RUNS.toLocaleString()} run/cell（${STRENGTHS.length * CURE_POLICIES.length}セル、${summary.measurement.rawRows.toLocaleString()} rows）とした。`,
     `B3到達率（全run分母）は ${STRENGTHS.map(multiplier => {
       const condition = CONDITIONS.find(item => item.multiplier === multiplier);
       return `${multiplier}x=${CURE_POLICIES.map(curePolicy => formatPercent(
         getCase(summary.cases, condition, curePolicy).exposure.reachedRate.estimate
       )).join("/")}`;
     }).join("、")}（smart/never）。呪文round・軽減回数は全run分母とB3到達run分母を分離し、表では全/到達の順に示した。B5 entrantの有/なしNも各cellに併記した。`,
-    "元の全体掃引は30 conditions × 2 cure × 7 scenario × 3 endpoint = 1,260検定、α=0.05の期待偽陽性63.0本。今回の追加6セルはその単発ヒットの事前指定replicationであり、追加のendpoint記録は18本（同じαなら期待0.9本）である。追加結果が再現しない場合、元の5x単発は採用しない。",
+    `元の全体掃引は30 conditions × 2 cure × 7 scenario × 3 endpoint = 1,260検定、α=0.05の期待偽陽性63.0本。今回の追加${STRENGTHS.length * CURE_POLICIES.length}セルはその単発ヒットの事前指定replicationであり、追加のendpoint記録は${STRENGTHS.length * CURE_POLICIES.length * 3}本である。追加結果が再現しない場合、元の5x単発は採用しない。`,
     "",
     "## 実行監査",
     "",
@@ -240,9 +248,9 @@ export function runSpellGuardTask(task, context) {
 async function runMeasurement() {
   const resultDir = `${process.cwd()}/scratch/results`;
   mkdirSync(resultDir, { recursive: true });
-  const rawPath = `${resultDir}/issue-271-spellguard-remeasure.raw.jsonl`;
-  const summaryPath = `${resultDir}/issue-271-spellguard-remeasure.json`;
-  const reportPath = `${resultDir}/issue-271-spellguard-remeasure.md`;
+  const rawPath = `${resultDir}/${RESULT_BASENAME}.raw.jsonl`;
+  const summaryPath = `${resultDir}/${RESULT_BASENAME}.json`;
+  const reportPath = `${resultDir}/${RESULT_BASENAME}.md`;
   const rawWriter = createRawWriter(rawPath);
   const conditionMap = Object.fromEntries(CONDITIONS.map(condition => [condition.id, condition]));
   const scenarios = {};
@@ -289,7 +297,8 @@ async function runMeasurement() {
         seed: SEED,
         conditions: conditionMap,
         scenarios,
-        scoringProfiles
+        scoringProfiles,
+        diagnosticMode: "full"
       }
     });
     if (rows.length !== tasks.length) {
@@ -331,6 +340,7 @@ async function runMeasurement() {
       classes: CLASS_NAMES,
       targetDepth: TARGET_DEPTH,
       cells: cells.length,
+      diagnosticMode: "full",
       calibrationWallSeconds,
       wallClockSeconds,
       calibrationCpuSeconds: (calibrationCpu.user + calibrationCpu.system) / 1e6,
@@ -372,9 +382,9 @@ async function runMeasurement() {
 
 async function regenerateReport() {
   const resultDir = `${process.cwd()}/scratch/results`;
-  const summaryPath = `${resultDir}/issue-271-spellguard-remeasure.json`;
-  const rawPath = `${resultDir}/issue-271-spellguard-remeasure.raw.jsonl`;
-  const reportPath = `${resultDir}/issue-271-spellguard-remeasure.md`;
+  const summaryPath = `${resultDir}/${RESULT_BASENAME}.json`;
+  const rawPath = `${resultDir}/${RESULT_BASENAME}.raw.jsonl`;
+  const reportPath = `${resultDir}/${RESULT_BASENAME}.md`;
   const summary = JSON.parse(readFileSync(summaryPath, "utf8"));
   summary.nDesign.plannedRuns = summary.measurement.SIM_RUNS;
   const reached = {};

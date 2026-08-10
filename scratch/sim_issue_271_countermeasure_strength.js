@@ -17,6 +17,11 @@ import { performance } from "node:perf_hooks";
 import { isMainThread } from "node:worker_threads";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveSimParallelism, runSimTasks } from "./sim_parallel.js";
+import {
+  getBuildSnapshot,
+  inferPairingEligibility,
+  resolveDiagnosticMode
+} from "./measurement_utils.js";
 
 const ALL_SCENARIO_IDS = Object.freeze([
   "workshop-empty",
@@ -61,6 +66,10 @@ const IDENTIFICATION_POLICY = "powder";
 const REQUESTED_SCENARIOS = String(
   process.env.CM_SCENARIOS || ALL_SCENARIO_IDS.join(",")
 ).split(",").map(value => value.trim()).filter(Boolean);
+const AUDIT_RUNS = Math.max(1, Number(process.env.SIM_AUDIT_RUNS || 500));
+const DIAGNOSTIC_MODE = resolveDiagnosticMode(process.env.SIM_DIAGNOSTICS);
+const RESULT_BASENAME = process.env.SIM_RESULT_BASENAME ||
+  "issue-271-countermeasure-strength";
 const REQUESTED_ATTACK_STRENGTHS = String(
   process.env.CM_ATTACK_STRENGTHS || ATTACK_STRENGTHS.join(",")
 ).split(",").map(value => Number(value)).filter(Number.isFinite);
@@ -93,7 +102,7 @@ process.env.BLOOD_WAND_HP_PAYMENT_MIN_RATE =
 process.env.SIM_CORE_SCORE_DROP_TOLERANCE = process.env.SIM_CORE_SCORE_DROP_TOLERANCE || "0";
 process.env.SIM_440_CONDITION = process.env.SIM_440_CONDITION || "current";
 process.env.SIM_SCENARIOS = REQUESTED_SCENARIOS.join(",");
-process.env.SIM_DAMAGE_PROBE = "1";
+process.env.SIM_DAMAGE_PROBE = DIAGNOSTIC_MODE === "full" ? "1" : "0";
 if (process.env.SIM_PARALLEL) {
   throw new Error("SIM_PARALLEL must be omitted for Issue #271 Phase 2b measurement");
 }
@@ -101,6 +110,9 @@ if (REQUESTED_SCENARIOS.length === 0 || REQUESTED_SCENARIOS.some(
   id => !ALL_SCENARIO_IDS.includes(id)
 )) {
   throw new Error(`unknown CM_SCENARIOS: ${REQUESTED_SCENARIOS.join(",")}`);
+}
+if (!REQUESTED_SCENARIOS.includes(PRIMARY_SCENARIO)) {
+  throw new Error(`CM_SCENARIOS must include primary scenario: ${PRIMARY_SCENARIO}`);
 }
 if (REQUESTED_ATTACK_STRENGTHS.length === 0 || REQUESTED_ATTACK_STRENGTHS.some(
   value => value <= 0
@@ -285,15 +297,11 @@ function snapshotAffix(snapshot, affixType) {
 }
 
 function getB5Snapshot(result) {
-  return result.diagnostics?.buildSnapshots?.find(
-    snapshot => snapshot.floor === B5 && snapshot.point === "floor-start"
-  ) || null;
+  return getBuildSnapshot(result, B5);
 }
 
 function getB6Snapshot(result) {
-  return result.diagnostics?.buildSnapshots?.find(
-    snapshot => snapshot.floor === B5 + 1 && snapshot.point === "floor-start"
-  ) || null;
+  return getBuildSnapshot(result, B5 + 1);
 }
 
 function escapeRegExp(value) {
@@ -637,6 +645,14 @@ function compactRow(task, result, condition) {
     scenarioId: task.scenarioId,
     runIndex: task.runIndex,
     className: task.className,
+    pairId: [task.curePolicy, task.scenarioId, task.className, task.runIndex].join(":"),
+    randomSequenceId: task.randomSequenceId || [
+      task.conditionId,
+      task.curePolicy,
+      task.scenarioId,
+      task.className,
+      task.runIndex
+    ].join(":"),
     survived: Boolean(result.survived),
     died: Boolean(result.died),
     reachedFloor: Number(result.reachedFloor),
@@ -773,10 +789,7 @@ function buildScenario(scenarioId, condition, curePolicy) {
     fleeHpThreshold: FLEE_HP_THRESHOLD,
     elitePolicy: process.env.ELITE_POLICY || "avoid"
   };
-  scenario.simDiagnosticLevel = condition.mode === "attack" &&
-    condition.probe && scenarioId === PRIMARY_SCENARIO
-    ? "full"
-    : "compact";
+  scenario.simDiagnosticLevel = DIAGNOSTIC_MODE;
   if (condition.mode === "attack") {
     scenario.raceBiasOverride = buildRaceOverride(
       condition.multiplier,
@@ -798,8 +811,15 @@ function buildScenario(scenarioId, condition, curePolicy) {
 export function runCountermeasureStrengthTask(task, context) {
   const condition = context.conditions[task.conditionId];
   const scenario = context.scenarios[conditionKey(condition, task.curePolicy, task.scenarioId)];
+  const diagnosticMode = context.diagnosticMode ?? DIAGNOSTIC_MODE;
+  const pairing = inferPairingEligibility(condition);
+  const randomSequenceId = pairing.eligible
+    ? [task.curePolicy, task.scenarioId, task.className, task.runIndex].join(":")
+    : [condition.id, task.curePolicy, task.scenarioId, task.className, task.runIndex].join(":");
+  // Pairing shares the initial random sequence; it does not alter the sim's
+  // random-call order after a condition-specific trajectory branches.
   resetSimulationRandom(hashSeed(
-    `${context.seed}:${condition.id}:${task.curePolicy}:${task.scenarioId}:${task.runIndex}`
+    `${context.seed}:${randomSequenceId}`
   ));
   const result = simulateRun({
     className: task.className,
@@ -810,9 +830,10 @@ export function runCountermeasureStrengthTask(task, context) {
     scoringProfile: context.scoringProfiles[conditionKey(condition, task.curePolicy, task.scenarioId)],
     scenario,
     workshop: scenario.workshop,
-    collectDiagnostics: true
+    collectDiagnostics: diagnosticMode !== "off",
+    collectBuildSnapshots: true
   });
-  return compactRow(task, result, condition);
+  return compactRow({ ...task, randomSequenceId }, result, condition);
 }
 
 function summarizeMechanism(rows) {
@@ -1124,6 +1145,54 @@ function createRawWriter(path) {
   };
 }
 
+function auditSignStatus(primaryCase, auditCase) {
+  const endpointNames = ["reachedFloor", "death", "breakthrough"];
+  const lowN = auditCase?.runs || 0;
+  const primaryGroup = primaryCase?.b5?.group;
+  const auditGroup = auditCase?.b5?.group;
+  const groupNUncertain = [primaryGroup, auditGroup].some(group =>
+    !group || group.matchedN < MIN_GROUP_N || group.unmatchedN < MIN_GROUP_N
+  );
+  const mismatches = [];
+  const compared = [];
+  endpointNames.forEach(endpoint => {
+    const primaryEffect = primaryGroup?.endpointEffects?.[endpoint];
+    const auditEffect = auditGroup?.endpointEffects?.[endpoint];
+    const primarySign = Number.isFinite(primaryEffect?.estimate)
+      ? Math.sign(primaryEffect.estimate)
+      : null;
+    const auditSign = Number.isFinite(auditEffect?.estimate)
+      ? Math.sign(auditEffect.estimate)
+      : null;
+    if (primarySign === null || auditSign === null || primarySign === 0 || auditSign === 0) {
+      return;
+    }
+    compared.push({ endpoint, primarySign, auditSign });
+    if (primarySign !== auditSign) mismatches.push(endpoint);
+  });
+  return {
+    status: lowN < MIN_GROUP_N || groupNUncertain
+      ? "未確定（N<30）"
+      : mismatches.length
+        ? "符号不一致（追加測定）"
+        : compared.length
+          ? "符号一致"
+          : "未観測",
+    lowN,
+    primaryGroupN: {
+      matched: primaryGroup?.matchedN || 0,
+      unmatched: primaryGroup?.unmatchedN || 0
+    },
+    auditGroupN: {
+      matched: auditGroup?.matchedN || 0,
+      unmatched: auditGroup?.unmatchedN || 0
+    },
+    compared,
+    mismatches,
+    escalated: lowN >= MIN_GROUP_N && !groupNUncertain && mismatches.length > 0
+  };
+}
+
 function buildReport(summary, summarySha256) {
   const {
     cases,
@@ -1131,7 +1200,8 @@ function buildReport(summary, summarySha256) {
     attackConditions,
     defenseConditions,
     thresholds,
-    calibration
+    calibration,
+    auditPlan
   } = summary;
   const conditionDisplayLabel = condition => condition.mode === "defense"
     ? `${condition.label} ${condition.multiplier}x`
@@ -1195,8 +1265,12 @@ function buildReport(summary, summarySha256) {
         item?.base?.trials || 0
       )} / CI重複=${item?.delta?.intervalsOverlap === null ? "未観測" : item?.delta?.intervalsOverlap ? "yes" : "no"}`;
   });
-  const endpointTestCount = (attackConditions.length + defenseConditions.length) *
-    CURE_POLICIES.length * REQUESTED_SCENARIOS.length * 3;
+  const primaryEndpointTestCount = (attackConditions.length + defenseConditions.length) *
+    CURE_POLICIES.length * 3;
+  const auditStatusCounts = Object.values(auditPlan?.statuses || {}).reduce((counts, item) => {
+    counts[item.status] = (counts[item.status] || 0) + 1;
+    return counts;
+  }, {});
   const thresholdPoint = item => item ? `${item.multiplier}x` : "未観測";
   const spellGuardReplication = (() => {
     try {
@@ -1325,17 +1399,19 @@ function buildReport(summary, summarySha256) {
     ...calibrationLines,
     "- 攻撃5x/10x/25x/100xはPR #451と同じ不死100%置換＋hp×1.60/atk×1.60/def×1.30固定校正。倍率は有/なし群・cure・scenarioで変えない。防御系はaffix強度を変えても敵条件不変、脅威overrideはaffix別に全strength共通。",
     "- 有/なしendpointはB5 entrant内の職内centered差。無条件平均floor・生還率・被害・死因は全runで別掲。群N<30は未確定、未到達は未観測、CI跨ぎは効果なしと断定しない。",
-    `- 多重比較: ${endpointTestCount}検定、α=0.05の期待偽陽性 ${formatNumber(endpointTestCount * 0.05, 1)}本。符号不一致の単発非交差はsignal扱いしない。`,
+    `- 判定用多重比較: 主状態 ${primaryEndpointTestCount}検定、α=0.05の期待偽陽性 ${formatNumber(primaryEndpointTestCount * 0.05, 1)}本。監査は符号確認のみで判定検定に数えない。`,
     "",
     "## N設計",
     "",
-    `- B5 entrant保守率 ${B5_ENTRANT_RATE.toFixed(4)}、最小affix群保守率 ${SMALLEST_AFFIX_RATE.toFixed(4)}。ceil(30 / (${B5_ENTRANT_RATE.toFixed(4)} × ${SMALLEST_AFFIX_RATE.toFixed(4)})) = ${REQUIRED_RUNS.toLocaleString()} → ${RUNS.toLocaleString()} run/cell。`,
+    `- 主状態は ${RUNS.toLocaleString()} run/cell、監査は ${measurement.auditRuns || RUNS.toLocaleString()} run/cell。主状態の保守設計値は ceil(30 / (${B5_ENTRANT_RATE.toFixed(4)} × ${SMALLEST_AFFIX_RATE.toFixed(4)})) = ${REQUIRED_RUNS.toLocaleString()} → ${RUNS.toLocaleString()} run/cell。`,
     "- CI幅・powerは保証せず、各cell実測Nを監査。N<30は未確定。",
+    `- 監査符号判定: ${Object.entries(auditStatusCounts).map(([status, count]) => `${status}=${count}`).join(" / ") || "対象なし"}。符号不一致のみ主状態Nへ追加測定。`,
     "",
     "## 実行監査",
     "",
     `- seed=${measurement.seed}、基本4職、target depth=${TARGET_DEPTH}、SIM_CALIBRATION_RUNS=100、IDENTIFICATION_POLICY=powder、FLEE_POLICY=threshold、SIM_PARALLEL未指定（解決値=${measurement.resolvedParallelism}）。`,
-    `- 7 scenario: ${REQUESTED_SCENARIOS.join(" / ")}。主状態=${PRIMARY_SCENARIO}。`,
+    `- scenario: ${REQUESTED_SCENARIOS.join(" / ")}。主状態=${PRIMARY_SCENARIO} は N=${measurement.primaryRuns || RUNS}、監査は N=${measurement.auditRuns || RUNS}。`,
+    `- 監査削減: ${measurement.auditCellCount || 0}セルを低N、符号不一致による追加=${measurement.auditEscalatedCellCount || 0}セル。diagnostic=${measurement.diagnosticMode || "full"}。`,
     `- raw JSONL SHA-256: ${measurement.rawSha256}`,
     `- summary JSON SHA-256: ${summarySha256}`,
     `- calibration wall-clock ${formatNumber(measurement.calibrationWallSeconds, 3)}s / simulation wall-clock ${formatNumber(measurement.wallClockSeconds, 3)}s / total CPU ${formatNumber(measurement.totalCpuSeconds, 3)}s。`,
@@ -1347,9 +1423,9 @@ function buildReport(summary, summarySha256) {
 async function runMeasurement() {
   const resultDir = `${process.cwd()}/scratch/results`;
   mkdirSync(resultDir, { recursive: true });
-  const rawPath = `${resultDir}/issue-271-countermeasure-strength.raw.jsonl`;
-  const summaryPath = `${resultDir}/issue-271-countermeasure-strength.json`;
-  const reportPath = `${resultDir}/issue-271-countermeasure-strength.md`;
+  const rawPath = `${resultDir}/${RESULT_BASENAME}.raw.jsonl`;
+  const summaryPath = `${resultDir}/${RESULT_BASENAME}.json`;
+  const reportPath = `${resultDir}/${RESULT_BASENAME}.md`;
   const rawWriter = createRawWriter(rawPath);
   const conditions = [...ATTACK_CONDITIONS, ...DEFENSE_CONDITIONS];
   const conditionMap = Object.fromEntries(conditions.map(condition => [condition.id, condition]));
@@ -1376,7 +1452,6 @@ async function runMeasurement() {
   const calibrationCpu = process.cpuUsage(calibrationCpuStarted);
   const calibrationWallSeconds = (performance.now() - calibrationStarted) / 1000;
 
-  const cases = {};
   const simulationStarted = performance.now();
   const simulationCpuStarted = process.cpuUsage();
   const cells = conditions.flatMap(condition =>
@@ -1384,51 +1459,93 @@ async function runMeasurement() {
       REQUESTED_SCENARIOS.map(scenarioId => ({ condition, curePolicy, scenarioId }))
     )
   );
-  for (let batchStart = 0; batchStart < cells.length; batchStart += CELL_BATCH_SIZE) {
-    const batchCells = cells.slice(batchStart, batchStart + CELL_BATCH_SIZE);
-    const groupTasks = batchCells.flatMap(({ condition, curePolicy, scenarioId }) =>
-      Array.from({ length: RUNS }, (_, runIndex) => ({
-        conditionId: condition.id,
-        curePolicy,
-        scenarioId,
-        runIndex,
-        className: CLASS_NAMES[runIndex % CLASS_NAMES.length]
-      }))
-    );
-    const rows = await runSimTasks({
-      moduleUrl: pathToFileURL(fileURLToPath(import.meta.url)).href,
-      exportName: "runCountermeasureStrengthTask",
-      runTask: runCountermeasureStrengthTask,
-      tasks: groupTasks,
-      context: {
-        seed: SEED,
-        conditions: conditionMap,
-        scenarios,
-        scoringProfiles
-      }
-    });
-    if (rows.length !== groupTasks.length) {
-      throw new Error(`row count mismatch: batch ${batchStart} ${rows.length}/${groupTasks.length}`);
-    }
-    rawWriter.write(rows);
-    for (const { condition, curePolicy, scenarioId } of batchCells) {
-      const selected = rows.filter(row =>
-        row.conditionId === condition.id &&
-        row.curePolicy === curePolicy &&
-        row.scenarioId === scenarioId
+  const primaryCells = cells.filter(cell => cell.scenarioId === PRIMARY_SCENARIO);
+  const auditCells = cells.filter(cell => cell.scenarioId !== PRIMARY_SCENARIO);
+  const rowsByCell = new Map();
+  const runCells = async (selectedCells, runCount, phase) => {
+    for (let batchStart = 0; batchStart < selectedCells.length; batchStart += CELL_BATCH_SIZE) {
+      const batchCells = selectedCells.slice(batchStart, batchStart + CELL_BATCH_SIZE);
+      const groupTasks = batchCells.flatMap(({ condition, curePolicy, scenarioId }) =>
+        Array.from({ length: runCount }, (_, runIndex) => ({
+          conditionId: condition.id,
+          curePolicy,
+          scenarioId,
+          runIndex,
+          className: CLASS_NAMES[runIndex % CLASS_NAMES.length]
+        }))
       );
-      cases[conditionKey(condition, curePolicy, scenarioId)] = summarizeCase(
-        selected,
+      const rows = await runSimTasks({
+        moduleUrl: pathToFileURL(fileURLToPath(import.meta.url)).href,
+        exportName: "runCountermeasureStrengthTask",
+        runTask: runCountermeasureStrengthTask,
+        tasks: groupTasks,
+        context: {
+          seed: SEED,
+          conditions: conditionMap,
+          scenarios,
+          scoringProfiles,
+          diagnosticMode: DIAGNOSTIC_MODE
+        }
+      });
+      if (rows.length !== groupTasks.length) {
+        throw new Error(
+          `row count mismatch: ${phase} ${batchStart} ${rows.length}/${groupTasks.length}`
+        );
+      }
+      for (const { condition, curePolicy, scenarioId } of batchCells) {
+        const cellKey = conditionKey(condition, curePolicy, scenarioId);
+        rowsByCell.set(cellKey, rows.filter(row =>
+          row.conditionId === condition.id &&
+          row.curePolicy === curePolicy &&
+          row.scenarioId === scenarioId
+        ));
+      }
+      console.error(
+        `${phase} cells ${batchStart + 1}-${batchStart + batchCells.length}/` +
+        `${selectedCells.length}: ${rows.length} runs`
+      );
+    }
+  };
+
+  await runCells(primaryCells, RUNS, "primary");
+  const lowAuditCases = {};
+  const auditStatuses = {};
+  await runCells(auditCells, AUDIT_RUNS, "audit");
+  auditCells.forEach(({ condition, curePolicy, scenarioId }) => {
+    const cellKey = conditionKey(condition, curePolicy, scenarioId);
+    const selected = rowsByCell.get(cellKey) || [];
+    const lowCase = summarizeCase(selected, condition, curePolicy, scenarioId);
+    lowAuditCases[cellKey] = lowCase;
+    const primaryKey = conditionKey(condition, curePolicy, PRIMARY_SCENARIO);
+    auditStatuses[cellKey] = auditSignStatus(
+      summarizeCase(
+        rowsByCell.get(primaryKey) || [],
         condition,
         curePolicy,
-        scenarioId
-      );
-    }
-    console.error(
-      `completed cells ${batchStart + 1}-${batchStart + batchCells.length}/${cells.length}: ` +
-      `${rows.length} runs`
+        PRIMARY_SCENARIO
+      ),
+      lowCase
     );
+  });
+  const escalatedCells = auditCells.filter(({ condition, curePolicy, scenarioId }) =>
+    auditStatuses[conditionKey(condition, curePolicy, scenarioId)]?.escalated
+  );
+  if (escalatedCells.length) {
+    await runCells(escalatedCells, RUNS, "audit-escalation");
   }
+  const cases = {};
+  cells.forEach(({ condition, curePolicy, scenarioId }) => {
+    const cellKey = conditionKey(condition, curePolicy, scenarioId);
+    cases[cellKey] = summarizeCase(
+      rowsByCell.get(cellKey) || [],
+      condition,
+      curePolicy,
+      scenarioId
+    );
+  });
+  cells.forEach(({ condition, curePolicy, scenarioId }) => {
+    rawWriter.write(rowsByCell.get(conditionKey(condition, curePolicy, scenarioId)) || []);
+  });
   const simulationCpu = process.cpuUsage(simulationCpuStarted);
   const wallClockSeconds = (performance.now() - simulationStarted) / 1000;
   const rawAudit = rawWriter.close();
@@ -1437,6 +1554,7 @@ async function runMeasurement() {
     phase: "2b",
     seed: SEED,
     SIM_RUNS: RUNS,
+    SIM_AUDIT_RUNS: AUDIT_RUNS,
     SIM_CALIBRATION_RUNS: CALIBRATION_RUNS,
     SIM_PARALLEL: "未指定",
     resolvedParallelism: resolveSimParallelism(RUNS),
@@ -1448,6 +1566,19 @@ async function runMeasurement() {
     trapPolicy: process.env.TRAP_POLICY,
     trapAvoidancePolicy: process.env.TRAP_AVOIDANCE_POLICY,
     scenarios: REQUESTED_SCENARIOS,
+    primaryScenario: PRIMARY_SCENARIO,
+    primaryRuns: RUNS,
+    auditScenarios: REQUESTED_SCENARIOS.filter(id => id !== PRIMARY_SCENARIO),
+    auditRuns: AUDIT_RUNS,
+    auditCellCount: auditCells.length,
+    auditLowRows: auditCells.length * AUDIT_RUNS,
+    auditEscalatedCellCount: escalatedCells.length,
+    auditEscalatedRows: escalatedCells.length * RUNS,
+    diagnosticMode: DIAGNOSTIC_MODE,
+    pairing: Object.fromEntries(conditions.map(condition => [
+      condition.id,
+      inferPairingEligibility(condition)
+    ])),
     classes: CLASS_NAMES,
     targetDepth: TARGET_DEPTH,
     cellBatchSize: CELL_BATCH_SIZE,
@@ -1463,6 +1594,17 @@ async function runMeasurement() {
   };
   const preliminary = {
     measurement,
+    auditPlan: {
+      primaryScenario: PRIMARY_SCENARIO,
+      primaryRuns: RUNS,
+      auditRuns: AUDIT_RUNS,
+      auditScenarios: REQUESTED_SCENARIOS.filter(id => id !== PRIMARY_SCENARIO),
+      lowAuditCases,
+      statuses: auditStatuses,
+      escalatedCells: escalatedCells.map(({ condition, curePolicy, scenarioId }) =>
+        conditionKey(condition, curePolicy, scenarioId)
+      )
+    },
     nDesign: {
       b5EntrantRate: B5_ENTRANT_RATE,
       smallestAffixRate: SMALLEST_AFFIX_RATE,
@@ -1506,8 +1648,8 @@ async function runMeasurement() {
 if (isMainThread && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (process.env.SIM_REPORT_ONLY === "1") {
     const resultDir = `${process.cwd()}/scratch/results`;
-    const summaryPath = `${resultDir}/issue-271-countermeasure-strength.json`;
-    const reportPath = `${resultDir}/issue-271-countermeasure-strength.md`;
+    const summaryPath = `${resultDir}/${RESULT_BASENAME}.json`;
+    const reportPath = `${resultDir}/${RESULT_BASENAME}.md`;
     const summaryText = readFileSync(summaryPath, "utf8");
     const summary = JSON.parse(summaryText);
     summary.thresholds.attack = determineThresholds(summary.cases, summary.attackConditions);
