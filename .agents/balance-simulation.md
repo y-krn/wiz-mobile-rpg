@@ -367,8 +367,35 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 
 - 宝箱解除率は `chestDisarmSuccesses / chestDisarmAttempts` で記録する。ただし、対策 affix の評価にこの率を単独で使わない。必ず `kit` / `direct` / `forced` の経路内訳と `chestDisarmAttempts`（試行数）を併記する。
 - 解除率は経路構成の変化で低下し得る。`kit`（確定成功）の比率が下がり、`direct`（確率成功）が増えると、対策を強化した場合でも率が下がることがある。分母も動く（#473 の Priest core-pools smart では attempts `6079→7044`）。率が低下した場合、まず経路内訳と試行数を確認する。
-- sim の宝箱解除判断は `chance >= 50%` 固定。これは `src/` のゲーム挙動やプレイヤーの判断方針ではなく、sim の解除判断方針。床罠は #341 で `TRAP_POLICY=conservative` を既定とする EV 分岐へ変更済み（scoutなしの等価点 42.5%、整数選択境界 43%、`TRAP_POLICY=legacy` で旧50%を再現可能）。宝箱側は50%固定のままで、床罠との方針が非対称。
-- 宝箱側も EV 分岐へ変更すべきという含意はあるが、変更は別Issueで扱う。診断・ツール追加のPRでは宝箱解除方針を変更しない。
+- sim の床罠・宝箱解除判断は同じ `TRAP_POLICY` 軸で制御する。明示した
+  `TRAP_POLICY=legacy|conservative|disabled` は床罠・宝箱へ共通適用する。
+  - 未指定時の既定は、宝箱 `DEFAULT_TRAP_POLICY_ID=legacy`（TRAP_KIT優先後に50%固定）、
+    床罠 `DEFAULT_FLOOR_TRAP_POLICY_ID=conservative`（#341のEV既定）。宝箱既定を戻しても
+    #341の床罠既定は変えない。
+  - `disabled`: #326 以前の罠効果なし互換。
+  - `legacy`: 罠効果あり。床罠は50%、宝箱はTRAP_KIT優先後に50%。旧simを再現する。
+  - `conservative`: 床罠・宝箱ともEV分岐。選択肢として残すが、宝箱の現行近似は既定にしない。
+- 宝箱の解除判断は50%固定を既定とする。`conservative` のEV分岐は、異種効果（HP・素材・時間）の
+  共通効用が定義されておらず、HPと中身を比較する重み付けが恣意的になる。#480の現行条件
+  （N=50,100 run/cell、4セル、95% CI）では、EV分岐で到達floorが `-0.15〜-0.19`、宝箱素材が
+  `-2.3〜-2.9/run`、罠被害が `+0.45〜+0.88 HP/run`。4セルすべてでCI非重複。EV最大化の
+  目的関数がendpointを悪化させたため、宝箱の既定へ採用しない。
+- #480の旧/新実装比較（`TRAP_POLICY`未指定、同一seed/env、1セル、N=100）では、乱数消費順と
+  run trajectory の出力SHAが一致した。したがって既定宝箱経路は旧挙動と同一であり、#461基準線
+  （env hash `e79d51f4d7ce5e701e0e73db97afc9ee051d609b9a652e278ab84b0518897bda`）は取り直し不要。
+  取り直し対象は、`TRAP_POLICY=conservative`を明示指定して宝箱EVを選ぶ測定だけ。宝箱を
+  `legacy`へ固定した#341の床罠のみの監査は対象外。素材EV、bank素材EV、工房投資額、#461再測定は
+  未実施であり、実施済みとは扱わない。
+- 方針変更のPRでは、新方針の値だけで判断せず、endpointのbefore/afterを全指標（到達floor、
+  素材、罠被害など）について95% CI付きで出す。N<30のセルは未確定として結論に使わない。
+- 宝箱の保守EVは `src/rules/trap_effect_rules.js` の `calculateChestTrapExpectedRisk` と、
+  `src/rules/trap_rules.js` の `calculateChestDisarmActionEv` / `calculateChestDisarmEvThreshold` から導出する。
+  directの損失は `(1−解除成功率)×完全効果risk`、強行の損失は `弱体効果risk＋usable中身の破損期待値`。
+  `src/chest.js` のusable破損率30%は `CHEST_USABLE_BREAK_CHANCE` として共有し、simで再掲しない。
+- 罠効果は、完全/弱体の期待HP、致死確率、毒・盲目・teleporter発動確率を計算する。異種効果を素材・HP・時間へ換算する共通効用はないため、riskは「party最大HPに対する期待HP割合」と各確率の最大成分を採る保守近似。item品質、状態異常継続時間、teleporterの追加歩数は数値化しない。
+- 宝箱中身は生成済みmain itemの存在を1 content unitとする。装備品質・usable個別効用を捏造せず、force時のusable30%損失だけEVへ反映する。素材束は罠発動後も同じ生成経路で記録し、素材収入・bank素材EVは実測指標として別に併記する。
+- TRAP_KITは有限在庫。現在floorで既知の未来chest数があり、kit数が未来機会数以下なら現在kitを温存する。現在chestの最良non-kit損失を1段先の機会費用近似に使い、未生成の未来floorの罠・中身分布を数字で作らない。現在floorに未来chestがない、またはkitが余剰ならkit使用を比較対象に含める。
+- 代表近似（完全効果risk=1、弱体効果risk=0.5、中身損失なし）の等価点は50%。これは説明用の値であり、保守方針の実判定はtrap、party、main item、kit在庫、未来chest数で動く。
 
 ## Required Verification
 

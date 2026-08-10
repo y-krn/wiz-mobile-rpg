@@ -143,7 +143,9 @@ const CLASS_NAMES = SIM_CLASSES.filter(className => BASIC_CLASSES.includes(class
 if (CLASS_NAMES.length !== BASIC_CLASSES.length) {
   throw new Error(`basic classes missing: ${BASIC_CLASSES.join(",")}`);
 }
-const CHEST_DISARM_POLICY_MIN_CHANCE = calculateChestDisarmEvThreshold();
+const CHEST_DISARM_REPRESENTATIVE_THRESHOLD = calculateChestDisarmEvThreshold();
+const CHEST_DISARM_POLICY_DESCRIPTION =
+  "TRAP_POLICY=conservative / src/rulesのtrap effect・content・kit opportunity costからaction EVを導出";
 
 const ENABLED_CORE_IDS = new Set(
   CORE_AFFIXES.filter(affix => affix.enabled).map(affix => affix.id)
@@ -1370,8 +1372,8 @@ function buildReport(summary, summarySha256) {
     "",
     "## 結論",
     "",
-    `**${issue473Conclusion}。** 宝箱単位の分子・分母・floor/path合計は全caseで一致し、僧侶の ceiling における解除率低下は開封 floor 構成比だけでは説明できない。` +
-      "ceilingではTRAP_KIT中心だったcurrentに、解除成功率の低い直接解除試行が追加され、同じ disarm-attempt 分母へ入る実挙動と判定した。",
+    `**${issue473Conclusion}。** 宝箱単位の分子・分母・floor/path合計は全caseで一致し、僧侶の ceiling における解除率差は開封 floor 構成比だけでは説明できない。` +
+      "current/ceilingのkit・direct・forced経路を新しい解除方針の下で比較する。",
     `- Priest / workshop-core-pools / smart: attempts ${priestSmartCoreCurrent.disarmAttempts}→${priestSmartCoreCeiling.disarmAttempts}、kit ${priestSmartCoreCurrent.floorTotals.kitDisarms}→${priestSmartCoreCeiling.floorTotals.kitDisarms}、direct ${priestSmartCoreCurrent.floorTotals.directDisarmAttempts}→${priestSmartCoreCeiling.floorTotals.directDisarmAttempts}、forced ${priestSmartCoreCurrent.floorTotals.forced}→${priestSmartCoreCeiling.floorTotals.forced}。`,
     "- 解除率は `chestDisarmSuccesses / chestDisarmAttempts`。TRAP_KIT成功と直接解除成功を合算する既存endpointは変更せず、経路別・floor別診断を追加した。balance値、#468 A1/A2判定は変更しない。",
     "- したがって本件は balance 修正ではなく、対策 affix 評価時に「解除率」と「解除試行経路」を分けて読むべき実挙動。集計バグではないため、#326 / #346 / #354 / #398 の既存rate集計を一括無効化・再取り直しする対象はない。追加のfloor/path診断が必要な測定だけは別途再測定する。",
@@ -1390,7 +1392,7 @@ function buildReport(summary, summarySha256) {
     `- seed=${summary.measurement.seed}、基本4職、target depth=${TARGET_DEPTH}。主状態=${SCENARIO_IDS.join(" / ")}、cure=${CURE_POLICIES.join(" / ")}。`,
     `- 現行値: 装備 ${CURRENT_TRAP_BONUS_VALUES.equipment.join("/")} / 装身具 ${CURRENT_TRAP_BONUS_VALUES.accessory.join("/")}。biome側 gimmicks.trapBonus は変更・使用なし。`,
     "- ceiling: B5 entry直前の既生成装備へ trapBonus 20 を追加・既存値より低い場合は20へ引上げ。乱数消費なし。B5 entrant以外へ適用なし。",
-    `- sim側の宝箱解除判断閾値=${formatPercent(summary.measurement.chestDisarmPolicyMinChance)}。TRAP_KITがあれば先に確定成功、無ければ chance >= 閾値だけ直接解除を試み、未満なら強行する実経路（${summary.measurement.chestDisarmPolicySource || "scratch/sim_depth_material_ev.js:resolveChestTrapForSimulation"}）。`,
+    `- sim側の宝箱解除判断=${summary.measurement.chestDisarmPolicy || CHEST_DISARM_POLICY_DESCRIPTION}。代表近似閾値=${formatPercent(summary.measurement.chestDisarmPolicyRepresentativeThreshold ?? summary.measurement.chestDisarmPolicyMinChance ?? CHEST_DISARM_REPRESENTATIVE_THRESHOLD)}。kit・direct・forcedを固定50%比較ではなく動的EVで選ぶ。`,
     "- 実ゲーム側は src/chest.js:347 executeDisarm → src/rules/trap_rules.js:131 calculateChestDisarmChance。simも同じ判定関数を呼び、式の再掲はしていない。",
     "- 罠致死性、解除式、宝箱生成、trapSense値、balance source値は変更なし。",
     "",
@@ -1490,7 +1492,7 @@ function buildReport(summary, summarySha256) {
         })
       ];
     }),
-    `- 盗賊はapt（base80/max90）、非apt職はbase40/max60の現行解除式を使用。僧侶だけ解除率が大きく逆方向へ低下: ${priestCorePoolAnomaly}。直感に反する差はbalanceより測定側のバグを先に疑う（#441で結論が覆った前例）。`,
+    `- 盗賊はapt（base80/max90）、非apt職はbase40/max60の現行解除式を使用。Priestのcurrent→ceilingは ${priestCorePoolAnomaly}。旧50%固定方針との差分は経路内訳（kit/direct/forced）とともに解釈し、大差が出る場合はbalanceより測定側を先に監査する。`,
     `- #461基準線では僧侶の到達floor=4.45で4職最深。ceilingでfloorがさらに伸び、深層の解除困難な宝箱を多く開けた選別なら整合する。今回の宝箱単位出力で、開封 floor 構成・階層別解除率・固定率再重み付けを比較した。全職 smart の開封/runは ${formatMean(smartCorePools.chest.opened)}→${formatMean(smartCorePoolsCeiling.chest.opened)}、僧侶は ${priestCorePoolOpening}。`,
     `- 宝箱集計整合性監査: ${chestAuditPass ? "全case pass（分子・分母・floor/path合計一致）" : "mismatchあり（集計バグ疑い）"}。`,
     "",
@@ -1546,7 +1548,9 @@ async function main() {
     const summary = JSON.parse(readFileSync(summaryPath, "utf8"));
     summary.measurement.issue = 473;
     summary.measurement.sourceMeasurement = "PR #472 / Issue #468 ceiling reproduction";
-    summary.measurement.chestDisarmPolicyMinChance = CHEST_DISARM_POLICY_MIN_CHANCE;
+    summary.measurement.chestDisarmPolicyRepresentativeThreshold =
+      CHEST_DISARM_REPRESENTATIVE_THRESHOLD;
+    summary.measurement.chestDisarmPolicy = CHEST_DISARM_POLICY_DESCRIPTION;
     summary.measurement.chestDisarmPolicySource =
       "scratch/sim_depth_material_ev.js:resolveChestTrapForSimulation";
     summary.selectionEffects = buildSelectionEffects(summary.cases);
@@ -1686,8 +1690,8 @@ async function main() {
     targetDepth: TARGET_DEPTH,
     currentTrapBonusValues: CURRENT_TRAP_BONUS_VALUES,
     ceiling: CONDITIONS.ceiling.trapBonusExposure,
-    chestDisarmPolicyMinChance: CHEST_DISARM_POLICY_MIN_CHANCE,
-    chestDisarmPolicySource: "scratch/sim_depth_material_ev.js:resolveChestTrapForSimulation",
+    chestDisarmPolicyRepresentativeThreshold: CHEST_DISARM_REPRESENTATIVE_THRESHOLD,
+    chestDisarmPolicy: CHEST_DISARM_POLICY_DESCRIPTION,
     command: measurementCommand(measurementEnvironment),
     primaryEntrantRateObserved: primaryEntrantRate,
     nDesignEntrantRate: N_DESIGN_ENTRANT_RATE,

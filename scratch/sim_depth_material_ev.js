@@ -113,12 +113,15 @@ function getRunFloor(args) {
 const {
   CHEST_ACCESSORY_CORE_MIN_FLOOR,
   CHEST_EQUIPMENT_CORE_MIN_FLOOR,
+  calculateChestMainItemExpectedValue,
+  calculateChestMainItemForcedLossRate,
   rollChestAccessory,
   rollChestReward,
   rollChestTrap
 } = await import("../src/rules/chest_rules.js");
 const {
   calculateChestDisarmChance,
+  calculateChestDisarmActionEv,
   calculateChestDisarmEvThreshold,
   calculateDetectRate,
   calculateFloorDisarmEvThreshold,
@@ -129,6 +132,7 @@ const {
   resolveTrapAction
 } = await import("../src/rules/trap_rules.js");
 const {
+  calculateChestTrapExpectedRisk,
   calculateFloorTrapExpectedDamage,
   hasTrapScout,
   resolveChestTrapEffect,
@@ -283,7 +287,7 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_RUNS: "500",
   SIM_CALIBRATION_RUNS: "100",
   DEPARTURE_CRAFT_IDS: "",
-  TRAP_POLICY: "conservative",
+  TRAP_POLICY: "legacy",
   TRAP_AVOIDANCE_POLICY: "ev",
   TRAP_DAMAGE_MULTIPLIER: "1",
   IDENTIFICATION_POLICY: "powder",
@@ -377,6 +381,9 @@ const SIM_ENV = Object.freeze(Object.fromEntries(
   ])
 ));
 const EXPLICIT_SIM_ENV_KEYS = SIM_ENV_KEYS.filter(key => Object.hasOwn(process.env, key));
+const EXPLICIT_TRAP_POLICY_ID = Object.hasOwn(process.env, "TRAP_POLICY")
+  ? process.env.TRAP_POLICY
+  : null;
 
 function applyIssue440Condition() {
   const condition = String(SIM_ENV.SIM_440_CONDITION || "current").trim();
@@ -722,6 +729,7 @@ const DEFAULT_HEAL_POTION_MERCHANT_POLICY =
   SIM_ENV.HEAL_POTION_MERCHANT_POLICY === "never" ? "never" : "missing";
 const DEFAULT_ELITE_POLICY = SIM_ENV.ELITE_POLICY === "engage" ? "engage" : "avoid";
 const LEGACY_FLOOR_DISARM_MIN_RATE = 50;
+const LEGACY_CHEST_DISARM_MIN_CHANCE = 0.50;
 const TRAP_POLICY_DEFINITIONS = Object.freeze({
   disabled: Object.freeze({
     id: "disabled",
@@ -734,13 +742,21 @@ const TRAP_POLICY_DEFINITIONS = Object.freeze({
   }),
   conservative: Object.freeze({
     id: "conservative",
-    label: "EV分岐（キット優先・回避費用評価）"
+    label: "EV分岐（床罠・宝箱、キット温存価値を含む）"
   })
 });
-export const DEFAULT_TRAP_POLICY_ID = SIM_ENV.TRAP_POLICY || "conservative";
+// 未指定時は宝箱だけ旧50%へ戻し、床罠は#341のEV既定を維持する。
+export const DEFAULT_TRAP_POLICY_ID = SIM_ENV.TRAP_POLICY || "legacy";
+export const DEFAULT_FLOOR_TRAP_POLICY_ID =
+  EXPLICIT_TRAP_POLICY_ID || "conservative";
 if (!TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID]) {
   throw new Error(
     `TRAP_POLICY must be disabled|legacy|conservative: ${DEFAULT_TRAP_POLICY_ID}`
+  );
+}
+if (!TRAP_POLICY_DEFINITIONS[DEFAULT_FLOOR_TRAP_POLICY_ID]) {
+  throw new Error(
+    `floor trap policy must be disabled|legacy|conservative: ${DEFAULT_FLOOR_TRAP_POLICY_ID}`
   );
 }
 const TRAP_AVOIDANCE_POLICY_DEFINITIONS = Object.freeze({
@@ -787,7 +803,7 @@ if (!Number.isFinite(TRAP_DAMAGE_MULTIPLIER) || TRAP_DAMAGE_MULTIPLIER < 0) {
     `TRAP_DAMAGE_MULTIPLIER must be a non-negative number: ${trapDamageMultiplierInput}`
   );
 }
-const CHEST_DISARM_POLICY_MIN_CHANCE = calculateChestDisarmEvThreshold();
+const CHEST_DISARM_REPRESENTATIVE_THRESHOLD = calculateChestDisarmEvThreshold();
 // 仮値・感度分析対象: 危険域で傷薬が尽きていれば帰還の翼を使う。
 const PORTAL_HP_THRESHOLD = Number(SIM_ENV.PORTAL_HP_THRESHOLD || 0.35);
 const PORTAL_MAX_HEAL_POTIONS = Math.max(
@@ -1683,6 +1699,14 @@ function resolveDepartureCraftIds(scenario) {
   return Array.isArray(requested) ? [...requested] : [];
 }
 
+function resolveTrapPolicies(scenario = {}) {
+  const sharedPolicy = scenario.trapPolicy || null;
+  return {
+    floor: sharedPolicy || DEFAULT_FLOOR_TRAP_POLICY_ID,
+    chest: scenario.chestTrapPolicy || sharedPolicy || DEFAULT_TRAP_POLICY_ID
+  };
+}
+
 function createSimulationState(className, startFloor, runSeed, scenario, workshop) {
   const currentRun = createDefaultCurrentRun();
   currentRun.runSeed = runSeed;
@@ -1781,6 +1805,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   };
   equipBestWorkshopStartingGear(character, workshop, startingGearConfig);
   const finalWeaponId = character.equipment.weapon;
+  const trapPolicies = resolveTrapPolicies(scenario);
   const workshopEffects = {
     stats: { ...workshopGrants.stats },
     startingGearCandidates: [
@@ -1854,7 +1879,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
         scenario.statusCureMerchantPolicy || DEFAULT_STATUS_CURE_MERCHANT_POLICY,
       healPotionMerchantPolicy:
         scenario.healPotionMerchantPolicy || DEFAULT_HEAL_POTION_MERCHANT_POLICY,
-      trapPolicy: scenario.trapPolicy || DEFAULT_TRAP_POLICY_ID,
+      trapPolicy: trapPolicies.floor,
+      chestTrapPolicy: trapPolicies.chest,
       trapAvoidancePolicy:
         scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
       trapOverride: scenario.trapOverride || null,
@@ -4909,7 +4935,8 @@ function resolveChestTrapForSimulation(
   trap,
   mainItem,
   observations,
-  metrics
+  metrics,
+  { futureChestCount = 0 } = {}
 ) {
   const character = state.party[0];
   metrics.trapEncounterCount++;
@@ -4922,15 +4949,41 @@ function resolveChestTrapForSimulation(
   });
   observations.trappedChests++;
 
-  if (state.simPolicy.trapPolicy === "disabled") {
+  if (state.simPolicy.chestTrapPolicy === "disabled") {
     const expectedDisarm = Math.max(0, Math.min(1, chance));
     observations.expectedTrapDisarms += expectedDisarm;
     observations.expectedTrapDisarmsByFloor[floor] += expectedDisarm;
     return { mainItemLost: false };
   }
 
+  const kitCount = state.inventory.filter(item => item === "TRAP_KIT").length;
   const kitIndex = state.inventory.indexOf("TRAP_KIT");
-  if (kitIndex >= 0) {
+  const action = state.simPolicy.chestTrapPolicy === "legacy"
+    ? (kitIndex >= 0
+      ? "kit"
+      : (chance >= LEGACY_CHEST_DISARM_MIN_CHANCE ? "direct" : "force"))
+    : calculateChestDisarmActionEv({
+      successRate: chance,
+      fullRisk: calculateChestTrapExpectedRisk({
+        trap,
+        party: state.party,
+        targetIndex: Math.max(0, state.party.indexOf(character)),
+        poisonWard: getCharAffixSum(character, "poisonWard")
+      }).risk,
+      weakenedRisk: calculateChestTrapExpectedRisk({
+        trap,
+        weakened: true,
+        party: state.party,
+        targetIndex: Math.max(0, state.party.indexOf(character)),
+        poisonWard: getCharAffixSum(character, "poisonWard")
+      }).risk,
+      contentValue: calculateChestMainItemExpectedValue(mainItem),
+      forcedContentLossRate: calculateChestMainItemForcedLossRate(mainItem),
+      kitCount,
+      futureChestCount
+    }).action;
+
+  if (action === "kit" && kitIndex >= 0) {
     state.inventory.splice(kitIndex, 1);
     recordTrapKitConsumption(state, metrics);
     metrics.chestDisarmAttempts++;
@@ -4943,7 +4996,7 @@ function resolveChestTrapForSimulation(
     return { mainItemLost: false };
   }
 
-  if (chance >= CHEST_DISARM_POLICY_MIN_CHANCE) {
+  if (action === "direct") {
     metrics.chestDisarmAttempts++;
     metrics.chestDisarmAttemptsByFloor[floor]++;
     metrics.chestDisarmDirectAttemptsByFloor[floor]++;
@@ -4983,8 +5036,8 @@ function resolveChestTrapForSimulation(
   metrics.chestForcedByFloor[floor]++;
   state.currentRun.trapsTriggered++;
   applyChestTrapEffect(state, trap, true, metrics);
-  const itemData = getItemData(mainItem);
-  const mainItemLost = itemData?.type === "usable" && Math.random() < 0.30;
+  const mainItemLossRate = calculateChestMainItemForcedLossRate(mainItem);
+  const mainItemLost = mainItemLossRate > 0 && Math.random() < mainItemLossRate;
   return { mainItemLost };
 }
 
@@ -4997,7 +5050,8 @@ function rollChestItems(
   observations,
   scenario,
   supplyOverride = null,
-  metrics = null
+  metrics = null,
+  { futureChestCount = 0 } = {}
 ) {
   const trap = rollChestTrap(floor, rng);
   maybeAcquireChestIdentificationPowder(state, metrics, rng);
@@ -5051,7 +5105,8 @@ function rollChestItems(
       trap,
       item,
       observations,
-      metrics
+      metrics,
+      { futureChestCount }
     );
   return {
     items,
@@ -5481,6 +5536,7 @@ function finishRun(state, outcome, metrics) {
     campHealingHp: metrics.campHealingHp,
     diosHealingHp: metrics.diosHealingHp + metrics.coreObservations.diosHealing,
     trapPolicy: state.simPolicy.trapPolicy,
+    chestTrapPolicy: state.simPolicy.chestTrapPolicy,
     trapAvoidancePolicy: state.simPolicy.trapAvoidancePolicy,
     trapActivations: metrics.trapActivations,
     trapActivationsBySource: { ...metrics.trapActivationsBySource },
@@ -5998,7 +6054,12 @@ export function simulateRun({
           metrics.coreObservations,
           scenario,
           supplyOverride,
-          metrics
+          metrics,
+          {
+            // 次の階の宝箱はまだ生成していないため、機会費用へ数字を
+            // 作らず、現在 floor で既知の次 chest だけを見る。
+            futureChestCount: Math.max(0, pickedUpChests - chest - 1)
+          }
         );
         chestItems.items = applyEquipmentPostGenerationTransforms(chestItems.items, state);
         const cureCountsBeforeChest = countInventoryItems(state.inventory);
@@ -6793,12 +6854,14 @@ function simulateCase({
 
   const bankedMaterialEv = totals.bankedMaterials / RUNS_PER_CASE;
   const averageTimeCost = totals.timeCost / RUNS_PER_CASE;
+  const trapPolicies = resolveTrapPolicies(scenario);
   return {
     label,
     startFloor,
     targetDepth,
     workshop: scenario.workshop || { ranks: {} },
-    trapPolicy: scenario.trapPolicy || DEFAULT_TRAP_POLICY_ID,
+    trapPolicy: trapPolicies.floor,
+    chestTrapPolicy: trapPolicies.chest,
     trapAvoidancePolicy: scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
     survivalRate: totals.survived / RUNS_PER_CASE,
     deathRate: totals.died / RUNS_PER_CASE,
@@ -7275,7 +7338,8 @@ function printTable(results) {
 
 function printTrapMetrics(result) {
   console.log(
-    `\n【${result.label} 罠計測 / 職業別 / 方針=${result.trapPolicy}, ` +
+    `\n【${result.label} 罠計測 / 職業別 / 床罠=${result.trapPolicy}, ` +
+    `宝箱=${result.chestTrapPolicy}, ` +
     `回避=${result.trapAvoidancePolicy}】`
   );
   console.log(
@@ -8023,7 +8087,11 @@ console.log("深度別 リスク調整後素材EVシミュレーション");
 console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（基本${SIM_CLASSES.length}職をround-robin集約）`);
 console.log(`乱数seed: ${SIM_SEED}`);
 console.log(`徘徊エリート方針: ${DEFAULT_ELITE_POLICY}`);
-console.log(`罠方針: ${TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID].label} / TRAP_POLICY=${DEFAULT_TRAP_POLICY_ID}`);
+console.log(
+  `罠方針: 床罠=${TRAP_POLICY_DEFINITIONS[DEFAULT_FLOOR_TRAP_POLICY_ID].label} / ` +
+  `宝箱=${TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID].label} / ` +
+  `TRAP_POLICY=${SIM_ENV.TRAP_POLICY}`
+);
 console.log(
   `罠回避方針: ${TRAP_AVOIDANCE_POLICY_DEFINITIONS[DEFAULT_TRAP_AVOIDANCE_POLICY_ID].label} / ` +
   `TRAP_AVOIDANCE_POLICY=${DEFAULT_TRAP_AVOIDANCE_POLICY_ID}`
@@ -8032,7 +8100,7 @@ console.log(
   `罠解除EV閾値: 床非pitfall scoutなし=${calculateFloorDisarmEvThreshold({ trapType: "damage" }).toFixed(2)}%, ` +
   `scoutあり=${calculateFloorDisarmEvThreshold({ trapType: "damage", scoutMitigated: true }).toFixed(2)}%, ` +
   `pitfall=${calculateFloorDisarmEvThreshold({ trapType: "pitfall" }).toFixed(2)}%, ` +
-  `宝箱代表=${(CHEST_DISARM_POLICY_MIN_CHANCE * 100).toFixed(2)}%`
+  `宝箱代表閾値=${(CHEST_DISARM_REPRESENTATIVE_THRESHOLD * 100).toFixed(2)}%（実判定はtrap/effect/content/kitのEV）`
 );
 console.log(
   `trapBonus測定値: ${TRAP_BONUS_OVERRIDE_PERCENT === null

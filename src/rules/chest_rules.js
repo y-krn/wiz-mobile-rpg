@@ -12,6 +12,28 @@ import { getCharAffixSum } from "./item_rules.js";
 // 宝箱の装身具は B2、本体装備は B3 から core を解禁する（#270）。
 export const CHEST_ACCESSORY_CORE_MIN_FLOOR = 2;
 export const CHEST_EQUIPMENT_CORE_MIN_FLOOR = 3;
+// src/chest.jsのsmashChestとsimの内容損失判定で共有する。
+export const CHEST_USABLE_BREAK_CHANCE = 0.30;
+
+function getChestItemData(item) {
+  if (!item) return null;
+  const itemId = typeof item === "object"
+    ? item.baseId || item.key || item.id
+    : item;
+  return ITEMS[itemId] || (typeof item === "object" ? item : null);
+}
+
+// item品質を共通通貨へ換算する既存ルールはないため、生成済みmain itemの存在を
+// 1 content unitとして扱う。内容の有無とusable破損率だけを方針へ渡す。
+export function calculateChestMainItemExpectedValue(item) {
+  return getChestItemData(item) ? 1 : 0;
+}
+
+export function calculateChestMainItemForcedLossRate(item) {
+  return getChestItemData(item)?.type === "usable"
+    ? CHEST_USABLE_BREAK_CHANCE
+    : 0;
+}
 
 export const CHEST_ITEM_CANDIDATES_BY_FLOOR = Object.freeze({
   1: ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "WAKE_POWDER"],

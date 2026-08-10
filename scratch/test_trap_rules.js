@@ -1,5 +1,6 @@
 const {
   isDisarmAptClass,
+  calculateChestDisarmActionEv,
   calculateChestDisarmEvThreshold,
   calculateDisarmRate,
   calculateFloorDisarmEvThreshold,
@@ -106,6 +107,60 @@ assertClose(
   calculateChestDisarmEvThreshold(),
   1 - CHEST_WEAKENED_RISK_MULTIPLIER,
   "chest representative threshold"
+);
+assertClose(
+  calculateChestDisarmEvThreshold({
+    fullRiskMultiplier: 1,
+    weakenedRiskMultiplier: 0.5,
+    contentValue: 1,
+    forcedContentLossRate: 0.30
+  }),
+  0.20,
+  "usable content loss lowers chest threshold"
+);
+assertEqual(
+  calculateChestDisarmActionEv({
+    successRate: 0.25,
+    fullRisk: 1,
+    weakenedRisk: 0.5,
+    contentValue: 1,
+    forcedContentLossRate: 0.30
+  }).action,
+  "direct",
+  "content EV can select direct below representative threshold"
+);
+assertEqual(
+  calculateChestDisarmActionEv({
+    successRate: 0.85,
+    fullRisk: 1,
+    weakenedRisk: 0.5,
+    kitCount: 1,
+    futureChestCount: 1
+  }).action,
+  "direct",
+  "single kit is reserved for the next chest"
+);
+assertEqual(
+  calculateChestDisarmActionEv({
+    successRate: 0.25,
+    fullRisk: 1,
+    weakenedRisk: 0.5,
+    kitCount: 1,
+    futureChestCount: 0
+  }).action,
+  "kit",
+  "kit is used when no future chest remains"
+);
+assertEqual(
+  calculateChestDisarmActionEv({
+    successRate: 0.25,
+    fullRisk: 1,
+    weakenedRisk: 0.5,
+    kitCount: 2,
+    futureChestCount: 1
+  }).action,
+  "kit",
+  "surplus kit can be spent"
 );
 
 console.log("\n[8] Trap action and avoidance EV:");

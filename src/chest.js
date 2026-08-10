@@ -1,6 +1,11 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, markMapChanged, markMapCellVisited } from "./state.js";
 import { MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
-import { rollChestTrap, rollChestAccessory, rollChestReward } from "./rules/chest_rules.js";
+import {
+  CHEST_USABLE_BREAK_CHANCE,
+  rollChestTrap,
+  rollChestAccessory,
+  rollChestReward
+} from "./rules/chest_rules.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
@@ -504,7 +509,7 @@ export function smashChest(rng = Math.random) {
   }
 
   const item = chest.item ? getItemData(chest.item) : null;
-  if (item?.type === "usable" && rng() < 0.30) {
+  if (item?.type === "usable" && rng() < CHEST_USABLE_BREAK_CHANCE) {
     chest.item = null;
     addLog("衝撃で中身の一部が砕けた…");
   }
