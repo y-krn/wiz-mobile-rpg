@@ -1192,6 +1192,10 @@ function getSimulationTrapOverride(state) {
 
 function getSimulationTrapBonus(character, state = null) {
   const actual = getCharTrapBonus(character);
+  const exposureValue = Number(state?.simPolicy?.trapBonusExposureValue || 0);
+  if (state?.simPolicy?.trapBonusExposureApplied && exposureValue > 0) {
+    return Math.max(actual, exposureValue / 100);
+  }
   const override = getSimulationTrapOverride(state)?.trapBonus;
   if (override && actual > 0) {
     const multiplier = Number(override.multiplier);
@@ -1855,6 +1859,9 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
         scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
       trapOverride: scenario.trapOverride || null,
       trapBonusValueOverride: scenario.trapBonusValueOverride || null,
+      trapBonusExposure: scenario.trapBonusExposure || null,
+      trapBonusExposureApplied: false,
+      trapBonusExposureValue: 0,
       bossOverride: scenario.bossOverride || null,
       forcedBossAffixes: scenario.forcedBossAffixes || null,
       statusScalingOverride: scenario.statusScalingOverride || null,
@@ -3556,6 +3563,51 @@ function applyEquipmentPostGenerationTransforms(items, state = null) {
   return applySupportSupplyCeilingToItems(
     applyCoreEncounterCeilingToItems(valueAdjusted)
   );
+}
+
+function applyTrapBonusExposureCeiling(state, floor) {
+  const exposure = state?.simPolicy?.trapBonusExposure;
+  if (
+    floor !== 5 ||
+    exposure?.mode !== "all-b5-entrants" ||
+    state.simPolicy.trapBonusExposureApplied
+  ) return;
+
+  const character = state.party[0];
+  const [slot, equipped] = Object.entries(character.equipment || {})
+    .find(([, item]) => Boolean(item)) || [];
+  if (!slot) return;
+
+  const forcedValue = Math.max(0, Number(exposure.value || 20));
+  const item = typeof equipped === "object"
+    ? equipped
+    : {
+        baseId: equipped,
+        identified: true,
+        instanceId: `sim-trap-ceiling:${state.currentRun.runSeed}:${slot}`,
+        affixes: []
+      };
+  const affixes = Array.isArray(item.affixes) ? item.affixes : [];
+  const trapBonusIndex = affixes.findIndex(affix =>
+    (affix.id || affix.type) === "trapBonus"
+  );
+  if (trapBonusIndex >= 0) {
+    const existingValue = Number(affixes[trapBonusIndex].value || 0);
+    if (existingValue < forcedValue) {
+      item.affixes = affixes.map((affix, index) => index === trapBonusIndex
+        ? { ...affix, value: forcedValue }
+        : affix
+      );
+    }
+  } else {
+    item.affixes = [
+      ...affixes,
+      { id: "trapBonus", type: "trapBonus", kind: "support", value: forcedValue }
+    ];
+  }
+  character.equipment[slot] = item;
+  state.simPolicy.trapBonusExposureApplied = true;
+  state.simPolicy.trapBonusExposureValue = forcedValue;
 }
 
 function applySupportSupplyCeilingToItems(items) {
@@ -5757,6 +5809,7 @@ export function simulateRun({
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
   for (let floor = startFloor; floor < targetDepth; floor++) {
     state.floor = floor;
+    applyTrapBonusExposureCeiling(state, floor);
     const buildSnapshots = metrics.diagnostics?.buildSnapshots || metrics.buildSnapshots;
     if (buildSnapshots) {
       buildSnapshots.push(createBuildSnapshot(state, scoringProfile, "floor-start"));
