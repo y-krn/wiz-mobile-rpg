@@ -140,6 +140,11 @@ function formatTestName({ file, shardIndex, shardCount }) {
 }
 
 function printResult(result) {
+  if (result.code === 0) {
+    console.log(`PASS ${result.name}`);
+    return;
+  }
+
   const separator = '========================================';
   console.log(`\n${separator}`);
   console.log(`Completed: ${result.name}`);
@@ -240,6 +245,7 @@ for (const file of skippedHeavyTests) {
 }
 
 const results = await runPool(scheduledTests);
+const passed = results.filter(result => result.code === 0);
 const failed = results.filter(result => result.code !== 0);
 const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
 
@@ -247,7 +253,9 @@ console.log(`\n実行 ${scheduledTests.length}本 / skip ${skippedHeavyTests.len
 
 if (failed.length > 0) {
   console.error(`Some tests failed: ${failed.map(result => result.name).join(', ')}`);
-  process.exit(1);
+} else {
+  console.log('All tests passed successfully!');
 }
 
-console.log('All tests passed successfully!');
+console.log(`PASS ${passed.length} / FAIL ${failed.length} / SKIP ${skippedHeavyTests.length}`);
+if (failed.length > 0) process.exitCode = 1;
