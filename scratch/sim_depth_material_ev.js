@@ -43,7 +43,7 @@ const mapGenerationStats = {
 const requestedMapCacheEntries = Number(process.env.SIM_MAP_CACHE_ENTRIES);
 const SIM_MAP_CACHE_ENTRIES = Number.isInteger(requestedMapCacheEntries) && requestedMapCacheEntries > 0
   ? requestedMapCacheEntries
-  : 256;
+  : 1_024;
 let localRunFloorCache = null;
 
 function resetMapGenerationStats() {

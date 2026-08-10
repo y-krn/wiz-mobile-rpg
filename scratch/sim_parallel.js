@@ -10,7 +10,7 @@ const IS_CI = ["1", "true"].includes(
 const DEFAULT_SIM_PARALLEL = IS_CI
   ? Math.min(CI_SIM_PARALLEL, MAX_SIM_PARALLEL)
   : MAX_SIM_PARALLEL;
-const DEFAULT_SIM_MAP_CACHE_ENTRIES = 256;
+const DEFAULT_SIM_MAP_CACHE_ENTRIES = 1_024;
 
 function resolveSimMapCacheEntries() {
   const requested = Number(process.env.SIM_MAP_CACHE_ENTRIES);
