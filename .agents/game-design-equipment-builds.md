@@ -147,6 +147,13 @@ the Workshop. The only exception is weakening a core through sealing.
   on the hook side.
 - Numeric changes go through the balance-simulation checklist.
 
+## Core装備率の扱い（#471）
+
+- core装備率は装備供給の監視値。35〜40%の目標帯を置かず、合否判定にも使わない。
+- 完成ビルドは #470 の職内 `combatBuildScore` Q4。`core 1個以上 + スロット充足` は完成判定との二重定義として採用しない。
+- 供給の十分性は #476 の A3（core個数軸）で判定する。
+- 測定点、現行値、撤廃理由、過去記録の扱いは `.agents/balance-simulation.md` の「Issue #471 固定結論（core装備率の扱い）」を正本とする。
+
 # UI and Visualization
 
 - Equipment screen: Cores show as “◆名称: 条件文” on 1 line; sealed cores as “◆(封)名称”.
