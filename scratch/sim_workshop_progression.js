@@ -11,7 +11,8 @@ const {
   DEPTH_SCENARIOS,
   SIM_CLASSES,
   simulateRun,
-  DEFAULT_TRAP_POLICY_ID
+  DEFAULT_TRAP_POLICY_ID,
+  DEFAULT_FLOOR_TRAP_POLICY_ID
 } = await import("./sim_depth_material_ev.js");
 const {
   WORKSHOP_NODES
@@ -1658,7 +1659,7 @@ export async function runWorkshopProgressionSimulation() {
   );
   console.log(
     `罠モデル: simulateRun内でgenerateRunFloor経由、宝箱/フロア罠、傷薬、罠kit、翼、鑑定粉を ` +
-    `入手数・消費数付きで集計。TRAP_POLICY=${DEFAULT_TRAP_POLICY_ID}。`
+    `入手数・消費数付きで集計。床罠=${DEFAULT_FLOOR_TRAP_POLICY_ID} / 宝箱=${DEFAULT_TRAP_POLICY_ID}。`
   );
   console.log(
     "N/翼コストの表はsim内what-if。最終値は実srcのレシピ変更後に同じrun経路で再測定し、" +

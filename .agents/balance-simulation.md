@@ -367,10 +367,21 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 
 - 宝箱解除率は `chestDisarmSuccesses / chestDisarmAttempts` で記録する。ただし、対策 affix の評価にこの率を単独で使わない。必ず `kit` / `direct` / `forced` の経路内訳と `chestDisarmAttempts`（試行数）を併記する。
 - 解除率は経路構成の変化で低下し得る。`kit`（確定成功）の比率が下がり、`direct`（確率成功）が増えると、対策を強化した場合でも率が下がることがある。分母も動く（#473 の Priest core-pools smart では attempts `6079→7044`）。率が低下した場合、まず経路内訳と試行数を確認する。
-- sim の床罠・宝箱解除判断は同じ `TRAP_POLICY` 軸で制御する。
+- sim の床罠・宝箱解除判断は同じ `TRAP_POLICY` 軸で制御する。明示した
+  `TRAP_POLICY=legacy|conservative|disabled` は床罠・宝箱へ共通適用する。
+  - 未指定時の既定は、宝箱 `DEFAULT_TRAP_POLICY_ID=legacy`（TRAP_KIT優先後に50%固定）、
+    床罠 `DEFAULT_FLOOR_TRAP_POLICY_ID=conservative`（#341のEV既定）。宝箱既定を戻しても
+    #341の床罠既定は変えない。
   - `disabled`: #326 以前の罠効果なし互換。
   - `legacy`: 罠効果あり。床罠は50%、宝箱はTRAP_KIT優先後に50%。旧simを再現する。
-  - `conservative`: 床罠・宝箱ともEV分岐。既定値。
+  - `conservative`: 床罠・宝箱ともEV分岐。選択肢として残すが、宝箱の現行近似は既定にしない。
+- 宝箱の解除判断は50%固定を既定とする。`conservative` のEV分岐は、異種効果（HP・素材・時間）の
+  共通効用が定義されておらず、HPと中身を比較する重み付けが恣意的になる。#480の現行条件
+  （N=50,100 run/cell、4セル、95% CI）では、EV分岐で到達floorが `-0.15〜-0.19`、宝箱素材が
+  `-2.3〜-2.9/run`、罠被害が `+0.45〜+0.88 HP/run`。4セルすべてでCI非重複。EV最大化の
+  目的関数がendpointを悪化させたため、宝箱の既定へ採用しない。
+- 方針変更のPRでは、新方針の値だけで判断せず、endpointのbefore/afterを全指標（到達floor、
+  素材、罠被害など）について95% CI付きで出す。N<30のセルは未確定として結論に使わない。
 - 宝箱の保守EVは `src/rules/trap_effect_rules.js` の `calculateChestTrapExpectedRisk` と、
   `src/rules/trap_rules.js` の `calculateChestDisarmActionEv` / `calculateChestDisarmEvThreshold` から導出する。
   directの損失は `(1−解除成功率)×完全効果risk`、強行の損失は `弱体効果risk＋usable中身の破損期待値`。

@@ -287,7 +287,7 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_RUNS: "500",
   SIM_CALIBRATION_RUNS: "100",
   DEPARTURE_CRAFT_IDS: "",
-  TRAP_POLICY: "conservative",
+  TRAP_POLICY: "legacy",
   TRAP_AVOIDANCE_POLICY: "ev",
   TRAP_DAMAGE_MULTIPLIER: "1",
   IDENTIFICATION_POLICY: "powder",
@@ -381,6 +381,9 @@ const SIM_ENV = Object.freeze(Object.fromEntries(
   ])
 ));
 const EXPLICIT_SIM_ENV_KEYS = SIM_ENV_KEYS.filter(key => Object.hasOwn(process.env, key));
+const EXPLICIT_TRAP_POLICY_ID = Object.hasOwn(process.env, "TRAP_POLICY")
+  ? process.env.TRAP_POLICY
+  : null;
 
 function applyIssue440Condition() {
   const condition = String(SIM_ENV.SIM_440_CONDITION || "current").trim();
@@ -742,10 +745,18 @@ const TRAP_POLICY_DEFINITIONS = Object.freeze({
     label: "EV分岐（床罠・宝箱、キット温存価値を含む）"
   })
 });
-export const DEFAULT_TRAP_POLICY_ID = SIM_ENV.TRAP_POLICY || "conservative";
+// 未指定時は宝箱だけ旧50%へ戻し、床罠は#341のEV既定を維持する。
+export const DEFAULT_TRAP_POLICY_ID = SIM_ENV.TRAP_POLICY || "legacy";
+export const DEFAULT_FLOOR_TRAP_POLICY_ID =
+  EXPLICIT_TRAP_POLICY_ID || "conservative";
 if (!TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID]) {
   throw new Error(
     `TRAP_POLICY must be disabled|legacy|conservative: ${DEFAULT_TRAP_POLICY_ID}`
+  );
+}
+if (!TRAP_POLICY_DEFINITIONS[DEFAULT_FLOOR_TRAP_POLICY_ID]) {
+  throw new Error(
+    `floor trap policy must be disabled|legacy|conservative: ${DEFAULT_FLOOR_TRAP_POLICY_ID}`
   );
 }
 const TRAP_AVOIDANCE_POLICY_DEFINITIONS = Object.freeze({
@@ -1688,6 +1699,14 @@ function resolveDepartureCraftIds(scenario) {
   return Array.isArray(requested) ? [...requested] : [];
 }
 
+function resolveTrapPolicies(scenario = {}) {
+  const sharedPolicy = scenario.trapPolicy || null;
+  return {
+    floor: sharedPolicy || DEFAULT_FLOOR_TRAP_POLICY_ID,
+    chest: scenario.chestTrapPolicy || sharedPolicy || DEFAULT_TRAP_POLICY_ID
+  };
+}
+
 function createSimulationState(className, startFloor, runSeed, scenario, workshop) {
   const currentRun = createDefaultCurrentRun();
   currentRun.runSeed = runSeed;
@@ -1786,6 +1805,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   };
   equipBestWorkshopStartingGear(character, workshop, startingGearConfig);
   const finalWeaponId = character.equipment.weapon;
+  const trapPolicies = resolveTrapPolicies(scenario);
   const workshopEffects = {
     stats: { ...workshopGrants.stats },
     startingGearCandidates: [
@@ -1859,7 +1879,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
         scenario.statusCureMerchantPolicy || DEFAULT_STATUS_CURE_MERCHANT_POLICY,
       healPotionMerchantPolicy:
         scenario.healPotionMerchantPolicy || DEFAULT_HEAL_POTION_MERCHANT_POLICY,
-      trapPolicy: scenario.trapPolicy || DEFAULT_TRAP_POLICY_ID,
+      trapPolicy: trapPolicies.floor,
+      chestTrapPolicy: trapPolicies.chest,
       trapAvoidancePolicy:
         scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
       trapOverride: scenario.trapOverride || null,
@@ -4928,7 +4949,7 @@ function resolveChestTrapForSimulation(
   });
   observations.trappedChests++;
 
-  if (state.simPolicy.trapPolicy === "disabled") {
+  if (state.simPolicy.chestTrapPolicy === "disabled") {
     const expectedDisarm = Math.max(0, Math.min(1, chance));
     observations.expectedTrapDisarms += expectedDisarm;
     observations.expectedTrapDisarmsByFloor[floor] += expectedDisarm;
@@ -4937,7 +4958,7 @@ function resolveChestTrapForSimulation(
 
   const kitCount = state.inventory.filter(item => item === "TRAP_KIT").length;
   const kitIndex = state.inventory.indexOf("TRAP_KIT");
-  const action = state.simPolicy.trapPolicy === "legacy"
+  const action = state.simPolicy.chestTrapPolicy === "legacy"
     ? (kitIndex >= 0
       ? "kit"
       : (chance >= LEGACY_CHEST_DISARM_MIN_CHANCE ? "direct" : "force"))
@@ -5515,6 +5536,7 @@ function finishRun(state, outcome, metrics) {
     campHealingHp: metrics.campHealingHp,
     diosHealingHp: metrics.diosHealingHp + metrics.coreObservations.diosHealing,
     trapPolicy: state.simPolicy.trapPolicy,
+    chestTrapPolicy: state.simPolicy.chestTrapPolicy,
     trapAvoidancePolicy: state.simPolicy.trapAvoidancePolicy,
     trapActivations: metrics.trapActivations,
     trapActivationsBySource: { ...metrics.trapActivationsBySource },
@@ -6832,12 +6854,14 @@ function simulateCase({
 
   const bankedMaterialEv = totals.bankedMaterials / RUNS_PER_CASE;
   const averageTimeCost = totals.timeCost / RUNS_PER_CASE;
+  const trapPolicies = resolveTrapPolicies(scenario);
   return {
     label,
     startFloor,
     targetDepth,
     workshop: scenario.workshop || { ranks: {} },
-    trapPolicy: scenario.trapPolicy || DEFAULT_TRAP_POLICY_ID,
+    trapPolicy: trapPolicies.floor,
+    chestTrapPolicy: trapPolicies.chest,
     trapAvoidancePolicy: scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
     survivalRate: totals.survived / RUNS_PER_CASE,
     deathRate: totals.died / RUNS_PER_CASE,
@@ -7314,7 +7338,8 @@ function printTable(results) {
 
 function printTrapMetrics(result) {
   console.log(
-    `\n【${result.label} 罠計測 / 職業別 / 方針=${result.trapPolicy}, ` +
+    `\n【${result.label} 罠計測 / 職業別 / 床罠=${result.trapPolicy}, ` +
+    `宝箱=${result.chestTrapPolicy}, ` +
     `回避=${result.trapAvoidancePolicy}】`
   );
   console.log(
@@ -8062,7 +8087,11 @@ console.log("深度別 リスク調整後素材EVシミュレーション");
 console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（基本${SIM_CLASSES.length}職をround-robin集約）`);
 console.log(`乱数seed: ${SIM_SEED}`);
 console.log(`徘徊エリート方針: ${DEFAULT_ELITE_POLICY}`);
-console.log(`罠方針: ${TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID].label} / TRAP_POLICY=${DEFAULT_TRAP_POLICY_ID}`);
+console.log(
+  `罠方針: 床罠=${TRAP_POLICY_DEFINITIONS[DEFAULT_FLOOR_TRAP_POLICY_ID].label} / ` +
+  `宝箱=${TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID].label} / ` +
+  `TRAP_POLICY=${SIM_ENV.TRAP_POLICY}`
+);
 console.log(
   `罠回避方針: ${TRAP_AVOIDANCE_POLICY_DEFINITIONS[DEFAULT_TRAP_AVOIDANCE_POLICY_ID].label} / ` +
   `TRAP_AVOIDANCE_POLICY=${DEFAULT_TRAP_AVOIDANCE_POLICY_ID}`
