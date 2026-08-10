@@ -17,6 +17,11 @@ import { performance } from "node:perf_hooks";
 import { isMainThread } from "node:worker_threads";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveSimParallelism, runSimTasks } from "./sim_parallel.js";
+import {
+  getBuildSnapshot,
+  inferPairingEligibility,
+  resolveDiagnosticMode
+} from "./measurement_utils.js";
 
 const ALL_SCENARIO_IDS = Object.freeze([
   "workshop-empty",
@@ -41,6 +46,8 @@ const DEFAULT_RUNS = 2200;
 const CELL_BATCH_SIZE = 2;
 const SEED = Number(process.env.SIM_SEED || 271) >>> 0;
 const RUNS = Math.max(1, Number(process.env.SIM_RUNS || DEFAULT_RUNS));
+const DIAGNOSTIC_MODE = resolveDiagnosticMode(process.env.SIM_DIAGNOSTICS);
+const RESULT_BASENAME = process.env.SIM_RESULT_BASENAME || "issue-271-trap-quality";
 
 const parseList = (value, fallback) => String(value || fallback)
   .split(",")
@@ -159,6 +166,7 @@ process.env.BLOOD_WAND_HP_PAYMENT_MIN_RATE =
 process.env.SIM_CORE_SCORE_DROP_TOLERANCE = process.env.SIM_CORE_SCORE_DROP_TOLERANCE || "0";
 process.env.SIM_440_CONDITION = process.env.SIM_440_CONDITION || "current";
 process.env.SIM_SCENARIOS = REQUESTED_SCENARIOS.join(",");
+process.env.SIM_DAMAGE_PROBE = DIAGNOSTIC_MODE === "full" ? "1" : "0";
 
 const {
   SIM_CLASSES,
@@ -336,9 +344,7 @@ function formatDifference(diff, digits = 2) {
 }
 
 function getSnapshot(result, floor) {
-  return result.diagnostics?.buildSnapshots?.find(snapshot =>
-    snapshot.floor === floor && snapshot.point === "floor-start"
-  ) || null;
+  return getBuildSnapshot(result, floor);
 }
 
 function snapshotAffix(snapshot, affixType) {
@@ -359,6 +365,14 @@ function compactTrapRow(task, result, condition) {
     scenarioId: task.scenarioId,
     runIndex: task.runIndex,
     className: task.className,
+    pairId: [task.curePolicy, task.scenarioId, task.className, task.runIndex].join(":"),
+    randomSequenceId: task.randomSequenceId || [
+      task.conditionId,
+      task.curePolicy,
+      task.scenarioId,
+      task.className,
+      task.runIndex
+    ].join(":"),
     survived: Boolean(result.survived),
     died: Boolean(result.died),
     reachedFloor: Number(result.reachedFloor),
@@ -407,15 +421,21 @@ function buildScenario(scenarioId, condition, curePolicy) {
     healPotionMerchantPolicy: process.env.HEAL_POTION_MERCHANT_POLICY || "missing",
     fleeHpThreshold: Number(process.env.FLEE_HP_THRESHOLD || 0.35),
     elitePolicy: process.env.ELITE_POLICY || "avoid",
-    simDiagnosticLevel: "compact"
+    simDiagnosticLevel: DIAGNOSTIC_MODE
   };
 }
 
 export function runTrapQualityTask(task, context) {
   const condition = context.conditions[task.conditionId];
   const scenario = context.scenarios[`${condition.id}:${task.curePolicy}:${task.scenarioId}`];
+  const pairing = inferPairingEligibility(condition);
+  const randomSequenceId = pairing.eligible
+    ? [task.curePolicy, task.scenarioId, task.className, task.runIndex].join(":")
+    : [condition.id, task.curePolicy, task.scenarioId, task.className, task.runIndex].join(":");
+  // Pairing shares the initial random sequence; the condition may still
+  // branch the later trap/combat trajectory.
   resetSimulationRandom(hashSeed(
-    `${context.seed}:${condition.id}:${task.curePolicy}:${task.scenarioId}:${task.runIndex}`
+    `${context.seed}:${randomSequenceId}`
   ));
   const result = simulateRun({
     className: task.className,
@@ -428,9 +448,10 @@ export function runTrapQualityTask(task, context) {
     ],
     scenario,
     workshop: scenario.workshop,
-    collectDiagnostics: true
+    collectDiagnostics: context.diagnosticMode !== "off",
+    collectBuildSnapshots: true
   });
-  return compactTrapRow(task, result, condition);
+  return compactTrapRow({ ...task, randomSequenceId }, result, condition);
 }
 
 function createTrapTotals() {
@@ -872,9 +893,9 @@ function createRawWriter(path) {
 async function runMeasurement() {
   const resultDir = `${process.cwd()}/scratch/results`;
   mkdirSync(resultDir, { recursive: true });
-  const rawPath = `${resultDir}/issue-271-trap-quality.raw.jsonl`;
-  const summaryPath = `${resultDir}/issue-271-trap-quality.json`;
-  const reportPath = `${resultDir}/issue-271-trap-quality.md`;
+  const rawPath = `${resultDir}/${RESULT_BASENAME}.raw.jsonl`;
+  const summaryPath = `${resultDir}/${RESULT_BASENAME}.json`;
+  const reportPath = `${resultDir}/${RESULT_BASENAME}.md`;
   const rawWriter = createRawWriter(rawPath);
   const conditions = CONDITIONS;
   const conditionMap = Object.fromEntries(conditions.map(condition => [condition.id, condition]));
@@ -927,7 +948,8 @@ async function runMeasurement() {
         seed: SEED,
         conditions: conditionMap,
         scenarios,
-        scoringProfiles
+        scoringProfiles,
+        diagnosticMode: DIAGNOSTIC_MODE
       }
     });
     if (rows.length !== tasks.length) {
@@ -969,6 +991,7 @@ async function runMeasurement() {
     conditions: conditions.map(condition => condition.id),
     classes: CLASS_NAMES,
     targetDepth: TARGET_DEPTH,
+    diagnosticMode: DIAGNOSTIC_MODE,
     rawRows: rawAudit.rows,
     rawSha256: rawAudit.sha256,
     calibrationWallSeconds,
@@ -1170,8 +1193,8 @@ async function runMeasurement() {
 if (isMainThread && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (process.env.TQ_REPORT_ONLY === "1") {
     const resultDir = `${process.cwd()}/scratch/results`;
-    const summaryPath = `${resultDir}/issue-271-trap-quality.json`;
-    const reportPath = `${resultDir}/issue-271-trap-quality.md`;
+    const summaryPath = `${resultDir}/${RESULT_BASENAME}.json`;
+    const reportPath = `${resultDir}/${RESULT_BASENAME}.md`;
     const summaryText = readFileSync(summaryPath, "utf8");
     const summary = JSON.parse(summaryText);
     const summarySha256 = createHash("sha256").update(summaryText).digest("hex");
