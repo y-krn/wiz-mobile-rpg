@@ -232,11 +232,10 @@ quartile Q4。同一の Issue #461 固定条件・同一 raw run（B5 entrant N=
 - B5 snapshot は `floor=5` / `point=floor-start`。`reachedFloor` は run 終了後の値であり、
   B5 entry スコアの深度正規化へ使わない。B5 entrant 内の score と終了到達floorの相関は、
   到達選別後の関連であって因果効果ではない。
-- 現行 total の Q1→Q4は B5死亡率 32.95%→26.47%→21.57%→24.03%。
-  Q4−Q1 職内 centered 差は −8.9pt [−13.5, −4.3] で単調条件だけ不成立。
 - 現行 total の寄与は equipmentStatScore が支配的。Q1/Q4で first combatCoreScore の
   total寄与比は3.8%/5.3%、全 combat core 合計でも4.5%/7.1%。equipment-only の Q3→Q4も
-  +2.2pt [−2.2, 6.6] と反転方向で、all-core total化後も Q3→Q4は反転する。
+  +2.2pt [−2.2, 6.6] と点推定では Q3→Q4 が戻るがCIが0を跨ぎ、all-core total化後も
+  Q3→Q4 は点推定では戻る（統計的反転とは扱わない）。
 - B5 entrant の複数 combat core は24.9% [23.3, 26.5]。first coreのみの score は
   16.8% [15.5, 18.3]で全core合計を過小評価し、複数core runの first→all 差は
   3.28 [2.95, 3.61]。ただし all-core-only は A1のQ4−Q1 CI上限<0を満たさず、
@@ -244,9 +243,6 @@ quartile Q4。同一の Issue #461 固定条件・同一 raw run（B5 entrant N=
 - 正式候補7個、A1主条件21個、単調性補助チェック28個、報告総数49個。α=.05の機械的な
   期待偽陽性2.45件、Bonferroni family-wise α=.00102。候補追加・結果後の採用変更なし。
 - 絶対閾値は score の外部校正値がなく、結果後の threshold 選択が数字合わせになるため正式候補にしない。
-- B5 snapshot は全件 `floor=5` / `point=floor-start`。`reachedFloor` は run 終了後の値であり、
-  B5 entry scoreの深度正規化には使わない。B5 entrant内の score→終了到達floor は選別後の関連で、
-  因果効果ではない。
 - 採用定義により #271 の A1（Q4−Q1、統計的単調性、Q4安全性gate）/ A2（class-centered score×depth）/
   A3（core / 対応support feature）、完成ビルド率、quality quartile入力のdepth-quality表・要約・派生判断を
   同じ #461 固定条件で取り直す。#470のB5 raw再測定は不要。balance 値・srcのゲーム挙動は変更しない。
