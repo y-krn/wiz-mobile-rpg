@@ -50,6 +50,7 @@ const {
   calculateFloorTrapActionExpectedDamage,
   calculateFloorTrapAvoidanceEv,
   calculateFloorTrapSuccessRate,
+  isDisarmAptClass,
   resolveTrapAction
 } = await import("../src/rules/trap_rules.js");
 const {
@@ -1110,16 +1111,97 @@ function createCoreObservations() {
   };
 }
 
-function getSimulationTrapBonus(character) {
+function getSimulationTrapOverride(state) {
+  return state?.simPolicy?.trapOverride || null;
+}
+
+function getSimulationTrapBonus(character, state = null) {
+  const actual = getCharTrapBonus(character);
+  const override = getSimulationTrapOverride(state)?.trapBonus;
+  if (override && actual > 0) {
+    const multiplier = Number(override.multiplier);
+    if (Number.isFinite(multiplier) && multiplier >= 0) return actual * multiplier;
+  }
   return TRAP_BONUS_OVERRIDE_PERCENT === null
-    ? getCharTrapBonus(character)
+    ? actual
     : TRAP_BONUS_OVERRIDE_PERCENT / 100;
 }
 
 function getSimulationTrapSense(state) {
-  return TRAP_SENSE_OVERRIDE_PERCENT === null
-    ? getPartyMaxAffix(state.party, "trapSense") / 100
-    : TRAP_SENSE_OVERRIDE_PERCENT / 100;
+  const actual = getPartyMaxAffix(state.party, "trapSense") / 100;
+  const override = getSimulationTrapOverride(state)?.trapSense;
+  if (override && actual > 0) {
+    const multiplier = Number(override.multiplier ?? 1);
+    if (Number.isFinite(multiplier) && multiplier >= 0) return actual * multiplier;
+  }
+  return TRAP_SENSE_OVERRIDE_PERCENT === null ? actual : TRAP_SENSE_OVERRIDE_PERCENT / 100;
+}
+
+function getSimulationDetectRate(state, floor) {
+  const scoutBonus = getSimulationTrapSense(state);
+  const override = getSimulationTrapOverride(state)?.trapSense;
+  if (!override || scoutBonus <= 0 ||
+    (!Object.hasOwn(override, "cap") && !Object.hasOwn(override, "startFloor"))) {
+    return {
+      rate: calculateDetectRate({ floor, scoutBonus: scoutBonus }),
+      cap: 0.95,
+      scoutBonus
+    };
+  }
+  // Sim-only what-if: mirror src/rules/trap_rules.js while exposing its private
+  // cap/start constants as scenario parameters. No game source is changed.
+  const cap = Math.max(0, Math.min(1, Number(override.cap ?? 0.95)));
+  const startFloor = Math.max(1, Number(override.startFloor ?? 16));
+  const depthCapFloor = 20;
+  const raw = 0.85 - 0.015 * (Math.max(1, Math.floor(Number(floor) || 1)) - 1);
+  const base = Math.max(0.6, raw);
+  const depthProgress = Math.max(0, Math.min(1,
+    (floor - startFloor) / (depthCapFloor - startFloor)
+  ));
+  const investmentProgress = Math.max(0, Math.min(1, scoutBonus / 0.30));
+  const deepScoutBonus = 0.05 * depthProgress * investmentProgress;
+  const rate = Math.round(Math.min(cap, base + scoutBonus + deepScoutBonus) * 1000) / 1000;
+  return { rate, cap, scoutBonus };
+}
+
+function getSimulationTrapBonusMax(character, state = null) {
+  const override = getSimulationTrapOverride(state)?.trapBonus;
+  const apt = isDisarmAptClass(character?.class);
+  const value = apt ? override?.maxApt : override?.maxNonApt;
+  return Number.isFinite(Number(value))
+    ? Math.max(0, Number(value))
+    : apt ? 90 : 60;
+}
+
+function calculateSimulationFloorTrapSuccessRate({
+  state,
+  trap,
+  className,
+  level,
+  floor,
+  affixBonus
+} = {}) {
+  const override = getSimulationTrapOverride(state)?.trapBonus;
+  if (!override || (!Object.hasOwn(override, "maxApt") &&
+    !Object.hasOwn(override, "maxNonApt"))) {
+    return calculateFloorTrapSuccessRate({
+      trap,
+      className,
+      level,
+      floor,
+      affixBonus
+    });
+  }
+  const apt = isDisarmAptClass(className);
+  const base = apt ? 80 : 40;
+  const levelGain = apt ? Math.max(1, Math.floor(Number(level) || 1)) :
+    Math.max(1, Math.floor(Number(level) || 1)) * 0.5;
+  const depthLoss = (Math.max(1, Math.floor(Number(floor) || 1)) - 1) * 2.0;
+  const min = apt ? 20 : 5;
+  const max = getSimulationTrapBonusMax({ class: className }, state);
+  const raw = base + levelGain - depthLoss + (Number(affixBonus) || 0);
+  const rate = Math.round(Math.max(min, Math.min(max, raw)));
+  return trap?.type === "pitfall" ? Math.min(100, rate + 20) : rate;
 }
 
 function getFloorDisarmPolicyThreshold(state, trap) {
@@ -1151,12 +1233,22 @@ function getFloorTrapExpectedDamageForAction(state, trap, floor, weakened) {
 
 function getFloorTrapActionPlan(state, trap, floor) {
   const character = state.party[0];
-  const successRate = calculateFloorTrapSuccessRate({
+  const trapBonus = getSimulationTrapBonus(character, state);
+  const successRate = calculateSimulationFloorTrapSuccessRate({
+    state,
     trap,
     className: character.class,
     level: character.level,
     floor,
-    affixBonus: Math.round(getSimulationTrapBonus(character) * 100)
+    affixBonus: Math.round(trapBonus * 100)
+  });
+  const baseSuccessRate = calculateSimulationFloorTrapSuccessRate({
+    state,
+    trap: trap.type === "pitfall" ? { ...trap, type: "damage" } : trap,
+    className: character.class,
+    level: character.level,
+    floor,
+    affixBonus: Math.round(trapBonus * 100)
   });
   const action = successRate >= getFloorDisarmPolicyThreshold(state, trap)
     ? "disarm"
@@ -1166,6 +1258,9 @@ function getFloorTrapActionPlan(state, trap, floor) {
   return {
     action,
     successRate,
+    baseSuccessRate,
+    maxRate: getSimulationTrapBonusMax(character, state),
+    trapBonus,
     expectedDamage: calculateFloorTrapActionExpectedDamage({
       action,
       trapType: trap.type,
@@ -1194,11 +1289,16 @@ function getTrapAvoidanceEvaluation(state, trap, floor, step, avoidance, metrics
 function createTrapAggregate() {
   return {
     runs: 0,
+    encounters: 0,
+    encountersBySource: { chest: 0, floor: 0 },
     activations: 0,
     damageHp: 0,
     healPotionsUsed: 0,
     healPotionShortages: 0,
     disarms: 0,
+    disarmAttempts: 0,
+    disarmSuccesses: 0,
+    detectionAttempts: 0,
     avoided: 0,
     forced: 0,
     avoidanceExtraSteps: 0,
@@ -1223,6 +1323,9 @@ function createTrapAggregate() {
       other: 0
     },
     detections: 0,
+    detectionCapHits: 0,
+    disarmCapHits: 0,
+    planEvaluations: 0,
     runsWithHealPotionShortage: 0,
     combatDamageHp: 0,
     stairsHealingHp: 0,
@@ -1249,11 +1352,19 @@ function createTrapAggregate() {
 
 function addTrapAggregate(target, result) {
   target.runs++;
+  target.encounters += result.trapEncounterCount;
+  Object.entries(result.trapEncounterBySource).forEach(([source, amount]) => {
+    target.encountersBySource[source] =
+      (target.encountersBySource[source] || 0) + amount;
+  });
   target.activations += result.trapActivations;
   target.damageHp += result.trapDamageHp;
   target.healPotionsUsed += result.trapHealPotionsUsed;
   target.healPotionShortages += result.trapHealPotionShortages;
   target.disarms += result.trapDisarms;
+  target.disarmAttempts += result.trapDisarmAttempts;
+  target.disarmSuccesses += result.trapDisarmSuccesses;
+  target.detectionAttempts += result.trapDetectionAttempts;
   target.avoided += result.trapAvoided;
   target.forced += result.trapForced;
   target.avoidanceExtraSteps += result.trapAvoidanceExtraSteps;
@@ -1274,6 +1385,9 @@ function addTrapAggregate(target, result) {
       (target.trapKitsConsumedBySource[source] || 0) + amount;
   });
   target.detections += result.trapDetections;
+  target.detectionCapHits += result.trapDetectionCapHits;
+  target.disarmCapHits += result.trapDisarmCapHits;
+  target.planEvaluations += result.trapPlanEvaluations;
   target.runsWithHealPotionShortage += Number(result.trapHealPotionShortages > 0);
   target.combatDamageHp += result.combatDamageHp;
   target.stairsHealingHp += result.stairsHealingHp;
@@ -1298,12 +1412,22 @@ function finalizeTrapAggregate(aggregate) {
   const runs = Math.max(1, aggregate.runs);
   return {
     runs: aggregate.runs,
+    averageTrapEncounters: aggregate.encounters / runs,
+    averageTrapEncountersBySource: Object.fromEntries(
+      Object.entries(aggregate.encountersBySource).map(([source, amount]) => [
+        source,
+        amount / runs
+      ])
+    ),
     averageTrapActivations: aggregate.activations / runs,
     averageTrapDamageHp: aggregate.damageHp / runs,
     averageTrapHealPotionsUsed: aggregate.healPotionsUsed / runs,
     averageTrapHealPotionShortages: aggregate.healPotionShortages / runs,
     trapHealPotionShortageRunRate: aggregate.runsWithHealPotionShortage / runs,
     averageTrapDisarms: aggregate.disarms / runs,
+    averageTrapDisarmAttempts: aggregate.disarmAttempts / runs,
+    averageTrapDisarmSuccesses: aggregate.disarmSuccesses / runs,
+    averageTrapDetectionAttempts: aggregate.detectionAttempts / runs,
     averageTrapAvoided: aggregate.avoided / runs,
     averageTrapForced: aggregate.forced / runs,
     averageTrapAvoidanceExtraSteps: aggregate.avoidanceExtraSteps / runs,
@@ -1331,6 +1455,12 @@ function finalizeTrapAggregate(aggregate) {
       ])
     ),
     averageTrapDetections: aggregate.detections / runs,
+    trapDetectionCapHitRate: aggregate.detectionAttempts > 0
+      ? aggregate.detectionCapHits / aggregate.detectionAttempts
+      : 0,
+    trapDisarmCapHitRate: aggregate.planEvaluations > 0
+      ? aggregate.disarmCapHits / aggregate.planEvaluations
+      : 0,
     averageCombatDamageHp: aggregate.combatDamageHp / runs,
     averageStairsHealingHp: aggregate.stairsHealingHp / runs,
     averageCampHealingHp: aggregate.campHealingHp / runs,
@@ -1648,6 +1778,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       trapPolicy: scenario.trapPolicy || DEFAULT_TRAP_POLICY_ID,
       trapAvoidancePolicy:
         scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
+      trapOverride: scenario.trapOverride || null,
       bossOverride: scenario.bossOverride || null,
       forcedBossAffixes: scenario.forcedBossAffixes || null,
       statusScalingOverride: scenario.statusScalingOverride || null,
@@ -4374,15 +4505,20 @@ function getTrapAvoidancePlan(generated, currentCoord, trap) {
 
 function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   const { trap, previousCoord, step } = scheduled;
+  metrics.trapEncounterCount++;
+  metrics.trapEncounterBySource.floor++;
   if (state.simPolicy.trapPolicy === "disabled" || trap.state === "disabled") {
     return { pitfallTriggered: false };
   }
 
   if (trap.state === "hidden") {
-    if (Math.random() < calculateDetectRate({
-      floor,
-      scoutBonus: getSimulationTrapSense(state)
-    })) {
+    const detection = getSimulationDetectRate(state, floor);
+    metrics.trapDetectionAttempts++;
+    metrics.trapDetectionRateCounts[detection.rate] =
+      (metrics.trapDetectionRateCounts[detection.rate] || 0) + 1;
+    if (detection.scoutBonus > 0) metrics.trapSenseHolderDetectionAttempts++;
+    if (detection.rate >= detection.cap) metrics.trapDetectionCapHits++;
+    if (Math.random() < detection.rate) {
       trap.state = "discovered";
       metrics.trapDetections++;
     }
@@ -4422,7 +4558,15 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   }
 
   const actionPlan = getFloorTrapActionPlan(state, trap, floor);
+  metrics.trapPlanEvaluations++;
+  metrics.trapDisarmRateCounts[actionPlan.baseSuccessRate] =
+    (metrics.trapDisarmRateCounts[actionPlan.baseSuccessRate] || 0) + 1;
+  if (actionPlan.baseSuccessRate >= actionPlan.maxRate) {
+    metrics.trapDisarmCapHits++;
+  }
   const action = trap.state === "hidden" ? "trigger" : actionPlan.action;
+  metrics.trapPlanActionCounts[action] =
+    (metrics.trapPlanActionCounts[action] || 0) + 1;
   const resolution = action === "trigger"
     ? { outcome: "triggered", partialSuccess: false }
     : resolveTrapAction({
@@ -4433,10 +4577,12 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
     });
 
   if (action === "force") metrics.trapForced++;
+  if (action === "disarm") metrics.trapDisarmAttempts++;
   if (resolution.outcome === "disarmed") {
     trap.state = "disabled";
     state.currentRun.trapsDisarmed++;
     metrics.trapDisarms++;
+    metrics.trapDisarmSuccesses++;
     const character = state.party[0];
     const trapEater = getCharCoreParams(character, "CORE_TRAP_EATER");
     const previousTrapBonus = character.runTrapAttackBonus || 0;
@@ -4583,9 +4729,11 @@ function resolveChestTrapForSimulation(
   metrics
 ) {
   const character = state.party[0];
+  metrics.trapEncounterCount++;
+  metrics.trapEncounterBySource.chest++;
   const chance = calculateChestDisarmChance({
     className: character.class,
-    trapBonus: getSimulationTrapBonus(character),
+    trapBonus: getSimulationTrapBonus(character, state),
     blind: character.status === "blind"
   });
   observations.trappedChests++;
@@ -4601,13 +4749,17 @@ function resolveChestTrapForSimulation(
   if (kitIndex >= 0) {
     state.inventory.splice(kitIndex, 1);
     recordTrapKitConsumption(state, metrics);
+    metrics.trapDisarmAttempts++;
+    metrics.trapDisarmSuccesses++;
     return { mainItemLost: false };
   }
 
   if (chance >= CHEST_DISARM_POLICY_MIN_CHANCE) {
+    metrics.trapDisarmAttempts++;
     if (Math.random() < chance) {
       state.currentRun.trapsDisarmed++;
       metrics.trapDisarms++;
+      metrics.trapDisarmSuccesses++;
       const previousTrapBonus = character.runTrapAttackBonus || 0;
       const trapEater = getCharCoreParams(character, "CORE_TRAP_EATER");
       if (trapEater && previousTrapBonus < trapEater.maxAttack) {
@@ -5138,12 +5290,20 @@ function finishRun(state, outcome, metrics) {
     trapActivations: metrics.trapActivations,
     trapActivationsBySource: { ...metrics.trapActivationsBySource },
     trapActivationsByType: { ...metrics.trapActivationsByType },
+    trapEncounterCount: metrics.trapEncounterCount,
+    trapEncounterBySource: { ...metrics.trapEncounterBySource },
     trapDamageHp: metrics.trapDamageHp,
     trapDamageHpBySource: { ...metrics.trapDamageHpBySource },
     trapDamageHpByType: { ...metrics.trapDamageHpByType },
     trapHealPotionsUsed: metrics.trapHealPotionsUsed,
     trapHealPotionShortages: metrics.trapHealPotionShortages,
     trapDisarms: metrics.trapDisarms,
+    trapDisarmAttempts: metrics.trapDisarmAttempts,
+    trapDisarmSuccesses: metrics.trapDisarmSuccesses,
+    trapDisarmRateCounts: { ...metrics.trapDisarmRateCounts },
+    trapDisarmCapHits: metrics.trapDisarmCapHits,
+    trapPlanEvaluations: metrics.trapPlanEvaluations,
+    trapPlanActionCounts: { ...metrics.trapPlanActionCounts },
     trapAvoided: metrics.trapAvoided,
     trapForced: metrics.trapForced,
     trapAvoidanceExtraSteps: metrics.trapAvoidanceExtraSteps,
@@ -5158,6 +5318,10 @@ function finishRun(state, outcome, metrics) {
     trapKitsAcquiredBySource: { ...metrics.trapKitsAcquiredBySource },
     trapKitsConsumedBySource: { ...metrics.trapKitsConsumedBySource },
     trapDetections: metrics.trapDetections,
+    trapDetectionAttempts: metrics.trapDetectionAttempts,
+    trapDetectionRateCounts: { ...metrics.trapDetectionRateCounts },
+    trapDetectionCapHits: metrics.trapDetectionCapHits,
+    trapSenseHolderDetectionAttempts: metrics.trapSenseHolderDetectionAttempts,
     trapTeleports: metrics.trapTeleports,
     finalHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
     departureCraft: {
@@ -5339,12 +5503,20 @@ export function simulateRun({
     trapActivations: 0,
     trapActivationsBySource: { chest: 0, floor: 0 },
     trapActivationsByType: {},
+    trapEncounterCount: 0,
+    trapEncounterBySource: { chest: 0, floor: 0 },
     trapDamageHp: 0,
     trapDamageHpBySource: { chest: 0, floor: 0 },
     trapDamageHpByType: {},
     trapHealPotionsUsed: 0,
     trapHealPotionShortages: 0,
     trapDisarms: 0,
+    trapDisarmAttempts: 0,
+    trapDisarmSuccesses: 0,
+    trapDisarmRateCounts: {},
+    trapDisarmCapHits: 0,
+    trapPlanEvaluations: 0,
+    trapPlanActionCounts: {},
     trapAvoided: 0,
     trapForced: 0,
     trapAvoidanceExtraSteps: 0,
@@ -5369,6 +5541,10 @@ export function simulateRun({
       other: 0
     },
     trapDetections: 0,
+    trapDetectionAttempts: 0,
+    trapDetectionRateCounts: {},
+    trapDetectionCapHits: 0,
+    trapSenseHolderDetectionAttempts: 0,
     trapTeleports: 0,
     combatDamageHp: 0,
     combatDamageHpByType: {},
