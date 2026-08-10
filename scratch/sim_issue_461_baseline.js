@@ -35,6 +35,8 @@ const WORKSHOP_SCENARIO_IDS = Object.freeze(
   OBSERVED_WORKSHOP_DISTRIBUTION.map(row => row.scenarioId)
 );
 const DEFAULT_RUNS_PER_CLASS = 3000;
+// Issue #461 baseline exception: stabilize each class/scenario scoring profile
+// before applying the quartile and endpoint analysis.
 const DEFAULT_CALIBRATION_RUNS = 1000;
 const R95 = 1.959963984540054;
 const SMOKE = process.env.ISSUE461_SMOKE === "1";
@@ -304,10 +306,20 @@ function compactBuildSnapshot(result) {
 }
 
 function endpoint(result, floor) {
+  const entrant = result.reachedFloor >= floor;
+  const outcome = !entrant
+    ? null
+    : result.reachedFloor > floor
+      ? "breakthrough"
+      : result.deathFloor === floor
+        ? "death"
+        : "retreat";
   return {
-    entrant: result.reachedFloor >= floor,
-    breakthrough: result.reachedFloor > floor,
-    death: result.deathFloor === floor
+    entrant,
+    outcome,
+    breakthrough: outcome === "breakthrough",
+    death: outcome === "death",
+    retreat: outcome === "retreat"
   };
 }
 
@@ -555,15 +567,23 @@ function qualitySummary(rows) {
 
 function endpointSummary(rows, floor) {
   const entrantRows = rows.filter(row => row.endpoints[`b${floor}`].entrant);
+  const outcomeKeys = ["breakthrough", "death", "retreat"];
+  const outcomeCounts = Object.fromEntries(
+    outcomeKeys.map(outcome => [
+      outcome,
+      entrantRows.filter(row => row.endpoints[`b${floor}`][outcome]).length
+    ])
+  );
+  if (outcomeKeys.reduce((sum, outcome) => sum + outcomeCounts[outcome], 0) !== entrantRows.length) {
+    throw new Error(`endpoint outcome partition failed: floor=${floor}`);
+  }
   return {
     entrant: wilson(entrantRows.length, rows.length),
-    breakthrough: wilson(
-      entrantRows.filter(row => row.endpoints[`b${floor}`].breakthrough).length,
-      entrantRows.length
-    ),
-    death: wilson(
-      entrantRows.filter(row => row.endpoints[`b${floor}`].death).length,
-      entrantRows.length
+    ...Object.fromEntries(
+      outcomeKeys.map(outcome => [
+        outcome,
+        wilson(outcomeCounts[outcome], entrantRows.length)
+      ])
     )
   };
 }
@@ -633,7 +653,7 @@ function aggregateClass(className, baselineRows, initialRows, qualityRows) {
 }
 
 function multipleComparisonSummary() {
-  const endpointRateChecks = CLASS_NAMES.length * (1 + 3 * 2);
+  const endpointRateChecks = CLASS_NAMES.length * (1 + 3 * 3);
   const completionAndCoreChecks = CLASS_NAMES.length * 2;
   const a1Checks = 1 + 3;
   const totalChecks = endpointRateChecks + completionAndCoreChecks + a1Checks;
@@ -675,8 +695,8 @@ function formatDifference(stat) {
 
 function renderBaselineTable(byClass) {
   const lines = [
-    "| 職業 | 初回B1突破 | B1 entrant | B1突破 | B1死亡 | B5 entrant | B5突破 | B5死亡 | B10 entrant | B10突破 | B10死亡 | 全run平均到達floor |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+    "| 職業 | 初回B1突破 | B1 entrant | B1突破 | B1死亡 | B1撤退 | B5 entrant | B5突破 | B5死亡 | B5撤退 | B10 entrant | B10突破 | B10死亡 | B10撤退 | 全run平均到達floor |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
   ];
   byClass.forEach(summary => {
     const b1 = summary.endpoints.b1;
@@ -684,9 +704,9 @@ function renderBaselineTable(byClass) {
     const b10 = summary.endpoints.b10;
     lines.push(
       `| ${CLASS_LABELS[summary.className]} | ${formatRate(summary.initialB1Breakthrough)} | ` +
-      `${formatRate(b1.entrant)} | ${formatRate(b1.breakthrough)} | ${formatRate(b1.death)} | ` +
-      `${formatRate(b5.entrant)} | ${formatRate(b5.breakthrough)} | ${formatRate(b5.death)} | ` +
-      `${formatRate(b10.entrant)} | ${formatRate(b10.breakthrough)} | ${formatRate(b10.death)} | ` +
+      `${formatRate(b1.entrant)} | ${formatRate(b1.breakthrough)} | ${formatRate(b1.death)} | ${formatRate(b1.retreat)} | ` +
+      `${formatRate(b5.entrant)} | ${formatRate(b5.breakthrough)} | ${formatRate(b5.death)} | ${formatRate(b5.retreat)} | ` +
+      `${formatRate(b10.entrant)} | ${formatRate(b10.breakthrough)} | ${formatRate(b10.death)} | ${formatRate(b10.retreat)} | ` +
       `${formatMean(summary.averageReachedFloor)} |`
     );
   });
@@ -716,7 +736,7 @@ function renderA1(a1, label = "4職合算") {
   const lines = [
     `### ${label}`,
     "",
-    "| Q | N | combatBuildScore平均 | B5死亡率（Wilson 95% CI） | 職内centered率 |",
+    "| Q | N | combatBuildScore平均 | B5死亡率（deathFloor===5; Wilson 95% CI） | 職内centered率 |",
     "| ---: | ---: | ---: | --- | ---: |"
   ];
   a1.quartiles.forEach((quartile, index) => {
@@ -768,7 +788,7 @@ ${measurement.a1Pass
 
 ${renderBaselineTable(byClass)}
 
-初回ランは素材0・出発クラフトなし。B1/B5/B10 の突破・死亡は entrant 条件付き、entrant 自体と全run平均到達floorを併記。率は Wilson 95% CI、平均は正規近似95% CI。
+初回ランは素材0・出発クラフトなし。各 floor の突破・死亡・撤退は entrant を分母とし、3内訳の合計は100%。死亡は \`deathFloor === floor\`（その階でちょうど死亡）であり、到達後に後続階で死亡した run は突破へ入る。撤退は entrant かつ突破/死亡でない run。B1撤退0%は \`PORTAL_MIN_FLOOR=3\` のため。率は Wilson 95% CI、平均は正規近似95% CI。
 
 ## 完成ビルド率 / core装備率
 
@@ -795,7 +815,7 @@ ${distributionLines}
 ## 多重比較
 
 - α=.05、計 ${measurement.multipleComparisons.totalChecks} チェック、期待偽陽性 ${measurement.multipleComparisons.expectedFalsePositives.toFixed(1)}件。
-- 内訳: endpoint率 ${measurement.multipleComparisons.endpointRateChecks}、Q4/core ${measurement.multipleComparisons.completionAndCoreChecks}、A1 ${measurement.multipleComparisons.a1Checks}。
+- 内訳: 初回率1 + 各 floor の entrant/突破/死亡/撤退、endpoint率 ${measurement.multipleComparisons.endpointRateChecks}、Q4/core ${measurement.multipleComparisons.completionAndCoreChecks}、A1 ${measurement.multipleComparisons.a1Checks}。
 - これは基準線の記述区間。効果の採否に多重比較補正済み検定を主張しない。
 
 ## 配線確認 / 緩和策

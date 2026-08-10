@@ -101,6 +101,10 @@ core装備率/実発動率/定着率・終了時core数分布には Wilson 95% C
 
 通常のバランス測定は `SIM_RUNS=500`、`SIM_CALIBRATION_RUNS=100` を既定とする。
 `SIM_CALIBRATION_RUNS=1000` は精度感度の比較時だけ明示する。
+ただし Issue #461 の基準線測定は例外として `SIM_CALIBRATION_RUNS=1000` を固定する。
+職業×工房状態ごとの core scoring profile を安定させ、職内 `combatBuildScore`
+quartile と装備率の基準線が calibration の乱数揺れで変わるのを避けるためであり、
+通常測定へ一般化しない。calibration の wall-clock 比率と総時間を実行記録へ残す。
 `SIM_PARALLEL` は原則指定しない。未指定時はローカルで
 `availableParallelism()`、CIで4を使い、タスク数を上限にする既定値へ任せる。
 過去の測定コマンドを再利用する場合も `SIM_PARALLEL=4` を付けず、実行環境の既定値を
@@ -194,9 +198,13 @@ SIM_PARALLEL=<omitted; runtime default>
 SIM_MAP_CACHE_ENTRIES=<omitted; runtime default 1024>
 ```
 
-この測定の env hash は `e79d51f4d7ce5e701e0e73db97afc9ee051d609b9a652e278ab84b0518897bda`。
-出力 SHA-256 は raw JSONL `44770d377b6cbf86f319163d45876d4b2a9a4b88c30974d97f224701171cffcb`
-、summary JSON `007158b245fc002e54864a726c863c1c725605d496ef8a2f78ac4b10efe49618`。
+この測定の env hash・出力 SHA-256 は、固定条件で再測定した実行記録を正本とする。
+`SIM_CORE_SCORE_DROP_TOLERANCE=0` は、Issue #461 が現行の個別スコア選択方針を測る基準線であり、
+装備スコア低下を許容する反実仮想を混ぜないため採用する。#442 採用設定 `0.10` は、
+同一条件比較測定として別記し、基準線へ混在させない。
+この再測定の env hash は `e79d51f4d7ce5e701e0e73db97afc9ee051d609b9a652e278ab84b0518897bda`。
+出力 SHA-256 は raw JSONL `560673693bdff8e87895faf12b88fcfe4e977c99e19c2a5f23d5907d81138cc0`
+、summary JSON `81fa80b96eb8aeac5a28f21815a6bf7ecddab15557d2eeb6b8a9a3965b1cf966`。
 Q4 の A1 は Q3→Q4 の B5 死亡率が 21.2%→24.1% と上昇して不成立だったため、
 Q4 完成ビルド定義は採用せず、再定義課題として報告する。balance 値は変更しない。
 
