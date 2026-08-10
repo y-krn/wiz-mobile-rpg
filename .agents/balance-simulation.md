@@ -363,6 +363,13 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 - `scratch/sim_issue_461_baseline.js` は #461 基準線の歴史的 runner。生成する「採らなかった完成定義」の 35〜40%記述も当時の判断記録であり、現行 canon ではない。#471 の判断は本節を参照する。
 - grep で見つかった他の `37.2%` は別指標の過去測定値であり、core 装備率目標の参照ではない。
 
+## 宝箱解除率と解除判断経路の扱い（#341 / #473）
+
+- 宝箱解除率は `chestDisarmSuccesses / chestDisarmAttempts` で記録する。ただし、対策 affix の評価にこの率を単独で使わない。必ず `kit` / `direct` / `forced` の経路内訳と `chestDisarmAttempts`（試行数）を併記する。
+- 解除率は経路構成の変化で低下し得る。`kit`（確定成功）の比率が下がり、`direct`（確率成功）が増えると、対策を強化した場合でも率が下がることがある。分母も動く（#473 の Priest core-pools smart では attempts `6079→7044`）。率が低下した場合、まず経路内訳と試行数を確認する。
+- sim の宝箱解除判断は `chance >= 50%` 固定。これは `src/` のゲーム挙動やプレイヤーの判断方針ではなく、sim の解除判断方針。床罠は #341 で `TRAP_POLICY=conservative` を既定とする EV 分岐へ変更済み（scoutなしの等価点 42.5%、整数選択境界 43%、`TRAP_POLICY=legacy` で旧50%を再現可能）。宝箱側は50%固定のままで、床罠との方針が非対称。
+- 宝箱側も EV 分岐へ変更すべきという含意はあるが、変更は別Issueで扱う。診断・ツール追加のPRでは宝箱解除方針を変更しない。
+
 ## Required Verification
 
 - `npm run test:unit`

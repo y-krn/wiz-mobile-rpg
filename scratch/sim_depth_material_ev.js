@@ -4914,6 +4914,7 @@ function resolveChestTrapForSimulation(
   const character = state.party[0];
   metrics.trapEncounterCount++;
   metrics.trapEncounterBySource.chest++;
+  metrics.chestTrappedByFloor[floor]++;
   const chance = calculateChestDisarmChance({
     className: character.class,
     trapBonus: getSimulationTrapBonus(character, state),
@@ -4933,7 +4934,10 @@ function resolveChestTrapForSimulation(
     state.inventory.splice(kitIndex, 1);
     recordTrapKitConsumption(state, metrics);
     metrics.chestDisarmAttempts++;
+    metrics.chestDisarmAttemptsByFloor[floor]++;
     metrics.chestDisarmSuccesses++;
+    metrics.chestDisarmSuccessesByFloor[floor]++;
+    metrics.chestDisarmKitUsesByFloor[floor]++;
     metrics.trapDisarmAttempts++;
     metrics.trapDisarmSuccesses++;
     return { mainItemLost: false };
@@ -4941,11 +4945,14 @@ function resolveChestTrapForSimulation(
 
   if (chance >= CHEST_DISARM_POLICY_MIN_CHANCE) {
     metrics.chestDisarmAttempts++;
+    metrics.chestDisarmAttemptsByFloor[floor]++;
+    metrics.chestDisarmDirectAttemptsByFloor[floor]++;
     metrics.trapDisarmAttempts++;
     if (Math.random() < chance) {
       state.currentRun.trapsDisarmed++;
       metrics.trapDisarms++;
       metrics.chestDisarmSuccesses++;
+      metrics.chestDisarmSuccessesByFloor[floor]++;
       metrics.trapDisarmSuccesses++;
       const previousTrapBonus = character.runTrapAttackBonus || 0;
       const trapEater = getCharCoreParams(character, "CORE_TRAP_EATER");
@@ -4973,6 +4980,7 @@ function resolveChestTrapForSimulation(
   }
 
   metrics.trapForced++;
+  metrics.chestForcedByFloor[floor]++;
   state.currentRun.trapsTriggered++;
   applyChestTrapEffect(state, trap, true, metrics);
   const itemData = getItemData(mainItem);
@@ -5480,8 +5488,15 @@ function finishRun(state, outcome, metrics) {
     trapEncounterCount: metrics.trapEncounterCount,
     trapEncounterBySource: { ...metrics.trapEncounterBySource },
     chestsOpened: metrics.chestsOpened,
+    chestsOpenedByFloor: [...metrics.chestsOpenedByFloor],
+    chestTrappedByFloor: [...metrics.chestTrappedByFloor],
     chestDisarmAttempts: metrics.chestDisarmAttempts,
+    chestDisarmAttemptsByFloor: [...metrics.chestDisarmAttemptsByFloor],
     chestDisarmSuccesses: metrics.chestDisarmSuccesses,
+    chestDisarmSuccessesByFloor: [...metrics.chestDisarmSuccessesByFloor],
+    chestDisarmKitUsesByFloor: [...metrics.chestDisarmKitUsesByFloor],
+    chestDisarmDirectAttemptsByFloor: [...metrics.chestDisarmDirectAttemptsByFloor],
+    chestForcedByFloor: [...metrics.chestForcedByFloor],
     trapDamageHp: metrics.trapDamageHp,
     trapDamageHpBySource: { ...metrics.trapDamageHpBySource },
     trapDamageHpByType: { ...metrics.trapDamageHpByType },
@@ -5698,8 +5713,15 @@ export function simulateRun({
     trapEncounterCount: 0,
     trapEncounterBySource: { chest: 0, floor: 0 },
     chestsOpened: 0,
+    chestsOpenedByFloor: Array(21).fill(0),
+    chestTrappedByFloor: Array(21).fill(0),
     chestDisarmAttempts: 0,
+    chestDisarmAttemptsByFloor: Array(21).fill(0),
     chestDisarmSuccesses: 0,
+    chestDisarmSuccessesByFloor: Array(21).fill(0),
+    chestDisarmKitUsesByFloor: Array(21).fill(0),
+    chestDisarmDirectAttemptsByFloor: Array(21).fill(0),
+    chestForcedByFloor: Array(21).fill(0),
     trapDamageHp: 0,
     trapDamageHpBySource: { chest: 0, floor: 0 },
     trapDamageHpByType: {},
@@ -5948,6 +5970,7 @@ export function simulateRun({
       const pickedUpChests = chestSchedule.get(step) || 0;
       for (let chest = 0; chest < pickedUpChests; chest++) {
         metrics.chestsOpened++;
+        metrics.chestsOpenedByFloor[floor]++;
         const tombRaider = getCharCoreParams(state.party[0], "CORE_TOMB_RAIDER");
         const chestMaterials = generateChestMaterials(
           floor,

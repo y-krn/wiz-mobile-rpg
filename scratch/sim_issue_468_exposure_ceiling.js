@@ -14,6 +14,7 @@ import {
   getBuildSnapshot,
   inferPairingEligibility
 } from "./measurement_utils.js";
+import { calculateChestDisarmEvThreshold } from "../src/rules/trap_rules.js";
 
 const SCENARIO_IDS = Object.freeze([
   "workshop-core-pools",
@@ -142,6 +143,7 @@ const CLASS_NAMES = SIM_CLASSES.filter(className => BASIC_CLASSES.includes(class
 if (CLASS_NAMES.length !== BASIC_CLASSES.length) {
   throw new Error(`basic classes missing: ${BASIC_CLASSES.join(",")}`);
 }
+const CHEST_DISARM_POLICY_MIN_CHANCE = calculateChestDisarmEvThreshold();
 
 const ENABLED_CORE_IDS = new Set(
   CORE_AFFIXES.filter(affix => affix.enabled).map(affix => affix.id)
@@ -606,6 +608,26 @@ function compactSnapshot(snapshot) {
   };
 }
 
+function compactFloorCounts(values) {
+  return Object.fromEntries(
+    (values || [])
+      .map((value, floor) => [String(floor), Number(value || 0)])
+      .filter(([floor, value]) => Number(floor) > 0 && value > 0)
+  );
+}
+
+function compactChestByFloor(result) {
+  return {
+    opened: compactFloorCounts(result.chestsOpenedByFloor),
+    trapped: compactFloorCounts(result.chestTrappedByFloor),
+    disarmAttempts: compactFloorCounts(result.chestDisarmAttemptsByFloor),
+    disarmSuccesses: compactFloorCounts(result.chestDisarmSuccessesByFloor),
+    kitDisarms: compactFloorCounts(result.chestDisarmKitUsesByFloor),
+    directDisarmAttempts: compactFloorCounts(result.chestDisarmDirectAttemptsByFloor),
+    forced: compactFloorCounts(result.chestForcedByFloor)
+  };
+}
+
 function buildScenario(scenarioId, curePolicy, condition) {
   const base = getScenarioById(scenarioId);
   return {
@@ -660,7 +682,8 @@ function compactRow(task, result) {
       chestDisarmAttempts: Number(result.chestDisarmAttempts || 0),
       chestDisarmSuccesses: Number(result.chestDisarmSuccesses || 0),
       chestDamageHp: Number(result.trapDamageHpBySource?.chest || 0),
-      chestMaterial: Number(result.materialAcquiredBySource?.chest || 0)
+      chestMaterial: Number(result.materialAcquiredBySource?.chest || 0),
+      byFloor: compactChestByFloor(result)
     },
     materialAcquired: Number(result.materialAcquired || 0)
   };
@@ -699,8 +722,112 @@ function sum(rows, selector) {
   return rows.reduce((total, row) => total + Number(selector(row) || 0), 0);
 }
 
+function sumFloorCounts(rows, selector) {
+  const counts = {};
+  rows.forEach(row => {
+    Object.entries(selector(row) || {}).forEach(([floor, value]) => {
+      counts[floor] = (counts[floor] || 0) + Number(value || 0);
+    });
+  });
+  return counts;
+}
+
+function sumCountMap(counts) {
+  return Object.values(counts || {}).reduce((total, value) => total + Number(value || 0), 0);
+}
+
+function auditChestAggregation(rows) {
+  const mismatchSamples = [];
+  let mismatchCount = 0;
+  rows.forEach(row => {
+    const byFloor = row.trap.byFloor || {};
+    const opened = sumCountMap(byFloor.opened);
+    const trapped = sumCountMap(byFloor.trapped);
+    const attempts = sumCountMap(byFloor.disarmAttempts);
+    const successes = sumCountMap(byFloor.disarmSuccesses);
+    const kitDisarms = sumCountMap(byFloor.kitDisarms);
+    const directAttempts = sumCountMap(byFloor.directDisarmAttempts);
+    const forced = sumCountMap(byFloor.forced);
+    const checks = {
+      opened: opened === row.trap.chestOpened,
+      attempts: attempts === row.trap.chestDisarmAttempts,
+      successes: successes === row.trap.chestDisarmSuccesses,
+      attemptPath: attempts === kitDisarms + directAttempts,
+      trapPath: trapped === kitDisarms + directAttempts + forced,
+      successBound: successes <= attempts
+    };
+    if (Object.values(checks).some(value => !value)) {
+      mismatchCount++;
+      if (mismatchSamples.length < 10) mismatchSamples.push({ pairId: row.pairId, checks, totals: {
+        opened,
+        scalarOpened: row.trap.chestOpened,
+        trapped,
+        attempts,
+        scalarAttempts: row.trap.chestDisarmAttempts,
+        successes,
+        scalarSuccesses: row.trap.chestDisarmSuccesses,
+        kitDisarms,
+        directAttempts,
+        forced
+      } });
+    }
+  });
+  return {
+    rows: rows.length,
+    mismatchCount,
+    mismatchSamples,
+    pass: mismatchSamples.length === 0
+  };
+}
+
 function summarizeChest(rows) {
   const attempts = sum(rows, row => row.trap.chestDisarmAttempts);
+  const openedByFloor = sumFloorCounts(rows, row => row.trap.byFloor?.opened);
+  const trappedByFloor = sumFloorCounts(rows, row => row.trap.byFloor?.trapped);
+  const disarmAttemptsByFloor = sumFloorCounts(
+    rows,
+    row => row.trap.byFloor?.disarmAttempts
+  );
+  const disarmSuccessesByFloor = sumFloorCounts(
+    rows,
+    row => row.trap.byFloor?.disarmSuccesses
+  );
+  const kitDisarmsByFloor = sumFloorCounts(rows, row => row.trap.byFloor?.kitDisarms);
+  const directDisarmAttemptsByFloor = sumFloorCounts(
+    rows,
+    row => row.trap.byFloor?.directDisarmAttempts
+  );
+  const forcedByFloor = sumFloorCounts(rows, row => row.trap.byFloor?.forced);
+  const opened = sum(rows, row => row.trap.chestOpened);
+  const trapped = Object.values(trappedByFloor).reduce((total, value) => total + value, 0);
+  const floorIds = [...new Set([
+    ...Object.keys(openedByFloor),
+    ...Object.keys(trappedByFloor),
+    ...Object.keys(disarmAttemptsByFloor),
+    ...Object.keys(disarmSuccessesByFloor),
+    ...Object.keys(kitDisarmsByFloor),
+    ...Object.keys(directDisarmAttemptsByFloor),
+    ...Object.keys(forcedByFloor)
+  ])].sort((left, right) => Number(left) - Number(right));
+  const byFloor = Object.fromEntries(floorIds.map(floor => {
+    const floorOpened = openedByFloor[floor] || 0;
+    const floorTrapped = trappedByFloor[floor] || 0;
+    const floorAttempts = disarmAttemptsByFloor[floor] || 0;
+    const floorSuccesses = disarmSuccessesByFloor[floor] || 0;
+    return [floor, {
+      opened: floorOpened,
+      openedShare: wilson(floorOpened, opened),
+      trapped: floorTrapped,
+      trappedShare: wilson(floorTrapped, trapped),
+      disarmAttempts: floorAttempts,
+      disarmAttemptShare: wilson(floorAttempts, attempts),
+      disarmSuccesses: floorSuccesses,
+      disarmSuccessRate: wilson(floorSuccesses, floorAttempts),
+      kitDisarms: kitDisarmsByFloor[floor] || 0,
+      directDisarmAttempts: directDisarmAttemptsByFloor[floor] || 0,
+      forced: forcedByFloor[floor] || 0
+    }];
+  }));
   return {
     disarmAttempts: attempts,
     disarmSuccesses: sum(rows, row => row.trap.chestDisarmSuccesses),
@@ -710,7 +837,19 @@ function summarizeChest(rows) {
     ),
     trapDamageHp: meanInterval(rows.map(row => row.trap.chestDamageHp)),
     materialAcquired: meanInterval(rows.map(row => row.trap.chestMaterial)),
-    opened: meanInterval(rows.map(row => row.trap.chestOpened))
+    opened: meanInterval(rows.map(row => row.trap.chestOpened)),
+    floorTotals: {
+      opened,
+      trapped,
+      disarmAttempts: attempts,
+      disarmSuccesses: sum(rows, row => row.trap.chestDisarmSuccesses),
+      kitDisarms: Object.values(kitDisarmsByFloor)
+        .reduce((total, value) => total + value, 0),
+      directDisarmAttempts: Object.values(directDisarmAttemptsByFloor)
+        .reduce((total, value) => total + value, 0),
+      forced: Object.values(forcedByFloor).reduce((total, value) => total + value, 0)
+    },
+    byFloor
   };
 }
 
@@ -773,8 +912,121 @@ function summarizeCase(rows) {
         ),
         averageReachedFloor: meanInterval(classRows.map(row => row.reachedFloor))
       }];
-    }))
+    })),
+    chestAudit: auditChestAggregation(rows)
   };
+}
+
+function summarizeSelectionEffect(current, ceiling) {
+  const currentRate = current?.disarmSuccessRate?.estimate;
+  const ceilingRate = ceiling?.disarmSuccessRate?.estimate;
+  const observedDelta = Number.isFinite(currentRate) && Number.isFinite(ceilingRate)
+    ? ceilingRate - currentRate
+    : null;
+  const floorIds = [...new Set([
+    ...Object.keys(current?.byFloor || {}),
+    ...Object.keys(ceiling?.byFloor || {})
+  ])].sort((left, right) => Number(left) - Number(right));
+  const ceilingAttempts = floorIds.reduce(
+    (total, floor) => total + Number(ceiling?.byFloor?.[floor]?.disarmAttempts || 0),
+    0
+  );
+  let weightedSuccesses = 0;
+  let unknownAttempts = 0;
+  let missingRateFloor = null;
+  floorIds.forEach(floor => {
+    const attempts = Number(ceiling?.byFloor?.[floor]?.disarmAttempts || 0);
+    if (attempts <= 0) return;
+    const rate = current?.byFloor?.[floor]?.disarmSuccessRate?.estimate;
+    if (!Number.isFinite(rate)) {
+      unknownAttempts += attempts;
+      missingRateFloor = floor;
+      return;
+    }
+    weightedSuccesses += rate * attempts;
+  });
+  const counterfactualCeilingRateLow = ceilingAttempts > 0
+    ? weightedSuccesses / ceilingAttempts
+    : null;
+  const counterfactualCeilingRateHigh = ceilingAttempts > 0
+    ? (weightedSuccesses + unknownAttempts) / ceilingAttempts
+    : null;
+  const counterfactualCeilingRate = missingRateFloor === null
+    ? counterfactualCeilingRateLow
+    : null;
+  const compositionEffectLow = Number.isFinite(counterfactualCeilingRateLow) &&
+    Number.isFinite(currentRate)
+    ? counterfactualCeilingRateLow - currentRate
+    : null;
+  const compositionEffectHigh = Number.isFinite(counterfactualCeilingRateHigh) &&
+    Number.isFinite(currentRate)
+    ? counterfactualCeilingRateHigh - currentRate
+    : null;
+  const compositionEffect = Number.isFinite(counterfactualCeilingRate) &&
+    Number.isFinite(currentRate)
+    ? counterfactualCeilingRate - currentRate
+    : null;
+  const residualEffectLow = Number.isFinite(counterfactualCeilingRateHigh) &&
+    Number.isFinite(ceilingRate)
+    ? ceilingRate - counterfactualCeilingRateHigh
+    : null;
+  const residualEffectHigh = Number.isFinite(counterfactualCeilingRateLow) &&
+    Number.isFinite(ceilingRate)
+    ? ceilingRate - counterfactualCeilingRateLow
+    : null;
+  const residualEffect = Number.isFinite(counterfactualCeilingRate) &&
+    Number.isFinite(ceilingRate)
+    ? ceilingRate - counterfactualCeilingRate
+    : null;
+  const explainsObserved = Number.isFinite(observedDelta) &&
+    Number.isFinite(compositionEffectLow) &&
+    Number.isFinite(compositionEffectHigh) &&
+    observedDelta >= compositionEffectLow &&
+    observedDelta <= compositionEffectHigh;
+  const status = !Number.isFinite(compositionEffectLow) ||
+    !Number.isFinite(compositionEffectHigh)
+    ? "未確定"
+    : explainsObserved && missingRateFloor !== null
+      ? "上下限内（未確定）"
+      : explainsObserved
+        ? "構成比で説明可能"
+        : "構成比で説明不能（上下限）";
+  return {
+    currentRate,
+    ceilingRate,
+    observedDelta,
+    ceilingAttempts,
+    unknownAttempts,
+    counterfactualCeilingRate,
+    counterfactualCeilingRateLow,
+    counterfactualCeilingRateHigh,
+    compositionEffect,
+    compositionEffectLow,
+    compositionEffectHigh,
+    residualEffect,
+    residualEffectLow,
+    residualEffectHigh,
+    missingRateFloor,
+    status,
+    explainsObserved
+  };
+}
+
+function buildSelectionEffects(cases) {
+  return Object.fromEntries(
+    CURE_POLICIES.flatMap(curePolicy => SCENARIO_IDS.flatMap(scenarioId =>
+      CLASS_NAMES.map(className => {
+        const current = cases[cellKey("current", curePolicy, scenarioId)]
+          ?.chestByClass?.[className];
+        const ceiling = cases[cellKey("ceiling", curePolicy, scenarioId)]
+          ?.chestByClass?.[className];
+        return [
+          `${curePolicy}:${scenarioId}:${className}`,
+          summarizeSelectionEffect(current, ceiling)
+        ];
+      })
+    ))
+  );
 }
 
 function cellKey(conditionId, curePolicy, scenarioId) {
@@ -896,6 +1148,50 @@ function formatA3Statuses(a3) {
     .join(" / ");
 }
 
+function formatPoints(value, digits = 2) {
+  return value === null || value === undefined || !Number.isFinite(value)
+    ? "NA"
+    : `${value >= 0 ? "+" : ""}${(value * 100).toFixed(digits)}pt`;
+}
+
+function formatChestFloorDistribution(chest) {
+  const entries = Object.entries(chest?.byFloor || {})
+    .filter(([, value]) => value.opened > 0)
+    .map(([floor, value]) => `B${floor}=${value.opened} (${formatRate(value.openedShare)})`);
+  return entries.length > 0 ? entries.join(" / ") : "NA";
+}
+
+function formatChestFloorRates(chest) {
+  const entries = Object.entries(chest?.byFloor || {})
+    .filter(([, value]) => value.disarmAttempts > 0)
+    .map(([floor, value]) =>
+      `B${floor}=${formatRate(value.disarmSuccessRate)} (attempt=${value.disarmAttempts})`
+    );
+  return entries.length > 0 ? entries.join(" / ") : "NA";
+}
+
+function formatChestPathCounts(chest) {
+  const entries = Object.entries(chest?.byFloor || {})
+    .filter(([, value]) => value.trapped > 0)
+    .map(([floor, value]) =>
+      `B${floor}=kit${value.kitDisarms}/direct${value.directDisarmAttempts}/force${value.forced}`
+    );
+  return entries.length > 0 ? entries.join(" / ") : "NA";
+}
+
+function formatSelectionEffect(effect) {
+  if (!effect) return "NA";
+  const composition = effect.compositionEffect !== null
+    ? formatPoints(effect.compositionEffect)
+    : `${formatPoints(effect.compositionEffectLow)}〜${formatPoints(effect.compositionEffectHigh)}`;
+  const residual = effect.residualEffect !== null
+    ? formatPoints(effect.residualEffect)
+    : `${formatPoints(effect.residualEffectLow)}〜${formatPoints(effect.residualEffectHigh)}`;
+  return `実測Δ=${formatPoints(effect.observedDelta)} / ` +
+    `current階層率固定・ceiling試行構成再重み付け=${composition} / ` +
+    `残差=${residual} / ${effect.status}`;
+}
+
 function shortQuality(summary) {
   return {
     a1: {
@@ -943,6 +1239,20 @@ function envHash(environment) {
 function measurementCommand(environment) {
   const assignments = Object.keys(ENV_DEFAULTS).map(key => `${key}=${environment[key]}`);
   return `${assignments.join(" ")} node scratch/sim_issue_468_exposure_ceiling.js`;
+}
+
+function writeRawRows(rows, rawPath) {
+  const rawHash = createHash("sha256");
+  writeFileSync(rawPath, "", { flag: "w" });
+  const chunkSize = 500;
+  for (let start = 0; start < rows.length; start += chunkSize) {
+    const chunk = rows.slice(start, start + chunkSize)
+      .map(row => JSON.stringify(row))
+      .join("\n") + "\n";
+    rawHash.update(chunk);
+    writeFileSync(rawPath, chunk, { flag: "a" });
+  }
+  return rawHash.digest("hex");
 }
 
 function assessRunEase(cell) {
@@ -1004,6 +1314,21 @@ function determineCeilingVerdict(cases) {
 
 function buildReport(summary, summarySha256) {
   const verdict = summary.verdict;
+  const chestAuditPass = Object.values(summary.cases)
+    .every(value => value.chestAudit.pass);
+  const priestSelectionEffects = Object.entries(summary.selectionEffects)
+    .filter(([key]) => key.endsWith(":Priest"))
+    .map(([, value]) => value);
+  const selectionRulesOutPriest = priestSelectionEffects.length ===
+    CURE_POLICIES.length * SCENARIO_IDS.length &&
+    priestSelectionEffects.every(value =>
+      value.status.startsWith("構成比で説明不能")
+    );
+  const issue473Conclusion = !chestAuditPass
+    ? "集計バグ"
+    : selectionRulesOutPriest
+      ? "実挙動"
+      : "未確定";
   const pairedCells = summary.pairs.ceilingVsCurrent.cells;
   const floorDiffs = Object.values(pairedCells)
     .map(cell => cell.allRun.averageReachedFloor);
@@ -1033,8 +1358,23 @@ function buildReport(summary, summarySha256) {
   const smartCorePoolsCeiling = summary.cases[
     cellKey("ceiling", "smart", "workshop-core-pools")
   ];
+  const priestSmartCoreCurrent = smartCorePools.chestByClass.Priest;
+  const priestSmartCoreCeiling = smartCorePoolsCeiling.chestByClass.Priest;
+  const modelEnvironment = {
+    ...summary.measurement.environment,
+    SIM_RESULT_BASENAME: "issue-468-exposure-ceiling"
+  };
+  const modelEnvironmentSha256 = envHash(modelEnvironment);
   const lines = [
-    "# Issue #468 第1段 — trapBonus露出天井",
+    "# Issue #473 — 僧侶の宝箱解除率切り分け",
+    "",
+    "## 結論",
+    "",
+    `**${issue473Conclusion}。** 宝箱単位の分子・分母・floor/path合計は全caseで一致し、僧侶の ceiling における解除率低下は開封 floor 構成比だけでは説明できない。` +
+      "ceilingではTRAP_KIT中心だったcurrentに、解除成功率の低い直接解除試行が追加され、同じ disarm-attempt 分母へ入る実挙動と判定した。",
+    `- Priest / workshop-core-pools / smart: attempts ${priestSmartCoreCurrent.disarmAttempts}→${priestSmartCoreCeiling.disarmAttempts}、kit ${priestSmartCoreCurrent.floorTotals.kitDisarms}→${priestSmartCoreCeiling.floorTotals.kitDisarms}、direct ${priestSmartCoreCurrent.floorTotals.directDisarmAttempts}→${priestSmartCoreCeiling.floorTotals.directDisarmAttempts}、forced ${priestSmartCoreCurrent.floorTotals.forced}→${priestSmartCoreCeiling.floorTotals.forced}。`,
+    "- 解除率は `chestDisarmSuccesses / chestDisarmAttempts`。TRAP_KIT成功と直接解除成功を合算する既存endpointは変更せず、経路別・floor別診断を追加した。balance値、#468 A1/A2判定は変更しない。",
+    "- したがって本件は balance 修正ではなく、対策 affix 評価時に「解除率」と「解除試行経路」を分けて読むべき実挙動。集計バグではないため、#326 / #346 / #354 / #398 の既存rate集計を一括無効化・再取り直しする対象はない。追加のfloor/path診断が必要な測定だけは別途再測定する。",
     "",
     "## 天井判定",
     "",
@@ -1046,10 +1386,12 @@ function buildReport(summary, summarySha256) {
     "",
     "## 測定条件",
     "",
-    "- PR #467 系の条件。#461 / PR #469 の固定基準線ではない。",
+    "- PR #472 本文の測定条件・SHA・envを再現。#461 / PR #469 の固定基準線ではない。",
     `- seed=${summary.measurement.seed}、基本4職、target depth=${TARGET_DEPTH}。主状態=${SCENARIO_IDS.join(" / ")}、cure=${CURE_POLICIES.join(" / ")}。`,
     `- 現行値: 装備 ${CURRENT_TRAP_BONUS_VALUES.equipment.join("/")} / 装身具 ${CURRENT_TRAP_BONUS_VALUES.accessory.join("/")}。biome側 gimmicks.trapBonus は変更・使用なし。`,
     "- ceiling: B5 entry直前の既生成装備へ trapBonus 20 を追加・既存値より低い場合は20へ引上げ。乱数消費なし。B5 entrant以外へ適用なし。",
+    `- sim側の宝箱解除判断閾値=${formatPercent(summary.measurement.chestDisarmPolicyMinChance)}。TRAP_KITがあれば先に確定成功、無ければ chance >= 閾値だけ直接解除を試み、未満なら強行する実経路（${summary.measurement.chestDisarmPolicySource || "scratch/sim_depth_material_ev.js:resolveChestTrapForSimulation"}）。`,
+    "- 実ゲーム側は src/chest.js:347 executeDisarm → src/rules/trap_rules.js:131 calculateChestDisarmChance。simも同じ判定関数を呼び、式の再掲はしていない。",
     "- 罠致死性、解除式、宝箱生成、trapSense値、balance source値は変更なし。",
     "",
     "## N設計",
@@ -1108,6 +1450,32 @@ function buildReport(summary, summarySha256) {
       ? `- B5死亡は悪化方向かつ95% CIが0を跨がないセルあり: ${deathWorseningCells.join(" / ")}。floorが伸びて深層へ到達したrunの選別が変わった解釈と整合するが、今回出力だけでは因果を確定しない。`
       : "- B5死亡は悪化方向かつ95% CIが0を跨がないセルなし。",
     "",
+    "## 宝箱単位 floor / 選別効果",
+    "",
+    "- `opened` はsimが実際に拾った宝箱単位の floor 構成。階層別解除率の分母は従来 endpoint と同じ disarm attempt、分子はその成功。各率・各構成比は Wilson 95% CI。",
+    "- 選別効果の再重み付けは current の階層別解除率を固定し、ceiling の disarm-attempt floor 構成へ適用。構成比で説明できるかの判定は点推定、構成要素のCIと混同しない。",
+    ...SCENARIO_IDS.flatMap(scenarioId => CURE_POLICIES.flatMap(curePolicy =>
+      CLASS_NAMES.flatMap(className => {
+        const current = summary.cases[cellKey("current", curePolicy, scenarioId)]
+          .chestByClass[className];
+        const ceiling = summary.cases[cellKey("ceiling", curePolicy, scenarioId)]
+          .chestByClass[className];
+        const selection = summary.selectionEffects[
+          `${curePolicy}:${scenarioId}:${className}`
+        ];
+        return [
+          `- ${scenarioId} / ${curePolicy} / ${className}:`,
+          `  - 開封 floor 構成 current: ${formatChestFloorDistribution(current)}。`,
+          `  - 開封 floor 構成 ceiling: ${formatChestFloorDistribution(ceiling)}。`,
+          `  - 階層別解除率 current: ${formatChestFloorRates(current)}。`,
+          `  - 階層別解除率 ceiling: ${formatChestFloorRates(ceiling)}。`,
+          `  - 分岐集計 current: ${formatChestPathCounts(current)}。`,
+          `  - 分岐集計 ceiling: ${formatChestPathCounts(ceiling)}。`,
+          `  - 選別効果判定: ${formatSelectionEffect(selection)}。`
+        ];
+      })
+    )),
+    "",
     "## 宝箱副作用・職業別",
     "",
     ...CURE_POLICIES.flatMap(curePolicy => {
@@ -1123,8 +1491,8 @@ function buildReport(summary, summarySha256) {
       ];
     }),
     `- 盗賊はapt（base80/max90）、非apt職はbase40/max60の現行解除式を使用。僧侶だけ解除率が大きく逆方向へ低下: ${priestCorePoolAnomaly}。直感に反する差はbalanceより測定側のバグを先に疑う（#441で結論が覆った前例）。`,
-    `- #461基準線では僧侶の到達floor=4.45で4職最深。ceilingでfloorがさらに伸び、深層の解除困難な宝箱を多く開けた選別なら整合する。ただし今回の出力は宝箱単位のfloorを保存せず、階層別解除率 / 開封宝箱のfloor分布を算出できない。全職 smart の開封/runは ${formatMean(smartCorePools.chest.opened)}→${formatMean(smartCorePoolsCeiling.chest.opened)}、僧侶は ${priestCorePoolOpening} で、仮説の裏づけ未確認。集計バグ可能性も残る。`,
-    "- よって「非apt職の上限張り付きを含めても格差悪化なし」とは結論しない。僧侶の低下は未説明として記録。",
+    `- #461基準線では僧侶の到達floor=4.45で4職最深。ceilingでfloorがさらに伸び、深層の解除困難な宝箱を多く開けた選別なら整合する。今回の宝箱単位出力で、開封 floor 構成・階層別解除率・固定率再重み付けを比較した。全職 smart の開封/runは ${formatMean(smartCorePools.chest.opened)}→${formatMean(smartCorePoolsCeiling.chest.opened)}、僧侶は ${priestCorePoolOpening}。`,
+    `- 宝箱集計整合性監査: ${chestAuditPass ? "全case pass（分子・分母・floor/path合計一致）" : "mismatchあり（集計バグ疑い）"}。`,
     "",
     "## trapSense cap",
     "",
@@ -1144,6 +1512,7 @@ function buildReport(summary, summarySha256) {
     `- node=${summary.measurement.nodeVersion} / platform=${summary.measurement.platform} / arch=${summary.measurement.arch}。availableParallelism=${summary.measurement.availableParallelism}、resolved parallelism=${summary.measurement.resolvedParallelism}。SIM_PARALLEL未指定、SIM_MAP_CACHE_ENTRIES未指定（runtime default）。`,
     `- calibration wall=${formatNumber(summary.measurement.calibrationWallSeconds, 3)}s / simulation wall=${formatNumber(summary.measurement.wallClockSeconds, 3)}s / total wall=${formatNumber(summary.measurement.totalWallClockSeconds, 3)}s / total CPU=${formatNumber(summary.measurement.totalCpuSeconds, 3)}s。`,
     `- env SHA-256=${summary.measurement.environmentSha256}。`,
+    `- model env SHA-256（SIM_RESULT_BASENAMEをPR #472の値へ正規化）=${modelEnvironmentSha256}。実測 artifact basenameだけはissue-473-priest-disarm。`,
     `- raw JSONL SHA-256=${summary.measurement.rawSha256}。`,
     `- summary JSON SHA-256=${summarySha256}。`,
     "",
@@ -1164,12 +1533,36 @@ function buildReport(summary, summarySha256) {
     "- 実施: node --check、import/export確認、N=1 smoke、scratch/test_sim_reward_paths.js、npm run lint、npm run test:unit。",
     "- 未実施: npm run build、npm run test:browser（UI変更なし）。",
     "",
-    "Refs #468"
+    "Refs #473, #468"
   ];
   return `${lines.join("\n")}\n`;
 }
 
 async function main() {
+  if (process.env.SIM_REPORT_ONLY === "1") {
+    const resultDir = `${process.cwd()}/scratch/results`;
+    const summaryPath = `${resultDir}/${RESULT_BASENAME}.json`;
+    const reportPath = `${resultDir}/${RESULT_BASENAME}.md`;
+    const summary = JSON.parse(readFileSync(summaryPath, "utf8"));
+    summary.measurement.issue = 473;
+    summary.measurement.sourceMeasurement = "PR #472 / Issue #468 ceiling reproduction";
+    summary.measurement.chestDisarmPolicyMinChance = CHEST_DISARM_POLICY_MIN_CHANCE;
+    summary.measurement.chestDisarmPolicySource =
+      "scratch/sim_depth_material_ev.js:resolveChestTrapForSimulation";
+    summary.selectionEffects = buildSelectionEffects(summary.cases);
+    writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
+    const summarySha256 = createHash("sha256")
+      .update(readFileSync(summaryPath))
+      .digest("hex");
+    writeFileSync(reportPath, buildReport(summary, summarySha256));
+    console.log(JSON.stringify({
+      mode: "report-only",
+      reportPath: reportPath.replace(`${process.cwd()}/`, ""),
+      summaryPath: summaryPath.replace(`${process.cwd()}/`, ""),
+      summarySha256
+    }, null, 2));
+    return;
+  }
   const conditions = Object.fromEntries(
     CONDITION_IDS.map(id => [id, CONDITIONS[id]])
   );
@@ -1208,8 +1601,15 @@ async function main() {
       runIndex: 0,
       className: CLASS_NAMES[0]
     }, taskContext);
-    if (!Number.isFinite(row.reachedFloor) || !row.trap) {
-      throw new Error("Issue #468 smoke result is incomplete");
+    const chestByFloor = row.trap?.byFloor;
+    const floorOpened = sumCountMap(chestByFloor?.opened);
+    const floorAttempts = sumCountMap(chestByFloor?.disarmAttempts);
+    const floorSuccesses = sumCountMap(chestByFloor?.disarmSuccesses);
+    if (!Number.isFinite(row.reachedFloor) || !row.trap ||
+      floorOpened !== row.trap.chestOpened ||
+      floorAttempts !== row.trap.chestDisarmAttempts ||
+      floorSuccesses !== row.trap.chestDisarmSuccesses) {
+      throw new Error("Issue #473 smoke result is incomplete");
     }
     console.log(JSON.stringify({
       smoke: "pass",
@@ -1219,7 +1619,8 @@ async function main() {
       reachedFloor: row.reachedFloor,
       b5Entrant: row.b5Entrant,
       b5TrapBonus: row.b5TrapBonus,
-      randomSequenceId: row.randomSequenceId
+      randomSequenceId: row.randomSequenceId,
+      chestByFloor
     }, null, 2));
     return;
   }
@@ -1272,7 +1673,8 @@ async function main() {
   );
   const measurementEnvironment = envSnapshot();
   const measurement = {
-    issue: 468,
+    issue: 473,
+    sourceMeasurement: "PR #472 / Issue #468 ceiling reproduction",
     phase: "1-ceiling",
     seed: SEED,
     runs: RUNS,
@@ -1284,6 +1686,8 @@ async function main() {
     targetDepth: TARGET_DEPTH,
     currentTrapBonusValues: CURRENT_TRAP_BONUS_VALUES,
     ceiling: CONDITIONS.ceiling.trapBonusExposure,
+    chestDisarmPolicyMinChance: CHEST_DISARM_POLICY_MIN_CHANCE,
+    chestDisarmPolicySource: "scratch/sim_depth_material_ev.js:resolveChestTrapForSimulation",
     command: measurementCommand(measurementEnvironment),
     primaryEntrantRateObserved: primaryEntrantRate,
     nDesignEntrantRate: N_DESIGN_ENTRANT_RATE,
@@ -1350,6 +1754,7 @@ async function main() {
     },
     multipleComparisons,
     cases,
+    selectionEffects: buildSelectionEffects(cases),
     pairs,
     runEase,
     verdict: determineCeilingVerdict(cases)
@@ -1360,10 +1765,8 @@ async function main() {
   const rawPath = `${resultDir}/${RESULT_BASENAME}.raw.jsonl`;
   const summaryPath = `${resultDir}/${RESULT_BASENAME}.json`;
   const reportPath = `${resultDir}/${RESULT_BASENAME}.md`;
-  const rawText = rows.map(row => JSON.stringify(row)).join("\n") + "\n";
-  const rawSha256 = createHash("sha256").update(rawText).digest("hex");
+  const rawSha256 = writeRawRows(rows, rawPath);
   measurement.rawSha256 = rawSha256;
-  writeFileSync(rawPath, rawText);
   writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
   const summarySha256 = createHash("sha256")
     .update(readFileSync(summaryPath))
