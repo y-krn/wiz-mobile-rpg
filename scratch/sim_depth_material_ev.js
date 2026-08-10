@@ -1723,16 +1723,19 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   const useRealIdentificationSupply = identificationPolicy !== "legacy";
   const departureCraftIds = resolveDepartureCraftIds(scenario);
   const sourceDepartureCraftCost = getDepartureCraftCost(departureCraftIds);
-  const departureCraftBank = {
-    ...sourceDepartureCraftCost.typed,
-    ...(sourceDepartureCraftCost.any > 0
-      ? {
-          "獣の牙":
-            (sourceDepartureCraftCost.typed["獣の牙"] || 0) + sourceDepartureCraftCost.any
-        }
-      : {}),
-    ...(scenario.departureCraftMaterials || {})
-  };
+  // 既存の単発what-ifは所要コストを検証bankへ補う。#481のrun-chainだけ実meta bankを使う。
+  const departureCraftBank = scenario.departureCraftMaterialsAreActualBank
+    ? { ...(scenario.departureCraftMaterials || {}) }
+    : {
+        ...sourceDepartureCraftCost.typed,
+        ...(sourceDepartureCraftCost.any > 0
+          ? {
+              "獣の牙":
+                (sourceDepartureCraftCost.typed["獣の牙"] || 0) + sourceDepartureCraftCost.any
+            }
+          : {}),
+        ...(scenario.departureCraftMaterials || {})
+      };
   const departureCraftPurchaseValidation = purchaseDepartureCraft(
     departureCraftBank,
     departureCraftIds
@@ -1862,7 +1865,10 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       useRealIdentificationSupply && IDENTIFICATION_POWDER_UNLIMITED,
     simDepartureCraft: {
       recipeIds: departureCraftPurchase.recipeIds,
-      cost: departureCraftPurchase.cost
+      cost: departureCraftPurchase.cost,
+      purchaseSource: scenario.departureCraftMaterialsAreActualBank
+        ? "actual-meta-bank"
+        : "synthetic-validation-bank"
     },
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
@@ -5588,7 +5594,8 @@ function finishRun(state, outcome, metrics) {
     departureCraft: {
       recipeIds: [...state.simDepartureCraft.recipeIds],
       cost: { ...state.simDepartureCraft.cost },
-      items: [...state.simDepartureCraftItems]
+      items: [...state.simDepartureCraftItems],
+      purchaseSource: state.simDepartureCraft.purchaseSource
     },
     statusCureItemsAcquired: metrics.statusCureItemsAcquired,
     statusCureItemsUsed: metrics.statusCureItemsUsed,
