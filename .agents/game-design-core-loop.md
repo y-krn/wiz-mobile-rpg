@@ -152,6 +152,9 @@ for one character:
   hit). A solo character's escape judgment is never killed by RNG.
 - Healing: consumables, a small heal on floor transition, and healing
   affixes. In-combat healing is priced high so it does not dominate.
+- Auto-combat action selection, including offensive spells, is shared by the
+  live game and the simulation. Simulation-only policies such as flee and
+  recovery thresholds stay separate from the shared action-selection logic.
 - Milestone bosses may expose a telegraphed, build-dependent counter window.
   The B5 Demon Guard implementation interrupts only its active LAHALITO
   telegraph after sufficient encounter damage, then grants a short encounter-

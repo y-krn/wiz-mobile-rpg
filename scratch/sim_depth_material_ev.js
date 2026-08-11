@@ -34,6 +34,7 @@ const { ELITE_CLASSES } = await import("../src/data/classes.js");
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
 const { applyPendingOutcomeRewards } = await import("../src/combat_ui/outcome_rewards.js");
 const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
+const { chooseAutoCombatAction } = await import("../src/combat_logic/auto_action.js");
 const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
 const { assignRunQuests, updateRunQuests } = await import("../src/systems/run_quests.js");
 const { generateRunFloor: generateRunFloorSource } = await import("../src/run_map_generator.js");
@@ -2621,26 +2622,14 @@ function selectCombatAction(state, metrics) {
   if (diosPriorityAction) return diosPriorityAction;
 
   const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
-  const livingMonsters = monsters.filter(monster => monster.hp > 0);
-  // 実ゲームのKATINOを、初手・複数敵・回復MP確保時だけ使う保守的方針。
-  if (
-    state.combatState.roundNumber === 1 &&
-    livingMonsters.length >= 2 &&
-    getSpellActionPayment(state, "KATINO", reserveMp)
-  ) {
-    return { type: "spell", actorIdx: 0, targetIdx: lowestHpIdx, spellName: "KATINO" };
-  }
-
-  if (character.class === "Priest" && getSpellActionPayment(state, "BADIOS", reserveMp)) {
-    const holyTargetIdx = monsters.findIndex(monster => monster.hp > 0 && hasHolyTag(monster));
-    const firstLivingIdx = monsters.findIndex(monster => monster.hp > 0);
-    return {
-      type: "spell",
-      actorIdx: 0,
-      targetIdx: holyTargetIdx >= 0 ? holyTargetIdx : firstLivingIdx,
-      spellName: "BADIOS"
-    };
-  }
+  const sharedAutoAction = chooseAutoCombatAction({
+    character,
+    monsters,
+    roundNumber: state.combatState.roundNumber,
+    canCastSpell: (spellName, reserveMp) =>
+      getSpellActionPayment(state, spellName, reserveMp)
+  });
+  if (sharedAutoAction) return { ...sharedAutoAction, actorIdx: 0 };
 
   if (character.class === "Bishop") {
     const holyTargetIdx = getLowestHpEnemyIndex(monsters, hasHolyTag);
