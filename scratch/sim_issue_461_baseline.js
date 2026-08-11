@@ -42,7 +42,8 @@ const DEFAULT_RUNS_PER_CLASS = 3000;
 const DEFAULT_CALIBRATION_RUNS = 1000;
 const R95 = 1.959963984540054;
 const SMOKE = process.env.ISSUE461_SMOKE === "1";
-const OUTPUT_STEM = SMOKE ? "issue-461-baseline-smoke" : "issue-461-baseline";
+const OUTPUT_STEM = process.env.SIM_RESULT_BASENAME ||
+  (SMOKE ? "issue-461-baseline-smoke" : "issue-461-baseline");
 
 // Fixed measurement env. SIM_PARALLEL and SIM_MAP_CACHE_ENTRIES intentionally
 // remain absent; their defaults are part of the measurement contract.

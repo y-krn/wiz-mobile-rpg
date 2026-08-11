@@ -201,9 +201,9 @@ const ENV_HASH = sha256(ENV_CANONICAL);
 if (!SMOKE && ENV_HASH !== EXPECTED_ENV_HASH) {
   throw new Error(`Issue #461 env hash mismatch: ${ENV_HASH}`);
 }
-const OUTPUT_STEM = SMOKE
+const OUTPUT_STEM = process.env.SIM_RESULT_BASENAME || (SMOKE
   ? "issue-470-build-definition-smoke"
-  : "issue-470-build-definition";
+  : "issue-470-build-definition");
 
 function mean(values) {
   return values.length
@@ -1123,7 +1123,7 @@ async function main() {
     b5Entrants: summary.snapshotTiming.b5Entrants,
     candidateCount: CANDIDATES.length,
     passedCandidates: summary.passedCandidates,
-    conclusion,
+    conclusion: summary.conclusion,
     resolvedParallelism,
     wallClockSeconds: measurement.totalWallSeconds,
     cpuTotalSeconds: measurement.totalCpuSeconds
