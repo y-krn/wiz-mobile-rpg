@@ -237,7 +237,10 @@ const {
   getWorkshopGrants
 } = await import("../src/systems/workshop.js");
 const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
-const { getStartingHealPotionCount } = await import("../src/rules/recovery_rules.js");
+const {
+  calculateCombatRecoveryAction,
+  getStartingHealPotionCount
+} = await import("../src/rules/recovery_rules.js");
 const { getPerceptionIntent } = await import("../src/systems/elite_perception.js");
 
 function getScholarMaterialBonus(monsters, state) {
@@ -268,6 +271,7 @@ const SIM_ENV_KEYS = Object.freeze([
   "HEAL_POTION_MERCHANT_POLICY",
   "FLEE_POLICY",
   "FLEE_HP_THRESHOLD",
+  "HEAL_POTION_THRESHOLD",
   "PORTAL_HP_THRESHOLD",
   "PORTAL_MAX_HEAL_POTIONS",
   "PORTAL_MIN_FLOOR",
@@ -300,6 +304,7 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   HEAL_POTION_MERCHANT_POLICY: "missing",
   FLEE_POLICY: "threshold",
   FLEE_HP_THRESHOLD: "0.35",
+  HEAL_POTION_THRESHOLD: "0.35",
   PORTAL_HP_THRESHOLD: "0.35",
   PORTAL_MAX_HEAL_POTIONS: "0",
   PORTAL_MIN_FLOOR: "3",
@@ -326,6 +331,7 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   HEAL_POTION_MERCHANT_POLICY: "missing",
   FLEE_POLICY: "threshold",
   FLEE_HP_THRESHOLD: "0.35",
+  HEAL_POTION_THRESHOLD: "0.35",
   PORTAL_HP_THRESHOLD: "0.35",
   PORTAL_MAX_HEAL_POTIONS: "0",
   PORTAL_MIN_FLOOR: "3",
@@ -711,17 +717,34 @@ const INITIAL_HEAL_POTIONS = getStartingHealPotionCount();
 // 実run開始準拠: 初期持ち道具は完全ゼロ。出発クラフト分は別sourceで計測する。
 const INITIAL_ANTIDOTES = 0;
 const INITIAL_GUARD_POTIONS = 0;
-// 仮値・感度分析対象: 戦闘中/戦闘後HPが最大HPの35%以下なら傷薬を1個使う。
-const HEAL_POTION_THRESHOLD = 0.35;
+// 仮値・感度分析対象: 戦闘中/戦闘後HPが最大HPの指定割合以下なら回復する。
+const HEAL_POTION_THRESHOLD_INPUT = String(
+  SIM_ENV.HEAL_POTION_THRESHOLD || "0.35"
+).trim();
+const HEAL_POTION_THRESHOLD = Number(HEAL_POTION_THRESHOLD_INPUT);
+if (
+  !Number.isFinite(HEAL_POTION_THRESHOLD) ||
+  HEAL_POTION_THRESHOLD < 0 ||
+  HEAL_POTION_THRESHOLD > 1
+) {
+  throw new Error(
+    `HEAL_POTION_THRESHOLD must be a number in [0,1]: ${HEAL_POTION_THRESHOLD_INPUT}`
+  );
+}
 const HEAL_PRIORITY_POLICIES = Object.freeze(["potion-first", "dios-first"]);
 const BLOOD_WAND_HEAL_POLICIES = Object.freeze([
   "reserve-potion",
   "allow-recovery-potion"
 ]);
+const FLEE_POLICIES = Object.freeze(["threshold", "never", "ev"]);
 const DEFAULT_HEAL_PRIORITY_POLICY = "potion-first";
 const DEFAULT_BLOOD_WAND_HEAL_POLICY = "reserve-potion";
+if (!FLEE_POLICIES.includes(SIM_ENV.FLEE_POLICY)) {
+  throw new Error(`FLEE_POLICY must be ${FLEE_POLICIES.join("|")}: ${SIM_ENV.FLEE_POLICY}`);
+}
+const DEFAULT_FLEE_POLICY = SIM_ENV.FLEE_POLICY;
 // 仮値・感度分析対象: 最大HPの指定割合以下なら次の自ターンで逃走する。
-const DEFAULT_FLEE_HP_THRESHOLD = SIM_ENV.FLEE_POLICY === "never"
+const DEFAULT_FLEE_HP_THRESHOLD = DEFAULT_FLEE_POLICY === "never"
   ? null
   : Math.max(0, Math.min(1, Number(SIM_ENV.FLEE_HP_THRESHOLD || 0.35)));
 const DEFAULT_STATUS_CURE_HP_THRESHOLD = Math.max(
@@ -1879,6 +1902,16 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       `bloodWandHealPolicy must be ${BLOOD_WAND_HEAL_POLICIES.join("|")}: ${bloodWandHealPolicy}`
     );
   }
+  const fleePolicy = scenario.fleePolicy || DEFAULT_FLEE_POLICY;
+  if (!FLEE_POLICIES.includes(fleePolicy)) {
+    throw new Error(`fleePolicy must be ${FLEE_POLICIES.join("|")}: ${fleePolicy}`);
+  }
+  const healPotionThreshold = Object.hasOwn(scenario, "healPotionThreshold")
+    ? Number(scenario.healPotionThreshold)
+    : HEAL_POTION_THRESHOLD;
+  if (!Number.isFinite(healPotionThreshold) || healPotionThreshold < 0 || healPotionThreshold > 1) {
+    throw new Error(`healPotionThreshold must be a number in [0,1]: ${scenario.healPotionThreshold}`);
+  }
   const workshopEffects = {
     stats: { ...workshopGrants.stats },
     startingGearCandidates: [
@@ -1951,6 +1984,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     simPolicy: {
       identificationPolicy,
       healPotionAmountOverride: scenario.healPotionAmountOverride || null,
+      healPotionThreshold,
+      fleePolicy,
       fleeHpThreshold: Object.hasOwn(scenario, "fleeHpThreshold")
         ? scenario.fleeHpThreshold
         : DEFAULT_FLEE_HP_THRESHOLD,
@@ -2083,14 +2118,24 @@ function recordGreaterHealConsumption(state, metrics, count = 1) {
 function addRecoveryPotionUse(metrics, itemKey, count = 1) {
   if (!metrics || count <= 0 || !["HEAL_POTION", "GREATER_HEAL"].includes(itemKey)) return;
   metrics.recoveryPotionsUsed += count;
-  if (itemKey === "HEAL_POTION") metrics.healPotionsUsed += count;
-  if (itemKey === "GREATER_HEAL") metrics.greaterHealPotionsUsed += count;
+  metrics.outsideRecoveryPotionsUsed += count;
+  if (itemKey === "HEAL_POTION") {
+    metrics.healPotionsUsed += count;
+    metrics.outsideHealPotionsUsed += count;
+  }
+  if (itemKey === "GREATER_HEAL") {
+    metrics.greaterHealPotionsUsed += count;
+    metrics.outsideGreaterHealPotionsUsed += count;
+  }
 }
 
 function getRecoveryPotionItem(state) {
   const character = state.party[0];
   const maxHp = getCharMaxHp(character);
-  if (!isAlive(character) || character.hp > maxHp * HEAL_POTION_THRESHOLD) return null;
+  if (
+    !isAlive(character) ||
+    character.hp > maxHp * state.simPolicy.healPotionThreshold
+  ) return null;
   if (hasRecoveryPotion(state, "GREATER_HEAL")) return "GREATER_HEAL";
   if (hasRecoveryPotion(state, "HEAL_POTION")) return "HEAL_POTION";
   return null;
@@ -2105,10 +2150,19 @@ function hasRecoveryPotion(state, itemKey = null) {
 function getDiosCombatAction(state) {
   const character = state.party[0];
   if (
-    character.hp >= getCharMaxHp(character) * HEAL_POTION_THRESHOLD ||
+    character.hp >= getCharMaxHp(character) * state.simPolicy.healPotionThreshold ||
     !getSpellActionPayment(state, "DIOS", 0, { minHpAfterPaymentRate: null })
   ) return null;
   return { type: "spell", actorIdx: 0, targetIdx: 0, spellName: "DIOS" };
+}
+
+function getExpectedDiosHeal(state) {
+  const character = structuredClone(state.party[0]);
+  return SPELL_EFFECTS.DIOS({
+    caster: character,
+    target: character,
+    rng: () => 0.5
+  }).heal || 0;
 }
 
 function recordDiosPotionPriorityCase(
@@ -2140,6 +2194,35 @@ function recordDiosPotionPriorityCase(
     selectedAction: selectedAction.type,
     selectedItem: selectedAction.itemKey
   });
+}
+
+function getEnemyAwareCombatAction(state, recoveryItem, diosAction) {
+  const character = state.party[0];
+  const livingMonsters = state.combatState.monsters.filter(monster => monster.hp > 0);
+  const decision = calculateCombatRecoveryAction({
+    currentHp: character.hp,
+    maxHp: getCharMaxHp(character),
+    enemyHp: livingMonsters.map(monster => monster.hp),
+    enemyAttack: livingMonsters.map(monster => monster.atk || 0),
+    playerDefense: getCharDef(character),
+    playerDamagePerRound: getCharWeaponAtk(character),
+    potionHeal: recoveryItem ? getSimulationHealAmount(state, recoveryItem) : 0,
+    diosHeal: diosAction ? getExpectedDiosHeal(state) : 0,
+    potionAvailable: Boolean(recoveryItem),
+    diosAvailable: Boolean(diosAction),
+    fleeThreshold: state.simPolicy.fleeHpThreshold ?? 0.35,
+    healThreshold: state.simPolicy.healPotionThreshold
+  });
+  if (decision === "flee") {
+    return { decision, action: { type: "run", actorIdx: 0 } };
+  }
+  if (decision !== "recover") return { decision, action: null };
+  const action = state.simPolicy.healPriorityPolicy === "dios-first" && diosAction
+    ? diosAction
+    : recoveryItem
+      ? { type: "item", actorIdx: 0, targetIdx: 0, itemKey: recoveryItem }
+      : diosAction;
+  return { decision, action };
 }
 
 export function getSimulationHealAmount(state, itemKey) {
@@ -2265,7 +2348,18 @@ function selectCombatAction(state, metrics) {
   const lowestHpIdx = statusTargetIdx >= 0 ? statusTargetIdx : getLowestHpEnemyIndex(monsters);
 
   const fleeThreshold = state.simPolicy.fleeHpThreshold;
-  if (
+  let recoveryItem = null;
+  let diosAction = null;
+  let evRecoveryAction = null;
+  let evShouldFight = false;
+  if (state.simPolicy.fleePolicy === "ev") {
+    recoveryItem = getRecoveryPotionItem(state);
+    diosAction = getDiosCombatAction(state);
+    const evResult = getEnemyAwareCombatAction(state, recoveryItem, diosAction);
+    if (evResult.action?.type === "run") return evResult.action;
+    evRecoveryAction = evResult.decision === "recover" ? evResult.action : null;
+    evShouldFight = evResult.decision === "fight";
+  } else if (
     fleeThreshold !== null &&
     character.hp <= getCharMaxHp(character) * fleeThreshold
   ) {
@@ -2314,8 +2408,8 @@ function selectCombatAction(state, metrics) {
     return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "HASTE_POTION" };
   }
 
-  const recoveryItem = getRecoveryPotionItem(state);
-  const diosAction = getDiosCombatAction(state);
+  recoveryItem ||= getRecoveryPotionItem(state);
+  diosAction ||= getDiosCombatAction(state);
   const diosPriorityAction = state.simPolicy.healPriorityPolicy === "dios-first"
     ? diosAction
     : recoveryItem
@@ -2326,8 +2420,10 @@ function selectCombatAction(state, metrics) {
     metrics,
     recoveryItem,
     diosAction,
-    diosPriorityAction
+    evShouldFight ? { type: "fight" } : (evRecoveryAction || diosPriorityAction)
   );
+  if (evRecoveryAction) return evRecoveryAction;
+  if (evShouldFight) return { type: "fight", actorIdx: 0, targetIdx: lowestHpIdx };
   if (diosPriorityAction) return diosPriorityAction;
 
   const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
@@ -2401,7 +2497,7 @@ function getBloodWandOpportunity(state, action, observations = null) {
   let opportunityType = null;
   if (action.type === "fight") {
     if (
-      character.hp < getCharMaxHp(character) * 0.35 &&
+      character.hp < getCharMaxHp(character) * state.simPolicy.healPotionThreshold &&
       hasSpell(character, "DIOS") &&
       (state.simPolicy.bloodWandHealPolicy === "allow-recovery-potion" ||
         !hasRecoveryPotion(state))
@@ -3398,7 +3494,10 @@ function useHealPotionIfNeeded(state, metrics) {
   const itemKey = getRecoveryPotionItem(state);
   if (!itemKey) {
     const character = state.party[0];
-    if (isAlive(character) && character.hp <= getCharMaxHp(character) * HEAL_POTION_THRESHOLD) {
+    if (
+      isAlive(character) &&
+      character.hp <= getCharMaxHp(character) * state.simPolicy.healPotionThreshold
+    ) {
       metrics.recoveryPotionShortages++;
     }
     return null;
@@ -3449,7 +3548,8 @@ function recordTrapDamage(metrics, source, type, damage) {
 function useTrapRecoveryIfNeeded(state, metrics) {
   const character = state.party[0];
   if (!isAlive(character)) return false;
-  const needsPotion = character.hp <= getCharMaxHp(character) * HEAL_POTION_THRESHOLD;
+  const needsPotion = character.hp <=
+    getCharMaxHp(character) * state.simPolicy.healPotionThreshold;
   if (needsPotion) {
     const itemKey = useHealPotionIfNeeded(state, metrics);
     if (!itemKey) {
@@ -5686,6 +5786,7 @@ function finishRun(state, outcome, metrics) {
     deathFloor: outcome === "death" ? state.floor : null,
     stalemate: metrics.stalemate,
     finalLevel: state.party[0].level,
+    expGained: state.currentRun.expGained,
     workshopEffects: state.workshopEffects,
     elitePolicy: metrics.elitePolicy,
     eliteEncounters: metrics.eliteEncounters,
@@ -5770,12 +5871,21 @@ function finishRun(state, outcome, metrics) {
     coreObservations: metrics.coreObservations,
     healPriorityPolicy: state.simPolicy.healPriorityPolicy,
     bloodWandHealPolicy: state.simPolicy.bloodWandHealPolicy,
+    fleePolicy: state.simPolicy.fleePolicy,
+    fleeHpThreshold: state.simPolicy.fleeHpThreshold,
+    healPotionThreshold: state.simPolicy.healPotionThreshold,
     diosCombatCastCount: metrics.coreObservations.diosHealActions,
     diosPostCombatCastCount: metrics.diosPostCombatCasts,
     diosCastCount: metrics.coreObservations.diosHealActions + metrics.diosPostCombatCasts,
     healPotionsUsed: metrics.healPotionsUsed,
     greaterHealPotionsUsed: metrics.greaterHealPotionsUsed,
     recoveryPotionsUsed: metrics.recoveryPotionsUsed,
+    combatHealPotionsUsed: metrics.combatHealPotionsUsed,
+    combatGreaterHealPotionsUsed: metrics.combatGreaterHealPotionsUsed,
+    combatRecoveryPotionsUsed: metrics.combatRecoveryPotionsUsed,
+    outsideHealPotionsUsed: metrics.outsideHealPotionsUsed,
+    outsideGreaterHealPotionsUsed: metrics.outsideGreaterHealPotionsUsed,
+    outsideRecoveryPotionsUsed: metrics.outsideRecoveryPotionsUsed,
     recoveryPotionShortages: metrics.recoveryPotionShortages,
     healPotionsAcquiredBySource: { ...metrics.healPotionsAcquiredBySource },
     healPotionsConsumedBySource: { ...metrics.healPotionsConsumedBySource },
@@ -6012,6 +6122,12 @@ export function simulateRun({
     healPotionsUsed: 0,
     greaterHealPotionsUsed: 0,
     recoveryPotionsUsed: 0,
+    combatHealPotionsUsed: 0,
+    combatGreaterHealPotionsUsed: 0,
+    combatRecoveryPotionsUsed: 0,
+    outsideHealPotionsUsed: 0,
+    outsideGreaterHealPotionsUsed: 0,
+    outsideRecoveryPotionsUsed: 0,
     recoveryPotionShortages: 0,
     stairsHealingHp: 0,
     campHealingHp: 0,
@@ -6472,6 +6588,10 @@ export function simulateRun({
           metrics.combatRounds += combatResult.rounds;
           metrics.healPotionsUsed += combatResult.healPotionsUsed;
           metrics.greaterHealPotionsUsed += combatResult.greaterHealPotionsUsed;
+          metrics.combatHealPotionsUsed += combatResult.healPotionsUsed;
+          metrics.combatGreaterHealPotionsUsed += combatResult.greaterHealPotionsUsed;
+          metrics.combatRecoveryPotionsUsed +=
+            combatResult.healPotionsUsed + combatResult.greaterHealPotionsUsed;
           metrics.recoveryPotionsUsed +=
             combatResult.healPotionsUsed + combatResult.greaterHealPotionsUsed;
           const bountyHunter = getCharCoreParams(
@@ -8440,7 +8560,7 @@ console.log(
 );
 console.log(
   `生存仮定: 傷薬使用閾値=${HEAL_POTION_THRESHOLD}, ` +
-  `逃走閾値=${DEFAULT_FLEE_HP_THRESHOLD ?? "逃走なし"}, ` +
+  `逃走方針=${DEFAULT_FLEE_POLICY}, 逃走閾値=${DEFAULT_FLEE_HP_THRESHOLD ?? "逃走なし"}, ` +
   `状態回復=${DEFAULT_STATUS_CURE_POLICY}(HP<=${DEFAULT_STATUS_CURE_HP_THRESHOLD}), ` +
   "装備=識別方針別の実制限付き更新"
 );
@@ -8473,7 +8593,7 @@ console.log(
   "engage=初期位置へ寄り道して実round/reward経路で各階1戦"
 );
 console.log(
-  "感度指定: FLEE_POLICY=never / FLEE_HP_THRESHOLD, " +
+  "感度指定: FLEE_POLICY=threshold|never|ev / FLEE_HP_THRESHOLD / HEAL_POTION_THRESHOLD, " +
   "STATUS_CURE_POLICY=smart|never / STATUS_CURE_HP_THRESHOLD / " +
   "STATUS_CURE_MERCHANT_POLICY=missing|never, " +
   "PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
