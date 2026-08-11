@@ -33,3 +33,6 @@ test-results/
 scratch/results/*.raw.txt
 scratch/results/*.jsonl
 scratch/results/*.txt
+
+# Codex run logs (JSONL + last message)
+.codex-log/
