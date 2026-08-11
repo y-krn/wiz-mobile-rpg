@@ -6,9 +6,14 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { isMainThread } from "node:worker_threads";
 
+import { resolveMeasurementProvenance } from "./measurement_provenance.js";
 import { resolveSimParallelism, runSimTasks } from "./sim_parallel.js";
 
+const measurementProvenance = isMainThread
+  ? resolveMeasurementProvenance()
+  : null;
 const BASIC_CLASSES = Object.freeze(["Fighter", "Thief", "Priest", "Mage"]);
 const WORKSHOP_DISTRIBUTION = Object.freeze([
   { scenarioId: "workshop-empty", observedRuns: 30 },
@@ -392,8 +397,12 @@ function buildMarkdown(summary) {
   lines.push("- #468 / #473: 宝箱解除・解除方針監査");
   lines.push("- #480: 罠方針比較", "");
   lines.push("## 実行記録", "");
+  lines.push(`- source commit: \`${summary.measurement.sourceCommit}\``);
+  lines.push(`- origin/main ancestor: ${summary.measurement.originMainAncestor ? "yes" : "no"}`);
+  lines.push(`- stale tree override: ${summary.measurement.staleTreeAllowed ? "SIM_ALLOW_STALE_TREE=1" : "none"}`);
   lines.push(`- env hash: \`${summary.envHash}\``);
   lines.push(`- raw JSONL SHA-256: \`${summary.rawSha256}\``);
+  lines.push(`- summary JSON SHA-256: \`${summary.summarySha256}\``);
   lines.push(`- calibration wall/CPU: ${formatNumber(summary.calibration.wallSeconds, 2)}s / ${formatNumber(summary.calibration.cpuSeconds, 2)}s`);
   lines.push(`- measurement wall/CPU: ${formatNumber(summary.runtime.wallSeconds, 2)}s / ${formatNumber(summary.runtime.cpuSeconds, 2)}s`);
   lines.push(`- resolved parallelism: ${summary.runtime.resolvedParallelism}（SIM_PARALLEL未指定、runtime default）`);
@@ -482,6 +491,9 @@ async function main() {
     ...(process.env.SIM_RESULT_BASENAME
       ? [`SIM_RESULT_BASENAME=${process.env.SIM_RESULT_BASENAME}`]
       : []),
+    ...(process.env.SIM_ALLOW_STALE_TREE === "1"
+      ? ["SIM_ALLOW_STALE_TREE=1"]
+      : []),
     ...(ALTERNATE_CHANCE === null ? [] : [
       `ISSUE499_ALTERNATE_CHANCE=${ALTERNATE_CHANCE}`,
       `ISSUE499_ALTERNATE_TARGET=${ALTERNATE_TARGET}`
@@ -490,6 +502,7 @@ async function main() {
   const reproductionCommand = `${fixedArgs} node scratch/sim_issue_499_shallow_recovery_dose_sweep.js`;
   const summary = {
     issue: 499,
+    measurement: measurementProvenance,
     seed: Number(process.env.SIM_SEED) >>> 0,
     runsPerClass: RUNS_PER_CLASS,
     runsPerCondition: RUNS_PER_CLASS * BASIC_CLASSES.length,
@@ -522,10 +535,19 @@ async function main() {
     reproductionCommand,
     downstreamRemeasureTargets: [470, 471, 475, 468, 473, 480]
   };
+  const summaryPath = join(resultDir, `${OUTPUT_STEM}.json`);
+  const summaryJson = `${JSON.stringify(summary, null, 2)}\n`;
+  writeFileSync(summaryPath, summaryJson);
+  summary.summarySha256 = sha256(summaryJson);
   writeFileSync(join(resultDir, `${OUTPUT_STEM}.md`), buildMarkdown(summary));
   console.log(JSON.stringify({
     output: `scratch/results/${OUTPUT_STEM}.md`,
+    summaryOutput: `scratch/results/${OUTPUT_STEM}.json`,
+    sourceCommit: measurementProvenance.sourceCommit,
+    originMainAncestor: measurementProvenance.originMainAncestor,
+    staleTreeAllowed: measurementProvenance.staleTreeAllowed,
     rawSha256,
+    summarySha256: summary.summarySha256,
     envHash,
     requiredDoseTarget: summary.requiredPoint?.doseTarget ?? null,
     requiredActualExtraUnits: summary.requiredPoint?.actualExtraUnits ?? null,
