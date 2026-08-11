@@ -204,48 +204,93 @@ SIM_MAP_CACHE_ENTRIES=<omitted; runtime default 1024>
 `SIM_CORE_SCORE_DROP_TOLERANCE=0` は、Issue #461 が現行の個別スコア選択方針を測る基準線であり、
 装備スコア低下を許容する反実仮想を混ぜないため採用する。#442 採用設定 `0.10` は、
 同一条件比較測定として別記し、基準線へ混在させない。
-この再測定の env hash は `e79d51f4d7ce5e701e0e73db97afc9ee051d609b9a652e278ab84b0518897bda`。
-出力 SHA-256 は raw JSONL `560673693bdff8e87895faf12b88fcfe4e977c99e19c2a5f23d5907d81138cc0`
-、summary JSON `81fa80b96eb8aeac5a28f21815a6bf7ecddab15557d2eeb6b8a9a3965b1cf966`。
-Q4 の点推定は Q3→Q4 で 21.2%→24.1% と上昇したが、同一測定の隣接差95% CIは0を跨ぐ。
-点推定反転を統計的非単調と扱わず、Issue #470で全候補を再判定する。balance 値は変更しない。
+## Issue #485 再基準線（PR #484後）
+
+PR #484 の上薬追加を含む現行 `scratch/sim_depth_material_ev.js` で再測定した。
+HPが35%以下なら `GREATER_HEAL` を優先して能動使用し、`hasRecoveryPotion` でも上薬を
+回復・ポータル判定の保有品として数える。上薬を省略した旧基準線とは混ぜない。
+
+- env hash は旧基準線と同じ `e79d51f4d7ce5e701e0e73db97afc9ee051d609b9a652e278ab84b0518897bda`。
+- raw JSONL SHA-256: `ead737b0eb771da6a28d50fcac61572a7a34413c1925fcc13d33636978bd0391`。
+- summary JSON SHA-256: `202aae1dac74e448f42d1d181fbd3ed18c679df7e32f85f1d8ed2cef5fb6b598`。
+- #484以前の履歴SHAは raw JSONL `560673693bdff8e87895faf12b88fcfe4e977c99e19c2a5f23d5907d81138cc0`、
+  summary JSON `81fa80b96eb8aeac5a28f21815a6bf7ecddab15557d2eeb6b8a9a3965b1cf966`。
+- 全run平均到達floor: **3.59 [3.56, 3.63]**（旧 3.66 [3.62, 3.69]）。
+- B5 entrant: **23.5% [22.8%, 24.3%]**（旧 23.4% [22.6%, 24.1%]）。
+- core装備率: **66.9% [66.1%, 67.8%]**（旧 69.0% [68.2%, 69.8%]）。
+- A1: Q1=34.9%、Q2=29.9%、Q3=23.4%、Q4=24.5%。Q4−Q1 は
+  **−10.4pt [−15.0, −5.9]**で、CI上限<0・単調減少・職内centeredをすべて維持した。
+
+B5 entrant内 endpoint は breakthrough / death / retreat の順で、各行の合計は100%。
+旧→新の比較は、旧結果を履歴として参照し、現行値は上薬能動使用後の新測定を採用する。
+
+| 職 | B5 entrant率 旧→新 | breakthrough 旧→新 | death 旧→新 | retreat 旧→新 | 平均floor 旧→新 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Fighter | 7.3%→9.2% | 1.8%→8.7% | 8.6%→6.5% | 89.5%→84.8% | 3.15→3.08 |
+| Thief | 38.3%→41.3% | 15.9%→19.3% | 21.4%→24.3% | 62.7%→56.5% | 3.92→4.08 |
+| Priest | 42.8%→36.9% | 64.3%→59.1% | 34.9%→40.3% | 0.8%→0.6% | 4.45→4.25 |
+| Mage | 5.1%→6.6% | 0.6%→3.6% | 12.3%→15.7% | 87.0%→80.7% | 3.10→2.97 |
+
+旧基準線のSHAと「Q3→Q4 21.2%→24.1%」という記録は #484以前の履歴として保持する。
+新測定ではQ3→Q4は23.4%→24.5%で、差は0を跨ぐ。N<30のB10職別endpointは未確定とする。
+
+### #475 A3の再確認
+
+同じ新基準線のB5 entrant N=2,822で、core個数（0 / 1 / 2 / 3+）は
+109 / 698 / 1,209 / 806。職内centered ordinal slope は breakthrough
+**+2.9pt [+1.0, +4.8]**、death **−2.2pt [−4.1, −0.2]**、平均floor
+**+0.230 [+0.131, +0.328]**で、3 endpointともCIが0を跨がない。
+#475/#271のA3は維持し、判定材料を再オープンしない。値はbalance調整ではなく測定結果。
+
+旧 #461 基準線のenv hashは同じだが、PR #484後の新測定を #471 の現行監視値と依存canonの基準にする。
 
 ## Issue #470 固定結論（完成ビルド定義）
 
 Issue #470 の採用定義は、現行 `combatBuildScore`（equipment + first combat core）の職内
-quartile Q4。同一の Issue #461 固定条件・同一 raw run（B5 entrant N=2799）を使い、
+quartile Q4。#485でPR #484後の同一 #461 固定条件を再評価し、B5 entrant N=2,821を得た
+（#484以前の観測はN=2,799）。
 結果を見る前に固定した隣接差CI＋職層調整 Cochran–Armitage trend testで全7候補を再判定した。
 現行 total は A1 の3条件を満たすため、深層生存 B5 `deathFloor === 5` を完成度の主 endpointとして採用する。
 
 - 単調性判定: Δ=Q次−Q前の正規近似95% CIを全隣接ペアで出力。CI下限>0だけを統計的反転とし、
   Δ>0でもCIが0を跨ぐ点推定反転は失格にしない。全体傾向は職を層とする Cochran–Armitage
   trend test（Q1〜Q4 score=0〜3）の減少方向 p<.05、かつ統計的反転なしを成立とする。
-- 現行 total は Q1→Q4 B5死亡率 32.95%→26.47%→21.57%→24.03%。Q3→Q4 は
-  +2.46pt [-1.94, +6.86]で0を跨ぎ、点推定反転だが統計的非単調ではない。trend z=-4.357、
-  減少方向 p<0.0001。Q4−Q1 職内 centered 差は -8.9pt [-13.5, -4.3]。
+- #485再評価の現行 total は Q1→Q4 B5死亡率 **35.4%→28.7%→24.7%→24.0%**。
+  Q3→Q4 は **−0.7pt [−5.2, +3.8]**で0を跨ぎ、統計的非単調ではない。trend z=-5.208、
+  減少方向 p<0.0001。Q4−Q1 職内 centered 差は **−11.4pt [−16.0, −6.9]**。
 - equipment-only と equipment + 全 combat core も A1成立。ただし採用優先順位は既存の現行 totalを先とし、
   all-core total は測定専用の有力な代替。first-core-only / all-core-only は減少 trend 不成立。
-- Q3→Q4切り分けの equipment-only +2.2pt [-2.2, +6.6]、first core-only -0.2pt [-4.8, +4.3]、
-  all-core-only -0.8pt [-5.4, +3.8]はいずれもCIが0を跨ぐ。反転の実在も主因もこのNでは確定せず、
+- #485再評価のQ3→Q4切り分けは equipment-only +0.1pt [-4.6, +4.3]、
+  first core-only -0.1pt [-4.9, +4.6]、all-core-only -0.6pt [-5.3, +4.1]で、いずれもCIが0を跨ぐ。
+  反転の実在も主因もこのNでは確定せず、
   「反転の主因はequipment側」とは書かない。
 
 - B5 snapshot は `floor=5` / `point=floor-start`。`reachedFloor` は run 終了後の値であり、
   B5 entry スコアの深度正規化へ使わない。B5 entrant 内の score と終了到達floorの相関は、
   到達選別後の関連であって因果効果ではない。
-- 現行 total の寄与は equipmentStatScore が支配的。Q1/Q4で first combatCoreScore の
-  total寄与比は3.8%/5.3%、全 combat core 合計でも4.5%/7.1%。equipment-only の Q3→Q4も
-  +2.2pt [−2.2, 6.6] と点推定では Q3→Q4 が戻るがCIが0を跨ぎ、all-core total化後も
+- 現行 total の寄与は equipmentStatScore が支配的。#485再評価のQ1/Q4で first combatCoreScore の
+  total寄与比は4.0%/5.9%、全 combat core 合計でも5.0%/7.8%。equipment-only の Q3→Q4は
+  −0.1pt [−4.6, 4.3]で、all-core total化後も
   Q3→Q4 は点推定では戻る（統計的反転とは扱わない）。
-- B5 entrant の複数 combat core は24.9% [23.3, 26.5]。first coreのみの score は
-  16.8% [15.5, 18.3]で全core合計を過小評価し、複数core runの first→all 差は
-  3.28 [2.95, 3.61]。ただし all-core-only は A1のQ4−Q1 CI上限<0を満たさず、
+- #485再評価のB5 entrantの複数 combat core は25.2% [23.6, 26.8]。first coreのみの score は
+  16.9% [15.6, 18.3]で全core合計を過小評価し、first→all 差は全体0.94 [0.83, 1.05]、
+  複数core限定3.73 [3.35, 4.10]。ただし all-core-only は A1のQ4−Q1 CI上限<0を満たさず、
   core 1個制限の修正だけで判定力は生じない。
 - 正式候補7個、A1主条件21個、単調性補助チェック28個、報告総数49個。α=.05の機械的な
   期待偽陽性2.45件、Bonferroni family-wise α=.00102。候補追加・結果後の採用変更なし。
 - 絶対閾値は score の外部校正値がなく、結果後の threshold 選択が数字合わせになるため正式候補にしない。
-- 採用定義により #271 の A1（Q4−Q1、統計的単調性、Q4安全性gate）/ A2（class-centered score×depth）/
+- #485再評価でも採用定義は変わらず、#271 の A1（Q4−Q1、統計的単調性、Q4安全性gate）/ A2（class-centered score×depth）/
   A3（core / 対応support feature）、完成ビルド率、quality quartile入力のdepth-quality表・要約・派生判断を
-  同じ #461 固定条件で取り直す。#470のB5 raw再測定は不要。balance 値・srcのゲーム挙動は変更しない。
+  同じ #461 固定条件で取り直す。観測分析のrawは #485で更新した。balance 値・srcのゲーム挙動は変更しない。
+
+### #485再評価の実行記録
+
+- env hash: `e79d51f4d7ce5e701e0e73db97afc9ee051d609b9a652e278ab84b0518897bda`。
+- source commit: `21322272216f5ad0e25ed85b3e55517e52e8ed0b`。
+- raw JSONL SHA-256: `ee10e70724f3d47a57105613b0d7bc533872f0fecd24dba69c23a165e8a003a0`。
+- summary JSON SHA-256: `1eb4b34f5916d207d146ffd7698f5aa195f17b7ae64ddbb7db665bc4ad60504f`。
+- 結論は current total Q4 の採用を維持。候補通過は current-total / equipment-only /
+  all-combat-total、A1のQ4安全性・統計的単調減少・職内centeredを維持した。
 
 ## Issue #271 固定受入基準（2026-08-10 オーナー決定）
 
@@ -326,13 +371,16 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 
 ## Issue #471 固定結論（core装備率の扱い）
 
-この節が core 装備率の現行 canon。測定値は既存の #461 / PR #469 基準線から引用し、#471 で目標帯と判定用途を固定する。追加測定はしない。
+この節が core 装備率の現行 canon。#471で目標帯と判定用途を固定し、#485でPR #484後の
+#461基準線を再測定した。新測定値を現行監視値とし、旧69.0%は履歴として残す。
 
 ### 決定と監視値
 
 - 35〜40%の core 装備率目標帯を撤廃する。core 装備率は監視値であり、合否判定に使わない。
 - 測定点は **終了時・全run・実プレイ工房分布** に固定する。#461 固定条件と同じ env で、env hash は `e79d51f4d7ce5e701e0e73db97afc9ee051d609b9a652e278ab84b0518897bda`。
-- 現行値は **69.0% [68.2%, 69.8%; N=12,000]**。職業別は戦士 66.4% / 盗賊 76.7% / 僧侶 64.3% / 魔術師 68.7%（各 N=3,000）。
+- 現行値は #485 再基準線の **66.9% [66.1%, 67.8%; N=12,000]**。職業別は戦士
+  **64.6%** / 盗賊 **77.9%** / 僧侶 **60.1%** / 魔術師 **65.1%**（各 N=3,000）。
+  #484以前の監視値は69.0% [68.2%, 69.8%]（戦士66.4% / 盗賊76.7% / 僧侶64.3% / 魔術師68.7%）。
 - 判定は #476 の A3（core個数軸）のみ。core 装備率で供給や完成を合否判定しない。
 
 ### 目標帯を撤廃する根拠
@@ -343,7 +391,8 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 | 測定 | 測定点 | 条件 | 値 |
 | --- | --- | --- | ---: |
 | #442 | B20 終了時 | `core-pools`、出発クラフト・治療なし（縛りプレイ条件） | 37.2% |
-| #469 | 終了時 | 全run、6工房分布加重、実プレイ条件 | **69.0%** |
+| #469（#484以前） | 終了時 | 全run、6工房分布加重、実プレイ条件 | 69.0% |
+| #485 | 終了時 | 全run、6工房分布加重、上薬能動使用 | **66.9%** |
 | #476 | B5 entry 時点 | `complete`、B5 entrant | 82.1% |
 
 3. **完成判定は別に確定済み。** #470 は職内 `combatBuildScore` quartile の Q4 を完成ビルドとし、「core 1個以上 + スロット充足」を二重定義として却下した。core 装備率は完成判定ではなく、供給が届いているかの監視値。
@@ -364,6 +413,31 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 - grep で見つかった他の `37.2%` は別指標の過去測定値であり、core 装備率目標の参照ではない。
 
 ## 宝箱解除率と解除判断経路の扱い（#341 / #473）
+
+### #485 固定kit再監査（#468 / #473）
+
+- 低N監査は `SIM_AUDIT_RUNS=500`、seed=271、4セル、95% CI。符号差セルを確認した結果、
+  #468のpaired floor/death/breakthrough差は本Nでは低Nの一時的な符号差を維持しないセルもあり、
+  受入判定を更新しない。N<30セルは未確定のまま扱う。
+- #473のPriest解除率は本測定で反転を再確認した。#468 ceiling−current の固定kit本測定
+  （N=50,100/cell、smart/never × core-pools/complete）は次の通り。値は Priest の
+  `chestDisarmSuccesses / chestDisarmAttempts`、CIはWilson 95%。
+
+| cell | ceiling−current floor | ceiling−current B5 death | ceiling−current B5 breakthrough | Priest current→ceiling |
+| --- | ---: | ---: | ---: | ---: |
+| smart / core-pools | +2.21pt [+1.26,+3.16] | +0.28pt [−0.46,+1.03] | +0.85pt [+0.16,+1.53] | 29.6%→37.7%（+8.1pt） |
+| never / core-pools | +1.86pt [+0.91,+2.81] | +0.96pt [+0.21,+1.71] | +0.11pt [−0.60,+0.81] | 29.5%→37.8%（+8.4pt） |
+| smart / complete | +1.79pt [+0.78,+2.81] | +1.17pt [+0.47,+1.88] | +0.26pt [−0.40,+0.93] | 29.5%→38.2%（+8.7pt） |
+| never / complete | +2.38pt [+1.37,+3.40] | +0.31pt [−0.39,+1.01] | +0.90pt [+0.24,+1.55] | 29.6%→38.4%（+8.9pt） |
+
+- #473の旧主系列→ceiling差（−6.19 / −6.79 / −8.47 / −6.53pt）に対し、#485は4セルすべて
+  +8.1〜+8.9ptへ反転した。分母・経路が変わる実挙動として記録し、balance値や#468のA1/A2判定は変更しない。
+- 低N監査の raw / summary SHA-256 は `d2cfffb43ab5f5f118c90cd066e6bf5341005e779e1c878f06ae35a21a44621d` /
+  `69ba8c6bcc760792c6e2f69c2eb08ebca1759901f844ab62f44c08697b43813b`。本測定は
+  `e72a6b355ffb22f48104a22875eb77d53f177748906055bfec1da1628b5fbc0d` /
+  `bc1505d0936d8261e278d9ee93d6ae0f04351e0fb3c9ced7beebab6c5d82ea56`。
+- 本測定のpaired対応は生成run単位で、介入後の戦闘・探索軌跡を同一とは解釈しない。N<30セルは
+  未確定とし、符号だけで受入基準やbalance方針を反転させない。
 
 - 宝箱解除率は `chestDisarmSuccesses / chestDisarmAttempts` で記録する。ただし、対策 affix の評価にこの率を単独で使わない。必ず `kit` / `direct` / `forced` の経路内訳と `chestDisarmAttempts`（試行数）を併記する。
 - 解除率は経路構成の変化で低下し得る。`kit`（確定成功）の比率が下がり、`direct`（確率成功）が増えると、対策を強化した場合でも率が下がることがある。分母も動く（#473 の Priest core-pools smart では attempts `6079→7044`）。率が低下した場合、まず経路内訳と試行数を確認する。
@@ -386,6 +460,15 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
   取り直し対象は、`TRAP_POLICY=conservative`を明示指定して宝箱EVを選ぶ測定だけ。宝箱を
   `legacy`へ固定した#341の床罠のみの監査は対象外。素材EV、bank素材EV、工房投資額、#461再測定は
   未実施であり、実施済みとは扱わない。
+- #485でPR #484後の固定kitを使い、宝箱を`legacy`に固定して床罠だけを切り替える方向監査を
+  再測定した（seed=480、`workshop-complete`、N=1,000/方針、95% normal mean CI）。
+  legacy→conservative は、平均到達floor **3.869 [3.719, 4.019]→3.871 [3.730, 4.012]**、
+  素材/run **66.064 [62.387, 69.741]→66.242 [62.752, 69.732]**、床罠被害HP/run
+  **21.208 [19.696, 22.720]→21.376 [19.790, 22.962]**。差は順に +0.002 / +0.178 /
+  +0.168で、いずれもCI重複。旧監査の点差（−0.003 / −1.184 / −0.065）から符号は変わったが、
+  N=1,000の方向監査であり、#341の既定を再判定しない。
+- #485床罠監査のsummary JSON SHA-256は legacy `eb48ecddc2633a345bc28f5f58b3cd699bd63553433e8f0d33c49f210aa66b15`、
+  conservative `c951322da0b3ec0fdf17197a4fdbfb0aee063ef9f6f238e507b1d864dc09eef2`。
 - 方針変更のPRでは、新方針の値だけで判断せず、endpointのbefore/afterを全指標（到達floor、
   素材、罠被害など）について95% CI付きで出す。N<30のセルは未確定として結論に使わない。
 - 宝箱の保守EVは `src/rules/trap_effect_rules.js` の `calculateChestTrapExpectedRisk` と、
