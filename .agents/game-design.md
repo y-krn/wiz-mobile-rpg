@@ -25,6 +25,20 @@ Every economic knob must serve "descend again, deeper." Any loop that pays
 better than descending (farming a shallow biome forever, merchant arbitrage)
 is a bug in the economy.
 
+## Status Effects And Counterplay
+
+- Blind remains a combat disruption: the affected character can act, but may
+  miss attacks and takes the existing incoming-damage penalty.
+- Blind clears when combat ends through victory or retreat while the character
+  survives. Death does not create a recovery event. The source of truth is the
+  combat-round resolution in `src/combat_logic/round.js`.
+- `EYE_DROPS` remains a cheap explicit countermeasure (`霊粉`1), but it is not
+  required in the canonical departure kit. Departure craft choices trade it
+  against recovery and utility items.
+- Blind's chest-disarm penalty remains separate from combat duration. Evaluate
+  chest disarm through attempts and route breakdown, not as a standalone
+  balance target.
+
 ## Currency: Materials Only
 
 Gold is removed. Materials are the single currency, used both by the

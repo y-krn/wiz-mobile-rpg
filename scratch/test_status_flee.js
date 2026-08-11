@@ -100,6 +100,39 @@ test("paralysis costs exactly one action opportunity without defeat countdown", 
   assert.equal(result.state.combatState.allParalyzedTurns, 0);
 });
 
+test("blind clears when a surviving party ends combat", () => {
+  const state = createState({
+    status: "blind",
+    monsterOverrides: { hp: 1, maxHp: 1 }
+  });
+  const originalRandom = Math.random;
+  Math.random = () => 0.9;
+  try {
+    const result = runCombatRoundCalculation(state, {
+      actions: [{ type: "fight", actorIdx: 0, targetIdx: 0 }]
+    });
+    assert.equal(result.state.party[0].status, "ok");
+    assert.ok(result.logQueue.some(log => log.msg?.includes("盲目が戦闘終了で解けた")));
+  } finally {
+    Math.random = originalRandom;
+  }
+});
+
+test("blind clears when combat ends by fleeing", () => {
+  const state = createState({ status: "blind" });
+  const originalRandom = Math.random;
+  Math.random = () => 0;
+  try {
+    const result = runCombatRoundCalculation(state, {
+      actions: [{ type: "run", actorIdx: 0 }]
+    });
+    assert.equal(result.state.party[0].status, "ok");
+    assert.ok(result.logQueue.some(log => log.msg?.includes("盲目が戦闘終了で解けた")));
+  } finally {
+    Math.random = originalRandom;
+  }
+});
+
 test("flee always succeeds against a boss, takes one parting hit, and retreats", () => {
   const state = createState({ isBoss: true, retreatPosition: { x: 4, y: 5 } });
   const originalRandom = Math.random;
