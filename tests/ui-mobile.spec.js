@@ -366,9 +366,20 @@ for (const vp of VIEWPORTS) {
         expect(button.rect.bottom, `Chest opener button "${button.text}" should stay within controls on ${vp.name}`).toBeLessThanOrEqual(openerLayout.controls.bottom);
       }
 
+      const gedHpBeforeTrap = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return state.party[0].hp;
+      });
       await page.getByRole('button', { name: /Ged .*開ける/ }).click();
       await expect(page.locator('#log-panel')).toBeVisible();
-      await expect(page.locator('#log-content')).toContainText('Gedは12のダメージを受けた');
+      await expect(page.locator('#log-content')).toContainText('宝箱を開けた瞬間、罠 [毒針] が作動した！');
+      await expect(page.locator('#log-content')).toContainText(/Gedは\d+のダメージを受けた/);
+      const gedHpAfterTrap = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return state.party[0].hp;
+      });
+      expect(gedHpAfterTrap).toBeLessThan(gedHpBeforeTrap);
+      expect(gedHpAfterTrap).toBeGreaterThanOrEqual(0);
       await expect(page.locator('#log-content')).toContainText('宝箱から素材束');
       await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
     });
