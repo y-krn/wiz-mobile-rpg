@@ -42,7 +42,8 @@ const DEFAULT_RUNS_PER_CLASS = 3000;
 const DEFAULT_CALIBRATION_RUNS = 1000;
 const R95 = 1.959963984540054;
 const SMOKE = process.env.ISSUE461_SMOKE === "1";
-const OUTPUT_STEM = SMOKE ? "issue-461-baseline-smoke" : "issue-461-baseline";
+const OUTPUT_STEM = process.env.SIM_RESULT_BASENAME ||
+  (SMOKE ? "issue-461-baseline-smoke" : "issue-461-baseline");
 
 // Fixed measurement env. SIM_PARALLEL and SIM_MAP_CACHE_ENTRIES intentionally
 // remain absent; their defaults are part of the measurement contract.
@@ -780,7 +781,7 @@ function renderMarkdown(summary, rawSha256, summarySha256) {
   const omitted = [
     "任意の節目商人での鑑定粉購入（未観測・自動購入なし）",
     "人間の敵別判断、任意寄り道、テレポーター移動先の再経路化",
-    "上薬・MP・強化アイテムの能動使用",
+    "MP・強化アイテムの能動使用",
     "上級職4種"
   ];
   return `# Issue #461 基本4職 基準線
@@ -828,7 +829,7 @@ ${distributionLines}
 - trap: encounter=${mechanisms.trapEncounters}, activation=${mechanisms.trapActivations}, disarm=${mechanisms.trapDisarms}, damageHP=${mechanisms.trapDamageHp.toFixed(1)}。
 - TOWN_PORTAL: use=${mechanisms.townPortalsUsed}。status cure: ${JSON.stringify(mechanisms.statusCureItemsUsed)}, cured=${mechanisms.statusesCured}。
 - identification: count=${mechanisms.identificationCount}, powderUsed=${mechanisms.identificationPowderUsed}。
-- モデル: \`generateRunFloor\`、罠の発見/解除/被弾、\`TOWN_PORTAL\`、状態異常治療消耗品、鑑定粉、現行戦闘/報酬/装備更新、現行 departure kit。
+- モデル: \`generateRunFloor\`、罠の発見/解除/被弾、\`TOWN_PORTAL\`、状態異常治療消耗品、鑑定粉、上薬（\`GREATER_HEAL\`）能動使用、現行戦闘/報酬/装備更新、現行 departure kit。
 - 省略: ${omitted.join(" / ")}。
 ${mechanisms.warnings.length ? `- 警告: 発火0の機構=${mechanisms.warnings.join(",")}。\n` : ""}
 
