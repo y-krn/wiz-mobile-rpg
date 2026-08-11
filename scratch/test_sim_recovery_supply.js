@@ -53,6 +53,7 @@ const smokeResult = simulateRun({
   scoringProfile: smokeProfile,
   scenario: {
     ...smokeScenario,
+    chestHealPotionExtraChance: 0.5,
     chestHealPotionReplacementChance: 0.5,
     enemyHealPotionDropChance: 0.5,
     extraCampFloors: [1],
@@ -67,9 +68,10 @@ check(
   "materials must remain outside the inventory rejection path"
 );
 check(
-  smokeResult.chestHealPotionReplacementGenerated > 0 &&
+  smokeResult.chestHealPotionExtraGenerated > 0 &&
+    smokeResult.chestHealPotionReplacementGenerated > 0 &&
     smokeResult.enemyHealPotionExtraGenerated > 0,
-  "candidate A/B generation hooks should execute"
+  "chest extra/replacement and enemy generation hooks should execute"
 );
 check(
   smokeResult.extraCampRestCount > 0 && smokeResult.extraCampTimeCost === 3,

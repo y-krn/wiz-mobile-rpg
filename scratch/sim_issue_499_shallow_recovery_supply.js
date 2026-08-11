@@ -530,7 +530,7 @@ function summarizeAccumulator(accumulator) {
   };
 }
 
-function conditionSummary(rows) {
+export function conditionSummary(rows) {
   const accumulator = createAccumulator();
   const byClass = Object.fromEntries(BASIC_CLASSES.map(className => [className, createAccumulator()]));
   rows.forEach(row => {
@@ -673,7 +673,7 @@ function formatEndpoint(endpointSummary) {
   ].join(" / ");
 }
 
-function acceptanceFor(conditionSummaryValue, baselineSummary) {
+export function acceptanceFor(conditionSummaryValue, baselineSummary) {
   const b5Death = conditionSummaryValue.outcomes.B5.death;
   const b10Death = conditionSummaryValue.outcomes.B10.death;
   const ev = conditionSummaryValue.materialEvPerTime.mean;
