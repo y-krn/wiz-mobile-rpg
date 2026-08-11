@@ -820,7 +820,7 @@ export function processExplorationResolution(prevX, prevY) {
       triggerPitfall(steppedTrap, false);
       return;
     }
-    triggerTrap(steppedTrap, false);
+    if (triggerTrap(steppedTrap, false)) return;
   }
   detectAdjacentTraps();
 
