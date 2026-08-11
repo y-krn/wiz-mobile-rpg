@@ -29,18 +29,37 @@ for (const vp of VIEWPORTS) {
           identified: true, halfIdentified: false, tags: ['ward'], hintTags: ['ward'],
           curseEffectId: null, cursePower: 1, curseSuspected: false,
           affixes: [{ id: 'hp', type: 'hp', kind: 'support', value: 4 }]
+        }, {
+          kind: 'equipment', instanceId: 'ui_magic', baseId: 'RING_STR', rarity: 'magic', level: 2,
+          identified: true, halfIdentified: false, tags: ['iron'], hintTags: ['iron'],
+          curseEffectId: null, cursePower: 1, curseSuspected: false,
+          affixes: [{ id: 'str', type: 'str', kind: 'support', value: 2 }]
+        }, {
+          kind: 'equipment', instanceId: 'ui_epic', baseId: 'SHORT_SWORD', rarity: 'epic', level: 6,
+          identified: true, halfIdentified: false, tags: ['blade'], hintTags: ['blade'],
+          curseEffectId: null, cursePower: 1, curseSuspected: false,
+          affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 8 }]
         }
       ];
       openEquipOverlay(0);
     });
 
-    await page.locator('.equip-item-row', { hasText: 'ショートソード（未鑑定）' }).click();
+    const unidentifiedSword = page.locator('.equip-item-row', { hasText: 'ショートソード（未鑑定）' });
+    await expect(unidentifiedSword).not.toHaveClass(/rarity-/);
+    await expect(unidentifiedSword.locator('.equip-rarity-badge')).toHaveCount(0);
+    await unidentifiedSword.click();
     await expect(page.locator('.equip-detail-content')).toContainText('比較不能');
     const identifyButton = page.getByRole('button', { name: /鑑定する/ });
     await expect(identifyButton).toBeVisible();
     expect((await identifyButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await identifyButton.click();
     await expect(page.locator('.equip-detail-content')).not.toContainText('比較不能');
+    const identifiedSword = page.locator('.equip-item-row.rarity-rare', { hasText: 'ショートソード' }).first();
+    await expect(identifiedSword).toHaveClass(/rarity-rare/);
+    await expect(identifiedSword.locator('.equip-rarity-badge')).toHaveText('RARE');
+    await expect(page.locator('.equip-item-row.rarity-magic .equip-rarity-badge')).toHaveText('MAGIC');
+    await expect(page.locator('.equip-item-row.rarity-epic .equip-rarity-badge')).toHaveText('EPIC');
+    await expect(page.locator('.equip-detail-rarity')).toHaveText('RARE');
 
     await page.locator('.equip-item-row', { hasText: '生命の護符' }).click();
     await expect(page.locator('.equip-slot-choice')).toHaveCount(2);

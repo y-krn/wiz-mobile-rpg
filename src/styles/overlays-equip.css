@@ -231,6 +231,33 @@
   transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.equip-item-row.rarity-common,
+.equip-item-row.rarity-magic,
+.equip-item-row.rarity-rare,
+.equip-item-row.rarity-epic {
+  border-left-width: 3px;
+}
+
+.equip-item-row.rarity-common {
+  border-left-color: var(--text-muted);
+}
+
+.equip-item-row.rarity-magic {
+  background-color: rgba(155, 215, 210, 0.06);
+  border-left-color: var(--neon-cyan);
+}
+
+.equip-item-row.rarity-rare {
+  background-color: rgba(226, 179, 111, 0.07);
+  border-left-color: var(--neon-amber);
+}
+
+.equip-item-row.rarity-epic {
+  background-color: rgba(188, 167, 220, 0.09);
+  border-left-color: var(--neon-purple);
+  box-shadow: 0 0 5px rgba(188, 167, 220, 0.35);
+}
+
 .equip-item-row-main {
   display: flex;
   flex-direction: column;
@@ -260,6 +287,47 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.equip-item-row-badges {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--sp-xs);
+  margin-left: 8px;
+}
+
+.equip-rarity-badge {
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: bold;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+
+.equip-rarity-badge.common {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+}
+
+.equip-rarity-badge.magic {
+  background-color: rgba(155, 215, 210, 0.12);
+  color: var(--neon-cyan);
+}
+
+.equip-rarity-badge.rare {
+  background-color: rgba(226, 179, 111, 0.14);
+  color: var(--neon-amber);
+}
+
+.equip-rarity-badge.epic {
+  background-color: rgba(188, 167, 220, 0.16);
+  color: var(--neon-purple);
 }
 
 /* Badge rules for list checking */
@@ -371,6 +439,36 @@
   display: grid;
   gap: 8px;
   grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.equip-detail-title-block {
+  min-width: 0;
+}
+
+.equip-detail-title-line {
+  align-items: center;
+  display: flex;
+  gap: var(--sp-sm);
+  min-width: 0;
+}
+
+.equip-detail-title-line .equip-detail-name {
+  min-width: 0;
+}
+
+.equip-detail-heading.rarity-magic {
+  border-left: 3px solid var(--neon-cyan);
+  padding-left: 6px;
+}
+
+.equip-detail-heading.rarity-rare {
+  border-left: 3px solid var(--neon-amber);
+  padding-left: 6px;
+}
+
+.equip-detail-heading.rarity-epic {
+  border-left: 3px solid var(--neon-purple);
+  padding-left: 6px;
 }
 
 .equip-target-summary {
