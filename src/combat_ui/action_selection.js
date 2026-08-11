@@ -2,6 +2,7 @@ import { state, addLog, saveAutosave } from "../state.js";
 import { SPELLS, ITEMS, getSpellPayment } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
+import { chooseAutoCombatAction } from "../combat_logic/auto_action.js";
 import { combatSelection } from "./combat_state.js";
 import { resolveCombatRound } from "./round_runner.js";
 import { openCombatTargetMenu } from "./target_menu.js";
@@ -36,10 +37,20 @@ export function advanceActionSelection() {
   if (state.combatState && state.combatState.isAuto) {
     while (combatSelection.charIdx < livingIdxs.length) {
       const charOriginalIdx = livingIdxs[combatSelection.charIdx];
+      const character = state.party[charOriginalIdx];
+      const autoAction = chooseAutoCombatAction({
+        character,
+        monsters: state.combatState.monsters,
+        roundNumber: state.combatState.roundNumber,
+        canCastSpell: (spellName, reserveMp) => {
+          const payment = getSpellPayment(character, SPELLS[spellName].cost);
+          return payment.canCast &&
+            (payment.resource !== "mp" || character.mp - reserveMp >= payment.cost);
+        }
+      });
       combatSelection.actions.push({
-        type: "fight",
-        actorIdx: charOriginalIdx,
-        targetIdx: 0 // Will auto-redirect to a living monster if target 0 is dead
+        ...(autoAction || { type: "fight", targetIdx: 0 }),
+        actorIdx: charOriginalIdx
       });
       combatSelection.charIdx++;
     }
