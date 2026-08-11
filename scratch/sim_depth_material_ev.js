@@ -756,8 +756,47 @@ const DEFAULT_STATUS_CURE_POLICY = SIM_ENV.STATUS_CURE_POLICY === "never"
   : "smart";
 const DEFAULT_STATUS_CURE_MERCHANT_POLICY =
   SIM_ENV.STATUS_CURE_MERCHANT_POLICY === "never" ? "never" : "missing";
-const DEFAULT_HEAL_POTION_MERCHANT_POLICY =
-  SIM_ENV.HEAL_POTION_MERCHANT_POLICY === "never" ? "never" : "missing";
+
+export function parseHealPotionMerchantPolicy(value) {
+  const policy = String(value || "missing").trim();
+  if (policy === "never") {
+    return { id: "never", maxPurchases: 0 };
+  }
+  if (policy === "missing") {
+    return { id: "missing", maxPurchases: 1 };
+  }
+  const match = /^up-to-(\d+)$/.exec(policy);
+  const maxPurchases = match ? Number(match[1]) : NaN;
+  if (!Number.isInteger(maxPurchases) || maxPurchases < 0 || maxPurchases > 20) {
+    throw new Error(
+      `HEAL_POTION_MERCHANT_POLICY must be never|missing|up-to-0..20: ${policy}`
+    );
+  }
+  return { id: policy, maxPurchases };
+}
+
+const DEFAULT_HEAL_POTION_MERCHANT_POLICY = String(
+  SIM_ENV.HEAL_POTION_MERCHANT_POLICY || "missing"
+).trim();
+parseHealPotionMerchantPolicy(DEFAULT_HEAL_POTION_MERCHANT_POLICY);
+
+function parseOptionalMerchantInventoryLimit(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const limit = Number(value);
+  if (!Number.isInteger(limit) || limit < 0 || limit > 20) {
+    throw new Error(`healPotionMerchantHoldLimit must be an integer 0..20: ${value}`);
+  }
+  return limit;
+}
+
+function parseOptionalChance(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const chance = Number(value);
+  if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
+    throw new Error(`chestHealPotionExtraChance must be a number in [0,1]: ${value}`);
+  }
+  return chance;
+}
 const DEFAULT_ELITE_POLICY = SIM_ENV.ELITE_POLICY === "engage" ? "engage" : "avoid";
 const LEGACY_FLOOR_DISARM_MIN_RATE = 50;
 const LEGACY_CHEST_DISARM_MIN_CHANCE = 0.50;
@@ -1912,6 +1951,15 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   if (!Number.isFinite(healPotionThreshold) || healPotionThreshold < 0 || healPotionThreshold > 1) {
     throw new Error(`healPotionThreshold must be a number in [0,1]: ${scenario.healPotionThreshold}`);
   }
+  const healPotionMerchantPolicy = parseHealPotionMerchantPolicy(
+    scenario.healPotionMerchantPolicy || DEFAULT_HEAL_POTION_MERCHANT_POLICY
+  );
+  const healPotionMerchantHoldLimit = parseOptionalMerchantInventoryLimit(
+    scenario.healPotionMerchantHoldLimit
+  );
+  const chestHealPotionExtraChance = parseOptionalChance(
+    scenario.chestHealPotionExtraChance
+  );
   const workshopEffects = {
     stats: { ...workshopGrants.stats },
     startingGearCandidates: [
@@ -1979,6 +2027,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
         ? "actual-meta-bank"
         : "synthetic-validation-bank"
     },
+    simHealPotionMerchantPurchases: 0,
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
     simPolicy: {
@@ -1995,8 +2044,10 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
         : DEFAULT_STATUS_CURE_HP_THRESHOLD,
       statusCureMerchantPolicy:
         scenario.statusCureMerchantPolicy || DEFAULT_STATUS_CURE_MERCHANT_POLICY,
-      healPotionMerchantPolicy:
-        scenario.healPotionMerchantPolicy || DEFAULT_HEAL_POTION_MERCHANT_POLICY,
+      healPotionMerchantPolicy: healPotionMerchantPolicy.id,
+      healPotionMerchantMaxPurchases: healPotionMerchantPolicy.maxPurchases,
+      healPotionMerchantHoldLimit,
+      chestHealPotionExtraChance,
       trapPolicy: trapPolicies.floor,
       chestTrapPolicy: trapPolicies.chest,
       trapAvoidancePolicy:
@@ -3721,19 +3772,54 @@ function maybePurchaseMerchantStatusCures(state, metrics) {
 function maybePurchaseMerchantHealPotion(state, metrics) {
   if (
     state.simPolicy.healPotionMerchantPolicy === "never" ||
-    !isMilestoneFloor(state.floor) ||
+    !isMilestoneFloor(state.floor)
+  ) return;
+  if (
+    state.simPolicy.healPotionMerchantPolicy === "missing" &&
     hasRecoveryPotion(state)
   ) return;
-  metrics.healPotionMerchantAttempts++;
+
+  const remainingPurchases = state.simPolicy.healPotionMerchantPolicy === "missing"
+    ? 1
+    : state.simPolicy.healPotionMerchantMaxPurchases -
+      state.simHealPotionMerchantPurchases;
+  for (let purchase = 0; purchase < remainingPurchases; purchase++) {
+    if (
+      state.simPolicy.healPotionMerchantHoldLimit !== null &&
+      state.inventory.filter(item => item === "HEAL_POTION").length >=
+        state.simPolicy.healPotionMerchantHoldLimit
+    ) {
+      metrics.healPotionMerchantHoldLimitHits++;
+      break;
+    }
+    metrics.healPotionMerchantAttempts++;
+    const materialsBefore = { ...state.currentRun.materials };
+    const result = purchaseMilestoneStock(state, "heal_potion");
+    if (!result.ok) {
+      metrics.healPotionMerchantFailures[result.reason] =
+        (metrics.healPotionMerchantFailures[result.reason] || 0) + 1;
+      break;
+    }
+    recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
+    recordHealPotionAcquisition(state, metrics, "merchant");
+    metrics.healPotionMerchantPurchased++;
+    state.simHealPotionMerchantPurchases++;
+    if (state.simPolicy.healPotionMerchantPolicy === "missing") break;
+  }
+}
+
+function maybePurchaseMerchantStrengthPotion(state, scenario, metrics) {
+  if (!scenario.buyMerchantStrengthPotion || !isMilestoneFloor(state.floor)) return;
+  metrics.strPotionMerchantAttempts++;
   const materialsBefore = { ...state.currentRun.materials };
-  const result = purchaseMilestoneStock(state, "heal_potion");
+  const result = purchaseMilestoneStock(state, "str_potion");
   if (!result.ok) {
-    metrics.healPotionMerchantFailures[result.reason] =
-      (metrics.healPotionMerchantFailures[result.reason] || 0) + 1;
+    metrics.strPotionMerchantFailures[result.reason] =
+      (metrics.strPotionMerchantFailures[result.reason] || 0) + 1;
     return;
   }
   recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
-  recordHealPotionAcquisition(state, metrics, "merchant");
+  metrics.strPotionsPurchased++;
 }
 
 function identifyWithoutCurse(item) {
@@ -5432,7 +5518,16 @@ function rollChestItems(
     supplyOverride,
     rng
   );
-  const items = extra ? [...baselineItems, extra] : baselineItems;
+  const extraHealPotion = state.simPolicy.chestHealPotionExtraChance !== null &&
+    rng() < state.simPolicy.chestHealPotionExtraChance
+    ? "HEAL_POTION"
+    : null;
+  if (extraHealPotion && metrics) metrics.chestHealPotionExtraGenerated++;
+  const items = [
+    ...baselineItems,
+    ...(extra ? [extra] : []),
+    ...(extraHealPotion ? [extraHealPotion] : [])
+  ];
   const trapResult = trap === "none"
     ? { mainItemLost: false }
     : resolveChestTrapForSimulation(
@@ -5892,7 +5987,15 @@ function finishRun(state, outcome, metrics) {
     greaterHealPotionsAcquiredBySource: { ...metrics.greaterHealPotionsAcquiredBySource },
     greaterHealPotionsConsumedBySource: { ...metrics.greaterHealPotionsConsumedBySource },
     healPotionMerchantAttempts: metrics.healPotionMerchantAttempts,
+    healPotionMerchantPurchased: metrics.healPotionMerchantPurchased,
+    healPotionMerchantHoldLimitHits: metrics.healPotionMerchantHoldLimitHits,
     healPotionMerchantFailures: { ...metrics.healPotionMerchantFailures },
+    healPotionMerchantPolicy: state.simPolicy.healPotionMerchantPolicy,
+    healPotionMerchantMaxPurchases: state.simPolicy.healPotionMerchantMaxPurchases,
+    healPotionMerchantHoldLimit: state.simPolicy.healPotionMerchantHoldLimit,
+    strPotionMerchantAttempts: metrics.strPotionMerchantAttempts,
+    strPotionsPurchased: metrics.strPotionsPurchased,
+    strPotionMerchantFailures: { ...metrics.strPotionMerchantFailures },
     combatDamageHp: metrics.combatDamageHp,
     combatDamageHpByType: { ...metrics.combatDamageHpByType },
     stairsHealingHp: metrics.stairsHealingHp,
@@ -5912,6 +6015,7 @@ function finishRun(state, outcome, metrics) {
     trapEncounterCount: metrics.trapEncounterCount,
     trapEncounterBySource: { ...metrics.trapEncounterBySource },
     chestsOpened: metrics.chestsOpened,
+    chestHealPotionExtraGenerated: metrics.chestHealPotionExtraGenerated,
     chestsOpenedByFloor: [...metrics.chestsOpenedByFloor],
     chestTrappedByFloor: [...metrics.chestTrappedByFloor],
     chestDisarmAttempts: metrics.chestDisarmAttempts,
@@ -5958,6 +6062,7 @@ function finishRun(state, outcome, metrics) {
     finalRecoveryPotions: state.inventory.filter(item =>
       item === "HEAL_POTION" || item === "GREATER_HEAL"
     ).length,
+    finalInventorySlots: state.inventory.length,
     departureCraft: {
       recipeIds: [...state.simDepartureCraft.recipeIds],
       cost: { ...state.simDepartureCraft.cost },
@@ -6170,6 +6275,7 @@ export function simulateRun({
     trapEncounterCount: 0,
     trapEncounterBySource: { chest: 0, floor: 0 },
     chestsOpened: 0,
+    chestHealPotionExtraGenerated: 0,
     chestsOpenedByFloor: Array(21).fill(0),
     chestTrappedByFloor: Array(21).fill(0),
     chestDisarmAttempts: 0,
@@ -6243,7 +6349,12 @@ export function simulateRun({
     statusesCured: {},
     statusCureMerchantFailures: {},
     healPotionMerchantAttempts: 0,
+    healPotionMerchantPurchased: 0,
+    healPotionMerchantHoldLimitHits: 0,
     healPotionMerchantFailures: {},
+    strPotionMerchantAttempts: 0,
+    strPotionsPurchased: 0,
+    strPotionMerchantFailures: {},
     townPortalsUsed: 0,
     portalUseEvents: [],
     portalUsesBySource: {},
@@ -6841,6 +6952,7 @@ export function simulateRun({
     maybePurchaseMerchantWing(state, scenario, metrics);
     maybePurchaseMerchantStatusCures(state, metrics);
     maybePurchaseMerchantHealPotion(state, metrics);
+    maybePurchaseMerchantStrengthPotion(state, scenario, metrics);
     if (isMilestoneFloor(floor)) {
       metrics.milestoneDecisions.push({
         floor,

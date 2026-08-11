@@ -424,3 +424,32 @@ full-log overlayの再描画でスクロール位置を保持した結果、閉�
 - **Notes**: E2E期待値を`getStartingHealPotionCount()`から導出し、`npm run test:browser`（120 passed）を実行。PR本文のQA対象も訂正。
 
 ---
+
+## [LRN-20260811-002] correction
+
+**Logged**: 2026-08-11T13:45:00+09:00
+**Priority**: high
+**Status**: resolved
+**Area**: docs
+
+### Summary
+測定を完了したと報告するだけでは不十分。Goalに答える実測値を、Context Hygiene準拠の自己完結要約へ転記する。
+
+### Details
+20,000runの実行SHAと検証ログだけでは、ラン内購入が到達性をどれだけ動かすかをレビューできなかった。条件別endpoint、供給内訳、素材競合、現行相当との差分を要約mdとPR本文・Issueコメントへ掲載する必要がある。
+
+### Suggested Action
+測定Issueの完了前に、Goal/Verificationの各数値を含む要約mdを先に作り、条件行数・CI・N<30表記・raw/summary SHAを機械検査してから完了報告する。
+
+### Metadata
+- Source: user_feedback
+- Related Files: scratch/results/issue-496-in-run-recovery-supply.md, scratch/sim_issue_496_run_recovery_supply.js
+- Tags: measurement-report, context-hygiene, issue-verification
+- Recurrence-Count: 1
+
+### Resolution
+- **Resolved**: 2026-08-11T13:45:00+09:00
+- **Commit/PR**: 5b14131 / #497
+- **Notes**: 40条件の全指標、職業別endpoint、競合、現行差分、CI、SHA、再現コマンドを自己完結要約へ追加し、PR更新準備を完了。
+
+---
