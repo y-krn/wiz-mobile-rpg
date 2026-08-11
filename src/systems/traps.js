@@ -270,7 +270,7 @@ export function triggerTrap(trap, isPartialSuccess = false) {
     const allPartyDead = state.party.every(c => c.status === "dead");
     if (allPartyDead) {
       triggerGameOver();
-      return;
+      return true;
     }
   } else if (trap.type === "mpDrain") {
     state.party.forEach((c, index) => {
@@ -287,6 +287,8 @@ export function triggerTrap(trap, isPartialSuccess = false) {
     state.noiseEvents.push({ floor: state.floor, x: state.x, y: state.y, ttl: 4 });
     addLog("【⚠️警報】けたたましい警報音が響き渡った！");
   }
+
+  return false;
 }
 
 function completePendingMove() {
@@ -334,9 +336,9 @@ export function handleTrapAction(action) {
 
     // 強行は必ず通れる。チョーク罠でフロア突破不能にしないための保証。
     addLog("罠を承知で強引に駆け抜けた！");
-    triggerTrap(trap, resolution.partialSuccess);
     trap.state = "disabled";
     markMapChanged();
+    if (triggerTrap(trap, resolution.partialSuccess)) return;
     completePendingMove();
     endTrapEncounter();
     return;
@@ -384,14 +386,18 @@ export function handleTrapAction(action) {
       recordTrapCodex(codexTrapType, "disarmed");
     } else if (resolution.partialSuccess) {
       addLog("[味方] 【部分成功】完全には解除できなかったが、被害を最小限に抑えた！");
-      triggerTrap(trap, true);
       if (state.currentRun) state.currentRun.trapsTriggered++;
       recordTrapCodex(codexTrapType, "triggered");
+      trap.state = "disabled";
+      markMapChanged();
+      if (triggerTrap(trap, true)) return;
     } else {
       addLog("【解除失敗】仕掛けが暴発した！");
-      triggerTrap(trap, false);
       if (state.currentRun) state.currentRun.trapsTriggered++;
       recordTrapCodex(codexTrapType, "triggered");
+      trap.state = "disabled";
+      markMapChanged();
+      if (triggerTrap(trap, false)) return;
     }
 
     // 解除は成功・部分成功・失敗のいずれでも罠を使い切って通過する。
