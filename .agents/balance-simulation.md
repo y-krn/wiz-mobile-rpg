@@ -76,6 +76,13 @@ real run. Each item below has already produced a wrong conclusion at least once.
 - State which mitigations the simulation models and which it omits in the
   written summary, so a later reader can tell the measured scenario from the
   real one.
+- Before any measurement, confirm the working tree's `HEAD` is an ancestor of
+  freshly fetched `origin/main` (`git merge-base --is-ancestor HEAD
+  origin/main`). A local `main` can silently diverge (an unpushed local
+  commit, a stale checkout) and omit recently merged balance PRs; #509 first
+  ran against a local `main` missing #514/#517 and measured a B10 entrant
+  baseline of 9.4–9.7% against a true post-#517 baseline of 14.4%. Always
+  measure from a worktree freshly branched off `origin/main`, per AGENTS.md.
 
 ### Identification policy
 
@@ -612,6 +619,42 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
   #461再基準線のraw SHA-256は
   `ba1487eccedc51a8b6c590291103d4f802fca5b40cd4252e7f536cfaab349f97`、env hashは
   `6630774fbe1172084adde136272b09df77373427bc3d179fdd3587b9fad4f572`。
+
+## Issue #509 固定結論（浅層回復供給の追加は不採用）
+
+- #509 は #499 の「+2.0本/run が必要」を根拠にしていたが、その後 #511（盲目解除）/
+  #514（確定察知）/ #517（`trapGuard`）で、供給を追加せずに目標を達成した
+  （[[Issue #516 固定結論]] 参照、4職合算 B10 entrant 12.95%）。実装前に、現行
+  `origin/main`（#517後）を基準として `scratch/sim_issue_499_shallow_recovery_dose_sweep.js`
+  を seed=461・N=3,000/職・calibration N=1,000・6工房状態で再実行し、供給0/+0.4/+1.0/
+  +2.0/+3.0/+4.0本/run を掃引した。
+- 基準線（供給+0）の4職合算 B10 entrant は **14.4% [13.8, 15.1]**（職業別: 戦士2.5%
+  [2.0, 3.2] / 盗賊23.5% [22.0, 25.1] / 僧侶29.4% [27.8, 31.0] / 魔術師2.3% [1.8, 2.9]）。
+  受入目標≥10%を、CI下限を含めて既に達成している。#516固定結論の12.95%とは掃引スクリプト
+  固有の乱数消費順・calibration経路の違いで数ポイントずれるが、両者とも目標達成という結論は
+  一致する。
+- 用量掃引（4職合算 B10 entrant、装備拾得拒否/run）:
+
+| 用量目標 | 実測追加/run | B10 entrant | 装備拒否/run |
+| ---: | ---: | ---: | ---: |
+| +0（基準線） | 0.000 | 14.4% [13.8, 15.1] | 0.758 |
+| +0.4 | 0.502 | 16.1% [15.5, 16.8] | 0.993 |
+| +1.0 | 1.436 | 20.4% [19.7, 21.2] | 1.364 |
+| +2.0 | 3.143 | 29.5% [28.7, 30.3] | 2.324 |
+| +3.0 | 4.612 | 36.3% [35.5, 37.2] | 3.355 |
+| +4.0 | 5.849 | 41.5% [40.7, 42.4] | 4.148 |
+
+  B5死亡・B10死亡・素材EV/時間はすべての点でPASS（掃引上のFAIL点なし）。制約はすべての
+  用量で満たすが、目標達成に必要な用量は0（追加不要）。
+- 職業別 B10 entrant（+2.0本/run時、参考）: 戦士2.5%→17.0%、盗賊23.5%→44.7%、僧侶29.4%→
+  38.6%、魔術師2.3%→17.6%。低位職の相対倍率は大きいが、盗賊−戦士の絶対pt差は21.0pt→
+  27.7ptへ拡大しており、供給増による職業差是正効果はない（[[Issue #516 固定結論]]と同じ結論）。
+- **結論: 不採用。** 目標は追加供給なしで達成済みであり、追加供給は制約を満たしながらも
+  装備拾得拒否だけを増やす（+0.4で0.758→0.993/run、+31%）。所持枠20の圧迫を理由なく
+  増やすため、(A)宝箱追加抽選 / (B)敵ドロップ / (C)キャンプのいずれも実装しない。
+- 実行記録: env hash `c7b419ecb53cbb0a66ec13ce34d7fed4cd2904679d4aeb6a180e6c01c3eae86c`、
+  raw JSONL SHA-256 `4a4abbe45293b17e214efe403f3d5cd3c94e8b4cdd831085ec589db47c587d43`
+  （コミットしない）。詳細は `scratch/results/issue-499-shallow-recovery-supply.md` に固定する。
 
 ## Required Verification
 
