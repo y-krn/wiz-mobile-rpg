@@ -3514,6 +3514,10 @@ function runEncounter(
     }
     removeRaceEffectScale(roundResult?.state);
     removeCountermeasureScale(roundResult?.state);
+    const enemyBlindApplications = roundResult.logQueue.filter(entry =>
+      entry?.msg?.startsWith("[ 敵 ]") && entry.msg.includes("盲目状態になった")
+    ).length;
+    recordBlindApplications(metrics, "enemy", enemyBlindApplications);
     const characterSpeed =
       getCharAgi(character) +
       getBuffTotal(character, "agi") +
@@ -3741,6 +3745,25 @@ function recordTrapActivation(metrics, source, type) {
   metrics.trapActivationsByType[type] = (metrics.trapActivationsByType[type] || 0) + 1;
 }
 
+function createChestDisarmBlindStatusMetric() {
+  return {
+    decisions: 0,
+    attempts: 0,
+    successes: 0,
+    failures: 0,
+    kit: 0,
+    direct: 0,
+    forced: 0
+  };
+}
+
+function recordBlindApplications(metrics, source, count) {
+  if (!metrics?.blindApplicationsBySource ||
+      !Object.hasOwn(metrics.blindApplicationsBySource, source) ||
+      count <= 0) return;
+  metrics.blindApplicationsBySource[source] += count;
+}
+
 function recordTrapDamage(metrics, source, type, damage, floor) {
   metrics.trapDamageHp += damage;
   metrics.trapDamageHpBySource[source] += damage;
@@ -3795,7 +3818,9 @@ function useTrapRecoveryIfNeeded(state, metrics) {
 
 function applyChestTrapEffect(state, trap, weakened, metrics) {
   const character = state.party[0];
+  const blindStatus = character.status === "blind" ? "blind" : "clear";
   const targetIndex = Math.max(0, state.party.indexOf(character));
+  const trapGuardByParty = getSimulationTrapGuardByParty(state);
   const effect = resolveChestTrapEffect({
     trap,
     weakened,
@@ -3805,12 +3830,25 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
     rng: Math.random
   });
   const guardedEffect = applyTrapGuardToEffect(effect, {
-    trapGuardByParty: getSimulationTrapGuardByParty(state),
+    trapGuardByParty,
     targetIndex
   });
   effect.targetDamage = guardedEffect.targetDamage;
   effect.partyDamage = guardedEffect.partyDamage;
   recordTrapActivation(metrics, "chest", trap);
+
+  if (trap === "flash bomb") {
+    metrics.chestFlashTrapActivationsByBlindStatus[blindStatus]++;
+    metrics.trapGuardFlashCoverage.effects++;
+    metrics.trapGuardFlashCoverage.effectsWithGuard += Number(
+      trapGuardByParty.some(value => Number(value) > 0)
+    );
+    metrics.trapGuardFlashCoverage.blindEffectUnchanged += Number(
+      (effect.partyBlind || []).every((blinded, index) =>
+        blinded === guardedEffect.partyBlind?.[index]
+      )
+    );
+  }
 
   if (trap === "poison needle") {
     character.hp = Math.max(0, character.hp - effect.targetDamage);
@@ -3821,6 +3859,7 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
       character.status = "poisoned";
     }
     recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor);
+    metrics.chestTrapDamageHpByBlindStatus[blindStatus] += effect.targetDamage;
   } else if (trap === "gas bomb") {
     effect.partyDamage.forEach((damage, index) => {
       const target = state.party[index];
@@ -3829,12 +3868,16 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
       clearCharIncapacitationOnDamage(target);
       if (target.hp === 0) target.status = "dead";
       recordTrapDamage(metrics, "chest", trap, damage, state.floor);
+      metrics.chestTrapDamageHpByBlindStatus[blindStatus] += damage;
     });
   } else if (trap === "teleporter") {
     metrics.trapTeleports += Number(effect.teleported);
   } else if (trap === "flash bomb") {
     effect.partyBlind.forEach((blinded, index) => {
-      if (blinded) state.party[index].status = "blind";
+      if (blinded) {
+        state.party[index].status = "blind";
+        recordBlindApplications(metrics, "chest", 1);
+      }
     });
   }
 
@@ -5566,6 +5609,8 @@ function resolveChestTrapForSimulation(
   { futureChestCount = 0 } = {}
 ) {
   const character = state.party[0];
+  const blindStatus = character.status === "blind" ? "blind" : "clear";
+  const disarmBlindMetric = metrics.chestDisarmByBlindStatus[blindStatus];
   metrics.trapEncounterCount++;
   metrics.trapEncounterBySource.chest++;
   metrics.chestTrappedByFloor[floor]++;
@@ -5611,6 +5656,9 @@ function resolveChestTrapForSimulation(
       kitCount,
       futureChestCount
     }).action;
+  const actionPath = action === "force" ? "forced" : action;
+  disarmBlindMetric.decisions++;
+  disarmBlindMetric[actionPath]++;
 
   if (action === "kit" && kitIndex >= 0) {
     state.inventory.splice(kitIndex, 1);
@@ -5622,6 +5670,8 @@ function resolveChestTrapForSimulation(
     metrics.chestDisarmKitUsesByFloor[floor]++;
     metrics.trapDisarmAttempts++;
     metrics.trapDisarmSuccesses++;
+    disarmBlindMetric.attempts++;
+    disarmBlindMetric.successes++;
     return { mainItemLost: false };
   }
 
@@ -5630,12 +5680,14 @@ function resolveChestTrapForSimulation(
     metrics.chestDisarmAttemptsByFloor[floor]++;
     metrics.chestDisarmDirectAttemptsByFloor[floor]++;
     metrics.trapDisarmAttempts++;
+    disarmBlindMetric.attempts++;
     if (Math.random() < chance) {
       state.currentRun.trapsDisarmed++;
       metrics.trapDisarms++;
       metrics.chestDisarmSuccesses++;
       metrics.chestDisarmSuccessesByFloor[floor]++;
       metrics.trapDisarmSuccesses++;
+      disarmBlindMetric.successes++;
       const previousTrapBonus = character.runTrapAttackBonus || 0;
       const trapEater = getCharCoreParams(character, "CORE_TRAP_EATER");
       if (trapEater && previousTrapBonus < trapEater.maxAttack) {
@@ -5656,7 +5708,9 @@ function resolveChestTrapForSimulation(
       }
       return { mainItemLost: false };
     }
+    disarmBlindMetric.failures++;
     state.currentRun.trapsTriggered++;
+    metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
     applyChestTrapEffect(state, trap, false, metrics);
     return { mainItemLost: false };
   }
@@ -5664,6 +5718,7 @@ function resolveChestTrapForSimulation(
   metrics.trapForced++;
   metrics.chestForcedByFloor[floor]++;
   state.currentRun.trapsTriggered++;
+  metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
   applyChestTrapEffect(state, trap, true, metrics);
   const mainItemLossRate = calculateChestMainItemForcedLossRate(mainItem);
   const mainItemLost = mainItemLossRate > 0 && Math.random() < mainItemLossRate;
@@ -6280,6 +6335,25 @@ function finishRun(state, outcome, metrics) {
     chestDisarmKitUsesByFloor: [...metrics.chestDisarmKitUsesByFloor],
     chestDisarmDirectAttemptsByFloor: [...metrics.chestDisarmDirectAttemptsByFloor],
     chestForcedByFloor: [...metrics.chestForcedByFloor],
+    blindTelemetry: {
+      applicationsBySource: { ...metrics.blindApplicationsBySource },
+      chestDisarmByBlindStatus: Object.fromEntries(
+        Object.entries(metrics.chestDisarmByBlindStatus).map(([status, values]) => [
+          status,
+          { ...values }
+        ])
+      ),
+      chestTrapActivationsByBlindStatus: {
+        ...metrics.chestTrapActivationsByBlindStatus
+      },
+      chestTrapDamageHpByBlindStatus: {
+        ...metrics.chestTrapDamageHpByBlindStatus
+      },
+      chestFlashTrapActivationsByBlindStatus: {
+        ...metrics.chestFlashTrapActivationsByBlindStatus
+      },
+      trapGuardFlashCoverage: { ...metrics.trapGuardFlashCoverage }
+    },
     trapDamageHp: metrics.trapDamageHp,
     trapDamageHpBySource: { ...metrics.trapDamageHpBySource },
     trapDamageHpByType: { ...metrics.trapDamageHpByType },
@@ -6555,6 +6629,19 @@ export function simulateRun({
     chestDisarmKitUsesByFloor: Array(21).fill(0),
     chestDisarmDirectAttemptsByFloor: Array(21).fill(0),
     chestForcedByFloor: Array(21).fill(0),
+    blindApplicationsBySource: { chest: 0, floor: 0, enemy: 0 },
+    chestDisarmByBlindStatus: {
+      clear: createChestDisarmBlindStatusMetric(),
+      blind: createChestDisarmBlindStatusMetric()
+    },
+    chestTrapActivationsByBlindStatus: { clear: 0, blind: 0 },
+    chestTrapDamageHpByBlindStatus: { clear: 0, blind: 0 },
+    chestFlashTrapActivationsByBlindStatus: { clear: 0, blind: 0 },
+    trapGuardFlashCoverage: {
+      effects: 0,
+      effectsWithGuard: 0,
+      blindEffectUnchanged: 0
+    },
     trapDamageHp: 0,
     trapDamageHpBySource: { chest: 0, floor: 0 },
     trapDamageHpByType: {},
