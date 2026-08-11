@@ -53,6 +53,13 @@ const SLOT_LABELS = Object.fromEntries(
   EQUIPMENT_SLOTS.map(({ id, label }) => [id, label])
 );
 
+const RARITY_LABELS = {
+  common: "COMMON",
+  magic: "MAGIC",
+  rare: "RARE",
+  epic: "EPIC"
+};
+
 const STAT_ROWS = [
   { key: "attack", label: "攻撃" },
   { key: "defense", label: "防御" },
@@ -138,7 +145,29 @@ function getTargetSlot(char, itemType, requestedSlot = null) {
 }
 
 function isIdentified(itemKey) {
-  return typeof itemKey !== "object" || itemKey.identified;
+  return !itemKey || typeof itemKey !== "object" || itemKey.identified;
+}
+
+function getRarityInfo(itemKey) {
+  if (!itemKey || !isIdentified(itemKey) || typeof itemKey !== "object") return null;
+  const label = RARITY_LABELS[itemKey.rarity];
+  return label ? { key: itemKey.rarity, label } : null;
+}
+
+function getRarityClass(itemKey) {
+  const rarity = getRarityInfo(itemKey);
+  return rarity ? `rarity-${rarity.key}` : "";
+}
+
+function createRarityBadge(itemKey, className = "") {
+  const rarity = getRarityInfo(itemKey);
+  if (!rarity) return null;
+
+  const badge = document.createElement("span");
+  badge.className = `equip-rarity-badge ${rarity.key} ${className}`.trim();
+  badge.textContent = rarity.label;
+  badge.setAttribute("aria-label", `レア度 ${rarity.label}`);
+  return badge;
 }
 
 function getDisplayStats(char) {
@@ -398,7 +427,7 @@ function createEquipmentList(char, savedScrollTop) {
     
     const row = document.createElement("button");
     row.type = "button";
-    row.className = `equip-item-row ${selected ? "selected" : ""}`;
+    row.className = `equip-item-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""}`.trim();
     row.setAttribute("aria-selected", selected ? "true" : "false");
 
     const left = document.createElement("div");
@@ -416,6 +445,9 @@ function createEquipmentList(char, savedScrollTop) {
     summary.textContent = `${label} ${item ? `/ ${isCurseLocked(itemKey) ? "🔒 呪い・外せない" : (isIdentified(itemKey) ? getItemSummary(item) : "比較不能")}` : ""}`;
     left.appendChild(summary);
     row.appendChild(left);
+
+    const rarityBadge = createRarityBadge(itemKey);
+    if (rarityBadge) row.appendChild(rarityBadge);
 
     row.addEventListener("click", () => {
       if (!itemKey) {
@@ -466,7 +498,7 @@ function createEquipmentList(char, savedScrollTop) {
       const availability = canEquip(char, itemKey, preview?.slot);
       const row = document.createElement("button");
       row.type = "button";
-      row.className = `equip-item-row ${selected ? "selected" : ""} ${availability.ok ? "" : "not-equipable"}`;
+      row.className = `equip-item-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${availability.ok ? "" : "not-equipable"}`.trim();
       row.setAttribute("aria-selected", selected ? "true" : "false");
 
       const left = document.createElement("div");
@@ -482,6 +514,11 @@ function createEquipmentList(char, savedScrollTop) {
       left.appendChild(summary);
       row.appendChild(left);
 
+      const badges = document.createElement("span");
+      badges.className = "equip-item-row-badges";
+      const rarityBadge = createRarityBadge(itemKey);
+      if (rarityBadge) badges.appendChild(rarityBadge);
+
       const badge = document.createElement("span");
       if (!isIdentified(itemKey)) {
         badge.className = "equip-row-badge unident";
@@ -495,7 +532,8 @@ function createEquipmentList(char, savedScrollTop) {
         badge.className = `equip-row-badge ${preview.primaryDiff > 0 ? "up" : preview.primaryDiff < 0 ? "down" : "zero"}`;
         badge.textContent = `${preview.primaryDiff >= 0 ? "+" : ""}${preview.primaryDiff}`;
       }
-      row.appendChild(badge);
+      badges.appendChild(badge);
+      row.appendChild(badges);
 
       row.addEventListener("click", () => {
         if (selected) {
@@ -633,14 +671,31 @@ function createDetailPanel(char) {
   content.className = "equip-detail-content";
 
   const heading = document.createElement("div");
-  heading.className = "equip-detail-heading";
-  heading.innerHTML = `
-    <div>
-      <div class="equip-detail-name">${hidden ? "? " : ""}${item.name}</div>
-      <div class="equip-detail-desc">${item.desc || getItemSummary(item)}</div>
-    </div>
-    <div class="equip-target-summary">${char.name}<small>${getClassJpName(char.class)} Lv.${char.level}</small></div>
-  `;
+  heading.className = `equip-detail-heading ${getRarityClass(itemKey)}`.trim();
+  const titleBlock = document.createElement("div");
+  titleBlock.className = "equip-detail-title-block";
+  const titleLine = document.createElement("div");
+  titleLine.className = "equip-detail-title-line";
+  const name = document.createElement("div");
+  name.className = "equip-detail-name";
+  name.textContent = `${hidden ? "? " : ""}${item.name}`;
+  titleLine.appendChild(name);
+  const rarityBadge = createRarityBadge(itemKey, "equip-detail-rarity");
+  if (rarityBadge) titleLine.appendChild(rarityBadge);
+  titleBlock.appendChild(titleLine);
+  const desc = document.createElement("div");
+  desc.className = "equip-detail-desc";
+  desc.innerHTML = item.desc || getItemSummary(item);
+  titleBlock.appendChild(desc);
+  heading.appendChild(titleBlock);
+
+  const targetSummary = document.createElement("div");
+  targetSummary.className = "equip-target-summary";
+  targetSummary.textContent = char.name;
+  const targetClass = document.createElement("small");
+  targetClass.textContent = `${getClassJpName(char.class)} Lv.${char.level}`;
+  targetSummary.appendChild(targetClass);
+  heading.appendChild(targetSummary);
   content.appendChild(heading);
 
   const exchange = document.createElement("div");
