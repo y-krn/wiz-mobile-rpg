@@ -142,7 +142,8 @@ export function getCharTrapBonus(char) {
       }
     });
   }
-  return bonus;
+  // 旧trapSense装備・刻印も、確定察知後は罠解除へ転換する。
+  return bonus + getCharAffixSum(char, "trapSense") / 100;
 }
 
 export function getCharWeaponAtk(char) {

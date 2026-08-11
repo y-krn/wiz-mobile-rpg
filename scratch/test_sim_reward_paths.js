@@ -32,17 +32,18 @@ const detectRateCalls = [...depthSimulationSource.matchAll(
 if (detectRateCalls.length === 0) {
   failures.push(`${depthSimulationName}: calculateDetectRate call is missing`);
 } else {
-  detectRateCalls.forEach(([, args]) => {
-    if (!/\bscoutBonus\s*:/.test(args)) {
-      failures.push(
-        `${depthSimulationName}: calculateDetectRate must receive scoutBonus from the simulated party`
-      );
-    }
-  });
+  if (!detectRateCalls.some(([, args]) => /\bscoutBonus\s*:/.test(args))) {
+    failures.push(
+      `${depthSimulationName}: calculateDetectRate must receive scoutBonus from the simulated party`
+    );
+  }
   if (!/getPartyMaxAffix\s*\(\s*state\.party\s*,\s*["']trapSense["']\s*\)/.test(depthSimulationSource)) {
     failures.push(
-      `${depthSimulationName}: trapSense must reach calculateDetectRate through getPartyMaxAffix`
+      `${depthSimulationName}: trapSense conversion must read the simulated party`
     );
+  }
+  if (!/trapSenseDisposition/.test(depthSimulationSource)) {
+    failures.push(`${depthSimulationName}: trapSense disposition must be explicit in sim state`);
   }
 }
 

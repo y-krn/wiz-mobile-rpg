@@ -242,20 +242,20 @@ console.log("PASS: Trap persistence removed.");
 console.log("\n[5] Verifying adjacent trap detection:");
 const { detectAdjacentTraps } = await import("../src/systems/traps.js");
 
-if (calculateDetectRate({ floor: 10 }) !== 0.715) {
-  console.error("FAIL: B10 baseline detect rate should remain 0.715.");
+if (calculateDetectRate({ floor: 10 }) !== 1) {
+  console.error("FAIL: adjacent trap detection should be certain.");
   process.exit(1);
 }
-if (calculateDetectRate({ floor: 10, scoutBonus: 0.15 }) !== 0.865) {
-  console.error("FAIL: trap sense bonus should add 15 percentage points.");
+if (calculateDetectRate({ floor: 10, scoutBonus: 0.15 }) !== 1) {
+  console.error("FAIL: trapSense must not change certain detection.");
   process.exit(1);
 }
-if (calculateDetectRate({ floor: 10, scoutBonus: 1 }) !== 0.95) {
-  console.error("FAIL: detect rate must clamp at 0.95.");
+if (calculateDetectRate({ floor: 10, scoutBonus: 1 }) !== 1) {
+  console.error("FAIL: detect rate must remain 1.");
   process.exit(1);
 }
-if (calculateDetectRate({ floor: 10, scoutBonus: -1 }) !== 0.715) {
-  console.error("FAIL: negative detect bonus must not reduce the baseline.");
+if (calculateDetectRate({ floor: 10, scoutBonus: -1 }) !== 1) {
+  console.error("FAIL: negative detect bonus must not reduce certain detection.");
   process.exit(1);
 }
 
@@ -297,29 +297,29 @@ if (grid[1][0].trap.state !== "hidden") {
 }
 console.log("- open neighbour discovered, walled neighbour untouched");
 
-// Detection is rolled once per trap: a guaranteed-fail reroll must not
-// downgrade an already-discovered trap, and must not re-roll a failed one.
+// Detection is rolled once per trap: certain detection discovers it, and a
+// later call must not re-roll an already-discovered trap.
 grid[2][1].trap = { id: "t_south", type: "damage", state: "hidden", difficulty: 30 };
 Math.random = () => 0.99;
 detectAdjacentTraps();
-if (grid[2][1].trap.state !== "hidden") {
-  console.error("FAIL: failed detection should leave trap hidden.");
+if (grid[2][1].trap.state !== "discovered") {
+  console.error("FAIL: certain detection should discover the trap.");
   process.exit(1);
 }
 if (grid[2][1].trap.detectRolled !== true) {
-  console.error("FAIL: failed detection must still mark detectRolled.");
+  console.error("FAIL: detection must mark detectRolled.");
   process.exit(1);
 }
 Math.random = () => 0;
 detectAdjacentTraps();
-if (grid[2][1].trap.state !== "hidden") {
+if (grid[2][1].trap.state !== "discovered") {
   console.error("FAIL: detection must not be rolled twice for the same trap.");
   process.exit(1);
 }
 Math.random = realRandom;
 console.log("PASS: Adjacent detection verified.");
 
-// trapSense is a player investment, but detection remains class-independent.
+// trapSense is converted to a disarm investment; detection remains certain.
 state.floor = 10;
 state.maps = Array.from({ length: 10 }, () => grid);
 state.party = [{
@@ -343,10 +343,14 @@ Math.random = () => 0.8;
 detectAdjacentTraps();
 Math.random = realRandom;
 if (grid[0][1].trap.state !== "discovered") {
-  console.error("FAIL: trapSense should raise B10 detection above an 0.8 roll.");
+  console.error("FAIL: adjacent trap should be discovered without trapSense.");
   process.exit(1);
 }
-console.log("- trapSense investment raises detection for Fighter without class coupling");
+if (calculateSuccessRate({ type: "damage" }) !== 38) {
+  console.error("FAIL: trapSense should add 15 points to the B10 disarm rate.");
+  process.exit(1);
+}
+console.log("- trapSense investment raises Fighter disarm rate without detection coupling");
 
 // 6. Three-choice trap encounter
 console.log("\n[6] Verifying trap encounter choices:");

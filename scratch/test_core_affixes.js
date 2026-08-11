@@ -205,7 +205,7 @@ test("刻印20種: 素材cost・サポートtype・素材割当が整合", () =>
   });
 });
 
-test("罠察知刻印: KATANAを維持してtrapSenseを付与", () => {
+test("罠解除刻印: KATANAを維持してtrapSenseを付与", () => {
   const previousLocalStorage = globalThis.localStorage;
   const previousInventory = state.inventory;
   const previousMaterials = state.metaMaterials;
@@ -233,10 +233,10 @@ test("罠察知刻印: KATANAを維持してtrapSenseを付与", () => {
     assert.equal(inscribed.inscription.type, "trapSense");
     assert.equal(inscribed.inscription.value, TAG_EFFECT_MAP.trap_sense.value);
     assert.ok(inscribed.tags.includes("trap_sense"));
-    assert.equal(TAGS.trap_sense.name, "察知");
+    assert.equal(TAGS.trap_sense.name, "解除");
     const itemData = getItemData(inscribed);
-    assert.match(itemData.desc, /<タグ: .*察知>/);
-    assert.ok(itemData.desc.includes("<刻印: 察印 (罠察知+15%)>"));
+    assert.match(itemData.desc, /<タグ: .*解除>/);
+    assert.ok(itemData.desc.includes("<刻印: 解印 (罠解除+15%)>"));
 
     const character = {
       class: "Fighter",
