@@ -1,6 +1,52 @@
 import { test, expect } from '@playwright/test';
 import { VIEWPORTS } from './ui-ux-helpers.js';
 for (const vp of VIEWPORTS) {
+  test(`Equipment can be discarded with confirmation at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      state.party = [createSoloCharacter('Fighter')];
+      state.inventory = [
+        {
+          kind: 'equipment', instanceId: 'discard_sword', baseId: 'SHORT_SWORD', rarity: 'common', level: 1,
+          identified: true, affixes: []
+        },
+        {
+          kind: 'equipment', instanceId: 'keep_armor', baseId: 'LEATHER_ARMOR', rarity: 'common', level: 1,
+          identified: true, affixes: []
+        }
+      ];
+      openEquipOverlay(0);
+    });
+
+    await page.locator('.equip-item-row.rarity-common', { hasText: 'ショートソード' }).click();
+    const discardButton = page.getByRole('button', { name: '破棄する' });
+    await expect(discardButton).toBeVisible();
+    expect((await discardButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
+
+    page.once('dialog', async (dialog) => {
+      expect(dialog.message()).toContain('ショートソード');
+      await dialog.dismiss();
+    });
+    await discardButton.click();
+    await expect.poll(() => page.evaluate(async () => (await import('/src/state.js')).state.inventory.length)).toBe(2);
+
+    page.once('dialog', async (dialog) => {
+      await dialog.accept();
+    });
+    await discardButton.click();
+    await expect.poll(() => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return state.inventory.map((item) => item.instanceId);
+    })).toEqual(['keep_armor']);
+    expect(await page.evaluate(() => {
+      const payload = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
+      return payload.inventory.map((item) => item.instanceId);
+    })).toEqual(['keep_armor']);
+  });
+
   test(`Equipment gamble stays explicit and thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
@@ -82,6 +128,7 @@ for (const vp of VIEWPORTS) {
     const removeButton = page.getByRole('button', { name: /節目商人で解呪できます/ });
     await expect(removeButton).toBeVisible();
     expect((await removeButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await expect(page.getByRole('button', { name: '破棄する' })).toHaveCount(0);
   });
 }
 
