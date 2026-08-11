@@ -95,6 +95,10 @@ summary md / summary JSON の `measurement` に記録する。
 `measurement.sourceCommit`、`measurement.originMainAncestor`、
 `measurement.staleTreeAllowed` を env hash と同じ実行記録へ必ず出力する。
 測定結果の summary JSON と raw JSONL は `scratch/results/` へ出力するが、追跡しない。
+共有入口 `scratch/sim_depth_material_ev.js` の module load 時に guard を実行する。
+`isMainThread` が false の worker は再実行しない。unit test は
+`SIM_SKIP_PROVENANCE=1`、または `test_*.js` entrypoint で skip する。
+`node --check` は module を実行しないため guard 対象外。
 
 2026-08-11 棚卸し: 既存 summary md 67件は source commit 記載なし。過去結果へ遡って
 追記しない。記載ありは `issue-470-build-definition.md`、

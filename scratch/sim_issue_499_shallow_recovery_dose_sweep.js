@@ -6,14 +6,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { isMainThread } from "node:worker_threads";
 
-import { resolveMeasurementProvenance } from "./measurement_provenance.js";
 import { resolveSimParallelism, runSimTasks } from "./sim_parallel.js";
 
-const measurementProvenance = isMainThread
-  ? resolveMeasurementProvenance()
-  : null;
 const BASIC_CLASSES = Object.freeze(["Fighter", "Thief", "Priest", "Mage"]);
 const WORKSHOP_DISTRIBUTION = Object.freeze([
   { scenarioId: "workshop-empty", observedRuns: 30 },
@@ -123,6 +118,7 @@ const {
   calibrateCoreScoringProfile,
   getResolvedSimulationEnv,
   getScenarioById,
+  MEASUREMENT_PROVENANCE: measurementProvenance,
   resetSimulationRandom,
   SIM_CLASSES
 } = await import("./sim_depth_material_ev.js");

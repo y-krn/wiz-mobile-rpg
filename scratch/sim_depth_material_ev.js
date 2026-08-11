@@ -2,8 +2,17 @@
 /* global console, process */
 
 import { pathToFileURL } from "node:url";
+import { basename } from "node:path";
 import { isMainThread } from "node:worker_threads";
+import { resolveMeasurementProvenance } from "./measurement_provenance.js";
 import { runSimTasks } from "./sim_parallel.js";
+
+// Unit tests import this shared module for wiring checks, not measurements.
+const IS_TEST_PROCESS = process.env.SIM_SKIP_PROVENANCE === "1" ||
+  basename(process.argv[1] || "").startsWith("test_");
+export const MEASUREMENT_PROVENANCE = isMainThread && !IS_TEST_PROCESS
+  ? resolveMeasurementProvenance()
+  : null;
 
 // Mock localStorage for the Node.js simulation environment before imports.
 Object.defineProperty(globalThis, "localStorage", {

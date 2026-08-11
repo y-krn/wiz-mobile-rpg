@@ -158,7 +158,8 @@ function printResult(result) {
 
 function runTest(task) {
   const { file, shardIndex, shardCount } = task;
-  const env = { ...process.env };
+  // Unit tests import simulation modules for wiring checks; they are not measurements.
+  const env = { ...process.env, SIM_SKIP_PROVENANCE: '1' };
   if (shardCount) {
     env.SHARD_INDEX = String(shardIndex);
     env.SHARD_COUNT = String(shardCount);
