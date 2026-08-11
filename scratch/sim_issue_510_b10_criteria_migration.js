@@ -1309,6 +1309,8 @@ function renderMarkdown(summary) {
     "",
     "## B10 entrant実測",
     "",
+    "- 4職合算B10 entrant実数: " + overall.b10.entrantN + "/" + overall.runs +
+      " = " + formatPercent(overall.b10.entrant.estimate, 2),
     renderEndpoint("4職合算", overall.b10),
     "",
     "| 職 | B10 entrant | 実数 | 平均到達floor（全run） | B10 entrant内平均floor | quartile N(Q1/Q2/Q3/Q4) | combat core 0/1/2/3+ |",
