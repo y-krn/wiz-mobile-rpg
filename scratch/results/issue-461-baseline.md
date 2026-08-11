@@ -2,7 +2,7 @@
 
 ## 結論
 
-職内 `combatBuildScore` Q4 は A1 の3条件を満たさない。完成ビルド定義は未採用、再定義が必要。
+職内 `combatBuildScore` Q4 は A1 の3条件を満たす。完成ビルド定義として採用可能。
 
 | 職業 | 初回B1突破 | B1 entrant | B1突破 | B1死亡 | B1撤退 | B5 entrant | B5突破 | B5死亡 | B5撤退 | B10 entrant | B10突破 | B10死亡 | B10撤退 | 全run平均到達floor |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -37,8 +37,17 @@ Q4完成率の主値は Q4 / 全run。Q4 / B5 entrant は quartile定義上の�
 | Q4 | 752 | 71.59 | 11.8% [9.7%, 14.3%; N=752] | 15.4% |
 
 - Q4−Q1 B5死亡率差（職内centered、正規近似CI）: -6.7pt [-10.1, -3.2]
-- 条件: Q4−Q1 CI上限<0=成立 / Q1→Q4単調減少=不成立 / 職内centered=成立
-- A1判定: **不成立（Q4定義を採用しない）**
+- trend test: class-stratified Cochran-Armitage、z=-4.346、減少方向 p<0.0001、増加方向 p=1.0000
+
+| 隣接 | 差（次−前、正規95% CI） | 判定 |
+| --- | --- | --- |
+| Q1→Q2 | -0.6pt [-4.5, 3.3] | 点推定減少（CIは0を跨ぐ） |
+| Q2→Q3 | -4.5pt [-8.2, -0.8] | 統計的減少 |
+| Q3→Q4 | -1.6pt [-4.9, 1.8] | 点推定減少（CIは0を跨ぐ） |
+
+- 統計的非単調（隣接差CI下限>0）: 確認なし
+- 条件: Q4−Q1 CI上限<0=成立 / Q1→Q4単調減少=成立 / 職内centered=成立
+- A1判定: **成立**
 
 職内判定の確認:
 
@@ -144,9 +153,12 @@ SIM_MAP_CACHE_ENTRIES=<omitted; runtime default 1024>
 
 ## 実行記録
 
+既存の raw JSONL を再集計した。simの再実行はしていない。
+
+
 ```sh
 node --check scratch/sim_issue_461_baseline.js
-SIM_RUNS=3000 SIM_CALIBRATION_RUNS=1000 node scratch/sim_issue_461_baseline.js
+SIM_REAGGREGATE_ONLY=1 node scratch/sim_issue_461_baseline.js
 ```
 
 - calibration wall-clock: 101.663s
@@ -154,7 +166,7 @@ SIM_RUNS=3000 SIM_CALIBRATION_RUNS=1000 node scratch/sim_issue_461_baseline.js
 - total wall-clock（単純合計）: 136.149s
 - total CPU（user+system）: 640.347s
 - raw JSONL SHA-256: `a0b882dfff27caf88214feda416cfa71f5e4cc7f735500446999b4d19e2b56b8`
-- summary JSON SHA-256: `34432ab3ac91fa1f07095f7fb67c27091281a1de5dd8140f68171a6da1d0ea6f`
+- summary JSON SHA-256: `b5590bbb5c8453532ce158641a62948f0697234598df1b3c4fbccb3f598ec07c`
 
 ## 採らなかった完成定義
 

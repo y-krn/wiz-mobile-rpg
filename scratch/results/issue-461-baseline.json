@@ -2,7 +2,7 @@
   "measurement": {
     "issue": 461,
     "scope": "run",
-    "mode": "baseline",
+    "mode": "reaggregate",
     "seed": 461,
     "runsPerClass": 3000,
     "calibrationRuns": 1000,
@@ -100,7 +100,7 @@
       "expectedFalsePositives": 2.6,
       "note": "基準線の記述区間。多重比較補正済みの効果判定ではない"
     },
-    "a1Pass": false
+    "a1Pass": true
   },
   "overall": {
     "className": "all",
@@ -470,12 +470,53 @@
         },
         "classCentered": true
       },
+      "adjacentDifferences": [
+        {
+          "fromQuartile": 1,
+          "toQuartile": 2,
+          "estimate": -0.006140092346988896,
+          "low": -0.04509654399449855,
+          "high": 0.03281635930052076,
+          "leftN": 754,
+          "rightN": 756,
+          "status": "確定"
+        },
+        {
+          "fromQuartile": 2,
+          "toQuartile": 3,
+          "estimate": -0.045092838196286456,
+          "low": -0.0817219170027088,
+          "high": -0.008463759389864114,
+          "leftN": 754,
+          "rightN": 754,
+          "status": "確定"
+        },
+        {
+          "fromQuartile": 3,
+          "toQuartile": 4,
+          "estimate": -0.015601190812122592,
+          "low": -0.049150523585750734,
+          "high": 0.01794814196150555,
+          "leftN": 752,
+          "rightN": 754,
+          "status": "確定"
+        }
+      ],
+      "trendTest": {
+        "test": "class-stratified Cochran-Armitage",
+        "z": -4.346424537284201,
+        "pValueDecreasing": 0.000006923995860275145,
+        "pValueIncreasing": 0.9999930760041398,
+        "minCellN": 40,
+        "status": "確定"
+      },
+      "statisticallyNonMonotonic": false,
       "conditions": {
         "q4MinusQ1UpperBelowZero": true,
-        "monotonicNonIncreasing": false,
+        "monotonicNonIncreasing": true,
         "classCentered": true
       },
-      "pass": false
+      "pass": true
     }
   },
   "byClass": [
@@ -775,6 +816,47 @@
           },
           "classCentered": true
         },
+        "adjacentDifferences": [
+          {
+            "fromQuartile": 1,
+            "toQuartile": 2,
+            "estimate": -0.025316455696202528,
+            "low": -0.10836450095289657,
+            "high": 0.057731589560491514,
+            "leftN": 79,
+            "rightN": 79,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 2,
+            "toQuartile": 3,
+            "estimate": 0,
+            "low": -0.07641692508075226,
+            "high": 0.07641692508075226,
+            "leftN": 79,
+            "rightN": 79,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 3,
+            "toQuartile": 4,
+            "estimate": 0.013631937682570594,
+            "low": -0.0667558274820546,
+            "high": 0.09401970284719578,
+            "leftN": 78,
+            "rightN": 79,
+            "status": "確定"
+          }
+        ],
+        "trendTest": {
+          "test": "class-stratified Cochran-Armitage",
+          "z": -0.2696898608239779,
+          "pValueDecreasing": 0.3936994930646265,
+          "pValueIncreasing": 0.6063005069353735,
+          "minCellN": 78,
+          "status": "確定"
+        },
+        "statisticallyNonMonotonic": false,
         "conditions": {
           "q4MinusQ1UpperBelowZero": false,
           "monotonicNonIncreasing": false,
@@ -1079,9 +1161,50 @@
           },
           "classCentered": true
         },
+        "adjacentDifferences": [
+          {
+            "fromQuartile": 1,
+            "toQuartile": 2,
+            "estimate": 0.015306122448979595,
+            "low": -0.025161934072200985,
+            "high": 0.055774178970160175,
+            "leftN": 392,
+            "rightN": 392,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 2,
+            "toQuartile": 3,
+            "estimate": -0.033163265306122444,
+            "low": -0.07174600957294225,
+            "high": 0.00541947896069736,
+            "leftN": 392,
+            "rightN": 392,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 3,
+            "toQuartile": 4,
+            "estimate": -0.012618090714546691,
+            "low": -0.045920148134067015,
+            "high": 0.020683966704973633,
+            "leftN": 391,
+            "rightN": 392,
+            "status": "確定"
+          }
+        ],
+        "trendTest": {
+          "test": "class-stratified Cochran-Armitage",
+          "z": -2.080534470561343,
+          "pValueDecreasing": 0.01873820422699024,
+          "pValueIncreasing": 0.9812617957730098,
+          "minCellN": 391,
+          "status": "確定"
+        },
+        "statisticallyNonMonotonic": false,
         "conditions": {
           "q4MinusQ1UpperBelowZero": false,
-          "monotonicNonIncreasing": false,
+          "monotonicNonIncreasing": true,
           "classCentered": true
         },
         "pass": false
@@ -1383,6 +1506,47 @@
           },
           "classCentered": true
         },
+        "adjacentDifferences": [
+          {
+            "fromQuartile": 1,
+            "toQuartile": 2,
+            "estimate": -0.03963435202050869,
+            "low": -0.12440276780741509,
+            "high": 0.04513406376639771,
+            "leftN": 243,
+            "rightN": 244,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 2,
+            "toQuartile": 3,
+            "estimate": -0.06995884773662553,
+            "low": -0.15091520999253238,
+            "high": 0.010997514519281326,
+            "leftN": 243,
+            "rightN": 243,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 3,
+            "toQuartile": 4,
+            "estimate": -0.04938271604938271,
+            "low": -0.12475374347677802,
+            "high": 0.025988311378012593,
+            "leftN": 243,
+            "rightN": 243,
+            "status": "確定"
+          }
+        ],
+        "trendTest": {
+          "test": "class-stratified Cochran-Armitage",
+          "z": -4.196450549433366,
+          "pValueDecreasing": 0.000013564970450241631,
+          "pValueIncreasing": 0.9999864350295498,
+          "minCellN": 243,
+          "status": "確定"
+        },
+        "statisticallyNonMonotonic": false,
         "conditions": {
           "q4MinusQ1UpperBelowZero": true,
           "monotonicNonIncreasing": true,
@@ -1687,6 +1851,47 @@
           },
           "classCentered": true
         },
+        "adjacentDifferences": [
+          {
+            "fromQuartile": 1,
+            "toQuartile": 2,
+            "estimate": 0.031097560975609784,
+            "low": -0.16216055768593907,
+            "high": 0.22435567963715863,
+            "leftN": 40,
+            "rightN": 41,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 2,
+            "toQuartile": 3,
+            "estimate": -0.10000000000000003,
+            "low": -0.2840081847130026,
+            "high": 0.08400818471300256,
+            "leftN": 40,
+            "rightN": 40,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 3,
+            "toQuartile": 4,
+            "estimate": 0.10000000000000003,
+            "low": -0.08400818471300256,
+            "high": 0.2840081847130026,
+            "leftN": 40,
+            "rightN": 40,
+            "status": "確定"
+          }
+        ],
+        "trendTest": {
+          "test": "class-stratified Cochran-Armitage",
+          "z": -0.022427517378891572,
+          "pValueDecreasing": 0.49105342114952993,
+          "pValueIncreasing": 0.5089465788504701,
+          "minCellN": 40,
+          "status": "確定"
+        },
+        "statisticallyNonMonotonic": false,
         "conditions": {
           "q4MinusQ1UpperBelowZero": false,
           "monotonicNonIncreasing": false,
@@ -1847,6 +2052,47 @@
           },
           "classCentered": true
         },
+        "adjacentDifferences": [
+          {
+            "fromQuartile": 1,
+            "toQuartile": 2,
+            "estimate": -0.025316455696202528,
+            "low": -0.10836450095289657,
+            "high": 0.057731589560491514,
+            "leftN": 79,
+            "rightN": 79,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 2,
+            "toQuartile": 3,
+            "estimate": 0,
+            "low": -0.07641692508075226,
+            "high": 0.07641692508075226,
+            "leftN": 79,
+            "rightN": 79,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 3,
+            "toQuartile": 4,
+            "estimate": 0.013631937682570594,
+            "low": -0.0667558274820546,
+            "high": 0.09401970284719578,
+            "leftN": 78,
+            "rightN": 79,
+            "status": "確定"
+          }
+        ],
+        "trendTest": {
+          "test": "class-stratified Cochran-Armitage",
+          "z": -0.2696898608239779,
+          "pValueDecreasing": 0.3936994930646265,
+          "pValueIncreasing": 0.6063005069353735,
+          "minCellN": 78,
+          "status": "確定"
+        },
+        "statisticallyNonMonotonic": false,
         "conditions": {
           "q4MinusQ1UpperBelowZero": false,
           "monotonicNonIncreasing": false,
@@ -2005,9 +2251,50 @@
           },
           "classCentered": true
         },
+        "adjacentDifferences": [
+          {
+            "fromQuartile": 1,
+            "toQuartile": 2,
+            "estimate": 0.015306122448979595,
+            "low": -0.025161934072200985,
+            "high": 0.055774178970160175,
+            "leftN": 392,
+            "rightN": 392,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 2,
+            "toQuartile": 3,
+            "estimate": -0.033163265306122444,
+            "low": -0.07174600957294225,
+            "high": 0.00541947896069736,
+            "leftN": 392,
+            "rightN": 392,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 3,
+            "toQuartile": 4,
+            "estimate": -0.012618090714546691,
+            "low": -0.045920148134067015,
+            "high": 0.020683966704973633,
+            "leftN": 391,
+            "rightN": 392,
+            "status": "確定"
+          }
+        ],
+        "trendTest": {
+          "test": "class-stratified Cochran-Armitage",
+          "z": -2.080534470561343,
+          "pValueDecreasing": 0.01873820422699024,
+          "pValueIncreasing": 0.9812617957730098,
+          "minCellN": 391,
+          "status": "確定"
+        },
+        "statisticallyNonMonotonic": false,
         "conditions": {
           "q4MinusQ1UpperBelowZero": false,
-          "monotonicNonIncreasing": false,
+          "monotonicNonIncreasing": true,
           "classCentered": true
         },
         "pass": false
@@ -2163,6 +2450,47 @@
           },
           "classCentered": true
         },
+        "adjacentDifferences": [
+          {
+            "fromQuartile": 1,
+            "toQuartile": 2,
+            "estimate": -0.03963435202050869,
+            "low": -0.12440276780741509,
+            "high": 0.04513406376639771,
+            "leftN": 243,
+            "rightN": 244,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 2,
+            "toQuartile": 3,
+            "estimate": -0.06995884773662553,
+            "low": -0.15091520999253238,
+            "high": 0.010997514519281326,
+            "leftN": 243,
+            "rightN": 243,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 3,
+            "toQuartile": 4,
+            "estimate": -0.04938271604938271,
+            "low": -0.12475374347677802,
+            "high": 0.025988311378012593,
+            "leftN": 243,
+            "rightN": 243,
+            "status": "確定"
+          }
+        ],
+        "trendTest": {
+          "test": "class-stratified Cochran-Armitage",
+          "z": -4.196450549433366,
+          "pValueDecreasing": 0.000013564970450241631,
+          "pValueIncreasing": 0.9999864350295498,
+          "minCellN": 243,
+          "status": "確定"
+        },
+        "statisticallyNonMonotonic": false,
         "conditions": {
           "q4MinusQ1UpperBelowZero": true,
           "monotonicNonIncreasing": true,
@@ -2321,6 +2649,47 @@
           },
           "classCentered": true
         },
+        "adjacentDifferences": [
+          {
+            "fromQuartile": 1,
+            "toQuartile": 2,
+            "estimate": 0.031097560975609784,
+            "low": -0.16216055768593907,
+            "high": 0.22435567963715863,
+            "leftN": 40,
+            "rightN": 41,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 2,
+            "toQuartile": 3,
+            "estimate": -0.10000000000000003,
+            "low": -0.2840081847130026,
+            "high": 0.08400818471300256,
+            "leftN": 40,
+            "rightN": 40,
+            "status": "確定"
+          },
+          {
+            "fromQuartile": 3,
+            "toQuartile": 4,
+            "estimate": 0.10000000000000003,
+            "low": -0.08400818471300256,
+            "high": 0.2840081847130026,
+            "leftN": 40,
+            "rightN": 40,
+            "status": "確定"
+          }
+        ],
+        "trendTest": {
+          "test": "class-stratified Cochran-Armitage",
+          "z": -0.022427517378891572,
+          "pValueDecreasing": 0.49105342114952993,
+          "pValueIncreasing": 0.5089465788504701,
+          "minCellN": 40,
+          "status": "確定"
+        },
+        "statisticallyNonMonotonic": false,
         "conditions": {
           "q4MinusQ1UpperBelowZero": false,
           "monotonicNonIncreasing": false,
