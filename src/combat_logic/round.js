@@ -934,7 +934,16 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     if (char.mabarrierTurns) char.mabarrierTurns = Math.max(0, char.mabarrierTurns - 1);
   });
 
+  const clearBlindStatuses = () => {
+    state.party.forEach(char => {
+      if (char.status !== "blind") return;
+      char.status = "ok";
+      logQueue.push({ msg: `[味方] ${char.name}の盲目が戦闘終了で解けた。` });
+    });
+  };
+
   if (escaped) {
+    clearBlindStatuses();
     return { logQueue, state };
   }
 
@@ -968,6 +977,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     // ゲームオーバーが発火しない。報酬はスキップし、後段の checkCombatStatus に委ねる。
   } else if (allMonstersDead) {
     applyCombatRewards(state, monsters, logQueue);
+    clearBlindStatuses();
   } else {
     // Combat round end poison damage
     state.party.forEach(c => {

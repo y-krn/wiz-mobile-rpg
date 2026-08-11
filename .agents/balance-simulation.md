@@ -522,6 +522,23 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 - TRAP_KITは有限在庫。現在floorで既知の未来chest数があり、kit数が未来機会数以下なら現在kitを温存する。現在chestの最良non-kit損失を1段先の機会費用近似に使い、未生成の未来floorの罠・中身分布を数字で作らない。現在floorに未来chestがない、またはkitが余剰ならkit使用を比較対象に含める。
 - 代表近似（完全効果risk=1、弱体効果risk=0.5、中身損失なし）の等価点は50%。これは説明用の値であり、保守方針の実判定はtrap、party、main item、kit在庫、未来chest数で動く。
 
+## Issue #507 固定結論（盲目の持続）
+
+- #461/#485 の固定kit条件を引き継ぎ、seed=507、6工房分布加重、4職×3,000 run
+  （合計12,000）、calibration=1,000で測定した。乱数並列数は未指定で、実行時は
+  available=15 / resolved=15、map cache=1024。各点のCIはWilson 95%（平均値は
+  normal 95% CI）で、N<30セルは未確定扱いとする。
+- B案を採用する。`src/combat_logic/round.js` で、味方が生存したまま勝利または逃走で
+  戦闘終了した時、盲目を解除する。全滅時には回復イベントを発生させない。
+- A案（攻撃のダメージ半減だけを除去）は改善するが、B案より到達floor・B5/B10到達が低い。
+  C案（標準kitの回復薬1個を目薬へ交換）は、目薬の使用数を増やす一方、回復薬競合で
+  到達floor・生存を悪化させた。両案は採用しない。
+- 宝箱解除時の盲目補正（`blind ? chance / 2 : chance`）は維持する。戦闘中の持続と別の
+  counterplayであり、解除率単独ではなく試行数・`kit`/`direct`/`forced`経路と併記して評価する。
+- 詳細な実行コマンド、endpoint、カバー率、実害、素材EV、raw SHA-256は
+  `scratch/results/issue-507-blind-balance.md` に固定する。今回の結論は、B案の実ソース変更を
+  反映した再測定に基づく。
+
 ## Required Verification
 
 - `npm run test:unit`
