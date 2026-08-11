@@ -20,6 +20,41 @@ Entry format: see the self-improvement skill's "Error Entry" section. IDs use `E
 
 ---
 
+## [ERR-20260811-002] gh-api-sandbox-network
+
+**Logged**: 2026-08-11T16:30:00+09:00
+**Priority**: medium
+**Status**: promoted
+**Area**: infra
+
+### Summary
+Sandbox内のGitHub CLI API接続が失敗した場合、権限付き再試行で成功する。
+
+### Error
+```text
+error connecting to api.github.com
+check your internet connection or https://githubstatus.com
+```
+
+### Context
+- GitHub Issue作成時に `gh issue create` がsandbox接続失敗。
+- 同じ操作を `sandbox_permissions: require_escalated` で再実行し成功。
+
+### Suggested Fix
+GitHub CLI API接続エラー検出後、同じ操作を権限付きで再試行する。
+
+### Metadata
+- Reproducible: yes
+- Related Files: AGENTS.md
+- See Also: ERR-20260811-001
+
+### Resolution
+- **Resolved**: 2026-08-11T16:30:00+09:00
+- **Promoted**: AGENTS.md
+- **Notes**: GitHub CLI接続失敗時の権限付き再試行ルールを永続化。
+
+---
+
 ## [ERR-20260809-001] zsh-test-wrapper
 
 **Logged**: 2026-08-09T00:00:00+09:00

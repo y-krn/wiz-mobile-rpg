@@ -297,6 +297,34 @@ function getEquipmentItems() {
     });
 }
 
+function isItemEquipped(itemKey) {
+  return state.party.some((char) =>
+    Object.values(char.equipment || {}).some((equippedKey) => equippedKey === itemKey)
+  );
+}
+
+function discardEquipment(itemIdx, expectedItemKey) {
+  const selectedItem = state.inventory[itemIdx];
+  const item = getItemData(selectedItem);
+  if (selectedItem !== expectedItemKey || !isEquipmentItem(item) || isItemEquipped(selectedItem)) {
+    return false;
+  }
+
+  const displayName = `${isIdentified(selectedItem) ? "" : "? "}${item.name}`;
+  if (!confirm(`「${displayName}」を破棄しますか？この操作は取り消せません。`)) {
+    return false;
+  }
+
+  state.inventory.splice(itemIdx, 1);
+  addLog(`[破棄] ${displayName}を破棄した。`);
+  playSound("move");
+  saveAutosave();
+  clearSelection();
+  renderEquip();
+  updateUI();
+  return true;
+}
+
 function getItemSummary(item) {
   if (item.type === "weapon") return `攻撃 +${item.atk || 0}`;
   if (item.type === "shield") return `防御 +${item.def || 0}`;
@@ -842,6 +870,17 @@ function createDetailPanel(char) {
       updateUI();
     });
     actions.appendChild(actionBtn);
+
+    if (!isItemEquipped(itemKey)) {
+      const discardBtn = document.createElement("button");
+      discardBtn.type = "button";
+      discardBtn.className = "btn btn-danger btn-block equip-action-btn";
+      discardBtn.textContent = "破棄する";
+      discardBtn.addEventListener("click", () => {
+        discardEquipment(equipState.selectedIdx, itemKey);
+      });
+      actions.appendChild(discardBtn);
+    }
   }
   detailCol.appendChild(actions);
   return detailCol;

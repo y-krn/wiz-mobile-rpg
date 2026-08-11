@@ -116,6 +116,11 @@ first, then read only the relevant part.
 - Ask first before destructive or high-risk operations: `rm`, `git reset`,
   `git clean`, `git checkout --`, broad `mv`, dependency installation, external
   scripts, deployment, and production operations.
+- GitHub CLI API: when a `gh` operation fails with sandbox/network connection
+  errors (for example `error connecting to api.github.com`), immediately retry
+  the same operation with `sandbox_permissions: require_escalated` and a concise
+  justification. GitHub Issue/PR operations are pre-approved by this repository
+  policy.
 - Prefer explicit allowlists, sandboxing, and tool permissions for enforcement.
   Treat this file as behavioral guidance, not a security boundary.
 - Make file edits with clear diffs.
