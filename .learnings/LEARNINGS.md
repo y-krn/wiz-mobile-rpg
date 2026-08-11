@@ -64,6 +64,39 @@ options、retry、template、biome を含む入口を使う。低レベル API �
 
 ---
 
+## [LRN-20260811-003] correction
+
+**Logged**: 2026-08-11T00:00:00+09:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+単一の同量比較で受入目標の未達を結論づけず、供給量を掃引して必要量と制約の破れ方を測る。
+
+### Details
+Issue #499では追加回復+0.390本/runの候補A/B/Cを横並び比較し、B10 entrantが6.1〜6.8%だった。しかし、この結果だけでは機構差が小さいことしか示せず、B10 entrant>=10%に必要な供給量や高用量で先に破れる制約が分からなかった。
+
+### Suggested Action
+受入目標が効果量に依存する測定では、代表機構を選び、+0.4/+1.0/+2.0/+3.0/+4.0など複数用量を同一seed・Nで掃引する。目標到達の最小量とB5/B10死亡・素材EV/時間・bank保持・枯渇・拾得拒否を同じ表へ記録し、必要量で別機構を同量比較する。
+
+### Metadata
+- Source: user_feedback
+- Related Files: scratch/results/issue-499-shallow-recovery-supply.md, scratch/sim_issue_499_shallow_recovery_dose_sweep.js
+- Tags: balance-simulation, dose-response, acceptance-threshold, measurement-report
+- See Also: LRN-20260809-001, LRN-20260811-002
+- Pattern-Key: harden.measure-dose-response-before-acceptance
+- Recurrence-Count: 1
+- First-Seen: 2026-08-11
+- Last-Seen: 2026-08-11
+
+### Resolution
+- **Resolved**: 2026-08-11T00:00:00+09:00
+- **Commit/PR**: PR #504 dose-sweep update
+- **Notes**: 宝箱追加傷薬を+0.4/+1/+2/+3/+4で掃引し、B10 entrant≥10%の最小点を+2.0（実測2.037）として、敵ドロップを同量比較へ追加。
+
+---
+
 ## [LRN-20260809-001] correction
 
 **Logged**: 2026-08-09T00:00:00+09:00

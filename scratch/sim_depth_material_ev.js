@@ -789,13 +789,25 @@ function parseOptionalMerchantInventoryLimit(value) {
   return limit;
 }
 
-function parseOptionalChance(value) {
+function parseOptionalChance(value, name = "chestHealPotionExtraChance") {
   if (value === undefined || value === null || value === "") return null;
   const chance = Number(value);
   if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
-    throw new Error(`chestHealPotionExtraChance must be a number in [0,1]: ${value}`);
+    throw new Error(`${name} must be a number in [0,1]: ${value}`);
   }
   return chance;
+}
+
+function parseOptionalFloorList(value) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new Error(`extraCampFloors must be an integer array: ${value}`);
+  }
+  const floors = [...new Set(value)];
+  if (floors.some(floor => !Number.isInteger(floor) || floor < 1 || floor > 20)) {
+    throw new Error(`extraCampFloors must contain integers 1..20: ${value}`);
+  }
+  return floors;
 }
 const DEFAULT_ELITE_POLICY = SIM_ENV.ELITE_POLICY === "engage" ? "engage" : "avoid";
 const LEGACY_FLOOR_DISARM_MIN_RATE = 50;
@@ -1960,6 +1972,24 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   const chestHealPotionExtraChance = parseOptionalChance(
     scenario.chestHealPotionExtraChance
   );
+  const chestHealPotionReplacementChance = parseOptionalChance(
+    scenario.chestHealPotionReplacementChance,
+    "chestHealPotionReplacementChance"
+  );
+  const enemyHealPotionDropChance = parseOptionalChance(
+    scenario.enemyHealPotionDropChance,
+    "enemyHealPotionDropChance"
+  );
+  const extraCampFloors = parseOptionalFloorList(scenario.extraCampFloors);
+  const extraCampRecoveryRate = Object.hasOwn(scenario, "extraCampRecoveryRate")
+    ? parseOptionalChance(scenario.extraCampRecoveryRate, "extraCampRecoveryRate")
+    : 0.4;
+  const extraCampTimeCost = Object.hasOwn(scenario, "extraCampTimeCost")
+    ? Number(scenario.extraCampTimeCost)
+    : 0;
+  if (!Number.isInteger(extraCampTimeCost) || extraCampTimeCost < 0) {
+    throw new Error(`extraCampTimeCost must be a non-negative integer: ${scenario.extraCampTimeCost}`);
+  }
   const workshopEffects = {
     stats: { ...workshopGrants.stats },
     startingGearCandidates: [
@@ -2048,6 +2078,11 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       healPotionMerchantMaxPurchases: healPotionMerchantPolicy.maxPurchases,
       healPotionMerchantHoldLimit,
       chestHealPotionExtraChance,
+      chestHealPotionReplacementChance,
+      enemyHealPotionDropChance,
+      extraCampFloors,
+      extraCampRecoveryRate,
+      extraCampTimeCost,
       trapPolicy: trapPolicies.floor,
       chestTrapPolicy: trapPolicies.chest,
       trapAvoidancePolicy:
@@ -2128,6 +2163,28 @@ function countInventoryItems(inventory, itemIds = STATUS_CURE_ITEM_IDS) {
 function addItemCount(target, itemId, count = 1) {
   if (count <= 0) return;
   target[itemId] = (target[itemId] || 0) + count;
+}
+
+function recordPickupAttempt(metrics, source, category, accepted) {
+  if (!metrics) return;
+  metrics.pickupAttemptsBySource[source]++;
+  if (accepted) return;
+  metrics.pickupRejectionsBySource[source]++;
+  metrics.pickupRejectionsByCategory[category]++;
+}
+
+function tryAddInventoryItem(state, item, metrics, source) {
+  const itemData = getItemData(item);
+  const category = isEquipment(itemData) ? "equipment" : "item";
+  const accepted = addInventoryItemToState(state, item);
+  recordPickupAttempt(metrics, source, category, accepted);
+  return accepted;
+}
+
+function recordMaterialPickup(metrics, materials) {
+  if (!metrics || totalMaterials(materials) <= 0) return;
+  // Materials are stored outside inventory and therefore cannot be rejected by the 20-slot cap.
+  metrics.pickupAttemptsBySource.material++;
 }
 
 function recordHealPotionAcquisition(state, metrics, source, count = 1) {
@@ -5248,15 +5305,19 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
 }
 
 function applySimulatedCampRest(state, observations, metrics = null) {
-  if (!CAMP_FLOORS.has(state.floor)) return;
+  const extraCamp = state.simPolicy.extraCampFloors.includes(state.floor);
+  if (!CAMP_FLOORS.has(state.floor) && !extraCamp) return;
   const character = state.party[0];
   if (!isAlive(character)) return;
   const maxHp = getCharMaxHp(character);
   const maxMp = getCharMaxMp(character);
   const hpDeficit = Math.max(0, maxHp - character.hp);
   const mpDeficit = Math.max(0, maxMp - character.mp);
-  const normalHpGain = Math.min(hpDeficit, Math.ceil(hpDeficit * 0.4));
-  const normalMpGain = Math.min(mpDeficit, Math.ceil(mpDeficit * 0.4));
+  const recoveryRate = extraCamp
+    ? state.simPolicy.extraCampRecoveryRate
+    : 0.4;
+  const normalHpGain = Math.min(hpDeficit, Math.ceil(hpDeficit * recoveryRate));
+  const normalMpGain = Math.min(mpDeficit, Math.ceil(mpDeficit * recoveryRate));
   const coreHpGain = Math.min(hpDeficit, Math.ceil(hpDeficit * 0.8));
   const coreMpGain = Math.min(mpDeficit, Math.ceil(mpDeficit * 0.8));
   const campMaster = getCharCoreParams(character, "CORE_CAMP_MASTER");
@@ -5268,14 +5329,23 @@ function applySimulatedCampRest(state, observations, metrics = null) {
 
   // camp_rest.jsと同じ回復式。門番突破して次階へ進むsimではcamp到達済みと置く。
   const multiplier = campMaster?.recoveryMultiplier || 1;
-  const hpGain = Math.min(hpDeficit, Math.ceil(hpDeficit * 0.4 * multiplier));
+  const hpGain = Math.min(hpDeficit, Math.ceil(hpDeficit * recoveryRate * multiplier));
   character.hp += hpGain;
-  character.mp += Math.min(mpDeficit, Math.ceil(mpDeficit * 0.4 * multiplier));
+  const mpGain = Math.min(mpDeficit, Math.ceil(mpDeficit * recoveryRate * multiplier));
+  character.mp += mpGain;
   if (campMaster && (hpGain > normalHpGain ||
-    Math.min(mpDeficit, Math.ceil(mpDeficit * 0.4 * multiplier)) > normalMpGain)) {
+    mpGain > normalMpGain)) {
     observations.coreActivationCounts.CORE_CAMP_MASTER++;
   }
-  if (metrics) metrics.campHealingHp += hpGain;
+  if (metrics) {
+    metrics.campHealingHp += hpGain;
+    if (extraCamp) {
+      metrics.extraCampRestCount++;
+      metrics.extraCampHealingHp += hpGain;
+      metrics.steps += state.simPolicy.extraCampTimeCost;
+      state.currentRun.steps += state.simPolicy.extraCampTimeCost;
+    }
+  }
 }
 
 function getChestCoreMinFloor(supplyOverride, itemKind) {
@@ -5493,9 +5563,26 @@ function rollChestItems(
       ? itemId => itemId !== "TOWN_PORTAL"
       : null
   });
-  const item = reward.item;
+  let item = reward.item;
   if (reward.consumedFirstChestGuarantee) {
     state.firstChestUnidentifiedGuaranteed = true;
+  }
+  let replacedMainItem = null;
+  const replacementChance = state.simPolicy.chestHealPotionReplacementChance;
+  if (
+    item &&
+    replacementChance !== null &&
+    replacementChance > 0 &&
+    rng() < replacementChance
+  ) {
+    replacedMainItem = item;
+    item = "HEAL_POTION";
+    if (metrics) {
+      metrics.chestHealPotionReplacementGenerated++;
+      metrics.chestEquipmentReplacedByHealPotion += Number(
+        isEquipment(getItemData(replacedMainItem))
+      );
+    }
   }
 
   const baselineItems = [
@@ -5519,6 +5606,7 @@ function rollChestItems(
     rng
   );
   const extraHealPotion = state.simPolicy.chestHealPotionExtraChance !== null &&
+    state.simPolicy.chestHealPotionExtraChance > 0 &&
     rng() < state.simPolicy.chestHealPotionExtraChance
     ? "HEAL_POTION"
     : null;
@@ -5542,7 +5630,9 @@ function rollChestItems(
   return {
     items,
     mainItem: item,
-    mainItemLost: trapResult.mainItemLost
+    mainItemLost: trapResult.mainItemLost,
+    extraHealPotion: Boolean(extraHealPotion),
+    replacedMainItem
   };
 }
 
@@ -6000,6 +6090,9 @@ function finishRun(state, outcome, metrics) {
     combatDamageHpByType: { ...metrics.combatDamageHpByType },
     stairsHealingHp: metrics.stairsHealingHp,
     campHealingHp: metrics.campHealingHp,
+    extraCampRestCount: metrics.extraCampRestCount,
+    extraCampHealingHp: metrics.extraCampHealingHp,
+    extraCampTimeCost: state.simPolicy.extraCampTimeCost,
     diosHealingHp: metrics.diosHealingHp + metrics.coreObservations.diosHealing,
     diosPotionPriorityOpportunities: metrics.diosPotionPriorityOpportunities,
     diosPotionPriorityCases: metrics.diosPotionPriorityCases,
@@ -6016,6 +6109,12 @@ function finishRun(state, outcome, metrics) {
     trapEncounterBySource: { ...metrics.trapEncounterBySource },
     chestsOpened: metrics.chestsOpened,
     chestHealPotionExtraGenerated: metrics.chestHealPotionExtraGenerated,
+    chestHealPotionReplacementGenerated: metrics.chestHealPotionReplacementGenerated,
+    chestEquipmentReplacedByHealPotion: metrics.chestEquipmentReplacedByHealPotion,
+    enemyHealPotionExtraGenerated: metrics.enemyHealPotionExtraGenerated,
+    pickupAttemptsBySource: { ...metrics.pickupAttemptsBySource },
+    pickupRejectionsBySource: { ...metrics.pickupRejectionsBySource },
+    pickupRejectionsByCategory: { ...metrics.pickupRejectionsByCategory },
     chestsOpenedByFloor: [...metrics.chestsOpenedByFloor],
     chestTrappedByFloor: [...metrics.chestTrappedByFloor],
     chestDisarmAttempts: metrics.chestDisarmAttempts,
@@ -6236,6 +6335,8 @@ export function simulateRun({
     recoveryPotionShortages: 0,
     stairsHealingHp: 0,
     campHealingHp: 0,
+    extraCampRestCount: 0,
+    extraCampHealingHp: 0,
     diosHealingHp: 0,
     diosPostCombatCasts: 0,
     diosPotionPriorityOpportunities: 0,
@@ -6276,6 +6377,12 @@ export function simulateRun({
     trapEncounterBySource: { chest: 0, floor: 0 },
     chestsOpened: 0,
     chestHealPotionExtraGenerated: 0,
+    chestHealPotionReplacementGenerated: 0,
+    chestEquipmentReplacedByHealPotion: 0,
+    enemyHealPotionExtraGenerated: 0,
+    pickupAttemptsBySource: { chest: 0, combat: 0, material: 0 },
+    pickupRejectionsBySource: { chest: 0, combat: 0, material: 0 },
+    pickupRejectionsByCategory: { item: 0, equipment: 0, material: 0 },
     chestsOpenedByFloor: Array(21).fill(0),
     chestTrappedByFloor: Array(21).fill(0),
     chestDisarmAttempts: 0,
@@ -6560,6 +6667,7 @@ export function simulateRun({
         addMaterials(state.currentRun.materials, chestMaterials);
         addMaterials(metrics.materialSourceCounts.chest, chestMaterials);
         metrics.materialSources.chest += totalMaterials(chestMaterials);
+        recordMaterialPickup(metrics, chestMaterials);
         const chestItems = rollChestItems(
           state,
           floor,
@@ -6585,9 +6693,17 @@ export function simulateRun({
             item === chestItems.mainItem
           ) return;
           if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal) return;
-          if (!addInventoryItemToState(state, item)) return;
+          const isExtraHealPotion = chestItems.extraHealPotion &&
+            itemIndex === chestItems.items.length - 1;
+          const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
+            itemIndex === 0;
+          if (!tryAddInventoryItem(state, item, metrics, "chest")) return;
           if (item === "HEAL_POTION") {
-            recordHealPotionAcquisition(state, metrics, "chest");
+            recordHealPotionAcquisition(
+              state,
+              metrics,
+              isExtraHealPotion || isReplacementHealPotion ? "chest-extra" : "chest"
+            );
           }
           if (item === "GREATER_HEAL") {
             recordGreaterHealAcquisition(state, metrics, "chest");
@@ -6841,6 +6957,18 @@ export function simulateRun({
             if (monster.role === "disruptor") metrics.coreObservations.disruptorKills++;
             if (monster.role === "amplifier") metrics.coreObservations.amplifierKills++;
           });
+          const enemyHealPotionDropChance = state.simPolicy.enemyHealPotionDropChance;
+          if (
+            enemyHealPotionDropChance !== null &&
+            enemyHealPotionDropChance > 0 &&
+            state.combatState.monsters.some(monster => !monster.fled && !monster.hasSplit) &&
+            Math.random() < enemyHealPotionDropChance
+          ) {
+            metrics.enemyHealPotionExtraGenerated++;
+            if (tryAddInventoryItem(state, "HEAL_POTION", metrics, "combat")) {
+              recordHealPotionAcquisition(state, metrics, "combat-extra");
+            }
+          }
           const totalRewardDelta = getMaterialDelta(
             materialsBeforeRewards,
             state.currentRun.materials
@@ -6862,6 +6990,7 @@ export function simulateRun({
           }
           metrics.materialSources.combat += totalMaterials(transformedDrops);
           addMaterials(metrics.materialSourceCounts.combat, transformedDrops);
+          recordMaterialPickup(metrics, transformedDrops);
           metrics.materialSources.quest += totalMaterials(questRewards);
           addMaterials(metrics.materialSourceCounts.quest, questRewards);
           metrics.combatMaterialEvents++;
@@ -6896,8 +7025,10 @@ export function simulateRun({
             supplyOverride,
             Math.random
           );
-          if (extraCombatEquipment && addInventoryItemToState(state, extraCombatEquipment)) {
-            overriddenCombatEquipment.push(extraCombatEquipment);
+          if (extraCombatEquipment) {
+            if (tryAddInventoryItem(state, extraCombatEquipment, metrics, "combat")) {
+              overriddenCombatEquipment.push(extraCombatEquipment);
+            }
           }
           const ceilingCombatEquipment = applyEquipmentPostGenerationTransforms(
             overriddenCombatEquipment,
