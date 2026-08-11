@@ -427,6 +427,47 @@ core個数軸）のみで判定し、次の3 endpointをすべて満たすと成
 71.1%（6.2倍）へ上げてもB5 endpointは動かなかった（突破+1.3pt、死亡−2.5pt、いずれもCIが0を跨ぐ）。
 support軸とcore-poolsは参考値として出力してよいが、A3判定へ使わない。
 
+### B10実測移行の判定（#510）
+
+#516後の#461固定条件（seed=461、4職各N=3,000、calibration N=1,000、6工房状態）で、
+`generateRunFloor` 経由の `run` scope を再測定した。A1/A3の定義・B5基準線・固定envは変更しない。
+B10 entrant は **1,554/12,000 = 12.95%**。職別は戦士103/3,000=3.4%、盗賊577/3,000=19.2%、
+僧侶825/3,000=27.5%、魔術師49/3,000=1.6%。盗賊+僧侶は1,402/1,554=90.2%である。
+
+- A1（B10、`combatBuildScore` 職内Q1〜Q4、`deathFloor===10`）: Q1〜Q4のNは391/388/388/387、
+  死亡率は10.5% [7.8, 13.9] / 6.2% [4.2, 9.0] / 9.0% [6.6, 12.3] / 10.1% [7.5, 13.5]
+  （各Wilson 95% CI）。職内centered Q4−Q1は **−0.4pt [−4.7, +3.9]**、trendの減少方向
+  p=0.5964、最小セルN=12。戦士・魔術師の職内quartileはN<30で未確定。符号はB5（−7.3pt）と
+  一致するが、効果量はほぼ消失しCIは0を跨ぐため、A1は不成立または未確定。
+- A3（B10 entrant内、B10時点のcombat core個数0/1/2/3+、N=1,554）: level分布30/569/715/240。
+  突破 **+2.3pp [−0.4, +5.0]**、死亡 **−2.2pp [−4.2, −0.2]**、終了到達floor **+0.263
+  [+0.102, +0.424]**（職内centered、正規近似95% CI）。死亡とfloorはCIが0を跨がないが突破は跨ぐため、
+  3 endpoint全てを要求するA3は不成立。点推定の符号自体はB5（+3.5pp/−2.7pp/+0.182）と一致する。
+- B10 build snapshotはfloor-start 1,540件、floor 9→10直後のportal終了でfloor-startが無い14件は
+  同一seedの診断再実行によるfinish snapshotで補完した。分母・endpointは通常runの結果を維持した。
+
+Claudeの楽観的な理論N（B5効果量が持続する仮定）は、A1が232/群、entrant総数928、約7,167run、
+A3死亡が1,622/群、entrant総数7,130、約55,058runだった。B10実測効果で再計算すると、A1は
+**86,812/群、entrant総数347,248、約2,681,452run**（simulation約8,164秒＋calibration約102秒）、
+A3死亡は**2,602/群、entrant総数8,211、約63,406run**（simulation約193秒＋calibration約102秒）となる。
+A1はB5の−7.3ptから−0.4ptへ大幅縮小、A3死亡は−2.7ptから−2.2ptへ縮小した。N<30セルを埋めるだけでも
+各職120 entrantが必要で、現行率では魔術師7,347run、4職均等runで約29,388runが下限となる。
+いずれもB10 entrant分母で計算し、有群率でrun数を割っていない。
+
+**判定: B5代理を残す。** B10への全面移行は、A1のCI跨ぎ・職内N<30、およびA3突破CI跨ぎにより採用しない。
+盗賊・僧侶限定測定は90.2%のentrantを覆う追加監査候補だが、#461の4職共通層化系列を崩す別estimandであり、
+B5受入基準の置換にはしない。B10 entrantは到達済みrunの選別集団であり、質・core個数の関連には
+`deathFloor === floor` と同種の選別罠がある。balance値・srcのゲーム挙動は変更しない。
+
+測定記録は `scratch/results/issue-510-b10-criteria-migration.md` に固定する。
+`measurement.sourceCommit` は `aab93d62fb5b51caff0f22f313ad07d60c10aa3f`、
+`measurement.originMainAncestor=true`、env hashは
+`6630774fbe1172084adde136272b09df77373427bc3d179fdd3587b9fad4f572`、raw JSONL SHA-256は
+`92f882a5cf4a84fed3cb7ac6b31d8516ac60fa740014eaf6f23e632439bd737d`、summary JSON SHA-256は
+`ffe4d4330fbd7e35d57b40a3bffe973a133dda4d919bf2adcd6378355971d219`。wall-clockはcalibration 102.460秒、
+simulation 36.537秒、合計138.997秒、総CPUは677.103秒、resolved parallelismは15
+（`SIM_PARALLEL`未指定）である。raw JSONL/summary JSONはコミットしない。
+
 ### #271 効果量の正本（#467との取り違え防止）
 
 #467（B5 entrant N=524）から今回（N=3,176）へ、効果量はすべて縮小した。
