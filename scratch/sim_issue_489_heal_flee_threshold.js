@@ -40,16 +40,21 @@ const OBSERVED_WORKSHOP_TOTAL = OBSERVED_WORKSHOP_DISTRIBUTION.reduce(
 );
 const FIXED_HEAL_THRESHOLDS = Object.freeze([0.35, 0.45, 0.55, 0.65, 0.70]);
 const FIXED_FLEE_THRESHOLDS = Object.freeze([0.15, 0.20, 0.25, 0.30, 0.35]);
-const EV_HEAL_THRESHOLDS = Object.freeze([0.35, 0.55, 0.70]);
+const ISSUE494_MODE = process.env.ISSUE494_MODE === "1";
+const ISSUE_NUMBER = ISSUE494_MODE ? 494 : 489;
+const EV_HEAL_THRESHOLDS = Object.freeze(ISSUE494_MODE ? [0.55] : [0.35, 0.55, 0.70]);
+const EV_FLEE_THRESHOLDS = Object.freeze(ISSUE494_MODE ? [0.15, 0.20, 0.25, 0.35] : [0.35]);
 const TARGET_DEPTH = 21;
 const R95 = 1.959963984540054;
 const SMOKE = process.env.ISSUE489_SMOKE === "1";
 const OUTPUT_STEM = process.env.SIM_RESULT_BASENAME ||
-  (SMOKE ? "issue-489-heal-flee-threshold-smoke" : "issue-489-heal-flee-threshold");
+  (SMOKE
+    ? `issue-${ISSUE_NUMBER}-${ISSUE494_MODE ? "combat-policy-default" : "heal-flee-threshold"}-smoke`
+    : `issue-${ISSUE_NUMBER}-${ISSUE494_MODE ? "combat-policy-default" : "heal-flee-threshold"}`);
 
 const FIXED_ENV = Object.freeze({
   SIM_PRESET: "",
-  SIM_SEED: "489",
+  SIM_SEED: ISSUE494_MODE ? "494" : "489",
   SIM_RUNS: "500",
   SIM_CALIBRATION_RUNS: "100",
   DEPARTURE_CRAFT_IDS:
@@ -64,9 +69,9 @@ const FIXED_ENV = Object.freeze({
   STATUS_CURE_HP_THRESHOLD: "0.35",
   STATUS_CURE_MERCHANT_POLICY: "missing",
   HEAL_POTION_MERCHANT_POLICY: "missing",
-  FLEE_POLICY: "threshold",
-  FLEE_HP_THRESHOLD: "0.35",
-  HEAL_POTION_THRESHOLD: "0.35",
+  FLEE_POLICY: ISSUE494_MODE ? "ev" : "threshold",
+  FLEE_HP_THRESHOLD: ISSUE494_MODE ? "0.20" : "0.35",
+  HEAL_POTION_THRESHOLD: ISSUE494_MODE ? "0.55" : "0.35",
   PORTAL_HP_THRESHOLD: "0.35",
   PORTAL_MAX_HEAL_POTIONS: "0",
   PORTAL_MIN_FLOOR: "3",
@@ -160,18 +165,31 @@ const FULL_CONDITIONS = Object.freeze([
       fleeThreshold
     }))
   ),
-  ...EV_HEAL_THRESHOLDS.map(healThreshold => createCondition({
-    mode: "ev",
-    healThreshold,
-    fleeThreshold: 0.35
-  }))
+  ...EV_FLEE_THRESHOLDS.flatMap(fleeThreshold =>
+    EV_HEAL_THRESHOLDS.map(healThreshold => createCondition({
+      mode: "ev",
+      healThreshold,
+      fleeThreshold
+    }))
+  )
 ]);
 const CONDITIONS = SMOKE
   ? Object.freeze([
-      FULL_CONDITIONS.find(condition => condition.id === "threshold-h0.35-f0.15"),
-      FULL_CONDITIONS.find(condition => condition.id === "threshold-h0.35-f0.35"),
-      FULL_CONDITIONS.find(condition => condition.id === "threshold-h0.70-f0.35"),
-      FULL_CONDITIONS.find(condition => condition.id === "ev-h0.35-f0.35")
+      ...(
+        ISSUE494_MODE
+          ? [
+              "threshold-h0.35-f0.15",
+              "threshold-h0.35-f0.35",
+              "ev-h0.55-f0.15",
+              "ev-h0.55-f0.35"
+            ]
+          : [
+              "threshold-h0.35-f0.15",
+              "threshold-h0.35-f0.35",
+              "threshold-h0.70-f0.35",
+              "ev-h0.35-f0.35"
+            ]
+      ).map(conditionId => FULL_CONDITIONS.find(condition => condition.id === conditionId))
     ])
   : FULL_CONDITIONS;
 const CONDITION_BY_ID = new Map(CONDITIONS.map(condition => [condition.id, condition]));
@@ -182,8 +200,8 @@ function environmentForHash() {
   );
   return {
     ...environment,
-    ISSUE489_MODE: SMOKE ? "smoke" : "sweep",
-    ISSUE489_CONDITIONS: CONDITIONS.map(condition =>
+    [`ISSUE${ISSUE_NUMBER}_MODE`]: SMOKE ? "smoke" : "sweep",
+    [`ISSUE${ISSUE_NUMBER}_CONDITIONS`]: CONDITIONS.map(condition =>
       `${condition.id}:${condition.mode}:${condition.healThreshold}:${condition.fleeThreshold}`
     ).join(","),
     SIM_PARALLEL: "<omitted>",
@@ -264,7 +282,7 @@ export function runIssue489Task(task, context) {
     startFloor: 1,
     targetDepth: TARGET_DEPTH,
     runIndex: task.runIndex,
-    seriesId: `issue489-${condition.pairId}`,
+    seriesId: `issue${ISSUE_NUMBER}-${condition.pairId}`,
     scoringProfile: profile,
     scenario,
     workshop: scenario.workshop
@@ -283,6 +301,11 @@ export function runIssue489Task(task, context) {
     reachedFloor: result.reachedFloor,
     deathFloor: result.deathFloor,
     outcome: result.outcome,
+    survived: Boolean(result.survived),
+    carriedMaterials: result.carriedMaterials || 0,
+    bankRetentionRate: result.carriedMaterials > 0
+      ? result.bankedMaterials / result.carriedMaterials
+      : 1,
     endpoints: {
       b5: endpoint(result, 5),
       b10: endpoint(result, 10)
@@ -355,10 +378,12 @@ function addStat(stats, value) {
 function createAccumulator() {
   return {
     runs: 0,
+    survived: 0,
     outcomes: { 5: createOutcomeCounts(), 10: createOutcomeCounts() },
     reachedFloor: createStats(),
     expGained: createStats(),
     finalLevel: createStats(),
+    bankRetentionRate: createStats(),
     materialEvPerTime: createStats(),
     combatHealPotionsUsed: createStats(),
     outsideHealPotionsUsed: createStats(),
@@ -387,12 +412,14 @@ function addOutcome(accumulator, result, floor) {
 
 function addResult(accumulator, result) {
   accumulator.runs++;
+  accumulator.survived += Number(result.survived);
   addOutcome(accumulator, result, 5);
   addOutcome(accumulator, result, 10);
   [
     ["reachedFloor", result.reachedFloor],
     ["expGained", result.expGained],
     ["finalLevel", result.finalLevel],
+    ["bankRetentionRate", result.bankRetentionRate],
     ["materialEvPerTime", result.materialEvPerTime],
     ["combatHealPotionsUsed", result.combatHealPotionsUsed],
     ["outsideHealPotionsUsed", result.outsideHealPotionsUsed],
@@ -486,9 +513,11 @@ function summarize(accumulator) {
     runs: accumulator.runs,
     b5: summarizeOutcome(5),
     b10: summarizeOutcome(10),
+    survivalRate: wilson(accumulator.survived, accumulator.runs),
     reachedFloor: normal(accumulator.reachedFloor),
     expGained: normal(accumulator.expGained),
     finalLevel: normal(accumulator.finalLevel),
+    bankRetentionRate: normal(accumulator.bankRetentionRate, 4),
     materialEvPerTime: normal(accumulator.materialEvPerTime, 4),
     combatHealPotionsUsed: normal(accumulator.combatHealPotionsUsed),
     outsideHealPotionsUsed: normal(accumulator.outsideHealPotionsUsed),
@@ -552,6 +581,8 @@ function pairComparisons(rowsByCondition) {
     ["平均到達floor", row => row.reachedFloor],
     ["EXP/run", row => row.expGained],
     ["平均Lv", row => row.finalLevel],
+    ["生還率", row => Number(row.survived)],
+    ["bank保持率", row => row.bankRetentionRate],
     ["素材EV/時間", row => row.materialEvPerTime],
     ["戦闘回復薬/run", row => row.combatRecoveryPotionsUsed],
     ["戦闘回復イベント/run", row => row.combatRecoveryPotionsUsed + row.diosCombatCastCount],
@@ -606,13 +637,19 @@ function findKnee(rows) {
 }
 
 function renderSummary({ rows, grouped, comparisons, measurement, rawSha256, summarySha256 }) {
+  const summaryTitle = ISSUE494_MODE
+    ? "# Issue #494 戦闘方針の既定値測定"
+    : "# Issue #489 回復・逃走閾値掃引";
+  const summaryConclusion = ISSUE494_MODE
+    ? "固定閾値は回復35/45/55/65/70% × 逃走15/20/25/30/35%、敵強度EVは回復55% × 逃走15/20/25/35%を測定した。"
+    : "固定閾値は回復35/45/55/65/70% × 逃走15/20/25/30/35%を全域測定し、敵強度EVは回復35/55/70%・逃走基準35%で監査した。";
   const lines = [
-    "# Issue #489 回復・逃走閾値掃引",
+    summaryTitle,
     "",
     "## 結論",
     "",
     "ゲーム本体のbalance値・逃走成功判定は変更せず、simの回復/逃走行動方針だけを比較した。",
-    "固定閾値は回復35/45/55/65/70% × 逃走15/20/25/30/35%を全域測定し、敵強度EVは回復35/55/70%・逃走基準35%で監査した。",
+    summaryConclusion,
     "kneeは同一seed掃引の隣接傾き低下から候補表示するだけで、複数比較補正なしの採用判定には使わない。",
     "",
     "## 条件別・職業別結果",
@@ -628,7 +665,8 @@ function renderSummary({ rows, grouped, comparisons, measurement, rawSha256, sum
         `- ${CLASS_LABELS[className]}: B5 ${formatOutcome(summary.b5)}; ` +
           `B10 ${formatOutcome(summary.b10)}`,
         `  floor=${formatMean(summary.reachedFloor)}; EXP/run=${formatMean(summary.expGained)}; ` +
-          `Lv=${formatMean(summary.finalLevel)}; EV/time=${formatMean(summary.materialEvPerTime)}`,
+          `Lv=${formatMean(summary.finalLevel)}; 生還率=${formatRate(summary.survivalRate)}; ` +
+          `bank保持率=${formatMean(summary.bankRetentionRate)}; EV/time=${formatMean(summary.materialEvPerTime)}`,
         `  回復薬/run 戦闘=${formatMean(summary.combatRecoveryPotionsUsed)} ` +
           `(傷薬=${formatMean(summary.combatHealPotionsUsed)}, 上薬=${formatMean(summary.combatGreaterHealPotionsUsed)})、` +
           `戦闘外=${formatMean(summary.outsideRecoveryPotionsUsed)} ` +
@@ -640,10 +678,37 @@ function renderSummary({ rows, grouped, comparisons, measurement, rawSha256, sum
     const overall = grouped.get(`${condition.id}:overall`);
     lines.push(
       `- 全職集約: floor=${formatMean(overall.reachedFloor)}; EXP/run=${formatMean(overall.expGained)}; ` +
+        `生還率=${formatRate(overall.survivalRate)}; bank保持率=${formatMean(overall.bankRetentionRate)}; ` +
         `EV/time=${formatMean(overall.materialEvPerTime)}; 戦闘回復イベント総数=${overall.combatRecoveryEvents}`,
       ""
     );
   });
+  if (ISSUE494_MODE) {
+    const tradeoffIds = [
+      "threshold-h0.35-f0.35",
+      "threshold-h0.35-f0.20",
+      "threshold-h0.35-f0.25",
+      "ev-h0.55-f0.15",
+      "ev-h0.55-f0.20",
+      "ev-h0.55-f0.25",
+      "ev-h0.55-f0.35"
+    ];
+    lines.push(
+      "## 到達性・死亡・bank トレードオフ（全職集約）",
+      "",
+      "| 方針 | B5 entrant | B5死亡 | 生還率 | 平均floor | bank保持率 | 素材EV/時間 |",
+      "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+      ...tradeoffIds.filter(conditionId => CONDITIONS.some(condition => condition.id === conditionId)).map(conditionId => {
+        const condition = CONDITIONS.find(candidate => candidate.id === conditionId);
+        const summary = grouped.get(`${conditionId}:overall`);
+        return `| ${condition.label} | ${formatRate(summary.b5.entrant)} | ` +
+          `${formatRate(summary.b5.death)} | ${formatRate(summary.survivalRate)} | ` +
+          `${formatMean(summary.reachedFloor)} | ${formatMean(summary.bankRetentionRate)} | ` +
+          `${formatMean(summary.materialEvPerTime)} |`;
+      }),
+      ""
+    );
+  }
   lines.push("## knee候補", "");
   FIXED_FLEE_THRESHOLDS.forEach(fleeThreshold => {
     const rowsForFlee = CONDITIONS
@@ -706,7 +771,9 @@ function renderSummary({ rows, grouped, comparisons, measurement, rawSha256, sum
     "- `simulateRun`、`generateRunFloor`、実戦闘/報酬/罠/ポータル/鑑定/装備更新を使用。",
     "- 逃走は現行sim同様、戦闘中に到達した自ターンで成功。回復薬は傷薬/上薬、DIOSは戦闘中/戦闘後を分離。",
     "- 固定閾値は敵の強さを見ない比較対象。EV版は測定用の追加方針で、ゲーム本体の行動経路へ接続しない。",
-    "- 回復閾値・逃走閾値を変更した測定結果はwhat-if。既定値は0.35/0.35のまま。",
+    ISSUE494_MODE
+      ? "- 回復閾値・逃走閾値を変更した測定結果はwhat-if。採用候補はEV回復55%と逃走閾値4点で比較した。"
+      : "- 回復閾値・逃走閾値を変更した測定結果はwhat-if。既定値は0.35/0.35のまま。",
     "- 素材EV/時間・到達性・生還率を併記し、一方だけで採否を決めない。",
     "",
     "## Review output",
@@ -726,14 +793,14 @@ function renderSummary({ rows, grouped, comparisons, measurement, rawSha256, sum
     "## 再現コマンド",
     "",
     "```sh",
-    `${SMOKE ? "ISSUE489_SMOKE=1 " : ""}node scratch/sim_issue_489_heal_flee_threshold.js`,
+    `${SMOKE ? "ISSUE489_SMOKE=1 " : ""}${ISSUE494_MODE ? "node scratch/sim_issue_494_combat_policy_default.js" : "node scratch/sim_issue_489_heal_flee_threshold.js"}`,
     "```",
     ""
   );
   return lines.join("\n");
 }
 
-async function main() {
+export async function main() {
   const calibrationStarted = performance.now();
   const calibrationCpuStarted = process.cpuUsage();
   const scoringProfiles = calibrateProfiles();
@@ -792,7 +859,7 @@ async function main() {
   const rawText = rows.map(row => JSON.stringify(row)).join("\n") + "\n";
   const rawSha256 = sha256(rawText);
   const measurement = {
-    issue: 489,
+    issue: ISSUE_NUMBER,
     scope: "run",
     mode: SMOKE ? "smoke" : "sweep",
     seed: SEED,

@@ -18,8 +18,8 @@ export function calculateCombatRecoveryAction({
   diosHeal = 0,
   potionAvailable = false,
   diosAvailable = false,
-  fleeThreshold = 0.35,
-  healThreshold = 0.35
+  fleeThreshold = 0.20,
+  healThreshold = 0.55
 }) {
   const normalizedMaxHp = Math.max(1, Number(maxHp) || 0);
   const normalizedHp = Math.max(0, Number(currentHp) || 0);
