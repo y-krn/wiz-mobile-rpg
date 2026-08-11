@@ -77,6 +77,17 @@ check(
   smokeResult.extraCampRestCount > 0 && smokeResult.extraCampTimeCost === 3,
   "candidate C camp hook should execute and charge time"
 );
+check(
+  Object.hasOwn(smokeResult, "damageHpBySource") &&
+    Object.hasOwn(smokeResult, "lastDamageEvent") &&
+    Object.hasOwn(smokeResult, "deathEncounterType"),
+  "damage-source telemetry should expose terminal-event fields"
+);
+check(
+  Object.hasOwn(smokeResult, "recoveryPotionDepletedFloor") &&
+    Object.hasOwn(smokeResult, "recoveryPotionShortageFloor"),
+  "recovery-potion timing telemetry should expose depletion fields"
+);
 
 if (failures.length > 0) {
   failures.forEach(message => console.error(`[FAIL] ${message}`));

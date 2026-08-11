@@ -12,6 +12,30 @@ const CHEST_POISON_WEAKENED_TRIGGER_CHANCE = 0.50;
 const CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE = 0.50;
 const CHEST_FLASH_BLIND_CHANCE = Object.freeze({ full: 0.60, weakened: 0.30 });
 
+function reduceTrapDamage(damage, trapGuard = 0) {
+  const numericGuard = Number(trapGuard);
+  if (!Number.isFinite(numericGuard) || numericGuard <= 0 || damage <= 0) return damage;
+  const reduction = Math.max(0, Math.min(100, numericGuard)) / 100;
+  return Math.max(1, Math.round(damage * (1 - reduction)));
+}
+
+export function applyTrapGuardToEffect(
+  effect,
+  { trapGuardByParty = [], targetIndex = 0 } = {}
+) {
+  if (!effect) return effect;
+  return {
+    ...effect,
+    targetDamage: reduceTrapDamage(
+      effect.targetDamage,
+      trapGuardByParty[targetIndex]
+    ),
+    partyDamage: (effect.partyDamage || []).map((damage, index) =>
+      reduceTrapDamage(damage, trapGuardByParty[index])
+    )
+  };
+}
+
 export function hasTrapScout(party = []) {
   return party.some(char => ["Thief", "Ninja"].includes(char?.class) && char?.hp > 0);
 }

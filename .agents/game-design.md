@@ -39,6 +39,21 @@ is a bug in the economy.
   chest disarm through attempts and route breakdown, not as a standalone
   balance target.
 
+## 基本4職の罠sustain（Issue #516）
+
+- 戦士は `trapGuard=40`、魔術師は `trapGuard=50` をクラス固有passiveとして持つ。
+  正本は `src/data/classes.js`、適用処理は
+  `src/rules/trap_effect_rules.js` の `applyTrapGuardToEffect` とする。
+- 軽減対象は床罠・宝箱罠のHPダメージ成分だけで、正のダメージは最低1を維持する。
+  罠の発見・解除、MP drain、毒・盲目・転送などの非HP効果は変更しない。
+  盗賊・僧侶と上級4職の既存passiveも変更しない。
+- これは回復薬の常時供給ではなく、罠優位の浅層で戦士・魔術師が薬を使い切るまでの
+  時間を延ばす設計である。期待されるプレイヤー影響は、罠を踏んだ際の即時HP損失と
+  浅層の薬枯渇を緩和し、盗賊・僧侶の到達性を維持すること。
+- Issue #516 の再現可能な測定値と採用候補の比較は
+  `scratch/results/issue-516-class-sustain.md`、#461再基準線は
+  `scratch/results/issue-461-baseline.md` を正本とする。
+
 ## Currency: Materials Only
 
 Gold is removed. Materials are the single currency, used both by the

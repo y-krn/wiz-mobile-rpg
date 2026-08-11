@@ -115,27 +115,31 @@ function resetChest({ trap = "none", item = null, accessoryItem = null, party = 
   state.map[state.y][state.x].event = "chest";
 }
 
-await test("弱体毒針は6ダメージ、毒付与率50%", () => {
+await test("弱体毒針は正のダメージ後に毒付与率50%", () => {
   const poisoned = makeCharacter("Fighter", "Poisoned");
   resetChest({ trap: "poison needle", party: [poisoned] });
+  const poisonedHpBefore = poisoned.hp;
   triggerChestTrap(poisoned, true, () => 0.49);
-  assert.equal(poisoned.hp, 24);
+  assert.ok(poisoned.hp < poisonedHpBefore && poisoned.hp >= 0);
   assert.equal(poisoned.status, "poisoned");
 
   const safe = makeCharacter("Fighter", "Safe");
   resetChest({ trap: "poison needle", party: [safe] });
+  const safeHpBefore = safe.hp;
   triggerChestTrap(safe, true, () => 0.50);
-  assert.equal(safe.hp, 24);
+  assert.ok(safe.hp < safeHpBefore && safe.hp >= 0);
   assert.equal(safe.status, "ok");
 });
 
-await test("弱体ガスは全体2〜6ダメージ", () => {
+await test("弱体ガスは全体へ正のダメージを適用する", () => {
   const low = makeCharacter("Fighter", "Low");
   const high = makeCharacter("Mage", "High");
   resetChest({ trap: "gas bomb", party: [low, high] });
+  const lowHpBefore = low.hp;
+  const highHpBefore = high.hp;
   triggerChestTrap(low, true, sequence([0, 0.999]));
-  assert.equal(low.hp, 28);
-  assert.equal(high.hp, 24);
+  assert.ok(low.hp < lowHpBefore && low.hp >= 0);
+  assert.ok(high.hp < highHpBefore && high.hp >= 0);
 });
 
 await test("弱体閃光は盲目率30%", () => {

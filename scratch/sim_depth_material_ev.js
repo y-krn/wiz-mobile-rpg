@@ -132,6 +132,7 @@ const {
   resolveTrapAction
 } = await import("../src/rules/trap_rules.js");
 const {
+  applyTrapGuardToEffect,
   calculateChestTrapExpectedRisk,
   calculateFloorTrapExpectedDamage,
   hasTrapScout,
@@ -1305,6 +1306,9 @@ function getSimulationTrapSenseDisposition(state) {
 }
 
 function getSimulationTrapBonus(character, state = null) {
+  if (state?.simPolicy?.ignoreThiefSustain && character?.class === "Thief") {
+    return 0;
+  }
   const trapSense = getSimulationTrapSenseValue(state);
   const actual = Math.max(0, getCharTrapBonus(character) - trapSense);
   const exposureValue = Number(state?.simPolicy?.trapBonusExposureValue || 0);
@@ -1313,7 +1317,10 @@ function getSimulationTrapBonus(character, state = null) {
       (getSimulationTrapSenseDisposition(state) === "disarm" ? trapSense : 0);
   }
   const override = getSimulationTrapOverride(state)?.trapBonus;
-  if (override && actual > 0) {
+  const overrideApplies = override &&
+    (!getSimulationTrapOverride(state)?.className ||
+      getSimulationTrapOverride(state).className === character?.class);
+  if (overrideApplies && actual > 0) {
     const multiplier = Number(override.multiplier);
     if (Number.isFinite(multiplier) && multiplier >= 0) {
       return actual * multiplier +
@@ -1331,6 +1338,14 @@ function getSimulationTrapSense(state) {
   return getSimulationTrapSenseDisposition(state) === "legacy-detection"
     ? getSimulationTrapSenseValue(state)
     : 0;
+}
+
+function getSimulationTrapParty(state) {
+  if (!state?.simPolicy?.ignoreThiefSustain) return state.party;
+  return state.party.map(character => character?.class === "Thief"
+    ? { ...character, class: "Fighter" }
+    : character
+  );
 }
 
 function getSimulationDetectRate(state, floor) {
@@ -1377,8 +1392,12 @@ function getSimulationDetectRate(state, floor) {
 
 function getSimulationTrapBonusMax(character, state = null) {
   const override = getSimulationTrapOverride(state)?.trapBonus;
-  const apt = isDisarmAptClass(character?.class);
-  const value = apt ? override?.maxApt : override?.maxNonApt;
+  const overrideApplies = override &&
+    (!getSimulationTrapOverride(state)?.className ||
+      getSimulationTrapOverride(state).className === character?.class);
+  const apt = !(state?.simPolicy?.ignoreThiefSustain && character?.class === "Thief") &&
+    isDisarmAptClass(character?.class);
+  const value = overrideApplies ? (apt ? override?.maxApt : override?.maxNonApt) : null;
   return Number.isFinite(Number(value))
     ? Math.max(0, Number(value))
     : apt ? 90 : 60;
@@ -1392,8 +1411,11 @@ function calculateSimulationFloorTrapSuccessRate({
   floor,
   affixBonus
 } = {}) {
-  const override = getSimulationTrapOverride(state)?.trapBonus;
-  if (!override || (!Object.hasOwn(override, "maxApt") &&
+  const trapOverride = getSimulationTrapOverride(state);
+  const override = trapOverride?.trapBonus;
+  const overrideApplies = override &&
+    (!trapOverride?.className || trapOverride.className === className);
+  if (!overrideApplies || (!Object.hasOwn(override, "maxApt") &&
     !Object.hasOwn(override, "maxNonApt"))) {
     return calculateFloorTrapSuccessRate({
       trap,
@@ -1403,7 +1425,8 @@ function calculateSimulationFloorTrapSuccessRate({
       affixBonus
     });
   }
-  const apt = isDisarmAptClass(className);
+  const apt = !(state?.simPolicy?.ignoreThiefSustain && className === "Thief") &&
+    isDisarmAptClass(className);
   const base = apt ? 80 : 40;
   const levelGain = apt ? Math.max(1, Math.floor(Number(level) || 1)) :
     Math.max(1, Math.floor(Number(level) || 1)) * 0.5;
@@ -1422,7 +1445,7 @@ function getFloorDisarmPolicyThreshold(state, trap) {
   }
   return calculateFloorDisarmEvThreshold({
     trapType: trap?.type,
-    scoutMitigated: hasTrapScout(state.party)
+    scoutMitigated: hasTrapScout(getSimulationTrapParty(state))
   });
 }
 
@@ -1437,7 +1460,7 @@ function getFloorTrapExpectedDamageForAction(state, trap, floor, weakened) {
   return calculateFloorTrapExpectedDamage({
     trap,
     floor: effectFloor,
-    party: state.party,
+    party: getSimulationTrapParty(state),
     weakened
   }).reduce((sum, damage) => sum + damage, 0);
 }
@@ -1878,6 +1901,9 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   assignRunQuests(currentRun);
 
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
+  if (scenario.disablePriestHealing && className === "Priest") {
+    character.spells = character.spells.filter(spell => spell !== "DIOS");
+  }
   const workshopGrants = getWorkshopGrants(workshop);
   const identificationPolicy = scenario.identificationPolicy || "powder";
   // legacyは実装外反実仮想として開始粉を使わず、powder/gambleは実runの初期支給を使う。
@@ -2024,6 +2050,9 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   if (!Number.isInteger(extraCampTimeCost) || extraCampTimeCost < 0) {
     throw new Error(`extraCampTimeCost must be a non-negative integer: ${scenario.extraCampTimeCost}`);
   }
+  const floorTransitionRecoveryRate = Object.hasOwn(scenario, "floorTransitionRecoveryRate")
+    ? parseOptionalChance(scenario.floorTransitionRecoveryRate, "floorTransitionRecoveryRate")
+    : 0.15;
   const workshopEffects = {
     stats: { ...workshopGrants.stats },
     startingGearCandidates: [
@@ -2117,12 +2146,15 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       extraCampFloors,
       extraCampRecoveryRate,
       extraCampTimeCost,
+      floorTransitionRecoveryRate,
+      trapGuardOverride: scenario.trapGuardOverride || null,
       trapPolicy: trapPolicies.floor,
       chestTrapPolicy: trapPolicies.chest,
       trapAvoidancePolicy:
         scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
       floorTrapDetection: scenario.floorTrapDetection || "source",
       trapSenseDisposition: scenario.trapSenseDisposition || "disarm",
+      ignoreThiefSustain: Boolean(scenario.ignoreThiefSustain),
       trapOverride: scenario.trapOverride || null,
       trapBonusValueOverride: scenario.trapBonusValueOverride || null,
       trapBonusExposure: scenario.trapBonusExposure || null,
@@ -2283,6 +2315,15 @@ function getRecoveryPotionItem(state) {
   if (hasRecoveryPotion(state, "GREATER_HEAL")) return "GREATER_HEAL";
   if (hasRecoveryPotion(state, "HEAL_POTION")) return "HEAL_POTION";
   return null;
+}
+
+function recordRecoveryPotionTiming(state, metrics) {
+  const remaining = state.inventory.filter(item =>
+    item === "HEAL_POTION" || item === "GREATER_HEAL"
+  ).length;
+  if (remaining === 0 && metrics.recoveryPotionDepletedFloor === null) {
+    metrics.recoveryPotionDepletedFloor = state.floor;
+  }
 }
 
 function hasRecoveryPotion(state, itemKey = null) {
@@ -3075,15 +3116,17 @@ function removeRaceEffectScale(state) {
 }
 
 function applyCountermeasureScale(state, override) {
-  const multiplier = Number(override?.multiplier) || 1;
+  const rawMultiplier = Number(override?.multiplier);
+  const multiplier = Number.isFinite(rawMultiplier) ? rawMultiplier : 1;
   const affixType = override?.affixType;
-  if (!affixType || multiplier <= 1) return [];
+  if (!affixType || multiplier < 0 || multiplier === 1) return [];
   const patches = [];
   state.party.forEach(character => {
     if (!character?.equipment) return;
+    if (override?.className && override.className !== character.class) return;
     const currentValue = getCharAffixSum(character, affixType);
     const delta = currentValue * (multiplier - 1);
-    if (delta <= 0) return;
+    if (currentValue === 0 || !Number.isFinite(delta)) return;
     patches.push({
       character,
       hadPrevious: Object.hasOwn(character.equipment, SIM_COUNTERMEASURE_EFFECT_SLOT),
@@ -3310,6 +3353,14 @@ function runEncounter(
     )
     : null;
   const finishEncounter = (result, rounds, healPotionsUsed, greaterHealPotionsUsed) => {
+    if (metrics && telemetry.incomingDamage > 0) {
+      metrics.damageHpBySource[encounterType] += telemetry.incomingDamage;
+      metrics.lastDamageEvent = {
+        source: encounterType,
+        floor: state.floor,
+        amount: telemetry.incomingDamage
+      };
+    }
     if (encounterDiagnostic) {
       encounterDiagnostic.result = result;
       if (fullDiagnostics) {
@@ -3390,8 +3441,12 @@ function runEncounter(
       ? getCharAffixSum(state.party[0], raceBiasOverride?.affixType)
       : 0;
     const countermeasureOverride = state.simPolicy.countermeasureOverride;
+    const countermeasureMultiplier = Number(countermeasureOverride?.multiplier);
     const countermeasureActive = Boolean(
       countermeasureOverride?.affixType &&
+      Number.isFinite(countermeasureMultiplier) &&
+      countermeasureMultiplier >= 0 &&
+      countermeasureMultiplier !== 1 &&
       state.floor >= (Number(countermeasureOverride.startFloor) || 3)
     );
     const countermeasureAffixValueBefore = countermeasureActive
@@ -3514,6 +3569,9 @@ function runEncounter(
       recordGreaterHealConsumption(state, metrics, greaterHealDelta);
     } else if (greaterHealDelta < 0) {
       recordGreaterHealAcquisition(state, metrics, "other", -greaterHealDelta);
+    }
+    if (potionDelta > 0 || greaterHealDelta > 0) {
+      recordRecoveryPotionTiming(state, metrics);
     }
     if (metrics && action.simStatusBefore) {
       const selectedCureCountAfter =
@@ -3643,6 +3701,7 @@ function useHealPotionIfNeeded(state, metrics) {
       character.hp <= getCharMaxHp(character) * state.simPolicy.healPotionThreshold
     ) {
       metrics.recoveryPotionShortages++;
+      metrics.recoveryPotionShortageFloor ??= state.floor;
     }
     return null;
   }
@@ -3658,6 +3717,7 @@ function useHealPotionIfNeeded(state, metrics) {
   } else {
     ITEM_EFFECTS[itemKey]({ char: state.party[0] });
   }
+  recordRecoveryPotionTiming(state, metrics);
   return itemKey;
 }
 
@@ -3683,10 +3743,37 @@ function recordTrapActivation(metrics, source, type) {
   metrics.trapActivationsByType[type] = (metrics.trapActivationsByType[type] || 0) + 1;
 }
 
-function recordTrapDamage(metrics, source, type, damage) {
+function recordTrapDamage(metrics, source, type, damage, floor) {
   metrics.trapDamageHp += damage;
   metrics.trapDamageHpBySource[source] += damage;
   metrics.trapDamageHpByType[type] = (metrics.trapDamageHpByType[type] || 0) + damage;
+  const damageSource = `${source}-trap`;
+  metrics.damageHpBySource[damageSource] += damage;
+  metrics.lastDamageEvent = {
+    source: damageSource,
+    floor,
+    amount: damage
+  };
+}
+
+function getSimulationTrapGuardByParty(state) {
+  const override = state.simPolicy?.trapGuardOverride;
+  const overrides = Array.isArray(override) ? override : [override];
+  return state.party.map(character => {
+    const matchedOverride = overrides.find(candidate =>
+      candidate?.className === character.class ||
+      (Array.isArray(candidate?.classNames) && candidate.classNames.includes(character.class))
+    );
+    if (!matchedOverride) return getCharAffixSum(character, "trapGuard");
+    if (Number.isFinite(Number(matchedOverride.value))) {
+      return Math.max(0, Number(matchedOverride.value));
+    }
+    const multiplier = Number(matchedOverride.multiplier);
+    if (Number.isFinite(multiplier)) {
+      return Math.max(0, getCharAffixSum(character, "trapGuard") * (1 - multiplier));
+    }
+    return getCharAffixSum(character, "trapGuard");
+  });
 }
 
 function useTrapRecoveryIfNeeded(state, metrics) {
@@ -3719,6 +3806,12 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
     poisonWard: getCharAffixSum(character, "poisonWard"),
     rng: Math.random
   });
+  const guardedEffect = applyTrapGuardToEffect(effect, {
+    trapGuardByParty: getSimulationTrapGuardByParty(state),
+    targetIndex
+  });
+  effect.targetDamage = guardedEffect.targetDamage;
+  effect.partyDamage = guardedEffect.partyDamage;
   recordTrapActivation(metrics, "chest", trap);
 
   if (trap === "poison needle") {
@@ -3729,7 +3822,7 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
     } else if (effect.targetPoisonTriggered && !effect.targetPoisonResisted) {
       character.status = "poisoned";
     }
-    recordTrapDamage(metrics, "chest", trap, effect.targetDamage);
+    recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor);
   } else if (trap === "gas bomb") {
     effect.partyDamage.forEach((damage, index) => {
       const target = state.party[index];
@@ -3737,7 +3830,7 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
       target.hp = Math.max(0, target.hp - damage);
       clearCharIncapacitationOnDamage(target);
       if (target.hp === 0) target.status = "dead";
-      recordTrapDamage(metrics, "chest", trap, damage);
+      recordTrapDamage(metrics, "chest", trap, damage, state.floor);
     });
   } else if (trap === "teleporter") {
     metrics.trapTeleports += Number(effect.teleported);
@@ -3752,13 +3845,13 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
 }
 
 function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
-  const effect = resolveFloorTrapEffect({
+  const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor,
-    party: state.party,
+    party: getSimulationTrapParty(state),
     weakened,
     rng: Math.random
-  });
+  }), { trapGuardByParty: getSimulationTrapGuardByParty(state) });
   recordTrapActivation(metrics, "floor", trap.type);
 
   effect.partyDamage.forEach((damage, index) => {
@@ -3768,7 +3861,7 @@ function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
     target.hp = Math.max(0, target.hp - appliedDamage);
     clearCharIncapacitationOnDamage(target);
     if (target.hp === 0) target.status = "dead";
-    recordTrapDamage(metrics, "floor", trap.type, appliedDamage);
+    recordTrapDamage(metrics, "floor", trap.type, appliedDamage, state.floor);
   });
   effect.partyMpDrain.forEach((drain, index) => {
     if (drain > 0) {
@@ -4848,12 +4941,12 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
   return upgrades;
 }
 
-function applyFloorTransitionHeal(character) {
+function applyFloorTransitionHeal(character, recoveryRate = 0.15) {
   if (!isAlive(character)) return 0;
   const maxHp = getCharMaxHp(character);
   const healed = Math.min(
     maxHp - character.hp,
-    Math.max(1, Math.floor(maxHp * 0.15))
+    Math.max(1, Math.floor(maxHp * recoveryRate))
   );
   character.hp += healed;
   return healed;
@@ -5479,7 +5572,9 @@ function resolveChestTrapForSimulation(
   metrics.trapEncounterBySource.chest++;
   metrics.chestTrappedByFloor[floor]++;
   const chance = calculateChestDisarmChance({
-    className: character.class,
+    className: state.simPolicy.ignoreThiefSustain && character.class === "Thief"
+      ? "Fighter"
+      : character.class,
     trapBonus: getSimulationTrapBonus(character, state),
     blind: character.status === "blind"
   });
@@ -5694,6 +5789,17 @@ function createFloorSupplyStats() {
     source: { combat: 0, chest: 0, other: 0 },
     coreSource: { combat: 0, chest: 0, other: 0 }
   }));
+}
+
+function createDamageHpBySource() {
+  return {
+    "floor-trap": 0,
+    "chest-trap": 0,
+    normal: 0,
+    elite: 0,
+    midboss: 0,
+    boss: 0
+  };
 }
 
 function createCurseGenerationCounts() {
@@ -6132,6 +6238,12 @@ function finishRun(state, outcome, metrics) {
     strPotionMerchantFailures: { ...metrics.strPotionMerchantFailures },
     combatDamageHp: metrics.combatDamageHp,
     combatDamageHpByType: { ...metrics.combatDamageHpByType },
+    damageHpBySource: { ...metrics.damageHpBySource },
+    lastDamageEvent: metrics.lastDamageEvent
+      ? { ...metrics.lastDamageEvent }
+      : null,
+    recoveryPotionDepletedFloor: metrics.recoveryPotionDepletedFloor,
+    recoveryPotionShortageFloor: metrics.recoveryPotionShortageFloor,
     stairsHealingHp: metrics.stairsHealingHp,
     campHealingHp: metrics.campHealingHp,
     extraCampRestCount: metrics.extraCampRestCount,
@@ -6270,7 +6382,10 @@ function descendToNextFloor(state, nextFloor, metrics = null, { stairsHeal = fal
     getCharAffixSum(state.party[0], "contractReward")
   );
   if (stairsHeal) applySimulatedStairsHeal(state.party[0], metrics);
-  applyFloorTransitionHeal(state.party[0]);
+  applyFloorTransitionHeal(
+    state.party[0],
+    state.simPolicy.floorTransitionRecoveryRate
+  );
 }
 
 export function simulateRun({
@@ -6371,6 +6486,8 @@ export function simulateRun({
     firstCoreEquippedFloor: null,
     cursedCoreEquipmentFound: 0,
     floorSupplyStats: createFloorSupplyStats(),
+    recoveryPotionDepletedFloor: null,
+    recoveryPotionShortageFloor: null,
     healPotionsUsed: 0,
     greaterHealPotionsUsed: 0,
     recoveryPotionsUsed: 0,
@@ -6490,6 +6607,8 @@ export function simulateRun({
     trapTeleports: 0,
     combatDamageHp: 0,
     combatDamageHpByType: {},
+    damageHpBySource: createDamageHpBySource(),
+    lastDamageEvent: null,
     statusCureItemsAcquired: {
       initial: countInventoryItems(state.simStartingInventory),
       departureCraft: countInventoryItems(state.simDepartureCraftItems),
