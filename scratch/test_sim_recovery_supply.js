@@ -1,7 +1,13 @@
 /* global console, process */
 
 const failures = [];
-const { parseHealPotionMerchantPolicy } = await import("./sim_depth_material_ev.js");
+const {
+  calibrateCoreScoringProfile,
+  getScenarioById,
+  parseHealPotionMerchantPolicy,
+  resetSimulationRandom,
+  simulateRun
+} = await import("./sim_depth_material_ev.js");
 
 function check(condition, message) {
   if (!condition) failures.push(message);
@@ -30,9 +36,49 @@ try {
   // expected
 }
 
+const smokeScenario = getScenarioById("workshop-empty");
+const smokeProfile = calibrateCoreScoringProfile(
+  1,
+  smokeScenario,
+  "powder",
+  smokeScenario.workshop
+);
+resetSimulationRandom(499);
+const smokeResult = simulateRun({
+  className: "Fighter",
+  startFloor: 1,
+  targetDepth: 3,
+  runIndex: 0,
+  seriesId: "recovery-supply-hook-test",
+  scoringProfile: smokeProfile,
+  scenario: {
+    ...smokeScenario,
+    chestHealPotionReplacementChance: 0.5,
+    enemyHealPotionDropChance: 0.5,
+    extraCampFloors: [1],
+    extraCampRecoveryRate: 0.2,
+    extraCampTimeCost: 3
+  },
+  workshop: smokeScenario.workshop
+});
+check(
+  smokeResult.pickupRejectionsBySource?.material === 0 &&
+    smokeResult.pickupRejectionsByCategory?.material === 0,
+  "materials must remain outside the inventory rejection path"
+);
+check(
+  smokeResult.chestHealPotionReplacementGenerated > 0 &&
+    smokeResult.enemyHealPotionExtraGenerated > 0,
+  "candidate A/B generation hooks should execute"
+);
+check(
+  smokeResult.extraCampRestCount > 0 && smokeResult.extraCampTimeCost === 3,
+  "candidate C camp hook should execute and charge time"
+);
+
 if (failures.length > 0) {
   failures.forEach(message => console.error(`[FAIL] ${message}`));
   process.exit(1);
 }
 
-console.log("[PASS] recovery merchant policy parser");
+console.log("[PASS] recovery supply hooks and merchant policy parser");
