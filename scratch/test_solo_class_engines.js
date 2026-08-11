@@ -3,6 +3,7 @@ import { getCharAffixSum } from "../src/data.js";
 import { applyKillAffixEffects, getMeleeModifiers } from "../src/combat_logic/damage.js";
 import { getMpWardDef } from "../src/combat_logic/round.js";
 import { getClassPassiveBonus } from "../src/rules/class_rules.js";
+import { applyTrapGuardToEffect } from "../src/rules/trap_effect_rules.js";
 import { SOLO_CLASSES, createSoloCharacter } from "../src/state.js";
 
 let failures = 0;
@@ -55,6 +56,16 @@ test("僧侶と魔術師は敵撃破時にMPを1回復する", () => {
 test("盗賊は技巧を35%回避へ転用する", () => {
   const thief = createSoloCharacter("Thief");
   assert.equal(getCharAffixSum(thief, "evasion"), 35);
+});
+
+test("戦士と魔術師は罠被害を職業passiveで軽減する", () => {
+  assert.equal(getCharAffixSum(createSoloCharacter("Fighter"), "trapGuard"), 40);
+  assert.equal(getCharAffixSum(createSoloCharacter("Mage"), "trapGuard"), 50);
+  const effect = applyTrapGuardToEffect(
+    { targetDamage: 12, partyDamage: [10, 10] },
+    { trapGuardByParty: [40, 50], targetIndex: 0 }
+  );
+  assert.deepEqual(effect, { targetDamage: 7, partyDamage: [6, 5] });
 });
 
 // #267: 後衛の火力窓とMP連動障壁

@@ -16,7 +16,7 @@ import { increaseChestTrapTier } from "./systems/traps.js";
 import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
-import { resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
+import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
 import { getChestMaterialPool } from "./rules/material_rules.js";
 
 export function applyTombRaiderTrapTier(chest, opener) {
@@ -409,13 +409,17 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
   playSound("chest_trap");
   if (renderer) renderer.triggerShake(10, 400);
 
-  const effect = resolveChestTrapEffect({
+  const targetIndex = Math.max(0, state.party.indexOf(char));
+  const effect = applyTrapGuardToEffect(resolveChestTrapEffect({
     trap,
     weakened,
     party: state.party,
-    targetIndex: Math.max(0, state.party.indexOf(char)),
+    targetIndex,
     poisonWard: getCharAffixSum(char, "poisonWard"),
     rng
+  }), {
+    trapGuardByParty: state.party.map(member => getCharAffixSum(member, "trapGuard")),
+    targetIndex
   });
 
   if (trap === "poison needle") {

@@ -5,7 +5,7 @@ import { triggerGameOver } from "../combat.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
 import { createRng } from "../seed_rng.js";
 import { descendToFloor, findCellCoordsByType } from "../movement.js";
-import { MAP_WIDTH, MAP_HEIGHT, DX, DY, getPartyMaxAffix, getCharTrapBonus } from "../data.js";
+import { MAP_WIDTH, MAP_HEIGHT, DX, DY, getPartyMaxAffix, getCharAffixSum, getCharTrapBonus } from "../data.js";
 import { armControlsGuard } from "../controls_guard.js";
 import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
 import {
@@ -13,7 +13,7 @@ import {
   calculateFloorTrapSuccessRate,
   resolveTrapAction
 } from "../rules/trap_rules.js";
-import { resolveFloorTrapEffect } from "../rules/trap_effect_rules.js";
+import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "../rules/trap_effect_rules.js";
 
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
 
@@ -177,12 +177,14 @@ export function triggerPitfall(trap, isPartialSuccess = false) {
   }
 
   const onLanding = () => {
-    const effect = resolveFloorTrapEffect({
+    const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
       trap,
       floor: state.floor,
       party: state.party,
       weakened: isPartialSuccess,
       rng: Math.random
+    }), {
+      trapGuardByParty: state.party.map(char => getCharAffixSum(char, "trapGuard"))
     });
     if (effect.scoutMitigated) {
       addLog("[味方] 盗賊の素早い身のこなしにより、着地時の衝撃が和らいだ！");
@@ -224,12 +226,14 @@ export function triggerPitfall(trap, isPartialSuccess = false) {
 }
 
 export function triggerTrap(trap, isPartialSuccess = false) {
-  const effect = resolveFloorTrapEffect({
+  const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
     trap,
     floor: state.floor,
     party: state.party,
     weakened: isPartialSuccess,
     rng: Math.random
+  }), {
+    trapGuardByParty: state.party.map(char => getCharAffixSum(char, "trapGuard"))
   });
 
   // 探索能力に応じた失敗時の被害軽減（ThiefやNinjaが生存していると30%軽減）
