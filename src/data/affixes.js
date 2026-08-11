@@ -140,7 +140,7 @@ export const SUPPORT_AFFIXES = [
   support("identifyDiscount", "鑑定眼", "鑑定費用を軽減する。", "economy", { unit: "%" }),
   support("materialFind", "素材探し", "素材発見率が10%増加する。", "economy", { unit: "%" }),
   support("contractReward", "任務巧者", "ランクエスト報酬が10%増加する。", "economy", { unit: "%" }),
-  support("trapSense", "罠察知", "床罠の察知率が増加する。", "basic", { unit: "%" }),
+  support("trapSense", "罠解除", "罠の解除率が増加する。", "basic", { unit: "%" }),
 ];
 
 export const CORE_AFFIXES = [

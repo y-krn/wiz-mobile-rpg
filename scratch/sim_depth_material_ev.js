@@ -1288,39 +1288,73 @@ function getSimulationTrapOverride(state) {
   return state?.simPolicy?.trapOverride || null;
 }
 
-function getSimulationTrapBonus(character, state = null) {
-  const actual = getCharTrapBonus(character);
-  const exposureValue = Number(state?.simPolicy?.trapBonusExposureValue || 0);
-  if (state?.simPolicy?.trapBonusExposureApplied && exposureValue > 0) {
-    return Math.max(actual, exposureValue / 100);
-  }
-  const override = getSimulationTrapOverride(state)?.trapBonus;
-  if (override && actual > 0) {
-    const multiplier = Number(override.multiplier);
-    if (Number.isFinite(multiplier) && multiplier >= 0) return actual * multiplier;
-  }
-  return TRAP_BONUS_OVERRIDE_PERCENT === null
-    ? actual
-    : TRAP_BONUS_OVERRIDE_PERCENT / 100;
-}
-
-function getSimulationTrapSense(state) {
+function getSimulationTrapSenseValue(state) {
   const actual = getPartyMaxAffix(state.party, "trapSense") / 100;
   const override = getSimulationTrapOverride(state)?.trapSense;
   if (override && actual > 0) {
     const multiplier = Number(override.multiplier ?? 1);
     if (Number.isFinite(multiplier) && multiplier >= 0) return actual * multiplier;
   }
-  return TRAP_SENSE_OVERRIDE_PERCENT === null ? actual : TRAP_SENSE_OVERRIDE_PERCENT / 100;
+  return TRAP_SENSE_OVERRIDE_PERCENT === null
+    ? actual
+    : TRAP_SENSE_OVERRIDE_PERCENT / 100;
+}
+
+function getSimulationTrapSenseDisposition(state) {
+  return state?.simPolicy?.trapSenseDisposition || "disarm";
+}
+
+function getSimulationTrapBonus(character, state = null) {
+  const trapSense = getSimulationTrapSenseValue(state);
+  const actual = Math.max(0, getCharTrapBonus(character) - trapSense);
+  const exposureValue = Number(state?.simPolicy?.trapBonusExposureValue || 0);
+  if (state?.simPolicy?.trapBonusExposureApplied && exposureValue > 0) {
+    return Math.max(actual, exposureValue / 100) +
+      (getSimulationTrapSenseDisposition(state) === "disarm" ? trapSense : 0);
+  }
+  const override = getSimulationTrapOverride(state)?.trapBonus;
+  if (override && actual > 0) {
+    const multiplier = Number(override.multiplier);
+    if (Number.isFinite(multiplier) && multiplier >= 0) {
+      return actual * multiplier +
+        (getSimulationTrapSenseDisposition(state) === "disarm" ? trapSense : 0);
+    }
+  }
+  const trapBonus = TRAP_BONUS_OVERRIDE_PERCENT === null
+    ? actual
+    : TRAP_BONUS_OVERRIDE_PERCENT / 100;
+  return trapBonus +
+    (getSimulationTrapSenseDisposition(state) === "disarm" ? trapSense : 0);
+}
+
+function getSimulationTrapSense(state) {
+  return getSimulationTrapSenseDisposition(state) === "legacy-detection"
+    ? getSimulationTrapSenseValue(state)
+    : 0;
 }
 
 function getSimulationDetectRate(state, floor) {
+  if (state.simPolicy.floorTrapDetection === "certain") {
+    return { rate: 1, cap: 1, scoutBonus: 0 };
+  }
   const scoutBonus = getSimulationTrapSense(state);
+  if (getSimulationTrapSenseDisposition(state) !== "legacy-detection") {
+    return {
+      rate: calculateDetectRate({ floor, scoutBonus: scoutBonus }),
+      cap: 1,
+      scoutBonus: 0
+    };
+  }
   const override = getSimulationTrapOverride(state)?.trapSense;
   if (!override || scoutBonus <= 0 ||
     (!Object.hasOwn(override, "cap") && !Object.hasOwn(override, "startFloor"))) {
+    const depth = Math.max(1, Math.floor(Number(floor) || 1));
+    const base = Math.max(0.6, 0.85 - 0.015 * (depth - 1));
+    const depthProgress = Math.max(0, Math.min(1, (depth - 16) / 4));
+    const investmentProgress = Math.max(0, Math.min(1, scoutBonus / 0.30));
+    const deepScoutBonus = 0.05 * depthProgress * investmentProgress;
     return {
-      rate: calculateDetectRate({ floor, scoutBonus: scoutBonus }),
+      rate: Math.round(Math.min(0.95, base + scoutBonus + deepScoutBonus) * 1000) / 1000,
       cap: 0.95,
       scoutBonus
     };
@@ -2087,6 +2121,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       chestTrapPolicy: trapPolicies.chest,
       trapAvoidancePolicy:
         scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
+      floorTrapDetection: scenario.floorTrapDetection || "source",
+      trapSenseDisposition: scenario.trapSenseDisposition || "disarm",
       trapOverride: scenario.trapOverride || null,
       trapBonusValueOverride: scenario.trapBonusValueOverride || null,
       trapBonusExposure: scenario.trapBonusExposure || null,
@@ -5293,6 +5329,14 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
     return { pitfallTriggered: false };
   }
 
+  if (action === "trigger") {
+    metrics.trapActivationCauses.ambush++;
+  } else if (action === "force") {
+    metrics.trapActivationCauses.chosen++;
+  } else {
+    metrics.trapActivationCauses.disarmFailure++;
+    metrics.trapDisarmFailures++;
+  }
   trap.state = "disabled";
   state.currentRun.trapsTriggered++;
   if (trap.type === "pitfall") {
@@ -6102,6 +6146,8 @@ function finishRun(state, outcome, metrics) {
     trapPolicy: state.simPolicy.trapPolicy,
     chestTrapPolicy: state.simPolicy.chestTrapPolicy,
     trapAvoidancePolicy: state.simPolicy.trapAvoidancePolicy,
+    floorTrapDetection: state.simPolicy.floorTrapDetection,
+    trapSenseDisposition: state.simPolicy.trapSenseDisposition,
     trapActivations: metrics.trapActivations,
     trapActivationsBySource: { ...metrics.trapActivationsBySource },
     trapActivationsByType: { ...metrics.trapActivationsByType },
@@ -6137,6 +6183,8 @@ function finishRun(state, outcome, metrics) {
     trapDisarmCapHits: metrics.trapDisarmCapHits,
     trapPlanEvaluations: metrics.trapPlanEvaluations,
     trapPlanActionCounts: { ...metrics.trapPlanActionCounts },
+    trapActivationCauses: { ...metrics.trapActivationCauses },
+    trapDisarmFailures: metrics.trapDisarmFailures,
     trapAvoided: metrics.trapAvoided,
     trapForced: metrics.trapForced,
     trapAvoidanceExtraSteps: metrics.trapAvoidanceExtraSteps,
@@ -6405,6 +6453,12 @@ export function simulateRun({
     trapDisarmCapHits: 0,
     trapPlanEvaluations: 0,
     trapPlanActionCounts: {},
+    trapActivationCauses: {
+      ambush: 0,
+      chosen: 0,
+      disarmFailure: 0
+    },
+    trapDisarmFailures: 0,
     trapAvoided: 0,
     trapForced: 0,
     trapAvoidanceExtraSteps: 0,

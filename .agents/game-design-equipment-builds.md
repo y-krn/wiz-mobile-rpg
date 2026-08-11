@@ -81,7 +81,7 @@ and triggering its curse is intended behavior (the risk of this core).
 - basic (migrated from existing effects in Phase 1): str/int/pie/vit/agi/luk, hp/mp, atk/def,
   antiUndead/antiDragon/antiDemon, poisonWard, spellGuard, trapBonus,
   treasureSense, arcaneSense, hearRange, traceRead, followUp, arcane,
-  devotion, guardian, firstStrike, trapSense（罠察知: increases floor-trap detection rate）
+  devotion, guardian, firstStrike, trapSense（旧ID・罠解除: increases floor/chest-trap disarm rate）
 - conditional (Phase 2): deepAssault (attack+ from B3F onward) / frontGuard /
   rearEvasion / fullHpDamage / firstTurnAttack / antiBeast / antiSpirit /
   firstStrikeDefense / lastSurvivorStats / statusResistance / spellAccuracy

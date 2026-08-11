@@ -27,7 +27,7 @@ export const TAGS = {
   vigor: { name: "無傷", desc: "万全の状態から放つ猛攻" },
   resistance: { name: "不屈", desc: "状態異常に抗う強い意志" },
   precision: { name: "精唱", desc: "呪文を正確に導く集中力" },
-  trap_sense: { name: "察知", desc: "床罠を見抜く感覚" }
+  trap_sense: { name: "解除", desc: "罠を安全に解除する技術" }
 };
 
 export const CLASS_TAGS = {
@@ -92,5 +92,5 @@ export const TAG_EFFECT_MAP = {
   vigor: { name: "剛印", type: "fullHpDamage", value: 10, desc: "HP満タン時に与ダメージ+10%", matCost: 4 },
   resistance: { name: "忍印", type: "statusResistance", value: 12, desc: "状態異常耐性+12%", matCost: 3 },
   precision: { name: "詠印", type: "spellAccuracy", value: 10, desc: "呪文命中率+10%", matCost: 3 },
-  trap_sense: { name: "察印", type: "trapSense", value: 15, desc: "床罠の察知率+15%", matCost: 3 }
+  trap_sense: { name: "解印", type: "trapSense", value: 15, desc: "罠の解除率+15%", matCost: 3 }
 };

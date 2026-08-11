@@ -92,11 +92,7 @@ export function startTrapEncounter(trap, pendingMove) {
 // 壁越しは察知しない（行けない場所の情報でマップが汚れるため）。
 // 1つの罠につき判定は生涯1回（引き直せると判定が作業に化けるため）。
 export function detectAdjacentTraps() {
-  const trapSense = getPartyMaxAffix(state.party, "trapSense");
-  const rate = calculateDetectRate({
-    floor: state.floor,
-    scoutBonus: trapSense / 100
-  });
+  const rate = calculateDetectRate();
   const traceRead = getPartyMaxAffix(state.party, "traceRead");
   const found = [];
 
