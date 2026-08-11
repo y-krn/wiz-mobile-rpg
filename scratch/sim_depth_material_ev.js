@@ -713,6 +713,13 @@ const INITIAL_ANTIDOTES = 0;
 const INITIAL_GUARD_POTIONS = 0;
 // 仮値・感度分析対象: 戦闘中/戦闘後HPが最大HPの35%以下なら傷薬を1個使う。
 const HEAL_POTION_THRESHOLD = 0.35;
+const HEAL_PRIORITY_POLICIES = Object.freeze(["potion-first", "dios-first"]);
+const BLOOD_WAND_HEAL_POLICIES = Object.freeze([
+  "reserve-potion",
+  "allow-recovery-potion"
+]);
+const DEFAULT_HEAL_PRIORITY_POLICY = "potion-first";
+const DEFAULT_BLOOD_WAND_HEAL_POLICY = "reserve-potion";
 // 仮値・感度分析対象: 最大HPの指定割合以下なら次の自ターンで逃走する。
 const DEFAULT_FLEE_HP_THRESHOLD = SIM_ENV.FLEE_POLICY === "never"
   ? null
@@ -1859,6 +1866,19 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   equipBestWorkshopStartingGear(character, workshop, startingGearConfig);
   const finalWeaponId = character.equipment.weapon;
   const trapPolicies = resolveTrapPolicies(scenario);
+  const healPriorityPolicy = scenario.healPriorityPolicy || DEFAULT_HEAL_PRIORITY_POLICY;
+  if (!HEAL_PRIORITY_POLICIES.includes(healPriorityPolicy)) {
+    throw new Error(
+      `healPriorityPolicy must be ${HEAL_PRIORITY_POLICIES.join("|")}: ${healPriorityPolicy}`
+    );
+  }
+  const bloodWandHealPolicy =
+    scenario.bloodWandHealPolicy || DEFAULT_BLOOD_WAND_HEAL_POLICY;
+  if (!BLOOD_WAND_HEAL_POLICIES.includes(bloodWandHealPolicy)) {
+    throw new Error(
+      `bloodWandHealPolicy must be ${BLOOD_WAND_HEAL_POLICIES.join("|")}: ${bloodWandHealPolicy}`
+    );
+  }
   const workshopEffects = {
     stats: { ...workshopGrants.stats },
     startingGearCandidates: [
@@ -1959,6 +1979,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       threatOverride: scenario.threatOverride || null,
       elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY,
       bloodWandHpPaymentMinRate: BLOOD_WAND_HP_PAYMENT_MIN_RATE,
+      healPriorityPolicy,
+      bloodWandHealPolicy,
       materialDropOverride: scenario.materialDropOverride || null
     },
     floor: startFloor
@@ -2078,6 +2100,46 @@ function hasRecoveryPotion(state, itemKey = null) {
   return itemKey
     ? state.inventory.includes(itemKey)
     : state.inventory.includes("GREATER_HEAL") || state.inventory.includes("HEAL_POTION");
+}
+
+function getDiosCombatAction(state) {
+  const character = state.party[0];
+  if (
+    character.hp >= getCharMaxHp(character) * HEAL_POTION_THRESHOLD ||
+    !getSpellActionPayment(state, "DIOS", 0, { minHpAfterPaymentRate: null })
+  ) return null;
+  return { type: "spell", actorIdx: 0, targetIdx: 0, spellName: "DIOS" };
+}
+
+function recordDiosPotionPriorityCase(
+  state,
+  metrics,
+  recoveryItem,
+  diosAction,
+  selectedAction
+) {
+  if (!metrics || !recoveryItem || !diosAction) return;
+  metrics.diosPotionPriorityOpportunities++;
+  if (selectedAction.type !== "item") return;
+  metrics.diosPotionPriorityCases++;
+  if (!metrics.diosPotionPriorityEventSamples ||
+      metrics.diosPotionPriorityEventSamples.length >= 20) return;
+  const character = state.party[0];
+  const payment = getSpellPayment(character, SPELLS.DIOS.cost);
+  metrics.diosPotionPriorityEventSamples.push({
+    runSeed: state.currentRun.runSeed,
+    floor: state.floor,
+    round: state.combatState?.roundNumber || null,
+    hp: character.hp,
+    maxHp: getCharMaxHp(character),
+    mp: character.mp,
+    maxMp: getCharMaxMp(character),
+    recoveryItem,
+    diosPaymentResource: payment.resource,
+    diosPaymentCost: payment.cost,
+    selectedAction: selectedAction.type,
+    selectedItem: selectedAction.itemKey
+  });
 }
 
 export function getSimulationHealAmount(state, itemKey) {
@@ -2252,20 +2314,21 @@ function selectCombatAction(state, metrics) {
     return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: "HASTE_POTION" };
   }
 
-  if (character.hp <= getCharMaxHp(character) * HEAL_POTION_THRESHOLD) {
-    const recoveryItem = getRecoveryPotionItem(state);
-    if (recoveryItem) {
-      return { type: "item", actorIdx: 0, targetIdx: 0, itemKey: recoveryItem };
-    }
-  }
-
-  if (
-    character.hp < getCharMaxHp(character) * 0.35 &&
-    // DIOS already has a low-HP need gate; its HP payment is not offensive spending.
-    getSpellActionPayment(state, "DIOS", 0, { minHpAfterPaymentRate: null })
-  ) {
-    return { type: "spell", actorIdx: 0, targetIdx: 0, spellName: "DIOS" };
-  }
+  const recoveryItem = getRecoveryPotionItem(state);
+  const diosAction = getDiosCombatAction(state);
+  const diosPriorityAction = state.simPolicy.healPriorityPolicy === "dios-first"
+    ? diosAction
+    : recoveryItem
+      ? { type: "item", actorIdx: 0, targetIdx: 0, itemKey: recoveryItem }
+      : diosAction;
+  recordDiosPotionPriorityCase(
+    state,
+    metrics,
+    recoveryItem,
+    diosAction,
+    diosPriorityAction
+  );
+  if (diosPriorityAction) return diosPriorityAction;
 
   const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
   const livingMonsters = monsters.filter(monster => monster.hp > 0);
@@ -2340,7 +2403,8 @@ function getBloodWandOpportunity(state, action, observations = null) {
     if (
       character.hp < getCharMaxHp(character) * 0.35 &&
       hasSpell(character, "DIOS") &&
-      !hasRecoveryPotion(state)
+      (state.simPolicy.bloodWandHealPolicy === "allow-recovery-potion" ||
+        !hasRecoveryPotion(state))
     ) {
       spellName = "DIOS";
       opportunityType = "heal";
@@ -3323,7 +3387,10 @@ function applyPostCombatRecovery(character, metrics = null) {
     const hpBefore = character.hp;
     character.mp -= 1;
     SPELL_EFFECTS.DIOS({ caster: character, target: character });
-    if (metrics) metrics.diosHealingHp += Math.max(0, character.hp - hpBefore);
+    if (metrics) {
+      metrics.diosPostCombatCasts++;
+      metrics.diosHealingHp += Math.max(0, character.hp - hpBefore);
+    }
   }
 }
 
@@ -5701,6 +5768,11 @@ function finishRun(state, outcome, metrics) {
     finalCoreCurseLockedIds,
     finalCoreId,
     coreObservations: metrics.coreObservations,
+    healPriorityPolicy: state.simPolicy.healPriorityPolicy,
+    bloodWandHealPolicy: state.simPolicy.bloodWandHealPolicy,
+    diosCombatCastCount: metrics.coreObservations.diosHealActions,
+    diosPostCombatCastCount: metrics.diosPostCombatCasts,
+    diosCastCount: metrics.coreObservations.diosHealActions + metrics.diosPostCombatCasts,
     healPotionsUsed: metrics.healPotionsUsed,
     greaterHealPotionsUsed: metrics.greaterHealPotionsUsed,
     recoveryPotionsUsed: metrics.recoveryPotionsUsed,
@@ -5716,6 +5788,11 @@ function finishRun(state, outcome, metrics) {
     stairsHealingHp: metrics.stairsHealingHp,
     campHealingHp: metrics.campHealingHp,
     diosHealingHp: metrics.diosHealingHp + metrics.coreObservations.diosHealing,
+    diosPotionPriorityOpportunities: metrics.diosPotionPriorityOpportunities,
+    diosPotionPriorityCases: metrics.diosPotionPriorityCases,
+    diosPotionPriorityEventSamples: metrics.diosPotionPriorityEventSamples || [],
+    finalMp: state.party[0].mp,
+    finalMaxMp: getCharMaxMp(state.party[0]),
     trapPolicy: state.simPolicy.trapPolicy,
     chestTrapPolicy: state.simPolicy.chestTrapPolicy,
     trapAvoidancePolicy: state.simPolicy.trapAvoidancePolicy,
@@ -5939,6 +6016,10 @@ export function simulateRun({
     stairsHealingHp: 0,
     campHealingHp: 0,
     diosHealingHp: 0,
+    diosPostCombatCasts: 0,
+    diosPotionPriorityOpportunities: 0,
+    diosPotionPriorityCases: 0,
+    diosPotionPriorityEventSamples: scenario.collectHealPriorityDiagnostics ? [] : null,
     healPotionsAcquiredBySource: {
       starting: state.simStartingInventory.filter(item => item === "HEAL_POTION").length,
       departureCraft: state.simDepartureCraftItems.filter(item => item === "HEAL_POTION").length,
