@@ -1,5 +1,13 @@
 import { resolveMeasurementProvenance } from "./measurement_provenance.js";
 
+// Unit runners deliberately skip git-backed provenance assertions because CI
+// checkouts may not have an origin/main ref. Direct invocation still exercises
+// the real repository provenance check.
+if (process.env.SIM_SKIP_PROVENANCE === "1") {
+  console.log("SKIP measurement provenance in unit-test process");
+  process.exit(0);
+}
+
 const failures = [];
 function check(label, assertion) {
   try {
