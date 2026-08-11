@@ -18,6 +18,7 @@ const ENV_DEFAULTS = Object.freeze({
   IDENTIFICATION_COST_OVERRIDE: "1",
   FLEE_POLICY: "threshold",
   FLEE_HP_THRESHOLD: "0.35",
+  HEAL_POTION_THRESHOLD: "0.35",
   TRAP_POLICY: "conservative",
   TRAP_AVOIDANCE_POLICY: "ev",
   TRAP_DAMAGE_MULTIPLIER: "1",
@@ -53,21 +54,25 @@ const {
 const BASIC_CLASSES = Object.freeze(["Fighter", "Thief", "Priest", "Mage"]);
 const TARGET_DEPTH = 20;
 const KIT_FIXED_ITEMS = Object.freeze(["TOWN_PORTAL", "ANTIDOTE", "GUARD_POTION"]);
-const KIT_COUNTS = Object.freeze([3, 4]);
+const ISSUE494_COUNT_SWEEP = process.env.ISSUE494_COUNT_SWEEP === "1";
+const KIT_COUNTS = Object.freeze(ISSUE494_COUNT_SWEEP ? [4, 8, 12, 16, 32] : [3, 4]);
+const FLEE_POLICY = process.env.FLEE_POLICY;
+const FLEE_HP_THRESHOLD = Number(process.env.FLEE_HP_THRESHOLD);
+const HEAL_POTION_THRESHOLD = Number(process.env.HEAL_POTION_THRESHOLD);
 const HEAL_SWEEPS = Object.freeze({
-  fixed: Object.freeze([15, 20, 25, 30, 35, 40, 50, 60].map(amount => ({
+  fixed: Object.freeze((ISSUE494_COUNT_SWEEP ? [15] : [15, 20, 25, 30, 35, 40, 50, 60]).map(amount => ({
     id: `fixed-${amount}`,
     label: `固定${amount}`,
     value: amount,
     override: { kind: "fixed", amount }
   }))),
-  "max-hp-ratio": Object.freeze([0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50].map(ratio => ({
+  "max-hp-ratio": Object.freeze((ISSUE494_COUNT_SWEEP ? [] : [0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50]).map(ratio => ({
     id: `max-hp-${Math.round(ratio * 100)}`,
     label: `最大HP${Math.round(ratio * 100)}%`,
     value: ratio,
     override: { kind: "max-hp-ratio", ratio }
   }))),
-  "floor-scale": Object.freeze([0, 1, 2, 3, 4, 5, 7].map(perFloor => ({
+  "floor-scale": Object.freeze((ISSUE494_COUNT_SWEEP ? [] : [0, 1, 2, 3, 4, 5, 7]).map(perFloor => ({
     id: `floor-plus-${perFloor}`,
     label: `床連動15+${perFloor}×(floor-1)`,
     value: perFloor,
@@ -287,7 +292,9 @@ function createScenario(kitCount, healSweep) {
   return {
     ...getScenarioById("workshop-complete"),
     identificationPolicy: "powder",
-    fleeHpThreshold: 0.35,
+    fleePolicy: FLEE_POLICY,
+    fleeHpThreshold: FLEE_HP_THRESHOLD,
+    healPotionThreshold: HEAL_POTION_THRESHOLD,
     statusCurePolicy: "smart",
     statusCureHpThreshold: 0.35,
     statusCureMerchantPolicy: "missing",
@@ -318,7 +325,7 @@ function runCondition({ kitCount, sweep, scoringProfile, rawHash }) {
       startFloor: 1,
       targetDepth: TARGET_DEPTH,
       runIndex,
-      seriesId: "issue-483",
+      seriesId: ISSUE494_COUNT_SWEEP ? "issue-494-count-sweep" : "issue-483",
       scoringProfile,
       scenario,
       workshop: scenario.workshop
@@ -476,8 +483,10 @@ export function runIssue483Measurement() {
   const environment = resolvedEnvironment();
   const envHash = sha256(JSON.stringify({ environment, measurement }));
   const base = {
-    issue: 483,
-    conclusion: "回復単価what-if。ゲーム本体のbalance値は変更していない。",
+    issue: ISSUE494_COUNT_SWEEP ? 494 : 483,
+    conclusion: ISSUE494_COUNT_SWEEP
+      ? "#264傷薬本数の採用方針再測定。ゲーム本体のbalance値は変更していない。"
+      : "回復単価what-if。ゲーム本体のbalance値は変更していない。",
     measurement,
     runtime,
     calibration,
@@ -495,7 +504,9 @@ export function runIssue483Measurement() {
     },
     limitations: [
       "N<30の率は未確定。率はWilson 95% CI、平均は正規近似95% CI。",
-      "kit本数は#481のP50=3と#461比較条件4を固定。素材bank定常状態は本測定へ混ぜない。",
+      ISSUE494_COUNT_SWEEP
+        ? "#264再測定としてkit本数4/8/12/16/32を固定15で掃引。素材bank定常状態は本測定へ混ぜない。"
+        : "kit本数は#481のP50=3と#461比較条件4を固定。素材bank定常状態は本測定へ混ぜない。",
       "#264の他レバー、所持枠・スタック変更、ゲーム本体balance値変更は行っていない。",
       "上薬の素材コストは胸報酬経路で入手する実プレイモデル。上薬の工房クラフト反復は任意行動のため自動化していない。"
     ],

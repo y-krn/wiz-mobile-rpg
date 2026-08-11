@@ -50,6 +50,18 @@ check(
   }) === "recover",
   "available recovery should extend a winnable fight"
 );
+check(
+  calculateCombatRecoveryAction({
+    currentHp: 8,
+    maxHp: 20,
+    enemyHp: [20],
+    enemyAttack: [2],
+    playerDamagePerRound: 5,
+    potionHeal: 15,
+    potionAvailable: true
+  }) === "recover",
+  "adopted default heal threshold should use recovery before fleeing"
+);
 
 process.env.SIM_SEED = "489";
 process.env.SIM_RUNS = "2";

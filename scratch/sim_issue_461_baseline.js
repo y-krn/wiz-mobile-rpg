@@ -41,7 +41,10 @@ const DEFAULT_RUNS_PER_CLASS = 3000;
 // before applying the quartile and endpoint analysis.
 const DEFAULT_CALIBRATION_RUNS = 1000;
 const R95 = 1.959963984540054;
+const MONOTONIC_ALPHA = 0.05;
+const ORDINAL_SCORES = Object.freeze([0, 1, 2, 3]);
 const SMOKE = process.env.ISSUE461_SMOKE === "1";
+const REAGGREGATE_ONLY = process.env.SIM_REAGGREGATE_ONLY === "1";
 const OUTPUT_STEM = process.env.SIM_RESULT_BASENAME ||
   (SMOKE ? "issue-461-baseline-smoke" : "issue-461-baseline");
 
@@ -66,8 +69,9 @@ const SIM_ENV_DEFAULTS = Object.freeze({
   STATUS_CURE_HP_THRESHOLD: "0.35",
   STATUS_CURE_MERCHANT_POLICY: "missing",
   HEAL_POTION_MERCHANT_POLICY: "missing",
-  FLEE_POLICY: "threshold",
-  FLEE_HP_THRESHOLD: "0.35",
+  FLEE_POLICY: "ev",
+  FLEE_HP_THRESHOLD: "0.20",
+  HEAL_POTION_THRESHOLD: "0.55",
   PORTAL_HP_THRESHOLD: "0.35",
   PORTAL_MAX_HEAL_POTIONS: "0",
   PORTAL_MIN_FLOOR: "3",
@@ -523,6 +527,75 @@ function centeredQuartileRates(rows) {
   });
 }
 
+function normalCdf(value) {
+  const sign = value < 0 ? -1 : 1;
+  const x = Math.abs(value) / Math.SQRT2;
+  const t = 1 / (1 + 0.3275911 * x);
+  const polynomial = (((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t -
+    0.284496736) * t + 0.254829592) * t);
+  const erf = sign * (1 - polynomial * Math.exp(-x * x));
+  return 0.5 * (1 + erf);
+}
+
+function classStratifiedCochranArmitage(rows) {
+  const byClass = new Map();
+  rows.forEach(row => {
+    if (!byClass.has(row.className)) byClass.set(row.className, []);
+    byClass.get(row.className).push(row);
+  });
+  let numerator = 0;
+  let variance = 0;
+  let minCellN = Infinity;
+  byClass.forEach(classRows => {
+    const n = classRows.length;
+    const deaths = classRows.filter(row => row.endpoints.b5.death).length;
+    const nullRate = deaths / n;
+    const groups = [1, 2, 3, 4].map(quartile =>
+      classRows.filter(row => row.qualityQuartile === quartile)
+    );
+    const counts = groups.map(group => group.length);
+    const deathCounts = groups.map(group =>
+      group.filter(row => row.endpoints.b5.death).length
+    );
+    minCellN = Math.min(minCellN, ...counts);
+    const scoreTotal = counts.reduce(
+      (sum, count, index) => sum + count * ORDINAL_SCORES[index],
+      0
+    );
+    const scoreMean = scoreTotal / n;
+    const scoreVariance = counts.reduce(
+      (sum, count, index) =>
+        sum + count * (ORDINAL_SCORES[index] - scoreMean) ** 2,
+      0
+    );
+    numerator += deathCounts.reduce(
+      (sum, deathCount, index) =>
+        sum + ORDINAL_SCORES[index] * (deathCount - counts[index] * nullRate),
+      0
+    );
+    variance += nullRate * (1 - nullRate) * scoreVariance;
+  });
+  if (variance === 0 || !Number.isFinite(variance)) {
+    return {
+      test: "class-stratified Cochran-Armitage",
+      z: null,
+      pValueDecreasing: null,
+      pValueIncreasing: null,
+      minCellN,
+      status: "未確定（分散0）"
+    };
+  }
+  const z = numerator / Math.sqrt(variance);
+  return {
+    test: "class-stratified Cochran-Armitage",
+    z,
+    pValueDecreasing: normalCdf(z),
+    pValueIncreasing: 1 - normalCdf(z),
+    minCellN,
+    status: minCellN < 30 ? "未確定（N<30）" : "確定"
+  };
+}
+
 function calculateA1(rows) {
   const quartiles = quartileStats(rows);
   const centeredRates = centeredQuartileRates(rows);
@@ -532,9 +605,26 @@ function calculateA1(rows) {
     row => row.qualityQuartile === 1,
     row => row.endpoints.b5.death
   );
-  const monotonicNonIncreasing = centeredRates.every((row, index) =>
-    index === 0 || row.estimate <= centeredRates[index - 1].estimate
+  const adjacentDifferences = [1, 2, 3].map(quartile => {
+    const previous = rows
+      .filter(row => row.qualityQuartile === quartile)
+      .map(row => Number(row.endpoints.b5.death));
+    const next = rows
+      .filter(row => row.qualityQuartile === quartile + 1)
+      .map(row => Number(row.endpoints.b5.death));
+    return {
+      fromQuartile: quartile,
+      toQuartile: quartile + 1,
+      ...normalDifference(next, previous)
+    };
+  });
+  const trendTest = classStratifiedCochranArmitage(rows);
+  const statisticallyNonMonotonic = adjacentDifferences.some(
+    difference => difference.status === "確定" && difference.low > 0
   );
+  const monotonicNonIncreasing = trendTest.status === "確定" &&
+    trendTest.pValueDecreasing < MONOTONIC_ALPHA &&
+    !statisticallyNonMonotonic;
   const conditions = {
     q4MinusQ1UpperBelowZero: q4MinusQ1Death.high < 0,
     monotonicNonIncreasing,
@@ -544,6 +634,9 @@ function calculateA1(rows) {
     quartiles,
     centeredRates,
     q4MinusQ1Death,
+    adjacentDifferences,
+    trendTest,
+    statisticallyNonMonotonic,
     conditions,
     pass: Object.values(conditions).every(Boolean)
   };
@@ -699,6 +792,19 @@ function formatDifference(stat) {
   return `${(stat.estimate * 100).toFixed(1)}pt [${(stat.low * 100).toFixed(1)}, ${(stat.high * 100).toFixed(1)}]`;
 }
 
+function formatPValue(value) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "NA";
+  return value < 0.0001 ? "<0.0001" : `=${value.toFixed(4)}`;
+}
+
+function adjacentDifferenceLabel(difference) {
+  if (difference.status !== "確定") return "未確定（N<30）";
+  if (difference.low > 0) return "統計的反転";
+  if (difference.estimate > 0) return "点推定反転（CIは0を跨ぐ）";
+  if (difference.high < 0) return "統計的減少";
+  return "点推定減少（CIは0を跨ぐ）";
+}
+
 function renderBaselineTable(byClass) {
   const lines = [
     "| 職業 | 初回B1突破 | B1 entrant | B1突破 | B1死亡 | B1撤退 | B5 entrant | B5突破 | B5死亡 | B5撤退 | B10 entrant | B10突破 | B10死亡 | B10撤退 | 全run平均到達floor |",
@@ -754,6 +860,17 @@ function renderA1(a1, label = "4職合算") {
   lines.push(
     "",
     `- Q4−Q1 B5死亡率差（職内centered、正規近似CI）: ${formatDifference(a1.q4MinusQ1Death)}`,
+    `- trend test: ${a1.trendTest.test}、z=${a1.trendTest.z === null ? "NA" : a1.trendTest.z.toFixed(3)}、` +
+      `減少方向 p${formatPValue(a1.trendTest.pValueDecreasing)}、` +
+      `増加方向 p${formatPValue(a1.trendTest.pValueIncreasing)}`,
+    "",
+    "| 隣接 | 差（次−前、正規95% CI） | 判定 |",
+    "| --- | --- | --- |",
+    ...a1.adjacentDifferences.map(difference =>
+      `| Q${difference.fromQuartile}→Q${difference.toQuartile} | ${formatDifference(difference)} | ${adjacentDifferenceLabel(difference)} |`
+    ),
+    "",
+    `- 統計的非単調（隣接差CI下限>0）: ${a1.statisticallyNonMonotonic ? "確認" : "確認なし"}`,
     `- 条件: Q4−Q1 CI上限<0=${a1.conditions.q4MinusQ1UpperBelowZero ? "成立" : "不成立"}` +
       ` / Q1→Q4単調減少=${a1.conditions.monotonicNonIncreasing ? "成立" : "不成立"}` +
       ` / 職内centered=${a1.conditions.classCentered ? "成立" : "不成立"}`,
@@ -850,9 +967,12 @@ ${"```"}
 
 ## 実行記録
 
+${measurement.mode === "reaggregate" ? "既存の raw JSONL を再集計した。simの再実行はしていない。\n\n" : ""}
 ${"```sh"}
 node --check scratch/sim_issue_461_baseline.js
-SIM_RUNS=${measurement.runsPerClass} SIM_CALIBRATION_RUNS=${measurement.calibrationRuns} node scratch/sim_issue_461_baseline.js
+${measurement.mode === "reaggregate"
+  ? "SIM_REAGGREGATE_ONLY=1 node scratch/sim_issue_461_baseline.js"
+  : `SIM_RUNS=${measurement.runsPerClass} SIM_CALIBRATION_RUNS=${measurement.calibrationRuns} node scratch/sim_issue_461_baseline.js`}
 ${"```"}
 
 - calibration wall-clock: ${measurement.calibrationWallSeconds.toFixed(3)}s
@@ -878,39 +998,61 @@ Refs #461
 }
 
 async function main() {
-  const scoringProfiles = {};
-  const calibrationStarted = performance.now();
-  const calibrationCpuStarted = process.cpuUsage();
-  for (const spec of createCalibrationSpecs()) {
-    const scenario = buildScenario(spec.scenarioId, spec.phase);
-    resetSimulationRandom(SEED);
-    scoringProfiles[profileKey(spec.phase, spec.scenarioId)] =
-      calibrateCoreScoringProfile(
-        CALIBRATION_RUNS,
-        scenario,
-        "powder",
-        scenario.workshop
-      );
-  }
-  const calibrationCpu = process.cpuUsage(calibrationCpuStarted);
-  const calibrationWallSeconds = (performance.now() - calibrationStarted) / 1000;
+  const resultDir = join(process.cwd(), "scratch", "results");
+  mkdirSync(resultDir, { recursive: true });
+  const rawPath = join(resultDir, `${OUTPUT_STEM}.jsonl`);
+  const summaryPath = join(resultDir, `${OUTPUT_STEM}.json`);
+  const markdownPath = join(resultDir, `${OUTPUT_STEM}.md`);
+  let rows;
+  let rawText = null;
+  let previousMeasurement = null;
+  let calibrationCpu = { user: 0, system: 0 };
+  let simulationCpu = { user: 0, system: 0 };
+  let calibrationWallSeconds = 0;
+  let simulationWallSeconds = 0;
+  let resolvedParallelism = null;
 
-  const tasks = createTasks();
-  const resolvedParallelism = resolveSimParallelism(tasks.length);
-  const simulationStarted = performance.now();
-  const simulationCpuStarted = process.cpuUsage();
-  const rows = await runSimTasks({
-    moduleUrl: pathToFileURL(fileURLToPath(import.meta.url)).href,
-    exportName: "runIssue461BaselineTask",
-    runTask: runIssue461BaselineTask,
-    tasks,
-    context: { scoringProfiles }
-  });
-  const simulationCpu = process.cpuUsage(simulationCpuStarted);
-  const simulationWallSeconds = (performance.now() - simulationStarted) / 1000;
-  if (rows.length !== tasks.length) {
-    throw new Error(`raw result audit failed: rows=${rows.length}/${tasks.length}`);
+  if (REAGGREGATE_ONLY) {
+    previousMeasurement = JSON.parse(readFileSync(summaryPath, "utf8")).measurement;
+    rawText = readFileSync(rawPath, "utf8");
+    rows = rawText.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
+    resolvedParallelism = previousMeasurement.resolvedParallelism;
+  } else {
+    const scoringProfiles = {};
+    const calibrationStarted = performance.now();
+    const calibrationCpuStarted = process.cpuUsage();
+    for (const spec of createCalibrationSpecs()) {
+      const scenario = buildScenario(spec.scenarioId, spec.phase);
+      resetSimulationRandom(SEED);
+      scoringProfiles[profileKey(spec.phase, spec.scenarioId)] =
+        calibrateCoreScoringProfile(
+          CALIBRATION_RUNS,
+          scenario,
+          "powder",
+          scenario.workshop
+        );
+    }
+    calibrationCpu = process.cpuUsage(calibrationCpuStarted);
+    calibrationWallSeconds = (performance.now() - calibrationStarted) / 1000;
+
+    const tasks = createTasks();
+    resolvedParallelism = resolveSimParallelism(tasks.length);
+    const simulationStarted = performance.now();
+    const simulationCpuStarted = process.cpuUsage();
+    rows = await runSimTasks({
+      moduleUrl: pathToFileURL(fileURLToPath(import.meta.url)).href,
+      exportName: "runIssue461BaselineTask",
+      runTask: runIssue461BaselineTask,
+      tasks,
+      context: { scoringProfiles }
+    });
+    simulationCpu = process.cpuUsage(simulationCpuStarted);
+    simulationWallSeconds = (performance.now() - simulationStarted) / 1000;
+    if (rows.length !== tasks.length) {
+      throw new Error(`raw result audit failed: rows=${rows.length}/${tasks.length}`);
+    }
   }
+  if (!rows.length) throw new Error("raw result audit failed: no rows");
   const rowKeys = rows.map(row => `${row.phase}:${row.className}:${row.runIndex}`);
   if (new Set(rowKeys).size !== rows.length) {
     throw new Error("raw result audit failed: duplicate phase/class/run key");
@@ -982,32 +1124,34 @@ async function main() {
     calibrationCpu.user + calibrationCpu.system +
     simulationCpu.user + simulationCpu.system
   ) / 1e6;
-  const measurement = {
-    issue: 461,
-    scope: "run",
-    mode: SMOKE ? "smoke" : "baseline",
-    seed: SEED,
-    runsPerClass: RUNS_PER_CLASS,
-    calibrationRuns: CALIBRATION_RUNS,
-    classNames: CLASS_NAMES,
-    scenarioSet: SCENARIO_IDS,
-    targetDepthInitial: 2,
-    targetDepthBaseline: 21,
-    envHash: ENV_HASH,
-    environment: HASH_ENVIRONMENT,
-    resolvedParallelism,
-    availableParallelism: availableParallelism(),
-    simParallel: "未指定",
-    simMapCacheEntries: "未指定（既定1024）",
-    calibrationWallSeconds,
-    simulationWallSeconds,
-    totalWallSeconds: calibrationWallSeconds + simulationWallSeconds,
-    calibrationCpuSeconds: (calibrationCpu.user + calibrationCpu.system) / 1e6,
-    simulationCpuSeconds: (simulationCpu.user + simulationCpu.system) / 1e6,
-    totalCpuSeconds: cpuTotalSeconds,
-    multipleComparisons,
-    a1Pass: overall.a1.pass
-  };
+  const measurement = REAGGREGATE_ONLY
+    ? { ...previousMeasurement, mode: "reaggregate", a1Pass: overall.a1.pass }
+    : {
+        issue: 461,
+        scope: "run",
+        mode: SMOKE ? "smoke" : "baseline",
+        seed: SEED,
+        runsPerClass: RUNS_PER_CLASS,
+        calibrationRuns: CALIBRATION_RUNS,
+        classNames: CLASS_NAMES,
+        scenarioSet: SCENARIO_IDS,
+        targetDepthInitial: 2,
+        targetDepthBaseline: 21,
+        envHash: ENV_HASH,
+        environment: HASH_ENVIRONMENT,
+        resolvedParallelism,
+        availableParallelism: availableParallelism(),
+        simParallel: "未指定",
+        simMapCacheEntries: "未指定（既定1024）",
+        calibrationWallSeconds,
+        simulationWallSeconds,
+        totalWallSeconds: calibrationWallSeconds + simulationWallSeconds,
+        calibrationCpuSeconds: (calibrationCpu.user + calibrationCpu.system) / 1e6,
+        simulationCpuSeconds: (simulationCpu.user + simulationCpu.system) / 1e6,
+        totalCpuSeconds: cpuTotalSeconds,
+        multipleComparisons,
+        a1Pass: overall.a1.pass
+      };
   const summary = {
     measurement,
     overall,
@@ -1017,14 +1161,9 @@ async function main() {
     mechanisms
   };
 
-  const resultDir = join(process.cwd(), "scratch", "results");
-  mkdirSync(resultDir, { recursive: true });
-  const rawPath = join(resultDir, `${OUTPUT_STEM}.jsonl`);
-  const summaryPath = join(resultDir, `${OUTPUT_STEM}.json`);
-  const markdownPath = join(resultDir, `${OUTPUT_STEM}.md`);
-  const rawText = rows.map(row => JSON.stringify(row)).join("\n") + "\n";
+  rawText ||= rows.map(row => JSON.stringify(row)).join("\n") + "\n";
   const rawSha256 = sha256(rawText);
-  writeFileSync(rawPath, rawText);
+  if (!REAGGREGATE_ONLY) writeFileSync(rawPath, rawText);
   writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
   const summarySha256 = sha256(readFileSync(summaryPath));
   writeFileSync(markdownPath, renderMarkdown(summary, rawSha256, summarySha256));

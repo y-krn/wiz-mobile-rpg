@@ -151,7 +151,7 @@ paired CI は、条件の変換段階がコード上で `post-generation`、生�
 - 工房状態は #343/#346 の観測分布を整数で固定する: empty 30/1200、stats 74/1200、
   gear 69/1200、blood wand 216/1200、blood wand+deep spells 47/1200、complete
   764/1200。各職へ同じ層化系列を適用する。
-- `IDENTIFICATION_POLICY=powder`、`FLEE_POLICY=threshold`、
+- `IDENTIFICATION_POLICY=powder`、`FLEE_POLICY=ev`、
   `TRAP_POLICY=conservative`、`TRAP_AVOIDANCE_POLICY=ev`、
   `STATUS_CURE_POLICY=smart`。`TOWN_PORTAL` と状態異常治療消耗品をモデルする。
 - `SIM_PARALLEL` と `SIM_MAP_CACHE_ENTRIES` は指定しない。runtime の既定 parallelism
@@ -172,9 +172,9 @@ DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,
 IDENTIFICATION_POLICY=powder
 IDENTIFICATION_STARTING_POWDER=2
 IDENTIFICATION_COST_OVERRIDE=1
-FLEE_POLICY=threshold
-FLEE_HP_THRESHOLD=0.35
-HEAL_POTION_THRESHOLD=0.35
+FLEE_POLICY=ev
+FLEE_HP_THRESHOLD=0.20
+HEAL_POTION_THRESHOLD=0.55
 TRAP_POLICY=conservative
 TRAP_AVOIDANCE_POLICY=ev
 TRAP_DAMAGE_MULTIPLIER=1
@@ -283,6 +283,47 @@ quartile Q4。#485でPR #484後の同一 #461 固定条件を再評価し、B5 e
 - #485再評価でも採用定義は変わらず、#271 の A1（Q4−Q1、統計的単調性、Q4安全性gate）/ A2（class-centered score×depth）/
   A3（core / 対応support feature）、完成ビルド率、quality quartile入力のdepth-quality表・要約・派生判断を
   同じ #461 固定条件で取り直す。観測分析のrawは #485で更新した。balance 値・srcのゲーム挙動は変更しない。
+
+## Issue #494 戦闘方針の既定値（2026-08-11）
+
+Issue #494 はゲーム本体のbalance値・逃走成功判定を変更せず、simの戦闘中行動方針だけを比較した。
+seed=494、各職・条件 N=500、6工房シナリオ、B20終了で、固定回復35%の逃走15/20/25/30/35%、
+固定回復45/55/65/70%の逃走15/20/25/30/35%、敵強度EV回復55%の逃走15/20/25/35%を測定した。
+率はWilson 95% CI、平均は正規近似95% CI、N<30のセルは未確定とした。詳細は
+`scratch/results/issue-494-combat-policy-default.md` を正本とする。
+
+- 採用: `FLEE_POLICY=ev`、`FLEE_HP_THRESHOLD=0.20`、`HEAL_POTION_THRESHOLD=0.55`。
+- 採用理由: EV/逃走20%が全職集約で平均floor **3.92 [3.81, 4.04]**、B5 entrant **26.6% [24.7, 28.5]**。
+  職別B10 entrantは盗賊 **9.0% [6.8, 11.8]**、僧侶 **16.0% [13.0, 19.5]**で、EV/逃走15%・25%・35%より
+  到達床の点推定が高く、B5死亡は
+  **16.8% [13.8, 20.2]**でEV系と同程度。EV系4点の差はCI重複を含むため、点推定による深度目的の採用であり、
+  有意差とは扱わない。
+- トレードオフ: 現行固定35/35に対し、生還率は **45.3%→40.9%**、bank保持率は
+  **0.5731→0.5397**、素材EV/時間は **0.1561→0.1480**。深度・到達性を優先する既定値として記録し、
+  bank/EVを別監視指標に残す。
+- 反映先: `scratch/sim_depth_material_ev.js` の既定/preset、`src/rules/recovery_rules.js` のsim helper既定、
+  #461基準線runner。ゲーム本体のaction loopはhelperを呼ばず、ゲームプレイの逃走成功率は変更しない。
+- 実施: #461基準線の再集計、#264の傷薬本数掃引・回復単価掃引の採用値再測定。
+  詳細は
+  `scratch/results/issue-494-264-remeasurement.md`。
+- 下流の再測定対象: #471 core監視、#468/#473 罠/解除監査、#480 罠方針比較。#470/#475のA1は
+  既存rawの再集計でcanon準拠を確認した。
+
+### #494後の#461再基準線
+
+採用値で #461 固定条件（seed=461、各職N=3000、calibration N=1000、6工房状態）を再測定した。
+平均floorは Fighter 3.15 / Thief 4.77 / Priest 4.52 / Mage 2.89、4職合算3.83。
+Q4−Q1 B5死亡率差は **−6.7pt [−10.1, −3.2]**。Q1→Q2 / Q2→Q3 / Q3→Q4 の
+隣接差（次−前）は **−0.6pt [−4.5, +3.3] / −4.5pt [−8.2, −0.8] /
+−1.6pt [−4.9, +1.8]**で、統計的反転なし。職層調整 Cochran–Armitage は
+**z=−4.346、減少方向 p<0.0001**。Q4安全性・統計的単調減少・職内centeredが成立し、
+canon通りrunnerのA1判定は **成立** に戻った。
+
+- env hash: `6630774fbe1172084adde136272b09df77373427bc3d179fdd3587b9fad4f572`
+- raw JSONL SHA-256: `a0b882dfff27caf88214feda416cfa71f5e4cc7f735500446999b4d19e2b56b8`
+- summary JSON SHA-256: `b5590bbb5c8453532ce158641a62948f0697234598df1b3c4fbccb3f598ec07c`
+- #470/#475のA1再判定は既存rawの再集計で完了し、追加シミュレーションは不要。
+- #471 core装備率監視、#468/#473 罠/解除監査、#480 罠方針比較は、戦闘方針変更の下流影響として別途再測定対象に残す。
 
 ### #485再評価の実行記録
 
