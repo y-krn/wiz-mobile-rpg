@@ -2136,6 +2136,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     simPolicy: {
       identificationPolicy,
       healPotionAmountOverride: scenario.healPotionAmountOverride || null,
+      healPotionSupplyNormalization: scenario.healPotionSupplyNormalization || null,
       healPotionThreshold,
       fleePolicy,
       fleeHpThreshold: Object.hasOwn(scenario, "fleeHpThreshold")
@@ -2272,6 +2273,63 @@ function recordHealPotionAcquisition(state, metrics, source, count = 1) {
   for (let index = 0; index < count; index++) {
     state.simHealPotionSources.push(source);
   }
+}
+
+function recordRecoveryPotionOffer(metrics, source, itemKey) {
+  if (!metrics || !["HEAL_POTION", "GREATER_HEAL"].includes(itemKey)) return;
+  const bySource = metrics.recoveryPotionOffersBySource[source] ||= {
+    HEAL_POTION: 0,
+    GREATER_HEAL: 0
+  };
+  bySource[itemKey]++;
+}
+
+function shouldGrantNormalizedHealPotion(state) {
+  const normalization = state.simPolicy?.healPotionSupplyNormalization;
+  if (!normalization) return true;
+  const baseUnit = Number(normalization.baseUnit);
+  const targetUnit = Number(normalization.targetUnit);
+  if (!Number.isFinite(baseUnit) || !Number.isFinite(targetUnit) || targetUnit <= baseUnit) {
+    return true;
+  }
+  return Math.random() < baseUnit / targetUnit;
+}
+
+function recoveryLevelBand(level) {
+  if (level <= 1) return "L1";
+  if (level <= 3) return "L2-3";
+  if (level <= 6) return "L4-6";
+  return "L7+";
+}
+
+const RECOVERY_LEVEL_BANDS = Object.freeze(["L1", "L2-3", "L4-6", "L7+"]);
+
+function createRecoveryHealingStats() {
+  return { uses: 0, requestedHp: 0, actualHp: 0, overhealHp: 0 };
+}
+
+function createRecoveryHealingByLevelBand() {
+  return Object.fromEntries(
+    RECOVERY_LEVEL_BANDS.map(band => [
+      band,
+      createRecoveryHealingStats()
+    ])
+  );
+}
+
+function recordRecoveryHealing(metrics, itemKey, level, requestedHp, actualHp) {
+  if (!metrics || !["HEAL_POTION", "GREATER_HEAL"].includes(itemKey)) return;
+  const requested = Math.max(0, Number(requestedHp) || 0);
+  const actual = Math.max(0, Number(actualHp) || 0);
+  const target = metrics.recoveryHealing;
+  const itemStats = target.byItem[itemKey];
+  const levelStats = target.byLevelBand[recoveryLevelBand(Number(level) || 1)];
+  [target.total, itemStats, levelStats].forEach(stats => {
+    stats.uses++;
+    stats.requestedHp += requested;
+    stats.actualHp += actual;
+    stats.overhealHp += Math.max(0, requested - actual);
+  });
 }
 
 function recordHealPotionConsumption(state, metrics, count = 1) {
@@ -3708,6 +3766,9 @@ function useHealPotionIfNeeded(state, metrics) {
     return null;
   }
   const itemIndex = state.inventory.indexOf(itemKey);
+  const character = state.party[0];
+  const hpBefore = character.hp;
+  const requestedHeal = getSimulationHealAmount(state, itemKey);
   state.inventory.splice(itemIndex, 1);
   if (itemKey === "GREATER_HEAL") {
     recordGreaterHealConsumption(state, metrics);
@@ -3717,8 +3778,15 @@ function useHealPotionIfNeeded(state, metrics) {
   if (itemKey === "HEAL_POTION" && state.simPolicy?.healPotionAmountOverride) {
     applySimulationHealItem(state, itemKey);
   } else {
-    ITEM_EFFECTS[itemKey]({ char: state.party[0] });
+    ITEM_EFFECTS[itemKey]({ char: character });
   }
+  recordRecoveryHealing(
+    metrics,
+    itemKey,
+    character.level,
+    requestedHeal,
+    Math.max(0, character.hp - hpBefore)
+  );
   recordRecoveryPotionTiming(state, metrics);
   return itemKey;
 }
@@ -4020,6 +4088,8 @@ function maybePurchaseMerchantHealPotion(state, metrics) {
       break;
     }
     metrics.healPotionMerchantAttempts++;
+    recordRecoveryPotionOffer(metrics, "merchant", "HEAL_POTION");
+    if (!shouldGrantNormalizedHealPotion(state)) break;
     const materialsBefore = { ...state.currentRun.materials };
     const result = purchaseMilestoneStock(state, "heal_potion");
     if (!result.ok) {
@@ -6275,6 +6345,27 @@ function finishRun(state, outcome, metrics) {
     outsideGreaterHealPotionsUsed: metrics.outsideGreaterHealPotionsUsed,
     outsideRecoveryPotionsUsed: metrics.outsideRecoveryPotionsUsed,
     recoveryPotionShortages: metrics.recoveryPotionShortages,
+    recoveryPotionOffersBySource: Object.fromEntries(
+      Object.entries(metrics.recoveryPotionOffersBySource).map(([source, counts]) => [
+        source,
+        { ...counts }
+      ])
+    ),
+    recoveryHealing: {
+      total: { ...metrics.recoveryHealing.total },
+      byItem: Object.fromEntries(
+        Object.entries(metrics.recoveryHealing.byItem).map(([itemKey, stats]) => [
+          itemKey,
+          { ...stats }
+        ])
+      ),
+      byLevelBand: Object.fromEntries(
+        Object.entries(metrics.recoveryHealing.byLevelBand).map(([band, stats]) => [
+          band,
+          { ...stats }
+        ])
+      )
+    },
     healPotionsAcquiredBySource: { ...metrics.healPotionsAcquiredBySource },
     healPotionsConsumedBySource: { ...metrics.healPotionsConsumedBySource },
     greaterHealPotionsAcquiredBySource: { ...metrics.greaterHealPotionsAcquiredBySource },
@@ -6570,6 +6661,15 @@ export function simulateRun({
     outsideGreaterHealPotionsUsed: 0,
     outsideRecoveryPotionsUsed: 0,
     recoveryPotionShortages: 0,
+    recoveryPotionOffersBySource: {},
+    recoveryHealing: {
+      total: createRecoveryHealingStats(),
+      byItem: {
+        HEAL_POTION: createRecoveryHealingStats(),
+        GREATER_HEAL: createRecoveryHealingStats()
+      },
+      byLevelBand: createRecoveryHealingByLevelBand()
+    },
     stairsHealingHp: 0,
     campHealingHp: 0,
     extraCampRestCount: 0,
@@ -6955,6 +7055,13 @@ export function simulateRun({
             itemIndex === chestItems.items.length - 1;
           const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
             itemIndex === 0;
+          if (item === "HEAL_POTION" || item === "GREATER_HEAL") {
+            recordRecoveryPotionOffer(metrics, "chest", item);
+            if (
+              item === "HEAL_POTION" &&
+              !shouldGrantNormalizedHealPotion(state)
+            ) return;
+          }
           if (!tryAddInventoryItem(state, item, metrics, "chest")) return;
           if (item === "HEAL_POTION") {
             recordHealPotionAcquisition(
@@ -7223,7 +7330,11 @@ export function simulateRun({
             Math.random() < enemyHealPotionDropChance
           ) {
             metrics.enemyHealPotionExtraGenerated++;
-            if (tryAddInventoryItem(state, "HEAL_POTION", metrics, "combat")) {
+            recordRecoveryPotionOffer(metrics, "combat", "HEAL_POTION");
+            if (
+              shouldGrantNormalizedHealPotion(state) &&
+              tryAddInventoryItem(state, "HEAL_POTION", metrics, "combat")
+            ) {
               recordHealPotionAcquisition(state, metrics, "combat-extra");
             }
           }
