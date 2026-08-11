@@ -106,6 +106,61 @@ function getMapHeight(grid) {
   return grid.length;
 }
 
+class ReachableCellSet {
+  constructor(width, height) {
+    this.width = width;
+    this.height = height;
+    this.visited = new Uint8Array(width * height);
+    this.versions = new Uint32Array(width * height);
+    this.order = [];
+    this.orderVersions = [];
+  }
+
+  has(x, y) {
+    return x >= 0 && x < this.width && y >= 0 && y < this.height &&
+      this.visited[y * this.width + x] === 1;
+  }
+
+  hasKey(key) {
+    const separator = key.indexOf(",");
+    if (separator === -1) return false;
+    return this.has(
+      Number(key.slice(0, separator)),
+      Number(key.slice(separator + 1))
+    );
+  }
+
+  add(x, y) {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
+    const index = y * this.width + x;
+    if (this.visited[index]) return false;
+    this.visited[index] = 1;
+    this.versions[index]++;
+    this.order.push(index);
+    this.orderVersions.push(this.versions[index]);
+    return true;
+  }
+
+  delete(x, y) {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
+    const index = y * this.width + x;
+    if (!this.visited[index]) return false;
+    this.visited[index] = 0;
+    this.versions[index]++;
+    return true;
+  }
+
+  *[Symbol.iterator]() {
+    for (let index = 0; index < this.order.length; index++) {
+      const cellIndex = this.order[index];
+      if (!this.visited[cellIndex] || this.orderVersions[index] !== this.versions[cellIndex]) continue;
+      const y = Math.floor(cellIndex / this.width);
+      const x = cellIndex - y * this.width;
+      yield `${x},${y}`;
+    }
+  }
+}
+
 function isPassageCell(grid, x, y) {
   return x >= 0 &&
     x < getMapWidth(grid) &&
@@ -138,16 +193,45 @@ function countCreatedTightUTurns(grid, x, y, dir) {
   ).length;
 }
 
-function collectReachableDeadEnds(grid, start, protectedKeys) {
-  const reachableKeys = getReachableCellKeys(grid, start);
+function collectReachableDeadEnds(
+  grid,
+  start,
+  protectedKeys,
+  reachableKeys = getReachableCellKeys(grid, start)
+) {
   const deadEnds = [];
   for (let y = 1; y < getMapHeight(grid) - 1; y++) {
     for (let x = 1; x < getMapWidth(grid) - 1; x++) {
-      if (protectedKeys.has(`${x},${y}`) || !reachableKeys.has(`${x},${y}`)) continue;
+      if (protectedKeys.has(`${x},${y}`) || !reachableKeys.has(x, y)) continue;
       if (grid[y][x].walls.filter(wall => !wall).length === 1) deadEnds.push({ x, y });
     }
   }
   return deadEnds;
+}
+
+function insertDeadEnd(deadEnds, candidate) {
+  const existing = deadEnds.findIndex(deadEnd =>
+    deadEnd.x === candidate.x && deadEnd.y === candidate.y
+  );
+  if (existing !== -1) return;
+
+  const insertionPoint = deadEnds.findIndex(deadEnd =>
+    deadEnd.y > candidate.y || (deadEnd.y === candidate.y && deadEnd.x > candidate.x)
+  );
+  if (insertionPoint === -1) deadEnds.push(candidate);
+  else deadEnds.splice(insertionPoint, 0, candidate);
+}
+
+function updateDeadEndsAfterClose(grid, deadEnds, leaf, neighbor, protectedKeys, reachableKeys) {
+  const updated = deadEnds.filter(deadEnd => deadEnd.x !== leaf.x || deadEnd.y !== leaf.y);
+  if (!neighbor || !reachableKeys.has(neighbor.x, neighbor.y) ||
+      protectedKeys.has(`${neighbor.x},${neighbor.y}`) ||
+      grid[neighbor.y][neighbor.x].walls.filter(wall => !wall).length !== 1) {
+    return updated;
+  }
+
+  insertDeadEnd(updated, neighbor);
+  return updated;
 }
 
 function isNubDeadEnd(grid, leaf) {
@@ -186,7 +270,7 @@ function collectBranchGrowthCandidates(grid, protectedKeys, reachableKeys) {
       const attachX = x + DX[attachDir];
       const attachY = y + DY[attachDir];
       const attachCell = grid[attachY][attachX];
-      if (!reachableKeys.has(`${attachX},${attachY}`) || attachCell.walls.filter(wall => !wall).length < 2) continue;
+      if (!reachableKeys.has(attachX, attachY) || attachCell.walls.filter(wall => !wall).length < 2) continue;
 
       for (let extendDir = 0; extendDir < 4; extendDir++) {
         if (extendDir === attachDir) continue;
@@ -216,7 +300,8 @@ function collectBranchGrowthCandidates(grid, protectedKeys, reachableKeys) {
 }
 
 function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
-  let deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
+  const reachableKeys = getReachableCellKeys(grid, start);
+  let deadEnds = collectReachableDeadEnds(grid, start, protectedKeys, reachableKeys);
 
   while (deadEnds.length > target) {
     const prunableDeadEnds = deadEnds.filter(leaf => {
@@ -232,13 +317,27 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
     const leaf = prunePool[Math.floor(rng() * prunePool.length)];
     const openDir = leaf && grid[leaf.y][leaf.x].walls.findIndex(wall => !wall);
     if (openDir === -1) break;
+    const neighbor = grid[leaf.y + DY[openDir]]?.[leaf.x + DX[openDir]]
+      ? { x: leaf.x + DX[openDir], y: leaf.y + DY[openDir] }
+      : null;
     closeWall(grid, leaf.x, leaf.y, openDir);
-    deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
+    if (neighbor) {
+      reachableKeys.delete(leaf.x, leaf.y);
+      deadEnds = updateDeadEndsAfterClose(
+        grid,
+        deadEnds,
+        leaf,
+        neighbor,
+        protectedKeys,
+        reachableKeys
+      );
+    } else {
+      deadEnds = collectReachableDeadEnds(grid, start, protectedKeys, reachableKeys);
+    }
   }
 
   const growTarget = Math.min(target, DEAD_END_TARGET_RANGE[0]);
   while (deadEnds.length < growTarget) {
-    const reachableKeys = getReachableCellKeys(grid, start);
     const branchCandidates = collectBranchGrowthCandidates(grid, protectedKeys, reachableKeys);
     if (branchCandidates.length > 0) {
       const straightCandidates = branchCandidates.filter(candidate => candidate.straight);
@@ -246,7 +345,13 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
       const candidate = growthPool[Math.floor(rng() * growthPool.length)];
       openWall(grid, candidate.a.x, candidate.a.y, candidate.attachDir);
       openWall(grid, candidate.a.x, candidate.a.y, candidate.extendDir);
-      deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
+      const branchEnd = {
+        x: candidate.a.x + DX[candidate.extendDir],
+        y: candidate.a.y + DY[candidate.extendDir]
+      };
+      reachableKeys.add(candidate.a.x, candidate.a.y);
+      reachableKeys.add(branchEnd.x, branchEnd.y);
+      insertDeadEnd(deadEnds, branchEnd);
       continue;
     }
 
@@ -261,7 +366,7 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
           const ny = y + DY[dir];
           const next = grid[ny]?.[nx];
           if (next && next.walls.some(wall => !wall)) passageNeighborDirs.push(dir);
-          if (next && reachableKeys.has(`${nx},${ny}`) && next.walls.filter(wall => !wall).length >= 2) {
+          if (next && reachableKeys.has(nx, ny) && next.walls.filter(wall => !wall).length >= 2) {
             attachmentDirs.push(dir);
           }
         }
@@ -274,7 +379,8 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
     const candidate = candidates[Math.floor(rng() * candidates.length)];
     const dir = candidate.attachmentDirs[Math.floor(rng() * candidate.attachmentDirs.length)];
     openWall(grid, candidate.x, candidate.y, dir);
-    deadEnds = collectReachableDeadEnds(grid, start, protectedKeys);
+    reachableKeys.add(candidate.x, candidate.y);
+    insertDeadEnd(deadEnds, { x: candidate.x, y: candidate.y });
   }
 
   return deadEnds;
@@ -354,68 +460,165 @@ function canEnterFrom(grid, x, y, dir) {
   return !next.blockEnter?.[OPPOSITE_DIR[dir]];
 }
 
-function getReachableCellKeys(grid, start) {
-  const queue = [start];
-  const seen = new Set([`${start.x},${start.y}`]);
+function createReachableCellSet(grid, start, directed = false) {
+  const width = getMapWidth(grid);
+  const height = getMapHeight(grid);
+  const reachable = new ReachableCellSet(width, height);
+  if (!reachable.add(start.x, start.y)) return reachable;
 
-  for (const pos of queue) {
-    const cell = grid[pos.y]?.[pos.x];
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 1;
+  queue[0] = start.y * width + start.x;
+
+  while (head < tail) {
+    const index = queue[head++];
+    const y = Math.floor(index / width);
+    const x = index - y * width;
+    const cell = grid[y]?.[x];
     if (!cell) continue;
 
     for (let dir = 0; dir < 4; dir++) {
-      if (cell.walls[dir]) continue;
+      if (cell.walls[dir] || (directed && !canEnterFrom(grid, x, y, dir))) continue;
 
-      const nx = pos.x + DX[dir];
-      const ny = pos.y + DY[dir];
-      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
+      const nx = x + DX[dir];
+      const ny = y + DY[dir];
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+      if (reachable.add(nx, ny)) queue[tail++] = ny * width + nx;
+    }
+  }
 
-      const key = `${nx},${ny}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        queue.push({ x: nx, y: ny });
+  return reachable;
+}
+
+function getReachableCellKeys(grid, start) {
+  return createReachableCellSet(grid, start);
+}
+
+function getUndirectedChokeCells(grid, start, stairsDown) {
+  if (!stairsDown) return null;
+  const width = getMapWidth(grid);
+  const height = getMapHeight(grid);
+  const cellCount = width * height;
+  const startIndex = start.y * width + start.x;
+  const targetIndex = stairsDown.y * width + stairsDown.x;
+  if (startIndex === targetIndex ||
+      start.x < 0 || start.x >= width || start.y < 0 || start.y >= height ||
+      stairsDown.x < 0 || stairsDown.x >= width || stairsDown.y < 0 || stairsDown.y >= height) {
+    return null;
+  }
+
+  // Tarjan requires a symmetric graph. One-way entries are placed later, so
+  // the generation path takes this fast path while arbitrary callers retain
+  // the exact BFS fallback below.
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const cell = grid[y]?.[x];
+      if (!cell || cell.blockEnter?.some(Boolean)) return null;
+      for (let dir = 0; dir < 4; dir++) {
+        if (cell.walls[dir]) continue;
+        const neighbor = grid[y + DY[dir]]?.[x + DX[dir]];
+        if (!neighbor || neighbor.walls[OPPOSITE_DIR[dir]]) return null;
       }
     }
   }
 
-  return seen;
-}
+  const discovery = new Int32Array(cellCount);
+  const lowLink = new Int32Array(cellCount);
+  const targetInSubtree = new Uint8Array(cellCount);
+  const choke = new Uint8Array(cellCount);
+  discovery.fill(-1);
+  let nextDiscovery = 0;
 
-// そのマスを塞ぐと下り階段へ到達できなくなるならチョークポイント。
-// Tarjanの関節点は「グラフ全体を切る点」であって「スタートと階段を切る点」
-// ではないため使わない。30x30・歩行可能セル数百なら総当たりBFSで足りる。
-export function isChokeCell(grid, cell, start, stairsDown) {
-  if (!stairsDown) return false;
-  if (cell.x === start.x && cell.y === start.y) return false;
+  function visit(index, parentIndex = -1) {
+    discovery[index] = nextDiscovery;
+    lowLink[index] = nextDiscovery;
+    nextDiscovery++;
+    targetInSubtree[index] = index === targetIndex ? 1 : 0;
 
-  const blocked = `${cell.x},${cell.y}`;
-  const startKey = `${start.x},${start.y}`;
-  if (blocked === startKey) return false;
-
-  const queue = [start];
-  const seen = new Set([startKey]);
-  const targetKey = `${stairsDown.x},${stairsDown.y}`;
-
-  for (const pos of queue) {
-    const current = grid[pos.y]?.[pos.x];
-    if (!current) continue;
-
+    const y = Math.floor(index / width);
+    const x = index - y * width;
+    const cell = grid[y][x];
     for (let dir = 0; dir < 4; dir++) {
-      if (current.walls[dir] || !canEnterFrom(grid, pos.x, pos.y, dir)) continue;
+      if (cell.walls[dir]) continue;
+      const neighborX = x + DX[dir];
+      const neighborY = y + DY[dir];
+      if (neighborX < 0 || neighborX >= width || neighborY < 0 || neighborY >= height) continue;
+      const neighborIndex = neighborY * width + neighborX;
+      if (neighborIndex === parentIndex) continue;
 
-      const nx = pos.x + DX[dir];
-      const ny = pos.y + DY[dir];
-      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
-
-      const key = `${nx},${ny}`;
-      if (key === blocked || seen.has(key)) continue;
-      if (key === targetKey) return false;
-
-      seen.add(key);
-      queue.push({ x: nx, y: ny });
+      if (discovery[neighborIndex] === -1) {
+        visit(neighborIndex, index);
+        if (targetInSubtree[neighborIndex]) targetInSubtree[index] = 1;
+        lowLink[index] = Math.min(lowLink[index], lowLink[neighborIndex]);
+        if (index !== startIndex && targetInSubtree[neighborIndex] &&
+            lowLink[neighborIndex] >= discovery[index]) {
+          choke[index] = 1;
+        }
+      } else {
+        lowLink[index] = Math.min(lowLink[index], discovery[neighborIndex]);
+      }
     }
   }
 
-  return !seen.has(targetKey);
+  visit(startIndex);
+  if (discovery[targetIndex] === -1) return null;
+  choke[targetIndex] = 1;
+  choke[startIndex] = 0;
+
+  return {
+    has(x, y) {
+      return x >= 0 && x < width && y >= 0 && y < height && choke[y * width + x] === 1;
+    }
+  };
+}
+
+function isChokeCellByBfs(grid, cell, start, stairsDown) {
+  const width = getMapWidth(grid);
+  const height = getMapHeight(grid);
+  const blockedIndex = cell.y * width + cell.x;
+  const startIndex = start.y * width + start.x;
+  const targetIndex = stairsDown.y * width + stairsDown.x;
+  if (blockedIndex === startIndex || targetIndex === startIndex) return false;
+
+  const seen = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 1;
+  seen[startIndex] = 1;
+  queue[0] = startIndex;
+
+  while (head < tail) {
+    const index = queue[head++];
+    const y = Math.floor(index / width);
+    const x = index - y * width;
+    const current = grid[y]?.[x];
+    if (!current) continue;
+
+    for (let dir = 0; dir < 4; dir++) {
+      if (current.walls[dir] || !canEnterFrom(grid, x, y, dir)) continue;
+      const nx = x + DX[dir];
+      const ny = y + DY[dir];
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+      const nextIndex = ny * width + nx;
+      if (nextIndex === blockedIndex || seen[nextIndex]) continue;
+      if (nextIndex === targetIndex) return false;
+      seen[nextIndex] = 1;
+      queue[tail++] = nextIndex;
+    }
+  }
+
+  return !seen[targetIndex];
+}
+
+// そのマスを塞ぐと下り階段へ到達できなくなるならチョークポイント。
+// 生成中は無向グラフのTarjan DFS、one-way済み等は従来と同義のBFS。
+export function isChokeCell(grid, cell, start, stairsDown) {
+  if (!stairsDown || (cell.x === start.x && cell.y === start.y)) return false;
+  const chokeCells = getUndirectedChokeCells(grid, start, stairsDown);
+  return chokeCells
+    ? chokeCells.has(cell.x, cell.y)
+    : isChokeCellByBfs(grid, cell, start, stairsDown);
 }
 
 // 深度は無限スケールなので、B5でカンストする段階分類は使わず連続式にする。
@@ -426,77 +629,100 @@ export function getTrapChokeRate(floor) {
   return Math.round(Math.min(0.55, raw) * 1000) / 1000;
 }
 
-function getDistanceMap(grid, start) {
-  const queue = [{ ...start, distance: 0 }];
-  const distances = new Map([[`${start.x},${start.y}`, 0]]);
+class DistanceMap {
+  constructor(width, distances) {
+    this.width = width;
+    this.distances = distances;
+  }
 
-  for (const pos of queue) {
-    const cell = grid[pos.y]?.[pos.x];
+  get(key) {
+    const separator = key.indexOf(",");
+    if (separator === -1) return undefined;
+    const x = Number(key.slice(0, separator));
+    const y = Number(key.slice(separator + 1));
+    if (!Number.isInteger(x) || !Number.isInteger(y) ||
+        x < 0 || x >= this.width || y < 0 || y * this.width + x >= this.distances.length) {
+      return undefined;
+    }
+    const distance = this.distances[y * this.width + x];
+    return distance === -1 ? undefined : distance;
+  }
+}
+
+function getDistanceMap(grid, start) {
+  const width = getMapWidth(grid);
+  const height = getMapHeight(grid);
+  const distances = new Int32Array(width * height);
+  distances.fill(-1);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 0;
+  if (start.x >= 0 && start.x < width && start.y >= 0 && start.y < height) {
+    const startIndex = start.y * width + start.x;
+    distances[startIndex] = 0;
+    queue[tail++] = startIndex;
+  }
+
+  while (head < tail) {
+    const index = queue[head++];
+    const y = Math.floor(index / width);
+    const x = index - y * width;
+    const cell = grid[y]?.[x];
     if (!cell) continue;
 
     for (let dir = 0; dir < 4; dir++) {
       if (cell.walls[dir]) continue;
-      const nx = pos.x + DX[dir];
-      const ny = pos.y + DY[dir];
-      const key = `${nx},${ny}`;
-      if (!grid[ny]?.[nx] || distances.has(key)) continue;
-      const distance = pos.distance + 1;
-      distances.set(key, distance);
-      queue.push({ x: nx, y: ny, distance });
+      const nx = x + DX[dir];
+      const ny = y + DY[dir];
+      if (!grid[ny]?.[nx]) continue;
+      const nextIndex = ny * width + nx;
+      if (distances[nextIndex] !== -1) continue;
+      distances[nextIndex] = distances[index] + 1;
+      queue[tail++] = nextIndex;
     }
   }
 
-  return distances;
+  return new DistanceMap(width, distances);
 }
 
 function getDirectedReachableCellKeys(grid, start) {
-  const queue = [start];
-  const seen = new Set([`${start.x},${start.y}`]);
-
-  for (const pos of queue) {
-    const cell = grid[pos.y]?.[pos.x];
-    if (!cell) continue;
-
-    for (let dir = 0; dir < 4; dir++) {
-      if (cell.walls[dir] || !canEnterFrom(grid, pos.x, pos.y, dir)) continue;
-
-      const nx = pos.x + DX[dir];
-      const ny = pos.y + DY[dir];
-      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
-
-      const key = `${nx},${ny}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        queue.push({ x: nx, y: ny });
-      }
-    }
-  }
-
-  return seen;
+  return createReachableCellSet(grid, start, true);
 }
 
 function getDirectedDistance(grid, start, target) {
-  const targetKey = `${target.x},${target.y}`;
-  const queue = [{ ...start, dist: 0 }];
-  const seen = new Set([`${start.x},${start.y}`]);
+  if (start.x === target.x && start.y === target.y) return 0;
+  const width = getMapWidth(grid);
+  const height = getMapHeight(grid);
+  if (start.x < 0 || start.x >= width || start.y < 0 || start.y >= height ||
+      target.x < 0 || target.x >= width || target.y < 0 || target.y >= height) return Infinity;
 
-  for (const pos of queue) {
-    if (`${pos.x},${pos.y}` === targetKey) return pos.dist;
-    const cell = grid[pos.y]?.[pos.x];
+  const targetIndex = target.y * width + target.x;
+  const distances = new Int32Array(width * height);
+  distances.fill(-1);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 1;
+  const startIndex = start.y * width + start.x;
+  distances[startIndex] = 0;
+  queue[0] = startIndex;
+
+  while (head < tail) {
+    const index = queue[head++];
+    if (index === targetIndex) return distances[index];
+    const y = Math.floor(index / width);
+    const x = index - y * width;
+    const cell = grid[y]?.[x];
     if (!cell) continue;
 
     for (let dir = 0; dir < 4; dir++) {
-      if (cell.walls[dir] || !canEnterFrom(grid, pos.x, pos.y, dir)) continue;
-
-      const nx = pos.x + DX[dir];
-      const ny = pos.y + DY[dir];
-      if (nx < 0 || nx >= getMapWidth(grid) || ny < 0 || ny >= getMapHeight(grid)) continue;
-
-      const key = `${nx},${ny}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        queue.push({ x: nx, y: ny, dist: pos.dist + 1 });
-      }
+      if (cell.walls[dir] || !canEnterFrom(grid, x, y, dir)) continue;
+      const nx = x + DX[dir];
+      const ny = y + DY[dir];
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+      const nextIndex = ny * width + nx;
+      if (distances[nextIndex] !== -1) continue;
+      distances[nextIndex] = distances[index] + 1;
+      queue[tail++] = nextIndex;
     }
   }
 
@@ -589,7 +815,7 @@ function getRequiredReachableKeys(grid, stairsDownCoord, bossCoord) {
 
 function canReachAllRequired(grid, start, requiredKeys) {
   const reachable = getDirectedReachableCellKeys(grid, start);
-  return [...requiredKeys].every(key => reachable.has(key));
+  return [...requiredKeys].every(key => reachable.hasKey(key));
 }
 
 function shuffleInPlace(array, rng) {
@@ -623,26 +849,41 @@ function hasValidOneWayReverseDetours(grid) {
 }
 
 function removeInvalidOneWayPassages(grid, start) {
-  let removed;
-  do {
-    removed = false;
-    for (let y = 1; y < getMapHeight(grid) - 1 && !removed; y++) {
-      for (let x = 1; x < getMapWidth(grid) - 1 && !removed; x++) {
-        for (let blockDir = 0; blockDir < 4; blockDir++) {
-          if (!grid[y][x].blockEnter[blockDir]) continue;
-          const distance = getOneWayReverseDetourDistance(grid, { x, y, blockDir });
-          const crossed = { x: x + DX[blockDir], y: y + DY[blockDir] };
-          if (Number.isFinite(distance) &&
-              distance >= ONE_WAY_MIN_DETOUR &&
-              distance <= ONE_WAY_MAX_DETOUR &&
-              Number.isFinite(getDirectedDistance(grid, crossed, start))) continue;
-          grid[y][x].blockEnter[blockDir] = false;
-          removed = true;
-          break;
-        }
+  const candidates = [];
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
+      for (let blockDir = 0; blockDir < 4; blockDir++) {
+        if (grid[y][x].blockEnter[blockDir]) candidates.push({ x, y, blockDir });
       }
     }
-  } while (removed);
+  }
+
+  let candidateIndex = 0;
+  while (candidateIndex < candidates.length) {
+    const option = candidates[candidateIndex];
+    if (!grid[option.y][option.x].blockEnter[option.blockDir]) {
+      candidateIndex++;
+      continue;
+    }
+
+    const distance = getOneWayReverseDetourDistance(grid, option);
+    const crossed = {
+      x: option.x + DX[option.blockDir],
+      y: option.y + DY[option.blockDir]
+    };
+    if (Number.isFinite(distance) &&
+        distance >= ONE_WAY_MIN_DETOUR &&
+        distance <= ONE_WAY_MAX_DETOUR &&
+        Number.isFinite(getDirectedDistance(grid, crossed, start))) {
+      candidateIndex++;
+      continue;
+    }
+
+    grid[option.y][option.x].blockEnter[option.blockDir] = false;
+    // The old scan restarted at row-major cell 0 after every removal. Keep
+    // that order while avoiding a full grid scan over empty candidates.
+    candidateIndex = 0;
+  }
 }
 
 function placeSecretShortcuts(grid, targetCount, protectedRoomKeys, rng) {
@@ -708,7 +949,7 @@ function getSecretRoomCandidates(grid, requiredKeys, start) {
         const py = y + DY[dir];
         const passage = grid[py]?.[px];
         if (!passage || !isPassageCell(grid, px, py)) continue;
-        if (!reachableKeys.has(`${px},${py}`)) continue;
+        if (!reachableKeys.has(px, py)) continue;
         if (passage.event || passage.type !== "empty") continue;
         const passageDir = OPPOSITE_DIR[dir];
         if (!passage.walls[passageDir] || !roomCell.walls[dir]) continue;
@@ -732,7 +973,7 @@ function ensureSecretRoomCandidates(grid, targetCount, requiredKeys, start, rng)
         const openDir = cell.walls.findIndex(wall => !wall);
         if (cell.walls.filter(wall => !wall).length !== 1 || cell.event || cell.trap || cell.type !== "empty") continue;
         if (cell.secretDoor.some(Boolean) || cell.blockEnter.some(Boolean) || requiredKeys.has(`${x},${y}`)) continue;
-        if (!reachableKeys.has(`${x},${y}`)) continue;
+        if (!reachableKeys.has(x, y)) continue;
 
         const nx = x + DX[openDir];
         const ny = y + DY[openDir];
@@ -1438,7 +1679,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
         if (isStart || isStairs || isBossCell || grid[y][x].event ||
             reservedRoomKeys.has(key) || reservedPassageKeys.has(key)) continue;
 
-        if (reachableKeys.has(key) && grid[y][x].walls.some(w => !w)) {
+        if (reachableKeys.has(x, y) && grid[y][x].walls.some(w => !w)) {
           passages.push({ x, y });
         }
       }
@@ -1471,7 +1712,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
       
       if (isStart || isStairs || isBossCell || cell.event || cell.type !== "empty") continue;
       
-      if (reachableKeys.has(`${x},${y}`) && cell.walls.some(w => !w)) {
+      if (reachableKeys.has(x, y) && cell.walls.some(w => !w)) {
         trapCandidates.push({ x, y });
       }
     }
@@ -1483,8 +1724,12 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   const chokeTargeted = Math.round(trapCount * getTrapChokeRate(floor));
   const chokePool = [];
   const openPool = [];
+  const chokeCells = getUndirectedChokeCells(grid, suCoord, stairsDownCoord);
   for (const candidate of trapCandidates) {
-    if (chokePool.length < chokeTargeted && isChokeCell(grid, candidate, suCoord, stairsDownCoord)) {
+    const isChoke = chokeCells
+      ? chokeCells.has(candidate.x, candidate.y)
+      : isChokeCell(grid, candidate, suCoord, stairsDownCoord);
+    if (chokePool.length < chokeTargeted && isChoke) {
       chokePool.push(candidate);
     } else {
       openPool.push(candidate);
