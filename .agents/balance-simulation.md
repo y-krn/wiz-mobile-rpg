@@ -76,13 +76,47 @@ real run. Each item below has already produced a wrong conclusion at least once.
 - State which mitigations the simulation models and which it omits in the
   written summary, so a later reader can tell the measured scenario from the
   real one.
-- Before any measurement, confirm the working tree's `HEAD` is an ancestor of
-  freshly fetched `origin/main` (`git merge-base --is-ancestor HEAD
-  origin/main`). A local `main` can silently diverge (an unpushed local
-  commit, a stale checkout) and omit recently merged balance PRs; #509 first
-  ran against a local `main` missing #514/#517 and measured a B10 entrant
-  baseline of 9.4–9.7% against a true post-#517 baseline of 14.4%. Always
-  measure from a worktree freshly branched off `origin/main`, per AGENTS.md.
+- Before any measurement, freshly fetch `origin/main` and confirm that
+  `origin/main` is an ancestor of the working tree's `HEAD`
+  (`git merge-base --is-ancestor origin/main HEAD`). A stale checkout can omit
+  recently merged balance PRs; #509 first ran against a local `main` missing
+  #514/#517 and measured a B10 entrant baseline of 9.4–9.7% against a true
+  post-#517 baseline of 14.4%. Always measure from a worktree freshly branched
+  off `origin/main`, per AGENTS.md.
+
+### Source tree provenance（Issue #519）
+
+バランス測定は、`origin/main` を fetch した後にそこから切った新規 worktree で行う。
+main チェックアウトで測定しない。測定 runner は開始前に `HEAD` と
+`origin/main` の関係を `git merge-base --is-ancestor origin/main HEAD` で検査し、
+`origin/main` の子孫でなければ警告ではなく非ゼロ終了する。
+意図的な stale-tree 測定だけ `SIM_ALLOW_STALE_TREE=1` で継続でき、その事実を
+summary md / summary JSON の `measurement` に記録する。
+`measurement.sourceCommit`、`measurement.originMainAncestor`、
+`measurement.staleTreeAllowed` を env hash と同じ実行記録へ必ず出力する。
+測定結果の summary JSON と raw JSONL は `scratch/results/` へ出力するが、追跡しない。
+共有入口 `scratch/sim_depth_material_ev.js` の module load 時に guard を実行する。
+`isMainThread` が false の worker は再実行しない。unit test は
+`SIM_SKIP_PROVENANCE=1`、または `test_*.js` entrypoint で skip する。
+`node --check` は module を実行しないため guard 対象外。
+
+2026-08-11 棚卸し: 既存 summary md 67件は source commit 記載なし。過去結果へ遡って
+追記しない。記載ありは `issue-470-build-definition.md`、
+`issue-485-build-definition-rebaseline.md`、`issue-496-in-run-recovery-supply.md`。
+記載なし一覧:
+
+- `issue-270-real-src-measurement.md`, `issue-271-atk-def-affix-unread.md`, `issue-271-atk-def-after-phase1.md`, `issue-271-atk-def-after-phase2.md`, `issue-271-atk-def-before-phase1.md`, `issue-271-atk-def-before-phase2.md`, `issue-271-atk-def-comparison.md`, `issue-271-b5-milestone-encounter.md`
+- `issue-271-countermeasure-strength.md`, `issue-271-criteria-remeasurement.md`, `issue-271-quality-remeasure.md`, `issue-271-resistance-integrity-antidemon-b2-15-25-w1-weapon-accessory-phase1.md`, `issue-271-resistance-integrity-antidemon-b2-15-25-w1-weapon-accessory-phase2.md`, `issue-271-resistance-integrity-antidemon-b2-15-25-w1-weapon-phase1.md`, `issue-271-resistance-integrity-antidemon-b2-15-25-w1-weapon-phase2.md`
+- `issue-271-resistance-integrity-antidemon-b3-30-w1-weapon-accessory-phase1.md`, `issue-271-resistance-integrity-antidemon-b3-30-w1-weapon-accessory-phase2.md`, `issue-271-resistance-integrity-baseline-phase1.md`, `issue-271-resistance-integrity-baseline-phase2.md`, `issue-271-resistance-integrity-guardian-a20-phase1.md`, `issue-271-resistance-integrity-guardian-a20-phase2.md`, `issue-271-resistance-integrity-guardian-c0-phase1.md`, `issue-271-resistance-integrity-guardian-c0-phase2.md`
+- `issue-271-resistance-integrity-guardian-c10-phase1.md`, `issue-271-resistance-integrity-guardian-c10-phase2.md`, `issue-271-resistance-integrity-phase1-comparison.md`, `issue-271-resistance-integrity-progress.md`, `issue-271-resistance-integrity-src-after-phase1.md`, `issue-271-resistance-integrity-src-after-phase2.md`, `issue-271-spellguard-remeasure.md`, `issue-271-status-depth-scaling.md`
+- `issue-271-trap-quality-after.md`, `issue-271-trap-quality.md`, `issue-292-after.md`, `issue-292-corrected-results.md`, `issue-292-sim-parallel-progress.md`, `issue-404-affix-volume.md`, `issue-409-second-accessory.md`, `issue-410-workshop-variety.md`
+- `issue-419-identification-default.md`, `issue-433-curse-lock.md`, `issue-437-core-encounter.md`, `issue-440-magic-core-chance.md`, `issue-444-build-matching.md`, `issue-446-slot-vs-affix.md`, `issue-454-countermeasure-after.md`, `issue-454-paired-reaggregation.md`
+- `issue-454-spellguard-remeasure.md`, `issue-454-trap-remeasure.md`, `issue-461-baseline.md`, `issue-468-exposure-ceiling.md`, `issue-473-priest-disarm.md`, `issue-483-heal-unit-sweep.md`, `issue-485-audit-468-473-main.md`, `issue-485-audit-468-473.md`
+- `issue-485-audit-480.md`, `issue-485-rebaseline.md`, `issue-487-heal-priority.md`, `issue-489-heal-flee-threshold.md`, `issue-494-264-remeasurement.md`, `issue-494-combat-policy-default.md`, `issue-499-shallow-recovery-supply.md`, `issue-502-461-rebaseline.md`
+- `issue-502-499-fixed-detection.md`, `issue-502-trap-detection.md`, `issue-507-blind-balance.md`, `issue-516-class-sustain.md`
+
+事故 commit `55f8f30` にだけ存在した `issue-485-*.json` 6件は現 `origin/main` に
+存在せず、現ブランチの index にも無いため `git rm --cached` 対象なし。
 
 ### Identification policy
 
