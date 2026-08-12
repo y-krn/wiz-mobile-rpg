@@ -36,7 +36,10 @@ creating, updating, commenting on, reviewing, and merging pull requests on this
 repository are pre-approved — just do them and report the result. Committing and
 pushing to a feature branch for that PR is likewise pre-approved. Do not commit
 directly to `main`.
-Branch protection and the PreToolUse hook enforce this rule.
+Repository policy and remote branch protection prohibit direct commits to
+`main`. The local PreToolUse hook blocks `git commit` and `git push` commands
+on `main`, but it does not block file edits; the main-worktree checks below
+remain required.
 
 - Before starting or resuming work, scan open issues:
   `gh issue list --state open`. Read the target issue with
@@ -49,10 +52,11 @@ Branch protection and the PreToolUse hook enforce this rule.
   fetched `origin/main`. If `origin/main` advanced after branch creation, bring
   the working branch up to date before implementation or measurement; never
   rely on a stale local `main` or previously fetched `origin/main`. For each
-  issue, use `fix/<n>-<slug>` or `feat/<n>-<slug>` (e.g.
-  `fix/33-mana-potion-reprice`), implement there, then open a PR that links the
-  issue in its body with `Closes #<n>` (`gh pr create`). Merging the PR closes
-  the issue automatically.
+  issue, use `fix/<n>-<slug>`, `feat/<n>-<slug>`, or
+  `measure/<n>-<slug>` (e.g. `fix/33-mana-potion-reprice`), implement or
+  measure there, then open a PR that links the issue in its body with
+  `Closes #<n>` (`gh pr create`) when the work changes the repository.
+  Merging the PR closes the issue automatically.
 - One concern per issue. Create with `gh issue create --template task.md`
   (`.github/ISSUE_TEMPLATE/task.md`); fill in Goal / Notes / Verification and
   the coordination checklist.
@@ -61,6 +65,41 @@ Branch protection and the PreToolUse hook enforce this rule.
 
 The former local `tickets/` board was migrated to Issues and removed; do not
 recreate it.
+
+## Worktree and main hygiene
+
+These are repository-wide rules for every agent and human contributor.
+
+- Do not edit the main worktree. Before creating or resuming work, fetch
+  `origin/main`, then create a worktree from it:
+  `git worktree add -b <type>/<issue-number>-<short-description> <path> origin/main`.
+- Never work on a detached `HEAD`. Branch names use
+  `fix/<issue-number>-<short-description>` for fixes or balance changes,
+  `feat/<issue-number>-<short-description>` for features, and
+  `measure/<issue-number>-<short-description>` for measurement-only work.
+- A `.claude/worktrees/issue-<number>-<short-description>` path is recommended,
+  not required. `git worktree list` is the only inventory; path alone never
+  determines whether a worktree is safe to remove.
+- Keep local `main` identical to `origin/main` and clean:
+  `git rev-parse main` must equal `git rev-parse origin/main`, and
+  `git status --porcelain` in the main worktree must be empty. Check both
+  before starting or resuming work. If either check fails, synchronize or
+  clean the main worktree before continuing. SessionStart warns about a dirty
+  or unsynchronized `main`, but the warning does not replace these checks.
+- When a branch is merged, remove its worktree. Before any removal, enumerate
+  all worktrees from `git worktree list`, record each branch as merged,
+  unmerged, or remote-deleted, and check branch state with
+  `git merge-base --is-ancestor <branch> origin/main`. A true result makes a
+  branch a removal candidate; an unmerged branch stays. For detached worktrees,
+  apply the same ancestor check to `HEAD`; do not remove it when the commit is
+  not contained in `origin/main`.
+- Check candidates with `lsof` before removal. Keep any worktree in use, show
+  the remaining candidates, and get user confirmation before deleting them.
+  After approval, remove each with `git worktree remove <path>` and run
+  `git worktree prune`.
+- `node_modules` may be a symlink to the main worktree. Worktree cleanup must
+  not follow that symlink or remove the shared directory; worktree creation
+  does not require `npm ci` when the SessionStart link exists.
 
 ## Large Output and Log Handling
 
