@@ -9,6 +9,15 @@ set -u
 cat >/dev/null
 
 ensure_worktree_node_modules() {
+  node_modules_has_entries() {
+    [ -d "$1" ] && [ -n "$(ls -A "$1" 2>/dev/null)" ]
+  }
+
+  node_modules_entry_count() {
+    [ -d "$1" ] || { printf '0'; return 0; }
+    ls -A "$1" 2>/dev/null | wc -l | tr -d ' '
+  }
+
   project_dir=${CLAUDE_PROJECT_DIR:-$(pwd -P)}
   [ -f "$project_dir/.git" ] || return 0
 
@@ -21,20 +30,28 @@ ensure_worktree_node_modules() {
 
   target="$project_dir/node_modules"
   source="$main_root/node_modules"
-  [ -e "$target" ] || {
+
+  if ! node_modules_has_entries "$target"; then
     if [ -L "$target" ]; then
       rm "$target"
+    elif [ -d "$target" ]; then
+      rmdir "$target" 2>/dev/null || {
+        printf -- '- node_modules target unusable; cannot replace: %s\n' "$target" >&2
+        printf -- '- node_modules parent entries: %s\n' "$(node_modules_entry_count "$source")"
+        return 0
+      }
     fi
 
-    if [ -d "$source" ]; then
+    if node_modules_has_entries "$source"; then
       ln -s "$source" "$target" || printf -- '- node_modules symlink failed: %s\n' "$target" >&2
-      return 0
+    elif [ -f "$project_dir/package-lock.json" ]; then
+      # Shared parent is never modified; install only in this worktree.
+      printf -- '- node_modules parent unusable; running npm ci\n'
+      (cd "$project_dir" && npm ci) || printf -- '- node_modules npm ci failed\n' >&2
     fi
+  fi
 
-    [ -f "$project_dir/package-lock.json" ] || return 0
-    printf -- '- node_modules parent absent; running npm ci\n'
-    (cd "$project_dir" && npm ci) || printf -- '- node_modules npm ci failed\n' >&2
-  }
+  printf -- '- node_modules parent entries: %s\n' "$(node_modules_entry_count "$source")"
 }
 
 ensure_worktree_node_modules
