@@ -400,6 +400,8 @@ function renderMarkdown({ rows, summaries, measurement, rawSha256, summarySha256
   const summary = (caseId, className) => summaries[`${caseId}:${className}`];
   const baseline = Object.fromEntries(CLASSES.map(className => [className, summary("current", className)]));
   const mageBaseline = baseline.Mage;
+  const mageKillHeal10 = summary("mage-killheal-10", "Mage");
+  const mageAdopted = summary("mage-base-hp-2-growth-1", "Mage");
   const topDeathSource = [...DAMAGE_SOURCES]
     .sort((left, right) => (mageBaseline.deathSource[right].estimate || 0) - (mageBaseline.deathSource[left].estimate || 0))[0];
   const lines = [
@@ -412,6 +414,12 @@ function renderMarkdown({ rows, summaries, measurement, rawSha256, summarySha256
       `killHeal 発動は魔術師 ${fmtMean(mageBaseline.killHeal.activationsPerRun)}回/run、実回復 ${fmtMean(mageBaseline.killHeal.recoveredHpPerRun)}HP/run。死亡runの発動0率 ${fmtRate(mageBaseline.killHeal.zeroActivationDeathRate)}。`,
     `- 死亡run直前1ターン被害 ${fmtMean(mageBaseline.lastDamage.damage)}、最大HP比 ${fmtMean(mageBaseline.lastDamage.damageMaxHpRate, 3)}、被害hit数 ${fmtMean(mageBaseline.lastDamage.hits)}。`,
     "- 採用: Mage 初期HP+2 / level HP成長+1（初期HP21、成長4..6）。採用後のN=3000基準線は `scratch/results/issue-461-baseline.md`。",
+    "",
+    "## 採用判定（レビュー対応）",
+    "",
+    `- killHeal+10 はB10到達率${fmtRate(mageKillHeal10.b10.entrant)}まで改善する有効な候補。初期仮説は「killHeal増量では解けない」から「撃破前死亡には効かない」へ限定修正する。死亡runの発動0率${fmtRate(mageKillHeal10.killHeal.zeroActivationDeathRate)}だが、撃破後まで生き残るrunでは回復が累積し、killHeal+6/+8/+10でB10到達率14.8%/21.0%/26.2%と単調に伸びた。`,
+    `- killHeal+10 の長所は深度（平均floor${fmtMean(mageKillHeal10.averageFloor)}）とB10到達、短所はB5死亡${fmtRate(mageKillHeal10.b5.death)}、戦闘${fmtMean(mageKillHeal10.combatRounds)}turn/run、素材EV/時間${fmtMean(mageKillHeal10.materialEvPerTime, 4)}。初期HP+2/成長+1はB5死亡${fmtRate(mageAdopted.b5.death)}、平均floor${fmtMean(mageAdopted.averageFloor)}、戦闘${fmtMean(mageAdopted.combatRounds)}turn/run、素材EV/時間${fmtMean(mageAdopted.materialEvPerTime, 4)}で、深度以外の主指標が優位。`,
+    "- 両候補ともMage-only overrideで、他3職B10 entrant差は戦士/盗賊/僧侶すべて0.0pt。killHeal+10は汎用support基準値2、Fighter+2、Mage+4に対して突出したclass passive値（Mage現行の2.5倍）となる。初期HP+2/成長+1は撃破triggerを増幅せず、撃破前から効く静的耐久で死亡律速を直接緩和し、将来職のHP成長設計にも適用しやすい。このため採用点は変更せず、killHeal=4を維持する。",
     "",
     "## 基準線（現行）",
     "",
