@@ -112,10 +112,11 @@ first, then read only the relevant part.
   reporting a missing advertised path, or when it is needed to debug tool
   configuration.
 - Safe commands may be run without extra confirmation: reads, searches, diffs,
-  builds, tests, and dev server startup.
+  builds, tests, dev server startup, and worktree-local `npm ci` (reproducibly
+  recreates ignored `node_modules` from `package-lock.json`).
 - Ask first before destructive or high-risk operations: `rm`, `git reset`,
-  `git clean`, `git checkout --`, broad `mv`, dependency installation, external
-  scripts, deployment, and production operations.
+  `git clean`, `git checkout --`, broad `mv`, external scripts, deployment, and
+  production operations.
 - GitHub CLI API: when a `gh` operation fails with sandbox/network connection
   errors (for example `error connecting to api.github.com`), immediately retry
   the same operation with `sandbox_permissions: require_escalated` and a concise
