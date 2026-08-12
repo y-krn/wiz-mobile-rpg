@@ -34,7 +34,10 @@ const { ELITE_CLASSES } = await import("../src/data/classes.js");
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
 const { applyPendingOutcomeRewards } = await import("../src/combat_ui/outcome_rewards.js");
 const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
-const { chooseAutoCombatAction } = await import("../src/combat_logic/auto_action.js");
+const {
+  chooseAutoCombatAction,
+  getPreferredOffensiveSpellName
+} = await import("../src/combat_logic/auto_action.js");
 const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
 const { assignRunQuests, updateRunQuests } = await import("../src/systems/run_quests.js");
 const { generateRunFloor: generateRunFloorSource } = await import("../src/run_map_generator.js");
@@ -44,6 +47,8 @@ const { getFloorTemplate } = await import("../src/data/floor_templates.js");
 const { EVENT_TYPES } = await import("../src/constants/events.js");
 const { DX, DY } = await import("../src/constants/directions.js");
 const { generateChestMaterials } = await import("../src/chest.js");
+
+const ISSUE538_LEGACY_SPELL_POLICY = process.env.ISSUE538_SPELL_POLICY === "legacy";
 
 const SIM_MAP_STATS_ENABLED = process.env.SIM_MAP_STATS === "1";
 const mapGenerationStats = {
@@ -2223,6 +2228,68 @@ function getSpellActionPayment(
   return character.hp - payment.cost >= minHpAfterPayment ? payment : null;
 }
 
+const AUTO_SPELL_IDS = Object.freeze([
+  "HALITO",
+  "LAHALITO",
+  "MAHALITO",
+  "MADALTO",
+  "TILTOWAIT",
+  "KATINO",
+  "BADIOS",
+  "DIOS",
+  "MADIOS"
+]);
+
+function createSpellUsageMetrics() {
+  return Object.fromEntries(AUTO_SPELL_IDS.map(spellName => [spellName, {
+    knownRounds: 0,
+    castableRounds: 0,
+    selected: 0,
+    applied: 0,
+    failed: 0
+  }]));
+}
+
+function recordSpellSelectionMetrics(state, metrics, action) {
+  const character = state.party[0];
+  const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
+  AUTO_SPELL_IDS.forEach(spellName => {
+    if (!hasSpell(character, spellName)) return;
+    const usage = metrics.spellUsage[spellName];
+    usage.knownRounds++;
+    const paymentReserve = ["DIOS", "MADIOS"].includes(spellName) ? 0 : reserveMp;
+    usage.castableRounds += Number(Boolean(
+      getSpellActionPayment(state, spellName, paymentReserve)
+    ));
+    usage.selected += Number(action.type === "spell" && action.spellName === spellName);
+  });
+  if (
+    character.class === "Priest" &&
+    hasSpell(character, "DIOS") &&
+    action.type === "spell" &&
+    SPELLS[action.spellName]?.target?.includes("enemy")
+  ) {
+    metrics.reserveMpViolations += Number(!getSpellActionPayment(state, action.spellName, 1));
+  }
+}
+
+function recordSpellApplicationMetrics(metrics, action, logQueue) {
+  if (action.type !== "spell" || !metrics.spellUsage[action.spellName]) return;
+  const usage = metrics.spellUsage[action.spellName];
+  const applied = logQueue.some(({ msg = "" }) =>
+    msg.startsWith("[味方]") && msg.includes("唱えた") && !msg.includes("唱えようとした")
+  );
+  usage.applied += Number(applied);
+  usage.failed += Number(!applied);
+}
+
+function recordSpellResourceMetrics(metrics, characterBefore, characterAfter) {
+  const spellcaster = AUTO_SPELL_IDS.some(spellName => hasSpell(characterBefore, spellName));
+  if (!spellcaster) return;
+  metrics.mpZeroCombatRounds += Number(characterBefore.mp <= 0 || characterAfter.mp <= 0);
+  metrics.mpDepleted ||= characterBefore.mp <= 0 || characterAfter.mp <= 0;
+}
+
 function getLowestHpEnemyIndex(monsters, predicate = () => true) {
   let selectedIdx = -1;
   let selectedHp = Infinity;
@@ -2408,18 +2475,71 @@ function hasRecoveryPotion(state, itemKey = null) {
     : state.inventory.includes("GREATER_HEAL") || state.inventory.includes("HEAL_POTION");
 }
 
+function getLegacyMageCombatAction({
+  character,
+  monsters,
+  roundNumber,
+  canCastSpell = () => false
+}) {
+  const statusTargetIdx = getLowestHpEnemyIndex(
+    monsters,
+    monster => monster.status && !["ok", "dead"].includes(monster.status)
+  );
+  const lowestHpIdx = statusTargetIdx >= 0
+    ? statusTargetIdx
+    : getLowestHpEnemyIndex(monsters);
+  const livingMonsters = monsters.filter(monster => monster.hp > 0);
+  const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
+  const canCast = spellName =>
+    hasSpell(character, spellName) && canCastSpell(spellName, reserveMp);
+
+  if (roundNumber === 1 && livingMonsters.length >= 2 && canCast("KATINO")) {
+    return { type: "spell", targetIdx: lowestHpIdx, spellName: "KATINO" };
+  }
+  if (canCast("HALITO")) {
+    return { type: "spell", targetIdx: lowestHpIdx, spellName: "HALITO" };
+  }
+  return { type: "fight", targetIdx: lowestHpIdx };
+}
+
+function chooseSimulationAutoCombatAction(args) {
+  if (ISSUE538_LEGACY_SPELL_POLICY && args.character.class === "Mage") {
+    return getLegacyMageCombatAction(args);
+  }
+  return chooseAutoCombatAction(args);
+}
+
+function getSimulationPreferredOffensiveSpellName(character, monsters, canCastSpell) {
+  if (ISSUE538_LEGACY_SPELL_POLICY && character.class === "Mage") {
+    return hasSpell(character, "HALITO") ? "HALITO" : null;
+  }
+  return getPreferredOffensiveSpellName(character, monsters, canCastSpell);
+}
+
 function getDiosCombatAction(state) {
   const character = state.party[0];
   if (
     character.hp >= getCharMaxHp(character) * state.simPolicy.healPotionThreshold ||
-    !getSpellActionPayment(state, "DIOS", 0, { minHpAfterPaymentRate: null })
+    !character.spells?.some(spellName => ["DIOS", "MADIOS"].includes(spellName))
   ) return null;
-  return { type: "spell", actorIdx: 0, targetIdx: 0, spellName: "DIOS" };
+  const action = chooseAutoCombatAction({
+    character,
+    monsters: state.combatState?.monsters || [],
+    roundNumber: state.combatState?.roundNumber || 1,
+    healingTargetIdx: 0,
+    canCastSpell: (spellName, reserveMp) =>
+      getSpellActionPayment(state, spellName, reserveMp, { minHpAfterPaymentRate: null })
+  });
+  return action?.type === "spell" && ["DIOS", "MADIOS"].includes(action.spellName)
+    ? { ...action, actorIdx: 0 }
+    : null;
 }
 
 function getExpectedDiosHeal(state) {
   const character = structuredClone(state.party[0]);
-  return SPELL_EFFECTS.DIOS({
+  const action = getDiosCombatAction(state);
+  const spellName = action?.spellName || "DIOS";
+  return SPELL_EFFECTS[spellName]({
     caster: character,
     target: character,
     rng: () => 0.5
@@ -2684,17 +2804,19 @@ function selectCombatAction(state, metrics) {
     evShouldFight ? { type: "fight" } : (evRecoveryAction || diosPriorityAction)
   );
   if (evRecoveryAction) return evRecoveryAction;
-  if (evShouldFight) return { type: "fight", actorIdx: 0, targetIdx: lowestHpIdx };
-  if (diosPriorityAction) return diosPriorityAction;
+  if (!evShouldFight && diosPriorityAction) return diosPriorityAction;
 
   const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
-  const sharedAutoAction = chooseAutoCombatAction({
+  const sharedAutoAction = chooseSimulationAutoCombatAction({
     character,
     monsters,
     roundNumber: state.combatState.roundNumber,
     canCastSpell: (spellName, reserveMp) =>
       getSpellActionPayment(state, spellName, reserveMp)
   });
+  if (sharedAutoAction?.type === "spell") return { ...sharedAutoAction, actorIdx: 0 };
+  if (evShouldFight) return { type: "fight", actorIdx: 0, targetIdx: lowestHpIdx };
+  if (diosPriorityAction) return diosPriorityAction;
   if (sharedAutoAction) return { ...sharedAutoAction, actorIdx: 0 };
 
   if (character.class === "Bishop") {
@@ -2727,19 +2849,6 @@ function selectCombatAction(state, metrics) {
   return { type: "fight", actorIdx: 0, targetIdx: lowestHpIdx };
 }
 
-function getPreferredOffensiveSpellName(character) {
-  if (character.class === "Priest" && hasSpell(character, "BADIOS")) return "BADIOS";
-  if ((character.class === "Mage" || character.class === "Samurai") && hasSpell(character, "HALITO")) {
-    return "HALITO";
-  }
-  if (character.class === "Bishop") {
-    if (hasSpell(character, "BADIOS")) return "BADIOS";
-    if (hasSpell(character, "HALITO")) return "HALITO";
-  }
-  if (character.class === "Ranger" && hasSpell(character, "BADIOS")) return "BADIOS";
-  return null;
-}
-
 function getBloodWandOpportunity(state, action, observations = null) {
   const character = state.party[0];
   let spellName = null;
@@ -2754,14 +2863,18 @@ function getBloodWandOpportunity(state, action, observations = null) {
       spellName = "DIOS";
       opportunityType = "heal";
     } else {
-      spellName = getPreferredOffensiveSpellName(character);
+      spellName = getSimulationPreferredOffensiveSpellName(
+        character,
+        state.combatState.monsters,
+        (name, reserveMp) => getSpellActionPayment(state, name, reserveMp)
+      );
       opportunityType = spellName ? "offense" : null;
     }
   } else if (action.type === "spell") {
-    if (action.spellName === "DIOS") {
+    if (["DIOS", "MADIOS"].includes(action.spellName)) {
       spellName = action.spellName;
       opportunityType = "heal";
-    } else if (action.spellName === getPreferredOffensiveSpellName(character)) {
+    } else if (SPELLS[action.spellName]?.target?.includes("enemy")) {
       spellName = action.spellName;
       opportunityType = "offense";
     }
@@ -2798,13 +2911,13 @@ function countLoggedCoreActivations(observations, logQueue) {
   ).length;
 }
 
-function getBloodWandActivationType(character, action, logQueue) {
+function getBloodWandActivationType(action, logQueue) {
   if (
     action.type !== "spell" ||
     !logQueue.some(entry => entry.msg === BLOOD_WAND_ACTIVATION_LOG)
   ) return null;
-  if (action.spellName === "DIOS") return "heal";
-  return action.spellName === getPreferredOffensiveSpellName(character)
+  if (["DIOS", "MADIOS"].includes(action.spellName)) return "heal";
+  return SPELLS[action.spellName]?.target?.includes("enemy")
     ? "offense"
     : null;
 }
@@ -2836,9 +2949,12 @@ function sumLoggedIncomingDamage(logQueue, characterName) {
   }, { hits: 0, damage: 0 });
 }
 
-function getLoggedDiosHealing(logQueue, character) {
+function getLoggedHealing(logQueue, character) {
   const entry = logQueue.find(({ msg = "" }) =>
-    msg.startsWith("[味方]") && msg.includes(`${character.name}はディオスを唱えた`)
+    msg.startsWith("[味方]") &&
+    msg.includes(`${character.name}は`) &&
+    msg.includes("唱えた") &&
+    msg.includes("HPを")
   );
   const match = entry?.msg.match(/HPを(\d+)回復/);
   return match ? Number(match[1]) : 0;
@@ -2864,6 +2980,7 @@ function getHpAtOffensiveAction(logQueue, characterBefore, action) {
 
 function recordRoundCoreObservations(
   observations,
+  stateBeforeRound,
   characterBefore,
   action,
   targetBeforeRound,
@@ -2887,7 +3004,11 @@ function recordRoundCoreObservations(
     observations.bloodWandMpEmptyRounds += Number(characterBefore.mp <= 0);
     const spellName = action.type === "spell"
       ? action.spellName
-      : getPreferredOffensiveSpellName(characterBefore);
+      : getSimulationPreferredOffensiveSpellName(
+        characterBefore,
+        monstersBeforeRound,
+        (name, reserveMp) => getSpellActionPayment(stateBeforeRound, name, reserveMp)
+      );
     const spellCost = spellName ? SPELLS[spellName]?.cost : null;
     observations.bloodWandSelectedSpellRounds += Number(Number.isFinite(spellCost));
     observations.bloodWandNoEligibleSpellRounds += Number(!Number.isFinite(spellCost));
@@ -2951,9 +3072,9 @@ function recordRoundCoreObservations(
   } else if (spell?.target?.includes("enemy") && action.spellName !== "KATINO") {
     observations.spellDamageActions++;
     observations.spellDamage += sumLoggedDamage(logQueue, characterAfter, "spell");
-  } else if (action.type === "spell" && action.spellName === "DIOS") {
+  } else if (action.type === "spell" && ["DIOS", "MADIOS"].includes(action.spellName)) {
     observations.diosHealActions++;
-    observations.diosHealing += getLoggedDiosHealing(logQueue, characterAfter);
+    observations.diosHealing += getLoggedHealing(logQueue, characterAfter);
   }
 
   const incomingPhysicalLogs = logQueue.filter(({ msg = "" }) =>
@@ -3503,6 +3624,7 @@ function runEncounter(
     }
 
     const action = selectCombatAction(state, metrics);
+    recordSpellSelectionMetrics(state, metrics, action);
     const actionTarget = action.targetIdx === undefined
       ? null
       : state.combatState.monsters[action.targetIdx];
@@ -3603,6 +3725,7 @@ function runEncounter(
       restoreCountermeasureScale(countermeasurePatches);
       restoreRaceEffectScale(raceEffectPatches);
     }
+    recordSpellApplicationMetrics(metrics, action, roundResult.logQueue);
     removeRaceEffectScale(roundResult?.state);
     removeCountermeasureScale(roundResult?.state);
     const enemyBlindApplications = roundResult.logQueue.filter(entry =>
@@ -3626,6 +3749,7 @@ function runEncounter(
       (livingMonsterCount === 0 || characterSpeed >= fastestMonsterSpeed);
     recordRoundCoreObservations(
       observations,
+      state,
       characterBeforeRound,
       action,
       targetBeforeRound,
@@ -3634,7 +3758,6 @@ function runEncounter(
       firstStrikeSucceeded
     );
     const bloodWandActivationType = getBloodWandActivationType(
-      characterBeforeRound,
       action,
       roundResult.logQueue
     );
@@ -3642,6 +3765,7 @@ function runEncounter(
     observations.bloodWandHealActivations += Number(bloodWandActivationType === "heal");
     observations.coreActivationCounts.CORE_BLOOD_WAND += Number(Boolean(bloodWandActivationType));
     state = roundResult.state;
+    recordSpellResourceMetrics(metrics, characterBeforeRound, state.party[0]);
     recordIdentificationPowderAcquisition(
       metrics,
       Math.max(0, (state.identifyTickets || 0) - identifyTicketsBeforeRound),
@@ -6473,6 +6597,15 @@ function finishRun(state, outcome, metrics) {
     diosPotionPriorityOpportunities: metrics.diosPotionPriorityOpportunities,
     diosPotionPriorityCases: metrics.diosPotionPriorityCases,
     diosPotionPriorityEventSamples: metrics.diosPotionPriorityEventSamples || [],
+    spellUsage: Object.fromEntries(
+      Object.entries(metrics.spellUsage).map(([spellName, usage]) => [
+        spellName,
+        { ...usage }
+      ])
+    ),
+    mpDepleted: metrics.mpDepleted,
+    mpZeroCombatRounds: metrics.mpZeroCombatRounds,
+    reserveMpViolations: metrics.reserveMpViolations,
     finalMp: state.party[0].mp,
     finalMaxMp: getCharMaxMp(state.party[0]),
     trapPolicy: state.simPolicy.trapPolicy,
@@ -6758,6 +6891,10 @@ export function simulateRun({
     diosPotionPriorityOpportunities: 0,
     diosPotionPriorityCases: 0,
     diosPotionPriorityEventSamples: scenario.collectHealPriorityDiagnostics ? [] : null,
+    spellUsage: createSpellUsageMetrics(),
+    mpDepleted: false,
+    mpZeroCombatRounds: 0,
+    reserveMpViolations: 0,
     healPotionsAcquiredBySource: {
       starting: state.simStartingInventory.filter(item => item === "HEAL_POTION").length,
       departureCraft: state.simDepartureCraftItems.filter(item => item === "HEAL_POTION").length,
