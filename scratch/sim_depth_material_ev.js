@@ -5786,6 +5786,7 @@ function applySimulatedCampRest(state, observations, metrics = null) {
     if (extraCamp) {
       metrics.extraCampRestCount++;
       metrics.extraCampHealingHp += hpGain;
+      metrics.extraCampSteps += state.simPolicy.extraCampTimeCost;
       metrics.steps += state.simPolicy.extraCampTimeCost;
       state.currentRun.steps += state.simPolicy.extraCampTimeCost;
     }
@@ -6437,6 +6438,10 @@ function finishRun(state, outcome, metrics) {
     bankedMaterialCounts: { ...banked },
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     steps: metrics.steps,
+    floorBudgetSteps: metrics.floorBudgetSteps,
+    routePolicyExtraSteps: metrics.routePolicyExtraSteps,
+    eliteExtraSteps: metrics.eliteExtraSteps,
+    extraCampSteps: metrics.extraCampSteps,
     combatRounds: metrics.combatRounds,
     reachedFloor: state.currentRun.deepestFloor,
     deathFloor: outcome === "death" ? state.floor : null,
@@ -6788,6 +6793,10 @@ export function simulateRun({
   );
   const metrics = {
     steps: 0,
+    floorBudgetSteps: 0,
+    routePolicyExtraSteps: 0,
+    eliteExtraSteps: 0,
+    extraCampSteps: 0,
     combatRounds: 0,
     stalemate: false,
     equipmentUpgrades: 0,
@@ -7128,6 +7137,7 @@ export function simulateRun({
       runSeed,
       state.simPolicy.elitePolicy
     );
+    const staticFloorSteps = getFloorStepCount(generated, floor);
     const floorSteps = routePlan.floorSteps + elitePlan.extraSteps;
     metrics.eliteAvoidDetourSteps += state.simPolicy.elitePolicy === "avoid"
       ? elitePlan.extraSteps
@@ -7191,6 +7201,13 @@ export function simulateRun({
 
     stepLoop: for (let step = 1; step <= floorSteps; step++) {
       metrics.steps++;
+      if (step <= staticFloorSteps) {
+        metrics.floorBudgetSteps++;
+      } else if (step <= routePlan.floorSteps) {
+        metrics.routePolicyExtraSteps++;
+      } else {
+        metrics.eliteExtraSteps++;
+      }
       state.currentRun.steps++;
       state.currentRun.floorSteps[String(floor)] =
         (state.currentRun.floorSteps[String(floor)] || 0) + 1;
