@@ -2,7 +2,7 @@
   "measurement": {
     "issue": 461,
     "scope": "run",
-    "mode": "reaggregate",
+    "mode": "baseline",
     "seed": 461,
     "runsPerClass": 3000,
     "calibrationRuns": 1000,
@@ -81,16 +81,19 @@
       "ISSUE461_TARGET_DEPTH_BASELINE": "21",
       "ISSUE461_WORKSHOP_DISTRIBUTION": "workshop-empty:30/1200,workshop-stats:74/1200,workshop-gear:69/1200,workshop-blood-wand:216/1200,workshop-blood-wand-spells:47/1200,workshop-complete:764/1200"
     },
+    "sourceCommit": "373980411fc44a5f5da119d44e8feacd2a78f3a3",
+    "originMainAncestor": true,
+    "staleTreeAllowed": false,
     "resolvedParallelism": 15,
     "availableParallelism": 15,
     "simParallel": "未指定",
     "simMapCacheEntries": "未指定（既定1024）",
-    "calibrationWallSeconds": 101.662588167,
-    "simulationWallSeconds": 34.48654691600001,
-    "totalWallSeconds": 136.149135083,
-    "calibrationCpuSeconds": 126.886889,
-    "simulationCpuSeconds": 513.460539,
-    "totalCpuSeconds": 640.347428,
+    "calibrationWallSeconds": 122.796634709,
+    "simulationWallSeconds": 47.18424625000001,
+    "totalWallSeconds": 169.98088095900002,
+    "calibrationCpuSeconds": 158.126857,
+    "simulationCpuSeconds": 700.316072,
+    "totalCpuSeconds": 858.442929,
     "multipleComparisons": {
       "alpha": 0.05,
       "endpointRateChecks": 40,
@@ -106,11 +109,11 @@
     "className": "all",
     "runs": 12000,
     "initialB1Breakthrough": {
-      "successes": 4792,
+      "successes": 7318,
       "trials": 12000,
-      "estimate": 0.3993333333333333,
-      "low": 0.3906041094414813,
-      "high": 0.4081269877420234,
+      "estimate": 0.6098333333333333,
+      "low": 0.6010720450974201,
+      "high": 0.6185243240351468,
       "status": "確定"
     },
     "endpoints": {
@@ -124,19 +127,19 @@
           "status": "確定"
         },
         "breakthrough": {
-          "successes": 10791,
+          "successes": 11313,
           "trials": 12000,
-          "estimate": 0.89925,
-          "low": 0.8937361505669821,
-          "high": 0.904508314163009,
+          "estimate": 0.94275,
+          "low": 0.9384499118702296,
+          "high": 0.9467667111960283,
           "status": "確定"
         },
         "death": {
-          "successes": 1209,
+          "successes": 687,
           "trials": 12000,
-          "estimate": 0.10075,
-          "low": 0.09549168583699098,
-          "high": 0.10626384943301796,
+          "estimate": 0.05725,
+          "low": 0.05323328880397167,
+          "high": 0.06155008812977024,
           "status": "確定"
         },
         "retreat": {
@@ -150,103 +153,103 @@
       },
       "b5": {
         "entrant": {
-          "successes": 3016,
+          "successes": 7685,
           "trials": 12000,
-          "estimate": 0.25133333333333335,
-          "low": 0.24365258311304333,
-          "high": 0.2591732397309781,
+          "estimate": 0.6404166666666666,
+          "low": 0.6317870329745373,
+          "high": 0.6489564283216503,
           "status": "確定"
         },
         "breakthrough": {
-          "successes": 1350,
-          "trials": 3016,
-          "estimate": 0.44761273209549074,
-          "low": 0.42994433421289785,
-          "high": 0.4654144108374452,
+          "successes": 4664,
+          "trials": 7685,
+          "estimate": 0.6068965517241379,
+          "low": 0.5959253833006312,
+          "high": 0.6177609059536672,
           "status": "確定"
         },
         "death": {
-          "successes": 465,
-          "trials": 3016,
-          "estimate": 0.15417771883289125,
-          "low": 0.14173040055606909,
-          "high": 0.16750485949144908,
+          "successes": 565,
+          "trials": 7685,
+          "estimate": 0.07351984385165908,
+          "low": 0.0678954115893665,
+          "high": 0.07957042769126309,
           "status": "確定"
         },
         "retreat": {
-          "successes": 1201,
-          "trials": 3016,
-          "estimate": 0.39820954907161804,
-          "low": 0.38087894534097916,
-          "high": 0.41579912257329504,
+          "successes": 2456,
+          "trials": 7685,
+          "estimate": 0.31958360442420297,
+          "low": 0.3092502446372372,
+          "high": 0.3300972416061168,
           "status": "確定"
         }
       },
       "b10": {
         "entrant": {
-          "successes": 659,
+          "successes": 2480,
           "trials": 12000,
-          "estimate": 0.05491666666666667,
-          "low": 0.05098116796318914,
-          "high": 0.05913703572646182,
+          "estimate": 0.20666666666666667,
+          "low": 0.1995163878425284,
+          "high": 0.2140046900431805,
           "status": "確定"
         },
         "breakthrough": {
-          "successes": 400,
-          "trials": 659,
-          "estimate": 0.6069802731411229,
-          "low": 0.5691726805576206,
-          "high": 0.6435478699204117,
+          "successes": 1479,
+          "trials": 2480,
+          "estimate": 0.5963709677419354,
+          "low": 0.5769267546751863,
+          "high": 0.6155170900406314,
           "status": "確定"
         },
         "death": {
-          "successes": 94,
-          "trials": 659,
-          "estimate": 0.1426403641881639,
-          "low": 0.11800865878533315,
-          "high": 0.171414183234857,
+          "successes": 165,
+          "trials": 2480,
+          "estimate": 0.06653225806451613,
+          "low": 0.05737916496230715,
+          "high": 0.07702613600211071,
           "status": "確定"
         },
         "retreat": {
-          "successes": 165,
-          "trials": 659,
-          "estimate": 0.2503793626707132,
-          "low": 0.21881335198818397,
-          "high": 0.2848386968964075,
+          "successes": 836,
+          "trials": 2480,
+          "estimate": 0.3370967741935484,
+          "low": 0.3187566190849271,
+          "high": 0.35594081495193325,
           "status": "確定"
         }
       }
     },
     "averageReachedFloor": {
-      "estimate": 3.8306666666666667,
-      "low": 3.7859659994281376,
-      "high": 3.8753673339051957,
+      "estimate": 6.251,
+      "low": 6.18387380401029,
+      "high": 6.318126195989711,
       "n": 12000,
       "status": "確定"
     },
     "coreEquipped": {
-      "successes": 8039,
+      "successes": 10293,
       "trials": 12000,
-      "estimate": 0.6699166666666667,
-      "low": 0.6614499033848399,
-      "high": 0.6782746767830691,
+      "estimate": 0.85775,
+      "low": 0.8513856955154084,
+      "high": 0.8638853308018222,
       "status": "確定"
     },
     "completedBuild": {
       "q4AllRuns": {
-        "successes": 752,
+        "successes": 1920,
         "trials": 12000,
-        "estimate": 0.06266666666666666,
-        "low": 0.05846872260993075,
-        "high": 0.06714452078330799,
+        "estimate": 0.16,
+        "low": 0.15354965952726476,
+        "high": 0.16666795347662514,
         "status": "確定"
       },
       "q4AmongB5Entrants": {
-        "successes": 752,
-        "trials": 3016,
-        "estimate": 0.2493368700265252,
-        "low": 0.2342222283913204,
-        "high": 0.26508923526728334,
+        "successes": 1920,
+        "trials": 7685,
+        "estimate": 0.2498373454782043,
+        "low": 0.24028489551646925,
+        "high": 0.25963976535828603,
         "status": "確定"
       }
     },
@@ -254,85 +257,85 @@
       "quartiles": [
         {
           "quartile": 1,
-          "n": 756,
-          "scoreMean": 31.630099293112682,
+          "n": 1923,
+          "scoreMean": 29.579070495322796,
           "b5Death": {
-            "successes": 140,
-            "trials": 756,
-            "estimate": 0.18518518518518517,
-            "low": 0.15911123161451912,
-            "high": 0.21444229790890013,
+            "successes": 225,
+            "trials": 1923,
+            "estimate": 0.11700468018720749,
+            "low": 0.10339615854150586,
+            "high": 0.13214032358217842,
             "status": "確定"
           },
           "b5Breakthrough": {
-            "successes": 285,
-            "trials": 756,
-            "estimate": 0.376984126984127,
-            "low": 0.34314183034224766,
-            "high": 0.4120702631269876,
+            "successes": 966,
+            "trials": 1923,
+            "estimate": 0.5023400936037441,
+            "low": 0.4800104853381426,
+            "high": 0.5246603711865598,
             "status": "確定"
           }
         },
         {
           "quartile": 2,
-          "n": 754,
-          "scoreMean": 40.84811525226322,
+          "n": 1921,
+          "scoreMean": 38.761980141061144,
           "b5Death": {
-            "successes": 135,
-            "trials": 754,
-            "estimate": 0.17904509283819628,
-            "low": 0.15332750797163006,
-            "high": 0.2080164850672692,
+            "successes": 141,
+            "trials": 1921,
+            "estimate": 0.07339927121290994,
+            "low": 0.0625691306268022,
+            "high": 0.08593216931705011,
             "status": "確定"
           },
           "b5Breakthrough": {
-            "successes": 305,
-            "trials": 754,
-            "estimate": 0.40450928381962864,
-            "low": 0.370046931379325,
-            "high": 0.4399397111777029,
+            "successes": 1097,
+            "trials": 1921,
+            "estimate": 0.571056741280583,
+            "low": 0.5488044042822758,
+            "high": 0.5930254585092606,
             "status": "確定"
           }
         },
         {
           "quartile": 3,
-          "n": 754,
-          "scoreMean": 51.25042759344724,
+          "n": 1921,
+          "scoreMean": 49.19853091044936,
           "b5Death": {
-            "successes": 101,
-            "trials": 754,
-            "estimate": 0.13395225464190982,
-            "low": 0.11148723388096886,
-            "high": 0.16012822925430464,
+            "successes": 126,
+            "trials": 1921,
+            "estimate": 0.06559083810515356,
+            "low": 0.055364238223269475,
+            "high": 0.07755136251272168,
             "status": "確定"
           },
           "b5Breakthrough": {
-            "successes": 358,
-            "trials": 754,
-            "estimate": 0.47480106100795755,
-            "low": 0.43937552940779023,
-            "high": 0.5104820568225367,
+            "successes": 1197,
+            "trials": 1921,
+            "estimate": 0.6231129619989588,
+            "low": 0.6012167800567553,
+            "high": 0.6445177441205222,
             "status": "確定"
           }
         },
         {
           "quartile": 4,
-          "n": 752,
-          "scoreMean": 71.59496316699396,
+          "n": 1920,
+          "scoreMean": 70.4641082389138,
           "b5Death": {
-            "successes": 89,
-            "trials": 752,
-            "estimate": 0.11835106382978723,
-            "low": 0.09718064323177585,
-            "high": 0.1434008394304921,
+            "successes": 73,
+            "trials": 1920,
+            "estimate": 0.03802083333333333,
+            "low": 0.030347768645244834,
+            "high": 0.04753882545723708,
             "status": "確定"
           },
           "b5Breakthrough": {
-            "successes": 402,
-            "trials": 752,
-            "estimate": 0.5345744680851063,
-            "low": 0.49883829829841364,
-            "high": 0.569959198045771,
+            "successes": 1404,
+            "trials": 1920,
+            "estimate": 0.73125,
+            "low": 0.7109734988846698,
+            "high": 0.7506029974157787,
             "status": "確定"
           }
         }
@@ -340,132 +343,132 @@
       "centeredRates": [
         {
           "quartile": 1,
-          "estimate": 0.1963865416117201,
+          "estimate": 0.1294997421549,
           "classRates": [
             {
               "className": "Fighter",
-              "n": 79,
-              "rate": 0.08860759493670886
+              "n": 571,
+              "rate": 0.012259194395796848
             },
             {
               "className": "Thief",
-              "n": 392,
-              "rate": 0.08418367346938775
+              "n": 546,
+              "rate": 0.047619047619047616
             },
             {
               "className": "Priest",
-              "n": 244,
-              "rate": 0.36885245901639346
+              "n": 328,
+              "rate": 0.1798780487804878
             },
             {
               "className": "Mage",
-              "n": 41,
-              "rate": 0.24390243902439024
+              "n": 478,
+              "rate": 0.27824267782426776
             }
           ]
         },
         {
           "quartile": 2,
-          "estimate": 0.1917497605386896,
+          "estimate": 0.08289744935941717,
           "classRates": [
             {
               "className": "Fighter",
-              "n": 79,
-              "rate": 0.06329113924050633
+              "n": 571,
+              "rate": 0.012259194395796848
             },
             {
               "className": "Thief",
-              "n": 392,
-              "rate": 0.09948979591836735
+              "n": 546,
+              "rate": 0.040293040293040296
             },
             {
               "className": "Priest",
-              "n": 243,
-              "rate": 0.3292181069958848
+              "n": 327,
+              "rate": 0.14067278287461774
             },
             {
               "className": "Mage",
-              "n": 40,
-              "rate": 0.275
+              "n": 477,
+              "rate": 0.13836477987421383
             }
           ]
         },
         {
           "quartile": 3,
-          "estimate": 0.14096923227800262,
+          "estimate": 0.07217247961099947,
           "classRates": [
             {
               "className": "Fighter",
-              "n": 79,
-              "rate": 0.06329113924050633
+              "n": 571,
+              "rate": 0.014010507880910683
             },
             {
               "className": "Thief",
-              "n": 392,
-              "rate": 0.0663265306122449
+              "n": 546,
+              "rate": 0.04395604395604396
             },
             {
               "className": "Priest",
-              "n": 243,
-              "rate": 0.25925925925925924
+              "n": 327,
+              "rate": 0.10703363914373089
             },
             {
               "className": "Mage",
-              "n": 40,
-              "rate": 0.175
+              "n": 477,
+              "rate": 0.12368972746331237
             }
           ]
         },
         {
           "quartile": 4,
-          "estimate": 0.15387701500766293,
+          "estimate": 0.042612057978574924,
           "classRates": [
             {
               "className": "Fighter",
-              "n": 78,
-              "rate": 0.07692307692307693
+              "n": 570,
+              "rate": 0.012280701754385965
             },
             {
               "className": "Thief",
-              "n": 391,
-              "rate": 0.05370843989769821
+              "n": 546,
+              "rate": 0.029304029304029304
             },
             {
               "className": "Priest",
-              "n": 243,
-              "rate": 0.20987654320987653
+              "n": 327,
+              "rate": 0.0764525993883792
             },
             {
               "className": "Mage",
-              "n": 40,
-              "rate": 0.275
+              "n": 477,
+              "rate": 0.05241090146750524
             }
           ]
         }
       ],
       "q4MinusQ1Death": {
-        "estimate": -0.06674678351159444,
-        "low": -0.10127272264246232,
-        "high": -0.03222084438072656,
-        "leftN": 752,
-        "rightN": 756,
+        "estimate": -0.07894930859772856,
+        "low": -0.0951897469165519,
+        "high": -0.06270887027890522,
+        "leftN": 1920,
+        "rightN": 1923,
         "status": "確定",
         "classCounts": {
           "Fighter": {
-            "left": 78,
-            "right": 79
+            "left": 570,
+            "right": 571
           },
           "Thief": {
-            "left": 391,
-            "right": 392
+            "left": 546,
+            "right": 546
           },
           "Priest": {
-            "left": 243,
-            "right": 244
+            "left": 327,
+            "right": 328
           },
           "Mage": {
-            "left": 40,
-            "right": 41
+            "left": 477,
+            "right": 478
           }
         },
         "classCentered": true
@@ -474,40 +477,40 @@
         {
           "fromQuartile": 1,
           "toQuartile": 2,
-          "estimate": -0.006140092346988896,
-          "low": -0.04509654399449855,
-          "high": 0.03281635930052076,
-          "leftN": 754,
-          "rightN": 756,
+          "estimate": -0.043605408974297544,
+          "low": -0.06211399844487148,
+          "high": -0.02509681950372361,
+          "leftN": 1921,
+          "rightN": 1923,
           "status": "確定"
         },
         {
           "fromQuartile": 2,
           "toQuartile": 3,
-          "estimate": -0.045092838196286456,
-          "low": -0.0817219170027088,
-          "high": -0.008463759389864114,
-          "leftN": 754,
-          "rightN": 754,
+          "estimate": -0.007808433107756377,
+          "low": -0.023892563154326498,
+          "high": 0.008275696938813745,
+          "leftN": 1921,
+          "rightN": 1921,
           "status": "確定"
         },
         {
           "fromQuartile": 3,
           "toQuartile": 4,
-          "estimate": -0.015601190812122592,
-          "low": -0.049150523585750734,
-          "high": 0.01794814196150555,
-          "leftN": 752,
-          "rightN": 754,
+          "estimate": -0.027570004771820235,
+          "low": -0.04156430182676499,
+          "high": -0.013575707716875478,
+          "leftN": 1920,
+          "rightN": 1921,
           "status": "確定"
         }
       ],
       "trendTest": {
         "test": "class-stratified Cochran-Armitage",
-        "z": -4.346424537284201,
-        "pValueDecreasing": 0.000006923995860275145,
-        "pValueIncreasing": 0.9999930760041398,
-        "minCellN": 40,
+        "z": -9.416793589866767,
+        "pValueDecreasing": 0,
+        "pValueIncreasing": 1,
+        "minCellN": 327,
         "status": "確定"
       },
       "statisticallyNonMonotonic": false,
@@ -524,11 +527,11 @@
       "className": "Fighter",
       "runs": 3000,
       "initialB1Breakthrough": {
-        "successes": 867,
+        "successes": 1923,
         "trials": 3000,
-        "estimate": 0.289,
-        "low": 0.273057207149982,
-        "high": 0.3054824670121055,
+        "estimate": 0.641,
+        "low": 0.6236639280680973,
+        "high": 0.6579754365913608,
         "status": "確定"
       },
       "endpoints": {
@@ -542,19 +545,19 @@
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 2809,
+            "successes": 2939,
             "trials": 3000,
-            "estimate": 0.9363333333333334,
-            "low": 0.9270261769283765,
-            "high": 0.944524481083989,
+            "estimate": 0.9796666666666667,
+            "low": 0.97396887638063,
+            "high": 0.9841376147422074,
             "status": "確定"
           },
           "death": {
-            "successes": 191,
+            "successes": 61,
             "trials": 3000,
-            "estimate": 0.06366666666666666,
-            "low": 0.05547551891601099,
-            "high": 0.07297382307162345,
+            "estimate": 0.02033333333333333,
+            "low": 0.01586238525779264,
+            "high": 0.026031123619370065,
             "status": "確定"
           },
           "retreat": {
@@ -568,103 +571,103 @@
         },
         "b5": {
           "entrant": {
-            "successes": 315,
+            "successes": 2283,
             "trials": 3000,
-            "estimate": 0.105,
-            "low": 0.09453085799481524,
-            "high": 0.11647943249819225,
+            "estimate": 0.761,
+            "low": 0.7454114790532282,
+            "high": 0.7759209619121517,
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 26,
-            "trials": 315,
-            "estimate": 0.08253968253968254,
-            "low": 0.05694794975080848,
-            "high": 0.11819068820184718,
+            "successes": 1495,
+            "trials": 2283,
+            "estimate": 0.6548401226456417,
+            "low": 0.635092950688553,
+            "high": 0.6740670906746093,
             "status": "確定"
           },
           "death": {
-            "successes": 23,
-            "trials": 315,
-            "estimate": 0.07301587301587302,
-            "low": 0.04914404712022169,
-            "high": 0.10717646089979496,
+            "successes": 29,
+            "trials": 2283,
+            "estimate": 0.012702584318878668,
+            "low": 0.00885886309911728,
+            "high": 0.018183439541567425,
             "status": "確定"
           },
           "retreat": {
-            "successes": 266,
-            "trials": 315,
-            "estimate": 0.8444444444444444,
-            "low": 0.8002964308598173,
-            "high": 0.880292601703961,
+            "successes": 759,
+            "trials": 2283,
+            "estimate": 0.3324572930354796,
+            "low": 0.3134286715270814,
+            "high": 0.3520487943246595,
             "status": "確定"
           }
         },
         "b10": {
           "entrant": {
-            "successes": 4,
+            "successes": 837,
             "trials": 3000,
-            "estimate": 0.0013333333333333333,
-            "low": 0.0005186256496617009,
-            "high": 0.0034234794790633924,
+            "estimate": 0.279,
+            "low": 0.26324106055893154,
+            "high": 0.2953241905776626,
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 1,
-            "trials": 4,
-            "estimate": 0.25,
-            "low": 0.04558726080970055,
-            "high": 0.6993581574175981,
-            "status": "未確定（N<30）"
+            "successes": 436,
+            "trials": 837,
+            "estimate": 0.5209080047789725,
+            "low": 0.4870462415778791,
+            "high": 0.5545787278296577,
+            "status": "確定"
           },
           "death": {
-            "successes": 0,
-            "trials": 4,
-            "estimate": 0,
-            "low": 0,
-            "high": 0.4898908364545973,
-            "status": "未確定（N<30）"
+            "successes": 24,
+            "trials": 837,
+            "estimate": 0.02867383512544803,
+            "low": 0.019343254934352676,
+            "high": 0.042311006135746496,
+            "status": "確定"
           },
           "retreat": {
-            "successes": 3,
-            "trials": 4,
-            "estimate": 0.75,
-            "low": 0.30064184258240184,
-            "high": 0.9544127391902995,
-            "status": "未確定（N<30）"
+            "successes": 377,
+            "trials": 837,
+            "estimate": 0.45041816009557945,
+            "low": 0.41701482237755483,
+            "high": 0.48427453588457214,
+            "status": "確定"
           }
         }
       },
       "averageReachedFloor": {
-        "estimate": 3.146,
-        "low": 3.105360778231777,
-        "high": 3.186639221768223,
+        "estimate": 7.117666666666667,
+        "low": 6.989142629210108,
+        "high": 7.246190704123225,
         "n": 3000,
         "status": "確定"
       },
       "coreEquipped": {
-        "successes": 2086,
+        "successes": 2823,
         "trials": 3000,
-        "estimate": 0.6953333333333334,
-        "low": 0.6786220623844847,
-        "high": 0.711545000713488,
+        "estimate": 0.941,
+        "low": 0.9319910015355669,
+        "high": 0.9488810538886955,
         "status": "確定"
       },
       "completedBuild": {
         "q4AllRuns": {
-          "successes": 78,
+          "successes": 570,
           "trials": 3000,
-          "estimate": 0.026,
-          "low": 0.02088314953637451,
-          "high": 0.0323291990552345,
+          "estimate": 0.19,
+          "low": 0.1763617722514591,
+          "high": 0.20443111395824298,
           "status": "確定"
         },
         "q4AmongB5Entrants": {
-          "successes": 78,
-          "trials": 315,
-          "estimate": 0.24761904761904763,
-          "low": 0.2031848571266345,
-          "high": 0.2981346996584311,
+          "successes": 570,
+          "trials": 2283,
+          "estimate": 0.24967148488830487,
+          "low": 0.23234755150200784,
+          "high": 0.2678364268882405,
           "status": "確定"
         }
       },
@@ -672,85 +675,85 @@
         "quartiles": [
           {
             "quartile": 1,
-            "n": 79,
-            "scoreMean": 41.94089394336011,
+            "n": 571,
+            "scoreMean": 40.93291249622349,
             "b5Death": {
               "successes": 7,
-              "trials": 79,
-              "estimate": 0.08860759493670886,
-              "low": 0.04358529598731306,
-              "high": 0.17178342246211697,
+              "trials": 571,
+              "estimate": 0.012259194395796848,
+              "low": 0.005950773202118143,
+              "high": 0.02508640852325089,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 5,
-              "trials": 79,
-              "estimate": 0.06329113924050633,
-              "low": 0.027334864880068373,
-              "high": 0.13974885162778813,
+              "successes": 301,
+              "trials": 571,
+              "estimate": 0.5271453590192644,
+              "low": 0.486150125425807,
+              "high": 0.5677777872609318,
               "status": "確定"
             }
           },
           {
             "quartile": 2,
-            "n": 79,
-            "scoreMean": 56.345947731712066,
+            "n": 571,
+            "scoreMean": 55.24216548946404,
             "b5Death": {
-              "successes": 5,
-              "trials": 79,
-              "estimate": 0.06329113924050633,
-              "low": 0.027334864880068373,
-              "high": 0.13974885162778813,
+              "successes": 7,
+              "trials": 571,
+              "estimate": 0.012259194395796848,
+              "low": 0.005950773202118143,
+              "high": 0.02508640852325089,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 6,
-              "trials": 79,
-              "estimate": 0.0759493670886076,
-              "low": 0.03527204845036669,
-              "high": 0.15595416902827658,
+              "successes": 362,
+              "trials": 571,
+              "estimate": 0.6339754816112084,
+              "low": 0.5936909329720998,
+              "high": 0.6724694102882567,
               "status": "確定"
             }
           },
           {
             "quartile": 3,
-            "n": 79,
-            "scoreMean": 69.00484361109366,
+            "n": 571,
+            "scoreMean": 67.76942722637965,
             "b5Death": {
-              "successes": 5,
-              "trials": 79,
-              "estimate": 0.06329113924050633,
-              "low": 0.027334864880068373,
-              "high": 0.13974885162778813,
+              "successes": 8,
+              "trials": 571,
+              "estimate": 0.014010507880910683,
+              "low": 0.007116064420181515,
+              "high": 0.027400337478525515,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 8,
-              "trials": 79,
-              "estimate": 0.10126582278481013,
-              "low": 0.05221180794058543,
-              "high": 0.18729941147963136,
+              "successes": 390,
+              "trials": 571,
+              "estimate": 0.6830122591943958,
+              "low": 0.6437323107173633,
+              "high": 0.719846197396457,
               "status": "確定"
             }
           },
           {
             "quartile": 4,
-            "n": 78,
-            "scoreMean": 91.43269927310442,
+            "n": 570,
+            "scoreMean": 88.80206121613121,
             "b5Death": {
-              "successes": 6,
-              "trials": 78,
-              "estimate": 0.07692307692307693,
-              "low": 0.035730464002355806,
-              "high": 0.15783229806180862,
+              "successes": 7,
+              "trials": 570,
+              "estimate": 0.012280701754385965,
+              "low": 0.005961234889224622,
+              "high": 0.025130033520276915,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 7,
-              "trials": 78,
-              "estimate": 0.08974358974358974,
-              "low": 0.04415300851677373,
-              "high": 0.17384724560605236,
+              "successes": 442,
+              "trials": 570,
+              "estimate": 0.775438596491228,
+              "low": 0.7394026301322381,
+              "high": 0.8077868333918923,
               "status": "確定"
             }
           }
@@ -758,60 +761,60 @@
         "centeredRates": [
           {
             "quartile": 1,
-            "estimate": 0.08860759493670886,
+            "estimate": 0.012259194395796848,
             "classRates": [
               {
                 "className": "Fighter",
-                "n": 79,
-                "rate": 0.08860759493670886
+                "n": 571,
+                "rate": 0.012259194395796848
               }
             ]
           },
           {
             "quartile": 2,
-            "estimate": 0.06329113924050633,
+            "estimate": 0.012259194395796848,
             "classRates": [
               {
                 "className": "Fighter",
-                "n": 79,
-                "rate": 0.06329113924050633
+                "n": 571,
+                "rate": 0.012259194395796848
               }
             ]
           },
           {
             "quartile": 3,
-            "estimate": 0.06329113924050633,
+            "estimate": 0.014010507880910683,
             "classRates": [
               {
                 "className": "Fighter",
-                "n": 79,
-                "rate": 0.06329113924050633
+                "n": 571,
+                "rate": 0.014010507880910683
               }
             ]
           },
           {
             "quartile": 4,
-            "estimate": 0.07692307692307693,
+            "estimate": 0.012280701754385965,
             "classRates": [
               {
                 "className": "Fighter",
-                "n": 78,
-                "rate": 0.07692307692307693
+                "n": 570,
+                "rate": 0.012280701754385965
               }
             ]
           }
         ],
         "q4MinusQ1Death": {
-          "estimate": -0.011684518013631932,
-          "low": -0.0984002845749876,
-          "high": 0.07503124854772374,
-          "leftN": 78,
-          "rightN": 79,
+          "estimate": 0.000021507358589106687,
+          "low": -0.012765150691888496,
+          "high": 0.01280816540906671,
+          "leftN": 570,
+          "rightN": 571,
           "status": "確定",
           "classCounts": {
             "Fighter": {
-              "left": 78,
-              "right": 79
+              "left": 570,
+              "right": 571
             }
           },
           "classCentered": true
@@ -820,40 +823,40 @@
           {
             "fromQuartile": 1,
             "toQuartile": 2,
-            "estimate": -0.025316455696202528,
-            "low": -0.10836450095289657,
-            "high": 0.057731589560491514,
-            "leftN": 79,
-            "rightN": 79,
+            "estimate": 0,
+            "low": -0.012775506426593081,
+            "high": 0.012775506426593081,
+            "leftN": 571,
+            "rightN": 571,
             "status": "確定"
           },
           {
             "fromQuartile": 2,
             "toQuartile": 3,
-            "estimate": 0,
-            "low": -0.07641692508075226,
-            "high": 0.07641692508075226,
-            "leftN": 79,
-            "rightN": 79,
+            "estimate": 0.0017513134851138354,
+            "low": -0.011466338080712237,
+            "high": 0.014968965050939908,
+            "leftN": 571,
+            "rightN": 571,
             "status": "確定"
           },
           {
             "fromQuartile": 3,
             "toQuartile": 4,
-            "estimate": 0.013631937682570594,
-            "low": -0.0667558274820546,
-            "high": 0.09401970284719578,
-            "leftN": 78,
-            "rightN": 79,
+            "estimate": -0.0017298061265247182,
+            "low": -0.014958236591228647,
+            "high": 0.011498624338179211,
+            "leftN": 570,
+            "rightN": 571,
             "status": "確定"
           }
         ],
         "trendTest": {
           "test": "class-stratified Cochran-Armitage",
-          "z": -0.2696898608239779,
-          "pValueDecreasing": 0.3936994930646265,
-          "pValueIncreasing": 0.6063005069353735,
-          "minCellN": 78,
+          "z": 0.08677819520882978,
+          "pValueDecreasing": 0.5345761542507772,
+          "pValueIncreasing": 0.4654238457492228,
+          "minCellN": 570,
           "status": "確定"
         },
         "statisticallyNonMonotonic": false,
@@ -869,11 +872,11 @@
       "className": "Thief",
       "runs": 3000,
       "initialB1Breakthrough": {
-        "successes": 2026,
+        "successes": 2222,
         "trials": 3000,
-        "estimate": 0.6753333333333333,
-        "low": 0.6583625155932435,
-        "high": 0.6918557014537421,
+        "estimate": 0.7406666666666667,
+        "low": 0.724682940004657,
+        "high": 0.7560348408088862,
         "status": "確定"
       },
       "endpoints": {
@@ -887,19 +890,19 @@
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 2860,
+            "successes": 2895,
             "trials": 3000,
-            "estimate": 0.9533333333333334,
-            "low": 0.945188493546841,
-            "high": 0.9603186836088636,
+            "estimate": 0.965,
+            "low": 0.9578063398318523,
+            "high": 0.9710043308535946,
             "status": "確定"
           },
           "death": {
-            "successes": 140,
+            "successes": 105,
             "trials": 3000,
-            "estimate": 0.04666666666666667,
-            "low": 0.03968131639113648,
-            "high": 0.05481150645315906,
+            "estimate": 0.035,
+            "low": 0.02899566914640538,
+            "high": 0.04219366016814778,
             "status": "確定"
           },
           "retreat": {
@@ -913,103 +916,103 @@
         },
         "b5": {
           "entrant": {
-            "successes": 1567,
+            "successes": 2184,
             "trials": 3000,
-            "estimate": 0.5223333333333333,
-            "low": 0.5044420980060703,
-            "high": 0.5401674467508651,
+            "estimate": 0.728,
+            "low": 0.7117924705354921,
+            "high": 0.7436243744457591,
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 621,
-            "trials": 1567,
-            "estimate": 0.39629865985960433,
-            "low": 0.37236268895622693,
-            "high": 0.4207418295328681,
+            "successes": 1309,
+            "trials": 2184,
+            "estimate": 0.5993589743589743,
+            "low": 0.5786503522816585,
+            "high": 0.6197186832123199,
             "status": "確定"
           },
           "death": {
-            "successes": 119,
-            "trials": 1567,
-            "estimate": 0.07594128908742821,
-            "low": 0.0638373514444304,
-            "high": 0.09011927954636109,
+            "successes": 88,
+            "trials": 2184,
+            "estimate": 0.040293040293040296,
+            "low": 0.032820815503043325,
+            "high": 0.049379591704539975,
             "status": "確定"
           },
           "retreat": {
-            "successes": 827,
-            "trials": 1567,
-            "estimate": 0.5277600510529674,
-            "low": 0.5030043199263321,
-            "high": 0.5523800089704332,
+            "successes": 787,
+            "trials": 2184,
+            "estimate": 0.36034798534798534,
+            "low": 0.3404742370940147,
+            "high": 0.3807121415895639,
             "status": "確定"
           }
         },
         "b10": {
           "entrant": {
-            "successes": 203,
+            "successes": 575,
             "trials": 3000,
-            "estimate": 0.06766666666666667,
-            "low": 0.05922035827579508,
-            "high": 0.07721875292203675,
+            "estimate": 0.19166666666666668,
+            "low": 0.17797949316558398,
+            "high": 0.20614246354836707,
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 46,
-            "trials": 203,
-            "estimate": 0.22660098522167488,
-            "low": 0.1744022087142728,
-            "high": 0.28895489274466046,
+            "successes": 182,
+            "trials": 575,
+            "estimate": 0.3165217391304348,
+            "low": 0.279829145386764,
+            "high": 0.3556496255535864,
             "status": "確定"
           },
           "death": {
-            "successes": 21,
-            "trials": 203,
-            "estimate": 0.10344827586206896,
-            "low": 0.06866173908637362,
-            "high": 0.15296432699370066,
+            "successes": 59,
+            "trials": 575,
+            "estimate": 0.10260869565217391,
+            "low": 0.08038552622793718,
+            "high": 0.13010640893670788,
             "status": "確定"
           },
           "retreat": {
-            "successes": 136,
-            "trials": 203,
-            "estimate": 0.6699507389162561,
-            "low": 0.6026341323595042,
-            "high": 0.730954696463321,
+            "successes": 334,
+            "trials": 575,
+            "estimate": 0.5808695652173913,
+            "low": 0.5401333550564497,
+            "high": 0.6205323999319267,
             "status": "確定"
           }
         }
       },
       "averageReachedFloor": {
-        "estimate": 4.766666666666667,
-        "low": 4.683924059933857,
-        "high": 4.849409273399476,
+        "estimate": 6.263333333333334,
+        "low": 6.15584859352262,
+        "high": 6.370818073144047,
         "n": 3000,
         "status": "確定"
       },
       "coreEquipped": {
-        "successes": 2554,
+        "successes": 2741,
         "trials": 3000,
-        "estimate": 0.8513333333333334,
-        "low": 0.8381537829459947,
-        "high": 0.8636142793496763,
+        "estimate": 0.9136666666666666,
+        "low": 0.903080050239463,
+        "high": 0.9231952489151173,
         "status": "確定"
       },
       "completedBuild": {
         "q4AllRuns": {
-          "successes": 391,
+          "successes": 546,
           "trials": 3000,
-          "estimate": 0.13033333333333333,
-          "low": 0.11875715629178026,
-          "high": 0.14285500586581074,
+          "estimate": 0.182,
+          "low": 0.1686024982043699,
+          "high": 0.1962108495849374,
           "status": "確定"
         },
         "q4AmongB5Entrants": {
-          "successes": 391,
-          "trials": 1567,
-          "estimate": 0.24952137843012126,
-          "low": 0.2287255880627499,
-          "high": 0.271542248903218,
+          "successes": 546,
+          "trials": 2184,
+          "estimate": 0.25,
+          "low": 0.23228932197506086,
+          "high": 0.2685885887175093,
           "status": "確定"
         }
       },
@@ -1017,85 +1020,85 @@
         "quartiles": [
           {
             "quartile": 1,
-            "n": 392,
-            "scoreMean": 33.09302328081908,
+            "n": 546,
+            "scoreMean": 32.860706007200434,
             "b5Death": {
-              "successes": 33,
-              "trials": 392,
-              "estimate": 0.08418367346938775,
-              "low": 0.060569884881869776,
-              "high": 0.11586807345824053,
+              "successes": 26,
+              "trials": 546,
+              "estimate": 0.047619047619047616,
+              "low": 0.032700981232253484,
+              "high": 0.0688582190151478,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 122,
-              "trials": 392,
-              "estimate": 0.3112244897959184,
-              "low": 0.2674093657516503,
-              "high": 0.35870357239048567,
+              "successes": 294,
+              "trials": 546,
+              "estimate": 0.5384615384615384,
+              "low": 0.49652319480795803,
+              "high": 0.5798624602317366,
               "status": "確定"
             }
           },
           {
             "quartile": 2,
-            "n": 392,
-            "scoreMean": 42.591922019931395,
+            "n": 546,
+            "scoreMean": 41.97416551550627,
             "b5Death": {
-              "successes": 39,
-              "trials": 392,
-              "estimate": 0.09948979591836735,
-              "low": 0.07363514564912609,
-              "high": 0.13311797986864893,
+              "successes": 22,
+              "trials": 546,
+              "estimate": 0.040293040293040296,
+              "low": 0.026757263028812654,
+              "high": 0.060252288639599194,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 132,
-              "trials": 392,
-              "estimate": 0.336734693877551,
-              "low": 0.2917362234884321,
-              "high": 0.3849019932831449,
+              "successes": 310,
+              "trials": 546,
+              "estimate": 0.5677655677655677,
+              "low": 0.5258824382541849,
+              "high": 0.6087018111014675,
               "status": "確定"
             }
           },
           {
             "quartile": 3,
-            "n": 392,
-            "scoreMean": 53.925091645368084,
+            "n": 546,
+            "scoreMean": 53.7998145860345,
             "b5Death": {
-              "successes": 26,
-              "trials": 392,
-              "estimate": 0.0663265306122449,
-              "low": 0.045661683452375756,
-              "high": 0.09540857984712581,
+              "successes": 24,
+              "trials": 546,
+              "estimate": 0.04395604395604396,
+              "low": 0.02971373681444045,
+              "high": 0.06457063914346611,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 167,
-              "trials": 392,
-              "estimate": 0.4260204081632653,
-              "low": 0.378019382500072,
-              "high": 0.47545730947454884,
+              "successes": 337,
+              "trials": 546,
+              "estimate": 0.6172161172161172,
+              "low": 0.5757609961909267,
+              "high": 0.6570333810729045,
               "status": "確定"
             }
           },
           {
             "quartile": 4,
-            "n": 391,
-            "scoreMean": 73.93463338409684,
+            "n": 546,
+            "scoreMean": 75.57090603744173,
             "b5Death": {
-              "successes": 21,
-              "trials": 391,
-              "estimate": 0.05370843989769821,
-              "low": 0.035393801718711454,
-              "high": 0.08070712384673609,
+              "successes": 16,
+              "trials": 546,
+              "estimate": 0.029304029304029304,
+              "low": 0.0181168021857794,
+              "high": 0.04706827661414826,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 200,
-              "trials": 391,
-              "estimate": 0.5115089514066496,
-              "low": 0.4620917753496556,
-              "high": 0.5607021835899175,
+              "successes": 368,
+              "trials": 546,
+              "estimate": 0.673992673992674,
+              "low": 0.6335776661091527,
+              "high": 0.711976487641847,
               "status": "確定"
             }
           }
@@ -1103,60 +1106,60 @@
         "centeredRates": [
           {
             "quartile": 1,
-            "estimate": 0.08418367346938775,
+            "estimate": 0.047619047619047616,
             "classRates": [
               {
                 "className": "Thief",
-                "n": 392,
-                "rate": 0.08418367346938775
+                "n": 546,
+                "rate": 0.047619047619047616
               }
             ]
           },
           {
             "quartile": 2,
-            "estimate": 0.09948979591836735,
+            "estimate": 0.040293040293040296,
             "classRates": [
               {
                 "className": "Thief",
-                "n": 392,
-                "rate": 0.09948979591836735
+                "n": 546,
+                "rate": 0.040293040293040296
               }
             ]
           },
           {
             "quartile": 3,
-            "estimate": 0.0663265306122449,
+            "estimate": 0.04395604395604396,
             "classRates": [
               {
                 "className": "Thief",
-                "n": 392,
-                "rate": 0.0663265306122449
+                "n": 546,
+                "rate": 0.04395604395604396
               }
             ]
           },
           {
             "quartile": 4,
-            "estimate": 0.05370843989769821,
+            "estimate": 0.029304029304029304,
             "classRates": [
               {
                 "className": "Thief",
-                "n": 391,
-                "rate": 0.05370843989769821
+                "n": 546,
+                "rate": 0.029304029304029304
               }
             ]
           }
         ],
         "q4MinusQ1Death": {
-          "estimate": -0.030475233571689405,
-          "low": -0.0659444099339293,
-          "high": 0.004993942790550498,
-          "leftN": 391,
-          "rightN": 392,
+          "estimate": -0.018315018315018305,
+          "low": -0.04112203800957269,
+          "high": 0.004492001379536082,
+          "leftN": 546,
+          "rightN": 546,
           "status": "確定",
           "classCounts": {
             "Thief": {
-              "left": 391,
-              "right": 392
+              "left": 546,
+              "right": 546
             }
           },
           "classCentered": true
@@ -1165,46 +1168,46 @@
           {
             "fromQuartile": 1,
             "toQuartile": 2,
-            "estimate": 0.015306122448979595,
-            "low": -0.025161934072200985,
-            "high": 0.055774178970160175,
-            "leftN": 392,
-            "rightN": 392,
+            "estimate": -0.007326007326007321,
+            "low": -0.031661700687786135,
+            "high": 0.017009686035771496,
+            "leftN": 546,
+            "rightN": 546,
             "status": "確定"
           },
           {
             "fromQuartile": 2,
             "toQuartile": 3,
-            "estimate": -0.033163265306122444,
-            "low": -0.07174600957294225,
-            "high": 0.00541947896069736,
-            "leftN": 392,
-            "rightN": 392,
+            "estimate": 0.003663003663003664,
+            "low": -0.02018592665853814,
+            "high": 0.02751193398454547,
+            "leftN": 546,
+            "rightN": 546,
             "status": "確定"
           },
           {
             "fromQuartile": 3,
             "toQuartile": 4,
-            "estimate": -0.012618090714546691,
-            "low": -0.045920148134067015,
-            "high": 0.020683966704973633,
-            "leftN": 391,
-            "rightN": 392,
+            "estimate": -0.014652014652014655,
+            "low": -0.03693890885984501,
+            "high": 0.0076348795558157,
+            "leftN": 546,
+            "rightN": 546,
             "status": "確定"
           }
         ],
         "trendTest": {
           "test": "class-stratified Cochran-Armitage",
-          "z": -2.080534470561343,
-          "pValueDecreasing": 0.01873820422699024,
-          "pValueIncreasing": 0.9812617957730098,
-          "minCellN": 391,
+          "z": -1.3625811323086507,
+          "pValueDecreasing": 0.08650734044752956,
+          "pValueIncreasing": 0.9134926595524704,
+          "minCellN": 546,
           "status": "確定"
         },
         "statisticallyNonMonotonic": false,
         "conditions": {
           "q4MinusQ1UpperBelowZero": false,
-          "monotonicNonIncreasing": true,
+          "monotonicNonIncreasing": false,
           "classCentered": true
         },
         "pass": false
@@ -1214,11 +1217,11 @@
       "className": "Priest",
       "runs": 3000,
       "initialB1Breakthrough": {
-        "successes": 1023,
+        "successes": 1154,
         "trials": 3000,
-        "estimate": 0.341,
-        "low": 0.32424978414501804,
-        "high": 0.35815688974963567,
+        "estimate": 0.38466666666666666,
+        "low": 0.3674152245446475,
+        "high": 0.40221309656132764,
         "status": "確定"
       },
       "endpoints": {
@@ -1232,19 +1235,19 @@
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 2386,
+            "successes": 2557,
             "trials": 3000,
-            "estimate": 0.7953333333333333,
-            "low": 0.7805226508263019,
-            "high": 0.8093886425266055,
+            "estimate": 0.8523333333333334,
+            "low": 0.8391878522650313,
+            "high": 0.8645776523331892,
             "status": "確定"
           },
           "death": {
-            "successes": 614,
+            "successes": 443,
             "trials": 3000,
-            "estimate": 0.20466666666666666,
-            "low": 0.19061135747339442,
-            "high": 0.2194773491736981,
+            "estimate": 0.14766666666666667,
+            "low": 0.13542234766681088,
+            "high": 0.16081214773496882,
             "status": "確定"
           },
           "retreat": {
@@ -1258,103 +1261,103 @@
         },
         "b5": {
           "entrant": {
-            "successes": 973,
+            "successes": 1309,
             "trials": 3000,
-            "estimate": 0.3243333333333333,
-            "low": 0.3078158537128565,
-            "high": 0.34130011513930797,
+            "estimate": 0.43633333333333335,
+            "low": 0.41867961682319954,
+            "high": 0.454149889914492,
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 688,
-            "trials": 973,
-            "estimate": 0.7070914696813977,
-            "low": 0.6777263860027837,
-            "high": 0.7348277663225359,
+            "successes": 1144,
+            "trials": 1309,
+            "estimate": 0.8739495798319328,
+            "low": 0.8548682296025366,
+            "high": 0.8908425288613383,
             "status": "確定"
           },
           "death": {
-            "successes": 284,
-            "trials": 973,
-            "estimate": 0.2918807810894142,
-            "low": 0.2641778143078615,
-            "high": 0.3212206182188024,
+            "successes": 165,
+            "trials": 1309,
+            "estimate": 0.12605042016806722,
+            "low": 0.1091574711386616,
+            "high": 0.1451317703974633,
             "status": "確定"
           },
           "retreat": {
-            "successes": 1,
-            "trials": 973,
-            "estimate": 0.0010277492291880781,
-            "low": 0.00018144601865463603,
-            "high": 0.005798499619347165,
+            "successes": 0,
+            "trials": 1309,
+            "estimate": 0,
+            "low": 0,
+            "high": 0.002926064525829989,
             "status": "確定"
           }
         },
         "b10": {
           "entrant": {
-            "successes": 452,
+            "successes": 824,
             "trials": 3000,
-            "estimate": 0.15066666666666667,
-            "low": 0.1383130587841239,
-            "high": 0.16391376352530382,
+            "estimate": 0.27466666666666667,
+            "low": 0.25899045056826275,
+            "high": 0.2909192172572842,
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 353,
-            "trials": 452,
-            "estimate": 0.7809734513274337,
-            "low": 0.7405647509048874,
-            "high": 0.81664652306989,
+            "successes": 738,
+            "trials": 824,
+            "estimate": 0.8956310679611651,
+            "low": 0.8728875478779696,
+            "high": 0.9147028694089467,
             "status": "確定"
           },
           "death": {
-            "successes": 73,
-            "trials": 452,
-            "estimate": 0.16150442477876106,
-            "low": 0.13045488894825394,
-            "high": 0.19825908807425832,
+            "successes": 65,
+            "trials": 824,
+            "estimate": 0.07888349514563107,
+            "low": 0.06237172242023128,
+            "high": 0.09930350825903267,
             "status": "確定"
           },
           "retreat": {
-            "successes": 26,
-            "trials": 452,
-            "estimate": 0.05752212389380531,
-            "low": 0.0395537342921837,
-            "high": 0.08294819645619836,
+            "successes": 21,
+            "trials": 824,
+            "estimate": 0.025485436893203883,
+            "low": 0.016728540234306016,
+            "high": 0.03864614332647845,
             "status": "確定"
           }
         }
       },
       "averageReachedFloor": {
-        "estimate": 4.5183333333333335,
-        "low": 4.38197605948954,
-        "high": 4.654690607177127,
+        "estimate": 6.303,
+        "low": 6.117852442801501,
+        "high": 6.488147557198499,
         "n": 3000,
         "status": "確定"
       },
       "coreEquipped": {
-        "successes": 1879,
+        "successes": 2141,
         "trials": 3000,
-        "estimate": 0.6263333333333333,
-        "low": 0.6088706820988543,
-        "high": 0.6434728621232133,
+        "estimate": 0.7136666666666667,
+        "low": 0.6972254572922123,
+        "high": 0.7295613813524984,
         "status": "確定"
       },
       "completedBuild": {
         "q4AllRuns": {
-          "successes": 243,
+          "successes": 327,
           "trials": 3000,
-          "estimate": 0.081,
-          "low": 0.07176427979665034,
-          "high": 0.0913073954351728,
+          "estimate": 0.109,
+          "low": 0.09834428966067715,
+          "high": 0.12065577004252773,
           "status": "確定"
         },
         "q4AmongB5Entrants": {
-          "successes": 243,
-          "trials": 973,
-          "estimate": 0.249743062692703,
-          "low": 0.22356450082175708,
-          "high": 0.27788991063623153,
+          "successes": 327,
+          "trials": 1309,
+          "estimate": 0.24980901451489687,
+          "low": 0.22711261305511338,
+          "high": 0.27396956590930116,
           "status": "確定"
         }
       },
@@ -1362,85 +1365,85 @@
         "quartiles": [
           {
             "quartile": 1,
-            "n": 244,
-            "scoreMean": 29.354634238094583,
+            "n": 328,
+            "scoreMean": 29.5744506014962,
             "b5Death": {
-              "successes": 90,
-              "trials": 244,
-              "estimate": 0.36885245901639346,
-              "low": 0.3107814717697379,
-              "high": 0.43098893135598737,
+              "successes": 59,
+              "trials": 328,
+              "estimate": 0.1798780487804878,
+              "low": 0.14209318565069315,
+              "high": 0.22507449512583524,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 153,
-              "trials": 244,
-              "estimate": 0.6270491803278688,
-              "low": 0.5648420526495295,
-              "high": 0.685317869322424,
+              "successes": 269,
+              "trials": 328,
+              "estimate": 0.8201219512195121,
+              "low": 0.7749255048741647,
+              "high": 0.8579068143493068,
               "status": "確定"
             }
           },
           {
             "quartile": 2,
-            "n": 243,
-            "scoreMean": 37.22492750444297,
+            "n": 327,
+            "scoreMean": 37.59038176431181,
             "b5Death": {
-              "successes": 80,
-              "trials": 243,
-              "estimate": 0.3292181069958848,
-              "low": 0.27319220052164644,
-              "high": 0.39055958413989494,
+              "successes": 46,
+              "trials": 327,
+              "estimate": 0.14067278287461774,
+              "low": 0.10714867761807928,
+              "high": 0.18254131215021407,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 163,
-              "trials": 243,
-              "estimate": 0.6707818930041153,
-              "low": 0.609440415860105,
-              "high": 0.7268077994783535,
+              "successes": 281,
+              "trials": 327,
+              "estimate": 0.8593272171253823,
+              "low": 0.817458687849786,
+              "high": 0.8928513223819208,
               "status": "確定"
             }
           },
           {
             "quartile": 3,
-            "n": 243,
-            "scoreMean": 46.01228479353102,
+            "n": 327,
+            "scoreMean": 46.79580755743573,
             "b5Death": {
-              "successes": 63,
-              "trials": 243,
-              "estimate": 0.25925925925925924,
-              "low": 0.20820878095128348,
-              "high": 0.31780277092100984,
+              "successes": 35,
+              "trials": 327,
+              "estimate": 0.10703363914373089,
+              "low": 0.0779722571940499,
+              "high": 0.14522062523340284,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 180,
-              "trials": 243,
-              "estimate": 0.7407407407407407,
-              "low": 0.6821972290789899,
-              "high": 0.7917912190487164,
+              "successes": 292,
+              "trials": 327,
+              "estimate": 0.8929663608562691,
+              "low": 0.8547793747665972,
+              "high": 0.9220277428059501,
               "status": "確定"
             }
           },
           {
             "quartile": 4,
-            "n": 243,
-            "scoreMean": 66.22110894396657,
+            "n": 327,
+            "scoreMean": 68.0884721429001,
             "b5Death": {
-              "successes": 51,
-              "trials": 243,
-              "estimate": 0.20987654320987653,
-              "low": 0.16339077185385958,
-              "high": 0.26539238040249397,
+              "successes": 25,
+              "trials": 327,
+              "estimate": 0.0764525993883792,
+              "low": 0.05231841051629546,
+              "high": 0.11042255614675667,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 192,
-              "trials": 243,
-              "estimate": 0.7901234567901234,
-              "low": 0.734607619597506,
-              "high": 0.8366092281461404,
+              "successes": 302,
+              "trials": 327,
+              "estimate": 0.9235474006116208,
+              "low": 0.8895774438532433,
+              "high": 0.9476815894837045,
               "status": "確定"
             }
           }
@@ -1448,60 +1451,60 @@
         "centeredRates": [
           {
             "quartile": 1,
-            "estimate": 0.36885245901639346,
+            "estimate": 0.1798780487804878,
             "classRates": [
               {
                 "className": "Priest",
-                "n": 244,
-                "rate": 0.36885245901639346
+                "n": 328,
+                "rate": 0.1798780487804878
               }
             ]
           },
           {
             "quartile": 2,
-            "estimate": 0.3292181069958848,
+            "estimate": 0.14067278287461774,
             "classRates": [
               {
                 "className": "Priest",
-                "n": 243,
-                "rate": 0.3292181069958848
+                "n": 327,
+                "rate": 0.14067278287461774
               }
             ]
           },
           {
             "quartile": 3,
-            "estimate": 0.25925925925925924,
+            "estimate": 0.10703363914373089,
             "classRates": [
               {
                 "className": "Priest",
-                "n": 243,
-                "rate": 0.25925925925925924
+                "n": 327,
+                "rate": 0.10703363914373089
               }
             ]
           },
           {
             "quartile": 4,
-            "estimate": 0.20987654320987653,
+            "estimate": 0.0764525993883792,
             "classRates": [
               {
                 "className": "Priest",
-                "n": 243,
-                "rate": 0.20987654320987653
+                "n": 327,
+                "rate": 0.0764525993883792
               }
             ]
           }
         ],
         "q4MinusQ1Death": {
-          "estimate": -0.1589759158065169,
-          "low": -0.23842743247406328,
-          "high": -0.07952439913897053,
-          "leftN": 243,
-          "rightN": 244,
+          "estimate": -0.10342544939210854,
+          "low": -0.15407166011841522,
+          "high": -0.05277923866580187,
+          "leftN": 327,
+          "rightN": 328,
           "status": "確定",
           "classCounts": {
             "Priest": {
-              "left": 243,
-              "right": 244
+              "left": 327,
+              "right": 328
             }
           },
           "classCentered": true
@@ -1510,40 +1513,40 @@
           {
             "fromQuartile": 1,
             "toQuartile": 2,
-            "estimate": -0.03963435202050869,
-            "low": -0.12440276780741509,
-            "high": 0.04513406376639771,
-            "leftN": 243,
-            "rightN": 244,
+            "estimate": -0.03920526590587006,
+            "low": -0.095396687695737,
+            "high": 0.01698615588399688,
+            "leftN": 327,
+            "rightN": 328,
             "status": "確定"
           },
           {
             "fromQuartile": 2,
             "toQuartile": 3,
-            "estimate": -0.06995884773662553,
-            "low": -0.15091520999253238,
-            "high": 0.010997514519281326,
-            "leftN": 243,
-            "rightN": 243,
+            "estimate": -0.03363914373088685,
+            "low": -0.08414357823781662,
+            "high": 0.01686529077604293,
+            "leftN": 327,
+            "rightN": 327,
             "status": "確定"
           },
           {
             "fromQuartile": 3,
             "toQuartile": 4,
-            "estimate": -0.04938271604938271,
-            "low": -0.12475374347677802,
-            "high": 0.025988311378012593,
-            "leftN": 243,
-            "rightN": 243,
+            "estimate": -0.03058103975535169,
+            "low": -0.07483327905497908,
+            "high": 0.01367119954427571,
+            "leftN": 327,
+            "rightN": 327,
             "status": "確定"
           }
         ],
         "trendTest": {
           "test": "class-stratified Cochran-Armitage",
-          "z": -4.196450549433366,
-          "pValueDecreasing": 0.000013564970450241631,
-          "pValueIncreasing": 0.9999864350295498,
-          "minCellN": 243,
+          "z": -4.192953510536675,
+          "pValueDecreasing": 0.000013775823141881638,
+          "pValueIncreasing": 0.9999862241768581,
+          "minCellN": 327,
           "status": "確定"
         },
         "statisticallyNonMonotonic": false,
@@ -1559,11 +1562,11 @@
       "className": "Mage",
       "runs": 3000,
       "initialB1Breakthrough": {
-        "successes": 876,
+        "successes": 2019,
         "trials": 3000,
-        "estimate": 0.292,
-        "low": 0.27600393343490975,
-        "high": 0.3085280676348258,
+        "estimate": 0.673,
+        "low": 0.6560012007863008,
+        "high": 0.6895563175547366,
         "status": "確定"
       },
       "endpoints": {
@@ -1577,19 +1580,19 @@
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 2736,
+            "successes": 2922,
             "trials": 3000,
-            "estimate": 0.912,
-            "low": 0.9013285151800982,
-            "high": 0.9216177134702334,
+            "estimate": 0.974,
+            "low": 0.9676708009447655,
+            "high": 0.9791168504636255,
             "status": "確定"
           },
           "death": {
-            "successes": 264,
+            "successes": 78,
             "trials": 3000,
-            "estimate": 0.088,
-            "low": 0.0783822865297667,
-            "high": 0.09867148481990187,
+            "estimate": 0.026,
+            "low": 0.02088314953637451,
+            "high": 0.0323291990552345,
             "status": "確定"
           },
           "retreat": {
@@ -1603,103 +1606,103 @@
         },
         "b5": {
           "entrant": {
-            "successes": 161,
+            "successes": 1909,
             "trials": 3000,
-            "estimate": 0.05366666666666667,
-            "low": 0.04615821902958661,
-            "high": 0.06231669993255437,
+            "estimate": 0.6363333333333333,
+            "low": 0.6189551206249165,
+            "high": 0.6533628466226445,
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 15,
-            "trials": 161,
-            "estimate": 0.09316770186335403,
-            "low": 0.05727474059430021,
-            "high": 0.14802227062364273,
+            "successes": 716,
+            "trials": 1909,
+            "estimate": 0.3750654793085385,
+            "low": 0.35361894125726,
+            "high": 0.3970138162039464,
             "status": "確定"
           },
           "death": {
-            "successes": 39,
-            "trials": 161,
-            "estimate": 0.2422360248447205,
-            "low": 0.18256414271876042,
-            "high": 0.3139217498849745,
+            "successes": 283,
+            "trials": 1909,
+            "estimate": 0.14824515453116816,
+            "low": 0.13301175798905052,
+            "high": 0.1648913725568616,
             "status": "確定"
           },
           "retreat": {
-            "successes": 107,
-            "trials": 161,
-            "estimate": 0.6645962732919255,
-            "low": 0.5885846757162543,
-            "high": 0.7329363808138909,
+            "successes": 910,
+            "trials": 1909,
+            "estimate": 0.47668936616029334,
+            "low": 0.4543537584489539,
+            "high": 0.49911860090963606,
             "status": "確定"
           }
         },
         "b10": {
           "entrant": {
-            "successes": 0,
+            "successes": 244,
             "trials": 3000,
-            "estimate": 0,
-            "low": 0,
-            "high": 0.0012788487253259629,
+            "estimate": 0.08133333333333333,
+            "low": 0.072078955672542,
+            "high": 0.09165853366013091,
             "status": "確定"
           },
           "breakthrough": {
-            "successes": 0,
-            "trials": 0,
-            "estimate": null,
-            "low": null,
-            "high": null,
-            "status": "未観測"
+            "successes": 123,
+            "trials": 244,
+            "estimate": 0.5040983606557377,
+            "low": 0.44178807710652834,
+            "high": 0.5662815977957927,
+            "status": "確定"
           },
           "death": {
-            "successes": 0,
-            "trials": 0,
-            "estimate": null,
-            "low": null,
-            "high": null,
-            "status": "未観測"
+            "successes": 17,
+            "trials": 244,
+            "estimate": 0.06967213114754098,
+            "low": 0.04395157549258847,
+            "high": 0.10873255976369764,
+            "status": "確定"
           },
           "retreat": {
-            "successes": 0,
-            "trials": 0,
-            "estimate": null,
-            "low": null,
-            "high": null,
-            "status": "未観測"
+            "successes": 104,
+            "trials": 244,
+            "estimate": 0.4262295081967213,
+            "low": 0.3657947446909903,
+            "high": 0.48895110706723005,
+            "status": "確定"
           }
         }
       },
       "averageReachedFloor": {
-        "estimate": 2.8916666666666666,
-        "low": 2.853859124711171,
-        "high": 2.929474208622162,
+        "estimate": 5.32,
+        "low": 5.232331185449199,
+        "high": 5.407668814550801,
         "n": 3000,
         "status": "確定"
       },
       "coreEquipped": {
-        "successes": 1520,
+        "successes": 2588,
         "trials": 3000,
-        "estimate": 0.5066666666666667,
-        "low": 0.4887792311900214,
-        "high": 0.5245370508269742,
+        "estimate": 0.8626666666666667,
+        "low": 0.8498852408349834,
+        "high": 0.8745205008895803,
         "status": "確定"
       },
       "completedBuild": {
         "q4AllRuns": {
-          "successes": 40,
+          "successes": 477,
           "trials": 3000,
-          "estimate": 0.013333333333333334,
-          "low": 0.009807054350147202,
-          "high": 0.01810435840917007,
+          "estimate": 0.159,
+          "low": 0.14635187765946336,
+          "high": 0.17252029717120895,
           "status": "確定"
         },
         "q4AmongB5Entrants": {
-          "successes": 40,
-          "trials": 161,
-          "estimate": 0.2484472049689441,
-          "low": 0.18808470050192416,
-          "high": 0.32053406215955194,
+          "successes": 477,
+          "trials": 1909,
+          "estimate": 0.24986904138292299,
+          "low": 0.23096345087189304,
+          "high": 0.26977928157140263,
           "status": "確定"
         }
       },
@@ -1707,85 +1710,85 @@
         "quartiles": [
           {
             "quartile": 1,
-            "n": 41,
-            "scoreMean": 11.317769851014384,
+            "n": 478,
+            "scoreMean": 12.270908472677368,
             "b5Death": {
-              "successes": 10,
-              "trials": 41,
-              "estimate": 0.24390243902439024,
-              "low": 0.13825002738090333,
-              "high": 0.39343336222575687,
+              "successes": 133,
+              "trials": 478,
+              "estimate": 0.27824267782426776,
+              "low": 0.23995837124244881,
+              "high": 0.3200628844650415,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 5,
-              "trials": 41,
-              "estimate": 0.12195121951219512,
-              "low": 0.053233364685777176,
-              "high": 0.25544211520976884,
+              "successes": 102,
+              "trials": 478,
+              "estimate": 0.21338912133891214,
+              "low": 0.1790212677006683,
+              "high": 0.2523269590156164,
               "status": "確定"
             }
           },
           {
             "quartile": 2,
-            "n": 40,
-            "scoreMean": 15.161455350211451,
+            "n": 477,
+            "scoreMean": 16.16045733353869,
             "b5Death": {
-              "successes": 11,
-              "trials": 40,
-              "estimate": 0.275,
-              "low": 0.16108016247667337,
-              "high": 0.42834955806210573,
+              "successes": 66,
+              "trials": 477,
+              "estimate": 0.13836477987421383,
+              "low": 0.11025713195338277,
+              "high": 0.17225066001999906,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 4,
-              "trials": 40,
-              "estimate": 0.1,
-              "low": 0.03957952868260638,
-              "high": 0.23051775227522298,
+              "successes": 144,
+              "trials": 477,
+              "estimate": 0.3018867924528302,
+              "low": 0.26240612065045005,
+              "high": 0.3445329306045331,
               "status": "確定"
             }
           },
           {
             "quartile": 3,
-            "n": 40,
-            "scoreMean": 21.795465759261848,
+            "n": 477,
+            "scoreMean": 23.348232908708418,
             "b5Death": {
-              "successes": 7,
-              "trials": 40,
-              "estimate": 0.175,
-              "low": 0.0874541374603592,
-              "high": 0.31949990331787714,
+              "successes": 59,
+              "trials": 477,
+              "estimate": 0.12368972746331237,
+              "low": 0.09711612015286335,
+              "high": 0.15627604598755432,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 3,
-              "trials": 40,
-              "estimate": 0.075,
-              "low": 0.025836025774588198,
-              "high": 0.19864233524310543,
+              "successes": 178,
+              "trials": 477,
+              "estimate": 0.3731656184486373,
+              "low": 0.3309381117263657,
+              "high": 0.4174196935744436,
               "status": "確定"
             }
           },
           {
             "quartile": 4,
-            "n": 40,
-            "scoreMean": 42.68726579279146,
+            "n": 477,
+            "scoreMean": 44.333894839303206,
             "b5Death": {
-              "successes": 11,
-              "trials": 40,
-              "estimate": 0.275,
-              "low": 0.16108016247667337,
-              "high": 0.42834955806210573,
+              "successes": 25,
+              "trials": 477,
+              "estimate": 0.05241090146750524,
+              "low": 0.035749271429096785,
+              "high": 0.07622414066549468,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 3,
-              "trials": 40,
-              "estimate": 0.075,
-              "low": 0.025836025774588198,
-              "high": 0.19864233524310543,
+              "successes": 292,
+              "trials": 477,
+              "estimate": 0.6121593291404612,
+              "low": 0.5677022737378667,
+              "high": 0.6548242951283598,
               "status": "確定"
             }
           }
@@ -1793,60 +1796,60 @@
         "centeredRates": [
           {
             "quartile": 1,
-            "estimate": 0.24390243902439024,
+            "estimate": 0.27824267782426776,
             "classRates": [
               {
                 "className": "Mage",
-                "n": 41,
-                "rate": 0.24390243902439024
+                "n": 478,
+                "rate": 0.27824267782426776
               }
             ]
           },
           {
             "quartile": 2,
-            "estimate": 0.275,
+            "estimate": 0.13836477987421383,
             "classRates": [
               {
                 "className": "Mage",
-                "n": 40,
-                "rate": 0.275
+                "n": 477,
+                "rate": 0.13836477987421383
               }
             ]
           },
           {
             "quartile": 3,
-            "estimate": 0.175,
+            "estimate": 0.12368972746331237,
             "classRates": [
               {
                 "className": "Mage",
-                "n": 40,
-                "rate": 0.175
+                "n": 477,
+                "rate": 0.12368972746331237
               }
             ]
           },
           {
             "quartile": 4,
-            "estimate": 0.275,
+            "estimate": 0.05241090146750524,
             "classRates": [
               {
                 "className": "Mage",
-                "n": 40,
-                "rate": 0.275
+                "n": 477,
+                "rate": 0.05241090146750524
               }
             ]
           }
         ],
         "q4MinusQ1Death": {
-          "estimate": 0.03109756097560973,
-          "low": -0.16216055768593912,
-          "high": 0.22435567963715858,
-          "leftN": 40,
-          "rightN": 41,
+          "estimate": -0.2258317763567626,
+          "low": -0.2707551666563108,
+          "high": -0.18090838605721443,
+          "leftN": 477,
+          "rightN": 478,
           "status": "確定",
           "classCounts": {
             "Mage": {
-              "left": 40,
-              "right": 41
+              "left": 477,
+              "right": 478
             }
           },
           "classCentered": true
@@ -1855,49 +1858,49 @@
           {
             "fromQuartile": 1,
             "toQuartile": 2,
-            "estimate": 0.031097560975609784,
-            "low": -0.16216055768593907,
-            "high": 0.22435567963715863,
-            "leftN": 40,
-            "rightN": 41,
+            "estimate": -0.13987789795005393,
+            "low": -0.1906661638058801,
+            "high": -0.08908963209422774,
+            "leftN": 477,
+            "rightN": 478,
             "status": "確定"
           },
           {
             "fromQuartile": 2,
             "toQuartile": 3,
-            "estimate": -0.10000000000000003,
-            "low": -0.2840081847130026,
-            "high": 0.08400818471300256,
-            "leftN": 40,
-            "rightN": 40,
+            "estimate": -0.01467505241090146,
+            "low": -0.057533931180573955,
+            "high": 0.028183826358771036,
+            "leftN": 477,
+            "rightN": 477,
             "status": "確定"
           },
           {
             "fromQuartile": 3,
             "toQuartile": 4,
-            "estimate": 0.10000000000000003,
-            "low": -0.08400818471300256,
-            "high": 0.2840081847130026,
-            "leftN": 40,
-            "rightN": 40,
+            "estimate": -0.07127882599580714,
+            "low": -0.10699362036392498,
+            "high": -0.035564031627689285,
+            "leftN": 477,
+            "rightN": 477,
             "status": "確定"
           }
         ],
         "trendTest": {
           "test": "class-stratified Cochran-Armitage",
-          "z": -0.022427517378891572,
-          "pValueDecreasing": 0.49105342114952993,
-          "pValueIncreasing": 0.5089465788504701,
-          "minCellN": 40,
+          "z": -9.519577608682864,
+          "pValueDecreasing": 0,
+          "pValueIncreasing": 1,
+          "minCellN": 477,
           "status": "確定"
         },
         "statisticallyNonMonotonic": false,
         "conditions": {
-          "q4MinusQ1UpperBelowZero": false,
-          "monotonicNonIncreasing": false,
+          "q4MinusQ1UpperBelowZero": true,
+          "monotonicNonIncreasing": true,
           "classCentered": true
         },
-        "pass": false
+        "pass": true
       }
     }
   ],
@@ -1908,85 +1911,85 @@
         "quartiles": [
           {
             "quartile": 1,
-            "n": 79,
-            "scoreMean": 41.94089394336011,
+            "n": 571,
+            "scoreMean": 40.93291249622349,
             "b5Death": {
               "successes": 7,
-              "trials": 79,
-              "estimate": 0.08860759493670886,
-              "low": 0.04358529598731306,
-              "high": 0.17178342246211697,
+              "trials": 571,
+              "estimate": 0.012259194395796848,
+              "low": 0.005950773202118143,
+              "high": 0.02508640852325089,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 5,
-              "trials": 79,
-              "estimate": 0.06329113924050633,
-              "low": 0.027334864880068373,
-              "high": 0.13974885162778813,
+              "successes": 301,
+              "trials": 571,
+              "estimate": 0.5271453590192644,
+              "low": 0.486150125425807,
+              "high": 0.5677777872609318,
               "status": "確定"
             }
           },
           {
             "quartile": 2,
-            "n": 79,
-            "scoreMean": 56.345947731712066,
+            "n": 571,
+            "scoreMean": 55.24216548946404,
             "b5Death": {
-              "successes": 5,
-              "trials": 79,
-              "estimate": 0.06329113924050633,
-              "low": 0.027334864880068373,
-              "high": 0.13974885162778813,
+              "successes": 7,
+              "trials": 571,
+              "estimate": 0.012259194395796848,
+              "low": 0.005950773202118143,
+              "high": 0.02508640852325089,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 6,
-              "trials": 79,
-              "estimate": 0.0759493670886076,
-              "low": 0.03527204845036669,
-              "high": 0.15595416902827658,
+              "successes": 362,
+              "trials": 571,
+              "estimate": 0.6339754816112084,
+              "low": 0.5936909329720998,
+              "high": 0.6724694102882567,
               "status": "確定"
             }
           },
           {
             "quartile": 3,
-            "n": 79,
-            "scoreMean": 69.00484361109366,
+            "n": 571,
+            "scoreMean": 67.76942722637965,
             "b5Death": {
-              "successes": 5,
-              "trials": 79,
-              "estimate": 0.06329113924050633,
-              "low": 0.027334864880068373,
-              "high": 0.13974885162778813,
+              "successes": 8,
+              "trials": 571,
+              "estimate": 0.014010507880910683,
+              "low": 0.007116064420181515,
+              "high": 0.027400337478525515,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 8,
-              "trials": 79,
-              "estimate": 0.10126582278481013,
-              "low": 0.05221180794058543,
-              "high": 0.18729941147963136,
+              "successes": 390,
+              "trials": 571,
+              "estimate": 0.6830122591943958,
+              "low": 0.6437323107173633,
+              "high": 0.719846197396457,
               "status": "確定"
             }
           },
           {
             "quartile": 4,
-            "n": 78,
-            "scoreMean": 91.43269927310442,
+            "n": 570,
+            "scoreMean": 88.80206121613121,
             "b5Death": {
-              "successes": 6,
-              "trials": 78,
-              "estimate": 0.07692307692307693,
-              "low": 0.035730464002355806,
-              "high": 0.15783229806180862,
+              "successes": 7,
+              "trials": 570,
+              "estimate": 0.012280701754385965,
+              "low": 0.005961234889224622,
+              "high": 0.025130033520276915,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 7,
-              "trials": 78,
-              "estimate": 0.08974358974358974,
-              "low": 0.04415300851677373,
-              "high": 0.17384724560605236,
+              "successes": 442,
+              "trials": 570,
+              "estimate": 0.775438596491228,
+              "low": 0.7394026301322381,
+              "high": 0.8077868333918923,
               "status": "確定"
             }
           }
@@ -1994,60 +1997,60 @@
         "centeredRates": [
           {
             "quartile": 1,
-            "estimate": 0.08860759493670886,
+            "estimate": 0.012259194395796848,
             "classRates": [
               {
                 "className": "Fighter",
-                "n": 79,
-                "rate": 0.08860759493670886
+                "n": 571,
+                "rate": 0.012259194395796848
               }
             ]
           },
           {
             "quartile": 2,
-            "estimate": 0.06329113924050633,
+            "estimate": 0.012259194395796848,
             "classRates": [
               {
                 "className": "Fighter",
-                "n": 79,
-                "rate": 0.06329113924050633
+                "n": 571,
+                "rate": 0.012259194395796848
               }
             ]
           },
           {
             "quartile": 3,
-            "estimate": 0.06329113924050633,
+            "estimate": 0.014010507880910683,
             "classRates": [
               {
                 "className": "Fighter",
-                "n": 79,
-                "rate": 0.06329113924050633
+                "n": 571,
+                "rate": 0.014010507880910683
               }
             ]
           },
           {
             "quartile": 4,
-            "estimate": 0.07692307692307693,
+            "estimate": 0.012280701754385965,
             "classRates": [
               {
                 "className": "Fighter",
-                "n": 78,
-                "rate": 0.07692307692307693
+                "n": 570,
+                "rate": 0.012280701754385965
               }
             ]
           }
         ],
         "q4MinusQ1Death": {
-          "estimate": -0.011684518013631932,
-          "low": -0.0984002845749876,
-          "high": 0.07503124854772374,
-          "leftN": 78,
-          "rightN": 79,
+          "estimate": 0.000021507358589106687,
+          "low": -0.012765150691888496,
+          "high": 0.01280816540906671,
+          "leftN": 570,
+          "rightN": 571,
           "status": "確定",
           "classCounts": {
             "Fighter": {
-              "left": 78,
-              "right": 79
+              "left": 570,
+              "right": 571
             }
           },
           "classCentered": true
@@ -2056,40 +2059,40 @@
           {
             "fromQuartile": 1,
             "toQuartile": 2,
-            "estimate": -0.025316455696202528,
-            "low": -0.10836450095289657,
-            "high": 0.057731589560491514,
-            "leftN": 79,
-            "rightN": 79,
+            "estimate": 0,
+            "low": -0.012775506426593081,
+            "high": 0.012775506426593081,
+            "leftN": 571,
+            "rightN": 571,
             "status": "確定"
           },
           {
             "fromQuartile": 2,
             "toQuartile": 3,
-            "estimate": 0,
-            "low": -0.07641692508075226,
-            "high": 0.07641692508075226,
-            "leftN": 79,
-            "rightN": 79,
+            "estimate": 0.0017513134851138354,
+            "low": -0.011466338080712237,
+            "high": 0.014968965050939908,
+            "leftN": 571,
+            "rightN": 571,
             "status": "確定"
           },
           {
             "fromQuartile": 3,
             "toQuartile": 4,
-            "estimate": 0.013631937682570594,
-            "low": -0.0667558274820546,
-            "high": 0.09401970284719578,
-            "leftN": 78,
-            "rightN": 79,
+            "estimate": -0.0017298061265247182,
+            "low": -0.014958236591228647,
+            "high": 0.011498624338179211,
+            "leftN": 570,
+            "rightN": 571,
             "status": "確定"
           }
         ],
         "trendTest": {
           "test": "class-stratified Cochran-Armitage",
-          "z": -0.2696898608239779,
-          "pValueDecreasing": 0.3936994930646265,
-          "pValueIncreasing": 0.6063005069353735,
-          "minCellN": 78,
+          "z": 0.08677819520882978,
+          "pValueDecreasing": 0.5345761542507772,
+          "pValueIncreasing": 0.4654238457492228,
+          "minCellN": 570,
           "status": "確定"
         },
         "statisticallyNonMonotonic": false,
@@ -2107,85 +2110,85 @@
         "quartiles": [
           {
             "quartile": 1,
-            "n": 392,
-            "scoreMean": 33.09302328081908,
+            "n": 546,
+            "scoreMean": 32.860706007200434,
             "b5Death": {
-              "successes": 33,
-              "trials": 392,
-              "estimate": 0.08418367346938775,
-              "low": 0.060569884881869776,
-              "high": 0.11586807345824053,
+              "successes": 26,
+              "trials": 546,
+              "estimate": 0.047619047619047616,
+              "low": 0.032700981232253484,
+              "high": 0.0688582190151478,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 122,
-              "trials": 392,
-              "estimate": 0.3112244897959184,
-              "low": 0.2674093657516503,
-              "high": 0.35870357239048567,
+              "successes": 294,
+              "trials": 546,
+              "estimate": 0.5384615384615384,
+              "low": 0.49652319480795803,
+              "high": 0.5798624602317366,
               "status": "確定"
             }
           },
           {
             "quartile": 2,
-            "n": 392,
-            "scoreMean": 42.591922019931395,
+            "n": 546,
+            "scoreMean": 41.97416551550627,
             "b5Death": {
-              "successes": 39,
-              "trials": 392,
-              "estimate": 0.09948979591836735,
-              "low": 0.07363514564912609,
-              "high": 0.13311797986864893,
+              "successes": 22,
+              "trials": 546,
+              "estimate": 0.040293040293040296,
+              "low": 0.026757263028812654,
+              "high": 0.060252288639599194,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 132,
-              "trials": 392,
-              "estimate": 0.336734693877551,
-              "low": 0.2917362234884321,
-              "high": 0.3849019932831449,
+              "successes": 310,
+              "trials": 546,
+              "estimate": 0.5677655677655677,
+              "low": 0.5258824382541849,
+              "high": 0.6087018111014675,
               "status": "確定"
             }
           },
           {
             "quartile": 3,
-            "n": 392,
-            "scoreMean": 53.925091645368084,
+            "n": 546,
+            "scoreMean": 53.7998145860345,
             "b5Death": {
-              "successes": 26,
-              "trials": 392,
-              "estimate": 0.0663265306122449,
-              "low": 0.045661683452375756,
-              "high": 0.09540857984712581,
+              "successes": 24,
+              "trials": 546,
+              "estimate": 0.04395604395604396,
+              "low": 0.02971373681444045,
+              "high": 0.06457063914346611,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 167,
-              "trials": 392,
-              "estimate": 0.4260204081632653,
-              "low": 0.378019382500072,
-              "high": 0.47545730947454884,
+              "successes": 337,
+              "trials": 546,
+              "estimate": 0.6172161172161172,
+              "low": 0.5757609961909267,
+              "high": 0.6570333810729045,
               "status": "確定"
             }
           },
           {
             "quartile": 4,
-            "n": 391,
-            "scoreMean": 73.93463338409684,
+            "n": 546,
+            "scoreMean": 75.57090603744173,
             "b5Death": {
-              "successes": 21,
-              "trials": 391,
-              "estimate": 0.05370843989769821,
-              "low": 0.035393801718711454,
-              "high": 0.08070712384673609,
+              "successes": 16,
+              "trials": 546,
+              "estimate": 0.029304029304029304,
+              "low": 0.0181168021857794,
+              "high": 0.04706827661414826,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 200,
-              "trials": 391,
-              "estimate": 0.5115089514066496,
-              "low": 0.4620917753496556,
-              "high": 0.5607021835899175,
+              "successes": 368,
+              "trials": 546,
+              "estimate": 0.673992673992674,
+              "low": 0.6335776661091527,
+              "high": 0.711976487641847,
               "status": "確定"
             }
           }
@@ -2193,60 +2196,60 @@
         "centeredRates": [
           {
             "quartile": 1,
-            "estimate": 0.08418367346938775,
+            "estimate": 0.047619047619047616,
             "classRates": [
               {
                 "className": "Thief",
-                "n": 392,
-                "rate": 0.08418367346938775
+                "n": 546,
+                "rate": 0.047619047619047616
               }
             ]
           },
           {
             "quartile": 2,
-            "estimate": 0.09948979591836735,
+            "estimate": 0.040293040293040296,
             "classRates": [
               {
                 "className": "Thief",
-                "n": 392,
-                "rate": 0.09948979591836735
+                "n": 546,
+                "rate": 0.040293040293040296
               }
             ]
           },
           {
             "quartile": 3,
-            "estimate": 0.0663265306122449,
+            "estimate": 0.04395604395604396,
             "classRates": [
               {
                 "className": "Thief",
-                "n": 392,
-                "rate": 0.0663265306122449
+                "n": 546,
+                "rate": 0.04395604395604396
               }
             ]
           },
           {
             "quartile": 4,
-            "estimate": 0.05370843989769821,
+            "estimate": 0.029304029304029304,
             "classRates": [
               {
                 "className": "Thief",
-                "n": 391,
-                "rate": 0.05370843989769821
+                "n": 546,
+                "rate": 0.029304029304029304
               }
             ]
           }
         ],
         "q4MinusQ1Death": {
-          "estimate": -0.030475233571689405,
-          "low": -0.0659444099339293,
-          "high": 0.004993942790550498,
-          "leftN": 391,
-          "rightN": 392,
+          "estimate": -0.018315018315018305,
+          "low": -0.04112203800957269,
+          "high": 0.004492001379536082,
+          "leftN": 546,
+          "rightN": 546,
           "status": "確定",
           "classCounts": {
             "Thief": {
-              "left": 391,
-              "right": 392
+              "left": 546,
+              "right": 546
             }
           },
           "classCentered": true
@@ -2255,46 +2258,46 @@
           {
             "fromQuartile": 1,
             "toQuartile": 2,
-            "estimate": 0.015306122448979595,
-            "low": -0.025161934072200985,
-            "high": 0.055774178970160175,
-            "leftN": 392,
-            "rightN": 392,
+            "estimate": -0.007326007326007321,
+            "low": -0.031661700687786135,
+            "high": 0.017009686035771496,
+            "leftN": 546,
+            "rightN": 546,
             "status": "確定"
           },
           {
             "fromQuartile": 2,
             "toQuartile": 3,
-            "estimate": -0.033163265306122444,
-            "low": -0.07174600957294225,
-            "high": 0.00541947896069736,
-            "leftN": 392,
-            "rightN": 392,
+            "estimate": 0.003663003663003664,
+            "low": -0.02018592665853814,
+            "high": 0.02751193398454547,
+            "leftN": 546,
+            "rightN": 546,
             "status": "確定"
           },
           {
             "fromQuartile": 3,
             "toQuartile": 4,
-            "estimate": -0.012618090714546691,
-            "low": -0.045920148134067015,
-            "high": 0.020683966704973633,
-            "leftN": 391,
-            "rightN": 392,
+            "estimate": -0.014652014652014655,
+            "low": -0.03693890885984501,
+            "high": 0.0076348795558157,
+            "leftN": 546,
+            "rightN": 546,
             "status": "確定"
           }
         ],
         "trendTest": {
           "test": "class-stratified Cochran-Armitage",
-          "z": -2.080534470561343,
-          "pValueDecreasing": 0.01873820422699024,
-          "pValueIncreasing": 0.9812617957730098,
-          "minCellN": 391,
+          "z": -1.3625811323086507,
+          "pValueDecreasing": 0.08650734044752956,
+          "pValueIncreasing": 0.9134926595524704,
+          "minCellN": 546,
           "status": "確定"
         },
         "statisticallyNonMonotonic": false,
         "conditions": {
           "q4MinusQ1UpperBelowZero": false,
-          "monotonicNonIncreasing": true,
+          "monotonicNonIncreasing": false,
           "classCentered": true
         },
         "pass": false
@@ -2306,85 +2309,85 @@
         "quartiles": [
           {
             "quartile": 1,
-            "n": 244,
-            "scoreMean": 29.354634238094583,
+            "n": 328,
+            "scoreMean": 29.5744506014962,
             "b5Death": {
-              "successes": 90,
-              "trials": 244,
-              "estimate": 0.36885245901639346,
-              "low": 0.3107814717697379,
-              "high": 0.43098893135598737,
+              "successes": 59,
+              "trials": 328,
+              "estimate": 0.1798780487804878,
+              "low": 0.14209318565069315,
+              "high": 0.22507449512583524,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 153,
-              "trials": 244,
-              "estimate": 0.6270491803278688,
-              "low": 0.5648420526495295,
-              "high": 0.685317869322424,
+              "successes": 269,
+              "trials": 328,
+              "estimate": 0.8201219512195121,
+              "low": 0.7749255048741647,
+              "high": 0.8579068143493068,
               "status": "確定"
             }
           },
           {
             "quartile": 2,
-            "n": 243,
-            "scoreMean": 37.22492750444297,
+            "n": 327,
+            "scoreMean": 37.59038176431181,
             "b5Death": {
-              "successes": 80,
-              "trials": 243,
-              "estimate": 0.3292181069958848,
-              "low": 0.27319220052164644,
-              "high": 0.39055958413989494,
+              "successes": 46,
+              "trials": 327,
+              "estimate": 0.14067278287461774,
+              "low": 0.10714867761807928,
+              "high": 0.18254131215021407,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 163,
-              "trials": 243,
-              "estimate": 0.6707818930041153,
-              "low": 0.609440415860105,
-              "high": 0.7268077994783535,
+              "successes": 281,
+              "trials": 327,
+              "estimate": 0.8593272171253823,
+              "low": 0.817458687849786,
+              "high": 0.8928513223819208,
               "status": "確定"
             }
           },
           {
             "quartile": 3,
-            "n": 243,
-            "scoreMean": 46.01228479353102,
+            "n": 327,
+            "scoreMean": 46.79580755743573,
             "b5Death": {
-              "successes": 63,
-              "trials": 243,
-              "estimate": 0.25925925925925924,
-              "low": 0.20820878095128348,
-              "high": 0.31780277092100984,
+              "successes": 35,
+              "trials": 327,
+              "estimate": 0.10703363914373089,
+              "low": 0.0779722571940499,
+              "high": 0.14522062523340284,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 180,
-              "trials": 243,
-              "estimate": 0.7407407407407407,
-              "low": 0.6821972290789899,
-              "high": 0.7917912190487164,
+              "successes": 292,
+              "trials": 327,
+              "estimate": 0.8929663608562691,
+              "low": 0.8547793747665972,
+              "high": 0.9220277428059501,
               "status": "確定"
             }
           },
           {
             "quartile": 4,
-            "n": 243,
-            "scoreMean": 66.22110894396657,
+            "n": 327,
+            "scoreMean": 68.0884721429001,
             "b5Death": {
-              "successes": 51,
-              "trials": 243,
-              "estimate": 0.20987654320987653,
-              "low": 0.16339077185385958,
-              "high": 0.26539238040249397,
+              "successes": 25,
+              "trials": 327,
+              "estimate": 0.0764525993883792,
+              "low": 0.05231841051629546,
+              "high": 0.11042255614675667,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 192,
-              "trials": 243,
-              "estimate": 0.7901234567901234,
-              "low": 0.734607619597506,
-              "high": 0.8366092281461404,
+              "successes": 302,
+              "trials": 327,
+              "estimate": 0.9235474006116208,
+              "low": 0.8895774438532433,
+              "high": 0.9476815894837045,
               "status": "確定"
             }
           }
@@ -2392,60 +2395,60 @@
         "centeredRates": [
           {
             "quartile": 1,
-            "estimate": 0.36885245901639346,
+            "estimate": 0.1798780487804878,
             "classRates": [
               {
                 "className": "Priest",
-                "n": 244,
-                "rate": 0.36885245901639346
+                "n": 328,
+                "rate": 0.1798780487804878
               }
             ]
           },
           {
             "quartile": 2,
-            "estimate": 0.3292181069958848,
+            "estimate": 0.14067278287461774,
             "classRates": [
               {
                 "className": "Priest",
-                "n": 243,
-                "rate": 0.3292181069958848
+                "n": 327,
+                "rate": 0.14067278287461774
               }
             ]
           },
           {
             "quartile": 3,
-            "estimate": 0.25925925925925924,
+            "estimate": 0.10703363914373089,
             "classRates": [
               {
                 "className": "Priest",
-                "n": 243,
-                "rate": 0.25925925925925924
+                "n": 327,
+                "rate": 0.10703363914373089
               }
             ]
           },
           {
             "quartile": 4,
-            "estimate": 0.20987654320987653,
+            "estimate": 0.0764525993883792,
             "classRates": [
               {
                 "className": "Priest",
-                "n": 243,
-                "rate": 0.20987654320987653
+                "n": 327,
+                "rate": 0.0764525993883792
               }
             ]
           }
         ],
         "q4MinusQ1Death": {
-          "estimate": -0.1589759158065169,
-          "low": -0.23842743247406328,
-          "high": -0.07952439913897053,
-          "leftN": 243,
-          "rightN": 244,
+          "estimate": -0.10342544939210854,
+          "low": -0.15407166011841522,
+          "high": -0.05277923866580187,
+          "leftN": 327,
+          "rightN": 328,
           "status": "確定",
           "classCounts": {
             "Priest": {
-              "left": 243,
-              "right": 244
+              "left": 327,
+              "right": 328
             }
           },
           "classCentered": true
@@ -2454,40 +2457,40 @@
           {
             "fromQuartile": 1,
             "toQuartile": 2,
-            "estimate": -0.03963435202050869,
-            "low": -0.12440276780741509,
-            "high": 0.04513406376639771,
-            "leftN": 243,
-            "rightN": 244,
+            "estimate": -0.03920526590587006,
+            "low": -0.095396687695737,
+            "high": 0.01698615588399688,
+            "leftN": 327,
+            "rightN": 328,
             "status": "確定"
           },
           {
             "fromQuartile": 2,
             "toQuartile": 3,
-            "estimate": -0.06995884773662553,
-            "low": -0.15091520999253238,
-            "high": 0.010997514519281326,
-            "leftN": 243,
-            "rightN": 243,
+            "estimate": -0.03363914373088685,
+            "low": -0.08414357823781662,
+            "high": 0.01686529077604293,
+            "leftN": 327,
+            "rightN": 327,
             "status": "確定"
           },
           {
             "fromQuartile": 3,
             "toQuartile": 4,
-            "estimate": -0.04938271604938271,
-            "low": -0.12475374347677802,
-            "high": 0.025988311378012593,
-            "leftN": 243,
-            "rightN": 243,
+            "estimate": -0.03058103975535169,
+            "low": -0.07483327905497908,
+            "high": 0.01367119954427571,
+            "leftN": 327,
+            "rightN": 327,
             "status": "確定"
           }
         ],
         "trendTest": {
           "test": "class-stratified Cochran-Armitage",
-          "z": -4.196450549433366,
-          "pValueDecreasing": 0.000013564970450241631,
-          "pValueIncreasing": 0.9999864350295498,
-          "minCellN": 243,
+          "z": -4.192953510536675,
+          "pValueDecreasing": 0.000013775823141881638,
+          "pValueIncreasing": 0.9999862241768581,
+          "minCellN": 327,
           "status": "確定"
         },
         "statisticallyNonMonotonic": false,
@@ -2505,85 +2508,85 @@
         "quartiles": [
           {
             "quartile": 1,
-            "n": 41,
-            "scoreMean": 11.317769851014384,
+            "n": 478,
+            "scoreMean": 12.270908472677368,
             "b5Death": {
-              "successes": 10,
-              "trials": 41,
-              "estimate": 0.24390243902439024,
-              "low": 0.13825002738090333,
-              "high": 0.39343336222575687,
+              "successes": 133,
+              "trials": 478,
+              "estimate": 0.27824267782426776,
+              "low": 0.23995837124244881,
+              "high": 0.3200628844650415,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 5,
-              "trials": 41,
-              "estimate": 0.12195121951219512,
-              "low": 0.053233364685777176,
-              "high": 0.25544211520976884,
+              "successes": 102,
+              "trials": 478,
+              "estimate": 0.21338912133891214,
+              "low": 0.1790212677006683,
+              "high": 0.2523269590156164,
               "status": "確定"
             }
           },
           {
             "quartile": 2,
-            "n": 40,
-            "scoreMean": 15.161455350211451,
+            "n": 477,
+            "scoreMean": 16.16045733353869,
             "b5Death": {
-              "successes": 11,
-              "trials": 40,
-              "estimate": 0.275,
-              "low": 0.16108016247667337,
-              "high": 0.42834955806210573,
+              "successes": 66,
+              "trials": 477,
+              "estimate": 0.13836477987421383,
+              "low": 0.11025713195338277,
+              "high": 0.17225066001999906,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 4,
-              "trials": 40,
-              "estimate": 0.1,
-              "low": 0.03957952868260638,
-              "high": 0.23051775227522298,
+              "successes": 144,
+              "trials": 477,
+              "estimate": 0.3018867924528302,
+              "low": 0.26240612065045005,
+              "high": 0.3445329306045331,
               "status": "確定"
             }
           },
           {
             "quartile": 3,
-            "n": 40,
-            "scoreMean": 21.795465759261848,
+            "n": 477,
+            "scoreMean": 23.348232908708418,
             "b5Death": {
-              "successes": 7,
-              "trials": 40,
-              "estimate": 0.175,
-              "low": 0.0874541374603592,
-              "high": 0.31949990331787714,
+              "successes": 59,
+              "trials": 477,
+              "estimate": 0.12368972746331237,
+              "low": 0.09711612015286335,
+              "high": 0.15627604598755432,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 3,
-              "trials": 40,
-              "estimate": 0.075,
-              "low": 0.025836025774588198,
-              "high": 0.19864233524310543,
+              "successes": 178,
+              "trials": 477,
+              "estimate": 0.3731656184486373,
+              "low": 0.3309381117263657,
+              "high": 0.4174196935744436,
               "status": "確定"
             }
           },
           {
             "quartile": 4,
-            "n": 40,
-            "scoreMean": 42.68726579279146,
+            "n": 477,
+            "scoreMean": 44.333894839303206,
             "b5Death": {
-              "successes": 11,
-              "trials": 40,
-              "estimate": 0.275,
-              "low": 0.16108016247667337,
-              "high": 0.42834955806210573,
+              "successes": 25,
+              "trials": 477,
+              "estimate": 0.05241090146750524,
+              "low": 0.035749271429096785,
+              "high": 0.07622414066549468,
               "status": "確定"
             },
             "b5Breakthrough": {
-              "successes": 3,
-              "trials": 40,
-              "estimate": 0.075,
-              "low": 0.025836025774588198,
-              "high": 0.19864233524310543,
+              "successes": 292,
+              "trials": 477,
+              "estimate": 0.6121593291404612,
+              "low": 0.5677022737378667,
+              "high": 0.6548242951283598,
               "status": "確定"
             }
           }
@@ -2591,60 +2594,60 @@
         "centeredRates": [
           {
             "quartile": 1,
-            "estimate": 0.24390243902439024,
+            "estimate": 0.27824267782426776,
             "classRates": [
               {
                 "className": "Mage",
-                "n": 41,
-                "rate": 0.24390243902439024
+                "n": 478,
+                "rate": 0.27824267782426776
               }
             ]
           },
           {
             "quartile": 2,
-            "estimate": 0.275,
+            "estimate": 0.13836477987421383,
             "classRates": [
               {
                 "className": "Mage",
-                "n": 40,
-                "rate": 0.275
+                "n": 477,
+                "rate": 0.13836477987421383
               }
             ]
           },
           {
             "quartile": 3,
-            "estimate": 0.175,
+            "estimate": 0.12368972746331237,
             "classRates": [
               {
                 "className": "Mage",
-                "n": 40,
-                "rate": 0.175
+                "n": 477,
+                "rate": 0.12368972746331237
               }
             ]
           },
           {
             "quartile": 4,
-            "estimate": 0.275,
+            "estimate": 0.05241090146750524,
             "classRates": [
               {
                 "className": "Mage",
-                "n": 40,
-                "rate": 0.275
+                "n": 477,
+                "rate": 0.05241090146750524
               }
             ]
           }
         ],
         "q4MinusQ1Death": {
-          "estimate": 0.03109756097560973,
-          "low": -0.16216055768593912,
-          "high": 0.22435567963715858,
-          "leftN": 40,
-          "rightN": 41,
+          "estimate": -0.2258317763567626,
+          "low": -0.2707551666563108,
+          "high": -0.18090838605721443,
+          "leftN": 477,
+          "rightN": 478,
           "status": "確定",
           "classCounts": {
             "Mage": {
-              "left": 40,
-              "right": 41
+              "left": 477,
+              "right": 478
             }
           },
           "classCentered": true
@@ -2653,49 +2656,49 @@
           {
             "fromQuartile": 1,
             "toQuartile": 2,
-            "estimate": 0.031097560975609784,
-            "low": -0.16216055768593907,
-            "high": 0.22435567963715863,
-            "leftN": 40,
-            "rightN": 41,
+            "estimate": -0.13987789795005393,
+            "low": -0.1906661638058801,
+            "high": -0.08908963209422774,
+            "leftN": 477,
+            "rightN": 478,
             "status": "確定"
           },
           {
             "fromQuartile": 2,
             "toQuartile": 3,
-            "estimate": -0.10000000000000003,
-            "low": -0.2840081847130026,
-            "high": 0.08400818471300256,
-            "leftN": 40,
-            "rightN": 40,
+            "estimate": -0.01467505241090146,
+            "low": -0.057533931180573955,
+            "high": 0.028183826358771036,
+            "leftN": 477,
+            "rightN": 477,
             "status": "確定"
           },
           {
             "fromQuartile": 3,
             "toQuartile": 4,
-            "estimate": 0.10000000000000003,
-            "low": -0.08400818471300256,
-            "high": 0.2840081847130026,
-            "leftN": 40,
-            "rightN": 40,
+            "estimate": -0.07127882599580714,
+            "low": -0.10699362036392498,
+            "high": -0.035564031627689285,
+            "leftN": 477,
+            "rightN": 477,
             "status": "確定"
           }
         ],
         "trendTest": {
           "test": "class-stratified Cochran-Armitage",
-          "z": -0.022427517378891572,
-          "pValueDecreasing": 0.49105342114952993,
-          "pValueIncreasing": 0.5089465788504701,
-          "minCellN": 40,
+          "z": -9.519577608682864,
+          "pValueDecreasing": 0,
+          "pValueIncreasing": 1,
+          "minCellN": 477,
           "status": "確定"
         },
         "statisticallyNonMonotonic": false,
         "conditions": {
-          "q4MinusQ1UpperBelowZero": false,
-          "monotonicNonIncreasing": false,
+          "q4MinusQ1UpperBelowZero": true,
+          "monotonicNonIncreasing": true,
           "classCentered": true
         },
-        "pass": false
+        "pass": true
       }
     }
   ],
@@ -2792,20 +2795,20 @@
     }
   ],
   "mechanisms": {
-    "trapEncounters": 294330,
-    "trapActivations": 202868,
-    "trapDisarms": 83408,
-    "trapDamageHp": 792503,
-    "townPortalsUsed": 5030,
-    "healPotionsUsed": 48005,
-    "statusesCured": 14517,
-    "identificationCount": 83491,
-    "identificationPowderUsed": 83167,
+    "trapEncounters": 565880,
+    "trapActivations": 406741,
+    "trapDisarms": 139207,
+    "trapDamageHp": 1040529,
+    "townPortalsUsed": 7300,
+    "healPotionsUsed": 52907,
+    "statusesCured": 22142,
+    "identificationCount": 137263,
+    "identificationPowderUsed": 136614,
     "statusCureItemsUsed": {
-      "ANTIDOTE": 10568,
-      "EYE_DROPS": 1265,
-      "HOLY_WATER": 1357,
-      "PANACEA": 1327
+      "ANTIDOTE": 15295,
+      "HOLY_WATER": 3568,
+      "PANACEA": 2348,
+      "EYE_DROPS": 931
     },
     "warnings": []
   }

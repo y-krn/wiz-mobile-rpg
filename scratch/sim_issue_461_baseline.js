@@ -144,6 +144,7 @@ if (SMOKE && (RUNS_PER_CLASS !== 1 || CALIBRATION_RUNS !== 1)) {
 const {
   calibrateCoreScoringProfile,
   getScenarioById,
+  MEASUREMENT_PROVENANCE,
   resetSimulationRandom,
   simulateRun,
   SIM_CLASSES
@@ -964,6 +965,9 @@ ${"```"}
 - resolved parallelism: ${measurement.resolvedParallelism}（availableParallelism=${measurement.availableParallelism}, ` +
   `SIM_PARALLEL未指定、CI=${measurement.environment.CI}）
 - \`SIM_MAP_CACHE_ENTRIES\`未指定。既定1024。
+- source commit: \`${measurement.sourceCommit}\`
+- origin/main ancestor: ${measurement.originMainAncestor ? "yes" : "no"}
+- stale tree override: ${measurement.staleTreeAllowed ? "SIM_ALLOW_STALE_TREE=1" : "none"}
 
 ## 実行記録
 
@@ -1120,12 +1124,24 @@ async function main() {
   });
   const mechanisms = aggregateMechanisms(baselineRows);
   const multipleComparisons = multipleComparisonSummary();
+  const provenance = MEASUREMENT_PROVENANCE || {
+    sourceCommit: "unknown",
+    originMainAncestor: false,
+    staleTreeAllowed: false
+  };
   const cpuTotalSeconds = (
     calibrationCpu.user + calibrationCpu.system +
     simulationCpu.user + simulationCpu.system
   ) / 1e6;
   const measurement = REAGGREGATE_ONLY
-    ? { ...previousMeasurement, mode: "reaggregate", a1Pass: overall.a1.pass }
+    ? {
+        ...previousMeasurement,
+        sourceCommit: previousMeasurement.sourceCommit ?? provenance.sourceCommit,
+        originMainAncestor: previousMeasurement.originMainAncestor ?? provenance.originMainAncestor,
+        staleTreeAllowed: previousMeasurement.staleTreeAllowed ?? provenance.staleTreeAllowed,
+        mode: "reaggregate",
+        a1Pass: overall.a1.pass
+      }
     : {
         issue: 461,
         scope: "run",
@@ -1139,6 +1155,9 @@ async function main() {
         targetDepthBaseline: 21,
         envHash: ENV_HASH,
         environment: HASH_ENVIRONMENT,
+        sourceCommit: provenance.sourceCommit,
+        originMainAncestor: provenance.originMainAncestor,
+        staleTreeAllowed: provenance.staleTreeAllowed,
         resolvedParallelism,
         availableParallelism: availableParallelism(),
         simParallel: "未指定",
