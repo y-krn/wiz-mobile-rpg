@@ -4,6 +4,7 @@ import { applyKillAffixEffects, getMeleeModifiers } from "../src/combat_logic/da
 import { getMpWardDef } from "../src/combat_logic/round.js";
 import { getClassPassiveBonus } from "../src/rules/class_rules.js";
 import { applyTrapGuardToEffect } from "../src/rules/trap_effect_rules.js";
+import { checkCharLevelUp } from "../src/systems/leveling.js";
 import { SOLO_CLASSES, createSoloCharacter } from "../src/state.js";
 
 let failures = 0;
@@ -34,7 +35,7 @@ test("全職の近接倍率は等倍", () => {
 
 test("魔術師はソロ用耐久・MPを持つ", () => {
   const mage = createSoloCharacter("Mage");
-  assert.equal(mage.maxHp, 21);
+  assert.equal(mage.maxHp, 14);
   // #267: 火力窓の延長でMP +6（6→12）
   assert.equal(mage.maxMp, 12);
 });
@@ -54,7 +55,7 @@ test("僧侶と魔術師は敵撃破時にMPを1回復する", () => {
 });
 
 test("戦士と魔術師は敵撃破時に職業固有HPを回復する", () => {
-  for (const [className, expected] of [["Fighter", 2], ["Mage", 4]]) {
+  for (const [className, expected] of [["Fighter", 2], ["Mage", 10]]) {
     const character = createSoloCharacter(className);
     character.hp = 1;
     const target = { name: "かみつき蟲", tags: [] };
@@ -75,7 +76,7 @@ test("盗賊は技巧を35%回避へ転用する", () => {
 
 test("戦士と魔術師は罠被害を職業passiveで軽減する", () => {
   assert.equal(getCharAffixSum(createSoloCharacter("Fighter"), "trapGuard"), 40);
-  assert.equal(getCharAffixSum(createSoloCharacter("Mage"), "trapGuard"), 50);
+  assert.equal(getCharAffixSum(createSoloCharacter("Mage"), "trapGuard"), 70);
   const effect = applyTrapGuardToEffect(
     { targetDamage: 12, partyDamage: [10, 10] },
     { trapGuardByParty: [40, 50], targetIndex: 0 }
@@ -91,6 +92,35 @@ test("僧侶と魔術師は攻撃呪文2hitごとにMPを1回復する", () => {
   }
 });
 
+test("基本4職のHP順序は基礎値・レベル成長とも不変", () => {
+  const baseHp = Object.fromEntries(SOLO_CLASSES.map(className => [
+    className,
+    createSoloCharacter(className).maxHp
+  ]));
+  assert.ok(baseHp.Fighter > baseHp.Thief);
+  assert.ok(baseHp.Thief > baseHp.Priest);
+  assert.ok(baseHp.Priest >= baseHp.Mage);
+
+  const growth = className => {
+    const character = createSoloCharacter(className);
+    character.exp = 999999;
+    const before = character.maxHp;
+    assert.equal(checkCharLevelUp(character, { rng: () => 0 }), true, className);
+    return character.maxHp - before;
+  };
+  const hpGrowth = Object.fromEntries(SOLO_CLASSES.map(className => [className, growth(className)]));
+  assert.ok(hpGrowth.Fighter > hpGrowth.Thief);
+  assert.ok(hpGrowth.Thief > hpGrowth.Priest);
+  assert.ok(hpGrowth.Priest >= hpGrowth.Mage);
+  assert.deepEqual(
+    { baseHp, hpGrowth },
+    {
+      baseHp: { Fighter: 20, Thief: 15, Priest: 14, Mage: 14, Samurai: 18, Bishop: 11, Ranger: 16, Ninja: 15 },
+      hpGrowth: { Fighter: 7, Thief: 5, Priest: 4, Mage: 4, Samurai: 6, Bishop: 4, Ranger: 5, Ninja: 5 }
+    }
+  );
+});
+
 test("前衛は呪文サイクル回復とMP連動防御を持たない", () => {
   for (const className of ["Fighter", "Thief"]) {
     const character = createSoloCharacter(className);
@@ -100,13 +130,13 @@ test("前衛は呪文サイクル回復とMP連動防御を持たない", () => 
 });
 
 test("後衛のMP連動防御はMP枯渇で消える", () => {
-  for (const className of ["Priest", "Mage"]) {
+  for (const [className, expected] of [["Priest", 4], ["Mage", 10]]) {
     const character = createSoloCharacter(className);
-    assert.equal(getClassPassiveBonus(character, "mpWard"), 4, className);
+    assert.equal(getClassPassiveBonus(character, "mpWard"), expected, className);
 
     // 攻撃呪文の最小コストが1なので MP>=1 が発動条件
     character.mp = 1;
-    assert.equal(getMpWardDef(character), 4, `${className} MP1`);
+    assert.equal(getMpWardDef(character), expected, `${className} MP1`);
     character.mp = 0;
     assert.equal(getMpWardDef(character), 0, `${className} MP0`);
   }
