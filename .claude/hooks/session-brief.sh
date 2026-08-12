@@ -8,6 +8,37 @@ set -u
 
 cat >/dev/null
 
+ensure_worktree_node_modules() {
+  project_dir=${CLAUDE_PROJECT_DIR:-$(pwd -P)}
+  [ -f "$project_dir/.git" ] || return 0
+
+  common_dir=$(cd "$project_dir" && git rev-parse --git-common-dir 2>/dev/null) || return 0
+  case "$common_dir" in
+    /*) ;;
+    *) common_dir="$project_dir/$common_dir" ;;
+  esac
+  main_root=$(cd "$common_dir/.." 2>/dev/null && pwd -P) || return 0
+
+  target="$project_dir/node_modules"
+  source="$main_root/node_modules"
+  [ -e "$target" ] || {
+    if [ -L "$target" ]; then
+      rm "$target"
+    fi
+
+    if [ -d "$source" ]; then
+      ln -s "$source" "$target" || printf -- '- node_modules symlink failed: %s\n' "$target" >&2
+      return 0
+    fi
+
+    [ -f "$project_dir/package-lock.json" ] || return 0
+    printf -- '- node_modules parent absent; running npm ci\n'
+    (cd "$project_dir" && npm ci) || printf -- '- node_modules npm ci failed\n' >&2
+  }
+}
+
+ensure_worktree_node_modules
+
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')
 
 printf '## セッション初期情報\n'
