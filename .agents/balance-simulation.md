@@ -935,6 +935,32 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
   N<30のセルは未確定として扱う。採用後のN=3,000ではMage B5死亡10.6%、B10到達
   15.5%、平均floor6.08となり、4職合算A1も成立した。
 
+## Issue #537 固定結論（魔術師HP順序）
+
+- HP順序の不変条件を `戦士 > 盗賊 > 僧侶 ≧ 魔術師` に戻すため、Mageの基礎HPを
+  21から14、成長を4..6のまま維持した。耐久は `trapGuard=70`、`mpWard=10`、
+  `killHeal=10`へ移し、HPを直接盛らない。正本は `src/state/initial_state.js`、
+  `src/systems/leveling.js`、`src/data/classes.js`。
+- 新規focused sweep（seed=461、各候補・職N=500、calibration N=100）は、
+  `trapGuard55 / 60 / 70`を比較した。採用点のB5死亡/B10到達/平均floor/
+  戦闘turn/被弾turn/素材EV時間は、`8.16% / 26.6% / 7.39 / 54.27 /
+  46.27 / 0.1623`。trapGuard55は追試N=3000でB10到達15.1%となり、60は
+  B5死亡が10.6%付近で不確実なため、70を採用した。
+- 最終 #461 N=3000 はMage B5死亡 **10.4% [9.2%, 11.7%]**、B10到達
+  **28.0% [26.4%, 29.6%]**、平均floor **7.63 [7.45, 7.81]**、A1成立。
+  Fighter/Thief/PriestのB10到達は **27.9% / 19.2% / 27.5%**。他職の実装値は
+  変更していない（Fighterの0.1pt差は同一基準線の再標本化差）。
+- #534の`killHeal`単独N=500結果は再利用し、#537ではHP順序・mpWard・罠軽減・
+  撃破回復の併用だけを新規測定した。測定正本は
+  `scratch/results/issue-537-mage-hp-order.md`、最終基準線は
+  `scratch/results/issue-461-baseline.md`。両率はWilson 95% CI、N<30は未確定。
+- #537 focused sweepのenv/raw/summary SHA-256は、順に
+  `4a8d2c9f090b137032fae47ed67f2520d4454e98e32510e72756d225675bee70`、
+  `fa5b890b0913f1df9f988c28191201e36527f5938d74770a4342c5fbb6f71a11`、
+  `ea2e9f62e3a6da0d59ff24fa86e1e79b3130f98ffb658c66ac62ffc48bdc4978`。
+  #461最終基準線は raw `63e01eae49f76340a651b5c2930eccf68608d33df7e95d59be79f9798efc678f`、
+  summary `8740ca26d308e18590712237d74946406d264ec01fa458b5c58712127dca309b`。
+
 ## Output
 
 Use the repository review output format from `.agents/README.md`.

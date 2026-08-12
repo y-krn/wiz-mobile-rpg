@@ -150,9 +150,9 @@ const SOLO_CLASS_PRESETS = [
     class: "Mage",
     level: 1,
     exp: 0,
-    // #534: 通常戦闘の死亡律速を緩和するため初期HPを+2。
-    hp: 21,
-    maxHp: 21,
+    // #537: HP順序（戦士 > 盗賊 > 僧侶 ≧ 魔術師）を守り、耐久はpassiveで補う。
+    hp: 14,
+    maxHp: 14,
     // #267: B5到達時点の残MPが平均2.95、ボス戦の呪文使用ターンが0.96turn だった。+6。
     mp: 12,
     maxMp: 12,

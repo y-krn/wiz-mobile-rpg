@@ -1916,6 +1916,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
     character.maxHp += hpBaseBonus;
     character.hp += hpBaseBonus;
   }
+  const intBonus = Number(scenario.intBonus) || 0;
+  if (intBonus !== 0) character.int += intBonus;
   if (scenario.disablePriestHealing && className === "Priest") {
     character.spells = character.spells.filter(spell => spell !== "DIOS");
   }
@@ -3367,6 +3369,7 @@ function runEncounter(
     enemyAttack: Math.max(...monsters.map(monster => monster.atk || 0)),
     playerMaxHp: getCharMaxHp(state.party[0]),
     incomingHits: 0,
+    incomingHitTurns: 0,
     incomingDamage: 0,
     maxIncomingHit: 0,
     maxIncomingHitRate: 0,
@@ -3744,6 +3747,7 @@ function runEncounter(
     telemetry.incomingHits += incomingDamage.hits;
     telemetry.incomingDamage += incomingDamage.damage;
     if (incomingDamage.damage > 0) {
+      telemetry.incomingHitTurns++;
       telemetry.lastIncomingDamage = incomingDamage.damage;
       telemetry.lastIncomingHits = incomingDamage.hits;
       telemetry.lastRound = roundNumber;
@@ -6451,6 +6455,8 @@ function finishRun(state, outcome, metrics) {
     strPotionsPurchased: metrics.strPotionsPurchased,
     strPotionMerchantFailures: { ...metrics.strPotionMerchantFailures },
     combatDamageHp: metrics.combatDamageHp,
+    incomingHits: metrics.incomingHits,
+    incomingHitTurns: metrics.incomingHitTurns,
     combatDamageHpByType: { ...metrics.combatDamageHpByType },
     damageHpBySource: { ...metrics.damageHpBySource },
     lastDamageEvent: metrics.lastDamageEvent
@@ -6864,6 +6870,8 @@ export function simulateRun({
     trapSenseHolderDetectionAttempts: 0,
     trapTeleports: 0,
     combatDamageHp: 0,
+    incomingHits: 0,
+    incomingHitTurns: 0,
     combatDamageHpByType: {},
     damageHpBySource: createDamageHpBySource(),
     lastDamageEvent: null,
@@ -7288,6 +7296,8 @@ export function simulateRun({
               Number(hasRoleTarget);
           }
           metrics.combatDamageHp += combatResult.telemetry.incomingDamage;
+          metrics.incomingHits += combatResult.telemetry.incomingHits;
+          metrics.incomingHitTurns += combatResult.telemetry.incomingHitTurns;
           metrics.combatDamageHpByType[combatResult.telemetry.type] =
             (metrics.combatDamageHpByType[combatResult.telemetry.type] || 0) +
             combatResult.telemetry.incomingDamage;

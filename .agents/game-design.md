@@ -67,10 +67,10 @@ is a bug in the economy.
 - 再現可能な測定値・条件・候補比較は
   `scratch/results/issue-528-class-sustain-phase2.md` を正本とする。
 
-## 魔術師の死亡律速対策（Issue #534）
+## 魔術師の死亡律速対策（Issue #534、#537で更新）
 
-- 魔術師の初期HPは `21`、レベルアップ時のHP成長は `4..6` とする。正本は
-  `src/state/initial_state.js` と `src/systems/leveling.js`。
+- #534の採用値は初期HP `21`、レベルアップ時のHP成長 `4..6`。#537で基礎HP順序を
+  優先し、現行値は下記「基本4職HP順序（Issue #537）」へ更新した。
 - #534では現行 Mage のB5死亡率15.8% [12.3,20.2; N=322]を通常戦闘・宝箱罠・床罠・
   bossの死亡直前source、`killHeal`発動実績、HP比で分解した。`killHeal`増量、
   `trapGuard`増量、戦闘短縮、非撃破回復も掃引したが、初期HP+2/成長+1がB5死亡
@@ -90,8 +90,27 @@ is a bug in the economy.
   要求する。初期HP+2/成長+1は撃破triggerを増幅せず、初回戦闘から全階層で効く静的耐久
   としてMageの脆さを残し、将来職にもHP成長軸で一貫して比較できる。両候補ともMageのみ
   の介入で他3職B10 entrant差は0.0pt。
-- 回復薬の供給・効果量、罠耐性、`killHeal`、他職のHP/成長は変更しない。詳細な
-  候補比較・CI・再現条件は `scratch/results/issue-534-mage-death.md` を正本とする。
+- #534の候補比較・CI・再現条件は `scratch/results/issue-534-mage-death.md` を正本とする。
+
+## 基本4職HP順序（Issue #537）
+
+- 基礎HP・レベル成長の不変条件は `戦士 > 盗賊 > 僧侶 ≧ 魔術師`。
+  僧侶と魔術師の同値は、僧侶が回復呪文を持つため許容する。
+- 現行値は、戦士 `20 / 7..9`、盗賊 `15 / 5..7`、僧侶 `14 / 4..6`、魔術師
+  `14 / 4..6`（基礎HP / レベル成長）。正本は `src/state/initial_state.js` と
+  `src/systems/leveling.js`。
+- 魔術師はHPを盛らず、`trapGuard=70`、`mpWard=10`、`killHeal=10`で浅層の
+  罠・MP・撃破後回復を補う。正本は `src/data/classes.js`。
+- Issue #537 focused sweep（seed=461、各候補・職N=500、calibration N=100）では、採用点
+  `HP14 / trapGuard70 / mpWard10 / killHeal10`がB5死亡 **8.16%**、B10到達
+  **26.6%**、平均floor **7.39**、戦闘 **54.27turn/run**、被弾 **46.27turn/run**、
+  素材EV/時間 **0.1623**。#534採用後基準（B5死亡10.6%、B10到達15.5%）を下回らない。
+- 最終 #461 N=3000 では、Mage B5死亡 **10.4% [9.2%, 11.7%]**、B10到達
+  **28.0% [26.4%, 29.6%]**、平均floor **7.63 [7.45, 7.81]**、A1 **成立**。
+  Fighter/Thief/PriestのB10到達は **27.9% / 19.2% / 27.5%**で、既存基準と同等。
+- #534の`killHeal+6/+8/+10`単独掃引は再利用し、同じ条件を再測定しない。#537では
+  HP順序候補、`mpWard`、罠軽減・撃破回復の併用だけ新規測定した。詳細な候補表・CI・
+  実行条件は `scratch/results/issue-537-mage-hp-order.md` を正本とする。
 
 ## Currency: Materials Only
 
