@@ -349,7 +349,20 @@ export function openChestMenu() {
 
 
 
+function recoverChestDisarmTransition(error) {
+  console.error("Failed to finish chest disarm transition", error);
+  state.transitioning = false;
+  if (state.chestState) {
+    openChestMenu();
+  } else {
+    state.gameState = "explore";
+    updateUI();
+  }
+}
+
 export function executeDisarm(char, rng = Math.random) {
+  if (!state.chestState || state.transitioning) return false;
+
   applyTombRaiderTrapTier(state.chestState, char);
   const chance = calculateChestDisarmChance({
     className: char.class,
@@ -359,6 +372,8 @@ export function executeDisarm(char, rng = Math.random) {
   const success = rng() < chance;
   
   state.transitioning = true;
+  try {
+    updateUI();
     if (success) {
       addLog(`解除成功！${char.name}は無事に罠を解除した。`);
       const tKey = state.chestState.trap;
@@ -387,11 +402,26 @@ export function executeDisarm(char, rng = Math.random) {
     }
     triggerChestTrap(char, false, rng);
   }
+  } catch (error) {
+    recoverChestDisarmTransition(error);
+    return false;
+  }
   
   // Open the chest after disarm attempt resolves
   setTimeout(() => {
-    openChestDirectly(char, rng);
+    try {
+      if (!state.chestState) {
+        state.transitioning = false;
+        state.gameState = "explore";
+        updateUI();
+        return;
+      }
+      openChestDirectly(char, rng);
+    } catch (error) {
+      recoverChestDisarmTransition(error);
+    }
   }, 1500);
+  return true;
 }
 
 export function triggerChestTrap(char, weakened = false, rng = Math.random) {

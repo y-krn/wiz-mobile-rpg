@@ -82,6 +82,21 @@ test('Verify Chest Trap Inspection and Disarm Button UI state flow (with trap)',
     const btnInspectBack = page.locator('#btn-chest-inspect');
     await expect(btnInspectBack).toBeVisible();
     await expect(btnInspectBack).toBeDisabled();
+
+    await btnDisarmAfter.click();
+    await page.getByRole('button', { name: /Robin .*解除/ }).click();
+    await expect.poll(async () => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return {
+        gameState: state.gameState,
+        transitioning: state.transitioning,
+        hasChest: Boolean(state.chestState),
+      };
+    }), { timeout: 5000 }).toEqual({
+      gameState: 'explore',
+      transitioning: false,
+      hasChest: false,
+    });
   }
 
 });
