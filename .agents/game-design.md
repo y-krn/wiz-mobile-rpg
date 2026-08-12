@@ -99,18 +99,40 @@ is a bug in the economy.
 - 現行値は、戦士 `20 / 7..9`、盗賊 `15 / 5..7`、僧侶 `14 / 4..6`、魔術師
   `14 / 4..6`（基礎HP / レベル成長）。正本は `src/state/initial_state.js` と
   `src/systems/leveling.js`。
-- 魔術師はHPを盛らず、`trapGuard=70`、`mpWard=10`、`killHeal=10`で浅層の
-  罠・MP・撃破後回復を補う。正本は `src/data/classes.js`。
-- Issue #537 focused sweep（seed=461、各候補・職N=500、calibration N=100）では、採用点
-  `HP14 / trapGuard70 / mpWard10 / killHeal10`がB5死亡 **8.16%**、B10到達
-  **26.6%**、平均floor **7.39**、戦闘 **54.27turn/run**、被弾 **46.27turn/run**、
-  素材EV/時間 **0.1623**。#534採用後基準（B5死亡10.6%、B10到達15.5%）を下回らない。
-- 最終 #461 N=3000 では、Mage B5死亡 **10.4% [9.2%, 11.7%]**、B10到達
+- 魔術師はHPを盛らず、#537時点では `trapGuard=70`、`mpWard=10`、`killHeal=10`で
+  浅層の罠・MP・撃破後回復を補った。上位呪文導入後の採用値は下記「上位呪文と
+  魔術師sustain（Issue #538）」へ更新した。正本は `src/data/classes.js`。
+- Issue #537 focused sweep（上位呪文導入前、seed=461、各候補・職N=500、calibration
+  N=100）では、`HP14 / trapGuard70 / mpWard10 / killHeal10`がB5死亡 **8.16%**、
+  B10到達 **26.6%**、平均floor **7.39**、戦闘 **54.27turn/run**、被弾
+  **46.27turn/run**、素材EV/時間 **0.1623**だった。この値は#538の上位呪文導入前
+  基準線として保持する。
+- 上位呪文導入前の最終 #461 N=3000 では、Mage B5死亡 **10.4% [9.2%, 11.7%]**、B10到達
   **28.0% [26.4%, 29.6%]**、平均floor **7.63 [7.45, 7.81]**、A1 **成立**。
   Fighter/Thief/PriestのB10到達は **27.9% / 19.2% / 27.5%**で、既存基準と同等。
 - #534の`killHeal+6/+8/+10`単独掃引は再利用し、同じ条件を再測定しない。#537では
   HP順序候補、`mpWard`、罠軽減・撃破回復の併用だけ新規測定した。詳細な候補表・CI・
   実行条件は `scratch/results/issue-537-mage-hp-order.md` を正本とする。
+
+## 上位呪文と魔術師sustain（Issue #538）
+
+- 基本4職の戦闘自動選択は `src/combat_logic/auto_action.js` の共有関数を正本とする。
+  魔術師は敵数・残HP・残MPに応じて単体/全体の上位呪文を選び、僧侶は回復要求時に
+  `MADIOS`→`DIOS`を選ぶ。`DIOS`を持つ僧侶は攻撃呪文後にMP1を残す。
+- 上位呪文導入後、魔術師passiveは `trapGuard=60`、`mpWard=8`、`killHeal=8`を採用する。
+  罠軽減・MP障壁・撃破回復を同時に下げても、HP順序（戦士 > 盗賊 > 僧侶 ≧ 魔術師）を
+  変えず、過剰な撃破回復5倍を是正する。正本は `src/data/classes.js`。
+- seed=461、同一runner、各case・職N=3000、calibration N=1000の補正掃引では、
+  現行70/10/10のMage B5死亡 **6.0% [5.1,7.0]**、B10到達 **37.2% [35.5,38.9]**に
+  対し、採用60/8/8はB5死亡 **11.2% [9.9,12.5]**、B10到達 **28.2% [26.6,29.8]**。
+  戦闘は **59.97→46.71turn/run**、被弾turnは **49.24→38.28**、素材EV/時間は
+  **0.1664→0.1658**、他3職B10 entrant差は **0.0pt**。率はWilson 95% CI、平均は
+  正規近似95% CIで、詳細と再現条件は `scratch/results/issue-538-upper-spells.md` を正本とする。
+- 同測定でMageのMP枯渇率は採用値 **30.3% [28.7,32.0]**、PriestのreserveMp違反run率は
+  **0.0% [0.0,0.1]**。上位呪文別の実使用・適用率も同結果ファイルに記録する。
+- 採用後の#461 N=3000基準線はA1 **成立**。MageはB5死亡 **11.5% [10.2,12.8]**、
+  B10到達 **27.3% [25.8,29.0]**、平均floor **7.35 [7.19,7.50]**。Fighter/Thief/Priestの
+  B10到達は **28.1% / 19.2% / 27.2%**で、他3職を悪化させず、PriestのB5撤退は **0.0%**。
 
 ## Currency: Materials Only
 

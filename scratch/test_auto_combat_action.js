@@ -47,6 +47,37 @@ check("Mage HALITO targets the lowest HP enemy", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 1, spellName: "HALITO" });
 });
 
+check("Mage uses LAHALITO against multiple healthy enemies", () => {
+  const action = chooseAutoCombatAction({
+    character: { class: "Mage", spells: ["HALITO", "LAHALITO"] },
+    monsters: [{ hp: 30 }, { hp: 30 }],
+    roundNumber: 2,
+    canCastSpell: () => true
+  });
+  assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "LAHALITO" });
+});
+
+check("Mage uses MAHALITO when HALITO cannot finish the target", () => {
+  const action = chooseAutoCombatAction({
+    character: { class: "Mage", spells: ["HALITO", "MAHALITO"] },
+    monsters: [{ hp: 30 }],
+    roundNumber: 2,
+    canCastSpell: () => true
+  });
+  assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MAHALITO" });
+});
+
+check("Priest uses MADIOS for an explicitly requested heal", () => {
+  const action = chooseAutoCombatAction({
+    character: { class: "Priest", spells: ["DIOS", "MADIOS", "BADIOS"] },
+    monsters: [{ hp: 30 }],
+    roundNumber: 2,
+    healingTargetIdx: 0,
+    canCastSpell: () => true
+  });
+  assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MADIOS" });
+});
+
 check("DIOS reserves one MP before offensive casting", () => {
   const calls = [];
   const action = chooseAutoCombatAction({

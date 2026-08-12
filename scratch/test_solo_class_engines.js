@@ -55,7 +55,7 @@ test("僧侶と魔術師は敵撃破時にMPを1回復する", () => {
 });
 
 test("戦士と魔術師は敵撃破時に職業固有HPを回復する", () => {
-  for (const [className, expected] of [["Fighter", 2], ["Mage", 10]]) {
+  for (const [className, expected] of [["Fighter", 2], ["Mage", 8]]) {
     const character = createSoloCharacter(className);
     character.hp = 1;
     const target = { name: "かみつき蟲", tags: [] };
@@ -76,7 +76,7 @@ test("盗賊は技巧を35%回避へ転用する", () => {
 
 test("戦士と魔術師は罠被害を職業passiveで軽減する", () => {
   assert.equal(getCharAffixSum(createSoloCharacter("Fighter"), "trapGuard"), 40);
-  assert.equal(getCharAffixSum(createSoloCharacter("Mage"), "trapGuard"), 70);
+  assert.equal(getCharAffixSum(createSoloCharacter("Mage"), "trapGuard"), 60);
   const effect = applyTrapGuardToEffect(
     { targetDamage: 12, partyDamage: [10, 10] },
     { trapGuardByParty: [40, 50], targetIndex: 0 }
@@ -130,7 +130,7 @@ test("前衛は呪文サイクル回復とMP連動防御を持たない", () => 
 });
 
 test("後衛のMP連動防御はMP枯渇で消える", () => {
-  for (const [className, expected] of [["Priest", 4], ["Mage", 10]]) {
+  for (const [className, expected] of [["Priest", 4], ["Mage", 8]]) {
     const character = createSoloCharacter(className);
     assert.equal(getClassPassiveBonus(character, "mpWard"), expected, className);
 
