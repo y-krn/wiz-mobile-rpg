@@ -48,6 +48,8 @@ const { EVENT_TYPES } = await import("../src/constants/events.js");
 const { DX, DY } = await import("../src/constants/directions.js");
 const { generateChestMaterials } = await import("../src/chest.js");
 
+const ISSUE538_LEGACY_SPELL_POLICY = process.env.ISSUE538_SPELL_POLICY === "legacy";
+
 const SIM_MAP_STATS_ENABLED = process.env.SIM_MAP_STATS === "1";
 const mapGenerationStats = {
   calls: 0,
@@ -2473,6 +2475,47 @@ function hasRecoveryPotion(state, itemKey = null) {
     : state.inventory.includes("GREATER_HEAL") || state.inventory.includes("HEAL_POTION");
 }
 
+function getLegacyMageCombatAction({
+  character,
+  monsters,
+  roundNumber,
+  canCastSpell = () => false
+}) {
+  const statusTargetIdx = getLowestHpEnemyIndex(
+    monsters,
+    monster => monster.status && !["ok", "dead"].includes(monster.status)
+  );
+  const lowestHpIdx = statusTargetIdx >= 0
+    ? statusTargetIdx
+    : getLowestHpEnemyIndex(monsters);
+  const livingMonsters = monsters.filter(monster => monster.hp > 0);
+  const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
+  const canCast = spellName =>
+    hasSpell(character, spellName) && canCastSpell(spellName, reserveMp);
+
+  if (roundNumber === 1 && livingMonsters.length >= 2 && canCast("KATINO")) {
+    return { type: "spell", targetIdx: lowestHpIdx, spellName: "KATINO" };
+  }
+  if (canCast("HALITO")) {
+    return { type: "spell", targetIdx: lowestHpIdx, spellName: "HALITO" };
+  }
+  return { type: "fight", targetIdx: lowestHpIdx };
+}
+
+function chooseSimulationAutoCombatAction(args) {
+  if (ISSUE538_LEGACY_SPELL_POLICY && args.character.class === "Mage") {
+    return getLegacyMageCombatAction(args);
+  }
+  return chooseAutoCombatAction(args);
+}
+
+function getSimulationPreferredOffensiveSpellName(character, monsters, canCastSpell) {
+  if (ISSUE538_LEGACY_SPELL_POLICY && character.class === "Mage") {
+    return hasSpell(character, "HALITO") ? "HALITO" : null;
+  }
+  return getPreferredOffensiveSpellName(character, monsters, canCastSpell);
+}
+
 function getDiosCombatAction(state) {
   const character = state.party[0];
   if (
@@ -2764,7 +2807,7 @@ function selectCombatAction(state, metrics) {
   if (!evShouldFight && diosPriorityAction) return diosPriorityAction;
 
   const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
-  const sharedAutoAction = chooseAutoCombatAction({
+  const sharedAutoAction = chooseSimulationAutoCombatAction({
     character,
     monsters,
     roundNumber: state.combatState.roundNumber,
@@ -2820,7 +2863,7 @@ function getBloodWandOpportunity(state, action, observations = null) {
       spellName = "DIOS";
       opportunityType = "heal";
     } else {
-      spellName = getPreferredOffensiveSpellName(
+      spellName = getSimulationPreferredOffensiveSpellName(
         character,
         state.combatState.monsters,
         (name, reserveMp) => getSpellActionPayment(state, name, reserveMp)
@@ -2961,7 +3004,7 @@ function recordRoundCoreObservations(
     observations.bloodWandMpEmptyRounds += Number(characterBefore.mp <= 0);
     const spellName = action.type === "spell"
       ? action.spellName
-      : getPreferredOffensiveSpellName(
+      : getSimulationPreferredOffensiveSpellName(
         characterBefore,
         monstersBeforeRound,
         (name, reserveMp) => getSpellActionPayment(stateBeforeRound, name, reserveMp)

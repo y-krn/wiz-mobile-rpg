@@ -40,7 +40,19 @@ const SPELL_IDS = Object.freeze([
   "HALITO", "LAHALITO", "MAHALITO", "MADALTO", "TILTOWAIT",
   "KATINO", "BADIOS", "DIOS", "MADIOS"
 ]);
-const BASE_MAGE_PASSIVES = Object.freeze({ ...CLASS_PASSIVES.Mage.bonuses });
+// CLASS_PASSIVES already contains the adopted values; keep the pre-adoption baseline explicit.
+const BASE_MAGE_PASSIVES = Object.freeze({ trapGuard: 70, killHeal: 10, mpWard: 10 });
+const SPELL_POLICY = String(process.env.ISSUE538_SPELL_POLICY || "current").trim();
+const RESULT_BASENAME = String(
+  process.env.ISSUE538_RESULT_BASENAME || "issue-538-upper-spells"
+).trim();
+
+if (!new Set(["current", "legacy"]).has(SPELL_POLICY)) {
+  throw new Error(`unknown ISSUE538_SPELL_POLICY: ${SPELL_POLICY}`);
+}
+if (!/^[a-z0-9-]+$/.test(RESULT_BASENAME)) {
+  throw new Error(`invalid ISSUE538_RESULT_BASENAME: ${RESULT_BASENAME}`);
+}
 
 if (process.env.SIM_PARALLEL !== undefined) {
   throw new Error("SIM_PARALLEL must be omitted for Issue #538 measurement");
@@ -71,7 +83,8 @@ const ENV_DEFAULTS = Object.freeze({
   BLOOD_WAND_HP_PAYMENT_MIN_RATE: "0.50",
   SIM_CORE_SCORE_DROP_TOLERANCE: "0",
   SIM_440_CONDITION: "current",
-  SIM_SCENARIOS: SCENARIO_IDS.join(",")
+  SIM_SCENARIOS: SCENARIO_IDS.join(","),
+  ISSUE538_SPELL_POLICY: SPELL_POLICY
 });
 
 for (const [key, value] of Object.entries(ENV_DEFAULTS)) {
@@ -402,7 +415,7 @@ function renderMarkdown({ summaries, measurement, rawSha256, summarySha256, prov
     "",
     "## 判定・再現",
     "",
-    `- seed=${SEED}、各case・職 N=${RUNS}、calibration N=${CALIBRATION_RUNS}、target depth=${TARGET_DEPTH}、工房6状態分布=${WORKSHOP_DISTRIBUTION.map(([id, count]) => `${id}:${count}/${WORKSHOP_TOTAL}`).join(", ")}`,
+    `- seed=${SEED}、各case・職 N=${RUNS}、calibration N=${CALIBRATION_RUNS}、spell policy=${SPELL_POLICY}、target depth=${TARGET_DEPTH}、工房6状態分布=${WORKSHOP_DISTRIBUTION.map(([id, count]) => `${id}:${count}/${WORKSHOP_TOTAL}`).join(", ")}`,
     "- 出発kit `TOWN_PORTAL + HEAL_POTION×4 + ANTIDOTE + GUARD_POTION`、powder鑑定、EV逃走、conservative罠、EV罠回避、smart状態治療、商人購入なし。",
     "- case間で職業・scenario・runIndexの乱数seedを共有。非Mage 3職は介入なしのため、同一seed比較でΔ=0を確認。",
     `- source commit: ${provenance.sourceCommit}`,
@@ -420,7 +433,7 @@ function renderMarkdown({ summaries, measurement, rawSha256, summarySha256, prov
     "```sh",
     "node --check scratch/sim_issue_538_upper_spells.js",
     "ISSUE538_SMOKE=1 node scratch/sim_issue_538_upper_spells.js",
-    `SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 ISSUE538_CASE_FILTER=${CASES.map(({ id }) => id).join(",")} node scratch/sim_issue_538_upper_spells.js`,
+    `SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 ISSUE538_SPELL_POLICY=current ISSUE538_CASE_FILTER=${CASES.map(({ id }) => id).join(",")} node scratch/sim_issue_538_upper_spells.js`,
     "```",
     ""
   );
@@ -469,6 +482,8 @@ async function main() {
   const rawSha256 = sha256(rawText);
   const env = {
     ...ENV_DEFAULTS,
+    ISSUE538_SPELL_POLICY: SPELL_POLICY,
+    ISSUE538_RESULT_BASENAME: RESULT_BASENAME,
     ISSUE538_MODE: SMOKE ? "smoke" : "measurement",
     ISSUE538_CASES: ACTIVE_CASES.map(item => item.id).join(","),
     ISSUE538_CLASSES: CLASSES.join(","),
@@ -499,18 +514,18 @@ async function main() {
     originMainAncestor: null,
     staleTreeAllowed: null
   };
-  const summary = { measurement, env, cases: ACTIVE_CASES, summaries, provenance };
+  const summary = { measurement, env, cases: ACTIVE_CASES, summaries, provenance, spellPolicy: SPELL_POLICY };
   const resultDir = new URL("./results/", new URL("./", import.meta.url));
   mkdirSync(resultDir, { recursive: true });
-  const rawPath = new URL("issue-538-upper-spells.jsonl", resultDir);
-  const summaryPath = new URL("issue-538-upper-spells.json", resultDir);
-  const markdownPath = new URL("issue-538-upper-spells.md", resultDir);
+  const rawPath = new URL(`${RESULT_BASENAME}.jsonl`, resultDir);
+  const summaryPath = new URL(`${RESULT_BASENAME}.json`, resultDir);
+  const markdownPath = new URL(`${RESULT_BASENAME}.md`, resultDir);
   writeFileSync(rawPath, rawText);
   writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
   const summarySha256 = sha256(readFileSync(summaryPath));
   writeFileSync(markdownPath, renderMarkdown({ summaries, measurement, rawSha256, summarySha256, provenance }));
   console.log(JSON.stringify({
-    output: "scratch/results/issue-538-upper-spells.md",
+    output: `scratch/results/${RESULT_BASENAME}.md`,
     envHash: measurement.envHash,
     rawSha256,
     summarySha256,
