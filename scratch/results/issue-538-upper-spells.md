@@ -37,14 +37,64 @@ E=entrant（全run分母）、X/D/Rはentrant分母で合計100%。率=Wilson 95
 - DIOS: 実在227631 / 使用370 / 適用363 / 失敗7 / カバー0.2% [0.1,0.2; N=227631] / castable適用0.2% [0.2,0.2; N=201327]
 - MADIOS: 実在213807 / 使用1637 / 適用1594 / 失敗43 / カバー0.7% [0.7,0.8; N=213807] / castable適用1.2% [1.2,1.3; N=129162]
 
-## 補正 sweep
+## 既存補正 sweep（N=3000）
 
 | 候補 | Mage B5死亡 | Mage B10到達 | 平均floor | 戦闘turn/run | 被弾turn/run | 素材EV/時間 | MP枯渇率 | reserveMp違反 | 他職B10 entrant Δ（戦/盗/僧） |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 現行 70/10/10 | 6.0% [5.1,7.0; N=2497] | 37.2% [35.5,38.9; N=3000] | 8.64 [8.46,8.82; N=3000] | 59.97 [57.36,62.59; N=3000] | 49.24 [47.26,51.22; N=3000] | 0.1664 [0.1633,0.1696; N=3000] | 39.0% [37.3,40.8; N=3000] | 0.0% [0.0,0.1; N=3000] | 0.0pt / 0.0pt / 0.0pt |
 | trapGuard60 / killHeal8 / mpWard8 | 11.2% [9.9,12.5; N=2259] | 28.2% [26.6,29.8; N=3000] | 7.37 [7.22,7.52; N=3000] | 46.71 [44.57,48.85; N=3000] | 38.28 [36.68,39.88; N=3000] | 0.1658 [0.1623,0.1692; N=3000] | 30.3% [28.7,32.0; N=3000] | 0.0% [0.0,0.1; N=3000] | 0.0pt / 0.0pt / 0.0pt |
 
-## 判定・再現
+## 補正 sweep（レビュー追補 N=500）
+
+- source commit: `9fd1207715eef97b2bb16b4c49c6d7ccda65522c`、seed=461、各case・職N=500、calibration N=100、spell policy=current。旧N=3000測定は上記、追補は同一runnerで全15候補を再実行。
+- origin/main ancestor=true、stale tree allowed=false、env hash=`6fde5b9ed0134597ab791cda2f3ecb34de1777f306e902a5432d38e14ba338b2`、raw JSONL SHA-256=`8d999e40e9022e94417a63eba7937de847525a38a3e824ca357e3a674a55b980`、summary JSON SHA-256=`a74bb3a2b41aed229ea1f8d2861eb5e4fa82cb12ace3f25536644339185b6ba9`。
+
+| 候補 | Mage B5死亡 | Mage B10到達 | 平均floor | 戦闘turn/run | 被弾turn/run | 素材EV/時間 | MP枯渇率 | reserveMp違反 | 他職B10 entrant Δ（戦/盗/僧） |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 現行 70/10/10 | 6.2% [4.3,9.0; N=418] | 34.2% [30.2,38.5; N=500] | 8.43 [7.99,8.86; N=500] | 55.54 [49.61,61.48; N=500] | 45.85 [41.30,50.41; N=500] | 0.1685 [0.1609,0.1762; N=500] | 38.2% [34.0,42.5; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard60 / killHeal10 / mpWard10 | 7.1% [4.9,10.1; N=381] | 27.8% [24.1,31.9; N=500] | 7.61 [7.22,8.00; N=500] | 49.56 [43.87,55.26; N=500] | 40.59 [36.26,44.92; N=500] | 0.1739 [0.1656,0.1822; N=500] | 30.2% [26.3,34.4; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard55 / killHeal10 / mpWard10 | 6.1% [4.0,9.4; N=310] | 22.8% [19.3,26.7; N=500] | 6.73 [6.37,7.10; N=500] | 42.19 [37.05,47.33; N=500] | 34.03 [30.21,37.86; N=500] | 0.1814 [0.1723,0.1905; N=500] | 24.4% [20.8,28.4; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard50 / killHeal10 / mpWard10 | 8.0% [5.3,11.9; N=263] | 19.0% [15.8,22.7; N=500] | 6.07 [5.74,6.41; N=500] | 35.10 [30.58,39.61; N=500] | 28.24 [24.94,31.55; N=500] | 0.1842 [0.1746,0.1939; N=500] | 20.6% [17.3,24.4; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard70 / killHeal8 / mpWard10 | 6.2% [4.3,9.0; N=417] | 34.4% [30.4,38.7; N=500] | 8.20 [7.79,8.60; N=500] | 51.49 [46.25,56.72; N=500] | 42.29 [38.40,46.17; N=500] | 0.1710 [0.1633,0.1787; N=500] | 37.6% [33.5,41.9; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard70 / killHeal6 / mpWard10 | 5.8% [3.9,8.4; N=417] | 33.6% [29.6,37.9; N=500] | 7.98 [7.61,8.35; N=500] | 48.61 [43.87,53.35; N=500] | 40.11 [36.61,43.61; N=500] | 0.1746 [0.1669,0.1822; N=500] | 36.8% [32.7,41.1; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard70 / killHeal4 / mpWard10 | 6.1% [4.1,8.8; N=412] | 29.2% [25.4,33.3; N=500] | 7.42 [7.10,7.74; N=500] | 41.14 [37.82,44.47; N=500] | 34.22 [31.80,36.64; N=500] | 0.1737 [0.1660,0.1814; N=500] | 34.4% [30.4,38.7; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard70 / killHeal10 / mpWard8 | 10.0% [7.5,13.3; N=418] | 33.8% [29.8,38.1; N=500] | 8.28 [7.85,8.71; N=500] | 54.55 [48.62,60.48; N=500] | 44.99 [40.45,49.52; N=500] | 0.1656 [0.1578,0.1734; N=500] | 37.2% [33.1,41.5; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard70 / killHeal10 / mpWard6 | 16.0% [12.8,19.9; N=418] | 33.0% [29.0,37.2; N=500] | 8.16 [7.73,8.59; N=500] | 54.52 [48.47,60.58; N=500] | 44.91 [40.27,49.55; N=500] | 0.1604 [0.1523,0.1685; N=500] | 35.8% [31.7,40.1; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard70 / killHeal10 / mpWard4 | 22.1% [18.3,26.3; N=417] | 30.6% [26.7,34.8; N=500] | 7.84 [7.43,8.25; N=500] | 52.38 [46.48,58.28; N=500] | 42.99 [38.50,47.49; N=500] | 0.1560 [0.1477,0.1644; N=500] | 32.6% [28.6,36.8; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard60 / killHeal8 / mpWard8 | 11.3% [8.5,14.9; N=381] | 27.8% [24.1,31.9; N=500] | 7.39 [7.02,7.75; N=500] | 46.83 [41.69,51.97; N=500] | 38.16 [34.36,39.88; N=500] | 0.1726 [0.1642,0.1810; N=500] | 30.4% [26.5,34.6; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard55 / killHeal8 / mpWard8 | 9.7% [6.9,13.5; N=310] | 23.0% [19.5,26.9; N=500] | 6.65 [6.29,7.01; N=500] | 41.49 [36.38,46.60; N=500] | 33.42 [29.63,37.21; N=500] | 0.1805 [0.1713,0.1897; N=500] | 24.2% [20.7,28.1; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard55 / killHeal6 / mpWard8 | 9.7% [6.9,13.5; N=309] | 19.8% [16.5,23.5; N=500] | 6.31 [5.99,6.63; N=500] | 35.97 [31.93,40.02; N=500] | 29.23 [26.22,32.23; N=500] | 0.1811 [0.1718,0.1903; N=500] | 24.2% [20.7,28.1; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard50 / killHeal6 / mpWard6 | 14.7% [10.9,19.6; N=258] | 15.2% [12.3,18.6; N=500] | 5.58 [5.31,5.86; N=500] | 29.07 [25.89,32.25; N=500] | 23.63 [21.33,25.94; N=500] | 0.1798 [0.1698,0.1897; N=500] | 18.6% [15.4,22.2; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+| trapGuard40 / killHeal4 / mpWard4 | 22.3% [17.0,28.7; N=193] | 5.8% [4.1,8.2; N=500] | 4.59 [4.40,4.79; N=500] | 20.12 [18.16,22.07; N=500] | 16.51 [15.14,17.88; N=500] | 0.1816 [0.1708,0.1924; N=500] | 9.2% [7.0,12.1; N=500] | 0.0% [0.0,0.8; N=500] | 0.0pt / 0.0pt / 0.0pt |
+
+### 採用値の根拠
+
+- 60/8/8は、現行70/10/10比でB10到達 34.2%→27.8%、戦闘 55.54→49.56turn、被弾 45.85→40.59turn。B5死亡 6.2%→7.1%、MP枯渇 38.2%→30.2%で、戦闘短縮と資源枯渇低下を得る。
+- 隣接候補 55/8/8はB10到達23.0%、40/4/4は5.8%。50/6/6も15.2%まで低下。60/8/8より下げる候補は到達率を維持できないため不採用。
+- 単一補正の限界も確認。trapGuard55単独はB10到達22.8%、killHeal4単独は29.2%、mpWard4単独は30.6%で、複合 60/8/8を下回る。
+
+## 上位呪文単独比較
+
+- 同一runner `scratch/sim_issue_538_upper_spells.js`、seed=461、各職N=500、calibration N=100、current case（trapGuard70 / killHeal10 / mpWard10）で実行。`ISSUE538_SPELL_POLICY`だけ `legacy`（main時点のKATINO→HALITO固定）/`current`（上位呪文選択）へ切替。
+- source commitは両方 `9fd1207715eef97b2bb16b4c49c6d7ccda65522c`、他のsimulation env・scenario・run seedは同一。legacyのraw/summary hashは `4ed24dcb2031d1a07f93458f31c33d97d8ac5001559ff7fa1892689649c89809` / `4418d21269297c8b67d93f3e19e52178081953d62e137c28465a65095579d959`。
+
+| Mage policy | B5死亡 | B10到達 | 平均floor | 戦闘turn/run | 被弾turn/run | 素材EV/時間 | MP枯渇率 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| legacy（HALITO固定） | 6.0% [4.1,8.6; N=420] | 32.0% [28.1,36.2; N=500] | 8.30 [7.88,8.71; N=500] | 55.93 [50.03,61.83; N=500] | 46.61 [42.08,51.14; N=500] | 0.1684 [0.1608,0.1761; N=500] | 33.6% [29.6,37.9; N=500] |
+| current（上位呪文選択） | 6.2% [4.3,9.0; N=418] | 34.2% [30.2,38.5; N=500] | 8.43 [7.99,8.86; N=500] | 55.54 [49.61,61.48; N=500] | 45.85 [41.30,50.41; N=500] | 0.1685 [0.1609,0.1762; N=500] | 38.2% [34.0,42.5; N=500] |
+
+- 呪文適用数: legacyはHALITO 9,820 / KATINO 965、上位4種 0。currentはHALITO 6,859 / LAHALITO 484 / MAHALITO 985 / MADALTO 48 / TILTOWAIT 14 / KATINO 857。上位呪文 実戦適用確認。
+
+再現コマンド:
+
+```sh
+SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 ISSUE538_SPELL_POLICY=legacy ISSUE538_RESULT_BASENAME=issue-538-upper-spells-legacy ISSUE538_CASE_FILTER=current node scratch/sim_issue_538_upper_spells.js
+SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 ISSUE538_SPELL_POLICY=current ISSUE538_RESULT_BASENAME=issue-538-upper-spells-current ISSUE538_CASE_FILTER=current node scratch/sim_issue_538_upper_spells.js
+```
+
+## 既存N=3000測定の判定・再現情報
+
+- 以下は採用時に保存したN=3000結果（source b96a54c）。追補N=500の再現は「補正 sweep（レビュー追補 N=500）」と「上位呪文単独比較」のコマンドを使う。
 
 - seed=461、各case・職 N=3000、calibration N=1000、target depth=21、工房6状態分布=workshop-empty:30/1200, workshop-stats:74/1200, workshop-gear:69/1200, workshop-blood-wand:216/1200, workshop-blood-wand-spells:47/1200, workshop-complete:764/1200
 - 出発kit `TOWN_PORTAL + HEAL_POTION×4 + ANTIDOTE + GUARD_POTION`、powder鑑定、EV逃走、conservative罠、EV罠回避、smart状態治療、商人購入なし。
@@ -64,7 +114,7 @@ E=entrant（全run分母）、X/D/Rはentrant分母で合計100%。率=Wilson 95
 ```sh
 node --check scratch/sim_issue_538_upper_spells.js
 ISSUE538_SMOKE=1 node scratch/sim_issue_538_upper_spells.js
-SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 ISSUE538_CASE_FILTER=current,trapguard-60,trapguard-55,trapguard-50,killheal-8,killheal-6,killheal-4,mpward-8,mpward-6,mpward-4,combined-60-8-8,combined-55-8-8,combined-55-6-8,combined-50-6-6,combined-40-4-4 node scratch/sim_issue_538_upper_spells.js
+SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 ISSUE538_SPELL_POLICY=current ISSUE538_CASE_FILTER=current,trapguard-60,trapguard-55,trapguard-50,killheal-8,killheal-6,killheal-4,mpward-8,mpward-6,mpward-4,combined-60-8-8,combined-55-8-8,combined-55-6-8,combined-50-6-6,combined-40-4-4 node scratch/sim_issue_538_upper_spells.js
 ```
 
 ## 採用後 #461 基準線
@@ -72,4 +122,4 @@ SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 ISSUE538_CASE_FILTER=current,trapguard-60,
 - `src/data/classes.js`へ60/8/8を反映後、固定条件 seed=461、各職N=3000、calibration N=1000を再実行。A1は成立。
 - Mage: B5死亡 **11.5% [10.2,12.8]**、B10到達 **27.3% [25.8,29.0]**、平均floor **7.35 [7.19,7.50]**。
 - Fighter/Thief/PriestのB10到達は **28.1% / 19.2% / 27.2%**。PriestのB5撤退は **0.0%**。
-- 詳細な全endpoint・A1・固定環境・ハッシュは `scratch/results/issue-461-baseline.md` を参照。
+- 詳細な全endpoint・A1・固定環境・ハッシュは `scratch/results/issue-461-baseline.md`を参照。
