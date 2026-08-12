@@ -54,6 +54,19 @@ is a bug in the economy.
   `scratch/results/issue-516-class-sustain.md`、#461再基準線は
   `scratch/results/issue-461-baseline.md` を正本とする。
 
+## 基本4職の撃破sustain（Issue #528）
+
+- 戦士は `killHeal=2`、魔術師は `killHeal=4` をクラス固有passiveとして持つ。
+  正本は `src/data/classes.js`、適用処理は既存の
+  `src/combat_logic/damage.js` の `applyKillAffixEffects` とする。
+- `killHeal` は敵撃破時にHPを回復し、最大HPを上限とする。回復薬の供給数・回復薬の
+  効果量・探索回復点は変更しない。盗賊・僧侶と上級4職の既存passiveも変更しない。
+- #528フェーズ2では、戦士と魔術師を同じ値に揃えず別々に測定した。戦士は +2で
+  B5撤退率31.8%、魔術師は +4でB5撤退率39.5%となるkneeを採用する。+6以上は
+  平均到達階が深くなり素材EV/時間が悪化するため採用しない。
+- 再現可能な測定値・条件・候補比較は
+  `scratch/results/issue-528-class-sustain-phase2.md` を正本とする。
+
 ## Currency: Materials Only
 
 Gold is removed. Materials are the single currency, used both by the

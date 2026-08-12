@@ -53,6 +53,21 @@ test("僧侶と魔術師は敵撃破時にMPを1回復する", () => {
   }
 });
 
+test("戦士と魔術師は敵撃破時に職業固有HPを回復する", () => {
+  for (const [className, expected] of [["Fighter", 2], ["Mage", 4]]) {
+    const character = createSoloCharacter(className);
+    character.hp = 1;
+    const target = { name: "かみつき蟲", tags: [] };
+
+    applyKillAffixEffects(character, target, {}, []);
+
+    assert.equal(getClassPassiveBonus(character, "killHeal"), expected, className);
+    assert.equal(character.hp, 1 + expected, className);
+  }
+  assert.equal(getClassPassiveBonus(createSoloCharacter("Thief"), "killHeal"), 0);
+  assert.equal(getClassPassiveBonus(createSoloCharacter("Priest"), "killHeal"), 0);
+});
+
 test("盗賊は技巧を35%回避へ転用する", () => {
   const thief = createSoloCharacter("Thief");
   assert.equal(getCharAffixSum(thief, "evasion"), 35);

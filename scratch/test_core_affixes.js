@@ -534,6 +534,7 @@ test("浄化の環: MP空き時はMP回復", () => {
 
 test("浄化の環: MP満タン時はHPへ振替、HP満タン時は発動ログなし", () => {
   const char = makeChar(null);
+  char.class = "Thief";
   char.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_MP");
   char.mp = getCharMaxMp(char);
   char.hp = 50;
@@ -545,6 +546,7 @@ test("浄化の環: MP満タン時はHPへ振替、HP満タン時は発動ログ
   assert.match(logs[0].msg, /HPが2回復/);
 
   const fullHpChar = makeChar(null);
+  fullHpChar.class = "Thief";
   fullHpChar.equipment.accessory = coreItem("CORE_PURIFY_RING", "AMULET_MP");
   fullHpChar.mp = getCharMaxMp(fullHpChar);
   const fullHpLogs = [];
@@ -606,6 +608,7 @@ test("執行人: 状態異常中だけ2倍", () => {
 
 test("戦闘サポート: 条件倍率・状態耐性・キル回復・威圧", () => {
   const char = makeChar(null);
+  char.class = "Thief";
   char.hp = 50;
   char.equipment.weapon = supportItem("deepAssault", 10, "SHORT_SWORD");
   char.equipment.armor = supportItem("antiBeast", 20);
