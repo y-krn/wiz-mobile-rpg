@@ -9,6 +9,7 @@
 - B5/B10の1歩あたり素材収入: 総素材 0.4918 [0.4851,0.4985; N=2000] → 0.4029 [0.3963,0.4095; N=2000]、宝箱素材 0.4071 [0.4014,0.4127; N=2000] → 0.3105 [0.3044,0.3166; N=2000]、bank素材 0.4192 [0.4105,0.4279; N=2000] → 0.2990 [0.2915,0.3065; N=2000]。
 - map用途モデル B5→B10直接差: 階段探索 56.68 [54.32,59.05; N=2000] (統計的上昇)、宝箱・分岐 8.36 [8.01,8.71; N=2000] (統計的上昇)、引き返し・行き止まり 14.29 [13.70,14.89; N=2000] (統計的上昇)。
 - サニティ: floorSteps予算（static floor予算 + routePlan追加）+ 罠回避 + elite + camp と result.steps の残差 0.00 [0.00,0.00; N=2000] (CI重複)（期待値0）。
+- camp寄与: extraCampTimeCost 0（全run）、extraCampSteps 0.00 [0.00,0.00; N=2000]。既定条件では0。
 - 罠回避追加歩数は報酬非依存の「彷徨う歩数」だが、差は未説明分の1.9%。深度差の支配要因は routePlan追加歩数。
 - これは候補what-ifではなく、現行マップ形状の観測。報酬量・src・design canonは変更していない。
 
@@ -107,6 +108,7 @@
 - `generateRunFloor`（`src/run_map_generator.js`）を通った生成物を使用。simulation本体も同じ実src map/reward/combat経路。報酬量・drop率・撤退・死亡bank率のoverrideなし。
 - 既存map用途モデルは人間の移動traceではなく、各実訪問floorの `criticalPath`=階段探索と、静的 `round(criticalPath×1.4)` floor予算の余剰を、主経路外の宝箱分岐辺×拾得率0.7 / 非宝箱行き止まり辺の比で按分した代理モデル。
 - 実測歩数は `floorSteps`予算（静的 `round(criticalPath×1.4)` と `createFloorRoutePlan` のroute延長）+ 罠回避 + elite route plan + camp延長コストへ分解。map用途モデルは静的構造説明として残すが、深度差の結論は実測分解を主に採用。
+- routePlan追加は `createFloorRoutePlan` のspecial cell（boss/midboss）経路が `floorSteps` を `max(static, ceil(routeDistance×1.4))` へ延長した実測分。
 - 1歩あたり収入はrun単位の `素材 / steps` の平均。括弧内CIは正規近似95% CI。死亡・到達率はWilson 95% CI。
 - N<30のセルは判定に使わず「未確定」と明記。今回の主集計セルはN>=30。
 - `SIM_PARALLEL` / `SIM_MAP_CACHE_ENTRIES`は未指定。runtime既定値を使用。
@@ -114,16 +116,16 @@
 
 ## 監査・再現
 
-- source commit: 828752d83cf3742f3afb23732c486ffa072cf34c
+- source commit: fadfcc39c1c3121e1bf5316b03ce62c26e3554e4
 - origin/main ancestor: true
 - stale tree allowed: false
 - env hash: 0804de6c68b16ef78feff489cca6fb3dfbc34b5a43484f40d1cf265340e17404
 - raw JSONL SHA-256: 58e21043a7c4946fc7ab02b207f0ef6b80eb132be50c2aa4633d8b92d252b8ca
-- summary JSON SHA-256: 93235384249f0386b036ce604b8115258670b1ef1f3480f33d6686b3db0bbdc9
+- summary JSON SHA-256: df4cc95143eb8d1d3cd02998fa0f6df2b97c2d8c0b7df4c67cdd757230fb99b5
 - resolved parallelism: 15（SIM_PARALLEL未指定）
-- calibration wall-clock: 14.374s
-- simulation wall-clock: 35.294s
-- total CPU（user+system）: 545.594s
+- calibration wall-clock: 14.622s
+- simulation wall-clock: 36.278s
+- total CPU（user+system）: 561.307s
 - raw: scratch/results/issue-275-phase3-steps.raw.jsonl
 - summary: scratch/results/issue-275-phase3-steps.json
 
