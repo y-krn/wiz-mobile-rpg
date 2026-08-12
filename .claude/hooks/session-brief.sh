@@ -46,6 +46,19 @@ printf -- '- 環境: timeout/gtimeout は未インストール（長時間処理
 printf -- '- 原則 1 Issue = 1 セッション。40 ツール呼び出しごとに要約し、区切る時は `/handoff` で Issue へ引き継ぐ。\n'
 printf -- '- branch: %s\n' "${branch:-unknown}"
 
+if [ "$branch" = "main" ]; then
+  local_main=$(git rev-parse main 2>/dev/null || true)
+  origin_main=$(git rev-parse origin/main 2>/dev/null || true)
+  main_status=$(git status --porcelain 2>/dev/null || true)
+  if [ -z "$local_main" ] || [ -z "$origin_main" ] || [ "$local_main" != "$origin_main" ] || [ -n "$main_status" ]; then
+    printf -- '- WARNING: local main is not identical to origin/main and clean; verify before work.\n'
+  fi
+fi
+
+if [ "$branch" = "HEAD" ]; then
+  printf -- '- WARNING: detached HEAD; create or switch to an issue branch before work.\n'
+fi
+
 issue=$(printf '%s' "$branch" | sed -nE 's#^[a-z]+/(issue-)?([0-9]+)-.*#\2#p')
 [ -n "$issue" ] || issue=$(printf '%s' "$branch" | sed -nE 's#.*issue-([0-9]+).*#\1#p')
 [ -n "$issue" ] || exit 0
