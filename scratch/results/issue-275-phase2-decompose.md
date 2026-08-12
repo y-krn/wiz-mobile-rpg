@@ -57,16 +57,16 @@
 
 ## 監査・再現
 
-- source commit: 3af2a6d462ec107fa737fe5b6a0c98a8acb36655
+- source commit: cdf5fd7cc2ad858ad4d27ef255bc7a84900217cc
 - origin/main ancestor: true
 - stale tree allowed: false
 - env hash: 1b51784aa3dbc5fa0071ce0212b5ed6db63fa8ee3f4cac39ab70a0ac0eda0fed
 - raw JSONL SHA-256: e3017122097a5239aa162375ac9fafefab6b946a39094d227e374542cb39df69
-- summary JSON SHA-256: dd8298e3d7f6fdf0d7a51402c8974ad6db233c5d06b53989c578a87ff5a60d93
+- summary JSON SHA-256: 6a4358c46f4e1afd173ea2d16cbd93bb2e199b41bbb6954cac3f54c776e2afb6
 - resolved parallelism: 15（SIM_PARALLEL未指定）
-- calibration wall-clock: 14.326s
-- simulation wall-clock: 9.614s
-- total CPU（user+system）: 164.210s
+- calibration wall-clock: 14.653s
+- simulation wall-clock: 9.864s
+- total CPU（user+system）: 168.509s
 - raw: scratch/results/issue-275-phase2-decompose.raw.jsonl
 - summary: scratch/results/issue-275-phase2-decompose.json
 
