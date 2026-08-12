@@ -1911,6 +1911,11 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   assignRunQuests(currentRun);
 
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
+  const hpBaseBonus = Number(scenario.hpBaseBonus) || 0;
+  if (hpBaseBonus !== 0) {
+    character.maxHp += hpBaseBonus;
+    character.hp += hpBaseBonus;
+  }
   if (scenario.disablePriestHealing && className === "Priest") {
     character.spells = character.spells.filter(spell => spell !== "DIOS");
   }
@@ -2158,6 +2163,7 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
       extraCampRecoveryRate,
       extraCampTimeCost,
       floorTransitionRecoveryRate,
+      hpGrowthBonus: Number(scenario.hpGrowthBonus) || 0,
       trapGuardOverride: scenario.trapGuardOverride || null,
       trapPolicy: trapPolicies.floor,
       chestTrapPolicy: trapPolicies.chest,
@@ -3363,7 +3369,13 @@ function runEncounter(
     incomingHits: 0,
     incomingDamage: 0,
     maxIncomingHit: 0,
-    maxIncomingHitRate: 0
+    maxIncomingHitRate: 0,
+    lastIncomingDamage: 0,
+    lastIncomingHits: 0,
+    lastRound: null,
+    lastRoundHpBefore: null,
+    lastRoundHpAfter: null,
+    lastRoundMaxHp: null
   };
   const encounterDiagnostic = diagnostics && (fullDiagnostics || compactDiagnostics)
     ? (fullDiagnostics
@@ -3435,6 +3447,24 @@ function runEncounter(
         }));
       }
       diagnostics.encounters.push(encounterDiagnostic);
+    }
+    if (result === "death" && metrics && !metrics.deathSnapshot) {
+      const deathLog = state.currentRun?.deathLogs?.at(-1) || null;
+      metrics.deathSnapshot = {
+        source: encounterType,
+        floor: state.floor,
+        round: telemetry.lastRound,
+        cause: deathLog?.cause || null,
+        hpBefore: telemetry.lastRoundHpBefore,
+        hpAfter: telemetry.lastRoundHpAfter,
+        maxHp: telemetry.lastRoundMaxHp || telemetry.playerMaxHp,
+        damage: telemetry.lastIncomingDamage,
+        hits: telemetry.lastIncomingHits,
+        damageMaxHpRate: telemetry.lastIncomingDamage > 0
+          ? telemetry.lastIncomingDamage / Math.max(1, telemetry.lastRoundMaxHp || telemetry.playerMaxHp)
+          : null,
+        killHealActivationsBeforeDeath: metrics.killHeal.killHealActivations
+      };
     }
     return {
       result,
@@ -3713,6 +3743,14 @@ function runEncounter(
     );
     telemetry.incomingHits += incomingDamage.hits;
     telemetry.incomingDamage += incomingDamage.damage;
+    if (incomingDamage.damage > 0) {
+      telemetry.lastIncomingDamage = incomingDamage.damage;
+      telemetry.lastIncomingHits = incomingDamage.hits;
+      telemetry.lastRound = roundNumber;
+      telemetry.lastRoundHpBefore = characterBeforeRound.hp;
+      telemetry.lastRoundHpAfter = state.party[0].hp;
+      telemetry.lastRoundMaxHp = getCharMaxHp(characterBeforeRound);
+    }
     telemetry.maxIncomingHit = Math.max(
       telemetry.maxIncomingHit,
       ...roundResult.logQueue.flatMap(({ msg = "" }) => {
@@ -3832,7 +3870,7 @@ function recordBlindApplications(metrics, source, count) {
   metrics.blindApplicationsBySource[source] += count;
 }
 
-function recordTrapDamage(metrics, source, type, damage, floor) {
+function recordTrapDamage(metrics, source, type, damage, floor, snapshot = null) {
   metrics.trapDamageHp += damage;
   metrics.trapDamageHpBySource[source] += damage;
   metrics.trapDamageHpByType[type] = (metrics.trapDamageHpByType[type] || 0) + damage;
@@ -3841,8 +3879,23 @@ function recordTrapDamage(metrics, source, type, damage, floor) {
   metrics.lastDamageEvent = {
     source: damageSource,
     floor,
-    amount: damage
+    amount: damage,
+    type,
+    ...(snapshot || {})
   };
+  if (snapshot?.hpAfter === 0 && !metrics.deathSnapshot) {
+    metrics.deathSnapshot = {
+      source: damageSource,
+      floor,
+      round: null,
+      cause: null,
+      damage,
+      hits: 1,
+      ...snapshot,
+      damageMaxHpRate: damage / Math.max(1, snapshot.maxHp || 0),
+      killHealActivationsBeforeDeath: metrics.killHeal.killHealActivations
+    };
+  }
 }
 
 function getSimulationTrapGuardByParty(state) {
@@ -3919,6 +3972,7 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
   }
 
   if (trap === "poison needle") {
+    const hpBefore = character.hp;
     character.hp = Math.max(0, character.hp - effect.targetDamage);
     clearCharIncapacitationOnDamage(character);
     if (character.hp === 0) {
@@ -3926,16 +3980,25 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
     } else if (effect.targetPoisonTriggered && !effect.targetPoisonResisted) {
       character.status = "poisoned";
     }
-    recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor);
+    recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor, {
+      hpBefore,
+      hpAfter: character.hp,
+      maxHp: getCharMaxHp(character)
+    });
     metrics.chestTrapDamageHpByBlindStatus[blindStatus] += effect.targetDamage;
   } else if (trap === "gas bomb") {
     effect.partyDamage.forEach((damage, index) => {
       const target = state.party[index];
       if (damage <= 0) return;
+      const hpBefore = target.hp;
       target.hp = Math.max(0, target.hp - damage);
       clearCharIncapacitationOnDamage(target);
       if (target.hp === 0) target.status = "dead";
-      recordTrapDamage(metrics, "chest", trap, damage, state.floor);
+      recordTrapDamage(metrics, "chest", trap, damage, state.floor, {
+        hpBefore,
+        hpAfter: target.hp,
+        maxHp: getCharMaxHp(target)
+      });
       metrics.chestTrapDamageHpByBlindStatus[blindStatus] += damage;
     });
   } else if (trap === "teleporter") {
@@ -3967,10 +4030,15 @@ function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
     const target = state.party[index];
     if (damage <= 0) return;
     const appliedDamage = Math.max(1, Math.round(damage * TRAP_DAMAGE_MULTIPLIER));
+    const hpBefore = target.hp;
     target.hp = Math.max(0, target.hp - appliedDamage);
     clearCharIncapacitationOnDamage(target);
     if (target.hp === 0) target.status = "dead";
-    recordTrapDamage(metrics, "floor", trap.type, appliedDamage, state.floor);
+    recordTrapDamage(metrics, "floor", trap.type, appliedDamage, state.floor, {
+      hpBefore,
+      hpAfter: target.hp,
+      maxHp: getCharMaxHp(target)
+    });
   });
   effect.partyMpDrain.forEach((drain, index) => {
     if (drain > 0) {
@@ -6240,6 +6308,8 @@ function finishRun(state, outcome, metrics) {
     carriedMaterialCounts: { ...state.currentRun.materials },
     bankedMaterialCounts: { ...banked },
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
+    steps: metrics.steps,
+    combatRounds: metrics.combatRounds,
     reachedFloor: state.currentRun.deepestFloor,
     deathFloor: outcome === "death" ? state.floor : null,
     stalemate: metrics.stalemate,
@@ -6516,6 +6586,9 @@ function finishRun(state, outcome, metrics) {
     specialRouteFloors: metrics.specialRouteFloors,
     specialBattles: metrics.specialBattles,
     deathEncounterType: metrics.deathEncounterType,
+    deathCause: state.currentRun.deathLogs?.at(-1)?.cause || null,
+    deathSnapshot: metrics.deathSnapshot,
+    killHeal: { ...metrics.killHeal },
     dragonKeysAcquired: metrics.dragonKeysAcquired,
     dragonKeyUses: metrics.dragonKeyUses,
     normalCombatTelemetry: metrics.normalCombatTelemetry,
@@ -6794,6 +6867,12 @@ export function simulateRun({
     combatDamageHpByType: {},
     damageHpBySource: createDamageHpBySource(),
     lastDamageEvent: null,
+    deathSnapshot: null,
+    killHeal: {
+      killHealActivations: 0,
+      killHealPotentialHp: 0,
+      killHealRecoveredHp: 0
+    },
     statusCureItemsAcquired: {
       initial: countInventoryItems(state.simStartingInventory),
       departureCraft: countInventoryItems(state.simDepartureCraftItems),
@@ -6886,6 +6965,7 @@ export function simulateRun({
         }
       : null
   };
+  state.simTelemetry = metrics.killHeal;
 
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
   for (let floor = startFloor; floor < targetDepth; floor++) {
@@ -7177,6 +7257,14 @@ export function simulateRun({
             }
           );
           state = combatResult.state;
+          if (combatResult.result === "victory") {
+            const hpGrowthBonus = Number(state.simPolicy.hpGrowthBonus) || 0;
+            const levelsGained = Math.max(0, state.party[0].level - levelBeforeCombat);
+            if (hpGrowthBonus !== 0 && levelsGained > 0) {
+              state.party[0].maxHp += hpGrowthBonus * levelsGained;
+              state.party[0].hp += hpGrowthBonus * levelsGained;
+            }
+          }
           metrics.combatRounds += combatResult.rounds;
           metrics.healPotionsUsed += combatResult.healPotionsUsed;
           metrics.greaterHealPotionsUsed += combatResult.greaterHealPotionsUsed;

@@ -34,7 +34,7 @@ test("全職の近接倍率は等倍", () => {
 
 test("魔術師はソロ用耐久・MPを持つ", () => {
   const mage = createSoloCharacter("Mage");
-  assert.equal(mage.maxHp, 19);
+  assert.equal(mage.maxHp, 21);
   // #267: 火力窓の延長でMP +6（6→12）
   assert.equal(mage.maxMp, 12);
 });

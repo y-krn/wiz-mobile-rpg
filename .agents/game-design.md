@@ -67,6 +67,17 @@ is a bug in the economy.
 - 再現可能な測定値・条件・候補比較は
   `scratch/results/issue-528-class-sustain-phase2.md` を正本とする。
 
+## 魔術師の死亡律速対策（Issue #534）
+
+- 魔術師の初期HPは `21`、レベルアップ時のHP成長は `4..6` とする。正本は
+  `src/state/initial_state.js` と `src/systems/leveling.js`。
+- #534では現行 Mage のB5死亡率15.8% [12.3,20.2; N=322]を通常戦闘・宝箱罠・床罠・
+  bossの死亡直前source、`killHeal`発動実績、HP比で分解した。`killHeal`増量、
+  `trapGuard`増量、戦闘短縮、非撃破回復も掃引したが、初期HP+2/成長+1がB5死亡
+  10.3%、B10到達16.2%、平均floor6.11、素材EV/時間0.1755で最も妥当な採用点だった。
+- 回復薬の供給・効果量、罠耐性、`killHeal`、他職のHP/成長は変更しない。詳細な
+  候補比較・CI・再現条件は `scratch/results/issue-534-mage-death.md` を正本とする。
+
 ## Currency: Materials Only
 
 Gold is removed. Materials are the single currency, used both by the
