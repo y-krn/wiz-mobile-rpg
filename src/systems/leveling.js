@@ -16,7 +16,8 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
     if (char.class === "Fighter") hpGain = rollInclusive(7, 9, rng);
     else if (char.class === "Thief") hpGain = rollInclusive(5, 7, rng);
     else if (char.class === "Priest") hpGain = rollInclusive(4, 6, rng);
-    else if (char.class === "Mage") hpGain = rollInclusive(3, 5, rng);
+    // #534: 初期HP+2と合わせ、レベル成長を+1して浅層の死亡を抑える。
+    else if (char.class === "Mage") hpGain = rollInclusive(4, 6, rng);
     else if (char.class === "Samurai") hpGain = rollInclusive(6, 8, rng);
     else if (char.class === "Bishop") hpGain = rollInclusive(4, 6, rng);
     else if (char.class === "Ranger") hpGain = rollInclusive(5, 7, rng);

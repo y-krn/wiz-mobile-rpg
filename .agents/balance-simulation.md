@@ -906,6 +906,35 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 - Do not carry forward a prior simulation conclusion without checking which
   mitigations that run modeled.
 
+## Issue #534 固定結論（魔術師の死亡律速）
+
+- #532基準線で魔術師のB5死亡率は14.8%、B10到達率は8.1%だった。#534のN=500
+  診断では現行 Mage のB5死亡率15.8% [12.3,20.2; N=322]、死亡runの最後の
+  被害sourceは通常戦闘43.9% [36.7,51.4; N=173]、宝箱罠24.9%、boss23.1%、
+  床罠8.1%だった。`killHeal`は6.77回/run、実回復23.25HP/runだが、死亡runの
+  34.7%は発動0回。死亡直前被害は9.16HP、最大HP比0.448、1.16hit/runであり、
+  `killHeal`増量を第一候補にしない。
+- Mageのみを対象に `killHeal`、初期HP、レベルHP成長、`trapGuard`、戦闘短縮、
+  非撃破回復を掃引した。採用点は初期HP+2・レベルHP成長+1（初期HP21、成長4..6）。
+  N=500ではB5死亡10.3%、B10到達16.2%、平均floor6.11、素材EV/時間0.1755だった。
+  killHeal増量は発動0死亡を安定して減らさず、trapGuard増量と追加回復は素材EV/時間を
+  改善せず、戦闘短縮は平均turnを示したうえで不採用とした。
+- `killHeal+10`はB10到達26.2% [22.5,30.2; N=500]で、増量の効果自体は確認できた。
+  当初仮説は「撃破前死亡には効かない」へ限定し、死亡runの発動0率34.7%と、
+  `killHeal+6/+8/+10`のB10到達14.8%/21.0%/26.2%を併記して反証範囲を固定する。
+  採用判定はB5死亡率を主endpoint、B10到達率10%を下限、素材EV/時間を経済制約とした。
+  `killHeal+10`はB5死亡13.6%、平均floor7.06、55.39turn/run、EV/時間0.1588で、
+  初期HP+2/成長+1の10.3%、6.11、43.22turn/run、0.1755より深度以外の主指標が悪い。
+- `killHeal+10`は現行Mage+4の2.5倍、Fighter+2・汎用support基準値2より大きい
+  class passive値となる。将来職追加時のtrigger値の基準を不自然に押し上げるため、
+  `killHeal=4`を維持し、撃破前から効くHP成長を採用した。両候補はMage-only overrideで
+  他3職B10 entrant差0.0pt。詳細比較は `scratch/results/issue-534-mage-death.md`。
+- 候補介入では他3職を変更せず、B10 entrant差は戦士/盗賊/僧侶すべて0.0pt。
+  採用値の#461基準線を `scratch/results/issue-461-baseline.md`、診断と候補比較を
+  `scratch/results/issue-534-mage-death.md` に記録する。両結果の率はWilson 95% CI、
+  N<30のセルは未確定として扱う。採用後のN=3,000ではMage B5死亡10.6%、B10到達
+  15.5%、平均floor6.08となり、4職合算A1も成立した。
+
 ## Output
 
 Use the repository review output format from `.agents/README.md`.

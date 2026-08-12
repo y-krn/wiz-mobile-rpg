@@ -67,6 +67,32 @@ is a bug in the economy.
 - 再現可能な測定値・条件・候補比較は
   `scratch/results/issue-528-class-sustain-phase2.md` を正本とする。
 
+## 魔術師の死亡律速対策（Issue #534）
+
+- 魔術師の初期HPは `21`、レベルアップ時のHP成長は `4..6` とする。正本は
+  `src/state/initial_state.js` と `src/systems/leveling.js`。
+- #534では現行 Mage のB5死亡率15.8% [12.3,20.2; N=322]を通常戦闘・宝箱罠・床罠・
+  bossの死亡直前source、`killHeal`発動実績、HP比で分解した。`killHeal`増量、
+  `trapGuard`増量、戦闘短縮、非撃破回復も掃引したが、初期HP+2/成長+1がB5死亡
+  10.3%、B10到達16.2%、平均floor6.11、素材EV/時間0.1755で最も妥当な採用点だった。
+- `killHeal+10` はB10到達26.2% [22.5,30.2; N=500]まで伸ばす有効な候補であり、
+  「効かない」理由で除外したわけではない。採用判定はB5死亡率を主endpoint、B10到達率
+  10%を下限、素材EV/時間を経済制約とした。`killHeal+10`はB5死亡13.6%、平均floor
+  7.06、戦闘55.39turn/run、素材EV/時間0.1588、採用点は順に10.3%、6.11、43.22、
+  0.1755だった。前者は深く進むが戦闘時間と素材効率を悪化させ、死亡律速への直接対策
+  としては後者が優位のため、`killHeal=4`を維持する。
+- 当初の「`killHeal`増量では解けない」は限定的に修正する。死亡runの34.7%は撃破前に
+  `killHeal`未発動で死ぬため、増量してもこの群は救えない。一方、残りのrunは撃破後の
+  回復を利用でき、`killHeal+6/+8/+10`でB10到達率が14.8%/21.0%/26.2%と単調に伸びる。
+  つまり増量は撃破前死亡を解消せず、撃破後の累積損耗と深度を改善する。
+- `killHeal+10`は汎用supportの基準値2、現行Fighter+2/Mage+4に対して突出した
+  class passive値（Mage現行の2.5倍）となり、将来職の同trigger設計にも新しい基準を
+  要求する。初期HP+2/成長+1は撃破triggerを増幅せず、初回戦闘から全階層で効く静的耐久
+  としてMageの脆さを残し、将来職にもHP成長軸で一貫して比較できる。両候補ともMageのみ
+  の介入で他3職B10 entrant差は0.0pt。
+- 回復薬の供給・効果量、罠耐性、`killHeal`、他職のHP/成長は変更しない。詳細な
+  候補比較・CI・再現条件は `scratch/results/issue-534-mage-death.md` を正本とする。
+
 ## Currency: Materials Only
 
 Gold is removed. Materials are the single currency, used both by the

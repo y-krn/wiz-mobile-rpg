@@ -74,7 +74,16 @@ export function applyKillAffixEffects(char, target, state, logQueue) {
 
   const killHeal = getCharAffixSum(char, "killHeal");
   if (killHeal > 0 && char.hp > 0) {
+    const hpBefore = char.hp;
     char.hp = Math.min(getCharMaxHp(char), char.hp + killHeal);
+    if (state?.simTelemetry) {
+      state.simTelemetry.killHealActivations =
+        (state.simTelemetry.killHealActivations || 0) + 1;
+      state.simTelemetry.killHealPotentialHp =
+        (state.simTelemetry.killHealPotentialHp || 0) + killHeal;
+      state.simTelemetry.killHealRecoveredHp =
+        (state.simTelemetry.killHealRecoveredHp || 0) + (char.hp - hpBefore);
+    }
   }
 
   const killMp = getCharAffixSum(char, "killMp");
