@@ -6,7 +6,7 @@ import { basename } from "node:path";
 import { isMainThread } from "node:worker_threads";
 import { resolveMeasurementProvenance } from "./measurement_provenance.js";
 import { runSimTasks } from "./sim_parallel.js";
-import { printEnvSignatureBanner } from "./measurement_env_signature.js";
+import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 import { reportMechanismFiring } from "./mechanism_wiring_report.js";
 
 // Unit tests import this shared module for wiring checks, not measurements.
@@ -9480,7 +9480,9 @@ const coreScoringProfilesByScenario = Object.fromEntries(
 randomState = SIM_SEED;
 
 const ENV_SIGNATURE = {
-  scope: "run",
+  // ファイル先頭の `// sim-scope:` 宣言から読む。ベタ書きだと宣言と食い違っても
+  // テストが通ってしまう（#560レビュー指摘）。
+  scope: readSimScopeDeclaration(import.meta.url).name,
   seed: SIM_SEED,
   runsPerCase: RUNS_PER_CASE,
   calibrationRuns: CALIBRATION_RUNS,
@@ -9739,6 +9741,9 @@ const allMeasuredResults = resultsByPolicy.flatMap(({ scenarioResults, milestone
   ...scenarioResults.flatMap(({ results }) => results),
   ...milestoneResults
 ]);
+// scenarioResults と milestoneResults を合算し双方に一律 RUNS_PER_CASE を掛けるため、
+// 同一runが両方の集計に現れる場合は延べの推定値になる（実際の発火回数と一致しない）。
+// 0/非0の判別が目的でありこの用途では実害はないが、ラベルは延べと分かる語にする。
 const sumAcrossResults = field => Math.round(
   allMeasuredResults.reduce((sum, result) => sum + (result[field] || 0) * RUNS_PER_CASE, 0)
 );
@@ -9750,7 +9755,7 @@ reportMechanismFiring({
   "消耗品-傷薬使用": sumAcrossResults("averageHealPotionsUsed"),
   "帰還の翼-使用": sumAcrossResults("averageTownPortalsUsed"),
   "鑑定-実施回数": sumAcrossResults("averageIdentificationCount")
-});
+}, { label: "配線検査（延べ推定）" });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

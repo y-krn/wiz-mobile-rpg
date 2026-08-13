@@ -4,6 +4,7 @@
 import { pathToFileURL } from "node:url";
 import { runSimTasks } from "./sim_parallel.js";
 import { reportMechanismFiring } from "./mechanism_wiring_report.js";
+import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 
 const {
   calibrateCoreScoringProfile,
@@ -248,6 +249,33 @@ const PROGRESSION_SCENARIO = {
   id: "workshop-progression",
   label: "工房進行",
   useTownPortal: true
+};
+
+// ファイル先頭の `// sim-scope:` 宣言から読む。ベタ書きだと宣言と食い違っても
+// テストが通ってしまう（#560レビュー指摘）。sim_depth_material_ev.js と同一パターン。
+const ENV_SIGNATURE = {
+  scope: readSimScopeDeclaration(import.meta.url).name,
+  seed: BASE_SEED,
+  trials: TRIALS,
+  runsPerTrial: RUNS_PER_TRIAL,
+  calibrationRuns: CALIBRATION_RUNS,
+  postWingTarget: POST_WING_TARGET,
+  progressionPolicy: PROGRESSION_POLICY,
+  craftPriority: CRAFT_PRIORITY,
+  identificationPolicy: PROGRESSION_IDENTIFICATION_POLICY,
+  identificationStartingPowder: PROGRESSION_IDENTIFICATION_STARTING_POWDER,
+  identificationCost: PROGRESSION_IDENTIFICATION_COST,
+  issue437Condition: ISSUE_437_CONDITION,
+  floorTrapPolicy: DEFAULT_FLOOR_TRAP_POLICY_ID,
+  chestTrapPolicy: DEFAULT_TRAP_POLICY_ID,
+  classes: SIM_CLASSES,
+  scenario: PROGRESSION_SCENARIO.id,
+  wingCostSweep: WING_COST_SWEEP,
+  powderCostSweep: POWDER_COST_SWEEP,
+  workshopCostSweep: WORKSHOP_COST_SWEEP,
+  rareMaterialFloorSweep: RARE_MATERIAL_FLOOR_SWEEP,
+  chestMaterialProfileSweep: CHEST_MATERIAL_PROFILE_SWEEP,
+  secondaryMaterialProfileSweep: SECONDARY_MATERIAL_PROFILE_SWEEP
 };
 
 function totalMaterials(materials) {
@@ -1840,6 +1868,7 @@ function printKeyItemProgression(result) {
 
 export async function runWorkshopProgressionSimulation() {
   console.log("工房進行シミュレーション（Issue #348: 出発クラフト）");
+  printEnvSignatureBanner(ENV_SIGNATURE, { label: "env" });
   console.log(
     `試行: 条件ごと N=${TRIALS}, ${RUNS_PER_TRIAL}ラン/試行, seed=${BASE_SEED}, ` +
     `core calibration N=${CALIBRATION_RUNS}`

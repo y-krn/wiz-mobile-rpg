@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseSimScopeDeclaration } from "./measurement_env_signature.js";
 
 // 各 sim は先頭 20 行以内に `// sim-scope: <scope>` を宣言する。宣言を必須にすることで
 // 新規 sim にも判断を強制し、レガシー生成器の直叩き（深層を無音で誤測定する）を
@@ -47,14 +48,6 @@ if (detectRateCalls.length === 0) {
   }
 }
 
-function readScope(source) {
-  const header = source.split(/\r?\n/).slice(0, 20).join("\n");
-  // 区切りは同一行の空白のみ。`\s*` は改行を跨ぐため、理由を次行から拾ってしまう。
-  const match = header.match(/^[^\S\n]*\/\/[^\S\n]*sim-scope:[^\S\n]*(\S+)[^\S\n]*(.*)$/m);
-  if (!match) return null;
-  return { name: match[1], reason: match[2].replace(/^[—–-]\s*/, "").trim() };
-}
-
 for (const name of simulationFiles) {
   const source = fs.readFileSync(path.join(scratchDir, name), "utf8");
 
@@ -76,7 +69,7 @@ for (const name of simulationFiles) {
     }
   }
 
-  const scope = readScope(source);
+  const scope = parseSimScopeDeclaration(source);
   if (!scope) {
     failures.push(
       `${name}: missing "// sim-scope: <${Object.keys(SCOPE_RULES).join("|")}>" declaration in the first 20 lines`
