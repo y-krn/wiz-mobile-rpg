@@ -219,22 +219,6 @@ the matching `.agents/game-design*.md` in the same pull request, or state in
 the PR why the canon is unaffected. Prefer referencing the source constant
 over copying its value into the document.
 
-## Mobile UI/UX Requirements
-
-Mobile browser one-handed use is a hard requirement for UI work.
-
-- Place primary actions near the lower thumb-reachable area.
-- Keep selection, confirmation, and execution flows visually and physically
-  close.
-- Make current state, selected target, and next action clear at a glance.
-- Put frequent actions lower and closer together.
-- Place back, close, delete, and clear actions to reduce accidental taps.
-- Keep tap targets at least 44px where practical.
-- Avoid horizontal scrolling and overly precise tap targets.
-- Keep list, tab, filter, and execute-button flows connected.
-- Consider rapid tapping, accidental zoom, and scroll interference in mobile
-  browsers and PWA contexts.
-
 ## UI Change Gate
 
 This gate applies to UI modules (screen rendering, menu navigation, overlays,
