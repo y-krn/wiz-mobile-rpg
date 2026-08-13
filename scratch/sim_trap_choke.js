@@ -4,6 +4,10 @@
 // isChokeCell が常に falseになるため、simulation から直接呼ばない。
 // 踏んだ罠は stairs-up から stairs-down への最短経路上だけ集計する。
 // trapsTriggered は宝箱罠と共有のため使わず、grid 上の床罠を直接分離する。
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
+
 const { generateRunFloor } = await import("../src/run_map_generator.js");
 const { createRng } = await import("../src/seed_rng.js");
 const { generateRandomAccessory, generateRandomEquipment } = await import("../src/systems/equipment_generation.js");

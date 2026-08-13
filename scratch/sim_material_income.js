@@ -2,6 +2,9 @@
 import assert from "node:assert/strict";
 import { WORKSHOP_NODES } from "../src/data/workshop.js";
 import { getDepthMaterialDropChance, getDepthMaterialExpectedQuantity } from "../src/rules/material_rules.js";
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 
 const rows = [];
 for (let floor = 1; floor <= 30; floor++) {

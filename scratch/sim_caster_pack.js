@@ -8,6 +8,9 @@ global.localStorage = {
 
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
 import { MONSTERS } from "../src/data.js";
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 
 // Helper to create a standard level party with correct item IDs
 function createParty(level = 5) {

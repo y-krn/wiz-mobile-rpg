@@ -1,6 +1,9 @@
 // sim-scope: run — generateRunFloor 実生成フロア上で遭遇率ポリシーを比較
 import { EVENT_TYPES } from "../src/data.js";
 import { generateRunFloor } from "../src/run_map_generator.js";
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 
 const SEED_COUNT = 100;
 const FLOORS = [1, 2, 3, 4, 5];

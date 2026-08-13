@@ -1,6 +1,10 @@
 // sim-scope: run
 /* global console, process */
 
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
+
 // Mock localStorage before importing game modules.
 Object.defineProperty(globalThis, "localStorage", {
   value: {

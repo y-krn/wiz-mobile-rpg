@@ -2,6 +2,9 @@
 // 前衛火力バランス検証: 現行式 vs 方針A(武器主導+STR補正) vs A+B(敵底上げ)
 // 決定論。roll[0-4]は平均2/最小0/最大4で評価。TTK=撃破必要ヒット数。
 import { MONSTERS } from "../src/data/monsters.js";
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 
 // --- 前衛キャラ（初期クラス相当値） ---
 const FRONT = {
