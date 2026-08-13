@@ -221,6 +221,11 @@ the in-run build system. Builds live inside the run.
 Merchants appear only on milestone floors (every 5th). They support the
 descent; they never solve it.
 
+After a milestone boss is defeated, an additional down stair opens at the
+boss cell. It is an optional shortcut: the original stair remains available,
+so the player can still visit the milestone merchant or return portal before
+descending.
+
 Stock, priced in materials:
 
 - Identify resources.

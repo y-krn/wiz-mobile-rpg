@@ -5358,6 +5358,50 @@ function findShortestFloorPath(grid, start, target, blockedKeys = new Set()) {
   return reversed.reverse();
 }
 
+function normalizeBossExitPolicy(policy) {
+  if (policy === "near-stairs") return { kind: "near-stairs", distance: null };
+  const shortcut = /^shortcut-(\d+)$/.exec(String(policy || ""));
+  if (shortcut) return { kind: "shortcut", distance: Number(shortcut[1]) };
+  return { kind: "baseline", distance: null };
+}
+
+function moveMilestoneBossNearStairs(generated, floor) {
+  const grid = generated.grid;
+  const stairs = findFloorCell(grid, cell => cell.type === "stairs-down");
+  let boss = findFloorCell(
+    grid,
+    cell => cell.event === EVENT_TYPES.BOSS && cell.milestoneFloor === floor
+  );
+  if (!stairs || !boss) return null;
+
+  const candidates = [];
+  grid.forEach((row, y) => row.forEach((cell, x) => {
+    if (cell === grid[boss.y][boss.x] || cell.type !== "empty" || cell.event || cell.trap) return;
+    const path = findShortestFloorPath(grid, { x, y }, stairs);
+    if (path) candidates.push({ x, y, distance: path.length - 1 });
+  }));
+  candidates.sort((left, right) =>
+    left.distance - right.distance || left.y - right.y || left.x - right.x
+  );
+  const target = candidates[0];
+  if (!target) return null;
+
+  grid[boss.y][boss.x].event = null;
+  delete grid[boss.y][boss.x].milestoneFloor;
+  grid[target.y][target.x].event = EVENT_TYPES.BOSS;
+  grid[target.y][target.x].milestoneFloor = floor;
+  boss = { x: target.x, y: target.y };
+  return { boss, distanceToStairs: target.distance };
+}
+
+function applyBossExitPolicy(generated, floor, policy) {
+  const config = normalizeBossExitPolicy(policy);
+  if (config.kind === "near-stairs" && floor % 5 === 0) {
+    config.audit = moveMilestoneBossNearStairs(generated, floor);
+  }
+  return config;
+}
+
 // 徘徊AIそのものは再現せず、実配置を基準に「回避の寄り道」と「意図的な挑戦」を比較する。
 // 戦闘は実round/reward経路へ流し、sim内の敵・報酬オーバーライドは使わない。
 function createEliteRoutePlan(generated, floor, runSeed, policy) {
@@ -5460,7 +5504,12 @@ function observeSneakStepPerception({
   );
 }
 
-function createFloorRoutePlan(generated, floor, bossPolicy = "engage") {
+function createFloorRoutePlan(
+  generated,
+  floor,
+  bossPolicy = "engage",
+  bossExitPolicy = { kind: "baseline", distance: null }
+) {
   const grid = generated.grid;
   const start = findFloorCell(grid, cell => cell.type === "stairs-up");
   const stairs = findFloorCell(grid, cell => cell.type === "stairs-down");
@@ -5511,6 +5560,7 @@ function createFloorRoutePlan(generated, floor, bossPolicy = "engage") {
   let current = start;
   let avoidedPathExists = false;
   let milestoneForced = false;
+  let bossExitDistance = null;
 
   if (bossPolicy === "avoid") {
     const blocked = new Set(specialCells.map(routeKey));
@@ -5562,20 +5612,40 @@ function createFloorRoutePlan(generated, floor, bossPolicy = "engage") {
       current = selected.cell;
       pending.splice(pending.indexOf(selected.cell), 1);
     }
-    appendPath(findShortestFloorPath(grid, current, stairs));
+    const currentEvent = specialByKey.get(routeKey(current));
+    if (bossExitPolicy.kind === "shortcut" && currentEvent?.milestone) {
+      bossExitDistance = bossExitPolicy.distance;
+    } else {
+      appendPath(findShortestFloorPath(grid, current, stairs));
+    }
   }
 
-  const routeDistance = Math.max(1, path.length - 1);
+  const routeDistance = Math.max(1, path.length - 1 + (bossExitDistance || 0));
+  const milestoneBoss = specialCells.find(cell => cell.milestone);
+  const naturalBossToStairsDistance = milestoneBoss
+    ? Math.max(
+        0,
+        (findShortestFloorPath(
+          grid,
+          milestoneBoss,
+          stairs
+        )?.length || 1) - 1
+      )
+    : null;
   return {
     path,
     routeEvents,
+    routeDistance,
+    bossToStairsDistance: bossExitDistance ?? naturalBossToStairsDistance,
+    naturalBossToStairsDistance,
     floorSteps: Math.max(
       getFloorStepCount(generated, floor),
       Math.ceil(routeDistance * EXPLORATION_FACTOR)
     ),
     specialCells,
     avoidedPathExists,
-    milestoneForced
+    milestoneForced,
+    bossExitDistance
   };
 }
 
@@ -6731,6 +6801,7 @@ function finishRun(state, outcome, metrics) {
     outcome,
     fleeCount: metrics.fleeCount,
     bossPolicy: metrics.bossPolicy,
+    bossExitPolicy: metrics.bossExitPolicy,
     specialCellsDetected: metrics.specialCellsDetected,
     specialRouteFloors: metrics.specialRouteFloors,
     specialBattles: metrics.specialBattles,
@@ -7084,6 +7155,7 @@ export function simulateRun({
     eliteAvoidDetourSteps: 0,
     eliteAvoidNoRouteFloors: 0,
     bossPolicy: scenario.bossPolicy || "engage",
+    bossExitPolicy: scenario.bossExitPolicy || "shortcut-0",
     diagnosticLevel,
     collectSpecialBattles: collectDiagnostics && diagnosticLevel === "full",
     specialCellsDetected: { boss: 0, midboss: 0 },
@@ -7135,7 +7207,17 @@ export function simulateRun({
       buildSnapshots.push(createBuildSnapshot(state, scoringProfile, "floor-start"));
     }
     const generated = getRunFloor({ runSeed, floor });
-    const routePlan = createFloorRoutePlan(generated, floor, metrics.bossPolicy);
+    const bossExitPolicy = applyBossExitPolicy(
+      generated,
+      floor,
+      scenario.bossExitPolicy || "shortcut-0"
+    );
+    const routePlan = createFloorRoutePlan(
+      generated,
+      floor,
+      metrics.bossPolicy,
+      bossExitPolicy
+    );
     const elitePlan = createEliteRoutePlan(
       generated,
       floor,
@@ -7187,8 +7269,12 @@ export function simulateRun({
     metrics.specialRouteFloors.push({
       floor,
       policy: metrics.bossPolicy,
+      bossExitPolicy: scenario.bossExitPolicy || "shortcut-0",
       floorSteps,
-      routeDistance: Math.max(0, routePlan.path.length - 1),
+      routeDistance: routePlan.routeDistance,
+      bossExitDistance: routePlan.bossExitDistance,
+      bossToStairsDistance: routePlan.bossToStairsDistance,
+      naturalBossToStairsDistance: routePlan.naturalBossToStairsDistance,
       detectedBosses: routePlan.specialCells.filter(
         cell => cell.type === EVENT_TYPES.BOSS
       ).length,

@@ -91,6 +91,9 @@ not run count — the stat cap is the levee.
 - Down stairs are an explicit choice: entering offers descend or continue;
   staying leaves the character on the stair, and leaving then re-entering asks
   again. Milestone stairs remain locked until that floor's boss is defeated.
+- Defeating a milestone boss opens an additional down stair at the boss cell.
+  This shortcut is optional; the original stair remains so the player can
+  return to the milestone merchant or portal before descending.
 - Milestones every 5 floors: a boss, then a breather with a permanent return
   portal and a merchant (identify resources, consumables, return items,
   curse removal — priced in materials).

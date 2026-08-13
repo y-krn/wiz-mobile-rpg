@@ -2,7 +2,7 @@ import { state, saveAutosave, addLog } from "../state.js";
 import { playSound } from "../audio.js";
 import { dungeonRenderer as renderer } from "../renderer.js";
 import { updateUI } from "../ui.js";
-import { resetSubmenuBackButton } from "../navigation.js";
+import { openGuardedSubmenu, resetSubmenuBackButton } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
 import { setupChestState } from "../chest.js";
 import { checkCombatStatus } from "./combat_status.js";
@@ -42,6 +42,12 @@ function applyOutcomeRewards() {
     rewardsApplied: true
   };
   savePendingOutcomeCheckpoint();
+}
+
+function openBossExitSubmenu() {
+  const cell = state.map?.[state.y]?.[state.x];
+  if (cell?.type !== "stairs-down" || cell.event) return;
+  openGuardedSubmenu("stairs_down", `B${state.floor + 1}Fへの下り階段`);
 }
 
 export function playBattleLogs(queue, index) {
@@ -139,6 +145,7 @@ export function playBattleLogs(queue, index) {
       state.transitioning = false;
       saveAutosave();
       updateUI();
+      openBossExitSubmenu();
     }, isAuto ? 300 : 3000);
     return;
   }
