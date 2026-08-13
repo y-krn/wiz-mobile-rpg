@@ -246,7 +246,7 @@ export function renderItemTargetSelect(optGrid) {
 export function renderGameOverMain(optGrid) {
   const btnBack = document.createElement("button");
   btnBack.className = "btn btn-neon btn-block";
-  btnBack.textContent = "街へ戻り、新しいランを始める";
+  btnBack.textContent = "街へ戻り、新しい潜行を始める";
   btnBack.addEventListener("click", () => {
     state.gameState = "town";
     closeSubmenu();

@@ -30,7 +30,7 @@ export function createRunStakesSummary(runMaterials = state.currentRun?.material
 
   const summary = document.createElement("section");
   summary.className = "run-stakes-summary";
-  summary.setAttribute("aria-label", "ラン中素材の持ち帰り情報");
+  summary.setAttribute("aria-label", "潜行中の素材の持ち帰り情報");
 
   const title = document.createElement("div");
   title.className = "run-stakes-title";

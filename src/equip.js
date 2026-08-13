@@ -755,7 +755,7 @@ function createDetailPanel(char) {
   } else if (preview && availability.ok && hidden) {
     const hiddenStats = document.createElement("div");
     hiddenStats.className = "equip-detail-placeholder";
-    hiddenStats.textContent = "比較不能：アフィックス・呪い不明";
+    hiddenStats.textContent = "比較不能：装備効果・呪い不明";
     content.appendChild(hiddenStats);
   }
 

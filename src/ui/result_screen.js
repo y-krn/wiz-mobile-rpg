@@ -15,7 +15,7 @@ function getReasonText(reason) {
   if (reason === "milestone_portal") return "節目ポータルで撤退";
   if (reason === "stairs") return "階段から帰還";
   if (reason === "gameover") return "迷宮で死亡";
-  return "ラン終了";
+  return "潜行終了";
 }
 
 function getRecordHtml(run) {
@@ -91,7 +91,7 @@ export function renderResultScreen() {
         <h2 class="result-section-heading" id="result-material-title">
           <span>素材収支</span><strong>${rawTotal} → ${bankedTotal}</strong>
         </h2>
-        <div class="result-banking-rate">ラン内取得 → ${isSuccess ? "撤退100%" : "死亡30%"} 持ち帰り</div>
+        <div class="result-banking-rate">潜行中に取得 → ${isSuccess ? "撤退100%" : "死亡30%"} 持ち帰り</div>
         <div class="result-material-flow">
           <div><small>取得</small><div>${formatMaterials(run.materialsBeforeBanking)}</div></div>
           <div><small>持ち帰り</small><div>${formatMaterials(run.bankedMaterials)}</div></div>
