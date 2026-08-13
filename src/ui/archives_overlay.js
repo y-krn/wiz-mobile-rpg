@@ -100,7 +100,7 @@ export function getEquipmentCodexDetailHtml(itemKey, record) {
       <p><strong>種別:</strong> ${item.type === "weapon" ? "武器" : item.type === "shield" ? "盾" : item.type === "accessory" ? "装飾" : "防具"}</p>
       <p><strong>最高レアリティ:</strong> <span class="${record.highestRarity}">${record.highestRarity.toUpperCase()}</span></p>
       <p><strong>最高補正値:</strong> +${record.bestBonus}</p>
-      <p><strong>発見済み特性 (Affixes):</strong> ${record.affixesSeen.length > 0 ? record.affixesSeen.map(a => {
+      <p><strong>発見済み装備効果:</strong> ${record.affixesSeen.length > 0 ? record.affixesSeen.map(a => {
         if (a === "atk") return "攻撃力+";
         if (a === "def") return "防御力+";
         if (a === "agi") return "素早さ+";

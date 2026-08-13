@@ -4,7 +4,7 @@ const statCosts = material => [1, 2, 3, 4, 5].map(quantity => ({ [material]: qua
 
 export const WORKSHOP_CATEGORIES = Object.freeze({
   startingGear: "初期装備候補",
-  pools: "抽選プール",
+  pools: "出現候補",
   milestoneBuild: "深層ビルド",
   abyssBuild: "深淵ビルド",
   permanentStats: "恒久ステータス",
@@ -41,7 +41,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_blood_wand",
     category: "pools",
     name: "血杖の記憶",
-    description: "血杖コアをラン内抽選へ追加する。",
+    description: "血杖コアを出現候補に追加する。",
     costs: [{ "呪布": 5, "黒角": 2 }],
     grants: { affixIds: ["CORE_BLOOD_WAND"] }
   },
@@ -49,7 +49,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_deep_spells",
     category: "pools",
     name: "深層呪文写本",
-    description: "高位スペルをラン内抽選へ追加する。",
+    description: "高位スペルを出現候補に追加する。",
     costs: [{ "魔石片": 6, "霊粉": 4 }],
     grants: { spellIds: ["MADALTO", "DIALMA"] }
   },
@@ -57,7 +57,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_opener",
     category: "pools",
     name: "先手必勝の記憶",
-    description: "先手必勝コアをラン内抽選へ追加する。",
+    description: "先手必勝コアを出現候補に追加する。",
     costs: [{ "鉄片": 7, "毒腺": 3 }],
     grants: { affixIds: ["CORE_OPENER"] }
   },
@@ -65,7 +65,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_trap_eater",
     category: "pools",
     name: "罠喰いの記憶",
-    description: "罠喰いコアをラン内抽選へ追加する。",
+    description: "罠喰いコアを出現候補に追加する。",
     costs: [{ "硬い皮": 7, "鉄片": 3 }],
     grants: { affixIds: ["CORE_TRAP_EATER"] }
   },
@@ -73,7 +73,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_giant_slayer",
     category: "pools",
     name: "巨人殺しの記憶",
-    description: "巨人殺しコアをラン内抽選へ追加する。",
+    description: "巨人殺しコアを出現候補に追加する。",
     costs: [{ "獣の牙": 7, "黒角": 3 }],
     grants: { affixIds: ["CORE_GIANT_SLAYER"] }
   },
@@ -81,7 +81,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_thorn_shield",
     category: "pools",
     name: "棘盾の記憶",
-    description: "棘盾コアをラン内抽選へ追加する。",
+    description: "棘盾コアを出現候補に追加する。",
     costs: [{ "硬い皮": 7, "呪布": 3 }],
     grants: { affixIds: ["CORE_THORN_SHIELD"] }
   },
@@ -89,7 +89,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_tomb_raider",
     category: "pools",
     name: "盗掘王の記憶",
-    description: "盗掘王コアをラン内抽選へ追加する。",
+    description: "盗掘王コアを出現候補に追加する。",
     costs: [{ "獣の牙": 7, "竜鱗": 3 }],
     grants: { affixIds: ["CORE_TOMB_RAIDER"] }
   },
@@ -97,7 +97,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_scholar_eye",
     category: "pools",
     name: "学者の眼の記憶",
-    description: "学者の眼コアをラン内抽選へ追加する。",
+    description: "学者の眼コアを出現候補に追加する。",
     costs: [{ "霊粉": 7, "骨片": 3 }],
     grants: { affixIds: ["CORE_SCHOLAR_EYE"] }
   },
@@ -105,7 +105,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_milestone_breaker",
     category: "milestoneBuild",
     name: "節目破りの記憶",
-    description: "節目ボス特化コアをラン内抽選へ追加する。",
+    description: "節目ボス特化コアを出現候補に追加する。",
     costs: [{ "鉄片": 7, "竜鱗": 3 }],
     requiresKeyItem: KEY_ITEMS.FORGE_SEAL,
     grants: { affixIds: ["CORE_MILESTONE_BREAKER"] }
@@ -114,7 +114,7 @@ const WORKSHOP_BASE_NODES = [
     id: "pool_thin_ice_pact",
     category: "abyssBuild",
     name: "薄氷の誓約",
-    description: "低HP時に攻撃と被害が増すコアを抽選へ追加する。",
+    description: "低HP時に攻撃と被害が増すコアを出現候補に追加する。",
     costs: [{ "黒角": 7, "竜鱗": 3 }],
     requiresKeyItem: KEY_ITEMS.ABYSS_SEAL,
     grants: { affixIds: ["CORE_THIN_ICE_PACT"] }
@@ -123,7 +123,7 @@ const WORKSHOP_BASE_NODES = [
     id: "convenience_identify_powder",
     category: "convenience",
     name: "鑑定粉の備蓄",
-    description: "ラン開始時の鑑定粉が1個増える。",
+    description: "潜行開始時の鑑定粉が1個増える。",
     costs: [{ "霊粉": 5, "呪布": 2 }],
     grants: { identifyPowder: 1 }
   },

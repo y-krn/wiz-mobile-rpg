@@ -612,7 +612,7 @@ export function triggerFlameTrap() {
 }
 
 export function enterDungeon() {
-  openSubmenu("solo_start", "クラスを選択：毎ラン Lv1 から開始");
+  openSubmenu("solo_start", "クラスを選択：潜行ごとにLv1から開始");
 }
 
 export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
@@ -664,7 +664,7 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   const theme = getFloorTheme(floor);
   const firstVisit = revealFloor(state, floor);
   addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);
-  addLog(`鑑定粉を${state.identifyTickets}個持ってランを開始した。`);
+  addLog(`鑑定粉を${state.identifyTickets}個持って潜行を開始した。`);
   addLog(`ランクエスト：${state.currentRun.quests.map(quest => quest.name).join(" / ")}`);
   checkFloorOmenMessage();
   playSound("move");
