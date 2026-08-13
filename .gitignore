@@ -34,7 +34,6 @@ scratch/results/*.raw.txt
 scratch/results/*.json
 scratch/results/*.jsonl
 scratch/results/*.txt
-scratch/results/*.md
 cclens.db
 
 # Codex run logs (JSONL + last message)

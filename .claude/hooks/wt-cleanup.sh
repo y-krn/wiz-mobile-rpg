@@ -137,7 +137,10 @@ while IFS=$'\t' read -r path branch head locked; do
     continue
   fi
   # Untracked files count as work; status must be completely empty.
-  [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ] && continue
+  if [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then
+    [ "$DRY_RUN" = 1 ] && entries="${entries}skip worktree $path (uncommitted or untracked work)"$'\n'
+    continue
+  fi
   if [ -n "$branch" ]; then
     if [ "$branch" = "$main_branch" ]; then
       : # scratch worktree sitting on the main branch, nothing to lose
@@ -220,6 +223,11 @@ fi
   printf '=== %s ===\n' "$(date '+%Y-%m-%d %H:%M:%S')"
   printf '%s' "$entries"
 } >>"$log"
+
+# Warning-only entries (skips, unmerged detached HEADs) make entries non-empty
+# without anything actually removed; do not notify when nothing changed.
+total=$((removed_worktrees + deleted_branches + removed_codex_dirs))
+[ "$total" -eq 0 ] && exit 0
 
 jq -n --arg msg "worktree ${removed_worktrees} 個 / ブランチ ${deleted_branches} 個 / Codex空ディレクトリ ${removed_codex_dirs} 個を削除 (復元用SHAは ${log})" \
   '{systemMessage: $msg, suppressOutput: true}'
