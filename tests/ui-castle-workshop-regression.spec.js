@@ -41,20 +41,32 @@ test('Castle to workshop transition keeps the workshop grid readable', async ({ 
   await expect(page.locator('#town-controls')).toBeVisible();
   await page.locator('#btn-town-workshop').click();
 
-  const workshopLayout = await page.locator('#submenu-options').evaluate((options) => ({
-    style: options.getAttribute('style'),
-    display: getComputedStyle(options).display,
-    workshopClass: options.classList.contains('workshop-grid'),
-    nodeCount: options.querySelectorAll('.workshop-node').length,
-    clippedNodeCount: Array.from(options.querySelectorAll('.workshop-node'))
-      .filter((node) => node.scrollHeight > node.clientHeight).length,
-  }));
+  const workshopLayout = await page.locator('#submenu-options').evaluate((options) => {
+    const findNodeDesc = (namePart) => Array.from(options.querySelectorAll('.workshop-node'))
+      .find((node) => node.querySelector('strong')?.textContent.includes(namePart))
+      ?.querySelector('span')?.textContent;
+    return {
+      style: options.getAttribute('style'),
+      display: getComputedStyle(options).display,
+      workshopClass: options.classList.contains('workshop-grid'),
+      nodeCount: options.querySelectorAll('.workshop-node').length,
+      clippedNodeCount: Array.from(options.querySelectorAll('.workshop-node'))
+        .filter((node) => node.scrollHeight > node.clientHeight).length,
+      bloodWandDesc: findNodeDesc('血杖の記憶'),
+      deepSpellsDesc: findNodeDesc('深層呪文写本'),
+    };
+  });
 
   expect(workshopLayout.style).toBeNull();
   expect(workshopLayout.display).toBe('grid');
   expect(workshopLayout.workshopClass).toBe(true);
   expect(workshopLayout.nodeCount).toBe(18);
   expect(workshopLayout.clippedNodeCount).toBe(0);
+  // #566: 抽選プールノードは affix/spell の実効果を表示する。フォールバック
+  // （node.description の定型文）に落ちた場合、これらの語は含まれず失敗する。
+  expect(workshopLayout.bloodWandDesc).toContain('MP不足時');
+  expect(workshopLayout.deepSpellsDesc).toContain('MADALTO');
+  expect(workshopLayout.deepSpellsDesc).toContain('DIALMA');
 
   await page.locator('#btn-submenu-back').click();
   await expect(page.locator('#town-controls')).toBeVisible();
