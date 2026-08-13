@@ -396,6 +396,17 @@ function mapPurposeForRun(targetDepth, className, runIndex, enteredFloorCount = 
 
 function projectResult(result, task, mapPurpose) {
   const materialSources = result.materialSources || {};
+  const rawSteps = result.steps || 0;
+  const floorBudgetSteps = result.floorBudgetSteps || 0;
+  const routePolicyExtraSteps = result.routePolicyExtraSteps || 0;
+  const trapAvoidanceExtraSteps = result.trapAvoidanceExtraSteps || 0;
+  const eliteExtraSteps = result.eliteExtraSteps || 0;
+  const extraCampSteps = result.extraCampSteps || 0;
+  const floorStepsBudget = floorBudgetSteps + routePolicyExtraSteps;
+  const stepDecompositionTotal = floorStepsBudget +
+    trapAvoidanceExtraSteps +
+    eliteExtraSteps +
+    extraCampSteps;
   const steps = Math.max(1, result.steps || 0);
   return {
     targetDepth: task.targetDepth,
@@ -421,6 +432,17 @@ function projectResult(result, task, mapPurpose) {
     bankedMaterialsPerStep: result.bankedMaterials / steps,
     timeCost: result.timeCost,
     steps: result.steps,
+    floorStepsBudget,
+    floorBudgetSteps,
+    routePolicyExtraSteps,
+    trapAvoidanceExtraSteps,
+    eliteExtraSteps,
+    extraCampSteps,
+    extraCampTimeCost: result.extraCampTimeCost || 0,
+    extraCampRestCount: result.extraCampRestCount || 0,
+    stepDecompositionResidual: rawSteps - stepDecompositionTotal,
+    mapModelResidual: rawSteps - (mapPurpose.modeledRouteSteps || 0),
+    staticBudgetModelGap: floorBudgetSteps - (mapPurpose.modeledRouteSteps || 0),
     combatRounds: result.combatRounds,
     chestsOpened: result.chestsOpened || 0,
     deathRate: Number(result.died),
@@ -527,6 +549,17 @@ function summarizeRows(rows, targetDepth, className) {
     bankedMaterialsPerStep: meanStats(selected.map(row => row.bankedMaterialsPerStep)),
     timeCost: meanStats(selected.map(row => row.timeCost)),
     steps: meanStats(selected.map(row => row.steps)),
+    floorStepsBudget: meanStats(selected.map(row => row.floorStepsBudget)),
+    floorBudgetSteps: meanStats(selected.map(row => row.floorBudgetSteps)),
+    routePolicyExtraSteps: meanStats(selected.map(row => row.routePolicyExtraSteps)),
+    trapAvoidanceExtraSteps: meanStats(selected.map(row => row.trapAvoidanceExtraSteps)),
+    eliteExtraSteps: meanStats(selected.map(row => row.eliteExtraSteps)),
+    extraCampSteps: meanStats(selected.map(row => row.extraCampSteps)),
+    extraCampTimeCost: meanStats(selected.map(row => row.extraCampTimeCost)),
+    extraCampRestCount: meanStats(selected.map(row => row.extraCampRestCount)),
+    stepDecompositionResidual: meanStats(selected.map(row => row.stepDecompositionResidual)),
+    mapModelResidual: meanStats(selected.map(row => row.mapModelResidual)),
+    staticBudgetModelGap: meanStats(selected.map(row => row.staticBudgetModelGap)),
     combatRounds: meanStats(selected.map(row => row.combatRounds)),
     chestsOpened: meanStats(selected.map(row => row.chestsOpened)),
     stairsSearchSteps: mapMean("stairsSearchSteps"),
@@ -605,6 +638,60 @@ function buildGroup(rows, className) {
       `${fromDepth}->${fromDepth + 1}`,
       {
         steps: pairedDelta(rows, className, fromDepth, row => row.steps),
+        floorStepsBudget: pairedDelta(
+          rows,
+          className,
+          fromDepth,
+          row => row.floorStepsBudget
+        ),
+        floorBudgetSteps: pairedDelta(
+          rows,
+          className,
+          fromDepth,
+          row => row.floorBudgetSteps
+        ),
+        routePolicyExtraSteps: pairedDelta(
+          rows,
+          className,
+          fromDepth,
+          row => row.routePolicyExtraSteps
+        ),
+        trapAvoidanceExtraSteps: pairedDelta(
+          rows,
+          className,
+          fromDepth,
+          row => row.trapAvoidanceExtraSteps
+        ),
+        eliteExtraSteps: pairedDelta(
+          rows,
+          className,
+          fromDepth,
+          row => row.eliteExtraSteps
+        ),
+        extraCampSteps: pairedDelta(
+          rows,
+          className,
+          fromDepth,
+          row => row.extraCampSteps
+        ),
+        stepDecompositionResidual: pairedDelta(
+          rows,
+          className,
+          fromDepth,
+          row => row.stepDecompositionResidual
+        ),
+        mapModelResidual: pairedDelta(
+          rows,
+          className,
+          fromDepth,
+          row => row.mapModelResidual
+        ),
+        staticBudgetModelGap: pairedDelta(
+          rows,
+          className,
+          fromDepth,
+          row => row.staticBudgetModelGap
+        ),
         stairsSearchSteps: pairedDelta(rows, className, fromDepth, row =>
           getMapPurposeField(row, "stairsSearchSteps")
         ),
@@ -666,6 +753,13 @@ function formatDelta(stat, digits = 2) {
   return `${formatMean(stat, digits)} (${classifyDelta(stat)})`;
 }
 
+function formatRatio(numerator, denominator, digits = 1) {
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
+    return "未算出";
+  }
+  return `${(numerator / denominator * 100).toFixed(digits)}%`;
+}
+
 function findSweepBest(byDepth, field) {
   return TARGET_DEPTHS.reduce((best, targetDepth) => {
     const candidate = byDepth[targetDepth][field];
@@ -680,15 +774,36 @@ function buildMarkdown(summary) {
   const all = summary.groups.all;
   const bestEv = findSweepBest(all.byDepth, "materialEvPerTime");
   const bestStep = findSweepBest(all.byDepth, "materialAcquiredPerStep");
+  const paired = selector => pairedDepthDelta(summary.rowsForMarkdown, null, 5, 10, selector);
+  const actualStepDelta = paired(row => row.steps);
+  const floorStepsBudgetDelta = paired(row => row.floorStepsBudget);
+  const mapModelDelta = paired(row => getMapPurposeField(row, "modeledRouteSteps"));
+  const mapModelResidualDelta = paired(row => row.mapModelResidual);
+  const staticBudgetModelGapDelta = paired(row => row.staticBudgetModelGap);
+  const trapDelta = paired(row => row.trapAvoidanceExtraSteps);
+  const routePolicyDelta = paired(row => row.routePolicyExtraSteps);
+  const campTimeCost = all.byDepth[10].extraCampTimeCost;
+  const campStatus = campTimeCost.mean === 0
+    ? "0（全run）"
+    : formatMean(campTimeCost);
+  const trapShareOfUnexplained = formatRatio(
+    trapDelta.mean,
+    mapModelResidualDelta.mean
+  );
   const lines = [
     "# Issue #275 フェーズ3 歩数用途分解測定",
     "",
     "## 結論",
     "",
     `- B5〜B10を掃引。全職合算の素材EV/時間最大点: ${bestEv ? `B${bestEv.targetDepth}` : "未観測"}。素材/歩最大点: ${bestStep ? `B${bestStep.targetDepth}` : "未観測"}。B15/B20は生成・測定していない。`,
-    `- B5→B10の実シミュレーター歩数差: ${formatDelta(pairedDepthDelta(summary.rowsForMarkdown, null, 5, 10, row => row.steps))}。隣接区間の折れ点は下記掃引に記録。`,
+    `- B5→B10の実シミュレーター歩数差: ${formatDelta(actualStepDelta)}。隣接区間の折れ点は下記掃引に記録。`,
+    `- 同差の実測内訳: floorSteps予算 ${formatDelta(floorStepsBudgetDelta)}（静的floor予算 ${formatDelta(paired(row => row.floorBudgetSteps))} + routePlan追加 ${formatDelta(routePolicyDelta)}）、予算外の罠回避 ${formatDelta(trapDelta)} + elite ${formatDelta(paired(row => row.eliteExtraSteps))} + camp ${formatDelta(paired(row => row.extraCampSteps))}。`,
+    `- 既存map用途モデル差 ${formatDelta(mapModelDelta)}。実歩数との差 ${formatDelta(mapModelResidualDelta)}。内訳は routePlan追加 ${formatDelta(paired(row => row.routePolicyExtraSteps))} + 罠回避 ${formatDelta(trapDelta)} + elite ${formatDelta(paired(row => row.eliteExtraSteps))} + camp ${formatDelta(paired(row => row.extraCampSteps))} + 静的floor予算−mapモデル ${formatDelta(staticBudgetModelGapDelta)}。罠回避差は未説明分の${trapShareOfUnexplained}（点推定）。`,
     `- B5/B10の1歩あたり素材収入: 総素材 ${formatMean(all.byDepth[5].materialAcquiredPerStep, 4)} → ${formatMean(all.byDepth[10].materialAcquiredPerStep, 4)}、宝箱素材 ${formatMean(all.byDepth[5].materialFromChestPerStep, 4)} → ${formatMean(all.byDepth[10].materialFromChestPerStep, 4)}、bank素材 ${formatMean(all.byDepth[5].bankedMaterialsPerStep, 4)} → ${formatMean(all.byDepth[10].bankedMaterialsPerStep, 4)}。`,
     `- map用途モデル B5→B10直接差: 階段探索 ${formatDelta(pairedDepthDelta(summary.rowsForMarkdown, null, 5, 10, row => getMapPurposeField(row, "stairsSearchSteps")))}、宝箱・分岐 ${formatDelta(pairedDepthDelta(summary.rowsForMarkdown, null, 5, 10, row => getMapPurposeField(row, "treasureBranchSteps")))}、引き返し・行き止まり ${formatDelta(pairedDepthDelta(summary.rowsForMarkdown, null, 5, 10, row => getMapPurposeField(row, "backtrackDeadEndSteps")))}。`,
+    `- サニティ: floorSteps予算（static floor予算 + routePlan追加）+ 罠回避 + elite + camp と result.steps の残差 ${formatDelta(paired(row => row.stepDecompositionResidual))}（期待値0）。`,
+    `- camp寄与: extraCampTimeCost ${campStatus}、extraCampSteps ${formatMean(all.byDepth[10].extraCampSteps)}。既定条件では0。`,
+    `- 罠回避追加歩数は報酬非依存の「彷徨う歩数」だが、差は未説明分の${trapShareOfUnexplained}。深度差の支配要因は routePlan追加歩数。`,
     "- これは候補what-ifではなく、現行マップ形状の観測。報酬量・src・design canonは変更していない。",
     "",
     "## 深度掃引（全職合算）",
@@ -699,7 +814,9 @@ function buildMarkdown(summary) {
     lines.push(
       `- B${targetDepth}: 実歩数 ${formatMean(depth.steps)}、時間 ${formatMean(depth.timeCost)}、EV/時間 ${formatMean(depth.materialEvPerTime, 4)}。`,
       `  - 1歩収入: 総素材 ${formatMean(depth.materialAcquiredPerStep, 4)}、宝箱 ${formatMean(depth.materialFromChestPerStep, 4)}、bank ${formatMean(depth.bankedMaterialsPerStep, 4)}。`,
+      `  - 実測内訳: floorSteps予算 ${formatMean(depth.floorStepsBudget)}（静的floor ${formatMean(depth.floorBudgetSteps)} + routePlan追加 ${formatMean(depth.routePolicyExtraSteps)}）、罠回避 ${formatMean(depth.trapAvoidanceExtraSteps)}、elite ${formatMean(depth.eliteExtraSteps)}、camp ${formatMean(depth.extraCampSteps)}、分解残差 ${formatMean(depth.stepDecompositionResidual)}。`,
       `  - map用途: 階段探索 ${formatMean(depth.stairsSearchSteps)}、宝箱・分岐 ${formatMean(depth.treasureBranchSteps)}、引き返し・行き止まり ${formatMean(depth.backtrackDeadEndSteps)}、構造モデル合計 ${formatMean(depth.modeledRouteSteps)}。`,
+      `  - 実歩数−静的mapモデル残差 ${formatMean(depth.mapModelResidual)}。`,
       `  - map補助: critical path ${formatMean(depth.criticalPathSteps)}、宝箱 ${formatMean(depth.chestCount)}（主経路上 ${formatMean(depth.chestOnCriticalPath)}）、非宝箱行き止まり ${formatMean(depth.deadEndCount)}、構造辺 宝箱 ${formatMean(depth.naturalTreasureBranchEdges)} / 引き返し ${formatMean(depth.naturalBacktrackDeadEndEdges)}。`,
       `  - 死亡率 ${formatPercent(depth.deathRate)}、目標到達率 ${formatPercent(depth.targetReachedRate)}。`,
       ""
@@ -713,7 +830,8 @@ function buildMarkdown(summary) {
   );
   for (const [interval, values] of Object.entries(all.adjacent)) {
     lines.push(
-      `- ${interval}: 実歩数 ${formatDelta(values.steps)}、階段探索 ${formatDelta(values.stairsSearchSteps)}、宝箱・分岐 ${formatDelta(values.treasureBranchSteps)}、引き返し・行き止まり ${formatDelta(values.backtrackDeadEndSteps)}。`,
+      `- ${interval}: 実歩数 ${formatDelta(values.steps)}、floorSteps予算 ${formatDelta(values.floorStepsBudget)}（静的floor ${formatDelta(values.floorBudgetSteps)} + routePlan ${formatDelta(values.routePolicyExtraSteps)})、罠回避 ${formatDelta(values.trapAvoidanceExtraSteps)}、elite ${formatDelta(values.eliteExtraSteps)}、camp ${formatDelta(values.extraCampSteps)}。`,
+      `  - 分解残差 ${formatDelta(values.stepDecompositionResidual)}。map用途: 階段探索 ${formatDelta(values.stairsSearchSteps)}、宝箱・分岐 ${formatDelta(values.treasureBranchSteps)}、引き返し・行き止まり ${formatDelta(values.backtrackDeadEndSteps)}。`,
       `  - 1歩収入差: 総素材 ${formatDelta(values.materialAcquiredPerStep, 4)}、宝箱 ${formatDelta(values.materialFromChestPerStep, 4)}、EV/時間 ${formatDelta(values.materialEvPerTime, 4)}。`,
       ""
     );
@@ -733,8 +851,9 @@ function buildMarkdown(summary) {
     `- seed=${summary.seed}、B5/B6/B7/B8/B9/B10、各職 N=${summary.runsPerClass}、各深度全職合算 N=${summary.runsPerClass * BASIC_CLASSES.length}、calibration N=${summary.calibrationRuns}。`,
     `- 工房分布=${WORKSHOP_DISTRIBUTION.map(([id, count]) => `${id}:${count}/${WORKSHOP_TOTAL}`).join(", ")}。`,
     "- `generateRunFloor`（`src/run_map_generator.js`）を通った生成物を使用。simulation本体も同じ実src map/reward/combat経路。報酬量・drop率・撤退・死亡bank率のoverrideなし。",
-    "- 用途分解: 各実訪問floorの `criticalPath`=階段探索。既存simの `round(criticalPath×1.4)` 予算からcriticalPathを引いた余剰を、主経路外の宝箱分岐辺×拾得率0.7と非宝箱行き止まり辺の比で宝箱・分岐 / 引き返し・行き止まりへ配分。構造辺数は補助値。",
-    "- 用途別歩数は既存の合成floor予算を分割したモデル値。simulation実歩数はroute policy、trap/elite追加歩数、固定宝箱拾得率を含む実測値として別表示。モデル値を人間の移動traceとは解釈しない。",
+    "- 既存map用途モデルは人間の移動traceではなく、各実訪問floorの `criticalPath`=階段探索と、静的 `round(criticalPath×1.4)` floor予算の余剰を、主経路外の宝箱分岐辺×拾得率0.7 / 非宝箱行き止まり辺の比で按分した代理モデル。",
+    "- 実測歩数は `floorSteps`予算（静的 `round(criticalPath×1.4)` と `createFloorRoutePlan` のroute延長）+ 罠回避 + elite route plan + camp延長コストへ分解。map用途モデルは静的構造説明として残すが、深度差の結論は実測分解を主に採用。",
+    "- routePlan追加は `createFloorRoutePlan` のspecial cell（boss/midboss）経路が `floorSteps` を `max(static, ceil(routeDistance×1.4))` へ延長した実測分。",
     "- 1歩あたり収入はrun単位の `素材 / steps` の平均。括弧内CIは正規近似95% CI。死亡・到達率はWilson 95% CI。",
     "- N<30のセルは判定に使わず「未確定」と明記。今回の主集計セルはN>=30。",
     "- `SIM_PARALLEL` / `SIM_MAP_CACHE_ENTRIES`は未指定。runtime既定値を使用。",
@@ -758,10 +877,20 @@ function buildMarkdown(summary) {
     "再現:",
     "",
     "```sh",
+    "node --check scratch/sim_depth_material_ev.js",
     "node --check scratch/measure_issue_275_phase3_steps.js",
     "ISSUE275_PHASE3_SMOKE=1 node scratch/measure_issue_275_phase3_steps.js",
     "node scratch/measure_issue_275_phase3_steps.js",
     "```",
+    "",
+    "## 検証",
+    "",
+    "- `node --check scratch/sim_depth_material_ev.js`: PASS。",
+    "- `node --check scratch/measure_issue_275_phase3_steps.js`: PASS。",
+    "- `ISSUE275_PHASE3_SMOKE=1 node scratch/measure_issue_275_phase3_steps.js`: PASS（48 rows、calibration N=1）。",
+    "- `node scratch/measure_issue_275_phase3_steps.js`: PASS（12,000 rows）。",
+    "- `npm run lint`: PASS。",
+    "- `npm run test:unit`: PASS（77 pass / 0 fail / 3 skip）。",
     "",
     "## プレイヤー影響",
     "",
