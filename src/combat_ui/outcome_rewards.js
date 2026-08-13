@@ -3,14 +3,19 @@ import { addInventoryItemToState } from "../state/inventory_state.js";
 import { markMapChanged } from "../state/state_core.js";
 import { recordMilestoneVictory } from "../state/run_state.js";
 
-function clearOutcomeCell(stateLike, event) {
-  if (stateLike.map?.[stateLike.y]?.[stateLike.x]?.event !== event) return;
-  stateLike.map[stateLike.y][stateLike.x].event = null;
+function clearOutcomeCell(stateLike, event, { openBossExitFloor = null } = {}) {
+  const cell = stateLike.map?.[stateLike.y]?.[stateLike.x];
+  if (cell?.event !== event) return;
+  cell.event = null;
+  if (cell.milestoneFloor === openBossExitFloor) {
+    cell.type = "stairs-down";
+    cell.message = "【節目ボス撃破】階段への短絡路が開いた。";
+  }
   markMapChanged(stateLike);
 }
 
 function applyMilestoneVictoryRewards(stateLike, floor) {
-  clearOutcomeCell(stateLike, "boss");
+  clearOutcomeCell(stateLike, "boss", { openBossExitFloor: floor });
   recordMilestoneVictory(stateLike, floor);
   return [`B${floor}F開始を恒久アンロックした。`];
 }
