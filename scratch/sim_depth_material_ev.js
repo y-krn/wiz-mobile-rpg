@@ -722,8 +722,13 @@ if (!new Set(["current", "off"]).has(CURSE_LOCK_MODE)) {
   throw new Error(`SIM_CURSE_LOCK_MODE must be current or off: ${CURSE_LOCK_MODE}`);
 }
 
-// 仮値・感度分析対象: critical pathに対する寄り道込み歩数を1.4倍と置く。
-const EXPLORATION_FACTOR = 1.4;
+// 仮値・感度分析対象: critical pathに対する寄り道込み歩数。
+const EXPLORATION_FACTOR = Number(
+  String(process.env.SIM_EXPLORATION_FACTOR ?? "1.4").trim()
+);
+if (!Number.isFinite(EXPLORATION_FACTOR) || EXPLORATION_FACTOR <= 0) {
+  throw new Error(`SIM_EXPLORATION_FACTOR must be a positive number: ${process.env.SIM_EXPLORATION_FACTOR}`);
+}
 // 仮値・感度分析対象: 探索係数1.4に対応し、配置宝箱の70%を拾えると置く。
 const CHEST_PICKUP_RATE = 0.7;
 // 仮値・感度分析対象: 戦闘1ターンを探索3歩相当と置く。

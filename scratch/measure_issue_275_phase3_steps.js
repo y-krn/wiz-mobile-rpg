@@ -41,7 +41,12 @@ const WORKSHOP_TOTAL = WORKSHOP_DISTRIBUTION.reduce(
   (sum, [, count]) => sum + count,
   0
 );
-const EXPLORATION_FACTOR = 1.4;
+const EXPLORATION_FACTOR = Number(
+  String(process.env.SIM_EXPLORATION_FACTOR ?? "1.4").trim()
+);
+if (!Number.isFinite(EXPLORATION_FACTOR) || EXPLORATION_FACTOR <= 0) {
+  throw new Error(`SIM_EXPLORATION_FACTOR must be a positive number: ${process.env.SIM_EXPLORATION_FACTOR}`);
+}
 const CHEST_PICKUP_RATE = 0.7;
 const R95 = 1.959963984540054;
 const RESULT_STEM = process.env.SIM_RESULT_BASENAME ||
@@ -414,6 +419,7 @@ function projectResult(result, task, mapPurpose) {
     runIndex: task.runIndex,
     scenarioId: task.scenarioId,
     outcome: result.outcome,
+    bossPolicy: result.bossPolicy,
     survived: Boolean(result.survived),
     died: Boolean(result.died),
     reachedFloor: result.reachedFloor,
@@ -796,6 +802,7 @@ function buildMarkdown(summary) {
     "## 結論",
     "",
     `- B5〜B10を掃引。全職合算の素材EV/時間最大点: ${bestEv ? `B${bestEv.targetDepth}` : "未観測"}。素材/歩最大点: ${bestStep ? `B${bestStep.targetDepth}` : "未観測"}。B15/B20は生成・測定していない。`,
+    `- 探索係数=${EXPLORATION_FACTOR}。`,
     `- B5→B10の実シミュレーター歩数差: ${formatDelta(actualStepDelta)}。隣接区間の折れ点は下記掃引に記録。`,
     `- 同差の実測内訳: floorSteps予算 ${formatDelta(floorStepsBudgetDelta)}（静的floor予算 ${formatDelta(paired(row => row.floorBudgetSteps))} + routePlan追加 ${formatDelta(routePolicyDelta)}）、予算外の罠回避 ${formatDelta(trapDelta)} + elite ${formatDelta(paired(row => row.eliteExtraSteps))} + camp ${formatDelta(paired(row => row.extraCampSteps))}。`,
     `- 既存map用途モデル差 ${formatDelta(mapModelDelta)}。実歩数との差 ${formatDelta(mapModelResidualDelta)}。内訳は routePlan追加 ${formatDelta(paired(row => row.routePolicyExtraSteps))} + 罠回避 ${formatDelta(trapDelta)} + elite ${formatDelta(paired(row => row.eliteExtraSteps))} + camp ${formatDelta(paired(row => row.extraCampSteps))} + 静的floor予算−mapモデル ${formatDelta(staticBudgetModelGapDelta)}。罠回避差は未説明分の${trapShareOfUnexplained}（点推定）。`,
@@ -851,9 +858,10 @@ function buildMarkdown(summary) {
     `- seed=${summary.seed}、B5/B6/B7/B8/B9/B10、各職 N=${summary.runsPerClass}、各深度全職合算 N=${summary.runsPerClass * BASIC_CLASSES.length}、calibration N=${summary.calibrationRuns}。`,
     `- 工房分布=${WORKSHOP_DISTRIBUTION.map(([id, count]) => `${id}:${count}/${WORKSHOP_TOTAL}`).join(", ")}。`,
     "- `generateRunFloor`（`src/run_map_generator.js`）を通った生成物を使用。simulation本体も同じ実src map/reward/combat経路。報酬量・drop率・撤退・死亡bank率のoverrideなし。",
-    "- 既存map用途モデルは人間の移動traceではなく、各実訪問floorの `criticalPath`=階段探索と、静的 `round(criticalPath×1.4)` floor予算の余剰を、主経路外の宝箱分岐辺×拾得率0.7 / 非宝箱行き止まり辺の比で按分した代理モデル。",
-    "- 実測歩数は `floorSteps`予算（静的 `round(criticalPath×1.4)` と `createFloorRoutePlan` のroute延長）+ 罠回避 + elite route plan + camp延長コストへ分解。map用途モデルは静的構造説明として残すが、深度差の結論は実測分解を主に採用。",
-    "- routePlan追加は `createFloorRoutePlan` のspecial cell（boss/midboss）経路が `floorSteps` を `max(static, ceil(routeDistance×1.4))` へ延長した実測分。",
+    `- 既存map用途モデルは人間の移動traceではなく、各実訪問floorの \`criticalPath\`=階段探索と、静的 \`round(criticalPath×${EXPLORATION_FACTOR})\` floor予算の余剰を、主経路外の宝箱分岐辺×拾得率0.7 / 非宝箱行き止まり辺の比で按分した代理モデル。`,
+    `- 実測歩数は \`floorSteps\`予算（静的 \`round(criticalPath×${EXPLORATION_FACTOR})\` と \`createFloorRoutePlan\` のroute延長）+ 罠回避 + elite route plan + camp延長コストへ分解。map用途モデルは静的構造説明として残すが、深度差の結論は実測分解を主に採用。`,
+    `- routePlan追加は \`createFloorRoutePlan\` のspecial cell（boss/midboss）経路が \`floorSteps\` を \`max(static, ceil(routeDistance×${EXPLORATION_FACTOR}))\` へ延長した実測分。`,
+    `- \`SIM_EXPLORATION_FACTOR=${EXPLORATION_FACTOR}\`。`,
     "- 1歩あたり収入はrun単位の `素材 / steps` の平均。括弧内CIは正規近似95% CI。死亡・到達率はWilson 95% CI。",
     "- N<30のセルは判定に使わず「未確定」と明記。今回の主集計セルはN>=30。",
     "- `SIM_PARALLEL` / `SIM_MAP_CACHE_ENTRIES`は未指定。runtime既定値を使用。",
@@ -968,7 +976,8 @@ async function main() {
     REWARD_OVERRIDE: "none",
     SIM_PARALLEL: "<omitted; runtime default>",
     SIM_MAP_CACHE_ENTRIES: "<omitted; runtime default 1024>",
-    SIM_DIAGNOSTICS: "off"
+    SIM_DIAGNOSTICS: "off",
+    SIM_EXPLORATION_FACTOR: String(EXPLORATION_FACTOR)
   };
   const envCanonical = Object.entries(environment)
     .sort(([left], [right]) => left.localeCompare(right))
@@ -1001,13 +1010,14 @@ async function main() {
     targetDepths: TARGET_DEPTHS,
     classes: BASIC_CLASSES,
     workshopDistribution: WORKSHOP_DISTRIBUTION,
+    explorationFactor: EXPLORATION_FACTOR,
     environment,
     envHash,
     rawSha256,
     rows: rows.length,
     measurement,
     groups,
-    reproductionCommand: "node scratch/measure_issue_275_phase3_steps.js"
+    reproductionCommand: `SIM_EXPLORATION_FACTOR=${EXPLORATION_FACTOR} node scratch/measure_issue_275_phase3_steps.js`
   };
   const summaryPreHash = `${JSON.stringify(summaryWithoutHash, null, 2)}\n`;
   const summarySha256 = sha256(summaryPreHash);
