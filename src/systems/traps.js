@@ -14,6 +14,7 @@ import {
   resolveTrapAction
 } from "../rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "../rules/trap_effect_rules.js";
+import { ensureRunFloor } from "../state/run_floor_state.js";
 
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
 
@@ -128,7 +129,7 @@ export function detectAdjacentTraps() {
 
 export function triggerPitfall(trap, isPartialSuccess = false) {
   const nextFloor = state.floor + 1;
-  const nextMap = state.maps[nextFloor - 1];
+  const nextMap = ensureRunFloor(state, nextFloor);
   
   const candidates = [];
   for (let y = 1; y < MAP_HEIGHT - 1; y++) {
