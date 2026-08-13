@@ -33,7 +33,7 @@ for (const name of balanceFiles) {
   for (const key of staleFallbacks) {
     const pattern = new RegExp(
       `(?:process\\.env|SIM_ENV|RESOLVED_SIM_ENV)\\.${key}` +
-      `\\s*(?:\\|\\||\\|\\|=)\\s*[\"'](?:2|1)[\"']`
+      `\\s*(?:\\|\\||\\|\\|=|\\?\\?|\\?\\?=)\\s*[\"']?\\d+[\"']?`
     );
     if (pattern.test(source)) {
       failures.push(`${name}: ${key} has a hardcoded fallback; use the source balance`);
