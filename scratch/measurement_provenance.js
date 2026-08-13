@@ -1,4 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import { basename } from "node:path";
+import { isMainThread } from "node:worker_threads";
 
 function gitOutput(args, cwd) {
   try {
@@ -50,4 +52,15 @@ export function resolveMeasurementProvenance({
     allowStaleTree,
     staleTreeAllowed
   });
+}
+
+// 独立系runner（sim_depth_material_ev.jsをimportしない標準単独実行runner）向けの
+// 出自確認エントリポイント。unit test配下（SIM_SKIP_PROVENANCE=1、または
+// process.argv[1]がtest_*.js）とworker threadの再importでは実行しない。
+export function requireRunnerProvenance(options) {
+  const isTestProcess = process.env.SIM_SKIP_PROVENANCE === "1" ||
+    basename(process.argv[1] || "").startsWith("test_");
+  return isMainThread && !isTestProcess
+    ? resolveMeasurementProvenance(options)
+    : null;
 }

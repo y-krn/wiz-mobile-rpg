@@ -1,5 +1,8 @@
 // sim-scope: map — generateRandomMap が生成する迷路構造そのものを測るため、ラン経路を通さない
 import { generateRandomMap } from "../src/map_generator.js";
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 
 const SEED_COUNT = 100;
 const FLOOR_COUNT = 5;

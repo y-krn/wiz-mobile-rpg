@@ -10,6 +10,9 @@ import { runCombatRoundCalculation } from "../src/combat_logic.js";
 import { MONSTERS, SPELLS } from "../src/data.js";
 import { getSpellStatBonus } from "../src/rules/spell_rules.js";
 import { getCharInt, getCharPie, getCharMaxHp } from "../src/rules/character_stats.js";
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 
 // ---- Prototype spells (mirror existing effect conventions) ----
 SPELLS.ZILWAN = {

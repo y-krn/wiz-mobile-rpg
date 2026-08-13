@@ -8,6 +8,9 @@ global.localStorage = {
 
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
 import { ITEMS, MONSTERS } from "../src/data.js";
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 
 const RUNS_PER_TARGET = 1000;
 const PARTY_FIXTURES = {

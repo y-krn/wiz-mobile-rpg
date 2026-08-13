@@ -4,6 +4,9 @@ import { getBiomeForFloor } from "../src/data/biomes.js";
 import { getEncounterSizeWeightsForFloor } from "../src/data/encounters.js";
 import { getDepthScaling, scaleEnemyForDepth } from "../src/rules/depth_scaling.js";
 import { getDepthMaterialDropChance, getDepthMaterialExpectedQuantity } from "../src/rules/material_rules.js";
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 
 const LEGACY_POOLS = Object.freeze({
   dragon_forge: ["ドラゴンワーム", "ワイバーン", "レッドドラゴン", "反逆の鎧", "黒曜の魔導士", "竜血の再生者", "結界の守護者", "双頭の番犬", "盾持ちデーモン", "灰燼の術士"],

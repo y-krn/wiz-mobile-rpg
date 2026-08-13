@@ -3,6 +3,7 @@
 
 import { pathToFileURL } from "node:url";
 import { runSimTasks } from "./sim_parallel.js";
+import { reportMechanismFiring } from "./mechanism_wiring_report.js";
 
 const {
   calibrateCoreScoringProfile,
@@ -1946,6 +1947,25 @@ export async function runWorkshopProgressionSimulation() {
   printSweepTable(finiteResults, "secondary-material-profile", "戦闘副素材配分 sweep", "profile");
   finiteResults.forEach(printWorkshopStateDistribution);
   finiteResults.forEach(printMaterialEconomy);
+
+  const workshopNodePurchases = finiteResults.reduce(
+    (sum, result) => sum + Object.values(result.totals.workshopNodeAcquisitionCounts || {})
+      .reduce((nodeSum, count) => nodeSum + count, 0),
+    0
+  );
+  const merchantWingPurchases = finiteResults.reduce(
+    (sum, result) => sum + (result.totals.merchantPurchases || 0),
+    0
+  );
+  const departureCraftPurchases = finiteResults.reduce(
+    (sum, result) => sum + (result.totals.craftPurchases || 0),
+    0
+  );
+  reportMechanismFiring({
+    "工房-ノード購入": workshopNodePurchases,
+    "工房-節目商人翼購入": merchantWingPurchases,
+    "工房-出発クラフト購入": departureCraftPurchases
+  });
 
   console.log("\n【素材コスト集計】");
   finiteResults

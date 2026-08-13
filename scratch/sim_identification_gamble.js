@@ -2,6 +2,9 @@
 import assert from "node:assert/strict";
 import { IDENTIFICATION_BALANCE, getIdentificationGambleProfile } from "../src/rules/identification_rules.js";
 import { generateRandomEquipment } from "../src/systems/equipment_generation.js";
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 
 function lcg(seed) {
   let value = seed >>> 0;

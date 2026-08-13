@@ -5,6 +5,9 @@ import { getBiomeForFloor } from "../src/data/biomes.js";
 import { getEncounterSizeWeightsForFloor } from "../src/data/encounters.js";
 import { ITEMS, MONSTERS } from "../src/data.js";
 import { MILESTONE_MERCHANT_STOCK } from "../src/data/milestone_merchant.js";
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
 
 const RUNS = 2000;
 const FIGHTS_PER_FLOOR = 5;

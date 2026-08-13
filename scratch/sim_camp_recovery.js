@@ -1,6 +1,10 @@
 // sim-scope: formula
 // sim_floor_density.js の100 seed平均クリティカル経路戦闘数を使う資源曲線概算。
 // HPプールを100、1戦平均被害を最大HPの9%とし、B2/B4通過後に失った分の40%を回復する。
+import { requireRunnerProvenance } from "./measurement_provenance.js";
+
+export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();
+
 const EXPECTED_COMBATS = [2.47, 2.17, 2.80, 2.25, 2.40];
 const DAMAGE_PER_COMBAT = 9;
 

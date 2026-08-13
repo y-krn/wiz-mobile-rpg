@@ -6,6 +6,8 @@ import { basename } from "node:path";
 import { isMainThread } from "node:worker_threads";
 import { resolveMeasurementProvenance } from "./measurement_provenance.js";
 import { runSimTasks } from "./sim_parallel.js";
+import { printEnvSignatureBanner } from "./measurement_env_signature.js";
+import { reportMechanismFiring } from "./mechanism_wiring_report.js";
 
 // Unit tests import this shared module for wiring checks, not measurements.
 const IS_TEST_PROCESS = process.env.SIM_SKIP_PROVENANCE === "1" ||
@@ -9477,6 +9479,48 @@ const coreScoringProfilesByScenario = Object.fromEntries(
 // calibrationが本計測の乱数列をずらさないよう、baselineと同じseed先頭へ戻す。
 randomState = SIM_SEED;
 
+const ENV_SIGNATURE = {
+  scope: "run",
+  seed: SIM_SEED,
+  runsPerCase: RUNS_PER_CASE,
+  calibrationRuns: CALIBRATION_RUNS,
+  classes: SIM_CLASSES,
+  elitePolicy: DEFAULT_ELITE_POLICY,
+  floorTrapPolicy: DEFAULT_FLOOR_TRAP_POLICY_ID,
+  chestTrapPolicy: DEFAULT_TRAP_POLICY_ID,
+  trapPolicyEnv: SIM_ENV.TRAP_POLICY || null,
+  trapAvoidancePolicy: DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
+  trapBonusOverride: TRAP_BONUS_OVERRIDE_PERCENT,
+  trapSenseOverride: TRAP_SENSE_OVERRIDE_PERCENT,
+  healPotionMerchantPolicy: DEFAULT_HEAL_POTION_MERCHANT_POLICY,
+  identificationPolicies: ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id),
+  identificationPolicyEnv: SIM_ENV.IDENTIFICATION_POLICY || "powder",
+  coreEncounterCeilingMode: CORE_ENCOUNTER_CEILING_MODE || null,
+  coreWorkshopGateMode: CORE_WORKSHOP_GATE_MODE || null,
+  identificationStartingPowder: IDENTIFICATION_STARTING_POWDER_INPUT,
+  identificationCost: IDENTIFICATION_COST_INPUT,
+  explorationFactor: EXPLORATION_FACTOR,
+  chestPickupRate: CHEST_PICKUP_RATE,
+  combatTurnWeight: COMBAT_TURN_WEIGHT,
+  initialHealPotions: INITIAL_HEAL_POTIONS,
+  initialAntidotes: INITIAL_ANTIDOTES,
+  departureCraftIds: ACTIVE_DEPARTURE_CRAFT_IDS,
+  healPotionThreshold: HEAL_POTION_THRESHOLD_INPUT,
+  fleePolicy: DEFAULT_FLEE_POLICY,
+  fleeHpThreshold: DEFAULT_FLEE_HP_THRESHOLD,
+  statusCurePolicy: DEFAULT_STATUS_CURE_POLICY,
+  statusCureHpThreshold: DEFAULT_STATUS_CURE_HP_THRESHOLD,
+  bloodWandHpPaymentMinRate: BLOOD_WAND_HP_PAYMENT_MIN_RATE,
+  portalMinFloor: PORTAL_MIN_FLOOR,
+  portalHpThreshold: PORTAL_HP_THRESHOLD,
+  portalMaxHealPotions: PORTAL_MAX_HEAL_POTIONS,
+  scenarios: ACTIVE_SCENARIOS.map(scenario => scenario.id)
+};
+printEnvSignatureBanner(ENV_SIGNATURE, { label: "env" });
+if (MEASUREMENT_PROVENANCE) {
+  console.log(`source commit: ${MEASUREMENT_PROVENANCE.sourceCommit}`);
+}
+
 console.log("深度別 リスク調整後素材EVシミュレーション");
 console.log(`試行数: 各ケース N=${RUNS_PER_CASE}（基本${SIM_CLASSES.length}職をround-robin集約）`);
 console.log(`乱数seed: ${SIM_SEED}`);
@@ -9690,6 +9734,23 @@ if (stalemateCases.length > 0) {
     stalemateCases.map(result => `${result.label}=${formatPercent(result.stalemateRate)}`).join(", ")
   );
 }
+
+const allMeasuredResults = resultsByPolicy.flatMap(({ scenarioResults, milestoneResults }) => [
+  ...scenarioResults.flatMap(({ results }) => results),
+  ...milestoneResults
+]);
+const sumAcrossResults = field => Math.round(
+  allMeasuredResults.reduce((sum, result) => sum + (result[field] || 0) * RUNS_PER_CASE, 0)
+);
+reportMechanismFiring({
+  "罠-遭遇": sumAcrossResults("averageTrapEncounters"),
+  "罠-解除": sumAcrossResults("averageTrapDisarms"),
+  "罠-発動(被弾)": sumAcrossResults("averageTrapActivations"),
+  "罠-被害HP": sumAcrossResults("averageTrapDamageHp"),
+  "消耗品-傷薬使用": sumAcrossResults("averageHealPotionsUsed"),
+  "帰還の翼-使用": sumAcrossResults("averageTownPortalsUsed"),
+  "鑑定-実施回数": sumAcrossResults("averageIdentificationCount")
+});
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
