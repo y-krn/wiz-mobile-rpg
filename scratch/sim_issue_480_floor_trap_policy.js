@@ -2,6 +2,7 @@
 /* global console, process */
 
 import { mkdirSync, writeFileSync } from "node:fs";
+import { IDENTIFICATION_BALANCE } from "../src/rules/identification_rules.js";
 
 if (process.env.SIM_PARALLEL) {
   throw new Error("SIM_PARALLEL must be omitted for Issue #480 audit");
@@ -22,8 +23,8 @@ process.env.SIM_CALIBRATION_RUNS ||= "100";
 process.env.SIM_SCENARIOS ||= "workshop-complete";
 process.env.DEPARTURE_CRAFT_IDS ||= "TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION";
 process.env.IDENTIFICATION_POLICY ||= "powder";
-process.env.IDENTIFICATION_STARTING_POWDER ||= "2";
-process.env.IDENTIFICATION_COST_OVERRIDE ||= "1";
+process.env.IDENTIFICATION_STARTING_POWDER ||= String(IDENTIFICATION_BALANCE.startingPowder);
+process.env.IDENTIFICATION_COST_OVERRIDE ||= String(IDENTIFICATION_BALANCE.identifyCost);
 process.env.FLEE_POLICY ||= "threshold";
 process.env.FLEE_HP_THRESHOLD ||= "0.35";
 process.env.TRAP_AVOIDANCE_POLICY ||= "ev";
