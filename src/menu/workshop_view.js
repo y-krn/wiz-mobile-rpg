@@ -1,6 +1,8 @@
 import { state, saveAutosave, addLog } from "../state.js";
 import { WORKSHOP_CATEGORIES, WORKSHOP_NODES } from "../data/workshop.js";
 import { MATERIAL_TYPES } from "../data/materials.js";
+import { getAffixDefinition } from "../data/affixes.js";
+import { SPELLS } from "../data/spells.js";
 import {
   getWorkshopNodeCost,
   getWorkshopRank,
@@ -10,6 +12,26 @@ import {
 
 function formatCost(cost) {
   return Object.entries(cost || {}).map(([name, quantity]) => `${name}×${quantity}`).join(" / ");
+}
+
+// pools/milestoneBuild/abyssBuild ノードは「抽選へ追加する」だけでは解放判断できない
+// （#566）。affixIds/spellIds は参照先の実効果を引いて表示する。startingGear/stat/
+// identifyPowder は node.description が既に効果そのものを述べているため素通しでよい。
+function describeWorkshopNode(node) {
+  const { affixIds, spellIds } = node.grants || {};
+  if (affixIds) {
+    return affixIds.map(id => {
+      const def = getAffixDefinition(id);
+      return def ? `${def.jpName}: ${def.desc}` : node.description;
+    }).join(" / ");
+  }
+  if (spellIds) {
+    return spellIds.map(id => {
+      const spell = SPELLS[id];
+      return spell ? `${spell.name}: ${spell.desc}` : node.description;
+    }).join(" / ");
+  }
+  return node.description;
 }
 
 function renderBalance(container) {
@@ -42,7 +64,7 @@ export function renderWorkshop(optGrid) {
       const cost = getWorkshopNodeCost(node, rank);
       const button = document.createElement("button");
       button.className = "btn btn-neon btn-block workshop-node";
-      button.innerHTML = `<strong>${node.name} ${maxRank > 1 ? `${rank}/${maxRank}` : ""}</strong><span>${node.description}</span><small>${cost ? formatCost(cost) : "習得済み"}</small>`;
+      button.innerHTML = `<strong>${node.name} ${maxRank > 1 ? `${rank}/${maxRank}` : ""}</strong><span>${describeWorkshopNode(node)}</span><small>${cost ? formatCost(cost) : "習得済み"}</small>`;
       button.disabled = rank >= maxRank;
       button.addEventListener("click", () => {
         const result = purchaseWorkshopNode(
