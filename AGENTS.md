@@ -3,12 +3,6 @@
 AGENTS.md is the canonical instruction file for this repository. Tool-specific
 files may point here, but should not duplicate these rules.
 
-## Response Style
-
-- Start with the conclusion.
-- Do not use greetings, preambles, or emoji.
-- Keep implementation notes, decisions, and verification results concise.
-
 ## Context and Search Order
 
 - Before broad repository searches, read `.agents/file-map.md`.
