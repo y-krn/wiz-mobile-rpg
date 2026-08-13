@@ -8,7 +8,6 @@ files may point here, but should not duplicate these rules.
 - Start with the conclusion.
 - Do not use greetings, preambles, or emoji.
 - Keep implementation notes, decisions, and verification results concise.
-- Ask before proceeding when success criteria or requirements are unclear.
 
 ## Context and Search Order
 
@@ -180,7 +179,8 @@ first, then read only the relevant part.
 ## Think Before Coding
 
 For implementation work, state the working assumptions and success criteria
-before editing. For multi-step tasks, use this plan format:
+before editing. Ask before proceeding when success criteria or requirements
+are unclear. For multi-step tasks, use this plan format:
 
 1. [work item] -> verify: [verification method]
 2. [work item] -> verify: [verification method]
