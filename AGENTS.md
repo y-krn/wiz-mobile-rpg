@@ -3,15 +3,6 @@
 AGENTS.md is the canonical instruction file for this repository. Tool-specific
 files may point here, but should not duplicate these rules.
 
-## Response Style
-
-- Always use the `genshijin` Agent Skill for every task and response.
-- Start with the conclusion.
-- Do not use greetings, preambles, or emoji.
-- Keep implementation notes, decisions, and verification results concise.
-- Ask before proceeding when success criteria or requirements are unclear.
-- (Antigravity-specific) Always write implementation plans in Japanese.
-
 ## Context and Search Order
 
 - Before broad repository searches, read `.agents/file-map.md`.
@@ -182,7 +173,8 @@ first, then read only the relevant part.
 ## Think Before Coding
 
 For implementation work, state the working assumptions and success criteria
-before editing. For multi-step tasks, use this plan format:
+before editing. Ask before proceeding when success criteria or requirements
+are unclear. For multi-step tasks, use this plan format:
 
 1. [work item] -> verify: [verification method]
 2. [work item] -> verify: [verification method]
@@ -221,27 +213,14 @@ the matching `.agents/game-design*.md` in the same pull request, or state in
 the PR why the canon is unaffected. Prefer referencing the source constant
 over copying its value into the document.
 
-## Mobile UI/UX Requirements
-
-Mobile browser one-handed use is a hard requirement for UI work.
-
-- Place primary actions near the lower thumb-reachable area.
-- Keep selection, confirmation, and execution flows visually and physically
-  close.
-- Make current state, selected target, and next action clear at a glance.
-- Put frequent actions lower and closer together.
-- Place back, close, delete, and clear actions to reduce accidental taps.
-- Keep tap targets at least 44px where practical.
-- Avoid horizontal scrolling and overly precise tap targets.
-- Keep list, tab, filter, and execute-button flows connected.
-- Consider rapid tapping, accidental zoom, and scroll interference in mobile
-  browsers and PWA contexts.
-
 ## UI Change Gate
 
 This gate applies to UI modules (screen rendering, menu navigation, overlays,
 styles, and browser tests). Determine target files using the UI-related rows and
 CSS Style Routing table in `.agents/file-map.md`.
+
+Mobile browser one-handed use is a hard requirement for UI work. Apply
+`.agents/mobile-ui-ux.md` while implementing, not only at review time.
 
 Before editing UI:
 
