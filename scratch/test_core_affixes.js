@@ -39,6 +39,7 @@ import {
 import {
   applyKillAffixEffects,
   getMeleeModifiers,
+  reduceIncomingDamage,
   tryApplyHitFlinch,
   tryThornCounter
 } from "../src/combat_logic/damage.js";
@@ -117,12 +118,12 @@ function makeChar(coreId, baseId = "SHORT_SWORD") {
   };
 }
 
-test("廃止済みの殿の構えを除くコア15種がenabled", () => {
+test("廃止済みの殿の構えを除くコア17種がenabled", () => {
   const enabled = CORE_AFFIXES.filter(core => core.enabled).map(core => core.id);
   assert.deepEqual(enabled, [
     "CORE_LAST_STAND", "CORE_OPENER", "CORE_BLOOD_WAND", "CORE_PURIFY_RING",
-    "CORE_TRAP_EATER", "CORE_CURSE_KEEPER", "CORE_GIANT_SLAYER",
-    "CORE_THORN_SHIELD", "CORE_EXECUTIONER", "CORE_SNEAK_STEP", "CORE_TOMB_RAIDER",
+    "CORE_TRAP_EATER", "CORE_CURSE_KEEPER", "CORE_GIANT_SLAYER", "CORE_MILESTONE_BREAKER",
+    "CORE_THORN_SHIELD", "CORE_EXECUTIONER", "CORE_THIN_ICE_PACT", "CORE_SNEAK_STEP", "CORE_TOMB_RAIDER",
     "CORE_KEEN_EYE", "CORE_CAMP_MASTER", "CORE_BOUNTY_HUNTER", "CORE_SCHOLAR_EYE"
   ]);
 });
@@ -130,7 +131,8 @@ test("廃止済みの殿の構えを除くコア15種がenabled", () => {
 test("工房追加coreはpoolノード解放前後で抽選が切り替わる", () => {
   const addedCoreIds = [
     "CORE_OPENER", "CORE_TRAP_EATER", "CORE_GIANT_SLAYER",
-    "CORE_THORN_SHIELD", "CORE_TOMB_RAIDER", "CORE_SCHOLAR_EYE"
+    "CORE_THORN_SHIELD", "CORE_TOMB_RAIDER", "CORE_SCHOLAR_EYE",
+    "CORE_MILESTONE_BREAKER", "CORE_THIN_ICE_PACT"
   ];
   const collectGeneratedCoreIds = (unlockedAffixIds, count) => {
     const party = [makeChar(null)];
@@ -583,6 +585,12 @@ test("巨人殺し: maxHPが高い敵だけ1.3倍", () => {
   assert.equal(getDamageAffixResult(char, { maxHp: 100 }, 100).damage, 100);
 });
 
+test("節目破り: ボスだけ1.25倍", () => {
+  const char = makeChar("CORE_MILESTONE_BREAKER");
+  assert.equal(getDamageAffixResult(char, { maxHp: 100, isBoss: true }, 100).damage, 125);
+  assert.equal(getDamageAffixResult(char, { maxHp: 100, isBoss: false }, 100).damage, 100);
+});
+
 test("殿の構え: 既存装備でも無害・無効果", () => {
   const char = makeChar("CORE_REARGUARD");
   assert.equal(getMeleeModifiers(char, 2), 1);
@@ -604,6 +612,18 @@ test("執行人: 状態異常中だけ2倍", () => {
   const char = makeChar("CORE_EXECUTIONER");
   assert.equal(getDamageAffixResult(char, { maxHp: 50, status: "poisoned" }, 100).damage, 200);
   assert.equal(getDamageAffixResult(char, { maxHp: 50 }, 100).damage, 100);
+});
+
+test("薄氷の誓約: 低HP時に攻撃・被害が増える", () => {
+  const char = makeChar(null);
+  char.hp = 50;
+  char.equipment.armor = coreItem("CORE_THIN_ICE_PACT", "LEATHER_ARMOR");
+  assert.equal(getDamageAffixResult(char, { maxHp: 100 }, 100).damage, 135);
+  assert.equal(reduceIncomingDamage(char, 10), 12);
+
+  char.hp = 51;
+  assert.equal(getDamageAffixResult(char, { maxHp: 100 }, 100).damage, 100);
+  assert.equal(reduceIncomingDamage(char, 10), 10);
 });
 
 test("戦闘サポート: 条件倍率・状態耐性・キル回復・威圧", () => {

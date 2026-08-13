@@ -100,6 +100,7 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.cleared = false;
   state.metaMaterials = {};
   state.workshop = { ranks: {} };
+  state.keyItems = [];
   state.logs = ["クラスを選び、ひとりで迷宮へ潜ろう。"];
   markMapChanged();
   saveAutosave();

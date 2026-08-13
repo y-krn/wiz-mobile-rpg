@@ -207,6 +207,14 @@ this expansion. The node data and material costs are source-of-truth in
 `src/data/workshop.js`; advanced classes remain deferred. Core measurement gaps
 are tracked separately in issue #416.
 
+Issue #413 Phase 1 adds two non-consumable meta key items. The first B5 and B10
+milestone boss victories grant `FORGE_SEAL` and `ABYSS_SEAL`, respectively. Each
+key reveals one new workshop branch and remains outside run inventory. The gated
+node still costs 10 existing materials: `鉄片7 + 竜鱗3` for the B5 branch and
+`黒角7 + 竜鱗3` for the B10 branch. The branches add one sidegrade core each;
+they do not gate existing nodes, increase material income, raise stat caps, or
+add a retreat guarantee. This phase intentionally does not change `SAVE_VERSION`.
+
 Departure craft is the separate run-start path: choose quantities per recipe,
 pay their material costs for that run, and carry the crafted consumables into
 the run. There is no recipe-count or item-count cap; the available material

@@ -1911,7 +1911,15 @@ function resolveTrapPolicies(scenario = {}) {
   };
 }
 
-function createSimulationState(className, startFloor, runSeed, scenario, workshop) {
+function createSimulationState(
+  className,
+  startFloor,
+  runSeed,
+  scenario,
+  workshop,
+  keyItems = [],
+  unlockedMilestones = []
+) {
   const currentRun = createDefaultCurrentRun();
   currentRun.runSeed = runSeed;
   currentRun.startFloor = startFloor;
@@ -2097,6 +2105,8 @@ function createSimulationState(className, startFloor, runSeed, scenario, worksho
   return {
     party: [character],
     workshopEffects,
+    keyItems: [...keyItems],
+    unlockedMilestones: [...unlockedMilestones],
     combatState: null,
     inventory: [
       ...startingInventory,
@@ -6524,6 +6534,8 @@ function finishRun(state, outcome, metrics) {
     finalLevel: state.party[0].level,
     expGained: state.currentRun.expGained,
     workshopEffects: state.workshopEffects,
+    keyItems: [...state.keyItems],
+    unlockedMilestones: [...state.unlockedMilestones],
     elitePolicy: metrics.elitePolicy,
     eliteEncounters: metrics.eliteEncounters,
     eliteVictories: metrics.eliteVictories,
@@ -6853,6 +6865,8 @@ export function simulateRun({
   scoringProfile,
   scenario,
   workshop = { ranks: {} },
+  keyItems = [],
+  unlockedMilestones = [],
   supplyOverride = null,
   collectDiagnostics = false,
   collectBuildSnapshots = false,
@@ -6860,7 +6874,15 @@ export function simulateRun({
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   const diagnosticLevel = scenario?.simDiagnosticLevel || "full";
-  let state = createSimulationState(className, startFloor, runSeed, scenario, workshop);
+  let state = createSimulationState(
+    className,
+    startFloor,
+    runSeed,
+    scenario,
+    workshop,
+    keyItems,
+    unlockedMilestones
+  );
   if (CORE_WORKSHOP_GATE_MODE === "off") {
     state.party[0].unlockedAffixIds = [...ALL_CORE_AFFIX_IDS];
   }

@@ -17,6 +17,7 @@ const CORE_SEAL_RULES = {
   }),
   CORE_CURSE_KEEPER: params => ({ ...params, statsPerCurse: halveConstant(params.statsPerCurse) }),
   CORE_GIANT_SLAYER: params => ({ ...params, damageMultiplier: halveMultiplier(params.damageMultiplier) }),
+  CORE_MILESTONE_BREAKER: params => ({ ...params, damageMultiplier: halveMultiplier(params.damageMultiplier) }),
   CORE_REARGUARD: () => null,
   CORE_THORN_SHIELD: params => ({
     ...params,
@@ -24,6 +25,11 @@ const CORE_SEAL_RULES = {
     counterPower: params.counterPower / 2
   }),
   CORE_EXECUTIONER: params => ({ ...params, damageMultiplier: halveMultiplier(params.damageMultiplier) }),
+  CORE_THIN_ICE_PACT: params => ({
+    ...params,
+    damageMultiplier: halveMultiplier(params.damageMultiplier),
+    incomingDamageMultiplier: halveMultiplier(params.incomingDamageMultiplier)
+  }),
   CORE_SNEAK_STEP: params => ({
     ...params,
     detectionRangeMultiplier: halveMultiplier(params.detectionRangeMultiplier),
@@ -147,6 +153,18 @@ export function getDamageAffixResult(char, target, damage, { floor = 1, maxHp = 
     coreIds.push("CORE_EXECUTIONER");
   }
 
+  const milestoneBreaker = getCharCoreParams(char, "CORE_MILESTONE_BREAKER");
+  if (milestoneBreaker && target?.isBoss) {
+    multiplier *= milestoneBreaker.damageMultiplier;
+    coreIds.push("CORE_MILESTONE_BREAKER");
+  }
+
+  const thinIcePact = getCharCoreParams(char, "CORE_THIN_ICE_PACT");
+  if (thinIcePact && char.hp / Math.max(1, maxHp) <= thinIcePact.hpThreshold) {
+    multiplier *= thinIcePact.damageMultiplier;
+    coreIds.push("CORE_THIN_ICE_PACT");
+  }
+
   let supportPercent = 0;
   if (floor >= 3) supportPercent += getCharAffixSum(char, "deepAssault");
   if (char.hp >= maxHp) supportPercent += getCharAffixSum(char, "fullHpDamage");
@@ -213,9 +231,11 @@ export function getCoreLogText(coreId) {
     CORE_TRAP_EATER: "罠の力を喰らい、攻撃力が増した！",
     CORE_CURSE_KEEPER: "呪いを飼い慣らし、力へ変えた！",
     CORE_GIANT_SLAYER: "巨躯を断つ一撃が冴えた！",
+    CORE_MILESTONE_BREAKER: "節目を破る一撃が冴えた！",
     CORE_REARGUARD: "後列から間合いを制した！",
     CORE_THORN_SHIELD: "棘が攻撃者へ牙を剥いた！",
     CORE_EXECUTIONER: "弱った敵へ執行の刃を振るった！",
+    CORE_THIN_ICE_PACT: "薄氷の誓約が危険な力を引き出した！",
     CORE_SNEAK_STEP: "気配を殺し、敵の感知を鈍らせた！",
     CORE_TOMB_RAIDER: "危険な罠ごと宝を奪い取った！",
     CORE_KEEN_EYE: "未知の装備の真価を引き出した！",

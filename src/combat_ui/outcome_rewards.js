@@ -2,6 +2,11 @@ import { generateRandomAccessory, generateRandomEquipment } from "../data.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
 import { markMapChanged } from "../state/state_core.js";
 import { recordMilestoneVictory } from "../state/run_state.js";
+import {
+  KEY_ITEM_LABELS,
+  KEY_ITEM_WORKSHOP_BRANCHES,
+  MILESTONE_KEY_ITEMS
+} from "../data/key_items.js";
 
 function clearOutcomeCell(stateLike, event, { openBossExitFloor = null } = {}) {
   const cell = stateLike.map?.[stateLike.y]?.[stateLike.x];
@@ -16,8 +21,20 @@ function clearOutcomeCell(stateLike, event, { openBossExitFloor = null } = {}) {
 
 function applyMilestoneVictoryRewards(stateLike, floor) {
   clearOutcomeCell(stateLike, "boss", { openBossExitFloor: floor });
-  recordMilestoneVictory(stateLike, floor);
-  return [`B${floor}F開始を恒久アンロックした。`];
+  const milestone = recordMilestoneVictory(stateLike, floor);
+  const messages = [`B${floor}F開始を恒久アンロックした。`];
+  const keyItem = MILESTONE_KEY_ITEMS[floor];
+  if (milestone.unlocked && keyItem) {
+    stateLike.keyItems ||= [];
+    if (!stateLike.keyItems.includes(keyItem)) {
+      stateLike.keyItems.push(keyItem);
+      messages.push(
+        `【恒久解放】${KEY_ITEM_LABELS[keyItem]}を手に入れた。` +
+        `工房「${KEY_ITEM_WORKSHOP_BRANCHES[keyItem]}」枝を表示解放した。`
+      );
+    }
+  }
+  return messages;
 }
 
 function applyGiveKeyRewards(stateLike, rng) {

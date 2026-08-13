@@ -230,6 +230,17 @@ export const CORE_AFFIXES = [
     enabled: true
   },
   {
+    id: "CORE_MILESTONE_BREAKER",
+    kind: "core",
+    jpName: "節目破り",
+    desc: "節目ボスへの与ダメージが25%増加する。",
+    slot: "weapon",
+    cost: 10,
+    params: { damageMultiplier: 1.25 },
+    poolGroup: "combat",
+    enabled: true
+  },
+  {
     id: "CORE_REARGUARD",
     kind: "core",
     jpName: "殿の構え",
@@ -259,6 +270,17 @@ export const CORE_AFFIXES = [
     slot: "weapon",
     cost: 10,
     params: { damageMultiplier: 2 },
+    poolGroup: "combat",
+    enabled: true
+  },
+  {
+    id: "CORE_THIN_ICE_PACT",
+    kind: "core",
+    jpName: "薄氷の誓約",
+    desc: "HP50%以下で与ダメージが35%増加するが、被ダメージも20%増加する。",
+    slot: "armor",
+    cost: 10,
+    params: { hpThreshold: 0.50, damageMultiplier: 1.35, incomingDamageMultiplier: 1.20 },
     poolGroup: "combat",
     enabled: true
   },

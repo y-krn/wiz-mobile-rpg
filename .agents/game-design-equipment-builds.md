@@ -49,9 +49,11 @@ The actual value of each effect parameter is defined by `params` in `src/data/af
 | 罠喰い | CORE_TRAP_EATER | Gain +2 attack per trap disarmed, accumulating during the expedition (cap +20, reset on return) | Accessory |
 | 呪飼いの鎖 | CORE_CURSE_KEEPER | +3 to all stats for each equipped curse | Accessory |
 | 巨人殺し | CORE_GIANT_SLAYER | +30% damage dealt to enemies with higher maxHP than self | Weapon |
+| 節目破り | CORE_MILESTONE_BREAKER | +25% damage dealt to milestone bosses | Weapon |
 | 殿の構え | CORE_REARGUARD | Negates the rear-row melee multiplier penalty | Weapon |
 | 反撃の棘 | CORE_THORN_SHIELD | 30% chance to counterattack at 50% power when hit | Shield |
 | 執行人 | CORE_EXECUTIONER | 2× damage dealt to enemies with status ailments | Weapon |
+| 薄氷の誓約 | CORE_THIN_ICE_PACT | At HP ≤50%, +35% damage dealt and +20% damage taken | Armor |
 
 “First strike” in this game refers to speed-based preemptive action: only when acting before the enemy in round 1
 does `combatFirstStrikeActive` become active, and it disappears at the end of the round.
@@ -173,4 +175,4 @@ the Workshop. The only exception is weakening a core through sealing.
 
 - Measure expected core uptime → adjust `AFFIX_BALANCE` (pending live-play data).
 - When implementing the fatigue system: consider adding the 「疲労中ペナルティ半減」 support affix.
-- The codex core discovery record (16-type collection display) is not implemented — use a separate Issue if implementing it.
+- The codex core discovery record (18-type collection display) is not implemented — use a separate Issue if implementing it.

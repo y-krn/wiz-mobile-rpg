@@ -20,6 +20,7 @@ export * from "./rules/boss_rules.js";
 export * from "./systems/leveling.js";
 export * from "./data/tags.js";
 export * from "./data/affixes.js";
+export * from "./data/key_items.js";
 export * from "./data/floor_templates.js";
 export * from "./data/encounters.js";
 export * from "./data/biomes.js";

@@ -145,8 +145,15 @@ export function tryThornCounter(char, monster, actorIdx, state, logQueue, rng = 
 export function reduceIncomingDamage(char, dmg, options = {}) {
   let next = dmg;
   const reductions = [];
+  const incomingPenalties = [];
   if (options.spell && char.magicVulnerableTurns > 0) {
     next = Math.max(1, Math.round(next * 1.3));
+  }
+  const thinIcePact = getCharCoreParams(char, "CORE_THIN_ICE_PACT");
+  if (thinIcePact && char.hp / Math.max(1, char.maxHp) <= thinIcePact.hpThreshold) {
+    const before = next;
+    next = Math.max(1, Math.round(next * thinIcePact.incomingDamageMultiplier));
+    if (next > before) incomingPenalties.push("薄氷の誓約");
   }
   if (char.hp / char.maxHp <= 0.25) {
     const guardian = getCharAffixSum(char, "guardian");
@@ -198,6 +205,9 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
   }
   if (options.logQueue && reductions.length > 0) {
     options.logQueue.push({ msg: `[味方] ${char.name}の${reductions.join("・")}がダメージを和らげた。` });
+  }
+  if (options.logQueue && incomingPenalties.length > 0) {
+    options.logQueue.push({ msg: `[味方] ${char.name}は${incomingPenalties.join("・")}の代償でダメージが増えた。` });
   }
   return next;
 }

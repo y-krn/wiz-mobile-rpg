@@ -21,9 +21,17 @@ export function getWorkshopNodeCost(node, rank) {
   return node?.costs?.[rank] || null;
 }
 
-export function purchaseWorkshopNode(metaMaterials, workshop, nodeId) {
+export function isWorkshopNodeUnlocked(node, keyItems) {
+  return !node?.requiresKeyItem
+    || (Array.isArray(keyItems) && keyItems.includes(node.requiresKeyItem));
+}
+
+export function purchaseWorkshopNode(metaMaterials, workshop, nodeId, keyItems = []) {
   const node = WORKSHOP_NODE_BY_ID.get(nodeId);
   if (!node) return { ok: false, reason: "unknown_node" };
+  if (!isWorkshopNodeUnlocked(node, keyItems)) {
+    return { ok: false, reason: "missing_key_item" };
+  }
   const rank = getWorkshopRank(workshop, nodeId);
   const maxRank = node.maxRank || 1;
   if (rank >= maxRank) return { ok: false, reason: "max_rank" };

@@ -17,6 +17,10 @@ const {
 const {
   WORKSHOP_NODES
 } = await import("../src/data/workshop.js");
+const {
+  KEY_ITEMS,
+  KEY_ITEM_LABELS
+} = await import("../src/data/key_items.js");
 const { CRAFT_RECIPES } = await import("../src/craft.js");
 const {
   getWorkshopNodeCost,
@@ -177,6 +181,16 @@ const ADDED_WORKSHOP_NODE_IDS = new Set([
   "pool_tomb_raider",
   "pool_scholar_eye"
 ]);
+const KEY_ITEM_IDS = [KEY_ITEMS.FORGE_SEAL, KEY_ITEMS.ABYSS_SEAL];
+const KEY_ITEM_NODE_IDS = Object.fromEntries(
+  KEY_ITEM_IDS.map(keyItem => [
+    keyItem,
+    WORKSHOP_NODES
+      .filter(node => node.requiresKeyItem === keyItem)
+      .map(node => node.id)
+  ])
+);
+const KEY_NODE_IDS = new Set(Object.values(KEY_ITEM_NODE_IDS).flat());
 
 const ISSUE_437_CONDITION = process.env.SIM_437_CONDITION || "current";
 
@@ -473,7 +487,19 @@ function getNodeCost(nodeId, workshop, scenario = null) {
   return scaleCostToTotal(sourceCost, scenario.workshopCostOverride);
 }
 
-function purchaseStandardAvailable(initialBank, initialWorkshop, scenario = null) {
+function getAffordableKeyWaitNodes(bank, workshop, keyItems) {
+  return WORKSHOP_NODES
+    .filter(node => node.requiresKeyItem)
+    .filter(node => !keyItems.includes(node.requiresKeyItem))
+    .filter(node => getWorkshopRank(workshop, node.id) < getNodeMaxRank(node))
+    .filter(node => Boolean(spendMaterials(
+      bank,
+      getWorkshopNodeCost(node, getWorkshopRank(workshop, node.id))
+    )))
+    .map(node => node.id);
+}
+
+function purchaseStandardAvailable(initialBank, initialWorkshop, scenario = null, keyItems = []) {
   let bank = { ...initialBank };
   let workshop = cloneWorkshop(initialWorkshop);
   const spent = emptyMaterials();
@@ -485,6 +511,9 @@ function purchaseStandardAvailable(initialBank, initialWorkshop, scenario = null
       const cost = getNodeCost(nodeId, workshop, scenario);
       if (!cost) continue;
       const sourceNode = WORKSHOP_NODES.find(node => node.id === nodeId);
+      if (sourceNode?.requiresKeyItem && !keyItems.includes(sourceNode.requiresKeyItem)) {
+        continue;
+      }
       const sourceCost = sourceNode
         ? getWorkshopNodeCost(sourceNode, getWorkshopRank(workshop, nodeId))
         : null;
@@ -507,7 +536,7 @@ function purchaseStandardAvailable(initialBank, initialWorkshop, scenario = null
               }
             };
           })()
-        : purchaseWorkshopNode(bank, workshop, nodeId);
+        : purchaseWorkshopNode(bank, workshop, nodeId, keyItems);
       if (!result.ok) continue;
       bank = result.metaMaterials;
       workshop = result.workshop;
@@ -814,6 +843,31 @@ function createScenarioList() {
 
 const FINITE_PORTAL_SCENARIOS = createScenarioList();
 
+function createKeyRunMetric() {
+  return {
+    runs: 0,
+    targetDepth: 0,
+    reached: 0,
+    reachedSquared: 0,
+    workshopSpent: 0,
+    newNodePurchases: 0,
+    runsWithNewNode: 0
+  };
+}
+
+function createKeyRunMetrics() {
+  return Object.fromEntries(
+    KEY_ITEM_IDS.map(keyItem => [
+      keyItem,
+      { withKey: createKeyRunMetric(), withoutKey: createKeyRunMetric() }
+    ])
+  );
+}
+
+function createKeyTransitionMetrics() {
+  return Object.fromEntries(KEY_ITEM_IDS.map(keyItem => [keyItem, createKeyRunMetric()]));
+}
+
 function createFiniteTotals() {
   return {
     runs: 0,
@@ -895,7 +949,23 @@ function createFiniteTotals() {
     ),
     workshopNodeAcquisitionPositionSums: Object.fromEntries(
       WORKSHOP_NODES.map(node => [node.id, 0])
-    )
+    ),
+    keyItemAcquisitionRunCounts: Object.fromEntries(KEY_ITEM_IDS.map(keyItem => [keyItem, 0])),
+    keyItemAcquisitionTrialCounts: Object.fromEntries(KEY_ITEM_IDS.map(keyItem => [keyItem, 0])),
+    keyPresenceMetrics: createKeyRunMetrics(),
+    keyTransitionMetrics: createKeyTransitionMetrics(),
+    keyMissingRunCounts: Object.fromEntries(KEY_ITEM_IDS.map(keyItem => [keyItem, 0])),
+    keyWaitRunCounts: Object.fromEntries(KEY_ITEM_IDS.map(keyItem => [keyItem, 0])),
+    keyWaitNodeCounts: Object.fromEntries(
+      Object.values(KEY_ITEM_NODE_IDS).flat().map(nodeId => [nodeId, 0])
+    ),
+    keyNodeAcquisitionCounts: Object.fromEntries(
+      Object.values(KEY_ITEM_NODE_IDS).flat().map(nodeId => [nodeId, 0])
+    ),
+    keyNodeTrialCounts: Object.fromEntries(
+      Object.values(KEY_ITEM_NODE_IDS).flat().map(nodeId => [nodeId, 0])
+    ),
+    keyWaitRuns: 0
   };
 }
 
@@ -935,6 +1005,19 @@ function addCounts(target, additions) {
   });
 }
 
+function addKeyRunMetric(metric, event, keyItem) {
+  const newNodeIds = event.purchasedNodeIdsBeforeRun.filter(nodeId =>
+    KEY_ITEM_NODE_IDS[keyItem].includes(nodeId)
+  );
+  metric.runs++;
+  metric.targetDepth += event.targetDepth;
+  metric.reached += event.result.reachedFloor;
+  metric.reachedSquared += event.result.reachedFloor ** 2;
+  metric.workshopSpent += totalMaterials(event.workshopSpentBeforeRun);
+  metric.newNodePurchases += newNodeIds.length;
+  metric.runsWithNewNode += Number(newNodeIds.length > 0);
+}
+
 function addCraftSpend(totals, cost) {
   totals.craftMaterialSpent += totalMaterials(cost);
   addMaterials(totals.craftSpentByMaterial, cost);
@@ -950,11 +1033,22 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
   let firstMerchantPurchaseRun = null;
   const bankTimeline = [];
   const events = [];
+  let keyItems = [];
+  let unlockedMilestones = [];
+  let workshopSpentBeforeRun = emptyMaterials();
+  let purchasedNodeIdsBeforeRun = [];
+  let previousRunKeyItemsAdded = [];
 
   for (let run = 1; run <= RUNS_PER_TRIAL; run++) {
     const bankAtStart = { ...bank };
     const workshopAtStart = cloneWorkshop(workshop);
     const workshopStateAtStart = summarizeWorkshopState(workshopAtStart);
+    const keyItemsAtStart = [...keyItems];
+    const keyWaitNodeIds = getAffordableKeyWaitNodes(
+      bankAtStart,
+      workshopAtStart,
+      keyItemsAtStart
+    );
     const standardCompleteAtStart = isStandardWorkshopComplete(workshop);
     const craftPurchase = pendingCraftPurchase;
     pendingCraftPurchase = emptyCraftPurchase();
@@ -987,8 +1081,14 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
         materialDropOverride: scenario.materialDropOverride || null,
         ...craftScenario
       },
-      workshop
+      workshop,
+      keyItems,
+      unlockedMilestones
     });
+    const nextKeyItems = [...(result.keyItems || keyItems)];
+    const keyItemsAdded = nextKeyItems.filter(keyItem => !keyItems.includes(keyItem));
+    keyItems = nextKeyItems;
+    unlockedMilestones = [...(result.unlockedMilestones || unlockedMilestones)];
     if (firstMerchantPurchaseRun === null && result.merchantWingsPurchased > 0) {
       firstMerchantPurchaseRun = run;
     }
@@ -1003,7 +1103,7 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
         if (pendingCraftPurchase.purchased) bank = pendingCraftPurchase.balance;
       }
 
-      const purchaseResult = purchaseStandardAvailable(bank, workshop, scenario);
+      const purchaseResult = purchaseStandardAvailable(bank, workshop, scenario, keyItems);
       bank = purchaseResult.bank;
       workshop = purchaseResult.workshop;
       workshopSpent = purchaseResult.spent;
@@ -1030,6 +1130,14 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
       craftPurchase,
       workshop: workshopAtStart,
       workshopState: workshopStateAtStart,
+      targetDepth: POST_WING_TARGET,
+      keyItemsAtStart,
+      keyItemsAdded,
+      keyItemsAtEnd: [...keyItems],
+      previousRunKeyItemsAdded: [...previousRunKeyItemsAdded],
+      keyWaitNodeIds,
+      workshopSpentBeforeRun: { ...workshopSpentBeforeRun },
+      purchasedNodeIdsBeforeRun: [...purchasedNodeIdsBeforeRun],
       result: {
         survived: result.survived,
         died: result.died,
@@ -1061,9 +1169,14 @@ function simulateFinitePortalTrial(trial, scenario, scoringProfile) {
         encounterGroupCounts: result.encounterGroupCounts,
         encounterFallbacks: result.encounterFallbacks,
         materialSourceCounts: result.materialSourceCounts,
-        materialConsumedByMerchant: result.materialConsumedByMerchant
+        materialConsumedByMerchant: result.materialConsumedByMerchant,
+        keyItems: [...keyItems],
+        unlockedMilestones: [...unlockedMilestones]
       }
     });
+    workshopSpentBeforeRun = { ...workshopSpent };
+    purchasedNodeIdsBeforeRun = [...purchasedNodeIds];
+    previousRunKeyItemsAdded = [...keyItemsAdded];
   }
 
   const halfway = Math.floor(RUNS_PER_TRIAL / 2);
@@ -1083,6 +1196,8 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
   const totals = createFiniteTotals();
   for (const trialResult of trialResults) {
     const trialNodeFirstPositions = new Map();
+    const trialKeyItems = new Set();
+    const trialKeyNodes = new Set();
     let trialPurchasePosition = 0;
     trialResult.events.forEach(event => {
       const { result } = event;
@@ -1100,6 +1215,37 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
       totals.b10Breakthrough += Number(result.reachedFloor > 10);
       totals.b10Deaths += Number(result.deathFloor === 10);
       totals.reachedB15 += Number(result.reachedFloor >= 15);
+      event.keyItemsAdded.forEach(keyItem => {
+        if (totals.keyItemAcquisitionRunCounts[keyItem] !== undefined) {
+          totals.keyItemAcquisitionRunCounts[keyItem]++;
+          trialKeyItems.add(keyItem);
+        }
+      });
+      event.purchasedNodeIds.forEach(nodeId => {
+        if (KEY_NODE_IDS.has(nodeId)) {
+          totals.keyNodeAcquisitionCounts[nodeId]++;
+          trialKeyNodes.add(nodeId);
+        }
+      });
+      const keyWaitNodeSet = new Set(event.keyWaitNodeIds);
+      if (keyWaitNodeSet.size > 0) totals.keyWaitRuns++;
+      event.keyWaitNodeIds.forEach(nodeId => {
+        totals.keyWaitNodeCounts[nodeId]++;
+      });
+      KEY_ITEM_IDS.forEach(keyItem => {
+        const hasKey = event.keyItemsAtStart.includes(keyItem);
+        const metric = totals.keyPresenceMetrics[keyItem][hasKey ? "withKey" : "withoutKey"];
+        addKeyRunMetric(metric, event, keyItem);
+        if (!hasKey) {
+          totals.keyMissingRunCounts[keyItem]++;
+          if (KEY_ITEM_NODE_IDS[keyItem].some(nodeId => keyWaitNodeSet.has(nodeId))) {
+            totals.keyWaitRunCounts[keyItem]++;
+          }
+        }
+        if (event.previousRunKeyItemsAdded.includes(keyItem)) {
+          addKeyRunMetric(totals.keyTransitionMetrics[keyItem], event, keyItem);
+        }
+      });
       const grossMaterialCounts = Object.values(result.materialSourceCounts || {})
         .reduce((materials, sourceCounts) => {
           addMaterials(materials, sourceCounts);
@@ -1209,6 +1355,12 @@ function aggregateFinitePortalScenario(scenario, trialResults) {
       stateTotal.count++;
       totals.workshopStateCounts[event.workshopState.signature] = stateTotal;
     });
+    trialKeyItems.forEach(keyItem => {
+      totals.keyItemAcquisitionTrialCounts[keyItem]++;
+    });
+    trialKeyNodes.forEach(nodeId => {
+      totals.keyNodeTrialCounts[nodeId]++;
+    });
     trialNodeFirstPositions.forEach((position, nodeId) => {
       totals.workshopNodeTrialCounts[nodeId]++;
       totals.workshopNodeAcquisitionPositionSums[nodeId] += position;
@@ -1281,6 +1433,39 @@ function formatAverageDepth(totals) {
   );
   const margin = 1.96 * Math.sqrt(variance / runs);
   return `B${mean.toFixed(2)} [B${Math.max(0, mean - margin).toFixed(2)},B${(mean + margin).toFixed(2)}; N=${runs}]`;
+}
+
+function formatKeyRunMetric(metric) {
+  if (metric.runs <= 0) return "N=0（未観測）";
+  return (
+    `N=${metric.runs},目標=B${(metric.targetDepth / metric.runs).toFixed(2)},` +
+    `到達=${formatAverageDepth(metric)},` +
+    `工房投資=${(metric.workshopSpent / metric.runs).toFixed(2)}/run,` +
+    `新規node購入=${metric.newNodePurchases}/${metric.runs},` +
+    `購入run率=${formatWilson(metric.runsWithNewNode, metric.runs)}`
+  );
+}
+
+function formatSigned(value, digits = 2) {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}`;
+}
+
+function formatKeyRunMetricDelta(withKey, withoutKey) {
+  if (withKey.runs <= 0 || withoutKey.runs <= 0) return "比較不能（片側未観測）";
+  return (
+    `目標Δ=${formatSigned(
+      withKey.targetDepth / withKey.runs - withoutKey.targetDepth / withoutKey.runs
+    )},` +
+    `到達Δ=${formatSigned(
+      withKey.reached / withKey.runs - withoutKey.reached / withoutKey.runs
+    )},` +
+    `工房投資Δ=${formatSigned(
+      withKey.workshopSpent / withKey.runs - withoutKey.workshopSpent / withoutKey.runs
+    )}/run,` +
+    `新規node購入Δ=${formatSigned(
+      withKey.newNodePurchases / withKey.runs - withoutKey.newNodePurchases / withoutKey.runs
+    )}/run`
+  );
 }
 
 function formatMilestoneMetrics(totals, floor) {
@@ -1601,6 +1786,57 @@ function printWorkshopAcquisitionOrder(result) {
   });
 }
 
+function printKeyItemProgression(result) {
+  if (!result.scenario.isReference) return;
+  const { totals } = result;
+  console.log(
+    `\n【Issue #413 鍵アイテム連鎖判定 / ${result.scenario.label}】` +
+    `（目標深度=${POST_WING_TARGET}固定、工房投資は前run終了→当run開始）`
+  );
+  KEY_ITEM_IDS.forEach(keyItem => {
+    const withKey = totals.keyPresenceMetrics[keyItem].withKey;
+    const withoutKey = totals.keyPresenceMetrics[keyItem].withoutKey;
+    const transition = totals.keyTransitionMetrics[keyItem];
+    console.log(`  ${KEY_ITEM_LABELS[keyItem]}:`);
+    console.log(`    鍵なし: ${formatKeyRunMetric(withoutKey)}`);
+    console.log(`    鍵あり: ${formatKeyRunMetric(withKey)}`);
+    console.log(`    鍵あり−鍵なし: ${formatKeyRunMetricDelta(withKey, withoutKey)}`);
+    console.log(`    取得直後の次run: ${formatKeyRunMetric(transition)}`);
+  });
+  console.log(
+    `  鍵取得率: ${KEY_ITEM_IDS.map(keyItem =>
+      `${KEY_ITEM_LABELS[keyItem]}=${formatWilson(
+        totals.keyItemAcquisitionTrialCounts[keyItem],
+        TRIALS
+      )}`
+    ).join(" / ")}`
+  );
+  console.log(
+    `  鍵待ちrun率（全run分母）=${formatWilson(totals.keyWaitRuns, totals.runs)}`
+  );
+  KEY_ITEM_IDS.forEach(keyItem => {
+    console.log(
+      `  鍵待ち（${KEY_ITEM_LABELS[keyItem]}）=` +
+      `${formatWilson(
+        totals.keyWaitRunCounts[keyItem],
+        totals.keyMissingRunCounts[keyItem]
+      )}（未取得run分母）`
+    );
+  });
+  console.log("  新規ノード取得率（trial分母）:");
+  KEY_ITEM_IDS.forEach(keyItem => {
+    KEY_ITEM_NODE_IDS[keyItem].forEach(nodeId => {
+      const node = WORKSHOP_NODES.find(candidate => candidate.id === nodeId);
+      console.log(
+        `    ${node?.name || nodeId}=${formatWilson(
+          totals.keyNodeTrialCounts[nodeId],
+          TRIALS
+        )}、購入run=${totals.keyNodeAcquisitionCounts[nodeId]}`
+      );
+    });
+  });
+}
+
 export async function runWorkshopProgressionSimulation() {
   console.log("工房進行シミュレーション（Issue #348: 出発クラフト）");
   console.log(
@@ -1628,8 +1864,8 @@ export async function runWorkshopProgressionSimulation() {
     (sum, node) => sum + getNodeMaxRank(node),
     0
   );
-  const expectedWorkshopShape = WORKSHOP_NODES.length === 18
-    ? { steps: 42, materials: 192 }
+  const expectedWorkshopShape = WORKSHOP_NODES.length === 20
+    ? { steps: 44, materials: 212 }
     : null;
   if (expectedWorkshopShape && (
     workshopSteps !== expectedWorkshopShape.steps ||
@@ -1699,6 +1935,7 @@ export async function runWorkshopProgressionSimulation() {
   finiteResults.forEach(result => console.log(formatFiniteResult(result)));
   const referenceResult = finiteResults.find(result => result.scenario.isReference);
   if (referenceResult) {
+    printKeyItemProgression(referenceResult);
     printEncounterGroupDiagnostics(referenceResult);
     printMonsterClassificationAudit();
   }

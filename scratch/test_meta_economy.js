@@ -38,6 +38,27 @@ test("workshop purchase spends declared materials and records unlock", () => {
   assert.equal(result.workshop.ranks.gear_rapier, 1);
 });
 
+test("milestone workshop branches require a non-consumable key and keep it", () => {
+  const materials = { "鉄片": 7, "竜鱗": 3 };
+  const locked = purchaseWorkshopNode(materials, { ranks: {} }, "pool_milestone_breaker");
+  assert.equal(locked.ok, false);
+  assert.equal(locked.reason, "missing_key_item");
+  assert.deepEqual(materials, { "鉄片": 7, "竜鱗": 3 });
+
+  const keyItems = ["FORGE_SEAL"];
+  const result = purchaseWorkshopNode(
+    materials,
+    { ranks: {} },
+    "pool_milestone_breaker",
+    keyItems
+  );
+  assert.equal(result.ok, true);
+  assert.deepEqual(keyItems, ["FORGE_SEAL"]);
+  assert.equal(result.metaMaterials["鉄片"], 0);
+  assert.equal(result.metaMaterials["竜鱗"], 0);
+  assert.equal(result.workshop.ranks.pool_milestone_breaker, 1);
+});
+
 test("permanent stat line stops at rank 5", () => {
   let materials = { "獣の牙": 100 };
   let workshop = { ranks: {} };

@@ -7,7 +7,7 @@ import {
 } from "../rules/identification_rules.js";
 
 const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
-// Workshop pool nodes intentionally gate six pre-existing core IDs to make the
+// Workshop pool nodes intentionally gate pre-existing core IDs to make the
 // added nodes a real material sink. Blood Wand keeps its existing gate; a
 // missing party context keeps this low-level generator backward-compatible for
 // standalone loot generation and tests.
@@ -18,7 +18,9 @@ const WORKSHOP_LOCKED_AFFIX_IDS = new Set([
   "CORE_GIANT_SLAYER",
   "CORE_THORN_SHIELD",
   "CORE_TOMB_RAIDER",
-  "CORE_SCHOLAR_EYE"
+  "CORE_SCHOLAR_EYE",
+  "CORE_MILESTONE_BREAKER",
+  "CORE_THIN_ICE_PACT"
 ]);
 
 export function pickCurseEffectId(rng, heavyCurseShare) {
