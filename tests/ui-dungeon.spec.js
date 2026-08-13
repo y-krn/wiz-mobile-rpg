@@ -671,6 +671,7 @@ test('milestoneVictory outcome reload before reward log applies missing rewards 
       combatState: state.combatState,
       defeatedMilestones: state.currentRun.defeatedMilestones,
       unlockedMilestones: state.unlockedMilestones,
+      keyItems: state.keyItems,
       cellEvent: state.map[state.y][state.x].event,
     };
   });
@@ -679,6 +680,7 @@ test('milestoneVictory outcome reload before reward log applies missing rewards 
     combatState: null,
     defeatedMilestones: [5],
     unlockedMilestones: [5],
+    keyItems: ['FORGE_SEAL'],
     cellEvent: null,
   });
 });
@@ -705,6 +707,7 @@ test('milestoneVictory outcome reload after reward log does not duplicate reward
       combatState: state.combatState,
       defeatedMilestones: state.currentRun.defeatedMilestones,
       unlockedMilestones: state.unlockedMilestones,
+      keyItems: state.keyItems,
       cellEvent: state.map[state.y][state.x].event,
     };
   });
@@ -713,6 +716,7 @@ test('milestoneVictory outcome reload after reward log does not duplicate reward
     combatState: null,
     defeatedMilestones: [5],
     unlockedMilestones: [5],
+    keyItems: ['FORGE_SEAL'],
     cellEvent: null,
   });
 });

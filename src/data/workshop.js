@@ -1,8 +1,12 @@
+import { KEY_ITEMS } from "./key_items.js";
+
 const statCosts = material => [1, 2, 3, 4, 5].map(quantity => ({ [material]: quantity }));
 
 export const WORKSHOP_CATEGORIES = Object.freeze({
   startingGear: "初期装備候補",
   pools: "抽選プール",
+  milestoneBuild: "深層ビルド",
+  abyssBuild: "深淵ビルド",
   permanentStats: "恒久ステータス",
   convenience: "利便",
   classes: "クラス"
@@ -96,6 +100,24 @@ const WORKSHOP_BASE_NODES = [
     description: "学者の眼コアをラン内抽選へ追加する。",
     costs: [{ "霊粉": 7, "骨片": 3 }],
     grants: { affixIds: ["CORE_SCHOLAR_EYE"] }
+  },
+  {
+    id: "pool_milestone_breaker",
+    category: "milestoneBuild",
+    name: "節目破りの記憶",
+    description: "節目ボス特化コアをラン内抽選へ追加する。",
+    costs: [{ "鉄片": 7, "竜鱗": 3 }],
+    requiresKeyItem: KEY_ITEMS.FORGE_SEAL,
+    grants: { affixIds: ["CORE_MILESTONE_BREAKER"] }
+  },
+  {
+    id: "pool_thin_ice_pact",
+    category: "abyssBuild",
+    name: "薄氷の誓約",
+    description: "低HP時に攻撃と被害が増すコアを抽選へ追加する。",
+    costs: [{ "黒角": 7, "竜鱗": 3 }],
+    requiresKeyItem: KEY_ITEMS.ABYSS_SEAL,
+    grants: { affixIds: ["CORE_THIN_ICE_PACT"] }
   },
   {
     id: "convenience_identify_powder",

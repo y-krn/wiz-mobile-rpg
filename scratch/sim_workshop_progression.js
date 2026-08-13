@@ -1628,8 +1628,8 @@ export async function runWorkshopProgressionSimulation() {
     (sum, node) => sum + getNodeMaxRank(node),
     0
   );
-  const expectedWorkshopShape = WORKSHOP_NODES.length === 18
-    ? { steps: 42, materials: 192 }
+  const expectedWorkshopShape = WORKSHOP_NODES.length === 20
+    ? { steps: 44, materials: 212 }
     : null;
   if (expectedWorkshopShape && (
     workshopSteps !== expectedWorkshopShape.steps ||

@@ -36,6 +36,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   state.gameState = "submenu";
   state.metaMaterials = { "獣の牙": 7, "竜鱗": 2 };
   state.workshop = { ranks: { gear_rapier: 1, stat_str: 3 } };
+  state.keyItems = ["FORGE_SEAL", "ABYSS_SEAL"];
   state.unlockedMilestones = [5, 10];
   state.records = { deepestRetreat: 12, deepestDeath: 9, deepestByClass: { Mage: 12 }, totalRuns: 7 };
   state.currentRun = createDefaultCurrentRun();
@@ -68,6 +69,7 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.equal(state.gameState, "town");
   assert.deepEqual(state.metaMaterials, { "獣の牙": 7, "竜鱗": 2 });
   assert.deepEqual(state.workshop, { ranks: { gear_rapier: 1, stat_str: 3 } });
+  assert.deepEqual(state.keyItems, ["FORGE_SEAL", "ABYSS_SEAL"]);
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
   assert.deepEqual(state.records, { deepestRetreat: 12, deepestDeath: 9, deepestByClass: { Mage: 12 }, totalRuns: 7 });
   assert.equal(state.currentRun.quests[0].currentValue, 4);

@@ -92,6 +92,7 @@ export const state = {
   cleared: false,
   metaMaterials: {},
   workshop: { ranks: {} },
+  keyItems: [],
 
   // Dynamic getters for floor-specific maps to maintain backwards compatibility
   get map() {

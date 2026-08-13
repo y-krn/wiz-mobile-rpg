@@ -14,6 +14,7 @@ async function openTownSubmenu(page, type, title) {
     state.gameState = 'town';
     state.metaMaterials = { '獣の牙': 20, '鉄片': 10 };
     state.workshop = { ranks: {} };
+    state.keyItems = [];
     openSubmenu(submenuType, submenuTitle);
   }, { submenuType: type, submenuTitle: title });
 }
@@ -63,6 +64,49 @@ test('Town submenus hide the goal banner and expand the workshop list', async ({
     }
   }
 });
+
+for (const viewport of [
+  { width: 360, height: 800 },
+  { width: 390, height: 844 },
+  { width: 430, height: 932 },
+]) {
+  test(`Milestone key items reveal matching workshop branches at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+
+    const openWorkshop = async (keyItems) => page.evaluate(async (nextKeyItems) => {
+      const { state } = await import('/src/state.js');
+      const { openSubmenu } = await import('/src/navigation.js');
+
+      state.gameState = 'town';
+      state.metaMaterials = { '鉄片': 10, '黒角': 10, '竜鱗': 10 };
+      state.workshop = { ranks: {} };
+      state.keyItems = nextKeyItems;
+      openSubmenu('workshop_main', '工房 - 恒久アンロック');
+    }, keyItems);
+
+    await openWorkshop([]);
+    await expect(page.locator('.workshop-node')).toHaveCount(18);
+    await expect(page.getByRole('button', { name: /節目破り/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /薄氷の誓約/ })).toHaveCount(0);
+
+    await openWorkshop(['FORGE_SEAL']);
+    await expect(page.locator('.workshop-node')).toHaveCount(19);
+    await expect(page.getByRole('button', { name: /節目破り/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /薄氷の誓約/ })).toHaveCount(0);
+
+    await openWorkshop(['FORGE_SEAL', 'ABYSS_SEAL']);
+    await expect(page.locator('.workshop-node')).toHaveCount(20);
+    await expect(page.getByRole('button', { name: /薄氷の誓約/ })).toBeVisible();
+
+    const layout = await page.locator('.workshop-node').evaluateAll((buttons) => ({
+      minHeight: Math.min(...buttons.map(button => button.getBoundingClientRect().height)),
+      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    }));
+    expect(layout.minHeight, 'Key branches should keep workshop buttons tappable').toBeGreaterThanOrEqual(44);
+    expect(layout.hasHorizontalOverflow, 'Key branches should not create horizontal scrolling').toBe(false);
+  });
+}
 
 test('Town, departure, exploration, and combat keep the goal banner', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
