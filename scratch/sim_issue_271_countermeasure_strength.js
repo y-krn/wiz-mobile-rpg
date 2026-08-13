@@ -22,6 +22,7 @@ import {
   inferPairingEligibility,
   resolveDiagnosticMode
 } from "./measurement_utils.js";
+import { IDENTIFICATION_BALANCE } from "../src/rules/identification_rules.js";
 
 const ALL_SCENARIO_IDS = Object.freeze([
   "workshop-empty",
@@ -85,8 +86,10 @@ process.env.TRAP_POLICY = process.env.TRAP_POLICY || "conservative";
 process.env.TRAP_AVOIDANCE_POLICY = process.env.TRAP_AVOIDANCE_POLICY || "ev";
 process.env.TRAP_DAMAGE_MULTIPLIER = process.env.TRAP_DAMAGE_MULTIPLIER || "1";
 process.env.IDENTIFICATION_POLICY = IDENTIFICATION_POLICY;
-process.env.IDENTIFICATION_STARTING_POWDER = process.env.IDENTIFICATION_STARTING_POWDER || "2";
-process.env.IDENTIFICATION_COST_OVERRIDE = process.env.IDENTIFICATION_COST_OVERRIDE || "1";
+process.env.IDENTIFICATION_STARTING_POWDER = process.env.IDENTIFICATION_STARTING_POWDER ||
+  String(IDENTIFICATION_BALANCE.startingPowder);
+process.env.IDENTIFICATION_COST_OVERRIDE = process.env.IDENTIFICATION_COST_OVERRIDE ||
+  String(IDENTIFICATION_BALANCE.identifyCost);
 process.env.FLEE_POLICY = "threshold";
 process.env.FLEE_HP_THRESHOLD = String(FLEE_HP_THRESHOLD);
 process.env.STATUS_CURE_POLICY = process.env.STATUS_CURE_POLICY || "smart";
