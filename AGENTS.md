@@ -225,6 +225,9 @@ This gate applies to UI modules (screen rendering, menu navigation, overlays,
 styles, and browser tests). Determine target files using the UI-related rows and
 CSS Style Routing table in `.agents/file-map.md`.
 
+Mobile browser one-handed use is a hard requirement for UI work. Apply
+`.agents/mobile-ui-ux.md` while implementing, not only at review time.
+
 Before editing UI:
 
 1. Use `.agents/file-map.md` to identify the smallest file set.
