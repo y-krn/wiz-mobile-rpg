@@ -1,6 +1,7 @@
 import assert from "assert";
 import { getItemData, getCharAffixSum } from "../src/rules/item_rules.js";
 import { getCharMaxHp, getCharMaxMp, getCharWeaponAtk, getCharDef } from "../src/rules/character_stats.js";
+import { ITEM_EFFECTS } from "../src/systems/item_effects.js";
 import { SPELL_EFFECTS } from "../src/systems/spell_effects.js";
 import { runCombatRoundCalculation } from "../src/combat_logic/round.js";
 
@@ -126,6 +127,46 @@ const charIdent3 = JSON.parse(JSON.stringify(baseChar));
 charIdent3.equipment.accessory = identDecay;
 assert.strictEqual(getCharMaxHp(charIdent3), 25, "Character maxHp must be 25 (40 - 15)");
 assert.strictEqual(getCharMaxMp(charIdent3), 13, "Character maxMp must be 13 (10 + 3)");
+
+// 3b. 最大HPを超える負の呪いでも、回復でHP/maxHPが負にならない。
+const overdrawnHpCurse = {
+  key: "test_decay_overdrawn_hp",
+  baseId: "AMULET_HP",
+  identified: false,
+  curseEffectId: "curse_spectral_decay",
+  cursePower: 2.5
+};
+const overdrawnHpChar = {
+  ...JSON.parse(JSON.stringify(baseChar)),
+  hp: 5,
+  maxHp: 14,
+  equipment: {
+    ...JSON.parse(JSON.stringify(baseChar.equipment)),
+    accessory: overdrawnHpCurse
+  }
+};
+assert(overdrawnHpChar.maxHp + getItemData(overdrawnHpCurse).hpBonus < 0, "fixture must exceed base maxHp");
+assert.strictEqual(getCharMaxHp(overdrawnHpChar), 1, "maxHp must clamp to one");
+ITEM_EFFECTS.HEAL_POTION({ char: overdrawnHpChar });
+assert(overdrawnHpChar.hp >= 1, "healing must not make HP negative");
+assert(getCharMaxHp(overdrawnHpChar) >= 1, "healing must not expose negative maxHp");
+
+const overdrawnMpChar = {
+  ...JSON.parse(JSON.stringify(baseChar)),
+  maxMp: 0,
+  mp: 0,
+  equipment: {
+    ...JSON.parse(JSON.stringify(baseChar.equipment)),
+    accessory: {
+      key: "test_mana_rot_overdrawn_mp",
+      baseId: "RING_STR",
+      identified: false,
+      curseEffectId: "curse_mana_rot",
+      cursePower: 2.5
+    }
+  }
+};
+assert.strictEqual(getCharMaxMp(overdrawnMpChar), 0, "non-caster maxMp must stay at zero");
 
 
 // 4. 煉獄の呪い (curse_purging_flame: mod: { fireRite: 30, spellGuard: -20 }) による fireRite 反映テスト
