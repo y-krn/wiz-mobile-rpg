@@ -2635,6 +2635,8 @@ function maybeCastExplorationSpells(state, metrics) {
   }
 }
 
+const SIM_EXPLORE_SPELLS_ENABLED = process.env.SIM_EXPLORE_SPELLS !== "off";
+
 function addSpellUsageAggregate(target, result) {
   Object.entries(result.spellUsage || {}).forEach(([spellName, usage]) => {
     if (!target[spellName]) target[spellName] = createSpellUsageMetrics()[spellName];
@@ -7080,6 +7082,7 @@ function finishRun(state, outcome, metrics) {
     bankedMaterialCounts: { ...banked },
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     steps: metrics.steps,
+    battles: state.currentRun.battles,
     floorBudgetSteps: metrics.floorBudgetSteps,
     routePolicyExtraSteps: metrics.routePolicyExtraSteps,
     eliteExtraSteps: metrics.eliteExtraSteps,
@@ -7932,7 +7935,7 @@ export function simulateRun({
       state.currentRun.floorSteps[String(floor)] =
         (state.currentRun.floorSteps[String(floor)] || 0) + 1;
       tickExplorationSpellEffects(state);
-      maybeCastExplorationSpells(state, metrics);
+      if (SIM_EXPLORE_SPELLS_ENABLED) maybeCastExplorationSpells(state, metrics);
       metrics.lightActiveSteps += Number(state.lightTurns > 0);
       metrics.masfealActiveSteps += Number(state.repelTurns > 0);
       recordB5HpSnapshot(state, metrics, step);
