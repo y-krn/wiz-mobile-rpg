@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { getCharAffixSum } from "../src/data.js";
+import { getCharAffixSum, getPartyFlameTrapWarningAvoidanceChance } from "../src/data.js";
 import { applyKillAffixEffects, getMeleeModifiers } from "../src/combat_logic/damage.js";
 import { getMpWardDef } from "../src/combat_logic/round.js";
 import { getClassPassiveBonus } from "../src/rules/class_rules.js";
@@ -82,6 +82,38 @@ test("戦士と魔術師は罠被害を職業passiveで軽減する", () => {
     { trapGuardByParty: [40, 50], targetIndex: 0 }
   );
   assert.deepEqual(effect, { targetDamage: 7, partyDamage: [6, 5] });
+});
+
+test("火炎の罠の予告回避は装備効果に応じて上限付きで増える", () => {
+  const makeItem = () => ({
+    baseId: "SHORT_SWORD",
+    identified: true,
+    affixes: [
+      { type: "trapBonus", value: 15 },
+      { type: "trapSense", value: 15 }
+    ]
+  });
+  const character = createSoloCharacter("Fighter");
+
+  assert.equal(getPartyFlameTrapWarningAvoidanceChance([character]), 0);
+
+  character.equipment = {
+    weapon: makeItem(),
+    shield: null,
+    armor: null,
+    accessory: null,
+    accessory2: null
+  };
+  assert.equal(getPartyFlameTrapWarningAvoidanceChance([character]), 0.24);
+
+  character.equipment = {
+    weapon: makeItem(),
+    shield: makeItem(),
+    armor: makeItem(),
+    accessory: makeItem(),
+    accessory2: null
+  };
+  assert.equal(getPartyFlameTrapWarningAvoidanceChance([character]), 0.74);
 });
 
 // #267: 後衛の火力窓とMP連動障壁

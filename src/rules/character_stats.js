@@ -146,6 +146,14 @@ export function getCharTrapBonus(char) {
   return bonus + getCharAffixSum(char, "trapSense") / 100;
 }
 
+export function getPartyFlameTrapWarningAvoidanceChance(party = []) {
+  const trapInvestment = party
+    .filter(char => char?.hp > 0 && !["dead", "ash"].includes(char.status))
+    .reduce((max, char) => Math.max(max, Number(getCharTrapBonus(char)) || 0), 0);
+  // trapBonus/trapSenseを2〜3枠積む0.6〜0.9を48〜72%へ線形変換し、上限は74%にする。
+  return Math.min(0.74, Math.max(0, trapInvestment) * 0.8);
+}
+
 export function getCharWeaponAtk(char) {
   let atk = char.runTrapAttackBonus || 0;
   const wpId = char.equipment.weapon;

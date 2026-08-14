@@ -483,4 +483,61 @@ for (const floor of [1, 10, 30]) {
 }
 console.log("PASS: Trap placement verified.");
 
+// 9. B5F flame trap counterplay
+console.log("\n[9] Verifying flame trap counterplay:");
+const { triggerFlameTrap } = await import("../src/movement.js");
+const realFlameRandom = Math.random;
+state.floor = 5;
+state.gameState = "explore";
+state.currentRun = null;
+state.party = [{
+  name: "Arthur",
+  class: "Fighter",
+  level: 1,
+  hp: 20,
+  maxHp: 20,
+  status: "ok",
+  equipment: {}
+}];
+state.logs = [];
+Math.random = () => 0;
+try {
+  triggerFlameTrap();
+} finally {
+  Math.random = realFlameRandom;
+}
+if (state.party[0].hp !== 15) {
+  console.error(`FAIL: Fighter trapGuard should reduce 8 flame damage to 5, got ${20 - state.party[0].hp}.`);
+  process.exit(1);
+}
+if (!state.logs.some(log => log.includes("熱気の気配")) ||
+    !state.logs.some(log => log.includes("炎ダメージを受けた"))) {
+  console.error("FAIL: flame trap should log warning and damage.");
+  process.exit(1);
+}
+
+state.party[0].hp = 20;
+state.party[0].equipment = {
+  accessory: {
+    baseId: "SHORT_SWORD",
+    identified: true,
+    affixes: [
+      { type: "trapBonus", value: 15 },
+      { type: "trapSense", value: 15 }
+    ]
+  }
+};
+state.logs = [];
+Math.random = () => 0;
+try {
+  triggerFlameTrap();
+} finally {
+  Math.random = realFlameRandom;
+}
+if (state.party[0].hp !== 20 || !state.logs.some(log => log.includes("身をかわした"))) {
+  console.error("FAIL: trapSense/trapBonus investment should avoid the flame hit.");
+  process.exit(1);
+}
+console.log("- trapGuard reduces flame damage and invested gear can avoid it");
+
 console.log("\n=== ALL TRAP TESTS PASSED ===");

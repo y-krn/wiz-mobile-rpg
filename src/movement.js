@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, markMapChanged, markMapCellVisited } from "./state.js";
-import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum } from "./data.js";
+import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum, getPartyFlameTrapWarningAvoidanceChance } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
@@ -16,6 +16,7 @@ import { ELITE_PATROL_RADIUS } from "./systems/roaming_elites.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.js";
 import { assignRunQuests, updateRunQuests } from "./systems/run_quests.js";
+import { applyTrapGuardToEffect, resolveFlameTrapEffect } from "./rules/trap_effect_rules.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -582,15 +583,31 @@ export function applyExplorationPoison() {
 }
 
 export function triggerFlameTrap() {
-  addLog("【⚠️熱気！】天井から猛烈な火炎ブレスが吹き出した！");
+  addLog("【⚠️熱気の気配】周囲に熱気が走った！");
   playSound("chest_trap");
   if (renderer) renderer.triggerShake(10, 400);
   if (renderer && typeof renderer.triggerFlash === "function") {
     renderer.triggerFlash(400);
   }
-  state.party.forEach(c => {
-    if (c.status !== "dead") {
-      const dmg = Math.floor(Math.random() * 9) + 8; // 8-16 damage
+
+  const warningAvoidanceChance = getPartyFlameTrapWarningAvoidanceChance(state.party);
+  if (warningAvoidanceChance > 0 && Math.random() < warningAvoidanceChance) {
+    addLog("熱気の気配を感じ、とっさに身をかわした！");
+    saveAutosave();
+    updateUI();
+    return;
+  }
+
+  addLog("天井から猛烈な火炎ブレスが吹き出した！");
+  const effect = applyTrapGuardToEffect(resolveFlameTrapEffect({
+    party: state.party,
+    rng: Math.random
+  }), {
+    trapGuardByParty: state.party.map(char => getCharAffixSum(char, "trapGuard"))
+  });
+  state.party.forEach((c, index) => {
+    const dmg = effect.partyDamage[index];
+    if (dmg > 0) {
       c.hp = Math.max(0, c.hp - dmg);
       clearCharIncapacitationOnDamage(c);
       addLog(`${c.name}は${dmg}の炎ダメージを受けた。`);
