@@ -473,7 +473,7 @@ function renderUnlockTable(lines, classRows) {
   lines.push(
     "## レベル依存要素",
     "",
-    "一次情報源は `src/systems/leveling.js` の `checkCharLevelUp()`。" +
+    "一次情報源は `src/systems/leveling.js` のレベルアップ判定関数。" +
       "到達率は実際の `finalLevel >= 解放lv`、分母は各職の全run。",
     `EXP_LEVELS の最大レベル上限は lv${MAX_LEVEL}（配列長=${EXP_LEVELS.length}）。`,
     "Fighter/Thiefには同関数上のレベル依存呪文はなく、共通のHP・ステータス成長のみ。",

@@ -87,7 +87,7 @@ finalLevel の分位点。対象runの分母=B10到達run。p50は中央値。
 
 ## レベル依存要素
 
-一次情報源は `src/systems/leveling.js` の `checkCharLevelUp()`。到達率は実際の `finalLevel >= 解放lv`、分母は各職の全run。
+一次情報源は `src/systems/leveling.js` のレベルアップ判定関数。到達率は実際の `finalLevel >= 解放lv`、分母は各職の全run。
 EXP_LEVELS の最大レベル上限は lv20（配列長=21）。
 Fighter/Thiefには同関数上のレベル依存呪文はなく、共通のHP・ステータス成長のみ。
 低到達率の記述フラグは点推定<50%（設計判断ではない）。
@@ -184,10 +184,10 @@ maxHp>70が初めて観測されるレベル: lv9。 全runカバーが最後に
 
 ## 固定条件・診断・再現
 
-- source commit: `02ee3464c13c286a0a021c9b91a6c4acc4e3ddda`
+- source commit: `6989dc440b0e1833129e7209e9044d1f93636b32`
 - origin/main ancestor: `true`; stale tree allowed: `false`
-- calibration: N=100/scenario; 10.558s wall, 17.959s CPU; profile SHA-256 `97d905b1e3c9bdbffe658da6bc3d337789392539cbd66363161917d02a75ff80`
-- simulation: 6.466s wall, 95.068s CPU; resolved parallelism=15
+- calibration: N=100/scenario; 10.668s wall, 17.004s CPU; profile SHA-256 `97d905b1e3c9bdbffe658da6bc3d337789392539cbd66363161917d02a75ff80`
+- simulation: 6.530s wall, 96.155s CPU; resolved parallelism=15
 - diagnosticLevel（Priest finalBuild）: workshop-empty=full, workshop-stats=full, workshop-gear=full, workshop-blood-wand=full, workshop-blood-wand-spells=full, workshop-complete=full
 - 既定workshopシナリオは `simDiagnosticLevel` 未指定時のsim実装フォールバック `full` を使用。
 - raw JSONL: `/Users/ottan/.gemini/antigravity/scratch/wiz-mobile-rpg/.claude/worktrees/issue-599-level-distribution/scratch/results/issue-599-level-distribution.jsonl`; SHA-256 `f11b05510e066c842288817edb3322d4c1746520fa94d67962bd07e4a9432c6b`（rawはgitignore対象）
