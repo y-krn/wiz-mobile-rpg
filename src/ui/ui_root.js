@@ -15,6 +15,7 @@ import { EVENT_SUBMENU_TYPES } from "../constants/events.js";
 
 let floorStingerTimer = null;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
+const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover";
 const TOWN_SUBMENU_TYPES = new Set(["castle_main", "castle_death_logs", "workshop_main"]);
 
 function isDeparturePrepSubmenu() {
@@ -179,9 +180,14 @@ export function getFloorExplorationRate() {
 
 export function resetViewportZoom() {
   const viewport = document.querySelector('meta[name="viewport"]');
-  if (viewport) {
+  if (!viewport || typeof viewport.setAttribute !== "function") return;
+
+  const currentContent = typeof viewport.getAttribute === "function"
+    ? viewport.getAttribute("content")
+    : null;
+  if (currentContent !== LOCKED_VIEWPORT) {
     // Keep PWA gameplay locked to device scale; repeated taps can otherwise trigger iOS zoom.
-    viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover');
+    viewport.setAttribute("content", LOCKED_VIEWPORT);
   }
 }
 

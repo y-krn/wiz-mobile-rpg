@@ -3,7 +3,8 @@
   flex-direction: column;
   width: 100%;
   max-width: 450px; /* Locked to phone-like aspect ratio on desktop */
-  height: 100dvh;
+  /* svh prevents the shell from resizing on every mobile browser chrome change. */
+  height: 100svh;
   min-height: 0;
   margin: 0 auto;
   padding-top: var(--safe-area-top);

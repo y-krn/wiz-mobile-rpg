@@ -114,6 +114,56 @@ test('canvas top and height stay stable across controls modes', async ({ page })
   expect(failures, failures.join('\n')).toEqual([]);
 });
 
+for (const viewport of [
+  { width: 360, height: 800 },
+  { width: 390, height: 844 },
+  { width: 430, height: 932 },
+]) {
+  test(`exploration canvas stays stable across repeated updates at ${viewport.width}px`, async ({ page }) => {
+    await page.addInitScript(() => {
+      const originalSetAttribute = Element.prototype.setAttribute;
+      window.__viewportMetaWrites = 0;
+      Element.prototype.setAttribute = function setAttribute(name, value) {
+        if (this instanceof HTMLMetaElement && this.name === 'viewport' && name === 'content') {
+          window.__viewportMetaWrites += 1;
+        }
+        return originalSetAttribute.call(this, name, value);
+      };
+    });
+
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await page.evaluate(async () => {
+      localStorage.clear();
+      const { state, createSoloCharacter } = await import('/src/state.js');
+      const { executeEnterDungeon } = await import('/src/movement.js');
+      state.party = [createSoloCharacter('Fighter')];
+      state.gameState = 'town';
+      executeEnterDungeon(1);
+    });
+    await expect(page.locator('#explore-controls')).toBeVisible();
+
+    const measure = () => page.locator('#dungeon-canvas').evaluate((canvas) => {
+      const box = canvas.getBoundingClientRect();
+      return { top: box.top, height: box.height };
+    });
+    const baseline = await measure();
+
+    for (let index = 0; index < 6; index += 1) {
+      await page.locator('#btn-turn-right').dispatchEvent('pointerdown');
+      await page.evaluate(() => new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      }));
+      const current = await measure();
+      expect(Math.abs(current.top - baseline.top), `Canvas top shifted at step ${index + 1}`).toBeLessThan(1);
+      expect(Math.abs(current.height - baseline.height), `Canvas height shifted at step ${index + 1}`).toBeLessThan(1);
+    }
+
+    const viewportMetaWrites = await page.evaluate(() => window.__viewportMetaWrites);
+    expect(viewportMetaWrites, 'Repeated exploration updates must not rewrite viewport meta').toBe(1);
+  });
+}
+
 test('result and event viewports preserve their flexible heights', async ({ page }) => {
   const failures = [];
   const measurements = {};
