@@ -32,6 +32,7 @@ const {
   createDefaultCurrentRun,
   createSoloCharacter
 } = await import("../src/state/initial_state.js");
+const { recordCharDeath } = await import("../src/state.js");
 const { ELITE_CLASSES } = await import("../src/data/classes.js");
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
 const { applyPendingOutcomeRewards } = await import("../src/combat_ui/outcome_rewards.js");
@@ -731,6 +732,13 @@ const EXPLORATION_FACTOR = Number(
 if (!Number.isFinite(EXPLORATION_FACTOR) || EXPLORATION_FACTOR <= 0) {
   throw new Error(`SIM_EXPLORATION_FACTOR must be a positive number: ${process.env.SIM_EXPLORATION_FACTOR}`);
 }
+const FLAME_TRAP_MODEL = Object.freeze({
+  floor: 5,
+  chance: 0.05,
+  cooldownTurns: 5,
+  minDamage: 8,
+  damageRolls: 9
+});
 // 仮値・感度分析対象: 探索係数1.4に対応し、配置宝箱の70%を拾えると置く。
 const CHEST_PICKUP_RATE = 0.7;
 // 仮値・感度分析対象: 戦闘1ターンを探索3歩相当と置く。
@@ -1623,6 +1631,78 @@ function createTrapAggregate() {
   };
 }
 
+function createFlameTrapAggregate() {
+  return {
+    runs: 0,
+    activations: 0,
+    damageHp: 0,
+    deaths: 0,
+    eligibleSteps: 0
+  };
+}
+
+function addFlameTrapAggregate(target, result) {
+  target.runs++;
+  target.activations += result.flameTrapActivations;
+  target.damageHp += result.flameTrapDamageHp;
+  target.deaths += result.flameTrapDeaths;
+  target.eligibleSteps += result.flameTrapEligibleSteps;
+}
+
+function finalizeFlameTrapAggregate(aggregate) {
+  const runs = Math.max(1, aggregate.runs);
+  return {
+    runs: aggregate.runs,
+    averageFlameTrapActivations: aggregate.activations / runs,
+    averageFlameTrapDamageHp: aggregate.damageHp / runs,
+    averageFlameTrapDeaths: aggregate.deaths / runs,
+    averageFlameTrapEligibleSteps: aggregate.eligibleSteps / runs
+  };
+}
+
+function createOutcomeAggregate() {
+  return {
+    runs: 0,
+    survived: 0,
+    died: 0,
+    reachedFloor: 0,
+    entrantsByFloor: Array(21).fill(0),
+    deathsByFloor: Array(21).fill(0),
+    retreatsByFloor: Array(21).fill(0)
+  };
+}
+
+function addOutcomeAggregate(target, result) {
+  target.runs++;
+  target.survived += Number(result.survived);
+  target.died += Number(result.died);
+  target.reachedFloor += result.reachedFloor;
+  for (let floor = 1; floor < target.entrantsByFloor.length; floor++) {
+    if (result.reachedFloor < floor) continue;
+    target.entrantsByFloor[floor]++;
+    if (result.deathFloor === floor) target.deathsByFloor[floor]++;
+  }
+  if (result.survived && Number.isInteger(result.endFloor)) {
+    target.retreatsByFloor[result.endFloor]++;
+  }
+}
+
+function finalizeOutcomeAggregate(aggregate) {
+  const runs = Math.max(1, aggregate.runs);
+  return {
+    runs: aggregate.runs,
+    survivedRuns: aggregate.survived,
+    diedRuns: aggregate.died,
+    survivalRate: aggregate.survived / runs,
+    retreatRate: aggregate.survived / runs,
+    deathRate: aggregate.died / runs,
+    averageReachedFloor: aggregate.reachedFloor / runs,
+    entrantsByFloor: [...aggregate.entrantsByFloor],
+    deathsByFloor: [...aggregate.deathsByFloor],
+    retreatsByFloor: [...aggregate.retreatsByFloor]
+  };
+}
+
 function addTrapAggregate(target, result) {
   target.runs++;
   target.encounters += result.trapEncounterCount;
@@ -2213,7 +2293,8 @@ function createSimulationState(
       bloodWandHealPolicy,
       materialDropOverride: scenario.materialDropOverride || null
     },
-    floor: startFloor
+    floor: startFloor,
+    flameTrapCooldownTurns: 0
   };
 }
 
@@ -5469,6 +5550,32 @@ function getRouteDirection(previous, current, fallback = 0) {
   return fallback;
 }
 
+function isFlameTrapSpecialCell(cell) {
+  return Boolean(
+    cell?.type === "stairs-up" ||
+    cell?.type === "stairs-down" ||
+    cell?.event === "midboss" ||
+    cell?.event === "boss" ||
+    cell?.event === "chest" ||
+    cell?.event === EVENT_TYPES.MERCHANT ||
+    cell?.event === EVENT_TYPES.RETURN_PORTAL ||
+    cell?.message
+  );
+}
+
+function isFlameTrapSpecialStep(generated, routePlan, floorSteps, step) {
+  const routePath = routePlan.path;
+  if (!routePath?.length || floorSteps <= 0) return false;
+  // floorSteps is an estimate; project each estimated step onto the generated route
+  // so special cells suppress the independent flame-trap trial.
+  const routeIndex = Math.min(
+    routePath.length - 1,
+    Math.floor((step / floorSteps) * Math.max(0, routePath.length - 1))
+  );
+  const coord = routePath[routeIndex];
+  return isFlameTrapSpecialCell(generated.grid[coord.y]?.[coord.x]);
+}
+
 function observeSneakStepPerception({
   state,
   observations,
@@ -5694,6 +5801,49 @@ function scheduleFloorTraps(generated, routePlan, floorSteps) {
     });
   });
   return schedule;
+}
+
+function resolveFlameTrapAtStep({
+  state,
+  generated,
+  routePlan,
+  floorSteps,
+  step,
+  metrics
+}) {
+  if (state.flameTrapCooldownTurns && state.flameTrapCooldownTurns > 0) {
+    state.flameTrapCooldownTurns--;
+  }
+  const flameCooldownActive =
+    state.flameTrapCooldownTurns && state.flameTrapCooldownTurns > 0;
+  if (
+    state.floor !== FLAME_TRAP_MODEL.floor ||
+    isFlameTrapSpecialStep(generated, routePlan, floorSteps, step) ||
+    flameCooldownActive
+  ) {
+    return false;
+  }
+
+  metrics.flameTrapEligibleSteps++;
+  if (Math.random() >= FLAME_TRAP_MODEL.chance) return false;
+
+  state.flameTrapCooldownTurns = FLAME_TRAP_MODEL.cooldownTurns;
+  metrics.flameTrapActivations++;
+  state.party.forEach(character => {
+    if (!isAlive(character)) return;
+    const damage =
+      Math.floor(Math.random() * FLAME_TRAP_MODEL.damageRolls) +
+      FLAME_TRAP_MODEL.minDamage;
+    character.hp = Math.max(0, character.hp - damage);
+    clearCharIncapacitationOnDamage(character);
+    metrics.flameTrapDamageHp += damage;
+    if (character.hp === 0) {
+      character.status = "dead";
+      recordCharDeath(state, character, "火炎の罠");
+      metrics.flameTrapDeaths++;
+    }
+  });
+  return true;
 }
 
 function getTrapAvoidancePlan(generated, currentCoord, trap) {
@@ -6531,6 +6681,7 @@ function finishRun(state, outcome, metrics) {
     extraCampSteps: metrics.extraCampSteps,
     combatRounds: metrics.combatRounds,
     reachedFloor: state.currentRun.deepestFloor,
+    endFloor: state.floor,
     deathFloor: outcome === "death" ? state.floor : null,
     stalemate: metrics.stalemate,
     finalLevel: state.party[0].level,
@@ -6710,6 +6861,10 @@ function finishRun(state, outcome, metrics) {
     trapActivations: metrics.trapActivations,
     trapActivationsBySource: { ...metrics.trapActivationsBySource },
     trapActivationsByType: { ...metrics.trapActivationsByType },
+    flameTrapActivations: metrics.flameTrapActivations,
+    flameTrapDamageHp: metrics.flameTrapDamageHp,
+    flameTrapDeaths: metrics.flameTrapDeaths,
+    flameTrapEligibleSteps: metrics.flameTrapEligibleSteps,
     trapEncounterCount: metrics.trapEncounterCount,
     trapEncounterBySource: { ...metrics.trapEncounterBySource },
     chestsOpened: metrics.chestsOpened,
@@ -7035,6 +7190,10 @@ export function simulateRun({
     trapActivations: 0,
     trapActivationsBySource: { chest: 0, floor: 0 },
     trapActivationsByType: {},
+    flameTrapActivations: 0,
+    flameTrapDamageHp: 0,
+    flameTrapDeaths: 0,
+    flameTrapEligibleSteps: 0,
     trapEncounterCount: 0,
     trapEncounterBySource: { chest: 0, floor: 0 },
     chestsOpened: 0,
@@ -7357,6 +7516,20 @@ export function simulateRun({
         }
       }
       if (floorEndedByPitfall) break stepLoop;
+
+      const flameTrapTriggered = resolveFlameTrapAtStep({
+        state,
+        generated,
+        routePlan,
+        floorSteps,
+        step,
+        metrics
+      });
+      if (!isAlive(state.party[0])) {
+        metrics.deathEncounterType = "flame-trap";
+        return finishRun(state, "death", metrics);
+      }
+      if (flameTrapTriggered) continue stepLoop;
 
       const pickedUpChests = chestSchedule.get(step) || 0;
       for (let chest = 0; chest < pickedUpChests; chest++) {
@@ -7908,6 +8081,7 @@ function simulateCase({
     entrantsByFloor: Array(21).fill(0),
     breakthroughsByFloor: Array(21).fill(0),
     deathsByFloor: Array(21).fill(0),
+    retreatsByFloor: Array(21).fill(0),
     meanStats: createMeanStats([
       "bankedMaterials",
       "materialAcquired",
@@ -8003,6 +8177,10 @@ function simulateCase({
     ),
     healPotionsUsed: 0,
     trap: createTrapAggregate(),
+    flameTrap: createFlameTrapAggregate(),
+    outcomesByClass: Object.fromEntries(
+      SIM_CLASSES.map(className => [className, createOutcomeAggregate()])
+    ),
     trapBonus: createTrapBonusAggregate(),
     trapSense: createTrapSenseAggregate(),
     townPortalsUsed: 0,
@@ -8022,6 +8200,9 @@ function simulateCase({
   };
   const classTrapTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapAggregate()])
+  );
+  const classFlameTrapTotals = Object.fromEntries(
+    SIM_CLASSES.map(className => [className, createFlameTrapAggregate()])
   );
   const classTrapBonusTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapBonusAggregate()])
@@ -8045,6 +8226,9 @@ function simulateCase({
       },
       workshop: scenario.workshop || { ranks: {} }
     });
+    addOutcomeAggregate(totals.outcomesByClass[className], result);
+    addFlameTrapAggregate(totals.flameTrap, result);
+    addFlameTrapAggregate(classFlameTrapTotals[className], result);
     const workshopEffects = totals.workshopEffectsByClass[className];
     workshopEffects.runs++;
     Object.entries(result.workshopEffects.stats).forEach(([stat, amount]) => {
@@ -8092,6 +8276,9 @@ function simulateCase({
       totals.entrantsByFloor[floor]++;
       if (result.reachedFloor > floor) totals.breakthroughsByFloor[floor]++;
       if (result.deathFloor === floor) totals.deathsByFloor[floor]++;
+    }
+    if (result.survived && Number.isInteger(result.endFloor)) {
+      totals.retreatsByFloor[result.endFloor]++;
     }
     totals.stalemates += Number(result.stalemate);
     totals.finalLevels += result.finalLevel;
@@ -8300,6 +8487,7 @@ function simulateCase({
     entrantsByFloor: [...totals.entrantsByFloor],
     breakthroughsByFloor: [...totals.breakthroughsByFloor],
     deathsByFloor: [...totals.deathsByFloor],
+    retreatsByFloor: [...totals.retreatsByFloor],
     stalemateRate: totals.stalemates / RUNS_PER_CASE,
     averageFinalLevel: totals.finalLevels / RUNS_PER_CASE,
     averageEquipmentUpgrades: totals.equipmentUpgrades / RUNS_PER_CASE,
@@ -8429,6 +8617,20 @@ function simulateCase({
     firstCoreDepthCounts: totals.firstCoreDepthCounts,
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
     ...finalizeTrapAggregate(totals.trap),
+    flameTrap: finalizeFlameTrapAggregate(totals.flameTrap),
+    averageFlameTrapActivations: totals.flameTrap.activations / RUNS_PER_CASE,
+    flameTrapByClass: Object.fromEntries(
+      Object.entries(classFlameTrapTotals).map(([className, aggregate]) => [
+        className,
+        finalizeFlameTrapAggregate(aggregate)
+      ])
+    ),
+    outcomesByClass: Object.fromEntries(
+      Object.entries(totals.outcomesByClass).map(([className, aggregate]) => [
+        className,
+        finalizeOutcomeAggregate(aggregate)
+      ])
+    ),
     trapBonusSupply: finalizeTrapBonusAggregate(totals.trapBonus),
     trapBonusSupplyByClass: Object.fromEntries(
       Object.entries(classTrapBonusTotals).map(([className, aggregate]) => [
@@ -8730,6 +8932,30 @@ function printTable(results) {
   });
 }
 
+function printClassOutcomeMetrics(result) {
+  if (!result?.outcomesByClass) return;
+  console.log(`\n【B5F gate 職業別 endpoint / ${result.label}】`);
+  console.log(
+    "職業 | N | B5 entrant | B5突破 | B5死亡 | B5撤退 | 全run生還率(=撤退率) | 全run死亡率 | 平均到達階"
+  );
+  Object.entries(result.outcomesByClass).forEach(([className, stats]) => {
+    const b5Entrants = stats.entrantsByFloor[5] || 0;
+    const b5Breakthroughs = stats.entrantsByFloor[6] || 0;
+    const b5Deaths = stats.deathsByFloor[5] || 0;
+    const b5Retreats = stats.retreatsByFloor[5] || 0;
+    console.log(
+      `${className.padEnd(6)} | ${String(stats.runs).padStart(3)} | ` +
+      `${formatWilson(b5Entrants, stats.runs)} | ` +
+      `${formatWilson(b5Breakthroughs, b5Entrants)} | ` +
+      `${formatWilson(b5Deaths, b5Entrants)} | ` +
+      `${formatWilson(b5Retreats, b5Entrants)} | ` +
+      `${formatWilson(stats.survivedRuns, stats.runs)} | ` +
+      `${formatWilson(stats.diedRuns, stats.runs)} | ` +
+      `${stats.averageReachedFloor.toFixed(2)}`
+    );
+  });
+}
+
 function printTrapMetrics(result) {
   console.log(
     `\n【${result.label} 罠計測 / 職業別 / 床罠=${result.trapPolicy}, ` +
@@ -8768,6 +8994,16 @@ function printTrapMetrics(result) {
       `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)} | ` +
       `${kitsAcquired.departureCraft.toFixed(2).padStart(8)} | ` +
       `${kitsConsumed.departureCraft.toFixed(2).padStart(8)}`
+    );
+  });
+  console.log("火炎の罠（B5Fのみ・既存罠経路外） | 発動/run | 被害HP/run | 死亡者/run | 試行対象歩/run");
+  Object.entries(result.flameTrapByClass || {}).forEach(([className, metrics]) => {
+    console.log(
+      `${className.padEnd(30)} | ` +
+      `${metrics.averageFlameTrapActivations.toFixed(2).padStart(8)} | ` +
+      `${metrics.averageFlameTrapDamageHp.toFixed(2).padStart(9)} | ` +
+      `${metrics.averageFlameTrapDeaths.toFixed(2).padStart(10)} | ` +
+      `${metrics.averageFlameTrapEligibleSteps.toFixed(2).padStart(11)}`
     );
   });
   console.log("回避EV評価 | 候補/run | 却下/run | 観測不足/run | 追加遭遇/run | 遭遇被害HP/run | 直接対応HP/run");
@@ -8946,15 +9182,17 @@ function printIdentificationComparison(resultsByPolicy, scenario) {
 }
 
 function printFloorMilestoneMetrics(result) {
-  console.log(`\n【${result.label} B5/B10 entrant・突破・死亡】`);
+  console.log(`\n【${result.label} B5/B10 entrant・突破・死亡・撤退】`);
   [5, 10].forEach(floor => {
     const entrants = result.entrantsByFloor[floor] || 0;
     const breakthroughs = result.breakthroughsByFloor[floor] || 0;
     const deaths = result.deathsByFloor[floor] || 0;
+    const retreats = result.retreatsByFloor?.[floor] || 0;
     console.log(
       `B${floor}: entrant=${formatWilson(entrants, RUNS_PER_CASE)}, ` +
       `突破=${formatWilson(breakthroughs, entrants)}, ` +
-      `死亡=${formatWilson(deaths, entrants)}`
+      `死亡=${formatWilson(deaths, entrants)}, ` +
+      `撤退=${formatWilson(retreats, entrants)}`
     );
   });
 }
@@ -9503,6 +9741,13 @@ const ENV_SIGNATURE = {
   identificationStartingPowder: IDENTIFICATION_STARTING_POWDER_INPUT,
   identificationCost: IDENTIFICATION_COST_INPUT,
   explorationFactor: EXPLORATION_FACTOR,
+  flameTrapModel: {
+    floor: FLAME_TRAP_MODEL.floor,
+    chance: FLAME_TRAP_MODEL.chance,
+    cooldownTurns: FLAME_TRAP_MODEL.cooldownTurns,
+    minDamage: FLAME_TRAP_MODEL.minDamage,
+    maxDamage: FLAME_TRAP_MODEL.minDamage + FLAME_TRAP_MODEL.damageRolls - 1
+  },
   chestPickupRate: CHEST_PICKUP_RATE,
   combatTurnWeight: COMBAT_TURN_WEIGHT,
   initialHealPotions: INITIAL_HEAL_POTIONS,
@@ -9662,6 +9907,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   scenarioResults.forEach(({ scenario, results }) => {
   console.log(`\n【${scenario.label} B1開始 深度別系列】`);
   printTable(results);
+  printClassOutcomeMetrics(results.find(result => result.targetDepth === 20));
   results.forEach(result => {
     printTrapMetrics(result);
     printConsumableSummary(result);
@@ -9753,6 +9999,7 @@ reportMechanismFiring({
   "罠-解除": sumAcrossResults("averageTrapDisarms"),
   "罠-発動(被弾)": sumAcrossResults("averageTrapActivations"),
   "罠-被害HP": sumAcrossResults("averageTrapDamageHp"),
+  "火炎の罠-発動": sumAcrossResults("averageFlameTrapActivations"),
   "消耗品-傷薬使用": sumAcrossResults("averageHealPotionsUsed"),
   "帰還の翼-使用": sumAcrossResults("averageTownPortalsUsed"),
   "鑑定-実施回数": sumAcrossResults("averageIdentificationCount")
