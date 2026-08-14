@@ -582,6 +582,10 @@ import { state } from "../src/state.js";
       // Check Exp (Normal exp: 100 / 1 char = 100. Bonus exp should be 0)
       assert.strictEqual(state.party[0].exp, 100, "Should only gain normal exp (100)");
       assert.strictEqual(state.currentRun.expGained, 100, "Current run exp should be 100");
+      assert.ok(
+        logQueue.some(log => log.msg === "戦闘に勝利した！生存中の仲間が戦闘経験を積んだ。"),
+        "Combat reward log should name living allies"
+      );
 
       // 初討伐分はbanking対象外のメタ素材へ直接入り、ラン結果にも内訳を残す。
       const wolfMainMat = "獣の牙";

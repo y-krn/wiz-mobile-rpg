@@ -471,7 +471,7 @@ export function renderSpellOverlay() {
     
     let targetJp = "味方単体";
     if (spell.target === "all_enemies") targetJp = "敵全体";
-    else if (spell.target === "all_allies") targetJp = "味方全体";
+    else if (spell.target === "all_allies") targetJp = "生存中の味方全員";
     else if (spell.target === "single_enemy") targetJp = "敵単体";
     else if (spell.target === "utility") targetJp = "探索全体";
 

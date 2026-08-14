@@ -144,7 +144,7 @@ export const SPELLS = {
     level: 5,
     cost: 5,
     target: "all_allies",
-    desc: "味方全体の治療 (25-40 HP回復)"
+    desc: "生存中の味方全員を治療 (25-40 HP回復)"
   },
   MABARRIER: {
     name: "MABARRIER",
@@ -152,7 +152,7 @@ export const SPELLS = {
     level: 4,
     cost: 3,
     target: "all_allies",
-    desc: "魔力障壁 (3ターン、味方全体の呪文・ブレス被ダメージを30%軽減)"
+    desc: "魔力障壁 (3ターン、生存中の味方全員の呪文・ブレス被ダメージを30%軽減)"
   },
   MONTINO: {
     name: "MONTINO",
