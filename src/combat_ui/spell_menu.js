@@ -12,7 +12,7 @@ export function openCombatSpellMenu(char, callback) {
 
 export function getSpellCombatSummary(spellName) {
   const summaries = {
-    HALITO: { tag: "単体", effect: "火 8-18", category: "single" },
+    HALITO: { tag: "単体", effect: "火 12-22", category: "single" },
     KATINO: { tag: "弱体", effect: "全体睡眠", category: "debuff" },
     LAHALITO: { tag: "全体", effect: "火 15-35", category: "all" },
     DUMAPIC: { tag: "探索", effect: "座標探知", category: "utility" },
