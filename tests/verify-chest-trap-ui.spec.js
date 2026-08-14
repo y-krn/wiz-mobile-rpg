@@ -171,3 +171,54 @@ test('Verify Chest Trap Inspection and Disarm Button UI state flow (no trap)', a
   }
 
 });
+
+test('Opening a chest with stale chest state does not leave controls locked', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.clear();
+  });
+  await page.goto('/');
+  await page.waitForTimeout(500);
+
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { setupChestState } = await import('/src/chest.js');
+
+    state.party = [{
+      name: 'Robin',
+      class: 'Thief',
+      level: 1,
+      hp: 15,
+      maxHp: 15,
+      status: 'ok',
+      equipment: { weapon: null, shield: null, armor: null },
+    }];
+    setupChestState('none', null, 'HEAL_POTION');
+  });
+
+  await page.getByRole('button', { name: '宝箱を開ける' }).click();
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    state.chestState = null;
+  });
+  await page.getByRole('button', { name: /Robin .*開ける/ }).click();
+
+  await expect.poll(async () => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return {
+      gameState: state.gameState,
+      transitioning: state.transitioning,
+      hasChest: Boolean(state.chestState),
+    };
+  })).toEqual({
+    gameState: 'explore',
+    transitioning: false,
+    hasChest: false,
+  });
+  expect(pageErrors).toEqual([]);
+  await expect(page.locator('#controls-panel')).toHaveCSS('pointer-events', 'auto');
+});
