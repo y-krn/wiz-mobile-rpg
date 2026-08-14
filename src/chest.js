@@ -122,7 +122,7 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
       label
     }
   };
-  
+
   // Transition to chest submenu
   openChestMenu();
 }
@@ -360,6 +360,23 @@ function recoverChestDisarmTransition(error) {
   }
 }
 
+function recoverChestOpenTransition(error, chest = state.chestState) {
+  console.error("Failed to finish chest open transition", error);
+  state.transitioning = false;
+
+  // An opening attempt may have applied part of its trap/reward effects before
+  // failing. Do not leave a partially processed chest available for a retry.
+  const cell = chest && state.map?.[chest.y]?.[chest.x];
+  if (cell?.event === "chest") {
+    cell.event = null;
+    markMapChanged();
+  }
+  state.chestState = null;
+  state.gameState = "explore";
+  resetSubmenuBackButton();
+  updateUI();
+}
+
 export function executeDisarm(char, rng = Math.random) {
   if (!state.chestState || state.transitioning) return false;
 
@@ -554,127 +571,131 @@ export function smashChest(rng = Math.random) {
 
 export function openChestDirectly(opener = null, rng = Math.random) {
   state.transitioning = true;
-  menuContext.type = "chest_result";
-  const chest = state.chestState;
-  const chestMap = state.map;
-  const chestX = chest.x;
-  const chestY = chest.y;
-  const fromDrop = chest.fromDrop;
-  const tombRaiderActivated = applyTombRaiderTrapTier(chest, opener);
-  
-  if (state.currentRun) {
-    state.currentRun.chestsOpened++;
-  }
-  
-  const translateTrap = (t) => {
-    if (t === "poison needle") return "毒針";
-    if (t === "gas bomb") return "ガス爆弾";
-    if (t === "teleporter") return "テレポーター";
-    if (t === "flash bomb") return "閃光弾";
-    return "なし";
-  };
+  try {
+    menuContext.type = "chest_result";
+    const chest = state.chestState;
+    const chestMap = state.map;
+    const chestX = chest.x;
+    const chestY = chest.y;
+    const fromDrop = chest.fromDrop;
+    const tombRaiderActivated = applyTombRaiderTrapTier(chest, opener);
 
-  // If trap is still active, trigger on selected opener if provided.
-  if (chest.trap && chest.trap !== "none") {
-    const trapTarget = opener || state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
-    addLog(`宝箱を開けた瞬間、罠 [${translateTrap(chest.trap)}] が作動した！`);
     if (state.currentRun) {
-      state.currentRun.trapsTriggered++;
+      state.currentRun.chestsOpened++;
     }
-    triggerChestTrap(trapTarget, false, rng);
-  }
 
-  // 素材束の獲得
-  const tombRaider = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
-  const mats = generateChestMaterials(state.floor, rng, tombRaider?.materialBonus || 0);
-  if (Object.keys(mats).length > 0) {
-    Object.entries(mats).forEach(([mat, qty]) => {
+    const translateTrap = (t) => {
+      if (t === "poison needle") return "毒針";
+      if (t === "gas bomb") return "ガス爆弾";
+      if (t === "teleporter") return "テレポーター";
+      if (t === "flash bomb") return "閃光弾";
+      return "なし";
+    };
+
+    // If trap is still active, trigger on selected opener if provided.
+    if (chest.trap && chest.trap !== "none") {
+      const trapTarget = opener || state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
+      addLog(`宝箱を開けた瞬間、罠 [${translateTrap(chest.trap)}] が作動した！`);
       if (state.currentRun) {
-        state.currentRun.materials ||= {};
-        state.currentRun.materials[mat] = (state.currentRun.materials[mat] || 0) + qty;
+        state.currentRun.trapsTriggered++;
       }
-    });
-    const matStr = Object.entries(mats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
-    addLog(`宝箱から素材束: [${matStr}] を獲得した！`);
-    if (tombRaiderActivated || tombRaider) addLog(getCoreLogText("CORE_TOMB_RAIDER"));
-  }
-
-  if (rng() < IDENTIFICATION_BALANCE.chestPowderChance) {
-    state.identifyTickets = (state.identifyTickets || 0) + 1;
-    addLog("宝箱から鑑定粉を1個見つけた！");
-  }
-  
-  if (state.codex && state.codex.events && state.codex.events.facilities) {
-    if (!state.codex.events.facilities.chest) {
-      state.codex.events.facilities.chest = { found: 1, opened: 0 };
+      triggerChestTrap(trapTarget, false, rng);
     }
-    state.codex.events.facilities.chest.opened++;
-  }
+
+    // 素材束の獲得
+    const tombRaider = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
+    const mats = generateChestMaterials(state.floor, rng, tombRaider?.materialBonus || 0);
+    if (Object.keys(mats).length > 0) {
+      Object.entries(mats).forEach(([mat, qty]) => {
+        if (state.currentRun) {
+          state.currentRun.materials ||= {};
+          state.currentRun.materials[mat] = (state.currentRun.materials[mat] || 0) + qty;
+        }
+      });
+      const matStr = Object.entries(mats).map(([mat, qty]) => `${mat} x${qty}`).join(", ");
+      addLog(`宝箱から素材束: [${matStr}] を獲得した！`);
+      if (tombRaiderActivated || tombRaider) addLog(getCoreLogText("CORE_TOMB_RAIDER"));
+    }
+
+    if (rng() < IDENTIFICATION_BALANCE.chestPowderChance) {
+      state.identifyTickets = (state.identifyTickets || 0) + 1;
+      addLog("宝箱から鑑定粉を1個見つけた！");
+    }
   
-  // Award Item
-  if (chest.item) {
-    const item = getItemData(chest.item);
-    const added = addInventoryItem(chest.item);
-    if (added) {
-      recordEquipmentDiscovery(chest.item);
-      if (state.currentRun) {
-        if (typeof chest.item === "string") {
-          state.currentRun.itemsFound.push(chest.item);
-        } else {
-          state.currentRun.equipmentFound.push(chest.item);
+    if (state.codex && state.codex.events && state.codex.events.facilities) {
+      if (!state.codex.events.facilities.chest) {
+        state.codex.events.facilities.chest = { found: 1, opened: 0 };
+      }
+      state.codex.events.facilities.chest.opened++;
+    }
+  
+    // Award Item
+    if (chest.item) {
+      const item = getItemData(chest.item);
+      const added = addInventoryItem(chest.item);
+      if (added) {
+        recordEquipmentDiscovery(chest.item);
+        if (state.currentRun) {
+          if (typeof chest.item === "string") {
+            state.currentRun.itemsFound.push(chest.item);
+          } else {
+            state.currentRun.equipmentFound.push(chest.item);
+            if (state.floor === 1) {
+              state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
+            }
+          }
+        }
+        addLog(`アイテム: [${item.name}] を手に入れた！`);
+      } else {
+        addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
+      }
+    }
+
+    if (chest.accessoryItem) {
+      const item = getItemData(chest.accessoryItem);
+      const added = addInventoryItem(chest.accessoryItem);
+      if (added) {
+        recordEquipmentDiscovery(chest.accessoryItem);
+        if (state.currentRun) {
+          state.currentRun.equipmentFound.push(chest.accessoryItem);
           if (state.floor === 1) {
             state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
           }
         }
+        addLog(`装身具: [${item.name}] を手に入れた！`);
+      } else {
+        addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
       }
-      addLog(`アイテム: [${item.name}] を手に入れた！`);
-    } else {
-      addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
     }
-  }
 
-  if (chest.accessoryItem) {
-    const item = getItemData(chest.accessoryItem);
-    const added = addInventoryItem(chest.accessoryItem);
-    if (added) {
-      recordEquipmentDiscovery(chest.accessoryItem);
-      if (state.currentRun) {
-        state.currentRun.equipmentFound.push(chest.accessoryItem);
-        if (state.floor === 1) {
-          state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
-        }
-      }
-      addLog(`装身具: [${item.name}] を手に入れた！`);
-    } else {
-      addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
+    // Clear the original chest cell even if a trap moved the party.
+    chestMap[chestY][chestX].event = null;
+    markMapChanged();
+    if (!fromDrop && state.floorChestsOpened) {
+      state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
     }
-  }
 
-  // Clear the original chest cell even if a trap moved the party.
-  chestMap[chestY][chestX].event = null;
-  markMapChanged();
-  if (!fromDrop && state.floorChestsOpened) {
-    state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
-  }
+    // Check game over
+    const partyAlive = state.party.some(c => c.status !== "dead");
+    if (partyAlive) {
+      resetSubmenuBackButton();
+      state.transitioning = false;
+      state.chestState = null;
+      state.gameState = "explore";
+      saveAutosave();
+      updateUI();
+      return;
+    }
 
-  // Check game over
-  const partyAlive = state.party.some(c => c.status !== "dead");
-  if (partyAlive) {
-    resetSubmenuBackButton();
-    state.transitioning = false;
-    state.chestState = null;
-    state.gameState = "explore";
-    saveAutosave();
     updateUI();
-    return;
+    setTimeout(() => {
+      resetSubmenuBackButton();
+      state.transitioning = false;
+      triggerGameOver();
+    }, 1800);
+  } catch (error) {
+    recoverChestOpenTransition(error);
   }
-
-  updateUI();
-  setTimeout(() => {
-    resetSubmenuBackButton();
-    state.transitioning = false;
-    triggerGameOver();
-  }, 1800);
 }
 
 export function generateChestMaterials(
