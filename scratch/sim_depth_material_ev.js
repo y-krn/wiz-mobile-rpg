@@ -39,6 +39,7 @@ const { applyPendingOutcomeRewards } = await import("../src/combat_ui/outcome_re
 const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
 const {
   chooseAutoCombatAction,
+  getPreferredHealingSpellName,
   getPreferredOffensiveSpellName
 } = await import("../src/combat_logic/auto_action.js");
 const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
@@ -217,6 +218,7 @@ const {
   SPELLS
 } = await import("../src/data.js");
 
+// Candidate/masking list only; selection ranking lives in auto_action.js.
 const PRIEST_HEALING_SPELL_IDS = Object.freeze([
   "DIALMA",
   "MADI",
@@ -530,6 +532,16 @@ if (SIM_MADI_HEAL_MIN !== null) {
     healMax: SIM_MADI_HEAL_MAX
   });
 }
+const SIM_HEALING_SPELL_PROFILES =
+  SIM_MADI_HEAL_MIN === null && SIM_MADI_COST === null
+    ? null
+    : {
+      MADI: {
+        healMin: SIM_MADI_HEAL_MIN ?? SPELLS.MADI.healMin,
+        healMax: SIM_MADI_HEAL_MAX ?? SPELLS.MADI.healMax,
+        cost: SIM_MADI_COST ?? SPELLS.MADI.cost
+      }
+    };
 const CORE_ENCOUNTER_CEILING_MODE = String(
   process.env.SIM_CORE_ENCOUNTER_CEILING || ""
 ).trim();
@@ -2847,7 +2859,11 @@ function chooseSimulationAutoCombatAction(args) {
       !PRIEST_HEALING_SPELL_IDS.includes(spellName) || maskedSpellIds.includes(spellName)
     )
   };
-  return chooseAutoCombatAction({ ...args, character });
+  return chooseAutoCombatAction({
+    ...args,
+    character,
+    healingSpellProfiles: SIM_HEALING_SPELL_PROFILES
+  });
 }
 
 function getSimulationPreferredOffensiveSpellName(character, monsters, canCastSpell) {
@@ -4253,13 +4269,26 @@ function runEncounter(
 function applyPostCombatRecovery(character, metrics = null) {
   const healingSpellIds = getSimulationPriestHealingSpellIds();
   while (character.mp > 0 && character.hp < getCharMaxHp(character) * 0.70) {
-    const spellName = healingSpellIds.find(candidate => {
-      if (!hasSpell(character, candidate)) return false;
-      const payment = getSpellPayment(character, SPELLS[candidate].cost);
-      return payment.resource === "mp" && payment.canCast;
-    });
+    const healingCharacter = {
+      ...character,
+      spells: character.spells?.filter(spellName => healingSpellIds.includes(spellName))
+    };
+    const spellName = getPreferredHealingSpellName(
+      healingCharacter,
+      candidate => {
+        const payment = getSpellPayment(
+          character,
+          SIM_HEALING_SPELL_PROFILES?.[candidate]?.cost ?? SPELLS[candidate].cost
+        );
+        return payment.resource === "mp" && payment.canCast;
+      },
+      SIM_HEALING_SPELL_PROFILES
+    );
     if (!spellName) break;
-    const payment = getSpellPayment(character, SPELLS[spellName].cost);
+    const payment = getSpellPayment(
+      character,
+      SIM_HEALING_SPELL_PROFILES?.[spellName]?.cost ?? SPELLS[spellName].cost
+    );
     const hpBefore = character.hp;
     character.mp -= payment.cost;
     SPELL_EFFECTS[spellName]({ caster: character, target: character });

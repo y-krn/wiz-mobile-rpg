@@ -1,9 +1,17 @@
+import { SPELLS } from "../data/spells.js";
 import { getSpellStatBonus } from "../rules/spell_rules.js";
 import { getCharInt, getCharPie, getCharMaxHp } from "../rules/character_stats.js";
 import { getCharAffixSum, getEffectiveHealAmount } from "../rules/item_rules.js";
 import { DIR_NAMES } from "../constants/directions.js";
 import { EVENT_TYPES } from "../constants/events.js";
 import { getDamageAffixResult, getSpellAccuracyBonus } from "../rules/affix_rules.js";
+
+function rollHealing(spellName, rng, minOverride = null, maxOverride = null) {
+  const spell = SPELLS[spellName];
+  const min = minOverride ?? spell.healMin;
+  const max = maxOverride ?? spell.healMax;
+  return Math.floor(rng() * (max - min + 1)) + min;
+}
 
 function applyOffensiveAffixes(caster, target, damage) {
   return getDamageAffixResult(caster, target, damage, {
@@ -233,7 +241,7 @@ export const SPELL_EFFECTS = {
 
   // Priest Spells
   DIOS: ({ caster, target, rng = Math.random }) => {
-    let heal = Math.floor(rng() * 11) + 10;
+    let heal = rollHealing("DIOS", rng);
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
     const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
     heal = Math.round(heal * bonus * devotionBonus);
@@ -304,7 +312,7 @@ export const SPELL_EFFECTS = {
     return { log: `${caster.name}は${target.name}にディアルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
   },
   MADIOS: ({ caster, target, rng = Math.random }) => {
-    let heal = Math.floor(rng() * 36) + 35;
+    let heal = rollHealing("MADIOS", rng);
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
     heal = Math.round(heal * bonus);
     heal = getEffectiveHealAmount(target, heal);
@@ -334,7 +342,7 @@ export const SPELL_EFFECTS = {
     return { log: `${caster.name}はロミルワを唱えた！${steps}歩の間、強い光が罠・不意打ち・隠れた気配を照らす。` };
   },
   DIALMA: ({ caster, target, rng = Math.random }) => {
-    let heal = Math.floor(rng() * 51) + 70;
+    let heal = rollHealing("DIALMA", rng);
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
     const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
     heal = Math.round(heal * bonus * devotionBonus);
@@ -348,8 +356,8 @@ export const SPELL_EFFECTS = {
     }
     return { heal: actualHeal, log: `${caster.name}はディアルマを唱えた！${target.name}のHPを${actualHeal}大回復した。` };
   },
-  MADI: ({ caster, target, rng = Math.random, healMin = 60, healMax = 90 }) => {
-    let heal = Math.floor(rng() * (healMax - healMin + 1)) + healMin;
+  MADI: ({ caster, target, rng = Math.random, healMin = null, healMax = null }) => {
+    let heal = rollHealing("MADI", rng, healMin, healMax);
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
     const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
     heal = Math.round(heal * bonus * devotionBonus);

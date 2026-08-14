@@ -67,9 +67,20 @@ check("Mage uses MAHALITO when HALITO cannot finish the target", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MAHALITO" });
 });
 
-check("Priest uses MADIOS for an explicitly requested heal", () => {
+check("Priest uses the lowest-cost DIOS for a small HP deficit", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Priest", spells: ["DIOS", "MADIOS", "BADIOS"] },
+    character: { class: "Priest", hp: 85, maxHp: 100, spells: ["DIOS", "MADIOS", "MADI", "DIALMA"] },
+    monsters: [{ hp: 30 }],
+    roundNumber: 2,
+    healingTargetIdx: 0,
+    canCastSpell: () => true
+  });
+  assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "DIOS" });
+});
+
+check("Priest chooses the least-wasteful equal-cost spell", () => {
+  const action = chooseAutoCombatAction({
+    character: { class: "Priest", hp: 40, maxHp: 100, spells: ["DIOS", "MADIOS", "MADI", "DIALMA"] },
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     healingTargetIdx: 0,
@@ -78,15 +89,26 @@ check("Priest uses MADIOS for an explicitly requested heal", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MADIOS" });
 });
 
-check("Priest prefers MADI over MADIOS for an explicitly requested heal", () => {
+check("Priest selects MADI when the HP deficit exceeds MADIOS coverage", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Priest", spells: ["DIOS", "MADIOS", "MADI", "BADIOS"] },
+    character: { class: "Priest", hp: 25, maxHp: 100, spells: ["DIOS", "MADIOS", "MADI", "DIALMA"] },
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     healingTargetIdx: 0,
     canCastSpell: () => true
   });
   assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MADI" });
+});
+
+check("Priest selects DIALMA for a deficit above MADI coverage", () => {
+  const action = chooseAutoCombatAction({
+    character: { class: "Priest", hp: 0, maxHp: 100, spells: ["DIOS", "MADIOS", "MADI", "DIALMA"] },
+    monsters: [{ hp: 30 }],
+    roundNumber: 2,
+    healingTargetIdx: 0,
+    canCastSpell: () => true
+  });
+  assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "DIALMA" });
 });
 
 check("DIOS reserves one MP before offensive casting", () => {
