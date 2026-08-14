@@ -39,6 +39,7 @@ const { applyPendingOutcomeRewards } = await import("../src/combat_ui/outcome_re
 const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
 const {
   chooseAutoCombatAction,
+  getPreferredHealingSpellName,
   getPreferredOffensiveSpellName
 } = await import("../src/combat_logic/auto_action.js");
 const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
@@ -217,6 +218,14 @@ const {
   SPELLS
 } = await import("../src/data.js");
 
+// Candidate/masking list only; selection ranking lives in auto_action.js.
+const PRIEST_HEALING_SPELL_IDS = Object.freeze([
+  "DIALMA",
+  "MADI",
+  "MADIOS",
+  "DIOS"
+]);
+
 // Phase 2b scratch-only probe. It observes the real damage.js call without
 // changing src/. The wrapper is inactive unless the measurement opts in.
 const SIM_DAMAGE_PROBE_ENABLED = process.env.SIM_DAMAGE_PROBE === "1";
@@ -300,6 +309,12 @@ const SIM_ENV_KEYS = Object.freeze([
   "BLOOD_WAND_HP_PAYMENT_MIN_RATE",
   "SIM_CORE_SCORE_DROP_TOLERANCE",
   "SIM_440_CONDITION",
+  "SIM_INDEPENDENT_RUN_RANDOM",
+  "SIM_DIALMA_CANDIDATE",
+  "SIM_MADI_CANDIDATE",
+  "SIM_MADI_HEAL_MIN",
+  "SIM_MADI_HEAL_MAX",
+  "SIM_MADI_COST",
   "SIM_SCENARIOS"
 ]);
 const REVALIDATION_DEPARTURE_CRAFT_IDS =
@@ -333,6 +348,12 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   BLOOD_WAND_HP_PAYMENT_MIN_RATE: "0.50",
   SIM_CORE_SCORE_DROP_TOLERANCE: "0",
   SIM_440_CONDITION: "current",
+  SIM_INDEPENDENT_RUN_RANDOM: "0",
+  SIM_DIALMA_CANDIDATE: "1",
+  SIM_MADI_CANDIDATE: "1",
+  SIM_MADI_HEAL_MIN: "",
+  SIM_MADI_HEAL_MAX: "",
+  SIM_MADI_COST: "",
   SIM_SCENARIOS: ""
 });
 const BALANCE_MAIN_PRESET = Object.freeze({
@@ -360,6 +381,12 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   BLOOD_WAND_HP_PAYMENT_MIN_RATE: "0.50",
   SIM_CORE_SCORE_DROP_TOLERANCE: "0",
   SIM_440_CONDITION: "current",
+  SIM_INDEPENDENT_RUN_RANDOM: "0",
+  SIM_DIALMA_CANDIDATE: "1",
+  SIM_MADI_CANDIDATE: "1",
+  SIM_MADI_HEAL_MIN: "",
+  SIM_MADI_HEAL_MAX: "",
+  SIM_MADI_COST: "",
   SIM_SCENARIOS: ""
 });
 const REVALIDATION_PRESET = Object.freeze({
@@ -468,9 +495,64 @@ const CALIBRATION_RUNS = Math.max(
   Number(SIM_ENV.SIM_CALIBRATION_RUNS || RUNS_PER_CASE)
 );
 const SIM_SEED = Number(SIM_ENV.SIM_SEED || 231) >>> 0;
+const SIM_INDEPENDENT_RUN_RANDOM = SIM_ENV.SIM_INDEPENDENT_RUN_RANDOM === "1";
+const SIM_DIALMA_CANDIDATE = SIM_ENV.SIM_DIALMA_CANDIDATE !== "0";
+const SIM_MADI_CANDIDATE = SIM_ENV.SIM_MADI_CANDIDATE !== "0";
+const parseOptionalSimInteger = (value, name) => {
+  if (value === "" || value === undefined || value === null) return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    throw new Error(`${name} must be an integer: ${value}`);
+  }
+  return parsed;
+};
+const SIM_MADI_HEAL_MIN = parseOptionalSimInteger(SIM_ENV.SIM_MADI_HEAL_MIN, "SIM_MADI_HEAL_MIN");
+const SIM_MADI_HEAL_MAX = parseOptionalSimInteger(SIM_ENV.SIM_MADI_HEAL_MAX, "SIM_MADI_HEAL_MAX");
+const SIM_MADI_COST = parseOptionalSimInteger(SIM_ENV.SIM_MADI_COST, "SIM_MADI_COST");
+if ((SIM_MADI_HEAL_MIN === null) !== (SIM_MADI_HEAL_MAX === null)) {
+  throw new Error("SIM_MADI_HEAL_MIN and SIM_MADI_HEAL_MAX must be provided together");
+}
+if (
+  SIM_MADI_HEAL_MIN !== null &&
+  (SIM_MADI_HEAL_MIN < 1 || SIM_MADI_HEAL_MAX < SIM_MADI_HEAL_MIN)
+) {
+  throw new Error(
+    `SIM_MADI_HEAL_MIN/MAX must satisfy 1 <= min <= max: ${SIM_MADI_HEAL_MIN}/${SIM_MADI_HEAL_MAX}`
+  );
+}
+if (SIM_MADI_COST !== null && SIM_MADI_COST < 1) {
+  throw new Error(`SIM_MADI_COST must be >= 1: ${SIM_MADI_COST}`);
+}
+if (SIM_MADI_COST !== null) SPELLS.MADI.cost = SIM_MADI_COST;
+if (SIM_MADI_HEAL_MIN !== null) {
+  const sourceMadiEffect = SPELL_EFFECTS.MADI;
+  SPELL_EFFECTS.MADI = args => sourceMadiEffect({
+    ...args,
+    healMin: SIM_MADI_HEAL_MIN,
+    healMax: SIM_MADI_HEAL_MAX
+  });
+}
+const SIM_HEALING_SPELL_PROFILES =
+  SIM_MADI_HEAL_MIN === null && SIM_MADI_COST === null
+    ? null
+    : {
+      MADI: {
+        healMin: SIM_MADI_HEAL_MIN ?? SPELLS.MADI.healMin,
+        healMax: SIM_MADI_HEAL_MAX ?? SPELLS.MADI.healMax,
+        cost: SIM_MADI_COST ?? SPELLS.MADI.cost
+      }
+    };
 const CORE_ENCOUNTER_CEILING_MODE = String(
   process.env.SIM_CORE_ENCOUNTER_CEILING || ""
 ).trim();
+
+function getSimulationPriestHealingSpellIds() {
+  return PRIEST_HEALING_SPELL_IDS.filter(spellName => {
+    if (spellName === "DIALMA" && !SIM_DIALMA_CANDIDATE) return false;
+    if (spellName === "MADI" && !SIM_MADI_CANDIDATE) return false;
+    return true;
+  });
+}
 const CORE_WORKSHOP_GATE_MODE = String(
   process.env.SIM_CORE_WORKSHOP_GATE || ""
 ).trim();
@@ -2070,6 +2152,15 @@ Math.random = () => {
   return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 };
 
+function hashSimulationRunSeed(value) {
+  let hash = 2166136261;
+  for (const character of String(value)) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 function equipBestWorkshopStartingGear(character, workshop, config = {}) {
   const candidateIds = config.startingGearCandidatesOverride ||
     getWorkshopGrants(workshop).startingGear;
@@ -2132,7 +2223,9 @@ function createSimulationState(
   const intBonus = Number(scenario.intBonus) || 0;
   if (intBonus !== 0) character.int += intBonus;
   if (scenario.disablePriestHealing && className === "Priest") {
-    character.spells = character.spells.filter(spell => spell !== "DIOS");
+    character.spells = character.spells.filter(
+      spell => !PRIEST_HEALING_SPELL_IDS.includes(spell)
+    );
   }
   const workshopGrants = getWorkshopGrants(workshop);
   const identificationPolicy = scenario.identificationPolicy || "powder";
@@ -2472,6 +2565,8 @@ const AUTO_SPELL_IDS = Object.freeze([
   "TILTOWAIT",
   "KATINO",
   "BADIOS",
+  "DIALMA",
+  "MADI",
   "DIOS",
   "MADIOS"
 ]);
@@ -2482,8 +2577,19 @@ function createSpellUsageMetrics() {
     castableRounds: 0,
     selected: 0,
     applied: 0,
-    failed: 0
+    failed: 0,
+    postCombatCasts: 0,
+    postCombatHealingHp: 0
   }]));
+}
+
+function addSpellUsageAggregate(target, result) {
+  Object.entries(result.spellUsage || {}).forEach(([spellName, usage]) => {
+    if (!target[spellName]) target[spellName] = createSpellUsageMetrics()[spellName];
+    Object.keys(target[spellName]).forEach(key => {
+      target[spellName][key] += usage[key] || 0;
+    });
+  });
 }
 
 function recordSpellSelectionMetrics(state, metrics, action) {
@@ -2493,7 +2599,9 @@ function recordSpellSelectionMetrics(state, metrics, action) {
     if (!hasSpell(character, spellName)) return;
     const usage = metrics.spellUsage[spellName];
     usage.knownRounds++;
-    const paymentReserve = ["DIOS", "MADIOS"].includes(spellName) ? 0 : reserveMp;
+    const paymentReserve = PRIEST_HEALING_SPELL_IDS.includes(spellName)
+      ? 0
+      : reserveMp;
     usage.castableRounds += Number(Boolean(
       getSpellActionPayment(state, spellName, paymentReserve)
     ));
@@ -2742,7 +2850,19 @@ function chooseSimulationAutoCombatAction(args) {
   if (ISSUE538_LEGACY_SPELL_POLICY && args.character.class === "Mage") {
     return getLegacyMageCombatAction(args);
   }
-  return chooseAutoCombatAction(args);
+  const isPriest = args.character.class === "Priest";
+  const maskedSpellIds = isPriest ? getSimulationPriestHealingSpellIds() : null;
+  if (!maskedSpellIds || !args.character.spells) return chooseAutoCombatAction(args);
+  const character = {
+    ...args.character,
+    spells: args.character.spells.filter(spellName =>
+      !PRIEST_HEALING_SPELL_IDS.includes(spellName) || maskedSpellIds.includes(spellName)
+    )
+  };
+  return chooseAutoCombatAction({
+    ...args,
+    character
+  });
 }
 
 function getSimulationPreferredOffensiveSpellName(character, monsters, canCastSpell) {
@@ -2754,11 +2874,12 @@ function getSimulationPreferredOffensiveSpellName(character, monsters, canCastSp
 
 function getDiosCombatAction(state) {
   const character = state.party[0];
+  const healingSpellIds = getSimulationPriestHealingSpellIds();
   if (
     character.hp >= getCharMaxHp(character) * state.simPolicy.healPotionThreshold ||
-    !character.spells?.some(spellName => ["DIOS", "MADIOS"].includes(spellName))
+    !character.spells?.some(spellName => healingSpellIds.includes(spellName))
   ) return null;
-  const action = chooseAutoCombatAction({
+  const action = chooseSimulationAutoCombatAction({
     character,
     monsters: state.combatState?.monsters || [],
     roundNumber: state.combatState?.roundNumber || 1,
@@ -2766,7 +2887,7 @@ function getDiosCombatAction(state) {
     canCastSpell: (spellName, reserveMp) =>
       getSpellActionPayment(state, spellName, reserveMp, { minHpAfterPaymentRate: null })
   });
-  return action?.type === "spell" && ["DIOS", "MADIOS"].includes(action.spellName)
+  return action?.type === "spell" && healingSpellIds.includes(action.spellName)
     ? { ...action, actorIdx: 0 }
     : null;
 }
@@ -2796,7 +2917,7 @@ function recordDiosPotionPriorityCase(
   if (!metrics.diosPotionPriorityEventSamples ||
       metrics.diosPotionPriorityEventSamples.length >= 20) return;
   const character = state.party[0];
-  const payment = getSpellPayment(character, SPELLS.DIOS.cost);
+  const payment = getSpellPayment(character, SPELLS[diosAction.spellName].cost);
   metrics.diosPotionPriorityEventSamples.push({
     runSeed: state.currentRun.runSeed,
     floor: state.floor,
@@ -2808,6 +2929,7 @@ function recordDiosPotionPriorityCase(
     recoveryItem,
     diosPaymentResource: payment.resource,
     diosPaymentCost: payment.cost,
+    diosSpellName: diosAction.spellName,
     selectedAction: selectedAction.type,
     selectedItem: selectedAction.itemKey
   });
@@ -3090,13 +3212,14 @@ function getBloodWandOpportunity(state, action, observations = null) {
   let spellName = null;
   let opportunityType = null;
   if (action.type === "fight") {
+    const recoveryAction = getDiosCombatAction(state);
     if (
       character.hp < getCharMaxHp(character) * state.simPolicy.healPotionThreshold &&
-      hasSpell(character, "DIOS") &&
+      recoveryAction &&
       (state.simPolicy.bloodWandHealPolicy === "allow-recovery-potion" ||
         !hasRecoveryPotion(state))
     ) {
-      spellName = "DIOS";
+      spellName = recoveryAction.spellName;
       opportunityType = "heal";
     } else {
       spellName = getSimulationPreferredOffensiveSpellName(
@@ -3107,7 +3230,7 @@ function getBloodWandOpportunity(state, action, observations = null) {
       opportunityType = spellName ? "offense" : null;
     }
   } else if (action.type === "spell") {
-    if (["DIOS", "MADIOS"].includes(action.spellName)) {
+    if (PRIEST_HEALING_SPELL_IDS.includes(action.spellName)) {
       spellName = action.spellName;
       opportunityType = "heal";
     } else if (SPELLS[action.spellName]?.target?.includes("enemy")) {
@@ -3152,7 +3275,7 @@ function getBloodWandActivationType(action, logQueue) {
     action.type !== "spell" ||
     !logQueue.some(entry => entry.msg === BLOOD_WAND_ACTIVATION_LOG)
   ) return null;
-  if (["DIOS", "MADIOS"].includes(action.spellName)) return "heal";
+  if (PRIEST_HEALING_SPELL_IDS.includes(action.spellName)) return "heal";
   return SPELLS[action.spellName]?.target?.includes("enemy")
     ? "offense"
     : null;
@@ -3308,7 +3431,7 @@ function recordRoundCoreObservations(
   } else if (spell?.target?.includes("enemy") && action.spellName !== "KATINO") {
     observations.spellDamageActions++;
     observations.spellDamage += sumLoggedDamage(logQueue, characterAfter, "spell");
-  } else if (action.type === "spell" && ["DIOS", "MADIOS"].includes(action.spellName)) {
+  } else if (action.type === "spell" && PRIEST_HEALING_SPELL_IDS.includes(action.spellName)) {
     observations.diosHealActions++;
     observations.diosHealing += getLoggedHealing(logQueue, characterAfter);
   }
@@ -4143,13 +4266,39 @@ function runEncounter(
 }
 
 function applyPostCombatRecovery(character, metrics = null) {
-  while (hasSpell(character, "DIOS") && character.mp > 0 && character.hp < getCharMaxHp(character) * 0.70) {
+  const healingSpellIds = getSimulationPriestHealingSpellIds();
+  while (character.mp > 0 && character.hp < getCharMaxHp(character) * 0.70) {
+    const healingCharacter = {
+      ...character,
+      spells: character.spells?.filter(spellName => healingSpellIds.includes(spellName))
+    };
+    const spellName = getPreferredHealingSpellName(
+      healingCharacter,
+      candidate => {
+        const payment = getSpellPayment(
+          character,
+          SIM_HEALING_SPELL_PROFILES?.[candidate]?.cost ?? SPELLS[candidate].cost
+        );
+        return payment.resource === "mp" && payment.canCast;
+      }
+    );
+    if (!spellName) break;
+    const payment = getSpellPayment(
+      character,
+      SIM_HEALING_SPELL_PROFILES?.[spellName]?.cost ?? SPELLS[spellName].cost
+    );
     const hpBefore = character.hp;
-    character.mp -= 1;
-    SPELL_EFFECTS.DIOS({ caster: character, target: character });
+    character.mp -= payment.cost;
+    SPELL_EFFECTS[spellName]({ caster: character, target: character });
+    const postCombatHealingHp = Math.max(0, character.hp - hpBefore);
+    const spellUsage = metrics?.spellUsage?.[spellName];
+    if (spellUsage) {
+      spellUsage.postCombatCasts++;
+      spellUsage.postCombatHealingHp += postCombatHealingHp;
+    }
     if (metrics) {
       metrics.diosPostCombatCasts++;
-      metrics.diosHealingHp += Math.max(0, character.hp - hpBefore);
+      metrics.diosHealingHp += postCombatHealingHp;
     }
   }
 }
@@ -7214,6 +7363,12 @@ export function simulateRun({
   collectEquipmentTelemetry = false
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
+  if (SIM_INDEPENDENT_RUN_RANDOM) {
+    // Keep each class/run on an independent deterministic stream. Otherwise a
+    // Priest-only spell change can shift the shared stream and make Fighter,
+    // Thief, or Mage appear to change as a measurement artifact.
+    randomState = hashSimulationRunSeed(runSeed);
+  }
   const diagnosticLevel = scenario?.simDiagnosticLevel || "full";
   let state = createSimulationState(
     className,
@@ -8361,6 +8516,7 @@ function simulateCase({
     unequippedCoreReasonsById: {},
     firstCoreDepthCounts: {},
     coreObservations: createCoreObservations(),
+    spellUsage: createSpellUsageMetrics(),
     purifyEffectsByClass: Object.fromEntries(
       SIM_CLASSES.map(className => [className, {
         runs: 0,
@@ -8443,6 +8599,7 @@ function simulateCase({
       },
       workshop: scenario.workshop || { ranks: {} }
     });
+    addSpellUsageAggregate(totals.spellUsage, result);
     addOutcomeAggregate(totals.outcomesByClass[className], result);
     addFlameTrapAggregate(totals.flameTrap, result);
     addFlameTrapAggregate(classFlameTrapTotals[className], result);
@@ -8833,6 +8990,12 @@ function simulateCase({
       })
     ),
     coreObservations: totals.coreObservations,
+    spellUsage: Object.fromEntries(
+      Object.entries(totals.spellUsage).map(([spellName, usage]) => [
+        spellName,
+        { ...usage }
+      ])
+    ),
     firstCoreDepthCounts: totals.firstCoreDepthCounts,
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
     ...finalizeTrapAggregate(totals.trap),
@@ -9471,6 +9634,16 @@ function printFloorMilestoneMetrics(result) {
       `撤退=${formatWilson(retreats, entrants)}`
     );
   });
+  const recoverySpellUsage = ["DIOS", "MADIOS", "MADI", "DIALMA"]
+    .filter(spellName => result.spellUsage?.[spellName])
+    .map(spellName => {
+      const usage = result.spellUsage[spellName];
+      return `${spellName}: known=${usage.knownRounds}, castable=${usage.castableRounds}, ` +
+        `selected=${usage.selected}, applied=${usage.applied}, failed=${usage.failed}, ` +
+        `post=${usage.postCombatCasts}, postHp=${usage.postCombatHealingHp}`;
+    })
+    .join(" / ");
+  console.log(`回復呪文使用集計（全run分母 N=${RUNS_PER_CASE}; selectedはcast回数）: ${recoverySpellUsage}`);
 }
 
 function printBuildSupplyMetrics(results) {
@@ -10035,6 +10208,12 @@ const ENV_SIGNATURE = {
   statusCurePolicy: DEFAULT_STATUS_CURE_POLICY,
   statusCureHpThreshold: DEFAULT_STATUS_CURE_HP_THRESHOLD,
   bloodWandHpPaymentMinRate: BLOOD_WAND_HP_PAYMENT_MIN_RATE,
+  dialmaCandidate: SIM_DIALMA_CANDIDATE,
+  madiCandidate: SIM_MADI_CANDIDATE,
+  madiHealRangeOverride: SIM_MADI_HEAL_MIN === null
+    ? null
+    : [SIM_MADI_HEAL_MIN, SIM_MADI_HEAL_MAX],
+  madiCostOverride: SIM_MADI_COST,
   portalMinFloor: PORTAL_MIN_FLOOR,
   portalHpThreshold: PORTAL_HP_THRESHOLD,
   portalMaxHealPotions: PORTAL_MAX_HEAL_POTIONS,

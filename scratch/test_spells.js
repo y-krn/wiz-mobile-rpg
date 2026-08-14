@@ -1108,51 +1108,51 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
 
   // Test 2: Spell Effect (Direct invocation)
   {
-    console.log("- Test 2: MADI effect rules (dead skips, max Hp clamp, stat bonuses)");
+    console.log("- Test 2: MADI single-target effect rules (range, clamp, stat bonuses)");
 
     const caster = {
       name: "PriestChar",
-      class: "Priest",
-      pie: 15, // PIE bonus = 1.0 + (15 - 10) * 0.05 = 1.25
+      class: "Fighter",
+      pie: 10,
       equipment: {}
     };
 
-    // Test devotion affix (+20% heal)
+    const minimumTarget = { name: "MinimumTarget", hp: 0, maxHp: 200, status: "ok" };
+    const minimumResult = SPELL_EFFECTS.MADI({
+      caster,
+      target: minimumTarget,
+      rng: () => 0
+    });
+    assert.strictEqual(minimumTarget.hp, 60, "MADI minimum should heal 60 HP without stat or devotion bonuses");
+    assert.strictEqual(minimumResult.heal, 60, "MADI should report actual single-target healing");
+
+    const maximumTarget = { name: "MaximumTarget", hp: 0, maxHp: 200, status: "ok" };
+    const maximumResult = SPELL_EFFECTS.MADI({
+      caster,
+      target: maximumTarget,
+      rng: () => 0.999
+    });
+    assert.strictEqual(maximumTarget.hp, 90, "MADI maximum should heal 90 HP");
+    assert.strictEqual(maximumResult.heal, 90, "MADI maximum should be applied to one target");
+
+    caster.pie = 15;
     caster.equipment = {
-      weapon: { name: "Mace", affixes: { devotion: 20 } }
+      weapon: {
+        name: "Mace",
+        identified: true,
+        affixes: [{ type: "devotion", value: 20 }]
+      }
     };
+    const boostedTarget = { name: "BoostedTarget", hp: 10, maxHp: 200, status: "ok" };
+    const boostedResult = SPELL_EFFECTS.MADI({ caster, target: boostedTarget, rng: () => 0.5 });
+    assert.strictEqual(boostedTarget.hp, 109, "PIE and devotion should boost MADI on the selected ally");
+    assert.strictEqual(boostedResult.heal, 99, "MADI should report boosted actual healing");
 
-    const allies = [
-      { name: "FighterChar", class: "Fighter", hp: 10, maxHp: 100, status: "ok" },
-      { name: "DeadChar", class: "Thief", hp: 0, maxHp: 50, status: "dead" },
-      { name: "FullChar", class: "Mage", hp: 50, maxHp: 50, status: "ok" }
-    ];
-
-    // Heal value logic: 25-40 (rng: 0.5 -> 33)
-    // PIE 15 bonus: * 1.10 -> 36.3
-    // devotion 20% bonus: * 1.20 -> 43.56 -> round: 44
-    const rng = () => 0.5;
-
-    const result = SPELL_EFFECTS.MADI({ caster, target: allies, rng });
-
-    assert.strictEqual(allies[0].hp, 54, "Fighter should be healed by 44 (10 -> 54)");
-    assert.strictEqual(allies[1].hp, 0, "Dead member should remain at 0 HP");
-    assert.strictEqual(allies[1].status, "dead", "Dead member should remain dead");
-    assert.strictEqual(allies[2].hp, 50, "Full HP member should stay clamped at maxHp (50)");
-
-    assert.ok(result.heal > 0, "Total heal should be recorded");
-    assert.ok(result.log.includes("マディ"), "Log should contain spell name");
-    assert.ok(result.log.includes("自身のHP"), "MADI log should use singular player wording");
-    assert.ok(result.log.includes("FighterChar(+44)"), "Log details should list healed ally and amount");
-    assert.ok(!result.log.includes("DeadChar"), "Log should not mention dead member");
-
-    // Test case when everyone is at full HP
-    const allFull = [
-      { name: "FighterChar", class: "Fighter", hp: 100, maxHp: 100, status: "ok" }
-    ];
-    const resultAllFull = SPELL_EFFECTS.MADI({ caster, target: allFull, rng });
-    assert.strictEqual(resultAllFull.heal, 0, "Heal amount should be 0 when everyone is full");
+    const fullTarget = { name: "FullTarget", hp: 100, maxHp: 100, status: "ok" };
+    const resultAllFull = SPELL_EFFECTS.MADI({ caster, target: fullTarget, rng: () => 0.5 });
+    assert.strictEqual(resultAllFull.heal, 0, "Heal amount should be 0 when the target is full");
     assert.ok(resultAllFull.log.includes("最大だった"), "Log should mention HP was max");
+    assert.ok(resultAllFull.log.includes("FullTarget"), "Full-target log should name the selected ally");
 
     const barrierAllies = [
       { name: "AliveChar", status: "ok" },
@@ -1195,7 +1195,7 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
     const selection = {
       actions: [
         { type: "fight", actorIdx: 0, targetIdx: 0 },
-        { type: "spell", actorIdx: 1, targetIdx: -1, spellName: "MADI" }
+        { type: "spell", actorIdx: 1, targetIdx: 0, spellName: "MADI" }
       ]
     };
 

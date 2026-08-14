@@ -72,6 +72,8 @@ export const SPELLS = {
     level: 1,
     cost: 1,
     target: "single_ally",
+    healMin: 10,
+    healMax: 20,
     desc: "軽微な治療 (10-20 HP回復)"
   },
   DIURCO: {
@@ -112,6 +114,8 @@ export const SPELLS = {
     level: 2,
     cost: 3,
     target: "single_ally",
+    healMin: 35,
+    healMax: 70,
     desc: "中度の治療 (35-70 HP回復)"
   },
   LATUMOFIS: {
@@ -136,15 +140,19 @@ export const SPELLS = {
     level: 8,
     cost: 4,
     target: "single_ally",
+    healMin: 70,
+    healMax: 120,
     desc: "高度の治療 (70-120 HP回復)"
   },
   MADI: {
     name: "MADI",
     type: "priest",
     level: 5,
-    cost: 5,
-    target: "all_allies",
-    desc: "自身を治療 (25-40 HP回復)"
+    cost: 3,
+    target: "single_ally",
+    healMin: 60,
+    healMax: 90,
+    desc: "自身を治療 (60-90 HP回復)"
   },
   MABARRIER: {
     name: "MABARRIER",

@@ -139,6 +139,18 @@ is a bug in the economy.
   B10到達 **27.3% [25.8,29.0]**、平均floor **7.35 [7.19,7.50]**。Fighter/Thief/Priestの
   B10到達は **28.1% / 19.2% / 27.2%**で、他3職を悪化させず、PriestのB5撤退は **0.0%**。
 
+## 回復呪文の梯子（Issue #590）
+
+- `MADI` はlv5習得を維持し、対象を単体へ変更する。説明文と実装値は
+  `src/data/spells.js`、効果の正本は `src/systems/spell_effects.js` とする。
+- 数値とcostは未確定。seed=590、`workshop-complete`、各条件N=500・calibration N=100の
+  回復量5段階×cost3段階掃引では、回復量を変えても同じcost内のB5/B10結果が
+  ビット単位で一致した。CIの重なりではなく、回復量の差が結果へ伝わっていない。
+- 原因はHP上限飽和。例として平均回復75、post=64、postHp=1391では、
+  実効回復は `postHp / post = 21.7 HP/回`、上限飽和率は
+  `1 - 21.7 / 75 = 71.0%`。量では `MADIOS` と区別できないため、採用値は
+  オーナー判断まで決めない。詳細な生表と選択方針の監査はIssue #590のPR本文へ記録する。
+
 ## Currency: Materials Only
 
 Gold is removed. Materials are the single currency, used both by the

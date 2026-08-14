@@ -67,15 +67,48 @@ check("Mage uses MAHALITO when HALITO cannot finish the target", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MAHALITO" });
 });
 
-check("Priest uses MADIOS for an explicitly requested heal", () => {
+check("Priest selects DIALMA first in the healing priority order", () => {
   const action = chooseAutoCombatAction({
-    character: { class: "Priest", spells: ["DIOS", "MADIOS", "BADIOS"] },
+    character: { class: "Priest", hp: 85, maxHp: 100, spells: ["DIOS", "MADIOS", "MADI", "DIALMA"] },
+    monsters: [{ hp: 30 }],
+    roundNumber: 2,
+    healingTargetIdx: 0,
+    canCastSpell: () => true
+  });
+  assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "DIALMA" });
+});
+
+check("Priest falls back to MADI when DIALMA is unavailable", () => {
+  const action = chooseAutoCombatAction({
+    character: { class: "Priest", hp: 40, maxHp: 100, spells: ["DIOS", "MADIOS", "MADI"] },
+    monsters: [{ hp: 30 }],
+    roundNumber: 2,
+    healingTargetIdx: 0,
+    canCastSpell: () => true
+  });
+  assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MADI" });
+});
+
+check("Priest falls back to MADIOS when higher healing spells are unavailable", () => {
+  const action = chooseAutoCombatAction({
+    character: { class: "Priest", hp: 25, maxHp: 100, spells: ["DIOS", "MADIOS"] },
     monsters: [{ hp: 30 }],
     roundNumber: 2,
     healingTargetIdx: 0,
     canCastSpell: () => true
   });
   assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MADIOS" });
+});
+
+check("Priest falls back to DIOS when it is the only healing spell", () => {
+  const action = chooseAutoCombatAction({
+    character: { class: "Priest", hp: 0, maxHp: 100, spells: ["DIOS"] },
+    monsters: [{ hp: 30 }],
+    roundNumber: 2,
+    healingTargetIdx: 0,
+    canCastSpell: () => true
+  });
+  assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "DIOS" });
 });
 
 check("DIOS reserves one MP before offensive casting", () => {

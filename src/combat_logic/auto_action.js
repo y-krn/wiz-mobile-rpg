@@ -10,6 +10,8 @@ const MAGE_SINGLE_SPELLS = [
   { name: "HALITO", expectedDamage: 17 }
 ];
 const PRIEST_HEALING_SPELLS = [
+  "DIALMA",
+  "MADI",
   "MADIOS",
   "DIOS"
 ];
@@ -78,9 +80,12 @@ export function getPreferredOffensiveSpellName(
   return null;
 }
 
-function getPreferredHealingSpellName(character, canCastSpell) {
-  return PRIEST_HEALING_SPELLS.find(spellName =>
-    hasSpell(character, spellName) && canCastSpell(spellName, 0)
+export function getPreferredHealingSpellName(
+  character,
+  canCastSpell = () => false
+) {
+  return PRIEST_HEALING_SPELLS.find(
+    spellName => hasSpell(character, spellName) && canCastSpell(spellName, 0)
   ) || null;
 }
 
