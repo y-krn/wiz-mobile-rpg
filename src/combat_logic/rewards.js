@@ -159,7 +159,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   if (nonFledMonsters.length > 0) {
     let msg = "戦闘に勝利した！";
     if (expShare > 0) {
-      msg += `生存中の仲間が戦闘経験を積んだ。`;
+      msg += `戦闘経験を積んだ。`;
     }
     logQueue.push({
       msg,

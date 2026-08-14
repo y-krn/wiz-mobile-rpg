@@ -373,13 +373,13 @@ export const SPELL_EFFECTS = {
     });
 
     if (!anyHealed) {
-      return { heal: 0, log: `${caster.name}はマディを唱えたが、生存中の味方のHPは最大だった。` };
+      return { heal: 0, log: `${caster.name}はマディを唱えたが、自身のHPは最大だった。` };
     }
 
     const details = results.map(r => `${r.name}(+${r.heal})`).join(", ");
     return {
       heal: totalHeal,
-      log: `${caster.name}はマディを唱えた！生存中の味方全員のHPを回復した。[${details}]`
+      log: `${caster.name}はマディを唱えた！自身のHPを回復した。[${details}]`
     };
   },
   MABARRIER: ({ caster, target: allies }) => {
@@ -388,7 +388,7 @@ export const SPELL_EFFECTS = {
         char.mabarrierTurns = 3;
       }
     });
-    return { log: `${caster.name}はマバリアを唱えた！生存中の味方全員に魔力障壁が張られた。` };
+    return { log: `${caster.name}はマバリアを唱えた！自身に魔力障壁が張られた。` };
   },
   MONTINO: ({ caster, target: targets, rng = Math.random }) => {
     let silencedCount = 0;

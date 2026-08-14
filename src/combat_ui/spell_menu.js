@@ -30,7 +30,7 @@ export function getSpellCombatSummary(spellName) {
     LOMILWA: { tag: "探索", effect: "永続明かり", category: "utility" },
     DIALMA: { tag: "単体", effect: "回復 70-120", category: "single" },
     MADI: { tag: "全体", effect: "回復 25-40", category: "all" },
-    MABARRIER: { tag: "補助", effect: "生存中の味方 魔法軽減", category: "buff" },
+    MABARRIER: { tag: "補助", effect: "自分 魔法軽減", category: "buff" },
     MONTINO: { tag: "全体", effect: "沈黙 2T", category: "all" },
     MORLIS: { tag: "弱体", effect: "全体魔防低下", category: "debuff" }
   };

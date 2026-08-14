@@ -420,7 +420,7 @@ export function renderEventTablet(optGrid) {
       playSound("level_up");
       addLog(`石碑の文字を解読した：`);
       addLog(`「${chosenHint}」`);
-      addLog(`[!] 古代の叡智に触れ、生存中の仲間全員が${expGained}の経験値を獲得した！`);
+      addLog(`[!] 古代の叡智に触れ、冒険者は${expGained}の経験値を獲得した！`);
     } else if (rand < 0.70) {
       const aliveChars = state.party.filter(char => char.status !== "dead");
       if (aliveChars.length > 0) {
