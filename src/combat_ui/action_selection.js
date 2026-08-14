@@ -2,7 +2,7 @@ import { state, addLog, saveAutosave } from "../state.js";
 import { SPELLS, ITEMS, getSpellPayment } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
-import { chooseAutoCombatAction } from "../combat_logic/auto_action.js";
+import { chooseAutoCombatAction, getAutoHealTargetIdx } from "../combat_logic/auto_action.js";
 import { combatSelection } from "./combat_state.js";
 import { resolveCombatRound } from "./round_runner.js";
 import { openCombatTargetMenu } from "./target_menu.js";
@@ -42,6 +42,7 @@ export function advanceActionSelection() {
         character,
         monsters: state.combatState.monsters,
         roundNumber: state.combatState.roundNumber,
+        healingTargetIdx: getAutoHealTargetIdx(character),
         canCastSpell: (spellName, reserveMp) => {
           const payment = getSpellPayment(character, SPELLS[spellName].cost);
           return payment.canCast &&

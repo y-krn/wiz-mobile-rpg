@@ -39,6 +39,7 @@ const { applyPendingOutcomeRewards } = await import("../src/combat_ui/outcome_re
 const { runCombatRoundCalculation } = await import("../src/combat_logic.js");
 const {
   chooseAutoCombatAction,
+  getAutoHealTargetIdx,
   getPreferredHealingSpellName,
   getPreferredOffensiveSpellName
 } = await import("../src/combat_logic/auto_action.js");
@@ -2875,15 +2876,19 @@ function getSimulationPreferredOffensiveSpellName(character, monsters, canCastSp
 function getDiosCombatAction(state) {
   const character = state.party[0];
   const healingSpellIds = getSimulationPriestHealingSpellIds();
+  const healingTargetIdx = getAutoHealTargetIdx(
+    character,
+    state.simPolicy.healPotionThreshold
+  );
   if (
-    character.hp >= getCharMaxHp(character) * state.simPolicy.healPotionThreshold ||
+    healingTargetIdx === null ||
     !character.spells?.some(spellName => healingSpellIds.includes(spellName))
   ) return null;
   const action = chooseSimulationAutoCombatAction({
     character,
     monsters: state.combatState?.monsters || [],
     roundNumber: state.combatState?.roundNumber || 1,
-    healingTargetIdx: 0,
+    healingTargetIdx,
     canCastSpell: (spellName, reserveMp) =>
       getSpellActionPayment(state, spellName, reserveMp, { minHpAfterPaymentRate: null })
   });

@@ -1,5 +1,8 @@
+import { getCharMaxHp } from "../rules/character_stats.js";
+
 const BASIC_CLASSES = new Set(["Fighter", "Thief", "Priest", "Mage"]);
 const HOLY_TARGET_TAGS = new Set(["undead", "spirit", "demon"]);
+const AUTO_HEAL_HP_THRESHOLD = 0.55;
 const MAGE_ALL_SPELLS = [
   { name: "TILTOWAIT", expectedDamage: 75 },
   { name: "MADALTO", expectedDamage: 45 },
@@ -87,6 +90,11 @@ export function getPreferredHealingSpellName(
   return PRIEST_HEALING_SPELLS.find(
     spellName => hasSpell(character, spellName) && canCastSpell(spellName, 0)
   ) || null;
+}
+
+export function getAutoHealTargetIdx(character, healThreshold = AUTO_HEAL_HP_THRESHOLD) {
+  if (character.class !== "Priest") return null;
+  return character.hp < getCharMaxHp(character) * healThreshold ? 0 : null;
 }
 
 export function chooseAutoCombatAction({

@@ -1,6 +1,61 @@
 import assert from "node:assert/strict";
 import { chooseAutoCombatAction } from "../src/combat_logic/auto_action.js";
 
+globalThis.localStorage = (() => {
+  const store = {};
+  return {
+    getItem: key => store[key] || null,
+    setItem: (key, value) => { store[key] = String(value); },
+    removeItem: key => { delete store[key]; }
+  };
+})();
+
+const createDummyElement = () => ({
+  style: {},
+  appendChild: () => createDummyElement(),
+  replaceChildren: () => {},
+  addEventListener: () => {},
+  classList: {
+    add: () => {},
+    remove: () => {},
+    contains: () => false,
+    toggle: () => {}
+  },
+  setAttribute: () => {},
+  getAttribute: () => "",
+  removeAttribute: () => {},
+  innerHTML: "",
+  textContent: "",
+  className: "",
+  cloneNode: () => createDummyElement()
+});
+
+globalThis.document = {
+  activeElement: null,
+  getElementById: () => createDummyElement(),
+  querySelector: () => createDummyElement(),
+  querySelectorAll: () => [],
+  createElement: () => createDummyElement(),
+  body: createDummyElement()
+};
+
+globalThis.window = {
+  innerWidth: 375,
+  innerHeight: 667,
+  addEventListener: () => {}
+};
+
+Object.defineProperty(globalThis, "navigator", {
+  value: { userAgent: "node" },
+  writable: true,
+  configurable: true
+});
+
+const { state, createDefaultCurrentRun, createSoloCharacter, initNewGame } =
+  await import("../src/state.js");
+const { advanceActionSelection } = await import("../src/combat_ui/action_selection.js");
+const { combatSelection } = await import("../src/combat_ui/combat_state.js");
+
 const failures = [];
 
 function check(name, fn) {
@@ -124,6 +179,46 @@ check("DIOS reserves one MP before offensive casting", () => {
   });
   assert.deepEqual(action, { type: "fight", targetIdx: 0 });
   assert.deepEqual(calls, [{ spellName: "BADIOS", reserveMp: 1 }]);
+});
+
+check("UI auto combat selects healing for a low HP Priest", () => {
+  initNewGame();
+  const character = createSoloCharacter("Priest");
+  character.hp = 1;
+  character.spells = ["DIOS"];
+  state.party = [character];
+  state.currentRun = createDefaultCurrentRun();
+  state.gameState = "combat";
+  state.combatState = {
+    monsters: [{ name: "テスト敵", hp: 100, maxHp: 100, status: "sleep", agi: 1 }],
+    phase: "choose_actions",
+    isBoss: false,
+    isMidboss: false,
+    isRoamingFlack: false,
+    isAuto: true,
+    allParalyzedTurns: 0,
+    roundNumber: 2,
+    retreatPosition: null,
+    loggedCoreActivations: [],
+    pendingOutcome: null
+  };
+  combatSelection.charIdx = 0;
+  combatSelection.actions = [];
+
+  const originalSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = () => 1;
+  try {
+    advanceActionSelection();
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
+
+  assert.deepEqual(combatSelection.actions[0], {
+    type: "spell",
+    targetIdx: 0,
+    spellName: "DIOS",
+    actorIdx: 0
+  });
 });
 
 check("unsupported elite classes remain outside the shared basic-class policy", () => {
