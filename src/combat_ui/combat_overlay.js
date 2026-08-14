@@ -57,7 +57,7 @@ export function renderCombatOverlay() {
         else if (m.summonQueued) omenHtml = `<div class="enemy-omen summon">⚠️ 召喚の予兆</div>`;
         else if (m.snipeQueued) {
           const targetChar = state.party[m.snipeTargetIdx];
-          omenHtml = `<div class="enemy-omen snipe">⚠️ 狙撃準備 (対象: ${targetChar ? targetChar.name : "仲間"})</div>`;
+          omenHtml = `<div class="enemy-omen snipe">⚠️ 狙撃準備 (対象: ${targetChar ? targetChar.name : "冒険者"})</div>`;
         }
 
         card.innerHTML = `

@@ -16,7 +16,7 @@ export function resolvePlayerItem(char, act, state, logQueue) {
   if (act.itemKey === "TOWN_PORTAL") {
     state.inventory.splice(inventoryIdx, 1);
     logQueue.push({
-      msg: `[味方] ${char.name}は帰還のスクロールを読んだ！パーティ全員がお城へ導かれる！`,
+      msg: `[味方] ${char.name}は帰還のスクロールを読んだ！冒険者はお城へ導かれる！`,
       sound: "cast_spell",
       escapeToTown: true
     });

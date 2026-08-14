@@ -1142,7 +1142,7 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
 
     assert.ok(result.heal > 0, "Total heal should be recorded");
     assert.ok(result.log.includes("マディ"), "Log should contain spell name");
-    assert.ok(result.log.includes("生存中の味方全員"), "MADI log should name living allies");
+    assert.ok(result.log.includes("自身のHP"), "MADI log should use singular player wording");
     assert.ok(result.log.includes("FighterChar(+44)"), "Log details should list healed ally and amount");
     assert.ok(!result.log.includes("DeadChar"), "Log should not mention dead member");
 
@@ -1161,7 +1161,7 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
     const barrierResult = SPELL_EFFECTS.MABARRIER({ caster, target: barrierAllies });
     assert.strictEqual(barrierAllies[0].mabarrierTurns, 3, "MABARRIER should affect living allies");
     assert.strictEqual(barrierAllies[1].mabarrierTurns, undefined, "MABARRIER should skip dead allies");
-    assert.ok(barrierResult.log.includes("生存中の味方全員"), "MABARRIER log should name living allies");
+    assert.ok(barrierResult.log.includes("自身に"), "MABARRIER log should use singular player wording");
   }
 
   // Test 4: Combat cast integration

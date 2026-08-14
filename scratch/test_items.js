@@ -583,8 +583,8 @@ import { state } from "../src/state.js";
       assert.strictEqual(state.party[0].exp, 100, "Should only gain normal exp (100)");
       assert.strictEqual(state.currentRun.expGained, 100, "Current run exp should be 100");
       assert.ok(
-        logQueue.some(log => log.msg === "戦闘に勝利した！生存中の仲間が戦闘経験を積んだ。"),
-        "Combat reward log should name living allies"
+        logQueue.some(log => log.msg === "戦闘に勝利した！戦闘経験を積んだ。"),
+        "Combat reward log should use singular player wording"
       );
 
       // 初討伐分はbanking対象外のメタ素材へ直接入り、ラン結果にも内訳を残す。

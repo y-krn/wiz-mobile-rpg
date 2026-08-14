@@ -46,9 +46,9 @@ console.log("=== TABLET EVENT GOLD REMOVAL VERIFICATION ===");
 state.floor = 1;
 state.gold = 500;
 state.party = [
-  { name: "戦士", status: "alive", exp: 0, class: "Fighter", hp: 20, maxHp: 20 },
-  { name: "魔法使い", status: "alive", exp: 0, class: "Mage", hp: 10, maxHp: 10 }
+  { name: "戦士", status: "alive", exp: 0, class: "Fighter", hp: 20, maxHp: 20 }
 ];
+state.logs = [];
 state.maps[0] = [
   [
     { event: "event_tablet" }
@@ -88,11 +88,11 @@ Math.random = originalRandom;
 // Verify results
 console.log(`[Result] Gold after event: ${state.gold}G (Expected: 500G)`);
 console.log(`[Result] Character 1 EXP: ${state.party[0].exp} (Expected: 200)`);
-console.log(`[Result] Character 2 EXP: ${state.party[1].exp} (Expected: 200)`);
+console.log(`[Result] Tablet log: ${state.logs.at(-1)} (Expected: singular adventurer wording)`);
 
 // Asserts
 assert.strictEqual(state.gold, 500, "Gold must NOT increase from tablet event");
-assert.strictEqual(state.party[0].exp, 200, "Alive characters should gain 200 EXP on Floor 1");
-assert.strictEqual(state.party[1].exp, 200, "Alive characters should gain 200 EXP on Floor 1");
+assert.strictEqual(state.party[0].exp, 200, "The adventurer should gain 200 EXP on Floor 1");
+assert.ok(state.logs.some(log => log.includes("冒険者は200の経験値を獲得した")), "Tablet log should use singular player wording");
 
 console.log("\n=== VERIFICATION COMPLETE: ALL PASSED ===");

@@ -487,7 +487,7 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
     addLog(`毒針が作動！${char.name}は${damage}のダメージを受けた。${poisonResult}`);
     if (renderer) renderer.addDamageText(String(damage), "#ff3b30");
   } else if (trap === "gas bomb") {
-    addLog("ガス爆弾が作動！パーティ全体にガスが充満した！");
+    addLog("ガス爆弾が作動！冒険者はガスに包まれた！");
     state.party.forEach((c, index) => {
       const dmg = effect.partyDamage[index];
       if (dmg > 0) {
@@ -521,9 +521,9 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
     state.x = spot.x;
     state.y = spot.y;
     markMapCellVisited(state.x, state.y);
-    addLog("テレポーターが作動！パーティは別の場所にテレポートした！");
+    addLog("テレポーターが作動！冒険者は別の場所にテレポートした！");
   } else if (trap === "flash bomb") {
-    addLog("閃光弾が作動！まばゆい光がパーティを包み込んだ！");
+    addLog("閃光弾が作動！まばゆい光が冒険者を包み込んだ！");
     if (renderer && typeof renderer.triggerFlash === "function") {
       renderer.triggerFlash(400);
     }

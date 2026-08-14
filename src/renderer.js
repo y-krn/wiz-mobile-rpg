@@ -1009,7 +1009,7 @@ export class DungeonRenderer {
     else if (monster.summonQueued) omenText = "⚠️召喚の予兆";
     else if (monster.snipeQueued) {
       const targetChar = state.party[monster.snipeTargetIdx];
-      omenText = `⚠️狙撃準備 (対象: ${targetChar ? targetChar.name : "仲間"})`;
+      omenText = `⚠️狙撃準備 (対象: ${targetChar ? targetChar.name : "冒険者"})`;
     }
 
     if (omenText) {
