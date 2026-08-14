@@ -26,7 +26,7 @@
 #controls-panel.submenu-mode {
   height: auto; /* Hug content — avoid dead space for short menus (events, springs) */
   min-height: 0;
-  max-height: min(40dvh, 300px); /* Cap for long lists; submenu-grid scrolls beyond this */
+  max-height: min(40svh, 300px); /* Cap for long lists; submenu-grid scrolls beyond this */
   justify-content: flex-start;
 }
 
@@ -59,7 +59,7 @@
 #controls-panel.submenu-mode.chest-menu-mode {
   height: auto;
   min-height: 0;
-  max-height: min(40dvh, 300px);
+  max-height: min(40svh, 300px);
   justify-content: flex-start;
 }
 
