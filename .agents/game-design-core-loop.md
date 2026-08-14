@@ -128,8 +128,8 @@ disarm is class-sensitive, forced traversal always passes with reduced damage, a
 choke placement is capped so avoidance remains meaningful. The legacy `trapSense`
 affix is not a floor-trap detection modifier; it contributes to floor/chest trap
 disarm, preserving the value of existing gear and inscriptions. On B5F, the
-combined `trapBonus`/`trapSense` investment also contributes to automatic flame-trap
-warning avoidance through the character-stats helper. Chest traps keep a
+combined `trapBonus`/`trapSense` investment also contributes to the automatic flame-trap
+on-trigger avoidance roll through the character-stats helper. Chest traps keep a
 risk/reward branch: every class can leave, smash for a weaker trap effect with
 possible consumable loss, or use a kit, while specialist classes retain safer
 disarm rates.

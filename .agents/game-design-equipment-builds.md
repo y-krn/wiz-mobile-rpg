@@ -84,7 +84,7 @@ and triggering its curse is intended behavior (the risk of this core).
   antiUndead/antiDragon/antiDemon, poisonWard, spellGuard, trapBonus,
   treasureSense, arcaneSense, hearRange, traceRead, followUp, arcane,
   devotion, guardian, firstStrike, trapSense（旧ID・罠解除: increases floor/chest-trap disarm rate;
-  combined with trapBonus for B5F flame-trap warning avoidance）
+  combined with trapBonus for the B5F flame-trap on-trigger avoidance roll）
 - conditional (Phase 2): deepAssault (attack+ from B3F onward) / frontGuard /
   rearEvasion / fullHpDamage / firstTurnAttack / antiBeast / antiSpirit /
   firstStrikeDefense / lastSurvivorStats / statusResistance / spellAccuracy
@@ -100,7 +100,7 @@ and triggering its curse is intended behavior (the risk of this core).
 `src/systems/equipment_generation.js`; the fixed `THIEF_EYE` accessory is a separate
 source and is not part of this sweep.
 For the B5F flame trap, `src/rules/character_stats.js` combines identified
-`trapBonus` and `trapSense` values into the warning-avoidance rate; the helper is the
+`trapBonus` and `trapSense` values into the flame-trap's on-trigger avoidance rate; the helper is the
 source of truth for the conversion and cap.
 
 The original proposal, “half the fatigue penalty,” was shelved because the fatigue system is not implemented (consider
