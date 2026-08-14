@@ -78,6 +78,17 @@ check("Priest uses MADIOS for an explicitly requested heal", () => {
   assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MADIOS" });
 });
 
+check("Priest prefers MADI over MADIOS for an explicitly requested heal", () => {
+  const action = chooseAutoCombatAction({
+    character: { class: "Priest", spells: ["DIOS", "MADIOS", "MADI", "BADIOS"] },
+    monsters: [{ hp: 30 }],
+    roundNumber: 2,
+    healingTargetIdx: 0,
+    canCastSpell: () => true
+  });
+  assert.deepEqual(action, { type: "spell", targetIdx: 0, spellName: "MADI" });
+});
+
 check("DIOS reserves one MP before offensive casting", () => {
   const calls = [];
   const action = chooseAutoCombatAction({

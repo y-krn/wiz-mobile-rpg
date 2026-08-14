@@ -348,38 +348,22 @@ export const SPELL_EFFECTS = {
     }
     return { heal: actualHeal, log: `${caster.name}はディアルマを唱えた！${target.name}のHPを${actualHeal}大回復した。` };
   },
-  MADI: ({ caster, target: allies, rng = Math.random }) => {
-    const results = [];
+  MADI: ({ caster, target, rng = Math.random, healMin = 60, healMax = 90 }) => {
+    let heal = Math.floor(rng() * (healMax - healMin + 1)) + healMin;
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
     const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
-    let totalHeal = 0;
-    let anyHealed = false;
-
-    allies.forEach(char => {
-      if (char.status === "dead") return;
-      let heal = Math.floor(rng() * 16) + 25; // 25-40
-      heal = Math.round(heal * bonus * devotionBonus);
-      heal = getEffectiveHealAmount(char, heal);
-
-      const oldHp = char.hp;
-      const maxHp = getCharMaxHp(char);
-      char.hp = Math.min(maxHp, char.hp + heal);
-      const actualHeal = char.hp - oldHp;
-      totalHeal += actualHeal;
-      if (actualHeal > 0) {
-        anyHealed = true;
-      }
-      results.push({ name: char.name, heal: actualHeal });
-    });
-
-    if (!anyHealed) {
-      return { heal: 0, log: `${caster.name}はマディを唱えたが、自身のHPは最大だった。` };
+    heal = Math.round(heal * bonus * devotionBonus);
+    heal = getEffectiveHealAmount(target, heal);
+    const oldHp = target.hp;
+    const maxHp = getCharMaxHp(target);
+    target.hp = Math.min(maxHp, target.hp + heal);
+    const actualHeal = target.hp - oldHp;
+    if (actualHeal === 0) {
+      return { heal: 0, log: `${caster.name}はマディを唱えたが、${target.name}のHPは最大だった。` };
     }
-
-    const details = results.map(r => `${r.name}(+${r.heal})`).join(", ");
     return {
-      heal: totalHeal,
-      log: `${caster.name}はマディを唱えた！自身のHPを回復した。[${details}]`
+      heal: actualHeal,
+      log: `${caster.name}はマディを唱えた！${target.name}のHPを${actualHeal}回復した。`
     };
   },
   MABARRIER: ({ caster, target: allies }) => {

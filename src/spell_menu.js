@@ -355,7 +355,7 @@ export function renderSpellOverlay() {
         isDisabled = true;
         reason = "対象外";
       } else {
-        if (["DIOS", "MADIOS", "DIALMA"].includes(menuContext.spellName)) {
+        if (["DIOS", "MADIOS", "DIALMA", "MADI"].includes(menuContext.spellName)) {
           if (char.hp >= char.maxHp) {
             isDisabled = true;
             reason = "HP満タン";

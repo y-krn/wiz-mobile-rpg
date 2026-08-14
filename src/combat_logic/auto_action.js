@@ -10,6 +10,8 @@ const MAGE_SINGLE_SPELLS = [
   { name: "HALITO", expectedDamage: 17 }
 ];
 const PRIEST_HEALING_SPELLS = [
+  "DIALMA",
+  "MADI",
   "MADIOS",
   "DIOS"
 ];

@@ -142,8 +142,8 @@ export const SPELLS = {
     name: "MADI",
     type: "priest",
     level: 5,
-    cost: 5,
-    target: "all_allies",
+    cost: 3,
+    target: "single_ally",
     desc: "自身を治療 (25-40 HP回復)"
   },
   MABARRIER: {
