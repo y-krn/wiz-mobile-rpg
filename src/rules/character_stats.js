@@ -110,7 +110,8 @@ export function getCharMaxHp(char) {
       }
     });
   }
-  return char.maxHp + bonus;
+  // HPは生存・回復の上限なので、呪いで下がっても最低1を維持する。
+  return Math.max(1, char.maxHp + bonus);
 }
 
 export function getCharMaxMp(char) {
@@ -126,7 +127,8 @@ export function getCharMaxMp(char) {
       }
     });
   }
-  return char.maxMp + bonus;
+  // MP 0は非術者の正当な容量なので、負値だけを0へ戻す。
+  return Math.max(0, char.maxMp + bonus);
 }
 
 export function getCharTrapBonus(char) {
