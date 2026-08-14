@@ -1660,6 +1660,111 @@ function finalizeFlameTrapAggregate(aggregate) {
   };
 }
 
+function summarizeDistribution(values) {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (sorted.length === 0) return { n: 0 };
+  const quantile = rate => sorted[Math.floor((sorted.length - 1) * rate)];
+  return {
+    n: sorted.length,
+    mean: sorted.reduce((sum, value) => sum + value, 0) / sorted.length,
+    min: sorted[0],
+    p10: quantile(0.10),
+    p25: quantile(0.25),
+    median: quantile(0.50),
+    p75: quantile(0.75),
+    p90: quantile(0.90),
+    max: sorted.at(-1)
+  };
+}
+
+function createB5GateAggregate() {
+  return {
+    runs: 0,
+    entrants: 0,
+    breakthroughs: 0,
+    deaths: 0,
+    retreats: 0,
+    activations: 0,
+    damageHp: 0,
+    eligibleSteps: 0,
+    entrantHp: [],
+    entrantHpRate: [],
+    minimumHp: [],
+    minimumPositiveHp: [],
+    minimumPositiveHpRate: [],
+    directDeaths: 0,
+    deathsAfterFlame: 0,
+    deathsWithoutFlame: 0,
+    deathsAfterFlameWithinFiveSteps: 0,
+    deathCauseCounts: {}
+  };
+}
+
+function addB5GateAggregate(target, result) {
+  target.runs++;
+  if (!result.b5Entrant) return;
+  target.entrants++;
+  target.activations += result.flameTrapActivations;
+  target.damageHp += result.flameTrapDamageHp;
+  target.eligibleSteps += result.flameTrapEligibleSteps;
+  target.entrantHp.push(result.b5EntrantHp);
+  target.entrantHpRate.push(result.b5EntrantHpRate);
+  target.minimumHp.push(result.b5MinimumHp);
+  target.minimumPositiveHp.push(result.b5MinimumPositiveHp);
+  target.minimumPositiveHpRate.push(result.b5MinimumPositiveHpRate);
+
+  if (result.deathFloor === 5) {
+    target.deaths++;
+  } else if (result.reachedFloor > 5) {
+    target.breakthroughs++;
+  } else if (result.survived) {
+    target.retreats++;
+  }
+  if (result.deathFloor !== 5) return;
+  const cause = result.b5DeathCause || "不明";
+  target.deathCauseCounts[cause] = (target.deathCauseCounts[cause] || 0) + 1;
+  if (cause === "火炎の罠") {
+    target.directDeaths++;
+  } else if (result.flameTrapActivations > 0) {
+    target.deathsAfterFlame++;
+    target.deathsAfterFlameWithinFiveSteps += Number(
+      result.b5DeathAfterFlameWithinFiveSteps
+    );
+  } else {
+    target.deathsWithoutFlame++;
+  }
+}
+
+function finalizeB5GateAggregate(aggregate) {
+  const runs = Math.max(1, aggregate.runs);
+  const entrants = Math.max(1, aggregate.entrants);
+  return {
+    runs: aggregate.runs,
+    entrants: aggregate.entrants,
+    entrantRate: aggregate.entrants / runs,
+    breakthroughRuns: aggregate.breakthroughs,
+    deathRuns: aggregate.deaths,
+    retreatRuns: aggregate.retreats,
+    breakthroughRate: aggregate.breakthroughs / entrants,
+    deathRate: aggregate.deaths / entrants,
+    retreatRate: aggregate.retreats / entrants,
+    averageFlameTrapActivations: aggregate.activations / entrants,
+    averageFlameTrapDamageHp: aggregate.damageHp / entrants,
+    averageFlameTrapEligibleSteps: aggregate.eligibleSteps / entrants,
+    averageFlameTrapEligibleStepsAllRuns: aggregate.eligibleSteps / runs,
+    entrantHp: summarizeDistribution(aggregate.entrantHp),
+    entrantHpRate: summarizeDistribution(aggregate.entrantHpRate),
+    minimumHp: summarizeDistribution(aggregate.minimumHp),
+    minimumPositiveHp: summarizeDistribution(aggregate.minimumPositiveHp),
+    minimumPositiveHpRate: summarizeDistribution(aggregate.minimumPositiveHpRate),
+    directDeaths: aggregate.directDeaths,
+    deathsAfterFlame: aggregate.deathsAfterFlame,
+    deathsWithoutFlame: aggregate.deathsWithoutFlame,
+    deathsAfterFlameWithinFiveSteps: aggregate.deathsAfterFlameWithinFiveSteps,
+    deathCauseCounts: { ...aggregate.deathCauseCounts }
+  };
+}
+
 function createOutcomeAggregate() {
   return {
     runs: 0,
@@ -2300,6 +2405,31 @@ function createSimulationState(
 
 function isAlive(character) {
   return character.status !== "dead" && character.hp > 0;
+}
+
+function recordB5HpValue(metrics, hp, maxHp) {
+  if (!metrics.b5FloorActive || !Number.isFinite(hp)) return;
+  const currentHp = Math.max(0, hp);
+  const currentMaxHp = Math.max(1, Number(maxHp) || 1);
+  metrics.b5MinimumHp = metrics.b5MinimumHp === null
+    ? currentHp
+    : Math.min(metrics.b5MinimumHp, currentHp);
+  if (currentHp <= 0) return;
+  if (
+    metrics.b5MinimumPositiveHp === null ||
+    currentHp < metrics.b5MinimumPositiveHp
+  ) {
+    metrics.b5MinimumPositiveHp = currentHp;
+    metrics.b5MinimumPositiveHpRate = currentHp / currentMaxHp;
+  }
+}
+
+function recordB5HpSnapshot(state, metrics, step = null) {
+  if (!metrics.b5FloorActive) return;
+  if (Number.isFinite(step)) metrics.b5LastStep = step;
+  const character = state.party[0];
+  if (!character) return;
+  recordB5HpValue(metrics, character.hp, getCharMaxHp(character));
 }
 
 function hasSpell(character, spellName) {
@@ -5829,6 +5959,8 @@ function resolveFlameTrapAtStep({
 
   state.flameTrapCooldownTurns = FLAME_TRAP_MODEL.cooldownTurns;
   metrics.flameTrapActivations++;
+  metrics.b5FlameActivationSteps.push(step);
+  recordB5HpSnapshot(state, metrics, step);
   state.party.forEach(character => {
     if (!isAlive(character)) return;
     const damage =
@@ -5843,6 +5975,7 @@ function resolveFlameTrapAtStep({
       metrics.flameTrapDeaths++;
     }
   });
+  recordB5HpSnapshot(state, metrics, step);
   return true;
 }
 
@@ -6561,6 +6694,31 @@ function totalMaterials(materials) {
 }
 
 function finishRun(state, outcome, metrics) {
+  if (metrics.b5FloorActive) {
+    recordB5HpSnapshot(state, metrics, metrics.b5LastStep);
+    if (metrics.deathSnapshot?.floor === FLAME_TRAP_MODEL.floor) {
+      recordB5HpValue(
+        metrics,
+        metrics.deathSnapshot.hpBefore,
+        metrics.deathSnapshot.maxHp
+      );
+    }
+  }
+  const b5DeathLog = state.currentRun.deathLogs?.find(
+    log => log.floor === FLAME_TRAP_MODEL.floor
+  ) || null;
+  const b5DeathCause = outcome === "death" && state.floor === FLAME_TRAP_MODEL.floor
+    ? b5DeathLog?.cause || null
+    : null;
+  const b5DeathStep = b5DeathCause ? metrics.b5LastStep : null;
+  const b5DeathAfterFlameWithinFiveSteps = Boolean(
+    b5DeathCause &&
+    b5DeathCause !== "火炎の罠" &&
+    Number.isFinite(b5DeathStep) &&
+    metrics.b5FlameActivationSteps.some(
+      step => b5DeathStep > step && b5DeathStep - step <= 5
+    )
+  );
   const healPotionCount = state.inventory.filter(item => item === "HEAL_POTION").length;
   if (healPotionCount !== state.simHealPotionSources.length) {
     throw new Error(
@@ -6976,6 +7134,14 @@ function finishRun(state, outcome, metrics) {
     specialBattles: metrics.specialBattles,
     deathEncounterType: metrics.deathEncounterType,
     deathCause: state.currentRun.deathLogs?.at(-1)?.cause || null,
+    b5Entrant: metrics.b5EntrantHp !== null,
+    b5EntrantHp: metrics.b5EntrantHp,
+    b5EntrantHpRate: metrics.b5EntrantHpRate,
+    b5MinimumHp: metrics.b5MinimumHp,
+    b5MinimumPositiveHp: metrics.b5MinimumPositiveHp,
+    b5MinimumPositiveHpRate: metrics.b5MinimumPositiveHpRate,
+    b5DeathCause,
+    b5DeathAfterFlameWithinFiveSteps,
     deathSnapshot: metrics.deathSnapshot,
     killHeal: { ...metrics.killHeal },
     dragonKeysAcquired: metrics.dragonKeysAcquired,
@@ -7194,6 +7360,15 @@ export function simulateRun({
     flameTrapDamageHp: 0,
     flameTrapDeaths: 0,
     flameTrapEligibleSteps: 0,
+    b5FloorActive: false,
+    b5EntrantHp: null,
+    b5EntrantMaxHp: null,
+    b5EntrantHpRate: null,
+    b5MinimumHp: null,
+    b5MinimumPositiveHp: null,
+    b5MinimumPositiveHpRate: null,
+    b5LastStep: null,
+    b5FlameActivationSteps: [],
     trapEncounterCount: 0,
     trapEncounterBySource: { chest: 0, floor: 0 },
     chestsOpened: 0,
@@ -7443,6 +7618,16 @@ export function simulateRun({
       state.x = floorStart.x;
       state.y = floorStart.y;
     }
+    if (floor === FLAME_TRAP_MODEL.floor) {
+      const entrant = state.party[0];
+      metrics.b5FloorActive = true;
+      metrics.b5EntrantHp = entrant?.hp ?? null;
+      metrics.b5EntrantMaxHp = entrant ? getCharMaxHp(entrant) : null;
+      metrics.b5EntrantHpRate = entrant
+        ? entrant.hp / Math.max(1, metrics.b5EntrantMaxHp)
+        : null;
+      recordB5HpSnapshot(state, metrics, 0);
+    }
     metrics.specialCellsDetected.boss += routePlan.specialCells.filter(
       cell => cell.type === EVENT_TYPES.BOSS
     ).length;
@@ -7485,6 +7670,7 @@ export function simulateRun({
       state.currentRun.steps++;
       state.currentRun.floorSteps[String(floor)] =
         (state.currentRun.floorSteps[String(floor)] || 0) + 1;
+      recordB5HpSnapshot(state, metrics, step);
       if (step % 2 === 0) {
         observeSneakStepPerception({
           state,
@@ -7985,9 +8171,17 @@ export function simulateRun({
     }
 
     if (floorEndedByPitfall) {
+      if (floor === FLAME_TRAP_MODEL.floor) {
+        recordB5HpSnapshot(state, metrics, floorSteps);
+        metrics.b5FloorActive = false;
+      }
       continue;
     }
 
+    if (floor === FLAME_TRAP_MODEL.floor) {
+      recordB5HpSnapshot(state, metrics, floorSteps);
+      metrics.b5FloorActive = false;
+    }
     applySimulatedCampRest(state, metrics.coreObservations, metrics);
     maybePurchaseMerchantWing(state, scenario, metrics);
     maybePurchaseMerchantStatusCures(state, metrics);
@@ -8178,6 +8372,7 @@ function simulateCase({
     healPotionsUsed: 0,
     trap: createTrapAggregate(),
     flameTrap: createFlameTrapAggregate(),
+    b5Gate: createB5GateAggregate(),
     outcomesByClass: Object.fromEntries(
       SIM_CLASSES.map(className => [className, createOutcomeAggregate()])
     ),
@@ -8204,6 +8399,9 @@ function simulateCase({
   const classFlameTrapTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createFlameTrapAggregate()])
   );
+  const classB5GateTotals = Object.fromEntries(
+    SIM_CLASSES.map(className => [className, createB5GateAggregate()])
+  );
   const classTrapBonusTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapBonusAggregate()])
   );
@@ -8229,6 +8427,8 @@ function simulateCase({
     addOutcomeAggregate(totals.outcomesByClass[className], result);
     addFlameTrapAggregate(totals.flameTrap, result);
     addFlameTrapAggregate(classFlameTrapTotals[className], result);
+    addB5GateAggregate(totals.b5Gate, result);
+    addB5GateAggregate(classB5GateTotals[className], result);
     const workshopEffects = totals.workshopEffectsByClass[className];
     workshopEffects.runs++;
     Object.entries(result.workshopEffects.stats).forEach(([stat, amount]) => {
@@ -8618,11 +8818,18 @@ function simulateCase({
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
     ...finalizeTrapAggregate(totals.trap),
     flameTrap: finalizeFlameTrapAggregate(totals.flameTrap),
+    b5Gate: finalizeB5GateAggregate(totals.b5Gate),
     averageFlameTrapActivations: totals.flameTrap.activations / RUNS_PER_CASE,
     flameTrapByClass: Object.fromEntries(
       Object.entries(classFlameTrapTotals).map(([className, aggregate]) => [
         className,
         finalizeFlameTrapAggregate(aggregate)
+      ])
+    ),
+    b5GateByClass: Object.fromEntries(
+      Object.entries(classB5GateTotals).map(([className, aggregate]) => [
+        className,
+        finalizeB5GateAggregate(aggregate)
       ])
     ),
     outcomesByClass: Object.fromEntries(
@@ -8952,6 +9159,54 @@ function printClassOutcomeMetrics(result) {
       `${formatWilson(stats.survivedRuns, stats.runs)} | ` +
       `${formatWilson(stats.diedRuns, stats.runs)} | ` +
       `${stats.averageReachedFloor.toFixed(2)}`
+    );
+  });
+}
+
+function formatDistributionStats(stats, multiplier = 1, digits = 1) {
+  if (!stats?.n) return "n=0";
+  const format = value => (value * multiplier).toFixed(digits);
+  return `n=${stats.n} p10=${format(stats.p10)} med=${format(stats.median)} p90=${format(stats.p90)}`;
+}
+
+function printB5GateDiagnostics(result) {
+  if (!result?.b5GateByClass) return;
+  console.log(`\n【${result.label} B5F 火炎診断（同一 B20 撤退条件）】`);
+  console.log(
+    "職業 | N | entrant | 試行歩/run(全) | 試行歩/entrant | 発動/entrant | 被害HP/entrant | B5突破 | B5死亡 | B5撤退"
+  );
+  Object.entries(result.b5GateByClass).forEach(([className, stats]) => {
+    console.log(
+      `${className.padEnd(6)} | ${String(stats.runs).padStart(3)} | ` +
+      `${formatPercent(stats.entrantRate)} | ` +
+      `${stats.averageFlameTrapEligibleStepsAllRuns.toFixed(2).padStart(13)} | ` +
+      `${stats.averageFlameTrapEligibleSteps.toFixed(2).padStart(14)} | ` +
+      `${stats.averageFlameTrapActivations.toFixed(2).padStart(12)} | ` +
+      `${stats.averageFlameTrapDamageHp.toFixed(2).padStart(14)} | ` +
+      `${formatWilson(stats.breakthroughRuns, stats.entrants)} | ` +
+      `${formatWilson(stats.deathRuns, stats.entrants)} | ` +
+      `${formatWilson(stats.retreatRuns, stats.entrants)}`
+    );
+  });
+  console.log("HP分布（B5 entrant、絶対HP: 入場 / 生存中の最低 / 最低HP比）");
+  Object.entries(result.b5GateByClass).forEach(([className, stats]) => {
+    console.log(
+      `${className.padEnd(6)} | 入場 ${formatDistributionStats(stats.entrantHp)} | ` +
+      `最低+ ${formatDistributionStats(stats.minimumPositiveHp)} | ` +
+      `入場比 ${formatDistributionStats(stats.entrantHpRate, 100)}% | ` +
+      `最低比 ${formatDistributionStats(stats.minimumPositiveHpRate, 100)}%`
+    );
+  });
+  console.log("B5死亡の時系列分類（direct / 火炎発動後の他要因 / 火炎発動なしの他要因）");
+  Object.entries(result.b5GateByClass).forEach(([className, stats]) => {
+    const deathDenominator = Math.max(1, stats.deathRuns);
+    const formatCause = count => `${count}/${stats.deathRuns} (${((count / deathDenominator) * 100).toFixed(1)}%)`;
+    console.log(
+      `${className.padEnd(6)} | direct=${formatCause(stats.directDeaths)} | ` +
+      `afterFlame=${formatCause(stats.deathsAfterFlame)} | ` +
+      `noFlame=${formatCause(stats.deathsWithoutFlame)} | ` +
+      `afterFlame<=5steps=${stats.deathsAfterFlameWithinFiveSteps} | ` +
+      `causes=${JSON.stringify(stats.deathCauseCounts)}`
     );
   });
 }
@@ -9908,6 +10163,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   console.log(`\n【${scenario.label} B1開始 深度別系列】`);
   printTable(results);
   printClassOutcomeMetrics(results.find(result => result.targetDepth === 20));
+  printB5GateDiagnostics(results.find(result => result.targetDepth === 20));
   results.forEach(result => {
     printTrapMetrics(result);
     printConsumableSummary(result);
