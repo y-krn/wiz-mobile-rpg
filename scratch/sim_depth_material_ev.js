@@ -2861,8 +2861,7 @@ function chooseSimulationAutoCombatAction(args) {
   };
   return chooseAutoCombatAction({
     ...args,
-    character,
-    healingSpellProfiles: SIM_HEALING_SPELL_PROFILES
+    character
   });
 }
 
@@ -4281,8 +4280,7 @@ function applyPostCombatRecovery(character, metrics = null) {
           SIM_HEALING_SPELL_PROFILES?.[candidate]?.cost ?? SPELLS[candidate].cost
         );
         return payment.resource === "mp" && payment.canCast;
-      },
-      SIM_HEALING_SPELL_PROFILES
+      }
     );
     if (!spellName) break;
     const payment = getSpellPayment(

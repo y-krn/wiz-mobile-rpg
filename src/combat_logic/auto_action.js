@@ -1,5 +1,3 @@
-import { SPELLS } from "../data/spells.js";
-
 const BASIC_CLASSES = new Set(["Fighter", "Thief", "Priest", "Mage"]);
 const HOLY_TARGET_TAGS = new Set(["undead", "spirit", "demon"]);
 const MAGE_ALL_SPELLS = [
@@ -84,46 +82,11 @@ export function getPreferredOffensiveSpellName(
 
 export function getPreferredHealingSpellName(
   character,
-  canCastSpell = () => false,
-  healingSpellProfiles = null
+  canCastSpell = () => false
 ) {
-  // Cover the current deficit first, then minimize MP cost and expected waste.
-  // Spell ranges provide the breakpoints; no fixed HP-ratio ladder is used.
-  const candidates = PRIEST_HEALING_SPELLS.map((spellName, order) => {
-    if (!hasSpell(character, spellName) || !canCastSpell(spellName, 0)) return null;
-    const spell = SPELLS[spellName];
-    const profile = healingSpellProfiles?.[spellName] || spell;
-    if (!spell || !Number.isFinite(profile?.healMin) || !Number.isFinite(profile?.healMax)) {
-      return null;
-    }
-    return {
-      spellName,
-      order,
-      cost: profile.cost ?? spell.cost,
-      expectedHeal: (profile.healMin + profile.healMax) / 2,
-      maxHeal: profile.healMax
-    };
-  }).filter(Boolean);
-  if (candidates.length === 0) return null;
-
-  const hp = Number(character.hp);
-  const maxHp = Number(character.maxHp);
-  if (!Number.isFinite(hp) || !Number.isFinite(maxHp)) return null;
-  const hpDeficit = Math.max(0, maxHp - hp);
-  if (hpDeficit === 0) return null;
-
-  const covering = candidates.filter(candidate => candidate.maxHeal >= hpDeficit);
-  const pool = covering.length > 0 ? covering : candidates;
-  pool.sort((a, b) => {
-    if (covering.length === 0 && a.maxHeal !== b.maxHeal) {
-      return b.maxHeal - a.maxHeal;
-    }
-    if (a.cost !== b.cost) return a.cost - b.cost;
-    const aDistance = Math.abs(a.expectedHeal - hpDeficit);
-    const bDistance = Math.abs(b.expectedHeal - hpDeficit);
-    return aDistance - bDistance || a.order - b.order;
-  });
-  return pool[0].spellName;
+  return PRIEST_HEALING_SPELLS.find(
+    spellName => hasSpell(character, spellName) && canCastSpell(spellName, 0)
+  ) || null;
 }
 
 export function chooseAutoCombatAction({
@@ -131,8 +94,7 @@ export function chooseAutoCombatAction({
   monsters,
   roundNumber,
   healingTargetIdx = null,
-  canCastSpell = () => false,
-  healingSpellProfiles = null
+  canCastSpell = () => false
 }) {
   if (!BASIC_CLASSES.has(character.class)) return null;
 
@@ -149,11 +111,7 @@ export function chooseAutoCombatAction({
     hasSpell(character, spellName) && canCastSpell(spellName, reserveMp);
 
   if (healingTargetIdx !== null && character.class === "Priest") {
-    const healingSpell = getPreferredHealingSpellName(
-      character,
-      canCastSpell,
-      healingSpellProfiles
-    );
+    const healingSpell = getPreferredHealingSpellName(character, canCastSpell);
     if (healingSpell) {
       return { type: "spell", targetIdx: healingTargetIdx, spellName: healingSpell };
     }
