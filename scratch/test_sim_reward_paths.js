@@ -46,6 +46,12 @@ if (detectRateCalls.length === 0) {
   if (!/trapSenseDisposition/.test(depthSimulationSource)) {
     failures.push(`${depthSimulationName}: trapSense disposition must be explicit in sim state`);
   }
+  if (!/getPartyFlameTrapWarningAvoidanceChance\s*\(\s*state\.party\s*\)/.test(depthSimulationSource)) {
+    failures.push(`${depthSimulationName}: flame warning avoidance must use the src helper`);
+  }
+  if (/FLAME_TRAP_(TRAP_GUARD_OVERRIDE|WARNING_AVOIDANCE_CHANCE|DAMAGE_MULTIPLIER)/.test(depthSimulationSource)) {
+    failures.push(`${depthSimulationName}: removed flame-trap what-if overrides must not bypass src behavior`);
+  }
 }
 
 for (const name of simulationFiles) {

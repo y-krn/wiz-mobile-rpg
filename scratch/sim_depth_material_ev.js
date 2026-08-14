@@ -155,6 +155,7 @@ const {
   calculateFloorTrapExpectedDamage,
   hasTrapScout,
   resolveChestTrapEffect,
+  resolveFlameTrapEffect,
   resolveFloorTrapEffect
 } = await import("../src/rules/trap_effect_rules.js");
 const {
@@ -204,6 +205,7 @@ const {
   getCharPie,
   getCharStr,
   getCharTrapBonus,
+  getPartyFlameTrapWarningAvoidanceChance,
   getTrapEaterBonusAfterDisarm,
   getCharVit,
   getCharWeaponAtk,
@@ -281,9 +283,6 @@ const SIM_ENV_KEYS = Object.freeze([
   "TRAP_POLICY",
   "TRAP_AVOIDANCE_POLICY",
   "TRAP_DAMAGE_MULTIPLIER",
-  "FLAME_TRAP_TRAP_GUARD_OVERRIDE",
-  "FLAME_TRAP_WARNING_AVOIDANCE_CHANCE",
-  "FLAME_TRAP_DAMAGE_MULTIPLIER",
   "IDENTIFICATION_POLICY",
   "IDENTIFICATION_STARTING_POWDER",
   "IDENTIFICATION_COST_OVERRIDE",
@@ -317,9 +316,6 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   TRAP_POLICY: "legacy",
   TRAP_AVOIDANCE_POLICY: "ev",
   TRAP_DAMAGE_MULTIPLIER: "1",
-  FLAME_TRAP_TRAP_GUARD_OVERRIDE: "0",
-  FLAME_TRAP_WARNING_AVOIDANCE_CHANCE: "0",
-  FLAME_TRAP_DAMAGE_MULTIPLIER: "1",
   IDENTIFICATION_POLICY: "powder",
   IDENTIFICATION_STARTING_POWDER: String(IDENTIFICATION_BALANCE.startingPowder),
   IDENTIFICATION_COST_OVERRIDE: String(IDENTIFICATION_BALANCE.identifyCost),
@@ -347,9 +343,6 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   TRAP_POLICY: "conservative",
   TRAP_AVOIDANCE_POLICY: "ev",
   TRAP_DAMAGE_MULTIPLIER: "1",
-  FLAME_TRAP_TRAP_GUARD_OVERRIDE: "0",
-  FLAME_TRAP_WARNING_AVOIDANCE_CHANCE: "0",
-  FLAME_TRAP_DAMAGE_MULTIPLIER: "1",
   IDENTIFICATION_POLICY: "powder",
   IDENTIFICATION_STARTING_POWDER: String(IDENTIFICATION_BALANCE.startingPowder),
   IDENTIFICATION_COST_OVERRIDE: String(IDENTIFICATION_BALANCE.identifyCost),
@@ -923,39 +916,6 @@ const TRAP_DAMAGE_MULTIPLIER = Number(trapDamageMultiplierInput);
 if (!Number.isFinite(TRAP_DAMAGE_MULTIPLIER) || TRAP_DAMAGE_MULTIPLIER < 0) {
   throw new Error(
     `TRAP_DAMAGE_MULTIPLIER must be a non-negative number: ${trapDamageMultiplierInput}`
-  );
-}
-const flameTrapTrapGuardOverrideInput = String(
-  SIM_ENV.FLAME_TRAP_TRAP_GUARD_OVERRIDE || "0"
-).trim();
-if (!["0", "1"].includes(flameTrapTrapGuardOverrideInput)) {
-  throw new Error(
-    `FLAME_TRAP_TRAP_GUARD_OVERRIDE must be 0 or 1: ${flameTrapTrapGuardOverrideInput}`
-  );
-}
-const FLAME_TRAP_TRAP_GUARD_OVERRIDE = flameTrapTrapGuardOverrideInput === "1";
-const flameTrapWarningAvoidanceChanceInput = String(
-  SIM_ENV.FLAME_TRAP_WARNING_AVOIDANCE_CHANCE || "0"
-).trim();
-const FLAME_TRAP_WARNING_AVOIDANCE_CHANCE = Number(
-  flameTrapWarningAvoidanceChanceInput
-);
-if (
-  !Number.isFinite(FLAME_TRAP_WARNING_AVOIDANCE_CHANCE) ||
-  FLAME_TRAP_WARNING_AVOIDANCE_CHANCE < 0 ||
-  FLAME_TRAP_WARNING_AVOIDANCE_CHANCE > 1
-) {
-  throw new Error(
-    `FLAME_TRAP_WARNING_AVOIDANCE_CHANCE must be a number in [0,1]: ${flameTrapWarningAvoidanceChanceInput}`
-  );
-}
-const flameTrapDamageMultiplierInput = String(
-  SIM_ENV.FLAME_TRAP_DAMAGE_MULTIPLIER || "1"
-).trim();
-const FLAME_TRAP_DAMAGE_MULTIPLIER = Number(flameTrapDamageMultiplierInput);
-if (!Number.isFinite(FLAME_TRAP_DAMAGE_MULTIPLIER) || FLAME_TRAP_DAMAGE_MULTIPLIER < 0) {
-  throw new Error(
-    `FLAME_TRAP_DAMAGE_MULTIPLIER must be a non-negative number: ${flameTrapDamageMultiplierInput}`
   );
 }
 const CHEST_DISARM_REPRESENTATIVE_THRESHOLD = calculateChestDisarmEvThreshold();
@@ -6003,32 +5963,24 @@ function resolveFlameTrapAtStep({
   }
 
   metrics.flameTrapEligibleSteps++;
-  if (
-    FLAME_TRAP_WARNING_AVOIDANCE_CHANCE > 0 &&
-    Math.random() < FLAME_TRAP_WARNING_AVOIDANCE_CHANCE
-  ) {
-    metrics.flameTrapWarningAvoided++;
-    return false;
-  }
   if (Math.random() >= FLAME_TRAP_MODEL.chance) return false;
 
   state.flameTrapCooldownTurns = FLAME_TRAP_MODEL.cooldownTurns;
   metrics.flameTrapActivations++;
   metrics.b5FlameActivationSteps.push(step);
   recordB5HpSnapshot(state, metrics, step);
-  const partyDamage = state.party.map(character => {
-    if (!isAlive(character)) return 0;
-    return Math.floor(Math.random() * FLAME_TRAP_MODEL.damageRolls) +
-      FLAME_TRAP_MODEL.minDamage;
-  });
-  const effect = FLAME_TRAP_TRAP_GUARD_OVERRIDE
-    ? applyTrapGuardToEffect(
-      { partyDamage },
-      { trapGuardByParty: getSimulationTrapGuardByParty(state) }
-    )
-    : { partyDamage };
+  const warningAvoidanceChance = getPartyFlameTrapWarningAvoidanceChance(state.party);
+  if (warningAvoidanceChance > 0 && Math.random() < warningAvoidanceChance) {
+    metrics.flameTrapWarningAvoided++;
+    recordB5HpSnapshot(state, metrics, step);
+    return true;
+  }
+  const effect = applyTrapGuardToEffect(resolveFlameTrapEffect({
+    party: state.party,
+    rng: Math.random
+  }), { trapGuardByParty: getSimulationTrapGuardByParty(state) });
   effect.partyDamage.forEach((damage, index) => {
-    const appliedDamage = Math.max(0, Math.round(damage * FLAME_TRAP_DAMAGE_MULTIPLIER));
+    const appliedDamage = damage;
     if (appliedDamage <= 0) return;
     const character = state.party[index];
     character.hp = Math.max(0, character.hp - appliedDamage);
@@ -10057,11 +10009,6 @@ const ENV_SIGNATURE = {
   trapAvoidancePolicy: DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
   trapBonusOverride: TRAP_BONUS_OVERRIDE_PERCENT,
   trapSenseOverride: TRAP_SENSE_OVERRIDE_PERCENT,
-  flameTrapOverrides: {
-    trapGuard: FLAME_TRAP_TRAP_GUARD_OVERRIDE,
-    warningAvoidanceChance: FLAME_TRAP_WARNING_AVOIDANCE_CHANCE,
-    damageMultiplier: FLAME_TRAP_DAMAGE_MULTIPLIER
-  },
   healPotionMerchantPolicy: DEFAULT_HEAL_POTION_MERCHANT_POLICY,
   identificationPolicies: ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id),
   identificationPolicyEnv: SIM_ENV.IDENTIFICATION_POLICY || "powder",
@@ -10127,11 +10074,7 @@ console.log(
     ? "実生成値"
     : `${TRAP_SENSE_OVERRIDE_PERCENT}%固定（装備由来値を上書き）`}`
 );
-console.log(
-  `火炎罠override: trapGuard=${FLAME_TRAP_TRAP_GUARD_OVERRIDE ? 1 : 0}, ` +
-  `warningAvoidanceChance=${FLAME_TRAP_WARNING_AVOIDANCE_CHANCE}, ` +
-  `damageMultiplier=${FLAME_TRAP_DAMAGE_MULTIPLIER}`
-);
+console.log("火炎罠: srcのtrapGuard適用と装備効果に応じた予告回避を使用");
 console.log(
   "回避EV定義: 迂回追加歩数ごとのgetEncounterChance(step)合計×同一run直前の通常戦闘被害HP/回数。" +
   "観測値なしは回避せず、直接対応（解除/強行の既存方針）を選ぶ。"

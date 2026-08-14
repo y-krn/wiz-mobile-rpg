@@ -11,6 +11,8 @@ const CHEST_GAS_BOMB_RANGE = Object.freeze({
 const CHEST_POISON_WEAKENED_TRIGGER_CHANCE = 0.50;
 const CHEST_TELEPORTER_WEAKENED_FAILURE_CHANCE = 0.50;
 const CHEST_FLASH_BLIND_CHANCE = Object.freeze({ full: 0.60, weakened: 0.30 });
+const FLAME_TRAP_DAMAGE_MIN = 8;
+const FLAME_TRAP_DAMAGE_RANGE = 9;
 
 function reduceTrapDamage(damage, trapGuard = 0) {
   const numericGuard = Number(trapGuard);
@@ -33,6 +35,15 @@ export function applyTrapGuardToEffect(
     partyDamage: (effect.partyDamage || []).map((damage, index) =>
       reduceTrapDamage(damage, trapGuardByParty[index])
     )
+  };
+}
+
+export function resolveFlameTrapEffect({ party = [], rng = Math.random } = {}) {
+  return {
+    partyDamage: party.map(char => {
+      if (char?.status === "dead") return 0;
+      return Math.floor(rng() * FLAME_TRAP_DAMAGE_RANGE) + FLAME_TRAP_DAMAGE_MIN;
+    })
   };
 }
 

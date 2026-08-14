@@ -41,12 +41,17 @@ is a bug in the economy.
 
 ## 基本4職の罠sustain（Issue #516）
 
-- 戦士は `trapGuard=40`、魔術師は `trapGuard=50` をクラス固有passiveとして持つ。
+- 戦士は `trapGuard=40`、魔術師は `trapGuard=60` をクラス固有passiveとして持つ。
   正本は `src/data/classes.js`、適用処理は
   `src/rules/trap_effect_rules.js` の `applyTrapGuardToEffect` とする。
-- 軽減対象は床罠・宝箱罠のHPダメージ成分だけで、正のダメージは最低1を維持する。
-  罠の発見・解除、MP drain、毒・盲目・転送などの非HP効果は変更しない。
+- 軽減対象は床罠・宝箱罠・B5F限定の火炎の罠のHPダメージ成分だけで、正のダメージは
+  最低1を維持する。床罠の発見・解除、MP drain、毒・盲目・転送などの非HP効果は変更しない。
   盗賊・僧侶と上級4職の既存passiveも変更しない。
+- 火炎の罠はB5Fの通常歩行で5%発火し、発火時に「熱気の気配」をログ表示する。
+  装備の `trapBonus` と `trapSense` の合算値（`getCharTrapBonus`）は、
+  `src/rules/character_stats.js` の `getPartyFlameTrapWarningAvoidanceChance` で
+  発動時に確率で罠を無効化する回避判定の確率へ変換する。式の正本は同関数（線形係数0.8、上限0.74）であり、
+  発動時の回避判定に成功した場合は被弾しない。
 - これは回復薬の常時供給ではなく、罠優位の浅層で戦士・魔術師が薬を使い切るまでの
   時間を延ばす設計である。期待されるプレイヤー影響は、罠を踏んだ際の即時HP損失と
   浅層の薬枯渇を緩和し、盗賊・僧侶の到達性を維持すること。
