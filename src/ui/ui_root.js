@@ -180,7 +180,12 @@ export function getFloorExplorationRate() {
 
 export function resetViewportZoom() {
   const viewport = document.querySelector('meta[name="viewport"]');
-  if (viewport && viewport.getAttribute("content") !== LOCKED_VIEWPORT) {
+  if (!viewport || typeof viewport.setAttribute !== "function") return;
+
+  const currentContent = typeof viewport.getAttribute === "function"
+    ? viewport.getAttribute("content")
+    : null;
+  if (currentContent !== LOCKED_VIEWPORT) {
     // Keep PWA gameplay locked to device scale; repeated taps can otherwise trigger iOS zoom.
     viewport.setAttribute("content", LOCKED_VIEWPORT);
   }
