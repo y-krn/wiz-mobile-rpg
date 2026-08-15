@@ -817,7 +817,7 @@ level帯ではなくexact levelで分け、同じ階層・同じlevelに到達�
 
 ## 固定条件・出自・再現
 
-- source commit: `0d2451382ff3ddf39c10d559e1ee5e61f45cce91`
+- source commit: `0d2451382ff3ddf39c10d559e1ee5e61f45cce91`（測定実行時点。測定後に `origin/main` が `470820f`（docs変更のみ）へ進んだため、レポート用ブランチをrebaseした。simロジックへの影響なし）
 - origin/main ancestor: `true`; stale tree allowed: `false`
 - calibration: N=100/scenario（4職を交互に含むrunner N）; 11.051s wall, 17.173s CPU; profile SHA-256 `025df9f3a9e5eca8ff792979b9ea32196d8ec706599bb2aae7e4c041bd7dc105`
 - simulation: 111.325s wall, 1640.490s CPU; resolved parallelism=15; rows=20400
