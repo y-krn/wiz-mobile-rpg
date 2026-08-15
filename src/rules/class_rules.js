@@ -1,5 +1,13 @@
 import { CLASS_PASSIVES } from "../data/classes.js";
 
+export const MANA_ITEM_CLASSES = Object.freeze([
+  "Priest",
+  "Mage",
+  "Samurai",
+  "Bishop",
+  "Ranger"
+]);
+
 export function canUsePriestSpells(char) {
   if (!char) return false;
   if (char.class === "Priest" || char.class === "Bishop") return true;
@@ -16,6 +24,10 @@ export function canUseMageSpells(char) {
 
 export function isSpellcaster(char) {
   return canUsePriestSpells(char) || canUseMageSpells(char);
+}
+
+export function canUseManaItems(char) {
+  return MANA_ITEM_CLASSES.includes(char?.class) && isSpellcaster(char);
 }
 
 export function getClassJpName(cls) {

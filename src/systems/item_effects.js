@@ -1,6 +1,6 @@
 import { getEffectiveHealAmount } from "../rules/item_rules.js";
 import { getCharMaxHp, getCharMaxMp } from "../rules/character_stats.js";
-import { canUsePriestSpells, canUseMageSpells } from "../rules/class_rules.js";
+import { canUseManaItems } from "../rules/class_rules.js";
 import { addCharBuff } from "../combat_logic/status_effects.js";
 
 export const ITEM_EFFECTS = {
@@ -45,14 +45,14 @@ export const ITEM_EFFECTS = {
     return `${char.name}は覚醒薬を使ったが、何も起こらなかった。`;
   },
   MANA_POTION: ({ char }) => {
-    if (canUsePriestSpells(char) || canUseMageSpells(char)) {
+    if (canUseManaItems(char)) {
       char.mp = Math.min(getCharMaxMp(char), char.mp + 3);
       return `${char.name}は魔力草を使用し、MPが3回復した。(MP:${char.mp}/${getCharMaxMp(char)})`;
     }
     return `${char.name}は魔力草を使用したが、魔力を持たないため何も起こらなかった。`;
   },
   ETHER: ({ char }) => {
-    if (canUsePriestSpells(char) || canUseMageSpells(char)) {
+    if (canUseManaItems(char)) {
       char.mp = Math.min(getCharMaxMp(char), char.mp + 8);
       return `${char.name}は魔力の雫を使用し、MPが8回復した。(MP:${char.mp}/${getCharMaxMp(char)})`;
     }

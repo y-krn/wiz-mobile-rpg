@@ -1,3 +1,5 @@
+import { MANA_ITEM_CLASSES } from "../rules/class_rules.js";
+
 export const ITEMS = {
   // Weapons
   DAGGER: { id: "DAGGER", name: "ダガー", type: "weapon", atk: 2, desc: "シンプルな短剣。攻撃力+2 [全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], tags: ["iron", "ambush"] },
@@ -62,8 +64,8 @@ export const ITEMS = {
   EYE_DROPS: { id: "EYE_DROPS", name: "目薬", type: "usable", desc: "使用すると盲目状態を解除する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   PARALYZE_CURE: { id: "PARALYZE_CURE", name: "解痺薬", type: "usable", desc: "使用すると麻痺状態を解除する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   WAKE_POWDER: { id: "WAKE_POWDER", name: "覚醒薬", type: "usable", desc: "使用すると睡眠状態を解除する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
-  MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", desc: "使用するとMPを3回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
-  ETHER: { id: "ETHER", name: "魔力の雫", type: "usable", desc: "使用するとMPを8回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
+  MANA_POTION: { id: "MANA_POTION", name: "魔力草", type: "usable", desc: "使用するとMPを3回復する。[術者用]", classes: MANA_ITEM_CLASSES },
+  ETHER: { id: "ETHER", name: "魔力の雫", type: "usable", desc: "使用するとMPを8回復する。[術者用]", classes: MANA_ITEM_CLASSES },
   HOLY_WATER: { id: "HOLY_WATER", name: "祝福の聖水", type: "usable", desc: "使用するとHPを15回復し、毒状態も治療する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   TOWN_PORTAL: { id: "TOWN_PORTAL", name: "帰還の翼", type: "usable", desc: "任意のフロアから撤退し、素材を100%持ち帰る。", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   ESCAPE_SCROLL: { id: "ESCAPE_SCROLL", name: "離脱のスクロール", type: "usable", desc: "使用すると戦闘から逃れ、その場に留まる。[戦闘専用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"], combatOnly: true },
