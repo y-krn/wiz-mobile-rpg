@@ -20,7 +20,7 @@ export const BIOMES = Object.freeze([
     theme: {
       entryText: { first: "崩れた岩肌の奥から、乾いた反響音が返ってくる。", revisit: "崩れた坑道へ戻った。遠くの物音が坑道を伝う。" },
       auraLexicon: { spring: "岩間から湧き水の音が聞こえる…", tablet: "壁の刻印から弱い魔力を感じる…", merchant: "置き去りの荷車のそばから衣擦れが聞こえる…", stairs: "下へ続く坑道から冷たい風が流れてくる…", chest: "崩れた岩陰に何かが隠されている気がする…", boss: "反響の奥から、重い足音が近づいてくる…" },
-      eventSkins: { spring: "坑道の湧き水", tablet: "坑夫の刻印", merchant: "荷車の商人", camp: null },
+      eventSkins: { spring: "坑道の湧き水", tablet: "坑夫の刻印", merchant: "荷車の商人", camp: "坑夫宿舎跡" },
       trapSkins: { damage: "落石の仕掛け", mpDrain: "魔力を奪う鉱脈", alarm: "鳴子の罠", pitfall: "崩れた床" }
     }
   }),
@@ -44,7 +44,7 @@ export const BIOMES = Object.freeze([
     theme: {
       entryText: { first: "底知れぬ裂け目を、無数の糸と獣の息遣いが覆う。", revisit: "大裂溝の巣窟へ戻った。足元の震えが巣へ伝わる。" },
       auraLexicon: { spring: "裂け目の底から水音が上がる…", tablet: "糸に覆われた碑から魔力を感じる…", merchant: "巣の向こうから布の擦れる音がする…", stairs: "深い裂け目から風が吹き上がる…", chest: "巣糸の塊に何かが包まれている気がする…", boss: "大地を伝う振動に、魔性の脈動が混じる…" },
-      eventSkins: { spring: "裂溝の雫", tablet: "糸封じの碑", merchant: "巣渡りの商人", camp: null },
+      eventSkins: { spring: "裂溝の雫", tablet: "糸封じの碑", merchant: "巣渡りの商人", camp: "糸紡ぎ場跡" },
       trapSkins: { damage: "灼けた裂け目", mpDrain: "魔力を啜る巣糸", alarm: "巣を揺らす警戒糸", pitfall: "大裂溝" }
     }
   }),
@@ -68,7 +68,7 @@ export const BIOMES = Object.freeze([
     theme: {
       entryText: { first: "赤熱した鍛造炉が脈打ち、竜火が石床の溝を走る。", revisit: "竜火の鍛造殿へ戻った。金床の残響が低く続く。" },
       auraLexicon: { spring: "冷却槽から水音が聞こえる…", tablet: "鍛造印から灼ける魔力を感じる…", merchant: "炉の陰から鎖の擦れる音がする…", stairs: "下層炉から熱風が流れる…", chest: "灰の山に金属の光が揺らぐ…", boss: "鍛造殿の奥から竜の咆哮が響く…" },
-      eventSkins: { spring: "冷却の泉", tablet: "竜火の鍛造印", merchant: "炉守りの商人", camp: null },
+      eventSkins: { spring: "冷却の泉", tablet: "竜火の鍛造印", merchant: "炉守りの商人", camp: "鍛冶場跡" },
       trapSkins: { damage: "噴き出す竜火", mpDrain: "魔力を喰う炉", alarm: "鍛造殿の警鐘", pitfall: "溶鉱炉の亀裂" }
     }
   }),
@@ -80,7 +80,7 @@ export const BIOMES = Object.freeze([
     theme: {
       entryText: { first: "光の届かない玉座で、深淵の脈動が床を震わせる。", revisit: "深淵の玉座へ戻った。見えない視線が一歩ごとに追う。" },
       auraLexicon: { spring: "闇の底から水音が聞こえる…", tablet: "王の碑文から濃い魔力を感じる…", merchant: "玉座の陰から衣擦れが聞こえる…", stairs: "底なしの階段から冷気が流れる…", chest: "幻影の陰に財宝の気配が揺らぐ…", boss: "玉座から圧倒的な魔力が押し寄せる…" },
-      eventSkins: { spring: "深淵の雫", tablet: "王座の碑文", merchant: "玉座渡りの商人", camp: null },
+      eventSkins: { spring: "深淵の雫", tablet: "王座の碑文", merchant: "玉座渡りの商人", camp: "王座の間跡" },
       trapSkins: { damage: "深淵の魔眼", mpDrain: "王印の徴収", alarm: "玉座の警鐘", pitfall: "幻影の床" }
     }
   })
