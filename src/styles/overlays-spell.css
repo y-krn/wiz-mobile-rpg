@@ -687,6 +687,17 @@
   color: var(--text-muted);
 }
 
+.spell-detail-caster-row {
+  font-size: var(--fs-sm);
+  color: var(--text-main);
+}
+
+.detail-hp-val {
+  font-family: var(--font-mono);
+  font-weight: bold;
+  color: var(--neon-green);
+}
+
 .spell-detail-mp-row {
   font-size: var(--fs-sm);
   color: var(--text-main);
