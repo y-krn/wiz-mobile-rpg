@@ -15,6 +15,12 @@ import { getItemUseStatus } from "../src/equip.js";
 import { resolvePlayerItem } from "../src/combat_logic/item_resolution.js";
 import { reduceIncomingDamage } from "../src/combat_logic/damage.js";
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
+import {
+  MANA_ITEM_CLASSES,
+  canUseMageSpells,
+  canUseManaItems,
+  canUsePriestSpells
+} from "../src/rules/class_rules.js";
 import { state } from "../src/state.js";
 
 (async () => {
@@ -367,6 +373,40 @@ import { state } from "../src/state.js";
     assert.strictEqual(etherResult.target.mp, 9, "ETHER should restore 8 MP in combat.");
     assert.strictEqual(etherResult.logQueue[0].floatText, "+8 MP", "ETHER floatText should show actual MP recovery.");
 
+    console.log("Testing mana item class definitions and effect gate...");
+    const allClasses = ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"];
+    const expectedManaClasses = allClasses.filter(className => {
+      const char = { class: className, level: 3 };
+      return canUsePriestSpells(char) || canUseMageSpells(char);
+    });
+    assert.deepStrictEqual([...MANA_ITEM_CLASSES], expectedManaClasses, "Mana item class constant should match spell gates at level 3.");
+
+    for (const className of allClasses) {
+      const char = { class: className, level: 3 };
+      assert.strictEqual(
+        canUseManaItems(char),
+        expectedManaClasses.includes(className),
+        `${className} mana item gate should match the spell gates.`
+      );
+    }
+    assert.strictEqual(canUseManaItems({ class: "Ranger", level: 2 }), false, "Ranger should need level 3 for mana items.");
+    assert.strictEqual(canUseManaItems({ class: "Samurai", level: 2 }), false, "Samurai should need level 3 for mana items.");
+
+    for (const [itemKey, recovery] of [["MANA_POTION", 3], ["ETHER", 8]]) {
+      const item = ITEMS[itemKey];
+      assert.deepStrictEqual(item.classes, expectedManaClasses, `${itemKey} classes should match the spell gates.`);
+      assert.ok(!item.desc.includes("[全員用]"), `${itemKey} should not be labeled for everyone.`);
+      assert.ok(item.desc.includes("[術者用]"), `${itemKey} should be labeled for spellcasters.`);
+
+      const caster = { name: "Ranger", class: "Ranger", level: 3, mp: 1, maxMp: 20 };
+      const nonCaster = { name: "Fighter", class: "Fighter", level: 3, mp: 1, maxMp: 20 };
+      ITEM_EFFECTS[itemKey]({ char: caster });
+      ITEM_EFFECTS[itemKey]({ char: nonCaster });
+      assert.strictEqual(caster.mp, 1 + recovery, `${itemKey} should recover MP for an eligible class.`);
+      assert.strictEqual(nonCaster.mp, 1, `${itemKey} should not recover MP for a non-caster.`);
+    }
+    console.log("[PASS] Mana item labels, classes, and runtime gates stay aligned.");
+
     const cureResult = resolveTestItem("PARALYZE_CURE", {
       name: "Paralyzed",
       class: "Fighter",
@@ -637,4 +677,7 @@ import { state } from "../src/state.js";
   })();
 
   console.log("\n[TEST_ITEMS PASSED]");
-})();
+})().catch(error => {
+  console.error("[FAIL] test_items.js", error);
+  process.exitCode = 1;
+});
