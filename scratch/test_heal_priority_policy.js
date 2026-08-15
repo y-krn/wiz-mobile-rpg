@@ -49,7 +49,8 @@ function measure(healPriorityPolicy) {
     rows.push(simulateRun({
       className: "Priest",
       startFloor: 1,
-      targetDepth: 21,
+      // Keep this fixture above the first base camp so camp placement does not mask the policy delta.
+      targetDepth: 5,
       runIndex,
       seriesId: "issue487-policy-test",
       scoringProfile,
