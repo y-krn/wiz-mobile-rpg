@@ -201,7 +201,7 @@ export function calculatePhysicalAttackFormula({
   def = 0,
   meleeMod = 1
 } = {}) {
-  return ((weaponAtk + buffAtk) * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod;
+  return (Math.floor((weaponAtk + buffAtk) * 1.5) + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod;
 }
 
 export function calculatePhysicalDefenseFormula({

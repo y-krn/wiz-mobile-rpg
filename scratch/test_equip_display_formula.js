@@ -8,6 +8,7 @@ import {
 import { getCharAffixSum } from "../src/rules/item_rules.js";
 import { getSpellStatBonus } from "../src/rules/spell_rules.js";
 import { calculateDisarmRate } from "../src/rules/trap_rules.js";
+import { runCombatRoundCalculation } from "../src/combat_logic.js";
 
 const failures = [];
 
@@ -59,8 +60,100 @@ function makeChar(overrides = {}) {
   };
 }
 
+function legacyPhysicalAttackFormula({
+  weaponAtk = 0,
+  buffAtk = 0,
+  str = 10,
+  randRoll = 0,
+  def = 0,
+  meleeMod = 1
+} = {}) {
+  return ((weaponAtk + buffAtk) * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod;
+}
+
+function runFixedRound(state, actions) {
+  const originalRandom = Math.random;
+  Math.random = () => 0;
+  try {
+    return runCombatRoundCalculation(state, { actions });
+  } finally {
+    Math.random = originalRandom;
+  }
+}
+
+function makeCombatState(char, monster) {
+  return {
+    party: [char],
+    combatState: {
+      monsters: [monster],
+      isBoss: false,
+      isMidboss: false,
+      isRoamingFlack: false,
+      allParalyzedTurns: 0,
+      roundNumber: 1,
+      phase: "choose_actions"
+    },
+    inventory: [],
+    firstKills: [],
+    codex: null,
+    currentRun: { itemsFound: [], equipmentFound: [], deathLogs: [] },
+    roamingMonsters: [],
+    floorChestsTotal: [],
+    floor: 1
+  };
+}
+
 const base = makeChar();
 const baseStats = getCharDerivedStats(base, { floor: 5 });
+
+const integerFormulaCases = [
+  {
+    label: "odd weapon atk with even buff atk",
+    input: { weaponAtk: 3, buffAtk: 2, str: 14, randRoll: 3, def: 6 },
+    expected: 11
+  },
+  {
+    label: "even weapon atk with odd buff atk",
+    input: { weaponAtk: 2, buffAtk: 3, str: 14, randRoll: 3, def: 6 },
+    expected: 11
+  },
+  {
+    label: "odd weapon atk with odd buff atk",
+    input: { weaponAtk: 3, buffAtk: 1, str: 14, randRoll: 3, def: 6 },
+    expected: 10
+  }
+];
+integerFormulaCases.forEach(({ label, input, expected }) => {
+  const actual = calculatePhysicalAttackFormula(input);
+  check(`${label} returns an integer`, Number.isInteger(actual), true);
+  check(`${label} keeps the integerized weapon term`, actual, expected);
+});
+
+const oddWeapon = makeChar({
+  class: "Thief",
+  equipment: { weapon: makeItem("NINJA_DAGGER") }
+});
+check("odd weapon attack display is an integer", Number.isInteger(getCharDerivedStats(oddWeapon).attack), true);
+
+const atkPlusOne = makeChar({
+  equipment: { weapon: makeItem("DAGGER", [{ type: "atk", value: 1 }]) }
+});
+const evenAtkWeapon = makeChar({
+  equipment: { weapon: "DAGGER" }
+});
+check(
+  "weapon atk +1 keeps the integer display delta",
+  getCharDerivedStats(atkPlusOne).attack - getCharDerivedStats(evenAtkWeapon).attack,
+  1
+);
+
+const followUpInput = { weaponAtk: 1, str: 11, randRoll: 2, def: 0, meleeMod: 0.7 };
+const followUpBeforeRaw = legacyPhysicalAttackFormula(followUpInput);
+const followUpAfterRaw = calculatePhysicalAttackFormula(followUpInput);
+check("follow-up legacy raw value is measured", followUpBeforeRaw, 3.15);
+check("follow-up integerized raw value is measured", followUpAfterRaw, 2.8);
+check("follow-up damage changes only where the non-integer modifier crosses floor", Math.floor(followUpBeforeRaw * 0.7), 2);
+check("follow-up damage after integerization", Math.floor(followUpAfterRaw * 0.7), 1);
 
 check(
   "normal attack formula keeps the combat coefficients",
@@ -106,6 +199,100 @@ check(
   "STR +2 produces its own attack delta",
   getCharDerivedStats(strengthUpgrade).attack - getCharDerivedStats(base).attack,
   2
+);
+
+const normalAttackState = makeCombatState(
+  {
+    name: "通常攻撃検証",
+    class: "Fighter",
+    level: 1,
+    hp: 100,
+    maxHp: 100,
+    mp: 0,
+    maxMp: 0,
+    str: 14,
+    int: 10,
+    pie: 10,
+    vit: 10,
+    agi: 100,
+    luk: 10,
+    status: "ok",
+    buffs: [],
+    equipment: {
+      weapon: makeItem("DAGGER", [{ type: "atk", value: 1 }]),
+      shield: null,
+      armor: null,
+      accessory: null,
+      accessory2: null
+    }
+  },
+  {
+    name: "麻痺した対象",
+    hp: 100,
+    maxHp: 100,
+    atk: 1,
+    def: 6,
+    row: "front",
+    status: "paralyzed",
+    paralyzeTurns: 2,
+    buffs: [],
+    color: "#fff"
+  }
+);
+const normalAttackResult = runFixedRound(normalAttackState, [
+  { type: "fight", actorIdx: 0, targetIdx: 0 }
+]);
+const normalAttackInput = { weaponAtk: 3, buffAtk: 0, str: 14, randRoll: 0, def: 6 };
+check(
+  "normal attack damage remains the legacy floored damage",
+  100 - normalAttackResult.state.combatState.monsters[0].hp,
+  Math.max(1, Math.floor(legacyPhysicalAttackFormula(normalAttackInput)))
+);
+
+const incomingDamageState = makeCombatState(
+  {
+    name: "被弾経路検証",
+    class: "Fighter",
+    level: 1,
+    hp: 100,
+    maxHp: 100,
+    mp: 0,
+    maxMp: 0,
+    str: 10,
+    int: 10,
+    pie: 10,
+    vit: 10,
+    agi: 1,
+    luk: 10,
+    status: "ok",
+    buffs: [],
+    equipment: {
+      weapon: "DAGGER",
+      shield: null,
+      armor: null,
+      accessory: null,
+      accessory2: null
+    }
+  },
+  {
+    name: "攻撃する対象",
+    hp: 100,
+    maxHp: 100,
+    atk: 12,
+    def: 0,
+    row: "front",
+    status: "ok",
+    buffs: [],
+    color: "#fff"
+  }
+);
+const incomingDamageResult = runFixedRound(incomingDamageState, [
+  { type: "defend", actorIdx: 0 }
+]);
+check(
+  "incoming physical damage remains unchanged",
+  100 - incomingDamageResult.state.party[0].hp,
+  5
 );
 
 const spellPowerEquipment = makeItem("RING_STR", [
