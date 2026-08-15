@@ -3,18 +3,25 @@
 
 import { createHash } from "node:crypto";
 import {
-  existsSync,
   mkdirSync,
-  readFileSync,
-  unlinkSync,
   writeFileSync
 } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { performance } from "node:perf_hooks";
-import { isMainThread } from "node:worker_threads";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { EXP_LEVELS } from "../src/data/progression.js";
+import { ISSUE612_FIXED_ENV } from "./issue612_exp_pace_env.js";
+import {
+  calibrateCoreScoringProfile,
+  generateSharedRunFloor as generateSharedRunFloorSource,
+  getResolvedSimulationEnv,
+  getScenarioById,
+  MEASUREMENT_PROVENANCE,
+  resetSimulationRandom,
+  simulateRun,
+  SIM_CLASSES
+} from "./sim_depth_material_ev.js";
 import { resolveSimParallelism, runSimTasks } from "./sim_parallel.js";
 
 const SMOKE = process.env.ISSUE612_SMOKE === "1";
@@ -74,48 +81,7 @@ const LEVEL_BANDS = Object.freeze([
   ["L6+", 6, Infinity]
 ]);
 const XP_SOURCES = Object.freeze(["normal", "boss", "other"]);
-const FIXED_ENV = Object.freeze({
-  BLOOD_WAND_HP_PAYMENT_MIN_RATE: "0.50",
-  DEPARTURE_CRAFT_IDS:
-    "TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION",
-  ELITE_POLICY: "avoid",
-  FLEE_HP_THRESHOLD: "0.20",
-  FLEE_POLICY: "ev",
-  HEAL_POTION_MERCHANT_POLICY: "missing",
-  HEAL_POTION_THRESHOLD: "0.55",
-  IDENTIFICATION_COST_OVERRIDE: "1",
-  IDENTIFICATION_POLICY: "powder",
-  IDENTIFICATION_STARTING_POWDER: "2",
-  PORTAL_HP_THRESHOLD: "0.35",
-  PORTAL_MAX_HEAL_POTIONS: "0",
-  PORTAL_MIN_FLOOR: "3",
-  SIM_440_CONDITION: "current",
-  SIM_CORE_SCORE_DROP_TOLERANCE: "0",
-  SIM_DIALMA_CANDIDATE: "1",
-  SIM_EQUIPMENT_POLICY: "individual-score",
-  SIM_EQUIPMENT_SLOT_AFFIX_MODE: "retain",
-  SIM_EQUIPMENT_SLOT_MODE: "standard",
-  SIM_INDEPENDENT_RUN_RANDOM: "0",
-  SIM_MATCHING_DEFINITION: "exact",
-  SIM_MADI_COST: "",
-  SIM_MADI_HEAL_MAX: "",
-  SIM_MADI_HEAL_MIN: "",
-  SIM_PRESET: "",
-  SIM_RACE_BIAS: "",
-  SIM_RUNS: String(RUNS_PER_CLASS),
-  SIM_SEED: "461",
-  SIM_SCENARIOS: SCENARIO_IDS.join(","),
-  SIM_SUPPORT_SUPPLY_CEILING: "none",
-  STATUS_CURE_HP_THRESHOLD: "0.35",
-  STATUS_CURE_MERCHANT_POLICY: "missing",
-  STATUS_CURE_POLICY: "smart",
-  TRAP_AVOIDANCE_POLICY: "ev",
-  TRAP_DAMAGE_MULTIPLIER: "1",
-  TRAP_POLICY: "conservative",
-  SIM_EXPLORATION_FACTOR: "1.4",
-  SIM_MAP_STATS: "0",
-  SIM_DAMAGE_PROBE: "0"
-});
+const FIXED_ENV = ISSUE612_FIXED_ENV;
 
 for (const key of ["SIM_PARALLEL", "SIM_MAP_CACHE_ENTRIES", "SIM_SKIP_PROVENANCE"]) {
   if (process.env[key] !== undefined) {
@@ -151,127 +117,13 @@ for (const key of forbiddenOverrides) {
   }
 }
 
-for (const [key, value] of Object.entries(FIXED_ENV)) {
-  if (process.env[key] === undefined) {
-    process.env[key] = value;
-    continue;
-  }
-  if (process.env[key] !== value) {
-    throw new Error(`Issue #612 fixed env mismatch: ${key}=${process.env[key]}`);
-  }
-}
-
 const SIM_SEED = Number(process.env.SIM_SEED) >>> 0;
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const SCRIPT_DIR = dirname(SCRIPT_PATH);
-const SOURCE_HELPER_PATH = join(SCRIPT_DIR, "sim_depth_material_ev.js");
-const INSTRUMENTED_HELPER_PATH = join(
-  SCRIPT_DIR,
-  ".issue-612-sim-depth-material-ev.js"
-);
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
-
-function countOccurrences(source, needle) {
-  return source.split(needle).length - 1;
-}
-
-function instrumentSimulationHelper() {
-  const original = readFileSync(SOURCE_HELPER_PATH, "utf8");
-  let instrumented = original;
-  const encounterNeedle = "Math.random() < getEncounterChance(step, state);";
-  if (countOccurrences(instrumented, encounterNeedle) !== 1) {
-    throw new Error("Issue #612 helper instrumentation: encounter call site changed");
-  }
-  instrumented = instrumented.replace(
-    encounterNeedle,
-    "issue612EncounterRoll(getEncounterChance(step, state), state);"
-  );
-
-  const encounterFunctionNeedle =
-    "function getEncounterChance(floorStep, state = null) {";
-  if (countOccurrences(instrumented, encounterFunctionNeedle) !== 1) {
-    throw new Error("Issue #612 helper instrumentation: encounter function changed");
-  }
-  instrumented = instrumented.replace(
-    encounterFunctionNeedle,
-    `function issue612EncounterRoll(baseRate, state = null) {
-  const override = globalThis.__issue612EncounterRateOverride;
-  const requestedRate = typeof override === "function"
-    ? override(baseRate, state)
-    : baseRate;
-  const rate = Math.max(0, Math.min(1, Number(requestedRate)));
-  return Math.random() < rate;
-}
-
-${encounterFunctionNeedle}`
-  );
-
-  const startNeedle =
-    "        startMp: state.party[0].mp,\n        startHealPotions:";
-  if (countOccurrences(instrumented, startNeedle) !== 1) {
-    throw new Error("Issue #612 helper instrumentation: encounter diagnostics changed");
-  }
-  instrumented = instrumented.replace(
-    startNeedle,
-    "        startMp: state.party[0].mp,\n" +
-      "        startLevel: state.party[0].level,\n" +
-      "        startExp: state.party[0].exp,\n" +
-      "        startRunExp: state.currentRun?.expGained || 0,\n" +
-      "        startHealPotions:"
-  );
-
-  const finishNeedle =
-    "      encounterDiagnostic.result = result;\n      if (fullDiagnostics) {";
-  if (countOccurrences(instrumented, finishNeedle) !== 1) {
-    throw new Error("Issue #612 helper instrumentation: encounter finish changed");
-  }
-  instrumented = instrumented.replace(
-    finishNeedle,
-    "      encounterDiagnostic.result = result;\n" +
-      "      encounterDiagnostic.endLevel = state.party[0].level;\n" +
-      "      encounterDiagnostic.endExp = state.party[0].exp;\n" +
-      "      encounterDiagnostic.endRunExp = state.currentRun?.expGained || 0;\n" +
-      "      encounterDiagnostic.expGained = Math.max(\n" +
-      "        0,\n" +
-      "        encounterDiagnostic.endRunExp - encounterDiagnostic.startRunExp\n" +
-      "      );\n" +
-      "      if (fullDiagnostics) {"
-  );
-
-  const sourceSha256 = sha256(original);
-  const instrumentedSha256 = sha256(instrumented);
-  writeFileSync(INSTRUMENTED_HELPER_PATH, instrumented);
-  return { sourceSha256, instrumentedSha256 };
-}
-
-function readExistingHelperInfo() {
-  const original = readFileSync(SOURCE_HELPER_PATH, "utf8");
-  const instrumented = readFileSync(INSTRUMENTED_HELPER_PATH, "utf8");
-  return {
-    sourceSha256: sha256(original),
-    instrumentedSha256: sha256(instrumented)
-  };
-}
-
-const HELPER_SOURCE_INFO = isMainThread
-  ? instrumentSimulationHelper()
-  : readExistingHelperInfo();
-const simulationModule = await import(
-  `${pathToFileURL(INSTRUMENTED_HELPER_PATH).href}?issue612=${HELPER_SOURCE_INFO.instrumentedSha256.slice(0, 16)}`
-);
-const {
-  calibrateCoreScoringProfile,
-  generateSharedRunFloor: generateSharedRunFloorSource,
-  getResolvedSimulationEnv,
-  getScenarioById,
-  MEASUREMENT_PROVENANCE,
-  resetSimulationRandom,
-  simulateRun,
-  SIM_CLASSES
-} = simulationModule;
 
 if (
   SIM_CLASSES.length < BASIC_CLASSES.length ||
@@ -345,7 +197,7 @@ function summarizeDiagnostics(diagnostics, result) {
     const source = sourceForEncounter(encounter.type);
     const cell = byFloor[floor]?.[source];
     if (!cell) throw new Error(`diagnostic floor out of range: ${floor}`);
-    const xp = Number(encounter.expGained);
+    const xp = Number(encounter.endExp) - Number(encounter.startExp);
     if (!Number.isFinite(xp) || xp < 0) {
       throw new Error(`diagnostic exp delta is invalid at B${floor}: ${xp}`);
     }
@@ -470,77 +322,70 @@ export function runIssue612Task(task, context) {
   }
   const randomSequenceId = `${task.scenarioId}:${task.className}:${task.runIndex}`;
   resetSimulationRandom(hashSeed(`${SIM_SEED}:issue612:${randomSequenceId}`));
-  const previousOverride = globalThis.__issue612EncounterRateOverride;
-  globalThis.__issue612EncounterRateOverride = task.rateMultiplier === null
+  const encounterRateOverride = task.rateMultiplier === null
     ? null
-    : baseRate => baseRate * task.rateMultiplier;
-  try {
-    const runScenario = task.collectDiagnostics
-      ? { ...scenario, simDiagnosticLevel: "full" }
-      : scenario;
-    const result = simulateRun({
-      className: task.className,
-      startFloor: 1,
-      targetDepth: TARGET_DEPTH,
-      runIndex: task.runIndex,
-      seriesId: "issue612-exp-pace",
-      scoringProfile,
-      scenario: runScenario,
-      workshop: scenario.workshop,
-      collectDiagnostics: task.collectDiagnostics
-    });
-    const supply = task.collectDiagnostics
-      ? summarizeDiagnostics(result.diagnostics, result)
-      : null;
-    const statusCuresUsed = sumObjectValues(result.statusCureItemsUsed);
-    return {
-      className: task.className,
-      runIndex: task.runIndex,
-      scenarioId: task.scenarioId,
-      sampleSet: task.sampleSet,
-      conditionId: task.conditionId,
-      rateMultiplier: task.rateMultiplier,
-      randomSequenceId,
-      reachedFloor: result.reachedFloor,
-      endFloor: result.endFloor,
-      deathFloor: result.deathFloor,
-      survived: Boolean(result.survived),
-      died: Boolean(result.died),
-      outcome: result.outcome,
-      finalLevel: result.finalLevel,
-      expGained: result.expGained,
-      finalMp: result.finalMp,
-      finalMaxMp: result.finalMaxMp,
-      deathCause: result.deathCause,
-      deathEncounterType: result.deathEncounterType,
-      deathSnapshot: compactDeathSnapshot(result.deathSnapshot),
-      b5DeathCause: result.b5DeathCause,
-      normalEncounterCount: result.normalCombatTelemetry?.encounters || 0,
-      battles: result.battles,
-      fleeCount: result.fleeCount,
-      townPortalsUsed: result.townPortalsUsed,
-      recoveryPotionsUsed: result.recoveryPotionsUsed,
-      trapEncounterCount: result.trapEncounterCount,
-      trapDamageHp: result.trapDamageHp,
-      statusCuresUsed,
-      mpDepleted: Boolean(result.mpDepleted),
-      workshopEffects: result.workshopEffects,
-      coreEncountered: result.coreEncounteredIds.length > 0,
-      coreEquipped: Boolean(result.coreEquipped),
-      coreEverEquipped: result.coreEverEquippedIds.length > 0,
-      coreEncounteredIds: [...result.coreEncounteredIds],
-      finalCoreIds: [...result.finalCoreIds],
-      equipmentUpgrades: result.equipmentUpgrades,
-      equipmentFound: result.equipmentFound,
-      supply,
-      buildSnapshots: supply?.buildSnapshots || null,
-      endpoints: Object.fromEntries(
-        TARGET_FLOORS.map(floor => [String(floor), endpoint(result, floor)])
-      )
-    };
-  } finally {
-    globalThis.__issue612EncounterRateOverride = previousOverride;
-  }
+    : rate => Math.max(0, Math.min(1, rate * task.rateMultiplier));
+  const result = simulateRun({
+    className: task.className,
+    startFloor: 1,
+    targetDepth: TARGET_DEPTH,
+    runIndex: task.runIndex,
+    seriesId: "issue612-exp-pace",
+    scoringProfile,
+    scenario,
+    workshop: scenario.workshop,
+    collectDiagnostics: task.collectDiagnostics,
+    encounterRateOverride
+  });
+  const supply = task.collectDiagnostics
+    ? summarizeDiagnostics(result.diagnostics, result)
+    : null;
+  const statusCuresUsed = sumObjectValues(result.statusCureItemsUsed);
+  return {
+    className: task.className,
+    runIndex: task.runIndex,
+    scenarioId: task.scenarioId,
+    sampleSet: task.sampleSet,
+    conditionId: task.conditionId,
+    rateMultiplier: task.rateMultiplier,
+    randomSequenceId,
+    reachedFloor: result.reachedFloor,
+    endFloor: result.endFloor,
+    deathFloor: result.deathFloor,
+    survived: Boolean(result.survived),
+    died: Boolean(result.died),
+    outcome: result.outcome,
+    finalLevel: result.finalLevel,
+    expGained: result.expGained,
+    finalMp: result.finalMp,
+    finalMaxMp: result.finalMaxMp,
+    deathCause: result.deathCause,
+    deathEncounterType: result.deathEncounterType,
+    deathSnapshot: compactDeathSnapshot(result.deathSnapshot),
+    b5DeathCause: result.b5DeathCause,
+    normalEncounterCount: result.normalCombatTelemetry?.encounters || 0,
+    battles: result.battles,
+    fleeCount: result.fleeCount,
+    townPortalsUsed: result.townPortalsUsed,
+    recoveryPotionsUsed: result.recoveryPotionsUsed,
+    trapEncounterCount: result.trapEncounterCount,
+    trapDamageHp: result.trapDamageHp,
+    statusCuresUsed,
+    mpDepleted: Boolean(result.mpDepleted),
+    workshopEffects: result.workshopEffects,
+    coreEncountered: result.coreEncounteredIds.length > 0,
+    coreEquipped: Boolean(result.coreEquipped),
+    coreEverEquipped: result.coreEverEquippedIds.length > 0,
+    coreEncounteredIds: [...result.coreEncounteredIds],
+    finalCoreIds: [...result.finalCoreIds],
+    equipmentUpgrades: result.equipmentUpgrades,
+    equipmentFound: result.equipmentFound,
+    supply,
+    buildSnapshots: supply?.buildSnapshots || null,
+    endpoints: Object.fromEntries(
+      TARGET_FLOORS.map(floor => [String(floor), endpoint(result, floor)])
+    )
+  };
 }
 
 function buildTasks() {
@@ -593,7 +438,6 @@ function buildTasks() {
 
 function calibrateProfiles() {
   const scoringProfiles = {};
-  globalThis.__issue612EncounterRateOverride = null;
   for (const scenarioId of SCENARIO_IDS) {
     const scenario = getScenarioById(scenarioId);
     resetSimulationRandom(SIM_SEED);
@@ -1471,8 +1315,6 @@ function environmentForHash() {
     ISSUE612_RANDOM_SEQUENCE: "hash(SIM_SEED:issue612:scenarioId:className:runIndex)",
     ISSUE612_SERIES_ID: "issue612-exp-pace",
     ISSUE612_DIAGNOSTICS: "full baseline/workshop; off rate-sweep",
-    ISSUE612_HELPER_SOURCE_SHA256: HELPER_SOURCE_INFO.sourceSha256,
-    ISSUE612_HELPER_INSTRUMENTED_SHA256: HELPER_SOURCE_INFO.instrumentedSha256,
     ISSUE612_RATE_DIAL: "base encounter chance × multiplier; clamp 0..1"
   };
 }
@@ -1526,7 +1368,7 @@ function renderMarkdown({
     `- simulation: ${measurement.wallSeconds.toFixed(3)}s wall, ${measurement.cpuSeconds.toFixed(3)}s CPU; ` +
       `resolved parallelism=${measurement.resolvedParallelism}; rows=${rows.length}`,
     `- raw JSONL: \`${rawPath}\`; SHA-256 \`${rawSha256}\`（rawはgitignore対象・コミットしない）`,
-    `- helper source SHA-256: \`${HELPER_SOURCE_INFO.sourceSha256}\`; runtime diagnostic shim SHA-256: \`${HELPER_SOURCE_INFO.instrumentedSha256}\``,
+    "- 計装は `scratch/sim_depth_material_ev.js` 本体へ既定no-opで直接追加（差分は本PRに含む）。",
     "- `SIM_PARALLEL` / `SIM_MAP_CACHE_ENTRIES` / `SIM_SKIP_PROVENANCE` は未設定（runnerの既定値を使用）。",
     "- `SIM_EXPLORE_SPELLS` は未設定（PR #609で既定offの状態）。",
     "",
@@ -1555,15 +1397,6 @@ function writeRawJsonl(rows, rawPath) {
   const rawText = rows.map(row => JSON.stringify(row)).join("\n") + "\n";
   writeFileSync(rawPath, rawText);
   return { rawText, rawSha256: sha256(rawText) };
-}
-
-function removeTemporaryHelper() {
-  if (!isMainThread || !existsSync(INSTRUMENTED_HELPER_PATH)) return;
-  try {
-    unlinkSync(INSTRUMENTED_HELPER_PATH);
-  } catch (error) {
-    console.error(`[WARN] temporary helper cleanup failed: ${error.message}`);
-  }
 }
 
 async function main() {
@@ -1613,9 +1446,5 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  try {
-    await main();
-  } finally {
-    removeTemporaryHelper();
-  }
+  await main();
 }
