@@ -3945,6 +3945,8 @@ function runEncounter(
         startMaxHp: getCharMaxHp(state.party[0]),
         startRawMaxHp: state.party[0].maxHp,
         startMp: state.party[0].mp,
+        startLevel: state.party[0].level,
+        startExp: state.party[0].exp,
         startHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
         startStatusCures: countInventoryItems(state.inventory),
         startBuild: startBuild ? structuredClone(startBuild) : null,
@@ -3975,6 +3977,8 @@ function runEncounter(
       if (fullDiagnostics) {
         encounterDiagnostic.endHp = state.party[0].hp;
         encounterDiagnostic.endMp = state.party[0].mp;
+        encounterDiagnostic.endLevel = state.party[0].level;
+        encounterDiagnostic.endExp = state.party[0].exp;
         encounterDiagnostic.endStatus = state.party[0].status;
         encounterDiagnostic.endHealPotions =
           state.inventory.filter(item => item === "HEAL_POTION").length;
@@ -5724,13 +5728,17 @@ function getEncounterChance(floorStep, state = null) {
   const baseRate = floorStep <= ENCOUNTER_HIGH_STEP_LIMIT
     ? ENCOUNTER_HIGH_RATE
     : ENCOUNTER_LOW_RATE;
+  let adjustedRate = baseRate;
   if (state?.lightPower === "lomilwa") {
-    return Math.max(0, baseRate - LOMILWA_ENCOUNTER_REDUCTION);
+    adjustedRate = Math.max(0, baseRate - LOMILWA_ENCOUNTER_REDUCTION);
+  } else if ((state?.lightTurns || 0) > 0) {
+    adjustedRate = Math.max(0, baseRate - MILWA_ENCOUNTER_REDUCTION);
   }
-  if ((state?.lightTurns || 0) > 0) {
-    return Math.max(0, baseRate - MILWA_ENCOUNTER_REDUCTION);
+  // #612: 遭遇率スイープ計測用。既定no-op、override未設定時は元の戻り値と一致。
+  if (typeof state?.encounterRateOverride === "function") {
+    return state.encounterRateOverride(adjustedRate);
   }
-  return baseRate;
+  return adjustedRate;
 }
 
 function tickExplorationSpellEffects(state) {
@@ -7447,6 +7455,7 @@ export function simulateRun({
   unlockedMilestones = [],
   supplyOverride = null,
   collectDiagnostics = false,
+  encounterRateOverride = null,
   collectBuildSnapshots = false,
   collectEquipmentTelemetry = false,
   collectCombatFormula = false
@@ -7470,6 +7479,9 @@ export function simulateRun({
   );
   if (CORE_WORKSHOP_GATE_MODE === "off") {
     state.party[0].unlockedAffixIds = [...ALL_CORE_AFFIX_IDS];
+  }
+  if (typeof encounterRateOverride === "function") {
+    state.encounterRateOverride = encounterRateOverride;
   }
   // Issue #611: 戦闘計算式の実態測定用計装。既定オフ。有効時のみ
   // src/combat_logic/{round,damage,spell_resolution}.js のフックが書き込む。
