@@ -816,10 +816,10 @@ level帯ではなくexact levelで分け、同じ階層・同じlevelに到達�
 
 ## 固定条件・出自・再現
 
-- source commit: `5365c7875527f514d44c9be166c513230018fd81`
+- source commit: `02d1e6e563f64c3f84da71e4a982635b6807af8e`
 - origin/main ancestor: `true`; stale tree allowed: `false`
-- calibration: N=100/scenario（4職を交互に含むrunner N）; 10.814s wall, 17.227s CPU; profile SHA-256 `025df9f3a9e5eca8ff792979b9ea32196d8ec706599bb2aae7e4c041bd7dc105`
-- simulation: 108.083s wall, 1599.319s CPU; resolved parallelism=15; rows=20400
+- calibration: N=100/scenario（4職を交互に含むrunner N）; 10.947s wall, 18.463s CPU; profile SHA-256 `025df9f3a9e5eca8ff792979b9ea32196d8ec706599bb2aae7e4c041bd7dc105`
+- simulation: 108.950s wall, 1612.418s CPU; resolved parallelism=15; rows=20400
 - raw JSONL: `/Users/ottan/.gemini/antigravity/scratch/wiz-mobile-rpg/.claude/worktrees/issue-612-exp-pace/scratch/results/issue-612-exp-pace.jsonl`; SHA-256 `c3493acbeb61813fcbab77c0d87daf3fc8596c3bd0f550193af20c4d1b64b817`（rawはgitignore対象・コミットしない）
 - 計装は `scratch/sim_depth_material_ev.js` 本体へ既定no-opで直接追加（差分は本PRに含む）。
 - `SIM_PARALLEL` / `SIM_MAP_CACHE_ENTRIES` / `SIM_SKIP_PROVENANCE` は未設定（runnerの既定値を使用）。
@@ -857,7 +857,12 @@ SIM_440_CONDITION=current
 SIM_ALLOW_STALE_TREE=<omitted>
 SIM_CALIBRATION_RUNS=100
 SIM_CORE_SCORE_DROP_TOLERANCE=0
+SIM_DAMAGE_PROBE=0
 SIM_DIALMA_CANDIDATE=1
+SIM_EQUIPMENT_POLICY=individual-score
+SIM_EQUIPMENT_SLOT_AFFIX_MODE=retain
+SIM_EQUIPMENT_SLOT_MODE=standard
+SIM_EXPLORATION_FACTOR=1.4
 SIM_EXPLORE_SPELLS=<omitted; default off>
 SIM_INDEPENDENT_RUN_RANDOM=0
 SIM_MADI_CANDIDATE=1
@@ -865,12 +870,16 @@ SIM_MADI_COST=
 SIM_MADI_HEAL_MAX=
 SIM_MADI_HEAL_MIN=
 SIM_MAP_CACHE_ENTRIES=<omitted; runtime default 1024>
+SIM_MAP_STATS=0
+SIM_MATCHING_DEFINITION=exact
 SIM_PARALLEL=<omitted; runtime default>
 SIM_PRESET=
+SIM_RACE_BIAS=
 SIM_RUNS=500
 SIM_SCENARIOS=workshop-empty,workshop-stats,workshop-gear,workshop-blood-wand,workshop-blood-wand-spells,workshop-complete
 SIM_SEED=461
 SIM_SKIP_PROVENANCE=<omitted>
+SIM_SUPPORT_SUPPLY_CEILING=none
 STATUS_CURE_HP_THRESHOLD=0.35
 STATUS_CURE_MERCHANT_POLICY=missing
 STATUS_CURE_POLICY=smart
@@ -886,6 +895,6 @@ node --check scratch/sim_issue_612_exp_pace.js
 ISSUE612_SMOKE=1 node scratch/sim_issue_612_exp_pace.js
 node scratch/sim_issue_612_exp_pace.js
 ```
-env hash: `b20b0454e6ec07f6c138e4fb20606e4ea5f5beffd47155f9c4ae563689cbd4df`
+env hash: `84e24d2fad5a123be552250c7a3ba8d47d0683f8824ec02f34292bdd1a1f56bd`
 
 raw JSONLは再現コマンド実行時に `scratch/results/issue-612-exp-pace.jsonl` へ生成される。

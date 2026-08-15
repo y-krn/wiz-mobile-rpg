@@ -1295,6 +1295,7 @@ function canonicalEnvironment(environment) {
 function environmentForHash() {
   const resolved = getResolvedSimulationEnv();
   return {
+    ...ISSUE612_FIXED_ENV,
     ...resolved,
     SIM_PRESET: process.env.SIM_PRESET,
     SIM_PARALLEL: "<omitted; runtime default>",
