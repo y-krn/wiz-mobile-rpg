@@ -4,6 +4,7 @@ process.env.SIM_SEED = "5992";
 process.env.SIM_RUNS = "48";
 process.env.SIM_CALIBRATION_RUNS = "12";
 process.env.SIM_INDEPENDENT_RUN_RANDOM = "1";
+process.env.SIM_EXPLORE_SPELLS = "on";
 
 const {
   calibrateCoreScoringProfile,

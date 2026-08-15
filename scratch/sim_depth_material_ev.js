@@ -2635,7 +2635,7 @@ function maybeCastExplorationSpells(state, metrics) {
   }
 }
 
-const SIM_EXPLORE_SPELLS_ENABLED = process.env.SIM_EXPLORE_SPELLS !== "off";
+const SIM_EXPLORE_SPELLS_ENABLED = process.env.SIM_EXPLORE_SPELLS === "on";
 
 function addSpellUsageAggregate(target, result) {
   Object.entries(result.spellUsage || {}).forEach(([spellName, usage]) => {

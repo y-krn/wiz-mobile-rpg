@@ -13,8 +13,8 @@ import { resolveSimParallelism, runSimTasks } from "./sim_parallel.js";
 
 const IS_CHILD = process.env.ISSUE599_EXPLORE_CHILD === "1";
 const SMOKE = process.env.ISSUE599_SMOKE === "1";
-const EXPLORE_MODE = process.env.SIM_EXPLORE_SPELLS === "off" ? "before" : "after";
-const EXPLORE_ENV_VALUE = EXPLORE_MODE === "before" ? "off" : "<unset>";
+const EXPLORE_MODE = process.env.SIM_EXPLORE_SPELLS === "on" ? "after" : "before";
+const EXPLORE_ENV_VALUE = EXPLORE_MODE === "before" ? "<unset>" : "on";
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const BASIC_CLASSES = Object.freeze(["Fighter", "Thief", "Priest", "Mage"]);
 const MEASURED_CLASSES = BASIC_CLASSES;
@@ -373,7 +373,7 @@ function runChild(mode, resultDir, sharedProfilePath = null) {
     childEnvironment.ISSUE599_PROFILE_PATH = profilePath;
   }
   delete childEnvironment.SIM_EXPLORE_SPELLS;
-  if (mode === "before") childEnvironment.SIM_EXPLORE_SPELLS = "off";
+  if (mode === "after") childEnvironment.SIM_EXPLORE_SPELLS = "on";
 
   return new Promise((resolve, reject) => {
     const started = performance.now();
@@ -498,7 +498,7 @@ function renderOutcomeTable(lines, modeResults) {
       const b5 = endpoint(rows, 5);
       const b10 = endpoint(rows, 10);
       lines.push(
-        `| ${CLASS_LABELS[className]} | ${mode === "before" ? "before（off）" : "after（未設定）"} | ${rows.length} | ` +
+        `| ${CLASS_LABELS[className]} | ${mode === "before" ? "before（off）" : "after（on）"} | ${rows.length} | ` +
         `${formatRate(b5.reached)} | ${formatRate(b5.breakthrough)} | ${formatRate(b5.death)} | ` +
         `${formatRate(b10.reached)} | ${formatRate(b10.breakthrough)} | ${formatRate(b10.death)} | ` +
         `${formatRate(b20Survival(rows))} |`
@@ -530,7 +530,7 @@ function renderMetricTables(lines, modeResults) {
           formatMean(rows.filter(predicate).map(row => row[field]))
         );
         lines.push(
-          `| ${CLASS_LABELS[className]} | ${mode === "before" ? "before（off）" : "after（未設定）"} | ` +
+        `| ${CLASS_LABELS[className]} | ${mode === "before" ? "before（off）" : "after（on）"} | ` +
           `${cells.join(" | ")} |`
         );
       }
@@ -574,7 +574,7 @@ function renderUsageTable(lines, modeResults) {
         0
       ));
       lines.push(
-        `| ${CLASS_LABELS[className]} | ${mode === "before" ? "before（off）" : "after（未設定）"} | ${rows.length} | ` +
+        `| ${CLASS_LABELS[className]} | ${mode === "before" ? "before（off）" : "after（on）"} | ${rows.length} | ` +
         `${cells.join(" | ")} | ${totals} / ${formatMean(totalValues)} |`
       );
     }
@@ -769,10 +769,10 @@ function renderMarkdown({ modeResults, environment, envHash, provenance, totalWa
 
 function comparisonEnvironment(modeResults) {
   const environment = { ...modeResults.after.environment };
-  environment.SIM_EXPLORE_SPELLS_AFTER = "<unset>";
-  environment.SIM_EXPLORE_SPELLS_BEFORE = "off";
+  environment.SIM_EXPLORE_SPELLS_AFTER = "on";
+  environment.SIM_EXPLORE_SPELLS_BEFORE = "<unset>";
   environment.SIM_EXPLORE_SPELLS = "<mode-specific; see above>";
-  environment.ISSUE599_COMPARISON = "before=off vs after=unset; same task keys and seed base";
+  environment.ISSUE599_COMPARISON = "before=unset vs after=on; same task keys and seed base";
   return environment;
 }
 
