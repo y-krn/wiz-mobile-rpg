@@ -46,7 +46,10 @@ const {
 } = await import("../src/combat_logic/auto_action.js");
 const { SPELL_EFFECTS } = await import("../src/systems/spell_effects.js");
 const { assignRunQuests, updateRunQuests } = await import("../src/systems/run_quests.js");
-const { generateRunFloor: generateRunFloorSource } = await import("../src/run_map_generator.js");
+const {
+  generateRunFloor: generateRunFloorSource,
+  floorHasCampEvent
+} = await import("../src/run_map_generator.js");
 const { isMilestoneFloor } = await import("../src/run_map_generator.js");
 const { createFloorElite } = await import("../src/systems/roaming_elites.js");
 const { getFloorTemplate } = await import("../src/data/floor_templates.js");
@@ -1305,7 +1308,6 @@ const PASSIVE_CORE_IDS = new Set([
 function createCoreMeasurementCounts() {
   return Object.fromEntries(CORE_AFFIXES.map(affix => [affix.id, 0]));
 }
-const CAMP_FLOORS = new Set([2, 4]);
 // 仮定: 装備スコアは攻防を主軸に、HP・主要能力・戦闘affixを下記重みで合算する。
 const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
   weaponAtk: 2,
@@ -2214,6 +2216,7 @@ function createSimulationState(
   currentRun.deepestFloor = startFloor;
   currentRun.characterClass = className;
   currentRun.floorsVisited = [startFloor];
+  currentRun.campRestCount = 0;
   assignRunQuests(currentRun);
 
   const character = applyWorkshopToCharacter(createSoloCharacter(className), workshop);
@@ -6415,9 +6418,10 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
 
 function applySimulatedCampRest(state, observations, metrics = null) {
   const extraCamp = state.simPolicy.extraCampFloors.includes(state.floor);
-  if (!CAMP_FLOORS.has(state.floor) && !extraCamp) return;
+  if (!floorHasCampEvent(state.floor) && !extraCamp) return;
   const character = state.party[0];
   if (!isAlive(character)) return;
+  state.currentRun.campRestCount++;
   const maxHp = getCharMaxHp(character);
   const maxMp = getCharMaxMp(character);
   const hpDeficit = Math.max(0, maxHp - character.hp);
@@ -7143,6 +7147,7 @@ function finishRun(state, outcome, metrics) {
     routePolicyExtraSteps: metrics.routePolicyExtraSteps,
     eliteExtraSteps: metrics.eliteExtraSteps,
     extraCampSteps: metrics.extraCampSteps,
+    campRestCount: state.currentRun.campRestCount,
     combatRounds: metrics.combatRounds,
     reachedFloor: state.currentRun.deepestFloor,
     endFloor: state.floor,
@@ -8616,6 +8621,7 @@ function simulateCase({
     },
     materialConsumed: 0,
     timeCost: 0,
+    campRestCount: 0,
     reachedFloor: 0,
     entrantsByFloor: Array(21).fill(0),
     breakthroughsByFloor: Array(21).fill(0),
@@ -8814,6 +8820,7 @@ function simulateCase({
     });
     totals.materialConsumed += result.materialConsumed;
     totals.timeCost += result.timeCost;
+    totals.campRestCount += result.campRestCount;
     totals.reachedFloor += result.reachedFloor;
     addMeanSample(totals.meanStats.bankedMaterials, result.bankedMaterials);
     addMeanSample(totals.meanStats.materialAcquired, result.materialAcquired);
@@ -9017,6 +9024,7 @@ function simulateCase({
     averageTimeCost,
     materialEvPerTime: bankedMaterialEv / averageTimeCost,
     averageReachedFloor: totals.reachedFloor / RUNS_PER_CASE,
+    averageCampRestCount: totals.campRestCount / RUNS_PER_CASE,
     mean95CI: {
       bankedMaterialEv: meanInterval(totals.meanStats.bankedMaterials, RUNS_PER_CASE),
       materialAcquired: meanInterval(totals.meanStats.materialAcquired, RUNS_PER_CASE),
@@ -10641,6 +10649,7 @@ reportMechanismFiring({
   "火炎の罠-発動": sumAcrossResults("averageFlameTrapActivations"),
   "火炎の罠-予告回避": sumAcrossResults("averageFlameTrapWarningAvoided"),
   "消耗品-傷薬使用": sumAcrossResults("averageHealPotionsUsed"),
+  "野営-休息": sumAcrossResults("averageCampRestCount"),
   "帰還の翼-使用": sumAcrossResults("averageTownPortalsUsed"),
   "鑑定-実施回数": sumAcrossResults("averageIdentificationCount")
 }, { label: "配線検査（延べ推定）" });

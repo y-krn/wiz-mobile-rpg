@@ -63,9 +63,12 @@ function placeMilestoneEvents(grid, floor) {
 
 // 野営はバイオームの世界観に野営地がある階だけに置く。
 // 以前は封印門の端点セルに寄生していたため、門を廃した経路では一度も出現しなかった。
+export function floorHasCampEvent(floor) {
+  return Boolean(getBiomeForFloor(floor).theme.eventSkins.camp);
+}
+
 function placeCampEvent(grid, floor) {
-  const biome = getBiomeForFloor(floor);
-  if (!biome.theme.eventSkins.camp) return null;
+  if (!floorHasCampEvent(floor)) return null;
   const start = findCell(grid, cell => cell.type === "stairs-up");
   const distances = getDistances(grid, start);
   const candidates = [];
