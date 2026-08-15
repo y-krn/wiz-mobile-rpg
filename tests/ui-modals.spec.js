@@ -32,6 +32,39 @@ for (const vp of VIEWPORTS) {
     await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('em')).toHaveText('+2');
   });
 
+  test(`Equipment attack preview keeps odd/even weapon values integer at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      const char = createSoloCharacter('Thief');
+      char.equipment.weapon = 'DAGGER';
+      char.equipment.accessory = null;
+      state.floor = 1;
+      state.party = [char];
+      state.inventory = [{
+        kind: 'equipment', instanceId: 'display_atk_plus_one', baseId: 'DAGGER', rarity: 'magic', level: 1,
+        identified: true, affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 1 }]
+      }];
+      openEquipOverlay(0);
+    });
+
+    const oddWeapon = page.locator('.equip-item-row', { hasText: '攻撃 +3' });
+    await expect(oddWeapon.locator('.equip-row-badge')).toHaveText('+1');
+    await oddWeapon.click();
+    await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('strong')).toHaveText(/^\d+→\d+$/);
+    await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('em')).toHaveText('+1');
+    await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('em')).not.toContainText('.');
+    await page.getByRole('button', { name: '装備する' }).click();
+
+    const evenWeapon = page.locator('.equip-item-row', { hasText: '攻撃 +2' }).last();
+    await evenWeapon.click();
+    await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('strong')).toHaveText(/^\d+→\d+$/);
+    await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('em')).toHaveText('-1');
+    await expect(evenWeapon.locator('.equip-row-badge')).toHaveText('-1');
+  });
+
   test(`Equipment can be discarded with confirmation at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
