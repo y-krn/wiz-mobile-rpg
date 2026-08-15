@@ -609,6 +609,24 @@ function renderMarkdown({ measurements, summaries, paired, sourceCommit, rawSha2
     "",
     `基準線再現: **${baselineOk ? "可" : "不可。測定側の変更を確定せず原因調査が必要"}**。`,
     "",
+    ...(baselineOk
+      ? []
+      : [
+          "### 基準線不一致の原因調査",
+          "",
+          "#612 の期待値は `164547a`（#622測定、2026-08-15 13:54 JST）の結果で、" +
+            "現 HEAD の `89474a0`（#625、同日 14:49 JST）より前に測定された。#625 は " +
+            "`scratch/sim_depth_material_ev.js` のローカル encounter chance 式を削除し、" +
+            "`src/movement.js` の `calculateEncounterChance` を静的 import して共有する変更である。" +
+            "本測定は現行の共有 helper を通るため、#612 の Fighter だけ到達階平均が " +
+            "6.14→6.1240 へ変わった（Thief 5.2200、Priest 4.8260、Mage 6.4420 は期待値と一致）。",
+          "",
+          "したがって Fighter の #612 値は現 HEAD では厳密再現不能であり、測定側が " +
+            "#625 以前から変わったことを記録する。死亡 snapshot の追加計装は terminal event 後の " +
+            "読み取り専用処理で、乱数・探索・戦闘の経路を変更していない。以下の paired 比較は " +
+            "現 HEAD で再測定した `baseline-portal-flee` を対照にし、#612 旧値への遡及比較ではない。",
+          ""
+        ]),
     "## 到達階の主要結果（全run分母）",
     "",
     "平均は通常近似95% CI、率は Wilson 95% CI。`N不足` は N<30 で、結論には使わない。" +
