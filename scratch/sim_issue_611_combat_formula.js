@@ -345,9 +345,11 @@ function formatNumber(value, digits = 2) {
     : Number(value).toFixed(digits);
 }
 
-function formatRate(stat) {
+function formatRate(stat, reached = null) {
   if (stat.estimate === null) return "未観測（N=0; CIなし）";
-  const status = stat.status === "確定" ? "" : `; ${stat.status}`;
+  const status = reached !== null && reached < 30
+    ? "; 未確定（到達run N<30）"
+    : stat.status === "確定" ? "" : `; ${stat.status}`;
   return `${(stat.estimate * 100).toFixed(1)}% ` +
     `[${(stat.low * 100).toFixed(1)}, ${(stat.high * 100).toFixed(1)}] ` +
     `(${stat.successes}/${stat.trials})${status}`;
@@ -355,11 +357,13 @@ function formatRate(stat) {
 
 function sampleStatus(count, reached = null) {
   if (reached === 0) return "到達しない（観測N=0）";
+  if (reached !== null && reached < 30) return "未確定（到達run N<30）";
   return count < 30 ? "未確定（N<30）" : "確定";
 }
 
 function ratioStatus(leftCount, rightCount, reached = null) {
   if (reached === 0) return "到達しない（観測N=0）";
+  if (reached !== null && reached < 30) return "未確定（到達run N<30）";
   return leftCount < 30 || rightCount < 30
     ? "未確定（N<30）"
     : "確定";
@@ -605,7 +609,7 @@ function renderMagicBoltTable(lines, rows) {
       const boltCount = hits.filter(hit => hit.magicBoltUsed).length;
       lines.push(
         `| B${floor} | ${CLASS_LABELS[className]} | ${denominator.all} | ${denominator.reached} | ` +
-        `${hits.length} | ${boltCount} | ${formatRate(wilson(boltCount, hits.length))} |`
+        `${hits.length} | ${boltCount} | ${formatRate(wilson(boltCount, hits.length), denominator.reached)} |`
       );
     }
   }
@@ -635,6 +639,7 @@ function renderContributionTable(lines, rows) {
   for (const floor of TARGET_FLOORS) {
     for (const className of CLASSES) {
       const events = eventsAt(rows, className, floor, "physicalPlayerHits", "className");
+      const denominator = runsAtFloor(rows, className, floor);
       const contributions = events.map(contributionFor);
       const summaries = Object.fromEntries(
         ["weapon", "buff", "str", "rand", "def", "formulaRaw"].map(key => [
@@ -647,7 +652,7 @@ function renderContributionTable(lines, rows) {
         `${formatNumber(summaries.weapon?.mean)} | ${formatNumber(summaries.buff?.mean)} | ` +
         `${formatNumber(summaries.str?.mean)} | ${formatNumber(summaries.rand?.mean)} | ` +
         `${formatNumber(summaries.def?.mean)} | ${formatNumber(summaries.formulaRaw?.mean)} | ` +
-        `${sampleStatus(events.length)} |`
+        `${sampleStatus(events.length, denominator.reached)} |`
       );
     }
   }
@@ -689,11 +694,13 @@ function renderCriticalTable(lines, rows) {
     "| --- | ---: | ---: | --- |"
   );
   for (const floor of TARGET_FLOORS) {
+    const denominator = runsAtFloor(rows, "Ninja", floor);
     const hits = eventsAt(rows, "Ninja", floor, "physicalPlayerHits", "className")
       .filter(hit => hit.criticalChance !== null);
     const criticals = hits.filter(hit => hit.isCritical).length;
     lines.push(
-      `| B${floor} | ${hits.length} | ${criticals} | ${formatRate(wilson(criticals, hits.length))} |`
+      `| B${floor} | ${hits.length} | ${criticals} | ` +
+      `${formatRate(wilson(criticals, hits.length), denominator.reached)} |`
     );
   }
   lines.push("");
@@ -710,6 +717,7 @@ function renderTargetedBonusTable(lines, rows) {
   );
   for (const floor of TARGET_FLOORS) {
     for (const className of CLASSES) {
+      const denominator = runsAtFloor(rows, className, floor);
       const attacks = eventsAt(rows, className, floor, "physicalPlayerHits", "className");
       const bonuses = eventsAt(rows, className, floor, "targetedBonuses")
         .filter(event => TARGETED_TYPES.includes(event.type));
@@ -718,7 +726,7 @@ function renderTargetedBonusTable(lines, rows) {
         const delta = events.reduce((sum, event) => sum + event.after - event.before, 0);
         lines.push(
           `| B${floor} | ${CLASS_LABELS[className]} | ${type} | ${attacks.length} | ${events.length} | ` +
-          `${formatRate(wilson(events.length, attacks.length))} | ${delta} |`
+          `${formatRate(wilson(events.length, attacks.length), denominator.reached)} | ${delta} |`
         );
       }
     }
@@ -737,13 +745,17 @@ function renderMitigationTable(lines, rows) {
   );
   for (const floor of TARGET_FLOORS) {
     const calls = allEventsAt(rows, floor, "mitigationCalls");
+    const reached = CLASSES.reduce(
+      (sum, className) => sum + runsAtFloor(rows, className, floor).reached,
+      0
+    );
     for (const type of MITIGATION_TYPES) {
       const events = allEventsAt(rows, floor, "mitigations")
         .filter(event => event.type === type);
       const delta = events.reduce((sum, event) => sum + event.before - event.after, 0);
       lines.push(
         `| B${floor} | ${type} | ${calls.length} | ${events.length} | ` +
-        `${formatRate(wilson(events.length, calls.length))} | ${formatNumber(delta)} |`
+        `${formatRate(wilson(events.length, calls.length), reached)} | ${formatNumber(delta)} |`
       );
     }
   }
