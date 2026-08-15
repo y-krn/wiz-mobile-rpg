@@ -9,6 +9,13 @@ export const archivesState = {
   listScrollTop: 0
 };
 
+function trackArchivesListScroll(body) {
+  body.addEventListener("scroll", () => {
+    if (!body.isConnected) return;
+    archivesState.listScrollTop = body.scrollTop;
+  }, { passive: true });
+}
+
 export function getMonsterCodexDetailHtml(m, record) {
   const enc = record ? record.encountered : 0;
   const kil = record ? record.killed : 0;
@@ -427,8 +434,15 @@ export function renderArchives() {
     container.innerHTML = getDeathLogsHtml();
     body.appendChild(container);
   }
-  
+
   overlay.appendChild(body);
+
+  if (
+    archivesState.selectedId === null &&
+    (archivesState.tab === "monsters" || archivesState.tab === "equipment")
+  ) {
+    trackArchivesListScroll(body);
+  }
 
   // 3. Bottom Actions Container
   const footer = document.createElement("div");
