@@ -542,7 +542,7 @@ for (const vp of VIEWPORTS) {
         openSubmenu('stairs_down', 'B2Fへの下り階段');
         const stairs = readSurface();
 
-        openSubmenu('milestone_portal', 'B5F帰還ポータル');
+        openSubmenu('milestone_portal', 'B5F帰還の門');
         const portal = readSurface();
 
         state.inventory = ['TOWN_PORTAL'];

@@ -183,7 +183,7 @@ for (const vp of VIEWPORTS) {
     await gambleButton.click();
     await page.locator('.equip-item-row', { hasText: '呪い・外せない' }).click();
     await expect(page.locator('.equip-detail-content')).toContainText('呪いで固定中');
-    const removeButton = page.getByRole('button', { name: /節目商人で解呪できます/ });
+    const removeButton = page.getByRole('button', { name: /深層商人で解呪できます/ });
     await expect(removeButton).toBeVisible();
     expect((await removeButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await expect(page.getByRole('button', { name: '破棄する' })).toHaveCount(0);

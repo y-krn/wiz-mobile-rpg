@@ -104,8 +104,8 @@ const WORKSHOP_BASE_NODES = [
   {
     id: "pool_milestone_breaker",
     category: "milestoneBuild",
-    name: "節目破りの記憶",
-    description: "節目ボス特化コアを出現候補に追加する。",
+    name: "守護者殺しの記憶",
+    description: "階層守護者特化コアを出現候補に追加する。",
     costs: [{ "鉄片": 7, "竜鱗": 3 }],
     requiresKeyItem: KEY_ITEMS.FORGE_SEAL,
     grants: { affixIds: ["CORE_MILESTONE_BREAKER"] }

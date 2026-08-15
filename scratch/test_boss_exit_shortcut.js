@@ -23,7 +23,7 @@ assert.deepEqual(logs, [
 ]);
 assert.equal(stateLike.map[0][0].event, null);
 assert.equal(stateLike.map[0][0].type, "stairs-down");
-assert.equal(stateLike.map[0][0].message, "【節目ボス撃破】階段への短絡路が開いた。");
+assert.equal(stateLike.map[0][0].message, "【階層守護者撃破】階段への短絡路が開いた。");
 assert.deepEqual(stateLike.currentRun.defeatedMilestones, [5]);
 assert.deepEqual(stateLike.unlockedMilestones, [5]);
 assert.deepEqual(stateLike.keyItems, ["FORGE_SEAL"]);

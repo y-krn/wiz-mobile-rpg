@@ -14,7 +14,7 @@ function clearOutcomeCell(stateLike, event, { openBossExitFloor = null } = {}) {
   cell.event = null;
   if (cell.milestoneFloor === openBossExitFloor) {
     cell.type = "stairs-down";
-    cell.message = "【節目ボス撃破】階段への短絡路が開いた。";
+    cell.message = "【階層守護者撃破】階段への短絡路が開いた。";
   }
   markMapChanged(stateLike);
 }

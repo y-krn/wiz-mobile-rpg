@@ -12,7 +12,7 @@ function formatMaterials(materials) {
 
 function getReasonText(reason) {
   if (reason === "escape_scroll") return "帰還の翼で撤退";
-  if (reason === "milestone_portal") return "節目ポータルで撤退";
+  if (reason === "milestone_portal") return "帰還の門で撤退";
   if (reason === "stairs") return "階段から帰還";
   if (reason === "gameover") return "迷宮で死亡";
   return "潜行終了";
