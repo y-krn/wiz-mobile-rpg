@@ -250,19 +250,26 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const randRoll = Math.floor(Math.random() * 5); // 0-4
           const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
-          dmg = Math.max(1, Math.floor(((weaponAtk + buffAtk) * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod));
+          // #611: 内訳計装用。クランプ前の値を保持するだけで式は変えない。
+          const formulaRaw = ((weaponAtk + buffAtk) * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod;
+          dmg = Math.max(1, Math.floor(formulaRaw));
+          const formulaDmg = dmg;
+          let magicBoltUsed = false;
           if (char.class === "Mage" || char.class === "Bishop") {
             const magicBolt = Math.max(
               1,
               Math.floor(getCharInt(char) / 3) + Math.floor(Math.random() * 3) - Math.floor(def / 4)
             );
+            if (magicBolt > dmg) magicBoltUsed = true;
             dmg = Math.max(dmg, magicBolt);
           }
-          
+
+          const isBlindApplied = char.status === "blind";
           if (char.status === "blind") {
             dmg = Math.max(1, Math.floor(dmg / 2));
           }
-          
+
+          const physResistApplied = Boolean(finalTarget.physResist);
           if (finalTarget.physResist) {
             dmg = Math.max(1, Math.round(dmg * (1 - finalTarget.physResist)));
           }
@@ -272,12 +279,25 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           }
 
           let isCritical = false;
-          if (char.class === "Ninja" && !finalTarget.isBoss) {
-            const criticalChance = Math.min(0.15, 0.05 + 0.01 * char.level);
+          const criticalChance = (char.class === "Ninja" && !finalTarget.isBoss)
+            ? Math.min(0.15, 0.05 + 0.01 * char.level)
+            : null;
+          if (criticalChance !== null) {
             if (Math.random() < criticalChance) {
               isCritical = true;
             }
           }
+
+          // #611: 物理攻撃(通常攻撃)式の計装。state.combatFormulaTelemetry
+          // が未設定なら no-op（既定オフ）。ここまでの分岐・乱数消費は変更しない。
+          state.combatFormulaTelemetry?.physicalPlayerHits.push({
+            floor: state.floor,
+            className: char.class,
+            weaponAtk, buffAtk, str, randRoll, def, meleeMod,
+            formulaRaw, formulaDmg, magicBoltUsed, isBlindApplied, physResistApplied,
+            criticalChance, isCritical,
+            preCriticalDmg: dmg
+          });
 
           if (isCritical) {
             dmg = Math.max(1, dmg * 3);
@@ -816,16 +836,28 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const frontGuard = targetSelect.i < 2 ? getCharAffixSum(target, "frontGuard") : 0;
           const firstStrikeDefense = target.combatFirstStrikeActive ? getCharAffixSum(target, "firstStrikeDefense") : 0;
           const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4) + getBuffTotal(target, "def") + frontGuard + firstStrikeDefense + getMpWardDef(target)) - (target.tempDefDown || 0));
+          const preDefDmg = finalAtk;
           let dmg = Math.max(1, finalAtk - finalDef);
+          const formulaDmg = dmg;
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-          
+
           // Blind target receives 1.5x damage
+          const isBlindTargetApplied = target.status === "blind";
           if (target.status === "blind") {
             dmg = Math.max(1, Math.round(dmg * 1.5));
           }
 
           const isMonDragon = mon.spriteType === "dragon" || (mon.tags && mon.tags.includes("dragon"));
-          dmg = reduceIncomingDamage(target, dmg, { dragon: isMonDragon, logQueue });
+          const preMitigationDmg = dmg;
+          dmg = reduceIncomingDamage(target, dmg, { dragon: isMonDragon, logQueue, state });
+          // #611: 敵→プレイヤー物理攻撃の計装。既定 no-op。
+          state.combatFormulaTelemetry?.physicalMonsterHits.push({
+            floor: state.floor,
+            targetClassName: target.class,
+            finalAtk, finalDef, preDefDmg, formulaDmg,
+            isDefending, isBlindTargetApplied, isSnipeAttack,
+            preMitigationDmg, finalDmg: dmg
+          });
           target.hp = Math.max(0, target.hp - dmg);
           const wakeSuffix = wakeSleepingCharOnDamage(target) ? `${target.name}は目を覚ました！` : "";
           

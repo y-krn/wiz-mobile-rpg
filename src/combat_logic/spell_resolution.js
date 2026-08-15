@@ -95,10 +95,21 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
 
     const originalMagicResist = target.magicResist;
     target.magicResist = getEffectiveMagicResist(target);
+    const appliedMagicResist = target.magicResist;
     const result = spell.effect(char, target, state.party);
     result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));
     if (originalMagicResist === undefined) delete target.magicResist;
     else target.magicResist = originalMagicResist;
+    // #611: 攻撃呪文ダメージの計装。既定 no-op、乱数消費・分岐は変更しない。
+    if (state.combatFormulaTelemetry && Number.isFinite(result.damage)) {
+      state.combatFormulaTelemetry.spellHits.push({
+        floor: state.floor,
+        spellName: act.spellName,
+        casterClass: char.class,
+        magicResist: appliedMagicResist,
+        damage: result.damage
+      });
+    }
     target.hp = Math.max(0, target.hp - result.damage);
     const wakeSuffix = result.damage > 0 && wakeSleepingMonsterOnDamage(target) ? `${target.name}は目を覚ました！` : "";
     logQueue.push({
@@ -129,6 +140,21 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     const beforeHp = monsters.map(mon => mon.hp);
     const result = applyMagicResistBuffs(affectedMonsters, () => spell.effect(char, affectedMonsters, state.party));
     result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));
+    // #611: 範囲攻撃呪文の計装。既定 no-op、乱数消費・分岐は変更しない。
+    if (state.combatFormulaTelemetry) {
+      monsters.forEach((mon, idx) => {
+        const dealt = beforeHp[idx] - mon.hp;
+        if (dealt > 0) {
+          state.combatFormulaTelemetry.spellHits.push({
+            floor: state.floor,
+            spellName: act.spellName,
+            casterClass: char.class,
+            magicResist: getEffectiveMagicResist(mon),
+            damage: dealt
+          });
+        }
+      });
+    }
     const wokeNames = monsters
       .filter((mon, idx) => beforeHp[idx] > mon.hp && wakeSleepingMonsterOnDamage(mon))
       .map(mon => mon.name);
