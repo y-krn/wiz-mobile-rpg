@@ -1,5 +1,7 @@
 import { getEquippedItemData, getCharAffixSum } from "./item_rules.js";
 import { getCharAllStatsAffixBonus } from "./affix_rules.js";
+import { getSpellStatBonus } from "./spell_rules.js";
+import { calculateDisarmRate } from "./trap_rules.js";
 
 export function getCharStr(char) {
   if (!char) return 0;
@@ -188,14 +190,54 @@ export function getCharDef(char) {
   return def;
 }
 
-export function getCharDerivedStats(char) {
+// Keep the raw physical formula in one place for combat and static equipment
+// comparison. Context-dependent inputs (buffs, rolls, target defense, and
+// class modifiers) stay with the caller.
+export function calculatePhysicalAttackFormula({
+  weaponAtk = 0,
+  buffAtk = 0,
+  str = 10,
+  randRoll = 0,
+  def = 0,
+  meleeMod = 1
+} = {}) {
+  return ((weaponAtk + buffAtk) * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod;
+}
+
+export function calculatePhysicalDefenseFormula({
+  baseDef = 0,
+  vit = 0,
+  bonusDef = 0,
+  tempDefDown = 0
+} = {}) {
+  return Math.max(0, baseDef + Math.floor(vit / 4) + bonusDef - tempDefDown);
+}
+
+function getEffectiveSpellBonus(stat, affixSum) {
+  const multiplier = getSpellStatBonus(stat) * (1 + affixSum / 100);
+  return Math.round((multiplier - 1) * 100);
+}
+
+export function getCharDerivedStats(char, { floor = 1 } = {}) {
+  const weaponAtk = getCharWeaponAtk(char);
+  const str = getCharStr(char);
+  const int = getCharInt(char);
+  const pie = getCharPie(char);
+  const vit = getCharVit(char);
+  const trapAffixBonus = Math.round(getCharTrapBonus(char) * 100);
+
   return {
-    attack: getCharWeaponAtk(char) + getCharStr(char),
-    defense: getCharDef(char) + Math.floor(getCharVit(char) / 2),
-    magic: getCharInt(char) + getCharAffixSum(char, "arcane"),
-    healing: getCharPie(char) + getCharAffixSum(char, "devotion"),
+    attack: calculatePhysicalAttackFormula({ weaponAtk, str }),
+    defense: calculatePhysicalDefenseFormula({ baseDef: getCharDef(char), vit }),
+    magic: getEffectiveSpellBonus(int, getCharAffixSum(char, "arcane")),
+    healing: getEffectiveSpellBonus(pie, getCharAffixSum(char, "devotion")),
     speed: getCharAgi(char),
-    trap: getCharLuk(char) + Math.round(getCharTrapBonus(char) * 100),
+    trap: calculateDisarmRate({
+      className: char.class,
+      level: char.level,
+      floor,
+      affixBonus: trapAffixBonus
+    }),
     treasure: getCharAffixSum(char, "treasureSense")
   };
 }

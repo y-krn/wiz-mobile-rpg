@@ -1,6 +1,37 @@
 import { test, expect } from '@playwright/test';
 import { VIEWPORTS } from './ui-ux-helpers.js';
 for (const vp of VIEWPORTS) {
+  test(`Equipment attack preview reflects weapon and STR coefficients at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      const char = createSoloCharacter('Fighter');
+      char.equipment.weapon = 'DAGGER';
+      char.equipment.accessory = null;
+      state.floor = 1;
+      state.party = [char];
+      state.inventory = [
+        {
+          kind: 'equipment', instanceId: 'display_atk_plus_two', baseId: 'DAGGER', rarity: 'magic', level: 1,
+          identified: true, affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 2 }]
+        },
+        {
+          kind: 'equipment', instanceId: 'display_str_plus_two', baseId: 'RING_STR', rarity: 'magic', level: 1,
+          identified: true, affixes: []
+        }
+      ];
+      openEquipOverlay(0);
+    });
+
+    await page.locator('.equip-item-row', { hasText: '鋭利なダガー' }).click();
+    await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('em')).toHaveText('+3');
+
+    await page.locator('.equip-item-row', { hasText: '力の指輪' }).click();
+    await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('em')).toHaveText('+2');
+  });
+
   test(`Equipment can be discarded with confirmation at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
