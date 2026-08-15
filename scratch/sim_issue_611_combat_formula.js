@@ -41,7 +41,7 @@ const SCENARIO_IDS = Object.freeze(
   SMOKE ? ["workshop-complete"] : FULL_SCENARIO_IDS
 );
 const TARGET_DEPTH = 11;
-const RUNS_PER_CLASS = SMOKE ? 1 : 500;
+const RUNS_PER_CLASS = SMOKE ? 1 : 5000;
 const CALIBRATION_RUNS = SMOKE ? 1 : 100;
 const TARGET_FLOORS = Object.freeze(Array.from({ length: 10 }, (_, index) => index + 1));
 const R95 = 1.959963984540054;
@@ -50,6 +50,7 @@ const TELEMETRY_ARRAYS = Object.freeze([
   "physicalPlayerHits",
   "physicalMonsterHits",
   "spellHits",
+  "spellMonsterHits",
   "mitigations",
   "mitigationCalls",
   "targetedBonuses"
@@ -221,6 +222,27 @@ function assertFormulaTelemetry(telemetry, runLabel) {
       assertExact(hit.finalAtk, hit.preDefDmg, `${label} preDefDmg`);
     }
   });
+
+  telemetry.spellHits.forEach((hit, index) => {
+    const label = `${runLabel} player spell #${index}`;
+    if (!Number.isFinite(hit.damageBeforeMagicResist)) {
+      throw new Error(`${label} missing damageBeforeMagicResist`);
+    }
+    if (!Number.isFinite(hit.damage)) {
+      throw new Error(`${label} missing damage`);
+    }
+  });
+
+  telemetry.spellMonsterHits.forEach((hit, index) => {
+    const label = `${runLabel} monster spell #${index}`;
+    if (!Number.isFinite(hit.damageBeforeMitigation) || !Number.isFinite(hit.damage)) {
+      throw new Error(`${label} missing before/after damage`);
+    }
+    const call = telemetry.mitigationCalls.find(callItem => callItem.id === hit.callId);
+    if (!call) throw new Error(`${label} missing mitigation call ${hit.callId}`);
+    assertExact(hit.damageBeforeMitigation, call.before, `${label} before`);
+    assertExact(hit.damage, call.after, `${label} after`);
+  });
 }
 
 export function runIssue611Task(task, context) {
@@ -331,11 +353,13 @@ function formatRate(stat) {
     `(${stat.successes}/${stat.trials})${status}`;
 }
 
-function sampleStatus(count) {
+function sampleStatus(count, reached = null) {
+  if (reached === 0) return "到達しない（観測N=0）";
   return count < 30 ? "未確定（N<30）" : "確定";
 }
 
-function ratioStatus(leftCount, rightCount) {
+function ratioStatus(leftCount, rightCount, reached = null) {
+  if (reached === 0) return "到達しない（観測N=0）";
   return leftCount < 30 || rightCount < 30
     ? "未確定（N<30）"
     : "確定";
@@ -377,6 +401,32 @@ function summarizeDamageEvents(events, valueKey = "damage") {
   return numericSummary(events.map(event => event[valueKey]));
 }
 
+function renderReachabilityTable(lines, rows) {
+  lines.push(
+    "## 到達率（N設計の根拠）",
+    "",
+    "到達runは `reachedFloor >= 階層`。到達run=0は「N不足」ではなく、この測定条件で観測上到達しないと表記する。到達runが1以上で30未満のセルは未確定のまま残す。",
+    "",
+    "| 階層 | 職業 | 全run N | 到達run N | 到達率（Wilson 95% CI） | 判定 |",
+    "| --- | --- | ---: | ---: | --- | --- |"
+  );
+  for (const floor of TARGET_FLOORS) {
+    for (const className of CLASSES) {
+      const denominator = runsAtFloor(rows, className, floor);
+      const status = denominator.reached === 0
+        ? "到達しない（観測N=0）"
+        : denominator.reached < 30
+          ? "未確定（到達run N<30）"
+          : "到達run N≥30";
+      lines.push(
+        `| B${floor} | ${CLASS_LABELS[className]} | ${denominator.all} | ${denominator.reached} | ` +
+        `${formatRate(wilson(denominator.reached, denominator.all))} | ${status} |`
+      );
+    }
+  }
+  lines.push("");
+}
+
 function renderDamageTable(lines, rows, title, property, eventClassKey, valueKey) {
   lines.push(
     `### ${title}`,
@@ -394,7 +444,8 @@ function renderDamageTable(lines, rows, title, property, eventClassKey, valueKey
       lines.push(
         `| B${floor} | ${CLASS_LABELS[className]} | ${denominator.all} | ${denominator.reached} | ${events.length} | ` +
         `${formatNumber(stats?.mean)} | ${formatNumber(stats?.p10)} | ${formatNumber(stats?.p50)} | ` +
-        `${formatNumber(stats?.p90)} | ${formatNumber(stats?.cv, 3)} | ${sampleStatus(events.length)} |`
+        `${formatNumber(stats?.p90)} | ${formatNumber(stats?.cv, 3)} | ` +
+        `${sampleStatus(events.length, denominator.reached)} |`
       );
     }
   }
@@ -412,6 +463,16 @@ function playerDefObservation(hit) {
   };
 }
 
+function playerSpellObservation(hit) {
+  return {
+    before: hit.damageBeforeMagicResist,
+    after: hit.damage,
+    ratio: hit.damageBeforeMagicResist > 0
+      ? hit.damage / hit.damageBeforeMagicResist
+      : null
+  };
+}
+
 function monsterDefObservation(hit) {
   const withoutDef = Math.max(1, hit.finalAtk);
   return {
@@ -421,11 +482,29 @@ function monsterDefObservation(hit) {
   };
 }
 
-function renderDefTable(lines, rows, title, property, eventClassKey, observation) {
+function monsterSpellObservation(hit) {
+  return {
+    before: hit.damageBeforeMitigation,
+    after: hit.damage,
+    ratio: hit.damageBeforeMitigation > 0
+      ? hit.damage / hit.damageBeforeMitigation
+      : null
+  };
+}
+
+function renderDefTable(
+  lines,
+  rows,
+  title,
+  property,
+  eventClassKey,
+  observation,
+  description
+) {
   lines.push(
     `### ${title}`,
     "",
-    "軽減前は計装値からdef項だけを外したクランプ後、軽減後は実装の `formulaDmg`。比は軽減後/軽減前、実効軽減率は1−比。",
+    description,
     "",
     "| 階層 | 職業 | 全run N | 到達run N | 攻撃 N | 軽減前平均 | 軽減後平均 | 軽減後/前 | 実効軽減率 | 判定 |",
     "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |"
@@ -437,11 +516,16 @@ function renderDefTable(lines, rows, title, property, eventClassKey, observation
         .map(observation);
       const before = numericSummary(observations.map(value => value.before));
       const after = numericSummary(observations.map(value => value.after));
-      const ratio = numericSummary(observations.map(value => value.ratio));
+      const ratio = numericSummary(
+        observations
+          .map(value => value.ratio)
+          .filter(Number.isFinite)
+      );
       lines.push(
         `| B${floor} | ${CLASS_LABELS[className]} | ${denominator.all} | ${denominator.reached} | ${observations.length} | ` +
         `${formatNumber(before?.mean)} | ${formatNumber(after?.mean)} | ${formatNumber(ratio?.mean, 3)} | ` +
-        `${formatNumber(ratio ? 1 - ratio.mean : null, 3)} | ${sampleStatus(observations.length)} |`
+        `${formatNumber(ratio ? 1 - ratio.mean : null, 3)} | ` +
+        `${sampleStatus(observations.length, denominator.reached)} |`
       );
     }
   }
@@ -473,7 +557,7 @@ function renderDamageRatioTable(lines, rows) {
         `| B${floor} | ${CLASS_LABELS[className]} | ${denominator.all} | ${denominator.reached} | ` +
         `${physical?.count || 0} | ${magic?.count || 0} | ${formatNumber(physical?.mean)} | ` +
         `${formatNumber(magic?.mean)} | ${formatNumber(ratio, 3)} | ` +
-        `${ratioStatus(physical?.count || 0, magic?.count || 0)} |`
+        `${ratioStatus(physical?.count || 0, magic?.count || 0, denominator.reached)} |`
       );
     }
   }
@@ -498,7 +582,8 @@ function renderDamageRatioTable(lines, rows) {
     lines.push(
       `| B${floor} | ${denominator.all} | ${denominator.reached} | ${physical?.count || 0} | ` +
       `${magic?.count || 0} | ${formatNumber(physical?.mean)} | ${formatNumber(magic?.mean)} | ` +
-      `${formatNumber(ratio, 3)} | ${ratioStatus(physical?.count || 0, magic?.count || 0)} |`
+      `${formatNumber(ratio, 3)} | ` +
+      `${ratioStatus(physical?.count || 0, magic?.count || 0, denominator.reached)} |`
     );
   }
   lines.push("");
@@ -788,13 +873,14 @@ function renderMarkdown({
   const lines = [
     "# Issue #611 戦闘計算式の実態測定",
     "",
-    `実行モード: ${SMOKE ? "smoke（8職×N=1、workshop-completeのみ）" : "full（8職×N=500）"}。`,
+    `実行モード: ${SMOKE ? "smoke（8職×N=1、workshop-completeのみ）" : "full（8職×N=5,000）"}。`,
     `target depth: B${TARGET_DEPTH}（出力対象B1〜B10）。各メトリクスは同一runの計装から集計し、メトリクスごとの回し直しはしない。`,
     "設計変更・バランス変更は行わない。基準線はPR #607以降。",
     "N<30のセル（平均・比・率・内訳）は未確定として結論に使わない。点推定がビット単位で一致する場合は「効果が発生していない」と読む。",
     ""
   ];
 
+  renderReachabilityTable(lines, classRows);
   lines.push("## 1. プレイヤー→敵のダメージ分布", "");
   renderDamageTable(
     lines,
@@ -813,14 +899,15 @@ function renderMarkdown({
     "damage"
   );
 
-  lines.push("## 2. defの実効軽減率", "");
+  lines.push("## 2. def・魔法耐性の実効軽減率", "");
   renderDefTable(
     lines,
     classRows,
     "プレイヤー→敵（物理式のdef項）",
     "physicalPlayerHits",
     "className",
-    playerDefObservation
+    playerDefObservation,
+    "軽減前は計装値からdef項だけを外したクランプ後、軽減後は実装の `formulaDmg`。比は軽減後/軽減前、実効軽減率は1−比。"
   );
   renderDefTable(
     lines,
@@ -828,7 +915,26 @@ function renderMarkdown({
     "敵→プレイヤー（finalAtk−finalDef）",
     "physicalMonsterHits",
     "targetClassName",
-    monsterDefObservation
+    monsterDefObservation,
+    "軽減前は `finalAtk` のクランプ後、軽減後は実装の `formulaDmg`。比は軽減後/軽減前、実効軽減率は1−比。"
+  );
+  renderDefTable(
+    lines,
+    classRows,
+    "プレイヤー→敵（magicResistの乗算）",
+    "spellHits",
+    "casterClass",
+    playerSpellObservation,
+    "軽減前は呪文効果のaffix適用後・`magicResist` 適用直前、軽減後は実装の最終ダメージ。比は軽減後/軽減前、実効軽減率は1−比。"
+  );
+  renderDefTable(
+    lines,
+    classRows,
+    "敵→プレイヤー（呪文のreduceIncomingDamage）",
+    "spellMonsterHits",
+    "targetClassName",
+    monsterSpellObservation,
+    "軽減前は敵呪文の `reduceIncomingDamage` 呼出し直前、軽減後は同関数の戻り値。比は軽減後/軽減前、実効軽減率は1−比。"
   );
 
   renderDamageRatioTable(lines, classRows);
@@ -915,6 +1021,7 @@ async function main() {
       physical: classRows.reduce((sum, row) => sum + row.combatFormula.physicalPlayerHits.length, 0),
       monster: classRows.reduce((sum, row) => sum + row.combatFormula.physicalMonsterHits.length, 0),
       spells: classRows.reduce((sum, row) => sum + row.combatFormula.spellHits.length, 0),
+      monsterSpells: classRows.reduce((sum, row) => sum + row.combatFormula.spellMonsterHits.length, 0),
       mitigations: classRows.reduce((sum, row) => sum + row.combatFormula.mitigations.length, 0)
     };
   });

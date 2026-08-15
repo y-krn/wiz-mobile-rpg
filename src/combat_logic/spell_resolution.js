@@ -107,6 +107,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
         spellName: act.spellName,
         casterClass: char.class,
         magicResist: appliedMagicResist,
+        damageBeforeMagicResist: result.preMagicResistDamage,
         damage: result.damage
       });
     }
@@ -143,16 +144,17 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     // #611: 範囲攻撃呪文の計装。既定 no-op、乱数消費・分岐は変更しない。
     if (state.combatFormulaTelemetry) {
       monsters.forEach((mon, idx) => {
-        const dealt = beforeHp[idx] - mon.hp;
-        if (affectedMonsters.includes(mon) && beforeHp[idx] > 0) {
-          state.combatFormulaTelemetry.spellHits.push({
-            floor: state.floor,
-            spellName: act.spellName,
-            casterClass: char.class,
-            magicResist: getEffectiveMagicResist(mon),
-            damage: dealt
-          });
-        }
+        if (!affectedMonsters.includes(mon) || beforeHp[idx] <= 0) return;
+        const hit = result.damageByTarget?.find(entry => entry.target === mon);
+        if (!hit) return;
+        state.combatFormulaTelemetry.spellHits.push({
+          floor: state.floor,
+          spellName: act.spellName,
+          casterClass: char.class,
+          magicResist: getEffectiveMagicResist(mon),
+          damageBeforeMagicResist: hit.preMagicResistDamage,
+          damage: hit.dmg
+        });
       });
     }
     const wokeNames = monsters

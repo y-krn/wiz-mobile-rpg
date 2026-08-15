@@ -171,6 +171,9 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
   // が未設定なため no-op。結果・分岐・乱数消費順序は変更しない。
   const mitigations = options.state?.combatFormulaTelemetry?.mitigations;
   const mitigationCalls = options.state?.combatFormulaTelemetry?.mitigationCalls;
+  const spellMonsterHits = options.spell
+    ? options.state?.combatFormulaTelemetry?.spellMonsterHits
+    : null;
   const mitigationCall = mitigationCalls
     ? {
         id: mitigationCalls.length,
@@ -283,6 +286,14 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
     mitigationCall.after = next;
     mitigationCalls.push(mitigationCall);
   }
+  spellMonsterHits?.push({
+    floor: options.state?.floor ?? null,
+    targetClassName: char.class,
+    dragon: Boolean(options.dragon),
+    callId: mitigationCall?.id ?? null,
+    damageBeforeMitigation: dmg,
+    damage: next
+  });
   return next;
 }
 

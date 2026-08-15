@@ -99,7 +99,12 @@ export const SPELL_EFFECTS = {
         suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
       }
     }
-    return { damage: dmg, coreIds: affixResult.coreIds, log: `${caster.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${suffix}` };
+    return {
+      damage: dmg,
+      preMagicResistDamage: affixResult.damage,
+      coreIds: affixResult.coreIds,
+      log: `${caster.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${suffix}`
+    };
   },
   KATINO: ({ caster, target: targets, rng = Math.random }) => {
     let sleptCount = 0;
@@ -134,7 +139,15 @@ export const SPELL_EFFECTS = {
         if (t.magicResist < 0) isWeakness = true;
       }
       t.hp = Math.max(0, t.hp - dmg);
-      return { name: t.name, dmg, isResisted, isWeakness, coreIds: affixResult.coreIds };
+      return {
+        target: t,
+        name: t.name,
+        dmg,
+        preMagicResistDamage: affixResult.damage,
+        isResisted,
+        isWeakness,
+        coreIds: affixResult.coreIds
+      };
     }).filter(r => r !== 0);
     
     const logDetails = results.map(r => {
@@ -143,7 +156,11 @@ export const SPELL_EFFECTS = {
       if (r.isWeakness) suffix = "【弱点直撃！】";
       return `${r.name}に${r.dmg}のダメージ${suffix}`;
     }).join(", ");
-    return { coreIds: [...new Set(results.flatMap(result => result.coreIds))], log: `${caster.name}はラハリトを唱えた！激しい炎が敵全体を焼き尽くす！(${logDetails})` };
+    return {
+      damageByTarget: results,
+      coreIds: [...new Set(results.flatMap(result => result.coreIds))],
+      log: `${caster.name}はラハリトを唱えた！激しい炎が敵全体を焼き尽くす！(${logDetails})`
+    };
   },
   DUMAPIC: ({ caster, target: state }) => {
     const stairs = findNearestCell(state, cell => cell.type === "stairs-down");
@@ -173,7 +190,12 @@ export const SPELL_EFFECTS = {
         suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
       }
     }
-    return { damage: dmg, coreIds: affixResult.coreIds, log: `${caster.name}はマハリトを唱えた！${target.name}に${dmg}の熱線ダメージ！${suffix}` };
+    return {
+      damage: dmg,
+      preMagicResistDamage: affixResult.damage,
+      coreIds: affixResult.coreIds,
+      log: `${caster.name}はマハリトを唱えた！${target.name}に${dmg}の熱線ダメージ！${suffix}`
+    };
   },
   MASFEAL: ({ caster, target: state }) => {
     const intVal = caster ? getCharInt(caster) : 10;
@@ -199,7 +221,15 @@ export const SPELL_EFFECTS = {
         if (t.magicResist < 0) isWeakness = true;
       }
       t.hp = Math.max(0, t.hp - dmg);
-      return { name: t.name, dmg, isResisted, isWeakness, coreIds: affixResult.coreIds };
+      return {
+        target: t,
+        name: t.name,
+        dmg,
+        preMagicResistDamage: affixResult.damage,
+        isResisted,
+        isWeakness,
+        coreIds: affixResult.coreIds
+      };
     }).filter(r => r !== 0);
     
     const logDetails = results.map(r => {
@@ -208,7 +238,11 @@ export const SPELL_EFFECTS = {
       if (r.isWeakness) suffix = "【弱点直撃！】";
       return `${r.name}に${r.dmg}のダメージ${suffix}`;
     }).join(", ");
-    return { coreIds: [...new Set(results.flatMap(result => result.coreIds))], log: `${caster.name}はマダルトを唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})` };
+    return {
+      damageByTarget: results,
+      coreIds: [...new Set(results.flatMap(result => result.coreIds))],
+      log: `${caster.name}はマダルトを唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})`
+    };
   },
   TILTOWAIT: ({ caster, target: targets, rng = Math.random }) => {
     const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
@@ -227,7 +261,15 @@ export const SPELL_EFFECTS = {
         if (t.magicResist < 0) isWeakness = true;
       }
       t.hp = Math.max(0, t.hp - dmg);
-      return { name: t.name, dmg, isResisted, isWeakness, coreIds: affixResult.coreIds };
+      return {
+        target: t,
+        name: t.name,
+        dmg,
+        preMagicResistDamage: affixResult.damage,
+        isResisted,
+        isWeakness,
+        coreIds: affixResult.coreIds
+      };
     }).filter(r => r !== 0);
     
     const logDetails = results.map(r => {
@@ -236,7 +278,11 @@ export const SPELL_EFFECTS = {
       if (r.isWeakness) suffix = "【弱点直撃！】";
       return `${r.name}に${r.dmg}のダメージ${suffix}`;
     }).join(", ");
-    return { coreIds: [...new Set(results.flatMap(result => result.coreIds))], log: `${caster.name}はティルトウェイトを唱えた！極大爆裂の光が敵全体を消滅させる！(${logDetails})` };
+    return {
+      damageByTarget: results,
+      coreIds: [...new Set(results.flatMap(result => result.coreIds))],
+      log: `${caster.name}はティルトウェイトを唱えた！極大爆裂の光が敵全体を消滅させる！(${logDetails})`
+    };
   },
 
   // Priest Spells
@@ -292,7 +338,12 @@ export const SPELL_EFFECTS = {
         suffix = "【弱点直撃！】呪文が弱点に大ダメージ！";
       }
     }
-    return { damage: dmg, coreIds: affixResult.coreIds, log: `${caster.name}はバディオスを唱えた！${target.name}に${dmg}の神聖ダメージ！${suffix}` };
+    return {
+      damage: dmg,
+      preMagicResistDamage: affixResult.damage,
+      coreIds: affixResult.coreIds,
+      log: `${caster.name}はバディオスを唱えた！${target.name}に${dmg}の神聖ダメージ！${suffix}`
+    };
   },
   MILWA: ({ caster, target: state }) => {
     const pieVal = caster ? getCharPie(caster) : 10;
