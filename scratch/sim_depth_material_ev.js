@@ -4009,7 +4009,8 @@ function runEncounter(
         damageMaxHpRate: telemetry.lastIncomingDamage > 0
           ? telemetry.lastIncomingDamage / Math.max(1, telemetry.lastRoundMaxHp || telemetry.playerMaxHp)
           : null,
-        killHealActivationsBeforeDeath: metrics.killHeal.killHealActivations
+        killHealActivationsBeforeDeath: metrics.killHeal.killHealActivations,
+        ...createDeathStateSnapshot(state, metrics.scoringProfile)
       };
     }
     return {
@@ -4446,7 +4447,7 @@ function recordBlindApplications(metrics, source, count) {
   metrics.blindApplicationsBySource[source] += count;
 }
 
-function recordTrapDamage(metrics, source, type, damage, floor, snapshot = null) {
+function recordTrapDamage(metrics, source, type, damage, floor, state, snapshot = null) {
   metrics.trapDamageHp += damage;
   metrics.trapDamageHpBySource[source] += damage;
   metrics.trapDamageHpByType[type] = (metrics.trapDamageHpByType[type] || 0) + damage;
@@ -4469,7 +4470,8 @@ function recordTrapDamage(metrics, source, type, damage, floor, snapshot = null)
       hits: 1,
       ...snapshot,
       damageMaxHpRate: damage / Math.max(1, snapshot.maxHp || 0),
-      killHealActivationsBeforeDeath: metrics.killHeal.killHealActivations
+      killHealActivationsBeforeDeath: metrics.killHeal.killHealActivations,
+      ...createDeathStateSnapshot(state, metrics.scoringProfile)
     };
   }
 }
@@ -4556,7 +4558,7 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
     } else if (effect.targetPoisonTriggered && !effect.targetPoisonResisted) {
       character.status = "poisoned";
     }
-    recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor, {
+    recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor, state, {
       hpBefore,
       hpAfter: character.hp,
       maxHp: getCharMaxHp(character)
@@ -4570,7 +4572,7 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
       target.hp = Math.max(0, target.hp - damage);
       clearCharIncapacitationOnDamage(target);
       if (target.hp === 0) target.status = "dead";
-      recordTrapDamage(metrics, "chest", trap, damage, state.floor, {
+      recordTrapDamage(metrics, "chest", trap, damage, state.floor, state, {
         hpBefore,
         hpAfter: target.hp,
         maxHp: getCharMaxHp(target)
@@ -4610,7 +4612,7 @@ function applyFloorTrapEffect(state, trap, floor, weakened, metrics) {
     target.hp = Math.max(0, target.hp - appliedDamage);
     clearCharIncapacitationOnDamage(target);
     if (target.hp === 0) target.status = "dead";
-    recordTrapDamage(metrics, "floor", trap.type, appliedDamage, state.floor, {
+    recordTrapDamage(metrics, "floor", trap.type, appliedDamage, state.floor, state, {
       hpBefore,
       hpAfter: target.hp,
       maxHp: getCharMaxHp(target)
@@ -5393,6 +5395,40 @@ function createBuildSnapshot(state, scoringProfile, point) {
     resistanceScore:
       (supportAffixes.poisonWard || 0) + (supportAffixes.statusResistance || 0),
     equipment
+  };
+}
+
+function createDeathStateSnapshot(state, scoringProfile) {
+  const character = state.party[0];
+  const build = createBuildSnapshot(state, scoringProfile, "death");
+  const inventory = [
+    "TOWN_PORTAL",
+    "HEAL_POTION",
+    "GREATER_HEAL",
+    "ANTIDOTE",
+    "GUARD_POTION",
+    "TRAP_KIT"
+  ];
+  return {
+    level: character.level,
+    hp: character.hp,
+    maxHp: getCharMaxHp(character),
+    mp: character.mp,
+    maxMp: getCharMaxMp(character),
+    status: character.status,
+    equipment: build.equipment,
+    coreIds: build.coreIds,
+    combatCoreIds: build.combatCoreIds,
+    combatBuildScore: build.combatBuildScore,
+    totalGreedyScore: build.totalGreedyScore,
+    inventory: Object.fromEntries(
+      inventory.map(itemId => [
+        itemId,
+        state.inventory.filter(item =>
+          typeof item === "string" ? item === itemId : item?.baseId === itemId
+        ).length
+      ])
+    )
   };
 }
 
@@ -6216,6 +6252,22 @@ function resolveFlameTrapAtStep({
       character.status = "dead";
       recordCharDeath(state, character, "火炎の罠");
       metrics.flameTrapDeaths++;
+      if (!metrics.deathSnapshot) {
+        metrics.deathSnapshot = {
+          source: "floor-trap",
+          floor: state.floor,
+          round: null,
+          cause: "火炎の罠",
+          hpBefore: character.hp + appliedDamage,
+          hpAfter: character.hp,
+          maxHp: getCharMaxHp(character),
+          damage: appliedDamage,
+          hits: 1,
+          damageMaxHpRate: appliedDamage / Math.max(1, getCharMaxHp(character)),
+          killHealActivationsBeforeDeath: metrics.killHeal.killHealActivations,
+          ...createDeathStateSnapshot(state, metrics.scoringProfile)
+        };
+      }
     }
   });
   recordB5HpSnapshot(state, metrics, step);
@@ -6946,6 +6998,16 @@ function finishRun(state, outcome, metrics) {
         metrics.deathSnapshot.maxHp
       );
     }
+  }
+  if (outcome === "death" && !metrics.deathSnapshot) {
+    const deathLog = state.currentRun.deathLogs?.at(-1) || null;
+    metrics.deathSnapshot = {
+      source: metrics.deathEncounterType || "unknown",
+      floor: state.floor,
+      round: null,
+      cause: deathLog?.cause || null,
+      ...createDeathStateSnapshot(state, metrics.scoringProfile)
+    };
   }
   const b5DeathLog = state.currentRun.deathLogs?.find(
     log => log.floor === FLAME_TRAP_MODEL.floor
