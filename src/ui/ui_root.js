@@ -225,7 +225,11 @@ export function updateUI() {
       container.classList.remove(`floor-theme-b${i}`);
     }
     container.classList.toggle("result-mode", state.gameState === "result");
-    container.classList.toggle("event-mode", state.gameState === "submenu" && eventModeSubmenus.includes(menuContext.type));
+    container.classList.toggle(
+      "event-mode",
+      state.gameState === "trap_encounter" ||
+      (state.gameState === "submenu" && eventModeSubmenus.includes(menuContext.type))
+    );
     container.classList.toggle("departure-mode", departurePrepSubmenu);
     container.classList.toggle("workshop-mode", workshopSubmenu);
     container.classList.toggle("town-submenu-mode", townSubmenu);

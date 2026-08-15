@@ -773,6 +773,16 @@ function createDetailPanel(char) {
 
   const actions = document.createElement("div");
   actions.className = "equip-detail-actions";
+
+  const backToListBtn = document.createElement("button");
+  backToListBtn.type = "button";
+  backToListBtn.className = "btn btn-block equip-action-btn";
+  backToListBtn.textContent = "一覧へ戻る";
+  backToListBtn.addEventListener("click", () => {
+    clearSelection();
+    renderEquip();
+  });
+
   if (isEquipped) {
     const bagFull = state.inventory.length >= 20;
     const locked = isCurseLocked(itemKey);
@@ -783,6 +793,7 @@ function createDetailPanel(char) {
       actionBtn.disabled = true;
       actionBtn.textContent = "深層商人で解呪できます";
       actions.appendChild(actionBtn);
+      actions.appendChild(backToListBtn);
       detailCol.appendChild(actions);
       return detailCol;
     }
@@ -882,6 +893,7 @@ function createDetailPanel(char) {
       actions.appendChild(discardBtn);
     }
   }
+  actions.appendChild(backToListBtn);
   detailCol.appendChild(actions);
   return detailCol;
 }

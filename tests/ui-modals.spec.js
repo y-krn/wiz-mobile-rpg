@@ -78,6 +78,33 @@ for (const vp of VIEWPORTS) {
     })).toEqual(['keep_armor']);
   });
 
+  test(`Equipment detail can return to the list at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      state.party = [createSoloCharacter('Fighter')];
+      state.inventory = [{
+        kind: 'equipment', instanceId: 'return_to_list_sword', baseId: 'SHORT_SWORD', rarity: 'common', level: 1,
+        identified: true, affixes: []
+      }];
+      openEquipOverlay(0);
+    });
+
+    const sword = page.locator('.equip-item-row.rarity-common', { hasText: 'ショートソード' });
+    await sword.click();
+    const backButton = page.getByRole('button', { name: '一覧へ戻る' });
+    await expect(backButton).toBeVisible();
+    expect((await backButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
+
+    await backButton.click();
+    await expect(page.locator('.equip-detail-placeholder')).toContainText('装備品を選択してください');
+    await expect(page.getByRole('button', { name: '一覧へ戻る' })).toHaveCount(0);
+    await expect(page.locator('.equip-item-row.rarity-common', { hasText: 'ショートソード' })).toHaveCount(1);
+    expect(await page.evaluate(async () => (await import('/src/state.js')).state.inventory)).toHaveLength(1);
+  });
+
   test(`Equipment gamble stays explicit and thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');

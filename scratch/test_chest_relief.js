@@ -164,6 +164,49 @@ await test("弱体テレポーターは50%で不発", () => {
   assert.notDeepEqual({ x: state.x, y: state.y }, secondOrigin);
 });
 
+await test("テレポート罠付き宝箱を叩き壊しても探索へ復帰する", () => {
+  const char = makeCharacter();
+  resetChest({ trap: "teleporter", party: [char] });
+  const chestCoord = { x: state.x, y: state.y };
+
+  smashChest(sequence([0.50, 0.10, 0, 0, 0, 0.99]));
+
+  assert.equal(state.gameState, "explore");
+  assert.equal(state.transitioning, false);
+  assert.equal(state.chestState, null);
+  assert.equal(state.map[chestCoord.y][chestCoord.x].event, null);
+});
+
+await test("弱体テレポート不発の宝箱破壊も探索へ復帰する", () => {
+  const char = makeCharacter();
+  resetChest({ trap: "teleporter", party: [char] });
+  const chestCoord = { x: state.x, y: state.y };
+
+  smashChest(sequence([0.49, 0, 0, 0.99]));
+
+  assert.equal(state.gameState, "explore");
+  assert.equal(state.transitioning, false);
+  assert.equal(state.chestState, null);
+  assert.equal(state.map[chestCoord.y][chestCoord.x].event, null);
+});
+
+await test("テレポート先が空でも宝箱破壊の操作ロックを残さない", () => {
+  const char = makeCharacter();
+  resetChest({ trap: "teleporter", party: [char] });
+  const chestCoord = { x: state.x, y: state.y };
+  state.map.forEach(row => row.forEach(cell => {
+    cell.walls = [true, true, true, true];
+  }));
+
+  smashChest(sequence([0.50, 0, 0, 0.99]));
+
+  assert.equal(state.gameState, "explore");
+  assert.equal(state.transitioning, false);
+  assert.equal(state.chestState, null);
+  assert.deepEqual({ x: state.x, y: state.y }, chestCoord);
+  assert.equal(state.map[chestCoord.y][chestCoord.x].event, null);
+});
+
 await test("叩き壊すとusableだけ30%で破損し、素材と装身具は残る", () => {
   resetChest({ trap: "none", item: "HEAL_POTION", accessoryItem: "AMULET_HP" });
   smashChest(sequence([0.299, 0, 0, 0.99]));
