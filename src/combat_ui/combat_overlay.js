@@ -4,6 +4,7 @@ import { menuContext, goBackSubmenu } from "../navigation.js";
 import { combatCallbacks } from "./combat_state.js";
 import { isSpellTargetAvailable, getSpellCombatSummary } from "./spell_menu.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
+import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 
 export function renderCombatOverlay() {
   const overlay = document.getElementById("combat-overlay");
@@ -79,15 +80,18 @@ export function renderCombatOverlay() {
       });
     } else {
       // Ally targets
+      const targetIndices = menuContext.spellName
+        ? getSpellAllyTargetIndices(menuContext.spellName, state.party)
+        : getItemAllyTargetIndices(state.party);
+      const availableTargetIndices = new Set(targetIndices);
       state.party.forEach((char, idx) => {
         const card = document.createElement("div");
         card.className = "combat-target-card ally";
         
-        let disabled = false;
-        if (char.status === "dead") disabled = true;
+        const disabled = !availableTargetIndices.has(idx);
 
         if (disabled) {
-          card.classList.add("dead");
+          card.classList.add(char.status === "dead" ? "dead" : "blocked");
         }
 
         const maxHp = getCharMaxHp(char);
@@ -136,7 +140,7 @@ export function renderCombatOverlay() {
       
       const payment = getSpellPayment(caster, spell.cost);
       const mpCheck = !payment.canCast;
-      const targetCheck = isSpellTargetAvailable(spell, caster);
+      const targetCheck = isSpellTargetAvailable(spell, spKey);
       const disabled = mpCheck || !targetCheck;
 
       if (mpCheck) {
