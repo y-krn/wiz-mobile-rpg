@@ -49,7 +49,7 @@ The actual value of each effect parameter is defined by `params` in `src/data/af
 | 罠喰い | CORE_TRAP_EATER | Gain +2 attack per trap disarmed, accumulating during the expedition (cap +20, reset on return) | Accessory |
 | 呪飼いの鎖 | CORE_CURSE_KEEPER | +3 to all stats for each equipped curse | Accessory |
 | 巨人殺し | CORE_GIANT_SLAYER | +30% damage dealt to enemies with higher maxHP than self | Weapon |
-| 節目破り | CORE_MILESTONE_BREAKER | +25% damage dealt to milestone bosses | Weapon |
+| 守護者殺し | CORE_MILESTONE_BREAKER | +25% damage dealt to milestone bosses | Weapon |
 | 殿の構え | CORE_REARGUARD | Negates the rear-row melee multiplier penalty | Weapon |
 | 反撃の棘 | CORE_THORN_SHIELD | 30% chance to counterattack at 50% power when hit | Shield |
 | 執行人 | CORE_EXECUTIONER | 2× damage dealt to enemies with status ailments | Weapon |
