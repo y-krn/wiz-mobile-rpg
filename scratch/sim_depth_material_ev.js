@@ -7398,6 +7398,7 @@ function finishRun(state, outcome, metrics) {
     b5DeathAfterFlameWithinFiveSteps,
     deathSnapshot: metrics.deathSnapshot,
     killHeal: { ...metrics.killHeal },
+    combatFormula: state.combatFormulaTelemetry || null,
     dragonKeysAcquired: metrics.dragonKeysAcquired,
     dragonKeyUses: metrics.dragonKeyUses,
     normalCombatTelemetry: metrics.normalCombatTelemetry,
@@ -7447,7 +7448,8 @@ export function simulateRun({
   supplyOverride = null,
   collectDiagnostics = false,
   collectBuildSnapshots = false,
-  collectEquipmentTelemetry = false
+  collectEquipmentTelemetry = false,
+  collectCombatFormula = false
 }) {
   const runSeed = `${SIM_SEED}:${seriesId}:${className}:${runIndex}`;
   if (SIM_INDEPENDENT_RUN_RANDOM) {
@@ -7468,6 +7470,19 @@ export function simulateRun({
   );
   if (CORE_WORKSHOP_GATE_MODE === "off") {
     state.party[0].unlockedAffixIds = [...ALL_CORE_AFFIX_IDS];
+  }
+  // Issue #611: 戦闘計算式の実態測定用計装。既定オフ。有効時のみ
+  // src/combat_logic/{round,damage,spell_resolution}.js のフックが書き込む。
+  if (collectCombatFormula) {
+    state.combatFormulaTelemetry = {
+      physicalPlayerHits: [],
+      physicalMonsterHits: [],
+      spellHits: [],
+      spellMonsterHits: [],
+      mitigations: [],
+      mitigationCalls: [],
+      targetedBonuses: []
+    };
   }
   const materialOverrideRandom = createMaterialOverrideRandom(
     `${runSeed}:${scenario.materialDropOverride?.id || "baseline"}`
