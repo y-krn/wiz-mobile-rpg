@@ -196,7 +196,8 @@ const {
   getBankedMaterials,
   getDepthMaterialExpectedQuantity,
   getMonsterGroupClassification,
-  getScholarMaterialBonus: getExpectedScholarMaterialBonus
+  getScholarMaterialBonus: getExpectedScholarMaterialBonus,
+  spendMaterials
 } = await import("../src/rules/material_rules.js");
 const { addInventoryItemToState } = await import("../src/state/inventory_state.js");
 const {
@@ -260,6 +261,7 @@ if (SIM_DAMAGE_PROBE_ENABLED && !globalThis.__simDamageProbeMathRoundWrapped) {
 const { scaleEnemyForDepth } = await import("../src/rules/depth_scaling.js");
 const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
 const { getEffectiveHealAmount } = await import("../src/rules/item_rules.js");
+const { canUseManaItems } = await import("../src/rules/class_rules.js");
 const {
   clearCharIncapacitationOnDamage,
   getBuffTotal
@@ -268,9 +270,13 @@ const {
   applyWorkshopToCharacter,
   getDepartureCraftCost,
   getDepartureCraftGrants,
+  getAdditionalCraftableCount,
   purchaseDepartureCraft,
+  purchaseWorkshopNode,
   getWorkshopGrants
 } = await import("../src/systems/workshop.js");
+const { getEnhanceCost } = await import("../src/craft.js");
+const { WORKSHOP_NODE_BY_ID } = await import("../src/data/workshop.js");
 const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
 const {
   calculateCombatRecoveryAction,
@@ -307,6 +313,7 @@ const SIM_ENV_KEYS = Object.freeze([
   "FLEE_POLICY",
   "FLEE_HP_THRESHOLD",
   "HEAL_POTION_THRESHOLD",
+  "MANA_POTION_THRESHOLD",
   "PORTAL_HP_THRESHOLD",
   "PORTAL_MAX_HEAL_POTIONS",
   "PORTAL_MIN_FLOOR",
@@ -347,6 +354,7 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   FLEE_POLICY: "ev",
   FLEE_HP_THRESHOLD: "0.20",
   HEAL_POTION_THRESHOLD: "0.55",
+  MANA_POTION_THRESHOLD: "0.55",
   PORTAL_HP_THRESHOLD: "0.35",
   PORTAL_MAX_HEAL_POTIONS: "0",
   PORTAL_MIN_FLOOR: "3",
@@ -381,6 +389,7 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   FLEE_POLICY: "ev",
   FLEE_HP_THRESHOLD: "0.20",
   HEAL_POTION_THRESHOLD: "0.55",
+  MANA_POTION_THRESHOLD: "0.55",
   PORTAL_HP_THRESHOLD: "0.35",
   PORTAL_MAX_HEAL_POTIONS: "0",
   PORTAL_MIN_FLOOR: "3",
@@ -669,6 +678,22 @@ function cloneMaterialCountsBySource(counts) {
   );
 }
 
+function createCraftMeasurementCounts() {
+  return Object.fromEntries(CRAFT_MEASUREMENT_RECIPE_IDS.map(recipeId => [recipeId, 0]));
+}
+
+function createTrackedConsumableSourceCounts() {
+  return Object.fromEntries(TRACKED_CONSUMABLE_SOURCE_IDS.map(source => [source, 0]));
+}
+
+function countRecipeIds(recipeIds) {
+  const counts = createCraftMeasurementCounts();
+  (recipeIds || []).forEach(recipeId => {
+    if (Object.hasOwn(counts, recipeId)) counts[recipeId]++;
+  });
+  return counts;
+}
+
 function recordEncounterGroups(metrics, floor, monsters) {
   if (!metrics?.encounterGroupCounts) return;
   const band = getEncounterBand(floor);
@@ -851,6 +876,19 @@ if (
 ) {
   throw new Error(
     `HEAL_POTION_THRESHOLD must be a number in [0,1]: ${HEAL_POTION_THRESHOLD_INPUT}`
+  );
+}
+const MANA_POTION_THRESHOLD_INPUT = String(
+  SIM_ENV.MANA_POTION_THRESHOLD || HEAL_POTION_THRESHOLD_INPUT
+).trim();
+const MANA_POTION_THRESHOLD = Number(MANA_POTION_THRESHOLD_INPUT);
+if (
+  !Number.isFinite(MANA_POTION_THRESHOLD) ||
+  MANA_POTION_THRESHOLD < 0 ||
+  MANA_POTION_THRESHOLD > 1
+) {
+  throw new Error(
+    `MANA_POTION_THRESHOLD must be a number in [0,1]: ${MANA_POTION_THRESHOLD_INPUT}`
   );
 }
 const HEAL_PRIORITY_POLICIES = Object.freeze(["potion-first", "dios-first"]);
@@ -1271,6 +1309,20 @@ const ACTIVE_SCENARIOS = REQUESTED_SCENARIO_IDS.size === 0
   ? DEPTH_SCENARIOS.filter(scenario => DEFAULT_DEPTH_SCENARIO_IDS.has(scenario.id))
   : DEPTH_SCENARIOS.filter(scenario => RESOLVED_SCENARIO_IDS.has(scenario.id));
 const SIM_CLASSES = SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className));
+const CRAFT_MEASUREMENT_RECIPE_IDS = Object.freeze([
+  "MANA_POTION",
+  "HEAL_POTION",
+  "GREATER_HEAL",
+  "HOLY_WATER"
+]);
+const TRACKED_CONSUMABLE_SOURCE_IDS = Object.freeze([
+  "starting",
+  "departureCraft",
+  "chest",
+  "merchant",
+  "other"
+]);
+const MAGIC_SHARD = "魔石片";
 const ENABLED_CORE_AFFIXES = CORE_AFFIXES.filter(affix => affix.enabled);
 const CORE_AFFIX_IDS = new Set(ENABLED_CORE_AFFIXES.map(affix => affix.id));
 const ALL_CORE_AFFIX_IDS = ENABLED_CORE_AFFIXES.map(affix => affix.id);
@@ -1734,6 +1786,22 @@ function createTrapAggregate() {
       merchant: 0,
       other: 0
     },
+    manaPotionsAcquiredBySource: createTrackedConsumableSourceCounts(),
+    manaPotionsConsumedBySource: createTrackedConsumableSourceCounts(),
+    holyWaterAcquiredBySource: createTrackedConsumableSourceCounts(),
+    holyWaterConsumedBySource: createTrackedConsumableSourceCounts(),
+    departureCraftCraftedByRecipe: createCraftMeasurementCounts(),
+    departureCraftPotentialByRecipe: createCraftMeasurementCounts(),
+    departureCraftCraftedRunsByRecipe: createCraftMeasurementCounts(),
+    departureCraftPotentialRunsByRecipe: createCraftMeasurementCounts(),
+    materialSourceCounts: createMaterialCountsBySource(),
+    materialCompetition: {
+      shardBalanceBeforeDeparture: 0,
+      weaponEnhancementAffordable: 0,
+      affordableWorkshopNodeCount: 0,
+      simulatedWeaponEnhancementShardSpend: 0,
+      simulatedWorkshopNodeShardSpend: 0
+    },
     healPotionMerchantAttempts: 0,
     healPotionMerchantFailures: {}
   };
@@ -1984,6 +2052,40 @@ function addTrapAggregate(target, result) {
     target.greaterHealPotionsConsumedBySource[source] =
       (target.greaterHealPotionsConsumedBySource[source] || 0) + amount;
   });
+  [
+    ["manaPotionsAcquiredBySource", target.manaPotionsAcquiredBySource],
+    ["manaPotionsConsumedBySource", target.manaPotionsConsumedBySource],
+    ["holyWaterAcquiredBySource", target.holyWaterAcquiredBySource],
+    ["holyWaterConsumedBySource", target.holyWaterConsumedBySource],
+    ["departureCraftCraftedByRecipe", target.departureCraftCraftedByRecipe],
+    ["departureCraftPotentialByRecipe", target.departureCraftPotentialByRecipe]
+  ].forEach(([field, destination]) => {
+    Object.entries(result[field] || {}).forEach(([key, amount]) => {
+      destination[key] = (destination[key] || 0) + amount;
+    });
+  });
+  Object.entries(result.departureCraftCraftedByRecipe || {}).forEach(([recipeId, amount]) => {
+    target.departureCraftCraftedRunsByRecipe[recipeId] += Number(amount > 0);
+  });
+  Object.entries(result.departureCraftPotentialByRecipe || {}).forEach(([recipeId, amount]) => {
+    target.departureCraftPotentialRunsByRecipe[recipeId] += Number(amount > 0);
+  });
+  Object.entries(result.materialSourceCounts || {}).forEach(([source, materials]) => {
+    Object.entries(materials).forEach(([material, amount]) => {
+      target.materialSourceCounts[source][material] += amount;
+    });
+  });
+  const competition = result.materialCompetition || {};
+  target.materialCompetition.shardBalanceBeforeDeparture +=
+    competition.shardBalanceBeforeDeparture || 0;
+  target.materialCompetition.weaponEnhancementAffordable +=
+    competition.weaponEnhancementAffordable || 0;
+  target.materialCompetition.affordableWorkshopNodeCount +=
+    competition.affordableWorkshopNodeCount || 0;
+  target.materialCompetition.simulatedWeaponEnhancementShardSpend +=
+    competition.simulatedWeaponEnhancementShardSpend || 0;
+  target.materialCompetition.simulatedWorkshopNodeShardSpend +=
+    competition.simulatedWorkshopNodeShardSpend || 0;
   target.healPotionMerchantAttempts += result.healPotionMerchantAttempts;
   Object.entries(result.healPotionMerchantFailures).forEach(([reason, count]) => {
     target.healPotionMerchantFailures[reason] =
@@ -2079,6 +2181,79 @@ function finalizeTrapAggregate(aggregate) {
         amount / runs
       ])
     ),
+    averageManaPotionsAcquiredBySource: Object.fromEntries(
+      Object.entries(aggregate.manaPotionsAcquiredBySource).map(([source, amount]) => [
+        source,
+        amount / runs
+      ])
+    ),
+    averageManaPotionsConsumed: Object.values(aggregate.manaPotionsConsumedBySource)
+      .reduce((sum, amount) => sum + amount, 0) / runs,
+    averageManaPotionsConsumedBySource: Object.fromEntries(
+      Object.entries(aggregate.manaPotionsConsumedBySource).map(([source, amount]) => [
+        source,
+        amount / runs
+      ])
+    ),
+    averageHolyWaterAcquiredBySource: Object.fromEntries(
+      Object.entries(aggregate.holyWaterAcquiredBySource).map(([source, amount]) => [
+        source,
+        amount / runs
+      ])
+    ),
+    averageHolyWaterConsumed: Object.values(aggregate.holyWaterConsumedBySource)
+      .reduce((sum, amount) => sum + amount, 0) / runs,
+    averageHolyWaterConsumedBySource: Object.fromEntries(
+      Object.entries(aggregate.holyWaterConsumedBySource).map(([source, amount]) => [
+        source,
+        amount / runs
+      ])
+    ),
+    averageDepartureCraftCraftedByRecipe: Object.fromEntries(
+      Object.entries(aggregate.departureCraftCraftedByRecipe).map(([recipeId, amount]) => [
+        recipeId,
+        amount / runs
+      ])
+    ),
+    departureCraftRunRateByRecipe: Object.fromEntries(
+      Object.entries(aggregate.departureCraftCraftedRunsByRecipe).map(([recipeId, amount]) => [
+        recipeId,
+        amount / runs
+      ])
+    ),
+    averageDepartureCraftPotentialByRecipe: Object.fromEntries(
+      Object.entries(aggregate.departureCraftPotentialByRecipe).map(([recipeId, amount]) => [
+        recipeId,
+        amount / runs
+      ])
+    ),
+    departureCraftPotentialRunRateByRecipe: Object.fromEntries(
+      Object.entries(aggregate.departureCraftPotentialRunsByRecipe).map(([recipeId, amount]) => [
+        recipeId,
+        amount / runs
+      ])
+    ),
+    averageMaterialSourceCounts: Object.fromEntries(
+      Object.entries(aggregate.materialSourceCounts).map(([source, materials]) => [
+        source,
+        Object.fromEntries(Object.entries(materials).map(([material, amount]) => [
+          material,
+          amount / runs
+        ]))
+      ])
+    ),
+    materialCompetition: {
+      averageShardBalanceBeforeDeparture:
+        aggregate.materialCompetition.shardBalanceBeforeDeparture / runs,
+      weaponEnhancementAffordableRate:
+        aggregate.materialCompetition.weaponEnhancementAffordable / runs,
+      averageAffordableWorkshopNodeCount:
+        aggregate.materialCompetition.affordableWorkshopNodeCount / runs,
+      simulatedWeaponEnhancementShardSpend:
+        aggregate.materialCompetition.simulatedWeaponEnhancementShardSpend / runs,
+      simulatedWorkshopNodeShardSpend:
+        aggregate.materialCompetition.simulatedWorkshopNodeShardSpend / runs
+    },
     averageHealPotionMerchantAttempts: aggregate.healPotionMerchantAttempts / runs,
     healPotionMerchantAttempts: aggregate.healPotionMerchantAttempts,
     averageHealPotionMerchantFailures: Object.fromEntries(
@@ -2088,6 +2263,24 @@ function finalizeTrapAggregate(aggregate) {
       ])
     ),
     healPotionMerchantFailureCounts: { ...aggregate.healPotionMerchantFailures }
+  };
+}
+
+function buildConsumableClassSummary(metrics) {
+  return {
+    runs: metrics.runs,
+    averageMaterialSourceCounts: metrics.averageMaterialSourceCounts,
+    averageManaPotionsAcquiredBySource: metrics.averageManaPotionsAcquiredBySource,
+    averageManaPotionsConsumed: metrics.averageManaPotionsConsumed,
+    averageManaPotionsConsumedBySource: metrics.averageManaPotionsConsumedBySource,
+    averageHolyWaterAcquiredBySource: metrics.averageHolyWaterAcquiredBySource,
+    averageHolyWaterConsumed: metrics.averageHolyWaterConsumed,
+    averageHolyWaterConsumedBySource: metrics.averageHolyWaterConsumedBySource,
+    averageDepartureCraftCraftedByRecipe: metrics.averageDepartureCraftCraftedByRecipe,
+    departureCraftRunRateByRecipe: metrics.departureCraftRunRateByRecipe,
+    averageDepartureCraftPotentialByRecipe: metrics.averageDepartureCraftPotentialByRecipe,
+    departureCraftPotentialRunRateByRecipe: metrics.departureCraftPotentialRunRateByRecipe,
+    materialCompetition: metrics.materialCompetition
   };
 }
 
@@ -2206,11 +2399,58 @@ function equipBestWorkshopStartingGear(character, workshop, config = {}) {
   }
 }
 
-function resolveDepartureCraftIds(scenario) {
-  const requested = Object.hasOwn(scenario, "departureCraft")
-    ? scenario.departureCraft
-    : ACTIVE_DEPARTURE_CRAFT_IDS;
-  return Array.isArray(requested) ? [...requested] : [];
+function measureDepartureCraftDemand(metaMaterials, cap = 99) {
+  const potentialByRecipe = createCraftMeasurementCounts();
+  CRAFT_MEASUREMENT_RECIPE_IDS.forEach(recipeId => {
+    const count = getAdditionalCraftableCount(metaMaterials, [], recipeId, cap);
+    const purchase = purchaseDepartureCraft(
+      metaMaterials,
+      Array(count).fill(recipeId)
+    );
+    potentialByRecipe[recipeId] = purchase.ok ? count : 0;
+  });
+  return { potentialByRecipe };
+}
+
+function resolveDepartureCraftIds(
+  scenario,
+  character,
+  metaMaterials = {},
+  demand = null
+) {
+  if (Object.hasOwn(scenario, "departureCraft")) {
+    return Array.isArray(scenario.departureCraft) ? [...scenario.departureCraft] : [];
+  }
+  if (
+    scenario.departureCraftMeasurement &&
+    ACTIVE_DEPARTURE_CRAFT_IDS.length === 0 &&
+    canUseManaItems(character)
+  ) {
+    const count = demand?.potentialByRecipe.MANA_POTION ??
+      getAdditionalCraftableCount(metaMaterials, [], "MANA_POTION");
+    return Array(count).fill("MANA_POTION");
+  }
+  return [...ACTIVE_DEPARTURE_CRAFT_IDS];
+}
+
+function measureMaterialCompetition(metaMaterials, workshop, weapon) {
+  const enhancementMats = getEnhanceCost(weapon)?.mats || {};
+  const shardWorkshopNodes = [...WORKSHOP_NODE_BY_ID.values()]
+    .filter(node => node.costs?.some(cost => (cost[MAGIC_SHARD] || 0) > 0));
+  const affordableWorkshopNodes = shardWorkshopNodes
+    .filter(node => purchaseWorkshopNode(metaMaterials, workshop, node.id).ok)
+    .map(node => node.id);
+  return {
+    shardBalanceBeforeDeparture: metaMaterials[MAGIC_SHARD] || 0,
+    weaponEnhancementShardCost: enhancementMats[MAGIC_SHARD] || 0,
+    weaponEnhancementAffordable: Number(Boolean(
+      spendMaterials(metaMaterials, enhancementMats)
+    )),
+    affordableWorkshopNodeIds: affordableWorkshopNodes,
+    affordableWorkshopNodeCount: affordableWorkshopNodes.length,
+    simulatedWeaponEnhancementShardSpend: 0,
+    simulatedWorkshopNodeShardSpend: 0
+  };
 }
 
 function resolveTrapPolicies(scenario = {}) {
@@ -2256,11 +2496,22 @@ function createSimulationState(
   const identificationPolicy = scenario.identificationPolicy || "powder";
   // legacyは実装外反実仮想として開始粉を使わず、powder/gambleは実runの初期支給を使う。
   const useRealIdentificationSupply = identificationPolicy !== "legacy";
-  const departureCraftIds = resolveDepartureCraftIds(scenario);
+  const initialDepartureCraftBank = scenario.departureCraftMaterialsAreActualBank
+    ? { ...(scenario.departureCraftMaterials || {}) }
+    : null;
+  const departureCraftDemand = scenario.departureCraftMeasurement
+    ? measureDepartureCraftDemand(initialDepartureCraftBank || {})
+    : null;
+  const departureCraftIds = resolveDepartureCraftIds(
+    scenario,
+    character,
+    initialDepartureCraftBank || {},
+    departureCraftDemand
+  );
   const sourceDepartureCraftCost = getDepartureCraftCost(departureCraftIds);
   // 既存の単発what-ifは所要コストを検証bankへ補う。#481のrun-chainだけ実meta bankを使う。
-  const departureCraftBank = scenario.departureCraftMaterialsAreActualBank
-    ? { ...(scenario.departureCraftMaterials || {}) }
+  const departureCraftBank = initialDepartureCraftBank
+    ? { ...initialDepartureCraftBank }
     : {
         ...sourceDepartureCraftCost.typed,
         ...(sourceDepartureCraftCost.any > 0
@@ -2322,6 +2573,12 @@ function createSimulationState(
   const startingGreaterHeals = Object.hasOwn(scenario, "startingGreaterHeals")
     ? Math.max(0, Math.floor(Number(scenario.startingGreaterHeals)))
     : 0;
+  const startingManaPotions = Object.hasOwn(scenario, "startingManaPotions")
+    ? Math.max(0, Math.floor(Number(scenario.startingManaPotions)))
+    : 0;
+  const startingHolyWater = Object.hasOwn(scenario, "startingHolyWater")
+    ? Math.max(0, Math.floor(Number(scenario.startingHolyWater)))
+    : 0;
   const startingAntidotes = Object.hasOwn(scenario, "startingAntidotes")
     ? Math.max(0, Math.floor(Number(scenario.startingAntidotes)))
     : INITIAL_ANTIDOTES;
@@ -2335,6 +2592,8 @@ function createSimulationState(
   const startingInventory = [
     ...Array(startingHealPotions).fill("HEAL_POTION"),
     ...Array(startingGreaterHeals).fill("GREATER_HEAL"),
+    ...Array(startingManaPotions).fill("MANA_POTION"),
+    ...Array(startingHolyWater).fill("HOLY_WATER"),
     ...Array(startingAntidotes).fill("ANTIDOTE"),
     ...Array(startingGuardPotions).fill("GUARD_POTION"),
     ...workshopReturnItems,
@@ -2347,6 +2606,9 @@ function createSimulationState(
   };
   equipBestWorkshopStartingGear(character, workshop, startingGearConfig);
   const finalWeaponId = character.equipment.weapon;
+  const materialCompetition = scenario.departureCraftMeasurement
+    ? measureMaterialCompetition(departureCraftBank, workshop, finalWeaponId)
+    : null;
   const trapPolicies = resolveTrapPolicies(scenario);
   const healPriorityPolicy = scenario.healPriorityPolicy || DEFAULT_HEAL_PRIORITY_POLICY;
   if (!HEAL_PRIORITY_POLICIES.includes(healPriorityPolicy)) {
@@ -2370,6 +2632,12 @@ function createSimulationState(
     : HEAL_POTION_THRESHOLD;
   if (!Number.isFinite(healPotionThreshold) || healPotionThreshold < 0 || healPotionThreshold > 1) {
     throw new Error(`healPotionThreshold must be a number in [0,1]: ${scenario.healPotionThreshold}`);
+  }
+  const manaPotionThreshold = Object.hasOwn(scenario, "manaPotionThreshold")
+    ? Number(scenario.manaPotionThreshold)
+    : MANA_POTION_THRESHOLD;
+  if (!Number.isFinite(manaPotionThreshold) || manaPotionThreshold < 0 || manaPotionThreshold > 1) {
+    throw new Error(`manaPotionThreshold must be a number in [0,1]: ${scenario.manaPotionThreshold}`);
   }
   const healPotionMerchantPolicy = parseHealPotionMerchantPolicy(
     scenario.healPotionMerchantPolicy || DEFAULT_HEAL_POTION_MERCHANT_POLICY
@@ -2439,6 +2707,18 @@ function createSimulationState(
         .filter(item => item === "GREATER_HEAL")
         .map(() => "departureCraft")
     ],
+    simManaPotionSources: [
+      ...Array(startingManaPotions).fill("starting"),
+      ...departureCraftItems
+        .filter(item => item === "MANA_POTION")
+        .map(() => "departureCraft")
+    ],
+    simHolyWaterSources: [
+      ...Array(startingHolyWater).fill("starting"),
+      ...departureCraftItems
+        .filter(item => item === "HOLY_WATER")
+        .map(() => "departureCraft")
+    ],
     simTrapKitSources: departureCraftItems
       .filter(item => item === "TRAP_KIT")
       .map(() => "departureCraft"),
@@ -2458,7 +2738,9 @@ function createSimulationState(
     currentRun,
     roamingMonsters: [],
     floorChestsTotal: [],
-    metaMaterials: {},
+    metaMaterials: scenario.departureCraftMaterialsAreActualBank
+      ? { ...departureCraftPurchase.metaMaterials }
+      : {},
     identifyTickets: initialIdentifyTickets,
     simIdentificationPowderAcquired: initialIdentificationPowder,
     simIdentificationPowderUnlimited:
@@ -2470,6 +2752,8 @@ function createSimulationState(
         ? "actual-meta-bank"
         : "synthetic-validation-bank"
     },
+    simDepartureCraftDemand: departureCraftDemand,
+    simMaterialCompetition: materialCompetition,
     simHealPotionMerchantPurchases: 0,
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
@@ -2478,6 +2762,7 @@ function createSimulationState(
       healPotionAmountOverride: scenario.healPotionAmountOverride || null,
       healPotionSupplyNormalization: scenario.healPotionSupplyNormalization || null,
       healPotionThreshold,
+      manaPotionThreshold,
       fleePolicy,
       fleeHpThreshold: Object.hasOwn(scenario, "fleeHpThreshold")
         ? scenario.fleeHpThreshold
@@ -2754,6 +3039,9 @@ function tryAddInventoryItem(state, item, metrics, source) {
   const category = isEquipment(itemData) ? "equipment" : "item";
   const accepted = addInventoryItemToState(state, item);
   recordPickupAttempt(metrics, source, category, accepted);
+  if (accepted && TRACKED_CONSUMABLES[item]) {
+    recordTrackedConsumableAcquisition(state, metrics, item, source);
+  }
   return accepted;
 }
 
@@ -2769,6 +3057,42 @@ function recordHealPotionAcquisition(state, metrics, source, count = 1) {
     (metrics.healPotionsAcquiredBySource[source] || 0) + count;
   for (let index = 0; index < count; index++) {
     state.simHealPotionSources.push(source);
+  }
+}
+
+const TRACKED_CONSUMABLES = Object.freeze({
+  MANA_POTION: Object.freeze({
+    sourceQueue: "simManaPotionSources",
+    acquired: "manaPotionsAcquiredBySource",
+    consumed: "manaPotionsConsumedBySource"
+  }),
+  HOLY_WATER: Object.freeze({
+    sourceQueue: "simHolyWaterSources",
+    acquired: "holyWaterAcquiredBySource",
+    consumed: "holyWaterConsumedBySource"
+  })
+});
+
+function normalizeTrackedConsumableSource(source) {
+  return TRACKED_CONSUMABLE_SOURCE_IDS.includes(source) ? source : "other";
+}
+
+function recordTrackedConsumableAcquisition(state, metrics, itemKey, source, count = 1) {
+  const config = TRACKED_CONSUMABLES[itemKey];
+  if (!metrics || !config || count <= 0) return;
+  const normalizedSource = normalizeTrackedConsumableSource(source);
+  metrics[config.acquired][normalizedSource] += count;
+  for (let index = 0; index < count; index++) {
+    state[config.sourceQueue].push(normalizedSource);
+  }
+}
+
+function recordTrackedConsumableConsumption(state, metrics, itemKey, count = 1) {
+  const config = TRACKED_CONSUMABLES[itemKey];
+  if (!metrics || !config || count <= 0) return;
+  for (let index = 0; index < count; index++) {
+    const source = state[config.sourceQueue].shift() || "other";
+    metrics[config.consumed][normalizeTrackedConsumableSource(source)]++;
   }
 }
 
@@ -2880,6 +3204,22 @@ function getRecoveryPotionItem(state) {
   if (hasRecoveryPotion(state, "GREATER_HEAL")) return "GREATER_HEAL";
   if (hasRecoveryPotion(state, "HEAL_POTION")) return "HEAL_POTION";
   return null;
+}
+
+function useManaPotionIfNeeded(state, metrics) {
+  const character = state.party[0];
+  if (
+    !isAlive(character) ||
+    !canUseManaItems(character) ||
+    character.mp > getCharMaxMp(character) * state.simPolicy.manaPotionThreshold
+  ) return null;
+  const itemIndex = state.inventory.indexOf("MANA_POTION");
+  if (itemIndex < 0) return null;
+  state.inventory.splice(itemIndex, 1);
+  recordTrackedConsumableConsumption(state, metrics, "MANA_POTION");
+  ITEM_EFFECTS.MANA_POTION({ char: character });
+  metrics.manaPotionsUsed++;
+  return "MANA_POTION";
 }
 
 function recordRecoveryPotionTiming(state, metrics) {
@@ -4249,6 +4589,8 @@ function runEncounter(
       );
       addItemCount(metrics.statusCureItemsUsed, action.itemKey, used);
       if (used > 0) {
+        recordTrackedConsumableConsumption(state, metrics, action.itemKey, used);
+        metrics.holyWaterUsed += Number(action.itemKey === "HOLY_WATER") * used;
         metrics.statusesCured[action.simStatusBefore] =
           (metrics.statusesCured[action.simStatusBefore] || 0) + 1;
       }
@@ -4438,6 +4780,8 @@ function useStatusCureIfNeeded(state, metrics, context) {
   const itemIndex = state.inventory.indexOf(decision.itemKey);
   if (itemIndex < 0) return false;
   state.inventory.splice(itemIndex, 1);
+  recordTrackedConsumableConsumption(state, metrics, decision.itemKey);
+  metrics.holyWaterUsed += Number(decision.itemKey === "HOLY_WATER");
   ITEM_EFFECTS[decision.itemKey]({ char: character });
   addItemCount(metrics.statusCureItemsUsed, decision.itemKey);
   metrics.statusesCured[decision.status] =
@@ -7062,6 +7406,20 @@ function finishRun(state, outcome, metrics) {
       `sources=${state.simGreaterHealSources.length}`
     );
   }
+  const manaPotionCount = state.inventory.filter(item => item === "MANA_POTION").length;
+  if (manaPotionCount !== state.simManaPotionSources.length) {
+    throw new Error(
+      `mana potion provenance mismatch: inventory=${manaPotionCount}, ` +
+      `sources=${state.simManaPotionSources.length}`
+    );
+  }
+  const holyWaterCount = state.inventory.filter(item => item === "HOLY_WATER").length;
+  if (holyWaterCount !== state.simHolyWaterSources.length) {
+    throw new Error(
+      `holy water provenance mismatch: inventory=${holyWaterCount}, ` +
+      `sources=${state.simHolyWaterSources.length}`
+    );
+  }
   const trapKitCount = state.inventory.filter(item => item === "TRAP_KIT").length;
   if (trapKitCount !== state.simTrapKitSources.length) {
     throw new Error(
@@ -7160,6 +7518,7 @@ function finishRun(state, outcome, metrics) {
     materialConsumed,
     carriedMaterialCounts: { ...state.currentRun.materials },
     bankedMaterialCounts: { ...banked },
+    metaMaterials: { ...state.metaMaterials },
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     steps: metrics.steps,
     battles: state.currentRun.battles,
@@ -7264,6 +7623,7 @@ function finishRun(state, outcome, metrics) {
     fleePolicy: state.simPolicy.fleePolicy,
     fleeHpThreshold: state.simPolicy.fleeHpThreshold,
     healPotionThreshold: state.simPolicy.healPotionThreshold,
+    manaPotionThreshold: state.simPolicy.manaPotionThreshold,
     diosCombatCastCount: metrics.coreObservations.diosHealActions,
     diosPostCombatCastCount: metrics.diosPostCombatCasts,
     diosCastCount: metrics.coreObservations.diosHealActions + metrics.diosPostCombatCasts,
@@ -7302,6 +7662,17 @@ function finishRun(state, outcome, metrics) {
     healPotionsConsumedBySource: { ...metrics.healPotionsConsumedBySource },
     greaterHealPotionsAcquiredBySource: { ...metrics.greaterHealPotionsAcquiredBySource },
     greaterHealPotionsConsumedBySource: { ...metrics.greaterHealPotionsConsumedBySource },
+    manaPotionsUsed: metrics.manaPotionsUsed,
+    manaPotionsAcquiredBySource: { ...metrics.manaPotionsAcquiredBySource },
+    manaPotionsConsumedBySource: { ...metrics.manaPotionsConsumedBySource },
+    holyWaterUsed: metrics.holyWaterUsed,
+    holyWaterAcquiredBySource: { ...metrics.holyWaterAcquiredBySource },
+    holyWaterConsumedBySource: { ...metrics.holyWaterConsumedBySource },
+    departureCraftCraftedByRecipe: { ...metrics.departureCraftCraftedByRecipe },
+    departureCraftPotentialByRecipe: { ...metrics.departureCraftPotentialByRecipe },
+    materialCompetition: state.simMaterialCompetition
+      ? { ...state.simMaterialCompetition }
+      : null,
     healPotionMerchantAttempts: metrics.healPotionMerchantAttempts,
     healPotionMerchantPurchased: metrics.healPotionMerchantPurchased,
     healPotionMerchantHoldLimitHits: metrics.healPotionMerchantHoldLimitHits,
@@ -7440,7 +7811,10 @@ function finishRun(state, outcome, metrics) {
       recipeIds: [...state.simDepartureCraft.recipeIds],
       cost: { ...state.simDepartureCraft.cost },
       items: [...state.simDepartureCraftItems],
-      purchaseSource: state.simDepartureCraft.purchaseSource
+      purchaseSource: state.simDepartureCraft.purchaseSource,
+      potentialByRecipe: { ...(
+        state.simDepartureCraftDemand?.potentialByRecipe || createCraftMeasurementCounts()
+      ) }
     },
     statusCureItemsAcquired: metrics.statusCureItemsAcquired,
     statusCureItemsUsed: metrics.statusCureItemsUsed,
@@ -7715,6 +8089,33 @@ export function simulateRun({
       chest: 0,
       merchant: 0,
       other: 0
+    },
+    manaPotionsUsed: 0,
+    holyWaterUsed: 0,
+    manaPotionsAcquiredBySource: {
+      ...createTrackedConsumableSourceCounts(),
+      starting: state.simStartingInventory.filter(item => item === "MANA_POTION").length,
+      departureCraft: state.simDepartureCraftItems.filter(item => item === "MANA_POTION").length
+    },
+    manaPotionsConsumedBySource: createTrackedConsumableSourceCounts(),
+    holyWaterAcquiredBySource: {
+      ...createTrackedConsumableSourceCounts(),
+      starting: state.simStartingInventory.filter(item => item === "HOLY_WATER").length,
+      departureCraft: state.simDepartureCraftItems.filter(item => item === "HOLY_WATER").length
+    },
+    holyWaterConsumedBySource: createTrackedConsumableSourceCounts(),
+    departureCraftCraftedByRecipe: countRecipeIds(state.simDepartureCraftItems),
+    departureCraftPotentialByRecipe:
+      state.simDepartureCraftDemand?.potentialByRecipe || createCraftMeasurementCounts(),
+    materialSourceCounts: createMaterialCountsBySource(),
+    materialCompetition: {
+      shardBalanceBeforeDeparture: state.simMaterialCompetition?.shardBalanceBeforeDeparture || 0,
+      weaponEnhancementAffordable: state.simMaterialCompetition?.weaponEnhancementAffordable || 0,
+      affordableWorkshopNodeCount: state.simMaterialCompetition?.affordableWorkshopNodeCount || 0,
+      simulatedWeaponEnhancementShardSpend:
+        state.simMaterialCompetition?.simulatedWeaponEnhancementShardSpend || 0,
+      simulatedWorkshopNodeShardSpend:
+        state.simMaterialCompetition?.simulatedWorkshopNodeShardSpend || 0
     },
     trapActivations: 0,
     trapActivationsBySource: { chest: 0, floor: 0 },
@@ -8332,6 +8733,7 @@ export function simulateRun({
             const fleeRecoveryItem = useHealPotionIfNeeded(state, metrics);
             addRecoveryPotionUse(metrics, fleeRecoveryItem);
             useStatusCureIfNeeded(state, metrics, "post-flee");
+            useManaPotionIfNeeded(state, metrics);
             if (!isAlive(state.party[0])) {
               metrics.deathEncounterType = encounterType;
               if (specialBattle) {
@@ -8520,6 +8922,7 @@ export function simulateRun({
           const combatRecoveryItem = useHealPotionIfNeeded(state, metrics);
           addRecoveryPotionUse(metrics, combatRecoveryItem);
           useStatusCureIfNeeded(state, metrics, "post-combat");
+          useManaPotionIfNeeded(state, metrics);
           if (!isAlive(state.party[0])) {
             metrics.deathEncounterType = encounterType;
             if (specialBattle) {
@@ -8783,9 +9186,19 @@ function simulateCase({
   const classTrapSenseTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapSenseAggregate()])
   );
+  const departureCraftBanksByClass = Object.fromEntries(
+    SIM_CLASSES.map(className => [className, {}])
+  );
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
     const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
+    const runScenario = scenario.departureCraftMeasurement
+      ? {
+          ...scenario,
+          departureCraftMaterialsAreActualBank: true,
+          departureCraftMaterials: { ...departureCraftBanksByClass[className] }
+        }
+      : scenario;
     const result = simulateRun({
       className,
       startFloor,
@@ -8794,11 +9207,14 @@ function simulateCase({
       seriesId,
       scoringProfile,
       scenario: {
-        ...scenario,
+        ...runScenario,
         identificationPolicy: identificationPolicy.id || identificationPolicy
       },
       workshop: scenario.workshop || { ranks: {} }
     });
+    if (scenario.departureCraftMeasurement) {
+      departureCraftBanksByClass[className] = { ...result.metaMaterials };
+    }
     addSpellUsageAggregate(totals.spellUsage, result);
     addExplorationSpellUsageAggregate(totals.explorationSpellUsage, result);
     totals.lightActiveSteps += result.lightActiveSteps;
@@ -9015,6 +9431,13 @@ function simulateCase({
   const bankedMaterialEv = totals.bankedMaterials / RUNS_PER_CASE;
   const averageTimeCost = totals.timeCost / RUNS_PER_CASE;
   const trapPolicies = resolveTrapPolicies(scenario);
+  const trapSummary = finalizeTrapAggregate(totals.trap);
+  const consumablesByClass = Object.fromEntries(
+    Object.entries(classTrapTotals).map(([className, aggregate]) => [
+      className,
+      buildConsumableClassSummary(finalizeTrapAggregate(aggregate))
+    ])
+  );
   return {
     label,
     startFloor,
@@ -9208,7 +9631,8 @@ function simulateCase({
     averageMasfealActiveSteps: totals.masfealActiveSteps / RUNS_PER_CASE,
     firstCoreDepthCounts: totals.firstCoreDepthCounts,
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
-    ...finalizeTrapAggregate(totals.trap),
+    ...trapSummary,
+    consumablesByClass,
     flameTrap: finalizeFlameTrapAggregate(totals.flameTrap),
     b5Gate: finalizeB5GateAggregate(totals.b5Gate),
     averageFlameTrapActivations: totals.flameTrap.activations / RUNS_PER_CASE,
@@ -9712,6 +10136,50 @@ function printConsumableSummary(result) {
       result.identificationPowderDepletionRate * RUNS_PER_CASE,
       RUNS_PER_CASE
     )}`
+  );
+  printCraftMeasurementSummary(result);
+}
+
+function printCraftMeasurementSummary(result) {
+  console.log("クラフト・素材競合/run（職業別。craft=実購入/同一bank可否）");
+  console.log(
+    "職業    | 魔石片 宝箱/モンスター/その他 | 魔力草 craft/率/使用 | 傷薬 可/率 | 上薬 可/率 | 聖水 可/率 | 強化可 | 工房可 | 実消費 強化/工房"
+  );
+  console.log(
+    "--------|--------------------------|--------------------|-----------|-----------|-----------|--------|-------|------------------"
+  );
+  Object.entries(result.consumablesByClass || {}).forEach(([className, metrics]) => {
+    const shards = metrics.averageMaterialSourceCounts?.chest?.[MAGIC_SHARD] || 0;
+    const combatShards = metrics.averageMaterialSourceCounts?.combat?.[MAGIC_SHARD] || 0;
+    const otherShards =
+      (metrics.averageMaterialSourceCounts?.quest?.[MAGIC_SHARD] || 0) +
+      (metrics.averageMaterialSourceCounts?.other?.[MAGIC_SHARD] || 0);
+    const actual = metrics.averageDepartureCraftCraftedByRecipe || {};
+    const actualRate = metrics.departureCraftRunRateByRecipe || {};
+    const potential = metrics.averageDepartureCraftPotentialByRecipe || {};
+    const potentialRate = metrics.departureCraftPotentialRunRateByRecipe || {};
+    const craft = recipeId =>
+      `${(actual[recipeId] || 0).toFixed(2)}/${(potential[recipeId] || 0).toFixed(2)} ` +
+      `${formatPercent(actualRate[recipeId] || 0)}/${formatPercent(potentialRate[recipeId] || 0)}`;
+    const competition = metrics.materialCompetition || {};
+    console.log(
+      `${className.padEnd(7)} | ${shards.toFixed(2)}/${combatShards.toFixed(2)}/${otherShards.toFixed(2).padStart(5)} ` +
+      `| ${craft("MANA_POTION")} / ${(metrics.averageManaPotionsConsumed || 0).toFixed(2)} ` +
+      `| ${craft("HEAL_POTION")} | ${craft("GREATER_HEAL")} | ${craft("HOLY_WATER")} ` +
+      `| ${formatPercent(competition.weaponEnhancementAffordableRate || 0)} ` +
+      `| ${(competition.averageAffordableWorkshopNodeCount || 0).toFixed(2)} ` +
+      `| ${(competition.averageSimulatedWeaponEnhancementShardSpend || 0).toFixed(2)}/` +
+      `${(competition.averageSimulatedWorkshopNodeShardSpend || 0).toFixed(2)}`
+    );
+    console.log(
+      `  ${className}: 魔力草入手=${JSON.stringify(metrics.averageManaPotionsAcquiredBySource)} ` +
+      `消費=${JSON.stringify(metrics.averageManaPotionsConsumedBySource)}; ` +
+      `聖水入手=${JSON.stringify(metrics.averageHolyWaterAcquiredBySource)} ` +
+      `消費=${JSON.stringify(metrics.averageHolyWaterConsumedBySource)}`
+    );
+  });
+  console.log(
+    "注: 魔石片は宝箱/モンスター/その他(クエスト+残差)。比較3種の craft は同じ開始bankでの非消費 affordance。"
   );
 }
 
@@ -10240,6 +10708,10 @@ export function runDepthSimulationTask(
     IDENTIFICATION_POLICY_DEFINITIONS.powder;
   if (kind === "scenario") {
     const scenario = getScenarioById(scenarioId);
+    const measurementScenario = {
+      ...scenario,
+      departureCraftMeasurement: true
+    };
     return TARGET_DEPTHS.map(targetDepth =>
       snapshotDepthResult(simulateCase({
         startFloor: 1,
@@ -10247,13 +10719,16 @@ export function runDepthSimulationTask(
         label: `B${targetDepth}撤退`,
         seriesId: `depth-${targetDepth}`,
         scoringProfile: scoringProfileForPolicy,
-        scenario,
+        scenario: measurementScenario,
         identificationPolicy
       }))
     );
   }
 
-  const legacyScenario = getScenarioById("legacy-no-portal");
+  const legacyScenario = {
+    ...getScenarioById("legacy-no-portal"),
+    departureCraftMeasurement: true
+  };
   return [
     snapshotDepthResult(simulateCase({
       startFloor: 10,
@@ -10412,7 +10887,10 @@ const ENV_SIGNATURE = {
   initialHealPotions: INITIAL_HEAL_POTIONS,
   initialAntidotes: INITIAL_ANTIDOTES,
   departureCraftIds: ACTIVE_DEPARTURE_CRAFT_IDS,
+  departureCraftMeasurement: true,
+  departureCraftComparisonRecipes: CRAFT_MEASUREMENT_RECIPE_IDS,
   healPotionThreshold: HEAL_POTION_THRESHOLD_INPUT,
+  manaPotionThreshold: MANA_POTION_THRESHOLD_INPUT,
   fleePolicy: DEFAULT_FLEE_POLICY,
   fleeHpThreshold: DEFAULT_FLEE_HP_THRESHOLD,
   statusCurePolicy: DEFAULT_STATUS_CURE_POLICY,
@@ -10496,6 +10974,7 @@ console.log(
 );
 console.log(
   `生存仮定: 傷薬使用閾値=${HEAL_POTION_THRESHOLD}, ` +
+  `魔力草使用閾値=${MANA_POTION_THRESHOLD}, ` +
   `逃走方針=${DEFAULT_FLEE_POLICY}, 逃走閾値=${DEFAULT_FLEE_HP_THRESHOLD ?? "逃走なし"}, ` +
   `状態回復=${DEFAULT_STATUS_CURE_POLICY}(HP<=${DEFAULT_STATUS_CURE_HP_THRESHOLD}), ` +
   "装備=識別方針別の実制限付き更新"
