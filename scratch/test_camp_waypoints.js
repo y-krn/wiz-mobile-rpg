@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
-import { generateRunFloor } from "../src/run_map_generator.js";
+import { generateRunFloor, isMilestoneFloor } from "../src/run_map_generator.js";
 import { EVENT_TYPES } from "../src/data.js";
-import { getBiomeForFloor } from "../src/data/biomes.js";
 import { createDefaultCurrentRun } from "../src/state.js";
 import { getCampRestStatus, restAtCamp } from "../src/systems/camp_rest.js";
 
@@ -17,14 +16,14 @@ function findCamp(grid) {
   return null;
 }
 
-// 野営はバイオームに野営地の設定がある階だけに現れる。封印門とは無関係。
+// 野営は守護者撃破直後の階に現れる。表示名のバイオーム設定とは独立する。
 for (let seedIndex = 0; seedIndex < SEED_COUNT; seedIndex++) {
   const runSeed = `CAMP-WAYPOINTS-${seedIndex}`;
   let parent = null;
   for (let floor = 1; floor <= 12; floor++) {
     const map = generateRunFloor({ runSeed, floor, parentStairsCoord: parent });
     const camp = findCamp(map.grid);
-    const expectsCamp = Boolean(getBiomeForFloor(floor).theme.eventSkins.camp);
+    const expectsCamp = isMilestoneFloor(floor - 1);
     assert.equal(Boolean(camp), expectsCamp, `${runSeed} B${floor} camp placement`);
     if (camp) {
       assert.equal(camp.cell.trap, undefined, `${runSeed} B${floor} camp excludes traps`);

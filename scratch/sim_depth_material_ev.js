@@ -314,6 +314,7 @@ const SIM_ENV_KEYS = Object.freeze([
   "BLOOD_WAND_HP_PAYMENT_MIN_RATE",
   "SIM_CORE_SCORE_DROP_TOLERANCE",
   "SIM_440_CONDITION",
+  "SIM_ISSUE646_CAMP_LEVEL",
   "SIM_INDEPENDENT_RUN_RANDOM",
   "SIM_DIALMA_CANDIDATE",
   "SIM_MADI_CANDIDATE",
@@ -353,6 +354,7 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   BLOOD_WAND_HP_PAYMENT_MIN_RATE: "0.50",
   SIM_CORE_SCORE_DROP_TOLERANCE: "0",
   SIM_440_CONDITION: "current",
+  SIM_ISSUE646_CAMP_LEVEL: "",
   SIM_INDEPENDENT_RUN_RANDOM: "0",
   SIM_DIALMA_CANDIDATE: "1",
   SIM_MADI_CANDIDATE: "1",
@@ -924,11 +926,24 @@ function parseOptionalFloorList(value) {
     throw new Error(`extraCampFloors must be an integer array: ${value}`);
   }
   const floors = [...new Set(value)];
-  if (floors.some(floor => !Number.isInteger(floor) || floor < 1 || floor > 20)) {
-    throw new Error(`extraCampFloors must contain integers 1..20: ${value}`);
+  if (floors.some(floor => !Number.isInteger(floor) || floor < 1 || floor > 25)) {
+    throw new Error(`extraCampFloors must contain integers 1..25: ${value}`);
   }
   return floors;
 }
+
+const ISSUE646_CAMP_LEVEL_DEFINITIONS = Object.freeze({
+  "1": Object.freeze([]),
+  "2": Object.freeze([7, 12, 17, 22]),
+  "3": Object.freeze([5, 10, 15, 20])
+});
+const ISSUE646_CAMP_LEVEL = String(SIM_ENV.SIM_ISSUE646_CAMP_LEVEL || "").trim();
+if (ISSUE646_CAMP_LEVEL && !Object.hasOwn(ISSUE646_CAMP_LEVEL_DEFINITIONS, ISSUE646_CAMP_LEVEL)) {
+  throw new Error(`SIM_ISSUE646_CAMP_LEVEL must be 1|2|3: ${ISSUE646_CAMP_LEVEL}`);
+}
+const ISSUE646_EXTRA_CAMP_FLOORS = ISSUE646_CAMP_LEVEL
+  ? ISSUE646_CAMP_LEVEL_DEFINITIONS[ISSUE646_CAMP_LEVEL]
+  : null;
 const DEFAULT_ELITE_POLICY = SIM_ENV.ELITE_POLICY === "engage" ? "engage" : "avoid";
 const LEGACY_FLOOR_DISARM_MIN_RATE = 50;
 const LEGACY_CHEST_DISARM_MIN_CHANCE = 0.50;
@@ -1192,7 +1207,12 @@ const SCENARIOS = Object.freeze([
     useTownPortal: false
   }
 ]);
-const DEPTH_SCENARIOS = SCENARIOS;
+const DEPTH_SCENARIOS = ISSUE646_EXTRA_CAMP_FLOORS === null
+  ? SCENARIOS
+  : Object.freeze(SCENARIOS.map(scenario => ({
+    ...scenario,
+    extraCampFloors: ISSUE646_EXTRA_CAMP_FLOORS
+  })));
 const DEFAULT_DEPTH_SCENARIO_IDS = new Set([
   "workshop-empty",
   "workshop-stats",
@@ -1206,7 +1226,7 @@ const SCENARIO_ALIASES = Object.freeze({
   "workshop-locked": "workshop-empty-no-portal",
   "workshop-unlocked": "workshop-empty"
 });
-const SCENARIO_BY_ID = new Map(SCENARIOS.map(scenario => [scenario.id, scenario]));
+const SCENARIO_BY_ID = new Map(DEPTH_SCENARIOS.map(scenario => [scenario.id, scenario]));
 const REFERENCE_SCENARIO_IDS = Object.freeze([
   "workshop-empty-no-portal",
   "workshop-empty",
@@ -10407,6 +10427,7 @@ const ENV_SIGNATURE = {
   portalMinFloor: PORTAL_MIN_FLOOR,
   portalHpThreshold: PORTAL_HP_THRESHOLD,
   portalMaxHealPotions: PORTAL_MAX_HEAL_POTIONS,
+  issue646CampLevel: ISSUE646_CAMP_LEVEL || null,
   scenarios: ACTIVE_SCENARIOS.map(scenario => scenario.id)
 };
 printEnvSignatureBanner(ENV_SIGNATURE, { label: "env" });

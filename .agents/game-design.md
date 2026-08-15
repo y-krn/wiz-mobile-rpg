@@ -251,6 +251,14 @@ boss cell. It is an optional shortcut: the original stair remains available,
 so the player can still visit the milestone merchant or return portal before
 descending.
 
+### Camp placement after milestone bosses
+
+Camps are placed on the floor immediately after each milestone boss: floors 6,
+11, 16, and 21. The former biome-band random placement is retired; the biome
+supplies only the camp display name. Recovery remains 40%, the
+`CORE_CAMP_MASTER` multiplier is unchanged, and milestone bosses still appear
+every fifth floor.
+
 Stock, priced in materials:
 
 - Identify resources.
