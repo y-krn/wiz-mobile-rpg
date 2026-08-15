@@ -60,6 +60,8 @@ for (const viewport of VIEWPORTS) {
     await expect(page.locator("#btn-trap-bypass")).toHaveCount(0);
 
     await enterDiscoveredTrap(page, "damage");
+    await expect(page.locator("#game-container")).toHaveClass(/event-mode/);
+    await expect(page.locator("#log-panel")).toBeHidden();
     await expect(page.locator("#btn-trap-disarm")).toHaveText("解除する");
     await expect(page.locator("#btn-trap-force")).toHaveText("強行突破");
 
@@ -76,7 +78,11 @@ for (const viewport of VIEWPORTS) {
       const { handleTrapAction } = await import("/src/systems/traps.js");
       handleTrapAction("back");
     });
+    await expect(page.locator("#game-container")).not.toHaveClass(/event-mode/);
+    await expect(page.locator("#log-panel")).toBeVisible();
     await enterDiscoveredTrap(page, "pitfall");
+    await expect(page.locator("#game-container")).toHaveClass(/event-mode/);
+    await expect(page.locator("#log-panel")).toBeHidden();
     await expect(page.locator("#btn-trap-disarm")).toHaveText("縁を伝う");
     await expect(page.locator("#btn-trap-force")).toHaveText("飛び込む");
   });
