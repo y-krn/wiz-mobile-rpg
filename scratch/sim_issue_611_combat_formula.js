@@ -2,8 +2,9 @@
 /* global console, process */
 
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createWriteStream, mkdirSync, writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { resolveSimParallelism, runSimTasks } from "./sim_parallel.js";
@@ -150,6 +151,20 @@ if (CLASSES.length !== 8 || new Set(CLASSES).size !== CLASSES.length) {
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+async function writeRawJsonl(rows, rawPath) {
+  const hash = createHash("sha256");
+  async function* lines() {
+    for (const row of rows) {
+      const line = `${JSON.stringify(row)}\n`;
+      hash.update(line);
+      yield line;
+    }
+  }
+
+  await pipeline(lines(), createWriteStream(fileURLToPath(rawPath)));
+  return hash.digest("hex");
 }
 
 function hashSeed(text) {
@@ -1010,9 +1025,7 @@ async function main() {
   const resultDir = new URL("./results/", new URL("./", import.meta.url));
   mkdirSync(resultDir, { recursive: true });
   const rawPath = new URL(`${RESULT_BASENAME}.jsonl`, resultDir);
-  const rawText = measurement.rows.map(row => JSON.stringify(row)).join("\n") + "\n";
-  writeFileSync(rawPath, rawText);
-  const rawSha256 = sha256(rawText);
+  const rawSha256 = await writeRawJsonl(measurement.rows, rawPath);
   const markdown = renderMarkdown({
     rows: measurement.rows,
     environment,
