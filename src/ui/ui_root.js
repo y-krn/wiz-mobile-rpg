@@ -197,7 +197,7 @@ export function getCurrentGoal() {
   }
 
   if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
-    return `${getFloorDisplayName(state, state.floor)}: B${state.floor}Fの節目ボスを倒せ`;
+    return `${getFloorDisplayName(state, state.floor)}: B${state.floor}Fの階層守護者を倒せ`;
   }
   return `${getFloorDisplayName(state, state.floor)}: ${getFloorLabel(state, state.floor + 1)}への下り階段を探せ`;
 }

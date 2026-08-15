@@ -39,7 +39,7 @@ for (const vp of VIEWPORTS) {
       state.currentRun.materials = { '霊粉': 9, '呪布': 5, '黒角': 3, '獣の牙': 2 };
       state.floor = 5;
       state.gameState = 'explore';
-      openSubmenu('milestone_merchant', '節目商人');
+      openSubmenu('milestone_merchant', '深層商人');
     });
     const powder = page.getByRole('button', { name: /鑑定粉/ });
     const uncurse = page.getByRole('button', { name: /呪いを解く/ });
@@ -51,7 +51,7 @@ for (const vp of VIEWPORTS) {
 
     await page.evaluate(async () => {
       const { openSubmenu } = await import('/src/navigation.js');
-      openSubmenu('milestone_portal', '帰還ポータル');
+      openSubmenu('milestone_portal', '帰還の門');
     });
     const retreat = page.getByRole('button', { name: /素材を100%持ち帰る/ });
     expect((await retreat.boundingBox()).height).toBeGreaterThanOrEqual(44);

@@ -781,7 +781,7 @@ function createDetailPanel(char) {
     if (locked) {
       actionBtn.className = "btn btn-block equip-action-btn disabled";
       actionBtn.disabled = true;
-      actionBtn.textContent = "節目商人で解呪できます";
+      actionBtn.textContent = "深層商人で解呪できます";
       actions.appendChild(actionBtn);
       detailCol.appendChild(actions);
       return detailCol;

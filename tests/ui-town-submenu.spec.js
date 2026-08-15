@@ -87,12 +87,12 @@ for (const viewport of [
 
     await openWorkshop([]);
     await expect(page.locator('.workshop-node')).toHaveCount(18);
-    await expect(page.getByRole('button', { name: /節目破り/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /守護者殺し/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /薄氷の誓約/ })).toHaveCount(0);
 
     await openWorkshop(['FORGE_SEAL']);
     await expect(page.locator('.workshop-node')).toHaveCount(19);
-    await expect(page.getByRole('button', { name: /節目破り/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /守護者殺し/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /薄氷の誓約/ })).toHaveCount(0);
 
     await openWorkshop(['FORGE_SEAL', 'ABYSS_SEAL']);

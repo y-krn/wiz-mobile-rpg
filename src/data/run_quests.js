@@ -2,8 +2,8 @@ export const RUN_QUEST_TEMPLATES = Object.freeze([
   Object.freeze({
     id: "reach_milestone",
     type: "depth",
-    name: "次の節目へ",
-    description: "次の5階ごとの節目まで到達する。",
+    name: "次の深みへ",
+    description: "次の階層守護者が待つ階まで到達する。",
     target: Object.freeze({ kind: "next_milestone" }),
     reward: Object.freeze({ materials: Object.freeze({ "鉄片": 3 }) })
   }),

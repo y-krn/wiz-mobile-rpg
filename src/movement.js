@@ -431,7 +431,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // Stairs Down (ask before descending so corridors stay walkable)
   if (cell.type === "stairs-down") {
     if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
-      addLog("節目ボスを倒すまで下り階段は封じられている。");
+      addLog("階層守護者を倒すまで下り階段は封じられている。");
       playSound("bump");
       return;
     }
@@ -469,7 +469,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
     }
     state.transitioning = true;
     if (!milestoneBoss) addLog("竜の鍵を使って頑丈な扉を開けた！");
-    addLog(`警告：B${state.floor}Fの節目ボスが立ちふさがる！戦闘準備！`);
+    addLog(`警告：B${state.floor}Fの階層守護者が立ちふさがる！戦闘準備！`);
     playSound("chest_trap");
     setTimeout(() => {
       state.transitioning = false;
@@ -517,7 +517,7 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // Merchant encounter
   if (cell.event === EVENT_TYPES.MERCHANT) {
     if (!state.currentRun?.defeatedMilestones?.includes(state.floor)) {
-      addLog("節目商人はボスを退けるまで取引に応じない。");
+      addLog("深層商人は守護者を退けるまで取引に応じない。");
       return;
     }
     state.currentRun.visitedMilestoneMerchants ||= [];
@@ -525,17 +525,17 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
       state.currentRun.visitedMilestoneMerchants.push(state.floor);
       state.codex.events.facilities.merchant.found++;
     }
-    const skin = getFloorTheme(state.floor)?.eventSkins.merchant || "節目商人";
+    const skin = getFloorTheme(state.floor)?.eventSkins.merchant || "深層商人";
     openGuardedSubmenu("milestone_merchant", `${skin}：素材で補給する`);
     return;
   }
 
   if (cell.event === EVENT_TYPES.RETURN_PORTAL) {
     if (!state.currentRun?.defeatedMilestones?.includes(state.floor)) {
-      addLog("帰還ポータルは節目ボスの力で封じられている。");
+      addLog("帰還の門は階層守護者の力で封じられている。");
       return;
     }
-    openGuardedSubmenu("milestone_portal", `B${state.floor}F 帰還ポータル`);
+    openGuardedSubmenu("milestone_portal", `B${state.floor}F 帰還の門`);
     return;
   }
 
