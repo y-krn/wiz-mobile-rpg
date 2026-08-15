@@ -37,16 +37,20 @@ export function getCurrentFloorExplorationSteps() {
   return state.currentRun.floorSteps?.[String(state.floor)] || 0;
 }
 
-export function getEncounterChance() {
-  const floorSteps = getCurrentFloorExplorationSteps();
-  const baseRate = floorSteps <= ENCOUNTER_HIGH_STEP_LIMIT ? ENCOUNTER_HIGH_RATE : ENCOUNTER_LOW_RATE;
-  if (state.lightPower === "lomilwa") {
+export function calculateEncounterChance(floorStep, { lightPower, lightTurns } = {}) {
+  const baseRate = floorStep <= ENCOUNTER_HIGH_STEP_LIMIT ? ENCOUNTER_HIGH_RATE : ENCOUNTER_LOW_RATE;
+  if (lightPower === "lomilwa") {
     return Math.max(0, baseRate - LOMILWA_ENCOUNTER_REDUCTION);
   }
-  if (state.lightTurns > 0) {
+  if (lightTurns > 0) {
     return Math.max(0, baseRate - MILWA_ENCOUNTER_REDUCTION);
   }
   return baseRate;
+}
+
+export function getEncounterChance() {
+  const floorSteps = getCurrentFloorExplorationSteps();
+  return calculateEncounterChance(floorSteps, state);
 }
 
 export function tickExplorationSpellEffects() {
