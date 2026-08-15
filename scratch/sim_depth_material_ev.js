@@ -33,6 +33,7 @@ const {
   createSoloCharacter
 } = await import("../src/state/initial_state.js");
 const { recordCharDeath } = await import("../src/state.js");
+const { calculateEncounterChance } = await import("../src/movement.js");
 const { ELITE_CLASSES } = await import("../src/data/classes.js");
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
 const { applyPendingOutcomeRewards } = await import("../src/combat_ui/outcome_rewards.js");
@@ -5717,23 +5718,8 @@ function applySimulatedStairsHeal(character, metrics) {
   return healed;
 }
 
-// src/movement.js L21-25 と同期
-const ENCOUNTER_HIGH_STEP_LIMIT = 30;
-const ENCOUNTER_HIGH_RATE = 0.10;
-const ENCOUNTER_LOW_RATE = 0.04;
-const MILWA_ENCOUNTER_REDUCTION = 0.03;
-const LOMILWA_ENCOUNTER_REDUCTION = 0.05;
-
 function getEncounterChance(floorStep, state = null) {
-  const baseRate = floorStep <= ENCOUNTER_HIGH_STEP_LIMIT
-    ? ENCOUNTER_HIGH_RATE
-    : ENCOUNTER_LOW_RATE;
-  let adjustedRate = baseRate;
-  if (state?.lightPower === "lomilwa") {
-    adjustedRate = Math.max(0, baseRate - LOMILWA_ENCOUNTER_REDUCTION);
-  } else if ((state?.lightTurns || 0) > 0) {
-    adjustedRate = Math.max(0, baseRate - MILWA_ENCOUNTER_REDUCTION);
-  }
+  const adjustedRate = calculateEncounterChance(floorStep, state || {});
   // #612: 遭遇率スイープ計測用。既定no-op、override未設定時は元の戻り値と一致。
   if (typeof state?.encounterRateOverride === "function") {
     return state.encounterRateOverride(adjustedRate);
