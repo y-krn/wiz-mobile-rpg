@@ -1,6 +1,6 @@
 ---
 description: 現セッションを畳み、次セッションが自動で読む handoff コメントを Issue に残す
-allowed-tools: Bash(gh issue *), Bash(gh pr *), Bash(git *), Bash(date *), create_scheduled_task
+allowed-tools: Bash(gh issue *), Bash(gh pr *), Bash(git *), Bash(date *), mcp__scheduled-tasks__create_scheduled_task
 ---
 
 セッションを畳む。会話履歴を持ち越さず、Issue コメントだけで次セッションが再開できる状態にする。
@@ -25,7 +25,9 @@ allowed-tools: Bash(gh issue *), Bash(gh pr *), Bash(git *), Bash(date *), creat
 - 未解決 / 次の一手: <次セッションが最初にやること>
 ```
 
-コメント投稿が成功したら、常に後継セッションを 1 本だけ起こす。引数による出し分けはしない。
+4. コメント投稿が成功したら、常に後継セッションを 1 本だけ起こす。引数による出し分けはしない。
+
+後継タスクを起こす前に `git rev-parse --show-toplevel` を実行してリポジトリの絶対パスを取得する。以下の後継プロンプト内の `<repo_path>` と `<repo_path>/AGENTS.md` は、その実行結果の実際の絶対パスへ置換してから埋め込む（プレースホルダを文字どおり残さない）。
 
 まず `date "+%Y-%m-%dT%H:%M:%S%z"` で現在時刻を取り、そこから 2 分を加算して ISO 8601 の `fireAt` を作る。その値を使い、次の one-shot タスクを `create_scheduled_task` で作成する。
 
@@ -37,14 +39,14 @@ create_scheduled_task({
   prompt: """
 あなたはオーケストレーター。タスク分解・委譲・進行管理・Issue/PR 運用・レビューを持つ。
 最初に `gh issue view <n> --comments` で `<!-- handoff -->` の引き継ぎコメントを読み、そこから再開する。会話履歴は引き継がれない。
-リポジトリのパスを確認し、リポジトリ直下の `AGENTS.md` を読むこと。
+作業対象のリポジトリは `<repo_path>`（実行時に `git rev-parse --show-toplevel` で取得した絶対パスへ置換済み）である。`<repo_path>/AGENTS.md`（同じ絶対パスのリポジトリ直下）を読むこと。
 自分でコードを書かない。実装は二段委譲する — 実装タスクは `create_scheduled_task` で別セッションを起こし、そのセッションから `scripts/codex-run.sh <label> < prompt.txt` で Codex へ渡す。Codex が拒否・失敗したら回避策を探さず報告して止まる。
 Issue を勝手にクローズしない。
 """
 })
 ```
 
-4. コメント URL を報告し、「このセッションはここで終了。続きは新しいセッションで」と伝えて止まる。
+5. コメント URL を報告し、「このセッションはここで終了。続きは新しいセッションで」と伝えて止まる。
    後継セッションの `taskId` と発火時刻（`fireAt`）も報告し、次の 2 点を明記する。
    - アプリを閉じていると発火せず、次回起動時に走ること。
    - 現セッションは自動では閉じないので、畳むのは手動であること。
