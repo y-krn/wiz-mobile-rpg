@@ -1624,7 +1624,7 @@ function getTrapAvoidanceEvaluation(state, trap, floor, step, avoidance, metrics
   const extraSteps = Math.max(0, Math.floor(Number(avoidance.extraSteps) || 0));
   const encounterChances = Array.from(
     { length: extraSteps },
-    (_, index) => getEncounterChance(step + index + 1)
+    (_, index) => getEncounterChance(step + index + 1, state)
   );
   const actionPlan = getFloorTrapActionPlan(state, trap, floor);
   const evaluation = calculateFloorTrapAvoidanceEv({
@@ -2501,6 +2501,9 @@ function createSimulationState(
       materialDropOverride: scenario.materialDropOverride || null
     },
     floor: startFloor,
+    lightTurns: 0,
+    lightPower: "",
+    repelTurns: 0,
     flameTrapCooldownTurns: 0
   };
 }
@@ -2583,6 +2586,56 @@ function createSpellUsageMetrics() {
     postCombatHealingHp: 0
   }]));
 }
+
+const EXPLORATION_SPELL_IDS = Object.freeze([
+  "MILWA",
+  "LOMILWA",
+  "MASFEAL",
+  "DUMAPIC"
+]);
+// DUMAPIC only reports coordinates; it has no combat/depth effect, so the policy does not cast it.
+
+function createExplorationSpellUsageMetrics() {
+  return Object.fromEntries(EXPLORATION_SPELL_IDS.map(spellName => [spellName, 0]));
+}
+
+function addExplorationSpellUsageAggregate(target, result) {
+  EXPLORATION_SPELL_IDS.forEach(spellName => {
+    target[spellName] += result.explorationSpellUsage?.[spellName] || 0;
+  });
+}
+
+function castExplorationSpell(state, spellName, metrics) {
+  const character = state.party[0];
+  if (!hasSpell(character, spellName)) return false;
+  const spell = SPELLS[spellName];
+  const payment = getSpellPayment(character, spell.cost);
+  // Exploration spells are paid from MP only; do not use blood-wand HP payment.
+  if (!payment.canCast || payment.resource !== "mp") return false;
+  character.mp -= payment.cost;
+  SPELL_EFFECTS[spellName]({ caster: character, target: state });
+  metrics.explorationSpellUsage[spellName]++;
+  return true;
+}
+
+function maybeCastExplorationSpells(state, metrics) {
+  const character = state.party[0];
+  if (character.class === "Priest" && state.lightTurns === 0) {
+    const candidates = hasSpell(character, "LOMILWA")
+      ? ["LOMILWA", "MILWA"]
+      : ["MILWA"];
+    candidates.some(spellName => castExplorationSpell(state, spellName, metrics));
+  }
+  if (
+    character.class === "Mage" &&
+    state.repelTurns === 0 &&
+    hasSpell(character, "MASFEAL")
+  ) {
+    castExplorationSpell(state, "MASFEAL", metrics);
+  }
+}
+
+const SIM_EXPLORE_SPELLS_ENABLED = process.env.SIM_EXPLORE_SPELLS === "on";
 
 function addSpellUsageAggregate(target, result) {
   Object.entries(result.spellUsage || {}).forEach(([spellName, usage]) => {
@@ -5660,8 +5713,33 @@ function applySimulatedStairsHeal(character, metrics) {
   return healed;
 }
 
-function getEncounterChance(floorStep) {
-  return floorStep <= 30 ? 0.10 : 0.04;
+// src/movement.js L21-25 と同期
+const ENCOUNTER_HIGH_STEP_LIMIT = 30;
+const ENCOUNTER_HIGH_RATE = 0.10;
+const ENCOUNTER_LOW_RATE = 0.04;
+const MILWA_ENCOUNTER_REDUCTION = 0.03;
+const LOMILWA_ENCOUNTER_REDUCTION = 0.05;
+
+function getEncounterChance(floorStep, state = null) {
+  const baseRate = floorStep <= ENCOUNTER_HIGH_STEP_LIMIT
+    ? ENCOUNTER_HIGH_RATE
+    : ENCOUNTER_LOW_RATE;
+  if (state?.lightPower === "lomilwa") {
+    return Math.max(0, baseRate - LOMILWA_ENCOUNTER_REDUCTION);
+  }
+  if ((state?.lightTurns || 0) > 0) {
+    return Math.max(0, baseRate - MILWA_ENCOUNTER_REDUCTION);
+  }
+  return baseRate;
+}
+
+function tickExplorationSpellEffects(state) {
+  if (state.lightTurns > 0) {
+    const cost = state.floor === 2 ? 2 : 1;
+    state.lightTurns = Math.max(0, state.lightTurns - cost);
+    if (state.lightTurns === 0) state.lightPower = "";
+  }
+  if (state.repelTurns > 0) state.repelTurns--;
 }
 
 function getFloorStepCount(generated, floor) {
@@ -7004,6 +7082,7 @@ function finishRun(state, outcome, metrics) {
     bankedMaterialCounts: { ...banked },
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     steps: metrics.steps,
+    battles: state.currentRun.battles,
     floorBudgetSteps: metrics.floorBudgetSteps,
     routePolicyExtraSteps: metrics.routePolicyExtraSteps,
     eliteExtraSteps: metrics.eliteExtraSteps,
@@ -7177,6 +7256,9 @@ function finishRun(state, outcome, metrics) {
         { ...usage }
       ])
     ),
+    explorationSpellUsage: { ...metrics.explorationSpellUsage },
+    lightActiveSteps: metrics.lightActiveSteps,
+    masfealActiveSteps: metrics.masfealActiveSteps,
     mpDepleted: metrics.mpDepleted,
     mpZeroCombatRounds: metrics.mpZeroCombatRounds,
     reserveMpViolations: metrics.reserveMpViolations,
@@ -7500,6 +7582,9 @@ export function simulateRun({
     diosPotionPriorityCases: 0,
     diosPotionPriorityEventSamples: scenario.collectHealPriorityDiagnostics ? [] : null,
     spellUsage: createSpellUsageMetrics(),
+    explorationSpellUsage: createExplorationSpellUsageMetrics(),
+    lightActiveSteps: 0,
+    masfealActiveSteps: 0,
     mpDepleted: false,
     mpZeroCombatRounds: 0,
     reserveMpViolations: 0,
@@ -7849,6 +7934,10 @@ export function simulateRun({
       state.currentRun.steps++;
       state.currentRun.floorSteps[String(floor)] =
         (state.currentRun.floorSteps[String(floor)] || 0) + 1;
+      tickExplorationSpellEffects(state);
+      if (SIM_EXPLORE_SPELLS_ENABLED) maybeCastExplorationSpells(state, metrics);
+      metrics.lightActiveSteps += Number(state.lightTurns > 0);
+      metrics.masfealActiveSteps += Number(state.repelTurns > 0);
       recordB5HpSnapshot(state, metrics, step);
       if (step % 2 === 0) {
         observeSneakStepPerception({
@@ -8011,7 +8100,9 @@ export function simulateRun({
 
       const scheduledSpecials = specialSchedule.get(step) || [];
       const hasRandomEncounter =
-        scheduledSpecials.length === 0 && Math.random() < getEncounterChance(step);
+        scheduledSpecials.length === 0 &&
+        (!state.repelTurns || state.repelTurns <= 0) &&
+        Math.random() < getEncounterChance(step, state);
       if (scheduledSpecials.length === 0 && !hasRandomEncounter) continue;
       const encountersThisStep = scheduledSpecials.length > 0
         ? scheduledSpecials
@@ -8522,6 +8613,9 @@ function simulateCase({
     firstCoreDepthCounts: {},
     coreObservations: createCoreObservations(),
     spellUsage: createSpellUsageMetrics(),
+    explorationSpellUsage: createExplorationSpellUsageMetrics(),
+    lightActiveSteps: 0,
+    masfealActiveSteps: 0,
     purifyEffectsByClass: Object.fromEntries(
       SIM_CLASSES.map(className => [className, {
         runs: 0,
@@ -8605,6 +8699,9 @@ function simulateCase({
       workshop: scenario.workshop || { ranks: {} }
     });
     addSpellUsageAggregate(totals.spellUsage, result);
+    addExplorationSpellUsageAggregate(totals.explorationSpellUsage, result);
+    totals.lightActiveSteps += result.lightActiveSteps;
+    totals.masfealActiveSteps += result.masfealActiveSteps;
     addOutcomeAggregate(totals.outcomesByClass[className], result);
     addFlameTrapAggregate(totals.flameTrap, result);
     addFlameTrapAggregate(classFlameTrapTotals[className], result);
@@ -9001,6 +9098,11 @@ function simulateCase({
         { ...usage }
       ])
     ),
+    explorationSpellUsage: { ...totals.explorationSpellUsage },
+    lightActiveSteps: totals.lightActiveSteps,
+    masfealActiveSteps: totals.masfealActiveSteps,
+    averageLightActiveSteps: totals.lightActiveSteps / RUNS_PER_CASE,
+    averageMasfealActiveSteps: totals.masfealActiveSteps / RUNS_PER_CASE,
     firstCoreDepthCounts: totals.firstCoreDepthCounts,
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
     ...finalizeTrapAggregate(totals.trap),
