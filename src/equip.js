@@ -13,8 +13,7 @@ import {
   getCharAgi,
   getCharLuk,
   formatAffixText,
-  canUseMageSpells,
-  canUsePriestSpells,
+  canUseManaItems,
   isCurseLocked
 } from "./data.js";
 import { CURSE_EFFECTS } from "./data/items.js";
@@ -242,7 +241,7 @@ function getUnequipPreview(char, slot) {
 export function getItemUseStatus(char, itemKey) {
   const item = getItemData(itemKey);
   if (!item || item.type !== "usable") return { usable: true, reason: "" };
-  const canRestoreMp = canUsePriestSpells(char) || canUseMageSpells(char);
+  const canRestoreMp = canUseManaItems(char);
 
   if (item.combatOnly && !state.combatState) {
     return { usable: false, reason: "戦闘中のみ使用できます" };
