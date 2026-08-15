@@ -663,6 +663,22 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
   #461再基準線 env hash `6630774fbe1172084adde136272b09df77373427bc3d179fdd3587b9fad4f572`,
   raw SHA-256 `27c340238c1634e5385c26ac9818136e777442a7020c972d8b3e46f24e898408`。
 
+### #652 rebaseline (2026-08-15)
+
+PR #645/#651 でcamp配置が更新されたため、上記の#502/#499固定値は
+pre-camp-correctionの履歴値として保持し、現行baseの判定には次を使う。
+`node scratch/sim_issue_502_trap_detection.js`（seed=502、各職N=3,000、
+calibration N=1,000、SIM_PARALLEL未指定、source `3e659a6`）では、現行→確定察知・
+trapSense撤去→解除転換が、平均到達floor **5.150 → 5.516 → 5.473**、
+B10 entrant **9.5% → 11.5% → 11.1%**、床罠被害HP/run
+**22.097 → 18.571 → 18.385** となった。確定察知の方向と撤去/解除転換の
+非優越という結論は維持するが、旧66HP/run対回復予算51HPの合計収支はこのrunnerの
+出力列にないため、#652ではその不等式自体を再確定していない。
+
+`ISSUE499_FIXED_DETECTION=1 node scratch/sim_issue_499_shallow_recovery_dose_sweep.js`
+（seed=499、各職N=3,000、calibration N=1,000、SIM_PARALLEL未指定）の現行値は、
+B10 entrant **11.5%**、+0.4点 **14.1%**（実測0.513本/run）である。
+
 ## Issue #516 固定結論（基本4職sustain非対称）
 
 - #516前対照は、同一の#461固定条件（seed=461、6工房状態の観測分布、現行kit・罠・逃走方針）で
@@ -679,6 +695,22 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 | Thief | 74.8% → 74.8% | 21.2% → 21.2% | 6.62 → 6.62 | 0.2066 → 0.2066 |
 | Priest | 42.4% → 42.4% | 25.2% → 25.2% | 6.04 → 6.04 | 0.0798 → 0.0798 |
 | Mage | 7.6% → 50.2% | 0.0% → 2.4% | 3.07 → 4.53 | 0.1516 → 0.1962 |
+
+#### #652 current-base rebaseline
+
+上表は#645/#651前の固定値である。現行base（source `3e659a6`）を同じ
+seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定すると、
+次の値になる。戦士・魔術師のtrapGuard効果、盗賊・僧侶の非悪化という向きは維持する。
+
+| 職 | B5 entrant 前→後 | B10 entrant 前→後 | 平均floor 前→後 | 素材EV/時間 前→後 |
+| --- | ---: | ---: | ---: | ---: |
+| Fighter | 34.8% → 74.4% | 2.2% → 13.2% | 4.04 → 5.75 | 0.2212 → 0.2500 |
+| Thief | 75.0% → 75.0% | 5.6% → 5.6% | 5.17 → 5.17 | 0.1801 → 0.1801 |
+| Priest | 44.4% → 44.4% | 7.0% → 7.0% | 4.48 → 4.48 | 0.1062 → 0.1062 |
+| Mage | 7.8% → 73.6% | 0.6% → 18.2% | 2.82 → 6.55 | 0.1260 → 0.1823 |
+
+再現コマンドは `node scratch/sim_issue_516_class_sustain.js`。env hashは
+`caf2dec19affd4c86e36c367ef71aff5889ef4a3c884452eb103b0b59ca7c2ab`。
 
 - guardian強化、arcane強化はB10 entrantを改善せず、全職camp/階層移動回復は平均floorを
   押し上げるが魔術師のB10 entrantを改善しなかったため不採用。罠被害-20%/-30%は弱く、
