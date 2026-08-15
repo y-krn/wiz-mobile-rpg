@@ -32,10 +32,14 @@ test('Archives list restores scroll after detail and resets on navigation', asyn
     }
 
     const initialScrollTop = await body.evaluate((element) => {
-      element.scrollTop = element.scrollHeight;
+      element.scrollTop = Math.floor(element.scrollHeight / 2);
       return element.scrollTop;
     });
     expect(initialScrollTop).toBeGreaterThan(0);
+    await expect.poll(async () => page.evaluate(async () => {
+      const { archivesState } = await import('/src/ui/archives_overlay.js');
+      return archivesState.listScrollTop;
+    })).toBe(initialScrollTop);
 
     await page.locator('#archives-overlay .codex-row').last().click();
     const savedScrollTop = await page.evaluate(async () => {
