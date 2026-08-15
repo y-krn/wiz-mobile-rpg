@@ -35,7 +35,7 @@ check("B1-B30は5フロアごとに6バイオームへ切り替わる", () => {
   });
 });
 
-check("5の倍数だけボス・商人・帰還ポータルを各1件生成する", () => {
+check("5の倍数だけボス・商人・帰還の門を各1件生成する", () => {
   for (let floor = 1; floor <= 30; floor++) {
     const generated = generateRunFloor({ runSeed: "MILESTONE-TEST", floor });
     const counts = getMilestoneEventCounts(generated.grid);
@@ -45,7 +45,7 @@ check("5の倍数だけボス・商人・帰還ポータルを各1件生成す�
   }
 });
 
-check("節目開始は既存0.6定数を参照し素材期待値を減額する", () => {
+check("深層開始は既存0.6定数を参照し素材期待値を減額する", () => {
   assert.equal(MATERIAL_DROP_BALANCE.milestoneStartMultiplier, 0.6);
   for (const floor of [5, 10, 20, 30]) {
     const full = getDepthMaterialExpectedQuantity(floor, { startFloor: 1 });
@@ -54,7 +54,7 @@ check("節目開始は既存0.6定数を参照し素材期待値を減額する"
   }
 });
 
-check("節目ボス撃破は開始地点を恒久アンロックする", () => {
+check("階層守護者撃破は開始地点を恒久アンロックする", () => {
   const state = { currentRun: { defeatedMilestones: [] }, unlockedMilestones: [5] };
   assert.deepEqual(recordMilestoneVictory(state, 10), { ok: true, unlocked: true });
   assert.deepEqual(state.currentRun.defeatedMilestones, [10]);
@@ -63,7 +63,7 @@ check("節目ボス撃破は開始地点を恒久アンロックする", () => {
   assert.deepEqual(recordMilestoneVictory(state, 9), { ok: false, unlocked: false });
 });
 
-check("節目商人は装備を売らず、素材で補給品を購入する", () => {
+check("深層商人は装備を売らず、素材で補給品を購入する", () => {
   assert.ok(MILESTONE_MERCHANT_STOCK.every(entry => entry.kind !== "equipment"));
   const state = {
     currentRun: { materials: { "霊粉": 2 } },
@@ -75,7 +75,7 @@ check("節目商人は装備を売らず、素材で補給品を購入する", (
   assert.equal(state.currentRun.materials["霊粉"], 0);
 });
 
-check("解呪は節目商人の高額素材払いでのみ成立する", () => {
+check("解呪は深層商人の高額素材払いでのみ成立する", () => {
   const item = {
     identified: false,
     curseEffectId: "curse_hollow_soul",

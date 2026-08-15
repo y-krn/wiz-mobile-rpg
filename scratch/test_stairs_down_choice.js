@@ -52,7 +52,7 @@ check("下り階段に入ってもフロアは変わらず選択サブメニュ�
   });
 });
 
-check("節目フロアでボス未撃破なら封印ログのみでサブメニューは開かない", () => {
+check("守護者の階でボス未撃破なら封印ログのみでサブメニューは開かない", () => {
   withDocumentStub(() => {
     setupStairsCell(5);
     state.currentRun.defeatedMilestones = [];
@@ -63,7 +63,7 @@ check("節目フロアでボス未撃破なら封印ログのみでサブメニ�
   });
 });
 
-check("節目フロアでもボス撃破済みなら選択サブメニューが開く", () => {
+check("守護者の階でもボス撃破済みなら選択サブメニューが開く", () => {
   withDocumentStub(() => {
     setupStairsCell(5);
     state.currentRun.defeatedMilestones = [5];

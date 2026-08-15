@@ -232,8 +232,8 @@ export const CORE_AFFIXES = [
   {
     id: "CORE_MILESTONE_BREAKER",
     kind: "core",
-    jpName: "節目破り",
-    desc: "節目ボスへの与ダメージが25%増加する。",
+    jpName: "守護者殺し",
+    desc: "階層守護者への与ダメージが25%増加する。",
     slot: "weapon",
     cost: 10,
     params: { damageMultiplier: 1.25 },

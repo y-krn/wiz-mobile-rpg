@@ -22,7 +22,7 @@ export function renderMilestoneMerchant(optGrid) {
   optGrid.classList.add("milestone-merchant-grid");
   const materials = state.currentRun?.materials || {};
   const total = Object.values(materials).reduce((sum, value) => sum + value, 0);
-  optGrid.appendChild(createSection(`節目商人：素材 ${total}`));
+  optGrid.appendChild(createSection(`深層商人：素材 ${total}`));
 
   MILESTONE_MERCHANT_STOCK.forEach(entry => {
     const button = document.createElement("button");
@@ -36,7 +36,7 @@ export function renderMilestoneMerchant(optGrid) {
     button.textContent = `${itemName}｜${formatCost(entry.cost)}${full ? "｜バッグ満杯" : ""}`;
     button.addEventListener("click", () => {
       if (!purchaseMilestoneStock(state, entry.id).ok) return;
-      addLog(`節目商人から${itemName}を購入した。`);
+      addLog(`深層商人から${itemName}を購入した。`);
       state.codex.events.facilities.merchant.purchased++;
       saveAutosave();
       renderMilestoneMerchant(optGrid);

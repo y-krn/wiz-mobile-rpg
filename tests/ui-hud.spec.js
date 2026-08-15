@@ -86,15 +86,15 @@ for (const vp of VIEWPORTS) {
       state.currentRun = createDefaultCurrentRun();
       state.currentRun.deepestFloor = 6;
       state.currentRun.quests = [{
-        id: 'depth:1:5', templateId: 'reach_milestone', type: 'depth', name: '次の節目へ',
-        description: '次の5階ごとの節目まで到達する。', targetValue: 5, currentValue: 5,
+        id: 'depth:1:5', templateId: 'reach_milestone', type: 'depth', name: '次の深みへ',
+        description: '次の階層守護者が待つ階まで到達する。', targetValue: 5, currentValue: 5,
         completed: true, rewardClaimed: true, reward: { materials: { '鉄片': 3 } },
       }];
       state.gameState = 'explore';
       updateUI();
     });
     const questHud = page.locator('.quest-hud-list');
-    await expect(questHud.getByText('次の節目へ')).toBeVisible();
+    await expect(questHud.getByText('次の深みへ')).toBeVisible();
     await expect(questHud.getByText('達成')).toBeVisible();
     await expect(page.locator('#btn-run-quests')).toHaveCount(0);
     const questHudBox = await questHud.boundingBox();

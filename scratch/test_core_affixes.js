@@ -585,7 +585,7 @@ test("巨人殺し: maxHPが高い敵だけ1.3倍", () => {
   assert.equal(getDamageAffixResult(char, { maxHp: 100 }, 100).damage, 100);
 });
 
-test("節目破り: ボスだけ1.25倍", () => {
+test("守護者殺し: ボスだけ1.25倍", () => {
   const char = makeChar("CORE_MILESTONE_BREAKER");
   assert.equal(getDamageAffixResult(char, { maxHp: 100, isBoss: true }, 100).damage, 125);
   assert.equal(getDamageAffixResult(char, { maxHp: 100, isBoss: false }, 100).damage, 100);
