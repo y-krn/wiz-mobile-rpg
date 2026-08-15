@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   unit:
@@ -37,23 +37,44 @@ jobs:
 
   browser:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
+      - name: Detect browser changes
+        id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          base: ${{ github.event_name == 'push' && github.ref || '' }}
+          filters: |
+            browser:
+              - 'src/**'
+              - 'tests/**'
+              - '**/*.css'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.github/workflows/**'
       - uses: actions/setup-node@v4
+        if: steps.changes.outputs.browser == 'true'
         with:
           node-version: 20
           cache: npm
       - run: npm ci
+        if: steps.changes.outputs.browser == 'true'
       - name: Resolve Playwright version
         id: pw
+        if: steps.changes.outputs.browser == 'true'
         run: echo "version=$(node -p "require('./node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         id: playwright-cache
+        if: steps.changes.outputs.browser == 'true'
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - run: npx playwright install --with-deps chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        if: steps.changes.outputs.browser == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
       - run: npx playwright install-deps chromium
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        if: steps.changes.outputs.browser == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
       - run: npm run test:browser
+        if: steps.changes.outputs.browser == 'true'
