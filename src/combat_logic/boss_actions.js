@@ -67,7 +67,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 16) + 10; // 10-25 DMG
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-          dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue });
+          dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
           const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
@@ -125,7 +125,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 16) + 15; // 15-30 DMG
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-          dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue });
+          dmg = reduceIncomingDamage(c, dmg, { spell: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
           const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
@@ -204,7 +204,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
             dmg = Math.max(1, Math.round(dmg * 0.4));
             logQueue.push({ msg: `[ 敵 ] ${c.name}は身を守り、爆裂ダメージを大幅に軽減した！` });
           }
-          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
+          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
           const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
@@ -231,7 +231,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 13) + 12; // 12-24 DMG
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
+          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
           const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
@@ -262,7 +262,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
           let dmg = Math.floor(Math.random() * 21) + 15; // 15-35 DMG
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue });
+          dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: true, logQueue, state });
           c.hp = Math.max(0, c.hp - dmg);
           const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {

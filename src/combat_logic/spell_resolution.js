@@ -144,7 +144,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     if (state.combatFormulaTelemetry) {
       monsters.forEach((mon, idx) => {
         const dealt = beforeHp[idx] - mon.hp;
-        if (dealt > 0) {
+        if (affectedMonsters.includes(mon) && beforeHp[idx] > 0) {
           state.combatFormulaTelemetry.spellHits.push({
             floor: state.floor,
             spellName: act.spellName,

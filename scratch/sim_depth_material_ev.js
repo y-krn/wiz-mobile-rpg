@@ -7479,6 +7479,7 @@ export function simulateRun({
       physicalMonsterHits: [],
       spellHits: [],
       mitigations: [],
+      mitigationCalls: [],
       targetedBonuses: []
     };
   }

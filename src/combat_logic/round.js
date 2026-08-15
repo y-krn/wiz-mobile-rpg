@@ -67,8 +67,18 @@ function applyFleePartingAttack(state, monsters, logQueue) {
 
   const finalAtk = getEffectiveAtk(attacker) + Math.floor(Math.random() * 4);
   const finalDef = Math.max(0, getCharDef(target) + Math.floor(getCharVit(target) / 4) + getMpWardDef(target));
-  let dmg = Math.max(1, finalAtk - finalDef);
-  dmg = reduceIncomingDamage(target, dmg, { logQueue });
+  const formulaRaw = finalAtk - finalDef;
+  const formulaDmg = Math.max(1, formulaRaw);
+  let dmg = formulaDmg;
+  const preMitigationDmg = dmg;
+  dmg = reduceIncomingDamage(target, dmg, { logQueue, state });
+  state.combatFormulaTelemetry?.physicalMonsterHits.push({
+    floor: state.floor,
+    targetClassName: target.class,
+    finalAtk, finalDef, formulaRaw, formulaDmg,
+    isDefending: false, isBlindTargetApplied: false, isSnipeAttack: false,
+    preMitigationDmg, finalDmg: dmg, attackType: "flee"
+  });
   target.hp = Math.max(0, target.hp - dmg);
   const recovered = wakeSleepingCharOnDamage(target);
   logQueue.push({
@@ -287,6 +297,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               isCritical = true;
             }
           }
+          const finalPhysicalDmg = isCritical ? Math.max(1, dmg * 3) : dmg;
 
           // #611: 物理攻撃(通常攻撃)式の計装。state.combatFormulaTelemetry
           // が未設定なら no-op（既定オフ）。ここまでの分岐・乱数消費は変更しない。
@@ -296,7 +307,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             weaponAtk, buffAtk, str, randRoll, def, meleeMod,
             formulaRaw, formulaDmg, magicBoltUsed, isBlindApplied, physResistApplied,
             criticalChance, isCritical,
-            preCriticalDmg: dmg
+            preCriticalDmg: dmg,
+            damage: finalPhysicalDmg
           });
 
           if (isCritical) {
@@ -351,7 +363,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           if (hasTrait(finalTarget, "counterSpell") && finalTarget.hp > 0 && Math.random() < (finalTarget.counterSpell?.chance ?? 0.2)) {
             let counterDmg = Math.floor(Math.random() * 11) + 5;
-            counterDmg = reduceIncomingDamage(char, counterDmg, { spell: true, logQueue });
+            counterDmg = reduceIncomingDamage(char, counterDmg, { spell: true, logQueue, state });
             char.hp = Math.max(0, char.hp - counterDmg);
             wakeSleepingCharOnDamage(char);
             if (char.hp === 0) {
@@ -716,7 +728,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
                 let dmg = Math.floor(Math.random() * 15) + 10;
                 if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-                dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
+                dmg = reduceIncomingDamage(c, dmg, {
+                  spell: true,
+                  dragon: mon.tags?.includes("dragon"),
+                  logQueue,
+                  state
+                });
                 c.hp = Math.max(0, c.hp - dmg);
                 wakeSleepingCharOnDamage(c);
                 if (c.hp === 0) {
@@ -748,7 +765,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
                 let dmg = Math.floor(Math.random() * 20) + 15;
                 if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-                dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
+                dmg = reduceIncomingDamage(c, dmg, {
+                  spell: true,
+                  dragon: mon.tags?.includes("dragon"),
+                  logQueue,
+                  state
+                });
                 c.hp = Math.max(0, c.hp - dmg);
                 wakeSleepingCharOnDamage(c);
                 if (c.hp === 0) {
@@ -770,7 +792,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           let dmg = Math.floor(Math.random() * 10) + 5;
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-          dmg = reduceIncomingDamage(target, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
+          dmg = reduceIncomingDamage(target, dmg, {
+            spell: true,
+            dragon: mon.tags?.includes("dragon"),
+            logQueue,
+            state
+          });
           target.hp = Math.max(0, target.hp - dmg);
           wakeSleepingCharOnDamage(target);
           logQueue.push({
@@ -792,7 +819,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
               let dmg = Math.floor(Math.random() * 30) + 35; // 35-65 DMG
               if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
-              dmg = reduceIncomingDamage(c, dmg, { spell: true, dragon: mon.tags?.includes("dragon"), logQueue });
+              dmg = reduceIncomingDamage(c, dmg, {
+                spell: true,
+                dragon: mon.tags?.includes("dragon"),
+                logQueue,
+                state
+              });
               c.hp = Math.max(0, c.hp - dmg);
               wakeSleepingCharOnDamage(c);
               if (c.hp === 0) {
@@ -837,7 +869,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const firstStrikeDefense = target.combatFirstStrikeActive ? getCharAffixSum(target, "firstStrikeDefense") : 0;
           const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4) + getBuffTotal(target, "def") + frontGuard + firstStrikeDefense + getMpWardDef(target)) - (target.tempDefDown || 0));
           const preDefDmg = finalAtk;
-          let dmg = Math.max(1, finalAtk - finalDef);
+          const formulaRaw = finalAtk - finalDef;
+          let dmg = Math.max(1, formulaRaw);
           const formulaDmg = dmg;
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
 
@@ -854,9 +887,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           state.combatFormulaTelemetry?.physicalMonsterHits.push({
             floor: state.floor,
             targetClassName: target.class,
-            finalAtk, finalDef, preDefDmg, formulaDmg,
+            finalAtk, finalDef, preDefDmg, formulaRaw, formulaDmg,
             isDefending, isBlindTargetApplied, isSnipeAttack,
-            preMitigationDmg, finalDmg: dmg
+            preMitigationDmg, finalDmg: dmg, attackType: "normal"
           });
           target.hp = Math.max(0, target.hp - dmg);
           const wakeSuffix = wakeSleepingCharOnDamage(target) ? `${target.name}は目を覚ました！` : "";
