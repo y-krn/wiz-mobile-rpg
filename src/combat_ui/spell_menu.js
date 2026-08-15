@@ -1,6 +1,7 @@
 import { state } from "../state.js";
 import { menuContext, openSubmenu } from "../navigation.js";
 import { combatCallbacks } from "./combat_state.js";
+import { getLivingAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 
 export function openCombatSpellMenu(char, callback) {
   // Find actor index
@@ -37,7 +38,7 @@ export function getSpellCombatSummary(spellName) {
   return summaries[spellName] || { tag: "不明", effect: "", category: "unknown" };
 }
 
-export function isSpellTargetAvailable(spell) {
+export function isSpellTargetAvailable(spell, spellKey, party = state.party) {
   // 1. 移動用（utility）呪文は戦闘中効果なしのため使用不可（戦闘不可）
   if (spell.target === "utility") return false;
 
@@ -47,21 +48,12 @@ export function isSpellTargetAvailable(spell) {
     if (!hasLivingEnemy) return false;
   }
 
-  // 3. 味方対象呪文：生存している味方がいるか
-  if (spell.target === "single_ally" || spell.target === "all_allies") {
-    const hasLivingAlly = state.party.some(c => ["ok", "poisoned", "blind"].includes(c.status));
-    if (!hasLivingAlly) return false;
+  // 3. 味方対象呪文：共通の有効対象条件で候補を確認
+  if (spell.target === "single_ally") {
+    return getSpellAllyTargetIndices(spellKey, party).length > 0;
   }
-
-  // 4. 特定の状態異常治療呪文の対象不在チェック
-  if (spell.name === "DIURCO") {
-    return state.party.some(c => c.status === "blind");
-  }
-  if (spell.name === "DIALKO") {
-    return state.party.some(c => c.status === "sleep" || c.status === "paralyze" || c.status === "paralyzed");
-  }
-  if (spell.name === "LATUMOFIS") {
-    return state.party.some(c => c.status === "poisoned");
+  if (spell.target === "all_allies") {
+    return getLivingAllyTargetIndices(party).length > 0;
   }
 
   return true;

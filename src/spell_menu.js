@@ -1,8 +1,14 @@
 import { state, saveAutosave, addLog } from "./state.js";
-import { getClassJpName, isSpellcaster, SPELLS, getSpellPayment, paySpellCost, getCoreLogText } from "./data.js";
+import { getClassJpName, isSpellcaster, SPELLS, getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp } from "./data.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
+import {
+  CURE_SPELL_KEYS,
+  HEAL_SPELL_KEYS,
+  getSpellAllyTargetIndices,
+  getSpellAllyTargetStatus
+} from "./rules/spell_targeting.js";
 
 export let spellMenuState = {
   filter: "all", // "all", "usable", "heal", "utility", "combat"
@@ -58,26 +64,8 @@ export function getSpellUsability(caster, spKey) {
   }
 
   // Check target availability
-  if (["DIOS", "MADIOS", "DIALMA", "MADI"].includes(spKey)) {
-    const hasDamaged = state.party.some(c => c.status !== "dead" && c.hp < c.maxHp);
-    if (!hasDamaged) {
-      return { usable: false, reason: "対象なし" };
-    }
-  } else if (spKey === "LATUMOFIS") {
-    const hasPoisoned = state.party.some(c => c.status === "poisoned");
-    if (!hasPoisoned) {
-      return { usable: false, reason: "対象なし" };
-    }
-  } else if (spKey === "DIURCO") {
-    const hasBlind = state.party.some(c => c.status === "blind");
-    if (!hasBlind) {
-      return { usable: false, reason: "対象なし" };
-    }
-  } else if (spKey === "DIALKO") {
-    const hasSleepOrParalyze = state.party.some(c => ["sleep", "paralyze", "paralyzed"].includes(c.status));
-    if (!hasSleepOrParalyze) {
-      return { usable: false, reason: "対象なし" };
-    }
+  if (spell.target === "single_ally" && getSpellAllyTargetIndices(spKey, state.party).length === 0) {
+    return { usable: false, reason: "対象なし" };
   }
 
   return { usable: true, reason: "" };
@@ -85,10 +73,9 @@ export function getSpellUsability(caster, spKey) {
 
 // Helper function to categorize spells
 export function getSpellCategory(spKey) {
-  const healSpells = ["DIOS", "MADIOS", "DIALMA", "MADI", "DIALKO", "DIURCO", "LATUMOFIS"];
   const utilitySpells = ["DUMAPIC", "MILWA", "LOMILWA", "MASFEAL"];
-  if (healSpells.includes(spKey)) {
-    if (["DIALKO", "DIURCO", "LATUMOFIS"].includes(spKey)) return { cat: "heal", name: "治療" };
+  if (HEAL_SPELL_KEYS.includes(spKey)) {
+    if (CURE_SPELL_KEYS.includes(spKey)) return { cat: "heal", name: "治療" };
     return { cat: "heal", name: "回復" };
   }
   if (utilitySpells.includes(spKey)) return { cat: "utility", name: "探索" };
@@ -347,51 +334,7 @@ export function renderSpellOverlay() {
       card.type = "button";
 
       // Target validation logic
-      let isDisabled = false;
-      let reason = "選択可能";
-      let isRecommended = false;
-
-      if (char.status === "dead") {
-        isDisabled = true;
-        reason = "対象外";
-      } else {
-        if (["DIOS", "MADIOS", "DIALMA", "MADI"].includes(menuContext.spellName)) {
-          if (char.hp >= char.maxHp) {
-            isDisabled = true;
-            reason = "HP満タン";
-          } else {
-            const ratio = char.hp / char.maxHp;
-            reason = "回復推奨";
-            if (ratio <= 0.5) {
-              isRecommended = true;
-            }
-          }
-        } else if (menuContext.spellName === "DIURCO") {
-          if (char.status === "blind") {
-            reason = "治療可";
-            isRecommended = true;
-          } else {
-            isDisabled = true;
-            reason = "健康";
-          }
-        } else if (menuContext.spellName === "DIALKO") {
-          if (["sleep", "paralyze", "paralyzed"].includes(char.status)) {
-            reason = "治療可";
-            isRecommended = true;
-          } else {
-            isDisabled = true;
-            reason = "健康";
-          }
-        } else if (menuContext.spellName === "LATUMOFIS") {
-          if (char.status === "poisoned") {
-            reason = "治療可";
-            isRecommended = true;
-          } else {
-            isDisabled = true;
-            reason = "健康";
-          }
-        }
-      }
+      const { isDisabled, reason, isRecommended } = getSpellAllyTargetStatus(menuContext.spellName, char);
 
       card.className = `spell-target-card ${isDisabled ? "disabled" : ""} ${isRecommended ? "recommended" : ""}`;
 
@@ -501,6 +444,9 @@ export function renderSpellOverlay() {
           <span class="spell-detail-name">${spell.name}</span>
           <span class="spell-detail-target">対象: ${targetJp}</span>
         </div>
+        <div class="spell-detail-caster-row">
+          術者: ${caster.name}（${getClassJpName(caster.class)}） / HP: <span class="detail-hp-val">${caster.hp}/${getCharMaxHp(caster)}</span>${caster.status !== "ok" ? ` / 状態: ${caster.status.toUpperCase()}` : ""}
+        </div>
         <div class="spell-detail-mp-row">
           消費MP: <span class="detail-mp-val">${spell.cost}</span> / 現在MP: <span class="detail-mp-val">${caster.mp}</span>
         </div>
@@ -517,7 +463,12 @@ export function renderSpellOverlay() {
       castBtn.addEventListener("click", () => {
         menuContext.spellName = spKey;
         if (spell.target === "single_ally") {
-          openSubmenu("spell_target_ally", `${spell.name}の対象を選択:`);
+          const targetIndices = getSpellAllyTargetIndices(spKey, state.party);
+          if (targetIndices.length === 1) {
+            executeAllySpell(targetIndices[0]);
+          } else {
+            openSubmenu("spell_target_ally", `${spell.name}の対象を選択:`);
+          }
         } else if (spell.target === "all_allies") {
           executeAllySpell();
         } else if (spell.target === "utility") {

@@ -8,6 +8,7 @@ import { resolveCombatRound } from "./round_runner.js";
 import { openCombatTargetMenu } from "./target_menu.js";
 import { openCombatSpellMenu } from "./spell_menu.js";
 import { openCombatItemMenu } from "./item_menu.js";
+import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 
 export { combatSelection };
 
@@ -110,7 +111,7 @@ export function selectCombatAction(type) {
           advanceActionSelection();
         }, spellName);
       } else if (spell.target === "single_ally") {
-        openCombatTargetMenu("ally", (targetIdx) => {
+        const enqueueAllySpell = (targetIdx) => {
           combatSelection.actions.push({
             type: "spell",
             actorIdx: charOriginalIdx,
@@ -119,7 +120,14 @@ export function selectCombatAction(type) {
           });
           combatSelection.charIdx++;
           advanceActionSelection();
-        }, spellName);
+        };
+        const targetIndices = getSpellAllyTargetIndices(spellName, state.party);
+        if (targetIndices.length === 1) {
+          state.gameState = "combat";
+          enqueueAllySpell(targetIndices[0]);
+        } else {
+          openCombatTargetMenu("ally", enqueueAllySpell, spellName);
+        }
       } else {
         // All enemies / all allies
         combatSelection.actions.push({
@@ -144,7 +152,7 @@ export function selectCombatAction(type) {
         addLog("戦闘中その道具は使用できません。");
         return;
       }
-      openCombatTargetMenu("ally", (targetIdx) => {
+      const enqueueAllyItem = (targetIdx) => {
         combatSelection.actions.push({
           type: "item",
           actorIdx: charOriginalIdx,
@@ -154,7 +162,14 @@ export function selectCombatAction(type) {
         });
         combatSelection.charIdx++;
         advanceActionSelection();
-      });
+      };
+      const targetIndices = getItemAllyTargetIndices(state.party);
+      if (targetIndices.length === 1) {
+        state.gameState = "combat";
+        enqueueAllyItem(targetIndices[0]);
+      } else {
+        openCombatTargetMenu("ally", enqueueAllyItem);
+      }
     });
   } else if (type === "defend") {
     combatSelection.actions.push({
