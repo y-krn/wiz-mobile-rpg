@@ -1,4 +1,11 @@
-import { getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharWeaponAtk, getCharStr } from "../data.js";
+import {
+  getCharAffixSum,
+  getCharMaxHp,
+  getCharMaxMp,
+  getCharWeaponAtk,
+  getCharStr,
+  calculatePhysicalAttackFormula
+} from "../data.js";
 import { recordCharDeath } from "../state.js";
 import { getBuffTotal, wakeSleepingCharOnDamage } from "./status_effects.js";
 import { getCharCoreParams, getCoreLogText, getDamageAffixResult } from "../rules/affix_rules.js";
@@ -152,10 +159,12 @@ export function tryApplyHitFlinch(char, target, logQueue, rng = Math.random) {
 export function tryThornCounter(char, monster, actorIdx, state, logQueue, rng = Math.random) {
   const thorn = getCharCoreParams(char, "CORE_THORN_SHIELD");
   if (!thorn || char.hp <= 0 || monster.hp <= 0 || rng() >= thorn.counterChance) return 0;
-  const base = Math.max(1, Math.floor(
-    ((getCharWeaponAtk(char) * 1.5) + (getCharStr(char) - 10) - Math.floor(getEffectiveDef(monster) / 2))
-      * getMeleeModifiers(char, actorIdx)
-  ));
+  const base = Math.max(1, Math.floor(calculatePhysicalAttackFormula({
+    weaponAtk: getCharWeaponAtk(char),
+    str: getCharStr(char),
+    def: getEffectiveDef(monster),
+    meleeMod: getMeleeModifiers(char, actorIdx)
+  })));
   const damage = Math.max(1, Math.round(base * thorn.counterPower));
   monster.hp = Math.max(0, monster.hp - damage);
   logCoreActivation(state, logQueue, char, "CORE_THORN_SHIELD", { once: false });

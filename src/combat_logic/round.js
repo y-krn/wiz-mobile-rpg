@@ -2,7 +2,8 @@ import {
   MONSTERS,
   getCharStr, getCharInt, getCharAgi, getCharVit,
   getCharWeaponAtk, getCharDef,
-  getCharAffixSum, getCharMaxHp, getCharMaxMp
+  getCharAffixSum, getCharMaxHp, getCharMaxMp,
+  calculatePhysicalAttackFormula, calculatePhysicalDefenseFormula
 } from "../data.js";
 import {
   canMeleeTargetEnemy,
@@ -66,7 +67,11 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   if (!attacker || !target) return;
 
   const finalAtk = getEffectiveAtk(attacker) + Math.floor(Math.random() * 4);
-  const finalDef = Math.max(0, getCharDef(target) + Math.floor(getCharVit(target) / 4) + getMpWardDef(target));
+  const finalDef = calculatePhysicalDefenseFormula({
+    baseDef: getCharDef(target),
+    vit: getCharVit(target),
+    bonusDef: getMpWardDef(target)
+  });
   const formulaRaw = finalAtk - finalDef;
   const formulaDmg = Math.max(1, formulaRaw);
   let dmg = formulaDmg;
@@ -261,7 +266,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
           // #611: 内訳計装用。クランプ前の値を保持するだけで式は変えない。
-          const formulaRaw = ((weaponAtk + buffAtk) * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod;
+          const formulaRaw = calculatePhysicalAttackFormula({
+            weaponAtk, buffAtk, str, randRoll, def, meleeMod
+          });
           dmg = Math.max(1, Math.floor(formulaRaw));
           const formulaDmg = dmg;
           let magicBoltUsed = false;
@@ -398,7 +405,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const str = getCharStr(char);
               const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
               const def = getEffectiveDef(finalTarget);
-              let followUpDmg = Math.max(1, Math.floor((weaponAtk * 1.5 + (str - 10) + followUpDmgRand - Math.floor(def / 2)) * 0.7 * meleeMod));
+              const followUpRaw = calculatePhysicalAttackFormula({
+                weaponAtk,
+                str,
+                randRoll: followUpDmgRand,
+                def,
+                meleeMod: 0.7
+              });
+              let followUpDmg = Math.max(1, Math.floor(followUpRaw * meleeMod));
               if (finalTarget.physResist) {
                 followUpDmg = Math.max(1, Math.round(followUpDmg * (1 - finalTarget.physResist)));
               }
@@ -867,7 +881,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           }
           const frontGuard = targetSelect.i < 2 ? getCharAffixSum(target, "frontGuard") : 0;
           const firstStrikeDefense = target.combatFirstStrikeActive ? getCharAffixSum(target, "firstStrikeDefense") : 0;
-          const finalDef = Math.max(0, (getCharDef(target) + Math.floor(getCharVit(target) / 4) + getBuffTotal(target, "def") + frontGuard + firstStrikeDefense + getMpWardDef(target)) - (target.tempDefDown || 0));
+          const finalDef = calculatePhysicalDefenseFormula({
+            baseDef: getCharDef(target),
+            vit: getCharVit(target),
+            bonusDef: getBuffTotal(target, "def") + frontGuard + firstStrikeDefense + getMpWardDef(target),
+            tempDefDown: target.tempDefDown || 0
+          });
           const preDefDmg = finalAtk;
           const formulaRaw = finalAtk - finalDef;
           let dmg = Math.max(1, formulaRaw);

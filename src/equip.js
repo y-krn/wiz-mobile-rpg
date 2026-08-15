@@ -171,7 +171,7 @@ function createRarityBadge(itemKey, className = "") {
 }
 
 function getDisplayStats(char) {
-  const derived = getCharDerivedStats(char);
+  const derived = getCharDerivedStats(char, { floor: state.floor });
   return {
     ...derived,
     maxHp: getCharMaxHp(char),
