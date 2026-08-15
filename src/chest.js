@@ -517,11 +517,17 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
         }
       }
     }
-    const spot = emptySpots[Math.floor(rng() * emptySpots.length)];
-    state.x = spot.x;
-    state.y = spot.y;
-    markMapCellVisited(state.x, state.y);
-    addLog("テレポーターが作動！冒険者は別の場所にテレポートした！");
+    const spot = emptySpots.length > 0
+      ? emptySpots[Math.floor(rng() * emptySpots.length)]
+      : null;
+    if (spot) {
+      state.x = spot.x;
+      state.y = spot.y;
+      markMapCellVisited(state.x, state.y);
+      addLog("テレポーターが作動！冒険者は別の場所にテレポートした！");
+    } else {
+      addLog("テレポーターは行き先を見つけられず、その場に留まった。");
+    }
   } else if (trap === "flash bomb") {
     addLog("閃光弾が作動！まばゆい光が冒険者を包み込んだ！");
     if (renderer && typeof renderer.triggerFlash === "function") {
@@ -549,24 +555,30 @@ export function useTrapKit() {
 }
 
 export function smashChest(rng = Math.random) {
-  if (!state.chestState) return false;
+  if (!state.chestState || state.transitioning) return false;
   const chest = state.chestState;
-  const trapTarget = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
-  addLog("宝箱を力任せに叩き壊した！");
+  state.transitioning = true;
+  try {
+    const trapTarget = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
+    addLog("宝箱を力任せに叩き壊した！");
 
-  if (chest.trap && chest.trap !== "none") {
-    if (state.currentRun) state.currentRun.trapsTriggered++;
-    triggerChestTrap(trapTarget, true, rng);
+    if (chest.trap && chest.trap !== "none") {
+      if (state.currentRun) state.currentRun.trapsTriggered++;
+      triggerChestTrap(trapTarget, true, rng);
+    }
+
+    const item = chest.item ? getItemData(chest.item) : null;
+    if (item?.type === "usable" && rng() < CHEST_USABLE_BREAK_CHANCE) {
+      chest.item = null;
+      addLog("衝撃で中身の一部が砕けた…");
+    }
+
+    openChestDirectly(null, rng);
+    return true;
+  } catch (error) {
+    recoverChestOpenTransition(error, chest);
+    return false;
   }
-
-  const item = chest.item ? getItemData(chest.item) : null;
-  if (item?.type === "usable" && rng() < CHEST_USABLE_BREAK_CHANCE) {
-    chest.item = null;
-    addLog("衝撃で中身の一部が砕けた…");
-  }
-
-  openChestDirectly(null, rng);
-  return true;
 }
 
 export function openChestDirectly(opener = null, rng = Math.random) {
