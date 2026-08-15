@@ -120,8 +120,10 @@
   min-height: var(--tap-min);
   box-sizing: border-box;
 }
-.codex-row:hover {
-  border-color: var(--neon-cyan);
+@media (hover: hover) and (pointer: fine) {
+  .codex-row:hover {
+    border-color: var(--neon-cyan);
+  }
 }
 
 .codex-name {
