@@ -713,6 +713,40 @@ import { createSoloCharacter } from "../src/state.js";
       return { found, unidentifiedName };
     }
 
+    const mageParty = [{
+      class: "Mage",
+      status: "ok",
+      equipment: { weapon: null, shield: null, armor: null }
+    }];
+    const mageDrop = generateRandomEquipment(4, {
+      forceRarity: "magic",
+      rng: () => 0.99,
+      party: mageParty,
+      allowCores: false
+    });
+    const mageDropData = ITEMS[mageDrop.baseId];
+    assert.ok(
+      mageDropData && (!mageDropData.classes || mageDropData.classes.some(cls => mageParty.some(char => char.class === cls))),
+      `class filter must stay active when the 70% priority roll misses: ${mageDrop.baseId}`
+    );
+
+    const unsupportedParty = [{
+      class: "UnsupportedClass",
+      status: "ok",
+      equipment: { weapon: null, shield: null, armor: null }
+    }];
+    const fallbackDrop = generateRandomEquipment(4, {
+      forceRarity: "magic",
+      rng: () => 0.99,
+      party: unsupportedParty,
+      allowCores: false
+    });
+    assert.ok(fallbackDrop, "zero class-filter candidates must fall back to the base pool");
+    assert.ok(
+      EQUIPMENT_CANDIDATES_BY_FLOOR[4].includes(fallbackDrop.baseId),
+      `fallback must return an item from the floor pool: ${fallbackDrop.baseId}`
+    );
+
     console.log("Running equipment variety plan A checks...");
 
     for (const [baseId, expected] of Object.entries(additions)) {

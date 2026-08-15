@@ -162,11 +162,11 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     baseCandidates = baseCandidates.filter(baseId => !RESTRICTED_CHEST_BASES.includes(baseId));
   }
 
-  // Smart Drop (70%): Select base items usable by the current party
-  if (rng() < 0.70 && party && party.length > 0) {
+  let priorityType = null;
+  if (party && party.length > 0) {
     const livingParty = party.filter(char => char.status !== "dead");
     const missingCount = { weapon: 0, shield: 0, armor: 0 };
-    
+
     if (livingParty.length > 0) {
       livingParty.forEach(char => {
         if (!char.equipment || !char.equipment.weapon) {
@@ -182,7 +182,6 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
       });
     }
 
-    let priorityType = null;
     let maxMissing = 0;
     for (const [slot, count] of Object.entries(missingCount)) {
       if (count > maxMissing) {
@@ -200,16 +199,18 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     });
 
     if (usableCandidates.length > 0) {
-      if (priorityType) {
-        const typeCandidates = usableCandidates.filter(baseId => {
-          const item = ITEMS[baseId];
-          return item && item.type === priorityType;
-        });
-        if (typeCandidates.length > 0) {
-          usableCandidates = typeCandidates;
-        }
-      }
       baseCandidates = usableCandidates;
+    }
+  }
+
+  // Smart Drop (70%): Prioritize a missing equipment slot without disabling the class filter.
+  if (rng() < 0.70 && priorityType) {
+    const typeCandidates = baseCandidates.filter(baseId => {
+      const item = ITEMS[baseId];
+      return item && item.type === priorityType;
+    });
+    if (typeCandidates.length > 0) {
+      baseCandidates = typeCandidates;
     }
   }
   
