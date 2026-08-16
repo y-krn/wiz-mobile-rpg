@@ -119,6 +119,12 @@ function compactResult(task, result) {
     trapDamageHp: result.trapDamageHp,
     fleeCount: result.fleeCount,
     townPortalsUsed: result.townPortalsUsed,
+    consumableUsageByItem: Object.fromEntries(
+      Object.entries(result.consumableUsageByItem || {}).map(([itemKey, usage]) => [
+        itemKey,
+        { ...usage }
+      ])
+    ),
     statusCuresUsed,
     mpDepleted: Boolean(result.mpDepleted)
   };
