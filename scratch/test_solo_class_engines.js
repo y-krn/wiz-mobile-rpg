@@ -89,8 +89,7 @@ test("火炎の罠の予告回避は装備効果に応じて上限付きで増�
     baseId: "SHORT_SWORD",
     identified: true,
     affixes: [
-      { type: "trapBonus", value: 15 },
-      { type: "trapSense", value: 15 }
+      { type: "trapBonus", value: 30 }
     ]
   });
   const character = createSoloCharacter("Fighter");

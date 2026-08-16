@@ -321,24 +321,24 @@ const overCapSpellChar = makeChar({
 check("INT 30 reaches the +40% cap before affixes", getCharDerivedStats(cappedSpellChar).magic, 54);
 check("INT above 30 does not increase the capped display", getCharDerivedStats(overCapSpellChar).magic, 54);
 
-const trapSenseChar = makeChar({
+const trapChar = makeChar({
   level: 4,
-  equipment: { accessory: makeItem("RING_STR", [{ type: "trapSense", value: 10 }]) }
+  equipment: { accessory: makeItem("RING_STR", [{ type: "trapBonus", value: 10 }]) }
 });
-const trapAffixBonus = Math.round(getCharTrapBonus(trapSenseChar) * 100);
+const trapAffixBonus = Math.round(getCharTrapBonus(trapChar) * 100);
 check(
   "trap display calls the real floor disarm formula",
-  getCharDerivedStats(trapSenseChar, { floor: 5 }).trap,
+  getCharDerivedStats(trapChar, { floor: 5 }).trap,
   calculateDisarmRate({
-    className: trapSenseChar.class,
-    level: trapSenseChar.level,
+    className: trapChar.class,
+    level: trapChar.level,
     floor: 5,
     affixBonus: trapAffixBonus
   })
 );
 check(
   "trap display does not add unrelated LUK",
-  getCharDerivedStats(trapSenseChar, { floor: 5 }).trap,
+  getCharDerivedStats(trapChar, { floor: 5 }).trap,
   44
 );
 

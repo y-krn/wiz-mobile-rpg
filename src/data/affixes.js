@@ -47,8 +47,7 @@ export const AFFIX_BALANCE = {
     stairsHeal: 1,
     identifyDiscount: 1,
     materialFind: 2,
-    contractReward: 2,
-    trapSense: 2
+    contractReward: 2
   },
   // #270: 実src経路のsim（N=500、工房解放済み・帰還の翼あり）で
   // 前半core遭遇 44.2%→65.4%、前半core装備 36.2%→58.2%。
@@ -140,7 +139,6 @@ export const SUPPORT_AFFIXES = [
   support("identifyDiscount", "鑑定眼", "鑑定費用を軽減する。", "economy", { unit: "%" }),
   support("materialFind", "素材探し", "素材発見率が10%増加する。", "economy", { unit: "%" }),
   support("contractReward", "任務巧者", "ランクエスト報酬が10%増加する。", "economy", { unit: "%" }),
-  support("trapSense", "罠解除", "罠の解除率が増加する。", "basic", { unit: "%" }),
 ];
 
 export const CORE_AFFIXES = [

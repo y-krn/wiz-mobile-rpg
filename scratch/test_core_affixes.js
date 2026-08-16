@@ -192,9 +192,9 @@ test("素材経済サポートenabled・浅層経済3/戦闘1・深層逆転", (
   assert.deepEqual(AFFIX_BALANCE.corePoolWeights.deep, { combat: 3, economy: 1 });
 });
 
-test("刻印20種: 素材cost・サポートtype・素材割当が整合", () => {
+test("刻印19種: 素材cost・サポートtype・素材割当が整合", () => {
   const entries = Object.entries(TAG_EFFECT_MAP);
-  assert.equal(entries.length, 20);
+  assert.equal(entries.length, 19);
   const assignedTags = new Set(Object.values(MATERIAL_TAGS).flat());
   entries.forEach(([tag, effect]) => {
     assert.ok(effect.matCost >= 1 && effect.matCost <= 4, `${tag}: matCost`);
@@ -207,7 +207,7 @@ test("刻印20種: 素材cost・サポートtype・素材割当が整合", () =>
   });
 });
 
-test("罠解除刻印: KATANAを維持してtrapSenseを付与", () => {
+test("罠解除刻印: KATANAを維持して罠印を付与", () => {
   const previousLocalStorage = globalThis.localStorage;
   const previousInventory = state.inventory;
   const previousMaterials = state.metaMaterials;
@@ -226,19 +226,19 @@ test("罠解除刻印: KATANAを維持してtrapSenseを付与", () => {
       affixes: []
     };
     state.inventory = [katana];
-    state.metaMaterials = { "毒腺": TAG_EFFECT_MAP.trap_sense.matCost };
+    state.metaMaterials = { "毒腺": TAG_EFFECT_MAP.trap.matCost };
     state.logs = [];
 
-    assert.equal(executeTagInscription(0, "毒腺", "trap_sense"), true);
+    assert.equal(executeTagInscription(0, "毒腺", "trap"), true);
     const inscribed = state.inventory[0];
     assert.equal(inscribed.baseId, "KATANA");
-    assert.equal(inscribed.inscription.type, "trapSense");
-    assert.equal(inscribed.inscription.value, TAG_EFFECT_MAP.trap_sense.value);
-    assert.ok(inscribed.tags.includes("trap_sense"));
-    assert.equal(TAGS.trap_sense.name, "解除");
+    assert.equal(inscribed.inscription.type, "trapBonus");
+    assert.equal(inscribed.inscription.value, TAG_EFFECT_MAP.trap.value);
+    assert.ok(inscribed.tags.includes("trap"));
+    assert.equal(TAGS.trap.name, "罠");
     const itemData = getItemData(inscribed);
-    assert.match(itemData.desc, /<タグ: .*解除>/);
-    assert.ok(itemData.desc.includes("<刻印: 解印 (罠解除+15%)>"));
+    assert.match(itemData.desc, /<タグ: .*罠>/);
+    assert.ok(itemData.desc.includes("<刻印: 罠印 (罠解除+10%)>"));
 
     const character = {
       class: "Fighter",
@@ -247,7 +247,7 @@ test("罠解除刻印: KATANAを維持してtrapSenseを付与", () => {
       status: "ok",
       equipment: { weapon: inscribed, shield: null, armor: null, accessory: null }
     };
-    assert.equal(getPartyMaxAffix([character], "trapSense"), 15);
+    assert.equal(getPartyMaxAffix([character], "trapBonus"), 10);
   } finally {
     state.inventory = previousInventory;
     state.metaMaterials = previousMaterials;

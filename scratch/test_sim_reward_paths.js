@@ -38,13 +38,16 @@ if (detectRateCalls.length === 0) {
       `${depthSimulationName}: calculateDetectRate must receive scoutBonus from the simulated party`
     );
   }
-  if (!/getPartyMaxAffix\s*\(\s*state\.party\s*,\s*["']trapSense["']\s*\)/.test(depthSimulationSource)) {
+  if (!/getSimulationTrapBonus\s*\(\s*character[\s\S]*?getCharTrapBonus\s*\(\s*character\s*\)/.test(depthSimulationSource)) {
     failures.push(
-      `${depthSimulationName}: trapSense conversion must read the simulated party`
+      `${depthSimulationName}: trapBonus conversion must read the simulated party`
     );
   }
-  if (!/trapSenseDisposition/.test(depthSimulationSource)) {
-    failures.push(`${depthSimulationName}: trapSense disposition must be explicit in sim state`);
+  if (
+    depthSimulationSource.includes(["trap", "Sense"].join("")) ||
+    depthSimulationSource.includes(["trap", "_sense"].join(""))
+  ) {
+    failures.push(`${depthSimulationName}: retired trap affix identifiers must not remain in the canonical sim`);
   }
   if (!/getPartyFlameTrapWarningAvoidanceChance\s*\(\s*state\.party\s*\)/.test(depthSimulationSource)) {
     failures.push(`${depthSimulationName}: flame warning avoidance must use the src helper`);

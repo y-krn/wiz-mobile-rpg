@@ -247,7 +247,7 @@ if (calculateDetectRate({ floor: 10 }) !== 1) {
   process.exit(1);
 }
 if (calculateDetectRate({ floor: 10, scoutBonus: 0.15 }) !== 1) {
-  console.error("FAIL: trapSense must not change certain detection.");
+  console.error("FAIL: scout bonus must not change certain detection.");
   process.exit(1);
 }
 if (calculateDetectRate({ floor: 10, scoutBonus: 1 }) !== 1) {
@@ -319,7 +319,7 @@ if (grid[2][1].trap.state !== "discovered") {
 Math.random = realRandom;
 console.log("PASS: Adjacent detection verified.");
 
-// trapSense is converted to a disarm investment; detection remains certain.
+// Trap investment affects disarm only; detection remains certain.
 state.floor = 10;
 state.maps = Array.from({ length: 10 }, () => grid);
 state.party = [{
@@ -331,8 +331,9 @@ state.party = [{
   status: "ok",
   equipment: {
     weapon: {
+      baseId: "SHORT_SWORD",
       identified: true,
-      affixes: [{ type: "trapSense", value: 15 }]
+      affixes: [{ type: "trapBonus", value: 15 }]
     }
   }
 }];
@@ -343,14 +344,14 @@ Math.random = () => 0.8;
 detectAdjacentTraps();
 Math.random = realRandom;
 if (grid[0][1].trap.state !== "discovered") {
-  console.error("FAIL: adjacent trap should be discovered without trapSense.");
+  console.error("FAIL: adjacent trap should be discovered without a scout affix.");
   process.exit(1);
 }
 if (calculateSuccessRate({ type: "damage" }) !== 38) {
-  console.error("FAIL: trapSense should add 15 points to the B10 disarm rate.");
+  console.error("FAIL: trapBonus should add 15 points to the B10 disarm rate.");
   process.exit(1);
 }
-console.log("- trapSense investment raises Fighter disarm rate without detection coupling");
+console.log("- trapBonus investment raises Fighter disarm rate without detection coupling");
 
 // 6. Three-choice trap encounter
 console.log("\n[6] Verifying trap encounter choices:");
@@ -522,8 +523,7 @@ state.party[0].equipment = {
     baseId: "SHORT_SWORD",
     identified: true,
     affixes: [
-      { type: "trapBonus", value: 15 },
-      { type: "trapSense", value: 15 }
+      { type: "trapBonus", value: 30 }
     ]
   }
 };
@@ -535,7 +535,7 @@ try {
   Math.random = realFlameRandom;
 }
 if (state.party[0].hp !== 20 || !state.logs.some(log => log.includes("身をかわした"))) {
-  console.error("FAIL: trapSense/trapBonus investment should avoid the flame hit.");
+  console.error("FAIL: trapBonus investment should avoid the flame hit.");
   process.exit(1);
 }
 console.log("- trapGuard reduces flame damage and invested gear can avoid it");
