@@ -16,6 +16,7 @@ const WORKER_SCRIPT = join(SCRIPT_DIR, "sim_commit_depth_624.js");
 const RESULT_DIR = join(SCRIPT_DIR, "results");
 const RAW_PATH = join(RESULT_DIR, "issue-624-commit-depth.raw.jsonl");
 const SUMMARY_PATH = join(RESULT_DIR, "issue-624-commit-depth.md");
+const RAW_RELATIVE_PATH = "scratch/results/issue-624-commit-depth.raw.jsonl";
 const SMOKE = process.env.ISSUE624_SMOKE === "1";
 const RUNS_PER_CLASS = SMOKE ? 1 : 500;
 const CALIBRATION_RUNS = SMOKE ? 1 : 100;
@@ -54,7 +55,16 @@ const DEPTH_BANDS = Object.freeze([
   ["B15+", 15, TARGET_DEPTH]
 ]);
 const Z95 = 1.959963984540054;
-const BASE_DEPARTURE_CRAFT_IDS = ISSUE612_FIXED_ENV.DEPARTURE_CRAFT_IDS;
+// #624 uses the current depth-sim seed, not the historical #612 seed. Keep
+// the other fixed environment values identical to the #612 baseline so the
+// only condition changes remain portal/flee policy overrides.
+const BASE_ENV = Object.freeze({
+  ...ISSUE612_FIXED_ENV,
+  SIM_SEED: "231",
+  SIM_RUNS: "500",
+  SIM_CALIBRATION_RUNS: "100"
+});
+const BASE_DEPARTURE_CRAFT_IDS = BASE_ENV.DEPARTURE_CRAFT_IDS;
 const NO_PORTAL_DEPARTURE_CRAFT_IDS = BASE_DEPARTURE_CRAFT_IDS
   .split(",")
   .filter(itemId => itemId !== "TOWN_PORTAL")
@@ -99,7 +109,7 @@ function sha256(value) {
 }
 
 function makeBaseEnv() {
-  const env = { ...ISSUE612_FIXED_ENV };
+  const env = { ...BASE_ENV };
   if (SMOKE) {
     env.SIM_RUNS = "1";
     env.SIM_CALIBRATION_RUNS = "1";
@@ -135,7 +145,7 @@ function makeChildEnv(condition) {
 
 function relevantEnvironment(env, condition) {
   const keys = new Set([
-    ...Object.keys(ISSUE612_FIXED_ENV),
+    ...Object.keys(BASE_ENV),
     ...Object.keys(condition.overrides),
     "SIM_EXPLORATION_FACTOR",
     "SIM_MAP_STATS",
@@ -146,10 +156,11 @@ function relevantEnvironment(env, condition) {
   );
 }
 
-function environmentSignature(env, condition, sourceCommit) {
+function environmentSignature(env, condition, sourceCommit, baseCommit) {
   return {
     issue: 624,
     sourceCommit,
+    baseCommit,
     runner: "scratch/issue624_commit_depth.js -> scratch/sim_commit_depth_624.js",
     sim: "scratch/sim_depth_material_ev.js",
     conditionId: condition.id,
@@ -167,9 +178,9 @@ function environmentSignature(env, condition, sourceCommit) {
   };
 }
 
-function runCondition(condition, sourceCommit) {
+function runCondition(condition, sourceCommit, baseCommit) {
   const env = makeChildEnv(condition);
-  const signature = environmentSignature(env, condition, sourceCommit);
+  const signature = environmentSignature(env, condition, sourceCommit, baseCommit);
   const envHash = hashEnvSignature(signature);
   console.error(`[624] ${condition.id}: start envHash=${envHash}`);
   const child = spawnSync(process.execPath, [WORKER_SCRIPT], {
@@ -533,7 +544,10 @@ function renderDeathState(state) {
   const equipment = state.equipment.length > 0
     ? state.equipment.map(([id, count]) => `${id}:${count}`).join(", ")
     : "なし";
-  return `death N=${state.deaths}; lv ${formatMean(state.level, 2)}; ` +
+  const sampleStatus = state.deaths < 30
+    ? "（N不足。到達しないのではなく、死亡runの観測数不足）"
+    : "";
+  return `death N=${state.deaths}${sampleStatus}; lv ${formatMean(state.level, 2)}; ` +
     `装備slot ${formatMean(state.equipmentSlots, 2)}; ` +
     `lv帯(${levelBands || "なし"}); core(${cores}); 装備(${equipment})`;
 }
@@ -544,14 +558,22 @@ function renderMaterialVector(materials) {
     .join(", ");
 }
 
-function renderMarkdown({ measurements, summaries, paired, sourceCommit, rawSha256, summaryEnv }) {
+function renderMarkdown({
+  measurements,
+  summaries,
+  paired,
+  sourceCommit,
+  baseCommit,
+  rawSha256,
+  summaryEnv
+}) {
   const baselineId = CONDITIONS[0].id;
   const baselineSummary = summaries[baselineId];
   const expectedBaseline = {
-    Fighter: 6.14,
-    Thief: 5.22,
-    Priest: 4.83,
-    Mage: 6.44
+    Fighter: 5.778,
+    Thief: 5.162,
+    Priest: 4.740,
+    Mage: 6.474
   };
   const baselineChecks = CLASSES.map(className => {
     const actual = baselineSummary[className].reached.estimate;
@@ -570,9 +592,11 @@ function renderMarkdown({ measurements, summaries, paired, sourceCommit, rawSha2
     "# Issue #624 測定: 「持ち帰りを諦めて潜る」到達限界",
     "",
     `- 測定 source commit: \`${sourceCommit}\``,
+    `- 測定 base（origin/main）: \`${baseCommit}\``,
     `- 条件数: ${CONDITIONS.length}、職別 N=${RUNS_PER_CLASS}、職: ${CLASSES.map(className => CLASS_LABELS[className]).join(" / ")}`,
     `- 目標深度: B${TARGET_DEPTH}（B1開始、既存 #612 の重み付き工房系列）`,
-    `- raw JSONL: \`${RAW_PATH}\``,
+    `- seed: ${BASE_ENV.SIM_SEED}、calibration: ${BASE_ENV.SIM_CALIBRATION_RUNS}、SIM_PARALLEL: omitted`,
+    `- raw JSONL: \`${RAW_RELATIVE_PATH}\`（ignored artifact）`,
     `- raw JSONL SHA-256: \`${rawSha256}\``,
     `- summary env hash（全条件の短縮hash）: \`${summaryEnv}\``,
     "",
@@ -594,9 +618,9 @@ function renderMarkdown({ measurements, summaries, paired, sourceCommit, rawSha2
     "条件4は条件2（翼を出発キットから除外）に `FLEE_POLICY=never` を加えた。" +
       "条件2は宝箱等で途中入手した翼まで禁止する条件ではなく、「持たずに出発」の条件である。",
     "",
-    "## 基準線再現（#612 1x）",
+    "## 基準線再現（#652値との照合）",
     "",
-    "期待値は到達階平均 Fighter 6.14 / Thief 5.22 / Priest 4.83 / Mage 6.44。" +
+    "期待値は #652 再測定の到達階平均 Fighter 5.778 / Thief 5.162 / Priest 4.740 / Mage 6.474。" +
       " 判定は表示2桁の丸め誤差を許容して |実測−期待|≤0.005 とした。",
     "",
     "| 職 | 期待 | 実測平均 | 差 | 判定 |",
@@ -614,23 +638,21 @@ function renderMarkdown({ measurements, summaries, paired, sourceCommit, rawSha2
       : [
           "### 基準線不一致の原因調査",
           "",
-          "#612 の期待値は `164547a`（#622測定、2026-08-15 13:54 JST）の結果で、" +
-            "現 HEAD の `89474a0`（#625、同日 14:49 JST）より前に測定された。#625 は " +
-            "`scratch/sim_depth_material_ev.js` のローカル encounter chance 式を削除し、" +
-            "`src/movement.js` の `calculateEncounterChance` を静的 import して共有する変更である。" +
-            "本測定は現行の共有 helper を通るため、#612 の Fighter だけ到達階平均が " +
-            "6.14→6.1240 へ変わった（Thief 5.2200、Priest 4.8260、Mage 6.4420 は期待値と一致）。",
+          "#652 の基準値は base `3e659a62a2b7acca1442feddf101b9b71849458f` で測定された。" +
+            "現行 base では #656 により `scratch/sim_depth_material_ev.js` の回復経路へ " +
+            "mana potion と MP不足時の計測が入り、#662 で MP圧力計測が追加されている。" +
+            "#657 はUI変更で、ゲーム本体のルール値はこの区間で変更されていない。",
           "",
-          "したがって Fighter の #612 値は現 HEAD では厳密再現不能であり、測定側が " +
-            "#625 以前から変わったことを記録する。死亡 snapshot の追加計装は terminal event 後の " +
-            "読み取り専用処理で、乱数・探索・戦闘の経路を変更していない。以下の paired 比較は " +
-            "現 HEAD で再測定した `baseline-portal-flee` を対照にし、#612 旧値への遡及比較ではない。",
+          "このため新しい基準値は現行 base では再現しなかった。旧値へ合わせる変更は行わず、" +
+            "以下の paired 比較は現行 base で再測定した `baseline-portal-flee` を対照にする。" +
+            "#656/#662 の各差分が平均値の差へ与えた寄与は、過去 base の再実行を伴わないため個別には判定しない。",
           ""
         ]),
     "## 到達階の主要結果（全run分母）",
     "",
-    "平均は通常近似95% CI、率は Wilson 95% CI。`N不足` は N<30 で、結論には使わない。" +
-      " 到達階は死亡・撤退を含む `reachedFloor` の run 平均である。",
+    "平均は通常近似95% CI、率は Wilson 95% CI。`N不足` は該当セルの N<30 で、結論には使わない。" +
+      " 到達階は死亡・撤退を含む `reachedFloor` の run 平均である。主結果の各職×条件は N=500。" +
+      "深度帯や死亡状態の `N不足` は到達しないことではなく、その層の観測数不足を示す。",
     "",
     "| 条件 | 職 | 到達階平均 [95% CI; N] | 生還率 Wilson | 死亡率 Wilson |",
     "| --- | --- | --- | --- | --- |",
@@ -727,9 +749,39 @@ function renderMarkdown({ measurements, summaries, paired, sourceCommit, rawSha2
       )
     )),
     "",
+    "## 結論",
+    "",
+    `現行 base の既定（翼あり・逃走あり）平均は ${CLASSES.map(className =>
+      `${CLASS_LABELS[className]} ${baselineSummary[className].reached.estimate.toFixed(3)}`
+    ).join(" / ")}。翼を持たずに出発する条件は途中入手の翼を許すため、` +
+      "翼を完全に禁止する条件ではなく、`PORTAL_HP_THRESHOLD=0` が「所持するが使わない」、" +
+      "`FLEE_POLICY=never` が逃走撤退を切る条件である。",
+    "",
+    ...CONDITIONS.slice(1).map(condition => {
+      const summary = summaries[condition.id];
+      return `- ${condition.id}: ` + CLASSES.map(className =>
+        `${CLASS_LABELS[className]} ${summary[className].reached.estimate.toFixed(3)}`
+      ).join(" / ");
+    }),
+    "",
+    (() => {
+      const winners = CONDITIONS.slice(1).flatMap(condition =>
+        CLASSES.flatMap(className =>
+          paired[condition.id][className].bands
+            .filter(band => band.winner === "commit優位")
+            .map(band => `${condition.id}/${CLASS_LABELS[className]} ${band.label}`)
+        )
+      );
+      return winners.length > 0
+        ? `素材効率で commit 優位が確定した帯: ${winners.join(", ")}。`
+        : "素材効率で commit 優位を確定できる深度帯はなかった（CIが重なるか N不足）。";
+    })(),
+    "死亡時 bank は `BANKING_RATES.death=0.3` を適用しており、深度を伸ばすことと素材効率を" +
+      "同一視しない。",
+    "",
     "## 判断・制約・未解決",
     "",
-    "- #612 基準線を再現するため、seed、series ID、run ごとの hash seed、工房系列、core calibration の手順を再利用した。",
+    "- #612/#652基準線の seed=231、series ID、run ごとの hash seed、工房系列、core calibration の手順を再利用した。",
     "- 条件2は「出発時に翼を持たない」、条件3は「翼を持つが threshold=0 で使わない」であり、宝箱からの途中入手は共通の既存経路に任せた。",
     "- 条件4は条件2 + `FLEE_POLICY=never` とした。逃走も撤退の一種なので、翼だけを切った条件と分離した。",
     "- 既定の sim ロジック（探索、戦闘、報酬、map生成）は再実装していない。新規ファイルは既存 `simulateRun` を呼ぶ run-scope worker と、child 実行・集計だけの harness である。",
@@ -752,11 +804,15 @@ function renderMarkdown({ measurements, summaries, paired, sourceCommit, rawSha2
 
 function main() {
   const sourceCommit = gitOutput(["rev-parse", "HEAD"]);
-  const measurements = CONDITIONS.map(condition => runCondition(condition, sourceCommit));
+  const baseCommit = gitOutput(["rev-parse", "origin/main"]);
+  const measurements = CONDITIONS.map(condition =>
+    runCondition(condition, sourceCommit, baseCommit)
+  );
   const { summaries, paired } = buildSummaries(measurements);
   const rawLines = measurements.flatMap(measurement =>
     measurement.result.rows.map(row => JSON.stringify({
       sourceCommit,
+      baseCommit,
       conditionId: measurement.condition.id,
       envHash: measurement.envHash,
       ...row
@@ -769,6 +825,7 @@ function main() {
   const summaryEnv = hashEnvSignature({
     issue: 624,
     sourceCommit,
+    baseCommit,
     conditions: measurements.map(measurement => ({
       id: measurement.condition.id,
       envHash: measurement.envHash
@@ -783,6 +840,7 @@ function main() {
     summaries,
     paired,
     sourceCommit,
+    baseCommit,
     rawSha256,
     summaryEnv
   });
