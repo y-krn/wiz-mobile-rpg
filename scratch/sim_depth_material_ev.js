@@ -2592,6 +2592,12 @@ const STATUS_CURE_ITEMS = Object.freeze({
   sleep: ["WAKE_POWDER", "PANACEA"]
 });
 const STATUS_CURE_ITEM_IDS = new Set(Object.values(STATUS_CURE_ITEMS).flat());
+const STATUS_OBSERVATION_KEYS = Object.freeze([
+  "poisoned",
+  "blind",
+  "paralyzed",
+  "sleep"
+]);
 const SIM_COMBAT_CONSUMPTION_HOOK_IDS = new Set([
   "HEAL_POTION",
   "GREATER_HEAL",
@@ -2602,6 +2608,302 @@ const MERCHANT_STATUS_CURE_STOCK = Object.freeze([
   { stockId: "wake_powder", itemId: "WAKE_POWDER" },
   { stockId: "paralyze_cure", itemId: "PARALYZE_CURE" }
 ]);
+
+function normalizeStatusObservation(status) {
+  if (status === "paralyze") return "paralyzed";
+  return STATUS_OBSERVATION_KEYS.includes(status) ? status : null;
+}
+
+function createStatusObservationBuckets() {
+  return Object.fromEntries(STATUS_OBSERVATION_KEYS.map(status => [status, {
+    applications: 0,
+    applicationsBySource: {},
+    episodes: 0,
+    totalCombatRounds: 0,
+    totalExplorationSteps: 0,
+    totalIncapacitatedActions: 0,
+    totalPoisonDamageHp: 0,
+    totalIncomingDamageHp: 0,
+    blindAttackAttempts: 0,
+    blindAttackMisses: 0,
+    blindAttackHitDamageHp: 0,
+    maxCombatRounds: 0,
+    runsWithApplications: 0,
+    runsWithEpisodes: 0,
+    endReasons: {}
+  }]));
+}
+
+function createStatusObservationMetrics() {
+  return {
+    byStatus: createStatusObservationBuckets(),
+    activeEpisode: null
+  };
+}
+
+function createStatusObservationAggregate() {
+  return {
+    runs: 0,
+    byStatus: createStatusObservationBuckets()
+  };
+}
+
+function closeStatusObservationEpisode(observations, reason = "run-end") {
+  const episode = observations?.activeEpisode;
+  if (!episode) return;
+  const bucket = observations.byStatus[episode.status];
+  bucket.episodes++;
+  bucket.totalCombatRounds += episode.combatRounds;
+  bucket.totalExplorationSteps += episode.explorationSteps;
+  bucket.totalIncapacitatedActions += episode.incapacitatedActions;
+  bucket.totalPoisonDamageHp += episode.poisonDamageHp;
+  bucket.totalIncomingDamageHp += episode.incomingDamageHp;
+  bucket.blindAttackAttempts += episode.blindAttackAttempts;
+  bucket.blindAttackMisses += episode.blindAttackMisses;
+  bucket.blindAttackHitDamageHp += episode.blindAttackHitDamageHp;
+  bucket.maxCombatRounds = Math.max(bucket.maxCombatRounds, episode.combatRounds);
+  bucket.endReasons[reason] = (bucket.endReasons[reason] || 0) + 1;
+  observations.activeEpisode = null;
+}
+
+function ensureStatusObservationEpisode(observations, status, source = "state") {
+  const normalized = normalizeStatusObservation(status);
+  if (!normalized) return null;
+  if (observations.activeEpisode && observations.activeEpisode.status !== normalized) {
+    closeStatusObservationEpisode(observations, "overwritten");
+  }
+  if (!observations.activeEpisode) {
+    observations.activeEpisode = {
+      status: normalized,
+      source,
+      combatRounds: 0,
+      explorationSteps: 0,
+      incapacitatedActions: 0,
+      poisonDamageHp: 0,
+      incomingDamageHp: 0,
+      blindAttackAttempts: 0,
+      blindAttackMisses: 0,
+      blindAttackHitDamageHp: 0
+    };
+  }
+  return observations.activeEpisode;
+}
+
+function recordStatusObservationApplication(observations, status, source = "state") {
+  const normalized = normalizeStatusObservation(status);
+  if (!normalized) return;
+  const bucket = observations.byStatus[normalized];
+  bucket.applications++;
+  bucket.applicationsBySource[source] = (bucket.applicationsBySource[source] || 0) + 1;
+  ensureStatusObservationEpisode(observations, normalized, source);
+}
+
+function recordStatusObservationExposure(
+  observations,
+  status,
+  { combatRound = false, explorationStep = false, incapacitatedAction = false, incomingDamageHp = 0 } = {}
+) {
+  const episode = ensureStatusObservationEpisode(observations, status);
+  if (!episode) return;
+  episode.combatRounds += Number(combatRound);
+  episode.explorationSteps += Number(explorationStep);
+  episode.incapacitatedActions += Number(incapacitatedAction);
+  episode.incomingDamageHp += Number(incomingDamageHp) || 0;
+}
+
+function clearStatusObservation(observations, status, reason = "state-transition") {
+  const normalized = normalizeStatusObservation(status);
+  if (observations?.activeEpisode?.status !== normalized) return;
+  closeStatusObservationEpisode(observations, reason);
+}
+
+function inferStatusObservationEndReason(logQueue = [], action = null, afterStatus = null) {
+  const messages = logQueue.map(entry => entry?.msg || "");
+  if (afterStatus === "dead") return "death";
+  if (action?.simStatusBefore) return "cured";
+  if (messages.some(message => message.includes("盲目が戦闘終了で解けた"))) {
+    return "combat-end";
+  }
+  if (messages.some(message =>
+    message.includes("眠りから目を覚ました") || message.includes("麻痺から回復した")
+  )) return "incapacitated-action";
+  if (messages.some(message => message.includes("目を覚ました！"))) {
+    return "damage-wake";
+  }
+  return "state-transition";
+}
+
+function recordStatusObservationAfterCombatRound(
+  observations,
+  characterBefore,
+  characterAfter,
+  action,
+  logQueue,
+  incomingDamageHp
+) {
+  const beforeStatus = normalizeStatusObservation(characterBefore?.status);
+  const afterStatus = normalizeStatusObservation(characterAfter?.status);
+  const applicationLogs = [
+    ["poisoned", "毒を受け、毒状態になった"],
+    ["paralyzed", "麻痺を受け、麻痺状態になった"],
+    ["sleep", "眠りに落ちた"],
+    ["blind", "盲目状態になった"]
+  ];
+
+  if (beforeStatus && observations.activeEpisode?.status !== beforeStatus) {
+    ensureStatusObservationEpisode(observations, beforeStatus);
+  }
+  const beforeEpisode = beforeStatus &&
+    observations.activeEpisode?.status === beforeStatus
+    ? observations.activeEpisode
+    : null;
+  if (beforeEpisode) {
+    beforeEpisode.combatRounds++;
+    beforeEpisode.incapacitatedActions += Number(
+      ["paralyzed", "sleep"].includes(beforeStatus)
+    );
+    beforeEpisode.incomingDamageHp += Number(incomingDamageHp) || 0;
+  }
+
+  if (beforeStatus === "blind" && action?.type === "fight" && beforeEpisode) {
+    const attackPrefix = `[味方] ${characterBefore.name}の攻撃！`;
+    const attackLogs = logQueue.filter(entry => (entry?.msg || "").startsWith(attackPrefix));
+    attackLogs.forEach(entry => {
+      const message = entry?.msg || "";
+      beforeEpisode.blindAttackAttempts++;
+      if (message.includes("目がくらんで空振りした")) {
+        beforeEpisode.blindAttackMisses++;
+      } else if (Number.isFinite(Number(entry?.floatText))) {
+        beforeEpisode.blindAttackHitDamageHp += Number(entry.floatText);
+      }
+    });
+  }
+
+  logQueue.forEach(entry => {
+    const message = entry?.msg || "";
+    if (!message.startsWith("[味方] [!] 毒のダメージ！")) return;
+    const match = message.match(/は(\d+)のダメージ/);
+    if (!match) return;
+    const episode = beforeStatus === "poisoned"
+      ? beforeEpisode
+      : observations.activeEpisode?.status === "poisoned"
+        ? observations.activeEpisode
+        : null;
+    if (episode) episode.poisonDamageHp += Number(match[1]);
+  });
+
+  logQueue.forEach(entry => {
+    const message = entry?.msg || "";
+    const application = applicationLogs.find(([, text]) => message.includes(text));
+    if (!application) return;
+    recordStatusObservationApplication(observations, application[0], "enemy");
+  });
+
+  if (afterStatus && afterStatus !== beforeStatus) {
+    const afterEpisode = ensureStatusObservationEpisode(observations, afterStatus);
+    if (afterEpisode) afterEpisode.combatRounds++;
+  }
+
+  if (observations.activeEpisode &&
+      (!afterStatus || observations.activeEpisode.status !== afterStatus)) {
+    closeStatusObservationEpisode(
+      observations,
+      inferStatusObservationEndReason(logQueue, action, characterAfter?.status)
+    );
+  }
+}
+
+function recordStatusObservationStep(observations, status) {
+  const normalized = normalizeStatusObservation(status);
+  if (!normalized) return;
+  recordStatusObservationExposure(observations, normalized, { explorationStep: true });
+}
+
+function finalizeStatusObservation(metrics, finalStatus, outcome) {
+  if (metrics.activeEpisode) {
+    closeStatusObservationEpisode(
+      metrics,
+      outcome === "death" || finalStatus === "dead" ? "death" : "run-end"
+    );
+  }
+  STATUS_OBSERVATION_KEYS.forEach(status => {
+    const bucket = metrics.byStatus[status];
+    bucket.runsWithApplications = Number(bucket.applications > 0);
+    bucket.runsWithEpisodes = Number(bucket.episodes > 0);
+  });
+  return {
+    byStatus: Object.fromEntries(
+      STATUS_OBSERVATION_KEYS.map(status => [
+        status,
+        {
+          ...metrics.byStatus[status],
+          applicationsBySource: { ...metrics.byStatus[status].applicationsBySource },
+          endReasons: { ...metrics.byStatus[status].endReasons }
+        }
+      ])
+    )
+  };
+}
+
+function addStatusObservationAggregate(target, result) {
+  target.runs++;
+  STATUS_OBSERVATION_KEYS.forEach(status => {
+    const source = result.statusObservations?.byStatus?.[status];
+    if (!source) return;
+    const destination = target.byStatus[status];
+    destination.applications += source.applications || 0;
+    destination.episodes += source.episodes || 0;
+    destination.totalCombatRounds += source.totalCombatRounds || 0;
+    destination.totalExplorationSteps += source.totalExplorationSteps || 0;
+    destination.totalIncapacitatedActions += source.totalIncapacitatedActions || 0;
+    destination.totalPoisonDamageHp += source.totalPoisonDamageHp || 0;
+    destination.totalIncomingDamageHp += source.totalIncomingDamageHp || 0;
+    destination.blindAttackAttempts += source.blindAttackAttempts || 0;
+    destination.blindAttackMisses += source.blindAttackMisses || 0;
+    destination.blindAttackHitDamageHp += source.blindAttackHitDamageHp || 0;
+    destination.maxCombatRounds = Math.max(
+      destination.maxCombatRounds,
+      source.maxCombatRounds || 0
+    );
+    destination.runsWithApplications += Number((source.applications || 0) > 0);
+    destination.runsWithEpisodes += Number((source.episodes || 0) > 0);
+    Object.entries(source.applicationsBySource || {}).forEach(([sourceName, count]) => {
+      destination.applicationsBySource[sourceName] =
+        (destination.applicationsBySource[sourceName] || 0) + count;
+    });
+    Object.entries(source.endReasons || {}).forEach(([reason, count]) => {
+      destination.endReasons[reason] = (destination.endReasons[reason] || 0) + count;
+    });
+  });
+}
+
+function finalizeStatusObservationAggregate(aggregate) {
+  const runs = Math.max(1, aggregate.runs);
+  return {
+    runs: aggregate.runs,
+    byStatus: Object.fromEntries(STATUS_OBSERVATION_KEYS.map(status => {
+      const values = aggregate.byStatus[status];
+      return [status, {
+        ...values,
+        applicationRate: values.runsWithApplications / runs,
+        episodeRate: values.runsWithEpisodes / runs,
+        averageApplications: values.applications / runs,
+        averageEpisodes: values.episodes / runs,
+        averageCombatRounds: values.totalCombatRounds / runs,
+        averageExplorationSteps: values.totalExplorationSteps / runs,
+        averageIncapacitatedActions: values.totalIncapacitatedActions / runs,
+        averagePoisonDamageHp: values.totalPoisonDamageHp / runs,
+        averageIncomingDamageHp: values.totalIncomingDamageHp / runs,
+        averageBlindAttackAttempts: values.blindAttackAttempts / runs,
+        averageBlindAttackMisses: values.blindAttackMisses / runs,
+        averageBlindAttackHitDamageHp: values.blindAttackHitDamageHp / runs,
+        applicationsBySource: { ...values.applicationsBySource },
+        endReasons: { ...values.endReasons }
+      }];
+    }))
+  };
+}
+
 let randomState = SIM_SEED;
 Math.random = () => {
   randomState += 0x6D2B79F5;
@@ -5311,6 +5613,14 @@ function runEncounter(
       roundResult.logQueue,
       character.name
     );
+    recordStatusObservationAfterCombatRound(
+      metrics.statusObservations,
+      characterBeforeRound,
+      state.party[0],
+      action,
+      roundResult.logQueue,
+      incomingDamage.damage
+    );
     telemetry.incomingHits += incomingDamage.hits;
     telemetry.incomingDamage += incomingDamage.damage;
     if (incomingDamage.damage > 0) {
@@ -5445,6 +5755,7 @@ function useStatusCureIfNeeded(state, metrics, context) {
   recordTrackedConsumableConsumption(state, metrics, decision.itemKey);
   metrics.holyWaterUsed += Number(decision.itemKey === "HOLY_WATER");
   ITEM_EFFECTS[decision.itemKey]({ char: character });
+  clearStatusObservation(metrics.statusObservations, decision.status, "cured");
   addItemCount(metrics.statusCureItemsUsed, decision.itemKey);
   metrics.statusesCured[decision.status] =
     (metrics.statusesCured[decision.status] || 0) + 1;
@@ -5586,6 +5897,7 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
       character.status = "dead";
     } else if (effect.targetPoisonTriggered && !effect.targetPoisonResisted) {
       character.status = "poisoned";
+      recordStatusObservationApplication(metrics.statusObservations, "poisoned", "chest");
     }
     recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor, state, {
       hpBefore,
@@ -5614,6 +5926,7 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
     effect.partyBlind.forEach((blinded, index) => {
       if (blinded) {
         state.party[index].status = "blind";
+        recordStatusObservationApplication(metrics.statusObservations, "blind", "chest");
         recordBlindApplications(metrics, "chest", 1);
       }
     });
@@ -8164,6 +8477,11 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
   const mpDepletionCausedEnd = Boolean(
     outcome === "death" && metrics.mpBlockedTerminalEncounter
   );
+  const statusObservations = finalizeStatusObservation(
+    metrics.statusObservations,
+    state.party[0].status,
+    outcome
+  );
   if (metrics.diagnostics && metrics.diagnosticLevel === "full") {
     metrics.diagnostics.finalBuild = createBuildSnapshot(
       state,
@@ -8492,6 +8810,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     statusCureHeldNotUsedStatuses: metrics.statusCureHeldNotUsedStatuses,
     statusesCured: metrics.statusesCured,
     statusCureMerchantFailures: metrics.statusCureMerchantFailures,
+    statusObservations,
     townPortalsUsed: metrics.townPortalsUsed,
     portalUseEvents: metrics.portalUseEvents,
     portalUsesBySource: metrics.portalUsesBySource,
@@ -8918,6 +9237,7 @@ export function simulateRun({
       merchant: {}
     },
     statusCureItemsUsed: {},
+    statusObservations: createStatusObservationMetrics(),
     statusCureDecisions: {
       selected: 0,
       unavailable: 0,
@@ -9111,6 +9431,7 @@ export function simulateRun({
 
     stepLoop: for (let step = 1; step <= floorSteps; step++) {
       metrics.steps++;
+      recordStatusObservationStep(metrics.statusObservations, state.party[0].status);
       if (step <= staticFloorSteps) {
         metrics.floorBudgetSteps++;
       } else if (step <= routePlan.floorSteps) {
@@ -9840,6 +10161,19 @@ function simulateCase({
       }])
     ),
     healPotionsUsed: 0,
+    statusObservations: createStatusObservationAggregate(),
+    statusCureItemsAcquired: {},
+    statusCureItemsUsed: {},
+    statusCureDecisions: {
+      selected: 0,
+      unavailable: 0,
+      "policy-deferred": 0,
+      incapacitated: 0
+    },
+    statusCureDecisionContexts: {},
+    statusCureUnavailableStatuses: {},
+    statusCureHeldNotUsedStatuses: {},
+    statusesCured: {},
     trap: createTrapAggregate(),
     flameTrap: createFlameTrapAggregate(),
     b5Gate: createB5GateAggregate(),
@@ -9928,6 +10262,25 @@ function simulateCase({
     totals.lightActiveSteps += result.lightActiveSteps;
     totals.masfealActiveSteps += result.masfealActiveSteps;
     addOutcomeAggregate(totals.outcomesByClass[className], result);
+    addStatusObservationAggregate(totals.statusObservations, result);
+    Object.entries(result.statusCureItemsAcquired || {}).forEach(([source, counts]) => {
+      const destination = totals.statusCureItemsAcquired[source] ||= {};
+      Object.entries(counts || {}).forEach(([itemId, count]) => {
+        destination[itemId] = (destination[itemId] || 0) + count;
+      });
+    });
+    [
+      ["statusCureItemsUsed", totals.statusCureItemsUsed],
+      ["statusCureDecisions", totals.statusCureDecisions],
+      ["statusCureDecisionContexts", totals.statusCureDecisionContexts],
+      ["statusCureUnavailableStatuses", totals.statusCureUnavailableStatuses],
+      ["statusCureHeldNotUsedStatuses", totals.statusCureHeldNotUsedStatuses],
+      ["statusesCured", totals.statusesCured]
+    ].forEach(([field, destination]) => {
+      Object.entries(result[field] || {}).forEach(([key, count]) => {
+        destination[key] = (destination[key] || 0) + count;
+      });
+    });
     addFlameTrapAggregate(totals.flameTrap, result);
     addFlameTrapAggregate(classFlameTrapTotals[className], result);
     addB5GateAggregate(totals.b5Gate, result);
@@ -10360,6 +10713,14 @@ function simulateCase({
     averageMasfealActiveSteps: totals.masfealActiveSteps / RUNS_PER_CASE,
     firstCoreDepthCounts: totals.firstCoreDepthCounts,
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
+    statusObservations: finalizeStatusObservationAggregate(totals.statusObservations),
+    statusCureItemsAcquired: totals.statusCureItemsAcquired,
+    statusCureItemsUsed: totals.statusCureItemsUsed,
+    statusCureDecisions: totals.statusCureDecisions,
+    statusCureDecisionContexts: totals.statusCureDecisionContexts,
+    statusCureUnavailableStatuses: totals.statusCureUnavailableStatuses,
+    statusCureHeldNotUsedStatuses: totals.statusCureHeldNotUsedStatuses,
+    statusesCured: totals.statusesCured,
     ...trapSummary,
     consumablesByClass,
     flameTrap: finalizeFlameTrapAggregate(totals.flameTrap),
@@ -10870,6 +11231,46 @@ function printConsumableSummary(result) {
     );
   });
   printCraftMeasurementSummary(result);
+}
+
+function printStatusCureSummary(result) {
+  const statusItems = Object.fromEntries([...STATUS_CURE_ITEM_IDS].map(itemId => [
+    itemId,
+    result.averageConsumableUsageByItem?.[itemId] || { acquired: 0, consumed: 0 }
+  ]));
+  console.log(
+    `状態回復判定/${RUNS_PER_CASE}run: ${JSON.stringify(result.statusCureDecisions)} ` +
+    `contexts=${JSON.stringify(result.statusCureDecisionContexts)} ` +
+    `unavailable=${JSON.stringify(result.statusCureUnavailableStatuses)} ` +
+    `held=${JSON.stringify(result.statusCureHeldNotUsedStatuses)} ` +
+    `cured=${JSON.stringify(result.statusesCured)}`
+  );
+  console.log(`状態回復アイテム/run 入手/消費: ${JSON.stringify(statusItems)}`);
+  Object.entries(result.statusObservations?.byStatus || {}).forEach(([status, values]) => {
+    console.log(
+      `状態異常 ${status}: ` +
+      `付与=${values.applications} (run率=${formatPercent(values.applicationRate)}), ` +
+      `episode=${values.episodes} (run率=${formatPercent(values.episodeRate)}), ` +
+      `戦闘round=${values.totalCombatRounds} / run=${values.averageCombatRounds.toFixed(4)}, ` +
+      `探索step/run=${values.averageExplorationSteps.toFixed(4)}, ` +
+      `行動損失/run=${values.averageIncapacitatedActions.toFixed(4)}, ` +
+      `毒ダメージHP/run=${values.averagePoisonDamageHp.toFixed(4)}, ` +
+      `被弾HP/run=${values.averageIncomingDamageHp.toFixed(4)}, ` +
+      `盲目攻撃試行/空振り/run=${values.averageBlindAttackAttempts.toFixed(4)}/` +
+      `${values.averageBlindAttackMisses.toFixed(4)}`
+    );
+  });
+  console.log(`STATUS_CURE_OBSERVATION_JSON=${JSON.stringify({
+    label: result.label,
+    targetDepth: result.targetDepth,
+    statusCureDecisions: result.statusCureDecisions,
+    statusCureDecisionContexts: result.statusCureDecisionContexts,
+    statusCureUnavailableStatuses: result.statusCureUnavailableStatuses,
+    statusCureHeldNotUsedStatuses: result.statusCureHeldNotUsedStatuses,
+    statusesCured: result.statusesCured,
+    statusItems,
+    statusObservations: result.statusObservations
+  })}`);
 }
 
 function printCraftMeasurementSummary(result) {
@@ -11851,6 +12252,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   results.forEach(result => {
     printTrapMetrics(result);
     printConsumableSummary(result);
+    printStatusCureSummary(result);
   });
   console.log(`\n【${scenario.label} 徘徊エリート】`);
   printEliteMetrics(results);
@@ -11887,6 +12289,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   milestoneResults.forEach(result => {
     printTrapMetrics(result);
     printConsumableSummary(result);
+    printStatusCureSummary(result);
   });
   console.log("\n【マイルストーン開始 徘徊エリート】");
   printEliteMetrics(milestoneResults);

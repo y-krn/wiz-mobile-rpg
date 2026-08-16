@@ -46,6 +46,7 @@ const TARGET_DEPTH = 21;
 const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
 const CONDITION_ID = String(process.env.ISSUE624_CONDITION_ID || "unknown");
 const SERIES_ID = "issue612-exp-pace";
+const DETERMINISTIC_OUTPUT = process.env.ISSUE689_DETERMINISTIC === "1";
 
 export { generateSharedRunFloor };
 
@@ -125,6 +126,14 @@ function compactResult(task, result) {
         { ...usage }
       ])
     ),
+    statusObservations: result.statusObservations,
+    statusCureItemsAcquired: result.statusCureItemsAcquired,
+    statusCureItemsUsed: result.statusCureItemsUsed,
+    statusCureDecisions: result.statusCureDecisions,
+    statusCureDecisionContexts: result.statusCureDecisionContexts,
+    statusCureUnavailableStatuses: result.statusCureUnavailableStatuses,
+    statusCureHeldNotUsedStatuses: result.statusCureHeldNotUsedStatuses,
+    statusesCured: result.statusesCured,
     statusCuresUsed,
     mpDepleted: Boolean(result.mpDepleted)
   };
@@ -255,10 +264,17 @@ async function main() {
       SIM_DAMAGE_PROBE: process.env.SIM_DAMAGE_PROBE || null
     },
     resolvedParallelism: resolveSimParallelism(tasks.length),
-    calibration,
+    deterministicOutput: DETERMINISTIC_OUTPUT,
+    calibration: DETERMINISTIC_OUTPUT
+      ? { wallSeconds: 0, cpuSeconds: 0 }
+      : calibration,
     measurement: {
-      wallSeconds: (performance.now() - measurementStarted) / 1000,
-      cpuSeconds: (measurementCpu.user + measurementCpu.system) / 1e6
+      wallSeconds: DETERMINISTIC_OUTPUT
+        ? 0
+        : (performance.now() - measurementStarted) / 1000,
+      cpuSeconds: DETERMINISTIC_OUTPUT
+        ? 0
+        : (measurementCpu.user + measurementCpu.system) / 1e6
     },
     profileSha256,
     rows
