@@ -83,6 +83,15 @@ Math.random = () => {
   return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 };
 
+function hashSimulationRunSeed(value) {
+  let hash = 2166136261;
+  for (const character of String(value)) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 function createSimulationState(className, runSeed) {
   const currentRun = createDefaultCurrentRun();
   currentRun.runSeed = runSeed;
@@ -603,6 +612,7 @@ function makeSnapshot(state, upgrades) {
 
 function simulateRun({ className, runIndex }) {
   const runSeed = `${SIM_SEED}:early-mortality:${className}:${runIndex}`;
+  randomState = hashSimulationRunSeed(runSeed);
   let state = createSimulationState(className, runSeed);
   let equipmentUpgrades = 0;
   let b2Entered = false;

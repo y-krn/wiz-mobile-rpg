@@ -996,6 +996,34 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   #461最終基準線は raw `63e01eae49f76340a651b5c2930eccf68608d33df7e95d59be79f9798efc678f`、
   summary `8740ca26d308e18590712237d74946406d264ec01fa458b5c58712127dca309b`。
 
+## Issue #666 sim run単位乱数分離・基準線（2026-08-16）
+
+- `scratch/sim_depth_material_ev.js` の通常値と #624 固定envを
+  `SIM_INDEPENDENT_RUN_RANDOM=1` に更新した。`simulateRun` は既存の
+  `runSeed = \`${SIM_SEED}:${seriesId}:${className}:${runIndex}\`` をhashして
+  各runの `Math.random` 列を開始する。calibrationと本計測の明示的な
+  `resetSimulationRandom` は維持し、calibrationの消費が次runへ漏れないことを
+  per-run resetで保証する。ゲーム本体のルール・balance値は不変。
+- 同一条件（seed=231、職別N=500、calibration N=100、目標B21、#612の
+  6工房分布、`SIM_PARALLEL`未指定、base=`c2bb0a46e2ebe798853fb46ab6f50b195a85493d`）の
+  #624 baseline-portal-flee相当を対に測定した。分離前（#656/#662計装後の
+  現行base）は Fighter **5.8980** / Thief **5.1440** / Priest **4.5200** /
+  Mage **6.5040**、分離後は Fighter **5.8720** / Thief **4.8980** /
+  Priest **4.5760** / Mage **6.4800** となった。旧値へ合わせる変更は行わず、
+  分離後の値を新しい基準線とする。
+- 分離後に各run終了時の結果へ使わない乱数を1回だけ引き、カウンタを増やす
+  観測のみの一時計装を入れて再測定した。4職平均は分離後と完全一致し、
+  row配列も完全一致した（Fighter 5.8720 / Thief 4.8980 / Priest 4.5760 /
+  Mage 6.4800）。一時計装は戻した。
+- 決定性確認として、同じseed・条件の `sim_depth_material_ev.js` stdoutを2回取得し、
+  SHA-256 **`9107c5b2c35da21110c75677bad4e576b6aa84262f9f291cfeab73341d1cfd0b`** が
+  2回とも一致した。#624 row JSONのSHA-256は分離前
+  `4abb64b0656cc14c51a54c3e34747d1ac4519eac0bf75817f379fa24b5021e44`、分離後
+  `9b3bb43fb986c5e149d39fcfa219c9fb9c2f37c12517cdd3bae9d8bab2c9b036`。
+- `scratch/sim_early_mortality.js` もrunSeed hashへ切り替えた。`scratch/sim_trap_choke.js` は
+  既にrun/floorごとの `createRng` を一時注入して復元しているため変更しない。
+  `.agents/game-design*.md` の更新は不要（sim基盤のみの変更）。
+
 ## Issue #275 逃走率の現行表記（2026-08-16）
 
 - #652の現行基準線では、逃走run率は戦士 **75.6%**、盗賊 **80.0%**、僧侶
