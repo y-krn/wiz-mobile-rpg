@@ -1024,6 +1024,32 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   既にrun/floorごとの `createRng` を一時注入して復元しているため変更しない。
   `.agents/game-design*.md` の更新は不要（sim基盤のみの変更）。
 
+## Issue #663 戦闘内MP計測（2026-08-16）
+
+- `scratch/sim_depth_material_ev.js` に、戦闘ごとの開始MP・最低MP・戦闘間回復・
+  総ラウンド数・MP不足発生ラウンドを、職業・実フロア別に記録する観測だけを追加した。
+  MP支払いは `src/` の `getSpellPayment` / `getSpellActionPayment` を経由し、式を再実装していない。
+  コスト、最大MP、回復量、craft、ゲーム本体の挙動は変更していない。
+- base=`7f4a8d7a189f9ffff960b2b4d6c9040580edc28a`、計測コミット=`473acfe8296d02eb45c4ee30a66a57d98db7ae2e`。
+  seed=231、N=500、calibration N=100、`SIM_PARALLEL`未指定。#624固定環境の到達階平均は
+  Fighter **5.8720** / Thief **4.8980** / Priest **4.5760** / Mage **6.4800** で、
+  受入基準線と完全一致した。観測が乱数列・挙動を変えていないことを確認した。
+- `targetDepth=B20` の `workshop-empty` では、僧侶のMP不足204件は回復106・攻撃98、
+  魔術師の178件は攻撃121・補助57だった。僧侶はcost 1/3が98/106、魔術師は
+  cost 1/2/3/4/6が29/14/111/22/2。全戦闘の中央値は僧侶2 round、魔術師1 roundで、
+  MP不足イベントの発生ラウンド中央値は双方3 round。長期戦だけでなく深度に伴う開始MP低下がある。
+- `combatMp.byFloor` のB1→深層で開始MP中央値が下がり、戦闘間回復の中央値は0だった。
+  したがってMPは現行sim条件では主に **run資源** と判定する。長期戦終盤だけで枯れる
+  **戦闘ペース資源** という判定は主判定にしない。
+- Mage候補チェックは、selectorへ支払い可能を仮渡ししたprobeでは全ラウンドspell優先、
+  未習得・対象なし・未対応呪文・known spell時のfight選択は0件だった。候補数は実際の
+  `fight+spell` 行だけを分母にし、simのitem/run選択を除外していたため、134件はMage固有の
+  性質ではなくsimポリシー／計測分母の人工物と判定する。#658のMage結論はこの指標からは保留する。
+- 魔力草はゲーム本体では戦闘中に使用可能だが、現在のsim自動ポリシーは戦闘終了後の
+  `useManaPotionIfNeeded` でのみ扱う。この差を結果に明記し、ゲームルール変更は行わない。
+- 結果正本は `scratch/results/issue-663-mp-in-combat.md`。この結論は測定方法と判定の記録であり、
+  他の `.agents/game-design*.md` の更新は不要（ルール・balance値・material economy不変）。
+
 ## Issue #275 逃走率の現行表記（2026-08-16）
 
 - #652の現行基準線では、逃走run率は戦士 **75.6%**、盗賊 **80.0%**、僧侶
