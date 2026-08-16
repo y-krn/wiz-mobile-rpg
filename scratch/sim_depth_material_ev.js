@@ -1305,6 +1305,9 @@ const CRAFT_MEASUREMENT_RECIPE_IDS = Object.freeze([
   "GREATER_HEAL",
   "HOLY_WATER"
 ]);
+const SIM_CONSUMABLE_IDS = Object.freeze(
+  Object.keys(ITEMS).filter(itemKey => ITEMS[itemKey]?.type === "usable")
+);
 const TRACKED_CONSUMABLE_SOURCE_IDS = Object.freeze([
   "starting",
   "departureCraft",
@@ -1652,6 +1655,7 @@ function createTrapAggregate() {
     recoveryPotionsUsed: 0,
     recoveryPotionShortages: 0,
     healPotionShortages: 0,
+    consumableUsageByItem: createConsumableUsageByItem(),
     disarms: 0,
     disarmAttempts: 0,
     disarmSuccesses: 0,
@@ -2214,6 +2218,13 @@ function addTrapAggregate(target, result) {
   target.recoveryPotionsUsed += result.recoveryPotionsUsed;
   target.recoveryPotionShortages += result.recoveryPotionShortages;
   target.healPotionShortages += result.trapHealPotionShortages;
+  Object.entries(result.consumableUsageByItem || {}).forEach(([itemKey, usage]) => {
+    if (!target.consumableUsageByItem[itemKey]) {
+      target.consumableUsageByItem[itemKey] = { acquired: 0, consumed: 0 };
+    }
+    target.consumableUsageByItem[itemKey].acquired += usage.acquired || 0;
+    target.consumableUsageByItem[itemKey].consumed += usage.consumed || 0;
+  });
   target.disarms += result.trapDisarms;
   target.disarmAttempts += result.trapDisarmAttempts;
   target.disarmSuccesses += result.trapDisarmSuccesses;
@@ -2309,6 +2320,15 @@ function finalizeTrapAggregate(aggregate) {
   const runs = Math.max(1, aggregate.runs);
   return {
     runs: aggregate.runs,
+    averageConsumableUsageByItem: Object.fromEntries(
+      Object.entries(aggregate.consumableUsageByItem).map(([itemKey, usage]) => [
+        itemKey,
+        {
+          acquired: usage.acquired / runs,
+          consumed: usage.consumed / runs
+        }
+      ])
+    ),
     averageTrapEncounters: aggregate.encounters / runs,
     averageTrapEncountersBySource: Object.fromEntries(
       Object.entries(aggregate.encountersBySource).map(([source, amount]) => [
@@ -2483,6 +2503,7 @@ function finalizeTrapAggregate(aggregate) {
 function buildConsumableClassSummary(metrics) {
   return {
     runs: metrics.runs,
+    averageConsumableUsageByItem: metrics.averageConsumableUsageByItem,
     averageMaterialSourceCounts: metrics.averageMaterialSourceCounts,
     averageManaPotionsAcquiredBySource: metrics.averageManaPotionsAcquiredBySource,
     averageManaPotionsConsumed: metrics.averageManaPotionsConsumed,
@@ -2571,6 +2592,11 @@ const STATUS_CURE_ITEMS = Object.freeze({
   sleep: ["WAKE_POWDER", "PANACEA"]
 });
 const STATUS_CURE_ITEM_IDS = new Set(Object.values(STATUS_CURE_ITEMS).flat());
+const SIM_COMBAT_CONSUMPTION_HOOK_IDS = new Set([
+  "HEAL_POTION",
+  "GREATER_HEAL",
+  ...STATUS_CURE_ITEM_IDS
+]);
 const MERCHANT_STATUS_CURE_STOCK = Object.freeze([
   { stockId: "antidote", itemId: "ANTIDOTE" },
   { stockId: "wake_powder", itemId: "WAKE_POWDER" },
@@ -3401,13 +3427,32 @@ function recordPickupAttempt(metrics, source, category, accepted) {
   metrics.pickupRejectionsByCategory[category]++;
 }
 
+function createConsumableUsageByItem() {
+  return Object.fromEntries(
+    SIM_CONSUMABLE_IDS.map(itemKey => [itemKey, { acquired: 0, consumed: 0 }])
+  );
+}
+
+function recordConsumableAcquisition(metrics, itemKey, count = 1) {
+  if (!metrics?.consumableUsageByItem?.[itemKey] || count <= 0) return;
+  metrics.consumableUsageByItem[itemKey].acquired += count;
+}
+
+function recordConsumableConsumption(metrics, itemKey, count = 1) {
+  if (!metrics?.consumableUsageByItem?.[itemKey] || count <= 0) return;
+  metrics.consumableUsageByItem[itemKey].consumed += count;
+}
+
 function tryAddInventoryItem(state, item, metrics, source) {
   const itemData = getItemData(item);
   const category = isEquipment(itemData) ? "equipment" : "item";
   const accepted = addInventoryItemToState(state, item);
   recordPickupAttempt(metrics, source, category, accepted);
-  if (accepted && TRACKED_CONSUMABLES[item]) {
-    recordTrackedConsumableAcquisition(state, metrics, item, source);
+  if (accepted) {
+    recordConsumableAcquisition(metrics, item);
+    if (TRACKED_CONSUMABLES[item]) {
+      recordTrackedConsumableAcquisition(state, metrics, item, source);
+    }
   }
   return accepted;
 }
@@ -3457,6 +3502,7 @@ function recordTrackedConsumableAcquisition(state, metrics, itemKey, source, cou
 function recordTrackedConsumableConsumption(state, metrics, itemKey, count = 1) {
   const config = TRACKED_CONSUMABLES[itemKey];
   if (!metrics || !config || count <= 0) return;
+  recordConsumableConsumption(metrics, itemKey, count);
   for (let index = 0; index < count; index++) {
     const source = state[config.sourceQueue].shift() || "other";
     metrics[config.consumed][normalizeTrackedConsumableSource(source)]++;
@@ -3522,6 +3568,7 @@ function recordRecoveryHealing(metrics, itemKey, level, requestedHp, actualHp) {
 
 function recordHealPotionConsumption(state, metrics, count = 1) {
   if (!metrics || count <= 0) return;
+  recordConsumableConsumption(metrics, "HEAL_POTION", count);
   for (let index = 0; index < count; index++) {
     const source = state.simHealPotionSources.shift() || "other";
     metrics.healPotionsConsumedBySource[source] =
@@ -3540,6 +3587,7 @@ function recordGreaterHealAcquisition(state, metrics, source, count = 1) {
 
 function recordGreaterHealConsumption(state, metrics, count = 1) {
   if (!metrics || count <= 0) return;
+  recordConsumableConsumption(metrics, "GREATER_HEAL", count);
   for (let index = 0; index < count; index++) {
     const source = state.simGreaterHealSources.shift() || "other";
     metrics.greaterHealPotionsConsumedBySource[source] =
@@ -3985,6 +4033,7 @@ function recordTrapKitAcquisition(state, metrics, source, count = 1) {
 
 function recordTrapKitConsumption(state, metrics, count = 1) {
   if (!metrics || count <= 0) return;
+  recordConsumableConsumption(metrics, "TRAP_KIT", count);
   for (let index = 0; index < count; index++) {
     const source = state.simTrapKitSources.shift() || "other";
     metrics.trapKitsUsed++;
@@ -5069,6 +5118,10 @@ function runEncounter(
     };
     const potionCountBefore = state.inventory.filter(item => item === "HEAL_POTION").length;
     const greaterHealCountBefore = state.inventory.filter(item => item === "GREATER_HEAL").length;
+    const consumableCountBefore = action.type === "item" &&
+      SIM_CONSUMABLE_IDS.includes(action.itemKey)
+      ? state.inventory.filter(item => item === action.itemKey).length
+      : null;
     const selectedCureCountBefore = action.simStatusBefore
       ? state.inventory.filter(item => item === action.itemKey).length
       : 0;
@@ -5141,6 +5194,16 @@ function runEncounter(
         "combatManaPotion",
         Math.max(0, state.party[0].mp - characterBeforeRound.mp)
       );
+    }
+    if (consumableCountBefore !== null) {
+      const consumableCountAfter = state.inventory.filter(item => item === action.itemKey).length;
+      const consumableDelta = consumableCountBefore - consumableCountAfter;
+      if (
+        consumableDelta > 0 &&
+        !SIM_COMBAT_CONSUMPTION_HOOK_IDS.has(action.itemKey)
+      ) {
+        recordConsumableConsumption(metrics, action.itemKey, consumableDelta);
+      }
     }
     encounterMinimumMp = Math.min(encounterMinimumMp, state.party[0].mp);
     recordSpellResourceMetrics(metrics, characterBeforeRound, state.party[0]);
@@ -5616,6 +5679,7 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
   const portalIndex = state.inventory.indexOf("TOWN_PORTAL");
   state.inventory.splice(portalIndex, 1);
   const source = state.simPortalSources.shift() || "unknown";
+  recordConsumableConsumption(metrics, "TOWN_PORTAL");
   metrics.townPortalsUsed++;
   metrics.portalUsesBySource[source] = (metrics.portalUsesBySource[source] || 0) + 1;
   metrics.portalUseEvents.push({
@@ -5654,6 +5718,7 @@ function maybePurchaseMerchantWing(state, scenario, metrics) {
   metrics.merchantWingsPurchased++;
   metrics.merchantPurchaseFloors.push(state.floor);
   metrics.portalAcquisitions.merchant++;
+  recordConsumableAcquisition(metrics, "TOWN_PORTAL");
   state.simPortalSources.push("merchant");
 }
 
@@ -5672,6 +5737,7 @@ function maybePurchaseMerchantStatusCures(state, metrics) {
       return;
     }
     recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
+    recordConsumableAcquisition(metrics, itemId);
     addItemCount(metrics.statusCureItemsAcquired.merchant, itemId);
   });
 }
@@ -5710,6 +5776,7 @@ function maybePurchaseMerchantHealPotion(state, metrics) {
       break;
     }
     recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
+    recordConsumableAcquisition(metrics, "HEAL_POTION");
     recordHealPotionAcquisition(state, metrics, "merchant");
     metrics.healPotionMerchantPurchased++;
     state.simHealPotionMerchantPurchases++;
@@ -5728,6 +5795,7 @@ function maybePurchaseMerchantStrengthPotion(state, scenario, metrics) {
     return;
   }
   recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
+  recordConsumableAcquisition(metrics, "STR_POTION");
   metrics.strPotionsPurchased++;
 }
 
@@ -8256,6 +8324,12 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     healPotionsConsumedBySource: { ...metrics.healPotionsConsumedBySource },
     greaterHealPotionsAcquiredBySource: { ...metrics.greaterHealPotionsAcquiredBySource },
     greaterHealPotionsConsumedBySource: { ...metrics.greaterHealPotionsConsumedBySource },
+    consumableUsageByItem: Object.fromEntries(
+      Object.entries(metrics.consumableUsageByItem).map(([itemKey, usage]) => [
+        itemKey,
+        { ...usage }
+      ])
+    ),
     manaPotionsUsed: metrics.manaPotionsUsed,
     manaPotionsUsedInCombat: metrics.manaPotionsUsedInCombat,
     manaPotionsUsedPostCombat: metrics.manaPotionsUsedPostCombat,
@@ -8579,6 +8653,7 @@ export function simulateRun({
     },
     identificationPowderUsed: 0,
     identificationCount: 0,
+    consumableUsageByItem: createConsumableUsageByItem(),
     unidentifiedWearCount: 0,
     curseHitCount: 0,
     equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
@@ -8929,6 +9004,8 @@ export function simulateRun({
       : null
   };
   state.simTelemetry = metrics.killHeal;
+  state.simStartingInventory.forEach(item => recordConsumableAcquisition(metrics, item));
+  state.simDepartureCraftItems.forEach(item => recordConsumableAcquisition(metrics, item));
 
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
   for (let floor = startFloor; floor < targetDepth; floor++) {
@@ -10784,8 +10861,14 @@ function printConsumableSummary(result) {
     `枯渇率=${formatWilson(
       result.identificationPowderDepletionRate * RUNS_PER_CASE,
       RUNS_PER_CASE
-    )}`
+      )}`
   );
+  console.log("消耗品sim計数/run（入手/消費）");
+  Object.entries(result.averageConsumableUsageByItem || {}).forEach(([itemKey, usage]) => {
+    console.log(
+      `  ${itemKey}: ${(usage.acquired || 0).toFixed(4)}/${(usage.consumed || 0).toFixed(4)}`
+    );
+  });
   printCraftMeasurementSummary(result);
 }
 
