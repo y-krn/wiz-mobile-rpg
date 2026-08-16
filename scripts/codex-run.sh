@@ -87,9 +87,9 @@ if [ "$fetch_status" -ne 0 ]; then
   exit "$fetch_status"
 fi
 
-base_sha=$(git -C "$repo_root" rev-parse origin/main 2>/dev/null)
-base_status=$?
-if [ "$base_status" -ne 0 ] || [ -z "$base_sha" ]; then
+origin_main_sha=$(git -C "$repo_root" rev-parse origin/main 2>/dev/null)
+origin_main_status=$?
+if [ "$origin_main_status" -ne 0 ] || [ -z "$origin_main_sha" ]; then
   printf 'error: cannot resolve origin/main\n' >&2
   exit 1
 fi
@@ -134,11 +134,25 @@ else
 fi
 
 printf 'worktree: %s\n' "$worktree_path"
-printf 'base    : %s\n' "$base_sha"
+worktree_base_sha=$(git -C "$worktree_path" merge-base HEAD "$origin_main_sha" 2>/dev/null)
+worktree_base_status=$?
+if [ "$worktree_base_status" -ne 0 ] || [ -z "$worktree_base_sha" ]; then
+  printf 'error: cannot resolve worktree base for %s\n' "$worktree_path" >&2
+  exit 1
+fi
+printf 'origin-main  : %s\n' "$origin_main_sha"
+printf 'worktree-base: %s\n' "$worktree_base_sha"
+if [ "$worktree_base_sha" = "$origin_main_sha" ]; then
+  printf 'base-status  : current origin/main\n'
+elif git -C "$repo_root" merge-base --is-ancestor "$worktree_base_sha" "$origin_main_sha" >/dev/null 2>&1; then
+  printf 'base-status  : behind origin/main\n'
+else
+  printf 'base-status  : diverged from origin/main\n'
+fi
 
 model_args=()
 has_model=0
-for arg in "${codex_args[@]}"; do
+for arg in ${codex_args[@]+"${codex_args[@]}"}; do
   case "$arg" in
     -m|--model|--model=*) has_model=1 ;;
   esac
@@ -153,7 +167,7 @@ esac
 mkdir -p "$dir"
 base="$dir/$(date +%Y%m%d-%H%M%S)-$label"
 
-codex exec -C "$worktree_path" --json "${model_args[@]}" -o "$base.md" "${codex_args[@]}" - \
+codex exec -C "$worktree_path" --json ${model_args[@]+"${model_args[@]}"} -o "$base.md" ${codex_args[@]+"${codex_args[@]}"} - \
   >"$base.jsonl" 2>"$base.stderr.log"
 status=$?
 
