@@ -1788,6 +1788,230 @@ function summarizeDistribution(values) {
   };
 }
 
+function createNumericDistribution() {
+  return {
+    n: 0,
+    sum: 0,
+    sumSquares: 0,
+    counts: {}
+  };
+}
+
+function addNumericSample(distribution, value) {
+  if (!Number.isFinite(value)) return;
+  distribution.n++;
+  distribution.sum += value;
+  distribution.sumSquares += value * value;
+  const key = String(value);
+  distribution.counts[key] = (distribution.counts[key] || 0) + 1;
+}
+
+function mergeNumericDistribution(target, source) {
+  if (!source) return;
+  target.n += source.n || 0;
+  target.sum += source.sum || 0;
+  target.sumSquares += source.sumSquares || 0;
+  Object.entries(source.counts || {}).forEach(([value, count]) => {
+    target.counts[value] = (target.counts[value] || 0) + count;
+  });
+}
+
+function cloneNumericDistribution(source) {
+  return {
+    n: source.n,
+    sum: source.sum,
+    sumSquares: source.sumSquares,
+    counts: { ...source.counts }
+  };
+}
+
+function summarizeNumericDistribution(distribution) {
+  if (!distribution?.n) return { n: 0 };
+  const entries = Object.entries(distribution.counts)
+    .map(([value, count]) => [Number(value), count])
+    .sort(([left], [right]) => left - right);
+  const quantile = rate => {
+    const rank = Math.floor((distribution.n - 1) * rate);
+    let seen = 0;
+    for (const [value, count] of entries) {
+      seen += count;
+      if (rank < seen) return value;
+    }
+    return entries.at(-1)?.[0] || 0;
+  };
+  return {
+    n: distribution.n,
+    mean: distribution.sum / distribution.n,
+    min: entries[0][0],
+    p10: quantile(0.10),
+    p25: quantile(0.25),
+    median: quantile(0.50),
+    p75: quantile(0.75),
+    p90: quantile(0.90),
+    max: entries.at(-1)[0]
+  };
+}
+
+function createCombatMpBucket() {
+  return {
+    encounters: 0,
+    blockedEncounters: 0,
+    blockedEvents: 0,
+    startMp: createNumericDistribution(),
+    startMpRate: createNumericDistribution(),
+    minimumMp: createNumericDistribution(),
+    minimumMpRate: createNumericDistribution(),
+    blockedRound: createNumericDistribution(),
+    interEncounterDelta: createNumericDistribution(),
+    interEncounterRecovery: createNumericDistribution(),
+    interEncounterSpend: createNumericDistribution()
+  };
+}
+
+function createCombatMpMeasurement() {
+  return {
+    ...createCombatMpBucket(),
+    byFloor: {},
+    recoveryBySource: {
+      camp: 0,
+      manaPotion: 0
+    },
+    lastEncounterEndMp: null
+  };
+}
+
+function recordCombatMpRecovery(metrics, source, amount) {
+  if (!metrics?.combatMpMeasurement || amount <= 0) return;
+  metrics.combatMpMeasurement.recoveryBySource[source] =
+    (metrics.combatMpMeasurement.recoveryBySource[source] || 0) + amount;
+}
+
+function getCombatMpFloorBucket(measurement, floor) {
+  const floorKey = String(Math.max(1, Number(floor) || 1));
+  return measurement.byFloor[floorKey] ||= createCombatMpBucket();
+}
+
+function recordCombatMpEncounter(
+  metrics,
+  floor,
+  startMp,
+  startMaxMp,
+  minimumMp,
+  blockedRounds,
+  endMp
+) {
+  const measurement = metrics?.combatMpMeasurement;
+  if (!measurement) return;
+  const maxMp = Math.max(1, Number(startMaxMp) || 0);
+  const transitionDelta = Number.isFinite(measurement.lastEncounterEndMp)
+    ? startMp - measurement.lastEncounterEndMp
+    : null;
+  const record = bucket => {
+    bucket.encounters++;
+    bucket.blockedEncounters += Number(blockedRounds.length > 0);
+    bucket.blockedEvents += blockedRounds.length;
+    addNumericSample(bucket.startMp, startMp);
+    addNumericSample(bucket.startMpRate, startMp / maxMp);
+    addNumericSample(bucket.minimumMp, minimumMp);
+    addNumericSample(bucket.minimumMpRate, minimumMp / maxMp);
+    blockedRounds.forEach(round => addNumericSample(bucket.blockedRound, round));
+    if (transitionDelta === null) return;
+    addNumericSample(bucket.interEncounterDelta, transitionDelta);
+    addNumericSample(bucket.interEncounterRecovery, Math.max(0, transitionDelta));
+    addNumericSample(bucket.interEncounterSpend, Math.max(0, -transitionDelta));
+  };
+  record(measurement);
+  record(getCombatMpFloorBucket(measurement, floor));
+  measurement.lastEncounterEndMp = endMp;
+}
+
+function addCombatMpBucket(target, source) {
+  if (!source) return;
+  target.encounters += source.encounters || 0;
+  target.blockedEncounters += source.blockedEncounters || 0;
+  target.blockedEvents += source.blockedEvents || 0;
+  [
+    "startMp",
+    "startMpRate",
+    "minimumMp",
+    "minimumMpRate",
+    "blockedRound",
+    "interEncounterDelta",
+    "interEncounterRecovery",
+    "interEncounterSpend"
+  ].forEach(field => mergeNumericDistribution(target[field], source[field]));
+}
+
+function addCombatMpMeasurement(target, source) {
+  addCombatMpBucket(target, source);
+  Object.entries(source?.recoveryBySource || {}).forEach(([key, amount]) => {
+    target.recoveryBySource[key] = (target.recoveryBySource[key] || 0) + amount;
+  });
+  Object.entries(source?.byFloor || {}).forEach(([floor, bucket]) => {
+    addCombatMpBucket(
+      target.byFloor[floor] ||= createCombatMpBucket(),
+      bucket
+    );
+  });
+}
+
+function snapshotCombatMpMeasurement(measurement) {
+  const snapshotBucket = bucket => ({
+    encounters: bucket.encounters,
+    blockedEncounters: bucket.blockedEncounters,
+    blockedEvents: bucket.blockedEvents,
+    ...Object.fromEntries([
+      "startMp",
+      "startMpRate",
+      "minimumMp",
+      "minimumMpRate",
+      "blockedRound",
+      "interEncounterDelta",
+      "interEncounterRecovery",
+      "interEncounterSpend"
+    ].map(field => [field, cloneNumericDistribution(bucket[field])]))
+  });
+  return {
+    ...snapshotBucket(measurement),
+    recoveryBySource: { ...measurement.recoveryBySource },
+    byFloor: Object.fromEntries(
+      Object.entries(measurement.byFloor).map(([floor, bucket]) => [
+        floor,
+        snapshotBucket(bucket)
+      ])
+    )
+  };
+}
+
+function finalizeCombatMpMeasurement(measurement) {
+  const finalizeBucket = bucket => ({
+    encounters: bucket.encounters,
+    blockedEncounters: bucket.blockedEncounters,
+    blockedEncounterRate: bucket.encounters > 0
+      ? bucket.blockedEncounters / bucket.encounters
+      : 0,
+    blockedEvents: bucket.blockedEvents,
+    startMp: summarizeNumericDistribution(bucket.startMp),
+    startMpRate: summarizeNumericDistribution(bucket.startMpRate),
+    minimumMp: summarizeNumericDistribution(bucket.minimumMp),
+    minimumMpRate: summarizeNumericDistribution(bucket.minimumMpRate),
+    blockedRound: summarizeNumericDistribution(bucket.blockedRound),
+    interEncounterDelta: summarizeNumericDistribution(bucket.interEncounterDelta),
+    interEncounterRecovery: summarizeNumericDistribution(bucket.interEncounterRecovery),
+    interEncounterSpend: summarizeNumericDistribution(bucket.interEncounterSpend)
+  });
+  return {
+    ...finalizeBucket(measurement),
+    recoveryBySource: { ...measurement.recoveryBySource },
+    byFloor: Object.fromEntries(
+      Object.entries(measurement.byFloor || {}).map(([floor, bucket]) => [
+        floor,
+        finalizeBucket(bucket)
+      ])
+    )
+  };
+}
+
 function createB5GateAggregate() {
   return {
     runs: 0,
@@ -2880,6 +3104,12 @@ const SPELL_PRESSURE_PHASES = Object.freeze([
   "recovery"
 ]);
 
+const SPELL_PRESSURE_ACTION_KINDS = Object.freeze([
+  "recovery",
+  "offense",
+  "support"
+]);
+
 function createSpellPressureBucket() {
   return {
     candidateChecks: 0,
@@ -2898,7 +3128,12 @@ function createSpellPressurePhase() {
   return {
     total: createSpellPressureBucket(),
     bySpell: {},
-    byFloorAndSpell: {}
+    byFloorAndSpell: {},
+    byActionKind: Object.fromEntries(
+      SPELL_PRESSURE_ACTION_KINDS.map(kind => [kind, createSpellPressureBucket()])
+    ),
+    byCost: {},
+    byRound: {}
   };
 }
 
@@ -2914,6 +3149,14 @@ function addSpellPressureBucket(target, additions) {
   });
 }
 
+function getSpellPressureActionKind(spellName) {
+  if (PRIEST_HEALING_SPELL_IDS.includes(spellName)) return "recovery";
+  if (SPELLS[spellName]?.target?.includes("enemy") && spellName !== "KATINO") {
+    return "offense";
+  }
+  return "support";
+}
+
 function recordSpellPressure(
   metrics,
   phase,
@@ -2921,12 +3164,13 @@ function recordSpellPressure(
   spellName,
   payment,
   actionPayment,
-  { policyWanted = true } = {}
+  { policyWanted = true, round = null } = {}
 ) {
   if (!metrics?.[phase] || !SPELLS[spellName] || !payment) return;
   const phaseMetrics = metrics[phase];
   const floorKey = String(Math.max(1, Number(floor) || 1));
   const key = `${floorKey}:${spellName}`;
+  const spell = SPELLS[spellName];
   const event = {
     candidateChecks: 1,
     policyWanted: Number(policyWanted),
@@ -2951,6 +3195,17 @@ function recordSpellPressure(
   addSpellPressureBucket(spellBucket, event);
   const floorSpellBucket = phaseMetrics.byFloorAndSpell[key] ||= createSpellPressureBucket();
   addSpellPressureBucket(floorSpellBucket, event);
+  addSpellPressureBucket(
+    phaseMetrics.byActionKind[getSpellPressureActionKind(spellName)],
+    event
+  );
+  const costBucket = phaseMetrics.byCost[String(spell.cost)] ||= createSpellPressureBucket();
+  addSpellPressureBucket(costBucket, event);
+  if (Number.isInteger(round) && round >= 1) {
+    const roundBucket = phaseMetrics.byRound[String(round)] ||= createSpellPressureBucket();
+    addSpellPressureBucket(roundBucket, event);
+  }
+  return event;
 }
 
 function addSpellPressureMetrics(target, source) {
@@ -2965,6 +3220,18 @@ function addSpellPressureMetrics(target, source) {
     });
     Object.entries(sourcePhase.byFloorAndSpell || {}).forEach(([key, bucket]) => {
       const destination = targetPhase.byFloorAndSpell[key] ||= createSpellPressureBucket();
+      addSpellPressureBucket(destination, bucket);
+    });
+    Object.entries(sourcePhase.byActionKind || {}).forEach(([kind, bucket]) => {
+      const destination = targetPhase.byActionKind[kind] ||= createSpellPressureBucket();
+      addSpellPressureBucket(destination, bucket);
+    });
+    Object.entries(sourcePhase.byCost || {}).forEach(([cost, bucket]) => {
+      const destination = targetPhase.byCost[cost] ||= createSpellPressureBucket();
+      addSpellPressureBucket(destination, bucket);
+    });
+    Object.entries(sourcePhase.byRound || {}).forEach(([round, bucket]) => {
+      const destination = targetPhase.byRound[round] ||= createSpellPressureBucket();
       addSpellPressureBucket(destination, bucket);
     });
   });
@@ -3302,9 +3569,11 @@ function useManaPotionIfNeeded(state, metrics) {
   ) return null;
   const itemIndex = state.inventory.indexOf("MANA_POTION");
   if (itemIndex < 0) return null;
+  const mpBefore = character.mp;
   state.inventory.splice(itemIndex, 1);
   recordTrackedConsumableConsumption(state, metrics, "MANA_POTION");
   ITEM_EFFECTS.MANA_POTION({ char: character });
+  recordCombatMpRecovery(metrics, "manaPotion", Math.max(0, character.mp - mpBefore));
   metrics.manaPotionsUsed++;
   return "MANA_POTION";
 }
@@ -3386,9 +3655,60 @@ function getCombatPolicyProbeAction(state) {
   });
 }
 
+function createCombatPolicyProbeMetrics() {
+  return {
+    rounds: 0,
+    spellPreferred: 0,
+    fightPreferred: 0,
+    noActionPreferred: 0,
+    noLivingTarget: 0,
+    noKnownEnemySpell: 0,
+    knownButUnsupportedEnemySpell: 0,
+    selectorFightWithKnownEnemySpell: 0
+  };
+}
+
+function addCombatPolicyProbeMetrics(target, source) {
+  Object.keys(createCombatPolicyProbeMetrics()).forEach(key => {
+    target[key] += source?.[key] || 0;
+  });
+}
+
+function recordCombatPolicyProbe(state, metrics, probeAction) {
+  const probe = metrics?.combatPolicyProbe;
+  if (!probe) return;
+  probe.rounds++;
+  const monsters = state.combatState?.monsters || [];
+  const hasLivingTarget = monsters.some(monster => monster.hp > 0);
+  if (!hasLivingTarget) probe.noLivingTarget++;
+  const knownEnemySpell = (state.party[0].spells || []).some(spellName =>
+    SPELLS[spellName]?.target?.includes("enemy")
+  );
+  const knownSelectorEnemySpell = (state.party[0].spells || []).some(spellName =>
+    AUTO_SPELL_IDS.includes(spellName) && SPELLS[spellName]?.target?.includes("enemy")
+  );
+  if (probeAction?.type === "spell") {
+    probe.spellPreferred++;
+    return;
+  }
+  if (probeAction?.type !== "fight") {
+    probe.noActionPreferred++;
+    return;
+  }
+  probe.fightPreferred++;
+  if (knownSelectorEnemySpell) {
+    probe.selectorFightWithKnownEnemySpell++;
+  } else if (knownEnemySpell) {
+    probe.knownButUnsupportedEnemySpell++;
+  } else {
+    probe.noKnownEnemySpell++;
+  }
+}
+
 function recordCombatSpellPressure(state, metrics, actualAction) {
   if (!actualAction || !["fight", "spell"].includes(actualAction.type)) return;
   const probeAction = getCombatPolicyProbeAction(state);
+  recordCombatPolicyProbe(state, metrics, probeAction);
   if (probeAction?.type !== "spell") return;
   const spell = SPELLS[probeAction.spellName];
   if (!spell) return;
@@ -3402,13 +3722,14 @@ function recordCombatSpellPressure(state, metrics, actualAction) {
     probeAction.spellName,
     reserveMp
   );
-  recordSpellPressure(
+  return recordSpellPressure(
     metrics.mpPressure,
     "combat",
     state.floor,
     probeAction.spellName,
     payment,
-    actionPayment
+    actionPayment,
+    { round: state.combatState.roundNumber }
   );
 }
 
@@ -4383,6 +4704,11 @@ function runEncounter(
     ? "boss"
     : (isMidboss ? "midboss" : (isElite ? "elite" : "normal"));
   const mpBlockedAtEncounterStart = metrics?.mpPressure?.combat?.total?.mpBlocked || 0;
+  const encounterFloor = state.floor;
+  const encounterStartMp = state.party[0].mp;
+  const encounterStartMaxMp = getCharMaxMp(state.party[0]);
+  let encounterMinimumMp = encounterStartMp;
+  const blockedRounds = [];
   const startBuild = (isBoss || isMidboss || isElite) && metrics?.collectSpecialBattles
     ? createBuildSnapshot(state, metrics?.scoringProfile || null, `${encounterType}-start`)
     : null;
@@ -4506,6 +4832,15 @@ function runEncounter(
         ...createDeathStateSnapshot(state, metrics.scoringProfile)
       };
     }
+    recordCombatMpEncounter(
+      metrics,
+      encounterFloor,
+      encounterStartMp,
+      encounterStartMaxMp,
+      encounterMinimumMp,
+      blockedRounds,
+      state.party[0].mp
+    );
     return {
       result,
       rounds,
@@ -4544,7 +4879,9 @@ function runEncounter(
     }
 
     const action = selectCombatAction(state, metrics);
-    recordCombatSpellPressure(state, metrics, action);
+    const roundNumber = state.combatState.roundNumber;
+    const pressureEvent = recordCombatSpellPressure(state, metrics, action);
+    if (pressureEvent?.mpBlocked) blockedRounds.push(roundNumber);
     recordSpellSelectionMetrics(state, metrics, action);
     const actionTarget = action.targetIdx === undefined
       ? null
@@ -4615,7 +4952,6 @@ function runEncounter(
       observations.coreOpportunityCounts.CORE_BLOOD_WAND++;
     }
 
-    const roundNumber = state.combatState.roundNumber;
     const roundRandomDraws = [];
     const simulationRandom = Math.random;
     Math.random = () => {
@@ -4686,6 +5022,7 @@ function runEncounter(
     observations.bloodWandHealActivations += Number(bloodWandActivationType === "heal");
     observations.coreActivationCounts.CORE_BLOOD_WAND += Number(Boolean(bloodWandActivationType));
     state = roundResult.state;
+    encounterMinimumMp = Math.min(encounterMinimumMp, state.party[0].mp);
     recordSpellResourceMetrics(metrics, characterBeforeRound, state.party[0]);
     recordIdentificationPowderAcquisition(
       metrics,
@@ -6958,6 +7295,7 @@ function applySimulatedCampRest(state, observations, metrics = null) {
   }
   if (metrics) {
     metrics.campHealingHp += hpGain;
+    recordCombatMpRecovery(metrics, "camp", mpGain);
     if (extraCamp) {
       metrics.extraCampRestCount++;
       metrics.extraCampHealingHp += hpGain;
@@ -7978,6 +8316,8 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     mpBlockedTerminalEncounter: Boolean(metrics.mpBlockedTerminalEncounter),
     mpDepletionCausedEnd,
     mpPressure: finalizeSpellPressureMetrics(metrics.mpPressure),
+    combatMpMeasurement: snapshotCombatMpMeasurement(metrics.combatMpMeasurement),
+    combatPolicyProbe: { ...metrics.combatPolicyProbe },
     fleeCount: metrics.fleeCount,
     bossPolicy: metrics.bossPolicy,
     bossExitPolicy: metrics.bossExitPolicy,
@@ -8199,6 +8539,8 @@ export function simulateRun({
     spellUsage: createSpellUsageMetrics(),
     explorationSpellUsage: createExplorationSpellUsageMetrics(),
     mpPressure: createSpellPressureMetrics(),
+    combatMpMeasurement: createCombatMpMeasurement(),
+    combatPolicyProbe: createCombatPolicyProbeMetrics(),
     mpBlockedTerminalEncounter: false,
     lightActiveSteps: 0,
     masfealActiveSteps: 0,
@@ -9263,6 +9605,8 @@ function simulateCase({
     spellUsage: createSpellUsageMetrics(),
     explorationSpellUsage: createExplorationSpellUsageMetrics(),
     mpPressure: createSpellPressureMetrics(),
+    combatMpMeasurement: createCombatMpMeasurement(),
+    combatPolicyProbe: createCombatPolicyProbeMetrics(),
     mpBlockedTerminalEncounterRuns: 0,
     mpDepletionCausedEndRuns: 0,
     lightActiveSteps: 0,
@@ -9332,6 +9676,12 @@ function simulateCase({
   const classMpPressureTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createSpellPressureMetrics()])
   );
+  const classCombatMpTotals = Object.fromEntries(
+    SIM_CLASSES.map(className => [className, createCombatMpMeasurement()])
+  );
+  const classCombatPolicyProbeTotals = Object.fromEntries(
+    SIM_CLASSES.map(className => [className, createCombatPolicyProbeMetrics()])
+  );
   const departureCraftBanksByClass = Object.fromEntries(
     SIM_CLASSES.map(className => [className, {}])
   );
@@ -9365,6 +9715,13 @@ function simulateCase({
     addExplorationSpellUsageAggregate(totals.explorationSpellUsage, result);
     addSpellPressureMetrics(totals.mpPressure, result.mpPressure);
     addSpellPressureMetrics(classMpPressureTotals[className], result.mpPressure);
+    addCombatMpMeasurement(totals.combatMpMeasurement, result.combatMpMeasurement);
+    addCombatMpMeasurement(classCombatMpTotals[className], result.combatMpMeasurement);
+    addCombatPolicyProbeMetrics(totals.combatPolicyProbe, result.combatPolicyProbe);
+    addCombatPolicyProbeMetrics(
+      classCombatPolicyProbeTotals[className],
+      result.combatPolicyProbe
+    );
     totals.mpBlockedTerminalEncounterRuns += Number(result.mpBlockedTerminalEncounter);
     totals.mpDepletionCausedEndRuns += Number(result.mpDepletionCausedEnd);
     totals.lightActiveSteps += result.lightActiveSteps;
@@ -9778,6 +10135,20 @@ function simulateCase({
       Object.entries(classMpPressureTotals).map(([className, pressure]) => [
         className,
         finalizeSpellPressureMetrics(pressure)
+      ])
+    ),
+    combatMp: finalizeCombatMpMeasurement(totals.combatMpMeasurement),
+    combatMpByClass: Object.fromEntries(
+      Object.entries(classCombatMpTotals).map(([className, measurement]) => [
+        className,
+        finalizeCombatMpMeasurement(measurement)
+      ])
+    ),
+    combatPolicyProbe: { ...totals.combatPolicyProbe },
+    combatPolicyProbeByClass: Object.fromEntries(
+      Object.entries(classCombatPolicyProbeTotals).map(([className, probe]) => [
+        className,
+        { ...probe }
       ])
     ),
     mpBlockedTerminalEncounterRuns: totals.mpBlockedTerminalEncounterRuns,
@@ -10486,6 +10857,26 @@ function formatResourceDistribution(distribution) {
   ].join(" ");
 }
 
+function formatMpPressureBreakdown(buckets) {
+  return Object.entries(buckets || {})
+    .map(([key, bucket]) => [key, bucket?.mpBlocked || 0])
+    .filter(([, count]) => count > 0)
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .map(([key, count]) => `${key}=${count}`)
+    .join(",") || "なし";
+}
+
+function formatCombatMpFloorMedians(measurement) {
+  return [1, 5, 10, 15, 20]
+    .map(floor => {
+      const stats = measurement?.byFloor?.[String(floor)];
+      if (!stats?.encounters) return null;
+      return `B${floor}:開始${stats.startMpRate.median.toFixed(3)}/最低${stats.minimumMpRate.median.toFixed(3)}`;
+    })
+    .filter(Boolean)
+    .join(" ") || "なし";
+}
+
 function buildMpScarcityMeasurement(resultsByPolicy) {
   return {
     sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
@@ -10506,6 +10897,7 @@ function buildMpScarcityMeasurement(resultsByPolicy) {
             className,
             {
               runs: outcome.runs,
+              averageReachedFloor: outcome.averageReachedFloor,
               terminationReasons: outcome.terminationReasons,
               finalHp: outcome.finalHp,
               finalHpRate: outcome.finalHpRate,
@@ -10519,6 +10911,10 @@ function buildMpScarcityMeasurement(resultsByPolicy) {
         ),
         mpPressureByClass: result.mpPressureByClass,
         mpPressure: result.mpPressure,
+        combatMpByClass: result.combatMpByClass,
+        combatMp: result.combatMp,
+        combatPolicyProbeByClass: result.combatPolicyProbeByClass,
+        combatPolicyProbe: result.combatPolicyProbe,
         mpBlockedTerminalEncounterRuns: result.mpBlockedTerminalEncounterRuns,
         mpDepletionCausedEndRuns: result.mpDepletionCausedEndRuns
       })))
@@ -10536,6 +10932,14 @@ function printMpScarcityMetrics(resultsByPolicy) {
           const combat = pressure.combat.total;
           const exploration = pressure.exploration.total;
           const recovery = pressure.recovery.total;
+          const combatMp = result.combatMpByClass[className];
+          const policyProbe = result.combatPolicyProbeByClass[className];
+          const actionKinds = Object.fromEntries(
+            Object.entries(pressure.combat.byActionKind || {}).map(([kind, bucket]) => [
+              kind,
+              bucket.mpBlocked
+            ])
+          );
           console.log(
             `policy=${policy.id} scenario=${scenario.id} B${result.targetDepth} ${className} ` +
             `endMP=${formatResourceDistribution(outcome.finalMpRate)} ` +
@@ -10543,7 +10947,26 @@ function printMpScarcityMetrics(resultsByPolicy) {
             `reasons=${JSON.stringify(outcome.terminationReasons)} ` +
             `mpBlockedEnd=${outcome.mpBlockedTerminalEncounterRuns} ` +
             `mpCauseEnd=${outcome.mpDepletionCausedEndRuns} ` +
-            `pressure(combat=${combat.mpBlocked},explore=${exploration.mpBlocked},recovery=${recovery.mpBlocked})`
+            `pressure(combat=${combat.mpBlocked},explore=${exploration.mpBlocked},recovery=${recovery.mpBlocked}) ` +
+            `encounters=${combatMp.encounters} ` +
+            `blockedCombat=${formatPercent(combatMp.blockedEncounterRate)} ` +
+            `startMP=${formatResourceDistribution(combatMp.startMpRate)} ` +
+            `minMP=${formatResourceDistribution(combatMp.minimumMpRate)}`
+          );
+          console.log(
+            `  mpBlocked内訳: 回復=${actionKinds.recovery || 0} 攻撃=${actionKinds.offense || 0} ` +
+            `補助=${actionKinds.support || 0}; cost=${formatMpPressureBreakdown(pressure.combat.byCost)}; ` +
+            `round=${formatMpPressureBreakdown(pressure.combat.byRound)}; ` +
+            `blockedRound=${formatResourceDistribution(combatMp.blockedRound)}; ` +
+            `戦闘間回復=${formatResourceDistribution(combatMp.interEncounterRecovery)} ` +
+            `source=${JSON.stringify(combatMp.recoveryBySource)}; ` +
+            `floor(${formatCombatMpFloorMedians(combatMp)})`
+          );
+          console.log(
+            `  selector probe: rounds=${policyProbe.rounds} spell=${policyProbe.spellPreferred} ` +
+            `fight=${policyProbe.fightPreferred} selectorFightKnown=${policyProbe.selectorFightWithKnownEnemySpell} ` +
+            `upstreamUnsupported=${policyProbe.knownButUnsupportedEnemySpell} ` +
+            `upstreamUnknown=${policyProbe.noKnownEnemySpell}`
           );
         });
       });
