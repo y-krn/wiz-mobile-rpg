@@ -259,6 +259,7 @@ if (SIM_DAMAGE_PROBE_ENABLED && !globalThis.__simDamageProbeMathRoundWrapped) {
 }
 const { scaleEnemyForDepth } = await import("../src/rules/depth_scaling.js");
 const { ITEM_EFFECTS } = await import("../src/systems/item_effects.js");
+const { getUsableInventoryItems } = await import("../src/rules/item_inventory.js");
 const { getEffectiveHealAmount } = await import("../src/rules/item_rules.js");
 const { canUseManaItems } = await import("../src/rules/class_rules.js");
 const {
@@ -1687,6 +1688,8 @@ function createTrapAggregate() {
     stairsHealingHp: 0,
     campHealingHp: 0,
     diosHealingHp: 0,
+    manaPotionsUsedInCombat: 0,
+    manaPotionsUsedPostCombat: 0,
     healPotionsAcquiredBySource: {
       starting: 0,
       departureCraft: 0,
@@ -1872,7 +1875,8 @@ function createCombatMpMeasurement() {
     byFloor: {},
     recoveryBySource: {
       camp: 0,
-      manaPotion: 0
+      manaPotion: 0,
+      combatManaPotion: 0
     },
     lastEncounterEndMp: null
   };
@@ -2242,6 +2246,8 @@ function addTrapAggregate(target, result) {
   target.stairsHealingHp += result.stairsHealingHp;
   target.campHealingHp += result.campHealingHp;
   target.diosHealingHp += result.diosHealingHp;
+  target.manaPotionsUsedInCombat += result.manaPotionsUsedInCombat;
+  target.manaPotionsUsedPostCombat += result.manaPotionsUsedPostCombat;
   Object.entries(result.healPotionsAcquiredBySource).forEach(([source, amount]) => {
     target.healPotionsAcquiredBySource[source] =
       (target.healPotionsAcquiredBySource[source] || 0) + amount;
@@ -2359,6 +2365,8 @@ function finalizeTrapAggregate(aggregate) {
     averageStairsHealingHp: aggregate.stairsHealingHp / runs,
     averageCampHealingHp: aggregate.campHealingHp / runs,
     averageDiosHealingHp: aggregate.diosHealingHp / runs,
+    averageManaPotionsUsedInCombat: aggregate.manaPotionsUsedInCombat / runs,
+    averageManaPotionsUsedPostCombat: aggregate.manaPotionsUsedPostCombat / runs,
     averageHealPotionsAcquiredBySource: Object.fromEntries(
       Object.entries(aggregate.healPotionsAcquiredBySource).map(([source, amount]) => [
         source,
@@ -2478,6 +2486,8 @@ function buildConsumableClassSummary(metrics) {
     averageMaterialSourceCounts: metrics.averageMaterialSourceCounts,
     averageManaPotionsAcquiredBySource: metrics.averageManaPotionsAcquiredBySource,
     averageManaPotionsConsumed: metrics.averageManaPotionsConsumed,
+    averageManaPotionsUsedInCombat: metrics.averageManaPotionsUsedInCombat,
+    averageManaPotionsUsedPostCombat: metrics.averageManaPotionsUsedPostCombat,
     averageManaPotionsConsumedBySource: metrics.averageManaPotionsConsumedBySource,
     averageHolyWaterAcquiredBySource: metrics.averageHolyWaterAcquiredBySource,
     averageHolyWaterConsumed: metrics.averageHolyWaterConsumed,
@@ -3577,8 +3587,15 @@ function useManaPotionIfNeeded(state, metrics) {
   recordTrackedConsumableConsumption(state, metrics, "MANA_POTION");
   ITEM_EFFECTS.MANA_POTION({ char: character });
   recordCombatMpRecovery(metrics, "manaPotion", Math.max(0, character.mp - mpBefore));
-  metrics.manaPotionsUsed++;
+  recordManaPotionUse(metrics, "post-combat");
   return "MANA_POTION";
+}
+
+function recordManaPotionUse(metrics, timing) {
+  if (!metrics) return;
+  metrics.manaPotionsUsed++;
+  if (timing === "combat") metrics.manaPotionsUsedInCombat++;
+  else metrics.manaPotionsUsedPostCombat++;
 }
 
 function recordRecoveryPotionTiming(state, metrics) {
@@ -3640,6 +3657,67 @@ function chooseSimulationAutoCombatAction(args) {
     ...args,
     character
   });
+}
+
+function chooseSimulationCombatActionForCharacter(character, monsters, roundNumber, healThreshold) {
+  return chooseSimulationAutoCombatAction({
+    character,
+    monsters,
+    roundNumber,
+    healingTargetIdx: getAutoHealTargetIdx(character, healThreshold),
+    canCastSpell: (spellName, reserveMp) => {
+      const spell = SPELLS[spellName];
+      if (!spell) return false;
+      const payment = getSpellPayment(character, spell.cost);
+      return payment.canCast && (
+        payment.resource !== "mp" || character.mp - reserveMp >= payment.cost
+      );
+    }
+  });
+}
+
+const COMBAT_MANA_POTION_POLICY =
+  "source-selected spell is MP-blocked before use and castable after source item effect";
+
+function getCombatManaPotionAction(state) {
+  const character = state.party[0];
+  if (!isAlive(character) || !canUseManaItems(character)) return null;
+  const selectableManaPotion = getUsableInventoryItems(state.inventory).some(
+    ({ itemKey, item }) => itemKey === "MANA_POTION" && item?.type === "usable" && !item.campOnly
+  );
+  if (!selectableManaPotion) return null;
+
+  const currentAction = chooseSimulationCombatActionForCharacter(
+    character,
+    state.combatState.monsters,
+    state.combatState.roundNumber,
+    state.simPolicy.healPotionThreshold
+  );
+  if (currentAction?.type === "spell") return null;
+
+  const afterPotionCharacter = structuredClone(character);
+  const mpBefore = afterPotionCharacter.mp;
+  getItemData("MANA_POTION")?.effect?.(afterPotionCharacter);
+  if (afterPotionCharacter.mp <= mpBefore) return null;
+
+  const afterPotionAction = chooseSimulationCombatActionForCharacter(
+    afterPotionCharacter,
+    state.combatState.monsters,
+    state.combatState.roundNumber,
+    state.simPolicy.healPotionThreshold
+  );
+  if (afterPotionAction?.type !== "spell") return null;
+  const spell = SPELLS[afterPotionAction.spellName];
+  const beforePayment = getSpellPayment(character, spell.cost);
+  if (beforePayment.canCast || beforePayment.resource !== "mp") return null;
+
+  return {
+    type: "item",
+    actorIdx: 0,
+    targetIdx: 0,
+    itemKey: "MANA_POTION",
+    simManaPotionPolicy: COMBAT_MANA_POTION_POLICY
+  };
 }
 
 function getCombatPolicyProbeAction(state) {
@@ -4054,6 +4132,9 @@ function selectCombatAction(state, metrics) {
   );
   if (evRecoveryAction) return evRecoveryAction;
   if (!evShouldFight && diosPriorityAction) return diosPriorityAction;
+
+  const combatManaPotionAction = getCombatManaPotionAction(state);
+  if (combatManaPotionAction) return combatManaPotionAction;
 
   const reserveMp = hasSpell(character, "DIOS") ? 1 : 0;
   const sharedAutoAction = chooseSimulationAutoCombatAction({
@@ -5049,6 +5130,18 @@ function runEncounter(
     observations.bloodWandHealActivations += Number(bloodWandActivationType === "heal");
     observations.coreActivationCounts.CORE_BLOOD_WAND += Number(Boolean(bloodWandActivationType));
     state = roundResult.state;
+    const combatManaPotionUsed = action.type === "item" &&
+      action.itemKey === "MANA_POTION" &&
+      roundResult.logQueue.some(({ msg = "" }) => msg.includes("魔力草を使用し"));
+    if (combatManaPotionUsed) {
+      recordTrackedConsumableConsumption(state, metrics, "MANA_POTION");
+      recordManaPotionUse(metrics, "combat");
+      recordCombatMpRecovery(
+        metrics,
+        "combatManaPotion",
+        Math.max(0, state.party[0].mp - characterBeforeRound.mp)
+      );
+    }
     encounterMinimumMp = Math.min(encounterMinimumMp, state.party[0].mp);
     recordSpellResourceMetrics(metrics, characterBeforeRound, state.party[0]);
     recordIdentificationPowderAcquisition(
@@ -8164,6 +8257,8 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     greaterHealPotionsAcquiredBySource: { ...metrics.greaterHealPotionsAcquiredBySource },
     greaterHealPotionsConsumedBySource: { ...metrics.greaterHealPotionsConsumedBySource },
     manaPotionsUsed: metrics.manaPotionsUsed,
+    manaPotionsUsedInCombat: metrics.manaPotionsUsedInCombat,
+    manaPotionsUsedPostCombat: metrics.manaPotionsUsedPostCombat,
     manaPotionsAcquiredBySource: { ...metrics.manaPotionsAcquiredBySource },
     manaPotionsConsumedBySource: { ...metrics.manaPotionsConsumedBySource },
     holyWaterUsed: metrics.holyWaterUsed,
@@ -8537,6 +8632,8 @@ export function simulateRun({
     recoveryPotionShortageFloor: null,
     healPotionsUsed: 0,
     greaterHealPotionsUsed: 0,
+    manaPotionsUsedInCombat: 0,
+    manaPotionsUsedPostCombat: 0,
     recoveryPotionsUsed: 0,
     combatHealPotionsUsed: 0,
     combatGreaterHealPotionsUsed: 0,
@@ -10662,6 +10759,8 @@ function printConsumableSummary(result) {
     .reduce((sum, amount) => sum + amount, 0);
   const greaterHealAcquired = Object.values(result.averageGreaterHealPotionsAcquiredBySource || {})
     .reduce((sum, amount) => sum + amount, 0);
+  const manaAcquired = Object.values(result.averageManaPotionsAcquiredBySource || {})
+    .reduce((sum, amount) => sum + amount, 0);
   const departureWingAcquired = result.averagePortalAcquisitions?.departureCraft || 0;
   const departureWingUsed = result.averagePortalUsesBySource?.["departure-craft"] || 0;
   console.log(
@@ -10674,6 +10773,9 @@ function printConsumableSummary(result) {
   console.log(
     `消耗品/run: 傷薬入手/消費=${healAcquired.toFixed(2)}/${result.averageHealPotionsConsumed.toFixed(2)}, ` +
     `上薬入手/消費=${greaterHealAcquired.toFixed(2)}/${(result.averageGreaterHealPotionsConsumed || 0).toFixed(2)}, ` +
+    `魔力草入手/消費=${manaAcquired.toFixed(2)}/${(result.averageManaPotionsConsumed || 0).toFixed(2)} ` +
+    `(戦闘中/戦闘後=${(result.averageManaPotionsUsedInCombat || 0).toFixed(2)}/` +
+    `${(result.averageManaPotionsUsedPostCombat || 0).toFixed(2)}), ` +
     `罠kit入手/消費=${result.averageTrapKitsAcquired.toFixed(2)}/${result.averageTrapKitsUsed.toFixed(2)}, ` +
     `翼(出発)入手/消費=${departureWingAcquired.toFixed(2)}/${departureWingUsed.toFixed(2)}, ` +
     `鑑定粉入手/消費=${formatPowderAcquired(result)}/` +
@@ -10690,7 +10792,7 @@ function printConsumableSummary(result) {
 function printCraftMeasurementSummary(result) {
   console.log("クラフト・素材競合/run（職業別。craft=実購入/同一bank可否）");
   console.log(
-    "職業    | 魔石片 宝箱/モンスター/その他 | 魔力草 craft/率/使用 | 傷薬 可/率 | 上薬 可/率 | 聖水 可/率 | 強化可 | 工房可 | 実消費 強化/工房"
+    "職業    | 魔石片 宝箱/モンスター/その他 | 魔力草 craft/率/使用(戦闘中/戦闘後) | 傷薬 可/率 | 上薬 可/率 | 聖水 可/率 | 強化可 | 工房可 | 実消費 強化/工房"
   );
   console.log(
     "--------|--------------------------|--------------------|-----------|-----------|-----------|--------|-------|------------------"
@@ -10712,6 +10814,7 @@ function printCraftMeasurementSummary(result) {
     console.log(
       `${className.padEnd(7)} | ${shards.toFixed(2)}/${combatShards.toFixed(2)}/${otherShards.toFixed(2).padStart(5)} ` +
       `| ${craft("MANA_POTION")} / ${(metrics.averageManaPotionsConsumed || 0).toFixed(2)} ` +
+      `(${(metrics.averageManaPotionsUsedInCombat || 0).toFixed(2)}/${(metrics.averageManaPotionsUsedPostCombat || 0).toFixed(2)}) ` +
       `| ${craft("HEAL_POTION")} | ${craft("GREATER_HEAL")} | ${craft("HOLY_WATER")} ` +
       `| ${formatPercent(competition.weaponEnhancementAffordableRate || 0)} ` +
       `| ${(competition.averageAffordableWorkshopNodeCount || 0).toFixed(2)} ` +
@@ -11577,10 +11680,14 @@ console.log(
 );
 console.log(
   `生存仮定: 傷薬使用閾値=${HEAL_POTION_THRESHOLD}, ` +
-  `魔力草使用閾値=${MANA_POTION_THRESHOLD}, ` +
+  `戦闘後魔力草使用閾値=${MANA_POTION_THRESHOLD}, ` +
   `逃走方針=${DEFAULT_FLEE_POLICY}, 逃走閾値=${DEFAULT_FLEE_HP_THRESHOLD ?? "逃走なし"}, ` +
   `状態回復=${DEFAULT_STATUS_CURE_POLICY}(HP<=${DEFAULT_STATUS_CURE_HP_THRESHOLD}), ` +
   "装備=識別方針別の実制限付き更新"
+);
+console.log(
+  `魔力草方針: 戦闘中=${COMBAT_MANA_POTION_POLICY}; ` +
+  `戦闘後=MP<=最大MP×${MANA_POTION_THRESHOLD}で回復`
 );
 console.log(
   `血杖HP支払い方針: 支払い後残HP率>=${BLOOD_WAND_HP_PAYMENT_MIN_RATE}`
@@ -11602,7 +11709,7 @@ console.log(
 );
 console.log(
   "非モデル化: テレポーター移動先の再経路化、商人での罠外し/鑑定粉購入（任意行動）、" +
-  "MP消費/強化アイテムの能動使用、マップ上の任意寄り道、" +
+  "魔力草以外のMP消費/強化アイテムの能動使用、マップ上の任意寄り道、" +
   "徘徊エリートの移動後の接触結果（知覚判定は実helper経由で計測）、" +
   "人間の敵別判断（固定閾値で代理）"
 );
