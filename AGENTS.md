@@ -106,10 +106,9 @@ first, then read only the relevant part.
 - Filter at the source. Pipe test, build, and log commands through `grep`,
   `head`, or `tail` so only failures or the relevant region are returned, e.g.
   `npm test 2>&1 | grep -E 'FAIL|Error'` or `git log --oneline -20`.
-- Locate before reading. For large files, run `grep -n` (or `grep -rn` across a
-  directory) to find the line first, then read only that region with a ranged
-  read (offset/limit, `head`, `tail`). Do not open a whole large file to find
-  one function.
+- Locate before reading. For large files, run `rg -n` to find the line first,
+  then read only that region with a ranged read (offset/limit, `head`, `tail`).
+  Do not open a whole large file to find one function.
 - Map structure cheaply. To learn a file's shape, `grep -nE` its definition
   lines (e.g. `^(export |function |const |class )`) instead of reading the file
   end to end, then read only the parts you need.
@@ -131,6 +130,42 @@ first, then read only the relevant part.
   (`ctx_execute` / `ctx_execute_file`) so full stdout is summarized outside the
   main context instead of being loaded in full. It is installed cross-agent
   under `~/.agents/skills/context-mode`.
+
+## Search and Reachability Claims
+
+`rg` and `grep` have different flag systems. `rg -r` means replace, so
+`rg -rn "pattern"` is parsed as `-r n` and replaces matches with `n`; it is
+not recursive search with line numbers. `rg` is recursive by default, and `-n`
+alone adds line numbers. Never copy `grep -rn` syntax into `rg`.
+
+`grep` is a locator, not proof of absence. A search result alone does not prove
+that there is no caller, something is unused, a path is unreachable, or
+something no longer has an effect. Before making any of those claims, check
+each of these independently:
+
+- Dynamic imports (`await import(...)`, including forms without `from`)
+- Barrel re-exports
+- String dispatch
+- HTML inline handlers / `data-action` routers
+- `window.` bindings / `globalThis[...]` / `eval` / `new Function`
+
+The decisive inspection is the production build:
+
+- Run `npm run build` and inspect the production bundle
+  (`dist/assets/index-*.js`).
+- Tree-shaking drops only code that can be proven statically unreachable from an
+  entry point. If a computed-property dynamic call is possible, the bundler
+  retains the namespace, so code being dropped is itself proof of
+  unreachability.
+- Function names are not reliable because minification removes them. Count
+  Japanese string literals with `rg -c -F` to count fixed strings in
+  `dist/assets/index-*.js`.
+- Always include a positive control: show that a known-live feature's string
+  produces a hit. Otherwise, zero results cannot be distinguished from a failed
+  inspection.
+- Do not finish while an unexpected hit remains unexplained; identify its source
+  first.
+
 ## Tool and Execution Policy
 
 - Use applicable Agent Skills when the task clearly matches one.
