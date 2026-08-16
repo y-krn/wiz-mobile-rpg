@@ -186,7 +186,6 @@ export function getCoreLogText(coreId) {
     CORE_CURSE_KEEPER: "呪いを飼い慣らし、力へ変えた！",
     CORE_GIANT_SLAYER: "巨躯を断つ一撃が冴えた！",
     CORE_MILESTONE_BREAKER: "守護者を討つ一撃が冴えた！",
-    CORE_REARGUARD: "後列から間合いを制した！",
     CORE_THORN_SHIELD: "棘が攻撃者へ牙を剥いた！",
     CORE_EXECUTIONER: "弱った敵へ執行の刃を振るった！",
     CORE_THIN_ICE_PACT: "薄氷の誓約が危険な力を引き出した！",

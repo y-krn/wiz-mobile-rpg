@@ -111,7 +111,8 @@ function makeChar(coreId, baseId = "SHORT_SWORD") {
   };
 }
 
-test("廃止済みの殿の構えを除くコア17種がenabled", () => {
+test("コア17種がenabled", () => {
+  assert.equal(CORE_AFFIXES.length, 17);
   const enabled = CORE_AFFIXES.filter(core => core.enabled).map(core => core.id);
   assert.deepEqual(enabled, [
     "CORE_LAST_STAND", "CORE_OPENER", "CORE_BLOOD_WAND", "CORE_PURIFY_RING",
@@ -513,10 +514,12 @@ test("守護者殺し: ボスだけ1.25倍", () => {
   assert.equal(getDamageAffixResult(char, { maxHp: 100, isBoss: false }, 100).damage, 100);
 });
 
-test("殿の構え: 既存装備でも無害・無効果", () => {
+test("殿の構え: 既存セーブ装備でも無害・無効果", () => {
   const char = makeChar("CORE_REARGUARD");
+  assert.equal(getAffixDefinition("CORE_REARGUARD"), null);
+  assert.deepEqual(getEquippedCoreAffixes(char), []);
+  assert.equal(getCharCoreParams(char, "CORE_REARGUARD"), null);
   assert.equal(getMeleeModifiers(char, 2), 1);
-  assert.equal(getAffixDefinition("CORE_REARGUARD").enabled, false);
 });
 
 test("反撃の棘: rng注入で発動と不発を固定", () => {

@@ -239,17 +239,6 @@ export const CORE_AFFIXES = [
     enabled: true
   },
   {
-    id: "CORE_REARGUARD",
-    kind: "core",
-    jpName: "殿の構え",
-    desc: "廃止済み。所持していても効果はない。",
-    slot: "weapon",
-    cost: 10,
-    params: { rowRate: 1 },
-    poolGroup: "combat",
-    enabled: false
-  },
-  {
     id: "CORE_THORN_SHIELD",
     kind: "core",
     jpName: "反撃の棘",
