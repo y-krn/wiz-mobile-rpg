@@ -1861,6 +1861,7 @@ function createCombatMpBucket() {
     startMpRate: createNumericDistribution(),
     minimumMp: createNumericDistribution(),
     minimumMpRate: createNumericDistribution(),
+    combatRounds: createNumericDistribution(),
     blockedRound: createNumericDistribution(),
     interEncounterDelta: createNumericDistribution(),
     interEncounterRecovery: createNumericDistribution(),
@@ -1898,6 +1899,7 @@ function recordCombatMpEncounter(
   startMaxMp,
   minimumMp,
   blockedRounds,
+  combatRounds,
   endMp
 ) {
   const measurement = metrics?.combatMpMeasurement;
@@ -1914,6 +1916,7 @@ function recordCombatMpEncounter(
     addNumericSample(bucket.startMpRate, startMp / maxMp);
     addNumericSample(bucket.minimumMp, minimumMp);
     addNumericSample(bucket.minimumMpRate, minimumMp / maxMp);
+    addNumericSample(bucket.combatRounds, combatRounds);
     blockedRounds.forEach(round => addNumericSample(bucket.blockedRound, round));
     if (transitionDelta === null) return;
     addNumericSample(bucket.interEncounterDelta, transitionDelta);
@@ -1935,6 +1938,7 @@ function addCombatMpBucket(target, source) {
     "startMpRate",
     "minimumMp",
     "minimumMpRate",
+    "combatRounds",
     "blockedRound",
     "interEncounterDelta",
     "interEncounterRecovery",
@@ -1965,6 +1969,7 @@ function snapshotCombatMpMeasurement(measurement) {
       "startMpRate",
       "minimumMp",
       "minimumMpRate",
+      "combatRounds",
       "blockedRound",
       "interEncounterDelta",
       "interEncounterRecovery",
@@ -1995,6 +2000,7 @@ function finalizeCombatMpMeasurement(measurement) {
     startMpRate: summarizeNumericDistribution(bucket.startMpRate),
     minimumMp: summarizeNumericDistribution(bucket.minimumMp),
     minimumMpRate: summarizeNumericDistribution(bucket.minimumMpRate),
+    combatRounds: summarizeNumericDistribution(bucket.combatRounds),
     blockedRound: summarizeNumericDistribution(bucket.blockedRound),
     interEncounterDelta: summarizeNumericDistribution(bucket.interEncounterDelta),
     interEncounterRecovery: summarizeNumericDistribution(bucket.interEncounterRecovery),
@@ -4855,6 +4861,7 @@ function runEncounter(
       encounterStartMaxMp,
       encounterMinimumMp,
       blockedRounds,
+      rounds,
       state.party[0].mp
     );
     return {
@@ -10980,6 +10987,7 @@ function printMpScarcityMetrics(resultsByPolicy) {
             `  mpBlocked内訳: 回復=${actionKinds.recovery || 0} 攻撃=${actionKinds.offense || 0} ` +
             `補助=${actionKinds.support || 0}; cost=${formatMpPressureBreakdown(pressure.combat.byCost)}; ` +
             `round=${formatMpPressureBreakdown(pressure.combat.byRound)}; ` +
+            `combatRounds=${formatResourceDistribution(combatMp.combatRounds)}; ` +
             `blockedRound=${formatResourceDistribution(combatMp.blockedRound)}; ` +
             `戦闘間回復=${formatResourceDistribution(combatMp.interEncounterRecovery)} ` +
             `source=${JSON.stringify(combatMp.recoveryBySource)}; ` +
