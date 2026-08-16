@@ -90,7 +90,7 @@ function character(equipment = {}) {
   };
 }
 
-function characterWithIdentifyDiscount({ className = "Fighter", affixValue = 0, inscriptionValue = 0 } = {}) {
+function characterWithIdentifyDiscount({ className = "Fighter", affixValue = 0 } = {}) {
   const char = character();
   char.class = className;
   char.equipment.accessory = {
@@ -99,9 +99,6 @@ function characterWithIdentifyDiscount({ className = "Fighter", affixValue = 0, 
     affixes: affixValue > 0
       ? [{ id: "identifyDiscount", type: "identifyDiscount", kind: "support", value: affixValue }]
       : [],
-    inscription: inscriptionValue > 0
-      ? { type: "identifyDiscount", value: inscriptionValue }
-      : null
   };
   return char;
 }
@@ -153,17 +150,16 @@ test("鑑定割引は0%/上限50%と中間値のrngで粉消費を分岐する",
 
   const combinedCharacter = characterWithIdentifyDiscount({
     className: "Bishop",
-    affixValue: 15,
-    inscriptionValue: 5
+    affixValue: 15
   });
-  assert.equal(getCharAffixSum(combinedCharacter, "identifyDiscount"), 40);
+  assert.equal(getCharAffixSum(combinedCharacter, "identifyDiscount"), 35);
 
   const savedAtThreshold = { identifyTickets: 1 };
-  identifyEquipment(savedAtThreshold, unknownItem(), combinedCharacter, () => 0.39);
+  identifyEquipment(savedAtThreshold, unknownItem(), combinedCharacter, () => 0.34);
   assert.equal(savedAtThreshold.identifyTickets, 1);
 
   const consumedAtThreshold = { identifyTickets: 1 };
-  identifyEquipment(consumedAtThreshold, unknownItem(), combinedCharacter, () => 0.4);
+  identifyEquipment(consumedAtThreshold, unknownItem(), combinedCharacter, () => 0.35);
   assert.equal(consumedAtThreshold.identifyTickets, 0);
 });
 

@@ -361,11 +361,10 @@ export function getAffixDefinition(affixOrId) {
   return AFFIX_BY_ID.get(id) || null;
 }
 
-export function formatAffixText(affix, supportSeparator = ": ", { coreSealed = false } = {}) {
+export function formatAffixText(affix, supportSeparator = ": ") {
   const definition = getAffixDefinition(affix);
   if ((affix.kind || definition?.kind) === "core") {
-    const sealLabel = coreSealed ? "(封)" : "";
-    return `◆${sealLabel}${definition?.jpName || affix.id || affix.type}: ${definition?.desc || affix.desc || "特殊効果"}`;
+    return `◆${definition?.jpName || affix.id || affix.type}: ${definition?.desc || affix.desc || "特殊効果"}`;
   }
   const label = definition?.jpName || affix.type || affix.id;
   const sign = affix.value >= 0 ? "+" : "";

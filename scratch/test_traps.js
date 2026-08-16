@@ -142,7 +142,6 @@ if (bareRate !== 73) {
 
 const trapBonusCases = [
   ["affix", { weapon: { baseId: "SHORT_SWORD", identified: true, affixes: [{ type: "trapBonus", value: 10 }] } }],
-  ["inscription", { weapon: { baseId: "SHORT_SWORD", identified: true, inscription: { type: "trapBonus", value: 10 } } }],
   ["base item (THIEF_EYE)", { accessory: "THIEF_EYE" }]
 ];
 for (const [label, equipment] of trapBonusCases) {
@@ -154,6 +153,16 @@ for (const [label, equipment] of trapBonusCases) {
   }
   console.log(`- trapBonus via ${label}: ${bareRate} -> ${rate}`);
 }
+
+state.party = makeThief({
+  weapon: { baseId: "SHORT_SWORD", identified: true, inscription: { type: "trapBonus", value: 10 } }
+});
+const legacyInscriptionRate = calculateSuccessRate(testTrap);
+if (legacyInscriptionRate !== 73) {
+  console.error(`FAIL: legacy inscription must be ignored, got ${legacyInscriptionRate}.`);
+  process.exit(1);
+}
+console.log("- legacy inscription: not applied");
 
 // 未鑑定の装備は affix 効果を渡さない（getItemData が trapBonus 0 を返す）
 state.party = makeThief({

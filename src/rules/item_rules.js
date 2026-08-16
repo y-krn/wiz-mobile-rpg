@@ -65,9 +65,6 @@ export function getCharAffixSum(char, affixType) {
             }
           });
         }
-        if (eqKey.inscription && eqKey.inscription.type === affixType) {
-          sum += eqKey.inscription.value;
-        }
         // 完全鑑定済みかつ呪われ装備の場合、呪いの全効果を適用
         if (eqKey.curseEffectId) {
           const curse = CURSE_EFFECTS[eqKey.curseEffectId];
@@ -252,14 +249,6 @@ export function getItemData(itemOrKey) {
       });
     }
 
-    if (itemOrKey.inscription?.type === "atk") {
-      atkBonus += itemOrKey.inscription.value;
-    } else if (itemOrKey.inscription?.type === "def") {
-      defBonus += itemOrKey.inscription.value;
-    } else if (itemOrKey.inscription?.type === "trapBonus") {
-      trapBonus += itemOrKey.inscription.value;
-    }
-    
     // prefix の決定
     let prefix = "";
     if (itemOrKey.affixes && itemOrKey.affixes.length > 0) {
@@ -295,12 +284,8 @@ export function getItemData(itemOrKey) {
     if (enhanceLevel > 0) {
       name = `${name}+${enhanceLevel}`;
     }
-    if (itemOrKey.inscription) {
-      name = `${name} [${itemOrKey.inscription.name}]`;
-    }
-    
     let affixDesc = (itemOrKey.affixes || []).map(aff => {
-      return formatAffixText(aff, "", { coreSealed: itemOrKey.coreSealed });
+      return formatAffixText(aff, "");
     }).join(" / ");
     
     let desc = `${base.desc} [${affixDesc}]`;
@@ -315,18 +300,6 @@ export function getItemData(itemOrKey) {
       };
       const tagList = itemOrKey.tags.map(t => hintLabels[t] || t).join("・");
       desc = `<タグ: ${tagList}> ${desc}`;
-    }
-    if (itemOrKey.inscription) {
-      const ins = itemOrKey.inscription;
-      const label = {
-        poisonWard: "毒避け",
-        antiUndead: "不死特効",
-        spellGuard: "魔除け",
-        antiDemon: "悪魔対策",
-        antiDragon: "竜特効",
-        trapBonus: "罠解除"
-      }[ins.type] || ins.type;
-      desc += ` <刻印: ${ins.name} (${label}+${ins.value}%)>`;
     }
     if (itemOrKey.curseEffectId) {
       const curse = CURSE_EFFECTS[itemOrKey.curseEffectId];

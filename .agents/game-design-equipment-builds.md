@@ -3,7 +3,7 @@
 Tracking issue: y-krn/wiz-mobile-rpg#120 (closed — all phases merged)
 
 Implementation history: PR #126 (Phase 1), #127 (Phase 2), #128 (Phase 3),
-#129 (Phase 4). The Phase 4 implementation remains, but is unreachable from the current game screens.
+#129 (Phase 4). The inscription and curse-sealing portions of Phase 4 were removed in #668 because they were unreachable from the current game screens; polishing remains pending #669.
 
 **Direction change (2026-07-18).** This document reflects the pivot to a solo
 depth-attack roguelite. It is subordinate to `.agents/game-design-core-loop.md`
@@ -29,7 +29,7 @@ Goal: effective build space ≈ `CORE_AFFIXES.length` cores × 2〜3 class fits 
   so the core itself is not wasted. If a shield core is generated for a class that cannot equip shields, it
   remains a dead card because there is no replacement candidate.
 - **Support count**: `SUPPORT_AFFIXES.length` (source of truth: `src/data/affixes.js`). Numeric and minor effects.
-  The inscription, polishing, and sealing implementations can add or overwrite them.
+  The polishing implementation can overwrite them.
 - No cores that are pure numeric upgrades. Every core is a sidegrade.
 - Registry: `src/data/affixes.js` (data only). Rule and effect helpers:
   `src/rules/affix_rules.js`.
@@ -124,34 +124,22 @@ adding it as a conditional when implemented).
 
 # Workshop (Phase 4)
 
-Terminology note: “Workshop” in this section refers to the inscriptions, polishing, and sealing implemented in PR #129.
-It is distinct from “Workshop” in `.agents/game-design.md` (the permanent unlock tree between runs),
-and the final naming decision is outside the scope of this Issue.
+The unreachable inscription and curse-sealing features from PR #129 were removed in #668.
+This “Workshop” is distinct from the permanent unlock tree in `.agents/game-design.md`.
+The remaining polishing implementation is also unreachable from current screens and is tracked by #669.
 
-An implementation currently exists in `src/craft.js`, but it is unreachable because no screen under `src` imports it.
-Because equipment is not carried between runs, it has no applicable target in the shipped game. Deleting or
-reconnecting it requires a separate Issue.
+Boundary: **only support affixes can be polished**. Cores cannot be created, granted, moved, or removed in
+the Workshop.
 
-Boundary: **only support affixes can be handled in the Workshop**. Cores cannot be created, granted, moved, or removed in
-the Workshop. The only exception is weakening a core through sealing.
-
-- **19 Inscriptions** (`TAG_EFFECT_MAP`): 12 existing types + 3 economy types
-  (`material` / `fortune` / `contract`) + 4 conditional numeric types
-  （深層攻勢/無傷の猛攻/不屈/精唱）
 - **Polishing**: Multiplies the value of 1 support affix by 1.5 (round up). 1 time per item
   (`polished` flag). Cores are excluded. Cost: `AFFIX_BALANCE.polishCost`
-- **Core halving through sealing**: Adds `coreSealed: true` when a curse is sealed. Halving rules are
-  centralized in `CORE_SEAL_RULES` (`src/rules/affix_rules.js`) —
-  multiplier types use “1+(x-1)/2”, probability and constant types are halved (round down), boolean types
-  （浄化の環/殿の構え/盗掘王/慧眼/賞金稼ぎ/学者の眼）are disabled. 血杖
-  doubles HP cost from 2× to 4×. Equipment is displayed as “◆(封)名称”
 
 # Balance Framework
 
 - Core evaluation rule: **an unconditional +15% equivalent is the upper limit when converted by expected uptime**.
   Example: 背水 +40% × 20% uptime ≈ +8% effective.
-- Only 2 tuning knobs: `AFFIX_BALANCE` (cost / budget / role composition /
-  curse rate / polish cost) and `CORE_SEAL_RULES` (seal weakening). Do not hardcode numbers
+- Only 1 tuning knob: `AFFIX_BALANCE` (cost / budget / role composition /
+  curse rate / polish cost). Do not hardcode numbers
   on the hook side.
 - Numeric changes go through the balance-simulation checklist.
 
@@ -164,7 +152,7 @@ the Workshop. The only exception is weakening a core through sealing.
 
 # UI and Visualization
 
-- Equipment screen: Cores show as “◆名称: 条件文” on 1 line; sealed cores as “◆(封)名称”.
+- Equipment screen: Cores show as “◆名称: 条件文” on 1 line.
   Support affixes show numeric values (centralized in `formatAffixText`).
 - Battle log: Always explicitly show core activation (`getCoreLogText` / `logCoreActivation`).
   Always-on effects appear only the first time in battle; trigger effects appear every time. Exploration effects appear in exploration logs.
@@ -173,7 +161,7 @@ the Workshop. The only exception is weakening a core through sealing.
 # Verification
 
 - deterministic unit: `scratch/test_affixes.js` (registry consistency, budget, generation),
-  `scratch/test_core_affixes.js` (all core effects, seal halving, polishing restrictions)
+  `scratch/test_core_affixes.js` (all core effects, legacy-field removal, polishing restrictions)
 - `npm run test:unit` / `npm run lint` / `npm run build` /
   `npm run test:browser`
 
