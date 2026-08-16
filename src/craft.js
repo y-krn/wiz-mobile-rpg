@@ -1,9 +1,7 @@
 import { state, saveAutosave, addLog, addInventoryItem } from "./state.js";
 import { getItemData, getItemBaseId } from "./data.js";
 import { playSound } from "./audio.js";
-import { TAG_EFFECT_MAP } from "./data/tags.js";
 import { AFFIX_BALANCE, getAffixDefinition } from "./data/affixes.js";
-import { CURSE_EFFECTS } from "./data/items.js";
 
 export const CRAFT_RECIPES = [
   {
@@ -357,125 +355,6 @@ export function executePolish(itemIdx, affixIdx) {
   const item = getItemData(polishedItem);
   const affix = polishedItem.affixes[affixIdx];
   addLog(`[工房] [${item.name}] の [${getAffixDefinition(affix)?.jpName || affix.type}] を研磨しました！`);
-  playSound("level_up");
-  saveAutosave();
-  return true;
-}
-
-export function applyCurseSeal(eqItem) {
-  eqItem.tags = (eqItem.tags || []).filter(tag => tag !== "curse");
-  if (eqItem.curseEffectId) {
-    eqItem.sealedCurseEffectId = eqItem.curseEffectId;
-    eqItem.curseEffectId = null;
-  }
-  eqItem.inscription = {
-    type: "sealed",
-    value: 0,
-    name: "封印印",
-    tag: "holy"
-  };
-  eqItem.coreSealed = true;
-  return (eqItem.affixes || []).some(affix => {
-    const definition = getAffixDefinition(affix);
-    return (affix.kind || definition?.kind) === "core";
-  });
-}
-
-export function executeTagInscription(itemIdx, matName, tagToApply, overwriteTagIdx, actionType = "add") {
-  let eqItem;
-  let isEquipped = false;
-  let actorIdx, slot;
-
-  if (itemIdx && typeof itemIdx === "object") {
-    if (itemIdx.type === "equipped") {
-      isEquipped = true;
-      actorIdx = itemIdx.actorIdx;
-      slot = itemIdx.slot;
-      eqItem = state.party[actorIdx].equipment[slot];
-    } else {
-      eqItem = state.inventory[itemIdx.index];
-    }
-  } else {
-    eqItem = state.inventory[itemIdx];
-  }
-
-  if (!eqItem) return false;
-
-  const item = getItemData(eqItem);
-  if (!item || !["weapon", "shield", "armor"].includes(item.type)) {
-    addLog("このアイテムには刻印できません。");
-    return false;
-  }
-
-  // 未鑑定装備は刻印不可
-  if (typeof eqItem === "object" && eqItem.identified === false) {
-    addLog("未鑑定の装備には刻印できません。");
-    return false;
-  }
-
-  // コスト取得
-  const effectInfo = actionType === "seal" ? { matCost: 3 } : TAG_EFFECT_MAP[tagToApply];
-  if (!effectInfo) {
-    addLog("無効な刻印効果です。");
-    return false;
-  }
-
-  const matCost = effectInfo.matCost;
-
-  // 素材チェック＆消費
-  if ((state.metaMaterials[matName] || 0) < matCost) {
-    addLog(`素材 [${matName}] が不足しています。`);
-    return false;
-  }
-
-  state.metaMaterials[matName] -= matCost;
-
-  // 刻印付与
-  const upgradedItem = convertToEquipObject(eqItem);
-  if (!upgradedItem.tags) upgradedItem.tags = [];
-
-  if (actionType === "seal") {
-    // 呪いの封印
-    const hasCore = applyCurseSeal(upgradedItem);
-    addLog(hasCore
-      ? `[工房] [${item.name}] の呪いを封印し、コアの力を弱めました！`
-      : `[工房] [${item.name}] の呪いを封印しました！`);
-  } else {
-    // タグの付与/上書き
-    const effectInfo = TAG_EFFECT_MAP[tagToApply];
-    if (overwriteTagIdx !== undefined && overwriteTagIdx >= 0 && overwriteTagIdx < upgradedItem.tags.length) {
-      const oldTag = upgradedItem.tags[overwriteTagIdx];
-      upgradedItem.tags[overwriteTagIdx] = tagToApply;
-      addLog(`[工房] タグ [${oldTag}] を [${tagToApply}] で上書きしました。`);
-    } else {
-      if (upgradedItem.tags.length >= 3) {
-        upgradedItem.tags.shift();
-      }
-      upgradedItem.tags.push(tagToApply);
-    }
-
-    if (tagToApply === "curse") {
-      const curseKeys = Object.keys(CURSE_EFFECTS);
-      upgradedItem.curseEffectId = curseKeys[Math.floor(Math.random() * curseKeys.length)];
-    }
-
-    upgradedItem.inscription = {
-      type: effectInfo.type,
-      value: effectInfo.value,
-      name: effectInfo.name,
-      tag: tagToApply
-    };
-    addLog(`[工房] [${item.name}] に [${effectInfo.name}] (${effectInfo.desc}) を施しました！`);
-  }
-
-  // 更新
-  if (isEquipped) {
-    state.party[actorIdx].equipment[slot] = upgradedItem;
-  } else {
-    const idx = (itemIdx && typeof itemIdx === "object") ? itemIdx.index : itemIdx;
-    state.inventory[idx] = upgradedItem;
-  }
-
   playSound("level_up");
   saveAutosave();
   return true;

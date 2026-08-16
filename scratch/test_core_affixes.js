@@ -16,16 +16,9 @@ import {
   canEquipUnidentifiedItem,
   getItemData,
   getPartyMaxAffix,
-  getAffixDefinition,
-  formatAffixText,
-  TAGS,
-  TAG_EFFECT_MAP,
-  MATERIAL_TAGS
+  getAffixDefinition
 } from "../src/data.js";
-import { state } from "../src/state.js";
 import {
-  applyCurseSeal,
-  executeTagInscription,
   getDismantleResults,
   getPolishCost,
   polishSupportAffix
@@ -192,108 +185,61 @@ test("素材経済サポートenabled・浅層経済3/戦闘1・深層逆転", (
   assert.deepEqual(AFFIX_BALANCE.corePoolWeights.deep, { combat: 3, economy: 1 });
 });
 
-test("刻印19種: 素材cost・サポートtype・素材割当が整合", () => {
-  const entries = Object.entries(TAG_EFFECT_MAP);
-  assert.equal(entries.length, 19);
-  const assignedTags = new Set(Object.values(MATERIAL_TAGS).flat());
-  entries.forEach(([tag, effect]) => {
-    assert.ok(effect.matCost >= 1 && effect.matCost <= 4, `${tag}: matCost`);
-    assert.ok(assignedTags.has(tag), `${tag}: material assignment`);
-    if (effect.type !== "curse") {
-      const definition = getAffixDefinition(effect.type);
-      assert.equal(definition?.kind, "support", `${tag}: support type`);
-      assert.equal(definition?.enabled, true, `${tag}: enabled`);
-    }
-  });
-});
-
-test("罠解除刻印: KATANAを維持して罠印を付与", () => {
-  const previousLocalStorage = globalThis.localStorage;
-  const previousInventory = state.inventory;
-  const previousMaterials = state.metaMaterials;
-  const previousLogs = state.logs;
-  globalThis.localStorage = { getItem: () => null, setItem: () => {} };
-
-  try {
-    const katana = {
-      kind: "equipment",
-      instanceId: "eq_katana_inscription_test",
-      baseId: "KATANA",
-      rarity: "magic",
-      identified: true,
-      enhanceLevel: 0,
-      tags: ["blood", "blade", "curse"],
-      affixes: []
-    };
-    state.inventory = [katana];
-    state.metaMaterials = { "毒腺": TAG_EFFECT_MAP.trap.matCost };
-    state.logs = [];
-
-    assert.equal(executeTagInscription(0, "毒腺", "trap"), true);
-    const inscribed = state.inventory[0];
-    assert.equal(inscribed.baseId, "KATANA");
-    assert.equal(inscribed.inscription.type, "trapBonus");
-    assert.equal(inscribed.inscription.value, TAG_EFFECT_MAP.trap.value);
-    assert.ok(inscribed.tags.includes("trap"));
-    assert.equal(TAGS.trap.name, "罠");
-    const itemData = getItemData(inscribed);
-    assert.match(itemData.desc, /<タグ: .*罠>/);
-    assert.ok(itemData.desc.includes("<刻印: 罠印 (罠解除+10%)>"));
-
-    const character = {
-      class: "Fighter",
-      hp: 100,
-      maxHp: 100,
-      status: "ok",
-      equipment: { weapon: inscribed, shield: null, armor: null, accessory: null }
-    };
-    assert.equal(getPartyMaxAffix([character], "trapBonus"), 10);
-  } finally {
-    state.inventory = previousInventory;
-    state.metaMaterials = previousMaterials;
-    state.logs = previousLogs;
-    if (previousLocalStorage === undefined) {
-      delete globalThis.localStorage;
-    } else {
-      globalThis.localStorage = previousLocalStorage;
-    }
-  }
-});
-
-test("atk/def supportと刻印を装備値へ各1回だけ反映", () => {
+test("atk/def supportと呪いを装備値へ各1回だけ反映", () => {
   const char = makeChar(null);
   char.runTrapAttackBonus = 2;
   char.equipment.weapon = {
     ...supportItem("atk", 4, "SHORT_SWORD"),
     curseEffectId: "curse_blood_thirst",
-    cursePower: 1,
-    inscription: { name: "火印", type: "atk", value: 3 }
+    cursePower: 1
   };
   char.equipment.armor = {
     ...supportItem("def", 3, "LEATHER_ARMOR"),
     curseEffectId: "curse_cowardly_shield",
-    cursePower: 1,
-    inscription: { name: "鉄印", type: "def", value: 3 }
+    cursePower: 1
   };
 
   assert.equal(
     getCharWeaponAtk(char),
-    30,
-    "基礎6 + support4 + 火印3 + 呪い15 + runTrapAttackBonus2"
+    27,
+    "基礎6 + support4 + 呪い15 + runTrapAttackBonus2"
   );
   assert.equal(
     getCharDef(char),
-    20,
-    "基礎4 + support3 + 鉄印3 + 呪い10"
+    17,
+    "基礎4 + support3 + 呪い10"
   );
 });
 
-test("Ninja素手攻撃はatk刻印修正後も維持", () => {
+test("Ninja素手攻撃は装備affix変更後も維持", () => {
   const char = makeChar(null);
   char.class = "Ninja";
   char.level = 5;
   char.equipment.weapon = null;
   assert.equal(getCharWeaponAtk(char), 10);
+});
+
+test("旧セーブの刻印・封印属性は装備計算と表示に影響しない", () => {
+  const legacySupport = {
+    ...supportItem("atk", 4, "SHORT_SWORD"),
+    inscription: { name: "旧火印", type: "atk", value: 99 },
+    coreSealed: true
+  };
+  const char = makeChar(null);
+  char.equipment.weapon = legacySupport;
+
+  assert.equal(getCharWeaponAtk(char), 10);
+  assert.doesNotMatch(getItemData(legacySupport).name, /旧火印/);
+  assert.doesNotMatch(getItemData(legacySupport).desc, /刻印/);
+
+  const normalCore = makeChar("CORE_LAST_STAND");
+  const legacyCore = makeChar("CORE_LAST_STAND");
+  legacyCore.equipment.weapon.coreSealed = true;
+  assert.deepEqual(
+    getCharCoreParams(legacyCore, "CORE_LAST_STAND"),
+    getCharCoreParams(normalCore, "CORE_LAST_STAND")
+  );
+  assert.doesNotMatch(getItemData(legacyCore.equipment.weapon).desc, /\(封\)/);
 });
 
 test("研磨: サポートを切り上げ1.5倍・1アイテム1回・コア除外", () => {
@@ -310,30 +256,6 @@ test("研磨: サポートを切り上げ1.5倍・1アイテム1回・コア除�
   assert.equal(coreOnly.affixes[0].value, 1);
   assert.equal(coreOnly.polished, undefined);
   assert.equal(getDismantleResults(coreOnly), null);
-});
-
-test("封印半減: 倍率系は基準差半減・定数系は切捨て・boolean系は無効", () => {
-  const multiplierChar = makeChar("CORE_LAST_STAND");
-  multiplierChar.equipment.weapon.tags = ["curse"];
-  multiplierChar.equipment.weapon.curseEffectId = "curse_blood_thirst";
-  assert.equal(applyCurseSeal(multiplierChar.equipment.weapon), true);
-  assert.equal(multiplierChar.equipment.weapon.coreSealed, true);
-  assert.equal(multiplierChar.equipment.weapon.tags.includes("curse"), false);
-  assert.equal(multiplierChar.equipment.weapon.curseEffectId, null);
-  assert.ok(formatAffixText(multiplierChar.equipment.weapon.affixes[0], ": ", { coreSealed: true }).startsWith("◆(封)背水:"));
-  multiplierChar.hp = 25;
-  assert.equal(getCharCoreParams(multiplierChar, "CORE_LAST_STAND").damageMultiplier, 1.2);
-  assert.equal(getDamageAffixResult(multiplierChar, { maxHp: 50 }, 100).damage, 120);
-
-  const constantChar = makeChar(null);
-  constantChar.equipment.accessory = coreItem("CORE_CURSE_KEEPER", "AMULET_HP", "curse_spectral_decay");
-  constantChar.equipment.accessory.coreSealed = true;
-  assert.equal(getCharCoreParams(constantChar, "CORE_CURSE_KEEPER").statsPerCurse, 1);
-
-  const booleanChar = makeChar("CORE_REARGUARD");
-  booleanChar.equipment.weapon.coreSealed = true;
-  assert.equal(getCharCoreParams(booleanChar, "CORE_REARGUARD"), null);
-  assert.equal(getMeleeModifiers(booleanChar, 2), 1);
 });
 
 test("忍び足: 生存装備者のみパーティ有効、感知4→2、オーラ値+1", () => {

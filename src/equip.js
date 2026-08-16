@@ -617,7 +617,7 @@ function createAffixDetails(itemKey) {
     section.appendChild(label);
     affixes.forEach(affix => {
       const line = document.createElement("span");
-      line.textContent = `${group.kind === "support" ? "・" : ""}${formatAffixText(affix, ": ", { coreSealed: itemKey.coreSealed })}`;
+      line.textContent = `${group.kind === "support" ? "・" : ""}${formatAffixText(affix, ": ")}`;
       section.appendChild(line);
     });
     details.appendChild(section);
