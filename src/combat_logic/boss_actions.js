@@ -72,7 +72,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
             c.status = "dead";
-            recordCharDeath(state, c, "フラックのラハリト");
+            recordCharDeath(state, c, "フラックのラハリト", { type: "combat", source: "フラック" });
           }
           logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
@@ -130,7 +130,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
             c.status = "dead";
-            recordCharDeath(state, c, "フラックの自爆");
+            recordCharDeath(state, c, "フラックの自爆", { type: "combat", source: "フラック" });
           }
           logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
@@ -209,7 +209,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
             c.status = "dead";
-            recordCharDeath(state, c, "いにしえの竜のティルトウェイト");
+            recordCharDeath(state, c, "いにしえの竜のティルトウェイト", { type: "combat", source: "いにしえの竜" });
           }
           logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
@@ -236,7 +236,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
             c.status = "dead";
-            recordCharDeath(state, c, "いにしえの竜の炎の息");
+            recordCharDeath(state, c, "いにしえの竜の炎の息", { type: "combat", source: "いにしえの竜" });
           }
           logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
@@ -267,7 +267,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const recovered = clearCharIncapacitationOnDamage(c);
           if (c.hp === 0) {
             c.status = "dead";
-            recordCharDeath(state, c, "いにしえの竜のマダルト");
+            recordCharDeath(state, c, "いにしえの竜のマダルト", { type: "combat", source: "いにしえの竜" });
           }
           logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }

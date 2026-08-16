@@ -45,7 +45,10 @@ function applyReflectionDamage(char, state, sources, logQueue) {
   if (char.hp === 0) {
     char.status = "dead";
     const cause = sources.length === 1 ? `${sources[0].name}の魔法反射` : "魔法反射";
-    recordCharDeath(state, char, cause);
+    recordCharDeath(state, char, cause, {
+      type: "combat",
+      source: sources.length === 1 ? sources[0].name : "魔法反射"
+    });
   }
 
   const sourceText = sources.length === 1

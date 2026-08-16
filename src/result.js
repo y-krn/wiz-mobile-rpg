@@ -1,4 +1,4 @@
-import { state, saveGame, saveAutosave, finalizeRunRecords } from "./state.js";
+import { state, saveGame, saveAutosave, finalizeRunRecords, recordCharDeath, normalizeDeathSource } from "./state.js";
 import { START_X, START_Y, DIR_N, getPartyMaxAffix } from "./data.js";
 import { updateUI } from "./ui.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
@@ -43,14 +43,20 @@ export function triggerRunResult(reason) {
       char.hp = 0;
     });
 
-    let cause = "不測の罠またはダメージ";
-    const latestDeath = run.deathLogs?.at(-1);
-    if (latestDeath) {
-      cause = latestDeath.cause;
-    } else {
+    let latestDeath = run.deathLogs?.at(-1);
+    if (!latestDeath) {
       const activeEnemy = state.combatState?.monsters?.find(monster => monster.hp > 0);
-      if (activeEnemy) cause = `${activeEnemy.name.replace(/\\s[A-Z]$/, "")}との戦闘`;
+      if (activeEnemy && state.party[0]) {
+        recordCharDeath(
+          state,
+          state.party[0],
+          `${activeEnemy.name.replace(/\\s[A-Z]$/, "")}との戦闘`,
+          { type: "combat", source: activeEnemy.name }
+        );
+        latestDeath = run.deathLogs?.at(-1);
+      }
     }
+    const cause = latestDeath?.cause || "原因未記録";
 
     run.lostMaterials = Object.fromEntries(Object.entries(run.materials || {}).map(([name, found]) => [
       name,
@@ -66,6 +72,8 @@ export function triggerRunResult(reason) {
       y: state.y,
       seed: state.seed,
       cause,
+      type: latestDeath?.type || null,
+      source: latestDeath?.source ? normalizeDeathSource(latestDeath.source) : null,
       character: state.party[0]
         ? { name: state.party[0].name, class: state.party[0].class, level: state.party[0].level }
         : null,
