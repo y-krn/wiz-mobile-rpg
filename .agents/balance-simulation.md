@@ -996,6 +996,13 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   #461最終基準線は raw `63e01eae49f76340a651b5c2930eccf68608d33df7e95d59be79f9798efc678f`、
   summary `8740ca26d308e18590712237d74946406d264ec01fa458b5c58712127dca309b`。
 
+## Issue #275 逃走率の現行表記（2026-08-16）
+
+- #652の現行基準線では、逃走run率は戦士 **75.6%**、盗賊 **80.0%**、僧侶
+  **77.6%**、魔術師 **78.8%**（順に約 **76–80%帯**）だった。逃走率の表記は
+  この現行値へ更新する。詳細は `scratch/results/issue-652-rebaseline.md` を正本とする。
+- この訂正は測定結果の記述更新であり、逃走方針・成功判定・ゲーム本体のルール値を変更しない。
+
 ## Output
 
 Use the repository review output format from `.agents/README.md`.

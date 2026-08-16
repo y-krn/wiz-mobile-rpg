@@ -43,7 +43,7 @@ const CALIBRATION_RUNS = Math.max(
   Number(process.env.SIM_CALIBRATION_RUNS || 100)
 );
 const TARGET_DEPTH = 21;
-const SIM_SEED = Number(process.env.SIM_SEED || 461) >>> 0;
+const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
 const CONDITION_ID = String(process.env.ISSUE624_CONDITION_ID || "unknown");
 const SERIES_ID = "issue612-exp-pace";
 
