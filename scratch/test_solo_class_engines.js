@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { getCharAffixSum, getPartyFlameTrapWarningAvoidanceChance } from "../src/data.js";
+import { getCharAffixSum, getCharDerivedStats, getCharTrapBonus, getPartyFlameTrapWarningAvoidanceChance } from "../src/data.js";
 import { applyKillAffixEffects, getMeleeModifiers } from "../src/combat_logic/damage.js";
 import { getMpWardDef } from "../src/combat_logic/round.js";
+import { CLASS_PASSIVES } from "../src/data/classes.js";
 import { getClassPassiveBonus } from "../src/rules/class_rules.js";
 import { applyTrapGuardToEffect } from "../src/rules/trap_effect_rules.js";
+import { calculateChestDisarmChance } from "../src/rules/trap_rules.js";
 import { checkCharLevelUp } from "../src/systems/leveling.js";
 import { SOLO_CLASSES, createSoloCharacter } from "../src/state.js";
 
@@ -72,6 +74,35 @@ test("戦士と魔術師は敵撃破時に職業固有HPを回復する", () => 
 test("盗賊は技巧を35%回避へ転用する", () => {
   const thief = createSoloCharacter("Thief");
   assert.equal(getCharAffixSum(thief, "evasion"), 35);
+});
+
+test("盗賊の罠パッシブは呼び出し元の罠解除率へ届く", () => {
+  const thief = createSoloCharacter("Thief");
+  const passive = CLASS_PASSIVES.Thief.bonuses;
+  const originalTrapBonus = passive.trapBonus;
+
+  try {
+    const withPassive = getCharDerivedStats(thief, { floor: 5 }).trap;
+    const chestWithPassive = calculateChestDisarmChance({
+      className: thief.class,
+      trapBonus: getCharTrapBonus(thief)
+    });
+    assert.equal(getCharAffixSum(thief, "trapBonus"), 15);
+
+    passive.trapBonus = 0;
+    const withoutPassive = getCharDerivedStats(thief, { floor: 5 }).trap;
+    const chestWithoutPassive = calculateChestDisarmChance({
+      className: thief.class,
+      trapBonus: getCharTrapBonus(thief)
+    });
+
+    assert.equal(withPassive, 88);
+    assert.equal(withoutPassive, 73);
+    assert.equal(withPassive - withoutPassive, 15);
+    assert.ok(Math.abs(chestWithPassive - chestWithoutPassive - 0.15) < 1e-12);
+  } finally {
+    passive.trapBonus = originalTrapBonus;
+  }
 });
 
 test("戦士と魔術師は罠被害を職業passiveで軽減する", () => {

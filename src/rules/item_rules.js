@@ -46,15 +46,18 @@ export function getEquippedItemData(char, item) {
 }
 
 export function getCharAffixSum(char, affixType) {
-  if (!char || !char.equipment) return 0;
+  if (!char) return 0;
   let sum = 0;
   const applyUnidentified = canApplyUnidentifiedEquipmentEffects(char);
-  Object.values(char.equipment).forEach(eqKey => {
+  Object.values(char.equipment || {}).forEach(eqKey => {
     if (!eqKey) return;
     const isMechanicallyActive = typeof eqKey !== "object" || eqKey.identified || applyUnidentified;
     const eqData = isMechanicallyActive ? getEquippedItemData(char, eqKey) : getItemData(eqKey);
     if (isMechanicallyActive && eqData?.affixBonus?.[affixType] !== undefined) {
       sum += eqData.affixBonus[affixType];
+    }
+    if (isMechanicallyActive && affixType === "trapBonus") {
+      sum += ITEMS[getItemBaseId(eqKey)]?.trapBonus || 0;
     }
     if (typeof eqKey === "object") {
       if (eqKey.identified || applyUnidentified) {

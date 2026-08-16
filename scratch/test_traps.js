@@ -95,16 +95,16 @@ state.party = [{
   agi: 16,
   status: "ok"
 }];
-// apt: 80 + 5*1.0 - 0 = 85
+// apt: 80 + 5*1.0 + 15 = 100, capped at 90
 const thiefRate = calculateSuccessRate(testTrap);
-if (thiefRate !== 85) {
-  console.error(`FAIL: Thief lv5 B1 should be 85, got ${thiefRate}.`);
+if (thiefRate !== 90) {
+  console.error(`FAIL: Thief lv5 B1 should be capped at 90, got ${thiefRate}.`);
   process.exit(1);
 }
 
 // difficulty must no longer affect the rate
 testTrap.difficulty = 90;
-if (calculateSuccessRate(testTrap) !== 85) {
+if (calculateSuccessRate(testTrap) !== 90) {
   console.error("FAIL: trap.difficulty must not affect disarm rate.");
   process.exit(1);
 }
@@ -117,8 +117,8 @@ if (pitRate !== 100) {
   process.exit(1);
 }
 
-// 2b. trapBonus は宝箱罠とフロア罠の共通ステータス。3つの供給経路すべてが効くこと。
-// Thief lv1 / B5: 80 + 1.0 - 8.0 = 73（clamp外）
+// 2b. trapBonus は宝箱罠とフロア罠の共通ステータス。職業パッシブと装備が効くこと。
+// Thief lv1 / B5: 80 + 1.0 - 8.0 + 15 = 88（clamp外）
 testTrap.difficulty = 30;
 state.floor = 5;
 const makeThief = equipment => [{
@@ -135,8 +135,8 @@ const makeThief = equipment => [{
 
 state.party = makeThief({});
 const bareRate = calculateSuccessRate(testTrap);
-if (bareRate !== 73) {
-  console.error(`FAIL: Thief lv1 B5 baseline should be 73, got ${bareRate}.`);
+if (bareRate !== 88) {
+  console.error(`FAIL: Thief lv1 B5 baseline should be 88, got ${bareRate}.`);
   process.exit(1);
 }
 
@@ -147,8 +147,8 @@ const trapBonusCases = [
 for (const [label, equipment] of trapBonusCases) {
   state.party = makeThief(equipment);
   const rate = calculateSuccessRate(testTrap);
-  if (rate !== 83) {
-    console.error(`FAIL: trapBonus via ${label} should give 83, got ${rate}.`);
+  if (rate !== 90) {
+    console.error(`FAIL: trapBonus via ${label} should give capped 90, got ${rate}.`);
     process.exit(1);
   }
   console.log(`- trapBonus via ${label}: ${bareRate} -> ${rate}`);
@@ -158,8 +158,8 @@ state.party = makeThief({
   weapon: { baseId: "SHORT_SWORD", identified: true, inscription: { type: "trapBonus", value: 10 } }
 });
 const legacyInscriptionRate = calculateSuccessRate(testTrap);
-if (legacyInscriptionRate !== 73) {
-  console.error(`FAIL: legacy inscription must be ignored, got ${legacyInscriptionRate}.`);
+if (legacyInscriptionRate !== 88) {
+  console.error(`FAIL: legacy inscription must be ignored while class passive remains, got ${legacyInscriptionRate}.`);
   process.exit(1);
 }
 console.log("- legacy inscription: not applied");
@@ -169,8 +169,8 @@ state.party = makeThief({
   weapon: { baseId: "SHORT_SWORD", identified: false, affixes: [{ type: "trapBonus", value: 10 }] }
 });
 const unidentifiedRate = calculateSuccessRate(testTrap);
-if (unidentifiedRate !== 73) {
-  console.error(`FAIL: unidentified trapBonus must not apply, got ${unidentifiedRate}.`);
+if (unidentifiedRate !== 88) {
+  console.error(`FAIL: unidentified trapBonus must not apply while class passive remains, got ${unidentifiedRate}.`);
   process.exit(1);
 }
 console.log("- unidentified trapBonus: not applied");

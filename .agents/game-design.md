@@ -48,7 +48,7 @@ is a bug in the economy.
   最低1を維持する。床罠の発見・解除、MP drain、毒・盲目・転送などの非HP効果は変更しない。
   盗賊・僧侶と上級4職の既存passiveも変更しない。
 - 火炎の罠はB5Fの通常歩行で5%発火し、発火時に「熱気の気配」をログ表示する。
-  装備の `trapBonus` の合算値（`getCharTrapBonus`）は、
+  装備と職業パッシブの `trapBonus` の合算値（`getCharTrapBonus`）は、
   `src/rules/character_stats.js` の `getPartyFlameTrapWarningAvoidanceChance` で
   発動時に確率で罠を無効化する回避判定の確率へ変換する。式の正本は同関数（線形係数0.8、上限0.74）であり、
   発動時の回避判定に成功した場合は被弾しない。

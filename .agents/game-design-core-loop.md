@@ -135,7 +135,7 @@ maximum-visibility gear becomes the only correct build.
 Floor traps are route-choice obstacles: adjacent floor-trap detection is certain,
 disarm is class-sensitive, forced traversal always passes with reduced damage, and
 choke placement is capped so avoidance remains meaningful. `trapBonus` is the
-single support affix for floor/chest trap disarm and existing equipment. On B5F, the `trapBonus` investment also contributes to the
+single support affix for floor/chest trap disarm and existing equipment/class passive bonuses. On B5F, the `trapBonus` investment also contributes to the
 automatic flame-trap on-trigger avoidance roll through the character-stats helper. Chest traps keep a
 risk/reward branch: every class can leave, smash for a weaker trap effect with
 possible consumable loss, or use a kit, while specialist classes retain safer

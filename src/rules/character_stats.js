@@ -134,19 +134,7 @@ export function getCharMaxMp(char) {
 }
 
 export function getCharTrapBonus(char) {
-  if (!char) return 0;
-  let bonus = 0;
-  if (char.equipment) {
-    Object.values(char.equipment).forEach(eqKey => {
-      if (eqKey) {
-        const eqData = getEquippedItemData(char, eqKey);
-        if (eqData && eqData.trapBonus) {
-          bonus += eqData.trapBonus / 100;
-        }
-      }
-    });
-  }
-  return bonus;
+  return getCharAffixSum(char, "trapBonus") / 100;
 }
 
 export function getPartyFlameTrapWarningAvoidanceChance(party = []) {
