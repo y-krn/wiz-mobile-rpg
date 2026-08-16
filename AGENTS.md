@@ -29,8 +29,9 @@ pushing to a feature branch for that PR is likewise pre-approved. Do not commit
 directly to `main`.
 Repository policy and remote branch protection prohibit direct commits to
 `main`. The local PreToolUse hook blocks `git commit` and `git push` commands
-on `main`, but it does not block file edits; the main-worktree checks below
-remain required.
+on `main`, and blocks Edit/Write attempts targeting the main worktree except for
+`.claude/worktrees/`, `.codex-log/`, and `/private/tmp/`; the main-worktree
+checks below remain required.
 
 - Before starting or resuming work, scan open issues:
   `gh issue list --state open`. Read the target issue with
@@ -91,6 +92,11 @@ These are repository-wide rules for every agent and human contributor.
 - `node_modules` may be a symlink to the main worktree. Worktree cleanup must
   not follow that symlink or remove the shared directory; worktree creation
   does not require `npm ci` when the SessionStart link exists.
+- Codex runs must use `scripts/codex-run.sh <label> --branch
+  <type>/<issue-number>-<slug> [codex-args...] < prompt.txt`. The wrapper fetches
+  `origin/main`, creates or reuses the worktree, and starts `codex exec` with
+  that worktree as its cwd, so prompts do not need to repeat worktree-creation
+  instructions.
 
 ## Large Output and Log Handling
 
@@ -305,7 +311,7 @@ When reporting checklist use, include:
 
 ### Codex run
 
-- `scripts/codex-run.sh` から起動し、第 1 引数に label、プロンプトは stdin で渡す。label は目的 + Issue 番号（`investigate-271` / `implement-271` / `verify-271`）。
+- `scripts/codex-run.sh` から `--branch` を付けて起動し、第 1 引数に label、プロンプトは stdin で渡す。label は目的 + Issue 番号（`investigate-271` / `implement-271` / `verify-271`）。
 - 1 run 1 目的。調査 → 実装 → 検証 を 1 run に通さない。前段の結論は `.codex-log/*.md` か Issue コメントから引き継ぐ。
 - ラッパーが `--json` の JSONL と最終メッセージを `.codex-log/` に残し、終了時にターン数・トークン・コマンド実行数を要約する。呼び出し側は要約と `.md` だけ読み、JSONL は `jq` で絞ってから見る。
 - 事後分析用にログを残すため `--ephemeral` は付けない。
