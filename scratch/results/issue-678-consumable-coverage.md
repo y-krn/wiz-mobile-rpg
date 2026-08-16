@@ -1,0 +1,185 @@
+# Issue #678: 深度simの消耗品カバレッジ棚卸し
+
+## 結論
+
+消耗品18種を、simに使用経路があり実際に消費された **A**、使用経路はあるが
+今回の固定条件では消費されなかった **B**、simに使用経路がない **C** に分類した。
+Cは測定不能であり、Bの「使用経路はあるが未使用」と混同しない。
+
+計測はカウンタ追加だけで、乱数を消費せず、ゲーム本体のルール・消耗品の定義・値を
+変更していない。`src/` は変更していない。
+
+## 計測条件
+
+- base: `d2e83bd84b4e14d16f991829d91b6b5756e0a706`
+- 計測コミット（sim本体）: `d1d116ee5b60af095410e0e7b27b2b9b7321e217`
+- `SIM_SEED=231`, `SIM_RUNS=500`, `SIM_CALIBRATION_RUNS=100`
+- `SIM_PARALLEL` は指定しなかった
+- 到達階の受入条件は #624 固定環境で計測した
+- 固定環境の `DEPARTURE_CRAFT_IDS` は
+  `TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION`
+
+## A / B / C 分類
+
+入手数・消費数は、固定環境の4職×500 run、計2,000 runの合計である。
+
+| 分類 | 品目 | ID | 入手数 | 消費数 | sim側の判定根拠 |
+| --- | --- | --- | ---: | ---: | --- |
+| A | 傷薬 | `HEAL_POTION` | 9257 | 8335 | `useHealPotionIfNeeded` |
+| A | 上薬 | `GREATER_HEAL` | 1460 | 1343 | `useHealPotionIfNeeded` |
+| A | 魔力草 | `MANA_POTION` | 514 | 108 | `useManaPotionIfNeeded` |
+| A | 帰還の翼 | `TOWN_PORTAL` | 2000 | 1013 | `useTownPortalIfNeeded` |
+| A | 祝福の聖水 | `HOLY_WATER` | 1717 | 285 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
+| A | 剛力の薬 | `STR_POTION` | 1771 | 92 | ボス／中ボス開幕の戦闘行動選択 |
+| A | 守りの薬 | `GUARD_POTION` | 2000 | 90 | ボス／中ボス開幕の戦闘行動選択 |
+| A | 疾風の薬 | `HASTE_POTION` | 1713 | 86 | ボス／中ボス開幕の戦闘行動選択 |
+| A | 罠外しキット | `TRAP_KIT` | 1768 | 1654 | `resolveChestTrapForSimulation` の罠解除行動 |
+| B | 解毒薬 | `ANTIDOTE` | 3024 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
+| B | 目薬 | `EYE_DROPS` | 854 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
+| B | 解痺薬 | `PARALYZE_CURE` | 571 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
+| B | 覚醒薬 | `WAKE_POWDER` | 1005 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
+| B | 万能薬 | `PANACEA` | 1407 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
+| C | 鳴らし玉 | `NOISE_BALL` | 0 | 0 | simに使用経路なし |
+| C | 魔力の雫 | `ETHER` | 1401 | 0 | simに使用経路なし |
+| C | 離脱のスクロール | `ESCAPE_SCROLL` | 0 | 0 | simに使用経路なし |
+| C | エリクサー | `ELIXIR` | 0 | 0 | simに使用経路なし |
+
+`HOLY_WATER` は `STATUS_CURE_ITEMS` の毒治療候補として、
+`useStatusCureIfNeeded` から使用される。
+`STR_POTION`、`GUARD_POTION`、`HASTE_POTION` は一覧に載るだけではなく、ボス／
+中ボス戦の戦闘行動として選択され、在庫が減ることを確認した。
+
+## 入手経路
+
+### 出発準備の craft レシピ
+
+`src/craft.js` の出発準備レシピにある品目:
+
+`HEAL_POTION`, `ANTIDOTE`, `HOLY_WATER`, `MANA_POTION`, `TRAP_KIT`,
+`TOWN_PORTAL`, `GREATER_HEAL`, `GUARD_POTION`, `EYE_DROPS`
+
+### 宝箱プール
+
+`src/rules/chest_rules.js` の宝箱候補にある品目:
+
+`HEAL_POTION`, `ANTIDOTE`, `EYE_DROPS`, `PARALYZE_CURE`, `WAKE_POWDER`,
+`MANA_POTION`, `HOLY_WATER`, `TOWN_PORTAL`, `TRAP_KIT`, `GREATER_HEAL`,
+`ETHER`, `PANACEA`, `STR_POTION`, `HASTE_POTION`
+
+### 両方の入手元にない品目
+
+`NOISE_BALL`（鳴らし玉）、`ESCAPE_SCROLL`（離脱のスクロール）、`ELIXIR`
+（エリクサー）。これらは「simの使用経路がない」こととは別に、現行の出発準備・
+宝箱プールから通常入手できないことを明示する。
+
+`GUARD_POTION`（守りの薬）は宝箱にはないが、出発準備の craft レシピにあるため、
+入手不能品には含めない。
+
+## `ITEM_EFFECTS` と特殊処理
+
+18種中16種には `src/systems/item_effects.js` のエントリがある。18種に
+`campOnly` が付いたものはない。
+
+| 品目 | `ITEM_EFFECTS` | `campOnly` |
+| --- | --- | --- |
+| 傷薬 `HEAL_POTION` | あり | なし |
+| 上薬 `GREATER_HEAL` | あり | なし |
+| 魔力草 `MANA_POTION` | あり | なし |
+| 帰還の翼 `TOWN_PORTAL` | あり | なし |
+| 祝福の聖水 `HOLY_WATER` | あり | なし |
+| 解毒薬 `ANTIDOTE` | あり | なし |
+| 守りの薬 `GUARD_POTION` | あり | なし |
+| 罠外しキット `TRAP_KIT` | なし | なし |
+| 万能薬 `PANACEA` | あり | なし |
+| 解痺薬 `PARALYZE_CURE` | あり | なし |
+| 剛力の薬 `STR_POTION` | あり | なし |
+| 覚醒薬 `WAKE_POWDER` | あり | なし |
+| 疾風の薬 `HASTE_POTION` | あり | なし |
+| 目薬 `EYE_DROPS` | あり | なし |
+| エリクサー `ELIXIR` | あり | なし |
+| 魔力の雫 `ETHER` | あり | なし |
+| 離脱のスクロール `ESCAPE_SCROLL` | なし | なし |
+| 鳴らし玉 `NOISE_BALL` | あり | なし |
+
+- `ESCAPE_SCROLL`: `ITEM_EFFECTS` にはない。`src/systems/item_resolution.js` の
+  専用処理で、アイテムを消費し、敏捷度による成功判定を行い、成功時に
+  `fleeCombat` へ進む。ゲーム側では実装済みだが、深度simは
+  `FLEE_POLICY` による抽象的な逃走を使い、アイテム固有の使用経路は持たない。
+- `TRAP_KIT`: `ITEM_EFFECTS` にはない。`src/chest.js` の `useTrapKit()` が
+  宝箱UIからアイテムを消費して罠を解除する。深度simには罠回復の専用経路があり、
+  `resolveChestTrapForSimulation` の罠解除行動で使用される。汎用の戦闘アイテム
+  効果としては扱われない。
+- `NOISE_BALL`: `src/menu/explore_actions.js` の探索方向選択から、鳴らし玉の
+  専用イベントへ進むゲーム側経路がある。探索方向・徘徊敵操作は深度simの対象外。
+
+## C の判定
+
+- `ETHER`: **モデル化の欠落**。宝箱から入手でき、ゲーム側にはMP回復効果がある。
+  しかし現行simの自動MP回復経路は `MANA_POTION` に限定され、`ETHER` を選ぶ経路がない。
+  後続Issueで品目単位にモデル化する対象。
+- `NOISE_BALL`: **意図的な対象外**。探索方向と徘徊敵の操作をsimがモデル化していない。
+  それらをシミュレーション対象にする場合に再評価する。
+- `ESCAPE_SCROLL`: **現行抽象化では意図的な対象外**。simはアイテム固有の逃走判定ではなく
+  `FLEE_POLICY` で戦闘逃走を抽象化している。アイテム別の逃走経済を対象にする場合に再評価する。
+- `ELIXIR`: **意図的な対象外**。現行の出発準備・宝箱プールに供給元がなく、深度simの通常条件で
+  個体が生成されない。供給元が追加された場合に再評価する。
+
+## 到達性の確認
+
+ゲーム側については `rg` の参照だけで結論を出さず、`npm run build` の本番バンドルを確認した。
+生成された `dist/assets/index-DXDmXocv.js` で固定文字列を確認した結果:
+
+| 固定文字列 | 本番バンドル hits |
+| --- | ---: |
+| `傷薬`（陽性対照） | 3 |
+| `鳴らし玉` | 2 |
+| `魔力の雫` | 1 |
+| `離脱のスクロール` | 2 |
+| `罠外しキット` | 4 |
+| `エリクサー` | 2 |
+
+各hitはアイテム定義・効果、探索メニュー、宝箱UI、または専用アイテム解決経路に対応し、
+未説明のバンドルhitは残っていない。動的import、barrel export、文字列ディスパッチ、
+inline handler、`window`/`globalThis`/`eval`/`new Function` の経路も対象ファイルで確認した。
+sim側はbundle対象外のため、静的な5つの使用関数の確認と実行時カウンタで判定した。
+
+## 基準線と決定性
+
+固定条件の到達階平均:
+
+| 職 | 実測 | 基準線 |
+| --- | ---: | ---: |
+| 戦士 | 5.8720 | 5.8720 |
+| 盗賊 | 4.8980 | 4.8980 |
+| 僧侶 | 4.5760 | 4.5760 |
+| 魔術師 | 6.4800 | 6.4800 |
+
+観測追加後も4職すべて完全一致した。
+
+同じseed・条件で `scratch/sim_depth_material_ev.js` を2回実行したstdoutのSHA-256は、
+次の値で2回とも一致した。
+
+`306ce3144dd801019f6e8c0f6a38d1a2ae69ed4801b916215a120265f487ff51`
+
+固定環境の `scratch/sim_commit_depth_624.js` は実行時間フィールドを含むためstdout全体の
+SHA-256は異なったが、`rows` の正規化JSON SHA-256は2回とも
+`4e63eb183872bc93a1bea2d1c13f8f6e693f92600d11ecf2c0878ab65595b849` で一致した。
+
+## 検証
+
+- `node --check scratch/sim_depth_material_ev.js`: PASS
+- `node --check scratch/sim_commit_depth_624.js`: PASS
+- `SIM_RUNS=1 SIM_CALIBRATION_RUNS=1 ... node scratch/sim_depth_material_ev.js`: PASS
+- `node scratch/test_sim_reward_paths.js`: PASS（65 files）
+- `npm run lint`: PASS
+- `npm run test:unit`: PASS（85 executed / 3 skipped）
+- `npm run build`: PASS
+
+長時間simの生出力は `/private/tmp` に保存し、コミットにはこの要約とSHA-256のみを含めた。
+
+## 未確認・保留
+
+分類、入手元、ゲーム側の特殊処理について判断できなかった点はない。
+ただし #677 の魔力草の戦闘中使用実装が後で入るため、マージ後は `MANA_POTION` の消費数と
+`ETHER` のC判定を再測定する必要がある。#655のsim出力整理も並行しているため、両方が先に
+入った場合は同じ条件で再ベース・再計測する。

@@ -1083,6 +1083,46 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   この現行値へ更新する。詳細は `scratch/results/issue-652-rebaseline.md` を正本とする。
 - この訂正は測定結果の記述更新であり、逃走方針・成功判定・ゲーム本体のルール値を変更しない。
 
+## Issue #678 消耗品のsimモデル範囲（2026-08-16）
+
+- 消耗品18種を、simに使用経路があり実際に消費した **A**、使用経路はあるが
+  今回の固定条件で消費しなかった **B**、simに使用経路がない **C** に分ける。
+  Cは測定不能であり、B（使用経路があるが未使用）と混同しない。
+- **A（入手数 / 消費数、4職2,000 run合計）**: 傷薬 `HEAL_POTION`
+  **9257 / 8335**、上薬 `GREATER_HEAL` **1460 / 1343**、魔力草
+  `MANA_POTION` **514 / 108**、祝福の聖水 `HOLY_WATER` **1717 / 285**、
+  帰還の翼 `TOWN_PORTAL` **2000 / 1013**、剛力の薬 `STR_POTION`
+  **1771 / 92**、守りの薬 `GUARD_POTION` **2000 / 90**、疾風の薬
+  `HASTE_POTION` **1713 / 86**、罠外しキット `TRAP_KIT` **1768 / 1654**。
+- **B（入手数 / 消費数）**: 解毒薬 `ANTIDOTE` **3024 / 0**、目薬
+  `EYE_DROPS` **854 / 0**、解痺薬 `PARALYZE_CURE` **571 / 0**、覚醒薬
+  `WAKE_POWDER` **1005 / 0**、万能薬 `PANACEA` **1407 / 0**。
+  これらは `STATUS_CURE_ITEMS` から `useStatusCureIfNeeded` に到達するが、
+  固定条件では使用されなかった。
+- **C（sim使用経路なし）**: 鳴らし玉 `NOISE_BALL` **0 / 0**、魔力の雫
+  `ETHER` **1401 / 0**、離脱のスクロール `ESCAPE_SCROLL` **0 / 0**、
+  エリクサー `ELIXIR` **0 / 0**。`ETHER` は宝箱から入手できゲーム側のMP効果も
+  あるため、魔力草だけを対象にしたsim回復経路の**モデル化欠落**。鳴らし玉は
+  探索方向・徘徊敵操作、離脱のスクロールはゲーム側の専用逃走処理で、現行の
+  深度sim抽象化の対象外。エリクサーは出発準備・宝箱の通常供給元がなく、現行
+  条件で個体が生成されないため対象外と判定する（供給元追加時に再評価）。
+- 入手元は、出発準備レシピにあるものが `HEAL_POTION`、`ANTIDOTE`、
+  `HOLY_WATER`、`MANA_POTION`、`TRAP_KIT`、`TOWN_PORTAL`、`GREATER_HEAL`、
+  `GUARD_POTION`、`EYE_DROPS`。宝箱候補にあるものが `HEAL_POTION`、
+  `ANTIDOTE`、`EYE_DROPS`、`PARALYZE_CURE`、`WAKE_POWDER`、`MANA_POTION`、
+  `HOLY_WATER`、`TOWN_PORTAL`、`TRAP_KIT`、`GREATER_HEAL`、`ETHER`、
+  `PANACEA`、`STR_POTION`、`HASTE_POTION`。両方にない品目は鳴らし玉、
+  離脱のスクロール、エリクサー。守りの薬は宝箱にはないが出発準備から入手可能。
+- `ITEM_EFFECTS` は16/18種にエントリがあり、`campOnly` は該当なし。離脱の
+  スクロールは `item_resolution.js` の専用逃走処理、罠外しキットは `chest.js`
+  の `useTrapKit()` で処理され、`ITEM_EFFECTS` の欠落だけで未実装とは判定しない。
+- base=`d2e83bd84b4e14d16f991829d91b6b5756e0a706`、計測コミットのsim本体は
+  `d1d116ee5b60af095410e0e7b27b2b9b7321e217`。seed=231、N=500、calibration
+  N=100、`SIM_PARALLEL`未指定。固定条件の到達階平均は戦士 **5.8720** /
+  盗賊 **4.8980** / 僧侶 **4.5760** / 魔術師 **6.4800** で基準線と一致した。
+  観測カウンタは乱数を消費しない。詳細と生出力SHA-256は
+  `scratch/results/issue-678-consumable-coverage.md` を正本とする。
+
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
