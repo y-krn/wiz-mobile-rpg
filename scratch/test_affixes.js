@@ -36,15 +36,10 @@ SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.cost, AFFIX_BALANCE.supportCosts[affix.id]);
 });
 
-assert.strictEqual(CORE_AFFIXES.length, 18, "core registry count");
+assert.strictEqual(CORE_AFFIXES.length, 17, "core registry count");
 assert.ok(CORE_AFFIXES.every(affix => affix.kind === "core" && affix.cost === 10));
-assert.deepStrictEqual(
-  CORE_AFFIXES.filter(affix => affix.enabled).map(affix => affix.id),
-  CORE_AFFIXES.filter(affix => affix.id !== "CORE_REARGUARD").map(affix => affix.id),
-  "retired rearguard core excluded from generation"
-);
-assert.strictEqual(getAffixDefinition("CORE_REARGUARD").enabled, false);
-assert.strictEqual(new Set(CORE_AFFIXES.map(affix => affix.id)).size, 18, "core IDs unique");
+assert.ok(CORE_AFFIXES.every(affix => affix.enabled), "all registered cores are enabled");
+assert.strictEqual(new Set(CORE_AFFIXES.map(affix => affix.id)).size, 17, "core IDs unique");
 assert.ok(formatAffixText(CORE_AFFIXES[0]).startsWith("◆背水: HP40%以下"));
 assert.ok(
   getAffixDefinition("guardian").desc.includes("HP25%以下"),

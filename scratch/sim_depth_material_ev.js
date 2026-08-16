@@ -1345,9 +1345,6 @@ const MATERIAL_EV_SCORE_WEIGHT = 1;
 // 盗掘王の素材EVは、罠被害を測定する既定経路でも感度分析として50%割引を残す。
 const TOMB_RAIDER_TRAP_RISK_DISCOUNT = 0.5;
 
-const CORE_ACTIVATION_MEASUREMENT_NOTES = Object.freeze({
-  CORE_REARGUARD: "設計上無効: 既存セーブ互換用 tombstone"
-});
 const CORE_SCORING_COVERAGE_NOTES = Object.freeze({
   CORE_CURSE_KEEPER:
     "getBaseEquipmentScore→getCharStr/Vit/Int/Pie/Agi→getCharAllStatsAffixBonusで実効果を一度だけ反映",
@@ -10462,7 +10459,6 @@ function printCoreScoringProfile(profile, policy = null) {
     `執行人: 状態異常敵への攻撃turn率=${formatPercent(profile.statusTargetRate)}; ` +
     "実KATINO初手方針で実測、攻撃score×率×(2-1)"
   );
-  console.log("殿の構え: enabled=false → 判定・スコア・集計から除外");
   console.log("血杖: 実generatorのmeta解放対象。工房state別calibrationを使用");
   console.log("\n【economy探索価値 calibration（B1→B20）】");
   console.log(
@@ -11132,7 +11128,6 @@ function printCoreRetentionDetail(result) {
   const getPassiveEffectText = coreId => {
     const observations = result.coreObservations;
     const opportunities = observations.coreOpportunityCounts[coreId] || 0;
-    if (coreId === "CORE_REARGUARD") return "設計上無効";
     if (coreId === "CORE_SNEAK_STEP") {
       return `常時適用（定義上100%）; baseline検知→適用後非検知=${formatWilson(
         sneakReducedCases,
@@ -11181,8 +11176,7 @@ function printCoreRetentionDetail(result) {
         ? "未観測 [N=0; CIなし]（D: 到達深度・遭遇不足）"
       : PASSIVE_CORE_IDS.has(affix.id)
         ? `常時適用（定義上100%; 機会N=${opportunities}）`
-      : CORE_ACTIVATION_MEASUREMENT_NOTES[affix.id] ||
-        formatWilson(activations, opportunities);
+      : formatWilson(activations, opportunities);
     console.log(
       `  ${affix.id}: 装備率=${formatWilson(equipped, RUNS_PER_CASE)} / ` +
       `発動指標=${activation} / ` +

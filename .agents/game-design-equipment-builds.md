@@ -50,7 +50,6 @@ The actual value of each effect parameter is defined by `params` in `src/data/af
 | 呪飼いの鎖 | CORE_CURSE_KEEPER | +3 to all stats for each equipped curse | Accessory |
 | 巨人殺し | CORE_GIANT_SLAYER | +30% damage dealt to enemies with higher maxHP than self | Weapon |
 | 守護者殺し | CORE_MILESTONE_BREAKER | +25% damage dealt to milestone bosses | Weapon |
-| 殿の構え | CORE_REARGUARD | Negates the rear-row melee multiplier penalty | Weapon |
 | 反撃の棘 | CORE_THORN_SHIELD | 30% chance to counterattack at 50% power when hit | Shield |
 | 執行人 | CORE_EXECUTIONER | 2× damage dealt to enemies with status ailments | Weapon |
 | 薄氷の誓約 | CORE_THIN_ICE_PACT | At HP ≤50%, +35% damage dealt and +20% damage taken | Armor |
@@ -169,4 +168,4 @@ the Workshop.
 
 - Measure expected core uptime → adjust `AFFIX_BALANCE` (pending live-play data).
 - When implementing the fatigue system: consider adding the 「疲労中ペナルティ半減」 support affix.
-- The codex core discovery record (18-type collection display) is not implemented — use a separate Issue if implementing it.
+- The codex core discovery record (17-type collection display) is not implemented — use a separate Issue if implementing it.
