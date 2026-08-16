@@ -213,6 +213,7 @@ const {
   getCharStr,
   getCharTrapBonus,
   getPartyFlameTrapWarningAvoidanceChance,
+  calculatePhysicalAttackFormula,
   getTrapEaterBonusAfterDisarm,
   getCharVit,
   getCharWeaponAtk,
@@ -347,7 +348,7 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   IDENTIFICATION_POLICY: "powder",
   IDENTIFICATION_STARTING_POWDER: String(IDENTIFICATION_BALANCE.startingPowder),
   IDENTIFICATION_COST_OVERRIDE: String(IDENTIFICATION_BALANCE.identifyCost),
-  STATUS_CURE_POLICY: "smart",
+  STATUS_CURE_POLICY: "ev",
   STATUS_CURE_HP_THRESHOLD: "1",
   STATUS_CURE_MERCHANT_POLICY: "missing",
   HEAL_POTION_MERCHANT_POLICY: "missing",
@@ -382,7 +383,7 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   IDENTIFICATION_POLICY: "powder",
   IDENTIFICATION_STARTING_POWDER: String(IDENTIFICATION_BALANCE.startingPowder),
   IDENTIFICATION_COST_OVERRIDE: String(IDENTIFICATION_BALANCE.identifyCost),
-  STATUS_CURE_POLICY: "smart",
+  STATUS_CURE_POLICY: "ev",
   STATUS_CURE_HP_THRESHOLD: "1",
   STATUS_CURE_MERCHANT_POLICY: "missing",
   HEAL_POTION_MERCHANT_POLICY: "missing",
@@ -408,6 +409,7 @@ const BALANCE_MAIN_PRESET = Object.freeze({
 const REVALIDATION_PRESET = Object.freeze({
   ...BALANCE_MAIN_PRESET,
   DEPARTURE_CRAFT_IDS: REVALIDATION_DEPARTURE_CRAFT_IDS,
+  STATUS_CURE_POLICY: "legacy",
   STATUS_CURE_HP_THRESHOLD: "0.35",
   SIM_SCENARIOS: DEFAULT_DEPTH_SCENARIOS_CSV
 });
@@ -907,13 +909,17 @@ const DEFAULT_FLEE_POLICY = SIM_ENV.FLEE_POLICY;
 const DEFAULT_FLEE_HP_THRESHOLD = DEFAULT_FLEE_POLICY === "never"
   ? null
   : Math.max(0, Math.min(1, Number(SIM_ENV.FLEE_HP_THRESHOLD || 0.35)));
+const STATUS_CURE_POLICIES = Object.freeze(["smart", "legacy", "ev", "never"]);
+if (!STATUS_CURE_POLICIES.includes(SIM_ENV.STATUS_CURE_POLICY)) {
+  throw new Error(
+    `STATUS_CURE_POLICY must be ${STATUS_CURE_POLICIES.join("|")}: ${SIM_ENV.STATUS_CURE_POLICY}`
+  );
+}
 const DEFAULT_STATUS_CURE_HP_THRESHOLD = Math.max(
   0,
   Math.min(1, Number(SIM_ENV.STATUS_CURE_HP_THRESHOLD || 1))
 );
-const DEFAULT_STATUS_CURE_POLICY = SIM_ENV.STATUS_CURE_POLICY === "never"
-  ? "never"
-  : "smart";
+const DEFAULT_STATUS_CURE_POLICY = SIM_ENV.STATUS_CURE_POLICY;
 const DEFAULT_STATUS_CURE_MERCHANT_POLICY =
   SIM_ENV.STATUS_CURE_MERCHANT_POLICY === "never" ? "never" : "missing";
 
@@ -2592,6 +2598,25 @@ const STATUS_CURE_ITEMS = Object.freeze({
   sleep: ["WAKE_POWDER", "PANACEA"]
 });
 const STATUS_CURE_ITEM_IDS = new Set(Object.values(STATUS_CURE_ITEMS).flat());
+const STATUS_CURE_DEDICATED_ITEM_IDS = new Set([
+  "ANTIDOTE",
+  "PANACEA",
+  "WAKE_POWDER",
+  "EYE_DROPS",
+  "PARALYZE_CURE"
+]);
+// #689観測を状態別のpriorにする。掃引閾値ではなく、状態ごとの損失量だけを補う。
+const STATUS_CURE_EV_OBSERVATION_PRIORS = Object.freeze({
+  poisoned: Object.freeze({ explorationSteps: 94.43, poisonDamageHp: 23.55 }),
+  blind: Object.freeze({
+    attackAttempts: 2.96,
+    attackMisses: 1.47,
+    hitDamageHp: 17.59
+  }),
+  paralyzed: Object.freeze({ incapacitatedActions: 0.91 }),
+  sleep: Object.freeze({ incapacitatedActions: 0.86 })
+});
+const STATUS_CURE_ITEM_RISK_COST = 1;
 const STATUS_OBSERVATION_KEYS = Object.freeze([
   "poisoned",
   "blind",
@@ -4361,7 +4386,184 @@ function recordStatusCureAcquisitions(
   });
 }
 
-function createStatusCureDecision(state, inCombat = true) {
+function createStatusCureEvMetrics() {
+  return Object.fromEntries(STATUS_OBSERVATION_KEYS.map(status => [status, {
+    evaluations: 0,
+    positiveEvaluations: 0,
+    remainingExplorationSteps: 0,
+    continueLoss: 0,
+    treatmentLoss: 0,
+    actionLoss: 0,
+    itemLoss: 0,
+    lossBasis: {}
+  }]));
+}
+
+function createStatusCureSupplyMetrics() {
+  return {
+    dedicatedDepletionFloor: null,
+    decisionsAfterDedicatedDepletion: {}
+  };
+}
+
+function addStatusCureEvMetrics(target, source) {
+  STATUS_OBSERVATION_KEYS.forEach(status => {
+    const destination = target[status];
+    const values = source?.[status];
+    if (!values) return;
+    [
+      "evaluations",
+      "positiveEvaluations",
+      "remainingExplorationSteps",
+      "continueLoss",
+      "treatmentLoss",
+      "actionLoss",
+      "itemLoss"
+    ].forEach(key => {
+      destination[key] += values[key] || 0;
+    });
+    Object.entries(values.lossBasis || {}).forEach(([basis, count]) => {
+      destination.lossBasis[basis] = (destination.lossBasis[basis] || 0) + count;
+    });
+  });
+}
+
+function getStatusCureDedicatedInventoryCount(state) {
+  return state.inventory.filter(item => STATUS_CURE_DEDICATED_ITEM_IDS.has(item)).length;
+}
+
+function getStatusCureDedicatedAcquiredCount(metrics) {
+  return Object.values(metrics?.statusCureItemsAcquired || {})
+    .flatMap(counts => Object.entries(counts || {}))
+    .reduce(
+      (sum, [itemId, count]) => sum +
+        (STATUS_CURE_DEDICATED_ITEM_IDS.has(itemId) ? count : 0),
+      0
+    );
+}
+
+function recordStatusCureDedicatedDepletion(state, metrics) {
+  if (
+    !metrics ||
+    metrics.statusCureSupply?.dedicatedDepletionFloor !== null ||
+    getStatusCureDedicatedAcquiredCount(metrics) <= 0 ||
+    getStatusCureDedicatedInventoryCount(state) > 0
+  ) return;
+  metrics.statusCureSupply.dedicatedDepletionFloor = state.floor;
+}
+
+function getStatusCureObservationInputs(status) {
+  const normalizedStatus = status === "paralyze" ? "paralyzed" : status;
+  const prior = STATUS_CURE_EV_OBSERVATION_PRIORS[normalizedStatus];
+  if (!prior) return {};
+
+  if (normalizedStatus === "poisoned") {
+    return {
+      ...prior,
+      poisonDamagePerStep: prior.poisonDamageHp / prior.explorationSteps,
+      source: "issue-689-observation"
+    };
+  }
+
+  if (normalizedStatus === "blind") {
+    return {
+      ...prior,
+      missRate: prior.attackMisses / prior.attackAttempts,
+      source: "issue-689-observation"
+    };
+  }
+
+  return { ...prior, source: "issue-689-observation" };
+}
+
+function getExpectedStatusCureActionDamage(state, observedHitDamage = 0) {
+  if (observedHitDamage > 0) return observedHitDamage;
+  const character = state.party[0];
+  const target = state.combatState?.monsters?.find(monster => monster.hp > 0);
+  const damage = calculatePhysicalAttackFormula({
+    weaponAtk: getCharWeaponAtk(character),
+    str: getCharStr(character),
+    randRoll: 2,
+    def: target?.def || 0
+  });
+  return Math.max(1, Math.floor(damage));
+}
+
+function getExpectedStatusCureFloorSteps(floor) {
+  const template = getFloorTemplate(floor);
+  const [min, max] = template.criticalPathRange;
+  return Math.max(1, Math.round(((min + max) / 2) * EXPLORATION_FACTOR));
+}
+
+function getStatusCureRemainingExplorationSteps(state) {
+  const configured = Number(state.simPolicy?.statusCureRemainingSteps);
+  if (Number.isFinite(configured)) return Math.max(0, configured);
+
+  const currentFloor = Math.max(1, Number(state.floor) || 1);
+  const targetDepth = Math.max(currentFloor + 1, Number(state.simPolicy?.statusCureTargetDepth) || 20);
+  const currentFloorSteps = getExpectedStatusCureFloorSteps(currentFloor);
+  const completedSteps = Number(state.currentRun?.floorSteps?.[String(currentFloor)]) || 0;
+  let remaining = Math.max(0, currentFloorSteps - completedSteps);
+  for (let floor = currentFloor + 1; floor < targetDepth; floor++) {
+    remaining += getExpectedStatusCureFloorSteps(floor);
+  }
+  return remaining;
+}
+
+export function calculateStatusCureEv({
+  status,
+  remainingExplorationSteps = 0,
+  poisonDamagePerStep = 0,
+  attackMissesPerEpisode = 0,
+  blindHitDamageHp = 0,
+  incapacitatedActions = 0,
+  actionLoss = 0,
+  itemLoss = STATUS_CURE_ITEM_RISK_COST
+} = {}) {
+  const normalizedStatus = status === "paralyze" ? "paralyzed" : status;
+  let continueLoss = 0;
+  let lossBasis = "unknown";
+  if (normalizedStatus === "poisoned") {
+    continueLoss = Math.max(0, Number(remainingExplorationSteps) || 0) *
+      Math.max(0, Number(poisonDamagePerStep) || 0);
+    lossBasis = "remaining-steps-x-poison-damage-per-step";
+  } else if (normalizedStatus === "blind") {
+    continueLoss = Math.max(0, Number(attackMissesPerEpisode) || 0) *
+      Math.max(0, Number(blindHitDamageHp) || 0);
+    lossBasis = "misses-per-episode-x-hit-damage";
+  } else if (["paralyzed", "sleep"].includes(normalizedStatus)) {
+    continueLoss = Math.max(0, Number(incapacitatedActions) || 0);
+    lossBasis = "incapacitated-actions-per-episode";
+  }
+  const normalizedActionLoss = Math.max(0, Number(actionLoss) || 0);
+  const normalizedItemLoss = Math.max(0, Number(itemLoss) || 0);
+  const treatmentLoss = normalizedActionLoss + normalizedItemLoss;
+  return {
+    status: normalizedStatus,
+    lossBasis,
+    continueLoss,
+    actionLoss: normalizedActionLoss,
+    itemLoss: normalizedItemLoss,
+    treatmentLoss,
+    shouldCure: continueLoss > treatmentLoss
+  };
+}
+
+function recordStatusCureEvEvaluation(metrics, evaluation) {
+  const summary = metrics?.statusCureEvMetrics?.[evaluation.status];
+  if (!summary) return;
+  summary.evaluations++;
+  summary.positiveEvaluations += Number(evaluation.shouldCure);
+  summary.remainingExplorationSteps += evaluation.remainingExplorationSteps || 0;
+  summary.continueLoss += evaluation.continueLoss;
+  summary.treatmentLoss += evaluation.treatmentLoss;
+  summary.actionLoss += evaluation.actionLoss;
+  summary.itemLoss += evaluation.itemLoss;
+  summary.lossBasis[evaluation.lossBasis] =
+    (summary.lossBasis[evaluation.lossBasis] || 0) + 1;
+}
+
+function createStatusCureDecision(state, inCombat = true, metrics = null) {
   const character = state.party[0];
   const status = character.status;
   const candidates = STATUS_CURE_ITEMS[status];
@@ -4371,17 +4573,52 @@ function createStatusCureDecision(state, inCombat = true) {
   if (state.simPolicy.statusCurePolicy === "never") {
     return { kind: "policy-deferred", status, itemKey };
   }
-  const hpRate = character.hp / Math.max(1, getCharMaxHp(character));
-  if (hpRate > state.simPolicy.statusCureHpThreshold) {
-    return { kind: "policy-deferred", status, itemKey };
+
+  if (["smart", "legacy"].includes(state.simPolicy.statusCurePolicy)) {
+    const hpRate = character.hp / Math.max(1, getCharMaxHp(character));
+    if (hpRate > state.simPolicy.statusCureHpThreshold) {
+      return { kind: "policy-deferred", status, itemKey };
+    }
+    if (inCombat && ["sleep", "paralyze", "paralyzed"].includes(status)) {
+      return { kind: "incapacitated", status, itemKey };
+    }
+    return { kind: "selected", status, itemKey };
   }
-  if (inCombat && ["sleep", "paralyze", "paralyzed"].includes(status)) {
-    return { kind: "incapacitated", status, itemKey };
-  }
-  return { kind: "selected", status, itemKey };
+
+  const observation = getStatusCureObservationInputs(status);
+  const remainingExplorationSteps = getStatusCureRemainingExplorationSteps(state);
+  const actionLoss = ["paralyzed", "paralyze", "sleep"].includes(status)
+    ? 1
+    : getExpectedStatusCureActionDamage(state, observation.hitDamageHp || 0);
+  const evaluation = calculateStatusCureEv({
+    status,
+    remainingExplorationSteps,
+    poisonDamagePerStep: observation.poisonDamagePerStep,
+    attackMissesPerEpisode: observation.attackMisses,
+    blindHitDamageHp: observation.hitDamageHp,
+    incapacitatedActions: observation.incapacitatedActions,
+    actionLoss
+  });
+  const decision = {
+    kind: evaluation.shouldCure ? "selected" : "policy-deferred",
+    status,
+    itemKey,
+    ev: {
+      ...evaluation,
+      remainingExplorationSteps,
+      observationSource: observation.source,
+      poisonDamagePerStep: observation.poisonDamagePerStep || null,
+      attackMissesPerEpisode: observation.attackMisses || null,
+      blindHitDamageHp: observation.hitDamageHp || null,
+      incapacitatedActions: observation.incapacitatedActions || null,
+      inCombat
+    }
+  };
+  recordStatusCureEvEvaluation(metrics, decision.ev);
+  return decision;
 }
 
-function recordStatusCureDecision(metrics, decision, context) {
+function recordStatusCureDecision(metrics, decision, context, state = null) {
   if (!metrics || !decision) return;
   metrics.statusCureDecisions[decision.kind] =
     (metrics.statusCureDecisions[decision.kind] || 0) + 1;
@@ -4394,6 +4631,13 @@ function recordStatusCureDecision(metrics, decision, context) {
   if (["policy-deferred", "incapacitated"].includes(decision.kind)) {
     metrics.statusCureHeldNotUsedStatuses[decision.status] =
       (metrics.statusCureHeldNotUsedStatuses[decision.status] || 0) + 1;
+  }
+  if (
+    state &&
+    metrics.statusCureSupply?.dedicatedDepletionFloor !== null
+  ) {
+    metrics.statusCureSupply.decisionsAfterDedicatedDepletion[decision.kind] =
+      (metrics.statusCureSupply.decisionsAfterDedicatedDepletion[decision.kind] || 0) + 1;
   }
 }
 
@@ -4425,8 +4669,8 @@ function selectCombatAction(state, metrics) {
     return { type: "run", actorIdx: 0 };
   }
 
-  const cureDecision = createStatusCureDecision(state);
-  recordStatusCureDecision(metrics, cureDecision, "combat");
+  const cureDecision = createStatusCureDecision(state, true, metrics);
+  recordStatusCureDecision(metrics, cureDecision, "combat", state);
   if (cureDecision?.kind === "selected") {
     return {
       type: "item",
@@ -5551,6 +5795,7 @@ function runEncounter(
         metrics.statusesCured[action.simStatusBefore] =
           (metrics.statusesCured[action.simStatusBefore] || 0) + 1;
       }
+      recordStatusCureDedicatedDepletion(state, metrics);
     }
     const fled = roundResult.logQueue.some(entry => entry.runEscape);
     if (encounterDiagnostic) {
@@ -5745,8 +5990,8 @@ function useHealPotionIfNeeded(state, metrics) {
 
 function useStatusCureIfNeeded(state, metrics, context) {
   if (!isAlive(state.party[0])) return false;
-  const decision = createStatusCureDecision(state, false);
-  recordStatusCureDecision(metrics, decision, context);
+  const decision = createStatusCureDecision(state, false, metrics);
+  recordStatusCureDecision(metrics, decision, context, state);
   if (decision?.kind !== "selected") return false;
   const character = state.party[0];
   const itemIndex = state.inventory.indexOf(decision.itemKey);
@@ -5759,6 +6004,7 @@ function useStatusCureIfNeeded(state, metrics, context) {
   addItemCount(metrics.statusCureItemsUsed, decision.itemKey);
   metrics.statusesCured[decision.status] =
     (metrics.statusesCured[decision.status] || 0) + 1;
+  recordStatusCureDedicatedDepletion(state, metrics);
   return true;
 }
 
@@ -8808,6 +9054,8 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     statusCureDecisionContexts: metrics.statusCureDecisionContexts,
     statusCureUnavailableStatuses: metrics.statusCureUnavailableStatuses,
     statusCureHeldNotUsedStatuses: metrics.statusCureHeldNotUsedStatuses,
+    statusCureEvMetrics: metrics.statusCureEvMetrics,
+    statusCureSupply: metrics.statusCureSupply,
     statusesCured: metrics.statusesCured,
     statusCureMerchantFailures: metrics.statusCureMerchantFailures,
     statusObservations,
@@ -8922,6 +9170,7 @@ export function simulateRun({
     keyItems,
     unlockedMilestones
   );
+  state.simPolicy.statusCureTargetDepth = targetDepth;
   if (CORE_WORKSHOP_GATE_MODE === "off") {
     state.party[0].unlockedAffixIds = [...ALL_CORE_AFFIX_IDS];
   }
@@ -9238,6 +9487,8 @@ export function simulateRun({
     },
     statusCureItemsUsed: {},
     statusObservations: createStatusObservationMetrics(),
+    statusCureEvMetrics: createStatusCureEvMetrics(),
+    statusCureSupply: createStatusCureSupplyMetrics(),
     statusCureDecisions: {
       selected: 0,
       unavailable: 0,
@@ -9431,6 +9682,12 @@ export function simulateRun({
 
     stepLoop: for (let step = 1; step <= floorSteps; step++) {
       metrics.steps++;
+      state.simPolicy.statusCureRemainingSteps =
+        Math.max(0, floorSteps - step + 1) +
+        Array.from(
+          { length: Math.max(0, targetDepth - floor - 1) },
+          (_, index) => getExpectedStatusCureFloorSteps(floor + index + 1)
+        ).reduce((sum, amount) => sum + amount, 0);
       recordStatusObservationStep(metrics.statusObservations, state.party[0].status);
       if (step <= staticFloorSteps) {
         metrics.floorBudgetSteps++;
@@ -10173,6 +10430,12 @@ function simulateCase({
     statusCureDecisionContexts: {},
     statusCureUnavailableStatuses: {},
     statusCureHeldNotUsedStatuses: {},
+    statusCureEvMetrics: createStatusCureEvMetrics(),
+    statusCureSupply: {
+      dedicatedDepletionRuns: 0,
+      dedicatedDepletionFloorCounts: {},
+      decisionsAfterDedicatedDepletion: {}
+    },
     statusesCured: {},
     trap: createTrapAggregate(),
     flameTrap: createFlameTrapAggregate(),
@@ -10263,6 +10526,18 @@ function simulateCase({
     totals.masfealActiveSteps += result.masfealActiveSteps;
     addOutcomeAggregate(totals.outcomesByClass[className], result);
     addStatusObservationAggregate(totals.statusObservations, result);
+    addStatusCureEvMetrics(totals.statusCureEvMetrics, result.statusCureEvMetrics);
+    if (result.statusCureSupply?.dedicatedDepletionFloor !== null) {
+      totals.statusCureSupply.dedicatedDepletionRuns++;
+      const floor = result.statusCureSupply.dedicatedDepletionFloor;
+      totals.statusCureSupply.dedicatedDepletionFloorCounts[floor] =
+        (totals.statusCureSupply.dedicatedDepletionFloorCounts[floor] || 0) + 1;
+    }
+    Object.entries(result.statusCureSupply?.decisionsAfterDedicatedDepletion || {})
+      .forEach(([kind, count]) => {
+        totals.statusCureSupply.decisionsAfterDedicatedDepletion[kind] =
+          (totals.statusCureSupply.decisionsAfterDedicatedDepletion[kind] || 0) + count;
+      });
     Object.entries(result.statusCureItemsAcquired || {}).forEach(([source, counts]) => {
       const destination = totals.statusCureItemsAcquired[source] ||= {};
       Object.entries(counts || {}).forEach(([itemId, count]) => {
@@ -10720,6 +10995,8 @@ function simulateCase({
     statusCureDecisionContexts: totals.statusCureDecisionContexts,
     statusCureUnavailableStatuses: totals.statusCureUnavailableStatuses,
     statusCureHeldNotUsedStatuses: totals.statusCureHeldNotUsedStatuses,
+    statusCureEvMetrics: totals.statusCureEvMetrics,
+    statusCureSupply: totals.statusCureSupply,
     statusesCured: totals.statusesCured,
     ...trapSummary,
     consumablesByClass,
@@ -11245,6 +11522,10 @@ function printStatusCureSummary(result) {
     `held=${JSON.stringify(result.statusCureHeldNotUsedStatuses)} ` +
     `cured=${JSON.stringify(result.statusesCured)}`
   );
+  console.log(
+    `状態回復EV評価: ${JSON.stringify(result.statusCureEvMetrics || {})} ` +
+    `供給枯渇=${JSON.stringify(result.statusCureSupply || {})}`
+  );
   console.log(`状態回復アイテム/run 入手/消費: ${JSON.stringify(statusItems)}`);
   Object.entries(result.statusObservations?.byStatus || {}).forEach(([status, values]) => {
     console.log(
@@ -11268,6 +11549,8 @@ function printStatusCureSummary(result) {
     statusCureUnavailableStatuses: result.statusCureUnavailableStatuses,
     statusCureHeldNotUsedStatuses: result.statusCureHeldNotUsedStatuses,
     statusesCured: result.statusesCured,
+    statusCureEvMetrics: result.statusCureEvMetrics,
+    statusCureSupply: result.statusCureSupply,
     statusItems,
     statusObservations: result.statusObservations
   })}`);
@@ -12166,7 +12449,11 @@ console.log(
   `生存仮定: 傷薬使用閾値=${HEAL_POTION_THRESHOLD}, ` +
   `戦闘後魔力草使用閾値=${MANA_POTION_THRESHOLD}, ` +
   `逃走方針=${DEFAULT_FLEE_POLICY}, 逃走閾値=${DEFAULT_FLEE_HP_THRESHOLD ?? "逃走なし"}, ` +
-  `状態回復=${DEFAULT_STATUS_CURE_POLICY}(HP<=${DEFAULT_STATUS_CURE_HP_THRESHOLD}), ` +
+  `状態回復=${DEFAULT_STATUS_CURE_POLICY}` +
+  (["smart", "legacy"].includes(DEFAULT_STATUS_CURE_POLICY)
+    ? `(HP<=${DEFAULT_STATUS_CURE_HP_THRESHOLD})`
+    : "(EV:状態別損失 vs 1行動+アイテム1個)") +
+  ", " +
   "装備=識別方針別の実制限付き更新"
 );
 console.log(
@@ -12203,7 +12490,7 @@ console.log(
 );
 console.log(
   "感度指定: FLEE_POLICY=threshold|never|ev / FLEE_HP_THRESHOLD / HEAL_POTION_THRESHOLD, " +
-  "STATUS_CURE_POLICY=smart|never / STATUS_CURE_HP_THRESHOLD / " +
+  "STATUS_CURE_POLICY=smart|legacy|ev|never / STATUS_CURE_HP_THRESHOLD / " +
   "STATUS_CURE_MERCHANT_POLICY=missing|never, " +
   "PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
   "ELITE_POLICY=avoid|engage / TRAP_POLICY=disabled|legacy|conservative / " +

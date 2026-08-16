@@ -133,6 +133,8 @@ function compactResult(task, result) {
     statusCureDecisionContexts: result.statusCureDecisionContexts,
     statusCureUnavailableStatuses: result.statusCureUnavailableStatuses,
     statusCureHeldNotUsedStatuses: result.statusCureHeldNotUsedStatuses,
+    statusCureEvMetrics: result.statusCureEvMetrics,
+    statusCureSupply: result.statusCureSupply,
     statusesCured: result.statusesCured,
     statusCuresUsed,
     mpDepleted: Boolean(result.mpDepleted)
