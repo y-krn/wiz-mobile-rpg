@@ -1125,6 +1125,37 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   詳細と生出力SHA-256は
   `scratch/results/issue-678-consumable-coverage.md` を正本とする。
 
+## Issue #691 状態異常治療 EV 方針（2026-08-16）
+
+- これはゲーム本体のルール・balance値・アイテム定義の変更ではなく、深度simの
+  `STATUS_CURE_POLICY=ev` の判定是正である。`src/` と `HEAL_POTION_THRESHOLD` は変更しない。
+  `STATUS_CURE_POLICY=legacy` は既存の `STATUS_CURE_HP_THRESHOLD` ゲートをそのまま再現し、
+  `smart` も従来の別名として維持する。
+- 判定は固定HP率や掃引値ではなく、状態ごとの
+  `continueLoss > actionLoss + itemLoss` で行う。`itemLoss=1` はアイテム1個の共通リスク単位、
+  毒の `actionLoss` は `src/rules/character_stats.js` の
+  `calculatePhysicalAttackFormula` から現在のsim状態に応じて導出する。盲目は #689 の命中時
+  damageを1行動損失として使い、観測値がない場合だけ同じ式へフォールバックする。麻痺・睡眠は1行動単位とする。
+  判定は厳密な `>` で、EVが負または同値なら治療しない。
+- 損失式は4状態で分離する。毒は `残探索step × (23.55 / 94.43) HP/step`、盲目は
+  `1.47 miss/episode × 17.59 HP/hit`、麻痺は `0.91 action/episode`、睡眠は
+  `0.86 action/episode`。これらの観測値は #689 の観測を出所とし、0.6の閾値としては使わない。
+  麻痺・睡眠は `0.91 < 2`、`0.86 < 2`（1行動＋アイテム1個）なので、N=500の全評価で治療しない結論になった。
+- 固定条件（source `8e3379457d522a40d8c22fc454efded6ce84b75d`、seed 231、4職×500、calibration 100、
+  `SIM_PARALLEL`未指定）では、EV評価は毒 11,246件中5,686件、盲目1,155件中1,155件が正、
+  麻痺169件中0件、睡眠145件中0件だった。4職の新基準線は Fighter **7.9200** /
+  Thief **5.8360** / Priest **4.9760** / Mage **6.9580**。旧基準線との差はそれぞれ
+  **+2.0480 / +0.9380 / +0.3780 / +0.4780** であり、抑制が外れた量として扱う。
+- #689の専用5種入手6,868個は旧基準線の4職合計であり、run間共有の固定在庫ではない。EV runでは深度変化により
+  専用5種の入手は8,425個、状態回復経路の消費は専用5種5,248個＋HOLY_WATER 1,593個だった。
+  ただしrun内では専用在庫が1,291/2,000 runで枯渇し、枯渇後は選択3,262件、unavailable 50,090件、
+  policy-deferred 3,967件となった。枯渇後の選択は残存する共有候補（主にHOLY_WATER）に限られる。
+- B5は全体で死亡518/入場1,425 = **36.35%**（受入 ≤30.9% に未達）、B10は375/2,000 =
+  **18.75%**（受入 ≥15.0% を通過）。到達階の上昇は改善成果ではなく、sim側の抑制解除の観測結果である。
+- 結果正本は `scratch/results/issue-691-status-cure-ev.md`。EV raw stdout SHA-256は
+  **`2b4ea8a6c270a1432de58473dc0790fb0862116a7f8a9ac17318f568742d1907`**（同一条件2回一致）。
+  旧方針の4職平均は `legacy` 退避経路で **5.8720 / 4.8980 / 4.5980 / 6.4800** と完全一致した。
+
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
