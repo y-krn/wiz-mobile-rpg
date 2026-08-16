@@ -36,8 +36,9 @@ checks below remain required.
 - Before starting or resuming work, scan open issues:
   `gh issue list --state open`. Read the target issue with
   `gh issue view <n>`.
-- When you pick up an issue, assign yourself and leave a comment noting you
-  started (`gh issue comment <n> --body "..."`).
+- When a coordinating session picks up an issue, assign itself and leave a
+  comment noting it started (`gh issue comment <n> --body "..."`). Codex
+  implementation sessions do not comment on Issues.
 - **Fixes go on a branch + PR, never straight to `main`.** Immediately before
   creating a branch, starting or resuming work, or running a baseline
   measurement, fetch `origin/main`. Always create branches from the freshly
@@ -109,7 +110,7 @@ first, then read only the relevant part.
 - Locate before reading. For large files, run `rg -n` to find the line first,
   then read only that region with a ranged read (offset/limit, `head`, `tail`).
   Do not open a whole large file to find one function.
-- Map structure cheaply. To learn a file's shape, `grep -nE` its definition
+- Map structure cheaply. To learn a file's shape, `rg -nE` its definition
   lines (e.g. `^(export |function |const |class )`) instead of reading the file
   end to end, then read only the parts you need.
 - Honor line references. When the user gives a `file:line` pointer, read that
@@ -353,26 +354,32 @@ When reporting checklist use, include:
 
 ## 役割分担（指揮 / 実務 / 実装）
 
-3 層に固定する。上の層は下の層の仕事を肩代わりしない。
+通常は指揮セッションが Codex 実装セッションを直接起動する。必要な場合は、
+指揮セッションと Codex の間に実務セッションを置く。いずれの構成でも、上の層は
+下の層の仕事を肩代わりしない。
 
 - **プロダクト指揮セッション**（対話セッション、Opus 系）: 方針・優先順位・要件整理・タスク分解・
   Issue 起票と更新・実務セッションへの委譲・進行整理・PR 要約確認・マージ可否判断・重要設計判断。
   ゲームコードの実装 / 修正 / テスト / 測定を直接行わない。Issue / PR 運用、運用規約と状態要約の更新、
   `AGENTS.md` / Skill / Hook の整備、小さな調査、緊急時の状況確認は指揮セッションで扱ってよい。
+  Codex を直接委譲した場合の terminal report の作成と投稿も指揮セッションで行う。
 - **実務セッション**（Issue 単位、Sonnet 系）: Issue 最新状態の確認・実装計画・Codex への委譲・
-  進行管理・実装結果の検証・追加修正・テスト / lint / 測定の確認・PR 作成・Issue への terminal report。
-  Codex を起動して終わらせず、terminal report を投稿するまで実務責任を持つ。
+  進行管理・実装結果の検証・追加修正・テスト / lint / 測定の確認・PR 作成。
+  Codex の最終メッセージを受け取り、指揮セッションへ結果を返す。Codex を直接委譲した場合は、
+  CI とレビュー状態を確認して terminal report を投稿する。
   **Codex をバックグラウンド実行したら、完了までポーリングして自分のターンを終えない。**
   「完了通知を待つ」と書いて停止すると、その通知は自分には届かず作業が宙に浮く（2026-08-15 に2回発生）。
   待機は `while kill -0 <pid> 2>/dev/null; do sleep 20; done` のようにプロセス終了を待つ形にする。
-- **Codex 実装セッション**: 実装・修正・テスト・lint・測定・ログ調査・技術検証。Codex の探索量は
-  過度に削らない。Codex 側のトークン節約より、上位セッションへ大量ログを持ち込まないことを優先する。
+- **Codex 実装セッション**: 実装・修正・テスト・lint・測定・ログ調査・技術検証。完了時は Issue に
+  コメントや close をせず、最終メッセージで委譲元へ報告する。Codex の探索量は過度に削らない。
+  Codex 側のトークン節約より、上位セッションへ大量ログを持ち込まないことを優先する。
 
 モデルは各セッションの設定を正本とする。会話中にモデル確認のためのツール実行や調査を繰り返さない。
 
-### 実務セッションの起動方法
+### 実務セッションを使う場合の起動方法
 
-起動方法は固定しない。状況に応じて選ぶ。
+通常は指揮セッションが Codex を直接起動する。実務セッションを挟む場合の起動方法は固定しない。
+状況に応じて選ぶ。
 
 - モバイル / Desktop からの Dispatch
 - Claude Code の独立したローカル / クラウドセッション
@@ -388,7 +395,7 @@ When reporting checklist use, include:
 
 ### タスク単位と同時実行
 
-- 1 Issue につき、同時に活動する実務セッションは 1 つ。同じ Issue へ複数を同時起動しない。
+- 実務セッションを使う場合、1 Issue につき同時に活動する実務セッションは 1 つ。同じ Issue へ複数を同時起動しない。
 - 1 実行につき terminal report は 1 件。再実行や BLOCKED からの再開は可。
 - 再開時は新しい作業を推測せず、Issue 本文 / 最新の有効な report / PR の現在状態 / CI とレビューコメント /
   前回のブロッカー を確認してから動く。
@@ -416,10 +423,11 @@ When reporting checklist use, include:
 ## 委譲プロンプトの完了報告
 
 - scheduled task 実行セッションから委譲した場合、`notifyOnCompletion` による通知は、自セッション終了と同時に購読対象が消えるため原理的に届かない。`notifyOnCompletion: true` ではタスク作成自体がエラーで失敗するため `false` を渡す。通常の対話セッションから委譲する場合は既定の `true` のままとする。
-- 委譲プロンプトの末尾に必ず「完了時に `gh issue comment <n>` で terminal report を投稿せよ」と含める。
-  **Issue コメントが唯一の正式な報告経路**であり、通知は補助とする。
-- terminal report は次の機械可読形式とする。同一実行中の追記は既存コメントを編集する。再実行時は新しい
-  `run_id` を使う。
+- 委譲プロンプトの末尾には「Issue へのコメントと close を行わず、完了時は最終メッセージで
+  委譲元へ報告せよ」と含める。Codex は Issue に投稿しない。
+- terminal report は委譲元が投稿する。直接委譲では指揮セッションが、実務セッションを挟む場合は
+  その委譲元が、GitHub 上の CI とレビュー状態を確認してから投稿する。書式は次の機械可読形式とする。
+  同一実行中の追記は既存コメントを編集する。再実行時は新しい `run_id` を使う。
 
   ```markdown
   <!-- agent-report:v1 -->
@@ -443,11 +451,14 @@ When reporting checklist use, include:
   - reported_at:
   ```
 
+- 委譲元は既存の `tests` 欄に CI 結果を、`decisions` または `remaining` 欄にマージ可否判断を記載する。
+  CI とレビュー状態を確認できない場合は、`DONE` を報告しない。
 - `DONE` = Acceptance criteria を満たし PR と報告が作成済み / `BLOCKED` = 外部状態・権限・仕様判断・
   ユーザー入力待ち / `FAILED` = 回復手段を尽くしても完了できず。Acceptance criteria に関わる未確認項目が
   残るなら DONE にしない。
 - 「未実行」「未確認」と書ける欄を用意し、埋めるための憶測を書かせない。
-- Issue へ report を保存した**後**、指揮セッションが到達可能な場合に限り `SendMessage` で即時通知してよい。
+- 実務セッションを挟む場合、委譲元が terminal report を Issue へ投稿した後、指揮セッションが到達可能な場合に限り
+  `SendMessage` で即時通知してよい。通知は補助で、Issue コメントが正式な報告経路である。
   対象は BLOCKED / FAILED / 重要な仕様判断 / セキュリティ・データ損失・互換性の懸念 / マージ前確認が必要な場合。
   内容は Issue 番号・status・PR URL・判断が必要な内容・報告コメント URL だけに絞る。通常の DONE は Issue
   コメントのみでよく、複数の DONE は集約タスクでまとめる。SendMessage が失敗しても BLOCKED 扱いにせず、
