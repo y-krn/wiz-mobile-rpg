@@ -1,5 +1,5 @@
 // 装備/クラフト 統合テスト
-// 集約元: test_craft_equipped.js, test_dismantle.js, test_equipment_variety_plan_a.js, test_accessory_slot.js
+// 集約元: test_craft_equipped.js, test_equipment_variety_plan_a.js, test_accessory_slot.js
 // 各テストは同名ローカル定義の衝突回避と Math.random 差し替え隔離のため IIFE でスコープ分離。
 global.localStorage = {
   getItem: () => null,
@@ -130,128 +130,6 @@ import { createSoloCharacter } from "../src/state.js";
     })();
   })();
 
-  // ========================================================================
-  // 元: test_dismantle.js
-  // ========================================================================
-  await (async () => {
-    global.localStorage = (() => {
-      let store = {};
-      return {
-        getItem: (key) => store[key] || null,
-        setItem: (key, value) => { store[key] = String(value); },
-        removeItem: (key) => { delete store[key]; },
-        clear: () => { store = {}; }
-      };
-    })();
-
-    const createDummyElement = () => ({
-      style: {},
-      appendChild: () => createDummyElement(),
-      replaceChildren: () => {},
-      addEventListener: () => {},
-      classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
-      setAttribute: () => {},
-      getAttribute: () => "",
-      removeAttribute: () => {},
-      innerHTML: "",
-      textContent: "",
-      cloneNode: () => createDummyElement()
-    });
-
-    global.document = {
-      getElementById: () => createDummyElement(),
-      querySelector: () => createDummyElement(),
-      querySelectorAll: () => [],
-      createElement: () => createDummyElement(),
-      body: createDummyElement()
-    };
-
-    global.window = {
-      innerWidth: 375,
-      innerHeight: 667,
-      addEventListener: () => {}
-    };
-
-    Object.defineProperty(global, "navigator", {
-      value: { userAgent: "node" },
-      writable: true,
-      configurable: true
-    });
-
-    (async () => {
-      const { state, initNewGame } = await import("../src/state.js");
-      const { executeDismantle, getDismantleResults } = await import("../src/craft.js");
-      const assert = await import("assert");
-
-      console.log("Starting Workshop Dismantle Verification Tests...");
-
-      // Initialize
-      initNewGame();
-      state.inventory = [];
-      state.metaMaterials = {};
-
-      // Test 1: getDismantleResults mapping
-      const mockWeaponMagic = {
-        kind: "equipment",
-        instanceId: "test_eq_1",
-        baseId: "SHORT_SWORD",
-        rarity: "magic",
-        identified: true,
-        affixes: []
-      };
-      const res1 = getDismantleResults(mockWeaponMagic);
-      assert.deepStrictEqual(res1, { "鉄片": 1 }, "Magic Short Sword should yield 1 Iron Scrap");
-
-      const mockWeaponRare = {
-        kind: "equipment",
-        instanceId: "test_eq_2",
-        baseId: "SHORT_SWORD",
-        rarity: "rare",
-        identified: true,
-        affixes: []
-      };
-      const res2 = getDismantleResults(mockWeaponRare);
-      assert.deepStrictEqual(res2, { "鉄片": 2, "骨片": 1 }, "Rare Short Sword should yield 2 Iron Scrap, 1 Bone Fragment");
-
-      const mockArmorEpic = {
-        kind: "equipment",
-        instanceId: "test_eq_3",
-        baseId: "ROBE",
-        rarity: "epic",
-        identified: true,
-        affixes: []
-      };
-      const res3 = getDismantleResults(mockArmorEpic);
-      assert.deepStrictEqual(res3, { "呪布": 2, "黒角": 1 }, "Epic Robe should yield 2 Cursed Cloth, 1 Demon Horn");
-
-      const mockAccessoryMagic = {
-        kind: "equipment",
-        instanceId: "test_eq_4",
-        baseId: "AMULET_MP",
-        rarity: "magic",
-        identified: true,
-        affixes: []
-      };
-      const res4 = getDismantleResults(mockAccessoryMagic);
-      assert.deepStrictEqual(res4, { "魔石片": 1 }, "Magic MP Amulet should yield 1 Magic Shard");
-
-      console.log("-> [PASS] Dismantle mapping verified");
-
-      // Test 2: dismantling is retired; it must not create meta currency
-      state.inventory = [mockWeaponMagic, mockWeaponRare, mockArmorEpic];
-      state.metaMaterials = {};
-
-      const success1 = executeDismantle(0); // Short Sword (magic)
-      assert.strictEqual(success1, false, "Retired dismantling should fail");
-      assert.strictEqual(state.inventory.length, 3, "Inventory must remain unchanged");
-      assert.deepStrictEqual(state.metaMaterials, {}, "Dismantling must not create meta currency");
-
-      console.log("-> [PASS] retired dismantling verified");
-      console.log("All Workshop Dismantle Verification Tests PASSED!");
-    })();
-  })();
-
-  // ========================================================================
   // ========================================================================
   // 装備生成・鑑定・呪いの統合確認
   // ========================================================================
@@ -402,17 +280,19 @@ import { createSoloCharacter } from "../src/state.js";
     const { ITEMS } = await import("../src/data/items.js");
     const { EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } = await import("../src/data/equipment_tables.js");
     const { generateRandomEquipment } = await import("../src/systems/equipment_generation.js");
-    const { getDismantleResults } = await import("../src/craft.js");
+    const craftModule = await import("../src/craft.js");
+    assert.ok(!Object.hasOwn(craftModule, "getDismantleResults"));
+    assert.ok(!Object.hasOwn(craftModule, "executeDismantle"));
 
     const additions = {
-      SAGE_STAFF: { floor: 3, type: "weapon", stat: "atk", value: 2, classes: ["Priest", "Mage", "Bishop"], namePart: "杖", mats: { "魔石片": 1 } },
-      ARCH_WAND: { floor: 5, type: "weapon", stat: "atk", value: 3, classes: ["Mage", "Bishop"], namePart: "杖", mats: { "魔石片": 1 } },
-      SORCERER_ROBE: { floor: 5, type: "armor", stat: "def", value: 6, classes: ["Mage", "Bishop"], namePart: "ローブ", mats: { "呪布": 1 } },
-      VENOM_FANG: { floor: 3, type: "weapon", stat: "atk", value: 9, classes: ["Thief", "Ninja"], namePart: "短剣", mats: { "硬い皮": 1 } },
-      NINJA_BLADE: { floor: 4, type: "weapon", stat: "atk", value: 14, classes: ["Thief", "Ninja"], namePart: "剣", mats: { "鉄片": 1 } },
-      MOONSHADOW: { floor: 5, type: "weapon", stat: "atk", value: 20, classes: ["Thief", "Ninja"], namePart: "剣", mats: { "鉄片": 1 } },
-      HOLY_STAFF: { floor: 4, type: "weapon", stat: "atk", value: 6, classes: ["Priest", "Bishop"], namePart: "杖", mats: { "魔石片": 1 } },
-      FLAME_SWORD: { floor: 4, type: "weapon", stat: "atk", value: 14, classes: ["Fighter", "Samurai", "Ranger"], namePart: "剣", mats: { "鉄片": 1 } }
+      SAGE_STAFF: { floor: 3, type: "weapon", stat: "atk", value: 2, classes: ["Priest", "Mage", "Bishop"], namePart: "杖" },
+      ARCH_WAND: { floor: 5, type: "weapon", stat: "atk", value: 3, classes: ["Mage", "Bishop"], namePart: "杖" },
+      SORCERER_ROBE: { floor: 5, type: "armor", stat: "def", value: 6, classes: ["Mage", "Bishop"], namePart: "ローブ" },
+      VENOM_FANG: { floor: 3, type: "weapon", stat: "atk", value: 9, classes: ["Thief", "Ninja"], namePart: "短剣" },
+      NINJA_BLADE: { floor: 4, type: "weapon", stat: "atk", value: 14, classes: ["Thief", "Ninja"], namePart: "剣" },
+      MOONSHADOW: { floor: 5, type: "weapon", stat: "atk", value: 20, classes: ["Thief", "Ninja"], namePart: "剣" },
+      HOLY_STAFF: { floor: 4, type: "weapon", stat: "atk", value: 6, classes: ["Priest", "Bishop"], namePart: "杖" },
+      FLAME_SWORD: { floor: 4, type: "weapon", stat: "atk", value: 14, classes: ["Fighter", "Samurai", "Ranger"], namePart: "剣" }
     };
 
     const expectedAffixes = {
@@ -511,8 +391,6 @@ import { createSoloCharacter } from "../src/state.js";
       });
       assert.ok(unidentifiedName.includes(expected.namePart), `${baseId} unidentified name should include ${expected.namePart}`);
 
-      const dismantle = getDismantleResults({ kind: "equipment", baseId, rarity: "magic", identified: true, affixes: [] });
-      assert.deepStrictEqual(dismantle, expected.mats, `${baseId} should use explicit dismantle materials`);
     }
 
     assert.ok(RESTRICTED_CHEST_BASES.includes("MOONSHADOW"), "MOONSHADOW should stay out of standard high-end chest generation");

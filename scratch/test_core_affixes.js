@@ -19,7 +19,6 @@ import {
   getAffixDefinition
 } from "../src/data.js";
 import {
-  getDismantleResults,
   getPolishCost,
   polishSupportAffix
 } from "../src/craft.js";
@@ -256,7 +255,6 @@ test("研磨: サポートを切り上げ1.5倍・1アイテム1回・コア除�
   assert.equal(polishSupportAffix(coreOnly, 0), false);
   assert.equal(coreOnly.affixes[0].value, 1);
   assert.equal(coreOnly.polished, undefined);
-  assert.equal(getDismantleResults(coreOnly), null);
 });
 
 test("忍び足: 生存装備者のみパーティ有効、感知4→2、オーラ値+1", () => {

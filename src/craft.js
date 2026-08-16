@@ -1,5 +1,5 @@
-import { state, saveAutosave, addLog, addInventoryItem } from "./state.js";
-import { getItemData, getItemBaseId } from "./data.js";
+import { state, saveAutosave, addLog } from "./state.js";
+import { getItemData } from "./data.js";
 import { playSound } from "./audio.js";
 import { AFFIX_BALANCE, getAffixDefinition } from "./data/affixes.js";
 
@@ -104,49 +104,6 @@ export function convertToEquipObject(itemKey) {
   };
 }
 
-export function executeCraft(recipeId) {
-  const recipe = CRAFT_RECIPES.find(r => r.resultId === recipeId);
-  if (!recipe) return false;
-
-  // 鑑定粉はITEMSに存在しない出発クラフト専用の疑似レシピ。
-  if (recipe.identifyPowder) {
-    addLog("鑑定粉は出発時のクラフトでのみ作成できます。");
-    return false;
-  }
-
-  // バッグ空きチェック
-  if (state.inventory.length >= 20) {
-    addLog("バッグがいっぱいです。");
-    return false;
-  }
-
-  if (!recipe.mats) {
-    addLog("このレシピは出発時のクラフトでのみ作成できます。");
-    return false;
-  }
-
-  // 素材チェック
-  for (const [mat, reqQty] of Object.entries(recipe.mats)) {
-    const curQty = state.metaMaterials[mat] || 0;
-    if (curQty < reqQty) {
-      addLog(`素材 [${mat}] が不足しています。`);
-      return false;
-    }
-  }
-
-  // 消費
-  for (const [mat, reqQty] of Object.entries(recipe.mats)) {
-    state.metaMaterials[mat] -= reqQty;
-  }
-
-  // アイテム獲得
-  addInventoryItem(recipe.resultId);
-  playSound("heal");
-  addLog(`[工房] ${recipe.name} を製作しました！`);
-  saveAutosave();
-  return true;
-}
-
 export function executeEnhance(itemIdx) {
   let eqItem;
   let isEquipped = false;
@@ -204,81 +161,6 @@ export function executeEnhance(itemIdx) {
   addLog(`[工房] 装備を強化しました！➔ [${itemData.name}]`);
   saveAutosave();
   return true;
-}
-
-export function getDismantleResults(eqItem) {
-  const item = getItemData(eqItem);
-  if (!item || !["weapon", "shield", "armor", "accessory"].includes(item.type)) return null;
-
-  const hasCore = typeof eqItem === "object" && (eqItem.affixes || []).some(affix => {
-    const definition = getAffixDefinition(affix);
-    return (affix.kind || definition?.kind) === "core";
-  });
-  if (hasCore) return null;
-
-  // 未鑑定装備の場合は分解不可
-  if (typeof eqItem === "object" && eqItem.identified === false) {
-    return null;
-  }
-
-  const baseId = getItemBaseId(eqItem);
-  const rarity = (typeof eqItem === "object" ? eqItem.rarity : null) || "magic";
-
-  let mainMat = "鉄片";
-  let midMat = "骨片";
-  let highMat = "竜鱗";
-
-  if (["SHORT_SWORD", "LONG_SWORD", "CLAYMORE", "KATANA", "HOLY_BLADE", "RAPIER", "NINJA_BLADE", "MOONSHADOW", "FLAME_SWORD", "SEALED_EXCALIBUR", "EXCALIBUR_FRAGMENT"].includes(baseId)) {
-    mainMat = "鉄片"; midMat = "骨片"; highMat = "竜鱗";
-  } else if (["DAGGER", "NINJA_DAGGER", "VENOM_FANG"].includes(baseId)) {
-    mainMat = "硬い皮"; midMat = "毒腺"; highMat = "黒角";
-  } else if (["WAND", "SAGE_STAFF", "ARCH_WAND", "SACRED_MACE", "HOLY_STAFF", "MACE"].includes(baseId)) {
-    mainMat = "魔石片"; midMat = "霊粉"; highMat = "黒角";
-  } else if (["ROBE", "MAGE_CLOAK", "ARCANE_ROBE", "SORCERER_ROBE", "PRIEST_ROBE"].includes(baseId)) {
-    mainMat = "呪布"; midMat = "霊粉"; highMat = "黒角";
-  } else if (["LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT"].includes(baseId)) {
-    mainMat = "硬い皮"; midMat = "獣の牙"; highMat = "竜鱗";
-  } else if (["SCALE_MAIL", "CHAIN_MAIL", "PLATE_MAIL", "BATTLE_GARB"].includes(baseId)) {
-    mainMat = "鉄片"; midMat = "骨片"; highMat = "竜鱗";
-  } else if (["SMALL_SHIELD", "BUCKLER", "LARGE_SHIELD", "KNIGHT_SHIELD", "MAGIC_SHIELD"].includes(baseId)) {
-    mainMat = "鉄片"; midMat = "骨片"; highMat = "竜鱗";
-  } else if (["DRAGON_SCALE", "DRAGON_CHARM"].includes(baseId)) {
-    mainMat = "竜鱗"; midMat = "竜鱗"; highMat = "竜鱗";
-  } else if (["AMULET_HP", "WARD_CHARM"].includes(baseId)) {
-    mainMat = "霊粉"; midMat = "魔石片"; highMat = "黒角";
-  } else if (["AMULET_MP"].includes(baseId)) {
-    mainMat = "魔石片"; midMat = "霊粉"; highMat = "黒角";
-  } else if (["RING_STR", "RING_AGI", "RING_LUK"].includes(baseId)) {
-    mainMat = "鉄片"; midMat = "霊粉"; highMat = "黒角";
-  } else if (["THIEF_EYE"].includes(baseId)) {
-    mainMat = "硬い皮"; midMat = "毒腺"; highMat = "黒角";
-  } else if (["DRAGON_RING"].includes(baseId)) {
-    mainMat = "竜鱗"; midMat = "竜鱗"; highMat = "竜鱗";
-  } else if (["HOLY_BAND"].includes(baseId)) {
-    mainMat = "霊粉"; midMat = "骨片"; highMat = "黒角";
-  } else if (["SWIFT_BAND"].includes(baseId)) {
-    mainMat = "鉄片"; midMat = "獣の牙"; highMat = "黒角";
-  }
-
-  const results = {};
-  if (rarity === "magic") {
-    results[mainMat] = 1;
-  } else if (rarity === "rare") {
-    results[mainMat] = 2;
-    results[midMat] = (results[midMat] || 0) + 1;
-  } else if (rarity === "epic") {
-    results[mainMat] = 2;
-    results[highMat] = (results[highMat] || 0) + 1;
-  }
-
-  return results;
-}
-
-export function executeDismantle(itemIdx) {
-  const eqItem = state.inventory[itemIdx];
-  if (!eqItem) return false;
-  addLog("工房はアンロック専用です。装備の分解は廃止されました。");
-  return false;
 }
 
 export function getPolishCost(eqItem) {

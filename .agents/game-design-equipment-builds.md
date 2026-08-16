@@ -3,7 +3,7 @@
 Tracking issue: y-krn/wiz-mobile-rpg#120 (closed — all phases merged)
 
 Implementation history: PR #126 (Phase 1), #127 (Phase 2), #128 (Phase 3),
-#129 (Phase 4). The inscription and curse-sealing portions of Phase 4 were removed in #668 because they were unreachable from the current game screens; polishing remains pending #669.
+#129 (Phase 4). The inscription and curse-sealing portions of Phase 4 were removed in #668 because they were unreachable from the current game screens; enhancement and polishing remain pending UI wiring after the #669 decision.
 
 **Direction change (2026-07-18).** This document reflects the pivot to a solo
 depth-attack roguelite. It is subordinate to `.agents/game-design-core-loop.md`
@@ -132,6 +132,35 @@ the Workshop.
 
 - **Polishing**: Multiplies the value of 1 support affix by 1.5 (round up). 1 time per item
   (`polished` flag). Cores are excluded. Cost: `AFFIX_BALANCE.polishCost`
+
+## Issue #669 Decision (2026-08-16)
+
+The three unreachable equipment actions are judged separately by depth impact
+and core-build impact. Numeric changes do not add affix slots, so they are not
+expected to move depth materially; they remain valuable as ways to finish an
+improvised build from a drop.
+
+- **Enhancement — wire in a follow-up UI issue.** One identified weapon may be
+  enhanced once for `鉄片×2 + 魔石片×1`, adding `+2` attack. One identified
+  shield or armor may be enhanced once for `鉄片×1 + 硬い皮×2`, adding `+1`
+  defense. Accessories are excluded. The rule already lives in the
+  `getEnhanceCost` / `executeEnhance` helpers in `src/craft.js`; #669 does not
+  add the UI.
+- **Polishing — wire in a follow-up UI issue.** One enabled support affix on an
+  identified item may be polished once for `AFFIX_BALANCE.polishCost`
+  (`魔石片×2`), changing its value to `ceil(value × 1.5)`. Cores,
+  unidentified items, and already-polished items are excluded. The existing
+  rule remains in `src/craft.js`; #669 does not add the UI.
+- **Dismantling — removed from the current game.** The old mapping would have
+  returned one to three materials from an identified non-core equipment item,
+  but the action would add a second material-supply path without improving the
+  in-run build structure. It is not a player-facing material source; the
+  unreachable executor and result table were removed in #669. This is
+  consistent with the economy canon's deferred dismantling rule.
+
+The old in-run `executeCraft` path was also removed. `CRAFT_RECIPES` remains
+the data source for departure craft through `src/systems/workshop.js` and
+`src/rules/craft_rules.js`.
 
 # Balance Framework
 
