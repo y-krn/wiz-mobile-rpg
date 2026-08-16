@@ -8,12 +8,12 @@
 
 ## 測定条件と provenance
 
-- base: `origin/main` = `256fc174d79363bcb21acda02643cd1cdeb1431d`
-- 測定時の実装コミット: `05d53a3086f5bf9b683969e68c8de4ca53565244`
+- base: `origin/main` = `d2e83bd84b4e14d16f991829d91b6b5756e0a706`
+- 測定時の実装コミット: `3c60856306ba00b7f7dd0fb2fe86960412ed9fb1`
 - seed: `231`
 - 通常sim: N=500、`SIM_CALIBRATION_RUNS=100`、`SIM_PARALLEL` 未指定
-- 決定性確認用 raw stdout: `/private/tmp/issue-677-direct1.raw.txt` と `direct2.raw.txt`
-- raw stdout SHA-256（2回とも）: `b807c7dfa67a5f66164d1ffc88d74ff9dce53a5044ab5e8581563fc7cf9b2ec2`
+- 決定性確認用 raw stdout: `/private/tmp/issue-677-direct-latest1.raw.txt` と `direct-latest2.raw.txt`
+- raw stdout SHA-256（2回とも）: `a9e1b2f76d1cf4fb6ead3cac0717cd411f4f3afc11e1bb4f1abb1c0518b7ea64`
 
 受入基準線は通常simのデフォルト集約値ではなく、#666が記録した #624互換の固定環境で定義されている。そのため、`scratch/sim_commit_depth_624.js` が現行 `scratch/sim_depth_material_ev.js` の `simulateRun` を呼ぶ互換測定も実行した。互換測定は B21、#612の6工房分布、出発クラフト、run単位乱数分離を使用した。
 

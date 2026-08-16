@@ -1065,13 +1065,13 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   戦闘中ポリシーにした。通常simの `policy=powder / workshop-empty / B20` では、戦闘中使用は
   N=500全体で1個（Priest）、Mageは0個。したがって現行回復量3の広いEVは確認できず、値の
   変更は別Issueで扱う。
-- base=`256fc174d79363bcb21acda02643cd1cdeb1431d`、測定source commit=
-  `05d53a3086f5bf9b683969e68c8de4ca53565244`、seed=231、通常sim N=500、calibration N=100、
+- base=`d2e83bd84b4e14d16f991829d91b6b5756e0a706`、測定source commit=
+  `3c60856306ba00b7f7dd0fb2fe86960412ed9fb1`、seed=231、通常sim N=500、calibration N=100、
   `SIM_PARALLEL`未指定。#666基準線互換（B21・6工房分布）での新しい到達階平均は
   Fighter **5.8720** / Thief **4.8980** / Priest **4.5980** / Mage **6.4800**。
   戦士・盗賊は旧基準線と完全一致し、術者の変更後値を新基準線とする。
 - 結果正本は `scratch/results/issue-677-mana-potion-combat.md`。通常sim stdout SHA-256は
-  `b807c7dfa67a5f66164d1ffc88d74ff9dce53a5044ab5e8581563fc7cf9b2ec2`（2回一致）、固定環境
+  `a9e1b2f76d1cf4fb6ead3cac0717cd411f4f3afc11e1bb4f1abb1c0518b7ea64`（2回一致）、固定環境
   rows SHA-256は `5f24e0b281d986e1363c87a18942f9d0ac663864b82f1bac9025336f2883af5c`（2回一致）。
 - これはsimの実態合わせであり、ゲームルール・balance値・material economyは不変。他の
   `.agents/game-design*.md` の更新は不要。
