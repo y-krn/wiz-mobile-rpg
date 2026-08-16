@@ -2,51 +2,6 @@ import { getAffixDefinition } from "../data/affixes.js";
 import { getCharAffixSum } from "./item_rules.js";
 import { getMilestoneBossExposureMultiplier } from "./boss_rules.js";
 
-const halveMultiplier = value => 1 + (value - 1) / 2;
-const halveConstant = value => Math.floor(value / 2);
-
-const CORE_SEAL_RULES = {
-  CORE_LAST_STAND: params => ({ ...params, damageMultiplier: halveMultiplier(params.damageMultiplier) }),
-  CORE_OPENER: params => ({ ...params, followUpChance: params.followUpChance / 2 }),
-  CORE_BLOOD_WAND: params => ({ ...params, hpCostMultiplier: params.hpCostMultiplier * 2 }),
-  CORE_PURIFY_RING: () => null,
-  CORE_TRAP_EATER: params => ({
-    ...params,
-    attackPerDisarm: halveConstant(params.attackPerDisarm),
-    maxAttack: halveConstant(params.maxAttack)
-  }),
-  CORE_CURSE_KEEPER: params => ({ ...params, statsPerCurse: halveConstant(params.statsPerCurse) }),
-  CORE_GIANT_SLAYER: params => ({ ...params, damageMultiplier: halveMultiplier(params.damageMultiplier) }),
-  CORE_MILESTONE_BREAKER: params => ({ ...params, damageMultiplier: halveMultiplier(params.damageMultiplier) }),
-  CORE_REARGUARD: () => null,
-  CORE_THORN_SHIELD: params => ({
-    ...params,
-    counterChance: params.counterChance / 2,
-    counterPower: params.counterPower / 2
-  }),
-  CORE_EXECUTIONER: params => ({ ...params, damageMultiplier: halveMultiplier(params.damageMultiplier) }),
-  CORE_THIN_ICE_PACT: params => ({
-    ...params,
-    damageMultiplier: halveMultiplier(params.damageMultiplier),
-    incomingDamageMultiplier: halveMultiplier(params.incomingDamageMultiplier)
-  }),
-  CORE_SNEAK_STEP: params => ({
-    ...params,
-    detectionRangeMultiplier: halveMultiplier(params.detectionRangeMultiplier),
-    auraRangeBonus: halveConstant(params.auraRangeBonus)
-  }),
-  CORE_TOMB_RAIDER: () => null,
-  CORE_KEEN_EYE: () => null,
-  CORE_CAMP_MASTER: params => ({ ...params, recoveryMultiplier: halveMultiplier(params.recoveryMultiplier) }),
-  CORE_BOUNTY_HUNTER: () => null,
-  CORE_SCHOLAR_EYE: () => null
-};
-
-export function getSealedCoreParams(coreId, params) {
-  if (!params) return null;
-  return CORE_SEAL_RULES[coreId]?.(params) ?? null;
-}
-
 function getEquippedCoreEntries(char, { activeOnly = true } = {}) {
   if (!char?.equipment) return [];
   return Object.values(char.equipment).flatMap(item => {
@@ -82,8 +37,7 @@ export function getCharCoreDefinition(char, coreId) {
 export function getCharCoreParams(char, coreId) {
   const entry = getEquippedCoreEntries(char).find(({ affix }) => (affix.id || affix.type) === coreId);
   if (!entry) return null;
-  const params = getAffixDefinition(coreId)?.params || null;
-  return entry.item.coreSealed ? getSealedCoreParams(coreId, params) : params;
+  return getAffixDefinition(coreId)?.params || null;
 }
 
 export function partyHasCoreAffix(party, coreId) {

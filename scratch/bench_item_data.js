@@ -71,7 +71,6 @@ function makeEquipment(baseId, affixType) {
       { type: affixType, value: 4 },
       { type: "hp", value: 5 }
     ],
-    inscription: { name: "耐毒", type: "poisonWard", value: 10 },
     tags: ["iron", "ward"]
   };
 }

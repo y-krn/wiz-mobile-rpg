@@ -1,5 +1,5 @@
 // 装備/クラフト 統合テスト
-// 集約元: test_craft_equipped.js, test_dismantle.js, test_inscription.js, test_equipment_variety_plan_a.js, test_accessory_slot.js
+// 集約元: test_craft_equipped.js, test_dismantle.js, test_equipment_variety_plan_a.js, test_accessory_slot.js
 // 各テストは同名ローカル定義の衝突回避と Math.random 差し替え隔離のため IIFE でスコープ分離。
 global.localStorage = {
   getItem: () => null,
@@ -64,7 +64,7 @@ import { createSoloCharacter } from "../src/state.js";
 
     (async () => {
       const { state, initNewGame } = await import("../src/state.js");
-      const { getEnhanceCost, executeEnhance, executeTagInscription } = await import("../src/craft.js");
+      const { getEnhanceCost, executeEnhance } = await import("../src/craft.js");
 
       console.log("=== STARTING EQUIPPED CRAFT VERIFICATION ===");
       initNewGame();
@@ -125,51 +125,6 @@ import { createSoloCharacter } from "../src/state.js";
       assert.strictEqual(char.equipment.accessory.enhanceLevel, 0);
 
       console.log("-> [PASS] Accessory enhancement disabled");
-
-      // 2. 装備中装備の刻印テスト
-      console.log("\n[Test 2] Inscribing equipped armor...");
-
-      // 防具を設定
-      char.equipment.armor = {
-        kind: "equipment",
-        instanceId: "eq_test_armor_123",
-        baseId: "LEATHER_ARMOR",
-        rarity: "magic",
-        level: 1,
-        identified: true,
-        enhanceLevel: 0,
-        tags: ["leather"]
-      };
-
-      // ゴールドと素材を付与 (毒避刻印コスト: 毒腺x2, 硬い皮x2, 100G)
-      state.metaMaterials = {
-        "毒腺": 10,
-        "硬い皮": 10
-      };
-
-      // 装備中防具に刻印を付与 (毒避刻印: 毒耐性+25%)
-      const successInscription = executeTagInscription(
-        { type: "equipped", actorIdx: 0, slot: "armor" },
-        "毒腺",
-        "poison",
-        undefined,
-        "add"
-      );
-
-      if (!successInscription) {
-        throw new Error("Failed to executeTagInscription on equipped armor");
-      }
-
-      // 状態検証
-      const armor = char.equipment.armor;
-      if (!armor || !armor.inscription) {
-        throw new Error("Expected armor to have an inscription");
-      }
-      if (armor.inscription.tag !== "poison" || !armor.tags.includes("poison")) {
-        throw new Error("Expected armor to have poison tag and inscription applied");
-      }
-      console.log("-> [PASS] Equipped armor successfully inscribed. Inscription tag: " + armor.inscription.tag);
-
 
       console.log("\n=== ALL EQUIPPED CRAFT VERIFICATION TESTS PASSED SUCCESSFULLY! ===");
     })();
@@ -297,151 +252,8 @@ import { createSoloCharacter } from "../src/state.js";
   })();
 
   // ========================================================================
-  // 元: test_inscription.js
   // ========================================================================
-  await (async () => {
-    global.localStorage = (() => {
-      let store = {};
-      return {
-        getItem: (key) => store[key] || null,
-        setItem: (key, value) => { store[key] = String(value); },
-        removeItem: (key) => { delete store[key]; },
-        clear: () => { store = {}; }
-      };
-    })();
-
-    const createDummyElement = () => ({
-      style: {},
-      appendChild: () => createDummyElement(),
-      replaceChildren: () => {},
-      addEventListener: () => {},
-      classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => {} },
-      setAttribute: () => {},
-      getAttribute: () => "",
-      removeAttribute: () => {},
-      innerHTML: "",
-      textContent: "",
-      cloneNode: () => createDummyElement()
-    });
-
-    global.document = {
-      getElementById: () => createDummyElement(),
-      querySelector: () => createDummyElement(),
-      querySelectorAll: () => [],
-      createElement: () => createDummyElement(),
-      body: createDummyElement()
-    };
-
-    global.window = {
-      innerWidth: 375,
-      innerHeight: 667,
-      addEventListener: () => {}
-    };
-
-    Object.defineProperty(global, "navigator", {
-      value: { userAgent: "node" },
-      writable: true,
-      configurable: true
-    });
-
-    (async () => {
-      const { state, initNewGame } = await import("../src/state.js");
-      const { executeTagInscription } = await import("../src/craft.js");
-      const { getCharAffixSum } = await import("../src/rules/item_rules.js");
-      const { applyTargetedDamageBonus } = await import("../src/combat_logic/damage.js");
-      const assert = await import("assert");
-
-      console.log("Starting Inscription Verification Tests...");
-
-      // Initialize
-      initNewGame();
-      state.inventory = [];
-      state.metaMaterials = {};
-
-      const mockSword = {
-        kind: "equipment",
-        instanceId: "eq_sword_1",
-        baseId: "SHORT_SWORD",
-        rarity: "magic",
-        identified: true,
-        enhanceLevel: 0,
-        affixes: []
-      };
-
-      const mockUnidentifiedSword = {
-        kind: "equipment",
-        instanceId: "eq_sword_2",
-        baseId: "SHORT_SWORD",
-        rarity: "magic",
-        identified: false,
-        enhanceLevel: 0,
-        affixes: []
-      };
-
-      // Test 1: 素材不足のチェック
-      state.inventory = [mockSword];
-      state.metaMaterials = { "霊粉": 0 }; // 聖印には 霊粉3 が必要
-
-      let success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
-      assert.strictEqual(success, false, "Should fail when materials are missing");
-
-      console.log("-> [PASS] Material insufficiency validation verified");
-
-      // Test 2: 未鑑定装備への刻印不可チェック
-      state.inventory = [mockUnidentifiedSword];
-      state.metaMaterials = { "霊粉": 3 };
-      success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
-      assert.strictEqual(success, false, "Should not allow inscription on unidentified items");
-
-      console.log("-> [PASS] Unidentified items protection verified");
-
-      // Test 3: 正常な刻印実行と、複数刻印（3枠制限）
-      state.inventory = [{ ...mockSword }]; // clone to prevent mutating original mock
-      state.metaMaterials = { "霊粉": 3 };
-      
-      success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
-      assert.strictEqual(success, true, "Inscription should succeed with enough materials");
-      assert.strictEqual(state.metaMaterials["霊粉"], 0, "Materials should be consumed");
-
-      const inscribedItem = state.inventory[0];
-      assert.ok(inscribedItem.inscription, "Item should have inscription field");
-      assert.strictEqual(inscribedItem.inscription.type, "antiUndead");
-      assert.strictEqual(inscribedItem.inscription.value, 20);
-
-      // 2つ目の刻印が許可されること (複数刻印のサポート)
-      state.metaMaterials = { "霊粉": 3 };
-      success = executeTagInscription(0, "霊粉", "holy", undefined, "add");
-      assert.strictEqual(success, true, "Should allow multiple inscriptions");
-
-      console.log("-> [PASS] Successful inscription and multiple inscription support verified");
-
-      // Test 5: 戦闘効果への反映
-      const char = {
-        class: "Fighter",
-        equipment: {
-          weapon: inscribedItem
-        }
-      };
-      const val = getCharAffixSum(char, "antiUndead");
-      assert.strictEqual(val, 20, "Should get 20% bonus from the inscription");
-
-      const targetUndead = { tags: ["undead"] };
-      const targetDragon = { tags: ["dragon"] };
-      const baseDmg = 10;
-      const dmgUndead = applyTargetedDamageBonus(char, targetUndead, baseDmg);
-      assert.strictEqual(dmgUndead, 12, "Should apply +20% damage to undead (10 * 1.2 = 12)");
-
-      const dmgDragon = applyTargetedDamageBonus(char, targetDragon, baseDmg);
-      assert.strictEqual(dmgDragon, 10, "Should NOT apply bonus to dragon");
-
-      console.log("-> [PASS] Combat calculation integration verified");
-
-      console.log("All Inscription Verification Tests PASSED!");
-    })();
-  })();
-
-  // ========================================================================
-  // 装備生成・鑑定・呪い・刻印の統合確認
+  // 装備生成・鑑定・呪いの統合確認
   // ========================================================================
   await (async () => {
     global.localStorage = (() => {
@@ -493,7 +305,6 @@ import { createSoloCharacter } from "../src/state.js";
       const { generateRandomEquipment } = await import("../src/systems/equipment_generation.js");
       const { getItemData, getCharAffixSum } = await import("../src/rules/item_rules.js");
       const { identifyEquipment, revealEquipmentOnEquip } = await import("../src/systems/identification.js");
-      const { executeTagInscription } = await import("../src/craft.js");
 
       console.log("=== STARTING INTEGRATED EQUIPMENT SYSTEM VERIFICATION ===");
       initNewGame();
@@ -579,69 +390,6 @@ import { createSoloCharacter } from "../src/state.js";
       if (devotionSumIdentified !== -20) throw new Error("Devotion debuff failed to apply after identification");
 
       console.log("-> [PASS] Test 3: Curse Debuffs Application verified");
-
-      // Test 4: Tag Inscription Crafting
-      console.log("\n[Test 4] Tag Inscription Crafting...");
-      initNewGame();
-      state.party = [createSoloCharacter("Fighter")];
-      
-      const testArmor = {
-        kind: "equipment",
-        baseId: "PLATE_MAIL",
-        identified: true,
-        tags: ["iron", "ward"],
-        affixes: []
-      };
-      state.inventory = [testArmor];
-      state.metaMaterials = { "霊粉": 5 };
-
-      console.log("Plate Mail tags before:", testArmor.tags);
-
-      // Inscribe "holy" tag using "霊粉". Overwrite index is undefined (add mode).
-      executeTagInscription(0, "霊粉", "holy", undefined, "add");
-
-      const inscribedArmor = state.inventory[0];
-      console.log("Plate Mail tags after holy inscription:", inscribedArmor.tags);
-      if (!inscribedArmor.tags.includes("holy")) {
-        throw new Error("holy tag was not added");
-      }
-      if (inscribedArmor.tags.length !== 3) {
-        throw new Error("Tags count mismatch");
-      }
-
-      // Overwrite tag at index 0 ("iron" -> "poison") using "毒腺"
-      state.metaMaterials["毒腺"] = 5;
-      executeTagInscription(0, "毒腺", "poison", 0, "add");
-      const overwrittenArmor = state.inventory[0];
-      console.log("Plate Mail tags after overwriting index 0:", overwrittenArmor.tags);
-      if (overwrittenArmor.tags[0] !== "poison") {
-        throw new Error("Tag overwriting failed");
-      }
-
-      // Sealing a cursed item
-      console.log("Testing Curse Sealing...");
-      const cursedArmor = {
-        kind: "equipment",
-        baseId: "PLATE_MAIL",
-        identified: true,
-        tags: ["iron", "curse"],
-        curseEffectId: "curse_blood_thirst",
-        affixes: []
-      };
-      state.inventory = [cursedArmor];
-      state.metaMaterials["霊粉"] = 5;
-
-      executeTagInscription(0, "霊粉", null, undefined, "seal");
-      const sealedArmor = state.inventory[0];
-      console.log("Sealed armor tags:", sealedArmor.tags);
-      console.log("curseEffectId:", sealedArmor.curseEffectId, "(expected null)");
-      console.log("sealedCurseEffectId:", sealedArmor.sealedCurseEffectId, "(expected curse_blood_thirst)");
-
-      if (sealedArmor.tags.includes("curse")) throw new Error("Curse tag not removed");
-      if (sealedArmor.curseEffectId !== null) throw new Error("curseEffectId not cleared");
-      if (sealedArmor.sealedCurseEffectId !== "curse_blood_thirst") throw new Error("sealedCurseEffectId mismatch");
-
-      console.log("-> [PASS] Test 4: Tag Inscription Crafting verified");
 
       console.log("\n=== ALL INTEGRATED EQUIPMENT SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY! ===");
     })();

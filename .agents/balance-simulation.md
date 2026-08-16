@@ -628,7 +628,7 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 
 ## Issue #502 固定結論（不意打ち撤廃・trapSense転換）
 
-- 主案を採用する。隣接床罠の察知を確定化し、旧 `trapSense` は既存装備・刻印の値を
+- 主案を採用する。隣接床罠の察知を確定化し、旧 `trapSense` は既存装備の値を
   罠解除へ転換する。察知失敗による不意打ちは **29.2% [28.9, 29.6] → 0.0% [0.0, 0.0]**
   （床罠発動数を分母）になった。床罠発動原因の分類は、現行の不意打ち/察知後強行/解除失敗
   **29.2% / 59.9% / 10.9%** から、確定察知・撤去で **0.0% / 87.0% / 13.0%**、
@@ -1020,9 +1020,9 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   2回とも一致した。#624 row JSONのSHA-256は分離前
   `4abb64b0656cc14c51a54c3e34747d1ac4519eac0bf75817f379fa24b5021e44`、分離後
   `9b3bb43fb986c5e149d39fcfa219c9fb9c2f37c12517cdd3bae9d8bab2c9b036`。
-- `scratch/sim_early_mortality.js` もrunSeed hashへ切り替えた。`scratch/sim_trap_choke.js` は
-  既にrun/floorごとの `createRng` を一時注入して復元しているため変更しない。
-  `.agents/game-design*.md` の更新は不要（sim基盤のみの変更）。
+- `scratch/sim_early_mortality.js` もrunSeed hashへ切り替えた。罠チョーク sim は #668 で、
+  到達不能な刻印に依存していたため退役させた。今回の撤去はシミュレーション専用経路であり、
+  深度結果の基準線は変更しない。
 
 ## Issue #663 戦闘内MP計測（2026-08-16）
 
