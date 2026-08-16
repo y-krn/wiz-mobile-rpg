@@ -1,7 +1,6 @@
 # Issue #624 測定: 「持ち帰りを諦めて潜る」到達限界
 
 - 測定 source commit: `1be56220bc7321e80937d3f4603917d88ec6b96c`
-- 測定 source commit: `1be56220bc7321e80937d3f4603917d88ec6b96c`
 - 測定 base（origin/main）: `1be56220bc7321e80937d3f4603917d88ec6b96c`
 - 条件数: 4、職別 N=500、職: Fighter (戦士) / Thief (盗賊) / Priest (僧侶) / Mage (魔術師)
 - 目標深度: B21（B1開始、既存 #612 の重み付き工房系列）

@@ -592,7 +592,6 @@ function renderMarkdown({
     "# Issue #624 測定: 「持ち帰りを諦めて潜る」到達限界",
     "",
     `- 測定 source commit: \`${sourceCommit}\``,
-    `- 測定 source commit: \`${sourceCommit}\``,
     `- 測定 base（origin/main）: \`${baseCommit}\``,
     `- 条件数: ${CONDITIONS.length}、職別 N=${RUNS_PER_CLASS}、職: ${CLASSES.map(className => CLASS_LABELS[className]).join(" / ")}`,
     `- 目標深度: B${TARGET_DEPTH}（B1開始、既存 #612 の重み付き工房系列）`,
