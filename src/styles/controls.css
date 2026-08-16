@@ -170,6 +170,95 @@
   gap: var(--sp-md);
 }
 
+.castle-death-logs-grid {
+  grid-template-columns: 1fr;
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: var(--sp-md);
+}
+
+.death-summary-heading,
+.death-history-heading {
+  margin: 0;
+  color: var(--neon-cyan);
+  font-size: var(--fs-lg);
+}
+
+.death-cause-list {
+  display: grid;
+  gap: var(--sp-xs);
+}
+
+.death-cause-row {
+  display: grid;
+  gap: var(--sp-xxs);
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+}
+
+.death-cause-row strong {
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.death-cause-row span,
+.death-unclassified-note,
+.death-history-entry {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+.death-countermeasure {
+  display: grid;
+  gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border: 1px solid var(--neon-amber);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.death-countermeasure h3 {
+  margin: 0;
+  color: var(--neon-amber);
+  font-size: var(--fs-md);
+}
+
+.death-countermeasure-actions {
+  display: grid;
+  gap: var(--sp-xs);
+}
+
+.death-countermeasure-button {
+  min-height: var(--tap-min);
+  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--sp-xxs);
+  padding: var(--sp-sm) var(--sp-md);
+  text-align: left;
+  white-space: normal;
+}
+
+.death-countermeasure-button span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.death-history-heading {
+  padding-top: var(--sp-xs);
+  border-top: 1px solid var(--border-color);
+}
+
+.death-history-entry {
+  padding: var(--sp-xs) var(--sp-sm);
+  border-bottom: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+}
+
 .records-menu-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-xs); }
 .records-menu-summary > div { display: grid; gap: var(--sp-xxs); padding: var(--sp-sm); border: 1px solid var(--border-color); text-align: center; }
 .records-menu-summary span, .records-class-list { color: var(--text-muted); font-size: var(--fs-xs); }

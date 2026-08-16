@@ -1,5 +1,6 @@
 import { DIR_N, START_X, START_Y } from "../data.js";
 import { createDefaultRecords } from "./records_state.js";
+import { normalizeDeathSource } from "./death_logs.js";
 
 // Main State Object
 export const state = {
@@ -139,7 +140,7 @@ export function addLog(msg) {
   }
 }
 
-export function recordCharDeath(stateObj, char, cause) {
+export function recordCharDeath(stateObj, char, cause, details = null) {
   if (!stateObj.currentRun) return;
   if (!stateObj.currentRun.deathLogs) {
     stateObj.currentRun.deathLogs = [];
@@ -148,12 +149,17 @@ export function recordCharDeath(stateObj, char, cause) {
   if (alreadyRecorded) return;
 
   const turn = stateObj.combatState ? stateObj.combatState.roundNumber ?? null : null;
-  stateObj.currentRun.deathLogs.push({
+  const deathLog = {
     charName: char.name,
     cause: cause,
     floor: stateObj.floor,
     turn: turn
-  });
+  };
+  if (details?.type && details?.source) {
+    deathLog.type = details.type;
+    deathLog.source = normalizeDeathSource(details.source);
+  }
+  stateObj.currentRun.deathLogs.push(deathLog);
 
   const turnText = turn != null ? ` (ターン ${turn})` : "";
   addLog(`☠️ [!] ${char.name}は B${stateObj.floor}F で${cause}により倒れた。${turnText}`);

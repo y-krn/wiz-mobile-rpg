@@ -95,7 +95,7 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   });
   if (target.hp === 0) {
     target.status = "dead";
-    recordCharDeath(state, target, `${attacker.name}の逃走追撃`);
+    recordCharDeath(state, target, `${attacker.name}の逃走追撃`, { type: "combat", source: attacker.name });
     logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
   }
 }
@@ -358,7 +358,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             wakeSleepingCharOnDamage(char);
             if (char.hp === 0) {
               char.status = "dead";
-              recordCharDeath(state, char, `${finalTarget.name}の物理反射`);
+              recordCharDeath(state, char, `${finalTarget.name}の物理反射`, { type: "combat", source: finalTarget.name });
             }
             logQueue.push({
               msg: `[ 敵 ] ${finalTarget.name}の棘が${char.name}に${reflected}の反射ダメージを与えた！`,
@@ -375,7 +375,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             wakeSleepingCharOnDamage(char);
             if (char.hp === 0) {
               char.status = "dead";
-              recordCharDeath(state, char, `${finalTarget.name}の反撃ハリト`);
+              recordCharDeath(state, char, `${finalTarget.name}の反撃ハリト`, { type: "combat", source: finalTarget.name });
             }
             logQueue.push({
               msg: `[ 敵 ] ${finalTarget.name}はハリトで反撃した！${char.name}に${counterDmg}の炎ダメージ！`,
@@ -752,7 +752,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 wakeSleepingCharOnDamage(c);
                 if (c.hp === 0) {
                   c.status = "dead";
-                  recordCharDeath(state, c, `${mon.name}のラハリト`);
+                  recordCharDeath(state, c, `${mon.name}のラハリト`, { type: "combat", source: mon.name });
                 }
                 logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
               }
@@ -789,7 +789,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 wakeSleepingCharOnDamage(c);
                 if (c.hp === 0) {
                   c.status = "dead";
-                  recordCharDeath(state, c, `${mon.name}のマダルト`);
+                  recordCharDeath(state, c, `${mon.name}のマダルト`, { type: "combat", source: mon.name });
                 }
                 logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
               }
@@ -843,7 +843,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               wakeSleepingCharOnDamage(c);
               if (c.hp === 0) {
                 c.status = "dead";
-                recordCharDeath(state, c, `${mon.name}のティルトウェイト`);
+                recordCharDeath(state, c, `${mon.name}のティルトウェイト`, { type: "combat", source: mon.name });
               }
               logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(半減)" : ""}` });
             }
@@ -1002,7 +1002,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         } else if (mon.spell) {
           deathCause = `${mon.name}の${mon.spell}`;
         }
-        recordCharDeath(state, target, deathCause);
+        recordCharDeath(state, target, deathCause, { type: "combat", source: mon.name });
         logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
       }
     }
@@ -1076,7 +1076,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         });
         if (c.hp === 0) {
           c.status = "dead";
-          recordCharDeath(state, c, "毒のダメージ");
+          recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
           logQueue.push({ msg: `[味方] [!] ${c.name}は毒で力尽きた！` });
         }
       }

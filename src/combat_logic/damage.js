@@ -328,7 +328,7 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
       } else if (options.dragon) {
         causeText = `${sourceName}のブレス`;
       }
-      recordCharDeath(state, c, causeText);
+      recordCharDeath(state, c, causeText, { type: "combat", source: sourceName });
     }
     logQueue.push({ msg: `[ 敵 ] ${sourceName}により${c.name}は${dmg}のダメージを受けた。${isDefending ? "(防御)" : ""}${wakeSuffix}` });
   });

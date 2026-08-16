@@ -477,7 +477,7 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
     const resisted = effect.targetPoisonResisted;
     if (char.hp === 0) {
       char.status = "dead";
-      recordCharDeath(state, char, "宝箱の罠「毒針」");
+      recordCharDeath(state, char, "宝箱の罠「毒針」", { type: "trap", source: "宝箱の毒針" });
     } else if (poisonTriggered && !resisted) {
       char.status = "poisoned";
     }
@@ -495,7 +495,7 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
         clearCharIncapacitationOnDamage(c);
         if (c.hp === 0) {
           c.status = "dead";
-          recordCharDeath(state, c, "宝箱の罠「ガス爆弾」");
+          recordCharDeath(state, c, "宝箱の罠「ガス爆弾」", { type: "trap", source: "宝箱のガス爆弾" });
         }
         addLog(`${c.name}は${dmg}のガスダメージを受けた。`);
       }
