@@ -200,7 +200,7 @@ export function triggerPitfall(trap, isPartialSuccess = false) {
         
         if (c.hp === 0) {
           c.status = "dead";
-          recordCharDeath(state, c, "落とし穴トラップ");
+          recordCharDeath(state, c, "落とし穴トラップ", { type: "trap", source: "落とし穴" });
           addLog(`[!] ${c.name}は力尽きた！`);
         }
       }
@@ -262,7 +262,7 @@ export function triggerTrap(trap, isPartialSuccess = false) {
         addLog(`[!] ${c.name}は${dmg}のダメージを受けた。`);
         if (c.hp === 0) {
           c.status = "dead";
-          recordCharDeath(state, c, "仕掛けられた罠");
+          recordCharDeath(state, c, "仕掛けられた罠", { type: "trap", source: "床のダメージ罠" });
           addLog(`[!] ${c.name}は力尽きた！`);
         }
       }

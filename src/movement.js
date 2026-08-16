@@ -567,7 +567,7 @@ export function applyExplorationPoison() {
       tookDamage = true;
       if (c.hp === 0) {
         c.status = "dead";
-        recordCharDeath(state, c, "毒のダメージ");
+        recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
         addLog(`[!] ${c.name}は毒で力尽きた！`);
       }
     }
@@ -617,7 +617,7 @@ export function triggerFlameTrap() {
       addLog(`${c.name}は${dmg}の炎ダメージを受けた。`);
       if (c.hp === 0) {
         c.status = "dead";
-        recordCharDeath(state, c, "火炎の罠");
+        recordCharDeath(state, c, "火炎の罠", { type: "trap", source: "火炎の罠" });
         addLog(`[!] ${c.name}は炎に焼かれて力尽きた！`);
       }
     }

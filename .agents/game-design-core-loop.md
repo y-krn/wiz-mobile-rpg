@@ -33,6 +33,15 @@ spend materials on permanent unlocks in the workshop
 descend again, deeper than before
 ```
 
+**Decided: the castle is a preparation loop, not only a record viewer**
+(2026-08-16). The castle keeps structured death causes (floor, category, and
+source) and presents them in descending frequency. The most frequent cause
+must name an existing departure-preparation item or workshop node and link to
+that preparation screen, so a death record immediately informs the next
+descent. Legacy logs without classification remain unclassified and are not
+reconstructed retroactively. This changes information flow only; it does not
+change hazard, combat, reward, or material rules.
+
 Depth is both the score and the progression axis. The personal best (deepest
 floor, retreat and death recorded separately) is always visible on the title
 screen, in town, and on the run result.

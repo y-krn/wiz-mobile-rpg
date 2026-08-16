@@ -1,4 +1,5 @@
 export { state, addLog, recordCharDeath, markMapChanged, markMapCellVisited } from "./state/state_core.js";
+export { DEATH_TYPES, DEATH_TYPE_LABELS, normalizeDeathSource, summarizeDeathLogs } from "./state/death_logs.js";
 
 export {
   generateRandomSeed,
