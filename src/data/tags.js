@@ -12,7 +12,7 @@ export const TAGS = {
   beast: { name: "獣", desc: "野生の勘と生命力" },
   ambush: { name: "奇襲", desc: "闇からの不意打ちと回避" },
   blade: { name: "刃", desc: "鋭い刃物による切断技" },
-  trap: { name: "罠", desc: "仕掛けと感知の技術" },
+  trap: { name: "罠", desc: "仕掛けと解除の技術" },
   search: { name: "探索", desc: "迷宮を暴く鋭い五感" },
   exorcism: { name: "退魔", desc: "不浄の者を祓う儀式" },
   analysis: { name: "解析", desc: "魔法の構造と心理の洞察" },
@@ -26,8 +26,7 @@ export const TAGS = {
   depth: { name: "深層", desc: "迷宮深部で力を引き出す覚悟" },
   vigor: { name: "無傷", desc: "万全の状態から放つ猛攻" },
   resistance: { name: "不屈", desc: "状態異常に抗う強い意志" },
-  precision: { name: "精唱", desc: "呪文を正確に導く集中力" },
-  trap_sense: { name: "解除", desc: "罠を安全に解除する技術" }
+  precision: { name: "精唱", desc: "呪文を正確に導く集中力" }
 };
 
 export const CLASS_TAGS = {
@@ -66,7 +65,7 @@ export const SPELL_TAGS = {
 
 export const MATERIAL_TAGS = {
   "霊粉": ["holy", "spirit", "appraisal", "contract", "precision"],
-  "毒腺": ["poison", "trap", "material", "resistance", "trap_sense"],
+  "毒腺": ["poison", "trap", "material", "resistance"],
   "鉄片": ["iron", "ward", "merchant", "vigor"],
   "竜鱗": ["dragon", "fire", "depth"],
   "黒角": ["curse", "demon", "blood", "fortune"]
@@ -91,6 +90,5 @@ export const TAG_EFFECT_MAP = {
   depth: { name: "深印", type: "deepAssault", value: 10, desc: "B3F以深で与ダメージ+10%", matCost: 4 },
   vigor: { name: "剛印", type: "fullHpDamage", value: 10, desc: "HP満タン時に与ダメージ+10%", matCost: 4 },
   resistance: { name: "忍印", type: "statusResistance", value: 12, desc: "状態異常耐性+12%", matCost: 3 },
-  precision: { name: "詠印", type: "spellAccuracy", value: 10, desc: "呪文命中率+10%", matCost: 3 },
-  trap_sense: { name: "解印", type: "trapSense", value: 15, desc: "罠の解除率+15%", matCost: 3 }
+  precision: { name: "詠印", type: "spellAccuracy", value: 10, desc: "呪文命中率+10%", matCost: 3 }
 };

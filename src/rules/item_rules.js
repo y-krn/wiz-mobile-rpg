@@ -283,7 +283,6 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "hearRange") prefix = "地獄耳の";
       else if (primaryAff.type === "arcaneSense") prefix = "霊視の";
       else if (primaryAff.type === "traceRead") prefix = "追跡者の";
-      else if (primaryAff.type === "trapSense") prefix = "罠解除の";
       else if (primaryAff.type === "antiUndead") prefix = "退魔の";
       else if (primaryAff.type === "antiDragon") prefix = "竜殺しの";
       else if (primaryAff.type === "spellGuard") prefix = "魔除けの";
@@ -310,7 +309,7 @@ export function getItemData(itemOrKey) {
         fire_rite: "火葬", holy: "聖", spirit: "霊", poison: "毒",
         dragon: "竜", iron: "鉄", blood: "血", curse: "呪",
         ward: "守勢", appraisal: "鑑定", beast: "獣", ambush: "奇襲",
-        blade: "刃", trap: "罠", trap_sense: "解除", search: "探索", exorcism: "退魔",
+        blade: "刃", trap: "罠", search: "探索", exorcism: "退魔",
         analysis: "解析", follow_up: "連撃", record: "記録", evasion: "回避",
         decay: "衰"
       };
@@ -325,7 +324,7 @@ export function getItemData(itemOrKey) {
         spellGuard: "魔除け",
         antiDemon: "悪魔対策",
         antiDragon: "竜特効",
-        trapSense: "罠解除"
+        trapBonus: "罠解除"
       }[ins.type] || ins.type;
       desc += ` <刻印: ${ins.name} (${label}+${ins.value}%)>`;
     }

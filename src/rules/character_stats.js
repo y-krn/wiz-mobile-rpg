@@ -146,8 +146,7 @@ export function getCharTrapBonus(char) {
       }
     });
   }
-  // 旧trapSense装備・刻印も、確定察知後は罠解除へ転換する。
-  return bonus + getCharAffixSum(char, "trapSense") / 100;
+  return bonus;
 }
 
 export function getPartyFlameTrapWarningAvoidanceChance(party = []) {
@@ -155,7 +154,7 @@ export function getPartyFlameTrapWarningAvoidanceChance(party = []) {
     .filter(char => char?.hp > 0 && !["dead", "ash"].includes(char.status))
     .reduce((max, char) => Math.max(max, Number(getCharTrapBonus(char)) || 0), 0);
   // 発動時の確率的回避判定であり、事前予告ではない。
-  // trapBonus/trapSenseを2〜3枠積む0.6〜0.9を48〜72%へ線形変換し、上限は74%にする。
+  // trapBonusを2〜3枠積む0.6〜0.9を48〜72%へ線形変換し、上限は74%にする。
   return Math.min(0.74, Math.max(0, trapInvestment) * 0.8);
 }
 

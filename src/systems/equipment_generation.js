@@ -325,9 +325,9 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
       return 1;
     }, 1);
   }
-  const isTrapSenseEligible = ["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "RAPIER", "EXPLORER_CLOAK", "NINJA_SUIT", "BUCKLER"].includes(baseId);
-  if (isTrapSenseEligible) {
-    addAffix(1, "trapSense", () => {
+  const isLowerTrapBonusEligible = ["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "RAPIER", "EXPLORER_CLOAK", "NINJA_SUIT", "BUCKLER"].includes(baseId);
+  if (isLowerTrapBonusEligible) {
+    addAffix(1, "trapBonus", () => {
       if (floor >= 5) return 15;
       if (floor >= 3) return 10;
       return 5;
@@ -425,7 +425,6 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
     if (aff.type === "hearRange" && !tags.includes("search")) tags.push("search");
     if (aff.type === "arcaneSense" && !tags.includes("analysis")) tags.push("analysis");
     if (aff.type === "traceRead" && !tags.includes("trap")) tags.push("trap");
-    if (aff.type === "trapSense" && !tags.includes("trap_sense")) tags.push("trap_sense");
   });
 
   let curseEffectId = null;
@@ -542,7 +541,7 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
     { type: "hearRange", getVal: () => floor >= 4 ? 2 : 1, weight: 2 },
     { type: "arcaneSense", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 },
     { type: "traceRead", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 },
-    { type: "trapSense", getVal: () => floor >= 5 ? 15 : (floor >= 3 ? 10 : 5), weight: 1 },
+    { type: "trapBonus", getVal: () => floor >= 5 ? 15 : (floor >= 3 ? 10 : 5), weight: 1 },
     { type: "deepAssault", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 2 : 0 },
     { type: "fullHpDamage", getVal: () => floor >= 4 ? 15 : 10, weight: floor >= 2 ? 2 : 0 },
     { type: "antiBeast", getVal: () => floor >= 4 ? 25 : 15, weight: floor >= 2 ? 1 : 0 },
@@ -583,8 +582,7 @@ export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.
       treasureSense: "search",
       hearRange: "search",
       arcaneSense: "analysis",
-      traceRead: "trap",
-      trapSense: "trap_sense"
+      traceRead: "trap"
     };
     const tag = affixTags[aff.type];
     if (tag && !tags.includes(tag)) tags.push(tag);

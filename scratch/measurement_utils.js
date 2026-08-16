@@ -33,7 +33,6 @@ function isTrajectoryChangingOverride(condition) {
     condition?.mode === "attack" ||
     condition?.mode === "defense" ||
     condition?.mode === "trapBonus" ||
-    condition?.mode === "trapSense" ||
     condition?.mode === "combined"
   );
 }

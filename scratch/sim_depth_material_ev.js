@@ -218,7 +218,6 @@ const {
   getCharWeaponAtk,
   getItemData,
   getEquippedItemData,
-  getPartyMaxAffix,
   getEncounterPoolForFloor,
   MONSTERS,
   SPELLS
@@ -1041,16 +1040,6 @@ if (
 ) {
   throw new Error(`TRAP_BONUS_OVERRIDE must be a non-negative number: ${trapBonusOverrideInput}`);
 }
-const trapSenseOverrideInput = process.env.TRAP_SENSE_OVERRIDE;
-const TRAP_SENSE_OVERRIDE_PERCENT = trapSenseOverrideInput === undefined
-  ? null
-  : Number(trapSenseOverrideInput);
-if (
-  TRAP_SENSE_OVERRIDE_PERCENT !== null &&
-  (!Number.isFinite(TRAP_SENSE_OVERRIDE_PERCENT) || TRAP_SENSE_OVERRIDE_PERCENT < 0)
-) {
-  throw new Error(`TRAP_SENSE_OVERRIDE must be a non-negative number: ${trapSenseOverrideInput}`);
-}
 const trapDamageMultiplierInput = SIM_ENV.TRAP_DAMAGE_MULTIPLIER;
 const TRAP_DAMAGE_MULTIPLIER = Number(trapDamageMultiplierInput);
 if (!Number.isFinite(TRAP_DAMAGE_MULTIPLIER) || TRAP_DAMAGE_MULTIPLIER < 0) {
@@ -1479,32 +1468,14 @@ function getSimulationTrapOverride(state) {
   return state?.simPolicy?.trapOverride || null;
 }
 
-function getSimulationTrapSenseValue(state) {
-  const actual = getPartyMaxAffix(state.party, "trapSense") / 100;
-  const override = getSimulationTrapOverride(state)?.trapSense;
-  if (override && actual > 0) {
-    const multiplier = Number(override.multiplier ?? 1);
-    if (Number.isFinite(multiplier) && multiplier >= 0) return actual * multiplier;
-  }
-  return TRAP_SENSE_OVERRIDE_PERCENT === null
-    ? actual
-    : TRAP_SENSE_OVERRIDE_PERCENT / 100;
-}
-
-function getSimulationTrapSenseDisposition(state) {
-  return state?.simPolicy?.trapSenseDisposition || "disarm";
-}
-
 function getSimulationTrapBonus(character, state = null) {
   if (state?.simPolicy?.ignoreThiefSustain && character?.class === "Thief") {
     return 0;
   }
-  const trapSense = getSimulationTrapSenseValue(state);
-  const actual = Math.max(0, getCharTrapBonus(character) - trapSense);
+  const actual = Math.max(0, getCharTrapBonus(character));
   const exposureValue = Number(state?.simPolicy?.trapBonusExposureValue || 0);
   if (state?.simPolicy?.trapBonusExposureApplied && exposureValue > 0) {
-    return Math.max(actual, exposureValue / 100) +
-      (getSimulationTrapSenseDisposition(state) === "disarm" ? trapSense : 0);
+    return Math.max(actual, exposureValue / 100);
   }
   const override = getSimulationTrapOverride(state)?.trapBonus;
   const overrideApplies = override &&
@@ -1513,21 +1484,13 @@ function getSimulationTrapBonus(character, state = null) {
   if (overrideApplies && actual > 0) {
     const multiplier = Number(override.multiplier);
     if (Number.isFinite(multiplier) && multiplier >= 0) {
-      return actual * multiplier +
-        (getSimulationTrapSenseDisposition(state) === "disarm" ? trapSense : 0);
+      return actual * multiplier;
     }
   }
   const trapBonus = TRAP_BONUS_OVERRIDE_PERCENT === null
     ? actual
     : TRAP_BONUS_OVERRIDE_PERCENT / 100;
-  return trapBonus +
-    (getSimulationTrapSenseDisposition(state) === "disarm" ? trapSense : 0);
-}
-
-function getSimulationTrapSense(state) {
-  return getSimulationTrapSenseDisposition(state) === "legacy-detection"
-    ? getSimulationTrapSenseValue(state)
-    : 0;
+  return trapBonus;
 }
 
 function getSimulationTrapParty(state) {
@@ -1542,42 +1505,11 @@ function getSimulationDetectRate(state, floor) {
   if (state.simPolicy.floorTrapDetection === "certain") {
     return { rate: 1, cap: 1, scoutBonus: 0 };
   }
-  const scoutBonus = getSimulationTrapSense(state);
-  if (getSimulationTrapSenseDisposition(state) !== "legacy-detection") {
-    return {
-      rate: calculateDetectRate({ floor, scoutBonus: scoutBonus }),
-      cap: 1,
-      scoutBonus: 0
-    };
-  }
-  const override = getSimulationTrapOverride(state)?.trapSense;
-  if (!override || scoutBonus <= 0 ||
-    (!Object.hasOwn(override, "cap") && !Object.hasOwn(override, "startFloor"))) {
-    const depth = Math.max(1, Math.floor(Number(floor) || 1));
-    const base = Math.max(0.6, 0.85 - 0.015 * (depth - 1));
-    const depthProgress = Math.max(0, Math.min(1, (depth - 16) / 4));
-    const investmentProgress = Math.max(0, Math.min(1, scoutBonus / 0.30));
-    const deepScoutBonus = 0.05 * depthProgress * investmentProgress;
-    return {
-      rate: Math.round(Math.min(0.95, base + scoutBonus + deepScoutBonus) * 1000) / 1000,
-      cap: 0.95,
-      scoutBonus
-    };
-  }
-  // Sim-only what-if: mirror src/rules/trap_rules.js while exposing its private
-  // cap/start constants as scenario parameters. No game source is changed.
-  const cap = Math.max(0, Math.min(1, Number(override.cap ?? 0.95)));
-  const startFloor = Math.max(1, Number(override.startFloor ?? 16));
-  const depthCapFloor = 20;
-  const raw = 0.85 - 0.015 * (Math.max(1, Math.floor(Number(floor) || 1)) - 1);
-  const base = Math.max(0.6, raw);
-  const depthProgress = Math.max(0, Math.min(1,
-    (floor - startFloor) / (depthCapFloor - startFloor)
-  ));
-  const investmentProgress = Math.max(0, Math.min(1, scoutBonus / 0.30));
-  const deepScoutBonus = 0.05 * depthProgress * investmentProgress;
-  const rate = Math.round(Math.min(cap, base + scoutBonus + deepScoutBonus) * 1000) / 1000;
-  return { rate, cap, scoutBonus };
+  return {
+    rate: calculateDetectRate({ floor, scoutBonus: 0 }),
+    cap: 1,
+    scoutBonus: 0
+  };
 }
 
 function getSimulationTrapBonusMax(character, state = null) {
@@ -2837,7 +2769,6 @@ function createSimulationState(
       trapAvoidancePolicy:
         scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
       floorTrapDetection: scenario.floorTrapDetection || "source",
-      trapSenseDisposition: scenario.trapSenseDisposition || "disarm",
       ignoreThiefSustain: Boolean(scenario.ignoreThiefSustain),
       trapOverride: scenario.trapOverride || null,
       trapBonusValueOverride: scenario.trapBonusValueOverride || null,
@@ -6883,7 +6814,7 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
     metrics.trapDetectionAttempts++;
     metrics.trapDetectionRateCounts[detection.rate] =
       (metrics.trapDetectionRateCounts[detection.rate] || 0) + 1;
-    if (detection.scoutBonus > 0) metrics.trapSenseHolderDetectionAttempts++;
+    if (detection.scoutBonus > 0) metrics.scoutBonusDetectionAttempts++;
     if (detection.rate >= detection.cap) metrics.trapDetectionCapHits++;
     if (Math.random() < detection.rate) {
       trap.state = "discovered";
@@ -7423,15 +7354,6 @@ function recordEquipmentAcquisitions(metrics, equipmentItems, floor, source = "o
       metrics.trapBonusFoundByValue[value] =
         (metrics.trapBonusFoundByValue[value] || 0) + 1;
     });
-    const trapSenseAffixes = (item?.affixes || []).filter(affix =>
-      (affix.id || affix.type) === "trapSense"
-    );
-    if (trapSenseAffixes.length > 0) metrics.trapSenseItemsFound++;
-    trapSenseAffixes.forEach(affix => {
-      const value = String(affix.value || 0);
-      metrics.trapSenseFoundByValue[value] =
-        (metrics.trapSenseFoundByValue[value] || 0) + 1;
-    });
     (item?.affixes || [])
       .filter(affix => affix.kind !== "core")
       .forEach(affix => {
@@ -7790,8 +7712,6 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     supportAffixFoundById: { ...metrics.supportAffixFoundById },
     trapBonusItemsFound: metrics.trapBonusItemsFound,
     trapBonusFoundByValue: { ...metrics.trapBonusFoundByValue },
-    trapSenseItemsFound: metrics.trapSenseItemsFound,
-    trapSenseFoundByValue: { ...metrics.trapSenseFoundByValue },
     rarityFound: metrics.rarityFound,
     supportCountDistribution: metrics.supportCountDistribution,
     supportCountByRarity: metrics.supportCountByRarity,
@@ -7934,7 +7854,6 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     chestTrapPolicy: state.simPolicy.chestTrapPolicy,
     trapAvoidancePolicy: state.simPolicy.trapAvoidancePolicy,
     floorTrapDetection: state.simPolicy.floorTrapDetection,
-    trapSenseDisposition: state.simPolicy.trapSenseDisposition,
     trapActivations: metrics.trapActivations,
     trapActivationsBySource: { ...metrics.trapActivationsBySource },
     trapActivationsByType: { ...metrics.trapActivationsByType },
@@ -8013,7 +7932,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     trapDetectionAttempts: metrics.trapDetectionAttempts,
     trapDetectionRateCounts: { ...metrics.trapDetectionRateCounts },
     trapDetectionCapHits: metrics.trapDetectionCapHits,
-    trapSenseHolderDetectionAttempts: metrics.trapSenseHolderDetectionAttempts,
+    scoutBonusDetectionAttempts: metrics.scoutBonusDetectionAttempts,
     trapTeleports: metrics.trapTeleports,
     finalHealPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
     finalGreaterHeals: state.inventory.filter(item => item === "GREATER_HEAL").length,
@@ -8206,8 +8125,6 @@ export function simulateRun({
     supportAffixFoundById: {},
     trapBonusItemsFound: 0,
     trapBonusFoundByValue: {},
-    trapSenseItemsFound: 0,
-    trapSenseFoundByValue: {},
     rarityFound: { magic: 0, rare: 0, epic: 0, other: 0 },
     supportCountDistribution: createSupportCountDistribution(),
     supportCountByRarity: {
@@ -8438,7 +8355,7 @@ export function simulateRun({
     trapDetectionAttempts: 0,
     trapDetectionRateCounts: {},
     trapDetectionCapHits: 0,
-    trapSenseHolderDetectionAttempts: 0,
+    scoutBonusDetectionAttempts: 0,
     trapTeleports: 0,
     combatDamageHp: 0,
     incomingHits: 0,
@@ -9385,7 +9302,6 @@ function simulateCase({
       SIM_CLASSES.map(className => [className, createOutcomeAggregate()])
     ),
     trapBonus: createTrapBonusAggregate(),
-    trapSense: createTrapSenseAggregate(),
     townPortalsUsed: 0,
     runsUsingTownPortal: 0,
     portalAcquisitions: {},
@@ -9412,9 +9328,6 @@ function simulateCase({
   );
   const classTrapBonusTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapBonusAggregate()])
-  );
-  const classTrapSenseTotals = Object.fromEntries(
-    SIM_CLASSES.map(className => [className, createTrapSenseAggregate()])
   );
   const classMpPressureTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createSpellPressureMetrics()])
@@ -9480,8 +9393,6 @@ function simulateCase({
     addTrapAggregate(classTrapTotals[className], result);
     addTrapBonusAggregate(totals.trapBonus, result);
     addTrapBonusAggregate(classTrapBonusTotals[className], result);
-    addTrapSenseAggregate(totals.trapSense, result);
-    addTrapSenseAggregate(classTrapSenseTotals[className], result);
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
     totals.carriedMaterials += result.carriedMaterials;
@@ -9905,13 +9816,6 @@ function simulateCase({
       Object.entries(classTrapBonusTotals).map(([className, aggregate]) => [
         className,
         finalizeTrapBonusAggregate(aggregate)
-      ])
-    ),
-    trapSenseSupply: finalizeTrapSenseAggregate(totals.trapSense),
-    trapSenseSupplyByClass: Object.fromEntries(
-      Object.entries(classTrapSenseTotals).map(([className, aggregate]) => [
-        className,
-        finalizeTrapSenseAggregate(aggregate)
       ])
     ),
     trapMetricsByClass: Object.fromEntries(
@@ -10673,7 +10577,6 @@ function printBuildSupplyMetrics(results) {
       });
     console.log(`  初回core遭遇深さ: ${depthLabels.join(", ")}`);
     printTrapBonusSupplyMetrics(result);
-    printTrapSenseSupplyMetrics(result);
   });
 }
 
@@ -10699,75 +10602,6 @@ function printTrapBonusSupplyMetrics(result) {
     })
     .join(" / ");
   console.log(`  trapBonus職業別: ${classParts}`);
-}
-
-function createTrapSenseAggregate() {
-  return {
-    runs: 0,
-    equipmentItems: 0,
-    trapSenseItems: 0,
-    trapSenseValues: {}
-  };
-}
-
-function addTrapSenseAggregate(target, result) {
-  target.runs++;
-  target.equipmentItems += result.equipmentFound;
-  target.trapSenseItems += result.trapSenseItemsFound;
-  Object.entries(result.trapSenseFoundByValue).forEach(([value, count]) => {
-    target.trapSenseValues[value] = (target.trapSenseValues[value] || 0) + count;
-  });
-}
-
-function finalizeTrapSenseAggregate(aggregate) {
-  const runs = Math.max(1, aggregate.runs);
-  const totalAffixes = Object.values(aggregate.trapSenseValues)
-    .reduce((sum, count) => sum + count, 0);
-  return {
-    equipmentItems: aggregate.equipmentItems,
-    trapSenseItems: aggregate.trapSenseItems,
-    trapSenseItemRate: aggregate.equipmentItems > 0
-      ? aggregate.trapSenseItems / aggregate.equipmentItems
-      : 0,
-    averageTrapSenseItems: aggregate.trapSenseItems / runs,
-    averageTrapSenseByValue: Object.fromEntries(
-      Object.entries(aggregate.trapSenseValues).map(([value, count]) => [
-        value,
-        count / runs
-      ])
-    ),
-    trapSenseValueDistribution: Object.fromEntries(
-      Object.entries(aggregate.trapSenseValues).map(([value, count]) => [
-        value,
-        totalAffixes > 0 ? count / totalAffixes : 0
-      ])
-    ),
-    totalTrapSenseAffixes: totalAffixes
-  };
-}
-
-function printTrapSenseSupplyMetrics(result) {
-  const supply = result.trapSenseSupply;
-  const values = Object.entries(supply.averageTrapSenseByValue)
-    .sort(([left], [right]) => Number(left) - Number(right))
-    .map(([value, average]) =>
-      `${value}%=${average.toFixed(3)}/run (${formatPercent(supply.trapSenseValueDistribution[value])})`
-    )
-    .join(", ") || "なし";
-  console.log(
-    `  trapSense供給: 装備${supply.equipmentItems}, 付与装備率=${formatPercent(supply.trapSenseItemRate)}, ` +
-    `値別=${values}`
-  );
-  const classParts = Object.entries(result.trapSenseSupplyByClass)
-    .map(([className, classSupply]) => {
-      const classValues = Object.entries(classSupply.averageTrapSenseByValue)
-        .sort(([left], [right]) => Number(left) - Number(right))
-        .map(([value, average]) => `${value}%:${average.toFixed(3)}`)
-        .join(", ") || "なし";
-      return `${className} ${formatPercent(classSupply.trapSenseItemRate)} [${classValues}]`;
-    })
-    .join(" / ");
-  console.log(`  trapSense職業別: ${classParts}`);
 }
 
 function printCoreRetentionDetail(result) {
@@ -11190,7 +11024,6 @@ const ENV_SIGNATURE = {
   trapPolicyEnv: SIM_ENV.TRAP_POLICY || null,
   trapAvoidancePolicy: DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
   trapBonusOverride: TRAP_BONUS_OVERRIDE_PERCENT,
-  trapSenseOverride: TRAP_SENSE_OVERRIDE_PERCENT,
   healPotionMerchantPolicy: DEFAULT_HEAL_POTION_MERCHANT_POLICY,
   identificationPolicies: ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id),
   identificationPolicyEnv: SIM_ENV.IDENTIFICATION_POLICY || "powder",
@@ -11262,11 +11095,8 @@ console.log(
     : `${TRAP_BONUS_OVERRIDE_PERCENT}%固定（装備由来値を上書き）`}`
 );
 console.log(
-  `trapSense測定値: ${TRAP_SENSE_OVERRIDE_PERCENT === null
-    ? "実生成値"
-    : `${TRAP_SENSE_OVERRIDE_PERCENT}%固定（装備由来値を上書き）`}`
+  "火炎罠: srcのtrapGuard適用と装備効果に応じた予告回避を使用"
 );
-console.log("火炎罠: srcのtrapGuard適用と装備効果に応じた予告回避を使用");
 console.log(
   "回避EV定義: 迂回追加歩数ごとのgetEncounterChance(step)合計×同一run直前の通常戦闘被害HP/回数。" +
   "観測値なしは回避せず、直接対応（解除/強行の既存方針）を選ぶ。"
@@ -11337,7 +11167,7 @@ console.log(
   "STATUS_CURE_MERCHANT_POLICY=missing|never, " +
   "PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
   "ELITE_POLICY=avoid|engage / TRAP_POLICY=disabled|legacy|conservative / " +
-  "TRAP_AVOIDANCE_POLICY=legacy|ev / TRAP_SENSE_OVERRIDE; " +
+  "TRAP_AVOIDANCE_POLICY=legacy|ev; " +
   "SIM_SCENARIOS=workshop-empty,workshop-stats,workshop-gear,workshop-blood-wand," +
   "workshop-blood-wand-spells,workshop-core-pools," +
   "workshop-complete;旧ID=workshop-locked|workshop-unlocked"

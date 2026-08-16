@@ -21,14 +21,14 @@ function lcg(seed) {
   };
 }
 
-assert.strictEqual(SUPPORT_AFFIXES.length, 46, "support registry count");
-assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 46, "enabled support count");
+assert.strictEqual(SUPPORT_AFFIXES.length, 45, "support registry count");
+assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 45, "enabled support count");
 assert.deepStrictEqual(
   Object.fromEntries(["basic", "conditional", "trigger", "economy"].map(category => [
     category,
     SUPPORT_AFFIXES.filter(affix => affix.category === category).length
   ])),
-  { basic: 26, conditional: 11, trigger: 6, economy: 3 }
+  { basic: 25, conditional: 11, trigger: 6, economy: 3 }
 );
 SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.kind, "support");
@@ -60,6 +60,10 @@ for (const [source, generator, expectedCounts] of [
     assert.strictEqual(item.affixes.length, expectedCount, `${source} ${rarity} affix count`);
     assert.ok(item.affixes.every(affix => affix.kind === "support"), `${source} ${rarity} support only`);
     assert.ok(item.affixes.every(affix => affix.id && affix.type && Number.isFinite(affix.value)));
+    assert.ok(
+      item.affixes.filter(affix => affix.type === "trapBonus").length <= 1,
+      `${source} ${rarity} does not roll duplicate trapBonus affixes`
+    );
     const cost = item.affixes.reduce((sum, affix) => sum + getAffixDefinition(affix).cost, 0);
     assert.ok(cost <= getAffixBudget(rarity, 5), `${source} ${rarity} budget`);
   }
@@ -85,6 +89,21 @@ function findGeneratedAffix(generator, floor, type, maxSeed = 5000) {
     if (affix) return { item, affix };
   }
   return null;
+}
+
+function collectGeneratedAffixValues(generator, floor, type, maxSeed = 5000) {
+  const values = new Set();
+  for (let seed = 1; seed <= maxSeed; seed++) {
+    const item = generator(floor, {
+      forceRarity: "epic",
+      rng: lcg(seed),
+      allowCores: false
+    });
+    item.affixes
+      .filter(affix => affix.type === type)
+      .forEach(affix => values.add(affix.value));
+  }
+  return [...values].sort((a, b) => a - b);
 }
 
 for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
@@ -139,25 +158,19 @@ assert.strictEqual(
   null,
   "poisonAtk does not enter the accessory pool"
 );
-const generatedTrapSenseEquipment = findGeneratedAffix(generateRandomEquipment, 5, "trapSense");
-assert.ok(generatedTrapSenseEquipment, "trapSense enters the equipment pool");
-assert.strictEqual(generatedTrapSenseEquipment.affix.value, 15, "trapSense scales to 15% on B5");
-const generatedTrapSenseAccessory = findGeneratedAffix(generateRandomAccessory, 5, "trapSense");
-assert.ok(generatedTrapSenseAccessory, "trapSense enters the accessory pool");
-assert.strictEqual(generatedTrapSenseAccessory.affix.value, 15, "accessory trapSense scales to 15% on B5");
-
 const trapBonusValues = [
-  [generateRandomEquipment, 1, 10],
-  [generateRandomEquipment, 3, 15],
-  [generateRandomEquipment, 5, 20],
-  [generateRandomAccessory, 1, 10],
-  [generateRandomAccessory, 4, 15]
+  [generateRandomEquipment, 1, [5, 10]],
+  [generateRandomEquipment, 3, [10, 15]],
+  [generateRandomEquipment, 5, [15, 20]],
+  [generateRandomAccessory, 1, [5, 10]],
+  [generateRandomAccessory, 4, [10, 15]],
+  [generateRandomAccessory, 5, [15]]
 ];
 for (const [generator, floor, expected] of trapBonusValues) {
-  assert.strictEqual(
-    findGeneratedAffix(generator, floor, "trapBonus")?.affix.value,
+  assert.deepStrictEqual(
+    collectGeneratedAffixValues(generator, floor, "trapBonus"),
     expected,
-    `trapBonus value on B${floor}`
+    `trapBonus values on B${floor}`
   );
 }
 

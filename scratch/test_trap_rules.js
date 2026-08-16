@@ -70,10 +70,10 @@ console.log("\n[5] Detect rate:");
 assertEqual(calculateDetectRate({ floor: 1 }), 1, "B1 detect");
 assertEqual(calculateDetectRate({ floor: 11 }), 1, "B11 detect");
 assertEqual(calculateDetectRate({ floor: 30 }), 1, "B30 detect (clamped)");
-assertEqual(calculateDetectRate({ floor: 15, scoutBonus: 0.30 }), 1, "B15 trapSense no longer changes detect");
+assertEqual(calculateDetectRate({ floor: 15, scoutBonus: 0.30 }), 1, "B15 scout bonus no longer changes detect");
 assertEqual(calculateDetectRate({ floor: 20 }), 1, "B20 detect");
-assertEqual(calculateDetectRate({ floor: 20, scoutBonus: 0.15 }), 1, "B20 trapSense no longer changes detect");
-assertEqual(calculateDetectRate({ floor: 20, scoutBonus: 0.30 }), 1, "B20 full trapSense no longer changes detect");
+assertEqual(calculateDetectRate({ floor: 20, scoutBonus: 0.15 }), 1, "B20 scout bonus no longer changes detect");
+assertEqual(calculateDetectRate({ floor: 20, scoutBonus: 0.30 }), 1, "B20 full scout bonus no longer changes detect");
 
 console.log("\n[6] Constants:");
 assertEqual(FORCE_DAMAGE_MULTIPLIER, 0.5, "force damage multiplier");
