@@ -3658,6 +3658,13 @@ function getCombatPolicyProbeAction(state) {
 function createCombatPolicyProbeMetrics() {
   return {
     rounds: 0,
+    actualActionKinds: {
+      fight: 0,
+      spell: 0,
+      item: 0,
+      run: 0,
+      other: 0
+    },
     spellPreferred: 0,
     fightPreferred: 0,
     noActionPreferred: 0,
@@ -3670,14 +3677,24 @@ function createCombatPolicyProbeMetrics() {
 
 function addCombatPolicyProbeMetrics(target, source) {
   Object.keys(createCombatPolicyProbeMetrics()).forEach(key => {
+    if (key === "actualActionKinds") {
+      Object.keys(target.actualActionKinds).forEach(kind => {
+        target.actualActionKinds[kind] += source?.actualActionKinds?.[kind] || 0;
+      });
+      return;
+    }
     target[key] += source?.[key] || 0;
   });
 }
 
-function recordCombatPolicyProbe(state, metrics, probeAction) {
+function recordCombatPolicyProbe(state, metrics, probeAction, actualAction) {
   const probe = metrics?.combatPolicyProbe;
   if (!probe) return;
   probe.rounds++;
+  const actualKind = Object.hasOwn(probe.actualActionKinds, actualAction?.type)
+    ? actualAction.type
+    : "other";
+  probe.actualActionKinds[actualKind]++;
   const monsters = state.combatState?.monsters || [];
   const hasLivingTarget = monsters.some(monster => monster.hp > 0);
   if (!hasLivingTarget) probe.noLivingTarget++;
@@ -3705,28 +3722,27 @@ function recordCombatPolicyProbe(state, metrics, probeAction) {
   }
 }
 
-function recordCombatSpellPressure(state, metrics, actualAction) {
+function recordCombatSpellPressure(state, metrics, actualAction, probeAction = null) {
   if (!actualAction || !["fight", "spell"].includes(actualAction.type)) return;
-  const probeAction = getCombatPolicyProbeAction(state);
-  recordCombatPolicyProbe(state, metrics, probeAction);
-  if (probeAction?.type !== "spell") return;
-  const spell = SPELLS[probeAction.spellName];
+  const selectedProbeAction = probeAction || getCombatPolicyProbeAction(state);
+  if (selectedProbeAction?.type !== "spell") return;
+  const spell = SPELLS[selectedProbeAction.spellName];
   if (!spell) return;
   const character = state.party[0];
   const payment = getSpellPayment(character, spell.cost);
-  const reserveMp = PRIEST_HEALING_SPELL_IDS.includes(probeAction.spellName)
+  const reserveMp = PRIEST_HEALING_SPELL_IDS.includes(selectedProbeAction.spellName)
     ? 0
     : (hasSpell(character, "DIOS") ? 1 : 0);
   const actionPayment = getSpellActionPayment(
     state,
-    probeAction.spellName,
+    selectedProbeAction.spellName,
     reserveMp
   );
   return recordSpellPressure(
     metrics.mpPressure,
     "combat",
     state.floor,
-    probeAction.spellName,
+    selectedProbeAction.spellName,
     payment,
     actionPayment,
     { round: state.combatState.roundNumber }
@@ -4879,8 +4895,15 @@ function runEncounter(
     }
 
     const action = selectCombatAction(state, metrics);
+    const policyProbeAction = getCombatPolicyProbeAction(state);
+    recordCombatPolicyProbe(state, metrics, policyProbeAction, action);
     const roundNumber = state.combatState.roundNumber;
-    const pressureEvent = recordCombatSpellPressure(state, metrics, action);
+    const pressureEvent = recordCombatSpellPressure(
+      state,
+      metrics,
+      action,
+      policyProbeAction
+    );
     if (pressureEvent?.mpBlocked) blockedRounds.push(roundNumber);
     recordSpellSelectionMetrics(state, metrics, action);
     const actionTarget = action.targetIdx === undefined
@@ -10966,7 +10989,8 @@ function printMpScarcityMetrics(resultsByPolicy) {
             `  selector probe: rounds=${policyProbe.rounds} spell=${policyProbe.spellPreferred} ` +
             `fight=${policyProbe.fightPreferred} selectorFightKnown=${policyProbe.selectorFightWithKnownEnemySpell} ` +
             `upstreamUnsupported=${policyProbe.knownButUnsupportedEnemySpell} ` +
-            `upstreamUnknown=${policyProbe.noKnownEnemySpell}`
+            `upstreamUnknown=${policyProbe.noKnownEnemySpell} ` +
+            `actual=${JSON.stringify(policyProbe.actualActionKinds)}`
           );
         });
       });
