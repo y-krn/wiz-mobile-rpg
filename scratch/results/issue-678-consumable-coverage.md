@@ -11,8 +11,10 @@ Cは測定不能であり、Bの「使用経路はあるが未使用」と混同
 
 ## 計測条件
 
-- base: `d2e83bd84b4e14d16f991829d91b6b5756e0a706`
-- 計測コミット（sim本体）: `d1d116ee5b60af095410e0e7b27b2b9b7321e217`
+- base: `08761fb458f864cef3c05739ab64478b5b6f60a9`
+- 計測コミット（sim本体）: `0d340bb09a3014db7027779af0db96e3305d2825`
+- baseには #684（#677の魔力草戦闘使用）が取り込まれている。`useManaPotionIfNeeded`
+  周辺はリベースで取り込んだだけで、本Issueの変更ではない。
 - `SIM_SEED=231`, `SIM_RUNS=500`, `SIM_CALIBRATION_RUNS=100`
 - `SIM_PARALLEL` は指定しなかった
 - 到達階の受入条件は #624 固定環境で計測した
@@ -25,22 +27,22 @@ Cは測定不能であり、Bの「使用経路はあるが未使用」と混同
 
 | 分類 | 品目 | ID | 入手数 | 消費数 | sim側の判定根拠 |
 | --- | --- | --- | ---: | ---: | --- |
-| A | 傷薬 | `HEAL_POTION` | 9257 | 8335 | `useHealPotionIfNeeded` |
-| A | 上薬 | `GREATER_HEAL` | 1460 | 1343 | `useHealPotionIfNeeded` |
-| A | 魔力草 | `MANA_POTION` | 514 | 108 | `useManaPotionIfNeeded` |
-| A | 帰還の翼 | `TOWN_PORTAL` | 2000 | 1013 | `useTownPortalIfNeeded` |
-| A | 祝福の聖水 | `HOLY_WATER` | 1717 | 285 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
-| A | 剛力の薬 | `STR_POTION` | 1771 | 92 | ボス／中ボス開幕の戦闘行動選択 |
-| A | 守りの薬 | `GUARD_POTION` | 2000 | 90 | ボス／中ボス開幕の戦闘行動選択 |
-| A | 疾風の薬 | `HASTE_POTION` | 1713 | 86 | ボス／中ボス開幕の戦闘行動選択 |
-| A | 罠外しキット | `TRAP_KIT` | 1768 | 1654 | `resolveChestTrapForSimulation` の罠解除行動 |
-| B | 解毒薬 | `ANTIDOTE` | 3024 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
+| A | 傷薬 | `HEAL_POTION` | 9259 | 8337 | `useHealPotionIfNeeded` |
+| A | 上薬 | `GREATER_HEAL` | 1464 | 1347 | `useHealPotionIfNeeded` |
+| A | 魔力草 | `MANA_POTION` | 514 | 111 | `getCombatManaPotionAction` / `useManaPotionIfNeeded` |
+| A | 帰還の翼 | `TOWN_PORTAL` | 2000 | 1015 | `useTownPortalIfNeeded` |
+| A | 祝福の聖水 | `HOLY_WATER` | 1722 | 288 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
+| A | 剛力の薬 | `STR_POTION` | 1770 | 92 | ボス／中ボス開幕の戦闘行動選択 |
+| A | 守りの薬 | `GUARD_POTION` | 2000 | 91 | ボス／中ボス開幕の戦闘行動選択 |
+| A | 疾風の薬 | `HASTE_POTION` | 1721 | 87 | ボス／中ボス開幕の戦闘行動選択 |
+| A | 罠外しキット | `TRAP_KIT` | 1769 | 1655 | `resolveChestTrapForSimulation` の罠解除行動 |
+| B | 解毒薬 | `ANTIDOTE` | 3027 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
 | B | 目薬 | `EYE_DROPS` | 854 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
-| B | 解痺薬 | `PARALYZE_CURE` | 571 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
-| B | 覚醒薬 | `WAKE_POWDER` | 1005 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
+| B | 解痺薬 | `PARALYZE_CURE` | 573 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
+| B | 覚醒薬 | `WAKE_POWDER` | 1007 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
 | B | 万能薬 | `PANACEA` | 1407 | 0 | `STATUS_CURE_ITEMS` → `useStatusCureIfNeeded` |
 | C | 鳴らし玉 | `NOISE_BALL` | 0 | 0 | simに使用経路なし |
-| C | 魔力の雫 | `ETHER` | 1401 | 0 | simに使用経路なし |
+| C | 魔力の雫 | `ETHER` | 1402 | 0 | simに使用経路なし |
 | C | 離脱のスクロール | `ESCAPE_SCROLL` | 0 | 0 | simに使用経路なし |
 | C | エリクサー | `ELIXIR` | 0 | 0 | simに使用経路なし |
 
@@ -127,7 +129,7 @@ Cは測定不能であり、Bの「使用経路はあるが未使用」と混同
 ## 到達性の確認
 
 ゲーム側については `rg` の参照だけで結論を出さず、`npm run build` の本番バンドルを確認した。
-生成された `dist/assets/index-DXDmXocv.js` で固定文字列を確認した結果:
+生成された `dist/assets/index-DpFBsHEK.js` で固定文字列を確認した結果:
 
 | 固定文字列 | 本番バンドル hits |
 | --- | ---: |
@@ -145,25 +147,30 @@ sim側はbundle対象外のため、静的な5つの使用関数の確認と実�
 
 ## 基準線と決定性
 
-固定条件の到達階平均:
+最新base（#684取り込み後）の固定条件の到達階平均:
 
 | 職 | 実測 | 基準線 |
 | --- | ---: | ---: |
 | 戦士 | 5.8720 | 5.8720 |
 | 盗賊 | 4.8980 | 4.8980 |
-| 僧侶 | 4.5760 | 4.5760 |
+| 僧侶 | 4.5980 | 4.5760（#684前） |
 | 魔術師 | 6.4800 | 6.4800 |
 
-観測追加後も4職すべて完全一致した。
+戦士・盗賊・魔術師は基準線と一致した。僧侶の **+0.0220** は、観測追加ではなく
+baseに取り込まれた #684（#677）の魔力草戦闘使用による既知の差分である。#684自身の
+結果にも同じ `4.5760 → 4.5980` が記録されている。#684前のbase=`d2e83bd`での
+観測追加計測では、4職すべて基準線と一致した。
 
 同じseed・条件で `scratch/sim_depth_material_ev.js` を2回実行したstdoutのSHA-256は、
 次の値で2回とも一致した。
 
-`306ce3144dd801019f6e8c0f6a38d1a2ae69ed4801b916215a120265f487ff51`
+`03eaca24ae851e8ae31d8a066f4d6fcb14f2289954e7c767eb001461b5f4114f`
 
 固定環境の `scratch/sim_commit_depth_624.js` は実行時間フィールドを含むためstdout全体の
-SHA-256は異なったが、`rows` の正規化JSON SHA-256は2回とも
-`4e63eb183872bc93a1bea2d1c13f8f6e693f92600d11ecf2c0878ab65595b849` で一致した。
+SHA-256は `22624764d250ac5ed3597ecca0fa598e91f31a8098eb45430675830a49691094` /
+`f44958d326b43c15628c99310a58b2362fcbe81cc103cfe76f12329509fe6a18` となったが、
+`rows` の正規化JSON SHA-256は2回とも
+`e7b938ba5fc21da9e683349a1b3868af6d0edf17ab31f676ed489e67eeab6e3e` で一致した。
 
 ## 検証
 
@@ -180,6 +187,5 @@ SHA-256は異なったが、`rows` の正規化JSON SHA-256は2回とも
 ## 未確認・保留
 
 分類、入手元、ゲーム側の特殊処理について判断できなかった点はない。
-ただし #677 の魔力草の戦闘中使用実装が後で入るため、マージ後は `MANA_POTION` の消費数と
-`ETHER` のC判定を再測定する必要がある。#655のsim出力整理も並行しているため、両方が先に
-入った場合は同じ条件で再ベース・再計測する。
+最新baseの受入基準線だけは #684 の取り込みで僧侶が変わっており、観測計装の影響と
+切り分け済みである。#655のsim出力整理が先に入った場合は、同じ条件で再ベース・再計測する。
