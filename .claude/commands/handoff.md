@@ -46,7 +46,7 @@ create_scheduled_task({
 最初に `gh issue view <n> --comments` で `<!-- handoff -->` の引き継ぎコメントを読み、そこから再開する。会話履歴は引き継がれない。
 引き継ぎコメントに「リポジトリ全体の優先課題」節が存在する場合は、それを次の着手先の起点にする。`gh issue list` からの全体再評価をやり直さないこと。ただし、優先候補の Issue が既にクローズ済み、既に別セッションで着手済みなど前提が変わっている可能性があるため、着手前に対象 Issue の現状を確認すること。
 作業対象のリポジトリは `<repo_path>`（実行時に `git rev-parse --show-toplevel` で取得した絶対パスへ置換済み）である。`<repo_path>/AGENTS.md`（同じ絶対パスのリポジトリ直下）を読むこと。
-自分でコードを書かない。実装は二段委譲する — 実装タスクは `create_scheduled_task` で別セッションを起こし、そのセッションから `scripts/codex-run.sh <label> < prompt.txt` で Codex へ渡す。Codex が拒否・失敗したら回避策を探さず報告して止まる。
+自分でコードを書かない。実装は二段委譲する — 実装タスクは `create_scheduled_task` で別セッションを起こし、そのセッションから `scripts/codex-run.sh <label> --branch <type>/<issue-number>-<slug> < prompt.txt` で Codex へ渡す。Codex が拒否・失敗したら回避策を探さず報告して止まる。
 Issue を勝手にクローズしない。
 """
 })
