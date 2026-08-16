@@ -100,6 +100,26 @@
   flex-direction: column;
   flex: 1 1 0;
   min-height: 0;
+  gap: var(--sp-sm);
+}
+
+.equip-list-section {
+  min-width: 0;
+}
+
+.equip-equipped-section {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--sp-xs);
+}
+
+.equip-bag-section {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .equip-filters {
@@ -258,6 +278,12 @@
   box-shadow: 0 0 5px rgba(188, 167, 220, 0.35);
 }
 
+.equip-item-row.equip-equipped-row {
+  background-color: rgba(155, 215, 210, 0.09);
+  border-right-color: var(--neon-cyan);
+  border-right-width: 3px;
+}
+
 .equip-item-row-main {
   display: flex;
   flex-direction: column;
@@ -268,6 +294,11 @@
   border-color: var(--neon-cyan);
   background-color: rgba(0, 229, 255, 0.05);
   box-shadow: 0 0 6px var(--neon-cyan);
+}
+
+.equip-item-row.equip-equipped-row.is-comparison-target {
+  border-color: var(--neon-cyan);
+  box-shadow: var(--neon-glow-cyan);
 }
 
 .equip-item-row-name {
@@ -360,6 +391,16 @@
   opacity: 0.6;
 }
 
+.equip-item-row-badges > .equip-row-badge:first-child {
+  margin-left: 0;
+}
+
+.equip-row-badge.equipped {
+  background-color: rgba(155, 215, 210, 0.12);
+  border: 1px solid rgba(155, 215, 210, 0.45);
+  color: var(--neon-cyan);
+}
+
 /* Right Column: Detail Panel (Now lower half) */
 .equip-detail-col {
   width: 100%;
@@ -371,7 +412,9 @@
   flex-direction: column;
   justify-content: space-between;
   flex: 0 0 auto;
+  max-height: 42%;
   min-height: 178px;
+  overflow: hidden;
 }
 
 .equip-detail-placeholder {
@@ -388,10 +431,12 @@
 
 .equip-detail-content {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 6px;
   margin-bottom: 8px;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .equip-detail-name {
@@ -653,23 +698,69 @@
 
 .equip-detail-actions {
   display: grid;
+  flex-shrink: 0;
   gap: var(--sp-sm);
   grid-template-columns: 1fr;
 }
 
-/* Equip list category headings */
-.equip-list-heading {
+/* Equipment list hierarchy: section headings stay visible while bag types scroll. */
+.equip-section-heading {
+  align-items: center;
+  background: linear-gradient(90deg, rgba(155, 215, 210, 0.14), rgba(155, 215, 210, 0.035));
+  border: 1px solid rgba(155, 215, 210, 0.25);
+  border-left: 3px solid var(--neon-cyan);
+  border-radius: var(--radius-xs);
+  color: var(--neon-cyan);
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: bold;
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
+.equip-bag-section > .equip-section-heading {
+  background: linear-gradient(90deg, rgba(226, 179, 111, 0.14), rgba(226, 179, 111, 0.035));
+  border-color: rgba(226, 179, 111, 0.25);
+  border-left-color: var(--neon-amber);
+  color: var(--neon-amber);
+}
+
+.equip-type-heading {
+  border-bottom: 1px solid rgba(155, 215, 210, 0.22);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
   font-weight: bold;
-  color: var(--neon-cyan);
-  background-color: rgba(0, 229, 255, 0.04);
-  padding: 4px 8px;
-  margin-top: 8px;
-  margin-bottom: 2px;
-  border-left: 2.5px solid var(--neon-cyan);
-  border-radius: 2px;
+  margin-top: var(--sp-sm);
+  padding: 2px 6px;
+}
+
+.equip-empty-slots {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-xs);
+  padding: 0 2px;
+}
+
+.equip-empty-slot {
+  background-color: rgba(255, 255, 255, 0.035);
+  border: 1px solid #22222d;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  display: inline-flex;
   font-family: var(--font-mono);
-  box-sizing: border-box;
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+  padding: 3px 6px;
+}
+
+.equip-empty-slot.is-comparison-target {
+  background-color: rgba(0, 229, 255, 0.08);
+  border-color: var(--neon-cyan);
+  color: #fff;
+  box-shadow: var(--neon-glow-cyan);
 }
 
 /* --- Equip Overlay Badge Styles --- */

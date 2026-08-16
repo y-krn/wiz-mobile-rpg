@@ -1,6 +1,89 @@
 import { test, expect } from '@playwright/test';
 import { VIEWPORTS } from './ui-ux-helpers.js';
 for (const vp of VIEWPORTS) {
+  test(`Equipment list keeps the equipped comparison visible at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      const char = createSoloCharacter('Fighter');
+      char.equipment = { weapon: null, shield: null, armor: null, accessory: null, accessory2: null };
+      state.party = [char];
+      state.inventory = Array.from({ length: 20 }, (_, index) => ({
+        kind: 'equipment',
+        instanceId: `list_visibility_${index}`,
+        baseId: index % 2 === 0 ? 'SHORT_SWORD' : 'LEATHER_ARMOR',
+        rarity: 'common',
+        level: 1,
+        identified: true,
+        affixes: [],
+      }));
+      openEquipOverlay(0);
+    });
+
+    const overlay = page.locator('#equip-overlay');
+    await expect(overlay.locator('.equip-section-heading')).toHaveCount(2);
+    await expect(overlay.locator('.equip-section-heading', { hasText: '装備中' })).toBeVisible();
+    await expect(overlay.locator('.equip-section-heading', { hasText: 'バッグの装備品' })).toBeVisible();
+    await expect(overlay.locator('.equip-type-heading')).toHaveCount(2);
+    await expect(overlay.locator('.equip-equipped-row')).toHaveCount(0);
+    await expect(overlay.locator('.equip-empty-slot')).toHaveCount(5);
+
+    const firstBagRow = overlay.locator('.equip-bag-section .equip-item-row').first();
+    const firstBagBox = await firstBagRow.boundingBox();
+    expect(firstBagBox.y, `first bag row should be visible on ${vp.name}`).toBeGreaterThanOrEqual(0);
+    expect(firstBagBox.y + firstBagBox.height, `first bag row should fit on ${vp.name}`).toBeLessThanOrEqual(vp.height);
+    await firstBagRow.click();
+    await expect(overlay.locator('.equip-empty-slot[data-slot-id="weapon"]')).toHaveClass(/is-comparison-target/);
+
+    for (const row of await overlay.locator('.equip-item-row').all()) {
+      expect((await row.boundingBox()).height, `equipment row should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+    }
+
+    const equippedSection = overlay.locator('.equip-equipped-section');
+    const equippedTop = (await equippedSection.boundingBox()).y;
+    const itemList = overlay.locator('.equip-item-list');
+    await itemList.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    expect((await equippedSection.boundingBox()).y).toBe(equippedTop);
+
+    await overlay.locator('.equip-filter-chip', { hasText: '鎧' }).click();
+    await expect(overlay.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' })).toHaveCount(0);
+    await expect(overlay.locator('.equip-bag-section .equip-item-row', { hasText: 'レザーアーマー' })).toHaveCount(10);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
+  });
+
+  test(`Equipment list marks the selected replacement slot at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      const char = createSoloCharacter('Fighter');
+      char.equipment = { weapon: 'DAGGER', shield: null, armor: null, accessory: null, accessory2: null };
+      state.party = [char];
+      state.inventory = [{
+        kind: 'equipment',
+        instanceId: 'replacement_target',
+        baseId: 'SHORT_SWORD',
+        rarity: 'common',
+        level: 1,
+        identified: true,
+        affixes: [],
+      }];
+      openEquipOverlay(0);
+    });
+
+    const equippedWeapon = page.locator('.equip-equipped-row[data-slot-id="weapon"]');
+    await expect(equippedWeapon).toHaveClass(/equip-equipped-row/);
+    await expect(equippedWeapon).toContainText('装備中');
+    await expect(equippedWeapon).not.toHaveClass(/is-comparison-target/);
+
+    await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
+    await expect(page.locator('.equip-equipped-row[data-slot-id="weapon"]')).toHaveClass(/is-comparison-target/);
+    await expect(page.locator('.equip-equipped-row[data-slot-id="weapon"]')).toHaveAttribute('aria-current', 'location');
+  });
+
   test(`Equipment attack preview reflects weapon and STR coefficients at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
@@ -278,7 +361,8 @@ for (const vp of VIEWPORTS) {
     });
     expect(savedScrollTop).toBeGreaterThan(0);
     await footer.locator('.equip-actor-chip').nth(1).click();
-    await expect.poll(() => itemList.evaluate((element) => element.scrollTop)).toBe(savedScrollTop);
+    const expectedScrollTop = await itemList.evaluate((element, targetScrollTop) => Math.min(targetScrollTop, element.scrollHeight - element.clientHeight), savedScrollTop);
+    await expect.poll(() => itemList.evaluate((element) => element.scrollTop)).toBe(expectedScrollTop);
 
     await footer.getByRole('button', { name: '鎧' }).click();
     await expect(footer.getByRole('button', { name: '鎧' })).toHaveClass(/active/);

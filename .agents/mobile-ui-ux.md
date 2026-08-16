@@ -95,6 +95,11 @@ behavior may be relevant.
   `getElementById` miss is a silent runtime null, and a selector with no element
   is ignored. Verify the three-way link by cross-reference or live check.
 
+- Equipment overlay: keep the equipped section visible above the independently
+  scrolling bag list on mobile. Render empty slots as a compact summary, keep
+  equipped rows at the shared tap minimum, and visibly mark the slot targeted by
+  the current bag selection.
+
 ## Required Verification
 
 - `npm run test:browser`

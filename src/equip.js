@@ -437,25 +437,37 @@ function createEquipmentList(char, savedScrollTop) {
   const listContainer = document.createElement("div");
   listContainer.className = "equip-list-container";
 
-  const itemList = document.createElement("div");
-  itemList.className = "equip-item-list";
+  const equippedSection = document.createElement("section");
+  equippedSection.className = "equip-list-section equip-equipped-section";
 
-  // 1. 装備中セクション
-  const headingEquipped = document.createElement("div");
-  headingEquipped.className = "equip-list-heading";
+  const headingEquipped = document.createElement("h2");
+  headingEquipped.className = "equip-section-heading";
   headingEquipped.textContent = "装備中";
-  itemList.appendChild(headingEquipped);
+  equippedSection.appendChild(headingEquipped);
+
+  const equippedRows = document.createElement("div");
+  equippedRows.className = "equip-equipped-rows";
 
   const filteredSlots = EQUIPMENT_SLOTS.filter(s => equipState.filter === "all" || equipState.filter === s.itemType);
+  const emptySlots = [];
   filteredSlots.forEach(({ id, label }) => {
     const itemKey = char.equipment[id];
     const item = itemKey ? getItemData(itemKey) : null;
     const selected = equipState.selectedIsEquipped && equipState.selectedSlot === id;
+
+    if (!item) {
+      emptySlots.push({ id, label });
+      return;
+    }
+
+    const comparisonTarget = equipState.selectedSlot === id;
     
     const row = document.createElement("button");
     row.type = "button";
-    row.className = `equip-item-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""}`.trim();
+    row.className = `equip-item-row equip-equipped-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${comparisonTarget ? "is-comparison-target" : ""}`.trim();
+    row.dataset.slotId = id;
     row.setAttribute("aria-selected", selected ? "true" : "false");
+    if (comparisonTarget) row.setAttribute("aria-current", "location");
 
     const left = document.createElement("div");
     left.className = "equip-item-row-main";
@@ -473,8 +485,15 @@ function createEquipmentList(char, savedScrollTop) {
     left.appendChild(summary);
     row.appendChild(left);
 
+    const badges = document.createElement("span");
+    badges.className = "equip-item-row-badges";
+    const stateBadge = document.createElement("span");
+    stateBadge.className = "equip-row-badge equipped";
+    stateBadge.textContent = "装備中";
+    badges.appendChild(stateBadge);
     const rarityBadge = createRarityBadge(itemKey);
-    if (rarityBadge) row.appendChild(rarityBadge);
+    if (rarityBadge) badges.appendChild(rarityBadge);
+    row.appendChild(badges);
 
     row.addEventListener("click", () => {
       if (!itemKey) {
@@ -493,14 +512,39 @@ function createEquipmentList(char, savedScrollTop) {
       renderEquip();
     });
 
-    itemList.appendChild(row);
+    equippedRows.appendChild(row);
   });
 
-  // 2. バッグの装備品セクション
-  const headingBag = document.createElement("div");
-  headingBag.className = "equip-list-heading";
+  equippedSection.appendChild(equippedRows);
+
+  if (emptySlots.length > 0) {
+    const emptySlotSummary = document.createElement("div");
+    emptySlotSummary.className = "equip-empty-slots";
+    emptySlotSummary.setAttribute("aria-label", "空いている装備スロット");
+    emptySlots.forEach(({ id, label }) => {
+      const comparisonTarget = equipState.selectedSlot === id;
+      const emptySlot = document.createElement("span");
+      emptySlot.className = `equip-empty-slot ${comparisonTarget ? "is-comparison-target" : ""}`.trim();
+      emptySlot.dataset.slotId = id;
+      emptySlot.textContent = `${label}: 空き`;
+      if (comparisonTarget) emptySlot.setAttribute("aria-current", "location");
+      emptySlotSummary.appendChild(emptySlot);
+    });
+    equippedSection.appendChild(emptySlotSummary);
+  }
+
+  listContainer.appendChild(equippedSection);
+
+  const bagSection = document.createElement("section");
+  bagSection.className = "equip-list-section equip-bag-section";
+
+  const headingBag = document.createElement("h2");
+  headingBag.className = "equip-section-heading";
   headingBag.textContent = "バッグの装備品";
-  itemList.appendChild(headingBag);
+  bagSection.appendChild(headingBag);
+
+  const itemList = document.createElement("div");
+  itemList.className = "equip-item-list";
 
   const equipmentItems = getEquipmentItems();
 
@@ -514,8 +558,8 @@ function createEquipmentList(char, savedScrollTop) {
     equipmentItems.forEach(({ itemKey, idx, item }) => {
       if (item.type !== currentType) {
         currentType = item.type;
-        const heading = document.createElement("div");
-        heading.className = "equip-list-heading";
+        const heading = document.createElement("h3");
+        heading.className = "equip-type-heading";
         heading.textContent = EQUIPMENT_TYPE_LABELS[currentType];
         itemList.appendChild(heading);
       }
@@ -578,7 +622,8 @@ function createEquipmentList(char, savedScrollTop) {
     });
   }
 
-  listContainer.appendChild(itemList);
+  bagSection.appendChild(itemList);
+  listContainer.appendChild(bagSection);
   requestAnimationFrame(() => {
     itemList.scrollTop = savedScrollTop;
   });
