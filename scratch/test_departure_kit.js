@@ -12,7 +12,8 @@ function check(label, condition, detail = "") {
   failures.push(detail ? `${label}: ${detail}` : label);
 }
 
-const { CRAFT_RECIPES, executeCraft } = await import("../src/craft.js");
+const craftModule = await import("../src/craft.js");
+const { CRAFT_RECIPES } = craftModule;
 const { ITEMS } = await import("../src/data/items.js");
 const { MATERIAL_TYPES } = await import("../src/data/materials.js");
 const { RUN_QUEST_TEMPLATES } = await import("../src/data/run_quests.js");
@@ -31,7 +32,6 @@ const {
 } = await import("../src/systems/workshop.js");
 const { normalizeSavePayload } = await import("../src/state/save_migrations.js");
 const { RECOVERY_BALANCE } = await import("../src/rules/recovery_rules.js");
-const { state, initNewGame } = await import("../src/state.js");
 
 console.log("=== DEPARTURE CRAFT (#348) ===");
 
@@ -43,6 +43,7 @@ check(
   MATERIAL_TYPES.every(material => recipeMaterialNames.has(material)),
   `missing=${MATERIAL_TYPES.filter(material => !recipeMaterialNames.has(material)).join(",")}`
 );
+check("legacy in-run executeCraft is removed", !Object.hasOwn(craftModule, "executeCraft"));
 check("departure craft has no recipe-count cap", !Object.hasOwn(workshopData, "DEPARTURE_CRAFT_MAX_SLOTS"));
 check("starting heal potion supply is removed", RECOVERY_BALANCE.startingHealPotions === 0);
 const milestoneQuest = RUN_QUEST_TEMPLATES.find(quest => quest.id === "reach_milestone");
@@ -186,21 +187,6 @@ check(
   JSON.stringify(restored.metaMaterials)
 );
 check("existing save inventory is preserved", restored.inventory.length === 1 && restored.inventory[0] === "HEAL_POTION");
-
-initNewGame();
-check("new game starts with an empty inventory", state.inventory.length === 0, JSON.stringify(state.inventory));
-const inventoryBeforePseudoCraft = [...state.inventory];
-const materialsBeforePseudoCraft = { ...state.metaMaterials };
-check(
-  "identify powder pseudo-recipe cannot enter inventory through executeCraft",
-  executeCraft("IDENTIFY_POWDER") === false
-    && JSON.stringify(state.inventory) === JSON.stringify(inventoryBeforePseudoCraft)
-    && JSON.stringify(state.metaMaterials) === JSON.stringify(materialsBeforePseudoCraft)
-);
-check(
-  "any-material departure item cannot enter inventory through executeCraft",
-  executeCraft("TOWN_PORTAL") === false
-);
 
 if (failures.length > 0) {
   failures.forEach(failure => console.error(`[FAIL] ${failure}`));

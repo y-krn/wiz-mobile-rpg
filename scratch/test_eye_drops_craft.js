@@ -12,8 +12,7 @@ function check(label, condition, detail = "") {
   failures.push(detail ? `${label}: ${detail}` : label);
 }
 
-const { CRAFT_RECIPES, executeCraft } = await import("../src/craft.js");
-const { state } = await import("../src/state.js");
+const { CRAFT_RECIPES } = await import("../src/craft.js");
 const {
   getDepartureCraftGrants,
   purchaseDepartureCraft
@@ -66,38 +65,9 @@ check(
   JSON.stringify(departureGrants)
 );
 
-state.inventory = [];
-state.metaMaterials = { "霊粉": 0 };
-const inventoryBeforeShortage = [...state.inventory];
-const materialsBeforeShortage = { ...state.metaMaterials };
-check("craft fails when spirit powder is missing", executeCraft("EYE_DROPS") === false);
-check(
-  "shortage does not change inventory",
-  JSON.stringify(state.inventory) === JSON.stringify(inventoryBeforeShortage),
-  JSON.stringify(state.inventory)
-);
-check(
-  "shortage does not consume materials",
-  JSON.stringify(state.metaMaterials) === JSON.stringify(materialsBeforeShortage),
-  JSON.stringify(state.metaMaterials)
-);
-
-state.metaMaterials = { "霊粉": 2 };
-check("craft succeeds with enough spirit powder", executeCraft("EYE_DROPS") === true);
-check(
-  "craft adds eye drops to inventory",
-  JSON.stringify(state.inventory) === JSON.stringify(["EYE_DROPS"]),
-  JSON.stringify(state.inventory)
-);
-check(
-  "craft consumes exactly one spirit powder",
-  state.metaMaterials["霊粉"] === 1,
-  JSON.stringify(state.metaMaterials)
-);
-
 if (failures.length > 0) {
   failures.forEach(failure => console.error(`[FAIL] ${failure}`));
   process.exit(1);
 }
 
-console.log("[PASS] eye drops craft: shortage, success, inventory grant, and material consumption");
+console.log("[PASS] eye drops departure craft: recipe registration, affordability, and material consumption");
