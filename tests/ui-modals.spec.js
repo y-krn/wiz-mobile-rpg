@@ -1,5 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { VIEWPORTS } from './ui-ux-helpers.js';
+
+const EQUIPMENT_SHORT_VIEWPORTS = [
+  { width: 375, height: 667, name: 'iPhone SE' },
+  { width: 320, height: 568, name: 'short mobile' },
+];
+
 for (const vp of VIEWPORTS) {
   test(`Equipment list keeps the equipped comparison visible at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
@@ -303,6 +309,84 @@ for (const vp of VIEWPORTS) {
     await expect(removeButton).toBeVisible();
     expect((await removeButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await expect(page.getByRole('button', { name: '破棄する' })).toHaveCount(0);
+  });
+}
+
+for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
+  test(`Filled equipment layout keeps two bag rows at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      const char = createSoloCharacter('Fighter');
+      char.equipment = {
+        weapon: 'SHORT_SWORD',
+        shield: 'SMALL_SHIELD',
+        armor: 'LEATHER_ARMOR',
+        accessory: 'AMULET_HP',
+        accessory2: 'RING_STR',
+      };
+      state.party = [char];
+      state.inventory = [
+        'DAGGER', 'WAND', 'MACE', 'RAPIER', 'SMALL_SHIELD', 'BUCKLER',
+        'ROBE', 'LEATHER_ARMOR', 'EXPLORER_CLOAK', 'AMULET_HP', 'RING_STR',
+      ].map((baseId, index) => ({
+        kind: 'equipment',
+        instanceId: `filled_layout_${index}`,
+        baseId,
+        rarity: 'common',
+        level: 1,
+        identified: true,
+        affixes: [],
+      }));
+      openEquipOverlay(0);
+    });
+
+    const overlay = page.locator('#equip-overlay');
+    await expect(overlay.locator('.equip-equipped-row')).toHaveCount(5);
+    await expect(overlay.locator('.equip-section-heading', { hasText: '装備中' })).toBeVisible();
+    await expect(overlay.locator('.equip-section-heading', { hasText: 'バッグの装備品' })).toBeVisible();
+
+    const bagSection = overlay.locator('.equip-bag-section');
+    const bagBox = await bagSection.boundingBox();
+    const itemList = overlay.locator('.equip-bag-section .equip-item-list');
+    const itemListBox = await itemList.boundingBox();
+    const detail = overlay.locator('.equip-detail-col');
+    const detailBox = await detail.boundingBox();
+    expect(bagBox?.height, `bag section should reserve two tap rows on ${vp.name}`).toBeGreaterThanOrEqual(154);
+    expect(detailBox?.height, `detail panel should retain a measurable region on ${vp.name}`).toBeGreaterThan(0);
+    expect(detailBox?.y, `detail must not overlap the bag list on ${vp.name}`).toBeGreaterThanOrEqual((itemListBox?.y || 0) + (itemListBox?.height || 0) - 0.5);
+
+    const bagRows = overlay.locator('.equip-bag-section .equip-item-row');
+    expect(await bagRows.count()).toBeGreaterThanOrEqual(2);
+    for (const row of [bagRows.nth(0), bagRows.nth(1)]) {
+      const rowBox = await row.boundingBox();
+      expect(rowBox?.height, `bag rows keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(rowBox?.y, `bag row should be inside the scrolling list on ${vp.name}`).toBeGreaterThanOrEqual((itemListBox?.y || 0) - 0.5);
+      expect(rowBox?.y + rowBox?.height, `two bag rows should fit on ${vp.name}`).toBeLessThanOrEqual((itemListBox?.y || 0) + (itemListBox?.height || 0) + 0.5);
+    }
+
+    await bagRows.first().click();
+    const description = overlay.locator('.equip-detail-desc');
+    await expect(description).toBeVisible();
+    const descriptionMetrics = await description.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      const styles = getComputedStyle(element);
+      return {
+        height: box.height,
+        lineHeight: Number.parseFloat(styles.lineHeight),
+        whiteSpace: styles.whiteSpace,
+      };
+    });
+    expect(descriptionMetrics.whiteSpace, `description should wrap on ${vp.name}`).toBe('normal');
+    expect(descriptionMetrics.height, `description should show multiple lines on ${vp.name}`).toBeGreaterThanOrEqual(descriptionMetrics.lineHeight * 2 - 0.5);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
+
+    await page.screenshot({
+      path: `output/playwright/issue-711-after-selected-${vp.width}x${vp.height}.png`,
+      fullPage: true,
+    });
   });
 }
 

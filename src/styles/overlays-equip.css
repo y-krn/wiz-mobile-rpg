@@ -95,6 +95,9 @@
 }
 
 .equip-list-container {
+  --equip-section-heading-min: 28px;
+  --equip-type-heading-min: 20px;
+
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -109,16 +112,28 @@
 
 .equip-equipped-section {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   flex-direction: column;
   gap: var(--sp-xs);
+  min-height: var(--equip-section-heading-min);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .equip-bag-section {
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
-  min-height: 0;
+  /* Heading + type heading + two shared tap-min rows and their gaps. */
+  min-height: calc(
+    var(--equip-section-heading-min) +
+    var(--sp-sm) +
+    var(--equip-type-heading-min) +
+    var(--sp-sm) +
+    var(--tap-min) +
+    var(--sp-sm) +
+    var(--tap-min)
+  );
   overflow: hidden;
 }
 
@@ -410,11 +425,11 @@
   padding: 8px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  flex: 0 0 auto;
-  max-height: 42%;
-  min-height: 178px;
-  overflow: hidden;
+  justify-content: flex-start;
+  flex: 0 1 35%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .equip-detail-placeholder {
@@ -431,12 +446,11 @@
 
 .equip-detail-content {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 6px;
   margin-bottom: 8px;
-  min-height: 0;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .equip-detail-name {
@@ -452,9 +466,8 @@
   font-size: var(--fs-md);
   color: var(--text-muted);
   line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .equip-detail-compat {
@@ -715,7 +728,7 @@
   font-family: var(--font-mono);
   font-size: var(--fs-md);
   font-weight: bold;
-  min-height: 28px;
+  min-height: var(--equip-section-heading-min);
   padding: 4px 8px;
 }
 
@@ -732,7 +745,9 @@
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   font-weight: bold;
+  line-height: 1.2;
   margin-top: var(--sp-sm);
+  min-height: var(--equip-type-heading-min);
   padding: 2px 6px;
 }
 

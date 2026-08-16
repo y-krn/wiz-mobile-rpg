@@ -99,6 +99,10 @@ behavior may be relevant.
   scrolling bag list on mobile. Render empty slots as a compact summary, keep
   equipped rows at the shared tap minimum, and visibly mark the slot targeted by
   the current bag selection.
+- Do not place two `flex: 0 0 auto` blocks in the same vertical flex column;
+  leave the remaining list region a shrinkable flex item.
+- The short-screen lower bound is part of acceptance: at 320x568, the equipped
+  overlay must retain at least two `--tap-min` bag rows for tapping.
 
 - Enemy rendering foundation: keep enemy bodies in Canvas 2D `Path2D` with an
   opaque gradient fill and one flat contact shadow. Do not introduce raster
