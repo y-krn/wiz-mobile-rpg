@@ -1955,7 +1955,15 @@ function createOutcomeAggregate() {
     reachedFloor: 0,
     entrantsByFloor: Array(21).fill(0),
     deathsByFloor: Array(21).fill(0),
-    retreatsByFloor: Array(21).fill(0)
+    retreatsByFloor: Array(21).fill(0),
+    terminationReasons: {},
+    finalHp: [],
+    finalHpRate: [],
+    finalMp: [],
+    finalMpRate: [],
+    mpBlockedTerminalEncounterRuns: 0,
+    mpDepletionCausedEndRuns: 0,
+    endResourceByReason: {}
   };
 }
 
@@ -1964,6 +1972,26 @@ function addOutcomeAggregate(target, result) {
   target.survived += Number(result.survived);
   target.died += Number(result.died);
   target.reachedFloor += result.reachedFloor;
+  target.terminationReasons[result.terminationReason] =
+    (target.terminationReasons[result.terminationReason] || 0) + 1;
+  target.finalHp.push(result.finalHp);
+  target.finalHpRate.push(result.finalHpRate);
+  target.finalMp.push(result.finalMp);
+  target.finalMpRate.push(result.finalMpRate);
+  target.mpBlockedTerminalEncounterRuns += Number(result.mpBlockedTerminalEncounter);
+  target.mpDepletionCausedEndRuns += Number(result.mpDepletionCausedEnd);
+  const reasonResources = target.endResourceByReason[result.terminationReason] ||= {
+    runs: 0,
+    finalHp: [],
+    finalHpRate: [],
+    finalMp: [],
+    finalMpRate: []
+  };
+  reasonResources.runs++;
+  reasonResources.finalHp.push(result.finalHp);
+  reasonResources.finalHpRate.push(result.finalHpRate);
+  reasonResources.finalMp.push(result.finalMp);
+  reasonResources.finalMpRate.push(result.finalMpRate);
   for (let floor = 1; floor < target.entrantsByFloor.length; floor++) {
     if (result.reachedFloor < floor) continue;
     target.entrantsByFloor[floor]++;
@@ -1986,7 +2014,26 @@ function finalizeOutcomeAggregate(aggregate) {
     averageReachedFloor: aggregate.reachedFloor / runs,
     entrantsByFloor: [...aggregate.entrantsByFloor],
     deathsByFloor: [...aggregate.deathsByFloor],
-    retreatsByFloor: [...aggregate.retreatsByFloor]
+    retreatsByFloor: [...aggregate.retreatsByFloor],
+    terminationReasons: { ...aggregate.terminationReasons },
+    finalHp: summarizeDistribution(aggregate.finalHp),
+    finalHpRate: summarizeDistribution(aggregate.finalHpRate),
+    finalMp: summarizeDistribution(aggregate.finalMp),
+    finalMpRate: summarizeDistribution(aggregate.finalMpRate),
+    mpBlockedTerminalEncounterRuns: aggregate.mpBlockedTerminalEncounterRuns,
+    mpDepletionCausedEndRuns: aggregate.mpDepletionCausedEndRuns,
+    endResourceByReason: Object.fromEntries(
+      Object.entries(aggregate.endResourceByReason).map(([reason, values]) => [
+        reason,
+        {
+          runs: values.runs,
+          finalHp: summarizeDistribution(values.finalHp),
+          finalHpRate: summarizeDistribution(values.finalHpRate),
+          finalMp: summarizeDistribution(values.finalMp),
+          finalMpRate: summarizeDistribution(values.finalMpRate)
+        }
+      ])
+    )
   };
 }
 
@@ -2896,6 +2943,106 @@ function createSpellUsageMetrics() {
   }]));
 }
 
+const SPELL_PRESSURE_PHASES = Object.freeze([
+  "combat",
+  "exploration",
+  "recovery"
+]);
+
+function createSpellPressureBucket() {
+  return {
+    candidateChecks: 0,
+    policyWanted: 0,
+    policyBlocked: 0,
+    mpInsufficient: 0,
+    mpBlocked: 0,
+    bloodWandCanCast: 0,
+    bloodWandBlocked: 0,
+    reserveBlocked: 0,
+    safetyBlocked: 0
+  };
+}
+
+function createSpellPressurePhase() {
+  return {
+    total: createSpellPressureBucket(),
+    bySpell: {},
+    byFloorAndSpell: {}
+  };
+}
+
+function createSpellPressureMetrics() {
+  return Object.fromEntries(
+    SPELL_PRESSURE_PHASES.map(phase => [phase, createSpellPressurePhase()])
+  );
+}
+
+function addSpellPressureBucket(target, additions) {
+  Object.keys(createSpellPressureBucket()).forEach(key => {
+    target[key] += additions[key] || 0;
+  });
+}
+
+function recordSpellPressure(
+  metrics,
+  phase,
+  floor,
+  spellName,
+  payment,
+  actionPayment,
+  { policyWanted = true } = {}
+) {
+  if (!metrics?.[phase] || !SPELLS[spellName] || !payment) return;
+  const phaseMetrics = metrics[phase];
+  const floorKey = String(Math.max(1, Number(floor) || 1));
+  const key = `${floorKey}:${spellName}`;
+  const event = {
+    candidateChecks: 1,
+    policyWanted: Number(policyWanted),
+    policyBlocked: Number(policyWanted && !actionPayment),
+    // getSpellPayment owns the MP/HP fallback decision. A resource of "hp"
+    // means the source function observed insufficient MP without redoing it here.
+    // A failed MP payment returns resource="mp" without a blood-wand fallback;
+    // a fallback attempt returns resource="hp". Both mean MP was insufficient.
+    mpInsufficient: Number(payment.resource === "hp" || !payment.canCast),
+    mpBlocked: Number(!payment.canCast),
+    bloodWandCanCast: Number(payment.resource === "hp" && payment.canCast),
+    bloodWandBlocked: Number(payment.resource === "hp" && !payment.canCast),
+    reserveBlocked: Number(
+      policyWanted && !actionPayment && payment.resource === "mp" && payment.canCast
+    ),
+    safetyBlocked: Number(
+      policyWanted && !actionPayment && payment.resource === "hp" && payment.canCast
+    )
+  };
+  addSpellPressureBucket(phaseMetrics.total, event);
+  const spellBucket = phaseMetrics.bySpell[spellName] ||= createSpellPressureBucket();
+  addSpellPressureBucket(spellBucket, event);
+  const floorSpellBucket = phaseMetrics.byFloorAndSpell[key] ||= createSpellPressureBucket();
+  addSpellPressureBucket(floorSpellBucket, event);
+}
+
+function addSpellPressureMetrics(target, source) {
+  SPELL_PRESSURE_PHASES.forEach(phase => {
+    const targetPhase = target[phase];
+    const sourcePhase = source?.[phase];
+    if (!sourcePhase) return;
+    addSpellPressureBucket(targetPhase.total, sourcePhase.total);
+    Object.entries(sourcePhase.bySpell || {}).forEach(([spellName, bucket]) => {
+      const destination = targetPhase.bySpell[spellName] ||= createSpellPressureBucket();
+      addSpellPressureBucket(destination, bucket);
+    });
+    Object.entries(sourcePhase.byFloorAndSpell || {}).forEach(([key, bucket]) => {
+      const destination = targetPhase.byFloorAndSpell[key] ||= createSpellPressureBucket();
+      addSpellPressureBucket(destination, bucket);
+    });
+  });
+}
+
+function finalizeSpellPressureMetrics(metrics) {
+  return structuredClone(metrics);
+}
+
 const EXPLORATION_SPELL_IDS = Object.freeze([
   "MILWA",
   "LOMILWA",
@@ -2919,6 +3066,15 @@ function castExplorationSpell(state, spellName, metrics) {
   if (!hasSpell(character, spellName)) return false;
   const spell = SPELLS[spellName];
   const payment = getSpellPayment(character, spell.cost);
+  const actionPayment = payment.canCast && payment.resource === "mp" ? payment : null;
+  recordSpellPressure(
+    metrics.mpPressure,
+    "exploration",
+    state.floor,
+    spellName,
+    payment,
+    actionPayment
+  );
   // Exploration spells are paid from MP only; do not use blood-wand HP payment.
   if (!payment.canCast || payment.resource !== "mp") return false;
   character.mp -= payment.cost;
@@ -3281,6 +3437,48 @@ function chooseSimulationAutoCombatAction(args) {
     ...args,
     character
   });
+}
+
+function getCombatPolicyProbeAction(state) {
+  const character = state.party[0];
+  return chooseSimulationAutoCombatAction({
+    character,
+    monsters: state.combatState.monsters,
+    roundNumber: state.combatState.roundNumber,
+    healingTargetIdx: getAutoHealTargetIdx(
+      character,
+      state.simPolicy.healPotionThreshold
+    ),
+    // Diagnostic only: let the existing selector reveal its preferred spell,
+    // then ask getSpellPayment whether the source can actually pay for it.
+    canCastSpell: () => true
+  });
+}
+
+function recordCombatSpellPressure(state, metrics, actualAction) {
+  if (!actualAction || !["fight", "spell"].includes(actualAction.type)) return;
+  const probeAction = getCombatPolicyProbeAction(state);
+  if (probeAction?.type !== "spell") return;
+  const spell = SPELLS[probeAction.spellName];
+  if (!spell) return;
+  const character = state.party[0];
+  const payment = getSpellPayment(character, spell.cost);
+  const reserveMp = PRIEST_HEALING_SPELL_IDS.includes(probeAction.spellName)
+    ? 0
+    : (hasSpell(character, "DIOS") ? 1 : 0);
+  const actionPayment = getSpellActionPayment(
+    state,
+    probeAction.spellName,
+    reserveMp
+  );
+  recordSpellPressure(
+    metrics.mpPressure,
+    "combat",
+    state.floor,
+    probeAction.spellName,
+    payment,
+    actionPayment
+  );
 }
 
 function getSimulationPreferredOffensiveSpellName(character, monsters, canCastSpell) {
@@ -4253,6 +4451,7 @@ function runEncounter(
   const encounterType = isBoss
     ? "boss"
     : (isMidboss ? "midboss" : (isElite ? "elite" : "normal"));
+  const mpBlockedAtEncounterStart = metrics?.mpPressure?.combat?.total?.mpBlocked || 0;
   const startBuild = (isBoss || isMidboss || isElite) && metrics?.collectSpecialBattles
     ? createBuildSnapshot(state, metrics?.scoringProfile || null, `${encounterType}-start`)
     : null;
@@ -4395,7 +4594,11 @@ function runEncounter(
             healActivations:
               observations.bloodWandHealActivations - bloodWandObservationStart.healActivations
           }
-        : null
+        : null,
+      mpBlockedEvents: Math.max(
+        0,
+        (metrics?.mpPressure?.combat?.total?.mpBlocked || 0) - mpBlockedAtEncounterStart
+      )
     };
   };
 
@@ -4410,6 +4613,7 @@ function runEncounter(
     }
 
     const action = selectCombatAction(state, metrics);
+    recordCombatSpellPressure(state, metrics, action);
     recordSpellSelectionMetrics(state, metrics, action);
     const actionTarget = action.targetIdx === undefined
       ? null
@@ -4694,28 +4898,35 @@ function runEncounter(
   return finishEncounter("stalemate", rounds, healPotionsUsed, greaterHealPotionsUsed);
 }
 
-function applyPostCombatRecovery(character, metrics = null) {
+function applyPostCombatRecovery(state, metrics = null) {
+  const character = state.party[0];
   const healingSpellIds = getSimulationPriestHealingSpellIds();
-  while (character.mp > 0 && character.hp < getCharMaxHp(character) * 0.70) {
+  while (character.hp < getCharMaxHp(character) * 0.70) {
     const healingCharacter = {
       ...character,
       spells: character.spells?.filter(spellName => healingSpellIds.includes(spellName))
     };
+    const getRecoverySpellPayment = spellName => getSpellPayment(
+      character,
+      SIM_HEALING_SPELL_PROFILES?.[spellName]?.cost ?? SPELLS[spellName].cost
+    );
     const spellName = getPreferredHealingSpellName(
       healingCharacter,
       candidate => {
-        const payment = getSpellPayment(
-          character,
-          SIM_HEALING_SPELL_PROFILES?.[candidate]?.cost ?? SPELLS[candidate].cost
+        const payment = getRecoverySpellPayment(candidate);
+        recordSpellPressure(
+          metrics?.mpPressure,
+          "recovery",
+          state.floor,
+          candidate,
+          payment,
+          payment.resource === "mp" && payment.canCast ? payment : null
         );
         return payment.resource === "mp" && payment.canCast;
       }
     );
     if (!spellName) break;
-    const payment = getSpellPayment(
-      character,
-      SIM_HEALING_SPELL_PROFILES?.[spellName]?.cost ?? SPELLS[spellName].cost
-    );
+    const payment = getRecoverySpellPayment(spellName);
     const hpBefore = character.hp;
     character.mp -= payment.cost;
     SPELL_EFFECTS[spellName]({ caster: character, target: character });
@@ -7356,7 +7567,7 @@ function totalMaterials(materials) {
   return Object.values(materials).reduce((sum, quantity) => sum + quantity, 0);
 }
 
-function finishRun(state, outcome, metrics) {
+function finishRun(state, outcome, metrics, terminationReason = null) {
   if (metrics.b5FloorActive) {
     recordB5HpSnapshot(state, metrics, metrics.b5LastStep);
     if (metrics.deathSnapshot?.floor === FLAME_TRAP_MODEL.floor) {
@@ -7500,6 +7711,11 @@ function finishRun(state, outcome, metrics) {
       .filter(Boolean)
   )];
   const finalCoreId = finalCoreIds[0] || null;
+  const resolvedTerminationReason = terminationReason ||
+    (outcome === "death" ? "death" : "retreat");
+  const mpDepletionCausedEnd = Boolean(
+    outcome === "death" && metrics.mpBlockedTerminalEncounter
+  );
   if (metrics.diagnostics && metrics.diagnosticLevel === "full") {
     metrics.diagnostics.finalBuild = createBuildSnapshot(
       state,
@@ -7714,8 +7930,6 @@ function finishRun(state, outcome, metrics) {
     mpDepleted: metrics.mpDepleted,
     mpZeroCombatRounds: metrics.mpZeroCombatRounds,
     reserveMpViolations: metrics.reserveMpViolations,
-    finalMp: state.party[0].mp,
-    finalMaxMp: getCharMaxMp(state.party[0]),
     trapPolicy: state.simPolicy.trapPolicy,
     chestTrapPolicy: state.simPolicy.chestTrapPolicy,
     trapAvoidancePolicy: state.simPolicy.trapAvoidancePolicy,
@@ -7835,6 +8049,16 @@ function finishRun(state, outcome, metrics) {
     merchantWingFailures: metrics.merchantWingFailures,
     milestoneDecisions: metrics.milestoneDecisions,
     outcome,
+    terminationReason: resolvedTerminationReason,
+    finalHp: state.party[0].hp,
+    finalMaxHp: getCharMaxHp(state.party[0]),
+    finalHpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
+    finalMp: state.party[0].mp,
+    finalMaxMp: getCharMaxMp(state.party[0]),
+    finalMpRate: state.party[0].mp / Math.max(1, getCharMaxMp(state.party[0])),
+    mpBlockedTerminalEncounter: Boolean(metrics.mpBlockedTerminalEncounter),
+    mpDepletionCausedEnd,
+    mpPressure: finalizeSpellPressureMetrics(metrics.mpPressure),
     fleeCount: metrics.fleeCount,
     bossPolicy: metrics.bossPolicy,
     bossExitPolicy: metrics.bossExitPolicy,
@@ -8057,6 +8281,8 @@ export function simulateRun({
     diosPotionPriorityEventSamples: scenario.collectHealPriorityDiagnostics ? [] : null,
     spellUsage: createSpellUsageMetrics(),
     explorationSpellUsage: createExplorationSpellUsageMetrics(),
+    mpPressure: createSpellPressureMetrics(),
+    mpBlockedTerminalEncounter: false,
     lightActiveSteps: 0,
     masfealActiveSteps: 0,
     mpDepleted: false,
@@ -8729,7 +8955,7 @@ export function simulateRun({
           if (combatResult.result === "flee") {
             metrics.fleeCount++;
             metrics.eliteFlees += Number(isElite);
-            applyPostCombatRecovery(state.party[0], metrics);
+            applyPostCombatRecovery(state, metrics);
             const fleeRecoveryItem = useHealPotionIfNeeded(state, metrics);
             addRecoveryPotionUse(metrics, fleeRecoveryItem);
             useStatusCureIfNeeded(state, metrics, "post-flee");
@@ -8747,7 +8973,7 @@ export function simulateRun({
                 specialBattle.finalResult = "flee-retreat";
                 metrics.specialBattles.push(specialBattle);
               }
-              return finishRun(state, "retreat", metrics);
+              return finishRun(state, "retreat", metrics, "town-portal");
             }
             if (specialEvent && !isElite) {
               // 逃走ではeventセルが消えない。1マス後退後、同じセルへ再侵入する。
@@ -8760,6 +8986,7 @@ export function simulateRun({
 
           if (combatResult.result !== "victory") {
             metrics.stalemate = combatResult.result === "stalemate";
+            metrics.mpBlockedTerminalEncounter = combatResult.mpBlockedEvents > 0;
             metrics.deathEncounterType = encounterType;
             metrics.eliteDeaths += Number(isElite);
             if (specialBattle) {
@@ -8918,7 +9145,7 @@ export function simulateRun({
             equipGreedyUpgrades(state, metrics, scoringProfile),
             floor
           );
-          applyPostCombatRecovery(state.party[0], metrics);
+          applyPostCombatRecovery(state, metrics);
           const combatRecoveryItem = useHealPotionIfNeeded(state, metrics);
           addRecoveryPotionUse(metrics, combatRecoveryItem);
           useStatusCureIfNeeded(state, metrics, "post-combat");
@@ -8936,7 +9163,7 @@ export function simulateRun({
             metrics.specialBattles.push(specialBattle);
           }
           if (useTownPortalIfNeeded(state, scenario, metrics, "post-combat")) {
-            return finishRun(state, "retreat", metrics);
+            return finishRun(state, "retreat", metrics, "town-portal");
           }
           break;
         }
@@ -8971,16 +9198,16 @@ export function simulateRun({
         scenario.retreatAtMilestoneWithoutTownPortal &&
         !state.inventory.includes("TOWN_PORTAL")
       ) {
-        return finishRun(state, "retreat", metrics);
+        return finishRun(state, "retreat", metrics, "milestone-retreat");
       }
     }
     descendToNextFloor(state, floor + 1, metrics, { stairsHeal: true });
     if (useTownPortalIfNeeded(state, scenario, metrics, "floor-transition")) {
-      return finishRun(state, "retreat", metrics);
+      return finishRun(state, "retreat", metrics, "town-portal");
     }
   }
 
-  return finishRun(state, "retreat", metrics);
+  return finishRun(state, "retreat", metrics, "target-depth");
 }
 
 function getUnequippedCoreReason(result, coreId) {
@@ -9118,6 +9345,9 @@ function simulateCase({
     coreObservations: createCoreObservations(),
     spellUsage: createSpellUsageMetrics(),
     explorationSpellUsage: createExplorationSpellUsageMetrics(),
+    mpPressure: createSpellPressureMetrics(),
+    mpBlockedTerminalEncounterRuns: 0,
+    mpDepletionCausedEndRuns: 0,
     lightActiveSteps: 0,
     masfealActiveSteps: 0,
     purifyEffectsByClass: Object.fromEntries(
@@ -9186,6 +9416,9 @@ function simulateCase({
   const classTrapSenseTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapSenseAggregate()])
   );
+  const classMpPressureTotals = Object.fromEntries(
+    SIM_CLASSES.map(className => [className, createSpellPressureMetrics()])
+  );
   const departureCraftBanksByClass = Object.fromEntries(
     SIM_CLASSES.map(className => [className, {}])
   );
@@ -9217,6 +9450,10 @@ function simulateCase({
     }
     addSpellUsageAggregate(totals.spellUsage, result);
     addExplorationSpellUsageAggregate(totals.explorationSpellUsage, result);
+    addSpellPressureMetrics(totals.mpPressure, result.mpPressure);
+    addSpellPressureMetrics(classMpPressureTotals[className], result.mpPressure);
+    totals.mpBlockedTerminalEncounterRuns += Number(result.mpBlockedTerminalEncounter);
+    totals.mpDepletionCausedEndRuns += Number(result.mpDepletionCausedEnd);
     totals.lightActiveSteps += result.lightActiveSteps;
     totals.masfealActiveSteps += result.masfealActiveSteps;
     addOutcomeAggregate(totals.outcomesByClass[className], result);
@@ -9625,6 +9862,15 @@ function simulateCase({
       ])
     ),
     explorationSpellUsage: { ...totals.explorationSpellUsage },
+    mpPressure: finalizeSpellPressureMetrics(totals.mpPressure),
+    mpPressureByClass: Object.fromEntries(
+      Object.entries(classMpPressureTotals).map(([className, pressure]) => [
+        className,
+        finalizeSpellPressureMetrics(pressure)
+      ])
+    ),
+    mpBlockedTerminalEncounterRuns: totals.mpBlockedTerminalEncounterRuns,
+    mpDepletionCausedEndRuns: totals.mpDepletionCausedEndRuns,
     lightActiveSteps: totals.lightActiveSteps,
     masfealActiveSteps: totals.masfealActiveSteps,
     averageLightActiveSteps: totals.lightActiveSteps / RUNS_PER_CASE,
@@ -10322,6 +10568,84 @@ function printFloorMilestoneMetrics(result) {
     })
     .join(" / ");
   console.log(`回復呪文使用集計（全run分母 N=${RUNS_PER_CASE}; selectedはcast回数）: ${recoverySpellUsage}`);
+}
+
+function formatResourceDistribution(distribution) {
+  if (!distribution || distribution.n === 0) return "n=0";
+  return [
+    `n=${distribution.n}`,
+    `p0=${distribution.min.toFixed(3)}`,
+    `p25=${distribution.p25.toFixed(3)}`,
+    `p50=${distribution.median.toFixed(3)}`,
+    `p75=${distribution.p75.toFixed(3)}`,
+    `p100=${distribution.max.toFixed(3)}`
+  ].join(" ");
+}
+
+function buildMpScarcityMeasurement(resultsByPolicy) {
+  return {
+    sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
+    originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
+    staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
+    simRuns: RUNS_PER_CASE,
+    calibrationRuns: CALIBRATION_RUNS,
+    targetDepths: [...TARGET_DEPTHS],
+    classes: [...SIM_CLASSES],
+    results: resultsByPolicy.flatMap(({ policy, scenarioResults }) =>
+      scenarioResults.flatMap(({ scenario, results }) => results.map(result => ({
+        policy: policy.id,
+        scenario: scenario.id,
+        targetDepth: result.targetDepth,
+        runs: RUNS_PER_CASE,
+        outcomesByClass: Object.fromEntries(
+          Object.entries(result.outcomesByClass).map(([className, outcome]) => [
+            className,
+            {
+              runs: outcome.runs,
+              terminationReasons: outcome.terminationReasons,
+              finalHp: outcome.finalHp,
+              finalHpRate: outcome.finalHpRate,
+              finalMp: outcome.finalMp,
+              finalMpRate: outcome.finalMpRate,
+              endResourceByReason: outcome.endResourceByReason,
+              mpBlockedTerminalEncounterRuns: outcome.mpBlockedTerminalEncounterRuns,
+              mpDepletionCausedEndRuns: outcome.mpDepletionCausedEndRuns
+            }
+          ])
+        ),
+        mpPressureByClass: result.mpPressureByClass,
+        mpPressure: result.mpPressure,
+        mpBlockedTerminalEncounterRuns: result.mpBlockedTerminalEncounterRuns,
+        mpDepletionCausedEndRuns: result.mpDepletionCausedEndRuns
+      })))
+    )
+  };
+}
+
+function printMpScarcityMetrics(resultsByPolicy) {
+  console.log("\n【Issue #658 MP scarcity】");
+  resultsByPolicy.forEach(({ policy, scenarioResults }) => {
+    scenarioResults.forEach(({ scenario, results }) => {
+      results.forEach(result => {
+        Object.entries(result.outcomesByClass).forEach(([className, outcome]) => {
+          const pressure = result.mpPressureByClass[className];
+          const combat = pressure.combat.total;
+          const exploration = pressure.exploration.total;
+          const recovery = pressure.recovery.total;
+          console.log(
+            `policy=${policy.id} scenario=${scenario.id} B${result.targetDepth} ${className} ` +
+            `endMP=${formatResourceDistribution(outcome.finalMpRate)} ` +
+            `endHP=${formatResourceDistribution(outcome.finalHpRate)} ` +
+            `reasons=${JSON.stringify(outcome.terminationReasons)} ` +
+            `mpBlockedEnd=${outcome.mpBlockedTerminalEncounterRuns} ` +
+            `mpCauseEnd=${outcome.mpDepletionCausedEndRuns} ` +
+            `pressure(combat=${combat.mpBlocked},explore=${exploration.mpBlocked},recovery=${recovery.mpBlocked})`
+          );
+        });
+      });
+    });
+  });
+  console.log(`MP_SCARCITY_JSON=${JSON.stringify(buildMpScarcityMeasurement(resultsByPolicy))}`);
 }
 
 function printBuildSupplyMetrics(results) {
@@ -11117,6 +11441,8 @@ ACTIVE_SCENARIOS.forEach(scenario => {
   );
   printIdentificationComparison(scenarioPolicyResults, scenario);
 });
+
+printMpScarcityMetrics(resultsByPolicy);
 
 const stalemateCases = [
   ...resultsByPolicy.flatMap(({ scenarioResults, milestoneResults }) => [
