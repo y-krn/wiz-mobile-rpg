@@ -100,6 +100,10 @@ behavior may be relevant.
   equipped rows at the shared tap minimum, and visibly mark the slot targeted by
   the current bag selection.
 
+- Enemy rendering foundation: keep enemy bodies in Canvas 2D `Path2D` with an
+  opaque gradient fill and one flat contact shadow. Do not introduce raster
+  image assets for enemy volume; the dungeon 3D view remains line art.
+
 ## Required Verification
 
 - `npm run test:browser`
