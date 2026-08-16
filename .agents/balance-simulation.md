@@ -1050,6 +1050,32 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 - 結果正本は `scratch/results/issue-663-mp-in-combat.md`。この結論は測定方法と判定の記録であり、
   他の `.agents/game-design*.md` の更新は不要（ルール・balance値・material economy不変）。
 
+## Issue #677 戦闘中魔力草使用のモデル化・新基準線（2026-08-16）
+
+- #663で未モデル化だった事実は、ゲーム本体では `MANA_POTION` が `usable` かつ
+  `!campOnly` として戦闘中のitem選択・item resolutionを通る一方、simは
+  `useManaPotionIfNeeded` を戦闘終了後にしか呼んでいなかったことである。これはゲームルールの
+  欠落ではなく、sim行動モデルの欠落だった。
+- `scratch/sim_depth_material_ev.js` はsourceの `getUsableInventoryItems` と、sourceの
+  `MANA_POTION` effectを使って、MP不足で呪文を選べないが効果適用後は同じsource selectorが
+  呪文を選べる場合だけ戦闘中使用を選ぶ。実際の消費・回復は既存の
+  `runCombatRoundCalculation` → source item resolutionを通す。回復量3、MP上限、呪文コスト、
+  craftコストは再実装・変更していない。戦闘後の既存 `0.55` 閾値も維持した。
+- 固定閾値による階段を避け、1ターン消費が次のsource選択をMP不足から呪文へ変える局所条件を
+  戦闘中ポリシーにした。通常simの `policy=powder / workshop-empty / B20` では、戦闘中使用は
+  N=500全体で1個（Priest）、Mageは0個。したがって現行回復量3の広いEVは確認できず、値の
+  変更は別Issueで扱う。
+- base=`d2e83bd84b4e14d16f991829d91b6b5756e0a706`、測定source commit=
+  `3c60856306ba00b7f7dd0fb2fe86960412ed9fb1`、seed=231、通常sim N=500、calibration N=100、
+  `SIM_PARALLEL`未指定。#666基準線互換（B21・6工房分布）での新しい到達階平均は
+  Fighter **5.8720** / Thief **4.8980** / Priest **4.5980** / Mage **6.4800**。
+  戦士・盗賊は旧基準線と完全一致し、術者の変更後値を新基準線とする。
+- 結果正本は `scratch/results/issue-677-mana-potion-combat.md`。通常sim stdout SHA-256は
+  `a9e1b2f76d1cf4fb6ead3cac0717cd411f4f3afc11e1bb4f1abb1c0518b7ea64`（2回一致）、固定環境
+  rows SHA-256は `5f24e0b281d986e1363c87a18942f9d0ac663864b82f1bac9025336f2883af5c`（2回一致）。
+- これはsimの実態合わせであり、ゲームルール・balance値・material economyは不変。他の
+  `.agents/game-design*.md` の更新は不要。
+
 ## Issue #275 逃走率の現行表記（2026-08-16）
 
 - #652の現行基準線では、逃走run率は戦士 **75.6%**、盗賊 **80.0%**、僧侶
