@@ -31,6 +31,8 @@ export class DungeonRenderer {
     this.flashTime = 0;
     this.damageTexts = []; // Array of { text, x, y, age, color }
     this.lastSignature = null;
+    this.monsterPathCache = new Map();
+    this.monsterGradientCache = new Map();
   }
 
   triggerShake(intensity = 10, duration = 300) {
@@ -731,7 +733,13 @@ export class DungeonRenderer {
     });
   }
 
-  buildMonsterPaths(spriteType, cx, cy) {
+  buildMonsterPaths(spriteType, cx = 0, cy = 0) {
+    const useCache = cx === 0 && cy === 0;
+    if (useCache) {
+      const cached = this.monsterPathCache.get(spriteType);
+      if (cached) return cached;
+    }
+
     const paths = [];
 
     // Different wireframe paths based on stable sprite type.
@@ -952,42 +960,71 @@ export class DungeonRenderer {
       paths.push(path);
     }
 
+    if (useCache) this.monsterPathCache.set(spriteType, paths);
     return paths;
   }
 
-  strokeNeonPaths(ctx, paths, color, scale) {
+  getMonsterBodyGradient(ctx, color, cy) {
+    const key = `${color}|${cy}`;
+    const cached = this.monsterGradientCache.get(key);
+    if (cached) return cached;
+
+    const gradient = ctx.createLinearGradient(0, cy - 65, 0, cy + 38);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(0.48, color);
+    gradient.addColorStop(1, "rgba(12, 12, 14, 0.96)");
+    this.monsterGradientCache.set(key, gradient);
+    return gradient;
+  }
+
+  strokeNeonPaths(ctx, paths, color, scale, bodyGradient) {
     const px = width => Math.max(width, 0.9 / scale);
 
-    ctx.strokeStyle = color;
-    ctx.lineWidth = px(7);
-    ctx.globalAlpha = 0.28;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 14;
-    paths.forEach(path => ctx.stroke(path));
-
-    ctx.lineWidth = px(3);
+    // Fill the silhouette before outlining it so the dungeon never shows
+    // through the monster body. Keep this opaque enough to read as volume
+    // while preserving the neon line-art style.
+    ctx.fillStyle = bodyGradient;
     ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
+    paths.forEach(path => ctx.fill(path));
+
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+
+    // One colored glow pass plus the white core is enough once the body is
+    // filled. This lowers both stroke work and shadowBlur cost by one pass.
+    ctx.strokeStyle = color;
+    ctx.lineWidth = px(5);
+    ctx.globalAlpha = 0.72;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
     paths.forEach(path => ctx.stroke(path));
 
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = px(1.2);
-    ctx.globalAlpha = 0.9;
+    ctx.globalAlpha = 0.92;
+    ctx.shadowBlur = 0;
     paths.forEach(path => ctx.stroke(path));
 
     ctx.globalAlpha = 1;
   }
 
   drawMonster(ctx, monster, cx, cy, scale, maxLabelWidth) {
+    const color = monster.color || "#ff3b30";
+    const bodyGradient = this.getMonsterBodyGradient(ctx, color, cy);
+
     ctx.save();
+    // A flat contact shadow anchors the sprite without adding another blur.
+    ctx.fillStyle = "rgba(0, 0, 0, 0.58)";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 28 * scale, 35 * scale, 5 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.translate(cx, cy);
     ctx.scale(scale, scale);
-    ctx.translate(-cx, -cy);
 
-    const color = monster.color || "#ff3b30";
     const spriteType = this.getMonsterSpriteType(monster);
-    const paths = this.buildMonsterPaths(spriteType, cx, cy);
-    this.strokeNeonPaths(ctx, paths, color, scale);
+    const paths = this.buildMonsterPaths(spriteType);
+    this.strokeNeonPaths(ctx, paths, color, scale, bodyGradient);
 
     ctx.restore();
 
