@@ -87,6 +87,16 @@
   overflow: hidden;
 }
 
+/* A selected item becomes a focused inspection screen; the detail actions stay in view. */
+.equip-body.is-detail {
+  min-height: 0;
+}
+
+.equip-body.is-detail .equip-detail-col {
+  flex: 1 1 0;
+  width: 100%;
+}
+
 .equip-title {
   color: var(--neon-cyan);
   font-size: var(--fs-xl);
@@ -457,7 +467,7 @@
   color: var(--neon-cyan);
 }
 
-/* Right Column: Detail Panel (Now lower half) */
+/* Detail panel: split below the list until an item is selected, then full screen. */
 .equip-detail-col {
   width: 100%;
   background-color: #101014;
@@ -470,7 +480,7 @@
   flex: 0 1 35%;
   min-height: 0;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .equip-detail-placeholder {
@@ -487,11 +497,13 @@
 
 .equip-detail-content {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 0;
   flex-direction: column;
   gap: 6px;
+  min-height: 0;
   margin-bottom: 8px;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .equip-detail-name {
@@ -508,6 +520,13 @@
   line-height: 1.25;
   overflow-wrap: anywhere;
   white-space: normal;
+}
+
+.equip-detail-context {
+  align-items: start;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .equip-detail-compat {
@@ -758,7 +777,7 @@
 
 .equip-detail-actions {
   display: grid;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   gap: var(--sp-sm);
   grid-template-columns: 1fr;
 }
