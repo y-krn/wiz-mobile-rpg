@@ -100,7 +100,8 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     target.magicResist = getEffectiveMagicResist(target);
     const appliedMagicResist = target.magicResist;
     const result = spell.effect(char, target, state.party, {
-      telemetryEnabled: Boolean(state.combatFormulaTelemetry)
+      telemetryEnabled: Boolean(state.combatFormulaTelemetry),
+      state
     });
     result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));
     if (originalMagicResist === undefined) delete target.magicResist;
@@ -148,7 +149,8 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     const result = applyMagicResistBuffs(
       affectedMonsters,
       () => spell.effect(char, affectedMonsters, state.party, {
-        telemetryEnabled: Boolean(state.combatFormulaTelemetry)
+        telemetryEnabled: Boolean(state.combatFormulaTelemetry),
+        state
       })
     );
     result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));

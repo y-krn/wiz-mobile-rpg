@@ -18,7 +18,8 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
   `src/systems/spell_effects.js`、`src/combat_logic/spell_resolution.js` が
   実行経路の正本である。
 
-この run の base は `origin/main` の `e605411`。ルール値と既存の式は変更していない。
+初版の実測 base は `origin/main` の `e605411`。本 Issue の実装 base は
+`origin/main` の `e705a13`。ルール値と既存の式は変更していない。
 呪文の内訳を測るため、後述の telemetry を既定オフの no-op として追加した。
 
 ## 設計判断の要約
@@ -32,8 +33,10 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
    `arcane` だけに隠すのではなく、共通の明示された spell-power 経路を持つ。
 3. レベルは、ビルドを置き換えない小さな戦闘力として、**物理と呪文の両方に
    明示的に寄与する**。正確な曲線は別の測定で決める。
-4. タグ特効は攻撃手段を問わず一度だけ適用する。呪文固有の BADIOS の対象倍率は
-   共通タグ特効とは別の、明示された呪文固有項として扱う。
+4. タグ特効は攻撃手段を問わず共通プールへ集約し、一度だけ適用する。対象の
+   `undead` / `dragon` / `demon` ごとに装備・職業の共通特効と呪文固有寄与を加算し、
+   その合計を 1 回だけ乗算する。BADIOS の `spirit` 寄与は共通 3 タグ外のため、既存
+   `antiSpirit` と同じ support pool に加算する。
 5. 表示される装備・ステータスの単位と実効の単位は**等価**にする。記録のない
    `weaponAtk + buffAtk` だけの `1.5` はモデルとして採用しない。
 6. 会心は、職業データで確率を変えられる**共通機構**にする。Ninja だけが
@@ -41,7 +44,8 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 7. 上限は原則として逓減にし、投資を無価値にしない。安全性のための硬い上限を
    置く場合も、超過分の変換または別の可視効果を決める。
 
-この run では上の判断を実装しない。
+この run では決定 4 を Issue #719 の配線変更として実装する。他の決定の値や式は
+変更しない。
 
 ## 1. 現状の式と適用順
 
@@ -104,14 +108,17 @@ d0 = max(1, floor(formulaRaw))
    d3 = max(1, round(d2 * (1 - target.physResist)))
    それ以外は d3 = d2
 
-4. タグ特効を順番に適用する。
-   undead  -> round(d3 * (1 + antiUndead / 100))
-   dragon  -> round(previous * (1 + antiDragon / 100))
-   demon   -> round(previous * (1 + antiDemon / 100))
-   複数タグがあれば else-if ではなく全てを通る。
+4. `getDamageAffixResult` の共通 target-tag stage でタグ特効を加算して一度だけ
+   適用する。
+   ```text
+   tagBonus = Σ (getCharAffixSum(char, anti<Tag>) + spellIntrinsicTagBonus(spell, tag))
+              // 対象が持つ undead / dragon / demon のタグだけを合計
+   d4 = round(d3 * (1 + tagBonus / 100))
+   ```
+   複数タグは加算プールへ合流するため、旧 `else-if` の優先順とは挙動が変わる。
+   物理と攻撃呪文はこの stage を共有し、1攻撃につき一度だけ通る。
 
-5. core / support / milestone exposure を
-   getDamageAffixResult に渡す。
+5. 同じ `getDamageAffixResult` 内で core / support / milestone exposure を適用する。
 
    core の順序:
    LAST_STAND -> GIANT_SLAYER -> EXECUTIONER
@@ -130,8 +137,8 @@ d0 = max(1, floor(formulaRaw))
    を作り、当選すれば final = max(1, d5 * 3)。それ以外は final = d5。
 ```
 
-`applyTargetedDamageBonus` は 4 と 5 を合わせた呼び出し側である。会心判定は
-guard の**後**である。#611 の `preCriticalDmg` は guard まで適用した値で、
+`applyTargetedDamageBonus` は `getDamageAffixResult` を物理へ接続する薄い wrapper
+である。会心判定は guard の**後**である。#611 の `preCriticalDmg` は guard まで適用した値で、
 会心の 3 倍前である。攻撃前の evasive、盲目 miss、通常 miss はこの式に入らず、
 この文書の「1 ヒット」は式へ到達した攻撃を指す。
 
@@ -164,27 +171,33 @@ preTarget = round(base * statMultiplier(stat) * arcane * fire)
 | MAHALITO | 3 | 単体 | `floor(random * 21) + 30` (30–50) | INT | あり | なし |
 | MADALTO | 6 | 全体 | `floor(random * 31) + 30` (30–60) | INT | なし | なし |
 | TILTOWAIT | 8 | 全体 | `floor(random * 51) + 50` (50–100) | INT | なし | なし |
-| BADIOS | 1 | 単体 | `floor(random * 11) + 8` (8–18) | PIE | なし | 対象タグ倍率 |
+| BADIOS | 1 | 単体 | `floor(random * 11) + 8` (8–18) | PIE | なし | `intrinsicTagBonus`: undead +50 / spirit +30 / demon +30 |
 
-`BADIOS` だけは `preTarget` の後、共通 affix の前に次を一度だけ適用する。
-優先順は undead、spirit、demon であり、`else if` なので複数タグを累積しない。
+`BADIOS` の固有寄与は別の乗算ではなく、`preTarget` を共通 affix pipeline へ渡す
+際の加算入力である。undead / dragon / demon の共通 target-tag stage では、対象が
+持つ各タグについて `anti<Tag>` と BADIOS 固有寄与を合計してから一度だけ乗算する。
+`spirit` は共通 3 タグに含まれないため、既存の support 側 `antiSpirit` に BADIOS
+固有 +30 を加算する。これにより `antiSpirit` と固有 +30 は同じ support pool の
+一つの乗算になり、固有寄与を二重に適用しない。
 
 ```text
-badiosTargetMultiplier =
-  target.tags includes undead ? 1.5 :
-  target.tags includes spirit ? 1.3 :
-  target.tags includes demon  ? 1.3 : 1.0
-
-badiosPreAffix = round(preTarget * badiosTargetMultiplier)
+spellIntrinsicTagBonus(BADIOS, tag) = {
+  undead: 50,
+  spirit: 30,
+  demon: 30
+}[tag] || 0
 ```
 
 呪文全体の残りの適用順は次のとおり。
 
 ```text
-1. preTarget（BADIOS は上の固有タグ倍率を含む）を
+1. preTarget（BADIOS は上の固有寄与を別段で乗算しない）を
    applyOffensiveAffixes(caster, target, damage) に渡す。
-   これは getDamageAffixResult であり、物理の
-   antiUndead / antiDragon / antiDemon はここには呼ばれない。
+   これは getDamageAffixResult であり、通常の攻撃呪文では共通の
+   antiUndead / antiDragon / antiDemon stage を一度だけ適用する。各タグの
+   common anti tag と spell intrinsic tag bonus はその stage の加算プールへ入る。
+   BADIOS の spirit +30 は共通 3 タグ外なので、既存 antiSpirit と同じ support
+   pool へ入る。したがって BADIOS の固有寄与と共通 anti tag は二重に乗らない。
    core、support、milestone exposure の順序と clamp は物理の 5 と同じ。
 
 2. spell resolution が target.magicResist を一時的に
@@ -223,7 +236,7 @@ badiosPreAffix = round(preTarget * badiosTargetMultiplier)
 | `magicBolt` | Mage/Bishop の通常攻撃だけ `max(physical, int/3 + 0..2 - def/4)` | `round.js` の分岐のみ | **ゲーム内・設計正本に記載がなく根拠不明**。隠れた第2式として扱わない |
 | 盲目 | 式の後に `floor(dmg / 2)` | `.agents/game-design.md` が「攻撃 miss と incoming-damage penalty」を明記。具体的な 1/2 は source | 盲目が combat disruption であることは意図。1/2 の係数は code が値の正本 |
 | `physResist` | 式の後に割合乗算、最低 1 | source の分岐 | 物理耐性を持たせる意図は分かるが、def と別モデルにした理由は根拠不明 |
-| タグ特効 | `antiUndead` → `antiDragon` → `antiDemon` を各 round | `applyTargetedDamageBonus`、support affix registry | 特効という build input は equipment-builds 正本にある。**物理だけへ接続する理由はない** |
+| タグ特効 | 対象タグの `anti<Tag>` と呪文固有寄与を加算し、共通 stage で各攻撃1回 | `getDamageAffixResult`、support affix registry、`SPELLS.BADIOS.intrinsicTagBonus` | 特効という build input は equipment-builds 正本にある。物理・攻撃呪文を同じ stage へ接続し、同じタグの乗算を重ねない |
 | core / support | core 5 種、条件 support、boss exposure を乗算 | `getDamageAffixResult` と equipment-builds の core/support 方針 | build の rule-changing effect である点は意図。物理と呪文の共通 hook から分けた理由は根拠不明 |
 | guard | targeted bonus の後に `guard.damageRate` | `round.js` | encounter-local guard の軽減であることは source から分かる。順序の設計記録は根拠不明 |
 | Ninja 会心 | guard 後、非 boss のみ、level で確率、×3 | `round.js` | Ninja の class identity として記録された passive は `src/data/classes.js` では確認できない。現状の限定は根拠不明 |
@@ -236,7 +249,7 @@ badiosPreAffix = round(preTarget * badiosTargetMultiplier)
 | stat multiplier | `(stat - 10) * 0.02`、+40% cap | `getSpellStatBonus` | stat を spell power にする意図は読める。2% 刻みと int30 cap の根拠は根拠不明 |
 | `arcane` | pre-affix の乗算 | support affix registry と `spell_effects.js` | 装備で spell を伸ばす入力としては equipment-builds と接続する。係数・名称以外の成長設計は未記録 |
 | `fireRite` | HALITO / LAHALITO / MAHALITO のみ乗算 | `spell_effects.js` と affix registry | 火系固有の入力として読めるが、なぜ 3 呪文だけかは根拠不明 |
-| BADIOS 固有タグ | undead 1.5、spirit/demon 1.3 を共通 affix 前に適用 | `BADIOS` の else-if | BADIOS の「不浄への一撃」という identity は description と整合するが、倍率と優先順は根拠不明 |
+| BADIOS 固有タグ | `intrinsicTagBonus` の undead +50 / spirit +30 / demon +30 を共通 pool へ加算 | `src/data/spells.js`、`getDamageAffixResult` | 現行倍率 1.5 / 1.3 / 1.3 の等価変換。spirit +30 は既存 `antiSpirit` support pool へ入り、同一寄与を二重に乗せない |
 | core / support | `getDamageAffixResult` は通る | `applyOffensiveAffixes` | spell も build の一部として core/support が効く形は意図として採用する。物理タグ特効を落とす理由はない |
 | magic resist | 共通 affix 後に割合乗算、最低 0 | `spell_resolution.js`、`getEffectiveMagicResist`、`spell_effects.js` | 魔法耐性の input は意図。物理 def と別の軽減形・0 clamp の理由は根拠不明 |
 | `round` / `max(0)` | stat/affix/resist の各 stage で整数化、呪文は 0 可 | source | 整数表示と無効化の形は source で確定。どの段で丸めるかを選んだ設計記録はない |
@@ -398,11 +411,11 @@ arcane 17.2%、LAHALITO は base 58.7%、arcane 16.9%。MADALTO は N=139 で
 | `antiUndead` | 2,218 | 18.289 | 21.990 | +3.701 |
 | `coreAffix` | 11,504 | 27.001 | 36.666 | +9.666 |
 
-`antiUndead` は物理 2,218 hit で実際に +3.701 の平均差を作った。一方、呪文の
-共通 target-tag stage は BADIOS 固有倍率だけで、`antiUndead` / `antiDragon` /
-`antiDemon` の共通 hook は通っていない。BADIOS 自体の target-tag stage は
-49,780 hit で平均 +0.710だった。これが #719 の配線漏れと、呪文固有倍率を
-共通特効へ二重適用してはいけない根拠である。
+`antiUndead` は物理 2,218 hit で実際に +3.701 の平均差を作った。この段落の
+物理・呪文値は #719 実装前（#722 base `e605411`）の基準測定であり、呪文の
+共通 target-tag stage が未接続だった状態を記録する。BADIOS 自体の target-tag
+stage は 49,780 hit で平均 +0.710だった。#719 では通常の攻撃呪文を共通 stage
+へ接続し、BADIOS の固有寄与も同じ加算プールへ移した。
 
 ### 3.3 職 × 階のダメージ分布
 
@@ -511,7 +524,7 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 | 1 | 物理は `-floor(def/2)`、呪文は `×(1-magicResist)` | **欠陥** | `def` と `magicResist` が別 input・別順序で、同じ低 damage 帯で別の clamp を持つ理由が正本にない。physical raw の def 項は 8 職で平均 -0.174〜-1.339、spell の resist stage は呪文ごとに符号付きで平均 +0.72〜+2.73だった。異なる軽減を採るなら、敵表示と player decision まで含む理由が必要だが未記録。 | 決定 1 |
 | 2 | 物理は装備で伸び、呪文は固定 dice と +40% stat cap | **欠陥** | core-loop 正本は run 内 loot build を depth の評価軸にする。physical は B1→B10 で Fighter 20.45→51.70、spell は観測 Mage B1→B10 25.58→32.19で、呪文の伸びが上位呪文の習得と偶然の build に依存する。`arcane` は存在するが、共通 spell-power の設計がない。 | 決定 2 |
 | 3 | レベルはほぼ damage に寄与せず、呪文だけ level gate を持つ | **欠陥** | `str`/`int` の base はレベルで自動増加せず、spell learn は lv2/3/6/8に固定。今回 MADALTO は N=139、TILTOWAIT は N=0で、到達した run だけで上位呪文を評価する構造になっている。level gate と level power の対応が正本にない。 | 決定 3 |
-| 4 | `antiUndead` / `antiDragon` / `antiDemon` は物理のみ | **欠陥（配線漏れ）** | `applyTargetedDamageBonus` の呼び出し元は physical。physical `antiUndead` 2,218 hit は before 18.289→after 21.990（+3.701）だが、spell の共通 target-tag stage は 0で、BADIOS 固有倍率だけが別にある。equipment-builds 正本は anti tag を support affix として扱うが、攻撃手段限定の記録はない。 | 決定 4、#719 |
+| 4 | `antiUndead` / `antiDragon` / `antiDemon` は物理のみ | **欠陥（配線漏れ）。共通 stage へ集約して修正** | #719 実装前は `applyTargetedDamageBonus` の物理経路だけがタグ特効を持ち、攻撃呪文は `getDamageAffixResult` を直接呼んで stage を飛ばしていた。結論としてタグ特効を `getDamageAffixResult` の共通 stage へ移し、BADIOS の +50/+30/+30 も同じ加算プールへ入れる。共通 anti tag と固有寄与を合計して一度だけ乗算するため、攻撃手段非依存・同一タグの二重乗算なしとなる。 | 決定 4、#719 |
 | 5 | `weaponAtk + buffAtk` だけ 1.5 倍 | **欠陥** | `calculatePhysicalAttackFormula` に係数はあるが、設計正本・balance 判断・source comment に由来がない。physical の raw share は全職で attack 47.8〜85.9%と最大項で、Fighter の実例でも表示 weapon 6 が attack 9になる。表示の `+20` が実効 `+30`になるため、#718/#720 の表示と実効を壊す。 | 決定 5、#718、#720 |
 | 6 | buff 経由の `str` は 1.5、素の `str` は 1.0 | **欠陥（未整理の潜在経路）** | 現行 run では `STR_POTION` の `atk` buff が live で、`buffAtk` 平均は 0〜0.059。`getBuffTotal("str")` の producer は未確認なので、Issue本文の「全 buffAtk が dead」は現行 source と一致しない。ただし将来 str buff を追加すると同じ意味の stat が別単位になる。意図の記録はない。 | 決定 5 |
 | 7 | physical は固定幅 0–4、spell は呪文ごとの比例的な幅 | **意図（ただし理由の記録不足）** | 物理の 0–4 は全職で rand 平均 1.99〜2.01、spell は source の呪文 description に 12–22〜50–100という個別 range が明記されている。攻撃と呪文の identity を分ける形そのものは明示的で、配線漏れではない。一方、固定幅・比例幅を選んだ設計理由と相対 CV の目標は根拠不明なので、将来の tune では「意図」としてこの文書を参照する。 | 決定 2、分散方針 |
@@ -557,11 +570,13 @@ level contribution の exact curve と、spell learn level を到達 3.77 帯で
 
 ### 4. 特効は攻撃手段を問わないか
 
-**問わない。攻撃手段非依存で一度だけ適用する。** `antiUndead`、`antiDragon`、
-`antiDemon` は物理・攻撃呪文の共通 target-tag stage へ移す。BADIOS の 1.5/1.3
-は spell identity の intrinsic stage として残す余地があるが、共通 anti tag と
-同じタグを二重に掛けない。#719 はこの結論を実装する配線 Issue であり、#722
-ではコードを直さない。
+**問わない。共通プールへ加算し、乗算は一度だけ行う。** `antiUndead`、
+`antiDragon`、`antiDemon` は `getDamageAffixResult` の共通 target-tag stage へ
+集約する。対象タグごとに装備・職業の共通値と呪文固有値を足してから一度だけ
+乗算する。BADIOS の固有寄与は undead +50 / spirit +30 / demon +30 とし、
+`spirit` +30 は共通 3 タグ外のため既存 `antiSpirit` の support pool へ加算する。
+これで BADIOS の固有寄与と同じタグの共通特効を二重に乗算しない。複数タグは
+旧 `else-if` と異なり加算プールで合流する。#719 でこの結論を実装した。
 
 ### 5. 装備とステータスの重みは等価か
 
@@ -613,7 +628,7 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
 
 | Issue | 対応する本書の判断 | この run での扱い |
 | --- | --- | --- |
-| #719 タグ特効が呪文に乗らない | 非対称 #4、決定 4 | 配線漏れと確定。共通 target-tag stage へ一度だけ適用する。コード変更は #719。 |
+| #719 タグ特効が呪文に乗らない | 非対称 #4、決定 4 | 配線漏れと確定。`getDamageAffixResult` の共通 target-tag stage へ集約し、BADIOS の +50/+30/+30 も共通値へ加算する。`spirit` +30 は既存 `antiSpirit` の support pool へ加算する。 |
 | #720 物理式の ×1.5 | 非対称 #5、決定 5 | 根拠不明の hidden weight と確定。表示単位と実効単位を揃える。コード変更は #720。 |
 | #718 罠喰いの表示 +20 / 実効 +30 | 非対称 #5・#6、決定 5 | `weaponAtk` の 1.5 が原因。表示 +1 を実効 +1 とする。個別値の変更は #718。 |
 | #716 敵の耐性が表示されない | 非対称 #1、決定 1 | 軽減率を player decision と一致させる。表示文言と耐性値の調査・UI変更は #716。 |
