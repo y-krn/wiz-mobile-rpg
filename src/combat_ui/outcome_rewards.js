@@ -1,4 +1,4 @@
-import { generateRandomAccessory, generateRandomEquipment } from "../data.js";
+import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
 import { markMapChanged } from "../state/state_core.js";
 import { recordMilestoneVictory } from "../state/run_state.js";
@@ -50,7 +50,13 @@ function applyGiveKeyRewards(stateLike, rng) {
     }
   }
 
-  const rewardEquip = generateRandomEquipment(4, "rare", rng, stateLike.party);
+  // The legacy Demon Guard midboss is placed on B3; its key reward intentionally
+  // uses the B4 gear table as the bridge before the locked dragon encounter.
+  const rewardEquip = generateRandomEquipment(4, {
+    forceRarity: "rare",
+    rng,
+    party: stateLike.party
+  });
   if (rewardEquip) {
     rewardEquip.identified = false;
     const added = addInventoryItemToState(stateLike, rewardEquip);
@@ -60,7 +66,11 @@ function applyGiveKeyRewards(stateLike, rng) {
   }
 
   if (rng() < 0.25) {
-    const rewardAccessory = generateRandomAccessory(4, "rare", rng, stateLike.party);
+    const rewardAccessory = generateRandomAccessory(4, {
+      forceRarity: "rare",
+      rng,
+      party: stateLike.party
+    });
     if (rewardAccessory) {
       const added = addInventoryItemToState(stateLike, rewardAccessory);
       if (added && stateLike.currentRun) {
