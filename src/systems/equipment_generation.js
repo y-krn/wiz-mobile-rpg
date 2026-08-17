@@ -240,11 +240,11 @@ export function generateRandomEquipment(floor, options) {
     else rarity = "magic";
   }
   
-  let maxWpBonus = 1;
-  if (floor === 2) maxWpBonus = 2;
-  else if (floor === 3) maxWpBonus = 3;
-  else if (floor === 4) maxWpBonus = 4;
-  else if (floor >= 5) maxWpBonus = 6;
+  let maxWpBonus = 1.5;
+  if (floor === 2) maxWpBonus = 3;
+  else if (floor === 3) maxWpBonus = 4.5;
+  else if (floor === 4) maxWpBonus = 6;
+  else if (floor >= 5) maxWpBonus = 9;
   
   let maxArBonus = 1;
   if (floor === 3) maxArBonus = 2;
@@ -259,7 +259,7 @@ export function generateRandomEquipment(floor, options) {
   };
 
   if (baseItem.type === "weapon") {
-    addAffix(1, "atk", () => Math.floor(rng() * maxWpBonus) + 1);
+    addAffix(1, "atk", () => (Math.floor(rng() * (maxWpBonus / 1.5)) + 1) * 1.5);
   }
   if (baseItem.type === "armor" || baseItem.type === "shield") {
     addAffix(1, "def", () => Math.floor(rng() * maxArBonus) + 1);
@@ -374,7 +374,7 @@ export function generateRandomEquipment(floor, options) {
   }
   if (baseItem.type === "weapon") {
     addAffix(2, "fullHpDamage", () => floor >= 4 ? 15 : 10, 2);
-    addAffix(1, "firstTurnAttack", () => floor >= 4 ? 4 : 2, 2);
+    addAffix(1, "firstTurnAttack", () => floor >= 4 ? 6 : 3, 2);
     addAffix(2, "antiBeast", () => floor >= 4 ? 25 : 15, 1);
     addAffix(2, "antiSpirit", () => floor >= 4 ? 25 : 15, 1);
     // #271実src N=8,000: B5装備2.0%、職内r=0.065 [0.027, 0.103]、event勝率4.9%→4.8%。

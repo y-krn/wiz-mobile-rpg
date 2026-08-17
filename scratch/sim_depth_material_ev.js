@@ -1378,7 +1378,7 @@ function createCoreMeasurementCounts() {
 }
 // 仮定: 装備スコアは攻防を主軸に、HP・主要能力・戦闘affixを下記重みで合算する。
 const EQUIPMENT_SCORE_WEIGHTS = Object.freeze({
-  weaponAtk: 2,
+  weaponAtk: 2 / 1.5,
   defense: 2,
   maxHp: 0.25,
   str: 1,
@@ -4288,7 +4288,7 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction) {
     enemyHp: livingMonsters.map(monster => monster.hp),
     enemyAttack: livingMonsters.map(monster => monster.atk || 0),
     playerDefense: getCharDef(character),
-    playerDamagePerRound: getCharWeaponAtk(character),
+    playerDamagePerRound: getCharWeaponAtk(character) / 1.5,
     potionHeal: recoveryItem ? getSimulationHealAmount(state, recoveryItem) : 0,
     diosHeal: diosAction ? getExpectedDiosHeal(state) : 0,
     potionAvailable: Boolean(recoveryItem),

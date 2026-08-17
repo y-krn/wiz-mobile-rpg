@@ -245,9 +245,9 @@ import { createSoloCharacter } from "../src/state.js";
         identified: false,
         halfIdentified: false,
         tags: ["curse", "spirit"],
-        curseEffectId: "curse_blood_thirst", // atk+15, devotion-20
+        curseEffectId: "curse_blood_thirst", // atk+22.5, devotion-20
         cursePower: 1,
-        affixes: [{ type: "atk", value: 5 }]
+        affixes: [{ type: "atk", value: 7.5 }]
       };
 
       const char = state.party[0]; // Fighter
@@ -258,13 +258,13 @@ import { createSoloCharacter } from "../src/state.js";
         throw new Error("Blind equip should reveal and lock cursed equipment");
       }
 
-      // Revealed cursed equip: Both benefits (affix: atk+5, curse: atk+15) and debuffs apply
+      // Revealed cursed equip: Both benefits (affix: atk+7.5, curse: atk+22.5) and debuffs apply
       const atkSumIdentified = getCharAffixSum(char, "atk");
       const devotionSumIdentified = getCharAffixSum(char, "devotion");
-      console.log("Identified wear - atkSum:", atkSumIdentified, "(expected 20 = 5 + 15)");
+      console.log("Identified wear - atkSum:", atkSumIdentified, "(expected 30 = 7.5 + 22.5)");
       console.log("Identified wear - devotionSum:", devotionSumIdentified, "(expected -20)");
 
-      if (atkSumIdentified !== 20) throw new Error("Atk benefits failed to apply after identification");
+      if (atkSumIdentified !== 30) throw new Error("Atk benefits failed to apply after identification");
       if (devotionSumIdentified !== -20) throw new Error("Devotion debuff failed to apply after identification");
 
       console.log("-> [PASS] Test 3: Curse Debuffs Application verified");
@@ -285,14 +285,14 @@ import { createSoloCharacter } from "../src/state.js";
     assert.ok(!Object.hasOwn(craftModule, "executeDismantle"));
 
     const additions = {
-      SAGE_STAFF: { floor: 3, type: "weapon", stat: "atk", value: 2, classes: ["Priest", "Mage", "Bishop"], namePart: "杖" },
-      ARCH_WAND: { floor: 5, type: "weapon", stat: "atk", value: 3, classes: ["Mage", "Bishop"], namePart: "杖" },
+      SAGE_STAFF: { floor: 3, type: "weapon", stat: "atk", value: 3, classes: ["Priest", "Mage", "Bishop"], namePart: "杖" },
+      ARCH_WAND: { floor: 5, type: "weapon", stat: "atk", value: 4.5, classes: ["Mage", "Bishop"], namePart: "杖" },
       SORCERER_ROBE: { floor: 5, type: "armor", stat: "def", value: 6, classes: ["Mage", "Bishop"], namePart: "ローブ" },
-      VENOM_FANG: { floor: 3, type: "weapon", stat: "atk", value: 9, classes: ["Thief", "Ninja"], namePart: "短剣" },
-      NINJA_BLADE: { floor: 4, type: "weapon", stat: "atk", value: 14, classes: ["Thief", "Ninja"], namePart: "剣" },
-      MOONSHADOW: { floor: 5, type: "weapon", stat: "atk", value: 20, classes: ["Thief", "Ninja"], namePart: "剣" },
-      HOLY_STAFF: { floor: 4, type: "weapon", stat: "atk", value: 6, classes: ["Priest", "Bishop"], namePart: "杖" },
-      FLAME_SWORD: { floor: 4, type: "weapon", stat: "atk", value: 14, classes: ["Fighter", "Samurai", "Ranger"], namePart: "剣" }
+      VENOM_FANG: { floor: 3, type: "weapon", stat: "atk", value: 13.5, classes: ["Thief", "Ninja"], namePart: "短剣" },
+      NINJA_BLADE: { floor: 4, type: "weapon", stat: "atk", value: 21, classes: ["Thief", "Ninja"], namePart: "剣" },
+      MOONSHADOW: { floor: 5, type: "weapon", stat: "atk", value: 30, classes: ["Thief", "Ninja"], namePart: "剣" },
+      HOLY_STAFF: { floor: 4, type: "weapon", stat: "atk", value: 9, classes: ["Priest", "Bishop"], namePart: "杖" },
+      FLAME_SWORD: { floor: 4, type: "weapon", stat: "atk", value: 21, classes: ["Fighter", "Samurai", "Ranger"], namePart: "剣" }
     };
 
     const expectedAffixes = {
@@ -395,21 +395,27 @@ import { createSoloCharacter } from "../src/state.js";
 
     assert.ok(RESTRICTED_CHEST_BASES.includes("MOONSHADOW"), "MOONSHADOW should stay out of standard high-end chest generation");
 
-    const ninjaDps = estimateDps({ atk: 20, str: 14, def: 12, classRate: 0.95, followUp: 15 });
-    const fighterDps = estimateDps({ atk: 40, str: 15, def: 12, classRate: 1.0, followUp: 15 });
+    const ninjaDps = estimateDps({ effectiveAtk: 30, str: 14, def: 12, classRate: 0.95, followUp: 15 });
+    const fighterDps = estimateDps({ effectiveAtk: 60, str: 15, def: 12, classRate: 1.0, followUp: 15 });
     assert.ok(ninjaDps < fighterDps * 0.65, `MOONSHADOW effective DPS ${ninjaDps.toFixed(2)} should stay well below Fighter ceiling ${fighterDps.toFixed(2)}`);
     console.log(`MOONSHADOW estimated DPS: ${ninjaDps.toFixed(2)} (Fighter ceiling sample: ${fighterDps.toFixed(2)})`);
 
     console.log("Equipment variety plan A checks passed.");
 
-    function estimateDps({ atk, str, def, classRate, followUp }) {
+    function estimateDps({ effectiveAtk, str, def, classRate, followUp }) {
       let total = 0;
       const iterations = 10000;
       for (let i = 0; i < iterations; i++) {
         const mainRand = i % 6;
         const followRand = i % 3;
-        const main = Math.max(1, Math.floor((atk * 1.5 + (str - 10) + mainRand - Math.floor(def / 2)) * classRate));
-        const extra = Math.max(1, Math.floor((atk * 1.5 + (str - 10) + followRand - Math.floor(def / 2)) * 0.7 * classRate));
+        // Keep this estimate aligned with the shared physical formula:
+        // weapon atk is already in effective units, the STR penalty is
+        // clamped at zero, and the integer weapon term is floored before the
+        // class/follow-up modifier is applied.
+        const effectiveWeaponAtk = Math.floor(effectiveAtk);
+        const strTerm = Math.max(0, str - 10);
+        const main = Math.max(1, Math.floor((effectiveWeaponAtk + strTerm + mainRand - Math.floor(def / 2)) * classRate));
+        const extra = Math.max(1, Math.floor((effectiveWeaponAtk + strTerm + followRand - Math.floor(def / 2)) * 0.7 * classRate));
         total += main + extra * (followUp / 100);
       }
       return total / iterations;

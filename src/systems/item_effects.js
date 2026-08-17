@@ -89,7 +89,7 @@ export const ITEM_EFFECTS = {
     return `${char.name}はエリクサーを飲んだ！HP・MPが全回復し、全ての状態異常が消え去った！`;
   },
   STR_POTION: ({ char }) => {
-    addCharBuff(char, "atk", 10, 5);
+    addCharBuff(char, "atk", 15, 5);
     return `${char.name}は剛力の薬を使用し、攻撃力が上昇した！`;
   },
   GUARD_POTION: ({ char }) => {

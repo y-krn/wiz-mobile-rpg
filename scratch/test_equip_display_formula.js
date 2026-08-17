@@ -110,17 +110,17 @@ const integerFormulaCases = [
   {
     label: "odd weapon atk with even buff atk",
     input: { weaponAtk: 3, buffAtk: 2, str: 14, randRoll: 3, def: 6 },
-    expected: 11
+    expected: 9
   },
   {
     label: "even weapon atk with odd buff atk",
     input: { weaponAtk: 2, buffAtk: 3, str: 14, randRoll: 3, def: 6 },
-    expected: 11
+    expected: 9
   },
   {
     label: "odd weapon atk with odd buff atk",
     input: { weaponAtk: 3, buffAtk: 1, str: 14, randRoll: 3, def: 6 },
-    expected: 10
+    expected: 8
   }
 ];
 integerFormulaCases.forEach(({ label, input, expected }) => {
@@ -136,13 +136,13 @@ const oddWeapon = makeChar({
 check("odd weapon attack display is an integer", Number.isInteger(getCharDerivedStats(oddWeapon).attack), true);
 
 const atkPlusOne = makeChar({
-  equipment: { weapon: makeItem("DAGGER", [{ type: "atk", value: 1 }]) }
+  equipment: { weapon: makeItem("DAGGER", [{ type: "atk", value: 1.5 }]) }
 });
 const evenAtkWeapon = makeChar({
   equipment: { weapon: "DAGGER" }
 });
 check(
-  "weapon atk +1 keeps the integer display delta",
+  "weapon atk +1.5 keeps the integer display delta",
   getCharDerivedStats(atkPlusOne).attack - getCharDerivedStats(evenAtkWeapon).attack,
   1
 );
@@ -165,9 +165,9 @@ check(
     def: 6,
     meleeMod: 0.9
   }),
-  22.5
+  16.2
 );
-check("display attack uses weapon ×1.5 and STR−10", baseStats.attack, 22);
+check("display attack uses effective weapon input and STR above neutral point", baseStats.attack, 22);
 check("display defense uses VIT/4", baseStats.defense, 5);
 check(
   "defense formula includes combat-only modifiers without changing the base",
@@ -182,7 +182,7 @@ check(
 
 const weaponUpgrade = makeChar({
   equipment: {
-    weapon: makeItem("LONG_SWORD", [{ type: "atk", value: 2 }])
+    weapon: makeItem("LONG_SWORD", [{ type: "atk", value: 3 }])
   }
 });
 const strengthUpgrade = makeChar({
@@ -191,7 +191,7 @@ const strengthUpgrade = makeChar({
   }
 });
 check(
-  "weapon atk +2 produces the combat-equivalent attack delta",
+  "weapon atk +3 produces the combat-equivalent attack delta",
   getCharDerivedStats(weaponUpgrade).attack - getCharDerivedStats(base).attack,
   3
 );
@@ -219,7 +219,7 @@ const normalAttackState = makeCombatState(
     status: "ok",
     buffs: [],
     equipment: {
-      weapon: makeItem("DAGGER", [{ type: "atk", value: 1 }]),
+      weapon: makeItem("DAGGER", [{ type: "atk", value: 1.5 }]),
       shield: null,
       armor: null,
       accessory: null,

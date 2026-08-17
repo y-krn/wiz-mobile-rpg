@@ -70,7 +70,7 @@ import { state } from "../src/state.js";
     ITEM_EFFECTS.GUARD_POTION({ char: fighter });
     ITEM_EFFECTS.HASTE_POTION({ char: fighter });
 
-    assert.strictEqual(getBuffTotal(fighter, "atk"), 10);
+    assert.strictEqual(getBuffTotal(fighter, "atk"), 15);
     // #271: 守りの薬は def+10 から物理割合軽減 physGuard 40% へ変更
     assert.strictEqual(getBuffTotal(fighter, "physGuard"), 40);
     assert.strictEqual(getBuffTotal(fighter, "def"), 0);

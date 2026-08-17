@@ -99,7 +99,7 @@ test("Bishop keeps stronger physical weapon and attack-affix damage", () => {
   const weapon = {
     baseId: "RAPIER",
     identified: true,
-    affixes: [{ type: "atk", value: 20 }]
+    affixes: [{ type: "atk", value: 30 }]
   };
   assert.equal(
     attackDamage("Bishop", { int: 15, str: 12, weapon, def: 4 }, 0),
@@ -109,10 +109,14 @@ test("Bishop keeps stronger physical weapon and attack-affix damage", () => {
 });
 
 test("spell-learning non-casters do not receive magic-bolt damage", () => {
+  // Commit 2 intentionally changes the low-STR term: the old (7 - 10) = -3
+  // penalty is now max(0, 7 - 10) = 0. With this fixed physical path, the
+  // expected damage is therefore 3 instead of the old 1; magic-bolt fallback
+  // remains disabled for these classes.
   for (const className of ["Samurai", "Ranger"]) {
     assert.equal(
       attackDamage(className, { int: 18, str: 7, weapon: "DAGGER", def: 8, spells: ["HALITO"] }, 0.999),
-      1,
+      3,
       `${className} must keep physical damage instead of hypothetical magic bolt 6`
     );
   }

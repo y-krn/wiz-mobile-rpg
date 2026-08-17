@@ -198,10 +198,10 @@ export const CORE_AFFIXES = [
     id: "CORE_TRAP_EATER",
     kind: "core",
     jpName: "罠喰い",
-    desc: "罠解除成功時、遠征中の攻撃力が2増加する。上限は20。",
+    desc: "罠解除成功時、遠征中の攻撃力が3増加する。上限は30。",
     slot: "accessory",
     cost: 10,
-    params: { attackPerDisarm: 2, maxAttack: 20 },
+    params: { attackPerDisarm: 3, maxAttack: 30 },
     poolGroup: "combat",
     enabled: true
   },
