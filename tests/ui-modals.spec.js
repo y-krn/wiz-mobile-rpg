@@ -41,7 +41,8 @@ for (const vp of VIEWPORTS) {
     expect(firstBagBox.y, `first bag row should be visible on ${vp.name}`).toBeGreaterThanOrEqual(0);
     expect(firstBagBox.y + firstBagBox.height, `first bag row should fit on ${vp.name}`).toBeLessThanOrEqual(vp.height);
     await firstBagRow.click();
-    await expect(overlay.locator('.equip-empty-slot[data-slot-id="weapon"]')).toHaveClass(/is-comparison-target/);
+    await expect(overlay.locator('.equip-exchange-line')).toContainText('なし');
+    await page.getByRole('button', { name: '一覧へ戻る' }).click();
 
     for (const row of await overlay.locator('.equip-item-row').all()) {
       expect((await row.boundingBox()).height, `equipment row should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
@@ -86,8 +87,9 @@ for (const vp of VIEWPORTS) {
     await expect(equippedWeapon).not.toHaveClass(/is-comparison-target/);
 
     await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
-    await expect(page.locator('.equip-equipped-row[data-slot-id="weapon"]')).toHaveClass(/is-comparison-target/);
-    await expect(page.locator('.equip-equipped-row[data-slot-id="weapon"]')).toHaveAttribute('aria-current', 'location');
+    await expect(page.locator('.equip-body.is-detail')).toBeVisible();
+    await expect(page.locator('.equip-exchange-line')).toContainText('ダガー');
+    await expect(page.locator('.equip-exchange-line')).toContainText('ショートソード');
   });
 
   test(`Equipment attack preview reflects weapon and STR coefficients at ${vp.width}x${vp.height}`, async ({ page }) => {
@@ -117,6 +119,7 @@ for (const vp of VIEWPORTS) {
     await page.locator('.equip-item-row', { hasText: '鋭利なダガー' }).click();
     await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('em')).toHaveText('+3');
 
+    await page.getByRole('button', { name: '一覧へ戻る' }).click();
     await page.locator('.equip-item-row', { hasText: '力の指輪' }).click();
     await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('em')).toHaveText('+2');
   });
@@ -151,6 +154,7 @@ for (const vp of VIEWPORTS) {
     await evenWeapon.click();
     await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('strong')).toHaveText(/^\d+→\d+$/);
     await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('em')).toHaveText('-1');
+    await page.getByRole('button', { name: '一覧へ戻る' }).click();
     await expect(evenWeapon.locator('.equip-row-badge')).toHaveText('-1');
   });
 
@@ -280,12 +284,13 @@ for (const vp of VIEWPORTS) {
     expect((await identifyButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await identifyButton.click();
     await expect(page.locator('.equip-detail-content')).not.toContainText('比較不能');
+    await expect(page.locator('.equip-detail-rarity')).toHaveText('RARE');
+    await page.getByRole('button', { name: '一覧へ戻る' }).click();
     const identifiedSword = page.locator('.equip-item-row.rarity-rare', { hasText: 'ショートソード' }).first();
     await expect(identifiedSword).toHaveClass(/rarity-rare/);
     await expect(identifiedSword.locator('.equip-rarity-badge')).toHaveText('RARE');
     await expect(page.locator('.equip-item-row.rarity-magic .equip-rarity-badge')).toHaveText('MAGIC');
     await expect(page.locator('.equip-item-row.rarity-epic .equip-rarity-badge')).toHaveText('EPIC');
-    await expect(page.locator('.equip-detail-rarity')).toHaveText('RARE');
 
     await page.locator('.equip-item-row', { hasText: '生命の護符' }).click();
     await expect(page.locator('.equip-slot-choice')).toHaveCount(2);
@@ -368,46 +373,9 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     }
 
     await bagRows.first().click();
-    const equippedVisibility = await overlay.evaluate((root) => {
-      const section = root.querySelector('.equip-equipped-section');
-      const heading = root.querySelector('.equip-equipped-section > .equip-section-heading');
-      const sectionBox = section?.getBoundingClientRect();
-      const headingBox = heading?.getBoundingClientRect();
-      const rows = [...root.querySelectorAll('.equip-equipped-row')].map((row) => {
-        const box = row.getBoundingClientRect();
-        return {
-          slot: row.dataset.slotId,
-          box: { x: box.x, y: box.y, width: box.width, height: box.height },
-        };
-      });
-      const containedRows = rows.filter(({ box }) => (
-        sectionBox && box.y >= sectionBox.y - 0.5 &&
-        box.y + box.height <= sectionBox.y + sectionBox.height + 0.5
-      ));
-      const intersectingRows = rows.filter(({ box }) => (
-        sectionBox && box.y < sectionBox.y + sectionBox.height &&
-        box.y + box.height > sectionBox.y
-      ));
-      return {
-        section: { y: sectionBox?.y, height: sectionBox?.height },
-        heading: { y: headingBox?.y, height: headingBox?.height },
-        rows,
-        containedRows: containedRows.map(({ slot }) => slot),
-        intersectingRows: intersectingRows.map(({ slot }) => slot),
-      };
-    });
-    const comparisonRow = overlay.locator('.equip-equipped-row.is-comparison-target');
-    await expect(comparisonRow).toHaveCount(1);
-    await expect(overlay.locator('.equip-equipped-row.is-condensed')).toHaveCount(4);
-    await expect(comparisonRow).toHaveAttribute('data-slot-id', 'weapon');
-    const comparisonBox = await comparisonRow.boundingBox();
-    expect(comparisonBox?.y, `comparison row should be below the equipped heading on ${vp.name}`).toBeGreaterThanOrEqual(
-      (equippedVisibility.heading.y || 0) + (equippedVisibility.heading.height || 0) - 0.5
-    );
-    expect(equippedVisibility.containedRows, `at least one equipped row should be visible on ${vp.name}`).toContain('weapon');
-    expect(comparisonBox?.y + comparisonBox?.height, `comparison row should fit in equipped section on ${vp.name}`).toBeLessThanOrEqual(
-      (equippedVisibility.section.y || 0) + (equippedVisibility.section.height || 0) + 0.5
-    );
+    await expect(overlay.locator('.equip-body.is-detail')).toBeVisible();
+    await expect(overlay.locator('.equip-exchange-line')).toContainText('ショートソード');
+    await expect(overlay.locator('.equip-detail-col')).toBeVisible();
 
     const description = overlay.locator('.equip-detail-desc');
     await expect(description).toBeVisible();
@@ -431,19 +399,144 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     expect(detailNameMetrics.textOverflow, `detail name should not ellipsize on ${vp.name}`).toBe('clip');
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
 
-    console.log(`[ISSUE-715 AFTER] ${vp.width}x${vp.height} ${JSON.stringify({
-      equippedSectionHeight: equippedVisibility.section.height,
-      visibleEquippedRows: equippedVisibility.intersectingRows.length,
-      containedEquippedRows: equippedVisibility.containedRows.length,
-      visibleEquippedSlots: equippedVisibility.intersectingRows,
-      containedEquippedSlots: equippedVisibility.containedRows,
-      comparisonSlot: await comparisonRow.getAttribute('data-slot-id'),
-    })}`);
+    console.log(`[ISSUE-715 AFTER] ${vp.width}x${vp.height} equipped rows remain available in the list screen; selected comparison is shown in the detail screen`);
 
     await page.screenshot({
       path: `output/playwright/issue-715-after-${vp.width}x${vp.height}.png`,
       fullPage: true,
     });
+  });
+}
+
+for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
+  test(`Equipment detail keeps primary actions and comparison visible at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      const char = createSoloCharacter('Fighter');
+      char.equipment = {
+        weapon: 'SHORT_SWORD',
+        shield: 'SMALL_SHIELD',
+        armor: 'LEATHER_ARMOR',
+        accessory: 'AMULET_HP',
+        accessory2: 'RING_STR',
+      };
+      state.party = [char];
+      state.identifyTickets = 4;
+      state.inventory = [
+        {
+          kind: 'equipment', instanceId: `issue740_detail_${innerWidth}`,
+          baseId: 'SHORT_SWORD', rarity: 'rare', level: 3,
+          identified: false, halfIdentified: false, tags: ['blade'], hintTags: ['blade'],
+          curseEffectId: null, cursePower: 1.3, curseSuspected: false,
+          unidentifiedName: 'ショートソード（未鑑定）',
+          affixes: [
+            { id: 'atk', type: 'atk', kind: 'support', value: 4 },
+            { id: 'def', type: 'def', kind: 'support', value: 4 },
+            { id: 'hp', type: 'hp', kind: 'support', value: 4 },
+            { id: 'mp', type: 'mp', kind: 'support', value: 4 },
+            { id: 'str', type: 'str', kind: 'support', value: 2 },
+            { id: 'int', type: 'int', kind: 'support', value: 2 },
+            { id: 'pie', type: 'pie', kind: 'support', value: 2 },
+          ],
+        },
+        {
+          kind: 'equipment', instanceId: `issue740_detail_second_${innerWidth}`,
+          baseId: 'DAGGER', rarity: 'common', level: 1, identified: true, affixes: [],
+        },
+      ];
+      openEquipOverlay(0);
+    });
+
+    const overlay = page.locator('#equip-overlay');
+    const bagRows = overlay.locator('.equip-bag-section .equip-item-row');
+    await expect(overlay.locator('.equip-equipped-row')).toHaveCount(5);
+    await expect(bagRows).toHaveCount(2);
+    const itemListBox = await overlay.locator('.equip-item-list').boundingBox();
+    for (const row of [bagRows.nth(0), bagRows.nth(1)]) {
+      const rowBox = await row.boundingBox();
+      expect(rowBox?.height, `bag row should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(rowBox?.y, `bag row should be visible on ${vp.name}`).toBeGreaterThanOrEqual(itemListBox?.y || 0);
+      expect(rowBox?.y + rowBox?.height, `bag row should fit before selection on ${vp.name}`).toBeLessThanOrEqual(
+        (itemListBox?.y || 0) + (itemListBox?.height || 0) + 0.5
+      );
+    }
+
+    await bagRows.first().click();
+    await expect(overlay.locator('.equip-body.is-detail')).toBeVisible();
+    await expect(overlay.locator('.equip-exchange-line')).toHaveText(/武器: ショートソード →/);
+    await expect(overlay.locator('.equip-detail-content')).toContainText('比較不能');
+
+    const unidentifiedMetrics = await overlay.evaluate((root) => {
+      const detail = root.querySelector('.equip-detail-col');
+      const content = root.querySelector('.equip-detail-content');
+      const actions = root.querySelector('.equip-detail-actions');
+      const identify = [...actions.querySelectorAll('button')].find((button) => button.textContent.includes('鑑定する'));
+      const detailBox = detail.getBoundingClientRect();
+      const contentBox = content.getBoundingClientRect();
+      const actionsBox = actions.getBoundingClientRect();
+      const identifyBox = identify.getBoundingClientRect();
+      return {
+        detailHeight: detailBox.height,
+        contentHeight: content.scrollHeight,
+        actionsHeight: actionsBox.height,
+        identifyBox: { y: identifyBox.y, height: identifyBox.height },
+        identifyVisible: identifyBox.y >= 0 && identifyBox.y + identifyBox.height <= innerHeight,
+        contentScrollTop: content.scrollTop,
+        contentBottom: contentBox.y + contentBox.height,
+      };
+    });
+    expect(unidentifiedMetrics.identifyVisible, `identify button should fit without scrolling on ${vp.name}`).toBe(true);
+    expect(unidentifiedMetrics.identifyBox.height, `identify button should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+    expect(unidentifiedMetrics.contentScrollTop, `detail content should start at the top on ${vp.name}`).toBe(0);
+    for (const button of await overlay.locator('.equip-detail-actions button').all()) {
+      const box = await button.boundingBox();
+      expect(box?.height, `${await button.textContent()} should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+      expect(box?.y, `${await button.textContent()} should be inside the viewport on ${vp.name}`).toBeGreaterThanOrEqual(0);
+      expect(box?.y + box?.height, `${await button.textContent()} should fit the viewport on ${vp.name}`).toBeLessThanOrEqual(vp.height);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
+    console.log(`[ISSUE-740 AFTER UNIDENTIFIED] ${vp.width}x${vp.height} ${JSON.stringify(unidentifiedMetrics)}`);
+    await page.screenshot({
+      path: `output/playwright/issue-740-after-unidentified-${vp.width}x${vp.height}.png`,
+      fullPage: true,
+    });
+
+    await page.getByRole('button', { name: /鑑定する/ }).click();
+    await expect(overlay.locator('.equip-detail-content')).not.toContainText('比較不能');
+    const comparisonMetrics = await overlay.evaluate((root) => {
+      const detail = root.querySelector('.equip-detail-col');
+      const content = root.querySelector('.equip-detail-content');
+      const grid = root.querySelector('.equip-stat-grid');
+      const detailBox = detail.getBoundingClientRect();
+      const contentBox = content.getBoundingClientRect();
+      const gridBox = grid.getBoundingClientRect();
+      const visibleTop = Math.max(contentBox.y, detailBox.y, 0);
+      const visibleBottom = Math.min(contentBox.y + contentBox.height, detailBox.y + detailBox.height, innerHeight);
+      const visibleHeight = Math.max(0, Math.min(gridBox.y + gridBox.height, visibleBottom) - Math.max(gridBox.y, visibleTop));
+      return {
+        detailHeight: detailBox.height,
+        contentHeight: content.scrollHeight,
+        actionsHeight: root.querySelector('.equip-detail-actions').getBoundingClientRect().height,
+        gridBox: { y: gridBox.y, height: gridBox.height },
+        gridVisibleRatio: gridBox.height ? visibleHeight / gridBox.height : 0,
+        contentScrollTop: content.scrollTop,
+      };
+    });
+    expect(comparisonMetrics.gridVisibleRatio, `comparison grid should be fully visible on ${vp.name}`).toBe(1);
+    expect(comparisonMetrics.contentScrollTop, `comparison should not require content scrolling on ${vp.name}`).toBe(0);
+    console.log(`[ISSUE-740 AFTER IDENTIFIED] ${vp.width}x${vp.height} ${JSON.stringify(comparisonMetrics)}`);
+
+    const backButton = page.getByRole('button', { name: '一覧へ戻る' });
+    await expect(backButton).toBeVisible();
+    expect((await backButton.boundingBox()).height, `back button should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+    await backButton.click();
+    await expect(overlay.locator('.equip-detail-placeholder')).toContainText('装備品を選択してください');
+    await expect(overlay.locator('.equip-bag-section .equip-item-row')).toHaveCount(2);
+    await expect(overlay.locator('.equip-equipped-row')).toHaveCount(5);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
   });
 }
 

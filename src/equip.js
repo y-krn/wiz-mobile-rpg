@@ -40,6 +40,7 @@ export let equipState = {
   selectedSlot: null,
   selectedActorIdx: -1,
   selectedIsEquipped: false,
+  listScrollTop: 0,
   prevGameState: null
 };
 
@@ -771,7 +772,6 @@ function createDetailPanel(char) {
   const desc = document.createElement("div");
   desc.className = "equip-detail-desc";
   desc.innerHTML = item.desc || getItemSummary(item);
-  titleBlock.appendChild(desc);
   heading.appendChild(titleBlock);
 
   const targetSummary = document.createElement("div");
@@ -780,7 +780,6 @@ function createDetailPanel(char) {
   const targetClass = document.createElement("small");
   targetClass.textContent = `${getClassJpName(char.class)} Lv.${char.level}`;
   targetSummary.appendChild(targetClass);
-  heading.appendChild(targetSummary);
   content.appendChild(heading);
 
   const exchange = document.createElement("div");
@@ -797,9 +796,6 @@ function createDetailPanel(char) {
     content.appendChild(createAccessorySlotPicker(char, preview?.slot));
   }
 
-  const affixDetails = createAffixDetails(itemKey);
-  if (affixDetails) content.appendChild(affixDetails);
-
   if (preview && availability.ok && !hidden) {
     const primaryRows = preview.rows.filter((row) => row.diff !== 0);
     const importantRows = primaryRows.length > 0 ? primaryRows.slice(0, 7) : preview.rows.slice(0, 2);
@@ -815,6 +811,15 @@ function createDetailPanel(char) {
     hiddenStats.textContent = "比較不能：装備効果・呪い不明";
     content.appendChild(hiddenStats);
   }
+
+  const context = document.createElement("div");
+  context.className = "equip-detail-context";
+  context.appendChild(desc);
+  context.appendChild(targetSummary);
+  content.appendChild(context);
+
+  const affixDetails = createAffixDetails(itemKey);
+  if (affixDetails) content.appendChild(affixDetails);
 
   const compat = document.createElement("div");
   if (isEquipped) {
@@ -960,7 +965,9 @@ export function renderEquip() {
   if (!overlay) return;
 
   const existingList = overlay.querySelector(".equip-item-list");
-  const savedScrollTop = existingList ? existingList.scrollTop : 0;
+  const savedScrollTop = existingList ? existingList.scrollTop : equipState.listScrollTop;
+  if (existingList) equipState.listScrollTop = existingList.scrollTop;
+  const detailMode = equipState.selectedKey !== null;
   overlay.innerHTML = "";
 
   const char = state.party[equipState.actorIdx];
@@ -972,9 +979,13 @@ export function renderEquip() {
   createHeader(overlay);
 
   const body = document.createElement("div");
-  body.className = "equip-body";
-  body.appendChild(createEquipmentList(char, savedScrollTop));
-  body.appendChild(createDetailPanel(char));
+  body.className = `equip-body ${detailMode ? "is-detail" : ""}`.trim();
+  if (detailMode) {
+    body.appendChild(createDetailPanel(char));
+  } else {
+    body.appendChild(createEquipmentList(char, savedScrollTop));
+    body.appendChild(createDetailPanel(char));
+  }
   overlay.appendChild(body);
-  createFooter(overlay);
+  if (!detailMode) createFooter(overlay);
 }

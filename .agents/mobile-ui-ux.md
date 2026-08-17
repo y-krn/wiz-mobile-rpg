@@ -110,6 +110,11 @@ behavior may be relevant.
   leave the remaining list region a shrinkable flex item.
 - The short-screen lower bound is part of acceptance: at 320x568, the equipped
   overlay must retain at least two `--tap-min` bag rows for tapping.
+- Keep primary equipment actions outside the scrolling region; the content may
+  scroll, but identify/equip/remove/back controls stay fixed and reachable.
+- When the vertical budget is insufficient, consider splitting the screen
+  instead of reallocating the same fixed space. After three reallocations on
+  one screen, question the structure before adjusting another height.
 
 - Enemy rendering foundation: keep enemy bodies in Canvas 2D `Path2D` with an
   opaque gradient fill and one flat contact shadow. Do not introduce raster
