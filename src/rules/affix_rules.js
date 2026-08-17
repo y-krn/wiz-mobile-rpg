@@ -85,9 +85,58 @@ export function getCharAllStatsAffixBonus(char) {
   return bonus;
 }
 
-export function getDamageAffixResult(char, target, damage, { floor = 1, maxHp = char.maxHp } = {}) {
+const TARGET_TAG_AFFIXES = Object.freeze([
+  { tag: "undead", affixType: "antiUndead" },
+  { tag: "dragon", affixType: "antiDragon" },
+  { tag: "demon", affixType: "antiDemon" }
+]);
+
+function getSpellIntrinsicTagBonus(spellIntrinsicTagBonus, tag) {
+  return Number(spellIntrinsicTagBonus?.[tag] || 0);
+}
+
+export function getDamageAffixResult(
+  char,
+  target,
+  damage,
+  { floor = 1, maxHp = char.maxHp, state = null, spellIntrinsicTagBonus = null } = {}
+) {
+  let next = damage;
   let multiplier = 1;
   const coreIds = [];
+  const targetedBonuses = state?.combatFormulaTelemetry?.targetedBonuses;
+  const recordTargetedBonus = (type, before, after, extra = {}) => {
+    targetedBonuses?.push({
+      type,
+      before,
+      after,
+      floor: state?.floor ?? floor ?? null,
+      className: char.class,
+      ...extra
+    });
+  };
+
+  const targetTagContributions = TARGET_TAG_AFFIXES
+    .filter(({ tag }) => target?.tags?.includes(tag))
+    .map(({ tag, affixType }) => ({
+      tag,
+      affixType,
+      commonBonus: getCharAffixSum(char, affixType),
+      intrinsicBonus: getSpellIntrinsicTagBonus(spellIntrinsicTagBonus, tag)
+    }));
+  const targetTagBonus = targetTagContributions.reduce(
+    (sum, contribution) => sum + contribution.commonBonus + contribution.intrinsicBonus,
+    0
+  );
+  if (targetTagContributions.length > 0 && targetTagBonus !== 0) {
+    const before = next;
+    next = Math.round(next * (1 + targetTagBonus / 100));
+    recordTargetedBonus("targetTag", before, next, {
+      targetTags: targetTagContributions.map(contribution => contribution.tag),
+      tagBonus: targetTagBonus,
+      contributions: targetTagContributions
+    });
+  }
 
   const lastStand = getCharCoreParams(char, "CORE_LAST_STAND");
   if (lastStand && char.hp / Math.max(1, maxHp) <= lastStand.hpThreshold) {
@@ -123,13 +172,23 @@ export function getDamageAffixResult(char, target, damage, { floor = 1, maxHp = 
   if (floor >= 3) supportPercent += getCharAffixSum(char, "deepAssault");
   if (char.hp >= maxHp) supportPercent += getCharAffixSum(char, "fullHpDamage");
   if (target?.tags?.includes("beast")) supportPercent += getCharAffixSum(char, "antiBeast");
-  if (target?.tags?.includes("spirit")) supportPercent += getCharAffixSum(char, "antiSpirit");
+  if (target?.tags?.includes("spirit")) {
+    supportPercent += getCharAffixSum(char, "antiSpirit");
+    supportPercent += getSpellIntrinsicTagBonus(spellIntrinsicTagBonus, "spirit");
+  }
   multiplier *= 1 + supportPercent / 100;
   multiplier *= getMilestoneBossExposureMultiplier(floor, target);
 
+  const resultDamage = Math.max(1, Math.round(next * multiplier));
+  if (targetedBonuses && coreIds.length > 0) {
+    recordTargetedBonus("coreAffix", next, resultDamage, { coreIds });
+  }
+
   return {
-    damage: Math.max(1, Math.round(damage * multiplier)),
-    coreIds
+    damage: resultDamage,
+    coreIds,
+    targetTagBonus,
+    targetTagContributions
   };
 }
 

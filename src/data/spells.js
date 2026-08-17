@@ -90,6 +90,7 @@ export const SPELLS = {
     level: 1,
     cost: 1,
     target: "single_enemy",
+    intrinsicTagBonus: { undead: 50, spirit: 30, demon: 30 },
     desc: "不浄への一撃 (8-18 HPダメージ)"
   },
   MILWA: {

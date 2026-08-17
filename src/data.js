@@ -50,7 +50,8 @@ for (const [key, val] of Object.entries(STATIC_SPELLS)) {
         target: arg2,
         rng: Math.random,
         party,
-        telemetryEnabled: Boolean(options?.telemetryEnabled)
+        telemetryEnabled: Boolean(options?.telemetryEnabled),
+        state: options?.state || null
       });
     }
   };

@@ -58,41 +58,10 @@ export function getEffectiveAtk(mon) {
 }
 
 export function applyTargetedDamageBonus(char, target, dmg, options = {}) {
-  let next = dmg;
-  // #611: タグ特効・コアaffixの発動率計装。既定 no-op、結果は変更しない。
-  const targetedBonuses = options.state?.combatFormulaTelemetry?.targetedBonuses;
-  const recordTargetedBonus = (type, before, after, extra = {}) => {
-    targetedBonuses?.push({
-      type,
-      before,
-      after,
-      floor: options.floor ?? options.state?.floor ?? null,
-      className: char.class,
-      ...extra
-    });
-  };
-  if (target.tags?.includes("undead")) {
-    const before = next;
-    next = Math.round(next * (1 + getCharAffixSum(char, "antiUndead") / 100));
-    if (next !== before) recordTargetedBonus("antiUndead", before, next);
-  }
-  if (target.tags?.includes("dragon")) {
-    const before = next;
-    next = Math.round(next * (1 + getCharAffixSum(char, "antiDragon") / 100));
-    if (next !== before) recordTargetedBonus("antiDragon", before, next);
-  }
-  if (target.tags?.includes("demon")) {
-    const before = next;
-    next = Math.round(next * (1 + getCharAffixSum(char, "antiDemon") / 100));
-    if (next !== before) recordTargetedBonus("antiDemon", before, next);
-  }
-  const result = getDamageAffixResult(char, target, next, options);
+  const result = getDamageAffixResult(char, target, dmg, options);
   result.coreIds.forEach(coreId => {
     logCoreActivation(options.state, options.logQueue, char, coreId);
   });
-  if (targetedBonuses && result.coreIds.length > 0) {
-    recordTargetedBonus("coreAffix", next, result.damage, { coreIds: result.coreIds });
-  }
   return result.damage;
 }
 
