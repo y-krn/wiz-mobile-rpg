@@ -43,13 +43,14 @@ export const SPELLS = {};
 for (const [key, val] of Object.entries(STATIC_SPELLS)) {
   SPELLS[key] = {
     ...val,
-    effect: (arg1, arg2, party = null) => {
+    effect: (arg1, arg2, party = null, options = {}) => {
       // arg1 is caster, arg2 is target, targets or state depending on spell type
       return SPELL_EFFECTS[key]({
         caster: arg1,
         target: arg2,
         rng: Math.random,
-        party
+        party,
+        telemetryEnabled: Boolean(options?.telemetryEnabled)
       });
     }
   };

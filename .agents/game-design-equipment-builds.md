@@ -18,6 +18,11 @@ and effects belong to the wearer.
 
 Goal: effective build space ≈ `CORE_AFFIXES.length` cores × 2〜3 class fits × support configurations ≈ 60〜80.
 
+Combat formula structure and application order are canonical in
+`.agents/game-design-combat-model.md`. This document remains canonical for the
+core/support registry, acquisition rules, and affix parameters; the source
+files remain authoritative for current values.
+
 # Overall Structure
 
 - **Core types** (`CORE_AFFIXES`): Rule-changing effects. Dungeon-sourced only. Milestone merchants do not sell equipment.

@@ -46,6 +46,9 @@ touches a facade, inspect the concrete module before drawing conclusions.
   information-disclosure principles, floor density and pacing targets,
   push-your-luck structure, and FOE/camp direction. Check any feature or
   balance proposal against it.
+- `game-design-combat-model.md`: physical and offensive-spell formulas,
+  application order, measured contribution breakdowns, and the seven model
+  decisions from Issue #722. Source values remain in `src/`.
 - `game-design.md`: current progression/economy design for XP, milestone merchants,
   materials, workshop, reward roles, and post-clear save behavior.
 - `game-design-equipment-builds.md`: the core/support affix system —

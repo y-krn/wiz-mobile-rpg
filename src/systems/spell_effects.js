@@ -82,14 +82,18 @@ function getDangerHint(state) {
 
 export const SPELL_EFFECTS = {
   // Mage Spells
-  HALITO: ({ caster, target, rng = Math.random }) => {
-    let dmg = Math.floor(rng() * 11) + 12;
-    const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
+  HALITO: ({ caster, target, rng = Math.random, telemetryEnabled = false }) => {
+    const baseRoll = Math.floor(rng() * 11) + 12;
+    let dmg = baseRoll;
+    const statValue = caster ? getCharInt(caster) : 10;
+    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
     dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
+    const preAffixDamage = dmg;
     const affixResult = applyOffensiveAffixes(caster, target, dmg);
     dmg = affixResult.damage;
+    const postAffixDamage = dmg;
     let suffix = "";
     if (target && target.magicResist) {
       dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
@@ -103,6 +107,18 @@ export const SPELL_EFFECTS = {
       damage: dmg,
       preMagicResistDamage: affixResult.damage,
       coreIds: affixResult.coreIds,
+      formulaTelemetry: telemetryEnabled ? {
+        baseRoll,
+        statName: "int",
+        statValue,
+        statBonus: bonus,
+        arcaneBonus,
+        fireRiteBonus,
+        preAffixDamage,
+        postAffixDamage,
+        magicResist: target?.magicResist ?? 0,
+        damage: dmg
+      } : undefined,
       log: `${caster.name}はハリトを唱えた！${target.name}に${dmg}の炎ダメージ！${suffix}`
     };
   },
@@ -121,16 +137,20 @@ export const SPELL_EFFECTS = {
     });
     return { log: `${caster.name}はカティノを唱えた！敵${sleptCount}体を眠らせた。` };
   },
-  LAHALITO: ({ caster, target: targets, rng = Math.random }) => {
-    const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
+  LAHALITO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false }) => {
+    const statValue = caster ? getCharInt(caster) : 10;
+    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
-      let dmg = Math.floor(rng() * 21) + 15;
+      const baseRoll = Math.floor(rng() * 21) + 15;
+      let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
+      const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg);
       dmg = affixResult.damage;
+      const postAffixDamage = dmg;
       let isResisted = false;
       let isWeakness = false;
       if (t.magicResist) {
@@ -146,7 +166,19 @@ export const SPELL_EFFECTS = {
         preMagicResistDamage: affixResult.damage,
         isResisted,
         isWeakness,
-        coreIds: affixResult.coreIds
+        coreIds: affixResult.coreIds,
+        formulaTelemetry: telemetryEnabled ? {
+          baseRoll,
+          statName: "int",
+          statValue,
+          statBonus: bonus,
+          arcaneBonus,
+          fireRiteBonus,
+          preAffixDamage,
+          postAffixDamage,
+          magicResist: t.magicResist ?? 0,
+          damage: dmg
+        } : undefined
       };
     }).filter(r => r !== 0);
     
@@ -173,14 +205,18 @@ export const SPELL_EFFECTS = {
     state.dumapicHint = hint;
     return { log: `${caster.name}はデュマピックを唱えた！地下${state.floor}階 X:${state.x}, Y:${state.y}, 方角:${DIR_NAMES[state.dir]}。\nDUMAPIC: ${hint}` };
   },
-  MAHALITO: ({ caster, target, rng = Math.random }) => {
-    let dmg = Math.floor(rng() * 21) + 30;
-    const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
+  MAHALITO: ({ caster, target, rng = Math.random, telemetryEnabled = false }) => {
+    const baseRoll = Math.floor(rng() * 21) + 30;
+    let dmg = baseRoll;
+    const statValue = caster ? getCharInt(caster) : 10;
+    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
     dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
+    const preAffixDamage = dmg;
     const affixResult = applyOffensiveAffixes(caster, target, dmg);
     dmg = affixResult.damage;
+    const postAffixDamage = dmg;
     let suffix = "";
     if (target && target.magicResist) {
       dmg = Math.max(0, Math.round(dmg * (1 - target.magicResist)));
@@ -194,6 +230,18 @@ export const SPELL_EFFECTS = {
       damage: dmg,
       preMagicResistDamage: affixResult.damage,
       coreIds: affixResult.coreIds,
+      formulaTelemetry: telemetryEnabled ? {
+        baseRoll,
+        statName: "int",
+        statValue,
+        statBonus: bonus,
+        arcaneBonus,
+        fireRiteBonus,
+        preAffixDamage,
+        postAffixDamage,
+        magicResist: target?.magicResist ?? 0,
+        damage: dmg
+      } : undefined,
       log: `${caster.name}はマハリトを唱えた！${target.name}に${dmg}の熱線ダメージ！${suffix}`
     };
   },
@@ -204,15 +252,19 @@ export const SPELL_EFFECTS = {
     state.repelTurns = steps;
     return { log: `${caster.name}はマスペアルを唱えた！気配が消え、魔物を寄せ付けなくなった。(${steps}歩の間有効)` };
   },
-  MADALTO: ({ caster, target: targets, rng = Math.random }) => {
-    const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
+  MADALTO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false }) => {
+    const statValue = caster ? getCharInt(caster) : 10;
+    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
-      let dmg = Math.floor(rng() * 31) + 30;
+      const baseRoll = Math.floor(rng() * 31) + 30;
+      let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus);
+      const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg);
       dmg = affixResult.damage;
+      const postAffixDamage = dmg;
       let isResisted = false;
       let isWeakness = false;
       if (t.magicResist) {
@@ -228,7 +280,19 @@ export const SPELL_EFFECTS = {
         preMagicResistDamage: affixResult.damage,
         isResisted,
         isWeakness,
-        coreIds: affixResult.coreIds
+        coreIds: affixResult.coreIds,
+        formulaTelemetry: telemetryEnabled ? {
+          baseRoll,
+          statName: "int",
+          statValue,
+          statBonus: bonus,
+          arcaneBonus,
+          fireRiteBonus: 1,
+          preAffixDamage,
+          postAffixDamage,
+          magicResist: t.magicResist ?? 0,
+          damage: dmg
+        } : undefined
       };
     }).filter(r => r !== 0);
     
@@ -244,15 +308,19 @@ export const SPELL_EFFECTS = {
       log: `${caster.name}はマダルトを唱えた！氷の嵐が敵全体を凍りつかせる！(${logDetails})`
     };
   },
-  TILTOWAIT: ({ caster, target: targets, rng = Math.random }) => {
-    const bonus = caster ? getSpellStatBonus(getCharInt(caster)) : 1.0;
+  TILTOWAIT: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false }) => {
+    const statValue = caster ? getCharInt(caster) : 10;
+    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
-      let dmg = Math.floor(rng() * 51) + 50;
+      const baseRoll = Math.floor(rng() * 51) + 50;
+      let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       dmg = Math.round(dmg * bonus * arcaneBonus);
+      const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg);
       dmg = affixResult.damage;
+      const postAffixDamage = dmg;
       let isResisted = false;
       let isWeakness = false;
       if (t.magicResist) {
@@ -268,7 +336,19 @@ export const SPELL_EFFECTS = {
         preMagicResistDamage: affixResult.damage,
         isResisted,
         isWeakness,
-        coreIds: affixResult.coreIds
+        coreIds: affixResult.coreIds,
+        formulaTelemetry: telemetryEnabled ? {
+          baseRoll,
+          statName: "int",
+          statValue,
+          statBonus: bonus,
+          arcaneBonus,
+          fireRiteBonus: 1,
+          preAffixDamage,
+          postAffixDamage,
+          magicResist: t.magicResist ?? 0,
+          damage: dmg
+        } : undefined
       };
     }).filter(r => r !== 0);
     
@@ -309,25 +389,34 @@ export const SPELL_EFFECTS = {
     }
     return { log: `${caster.name}は${target.name}にディウルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
   },
-  BADIOS: ({ caster, target, rng = Math.random }) => {
-    let dmg = Math.floor(rng() * 11) + 8;
-    const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
+  BADIOS: ({ caster, target, rng = Math.random, telemetryEnabled = false }) => {
+    const baseRoll = Math.floor(rng() * 11) + 8;
+    let dmg = baseRoll;
+    const statValue = caster ? getCharPie(caster) : 10;
+    const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     dmg = Math.round(dmg * bonus * arcaneBonus);
     
     let bonusMult = 1.0;
+    let targetTag = null;
     if (target && target.tags) {
       if (target.tags.includes("undead")) {
         bonusMult = 1.5;
+        targetTag = "undead";
       } else if (target.tags.includes("spirit")) {
         bonusMult = 1.3;
+        targetTag = "spirit";
       } else if (target.tags.includes("demon")) {
         bonusMult = 1.3;
+        targetTag = "demon";
       }
     }
+    const preTargetBonusDamage = dmg;
     dmg = Math.round(dmg * bonusMult);
+    const preAffixDamage = dmg;
     const affixResult = applyOffensiveAffixes(caster, target, dmg);
     dmg = affixResult.damage;
+    const postAffixDamage = dmg;
 
     let suffix = "";
     if (target && target.magicResist) {
@@ -342,6 +431,21 @@ export const SPELL_EFFECTS = {
       damage: dmg,
       preMagicResistDamage: affixResult.damage,
       coreIds: affixResult.coreIds,
+      formulaTelemetry: telemetryEnabled ? {
+        baseRoll,
+        statName: "pie",
+        statValue,
+        statBonus: bonus,
+        arcaneBonus,
+        fireRiteBonus: 1,
+        targetTag,
+        targetTagMultiplier: bonusMult,
+        preTargetBonusDamage,
+        preAffixDamage,
+        postAffixDamage,
+        magicResist: target?.magicResist ?? 0,
+        damage: dmg
+      } : undefined,
       log: `${caster.name}はバディオスを唱えた！${target.name}に${dmg}の神聖ダメージ！${suffix}`
     };
   },

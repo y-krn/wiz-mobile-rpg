@@ -99,7 +99,9 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     const originalMagicResist = target.magicResist;
     target.magicResist = getEffectiveMagicResist(target);
     const appliedMagicResist = target.magicResist;
-    const result = spell.effect(char, target, state.party);
+    const result = spell.effect(char, target, state.party, {
+      telemetryEnabled: Boolean(state.combatFormulaTelemetry)
+    });
     result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));
     if (originalMagicResist === undefined) delete target.magicResist;
     else target.magicResist = originalMagicResist;
@@ -111,7 +113,8 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
         casterClass: char.class,
         magicResist: appliedMagicResist,
         damageBeforeMagicResist: result.preMagicResistDamage,
-        damage: result.damage
+        damage: result.damage,
+        formula: result.formulaTelemetry || null
       });
     }
     target.hp = Math.max(0, target.hp - result.damage);
@@ -142,7 +145,12 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     const reflectedMonsters = new Set(reflectedSources.map(source => source.monster));
     const affectedMonsters = monsters.filter(mon => !reflectedMonsters.has(mon));
     const beforeHp = monsters.map(mon => mon.hp);
-    const result = applyMagicResistBuffs(affectedMonsters, () => spell.effect(char, affectedMonsters, state.party));
+    const result = applyMagicResistBuffs(
+      affectedMonsters,
+      () => spell.effect(char, affectedMonsters, state.party, {
+        telemetryEnabled: Boolean(state.combatFormulaTelemetry)
+      })
+    );
     result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));
     // #611: 範囲攻撃呪文の計装。既定 no-op、乱数消費・分岐は変更しない。
     if (state.combatFormulaTelemetry) {
@@ -156,7 +164,8 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
           casterClass: char.class,
           magicResist: getEffectiveMagicResist(mon),
           damageBeforeMagicResist: hit.preMagicResistDamage,
-          damage: hit.dmg
+          damage: hit.dmg,
+          formula: hit.formulaTelemetry || null
         });
       });
     }
