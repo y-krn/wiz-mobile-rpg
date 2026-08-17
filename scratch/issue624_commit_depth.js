@@ -8,7 +8,6 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-import { ISSUE612_FIXED_ENV } from "./issue612_exp_pace_env.js";
 import { hashEnvSignature } from "./measurement_env_signature.js";
 
 const SCRIPT_DIR = new URL(".", import.meta.url).pathname.replace(/\/$/, "");
@@ -55,15 +54,54 @@ const DEPTH_BANDS = Object.freeze([
   ["B15+", 15, TARGET_DEPTH]
 ]);
 const Z95 = 1.959963984540054;
-// #624 uses the current depth-sim seed, not the historical #612 seed. Keep
-// the other fixed environment values identical to the #612 baseline so the
-// only condition changes remain portal/flee policy overrides.
+// #624 owns its measurement environment. Do not import the #612 fixed env:
+// that module mutates process.env at import time and rejects intentional
+// caller values. These values match the current depth-sim defaults unless
+// they are an explicit #624 measurement condition.
 const BASE_ENV = Object.freeze({
-  ...ISSUE612_FIXED_ENV,
-  SIM_SEED: "231",
+  BLOOD_WAND_HP_PAYMENT_MIN_RATE: "0.50",
+  DEPARTURE_CRAFT_IDS:
+    "TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION",
+  ELITE_POLICY: "avoid",
+  FLEE_HP_THRESHOLD: "0.20",
+  FLEE_POLICY: "ev",
+  HEAL_POTION_MERCHANT_POLICY: "missing",
+  HEAL_POTION_THRESHOLD: "0.55",
+  IDENTIFICATION_COST_OVERRIDE: "1",
+  IDENTIFICATION_POLICY: "powder",
+  IDENTIFICATION_STARTING_POWDER: "2",
+  PORTAL_HP_THRESHOLD: "0.35",
+  PORTAL_MAX_HEAL_POTIONS: "0",
+  PORTAL_MIN_FLOOR: "3",
+  SIM_440_CONDITION: "current",
+  SIM_CORE_SCORE_DROP_TOLERANCE: "0",
+  SIM_DIALMA_CANDIDATE: "1",
+  SIM_EQUIPMENT_POLICY: "individual-score",
+  SIM_EQUIPMENT_SLOT_AFFIX_MODE: "retain",
+  SIM_EQUIPMENT_SLOT_MODE: "standard",
+  SIM_INDEPENDENT_RUN_RANDOM: "1",
+  SIM_MADI_COST: "",
+  SIM_MADI_HEAL_MAX: "",
+  SIM_MADI_HEAL_MIN: "",
+  SIM_PRESET: "",
   SIM_RUNS: "500",
+  SIM_SEED: "231",
+  SIM_SCENARIOS: SCENARIOS.join(","),
+  SIM_SUPPORT_SUPPLY_CEILING: "none",
+  STATUS_CURE_MERCHANT_POLICY: "missing",
+  STATUS_CURE_POLICY: "ev",
+  TRAP_AVOIDANCE_POLICY: "ev",
+  TRAP_DAMAGE_MULTIPLIER: "1",
+  TRAP_POLICY: "conservative",
+  SIM_EXPLORATION_FACTOR: "1.4",
+  SIM_MAP_STATS: "0",
+  SIM_DAMAGE_PROBE: "0",
   SIM_CALIBRATION_RUNS: "100"
 });
+// EV status-cure selection does not read this HP-rate gate. Remove any
+// inherited value so the sim resolves its own default without pinning it in
+// the #624 runner environment.
+const NON_FIXED_ENV_KEYS = Object.freeze(["STATUS_CURE_HP_THRESHOLD"]);
 const BASE_DEPARTURE_CRAFT_IDS = BASE_ENV.DEPARTURE_CRAFT_IDS;
 const NO_PORTAL_DEPARTURE_CRAFT_IDS = BASE_DEPARTURE_CRAFT_IDS
   .split(",")
@@ -121,7 +159,8 @@ function makeBaseEnv() {
 function makeChildEnv(condition) {
   const env = { ...process.env };
   const controlledKeys = new Set([
-    ...Object.keys(ISSUE612_FIXED_ENV),
+    ...Object.keys(BASE_ENV),
+    ...NON_FIXED_ENV_KEYS,
     "SIM_PRESET",
     "SIM_PARALLEL",
     "SIM_MAP_CACHE_ENTRIES",
@@ -147,6 +186,7 @@ function relevantEnvironment(env, condition) {
   const keys = new Set([
     ...Object.keys(BASE_ENV),
     ...Object.keys(condition.overrides),
+    ...NON_FIXED_ENV_KEYS,
     "SIM_EXPLORATION_FACTOR",
     "SIM_MAP_STATS",
     "SIM_DAMAGE_PROBE"
@@ -602,8 +642,9 @@ function renderMarkdown({
     "",
     "## 測定条件",
     "",
-    "既定の #612 固定 env（TRAP_POLICY=conservative、鑑定粉、状態回復、elite avoid、" +
-      "DEPARTURE_CRAFT_IDS の heal/antidote/guard を含む）を基準にし、portal と逃走だけを変更した。" +
+    "#624 runner-owned env（現行 sim の既定値に、TRAP_POLICY=conservative、" +
+      "DEPARTURE_CRAFT_IDS の heal/antidote/guard、6シナリオを加えたもの）を基準にし、" +
+      "portal と逃走だけを変更した。" +
       " `SIM_PARALLEL` と `SIM_MAP_CACHE_ENTRIES` は未指定で、runtime の既定値を使用した。",
     "",
     "| 条件 | 差分 | env hash | parallelism | wall |",
