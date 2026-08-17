@@ -212,6 +212,9 @@ visit now; density targets are per-run costs.
   currency, workshop unlock tree, milestone merchants, run quests).
 - `.agents/game-design-equipment-builds.md`: affix system (cores/supports);
   now the backbone of pillar 3's in-run builds.
+- `.agents/game-design-combat-model.md`: physical and offensive-spell formulas,
+  application order, and model-level combat decisions; source values remain in
+  `src/`.
 - `.agents/balance-simulation.md`: checklist for tuning any number
   referenced here (encounter counts, scaling curves, material income).
 - `.agents/game-logic.md`: checklist for implementing generation, combat,

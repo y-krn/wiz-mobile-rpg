@@ -6,6 +6,14 @@ and run quests. It is the economy-level refinement of
 `.agents/game-design-core-loop.md` (core loop, pillars, pacing targets).
 Resolve conflicts toward that document.
 
+## Combat damage model
+
+Physical and offensive-spell formulas, their application order, measured
+contribution breakdowns, and model-level decisions are canonical in
+`.agents/game-design-combat-model.md`. This document remains canonical for
+meta-economy, status-effect, and trap-sustain rules; numeric combat values and
+execution remain in `src/`.
+
 **Direction change (2026-07-18).** The former Expedition Economy (town shops,
 gold, identification-in-town, crafting, contracts board, B5F clear flow) was
 retired with the party-based game. This document defines the meta economy for
