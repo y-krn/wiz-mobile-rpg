@@ -31,7 +31,7 @@ const baseChar = {
   }
 };
 
-// 1. 渇血の呪い (curse_blood_thirst: mod: { atk: 15, devotion: -20 })
+// 1. 渇血の呪い (curse_blood_thirst: mod: { atk: 22.5, devotion: -20 })
 console.log("--- 1. Blood Thirst Curse Test ---");
 const unidentBloodThirst = {
   key: "test_blood_thirst_unident",
@@ -54,12 +54,12 @@ charUnident1.equipment.accessory = unidentBloodThirst;
 assert.strictEqual(getCharWeaponAtk(charUnident1), 0, "Unidentified Blood Thirst character weapon atk must be 0");
 assert.strictEqual(getCharAffixSum(charUnident1, "devotion"), -20, "Unidentified devotion penalty must apply");
 
-// 鑑定済: devotion -20 及び atk +15 の両方が適用される。
+// 鑑定済: devotion -20 及び atk +22.5 の両方が適用される。
 const data1_ident = getItemData(identBloodThirst);
-assert.strictEqual(data1_ident.atk, 15, "Identified Blood Thirst atk must be 15");
+assert.strictEqual(data1_ident.atk, 22.5, "Identified Blood Thirst atk must be 22.5");
 const charIdent1 = JSON.parse(JSON.stringify(baseChar));
 charIdent1.equipment.accessory = identBloodThirst;
-assert.strictEqual(getCharWeaponAtk(charIdent1), 15, "Identified Blood Thirst character weapon atk must be 15");
+assert.strictEqual(getCharWeaponAtk(charIdent1), 22.5, "Identified Blood Thirst character weapon atk must be 22.5");
 assert.strictEqual(getCharAffixSum(charIdent1, "devotion"), -20, "Identified devotion penalty must apply");
 
 

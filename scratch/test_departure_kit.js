@@ -160,7 +160,7 @@ check(
 );
 check(
   "FIGHTER_SABER is a moderate Fighter-only starting weapon",
-  ITEMS.FIGHTER_SABER?.atk === 8
+  ITEMS.FIGHTER_SABER?.atk === 12
     && ITEMS.FIGHTER_SABER.classes?.length === 1
     && ITEMS.FIGHTER_SABER.classes[0] === "Fighter"
     && JSON.stringify(ITEMS.FIGHTER_SABER.tags) === JSON.stringify(["iron", "blade"]),

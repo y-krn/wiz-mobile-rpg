@@ -75,7 +75,6 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 ```text
 weapon = getCharWeaponAtk(char)
        + (roundNumber == 1 ? getCharAffixSum(char, "firstTurnAttack") : 0)
-
 buff = getBuffTotal(char, "atk") + getBuffTotal(char, "str")
 str  = getCharStr(char)
 roll = floor(random() * 5)                  // 0..4
@@ -83,7 +82,7 @@ def  = getEffectiveDef(target)
 melee = getMeleeModifiers(char)              // 現行の全職は 1.00
 
 formulaRaw = (
-  floor((weapon + buff) * 1.5)
+  floor(weapon + buff)
   + (str - 10)
   + roll
   - floor(def / 2)
@@ -225,10 +224,11 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 
 | 項 | 現在の形 | 確認できる根拠 | 設計上の扱い |
 | --- | --- | --- | --- |
-| `weaponAtk` | 武器・非武器装備・Ninja素手・罠喰いを合算 | `getCharWeaponAtk`。装備ビルド正本は `atk` と core を build 軸にする | 合算自体はビルド入力として妥当。各入力の単位を同じにする根拠はあるが、最終係数は別項 |
-| `buffAtk` | `atk` buff と `str` buff を合算 | `round.js` の呼び出し経路。`STR_POTION` は現行 source で `atk +10` を 5 turn 付与する | `atk` 経路は live。`str` buff の live producer は確認できない。二つを同じ入力へ寄せた設計理由は記録なし |
-| `floor((weaponAtk + buffAtk) * 1.5)` | 装備・buff だけ 1.5 倍して切り捨て | `calculatePhysicalAttackFormula` のコードだけ。既存設計正本に根拠なし | **1.5 の由来は根拠不明**。表示と実効をずらすため、将来の正本には採用しない |
-| `str - 10` | 10 を基準に 1 倍で加算 | character stats の基礎値と関数の実装 | 基準 10 の慣例以外の設計記録は根拠不明。stat を攻撃へ通す意図は読み取れるが、係数 1 の理由は未記録 |
+| `weaponAtk` | 武器・非武器装備・Ninja素手・罠喰いを実効単位で合算し、1ターン目補正を加える | `getCharWeaponAtk` と `round.js`。装備ビルド正本は `atk` と core を build 軸にする | 全入力源をデータ側で1.5倍して保存・生成し、個別 source を丸めずに `buffAtk` と合計してから floor する。呼び出し側の変換は置かない |
+| `buffAtk` | `atk` buff と `str` buff を実効単位で合算 | `round.js` の呼び出し経路。`STR_POTION` は `atk +15` を 5 turn 付与する | `atk` / `str` の buff は同じ入力単位で扱う。`str` buff の live producer は未確認だが、将来の追加でも別単位にしない |
+| `floor(weapon + buff)` | 実効単位の weapon / buff を合計してから切り捨て | `calculatePhysicalAttackFormula` と各 caller の入力組み立て | 0.5 単位を保持し、丸めは合計後に一度だけ行う。旧式の hidden coefficient は採用しない |
+| `str - 10` | STR 10 を基準に 1 倍で加算 | character stats の基礎値と関数の実装 | 係数除去の同値性の範囲では変更しない。下限の設計判断は別コミットで記録する |
+| 負の呪い `atk` | `cursePower` 適用後の raw 値を丸めてから実効単位へ揃える | `getScaledCurseModifier` と `CURSE_EFFECTS` | 旧来の「raw を丸めてから物理式の1.5倍」を、保存値を実効単位にした後も同じ順序で保つ。呪いの閾値判定や他の負項は変更しない |
 | `randRoll` | 0–4 の一様整数を加算 | `round.js` の明示的な乱数 | bounded noise であることはコードから分かる。固定幅を選んだ理由は根拠不明 |
 | `-floor(def / 2)` | 物理だけ flat 減算 | `calculatePhysicalAttackFormula` と `getEffectiveDef` | 物理防御を使う意図は分かるが、2 で割る理由、floor の位置は根拠不明 |
 | `meleeMod` | 職業別 map、現行値は全て 1 | `getMeleeModifiers`。derived stats との共有を意図したコメント | 拡張点の存在は source の説明がある。現行の職業差を作る設計根拠はない |
@@ -298,7 +298,7 @@ Fighter / B1 の実測 1 ヒットは次の値だった。
 
 | 項 | 値 | 最終 14 に対する説明 |
 | --- | ---: | --- |
-| `weaponAtk` | 6 | `floor(6 * 1.5)` により attack 項は 9。表示値 6 の 1.5 倍がここで入る |
+| `weaponAtk` | 9 | データ側で実効単位へ吸収済み。追加の係数なしで attack 項は 9 |
 | `buffAtk` | 0 | このヒットでは無し |
 | `str` | 15 | `str - 10 = 5` |
 | `randRoll` | 0 | 0–4 のうち 0 |
@@ -334,7 +334,7 @@ Mage / B1 / HALITO の実測 1 ヒットは次の値だった。
 #### 物理の支配項
 
 次は class × B1–B10 の全 physical hit を、`formulaRaw` の重みで平均した値。
-`attack` は `floor((weaponAtk + buffAtk) * 1.5)`、`str` は `str - 10`、
+`attack` は `floor(weaponAtk + buffAtk)`、`str` は `str - 10`、
 `rand` は roll、`def` は `-floor(def/2)`。share は各平均を raw 平均で割った値で、
 def は減算なので負になる。後段の耐性・特効・guard・会心は raw share とは別に
 下の特殊率で示す。
@@ -355,11 +355,11 @@ def は減算なので負になる。後段の耐性・特効・guard・会心�
 1.99–2.01であり、固定 0–4 のため raw が大きいほど相対的な寄与は下がる。
 
 Issue 本文の「`buffAtk` は死んでいる」は、現行 base ではそのままではない。
-`src/systems/item_effects.js` の `STR_POTION` が `addCharBuff(char, "atk", 10, 5)`
+`src/systems/item_effects.js` の `STR_POTION` が `addCharBuff(char, "atk", 15, 5)`
 を行うため、実測平均は Fighter 0.033、Priest 0.059、Mage 0.055 など非ゼロ
 だった。一方、`getBuffTotal(char, "str")` の live producer はこの経路では確認
 できない。従って #722-6 の非対称は「同じ str が現在二つの live 値で違う」のではなく、
-**将来 str buff が入った時に 1.5 と 1.0 の重みが衝突する未整理の経路**として判定する。
+**将来 str buff が入った時にも同じ実効単位で扱えるよう、入力単位を統一した経路**として記録する。
 
 #### 物理の後段分岐の実測率
 
@@ -525,8 +525,8 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 | 2 | 物理は装備で伸び、呪文は固定 dice と +40% stat cap | **欠陥** | core-loop 正本は run 内 loot build を depth の評価軸にする。physical は B1→B10 で Fighter 20.45→51.70、spell は観測 Mage B1→B10 25.58→32.19で、呪文の伸びが上位呪文の習得と偶然の build に依存する。`arcane` は存在するが、共通 spell-power の設計がない。 | 決定 2 |
 | 3 | レベルはほぼ damage に寄与せず、呪文だけ level gate を持つ | **欠陥** | `str`/`int` の base はレベルで自動増加せず、spell learn は lv2/3/6/8に固定。今回 MADALTO は N=139、TILTOWAIT は N=0で、到達した run だけで上位呪文を評価する構造になっている。level gate と level power の対応が正本にない。 | 決定 3 |
 | 4 | `antiUndead` / `antiDragon` / `antiDemon` は物理のみ | **欠陥（配線漏れ）。共通 stage へ集約して修正** | #719 実装前は `applyTargetedDamageBonus` の物理経路だけがタグ特効を持ち、攻撃呪文は `getDamageAffixResult` を直接呼んで stage を飛ばしていた。結論としてタグ特効を `getDamageAffixResult` の共通 stage へ移し、BADIOS の +50/+30/+30 も同じ加算プールへ入れる。共通 anti tag と固有寄与を合計して一度だけ乗算するため、攻撃手段非依存・同一タグの二重乗算なしとなる。 | 決定 4、#719 |
-| 5 | `weaponAtk + buffAtk` だけ 1.5 倍 | **欠陥** | `calculatePhysicalAttackFormula` に係数はあるが、設計正本・balance 判断・source comment に由来がない。physical の raw share は全職で attack 47.8〜85.9%と最大項で、Fighter の実例でも表示 weapon 6 が attack 9になる。表示の `+20` が実効 `+30`になるため、#718/#720 の表示と実効を壊す。 | 決定 5、#718、#720 |
-| 6 | buff 経由の `str` は 1.5、素の `str` は 1.0 | **欠陥（未整理の潜在経路）** | 現行 run では `STR_POTION` の `atk` buff が live で、`buffAtk` 平均は 0〜0.059。`getBuffTotal("str")` の producer は未確認なので、Issue本文の「全 buffAtk が dead」は現行 source と一致しない。ただし将来 str buff を追加すると同じ意味の stat が別単位になる。意図の記録はない。 | 決定 5 |
+| 5 | raw の `weaponAtk + buffAtk` を物理入力単位へ 1.5 倍 | **#720で解消** | 旧式は設計根拠のない hidden weight で、表示の `+20` が実効 `+30`になっていた。#720 で各 data source を実効値へ吸収し、0.5 を保持した合計を floor する。 | 決定 5、#718、#720 |
+| 6 | raw `atk` / `str` buff を同じ物理入力単位へ変換 | **#720で整理** | `STR_POTION` は実効 `atk +15` として付与する。将来の `str` buff も同じ入力単位で扱い、同じ意味の buff を別単位にしない。 | 決定 5 |
 | 7 | physical は固定幅 0–4、spell は呪文ごとの比例的な幅 | **意図（ただし理由の記録不足）** | 物理の 0–4 は全職で rand 平均 1.99〜2.01、spell は source の呪文 description に 12–22〜50–100という個別 range が明記されている。攻撃と呪文の identity を分ける形そのものは明示的で、配線漏れではない。一方、固定幅・比例幅を選んだ設計理由と相対 CV の目標は根拠不明なので、将来の tune では「意図」としてこの文書を参照する。 | 決定 2、分散方針 |
 | 8 | 会心は Ninja の非 boss のみ | **欠陥（未文書化）** | source は `char.class === "Ninja" && !target.isBoss` の呼び出し側分岐だけで、class data と既存設計正本に会心 passive の記録がない。実測 critical は Ninja 6.760%、他 7 職 0%。boss 除外の理由も正本にない。 | 決定 6 |
 | 9 | Mage/Bishop に undocumented `magicBolt` fallback | **欠陥（未文書化の第2式）** | source では physical formula の後に `max(d0, int/3 + 0..2 - def/4)`を実行し、実測採用率は Mage 4.111%、Bishop 0.172%。ゲーム内 description、`game-design*.md`、class passive に記載がない。職業の主軸を hidden fallback で補う理由はなく、#558 の trapGuard と damage role の比較をさらに曖昧にする。 | 決定 3、職業軸 |
@@ -580,11 +580,16 @@ level contribution の exact curve と、spell learn level を到達 3.77 帯で
 
 ### 5. 装備とステータスの重みは等価か
 
-**表示単位と実効単位を等価にする。** `weaponAtk` や `atk` の表示 +1が、記録の
-ない係数によって +1.5 になるモデルは採用しない。`str`、`atk`、weapon の各
-入力を将来異なる重みにするなら、その重みを明示的な項として UI・設計正本・
-telemetry に出す。#718 の「罠喰い +20」と #720 の式はこの決定に従うが、値の
-変更はそれぞれの Issue で行う。
+**表示単位と実効単位を等価にする。** weapon / `atk` source はデータ側で
+1.5 倍した実効値を持ち、0.5 単位を許したまま全 source の合計後に一度だけ floor
+する。したがって表示の攻撃力と物理式の入力は同じ量になり、呼び出し側へ変換を
+分散させない。武器基礎値、強化、`atk` affix、初陣、罠喰い、忍者素手、呪いの
+`atk`、`STR_POTION` を同じ単位へ揃える。#718 の旧「罠喰い +20 / 実効 +30」は
+この判断で現行「+3 / 上限30」へ吸収する。
+
+`str`、`atk`、weapon の各入力を将来異なる重みにするなら、その重みを明示的な項
+として UI・設計正本・telemetry に出す。`str - 10` の下限を変更する判断は、
+同値な係数除去と分離して別コミットに記録する。
 
 ### 6. 会心は職業限定か、全職の機構か
 
@@ -629,8 +634,8 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
 | Issue | 対応する本書の判断 | この run での扱い |
 | --- | --- | --- |
 | #719 タグ特効が呪文に乗らない | 非対称 #4、決定 4 | 配線漏れと確定。`getDamageAffixResult` の共通 target-tag stage へ集約し、BADIOS の +50/+30/+30 も共通値へ加算する。`spirit` +30 は既存 `antiSpirit` の support pool へ加算する。 |
-| #720 物理式の ×1.5 | 非対称 #5、決定 5 | 根拠不明の hidden weight と確定。表示単位と実効単位を揃える。コード変更は #720。 |
-| #718 罠喰いの表示 +20 / 実効 +30 | 非対称 #5・#6、決定 5 | `weaponAtk` の 1.5 が原因。表示 +1 を実効 +1 とする。個別値の変更は #718。 |
+| #720 物理式の ×1.5 | 非対称 #5・#6、決定 5 | hidden weight を data source へ吸収し、0.5 単位を許して表示と実効を揃える。`str - 10` はこのコミットでは維持し、下限の判断は別コミットに分ける。 |
+| #718 罠喰いの旧表示 +20 / 実効 +30 | 非対称 #5・#6、決定 5 | `weaponAtk` の hidden weight が原因。値を実効単位へ吸収し、現行表示を +3 / 上限30 とする。個別の core 経路は #720 で更新する。 |
 | #716 敵の耐性が表示されない | 非対称 #1、決定 1 | 軽減率を player decision と一致させる。表示文言と耐性値の調査・UI変更は #716。 |
 | #713 盗賊の解除率が90に張り付く | 非対称 #10、決定 7 | hard cap で投資を無価値にしない。逓減または超過変換を #713 で測る。 |
 | #599 lv5以上の呪文が到達帯に届かない | 非対称 #2・#3、決定 2・3 | spell growth と level gate を同じ到達分布で再設計する。到達値・習得値の変更は #599。 |

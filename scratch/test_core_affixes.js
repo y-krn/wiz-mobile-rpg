@@ -187,9 +187,9 @@ test("素材経済サポートenabled・浅層経済3/戦闘1・深層逆転", (
 
 test("atk/def supportと呪いを装備値へ各1回だけ反映", () => {
   const char = makeChar(null);
-  char.runTrapAttackBonus = 2;
+  char.runTrapAttackBonus = 3;
   char.equipment.weapon = {
-    ...supportItem("atk", 4, "SHORT_SWORD"),
+    ...supportItem("atk", 6, "SHORT_SWORD"),
     curseEffectId: "curse_blood_thirst",
     cursePower: 1
   };
@@ -201,8 +201,8 @@ test("atk/def supportと呪いを装備値へ各1回だけ反映", () => {
 
   assert.equal(
     getCharWeaponAtk(char),
-    27,
-    "基礎6 + support4 + 呪い15 + runTrapAttackBonus2"
+    40.5,
+    "基礎9 + support6 + 呪い22.5 + runTrapAttackBonus3"
   );
   assert.equal(
     getCharDef(char),
@@ -216,19 +216,19 @@ test("Ninja素手攻撃は装備affix変更後も維持", () => {
   char.class = "Ninja";
   char.level = 5;
   char.equipment.weapon = null;
-  assert.equal(getCharWeaponAtk(char), 10);
+  assert.equal(getCharWeaponAtk(char), 15);
 });
 
 test("旧セーブの刻印・封印属性は装備計算と表示に影響しない", () => {
   const legacySupport = {
-    ...supportItem("atk", 4, "SHORT_SWORD"),
+    ...supportItem("atk", 6, "SHORT_SWORD"),
     inscription: { name: "旧火印", type: "atk", value: 99 },
     coreSealed: true
   };
   const char = makeChar(null);
   char.equipment.weapon = legacySupport;
 
-  assert.equal(getCharWeaponAtk(char), 10);
+  assert.equal(getCharWeaponAtk(char), 15);
   assert.doesNotMatch(getItemData(legacySupport).name, /旧火印/);
   assert.doesNotMatch(getItemData(legacySupport).desc, /刻印/);
 
@@ -483,12 +483,12 @@ test("浄化の環: MP満タン時はHPへ振替、HP満タン時は発動ログ
   assert.equal(fullHpLogs.length, 0);
 });
 
-test("罠喰い: 1キャラ累積、上限20", () => {
+test("罠喰い: 1キャラ累積、上限30", () => {
   const char = makeChar(null);
   char.equipment.accessory = coreItem("CORE_TRAP_EATER", "AMULET_HP");
   let bonus = 0;
   for (let i = 0; i < 20; i++) bonus = getTrapEaterBonusAfterDisarm(char, bonus);
-  assert.equal(bonus, 20);
+  assert.equal(bonus, 30);
 });
 
 test("呪飼いの鎖: 呪い数×全ステ+3", () => {

@@ -103,8 +103,8 @@ for (const vp of VIEWPORTS) {
       state.party = [char];
       state.inventory = [
         {
-          kind: 'equipment', instanceId: 'display_atk_plus_two', baseId: 'DAGGER', rarity: 'magic', level: 1,
-          identified: true, affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 2 }]
+          kind: 'equipment', instanceId: 'display_atk_plus_three', baseId: 'DAGGER', rarity: 'magic', level: 1,
+          identified: true, affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 3 }]
         },
         {
           kind: 'equipment', instanceId: 'display_str_plus_two', baseId: 'RING_STR', rarity: 'magic', level: 1,
@@ -133,13 +133,13 @@ for (const vp of VIEWPORTS) {
       state.floor = 1;
       state.party = [char];
       state.inventory = [{
-        kind: 'equipment', instanceId: 'display_atk_plus_one', baseId: 'DAGGER', rarity: 'magic', level: 1,
-        identified: true, affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 1 }]
+        kind: 'equipment', instanceId: 'display_atk_plus_one_point_five', baseId: 'DAGGER', rarity: 'magic', level: 1,
+        identified: true, affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 1.5 }]
       }];
       openEquipOverlay(0);
     });
 
-    const oddWeapon = page.locator('.equip-item-row', { hasText: '攻撃 +3' });
+    const oddWeapon = page.locator('.equip-item-row', { hasText: '攻撃 +4.5' });
     await expect(oddWeapon.locator('.equip-row-badge')).toHaveText('+1');
     await oddWeapon.click();
     await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('strong')).toHaveText(/^\d+→\d+$/);
@@ -147,7 +147,7 @@ for (const vp of VIEWPORTS) {
     await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('em')).not.toContainText('.');
     await page.getByRole('button', { name: '装備する' }).click();
 
-    const evenWeapon = page.locator('.equip-item-row', { hasText: '攻撃 +2' }).last();
+    const evenWeapon = page.locator('.equip-item-row', { hasText: '攻撃 +3' }).last();
     await evenWeapon.click();
     await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('strong')).toHaveText(/^\d+→\d+$/);
     await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' }).locator('em')).toHaveText('-1');

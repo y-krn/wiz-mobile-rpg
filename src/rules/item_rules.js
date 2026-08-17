@@ -231,7 +231,7 @@ export function getItemData(itemOrKey) {
     const enhanceLevel = itemOrKey.enhanceLevel || 0;
     if (enhanceLevel > 0) {
       if (base.type === "weapon") {
-        atkBonus += enhanceLevel * 2;
+        atkBonus += enhanceLevel * 3;
       } else if (base.type === "shield" || base.type === "armor") {
         defBonus += enhanceLevel;
       }

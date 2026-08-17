@@ -152,7 +152,7 @@ export function getCharWeaponAtk(char) {
   if (wpId) {
     atk += getEquippedItemData(char, wpId)?.atk || 0;
   } else if (char.class === "Ninja") {
-    atk += 2 * char.level;
+    atk += 3 * char.level;
   }
   
   if (char.equipment) {
@@ -177,9 +177,10 @@ export function getCharDef(char) {
   return def;
 }
 
-// Keep the raw physical formula in one place for combat and static equipment
-// comparison. Context-dependent inputs (buffs, rolls, target defense, and
-// class modifiers) stay with the caller.
+// Keep the physical formula in one place for combat and static equipment
+// comparison. Weapon and attack-buff inputs are already in effective units;
+// context-dependent inputs (rolls, target defense, and class modifiers) stay
+// with the caller.
 export function calculatePhysicalAttackFormula({
   weaponAtk = 0,
   buffAtk = 0,
@@ -188,7 +189,7 @@ export function calculatePhysicalAttackFormula({
   def = 0,
   meleeMod = 1
 } = {}) {
-  return (Math.floor((weaponAtk + buffAtk) * 1.5) + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod;
+  return (Math.floor(weaponAtk + buffAtk) + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod;
 }
 
 export function calculatePhysicalDefenseFormula({

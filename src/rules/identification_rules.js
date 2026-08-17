@@ -51,7 +51,12 @@ export function getScaledCurseModifier(curse, affixType, cursePower = 1) {
   const value = curse?.mod?.[affixType];
   if (!Number.isFinite(value)) return 0;
   if (value >= 0) return value;
-  return Math.round(value * Math.max(1, cursePower || 1));
+  const power = Math.max(1, cursePower || 1);
+  // Negative physical atk values are stored in effective units, but the
+  // legacy rule rounded the raw curse value before the physical 1.5x term.
+  // Reconstruct that order so the unit refactor remains exactly equivalent.
+  if (affixType === "atk") return Math.round((value / 1.5) * power) * 1.5;
+  return Math.round(value * power);
 }
 
 export function isCurseLocked(item) {
