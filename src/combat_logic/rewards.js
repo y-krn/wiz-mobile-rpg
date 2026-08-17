@@ -1,7 +1,8 @@
 import {
-  generateRandomAccessory, generateRandomEquipment, getItemData, checkCharLevelUp,
+  getItemData, checkCharLevelUp,
   getPartyMaxAffix, getPartyCoreParams, getContractProgressIncrement, getCoreLogText
 } from "../data.js";
+import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
 import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js";
@@ -9,14 +10,20 @@ import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js
 function rollCombatAccessoryDrop(state, rng) {
   const roll = rng();
   if (state.combatState.isBoss) {
-    return roll > 0 && roll < 0.35 ? generateRandomAccessory(state.floor, "epic", rng, state.party) : null;
+    return roll > 0 && roll < 0.35
+      ? generateRandomAccessory(state.floor, { forceRarity: "epic", rng, party: state.party })
+      : null;
   }
   if (state.combatState.isMidboss || state.combatState.isRoamingFlack) {
-    return roll > 0 && roll < 0.25 ? generateRandomAccessory(state.floor, "rare", rng, state.party) : null;
+    return roll > 0 && roll < 0.25
+      ? generateRandomAccessory(state.floor, { forceRarity: "rare", rng, party: state.party })
+      : null;
   }
   const isRare = state.combatState.monsters?.some(m => m.isRare);
   const chance = isRare ? 0.12 : 0.03;
-  return roll > 0 && roll < chance ? generateRandomAccessory(state.floor, null, rng, state.party) : null;
+  return roll > 0 && roll < chance
+    ? generateRandomAccessory(state.floor, { forceRarity: null, rng, party: state.party })
+    : null;
 }
 
 export function applyCombatRewards(state, monsters, logQueue, rng = Math.random) {
@@ -232,18 +239,34 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   // 敵撃破時の未鑑定装備ドロップ判定
   let dropEquipment = null;
   if (state.combatState.isBoss) {
-    dropEquipment = generateRandomEquipment(state.floor, "epic", rng, state.party);
+    dropEquipment = generateRandomEquipment(state.floor, {
+      forceRarity: "epic",
+      rng,
+      party: state.party
+    });
   } else if (state.combatState.isMidboss) {
     const rarity = rng() < 0.25 ? "epic" : "rare";
-    dropEquipment = generateRandomEquipment(state.floor, rarity, rng, state.party);
+    dropEquipment = generateRandomEquipment(state.floor, {
+      forceRarity: rarity,
+      rng,
+      party: state.party
+    });
   } else if (state.combatState.isRoamingFlack) {
     const rarity = rng() < 0.30 ? "epic" : "rare";
-    dropEquipment = generateRandomEquipment(state.floor, rarity, rng, state.party);
+    dropEquipment = generateRandomEquipment(state.floor, {
+      forceRarity: rarity,
+      rng,
+      party: state.party
+    });
   } else {
     const isRare = state.combatState.monsters && state.combatState.monsters.some(m => m.isRare);
     const chance = isRare ? 0.55 : 0.14;
     if (rng() < chance) {
-      dropEquipment = generateRandomEquipment(state.floor, null, rng, state.party);
+      dropEquipment = generateRandomEquipment(state.floor, {
+        forceRarity: null,
+        rng,
+        party: state.party
+      });
     }
   }
 

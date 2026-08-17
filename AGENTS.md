@@ -158,9 +158,12 @@ The decisive inspection is the production build:
   entry point. If a computed-property dynamic call is possible, the bundler
   retains the namespace, so code being dropped is itself proof of
   unreachability.
-- Function names are not reliable because minification removes them. Count
-  Japanese string literals with `rg -c -F` to count fixed strings in
-  `dist/assets/index-*.js`.
+- Function names are not reliable because minification removes them. Search for
+  Japanese string literals with `rg -F` in `dist/assets/index-*.js` instead.
+- `rg -c` counts matching *lines*, not occurrences. A minified bundle is
+  effectively one line, so `rg -c` reports 1 no matter how many times the string
+  appears. Use `rg -o -F <string> | wc -l` when you need an occurrence count, and
+  treat presence/absence — not the count — as the reachability signal.
 - Always include a positive control: show that a known-live feature's string
   produces a hit. Otherwise, zero results cannot be distinguished from a failed
   inspection.

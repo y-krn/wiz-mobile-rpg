@@ -23,6 +23,14 @@ const WORKSHOP_LOCKED_AFFIX_IDS = new Set([
   "CORE_THIN_ICE_PACT"
 ]);
 
+function requireGenerationOptions(options, functionName) {
+  if (options === undefined) return {};
+  if (options === null || typeof options !== "object" || Array.isArray(options)) {
+    throw new TypeError(`${functionName} requires an options object; positional arguments are not supported`);
+  }
+  return options;
+}
+
 export function pickCurseEffectId(rng, heavyCurseShare) {
   const curseEffectIds = Object.keys(CURSE_EFFECTS);
   const heavyCurseIds = curseEffectIds.filter(id => CURSE_EFFECTS[id].heavy);
@@ -153,7 +161,9 @@ export function buildUnidentifiedMeta(
   };
 }
 
-export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true } = {}) {
+export function generateRandomEquipment(floor, options) {
+  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true } =
+    requireGenerationOptions(options, "generateRandomEquipment");
   const gambleProfile = getIdentificationGambleProfile(floor);
   let baseCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[floor] || EQUIPMENT_CANDIDATES_BY_FLOOR[5];
 
@@ -491,7 +501,9 @@ export function generateRandomEquipment(floor, { forceRarity = null, rng = Math.
   };
 }
 
-export function generateRandomAccessory(floor, { forceRarity = null, rng = Math.random, party = null, allowCores = true } = {}) {
+export function generateRandomAccessory(floor, options) {
+  const { forceRarity = null, rng = Math.random, party = null, allowCores = true } =
+    requireGenerationOptions(options, "generateRandomAccessory");
   const gambleProfile = getIdentificationGambleProfile(floor);
   let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[floor] || ACCESSORY_CANDIDATES_BY_FLOOR[5];
 

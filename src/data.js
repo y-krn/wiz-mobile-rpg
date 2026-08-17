@@ -66,7 +66,9 @@ for (const [key, val] of Object.entries(STATIC_ITEMS)) {
   }
 }
 
-// Facade wrapper over systems/equipment_generation.js.
+// Legacy positional facade kept for scratch simulations and compatibility.
+// Production callers should import systems/equipment_generation.js and pass
+// one options object.
 // Pass `party` explicitly for smart-drop selection; callers holding state
 // should pass state.party.
 export function generateRandomEquipment(floor, forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true) {
