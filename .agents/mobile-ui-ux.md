@@ -97,8 +97,15 @@ behavior may be relevant.
 
 - Equipment overlay: keep the equipped section visible above the independently
   scrolling bag list on mobile. Render empty slots as a compact summary, keep
-  equipped rows at the shared tap minimum, and visibly mark the slot targeted by
-  the current bag selection.
+  the selected comparison row at the shared tap minimum, and visibly mark the
+  slot targeted by the current bag selection.
+- When the equipment overlay is vertically constrained, decide the budget order
+  before editing CSS: preserve the bag's two tap-min rows first, then the
+  selected comparison row, then condense the remaining equipped rows into a
+  scrollable summary, and finally let the detail panel shrink and scroll.
+- Equipment visibility acceptance is based on each required row's `boundingBox`
+  fitting inside its parent's visible scroll region, not on the number of DOM
+  rows rendered.
 - Do not place two `flex: 0 0 auto` blocks in the same vertical flex column;
   leave the remaining list region a shrinkable flex item.
 - The short-screen lower bound is part of acceptance: at 320x568, the equipped
