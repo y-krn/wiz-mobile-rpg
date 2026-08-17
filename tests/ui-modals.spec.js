@@ -368,6 +368,47 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     }
 
     await bagRows.first().click();
+    const equippedVisibility = await overlay.evaluate((root) => {
+      const section = root.querySelector('.equip-equipped-section');
+      const heading = root.querySelector('.equip-equipped-section > .equip-section-heading');
+      const sectionBox = section?.getBoundingClientRect();
+      const headingBox = heading?.getBoundingClientRect();
+      const rows = [...root.querySelectorAll('.equip-equipped-row')].map((row) => {
+        const box = row.getBoundingClientRect();
+        return {
+          slot: row.dataset.slotId,
+          box: { x: box.x, y: box.y, width: box.width, height: box.height },
+        };
+      });
+      const containedRows = rows.filter(({ box }) => (
+        sectionBox && box.y >= sectionBox.y - 0.5 &&
+        box.y + box.height <= sectionBox.y + sectionBox.height + 0.5
+      ));
+      const intersectingRows = rows.filter(({ box }) => (
+        sectionBox && box.y < sectionBox.y + sectionBox.height &&
+        box.y + box.height > sectionBox.y
+      ));
+      return {
+        section: { y: sectionBox?.y, height: sectionBox?.height },
+        heading: { y: headingBox?.y, height: headingBox?.height },
+        rows,
+        containedRows: containedRows.map(({ slot }) => slot),
+        intersectingRows: intersectingRows.map(({ slot }) => slot),
+      };
+    });
+    const comparisonRow = overlay.locator('.equip-equipped-row.is-comparison-target');
+    await expect(comparisonRow).toHaveCount(1);
+    await expect(overlay.locator('.equip-equipped-row.is-condensed')).toHaveCount(4);
+    await expect(comparisonRow).toHaveAttribute('data-slot-id', 'weapon');
+    const comparisonBox = await comparisonRow.boundingBox();
+    expect(comparisonBox?.y, `comparison row should be below the equipped heading on ${vp.name}`).toBeGreaterThanOrEqual(
+      (equippedVisibility.heading.y || 0) + (equippedVisibility.heading.height || 0) - 0.5
+    );
+    expect(equippedVisibility.containedRows, `at least one equipped row should be visible on ${vp.name}`).toContain('weapon');
+    expect(comparisonBox?.y + comparisonBox?.height, `comparison row should fit in equipped section on ${vp.name}`).toBeLessThanOrEqual(
+      (equippedVisibility.section.y || 0) + (equippedVisibility.section.height || 0) + 0.5
+    );
+
     const description = overlay.locator('.equip-detail-desc');
     await expect(description).toBeVisible();
     const descriptionMetrics = await description.evaluate((element) => {
@@ -381,10 +422,26 @@ for (const vp of EQUIPMENT_SHORT_VIEWPORTS) {
     });
     expect(descriptionMetrics.whiteSpace, `description should wrap on ${vp.name}`).toBe('normal');
     expect(descriptionMetrics.height, `description should show multiple lines on ${vp.name}`).toBeGreaterThanOrEqual(descriptionMetrics.lineHeight * 2 - 0.5);
+    const detailNameMetrics = await overlay.locator('.equip-detail-name').evaluate((element) => {
+      const styles = getComputedStyle(element);
+      return { whiteSpace: styles.whiteSpace, overflowWrap: styles.overflowWrap, textOverflow: styles.textOverflow };
+    });
+    expect(detailNameMetrics.whiteSpace, `detail name should wrap on ${vp.name}`).toBe('normal');
+    expect(detailNameMetrics.overflowWrap, `detail name should break long tokens on ${vp.name}`).toBe('anywhere');
+    expect(detailNameMetrics.textOverflow, `detail name should not ellipsize on ${vp.name}`).toBe('clip');
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width);
 
+    console.log(`[ISSUE-715 AFTER] ${vp.width}x${vp.height} ${JSON.stringify({
+      equippedSectionHeight: equippedVisibility.section.height,
+      visibleEquippedRows: equippedVisibility.intersectingRows.length,
+      containedEquippedRows: equippedVisibility.containedRows.length,
+      visibleEquippedSlots: equippedVisibility.intersectingRows,
+      containedEquippedSlots: equippedVisibility.containedRows,
+      comparisonSlot: await comparisonRow.getAttribute('data-slot-id'),
+    })}`);
+
     await page.screenshot({
-      path: `output/playwright/issue-711-after-selected-${vp.width}x${vp.height}.png`,
+      path: `output/playwright/issue-715-after-${vp.width}x${vp.height}.png`,
       fullPage: true,
     });
   });

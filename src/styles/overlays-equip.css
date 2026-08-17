@@ -97,6 +97,7 @@
 .equip-list-container {
   --equip-section-heading-min: 28px;
   --equip-type-heading-min: 20px;
+  --equip-comparison-row-min: var(--tap-min);
 
   width: 100%;
   display: flex;
@@ -115,7 +116,12 @@
   flex: 0 1 auto;
   flex-direction: column;
   gap: var(--sp-xs);
-  min-height: var(--equip-section-heading-min);
+  /* Reserve the heading plus one full comparison row before the rest shrinks. */
+  min-height: calc(
+    var(--equip-section-heading-min) +
+    var(--sp-xs) +
+    var(--equip-comparison-row-min)
+  );
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -314,6 +320,41 @@
 .equip-item-row.equip-equipped-row.is-comparison-target {
   border-color: var(--neon-cyan);
   box-shadow: var(--neon-glow-cyan);
+  min-height: var(--equip-comparison-row-min);
+  padding: 2px 8px;
+}
+
+.equip-item-row.equip-equipped-row.is-condensed {
+  min-height: 28px;
+  padding: 3px 8px;
+}
+
+.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-main {
+  align-items: baseline;
+  flex-direction: row;
+  gap: var(--sp-xs);
+  min-width: 0;
+  width: 100%;
+}
+
+.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-name,
+.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-tag {
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+  margin-top: 0;
+}
+
+.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-name {
+  flex: 1 1 auto;
+}
+
+.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-tag {
+  flex: 0 0 auto;
+  max-width: 35%;
+}
+
+.equip-item-row.equip-equipped-row.is-condensed .equip-item-row-badges {
+  display: none;
 }
 
 .equip-item-row-name {
@@ -457,9 +498,8 @@
   font-size: var(--fs-base);
   font-weight: bold;
   color: #fff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .equip-detail-desc {
@@ -700,6 +740,13 @@
 @media (max-width: 359px) {
   .equip-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-height: 600px) {
+  /* Preserve the bag's two-row minimum and the selected comparison row first. */
+  .equip-detail-col {
+    flex-basis: 17%;
   }
 }
 

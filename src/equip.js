@@ -437,19 +437,23 @@ function createEquipmentList(char, savedScrollTop) {
   const listContainer = document.createElement("div");
   listContainer.className = "equip-list-container";
 
+  const filteredSlots = EQUIPMENT_SLOTS.filter(s => equipState.filter === "all" || equipState.filter === s.itemType);
+  const equippedCount = filteredSlots.filter(({ id }) => char.equipment[id] && getItemData(char.equipment[id])).length;
+
   const equippedSection = document.createElement("section");
   equippedSection.className = "equip-list-section equip-equipped-section";
 
   const headingEquipped = document.createElement("h2");
   headingEquipped.className = "equip-section-heading";
-  headingEquipped.textContent = "装備中";
+  headingEquipped.textContent = `装備中（${equippedCount}枠）`;
   equippedSection.appendChild(headingEquipped);
 
   const equippedRows = document.createElement("div");
   equippedRows.className = "equip-equipped-rows";
 
-  const filteredSlots = EQUIPMENT_SLOTS.filter(s => equipState.filter === "all" || equipState.filter === s.itemType);
   const emptySlots = [];
+  const comparisonRows = [];
+  const condensedRows = [];
   filteredSlots.forEach(({ id, label }) => {
     const itemKey = char.equipment[id];
     const item = itemKey ? getItemData(itemKey) : null;
@@ -464,7 +468,7 @@ function createEquipmentList(char, savedScrollTop) {
     
     const row = document.createElement("button");
     row.type = "button";
-    row.className = `equip-item-row equip-equipped-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${comparisonTarget ? "is-comparison-target" : ""}`.trim();
+    row.className = `equip-item-row equip-equipped-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${comparisonTarget ? "is-comparison-target" : "is-condensed"}`.trim();
     row.dataset.slotId = id;
     row.setAttribute("aria-selected", selected ? "true" : "false");
     if (comparisonTarget) row.setAttribute("aria-current", "location");
@@ -481,7 +485,9 @@ function createEquipmentList(char, savedScrollTop) {
 
     const summary = document.createElement("span");
     summary.className = "equip-item-row-tag";
-    summary.textContent = `${label} ${item ? `/ ${isCurseLocked(itemKey) ? "🔒 呪い・外せない" : (isIdentified(itemKey) ? getItemSummary(item) : "比較不能")}` : ""}`;
+    summary.textContent = comparisonTarget
+      ? `${label} ${item ? `/ ${isCurseLocked(itemKey) ? "🔒 呪い・外せない" : (isIdentified(itemKey) ? getItemSummary(item) : "比較不能")}` : ""}`
+      : `${label}${isCurseLocked(itemKey) ? " / 🔒 呪い・外せない" : ""}`;
     left.appendChild(summary);
     row.appendChild(left);
 
@@ -512,8 +518,15 @@ function createEquipmentList(char, savedScrollTop) {
       renderEquip();
     });
 
-    equippedRows.appendChild(row);
+    if (comparisonTarget) {
+      comparisonRows.push(row);
+    } else {
+      condensedRows.push(row);
+    }
   });
+
+  comparisonRows.forEach(row => equippedRows.appendChild(row));
+  condensedRows.forEach(row => equippedRows.appendChild(row));
 
   equippedSection.appendChild(equippedRows);
 
