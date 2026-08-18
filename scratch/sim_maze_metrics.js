@@ -1,4 +1,4 @@
-// sim-scope: map — generateRandomMap が生成する迷路構造そのものを測るため、ラン経路を通さない
+// sim-scope: map — measures generated maze structure directly without a run route; retained because origin is unknown and no closed-Issue owner was found.
 import { generateRandomMap } from "../src/map_generator.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 

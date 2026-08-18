@@ -1,4 +1,4 @@
-// sim-scope: formula
+// sim-scope: formula — samples identification curse and gamble EV by floor using live equipment generation; retained because origin is unknown and no closed-Issue owner was found.
 import assert from "node:assert/strict";
 import { IDENTIFICATION_BALANCE, getIdentificationGambleProfile } from "../src/rules/identification_rules.js";
 import { generateRandomEquipment } from "../src/systems/equipment_generation.js";

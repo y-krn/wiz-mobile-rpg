@@ -1,3 +1,4 @@
+// sim-scope: report — identifies uncovered production paths for open Issue #595; retained until that Issue closes.
 // Usage: node scratch/coverage_report_595.js <coverage-dir> [sim-log] [output.md]
 
 import fs from "node:fs";

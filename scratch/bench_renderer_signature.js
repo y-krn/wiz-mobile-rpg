@@ -1,3 +1,4 @@
+// sim-scope: infra — retained origin-unknown renderer signature benchmark for manual current-renderer comparisons; no production or test caller.
 globalThis.document = {
   getElementById: () => ({
     getContext: () => ({}),

@@ -1,4 +1,4 @@
-// sim-scope: run
+// sim-scope: run — simulates material inflow, workshop, and return-wing scenarios across depths; retained because origin is unknown and no closed-Issue owner was found.
 /* global console, process */
 
 Object.defineProperty(globalThis, "localStorage", {

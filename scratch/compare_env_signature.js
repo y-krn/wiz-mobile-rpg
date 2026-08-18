@@ -1,3 +1,4 @@
+// sim-scope: infra — retained origin-unknown CLI for manually comparing two sim env signatures; no production, test, or CI caller.
 // 2本のsim出力ログから env signature 行を抜き出し、差分keyを名指しする。
 // 使い方: node scratch/compare_env_signature.js <fileA.log> <fileB.log> [label]
 import { readFileSync } from "node:fs";
