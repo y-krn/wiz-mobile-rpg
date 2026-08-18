@@ -231,6 +231,129 @@ for (const vp of VIEWPORTS) {
     expect(await page.evaluate(async () => (await import('/src/state.js')).state.inventory)).toHaveLength(1);
   });
 
+  test(`Equipment detail wires enhancement with material and target states at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      state.party = [createSoloCharacter('Fighter')];
+      state.metaMaterials = { '鉄片': 1, '魔石片': 0, '硬い皮': 2 };
+      state.inventory = [
+        {
+          kind: 'equipment', instanceId: 'ui_enhance_weapon', baseId: 'SHORT_SWORD', rarity: 'common', level: 1,
+          identified: true, enhanceLevel: 0, affixes: []
+        },
+        {
+          kind: 'equipment', instanceId: 'ui_enhance_accessory', baseId: 'AMULET_HP', rarity: 'common', level: 1,
+          identified: true, enhanceLevel: 0, affixes: []
+        },
+      ];
+      openEquipOverlay(0);
+    });
+
+    await page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' }).click();
+    const panel = page.locator('.equip-workshop-panel');
+    await expect(panel).toContainText('強化段階: +0 / +1');
+    await expect(panel.locator('.equip-material-line[data-material="鉄片"]')).toHaveText('鉄片 1/2');
+    const insufficient = panel.getByRole('button', { name: '強化素材が不足しています' });
+    await expect(insufficient).toBeDisabled();
+
+    const actionBox = await insufficient.boundingBox();
+    expect(actionBox?.height, `enhancement action should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { renderEquip } = await import('/src/equip.js');
+      state.metaMaterials['鉄片'] = 2;
+      state.metaMaterials['魔石片'] = 1;
+      renderEquip();
+    });
+    const enhanceButton = panel.getByRole('button', { name: '強化する' });
+    await expect(enhanceButton).toBeEnabled();
+    await enhanceButton.scrollIntoViewIfNeeded();
+    const readyBox = await enhanceButton.boundingBox();
+    expect(readyBox?.height, `enhancement action should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
+    await enhanceButton.click();
+
+    await expect.poll(() => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return state.inventory[0].enhanceLevel;
+    })).toBe(1);
+    await expect(panel).toContainText('強化段階: +1 / +1');
+    await expect(panel).toContainText('攻撃力:');
+    await expect(panel).toContainText('強化済み（現行上限 +1）');
+
+    await page.getByRole('button', { name: '一覧へ戻る' }).click();
+    await page.locator('.equip-item-row', { hasText: '生命の護符' }).click();
+    await expect(page.locator('.equip-workshop-section', { hasText: '装備強化' })).toContainText('この装備は強化対象外です');
+    await expect(page.locator('.equip-workshop-section', { hasText: '装備強化' }).getByRole('button', { name: '強化する' })).toHaveCount(0);
+  });
+
+  test(`Equipment detail wires support-affix polishing with material and target states at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      state.party = [createSoloCharacter('Fighter')];
+      state.metaMaterials = { '魔石片': 1 };
+      state.inventory = [
+        {
+          kind: 'equipment', instanceId: 'ui_polish_support', baseId: 'DAGGER', rarity: 'magic', level: 1,
+          identified: true, affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 3 }]
+        },
+        {
+          kind: 'equipment', instanceId: 'ui_polish_core', baseId: 'MACE', rarity: 'magic', level: 1,
+          identified: true, affixes: [{ id: 'CORE_LAST_STAND', type: 'CORE_LAST_STAND', kind: 'core' }]
+        },
+        {
+          kind: 'equipment', instanceId: 'ui_polish_unidentified', baseId: 'WAND', rarity: 'magic', level: 1,
+          identified: false, unidentifiedName: '未鑑定の杖',
+          affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 3 }]
+        },
+      ];
+      openEquipOverlay(0);
+    });
+
+    await page.locator('.equip-bag-section .equip-item-row', { hasText: '鋭利なダガー' }).click();
+    const panel = page.locator('.equip-workshop-panel');
+    const polishSection = panel.locator('.equip-polish-section');
+    await expect(panel).toContainText('補助アフィックス研磨');
+    await expect(polishSection.locator('.equip-material-line[data-material="魔石片"]')).toHaveText('魔石片 1/2');
+    const insufficient = panel.getByRole('button', { name: '研磨素材が不足しています' }).first();
+    await expect(insufficient).toBeDisabled();
+    await expect(panel).toContainText('攻撃: 3 → 5');
+
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { renderEquip } = await import('/src/equip.js');
+      state.metaMaterials['魔石片'] = 2;
+      renderEquip();
+    });
+    const polishButton = polishSection.getByRole('button', { name: '研磨する' }).first();
+    await expect(polishButton).toBeEnabled();
+    await polishButton.scrollIntoViewIfNeeded();
+    const readyBox = await polishButton.boundingBox();
+    expect(readyBox?.height, `polishing action should keep --tap-min on ${vp.name}`).toBeGreaterThanOrEqual(44);
+    await polishButton.click();
+
+    await expect.poll(() => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return { value: state.inventory[0].affixes[0].value, polished: state.inventory[0].polished };
+    })).toEqual({ value: 5, polished: true });
+    await expect(page.locator('.equip-affix-details')).toContainText('攻撃: +5');
+    await expect(panel).toContainText('研磨済み（この装備は1回まで）');
+
+    await page.getByRole('button', { name: '一覧へ戻る' }).click();
+    await page.locator('.equip-item-row', { hasText: 'メイス' }).click();
+    await expect(page.locator('.equip-workshop-section', { hasText: '補助アフィックス研磨' })).toContainText('コアは研磨対象外です');
+
+    await page.getByRole('button', { name: '一覧へ戻る' }).click();
+    await page.locator('.equip-item-row', { hasText: '未鑑定の杖' }).click();
+    await expect(page.locator('.equip-workshop-section', { hasText: '補助アフィックス研磨' })).toContainText('未鑑定のため研磨対象外です');
+  });
+
   test(`Equipment gamble stays explicit and thumb-safe at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
