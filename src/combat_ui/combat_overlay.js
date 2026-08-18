@@ -1,10 +1,48 @@
 import { state } from "../state.js";
-import { SPELLS, getClassJpName, getCharMaxHp, getCharMaxMp, getSpellPayment } from "../data.js";
+import { getMonsterResistanceStatus, SPELLS, getClassJpName, getCharMaxHp, getCharMaxMp, getSpellPayment } from "../data.js";
 import { menuContext, goBackSubmenu } from "../navigation.js";
+import { getMonsterCodexKey } from "../state.js";
 import { combatCallbacks } from "./combat_state.js";
 import { isSpellTargetAvailable, getSpellCombatSummary } from "./spell_menu.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
+
+function getEnemyResistanceStatus(monster) {
+  const record = state.codex?.monsters?.[getMonsterCodexKey(monster)];
+  return getMonsterResistanceStatus(monster, record);
+}
+
+function getEnemyResistanceRowsHtml(monster) {
+  return getEnemyResistanceStatus(monster)
+    .map(({ type, label, known, description }) => `
+      <div class="enemy-resistance-row ${known ? "known" : "unknown"}" data-resistance-type="${type}">
+        <span class="enemy-resistance-label">${label}：</span>
+        <span class="enemy-resistance-value">${description}</span>
+      </div>
+    `)
+    .join("");
+}
+
+function createCombatEnemyInfoPanel() {
+  const livingMonsters = state.combatState?.monsters?.filter(monster => monster.hp > 0) || [];
+  if (livingMonsters.length === 0) return null;
+
+  const panel = document.createElement("section");
+  panel.className = "combat-enemy-info";
+  panel.setAttribute("aria-label", "敵の耐性情報");
+  panel.innerHTML = `
+    <div class="combat-enemy-info-title">敵の耐性情報</div>
+    <div class="combat-enemy-info-grid">
+      ${livingMonsters.map(monster => `
+        <div class="combat-enemy-info-card">
+          <div class="combat-enemy-info-name">${monster.name}</div>
+          <div class="enemy-resistance-info">${getEnemyResistanceRowsHtml(monster)}</div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+  return panel;
+}
 
 export function renderCombatOverlay() {
   const overlay = document.getElementById("combat-overlay");
@@ -67,6 +105,9 @@ export function renderCombatOverlay() {
             <div class="card-hp-bar" style="width: ${hpPct}%"></div>
           </div>
           <div class="card-hp-text">HP: ${m.hp}/${m.maxHp}</div>
+          <div class="enemy-resistance-info" aria-label="耐性・弱点">
+            ${getEnemyResistanceRowsHtml(m)}
+          </div>
           ${omenHtml}
         `;
 
@@ -124,6 +165,9 @@ export function renderCombatOverlay() {
     }
     body.appendChild(targetGrid);
   } else if (type === "combat_spell") {
+    const enemyInfoPanel = createCombatEnemyInfoPanel();
+    if (enemyInfoPanel) body.appendChild(enemyInfoPanel);
+
     // Spells grid
     const spellGrid = document.createElement("div");
     spellGrid.className = "combat-selection-grid spell-grid";

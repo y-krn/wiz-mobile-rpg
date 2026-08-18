@@ -1,5 +1,5 @@
 import { SPELLS } from "../data.js";
-import { recordCharDeath } from "../state.js";
+import { recordCharDeath, recordMonsterResistanceDiscovery } from "../state.js";
 import { getEffectiveMagicResist, applyMagicResistBuffs, applyKillAffixEffects, logCoreActivation } from "./damage.js";
 import { hasTrait, processMonsterDefeat } from "./monster_traits.js";
 import { clearCharIncapacitationOnDamage, wakeSleepingMonsterOnDamage } from "./status_effects.js";
@@ -96,6 +96,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
       return;
     }
 
+    recordMonsterResistanceDiscovery(target, "magic", state);
     const originalMagicResist = target.magicResist;
     target.magicResist = getEffectiveMagicResist(target);
     const appliedMagicResist = target.magicResist;
@@ -145,6 +146,9 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
       .filter(source => source.damage > 0);
     const reflectedMonsters = new Set(reflectedSources.map(source => source.monster));
     const affectedMonsters = monsters.filter(mon => !reflectedMonsters.has(mon));
+    affectedMonsters
+      .filter(mon => mon.hp > 0)
+      .forEach(mon => recordMonsterResistanceDiscovery(mon, "magic", state));
     const beforeHp = monsters.map(mon => mon.hp);
     const result = applyMagicResistBuffs(
       affectedMonsters,

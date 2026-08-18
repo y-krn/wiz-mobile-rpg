@@ -5,6 +5,7 @@ import {
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
+import { createMonsterCodexRecord } from "../state/codex_state.js";
 import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js";
 
 function rollCombatAccessoryDrop(state, rng) {
@@ -89,7 +90,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       if (m.hasSplit === true) return;
       const baseName = m.name.replace(/\s[A-Z]$/, "");
       if (!state.codex.monsters[baseName]) {
-        state.codex.monsters[baseName] = { encountered: 1, killed: 0, firstKilled: false };
+        state.codex.monsters[baseName] = createMonsterCodexRecord({ encountered: 1 });
       }
       state.codex.monsters[baseName].killed++;
       if (firstKilledNames.includes(baseName)) {

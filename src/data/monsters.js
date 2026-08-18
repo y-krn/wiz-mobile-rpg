@@ -210,7 +210,39 @@ const MONSTER_ROLE_LABELS = Object.freeze({
   [ENEMY_ROLES.AMPLIFIER]: "支援役"
 });
 
-export function describeMonsterTraits(monster) {
+const MONSTER_RESISTANCE_FIELDS = Object.freeze([
+  { type: "magic", field: "magicResist", knownField: "magicResistKnown", label: "呪文" },
+  { type: "physical", field: "physResist", knownField: "physResistKnown", label: "物理" }
+]);
+
+export function getMonsterResistanceTier(value) {
+  const resistance = Number.isFinite(value) ? value : 0;
+  if (resistance < 0) return "弱点";
+  if (resistance >= 0.75) return "ほとんど効かない";
+  if (resistance >= 0.25) return "効きにくい";
+  if (resistance > 0) return "やや効きにくい";
+  return "通常通り";
+}
+
+export function getMonsterResistanceStatus(monster, record) {
+  return MONSTER_RESISTANCE_FIELDS.map(({ type, field, knownField, label }) => {
+    const known = Boolean(record?.[knownField]);
+    return {
+      type,
+      label,
+      known,
+      description: known ? getMonsterResistanceTier(monster?.[field]) : "未判明"
+    };
+  });
+}
+
+export function describeMonsterResistances(monster, record) {
+  return getMonsterResistanceStatus(monster, record)
+    .filter(resistance => resistance.known)
+    .map(resistance => `${resistance.label}：${resistance.description}`);
+}
+
+export function describeMonsterTraits(monster, record = null) {
   const descriptions = [];
   const statusPrefix = monster.statusChance >= 0.5 ? "高確率で" : "";
   const statusTraits = [
@@ -231,6 +263,8 @@ export function describeMonsterTraits(monster) {
   for (const [trait, label] of Object.entries(MONSTER_TRAIT_LABELS)) {
     if (traits.has(trait)) descriptions.push(label);
   }
+
+  descriptions.push(...describeMonsterResistances(monster, record));
 
   const role = monster.role || MONSTER_ROLE_BY_NAME[monster.name];
   if (MONSTER_ROLE_LABELS[role]) descriptions.push(MONSTER_ROLE_LABELS[role]);
