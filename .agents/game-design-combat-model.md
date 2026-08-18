@@ -27,8 +27,9 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 この文書で確定するモデルの性質は次のとおり。具体的な係数変更は各 Issue で
 実測してから行う。
 
-1. 軽減は、物理と呪文で**有界な乗算モデルへ揃える**。物理 `def` を将来どの
-   抵抗値へ変換するかは別 Issue で測る。
+1. 軽減は、物理と呪文で**有界な乗算モデルへ揃える**。物理 `def` は
+   `def / (def + 10)` の逓減抵抗へ変換し、`physResist` と加算プールへ統合する。
+   合成後は -1〜0.9 に clamp し、100% 軽減を作らない。
 2. 呪文は、上位呪文の習得だけでなく、**装備・run 内ビルドで伸びる**。共通項は
    プレイヤー表示「術力」、内部 ID `spellPower` とし、武器・鎧・盾と装身具の
    support pool から供給する。既存の `arcane` は攻撃呪文の明示入力、`devotion`
@@ -63,7 +64,10 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 - `str`: `getCharStr(char)`。基礎値、装備の `str`、all-stats 系を含む。
 - `randRoll`: `floor(random * 5)`、すなわち 0, 1, 2, 3, 4。
 - `def`: `getEffectiveDef(target)`。敵 `def` に `def` buff を加え、buff は
-  -6〜+6 に clamp した後、0 未満にならないようにする。
+  -6〜+6 に clamp した後、0 未満にならないようにする。物理攻撃では
+  `getPhysicalDefenseResistance(def) = def / (def + 10)` へ変換する。
+- `physResist`: `def` 由来の抵抗と加算する対象の物理耐性。合成値は
+  `combinePhysicalResistances` で -1〜0.9 に clamp する。
 - `meleeMod`: `getMeleeModifiers` の値。現行の 8 職はすべて `1.00`。
 - `magicResist`: spell resolution が一時的に適用する
   `getEffectiveMagicResist` の値。敵の base と buff を合成し、-1〜0.9 に clamp
@@ -84,33 +88,34 @@ buff = getBuffTotal(char, "atk") + getBuffTotal(char, "str")
 str  = getCharStr(char)
 roll = floor(random() * 5)                  // 0..4
 def  = getEffectiveDef(target)
+defResistance = def / (def + 10)
+physicalResistance = clamp(defResistance + target.physResist, -1, 0.9)
 melee = getMeleeModifiers(char)              // 現行の全職は 1.00
 
-formulaRaw = (
+attackRaw = (
   floor(weapon + buff)
   + max(0, str - 10)
   + roll
-  - floor(def / 2)
 ) * melee
 
-d0 = max(1, floor(formulaRaw))
+formulaRaw = attackRaw
+d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
 ```
 
 その後の適用順は次のとおり。順序を変えると同じ項でも結果が変わる。
 
 ```text
 1. Mage / Bishop のみ:
-   magicBolt = max(1, floor(getCharInt(char) / 3)
-                     + floor(random() * 3)
-                     - floor(def / 4))
+   magicBoltRaw = floor(getCharInt(char) / 3) + floor(random() * 3)
+   magicBolt = max(1, floor(magicBoltRaw * (1 - physicalResistance)))
    d1 = max(d0, magicBolt)
    // magicBolt が d0 より大きい時だけ d1 の値を作る
 
 2. 盲目なら d2 = max(1, floor(d1 / 2))、それ以外は d2 = d1
 
-3. target.physResist が真なら
-   d3 = max(1, round(d2 * (1 - target.physResist)))
-   それ以外は d3 = d2
+3. `defResistance` と `target.physResist` は上の
+   `physicalResistance` へ加算済みであり、物理耐性を別乗算しない。
+   d3 = d2
 
 4. `getDamageAffixResult` の共通 target-tag stage でタグ特効を加算して一度だけ
    適用する。
@@ -145,6 +150,31 @@ d0 = max(1, floor(formulaRaw))
 である。会心判定は guard の**後**である。#611 の `preCriticalDmg` は guard まで適用した値で、
 会心の 3 倍前である。攻撃前の evasive、盲目 miss、通常 miss はこの式に入らず、
 この文書の「1 ヒット」は式へ到達した攻撃を指す。
+
+### 1.2.1 敵からプレイヤーへの物理攻撃
+
+敵の通常攻撃と逃走追撃は、`src/combat_logic/round.js` が `finalAtk` と
+プレイヤーの `finalDef` を作り、同じ `defResistance` へ変換する。プレイヤー側に
+`physResist` は無いため、この経路の合成値は `defResistance` だけである。
+
+```text
+finalAtk = getEffectiveAtk(mon) + floor(random() * 4)
+          // 狙撃は baseAtk の 1.5 倍を先に round してから同じ乱数を加える
+finalDef = calculatePhysicalDefenseFormula({
+  baseDef: getCharDef(target),
+  vit: getCharVit(target),
+  bonusDef: buffs + frontGuard + firstStrikeDefense + getMpWardDef(target),
+  tempDefDown: target.tempDefDown
+})
+defResistance = finalDef / (finalDef + 10)
+formulaRaw = finalAtk
+d0 = max(1, floor(finalAtk * (1 - defResistance)))
+```
+
+その後、通常攻撃は `defend` の 0.5 倍、盲目の 1.5 倍、
+`reduceIncomingDamage`（守りの薬・守護・竜殺しなど）の順に適用する。
+逃走追撃は `d0` から `reduceIncomingDamage` へ進む。いずれも物理ダメージの
+最低 1 を維持する。
 
 ### 1.3 攻撃呪文の全文
 
@@ -253,12 +283,12 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | `max(0, str - 10)` | STR 10 を基準にし、10 未満のペナルティを 0 にする | character stats の基礎値と関数の実装 | STR 10 を中立点とし、低 STR 職のペナルティだけを除く。STR 10 超の職差は残す |
 | 負の呪い `atk` | `cursePower` 適用後の raw 値を丸めてから実効単位へ揃える | `getScaledCurseModifier` と `CURSE_EFFECTS` | 旧来の「raw を丸めてから物理式の1.5倍」を、保存値を実効単位にした後も同じ順序で保つ。呪いの閾値判定や他の負項は変更しない |
 | `randRoll` | 0–4 の一様整数を加算 | `round.js` の明示的な乱数 | bounded noise であることはコードから分かる。固定幅を選んだ理由は根拠不明 |
-| `-floor(def / 2)` | 物理だけ flat 減算 | `calculatePhysicalAttackFormula` と `getEffectiveDef` | 物理防御を使う意図は分かるが、2 で割る理由、floor の位置は根拠不明 |
+| `defResistance` | `def / (def + 10)` の逓減抵抗 | `getPhysicalDefenseResistance` と `getEffectiveDef` | 敵分布（中央値5、p75=8、最大18）を #716 の物理耐性段階へ接続し、有限値では100%に到達しない。係数10はこの分布を段階表示へ収める測定判断 |
 | `meleeMod` | 職業別 map、現行値は全て 1 | `getMeleeModifiers`。derived stats との共有を意図したコメント | 拡張点の存在は source の説明がある。現行の職業差を作る設計根拠はない |
-| `max(1, floor(...))` | 物理式の出力を最低 1 | source の clamp | 0 ダメージを避ける形は読めるが、設計正本で理由は未記録 |
-| `magicBolt` | Mage/Bishop の通常攻撃だけ `max(physical, int/3 + 0..2 - def/4)` | `round.js` の分岐のみ | **ゲーム内・設計正本に記載がなく根拠不明**。隠れた第2式として扱わない |
+| `max(1, floor(...))` | 物理式の出力を最低 1 | source の clamp | 物理は最低1を維持する。乗算変更で0が増えるため、#728で変更判断するまで固定する |
+| `magicBolt` | Mage/Bishop の通常攻撃だけ `max(physical, int/3 + 0..2)` を同じ `physicalResistance` 後に比較 | `round.js` の分岐 | 隠れた第2式は残すが、`def/4` の別減算は廃止し、defとphysResistの表示・実効を共通化する |
 | 盲目 | 式の後に `floor(dmg / 2)` | `.agents/game-design.md` が「攻撃 miss と incoming-damage penalty」を明記。具体的な 1/2 は source | 盲目が combat disruption であることは意図。1/2 の係数は code が値の正本 |
-| `physResist` | 式の後に割合乗算、最低 1 | source の分岐 | 物理耐性を持たせる意図は分かるが、def と別モデルにした理由は根拠不明 |
+| `physResist` | `defResistance` と加算し、-1〜0.9へ clamp した最終 poolを一度だけ乗算 | `combinePhysicalResistances` と `getEffectivePhysicalResistance` | #719のタグ特効と同じ加算poolの前例を採用。順序依存の二重乗算を避け、表示は最終poolを段階化する |
 | タグ特効 | 対象タグの `anti<Tag>` と呪文固有寄与を加算し、共通 stage で各攻撃1回 | `getDamageAffixResult`、support affix registry、`SPELLS.BADIOS.intrinsicTagBonus` | 特効という build input は equipment-builds 正本にある。物理・攻撃呪文を同じ stage へ接続し、同じタグの乗算を重ねない |
 | core / support | core 5 種、条件 support、boss exposure を乗算 | `getDamageAffixResult` と equipment-builds の core/support 方針 | build の rule-changing effect である点は意図。物理と呪文の共通 hook から分けた理由は根拠不明 |
 | guard | targeted bonus の後に `guard.damageRate` | `round.js` | encounter-local guard の軽減であることは source から分かる。順序の設計記録は根拠不明 |
@@ -545,7 +575,7 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 
 | # | 非対称 | 判定 | 理由と実測・経路根拠 | 対応する決定 |
 | ---: | --- | --- | --- | --- |
-| 1 | 物理は `-floor(def/2)`、呪文は `×(1-magicResist)` | **欠陥** | `def` と `magicResist` が別 input・別順序で、同じ低 damage 帯で別の clamp を持つ理由が正本にない。physical raw の def 項は 8 職で平均 -0.174〜-1.339、spell の resist stage は呪文ごとに符号付きで平均 +0.72〜+2.73だった。異なる軽減を採るなら、敵表示と player decision まで含む理由が必要だが未記録。 | 決定 1 |
+| 1 | 物理は `-floor(def/2)`、呪文は `×(1-magicResist)` | **結論（#732で変更）** | `def` と `magicResist` が別 input・別順序で、同じ低 damage 帯で別の clamp を持つ理由が正本に無かった。#732で物理defを `def/(def+10)` へ変換し、`physResist` と -1〜0.9の加算poolへ統合した。プレイヤー→敵と敵→プレイヤーの両経路を同じ def 変換へ揃え、#716の段階表示は最終physical poolを読む。 | 決定 1 |
 | 2 | 物理は装備で伸び、呪文は固定 dice と +40% stat cap | **結論（#731で修正）** | core-loop 正本は run 内 loot build を depth の評価軸にする。physical は B1→B10 で Fighter 20.45→51.70、spell は観測 Mage B1→B10 25.58→32.19で、呪文の伸びが上位呪文の習得と偶然の build に依存していた。#731 で共通の `spellPower`（術力）を導入し、`arcane` / `devotion` / `fireRite` は固有項として残した。 | 決定 2 |
 | 3 | レベルはほぼ damage に寄与せず、呪文だけ level gate を持つ | **欠陥** | `str`/`int` の base はレベルで自動増加せず、spell learn は lv2/3/6/8に固定。今回 MADALTO は N=139、TILTOWAIT は N=0で、到達した run だけで上位呪文を評価する構造になっている。level gate と level power の対応が正本にない。 | 決定 3 |
 | 4 | `antiUndead` / `antiDragon` / `antiDemon` は物理のみ | **欠陥（配線漏れ）。共通 stage へ集約して修正** | #719 実装前は `applyTargetedDamageBonus` の物理経路だけがタグ特効を持ち、攻撃呪文は `getDamageAffixResult` を直接呼んで stage を飛ばしていた。結論としてタグ特効を `getDamageAffixResult` の共通 stage へ移し、BADIOS の +50/+30/+30 も同じ加算プールへ入れる。共通 anti tag と固有寄与を合計して一度だけ乗算するため、攻撃手段非依存・同一タグの二重乗算なしとなる。 | 決定 4、#719 |
@@ -553,7 +583,7 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 | 6 | raw `atk` / `str` buff を同じ物理入力単位へ変換 | **#720で整理** | `STR_POTION` は実効 `atk +15` として付与する。将来の `str` buff も同じ入力単位で扱い、同じ意味の buff を別単位にしない。 | 決定 5 |
 | 7 | physical は固定幅 0–4、spell は呪文ごとの比例的な幅 | **意図（ただし理由の記録不足）** | 物理の 0–4 は全職で rand 平均 1.99〜2.01、spell は source の呪文 description に 12–22〜50–100という個別 range が明記されている。攻撃と呪文の identity を分ける形そのものは明示的で、配線漏れではない。一方、固定幅・比例幅を選んだ設計理由と相対 CV の目標は根拠不明なので、将来の tune では「意図」としてこの文書を参照する。 | 決定 2、分散方針 |
 | 8 | 会心は Ninja の非 boss のみ | **欠陥（未文書化）** | source は `char.class === "Ninja" && !target.isBoss` の呼び出し側分岐だけで、class data と既存設計正本に会心 passive の記録がない。実測 critical は Ninja 6.760%、他 7 職 0%。boss 除外の理由も正本にない。 | 決定 6 |
-| 9 | Mage/Bishop に undocumented `magicBolt` fallback | **欠陥（未文書化の第2式）** | source では physical formula の後に `max(d0, int/3 + 0..2 - def/4)`を実行し、実測採用率は Mage 4.111%、Bishop 0.172%。ゲーム内 description、`game-design*.md`、class passive に記載がない。職業の主軸を hidden fallback で補う理由はなく、#558 の trapGuard と damage role の比較をさらに曖昧にする。 | 決定 3、職業軸 |
+| 9 | Mage/Bishop に undocumented `magicBolt` fallback | **欠陥（未文書化の第2式、#732でdef減算は解消）** | fallback自体は残すが、#732で `def/4` の別減算を廃止し、通常物理と同じ `physicalResistance` 後に比較する。ゲーム内 description、`game-design*.md`、class passiveにfallbackの記載がない点は未解決で、職業の主軸をhidden fallbackで補う理由も別途必要。 | 決定 3、職業軸、#732 |
 | 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **欠陥（方針欠落）** | `getSpellStatBonus` は int30で+40%固定、`calculateDisarmRate` は適性職90 cap。cap の存在は source で確認できるが、超過投資をどう扱うかの共通方針がない。B1–B10分布でも affix/core の stage は常時発動ではなく、hard capで investment が dead になるかを測らずに判断できない。 | 決定 7、#713 |
 
 ### 4.1 #7 を「意図」とした範囲
@@ -568,11 +598,19 @@ CV を目標にしたのかは根拠不明であり、意図を過去のバラ�
 
 ### 1. 軽減は減算か乗算か
 
-**乗算で揃える。** 敵の physical defense も、プレイヤーが意思決定に使う
-「何割残るか」に変換可能な bounded resistance として扱う。def をそのまま
-`-floor(def/2)` に残す理由はない。物理耐性・魔法耐性の表示は、適用される
-最終的な軽減率と一致させる。変換係数や現行値は #716 の実測で決め、#722 では
-変更しない。
+**乗算で揃える。** 敵・プレイヤー双方の physical `def` を、プレイヤーが意思決定に
+使う「何割残るか」に変換可能な bounded resistance として扱う。変換は
+`defResistance = def / (def + 10)` とし、defの追加投資は逓減する。`physResist` は
+`defResistance` との加算poolへ統合し、合成後を -1〜0.9 に clamp するため完全無敵は
+発生しない。係数10は #716 の現行耐性値（0.1〜0.6）と敵def分布（中央値5、p75=8、
+最大18）を同じ5段階表示へ収める実測判断である。
+
+物理通常攻撃は raw damage の後に最終poolを一度だけ適用し、Mage/Bishopの
+magic-bolt fallbackも同じpoolで比較する。敵→プレイヤーの通常攻撃・逃走追撃も
+同じ `defResistance` を使う。プレイヤー側に既存の守りの薬・守護・竜殺しなどの
+割合軽減があるが、それらは物理defとは別の戦闘中 mitigation stage であり、物理defを
+減算のまま残す理由にはしない。#716の表示は内部数値を出さず、適用される最終
+physical resistance poolを5段階へ変換して示す。最低1は維持し、#728で変更判断する。
 
 ### 2. 呪文は装備で伸びるべきか
 
@@ -724,9 +762,9 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
   やや効きにくい・効きにくい・ほとんど効かないの段階で出す。段階名は色に依存
   せず、モノクロでも弱点と軽減を読める文言にする。
 - 決定 1 の「軽減を乗算へ揃える」と同じく、表示はプレイヤーが判断する軽減の
-  向き（弱点か、通常か、効きにくいか）を示す。この Issue は既存の耐性値と式を
-  変更しない。敵 `def` は減算モデルであり、軽減率表示へ変換する話は #732 の
-  対象なので、#716 では表示しない。
+  向き（弱点か、通常か、効きにくいか）を示す。#732後の物理表示は
+  `defResistance + physResist` の最終poolを入力にする。既存の `def` / `physResist`
+  の値は変更せず、表示段階と実効式を同じ変換へ接続する。
 
 ## 7. 判定漏れ・測定限界
 

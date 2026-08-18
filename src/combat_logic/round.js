@@ -75,15 +75,16 @@ function applyFleePartingAttack(state, monsters, logQueue) {
     vit: getCharVit(target),
     bonusDef: getMpWardDef(target)
   });
-  const formulaRaw = finalAtk - finalDef;
-  const formulaDmg = Math.max(1, formulaRaw);
+  const formulaRaw = finalAtk;
+  const defResistance = getPhysicalDefenseResistance(finalDef);
+  const formulaDmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, defResistance)));
   let dmg = formulaDmg;
   const preMitigationDmg = dmg;
   dmg = reduceIncomingDamage(target, dmg, { logQueue, state });
   state.combatFormulaTelemetry?.physicalMonsterHits.push({
     floor: state.floor,
     targetClassName: target.class,
-    finalAtk, finalDef, formulaRaw, formulaDmg,
+    finalAtk, finalDef, defResistance, formulaRaw, formulaDmg,
     isDefending: false, isBlindTargetApplied: false, isSnipeAttack: false,
     preMitigationDmg, finalDmg: dmg, attackType: "flee"
   });
@@ -888,8 +889,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             tempDefDown: target.tempDefDown || 0
           });
           const preDefDmg = finalAtk;
-          const formulaRaw = finalAtk - finalDef;
-          let dmg = Math.max(1, formulaRaw);
+          const defResistance = getPhysicalDefenseResistance(finalDef);
+          const formulaRaw = finalAtk;
+          let dmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, defResistance)));
           const formulaDmg = dmg;
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
 
@@ -906,7 +908,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           state.combatFormulaTelemetry?.physicalMonsterHits.push({
             floor: state.floor,
             targetClassName: target.class,
-            finalAtk, finalDef, preDefDmg, formulaRaw, formulaDmg,
+            finalAtk, finalDef, defResistance, preDefDmg, formulaRaw, formulaDmg,
             isDefending, isBlindTargetApplied, isSnipeAttack,
             preMitigationDmg, finalDmg: dmg, attackType: "normal"
           });

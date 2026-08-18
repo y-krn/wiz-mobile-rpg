@@ -56,6 +56,11 @@ const smokeResult = simulateRun({
     chestHealPotionExtraChance: 0.5,
     chestHealPotionReplacementChance: 0.5,
     enemyHealPotionDropChance: 0.5,
+    // Keep this hook smoke test alive and trap-independent after combat-balance
+    // changes; it is not intended to measure the depth model.
+    trapPolicy: "disabled",
+    chestTrapPolicy: "disabled",
+    threatOverride: { startFloor: 1, atkMultiplier: 0.1 },
     extraCampFloors: [1],
     extraCampRecoveryRate: 0.2,
     extraCampTimeCost: 3

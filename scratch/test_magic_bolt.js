@@ -85,13 +85,13 @@ function test(name, fn) {
 test("Mage and Bishop attacks use the deterministic INT magic-bolt formula", () => {
   assert.equal(
     attackDamage("Mage", { int: 16, str: 7, def: 8 }, 0.999),
-    5,
-    "Mage: floor(16/3) + 2 - floor(8/4)"
+    3,
+    "Mage: floor((floor(16/3) + 2) * (1 - 8/18))"
   );
   assert.equal(
     attackDamage("Bishop", { int: 15, str: 9, def: 4 }, 0),
-    4,
-    "Bishop: floor(15/3) + 0 - floor(4/4)"
+    3,
+    "Bishop: floor((floor(15/3) + 0) * (1 - 4/14))"
   );
 });
 
@@ -103,8 +103,8 @@ test("Bishop keeps stronger physical weapon and attack-affix damage", () => {
   };
   assert.equal(
     attackDamage("Bishop", { int: 15, str: 12, weapon, def: 4 }, 0),
-    42,
-    "max(physical 42, magic bolt 4) must preserve physical damage"
+    31,
+    "max(physical 44, magic bolt 3) * (1 - 4/14) must preserve physical damage"
   );
 });
 
