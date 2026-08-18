@@ -27,6 +27,10 @@ function applyOffensiveAffixes(
   });
 }
 
+function getSpellPowerBonus(caster) {
+  return caster ? (1.0 + getCharAffixSum(caster, "spellPower") / 100) : 1.0;
+}
+
 // Helper functions for DUMAPIC
 function getCompassDirection(fromX, fromY, toX, toY) {
   const dx = toX - fromX;
@@ -94,9 +98,10 @@ export const SPELL_EFFECTS = {
     let dmg = baseRoll;
     const statValue = caster ? getCharInt(caster) : 10;
     const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
+    const spellPowerBonus = getSpellPowerBonus(caster);
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
-    dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
+    dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus * fireRiteBonus);
     const preAffixDamage = dmg;
     const affixResult = applyOffensiveAffixes(caster, target, dmg, { state });
     dmg = affixResult.damage;
@@ -119,6 +124,7 @@ export const SPELL_EFFECTS = {
         statName: "int",
         statValue,
         statBonus: bonus,
+        spellPowerBonus,
         arcaneBonus,
         fireRiteBonus,
         preAffixDamage,
@@ -147,13 +153,14 @@ export const SPELL_EFFECTS = {
   LAHALITO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null }) => {
     const statValue = caster ? getCharInt(caster) : 10;
     const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
+    const spellPowerBonus = getSpellPowerBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
       const baseRoll = Math.floor(rng() * 21) + 15;
       let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
       const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
-      dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
+      dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus * fireRiteBonus);
       const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg, { state });
       dmg = affixResult.damage;
@@ -179,6 +186,7 @@ export const SPELL_EFFECTS = {
           statName: "int",
           statValue,
           statBonus: bonus,
+          spellPowerBonus,
           arcaneBonus,
           fireRiteBonus,
           preAffixDamage,
@@ -217,9 +225,10 @@ export const SPELL_EFFECTS = {
     let dmg = baseRoll;
     const statValue = caster ? getCharInt(caster) : 10;
     const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
+    const spellPowerBonus = getSpellPowerBonus(caster);
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
     const fireRiteBonus = caster ? (1.0 + getCharAffixSum(caster, "fireRite") / 100) : 1.0;
-    dmg = Math.round(dmg * bonus * arcaneBonus * fireRiteBonus);
+    dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus * fireRiteBonus);
     const preAffixDamage = dmg;
     const affixResult = applyOffensiveAffixes(caster, target, dmg, { state });
     dmg = affixResult.damage;
@@ -242,6 +251,7 @@ export const SPELL_EFFECTS = {
         statName: "int",
         statValue,
         statBonus: bonus,
+        spellPowerBonus,
         arcaneBonus,
         fireRiteBonus,
         preAffixDamage,
@@ -262,12 +272,13 @@ export const SPELL_EFFECTS = {
   MADALTO: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null }) => {
     const statValue = caster ? getCharInt(caster) : 10;
     const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
+    const spellPowerBonus = getSpellPowerBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
       const baseRoll = Math.floor(rng() * 31) + 30;
       let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-      dmg = Math.round(dmg * bonus * arcaneBonus);
+      dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus);
       const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg, { state });
       dmg = affixResult.damage;
@@ -293,6 +304,7 @@ export const SPELL_EFFECTS = {
           statName: "int",
           statValue,
           statBonus: bonus,
+          spellPowerBonus,
           arcaneBonus,
           fireRiteBonus: 1,
           preAffixDamage,
@@ -318,12 +330,13 @@ export const SPELL_EFFECTS = {
   TILTOWAIT: ({ caster, target: targets, rng = Math.random, telemetryEnabled = false, state = null }) => {
     const statValue = caster ? getCharInt(caster) : 10;
     const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
+    const spellPowerBonus = getSpellPowerBonus(caster);
     const results = targets.map(t => {
       if (t.hp <= 0) return 0;
       const baseRoll = Math.floor(rng() * 51) + 50;
       let dmg = baseRoll;
       const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-      dmg = Math.round(dmg * bonus * arcaneBonus);
+      dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus);
       const preAffixDamage = dmg;
       const affixResult = applyOffensiveAffixes(caster, t, dmg, { state });
       dmg = affixResult.damage;
@@ -349,6 +362,7 @@ export const SPELL_EFFECTS = {
           statName: "int",
           statValue,
           statBonus: bonus,
+          spellPowerBonus,
           arcaneBonus,
           fireRiteBonus: 1,
           preAffixDamage,
@@ -376,8 +390,9 @@ export const SPELL_EFFECTS = {
   DIOS: ({ caster, target, rng = Math.random }) => {
     let heal = rollHealing("DIOS", rng);
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
+    const spellPowerBonus = getSpellPowerBonus(caster);
     const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
-    heal = Math.round(heal * bonus * devotionBonus);
+    heal = Math.round(heal * bonus * spellPowerBonus * devotionBonus);
     heal = getEffectiveHealAmount(target, heal);
     const oldHp = target.hp;
     const maxHp = getCharMaxHp(target);
@@ -401,8 +416,9 @@ export const SPELL_EFFECTS = {
     let dmg = baseRoll;
     const statValue = caster ? getCharPie(caster) : 10;
     const bonus = caster ? getSpellStatBonus(statValue) : 1.0;
+    const spellPowerBonus = getSpellPowerBonus(caster);
     const arcaneBonus = caster ? (1.0 + getCharAffixSum(caster, "arcane") / 100) : 1.0;
-    dmg = Math.round(dmg * bonus * arcaneBonus);
+    dmg = Math.round(dmg * bonus * spellPowerBonus * arcaneBonus);
     
     const preTargetBonusDamage = dmg;
     const preAffixDamage = dmg;
@@ -431,6 +447,7 @@ export const SPELL_EFFECTS = {
         statName: "pie",
         statValue,
         statBonus: bonus,
+        spellPowerBonus,
         arcaneBonus,
         fireRiteBonus: 1,
         preTargetBonusDamage,
@@ -465,7 +482,9 @@ export const SPELL_EFFECTS = {
   MADIOS: ({ caster, target, rng = Math.random }) => {
     let heal = rollHealing("MADIOS", rng);
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
-    heal = Math.round(heal * bonus);
+    const spellPowerBonus = getSpellPowerBonus(caster);
+    const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
+    heal = Math.round(heal * bonus * spellPowerBonus * devotionBonus);
     heal = getEffectiveHealAmount(target, heal);
     const oldHp = target.hp;
     const maxHp = getCharMaxHp(target);
@@ -495,8 +514,9 @@ export const SPELL_EFFECTS = {
   DIALMA: ({ caster, target, rng = Math.random }) => {
     let heal = rollHealing("DIALMA", rng);
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
+    const spellPowerBonus = getSpellPowerBonus(caster);
     const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
-    heal = Math.round(heal * bonus * devotionBonus);
+    heal = Math.round(heal * bonus * spellPowerBonus * devotionBonus);
     heal = getEffectiveHealAmount(target, heal);
     const oldHp = target.hp;
     const maxHp = getCharMaxHp(target);
@@ -510,8 +530,9 @@ export const SPELL_EFFECTS = {
   MADI: ({ caster, target, rng = Math.random, healMin = null, healMax = null }) => {
     let heal = rollHealing("MADI", rng, healMin, healMax);
     const bonus = caster ? getSpellStatBonus(getCharPie(caster)) : 1.0;
+    const spellPowerBonus = getSpellPowerBonus(caster);
     const devotionBonus = caster ? (1.0 + getCharAffixSum(caster, "devotion") / 100) : 1.0;
-    heal = Math.round(heal * bonus * devotionBonus);
+    heal = Math.round(heal * bonus * spellPowerBonus * devotionBonus);
     heal = getEffectiveHealAmount(target, heal);
     const oldHp = target.hp;
     const maxHp = getCharMaxHp(target);

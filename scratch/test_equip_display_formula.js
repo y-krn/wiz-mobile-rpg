@@ -296,6 +296,7 @@ check(
 );
 
 const spellPowerEquipment = makeItem("RING_STR", [
+  { type: "spellPower", value: 20 },
   { type: "arcane", value: 10 },
   { type: "devotion", value: 10 }
 ]);
@@ -306,7 +307,7 @@ const spellPowerChar = makeChar({
 });
 const spellPowerStats = getCharDerivedStats(spellPowerChar);
 const statBonus = getSpellStatBonus(14);
-const expectedSpellBonus = Math.round((statBonus * 1.1 - 1) * 100);
+const expectedSpellBonus = Math.round((statBonus * 1.2 * 1.1 - 1) * 100);
 check("magic displays the effective multiplier bonus", spellPowerStats.magic, expectedSpellBonus);
 check("healing displays the effective multiplier bonus", spellPowerStats.healing, expectedSpellBonus);
 

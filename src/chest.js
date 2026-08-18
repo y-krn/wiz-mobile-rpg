@@ -83,6 +83,7 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
   if (hasEquipmentSignal) {
     const tagLabels = {
       followUp: "連撃",
+      spellPower: "術力",
       arcane: "秘術",
       devotion: "神聖",
       guardian: "守護",

@@ -201,8 +201,10 @@ export function calculatePhysicalDefenseFormula({
   return Math.max(0, baseDef + Math.floor(vit / 4) + bonusDef - tempDefDown);
 }
 
-function getEffectiveSpellBonus(stat, affixSum) {
-  const multiplier = getSpellStatBonus(stat) * (1 + affixSum / 100);
+function getEffectiveSpellBonus(stat, affixSum, spellPowerSum) {
+  const multiplier = getSpellStatBonus(stat)
+    * (1 + spellPowerSum / 100)
+    * (1 + affixSum / 100);
   return Math.round((multiplier - 1) * 100);
 }
 
@@ -217,8 +219,16 @@ export function getCharDerivedStats(char, { floor = 1 } = {}) {
   return {
     attack: calculatePhysicalAttackFormula({ weaponAtk, str }),
     defense: calculatePhysicalDefenseFormula({ baseDef: getCharDef(char), vit }),
-    magic: getEffectiveSpellBonus(int, getCharAffixSum(char, "arcane")),
-    healing: getEffectiveSpellBonus(pie, getCharAffixSum(char, "devotion")),
+    magic: getEffectiveSpellBonus(
+      int,
+      getCharAffixSum(char, "arcane"),
+      getCharAffixSum(char, "spellPower")
+    ),
+    healing: getEffectiveSpellBonus(
+      pie,
+      getCharAffixSum(char, "devotion"),
+      getCharAffixSum(char, "spellPower")
+    ),
     speed: getCharAgi(char),
     trap: calculateDisarmRate({
       className: char.class,

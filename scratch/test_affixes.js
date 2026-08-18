@@ -21,14 +21,14 @@ function lcg(seed) {
   };
 }
 
-assert.strictEqual(SUPPORT_AFFIXES.length, 45, "support registry count");
-assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 45, "enabled support count");
+assert.strictEqual(SUPPORT_AFFIXES.length, 46, "support registry count");
+assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 46, "enabled support count");
 assert.deepStrictEqual(
   Object.fromEntries(["basic", "conditional", "trigger", "economy"].map(category => [
     category,
     SUPPORT_AFFIXES.filter(affix => affix.category === category).length
   ])),
-  { basic: 25, conditional: 11, trigger: 6, economy: 3 }
+  { basic: 26, conditional: 11, trigger: 6, economy: 3 }
 );
 SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.kind, "support");
@@ -73,10 +73,10 @@ assert.ok(generatedCore, "enabled core enters compatible slot pool");
 assert.strictEqual(generatedCore.affixes.filter(affix => affix.kind === "core").length, 1);
 assert.strictEqual(generatedCore.affixes.filter(affix => affix.kind === "support").length, 2);
 
-function findGeneratedAffix(generator, floor, type, maxSeed = 5000) {
+function findGeneratedAffix(generator, floor, type, maxSeed = 5000, rarity = "epic") {
   for (let seed = 1; seed <= maxSeed; seed++) {
     const item = generator(floor, {
-      forceRarity: "epic",
+      forceRarity: rarity,
       rng: lcg(seed),
       allowCores: false
     });
@@ -84,6 +84,17 @@ function findGeneratedAffix(generator, floor, type, maxSeed = 5000) {
     if (affix) return { item, affix };
   }
   return null;
+}
+
+for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
+  for (const [rarity, expectedValue] of Object.entries(AFFIX_BALANCE.spellPowerByRarity)) {
+    const generated = findGeneratedAffix(generator, 2, "spellPower", 5000, rarity);
+    assert.ok(generated, `${generator.name} should offer spellPower at B2 (${rarity})`);
+    assert.strictEqual(generated.affix.value, expectedValue, `spellPower ${rarity} value`);
+    const deeper = findGeneratedAffix(generator, 5, "spellPower", 5000, rarity);
+    assert.ok(deeper, `${generator.name} should offer spellPower at B5 (${rarity})`);
+    assert.strictEqual(deeper.affix.value, expectedValue, `spellPower ${rarity} must not scale by floor`);
+  }
 }
 
 function collectGeneratedAffixValues(generator, floor, type, maxSeed = 5000) {
