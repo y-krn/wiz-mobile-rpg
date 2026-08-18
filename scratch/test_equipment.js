@@ -126,6 +126,25 @@ import { createSoloCharacter } from "../src/state.js";
 
       console.log("-> [PASS] Accessory enhancement disabled");
 
+      // 1c. 未鑑定装備は強化対象外で、素材を消費しない
+      const unidentifiedWeapon = {
+        kind: "equipment",
+        instanceId: "eq_test_unidentified_weapon_123",
+        baseId: "SHORT_SWORD",
+        rarity: "magic",
+        level: 1,
+        identified: false,
+        enhanceLevel: 0,
+        affixes: []
+      };
+      state.inventory = [unidentifiedWeapon];
+      state.metaMaterials = { "鉄片": 10, "魔石片": 10 };
+      assert.strictEqual(getEnhanceCost(unidentifiedWeapon), null);
+      assert.strictEqual(executeEnhance(0), false, "Unidentified enhancement should be rejected");
+      assert.strictEqual(unidentifiedWeapon.enhanceLevel, 0);
+      assert.deepStrictEqual(state.metaMaterials, { "鉄片": 10, "魔石片": 10 });
+      console.log("-> [PASS] Unidentified enhancement rejected without material consumption");
+
       console.log("\n=== ALL EQUIPPED CRAFT VERIFICATION TESTS PASSED SUCCESSFULLY! ===");
     })();
   })();

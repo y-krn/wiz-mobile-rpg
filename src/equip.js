@@ -766,9 +766,9 @@ function createWorkshopPanel(itemKey) {
   enhanceStatus.textContent = `強化段階: +${enhanceLevel} / +1`;
   enhanceSection.appendChild(enhanceStatus);
 
-  const enhanceStat = item?.type === "weapon"
+  const enhanceStat = isIdentified(itemKey) && item?.type === "weapon"
     ? { label: "攻撃力", value: item.atk || 0 }
-    : item?.type === "shield" || item?.type === "armor"
+    : isIdentified(itemKey) && (item?.type === "shield" || item?.type === "armor")
       ? { label: "防御力", value: item.def || 0 }
       : null;
   if (enhanceStat) {
@@ -782,7 +782,9 @@ function createWorkshopPanel(itemKey) {
   if (!enhanceCost) {
     const unavailable = document.createElement("span");
     unavailable.className = "equip-workshop-unavailable";
-    unavailable.textContent = enhanceLevel >= 1
+    unavailable.textContent = !isIdentified(itemKey)
+      ? "未鑑定のため強化対象外です"
+      : enhanceLevel >= 1
       ? "強化済み（現行上限 +1）"
       : "この装備は強化対象外です（武器・盾・防具のみ）";
     enhanceSection.appendChild(unavailable);

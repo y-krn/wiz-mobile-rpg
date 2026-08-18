@@ -70,6 +70,7 @@ export const CRAFT_RECIPES = [
 export function getEnhanceCost(eqItem) {
   const item = getItemData(eqItem);
   if (!item) return null;
+  if (typeof eqItem === "object" && eqItem.identified === false) return null;
 
   // すでに強化されているか確認
   const currentEnhance = eqItem.enhanceLevel || 0;
