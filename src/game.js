@@ -21,27 +21,27 @@ export { goBackSubmenu } from "./navigation.js";
 export { selectCombatAction, cancelCombatAction, resolveCombatRound, triggerGameOver, toggleCombatAuto } from "./combat.js";
 
 let renderer = null;
-let lastTime = 0;
+let animationFrameId = null;
+let lastTime = null;
 const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover";
 
 export function initGame() {
   setUiUpdateCallback(updateUI);
   lockViewportScale();
   loadGame();
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden" && state.transitioning === false) {
-      saveAutosave();
-    }
-  });
 
   // エラー発生時にゲーム状態をSentryへ添付できるよう登録（stateはロード済み）
   initErrorContext(state);
 
   renderer = new DungeonRenderer("dungeon-canvas");
   setDungeonRenderer(renderer);
-  
+
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("pagehide", stopGameLoop);
+  window.addEventListener("pageshow", handlePageShow);
+
   // Set up animation/render loop
-  requestAnimationFrame(gameLoop);
+  scheduleGameLoop();
 
   // Bind Buttons
   bindButtons();
@@ -61,8 +61,43 @@ function lockViewportScale() {
   window.scrollTo(0, 0);
 }
 
+function scheduleGameLoop() {
+  animationFrameId = requestAnimationFrame(gameLoop);
+}
+
+function stopGameLoop() {
+  if (animationFrameId !== null) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+}
+
+function restartGameLoop() {
+  stopGameLoop();
+  lastTime = null;
+  if (renderer) renderer.lastSignature = null;
+  scheduleGameLoop();
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === "hidden") {
+    if (state.transitioning === false) saveAutosave();
+    stopGameLoop();
+    return;
+  }
+  restartGameLoop();
+}
+
+function handlePageShow() {
+  lockViewportScale();
+  restartGameLoop();
+}
+
 function gameLoop(time) {
-  const dt = time - lastTime;
+  animationFrameId = null;
+  if (document.visibilityState === "hidden") return;
+
+  const dt = lastTime === null ? 0 : time - lastTime;
   lastTime = time;
 
   if (renderer) {
@@ -80,7 +115,7 @@ function gameLoop(time) {
     }
   }
 
-  requestAnimationFrame(gameLoop);
+  scheduleGameLoop();
 }
 
 // ----------------------------------------------------
@@ -229,7 +264,6 @@ function bindButtons() {
     lastTouchEnd = now;
   }, { passive: false });
 
-  window.addEventListener("pageshow", lockViewportScale);
   window.addEventListener("resize", lockViewportScale);
   window.addEventListener("orientationchange", lockViewportScale);
   if (window.visualViewport) {
