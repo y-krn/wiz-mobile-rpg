@@ -268,6 +268,7 @@ export function getItemData(itemOrKey) {
       else if (primaryAff.type === "luk") prefix = "強運の";
       else if (primaryAff.type === "trapBonus") prefix = "技巧の";
       else if (primaryAff.type === "followUp") prefix = "連撃の";
+      else if (primaryAff.type === "spellPower") prefix = "術力の";
       else if (primaryAff.type === "arcane") prefix = "秘術の";
       else if (primaryAff.type === "devotion") prefix = "神聖な";
       else if (primaryAff.type === "guardian") prefix = "守護の";

@@ -296,13 +296,13 @@ import { createSoloCharacter } from "../src/state.js";
     };
 
     const expectedAffixes = {
-      SAGE_STAFF: ["mp", "arcane"],
-      ARCH_WAND: ["mp", "arcane", "spellGuard"],
-      SORCERER_ROBE: ["mp", "arcane", "spellGuard"],
+      SAGE_STAFF: ["mp", "arcane", "spellPower"],
+      ARCH_WAND: ["mp", "arcane", "spellGuard", "spellPower"],
+      SORCERER_ROBE: ["mp", "arcane", "spellGuard", "spellPower"],
       VENOM_FANG: ["trapBonus", "followUp", "treasureSense"],
       NINJA_BLADE: ["trapBonus", "followUp", "treasureSense", "firstStrike"],
       MOONSHADOW: ["trapBonus", "followUp", "treasureSense", "firstStrike"],
-      HOLY_STAFF: ["arcane", "devotion", "antiUndead"],
+      HOLY_STAFF: ["arcane", "devotion", "antiUndead", "spellPower"],
       FLAME_SWORD: ["followUp"]
     };
 

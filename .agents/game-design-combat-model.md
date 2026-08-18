@@ -18,8 +18,8 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
   `src/systems/spell_effects.js`、`src/combat_logic/spell_resolution.js` が
   実行経路の正本である。
 
-初版の実測 base は `origin/main` の `e605411`。本 Issue の実装 base は
-`origin/main` の `e705a13`。ルール値と既存の式は変更していない。
+初版の実測 base は `origin/main` の `e605411`。#731 の実装 base は
+`origin/main` の `ad050fc`。#722 の既存式を土台に、決定 2 の共通項だけを追加する。
 呪文の内訳を測るため、後述の telemetry を既定オフの no-op として追加した。
 
 ## 設計判断の要約
@@ -29,8 +29,10 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 
 1. 軽減は、物理と呪文で**有界な乗算モデルへ揃える**。物理 `def` を将来どの
    抵抗値へ変換するかは別 Issue で測る。
-2. 呪文は、上位呪文の習得だけでなく、**装備・run 内ビルドで伸びる**。既存の
-   `arcane` だけに隠すのではなく、共通の明示された spell-power 経路を持つ。
+2. 呪文は、上位呪文の習得だけでなく、**装備・run 内ビルドで伸びる**。共通項は
+   プレイヤー表示「術力」、内部 ID `spellPower` とし、武器・鎧・盾と装身具の
+   support pool から供給する。既存の `arcane` は攻撃呪文の明示入力、`devotion`
+   は回復呪文の明示入力として共通項の上に残す。
 3. レベルは、ビルドを置き換えない小さな戦闘力として、**物理と呪文の両方に
    明示的に寄与する**。正確な曲線は別の測定で決める。
 4. タグ特効は攻撃手段を問わず共通プールへ集約し、一度だけ適用する。対象の
@@ -44,8 +46,8 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 7. 上限は原則として逓減にし、投資を無価値にしない。安全性のための硬い上限を
    置く場合も、超過分の変換または別の可視効果を決める。
 
-この run では決定 4 を Issue #719 の配線変更として実装する。他の決定の値や式は
-変更しない。
+この更新では決定 2 を Issue #731 の配線変更として実装する。決定 4 のタグ特効は
+#719 で確定済みであり、今回の変更では触れない。
 
 ## 1. 現状の式と適用順
 
@@ -66,6 +68,9 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 - `magicResist`: spell resolution が一時的に適用する
   `getEffectiveMagicResist` の値。敵の base と buff を合成し、-1〜0.9 に clamp
   する。
+- `spellPower`: `getCharAffixSum(caster, "spellPower")`。攻撃・回復呪文に共通する
+  player-facing の「術力」。生成値は `AFFIX_BALANCE.spellPowerByRarity` から取り、
+  floor は生成可否だけに使い、値の scaling には使わない。
 
 ### 1.2 物理攻撃の全文
 
@@ -154,12 +159,30 @@ statMultiplier(stat)
 base = spell-specific dice
 stat = caster INT (HALITO, LAHALITO, MAHALITO, MADALTO, TILTOWAIT)
        または caster PIE (BADIOS)
+spellPower = 1 + getCharAffixSum(caster, "spellPower") / 100
 arcane = 1 + getCharAffixSum(caster, "arcane") / 100
 fire   = 1 + getCharAffixSum(caster, "fireRite") / 100
         // fireRite を使わない呪文では 1
 
-preTarget = round(base * statMultiplier(stat) * arcane * fire)
+preTarget = round(base * statMultiplier(stat) * spellPower * arcane * fire)
 ```
+
+`spellPower` は全ての攻撃呪文に共通する項で、`arcane` は攻撃側だけの固有項、
+`fireRite` は火系だけの固有項である。従って `arcane` を共通項の代用品にはしない。
+回復呪文は同じ位置で次の式を使う。
+
+```text
+healPreClamp = round(heal-specific dice
+                     * statMultiplier(caster PIE)
+                     * spellPower
+                     * devotion)
+heal = getEffectiveHealAmount(target, healPreClamp)
+target.hp = min(getCharMaxHp(target), target.hp + heal)
+```
+
+回復の `devotion` は DIOS / MADIOS / DIALMA / MADI の回復固有項であり、術力と
+乗算する。状態異常解除・探索・防御呪文には、damage/heal の威力項がないため術力を
+適用しない。
 
 呪文ごとの `base` と固有項は次のとおり。範囲は両端を含む。
 
@@ -247,6 +270,7 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | --- | --- | --- | --- |
 | 呪文ごとの dice | 12–22、15–35、30–50、30–60、50–100、8–18 | `src/data/spells.js` の説明と `spell_effects.js` の roll | 呪文ごとに identity を持つことは source と description に明示。各幅を選んだ理由は根拠不明 |
 | stat multiplier | `(stat - 10) * 0.02`、+40% cap | `getSpellStatBonus` | stat を spell power にする意図は読める。2% 刻みと int30 cap の根拠は根拠不明 |
+| `spellPower`（術力） | 攻撃・回復の pre-target / pre-clamp 乗算 | `SUPPORT_AFFIXES`、`equipment_generation.js`、`AFFIX_BALANCE.spellPowerByRarity` | 共通の装備入力を明示する。武器・鎧・盾と装身具から供給し、値は rarity 軸のみ。hard cap は置かず、floor scaling はしない |
 | `arcane` | pre-affix の乗算 | support affix registry と `spell_effects.js` | 装備で spell を伸ばす入力としては equipment-builds と接続する。係数・名称以外の成長設計は未記録 |
 | `fireRite` | HALITO / LAHALITO / MAHALITO のみ乗算 | `spell_effects.js` と affix registry | 火系固有の入力として読めるが、なぜ 3 呪文だけかは根拠不明 |
 | BADIOS 固有タグ | `intrinsicTagBonus` の undead +50 / spirit +30 / demon +30 を共通 pool へ加算 | `src/data/spells.js`、`getDamageAffixResult` | 現行倍率 1.5 / 1.3 / 1.3 の等価変換。spirit +30 は既存 `antiSpirit` support pool へ入り、同一寄与を二重に乗せない |
@@ -522,7 +546,7 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 | # | 非対称 | 判定 | 理由と実測・経路根拠 | 対応する決定 |
 | ---: | --- | --- | --- | --- |
 | 1 | 物理は `-floor(def/2)`、呪文は `×(1-magicResist)` | **欠陥** | `def` と `magicResist` が別 input・別順序で、同じ低 damage 帯で別の clamp を持つ理由が正本にない。physical raw の def 項は 8 職で平均 -0.174〜-1.339、spell の resist stage は呪文ごとに符号付きで平均 +0.72〜+2.73だった。異なる軽減を採るなら、敵表示と player decision まで含む理由が必要だが未記録。 | 決定 1 |
-| 2 | 物理は装備で伸び、呪文は固定 dice と +40% stat cap | **欠陥** | core-loop 正本は run 内 loot build を depth の評価軸にする。physical は B1→B10 で Fighter 20.45→51.70、spell は観測 Mage B1→B10 25.58→32.19で、呪文の伸びが上位呪文の習得と偶然の build に依存する。`arcane` は存在するが、共通 spell-power の設計がない。 | 決定 2 |
+| 2 | 物理は装備で伸び、呪文は固定 dice と +40% stat cap | **結論（#731で修正）** | core-loop 正本は run 内 loot build を depth の評価軸にする。physical は B1→B10 で Fighter 20.45→51.70、spell は観測 Mage B1→B10 25.58→32.19で、呪文の伸びが上位呪文の習得と偶然の build に依存していた。#731 で共通の `spellPower`（術力）を導入し、`arcane` / `devotion` / `fireRite` は固有項として残した。 | 決定 2 |
 | 3 | レベルはほぼ damage に寄与せず、呪文だけ level gate を持つ | **欠陥** | `str`/`int` の base はレベルで自動増加せず、spell learn は lv2/3/6/8に固定。今回 MADALTO は N=139、TILTOWAIT は N=0で、到達した run だけで上位呪文を評価する構造になっている。level gate と level power の対応が正本にない。 | 決定 3 |
 | 4 | `antiUndead` / `antiDragon` / `antiDemon` は物理のみ | **欠陥（配線漏れ）。共通 stage へ集約して修正** | #719 実装前は `applyTargetedDamageBonus` の物理経路だけがタグ特効を持ち、攻撃呪文は `getDamageAffixResult` を直接呼んで stage を飛ばしていた。結論としてタグ特効を `getDamageAffixResult` の共通 stage へ移し、BADIOS の +50/+30/+30 も同じ加算プールへ入れる。共通 anti tag と固有寄与を合計して一度だけ乗算するため、攻撃手段非依存・同一タグの二重乗算なしとなる。 | 決定 4、#719 |
 | 5 | raw の `weaponAtk + buffAtk` を物理入力単位へ 1.5 倍 | **#720で解消** | 旧式は設計根拠のない hidden weight で、表示の `+20` が実効 `+30`になっていた。#720 で各 data source を実効値へ吸収し、0.5 を保持した合計を floor する。`str` の下限は別判断として `max(0, str - 10)` を採用した。 | 決定 5、#718、#720 |
@@ -553,11 +577,34 @@ CV を目標にしたのかは根拠不明であり、意図を過去のバラ�
 ### 2. 呪文は装備で伸びるべきか
 
 **伸びるべき。** core-loop の主軸は run 内 build であり、攻撃呪文だけが固定
-dice と習得 level に閉じると、loot の判断対象から外れる。既存 `arcane` は
-一つの明示された装備入力として残すが、それだけで全 spell の成長を暗黙に
-担わせない。共通の spell-power（名称と供給 source を明記したもの）を用意し、
-火・神聖などの固有 affix はその上に別の明示項として重ねる。上位 spell の
-range 値はこの Issue で変えない。
+dice と習得 level に閉じると、loot の判断対象から外れる。採用する共通項は
+プレイヤー表示「術力」、内部 ID `spellPower` である。武器・鎧・盾の魔術系装備と
+装身具の 2 枠から供給し、値は `AFFIX_BALANCE.spellPowerByRarity` の rarity 軸だけで
+決める。floor は供給可能な pool の境界に使っても、値の scaling には使わない。
+
+適用位置は `getSpellStatBonus` の直後、`arcane` / `devotion` / `fireRite` などの
+固有項と同じ pre-target（回復は pre-clamp）乗算である。既存 `arcane` は攻撃側の
+明示入力として残し、それだけで全 spell の成長を暗黙に担わせない。火・神聖などの
+固有 affix は術力の上に別の明示項として重ねる。術力に hard cap は置かない。供給量
+が限定される現段階で投資を無効化する cap を増やさず、将来上限が必要になった場合は
+決定 7 に従い逓減を先に検討する。上位 spell の range 値はこの Issue で変えない。
+
+### 2a. 回復呪文の扱い
+
+**術力を回復にも適用する。** 攻撃だけに適用すると、同じ spell build を選んだ
+僧侶の回復だけが固定 dice に残り、`devotion` を回復側の `arcane` 相当としている
+職業軸と装備投資の意味が分離する。術力は DIOS / MADIOS / DIALMA / MADI の全回復
+威力に共通適用し、既存の `devotion` はその上に重なる回復固有項として残す。
+これにより僧侶の回復役割は維持しつつ、攻撃呪文を選ぶ職だけに新しい装備入力を
+独占させない。回復量の上限 clamp と anti-heal は従来どおり後段に残す。
+
+### 2b. `fireRite` の扱い
+
+**この Issue では触らない。** `fireRite` は `SUPPORT_AFFIXES` に無く、現状の供給は
+`curse_purging_flame` の `mod` だけである。これを術力の固有項として support pool
+へ追加すると、呪いの副産物を意図した build 経路へ変えてしまうため、今回の共通項
+導入とは分離する。火系固有項として式に残すが、供給追加や registry 化は別 Issue の
+明示的な判断対象とする。
 
 ### 3. レベルはダメージに寄与すべきか
 
@@ -644,6 +691,7 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
 | #713 盗賊の解除率が90に張り付く | 非対称 #10、決定 7 | hard cap で投資を無価値にしない。逓減または超過変換を #713 で測る。 |
 | #599 lv5以上の呪文が到達帯に届かない | 非対称 #2・#3、決定 2・3 | spell growth と level gate を同じ到達分布で再設計する。到達値・習得値の変更は #599。 |
 | #558 Mage `trapGuard=60` が Fighter `40` を上回る | 非対称 #9、決定 3 と職業軸 | 罠 sustain を damage compensation に使わず、職業軸を罠・戦闘・resource に分けて評価する。#558 の passive 値は変更しない。 |
+| #731 攻撃呪文の装備成長 | 非対称 #2、決定 2 | 「術力」`spellPower` を武器・鎧・盾と装身具から供給し、stat 直後の pre-target / pre-clamp に適用する。攻撃・回復の両方へ適用し、`arcane` / `devotion` / `fireRite` は固有項として残す。 |
 | #721 monster drop の旧 positional API | 本書の範囲外 | ダメージモデルの判断対象ではない。配下の配線欠陥として記録だけし、コードを変更しない。 |
 | #717 Mage physical が成立しない | 非対称 #1・#2・#3・#9 | #716後の実測で A/B/C を判断する前提を維持する。本書は hidden magicBolt を正当化せず、#717 の値変更は行わない。 |
 

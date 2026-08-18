@@ -303,6 +303,10 @@ export function generateRandomEquipment(floor, options) {
   if (isArcaneEligible) {
     addAffix(2, "arcane", () => 15, 2); // +15%
   }
+  const isSpellPowerEligible = ["WAND", "SAGE_STAFF", "ARCH_WAND", "HOLY_STAFF", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "SORCERER_ROBE", "MAGIC_SHIELD"].includes(baseId);
+  if (isSpellPowerEligible) {
+    addAffix(2, "spellPower", () => AFFIX_BALANCE.spellPowerByRarity[rarity], 2);
+  }
   const isDevotionEligible = ["MACE", "PRIEST_ROBE", "SACRED_MACE", "HOLY_STAFF"].includes(baseId);
   if (isDevotionEligible) {
     addAffix(2, "devotion", () => 15, 2); // +15%
@@ -552,6 +556,7 @@ export function generateRandomAccessory(floor, options) {
     { type: "treasureSense", getVal: () => floor >= 4 ? 8 : 5, weight: 1 },
     { type: "hearRange", getVal: () => floor >= 4 ? 2 : 1, weight: 2 },
     { type: "arcaneSense", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 },
+    { type: "spellPower", getVal: () => AFFIX_BALANCE.spellPowerByRarity[rarity], weight: floor >= 2 ? 2 : 0 },
     { type: "traceRead", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 },
     { type: "trapBonus", getVal: () => floor >= 5 ? 15 : (floor >= 3 ? 10 : 5), weight: 1 },
     { type: "deepAssault", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 2 : 0 },

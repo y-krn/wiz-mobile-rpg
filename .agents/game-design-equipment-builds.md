@@ -86,8 +86,8 @@ and triggering its curse is intended behavior (the risk of this core).
 
 - basic (migrated from existing effects in Phase 1): str/int/pie/vit/agi/luk, hp/mp, atk/def,
   antiUndead/antiDragon/antiDemon, poisonWard, spellGuard, trapBonus,
-  treasureSense, arcaneSense, hearRange, traceRead, followUp, arcane,
-  devotion, guardian, firstStrike
+  treasureSense, arcaneSense, hearRange, traceRead, followUp, spellPower,
+  arcane, devotion, guardian, firstStrike
 - conditional (Phase 2): deepAssault (attack+ from B3F onward) / frontGuard /
   rearEvasion / fullHpDamage / firstTurnAttack / antiBeast / antiSpirit /
   firstStrikeDefense / lastSurvivorStats / statusResistance / spellAccuracy
@@ -97,6 +97,11 @@ and triggering its curse is intended behavior (the risk of this core).
 
 `materialFind` / `contractReward` obtain the equipment values of 1 solo character via
 `getPartyMaxAffix`. The target of `contractReward` is rank-quest rewards.
+
+`spellPower`（表示名「術力」）は攻撃・回復呪文に共通する basic support である。魔術系の
+武器・鎧・盾と装身具から供給し、値は `AFFIX_BALANCE.spellPowerByRarity` の rarity 軸
+だけで決まる。`arcane` は攻撃呪文、`devotion` は回復呪文の固有 support として術力の
+上に重なる。floor は供給 pool の境界であって、術力値の scaling source ではない。
 
 `trapBonus` is the single support affix for floor/chest-trap disarm and the B5F
 flame-trap avoidance roll. Its generation preserves the former aggregate

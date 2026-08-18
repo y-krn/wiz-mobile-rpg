@@ -24,6 +24,7 @@ export const AFFIX_BALANCE = {
     hearRange: 1,
     traceRead: 1,
     followUp: 3,
+    spellPower: 3,
     arcane: 3,
     devotion: 3,
     guardian: 3,
@@ -48,6 +49,13 @@ export const AFFIX_BALANCE = {
     identifyDiscount: 1,
     materialFind: 2,
     contractReward: 2
+  },
+  // Shared spell power uses rarity for value. Floor only controls whether a
+  // generator pool can offer the affix; it never scales the rolled value.
+  spellPowerByRarity: {
+    magic: 10,
+    rare: 15,
+    epic: 20
   },
   // #270: 実src経路のsim（N=500、工房解放済み・帰還の翼あり）で
   // 前半core遭遇 44.2%→65.4%、前半core装備 36.2%→58.2%。
@@ -110,6 +118,7 @@ export const SUPPORT_AFFIXES = [
   support("hearRange", "聴覚", "聴覚範囲が増加する。", "basic"),
   support("traceRead", "痕跡", "痕跡判読範囲が増加する。", "basic", { unit: "Lv" }),
   support("followUp", "追加攻撃", "追加攻撃率が増加する。", "basic", { unit: "%" }),
+  support("spellPower", "術力", "攻撃・回復呪文の威力が増加する。", "basic", { unit: "%" }),
   support("arcane", "呪文威力", "呪文威力が増加する。", "basic", { unit: "%" }),
   support("devotion", "回復威力", "回復威力が増加する。", "basic", { unit: "%" }),
   support("guardian", "守護", "HP25%以下のとき、物理ダメージを軽減する。", "basic", { unit: "%" }),

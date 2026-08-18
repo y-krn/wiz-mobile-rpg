@@ -1207,4 +1207,142 @@ import { resolvePlayerSpell } from "../src/combat_logic/spell_resolution.js";
   console.log("MADI spell tests passed.");
 })();
 
+// ========================================================================
+// Shared spell power cast-path counterfactual (#731)
+// ========================================================================
+(() => {
+  function castWithSpellPower(spellPower) {
+    const caster = {
+      name: "SpellPower Mage",
+      class: "Mage",
+      level: 1,
+      hp: 30,
+      maxHp: 30,
+      mp: 10,
+      maxMp: 10,
+      silenceTurns: 0,
+      status: "ok",
+      str: 8,
+      int: 10,
+      pie: 10,
+      vit: 10,
+      agi: 10,
+      luk: 10,
+      equipment: {
+        accessory: {
+          kind: "equipment",
+          baseId: "RING_STR",
+          identified: true,
+          affixes: [{ type: "spellPower", value: spellPower }]
+        }
+      }
+    };
+    const state = {
+      party: [caster],
+      floor: 1,
+      currentRun: { deathLogs: [] },
+      combatState: { turn: 1 },
+      combatFormulaTelemetry: { spellHits: [], targetedBonuses: [] }
+    };
+    const monsters = [{
+      name: "Counterfactual Target",
+      hp: 1000,
+      maxHp: 1000,
+      magicResist: 0,
+      tags: [],
+      color: "#fff"
+    }];
+    const logQueue = [];
+    const originalRandom = Math.random;
+    Math.random = () => 0.5;
+    try {
+      resolvePlayerSpell(caster, { spellName: "HALITO", targetIdx: 0 }, state, monsters, logQueue);
+    } finally {
+      Math.random = originalRandom;
+    }
+    return {
+      damage: state.combatFormulaTelemetry.spellHits[0]?.damage,
+      formula: state.combatFormulaTelemetry.spellHits[0]?.formula,
+      targetHp: monsters[0].hp
+    };
+  }
+
+  const withoutSpellPower = castWithSpellPower(0);
+  const withSpellPower = castWithSpellPower(20);
+  assert.strictEqual(withoutSpellPower.formula.spellPowerBonus, 1, "spellPower=0 must be neutral");
+  assert.strictEqual(withSpellPower.formula.spellPowerBonus, 1.2, "spellPower affix must reach spell formula");
+  assert.ok(
+    withSpellPower.damage > withoutSpellPower.damage,
+    "actual resolvePlayerSpell path must deal more damage with spellPower"
+  );
+  assert.ok(
+    withSpellPower.targetHp < withoutSpellPower.targetHp,
+    "actual target HP mutation must reflect spellPower counterfactual"
+  );
+
+  function healWithSpellPower(spellPower) {
+    const caster = {
+      name: "SpellPower Priest",
+      class: "Priest",
+      level: 5,
+      hp: 30,
+      maxHp: 30,
+      mp: 10,
+      maxMp: 10,
+      silenceTurns: 0,
+      status: "ok",
+      str: 8,
+      int: 8,
+      pie: 10,
+      vit: 10,
+      agi: 10,
+      luk: 10,
+      equipment: {
+        accessory: {
+          kind: "equipment",
+          baseId: "RING_STR",
+          identified: true,
+          affixes: [{ type: "spellPower", value: spellPower }]
+        }
+      }
+    };
+    const target = {
+      name: "Wounded Ally",
+      class: "Fighter",
+      level: 1,
+      hp: 10,
+      maxHp: 200,
+      status: "ok",
+      str: 10,
+      int: 10,
+      pie: 10,
+      vit: 10,
+      agi: 10,
+      luk: 10,
+      equipment: {}
+    };
+    const state = {
+      party: [caster, target],
+      floor: 1,
+      currentRun: { deathLogs: [] }
+    };
+    const originalRandom = Math.random;
+    Math.random = () => 0.5;
+    try {
+      resolvePlayerSpell(caster, { spellName: "MADI", targetIdx: 1 }, state, [], []);
+    } finally {
+      Math.random = originalRandom;
+    }
+    return target.hp;
+  }
+
+  const withoutRecoverySpellPower = healWithSpellPower(0);
+  const withRecoverySpellPower = healWithSpellPower(20);
+  assert.ok(
+    withRecoverySpellPower > withoutRecoverySpellPower,
+    "actual recovery spell path must heal more with common spellPower"
+  );
+  console.log("Shared spell power cast-path counterfactual passed.");
+})();
+
 console.log("\n[ALL SPELL TESTS PASSED]");
