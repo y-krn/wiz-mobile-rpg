@@ -3,7 +3,8 @@ import {
   calculatePhysicalDefenseFormula,
   getCharAgi,
   getCharDerivedStats,
-  getCharTrapBonus
+  getCharTrapBonus,
+  calculatePhysicalAttackRawFormula
 } from "../src/rules/character_stats.js";
 import { getCharAffixSum } from "../src/rules/item_rules.js";
 import { getSpellStatBonus } from "../src/rules/spell_rules.js";
@@ -60,17 +61,6 @@ function makeChar(overrides = {}) {
   };
 }
 
-function legacyPhysicalAttackFormula({
-  weaponAtk = 0,
-  buffAtk = 0,
-  str = 10,
-  randRoll = 0,
-  def = 0,
-  meleeMod = 1
-} = {}) {
-  return ((weaponAtk + buffAtk) * 1.5 + (str - 10) + randRoll - Math.floor(def / 2)) * meleeMod;
-}
-
 function runFixedRound(state, actions) {
   const originalRandom = Math.random;
   Math.random = () => 0;
@@ -110,23 +100,23 @@ const integerFormulaCases = [
   {
     label: "odd weapon atk with even buff atk",
     input: { weaponAtk: 3, buffAtk: 2, str: 14, randRoll: 3, def: 6 },
-    expected: 9
+    expected: 7.5
   },
   {
     label: "even weapon atk with odd buff atk",
     input: { weaponAtk: 2, buffAtk: 3, str: 14, randRoll: 3, def: 6 },
-    expected: 9
+    expected: 7.5
   },
   {
     label: "odd weapon atk with odd buff atk",
     input: { weaponAtk: 3, buffAtk: 1, str: 14, randRoll: 3, def: 6 },
-    expected: 8
+    expected: 6.875
   }
 ];
 integerFormulaCases.forEach(({ label, input, expected }) => {
   const actual = calculatePhysicalAttackFormula(input);
-  check(`${label} returns an integer`, Number.isInteger(actual), true);
-  check(`${label} keeps the integerized weapon term`, actual, expected);
+  check(`${label} returns a finite number`, Number.isFinite(actual), true);
+  check(`${label} applies bounded DEF mitigation`, actual, expected);
 });
 
 const oddWeapon = makeChar({
@@ -148,12 +138,11 @@ check(
 );
 
 const followUpInput = { weaponAtk: 1, str: 11, randRoll: 2, def: 0, meleeMod: 0.7 };
-const followUpBeforeRaw = legacyPhysicalAttackFormula(followUpInput);
+const followUpBeforeRaw = calculatePhysicalAttackRawFormula(followUpInput);
 const followUpAfterRaw = calculatePhysicalAttackFormula(followUpInput);
-check("follow-up legacy raw value is measured", followUpBeforeRaw, 3.15);
-check("follow-up integerized raw value is measured", followUpAfterRaw, 2.8);
-check("follow-up damage changes only where the non-integer modifier crosses floor", Math.floor(followUpBeforeRaw * 0.7), 2);
-check("follow-up damage after integerization", Math.floor(followUpAfterRaw * 0.7), 1);
+check("follow-up raw value keeps the shared physical coefficients", followUpBeforeRaw, 2.8);
+check("follow-up formula applies the bounded resistance", followUpAfterRaw, 2.8);
+check("follow-up damage keeps its fractional melee modifier before floor", Math.floor(followUpAfterRaw), 2);
 
 check(
   "normal attack formula keeps the combat coefficients",
@@ -165,7 +154,7 @@ check(
     def: 6,
     meleeMod: 0.9
   }),
-  16.2
+  11.812500000000002
 );
 check("display attack uses effective weapon input and STR above neutral point", baseStats.attack, 22);
 check("display defense uses VIT/4", baseStats.defense, 5);
@@ -242,11 +231,11 @@ const normalAttackState = makeCombatState(
 const normalAttackResult = runFixedRound(normalAttackState, [
   { type: "fight", actorIdx: 0, targetIdx: 0 }
 ]);
-const normalAttackInput = { weaponAtk: 3, buffAtk: 0, str: 14, randRoll: 0, def: 6 };
+const normalAttackInput = { weaponAtk: 4.5, buffAtk: 0, str: 14, randRoll: 0, def: 6 };
 check(
-  "normal attack damage remains the legacy floored damage",
+  "normal attack damage applies the bounded physical resistance",
   100 - normalAttackResult.state.combatState.monsters[0].hp,
-  Math.max(1, Math.floor(legacyPhysicalAttackFormula(normalAttackInput)))
+  Math.max(1, Math.floor(calculatePhysicalAttackFormula(normalAttackInput)))
 );
 
 const incomingDamageState = makeCombatState(

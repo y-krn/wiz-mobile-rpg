@@ -34,9 +34,9 @@ function run() {
   record = stateLike.codex.monsters[wisp.name];
   assert.deepEqual(describeMonsterResistances(wisp, record), [
     "呪文：ほとんど効かない",
-    "物理：通常通り"
+    "物理：やや効きにくい"
   ]);
-  assert.ok(describeMonsterTraits(wisp, record).includes("物理：通常通り"));
+  assert.ok(describeMonsterTraits(wisp, record).includes("物理：やや効きにくい"));
 
   const statuses = getMonsterResistanceStatus(wisp, { ...createMonsterCodexRecord(), magicResistKnown: true });
   assert.deepEqual(statuses.map(status => status.description), ["ほとんど効かない", "未判明"]);

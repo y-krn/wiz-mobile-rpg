@@ -177,19 +177,69 @@ export function getCharDef(char) {
   return def;
 }
 
+// Physical defense is converted to a bounded resistance pool instead of being
+// subtracted from each attack. The scale keeps the curve diminishing while
+// making the finite enemy DEF range readable alongside physResist.
+export const PHYSICAL_RESISTANCE_CAP = 0.9;
+export const PHYSICAL_DEF_RESISTANCE_SCALE = 10;
+
+export function getPhysicalDefenseResistance(def = 0) {
+  const normalizedDef = Number.isFinite(Number(def))
+    ? Math.max(0, Number(def))
+    : 0;
+  return normalizedDef / (normalizedDef + PHYSICAL_DEF_RESISTANCE_SCALE);
+}
+
+export function combinePhysicalResistances(...resistances) {
+  const total = resistances.reduce((sum, resistance) => {
+    const numericResistance = Number(resistance);
+    return sum + (Number.isFinite(numericResistance) ? numericResistance : 0);
+  }, 0);
+  return Math.max(-1, Math.min(PHYSICAL_RESISTANCE_CAP, total));
+}
+
+export function applyPhysicalResistance(rawDamage, resistance = 0) {
+  const numericDamage = Number(rawDamage);
+  const totalResistance = combinePhysicalResistances(resistance);
+  if (!Number.isFinite(numericDamage)) return 1;
+  return Math.max(1, numericDamage * (1 - totalResistance));
+}
+
 // Keep the physical formula in one place for combat and static equipment
 // comparison. Weapon and attack-buff inputs are already in effective units;
-// context-dependent inputs (rolls, target defense, and class modifiers) stay
-// with the caller.
+// context-dependent inputs (rolls, target defense, target physResist, and
+// class modifiers) stay with the caller.
+export function calculatePhysicalAttackRawFormula({
+  weaponAtk = 0,
+  buffAtk = 0,
+  str = 10,
+  randRoll = 0,
+  meleeMod = 1
+} = {}) {
+  return (Math.floor(weaponAtk + buffAtk) + Math.max(0, str - 10) + randRoll) * meleeMod;
+}
+
 export function calculatePhysicalAttackFormula({
   weaponAtk = 0,
   buffAtk = 0,
   str = 10,
   randRoll = 0,
   def = 0,
+  physResist = 0,
   meleeMod = 1
 } = {}) {
-  return (Math.floor(weaponAtk + buffAtk) + Math.max(0, str - 10) + randRoll - Math.floor(def / 2)) * meleeMod;
+  const rawDamage = calculatePhysicalAttackRawFormula({
+    weaponAtk,
+    buffAtk,
+    str,
+    randRoll,
+    meleeMod
+  });
+  const resistance = combinePhysicalResistances(
+    getPhysicalDefenseResistance(def),
+    physResist
+  );
+  return applyPhysicalResistance(rawDamage, resistance);
 }
 
 export function calculatePhysicalDefenseFormula({

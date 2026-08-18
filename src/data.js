@@ -41,6 +41,7 @@ export {
   describeMonsterResistances,
   getMonsterResistanceStatus,
   getMonsterResistanceTier,
+  getMonsterPhysicalResistance,
   MONSTER_TRAIT_LABELS
 } from "./data/monsters.js";
 
