@@ -36,7 +36,13 @@ import { generateRandomAccessory as newGenerateRandomAccessory, generateRandomEq
 import { getItemData as baseGetItemData, getItemBaseId } from "./rules/item_rules.js";
 
 export const MONSTERS = STATIC_MONSTERS;
-export { describeMonsterTraits, MONSTER_TRAIT_LABELS } from "./data/monsters.js";
+export {
+  describeMonsterTraits,
+  describeMonsterResistances,
+  getMonsterResistanceStatus,
+  getMonsterResistanceTier,
+  MONSTER_TRAIT_LABELS
+} from "./data/monsters.js";
 
 // Build compatible SPELLS with inline .effect calls
 export const SPELLS = {};

@@ -1,6 +1,36 @@
 import { state } from "./state_core.js";
 import { getItemData } from "../data.js";
 
+export function getMonsterCodexKey(monsterOrName) {
+  const name = typeof monsterOrName === "string" ? monsterOrName : monsterOrName?.name;
+  return typeof name === "string" ? name.replace(/\s[A-Z]$/, "") : "";
+}
+
+export function createMonsterCodexRecord(overrides = {}) {
+  return {
+    encountered: 0,
+    killed: 0,
+    firstKilled: false,
+    magicResistKnown: false,
+    physResistKnown: false,
+    ...overrides
+  };
+}
+
+export function recordMonsterResistanceDiscovery(monster, type, stateLike = state) {
+  const knownField = type === "magic"
+    ? "magicResistKnown"
+    : type === "physical"
+      ? "physResistKnown"
+      : null;
+  const baseName = getMonsterCodexKey(monster);
+  if (!knownField || !baseName || !stateLike?.codex) return;
+
+  stateLike.codex.monsters ||= {};
+  stateLike.codex.monsters[baseName] ||= createMonsterCodexRecord();
+  stateLike.codex.monsters[baseName][knownField] = true;
+}
+
 export function recordEquipmentDiscovery(equipKey) {
   if (!state.codex) return;
   if (!state.codex.equipment) {

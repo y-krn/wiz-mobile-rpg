@@ -1,5 +1,5 @@
 import { state, createDefaultCodex } from "../state.js";
-import { describeMonsterTraits, getClassJpName, MONSTERS, ITEMS } from "../data.js";
+import { describeMonsterTraits, describeMonsterResistances, getClassJpName, MONSTERS, ITEMS } from "../data.js";
 import { updateUI } from "./ui_root.js";
 import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
 
@@ -25,6 +25,7 @@ export function getMonsterCodexDetailHtml(m, record) {
   }
   
   let html = `<div class="codex-detail">`;
+  const resistanceDescriptions = describeMonsterResistances(m, record);
   html += `
     <div class="codex-detail-header">
       <span class="codex-detail-name">${m.name}</span>
@@ -38,12 +39,16 @@ export function getMonsterCodexDetailHtml(m, record) {
     html += `
       <p><strong>特徴:</strong></p>
       <ul class="codex-traits">
-        ${describeMonsterTraits(m).map(trait => `<li>${trait}</li>`).join("")}
+        ${describeMonsterTraits(m, record).map(trait => `<li>${trait}</li>`).join("")}
       </ul>
       <p><strong>戦利品傾向:</strong> ${m.isRare ? "未鑑定装備と希少素材" : "グループ別素材"}</p>
     `;
   } else {
     html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[初討伐で特徴と素材報酬が解放されます]</p>`;
+  }
+
+  if (kil === 0 && resistanceDescriptions.length > 0) {
+    html += `<p><strong>耐性・弱点:</strong> ${resistanceDescriptions.join(" / ")}</p>`;
   }
   
   if (kil >= 3) {
@@ -55,15 +60,13 @@ export function getMonsterCodexDetailHtml(m, record) {
   }
   
   if (kil >= 5) {
-    const resistJp = m.resistances && m.resistances.length > 0 ? m.resistances.join(", ") : "特になし";
     const spellList = m.spells || (m.spell ? [m.spell] : []);
     const spellsJp = spellList.length > 0 ? spellList.join(", ") : "唱えられない";
     html += `
-      <p><strong>耐性・弱点:</strong> ${resistJp}</p>
       <p><strong>使用呪文:</strong> ${spellsJp}</p>
     `;
   } else {
-    html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[5回撃破すると耐性と呪文が解放されます]</p>`;
+    html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[5回撃破すると使用呪文が解放されます]</p>`;
   }
   
   if (kil >= 10) {

@@ -39,7 +39,7 @@ import {
 } from "./monster_traits.js";
 
 import { applyCombatRewards } from "./rewards.js";
-import { recordCharDeath } from "../state.js";
+import { recordCharDeath, recordMonsterResistanceDiscovery } from "../state.js";
 
 import { resolveBossAction } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
@@ -234,6 +234,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           act.targetIdx = guard.idx;
           finalTarget = guard.mon;
         }
+
+        recordMonsterResistanceDiscovery(finalTarget, "physical", state);
         
         let isBlindMiss = false;
         if (char.status === "blind" && Math.random() < 0.5) {

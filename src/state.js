@@ -33,7 +33,10 @@ export {
 } from "./state/inventory_state.js";
 
 export {
-  recordEquipmentDiscovery
+  recordEquipmentDiscovery,
+  getMonsterCodexKey,
+  createMonsterCodexRecord,
+  recordMonsterResistanceDiscovery
 } from "./state/codex_state.js";
 
 export {
