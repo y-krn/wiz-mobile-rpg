@@ -25,6 +25,13 @@ import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
 import {
+  executeEnhance,
+  getEnhanceCost,
+  executePolish,
+  getPolishCost
+} from "./craft.js";
+import { getAffixDefinition } from "./data/affixes.js";
+import {
   EQUIPMENT_SLOTS,
   EQUIPMENT_TYPE_LABELS,
   getEquipmentSlot,
@@ -145,7 +152,7 @@ function getTargetSlot(char, itemType, requestedSlot = null) {
 }
 
 function isIdentified(itemKey) {
-  return !itemKey || typeof itemKey !== "object" || itemKey.identified;
+  return !itemKey || typeof itemKey !== "object" || itemKey.identified === true;
 }
 
 function getRarityInfo(itemKey) {
@@ -698,6 +705,172 @@ function createAffixDetails(itemKey) {
   return details.childElementCount > 0 ? details : null;
 }
 
+function getSelectedItemKey() {
+  if (equipState.selectedIsEquipped) {
+    return state.party[equipState.actorIdx]?.equipment?.[equipState.selectedSlot] || null;
+  }
+  return state.inventory[equipState.selectedIdx] || null;
+}
+
+function getSelectedWorkshopTarget() {
+  return equipState.selectedIsEquipped
+    ? { type: "equipped", actorIdx: equipState.actorIdx, slot: equipState.selectedSlot }
+    : { type: "inventory", index: equipState.selectedIdx };
+}
+
+function createMaterialCost(cost) {
+  const list = document.createElement("div");
+  list.className = "equip-material-cost";
+  Object.entries(cost?.mats || {}).forEach(([material, required]) => {
+    const owned = state.metaMaterials?.[material] || 0;
+    const line = document.createElement("span");
+    line.className = `equip-material-line ${owned < required ? "insufficient" : ""}`.trim();
+    line.textContent = `${material} ${owned}/${required}`;
+    line.dataset.material = material;
+    list.appendChild(line);
+  });
+  return list;
+}
+
+function getSupportAffixes(itemKey) {
+  if (!itemKey || typeof itemKey !== "object" || !Array.isArray(itemKey.affixes)) return [];
+  return itemKey.affixes.flatMap((affix, index) => {
+    const definition = getAffixDefinition(affix);
+    const kind = affix.kind || definition?.kind || "support";
+    return kind === "support" && definition?.enabled ? [{ affix, definition, index }] : [];
+  });
+}
+
+function createWorkshopPanel(itemKey) {
+  const item = getItemData(itemKey);
+  const panel = document.createElement("section");
+  panel.className = "equip-workshop-panel";
+  panel.setAttribute("aria-label", "工房アクション");
+  panel.setAttribute("aria-live", "polite");
+
+  const heading = document.createElement("h3");
+  heading.className = "equip-workshop-heading";
+  heading.textContent = "工房";
+  panel.appendChild(heading);
+
+  const target = getSelectedWorkshopTarget();
+  const enhanceSection = document.createElement("div");
+  enhanceSection.className = "equip-workshop-section equip-enhance-section";
+  const enhanceTitle = document.createElement("strong");
+  enhanceTitle.textContent = "装備強化";
+  enhanceSection.appendChild(enhanceTitle);
+
+  const enhanceLevel = itemKey?.enhanceLevel || 0;
+  const enhanceStatus = document.createElement("span");
+  enhanceStatus.className = "equip-workshop-status";
+  enhanceStatus.textContent = `強化段階: +${enhanceLevel} / +1`;
+  enhanceSection.appendChild(enhanceStatus);
+
+  const enhanceStat = isIdentified(itemKey) && item?.type === "weapon"
+    ? { label: "攻撃力", value: item.atk || 0 }
+    : isIdentified(itemKey) && (item?.type === "shield" || item?.type === "armor")
+      ? { label: "防御力", value: item.def || 0 }
+      : null;
+  if (enhanceStat) {
+    const stat = document.createElement("span");
+    stat.className = "equip-workshop-stat";
+    stat.textContent = `${enhanceStat.label}: ${enhanceStat.value}`;
+    enhanceSection.appendChild(stat);
+  }
+
+  const enhanceCost = getEnhanceCost(itemKey);
+  if (!enhanceCost) {
+    const unavailable = document.createElement("span");
+    unavailable.className = "equip-workshop-unavailable";
+    unavailable.textContent = !isIdentified(itemKey)
+      ? "未鑑定のため強化対象外です"
+      : enhanceLevel >= 1
+      ? "強化済み（現行上限 +1）"
+      : "この装備は強化対象外です（武器・盾・防具のみ）";
+    enhanceSection.appendChild(unavailable);
+  } else {
+    enhanceSection.appendChild(createMaterialCost(enhanceCost));
+    const canAfford = Object.entries(enhanceCost.mats).every(([material, required]) => (
+      (state.metaMaterials?.[material] || 0) >= required
+    ));
+    const enhanceButton = document.createElement("button");
+    enhanceButton.type = "button";
+    enhanceButton.className = "btn btn-neon btn-block equip-workshop-action";
+    enhanceButton.disabled = !canAfford;
+    enhanceButton.textContent = canAfford ? "強化する" : "強化素材が不足しています";
+    enhanceButton.addEventListener("click", () => {
+      if (!executeEnhance(target)) return;
+      equipState.selectedKey = getSelectedItemKey();
+      renderEquip();
+      updateUI();
+    });
+    enhanceSection.appendChild(enhanceButton);
+  }
+  panel.appendChild(enhanceSection);
+
+  const polishSection = document.createElement("div");
+  polishSection.className = "equip-workshop-section equip-polish-section";
+  const polishTitle = document.createElement("strong");
+  polishTitle.textContent = "補助アフィックス研磨";
+  polishSection.appendChild(polishTitle);
+
+  const supportAffixes = getSupportAffixes(itemKey);
+  const polishCost = getPolishCost(itemKey);
+  if (polishCost) {
+    polishSection.appendChild(createMaterialCost(polishCost));
+    const canAfford = Object.entries(polishCost.mats).every(([material, required]) => (
+      (state.metaMaterials?.[material] || 0) >= required
+    ));
+    supportAffixes.forEach(({ affix, definition, index }) => {
+      const row = document.createElement("div");
+      row.className = "equip-polish-row";
+      const current = affix.value;
+      const next = Math.ceil(current * 1.5);
+      const label = document.createElement("span");
+      label.textContent = `${definition.jpName}: ${current} → ${next}`;
+      row.appendChild(label);
+
+      const polishButton = document.createElement("button");
+      polishButton.type = "button";
+      polishButton.className = "btn btn-neon equip-workshop-action";
+      polishButton.disabled = !canAfford;
+      polishButton.textContent = canAfford ? "研磨する" : "研磨素材が不足しています";
+      polishButton.addEventListener("click", () => {
+        if (!executePolish(target, index)) return;
+        equipState.selectedKey = getSelectedItemKey();
+        renderEquip();
+        updateUI();
+      });
+      row.appendChild(polishButton);
+      polishSection.appendChild(row);
+    });
+    if (!canAfford) {
+      const unavailable = document.createElement("span");
+      unavailable.className = "equip-workshop-unavailable";
+      unavailable.textContent = "研磨素材が不足しています";
+      polishSection.appendChild(unavailable);
+    }
+  } else {
+    const unavailable = document.createElement("span");
+    unavailable.className = "equip-workshop-unavailable";
+    if (!itemKey || typeof itemKey !== "object" || itemKey.identified === false) {
+      unavailable.textContent = "未鑑定のため研磨対象外です";
+    } else if (itemKey.polished) {
+      unavailable.textContent = "研磨済み（この装備は1回まで）";
+    } else if ((itemKey.affixes || []).some((affix) => {
+      const definition = getAffixDefinition(affix);
+      return (affix.kind || definition?.kind || "support") === "core";
+    })) {
+      unavailable.textContent = "コアは研磨対象外です";
+    } else {
+      unavailable.textContent = "研磨できるサポートアフィックスがありません";
+    }
+    polishSection.appendChild(unavailable);
+  }
+  panel.appendChild(polishSection);
+  return panel;
+}
+
 function createAccessorySlotPicker(char, selectedSlot) {
   const picker = document.createElement("div");
   picker.className = "equip-slot-picker";
@@ -738,7 +911,7 @@ function createDetailPanel(char) {
     return detailCol;
   }
 
-  const itemKey = equipState.selectedKey;
+  const itemKey = getSelectedItemKey() || equipState.selectedKey;
   const item = getItemData(itemKey);
   const hidden = !isIdentified(itemKey);
   const isEquipped = equipState.selectedIsEquipped;
@@ -820,6 +993,8 @@ function createDetailPanel(char) {
 
   const affixDetails = createAffixDetails(itemKey);
   if (affixDetails) content.appendChild(affixDetails);
+
+  content.appendChild(createWorkshopPanel(itemKey));
 
   const compat = document.createElement("div");
   if (isEquipped) {

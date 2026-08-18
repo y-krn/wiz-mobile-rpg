@@ -545,6 +545,100 @@
   color: var(--neon-red);
 }
 
+.equip-workshop-panel {
+  background-color: rgba(226, 179, 111, 0.06);
+  border: 1px solid rgba(226, 179, 111, 0.28);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+  padding: var(--sp-sm);
+}
+
+.equip-workshop-heading {
+  color: var(--neon-amber);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  margin: 0;
+}
+
+.equip-workshop-section {
+  border-top: 1px solid rgba(226, 179, 111, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+  padding-top: var(--sp-xs);
+}
+
+.equip-workshop-section strong {
+  color: var(--text-main);
+  font-size: var(--fs-sm);
+}
+
+.equip-workshop-status,
+.equip-workshop-stat,
+.equip-workshop-unavailable {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.equip-workshop-stat {
+  color: var(--neon-green);
+  font-family: var(--font-mono);
+}
+
+.equip-workshop-unavailable {
+  color: var(--neon-red);
+  font-weight: bold;
+}
+
+.equip-material-cost {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-xs);
+}
+
+.equip-material-line {
+  background-color: rgba(0, 255, 102, 0.08);
+  border: 1px solid rgba(0, 255, 102, 0.3);
+  border-radius: var(--radius-xs);
+  color: var(--neon-green);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  padding: 3px 6px;
+}
+
+.equip-material-line.insufficient {
+  background-color: rgba(255, 59, 48, 0.08);
+  border-color: rgba(255, 59, 48, 0.35);
+  color: var(--neon-red);
+}
+
+.equip-workshop-action {
+  min-height: var(--tap-min);
+  padding: 6px 8px;
+  touch-action: manipulation;
+}
+
+.equip-polish-row {
+  align-items: center;
+  display: flex;
+  gap: var(--sp-sm);
+  justify-content: space-between;
+}
+
+.equip-polish-row > span {
+  color: var(--text-main);
+  flex: 1 1 auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  min-width: 0;
+}
+
+.equip-polish-row .equip-workshop-action {
+  flex: 0 0 auto;
+}
+
 .equip-stat-grid {
   display: grid;
   gap: 4px;

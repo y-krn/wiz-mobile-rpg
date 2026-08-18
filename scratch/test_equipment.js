@@ -62,9 +62,9 @@ import { createSoloCharacter } from "../src/state.js";
       configurable: true
     });
 
-    (async () => {
+    await (async () => {
       const { state, initNewGame } = await import("../src/state.js");
-      const { getEnhanceCost, executeEnhance } = await import("../src/craft.js");
+      const { getEnhanceCost, executeEnhance, getPolishCost, executePolish } = await import("../src/craft.js");
 
       console.log("=== STARTING EQUIPPED CRAFT VERIFICATION ===");
       initNewGame();
@@ -125,6 +125,44 @@ import { createSoloCharacter } from "../src/state.js";
       assert.strictEqual(char.equipment.accessory.enhanceLevel, 0);
 
       console.log("-> [PASS] Accessory enhancement disabled");
+
+      // 1c. 識別状態の境界値は強化・研磨対象外で、素材を消費しない
+      for (const [label, identified] of [["欠落", undefined], ["null", null], ["false", false]]) {
+        const enhanceTarget = {
+          kind: "equipment",
+          instanceId: `eq_test_unidentified_weapon_${label}`,
+          baseId: "SHORT_SWORD",
+          rarity: "magic",
+          level: 1,
+          enhanceLevel: 0,
+          affixes: []
+        };
+        if (identified !== undefined) enhanceTarget.identified = identified;
+        state.inventory = [enhanceTarget];
+        state.metaMaterials = { "鉄片": 10, "魔石片": 10 };
+        assert.strictEqual(getEnhanceCost(enhanceTarget), null);
+        assert.strictEqual(executeEnhance(0), false, `${label} identified enhancement should be rejected`);
+        assert.strictEqual(enhanceTarget.enhanceLevel, 0);
+        assert.deepStrictEqual(state.metaMaterials, { "鉄片": 10, "魔石片": 10 });
+
+        const polishTarget = {
+          kind: "equipment",
+          instanceId: `eq_test_unidentified_polish_${label}`,
+          baseId: "DAGGER",
+          rarity: "magic",
+          level: 1,
+          affixes: [{ id: "atk", type: "atk", kind: "support", value: 3 }]
+        };
+        if (identified !== undefined) polishTarget.identified = identified;
+        state.inventory = [polishTarget];
+        state.metaMaterials = { "魔石片": 10 };
+        assert.strictEqual(getPolishCost(polishTarget), null);
+        assert.strictEqual(executePolish(0, 0), false, `${label} identified polish should be rejected`);
+        assert.strictEqual(polishTarget.affixes[0].value, 3);
+        assert.strictEqual(polishTarget.polished, undefined);
+        assert.deepStrictEqual(state.metaMaterials, { "魔石片": 10 });
+      }
+      console.log("-> [PASS] Missing/null/false identified enhancement and polish rejected without material consumption");
 
       console.log("\n=== ALL EQUIPPED CRAFT VERIFICATION TESTS PASSED SUCCESSFULLY! ===");
     })();
