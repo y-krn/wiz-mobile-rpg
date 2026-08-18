@@ -302,7 +302,7 @@ for (const vp of VIEWPORTS) {
 
     await page.addInitScript(() => {
       const nativeRequestAnimationFrame = window.requestAnimationFrame.bind(window);
-      let paused = false;
+      let paused = localStorage.getItem('__issue744PauseAfterReload') === '1';
       window.__pauseGameAnimation = () => { paused = true; };
       window.__resumeGameAnimation = () => { paused = false; };
       window.requestAnimationFrame = (callback) => (
@@ -435,19 +435,52 @@ for (const vp of VIEWPORTS) {
     expect(secondDeparture.draws.some((draw) => draw.kind === 'town')).toBe(false);
     expect(secondDeparture.castleTitles).toEqual([]);
 
+    await page.evaluate(() => {
+      localStorage.setItem('__issue744PauseAfterReload', '1');
+    });
     await page.reload();
-    await page.waitForFunction(() => window.__canvasText !== undefined);
+    const reloadState = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      window.__reloadCorridorDraws = [];
+      const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
+      dungeonRenderer.draw3DCorridors = function recordReloadCorridorDraw(...args) {
+        window.__reloadCorridorDraws.push({
+          gameState: state.gameState,
+          hasMap: Boolean(state.map),
+          floor: state.floor,
+        });
+        return originalDraw3DCorridors.apply(this, args);
+      };
+      return {
+        gameState: state.gameState,
+        hasMap: Boolean(state.map),
+        floor: state.floor,
+      };
+    });
+    expect(reloadState).toEqual({ gameState: 'explore', hasMap: true, floor: 5 });
+    await page.evaluate(() => {
+      localStorage.removeItem('__issue744PauseAfterReload');
+      window.__resumeGameAnimation();
+      window.dispatchEvent(new Event('pageshow'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForFunction(() => (
+      window.__reloadCorridorDraws?.some((draw) => draw.gameState === 'explore' && draw.hasMap)
+    ));
     const resumedSave = await page.evaluate(async () => {
       const { state } = await import('/src/state.js');
       const visibility = (await import('/src/renderer.js')).dungeonRenderer.getSceneVisibility();
       return {
         state: { gameState: state.gameState, hasMap: Boolean(state.map), floor: state.floor },
         visibility,
+        corridorDraws: window.__reloadCorridorDraws,
         castleTitles: window.__canvasText,
       };
     });
     expect(resumedSave.state).toEqual({ gameState: 'explore', hasMap: true, floor: 5 });
     expect(resumedSave.visibility.showTownBackground).toBe(false);
+    expect(resumedSave.corridorDraws.at(-1)).toMatchObject({ gameState: 'explore', hasMap: true, floor: 5 });
     expect(resumedSave.castleTitles).toEqual([]);
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
