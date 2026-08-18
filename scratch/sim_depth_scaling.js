@@ -1,4 +1,4 @@
-// sim-scope: formula
+// sim-scope: formula — simulates depth enemy scaling and material expectations across balance pools; retained because origin is unknown and no closed-Issue owner was found.
 import { MONSTERS } from "../src/data/monsters.js";
 import { getBiomeForFloor } from "../src/data/biomes.js";
 import { getEncounterSizeWeightsForFloor } from "../src/data/encounters.js";

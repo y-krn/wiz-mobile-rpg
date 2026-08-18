@@ -1,4 +1,4 @@
-// sim-scope: formula
+// sim-scope: formula — compares legacy/current combat-balance fixtures; retained because origin is unknown and no closed-Issue owner was found.
 // Mock localStorage for Node.js test environment before imports
 global.localStorage = {
   getItem: () => null,
