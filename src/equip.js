@@ -152,7 +152,7 @@ function getTargetSlot(char, itemType, requestedSlot = null) {
 }
 
 function isIdentified(itemKey) {
-  return !itemKey || typeof itemKey !== "object" || itemKey.identified;
+  return !itemKey || typeof itemKey !== "object" || itemKey.identified === true;
 }
 
 function getRarityInfo(itemKey) {

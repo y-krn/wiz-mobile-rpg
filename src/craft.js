@@ -70,7 +70,7 @@ export const CRAFT_RECIPES = [
 export function getEnhanceCost(eqItem) {
   const item = getItemData(eqItem);
   if (!item) return null;
-  if (typeof eqItem === "object" && eqItem.identified === false) return null;
+  if (typeof eqItem === "object" && eqItem.identified !== true) return null;
 
   // すでに強化されているか確認
   const currentEnhance = eqItem.enhanceLevel || 0;
@@ -165,7 +165,7 @@ export function executeEnhance(itemIdx) {
 }
 
 export function getPolishCost(eqItem) {
-  if (!eqItem || typeof eqItem !== "object" || eqItem.identified === false || eqItem.polished) return null;
+  if (!eqItem || typeof eqItem !== "object" || eqItem.identified !== true || eqItem.polished) return null;
   const hasSupport = (eqItem.affixes || []).some(affix => {
     const definition = getAffixDefinition(affix);
     return (affix.kind || definition?.kind || "support") === "support" && definition?.enabled;
