@@ -4489,7 +4489,22 @@ function getDamageEstimateActionTotals(audit) {
 
 function getEvDamageEstimate(state) {
   const character = state.party[0];
-  return Math.max(1, getCharWeaponAtk(character) / 1.5);
+  const livingMonsters = state.combatState?.monsters?.filter(monster => monster.hp > 0) || [];
+  if (livingMonsters.length === 0) return 1;
+  const buffAtk = getBuffTotal(character, "atk") + getBuffTotal(character, "str");
+  const meleeMod = getMeleeModifiers(character, 0, { state });
+  const damage = livingMonsters.reduce((total, monster) => {
+    const formulaDamage = calculatePhysicalAttackFormula({
+      weaponAtk: getCharWeaponAtk(character),
+      buffAtk,
+      str: getCharStr(character),
+      randRoll: 2,
+      def: getEffectiveDef(monster),
+      meleeMod
+    });
+    return total + Math.max(1, Math.floor(formulaDamage));
+  }, 0) / livingMonsters.length;
+  return Math.max(1, damage);
 }
 
 function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = null) {
