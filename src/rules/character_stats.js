@@ -195,8 +195,8 @@ export const PHYSICAL_RESISTANCE_CAP = 0.9;
 // Player attacks use the outgoing calibration; incoming monster attacks use
 // the separate scale below because the pre-change formulas applied DEF at
 // different stages and with different effective units.
-export const PHYSICAL_DEF_RESISTANCE_SCALE = 5;
-export const PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING = 5;
+export const PHYSICAL_DEF_RESISTANCE_SCALE = 10;
+export const PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING = 10;
 
 export function getPhysicalDefenseResistance(
   def = 0,
