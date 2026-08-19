@@ -28,7 +28,7 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 実測してから行う。
 
 1. 軽減は、物理と呪文で**有界な乗算モデルへ揃える**。物理 `def` は
-   `def / (def + 10)` の逓減抵抗へ変換し、`physResist` と加算プールへ統合する。
+   `def / (def + k_direction)` の逓減抵抗へ変換し、`physResist` と加算プールへ統合する。
    合成後は -1〜0.9 に clamp し、100% 軽減を作らない。
 2. 呪文は、上位呪文の習得だけでなく、**装備・run 内ビルドで伸びる**。共通項は
    プレイヤー表示「術力」、内部 ID `spellPower` とし、武器・鎧・盾と装身具の
@@ -65,7 +65,8 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 - `randRoll`: `floor(random * 5)`、すなわち 0, 1, 2, 3, 4。
 - `def`: `getEffectiveDef(target)`。敵 `def` に `def` buff を加え、buff は
   -6〜+6 に clamp した後、0 未満にならないようにする。物理攻撃では
-  `getPhysicalDefenseResistance(def) = def / (def + 10)` へ変換する。
+  `getPhysicalDefenseResistance(def) = def / (def + k_out)` へ変換する。
+  敵からプレイヤーへの物理攻撃は同じ逓減形を `k_in` で適用する。
 - `physResist`: `def` 由来の抵抗と加算する対象の物理耐性。合成値は
   `combinePhysicalResistances` で -1〜0.9 に clamp する。
 - `meleeMod`: `getMeleeModifiers` の値。現行の 8 職はすべて `1.00`。
@@ -88,7 +89,7 @@ buff = getBuffTotal(char, "atk") + getBuffTotal(char, "str")
 str  = getCharStr(char)
 roll = floor(random() * 5)                  // 0..4
 def  = getEffectiveDef(target)
-defResistance = def / (def + 10)
+defResistance = def / (def + k_out)
 physicalResistance = clamp(defResistance + target.physResist, -1, 0.9)
 melee = getMeleeModifiers(char)              // 現行の全職は 1.00
 
@@ -166,7 +167,7 @@ finalDef = calculatePhysicalDefenseFormula({
   bonusDef: buffs + frontGuard + firstStrikeDefense + getMpWardDef(target),
   tempDefDown: target.tempDefDown
 })
-defResistance = finalDef / (finalDef + 10)
+defResistance = finalDef / (finalDef + k_in)
 formulaRaw = finalAtk
 d0 = max(1, floor(finalAtk * (1 - defResistance)))
 ```
@@ -283,7 +284,7 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | `max(0, str - 10)` | STR 10 を基準にし、10 未満のペナルティを 0 にする | character stats の基礎値と関数の実装 | STR 10 を中立点とし、低 STR 職のペナルティだけを除く。STR 10 超の職差は残す |
 | 負の呪い `atk` | `cursePower` 適用後の raw 値を丸めてから実効単位へ揃える | `getScaledCurseModifier` と `CURSE_EFFECTS` | 旧来の「raw を丸めてから物理式の1.5倍」を、保存値を実効単位にした後も同じ順序で保つ。呪いの閾値判定や他の負項は変更しない |
 | `randRoll` | 0–4 の一様整数を加算 | `round.js` の明示的な乱数 | bounded noise であることはコードから分かる。固定幅を選んだ理由は根拠不明 |
-| `defResistance` | `def / (def + 10)` の逓減抵抗 | `getPhysicalDefenseResistance` と `getEffectiveDef` | 敵分布（中央値5、p75=8、最大18）を #716 の物理耐性段階へ接続し、有限値では100%に到達しない。係数10はこの分布を段階表示へ収める測定判断 |
+| `defResistance` | `def / (def + k_direction)` の逓減抵抗 | `getPhysicalDefenseResistance` と `getEffectiveDef` | 敵分布（中央値5、p75=8、最大18）を #716 の物理耐性段階へ接続し、有限値では100%に到達しない。`k_direction` は旧式の適用段階差を含めて実遭遇分布で校正する |
 | `meleeMod` | 職業別 map、現行値は全て 1 | `getMeleeModifiers`。derived stats との共有を意図したコメント | 拡張点の存在は source の説明がある。現行の職業差を作る設計根拠はない |
 | `max(1, floor(...))` | 物理式の出力を最低 1 | source の clamp | 物理は最低1を維持する。乗算変更で0が増えるため、#728で変更判断するまで固定する |
 | `magicBolt` | Mage/Bishop の通常攻撃だけ `max(physical, int/3 + 0..2)` を同じ `physicalResistance` 後に比較 | `round.js` の分岐 | 隠れた第2式は残すが、`def/4` の別減算は廃止し、defとphysResistの表示・実効を共通化する |
@@ -600,10 +601,12 @@ CV を目標にしたのかは根拠不明であり、意図を過去のバラ�
 
 **乗算で揃える。** 敵・プレイヤー双方の physical `def` を、プレイヤーが意思決定に
 使う「何割残るか」に変換可能な bounded resistance として扱う。変換は
-`defResistance = def / (def + 10)` とし、defの追加投資は逓減する。`physResist` は
+`defResistance = def / (def + k_direction)` とし、defの追加投資は逓減する。#732 の
+再校正では、プレイヤー→敵を `k_out=100`、敵→プレイヤーを `k_in=3` とする。
+いずれも `PHYSICAL_DEF_RESISTANCE_SCALE` 系の source constant が正本である。`physResist` は
 `defResistance` との加算poolへ統合し、合成後を -1〜0.9 に clamp するため完全無敵は
-発生しない。係数10は #716 の現行耐性値（0.1〜0.6）と敵def分布（中央値5、p75=8、
-最大18）を同じ5段階表示へ収める実測判断である。
+発生しない。`k_direction` は #716 の表示段階だけでなく、変換前後の実遭遇分布に対する
+到達階平均を paired 比較して決める。旧PRの `k=10` は根拠なしとして採用しない。
 
 物理通常攻撃は raw damage の後に最終poolを一度だけ適用し、Mage/Bishopの
 magic-bolt fallbackも同じpoolで比較する。敵→プレイヤーの通常攻撃・逃走追撃も

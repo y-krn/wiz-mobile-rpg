@@ -178,16 +178,26 @@ export function getCharDef(char) {
 }
 
 // Physical defense is converted to a bounded resistance pool instead of being
-// subtracted from each attack. The scale keeps the curve diminishing while
-// making the finite enemy DEF range readable alongside physResist.
+// subtracted from each attack. Each direction keeps the same diminishing
+// curve, with its calibrated scale selected at the call site.
 export const PHYSICAL_RESISTANCE_CAP = 0.9;
-export const PHYSICAL_DEF_RESISTANCE_SCALE = 10;
+// Player attacks use the outgoing calibration; incoming monster attacks use
+// the separate scale below because the pre-change formulas applied DEF at
+// different stages and with different effective units.
+export const PHYSICAL_DEF_RESISTANCE_SCALE = 100;
+export const PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING = 3;
 
-export function getPhysicalDefenseResistance(def = 0) {
+export function getPhysicalDefenseResistance(
+  def = 0,
+  scale = PHYSICAL_DEF_RESISTANCE_SCALE
+) {
   const normalizedDef = Number.isFinite(Number(def))
     ? Math.max(0, Number(def))
     : 0;
-  return normalizedDef / (normalizedDef + PHYSICAL_DEF_RESISTANCE_SCALE);
+  const normalizedScale = Number.isFinite(Number(scale)) && Number(scale) > 0
+    ? Number(scale)
+    : PHYSICAL_DEF_RESISTANCE_SCALE;
+  return normalizedDef / (normalizedDef + normalizedScale);
 }
 
 export function combinePhysicalResistances(...resistances) {

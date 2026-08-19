@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   PHYSICAL_RESISTANCE_CAP,
+  PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
   applyPhysicalResistance,
   calculatePhysicalAttackFormula,
   combinePhysicalResistances,
@@ -14,8 +15,12 @@ import {
 
 function run() {
   assert.equal(getPhysicalDefenseResistance(0), 0);
-  assert.equal(getPhysicalDefenseResistance(10), 0.5);
-  assert.equal(getPhysicalDefenseResistance(5), 1 / 3);
+  assert.equal(getPhysicalDefenseResistance(10), 10 / 110);
+  assert.equal(getPhysicalDefenseResistance(5), 5 / 105);
+  assert.equal(
+    getPhysicalDefenseResistance(10, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING),
+    10 / 13
+  );
   assert.ok(
     getPhysicalDefenseResistance(5) - getPhysicalDefenseResistance(4) >
       getPhysicalDefenseResistance(10) - getPhysicalDefenseResistance(9),
@@ -31,13 +36,13 @@ function run() {
 
   const monster = { def: 5, physResist: 0 };
   const resistance = getMonsterPhysicalResistance(monster);
-  assert.equal(resistance, 1 / 3);
-  assert.equal(getMonsterResistanceTier(resistance), "効きにくい");
+  assert.equal(resistance, 5 / 105);
+  assert.equal(getMonsterResistanceTier(resistance), "やや効きにくい");
   const status = getMonsterResistanceStatus(monster, { physResistKnown: true });
-  assert.equal(status.find(entry => entry.type === "physical")?.description, "効きにくい");
+  assert.equal(status.find(entry => entry.type === "physical")?.description, "やや効きにくい");
   assert.equal(
     Math.floor(applyPhysicalResistance(30, resistance)),
-    20,
+    28,
     "displayed physical tier uses the resistance applied to damage"
   );
 }

@@ -2,6 +2,7 @@ import {
   MONSTERS,
   getCharStr, getCharInt, getCharAgi, getCharVit,
   getCharWeaponAtk, getCharDef,
+  PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
   getCharAffixSum, getCharMaxHp, getCharMaxMp,
   calculatePhysicalAttackRawFormula, calculatePhysicalAttackFormula,
   calculatePhysicalDefenseFormula, applyPhysicalResistance,
@@ -76,7 +77,10 @@ function applyFleePartingAttack(state, monsters, logQueue) {
     bonusDef: getMpWardDef(target)
   });
   const formulaRaw = finalAtk;
-  const defResistance = getPhysicalDefenseResistance(finalDef);
+  const defResistance = getPhysicalDefenseResistance(
+    finalDef,
+    PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING
+  );
   const formulaDmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, defResistance)));
   let dmg = formulaDmg;
   const preMitigationDmg = dmg;
@@ -889,7 +893,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             tempDefDown: target.tempDefDown || 0
           });
           const preDefDmg = finalAtk;
-          const defResistance = getPhysicalDefenseResistance(finalDef);
+          const defResistance = getPhysicalDefenseResistance(
+            finalDef,
+            PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING
+          );
           const formulaRaw = finalAtk;
           let dmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, defResistance)));
           const formulaDmg = dmg;
