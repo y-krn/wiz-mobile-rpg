@@ -268,6 +268,10 @@ const {
   getBuffTotal
 } = await import("../src/combat_logic/status_effects.js");
 const {
+  getEffectiveDef,
+  getMeleeModifiers
+} = await import("../src/combat_logic/damage.js");
+const {
   applyWorkshopToCharacter,
   getDepartureCraftCost,
   getDepartureCraftGrants,
@@ -324,6 +328,7 @@ const SIM_ENV_KEYS = Object.freeze([
   "SIM_440_CONDITION",
   "SIM_ISSUE646_CAMP_LEVEL",
   "SIM_INDEPENDENT_RUN_RANDOM",
+  "SIM_737_DAMAGE_AUDIT",
   "SIM_DIALMA_CANDIDATE",
   "SIM_MADI_CANDIDATE",
   "SIM_MADI_HEAL_MIN",
@@ -365,6 +370,7 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_440_CONDITION: "current",
   SIM_ISSUE646_CAMP_LEVEL: "",
   SIM_INDEPENDENT_RUN_RANDOM: "1",
+  SIM_737_DAMAGE_AUDIT: "0",
   SIM_DIALMA_CANDIDATE: "1",
   SIM_MADI_CANDIDATE: "1",
   SIM_MADI_HEAL_MIN: "",
@@ -514,6 +520,7 @@ const CALIBRATION_RUNS = Math.max(
 );
 const SIM_SEED = Number(SIM_ENV.SIM_SEED || 231) >>> 0;
 const SIM_INDEPENDENT_RUN_RANDOM = SIM_ENV.SIM_INDEPENDENT_RUN_RANDOM === "1";
+const SIM_737_DAMAGE_AUDIT_ENABLED = SIM_ENV.SIM_737_DAMAGE_AUDIT === "1";
 const SIM_DIALMA_CANDIDATE = SIM_ENV.SIM_DIALMA_CANDIDATE !== "0";
 const SIM_MADI_CANDIDATE = SIM_ENV.SIM_MADI_CANDIDATE !== "0";
 const parseOptionalSimInteger = (value, name) => {
@@ -1798,6 +1805,108 @@ function summarizeDistribution(values) {
   };
 }
 
+function createDamageEstimateAggregate() {
+  return {
+    byClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}])),
+    decisionsByClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}])),
+    actionsByClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}])),
+    unmatchedHits: 0,
+    unmatchedHitsByClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}]))
+  };
+}
+
+function getDamageEstimateAggregateBucket(container, className, floor) {
+  const classBuckets = container[className] ||= {};
+  const key = String(floor);
+  return classBuckets[key] ||= {
+    estimates: [],
+    formula: [],
+    observed: [],
+    formulaDelta: [],
+    observedDelta: []
+  };
+}
+
+function addDamageEstimateAudit(target, source, className) {
+  if (!target || !source) return;
+  target.unmatchedHits += source.unmatchedHits || 0;
+  Object.entries(source.unmatchedHitsByFloor || {}).forEach(([floor, sourceBucket]) => {
+    const bucket = target.unmatchedHitsByClass[className][floor] ||= { hits: 0 };
+    bucket.hits += sourceBucket.hits || 0;
+  });
+  Object.entries(source.decisionsByFloor || {}).forEach(([floor, sourceBucket]) => {
+    const bucket = target.decisionsByClass[className][floor] ||= {
+      evaluations: 0,
+      decisions: { fight: 0, recover: 0, flee: 0 }
+    };
+    bucket.evaluations += sourceBucket.evaluations || 0;
+    Object.entries(sourceBucket.decisions || {}).forEach(([decision, count]) => {
+      bucket.decisions[decision] = (bucket.decisions[decision] || 0) + count;
+    });
+  });
+  Object.entries(source.actionsByFloor || {}).forEach(([floor, sourceBucket]) => {
+    const bucket = target.actionsByClass[className][floor] ||= {
+      evaluations: 0,
+      fleeActions: 0,
+      recoveryActions: 0
+    };
+    bucket.evaluations += sourceBucket.evaluations || 0;
+    bucket.fleeActions += sourceBucket.fleeActions || 0;
+    bucket.recoveryActions += sourceBucket.recoveryActions || 0;
+  });
+  (source.hits || []).forEach(hit => {
+    const estimate = Number(hit.estimate);
+    const formula = Number(hit.formula);
+    const observed = Number(hit.observed);
+    if (![estimate, formula, observed].every(Number.isFinite)) return;
+    const bucket = getDamageEstimateAggregateBucket(target.byClass, className, hit.floor);
+    bucket.estimates.push(estimate);
+    bucket.formula.push(formula);
+    bucket.observed.push(observed);
+    bucket.formulaDelta.push(formula - estimate);
+    bucket.observedDelta.push(observed - estimate);
+  });
+}
+
+function finalizeDamageEstimateAggregate(aggregate) {
+  const summarizeBuckets = buckets => Object.fromEntries(
+    Object.entries(buckets).map(([floor, bucket]) => [floor, {
+      n: bucket.estimates?.length || bucket.evaluations || 0,
+      ...(bucket.estimates
+        ? {
+            estimate: summarizeDistribution(bucket.estimates),
+            formula: summarizeDistribution(bucket.formula),
+            observed: summarizeDistribution(bucket.observed),
+            formulaDelta: summarizeDistribution(bucket.formulaDelta),
+            observedDelta: summarizeDistribution(bucket.observedDelta)
+          }
+        : bucket)
+    }])
+  );
+  return {
+    byClass: Object.fromEntries(
+      Object.entries(aggregate.byClass).map(([className, buckets]) => [
+        className,
+        summarizeBuckets(buckets)
+      ])
+    ),
+    decisionsByClass: Object.fromEntries(
+      Object.entries(aggregate.decisionsByClass).map(([className, buckets]) => [
+        className,
+        summarizeBuckets(buckets)
+      ])
+    ),
+    actionsByClass: Object.fromEntries(
+      Object.entries(aggregate.actionsByClass).map(([className, buckets]) => [
+        className,
+        summarizeBuckets(buckets)
+      ])
+    ),
+    unmatchedHits: aggregate.unmatchedHits,
+    unmatchedHitsByClass: aggregate.unmatchedHitsByClass
+  };
+}
+
 function createNumericDistribution() {
   return {
     n: 0,
@@ -2136,6 +2245,10 @@ function createOutcomeAggregate() {
     finalMpRate: [],
     mpBlockedTerminalEncounterRuns: 0,
     mpDepletionCausedEndRuns: 0,
+    evFleeActions: 0,
+    evRecoveryActions: 0,
+    runsWithEvFlee: 0,
+    runsWithEvRecovery: 0,
     endResourceByReason: {}
   };
 }
@@ -2153,6 +2266,10 @@ function addOutcomeAggregate(target, result) {
   target.finalMpRate.push(result.finalMpRate);
   target.mpBlockedTerminalEncounterRuns += Number(result.mpBlockedTerminalEncounter);
   target.mpDepletionCausedEndRuns += Number(result.mpDepletionCausedEnd);
+  target.evFleeActions += result.evFleeActions || 0;
+  target.evRecoveryActions += result.evRecoveryActions || 0;
+  target.runsWithEvFlee += Number((result.evFleeActions || 0) > 0);
+  target.runsWithEvRecovery += Number((result.evRecoveryActions || 0) > 0);
   const reasonResources = target.endResourceByReason[result.terminationReason] ||= {
     runs: 0,
     finalHp: [],
@@ -2195,6 +2312,10 @@ function finalizeOutcomeAggregate(aggregate) {
     finalMpRate: summarizeDistribution(aggregate.finalMpRate),
     mpBlockedTerminalEncounterRuns: aggregate.mpBlockedTerminalEncounterRuns,
     mpDepletionCausedEndRuns: aggregate.mpDepletionCausedEndRuns,
+    evFleeActions: aggregate.evFleeActions,
+    evRecoveryActions: aggregate.evRecoveryActions,
+    runsWithEvFlee: aggregate.runsWithEvFlee,
+    runsWithEvRecovery: aggregate.runsWithEvRecovery,
     endResourceByReason: Object.fromEntries(
       Object.entries(aggregate.endResourceByReason).map(([reason, values]) => [
         reason,
@@ -4279,7 +4400,114 @@ function recordDiosPotionPriorityCase(
   });
 }
 
-function getEnemyAwareCombatAction(state, recoveryItem, diosAction) {
+function createDamageEstimateAuditMetrics() {
+  return {
+    pending: null,
+    decisionsByFloor: {},
+    actionsByFloor: {},
+    hits: [],
+    unmatchedHits: 0,
+    unmatchedHitsByFloor: {}
+  };
+}
+
+function getDamageEstimateFloorBucket(container, floor, defaults) {
+  const key = String(floor);
+  return container[key] ||= { ...defaults };
+}
+
+function recordDamageEstimateDecision(metrics, state, playerDamagePerRound, decision) {
+  const audit = metrics?.damageEstimateAudit;
+  if (!audit) return;
+  const bucket = getDamageEstimateFloorBucket(
+    audit.decisionsByFloor,
+    state.floor,
+    { evaluations: 0, decisions: { fight: 0, recover: 0, flee: 0 } }
+  );
+  bucket.evaluations++;
+  if (Object.hasOwn(bucket.decisions, decision)) bucket.decisions[decision]++;
+  audit.pending = {
+    floor: state.floor,
+    round: state.combatState?.roundNumber || null,
+    estimate: Number(playerDamagePerRound),
+    decision
+  };
+}
+
+function isRecoveryActionForDamageAudit(action) {
+  return action?.type === "item"
+    ? ["HEAL_POTION", "GREATER_HEAL"].includes(action.itemKey)
+    : action?.type === "spell" && ["DIOS", "DIALMA", "MADIOS", "MADI"].includes(action.spellName);
+}
+
+function recordDamageEstimateAction(metrics, state, action) {
+  const audit = metrics?.damageEstimateAudit;
+  if (!audit) return;
+  const bucket = getDamageEstimateFloorBucket(
+    audit.actionsByFloor,
+    state.floor,
+    { evaluations: 0, fleeActions: 0, recoveryActions: 0 }
+  );
+  bucket.evaluations++;
+  bucket.fleeActions += Number(action?.type === "run");
+  bucket.recoveryActions += Number(isRecoveryActionForDamageAudit(action));
+}
+
+function recordDamageEstimatePhysicalHits(metrics, hits) {
+  const audit = metrics?.damageEstimateAudit;
+  if (!audit) return;
+  const pending = audit.pending;
+  hits.forEach(hit => {
+    const estimate = Number.isFinite(pending?.estimate) ? pending.estimate : null;
+    const formula = Number(hit.formulaDmg);
+    const observed = Number(hit.damage);
+    if (estimate === null || !Number.isFinite(formula) || !Number.isFinite(observed)) {
+      audit.unmatchedHits++;
+      const bucket = getDamageEstimateFloorBucket(audit.unmatchedHitsByFloor, hit.floor, { hits: 0 });
+      bucket.hits++;
+      return;
+    }
+    audit.hits.push({
+      floor: hit.floor,
+      estimate,
+      formula,
+      observed
+    });
+  });
+  audit.pending = null;
+}
+
+function getDamageEstimateActionTotals(audit) {
+  return Object.values(audit?.actionsByFloor || {}).reduce(
+    (totals, bucket) => ({
+      fleeActions: totals.fleeActions + (bucket.fleeActions || 0),
+      recoveryActions: totals.recoveryActions + (bucket.recoveryActions || 0)
+    }),
+    { fleeActions: 0, recoveryActions: 0 }
+  );
+}
+
+function getEvDamageEstimate(state) {
+  const character = state.party[0];
+  const livingMonsters = state.combatState?.monsters?.filter(monster => monster.hp > 0) || [];
+  if (livingMonsters.length === 0) return 1;
+  const buffAtk = getBuffTotal(character, "atk") + getBuffTotal(character, "str");
+  const meleeMod = getMeleeModifiers(character, 0, { state });
+  const damage = livingMonsters.reduce((total, monster) => {
+    const formulaDamage = calculatePhysicalAttackFormula({
+      weaponAtk: getCharWeaponAtk(character),
+      buffAtk,
+      str: getCharStr(character),
+      randRoll: 2,
+      def: getEffectiveDef(monster),
+      meleeMod
+    });
+    return total + Math.max(1, Math.floor(formulaDamage));
+  }, 0) / livingMonsters.length;
+  return Math.max(1, damage);
+}
+
+function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = null) {
   const character = state.party[0];
   const livingMonsters = state.combatState.monsters.filter(monster => monster.hp > 0);
   const decision = calculateCombatRecoveryAction({
@@ -4288,7 +4516,7 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction) {
     enemyHp: livingMonsters.map(monster => monster.hp),
     enemyAttack: livingMonsters.map(monster => monster.atk || 0),
     playerDefense: getCharDef(character),
-    playerDamagePerRound: getCharWeaponAtk(character) / 1.5,
+    playerDamagePerRound: getEvDamageEstimate(state),
     potionHeal: recoveryItem ? getSimulationHealAmount(state, recoveryItem) : 0,
     diosHeal: diosAction ? getExpectedDiosHeal(state) : 0,
     potionAvailable: Boolean(recoveryItem),
@@ -4296,6 +4524,7 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction) {
     fleeThreshold: state.simPolicy.fleeHpThreshold ?? 0.20,
     healThreshold: state.simPolicy.healPotionThreshold
   });
+  recordDamageEstimateDecision(metrics, state, getEvDamageEstimate(state), decision);
   if (decision === "flee") {
     return { decision, action: { type: "run", actorIdx: 0 } };
   }
@@ -4658,7 +4887,7 @@ function selectCombatAction(state, metrics) {
   if (state.simPolicy.fleePolicy === "ev") {
     recoveryItem = getRecoveryPotionItem(state);
     diosAction = getDiosCombatAction(state);
-    const evResult = getEnemyAwareCombatAction(state, recoveryItem, diosAction);
+    const evResult = getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics);
     if (evResult.action?.type === "run") return evResult.action;
     evRecoveryAction = evResult.decision === "recover" ? evResult.action : null;
     evShouldFight = evResult.decision === "fight";
@@ -5575,6 +5804,7 @@ function runEncounter(
     }
 
     const action = selectCombatAction(state, metrics);
+    recordDamageEstimateAction(metrics, state, action);
     const policyProbeAction = getCombatPolicyProbeAction(state);
     recordCombatPolicyProbe(state, metrics, policyProbeAction, action);
     const roundNumber = state.combatState.roundNumber;
@@ -5676,6 +5906,7 @@ function runEncounter(
     const diagnosticCureCountsBefore = encounterDiagnostic && fullDiagnostics
       ? countInventoryItems(state.inventory)
       : null;
+    const physicalHitsBeforeRound = state.combatFormulaTelemetry?.physicalPlayerHits.length || 0;
     let roundResult;
     try {
       roundResult = withSimulationHealEffects(state, () => runCombatRoundCalculation(state, {
@@ -5689,6 +5920,10 @@ function runEncounter(
       restoreCountermeasureScale(countermeasurePatches);
       restoreRaceEffectScale(raceEffectPatches);
     }
+    recordDamageEstimatePhysicalHits(
+      metrics,
+      roundResult.state.combatFormulaTelemetry?.physicalPlayerHits.slice(physicalHitsBeforeRound) || []
+    );
     recordSpellApplicationMetrics(metrics, action, roundResult.logQueue);
     removeRaceEffectScale(roundResult?.state);
     removeCountermeasureScale(roundResult?.state);
@@ -9100,6 +9335,17 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     deathSnapshot: metrics.deathSnapshot,
     killHeal: { ...metrics.killHeal },
     combatFormula: state.combatFormulaTelemetry || null,
+    evFleeActions: getDamageEstimateActionTotals(metrics.damageEstimateAudit).fleeActions,
+    evRecoveryActions: getDamageEstimateActionTotals(metrics.damageEstimateAudit).recoveryActions,
+    damageEstimateAudit: metrics.damageEstimateAudit
+      ? {
+          decisionsByFloor: metrics.damageEstimateAudit.decisionsByFloor,
+          actionsByFloor: metrics.damageEstimateAudit.actionsByFloor,
+          hits: metrics.damageEstimateAudit.hits,
+          unmatchedHits: metrics.damageEstimateAudit.unmatchedHits,
+          unmatchedHitsByFloor: metrics.damageEstimateAudit.unmatchedHitsByFloor
+        }
+      : null,
     dragonKeysAcquired: metrics.dragonKeysAcquired,
     dragonKeyUses: metrics.dragonKeyUses,
     normalCombatTelemetry: metrics.normalCombatTelemetry,
@@ -9200,6 +9446,9 @@ export function simulateRun({
     eliteExtraSteps: 0,
     extraCampSteps: 0,
     combatRounds: 0,
+    damageEstimateAudit: collectCombatFormula && SIM_737_DAMAGE_AUDIT_ENABLED
+      ? createDamageEstimateAuditMetrics()
+      : null,
     stalemate: false,
     equipmentUpgrades: 0,
     earlyEquipmentUpgrades: 0,
@@ -10443,6 +10692,9 @@ function simulateCase({
     outcomesByClass: Object.fromEntries(
       SIM_CLASSES.map(className => [className, createOutcomeAggregate()])
     ),
+    damageEstimateAudit: SIM_737_DAMAGE_AUDIT_ENABLED
+      ? createDamageEstimateAggregate()
+      : null,
     trapBonus: createTrapBonusAggregate(),
     townPortalsUsed: 0,
     runsUsingTownPortal: 0,
@@ -10486,11 +10738,17 @@ function simulateCase({
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
     const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
+    const departureCraftBank = departureCraftBanksByClass[className];
+    const hasDepartureCraftBank = Object.keys(departureCraftBank).length > 0;
+    const hasExplicitDepartureCraftIds = ACTIVE_DEPARTURE_CRAFT_IDS.length > 0;
     const runScenario = scenario.departureCraftMeasurement
       ? {
           ...scenario,
-          departureCraftMaterialsAreActualBank: true,
-          departureCraftMaterials: { ...departureCraftBanksByClass[className] }
+          departureCraftMaterialsAreActualBank:
+            !hasExplicitDepartureCraftIds && hasDepartureCraftBank,
+          ...(!hasExplicitDepartureCraftIds && hasDepartureCraftBank
+            ? { departureCraftMaterials: { ...departureCraftBank } }
+            : {})
         }
       : scenario;
     const result = simulateRun({
@@ -10504,7 +10762,8 @@ function simulateCase({
         ...runScenario,
         identificationPolicy: identificationPolicy.id || identificationPolicy
       },
-      workshop: scenario.workshop || { ranks: {} }
+      workshop: scenario.workshop || { ranks: {} },
+      collectCombatFormula: SIM_737_DAMAGE_AUDIT_ENABLED
     });
     if (scenario.departureCraftMeasurement) {
       departureCraftBanksByClass[className] = { ...result.metaMaterials };
@@ -10519,6 +10778,11 @@ function simulateCase({
     addCombatPolicyProbeMetrics(
       classCombatPolicyProbeTotals[className],
       result.combatPolicyProbe
+    );
+    addDamageEstimateAudit(
+      totals.damageEstimateAudit,
+      result.damageEstimateAudit,
+      className
     );
     totals.mpBlockedTerminalEncounterRuns += Number(result.mpBlockedTerminalEncounter);
     totals.mpDepletionCausedEndRuns += Number(result.mpDepletionCausedEnd);
@@ -11021,6 +11285,9 @@ function simulateCase({
         finalizeOutcomeAggregate(aggregate)
       ])
     ),
+    damageEstimateAudit: totals.damageEstimateAudit
+      ? finalizeDamageEstimateAggregate(totals.damageEstimateAudit)
+      : null,
     trapBonusSupply: finalizeTrapBonusAggregate(totals.trapBonus),
     trapBonusSupplyByClass: Object.fromEntries(
       Object.entries(classTrapBonusTotals).map(([className, aggregate]) => [
@@ -11194,7 +11461,9 @@ export {
   DEPTH_SCENARIOS,
   REFERENCE_SCENARIOS,
   SIM_CLASSES,
-  IDENTIFICATION_BALANCE
+  IDENTIFICATION_BALANCE,
+  createDamageEstimateAuditMetrics,
+  recordDamageEstimatePhysicalHits
 };
 
 function printCoreScoringProfile(profile, policy = null) {
@@ -11335,6 +11604,71 @@ function printClassOutcomeMetrics(result) {
       `${formatWilson(stats.diedRuns, stats.runs)} | ` +
       `${stats.averageReachedFloor.toFixed(2)}`
     );
+  });
+}
+
+function formatDamageAuditDistribution(stats) {
+  if (!stats?.n) return "n=0";
+  return `n=${stats.n} mean=${stats.mean.toFixed(2)} ` +
+    `p10=${stats.p10.toFixed(2)} med=${stats.median.toFixed(2)} p90=${stats.p90.toFixed(2)}`;
+}
+
+function printDamageEstimateAudit(result) {
+  const audit = result?.damageEstimateAudit;
+  if (!audit) return;
+  console.log(`#737 未対応ヒット除外: ${audit.unmatchedHits || 0}`);
+  Object.entries(audit.unmatchedHitsByClass || {}).forEach(([className, floors]) => {
+    const count = Object.values(floors || {}).reduce((sum, bucket) => sum + (bucket.hits || 0), 0);
+    if (count > 0) console.log(`  ${className}: ${count}`);
+  });
+  console.log(`\n【#737 近似 vs 実測ダメージ分布 / ${result.label}】`);
+  console.log(
+    "職業 深度 | hits | estimate mean | formula mean | observed mean | " +
+    "formula Δ(p10/med/p90) | observed Δ(p10/med/p90)"
+  );
+  Object.entries(audit.byClass || {}).forEach(([className, floors]) => {
+    Object.entries(floors)
+      .sort(([left], [right]) => Number(left) - Number(right))
+      .forEach(([floor, bucket]) => {
+        console.log(
+          `${className} B${floor} | ${bucket.n} | ` +
+          `${bucket.estimate.mean.toFixed(2)} | ${bucket.formula.mean.toFixed(2)} | ` +
+          `${bucket.observed.mean.toFixed(2)} | ` +
+          `${bucket.formulaDelta.p10.toFixed(2)}/${bucket.formulaDelta.median.toFixed(2)}/` +
+          `${bucket.formulaDelta.p90.toFixed(2)} | ` +
+          `${bucket.observedDelta.p10.toFixed(2)}/${bucket.observedDelta.median.toFixed(2)}/` +
+          `${bucket.observedDelta.p90.toFixed(2)}`
+        );
+      });
+  });
+  console.log("#737 分布統計（未確定セルはhits<30）:");
+  Object.entries(audit.byClass || {}).forEach(([className, floors]) => {
+    Object.entries(floors)
+      .sort(([left], [right]) => Number(left) - Number(right))
+      .forEach(([floor, bucket]) => {
+        console.log(
+          `  ${className} B${floor}: estimate{${formatDamageAuditDistribution(bucket.estimate)}} ` +
+          `formula{${formatDamageAuditDistribution(bucket.formula)}} ` +
+          `observed{${formatDamageAuditDistribution(bucket.observed)}}`
+        );
+      });
+  });
+}
+
+function printEvActionRates(results) {
+  if (!SIM_737_DAMAGE_AUDIT_ENABLED) return;
+  console.log("\n【#737 EV action rates / workshop-complete】");
+  console.log("深度 | 職業 | 逃走発火run率 | 回復発火run率 | 逃走action/run | 回復action/run");
+  results.forEach(result => {
+    Object.entries(result.outcomesByClass || {}).forEach(([className, stats]) => {
+      console.log(
+        `B${result.targetDepth} | ${className} | ` +
+        `${formatWilson(stats.runsWithEvFlee, stats.runs)} | ` +
+        `${formatWilson(stats.runsWithEvRecovery, stats.runs)} | ` +
+        `${(stats.evFleeActions / Math.max(1, stats.runs)).toFixed(2)} | ` +
+        `${(stats.evRecoveryActions / Math.max(1, stats.runs)).toFixed(2)}`
+      );
+    });
   });
 }
 
@@ -11801,7 +12135,11 @@ function buildMpScarcityMeasurement(resultsByPolicy) {
               finalMpRate: outcome.finalMpRate,
               endResourceByReason: outcome.endResourceByReason,
               mpBlockedTerminalEncounterRuns: outcome.mpBlockedTerminalEncounterRuns,
-              mpDepletionCausedEndRuns: outcome.mpDepletionCausedEndRuns
+              mpDepletionCausedEndRuns: outcome.mpDepletionCausedEndRuns,
+              evFleeActions: outcome.evFleeActions,
+              evRecoveryActions: outcome.evRecoveryActions,
+              runsWithEvFlee: outcome.runsWithEvFlee,
+              runsWithEvRecovery: outcome.runsWithEvRecovery
             }
           ])
         ),
@@ -11811,6 +12149,12 @@ function buildMpScarcityMeasurement(resultsByPolicy) {
         combatMp: result.combatMp,
         combatPolicyProbeByClass: result.combatPolicyProbeByClass,
         combatPolicyProbe: result.combatPolicyProbe,
+        damageEstimateAudit: result.damageEstimateAudit
+          ? {
+              unmatchedHits: result.damageEstimateAudit.unmatchedHits,
+              unmatchedHitsByClass: result.damageEstimateAudit.unmatchedHitsByClass
+            }
+          : null,
         mpBlockedTerminalEncounterRuns: result.mpBlockedTerminalEncounterRuns,
         mpDepletionCausedEndRuns: result.mpDepletionCausedEndRuns
       })))
@@ -12334,6 +12678,7 @@ const ENV_SIGNATURE = {
   // テストが通ってしまう（#560レビュー指摘）。
   scope: readSimScopeDeclaration(import.meta.url).name,
   seed: SIM_SEED,
+  damageAudit: SIM_737_DAMAGE_AUDIT_ENABLED,
   runsPerCase: RUNS_PER_CASE,
   calibrationRuns: CALIBRATION_RUNS,
   classes: SIM_CLASSES,
@@ -12565,6 +12910,10 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
     `深度カーブ: bank保持率=${results.map(result => formatPercent(result.bankRetentionRate)).join(" / ")}, ` +
     `EV/時間=${results.map(result => result.materialEvPerTime.toFixed(4)).join(" / ")}`
   );
+  if (SIM_737_DAMAGE_AUDIT_ENABLED && scenario.id === "workshop-complete") {
+    printDamageEstimateAudit(results.find(result => result.targetDepth === 20));
+    printEvActionRates(results);
+  }
   });
 
   console.log("\n【マイルストーン開始比較】");
