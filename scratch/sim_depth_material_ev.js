@@ -13,7 +13,9 @@ import { reportMechanismFiring } from "./mechanism_wiring_report.js";
 const IS_TEST_PROCESS = process.env.SIM_SKIP_PROVENANCE === "1" ||
   basename(process.argv[1] || "").startsWith("test_");
 export const MEASUREMENT_PROVENANCE = isMainThread && !IS_TEST_PROCESS
-  ? resolveMeasurementProvenance()
+  // The parent prefetches and verifies origin/main before delegated work.
+  // Keep measurements local so the runner does not retry network access.
+  ? resolveMeasurementProvenance({ fetchOriginMain: false })
   : null;
 
 // Mock localStorage for the Node.js simulation environment before imports.
@@ -329,6 +331,7 @@ const SIM_ENV_KEYS = Object.freeze([
   "SIM_ISSUE646_CAMP_LEVEL",
   "SIM_INDEPENDENT_RUN_RANDOM",
   "SIM_737_DAMAGE_AUDIT",
+  "SIM_728_HIT_EVASION",
   "SIM_DIALMA_CANDIDATE",
   "SIM_MADI_CANDIDATE",
   "SIM_MADI_HEAL_MIN",
@@ -371,6 +374,7 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_ISSUE646_CAMP_LEVEL: "",
   SIM_INDEPENDENT_RUN_RANDOM: "1",
   SIM_737_DAMAGE_AUDIT: "0",
+  SIM_728_HIT_EVASION: "0",
   SIM_DIALMA_CANDIDATE: "1",
   SIM_MADI_CANDIDATE: "1",
   SIM_MADI_HEAL_MIN: "",
@@ -521,6 +525,7 @@ const CALIBRATION_RUNS = Math.max(
 const SIM_SEED = Number(SIM_ENV.SIM_SEED || 231) >>> 0;
 const SIM_INDEPENDENT_RUN_RANDOM = SIM_ENV.SIM_INDEPENDENT_RUN_RANDOM === "1";
 const SIM_737_DAMAGE_AUDIT_ENABLED = SIM_ENV.SIM_737_DAMAGE_AUDIT === "1";
+const SIM_728_HIT_EVASION_ENABLED = SIM_ENV.SIM_728_HIT_EVASION === "1";
 const SIM_DIALMA_CANDIDATE = SIM_ENV.SIM_DIALMA_CANDIDATE !== "0";
 const SIM_MADI_CANDIDATE = SIM_ENV.SIM_MADI_CANDIDATE !== "0";
 const parseOptionalSimInteger = (value, name) => {
@@ -4477,6 +4482,23 @@ function recordDamageEstimatePhysicalHits(metrics, hits) {
   audit.pending = null;
 }
 
+function recordHitEvasionMetrics(metrics, hits, misses) {
+  if (!metrics.hitEvasion) return;
+  const add = (bucket, floor) => {
+    const key = String(floor);
+    bucket[key] = (bucket[key] || 0) + 1;
+  };
+  hits
+    .filter(hit => Number(hit.targetEvasionChance) > 0)
+    .forEach(hit => add(metrics.hitEvasion.attemptsByFloor, hit.floor));
+  misses
+    .filter(miss => Number(miss.targetEvasionChance) > 0)
+    .forEach(miss => {
+      add(metrics.hitEvasion.attemptsByFloor, miss.floor);
+      add(metrics.hitEvasion.missesByFloor, miss.floor);
+    });
+}
+
 function getDamageEstimateActionTotals(audit) {
   return Object.values(audit?.actionsByFloor || {}).reduce(
     (totals, bucket) => ({
@@ -5906,6 +5928,7 @@ function runEncounter(
       ? countInventoryItems(state.inventory)
       : null;
     const physicalHitsBeforeRound = state.combatFormulaTelemetry?.physicalPlayerHits.length || 0;
+    const physicalMissesBeforeRound = state.combatFormulaTelemetry?.physicalPlayerMisses?.length || 0;
     let roundResult;
     try {
       roundResult = withSimulationHealEffects(state, () => runCombatRoundCalculation(state, {
@@ -5922,6 +5945,11 @@ function runEncounter(
     recordDamageEstimatePhysicalHits(
       metrics,
       roundResult.state.combatFormulaTelemetry?.physicalPlayerHits.slice(physicalHitsBeforeRound) || []
+    );
+    recordHitEvasionMetrics(
+      metrics,
+      roundResult.state.combatFormulaTelemetry?.physicalPlayerHits.slice(physicalHitsBeforeRound) || [],
+      roundResult.state.combatFormulaTelemetry?.physicalPlayerMisses.slice(physicalMissesBeforeRound) || []
     );
     recordSpellApplicationMetrics(metrics, action, roundResult.logQueue);
     removeRaceEffectScale(roundResult?.state);
@@ -9333,6 +9361,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     b5DeathAfterFlameWithinFiveSteps,
     deathSnapshot: metrics.deathSnapshot,
     killHeal: { ...metrics.killHeal },
+    hitEvasion: metrics.hitEvasion,
     combatFormula: state.combatFormulaTelemetry || null,
     evFleeActions: getDamageEstimateActionTotals(metrics.damageEstimateAudit).fleeActions,
     evRecoveryActions: getDamageEstimateActionTotals(metrics.damageEstimateAudit).recoveryActions,
@@ -9427,6 +9456,7 @@ export function simulateRun({
   if (collectCombatFormula) {
     state.combatFormulaTelemetry = {
       physicalPlayerHits: [],
+      physicalPlayerMisses: [],
       physicalMonsterHits: [],
       spellHits: [],
       spellMonsterHits: [],
@@ -9447,6 +9477,9 @@ export function simulateRun({
     combatRounds: 0,
     damageEstimateAudit: collectCombatFormula && SIM_737_DAMAGE_AUDIT_ENABLED
       ? createDamageEstimateAuditMetrics()
+      : null,
+    hitEvasion: collectCombatFormula && SIM_728_HIT_EVASION_ENABLED
+      ? { attemptsByFloor: {}, missesByFloor: {} }
       : null,
     stalemate: false,
     equipmentUpgrades: 0,
@@ -10708,7 +10741,8 @@ function simulateCase({
     eliteLevelsGained: 0,
     eliteExpGained: 0,
     eliteAvoidDetourSteps: 0,
-    eliteAvoidNoRouteFloors: 0
+    eliteAvoidNoRouteFloors: 0,
+    hitEvasion: { attemptsByFloor: {}, missesByFloor: {} }
   };
   const classTrapTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapAggregate()])
@@ -10730,6 +10764,9 @@ function simulateCase({
   );
   const classCombatPolicyProbeTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createCombatPolicyProbeMetrics()])
+  );
+  const classHitEvasionTotals = Object.fromEntries(
+    SIM_CLASSES.map(className => [className, { attemptsByFloor: {}, missesByFloor: {} }])
   );
   const departureCraftBanksByClass = Object.fromEntries(
     SIM_CLASSES.map(className => [className, {}])
@@ -10762,7 +10799,7 @@ function simulateCase({
         identificationPolicy: identificationPolicy.id || identificationPolicy
       },
       workshop: scenario.workshop || { ranks: {} },
-      collectCombatFormula: SIM_737_DAMAGE_AUDIT_ENABLED
+      collectCombatFormula: SIM_737_DAMAGE_AUDIT_ENABLED || SIM_728_HIT_EVASION_ENABLED
     });
     if (scenario.departureCraftMeasurement) {
       departureCraftBanksByClass[className] = { ...result.metaMaterials };
@@ -10783,6 +10820,14 @@ function simulateCase({
       result.damageEstimateAudit,
       className
     );
+    Object.entries(result.hitEvasion?.attemptsByFloor || {}).forEach(([floor, count]) => {
+      const bucket = classHitEvasionTotals[className].attemptsByFloor;
+      bucket[floor] = (bucket[floor] || 0) + count;
+    });
+    Object.entries(result.hitEvasion?.missesByFloor || {}).forEach(([floor, count]) => {
+      const bucket = classHitEvasionTotals[className].missesByFloor;
+      bucket[floor] = (bucket[floor] || 0) + count;
+    });
     totals.mpBlockedTerminalEncounterRuns += Number(result.mpBlockedTerminalEncounter);
     totals.mpDepletionCausedEndRuns += Number(result.mpDepletionCausedEnd);
     totals.lightActiveSteps += result.lightActiveSteps;
@@ -11284,6 +11329,27 @@ function simulateCase({
         finalizeOutcomeAggregate(aggregate)
       ])
     ),
+    hitEvasionByClass: Object.fromEntries(
+      Object.entries(classHitEvasionTotals).map(([className, totalsByFloor]) => [
+        className,
+        Object.fromEntries(
+          [...new Set([
+            ...Object.keys(totalsByFloor.attemptsByFloor),
+            ...Object.keys(totalsByFloor.missesByFloor)
+          ])]
+            .sort((left, right) => Number(left) - Number(right))
+            .map(floor => {
+              const attempts = totalsByFloor.attemptsByFloor[floor] || 0;
+              const misses = totalsByFloor.missesByFloor[floor] || 0;
+              return [floor, {
+                attempts,
+                misses,
+                evasionRate: attempts > 0 ? misses / attempts : 0
+              }];
+            })
+        )
+      ])
+    ),
     damageEstimateAudit: totals.damageEstimateAudit
       ? finalizeDamageEstimateAggregate(totals.damageEstimateAudit)
       : null,
@@ -11603,6 +11669,20 @@ function printClassOutcomeMetrics(result) {
       `${formatWilson(stats.diedRuns, stats.runs)} | ` +
       `${stats.averageReachedFloor.toFixed(2)}`
     );
+  });
+}
+
+function printHitEvasionMetrics(result) {
+  if (!SIM_728_HIT_EVASION_ENABLED || !result?.hitEvasionByClass) return;
+  console.log(`\n【#728 命中・回避 発火率 / ${result.label}】`);
+  console.log("職業 深度 | 回避対象への物理攻撃数 | 回避数 | 発火率");
+  Object.entries(result.hitEvasionByClass).forEach(([className, floors]) => {
+    Object.entries(floors).forEach(([floor, bucket]) => {
+      console.log(
+        `${className} B${floor} | ${bucket.attempts} | ${bucket.misses} | ` +
+        `${formatPercent(bucket.evasionRate)}`
+      );
+    });
   });
 }
 
@@ -12681,6 +12761,7 @@ const ENV_SIGNATURE = {
   runsPerCase: RUNS_PER_CASE,
   calibrationRuns: CALIBRATION_RUNS,
   classes: SIM_CLASSES,
+  hitEvasion: SIM_728_HIT_EVASION_ENABLED,
   elitePolicy: DEFAULT_ELITE_POLICY,
   floorTrapPolicy: DEFAULT_FLOOR_TRAP_POLICY_ID,
   chestTrapPolicy: DEFAULT_TRAP_POLICY_ID,
@@ -12879,6 +12960,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   console.log(`\n【${scenario.label} B1開始 深度別系列】`);
   printTable(results);
   printClassOutcomeMetrics(results.find(result => result.targetDepth === 20));
+  printHitEvasionMetrics(results.find(result => result.targetDepth === 20));
   printB5GateDiagnostics(results.find(result => result.targetDepth === 20));
   results.forEach(result => {
     printTrapMetrics(result);

@@ -74,6 +74,13 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 - `physResist`: `def` 由来の抵抗と加算する対象の物理耐性。合成値は
   `combinePhysicalResistances` で -1〜0.9 に clamp する。
 - `meleeMod`: `getMeleeModifiers` の値。現行の 8 職はすべて `1.00`。
+- `evasionChance`: `evasive` trait を持つ敵データに明示する回避率。trait がない敵は
+  0 とし、敵全体へ一律には配らない。対象は斥候・獣・コウモリ・暗殺者など、
+  速さや身軽さを役割／種族で読める個体に限る。
+- `hitChance`: `evasive` trait を持つ対象に対する物理攻撃の命中率。
+  `clamp(0.50, 1.00, 1 - evasionChance + (getCharAgi(char) - 10) * 0.01)` とする。
+  trait がない対象は 1.00 とし、AGI 10 を中立点にする。命中率の hard cap は 1.00、
+  回避による下限は 0.50 とする。
 - `magicResist`: spell resolution が一時的に適用する
   `getEffectiveMagicResist` の値。敵の base と buff を合成し、-1〜0.9 に clamp
   する。
@@ -87,6 +94,12 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 `src/rules/character_stats.js` の `calculatePhysicalAttackFormula` を呼ぶ。
 
 ```text
+targetEvasion = target が `evasive` trait を持つ場合の target.evasionChance
+                // trait がない敵は 0
+hitChance = clamp(0.50, 1.00,
+                  1 - targetEvasion + (getCharAgi(char) - 10) * 0.01)
+                // targetEvasion == 0 の対象は hitChance = 1.00
+
 weapon = getCharWeaponAtk(char)
        + (roundNumber == 1 ? getCharAffixSum(char, "firstTurnAttack") : 0)
 buff = getBuffTotal(char, "atk") + getBuffTotal(char, "str")
@@ -110,19 +123,26 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
 その後の適用順は次のとおり。順序を変えると同じ項でも結果が変わる。
 
 ```text
-1. Mage / Bishop のみ:
+0. 攻撃者が盲目で `random() < 0.5` の場合は MISS とし、以降の式へ進まない。
+
+1. 対象が `evasive` trait を持ち、`random() >= hitChance` の場合は AVOID とし、
+   以降の式へ進まない。`hitChance == 1.00` の通常対象は判定を省略する。
+   `physicalAccuracy` の core affix は、この攻撃者側の命中率へ加算する PR2 の拡張点
+   とし、PR1 では追加しない。
+
+2. Mage / Bishop のみ:
    magicBoltRaw = floor(getCharInt(char) / 3) + floor(random() * 3)
    magicBolt = max(1, floor(magicBoltRaw * (1 - physicalResistance)))
    d1 = max(d0, magicBolt)
    // magicBolt が d0 より大きい時だけ d1 の値を作る
 
-2. 盲目なら d2 = max(1, floor(d1 / 2))、それ以外は d2 = d1
+3. 盲目なら d2 = max(1, floor(d1 / 2))、それ以外は d2 = d1
 
-3. `defResistance` と `target.physResist` は上の
+4. `defResistance` と `target.physResist` は上の
    `physicalResistance` へ加算済みであり、物理耐性を別乗算しない。
    d3 = d2
 
-4. `getDamageAffixResult` の共通 target-tag stage でタグ特効を加算して一度だけ
+5. `getDamageAffixResult` の共通 target-tag stage でタグ特効を加算して一度だけ
    適用する。
    ```text
    tagBonus = Σ (getCharAffixSum(char, anti<Tag>) + spellIntrinsicTagBonus(spell, tag))
@@ -132,7 +152,7 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
    複数タグは加算プールへ合流するため、旧 `else-if` の優先順とは挙動が変わる。
    物理と攻撃呪文はこの stage を共有し、1攻撃につき一度だけ通る。
 
-5. 同じ `getDamageAffixResult` 内で core / support / milestone exposure を適用する。
+6. 同じ `getDamageAffixResult` 内で core / support / milestone exposure を適用する。
 
    core の順序:
    LAST_STAND -> GIANT_SLAYER -> EXECUTIONER
@@ -144,17 +164,29 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
    その後 milestone boss exposure を乗算する。
    戻り値は max(1, round(input * multiplier))。
 
-6. 対象が guard 中なら d5 = max(1, round(d4 * guard.damageRate))。
+7. 対象が guard 中なら d5 = max(1, round(d4 * guard.damageRate))。
 
-7. Ninja かつ target.isBoss でない時だけ
+8. Ninja かつ target.isBoss でない時だけ
    criticalChance = min(0.15, 0.05 + 0.01 * char.level)
    を作り、当選すれば final = max(1, d5 * 3)。それ以外は final = d5。
 ```
 
 `applyTargetedDamageBonus` は `getDamageAffixResult` を物理へ接続する薄い wrapper
 である。会心判定は guard の**後**である。#611 の `preCriticalDmg` は guard まで適用した値で、
-会心の 3 倍前である。攻撃前の evasive、盲目 miss、通常 miss はこの式に入らず、
-この文書の「1 ヒット」は式へ到達した攻撃を指す。
+会心の 3 倍前である。攻撃前の `evasive` 回避と盲目 miss はこの式に入らず、
+この文書の「1 ヒット」は命中判定を通って式へ到達した攻撃を指す。
+
+命中・回避は新しい敵 `agi` ではなく、既存の `evasive` trait と敵データの
+`evasionChance` を使う。敵全体へ一律の回避率を付けると敵の役割が数値上同じになるため、
+「斥候」「獣・コウモリ」「暗殺者」「霧・影」のように、役割または種族から身軽さを
+読める個体だけへ明示する。値は低層の通常個体を 0.15〜0.22、暗殺者・徘徊エリートを
+0.25 とし、HP・攻撃力・防御力はこの変更で変えない。
+
+プレイヤー側は回避対象に対して AGI を命中の基礎投資とする。通常対象は命中率 100% を
+維持し、回避対象では AGI 10 を中立点、1 point あたり 1% とする。
+命中率の下限を 50%、上限を 100% にする。これにより、回避対象には外れることが起こり、
+AGI の差は同じ対象に対する命中率の差として残る。必中 core はこの段階では存在せず、
+PR1 が入った後に `physicalAccuracy` を同じ攻撃者側 stage へ追加する。
 
 ### 1.2.1 敵からプレイヤーへの物理攻撃
 
@@ -288,6 +320,7 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | `max(0, str - 10)` | STR 10 を基準にし、10 未満のペナルティを 0 にする | character stats の基礎値と関数の実装 | STR 10 を中立点とし、低 STR 職のペナルティだけを除く。STR 10 超の職差は残す |
 | 負の呪い `atk` | `cursePower` 適用後の raw 値を丸めてから実効単位へ揃える | `getScaledCurseModifier` と `CURSE_EFFECTS` | 旧来の「raw を丸めてから物理式の1.5倍」を、保存値を実効単位にした後も同じ順序で保つ。呪いの閾値判定や他の負項は変更しない |
 | `randRoll` | 武器の `randRange` による一様整数を加算。fallback は `[0,4]` | `getCharWeaponPhysicalRandomRange` / `rollCharWeaponPhysicalRandom` と `round.js` | 武器ごとの手触りを作る #727 の変更。全武器の端点平均は2.0に揃え、平均威力を変えず分散だけ変える。固定データで武器の authored identity を維持する |
+| `evasionChance` / `hitChance` | `evasive` trait を持つ敵だけが明示的な回避率を持ち、プレイヤー AGI で命中率を補正 | `src/data/monsters.js`、`getMonsterEvasionChance`、`getPhysicalHitChance`、`round.js` | 外れる軸を実データへ接続する PR1。全敵一律の値は採用せず、役割／種族から身軽さを読める個体へ限定する。必中 core は PR2 で同じ stage に加える |
 | `defResistance` | `def / (def + k_direction)` の逓減抵抗 | `getPhysicalDefenseResistance` と `getEffectiveDef` | 敵分布（中央値5、p75=8、最大18）を #716 の物理耐性段階へ接続し、有限値では100%に到達しない。`k_direction` は旧式の適用段階差を含めて実遭遇分布で校正する |
 | `meleeMod` | 職業別 map、現行値は全て 1 | `getMeleeModifiers`。derived stats との共有を意図したコメント | 拡張点の存在は source の説明がある。現行の職業差を作る設計根拠はない |
 | `max(1, floor(...))` | 物理式の出力を最低 1 | source の clamp | 物理は最低1を維持する。乗算変更で0が増えるため、#728で変更判断するまで固定する |

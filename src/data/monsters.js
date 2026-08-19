@@ -95,21 +95,21 @@ export const MONSTER_ROLE_BY_NAME = Object.freeze({
 const MONSTER_DATA = [
   { name: "かみつき蟲", level: 1, hp: 16, atk: 6, def: 1, exp: 40, spriteType: "biter", tags: ["beast"], color: "#00ff66" },
   { name: "ゴブリンの呪術師", level: 1, hp: 20, atk: 4, def: 1, exp: 50, spriteType: "kobold", spell: "HALITO", spellChance: 0.3, color: "#00ff66" },
-  { name: "コボルトの斥候", level: 1, hp: 22, atk: 7, def: 2, exp: 60, spriteType: "kobold", color: "#00ff66" },
+  { name: "コボルトの斥候", level: 1, hp: 22, atk: 7, def: 2, exp: 60, spriteType: "kobold", traits: ["evasive"], evasionChance: 0.15, color: "#00ff66" },
   { name: "ゾンビ", level: 2, hp: 32, atk: 7, def: 3, exp: 120, spriteType: "zombie", isPoisonous: true, tags: ["undead"], color: "#8a2be2" },
   { name: "ガイコツ戦士", level: 2, hp: 40, atk: 9, def: 4, exp: 180, spriteType: "skeleton", tags: ["undead"], color: "#dcdcdc" },
-  { name: "キラーラビット", level: 2, hp: 32, atk: 12, def: 4, exp: 120, spriteType: "rabbit", tags: ["beast"], color: "#ff8c00" },
+  { name: "キラーラビット", level: 2, hp: 32, atk: 12, def: 4, exp: 120, spriteType: "rabbit", traits: ["evasive"], evasionChance: 0.18, tags: ["beast"], color: "#ff8c00" },
   { name: "マッドゴースト", level: 2, hp: 28, atk: 6, def: 2, exp: 140, spriteType: "spirit", physResist: 0.5, tags: ["undead", "spirit"], color: "#8a2be2" },
   { name: "オークの戦士", level: 3, hp: 56, atk: 12, def: 6, exp: 280, spriteType: "orc", color: "#ff8c00" },
   { name: "はぐれ魔術師", level: 3, hp: 44, atk: 8, def: 4, exp: 280, spriteType: "mage", spell: "HALITO", spellChance: 0.3, color: "#da70d6" },
-  { name: "ワーウルフ", level: 3, hp: 72, atk: 14, def: 5, exp: 340, spriteType: "orc", isParalyzing: true, statusChance: 0.3, tags: ["beast"], color: "#ff8c00" },
+  { name: "ワーウルフ", level: 3, hp: 72, atk: 14, def: 5, exp: 340, spriteType: "orc", traits: ["evasive"], evasionChance: 0.20, isParalyzing: true, statusChance: 0.3, tags: ["beast"], color: "#ff8c00" },
   { name: "バンシー", level: 3, hp: 56, atk: 9, def: 3, exp: 300, spriteType: "spirit", isParalyzing: true, magicResist: 0.6, physResist: 0.2, statusChance: 0.3, tags: ["undead", "spirit"], color: "#da70d6" },
   
   // 既存モンスターの再調整
   { name: "スピリット", level: 2, hp: 36, atk: 6, def: 2, exp: 180, spriteType: "spirit", physResist: 0.6, magicResist: -0.2, tags: ["undead", "spirit"], color: "#00e5ff" },
   { name: "ウィル・オー・ウィスプ", level: 3, hp: 48, atk: 7, def: 2, exp: 260, spriteType: "wisp", magicResist: 0.8, tags: ["spirit"], color: "#ffffff" },
   { name: "ジャイアントスパイダー", level: 2, hp: 36, atk: 7, def: 3, exp: 150, spriteType: "spider", isPoisonous: true, tags: ["beast"], color: "#bf5af2" },
-  { name: "フラッシュバット", level: 2, hp: 24, atk: 5, def: 2, exp: 100, spriteType: "bat", isBlinding: true, tags: ["beast"], color: "#e5ff00" },
+  { name: "フラッシュバット", level: 2, hp: 24, atk: 5, def: 2, exp: 100, spriteType: "bat", traits: ["evasive"], evasionChance: 0.18, isBlinding: true, tags: ["beast"], color: "#e5ff00" },
 
   { name: "マスターメイジ", level: 4, hp: 76, atk: 9, def: 5, exp: 650, spriteType: "mage", spell: "LAHALITO", spellChance: 0.35, magicResist: 0.3, color: "#ff3b30" },
   { name: "ポイズンジャイアント", level: 4, hp: 130, atk: 19, def: 7, exp: 600, spriteType: "zombie", isPoisonous: true, color: "#bf5af2" },
@@ -121,7 +121,7 @@ const MONSTER_DATA = [
   { name: "フラック", level: 4, hp: 90, atk: 13, def: 4, exp: 3000, spriteType: "flack", spell: "LAHALITO", spellChance: 0.15, physResist: 0.1, magicResist: 0.1, isRare: true, dangerRare: true, tags: ["demon"], color: "#ff3b30" },
   // バイオームごとの徘徊エリート。避けるのが正解、倒せば跳ねる任意チャレンジ。
   { name: "墓守の巨躯", level: 5, hp: 95, atk: 13, def: 18, exp: 3000, spriteType: "zombie", physResist: 0.3, magicResist: 0.1, isRare: true, dangerRare: true, tags: ["undead"], color: "#ff3b30" },
-  { name: "這い寄る影", level: 5, hp: 90, atk: 14, def: 8, exp: 3000, spriteType: "spirit", physResist: 0.1, magicResist: 0.5, isRare: true, dangerRare: true, tags: ["spirit"], color: "#ff3b30" },
+  { name: "這い寄る影", level: 5, hp: 90, atk: 14, def: 8, exp: 3000, spriteType: "spirit", traits: ["evasive"], evasionChance: 0.25, physResist: 0.1, magicResist: 0.5, isRare: true, dangerRare: true, tags: ["spirit"], color: "#ff3b30" },
   { name: "禁書の番人", level: 6, hp: 90, atk: 13, def: 12, exp: 3200, spriteType: "mage", spell: "LAHALITO", spellChance: 0.35, magicResist: 0.3, isRare: true, dangerRare: true, tags: ["spirit"], color: "#ff3b30" },
   { name: "灼熱の徘徊者", level: 7, hp: 90, atk: 14, def: 13, exp: 3500, spriteType: "dragon", spell: "MADALTO", spellChance: 0.15, physResist: 0.2, isRare: true, dangerRare: true, tags: ["dragon"], color: "#ff3b30" },
   { name: "深淵の徘徊者", level: 8, hp: 90, atk: 14, def: 15, exp: 4000, spriteType: "flack", spell: "MADALTO", spellChance: 0.20, physResist: 0.25, magicResist: 0.25, isRare: true, dangerRare: true, tags: ["demon"], color: "#ff3b30" },
@@ -134,7 +134,7 @@ const MONSTER_DATA = [
   { name: "オークの呪医", level: 2, hp: 44, atk: 5, def: 3, exp: 200, spriteType: "orc", spell: "DIOS", spellChance: 0.3, color: "#34c759" },
   { name: "プリーストデーモン", level: 5, hp: 120, atk: 12, def: 6, exp: 800, spriteType: "flack", spell: "DIALMA", spellChance: 0.3, tags: ["demon"], color: "#34c759" },
   { name: "スケルトンアーチャー", level: 2, hp: 40, atk: 9, def: 3, exp: 150, spriteType: "skeleton", isSniper: true, tags: ["undead"], color: "#af52de" },
-  { name: "ダークアサシン", level: 3, hp: 56, atk: 14, def: 4, exp: 350, spriteType: "kobold", isSniper: true, color: "#ff3b30" },
+  { name: "ダークアサシン", level: 3, hp: 56, atk: 14, def: 4, exp: 350, spriteType: "kobold", traits: ["evasive"], evasionChance: 0.25, isSniper: true, color: "#ff3b30" },
   { name: "いにしえの竜", level: 8, hp: 640, atk: 26, def: 16, exp: 6000, spriteType: "dragon", spell: "TILTOWAIT", magicResist: 0.25, isBoss: true, tags: ["dragon"], color: "#ff3b30" },
 
   // 追加モンスター
@@ -142,12 +142,12 @@ const MONSTER_DATA = [
   { name: "呪文喰い", level: 3, hp: 68, atk: 10, def: 4, exp: 420, spriteType: "spirit", magicResist: 0.75, tags: ["spirit"], color: "#4cd964" },
   { name: "ストーンガード", level: 5, hp: 110, atk: 15, def: 16, exp: 1200, spriteType: "zombie", magicResist: -0.4, traits: ["guardAdjacent"], guard: { chance: 0.5 }, color: "#708090" },
   { name: "カースドハンド", level: 3, hp: 40, atk: 7, def: 3, exp: 320, spriteType: "zombie", isParalyzing: true, statusChance: 0.25, color: "#5856d6" },
-  { name: "ブラッドバット群", level: 2, hp: 20, atk: 5, def: 1, exp: 90, spriteType: "bat", tags: ["beast"], color: "#ff3b30" },
+  { name: "ブラッドバット群", level: 2, hp: 20, atk: 5, def: 1, exp: 90, spriteType: "bat", traits: ["evasive"], evasionChance: 0.20, tags: ["beast"], color: "#ff3b30" },
   { name: "ドラゴンワーム", level: 5, hp: 84, atk: 14, def: 6, exp: 850, spriteType: "dragon", tags: ["dragon"], color: "#ff9500" },
   { name: "分裂スライム", level: 1, hp: 20, atk: 3, def: 1, exp: 70, spriteType: "biter", traits: ["splitOnDeath"], split: { count: 2, hpRate: 0.5 }, color: "#34c759" },
-  { name: "群れネズミ", level: 1, hp: 12, atk: 3, def: 0, exp: 35, spriteType: "rabbit", tags: ["beast"], color: "#8e8e93" },
+  { name: "群れネズミ", level: 1, hp: 12, atk: 3, def: 0, exp: 35, spriteType: "rabbit", traits: ["evasive"], evasionChance: 0.22, tags: ["beast"], color: "#8e8e93" },
   { name: "錆びた盾兵", level: 1, hp: 28, atk: 4, def: 4, exp: 90, spriteType: "skeleton", traits: ["guardAdjacent"], guard: { chance: 0.5 }, tags: ["undead"], color: "#8e8e93" },
-  { name: "火薬コウモリ", level: 1, hp: 22, atk: 4, def: 1, exp: 80, spriteType: "bat", traits: ["selfDestruct"], tags: ["beast"], color: "#ff9500" },
+  { name: "火薬コウモリ", level: 1, hp: 22, atk: 4, def: 1, exp: 80, spriteType: "bat", traits: ["selfDestruct", "evasive"], evasionChance: 0.20, tags: ["beast"], color: "#ff9500" },
   { name: "まどろみ胞子", level: 1, hp: 20, atk: 4, def: 1, exp: 70, spriteType: "wisp", isSleepInflicting: true, statusChance: 0.2, tags: ["spirit"], color: "#00e5ff" },
   { name: "泥の呪い子", level: 1, hp: 24, atk: 3, def: 1, exp: 85, spriteType: "biter", traits: ["debuffPhysicalDef"], traitChance: 0.2, debuffValue: 2, color: "#8a2be2" },
   { name: "呪いの小鏡", level: 2, hp: 24, atk: 3, def: 1, exp: 180, spriteType: "wisp", traits: ["reflectMagic"], magicReflect: { chance: 0.5 }, tags: ["spirit"], color: "#ffffff" },
@@ -157,8 +157,8 @@ const MONSTER_DATA = [
   { name: "祈祷ゴブリン", level: 2, hp: 36, atk: 4, def: 2, exp: 190, spriteType: "orc", spell: "DIOS", spellChance: 0.35, color: "#34c759" },
   { name: "マナドレイン", level: 2, hp: 36, atk: 4, def: 2, exp: 180, spriteType: "spirit", traits: ["drainMp"], traitChance: 0.35, isSniper: true, tags: ["spirit"], color: "#00e5ff" },
   { name: "煙幕盗賊", level: 2, hp: 36, atk: 7, def: 2, exp: 210, spriteType: "kobold", isBlinding: true, statusChance: 0.25, color: "#8e8e93" },
-  { name: "催眠コウモリ", level: 2, hp: 24, atk: 5, def: 2, exp: 110, spriteType: "bat", isSleepInflicting: true, statusChance: 0.3, tags: ["beast"], color: "#e5ff00" },
-  { name: "霧の亡霊", level: 3, hp: 44, atk: 7, def: 2, exp: 320, spriteType: "spirit", physResist: 0.3, magicResist: -0.3, tags: ["undead", "spirit"], color: "#00e5ff" },
+  { name: "催眠コウモリ", level: 2, hp: 24, atk: 5, def: 2, spriteType: "bat", traits: ["evasive"], evasionChance: 0.20, isSleepInflicting: true, statusChance: 0.3, tags: ["beast"], color: "#e5ff00" },
+  { name: "霧の亡霊", level: 3, hp: 44, atk: 7, def: 2, spriteType: "spirit", traits: ["evasive"], evasionChance: 0.22, physResist: 0.3, magicResist: -0.3, tags: ["undead", "spirit"], color: "#00e5ff" },
   { name: "魔封じの目玉", level: 3, hp: 48, atk: 6, def: 2, exp: 360, spriteType: "wisp", traits: ["silence"], traitChance: 0.35, tags: ["spirit"], color: "#ffcc00" },
   { name: "骨の鼓手", level: 3, hp: 48, atk: 5, def: 3, exp: 380, spriteType: "skeleton", traits: ["buffAtk"], traitChance: 0.35, buffValue: 3, tags: ["undead"], color: "#dcdcdc" },
   { name: "弱体の魔女", level: 3, hp: 52, atk: 6, def: 3, exp: 420, spriteType: "mage", traits: ["debuffMagicDef"], traitChance: 0.3, color: "#da70d6" },
@@ -188,6 +188,7 @@ export const MONSTERS = MONSTER_DATA.map(monster => ({
 }));
 
 export const MONSTER_TRAIT_LABELS = Object.freeze({
+  evasive: "攻撃をかわす",
   multiAction: "1ターンに複数回行動",
   chargeAttack: "溜めて大打撃",
   summonAlly: "仲間を呼ぶ",

@@ -1,6 +1,7 @@
 import {
   MONSTERS,
   getCharStr, getCharInt, getCharAgi, getCharVit,
+  getPhysicalHitChance, getMonsterEvasionChance,
   getCharWeaponAtk, getCharDef,
   rollCharWeaponPhysicalRandom,
   PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
@@ -247,8 +248,15 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         recordMonsterResistanceDiscovery(finalTarget, "physical", state);
         
         let isBlindMiss = false;
+        let isEvasionMiss = false;
         if (char.status === "blind" && Math.random() < 0.5) {
           isBlindMiss = true;
+        }
+
+        const hitChance = getPhysicalHitChance(char, finalTarget);
+        if (!isBlindMiss && hitChance < 1 && Math.random() >= hitChance) {
+          isBlindMiss = true;
+          isEvasionMiss = true;
         }
 
         let dmg;
@@ -256,12 +264,20 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         let floatText;
         let sound = "hit";
         let shake = 8;
-        if (!isBlindMiss && hasTrait(finalTarget, "evasive") && Math.random() < (finalTarget.evasionChance ?? 0.3)) {
-          isBlindMiss = true;
+        if (isEvasionMiss) {
           msg = `[味方] ${char.name}の攻撃！しかし${finalTarget.name}は霧のようにかわした！`;
           floatText = "AVOID";
           sound = "miss";
           shake = 0;
+          state.combatFormulaTelemetry?.physicalPlayerMisses?.push({
+            floor: state.floor,
+            className: char.class,
+            targetName: finalTarget.name,
+            targetRole: finalTarget.role,
+            targetEvasionChance: getMonsterEvasionChance(finalTarget),
+            hitChance,
+            isEvasionMiss: true
+          });
         } else if (isBlindMiss) {
           msg = `[味方] ${char.name}の攻撃！しかし目がくらんで空振りした！`;
           floatText = "MISS";
@@ -321,6 +337,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             physicalResistance,
             formulaRaw, formulaDmg, magicBoltUsed, isBlindApplied,
             physResistApplied: Boolean(finalTarget.physResist),
+            targetEvasionChance: getMonsterEvasionChance(finalTarget),
+            hitChance,
             criticalChance, isCritical,
             preCriticalDmg: dmg,
             damage: finalPhysicalDmg
