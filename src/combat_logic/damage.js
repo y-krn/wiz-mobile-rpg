@@ -6,7 +6,8 @@ import {
   getCharStr,
   calculatePhysicalAttackFormula,
   combinePhysicalResistances,
-  getPhysicalDefenseResistance
+  getPhysicalDefenseResistance,
+  getEffectiveDef
 } from "../data.js";
 import { recordCharDeath } from "../state.js";
 import { getBuffTotal, wakeSleepingCharOnDamage } from "./status_effects.js";
@@ -45,9 +46,7 @@ export function getMeleeModifiers(char) {
   return classMeleeRates[char.class] ?? 1.00;
 }
 
-export function getEffectiveDef(mon) {
-  return Math.max(0, mon.def + Math.max(-6, Math.min(6, getBuffTotal(mon, "def"))));
-}
+export { getEffectiveDef } from "../rules/character_stats.js";
 
 export function getEffectivePhysicalResistance(mon) {
   return combinePhysicalResistances(

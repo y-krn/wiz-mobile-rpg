@@ -7,7 +7,7 @@ global.localStorage = {
   removeItem: () => {}
 };
 
-function createState(className, { int = 16, str = 7, weapon = "WAND", def = 0, spells = [] } = {}) {
+function createState(className, { int = 16, str = 7, weapon = "WAND", def = 0, physResist = 0, spells = [] } = {}) {
   return {
     party: [{
       name: className,
@@ -34,6 +34,7 @@ function createState(className, { int = 16, str = 7, weapon = "WAND", def = 0, s
         maxHp: 1000,
         atk: 1,
         def,
+        physResist,
         row: "front",
         status: "paralyzed",
         paralyzeTurns: 2
@@ -126,6 +127,14 @@ test("magic-bolt attack damage remains at least one against high DEF", () => {
   assert.equal(
     attackDamage("Mage", { int: 1, str: 1, def: 100 }, 0),
     1
+  );
+});
+
+test("magic-bolt shares the physical resistance pool when physResist is nonzero", () => {
+  assert.equal(
+    attackDamage("Mage", { int: 16, str: 7, def: 0, physResist: 0.5 }, 0.999),
+    3,
+    "floor(7 * (1 - 0.5)) must apply the target physResist"
   );
 });
 

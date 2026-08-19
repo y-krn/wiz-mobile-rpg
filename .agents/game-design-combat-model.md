@@ -386,9 +386,10 @@ Mage / B1 / HALITO の実測 1 ヒットは次の値だった。
 22.8%（残りは丸め）である。これは式を計測 harness で再計算した値ではなく、
 実際の spell effect が返した telemetry の stage を差分表示したもの。
 
-#### 物理の支配項
+#### 物理の支配項（#732前の旧式 telemetry snapshot）
 
-次は class × B1–B10 の全 physical hit を、`formulaRaw` の重みで平均した値。
+次は #732 の乗算化前に保存した class × B1–B10 の全 physical hit を、`formulaRaw`
+の重みで平均した値である。現行式の仕様・検証値ではなく、旧式との比較用の履歴である。
 `attack` は `floor(weaponAtk + buffAtk)`、`str` は `max(0, str - 10)`、
 `rand` は roll、`def` は `-floor(def/2)`。share は各平均を raw 平均で割った値で、
 def は減算なので負になる。後段の耐性・特効・guard・会心は raw share とは別に
@@ -576,7 +577,7 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 
 | # | 非対称 | 判定 | 理由と実測・経路根拠 | 対応する決定 |
 | ---: | --- | --- | --- | --- |
-| 1 | 物理は `-floor(def/2)`、呪文は `×(1-magicResist)` | **結論（#732で変更）** | `def` と `magicResist` が別 input・別順序で、同じ低 damage 帯で別の clamp を持つ理由が正本に無かった。#732で物理defを `def/(def+10)` へ変換し、`physResist` と -1〜0.9の加算poolへ統合した。プレイヤー→敵と敵→プレイヤーの両経路を同じ def 変換へ揃え、#716の段階表示は最終physical poolを読む。 | 決定 1 |
+| 1 | 物理は旧来 `-floor(def/2)`、呪文は `×(1-magicResist)` | **結論（#732で変更）** | 旧式は `def` と `magicResist` が別 input・別順序で、同じ低 damage 帯に別の clamp を持っていた。現行は `defResistance = def/(def+k_direction)` とし、`physResist` と -1〜0.9 の加算poolへ統合する。プレイヤー→敵は `k_out=100`、敵→プレイヤーは `k_in=3`。#716の段階表示は active DEF buff/debuff を含む `getEffectiveDef` から求めた最終physical poolを読む。 | 決定 1 |
 | 2 | 物理は装備で伸び、呪文は固定 dice と +40% stat cap | **結論（#731で修正）** | core-loop 正本は run 内 loot build を depth の評価軸にする。physical は B1→B10 で Fighter 20.45→51.70、spell は観測 Mage B1→B10 25.58→32.19で、呪文の伸びが上位呪文の習得と偶然の build に依存していた。#731 で共通の `spellPower`（術力）を導入し、`arcane` / `devotion` / `fireRite` は固有項として残した。 | 決定 2 |
 | 3 | レベルはほぼ damage に寄与せず、呪文だけ level gate を持つ | **欠陥** | `str`/`int` の base はレベルで自動増加せず、spell learn は lv2/3/6/8に固定。今回 MADALTO は N=139、TILTOWAIT は N=0で、到達した run だけで上位呪文を評価する構造になっている。level gate と level power の対応が正本にない。 | 決定 3 |
 | 4 | `antiUndead` / `antiDragon` / `antiDemon` は物理のみ | **欠陥（配線漏れ）。共通 stage へ集約して修正** | #719 実装前は `applyTargetedDamageBonus` の物理経路だけがタグ特効を持ち、攻撃呪文は `getDamageAffixResult` を直接呼んで stage を飛ばしていた。結論としてタグ特効を `getDamageAffixResult` の共通 stage へ移し、BADIOS の +50/+30/+30 も同じ加算プールへ入れる。共通 anti tag と固有寄与を合計して一度だけ乗算するため、攻撃手段非依存・同一タグの二重乗算なしとなる。 | 決定 4、#719 |
@@ -613,7 +614,9 @@ magic-bolt fallbackも同じpoolで比較する。敵→プレイヤーの通常
 同じ `defResistance` を使う。プレイヤー側に既存の守りの薬・守護・竜殺しなどの
 割合軽減があるが、それらは物理defとは別の戦闘中 mitigation stage であり、物理defを
 減算のまま残す理由にはしない。#716の表示は内部数値を出さず、適用される最終
-physical resistance poolを5段階へ変換して示す。最低1は維持し、#728で変更判断する。
+physical resistance poolを5段階へ変換して示す。表示と実効値は同じ
+`getEffectiveDef(monster)`（戦闘中のDEF buff/debuffを含む）を入力にする。最低1は維持し、
+#728で変更判断する。
 
 ### 2. 呪文は装備で伸びるべきか
 

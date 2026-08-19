@@ -177,6 +177,17 @@ export function getCharDef(char) {
   return def;
 }
 
+// Monster DEF is mutable during combat because DEF buffs/debuffs are stored
+// on the monster. Keep the effective value in the shared rules module so
+// combat resolution and resistance disclosure cannot drift apart.
+export function getEffectiveDef(mon) {
+  const baseDef = Number(mon?.def) || 0;
+  const buffDef = (mon?.buffs || []).reduce((sum, buff) => {
+    return buff.type === "def" ? sum + (Number(buff.value) || 0) : sum;
+  }, 0);
+  return Math.max(0, baseDef + Math.max(-6, Math.min(6, buffDef)));
+}
+
 // Physical defense is converted to a bounded resistance pool instead of being
 // subtracted from each attack. Each direction keeps the same diminishing
 // curve, with its calibrated scale selected at the call site.

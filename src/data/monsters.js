@@ -1,5 +1,6 @@
 import {
   combinePhysicalResistances,
+  getEffectiveDef,
   getPhysicalDefenseResistance
 } from "../rules/character_stats.js";
 
@@ -231,7 +232,7 @@ export function getMonsterResistanceTier(value) {
 
 export function getMonsterPhysicalResistance(monster) {
   return combinePhysicalResistances(
-    getPhysicalDefenseResistance(monster?.def),
+    getPhysicalDefenseResistance(getEffectiveDef(monster)),
     monster?.physResist
   );
 }
