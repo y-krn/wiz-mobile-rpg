@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { CORE_AFFIXES, SUPPORT_AFFIXES } from "../src/data/affixes.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DOCUMENT_NAMES = ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "README.md"];
+const DOCUMENT_NAMES = ["AGENTS.md", "README.md"];
 const DOCUMENT_DIRS = [".agents"];
 const PATH_PREFIXES = ["src", "tests", "scratch", "scripts", "public"];
 const SUPPORT_AFFIX_DOCUMENT = ".agents/game-design-equipment-builds.md";
