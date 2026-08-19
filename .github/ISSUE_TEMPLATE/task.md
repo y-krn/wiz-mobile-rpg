@@ -1,6 +1,6 @@
 ---
 name: Task
-about: Cross-tool work item (Claude / Codex / Antigravity)
+about: Codex work item
 title: ""
 labels: []
 assignees: []

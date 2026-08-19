@@ -444,7 +444,7 @@ B10 entrant は **3,055/12,000 = 25.46%**。職別は戦士843/3,000=28.1%、盗
   A3は不成立。突破・floorの正方向だけではB5基準の代替根拠にならない。
 - B10 build snapshotはfloor-start 3,030件、finish fallback 25件。分母・endpointは通常runの結果を維持した。
 
-Claudeの楽観的な理論N（B5効果量が持続する仮定）は、A1が232/群、entrant総数928、約7,167run、
+従来の楽観的な理論N（B5効果量が持続する仮定）は、A1が232/群、entrant総数928、約7,167run、
 A3死亡が1,622/群、entrant総数7,130、約55,058runだった。B10現行測定で再計算すると、A1は
 **1,660/群、entrant総数6,640、約26,082run**（simulation推定約102秒＋calibration実測127秒）、
 A3死亡は**47,454/群、entrant総数150,543、約591,331run**（simulation推定約2,306秒＋calibration実測127秒）となる。

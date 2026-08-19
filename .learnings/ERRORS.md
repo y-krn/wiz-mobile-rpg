@@ -13,7 +13,7 @@ Command failures, API errors, and unexpected behavior captured during developmen
 | `in_progress` | Actively being worked on |
 | `resolved` | Issue fixed (add Resolution block) |
 | `wont_fix` | Decided not to address (reason in Resolution) |
-| `promoted` | Elevated to CLAUDE.md, AGENTS.md, or copilot-instructions.md |
+| `promoted` | Elevated to AGENTS.md |
 | `promoted_to_skill` | Extracted as a reusable skill |
 
 Entry format: see the self-improvement skill's "Error Entry" section. IDs use `ERR-YYYYMMDD-XXX`.
