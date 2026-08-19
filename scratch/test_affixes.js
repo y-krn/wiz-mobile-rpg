@@ -36,11 +36,26 @@ SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.cost, AFFIX_BALANCE.supportCosts[affix.id]);
 });
 
-assert.strictEqual(CORE_AFFIXES.length, 17, "core registry count");
+assert.strictEqual(CORE_AFFIXES.length, 18, "core registry count");
 assert.ok(CORE_AFFIXES.every(affix => affix.kind === "core" && affix.cost === 10));
 assert.ok(CORE_AFFIXES.every(affix => affix.enabled), "all registered cores are enabled");
-assert.strictEqual(new Set(CORE_AFFIXES.map(affix => affix.id)).size, 17, "core IDs unique");
+assert.strictEqual(new Set(CORE_AFFIXES.map(affix => affix.id)).size, 18, "core IDs unique");
 assert.ok(formatAffixText(CORE_AFFIXES[0]).startsWith("◆背水: HP40%以下"));
+assert.deepStrictEqual(
+  getAffixDefinition("CORE_PHYSICAL_ACCURACY"),
+  {
+    id: "CORE_PHYSICAL_ACCURACY",
+    kind: "core",
+    jpName: "必中",
+    desc: "回避対象への物理攻撃が必ず命中する。",
+    slot: "weapon",
+    cost: 10,
+    params: { hitChanceBonus: 1 },
+    poolGroup: "combat",
+    enabled: true
+  },
+  "physical accuracy core keeps its canonical identity and value"
+);
 assert.ok(
   getAffixDefinition("guardian").desc.includes("HP25%以下"),
   "guardian description states its activation condition"
@@ -96,6 +111,20 @@ for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
     assert.strictEqual(deeper.affix.value, expectedValue, `spellPower ${rarity} must not scale by floor`);
   }
 }
+
+let generatedPhysicalAccuracyCore = null;
+for (let seed = 1; seed <= 5000 && !generatedPhysicalAccuracyCore; seed++) {
+  const item = generateRandomEquipment(5, { forceRarity: "epic", rng: lcg(seed) });
+  if (item.affixes.some(affix => affix.id === "CORE_PHYSICAL_ACCURACY")) {
+    generatedPhysicalAccuracyCore = item;
+  }
+}
+assert.ok(generatedPhysicalAccuracyCore, "physical accuracy core enters the weapon generation pool");
+assert.deepStrictEqual(
+  generatedPhysicalAccuracyCore.affixes.find(affix => affix.id === "CORE_PHYSICAL_ACCURACY"),
+  { id: "CORE_PHYSICAL_ACCURACY", kind: "core", type: "CORE_PHYSICAL_ACCURACY", value: 1 },
+  "generated physical accuracy core uses the canonical core payload"
+);
 
 function collectGeneratedAffixValues(generator, floor, type, maxSeed = 5000) {
   const values = new Set();

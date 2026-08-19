@@ -1,5 +1,5 @@
 import { getEquippedItemData, getCharAffixSum } from "./item_rules.js";
-import { getCharAllStatsAffixBonus } from "./affix_rules.js";
+import { getCharAllStatsAffixBonus, getCharCoreParams } from "./affix_rules.js";
 import { getSpellStatBonus } from "./spell_rules.js";
 import { calculateDisarmRate } from "./trap_rules.js";
 
@@ -100,7 +100,8 @@ export function getPhysicalHitChance(char, target) {
   const agiBonus = Number.isFinite(agi)
     ? (agi - 10) * PHYSICAL_HIT_AGI_SCALE
     : 0;
-  const chance = 1 - evasionChance + agiBonus;
+  const physicalAccuracy = getCharCoreParams(char, "CORE_PHYSICAL_ACCURACY")?.hitChanceBonus || 0;
+  const chance = 1 - evasionChance + agiBonus + physicalAccuracy;
   return Math.max(PHYSICAL_HIT_CHANCE_MIN, Math.min(1, chance));
 }
 
