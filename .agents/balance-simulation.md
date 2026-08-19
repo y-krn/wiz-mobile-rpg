@@ -76,29 +76,41 @@ real run. Each item below has already produced a wrong conclusion at least once.
 - State which mitigations the simulation models and which it omits in the
   written summary, so a later reader can tell the measured scenario from the
   real one.
-- Before any measurement, the parent session updates `origin/main` once,
-  records the resulting base SHA, and passes that SHA (as `CODEX_BASE_SHA`)
-  together with the measurement worktree to the worker. The worker must verify
-  that the local `origin/main` resolves to the provided SHA and that it is an
-  ancestor of `HEAD` (`git merge-base --is-ancestor origin/main HEAD`). The
-  worker must not run `git fetch`, `git pull`, `git clone`, `git remote update`,
-  or any other network operation. If the local ref or provided SHA is missing,
-  stale, mismatched, or not an ancestor, stop and report `BLOCKED` to the
-  parent; do not attempt to repair the checkout. Always measure from the
-  parent-provided worktree, per AGENTS.md.
+- Before any measurement, the parent session should preferably update
+  `origin/main` once, record the resulting base SHA, and pass that SHA (as
+  `CODEX_BASE_SHA`) together with the measurement worktree to the worker. This
+  prefetch is an optimization, not a blanket prohibition on worker network
+  operations. The worker must verify that the local `origin/main` resolves to
+  the provided SHA and that it is an ancestor of `HEAD`
+  (`git merge-base --is-ancestor origin/main HEAD`).
+- If a network operation is needed to obtain or refresh the measurement state,
+  the worker must not silently retry, bypass approval, or use an alternate
+  route. It returns an `[APPROVAL_REQUIRED]` request with the exact command,
+  purpose, target, and required permissions or impact. The parent may perform
+  the equivalent operation in its context or return the approval result. After
+  receiving approval, the worker may execute the original command exactly as
+  approved; alternatively, the parent may perform the equivalent operation.
+  The worker then revalidates the SHA, ref, ancestor relationship, and
+  worktree state before resuming. Approval waiting alone is not `BLOCKED`; only
+  a refusal or failure to transmit the approval result is `BLOCKED`.
+  Always measure from the parent-provided worktree, per AGENTS.md.
 
 ### Source tree provenance（Issue #519）
 
 バランス測定は、親セッションが `origin/main` を一度だけ更新して記録した基準SHAと、
-その基準から切った worktree を worker へ渡して行う。main チェックアウトで測定しない。
+その基準から切った worktree を worker へ渡すことを推奨する。これは最適化であり、
+子側のnetwork操作を一律禁止するものではない。main チェックアウトで測定しない。
 worker は開始前に、ローカル `origin/main` が親提供の `CODEX_BASE_SHA` と一致することと、
-`HEAD` と `origin/main` の関係を `git merge-base --is-ancestor origin/main HEAD` で検査し、
-`origin/main` の子孫でなければ警告ではなく非ゼロ終了する。worker は fetch/pull/clone/
-remote update やDNS解決を伴うGit操作を行わない。ローカルrefまたは基準SHAが不足・stale・
-不一致の場合も修復を試みず、親へ `BLOCKED` で返す。
-子側の測定では stale-tree の例外を設けず、`SIM_ALLOW_STALE_TREE=1` で
-親提供の基準SHAとの不一致を回避してはならない。意図的な stale-tree 測定が必要な場合も、
-親が明示的に許可し、その事実を summary md / summary JSON の `measurement` に記録する。
+`HEAD` と `origin/main` の関係を `git merge-base --is-ancestor origin/main HEAD` で検査する。
+refまたは基準SHAの取得・更新にnetwork操作が必要なら、workerは勝手に再試行・承認回避・
+別経路利用をせず、正確なコマンド、目的、対象、必要な権限/影響を含む
+`[APPROVAL_REQUIRED]` を親へ返す。親は承認付きで同等操作を実行するか、承認結果を返す。
+承認結果を受けたworkerは承認済みの元コマンドを実行してよく、親が同等操作を代行してもよい。
+その後workerはSHA・ref・ancestor関係・worktree状態を再検証して再開する。承認待ちだけでは
+`BLOCKED` とせず、承認拒否または結果を伝達できない場合のみ `BLOCKED` とする。
+子側の測定では stale-tree の例外で基準SHA検証を回避してはならない。意図的な stale-tree
+測定が必要な場合も、親の明示的な判断とその事実を summary md / summary JSON の
+`measurement` に記録する。
 `measurement.sourceCommit`、`measurement.originMainAncestor`、
 `measurement.staleTreeAllowed` を env hash と同じ実行記録へ必ず出力する。
 測定結果の summary JSON と raw JSONL は `scratch/results/` へ出力するが、追跡しない。
