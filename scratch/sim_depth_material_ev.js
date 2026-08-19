@@ -12091,7 +12091,11 @@ function buildMpScarcityMeasurement(resultsByPolicy) {
               finalMpRate: outcome.finalMpRate,
               endResourceByReason: outcome.endResourceByReason,
               mpBlockedTerminalEncounterRuns: outcome.mpBlockedTerminalEncounterRuns,
-              mpDepletionCausedEndRuns: outcome.mpDepletionCausedEndRuns
+              mpDepletionCausedEndRuns: outcome.mpDepletionCausedEndRuns,
+              evFleeActions: outcome.evFleeActions,
+              evRecoveryActions: outcome.evRecoveryActions,
+              runsWithEvFlee: outcome.runsWithEvFlee,
+              runsWithEvRecovery: outcome.runsWithEvRecovery
             }
           ])
         ),
