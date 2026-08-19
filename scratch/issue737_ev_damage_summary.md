@@ -1,5 +1,7 @@
 # Issue #737 EV damage estimate measurement
 
+Closes #737
+
 ## Question and scope
 
 Measure the error between the recovery and flee EV estimate and one physical combat round. Change only the sim estimate when the error is large. Keep player-facing thresholds, policies, branches, and game source unchanged.
@@ -63,6 +65,13 @@ At B20, flee run rate changed Fighter 68.0% to 30.4%, Thief 80.8% to 51.2%, Prie
 ## Decision
 
 Apply the smallest sim-only correction. `getEvDamageEstimate` now calls `calculatePhysicalAttackFormula` directly for each living enemy, using source-derived attack buffs, STR, effective defense, melee modifier, and random-roll midpoint 2. Pendingless physical hits are excluded and counted as `unmatchedHits`; the old audit fallback is absent. The formula itself and all player-facing EV policies remain unchanged.
+
+## Constraints
+
+- No `src/` files changed.
+- No `scratch/issue624_*.js` or `scratch/issue612_exp_pace_env.js` changes.
+- No raw measurement output committed.
+- Not-measurable cells are reported without inferred values.
 
 ## Verification
 
