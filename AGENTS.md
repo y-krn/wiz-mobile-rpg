@@ -19,6 +19,14 @@ tool-specific fallback instruction files.
 - Keep one concern per Issue. Changes that modify the repository go through a
   pull request linked with `Closes #<issue>`.
 
+## Git and remote hosting
+
+- Use `git` for local repository history, diffs, branches, worktrees, commits,
+  and remote refs.
+- Do not require a hosting-specific CLI in project workflows. Manage Issues,
+  pull requests, and reviews through Codex's GitHub integration or the GitHub
+  web UI; keep repository instructions independent of a hosting CLI.
+
 ## Search and repository hygiene
 
 - Use `rg` for searches. `rg -n` is the line-number form; do not use the
