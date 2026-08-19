@@ -176,6 +176,17 @@ export const CORE_AFFIXES = [
     enabled: true
   },
   {
+    id: "CORE_PHYSICAL_ACCURACY",
+    kind: "core",
+    jpName: "必中",
+    desc: "回避対象への物理攻撃が必ず命中する。",
+    slot: "weapon",
+    cost: 10,
+    params: { hitChanceBonus: 1 },
+    poolGroup: "combat",
+    enabled: true
+  },
+  {
     id: "CORE_BLOOD_WAND",
     kind: "core",
     jpName: "血杖",

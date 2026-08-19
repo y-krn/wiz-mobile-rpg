@@ -110,11 +110,11 @@ function makeChar(coreId, baseId = "SHORT_SWORD") {
   };
 }
 
-test("コア17種がenabled", () => {
-  assert.equal(CORE_AFFIXES.length, 17);
+test("コア18種がenabled", () => {
+  assert.equal(CORE_AFFIXES.length, 18);
   const enabled = CORE_AFFIXES.filter(core => core.enabled).map(core => core.id);
   assert.deepEqual(enabled, [
-    "CORE_LAST_STAND", "CORE_OPENER", "CORE_BLOOD_WAND", "CORE_PURIFY_RING",
+    "CORE_LAST_STAND", "CORE_OPENER", "CORE_PHYSICAL_ACCURACY", "CORE_BLOOD_WAND", "CORE_PURIFY_RING",
     "CORE_TRAP_EATER", "CORE_CURSE_KEEPER", "CORE_GIANT_SLAYER", "CORE_MILESTONE_BREAKER",
     "CORE_THORN_SHIELD", "CORE_EXECUTIONER", "CORE_THIN_ICE_PACT", "CORE_SNEAK_STEP", "CORE_TOMB_RAIDER",
     "CORE_KEEN_EYE", "CORE_CAMP_MASTER", "CORE_BOUNTY_HUNTER", "CORE_SCHOLAR_EYE"
