@@ -76,22 +76,29 @@ real run. Each item below has already produced a wrong conclusion at least once.
 - State which mitigations the simulation models and which it omits in the
   written summary, so a later reader can tell the measured scenario from the
   real one.
-- Before any measurement, freshly fetch `origin/main` and confirm that
-  `origin/main` is an ancestor of the working tree's `HEAD`
-  (`git merge-base --is-ancestor origin/main HEAD`). A stale checkout can omit
-  recently merged balance PRs; #509 first ran against a local `main` missing
-  #514/#517 and measured a B10 entrant baseline of 9.4–9.7% against a true
-  post-#517 baseline of 14.4%. Always measure from a worktree freshly branched
-  off `origin/main`, per AGENTS.md.
+- Before any measurement, the parent session updates `origin/main` once,
+  records the resulting base SHA, and passes that SHA (as `CODEX_BASE_SHA`)
+  together with the measurement worktree to the worker. The worker must verify
+  that the local `origin/main` resolves to the provided SHA and that it is an
+  ancestor of `HEAD` (`git merge-base --is-ancestor origin/main HEAD`). The
+  worker must not run `git fetch`, `git pull`, `git clone`, `git remote update`,
+  or any other network operation. If the local ref or provided SHA is missing,
+  stale, mismatched, or not an ancestor, stop and report `BLOCKED` to the
+  parent; do not attempt to repair the checkout. Always measure from the
+  parent-provided worktree, per AGENTS.md.
 
 ### Source tree provenance（Issue #519）
 
-バランス測定は、`origin/main` を fetch した後にそこから切った新規 worktree で行う。
-main チェックアウトで測定しない。測定 runner は開始前に `HEAD` と
-`origin/main` の関係を `git merge-base --is-ancestor origin/main HEAD` で検査し、
-`origin/main` の子孫でなければ警告ではなく非ゼロ終了する。
-意図的な stale-tree 測定だけ `SIM_ALLOW_STALE_TREE=1` で継続でき、その事実を
-summary md / summary JSON の `measurement` に記録する。
+バランス測定は、親セッションが `origin/main` を一度だけ更新して記録した基準SHAと、
+その基準から切った worktree を worker へ渡して行う。main チェックアウトで測定しない。
+worker は開始前に、ローカル `origin/main` が親提供の `CODEX_BASE_SHA` と一致することと、
+`HEAD` と `origin/main` の関係を `git merge-base --is-ancestor origin/main HEAD` で検査し、
+`origin/main` の子孫でなければ警告ではなく非ゼロ終了する。worker は fetch/pull/clone/
+remote update やDNS解決を伴うGit操作を行わない。ローカルrefまたは基準SHAが不足・stale・
+不一致の場合も修復を試みず、親へ `BLOCKED` で返す。
+子側の測定では stale-tree の例外を設けず、`SIM_ALLOW_STALE_TREE=1` で
+親提供の基準SHAとの不一致を回避してはならない。意図的な stale-tree 測定が必要な場合も、
+親が明示的に許可し、その事実を summary md / summary JSON の `measurement` に記録する。
 `measurement.sourceCommit`、`measurement.originMainAncestor`、
 `measurement.staleTreeAllowed` を env hash と同じ実行記録へ必ず出力する。
 測定結果の summary JSON と raw JSONL は `scratch/results/` へ出力するが、追跡しない。

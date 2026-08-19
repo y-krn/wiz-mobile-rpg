@@ -28,9 +28,11 @@ unrelated test failure.
 
 ## Run the measurement
 
-1. State the question, comparison, target metric, and expected decision. Fetch
-   `origin/main` and confirm the measurement worktree descends from it. Never
-   measure from the main worktree.
+1. State the question, comparison, target metric, and expected decision. Use
+   the measurement worktree and base SHA supplied by the parent (the SHA is
+   passed as `CODEX_BASE_SHA`). Confirm that the local `origin/main` resolves to
+   that SHA and that the worktree descends from it. Never measure from the main
+   worktree.
 2. Route from `file-map.md` to the changed source. Select the existing
    simulation whose `sim-scope` and execution path match the question. Verify
    that it uses current source modules and real run mechanisms. Do not replace
@@ -53,6 +55,12 @@ unrelated test failure.
    the stated decision. Separate an unexecuted path, an omitted mechanism, and
    a measured zero. Do not turn a small or non-deterministic difference into a
    balance conclusion.
+
+During skill execution, do not run `git fetch`, `git pull`, `git clone`,
+`git remote update`, or any other network-dependent Git operation. If the
+parent-provided base SHA or local `origin/main` ref is unavailable, stale,
+mismatched, or not an ancestor of `HEAD`, stop and report `BLOCKED` to the
+parent instead of trying to repair the worktree.
 
 ## Stop before interpreting when
 
