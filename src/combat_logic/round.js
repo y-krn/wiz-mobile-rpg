@@ -2,6 +2,7 @@ import {
   MONSTERS,
   getCharStr, getCharInt, getCharAgi, getCharVit,
   getCharWeaponAtk, getCharDef,
+  rollCharWeaponPhysicalRandom,
   PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
   getCharAffixSum, getCharMaxHp, getCharMaxMp,
   calculatePhysicalAttackRawFormula, calculatePhysicalAttackFormula,
@@ -272,7 +273,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
           const str = getCharStr(char);
           const buffAtk = getBuffTotal(char, "atk") + getBuffTotal(char, "str");
-          const randRoll = Math.floor(Math.random() * 5); // 0-4
+          const randRoll = rollCharWeaponPhysicalRandom(char);
           const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
           const formulaRaw = calculatePhysicalAttackRawFormula({
@@ -406,7 +407,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               if (opener) {
                 logCoreActivation(state, logQueue, char, "CORE_OPENER", { once: false });
               }
-              const followUpDmgRand = Math.floor(Math.random() * 3);
+              const followUpDmgRand = rollCharWeaponPhysicalRandom(char);
               const firstTurnAttack = roundNumber === 1 ? getCharAffixSum(char, "firstTurnAttack") : 0;
               const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
               const str = getCharStr(char);

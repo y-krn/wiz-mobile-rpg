@@ -137,6 +137,28 @@ export function getCharTrapBonus(char) {
   return getCharAffixSum(char, "trapBonus") / 100;
 }
 
+// Weapon-specific physical variance. The inclusive range is defined on every
+// weapon data entry; bare hands and non-weapon slots keep the legacy 0-4 roll.
+export const DEFAULT_PHYSICAL_RANDOM_RANGE = Object.freeze([0, 4]);
+
+export function getCharWeaponPhysicalRandomRange(char) {
+  const weapon = getEquippedItemData(char, char?.equipment?.weapon);
+  if (weapon?.type !== "weapon" || !Array.isArray(weapon.randRange) || weapon.randRange.length !== 2) {
+    return DEFAULT_PHYSICAL_RANDOM_RANGE;
+  }
+  const min = Number(weapon.randRange[0]);
+  const max = Number(weapon.randRange[1]);
+  if (!Number.isInteger(min) || !Number.isInteger(max) || min > max) {
+    return DEFAULT_PHYSICAL_RANDOM_RANGE;
+  }
+  return [min, max];
+}
+
+export function rollCharWeaponPhysicalRandom(char, rng = Math.random) {
+  const [min, max] = getCharWeaponPhysicalRandomRange(char);
+  return min + Math.floor(rng() * (max - min + 1));
+}
+
 export function getPartyFlameTrapWarningAvoidanceChance(party = []) {
   const trapInvestment = party
     .filter(char => char?.hp > 0 && !["dead", "ash"].includes(char.status))

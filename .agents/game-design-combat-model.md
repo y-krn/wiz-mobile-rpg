@@ -583,18 +583,23 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 | 4 | `antiUndead` / `antiDragon` / `antiDemon` は物理のみ | **欠陥（配線漏れ）。共通 stage へ集約して修正** | #719 実装前は `applyTargetedDamageBonus` の物理経路だけがタグ特効を持ち、攻撃呪文は `getDamageAffixResult` を直接呼んで stage を飛ばしていた。結論としてタグ特効を `getDamageAffixResult` の共通 stage へ移し、BADIOS の +50/+30/+30 も同じ加算プールへ入れる。共通 anti tag と固有寄与を合計して一度だけ乗算するため、攻撃手段非依存・同一タグの二重乗算なしとなる。 | 決定 4、#719 |
 | 5 | raw の `weaponAtk + buffAtk` を物理入力単位へ 1.5 倍 | **#720で解消** | 旧式は設計根拠のない hidden weight で、表示の `+20` が実効 `+30`になっていた。#720 で各 data source を実効値へ吸収し、0.5 を保持した合計を floor する。`str` の下限は別判断として `max(0, str - 10)` を採用した。 | 決定 5、#718、#720 |
 | 6 | raw `atk` / `str` buff を同じ物理入力単位へ変換 | **#720で整理** | `STR_POTION` は実効 `atk +15` として付与する。将来の `str` buff も同じ入力単位で扱い、同じ意味の buff を別単位にしない。 | 決定 5 |
-| 7 | physical は固定幅 0–4、spell は呪文ごとの比例的な幅 | **意図（ただし理由の記録不足）** | 物理の 0–4 は全職で rand 平均 1.99〜2.01、spell は source の呪文 description に 12–22〜50–100という個別 range が明記されている。攻撃と呪文の identity を分ける形そのものは明示的で、配線漏れではない。一方、固定幅・比例幅を選んだ設計理由と相対 CV の目標は根拠不明なので、将来の tune では「意図」としてこの文書を参照する。 | 決定 2、分散方針 |
+| 7 | physical は武器ごとの `randRange`、spell は呪文ごとの幅 | **変更した（#727）** | `src/data/items.js` の全 weapon が inclusive な `randRange` を持ち、`rollCharWeaponPhysicalRandom` が本体と追撃へ同じ幅を供給する。狭い `[1,3]` / 固定 `[2,2]` と広い `[0,4]` を使うが、全範囲の平均は 2.0 に揃え、武器 atk・式の他項・spell range は変えない。物理を一律 0–4 として spell と別 identity にするだけでは、同じ atk の武器を区別できないため、#727 でこの判定を覆した。 | 決定 2、#727、分散方針 |
 | 8 | 会心は Ninja の非 boss のみ | **欠陥（未文書化）** | source は `char.class === "Ninja" && !target.isBoss` の呼び出し側分岐だけで、class data と既存設計正本に会心 passive の記録がない。実測 critical は Ninja 6.760%、他 7 職 0%。boss 除外の理由も正本にない。 | 決定 6 |
 | 9 | Mage/Bishop に undocumented `magicBolt` fallback | **欠陥（未文書化の第2式、#732でdef減算は解消）** | fallback自体は残すが、#732で `def/4` の別減算を廃止し、通常物理と同じ `physicalResistance` 後に比較する。ゲーム内 description、`game-design*.md`、class passiveにfallbackの記載がない点は未解決で、職業の主軸をhidden fallbackで補う理由も別途必要。 | 決定 3、職業軸、#732 |
 | 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **欠陥（方針欠落）** | `getSpellStatBonus` は int30で+40%固定、`calculateDisarmRate` は適性職90 cap。cap の存在は source で確認できるが、超過投資をどう扱うかの共通方針がない。B1–B10分布でも affix/core の stage は常時発動ではなく、hard capで investment が dead になるかを測らずに判断できない。 | 決定 7、#713 |
 
-### 4.1 #7 を「意図」とした範囲
+### 4.1 #7 を「変更した」とした理由
 
-「physical と spell は同じ乱数分布でなければならない」という要求は現行正本に
-ない。呪文は各 spell の range を player-facing description に載せ、physical は
-式に固定幅を埋め込んでいるため、差の**存在**は明示されている。よって #7 の
-判定は意図とする。ただし、なぜ physical が固定幅で spell が比例幅なのか、どの
-CV を目標にしたのかは根拠不明であり、意図を過去のバランス判断として捏造しない。
+以前の #7 判定は、spell が個別 range、physical が固定 0–4 という差の存在だけを
+根拠に「意図」としていた。しかし、その固定幅は武器データを参照せず、同じ atk の
+武器を同じ手触りにする。#727 では武器ごとの固定 `randRange` を source に明示し、
+狭い武器・固定武器・広い武器を作った。全範囲の平均を 2.0 に保つため期待値は
+変えず、ばらつきだけを武器 identity として変更した。
+
+素手・武器 slot にない装備の既定値は `[0,4]`。忍者を含む follow-up も同じ helper
+を通るため、本体と追撃で幅が分岐しない。telemetry は既存の
+`state.combatFormulaTelemetry.physicalPlayerHits` を使い、既定オフのまま
+`randRoll` を実測する。
 
 ## 5. 決めるべきこと 7 項目の結論
 
