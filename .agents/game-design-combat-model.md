@@ -62,7 +62,11 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
   を `weaponAtk` に加える。
 - `buffAtk`: `getBuffTotal(char, "atk") + getBuffTotal(char, "str")`。
 - `str`: `getCharStr(char)`。基礎値、装備の `str`、all-stats 系を含む。
-- `randRoll`: `floor(random * 5)`、すなわち 0, 1, 2, 3, 4。
+- `weaponRandRange`: `getCharWeaponPhysicalRandomRange(char)` が装備武器の
+  inclusive `randRange` を返す。素手・武器 slot の非武器・不正な定義は `[0,4]`
+  へ fallback する。
+- `randRoll`: `min + floor(random * (max - min + 1))`。`weaponRandRange=[min,max]`
+  の一様整数であり、旧来の既定値は `[0,4]`。
 - `def`: `getEffectiveDef(target)`。敵 `def` に `def` buff を加え、buff は
   -6〜+6 に clamp した後、0 未満にならないようにする。物理攻撃では
   `getPhysicalDefenseResistance(def) = def / (def + k_out)` へ変換する。
@@ -283,7 +287,7 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | `floor(weapon + buff)` | 実効単位の weapon / buff を合計してから切り捨て | `calculatePhysicalAttackFormula` と各 caller の入力組み立て | 0.5 単位を保持し、丸めは合計後に一度だけ行う。旧式の hidden coefficient は採用しない |
 | `max(0, str - 10)` | STR 10 を基準にし、10 未満のペナルティを 0 にする | character stats の基礎値と関数の実装 | STR 10 を中立点とし、低 STR 職のペナルティだけを除く。STR 10 超の職差は残す |
 | 負の呪い `atk` | `cursePower` 適用後の raw 値を丸めてから実効単位へ揃える | `getScaledCurseModifier` と `CURSE_EFFECTS` | 旧来の「raw を丸めてから物理式の1.5倍」を、保存値を実効単位にした後も同じ順序で保つ。呪いの閾値判定や他の負項は変更しない |
-| `randRoll` | 0–4 の一様整数を加算 | `round.js` の明示的な乱数 | bounded noise であることはコードから分かる。固定幅を選んだ理由は根拠不明 |
+| `randRoll` | 武器の `randRange` による一様整数を加算。fallback は `[0,4]` | `getCharWeaponPhysicalRandomRange` / `rollCharWeaponPhysicalRandom` と `round.js` | 武器ごとの手触りを作る #727 の変更。全武器の端点平均は2.0に揃え、平均威力を変えず分散だけ変える。固定データで武器の authored identity を維持する |
 | `defResistance` | `def / (def + k_direction)` の逓減抵抗 | `getPhysicalDefenseResistance` と `getEffectiveDef` | 敵分布（中央値5、p75=8、最大18）を #716 の物理耐性段階へ接続し、有限値では100%に到達しない。`k_direction` は旧式の適用段階差を含めて実遭遇分布で校正する |
 | `meleeMod` | 職業別 map、現行値は全て 1 | `getMeleeModifiers`。derived stats との共有を意図したコメント | 拡張点の存在は source の説明がある。現行の職業差を作る設計根拠はない |
 | `max(1, floor(...))` | 物理式の出力を最低 1 | source の clamp | 物理は最低1を維持する。乗算変更で0が増えるため、#728で変更判断するまで固定する |
@@ -586,9 +590,11 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 | 7 | physical は武器ごとの `randRange`、spell は呪文ごとの幅 | **変更した（#727）** | `src/data/items.js` の全 weapon が inclusive な `randRange` を持ち、`rollCharWeaponPhysicalRandom` が本体と追撃へ同じ幅を供給する。狭い `[1,3]` / 固定 `[2,2]` と広い `[0,4]` を使うが、全範囲の平均は 2.0 に揃え、武器 atk・式の他項・spell range は変えない。物理を一律 0–4 として spell と別 identity にするだけでは、同じ atk の武器を区別できないため、#727 でこの判定を覆した。 | 決定 2、#727、分散方針 |
 | 8 | 会心は Ninja の非 boss のみ | **欠陥（未文書化）** | source は `char.class === "Ninja" && !target.isBoss` の呼び出し側分岐だけで、class data と既存設計正本に会心 passive の記録がない。実測 critical は Ninja 6.760%、他 7 職 0%。boss 除外の理由も正本にない。 | 決定 6 |
 | 9 | Mage/Bishop に undocumented `magicBolt` fallback | **欠陥（未文書化の第2式、#732でdef減算は解消）** | fallback自体は残すが、#732で `def/4` の別減算を廃止し、通常物理と同じ `physicalResistance` 後に比較する。ゲーム内 description、`game-design*.md`、class passiveにfallbackの記載がない点は未解決で、職業の主軸をhidden fallbackで補う理由も別途必要。 | 決定 3、職業軸、#732 |
-| 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **欠陥（方針欠落）** | `getSpellStatBonus` は int30で+40%固定、`calculateDisarmRate` は適性職90 cap。cap の存在は source で確認できるが、超過投資をどう扱うかの共通方針がない。B1–B10分布でも affix/core の stage は常時発動ではなく、hard capで investment が dead になるかを測らずに判断できない。 | 決定 7、#713 |
-
-### 4.1 #7 を「変更した」とした理由
+| 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **欠陥（方針欠落）** | `getSpellStatBonus` は int30で+40%固定、`calculateDisarmRate` は適性職90 cap。cap の存在は source で確認できるが、超過投資をどう扱うかの共通方針がない。B1–B10分布でも a素手・武器 slot にない装備の既定値は `[0,4]`。忍者を含む follow-up も同じ helper
+を通るため、本体と追撃で幅が分岐しない。旧 follow-up は `0..2`（平均1）だったが、
+#727後は武器幅（全武器平均2）を使う。これは本体と追撃で武器の手触りを一致させる
+ための意図した変更であり、平均ダメージが変わる影響は depth sim の結果とともにPRへ記録する。
+telemetry は既存の 4.1 #7 を「変更した」とした理由
 
 以前の #7 判定は、spell が個別 range、physical が固定 0–4 という差の存在だけを
 根拠に「意図」としていた。しかし、その固定幅は武器データを参照せず、同じ atk の

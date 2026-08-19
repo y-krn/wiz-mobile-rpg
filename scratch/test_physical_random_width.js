@@ -123,10 +123,10 @@ assert.equal(wideAttack.state.combatFormulaTelemetry.physicalPlayerHits[0].randR
 const narrowAttack = runCombat({ weapon: "NINJA_DAGGER" });
 assert.equal(narrowAttack.state.combatFormulaTelemetry.physicalPlayerHits[0].randRoll, 3);
 
-const wideFollowUp = runCombat({ weapon: "VENOM_FANG", followUp: true, className: "Ninja" });
-const followUpLog = wideFollowUp.logQueue.find(entry => entry.msg?.includes("【🗡️追撃】"));
+const narrowFollowUp = runCombat({ weapon: "NINJA_DAGGER", followUp: true, className: "Ninja" });
+const followUpLog = narrowFollowUp.logQueue.find(entry => entry.msg?.includes("【🗡️追撃】"));
 assert.ok(followUpLog, "follow-up attack still fires");
-assert.match(followUpLog.msg, /に15のダメージ/);
+assert.match(followUpLog.msg, /に14のダメージ/);
 
 function createRng(seed) {
   let value = seed >>> 0;
@@ -160,5 +160,3 @@ assert.deepEqual(sortedDistribution(wideDistribution.rolls).map(([roll]) => roll
 assert.ok(sortedDistribution(narrowDistribution.damages).length < sortedDistribution(wideDistribution.damages).length);
 console.log(`telemetry narrow N=500 randRoll=${JSON.stringify(sortedDistribution(narrowDistribution.rolls))} damage=${JSON.stringify(sortedDistribution(narrowDistribution.damages))}`);
 console.log(`telemetry wide N=500 randRoll=${JSON.stringify(sortedDistribution(wideDistribution.rolls))} damage=${JSON.stringify(sortedDistribution(wideDistribution.damages))}`);
-
-console.log("[PASS] weapon random ranges, telemetry roll, fallback, and follow-up use are verified.");

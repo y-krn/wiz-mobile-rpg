@@ -135,7 +135,9 @@ therefore a variance/feel distinction, not an attack-value adjustment. Fixed
 per-weapon data is used instead of an `atk` ratio or implicit weapon category so
 that authored identity remains stable when attack affixes or enhancement change.
 The physical follow-up path uses the same resolver as the main attack; it does
-not have a second random-width rule. The #732 physical mitigation expression,
+not have a second random-width rule. The old follow-up roll was `0..2` (mean
+1), while #727 now uses the weapon range (mean 2). This intentional change
+keeps weapon feel consistent between the main attack and follow-up. The #732 physical mitigation expression,
 weapon atk, and spell dice remain unchanged.
 
 # Generation and Acquisition Rules
