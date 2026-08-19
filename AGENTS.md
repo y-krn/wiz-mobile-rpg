@@ -55,6 +55,12 @@ tool-specific fallback instruction files.
 - If Codex native subagents are unavailable, do not implement an alternative
   in the parent session; report the task as BLOCKED. The parent session may
   read, inspect diffs, verify results, and make the final decision.
+- Delegated subagents must leave a concise record on the related GitHub Issue
+  or PR when starting or completing work, covering the purpose, progress or
+  conclusion, changed files, verification results, and unresolved items or
+  risks. The parent session must designate the record target before delegation,
+  create one if none exists, and confirm that the record was left; use Codex's
+  GitHub integration or the GitHub Web UI, not `gh`.
 - If a new game state is not part of the save payload, collapse it to a stable
   screen in `save_payload.js` before saving and add a save/load round-trip
   test.
