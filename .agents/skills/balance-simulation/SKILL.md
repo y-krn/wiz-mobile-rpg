@@ -21,7 +21,10 @@ unrelated test failure.
 - [AGENTS.md](../../../AGENTS.md) for worktree, search, and verification rules
 - [file-map.md](../../file-map.md) to route to the smallest source and test set
 - [balance-simulation.md](../../balance-simulation.md) for all sim invariants
-- [game-design.md](../../game-design.md) when progression or economy rules are involved
+- Read the existing design document that owns the affected `file-map.md` area,
+  such as [game-design.md](../../game-design.md) for progression or economy and
+  the matching `.agents/game-design*.md` for combat, enemies, drops, rewards,
+  maps, or other rules. Do not copy its specifications or values here.
 
 ## Run the measurement
 
@@ -35,9 +38,12 @@ unrelated test failure.
 3. Validate the runner before a long run: run `node --check`, then one run
    (`N=1` or the runner's equivalent) and inspect exit status and finite output.
    Confirm that the smoke run reaches the side effects under test.
-4. Record a baseline from the same source tree, configuration, seed policy,
-   and output schema. Repeat the baseline or smoke command to test determinism.
-   Run the after case only after the baseline is valid.
+4. Record each case's source SHA, configuration, seed policy, dataset or
+   fixture, runner version, and output schema. Keep those comparison conditions
+   identical across baseline and after; the source SHA normally differs because
+   the after case contains the change. Repeat both baseline and after under
+   those same conditions. Compare replicate output, determinism, and instability
+   before comparing the cases.
 5. Follow the simulation validity rules in `balance-simulation.md`. Model its
    required player mitigations, real reward and level-up paths, and complete
    equipment scoring. Record modeled and omitted mechanisms instead of hiding
@@ -55,8 +61,11 @@ unrelated test failure.
 - the selected sim has the wrong scope, bypasses the current mechanism, or
   lacks the required inputs
 - `node --check`, the `N=1` smoke run, or the determinism check fails
-- the baseline and after cases use different seeds, configuration, source
-  commits, output schema, or modeled mitigations
+- the baseline and after cases use different seeds, configuration, dataset or
+  fixture, runner version, output schema, environment, or modeled mitigations
+- the source diff changes the metric definition, population, or execution path
+  beyond the requested change, so no paired comparison is valid. A different
+  source SHA alone is not a stopping condition.
 - an unexpected mechanism, direct reward call, or hidden fallback changes the
   measured path and its effect is not explained
 - the result requires a design decision that the existing official documents do
@@ -66,12 +75,13 @@ unrelated test failure.
 
 Report these fields in order:
 
-1. **Question and scope**: target metric, sim path, `sim-scope`, and source
-   commit provenance
+1. **Question and scope**: target metric, sim path, `sim-scope`, and each case's
+   source SHA
 2. **Validity**: `node --check`, `N=1` smoke, determinism, environment, seed
    policy, and modeled or omitted mitigations
-3. **Comparison**: baseline and after configurations, sample counts, outputs,
-   uncertainty, and the command used to reproduce them
+3. **Comparison**: matched baseline and after conditions, replicate outputs,
+   sample counts, determinism, instability, uncertainty, and the reproduction
+   command
 4. **Interpretation**: supported conclusion, limits, and whether the result is
    measured, unexecuted, or not reachable through this sim
 5. **Decision**: pass, needs more measurement, or stopped with the exact

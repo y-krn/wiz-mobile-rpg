@@ -1,6 +1,6 @@
 ---
 name: combat-model-change
-description: Plan or review changes to physical or spell damage formulas, shared combat stages, class scaling, or combat observability. Do not use for UI-only combat changes.
+description: Plan or review changes to physical or spell damage, hit, crit, mitigation, resistance, targeting, level scaling, shared combat stages, or combat observability. Do not use for UI-only combat changes.
 ---
 
 # Review a combat model change
