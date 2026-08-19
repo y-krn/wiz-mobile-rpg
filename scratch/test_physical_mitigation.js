@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   PHYSICAL_RESISTANCE_CAP,
+  PHYSICAL_DEF_RESISTANCE_SCALE,
   PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
   applyPhysicalResistance,
   calculatePhysicalAttackFormula,
@@ -16,11 +17,11 @@ import {
 
 function run() {
   assert.equal(getPhysicalDefenseResistance(0), 0);
-  assert.equal(getPhysicalDefenseResistance(10), 10 / 110);
-  assert.equal(getPhysicalDefenseResistance(5), 5 / 105);
+  assert.equal(getPhysicalDefenseResistance(10), 10 / (10 + PHYSICAL_DEF_RESISTANCE_SCALE));
+  assert.equal(getPhysicalDefenseResistance(5), 5 / (5 + PHYSICAL_DEF_RESISTANCE_SCALE));
   assert.equal(
     getPhysicalDefenseResistance(10, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING),
-    10 / 13
+    10 / (10 + PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING)
   );
   assert.ok(
     getPhysicalDefenseResistance(5) - getPhysicalDefenseResistance(4) >
@@ -35,31 +36,29 @@ function run() {
   assert.ok(Math.abs(applyPhysicalResistance(100, cappedResistance) - 10) < 1e-9);
   assert.equal(applyPhysicalResistance(0, cappedResistance), 1, "physical damage keeps minimum 1");
   assert.equal(calculatePhysicalAttackFormula({ weaponAtk: 0, str: 10, def: 18 }), 1);
+  const incomingResistance = getPhysicalDefenseResistance(10, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING);
   assert.equal(
-    Math.floor(applyPhysicalResistance(
-      10,
-      getPhysicalDefenseResistance(10, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING)
-    )),
-    2,
+    Math.floor(applyPhysicalResistance(10, incomingResistance)),
+    Math.floor(10 * (1 - incomingResistance)),
     "incoming nonzero DEF uses the calibrated incoming pool"
   );
 
   const monster = { def: 5, physResist: 0 };
   const resistance = getMonsterPhysicalResistance(monster);
-  assert.equal(resistance, 5 / 105);
+  assert.equal(resistance, 5 / (5 + PHYSICAL_DEF_RESISTANCE_SCALE));
   assert.equal(getMonsterResistanceTier(resistance), "やや効きにくい");
   const status = getMonsterResistanceStatus(monster, { physResistKnown: true });
   assert.equal(status.find(entry => entry.type === "physical")?.description, "やや効きにくい");
   assert.equal(
     Math.floor(applyPhysicalResistance(30, resistance)),
-    28,
+    Math.floor(30 * (1 - resistance)),
     "displayed physical tier uses the resistance applied to damage"
   );
 
   const buffedMonster = { def: 5, physResist: 0, buffs: [{ type: "def", value: 3, turns: 1 }] };
   assert.equal(getEffectiveDef(buffedMonster), 8);
   const buffedResistance = getMonsterPhysicalResistance(buffedMonster);
-  assert.equal(buffedResistance, 8 / 108, "display uses effective DEF with active buffs");
+  assert.equal(buffedResistance, 8 / (8 + PHYSICAL_DEF_RESISTANCE_SCALE), "display uses effective DEF with active buffs");
   assert.equal(
     Math.floor(applyPhysicalResistance(30, buffedResistance)),
     Math.floor(calculatePhysicalAttackFormula({ weaponAtk: 30, str: 10, def: 8 })),

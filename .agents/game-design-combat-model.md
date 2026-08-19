@@ -577,7 +577,7 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 
 | # | 非対称 | 判定 | 理由と実測・経路根拠 | 対応する決定 |
 | ---: | --- | --- | --- | --- |
-| 1 | 物理は旧来 `-floor(def/2)`、呪文は `×(1-magicResist)` | **結論（#732で変更）** | 旧式は `def` と `magicResist` が別 input・別順序で、同じ低 damage 帯に別の clamp を持っていた。現行は `defResistance = def/(def+k_direction)` とし、`physResist` と -1〜0.9 の加算poolへ統合する。プレイヤー→敵は `k_out=100`、敵→プレイヤーは `k_in=3`。#716の段階表示は active DEF buff/debuff を含む `getEffectiveDef` から求めた最終physical poolを読む。 | 決定 1 |
+| 1 | 物理は旧来 `-floor(def/2)`、呪文は `×(1-magicResist)` | **結論（#732で変更）** | 旧式は `def` と `magicResist` が別 input・別順序で、同じ低 damage 帯に別の clamp を持っていた。現行は `defResistance = def/(def+k_direction)` とし、`physResist` と -1〜0.9 の加算poolへ統合する。実遭遇分布を再校正した公式値はプレイヤー→敵 `k_out=40`、敵→プレイヤー `k_in=2`。#732で一度測定した `100/3` は、EV/fallbackを実戦poolへ接続して再測定した後に Mage の paired CI が0を含まなかったため不採用とした。#716の段階表示は active DEF buff/debuff を含む `getEffectiveDef` から求めた最終physical poolを読む。 | 決定 1 |
 | 2 | 物理は装備で伸び、呪文は固定 dice と +40% stat cap | **結論（#731で修正）** | core-loop 正本は run 内 loot build を depth の評価軸にする。physical は B1→B10 で Fighter 20.45→51.70、spell は観測 Mage B1→B10 25.58→32.19で、呪文の伸びが上位呪文の習得と偶然の build に依存していた。#731 で共通の `spellPower`（術力）を導入し、`arcane` / `devotion` / `fireRite` は固有項として残した。 | 決定 2 |
 | 3 | レベルはほぼ damage に寄与せず、呪文だけ level gate を持つ | **欠陥** | `str`/`int` の base はレベルで自動増加せず、spell learn は lv2/3/6/8に固定。今回 MADALTO は N=139、TILTOWAIT は N=0で、到達した run だけで上位呪文を評価する構造になっている。level gate と level power の対応が正本にない。 | 決定 3 |
 | 4 | `antiUndead` / `antiDragon` / `antiDemon` は物理のみ | **欠陥（配線漏れ）。共通 stage へ集約して修正** | #719 実装前は `applyTargetedDamageBonus` の物理経路だけがタグ特効を持ち、攻撃呪文は `getDamageAffixResult` を直接呼んで stage を飛ばしていた。結論としてタグ特効を `getDamageAffixResult` の共通 stage へ移し、BADIOS の +50/+30/+30 も同じ加算プールへ入れる。共通 anti tag と固有寄与を合計して一度だけ乗算するため、攻撃手段非依存・同一タグの二重乗算なしとなる。 | 決定 4、#719 |
@@ -603,7 +603,7 @@ CV を目標にしたのかは根拠不明であり、意図を過去のバラ�
 **乗算で揃える。** 敵・プレイヤー双方の physical `def` を、プレイヤーが意思決定に
 使う「何割残るか」に変換可能な bounded resistance として扱う。変換は
 `defResistance = def / (def + k_direction)` とし、defの追加投資は逓減する。#732 の
-再校正では、プレイヤー→敵を `k_out=100`、敵→プレイヤーを `k_in=3` とする。
+再校正後の公式値は、プレイヤー→敵を `k_out=40`、敵→プレイヤーを `k_in=2` とする。
 いずれも `PHYSICAL_DEF_RESISTANCE_SCALE` 系の source constant が正本である。`physResist` は
 `defResistance` との加算poolへ統合し、合成後を -1〜0.9 に clamp するため完全無敵は
 発生しない。`k_direction` は #716 の表示段階だけでなく、変換前後の実遭遇分布に対する
