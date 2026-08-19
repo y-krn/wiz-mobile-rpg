@@ -200,6 +200,6 @@ B20はTARGET_DEPTHSの最深撤退方針そのものであってentrant判定の
 
 `src/run_map_generator.js`、`src/data/biomes.js`、`scratch/sim_depth_material_ev.js`、
 `.agents/game-design.md`、および関連する2件の `scratch/test_*.js` の期待値更新は
-`scripts/codex-run.sh implement-646` 経由でCodexへ実装委譲した。commit/pushはCodexへ
-別途 `scripts/codex-run.sh commit-646` で委譲し、`gh pr create` は実務セッション側で
+Codexへ実装を委譲した。commit/pushはCodexへ
+別途委譲し、`gh pr create` は実務セッション側で
 実行した。

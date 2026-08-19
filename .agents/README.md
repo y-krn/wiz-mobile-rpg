@@ -89,10 +89,10 @@ Resolution rules:
 - If the applicable checklist is still ambiguous after this, ask before
   applying, rather than applying all of them.
 
-These checklists are intentionally not registered as Claude Code skills:
-skill auto-matching cannot honor the "ask before applying all" rule above, and
-`.agents/` is shared with Codex and Antigravity while `.claude/skills/` is
-Claude-only. See #339.
+These checklists are intentionally kept as review-only documents rather than
+automatic skills: a checklist is selected by the nature of the change, and the
+reviewer must not apply every checklist by default. Repository-scoped Codex
+skills live separately under `.agents/skills/`.
 
 ## Review Output Format
 
