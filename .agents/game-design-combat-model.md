@@ -590,7 +590,7 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 | 7 | physical は武器ごとの `randRange`、spell は呪文ごとの幅 | **変更した（#727）** | `src/data/items.js` の全 weapon が inclusive な `randRange` を持ち、`rollCharWeaponPhysicalRandom` が本体と追撃へ同じ幅を供給する。狭い `[1,3]` / 固定 `[2,2]` と広い `[0,4]` を使うが、全範囲の平均は 2.0 に揃え、武器 atk・式の他項・spell range は変えない。物理を一律 0–4 として spell と別 identity にするだけでは、同じ atk の武器を区別できないため、#727 でこの判定を覆した。 | 決定 2、#727、分散方針 |
 | 8 | 会心は Ninja の非 boss のみ | **欠陥（未文書化）** | source は `char.class === "Ninja" && !target.isBoss` の呼び出し側分岐だけで、class data と既存設計正本に会心 passive の記録がない。実測 critical は Ninja 6.760%、他 7 職 0%。boss 除外の理由も正本にない。 | 決定 6 |
 | 9 | Mage/Bishop に undocumented `magicBolt` fallback | **欠陥（未文書化の第2式、#732でdef減算は解消）** | fallback自体は残すが、#732で `def/4` の別減算を廃止し、通常物理と同じ `physicalResistance` 後に比較する。ゲーム内 description、`game-design*.md`、class passiveにfallbackの記載がない点は未解決で、職業の主軸をhidden fallbackで補う理由も別途必要。 | 決定 3、職業軸、#732 |
-| 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **欠陥（方針欠落）** | `getSpellStatBonus` は int30で+40%固定、`calculateDisarmRate` は適性職90 cap。cap の存在は source で確認できるが、超過投資をどう扱うかの共通方針がない。B1–B10分布でも a素手・武器 slot にない装備の既定値は `[0,4]`。忍者を含む follow-up も同じ helper
+| 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **欠陥（方針欠落）** | `getSpellStatBonus` は int30で+40%固定、`calculateDisarmRate` は適性職90 cap。cap の存在は source で確認できるが、超過投資をどう扱うかの共通方針がない。B1–B10分布でも 素手・武器 slot にない装備の既定値は `[0,4]`。忍者を含む follow-up も同じ helper
 を通るため、本体と追撃で幅が分岐しない。旧 follow-up は `0..2`（平均1）だったが、
 #727後は武器幅（全武器平均2）を使う。これは本体と追撃で武器の手触りを一致させる
 ための意図した変更であり、平均ダメージが変わる影響は depth sim の結果とともにPRへ記録する。
