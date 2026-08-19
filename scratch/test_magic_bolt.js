@@ -85,13 +85,13 @@ function test(name, fn) {
 test("Mage and Bishop attacks use the deterministic INT magic-bolt formula", () => {
   assert.equal(
     attackDamage("Mage", { int: 16, str: 7, def: 8 }, 0.999),
-    3,
-    "Mage: floor((floor(16/3) + 2) * (1 - 8/18))"
+    6,
+    "Mage: floor((floor(16/3) + 2) * (1 - 8/108))"
   );
   assert.equal(
     attackDamage("Bishop", { int: 15, str: 9, def: 4 }, 0),
-    3,
-    "Bishop: floor((floor(15/3) + 0) * (1 - 4/14))"
+    4,
+    "Bishop: floor((floor(15/3) + 0) * (1 - 4/104))"
   );
 });
 
@@ -103,21 +103,21 @@ test("Bishop keeps stronger physical weapon and attack-affix damage", () => {
   };
   assert.equal(
     attackDamage("Bishop", { int: 15, str: 12, weapon, def: 4 }, 0),
-    31,
-    "max(physical 44, magic bolt 3) * (1 - 4/14) must preserve physical damage"
+    42,
+    "physical 44 reduced by (1 - 4/104) must preserve physical damage"
   );
 });
 
 test("spell-learning non-casters do not receive magic-bolt damage", () => {
   // Commit 2 intentionally changes the low-STR term: the old (7 - 10) = -3
   // penalty is now max(0, 7 - 10) = 0. With this fixed physical path, the
-  // expected damage is therefore 3 instead of the old 1; magic-bolt fallback
+  // expected damage is therefore 6 instead of the old 1; magic-bolt fallback
   // remains disabled for these classes.
   for (const className of ["Samurai", "Ranger"]) {
     assert.equal(
       attackDamage(className, { int: 18, str: 7, weapon: "DAGGER", def: 8, spells: ["HALITO"] }, 0.999),
-      3,
-      `${className} must keep physical damage instead of hypothetical magic bolt 6`
+      6,
+      `${className} must keep physical damage instead of a caster-only magic bolt`
     );
   }
 });

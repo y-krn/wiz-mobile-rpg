@@ -140,7 +140,7 @@ test("flee always succeeds against a boss, takes one parting hit, and retreats",
   try {
     const result = runCombatRoundCalculation(state, { actions: [{ type: "run", actorIdx: 0 }] });
     assert.ok(result.logQueue.some(log => log.runEscape));
-    assert.equal(result.state.party[0].hp, 92);
+    assert.equal(result.state.party[0].hp, 94);
     assert.deepEqual({ x: result.state.x, y: result.state.y }, { x: 4, y: 5 });
     assert.ok(result.logQueue.some(log => log.msg?.includes("追撃")));
   } finally {

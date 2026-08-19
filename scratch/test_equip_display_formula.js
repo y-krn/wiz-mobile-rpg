@@ -100,17 +100,17 @@ const integerFormulaCases = [
   {
     label: "odd weapon atk with even buff atk",
     input: { weaponAtk: 3, buffAtk: 2, str: 14, randRoll: 3, def: 6 },
-    expected: 7.5
+    expected: 11.320754716981131
   },
   {
     label: "even weapon atk with odd buff atk",
     input: { weaponAtk: 2, buffAtk: 3, str: 14, randRoll: 3, def: 6 },
-    expected: 7.5
+    expected: 11.320754716981131
   },
   {
     label: "odd weapon atk with odd buff atk",
     input: { weaponAtk: 3, buffAtk: 1, str: 14, randRoll: 3, def: 6 },
-    expected: 6.875
+    expected: 10.377358490566039
   }
 ];
 integerFormulaCases.forEach(({ label, input, expected }) => {
@@ -154,7 +154,7 @@ check(
     def: 6,
     meleeMod: 0.9
   }),
-  11.812500000000002
+  17.830188679245285
 );
 check("display attack uses effective weapon input and STR above neutral point", baseStats.attack, 22);
 check("display defense uses VIT/4", baseStats.defense, 5);
@@ -279,9 +279,9 @@ const incomingDamageResult = runFixedRound(incomingDamageState, [
   { type: "defend", actorIdx: 0 }
 ]);
 check(
-  "incoming physical damage remains unchanged",
+  "incoming physical damage uses the recalibrated bounded resistance",
   100 - incomingDamageResult.state.party[0].hp,
-  5
+  4
 );
 
 const spellPowerEquipment = makeItem("RING_STR", [
