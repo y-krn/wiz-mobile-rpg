@@ -1809,7 +1809,9 @@ function createDamageEstimateAggregate() {
   return {
     byClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}])),
     decisionsByClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}])),
-    actionsByClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}]))
+    actionsByClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}])),
+    unmatchedHits: 0,
+    unmatchedHitsByClass: Object.fromEntries(SIM_CLASSES.map(className => [className, {}]))
   };
 }
 
@@ -1827,6 +1829,11 @@ function getDamageEstimateAggregateBucket(container, className, floor) {
 
 function addDamageEstimateAudit(target, source, className) {
   if (!target || !source) return;
+  target.unmatchedHits += source.unmatchedHits || 0;
+  Object.entries(source.unmatchedHitsByFloor || {}).forEach(([floor, sourceBucket]) => {
+    const bucket = target.unmatchedHitsByClass[className][floor] ||= { hits: 0 };
+    bucket.hits += sourceBucket.hits || 0;
+  });
   Object.entries(source.decisionsByFloor || {}).forEach(([floor, sourceBucket]) => {
     const bucket = target.decisionsByClass[className][floor] ||= {
       evaluations: 0,
@@ -1894,7 +1901,9 @@ function finalizeDamageEstimateAggregate(aggregate) {
         className,
         summarizeBuckets(buckets)
       ])
-    )
+    ),
+    unmatchedHits: aggregate.unmatchedHits,
+    unmatchedHitsByClass: aggregate.unmatchedHitsByClass
   };
 }
 
@@ -4396,7 +4405,9 @@ function createDamageEstimateAuditMetrics() {
     pending: null,
     decisionsByFloor: {},
     actionsByFloor: {},
-    hits: []
+    hits: [],
+    unmatchedHits: 0,
+    unmatchedHitsByFloor: {}
   };
 }
 
@@ -4447,16 +4458,20 @@ function recordDamageEstimatePhysicalHits(metrics, hits) {
   if (!audit) return;
   const pending = audit.pending;
   hits.forEach(hit => {
-    const estimate = Number.isFinite(pending?.estimate)
-      ? pending.estimate
-      : Number(hit.weaponAtk) / 1.5;
-    if (!Number.isFinite(estimate)) return;
+    const estimate = Number.isFinite(pending?.estimate) ? pending.estimate : null;
+    const formula = Number(hit.formulaDmg);
+    const observed = Number(hit.damage);
+    if (estimate === null || !Number.isFinite(formula) || !Number.isFinite(observed)) {
+      audit.unmatchedHits++;
+      const bucket = getDamageEstimateFloorBucket(audit.unmatchedHitsByFloor, hit.floor, { hits: 0 });
+      bucket.hits++;
+      return;
+    }
     audit.hits.push({
       floor: hit.floor,
       estimate,
-      formula: hit.formulaDmg,
-      observed: hit.damage,
-      estimateFallback: !pending
+      formula,
+      observed
     });
   });
   audit.pending = null;
@@ -9326,7 +9341,9 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
       ? {
           decisionsByFloor: metrics.damageEstimateAudit.decisionsByFloor,
           actionsByFloor: metrics.damageEstimateAudit.actionsByFloor,
-          hits: metrics.damageEstimateAudit.hits
+          hits: metrics.damageEstimateAudit.hits,
+          unmatchedHits: metrics.damageEstimateAudit.unmatchedHits,
+          unmatchedHitsByFloor: metrics.damageEstimateAudit.unmatchedHitsByFloor
         }
       : null,
     dragonKeysAcquired: metrics.dragonKeysAcquired,
@@ -11444,7 +11461,9 @@ export {
   DEPTH_SCENARIOS,
   REFERENCE_SCENARIOS,
   SIM_CLASSES,
-  IDENTIFICATION_BALANCE
+  IDENTIFICATION_BALANCE,
+  createDamageEstimateAuditMetrics,
+  recordDamageEstimatePhysicalHits
 };
 
 function printCoreScoringProfile(profile, policy = null) {
@@ -11597,6 +11616,11 @@ function formatDamageAuditDistribution(stats) {
 function printDamageEstimateAudit(result) {
   const audit = result?.damageEstimateAudit;
   if (!audit) return;
+  console.log(`#737 未対応ヒット除外: ${audit.unmatchedHits || 0}`);
+  Object.entries(audit.unmatchedHitsByClass || {}).forEach(([className, floors]) => {
+    const count = Object.values(floors || {}).reduce((sum, bucket) => sum + (bucket.hits || 0), 0);
+    if (count > 0) console.log(`  ${className}: ${count}`);
+  });
   console.log(`\n【#737 近似 vs 実測ダメージ分布 / ${result.label}】`);
   console.log(
     "職業 深度 | hits | estimate mean | formula mean | observed mean | " +
@@ -12125,6 +12149,12 @@ function buildMpScarcityMeasurement(resultsByPolicy) {
         combatMp: result.combatMp,
         combatPolicyProbeByClass: result.combatPolicyProbeByClass,
         combatPolicyProbe: result.combatPolicyProbe,
+        damageEstimateAudit: result.damageEstimateAudit
+          ? {
+              unmatchedHits: result.damageEstimateAudit.unmatchedHits,
+              unmatchedHitsByClass: result.damageEstimateAudit.unmatchedHitsByClass
+            }
+          : null,
         mpBlockedTerminalEncounterRuns: result.mpBlockedTerminalEncounterRuns,
         mpDepletionCausedEndRuns: result.mpDepletionCausedEndRuns
       })))
