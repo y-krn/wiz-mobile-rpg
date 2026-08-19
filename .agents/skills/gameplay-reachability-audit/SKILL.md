@@ -36,11 +36,12 @@ Do not use it for style-only searches or naming cleanup.
    execution**, **player operation and UI**, **simulation**, and **telemetry or
    record**. A known caller does not satisfy any later layer, and it does not
    remove those layers from the audit. Mark each layer as evidenced, not
-   exercised, unreachable, or unknown. Mark a layer out of scope only after
-   confirming that it cannot observe or exercise this mechanic and recording
-   why. Conclude only after every target layer is evidenced or explicitly out of
-   scope. “Not run” means the path exists but the test or sim did not execute it.
-   “Unreachable” requires an explained static or production-build result.
+   exercised, unreachable, out of scope, or unknown. For `not exercised`, cite
+   evidence that the path exists but the test or sim omitted it. For
+   `unreachable`, cite static or production-build evidence. For `out of scope`,
+   cite why the layer cannot observe or exercise this mechanic. Conclude when
+   every target layer has one of these evidence-backed statuses. An unsupported
+   status or inference remains unknown and blocks the conclusion.
 4. Run the smallest relevant unit, simulation, or browser check. For a
    player-facing claim, build production output and inspect
    `dist/assets/index-*.js`. Search stable player-facing strings, not minified
@@ -55,8 +56,8 @@ Do not use it for style-only searches or naming cleanup.
 - a dynamic dispatch, binding, re-export, or generated route remains unresolved
 - the production build is required but failed or was not run
 - a negative bundle search lacks a positive control or an unexplained hit
-- the evidence shows only that a test or sim did not run, not that the path is
-  unreachable
+- a layer is labeled `not exercised`, `unreachable`, or `out of scope` without
+  evidence supporting that specific status
 - the claimed player operation has no input route, state transition, or
   observable result to inspect
 - source, simulation, UI, and record paths disagree and the disagreement has no
@@ -69,10 +70,10 @@ Report a compact evidence table with these columns:
 | Layer | Evidence | Status | Missing or next check |
 | --- | --- | --- | --- |
 | Definition | path and symbol or key | evidenced / unknown | exact gap |
-| Caller and execution | caller and state transition | evidenced / not exercised / unreachable / unknown | exact gap |
-| Player operation and UI | input route, guard, and visible result | evidenced / not exercised / unreachable / unknown | exact gap |
-| Simulation | runner and exercised mechanism | evidenced / not exercised / unreachable / unknown | exact gap |
-| Telemetry or record | log, metric, or saved record | evidenced / not exercised / unreachable / unknown | exact gap |
+| Caller and execution | caller and state transition | evidenced / not exercised / unreachable / out of scope / unknown | exact gap |
+| Player operation and UI | input route, guard, and visible result | evidenced / not exercised / unreachable / out of scope / unknown | exact gap |
+| Simulation | runner and exercised mechanism | evidenced / not exercised / unreachable / out of scope / unknown | exact gap |
+| Telemetry or record | log, metric, or saved record | evidenced / not exercised / unreachable / out of scope / unknown | exact gap |
 
 Also report the search scope, build and test commands, production-bundle
 positive control, unexplained hits, and a verdict: reachable, partially
