@@ -10703,11 +10703,13 @@ function simulateCase({
     const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
     const departureCraftBank = departureCraftBanksByClass[className];
     const hasDepartureCraftBank = Object.keys(departureCraftBank).length > 0;
+    const hasExplicitDepartureCraftIds = ACTIVE_DEPARTURE_CRAFT_IDS.length > 0;
     const runScenario = scenario.departureCraftMeasurement
       ? {
           ...scenario,
-          departureCraftMaterialsAreActualBank: hasDepartureCraftBank,
-          ...(hasDepartureCraftBank
+          departureCraftMaterialsAreActualBank:
+            !hasExplicitDepartureCraftIds && hasDepartureCraftBank,
+          ...(!hasExplicitDepartureCraftIds && hasDepartureCraftBank
             ? { departureCraftMaterials: { ...departureCraftBank } }
             : {})
         }
