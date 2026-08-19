@@ -44,10 +44,23 @@ tool-specific fallback instruction files.
 
 ## Implementation rules
 
-- The interactive Codex session owns the task, edits, integration, and final
-  verification. Use subagents only for independent, bounded work; give each a
-  single objective and request a concise conclusion. The parent session must
-  review all results and own the final changes.
+- The interactive Codex session handles user communication, requirements
+  clarification, delegation, result review, and the final report. Delegate
+  implementation, fixes, test additions, and repository changes to Codex
+  native subagents.
+- The parent session must not directly edit repository source, tests,
+  configuration, or documentation. If a subagent's result needs changes,
+  delegate the changes to another Codex native subagent instead of editing
+  directly.
+- If Codex native subagents are unavailable, do not implement an alternative
+  in the parent session; report the task as BLOCKED. The parent session may
+  read, inspect diffs, verify results, and make the final decision.
+- Delegated subagents must leave a concise record on the related GitHub Issue
+  or PR when starting or completing work, covering the purpose, progress or
+  conclusion, changed files, verification results, and unresolved items or
+  risks. The parent session must designate the record target before delegation,
+  create one if none exists, and confirm that the record was left; use Codex's
+  GitHub integration or the GitHub Web UI, not `gh`.
 - If a new game state is not part of the save payload, collapse it to a stable
   screen in `save_payload.js` before saving and add a save/load round-trip
   test.
