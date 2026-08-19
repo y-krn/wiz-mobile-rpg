@@ -4487,23 +4487,29 @@ function getDamageEstimateActionTotals(audit) {
   );
 }
 
-function getEvDamageEstimate(state) {
+function getEvPhysicalDamageEstimate(state, monster) {
   const character = state.party[0];
-  const livingMonsters = state.combatState?.monsters?.filter(monster => monster.hp > 0) || [];
-  if (livingMonsters.length === 0) return 1;
   const buffAtk = getBuffTotal(character, "atk") + getBuffTotal(character, "str");
   const meleeMod = getMeleeModifiers(character, 0, { state });
-  const damage = livingMonsters.reduce((total, monster) => {
-    const formulaDamage = calculatePhysicalAttackFormula({
-      weaponAtk: getCharWeaponAtk(character),
-      buffAtk,
-      str: getCharStr(character),
-      randRoll: 2,
-      def: getEffectiveDef(monster),
-      meleeMod
-    });
-    return total + Math.max(1, Math.floor(formulaDamage));
-  }, 0) / livingMonsters.length;
+  const formulaDamage = calculatePhysicalAttackFormula({
+    weaponAtk: getCharWeaponAtk(character),
+    buffAtk,
+    str: getCharStr(character),
+    randRoll: 2,
+    def: getEffectiveDef(monster),
+    physResist: monster?.physResist,
+    meleeMod
+  });
+  return Math.max(1, Math.floor(formulaDamage));
+}
+
+function getEvDamageEstimate(state) {
+  const livingMonsters = state.combatState?.monsters?.filter(monster => monster.hp > 0) || [];
+  if (livingMonsters.length === 0) return 1;
+  const damage = livingMonsters.reduce(
+    (total, monster) => total + getEvPhysicalDamageEstimate(state, monster),
+    0
+  ) / livingMonsters.length;
   return Math.max(1, damage);
 }
 
@@ -4707,15 +4713,8 @@ function getStatusCureObservationInputs(status) {
 
 function getExpectedStatusCureActionDamage(state, observedHitDamage = 0) {
   if (observedHitDamage > 0) return observedHitDamage;
-  const character = state.party[0];
   const target = state.combatState?.monsters?.find(monster => monster.hp > 0);
-  const damage = calculatePhysicalAttackFormula({
-    weaponAtk: getCharWeaponAtk(character),
-    str: getCharStr(character),
-    randRoll: 2,
-    def: target?.def || 0
-  });
-  return Math.max(1, Math.floor(damage));
+  return target ? getEvPhysicalDamageEstimate(state, target) : 1;
 }
 
 function getExpectedStatusCureFloorSteps(floor) {

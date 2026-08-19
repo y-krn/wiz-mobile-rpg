@@ -177,19 +177,90 @@ export function getCharDef(char) {
   return def;
 }
 
+// Monster DEF is mutable during combat because DEF buffs/debuffs are stored
+// on the monster. Keep the effective value in the shared rules module so
+// combat resolution and resistance disclosure cannot drift apart.
+export function getEffectiveDef(mon) {
+  const baseDef = Number(mon?.def) || 0;
+  const buffDef = (mon?.buffs || []).reduce((sum, buff) => {
+    return buff.type === "def" ? sum + (Number(buff.value) || 0) : sum;
+  }, 0);
+  return Math.max(0, baseDef + Math.max(-6, Math.min(6, buffDef)));
+}
+
+// Physical defense is converted to a bounded resistance pool instead of being
+// subtracted from each attack. Each direction keeps the same diminishing
+// curve, with its calibrated scale selected at the call site.
+export const PHYSICAL_RESISTANCE_CAP = 0.9;
+// Player attacks use the outgoing calibration; incoming monster attacks use
+// the separate scale below because the pre-change formulas applied DEF at
+// different stages and with different effective units.
+export const PHYSICAL_DEF_RESISTANCE_SCALE = 40;
+export const PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING = 2;
+
+export function getPhysicalDefenseResistance(
+  def = 0,
+  scale = PHYSICAL_DEF_RESISTANCE_SCALE
+) {
+  const normalizedDef = Number.isFinite(Number(def))
+    ? Math.max(0, Number(def))
+    : 0;
+  const normalizedScale = Number.isFinite(Number(scale)) && Number(scale) > 0
+    ? Number(scale)
+    : PHYSICAL_DEF_RESISTANCE_SCALE;
+  return normalizedDef / (normalizedDef + normalizedScale);
+}
+
+export function combinePhysicalResistances(...resistances) {
+  const total = resistances.reduce((sum, resistance) => {
+    const numericResistance = Number(resistance);
+    return sum + (Number.isFinite(numericResistance) ? numericResistance : 0);
+  }, 0);
+  return Math.max(-1, Math.min(PHYSICAL_RESISTANCE_CAP, total));
+}
+
+export function applyPhysicalResistance(rawDamage, resistance = 0) {
+  const numericDamage = Number(rawDamage);
+  const totalResistance = combinePhysicalResistances(resistance);
+  if (!Number.isFinite(numericDamage)) return 1;
+  return Math.max(1, numericDamage * (1 - totalResistance));
+}
+
 // Keep the physical formula in one place for combat and static equipment
 // comparison. Weapon and attack-buff inputs are already in effective units;
-// context-dependent inputs (rolls, target defense, and class modifiers) stay
-// with the caller.
+// context-dependent inputs (rolls, target defense, target physResist, and
+// class modifiers) stay with the caller.
+export function calculatePhysicalAttackRawFormula({
+  weaponAtk = 0,
+  buffAtk = 0,
+  str = 10,
+  randRoll = 0,
+  meleeMod = 1
+} = {}) {
+  return (Math.floor(weaponAtk + buffAtk) + Math.max(0, str - 10) + randRoll) * meleeMod;
+}
+
 export function calculatePhysicalAttackFormula({
   weaponAtk = 0,
   buffAtk = 0,
   str = 10,
   randRoll = 0,
   def = 0,
+  physResist = 0,
   meleeMod = 1
 } = {}) {
-  return (Math.floor(weaponAtk + buffAtk) + Math.max(0, str - 10) + randRoll - Math.floor(def / 2)) * meleeMod;
+  const rawDamage = calculatePhysicalAttackRawFormula({
+    weaponAtk,
+    buffAtk,
+    str,
+    randRoll,
+    meleeMod
+  });
+  const resistance = combinePhysicalResistances(
+    getPhysicalDefenseResistance(def),
+    physResist
+  );
+  return applyPhysicalResistance(rawDamage, resistance);
 }
 
 export function calculatePhysicalDefenseFormula({

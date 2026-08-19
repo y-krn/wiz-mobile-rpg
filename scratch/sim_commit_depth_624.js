@@ -47,6 +47,7 @@ const SIM_SEED = Number(process.env.SIM_SEED || 231) >>> 0;
 const CONDITION_ID = String(process.env.ISSUE624_CONDITION_ID || "unknown");
 const SERIES_ID = "issue612-exp-pace";
 const DETERMINISTIC_OUTPUT = process.env.ISSUE689_DETERMINISTIC === "1";
+const DAMAGE_METRICS = process.env.ISSUE732_DAMAGE_METRICS === "1";
 
 export { generateSharedRunFloor };
 
@@ -87,6 +88,24 @@ function scenarioForRun(runIndex) {
 function compactResult(task, result) {
   const statusCuresUsed = Object.values(result.statusCureItemsUsed || {})
     .reduce((sum, amount) => sum + (Number(amount) || 0), 0);
+  const physicalPlayerHits = result.combatFormula?.physicalPlayerHits || [];
+  const physicalMonsterHits = result.combatFormula?.physicalMonsterHits || [];
+  const damageMetrics = DAMAGE_METRICS
+    ? {
+        physicalPlayerHits: physicalPlayerHits.length,
+        physicalPlayerDamage: physicalPlayerHits.reduce(
+          (sum, hit) => sum + (Number(hit.damage) || 0),
+          0
+        ),
+        physicalMonsterHits: physicalMonsterHits.length,
+        physicalMonsterDamage: physicalMonsterHits.reduce(
+          (sum, hit) => sum + (Number(hit.finalDmg) || 0),
+          0
+        ),
+        normalCombatIncomingHits: result.normalCombatTelemetry?.incomingHits || 0,
+        normalCombatIncomingDamage: result.normalCombatTelemetry?.incomingDamage || 0
+      }
+    : {};
   return {
     conditionId: CONDITION_ID,
     className: task.className,
@@ -137,7 +156,9 @@ function compactResult(task, result) {
     statusCureSupply: result.statusCureSupply,
     statusesCured: result.statusesCured,
     statusCuresUsed,
-    mpDepleted: Boolean(result.mpDepleted)
+    mpDepleted: Boolean(result.mpDepleted),
+    damageMetricsEnabled: DAMAGE_METRICS,
+    ...damageMetrics
   };
 }
 
@@ -159,7 +180,9 @@ export function runIssue624Task(task, context) {
     workshop: scenario.workshop,
     // Keep the #612 run path identical; the returned diagnostics are discarded
     // after simulateRun so only the existing combat/exploration path is measured.
-    collectDiagnostics: true
+    collectDiagnostics: true,
+    // Telemetry is opt-in and does not alter combat resolution or RNG order.
+    collectCombatFormula: DAMAGE_METRICS
   });
   return compactResult(task, result);
 }

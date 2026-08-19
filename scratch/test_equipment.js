@@ -8,7 +8,7 @@ global.localStorage = {
 };
 
 import assert from "assert";
-import { getCharAgi, getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharStr, getCharTrapBonus, generateRandomAccessory, getItemData } from "../src/data.js";
+import { calculatePhysicalAttackFormula, getCharAgi, getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharStr, getCharTrapBonus, generateRandomAccessory, getItemData } from "../src/data.js";
 import { migrateSavePayload, SAVE_VERSION } from "../src/state/save_migrations.js";
 import { createSoloCharacter } from "../src/state.js";
 
@@ -446,14 +446,22 @@ import { createSoloCharacter } from "../src/state.js";
       for (let i = 0; i < iterations; i++) {
         const mainRand = i % 6;
         const followRand = i % 3;
-        // Keep this estimate aligned with the shared physical formula:
-        // weapon atk is already in effective units, the STR penalty is
-        // clamped at zero, and the integer weapon term is floored before the
-        // class/follow-up modifier is applied.
-        const effectiveWeaponAtk = Math.floor(effectiveAtk);
-        const strTerm = Math.max(0, str - 10);
-        const main = Math.max(1, Math.floor((effectiveWeaponAtk + strTerm + mainRand - Math.floor(def / 2)) * classRate));
-        const extra = Math.max(1, Math.floor((effectiveWeaponAtk + strTerm + followRand - Math.floor(def / 2)) * 0.7 * classRate));
+        // Keep this estimate on the production physical formula. Weapon and
+        // STR inputs are effective units; DEF is the bounded resistance pool.
+        const main = Math.max(1, Math.floor(calculatePhysicalAttackFormula({
+          weaponAtk: effectiveAtk,
+          str,
+          randRoll: mainRand,
+          def,
+          meleeMod: classRate
+        })));
+        const extra = Math.max(1, Math.floor(calculatePhysicalAttackFormula({
+          weaponAtk: effectiveAtk,
+          str,
+          randRoll: followRand,
+          def,
+          meleeMod: 0.7 * classRate
+        })));
         total += main + extra * (followUp / 100);
       }
       return total / iterations;

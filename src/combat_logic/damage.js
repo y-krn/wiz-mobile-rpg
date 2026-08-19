@@ -4,7 +4,10 @@ import {
   getCharMaxMp,
   getCharWeaponAtk,
   getCharStr,
-  calculatePhysicalAttackFormula
+  calculatePhysicalAttackFormula,
+  combinePhysicalResistances,
+  getPhysicalDefenseResistance,
+  getEffectiveDef
 } from "../data.js";
 import { recordCharDeath } from "../state.js";
 import { getBuffTotal, wakeSleepingCharOnDamage } from "./status_effects.js";
@@ -43,8 +46,13 @@ export function getMeleeModifiers(char) {
   return classMeleeRates[char.class] ?? 1.00;
 }
 
-export function getEffectiveDef(mon) {
-  return Math.max(0, mon.def + Math.max(-6, Math.min(6, getBuffTotal(mon, "def"))));
+export { getEffectiveDef } from "../rules/character_stats.js";
+
+export function getEffectivePhysicalResistance(mon) {
+  return combinePhysicalResistances(
+    getPhysicalDefenseResistance(getEffectiveDef(mon)),
+    mon?.physResist
+  );
 }
 
 export function getEffectiveMagicResist(mon) {
@@ -132,6 +140,7 @@ export function tryThornCounter(char, monster, actorIdx, state, logQueue, rng = 
     weaponAtk: getCharWeaponAtk(char),
     str: getCharStr(char),
     def: getEffectiveDef(monster),
+    physResist: monster.physResist,
     meleeMod: getMeleeModifiers(char, actorIdx)
   })));
   const damage = Math.max(1, Math.round(base * thorn.counterPower));

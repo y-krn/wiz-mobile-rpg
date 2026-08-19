@@ -2,8 +2,11 @@ import {
   MONSTERS,
   getCharStr, getCharInt, getCharAgi, getCharVit,
   getCharWeaponAtk, getCharDef,
+  PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
   getCharAffixSum, getCharMaxHp, getCharMaxMp,
-  calculatePhysicalAttackFormula, calculatePhysicalDefenseFormula
+  calculatePhysicalAttackRawFormula, calculatePhysicalAttackFormula,
+  calculatePhysicalDefenseFormula, applyPhysicalResistance,
+  getPhysicalDefenseResistance
 } from "../data.js";
 import {
   canMeleeTargetEnemy,
@@ -15,6 +18,7 @@ import {
 import {
   getMeleeModifiers,
   getEffectiveDef,
+  getEffectivePhysicalResistance,
   getEffectiveAtk,
   applyTargetedDamageBonus,
   reduceIncomingDamage,
@@ -72,15 +76,19 @@ function applyFleePartingAttack(state, monsters, logQueue) {
     vit: getCharVit(target),
     bonusDef: getMpWardDef(target)
   });
-  const formulaRaw = finalAtk - finalDef;
-  const formulaDmg = Math.max(1, formulaRaw);
+  const formulaRaw = finalAtk;
+  const defResistance = getPhysicalDefenseResistance(
+    finalDef,
+    PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING
+  );
+  const formulaDmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, defResistance)));
   let dmg = formulaDmg;
   const preMitigationDmg = dmg;
   dmg = reduceIncomingDamage(target, dmg, { logQueue, state });
   state.combatFormulaTelemetry?.physicalMonsterHits.push({
     floor: state.floor,
     targetClassName: target.class,
-    finalAtk, finalDef, formulaRaw, formulaDmg,
+    finalAtk, finalDef, defResistance, formulaRaw, formulaDmg,
     isDefending: false, isBlindTargetApplied: false, isSnipeAttack: false,
     preMitigationDmg, finalDmg: dmg, attackType: "flee"
   });
@@ -267,18 +275,16 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const randRoll = Math.floor(Math.random() * 5); // 0-4
           const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
-          // #611: 内訳計装用。クランプ前の値を保持するだけで式は変えない。
-          const formulaRaw = calculatePhysicalAttackFormula({
-            weaponAtk, buffAtk, str, randRoll, def, meleeMod
+          const formulaRaw = calculatePhysicalAttackRawFormula({
+            weaponAtk, buffAtk, str, randRoll, meleeMod
           });
-          dmg = Math.max(1, Math.floor(formulaRaw));
+          const physicalResistance = getEffectivePhysicalResistance(finalTarget);
+          dmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, physicalResistance)));
           const formulaDmg = dmg;
           let magicBoltUsed = false;
           if (char.class === "Mage" || char.class === "Bishop") {
-            const magicBolt = Math.max(
-              1,
-              Math.floor(getCharInt(char) / 3) + Math.floor(Math.random() * 3) - Math.floor(def / 4)
-            );
+            const magicBoltRaw = Math.floor(getCharInt(char) / 3) + Math.floor(Math.random() * 3);
+            const magicBolt = Math.max(1, Math.floor(applyPhysicalResistance(magicBoltRaw, physicalResistance)));
             if (magicBolt > dmg) magicBoltUsed = true;
             dmg = Math.max(dmg, magicBolt);
           }
@@ -288,10 +294,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             dmg = Math.max(1, Math.floor(dmg / 2));
           }
 
-          const physResistApplied = Boolean(finalTarget.physResist);
-          if (finalTarget.physResist) {
-            dmg = Math.max(1, Math.round(dmg * (1 - finalTarget.physResist)));
-          }
           dmg = applyTargetedDamageBonus(char, finalTarget, dmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
           if (guard?.mon === finalTarget && guard.mon.guard?.damageRate) {
             dmg = Math.max(1, Math.round(dmg * guard.mon.guard.damageRate));
@@ -314,7 +316,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             floor: state.floor,
             className: char.class,
             weaponAtk, buffAtk, str, randRoll, def, meleeMod,
-            formulaRaw, formulaDmg, magicBoltUsed, isBlindApplied, physResistApplied,
+            defResistance: getPhysicalDefenseResistance(def),
+            physicalResistance,
+            formulaRaw, formulaDmg, magicBoltUsed, isBlindApplied,
+            physResistApplied: Boolean(finalTarget.physResist),
             criticalChance, isCritical,
             preCriticalDmg: dmg,
             damage: finalPhysicalDmg
@@ -412,12 +417,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 str,
                 randRoll: followUpDmgRand,
                 def,
+                physResist: finalTarget.physResist,
                 meleeMod: 0.7
               });
               let followUpDmg = Math.max(1, Math.floor(followUpRaw * meleeMod));
-              if (finalTarget.physResist) {
-                followUpDmg = Math.max(1, Math.round(followUpDmg * (1 - finalTarget.physResist)));
-              }
               followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
               finalTarget.hp = Math.max(0, finalTarget.hp - followUpDmg);
               tryApplyHitFlinch(char, finalTarget, logQueue);
@@ -890,8 +893,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             tempDefDown: target.tempDefDown || 0
           });
           const preDefDmg = finalAtk;
-          const formulaRaw = finalAtk - finalDef;
-          let dmg = Math.max(1, formulaRaw);
+          const defResistance = getPhysicalDefenseResistance(
+            finalDef,
+            PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING
+          );
+          const formulaRaw = finalAtk;
+          let dmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, defResistance)));
           const formulaDmg = dmg;
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
 
@@ -908,7 +915,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           state.combatFormulaTelemetry?.physicalMonsterHits.push({
             floor: state.floor,
             targetClassName: target.class,
-            finalAtk, finalDef, preDefDmg, formulaRaw, formulaDmg,
+            finalAtk, finalDef, defResistance, preDefDmg, formulaRaw, formulaDmg,
             isDefending, isBlindTargetApplied, isSnipeAttack,
             preMitigationDmg, finalDmg: dmg, attackType: "normal"
           });

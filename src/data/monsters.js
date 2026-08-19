@@ -1,3 +1,9 @@
+import {
+  combinePhysicalResistances,
+  getEffectiveDef,
+  getPhysicalDefenseResistance
+} from "../rules/character_stats.js";
+
 export const ENEMY_ROLES = Object.freeze({
   AGGRESSOR: "aggressor",
   DISRUPTOR: "disruptor",
@@ -224,14 +230,24 @@ export function getMonsterResistanceTier(value) {
   return "通常通り";
 }
 
+export function getMonsterPhysicalResistance(monster) {
+  return combinePhysicalResistances(
+    getPhysicalDefenseResistance(getEffectiveDef(monster)),
+    monster?.physResist
+  );
+}
+
 export function getMonsterResistanceStatus(monster, record) {
   return MONSTER_RESISTANCE_FIELDS.map(({ type, field, knownField, label }) => {
     const known = Boolean(record?.[knownField]);
+    const value = type === "physical"
+      ? getMonsterPhysicalResistance(monster)
+      : monster?.[field];
     return {
       type,
       label,
       known,
-      description: known ? getMonsterResistanceTier(monster?.[field]) : "未判明"
+      description: known ? getMonsterResistanceTier(value) : "未判明"
     };
   });
 }

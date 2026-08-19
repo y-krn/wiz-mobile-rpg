@@ -95,7 +95,7 @@ for (const viewport of VIEWPORTS) {
     await expect(wisp.locator('[data-resistance-type="magic"]')).toContainText('ほとんど効かない');
     await expect(wisp.locator('[data-resistance-type="physical"]')).toContainText('未判明');
     await expect(golem.locator('[data-resistance-type="magic"]')).toContainText('弱点');
-    await expect(golem.locator('[data-resistance-type="physical"]')).toContainText('効きにくい');
+    await expect(golem.locator('[data-resistance-type="physical"]')).toContainText('ほとんど効かない');
     await expect(slime).not.toContainText('弱点');
     await expect(slime).not.toContainText('効きにくい');
     await expect(slime).toContainText('未判明');
@@ -108,7 +108,7 @@ for (const viewport of VIEWPORTS) {
     });
     await expect(wisp.locator('[data-resistance-type="magic"]')).toContainText('ほとんど効かない');
     await expect(golem.locator('[data-resistance-type="magic"]')).toContainText('弱点');
-    await expect(golem.locator('[data-resistance-type="physical"]')).toContainText('効きにくい');
+    await expect(golem.locator('[data-resistance-type="physical"]')).toContainText('ほとんど効かない');
     await expectWithinViewport(wisp, viewport, 'grayscale wisp target card');
     await expectWithinViewport(golem, viewport, 'grayscale golem target card');
   });
@@ -147,7 +147,7 @@ test('archives discloses known resistances and tolerates legacy codex records', 
   await page.locator('#archives-overlay .codex-row', { hasText: 'ウィル・オー・ウィスプ' }).click();
   const detail = page.locator('#archives-overlay .codex-detail');
   await expect(detail).toContainText('呪文：ほとんど効かない');
-  await expect(detail).toContainText('物理：通常通り');
+  await expect(detail).toContainText('物理：やや効きにくい');
   await expectWithinViewport(detail, { width: 390, height: 844 }, 'archives detail');
 
   await page.getByRole('button', { name: '一覧に戻る' }).click();
