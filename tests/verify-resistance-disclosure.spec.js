@@ -95,7 +95,7 @@ for (const viewport of VIEWPORTS) {
     await expect(wisp.locator('[data-resistance-type="magic"]')).toContainText('ほとんど効かない');
     await expect(wisp.locator('[data-resistance-type="physical"]')).toContainText('未判明');
     await expect(golem.locator('[data-resistance-type="magic"]')).toContainText('弱点');
-    await expect(golem.locator('[data-resistance-type="physical"]')).toContainText('ほとんど効かない');
+    await expect(golem.locator('[data-resistance-type="physical"]')).toContainText('効きにくい');
     await expect(slime).not.toContainText('弱点');
     await expect(slime).not.toContainText('効きにくい');
     await expect(slime).toContainText('未判明');
@@ -108,7 +108,7 @@ for (const viewport of VIEWPORTS) {
     });
     await expect(wisp.locator('[data-resistance-type="magic"]')).toContainText('ほとんど効かない');
     await expect(golem.locator('[data-resistance-type="magic"]')).toContainText('弱点');
-    await expect(golem.locator('[data-resistance-type="physical"]')).toContainText('ほとんど効かない');
+    await expect(golem.locator('[data-resistance-type="physical"]')).toContainText('効きにくい');
     await expectWithinViewport(wisp, viewport, 'grayscale wisp target card');
     await expectWithinViewport(golem, viewport, 'grayscale golem target card');
   });
