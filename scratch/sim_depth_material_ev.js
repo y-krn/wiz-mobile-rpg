@@ -4475,7 +4475,7 @@ function getDamageEstimateActionTotals(audit) {
 function getEvDamageEstimate(state) {
   const character = state.party[0];
   const livingMonsters = state.combatState?.monsters?.filter(monster => monster.hp > 0) || [];
-  if (livingMonsters.length === 0) return Math.max(1, getCharWeaponAtk(character));
+  if (livingMonsters.length === 0) return 1;
   const buffAtk = getBuffTotal(character, "atk") + getBuffTotal(character, "str");
   const meleeMod = getMeleeModifiers(character, 0, { state });
   const damage = livingMonsters.reduce((total, monster) => {
