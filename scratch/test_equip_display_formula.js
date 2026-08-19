@@ -233,7 +233,7 @@ const normalAttackState = makeCombatState(
 const normalAttackResult = runFixedRound(normalAttackState, [
   { type: "fight", actorIdx: 0, targetIdx: 0 }
 ]);
-const normalAttackInput = { weaponAtk: 4.5, buffAtk: 0, str: 14, randRoll: 0, def: 6 };
+const normalAttackInput = { weaponAtk: 4.5, buffAtk: 0, str: 14, randRoll: 1, def: 6 };
 check(
   "normal attack damage applies the bounded physical resistance",
   100 - normalAttackResult.state.combatState.monsters[0].hp,

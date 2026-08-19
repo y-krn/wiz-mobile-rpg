@@ -117,6 +117,29 @@ source and is not part of this sweep. For the B5F flame trap,
 The original proposal, “half the fatigue penalty,” was shelved because the fatigue system is not implemented (consider
 adding it as a conditional when implemented).
 
+## Weapon physical variance (#727)
+
+Every `type: "weapon"` entry in `src/data/items.js` defines an inclusive `randRange`
+for physical damage. `src/rules/character_stats.js` is the source of truth for
+resolving the equipped weapon range and for the `[0, 4]` fallback used by bare
+hands or a non-weapon in the weapon slot.
+
+The current fixed ranges are:
+
+- `[2,2]` (fixed): `WAND`, `SAGE_STAFF`, `FIGHTER_SABER`, `HOLY_STAFF`
+- `[1,3]` (narrow): `DAGGER`, `ARCH_WAND`, `SHORT_SWORD`, `RAPIER`, `NINJA_DAGGER`, `NINJA_BLADE`, `SACRED_MACE`, `HOLY_BLADE`
+- `[0,4]` (wide): `VENOM_FANG`, `LONG_SWORD`, `FLAME_SWORD`, `CLAYMORE`, `MOONSHADOW`, `KATANA`, `MACE`, `LEGENDARY_SWORD`, `SEALED_EXCALIBUR`
+
+Each range has mean 2.0, matching the former global 0–4 roll. The change is
+therefore a variance/feel distinction, not an attack-value adjustment. Fixed
+per-weapon data is used instead of an `atk` ratio or implicit weapon category so
+that authored identity remains stable when attack affixes or enhancement change.
+The physical follow-up path uses the same resolver as the main attack; it does
+not have a second random-width rule. The old follow-up roll was `0..2` (mean
+1), while #727 now uses the weapon range (mean 2). This intentional change
+keeps weapon feel consistent between the main attack and follow-up. The #732 physical mitigation expression,
+weapon atk, and spell dice remain unchanged.
+
 # Generation and Acquisition Rules
 
 - Rarity composition: Magic=support1 or core1 (configured by
