@@ -83,6 +83,27 @@ export function getCharAgi(char) {
   return char.agi + bonus + getCharAllStatsAffixBonus(char);
 }
 
+export const PHYSICAL_HIT_CHANCE_MIN = 0.50;
+export const PHYSICAL_HIT_AGI_SCALE = 0.01;
+
+export function getMonsterEvasionChance(monster) {
+  if (!monster?.traits?.includes("evasive")) return 0;
+  const chance = Number(monster.evasionChance ?? 0.3);
+  if (!Number.isFinite(chance)) return 0.3;
+  return Math.max(0, Math.min(0.75, chance));
+}
+
+export function getPhysicalHitChance(char, target) {
+  const evasionChance = getMonsterEvasionChance(target);
+  if (evasionChance <= 0) return 1;
+  const agi = Number(getCharAgi(char));
+  const agiBonus = Number.isFinite(agi)
+    ? (agi - 10) * PHYSICAL_HIT_AGI_SCALE
+    : 0;
+  const chance = 1 - evasionChance + agiBonus;
+  return Math.max(PHYSICAL_HIT_CHANCE_MIN, Math.min(1, chance));
+}
+
 export function getCharLuk(char) {
   if (!char) return 0;
   let bonus = 0;
