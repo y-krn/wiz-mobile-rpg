@@ -268,6 +268,10 @@ const {
   getBuffTotal
 } = await import("../src/combat_logic/status_effects.js");
 const {
+  getEffectiveDef,
+  getMeleeModifiers
+} = await import("../src/combat_logic/damage.js");
+const {
   applyWorkshopToCharacter,
   getDepartureCraftCost,
   getDepartureCraftGrants,
@@ -4469,7 +4473,23 @@ function getDamageEstimateActionTotals(audit) {
 }
 
 function getEvDamageEstimate(state) {
-  return getCharWeaponAtk(state.party[0]) / 1.5;
+  const character = state.party[0];
+  const livingMonsters = state.combatState?.monsters?.filter(monster => monster.hp > 0) || [];
+  if (livingMonsters.length === 0) return Math.max(1, getCharWeaponAtk(character));
+  const buffAtk = getBuffTotal(character, "atk") + getBuffTotal(character, "str");
+  const meleeMod = getMeleeModifiers(character, 0, { state });
+  const damage = livingMonsters.reduce((total, monster) => {
+    const formulaDamage = calculatePhysicalAttackFormula({
+      weaponAtk: getCharWeaponAtk(character),
+      buffAtk,
+      str: getCharStr(character),
+      randRoll: 2,
+      def: getEffectiveDef(monster),
+      meleeMod
+    });
+    return total + Math.max(1, Math.floor(formulaDamage));
+  }, 0) / livingMonsters.length;
+  return Math.max(1, damage);
 }
 
 function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = null) {
