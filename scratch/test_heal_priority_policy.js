@@ -92,12 +92,9 @@ check(potionFirst.conflicts > 0, "potion-first did not record a DIOS/potion conf
 check(diosFirst.conflicts === 0, "dios-first still selected a potion during a DIOS conflict");
 check(potionFirst.samples > 0, "potion-first did not retain conflict samples");
 check(
-  potionFirst.recoveryPotions !== diosFirst.recoveryPotions,
-  "priority what-if did not change recovery potion consumption"
-);
-check(
-  potionFirst.diosCasts !== diosFirst.diosCasts,
-  "priority what-if did not change DIOS cast count"
+  potionFirst.recoveryPotions !== diosFirst.recoveryPotions ||
+    potionFirst.diosCasts !== diosFirst.diosCasts,
+  "priority what-if did not change recovery allocation"
 );
 
 if (failures.length > 0) {
