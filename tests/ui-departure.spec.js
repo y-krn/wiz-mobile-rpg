@@ -290,3 +290,199 @@ test('Departure craft allows empty-handed departure without materials', async ({
   await expect(page.locator('#explore-controls')).toBeVisible();
   expect(await page.evaluate(async () => (await import('/src/state.js')).state.inventory)).toEqual([]);
 });
+
+for (const vp of VIEWPORTS) {
+  test(`Departure rendering recovers after page lifecycle pause on ${vp.name}`, async ({ page }) => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+
+    await page.addInitScript(() => {
+      const nativeRequestAnimationFrame = window.requestAnimationFrame.bind(window);
+      let paused = localStorage.getItem('__issue744PauseAfterReload') === '1';
+      window.__pauseGameAnimation = () => { paused = true; };
+      window.__resumeGameAnimation = () => { paused = false; };
+      window.requestAnimationFrame = (callback) => (
+        paused ? 0 : nativeRequestAnimationFrame(callback)
+      );
+
+      const originalFillText = CanvasRenderingContext2D.prototype.fillText;
+      window.__canvasText = [];
+      CanvasRenderingContext2D.prototype.fillText = function fillText(text, ...args) {
+        if (text === 'CASTLE OF LLYLGAMYN') window.__canvasText.push(text);
+        return originalFillText.call(this, text, ...args);
+      };
+    });
+
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      window.__dungeonSceneDraws = [];
+      for (const [kind, method] of [
+        ['town', 'drawTownBackground'],
+        ['corridor', 'draw3DCorridors'],
+      ]) {
+        const original = dungeonRenderer[method];
+        dungeonRenderer[method] = function recordScene(...args) {
+          window.__dungeonSceneDraws.push({
+            kind,
+            gameState: state.gameState,
+            hasMap: Boolean(state.map),
+            floor: state.floor,
+          });
+          return original.apply(this, args);
+        };
+      }
+      state.metaMaterials = { '獣の牙': 10, '硬い皮': 10 };
+      state.workshop = { ranks: {} };
+      state.unlockedMilestones = [5];
+    });
+    await page.evaluate(() => new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    }));
+
+    await page.evaluate(() => {
+      window.__dungeonSceneDraws = [];
+      window.__canvasText = [];
+      window.__pauseGameAnimation();
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'hidden',
+      });
+      window.dispatchEvent(new Event('pagehide'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    await page.locator('#btn-town-dungeon').click();
+    await page.getByRole('button', { name: /戦士/ }).click();
+    await page.locator('[data-recipe-id="HEAL_POTION"]').click();
+    await page.getByRole('button', { name: /B1Fから開始/ }).click();
+    await expect(page.locator('#explore-controls')).toBeVisible();
+
+    const pausedDeparture = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return { gameState: state.gameState, hasMap: Boolean(state.map), draws: window.__dungeonSceneDraws };
+    });
+    expect(pausedDeparture).toMatchObject({ gameState: 'explore', hasMap: true, draws: [] });
+
+    await page.evaluate(() => {
+      window.__resumeGameAnimation();
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'visible',
+      });
+      window.dispatchEvent(new Event('pageshow'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForFunction(() => (
+      window.__dungeonSceneDraws?.some((draw) => draw.kind === 'corridor')
+    ));
+
+    const firstDeparture = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const visibility = (await import('/src/renderer.js')).dungeonRenderer.getSceneVisibility();
+      return {
+        state: { gameState: state.gameState, hasMap: Boolean(state.map), floor: state.floor },
+        visibility,
+        draws: window.__dungeonSceneDraws,
+        castleTitles: window.__canvasText,
+      };
+    });
+    expect(firstDeparture.state).toEqual({ gameState: 'explore', hasMap: true, floor: 1 });
+    expect(firstDeparture.visibility.showTownBackground).toBe(false);
+    expect(firstDeparture.draws.at(-1)).toMatchObject({ kind: 'corridor', gameState: 'explore', hasMap: true });
+    expect(firstDeparture.draws.some((draw) => draw.kind === 'town')).toBe(false);
+    expect(firstDeparture.castleTitles).toEqual([]);
+
+    await page.evaluate(async () => {
+      (await import('/src/result.js')).triggerRunResult('retreat');
+    });
+    await page.getByRole('button', { name: '街へ戻る' }).click();
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      state.metaMaterials = { '獣の牙': 10, '硬い皮': 10 };
+      state.unlockedMilestones = [5];
+      window.__dungeonSceneDraws = [];
+      window.__canvasText = [];
+    });
+    await page.locator('#btn-town-dungeon').click();
+    await page.getByRole('button', { name: /戦士/ }).click();
+    await page.locator('[data-recipe-id="HEAL_POTION"]').click();
+    await page.getByRole('button', { name: /B5Fから開始/ }).click();
+    await expect(page.locator('#explore-controls')).toBeVisible();
+    await page.waitForFunction(() => (
+      window.__dungeonSceneDraws?.some((draw) => draw.kind === 'corridor')
+    ));
+
+    const secondDeparture = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const visibility = (await import('/src/renderer.js')).dungeonRenderer.getSceneVisibility();
+      return {
+        state: { gameState: state.gameState, hasMap: Boolean(state.map), floor: state.floor },
+        visibility,
+        draws: window.__dungeonSceneDraws,
+        castleTitles: window.__canvasText,
+      };
+    });
+    expect(secondDeparture.state).toEqual({ gameState: 'explore', hasMap: true, floor: 5 });
+    expect(secondDeparture.visibility.showTownBackground).toBe(false);
+    expect(secondDeparture.draws.at(-1)).toMatchObject({ kind: 'corridor', gameState: 'explore', hasMap: true });
+    expect(secondDeparture.draws.some((draw) => draw.kind === 'town')).toBe(false);
+    expect(secondDeparture.castleTitles).toEqual([]);
+
+    await page.evaluate(() => {
+      localStorage.setItem('__issue744PauseAfterReload', '1');
+    });
+    await page.reload();
+    const reloadState = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      window.__reloadCorridorDraws = [];
+      const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
+      dungeonRenderer.draw3DCorridors = function recordReloadCorridorDraw(...args) {
+        window.__reloadCorridorDraws.push({
+          gameState: state.gameState,
+          hasMap: Boolean(state.map),
+          floor: state.floor,
+        });
+        return originalDraw3DCorridors.apply(this, args);
+      };
+      return {
+        gameState: state.gameState,
+        hasMap: Boolean(state.map),
+        floor: state.floor,
+      };
+    });
+    expect(reloadState).toEqual({ gameState: 'explore', hasMap: true, floor: 5 });
+    await page.evaluate(() => {
+      localStorage.removeItem('__issue744PauseAfterReload');
+      window.__resumeGameAnimation();
+      window.dispatchEvent(new Event('pageshow'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForFunction(() => (
+      window.__reloadCorridorDraws?.some((draw) => draw.gameState === 'explore' && draw.hasMap)
+    ));
+    const resumedSave = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const visibility = (await import('/src/renderer.js')).dungeonRenderer.getSceneVisibility();
+      return {
+        state: { gameState: state.gameState, hasMap: Boolean(state.map), floor: state.floor },
+        visibility,
+        corridorDraws: window.__reloadCorridorDraws,
+        castleTitles: window.__canvasText,
+      };
+    });
+    expect(resumedSave.state).toEqual({ gameState: 'explore', hasMap: true, floor: 5 });
+    expect(resumedSave.visibility.showTownBackground).toBe(false);
+    expect(resumedSave.corridorDraws.at(-1)).toMatchObject({ gameState: 'explore', hasMap: true, floor: 5 });
+    expect(resumedSave.castleTitles).toEqual([]);
+    expect(pageErrors).toEqual([]);
+    expect(consoleErrors).toEqual([]);
+  });
+}

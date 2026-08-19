@@ -318,10 +318,16 @@ When reporting checklist use, include:
 - Design specs and implementation plans are working artifacts, not records.
   When the work ships, distill what stays true into `.agents/*.md` and delete
   the spec or plan file. Git history keeps the rest.
-- Raw simulation dumps under `scratch/results/` (`*.raw.txt`, `*.jsonl`,
-  `*.txt`) are not committed. Commit only the summary `.md`, and keep it
-  self-contained: cite the reproducing command, not a raw-dump path. When an
-  Issue closes, `git rm` its `issue-<number>-*` raw dumps.
+- One-off measurement scripts under `scratch/` are deleted when their Issue
+  closes. If an exception is retained, its first-line comment must use the
+  existing `sim-scope:` header and state why it remains. Before using a sim for
+  a measurement Issue, verify that it reaches the current mechanisms: stale
+  sims can return an incorrect value without throwing.
+- Raw tool output under `scratch/results/` (`*.log`, `*.json`, `*.jsonl`,
+  `*.raw.txt`, `*.txt`) is never committed or kept as a durable artifact.
+  Record conclusions and the reproducing command (not a raw-dump path) in the
+  Issue, PR, or `.agents/`; keep only concise `.md` summaries. When an Issue
+  closes, remove its local raw dumps and one-off scripts.
 - Put task-specific, path-specific, or reviewer-specific detail in `.agents/*`
   instead of expanding this file.
 - Avoid conflicting rules, repeated lint/test instructions, and tool-specific

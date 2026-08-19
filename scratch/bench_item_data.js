@@ -1,3 +1,4 @@
+// sim-scope: infra — retained origin-unknown benchmark for manual item-data lookup/render cost checks; no production or test caller.
 import inspector from "node:inspector";
 import { performance } from "node:perf_hooks";
 

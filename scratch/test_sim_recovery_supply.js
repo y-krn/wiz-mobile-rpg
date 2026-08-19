@@ -53,6 +53,7 @@ const smokeResult = simulateRun({
   scoringProfile: smokeProfile,
   scenario: {
     ...smokeScenario,
+    hpBaseBonus: 100,
     chestHealPotionExtraChance: 0.5,
     chestHealPotionReplacementChance: 0.5,
     enemyHealPotionDropChance: 0.5,

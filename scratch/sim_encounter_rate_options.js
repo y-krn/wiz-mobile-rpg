@@ -1,4 +1,4 @@
-// sim-scope: run — generateRunFloor 実生成フロア上で遭遇率ポリシーを比較
+// sim-scope: run — compares encounter-rate policies on generated run floors; retained because origin is unknown and no closed-Issue owner was found.
 import { EVENT_TYPES } from "../src/data.js";
 import { generateRunFloor } from "../src/run_map_generator.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";

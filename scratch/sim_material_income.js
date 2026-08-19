@@ -1,4 +1,4 @@
-// sim-scope: formula
+// sim-scope: formula — calculates expected material income per fight and time by depth; retained because origin is unknown and no closed-Issue owner was found.
 import assert from "node:assert/strict";
 import { WORKSHOP_NODES } from "../src/data/workshop.js";
 import { getDepthMaterialDropChance, getDepthMaterialExpectedQuantity } from "../src/rules/material_rules.js";
