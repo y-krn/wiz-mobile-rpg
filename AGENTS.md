@@ -10,9 +10,11 @@ tool-specific fallback instruction files.
   smallest relevant source and test files, then expand to direct callers.
 - Do not read `dist`, `node_modules`, `test-results`, or `*.log` unless the
   task requires it. Filter large command output at the source.
-- Before starting or resuming work, inspect open Issues and the target Issue.
-  Fetch `origin/main` immediately before creating a branch, resuming a branch,
-  or running a baseline measurement.
+- Before starting or resuming work, the parent session inspects open Issues and
+  the target Issue. The parent should preferably fetch `origin/main` once
+  before delegation, record the resulting base SHA, and pass the Issue/PR
+  information, base SHA, and worktree path to the delegated subagent. This is
+  an optimization, not a blanket prohibition on subagent network operations.
 - Keep local `main` clean and identical to `origin/main`. Never edit or commit
   directly on `main`; use a worktree and a branch named
   `fix/<issue>-<slug>`, `feat/<issue>-<slug>`, or `measure/<issue>-<slug>`.
@@ -26,6 +28,26 @@ tool-specific fallback instruction files.
 - Do not require a hosting-specific CLI in project workflows. Manage Issues,
   pull requests, and reviews through Codex's GitHub integration or the GitHub
   web UI; keep repository instructions independent of a hosting CLI.
+
+## Network and provenance
+
+- The parent session is the approval boundary. It owns Issue/PR inspection and
+  may perform an equivalent network operation in the parent context when
+  needed, such as `git fetch origin main`, with the required approval. A child
+  must not silently retry, bypass approval, or use an alternate route.
+- Delegated subagents should use the provided worktree and local `origin/main`
+  when available. They must verify the provided base SHA, the local ref, and
+  the `origin/main`-to-`HEAD` ancestor relationship. If a network operation is
+  needed to obtain or refresh that state, return an `[APPROVAL_REQUIRED]`
+  request containing the exact command, purpose, target, and required
+  permissions or impact. Do not classify approval waiting alone as `BLOCKED`.
+- The parent either performs the approved equivalent operation in its context
+  or returns the approval result to the child. After receiving approval, the
+  child may execute the original command exactly as approved; alternatively,
+  the parent may perform the equivalent operation. The child then revalidates
+  the SHA, ref, ancestor relationship, and worktree state before resuming.
+  Only an approval refusal or failure to transmit the approval result is
+  `BLOCKED`.
 
 ## Search and repository hygiene
 
@@ -55,12 +77,18 @@ tool-specific fallback instruction files.
 - If Codex native subagents are unavailable, do not implement an alternative
   in the parent session; report the task as BLOCKED. The parent session may
   read, inspect diffs, verify results, and make the final decision.
-- Delegated subagents must leave a concise record on the related GitHub Issue
-  or PR when starting or completing work, covering the purpose, progress or
-  conclusion, changed files, verification results, and unresolved items or
-  risks. The parent session must designate the record target before delegation,
-  create one if none exists, and confirm that the record was left; use Codex's
-  GitHub integration or the GitHub Web UI, not `gh`.
+- Delegated subagents must prepare a complete record payload for the designated
+  GitHub Issue or PR and include it in the final report. The payload covers the
+  purpose, progress or conclusion, changed files, verification results, and
+  unresolved items or risks. The parent session designates the record target,
+  posts the payload through GitHub integration when needed, and confirms the
+  resulting record URL. This recording rule is separate from network-operation
+  approval.
+- If a delegated subagent cannot post the record, it returns the complete
+  payload to the parent; the parent posts it and confirms the URL. The child
+  must not use `gh` or an alternate posting route. Failure to post or confirm
+  the record is reported separately from network approval and prevents final
+  completion until the parent resolves it.
 - If a new game state is not part of the save payload, collapse it to a stable
   screen in `save_payload.js` before saving and add a save/load round-trip
   test.

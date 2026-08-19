@@ -28,9 +28,13 @@ unrelated test failure.
 
 ## Run the measurement
 
-1. State the question, comparison, target metric, and expected decision. Fetch
-   `origin/main` and confirm the measurement worktree descends from it. Never
-   measure from the main worktree.
+1. State the question, comparison, target metric, and expected decision. Use
+   the measurement worktree and base SHA supplied by the parent when available
+   (the SHA is passed as `CODEX_BASE_SHA`). The parent's prefetch of
+   `origin/main` is a recommended optimization, not a blanket prohibition on
+   worker network operations. Confirm that the local `origin/main` resolves to
+   that SHA and that the worktree descends from it. Never measure from the main
+   worktree.
 2. Route from `file-map.md` to the changed source. Select the existing
    simulation whose `sim-scope` and execution path match the question. Verify
    that it uses current source modules and real run mechanisms. Do not replace
@@ -53,6 +57,17 @@ unrelated test failure.
    the stated decision. Separate an unexecuted path, an omitted mechanism, and
    a measured zero. Do not turn a small or non-deterministic difference into a
    balance conclusion.
+
+During skill execution, do not silently retry network operations, bypass an
+approval boundary, or use an alternate route. If a network operation is
+needed, return an `[APPROVAL_REQUIRED]` request containing the exact command,
+purpose, target, and required permissions or impact. The parent may run the
+equivalent operation in its context or return the approval result. After
+receiving approval, the child may execute the original command exactly as
+approved; alternatively, the parent may run the equivalent operation. Afterward,
+revalidate the base SHA, local ref, ancestor relationship, and worktree state
+before resuming. Approval waiting alone is not `BLOCKED`; report `BLOCKED` only
+when approval is refused or the parent cannot transmit the result.
 
 ## Stop before interpreting when
 
