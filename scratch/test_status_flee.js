@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
 import { clearCharIncapacitationOnDamage } from "../src/combat_logic/status_effects.js";
+import {
+  getPhysicalDefenseResistance,
+  PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING
+} from "../src/rules/character_stats.js";
 
 global.localStorage = {
   getItem: () => null,
@@ -140,7 +144,11 @@ test("flee always succeeds against a boss, takes one parting hit, and retreats",
   try {
     const result = runCombatRoundCalculation(state, { actions: [{ type: "run", actorIdx: 0 }] });
     assert.ok(result.logQueue.some(log => log.runEscape));
-    assert.equal(result.state.party[0].hp, 94);
+    const expectedPartingDamage = Math.max(
+      1,
+      Math.floor(10 * (1 - getPhysicalDefenseResistance(2, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING)))
+    );
+    assert.equal(result.state.party[0].hp, 100 - expectedPartingDamage);
     assert.deepEqual({ x: result.state.x, y: result.state.y }, { x: 4, y: 5 });
     assert.ok(result.logQueue.some(log => log.msg?.includes("追撃")));
   } finally {

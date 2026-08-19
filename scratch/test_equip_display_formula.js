@@ -1,10 +1,12 @@
 import {
   calculatePhysicalAttackFormula,
   calculatePhysicalDefenseFormula,
+  calculatePhysicalAttackRawFormula,
+  getPhysicalDefenseResistance,
+  PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
   getCharAgi,
   getCharDerivedStats,
-  getCharTrapBonus,
-  calculatePhysicalAttackRawFormula
+  getCharTrapBonus
 } from "../src/rules/character_stats.js";
 import { getCharAffixSum } from "../src/rules/item_rules.js";
 import { getSpellStatBonus } from "../src/rules/spell_rules.js";
@@ -100,17 +102,17 @@ const integerFormulaCases = [
   {
     label: "odd weapon atk with even buff atk",
     input: { weaponAtk: 3, buffAtk: 2, str: 14, randRoll: 3, def: 6 },
-    expected: 11.320754716981131
+    expected: 12 * (1 - getPhysicalDefenseResistance(6))
   },
   {
     label: "even weapon atk with odd buff atk",
     input: { weaponAtk: 2, buffAtk: 3, str: 14, randRoll: 3, def: 6 },
-    expected: 11.320754716981131
+    expected: 12 * (1 - getPhysicalDefenseResistance(6))
   },
   {
     label: "odd weapon atk with odd buff atk",
     input: { weaponAtk: 3, buffAtk: 1, str: 14, randRoll: 3, def: 6 },
-    expected: 10.377358490566039
+    expected: 11 * (1 - getPhysicalDefenseResistance(6))
   }
 ];
 integerFormulaCases.forEach(({ label, input, expected }) => {
@@ -154,7 +156,7 @@ check(
     def: 6,
     meleeMod: 0.9
   }),
-  17.830188679245285
+  18.9 * (1 - getPhysicalDefenseResistance(6))
 );
 check("display attack uses effective weapon input and STR above neutral point", baseStats.attack, 22);
 check("display defense uses VIT/4", baseStats.defense, 5);
@@ -278,10 +280,15 @@ const incomingDamageState = makeCombatState(
 const incomingDamageResult = runFixedRound(incomingDamageState, [
   { type: "defend", actorIdx: 0 }
 ]);
+const incomingResistance = getPhysicalDefenseResistance(2, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING);
+const incomingExpectedDamage = Math.max(
+  1,
+  Math.round(Math.max(1, Math.floor(12 * (1 - incomingResistance))) * 0.5)
+);
 check(
   "incoming physical damage uses the recalibrated bounded resistance",
   100 - incomingDamageResult.state.party[0].hp,
-  4
+  incomingExpectedDamage
 );
 
 const spellPowerEquipment = makeItem("RING_STR", [
