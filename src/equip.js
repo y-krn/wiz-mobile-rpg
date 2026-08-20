@@ -6,6 +6,7 @@ import {
   getItemData,
   getCharAffixSum,
   getCharDerivedStats,
+  getCharAttackBreakdown,
   getCharStr,
   getCharInt,
   getCharPie,
@@ -366,7 +367,7 @@ function canEquip(char, itemKey, requestedSlot = null) {
   return { ok: true, reason: "", slot };
 }
 
-function createHeader(overlay) {
+function createHeader(overlay, char) {
   const header = document.createElement("div");
   header.className = "equip-header-area";
 
@@ -386,6 +387,19 @@ function createHeader(overlay) {
     <span class="${state.inventory.length >= 20 ? "full" : ""}">バッグ ${state.inventory.length}/20</span>
   `;
   header.appendChild(statusBar);
+
+  const attack = getCharAttackBreakdown(char);
+  const attackBreakdown = document.createElement("div");
+  attackBreakdown.className = "equip-attack-breakdown";
+  attackBreakdown.dataset.testid = "attack-breakdown";
+  attackBreakdown.setAttribute("aria-label", "攻撃力の内訳");
+  attackBreakdown.innerHTML = `
+    <span><small>基礎</small><strong data-attack-base="true">${attack.base}</strong></span>
+    <span><small>装備</small><strong data-attack-equipment="true">${attack.equipment}</strong></span>
+    <span><small>罠喰い</small><strong data-attack-trap-eater="true">+${attack.trapEaterBonus}</strong></span>
+    <span class="total"><small>合計</small><strong data-attack-total="true">${attack.total}</strong></span>
+  `;
+  header.appendChild(attackBreakdown);
   overlay.appendChild(header);
 }
 
@@ -1151,7 +1165,7 @@ export function renderEquip() {
     return;
   }
 
-  createHeader(overlay);
+  createHeader(overlay, char);
 
   const body = document.createElement("div");
   body.className = `equip-body ${detailMode ? "is-detail" : ""}`.trim();

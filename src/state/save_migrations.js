@@ -108,12 +108,10 @@ function backfillAffixMetadata(data) {
   return data;
 }
 
-function backfillRunAffixState(data) {
+function discardTransientRunAffixState(data) {
   [data.party].forEach(characters => {
     characters?.forEach(char => {
-      char.runTrapAttackBonus = Number.isFinite(char.runTrapAttackBonus)
-        ? char.runTrapAttackBonus
-        : 0;
+      delete char.runTrapAttackBonus;
     });
   });
   return data;
@@ -279,7 +277,7 @@ export function normalizeSavePayload(data) {
   normalized.party.forEach(normalizeCharEquipment);
   backfillAffixMetadata(normalized);
   normalized.party.forEach(migrateCharSpells);
-  backfillRunAffixState(normalized);
+  discardTransientRunAffixState(normalized);
   backfillMonsterCriticalEligibility(normalized);
 
   let loadedMaps = data.maps;

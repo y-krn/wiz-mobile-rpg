@@ -191,7 +191,7 @@ export function getPartyFlameTrapWarningAvoidanceChance(party = []) {
 }
 
 export function getCharWeaponAtk(char) {
-  let atk = char.runTrapAttackBonus || 0;
+  let atk = 0;
   const wpId = char.equipment.weapon;
   if (wpId) {
     atk += getEquippedItemData(char, wpId)?.atk || 0;
@@ -207,6 +207,29 @@ export function getCharWeaponAtk(char) {
     });
   }
   return atk;
+}
+
+export function getCharTrapEaterBonus(char) {
+  const params = getCharCoreParams(char, "CORE_TRAP_EATER");
+  if (!params) return 0;
+  const bonus = Number(char?.runTrapAttackBonus) || 0;
+  return Math.max(0, Math.min(params.maxAttack, bonus));
+}
+
+export function getCharAttackBreakdown(char) {
+  const equipment = getCharWeaponAtk(char);
+  const base = Math.max(0, getCharStr(char) - 10);
+  const trapEaterBonus = getCharTrapEaterBonus(char);
+  return {
+    base,
+    equipment,
+    trapEaterBonus,
+    total: calculatePhysicalAttackRawFormula({
+      weaponAtk: equipment,
+      str: getCharStr(char),
+      fixedDamageBonus: trapEaterBonus
+    })
+  };
 }
 
 export function getCharDef(char) {
@@ -279,9 +302,11 @@ export function calculatePhysicalAttackRawFormula({
   buffAtk = 0,
   str = 10,
   randRoll = 0,
-  meleeMod = 1
+  meleeMod = 1,
+  fixedDamageBonus = 0
 } = {}) {
-  return (Math.floor(weaponAtk + buffAtk) + Math.max(0, str - 10) + randRoll) * meleeMod;
+  const attack = (Math.floor(weaponAtk + buffAtk) + Math.max(0, str - 10) + randRoll) * meleeMod;
+  return attack + (Number.isFinite(Number(fixedDamageBonus)) ? Number(fixedDamageBonus) : 0);
 }
 
 export function calculatePhysicalAttackFormula({
@@ -291,14 +316,16 @@ export function calculatePhysicalAttackFormula({
   randRoll = 0,
   def = 0,
   physResist = 0,
-  meleeMod = 1
+  meleeMod = 1,
+  fixedDamageBonus = 0
 } = {}) {
   const rawDamage = calculatePhysicalAttackRawFormula({
     weaponAtk,
     buffAtk,
     str,
     randRoll,
-    meleeMod
+    meleeMod,
+    fixedDamageBonus
   });
   const resistance = combinePhysicalResistances(
     getPhysicalDefenseResistance(def),
@@ -324,15 +351,14 @@ function getEffectiveSpellBonus(stat, affixSum, spellPowerSum) {
 }
 
 export function getCharDerivedStats(char, { floor = 1 } = {}) {
-  const weaponAtk = getCharWeaponAtk(char);
-  const str = getCharStr(char);
+  const attackBreakdown = getCharAttackBreakdown(char);
   const int = getCharInt(char);
   const pie = getCharPie(char);
   const vit = getCharVit(char);
   const trapAffixBonus = Math.round(getCharTrapBonus(char) * 100);
 
   return {
-    attack: calculatePhysicalAttackFormula({ weaponAtk, str }),
+    attack: attackBreakdown.total,
     defense: calculatePhysicalDefenseFormula({ baseDef: getCharDef(char), vit }),
     magic: getEffectiveSpellBonus(
       int,

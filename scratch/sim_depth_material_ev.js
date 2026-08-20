@@ -216,6 +216,7 @@ const {
   getCharTrapBonus,
   getPartyFlameTrapWarningAvoidanceChance,
   calculatePhysicalAttackFormula,
+  getCharTrapEaterBonus,
   getTrapEaterBonusAfterDisarm,
   getCharVit,
   getCharWeaponAtk,
@@ -4515,6 +4516,7 @@ function getEvPhysicalDamageEstimate(state, monster) {
   const meleeMod = getMeleeModifiers(character, 0, { state });
   const formulaDamage = calculatePhysicalAttackFormula({
     weaponAtk: getCharWeaponAtk(character),
+    fixedDamageBonus: getCharTrapEaterBonus(character),
     buffAtk,
     str: getCharStr(character),
     randRoll: 2,
@@ -7032,8 +7034,10 @@ function getClassScoringProfile(scoringProfile, character) {
 
 function getCombatCoreScoreForId(character, scoringProfile, floor, coreId) {
   if (!scoringProfile || !coreId || !COMBAT_CORE_IDS.has(coreId)) return 0;
+  const coreDefinition = CORE_AFFIX_BY_ID.get(coreId);
+  if (coreDefinition?.allowedClasses && !coreDefinition.allowedClasses.includes(character.class)) return 0;
   const classScoringProfile = getClassScoringProfile(scoringProfile, character);
-  const params = CORE_AFFIX_BY_ID.get(coreId).params;
+  const params = coreDefinition.params;
   const offenseScore = getOffenseEquipmentScore(character);
   // 倍率コアは既存攻撃スコア×calibration実測稼働率×実params増分。
   if (coreId === "CORE_LAST_STAND") {
@@ -8227,25 +8231,7 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
     state.currentRun.trapsDisarmed++;
     metrics.trapDisarms++;
     metrics.trapDisarmSuccesses++;
-    const character = state.party[0];
-    const trapEater = getCharCoreParams(character, "CORE_TRAP_EATER");
-    const previousTrapBonus = character.runTrapAttackBonus || 0;
-    if (trapEater && previousTrapBonus < trapEater.maxAttack) {
-      metrics.coreObservations.coreOpportunityCounts.CORE_TRAP_EATER++;
-    }
     recordTrapDisarmObservation(metrics.coreObservations, floor);
-    character.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(
-      character,
-      previousTrapBonus
-    );
-    if (character.runTrapAttackBonus > previousTrapBonus) {
-      recordTrapEaterEffect(
-        metrics.coreObservations,
-        previousTrapBonus,
-        character.runTrapAttackBonus
-      );
-      metrics.coreObservations.coreActivationCounts.CORE_TRAP_EATER++;
-    }
     return { pitfallTriggered: false };
   }
 
@@ -8388,6 +8374,20 @@ function recordTrapEaterEffect(observations, before, after) {
   if (gain > 0) observations.trapEaterAttackGainTotal += gain;
 }
 
+function applyTrapEaterChestDisarmBonus(character, observations) {
+  const trapEater = getCharCoreParams(character, "CORE_TRAP_EATER");
+  const previousTrapBonus = character.runTrapAttackBonus || 0;
+  if (trapEater && previousTrapBonus < trapEater.maxAttack) {
+    observations.coreOpportunityCounts.CORE_TRAP_EATER++;
+  }
+  const nextBonus = getTrapEaterBonusAfterDisarm(character, previousTrapBonus);
+  character.runTrapAttackBonus = nextBonus;
+  if (nextBonus > previousTrapBonus) {
+    recordTrapEaterEffect(observations, previousTrapBonus, nextBonus);
+    observations.coreActivationCounts.CORE_TRAP_EATER++;
+  }
+}
+
 function resolveChestTrapForSimulation(
   state,
   floor,
@@ -8461,6 +8461,7 @@ function resolveChestTrapForSimulation(
     metrics.trapDisarmSuccesses++;
     disarmBlindMetric.attempts++;
     disarmBlindMetric.successes++;
+    applyTrapEaterChestDisarmBonus(character, observations);
     return { mainItemLost: false };
   }
 
@@ -8477,24 +8478,8 @@ function resolveChestTrapForSimulation(
       metrics.chestDisarmSuccessesByFloor[floor]++;
       metrics.trapDisarmSuccesses++;
       disarmBlindMetric.successes++;
-      const previousTrapBonus = character.runTrapAttackBonus || 0;
-      const trapEater = getCharCoreParams(character, "CORE_TRAP_EATER");
-      if (trapEater && previousTrapBonus < trapEater.maxAttack) {
-        observations.coreOpportunityCounts.CORE_TRAP_EATER++;
-      }
       recordTrapDisarmObservation(observations, floor);
-      character.runTrapAttackBonus = getTrapEaterBonusAfterDisarm(
-        character,
-        previousTrapBonus
-      );
-      if (character.runTrapAttackBonus > previousTrapBonus) {
-        recordTrapEaterEffect(
-          observations,
-          previousTrapBonus,
-          character.runTrapAttackBonus
-        );
-        observations.coreActivationCounts.CORE_TRAP_EATER++;
-      }
+      applyTrapEaterChestDisarmBonus(character, observations);
       return { mainItemLost: false };
     }
     disarmBlindMetric.failures++;

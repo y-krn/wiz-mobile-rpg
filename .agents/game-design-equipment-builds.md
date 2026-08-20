@@ -52,7 +52,7 @@ The actual value of each effect parameter is defined by `params` in `src/data/af
 | 必中 | CORE_PHYSICAL_ACCURACY | Physical attacks against evasive targets always hit | Weapon |
 | 血杖 | CORE_BLOOD_WAND | When MP is insufficient, a spell can be cast by paying HP (cost×2) (HP minimum 1) | Weapon |
 | 浄化の環 | CORE_PURIFY_RING | For each undead・spirit・demon kill, recover MP1 when MP is not full, or HP2 when full | Accessory |
-| 罠喰い | CORE_TRAP_EATER | Gain +2 attack per trap disarmed, accumulating during the expedition (cap +20, reset on return) | Accessory |
+| 罠喰い | CORE_TRAP_EATER | Thief / Ranger / Ninja: successful chest-trap disarm grants +2 fixed physical damage during the expedition (cap +20, reset on return) | Accessory |
 | 呪飼いの鎖 | CORE_CURSE_KEEPER | +3 to all stats for each equipped curse | Accessory |
 | 巨人殺し | CORE_GIANT_SLAYER | +30% damage dealt to enemies with higher maxHP than self | Weapon |
 | 守護者殺し | CORE_MILESTONE_BREAKER | +25% damage dealt to milestone bosses | Weapon |

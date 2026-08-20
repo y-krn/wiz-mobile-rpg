@@ -86,7 +86,7 @@ function withSupportDefinition(candidate) {
   };
 }
 
-function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds) {
+function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCores, unlockedAffixIds, party = null) {
   const budget = getAffixBudget(rarity, floor);
   const poolWeights = floor <= AFFIX_BALANCE.corePoolWeights.shallowMaxFloor
     ? AFFIX_BALANCE.corePoolWeights.shallow
@@ -95,6 +95,10 @@ function rollAffixLoadout(supportPool, slot, rarity, floor, rng, source, allowCo
     .filter(affix => affix.enabled
       && affix.slot === slot
       && affix.cost <= budget
+      && (!affix.allowedClasses
+        || !party?.length
+        || !party.some(char => char?.status !== "dead")
+        || party.some(char => char?.status !== "dead" && affix.allowedClasses.includes(char.class)))
       && (
         !WORKSHOP_LOCKED_AFFIX_IDS.has(affix.id) ||
         !Array.isArray(unlockedAffixIds) ||
@@ -356,7 +360,7 @@ export function generateRandomEquipment(floor, options) {
   addAffix(1, "contractReward", () => 10, 2);
   
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds);
+  const affixes = rollAffixLoadout(possibleAffixes, baseItem.type, rarity, floor, rng, "equipment", allowCores, unlockedAffixIds, party);
 
   // #311: コアは誰も装備できないベースに乗ると丸ごと死ぬ。職業ごとの装備制限そのものは
   // 個性として残し、コアが付いたときだけベースを同スロットの装備可能候補へ寄せる。
@@ -535,7 +539,7 @@ export function generateRandomAccessory(floor, options) {
     .filter(Boolean);
 
   const unlockedAffixIds = party?.[0]?.unlockedAffixIds;
-  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds);
+  const affixes = rollAffixLoadout(accessoryAffixPool, "accessory", rarity, floor, rng, "accessory", allowCores, unlockedAffixIds, party);
   const tags = [...(baseItem.tags || [])];
   affixes.forEach(aff => {
     const affixTags = {

@@ -197,6 +197,46 @@
   font-weight: bold;
 }
 
+.equip-attack-breakdown {
+  align-items: stretch;
+  background: rgba(155, 215, 210, 0.05);
+  border: 1px solid rgba(155, 215, 210, 0.25);
+  border-radius: var(--radius-xs);
+  display: grid;
+  gap: var(--sp-xs);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 2px 3px;
+}
+
+.equip-attack-breakdown span {
+  align-items: baseline;
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  justify-content: center;
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.equip-attack-breakdown small {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.1;
+}
+
+.equip-attack-breakdown strong {
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.equip-attack-breakdown .total strong {
+  color: var(--neon-green);
+}
+
 .equip-actor-row {
   flex-shrink: 0;
 }
@@ -858,6 +898,12 @@
 
 @media (max-height: 600px) {
   /* Preserve the bag's two-row minimum and the selected comparison row first. */
+  .equip-header-area {
+    gap: 3px;
+    margin-bottom: 4px;
+    padding-bottom: 3px;
+  }
+
   .equip-detail-col {
     flex-basis: 17%;
   }
