@@ -64,6 +64,36 @@ tool-specific fallback instruction files.
   temporary simulation scripts when their Issue is closed; retain only concise
   conclusions in `.agents/` or the Issue/PR.
 
+## Large Output and Log Handling
+
+- Filter test, build, and log output at the source with `rg`, `head`, or `tail`
+  so only failures or the relevant region are returned, e.g.
+  `npm test 2>&1 | rg 'FAIL|Error'` or `git log --oneline -20`.
+- Use `rg` for repository searches. A `grep` pipeline is reserved for logs when
+  a log-processing tool requires it; do not mix `grep` and `rg` flag syntax.
+- Do not delegate narrow, context-dependent lookups (one function or a few
+  known files); a direct `rg` or ranged read is cheaper than a cold-start
+  sub-agent.
+
+## Search and Reachability Claims
+
+- For claims that code is absent, unused, or unreachable, check dynamic
+  imports, barrel exports, string dispatch, HTML/data-action routes,
+  `window` bindings, `eval`, and `new Function`. For important claims, confirm
+  the production bundle and use a known-live positive control.
+- **Resolve before reasoning.** Finding a call site does not establish which
+  definition it invokes. Resolve identifiers through imports, re-exports,
+  wrappers, compatibility layers, and aliases until the actual definition is
+  identified before reasoning about the call.
+- **Verify runtime-dependent claims.** For claims that depend on runtime state,
+  configuration, generated data, compatibility behavior, or player state, do
+  not rely on static inference alone; execute when feasible and prefer
+  counterfactual checks when causality can be tested. Simple, statically
+  obvious cases need not be run.
+- **Separate possibility from actuality.** Theoretical reachability or an
+  upper-bound reverse calculation is not proof that a value or configuration
+  occurred. Verify reachability and observed state separately.
+
 ## Implementation rules
 
 - The interactive Codex session handles user communication, requirements
