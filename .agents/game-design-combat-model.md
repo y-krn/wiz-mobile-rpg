@@ -50,6 +50,13 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 この更新では決定 2 を Issue #731 の配線変更として実装する。決定 4 のタグ特効は
 #719 で確定済みであり、今回の変更では触れない。
 
+Issue #730 では、非対称 9 の案 A（`magicBolt` 廃止）を採用する。#722 の
+「未文書の職業補償を hidden fallback にしない」という判断と、#731/#722 決定 2 の
+「呪文は装備・run 内ビルドで伸ばす」配線を適用順の前提とする。先に #731 の
+`spellPower` を攻撃・回復呪文へ接続し、その後 #730 で Mage/Bishop の通常攻撃から
+第 2 式と専用 telemetry を除去する。これにより通常攻撃は全職共通の物理式、命中判定、
+最低 1、会心順序だけを通り、呪文の成長は明示された呪文行動と装備ビルドへ残る。
+
 ### Issue #728 PR4: 物理ヒット最低 1、ミス 0
 
 物理攻撃は、命中判定を通ったヒットなら最終的に必ず 1 以上の damage を与える。
@@ -62,8 +69,8 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 は変更しない。
 
 呪文は非対称のままにする。攻撃呪文の minimum と式、`spell_resolution` 経路、
-Mage/Bishop の `magicBolt` fallback（`max(1, ...)`）は維持し、spell 側の affix
-minimum も 1 のままとする。棘反撃やブレス等の PR4 対象外の特殊 damage も変更しない。
+spell 側の affix minimum も 1 のままとする。棘反撃やブレス等の PR4 対象外の特殊
+damage も変更しない。
 
 詰み・長期化への判断根拠は、現行実装の `scratch/sim_depth_material_ev.js` を
 同一 seed/config で base と PR4 の各 N=500、calibration N=100、2反復で比較する。
@@ -158,14 +165,8 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
    を保証する。通常対象の 1.00 は PR1/PR2 とも変わらない。盲目 miss はこの
    別ステージであり、必中 core は PR3 の盲目仕様を変更しない。
 
-2. Mage / Bishop のみ:
-   magicBoltRaw = floor(getCharInt(char) / 3) + floor(random() * 3)
-   magicBolt = max(1, floor(magicBoltRaw * (1 - physicalResistance)))
-   d1 = max(d0, magicBolt)
-   // magicBolt が d0 より大きい時だけ d1 の値を作る
-
-3. 盲目の攻撃者は step 0 で 50% miss 判定を受ける。命中した場合は
-   `d2 = d1` とし、命中時ダメージを半減しない。
+2. 盲目の攻撃者は step 0 で 50% miss 判定を受ける。命中した場合は
+   `d1 = d0` とし、命中時ダメージを半減しない。
 
 4. `defResistance` と `target.physResist` は上の
    `physicalResistance` へ加算済みであり、物理耐性を別乗算しない。
@@ -362,8 +363,8 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | `evasionChance` / `hitChance` / `physicalAccuracy` | `evasive` trait を持つ敵だけが明示的な回避率を持ち、プレイヤー AGI で命中率を補正。`CORE_PHYSICAL_ACCURACY` は +1.00 を加えて上限へ到達させる | `src/data/monsters.js`、`getMonsterEvasionChance`、`getPhysicalHitChance`、`round.js` | 外れる軸を実データへ接続する PR1 と、同じ攻撃者側 stage で回避を打ち消す PR2。通常対象は常に 1.00、盲目は PR3、物理ヒット最低1 / ミス0は PR4 |
 | `defResistance` | `def / (def + k_direction)` の逓減抵抗 | `getPhysicalDefenseResistance` と `getEffectiveDef` | 敵分布（中央値5、p75=8、最大18）を #716 の物理耐性段階へ接続し、有限値では100%に到達しない。`k_direction` は旧式の適用段階差を含めて実遭遇分布で校正する |
 | `meleeMod` | 職業別 map、現行値は全て 1 | `getMeleeModifiers`。derived stats との共有を意図したコメント | 拡張点の存在は source の説明がある。現行の職業差を作る設計根拠はない |
-| `max(1, floor(...))` | #728 PR4後の命中済み物理式出力 clamp | `applyPhysicalResistance` と player/enemy physical caller | 高 DEF でもヒットは1を保証する。盲目 miss / evasive avoid は式へ進まず0、呪文と `magicBolt` も最低1を維持する |
-| `magicBolt` | Mage/Bishop の通常攻撃だけ `max(physical, int/3 + 0..2)` を同じ `physicalResistance` 後に比較 | `round.js` の分岐 | 隠れた第2式は残すが、`def/4` の別減算は廃止し、defとphysResistの表示・実効を共通化する |
+| `max(1, floor(...))` | #728 PR4後の命中済み物理式出力 clamp | `applyPhysicalResistance` と player/enemy physical caller | 高 DEF でもヒットは1を保証する。盲目 miss / evasive avoid は式へ進まず0、呪文も最低1を維持する |
+| `magicBolt` | Mage/Bishop の通常攻撃へ隠れていた第2式 | なし（#730で廃止） | #722 の未文書補償を採用しない判断と、#731/#722 決定2の明示的な呪文成長を適用したため、通常攻撃は共通物理式だけに戻す |
 | 盲目 | 攻撃者側で 50% miss 判定のみ | `.agents/game-design.md` の combat disruption と本 Issue #728 PR3 | 命中時のダメージ補正は行わず、プレイヤー・敵の物理攻撃で同じ treatment policy を使う |
 | `physResist` | `defResistance` と加算し、-1〜0.9へ clamp した最終 poolを一度だけ乗算 | `combinePhysicalResistances` と `getEffectivePhysicalResistance` | #719のタグ特効と同じ加算poolの前例を採用。順序依存の二重乗算を避け、表示は最終poolを段階化する |
 | タグ特効 | 対象タグの `anti<Tag>` と呪文固有寄与を加算し、共通 stage で各攻撃1回 | `getDamageAffixResult`、support affix registry、`SPELLS.BADIOS.intrinsicTagBonus` | 特効という build input は equipment-builds 正本にある。物理・攻撃呪文を同じ stage へ接続し、同じタグの乗算を重ねない |
@@ -493,12 +494,21 @@ Issue 本文の「`buffAtk` は死んでいる」は、現行 base ではその�
 できない。従って #722-6 の非対称は「同じ str が現在二つの live 値で違う」のではなく、
 **将来 str buff が入った時にも同じ実効単位で扱えるよう、入力単位を統一した経路**として記録する。
 
-#### 物理の後段分岐の実測率
+#### 物理の後段分岐の実測率（#730以前の historical evidence）
 
-率の分母は各職の `physicalPlayerHits`。魔法の矢は Mage/Bishop の全通常攻撃、
-会心は最終的に 3 倍になった hit の率である。
+この節の `magicBolt` 列と以下の値は、#730で案Aを採用して廃止する前の
+旧実装を対象にした historical evidence である。旧実装の挙動を記録するために
+残すが、現行仕様の発火率・現行コードの挙動・案Aの受入判定として解釈しない。
+旧記録の率の分母は各職の `physicalPlayerHits`。魔法の矢は旧実装における
+Mage/Bishop の通常攻撃で、会心は最終的に 3 倍になった hit の率である。
 
-| 職 | magic bolt | blind 適用 | phys resist 適用 | critical |
+現行仕様では、#722/#731の明示的な `spellPower` 成長を前提に #730の案Aを
+適用済みであり、`magicBolt` は廃止済みである。Mage/Bishop の通常攻撃も
+他職と同じ物理式・命中判定・最低1・会心順序だけを通る。従って現行の
+`physicalPlayerHits` に `magicBolt` の発火率を記録する列はなく、下表を
+現行コードから再現することはできない。
+
+| 職 | magic bolt（historical） | blind 適用 | phys resist 適用 | critical |
 | --- | ---: | ---: | ---: | ---: |
 | Fighter | 0% | 7.152% | 14.941% | 0% |
 | Thief | 0% | 2.591% | 14.833% | 0% |
@@ -509,8 +519,10 @@ Issue 本文の「`buffAtk` は死んでいる」は、現行 base ではその�
 | Ranger | 0% | 8.088% | 14.786% | 0% |
 | Ninja | 0% | 6.052% | 14.242% | 6.760% |
 
-したがって「魔法の矢は存在する」という経路確認だけでなく、今回の run では
-Mage 1,265 hit の 4.111%、Bishop 16,263 hit の 0.172%で実際に値を採用した。
+このため、旧計測では Mage 1,265 hit の 4.111%、Bishop 16,263 hit の 0.172%で
+旧 `magicBolt` が実際に値を採用したが、これは案Aによる廃止前の historical
+evidence である。現行の存廃判断はこの旧発火率ではなく、#722/#731の明示的な
+呪文成長経路と、#730実装後の正典simで評価する。
 
 #### 呪文の支配項
 
@@ -661,7 +673,7 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 | 6 | raw `atk` / `str` buff を同じ物理入力単位へ変換 | **#720で整理** | `STR_POTION` は実効 `atk +15` として付与する。将来の `str` buff も同じ入力単位で扱い、同じ意味の buff を別単位にしない。 | 決定 5 |
 | 7 | physical は武器ごとの `randRange`、spell は呪文ごとの幅 | **変更した（#727）** | `src/data/items.js` の全 weapon が inclusive な `randRange` を持ち、`rollCharWeaponPhysicalRandom` が本体と追撃へ同じ幅を供給する。狭い `[1,3]` / 固定 `[2,2]` と広い `[0,4]` を使うが、全範囲の平均は 2.0 に揃え、武器 atk・式の他項・spell range は変えない。物理を一律 0–4 として spell と別 identity にするだけでは、同じ atk の武器を区別できないため、#727 でこの判定を覆した。 | 決定 2、#727、分散方針 |
 | 8 | 会心は Ninja の非 boss のみ | **欠陥（未文書化）** | source は `char.class === "Ninja" && !target.isBoss` の呼び出し側分岐だけで、class data と既存設計正本に会心 passive の記録がない。実測 critical は Ninja 6.760%、他 7 職 0%。boss 除外の理由も正本にない。 | 決定 6 |
-| 9 | Mage/Bishop に undocumented `magicBolt` fallback | **欠陥（未文書化の第2式、#732でdef減算は解消）** | fallback自体は残すが、#732で `def/4` の別減算を廃止し、通常物理と同じ `physicalResistance` 後に比較する。ゲーム内 description、`game-design*.md`、class passiveにfallbackの記載がない点は未解決で、職業の主軸をhidden fallbackで補う理由も別途必要。 | 決定 3、職業軸、#732 |
+| 9 | Mage/Bishop に undocumented `magicBolt` fallback | **案A: 廃止（#730で結論）** | #722 は未文書の職業補償を使わないと定め、#731/#722 決定2は呪文を `spellPower` と装備・run 内ビルドで明示的に成長させた。通常攻撃へ隠れた第2式を残す理由はなく、Mage/Bishopも他職と同じ物理式・命中・最低1・会心順序へ戻す。適用順は #731 の呪文成長配線を先に行い、#730 で fallback と専用 telemetry を削除する。 | #722 決定2、#731、#730 |
 | 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **欠陥（方針欠落）** | `getSpellStatBonus` は int30で+40%固定、`calculateDisarmRate` は適性職90 cap。cap の存在は source で確認できるが、超過投資をどう扱うかの共通方針がない。B1–B10分布でも 素手・武器 slot にない装備の既定値は `[0,4]`。忍者を含む follow-up も同じ helper
 を通るため、本体と追撃で幅が分岐しない。旧 follow-up は `0..2`（平均1）だったが、
 #727後は武器幅（全武器平均2）を使う。これは本体と追撃で武器の手触りを一致させる
@@ -692,14 +704,13 @@ telemetry は既存の 4.1 #7 を「変更した」とした理由
 発生しない。`k_direction` は #716 の表示段階だけでなく、変換前後の実遭遇分布に対する
 到達階平均を paired 比較して決める。旧PRの `k=10` は根拠なしとして採用しない。
 
-物理通常攻撃は raw damage の後に最終poolを一度だけ適用し、Mage/Bishopの
-magic-bolt fallbackも同じpoolで比較する。敵→プレイヤーの通常攻撃・逃走追撃も
+物理通常攻撃は raw damage の後に最終poolを一度だけ適用する。敵→プレイヤーの通常攻撃・逃走追撃も
 同じ `defResistance` を使う。プレイヤー側に既存の守りの薬・守護・竜殺しなどの
 割合軽減があるが、それらは物理defとは別の戦闘中 mitigation stage であり、物理defを
 減算のまま残す理由にはしない。#716の表示は内部数値を出さず、適用される最終
 physical resistance poolを5段階へ変換して示す。表示と実効値は同じ
 `getEffectiveDef(monster)`（戦闘中のDEF buff/debuffを含む）を入力にする。呪文と
-`magicBolt` と命中済みの通常物理攻撃は最低1を維持し、盲目 miss / evasive avoid は0とする。
+命中済みの通常物理攻撃は最低1を維持し、盲目 miss / evasive avoid は0とする。
 
 ### 2. 呪文は装備で伸びるべきか
 
@@ -739,8 +750,8 @@ dice と習得 level に閉じると、loot の判断対象から外れる。採
 換える主役ではなく、同じ build の到達感を作る補助軸にする。呪文だけが level
 を要求し、damage power は level に無関係という現在の組み合わせは採用しない。
 level contribution の exact curve と、spell learn level を到達 3.77 帯でどう
-扱うかは #599/#653 の実測で別に決める。`magicBolt` のような hidden fallback
-を level contribution の代わりに残さない。
+扱うかは #599/#653 の実測で別に決める。hidden fallback を level contribution の
+代わりに残さない。
 
 ### 4. 特効は攻撃手段を問わないか
 
@@ -821,9 +832,9 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
 | #599 lv5以上の呪文が到達帯に届かない | 非対称 #2・#3、決定 2・3 | spell growth と level gate を同じ到達分布で再設計する。到達値・習得値の変更は #599。 |
 | #558 Mage `trapGuard=60` が Fighter `40` を上回る | 非対称 #9、決定 3 と職業軸 | 罠 sustain を damage compensation に使わず、職業軸を罠・戦闘・resource に分けて評価する。#558 の passive 値は変更しない。 |
 | #731 攻撃呪文の装備成長 | 非対称 #2、決定 2 | 「術力」`spellPower` を武器・鎧・盾と装身具から供給し、stat 直後の pre-target / pre-clamp に適用する。攻撃・回復の両方へ適用し、`arcane` / `devotion` / `fireRite` は固有項として残す。 |
-| #728 PR4 物理ヒット最低1 / ミス0 | 非対称 #1、決定 1 | 命中判定後の `applyPhysicalResistance` から player→enemy 通常/追撃、enemy→player 通常/逃走追撃へ続く各物理段階を `max(1, ...)` にする。盲目 miss / evasive avoid は式へ進まず0。targeted affix、guard、defend、incoming mitigation、会心の倍率・順序、`magicBolt` と spell minimum は維持し、負値が HP を回復させないことを focused test で確認する。 |
+| #728 PR4 物理ヒット最低1 / ミス0 | 非対称 #1、決定 1 | 命中判定後の `applyPhysicalResistance` から player→enemy 通常/追撃、enemy→player 通常/逃走追撃へ続く各物理段階を `max(1, ...)` にする。盲目 miss / evasive avoid は式へ進まず0。targeted affix、guard、defend、incoming mitigation、会心の倍率・順序、spell minimum は維持し、負値が HP を回復させないことを focused test で確認する。 |
 | #721 monster drop の旧 positional API | 本書の範囲外 | ダメージモデルの判断対象ではない。配下の配線欠陥として記録だけし、コードを変更しない。 |
-| #717 Mage physical が成立しない | 非対称 #1・#2・#3・#9 | #716後の実測で A/B/C を判断する前提を維持する。本書は hidden magicBolt を正当化せず、#717 の値変更は行わない。 |
+| #717 Mage physical が成立しない | 非対称 #1・#2・#3・#9 | #722/#731 の呪文成長を先に適用し、#730で hidden fallback を廃止した。#717の通常攻撃は共通物理式で扱い、値変更は行わない。 |
 
 ### 6.3 満たすべき性質
 

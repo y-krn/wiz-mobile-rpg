@@ -1,6 +1,6 @@
 import {
   MONSTERS,
-  getCharStr, getCharInt, getCharAgi, getCharVit,
+  getCharStr, getCharAgi, getCharVit,
   getPhysicalHitChance, getMonsterEvasionChance,
   getCharWeaponAtk, getCharDef,
   rollCharWeaponPhysicalRandom,
@@ -298,13 +298,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const physicalResistance = getEffectivePhysicalResistance(finalTarget);
           dmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, physicalResistance)));
           const formulaDmg = dmg;
-          let magicBoltUsed = false;
-          if (char.class === "Mage" || char.class === "Bishop") {
-            const magicBoltRaw = Math.floor(getCharInt(char) / 3) + Math.floor(Math.random() * 3);
-            const magicBolt = Math.max(1, Math.floor(applyPhysicalResistance(magicBoltRaw, physicalResistance)));
-            if (magicBolt > dmg) magicBoltUsed = true;
-            dmg = Math.max(dmg, magicBolt);
-          }
 
           const isBlindApplied = char.status === "blind";
 
@@ -329,7 +322,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             weaponAtk, buffAtk, str, randRoll, def, meleeMod,
             defResistance: getPhysicalDefenseResistance(def),
             physicalResistance,
-            formulaRaw, formulaDmg, magicBoltUsed, isBlindApplied,
+            formulaRaw, formulaDmg, isBlindApplied,
             physResistApplied: Boolean(finalTarget.physResist),
             targetEvasionChance: getMonsterEvasionChance(finalTarget),
             hitChance,
