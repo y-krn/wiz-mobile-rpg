@@ -298,7 +298,7 @@ export function generateRandomEquipment(floor, options) {
   }
   const isTreasureSenseEligible = ["LEATHER_ARMOR", "NINJA_SUIT", "DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "SHORT_SWORD", "RAPIER", "BUCKLER", "EXPLORER_CLOAK"].includes(baseId);
   if (isTreasureSenseEligible) {
-    addAffix(3, "treasureSense", () => 8, 1); // +8%
+    addAffix(3, "treasureSense", () => getSupportValueByRarity("treasureSense", rarity), 1);
   }
   const isHearEligible = ["EXPLORER_CLOAK", "NINJA_SUIT", "LEATHER_ARMOR", "BUCKLER"].includes(baseId);
   if (isHearEligible) {

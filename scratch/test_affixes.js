@@ -211,4 +211,11 @@ for (const [generator, floor] of trapBonusValues) {
   }
 }
 
+for (const rarity of ["magic", "rare", "epic"]) {
+  const shallow = findGeneratedAffix(generateRandomEquipment, 3, "treasureSense", 5000, rarity);
+  const deep = findGeneratedAffix(generateRandomEquipment, 5, "treasureSense", 5000, rarity);
+  assert.strictEqual(shallow?.affix.value, getSupportValueByRarity("treasureSense", rarity), `equipment treasureSense ${rarity} value`);
+  assert.strictEqual(deep?.affix.value, shallow?.affix.value, `equipment treasureSense ${rarity} is floor-independent`);
+}
+
 console.log("[PASS] affix registry and budget generation");
