@@ -5,7 +5,8 @@ import {
   SUPPORT_AFFIXES,
   formatAffixText,
   getAffixBudget,
-  getAffixDefinition
+  getAffixDefinition,
+  getSupportValueByRarity
 } from "../src/data/affixes.js";
 import {
   generateRandomAccessory,
@@ -126,36 +127,36 @@ assert.deepStrictEqual(
   "generated physical accuracy core uses the canonical core payload"
 );
 
-function collectGeneratedAffixValues(generator, floor, type, maxSeed = 5000) {
-  const values = new Set();
-  for (let seed = 1; seed <= maxSeed; seed++) {
-    const item = generator(floor, {
-      forceRarity: "epic",
-      rng: lcg(seed),
-      allowCores: false
-    });
-    item.affixes
-      .filter(affix => affix.type === type)
-      .forEach(affix => values.add(affix.value));
+for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
+  assert.strictEqual(findGeneratedAffix(generator, 1, "antiDemon"), null, "antiDemon is unavailable on B1");
+  for (const rarity of ["magic", "rare", "epic"]) {
+    assert.strictEqual(
+      findGeneratedAffix(generator, 2, "antiDemon", 5000, rarity)?.affix.value,
+      getSupportValueByRarity("antiDemon", rarity),
+      `antiDemon ${rarity} uses its rarity value`
+    );
+    assert.strictEqual(
+      findGeneratedAffix(generator, 4, "antiDemon", 5000, rarity)?.affix.value,
+      getSupportValueByRarity("antiDemon", rarity),
+      `antiDemon ${rarity} is floor-independent`
+    );
   }
-  return [...values].sort((a, b) => a - b);
 }
 
-for (const generator of [generateRandomEquipment, generateRandomAccessory]) {
-  assert.strictEqual(
-    findGeneratedAffix(generator, 1, "antiDemon"),
-    null,
-    "antiDemon is unavailable on B1"
-  );
-  assert.strictEqual(
-    findGeneratedAffix(generator, 2, "antiDemon")?.affix.value,
-    15,
-    "antiDemon enters the B2 pool at 15%"
-  );
-  assert.strictEqual(
-    findGeneratedAffix(generator, 4, "antiDemon")?.affix.value,
-    25,
-    "antiDemon scales to 25% on B4"
+for (const rarity of ["magic", "rare", "epic"]) {
+  const antiValues = [
+    findGeneratedAffix(generateRandomEquipment, 3, "antiUndead", 5000, rarity)?.affix.value,
+    findGeneratedAffix(generateRandomAccessory, 4, "antiDragon", 5000, rarity)?.affix.value,
+    findGeneratedAffix(generateRandomEquipment, 2, "antiDemon", 5000, rarity)?.affix.value
+  ];
+  assert.deepStrictEqual(
+    antiValues,
+    [
+      getSupportValueByRarity("antiUndead", rarity),
+      getSupportValueByRarity("antiDragon", rarity),
+      getSupportValueByRarity("antiDemon", rarity)
+    ],
+    `antiUndead/antiDragon/antiDemon share the ${rarity} rule`
   );
 }
 const generatedAntiDemonEquipment = findGeneratedAffix(
@@ -184,9 +185,9 @@ assert.strictEqual(
   "poisonAtk is unavailable before B3, matching the other trigger supports"
 );
 assert.strictEqual(
-  findGeneratedAffix(generateRandomEquipment, 3, "poisonAtk")?.affix.value,
+  findGeneratedAffix(generateRandomEquipment, 3, "poisonAtk", 5000, "magic")?.affix.value,
   8,
-  "poisonAtk enters the B3 pool at 8%"
+  "poisonAtk enters the B3 pool at its magic value"
 );
 assert.strictEqual(
   findGeneratedAffix(generateRandomAccessory, 4, "poisonAtk"),
@@ -194,19 +195,27 @@ assert.strictEqual(
   "poisonAtk does not enter the accessory pool"
 );
 const trapBonusValues = [
-  [generateRandomEquipment, 1, [5, 10]],
-  [generateRandomEquipment, 3, [10, 15]],
-  [generateRandomEquipment, 5, [15, 20]],
-  [generateRandomAccessory, 1, [5, 10]],
-  [generateRandomAccessory, 4, [10, 15]],
-  [generateRandomAccessory, 5, [15]]
+  [generateRandomEquipment, 1],
+  [generateRandomEquipment, 3],
+  [generateRandomEquipment, 5],
+  [generateRandomAccessory, 1],
+  [generateRandomAccessory, 4],
+  [generateRandomAccessory, 5]
 ];
-for (const [generator, floor, expected] of trapBonusValues) {
-  assert.deepStrictEqual(
-    collectGeneratedAffixValues(generator, floor, "trapBonus"),
-    expected,
-    `trapBonus values on B${floor}`
-  );
+for (const [generator, floor] of trapBonusValues) {
+  for (const rarity of ["magic", "rare", "epic"]) {
+    const shallow = findGeneratedAffix(generator, floor, "trapBonus", 5000, rarity);
+    const deep = findGeneratedAffix(generator, 5, "trapBonus", 5000, rarity);
+    assert.strictEqual(shallow?.affix.value, getSupportValueByRarity("trapBonus", rarity), `trapBonus ${rarity} on B${floor}`);
+    assert.strictEqual(deep?.affix.value, shallow?.affix.value, `trapBonus ${rarity} is floor-independent`);
+  }
+}
+
+for (const rarity of ["magic", "rare", "epic"]) {
+  const shallow = findGeneratedAffix(generateRandomEquipment, 3, "treasureSense", 5000, rarity);
+  const deep = findGeneratedAffix(generateRandomEquipment, 5, "treasureSense", 5000, rarity);
+  assert.strictEqual(shallow?.affix.value, getSupportValueByRarity("treasureSense", rarity), `equipment treasureSense ${rarity} value`);
+  assert.strictEqual(deep?.affix.value, shallow?.affix.value, `equipment treasureSense ${rarity} is floor-independent`);
 }
 
 console.log("[PASS] affix registry and budget generation");
