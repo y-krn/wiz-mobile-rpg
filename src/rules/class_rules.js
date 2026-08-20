@@ -1,4 +1,4 @@
-import { CLASS_PASSIVES } from "../data/classes.js";
+import { CLASSES, CLASS_PASSIVES } from "../data/classes.js";
 
 export const MANA_ITEM_CLASSES = Object.freeze([
   "Priest",
@@ -50,4 +50,11 @@ export function getClassPassive(char) {
 
 export function getClassPassiveBonus(char, affixType) {
   return getClassPassive(char).bonuses[affixType] || 0;
+}
+
+export function getClassCriticalChance(char) {
+  const rule = CLASSES[char?.class]?.criticalChance;
+  const level = Number(char?.level);
+  if (!rule || !Number.isFinite(level)) return 0;
+  return Math.min(rule.maxChance, rule.baseChance + rule.perLevel * level);
 }
