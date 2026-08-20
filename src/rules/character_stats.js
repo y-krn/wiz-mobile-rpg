@@ -266,8 +266,8 @@ export function combinePhysicalResistances(...resistances) {
 export function applyPhysicalResistance(rawDamage, resistance = 0) {
   const numericDamage = Number(rawDamage);
   const totalResistance = combinePhysicalResistances(resistance);
-  if (!Number.isFinite(numericDamage)) return 1;
-  return Math.max(1, numericDamage * (1 - totalResistance));
+  if (!Number.isFinite(numericDamage)) return 0;
+  return Math.max(0, numericDamage * (1 - totalResistance));
 }
 
 // Keep the physical formula in one place for combat and static equipment

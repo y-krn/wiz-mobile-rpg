@@ -66,7 +66,10 @@ export function getEffectiveAtk(mon) {
 }
 
 export function applyTargetedDamageBonus(char, target, dmg, options = {}) {
-  const result = getDamageAffixResult(char, target, dmg, options);
+  const result = getDamageAffixResult(char, target, dmg, {
+    ...options,
+    minimumDamage: 0
+  });
   result.coreIds.forEach(coreId => {
     logCoreActivation(options.state, options.logQueue, char, coreId);
   });
@@ -152,6 +155,7 @@ export function tryThornCounter(char, monster, actorIdx, state, logQueue, rng = 
 
 export function reduceIncomingDamage(char, dmg, options = {}) {
   let next = dmg;
+  const minimumDamage = options.allowZeroDamage ? 0 : 1;
   const reductions = [];
   const incomingPenalties = [];
   // #611: 会心・特効・軽減の発動率計装。既定は state.combatFormulaTelemetry
@@ -188,13 +192,13 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
   };
   if (options.spell && char.magicVulnerableTurns > 0) {
     const before = next;
-    next = Math.max(1, Math.round(next * 1.3));
+    next = Math.max(minimumDamage, Math.round(next * 1.3));
     recordMitigation("magicVulnerable", before, next);
   }
   const thinIcePact = getCharCoreParams(char, "CORE_THIN_ICE_PACT");
   if (thinIcePact && char.hp / Math.max(1, char.maxHp) <= thinIcePact.hpThreshold) {
     const before = next;
-    next = Math.max(1, Math.round(next * thinIcePact.incomingDamageMultiplier));
+    next = Math.max(minimumDamage, Math.round(next * thinIcePact.incomingDamageMultiplier));
     if (next > before) incomingPenalties.push("薄氷の誓約");
     recordMitigation("thinIcePact", before, next);
   }
@@ -202,7 +206,7 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
     const guardian = getCharAffixSum(char, "guardian");
     if (guardian > 0) {
       const before = next;
-      next = Math.max(1, Math.round(next * (1 - guardian / 100)));
+      next = Math.max(minimumDamage, Math.round(next * (1 - guardian / 100)));
       if (next < before) reductions.push("守護");
       recordMitigation("guardian", before, next);
     }
@@ -218,7 +222,7 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
     if (resistPct > 0) {
       const before = next;
       const eventId = mitigations?.length;
-      next = Math.max(1, Math.round(next * (1 - resistPct / 100)));
+      next = Math.max(minimumDamage, Math.round(next * (1 - resistPct / 100)));
       if (next < before) {
         if (mabarrierActive && spellGuard > 0) {
           reductions.push("結界と魔除け");
@@ -249,7 +253,7 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
     const physGuard = Math.min(60, getBuffTotal(char, "physGuard"));
     if (physGuard > 0) {
       const before = next;
-      next = Math.max(1, Math.round(next * (1 - physGuard / 100)));
+      next = Math.max(minimumDamage, Math.round(next * (1 - physGuard / 100)));
       if (next < before) reductions.push("守りの薬");
       recordMitigation("physGuard", before, next);
     }
@@ -258,7 +262,7 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
     const dragonGuard = getCharAffixSum(char, "antiDragon");
     if (dragonGuard > 0) {
       const before = next;
-      next = Math.max(1, Math.round(next * (1 - dragonGuard / 100)));
+      next = Math.max(minimumDamage, Math.round(next * (1 - dragonGuard / 100)));
       if (next < before) reductions.push("竜殺し");
       recordMitigation("antiDragon", before, next);
     }
@@ -281,7 +285,7 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
     damageBeforeMitigation: dmg,
     damage: next
   });
-  return next;
+  return Math.max(minimumDamage, next);
 }
 
 export function applyPartyDamage(state, combatSelection, logQueue, sourceName, minDmg, maxDmg, options = {}) {

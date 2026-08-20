@@ -83,10 +83,10 @@ function applyFleePartingAttack(state, monsters, logQueue) {
     finalDef,
     PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING
   );
-  const formulaDmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, defResistance)));
+  const formulaDmg = Math.max(0, Math.floor(applyPhysicalResistance(formulaRaw, defResistance)));
   let dmg = formulaDmg;
   const preMitigationDmg = dmg;
-  dmg = reduceIncomingDamage(target, dmg, { logQueue, state });
+  dmg = reduceIncomingDamage(target, dmg, { allowZeroDamage: true, logQueue, state });
   state.combatFormulaTelemetry?.physicalMonsterHits.push({
     floor: state.floor,
     targetClassName: target.class,
@@ -296,7 +296,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             weaponAtk, buffAtk, str, randRoll, meleeMod
           });
           const physicalResistance = getEffectivePhysicalResistance(finalTarget);
-          dmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, physicalResistance)));
+          dmg = Math.max(0, Math.floor(applyPhysicalResistance(formulaRaw, physicalResistance)));
           const formulaDmg = dmg;
           let magicBoltUsed = false;
           if (char.class === "Mage" || char.class === "Bishop") {
@@ -310,7 +310,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           dmg = applyTargetedDamageBonus(char, finalTarget, dmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
           if (guard?.mon === finalTarget && guard.mon.guard?.damageRate) {
-            dmg = Math.max(1, Math.round(dmg * guard.mon.guard.damageRate));
+            dmg = Math.max(0, Math.round(dmg * guard.mon.guard.damageRate));
           }
 
           let isCritical = false;
@@ -322,7 +322,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               isCritical = true;
             }
           }
-          const finalPhysicalDmg = isCritical ? Math.max(1, dmg * 3) : dmg;
+          const finalPhysicalDmg = isCritical ? Math.max(0, dmg * 3) : dmg;
 
           // #611: 物理攻撃(通常攻撃)式の計装。state.combatFormulaTelemetry
           // が未設定なら no-op（既定オフ）。ここまでの分岐・乱数消費は変更しない。
@@ -342,7 +342,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           });
 
           if (isCritical) {
-            dmg = Math.max(1, dmg * 3);
+            dmg = Math.max(0, dmg * 3);
             finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
             tryApplyHitFlinch(char, finalTarget, logQueue);
             msg = `[味方] 【🗡️急所攻撃！】${char.name}の必殺の一撃！${finalTarget.name}に${dmg}の大ダメージ！`;
@@ -436,7 +436,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 physResist: finalTarget.physResist,
                 meleeMod: 0.7
               });
-              let followUpDmg = Math.max(1, Math.floor(followUpRaw * meleeMod));
+              let followUpDmg = Math.max(0, Math.floor(followUpRaw * meleeMod));
               followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
               finalTarget.hp = Math.max(0, finalTarget.hp - followUpDmg);
               tryApplyHitFlinch(char, finalTarget, logQueue);
@@ -914,15 +914,15 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING
           );
           const formulaRaw = finalAtk;
-          let dmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, defResistance)));
+          let dmg = Math.max(0, Math.floor(applyPhysicalResistance(formulaRaw, defResistance)));
           const formulaDmg = dmg;
-          if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
+          if (isDefending) dmg = Math.max(0, Math.round(dmg * 0.5));
 
           const isBlindTargetApplied = target.status === "blind";
 
           const isMonDragon = mon.spriteType === "dragon" || (mon.tags && mon.tags.includes("dragon"));
           const preMitigationDmg = dmg;
-          dmg = reduceIncomingDamage(target, dmg, { dragon: isMonDragon, logQueue, state });
+          dmg = reduceIncomingDamage(target, dmg, { allowZeroDamage: true, dragon: isMonDragon, logQueue, state });
           // #611: 敵→プレイヤー物理攻撃の計装。既定 no-op。
           state.combatFormulaTelemetry?.physicalMonsterHits.push({
             floor: state.floor,
