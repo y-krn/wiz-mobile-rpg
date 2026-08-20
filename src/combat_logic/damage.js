@@ -281,7 +281,7 @@ export function reduceIncomingDamage(char, dmg, options = {}) {
     damageBeforeMitigation: dmg,
     damage: next
   });
-  return next;
+  return Math.max(1, next);
 }
 
 export function applyPartyDamage(state, combatSelection, logQueue, sourceName, minDmg, maxDmg, options = {}) {
