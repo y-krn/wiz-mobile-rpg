@@ -57,6 +57,8 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
 
     // Gain Stats
     if (char.level % 3 === 0) {
+      // Keep the legacy one-draw RNG contract for each stat-growth event.
+      rng();
       const mainStat = getClassMainStat(char.class);
       char[mainStat] += 1;
     }

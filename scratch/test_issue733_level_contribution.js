@@ -24,6 +24,31 @@ function levelUpTo(character, targetLevel) {
   }
 }
 
+function levelUpToWithRngCount(character, targetLevel, value = 0.999) {
+  let rngCalls = 0;
+  character.exp = 999999;
+  while (character.level < targetLevel) {
+    assert.equal(checkCharLevelUp(character, {
+      rng: () => {
+        rngCalls += 1;
+        return value;
+      }
+    }), true);
+  }
+  return rngCalls;
+}
+
+const fighterRngProbe = createSoloCharacter("Fighter");
+assert.equal(levelUpToWithRngCount(fighterRngProbe, 3), 3,
+  "Fighter Lv1→Lv3 retains HP + one stat-growth RNG draw per level-up");
+assert.equal(fighterRngProbe.str, 16,
+  "Fighter main stat remains deterministic despite the consumed stat-growth RNG draw");
+
+const unknownRngProbe = { ...createSoloCharacter("Fighter"), class: "Unknown" };
+assert.equal(levelUpToWithRngCount(unknownRngProbe, 3), 1,
+  "Unknown class retains one stat-growth RNG draw with no HP-growth draw");
+assert.equal(unknownRngProbe.vit, 15, "Unknown class retains the vit fallback");
+
 for (const [className, mainStat] of Object.entries(EXPECTED_MAIN_STATS)) {
   assert.equal(CLASSES[className].mainStat, mainStat, `${className} canonical main stat`);
   const character = createSoloCharacter(className);
