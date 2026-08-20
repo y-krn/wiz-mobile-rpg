@@ -99,13 +99,7 @@ export function getDamageAffixResult(
   char,
   target,
   damage,
-  {
-    floor = 1,
-    maxHp = char.maxHp,
-    state = null,
-    spellIntrinsicTagBonus = null,
-    minimumDamage = 1
-  } = {}
+  { floor = 1, maxHp = char.maxHp, state = null, spellIntrinsicTagBonus = null } = {}
 ) {
   let next = damage;
   let multiplier = 1;
@@ -185,7 +179,7 @@ export function getDamageAffixResult(
   multiplier *= 1 + supportPercent / 100;
   multiplier *= getMilestoneBossExposureMultiplier(floor, target);
 
-  const resultDamage = Math.max(minimumDamage, Math.round(next * multiplier));
+  const resultDamage = Math.max(1, Math.round(next * multiplier));
   if (targetedBonuses && coreIds.length > 0) {
     recordTargetedBonus("coreAffix", next, resultDamage, { coreIds });
   }

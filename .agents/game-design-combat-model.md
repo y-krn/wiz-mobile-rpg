@@ -50,15 +50,16 @@ Issue #722 の考察成果物。物理攻撃と攻撃呪文の式、適用順、
 この更新では決定 2 を Issue #731 の配線変更として実装する。決定 4 のタグ特効は
 #719 で確定済みであり、今回の変更では触れない。
 
-### Issue #728 PR4: 物理最低値の撤去
+### Issue #728 PR4: 物理ヒット最低 1、ミス 0
 
-物理攻撃の最低 1 は、#728 の最終段で撤去する。`applyPhysicalResistance` の
+物理攻撃は、命中判定を通ったヒットなら最終的に必ず 1 以上の damage を与える。
 物理式出力と、そこから通常攻撃・追撃へ続く targeted affix、guard、会心、defend、
-`reduceIncomingDamage` の各通過値は 0 以上へ clamp し、負の値は生成しない。これにより
+`reduceIncomingDamage` の各段階は 1 未満を 1 へ clamp する。これにより
 高 DEF 相手への player→enemy 通常攻撃・追撃と enemy→player 通常攻撃・逃走追撃は
-0 damage になり得るが、HP の減少も回復も起こさない。変更は最終 damage 出力を
-0 clamp にする stage に限定し、攻撃力、DEF、耐性 pool、乱数、命中/回避、targeted
-affix、guard、defend、incoming mitigation、会心の倍率・順序は変更しない。
+1 damage となり、負の入力が HP を回復させることはない。一方、盲目 miss と evasive
+対象の回避は damage 式へ進まず、damage は 0 のままとする。攻撃力、DEF、耐性 pool、
+乱数、命中/回避、targeted affix、guard、defend、incoming mitigation、会心の倍率・順序
+は変更しない。
 
 呪文は非対称のままにする。攻撃呪文の minimum と式、`spell_resolution` 経路、
 Mage/Bishop の `magicBolt` fallback（`max(1, ...)`）は維持し、spell 側の affix
@@ -142,7 +143,7 @@ attackRaw = (
 ) * melee
 
 formulaRaw = attackRaw
-d0 = max(0, floor(attackRaw * (1 - physicalResistance)))
+d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
 ```
 
 その後の適用順は次のとおり。順序を変えると同じ項でも結果が変わる。
@@ -190,14 +191,14 @@ d0 = max(0, floor(attackRaw * (1 - physicalResistance)))
    deepAssault (B3 以降)、fullHpDamage (満 HP)、antiBeast (beast)、
    antiSpirit (spirit) の合計を 1 個の乗数にする。
    その後 milestone boss exposure を乗算する。
-   物理呼び出しの戻り値は max(0, round(input * multiplier))。呪文呼び出しは
-   既定の max(1, ...) を維持する。
+   物理呼び出しの戻り値は max(1, round(input * multiplier))。呪文呼び出しも
+   既定の max(1, ...) を維持する。命中判定前の miss / avoid はこの stage を通らず 0。
 
-7. 対象が guard 中なら d5 = max(0, round(d4 * guard.damageRate))。
+7. 対象が guard 中なら d5 = max(1, round(d4 * guard.damageRate))。
 
 8. Ninja かつ target.isBoss でない時だけ
    criticalChance = min(0.15, 0.05 + 0.01 * char.level)
-   を作り、当選すれば final = max(0, d5 * 3)。それ以外は final = d5。
+   を作り、当選すれば final = max(1, d5 * 3)。それ以外は final = d5。
 ```
 
 `applyTargetedDamageBonus` は `getDamageAffixResult` を物理へ接続する薄い wrapper
@@ -235,7 +236,7 @@ finalDef = calculatePhysicalDefenseFormula({
 })
 defResistance = finalDef / (finalDef + k_in)
 formulaRaw = finalAtk
-d0 = max(0, floor(finalAtk * (1 - defResistance)))
+d0 = max(1, floor(finalAtk * (1 - defResistance)))
 ```
 
 その後、通常攻撃は `defend` の 0.5 倍、`reduceIncomingDamage`
@@ -243,8 +244,8 @@ d0 = max(0, floor(finalAtk * (1 - defResistance)))
 敵の物理命中ダメージは補正しない。プレイヤー攻撃と同じく、盲目は
 攻撃者側の 50% miss 判定だけで扱う。
 逃走追撃は `d0` から `reduceIncomingDamage` へ進む。PR4後の両経路は各段階を
-0 以上で保持し、最終値 0 は `target.hp = max(0, hp - damage)` により HP を
-減少させず、回復も発生させない。
+最低 1 で保持する。miss / avoid はこの経路に入らず 0 であり、負の入力も最終 damage
+へ渡さないため、`target.hp = max(0, hp - damage)` が HP を回復させることはない。
 
 ### 1.3 攻撃呪文の全文
 
@@ -353,10 +354,10 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | `max(0, str - 10)` | STR 10 を基準にし、10 未満のペナルティを 0 にする | character stats の基礎値と関数の実装 | STR 10 を中立点とし、低 STR 職のペナルティだけを除く。STR 10 超の職差は残す |
 | 負の呪い `atk` | `cursePower` 適用後の raw 値を丸めてから実効単位へ揃える | `getScaledCurseModifier` と `CURSE_EFFECTS` | 旧来の「raw を丸めてから物理式の1.5倍」を、保存値を実効単位にした後も同じ順序で保つ。呪いの閾値判定や他の負項は変更しない |
 | `randRoll` | 武器の `randRange` による一様整数を加算。fallback は `[0,4]` | `getCharWeaponPhysicalRandomRange` / `rollCharWeaponPhysicalRandom` と `round.js` | 武器ごとの手触りを作る #727 の変更。全武器の端点平均は2.0に揃え、平均威力を変えず分散だけ変える。固定データで武器の authored identity を維持する |
-| `evasionChance` / `hitChance` / `physicalAccuracy` | `evasive` trait を持つ敵だけが明示的な回避率を持ち、プレイヤー AGI で命中率を補正。`CORE_PHYSICAL_ACCURACY` は +1.00 を加えて上限へ到達させる | `src/data/monsters.js`、`getMonsterEvasionChance`、`getPhysicalHitChance`、`round.js` | 外れる軸を実データへ接続する PR1 と、同じ攻撃者側 stage で回避を打ち消す PR2。通常対象は常に 1.00、盲目は PR3、物理最低1の撤去は PR4 |
+| `evasionChance` / `hitChance` / `physicalAccuracy` | `evasive` trait を持つ敵だけが明示的な回避率を持ち、プレイヤー AGI で命中率を補正。`CORE_PHYSICAL_ACCURACY` は +1.00 を加えて上限へ到達させる | `src/data/monsters.js`、`getMonsterEvasionChance`、`getPhysicalHitChance`、`round.js` | 外れる軸を実データへ接続する PR1 と、同じ攻撃者側 stage で回避を打ち消す PR2。通常対象は常に 1.00、盲目は PR3、物理ヒット最低1 / ミス0は PR4 |
 | `defResistance` | `def / (def + k_direction)` の逓減抵抗 | `getPhysicalDefenseResistance` と `getEffectiveDef` | 敵分布（中央値5、p75=8、最大18）を #716 の物理耐性段階へ接続し、有限値では100%に到達しない。`k_direction` は旧式の適用段階差を含めて実遭遇分布で校正する |
 | `meleeMod` | 職業別 map、現行値は全て 1 | `getMeleeModifiers`。derived stats との共有を意図したコメント | 拡張点の存在は source の説明がある。現行の職業差を作る設計根拠はない |
-| `max(0, floor(...))` | #728 PR4後の物理式出力 clamp | `applyPhysicalResistance` と player/enemy physical caller | 高 DEF で0を許可する。負値は許可せず、呪文と `magicBolt` は最低1を維持する |
+| `max(1, floor(...))` | #728 PR4後の命中済み物理式出力 clamp | `applyPhysicalResistance` と player/enemy physical caller | 高 DEF でもヒットは1を保証する。盲目 miss / evasive avoid は式へ進まず0、呪文と `magicBolt` も最低1を維持する |
 | `magicBolt` | Mage/Bishop の通常攻撃だけ `max(physical, int/3 + 0..2)` を同じ `physicalResistance` 後に比較 | `round.js` の分岐 | 隠れた第2式は残すが、`def/4` の別減算は廃止し、defとphysResistの表示・実効を共通化する |
 | 盲目 | 攻撃者側で 50% miss 判定のみ | `.agents/game-design.md` の combat disruption と本 Issue #728 PR3 | 命中時のダメージ補正は行わず、プレイヤー・敵の物理攻撃で同じ treatment policy を使う |
 | `physResist` | `defResistance` と加算し、-1〜0.9へ clamp した最終 poolを一度だけ乗算 | `combinePhysicalResistances` と `getEffectivePhysicalResistance` | #719のタグ特効と同じ加算poolの前例を採用。順序依存の二重乗算を避け、表示は最終poolを段階化する |
@@ -693,7 +694,7 @@ magic-bolt fallbackも同じpoolで比較する。敵→プレイヤーの通常
 減算のまま残す理由にはしない。#716の表示は内部数値を出さず、適用される最終
 physical resistance poolを5段階へ変換して示す。表示と実効値は同じ
 `getEffectiveDef(monster)`（戦闘中のDEF buff/debuffを含む）を入力にする。呪文と
-`magicBolt` は最低1を維持し、通常の物理攻撃は #728 PR4 で0を許可する。
+`magicBolt` と命中済みの通常物理攻撃は最低1を維持し、盲目 miss / evasive avoid は0とする。
 
 ### 2. 呪文は装備で伸びるべきか
 
@@ -814,7 +815,7 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
 | #599 lv5以上の呪文が到達帯に届かない | 非対称 #2・#3、決定 2・3 | spell growth と level gate を同じ到達分布で再設計する。到達値・習得値の変更は #599。 |
 | #558 Mage `trapGuard=60` が Fighter `40` を上回る | 非対称 #9、決定 3 と職業軸 | 罠 sustain を damage compensation に使わず、職業軸を罠・戦闘・resource に分けて評価する。#558 の passive 値は変更しない。 |
 | #731 攻撃呪文の装備成長 | 非対称 #2、決定 2 | 「術力」`spellPower` を武器・鎧・盾と装身具から供給し、stat 直後の pre-target / pre-clamp に適用する。攻撃・回復の両方へ適用し、`arcane` / `devotion` / `fireRite` は固有項として残す。 |
-| #728 PR4 物理最低1の撤去 | 非対称 #1、決定 1 | `applyPhysicalResistance` から player→enemy 通常/追撃、enemy→player 通常/逃走追撃へ続く最終出力だけを `max(0, ...)` にする。targeted affix、guard、defend、incoming mitigation、会心の倍率・順序、`magicBolt` と spell minimum は維持し、0 damage が HP を回復させないことを focused test と paired simulation で確認する。 |
+| #728 PR4 物理ヒット最低1 / ミス0 | 非対称 #1、決定 1 | 命中判定後の `applyPhysicalResistance` から player→enemy 通常/追撃、enemy→player 通常/逃走追撃へ続く各物理段階を `max(1, ...)` にする。盲目 miss / evasive avoid は式へ進まず0。targeted affix、guard、defend、incoming mitigation、会心の倍率・順序、`magicBolt` と spell minimum は維持し、負値が HP を回復させないことを focused test で確認する。 |
 | #721 monster drop の旧 positional API | 本書の範囲外 | ダメージモデルの判断対象ではない。配下の配線欠陥として記録だけし、コードを変更しない。 |
 | #717 Mage physical が成立しない | 非対称 #1・#2・#3・#9 | #716後の実測で A/B/C を判断する前提を維持する。本書は hidden magicBolt を正当化せず、#717 の値変更は行わない。 |
 

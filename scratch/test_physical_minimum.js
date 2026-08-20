@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { runCombatRoundCalculation } from "../src/combat_logic.js";
-import { reduceIncomingDamage } from "../src/combat_logic/damage.js";
+import {
+  applyTargetedDamageBonus,
+  reduceIncomingDamage
+} from "../src/combat_logic/damage.js";
 import {
   applyPhysicalResistance,
   getPhysicalDefenseResistance,
@@ -13,11 +16,17 @@ global.localStorage = {
   removeItem: () => {}
 };
 
-function createState({ highPlayerDef = false, highMonsterDef = false, followUp = false, boss = false } = {}) {
+function createState({
+  characterStatus = "ok",
+  className = "Fighter",
+  highPlayerDef = false,
+  highMonsterDef = false,
+  followUp = false
+} = {}) {
   return {
     party: [{
       name: "Tester",
-      class: "Fighter",
+      class: className,
       level: 5,
       hp: 100,
       maxHp: 100,
@@ -29,7 +38,7 @@ function createState({ highPlayerDef = false, highMonsterDef = false, followUp =
       vit: highPlayerDef ? 400000 : 10,
       agi: 100,
       luk: 10,
-      status: "ok",
+      status: characterStatus,
       spells: [],
       equipment: {
         weapon: null,
@@ -51,10 +60,6 @@ function createState({ highPlayerDef = false, highMonsterDef = false, followUp =
         status: highMonsterDef ? "paralyzed" : "ok",
         paralyzeTurns: 2
       }],
-      isBoss: boss,
-      isMidboss: false,
-      isRoamingFlack: false,
-      allParalyzedTurns: 0,
       roundNumber: 1,
       retreatPosition: null,
       phase: "choose_actions"
@@ -89,52 +94,77 @@ function run(state, action, randomValues = [0, 0, 0, 0]) {
   }
 }
 
-// Player normal attack and follow-up may resolve to zero against very high DEF,
-// and zero must leave the target HP unchanged rather than healing it.
-const normalZero = run(
+// Every resolved physical hit keeps the minimum-one rule, including the
+// targeted affix stage, guard, critical output, and follow-up output.
+const normalHit = run(
   createState({ highMonsterDef: true }),
   { type: "fight", actorIdx: 0, targetIdx: 0 }
 );
-assert.equal(normalZero.state.combatState.monsters[0].hp, 1000);
-assert.equal(normalZero.state.combatFormulaTelemetry.physicalPlayerHits[0].damage, 0);
+assert.equal(normalHit.state.combatState.monsters[0].hp, 999);
+assert.equal(normalHit.state.combatFormulaTelemetry.physicalPlayerHits[0].damage, 1);
 
-const followUpZero = run(
+const targetedMinimum = applyTargetedDamageBonus(
+  { class: "Fighter", hp: 10, maxHp: 10, equipment: {} },
+  { name: "Target", hp: 10, maxHp: 10, status: "ok" },
+  0
+);
+assert.equal(targetedMinimum, 1, "targeted physical affix stage keeps a hit at one damage");
+
+const criticalHit = run(
+  createState({ className: "Ninja", highMonsterDef: true }),
+  { type: "fight", actorIdx: 0, targetIdx: 0 }
+);
+assert.equal(criticalHit.state.combatState.monsters[0].hp, 997);
+assert.equal(criticalHit.state.combatFormulaTelemetry.physicalPlayerHits[0].isCritical, true);
+assert.equal(criticalHit.state.combatFormulaTelemetry.physicalPlayerHits[0].damage, 3);
+
+const followUpHit = run(
   createState({ highMonsterDef: true, followUp: true }),
   { type: "fight", actorIdx: 0, targetIdx: 0 }
 );
-assert.equal(followUpZero.state.combatState.monsters[0].hp, 1000);
+assert.equal(followUpHit.state.combatState.monsters[0].hp, 998);
 assert.match(
-  followUpZero.logQueue.map(entry => entry.msg).join("\n"),
-  /追撃.*0のダメージ/
+  followUpHit.logQueue.map(entry => entry.msg).join("\n"),
+  /追撃.*1のダメージ/
 );
 
-// Enemy normal attack and flee parting attack use the same non-negative floor.
-const enemyNormalZeroState = run(
+// Incoming physical mitigation and flee parting attacks also preserve the
+// minimum after very high player defense and defend reduction.
+const enemyNormalHit = run(
   createState({ highPlayerDef: true }),
   { type: "defend", actorIdx: 0 }
 );
-assert.equal(enemyNormalZeroState.state.party[0].hp, 100);
-assert.equal(enemyNormalZeroState.state.combatFormulaTelemetry.physicalMonsterHits.at(-1).finalDmg, 0);
+assert.equal(enemyNormalHit.state.party[0].hp, 99);
+assert.equal(enemyNormalHit.state.combatFormulaTelemetry.physicalMonsterHits.at(-1).finalDmg, 1);
 
-const enemyFleeZeroState = run(
-  createState({ highPlayerDef: true, boss: true }),
+const enemyFleeHit = run(
+  createState({ highPlayerDef: true }),
   { type: "run", actorIdx: 0 }
 );
-assert.equal(enemyFleeZeroState.state.party[0].hp, 100);
-assert.equal(enemyFleeZeroState.state.combatFormulaTelemetry.physicalMonsterHits.at(-1).finalDmg, 0);
+assert.equal(enemyFleeHit.state.party[0].hp, 99);
+assert.equal(enemyFleeHit.state.combatFormulaTelemetry.physicalMonsterHits.at(-1).finalDmg, 1);
 
-// Ordinary positive physical damage remains positive, and the incoming pool is
-// still the calibrated k_in curve for nonzero damage.
-const positive = run(
-  createState(),
-  { type: "fight", actorIdx: 0, targetIdx: 0 }
+// Misses exit before physical damage resolution and still deal zero.
+const blindMiss = run(
+  createState({ characterStatus: "blind", highMonsterDef: true }),
+  { type: "fight", actorIdx: 0, targetIdx: 0 },
+  [0, 0, 0.49]
 );
-assert.ok(1000 - positive.state.combatState.monsters[0].hp > 0);
-assert.ok(applyPhysicalResistance(10, getPhysicalDefenseResistance(10, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING)) > 0);
+assert.equal(blindMiss.state.combatState.monsters[0].hp, 1000);
+assert.equal(blindMiss.state.combatFormulaTelemetry.physicalPlayerHits.length, 0);
+assert.match(blindMiss.logQueue.map(entry => entry.msg).join("\n"), /空振りした/);
+
+// Physical formula and mitigation outputs cannot turn a negative input into
+// healing; the resolved physical path remains non-negative and hit-minimum-1.
 assert.equal(
-  reduceIncomingDamage({ class: "Fighter", hp: 100, maxHp: 100 }, -5, { allowZeroDamage: true }),
-  0,
-  "negative physical output must clamp to zero rather than heal"
+  reduceIncomingDamage({ class: "Fighter", hp: 100, maxHp: 100 }, -5),
+  1,
+  "negative incoming physical damage cannot heal HP"
+);
+assert.equal(
+  applyPhysicalResistance(0, getPhysicalDefenseResistance(100000, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING)),
+  1,
+  "resolved physical resistance keeps a hit at one damage"
 );
 
-console.log("[PASS] Physical minimum-one removal allows zero without HP healing and preserves positive damage.");
+console.log("[PASS] Physical hits resolve to at least one damage and misses remain zero.");

@@ -34,8 +34,8 @@ function run() {
   assert.ok(cappedResistance < 1, "physical resistance never reaches complete immunity");
   assert.equal(combinePhysicalResistances(-2, -0.4), -1, "physical pool lower bound is -1");
   assert.ok(Math.abs(applyPhysicalResistance(100, cappedResistance) - 10) < 1e-9);
-  assert.equal(applyPhysicalResistance(0, cappedResistance), 0, "physical resistance output allows zero");
-  assert.equal(calculatePhysicalAttackFormula({ weaponAtk: 0, str: 10, def: 18 }), 0);
+  assert.equal(applyPhysicalResistance(0, cappedResistance), 1, "resolved physical hits keep minimum 1");
+  assert.equal(calculatePhysicalAttackFormula({ weaponAtk: 0, str: 10, def: 18 }), 1);
   const incomingResistance = getPhysicalDefenseResistance(10, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING);
   assert.equal(
     Math.floor(applyPhysicalResistance(10, incomingResistance)),

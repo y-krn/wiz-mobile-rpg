@@ -81,9 +81,7 @@ function terminalDecision(ns, logQueue) {
   let gotVictory = 0;
   const N = 100;
   for (let i = 0; i < N; i++) {
-    const hero = mkChar("Hero", 100);
-    hero.str = 15;
-    const party = [hero];
+    const party = [mkChar("Hero", 100)];
     const monster = { name: "Slime", hp: 1, maxHp: 1, atk: 0, def: 0, status: "ok", row: "front", exp: 5, gold: 1 };
     const s = baseState(party, [monster]);
     const { logQueue, state: ns } = runCombatRoundCalculation(s, { actions: [{ actorIdx: 0, type: "fight", targetIdx: 0 }] });
