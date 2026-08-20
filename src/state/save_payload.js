@@ -30,12 +30,18 @@ function resolvePersistedGameState() {
 }
 
 export function createSavePayload() {
+  const persistedParty = state.party.slice(0, 1).map(char => {
+    const persistedChar = { ...char };
+    delete persistedChar.runTrapAttackBonus;
+    return persistedChar;
+  });
+
   return {
     version: SAVE_VERSION,
     x: state.x,
     y: state.y,
     dir: state.dir,
-    party: state.party.slice(0, 1),
+    party: persistedParty,
     inventory: state.inventory,
     floor: state.floor,
     maps: state.maps,
@@ -83,7 +89,11 @@ export function applySavePayload(data) {
   state.dir = data.dir;
   state.prevX = data.prevX;
   state.prevY = data.prevY;
-  state.party = data.party.slice(0, 1);
+  state.party = data.party.slice(0, 1).map(char => {
+    const restoredChar = { ...char };
+    delete restoredChar.runTrapAttackBonus;
+    return restoredChar;
+  });
   state.inventory = data.inventory;
   state.seed = data.seed;
   state.floor = data.floor;

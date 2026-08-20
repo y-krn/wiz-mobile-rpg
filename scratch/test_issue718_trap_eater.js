@@ -38,6 +38,8 @@ global.localStorage = global.window.localStorage;
 
 const { state } = await import("../src/state.js");
 const { createDefaultCurrentRun } = await import("../src/state/initial_state.js");
+const { applySavePayload, createSavePayload } = await import("../src/state/save_payload.js");
+const { migrateSavePayload } = await import("../src/state/save_migrations.js");
 const {
   getCharAttackBreakdown,
   getCharTrapEaterBonus,
@@ -183,6 +185,26 @@ await test("fixed bonus matches displayed total and bypasses melee multiplier", 
     fixedDamageBonus: breakdown.trapEaterBonus
   });
   assert.equal(withBonus - without, 6);
+});
+
+await test("save/load does not persist or restore the transient run bonus", () => {
+  const char = makeChar();
+  char.runTrapAttackBonus = 20;
+  prepareState(char);
+
+  const payload = createSavePayload();
+  assert.equal(Object.hasOwn(payload.party[0], "runTrapAttackBonus"), false);
+
+  const restored = migrateSavePayload(JSON.parse(JSON.stringify(payload)));
+  applySavePayload(restored);
+  assert.equal(Object.hasOwn(state.party[0], "runTrapAttackBonus"), false);
+  assert.equal(getCharTrapEaterBonus(state.party[0]), 0);
+
+  const legacyPayload = JSON.parse(JSON.stringify(payload));
+  legacyPayload.party[0].runTrapAttackBonus = 20;
+  applySavePayload(migrateSavePayload(legacyPayload));
+  assert.equal(Object.hasOwn(state.party[0], "runTrapAttackBonus"), false);
+  assert.equal(getCharTrapEaterBonus(state.party[0]), 0);
 });
 
 await test("return resets the transient run bonus", () => {
