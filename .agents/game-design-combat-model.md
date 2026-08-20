@@ -196,9 +196,12 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
 
 7. 対象が guard 中なら d5 = max(1, round(d4 * guard.damageRate))。
 
-8. Ninja かつ target.isBoss でない時だけ
-   criticalChance = min(0.15, 0.05 + 0.01 * char.level)
-   を作り、当選すれば final = max(1, d5 * 3)。それ以外は final = d5。
+8. 対象の `canReceiveCritical` が false でなく、職業データから解決した
+   `criticalChance` が当選した時だけ
+   `final = max(1, d5 * 3)` とする。それ以外は `final = d5`。
+   `criticalChance` は `src/data/classes.js` の職業定義から共通 resolver で取得し、
+   Ninja は `min(0.15, 0.05 + 0.01 * char.level)`、他職は0とする。通常対象の
+   `canReceiveCritical` は true、既存ボスの property は false とし、段1では挙動を変えない。
 ```
 
 `applyTargetedDamageBonus` は `getDamageAffixResult` を物理へ接続する薄い wrapper
@@ -364,7 +367,7 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | タグ特効 | 対象タグの `anti<Tag>` と呪文固有寄与を加算し、共通 stage で各攻撃1回 | `getDamageAffixResult`、support affix registry、`SPELLS.BADIOS.intrinsicTagBonus` | 特効という build input は equipment-builds 正本にある。物理・攻撃呪文を同じ stage へ接続し、同じタグの乗算を重ねない |
 | core / support | core 5 種、条件 support、boss exposure を乗算 | `getDamageAffixResult` と equipment-builds の core/support 方針 | build の rule-changing effect である点は意図。物理と呪文の共通 hook から分けた理由は根拠不明 |
 | guard | targeted bonus の後に `guard.damageRate` | `round.js` | encounter-local guard の軽減であることは source から分かる。順序の設計記録は根拠不明 |
-| Ninja 会心 | guard 後、非 boss のみ、level で確率、×3 | `round.js` | Ninja の class identity として記録された passive は `src/data/classes.js` では確認できない。現状の限定は根拠不明 |
+| 会心 | guard 後、対象 `canReceiveCritical` が有効な時だけ、職業データの確率を level に適用、×3 | `src/data/classes.js`、`getClassCriticalChance`、`round.js`、`src/data/monsters.js` | 全職共通の解決段階。段1ではNinjaの既存確率・level依存・非ボス限定を、class data と target property へ移しただけで挙動を変えない。非Ninjaは確率0 |
 
 ### 2.2 呪文
 
@@ -767,10 +770,11 @@ Ranger 11 / Ninja 12。したがって案(a)で 0 になるのは Priest / Mage 
 ### 6. 会心は職業限定か、全職の機構か
 
 **機構は全職共通、確率は職業データで変えられるものとする。** Ninja の identity
-として高い確率を持つこと自体は別途採用できるが、round caller の Ninja-only
-隠し分岐と boss-only exclusion を設計正本にしない。非 Ninja の確率を 0 にする
-なら、それも class data と player-facing description で明示する。boss 無効化は
-対象 property として明示し、理由を記録する。
+として高い確率を持たせ、他職を0とする段1の値は `src/data/classes.js` に明示する。
+round caller は職業名や `isBoss` を判定せず、共通 resolver と対象の
+`canReceiveCritical` property を使う。既存ボスは property を false とし、段1では
+会心確率・倍率・ボス適用可否を変えない。対象 property は将来の段階で適用可否を
+測定・変更できる拡張点である。
 
 ### 7. 上限をどこに置くか
 

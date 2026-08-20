@@ -114,7 +114,7 @@ const MONSTER_DATA = [
   { name: "マスターメイジ", level: 4, hp: 76, atk: 9, def: 5, exp: 650, spriteType: "mage", spell: "LAHALITO", spellChance: 0.35, magicResist: 0.3, color: "#ff3b30" },
   { name: "ポイズンジャイアント", level: 4, hp: 130, atk: 19, def: 7, exp: 600, spriteType: "zombie", isPoisonous: true, color: "#bf5af2" },
   
-  { name: "デーモンガード", level: 5, hp: 180, atk: 18, def: 8, exp: 2000, spriteType: "flack", spell: "LAHALITO", isBoss: true, isMidboss: true, tags: ["demon"], color: "#ff8c00" },
+  { name: "デーモンガード", level: 5, hp: 180, atk: 18, def: 8, exp: 2000, spriteType: "flack", spell: "LAHALITO", isBoss: true, isMidboss: true, canReceiveCritical: false, tags: ["demon"], color: "#ff8c00" },
   { name: "アースジャイアント", level: 6, hp: 144, atk: 18, def: 10, exp: 1200, spriteType: "zombie", magicResist: -0.25, color: "#8a2be2" },
   { name: "マスターデーモン", level: 7, hp: 140, atk: 16, def: 8, exp: 1400, spriteType: "flack", spell: "MADALTO", spellChance: 0.25, magicResist: 0.3, tags: ["demon"], color: "#ff3b30" },
   
@@ -135,7 +135,7 @@ const MONSTER_DATA = [
   { name: "プリーストデーモン", level: 5, hp: 120, atk: 12, def: 6, exp: 800, spriteType: "flack", spell: "DIALMA", spellChance: 0.3, tags: ["demon"], color: "#34c759" },
   { name: "スケルトンアーチャー", level: 2, hp: 40, atk: 9, def: 3, exp: 150, spriteType: "skeleton", isSniper: true, tags: ["undead"], color: "#af52de" },
   { name: "ダークアサシン", level: 3, hp: 56, atk: 14, def: 4, exp: 350, spriteType: "kobold", traits: ["evasive"], evasionChance: 0.25, isSniper: true, color: "#ff3b30" },
-  { name: "いにしえの竜", level: 8, hp: 640, atk: 26, def: 16, exp: 6000, spriteType: "dragon", spell: "TILTOWAIT", magicResist: 0.25, isBoss: true, tags: ["dragon"], color: "#ff3b30" },
+  { name: "いにしえの竜", level: 8, hp: 640, atk: 26, def: 16, exp: 6000, spriteType: "dragon", spell: "TILTOWAIT", magicResist: 0.25, isBoss: true, canReceiveCritical: false, tags: ["dragon"], color: "#ff3b30" },
 
   // 追加モンスター
   { name: "リビングアーマー", level: 2, hp: 52, atk: 8, def: 10, exp: 260, spriteType: "zombie", magicResist: -0.25, color: "#8e8e93" },
@@ -184,6 +184,7 @@ const MONSTER_DATA = [
 
 export const MONSTERS = MONSTER_DATA.map(monster => ({
   ...monster,
+  canReceiveCritical: monster.canReceiveCritical ?? true,
   role: MONSTER_ROLE_BY_NAME[monster.name]
 }));
 

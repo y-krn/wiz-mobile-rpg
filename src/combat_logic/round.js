@@ -51,7 +51,7 @@ import { resolveBossAction } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
 import { resolvePlayerSpell } from "./spell_resolution.js";
 import { getCharCoreParams, getFollowUpChance, getStatusEffectChance } from "../rules/affix_rules.js";
-import { getClassPassiveBonus } from "../rules/class_rules.js";
+import { getClassCriticalChance, getClassPassiveBonus } from "../rules/class_rules.js";
 
 /**
  * #267: 攻撃呪文を撃てるMPが残る間だけ働く防御。MP枯渇で消えるため
@@ -314,13 +314,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           }
 
           let isCritical = false;
-          const criticalChance = (char.class === "Ninja" && !finalTarget.isBoss)
-            ? Math.min(0.15, 0.05 + 0.01 * char.level)
-            : null;
-          if (criticalChance !== null) {
-            if (Math.random() < criticalChance) {
-              isCritical = true;
-            }
+          const criticalChance = getClassCriticalChance(char);
+          if (finalTarget.canReceiveCritical !== false && criticalChance > 0 && Math.random() < criticalChance) {
+            isCritical = true;
           }
           const finalPhysicalDmg = isCritical ? Math.max(1, dmg * 3) : dmg;
 
