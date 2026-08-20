@@ -315,7 +315,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           let isCritical = false;
           const criticalChance = getClassCriticalChance(char);
-          if (finalTarget.canReceiveCritical !== false && criticalChance > 0 && Math.random() < criticalChance) {
+          const canReceiveCritical = finalTarget.canReceiveCritical !== false;
+          if (canReceiveCritical && criticalChance > 0 && Math.random() < criticalChance) {
             isCritical = true;
           }
           const finalPhysicalDmg = isCritical ? Math.max(1, dmg * 3) : dmg;
@@ -332,7 +333,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             physResistApplied: Boolean(finalTarget.physResist),
             targetEvasionChance: getMonsterEvasionChance(finalTarget),
             hitChance,
-            criticalChance, isCritical,
+            criticalChance: canReceiveCritical && criticalChance > 0 ? criticalChance : null,
+            isCritical,
             preCriticalDmg: dmg,
             damage: finalPhysicalDmg
           });

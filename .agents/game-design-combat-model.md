@@ -202,6 +202,8 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
    `criticalChance` は `src/data/classes.js` の職業定義から共通 resolver で取得し、
    Ninja は `min(0.15, 0.05 + 0.01 * char.level)`、他職は0とする。通常対象の
    `canReceiveCritical` は true、既存ボスの property は false とし、段1では挙動を変えない。
+   `physicalPlayerHits.criticalChance` は #611 の既存 consumer 互換性のため、
+   実際に会心判定可能なヒットだけ数値を記録し、非Ninjaまたは会心不可対象は null とする。
 ```
 
 `applyTargetedDamageBonus` は `getDamageAffixResult` を物理へ接続する薄い wrapper

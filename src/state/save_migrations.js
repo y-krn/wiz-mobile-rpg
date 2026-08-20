@@ -119,6 +119,28 @@ function backfillRunAffixState(data) {
   return data;
 }
 
+function backfillMonsterCriticalEligibility(data) {
+  const monsters = data.combatState?.monsters;
+  if (!Array.isArray(monsters)) return data;
+
+  let changed = false;
+  const normalizedMonsters = monsters.map(monster => {
+    if (!monster || typeof monster !== "object" || typeof monster.canReceiveCritical === "boolean") {
+      return monster;
+    }
+    changed = true;
+    return {
+      ...monster,
+      canReceiveCritical: monster.isBoss === true ? false : true
+    };
+  });
+
+  if (changed) {
+    data.combatState = { ...data.combatState, monsters: normalizedMonsters };
+  }
+  return data;
+}
+
 function backfillMapBlockEnter(data) {
   data.maps?.forEach(map => {
     map?.forEach(row => {
@@ -258,6 +280,7 @@ export function normalizeSavePayload(data) {
   backfillAffixMetadata(normalized);
   normalized.party.forEach(migrateCharSpells);
   backfillRunAffixState(normalized);
+  backfillMonsterCriticalEligibility(normalized);
 
   let loadedMaps = data.maps;
   let needsMigration = false;
