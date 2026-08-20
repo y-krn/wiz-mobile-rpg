@@ -144,7 +144,8 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
    d1 = max(d0, magicBolt)
    // magicBolt が d0 より大きい時だけ d1 の値を作る
 
-3. 盲目なら d2 = max(1, floor(d1 / 2))、それ以外は d2 = d1
+3. 盲目の攻撃者は step 0 で 50% miss 判定を受ける。命中した場合は
+   `d2 = d1` とし、命中時ダメージを半減しない。
 
 4. `defResistance` と `target.physResist` は上の
    `physicalResistance` へ加算済みであり、物理耐性を別乗算しない。
@@ -217,8 +218,10 @@ formulaRaw = finalAtk
 d0 = max(1, floor(finalAtk * (1 - defResistance)))
 ```
 
-その後、通常攻撃は `defend` の 0.5 倍、盲目の 1.5 倍、
-`reduceIncomingDamage`（守りの薬・守護・竜殺しなど）の順に適用する。
+その後、通常攻撃は `defend` の 0.5 倍、`reduceIncomingDamage`
+（守りの薬・守護・竜殺しなど）の順に適用する。対象が盲目でも
+敵の物理命中ダメージは補正しない。プレイヤー攻撃と同じく、盲目は
+攻撃者側の 50% miss 判定だけで扱う。
 逃走追撃は `d0` から `reduceIncomingDamage` へ進む。いずれも物理ダメージの
 最低 1 を維持する。
 
@@ -334,7 +337,7 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 | `meleeMod` | 職業別 map、現行値は全て 1 | `getMeleeModifiers`。derived stats との共有を意図したコメント | 拡張点の存在は source の説明がある。現行の職業差を作る設計根拠はない |
 | `max(1, floor(...))` | 物理式の出力を最低 1 | source の clamp | 物理は最低1を維持する。乗算変更で0が増えるため、#728で変更判断するまで固定する |
 | `magicBolt` | Mage/Bishop の通常攻撃だけ `max(physical, int/3 + 0..2)` を同じ `physicalResistance` 後に比較 | `round.js` の分岐 | 隠れた第2式は残すが、`def/4` の別減算は廃止し、defとphysResistの表示・実効を共通化する |
-| 盲目 | 式の後に `floor(dmg / 2)` | `.agents/game-design.md` が「攻撃 miss と incoming-damage penalty」を明記。具体的な 1/2 は source | 盲目が combat disruption であることは意図。1/2 の係数は code が値の正本 |
+| 盲目 | 攻撃者側で 50% miss 判定のみ | `.agents/game-design.md` の combat disruption と本 Issue #728 PR3 | 命中時のダメージ補正は行わず、プレイヤー・敵の物理攻撃で同じ treatment policy を使う |
 | `physResist` | `defResistance` と加算し、-1〜0.9へ clamp した最終 poolを一度だけ乗算 | `combinePhysicalResistances` と `getEffectivePhysicalResistance` | #719のタグ特効と同じ加算poolの前例を採用。順序依存の二重乗算を避け、表示は最終poolを段階化する |
 | タグ特効 | 対象タグの `anti<Tag>` と呪文固有寄与を加算し、共通 stage で各攻撃1回 | `getDamageAffixResult`、support affix registry、`SPELLS.BADIOS.intrinsicTagBonus` | 特効という build input は equipment-builds 正本にある。物理・攻撃呪文を同じ stage へ接続し、同じタグの乗算を重ねない |
 | core / support | core 5 種、条件 support、boss exposure を乗算 | `getDamageAffixResult` と equipment-builds の core/support 方針 | build の rule-changing effect である点は意図。物理と呪文の共通 hook から分けた理由は根拠不明 |
@@ -766,8 +769,9 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
   は許容しない。
 - `game-design-core-loop.md` の Combat 節は、ソロ戦闘、職業の役割、heavy damage と
   resistance build の関係を定める。式の詳細と順序は本書へ委譲する。
-- `game-design.md` の blind は combat disruption であり、盲目の incoming damage
-  penalty は意図として維持する。本書はその 1/2 の実行順を記録する。
+- `game-design.md` の blind は combat disruption であり、物理攻撃者の 50% miss
+  を維持する。#728 PR3 で命中時の半減・1.5倍という二重罰を廃止し、
+  プレイヤー・敵の物理攻撃を同じ treatment policy に揃える。
 - `game-design.md` の Mage `trapGuard=60` / Fighter `trapGuard=40` は罠 sustain
   の正本であり、damage power と同じ単位ではない。#558 の職業主軸は、罠・戦闘・
   resource を別軸で評価することで本書の hidden damage fallback と分離する。
