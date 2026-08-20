@@ -1,12 +1,12 @@
 export const CLASSES = {
-  Fighter: { name: "Fighter", jpName: "戦士", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
-  Thief: { name: "Thief", jpName: "盗賊", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
-  Priest: { name: "Priest", jpName: "僧侶", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
-  Mage: { name: "Mage", jpName: "魔術師", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
-  Samurai: { name: "Samurai", jpName: "侍", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
-  Bishop: { name: "Bishop", jpName: "司祭", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
-  Ranger: { name: "Ranger", jpName: "野伏", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
-  Ninja: { name: "Ninja", jpName: "忍者", criticalChance: { baseChance: 0.05, perLevel: 0.01, maxChance: 0.15 } }
+  Fighter: { name: "Fighter", jpName: "戦士", mainStat: "str", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
+  Thief: { name: "Thief", jpName: "盗賊", mainStat: "agi", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
+  Priest: { name: "Priest", jpName: "僧侶", mainStat: "pie", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
+  Mage: { name: "Mage", jpName: "魔術師", mainStat: "int", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
+  Samurai: { name: "Samurai", jpName: "侍", mainStat: "str", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
+  Bishop: { name: "Bishop", jpName: "司祭", mainStat: "int", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
+  Ranger: { name: "Ranger", jpName: "野伏", mainStat: "agi", criticalChance: { baseChance: 0, perLevel: 0, maxChance: 0 } },
+  Ninja: { name: "Ninja", jpName: "忍者", mainStat: "agi", criticalChance: { baseChance: 0.05, perLevel: 0.01, maxChance: 0.15 } }
 };
 
 export const ELITE_CLASSES = ["Samurai", "Bishop", "Ranger", "Ninja"];

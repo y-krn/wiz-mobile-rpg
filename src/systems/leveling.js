@@ -1,5 +1,5 @@
 import { EXP_LEVELS } from "../data/progression.js";
-import { rollInclusive, pickClassGrowthStat } from "../rules/leveling.js";
+import { getClassMainStat, rollInclusive } from "../rules/leveling.js";
 import { getCharMaxHp, getCharMaxMp } from "../rules/character_stats.js";
 
 export function checkCharLevelUp(char, { rng = Math.random } = {}) {
@@ -57,8 +57,8 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
 
     // Gain Stats
     if (char.level % 3 === 0) {
-      const stat = pickClassGrowthStat(char.class, rng);
-      char[stat] += 1;
+      const mainStat = getClassMainStat(char.class);
+      char[mainStat] += 1;
     }
 
     // Learn spells
