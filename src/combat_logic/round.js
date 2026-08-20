@@ -307,9 +307,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           }
 
           const isBlindApplied = char.status === "blind";
-          if (char.status === "blind") {
-            dmg = Math.max(1, Math.floor(dmg / 2));
-          }
 
           dmg = applyTargetedDamageBonus(char, finalTarget, dmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
           if (guard?.mon === finalTarget && guard.mon.guard?.damageRate) {
@@ -921,11 +918,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const formulaDmg = dmg;
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
 
-          // Blind target receives 1.5x damage
           const isBlindTargetApplied = target.status === "blind";
-          if (target.status === "blind") {
-            dmg = Math.max(1, Math.round(dmg * 1.5));
-          }
 
           const isMonDragon = mon.spriteType === "dragon" || (mon.tags && mon.tags.includes("dragon"));
           const preMitigationDmg = dmg;
