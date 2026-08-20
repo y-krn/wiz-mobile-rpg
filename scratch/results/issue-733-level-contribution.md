@@ -1,84 +1,59 @@
 # Issue #733 level contribution measurement
 
-## Decision and scope
+## Scope and provenance
 
-Level-up stat growth now gives the canonical class main stat `+1` at levels 3,
-6, 9, ... . No direct `level` term was added to a damage or spell expression.
-Initial stats, EXP thresholds, HP/MP growth, spell learning, `spellPower`,
-Ninja bare-hand `weaponAtk`, and Ninja critical chance were not changed.
+The level-up rule gives the canonical class main stat `+1` at levels 3, 6, 9,
+... while preserving exactly one `rng()` consumption for each stat-growth
+event. Unknown classes retain the legacy `vit` fallback and the same one-draw
+consumption. The simulation uses the real `scratch/sim_depth_material_ev.js`
+run path, including source level-up rewards, combat, equipment, status-cure EV,
+retreat, death, and material accounting.
 
-The depth measurement uses the real `scratch/sim_depth_material_ev.js`
-run-scope path, including source level-up rewards, combat, equipment, status
-cure EV, retreat, death, and material accounting. It omits no mechanism newly
-needed by this change; UI/browser paths are outside scope. Default scenario
-means the runner's default scenario set; the tables below identify its first
-and baseline scenario explicitly as `workshop-empty` (`工房空`).
-
-## Provenance and reproduction
-
-- Base source SHA: `b833750b4fa071579fe6373303582105b6e9c757`
-- After source SHA: `9ff5618350a28a4e789fd55767ccef799e9922ae`
+- Base SHA: `b833750b4fa071579fe6373303582105b6e9c757`
+- Fixed SHA: `9a091b75f7874438f49bfd839cbdc9b34aef1a83`
 - Runner: `scratch/sim_depth_material_ev.js`, Node `v26.7.0`
-- Configuration: `SIM_SEED=231`, `SIM_RUNS=500`, `SIM_CALIBRATION_RUNS=100`,
-  `SIM_PARALLEL` unset, `STATUS_CURE_POLICY=ev`; all other environment values
-  were runner defaults.
-- Smoke: `N=1` (`SIM_RUNS=1 SIM_CALIBRATION_RUNS=1`) passed after source and
-  after commit; node checks passed for the changed modules and runner.
+- Configuration: `SIM_SEED=231 SIM_RUNS=500 SIM_CALIBRATION_RUNS=100`,
+  `SIM_PARALLEL` unset, `STATUS_CURE_POLICY=ev`; all other values are runner
+  defaults, including the default seven scenarios.
+- Smoke: base and fixed `N=1` runs passed.
+- Full runs: each source/configuration was run twice; all four runs exited 0.
+- Denominator: every scenario × target-depth cell is `N=500`; the four
+  round-robin class cells are `N=125` each.
 
-Exact full-run commands:
+Exact reproduction command:
 
 ```text
-env -u SIM_PARALLEL SIM_SEED=231 SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 STATUS_CURE_POLICY=ev SIM_RESULT_BASENAME=issue-733-before node scratch/sim_depth_material_ev.js
-env -u SIM_PARALLEL SIM_SEED=231 SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 STATUS_CURE_POLICY=ev SIM_RESULT_BASENAME=issue-733-after-committed node scratch/sim_depth_material_ev.js
+env -u SIM_PARALLEL SIM_SEED=231 SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 STATUS_CURE_POLICY=ev node scratch/sim_depth_material_ev.js
 ```
 
-Each command was run twice. Exact raw stdout SHA-256:
+Exact raw stdout SHA-256:
 
 | case | run 1 | run 2 | deterministic |
 | --- | --- | --- | --- |
-| before | `d48b4a8da3e7ffa699d1d99d253877dc8bf3c3eec7d7cc962714c2351da0476f` | same | yes |
-| after | `62285d524cf9570c3685378ba9c972aa602ee2bc9609163760399776bb7cfe4d` | same | yes |
+| base | `d48b4a8da3e7ffa699d1d99d253877dc8bf3c3eec7d7cc962714c2351da0476f` | same | yes |
+| fixed | `70a60cd027c14e241e7dc1c86d04425aa8d1c536004c76c9bd540493a109bc55` | same | yes |
 
-The exact `MP_SCARCITY_JSON=` payload line SHA-256 is:
+The exact `MP_SCARCITY_JSON=` line SHA-256 is `a25f03acb5b8cad6598cfb7ade7f9a9157435e1acf829358f0f681c7020996d1`
+for base and `d2e396e3a6aef46aa32eb5daafecc45e056737730f50e2712c85697fb4c648d9`
+for fixed. Raw stdout remains outside the repository under `/private/tmp`.
 
-- before: `a25f03acb5b8cad6598cfb7ade7f9a9157435e1acf829358f0f681c7020996d1`
-- after: `7e538fa56bfb67dcdd6349606c1095be0eda14f30113e6c625a21a7a08f01703`
+## Default seven-scenario reached-floor series
 
-Raw stdout and payload files remain outside the repository under `/private/tmp`.
+Values are mean reached floor at each retreat target. Each cell is `base /
+fixed`, with `N=500`.
 
-## Default `workshop-empty` depth series
+| scenario | B5 | B10 | B15 | B20 |
+| --- | ---: | ---: | ---: | ---: |
+| workshop-empty | 2.67 / 2.67 | 2.72 / 2.73 | 2.82 / 2.88 | 2.93 / 2.91 |
+| workshop-stats | 2.95 / 2.95 | 3.20 / 3.18 | 3.25 / 3.23 | 3.28 / 3.30 |
+| workshop-gear | 3.15 / 3.15 | 3.57 / 3.56 | 3.73 / 3.71 | 3.87 / 3.90 |
+| workshop-blood-wand | 3.16 / 3.17 | 3.62 / 3.70 | 3.76 / 3.71 | 4.14 / 4.06 |
+| workshop-blood-wand-spells | 3.20 / 3.22 | 3.78 / 3.78 | 4.02 / 3.98 | 4.42 / 4.33 |
+| workshop-core-pools | 3.15 / 3.17 | 3.67 / 3.69 | 3.73 / 3.72 | 4.31 / 4.35 |
+| workshop-complete | 3.38 / 3.39 | 4.00 / 4.00 | 4.36 / 4.44 | 4.69 / 4.50 |
 
-`平均到達階` is the mean over all runs, denominator `N=500` for every row.
-
-| retreat target | before mean reached floor | after mean reached floor | delta |
-| --- | ---: | ---: | ---: |
-| B5 | 2.67 | 2.64 | -0.03 |
-| B10 | 2.72 | 2.71 | -0.01 |
-| B15 | 2.82 | 2.88 | +0.06 |
-| B20 | 2.93 | 2.81 | -0.12 |
-
-At the B20 endpoint, the class rows also use all runs for their reached-floor
-mean (`N=125` per class; `N=500` in aggregate):
-
-| class | before | after | delta |
-| --- | ---: | ---: | ---: |
-| Fighter | 2.30 | 2.26 | -0.04 |
-| Thief | 4.53 | 4.34 | -0.19 |
-| Priest | 2.03 | 2.04 | +0.01 |
-| Mage | 2.87 | 2.61 | -0.26 |
-
-## B5/B10 gate denominators at B20 endpoint
-
-`entrant` uses the full-run denominator `N=500`. Conditional breakthrough,
-death, and retreat rates use only entrants to that floor, whose denominators
-are shown separately.
-
-| case | floor | entrant | entrant count / 500 | conditional denominator | breakthrough | death | retreat |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| before | B5 | 21.8% | 109/500 | 109 | 14.7% | 68.8% | 16.5% |
-| before | B10 | 2.0% | 10/500 | 10 | 90.0% | 0.0% | 10.0% |
-| after | B5 | 21.6% | 108/500 | 108 | 10.2% | 79.6% | 10.2% |
-| after | B10 | 1.2% | 6/500 | 6 | 83.3% | 16.7% | 0.0% |
-
-The B5/B10 conditional cells are marked uncertain by the runner at these small
-entrant counts; they are not interpreted as a balance acceptance criterion.
+The RNG compatibility fix intentionally preserves the sequence of subsequent
+random choices; the remaining level-growth difference is the deterministic
+canonical main-stat increment itself. The simulation is a paired progression
+measurement, not a balance acceptance claim for small conditional entrant
+subsets.
