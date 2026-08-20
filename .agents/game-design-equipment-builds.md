@@ -104,16 +104,62 @@ and triggering its curse is intended behavior (the risk of this core).
 だけで決まる。`arcane` は攻撃呪文、`devotion` は回復呪文の固有 support として術力の
 上に重なる。floor は供給 pool の境界であって、術力値の scaling source ではない。
 
+### Rarity-driven support values (#723)
+
+Generated support values are determined by the item's `magic` / `rare` / `epic`
+rarity, not by the floor where the item was found. The source of truth is
+`AFFIX_BALANCE.supportValuesByRarity` in `src/data/affixes.js`; the generator's
+floor checks only control pool availability and weighting. The three tiers keep
+quality visible in the item rarity and allow value progression to continue as
+rare/epic supply becomes more common beyond the old B5 value plateau. Values
+use the former shallow/deep levels as anchors, with an explicit middle tier;
+small integer values use the nearest useful integer rather than fractional UI
+values.
+
+| support group | magic | rare | epic |
+| --- | ---: | ---: | ---: |
+| atk / def | 1.5 / 1 | 4.5 / 2 | 9 / 4 |
+| hp / mp | 3 / 1 | 6 / 2 | 9 / 4 |
+| str / int / pie / vit / agi / luk | 1 | 2 | 3 |
+| trapBonus | 5% | 10% | 15% |
+| spellGuard | 10% | 15% | 20% |
+| antiUndead / antiDragon / antiDemon | 15% | 20% | 25% |
+| poisonWard | 20% | 35% | 50% |
+| treasureSense | 5% | 7% | 8% |
+| hearRange / arcaneSense / traceRead | 1 | 2 | 3 |
+| deepAssault | 10% | 12% | 15% |
+| frontGuard / firstStrikeDefense | 2 | 3 | 4 |
+| rearEvasion | 6% | 8% | 10% |
+| fullHpDamage | 10% | 12% | 15% |
+| firstTurnAttack | 3 | 4 | 6 |
+| firstStrike | 5% | 8% | 10% |
+| antiBeast / antiSpirit | 15% | 20% | 25% |
+| spellAccuracy / hitFlinch | 10% | 12% | 15% |
+| poisonAtk | 8% | 10% | 12% |
+| lastSurvivorStats | 2 | 3 | 3 |
+| statusResistance | 12% | 16% | 20% |
+| stairsHeal | 2 | 3 | 4 |
+
+The three anti-* supports intentionally share one 15/20/25 rule; their
+different enemy tags and floor gates remain their only generation differences.
+
 `trapBonus` is the single support affix for floor/chest-trap disarm and the B5F
-flame-trap avoidance roll. Its generation preserves the former aggregate
-weight/value distribution: equipment has a weight-2 branch at 10/15/20%
-(B1-2/B3-4/B5+) and a weight-1 branch at 5/10/15% (B1-2/B3-4/B5+);
-accessories have a weight-2 branch at 10/15% (B1-3/B4+) and a weight-1 branch
-at 5/10/15% (B1-2/B3-4/B5+). Both branches use the same affix ID and cannot
-appear twice on one item. The source of truth is
-`src/systems/equipment_generation.js`; the fixed `THIEF_EYE` accessory is a separate
-source and is not part of this sweep. For the B5F flame trap,
-`src/rules/character_stats.js` is the source of truth for the conversion and cap.
+flame-trap avoidance roll. Each equipment generator now has one trapBonus
+entry with weight 3, the combined weight of the former duplicate branches;
+the old branch-specific floor values are replaced by the common rarity values
+above. This removes ambiguous duplicate generation while retaining the
+intended high-priority trap-support weight. The fixed `THIEF_EYE` accessory is
+a separate source and is not part of this sweep. For the B5F flame trap,
+`src/rules/character_stats.js` is the source of truth for conversion and cap.
+
+All existing floor availability gates are intentionally kept. A gate such as
+`minFloor` or `weight: floor >= N ? x : 0` answers “when may this support enter
+the pool?”, not “how strong is the rolled support?”. Keeping these gates stops
+late conditional/utility effects from diluting shallow pools and preserves
+the authored discovery order; rarity now supplies the quality axis instead of
+duplicating that ordering in the value. The fixed equipment base candidate
+tables still reuse the B5 table for deeper floors; extending those tables is
+separate scope for a future issue.
 
 The original proposal, “half the fatigue penalty,” was shelved because the fatigue system is not implemented (consider
 adding it as a conditional when implemented).

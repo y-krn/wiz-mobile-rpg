@@ -57,6 +57,46 @@ export const AFFIX_BALANCE = {
     rare: 15,
     epic: 20
   },
+  // Support values are quality-driven.  The generator may still use floor to
+  // decide whether a support can enter a pool, but a generated item's value
+  // is determined only by its rarity.
+  supportValuesByRarity: {
+    atk: { magic: 1.5, rare: 4.5, epic: 9 },
+    def: { magic: 1, rare: 2, epic: 4 },
+    hp: { magic: 3, rare: 6, epic: 9 },
+    mp: { magic: 1, rare: 2, epic: 4 },
+    str: { magic: 1, rare: 2, epic: 3 },
+    int: { magic: 1, rare: 2, epic: 3 },
+    pie: { magic: 1, rare: 2, epic: 3 },
+    vit: { magic: 1, rare: 2, epic: 3 },
+    agi: { magic: 1, rare: 2, epic: 3 },
+    luk: { magic: 1, rare: 2, epic: 3 },
+    trapBonus: { magic: 5, rare: 10, epic: 15 },
+    spellGuard: { magic: 10, rare: 15, epic: 20 },
+    antiUndead: { magic: 15, rare: 20, epic: 25 },
+    antiDragon: { magic: 15, rare: 20, epic: 25 },
+    antiDemon: { magic: 15, rare: 20, epic: 25 },
+    poisonWard: { magic: 20, rare: 35, epic: 50 },
+    treasureSense: { magic: 5, rare: 7, epic: 8 },
+    hearRange: { magic: 1, rare: 2, epic: 3 },
+    arcaneSense: { magic: 1, rare: 2, epic: 3 },
+    traceRead: { magic: 1, rare: 2, epic: 3 },
+    deepAssault: { magic: 10, rare: 12, epic: 15 },
+    frontGuard: { magic: 2, rare: 3, epic: 4 },
+    rearEvasion: { magic: 6, rare: 8, epic: 10 },
+    firstStrikeDefense: { magic: 2, rare: 3, epic: 4 },
+    fullHpDamage: { magic: 10, rare: 12, epic: 15 },
+    firstTurnAttack: { magic: 3, rare: 4, epic: 6 },
+    firstStrike: { magic: 5, rare: 8, epic: 10 },
+    antiBeast: { magic: 15, rare: 20, epic: 25 },
+    antiSpirit: { magic: 15, rare: 20, epic: 25 },
+    spellAccuracy: { magic: 10, rare: 12, epic: 15 },
+    hitFlinch: { magic: 10, rare: 12, epic: 15 },
+    poisonAtk: { magic: 8, rare: 10, epic: 12 },
+    lastSurvivorStats: { magic: 2, rare: 3, epic: 3 },
+    statusResistance: { magic: 12, rare: 16, epic: 20 },
+    stairsHeal: { magic: 2, rare: 3, epic: 4 }
+  },
   // #270: 実src経路のsim（N=500、工房解放済み・帰還の翼あり）で
   // 前半core遭遇 44.2%→65.4%、前半core装備 36.2%→58.2%。
   // 注: sim内オーバーライドでの試算値(67.6%/61.8%)は乱数消費順が異なるため一致しない。
@@ -387,4 +427,9 @@ export function getAffixBudget(rarity, floor) {
     || AFFIX_BALANCE.budgetsByRarityAndFloor.magic;
   const normalizedFloor = Math.max(1, Math.min(5, floor || 1));
   return table[normalizedFloor];
+}
+
+export function getSupportValueByRarity(type, rarity) {
+  const values = AFFIX_BALANCE.supportValuesByRarity[type];
+  return values?.[rarity] ?? values?.magic ?? 1;
 }

@@ -1,6 +1,12 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { ACCESSORY_CANDIDATES_BY_FLOOR, EQUIPMENT_CANDIDATES_BY_FLOOR, RESTRICTED_CHEST_BASES } from "../data/equipment_tables.js";
-import { AFFIX_BALANCE, CORE_AFFIXES, SUPPORT_AFFIXES, getAffixBudget } from "../data/affixes.js";
+import {
+  AFFIX_BALANCE,
+  CORE_AFFIXES,
+  SUPPORT_AFFIXES,
+  getAffixBudget,
+  getSupportValueByRarity
+} from "../data/affixes.js";
 import {
   IDENTIFICATION_BALANCE,
   getIdentificationGambleProfile
@@ -240,17 +246,6 @@ export function generateRandomEquipment(floor, options) {
     else rarity = "magic";
   }
   
-  let maxWpBonus = 1.5;
-  if (floor === 2) maxWpBonus = 3;
-  else if (floor === 3) maxWpBonus = 4.5;
-  else if (floor === 4) maxWpBonus = 6;
-  else if (floor >= 5) maxWpBonus = 9;
-  
-  let maxArBonus = 1;
-  if (floor === 3) maxArBonus = 2;
-  else if (floor === 4) maxArBonus = 3;
-  else if (floor >= 5) maxArBonus = 4;
-  
   const possibleAffixes = [];
   const addAffix = (minFloor, type, getVal, weight = 3) => {
     if (floor < minFloor) return;
@@ -259,40 +254,26 @@ export function generateRandomEquipment(floor, options) {
   };
 
   if (baseItem.type === "weapon") {
-    addAffix(1, "atk", () => (Math.floor(rng() * (maxWpBonus / 1.5)) + 1) * 1.5);
+    addAffix(1, "atk", () => getSupportValueByRarity("atk", rarity));
   }
   if (baseItem.type === "armor" || baseItem.type === "shield") {
-    addAffix(1, "def", () => Math.floor(rng() * maxArBonus) + 1);
+    addAffix(1, "def", () => getSupportValueByRarity("def", rarity));
   }
-  addAffix(1, "hp", () => {
-    const minHp = floor + 1;
-    const maxHp = floor * 2 + 2;
-    return Math.floor(rng() * (maxHp - minHp + 1)) + minHp;
-  });
+  addAffix(1, "hp", () => getSupportValueByRarity("hp", rarity));
 
   const isMpEligible = ["WAND", "SAGE_STAFF", "ARCH_WAND", "ROBE", "PRIEST_ROBE", "MAGE_CLOAK", "ARCANE_ROBE", "SORCERER_ROBE"].includes(baseId);
   if (isMpEligible) {
-    addAffix(1, "mp", () => {
-      const maxMpBonus = floor >= 5 ? 4 : (floor >= 3 ? 2 : 1);
-      return Math.floor(rng() * maxMpBonus) + 1;
-    });
+    addAffix(1, "mp", () => getSupportValueByRarity("mp", rarity));
   }
 
   const stats = ["str", "int", "pie", "vit", "agi", "luk"];
   stats.forEach(stat => {
-    addAffix(1, stat, () => {
-      const maxStat = floor >= 5 ? 3 : (floor >= 3 ? 2 : 1);
-      return Math.floor(rng() * maxStat) + 1;
-    });
+    addAffix(1, stat, () => getSupportValueByRarity(stat, rarity));
   });
   
   const isTrapEligible = ["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "RAPIER", "LEATHER_ARMOR", "NINJA_SUIT", "EXPLORER_CLOAK", "BUCKLER"].includes(baseId);
   if (isTrapEligible) {
-    addAffix(1, "trapBonus", () => {
-      if (floor >= 5) return 20;
-      if (floor >= 3) return 15;
-      return 10;
-    }, 2);
+    addAffix(1, "trapBonus", () => getSupportValueByRarity("trapBonus", rarity), 3);
   }
 
   const isFollowUpEligible = ["LONG_SWORD", "CLAYMORE", "LEGENDARY_SWORD", "KATANA", "DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "SHORT_SWORD", "RAPIER", "FLAME_SWORD", "BATTLE_GARB"].includes(baseId);
@@ -321,79 +302,55 @@ export function generateRandomEquipment(floor, options) {
   }
   const isHearEligible = ["EXPLORER_CLOAK", "NINJA_SUIT", "LEATHER_ARMOR", "BUCKLER"].includes(baseId);
   if (isHearEligible) {
-    addAffix(1, "hearRange", () => floor >= 4 ? 2 : 1, 1);
+    addAffix(1, "hearRange", () => getSupportValueByRarity("hearRange", rarity), 1);
   }
   const isArcaneSenseEligible = ["WAND", "SAGE_STAFF", "ARCH_WAND", "HOLY_STAFF", "ROBE", "MAGE_CLOAK", "PRIEST_ROBE", "ARCANE_ROBE", "SORCERER_ROBE", "MAGIC_SHIELD"].includes(baseId);
   if (isArcaneSenseEligible) {
-    addAffix(1, "arcaneSense", () => {
-      if (floor >= 5) return 3;
-      if (floor >= 3) return 2;
-      return 1;
-    }, 1);
+    addAffix(1, "arcaneSense", () => getSupportValueByRarity("arcaneSense", rarity), 1);
   }
   const isTraceReadEligible = ["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "RAPIER", "EXPLORER_CLOAK", "NINJA_SUIT", "BUCKLER"].includes(baseId);
   if (isTraceReadEligible) {
-    addAffix(1, "traceRead", () => {
-      if (floor >= 5) return 3;
-      if (floor >= 3) return 2;
-      return 1;
-    }, 1);
-  }
-  const isLowerTrapBonusEligible = ["DAGGER", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "MOONSHADOW", "RAPIER", "EXPLORER_CLOAK", "NINJA_SUIT", "BUCKLER"].includes(baseId);
-  if (isLowerTrapBonusEligible) {
-    addAffix(1, "trapBonus", () => {
-      if (floor >= 5) return 15;
-      if (floor >= 3) return 10;
-      return 5;
-    }, 1);
+    addAffix(1, "traceRead", () => getSupportValueByRarity("traceRead", rarity), 1);
   }
   if (["SACRED_MACE", "MACE", "HOLY_STAFF"].includes(baseId)) {
-    addAffix(3, "antiUndead", () => 30, 1);
+    addAffix(3, "antiUndead", () => getSupportValueByRarity("antiUndead", rarity), 1);
   }
   if (baseId === "DRAGON_SCALE") {
-    addAffix(4, "antiDragon", () => 30, 1);
+    addAffix(4, "antiDragon", () => getSupportValueByRarity("antiDragon", rarity), 1);
   }
   if (["MAGIC_SHIELD", "ARCH_WAND", "ARCANE_ROBE", "SORCERER_ROBE", "DRAGON_SCALE"].includes(baseId)) {
-    addAffix(3, "spellGuard", () => 20, 1);
+    addAffix(3, "spellGuard", () => getSupportValueByRarity("spellGuard", rarity), 1);
   }
   if (baseId === "EXPLORER_CLOAK") {
-    addAffix(2, "poisonWard", () => {
-      if (floor >= 5) return 50;
-      if (floor >= 3) return 35;
-      return 20;
-    }, 1);
+    addAffix(2, "poisonWard", () => getSupportValueByRarity("poisonWard", rarity), 1);
   }
   if (["RAPIER", "NINJA_BLADE", "MOONSHADOW", "BATTLE_GARB"].includes(baseId)) {
-    addAffix(4, "firstStrike", () => {
-      if (floor >= 5 && rarity === "epic") return 10;
-      if (floor >= 5) return 8;
-      return 5;
-    }, 1);
+    addAffix(4, "firstStrike", () => getSupportValueByRarity("firstStrike", rarity), 1);
   }
-  addAffix(3, "deepAssault", () => floor >= 5 ? 15 : 10, 2);
+  addAffix(3, "deepAssault", () => getSupportValueByRarity("deepAssault", rarity), 2);
   if (baseItem.type === "armor" || baseItem.type === "shield") {
-    addAffix(1, "frontGuard", () => floor >= 4 ? 4 : 2, 2);
-    addAffix(2, "rearEvasion", () => floor >= 4 ? 10 : 6, 2);
-    addAffix(2, "firstStrikeDefense", () => floor >= 4 ? 4 : 2, 1);
+    addAffix(1, "frontGuard", () => getSupportValueByRarity("frontGuard", rarity), 2);
+    addAffix(2, "rearEvasion", () => getSupportValueByRarity("rearEvasion", rarity), 2);
+    addAffix(2, "firstStrikeDefense", () => getSupportValueByRarity("firstStrikeDefense", rarity), 1);
   }
   if (baseItem.type === "weapon") {
-    addAffix(2, "fullHpDamage", () => floor >= 4 ? 15 : 10, 2);
-    addAffix(1, "firstTurnAttack", () => floor >= 4 ? 6 : 3, 2);
-    addAffix(2, "antiBeast", () => floor >= 4 ? 25 : 15, 1);
-    addAffix(2, "antiSpirit", () => floor >= 4 ? 25 : 15, 1);
+    addAffix(2, "fullHpDamage", () => getSupportValueByRarity("fullHpDamage", rarity), 2);
+    addAffix(1, "firstTurnAttack", () => getSupportValueByRarity("firstTurnAttack", rarity), 2);
+    addAffix(2, "antiBeast", () => getSupportValueByRarity("antiBeast", rarity), 1);
+    addAffix(2, "antiSpirit", () => getSupportValueByRarity("antiSpirit", rarity), 1);
     // #271実src N=8,000: B5装備2.0%、職内r=0.065 [0.027, 0.103]、event勝率4.9%→4.8%。
-    addAffix(2, "antiDemon", () => floor >= 4 ? 25 : 15, 1);
-    addAffix(3, "spellAccuracy", () => floor >= 5 ? 15 : 10, 1);
+    addAffix(2, "antiDemon", () => getSupportValueByRarity("antiDemon", rarity), 1);
+    addAffix(3, "spellAccuracy", () => getSupportValueByRarity("spellAccuracy", rarity), 1);
     addAffix(3, "killHeal", () => 2, 1);
     addAffix(3, "followUpMp", () => 1, 1);
-    addAffix(3, "hitFlinch", () => floor >= 5 ? 15 : 10, 1);
+    addAffix(3, "hitFlinch", () => getSupportValueByRarity("hitFlinch", rarity), 1);
     // #313: 前衛が自力で状態異常を撒ける唯一の手段。執行人の前提でもある。
-    addAffix(3, "poisonAtk", () => floor >= 4 ? 12 : 8, 1);
+    addAffix(3, "poisonAtk", () => getSupportValueByRarity("poisonAtk", rarity), 1);
   }
-  addAffix(3, "lastSurvivorStats", () => floor >= 5 ? 3 : 2, 1);
-  addAffix(2, "statusResistance", () => floor >= 5 ? 20 : 12, 2);
+  addAffix(3, "lastSurvivorStats", () => getSupportValueByRarity("lastSurvivorStats", rarity), 1);
+  addAffix(2, "statusResistance", () => getSupportValueByRarity("statusResistance", rarity), 2);
   addAffix(2, "victoryMaterial", () => 5, 1);
-  addAffix(1, "stairsHeal", () => floor >= 4 ? 4 : 2, 1);
+  addAffix(1, "stairsHeal", () => getSupportValueByRarity("stairsHeal", rarity), 1);
   addAffix(1, "identifyDiscount", () => 10, 2);
   addAffix(1, "materialFind", () => 10, 2);
   addAffix(1, "contractReward", () => 10, 2);
@@ -537,40 +494,39 @@ export function generateRandomAccessory(floor, options) {
     else if (roll < rareChance) rarity = "rare";
   }
 
-  const statValue = floor >= 4 ? 2 : 1;
+  const availableWeight = (minFloor, weight) => floor >= minFloor ? weight : 0;
   const accessoryAffixPool = [
-    { type: "hp", getVal: () => floor >= 4 ? 8 : 6, weight: 4 },
-    { type: "mp", getVal: () => floor >= 4 ? 2 : 1, weight: 3 },
-    { type: "str", getVal: () => statValue, weight: 2 },
-    { type: "int", getVal: () => statValue, weight: 2 },
-    { type: "pie", getVal: () => statValue, weight: 2 },
-    { type: "vit", getVal: () => statValue, weight: 2 },
-    { type: "agi", getVal: () => statValue, weight: 2 },
-    { type: "luk", getVal: () => statValue, weight: 2 },
-    { type: "trapBonus", getVal: () => floor >= 4 ? 15 : 10, weight: 2 },
-    { type: "spellGuard", getVal: () => floor >= 4 ? 15 : 10, weight: 1 },
-    { type: "antiDragon", getVal: () => 15, weight: floor >= 4 ? 1 : 0 },
-    { type: "antiUndead", getVal: () => 15, weight: floor >= 3 ? 1 : 0 },
-    { type: "antiDemon", getVal: () => floor >= 4 ? 25 : 15, weight: floor >= 2 ? 1 : 0 },
-    { type: "poisonWard", getVal: () => floor >= 4 ? 25 : 15, weight: 1 },
-    { type: "treasureSense", getVal: () => floor >= 4 ? 8 : 5, weight: 1 },
-    { type: "hearRange", getVal: () => floor >= 4 ? 2 : 1, weight: 2 },
-    { type: "arcaneSense", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 },
-    { type: "spellPower", getVal: () => AFFIX_BALANCE.spellPowerByRarity[rarity], weight: floor >= 2 ? 2 : 0 },
-    { type: "traceRead", getVal: () => floor >= 5 ? 3 : (floor >= 3 ? 2 : 1), weight: 2 },
-    { type: "trapBonus", getVal: () => floor >= 5 ? 15 : (floor >= 3 ? 10 : 5), weight: 1 },
-    { type: "deepAssault", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 2 : 0 },
-    { type: "fullHpDamage", getVal: () => floor >= 4 ? 15 : 10, weight: floor >= 2 ? 2 : 0 },
-    { type: "antiBeast", getVal: () => floor >= 4 ? 25 : 15, weight: floor >= 2 ? 1 : 0 },
-    { type: "antiSpirit", getVal: () => floor >= 4 ? 25 : 15, weight: floor >= 2 ? 1 : 0 },
-    { type: "lastSurvivorStats", getVal: () => floor >= 5 ? 3 : 2, weight: floor >= 3 ? 1 : 0 },
-    { type: "statusResistance", getVal: () => floor >= 5 ? 20 : 12, weight: floor >= 2 ? 2 : 0 },
-    { type: "spellAccuracy", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 1 : 0 },
-    { type: "killHeal", getVal: () => 2, weight: floor >= 3 ? 1 : 0 },
-    { type: "followUpMp", getVal: () => 1, weight: floor >= 3 ? 1 : 0 },
-    { type: "hitFlinch", getVal: () => floor >= 5 ? 15 : 10, weight: floor >= 3 ? 1 : 0 },
-    { type: "victoryMaterial", getVal: () => 5, weight: floor >= 2 ? 1 : 0 },
-    { type: "stairsHeal", getVal: () => floor >= 4 ? 4 : 2, weight: 1 },
+    { type: "hp", getVal: () => getSupportValueByRarity("hp", rarity), weight: 4 },
+    { type: "mp", getVal: () => getSupportValueByRarity("mp", rarity), weight: 3 },
+    { type: "str", getVal: () => getSupportValueByRarity("str", rarity), weight: 2 },
+    { type: "int", getVal: () => getSupportValueByRarity("int", rarity), weight: 2 },
+    { type: "pie", getVal: () => getSupportValueByRarity("pie", rarity), weight: 2 },
+    { type: "vit", getVal: () => getSupportValueByRarity("vit", rarity), weight: 2 },
+    { type: "agi", getVal: () => getSupportValueByRarity("agi", rarity), weight: 2 },
+    { type: "luk", getVal: () => getSupportValueByRarity("luk", rarity), weight: 2 },
+    { type: "trapBonus", getVal: () => getSupportValueByRarity("trapBonus", rarity), weight: 3 },
+    { type: "spellGuard", getVal: () => getSupportValueByRarity("spellGuard", rarity), weight: 1 },
+    { type: "antiDragon", getVal: () => getSupportValueByRarity("antiDragon", rarity), weight: availableWeight(4, 1) },
+    { type: "antiUndead", getVal: () => getSupportValueByRarity("antiUndead", rarity), weight: availableWeight(3, 1) },
+    { type: "antiDemon", getVal: () => getSupportValueByRarity("antiDemon", rarity), weight: availableWeight(2, 1) },
+    { type: "poisonWard", getVal: () => getSupportValueByRarity("poisonWard", rarity), weight: 1 },
+    { type: "treasureSense", getVal: () => getSupportValueByRarity("treasureSense", rarity), weight: 1 },
+    { type: "hearRange", getVal: () => getSupportValueByRarity("hearRange", rarity), weight: 2 },
+    { type: "arcaneSense", getVal: () => getSupportValueByRarity("arcaneSense", rarity), weight: 2 },
+    { type: "spellPower", getVal: () => AFFIX_BALANCE.spellPowerByRarity[rarity], weight: availableWeight(2, 2) },
+    { type: "traceRead", getVal: () => getSupportValueByRarity("traceRead", rarity), weight: 2 },
+    { type: "deepAssault", getVal: () => getSupportValueByRarity("deepAssault", rarity), weight: availableWeight(3, 2) },
+    { type: "fullHpDamage", getVal: () => getSupportValueByRarity("fullHpDamage", rarity), weight: availableWeight(2, 2) },
+    { type: "antiBeast", getVal: () => getSupportValueByRarity("antiBeast", rarity), weight: availableWeight(2, 1) },
+    { type: "antiSpirit", getVal: () => getSupportValueByRarity("antiSpirit", rarity), weight: availableWeight(2, 1) },
+    { type: "lastSurvivorStats", getVal: () => getSupportValueByRarity("lastSurvivorStats", rarity), weight: availableWeight(3, 1) },
+    { type: "statusResistance", getVal: () => getSupportValueByRarity("statusResistance", rarity), weight: availableWeight(2, 2) },
+    { type: "spellAccuracy", getVal: () => getSupportValueByRarity("spellAccuracy", rarity), weight: availableWeight(3, 1) },
+    { type: "killHeal", getVal: () => 2, weight: availableWeight(3, 1) },
+    { type: "followUpMp", getVal: () => 1, weight: availableWeight(3, 1) },
+    { type: "hitFlinch", getVal: () => getSupportValueByRarity("hitFlinch", rarity), weight: availableWeight(3, 1) },
+    { type: "victoryMaterial", getVal: () => 5, weight: availableWeight(2, 1) },
+    { type: "stairsHeal", getVal: () => getSupportValueByRarity("stairsHeal", rarity), weight: 1 },
     { type: "identifyDiscount", getVal: () => 10, weight: 2 },
     { type: "materialFind", getVal: () => 10, weight: 2 },
     { type: "contractReward", getVal: () => 10, weight: 2 }
