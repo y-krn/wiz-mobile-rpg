@@ -64,6 +64,50 @@ tool-specific fallback instruction files.
   temporary simulation scripts when their Issue is closed; retain only concise
   conclusions in `.agents/` or the Issue/PR.
 
+## Large Output and Log Handling
+
+- Filter test, build, and log output at the source with `rg`, `head`, or `tail`
+  so only failures or the relevant region are returned, e.g.
+  `npm test 2>&1 | rg 'FAIL|Error'` or `git log --oneline -20`.
+- Use `rg` for repository searches. A `grep` pipeline is reserved for logs when
+  a log-processing tool requires it; do not mix `grep` and `rg` flag syntax.
+- Do not delegate narrow, context-dependent lookups (one function or a few
+  known files); a direct `rg` or ranged read is cheaper than a cold-start
+  sub-agent.
+
+## Search and Reachability Claims
+
+- For claims that code is absent, unused, or unreachable, check dynamic
+  imports, barrel exports, string dispatch, HTML/data-action routes,
+  `window` bindings, `eval`, and `new Function`. For important claims, confirm
+  the production bundle and use a known-live positive control.
+- Finding a call site does not establish which definition it invokes. Resolve
+  the identifier through imports, re-exports, compatibility layers, and
+  wrappers, including wrappers with default arguments, before making a claim
+  about that call. `src/data.js` is a compatibility layer that converts
+  positional arguments to an options object.
+- Runtime-check behavior claims instead of deriving them only from code. When
+  possible, use counterfactual inputs and verify that changing an input changes
+  the downstream behavior.
+- Never treat reverse calculation from an upper bound as proof of a real
+  reachable configuration. Separately show that the configuration is
+  reachable and that it was actually present.
+
+## Issue #725 Regression Record
+
+Three errors in one session motivated these rules: (1) physical damage from a
+mage was attributed to enemy magic resistance even though the enemy had none,
+because the behavior was not executed; (2) `CORE_TRAP_EATER` was claimed as the
+cause based on an upper-bound calculation even though the player had never
+disarmed a trap and the actual value was zero; and (3) a drop call was claimed
+to discard arguments through a positional API even though `src/data.js`
+correctly translated them through its compatibility layer, because the import
+path was not followed.
+
+This record belongs in `AGENTS.md` because it is durable, project-wide working
+guidance that must be read before future investigations; `.learnings/` is not
+the project's canonical instruction or knowledge source.
+
 ## Implementation rules
 
 - The interactive Codex session handles user communication, requirements
