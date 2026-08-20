@@ -5,7 +5,7 @@ import {
   getCharWeaponAtk, getCharDef,
   rollCharWeaponPhysicalRandom,
   PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING,
-  getCharAffixSum, getCharMaxHp, getCharMaxMp,
+  getCharAffixSum, getCharMaxHp, getCharMaxMp, getCharTrapEaterBonus,
   calculatePhysicalAttackRawFormula, calculatePhysicalAttackFormula,
   calculatePhysicalDefenseFormula, applyPhysicalResistance,
   getPhysicalDefenseResistance
@@ -287,13 +287,14 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // Attack math
           const firstTurnAttack = roundNumber === 1 ? getCharAffixSum(char, "firstTurnAttack") : 0;
           const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
+          const trapEaterBonus = getCharTrapEaterBonus(char);
           const str = getCharStr(char);
           const buffAtk = getBuffTotal(char, "atk") + getBuffTotal(char, "str");
           const randRoll = rollCharWeaponPhysicalRandom(char);
           const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
           const def = getEffectiveDef(finalTarget);
           const formulaRaw = calculatePhysicalAttackRawFormula({
-            weaponAtk, buffAtk, str, randRoll, meleeMod
+            weaponAtk, buffAtk, str, randRoll, meleeMod, fixedDamageBonus: trapEaterBonus
           });
           const physicalResistance = getEffectivePhysicalResistance(finalTarget);
           dmg = Math.max(1, Math.floor(applyPhysicalResistance(formulaRaw, physicalResistance)));
@@ -320,6 +321,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             floor: state.floor,
             className: char.class,
             weaponAtk, buffAtk, str, randRoll, def, meleeMod,
+            trapEaterBonus,
             defResistance: getPhysicalDefenseResistance(def),
             physicalResistance,
             formulaRaw, formulaDmg, isBlindApplied,
@@ -416,6 +418,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               const followUpDmgRand = rollCharWeaponPhysicalRandom(char);
               const firstTurnAttack = roundNumber === 1 ? getCharAffixSum(char, "firstTurnAttack") : 0;
               const weaponAtk = getCharWeaponAtk(char) + firstTurnAttack;
+              const trapEaterBonus = getCharTrapEaterBonus(char);
               const str = getCharStr(char);
               const meleeMod = getMeleeModifiers(char, turn.idx, { state, logQueue });
               const def = getEffectiveDef(finalTarget);
@@ -425,7 +428,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 randRoll: followUpDmgRand,
                 def,
                 physResist: finalTarget.physResist,
-                meleeMod: 0.7
+                meleeMod: 0.7,
+                fixedDamageBonus: trapEaterBonus
               });
               let followUpDmg = Math.max(1, Math.floor(followUpRaw * meleeMod));
               followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });

@@ -3,6 +3,7 @@ import {
   getCharMaxHp,
   getCharMaxMp,
   getCharWeaponAtk,
+  getCharTrapEaterBonus,
   getCharStr,
   calculatePhysicalAttackFormula,
   combinePhysicalResistances,
@@ -138,6 +139,7 @@ export function tryThornCounter(char, monster, actorIdx, state, logQueue, rng = 
   if (!thorn || char.hp <= 0 || monster.hp <= 0 || rng() >= thorn.counterChance) return 0;
   const base = Math.max(1, Math.floor(calculatePhysicalAttackFormula({
     weaponAtk: getCharWeaponAtk(char),
+    fixedDamageBonus: getCharTrapEaterBonus(char),
     str: getCharStr(char),
     def: getEffectiveDef(monster),
     physResist: monster.physResist,

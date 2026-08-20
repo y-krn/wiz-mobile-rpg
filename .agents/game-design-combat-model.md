@@ -83,8 +83,10 @@ damage も変更しない。
 
 `floor`、`round`、`max` は JavaScript の現在の実装どおりである。
 
-- `weaponAtk`: `getCharWeaponAtk(char)`。罠喰いの run 中攻撃ボーナス、武器、
-  Ninja の武器なし攻撃 `2 * level`、武器以外の装備の `atk` を合算する。
+- `weaponAtk`: `getCharWeaponAtk(char)`。武器、Ninja の武器なし攻撃
+  `2 * level`、武器以外の装備の `atk` を合算する。罠喰いは別項とする。
+- `trapEaterBonus`: Thief / Ranger / Ninja が宝箱罠の解除に成功した回数に
+  応じて +2、run 中は最大+20。床罠の解除・強行突破・破壊では発火しない。
 - `firstTurnAttack`: 1 ラウンド目だけ `getCharAffixSum(char, "firstTurnAttack")`
   を `weaponAtk` に加える。
 - `buffAtk`: `getBuffTotal(char, "atk") + getBuffTotal(char, "str")`。
@@ -135,6 +137,7 @@ physicalAccuracy = getCharCoreParams(char, "CORE_PHYSICAL_ACCURACY")?.hitChanceB
 
 weapon = getCharWeaponAtk(char)
        + (roundNumber == 1 ? getCharAffixSum(char, "firstTurnAttack") : 0)
+trapEaterBonus = getCharTrapEaterBonus(char)
 buff = getBuffTotal(char, "atk") + getBuffTotal(char, "str")
 str  = getCharStr(char)
 roll = floor(random() * 5)                  // 0..4
@@ -148,6 +151,7 @@ attackRaw = (
   + max(0, str - 10)
   + roll
 ) * melee
+  + trapEaterBonus
 
 formulaRaw = attackRaw
 d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
@@ -354,7 +358,8 @@ spellIntrinsicTagBonus(BADIOS, tag) = {
 
 | 項 | 現在の形 | 確認できる根拠 | 設計上の扱い |
 | --- | --- | --- | --- |
-| `weaponAtk` | 武器・非武器装備・Ninja素手・罠喰いを実効単位で合算し、1ターン目補正を加える | `getCharWeaponAtk` と `round.js`。装備ビルド正本は `atk` と core を build 軸にする | 全入力源をデータ側で1.5倍して保存・生成し、個別 source を丸めずに `buffAtk` と合計してから floor する。呼び出し側の変換は置かない |
+| `weaponAtk` | 武器・非武器装備・Ninja素手を実効単位で合算し、1ターン目補正を加える | `getCharWeaponAtk` と `round.js`。装備ビルド正本は `atk` と core を build 軸にする | 全入力源を同じ単位で扱い、個別 source を丸めずに `buffAtk` と合計してから floor する。罠喰いは weaponAtk へ混ぜない |
+| `trapEaterBonus` | Thief / Ranger / Ninja の宝箱罠解除成功ごとに +2、run 中は最大+20 | `CORE_TRAP_EATER.params`、`getCharTrapEaterBonus`、`chest.js` の成功枝 | weaponAtk / meleeMod の外側で raw physical damage へ固定加算し、表示の内訳と同じ単位にする |
 | `buffAtk` | `atk` buff と `str` buff を実効単位で合算 | `round.js` の呼び出し経路。`STR_POTION` は `atk +15` を 5 turn 付与する | `atk` / `str` の buff は同じ入力単位で扱う。`str` buff の live producer は未確認だが、将来の追加でも別単位にしない |
 | `floor(weapon + buff)` | 実効単位の weapon / buff を合計してから切り捨て | `calculatePhysicalAttackFormula` と各 caller の入力組み立て | 0.5 単位を保持し、丸めは合計後に一度だけ行う。旧式の hidden coefficient は採用しない |
 | `max(0, str - 10)` | STR 10 を基準にし、10 未満のペナルティを 0 にする | character stats の基礎値と関数の実装 | STR 10 を中立点とし、低 STR 職のペナルティだけを除く。STR 10 超の職差は残す |
@@ -765,12 +770,12 @@ level contribution の exact curve と、spell learn level を到達 3.77 帯で
 
 ### 5. 装備とステータスの重みは等価か
 
-**表示単位と実効単位を等価にする。** weapon / `atk` source はデータ側で
-1.5 倍した実効値を持ち、0.5 単位を許したまま全 source の合計後に一度だけ floor
-する。したがって表示の攻撃力と物理式の入力は同じ量になり、呼び出し側へ変換を
-分散させない。武器基礎値、強化、`atk` affix、初陣、罠喰い、忍者素手、呪いの
-`atk`、`STR_POTION` を同じ単位へ揃える。#718 の旧「罠喰い +20 / 実効 +30」は
-この判断で現行「+3 / 上限30」へ吸収する。
+**表示単位と実効単位を等価にする。** weapon / `atk` source は同じ実効単位で扱い、
+0.5 単位を許したまま全 source の合計後に一度だけ floorする。罠喰いだけは
+`weaponAtk` へ混ぜず、`meleeMod` の影響を受けない固定 damage 項として raw physical
+damage へ加算する。表示（基礎・装備・罠喰い・合計）と telemetry の
+`trapEaterBonus` はこの同じ単位を使う。CORE_TRAP_EATER は Thief / Ranger / Ninja
+だけに有効で、宝箱罠の解除成功ごとに +2、run 中の上限は +20、帰還で0へ戻す。
 
 **STR は `max(0, str - 10)` を採用する。** STR 10 を中立点として、STR 10 未満の
 ペナルティだけを除き、STR 10 超の職差は残す。全職の素の STR（レベルでは増えない）
@@ -826,7 +831,7 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
 | --- | --- | --- |
 | #719 タグ特効が呪文に乗らない | 非対称 #4、決定 4 | 配線漏れと確定。`getDamageAffixResult` の共通 target-tag stage へ集約し、BADIOS の +50/+30/+30 も共通値へ加算する。`spirit` +30 は既存 `antiSpirit` の support pool へ加算する。 |
 | #720 物理式の ×1.5 と `(str - 10)` | 非対称 #5・#6、決定 5 | hidden weight を data source へ吸収し、0.5 単位を許して表示と実効を揃える。STR は `max(0, str - 10)` とし、STR 10 未満のペナルティだけを除く。係数除去と基準線変更はコミットを分けて検証する。 |
-| #718 罠喰いの旧表示 +20 / 実効 +30 | 非対称 #5・#6、決定 5 | `weaponAtk` の hidden weight が原因。値を実効単位へ吸収し、現行表示を +3 / 上限30 とする。個別の core 経路は #720 で更新する。 |
+| #718 罠喰いの表示・実効不一致 | 非対称 #5・#6、決定 5 | `weaponAtk` から分離し、Thief / Ranger / Ninja の宝箱罠解除成功ごとに固定 +2、上限+20を加算する。装備画面へ基礎・装備・罠喰い・合計のrun内訳を表示する。 |
 | #716 敵の耐性が表示されない | 非対称 #1、決定 1 | 軽減率を player decision と一致させる。表示文言と耐性値の調査・UI変更は #716。 |
 | #713 盗賊の解除率が90に張り付く | 非対称 #10、決定 7 | hard cap で投資を無価値にしない。逓減または超過変換を #713 で測る。 |
 | #599 lv5以上の呪文が到達帯に届かない | 非対称 #2・#3、決定 2・3 | spell growth と level gate を同じ到達分布で再設計する。到達値・習得値の変更は #599。 |

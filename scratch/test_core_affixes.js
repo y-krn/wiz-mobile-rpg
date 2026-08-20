@@ -187,6 +187,7 @@ test("素材経済サポートenabled・浅層経済3/戦闘1・深層逆転", (
 
 test("atk/def supportと呪いを装備値へ各1回だけ反映", () => {
   const char = makeChar(null);
+  char.class = "Thief";
   char.runTrapAttackBonus = 3;
   char.equipment.weapon = {
     ...supportItem("atk", 6, "SHORT_SWORD"),
@@ -201,8 +202,8 @@ test("atk/def supportと呪いを装備値へ各1回だけ反映", () => {
 
   assert.equal(
     getCharWeaponAtk(char),
-    40.5,
-    "基礎9 + support6 + 呪い22.5 + runTrapAttackBonus3"
+    37.5,
+    "基礎9 + support6 + 呪い22.5（罠喰いは別の固定加算）"
   );
   assert.equal(
     getCharDef(char),
@@ -483,12 +484,17 @@ test("浄化の環: MP満タン時はHPへ振替、HP満タン時は発動ログ
   assert.equal(fullHpLogs.length, 0);
 });
 
-test("罠喰い: 1キャラ累積、上限30", () => {
+test("罠喰い: 罠適性職だけが累積し、上限20", () => {
   const char = makeChar(null);
+  char.class = "Thief";
   char.equipment.accessory = coreItem("CORE_TRAP_EATER", "AMULET_HP");
   let bonus = 0;
   for (let i = 0; i < 20; i++) bonus = getTrapEaterBonusAfterDisarm(char, bonus);
-  assert.equal(bonus, 30);
+  assert.equal(bonus, 20);
+  const ineligible = makeChar(null);
+  ineligible.equipment.accessory = coreItem("CORE_TRAP_EATER", "AMULET_HP");
+  assert.equal(getCharCoreParams(ineligible, "CORE_TRAP_EATER"), null);
+  assert.equal(getTrapEaterBonusAfterDisarm(ineligible, 0), 0);
 });
 
 test("呪飼いの鎖: 呪い数×全ステ+3", () => {
