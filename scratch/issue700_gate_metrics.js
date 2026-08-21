@@ -3,12 +3,13 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const RUNNER = new URL("./sim_commit_depth_624.js", import.meta.url).pathname;
 const RESULT_PATH = new URL("./results/issue-700-gate-metrics.md", import.meta.url).pathname;
 const RAW_DIR = process.env.ISSUE700_RAW_DIR || "/private/tmp/issue-700-gate-metrics-raw";
+const MEASUREMENT_SOURCE_COMMIT = "2fe532c6e88347efee3e5218b493ac49da481c5b";
+const MEASUREMENT_BASE_COMMIT = "ff1403a424841e62aa7a0c5414d6af331a1657f7";
 const POLICIES = ["legacy", "ev"];
 const SMOKE = process.env.ISSUE700_SMOKE === "1";
 const REPLICATES = SMOKE ? 1 : 2;
@@ -44,11 +45,72 @@ const COMMON_ENV = Object.freeze({
 });
 
 function gitOutput(args) {
-  return execFileSync("git", args, { encoding: "utf8" }).trim();
+  return execFileSync("git", ["-c", "core.fsmonitor=false", ...args], {
+    encoding: "utf8"
+  }).trim();
 }
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function prepareMeasurementClone() {
+  const clonePath = mkdtempSync("/private/tmp/issue-700-measurement-");
+  rmSync(clonePath, { recursive: true, force: true });
+  try {
+    execFileSync(
+      "git",
+      [
+        "-c", "core.fsmonitor=false", "clone", "--no-local", "--no-checkout",
+        process.cwd(), clonePath
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    );
+    execFileSync(
+      "git",
+      [
+        "-c", "core.fsmonitor=false", "-C", clonePath, "fetch", "--no-tags",
+        process.cwd(), MEASUREMENT_SOURCE_COMMIT
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    );
+    execFileSync(
+      "git",
+      [
+        "-c", "core.fsmonitor=false", "-C", clonePath, "update-ref",
+        "refs/remotes/origin/main", MEASUREMENT_BASE_COMMIT
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    );
+    execFileSync(
+      "git",
+      [
+        "-c", "core.fsmonitor=false", "-C", clonePath, "checkout", "--detach",
+        MEASUREMENT_SOURCE_COMMIT
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    );
+    symlinkSync(join(process.cwd(), "node_modules"), join(clonePath, "node_modules"), "dir");
+    if (gitOutput(["-C", clonePath, "rev-parse", "HEAD"]) !== MEASUREMENT_SOURCE_COMMIT) {
+      throw new Error("measurement source checkout mismatch");
+    }
+    execFileSync(
+      "git",
+      [
+        "-c", "core.fsmonitor=false", "-C", clonePath, "merge-base", "--is-ancestor",
+        MEASUREMENT_BASE_COMMIT, MEASUREMENT_SOURCE_COMMIT
+      ],
+      { stdio: "ignore" }
+    );
+    return clonePath;
+  } catch (error) {
+    rmSync(clonePath, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function removeMeasurementClone(clonePath) {
+  rmSync(clonePath, { recursive: true, force: true });
 }
 
 function childEnvironment(policy, replicate) {
@@ -72,9 +134,10 @@ function childEnvironment(policy, replicate) {
   return env;
 }
 
-function runPolicy(policy, replicate, sourceCommit) {
-  const child = spawnSync(process.execPath, [RUNNER], {
-    cwd: process.cwd(),
+function runPolicy(policy, replicate, measurementClonePath) {
+  const runner = join(measurementClonePath, "scratch", "sim_commit_depth_624.js");
+  const child = spawnSync(process.execPath, [runner], {
+    cwd: measurementClonePath,
     env: childEnvironment(policy, replicate),
     encoding: "buffer",
     maxBuffer: 128 * 1024 * 1024
@@ -91,7 +154,7 @@ function runPolicy(policy, replicate, sourceCommit) {
   const lines = text.trim().split("\n").filter(Boolean);
   const result = JSON.parse(lines.at(-1));
   if (
-    result.sourceCommit !== sourceCommit ||
+    result.sourceCommit !== MEASUREMENT_SOURCE_COMMIT ||
     result.originMainAncestor !== true ||
     result.staleTreeAllowed !== false
   ) {
@@ -242,28 +305,36 @@ function render({ runs, sourceCommit, baseCommit, measurements, pairedRows }) {
 }
 
 function main() {
-  const baseCommit = gitOutput(["rev-parse", "origin/main"]);
-  const sourceCommit = gitOutput(["rev-parse", "HEAD"]);
+  const sourceCommit = MEASUREMENT_SOURCE_COMMIT;
+  const baseCommit = MEASUREMENT_BASE_COMMIT;
   mkdirSync(RAW_DIR, { recursive: true });
-  const measurements = POLICIES.flatMap(policy =>
-    Array.from({ length: REPLICATES }, (_, index) => runPolicy(policy, index + 1, sourceCommit))
-  );
-  const legacyRows = measurements.find(item => item.policy === "legacy" && item.replicate === 1).result.rows;
-  const evRows = measurements.find(item => item.policy === "ev" && item.replicate === 1).result.rows;
-  const pairedRows = sameRows(legacyRows, evRows);
-  if (!SMOKE) {
-    const output = render({
-      runs: RUNS_PER_CLASS,
-      sourceCommit,
-      baseCommit,
-      measurements,
-      pairedRows
-    });
-    writeFileSync(RESULT_PATH, output);
+  const measurementClonePath = prepareMeasurementClone();
+  try {
+    const measurements = POLICIES.flatMap(policy =>
+      Array.from(
+        { length: REPLICATES },
+        (_, index) => runPolicy(policy, index + 1, measurementClonePath)
+      )
+    );
+    const legacyRows = measurements.find(item => item.policy === "legacy" && item.replicate === 1).result.rows;
+    const evRows = measurements.find(item => item.policy === "ev" && item.replicate === 1).result.rows;
+    const pairedRows = sameRows(legacyRows, evRows);
+    if (!SMOKE) {
+      const output = render({
+        runs: RUNS_PER_CLASS,
+        sourceCommit,
+        baseCommit,
+        measurements,
+        pairedRows
+      });
+      writeFileSync(RESULT_PATH, output);
+    }
+    const summary = measurements.map(item => `${item.policy}-${item.replicate}:${item.sha256}`).join(" ");
+    console.log(`Issue #700 complete: ${summary}`);
+    console.log(`summary=${RESULT_PATH}`);
+  } finally {
+    removeMeasurementClone(measurementClonePath);
   }
-  const summary = measurements.map(item => `${item.policy}-${item.replicate}:${item.sha256}`).join(" ");
-  console.log(`Issue #700 complete: ${summary}`);
-  console.log(`summary=${RESULT_PATH}`);
 }
 
 main();

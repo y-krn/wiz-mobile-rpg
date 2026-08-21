@@ -2,6 +2,7 @@
 
 - source commit: `2fe532c6e88347efee3e5218b493ac49da481c5b`
 - origin/main base: `ff1403a424841e62aa7a0c5414d6af331a1657f7`（HEAD の祖先: true）
+- 再現性: harness は `/private/tmp` の一時 clone で上記 source を checkout し、clone 内の `origin/main` を上記 base に固定してから ancestry を検証する。したがって後続の PR 文書 commit で測定 source/hash は変わらない。
 - 条件: N=500 / 職、4職合計 2000 run、SIM_SEED=231、SIM_CALIBRATION_RUNS=100、SIM_PARALLEL=未指定
 - 共通条件: #699 の既存 `sim_commit_depth_624.js` harness、実 `sim_depth_material_ev.js` / `generateRunFloor` 経路、`SIM_INDEPENDENT_RUN_RANDOM=1`、出発クラフト・罠・逃走・薬・装備条件は legacy/EV 共通。
 - legacy: `STATUS_CURE_POLICY=legacy STATUS_CURE_HP_THRESHOLD=0.35`。EV: `STATUS_CURE_POLICY=ev`（HP率値は EV 判定では参照しない）。
