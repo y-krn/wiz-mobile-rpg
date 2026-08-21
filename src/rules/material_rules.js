@@ -167,7 +167,9 @@ export function addMaterials(balance, additions) {
 }
 
 export function getBankedMaterials(runMaterials, outcome) {
-  const rate = outcome === "death" ? BANKING_RATES.death : BANKING_RATES.retreat;
+  const rate = outcome === "death" || outcome === "abandon"
+    ? BANKING_RATES.death
+    : BANKING_RATES.retreat;
   return Object.fromEntries(MATERIAL_TYPES.map(name => [
     name,
     Math.floor((Number(runMaterials?.[name]) || 0) * rate)
