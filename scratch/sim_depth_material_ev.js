@@ -11962,6 +11962,7 @@ function printStatusCureSummary(result) {
     `供給枯渇=${JSON.stringify(result.statusCureSupply || {})}`
   );
   console.log(`状態回復アイテム/run 入手/消費: ${JSON.stringify(statusItems)}`);
+  console.log(`状態回復アイテム合計使用: ${JSON.stringify(result.statusCureItemsUsed || {})}`);
   Object.entries(result.statusObservations?.byStatus || {}).forEach(([status, values]) => {
     console.log(
       `状態異常 ${status}: ` +
@@ -11979,6 +11980,7 @@ function printStatusCureSummary(result) {
   console.log(`STATUS_CURE_OBSERVATION_JSON=${JSON.stringify({
     label: result.label,
     targetDepth: result.targetDepth,
+    runs: RUNS_PER_CASE,
     statusCureDecisions: result.statusCureDecisions,
     statusCureDecisionContexts: result.statusCureDecisionContexts,
     statusCureUnavailableStatuses: result.statusCureUnavailableStatuses,
@@ -11986,6 +11988,7 @@ function printStatusCureSummary(result) {
     statusesCured: result.statusesCured,
     statusCureEvMetrics: result.statusCureEvMetrics,
     statusCureSupply: result.statusCureSupply,
+    statusCureItemsUsed: result.statusCureItemsUsed,
     statusItems,
     statusObservations: result.statusObservations
   })}`);
