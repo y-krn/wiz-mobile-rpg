@@ -1,6 +1,6 @@
 # Issue #701 治療供給測定
 
-- source SHA: `9544f4a83c49030387aa7c27eb7e579d381afe9b`; origin/main/base SHA: `fe5ccc5734aefe6c12a29331665470db83fd7794`; ancestor=true; staleTreeAllowed=false
+- source SHA: `2fb9d494d57ae29358a1ff747e6252e74b46a41d`; origin/main/base SHA: `fe5ccc5734aefe6c12a29331665470db83fd7794`; ancestor=true; staleTreeAllowed=false
 - runner: `scratch/issue701_treatment_supply.js -> scratch/sim_treatment_supply_701.js -> scratch/sim_depth_material_ev.js` (sim-scope: run; `generateRunFloor` 経由)
 - 条件: 4職×500 run、seed=231、calibration=100、SIM_PARALLEL unset、B1→B20、#612 workshop distribution、run-independent hash seed
 - raw JSONL: `/private/tmp/issue-701-treatment-supply.raw.jsonl`; SHA-256: `30734a7b0f729d9d79936377e1e0fdabd1486db466b242537e545557aca3dea2`
