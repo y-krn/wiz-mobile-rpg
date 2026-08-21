@@ -4,6 +4,7 @@ export const MILESTONE_MERCHANT_STOCK = Object.freeze([
   stock({ id: "identify_powder", kind: "identify", name: "鑑定粉", cost: { "霊粉": 2 } }),
   stock({ id: "heal_potion", kind: "item", itemId: "HEAL_POTION", name: "傷薬", cost: { "獣の牙": 1 } }),
   stock({ id: "antidote", kind: "item", itemId: "ANTIDOTE", name: "解毒薬", cost: { "毒腺": 1 } }),
+  stock({ id: "eye_drops", kind: "item", itemId: "EYE_DROPS", name: "目薬", cost: { "霊粉": 1 } }),
   stock({ id: "wake_powder", kind: "item", itemId: "WAKE_POWDER", name: "覚醒薬", cost: { "霊粉": 1 } }),
   stock({ id: "paralyze_cure", kind: "item", itemId: "PARALYZE_CURE", name: "解痺薬", cost: { "硬い皮": 1 } }),
   // #271: マイルストーン商人はボスと同じ階に確定配置される。深く潜るほど
