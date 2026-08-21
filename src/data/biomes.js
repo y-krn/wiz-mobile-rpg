@@ -2,6 +2,16 @@ const biome = (definition) => Object.freeze({
   ...definition,
   enemyPool: Object.freeze(definition.enemyPool),
   gimmicks: Object.freeze(definition.gimmicks),
+  terrain: Object.freeze({
+    ...definition.terrain,
+    roomCountRange: Object.freeze(definition.terrain.roomCountRange),
+    mazeProfile: Object.freeze({
+      ...definition.terrain.mazeProfile,
+      straightBias: Object.freeze(definition.terrain.mazeProfile.straightBias),
+      loopRate: Object.freeze(definition.terrain.mazeProfile.loopRate)
+    })
+  }),
+  visualSignature: Object.freeze(definition.visualSignature),
   theme: Object.freeze({
     ...definition.theme,
     entryText: Object.freeze(definition.theme.entryText),
@@ -14,6 +24,21 @@ const biome = (definition) => Object.freeze({
 export const BIOMES = Object.freeze([
   biome({
     id: "collapsed_mine", name: "崩れた坑道", cssClass: "floor-theme-b1",
+    terrain: {
+      roomCountRange: [2, 3],
+      mazeProfile: { straightBias: [0.42, 0.62], loopRate: [0.20, 0.32] }
+    },
+    visualSignature: {
+      wallColor: "#58d6e8",
+      gridColor: "rgba(88, 214, 232, 0.26)",
+      background: "#07141b",
+      headerBackground: "#0d2028",
+      bannerBackground: "#0a1a22",
+      glow: "0 0 14px rgba(88, 214, 232, 0.30)",
+      aura: "radial-gradient(circle at 50% 45%, rgba(88, 214, 232, 0.12) 0%, rgba(0, 8, 12, 0.66) 100%)",
+      auraOpacity: 0.62,
+      environment: { overlay: "rgba(10, 35, 44, 0.04)", animated: false, animatedCyclePosition: 4 }
+    },
     bossName: "デーモンガード", eliteName: "フラック",
     enemyPool: ["かみつき蟲", "コボルトの斥候", "マッドスライム", "フラッシュバット", "分裂スライム", "錆びた盾兵", "ゴブリンの呪術師", "群れネズミ", "火薬コウモリ", "まどろみ胞子", "泥の呪い子"],
     gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 0, trapBonus: 0 },
@@ -26,6 +51,21 @@ export const BIOMES = Object.freeze([
   }),
   biome({
     id: "forgotten_catacomb", name: "忘れられた地下墓地", cssClass: "floor-theme-b2",
+    terrain: {
+      roomCountRange: [3, 3],
+      mazeProfile: { straightBias: [0.30, 0.48], loopRate: [0.12, 0.24] }
+    },
+    visualSignature: {
+      wallColor: "#d5b56f",
+      gridColor: "rgba(213, 181, 111, 0.24)",
+      background: "#17120a",
+      headerBackground: "#282012",
+      bannerBackground: "#21190d",
+      glow: "0 0 14px rgba(213, 181, 111, 0.28)",
+      aura: "radial-gradient(circle at 55% 42%, rgba(213, 181, 111, 0.11) 0%, rgba(32, 20, 5, 0.72) 70%, rgba(0, 0, 0, 0.86) 100%)",
+      auraOpacity: 0.68,
+      environment: { overlay: "rgba(58, 38, 13, 0.14)", animated: false }
+    },
     bossName: "ストーンガード", eliteName: "墓守の巨躯",
     enemyPool: ["リビングアーマー", "ゾンビ", "ジャイアントスパイダー", "針甲虫", "呪いの小鏡", "鉄皮のゴブリン", "祈祷ゴブリン", "マナドレイン", "スケルトンアーチャー", "煙幕盗賊", "腐毒の蛆", "催眠コウモリ"],
     gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 0, trapBonus: 1 },
@@ -38,6 +78,21 @@ export const BIOMES = Object.freeze([
   }),
   biome({
     id: "rift_nest", name: "大裂溝の巣窟", cssClass: "floor-theme-b3",
+    terrain: {
+      roomCountRange: [3, 3],
+      mazeProfile: { straightBias: [0.16, 0.34], loopRate: [0.10, 0.20] }
+    },
+    visualSignature: {
+      wallColor: "#bd78f2",
+      gridColor: "rgba(189, 120, 242, 0.24)",
+      background: "#160c21",
+      headerBackground: "#28143a",
+      bannerBackground: "#21102f",
+      glow: "0 0 14px rgba(189, 120, 242, 0.30)",
+      aura: "radial-gradient(circle at 48% 42%, rgba(189, 120, 242, 0.12) 0%, rgba(45, 8, 55, 0.70) 70%, rgba(0, 0, 0, 0.90) 100%)",
+      auraOpacity: 0.72,
+      environment: { overlay: "rgba(107, 27, 116, 0.08)", animated: false }
+    },
     bossName: "ポイズンジャイアント", eliteName: "這い寄る影",
     enemyPool: ["スピリット", "はぐれ魔術師", "呪文喰い", "オークの戦士", "カースドハンド", "アイアンゴーレム", "霧の亡霊", "骨の鼓手", "弱体の魔女", "魔封じの目玉", "解呪の司祭"],
     gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 1, trapBonus: 1 },
@@ -50,6 +105,21 @@ export const BIOMES = Object.freeze([
   }),
   biome({
     id: "sunken_library", name: "水没した魔導書庫", cssClass: "floor-theme-b4",
+    terrain: {
+      roomCountRange: [3, 4],
+      mazeProfile: { straightBias: [0.24, 0.44], loopRate: [0.22, 0.34] }
+    },
+    visualSignature: {
+      wallColor: "#54c8c3",
+      gridColor: "rgba(84, 200, 195, 0.25)",
+      background: "#07191c",
+      headerBackground: "#0e2b30",
+      bannerBackground: "#0b2226",
+      glow: "0 0 14px rgba(84, 200, 195, 0.30)",
+      aura: "radial-gradient(circle at 52% 45%, rgba(84, 200, 195, 0.12) 0%, rgba(3, 38, 42, 0.74) 70%, rgba(0, 0, 0, 0.91) 100%)",
+      auraOpacity: 0.76,
+      environment: { overlay: "rgba(7, 62, 68, 0.11)", animated: false }
+    },
     bossName: "マスターデーモン", eliteName: "禁書の番人",
     enemyPool: ["ストーンガード", "マスターメイジ", "バンシー", "ブラッドバット群", "石像兵", "魔鏡の司祭", "鋼殻ビートル", "弱体の魔女", "沈黙の修道士", "召喚する悪魔", "魔防崩しの蛇"],
     gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 1, trapBonus: 2 },
@@ -62,6 +132,21 @@ export const BIOMES = Object.freeze([
   }),
   biome({
     id: "dragon_forge", name: "竜火の鍛造殿", cssClass: "floor-theme-b5",
+    terrain: {
+      roomCountRange: [4, 5],
+      mazeProfile: { straightBias: [0.10, 0.30], loopRate: [0.10, 0.20] }
+    },
+    visualSignature: {
+      wallColor: "#f08a45",
+      gridColor: "rgba(240, 138, 69, 0.25)",
+      background: "#211006",
+      headerBackground: "#36180b",
+      bannerBackground: "#2b1308",
+      glow: "0 0 14px rgba(240, 138, 69, 0.32)",
+      aura: "radial-gradient(circle at 50% 45%, rgba(240, 138, 69, 0.13) 0%, rgba(64, 12, 4, 0.78) 70%, rgba(0, 0, 0, 0.93) 100%)",
+      auraOpacity: 0.80,
+      environment: { overlay: "rgba(106, 29, 8, 0.12)", animated: true }
+    },
     bossName: "レッドドラゴン", eliteName: "灼熱の徘徊者",
     enemyPool: ["ドラゴンワーム", "ワイバーン", "黒曜の魔導士", "結界の守護者", "盾持ちデーモン", "灰燼の術士", "ストーンガード", "鋼殻ビートル", "双頭の番犬"],
     gimmicks: { trapSet: ["damage", "alarm"], oneWayBonus: 2, trapBonus: 2 },
@@ -74,6 +159,21 @@ export const BIOMES = Object.freeze([
   }),
   biome({
     id: "abyssal_throne", name: "深淵の玉座", cssClass: "floor-theme-b6",
+    terrain: {
+      roomCountRange: [4, 5],
+      mazeProfile: { straightBias: [0.06, 0.22], loopRate: [0.08, 0.16] }
+    },
+    visualSignature: {
+      wallColor: "#d45de6",
+      gridColor: "rgba(212, 93, 230, 0.24)",
+      background: "#18091f",
+      headerBackground: "#321244",
+      bannerBackground: "#270d35",
+      glow: "0 0 14px rgba(212, 93, 230, 0.34)",
+      aura: "radial-gradient(circle at 48% 42%, rgba(212, 93, 230, 0.14) 0%, rgba(45, 3, 55, 0.82) 70%, rgba(0, 0, 0, 0.95) 100%)",
+      auraOpacity: 0.84,
+      environment: { overlay: "rgba(46, 8, 65, 0.14)", animated: true }
+    },
     bossName: "いにしえの竜", eliteName: "深淵の徘徊者",
     enemyPool: ["マスターデーモン", "プリーストデーモン", "命喰いの影", "深淵の分裂体", "破滅の導師", "盾持ちデーモン", "結界の守護者", "反逆の鎧", "竜血の再生者"],
     gimmicks: { trapSet: ["mpDrain", "alarm"], oneWayBonus: 2, trapBonus: 3 },
@@ -98,4 +198,24 @@ export function getBiomeForFloor(floor) {
 export function getBiomeCycle(floor) {
   const depth = Math.max(1, Math.floor(Number(floor) || 1));
   return Math.floor((depth - 1) / (BIOMES.length * 5));
+}
+
+export function getDepthCorruption(floor) {
+  const depth = Math.max(1, Math.floor(Number(floor) || 1));
+  const biomeCycle = getBiomeCycle(depth);
+  const floorInCycle = (depth - 1) % (BIOMES.length * 5);
+  return biomeCycle + floorInCycle / (BIOMES.length * 5);
+}
+
+export function getBiomeTerrainForFloor(floor) {
+  const biome = getBiomeForFloor(floor);
+  const biomeCycle = getBiomeCycle(floor);
+  const cycleCorruption = biomeCycle * 0.04;
+  return {
+    roomCountRange: biome.terrain.roomCountRange,
+    mazeProfile: {
+      straightBias: biome.terrain.mazeProfile.straightBias.map(value => Math.max(0, value - cycleCorruption)),
+      loopRate: biome.terrain.mazeProfile.loopRate.map(value => Math.max(0, value - cycleCorruption * 0.5))
+    }
+  };
 }

@@ -16,6 +16,23 @@ implementation cost.
 
 Target files are determined from the relevant rows in `.agents/file-map.md`.
 
+## Biome and depth visual canon
+
+Biome definitions in `src/data/biomes.js` are the canonical source for each
+biome's player-facing visual signature: wall/grid colors, dark-environment
+backgrounds, glow, aura, and ambient treatment. `src/renderer.js` and
+`src/styles/floor-themes.css` consume those values; they must not maintain a
+second floor-number or biome-color catalogue.
+
+Biome answers “where am I?” and changes every five floors. Depth answers “how
+deep am I?” and is a monotonic corruption axis derived from the preserved
+`biomeCycle` plus the position within that cycle. Depth may alter structure,
+fracture visibility, and atmospheric intensity, but color alone is not its
+sole signal. Wall, floor, route, and mobile readability remain higher priority
+than depth effects. This separation changes presentation and terrain shape only;
+gameplay quantities, encounter pacing, and balance targets remain governed by
+the existing floor-template rules.
+
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with `src/data.js`

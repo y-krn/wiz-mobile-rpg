@@ -8,7 +8,7 @@ import { updateSoloHUD } from "./solo_hud.js";
 import { updateCombatPrompt } from "./combat_prompt.js";
 import { updateViewportHUD } from "./viewport_hud.js";
 import { renderResultScreen } from "./result_screen.js";
-import { getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
+import { getDepthCorruption, getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
 import { formatRunQuestProgress } from "../systems/run_quests.js";
 import { updateRecordsStrip } from "./records_view.js";
 import { EVENT_SUBMENU_TYPES } from "../constants/events.js";
@@ -17,6 +17,16 @@ let floorStingerTimer = null;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
 const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover";
 const TOWN_SUBMENU_TYPES = new Set(["castle_main", "castle_death_logs", "workshop_main"]);
+const FLOOR_THEME_STYLE_PROPERTIES = [
+  "--biome-wall-color",
+  "--biome-glow",
+  "--biome-background",
+  "--biome-header-background",
+  "--biome-banner-background",
+  "--biome-aura",
+  "--biome-aura-opacity",
+  "--depth-corruption",
+];
 
 function isDeparturePrepSubmenu() {
   return state.gameState === "submenu" && menuContext.type === "solo_start";
@@ -239,7 +249,21 @@ export function updateUI() {
         state.gameState !== "victory" &&
         state.gameState !== "result" &&
         state.floor >= 1) {
-      container.classList.add(getFloorTheme(state.floor).cssClass);
+      const floorTheme = getFloorTheme(state.floor);
+      const visual = floorTheme.visualSignature;
+      container.classList.add(floorTheme.cssClass);
+      if (typeof container.style?.setProperty === "function") {
+        container.style.setProperty("--biome-wall-color", visual.wallColor);
+        container.style.setProperty("--biome-glow", visual.glow);
+        container.style.setProperty("--biome-background", visual.background);
+        container.style.setProperty("--biome-header-background", visual.headerBackground);
+        container.style.setProperty("--biome-banner-background", visual.bannerBackground);
+        container.style.setProperty("--biome-aura", visual.aura);
+        container.style.setProperty("--biome-aura-opacity", String(visual.auraOpacity));
+        container.style.setProperty("--depth-corruption", String(getDepthCorruption(state.floor)));
+      }
+    } else if (typeof container.style?.removeProperty === "function") {
+      FLOOR_THEME_STYLE_PROPERTIES.forEach(property => container.style.removeProperty(property));
     }
   }
 

@@ -1,5 +1,5 @@
 import { getFloorTemplate } from "./data/floor_templates.js";
-import { getBiomeForFloor, getBiomeCycle } from "./data/biomes.js";
+import { getBiomeForFloor, getBiomeCycle, getBiomeTerrainForFloor } from "./data/biomes.js";
 import { EVENT_TYPES } from "./constants/events.js";
 import { generateRandomMap } from "./map_generator.js";
 import { deriveFloorAttemptSeed, deriveFloorSeed } from "./seed_rng.js";
@@ -183,6 +183,12 @@ export function generateRunFloor({
 
   const template = getFloorTemplate(floor);
   const biome = getBiomeForFloor(floor);
+  const biomeCycle = getBiomeCycle(floor);
+  const biomeTerrain = getBiomeTerrainForFloor(floor);
+  const validationTemplate = {
+    ...template,
+    roomCountRange: biomeTerrain.roomCountRange
+  };
   const floorSeed = deriveFloorSeed(runSeed, floor);
   let lastErrors = [];
 
@@ -191,8 +197,8 @@ export function generateRunFloor({
     try {
       const generated = generateRandomMap(floor, parentStairsCoord, generationSeed, {
         size: template.size,
-        roomCountRange: template.roomCountRange,
-        mazeProfile: template.mazeProfile,
+        roomCountRange: biomeTerrain.roomCountRange,
+        mazeProfile: biomeTerrain.mazeProfile,
         oneWayPassageCount: template.gimmickDensity.oneWayPassages + biome.gimmicks.oneWayBonus,
         secretDoorCounts: template.gimmickDensity.secretDoors,
         trapCount: template.gimmickDensity.traps + biome.gimmicks.trapBonus,
@@ -203,7 +209,7 @@ export function generateRunFloor({
       });
       const milestoneEvents = placeMilestoneEvents(generated.grid, floor);
       placeCampEvent(generated.grid, floor);
-      const validation = validateGeneratedFloor(generated, template);
+      const validation = validateGeneratedFloor(generated, validationTemplate);
       if (validation.valid) {
         return {
           ...generated,
@@ -214,7 +220,7 @@ export function generateRunFloor({
           generationAttempt: attempt,
           templateId: template.id,
           biomeId: biome.id,
-          biomeCycle: getBiomeCycle(floor),
+          biomeCycle,
           gimmickSet: biome.gimmicks,
           milestoneEvents,
           validation

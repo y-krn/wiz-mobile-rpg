@@ -1,10 +1,11 @@
-import { BIOMES, getBiomeForFloor } from "./biomes.js";
+import { BIOMES, getBiomeForFloor, getDepthCorruption } from "./biomes.js";
 
 export const FLOOR_THEMES = Object.freeze(Object.fromEntries(
   BIOMES.map((biome, index) => [index + 1, Object.freeze({
     id: biome.id,
     name: biome.name,
     cssClass: biome.cssClass,
+    visualSignature: biome.visualSignature,
     ...biome.theme
   })])
 ));
@@ -15,9 +16,12 @@ export function getFloorTheme(floor) {
     id: biome.id,
     name: biome.name,
     cssClass: biome.cssClass,
+    visualSignature: biome.visualSignature,
     ...biome.theme
   });
 }
+
+export { getDepthCorruption };
 
 export function getVisitedFloors(stateInstance) {
   return stateInstance.dungeonMemory?.visitedFloors || [];
