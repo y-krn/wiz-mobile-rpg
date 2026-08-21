@@ -107,6 +107,13 @@ not run count — the stat cap is the levee.
 - Milestones every 5 floors: a boss, then a breather with a permanent return
   portal and a merchant (identify resources, consumables, return items,
   curse removal — priced in materials).
+- **Camp entry breather (B6/B11/B16/B21).** After the preceding milestone boss
+  is defeated, entering the next floor opens Camp before exploration begins.
+  Camp is not a generated map cell, so the breather is guaranteed and does not
+  require route luck. The existing rest choice, 40% HP/MP recovery, and
+  `CORE_CAMP_MASTER` multiplier remain unchanged; choosing to rest or continue
+  closes the entry event and starts normal exploration. The entry floor and
+  completion are persisted so autosave/resume cannot repeat the same Camp.
 - Biomes rotate every 5 floors: enemy pool, gimmicks, and visual theme
   change. v1 ships ~6 handcrafted biomes (~30 floors) and recycles them at
   higher scaling beyond that.

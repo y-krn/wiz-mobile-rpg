@@ -635,7 +635,56 @@ for (const vp of VIEWPORTS) {
       });
       await expect(page.getByText('すでに今回の遠征中に休息した')).toBeVisible();
       await expect(page.getByRole('button', { name: '休息する' })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: '立ち去る' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '休息せず進む' })).toBeVisible();
+    });
+
+    test('Milestone floor entry opens Camp before exploration and both choices finish the entry', async ({ page }) => {
+      const started = await page.evaluate(async () => {
+        const { state, createDefaultCurrentRun, createSoloCharacter } = await import('/src/state.js');
+        const { startCampEntryIfEligible } = await import('/src/movement.js');
+        state.party = [createSoloCharacter('Fighter')];
+        state.floor = 6;
+        state.gameState = 'explore';
+        state.currentRun = createDefaultCurrentRun();
+        state.currentRun.defeatedMilestones = [5];
+        return startCampEntryIfEligible(6);
+      });
+      expect(started).toBe(true);
+      await expect(page.getByRole('button', { name: '休息する' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '休息せず進む' })).toBeVisible();
+      await page.waitForTimeout(400);
+      await page.getByRole('button', { name: '休息する' }).click();
+
+      const afterRest = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return {
+          gameState: state.gameState,
+          pending: state.currentRun.pendingCampEntryFloor,
+          completed: state.currentRun.completedCampEntryFloors,
+        };
+      });
+      expect(afterRest).toEqual({ gameState: 'explore', pending: null, completed: [6] });
+
+      const secondStarted = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { startCampEntryIfEligible } = await import('/src/movement.js');
+        state.floor = 11;
+        state.gameState = 'explore';
+        state.currentRun.defeatedMilestones = [10];
+        return startCampEntryIfEligible(11);
+      });
+      expect(secondStarted).toBe(true);
+      await page.waitForTimeout(400);
+      await page.getByRole('button', { name: '休息せず進む' }).click();
+      const afterContinue = await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        return {
+          gameState: state.gameState,
+          pending: state.currentRun.pendingCampEntryFloor,
+          completed: state.currentRun.completedCampEntryFloors,
+        };
+      });
+      expect(afterContinue).toEqual({ gameState: 'explore', pending: null, completed: [6, 11] });
     });
 
     test('Standalone safe-area town menu is scroll-contained above solo HUD', async ({ page }) => {

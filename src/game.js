@@ -9,7 +9,7 @@ import { blockGuardedControlsEvent } from "./controls_guard.js";
 
 // Import modules for re-export and button bindings
 import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
-import { handleMove, enterDungeon } from "./movement.js";
+import { handleMove, enterDungeon, resumePendingCampEntry } from "./movement.js";
 import { handleExploreAction, handleTownOption } from "./menu.js";
 import { selectCombatAction, cancelCombatAction, toggleCombatAuto, resumeCombat } from "./combat.js";
 
@@ -48,6 +48,7 @@ export function initGame() {
 
   // Load Initial UI state
   updateUI();
+  resumePendingCampEntry();
   if (state.gameState === "combat" && state.combatState) {
     resumeCombat();
   }

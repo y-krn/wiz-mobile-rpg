@@ -256,6 +256,8 @@ export function normalizeSavePayload(data) {
     normalized.currentRun.defeatsByRole ??= {};
     normalized.currentRun.codexRewards ??= {};
     normalized.currentRun.recordResult ??= null;
+    normalized.currentRun.pendingCampEntryFloor ??= null;
+    normalized.currentRun.completedCampEntryFloors ??= [];
   }
   normalized.records = normalizeRecords(data.records);
   normalized.unlockedMilestones = Array.from(new Set(data.unlockedMilestones ?? []))
