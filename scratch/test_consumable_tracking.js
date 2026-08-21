@@ -38,7 +38,22 @@ if (paths.length === 0) {
 }
 
 for (const path of paths) {
-  const lines = fs.readFileSync(path, "utf8").split("\n");
+  const rawOutput = fs.readFileSync(path, "utf8");
+  if (rawOutput.trimStart().startsWith("{")) {
+    const payload = JSON.parse(rawOutput);
+    for (const row of payload.rows || []) {
+      observations++;
+      for (const itemId of trackedStatusItems) {
+        const actual = Number(row.statusCureItemsUsed?.[itemId] || 0);
+        const tracked = Number(row.consumableUsageByItem?.[itemId]?.consumed || 0);
+        if (actual !== tracked) {
+          failures.push(`${path}:${row.className}:${row.runIndex}:${itemId} used=${actual} tracked=${tracked}`);
+        }
+      }
+    }
+    continue;
+  }
+  const lines = rawOutput.split("\n");
   for (const line of lines) {
     if (!line.startsWith("STATUS_CURE_OBSERVATION_JSON=")) continue;
     observations++;

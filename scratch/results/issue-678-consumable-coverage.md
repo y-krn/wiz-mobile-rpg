@@ -270,6 +270,22 @@ of exploration aids and conditional buffs or require a new item.
 - N=1 smoke: PASS; focused audit: PASS (30 observations; HOLY_WATER + five dedicated items)
 - N=500 raw stdout SHA-256: `c3336eddb264ca235e5e1bab11264f235cf2263ff236bed9da0dacef26164227`
   (identical on the repeated run; raw files remain untracked in `/private/tmp`)
+- #624-compatible current-main harness used the same full command recorded in the #689
+  section above (`env -u SIM_PARALLEL`, seed 231, runs 500, calibration 100, independent-run
+  random, departure craft, conservative/EV/smart policies, `SIM_EXPLORATION_FACTOR=1.4`, and
+  `ISSUE689_DETERMINISTIC=1 node scratch/sim_commit_depth_624.js`); 2,000 rows and focused audit
+  PASS. The raw stdout
+  SHA-256 was `8b71fb2c6e0fdffe1050bf0504427719dda639ac27743d56481ba8ccbe53c9bd` on both
+  runs. Its current-main depth averages were Fighter 6.0840 / Thief 7.8340 / Priest 5.0480 /
+  Mage 9.5920; these are reported separately because current main includes later depth-model
+  changes, while the historical #678/#689 baseline table above is retained unchanged.
+- In that same current-main harness, the six status-cure totals were
+  `HOLY_WATER 2492/611`, `ANTIDOTE 3260/2146`, `PANACEA 2230/320`, `EYE_DROPS 764/102`,
+  `PARALYZE_CURE 932/0`, `WAKE_POWDER 1286/0` (acquired/consumed). Every per-item total matched
+  `statusCureItemsUsed`; the focused test checked all 2,000 rows, including zero-consumption
+  rows.
+- The focused test also accepts the direct runner's observation records and the harness JSON;
+  raw output files remain untracked in `/private/tmp`.
 - `node --check` for runner/test: PASS; `git diff --check`: PASS
 - modeled: real `generateRunFloor` depth path, status cures, healing, mana, portals, trap kits,
   combat item resolution and reward/level-up path; omitted: the four intentional sim gaps above
