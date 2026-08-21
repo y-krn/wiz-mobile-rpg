@@ -17,6 +17,7 @@ import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.js";
 import { assignRunQuests, updateRunQuests } from "./systems/run_quests.js";
 import { applyTrapGuardToEffect, resolveFlameTrapEffect } from "./rules/trap_effect_rules.js";
+import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -233,6 +234,7 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
     checkFloorOmenMessage();
     
     state.transitioning = false;
+    startCampEntryIfEligible(nextFloor);
     saveAutosave();
     updateUI();
     showFloorEntryStinger(nextFloor, firstVisit);
@@ -241,6 +243,28 @@ export function descendToFloor(nextFloor, landingCoord = null, isPitfall = false
       onLanding();
     }
   }, 1200);
+}
+
+function getCampEntryTitle(floor) {
+  const skin = getFloorTheme(floor)?.eventSkins.camp || "野営地";
+  return `${skin}。腰を落ち着けられる場所を確かめる。`;
+}
+
+export function startCampEntryIfEligible(floor = state.floor) {
+  if (!isCampEntryEligible(state, floor)) return false;
+  if (!beginCampEntry(state, floor)) return false;
+  openGuardedSubmenu(EVENT_TYPES.CAMP, getCampEntryTitle(floor));
+  return true;
+}
+
+export function resumePendingCampEntry() {
+  const floor = state.currentRun?.pendingCampEntryFloor;
+  if (state.gameState !== "explore" || !Number.isInteger(floor) || floor !== state.floor) {
+    return false;
+  }
+  if (!isCampEntryEligible(state, floor)) return false;
+  openGuardedSubmenu(EVENT_TYPES.CAMP, getCampEntryTitle(floor));
+  return true;
 }
 
 export function applyFloorTransitionHeal() {

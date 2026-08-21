@@ -12,7 +12,6 @@ const DIRECTIONS = [
 ];
 
 export const MAX_FLOOR_GENERATION_ATTEMPTS = 12;
-const CAMP_MIN_DISTANCE = 5;
 
 function keyOf({ x, y }) {
   return `${x},${y}`;
@@ -64,24 +63,6 @@ function placeMilestoneEvents(grid, floor) {
 // 野営は守護者撃破直後の階に置く。表示名は階層のバイオームから取得する。
 export function floorHasCampEvent(floor) {
   return isMilestoneFloor(floor - 1);
-}
-
-function placeCampEvent(grid, floor) {
-  if (!floorHasCampEvent(floor)) return null;
-  const start = findCell(grid, cell => cell.type === "stairs-up");
-  const distances = getDistances(grid, start);
-  const candidates = [];
-  grid.forEach((row, y) => row.forEach((cell, x) => {
-    if (!isWalkable(cell) || cell.type !== "empty" || cell.event || cell.trap) return;
-    const distance = distances.get(`${x},${y}`);
-    if (Number.isFinite(distance) && distance >= CAMP_MIN_DISTANCE) candidates.push({ x, y, distance });
-  }));
-  if (candidates.length === 0) return null;
-  // 最遠はマイルストーンイベントが使う。中間距離を決定的に選ぶ。
-  candidates.sort((a, b) => a.distance - b.distance || a.y - b.y || a.x - b.x);
-  const chosen = candidates[Math.floor(candidates.length / 2)];
-  grid[chosen.y][chosen.x].event = EVENT_TYPES.CAMP;
-  return chosen;
 }
 
 export function getMilestoneEventCounts(grid) {
@@ -208,7 +189,6 @@ export function generateRunFloor({
         legacyMilestones: false
       });
       const milestoneEvents = placeMilestoneEvents(generated.grid, floor);
-      placeCampEvent(generated.grid, floor);
       const validation = validateGeneratedFloor(generated, validationTemplate);
       if (validation.valid) {
         return {

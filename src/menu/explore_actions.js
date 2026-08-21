@@ -5,7 +5,7 @@ import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../naviga
 import { isSpellcaster, getClassJpName, getItemData, getCharTrapBonus, getPartyMaxAffix, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
 import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
-import { getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
+import { completeCampEntry, getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
 import { startCombat, triggerGameOver } from "../combat.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
 import { executeDisarm, openChestDirectly } from "../chest.js";
@@ -389,6 +389,7 @@ export function renderEventCamp(optGrid) {
       playSound("heal");
       if (result.coreUsers?.length) addLog(`[野営の達人] ${result.coreUsers.join("・")}の休息効果が倍増した！`);
       addLog(`[!] 野営地で休息した。HP ${result.hpRecovered} / MP ${result.mpRecovered} 回復。`);
+      completeCampEntry(state, state.floor);
       saveAutosave();
       closeSubmenu();
     });
@@ -397,8 +398,12 @@ export function renderEventCamp(optGrid) {
 
   const btnLeave = document.createElement("button");
   btnLeave.className = "btn btn-danger btn-block";
-  btnLeave.textContent = "立ち去る";
-  btnLeave.addEventListener("click", closeSubmenu);
+  btnLeave.textContent = "休息せず進む";
+  btnLeave.addEventListener("click", () => {
+    completeCampEntry(state, state.floor);
+    saveAutosave();
+    closeSubmenu();
+  });
   optGrid.appendChild(btnLeave);
 }
 

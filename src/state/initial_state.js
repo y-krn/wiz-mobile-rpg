@@ -62,6 +62,8 @@ export const createDefaultCurrentRun = () => ({
   outcome: "",
   deathLogs: [],
   campRested: {},
+  pendingCampEntryFloor: null,
+  completedCampEntryFloors: [],
   defeatedMilestones: [],
   visitedMilestoneMerchants: [],
   quests: [],

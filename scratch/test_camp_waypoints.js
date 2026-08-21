@@ -7,28 +7,15 @@ import { getCampRestStatus, restAtCamp } from "../src/systems/camp_rest.js";
 const FAST = process.env.FAST === "1";
 const SEED_COUNT = FAST ? 10 : 30;
 
-function findCamp(grid) {
-  for (let y = 0; y < grid.length; y++) {
-    for (let x = 0; x < grid[y].length; x++) {
-      if (grid[y][x].event === EVENT_TYPES.CAMP) return { x, y, cell: grid[y][x] };
-    }
-  }
-  return null;
-}
-
-// 野営は守護者撃破直後の階に現れる。表示名のバイオーム設定とは独立する。
+// 野営はマップセルではなく、守護者撃破後の階への進入イベントになった。
 for (let seedIndex = 0; seedIndex < SEED_COUNT; seedIndex++) {
   const runSeed = `CAMP-WAYPOINTS-${seedIndex}`;
   let parent = null;
   for (let floor = 1; floor <= 12; floor++) {
     const map = generateRunFloor({ runSeed, floor, parentStairsCoord: parent });
-    const camp = findCamp(map.grid);
-    const expectsCamp = isMilestoneFloor(floor - 1);
-    assert.equal(Boolean(camp), expectsCamp, `${runSeed} B${floor} camp placement`);
-    if (camp) {
-      assert.equal(camp.cell.trap, undefined, `${runSeed} B${floor} camp excludes traps`);
-      assert.equal(camp.cell.type, "empty", `${runSeed} B${floor} camp uses passage cell`);
-    }
+    const campCells = map.grid.flat().filter(cell => cell.event === EVENT_TYPES.CAMP);
+    assert.equal(campCells.length, 0, `${runSeed} B${floor} has no camp cells`);
+    assert.equal(isMilestoneFloor(floor - 1), floor > 1 && (floor - 1) % 5 === 0);
     parent = map.stairsDownCoord;
   }
 }
