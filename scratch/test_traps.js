@@ -164,16 +164,16 @@ if (legacyInscriptionRate !== 88) {
 }
 console.log("- legacy inscription: not applied");
 
-// 未鑑定の装備は affix 効果を渡さない（getItemData が trapBonus 0 を返す）
+// 未鑑定でも装備中の affix 効果は実体へ適用する（表示用 getItemData は秘匿のまま）
 state.party = makeThief({
   weapon: { baseId: "SHORT_SWORD", identified: false, affixes: [{ type: "trapBonus", value: 10 }] }
 });
 const unidentifiedRate = calculateSuccessRate(testTrap);
-if (unidentifiedRate !== 88) {
-  console.error(`FAIL: unidentified trapBonus must not apply while class passive remains, got ${unidentifiedRate}.`);
+if (unidentifiedRate !== 98) {
+  console.error(`FAIL: unidentified trapBonus should apply while equipped, got ${unidentifiedRate}.`);
   process.exit(1);
 }
-console.log("- unidentified trapBonus: not applied");
+console.log("- unidentified trapBonus: applied");
 
 state.floor = 1;
 console.log("PASS: Success rate calculations verified.");

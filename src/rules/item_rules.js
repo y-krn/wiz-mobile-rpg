@@ -1,6 +1,6 @@
 import { ITEMS, CURSE_EFFECTS } from "../data/items.js";
 import { getClassPassiveBonus } from "./class_rules.js";
-import { formatAffixText, getAffixDefinition } from "../data/affixes.js";
+import { formatAffixText } from "../data/affixes.js";
 import { getScaledCurseModifier } from "./identification_rules.js";
 
 export function getItemBaseId(item) {
@@ -28,18 +28,8 @@ export function getEffectiveHealAmount(target, amount) {
   return Math.max(1, Math.round(amount * mult));
 }
 
-function canApplyUnidentifiedEquipmentEffects(char) {
-  return Object.values(char?.equipment || {}).some(item => {
-    if (!item || typeof item !== "object" || !item.identified) return false;
-    return (item.affixes || []).some(affix => {
-      const id = affix.id || affix.type;
-      return id === "CORE_KEEN_EYE" && getAffixDefinition(id)?.enabled;
-    });
-  });
-}
-
 export function getEquippedItemData(char, item) {
-  if (item && typeof item === "object" && !item.identified && canApplyUnidentifiedEquipmentEffects(char)) {
+  if (item && typeof item === "object" && item.identified !== true) {
     return getItemData({ ...item, identified: true });
   }
   return getItemData(item);
@@ -48,42 +38,27 @@ export function getEquippedItemData(char, item) {
 export function getCharAffixSum(char, affixType) {
   if (!char) return 0;
   let sum = 0;
-  const applyUnidentified = canApplyUnidentifiedEquipmentEffects(char);
   Object.values(char.equipment || {}).forEach(eqKey => {
     if (!eqKey) return;
-    const isMechanicallyActive = typeof eqKey !== "object" || eqKey.identified || applyUnidentified;
-    const eqData = isMechanicallyActive ? getEquippedItemData(char, eqKey) : getItemData(eqKey);
-    if (isMechanicallyActive && eqData?.affixBonus?.[affixType] !== undefined) {
+    const eqData = getEquippedItemData(char, eqKey);
+    if (eqData?.affixBonus?.[affixType] !== undefined) {
       sum += eqData.affixBonus[affixType];
     }
-    if (isMechanicallyActive && affixType === "trapBonus") {
+    if (affixType === "trapBonus") {
       sum += ITEMS[getItemBaseId(eqKey)]?.trapBonus || 0;
     }
     if (typeof eqKey === "object") {
-      if (eqKey.identified || applyUnidentified) {
-        if (eqKey.affixes) {
-          eqKey.affixes.forEach(aff => {
-            if (aff.type === affixType) {
-              sum += aff.value;
-            }
-          });
-        }
-        // 完全鑑定済みかつ呪われ装備の場合、呪いの全効果を適用
-        if (eqKey.curseEffectId) {
-          const curse = CURSE_EFFECTS[eqKey.curseEffectId];
-          sum += getScaledCurseModifier(curse, affixType, eqKey.cursePower);
-        }
-      } else {
-        // 未鑑定で装備している場合、呪いのデメリット（負の補正値）のみ適用するリスク
-        if (eqKey.curseEffectId) {
-          const curse = CURSE_EFFECTS[eqKey.curseEffectId];
-          if (curse && curse.mod && curse.mod[affixType] !== undefined) {
-            const val = getScaledCurseModifier(curse, affixType, eqKey.cursePower);
-            if (val < 0) {
-              sum += val;
-            }
+      if (eqKey.affixes) {
+        eqKey.affixes.forEach(aff => {
+          if (aff.type === affixType) {
+            sum += aff.value;
           }
-        }
+        });
+      }
+      // 未鑑定でも、装備している実体の呪いは正負を含めて適用する。
+      if (eqKey.curseEffectId) {
+        const curse = CURSE_EFFECTS[eqKey.curseEffectId];
+        sum += getScaledCurseModifier(curse, affixType, eqKey.cursePower);
       }
     }
   });

@@ -69,7 +69,7 @@ does `combatFirstStrikeActive` become active, and it disappears at the end of th
 |------|----|------|------|
 | 忍び足 | CORE_SNEAK_STEP | Gatekeeper and boss detection range halved + aura detection +1 | Armor |
 | 盗掘王 | CORE_TOMB_RAIDER | Chest materials +1, trap intensity +1 level | Accessory |
-| 慧眼 | CORE_KEEN_EYE | Can equip unidentified equipment (effects apply; display hidden until identified) | Accessory |
+| 慧眼 | CORE_KEEN_EYE | Unidentified equipment can be equipped while its details remain hidden until identified | Accessory |
 | 野営の達人 | CORE_CAMP_MASTER | 2× camp-rest recovery (self only) | Armor |
 | 賞金稼ぎ | CORE_BOUNTY_HUNTER | Counts rank-quest target defeats 2× | Accessory |
 | 学者の眼 | CORE_SCHOLAR_EYE | Guaranteed material drop from enemies not registered in the codex | Accessory |
@@ -78,10 +78,15 @@ The current design assumes 1 solo character. 忍び足・賞金稼ぎ・学者�
 In implementation, existing helpers such as `getPartyCoreParams` / `partyHasCoreAffix` continue to be used,
 and their effects are inactive when the wearer is hp0 / dead / ash.
 
-The effect of 慧眼 is applied at the mechanism layer rather than the display layer
-(`canApplyUnidentifiedEquipmentEffects` inside `getCharAffixSum`).
-The 慧眼 core itself is active only on identified equipment (no cycle). Equipping cursed unidentified equipment
-and triggering its curse is intended behavior (the risk of this core).
+Unidentified equipment is now evaluated at the mechanism layer while equipped:
+base stats, support/core affixes, and both positive and negative curse modifiers
+apply to derived stats and combat, while `getItemData()` and equipment detail UI
+continue to mask the corresponding information until identification. The
+慧眼 registry entry remains for save/content compatibility; Issue #775 changes
+no affix values, material costs, drop rates, or other economy constants.
+Equipping cursed unidentified equipment and triggering its curse is intended
+behavior. The item remains unidentified, but `curseLocked` exposes only the
+existence of the curse and prevents ordinary removal.
 
 # Support Affixes (`SUPPORT_AFFIXES`)
 

@@ -46,12 +46,12 @@ const identBloodThirst = {
   curseEffectId: "curse_blood_thirst"
 };
 
-// 未鑑定: devotion -20 は getCharAffixSum で拾うが、atk は加算されない。
+// 未鑑定でも表示用データは秘匿し、装備中の実体には正負を含む効果を適用する。
 const data1_unident = getItemData(unidentBloodThirst);
 assert.strictEqual(data1_unident.atk, 0, "Unidentified Blood Thirst atk must be 0");
 const charUnident1 = JSON.parse(JSON.stringify(baseChar));
 charUnident1.equipment.accessory = unidentBloodThirst;
-assert.strictEqual(getCharWeaponAtk(charUnident1), 0, "Unidentified Blood Thirst character weapon atk must be 0");
+assert.strictEqual(getCharAffixSum(charUnident1, "atk"), 22.5, "Unidentified Blood Thirst atk curse must apply");
 assert.strictEqual(getCharAffixSum(charUnident1, "devotion"), -20, "Unidentified devotion penalty must apply");
 
 // 鑑定済: devotion -20 及び atk +22.5 の両方が適用される。
@@ -78,12 +78,12 @@ const identCowardly = {
   curseEffectId: "curse_cowardly_shield"
 };
 
-// 未鑑定: guardian -15 は適用、def は 0。
+// 未鑑定: guardian -15 と def +10 の両方を適用。
 const data2_unident = getItemData(unidentCowardly);
 assert.strictEqual(data2_unident.def, 0, "Unidentified Cowardly def must be 0");
 const charUnident2 = JSON.parse(JSON.stringify(baseChar));
 charUnident2.equipment.accessory = unidentCowardly;
-assert.strictEqual(getCharDef(charUnident2), 0, "Unidentified Cowardly character def must be 0");
+assert.strictEqual(getCharDef(charUnident2), 10, "Unidentified Cowardly character def must be 10");
 assert.strictEqual(getCharAffixSum(charUnident2, "guardian"), -15, "Unidentified guardian penalty must apply");
 
 // 鑑定済: guardian -15 と def +10 が適用。
@@ -110,14 +110,14 @@ const identDecay = {
   curseEffectId: "curse_spectral_decay"
 };
 
-// 未鑑定: hp -15（負の補正）は適用されるが、mp +3（正の補正）は適用されない。
+// 未鑑定: hp -15 と mp +3 の両方を適用。
 const data3_unident = getItemData(unidentDecay);
 assert.strictEqual(data3_unident.hpBonus, -15, "Unidentified Decay hpBonus must be -15");
-assert.strictEqual(data3_unident.mpBonus, 0, "Unidentified Decay mpBonus must be 0");
+assert.strictEqual(data3_unident.mpBonus, 0, "Unidentified display data must hide mpBonus");
 const charUnident3 = JSON.parse(JSON.stringify(baseChar));
 charUnident3.equipment.accessory = unidentDecay;
 assert.strictEqual(getCharMaxHp(charUnident3), 25, "Character maxHp must be 25 (40 - 15)");
-assert.strictEqual(getCharMaxMp(charUnident3), 10, "Character maxMp must be 10 (no bonus)");
+assert.strictEqual(getCharMaxMp(charUnident3), 13, "Character maxMp must be 13 (+3)");
 
 // 鑑定済: hp -15 及び mp +3 の両方が適用。
 const data3_ident = getItemData(identDecay);

@@ -311,6 +311,18 @@ test("未鑑定装備: 全員装備可・鑑定前表示隠匿", () => {
   assert.ok(!hidden.desc.includes("力+3"));
 });
 
+test("未鑑定装備のコアも装備中は戦闘経路で有効", () => {
+  const char = makeChar(null);
+  const unknownCore = coreItem("CORE_LAST_STAND");
+  unknownCore.identified = false;
+  unknownCore.halfIdentified = false;
+  char.equipment.weapon = unknownCore;
+  assert.equal(getEquippedCoreAffixes(char)[0].id, "CORE_LAST_STAND");
+  assert.equal(getCharCoreParams(char, "CORE_LAST_STAND").damageMultiplier, 1.4);
+  assert.equal(unknownCore.identified, false);
+  assert.equal(unknownCore.halfIdentified, false);
+});
+
 test("野営の達人: 装備者本人のキャンプ回復量2倍", () => {
   const master = makeChar(null);
   master.equipment.armor = coreItem("CORE_CAMP_MASTER", "LEATHER_ARMOR");

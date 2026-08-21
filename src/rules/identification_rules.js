@@ -60,5 +60,10 @@ export function getScaledCurseModifier(curse, affixType, cursePower = 1) {
 }
 
 export function isCurseLocked(item) {
-  return Boolean(item && typeof item === "object" && item.identified && item.curseEffectId);
+  return Boolean(
+    item &&
+    typeof item === "object" &&
+    item.curseEffectId &&
+    (item.curseLocked || item.identified === true)
+  );
 }
