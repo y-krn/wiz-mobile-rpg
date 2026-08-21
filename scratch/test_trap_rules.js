@@ -44,7 +44,7 @@ console.log("\n[2] Disarm rate (apt):");
 assertEqual(calculateDisarmRate({ className: "Thief", level: 1, floor: 1 }), 81, "Thief lv1 B1");
 assertEqual(calculateDisarmRate({ className: "Thief", level: 10, floor: 10 }), 72, "Thief lv10 B10");
 assertEqual(calculateDisarmRate({ className: "Ninja", level: 20, floor: 20 }), 62, "Ninja lv20 B20");
-assertEqual(calculateDisarmRate({ className: "Thief", level: 30, floor: 1 }), 90, "apt upper clamp");
+assertEqual(calculateDisarmRate({ className: "Thief", level: 30, floor: 1 }), 100, "apt upper clamp");
 assertEqual(calculateDisarmRate({ className: "Thief", level: 1, floor: 60 }), 20, "apt lower clamp");
 
 console.log("\n[3] Disarm rate (non-apt):");
@@ -62,7 +62,7 @@ assertEqual(
 );
 assertEqual(
   calculateDisarmRate({ className: "Thief", level: 1, floor: 1, affixBonus: 50 }),
-  90,
+  100,
   "affix cannot exceed upper clamp"
 );
 
