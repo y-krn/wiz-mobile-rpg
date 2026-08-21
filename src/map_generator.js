@@ -729,6 +729,14 @@ function getDirectedDistance(grid, start, target) {
   return Infinity;
 }
 
+function isCriticalPathInRange(grid, start, target, criticalPathRange) {
+  if (!criticalPathRange) return true;
+  const distance = getDirectedDistance(grid, start, target);
+  return Number.isFinite(distance) &&
+    distance >= criticalPathRange[0] &&
+    distance <= criticalPathRange[1];
+}
+
 function getUndirectedEdgeKey(x, y, nx, ny) {
   return y < ny || (y === ny && x < nx)
     ? `${x},${y}:${nx},${ny}`
@@ -1061,7 +1069,16 @@ function placeSecretDoors(grid, floor, start, stairsDownCoord, bossCoord, rng, c
   return { shortcuts, rooms };
 }
 
-function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng, requestedCount = null) {
+function placeOneWayPassages(
+  grid,
+  floor,
+  start,
+  stairsDownCoord,
+  bossCoord,
+  rng,
+  requestedCount = null,
+  criticalPathRange = null
+) {
   const requiredKeys = getRequiredReachableKeys(grid, stairsDownCoord, bossCoord);
   const edges = getNonBridgePassageEdges(grid);
   const targetCount = Math.min(requestedCount ?? ONE_WAY_PASSAGE_COUNTS[floor] ?? 0, edges.length);
@@ -1095,7 +1112,9 @@ function placeOneWayPassages(grid, floor, start, stairsDownCoord, bossCoord, rng
       if (cell.blockEnter[option.blockDir]) continue;
 
       cell.blockEnter[option.blockDir] = true;
-      if (hasValidOneWayReverseDetours(grid) && canReachAllRequired(grid, start, requiredKeys)) {
+      if (hasValidOneWayReverseDetours(grid) &&
+          canReachAllRequired(grid, start, requiredKeys) &&
+          isCriticalPathInRange(grid, start, stairsDownCoord, criticalPathRange)) {
         usedEdges.add(candidate.key);
         placed++;
         break;
@@ -1762,7 +1781,16 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     };
   }
 
-  placeOneWayPassages(grid, floor, suCoord, stairsDownCoord, bossCoord, rng, options.oneWayPassageCount);
+  placeOneWayPassages(
+    grid,
+    floor,
+    suCoord,
+    stairsDownCoord,
+    bossCoord,
+    rng,
+    options.oneWayPassageCount,
+    options.criticalPathRange
+  );
   placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng, secretCounts);
   removeInvalidOneWayPassages(grid, suCoord);
 

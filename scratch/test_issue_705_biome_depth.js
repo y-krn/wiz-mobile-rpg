@@ -55,6 +55,26 @@ check("all representative and boundary floors validate without fallback", () => 
   });
 });
 
+check("one-way placement preserves the critical-path envelope without retrying", () => {
+  const retryRegressionCases = [
+    { floor: 4, runSeed: "run-floor-template-4-8", expectedOneWays: 1 },
+    { floor: 6, runSeed: "run-floor-template-6-1", expectedOneWays: 1 },
+    { floor: 23, runSeed: "run-floor-template-23-6", expectedOneWays: 5 },
+    { floor: 27, runSeed: "run-floor-template-27-0", expectedOneWays: 5 },
+    { floor: 30, runSeed: "run-floor-template-30-9", expectedOneWays: 5 }
+  ];
+  retryRegressionCases.forEach(({ floor, runSeed, expectedOneWays }) => {
+    const generated = generateRunFloor({ runSeed, floor });
+    const oneWays = generated.grid.flat().reduce(
+      (total, cell) => total + cell.blockEnter.filter(Boolean).length,
+      0
+    );
+    assert.equal(generated.generationAttempt, 0, `B${floor} retried generation`);
+    assert.equal(oneWays, expectedOneWays, `B${floor} one-way count changed`);
+    assert.ok(generated.validation.criticalPath >= 20 && generated.validation.criticalPath <= 30);
+  });
+});
+
 check("balance quantities stay on the floor templates", () => {
   FLOOR_TEMPLATES.forEach(template => {
     assert.deepEqual(template.criticalPathRange, [20, 30]);
