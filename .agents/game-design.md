@@ -271,7 +271,10 @@ Stock, priced in materials:
 
 - Identify resources.
 - Consumables (healing, counterplay items — keep counterplay cheap and
-  available; accessibility outranks scarcity for this category).
+  available; accessibility outranks scarcity for this category). The milestone
+  merchant stocks `EYE_DROPS` (目薬) at `霊粉` 1; it follows the normal
+  affordability and 20-slot inventory checks. `PANACEA` is not merchant stock
+  without an authoritative merchant price.
 - Return items (finite; this is the retreat valve, price it seriously).
 - Curse removal (expensive; the gamble must keep its teeth).
 - No equipment sales. Equipment comes from the dungeon (pillar 3); a

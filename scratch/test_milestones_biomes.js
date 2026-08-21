@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { BIOMES, getBiomeCycle, getBiomeForFloor } from "../src/data/biomes.js";
+import { ITEMS } from "../src/data/items.js";
 import { MILESTONE_MERCHANT_STOCK, MILESTONE_UNCURSE_COST } from "../src/data/milestone_merchant.js";
 import { MATERIAL_DROP_BALANCE } from "../src/data/materials.js";
 import { getMilestoneEventCounts, generateRunFloor } from "../src/run_map_generator.js";
@@ -73,6 +74,41 @@ check("深層商人は装備を売らず、素材で補給品を購入する", (
   assert.equal(purchaseMilestoneStock(state, "identify_powder").ok, true);
   assert.equal(state.identifyTickets, 1);
   assert.equal(state.currentRun.materials["霊粉"], 0);
+});
+
+check("深層商人は正規の目薬を霊粉1で販売し、既存購入制約を守る", () => {
+  const eyeDrops = MILESTONE_MERCHANT_STOCK.find(entry => entry.id === "eye_drops");
+  assert.deepEqual(eyeDrops, {
+    id: "eye_drops",
+    kind: "item",
+    itemId: "EYE_DROPS",
+    name: "目薬",
+    cost: { "霊粉": 1 }
+  });
+  assert.equal(eyeDrops.itemId, ITEMS.EYE_DROPS.id);
+  assert.equal(eyeDrops.name, ITEMS.EYE_DROPS.name);
+  assert.equal(MILESTONE_MERCHANT_STOCK.some(entry => entry.itemId === "PANACEA"), false);
+
+  const state = {
+    currentRun: { materials: { "霊粉": 1 } },
+    inventory: [],
+    identifyTickets: 0
+  };
+  assert.equal(purchaseMilestoneStock(state, "eye_drops").ok, true);
+  assert.deepEqual(state.inventory, ["EYE_DROPS"]);
+  assert.equal(state.currentRun.materials["霊粉"], 0);
+
+  const poor = { currentRun: { materials: { "霊粉": 0 } }, inventory: [] };
+  assert.deepEqual(purchaseMilestoneStock(poor, "eye_drops"), {
+    ok: false,
+    reason: "insufficient_materials"
+  });
+  const full = { currentRun: { materials: { "霊粉": 1 } }, inventory: Array(20).fill("HEAL_POTION") };
+  assert.deepEqual(purchaseMilestoneStock(full, "eye_drops"), {
+    ok: false,
+    reason: "inventory_full"
+  });
+  assert.equal(full.currentRun.materials["霊粉"], 1);
 });
 
 check("解呪は深層商人の高額素材払いでのみ成立する", () => {
