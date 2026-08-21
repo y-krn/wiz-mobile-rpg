@@ -2,10 +2,10 @@ import { getAffixDefinition } from "../data/affixes.js";
 import { getCharAffixSum } from "./item_rules.js";
 import { getMilestoneBossExposureMultiplier } from "./boss_rules.js";
 
-function getEquippedCoreEntries(char, { activeOnly = true } = {}) {
+function getEquippedCoreEntries(char) {
   if (!char?.equipment) return [];
   return Object.values(char.equipment).flatMap(item => {
-    if (!item || typeof item !== "object" || (activeOnly && !item.identified)) return [];
+    if (!item || typeof item !== "object") return [];
     return (item.affixes || []).flatMap(affix => {
       const definition = getAffixDefinition(affix);
       const isCore = (affix.kind || definition?.kind) === "core" && definition?.enabled;
@@ -14,8 +14,8 @@ function getEquippedCoreEntries(char, { activeOnly = true } = {}) {
   });
 }
 
-export function getEquippedCoreAffixes(char, { activeOnly = true } = {}) {
-  return getEquippedCoreEntries(char, { activeOnly }).map(entry => entry.affix);
+export function getEquippedCoreAffixes(char) {
+  return getEquippedCoreEntries(char).map(entry => entry.affix);
 }
 
 export function hasCoreAffix(item) {

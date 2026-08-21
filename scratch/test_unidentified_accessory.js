@@ -43,7 +43,7 @@ assert.deepStrictEqual(data.statsBonus, {}, "Unidentified Amulet statsBonus must
 char.equipment.accessory = unidentAmulet;
 const maxHp = getCharMaxHp(char);
 console.log("Character maxHp with Unidentified Amulet:", maxHp);
-assert.strictEqual(maxHp, 20, "Character maxHp should stay 20");
+assert.strictEqual(maxHp, 30, "Character maxHp should include unidentified equipment effects");
 
 // 2. Half-Identified Ring STR
 const halfIdentRing = {
@@ -60,7 +60,7 @@ assert.deepStrictEqual(data2.statsBonus, {}, "Half-Identified Ring statsBonus mu
 char.equipment.accessory = halfIdentRing;
 const str = getCharStr(char);
 console.log("Character str with Half-Identified Ring:", str);
-assert.strictEqual(str, 12, "Character str should stay 12");
+assert.strictEqual(str, 14, "Character str should include unidentified equipment effects");
 
 // 3. Identified Ring STR (Control)
 const identRing = {
@@ -88,7 +88,7 @@ const unidentCharm = {
 char.equipment.accessory = unidentCharm;
 const spellGuard = getCharAffixSum(char, "spellGuard");
 console.log("Character spellGuard with Unidentified Charm:", spellGuard);
-assert.strictEqual(spellGuard, 0, "spellGuard should stay 0");
+assert.strictEqual(spellGuard, 15, "spellGuard should include unidentified equipment effects");
 
 // Identified Ward Charm
 const identCharm = {

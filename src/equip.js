@@ -678,7 +678,7 @@ function createStatPill(row) {
 }
 
 function createAffixDetails(itemKey) {
-  if (typeof itemKey !== "object" || !itemKey.identified) return null;
+  if (typeof itemKey !== "object") return null;
 
   const details = document.createElement("div");
   details.className = "equip-affix-details";
@@ -687,7 +687,7 @@ function createAffixDetails(itemKey) {
     { kind: "support", label: "サポート" }
   ];
 
-  groups.forEach(group => {
+  if (itemKey.identified === true) groups.forEach(group => {
     const affixes = itemKey.affixes.filter(affix => (affix.kind || "support") === group.kind);
     if (affixes.length === 0) return;
     const section = document.createElement("div");
@@ -703,16 +703,20 @@ function createAffixDetails(itemKey) {
     details.appendChild(section);
   });
 
-  if (itemKey.curseEffectId) {
-    const curse = CURSE_EFFECTS[itemKey.curseEffectId];
+  if (itemKey.curseEffectId && (itemKey.identified === true || itemKey.curseLocked)) {
     const section = document.createElement("div");
     section.className = "equip-affix-group curse";
     const label = document.createElement("strong");
-    label.textContent = "🔒 呪い・装備解除不可";
+    label.textContent = itemKey.identified === true
+      ? "🔒 呪い・装備解除不可"
+      : "🔒 呪われている（効果不明）・装備解除不可";
     section.appendChild(label);
-    const line = document.createElement("span");
-    line.textContent = `${curse?.name || "不明な呪い"}: ${curse?.desc || "効果不明"}`;
-    section.appendChild(line);
+    if (itemKey.identified === true) {
+      const curse = CURSE_EFFECTS[itemKey.curseEffectId];
+      const line = document.createElement("span");
+      line.textContent = `${curse?.name || "不明な呪い"}: ${curse?.desc || "効果不明"}`;
+      section.appendChild(line);
+    }
     details.appendChild(section);
   }
 
@@ -867,7 +871,7 @@ function createWorkshopPanel(itemKey) {
   } else {
     const unavailable = document.createElement("span");
     unavailable.className = "equip-workshop-unavailable";
-    if (!itemKey || typeof itemKey !== "object" || itemKey.identified === false) {
+    if (!itemKey || typeof itemKey !== "object" || itemKey.identified !== true) {
       unavailable.textContent = "未鑑定のため研磨対象外です";
     } else if (itemKey.polished) {
       unavailable.textContent = "研磨済み（この装備は1回まで）";
@@ -1099,7 +1103,7 @@ function createDetailPanel(char) {
     actionBtn.type = "button";
     actionBtn.className = availability.ok ? "btn btn-neon btn-block equip-action-btn" : "btn btn-block equip-action-btn disabled";
     actionBtn.disabled = !availability.ok;
-    actionBtn.textContent = availability.ok ? (hidden ? "未鑑定で装備する（正体開示）" : "装備する") : "装備できません";
+    actionBtn.textContent = availability.ok ? (hidden ? "未鑑定で装備する" : "装備する") : "装備できません";
     actionBtn.addEventListener("click", () => {
       if (!availability.ok) return;
       const currentChar = state.party[equipState.actorIdx];

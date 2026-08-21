@@ -465,11 +465,19 @@ for (const vp of VIEWPORTS) {
     })).toBe('ui_accessory');
 
     await page.locator('.equip-item-row', { hasText: 'レザーアーマー（未鑑定）' }).click();
-    const gambleButton = page.getByRole('button', { name: '未鑑定で装備する（正体開示）' });
+    await expect(page.locator('.equip-affix-details')).toHaveCount(0);
+    const gambleButton = page.getByRole('button', { name: '未鑑定で装備する' });
     expect((await gambleButton.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await gambleButton.click();
+    await expect.poll(() => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const item = state.party[0].equipment.armor;
+      return { identified: item.identified, halfIdentified: item.halfIdentified, curseLocked: item.curseLocked };
+    })).toEqual({ identified: false, halfIdentified: false, curseLocked: true });
     await page.locator('.equip-item-row', { hasText: '呪い・外せない' }).click();
     await expect(page.locator('.equip-detail-content')).toContainText('呪いで固定中');
+    await expect(page.locator('.equip-affix-details')).toContainText('呪われている（効果不明）');
+    await expect(page.locator('.equip-affix-details')).not.toContainText('魂喰い');
     const removeButton = page.getByRole('button', { name: /深層商人で解呪できます/ });
     await expect(removeButton).toBeVisible();
     expect((await removeButton.boundingBox()).height).toBeGreaterThanOrEqual(44);

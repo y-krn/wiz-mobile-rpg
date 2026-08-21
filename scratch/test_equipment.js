@@ -292,15 +292,15 @@ import { createSoloCharacter } from "../src/state.js";
       const reveal = revealEquipmentOnEquip(cursedWand);
       char.equipment.weapon = cursedWand;
 
-      if (!reveal.revealed || !reveal.cursed || !cursedWand.curseLocked) {
-        throw new Error("Blind equip should reveal and lock cursed equipment");
+      if (reveal.revealed || !reveal.cursed || !cursedWand.curseLocked || cursedWand.identified !== false || cursedWand.halfIdentified !== false) {
+        throw new Error("Blind equip should preserve unidentified state and lock cursed equipment");
       }
 
-      // Revealed cursed equip: Both benefits (affix: atk+7.5, curse: atk+22.5) and debuffs apply
+      // Unidentified cursed equip: Both benefits (affix: atk+7.5, curse: atk+22.5) and debuffs apply
       const atkSumIdentified = getCharAffixSum(char, "atk");
       const devotionSumIdentified = getCharAffixSum(char, "devotion");
-      console.log("Identified wear - atkSum:", atkSumIdentified, "(expected 30 = 7.5 + 22.5)");
-      console.log("Identified wear - devotionSum:", devotionSumIdentified, "(expected -20)");
+      console.log("Unidentified wear - atkSum:", atkSumIdentified, "(expected 30 = 7.5 + 22.5)");
+      console.log("Unidentified wear - devotionSum:", devotionSumIdentified, "(expected -20)");
 
       if (atkSumIdentified !== 30) throw new Error("Atk benefits failed to apply after identification");
       if (devotionSumIdentified !== -20) throw new Error("Devotion debuff failed to apply after identification");
@@ -517,7 +517,7 @@ import { createSoloCharacter } from "../src/state.js";
         accessory: { baseId: "WARD_CHARM", identified: false }
       }
     };
-    assert.strictEqual(getCharAffixSum(unidentWard, "spellGuard"), 0);
+    assert.strictEqual(getCharAffixSum(unidentWard, "spellGuard"), 15);
 
     assert.throws(
       () => migrateSavePayload({ version: SAVE_VERSION - 1 }),

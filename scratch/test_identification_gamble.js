@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { CURSE_EFFECTS, ITEMS } from "../src/data/items.js";
 import { getCharAffixSum, getItemData } from "../src/rules/item_rules.js";
+import { getCharWeaponAtk } from "../src/rules/character_stats.js";
 import {
   getIdentificationGambleProfile,
   isCurseLocked
@@ -163,13 +164,20 @@ test("鑑定割引は0%/上限50%と中間値のrngで粉消費を分岐する",
   assert.equal(consumedAtThreshold.identifyTickets, 0);
 });
 
-test("未鑑定装備の賭けは装備時に開示し、呪いだけ固定する", () => {
+test("未鑑定装備の賭けは状態を維持し、効果を適用して呪いだけ固定する", () => {
   const safe = unknownItem();
-  assert.deepEqual(revealEquipmentOnEquip(safe), { revealed: true, cursed: false });
+  assert.deepEqual(revealEquipmentOnEquip(safe), { revealed: false, cursed: false });
+  assert.equal(safe.identified, false);
+  assert.equal(safe.halfIdentified, false);
   assert.equal(isCurseLocked(safe), false);
+  const safeChar = character({ weapon: safe });
+  const identifiedSafe = getItemData({ ...safe, identified: true });
+  assert.equal(getCharWeaponAtk(safeChar), identifiedSafe.atk, "base and affix effects apply while unidentified");
 
   const cursed = unknownItem({ cursed: true, level: 10 });
-  assert.deepEqual(revealEquipmentOnEquip(cursed), { revealed: true, cursed: true });
+  assert.deepEqual(revealEquipmentOnEquip(cursed), { revealed: false, cursed: true });
+  assert.equal(cursed.identified, false);
+  assert.equal(cursed.halfIdentified, false);
   assert.equal(cursed.curseLocked, true);
   const char = character({ weapon: cursed });
   const expectedVit = Math.round(CURSE_EFFECTS.curse_hollow_soul.mod.vit * cursed.cursePower);
@@ -203,7 +211,8 @@ test("save→load roundtripでマスク・確定中身・呪い固定・鑑定�
   assert.equal(state.inventory[0].identified, false);
   assert.deepEqual(state.inventory[0].affixes, masked.affixes);
   assert.equal(getItemData(state.inventory[0]).affixes.length, 0);
-  assert.equal(state.party[0].equipment.weapon.identified, true);
+  assert.equal(state.party[0].equipment.weapon.identified, false);
+  assert.equal(state.party[0].equipment.weapon.halfIdentified, false);
   assert.equal(state.party[0].equipment.weapon.curseEffectId, cursed.curseEffectId);
   assert.equal(state.party[0].equipment.weapon.cursePower, cursed.cursePower);
   assert.equal(isCurseLocked(state.party[0].equipment.weapon), true);
