@@ -2,6 +2,7 @@ import { DX, DY, EVENT_TYPES, getPartyMaxAffix } from "./data.js";
 import { state } from "./state.js";
 import { menuContext } from "./navigation.js";
 import { EVENT_SUBMENU_TYPES, ITEM_SUBMENU_TYPES } from "./constants/events.js";
+import { getDepthCorruption, getFloorTheme } from "./data/floor_themes.js";
 
 export let dungeonRenderer = null;
 export function setDungeonRenderer(r) {
@@ -155,7 +156,9 @@ export class DungeonRenderer {
     if (showTownBackground) return false;
 
     // These layers use Date.now() for visual pulses and must keep redrawing.
-    if (state.floor === 5) return true;
+    const environment = getFloorTheme(state.floor).visualSignature.environment;
+    const cyclePosition = (state.floor - 1) % 5;
+    if (environment.animated || environment.animatedCyclePosition === cyclePosition) return true;
     if (showCombat || showChest || showEventScene || showItemMenu) return false;
 
     const minY = Math.max(0, state.y - 4);
@@ -299,27 +302,14 @@ export class DungeonRenderer {
     ctx.lineWidth = 2;
     ctx.shadowBlur = 0;
 
-    // Determine colors based on floor theme
-    let wallColor = "#00ff66";
-    let gridColor = "rgba(0, 255, 102, 0.2)";
+    const visual = getFloorTheme(state.floor).visualSignature;
+    const depthCorruption = getDepthCorruption(state.floor);
+    const environment = visual.environment;
+    const isEnvironmentAnimated = environment.animated ||
+      environment.animatedCyclePosition === (state.floor - 1) % 5;
+    const wallColor = visual.wallColor;
+    const gridColor = visual.gridColor;
     let outOfBoundsColor = "#ff3b30";
-
-    if (state.floor === 1) {
-      wallColor = "#00e5ff"; // Neon Cyan
-      gridColor = "rgba(0, 229, 255, 0.25)";
-    } else if (state.floor === 2) {
-      wallColor = "#00cc55"; // Poisonous Green
-      gridColor = "rgba(0, 204, 85, 0.2)";
-    } else if (state.floor === 3) {
-      wallColor = "#a855f7"; // Arcane Purple
-      gridColor = "rgba(168, 85, 247, 0.2)";
-    } else if (state.floor === 4) {
-      wallColor = "#cc2222"; // Death Red
-      gridColor = "rgba(204, 34, 34, 0.15)";
-    } else if (state.floor === 5) {
-      wallColor = "#cc8800"; // Dragon amber
-      gridColor = "rgba(204, 136, 0, 0.2)";
-    }
 
     const columnOrder = [-2, 2, -1, 1, 0];
     const dirRight = (dir + 1) % 4;
@@ -385,7 +375,7 @@ export class DungeonRenderer {
 
         // 2. Left Wall
         if (hasLeftWall) {
-          ctx.fillStyle = "#0c0c0e";
+          ctx.fillStyle = visual.background;
           ctx.beginPath();
           ctx.moveTo(left, YT[z]);
           ctx.lineTo(nextLeft, YT[z + 1]);
@@ -395,12 +385,13 @@ export class DungeonRenderer {
           ctx.fill();
 
           ctx.strokeStyle = wallColor;
+          ctx.lineWidth = Math.max(1.5, 2 - depthCorruption * 0.12);
           ctx.stroke();
         }
 
         // 3. Right Wall
         if (hasRightWall) {
-          ctx.fillStyle = "#0c0c0e";
+          ctx.fillStyle = visual.background;
           ctx.beginPath();
           ctx.moveTo(right, YT[z]);
           ctx.lineTo(nextRight, YT[z + 1]);
@@ -410,15 +401,17 @@ export class DungeonRenderer {
           ctx.fill();
 
           ctx.strokeStyle = wallColor;
+          ctx.lineWidth = Math.max(1.5, 2 - depthCorruption * 0.12);
           ctx.stroke();
         }
 
         // 4. Front Wall (at z + 1 depth)
         if (hasFrontWall) {
-          ctx.fillStyle = "#0c0c0e";
+          ctx.fillStyle = visual.background;
           ctx.fillRect(nextLeft, YT[z + 1], nextWidth, YB[z + 1] - YT[z + 1]);
 
           ctx.strokeStyle = wallColor;
+          ctx.lineWidth = Math.max(1.5, 2 - depthCorruption * 0.12);
           ctx.strokeRect(nextLeft, YT[z + 1], nextWidth, YB[z + 1] - YT[z + 1]);
         } else if (hasFrontOneWayBarrier) {
           this.drawOneWayBarrier(ctx, z, wallColor);
@@ -447,20 +440,17 @@ export class DungeonRenderer {
           }
         }
 
-        // 5. Draw 3D Environmental Effects (fog / ambient aura / heat)
+        // 5. Draw biome ambience and a deterministic depth-corruption mark.
         if (z > 0) {
-          if (state.floor === 2) {
-            // B2F Fog: Cumulative semi-transparent dark green overlay
-            ctx.fillStyle = "rgba(5, 25, 10, 0.18)";
-            ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
-          } else if (state.floor === 3) {
-            // B3F Mana residue: cumulative magenta overlay
-            ctx.fillStyle = "rgba(120, 0, 180, 0.04)";
-            ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
-          } else if (state.floor === 5) {
-            // B5F Heatwave shimmer: cumulative dark red-orange overlay with slight temporal pulse
-            const heatPulse = 0.06 + 0.02 * Math.sin(Date.now() / 250);
-            ctx.fillStyle = `rgba(100, 20, 0, ${heatPulse})`;
+          ctx.fillStyle = environment.overlay;
+          ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
+          this.drawDepthFracture(
+            ctx, z, left, YT[z], width, YB[z] - YT[z], wallColor,
+            depthCorruption, cx, cy
+          );
+          if (isEnvironmentAnimated) {
+            const pulse = 0.02 + 0.02 * Math.sin(Date.now() / 250);
+            ctx.fillStyle = `rgba(255, 180, 90, ${pulse})`;
             ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
           }
         }
@@ -475,6 +465,26 @@ export class DungeonRenderer {
     ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
     ctx.strokeStyle = color;
     ctx.strokeRect(left, YT[z], width, YB[z] - YT[z]);
+  }
+
+  drawDepthFracture(ctx, z, x, y, width, height, color, depth, cellX, cellY) {
+    if (depth < 0.12 || z < 1) return;
+    const hash = Math.abs((cellX * 37 + cellY * 17 + state.floor * 13 + z * 7) % 101) / 100;
+    const density = Math.min(0.72, 0.12 + depth * 0.48);
+    if (hash > density) return;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = Math.min(0.56, 0.18 + depth * 0.24);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const startX = x + width * (0.22 + hash * 0.28);
+    const startY = y + height * (0.18 + hash * 0.24);
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(startX + width * 0.12, startY + height * 0.14);
+    ctx.lineTo(startX + width * 0.08, startY + height * 0.27);
+    ctx.stroke();
+    ctx.restore();
   }
 
   drawOneWayBarrier(ctx, z, color) {

@@ -2,57 +2,15 @@
    Floor Theme Overrides & Environmental Effects
    ========================================================================== */
 
-/* B1F: 入口の石造り */
-#game-container.floor-theme-b1 {
-  --floor-border: #86b9b7;
-  --floor-glow: var(--neon-glow-cyan);
-  --floor-bg: #081014;
-  --floor-header-bg: #101b21;
-  --floor-banner-bg: #0d171c;
-}
-
-/* B2F: 湿気と毒気 */
-#game-container.floor-theme-b2 {
-  --floor-border: #83bfa1;
-  --floor-glow: 0 0 12px rgba(131, 191, 161, 0.2);
-  --floor-bg: #091510;
-  --floor-header-bg: #102118;
-  --floor-banner-bg: #0d1b15;
-}
-
-/* B3F: 門番と魔力 */
-#game-container.floor-theme-b3 {
-  --floor-border: #b5a1d2;
-  --floor-glow: 0 0 12px rgba(181, 161, 210, 0.2);
-  --floor-bg: #110d18;
-  --floor-header-bg: #1b1425;
-  --floor-banner-bg: #171021;
-}
-
-/* B4F: 深層の殺気 */
-#game-container.floor-theme-b4 {
-  --floor-border: #db827c;
-  --floor-glow: 0 0 12px rgba(219, 130, 124, 0.22);
-  --floor-bg: #180c0e;
-  --floor-header-bg: #241416;
-  --floor-banner-bg: #1d1012;
-}
-
-/* B5F: 竜の領域 */
-#game-container.floor-theme-b5 {
-  --floor-border: #ddb06b;
-  --floor-glow: 0 0 12px rgba(221, 176, 107, 0.22);
-  --floor-bg: #1a1009;
-  --floor-header-bg: #25190e;
-  --floor-banner-bg: #1e140b;
-}
-
-#game-container.floor-theme-b6 {
-  --floor-border: #a995d8;
-  --floor-glow: 0 0 12px rgba(169, 149, 216, 0.24);
-  --floor-bg: #100b1d;
-  --floor-header-bg: #1b1230;
-  --floor-banner-bg: #150d25;
+/* Biome visual signatures are defined in src/data/biomes.js and injected by
+   ui_root.js. These generic variables keep CSS from becoming a second theme
+   catalogue. */
+#game-container {
+  --floor-border: var(--biome-wall-color, var(--neon-cyan));
+  --floor-glow: var(--biome-glow, var(--neon-glow-cyan));
+  --floor-bg: var(--biome-background, #0c0c0e);
+  --floor-header-bg: var(--biome-header-background, #101116);
+  --floor-banner-bg: var(--biome-banner-background, #0d1016);
 }
 
 /* Overlay effects for viewport-panel */
@@ -65,40 +23,8 @@
   height: 100%;
   pointer-events: none;
   z-index: 2;
-  transition: background 0.3s ease, opacity 0.3s ease;
-  opacity: 0;
-}
-
-.floor-theme-b1 #viewport-panel::after {
-  background: radial-gradient(circle at 50% 45%, rgba(155, 215, 210, 0.06) 0%, rgba(0, 0, 0, 0.26) 100%);
-  opacity: 0.6;
-}
-
-.floor-theme-b2 #viewport-panel::after {
-  background: radial-gradient(circle at 55% 42%, rgba(131, 191, 161, 0.09) 0%, rgba(0, 20, 10, 0.5) 70%, rgba(0, 0, 0, 0.72) 100%);
-  opacity: 0.68;
-}
-
-.floor-theme-b3 #viewport-panel::after {
-  background: radial-gradient(circle at 48% 42%, rgba(181, 161, 210, 0.11) 0%, rgba(204, 34, 34, 0.04) 50%, rgba(13, 4, 15, 0.58) 100%);
-  opacity: 0.7;
-}
-
-.floor-theme-b4 #viewport-panel::after {
-  background: radial-gradient(circle at 52% 45%, rgba(219, 130, 124, 0.1) 0%, rgba(20, 5, 5, 0.7) 70%, rgba(0, 0, 0, 0.88) 100%);
-  opacity: 0.78;
-}
-
-.floor-theme-b5 #viewport-panel::after {
-  background: radial-gradient(circle at 50% 45%, rgba(221, 176, 107, 0.11) 0%, rgba(204, 34, 34, 0.08) 40%, rgba(30, 10, 5, 0.78) 100%);
-  opacity: 0.8;
-  animation: heatwave 4s infinite alternate ease-in-out;
-}
-
-.floor-theme-b6 #viewport-panel::after {
-  background: radial-gradient(circle at 48% 42%, rgba(169, 149, 216, 0.14) 0%, rgba(20, 5, 35, 0.75) 70%, rgba(0, 0, 0, 0.92) 100%);
-  opacity: 0.84;
-  animation: heatwave 4s infinite alternate ease-in-out;
+  background: var(--biome-aura, none);
+  opacity: calc(var(--biome-aura-opacity, 0) + (var(--depth-corruption, 0) * 0.04));
 }
 
 @keyframes heatwave {
