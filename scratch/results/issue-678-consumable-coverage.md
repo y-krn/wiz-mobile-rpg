@@ -274,8 +274,8 @@ of exploration aids and conditional buffs or require a new item.
   section above (`env -u SIM_PARALLEL`, seed 231, runs 500, calibration 100, independent-run
   random, departure craft, conservative/EV/smart policies, `SIM_EXPLORATION_FACTOR=1.4`, and
   `ISSUE689_DETERMINISTIC=1 node scratch/sim_commit_depth_624.js`); 2,000 rows and focused audit
-  PASS. The raw stdout
-  SHA-256 was `8b71fb2c6e0fdffe1050bf0504427719dda639ac27743d56481ba8ccbe53c9bd` on both
+  PASS. At final source commit `da34ba60da73d5beff1b865aec163608463a62f5`, the raw stdout
+  SHA-256 was `155449445a296791a2ffea2c4d2428d9310e97e4183ad81cec0699f1d3902cf6` on both
   runs. Its current-main depth averages were Fighter 6.0840 / Thief 7.8340 / Priest 5.0480 /
   Mage 9.5920; these are reported separately because current main includes later depth-model
   changes, while the historical #678/#689 baseline table above is retained unchanged.
