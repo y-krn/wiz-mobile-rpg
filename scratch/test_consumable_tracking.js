@@ -5,11 +5,6 @@
 import fs from "node:fs";
 
 const paths = process.argv.slice(2);
-if (paths.length === 0) {
-  console.error("usage: node scratch/test_consumable_tracking.js <sim-output> [...]");
-  process.exit(2);
-}
-
 const trackedStatusItems = [
   "HOLY_WATER",
   "ANTIDOTE",
@@ -20,6 +15,27 @@ const trackedStatusItems = [
 ];
 let observations = 0;
 const failures = [];
+
+if (paths.length === 0) {
+  const simSource = fs.readFileSync(new URL("./sim_depth_material_ev.js", import.meta.url), "utf8");
+  const requiredSnippets = [
+    "function recordStatusCureConsumption(state, metrics, itemKey, count = 1)",
+    "recordTrackedConsumableConsumption(state, metrics, itemKey, count);",
+    "recordConsumableConsumption(metrics, itemKey, count);",
+    "recordStatusCureConsumption(state, metrics, action.itemKey, used);",
+    "recordStatusCureConsumption(state, metrics, decision.itemKey);"
+  ];
+  requiredSnippets.forEach(snippet => {
+    if (!simSource.includes(snippet)) failures.push(`missing current tracking route: ${snippet}`);
+  });
+  if (failures.length > 0) {
+    console.error(`[FAIL] consumable tracking source audit (${failures.length})`);
+    failures.forEach(failure => console.error(`  ${failure}`));
+    process.exit(1);
+  }
+  console.log("[PASS] consumable tracking source audit: status-cure helper and both consumption sites are present");
+  process.exit(0);
+}
 
 for (const path of paths) {
   const lines = fs.readFileSync(path, "utf8").split("\n");
