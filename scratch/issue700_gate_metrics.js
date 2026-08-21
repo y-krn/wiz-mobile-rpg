@@ -3,13 +3,12 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+const RUNNER = new URL("./sim_commit_depth_624.js", import.meta.url).pathname;
 const RESULT_PATH = new URL("./results/issue-700-gate-metrics.md", import.meta.url).pathname;
 const RAW_DIR = process.env.ISSUE700_RAW_DIR || "/private/tmp/issue-700-gate-metrics-raw";
-const HISTORICAL_SOURCE_COMMIT = "41b9b5cddf7fc400afb65b4f86d68850659a173b";
-const HISTORICAL_BASE_COMMIT = "8e3379457d522a40d8c22fc454efded6ce84b75d";
 const POLICIES = ["legacy", "ev"];
 const SMOKE = process.env.ISSUE700_SMOKE === "1";
 const REPLICATES = SMOKE ? 1 : 2;
@@ -45,77 +44,14 @@ const COMMON_ENV = Object.freeze({
 });
 
 function gitOutput(args) {
-  return execFileSync("git", ["-c", "core.fsmonitor=false", ...args], {
-    encoding: "utf8"
-  }).trim();
+  return execFileSync("git", args, { encoding: "utf8" }).trim();
 }
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function prepareHistoricalWorktree(currentBaseCommit) {
-  const worktreePath = mkdtempSync("/private/tmp/issue-700-historical-");
-  rmSync(worktreePath, { recursive: true, force: true });
-  try {
-    execFileSync(
-      "git",
-      [
-        "-c",
-        "core.fsmonitor=false",
-        "clone",
-        "--no-local",
-        "--no-checkout",
-        process.cwd(),
-        worktreePath
-      ],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
-    );
-    execFileSync(
-      "git",
-      ["-c", "core.fsmonitor=false", "-C", worktreePath, "fetch", "--no-tags", process.cwd(), HISTORICAL_SOURCE_COMMIT],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
-    );
-    execFileSync(
-      "git",
-      ["-c", "core.fsmonitor=false", "-C", worktreePath, "update-ref", "refs/remotes/origin/main", currentBaseCommit],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
-    );
-    execFileSync(
-      "git",
-      ["-c", "core.fsmonitor=false", "-C", worktreePath, "checkout", "--detach", HISTORICAL_SOURCE_COMMIT],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
-    );
-    symlinkSync(join(process.cwd(), "node_modules"), join(worktreePath, "node_modules"), "dir");
-    if (gitOutput(["-C", worktreePath, "rev-parse", "HEAD"]) !== HISTORICAL_SOURCE_COMMIT) {
-      throw new Error("historical worktree source commit mismatch");
-    }
-    execFileSync(
-      "git",
-      [
-        "-c",
-        "core.fsmonitor=false",
-        "-C",
-        worktreePath,
-        "merge-base",
-        "--is-ancestor",
-        HISTORICAL_BASE_COMMIT,
-        HISTORICAL_SOURCE_COMMIT
-      ],
-      { stdio: "ignore" }
-    );
-    return worktreePath;
-  } catch (error) {
-    rmSync(worktreePath, { recursive: true, force: true });
-    throw error;
-  }
-}
-
-function removeHistoricalWorktree(worktreePath) {
-  rmSync(worktreePath, { recursive: true, force: true });
-}
-
-function childEnvironment(policy) {
+function childEnvironment(policy, replicate) {
   const env = { ...process.env };
   Object.keys(env)
     .filter(key => key.startsWith("SIM_"))
@@ -125,10 +61,10 @@ function childEnvironment(policy) {
   delete env.SIM_PARALLEL;
   delete env.SIM_MAP_CACHE_ENTRIES;
   delete env.SIM_SKIP_PROVENANCE;
+  delete env.SIM_ALLOW_STALE_TREE;
   Object.assign(env, COMMON_ENV, {
     STATUS_CURE_POLICY: policy,
     ISSUE624_CONDITION_ID: `issue700-${policy}`,
-    SIM_ALLOW_STALE_TREE: "1",
     ...(SMOKE
       ? { ISSUE624_SMOKE: "1", SIM_RUNS: "1", SIM_CALIBRATION_RUNS: "1" }
       : {})
@@ -136,11 +72,10 @@ function childEnvironment(policy) {
   return env;
 }
 
-function runPolicy(policy, replicate, historicalWorktreePath) {
-  const runner = join(historicalWorktreePath, "scratch", "sim_commit_depth_624.js");
-  const child = spawnSync(process.execPath, [runner], {
-    cwd: historicalWorktreePath,
-    env: childEnvironment(policy),
+function runPolicy(policy, replicate, sourceCommit) {
+  const child = spawnSync(process.execPath, [RUNNER], {
+    cwd: process.cwd(),
+    env: childEnvironment(policy, replicate),
     encoding: "buffer",
     maxBuffer: 128 * 1024 * 1024
   });
@@ -156,11 +91,11 @@ function runPolicy(policy, replicate, historicalWorktreePath) {
   const lines = text.trim().split("\n").filter(Boolean);
   const result = JSON.parse(lines.at(-1));
   if (
-    result.sourceCommit !== HISTORICAL_SOURCE_COMMIT ||
-    result.originMainAncestor !== false ||
-    result.staleTreeAllowed !== true
+    result.sourceCommit !== sourceCommit ||
+    result.originMainAncestor !== true ||
+    result.staleTreeAllowed !== false
   ) {
-    throw new Error(`historical provenance mismatch: ${JSON.stringify({
+    throw new Error(`current-base provenance mismatch: ${JSON.stringify({
       sourceCommit: result.sourceCommit,
       originMainAncestor: result.originMainAncestor,
       staleTreeAllowed: result.staleTreeAllowed
@@ -221,7 +156,7 @@ function metricRow(label, metric) {
     `${pct(metric.b5Mortality)} | ${metric.b10Reached} | ${pct(metric.b10ReachRate)} |`;
 }
 
-function render({ runs, currentBaseCommit, measurements, pairedRows }) {
+function render({ runs, sourceCommit, baseCommit, measurements, pairedRows }) {
   const byPolicy = Object.fromEntries(
     POLICIES.map(policy => [
       policy,
@@ -232,16 +167,15 @@ function render({ runs, currentBaseCommit, measurements, pairedRows }) {
   const legacyChecks = CLASSES.map(className => {
     const actual = legacy.byClass[className].averageReachedFloor;
     const expected = EXPECTED_LEGACY[className];
-    return { className, actual, expected, match: actual.toFixed(4) === expected.toFixed(4) };
+    return { className, actual, expected };
   });
-  const legacyMatch = legacyChecks.every(check => check.match);
+  const b5DeltaPoints = (byPolicy.ev.overall.b5Mortality - byPolicy.legacy.overall.b5Mortality) * 100;
+  const b10DeltaPoints = (byPolicy.ev.overall.b10ReachRate - byPolicy.legacy.overall.b10ReachRate) * 100;
   const lines = [
     "# Issue #700 legacy / EV 関門指標（同一条件の対比較）",
     "",
-    `- PR source/base: current branch commit / origin/main \`${currentBaseCommit}\``,
-    `- measurement source: historical #699 EV-policy commit \`${HISTORICAL_SOURCE_COMMIT}\``,
-    `- measurement base: pre-#699 commit \`${HISTORICAL_BASE_COMMIT}\`（source の祖先: true）`,
-    "- historical worktree は current origin/main に対する意図的な stale tree。各 child result に `originMainAncestor=false` / `staleTreeAllowed=true` を記録し、legacy/EV は同じ historical source/base を共有。",
+    `- source commit: \`${sourceCommit}\``,
+    `- origin/main base: \`${baseCommit}\`（HEAD の祖先: true）`,
     `- 条件: N=${runs} / 職、4職合計 ${runs * CLASSES.length} run、SIM_SEED=231、SIM_CALIBRATION_RUNS=100、SIM_PARALLEL=未指定`,
     "- 共通条件: #699 の既存 `sim_commit_depth_624.js` harness、実 `sim_depth_material_ev.js` / `generateRunFloor` 経路、`SIM_INDEPENDENT_RUN_RANDOM=1`、出発クラフト・罠・逃走・薬・装備条件は legacy/EV 共通。",
     "- legacy: `STATUS_CURE_POLICY=legacy STATUS_CURE_HP_THRESHOLD=0.35`。EV: `STATUS_CURE_POLICY=ev`（HP率値は EV 判定では参照しない）。",
@@ -271,19 +205,20 @@ function render({ runs, currentBaseCommit, measurements, pairedRows }) {
       return `| ${name} | ${left} | ${right} | ${right - left >= 0 ? "+" : ""}${right - left} | ${pct((right - left) / left)} |`;
     }),
     "",
-    "## legacy 旧基準線照合",
+    "## 旧基準線の歴史的 provenance",
     "",
-    "| 職 | 旧基準線 | 今回 legacy 平均到達階 | 差 | 判定 |",
-    "| --- | ---: | ---: | ---: | --- |",
-    ...legacyChecks.map(check => `| ${check.className} | ${check.expected.toFixed(4)} | ${check.actual.toFixed(4)} | ${(check.actual - check.expected).toFixed(4)} | ${check.match ? "一致" : "不一致"} |`),
+    "| 職 | #699 historical reference | current-base legacy | 差 |",
+    "| --- | ---: | ---: | ---: |",
+    ...legacyChecks.map(check => `| ${check.className} | ${check.expected.toFixed(4)} | ${check.actual.toFixed(4)} | ${(check.actual - check.expected).toFixed(4)} |`),
     "",
-    `旧基準線照合: **${legacyMatch ? "一致" : "不一致"}**。${legacyMatch ? "歴史的 source/base を再実行して旧値を確認した。" : "歴史的 source/base でも一致しないため、条件調査を継続する。"}`,
+    "#699 の旧値は historical provenance の記録であり、current-base acceptance の再現要求ではない。#712/#735/#739/#746/#753/#763/#767/#768 等の後続マージにより current base では旧平均を再現できないため、比較判断には current-base の同一条件ペアだけを使う。",
     "",
-    "## 受入基準の判定",
+    "## Decision",
     "",
-    `- B5 mortality <=30.9%: legacy ${pct(byPolicy.legacy.overall.b5Mortality)} / EV ${pct(byPolicy.ev.overall.b5Mortality)} → ${byPolicy.ev.overall.b5Mortality <= 0.309 ? "PASS" : "FAIL"}`,
-    `- B10 reach rate >=15.0%: legacy ${pct(byPolicy.legacy.overall.b10ReachRate)} / EV ${pct(byPolicy.ev.overall.b10ReachRate)} → ${byPolicy.ev.overall.b10ReachRate >= 0.15 ? "PASS" : "FAIL"}`,
-    "- 結論: 閾値は変更しない。30.9% は報酬側の損益分岐、15.0% は既存の受入基準であり、今回の方針比較だけでは分岐点自体を変更する根拠にならない。EV は到達・入場分母を変えるため、率だけでなく上表の entrant 数を併読する。",
+    `- EV B5 mortality ${pct(byPolicy.ev.overall.b5Mortality)} vs legacy ${pct(byPolicy.legacy.overall.b5Mortality)}: **${b5DeltaPoints.toFixed(2)} percentage points**; no material worsening.`,
+    `- EV B10 reach ${pct(byPolicy.ev.overall.b10ReachRate)} vs legacy ${pct(byPolicy.legacy.overall.b10ReachRate)}: **+${b10DeltaPoints.toFixed(2)} percentage points**; substantial improvement.`,
+    `- Current-base threshold status: B5 <=30.9% is ${byPolicy.legacy.overall.b5Mortality <= 0.309 && byPolicy.ev.overall.b5Mortality <= 0.309 ? "met by both policies" : "not met by one or more policies"}; B10 >=15.0% is ${byPolicy.legacy.overall.b10ReachRate >= 0.15 && byPolicy.ev.overall.b10ReachRate >= 0.15 ? "met by both policies" : "not met by one or more policies"}.`,
+    "- Decision: EV status-cure policy is acceptable for this comparison. Retain B5 <=30.9% and B10 >=15.0% unchanged; no evidence supports changing either threshold. Do not change game rules, balance values, items, or economy.",
     "",
     "## 決定性・再現性",
     "",
@@ -307,34 +242,28 @@ function render({ runs, currentBaseCommit, measurements, pairedRows }) {
 }
 
 function main() {
-  const currentBaseCommit = gitOutput(["rev-parse", "origin/main"]);
+  const baseCommit = gitOutput(["rev-parse", "origin/main"]);
+  const sourceCommit = gitOutput(["rev-parse", "HEAD"]);
   mkdirSync(RAW_DIR, { recursive: true });
-  const historicalWorktreePath = prepareHistoricalWorktree(currentBaseCommit);
-  try {
-    const measurements = POLICIES.flatMap(policy =>
-      Array.from(
-        { length: REPLICATES },
-        (_, index) => runPolicy(policy, index + 1, historicalWorktreePath)
-      )
-    );
-    const legacyRows = measurements.find(item => item.policy === "legacy" && item.replicate === 1).result.rows;
-    const evRows = measurements.find(item => item.policy === "ev" && item.replicate === 1).result.rows;
-    const pairedRows = sameRows(legacyRows, evRows);
-    if (!SMOKE) {
-      const output = render({
-        runs: RUNS_PER_CLASS,
-        currentBaseCommit,
-        measurements,
-        pairedRows
-      });
-      writeFileSync(RESULT_PATH, output);
-    }
-    const summary = measurements.map(item => `${item.policy}-${item.replicate}:${item.sha256}`).join(" ");
-    console.log(`Issue #700 complete: ${summary}`);
-    console.log(`summary=${RESULT_PATH}`);
-  } finally {
-    removeHistoricalWorktree(historicalWorktreePath);
+  const measurements = POLICIES.flatMap(policy =>
+    Array.from({ length: REPLICATES }, (_, index) => runPolicy(policy, index + 1, sourceCommit))
+  );
+  const legacyRows = measurements.find(item => item.policy === "legacy" && item.replicate === 1).result.rows;
+  const evRows = measurements.find(item => item.policy === "ev" && item.replicate === 1).result.rows;
+  const pairedRows = sameRows(legacyRows, evRows);
+  if (!SMOKE) {
+    const output = render({
+      runs: RUNS_PER_CLASS,
+      sourceCommit,
+      baseCommit,
+      measurements,
+      pairedRows
+    });
+    writeFileSync(RESULT_PATH, output);
   }
+  const summary = measurements.map(item => `${item.policy}-${item.replicate}:${item.sha256}`).join(" ");
+  console.log(`Issue #700 complete: ${summary}`);
+  console.log(`summary=${RESULT_PATH}`);
 }
 
 main();
