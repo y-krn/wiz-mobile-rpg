@@ -3981,6 +3981,15 @@ function recordTrackedConsumableConsumption(state, metrics, itemKey, count = 1) 
   }
 }
 
+function recordStatusCureConsumption(state, metrics, itemKey, count = 1) {
+  if (!STATUS_CURE_ITEM_IDS.has(itemKey) || count <= 0) return;
+  if (itemKey === "HOLY_WATER") {
+    recordTrackedConsumableConsumption(state, metrics, itemKey, count);
+    return;
+  }
+  recordConsumableConsumption(metrics, itemKey, count);
+}
+
 function recordRecoveryPotionOffer(metrics, source, itemKey) {
   if (!metrics || !["HEAL_POTION", "GREATER_HEAL"].includes(itemKey)) return;
   const bySource = metrics.recoveryPotionOffersBySource[source] ||= {
@@ -6072,7 +6081,7 @@ function runEncounter(
       );
       addItemCount(metrics.statusCureItemsUsed, action.itemKey, used);
       if (used > 0) {
-        recordTrackedConsumableConsumption(state, metrics, action.itemKey, used);
+        recordStatusCureConsumption(state, metrics, action.itemKey, used);
         metrics.holyWaterUsed += Number(action.itemKey === "HOLY_WATER") * used;
         metrics.statusesCured[action.simStatusBefore] =
           (metrics.statusesCured[action.simStatusBefore] || 0) + 1;
@@ -6279,7 +6288,7 @@ function useStatusCureIfNeeded(state, metrics, context) {
   const itemIndex = state.inventory.indexOf(decision.itemKey);
   if (itemIndex < 0) return false;
   state.inventory.splice(itemIndex, 1);
-  recordTrackedConsumableConsumption(state, metrics, decision.itemKey);
+  recordStatusCureConsumption(state, metrics, decision.itemKey);
   metrics.holyWaterUsed += Number(decision.itemKey === "HOLY_WATER");
   ITEM_EFFECTS[decision.itemKey]({ char: character });
   clearStatusObservation(metrics.statusObservations, decision.status, "cured");
