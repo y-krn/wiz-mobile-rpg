@@ -154,6 +154,7 @@ const {
   calculateFloorTrapActionExpectedDamage,
   calculateFloorTrapAvoidanceEv,
   calculateFloorTrapSuccessRate,
+  FLOOR_DISARM_CALIBRATION,
   isDisarmAptClass,
   resolveTrapAction
 } = await import("../src/rules/trap_rules.js");
@@ -1492,15 +1493,28 @@ function getSimulationTrapBonus(character, state = null) {
   if (state?.simPolicy?.ignoreThiefSustain && character?.class === "Thief") {
     return 0;
   }
-  const actual = Math.max(0, getCharTrapBonus(character));
+  const trapOverride = getSimulationTrapOverride(state)?.trapBonus;
+  const override = trapOverride;
+  const overrideApplies = trapOverride &&
+    (!getSimulationTrapOverride(state)?.className ||
+      getSimulationTrapOverride(state).className === character?.class);
+  const passiveOverrideApplies = trapOverride &&
+    character?.class === "Thief" &&
+    Object.hasOwn(trapOverride, "passiveApt");
+  const passiveBonus = passiveOverrideApplies
+    ? Number(trapOverride.passiveApt)
+    : 15;
+  const equipmentScale = overrideApplies && Number.isFinite(Number(trapOverride?.equipmentScale))
+    ? Math.max(0, Number(trapOverride.equipmentScale))
+    : 1;
+  const actual = Math.max(0, (getCharTrapBonus(character) * 100 -
+    (character?.class === "Thief" ? 15 : 0) +
+    (passiveOverrideApplies ? passiveBonus : 0)) * equipmentScale +
+    (passiveOverrideApplies ? passiveBonus : character?.class === "Thief" ? 15 : 0)) / 100;
   const exposureValue = Number(state?.simPolicy?.trapBonusExposureValue || 0);
   if (state?.simPolicy?.trapBonusExposureApplied && exposureValue > 0) {
     return Math.max(actual, exposureValue / 100);
   }
-  const override = getSimulationTrapOverride(state)?.trapBonus;
-  const overrideApplies = override &&
-    (!getSimulationTrapOverride(state)?.className ||
-      getSimulationTrapOverride(state).className === character?.class);
   if (overrideApplies && actual > 0) {
     const multiplier = Number(override.multiplier);
     if (Number.isFinite(multiplier) && multiplier >= 0) {
@@ -1540,9 +1554,9 @@ function getSimulationTrapBonusMax(character, state = null) {
   const apt = !(state?.simPolicy?.ignoreThiefSustain && character?.class === "Thief") &&
     isDisarmAptClass(character?.class);
   const value = overrideApplies ? (apt ? override?.maxApt : override?.maxNonApt) : null;
-  return Number.isFinite(Number(value))
+  return value !== null && value !== undefined && Number.isFinite(Number(value))
     ? Math.max(0, Number(value))
-    : apt ? 90 : 60;
+    : apt ? FLOOR_DISARM_CALIBRATION.aptMax : FLOOR_DISARM_CALIBRATION.nonAptMax;
 }
 
 function calculateSimulationFloorTrapSuccessRate({
@@ -1569,11 +1583,15 @@ function calculateSimulationFloorTrapSuccessRate({
   }
   const apt = !(state?.simPolicy?.ignoreThiefSustain && className === "Thief") &&
     isDisarmAptClass(className);
-  const base = apt ? 80 : 40;
-  const levelGain = apt ? Math.max(1, Math.floor(Number(level) || 1)) :
-    Math.max(1, Math.floor(Number(level) || 1)) * 0.5;
-  const depthLoss = (Math.max(1, Math.floor(Number(floor) || 1)) - 1) * 2.0;
-  const min = apt ? 20 : 5;
+  const base = apt
+    ? Number(override.baseApt ?? FLOOR_DISARM_CALIBRATION.aptBase)
+    : Number(override.baseNonApt ?? FLOOR_DISARM_CALIBRATION.nonAptBase);
+  const levelGain = apt
+    ? Math.max(1, Math.floor(Number(level) || 1)) * FLOOR_DISARM_CALIBRATION.aptLevelGain
+    : Math.max(1, Math.floor(Number(level) || 1)) * FLOOR_DISARM_CALIBRATION.nonAptLevelGain;
+  const depthLoss = (Math.max(1, Math.floor(Number(floor) || 1)) - 1) *
+    FLOOR_DISARM_CALIBRATION.depthLoss;
+  const min = apt ? FLOOR_DISARM_CALIBRATION.aptMin : FLOOR_DISARM_CALIBRATION.nonAptMin;
   const max = getSimulationTrapBonusMax({ class: className }, state);
   const raw = base + levelGain - depthLoss + (Number(affixBonus) || 0);
   const rate = Math.round(Math.max(min, Math.min(max, raw)));
@@ -8209,10 +8227,25 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   metrics.trapPlanEvaluations++;
   metrics.trapDisarmRateCounts[actionPlan.baseSuccessRate] =
     (metrics.trapDisarmRateCounts[actionPlan.baseSuccessRate] || 0) + 1;
+  metrics.trapDisarmObservations.push({
+    floor,
+    level: state.party[0]?.level || 1,
+    className: state.party[0]?.class || null,
+    rate: actionPlan.baseSuccessRate,
+    maxRate: actionPlan.maxRate,
+    trapBonus: Math.round(actionPlan.trapBonus * 100),
+    equipmentTrapBonus: Math.max(
+      0,
+      Math.round(actionPlan.trapBonus * 100) -
+        (state.party[0]?.class === "Thief" ? 15 : 0)
+    ),
+    capBinding: actionPlan.baseSuccessRate >= actionPlan.maxRate
+  });
   if (actionPlan.baseSuccessRate >= actionPlan.maxRate) {
     metrics.trapDisarmCapHits++;
   }
   const action = trap.state === "hidden" ? "trigger" : actionPlan.action;
+  metrics.trapDisarmObservations.at(-1).action = action;
   metrics.trapPlanActionCounts[action] =
     (metrics.trapPlanActionCounts[action] || 0) + 1;
   const resolution = action === "trigger"
@@ -9256,6 +9289,9 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     trapDisarmSuccesses: metrics.trapDisarmSuccesses,
     trapDisarmRateCounts: { ...metrics.trapDisarmRateCounts },
     trapDisarmCapHits: metrics.trapDisarmCapHits,
+    trapDisarmObservations: metrics.trapDisarmObservations.map(observation => ({
+      ...observation
+    })),
     trapPlanEvaluations: metrics.trapPlanEvaluations,
     trapPlanActionCounts: { ...metrics.trapPlanActionCounts },
     trapActivationCauses: { ...metrics.trapActivationCauses },
@@ -9695,6 +9731,7 @@ export function simulateRun({
     trapDisarmSuccesses: 0,
     trapDisarmRateCounts: {},
     trapDisarmCapHits: 0,
+    trapDisarmObservations: [],
     trapPlanEvaluations: 0,
     trapPlanActionCounts: {},
     trapActivationCauses: {

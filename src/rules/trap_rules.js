@@ -1,5 +1,18 @@
 const DISARM_APT_CLASSES = new Set(["Thief", "Ninja", "Ranger"]);
 
+export const FLOOR_DISARM_CALIBRATION = Object.freeze({
+  aptBase: 80,
+  nonAptBase: 40,
+  aptLevelGain: 1.0,
+  nonAptLevelGain: 0.5,
+  depthLoss: 2.0,
+  aptMin: 20,
+  nonAptMin: 5,
+  // Probability safety bound: apt trapBonus investment must remain effective.
+  aptMax: 100,
+  nonAptMax: 60
+});
+
 export const CHEST_DISARM_BASE_CHANCE_BY_CLASS = Object.freeze({
   Thief: 0.85,
   Ninja: 0.70,
@@ -170,11 +183,19 @@ export function calculateDisarmRate({ className, level, floor, affixBonus = 0 })
   const depth = Math.max(1, Math.floor(Number(floor) || 1));
   const apt = isDisarmAptClass(className);
 
-  const base = apt ? 80 : 40;
-  const levelGain = apt ? lv * 1.0 : lv * 0.5;
-  const depthLoss = (depth - 1) * 2.0;
-  const min = apt ? 20 : 5;
-  const max = apt ? 90 : 60;
+  const base = apt
+    ? FLOOR_DISARM_CALIBRATION.aptBase
+    : FLOOR_DISARM_CALIBRATION.nonAptBase;
+  const levelGain = apt
+    ? lv * FLOOR_DISARM_CALIBRATION.aptLevelGain
+    : lv * FLOOR_DISARM_CALIBRATION.nonAptLevelGain;
+  const depthLoss = (depth - 1) * FLOOR_DISARM_CALIBRATION.depthLoss;
+  const min = apt
+    ? FLOOR_DISARM_CALIBRATION.aptMin
+    : FLOOR_DISARM_CALIBRATION.nonAptMin;
+  const max = apt
+    ? FLOOR_DISARM_CALIBRATION.aptMax
+    : FLOOR_DISARM_CALIBRATION.nonAptMax;
 
   const raw = base + levelGain - depthLoss + affixBonus;
   return Math.round(Math.max(min, Math.min(max, raw)));

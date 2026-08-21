@@ -679,7 +679,7 @@ physical と spell を別列にした。`N < 30` のセルは観測値を記録�
 | 7 | physical は武器ごとの `randRange`、spell は呪文ごとの幅 | **変更した（#727）** | `src/data/items.js` の全 weapon が inclusive な `randRange` を持ち、`rollCharWeaponPhysicalRandom` が本体と追撃へ同じ幅を供給する。狭い `[1,3]` / 固定 `[2,2]` と広い `[0,4]` を使うが、全範囲の平均は 2.0 に揃え、武器 atk・式の他項・spell range は変えない。物理を一律 0–4 として spell と別 identity にするだけでは、同じ atk の武器を区別できないため、#727 でこの判定を覆した。 | 決定 2、#727、分散方針 |
 | 8 | 会心は Ninja の非 boss のみ | **欠陥（未文書化）** | source は `char.class === "Ninja" && !target.isBoss` の呼び出し側分岐だけで、class data と既存設計正本に会心 passive の記録がない。実測 critical は Ninja 6.760%、他 7 職 0%。boss 除外の理由も正本にない。 | 決定 6 |
 | 9 | Mage/Bishop に undocumented `magicBolt` fallback | **案A: 廃止（#730で結論）** | #722 は未文書の職業補償を使わないと定め、#731/#722 決定2は呪文を `spellPower` と装備・run 内ビルドで明示的に成長させた。通常攻撃へ隠れた第2式を残す理由はなく、Mage/Bishopも他職と同じ物理式・命中・最低1・会心順序へ戻す。適用順は #731 の呪文成長配線を先に行い、#730 で fallback と専用 telemetry を削除する。 | #722 決定2、#731、#730 |
-| 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **欠陥（方針欠落）** | `getSpellStatBonus` は int30で+40%固定、`calculateDisarmRate` は適性職90 cap。cap の存在は source で確認できるが、超過投資をどう扱うかの共通方針がない。B1–B10分布でも 素手・武器 slot にない装備の既定値は `[0,4]`。忍者を含む follow-up も同じ helper
+| 10 | spell stat +40%、trap disarm 90など上限配置に共通方針がない | **#713 trap 部分を適用、spell は監査のみ** | `calculateDisarmRate` の適性職 cap は90→100へ変更し、確率の安全上限だけを残して trapBonus を無価値にしない。`getSpellStatBonus` はレビュー対象として確認したが、global spell scaling の変更は trap calibration と別 concern のため本 Issue では変更しない。`getPartyFlameTrapWarningAvoidanceChance` の0.74は別の発動回避効果の確率 clampで、trapBonus全体を無価値にはしないため変更しない。その他の `Math.min` は HP/MP、配列・確率・状態値の安全 clamp、または別 system の投資上限であり、#713の trapBonus floor value の測定対象外。 |
 を通るため、本体と追撃で幅が分岐しない。旧 follow-up は `0..2`（平均1）だったが、
 #727後は武器幅（全武器平均2）を使う。これは本体と追撃で武器の手触りを一致させる
 ための意図した変更であり、平均ダメージが変わる影響は depth sim の結果とともにPRへ記録する。
