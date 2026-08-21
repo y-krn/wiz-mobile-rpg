@@ -45,6 +45,33 @@ tool-specific fallback instruction files.
   pull requests, and reviews through Codex's GitHub integration or the GitHub
   web UI; keep repository instructions independent of a hosting CLI.
 
+## Efficient orchestration
+
+- Treat Git and GitHub information as snapshots. Refresh at these checkpoints:
+  before delegation, before commit/push, after a state-changing operation,
+  before merge/integration, and when staleness or conflict is suspected.
+  Reuse the snapshot between checkpoints; do not repeat unchanged
+  `status`/`rev-parse`, fetch, Issue, PR, review, or thread reads as routine.
+  These savings do not replace required preflight, final-state, CI, review, or
+  merge checks.
+- Reuse tools that have already been found and used successfully, including
+  their known schemas. Do not repeatedly search `ALL_TOOLS` or rediscover a
+  tool unless it is unavailable or its arguments or behavior are unclear.
+- Polling must be completion-aware: do not continuously poll at one-second
+  intervals. Use bounded waits appropriate to the expected command or worker
+  duration, do not repeat `wait_agent` or `write_stdin` solely because progress
+  is unchanged, and keep waiting for completion mandatory before reporting.
+  Long-running simulation procedure remains in `.agents/balance-simulation.md`;
+  this rule covers general orchestration.
+- Apply progressive disclosure. Read `.agents/file-map.md` for broad discovery,
+  and do not reread known relevant files, maps, or skills without a changed
+  scope or missing context. Load only the skills relevant to the task; do not
+  explore every available skill.
+- Keep handoffs compact: carry only the objective and acceptance criteria,
+  decisions, base SHA, worktree/branch, changed files, verification, the
+  Git/GitHub snapshot, outstanding items, and next action. Do not carry full
+  logs, diffs, or history into the root context when a summary is sufficient.
+
 ## Network and provenance
 
 - The interactive root/coordinator is the approval boundary for delegation and
