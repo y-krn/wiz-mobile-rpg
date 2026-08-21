@@ -1144,6 +1144,18 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   詳細と生出力SHA-256は
   `scratch/results/issue-678-consumable-coverage.md` を正本とする。
 
+## Issue #692 消費計数の一般則（2026-08-21）
+
+- 消耗品の消費数は、方針が使用を選んだ地点ではなく、実際に在庫が減る消費地点で
+  1回だけ数える。判定、効果適用、集計表示を別々に加算しない。
+- 新しい消費経路を追加するときは、同じ消費地点へ tracking を追加し、既存の
+  per-item counter、source queue、専用使用カウンタが同じ1個を二重に数えないことを
+  focused audit で確認する。
+- 特殊処理（回復、魔力草、帰還の翼、罠外しキット、戦闘用アイテム、状態治療）は
+  generic inventory delta の fallback と専用 hook の排他を明示する。simで意図的に
+  抽象化している経路は「未消費」ではなく、tracked coverage外のモデル化 gapとして
+  記録する。
+
 ## Issue #691 状態異常治療 EV 方針（2026-08-16）
 
 - これはゲーム本体のルール・balance値・アイテム定義の変更ではなく、深度simの
