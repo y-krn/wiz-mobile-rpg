@@ -6,7 +6,7 @@ import { renderWorkshop } from "./workshop_view.js";
 import { renderMilestoneMerchant } from "./milestone_merchant.js";
 import { renderMilestonePortal } from "./milestone_portal.js";
 import { renderStairsDown } from "./stairs_down.js";
-import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect } from "./explore_actions.js";
+import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect, renderExploreManagement } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
 
 const SUBMENU_RENDERERS = {
@@ -25,6 +25,7 @@ const SUBMENU_RENDERERS = {
   castle_death_logs: (optGrid) => renderCastleDeathLogs(optGrid),
   chest_disarmer_select: (optGrid) => renderChestDisarmerSelect(optGrid),
   chest_opener_select: (optGrid) => renderChestOpenerSelect(optGrid),
+  explore_management: (optGrid) => renderExploreManagement(optGrid),
   event_spring: (optGrid) => renderEventSpring(optGrid),
   event_camp: (optGrid) => renderEventCamp(optGrid),
   event_spring_result: (optGrid) => renderEventSpringResult(optGrid),
