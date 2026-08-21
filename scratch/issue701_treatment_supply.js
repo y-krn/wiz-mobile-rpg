@@ -25,6 +25,11 @@ const CONDITIONS = Object.freeze([
     env: { DEPARTURE_CRAFT_IDS: BASE_CRAFT, ISSUE701_MERCHANT_ADD: "1" }
   },
   {
+    id: "merchant-eye-priced",
+    label: "深層商人：目薬（霊粉1・価格制約）",
+    env: { DEPARTURE_CRAFT_IDS: BASE_CRAFT, ISSUE701_MERCHANT_PRICE: "eye-drops" }
+  },
+  {
     id: "departure-eye",
     label: "出発kit：解毒薬→目薬",
     env: {
@@ -55,6 +60,7 @@ function makeEnv(condition, smoke) {
   [
     "SIM_SEED", "SIM_RUNS", "SIM_CALIBRATION_RUNS", "SIM_PARALLEL", "SIM_MAP_CACHE_ENTRIES",
     "SIM_SKIP_PROVENANCE", "SIM_ALLOW_STALE_TREE", "DEPARTURE_CRAFT_IDS", "ISSUE701_MERCHANT_ADD",
+    "ISSUE701_MERCHANT_PRICE",
     "ISSUE701_CHEST_POOL", "ISSUE701_CONDITION_ID", "ISSUE701_SMOKE"
   ].forEach(key => delete env[key]);
   Object.assign(env, {
@@ -149,8 +155,11 @@ function collect(conditionResult, rowsOverride = null) {
     statusDecisionFloors: {},
     statusEv: {},
     statusApplications: {},
+    statusCureMerchantAttempts: {},
+    statusCureMerchantFailures: {},
     materialSources: {},
-    materialSourceCounts: {}
+    materialSourceCounts: {},
+    materialConsumedByMerchant: {}
   };
   for (const row of rows) {
     for (const itemId of ITEM_KEYS) {
@@ -166,6 +175,8 @@ function collect(conditionResult, rowsOverride = null) {
     out.mpDepleted += Number(row.mpDepleted);
     sumSourceItems(out.statusCureItemsAcquired, row.statusCureItemsAcquired);
     sumNested(out.statusCureItemsUsed, row.statusCureItemsUsed);
+    sumNested(out.statusCureMerchantAttempts, row.statusCureMerchantAttempts);
+    sumNested(out.statusCureMerchantFailures, row.statusCureMerchantFailures);
     Object.entries(row.consumableUsageByItem || {}).forEach(([itemId, usage]) => {
       const bucket = out.consumableUsageByItem[itemId] ||= { acquired: 0, consumed: 0 };
       bucket.acquired += Number(usage.acquired) || 0;
@@ -188,6 +199,7 @@ function collect(conditionResult, rowsOverride = null) {
     });
     sumNested(out.materialSources, row.materialSources);
     sumNested(out.materialSourceCounts, row.materialSourceCounts);
+    sumNested(out.materialConsumedByMerchant, row.materialConsumedByMerchant);
   }
   const denominator = Math.max(1, rows.length);
   out.reached /= denominator;
@@ -268,6 +280,7 @@ function renderMarkdown(measurements, sourceCommit, baseCommit, rawSha) {
     `- runner: \`scratch/issue701_treatment_supply.js -> scratch/sim_treatment_supply_701.js -> scratch/sim_depth_material_ev.js\` (sim-scope: run; \`generateRunFloor\` 経由)`,
     `- 条件: 4職×${RUNS} run、seed=231、calibration=${CALIBRATION}、SIM_PARALLEL unset、B1→B20、#612 workshop distribution、run-independent hash seed`,
     `- raw JSONL: \`${RAW_PATH}\`; SHA-256: \`${rawSha}\``,
+    "- reproduction: `node scratch/issue701_treatment_supply.js` (SIM_PARALLEL omitted; raw JSONL is written outside the repository)",
     `- wall/CPU seconds: ${measurements.map(m => `${m.condition.id}=cal ${m.timing.calibration.wallSeconds.toFixed(2)}/${m.timing.calibration.cpuSeconds.toFixed(2)}, sim ${m.timing.measurement.wallSeconds.toFixed(2)}/${m.timing.measurement.cpuSeconds.toFixed(2)}`).join("; ")}`,
     "",
     "## #692 tracking coverage",
@@ -304,16 +317,17 @@ function renderMarkdown(measurements, sourceCommit, baseCommit, rawSha) {
     ...CONDITIONS.map(condition => {
       const s = stats[condition.id];
       const sources = SOURCE_KEYS.map(source => `${source}=${JSON.stringify(s.statusCureItemsAcquired[source] || {})}`).join("; ");
-      return `- **${condition.id}**: ${ITEM_KEYS.map(itemId => itemLine(s, itemId)).join(", ")}; acquired by source: ${sources}; selected=${JSON.stringify(s.statusDecisions)}; statusesCured=${JSON.stringify(s.statusCureItemsUsed)}`;
+      return `- **${condition.id}**: ${ITEM_KEYS.map(itemId => itemLine(s, itemId)).join(", ")}; acquired by source: ${sources}; selected=${JSON.stringify(s.statusDecisions)}; statusesCured=${JSON.stringify(s.statusCureItemsUsed)}; merchant attempts=${JSON.stringify(s.statusCureMerchantAttempts)} failures=${JSON.stringify(s.statusCureMerchantFailures)}; merchant material spend=${JSON.stringify(s.materialConsumedByMerchant)}`;
     }),
     "",
     "### 到達階・生還率（職別）",
     "",
-    "| 条件 | 職 | 到達階平均 | 生還率 |",
-    "| --- | --- | ---: | ---: |",
+    "| 条件 | 職 | 到達階平均 | 生還率 | MP残率 | MP枯渇率 | unavailable |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
     ...CONDITIONS.flatMap(condition => CLASSES.map(className => {
       const s = stats[condition.id].byClass[className];
-      return `| ${condition.id} | ${className} | ${fmt(s.reached)} | ${(s.survivalRate * 100).toFixed(1)}% |`;
+      const unavailable = STATUS_KEYS.reduce((sum, status) => sum + s.treatmentCoverage[status].unavailable, 0);
+      return `| ${condition.id} | ${className} | ${fmt(s.reached)} | ${(s.survivalRate * 100).toFixed(1)}% | ${(s.mpRate * 100).toFixed(1)}% | ${(s.mpDepletedRate * 100).toFixed(1)}% | ${unavailable} |`;
     })),
     "",
     "### Mana and relevant resource outcomes",
@@ -326,7 +340,8 @@ function renderMarkdown(measurements, sourceCommit, baseCommit, rawSha) {
     "## Counterfactual definition and comparison",
     "",
     "- `baseline`: current fixed #691/#736-style depth conditions with departure kit `TOWN_PORTAL + 4×HEAL_POTION + ANTIDOTE + GUARD_POTION` and current source chest/merchant pools.",
-    "- `merchant-eye-panacea`: measurement-only upper bound. At each milestone, missing `EYE_DROPS` and `PANACEA` are granted through the sim merchant acquisition path without adding a source price or changing materials. This isolates supply availability; it is not a price recommendation.",
+    "- `merchant-eye-panacea`: prior measurement-only free-grant upper bound. At each milestone, missing `EYE_DROPS` and `PANACEA` are granted without a source price or material spend; it remains a clearly labeled availability ceiling, not a price recommendation.",
+    "- `merchant-eye-priced`: measurement-only price-constrained EYE_DROPS case. It uses canonical `霊粉:1` from `.agents/game-design.md` and the existing merchant affordability, 20-slot inventory-capacity, material-spend, and purchase-path semantics. PANACEA is not included because no authoritative project price was found.",
     "- `departure-eye`: source departure recipe override replaces the one `ANTIDOTE` with one existing `EYE_DROPS` recipe (same one-item kit slot; source craft cost is used).",
     "- `chest-missing-status`: when the source chest roll returns a non-equipment, non-status-cure usable, measurement-only remap gives `EYE_DROPS` on B1–B2 and `PANACEA` on B3+, preserving existing status-cure chest results. This is a supply upper-bound for the missing-depth pool, not a production rule.",
     "",
@@ -342,13 +357,14 @@ function renderMarkdown(measurements, sourceCommit, baseCommit, rawSha) {
     "",
     "## Decision",
     "",
-    "Measurement-first conclusion: no production supply change is implemented here. Starting inventory and deep-floor acquisition are separate: departure `ANTIDOTE`/`EYE_DROPS` changes affect the opening stock and early floors, while merchant/chest changes affect only reachable milestone/deep acquisition. The merchant case is an availability upper bound because no canonical prices for the two new stock entries were supplied. A production decision remains unresolved until an owner selects prices and desired chest-pool semantics; the measured comparison is sufficient to avoid treating the derived unavailable count as proof that every supply direction should ship.",
+    "Measurement-first conclusion: no production supply change is implemented here. The free-grant merchant upper bound measures the ceiling; the price-constrained EYE_DROPS case measures the current `霊粉:1` affordability/inventory-limited direction. PANACEA remains not decision-ready because no authoritative project price exists; no price was fabricated. The measured comparison supports deciding EYE_DROPS separately from PANACEA, but does not authorize a production stock change or settle desired chest-pool semantics.",
     "",
     "## Verification and risks",
     "",
     "- Required: node --check, N=1 smoke, N=500/class measurement, raw stdout SHA-256 replicate, npm run lint, npm run test:unit, git diff --check.",
     "- Omitted from this sim (tracked as model gaps, not zero supply): production-only ETHER/noise/escape/elixir paths; combat item choices beyond existing sim policy. The state cure path itself is modelled for all four requested statuses.",
-    "- No `src/` changes, no item-effect/price/threshold/EV/economy changes, and no `.agents/content-design.md` update because no production content was changed."
+    "- No `src/` changes, no production merchant stock/item-effect/threshold/EV/economy changes, and no `.agents/content-design.md` update because no production content was changed.",
+    "- PANACEA pricing: unresolved/not decision-ready. Project canon/source defines its effect and chest availability but does not define an authoritative merchant material price."
   ];
   return lines.join("\n") + "\n";
 }

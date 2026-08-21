@@ -88,6 +88,8 @@ function compactResult(task, result) {
     statusCureUnavailableStatuses: result.statusCureUnavailableStatuses,
     statusCureEvMetrics: result.statusCureEvMetrics,
     statusCureSupply: result.statusCureSupply,
+    statusCureMerchantAttempts: result.statusCureMerchantAttempts,
+    statusCureMerchantFailures: result.statusCureMerchantFailures,
     statusesCured: result.statusesCured,
     consumableUsageByItem: result.consumableUsageByItem,
     manaPotionsAcquiredBySource: result.manaPotionsAcquiredBySource,
@@ -99,6 +101,7 @@ function compactResult(task, result) {
     materialAcquired: result.materialAcquired,
     materialConsumed: result.materialConsumed,
     bankedMaterials: result.bankedMaterials,
+    materialConsumedByMerchant: result.materialConsumedByMerchant,
     timeCost: result.timeCost,
     statusCuresUsed: Object.values(result.statusCureItemsUsed || {})
       .reduce((sum, amount) => sum + (Number(amount) || 0), 0)
