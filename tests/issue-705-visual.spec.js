@@ -83,3 +83,79 @@ for (const viewport of VIEWPORTS) {
     console.log(`[issue-705:${viewport.width}] ${JSON.stringify(evidence)}`);
   });
 }
+
+test('Issue #705 clears inline theme variables when leaving an active run', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+
+  const evidence = await page.evaluate(async () => {
+    const { state, createDefaultCurrentRun } = await import('/src/state.js');
+    const { updateUI } = await import('/src/ui/ui_root.js');
+    const container = document.querySelector('#game-container');
+    const floorThemeStyleProperties = [
+      '--biome-wall-color',
+      '--biome-glow',
+      '--biome-background',
+      '--biome-header-background',
+      '--biome-banner-background',
+      '--biome-aura',
+      '--biome-aura-opacity',
+      '--depth-corruption',
+    ];
+    const makeCell = () => ({
+      walls: [false, false, false, false],
+      blockEnter: [false, false, false, false],
+      secretDoor: [false, false, false, false],
+      type: 'empty',
+    });
+    const map = Array.from({ length: 12 }, () => Array.from({ length: 12 }, makeCell));
+    state.currentRun = createDefaultCurrentRun();
+    state.floor = 6;
+    state.x = 5;
+    state.y = 5;
+    state.dir = 0;
+    state.gameState = 'explore';
+    state.maps[5] = map;
+    state.visitedMaps[5] = map.map(row => row.map(() => true));
+    state.map = map;
+    updateUI();
+    const active = {
+      wall: getComputedStyle(container).getPropertyValue('--biome-wall-color').trim(),
+      depth: getComputedStyle(container).getPropertyValue('--depth-corruption').trim(),
+    };
+
+    state.currentRun = null;
+    state.gameState = 'town';
+    updateUI();
+    const townInline = Object.fromEntries(floorThemeStyleProperties.map(property => [
+      property,
+      container.style.getPropertyValue(property),
+    ]));
+
+    state.currentRun = createDefaultCurrentRun();
+    state.floor = 11;
+    state.gameState = 'explore';
+    updateUI();
+    const activeAgain = {
+      wall: getComputedStyle(container).getPropertyValue('--biome-wall-color').trim(),
+      depth: getComputedStyle(container).getPropertyValue('--depth-corruption').trim(),
+    };
+
+    state.gameState = 'result';
+    updateUI();
+    const resultInline = Object.fromEntries(floorThemeStyleProperties.map(property => [
+      property,
+      container.style.getPropertyValue(property),
+    ]));
+
+    return { active, townInline, activeAgain, resultInline };
+  });
+
+  expect(evidence.active.wall).toBe('#d5b56f');
+  expect(Number(evidence.active.depth)).toBeGreaterThan(0);
+  expect(evidence.activeAgain.wall).toBe('#bd78f2');
+  expect(Number(evidence.activeAgain.depth)).toBeGreaterThan(Number(evidence.active.depth));
+  expect(Object.values(evidence.townInline).every(value => value === '')).toBe(true);
+  expect(Object.values(evidence.resultInline).every(value => value === '')).toBe(true);
+});

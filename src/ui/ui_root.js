@@ -17,6 +17,16 @@ let floorStingerTimer = null;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
 const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover";
 const TOWN_SUBMENU_TYPES = new Set(["castle_main", "castle_death_logs", "workshop_main"]);
+const FLOOR_THEME_STYLE_PROPERTIES = [
+  "--biome-wall-color",
+  "--biome-glow",
+  "--biome-background",
+  "--biome-header-background",
+  "--biome-banner-background",
+  "--biome-aura",
+  "--biome-aura-opacity",
+  "--depth-corruption",
+];
 
 function isDeparturePrepSubmenu() {
   return state.gameState === "submenu" && menuContext.type === "solo_start";
@@ -252,6 +262,8 @@ export function updateUI() {
         container.style.setProperty("--biome-aura-opacity", String(visual.auraOpacity));
         container.style.setProperty("--depth-corruption", String(getDepthCorruption(state.floor)));
       }
+    } else if (typeof container.style?.removeProperty === "function") {
+      FLOOR_THEME_STYLE_PROPERTIES.forEach(property => container.style.removeProperty(property));
     }
   }
 
