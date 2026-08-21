@@ -200,6 +200,7 @@ const {
   getDepthMaterialExpectedQuantity,
   getMonsterGroupClassification,
   getScholarMaterialBonus: getExpectedScholarMaterialBonus,
+  canAffordMaterials,
   spendMaterials
 } = await import("../src/rules/material_rules.js");
 const { addInventoryItemToState } = await import("../src/state/inventory_state.js");
@@ -287,6 +288,7 @@ const {
 const { getEnhanceCost } = await import("../src/craft.js");
 const { WORKSHOP_NODE_BY_ID } = await import("../src/data/workshop.js");
 const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
+const { MILESTONE_MERCHANT_STOCK } = await import("../src/data/milestone_merchant.js");
 const {
   calculateCombatRecoveryAction,
   getStartingHealPotionCount
@@ -339,6 +341,10 @@ const SIM_ENV_KEYS = Object.freeze([
   "SIM_MADI_HEAL_MIN",
   "SIM_MADI_HEAL_MAX",
   "SIM_MADI_COST",
+  "SIM_MERCHANT_MANA_COST",
+  "SIM_MERCHANT_EYE_DROPS",
+  "SIM_MERCHANT_RETURN_WING",
+  "SIM_MERCHANT_RETURN_WING_COST",
   "SIM_SCENARIOS"
 ]);
 const REVALIDATION_DEPARTURE_CRAFT_IDS =
@@ -382,6 +388,10 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_MADI_HEAL_MIN: "",
   SIM_MADI_HEAL_MAX: "",
   SIM_MADI_COST: "",
+  SIM_MERCHANT_MANA_COST: "",
+  SIM_MERCHANT_EYE_DROPS: "0",
+  SIM_MERCHANT_RETURN_WING: "0",
+  SIM_MERCHANT_RETURN_WING_COST: "",
   SIM_SCENARIOS: ""
 });
 const BALANCE_MAIN_PRESET = Object.freeze({
@@ -541,6 +551,23 @@ const parseOptionalSimInteger = (value, name) => {
 const SIM_MADI_HEAL_MIN = parseOptionalSimInteger(SIM_ENV.SIM_MADI_HEAL_MIN, "SIM_MADI_HEAL_MIN");
 const SIM_MADI_HEAL_MAX = parseOptionalSimInteger(SIM_ENV.SIM_MADI_HEAL_MAX, "SIM_MADI_HEAL_MAX");
 const SIM_MADI_COST = parseOptionalSimInteger(SIM_ENV.SIM_MADI_COST, "SIM_MADI_COST");
+function parseMerchantCost(value) {
+  if (value === "" || value === undefined || value === null) return null;
+  const cost = {};
+  for (const part of String(value).split(",")) {
+    const [material, amountText] = part.split(":");
+    const amount = Number(amountText);
+    if (!material || !Number.isInteger(amount) || amount <= 0) {
+      throw new Error(`SIM_MERCHANT_MANA_COST must be material:positiveInteger[,material:positiveInteger]: ${value}`);
+    }
+    cost[material] = amount;
+  }
+  return cost;
+}
+const SIM_MERCHANT_MANA_COST = parseMerchantCost(SIM_ENV.SIM_MERCHANT_MANA_COST);
+const SIM_MERCHANT_EYE_DROPS = SIM_ENV.SIM_MERCHANT_EYE_DROPS === "1";
+const SIM_MERCHANT_RETURN_WING = SIM_ENV.SIM_MERCHANT_RETURN_WING === "1";
+const SIM_MERCHANT_RETURN_WING_COST = parseMerchantCost(SIM_ENV.SIM_MERCHANT_RETURN_WING_COST);
 if ((SIM_MADI_HEAL_MIN === null) !== (SIM_MADI_HEAL_MAX === null)) {
   throw new Error("SIM_MADI_HEAL_MIN and SIM_MADI_HEAL_MAX must be provided together");
 }
@@ -2775,9 +2802,50 @@ const SIM_COMBAT_CONSUMPTION_HOOK_IDS = new Set([
 ]);
 const MERCHANT_STATUS_CURE_STOCK = Object.freeze([
   { stockId: "antidote", itemId: "ANTIDOTE" },
+  ...(SIM_MERCHANT_EYE_DROPS ? [{ stockId: "eye_drops", itemId: "EYE_DROPS" }] : []),
   { stockId: "wake_powder", itemId: "WAKE_POWDER" },
   { stockId: "paralyze_cure", itemId: "PARALYZE_CURE" }
 ]);
+
+function createMerchantStockMetrics() {
+  return Object.fromEntries(
+    MILESTONE_MERCHANT_STOCK.map(entry => [entry.id, {
+      itemId: entry.itemId || null,
+      attempts: 0,
+      successes: 0,
+      failures: {}
+    }])
+  );
+}
+
+function recordMerchantStockAttempt(metrics, entry, result) {
+  const itemId = entry.itemId || entry.id;
+  if (!metrics?.merchantStock) return itemId;
+  const bucket = metrics.merchantStock[entry.id] ||= {
+    itemId: entry.itemId || null,
+    attempts: 0,
+    successes: 0,
+    failures: {}
+  };
+  bucket.attempts++;
+  if (result.ok) bucket.successes++;
+  else bucket.failures[result.reason] = (bucket.failures[result.reason] || 0) + 1;
+  return itemId;
+}
+
+function purchaseSimulationMerchantEntry(state, entry) {
+  const materials = state.currentRun?.materials;
+  if (!materials || !canAffordMaterials(materials, entry.cost)) {
+    return { ok: false, reason: "insufficient_materials" };
+  }
+  if (entry.kind === "item" && (state.inventory?.length || 0) >= 20) {
+    return { ok: false, reason: "inventory_full" };
+  }
+  state.currentRun.materials = spendMaterials(materials, entry.cost);
+  if (entry.kind === "identify") state.identifyTickets = (state.identifyTickets || 0) + 1;
+  else state.inventory.push(entry.itemId);
+  return { ok: true, entry };
+}
 
 function normalizeStatusObservation(status) {
   if (status === "paralyze") return "paralyzed";
@@ -3477,6 +3545,7 @@ function createSimulationState(
       healPotionSupplyNormalization: scenario.healPotionSupplyNormalization || null,
       healPotionThreshold,
       manaPotionThreshold,
+      merchantManaPotionCost: SIM_MERCHANT_MANA_COST,
       fleePolicy,
       fleeHpThreshold: Object.hasOwn(scenario, "fleeHpThreshold")
         ? scenario.fleeHpThreshold
@@ -6554,11 +6623,19 @@ function recordMerchantMaterialSpend(metrics, before, after) {
 }
 
 function maybePurchaseMerchantWing(state, scenario, metrics) {
-  if (!scenario.buyMerchantTownPortal || !isMilestoneFloor(state.floor)) return;
+  if (!(scenario.buyMerchantTownPortal || SIM_MERCHANT_RETURN_WING) || !isMilestoneFloor(state.floor)) return;
   if (state.inventory.includes("TOWN_PORTAL")) return;
   metrics.merchantWingAttempts++;
   const materialsBefore = { ...state.currentRun.materials };
-  const result = purchaseMilestoneStock(state, "return_wing");
+  const wingEntry = MILESTONE_MERCHANT_STOCK.find(entry => entry.id === "return_wing");
+  const result = SIM_MERCHANT_RETURN_WING_COST
+    ? purchaseSimulationMerchantEntry(state, { ...wingEntry, cost: SIM_MERCHANT_RETURN_WING_COST })
+    : purchaseMilestoneStock(state, "return_wing");
+  recordMerchantStockAttempt(
+    metrics,
+    wingEntry,
+    result
+  );
   if (!result.ok) {
     metrics.merchantWingFailures[result.reason] =
       (metrics.merchantWingFailures[result.reason] || 0) + 1;
@@ -6581,6 +6658,11 @@ function maybePurchaseMerchantStatusCures(state, metrics) {
     if (state.inventory.includes(itemId)) return;
     const materialsBefore = { ...state.currentRun.materials };
     const result = purchaseMilestoneStock(state, stockId);
+    recordMerchantStockAttempt(
+      metrics,
+      MILESTONE_MERCHANT_STOCK.find(entry => entry.id === stockId),
+      result
+    );
     if (!result.ok) {
       metrics.statusCureMerchantFailures[result.reason] =
         (metrics.statusCureMerchantFailures[result.reason] || 0) + 1;
@@ -6620,6 +6702,11 @@ function maybePurchaseMerchantHealPotion(state, metrics) {
     if (!shouldGrantNormalizedHealPotion(state)) break;
     const materialsBefore = { ...state.currentRun.materials };
     const result = purchaseMilestoneStock(state, "heal_potion");
+    recordMerchantStockAttempt(
+      metrics,
+      MILESTONE_MERCHANT_STOCK.find(entry => entry.id === "heal_potion"),
+      result
+    );
     if (!result.ok) {
       metrics.healPotionMerchantFailures[result.reason] =
         (metrics.healPotionMerchantFailures[result.reason] || 0) + 1;
@@ -6639,6 +6726,11 @@ function maybePurchaseMerchantStrengthPotion(state, scenario, metrics) {
   metrics.strPotionMerchantAttempts++;
   const materialsBefore = { ...state.currentRun.materials };
   const result = purchaseMilestoneStock(state, "str_potion");
+  recordMerchantStockAttempt(
+    metrics,
+    MILESTONE_MERCHANT_STOCK.find(entry => entry.id === "str_potion"),
+    result
+  );
   if (!result.ok) {
     metrics.strPotionMerchantFailures[result.reason] =
       (metrics.strPotionMerchantFailures[result.reason] || 0) + 1;
@@ -6647,6 +6739,25 @@ function maybePurchaseMerchantStrengthPotion(state, scenario, metrics) {
   recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
   recordConsumableAcquisition(metrics, "STR_POTION");
   metrics.strPotionsPurchased++;
+}
+
+function maybePurchaseMerchantManaPotion(state, metrics) {
+  const cost = state.simPolicy.merchantManaPotionCost;
+  if (!cost || !isMilestoneFloor(state.floor) || state.inventory.includes("MANA_POTION")) return;
+  const entry = {
+    id: "mana_potion_candidate",
+    kind: "item",
+    itemId: "MANA_POTION",
+    name: "魔力草（測定候補）",
+    cost
+  };
+  const materialsBefore = { ...state.currentRun.materials };
+  const result = purchaseSimulationMerchantEntry(state, entry);
+  recordMerchantStockAttempt(metrics, entry, result);
+  if (!result.ok) return;
+  recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
+  recordConsumableAcquisition(metrics, "MANA_POTION");
+  recordTrackedConsumableAcquisition(state, metrics, "MANA_POTION", "merchant");
 }
 
 function identifyWithoutCurse(item) {
@@ -9183,6 +9294,17 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
         { ...usage }
       ])
     ),
+    merchantStock: Object.fromEntries(
+      Object.entries(metrics.merchantStock).map(([stockId, stock]) => [
+        stockId,
+        {
+          itemId: stock.itemId || null,
+          attempts: stock.attempts,
+          successes: stock.successes,
+          failures: { ...stock.failures }
+        }
+      ])
+    ),
     manaPotionsUsed: metrics.manaPotionsUsed,
     manaPotionsUsedInCombat: metrics.manaPotionsUsedInCombat,
     manaPotionsUsedPostCombat: metrics.manaPotionsUsedPostCombat,
@@ -9533,6 +9655,7 @@ export function simulateRun({
     identificationPowderUsed: 0,
     identificationCount: 0,
     consumableUsageByItem: createConsumableUsageByItem(),
+    merchantStock: createMerchantStockMetrics(),
     unidentifiedWearCount: 0,
     curseHitCount: 0,
     equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
@@ -10537,6 +10660,7 @@ export function simulateRun({
     maybePurchaseMerchantStatusCures(state, metrics);
     maybePurchaseMerchantHealPotion(state, metrics);
     maybePurchaseMerchantStrengthPotion(state, scenario, metrics);
+    maybePurchaseMerchantManaPotion(state, metrics);
     if (isMilestoneFloor(floor)) {
       metrics.milestoneDecisions.push({
         floor,
@@ -10620,6 +10744,9 @@ function simulateCase({
       quest: 0
     },
     materialConsumed: 0,
+    materialConsumedByMerchant: Object.fromEntries(
+      MATERIAL_TYPES.map(material => [material, 0])
+    ),
     timeCost: 0,
     campRestCount: 0,
     reachedFloor: 0,
@@ -10694,6 +10821,9 @@ function simulateCase({
     firstCoreDepthCounts: {},
     coreObservations: createCoreObservations(),
     spellUsage: createSpellUsageMetrics(),
+    spellUsageByClass: Object.fromEntries(
+      SIM_CLASSES.map(className => [className, createSpellUsageMetrics()])
+    ),
     explorationSpellUsage: createExplorationSpellUsageMetrics(),
     mpPressure: createSpellPressureMetrics(),
     combatMpMeasurement: createCombatMpMeasurement(),
@@ -10733,6 +10863,7 @@ function simulateCase({
     statusObservations: createStatusObservationAggregate(),
     statusCureItemsAcquired: {},
     statusCureItemsUsed: {},
+    merchantStock: createMerchantStockMetrics(),
     statusCureDecisions: {
       selected: 0,
       unavailable: 0,
@@ -10775,6 +10906,9 @@ function simulateCase({
     eliteAvoidNoRouteFloors: 0,
     hitEvasion: { attemptsByFloor: {}, missesByFloor: {} }
   };
+  const merchantStockByClass = Object.fromEntries(
+    SIM_CLASSES.map(className => [className, createMerchantStockMetrics()])
+  );
   const classTrapTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapAggregate()])
   );
@@ -10836,6 +10970,7 @@ function simulateCase({
       departureCraftBanksByClass[className] = { ...result.metaMaterials };
     }
     addSpellUsageAggregate(totals.spellUsage, result);
+    addSpellUsageAggregate(totals.spellUsageByClass[className], result);
     addExplorationSpellUsageAggregate(totals.explorationSpellUsage, result);
     addSpellPressureMetrics(totals.mpPressure, result.mpPressure);
     addSpellPressureMetrics(classMpPressureTotals[className], result.mpPressure);
@@ -10865,6 +11000,32 @@ function simulateCase({
     totals.masfealActiveSteps += result.masfealActiveSteps;
     addOutcomeAggregate(totals.outcomesByClass[className], result);
     addStatusObservationAggregate(totals.statusObservations, result);
+    Object.entries(result.merchantStock || {}).forEach(([stockId, source]) => {
+      const target = merchantStockByClass[className][stockId] ||= {
+        itemId: source.itemId || null,
+        attempts: 0,
+        successes: 0,
+        failures: {}
+      };
+      target.attempts += source.attempts || 0;
+      target.successes += source.successes || 0;
+      Object.entries(source.failures || {}).forEach(([reason, count]) => {
+        target.failures[reason] = (target.failures[reason] || 0) + count;
+      });
+    });
+    Object.entries(result.merchantStock || {}).forEach(([stockId, source]) => {
+      const target = totals.merchantStock[stockId] ||= {
+        itemId: source.itemId || null,
+        attempts: 0,
+        successes: 0,
+        failures: {}
+      };
+      target.attempts += source.attempts || 0;
+      target.successes += source.successes || 0;
+      Object.entries(source.failures || {}).forEach(([reason, count]) => {
+        target.failures[reason] = (target.failures[reason] || 0) + count;
+      });
+    });
     addStatusCureEvMetrics(totals.statusCureEvMetrics, result.statusCureEvMetrics);
     if (result.statusCureSupply?.dedicatedDepletionFloor !== null) {
       totals.statusCureSupply.dedicatedDepletionRuns++;
@@ -10928,6 +11089,10 @@ function simulateCase({
         (totals.materialAcquiredBySource[source] || 0) + amount;
     });
     totals.materialConsumed += result.materialConsumed;
+    Object.entries(result.materialConsumedByMerchant || {}).forEach(([material, amount]) => {
+      totals.materialConsumedByMerchant[material] =
+        (totals.materialConsumedByMerchant[material] || 0) + amount;
+    });
     totals.timeCost += result.timeCost;
     totals.campRestCount += result.campRestCount;
     totals.reachedFloor += result.reachedFloor;
@@ -11137,6 +11302,7 @@ function simulateCase({
       ])
     ),
     averageMaterialConsumed: totals.materialConsumed / RUNS_PER_CASE,
+    materialConsumedByMerchant: totals.materialConsumedByMerchant,
     averageTimeCost,
     materialEvPerTime: bankedMaterialEv / averageTimeCost,
     averageReachedFloor: totals.reachedFloor / RUNS_PER_CASE,
@@ -11297,6 +11463,15 @@ function simulateCase({
         { ...usage }
       ])
     ),
+    spellUsageByClass: Object.fromEntries(
+      Object.entries(totals.spellUsageByClass).map(([className, usage]) => [
+        className,
+        Object.fromEntries(Object.entries(usage).map(([spellName, values]) => [
+          spellName,
+          { ...values }
+        ]))
+      ])
+    ),
     explorationSpellUsage: { ...totals.explorationSpellUsage },
     mpPressure: finalizeSpellPressureMetrics(totals.mpPressure),
     mpPressureByClass: Object.fromEntries(
@@ -11330,6 +11505,8 @@ function simulateCase({
     statusObservations: finalizeStatusObservationAggregate(totals.statusObservations),
     statusCureItemsAcquired: totals.statusCureItemsAcquired,
     statusCureItemsUsed: totals.statusCureItemsUsed,
+    merchantStock: totals.merchantStock,
+    merchantStockByClass,
     statusCureDecisions: totals.statusCureDecisions,
     statusCureDecisionContexts: totals.statusCureDecisionContexts,
     statusCureUnavailableStatuses: totals.statusCureUnavailableStatuses,
@@ -13066,6 +13243,46 @@ ACTIVE_SCENARIOS.forEach(scenario => {
 });
 
 printMpScarcityMetrics(resultsByPolicy);
+
+const issue697Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }) =>
+  scenarioResults.map(({ scenario, results }) => {
+    const result = results.find(entry => entry.targetDepth === 20) || results.at(-1);
+    return {
+      policy: policy.id,
+      scenario: scenario.id,
+      targetDepth: result.targetDepth,
+      runs: RUNS_PER_CASE,
+      sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
+      originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
+      staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
+      averageReachedFloor: result.averageReachedFloor,
+      survivalRate: result.survivalRate,
+      deathRate: result.deathRate,
+      averageFinalLevel: result.averageFinalLevel,
+      materialConsumedByMerchant: result.materialConsumedByMerchant,
+      merchantStock: result.merchantStock,
+      merchantStockByClass: result.merchantStockByClass,
+      averageConsumableUsageByItem: result.averageConsumableUsageByItem,
+      consumablesByClass: result.consumablesByClass,
+      statusCureItemsAcquired: result.statusCureItemsAcquired,
+      statusCureItemsUsed: result.statusCureItemsUsed,
+      statusesCured: result.statusesCured,
+      statusCureDecisions: result.statusCureDecisions,
+      statusCureUnavailableStatuses: result.statusCureUnavailableStatuses,
+      spellUsage: result.spellUsage,
+      spellUsageByClass: result.spellUsageByClass,
+      mpPressureByClass: result.mpPressureByClass,
+      combatMpByClass: result.combatMpByClass,
+      outcomesByClass: result.outcomesByClass,
+      averageTownPortalsUsed: result.averageTownPortalsUsed,
+      averagePortalAcquisitions: result.averagePortalAcquisitions,
+      averagePortalUsesBySource: result.averagePortalUsesBySource,
+      averageFleeCount: result.averageFleeCount,
+      mean95CI: result.mean95CI
+    };
+  })
+);
+console.log(`ISSUE697_MEASUREMENT_JSON=${JSON.stringify(issue697Measurement)}`);
 
 const stalemateCases = [
   ...resultsByPolicy.flatMap(({ scenarioResults, milestoneResults }) => [
