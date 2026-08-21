@@ -196,6 +196,7 @@ const {
 } = await import("../src/rules/purify_rules.js");
 const {
   bankRunMaterials,
+  canAffordMaterials,
   getBankedMaterials,
   getDepthMaterialExpectedQuantity,
   getMonsterGroupClassification,
@@ -936,6 +937,9 @@ const DEFAULT_STATUS_CURE_HP_THRESHOLD = Math.max(
 const DEFAULT_STATUS_CURE_POLICY = SIM_ENV.STATUS_CURE_POLICY;
 const DEFAULT_STATUS_CURE_MERCHANT_POLICY =
   SIM_ENV.STATUS_CURE_MERCHANT_POLICY === "never" ? "never" : "missing";
+const ISSUE701_MERCHANT_ADD = process.env.ISSUE701_MERCHANT_ADD === "1";
+const ISSUE701_MERCHANT_PRICE = process.env.ISSUE701_MERCHANT_PRICE || "";
+const ISSUE701_CHEST_POOL = process.env.ISSUE701_CHEST_POOL === "missing-status";
 
 export function parseHealPotionMerchantPolicy(value) {
   const policy = String(value || "missing").trim();
@@ -2776,8 +2780,34 @@ const SIM_COMBAT_CONSUMPTION_HOOK_IDS = new Set([
 const MERCHANT_STATUS_CURE_STOCK = Object.freeze([
   { stockId: "antidote", itemId: "ANTIDOTE" },
   { stockId: "wake_powder", itemId: "WAKE_POWDER" },
-  { stockId: "paralyze_cure", itemId: "PARALYZE_CURE" }
+  { stockId: "paralyze_cure", itemId: "PARALYZE_CURE" },
+  ...(ISSUE701_MERCHANT_ADD
+    ? [
+        { stockId: "issue701_eye_drops", itemId: "EYE_DROPS" },
+        { stockId: "issue701_panacea", itemId: "PANACEA" }
+      ]
+    : []),
+  ...(ISSUE701_MERCHANT_PRICE === "eye-drops"
+    ? [{ stockId: "issue701_eye_drops_priced", itemId: "EYE_DROPS", cost: { "霊粉": 1 } }]
+    : [])
 ]);
+
+// Measurement-only stock entry for Issue #701. This intentionally mirrors
+// purchaseMilestoneStock's production semantics without registering a new
+// production stock item: affordability, 20-slot capacity, material spend,
+// and inventory insertion are all applied in the same order.
+function purchaseIssue701PricedStock(state, itemId, cost) {
+  const materials = state.currentRun?.materials;
+  if (!materials || !canAffordMaterials(materials, cost)) {
+    return { ok: false, reason: "insufficient_materials" };
+  }
+  if ((state.inventory?.length || 0) >= 20) {
+    return { ok: false, reason: "inventory_full" };
+  }
+  state.currentRun.materials = spendMaterials(materials, cost);
+  state.inventory.push(itemId);
+  return { ok: true };
+}
 
 function normalizeStatusObservation(status) {
   if (status === "paralyze") return "paralyzed";
@@ -4903,6 +4933,18 @@ function recordStatusCureDecision(metrics, decision, context, state = null) {
     (metrics.statusCureDecisions[decision.kind] || 0) + 1;
   metrics.statusCureDecisionContexts[context] =
     (metrics.statusCureDecisionContexts[context] || 0) + 1;
+  if (state && Number.isInteger(Number(state.floor))) {
+    const floor = String(Math.max(1, Math.min(20, Number(state.floor))));
+    const byFloor = metrics.statusCureDecisionsByFloor ||= {};
+    const floorBucket = byFloor[floor] ||= {};
+    const statusBucket = floorBucket[decision.status] ||= {
+      selected: 0,
+      unavailable: 0,
+      "policy-deferred": 0,
+      incapacitated: 0
+    };
+    statusBucket[decision.kind] = (statusBucket[decision.kind] || 0) + 1;
+  }
   if (decision.kind === "unavailable") {
     metrics.statusCureUnavailableStatuses[decision.status] =
       (metrics.statusCureUnavailableStatuses[decision.status] || 0) + 1;
@@ -6577,16 +6619,26 @@ function maybePurchaseMerchantStatusCures(state, metrics) {
     state.simPolicy.statusCureMerchantPolicy === "never" ||
     !isMilestoneFloor(state.floor)
   ) return;
-  MERCHANT_STATUS_CURE_STOCK.forEach(({ stockId, itemId }) => {
+  MERCHANT_STATUS_CURE_STOCK.forEach(({ stockId, itemId, cost }) => {
     if (state.inventory.includes(itemId)) return;
+    metrics.statusCureMerchantAttempts[itemId] =
+      (metrics.statusCureMerchantAttempts[itemId] || 0) + 1;
     const materialsBefore = { ...state.currentRun.materials };
-    const result = purchaseMilestoneStock(state, stockId);
+    const result = stockId === "issue701_eye_drops_priced"
+      ? purchaseIssue701PricedStock(state, itemId, cost)
+      : stockId.startsWith("issue701_")
+        ? addInventoryItemToState(state, itemId)
+          ? { ok: true, measurementOnly: true }
+          : { ok: false, reason: "inventory_full" }
+      : purchaseMilestoneStock(state, stockId);
     if (!result.ok) {
       metrics.statusCureMerchantFailures[result.reason] =
         (metrics.statusCureMerchantFailures[result.reason] || 0) + 1;
       return;
     }
-    recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
+    if (!result.measurementOnly) {
+      recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
+    }
     recordConsumableAcquisition(metrics, itemId);
     addItemCount(metrics.statusCureItemsAcquired.merchant, itemId);
   });
@@ -8572,6 +8624,17 @@ function rollChestItems(
       : null
   });
   let item = reward.item;
+  // Issue #701 measurement-only pool direction: preserve existing status-cure
+  // entries, but turn an otherwise usable chest result into the missing cure
+  // for that depth band. This does not alter src chest rules or item effects.
+  if (
+    ISSUE701_CHEST_POOL &&
+    item &&
+    !isEquipment(getItemData(item)) &&
+    !STATUS_CURE_ITEM_IDS.has(item)
+  ) {
+    item = floor <= 2 ? "EYE_DROPS" : "PANACEA";
+  }
   if (reward.consumedFirstChestGuarantee) {
     state.firstChestUnidentifiedGuaranteed = true;
   }
@@ -9344,11 +9407,13 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     finalStatusCureInventory: countInventoryItems(state.inventory),
     statusCureDecisions: metrics.statusCureDecisions,
     statusCureDecisionContexts: metrics.statusCureDecisionContexts,
+    statusCureDecisionsByFloor: metrics.statusCureDecisionsByFloor,
     statusCureUnavailableStatuses: metrics.statusCureUnavailableStatuses,
     statusCureHeldNotUsedStatuses: metrics.statusCureHeldNotUsedStatuses,
     statusCureEvMetrics: metrics.statusCureEvMetrics,
     statusCureSupply: metrics.statusCureSupply,
     statusesCured: metrics.statusesCured,
+    statusCureMerchantAttempts: metrics.statusCureMerchantAttempts,
     statusCureMerchantFailures: metrics.statusCureMerchantFailures,
     statusObservations,
     townPortalsUsed: metrics.townPortalsUsed,
@@ -9808,9 +9873,11 @@ export function simulateRun({
       incapacitated: 0
     },
     statusCureDecisionContexts: {},
+    statusCureDecisionsByFloor: {},
     statusCureUnavailableStatuses: {},
     statusCureHeldNotUsedStatuses: {},
     statusesCured: {},
+    statusCureMerchantAttempts: {},
     statusCureMerchantFailures: {},
     healPotionMerchantAttempts: 0,
     healPotionMerchantPurchased: 0,
@@ -10740,6 +10807,7 @@ function simulateCase({
       incapacitated: 0
     },
     statusCureDecisionContexts: {},
+    statusCureDecisionsByFloor: {},
     statusCureUnavailableStatuses: {},
     statusCureHeldNotUsedStatuses: {},
     statusCureEvMetrics: createStatusCureEvMetrics(),
@@ -10887,6 +10955,7 @@ function simulateCase({
       ["statusCureItemsUsed", totals.statusCureItemsUsed],
       ["statusCureDecisions", totals.statusCureDecisions],
       ["statusCureDecisionContexts", totals.statusCureDecisionContexts],
+      ["statusCureDecisionsByFloor", totals.statusCureDecisionsByFloor],
       ["statusCureUnavailableStatuses", totals.statusCureUnavailableStatuses],
       ["statusCureHeldNotUsedStatuses", totals.statusCureHeldNotUsedStatuses],
       ["statusesCured", totals.statusesCured]
@@ -11332,6 +11401,7 @@ function simulateCase({
     statusCureItemsUsed: totals.statusCureItemsUsed,
     statusCureDecisions: totals.statusCureDecisions,
     statusCureDecisionContexts: totals.statusCureDecisionContexts,
+    statusCureDecisionsByFloor: totals.statusCureDecisionsByFloor,
     statusCureUnavailableStatuses: totals.statusCureUnavailableStatuses,
     statusCureHeldNotUsedStatuses: totals.statusCureHeldNotUsedStatuses,
     statusCureEvMetrics: totals.statusCureEvMetrics,
