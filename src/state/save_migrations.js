@@ -117,6 +117,22 @@ function discardTransientRunAffixState(data) {
   return data;
 }
 
+const RUN_OUTCOMES = new Set(["retreat", "death", "abandon"]);
+
+function inferRunOutcome(returnReason) {
+  if (returnReason === "gameover") return "death";
+  if (returnReason === "abandon") return "abandon";
+  return returnReason ? "retreat" : "";
+}
+
+function normalizeRunOutcome(run) {
+  if (!run || typeof run !== "object") return run;
+  return {
+    ...run,
+    outcome: RUN_OUTCOMES.has(run.outcome) ? run.outcome : inferRunOutcome(run.returnReason)
+  };
+}
+
 function backfillMonsterCriticalEligibility(data) {
   const monsters = data.combatState?.monsters;
   if (!Array.isArray(monsters)) return data;
@@ -233,6 +249,7 @@ export function normalizeSavePayload(data) {
   normalized.firstKills = normalized.firstKills.filter(name => !/の分裂体\d+/.test(name));
   normalized.currentRun = data.currentRun ?? null;
   if (normalized.currentRun) {
+    normalized.currentRun = normalizeRunOutcome(normalized.currentRun);
     delete normalized.currentRun.seenOmenFloors;
     delete normalized.currentRun.matchedOmenFloors;
     normalized.currentRun.quests ??= [];
@@ -244,7 +261,9 @@ export function normalizeSavePayload(data) {
   normalized.unlockedMilestones = Array.from(new Set(data.unlockedMilestones ?? []))
     .filter(floor => Number.isInteger(floor) && floor > 0 && floor % 5 === 0)
     .sort((a, b) => a - b);
-  normalized.runHistory = data.runHistory ?? [];
+  normalized.runHistory = Array.isArray(data.runHistory)
+    ? data.runHistory.map(normalizeRunOutcome)
+    : [];
   normalized.deathLogs = data.deathLogs ?? [];
   normalized.codex = data.codex ?? createDefaultCodex();
   if (normalized.codex?.monsters) {

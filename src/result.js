@@ -18,6 +18,7 @@ export function triggerRunResult(reason) {
   const isSuccess = outcome === "retreat";
   const isDeathLike = outcome === "death" || outcome === "abandon";
   run.returnReason = reason;
+  run.outcome = outcome;
   updateRunQuests(run, getPartyMaxAffix(state.party, "contractReward"));
   run.materialsBeforeBanking = { ...(run.materials || {}) };
   const banking = bankRunMaterials(
@@ -120,6 +121,7 @@ export function triggerRunResult(reason) {
     lostUnidentifiedCount: isDeathLike ? run.equipmentFound.length : 0,
     itemCount: run.itemsFound.length + run.equipmentFound.length,
     returnReason: reason,
+    outcome,
   };
   state.runHistory ||= [];
   state.runHistory.unshift(runSummary);

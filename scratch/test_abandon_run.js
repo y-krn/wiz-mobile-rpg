@@ -32,7 +32,7 @@ global.document = {
 global.window = { innerWidth: 390, innerHeight: 844, addEventListener: () => {} };
 Object.defineProperty(global, "navigator", { value: { userAgent: "node" }, configurable: true });
 
-const { state, initNewGame, createDefaultCurrentRun, createSoloCharacter, createDefaultCodex, saveGame } = await import("../src/state.js");
+const { state, initNewGame, createDefaultCurrentRun, createSoloCharacter, createDefaultCodex } = await import("../src/state.js");
 const { createSavePayload, applySavePayload } = await import("../src/state/save_payload.js");
 const { triggerRunResult } = await import("../src/result.js");
 
@@ -47,6 +47,15 @@ function setupRun() {
   state.gameState = "explore";
   state.floor = 5;
   state.codex = createDefaultCodex();
+}
+
+function roundTripOutcome(expected) {
+  const payload = createSavePayload();
+  assert.equal(payload.currentRun.outcome, expected);
+  assert.equal(payload.runHistory[0].outcome, expected);
+  applySavePayload(JSON.parse(JSON.stringify(payload)));
+  assert.equal(state.currentRun.outcome, expected);
+  assert.equal(state.runHistory[0].outcome, expected);
 }
 
 setupRun();
@@ -65,6 +74,7 @@ global.confirm = () => true;
 triggerRunResult("abandon");
 assert.equal(state.gameState, "result");
 assert.equal(state.currentRun.returnReason, "abandon");
+assert.equal(state.currentRun.outcome, "abandon");
 assert.equal(state.currentRun.bankedMaterials["獣の牙"], 3);
 assert.deepEqual(state.currentRun.lostMaterials, { "獣の牙": 7 });
 assert.equal(state.records.totalRuns, 1);
@@ -75,6 +85,7 @@ assert.equal(state.codex.stats.totalDeaths, 0);
 assert.equal(state.deathLogs.length, 0);
 assert.equal(state.currentRun.recordResult.outcome, "abandon");
 assert.equal(state.runHistory[0].returnReason, "abandon");
+assert.equal(state.runHistory[0].outcome, "abandon");
 assert.equal(state.runHistory[0].lostUnidentifiedCount, 1);
 assert.equal(state.party[0].status, "ok", "abandon is not a character death");
 
@@ -82,12 +93,7 @@ triggerRunResult("gameover");
 assert.equal(state.records.totalRuns, 1, "a second ending is ignored");
 assert.equal(state.deathLogs.length, 0, "a follow-up death cannot pollute abandon");
 
-const payload = createSavePayload();
-assert.equal(payload.currentRun.returnReason, "abandon");
-assert.equal(payload.runHistory[0].returnReason, "abandon");
-applySavePayload(JSON.parse(JSON.stringify(payload)));
-assert.equal(state.currentRun.returnReason, "abandon");
-assert.equal(state.runHistory[0].returnReason, "abandon");
+roundTripOutcome("abandon");
 
 setupRun();
 state.currentRun.deepestFloor = 4;
@@ -96,6 +102,7 @@ triggerRunResult("retreat");
 assert.equal(state.records.totalRuns, 1);
 assert.equal(state.records.deepestRetreat, 4);
 assert.equal(state.currentRun.bankedMaterials["獣の牙"], 10);
+roundTripOutcome("retreat");
 
 state.currentRun = createDefaultCurrentRun();
 state.currentRun.characterClass = "Fighter";
@@ -109,5 +116,6 @@ assert.equal(state.records.totalRuns, 2);
 assert.equal(state.records.deepestDeath, 6);
 assert.equal(state.codex.stats.totalDeaths, 1);
 assert.equal(state.deathLogs.length, 1);
+roundTripOutcome("death");
 
 console.log("[PASS] abandon run end classification, loss parity, persistence, and retreat/death regression");
