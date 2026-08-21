@@ -3,14 +3,17 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const RUNNER = new URL("./sim_commit_depth_624.js", import.meta.url).pathname;
 const RESULT_PATH = new URL("./results/issue-700-gate-metrics.md", import.meta.url).pathname;
 const RAW_DIR = process.env.ISSUE700_RAW_DIR || "/private/tmp/issue-700-gate-metrics-raw";
+const HISTORICAL_SOURCE_COMMIT = "41b9b5cddf7fc400afb65b4f86d68850659a173b";
+const HISTORICAL_BASE_COMMIT = "8e3379457d522a40d8c22fc454efded6ce84b75d";
 const POLICIES = ["legacy", "ev"];
-const REPLICATES = 2;
+const SMOKE = process.env.ISSUE700_SMOKE === "1";
+const REPLICATES = SMOKE ? 1 : 2;
+const RUNS_PER_CLASS = SMOKE ? 1 : 500;
 const CLASSES = ["Fighter", "Thief", "Priest", "Mage"];
 const EXPECTED_LEGACY = Object.freeze({
   Fighter: 5.8720,
@@ -42,14 +45,77 @@ const COMMON_ENV = Object.freeze({
 });
 
 function gitOutput(args) {
-  return execFileSync("git", args, { encoding: "utf8" }).trim();
+  return execFileSync("git", ["-c", "core.fsmonitor=false", ...args], {
+    encoding: "utf8"
+  }).trim();
 }
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function childEnvironment(policy, replicate) {
+function prepareHistoricalWorktree(currentBaseCommit) {
+  const worktreePath = mkdtempSync("/private/tmp/issue-700-historical-");
+  rmSync(worktreePath, { recursive: true, force: true });
+  try {
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "core.fsmonitor=false",
+        "clone",
+        "--no-local",
+        "--no-checkout",
+        process.cwd(),
+        worktreePath
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    );
+    execFileSync(
+      "git",
+      ["-c", "core.fsmonitor=false", "-C", worktreePath, "fetch", "--no-tags", process.cwd(), HISTORICAL_SOURCE_COMMIT],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    );
+    execFileSync(
+      "git",
+      ["-c", "core.fsmonitor=false", "-C", worktreePath, "update-ref", "refs/remotes/origin/main", currentBaseCommit],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    );
+    execFileSync(
+      "git",
+      ["-c", "core.fsmonitor=false", "-C", worktreePath, "checkout", "--detach", HISTORICAL_SOURCE_COMMIT],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    );
+    symlinkSync(join(process.cwd(), "node_modules"), join(worktreePath, "node_modules"), "dir");
+    if (gitOutput(["-C", worktreePath, "rev-parse", "HEAD"]) !== HISTORICAL_SOURCE_COMMIT) {
+      throw new Error("historical worktree source commit mismatch");
+    }
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "core.fsmonitor=false",
+        "-C",
+        worktreePath,
+        "merge-base",
+        "--is-ancestor",
+        HISTORICAL_BASE_COMMIT,
+        HISTORICAL_SOURCE_COMMIT
+      ],
+      { stdio: "ignore" }
+    );
+    return worktreePath;
+  } catch (error) {
+    rmSync(worktreePath, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function removeHistoricalWorktree(worktreePath) {
+  rmSync(worktreePath, { recursive: true, force: true });
+}
+
+function childEnvironment(policy) {
   const env = { ...process.env };
   Object.keys(env)
     .filter(key => key.startsWith("SIM_"))
@@ -59,18 +125,22 @@ function childEnvironment(policy, replicate) {
   delete env.SIM_PARALLEL;
   delete env.SIM_MAP_CACHE_ENTRIES;
   delete env.SIM_SKIP_PROVENANCE;
-  delete env.SIM_ALLOW_STALE_TREE;
   Object.assign(env, COMMON_ENV, {
     STATUS_CURE_POLICY: policy,
-    ISSUE624_CONDITION_ID: `issue700-${policy}`
+    ISSUE624_CONDITION_ID: `issue700-${policy}`,
+    SIM_ALLOW_STALE_TREE: "1",
+    ...(SMOKE
+      ? { ISSUE624_SMOKE: "1", SIM_RUNS: "1", SIM_CALIBRATION_RUNS: "1" }
+      : {})
   });
   return env;
 }
 
-function runPolicy(policy, replicate) {
-  const child = spawnSync(process.execPath, [RUNNER], {
-    cwd: process.cwd(),
-    env: childEnvironment(policy, replicate),
+function runPolicy(policy, replicate, historicalWorktreePath) {
+  const runner = join(historicalWorktreePath, "scratch", "sim_commit_depth_624.js");
+  const child = spawnSync(process.execPath, [runner], {
+    cwd: historicalWorktreePath,
+    env: childEnvironment(policy),
     encoding: "buffer",
     maxBuffer: 128 * 1024 * 1024
   });
@@ -85,6 +155,17 @@ function runPolicy(policy, replicate) {
   const text = stdout.toString("utf8");
   const lines = text.trim().split("\n").filter(Boolean);
   const result = JSON.parse(lines.at(-1));
+  if (
+    result.sourceCommit !== HISTORICAL_SOURCE_COMMIT ||
+    result.originMainAncestor !== false ||
+    result.staleTreeAllowed !== true
+  ) {
+    throw new Error(`historical provenance mismatch: ${JSON.stringify({
+      sourceCommit: result.sourceCommit,
+      originMainAncestor: result.originMainAncestor,
+      staleTreeAllowed: result.staleTreeAllowed
+    })}`);
+  }
   const rawPath = join(RAW_DIR, `${policy}-${replicate}.stdout`);
   writeFileSync(rawPath, stdout);
   const digest = sha256(stdout);
@@ -140,7 +221,7 @@ function metricRow(label, metric) {
     `${pct(metric.b5Mortality)} | ${metric.b10Reached} | ${pct(metric.b10ReachRate)} |`;
 }
 
-function render({ runs, sourceCommit, baseCommit, measurements, pairedRows }) {
+function render({ runs, currentBaseCommit, measurements, pairedRows }) {
   const byPolicy = Object.fromEntries(
     POLICIES.map(policy => [
       policy,
@@ -157,8 +238,10 @@ function render({ runs, sourceCommit, baseCommit, measurements, pairedRows }) {
   const lines = [
     "# Issue #700 legacy / EV 関門指標（同一条件の対比較）",
     "",
-    `- source commit: \`${sourceCommit}\``,
-    `- origin/main base: \`${baseCommit}\`（HEAD の祖先: true）`,
+    `- PR source/base: current branch commit / origin/main \`${currentBaseCommit}\``,
+    `- measurement source: historical #699 EV-policy commit \`${HISTORICAL_SOURCE_COMMIT}\``,
+    `- measurement base: pre-#699 commit \`${HISTORICAL_BASE_COMMIT}\`（source の祖先: true）`,
+    "- historical worktree は current origin/main に対する意図的な stale tree。各 child result に `originMainAncestor=false` / `staleTreeAllowed=true` を記録し、legacy/EV は同じ historical source/base を共有。",
     `- 条件: N=${runs} / 職、4職合計 ${runs * CLASSES.length} run、SIM_SEED=231、SIM_CALIBRATION_RUNS=100、SIM_PARALLEL=未指定`,
     "- 共通条件: #699 の既存 `sim_commit_depth_624.js` harness、実 `sim_depth_material_ev.js` / `generateRunFloor` 経路、`SIM_INDEPENDENT_RUN_RANDOM=1`、出発クラフト・罠・逃走・薬・装備条件は legacy/EV 共通。",
     "- legacy: `STATUS_CURE_POLICY=legacy STATUS_CURE_HP_THRESHOLD=0.35`。EV: `STATUS_CURE_POLICY=ev`（HP率値は EV 判定では参照しない）。",
@@ -194,8 +277,7 @@ function render({ runs, sourceCommit, baseCommit, measurements, pairedRows }) {
     "| --- | ---: | ---: | ---: | --- |",
     ...legacyChecks.map(check => `| ${check.className} | ${check.expected.toFixed(4)} | ${check.actual.toFixed(4)} | ${(check.actual - check.expected).toFixed(4)} | ${check.match ? "一致" : "不一致"} |`),
     "",
-    `旧基準線照合: **${legacyMatch ? "一致" : "不一致"}**。${legacyMatch ? "" : "旧値の出所は #699 の base \\`8e3379457d522a40d8c22fc454efded6ce84b75d\\` / source \\`41b9b5cddf7fc400afb65b4f86d68850659a173b\\`。今回の current base はそれ以降の変更を含むため、旧値を再利用せず今回の実測値を採用する。"}`,
-    legacyMatch ? "" : "差分条件の具体例（個別コミットの寄与はこの測定では分離していない）: #712 の盗賊罠passive配線、#735 のタグ特効呪文配線、#739/#746/#753/#763 の物理式・軽減・乱数幅・最低ダメージ、#767 の隠れ魔法fallback撤去、#768 の職別レベル成長。これらは現行 `src/` と sim が実際に通るルールであり、#699 時点の旧基準線と同一条件ではない。",
+    `旧基準線照合: **${legacyMatch ? "一致" : "不一致"}**。${legacyMatch ? "歴史的 source/base を再実行して旧値を確認した。" : "歴史的 source/base でも一致しないため、条件調査を継続する。"}`,
     "",
     "## 受入基準の判定",
     "",
@@ -225,26 +307,34 @@ function render({ runs, sourceCommit, baseCommit, measurements, pairedRows }) {
 }
 
 function main() {
-  const baseCommit = gitOutput(["rev-parse", "origin/main"]);
-  const sourceCommit = gitOutput(["rev-parse", "HEAD"]);
+  const currentBaseCommit = gitOutput(["rev-parse", "origin/main"]);
   mkdirSync(RAW_DIR, { recursive: true });
-  const measurements = POLICIES.flatMap(policy =>
-    Array.from({ length: REPLICATES }, (_, index) => runPolicy(policy, index + 1))
-  );
-  const legacyRows = measurements.find(item => item.policy === "legacy" && item.replicate === 1).result.rows;
-  const evRows = measurements.find(item => item.policy === "ev" && item.replicate === 1).result.rows;
-  const pairedRows = sameRows(legacyRows, evRows);
-  const output = render({
-    runs: 500,
-    sourceCommit,
-    baseCommit,
-    measurements,
-    pairedRows
-  });
-  writeFileSync(RESULT_PATH, output);
-  const summary = measurements.map(item => `${item.policy}-${item.replicate}:${item.sha256}`).join(" ");
-  console.log(`Issue #700 complete: ${summary}`);
-  console.log(`summary=${RESULT_PATH}`);
+  const historicalWorktreePath = prepareHistoricalWorktree(currentBaseCommit);
+  try {
+    const measurements = POLICIES.flatMap(policy =>
+      Array.from(
+        { length: REPLICATES },
+        (_, index) => runPolicy(policy, index + 1, historicalWorktreePath)
+      )
+    );
+    const legacyRows = measurements.find(item => item.policy === "legacy" && item.replicate === 1).result.rows;
+    const evRows = measurements.find(item => item.policy === "ev" && item.replicate === 1).result.rows;
+    const pairedRows = sameRows(legacyRows, evRows);
+    if (!SMOKE) {
+      const output = render({
+        runs: RUNS_PER_CLASS,
+        currentBaseCommit,
+        measurements,
+        pairedRows
+      });
+      writeFileSync(RESULT_PATH, output);
+    }
+    const summary = measurements.map(item => `${item.policy}-${item.replicate}:${item.sha256}`).join(" ");
+    console.log(`Issue #700 complete: ${summary}`);
+    console.log(`summary=${RESULT_PATH}`);
+  } finally {
+    removeHistoricalWorktree(historicalWorktreePath);
+  }
 }
 
 main();
