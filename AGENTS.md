@@ -4,6 +4,22 @@
 concise and put detailed, scope-specific material in `.agents/`. Do not add
 tool-specific fallback instruction files.
 
+## Roles and delegation
+
+- The interactive root/coordinator owns requirements clarification, Issue/PR
+  inspection, delegation, result review, and the final report. An assigned
+  worker is authorized and expected to perform its scoped edit, test or
+  measurement, commit, push, and authorized Issue/PR updates directly in the
+  provided worktree.
+- A worker must not recursively delegate unless the parent explicitly requests
+  it. A worker is not unavailable merely because nested subagents are
+  unavailable.
+- Rules below that prohibit direct edits or classify missing native subagents as
+  `BLOCKED` apply only to the interactive root/coordinator. A first-level spawn
+  failure may justify a coordinator health check or escalation; a worker task
+  failure is handled by that worker's diagnosis and report and does not require
+  a health-check subagent.
+
 ## Before you work
 
 - For broad searches, read `.agents/file-map.md` first. Start with the
@@ -31,23 +47,24 @@ tool-specific fallback instruction files.
 
 ## Network and provenance
 
-- The parent session is the approval boundary. It owns Issue/PR inspection and
-  may perform an equivalent network operation in the parent context when
-  needed, such as `git fetch origin main`, with the required approval. A child
-  must not silently retry, bypass approval, or use an alternate route.
+- The interactive root/coordinator is the approval boundary for delegation and
+  for network operations not authorized for the assigned task. The initial
+  Issue/PR inspection and preferred `origin/main` fetch happen before
+  delegation as stated above.
 - Delegated subagents should use the provided worktree and local `origin/main`
   when available. They must verify the provided base SHA, the local ref, and
   the `origin/main`-to-`HEAD` ancestor relationship. If a network operation is
-  needed to obtain or refresh that state, return an `[APPROVAL_REQUIRED]`
-  request containing the exact command, purpose, target, and required
-  permissions or impact. Do not classify approval waiting alone as `BLOCKED`.
-- The parent either performs the approved equivalent operation in its context
-  or returns the approval result to the child. After receiving approval, the
-  child may execute the original command exactly as approved; alternatively,
-  the parent may perform the equivalent operation. The child then revalidates
-  the SHA, ref, ancestor relationship, and worktree state before resuming.
-  Only an approval refusal or failure to transmit the approval result is
-  `BLOCKED`.
+  needed to obtain or refresh that state and is not already authorized, return
+  an `[APPROVAL_REQUIRED]` request containing the exact command, purpose,
+  target, and required permissions or impact. Workers may perform authorized
+  task network actions directly, including push and GitHub Issue/PR records;
+  they must not silently bypass an approval boundary or use an alternate route.
+- Use `BLOCKED` only when progress cannot continue without external
+  authority/state after safe in-scope alternatives are exhausted. Where useful,
+  distinguish `[APPROVAL_REQUIRED]`, `[NETWORK_FAILURE]`, `[AUTH_FAILURE]`,
+  `[PERMISSION_FAILURE]`, `[TASK_FAILURE]`, and `[CHANGES_REQUIRED]`.
+  Approval waiting alone is not `BLOCKED`; `CHANGES_REQUIRED` means review or
+  fix work remains, not that a worker is unavailable.
 
 ## Search and repository hygiene
 
@@ -96,29 +113,25 @@ tool-specific fallback instruction files.
 
 ## Implementation rules
 
-- The interactive Codex session handles user communication, requirements
+- The interactive root/coordinator handles user communication, requirements
   clarification, delegation, result review, and the final report. Delegate
   implementation, fixes, test additions, and repository changes to Codex
   native subagents.
-- The parent session must not directly edit repository source, tests,
-  configuration, or documentation. If a subagent's result needs changes,
-  delegate the changes to another Codex native subagent instead of editing
-  directly.
-- If Codex native subagents are unavailable, do not implement an alternative
-  in the parent session; report the task as BLOCKED. The parent session may
-  read, inspect diffs, verify results, and make the final decision.
+- The interactive root/coordinator must not directly edit repository source,
+  tests, configuration, or documentation. If a worker's result needs changes,
+  delegate the changes to a native subagent instead of editing directly.
+- If native subagents are unavailable, the interactive root/coordinator reports
+  `BLOCKED`; it may still read, inspect diffs, verify results, and make the
+  final decision. This rule does not apply to an assigned worker, which works
+  directly within its authorized scope.
 - Delegated subagents must prepare a complete record payload for the designated
   GitHub Issue or PR and include it in the final report. The payload covers the
   purpose, progress or conclusion, changed files, verification results, and
-  unresolved items or risks. The parent session designates the record target,
-  posts the payload through GitHub integration when needed, and confirms the
-  resulting record URL. This recording rule is separate from network-operation
-  approval.
-- If a delegated subagent cannot post the record, it returns the complete
-  payload to the parent; the parent posts it and confirms the URL. The child
-  must not use `gh` or an alternate posting route. Failure to post or confirm
-  the record is reported separately from network approval and prevents final
-  completion until the parent resolves it.
+  unresolved items or risks. The parent designates the record target; an
+  authorized worker may post it through GitHub integration and return the URL,
+  otherwise it returns the payload for the parent to post. This recording rule
+  is separate from network-operation approval, and workers must not use `gh` or
+  an alternate posting route.
 - If a new game state is not part of the save payload, collapse it to a stable
   screen in `save_payload.js` before saving and add a save/load round-trip
   test.
