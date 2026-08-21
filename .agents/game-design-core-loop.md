@@ -24,9 +24,9 @@ build the character within the run
         ↓
 every 5th floor: milestone (boss, return portal, merchant)
         ↓
-"retreat with everything, or push one more floor?"
+"retreat with everything, abandon with the same loss as death, or push one more floor?"
         ↓
-retreat = keep 100% of materials; death = keep 30%
+retreat = keep 100% of materials; death/abandon = keep 30%
         ↓
 spend materials on permanent unlocks in the workshop
         ↓
@@ -44,7 +44,8 @@ change hazard, combat, reward, or material rules.
 
 Depth is both the score and the progression axis. The personal best (deepest
 floor, retreat and death recorded separately) is always visible on the title
-screen, in town, and on the run result.
+screen, in town, and on the run result. Abandon is tracked as its own run
+ending without entering death metrics.
 
 ## Design Pillars
 

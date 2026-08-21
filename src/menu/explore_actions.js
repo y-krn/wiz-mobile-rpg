@@ -126,6 +126,10 @@ export function handleExploreAction(action) {
     } else {
       searchSecretDoor();
     }
+  } else if (action === "abandon") {
+    if (confirm("この冒険を諦めますか？持ち帰っていない戦利品や素材は、死亡時と同じ扱いになります。")) {
+      triggerRunResult("abandon");
+    }
   } else if (action === "spell") {
     const firstCasterIdx = state.party.findIndex(c => c.status !== "dead" && isSpellcaster(c) && c.maxMp > 0);
     menuContext.actorIdx = firstCasterIdx !== -1 ? firstCasterIdx : 0;

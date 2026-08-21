@@ -59,6 +59,7 @@ export const createDefaultCurrentRun = () => ({
   floorsVisited: [],
   dangerScore: 0,
   returnReason: "",
+  outcome: "",
   deathLogs: [],
   campRested: {},
   defeatedMilestones: [],

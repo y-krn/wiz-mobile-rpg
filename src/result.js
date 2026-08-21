@@ -6,28 +6,32 @@ import { updateRunQuests } from "./systems/run_quests.js";
 import { findMapCellByType } from "./rules/map_queries.js";
 
 export function triggerRunResult(reason) {
-  if (!state.currentRun) return;
+  if (!state.currentRun || state.gameState === "result" || state.currentRun.returnReason) return;
 
   state.party.forEach(char => {
     char.runTrapAttackBonus = 0;
   });
 
   const run = state.currentRun;
+  const isDeath = reason === "gameover";
+  const outcome = isDeath ? "death" : reason === "abandon" ? "abandon" : "retreat";
+  const isSuccess = outcome === "retreat";
+  const isDeathLike = outcome === "death" || outcome === "abandon";
   run.returnReason = reason;
-  const isSuccess = reason !== "gameover";
+  run.outcome = outcome;
   updateRunQuests(run, getPartyMaxAffix(state.party, "contractReward"));
   run.materialsBeforeBanking = { ...(run.materials || {}) };
   const banking = bankRunMaterials(
     state.metaMaterials,
     run.materials,
-    isSuccess ? "retreat" : "death"
+    outcome
   );
   state.metaMaterials = banking.balance;
   run.bankedMaterials = banking.banked;
   const recordResult = finalizeRunRecords(
     state.records,
     run,
-    isSuccess ? "retreat" : "death",
+    outcome,
     run.characterClass || state.party[0]?.class
   );
   state.records = recordResult.records;
@@ -37,7 +41,14 @@ export function triggerRunResult(reason) {
   run.dangerRank = danger.rank;
   run.dangerLabel = danger.label;
 
-  if (!isSuccess) {
+  if (isDeathLike) {
+    run.lostMaterials = Object.fromEntries(Object.entries(run.materials || {}).map(([name, found]) => [
+      name,
+      found - (banking.banked[name] || 0)
+    ]));
+  }
+
+  if (isDeath) {
     state.party.forEach(char => {
       char.status = "dead";
       char.hp = 0;
@@ -58,10 +69,6 @@ export function triggerRunResult(reason) {
     }
     const cause = latestDeath?.cause || "原因未記録";
 
-    run.lostMaterials = Object.fromEntries(Object.entries(run.materials || {}).map(([name, found]) => [
-      name,
-      found - (banking.banked[name] || 0)
-    ]));
     run.wipedFloor = state.floor;
 
     const deathEntry = {
@@ -97,7 +104,7 @@ export function triggerRunResult(reason) {
   if (state.codex) {
     state.codex.stats ||= { totalRuns: 0, totalDeaths: 0, deepestFloor: 1, totalKills: 0, totalChests: 0 };
     state.codex.stats.totalRuns = state.records.totalRuns;
-    if (!isSuccess) state.codex.stats.totalDeaths++;
+    if (isDeath) state.codex.stats.totalDeaths++;
     state.codex.stats.deepestFloor = Math.max(state.codex.stats.deepestFloor || 1, run.deepestFloor);
     state.codex.stats.totalChests += run.chestsOpened;
   }
@@ -111,9 +118,10 @@ export function triggerRunResult(reason) {
     chestsOpened: run.chestsOpened,
     dangerRank: danger.rank,
     bankedMaterials: banking.banked,
-    lostUnidentifiedCount: isSuccess ? 0 : run.equipmentFound.length,
+    lostUnidentifiedCount: isDeathLike ? run.equipmentFound.length : 0,
     itemCount: run.itemsFound.length + run.equipmentFound.length,
     returnReason: reason,
+    outcome,
   };
   state.runHistory ||= [];
   state.runHistory.unshift(runSummary);

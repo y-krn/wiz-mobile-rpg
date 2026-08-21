@@ -150,6 +150,7 @@ function bindButtons() {
   document.getElementById("btn-inspect").addEventListener("click", () => handleExploreAction("tool"));
   document.getElementById("btn-cast").addEventListener("click", () => handleExploreAction("spell"));
   document.getElementById("btn-item").addEventListener("click", () => handleExploreAction("equip"));
+  document.getElementById("btn-abandon-run").addEventListener("click", () => handleExploreAction("abandon"));
 
   // Town
   document.getElementById("btn-town-dungeon").addEventListener("click", () => enterDungeon());

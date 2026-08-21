@@ -8,6 +8,10 @@ function isDebugMode() {
   return import.meta.env.DEV || new URLSearchParams(location.search).has("debug");
 }
 
+function isAbandonRun(run) {
+  return run?.outcome === "abandon" || (!run?.outcome && run?.returnReason === "abandon");
+}
+
 export function handleTownOption(option) {
   if (option === "castle") {
     openSubmenu("castle_main", "おしろ - 記録");
@@ -22,12 +26,14 @@ export function renderCastleMain(optGrid) {
   optGrid.className = "submenu-grid castle-grid";
   optGrid.innerHTML = "";
   const records = state.records || { deepestRetreat: 0, deepestDeath: 0, deepestByClass: {}, totalRuns: 0 };
+  const abandonCount = Array.isArray(state.runHistory) ? state.runHistory.filter(isAbandonRun).length : 0;
   const summary = document.createElement("div");
   summary.className = "records-menu-summary";
   summary.innerHTML = `
     <div><span>撤退最深</span><strong>${records.deepestRetreat ? `B${records.deepestRetreat}F` : "未記録"}</strong></div>
     <div><span>死亡最深</span><strong>${records.deepestDeath ? `B${records.deepestDeath}F` : "未記録"}</strong></div>
     <div><span>総潜行</span><strong>${records.totalRuns}回</strong></div>
+    <div><span>断念</span><strong>${abandonCount}回</strong></div>
   `;
   optGrid.appendChild(summary);
   const classRecords = document.createElement("div");

@@ -135,3 +135,40 @@ test('Archives rows keep hover feedback for mouse pointers', async ({ page }) =>
   await expect.poll(() => row.evaluate((element) => getComputedStyle(element).borderColor))
     .not.toBe(defaultBorder);
 });
+
+test('Archives run history labels canonical and legacy abandoned runs', async ({ browser }) => {
+  for (const viewport of [
+    { width: 360, height: 800 },
+    { width: 390, height: 844 },
+    { width: 430, height: 932 },
+  ]) {
+    const context = await browser.newContext({ viewport });
+    const page = await context.newPage();
+
+    try {
+      await page.goto('/');
+      await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { openArchivesOverlay } = await import('/src/ui.js');
+
+        state.runHistory = [
+          { outcome: 'abandon', endedAt: 0, result: 'failed', dangerRank: 1, deepestFloor: 2, kills: 0, chestsOpened: 0 },
+          { returnReason: 'abandon', endedAt: 0, result: 'failed', dangerRank: 1, deepestFloor: 2, kills: 0, chestsOpened: 0 },
+          { outcome: 'death', endedAt: 0, result: 'failed', dangerRank: 1, deepestFloor: 2, kills: 0, chestsOpened: 0 },
+        ];
+        openArchivesOverlay();
+      });
+
+      await page.getByRole('button', { name: '📜 記録' }).click();
+      const history = page.locator('#archives-overlay .archives-body');
+      await expect(history).toContainText('断念');
+      expect(await history.locator('strong').allTextContents()).toEqual([
+        expect.stringContaining('断念'),
+        expect.stringContaining('断念'),
+        expect.stringContaining('死亡'),
+      ]);
+    } finally {
+      await context.close();
+    }
+  }
+});

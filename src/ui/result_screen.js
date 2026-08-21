@@ -15,6 +15,7 @@ function getReasonText(reason) {
   if (reason === "milestone_portal") return "帰還の門で撤退";
   if (reason === "stairs") return "階段から帰還";
   if (reason === "gameover") return "迷宮で死亡";
+  if (reason === "abandon") return "冒険を断念";
   return "潜行終了";
 }
 
@@ -65,6 +66,9 @@ function leaveResult(overlay) {
 
 export function getEvaluationText(run, isSuccess) {
   if (!run) return "";
+  if (run.returnReason === "abandon") {
+    return `${getFloorLabel(state, run.deepestFloor)}で冒険を断念し、素材の30%を持ち帰った。`;
+  }
   return isSuccess
     ? `${getFloorLabel(state, run.deepestFloor)}から帰還した。`
     : `${getFloorLabel(state, run.deepestFloor)}で力尽き、素材の30%を持ち帰った。`;
@@ -75,7 +79,7 @@ export function renderResultScreen() {
   if (!overlay || !state.currentRun) return;
 
   const run = state.currentRun;
-  const isSuccess = run.returnReason !== "gameover";
+  const isSuccess = run.returnReason !== "gameover" && run.returnReason !== "abandon";
   const rawTotal = Object.values(run.materialsBeforeBanking || {}).reduce((sum, quantity) => sum + quantity, 0);
   const bankedTotal = Object.values(run.bankedMaterials || {}).reduce((sum, quantity) => sum + quantity, 0);
   const codexTotal = Object.values(run.codexRewards || {}).reduce((sum, quantity) => sum + quantity, 0);
@@ -91,7 +95,7 @@ export function renderResultScreen() {
         <h2 class="result-section-heading" id="result-material-title">
           <span>素材収支</span><strong>${rawTotal} → ${bankedTotal}</strong>
         </h2>
-        <div class="result-banking-rate">潜行中に取得 → ${isSuccess ? "撤退100%" : "死亡30%"} 持ち帰り</div>
+        <div class="result-banking-rate">潜行中に取得 → ${isSuccess ? "撤退100%" : run.returnReason === "abandon" ? "断念30%（死亡時と同じ）" : "死亡30%"} 持ち帰り</div>
         <div class="result-material-flow">
           <div><small>取得</small><div>${formatMaterials(run.materialsBeforeBanking)}</div></div>
           <div><small>持ち帰り</small><div>${formatMaterials(run.bankedMaterials)}</div></div>

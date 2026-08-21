@@ -21,9 +21,13 @@ export function finalizeRunRecords(records, run, outcome, className) {
   const next = normalizeRecords(records);
   const depth = Math.max(1, Math.floor(Number(run?.deepestFloor) || 1));
   const updates = [];
-  const outcomeKey = outcome === "death" ? "deepestDeath" : "deepestRetreat";
+  const outcomeKey = outcome === "death"
+    ? "deepestDeath"
+    : outcome === "abandon"
+      ? null
+      : "deepestRetreat";
 
-  if (depth > next[outcomeKey]) {
+  if (outcomeKey && depth > next[outcomeKey]) {
     next[outcomeKey] = depth;
     updates.push(outcome === "death" ? "死亡最深" : "撤退最深");
   }

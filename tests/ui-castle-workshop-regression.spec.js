@@ -15,6 +15,11 @@ test('Castle to workshop transition keeps the workshop grid readable', async ({ 
       deepestByClass: { Fighter: 2 },
       totalRuns: 7,
     };
+    state.runHistory = [
+      { outcome: 'abandon' },
+      { returnReason: 'abandon' },
+      { outcome: 'death' },
+    ];
     state.metaMaterials = { '獣の牙': 20, '鉄片': 10 };
     state.workshop = { ranks: {} };
     updateUI();
@@ -26,6 +31,8 @@ test('Castle to workshop transition keeps the workshop grid readable', async ({ 
     display: getComputedStyle(options).display,
     columnCount: getComputedStyle(options).gridTemplateColumns.split(/\s+/).filter(Boolean).length,
     summaryCards: options.querySelectorAll('.records-menu-summary > div').length,
+    abandonRecord: Array.from(options.querySelectorAll('.records-menu-summary > div'))
+      .find((card) => card.querySelector('span')?.textContent === '断念')?.textContent,
     classRecords: options.querySelector('.records-class-list')?.textContent,
     deathLogsButton: options.querySelector('button')?.textContent,
   }));
@@ -33,7 +40,8 @@ test('Castle to workshop transition keeps the workshop grid readable', async ({ 
   expect(castleLayout.style).toBeNull();
   expect(castleLayout.display).toBe('grid');
   expect(castleLayout.columnCount).toBe(1);
-  expect(castleLayout.summaryCards).toBe(3);
+  expect(castleLayout.summaryCards).toBe(4);
+  expect(castleLayout.abandonRecord).toBe('断念2回');
   expect(castleLayout.classRecords).toContain('戦士 B2F');
   expect(castleLayout.deathLogsButton).toBe('全滅ログ確認');
 
