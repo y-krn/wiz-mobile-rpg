@@ -127,9 +127,9 @@ export function handleExploreAction(action) {
       searchSecretDoor();
     }
   } else if (action === "abandon") {
-    if (confirm("この冒険を諦めますか？持ち帰っていない戦利品や素材は、死亡時と同じ扱いになります。")) {
-      triggerRunResult("abandon");
-    }
+    confirmAbandonRun();
+  } else if (action === "manage") {
+    openSubmenu("explore_management", "冒険管理");
   } else if (action === "spell") {
     const firstCasterIdx = state.party.findIndex(c => c.status !== "dead" && isSpellcaster(c) && c.maxMp > 0);
     menuContext.actorIdx = firstCasterIdx !== -1 ? firstCasterIdx : 0;
@@ -139,6 +139,27 @@ export function handleExploreAction(action) {
   } else if (action === "item" || action === "equip") {
     openEquipOverlay(0);
   }
+}
+
+function confirmAbandonRun() {
+  const isAllowedContext = state.gameState === "explore"
+    || (state.gameState === "submenu" && menuContext.type === "explore_management");
+  if (!isAllowedContext) return false;
+
+  if (confirm("この冒険を諦めますか？持ち帰っていない戦利品や素材は、死亡時と同じ扱いになります。")) {
+    triggerRunResult("abandon");
+    return true;
+  }
+  return false;
+}
+
+export function renderExploreManagement(optGrid) {
+  const btnAbandon = document.createElement("button");
+  btnAbandon.id = "btn-abandon-run";
+  btnAbandon.className = "btn btn-danger btn-block";
+  btnAbandon.textContent = "冒険を諦める";
+  btnAbandon.addEventListener("click", () => confirmAbandonRun());
+  optGrid.appendChild(btnAbandon);
 }
 
 export function renderItemInventory(optGrid) {
