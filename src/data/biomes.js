@@ -25,8 +25,8 @@ export const BIOMES = Object.freeze([
   biome({
     id: "collapsed_mine", name: "崩れた坑道", cssClass: "floor-theme-b1",
     terrain: {
-      roomCountRange: [2, 2],
-      mazeProfile: { straightBias: [0.48, 0.68], loopRate: [0.20, 0.32] }
+      roomCountRange: [2, 3],
+      mazeProfile: { straightBias: [0.42, 0.62], loopRate: [0.20, 0.32] }
     },
     visualSignature: {
       wallColor: "#58d6e8",
@@ -53,7 +53,7 @@ export const BIOMES = Object.freeze([
     id: "forgotten_catacomb", name: "忘れられた地下墓地", cssClass: "floor-theme-b2",
     terrain: {
       roomCountRange: [3, 3],
-      mazeProfile: { straightBias: [0.30, 0.46], loopRate: [0.12, 0.22] }
+      mazeProfile: { straightBias: [0.30, 0.48], loopRate: [0.12, 0.24] }
     },
     visualSignature: {
       wallColor: "#d5b56f",
@@ -80,7 +80,7 @@ export const BIOMES = Object.freeze([
     id: "rift_nest", name: "大裂溝の巣窟", cssClass: "floor-theme-b3",
     terrain: {
       roomCountRange: [3, 3],
-      mazeProfile: { straightBias: [0.14, 0.28], loopRate: [0.06, 0.14] }
+      mazeProfile: { straightBias: [0.16, 0.34], loopRate: [0.10, 0.20] }
     },
     visualSignature: {
       wallColor: "#bd78f2",
@@ -106,8 +106,8 @@ export const BIOMES = Object.freeze([
   biome({
     id: "sunken_library", name: "水没した魔導書庫", cssClass: "floor-theme-b4",
     terrain: {
-      roomCountRange: [4, 4],
-      mazeProfile: { straightBias: [0.24, 0.40], loopRate: [0.26, 0.38] }
+      roomCountRange: [3, 4],
+      mazeProfile: { straightBias: [0.24, 0.44], loopRate: [0.22, 0.34] }
     },
     visualSignature: {
       wallColor: "#54c8c3",
@@ -133,8 +133,8 @@ export const BIOMES = Object.freeze([
   biome({
     id: "dragon_forge", name: "竜火の鍛造殿", cssClass: "floor-theme-b5",
     terrain: {
-      roomCountRange: [5, 5],
-      mazeProfile: { straightBias: [0.08, 0.22], loopRate: [0.08, 0.16] }
+      roomCountRange: [4, 5],
+      mazeProfile: { straightBias: [0.10, 0.30], loopRate: [0.10, 0.20] }
     },
     visualSignature: {
       wallColor: "#f08a45",
@@ -161,7 +161,7 @@ export const BIOMES = Object.freeze([
     id: "abyssal_throne", name: "深淵の玉座", cssClass: "floor-theme-b6",
     terrain: {
       roomCountRange: [4, 5],
-      mazeProfile: { straightBias: [0.04, 0.16], loopRate: [0.04, 0.10] }
+      mazeProfile: { straightBias: [0.06, 0.22], loopRate: [0.08, 0.16] }
     },
     visualSignature: {
       wallColor: "#d45de6",
