@@ -9,6 +9,16 @@ export const archivesState = {
   listScrollTop: 0
 };
 
+function getRunOutcomeLabel(run) {
+  if (run?.outcome === "abandon" || (!run?.outcome && run?.returnReason === "abandon")) return "断念";
+  if (run?.outcome === "death" || (!run?.outcome && run?.returnReason === "gameover")) return "死亡";
+  return "撤退";
+}
+
+function getRunOutcomeColor(run) {
+  return getRunOutcomeLabel(run) === "撤退" ? "var(--neon-green)" : "var(--neon-red)";
+}
+
 function trackArchivesListScroll(body) {
   body.addEventListener("scroll", () => {
     if (!body.isConnected) return;
@@ -222,11 +232,13 @@ export function getRunHistoryHtml() {
     const dateStr = new Date(h.endedAt).toLocaleDateString("ja-JP") + " " + new Date(h.endedAt).toLocaleTimeString("ja-JP", { hour: '2-digit', minute: '2-digit' });
     const resText = h.result === "returned" ? "成功" : "失敗";
     const resColor = h.result === "returned" ? "var(--neon-green)" : "var(--neon-red)";
+    const outcomeText = getRunOutcomeLabel(h);
+    const outcomeColor = getRunOutcomeColor(h);
     
     html += `
       <div style="background-color: #1a1a24; border: 1px solid #333; border-radius: 4px; padding: 6px 8px;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 2px; margin-bottom: 4px;">
-          <strong>#${state.runHistory.length - i} [${dateStr}]</strong>
+          <strong>#${state.runHistory.length - i} [${dateStr}] <span style="color: ${outcomeColor};">${outcomeText}</span></strong>
           <span style="color: ${resColor}; font-weight: bold;">${resText} (Rank: ${h.dangerRank})</span>
         </div>
         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; color: #ddd; font-size: 10px;">
