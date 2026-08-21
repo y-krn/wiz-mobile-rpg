@@ -18,7 +18,7 @@ export const ELITE_CLASSES = ["Samurai", "Bishop", "Ranger", "Ninja"];
 // killHeal = 敵撃破時にHPを回復する。既存の撃破trigger経路をクラス固有値で使う。
 // いずれも常時の回復薬供給ではなく、探索・戦闘の行動に結びつくクラス個性を保つ。
 export const CLASS_PASSIVES = {
-  Mage: { label: "魔導適性", bonuses: { arcane: 20, trapGuard: 60, killMp: 1, spellCycleMp: 2, mpWard: 8, killHeal: 8 } },
+  Mage: { label: "魔導適性", bonuses: { arcane: 20, trapGuard: 60, killMp: 1, spellCycleMp: 2, mpWard: 1, killHeal: 8 } },
   Priest: { label: "祈祷・退魔適性", bonuses: { devotion: 20, antiUndead: 20, killMp: 1, spellCycleMp: 2, mpWard: 4 } },
   Samurai: { label: "追撃適性", bonuses: { followUp: 5 } },
   Thief: { label: "探宝適性", bonuses: { trapBonus: 15, treasureSense: 10, evasion: 35 } },

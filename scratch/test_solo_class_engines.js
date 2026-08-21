@@ -192,7 +192,7 @@ test("前衛は呪文サイクル回復とMP連動防御を持たない", () => 
 });
 
 test("後衛のMP連動防御はMP枯渇で消える", () => {
-  for (const [className, expected] of [["Priest", 4], ["Mage", 8]]) {
+  for (const [className, expected] of [["Priest", 4], ["Mage", 1]]) {
     const character = createSoloCharacter(className);
     assert.equal(getClassPassiveBonus(character, "mpWard"), expected, className);
 
