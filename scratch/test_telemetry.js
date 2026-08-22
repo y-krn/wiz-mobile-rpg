@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   __resetTelemetryForTests,
+  __setTelemetryInitializationForTests,
   __setTelemetryClientForTests,
   normalizeCombatResult,
   normalizeDeathType,
@@ -87,24 +88,67 @@ check("enemy suffixes and enum fields are normalized", () => {
   assert.equal(normalizeOutcome("death"), "death");
   assert.equal(normalizeOutcome("unknown"), null);
   assert.equal(normalizeCombatResult("escapeToTown"), "escape_to_town");
-  assert.equal(normalizeCombatResult("milestoneVictory"), "other");
+  assert.equal(normalizeCombatResult("milestoneVictory"), "victory");
+  assert.equal(normalizeCombatResult("giveKey"), "victory");
+  assert.equal(normalizeCombatResult("triggerChest"), "victory");
+  assert.equal(normalizeCombatResult("fleeCombat"), "fled");
+  assert.equal(normalizeCombatResult("runEscape"), "fled");
+  assert.equal(normalizeCombatResult("unknown"), "other");
   assert.equal(normalizeDeathType("status"), "status");
   assert.equal(normalizeDeathType("free text"), null);
 });
 
-check("run end sends normalized death fields without free-text cause", () => {
+check("run end sends the existing death-log cause with normalized fields", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
-  trackRunStart(run, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
-  trackRunEnd(run, "death");
+  const runWithDeathCause = {
+    ...run,
+    deathLogs: [{ type: "status", source: "毒 A", cause: "毒のダメージ" }],
+    freeTextDeathCause: "must not be sent"
+  };
+  trackRunStart(runWithDeathCause, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+  trackRunEnd(runWithDeathCause, "death");
   const properties = events.at(-1).properties;
   assert.equal(properties.outcome, "death");
   assert.equal(properties.deathType, "status");
-  assert.equal(properties.deathSource, "ゴブリン");
-  assert.equal(properties.deathCause, "status");
+  assert.equal(properties.deathSource, "毒");
+  assert.equal(properties.deathCause, "毒のダメージ");
   assert.equal(properties.returnReason, "gameover");
   assert.equal(Object.hasOwn(properties, "charName"), false);
   assert.equal(Object.hasOwn(properties, "cause"), false);
+  assert.equal(Object.hasOwn(properties, "freeTextDeathCause"), false);
+});
+
+check("lifecycle events emitted before SDK initialization are flushed in order", () => {
+  const events = [];
+  __setTelemetryInitializationForTests({ enabled: true });
+  trackRunStart(run, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+  trackCombatStart({ floor: 1, player: { class: "Mage", hp: 14, mp: 12 }, monsters: [] });
+  trackDamageReceived({ enemyId: "ゴブリン A", rawDamage: 2, finalDamage: 1 });
+  trackCombatEnd("endCombat", { floor: 1, turns: 1, player: { hp: 12, mp: 12 }, monsters: [] });
+  trackRunEnd(run, "retreat");
+  assert.deepEqual(events, []);
+
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  assert.deepEqual(events.map(event => event.name), [
+    "run_start",
+    "combat_start",
+    "damage_received",
+    "combat_end",
+    "run_end"
+  ]);
+  __resetTelemetryForTests();
+});
+
+check("pre-initialization buffer is finite", () => {
+  const events = [];
+  __setTelemetryInitializationForTests({ enabled: true });
+  for (let index = 0; index < 80; index++) trackEvent("buffered", { index });
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  assert.equal(events.length, 64);
+  assert.equal(events[0].properties.index, 16);
+  assert.equal(events.at(-1).properties.index, 79);
+  __resetTelemetryForTests();
 });
 
 check("runtime correlation IDs do not consume Math.random", () => {

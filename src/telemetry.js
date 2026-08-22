@@ -9,8 +9,11 @@ const VALID_COMBAT_RESULTS = new Set([
   "other"
 ]);
 const VALID_DEATH_TYPES = new Set(["combat", "trap", "status"]);
+const PRE_INIT_BUFFER_LIMIT = 64;
 
 let client = null;
+let telemetryState = "uninitialized";
+let pendingEvents = [];
 let runId = null;
 let combatId = null;
 let combatEnded = false;
@@ -65,7 +68,10 @@ export function normalizeCombatResult(result) {
     endCombat: "victory",
     fleeCombat: "fled",
     escapeToTown: "escape_to_town",
-  runEscape: "fled"
+    runEscape: "fled",
+    milestoneVictory: "victory",
+    giveKey: "victory",
+    triggerChest: "victory"
   }[result] ?? result;
   return VALID_COMBAT_RESULTS.has(normalized) ? normalized : "other";
 }
@@ -74,22 +80,27 @@ export function normalizeDeathType(type) {
   return VALID_DEATH_TYPES.has(type) ? type : null;
 }
 
-function normalizeDeathCause(type, source) {
-  const normalizedType = normalizeDeathType(type);
-  if (normalizedType) return normalizedType;
-  if (source) return "combat";
-  return null;
+function normalizeDeathCause(cause) {
+  if (typeof cause !== "string") return null;
+  const normalized = cause.trim();
+  return normalized || null;
 }
 
 function initializeTelemetry() {
   const env = getPublicEnv();
   const key = typeof env.VITE_POSTHOG_KEY === "string" ? env.VITE_POSTHOG_KEY.trim() : "";
   const host = typeof env.VITE_POSTHOG_HOST === "string" ? env.VITE_POSTHOG_HOST.trim() : "";
-  if (!key || !host) return;
+  if (!key || !host) {
+    telemetryState = "disabled";
+    return;
+  }
+
+  telemetryState = "loading";
 
   import("posthog-js")
     .then(({ posthog, default: defaultPosthog }) => {
       const sdk = posthog ?? defaultPosthog;
+      if (!sdk || typeof sdk.init !== "function") throw new Error("PostHog SDK unavailable");
       sdk.init(key, {
         api_host: host,
         autocapture: false,
@@ -100,20 +111,20 @@ function initializeTelemetry() {
         persistence: "memory"
       });
       client = sdk;
+      telemetryState = "ready";
+      flushPendingEvents();
     })
     .catch(() => {
       client = null;
+      telemetryState = "disabled";
+      pendingEvents = [];
     });
 }
 
-function capture(eventName, properties) {
+function captureWithClient(eventName, properties) {
   if (!client) return;
-
   try {
-    const result = client.capture(eventName, removeUndefined({
-      schemaVersion: TELEMETRY_SCHEMA_VERSION,
-      ...properties
-    }));
+    const result = client.capture(eventName, properties);
     if (result && typeof result.catch === "function") {
       result.catch(() => {});
     }
@@ -122,12 +133,37 @@ function capture(eventName, properties) {
   }
 }
 
+function flushPendingEvents() {
+  const events = pendingEvents;
+  pendingEvents = [];
+  events.forEach(({ eventName, properties }) => captureWithClient(eventName, properties));
+}
+
+function capture(eventName, properties) {
+  const normalizedProperties = removeUndefined({
+    schemaVersion: TELEMETRY_SCHEMA_VERSION,
+    ...properties
+  });
+  if (client) {
+    captureWithClient(eventName, normalizedProperties);
+    return;
+  }
+  if (telemetryState !== "loading") return;
+
+  if (pendingEvents.length >= PRE_INIT_BUFFER_LIMIT) pendingEvents.shift();
+  pendingEvents.push({ eventName, properties: normalizedProperties });
+}
+
+function isTelemetryAvailable() {
+  return telemetryState === "loading" || telemetryState === "ready";
+}
+
 export function trackEvent(eventName, properties = {}) {
   capture(eventName, properties);
 }
 
 export function trackRunStart(run, character) {
-  if (!client) return;
+  if (!isTelemetryAvailable()) return;
   runId = createRuntimeId("run");
   combatId = null;
   combatEnded = false;
@@ -144,7 +180,7 @@ export function trackRunStart(run, character) {
 }
 
 export function trackCombatStart(combat) {
-  if (!client || !runId) return;
+  if (!isTelemetryAvailable() || !runId) return;
   combatId = createRuntimeId("combat");
   combatEnded = false;
 
@@ -163,7 +199,7 @@ export function trackCombatStart(combat) {
 }
 
 export function trackDamageReceived(damage) {
-  if (!client || !runId || !combatId) return;
+  if (!isTelemetryAvailable() || !runId || !combatId) return;
 
   capture("damage_received", {
     runId,
@@ -185,7 +221,7 @@ export function trackDamageReceived(damage) {
 }
 
 export function trackCombatEnd(result, combat) {
-  if (!client || !runId || !combatId || combatEnded) return;
+  if (!isTelemetryAvailable() || !runId || !combatId || combatEnded) return;
   combatEnded = true;
 
   capture("combat_end", {
@@ -201,7 +237,7 @@ export function trackCombatEnd(result, combat) {
 }
 
 export function trackRunEnd(run, outcome) {
-  if (!client || !runId) return;
+  if (!isTelemetryAvailable() || !runId) return;
 
   const latestDeath = Array.isArray(run?.deathLogs) ? run.deathLogs.at(-1) : null;
   const deathType = normalizeDeathType(latestDeath?.type);
@@ -224,7 +260,7 @@ export function trackRunEnd(run, outcome) {
       : null,
     deathType,
     deathSource,
-    deathCause: normalizeDeathCause(deathType, deathSource)
+    deathCause: normalizeDeathCause(latestDeath?.cause)
   });
   runId = null;
   combatId = null;
@@ -232,7 +268,20 @@ export function trackRunEnd(run, outcome) {
 }
 
 export function __setTelemetryClientForTests(testClient) {
+  const queuedEvents = testClient ? pendingEvents : [];
+  pendingEvents = [];
   client = testClient ?? null;
+  telemetryState = testClient ? "ready" : "disabled";
+  runId = null;
+  combatId = null;
+  combatEnded = false;
+  queuedEvents.forEach(({ eventName, properties }) => captureWithClient(eventName, properties));
+}
+
+export function __setTelemetryInitializationForTests({ enabled = false } = {}) {
+  client = null;
+  telemetryState = enabled ? "loading" : "disabled";
+  pendingEvents = [];
   runId = null;
   combatId = null;
   combatEnded = false;
