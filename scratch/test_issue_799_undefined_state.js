@@ -95,6 +95,33 @@ const sparseHoleMap = validationMap.map(row => row.slice());
 delete sparseHoleMap[5][5];
 assert.equal(isUsableFloorMap(sparseHoleMap, 1), false, "sparse map holes are rejected");
 
+const disconnectedStairsMap = validationMap.map(row => row.map(cell => ({
+  ...cell,
+  walls: [...cell.walls],
+  blockEnter: [...cell.blockEnter],
+  secretDoor: [...cell.secretDoor],
+  secretFound: [...cell.secretFound]
+})));
+const stairsDown = disconnectedStairsMap
+  .flatMap((row, y) => row.map((cell, x) => cell.type === "stairs-down" ? { x, y } : null))
+  .find(Boolean);
+for (const [dx, dy, dir] of [[0, -1, 0], [1, 0, 1], [0, 1, 2], [-1, 0, 3]]) {
+  const nx = stairsDown.x + dx;
+  const ny = stairsDown.y + dy;
+  disconnectedStairsMap[stairsDown.y][stairsDown.x].walls[dir] = true;
+  if (disconnectedStairsMap[ny]?.[nx]) {
+    disconnectedStairsMap[ny][nx].walls[(dir + 2) % 4] = true;
+  }
+}
+assert.equal(isUsableFloorMap(disconnectedStairsMap, 1), false, "disconnected stairs are rejected");
+initNewGame();
+createRunState("ISSUE-799-DISCONNECTED-STAIRS");
+state.maps = [disconnectedStairsMap];
+state.visitedMaps = [disconnectedStairsMap.map(row => row.map(() => false))];
+delete state._freshRunFloor;
+assert.throws(() => ensureRunFloor(state, 1), error => error instanceof RunFloorRecoveryError, "disconnected active stairs fail closed");
+assert.strictEqual(state.maps[0], disconnectedStairsMap, "disconnected active map is preserved for recovery");
+
 // Active-floor corruption must fail closed rather than replace the map and
 // reset chest/trap/secret/milestone progress.
 initNewGame();
@@ -134,6 +161,14 @@ assert.throws(() => ensureRunFloor(state, 1), error => error instanceof RunFloor
 state.visitedMaps[0] = visitedDataMap.map(row => row.map(() => false));
 state.visitedMaps[0][0].pop();
 assert.throws(() => ensureRunFloor(state, 1), error => error instanceof RunFloorRecoveryError, "corrupt active visited data fails closed");
+const sparseInnerVisitedMap = visitedDataMap.map(row => row.map(() => false));
+delete sparseInnerVisitedMap[5][5];
+state.visitedMaps[0] = sparseInnerVisitedMap;
+assert.throws(() => ensureRunFloor(state, 1), error => error instanceof RunFloorRecoveryError, "sparse inner visited data fails closed");
+const sparseOuterVisitedMap = visitedDataMap.map(row => row.map(() => false));
+delete sparseOuterVisitedMap[5];
+state.visitedMaps[0] = sparseOuterVisitedMap;
+assert.throws(() => ensureRunFloor(state, 1), error => error instanceof RunFloorRecoveryError, "sparse outer visited data fails closed");
 
 // Resume path: a save may contain other run floors while the active floor is
 // damaged. Loading must preserve the run seed, floor, and damaged payload, then

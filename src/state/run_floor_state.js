@@ -25,9 +25,54 @@ export function isUsableFloorCell(cell) {
 }
 
 function isUsableVisitedMap(grid, visitedMap) {
-  return Array.isArray(visitedMap) && visitedMap.length === grid.length && visitedMap.every((row, y) =>
-    Array.isArray(row) && row.length === grid[y].length && row.every(cell => typeof cell === "boolean")
-  );
+  if (!Array.isArray(visitedMap) || visitedMap.length !== grid.length) return false;
+  for (let y = 0; y < grid.length; y++) {
+    if (!Object.hasOwn(visitedMap, y)) return false;
+    const row = visitedMap[y];
+    if (!Array.isArray(row) || row.length !== grid[y].length) return false;
+    for (let x = 0; x < grid[y].length; x++) {
+      if (!Object.hasOwn(row, x) || typeof row[x] !== "boolean") return false;
+    }
+  }
+  return true;
+}
+
+function areStairsConnected(grid, width, height) {
+  let stairsUp = null;
+  let stairsDown = null;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const type = grid[y][x].type;
+      if (type === "stairs-up") stairsUp = { x, y };
+      if (type === "stairs-down") stairsDown = { x, y };
+    }
+  }
+  if (!stairsUp || !stairsDown) return false;
+
+  const queue = [stairsUp];
+  const visited = new Set([`${stairsUp.x},${stairsUp.y}`]);
+  const directions = [
+    { dx: 0, dy: -1, dir: 0 },
+    { dx: 1, dy: 0, dir: 1 },
+    { dx: 0, dy: 1, dir: 2 },
+    { dx: -1, dy: 0, dir: 3 }
+  ];
+  for (const position of queue) {
+    if (position.x === stairsDown.x && position.y === stairsDown.y) return true;
+    const cell = grid[position.y][position.x];
+    for (const { dx, dy, dir } of directions) {
+      const nextX = position.x + dx;
+      const nextY = position.y + dy;
+      if (nextX < 0 || nextX >= width || nextY < 0 || nextY >= height) continue;
+      const next = grid[nextY][nextX];
+      if (cell.walls[dir] || next.blockEnter[(dir + 2) % 4]) continue;
+      const key = `${nextX},${nextY}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      queue.push({ x: nextX, y: nextY });
+    }
+  }
+  return false;
 }
 
 export function isUsableFloorMap(grid, floor = null) {
@@ -52,7 +97,7 @@ export function isUsableFloorMap(grid, floor = null) {
       if (cell.type === "stairs-down") hasStairsDown = true;
     }
   }
-  return hasStairsUp && hasStairsDown;
+  return hasStairsUp && hasStairsDown && areStairsConnected(grid, width, height);
 }
 
 export class RunFloorRecoveryError extends Error {
