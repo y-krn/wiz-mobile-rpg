@@ -312,6 +312,7 @@ export function normalizeSavePayload(data) {
 
   let loadedMaps = Array.isArray(data.maps) ? data.maps.slice() : [];
   let needsMigration = false;
+  const activeRunMap = Boolean(normalized.currentRun?.runSeed && !normalized.currentRun.returnReason);
   const generatedRunMaps = Boolean(normalized.currentRun?.runSeed);
   if (generatedRunMaps) {
     // Run maps are derived from currentRun.runSeed. Preserve an all-missing
@@ -352,12 +353,13 @@ export function normalizeSavePayload(data) {
     ];
     normalized.visitedMaps[0][migratedStart.y][migratedStart.x] = true;
   } else {
-    normalized.visitedMaps = data.visitedMaps ?? loadedMaps.map(map =>
-      map ? map.map(row => row.map(() => false)) : null
-    );
+    normalized.visitedMaps = activeRunMap
+      ? data.visitedMaps
+      : data.visitedMaps ?? loadedMaps.map(map =>
+        map ? map.map(row => row.map(() => false)) : null
+      );
   }
 
-  const activeRunMap = Boolean(normalized.currentRun?.runSeed && !normalized.currentRun.returnReason);
   loadedMaps.forEach(map => {
     // Active-run maps are player progress, not disposable legacy data. Do not
     // let repair helpers dereference malformed cells before recovery validates

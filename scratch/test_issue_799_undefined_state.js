@@ -153,6 +153,45 @@ assert.equal(state.visitedMaps[0], null, "missing active visited data is preserv
 assert.match(state.logs.join("\n"), /安全に復旧できない/, "missing active visited data exposes a recovery error");
 assert.ok(localStorage.getItem("mobile_wiz_rpg_corrupt"), "missing active visited data is preserved for recovery");
 
+// Migration must preserve an omitted visitedMaps field for an active run so
+// recovery rejects the save instead of manufacturing an all-false grid.
+initNewGame();
+createRunState("ISSUE-799-VISITED-OMITTED");
+const omittedVisitedMap = generateRunFloor({ runSeed: "ISSUE-799-VISITED-OMITTED", floor: 1 }).grid;
+state.maps = [omittedVisitedMap];
+state.visitedMaps = [omittedVisitedMap.map(row => row.map(() => false))];
+delete state._freshRunFloor;
+saveAutosave();
+const omittedVisitedSave = JSON.parse(localStorage.getItem("mobile_wiz_rpg_autosave"));
+delete omittedVisitedSave.visitedMaps;
+localStorage.setItem("mobile_wiz_rpg_autosave", JSON.stringify(omittedVisitedSave));
+localStorage.removeItem("mobile_wiz_rpg_backup");
+localStorage.removeItem("mobile_wiz_rpg_save");
+loadGame();
+
+assert.equal(state.visitedMaps, undefined, "omitted active visited data remains omitted");
+assert.match(state.logs.join("\n"), /安全に復旧できない/, "omitted active visited data exposes a recovery error");
+assert.ok(localStorage.getItem("mobile_wiz_rpg_corrupt"), "omitted active visited data is preserved for recovery");
+
+// An explicit null sentinel must receive the same active-run treatment.
+initNewGame();
+createRunState("ISSUE-799-VISITED-NULL");
+const nullVisitedMap = generateRunFloor({ runSeed: "ISSUE-799-VISITED-NULL", floor: 1 }).grid;
+state.maps = [nullVisitedMap];
+state.visitedMaps = [nullVisitedMap.map(row => row.map(() => false))];
+delete state._freshRunFloor;
+saveAutosave();
+const nullVisitedSave = JSON.parse(localStorage.getItem("mobile_wiz_rpg_autosave"));
+nullVisitedSave.visitedMaps = null;
+localStorage.setItem("mobile_wiz_rpg_autosave", JSON.stringify(nullVisitedSave));
+localStorage.removeItem("mobile_wiz_rpg_backup");
+localStorage.removeItem("mobile_wiz_rpg_save");
+loadGame();
+
+assert.equal(state.visitedMaps, null, "null active visited data remains null");
+assert.match(state.logs.join("\n"), /安全に復旧できない/, "null active visited data exposes a recovery error");
+assert.ok(localStorage.getItem("mobile_wiz_rpg_corrupt"), "null active visited data is preserved for recovery");
+
 // Migration path: all maps missing in an active-run save must not be replaced
 // by maps generated from the legacy state.seed.
 initNewGame();
