@@ -19,6 +19,10 @@ const SERIES_ID = "issue-793-bleeding-matched-v1";
 const MEASUREMENT_SIDE = process.env.BLEEDING_MEASUREMENT_SIDE || "candidate";
 const SOURCE_COMMIT = process.env.BLEEDING_SOURCE_CODE_SHA || MEASUREMENT_PROVENANCE?.sourceCommit || null;
 const RUNNER_COMMIT = process.env.BLEEDING_RUNNER_COMMIT || MEASUREMENT_PROVENANCE?.sourceCommit || null;
+const PROVENANCE_BASE_REF = MEASUREMENT_PROVENANCE?.baseRef || null;
+const PROVENANCE_BASE_COMMIT = MEASUREMENT_PROVENANCE?.baseCommit || null;
+const PROVENANCE_BASE_REF_REASON = MEASUREMENT_PROVENANCE?.baseRefReason || null;
+const PROVENANCE_TEST_FIXTURE = MEASUREMENT_PROVENANCE?.testFixture || null;
 const ORIGIN_MAIN_ANCESTOR = MEASUREMENT_PROVENANCE?.originMainAncestor ?? null;
 const STALE_TREE_ALLOWED = MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null;
 
@@ -168,6 +172,10 @@ function summarizeCase(label, payoffDamage, bleedingAffixValue, scoringProfile, 
       side: MEASUREMENT_SIDE,
       sourceCommit: SOURCE_COMMIT,
       runnerCommit: RUNNER_COMMIT,
+      provenanceBaseRef: PROVENANCE_BASE_REF,
+      provenanceBaseCommit: PROVENANCE_BASE_COMMIT,
+      provenanceBaseRefReason: PROVENANCE_BASE_REF_REASON,
+      provenanceTestFixture: PROVENANCE_TEST_FIXTURE,
       originMainAncestor: ORIGIN_MAIN_ANCESTOR,
       staleTreeAllowed: STALE_TREE_ALLOWED
     }
@@ -180,6 +188,10 @@ const measurement = {
   measurementSide: MEASUREMENT_SIDE,
   sourceCommit: SOURCE_COMMIT,
   runnerCommit: RUNNER_COMMIT,
+  provenanceBaseRef: PROVENANCE_BASE_REF,
+  provenanceBaseCommit: PROVENANCE_BASE_COMMIT,
+  provenanceBaseRefReason: PROVENANCE_BASE_REF_REASON,
+  provenanceTestFixture: PROVENANCE_TEST_FIXTURE,
   originMainAncestor: ORIGIN_MAIN_ANCESTOR,
   staleTreeAllowed: STALE_TREE_ALLOWED,
   runner: `node ${process.version}; scratch/sim_issue_793_bleeding.js`,

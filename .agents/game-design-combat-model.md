@@ -979,6 +979,13 @@ Phase 0 で既存表現に対応する ID は `poisoned`、`blind`、`sleep`、`
   candidate cases `sourceCommit=ecac8c2deabb984802bab7d28a407475cd529e97`; both record
   `originMainAncestor=true`, `staleTreeAllowed=false`, and the same runner commit
   `ecac8c2deabb984802bab7d28a407475cd529e97`
+- provenance output also records the resolved `provenanceBaseRef` and commit. Production
+  measurements use the required `origin/main` ref. The unit-side CI compatibility check
+  uses the explicit test-only fixture
+  `scratch/fixtures/issue-793-measurement-provenance.json`, which resolves local `HEAD`
+  and records `provenanceBaseRefReason=issue-793-ci-shallow`; this fixture is not
+  measurement evidence and does not make a missing ref valid. An unknown ref fails before
+  simulation starts.
 - seed policy: `SIM_INDEPENDENT_RUN_RANDOM=1`, `SIM_SEED=793`; class、runIndex、seriesId
   を base/candidate で一致
 - dataset/preset: current `src` data、`generateRunFloor` 経由の solo real-run、

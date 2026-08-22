@@ -20,20 +20,37 @@ function gitOutput(args, cwd) {
 export function resolveMeasurementProvenance({
   cwd = process.cwd(),
   fetchOriginMain = true,
-  allowStaleTree = process.env.SIM_ALLOW_STALE_TREE === "1"
+  allowStaleTree = process.env.SIM_ALLOW_STALE_TREE === "1",
+  baseRef = null
 } = {}) {
+  const configuredBaseRef = process.env.SIM_PROVENANCE_BASE_REF || null;
+  const testFixture = process.env.SIM_PROVENANCE_TEST_FIXTURE || null;
+  if (configuredBaseRef && !testFixture && !baseRef) {
+    throw new Error(
+      "measurement provenance failed: SIM_PROVENANCE_BASE_REF requires an explicit test fixture marker"
+    );
+  }
+  const resolvedBaseRef = baseRef || (testFixture ? configuredBaseRef : null) || "origin/main";
+  const baseRefReason = process.env.SIM_PROVENANCE_BASE_REF_REASON || null;
+  if (resolvedBaseRef !== "origin/main" && !baseRefReason) {
+    throw new Error(
+      `measurement provenance failed: explicit base ref ${resolvedBaseRef} requires SIM_PROVENANCE_BASE_REF_REASON`
+    );
+  }
   if (fetchOriginMain) gitOutput(["fetch", "origin", "main"], cwd);
 
   const sourceCommit = gitOutput(["rev-parse", "HEAD"], cwd);
+  const baseCommit = gitOutput(["rev-parse", "--verify", `${resolvedBaseRef}^{commit}`], cwd);
   const ancestorCheck = spawnSync(
     "git",
-    ["merge-base", "--is-ancestor", "origin/main", "HEAD"],
+    ["merge-base", "--is-ancestor", baseCommit, "HEAD"],
     { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
   );
   if (ancestorCheck.error || ![0, 1].includes(ancestorCheck.status)) {
     const detail = String(ancestorCheck.stderr || "").trim();
     throw new Error(
-      `measurement provenance failed: git merge-base --is-ancestor: ${detail || ancestorCheck.error?.message || `exit ${ancestorCheck.status}`}`
+      `measurement provenance failed: git merge-base --is-ancestor ${resolvedBaseRef} HEAD: ` +
+      `${detail || ancestorCheck.error?.message || `exit ${ancestorCheck.status}`}`
     );
   }
 
@@ -41,13 +58,17 @@ export function resolveMeasurementProvenance({
   const staleTreeAllowed = !originMainAncestor && allowStaleTree;
   if (!originMainAncestor && !allowStaleTree) {
     throw new Error(
-      `Measurement refused before start: HEAD ${sourceCommit} is not a descendant of origin/main. ` +
+      `Measurement refused before start: HEAD ${sourceCommit} is not a descendant of ${resolvedBaseRef} (${baseCommit}). ` +
       "Create a new worktree from origin/main. Set SIM_ALLOW_STALE_TREE=1 only for an intentional stale-tree measurement."
     );
   }
 
   return Object.freeze({
     sourceCommit,
+    baseRef: resolvedBaseRef,
+    baseCommit,
+    baseRefReason,
+    testFixture,
     originMainAncestor,
     allowStaleTree,
     staleTreeAllowed
