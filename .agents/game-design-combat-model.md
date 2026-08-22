@@ -892,3 +892,59 @@ disarm cap のように hard cap が必要なものは、超過分を別の可�
   混ぜている。耐性種類別の値を決める測定では、次回は resist / weakness を分ける。
 - 外部の記事、他ゲーム、Web検索は根拠にしていない。根拠はこのリポジトリの source、
   `.agents/*.md`、および上記条件の実測だけである。
+
+## 8. #793 状態異常モデル境界（Phase 0）
+
+状態異常の拡張に先立ち、既存実装を壊さずに観測・保存できる最小のモデル境界を
+`src/combat_logic/status_effects.js` に置く。これは新しいゲーム効果を追加する
+モデルではなく、既存の legacy projection を正本として扱う互換アダプターである。
+
+### 8.1 canonical shape
+
+戦闘参加者の additive な `statusEffects` は、安定した内部 ID をキーとする次の
+オブジェクトである。未設定の旧セーブは `{}` へ正規化する。
+
+```js
+statusEffects: {
+  [id]: {
+    id: string,
+    remainingTurns: number | null,
+    stacks: number,
+    source: string | null
+  }
+}
+```
+
+Phase 0 で既存表現に対応する ID は `poisoned`、`blind`、`sleep`、`paralyzed`、
+`silence` のみである。`dead` と `ok` は状態異常 ID ではない。`remainingTurns`
+が `null` の既存状態は期限を持たない legacy 表現、`stacks` は既存挙動を変えない
+ため常に最低 1、`source` は既存の付与元を再判定するための値ではなく記録用の
+任意メタデータである。Phase 0 は stack、consume、refresh、耐性計算、ダメージ、
+行動不能を新設しない。
+
+### 8.2 compatibility and lifecycle contract
+
+- `status`、`sleepTurns`、`silenceTurns`（および既存の `paralyzeTurns`）は
+  境界で保持し、既存の直接 consumer がそのまま読める。
+- `status` が `poisoned` / `blind` / `sleep` / `paralyzed` のときは同じ ID を
+  `statusEffects` へ投影する。`silenceTurns > 0` は独立した `silence` として
+  投影するため、睡眠・毒などの legacy string を上書きしない。
+- legacy string の付与は従来どおり相互排他的であり、KATINO、敵の睡眠・毒・盲目・
+  麻痺、poisonAtk、CORE_EXECUTIONER の付与順・確率・値・耐性判定は変更しない。
+- 睡眠の tick、被弾 wake、味方の行動消費 wake、MONTINO/沈黙の tick、敵 cleanse、
+  cure、戦闘終了時の盲目解除は legacy fields を更新すると同時に adapter を同期
+  する。戦闘終了時の cleanup は既存どおり combatState/buff を対象とし、今回の
+  collection は save の round-trip を壊さない。
+- save normalization は party と combatState.monsters の旧レコードへ
+  `statusEffects` を補完する。既存の legacy fields は削除・改名しない。
+- `CORE_EXECUTIONER` の predicate と damage multiplier は adapter を読むが、
+  #313 の攻撃前 poison setup、35%、1.4 倍、同一攻撃への入力、KATINO sleep 保持は
+  固定する。
+
+### 8.3 future owner decisions (not selected in Phase 0)
+
+Bleed / Vulnerable の採否、最終名称・内部 ID、numeric value、付与 source と供給量、
+duration、stack/refresh/consume、status resistance の対象と値、敵側耐性・免疫、
+boss policy、CORE_EXECUTIONER 対象化、cure/clear policy、UI terminology/iconography、
+telemetry schema は未決定である。これらを選定するまで、新しい status type、rate、
+damage、duration、resistance、boss rule、UI 表示は追加しない。

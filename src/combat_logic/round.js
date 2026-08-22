@@ -37,7 +37,12 @@ import {
   wakeSleepingCharOnDamage,
   consumeCharIncapacitation,
   getBuffTotal,
-  tickCharBuffs
+  tickCharBuffs,
+  applyStatusEffect,
+  hasStatusEffect,
+  removeStatusEffect,
+  tickStatusEffects,
+  STATUS_EFFECT_IDS
 } from "./status_effects.js";
 import {
   hasTrait,
@@ -362,10 +367,10 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             floatText = `${dmg}`;
 
             // 毒脈の呪いなどによる毒付与チャンス
-            if (finalTarget.hp > 0 && finalTarget.status !== "poisoned") {
+            if (finalTarget.hp > 0 && !hasStatusEffect(finalTarget, STATUS_EFFECT_IDS.POISONED)) {
               const poisonAtkChance = getCharAffixSum(char, "poisonAtk") / 100;
               if (poisonAtkChance > 0 && Math.random() < poisonAtkChance) {
-                finalTarget.status = "poisoned";
+                applyStatusEffect(finalTarget, STATUS_EFFECT_IDS.POISONED, { source: "poisonAtk" });
                 logQueue.push({
                   msg: `[味方] [!] ${char.name}の攻撃により、${finalTarget.name}は毒に侵された！`,
                   sound: "poison"
@@ -604,7 +609,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         const target = monsters.find(m => m.hp > 0 && ((m.buffs || []).some(buff => buff.value < 0) || m.status === "sleep"));
         if (target) {
           target.buffs = (target.buffs || []).filter(buff => buff.value > 0);
-          if (target.status === "sleep") delete target.status;
+          if (target.status === "sleep") {
+            removeStatusEffect(target, STATUS_EFFECT_IDS.SLEEP, { legacyStatus: "delete" });
+          }
           logQueue.push({ msg: `[ 敵 ] ${mon.name}は${target.name}の弱体を祓った！`, sound: "heal" });
           return;
         }
@@ -627,7 +634,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (Math.random() >= getStatusEffectChance(targetSelect.c, 1)) {
             logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は不屈の意志で沈黙を退けた！`, sound: "miss" });
           } else {
-            targetSelect.c.silenceTurns = 2;
+            applyStatusEffect(targetSelect.c, STATUS_EFFECT_IDS.SILENCE, { remainingTurns: 2 });
             logQueue.push({ msg: `[ 敵 ] ${mon.name}は封呪の気配を放った！${targetSelect.c.name}は沈黙した。`, sound: "cast_spell" });
           }
           return;
@@ -976,7 +983,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 sound: "miss"
               });
             } else {
-              target.status = "poisoned";
+              applyStatusEffect(target, STATUS_EFFECT_IDS.POISONED, { source: "monster" });
               logQueue.push({
                 msg: `[ 敵 ] [!] ${target.name}は毒を受け、毒状態になった！`,
                 sound: "chest_trap"
@@ -987,7 +994,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // Apply paralyze effect if monster is paralyzing and target survives
           const paralyzeChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
           if (mon.isParalyzing && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, paralyzeChance)) {
-            target.status = "paralyzed";
+            applyStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED, { source: "monster" });
             logQueue.push({
               msg: `[ 敵 ] [!] ${target.name}は麻痺を受け、麻痺状態になった！`,
               sound: "chest_trap"
@@ -997,8 +1004,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // Apply sleep effect if monster can induce sleep and target survives
           const sleepChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
           if (mon.isSleepInflicting && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, sleepChance)) {
-            target.status = "sleep";
-            target.sleepTurns = 2;
+            applyStatusEffect(target, STATUS_EFFECT_IDS.SLEEP, { remainingTurns: 2, source: "monster" });
             logQueue.push({
               msg: `[ 敵 ] [!] ${target.name}は眠りに落ちた！`,
               sound: "chest_trap"
@@ -1008,7 +1014,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           // Apply blind effect if monster is blinding and target survives
           const blindChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
           if (mon.isBlinding && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, blindChance)) {
-            target.status = "blind";
+            applyStatusEffect(target, STATUS_EFFECT_IDS.BLIND, { source: "monster" });
             logQueue.push({
               msg: `[ 敵 ] [!] ${mon.name}の放つ閃光により、${target.name}は盲目状態になった！`,
               sound: "chest_trap"
@@ -1036,15 +1042,15 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   state.party.forEach(char => {
     if (char.tempDefDown) char.tempDefDown = Math.max(0, char.tempDefDown - 1);
     if (char.magicVulnerableTurns) char.magicVulnerableTurns = Math.max(0, char.magicVulnerableTurns - 1);
-    if (char.silenceTurns) char.silenceTurns = Math.max(0, char.silenceTurns - 1);
+    tickStatusEffects(char, { tickSleep: false });
     if (char.antiHealTurns) char.antiHealTurns = Math.max(0, char.antiHealTurns - 1);
     if (char.mabarrierTurns) char.mabarrierTurns = Math.max(0, char.mabarrierTurns - 1);
   });
 
   const clearBlindStatuses = () => {
     state.party.forEach(char => {
-      if (char.status !== "blind") return;
-      char.status = "ok";
+      if (!hasStatusEffect(char, STATUS_EFFECT_IDS.BLIND)) return;
+      removeStatusEffect(char, STATUS_EFFECT_IDS.BLIND);
       logQueue.push({ msg: `[味方] ${char.name}の盲目が戦闘終了で解けた。` });
     });
   };

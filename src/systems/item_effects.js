@@ -1,7 +1,11 @@
 import { getEffectiveHealAmount } from "../rules/item_rules.js";
 import { getCharMaxHp, getCharMaxMp } from "../rules/character_stats.js";
 import { canUseManaItems } from "../rules/class_rules.js";
-import { addCharBuff } from "../combat_logic/status_effects.js";
+import {
+  addCharBuff,
+  removeStatusEffect,
+  STATUS_EFFECT_IDS
+} from "../combat_logic/status_effects.js";
 
 export const ITEM_EFFECTS = {
   NOISE_BALL: () => "鳴らし玉が甲高い音を響かせた。",
@@ -17,29 +21,28 @@ export const ITEM_EFFECTS = {
   },
   ANTIDOTE: ({ char }) => {
     if (char.status === "poisoned") {
-      char.status = "ok";
+      removeStatusEffect(char, STATUS_EFFECT_IDS.POISONED);
       return `${char.name}は解毒薬を使い、毒が消え去った。`;
     }
     return `${char.name}は解毒薬を使ったが、何も起こらなかった。`;
   },
   EYE_DROPS: ({ char }) => {
     if (char.status === "blind") {
-      char.status = "ok";
+      removeStatusEffect(char, STATUS_EFFECT_IDS.BLIND);
       return `${char.name}は目薬を使い、視界が戻った。`;
     }
     return `${char.name}は目薬を使ったが、何も起こらなかった。`;
   },
   PARALYZE_CURE: ({ char }) => {
     if (char.status === "paralyzed" || char.status === "paralyze") {
-      char.status = "ok";
+      removeStatusEffect(char, STATUS_EFFECT_IDS.PARALYZED);
       return `${char.name}は解痺薬を使い、麻痺が解けた。`;
     }
     return `${char.name}は解痺薬を使ったが、何も起こらなかった。`;
   },
   WAKE_POWDER: ({ char }) => {
     if (char.status === "sleep") {
-      char.status = "ok";
-      delete char.sleepTurns;
+      removeStatusEffect(char, STATUS_EFFECT_IDS.SLEEP);
       return `${char.name}は覚醒薬を使い、目を覚ました。`;
     }
     return `${char.name}は覚醒薬を使ったが、何も起こらなかった。`;
@@ -63,7 +66,7 @@ export const ITEM_EFFECTS = {
     char.hp = Math.min(getCharMaxHp(char), char.hp + heal);
     let cured = false;
     if (char.status === "poisoned") {
-      char.status = "ok";
+      removeStatusEffect(char, STATUS_EFFECT_IDS.POISONED);
       cured = true;
     }
     return `${char.name}は祝福の聖水を使い、HPが${heal}回復した。${cured ? "毒も綺麗に消え去った！" : ""}`;
@@ -73,8 +76,14 @@ export const ITEM_EFFECTS = {
   },
   PANACEA: ({ char }) => {
     if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {
-      char.status = "ok";
-      delete char.sleepTurns;
+      const id = char.status === "poisoned"
+        ? STATUS_EFFECT_IDS.POISONED
+        : char.status === "blind"
+          ? STATUS_EFFECT_IDS.BLIND
+          : char.status === "sleep"
+            ? STATUS_EFFECT_IDS.SLEEP
+            : STATUS_EFFECT_IDS.PARALYZED;
+      removeStatusEffect(char, id);
       return `${char.name}は万能薬を使い、状態異常が消え去った。`;
     }
     return `${char.name}は万能薬を使ったが、何も起こらなかった。`;
@@ -83,8 +92,14 @@ export const ITEM_EFFECTS = {
     char.hp = getCharMaxHp(char);
     char.mp = getCharMaxMp(char);
     if (char.status === "poisoned" || char.status === "blind" || char.status === "paralyzed" || char.status === "paralyze" || char.status === "sleep") {
-      char.status = "ok";
-      delete char.sleepTurns;
+      const id = char.status === "poisoned"
+        ? STATUS_EFFECT_IDS.POISONED
+        : char.status === "blind"
+          ? STATUS_EFFECT_IDS.BLIND
+          : char.status === "sleep"
+            ? STATUS_EFFECT_IDS.SLEEP
+            : STATUS_EFFECT_IDS.PARALYZED;
+      removeStatusEffect(char, id);
     }
     return `${char.name}はエリクサーを飲んだ！HP・MPが全回復し、全ての状態異常が消え去った！`;
   },

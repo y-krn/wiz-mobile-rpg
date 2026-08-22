@@ -10,6 +10,12 @@ import {
   recordExecutionerTrigger,
   tryApplyExecutionerSetup
 } from "../rules/affix_rules.js";
+import {
+  applyStatusEffect,
+  hasStatusEffect,
+  removeStatusEffect,
+  STATUS_EFFECT_IDS
+} from "../combat_logic/status_effects.js";
 
 function rollHealing(spellName, rng, minOverride = null, maxOverride = null) {
   const spell = SPELLS[spellName];
@@ -151,8 +157,7 @@ export const SPELL_EFFECTS = {
     targets.forEach(t => {
       const chance = (t.isBoss || t.isMidboss) ? baseChance * 0.4 : baseChance;
       if (t.hp > 0 && rng() < chance) {
-        t.status = "sleep";
-        t.sleepTurns = 2;
+        applyStatusEffect(t, STATUS_EFFECT_IDS.SLEEP, { remainingTurns: 2 });
         sleptCount++;
       }
     });
@@ -413,8 +418,8 @@ export const SPELL_EFFECTS = {
   },
   DIURCO: ({ caster, target }) => {
     let cured = false;
-    if (target.status === "blind") {
-      target.status = "ok";
+    if (hasStatusEffect(target, STATUS_EFFECT_IDS.BLIND)) {
+      removeStatusEffect(target, STATUS_EFFECT_IDS.BLIND);
       cured = true;
     }
     return { log: `${caster.name}は${target.name}にディウルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
@@ -482,9 +487,13 @@ export const SPELL_EFFECTS = {
   },
   DIALKO: ({ caster, target }) => {
     let cured = false;
-    if (target.status === "sleep" || target.status === "paralyze" || target.status === "paralyzed") {
-      target.status = "ok";
-      delete target.sleepTurns;
+    const id = target.status === "sleep"
+      ? STATUS_EFFECT_IDS.SLEEP
+      : target.status === "paralyze" || target.status === "paralyzed"
+        ? STATUS_EFFECT_IDS.PARALYZED
+        : null;
+    if (id && hasStatusEffect(target, id)) {
+      removeStatusEffect(target, id);
       cured = true;
     }
     return { log: `${caster.name}は${target.name}にディアルコを唱えた。${cured ? "状態異常が回復した！" : "しかし効果がなかった。"}` };
@@ -507,8 +516,8 @@ export const SPELL_EFFECTS = {
   },
   LATUMOFIS: ({ caster, target }) => {
     let cured = false;
-    if (target.status === "poisoned") {
-      target.status = "ok";
+    if (hasStatusEffect(target, STATUS_EFFECT_IDS.POISONED)) {
+      removeStatusEffect(target, STATUS_EFFECT_IDS.POISONED);
       cured = true;
     }
     return { log: `${caster.name}は${target.name}にラツモフィスを唱えた。${cured ? "毒が消え去った！" : "しかし効果がなかった。"}` };
@@ -576,7 +585,7 @@ export const SPELL_EFFECTS = {
       if (t.hp > 0) {
         const chance = (t.isBoss || t.isMidboss) ? baseChance * 0.6 : baseChance;
         if (rng() < chance) {
-          t.silenceTurns = 2;
+          applyStatusEffect(t, STATUS_EFFECT_IDS.SILENCE, { remainingTurns: 2 });
           silencedCount++;
         }
       }
