@@ -23,6 +23,14 @@ function getPublicEnv() {
   return import.meta.env ?? {};
 }
 
+export function resolvePostHogApiHost(configuredHost, { isProduction = Boolean(getPublicEnv().PROD) } = {}) {
+  const host = typeof configuredHost === "string" ? configuredHost.trim() : "";
+  if (!host) return "";
+
+  // Production uses the same-origin Vercel proxy to avoid Safari/WebKit CORS failures.
+  return isProduction ? "/ingest" : host;
+}
+
 function createRuntimeId(prefix) {
   const randomUuid = globalThis.crypto?.randomUUID;
   if (typeof randomUuid === "function") {
@@ -89,8 +97,9 @@ function normalizeDeathCause(cause) {
 function initializeTelemetry() {
   const env = getPublicEnv();
   const key = typeof env.VITE_POSTHOG_KEY === "string" ? env.VITE_POSTHOG_KEY.trim() : "";
-  const host = typeof env.VITE_POSTHOG_HOST === "string" ? env.VITE_POSTHOG_HOST.trim() : "";
-  if (!key || !host) {
+  const configuredHost = typeof env.VITE_POSTHOG_HOST === "string" ? env.VITE_POSTHOG_HOST : "";
+  const host = resolvePostHogApiHost(configuredHost);
+  if (!key || !configuredHost.trim() || !host) {
     telemetryState = "disabled";
     return;
   }
