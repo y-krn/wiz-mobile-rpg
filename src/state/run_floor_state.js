@@ -10,11 +10,30 @@ function countChests(grid) {
   return grid.reduce((total, row) => total + row.filter(cell => cell.event === "chest").length, 0);
 }
 
+function isFourBooleanArray(value) {
+  return Array.isArray(value) && value.length === 4 && value.every(entry => typeof entry === "boolean");
+}
+
+function isUsableFloorCell(cell) {
+  return cell && typeof cell === "object" &&
+    typeof cell.type === "string" &&
+    isFourBooleanArray(cell.walls) &&
+    isFourBooleanArray(cell.blockEnter) &&
+    isFourBooleanArray(cell.secretDoor) &&
+    isFourBooleanArray(cell.secretFound);
+}
+
+function isUsableVisitedMap(grid, visitedMap) {
+  return Array.isArray(visitedMap) && visitedMap.length === grid.length && visitedMap.every((row, y) =>
+    Array.isArray(row) && row.length === grid[y].length && row.every(cell => typeof cell === "boolean")
+  );
+}
+
 export function isUsableFloorMap(grid) {
   if (!Array.isArray(grid) || grid.length === 0) return false;
   const width = grid[0]?.length;
   return Number.isInteger(width) && width > 0 && grid.every(row =>
-    Array.isArray(row) && row.length === width && row.every(cell => cell && typeof cell === "object")
+    Array.isArray(row) && row.length === width && row.every(isUsableFloorCell)
   );
 }
 
@@ -39,8 +58,14 @@ function spawnFloorElite(stateLike, floor, runSeed, mapData) {
 export function ensureRunFloor(stateLike, floor) {
   const index = floor - 1;
   const existingMap = stateLike.maps?.[index];
+  const isActiveRun = Boolean(stateLike.currentRun?.runSeed && !stateLike.currentRun.returnReason);
+  const isActiveFloor = floor === stateLike.floor;
   if (isUsableFloorMap(existingMap)) {
-    if (!stateLike.visitedMaps?.[index]) {
+    const visitedMap = stateLike.visitedMaps?.[index];
+    if (!isUsableVisitedMap(existingMap, visitedMap)) {
+      if (isActiveRun && isActiveFloor && stateLike._freshRunFloor !== floor) {
+        throw new RunFloorRecoveryError(floor);
+      }
       stateLike.visitedMaps ||= [];
       stateLike.visitedMaps[index] = createVisitedGrid(existingMap);
       markMapChanged(stateLike);
@@ -48,8 +73,6 @@ export function ensureRunFloor(stateLike, floor) {
     return existingMap;
   }
 
-  const isActiveRun = Boolean(stateLike.currentRun?.runSeed && !stateLike.currentRun.returnReason);
-  const isActiveFloor = floor === stateLike.floor;
   if (isActiveRun && isActiveFloor && stateLike._freshRunFloor !== floor) {
     throw new RunFloorRecoveryError(floor);
   }

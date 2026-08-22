@@ -42,6 +42,18 @@ assert.ok(state.visitedMaps[0], "new run restores visited state with the map");
 ensureRunFloor(state, 2);
 assert.ok(isUsableFloorMap(state.maps[1]), "floor transition creates a complete destination map");
 
+// A rectangular map with an incomplete cell must fail the active-map boundary
+// before movement or rendering can dereference cell.walls/secretFound.
+initNewGame();
+createRunState("ISSUE-799-CELL-SCHEMA");
+const malformedCellMap = generateRunFloor({ runSeed: "ISSUE-799-CELL-SCHEMA", floor: 1 }).grid;
+malformedCellMap[0][0] = {};
+state.maps = [malformedCellMap];
+state.visitedMaps = [malformedCellMap.map(row => row.map(() => false))];
+delete state._freshRunFloor;
+assert.equal(isUsableFloorMap(malformedCellMap), false, "malformed cells are not usable floor maps");
+assert.throws(() => ensureRunFloor(state, 1), error => error instanceof RunFloorRecoveryError, "malformed active cell fails closed");
+
 // Active-floor corruption must fail closed rather than replace the map and
 // reset chest/trap/secret/milestone progress.
 initNewGame();
@@ -68,6 +80,19 @@ state.maps[0] = null;
 assert.equal(getCurrentExplorationCell(), null, "broken active map has no exploration cell");
 assert.equal(state.gameState, "town", "broken active map stops exploration");
 assert.match(state.logs.join("\n"), /安全に復旧できない/, "broken active map exposes a recovery error");
+
+// An existing active floor with missing or malformed visited data must not be
+// replaced by an all-false grid, which would erase exploration progress.
+initNewGame();
+createRunState("ISSUE-799-VISITED-DATA");
+const visitedDataMap = generateRunFloor({ runSeed: "ISSUE-799-VISITED-DATA", floor: 1 }).grid;
+state.maps = [visitedDataMap];
+state.visitedMaps = [null];
+delete state._freshRunFloor;
+assert.throws(() => ensureRunFloor(state, 1), error => error instanceof RunFloorRecoveryError, "missing active visited data fails closed");
+state.visitedMaps[0] = visitedDataMap.map(row => row.map(() => false));
+state.visitedMaps[0][0].pop();
+assert.throws(() => ensureRunFloor(state, 1), error => error instanceof RunFloorRecoveryError, "corrupt active visited data fails closed");
 
 // Resume path: a save may contain other run floors while the active floor is
 // damaged. Loading must preserve the run seed, floor, and damaged payload, then
