@@ -182,6 +182,15 @@ await liveCheck("live smash path still resolves the trap and rewards", async () 
   assert.equal(state.chestState, null, "smash should finish the real chest path");
 });
 
+await liveCheck("combat-generated reward chests keep their existing reward scope", async () => {
+  prepareLiveChest();
+  setupChestState("none", null, null, () => 0, { fromDrop: true });
+  assert.ok(state.chestState.item, "combat chest should still create its main reward");
+  assert.equal(state.chestState.specialItem, null);
+  openChestDirectly(state.party[0], () => 0);
+  assert.equal(state.inventory.includes("TOWN_PORTAL"), false);
+});
+
 check("real-run telemetry exposes acquisition, use, floor, HP band, and outcome fields", () => {
   const output = execFileSync(process.execPath, ["scratch/sim_depth_material_ev.js"], {
     cwd: process.cwd(),
@@ -223,6 +232,24 @@ check("real-run telemetry exposes acquisition, use, floor, HP band, and outcome 
     "b10ReachRate",
     "equipmentPerRun"
   ].forEach(field => assert.ok(Object.hasOwn(measurement, field), `missing ${field}`));
+  assert.deepEqual(
+    Object.keys(measurement.outcomeCounts).sort(),
+    ["abandon", "death", "retreat"]
+  );
+  assert.equal(
+    measurement.retreatRate,
+    measurement.outcomeCounts.retreat / measurement.runs
+  );
+  assert.equal(
+    measurement.deathRate,
+    measurement.outcomeCounts.death / measurement.runs
+  );
+
+  const issue697Line = output.split("\n").find(value => value.startsWith("ISSUE697_MEASUREMENT_JSON="));
+  assert.ok(issue697Line, "Issue #697 measurement output should be present");
+  const issue697 = JSON.parse(issue697Line.slice("ISSUE697_MEASUREMENT_JSON=".length))[0];
+  assert.equal(issue697.retreatRate, issue697.outcomeCounts.retreat / issue697.runs);
+  assert.equal(issue697.deathRate, issue697.outcomeCounts.death / issue697.runs);
 });
 
 if (failures.length > 0) {

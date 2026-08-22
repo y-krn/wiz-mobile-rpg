@@ -65,7 +65,9 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
       state.firstChestUnidentifiedGuaranteed = true;
     }
   }
-  const specialItem = forcedItem === null ? rollChestSpecialReward(state.floor, rng) : null;
+  const specialItem = forcedItem === null && !options.fromDrop
+    ? rollChestSpecialReward(state.floor, rng)
+    : null;
   const accessoryItem = forcedItem === null ? rollChestAccessory(state.floor, rng, state.party) : null;
 
   // Aura & loot hint calculation
