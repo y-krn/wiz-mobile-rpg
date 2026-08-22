@@ -10,6 +10,14 @@ function countChests(grid) {
   return grid.reduce((total, row) => total + row.filter(cell => cell.event === "chest").length, 0);
 }
 
+export function isUsableFloorMap(grid) {
+  if (!Array.isArray(grid) || grid.length === 0) return false;
+  const width = grid[0]?.length;
+  return Number.isInteger(width) && width > 0 && grid.every(row =>
+    Array.isArray(row) && row.length === width && row.every(cell => cell && typeof cell === "object")
+  );
+}
+
 // 徘徊エリートは階を生成した瞬間に置く。撃破済みの階はmapsが残るためここまで来ない。
 function spawnFloorElite(stateLike, floor, runSeed, mapData) {
   const elite = createFloorElite({ runSeed, floor, mapData });
@@ -20,8 +28,15 @@ function spawnFloorElite(stateLike, floor, runSeed, mapData) {
 }
 
 export function ensureRunFloor(stateLike, floor) {
-  if (stateLike.maps?.[floor - 1] && stateLike.visitedMaps?.[floor - 1]) {
-    return stateLike.maps[floor - 1];
+  const index = floor - 1;
+  const existingMap = stateLike.maps?.[index];
+  if (isUsableFloorMap(existingMap)) {
+    if (!stateLike.visitedMaps?.[index]) {
+      stateLike.visitedMaps ||= [];
+      stateLike.visitedMaps[index] = createVisitedGrid(existingMap);
+      markMapChanged(stateLike);
+    }
+    return existingMap;
   }
   const runSeed = stateLike.currentRun?.runSeed;
   if (!runSeed) throw new Error("currentRun.runSeed is required before floor generation");
@@ -31,10 +46,10 @@ export function ensureRunFloor(stateLike, floor) {
   stateLike.floorChestsOpened ||= [];
   stateLike.floorChestsTotal ||= [];
   spawnFloorElite(stateLike, floor, runSeed, generated);
-  stateLike.maps[floor - 1] = generated.grid;
-  stateLike.visitedMaps[floor - 1] = createVisitedGrid(generated.grid);
-  stateLike.floorChestsOpened[floor - 1] = 0;
-  stateLike.floorChestsTotal[floor - 1] = countChests(generated.grid);
+  stateLike.maps[index] = generated.grid;
+  stateLike.visitedMaps[index] = createVisitedGrid(generated.grid);
+  stateLike.floorChestsOpened[index] = 0;
+  stateLike.floorChestsTotal[index] = countChests(generated.grid);
   markMapChanged(stateLike);
   return generated.grid;
 }
