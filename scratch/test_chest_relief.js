@@ -342,6 +342,24 @@ await test("通常開封・成功解除・キット解除は報酬を失わな�
   }
 });
 
+await test("致死的な通常解除失敗は既存どおり報酬を付与してからゲームオーバーへ進む", () => {
+  const doomed = makeCharacter("Ninja");
+  doomed.hp = 1;
+  resetChest({ trap: "poison needle", item: "HEAL_POTION", party: [doomed] });
+  const originalSetTimeout = global.setTimeout;
+  global.setTimeout = callback => { callback(); return 0; };
+  try {
+    // Ninja's 70% disarm boundary fails; the full trap then deals lethal damage.
+    executeDisarm(doomed, sequence([0.70, 0, 0, 0, 0]));
+  } finally {
+    global.setTimeout = originalSetTimeout;
+  }
+  assert.equal(doomed.status, "dead");
+  assert.equal(state.inventory.includes("HEAL_POTION"), true);
+  assert.equal(state.currentRun.itemsFound.includes("HEAL_POTION"), true);
+  assert.ok(Object.values(state.currentRun.materials).some(quantity => quantity > 0));
+});
+
 await test("叩き壊すは罠で全滅したら報酬判定・付与を行わない", () => {
   const doomed = makeCharacter();
   doomed.hp = 1;

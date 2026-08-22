@@ -8721,11 +8721,10 @@ function resolveChestTrapForSimulation(
     state.currentRun.trapsTriggered++;
     metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
     applyChestTrapEffect(state, trap, false, metrics);
-    return {
-      lethal: !state.party.some(isAlive),
-      mainItemLost: false,
-      lostRewardRoles: []
-    };
+    // Ordinary disarm failure intentionally follows the existing live path:
+    // openChestDirectly still awards the chest before the game-over transition.
+    // Only the force/smash-equivalent branch has the lethal reward gate.
+    return { mainItemLost: false };
   }
 
   metrics.trapForced++;
