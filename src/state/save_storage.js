@@ -159,7 +159,7 @@ function recoverActiveRunFloorIfNeeded() {
   if (!activeRun || !explorationState) return;
 
   const floorMap = state.maps?.[state.floor - 1];
-  const hadUsableFloorMap = isUsableFloorMap(floorMap);
+  const hadUsableFloorMap = isUsableFloorMap(floorMap, state.floor);
   ensureRunFloor(state, state.floor);
   if (hadUsableFloorMap) return;
   addLog("探索中のマップデータが欠落していたため、同じランの階層を再生成して復旧しました。");

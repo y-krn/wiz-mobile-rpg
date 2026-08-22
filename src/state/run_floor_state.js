@@ -1,5 +1,6 @@
 import { generateRunFloor } from "../run_map_generator.js";
 import { createFloorElite } from "../systems/roaming_elites.js";
+import { getFloorTemplate } from "../data/floor_templates.js";
 import { markMapChanged } from "./state_core.js";
 
 function createVisitedGrid(grid) {
@@ -29,12 +30,29 @@ function isUsableVisitedMap(grid, visitedMap) {
   );
 }
 
-export function isUsableFloorMap(grid) {
-  if (!Array.isArray(grid) || grid.length === 0) return false;
-  const width = grid[0]?.length;
-  return Number.isInteger(width) && width > 0 && grid.every(row =>
-    Array.isArray(row) && row.length === width && row.every(isUsableFloorCell)
-  );
+export function isUsableFloorMap(grid, floor = null) {
+  if (!Array.isArray(grid)) return false;
+  const expectedSize = Number.isInteger(floor) && floor > 0
+    ? getFloorTemplate(floor).size
+    : null;
+  const width = expectedSize?.width ?? grid[0]?.length;
+  const height = expectedSize?.height ?? grid.length;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) return false;
+  if (grid.length !== height) return false;
+
+  let hasStairsUp = false;
+  let hasStairsDown = false;
+  for (let y = 0; y < height; y++) {
+    const row = grid[y];
+    if (!Array.isArray(row) || row.length !== width) return false;
+    for (let x = 0; x < width; x++) {
+      const cell = row[x];
+      if (!isUsableFloorCell(cell)) return false;
+      if (cell.type === "stairs-up") hasStairsUp = true;
+      if (cell.type === "stairs-down") hasStairsDown = true;
+    }
+  }
+  return hasStairsUp && hasStairsDown;
 }
 
 export class RunFloorRecoveryError extends Error {
@@ -60,7 +78,7 @@ export function ensureRunFloor(stateLike, floor) {
   const existingMap = stateLike.maps?.[index];
   const isActiveRun = Boolean(stateLike.currentRun?.runSeed && !stateLike.currentRun.returnReason);
   const isActiveFloor = floor === stateLike.floor;
-  if (isUsableFloorMap(existingMap)) {
+  if (isUsableFloorMap(existingMap, isActiveRun ? floor : null)) {
     const visitedMap = stateLike.visitedMaps?.[index];
     if (!isUsableVisitedMap(existingMap, visitedMap)) {
       if (isActiveRun && isActiveFloor && stateLike._freshRunFloor !== floor) {

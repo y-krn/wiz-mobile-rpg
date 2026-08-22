@@ -63,6 +63,38 @@ assert.equal(getCurrentExplorationCell(), null, "movement/Search rejects a malfo
 assert.equal(state.gameState, "town", "malformed current cell stops movement/Search");
 assert.match(state.logs.join("\n"), /安全に復旧できない/, "malformed current cell exposes a recovery error");
 
+// Active-run migration must preflight malformed rows before default-coordinate
+// lookup or derived chest counting, then preserve the run for explicit recovery.
+initNewGame();
+createRunState("ISSUE-799-NULL-ROW");
+const nullRowMap = generateRunFloor({ runSeed: "ISSUE-799-NULL-ROW", floor: 1 }).grid;
+state.maps = [nullRowMap];
+state.visitedMaps = [nullRowMap.map(row => row.map(() => false))];
+saveAutosave();
+const nullRowSave = JSON.parse(localStorage.getItem("mobile_wiz_rpg_autosave"));
+nullRowSave.maps[0][0] = null;
+delete nullRowSave.floorChestsTotal;
+localStorage.setItem("mobile_wiz_rpg_autosave", JSON.stringify(nullRowSave));
+localStorage.removeItem("mobile_wiz_rpg_backup");
+localStorage.removeItem("mobile_wiz_rpg_save");
+loadGame();
+
+assert.equal(state.currentRun.runSeed, "ISSUE-799-NULL-ROW", "null-row recovery preserves currentRun.runSeed");
+assert.equal(state.floor, 1, "null-row recovery preserves active floor");
+assert.equal(state.maps[0][0], null, "null-row recovery preserves the malformed row");
+assert.match(state.logs.join("\n"), /安全に復旧できない/, "null-row migration exposes an explicit recovery error");
+
+// A map with uniformly truncated rows or a sparse hole is not a playable run
+// floor even when every remaining cell has the expected schema.
+const validationMap = generateRunFloor({ runSeed: "ISSUE-799-VALIDATION", floor: 1 }).grid;
+const equallyTruncatedMap = validationMap.slice(0, -1).map(row => row.slice(0, -1));
+assert.equal(isUsableFloorMap(equallyTruncatedMap, 1), false, "equally truncated maps are rejected");
+const oneCellMap = validationMap.slice(0, 1).map(row => row.slice(0, 1));
+assert.equal(isUsableFloorMap(oneCellMap, 1), false, "1x1 maps are rejected");
+const sparseHoleMap = validationMap.map(row => row.slice());
+delete sparseHoleMap[5][5];
+assert.equal(isUsableFloorMap(sparseHoleMap, 1), false, "sparse map holes are rejected");
+
 // Active-floor corruption must fail closed rather than replace the map and
 // reset chest/trap/secret/milestone progress.
 initNewGame();
