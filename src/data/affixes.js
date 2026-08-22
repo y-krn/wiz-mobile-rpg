@@ -314,10 +314,10 @@ export const CORE_AFFIXES = [
     id: "CORE_EXECUTIONER",
     kind: "core",
     jpName: "執行人",
-    desc: "状態異常中の敵への与ダメージが2倍になる。",
+    desc: "攻撃前35%で敵を毒にし、状態異常中の敵への与ダメージが1.4倍になる。",
     slot: "weapon",
     cost: 10,
-    params: { damageMultiplier: 2 },
+    params: { status: "poisoned", statusChance: 0.35, damageMultiplier: 1.4 },
     poolGroup: "combat",
     enabled: true
   },

@@ -57,7 +57,7 @@ The actual value of each effect parameter is defined by `params` in `src/data/af
 | 巨人殺し | CORE_GIANT_SLAYER | +30% damage dealt to enemies with higher maxHP than self | Weapon |
 | 守護者殺し | CORE_MILESTONE_BREAKER | +25% damage dealt to milestone bosses | Weapon |
 | 反撃の棘 | CORE_THORN_SHIELD | 30% chance to counterattack at 50% power when hit | Shield |
-| 執行人 | CORE_EXECUTIONER | 2× damage dealt to enemies with status ailments | Weapon |
+| 執行人 | CORE_EXECUTIONER | Before each attack, 35% chance to poison the target; 1.4× damage dealt to enemies with status ailments | Weapon |
 | 薄氷の誓約 | CORE_THIN_ICE_PACT | At HP ≤50%, +35% damage dealt and +20% damage taken | Armor |
 
 “First strike” in this game refers to speed-based preemptive action: only when acting before the enemy in round 1

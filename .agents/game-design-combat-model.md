@@ -176,7 +176,14 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
    `physicalResistance` へ加算済みであり、物理耐性を別乗算しない。
    d3 = d2
 
-5. `getDamageAffixResult` の共通 target-tag stage でタグ特効を加算して一度だけ
+5. コアが持つ攻撃前の状態異常 setup は、対象が生存していて既存状態が `ok`（または
+   未設定）のときだけ、`getDamageAffixResult` の評価前に 1 回判定する。setup が
+   成功した同じ攻撃でも、その状態異常は EXECUTIONER の条件へ直ちに入力される。
+   既存の `poisonAtk` support は従来どおり命中後に判定し、setup と同じ攻撃で対象が
+   すでに毒なら重複付与しない。KATINO の sleep 付与と被弾時 wake 判定はこの stage
+   の対象外である。
+
+6. `getDamageAffixResult` の共通 target-tag stage でタグ特効を加算して一度だけ
    適用する。
    ```text
    tagBonus = Σ (getCharAffixSum(char, anti<Tag>) + spellIntrinsicTagBonus(spell, tag))
@@ -186,7 +193,7 @@ d0 = max(1, floor(attackRaw * (1 - physicalResistance)))
    複数タグは加算プールへ合流するため、旧 `else-if` の優先順とは挙動が変わる。
    物理と攻撃呪文はこの stage を共有し、1攻撃につき一度だけ通る。
 
-6. 同じ `getDamageAffixResult` 内で core / support / milestone exposure を適用する。
+7. 同じ `getDamageAffixResult` 内で core / support / milestone exposure を適用する。
 
    core の順序:
    LAST_STAND -> GIANT_SLAYER -> EXECUTIONER
