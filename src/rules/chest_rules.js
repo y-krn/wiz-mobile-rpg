@@ -12,8 +12,27 @@ import { getCharAffixSum } from "./item_rules.js";
 // 宝箱の装身具は B2、本体装備は B3 から core を解禁する（#270）。
 export const CHEST_ACCESSORY_CORE_MIN_FLOOR = 2;
 export const CHEST_EQUIPMENT_CORE_MIN_FLOOR = 3;
-// src/chest.jsのsmashChestとsimの内容損失判定で共有する。
-export const CHEST_USABLE_BREAK_CHANCE = 0.30;
+// src/chest.js の smashChest と real-run sim の内容損失判定で共有する。
+// 役割ごとに独立して判定し、特殊報酬・quest・進行必須報酬は保護する。
+export const CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY = Object.freeze({
+  weapon: 0.25,
+  armor: 0.25,
+  shield: 0.25,
+  accessory: 0.25,
+  usable: 0.50,
+  special: 0,
+  quest: 0,
+  progression: 0
+});
+
+// Backward-compatible name for the trap EV helper and existing callers. The
+// value is the usable rate in the new smash rule, not a separate percentage.
+export const CHEST_USABLE_BREAK_CHANCE =
+  CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY.usable;
+
+const CHEST_SMASH_PROTECTED_ITEM_IDS = new Set([
+  "TOWN_PORTAL"
+]);
 
 // Return Wing is a retreat-right reward, not a normal chest item. The rates
 // match the base chest-pool replacement opportunity measured on the real run
@@ -35,6 +54,47 @@ function getChestItemData(item) {
   return ITEMS[itemId] || (typeof item === "object" ? item : null);
 }
 
+export function getChestSmashRewardCategory(item, role = null) {
+  if (!item) return null;
+  if (role === "special" || CHEST_SMASH_PROTECTED_ITEM_IDS.has(
+    typeof item === "object" ? item.baseId || item.key || item.id : item
+  )) {
+    return "special";
+  }
+  const type = getChestItemData(item)?.type;
+  if (type === "weapon" || type === "armor" || type === "shield" ||
+      type === "accessory" || type === "usable") {
+    return type;
+  }
+  if (type === "quest") return "quest";
+  return "progression";
+}
+
+export function getChestSmashRewardLossChance(item, role = null) {
+  const category = getChestSmashRewardCategory(item, role);
+  return category ? CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY[category] : 0;
+}
+
+export function rollChestSmashRewardLoss(item, rng = Math.random, role = null) {
+  const chance = getChestSmashRewardLossChance(item, role);
+  return chance > 0 && rng() < chance;
+}
+
+// Reward roles are intentionally explicit so a main item, accessory, and
+// special reward each consume their own roll. Zero-rate protected rewards do
+// not consume RNG, preserving the old stream whenever no destructive roll is
+// possible.
+export function resolveChestSmashRewardLosses(rewards = [], rng = Math.random) {
+  return rewards.reduce((losses, reward) => {
+    if (!reward?.item) return losses;
+    const role = reward.role || "main";
+    if (rollChestSmashRewardLoss(reward.item, rng, role)) {
+      losses.push({ role, category: getChestSmashRewardCategory(reward.item, role) });
+    }
+    return losses;
+  }, []);
+}
+
 // item品質を共通通貨へ換算する既存ルールはないため、生成済みmain itemの存在を
 // 1 content unitとして扱う。内容の有無とusable破損率だけを方針へ渡す。
 export function calculateChestMainItemExpectedValue(item) {
@@ -42,9 +102,7 @@ export function calculateChestMainItemExpectedValue(item) {
 }
 
 export function calculateChestMainItemForcedLossRate(item) {
-  return getChestItemData(item)?.type === "usable"
-    ? CHEST_USABLE_BREAK_CHANCE
-    : 0;
+  return getChestSmashRewardLossChance(item);
 }
 
 export const CHEST_ITEM_CANDIDATES_BY_FLOOR = Object.freeze({

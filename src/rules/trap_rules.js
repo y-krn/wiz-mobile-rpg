@@ -108,7 +108,7 @@ export function calculateFloorTrapAvoidanceEv({
 }
 
 // 宝箱の代表的な比較（完全効果1.0 vs 弱体効果0.5）における解除確率閾値。
-// gasの期待ダメージ、teleporter、usableの30%破損は別効用のため個別閾値でない。
+// gasの期待ダメージ、teleporter、smash報酬破損は別効用のため個別閾値でない。
 export function calculateChestDisarmEvThreshold({
   fullRiskMultiplier = 1,
   weakenedRiskMultiplier = CHEST_WEAKENED_RISK_MULTIPLIER,

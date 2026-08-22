@@ -62,7 +62,14 @@ const { createDefaultCurrentRun } = await import("../src/state/initial_state.js"
 const { ITEMS } = await import("../src/data.js");
 const { MILESTONE_MERCHANT_STOCK } = await import("../src/data/milestone_merchant.js");
 const {
+  CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY,
+  getChestSmashRewardCategory,
+  getChestSmashRewardLossChance,
+  resolveChestSmashRewardLosses
+} = await import("../src/rules/chest_rules.js");
+const {
   executeDisarm,
+  openChestDirectly,
   smashChest,
   triggerChestTrap,
   useTrapKit
@@ -95,7 +102,13 @@ function makeCharacter(className = "Fighter", name = className) {
   return char;
 }
 
-function resetChest({ trap = "none", item = null, accessoryItem = null, party = null } = {}) {
+function resetChest({
+  trap = "none",
+  item = null,
+  specialItem = null,
+  accessoryItem = null,
+  party = null
+} = {}) {
   initNewGame();
   state.floor = 2;
   state.party = party || [makeCharacter()];
@@ -107,6 +120,7 @@ function resetChest({ trap = "none", item = null, accessoryItem = null, party = 
     y: state.y,
     trap,
     item,
+    specialItem,
     accessoryItem,
     inspected: false,
     identifiedTrap: "",
@@ -207,20 +221,133 @@ await test("テレポート先が空でも宝箱破壊の操作ロックを残�
   assert.equal(state.map[chestCoord.y][chestCoord.x].event, null);
 });
 
-await test("叩き壊すとusableだけ30%で破損し、素材と装身具は残る", () => {
+await test("叩き壊すの各報酬カテゴリは指定率と境界を使う", () => {
+  const cases = [
+    ["DAGGER", "main", "weapon"],
+    ["LEATHER_ARMOR", "main", "armor"],
+    ["SMALL_SHIELD", "main", "shield"],
+    ["AMULET_HP", "accessory", "accessory"],
+    ["HEAL_POTION", "main", "usable"]
+  ];
+  for (const [item, role, category] of cases) {
+    const chance = CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY[category];
+    assert.equal(getChestSmashRewardCategory(item, role), category);
+    assert.equal(getChestSmashRewardLossChance(item, role), chance);
+    assert.equal(resolveChestSmashRewardLosses([{ item, role }], () => chance - 0.001).length, 1);
+    assert.equal(resolveChestSmashRewardLosses([{ item, role }], () => chance).length, 0);
+  }
+  assert.equal(getChestSmashRewardCategory("TOWN_PORTAL", "special"), "special");
+  assert.equal(getChestSmashRewardLossChance("TOWN_PORTAL", "special"), 0);
+  assert.equal(resolveChestSmashRewardLosses([
+    { item: "TOWN_PORTAL", role: "special" },
+    { item: "EXCALIBUR_FRAGMENT", role: "main" }
+  ], () => 0).length, 0);
+});
+
+await test("叩き壊すの複数報酬はmain・special・accessoryを独立判定する", () => {
+  const rewards = [
+    { role: "main", item: "DAGGER" },
+    { role: "special", item: "TOWN_PORTAL" },
+    { role: "accessory", item: "AMULET_HP" }
+  ];
+  assert.deepEqual(
+    resolveChestSmashRewardLosses(rewards, sequence([0.249, 0.249])),
+    [{ role: "main", category: "weapon" }, { role: "accessory", category: "accessory" }]
+  );
+  assert.deepEqual(
+    resolveChestSmashRewardLosses(rewards, sequence([0.249, 0.251])),
+    [{ role: "main", category: "weapon" }]
+  );
+  assert.deepEqual(
+    resolveChestSmashRewardLosses(rewards, sequence([0.249, 0.251])),
+    resolveChestSmashRewardLosses(rewards, sequence([0.249, 0.251]))
+  );
+});
+
+await test("叩き壊すはusableを50%で破損し、境界では残る", () => {
   resetChest({ trap: "none", item: "HEAL_POTION", accessoryItem: "AMULET_HP" });
-  smashChest(sequence([0.299, 0, 0, 0.99]));
+  smashChest(sequence([0.499, 0.99, 0.99, 0.99]));
   assert.equal(state.inventory.includes("HEAL_POTION"), false);
   assert.equal(state.inventory.includes("AMULET_HP"), true);
   assert.ok(Object.values(state.currentRun.materials).reduce((sum, qty) => sum + qty, 0) > 0);
 
   resetChest({ trap: "none", item: "HEAL_POTION" });
-  smashChest(sequence([0.30, 0, 0, 0.99]));
+  smashChest(sequence([0.50, 0.99, 0.99, 0.99]));
   assert.equal(state.inventory.includes("HEAL_POTION"), true);
 
   resetChest({ trap: "none", item: "DAGGER" });
-  smashChest(sequence([0, 0, 0.99]));
+  smashChest(sequence([0.25, 0.99, 0.99]));
   assert.equal(state.inventory.includes("DAGGER"), true);
+  assert.ok(state.logs.includes("叩き壊した衝撃に耐え、報酬は無事だった。"));
+});
+
+await test("叩き壊すの装備品1件損失ログは名前を含めない", () => {
+  resetChest({ trap: "none", item: "DAGGER" });
+  smashChest(sequence([0, 0.99, 0.99]));
+  assert.equal(state.inventory.includes("DAGGER"), false);
+  assert.ok(state.logs.includes("叩き壊した衝撃で、装備品が壊れていた。"));
+  assert.equal(state.logs.some(log => log.includes("ダガー")), false);
+});
+
+await test("叩き壊すは報酬破壊を記録へ残さず、特殊報酬を保護する", () => {
+  resetChest({
+    trap: "none",
+    item: "DAGGER",
+    specialItem: "TOWN_PORTAL",
+    accessoryItem: "AMULET_HP"
+  });
+  smashChest(sequence([0.249, 0.249, 0.99, 0.99, 0.99]));
+  assert.equal(state.inventory.includes("DAGGER"), false);
+  assert.equal(state.inventory.includes("AMULET_HP"), false);
+  assert.equal(state.inventory.includes("TOWN_PORTAL"), true);
+  assert.equal(state.currentRun.itemsFound.includes("DAGGER"), false);
+  assert.equal(state.currentRun.equipmentFound.includes("AMULET_HP"), false);
+  assert.equal(state.currentRun.itemsFound.includes("TOWN_PORTAL"), true);
+  assert.ok(state.logs.includes("叩き壊した衝撃で、複数の報酬が失われた。"));
+});
+
+await test("通常開封・成功解除・キット解除は報酬を失わない", () => {
+  resetChest({ trap: "none", item: "HEAL_POTION", accessoryItem: "AMULET_HP" });
+  openChestDirectly(null, () => 0);
+  assert.equal(state.inventory.includes("HEAL_POTION"), true);
+  assert.equal(state.inventory.includes("AMULET_HP"), true);
+
+  const originalSetTimeout = global.setTimeout;
+  global.setTimeout = callback => { callback(); return 0; };
+  try {
+    const disarmer = makeCharacter("Ninja");
+    resetChest({ trap: "poison needle", item: "HEAL_POTION", accessoryItem: "AMULET_HP", party: [disarmer] });
+    executeDisarm(disarmer, () => 0);
+    assert.equal(state.inventory.includes("HEAL_POTION"), true);
+    assert.equal(state.inventory.includes("AMULET_HP"), true);
+
+    resetChest({ trap: "poison needle", item: "HEAL_POTION", accessoryItem: "AMULET_HP" });
+    state.inventory = ["TRAP_KIT"];
+    assert.equal(useTrapKit(), true);
+    openChestDirectly(null, () => 0);
+    assert.equal(state.inventory.includes("HEAL_POTION"), true);
+    assert.equal(state.inventory.includes("AMULET_HP"), true);
+  } finally {
+    global.setTimeout = originalSetTimeout;
+  }
+});
+
+await test("叩き壊すは罠で全滅したら報酬判定・付与を行わない", () => {
+  const doomed = makeCharacter();
+  doomed.hp = 1;
+  resetChest({ trap: "poison needle", item: "DAGGER", accessoryItem: "AMULET_HP", party: [doomed] });
+  const originalSetTimeout = global.setTimeout;
+  global.setTimeout = () => 0;
+  try {
+    smashChest(sequence([0, 0, 0, 0, 0]));
+  } finally {
+    global.setTimeout = originalSetTimeout;
+  }
+  assert.equal(doomed.status, "dead");
+  assert.equal(state.inventory.includes("DAGGER"), false);
+  assert.equal(state.inventory.includes("AMULET_HP"), false);
+  assert.equal(state.currentRun.equipmentFound.length, 0);
+  assert.equal(state.map[state.y][state.x].event, null);
 });
 
 await test("キットは1個消費して確定解除し、解除数を増やさない", () => {

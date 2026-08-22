@@ -143,6 +143,7 @@ const {
   CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
   calculateChestMainItemExpectedValue,
   calculateChestMainItemForcedLossRate,
+  resolveChestSmashRewardLosses,
   rollChestAccessory,
   rollChestReward,
   rollChestTrap,
@@ -8629,7 +8630,7 @@ function resolveChestTrapForSimulation(
   mainItem,
   observations,
   metrics,
-  { futureChestCount = 0 } = {}
+  { futureChestCount = 0, smashRewards = [], rng = Math.random } = {}
 ) {
   const character = state.party[0];
   const blindStatus = character.status === "blind" ? "blind" : "clear";
@@ -8728,9 +8729,13 @@ function resolveChestTrapForSimulation(
   state.currentRun.trapsTriggered++;
   metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
   applyChestTrapEffect(state, trap, true, metrics);
-  const mainItemLossRate = calculateChestMainItemForcedLossRate(mainItem);
-  const mainItemLost = mainItemLossRate > 0 && Math.random() < mainItemLossRate;
-  return { mainItemLost };
+  // The simulator's `force` action is the production weakened-trap/smash
+  // branch. Use the shared role-aware rule for all modeled chest rewards.
+  const losses = resolveChestSmashRewardLosses(smashRewards, rng);
+  return {
+    mainItemLost: losses.some(loss => loss.role === "main"),
+    lostRewardRoles: losses.map(loss => loss.role)
+  };
 }
 
 // 抽選そのものは src/rules/chest_rules.js（src/chest.js と同一の出所）を叩き、
@@ -8859,13 +8864,23 @@ function rollChestItems(
       item,
       observations,
       metrics,
-      { futureChestCount }
+      {
+        futureChestCount,
+        rng,
+        smashRewards: ["main", "special", "accessory"]
+          .filter(role => Number.isInteger(itemIndices[role]))
+          .map(role => ({ role, item: items[itemIndices[role]] }))
+      }
     );
+  const rewardLossRoles = new Set(trapResult.lostRewardRoles || []);
   return {
     items,
     mainItem: mainRewardItem,
     mainItemIndex: itemIndices.main ?? -1,
     mainItemLost: trapResult.mainItemLost,
+    lostRewardIndices: [...rewardLossRoles]
+      .map(role => itemIndices[role])
+      .filter(index => Number.isInteger(index)),
     specialItem,
     specialItemIndex: itemIndices.special ?? -1,
     extraHealPotion: Boolean(extraHealPotion),
@@ -10377,6 +10392,7 @@ export function simulateRun({
         const acquiredEquipment = [];
         recordEquipmentGenerations(metrics, chestItems.items);
         chestItems.items.forEach((item, itemIndex) => {
+          if (chestItems.lostRewardIndices?.includes(itemIndex)) return;
           if (
             chestItems.mainItemLost &&
             itemIndex === chestItems.mainItemIndex &&

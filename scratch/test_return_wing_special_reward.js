@@ -195,6 +195,15 @@ await liveCheck("combat-generated reward chests keep their existing reward scope
   assert.equal(state.inventory.filter(item => item === "TOWN_PORTAL").length, 1);
 });
 
+await liveCheck("combat-generated Return Wing remains protected when smashed", async () => {
+  prepareLiveChest();
+  setupChestState("none", null, "TOWN_PORTAL", () => 0, { fromDrop: true });
+  assert.equal(state.chestState.fromDrop, true);
+  assert.equal(smashChest(() => 0), true);
+  assert.equal(state.inventory.filter(item => item === "TOWN_PORTAL").length, 1);
+  assert.equal(state.currentRun.itemsFound.includes("TOWN_PORTAL"), true);
+});
+
 check("real-run telemetry exposes acquisition, use, floor, HP band, and outcome fields", () => {
   const output = execFileSync(process.execPath, ["scratch/sim_depth_material_ev.js"], {
     cwd: process.cwd(),
