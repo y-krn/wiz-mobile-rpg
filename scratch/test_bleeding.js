@@ -65,7 +65,7 @@ const second = runRound(first.state, [0, 0, 0, 0]);
 const secondTarget = second.state.combatState.monsters[0];
 const secondHit = second.state.combatFormulaTelemetry.physicalPlayerHits.at(-1);
 assert.equal(secondHit.bleedingTrigger, true);
-assert.equal(secondHit.bleedingDamageContribution, 2);
+assert.equal(secondHit.bleedingDamageContribution, 1);
 assert.equal(second.state.simTelemetry.bleeding.triggered, 1);
 assert.equal(second.state.simTelemetry.bleeding.refresh, 1);
 assert.equal(getStatusEffectRemainingTurns(secondTarget, STATUS_EFFECT_IDS.BLEEDING), BLEEDING_DURATION_TURNS - 1);

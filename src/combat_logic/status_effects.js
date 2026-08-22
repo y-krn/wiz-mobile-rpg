@@ -11,7 +11,7 @@ export const STATUS_EFFECT_IDS = Object.freeze({
 // refreshes the timer and never adds stacks.
 export const BLEEDING_DURATION_TURNS = 3;
 export const BLEEDING_PAYOFF_DAMAGE_CANDIDATES = Object.freeze([1, 2, 3]);
-export const BLEEDING_PAYOFF_DAMAGE = 2;
+export const BLEEDING_PAYOFF_DAMAGE = 1;
 
 const LEGACY_STATUS_IDS = new Set([
   STATUS_EFFECT_IDS.POISONED,

@@ -23,11 +23,12 @@ for (const viewport of VIEWPORTS) {
       state.codex = { monsters: {} };
       menuContext.type = 'combat_target';
       menuContext.targetType = 'enemy';
+      document.getElementById('combat-overlay').style.display = 'flex';
       renderCombatOverlay();
     });
 
     const status = page.locator('[data-status-effect="bleeding"]');
-    await expect(status).toHaveText(/出血：あと2回 \/ 次の通常攻撃\+2/);
+    await expect(status).toHaveText(/出血：あと2回 \/ 次の通常攻撃\+1/);
     await expect(status).toBeVisible();
     const bounds = await status.boundingBox();
     expect(bounds?.x ?? -1).toBeGreaterThanOrEqual(0);

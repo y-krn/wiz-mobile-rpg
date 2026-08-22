@@ -117,7 +117,8 @@ function summarizeCase(label, payoffDamage, bleedingAffixValue, scoringProfile, 
 await mkdir("scratch/results", { recursive: true });
 const measurement = {
   issue: 793,
-  sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
+  sourceCommit: process.env.BLEEDING_SOURCE_CODE_SHA || MEASUREMENT_PROVENANCE?.sourceCommit || null,
+  runnerCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
   originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
   staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
   runner: `node ${process.version}; scratch/sim_issue_793_bleeding.js`,
