@@ -1,6 +1,7 @@
 import { getAffixDefinition } from "../data/affixes.js";
 import { getCharAffixSum } from "./item_rules.js";
 import { getMilestoneBossExposureMultiplier } from "./boss_rules.js";
+import { applyStatusEffect, hasStatusEffectForDamage, STATUS_EFFECT_IDS } from "../combat_logic/status_effects.js";
 
 function getEquippedCoreEntries(char) {
   if (!char?.equipment) return [];
@@ -153,7 +154,7 @@ export function getDamageAffixResult(
   }
 
   const executioner = getCharCoreParams(char, "CORE_EXECUTIONER");
-  if (executioner && target?.status && !["ok", "dead"].includes(target.status)) {
+  if (executioner && hasStatusEffectForDamage(target)) {
     multiplier *= executioner.damageMultiplier;
     coreIds.push("CORE_EXECUTIONER");
   }
@@ -204,13 +205,12 @@ export function tryApplyExecutionerSetup(
     !params ||
     !target ||
     target.hp <= 0 ||
-    (target.status && target.status !== "ok") ||
-    target.status === params.status ||
+    hasStatusEffectForDamage(target) ||
     typeof rng !== "function" ||
     rng() >= params.statusChance
   ) return false;
 
-  target.status = params.status;
+  applyStatusEffect(target, params.status || STATUS_EFFECT_IDS.POISONED, { source: "CORE_EXECUTIONER" });
   logQueue?.push({
     msg: `[味方] [!] ${char.name}の執行人が${target.name}を毒に侵した！`,
     sound: "poison",

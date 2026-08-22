@@ -1,7 +1,11 @@
 import { reduceIncomingDamage } from "./damage.js";
 import { recordCharDeath } from "../state.js";
 import { getStatusEffectChance } from "../rules/affix_rules.js";
-import { clearCharIncapacitationOnDamage } from "./status_effects.js";
+import {
+  applyStatusEffect,
+  clearCharIncapacitationOnDamage,
+  STATUS_EFFECT_IDS
+} from "./status_effects.js";
 import {
   getMilestoneBossRule,
   shouldBreakMilestoneBossGuard
@@ -162,10 +166,10 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         } else {
           const gazeRoll = Math.random();
           if (gazeRoll < 0.50) {
-            target.status = "blind";
+            applyStatusEffect(target, STATUS_EFFECT_IDS.BLIND, { source: "boss_gaze" });
             logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は盲目になった！` });
           } else {
-            target.status = "paralyzed";
+            applyStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED, { source: "boss_gaze" });
             logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は麻痺した！` });
           }
         }

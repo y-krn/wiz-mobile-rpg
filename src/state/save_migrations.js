@@ -6,6 +6,7 @@ import { normalizeRecords } from "./records_state.js";
 import { findMapCellByType } from "../rules/map_queries.js";
 import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
 import { addMaterials } from "../rules/material_rules.js";
+import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 
 export function migrateCharSpells(char) {
   if (!char.spells) char.spells = [];
@@ -155,6 +156,12 @@ function backfillMonsterCriticalEligibility(data) {
   return data;
 }
 
+function normalizeStatusEffectState(data) {
+  data.party?.forEach(normalizeStatusEffectTarget);
+  data.combatState?.monsters?.forEach(normalizeStatusEffectTarget);
+  return data;
+}
+
 function backfillMapBlockEnter(data) {
   data.maps?.forEach(map => {
     map?.forEach(row => {
@@ -300,6 +307,7 @@ export function normalizeSavePayload(data) {
   normalized.party.forEach(migrateCharSpells);
   discardTransientRunAffixState(normalized);
   backfillMonsterCriticalEligibility(normalized);
+  normalizeStatusEffectState(normalized);
 
   let loadedMaps = data.maps;
   let needsMigration = false;

@@ -1,6 +1,7 @@
 import { markMapChanged, state } from "./state_core.js";
 import { SAVE_VERSION } from "./save_migrations.js";
 import { menuContext } from "../navigation.js";
+import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 
 // 一時オーバーレイ状態は付随コンテキストが永続化されないため、そのまま保存すると
 // 再開時に壊れる。基底画面へ畳んでから保存する。
@@ -33,8 +34,20 @@ export function createSavePayload() {
   const persistedParty = state.party.slice(0, 1).map(char => {
     const persistedChar = { ...char };
     delete persistedChar.runTrapAttackBonus;
+    normalizeStatusEffectTarget(persistedChar);
     return persistedChar;
   });
+
+  const persistedCombatState = state.combatState
+    ? {
+      ...state.combatState,
+      monsters: state.combatState.monsters?.map(monster => {
+        const persistedMonster = { ...monster };
+        normalizeStatusEffectTarget(persistedMonster);
+        return persistedMonster;
+      })
+    }
+    : state.combatState;
 
   return {
     version: SAVE_VERSION,
@@ -63,7 +76,7 @@ export function createSavePayload() {
     codex: state.codex,
     seed: state.seed,
     gameState: resolvePersistedGameState(),
-    combatState: state.combatState,
+    combatState: persistedCombatState,
     chestState: state.chestState,
     prevX: state.prevX,
     prevY: state.prevY,
@@ -92,6 +105,7 @@ export function applySavePayload(data) {
   state.party = data.party.slice(0, 1).map(char => {
     const restoredChar = { ...char };
     delete restoredChar.runTrapAttackBonus;
+    normalizeStatusEffectTarget(restoredChar);
     return restoredChar;
   });
   state.inventory = data.inventory;
@@ -107,6 +121,7 @@ export function applySavePayload(data) {
   state.activeMerchantStock = data.activeMerchantStock;
   state.gameState = data.gameState;
   state.combatState = data.combatState;
+  state.combatState?.monsters?.forEach(normalizeStatusEffectTarget);
   state.chestState = data.chestState;
   state.logs = data.logs;
   state.floorChestsOpened = data.floorChestsOpened;
