@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   __resetTelemetryForTests,
   __setTelemetryInitializationForTests,
@@ -7,6 +8,7 @@ import {
   normalizeDeathType,
   normalizeEnemyId,
   normalizeOutcome,
+  resolvePostHogApiHost,
   trackCombatEnd,
   trackCombatStart,
   trackDamageReceived,
@@ -19,6 +21,8 @@ import { getMpWardDef } from "../src/combat_logic/mp_ward.js";
 
 let failures = 0;
 
+const vercelConfig = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+
 function check(name, fn) {
   try {
     fn();
@@ -28,6 +32,26 @@ function check(name, fn) {
     console.error(`[FAIL] ${name}: ${error.message}`);
   }
 }
+
+check("production telemetry uses the same-origin ingest host", () => {
+  assert.equal(resolvePostHogApiHost("https://us.i.posthog.com", { isProduction: true }), "/ingest");
+  assert.equal(resolvePostHogApiHost("https://eu.i.posthog.com", { isProduction: true }), "/ingest");
+  assert.equal(resolvePostHogApiHost("https://us.i.posthog.com", { isProduction: false }), "https://us.i.posthog.com");
+  assert.equal(resolvePostHogApiHost("  ", { isProduction: true }), "");
+});
+
+check("PostHog ingest rewrites precede the SPA fallback", () => {
+  const [staticRewrite, ingestRewrite, spaFallback] = vercelConfig.rewrites;
+  assert.deepEqual(staticRewrite, {
+    source: "/ingest/static/(.*)",
+    destination: "https://us-assets.i.posthog.com/static/$1"
+  });
+  assert.deepEqual(ingestRewrite, {
+    source: "/ingest/(.*)",
+    destination: "https://us.i.posthog.com/$1"
+  });
+  assert.deepEqual(spaFallback, { source: "/(.*)", destination: "/index.html" });
+});
 
 const run = {
   characterClass: "Mage",
