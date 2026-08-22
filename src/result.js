@@ -4,6 +4,7 @@ import { updateUI } from "./ui.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
 import { updateRunQuests } from "./systems/run_quests.js";
 import { findMapCellByType } from "./rules/map_queries.js";
+import { trackCombatEnd, trackRunEnd } from "./telemetry.js";
 
 export function triggerRunResult(reason) {
   if (!state.currentRun || state.gameState === "result" || state.currentRun.returnReason) return;
@@ -95,6 +96,16 @@ export function triggerRunResult(reason) {
     state.deathLogs.unshift(deathEntry);
     state.deathLogs = state.deathLogs.slice(0, 20);
   }
+
+  if (isDeath) {
+    trackCombatEnd("gameover", {
+      floor: state.floor,
+      turns: state.combatState?.roundNumber,
+      player: state.party[0],
+      monsters: state.combatState?.monsters
+    });
+  }
+  trackRunEnd(run, outcome);
 
   state.combatState = null;
   state.party.forEach(char => {
