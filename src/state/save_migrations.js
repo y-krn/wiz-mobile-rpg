@@ -7,6 +7,7 @@ import { findMapCellByType } from "../rules/map_queries.js";
 import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
 import { addMaterials } from "../rules/material_rules.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
+import { isUsableFloorMap } from "./run_floor_state.js";
 
 export function migrateCharSpells(char) {
   if (!char.spells) char.spells = [];
@@ -356,7 +357,12 @@ export function normalizeSavePayload(data) {
     );
   }
 
+  const activeRunMap = Boolean(normalized.currentRun?.runSeed && !normalized.currentRun.returnReason);
   loadedMaps.forEach(map => {
+    // Active-run maps are player progress, not disposable legacy data. Do not
+    // let repair helpers dereference malformed cells before recovery validates
+    // the saved floor and preserves it for explicit recovery handling.
+    if (activeRunMap && !isUsableFloorMap(map)) return;
     backfillMapBlockEnter({ maps: [map] });
     backfillMapSecretDoors({ maps: [map] });
     if (map) removeIsolatedInternalWalls(map);

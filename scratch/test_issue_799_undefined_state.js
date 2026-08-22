@@ -50,9 +50,18 @@ const malformedCellMap = generateRunFloor({ runSeed: "ISSUE-799-CELL-SCHEMA", fl
 malformedCellMap[0][0] = {};
 state.maps = [malformedCellMap];
 state.visitedMaps = [malformedCellMap.map(row => row.map(() => false))];
+state.x = 0;
+state.y = 0;
+state.prevX = 0;
+state.prevY = 0;
 delete state._freshRunFloor;
 assert.equal(isUsableFloorMap(malformedCellMap), false, "malformed cells are not usable floor maps");
 assert.throws(() => ensureRunFloor(state, 1), error => error instanceof RunFloorRecoveryError, "malformed active cell fails closed");
+state.logs = [];
+state.gameState = "explore";
+assert.equal(getCurrentExplorationCell(), null, "movement/Search rejects a malformed current cell");
+assert.equal(state.gameState, "town", "malformed current cell stops movement/Search");
+assert.match(state.logs.join("\n"), /安全に復旧できない/, "malformed current cell exposes a recovery error");
 
 // Active-floor corruption must fail closed rather than replace the map and
 // reset chest/trap/secret/milestone progress.
@@ -109,16 +118,40 @@ saveAutosave();
 
 const corrupt = JSON.parse(localStorage.getItem("mobile_wiz_rpg_autosave"));
 corrupt.maps[2] = expected.map(row => row.slice());
-corrupt.maps[2][13].splice(3, 1);
+corrupt.maps[2][13][3] = {};
 corrupt.visitedMaps[2] = corrupt.maps[2].map(row => row.map(() => false));
 localStorage.setItem("mobile_wiz_rpg_autosave", JSON.stringify(corrupt));
+localStorage.removeItem("mobile_wiz_rpg_backup");
+localStorage.removeItem("mobile_wiz_rpg_save");
 loadGame();
 
 assert.equal(state.currentRun.runSeed, "ISSUE-799-RESUME", "failed recovery preserves currentRun.runSeed");
 assert.equal(state.floor, 3, "failed recovery preserves active floor");
 assert.equal(isUsableFloorMap(state.maps[2]), false, "failed recovery preserves the damaged active-floor map");
+assert.deepEqual(state.maps[2][13][3], {}, "failed recovery preserves the malformed active cell");
 assert.match(state.logs.join("\n"), /安全に復旧できない/, "resume exposes an explicit recovery error");
 assert.ok(localStorage.getItem("mobile_wiz_rpg_corrupt"), "unrecoverable save is preserved for recovery");
+
+// A structurally usable active map still requires an intact visited map on
+// resume; only new/non-active floor generation may initialize that data.
+initNewGame();
+createRunState("ISSUE-799-VISITED-RESUME");
+const visitedResumeMap = generateRunFloor({ runSeed: "ISSUE-799-VISITED-RESUME", floor: 1 }).grid;
+state.maps = [visitedResumeMap];
+state.visitedMaps = [null];
+delete state._freshRunFloor;
+saveAutosave();
+const missingVisitedSave = JSON.parse(localStorage.getItem("mobile_wiz_rpg_autosave"));
+localStorage.setItem("mobile_wiz_rpg_autosave", JSON.stringify(missingVisitedSave));
+localStorage.removeItem("mobile_wiz_rpg_backup");
+localStorage.removeItem("mobile_wiz_rpg_save");
+loadGame();
+
+assert.equal(state.currentRun.runSeed, "ISSUE-799-VISITED-RESUME", "visited-map recovery preserves currentRun.runSeed");
+assert.ok(isUsableFloorMap(state.maps[0]), "usable active map remains intact when visited data is missing");
+assert.equal(state.visitedMaps[0], null, "missing active visited data is preserved");
+assert.match(state.logs.join("\n"), /安全に復旧できない/, "missing active visited data exposes a recovery error");
+assert.ok(localStorage.getItem("mobile_wiz_rpg_corrupt"), "missing active visited data is preserved for recovery");
 
 // Migration path: all maps missing in an active-run save must not be replaced
 // by maps generated from the legacy state.seed.

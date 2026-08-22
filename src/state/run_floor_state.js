@@ -14,7 +14,7 @@ function isFourBooleanArray(value) {
   return Array.isArray(value) && value.length === 4 && value.every(entry => typeof entry === "boolean");
 }
 
-function isUsableFloorCell(cell) {
+export function isUsableFloorCell(cell) {
   return cell && typeof cell === "object" &&
     typeof cell.type === "string" &&
     isFourBooleanArray(cell.walls) &&
