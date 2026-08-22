@@ -8866,7 +8866,11 @@ function rollChestItems(
       metrics,
       {
         futureChestCount,
-        rng,
+        // Keep smash-loss rolls deterministic without perturbing the shared
+        // combat/recovery RNG stream used by existing simulator policies.
+        rng: createMaterialOverrideRandom(
+          `${state.currentRun.runSeed}:chest-smash:${floor}:${state.currentRun.chestsOpened}`
+        ),
         smashRewards: ["main", "special", "accessory"]
           .filter(role => Number.isInteger(itemIndices[role]))
           .map(role => ({ role, item: items[itemIndices[role]] }))
