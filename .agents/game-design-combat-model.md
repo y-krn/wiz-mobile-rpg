@@ -971,7 +971,8 @@ Phase 0 で既存表現に対応する ID は `poisoned`、`blind`、`sleep`、`
 最小候補だったためである。
 
 - source code base: `f076e89fa759968c10e2d1e847945dddfcf9be24`
-- after source: `f0344bc3ee23363b8ad585680828791e919e5981`
+- paired measurement after source: `f0344bc3ee23363b8ad585680828791e919e5981`
+- final selected-default source: `084bf0513d296265aea72e96f42291f799504e16` (post-decision N=1 smoke passed)
 - runner: Node `v26.7.0`, `scratch/sim_issue_793_bleeding.js`
 - seed policy: `SIM_INDEPENDENT_RUN_RANDOM=1`; `SIM_SEED`、class、runIndex、seriesId
   を baseline/after で一致
