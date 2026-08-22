@@ -66,10 +66,11 @@ export class DungeonRenderer {
 
   getSceneVisibility() {
     const isDeparturePrepSubmenu = state.gameState === "submenu" && menuContext.type === "solo_start";
-    const showTownBackground = !isDeparturePrepSubmenu && (
-      !state.map ||
-      ["town", "result", "gameover", "victory"].includes(state.gameState) ||
-      (state.gameState === "submenu" && menuContext.prevGameState === "town")
+    const showTownBackground = !state.map || (
+      !isDeparturePrepSubmenu && (
+        ["town", "result", "gameover", "victory"].includes(state.gameState) ||
+        (state.gameState === "submenu" && menuContext.prevGameState === "town")
+      )
     );
     const showCombat = !showTownBackground && Boolean(
       state.combatState && (
