@@ -3,19 +3,21 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const sourceCommit = "ecac8c2deabb984802bab7d28a407475cd529e97";
+const childEnv = {
+  ...process.env,
+  SIM_SEED: "793",
+  BLEEDING_MEASUREMENT_SIDE: "candidate",
+  BLEEDING_SOURCE_CODE_SHA: sourceCommit,
+  BLEEDING_RUNNER_COMMIT: sourceCommit,
+  BLEEDING_SIM_N: "1",
+  BLEEDING_CALIBRATION_N: "1"
+};
+delete childEnv.SIM_SKIP_PROVENANCE;
 const result = spawnSync(
   process.execPath,
   ["scratch/sim_issue_793_bleeding.js"],
   {
-    env: {
-      ...process.env,
-      SIM_SEED: "793",
-      BLEEDING_MEASUREMENT_SIDE: "candidate",
-      BLEEDING_SOURCE_CODE_SHA: sourceCommit,
-      BLEEDING_RUNNER_COMMIT: sourceCommit,
-      BLEEDING_SIM_N: "1",
-      BLEEDING_CALIBRATION_N: "1"
-    },
+    env: childEnv,
     encoding: "utf8"
   }
 );
