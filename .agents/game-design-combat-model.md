@@ -966,41 +966,60 @@ Phase 0 で既存表現に対応する ID は `poisoned`、`blind`、`sleep`、`
 #### Numeric decision and measurement
 
 候補は payoff `+1/+2/+3` の小 sweep とし、`bleedingAtk=100%` の calibration build
-を用いて producer/consumer の実経路を必ず発火させた。`+1` を選択した理由は、
-`+2/+3` より小さく、かつ build choice の効果が測定でき、進行の悪化が見られない
-最小候補だったためである。
+を用いて candidate 側の producer/consumer 実経路を必ず発火させた。`+1` を選択した
+理由は、実際の application/trigger/damage contribution が観測でき、base の B5/B10
+突破率を下げずに build choice の差を作る、最小の候補だったためである。`+3` の
+到達階点推定は高かったが 95% mean CI が広く base と重なり、`+2` は B5/B10 突破率
+を下げたため、より大きい値を採用する根拠にはしなかった。
 
 - source code base: `f076e89fa759968c10e2d1e847945dddfcf9be24`
-- paired measurement after source: `f0344bc3ee23363b8ad585680828791e919e5981`
-- final selected-default source: `084bf0513d296265aea72e96f42291f799504e16` (post-decision N=1 smoke passed)
+- candidate source/runner commit: `ecac8c2deabb984802bab7d28a407475cd529e97`
 - runner: Node `v26.7.0`, `scratch/sim_issue_793_bleeding.js`
-- seed policy: `SIM_INDEPENDENT_RUN_RANDOM=1`; `SIM_SEED`、class、runIndex、seriesId
-  を baseline/after で一致
+- provenance: base case `sourceCommit=f076e89fa759968c10e2d1e847945dddfcf9be24`,
+  candidate cases `sourceCommit=ecac8c2deabb984802bab7d28a407475cd529e97`; both record
+  `originMainAncestor=true`, `staleTreeAllowed=false`, and the same runner commit
+  `ecac8c2deabb984802bab7d28a407475cd529e97`
+- seed policy: `SIM_INDEPENDENT_RUN_RANDOM=1`, `SIM_SEED=793`; class、runIndex、seriesId
+  を base/candidate で一致
 - dataset/preset: current `src` data、`generateRunFloor` 経由の solo real-run、
-  `targetDepth=20`、N=100、calibration N=50
-- paired baseline (base, no bleeding route): reached floor `2.92 ± 0.39` (95% mean
-  CI), B5 reach/breakthrough `26%/3%`, B10 `2%/1%`, survival `0%`
-- after `+1` calibration: reached floor `3.18 ± 0.58`, B5 `30%/5%`, B10 `4%/3%`,
-  survival `1%`; 362 applications, 200 refreshes, 531 triggers, 221 damage
-  contribution, 18 expiries, 331 clears (per 100 runs: 3.62/2.00/5.31/2.21/0.18/3.31)
-- after `+2`: reached floor `2.91 ± 0.36`, B5 `30%/2%`, B10 `1%/1%`, survival `0%`;
-  contribution 479 per 100 runs. `+3`: reached `2.90 ± 0.37`, B5 `29%/2%`, B10
-  `2%/1%`, survival `0%`; contribution 557. These larger candidates add more damage
-  but do not improve the measured depth outcome and are rejected by the smallest-
-  meaningful-effect rule.
-- natural-loot reachability case was measured separately and observed zero bleeding
-  applications/source selections in 50 runs because the current run policy usually
-  dies before the B3 producer gate. This is a measured zero, not a theoretical rate;
-  the forced calibration is the valid evidence for the combat path, while natural
-  supply remains a residual measurement risk.
+  `targetDepth=20`、base/candidate N=100、calibration N=50
+- reproduction (raw JSON remains untracked in `scratch/results/`):
 
-Modeled: real floor generation/traversal, equipment scoring, round combat, rewards,
-retreat and status-cure policy, and the normal direct-hit path. Omitted: manual UI
-timing/live analytics transport, natural loot choice in the forced calibration, and
-all other new statuses. Required telemetry fields are recorded in the simulation
-result and production `bleeding_*` events: application, failed roll, resisted (0;
-no enemy resistance rule exists), refresh, qualifying trigger, damage contribution,
-expiry/clear, boss/midboss flags, and source/build key.
+  ```sh
+  git worktree add --detach /private/tmp/issue-793-bleed-base-clean f076e89fa759968c10e2d1e847945dddfcf9be24
+  cp /private/tmp/issue-793-bleed-vertical-slice/scratch/sim_issue_793_bleeding.js /private/tmp/issue-793-bleed-base-clean/scratch/sim_issue_793_bleeding.js
+  cd /private/tmp/issue-793-bleed-base-clean
+  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=base BLEEDING_RUNNER_COMMIT=ecac8c2deabb984802bab7d28a407475cd529e97 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/sim_issue_793_bleeding.js
+  cd /private/tmp/issue-793-bleed-vertical-slice
+  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=candidate BLEEDING_SOURCE_CODE_SHA=ecac8c2deabb984802bab7d28a407475cd529e97 BLEEDING_RUNNER_COMMIT=ecac8c2deabb984802bab7d28a407475cd529e97 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/sim_issue_793_bleeding.js
+  ```
+- matched base (base, no bleeding route): reached floor `2.82 ± 0.37` (95% mean
+  CI), B5 reach/breakthrough `28%/3%`, B10 `1%/1%`, survival `0%`, final combat
+  build score `27.12 ± 3.84`, final core count `0.63 ± 0.19`, and natural source
+  selection observed `0/100` runs
+- candidate `+1` forced calibration: reached floor `2.85 ± 0.45`, B5 `24%/4%`,
+  B10 `3%/2%`, survival `0%`; 372 applications, 238 refreshes, 573 triggers,
+  260 damage contribution, 15 expiries, 340 clears (clear reasons: defeat 335,
+  self-destruct 5). Build snapshots observed the forced producer in `100/100` runs,
+  `69/100` at the final snapshot, with final combat build score `27.02 ± 3.74`
+  and final core count `0.60 ± 0.18`. Natural source selection is explicitly
+  `unexecuted/omitted` for this forced case.
+- candidate `+2`: reached floor `2.76 ± 0.40`, B5 `27%/2%`, B10 `1%/1%`, survival
+  `0%`, contribution `327`; candidate `+3`: reached `3.03 ± 0.57`, B5 `27%/3%`,
+  B10 `3%/3%`, survival `0%`, contribution `391`. The larger candidates are not
+  selected by the smallest-meaningful-effect rule.
+- candidate natural-loot reachability was measured separately at N=50: source
+  selection was observed in `1/50` runs (`0.02` per run), with 9 applications,
+  1 refresh, 12 triggers, and 10 damage contribution. This is a measured result,
+  not a theoretical probability; forced calibration bypasses natural selection.
+
+Modeled: real floor generation/traversal, existing equipment scoring/build snapshots,
+round combat, rewards, retreat and status-cure policy, and the normal direct-hit path.
+Omitted: manual UI timing/live analytics transport, natural loot choice in the forced
+calibration, and all other new statuses. Required telemetry fields are recorded in
+the simulation result and production `bleeding_*` events: application, failed roll,
+resisted (0; no enemy resistance rule exists), refresh, qualifying trigger, damage
+contribution, expiry/clear with reason, boss/midboss flags, and source/build key.
 
 #### Compatibility boundary
 
