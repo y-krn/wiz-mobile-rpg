@@ -47,6 +47,36 @@ floor, retreat and death recorded separately) is always visible on the title
 screen, in town, and on the run result. Abandon is tracked as its own run
 ending without entering death metrics.
 
+**Decided: Return Wing is an independent special chest reward (Issue #791,
+2026-08-22).** `TOWN_PORTAL` is not part of the ordinary chest main-reward
+candidate pools. A chest first resolves its normal main reward, then performs a
+separate Return Wing roll, so obtaining a Wing cannot consume the ordinary
+reward slot. The explicit special-roll rates are B1 0%, B2 2%, B3 2%, B4 0%,
+and B5+ 4% (the B5 rate is reused at deeper floors). These rates match the
+base-run chest replacement opportunity measured on the real run path while
+turning the Wing into a separate push-your-luck decision. The existing bank
+rate, in-combat availability, craft cost, milestone merchant price/role, and
+milestone return-portal behavior remain unchanged.
+
+Measurement basis: seed 231, `balance-main`, `workshop-complete`, N=500 per
+target depth, calibration N=100, Node v26.7.0, the real
+`generateRunFloor`→exploration→round/reward path, current status-cure and
+equipment scoring policies, and Return Wing use at HP≤35% with no recovery
+potions remaining. The matched baseline reconstructed the pre-#791 B2/B3/B5
+candidate pools in the measurement harness; the after case used the production
+special roll. At B5/B10/B20, baseline main-slot Wing replacements were
+0.172/0.462/0.522 per run and after special offers were 0.172/0.448/0.560;
+after chest acquisitions were 0.152/0.304/0.272 per run because the inventory
+keeps at most one Wing. Total equipment per run was
+10.428/15.652/14.968 before and 10.522/15.870/16.876 after. Banked-material
+EV was 39.076/45.692/38.950 before and 39.136/44.678/49.840 after. B5 reach /
+breakthrough was 39.4%/0.0%, 45.4%/15.8%, and 39.2%/11.2% before versus
+40.2%/0.0%, 44.2%/16.2%, and 40.6%/16.0% after for the B5/B10/B20 target
+series; B10 reach / breakthrough was 0.0%/0.0%, 10.8%/0.0%, and 7.4%/4.6%
+before versus 0.0%/0.0%, 12.6%/0.0%, and 12.2%/8.8% after. The sim records
+Wing source, acquisition, use floor, HP band, survival/retreat, bank EV, and
+main-slot replacement telemetry; raw run output remains untracked.
+
 ## Design Pillars
 
 1. **Depth as the question.** The game asks one thing: "how deep can you go

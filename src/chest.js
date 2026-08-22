@@ -4,7 +4,8 @@ import {
   CHEST_USABLE_BREAK_CHANCE,
   rollChestTrap,
   rollChestAccessory,
-  rollChestReward
+  rollChestReward,
+  rollChestSpecialReward
 } from "./rules/chest_rules.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -63,6 +64,7 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
       state.firstChestUnidentifiedGuaranteed = true;
     }
   }
+  const specialItem = forcedItem === null ? rollChestSpecialReward(state.floor, rng) : null;
   const accessoryItem = forcedItem === null ? rollChestAccessory(state.floor, rng, state.party) : null;
 
   // Aura & loot hint calculation
@@ -111,6 +113,7 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
   state.chestState = {
     trap,
     item,
+    specialItem,
     accessoryItem,
     inspected: false,
     identifiedTrap: "",
@@ -661,6 +664,17 @@ export function openChestDirectly(opener = null, rng = Math.random) {
         addLog(`アイテム: [${item.name}] を手に入れた！`);
       } else {
         addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
+      }
+    }
+
+    if (chest.specialItem) {
+      const added = addInventoryItem(chest.specialItem);
+      if (added) {
+        recordEquipmentDiscovery(chest.specialItem);
+        if (state.currentRun) state.currentRun.itemsFound.push(chest.specialItem);
+        addLog("箱の底に帰還の翼が残されていた――帰還の翼を手に入れた。");
+      } else {
+        addLog("帰還の翼はすでに所持している。");
       }
     }
 

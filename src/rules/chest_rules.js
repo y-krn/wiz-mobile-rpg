@@ -15,6 +15,18 @@ export const CHEST_EQUIPMENT_CORE_MIN_FLOOR = 3;
 // src/chest.jsのsmashChestとsimの内容損失判定で共有する。
 export const CHEST_USABLE_BREAK_CHANCE = 0.30;
 
+// Return Wing is a retreat-right reward, not a normal chest item. The rates
+// match the base chest-pool replacement opportunity measured on the real run
+// path: no replacement opportunity on B1/B4, about 2% on B2/B3, and about 4%
+// on B5. Keep this roll separate so a hit never consumes the main reward slot.
+export const CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR = Object.freeze({
+  1: 0,
+  2: 0.02,
+  3: 0.02,
+  4: 0,
+  5: 0.04
+});
+
 function getChestItemData(item) {
   if (!item) return null;
   const itemId = typeof item === "object"
@@ -37,12 +49,17 @@ export function calculateChestMainItemForcedLossRate(item) {
 
 export const CHEST_ITEM_CANDIDATES_BY_FLOOR = Object.freeze({
   1: ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "WAKE_POWDER"],
-  2: ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL", "TRAP_KIT", "STR_POTION", "HASTE_POTION"],
-  3: ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "VENOM_FANG", "LONG_SWORD", "MACE", "SACRED_MACE", "SAGE_STAFF", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT", "STR_POTION", "HASTE_POTION"],
+  2: ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "MANA_POTION", "HOLY_WATER", "TRAP_KIT", "STR_POTION", "HASTE_POTION"],
+  3: ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "VENOM_FANG", "LONG_SWORD", "MACE", "SACRED_MACE", "SAGE_STAFF", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "STR_POTION", "HASTE_POTION"],
   // B4F: 標準宝箱は上位の店売り装備のみを落とす
   4: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "STR_POTION", "HASTE_POTION"],
-  5: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT", "STR_POTION", "HASTE_POTION"]
+  5: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "STR_POTION", "HASTE_POTION"]
 });
+
+export function rollChestSpecialReward(floor, rng) {
+  const chance = CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR[Math.min(5, floor)] || 0;
+  return chance > 0 && rng() < chance ? "TOWN_PORTAL" : null;
+}
 
 const DANGEROUS_TRAPS = ["poison needle", "gas bomb", "teleporter"];
 
@@ -101,7 +118,8 @@ export function rollChestReward({
   trap,
   firstChestGuaranteed = false,
   coreMinFloor = CHEST_EQUIPMENT_CORE_MIN_FLOOR,
-  itemCandidateFilter = null
+  itemCandidateFilter = null,
+  itemCandidates = null
 }) {
   let isGuaranteed = false;
   if (floor === 1) {
@@ -140,7 +158,7 @@ export function rollChestReward({
 
   const chestFloor = Math.min(5, floor);
   // 想定外の floor で候補キーが欠けても quest を出さない保険として fallback を残す。
-  let candidates = CHEST_ITEM_CANDIDATES_BY_FLOOR[chestFloor]
+  let candidates = itemCandidates || CHEST_ITEM_CANDIDATES_BY_FLOOR[chestFloor]
     || Object.keys(ITEMS).filter(key => ITEMS[key].type !== "quest");
   if (itemCandidateFilter) {
     candidates = candidates.filter(itemCandidateFilter);

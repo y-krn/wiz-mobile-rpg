@@ -139,11 +139,14 @@ function getRunFloor(args) {
 const {
   CHEST_ACCESSORY_CORE_MIN_FLOOR,
   CHEST_EQUIPMENT_CORE_MIN_FLOOR,
+  CHEST_ITEM_CANDIDATES_BY_FLOOR,
+  CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
   calculateChestMainItemExpectedValue,
   calculateChestMainItemForcedLossRate,
   rollChestAccessory,
   rollChestReward,
-  rollChestTrap
+  rollChestTrap,
+  rollChestSpecialReward
 } = await import("../src/rules/chest_rules.js");
 const {
   calculateChestDisarmChance,
@@ -345,6 +348,7 @@ const SIM_ENV_KEYS = Object.freeze([
   "SIM_MERCHANT_EYE_DROPS",
   "SIM_MERCHANT_RETURN_WING",
   "SIM_MERCHANT_RETURN_WING_COST",
+  "SIM_RETURN_WING_MODE",
   "SIM_SCENARIOS"
 ]);
 const REVALIDATION_DEPARTURE_CRAFT_IDS =
@@ -392,6 +396,7 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_MERCHANT_EYE_DROPS: "0",
   SIM_MERCHANT_RETURN_WING: "0",
   SIM_MERCHANT_RETURN_WING_COST: "",
+  SIM_RETURN_WING_MODE: "special",
   SIM_SCENARIOS: ""
 });
 const BALANCE_MAIN_PRESET = Object.freeze({
@@ -473,8 +478,12 @@ const SIM_ENV = Object.freeze(Object.fromEntries(
     Object.hasOwn(process.env, key)
       ? process.env[key]
       : ACTIVE_SIM_PRESET?.[key] ?? CURRENT_SIM_ENV_DEFAULTS[key]
-  ])
+ ])
 ));
+const RETURN_WING_REWARD_MODE = String(SIM_ENV.SIM_RETURN_WING_MODE || "special").trim();
+if (!["baseline", "special"].includes(RETURN_WING_REWARD_MODE)) {
+  throw new Error(`SIM_RETURN_WING_MODE must be baseline|special: ${RETURN_WING_REWARD_MODE}`);
+}
 const EXPLICIT_SIM_ENV_KEYS = SIM_ENV_KEYS.filter(key => Object.hasOwn(process.env, key));
 const EXPLICIT_TRAP_POLICY_ID = Object.hasOwn(process.env, "TRAP_POLICY")
   ? process.env.TRAP_POLICY
@@ -8699,13 +8708,34 @@ function rollChestItems(
     trap,
     firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
     coreMinFloor: getChestCoreMinFloor(supplyOverride, "equipment"),
-    itemCandidateFilter: scenario.allowChestTownPortal === false
+    itemCandidates: RETURN_WING_REWARD_MODE === "baseline"
+      ? (() => {
+          const chestFloor = Math.min(5, floor);
+          const candidates = CHEST_ITEM_CANDIDATES_BY_FLOOR[chestFloor] || [];
+          return [
+            ...candidates,
+            ...([2, 3, 5].includes(chestFloor) ? ["TOWN_PORTAL"] : [])
+          ];
+        })()
+      : null,
+    itemCandidateFilter: RETURN_WING_REWARD_MODE === "special"
       ? itemId => itemId !== "TOWN_PORTAL"
       : null
   });
   let item = reward.item;
   if (reward.consumedFirstChestGuarantee) {
     state.firstChestUnidentifiedGuaranteed = true;
+  }
+  if (item === "TOWN_PORTAL" && metrics) {
+    metrics.chestTownPortalMainRewardReplacements++;
+    metrics.chestTownPortalMainRewardReplacementsByFloor[floor]++;
+  }
+  const specialItem = RETURN_WING_REWARD_MODE === "special"
+    ? rollChestSpecialReward(floor, rng)
+    : null;
+  if (specialItem && metrics) {
+    metrics.chestSpecialPortalOffers++;
+    metrics.chestSpecialPortalOffersByFloor[floor]++;
   }
   let replacedMainItem = null;
   const replacementChance = state.simPolicy.chestHealPotionReplacementChance;
@@ -8754,7 +8784,8 @@ function rollChestItems(
   const items = [
     ...baselineItems,
     ...(extra ? [extra] : []),
-    ...(extraHealPotion ? [extraHealPotion] : [])
+    ...(extraHealPotion ? [extraHealPotion] : []),
+    ...(specialItem ? [specialItem] : [])
   ];
   const trapResult = trap === "none"
     ? { mainItemLost: false }
@@ -8771,6 +8802,8 @@ function rollChestItems(
     items,
     mainItem: item,
     mainItemLost: trapResult.mainItemLost,
+    specialItem,
+    specialItemIndex: specialItem ? items.length - 1 : -1,
     extraHealPotion: Boolean(extraHealPotion),
     replacedMainItem
   };
@@ -9498,6 +9531,10 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     portalUseEvents: metrics.portalUseEvents,
     portalUsesBySource: metrics.portalUsesBySource,
     portalAcquisitions: metrics.portalAcquisitions,
+    chestTownPortalMainRewardReplacements: metrics.chestTownPortalMainRewardReplacements,
+    chestTownPortalMainRewardReplacementsByFloor: [...metrics.chestTownPortalMainRewardReplacementsByFloor],
+    chestSpecialPortalOffers: metrics.chestSpecialPortalOffers,
+    chestSpecialPortalOffersByFloor: [...metrics.chestSpecialPortalOffersByFloor],
     merchantWingAttempts: metrics.merchantWingAttempts,
     merchantWingsPurchased: metrics.merchantWingsPurchased,
     merchantPurchaseFloors: metrics.merchantPurchaseFloors,
@@ -9972,8 +10009,13 @@ export function simulateRun({
       workshopSupply: state.simPortalSources.filter(source => source === "workshop-supply").length,
       departureCraft: state.simPortalSources.filter(source => source === "departure-craft").length,
       chest: 0,
+      "chest-special": 0,
       merchant: 0
     },
+    chestTownPortalMainRewardReplacements: 0,
+    chestTownPortalMainRewardReplacementsByFloor: Array(21).fill(0),
+    chestSpecialPortalOffers: 0,
+    chestSpecialPortalOffersByFloor: Array(21).fill(0),
     merchantWingAttempts: 0,
     merchantWingsPurchased: 0,
     merchantPurchaseFloors: [],
@@ -10256,7 +10298,8 @@ export function simulateRun({
             itemIndex === 0 &&
             item === chestItems.mainItem
           ) return;
-          if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal) return;
+          const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
+          if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) return;
           const isExtraHealPotion = chestItems.extraHealPotion &&
             itemIndex === chestItems.items.length - 1;
           const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
@@ -10283,8 +10326,9 @@ export function simulateRun({
             recordTrapKitAcquisition(state, metrics, "chest");
           }
           if (item === "TOWN_PORTAL") {
-            state.simPortalSources.push("chest");
-            metrics.portalAcquisitions.chest++;
+            const source = isSpecialTownPortal ? "chest-special" : "chest";
+            state.simPortalSources.push(source);
+            metrics.portalAcquisitions[source]++;
           }
           const itemData = getItemData(item);
           if (!isEquipment(itemData)) {
@@ -10793,6 +10837,7 @@ function simulateCase({
     earlyEquipmentUpgrades: 0,
     deepEquipmentUpgrades: 0,
     equipmentFound: 0,
+    equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
     identificationPowderAcquired: 0,
@@ -10916,6 +10961,12 @@ function simulateCase({
     runsUsingTownPortal: 0,
     portalAcquisitions: {},
     portalUsesBySource: {},
+    portalUseFloorCounts: {},
+    portalUseHpBands: { "0-20%": 0, "21-35%": 0, "36-55%": 0, "56%+": 0 },
+    chestTownPortalMainRewardReplacements: 0,
+    chestTownPortalMainRewardReplacementsByFloor: Array(21).fill(0),
+    chestSpecialPortalOffers: 0,
+    chestSpecialPortalOffersByFloor: Array(21).fill(0),
     fleeCount: 0,
     runsWithFlee: 0,
     eliteEncounters: 0,
@@ -11142,6 +11193,10 @@ function simulateCase({
     totals.earlyEquipmentUpgrades += result.earlyEquipmentUpgrades;
     totals.deepEquipmentUpgrades += result.deepEquipmentUpgrades;
     totals.equipmentFound += result.equipmentFound;
+    Object.entries(result.equipmentFoundBySource || {}).forEach(([source, amount]) => {
+      totals.equipmentFoundBySource[source] =
+        (totals.equipmentFoundBySource[source] || 0) + amount;
+    });
     totals.earlyEquipmentFound += result.earlyEquipmentFound;
     totals.deepEquipmentFound += result.deepEquipmentFound;
     totals.identificationPowderAcquired += result.identificationPowderAcquired;
@@ -11276,6 +11331,22 @@ function simulateCase({
       totals.portalUsesBySource[source] =
         (totals.portalUsesBySource[source] || 0) + amount;
     });
+    totals.chestTownPortalMainRewardReplacements += result.chestTownPortalMainRewardReplacements;
+    result.chestTownPortalMainRewardReplacementsByFloor.forEach((amount, floor) => {
+      totals.chestTownPortalMainRewardReplacementsByFloor[floor] += amount;
+    });
+    totals.chestSpecialPortalOffers += result.chestSpecialPortalOffers;
+    result.chestSpecialPortalOffersByFloor.forEach((amount, floor) => {
+      totals.chestSpecialPortalOffersByFloor[floor] += amount;
+    });
+    result.portalUseEvents.forEach(event => {
+      totals.portalUseFloorCounts[event.floor] =
+        (totals.portalUseFloorCounts[event.floor] || 0) + 1;
+      const hpBand = event.hpRate <= 0.20 ? "0-20%"
+        : event.hpRate <= 0.35 ? "21-35%"
+          : event.hpRate <= 0.55 ? "36-55%" : "56%+";
+      totals.portalUseHpBands[hpBand] = (totals.portalUseHpBands[hpBand] || 0) + 1;
+    });
     totals.fleeCount += result.fleeCount;
     totals.runsWithFlee += Number(result.fleeCount > 0);
     totals.eliteEncounters += result.eliteEncounters;
@@ -11359,6 +11430,12 @@ function simulateCase({
     averageEarlyEquipmentUpgrades: totals.earlyEquipmentUpgrades / RUNS_PER_CASE,
     averageDeepEquipmentUpgrades: totals.deepEquipmentUpgrades / RUNS_PER_CASE,
     averageEquipmentFound: totals.equipmentFound / RUNS_PER_CASE,
+    averageEquipmentFoundBySource: Object.fromEntries(
+      Object.entries(totals.equipmentFoundBySource).map(([source, amount]) => [
+        source,
+        amount / RUNS_PER_CASE
+      ])
+    ),
     averageEarlyEquipmentFound: totals.earlyEquipmentFound / RUNS_PER_CASE,
     averageDeepEquipmentFound: totals.deepEquipmentFound / RUNS_PER_CASE,
     averageIdentificationPowderAcquired:
@@ -11609,6 +11686,15 @@ function simulateCase({
         amount / RUNS_PER_CASE
       ])
     ),
+    portalUseFloorCounts: { ...totals.portalUseFloorCounts },
+    portalUseHpBands: { ...totals.portalUseHpBands },
+    chestTownPortalMainRewardReplacements: totals.chestTownPortalMainRewardReplacements,
+    averageChestTownPortalMainRewardReplacements:
+      totals.chestTownPortalMainRewardReplacements / RUNS_PER_CASE,
+    chestTownPortalMainRewardReplacementsByFloor: [...totals.chestTownPortalMainRewardReplacementsByFloor],
+    chestSpecialPortalOffers: totals.chestSpecialPortalOffers,
+    averageChestSpecialPortalOffers: totals.chestSpecialPortalOffers / RUNS_PER_CASE,
+    chestSpecialPortalOffersByFloor: [...totals.chestSpecialPortalOffersByFloor],
     averageFleeCount: totals.fleeCount / RUNS_PER_CASE,
     runsWithFleeRate: totals.runsWithFlee / RUNS_PER_CASE,
     elitePolicy: scenario.elitePolicy || DEFAULT_ELITE_POLICY,
@@ -13042,7 +13128,9 @@ const ENV_SIGNATURE = {
   portalHpThreshold: PORTAL_HP_THRESHOLD,
   portalMaxHealPotions: PORTAL_MAX_HEAL_POTIONS,
   issue646CampLevel: ISSUE646_CAMP_LEVEL || null,
-  scenarios: ACTIVE_SCENARIOS.map(scenario => scenario.id)
+  scenarios: ACTIVE_SCENARIOS.map(scenario => scenario.id),
+  returnWingRewardMode: RETURN_WING_REWARD_MODE,
+  specialChanceByFloor: CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR
 };
 printEnvSignatureBanner(ENV_SIGNATURE, { label: "env" });
 if (MEASUREMENT_PROVENANCE) {
@@ -13281,6 +13369,7 @@ const issue697Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
       averageReachedFloor: result.averageReachedFloor,
       survivalRate: result.survivalRate,
+      retreatRate: result.survivalRate,
       deathRate: result.deathRate,
       averageFinalLevel: result.averageFinalLevel,
       materialConsumedByMerchant: result.materialConsumedByMerchant,
@@ -13307,6 +13396,39 @@ const issue697Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
   })
 );
 console.log(`ISSUE697_MEASUREMENT_JSON=${JSON.stringify(issue697Measurement)}`);
+
+const issue791Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }) =>
+  scenarioResults.flatMap(({ scenario, results }) => results
+    .filter(result => [5, 10, 20].includes(result.targetDepth))
+    .map(result => ({
+      policy: policy.id,
+      scenario: scenario.id,
+      targetDepth: result.targetDepth,
+      runs: RUNS_PER_CASE,
+      sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
+      originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
+      staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
+      returnWingRewardMode: RETURN_WING_REWARD_MODE,
+      specialChanceByFloor: CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
+      chestPortalAcquisitions: result.averagePortalAcquisitions?.chest || 0,
+      chestSpecialPortalAcquisitions: result.averagePortalAcquisitions?.["chest-special"] || 0,
+      chestSpecialPortalOffersPerRun: result.averageChestSpecialPortalOffers,
+      mainRewardPortalReplacementsPerRun: result.averageChestTownPortalMainRewardReplacements,
+      portalUsesPerRun: result.averageTownPortalsUsed,
+      portalUseFloorCounts: result.portalUseFloorCounts,
+      portalUseHpBands: result.portalUseHpBands,
+      survivalRate: result.survivalRate,
+      bankedMaterialEv: result.bankedMaterialEv,
+      reachedFloor: result.averageReachedFloor,
+      b5ReachRate: (result.entrantsByFloor?.[5] || 0) / RUNS_PER_CASE,
+      b5BreakthroughRate: (result.breakthroughsByFloor?.[5] || 0) / RUNS_PER_CASE,
+      b10ReachRate: (result.entrantsByFloor?.[10] || 0) / RUNS_PER_CASE,
+      b10BreakthroughRate: (result.breakthroughsByFloor?.[10] || 0) / RUNS_PER_CASE,
+      equipmentPerRun: result.averageEquipmentFound,
+      equipmentChestPerRun: result.averageEquipmentFoundBySource?.chest || 0,
+      mean95CI: result.mean95CI
+    }))));
+console.log(`ISSUE791_MEASUREMENT_JSON=${JSON.stringify(issue791Measurement)}`);
 
 const stalemateCases = [
   ...resultsByPolicy.flatMap(({ scenarioResults, milestoneResults }) => [
