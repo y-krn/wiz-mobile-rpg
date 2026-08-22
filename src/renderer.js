@@ -165,6 +165,9 @@ export class DungeonRenderer {
     const { showTownBackground, showCombat, showChest, showEventScene, showItemMenu } = sceneVisibility;
     if (showTownBackground) return false;
 
+    const map = state.map;
+    if (!Array.isArray(map)) return false;
+
     // These layers use Date.now() for visual pulses and must keep redrawing.
     const environment = getFloorTheme(state.floor).visualSignature.environment;
     const cyclePosition = (state.floor - 1) % 5;
@@ -172,9 +175,10 @@ export class DungeonRenderer {
     if (showCombat || showChest || showEventScene || showItemMenu) return false;
 
     const minY = Math.max(0, state.y - 4);
-    const maxY = Math.min(state.map.length - 1, state.y + 4);
+    const maxY = Math.min(map.length - 1, state.y + 4);
     for (let y = minY; y <= maxY; y++) {
-      const row = state.map[y];
+      const row = map[y];
+      if (!Array.isArray(row)) continue;
       const minX = Math.max(0, state.x - 4);
       const maxX = Math.min(row.length - 1, state.x + 4);
       for (let x = minX; x <= maxX; x++) {

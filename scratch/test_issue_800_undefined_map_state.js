@@ -32,7 +32,7 @@ function createCell() {
 function configureExploration(map) {
   state.floor = 1;
   state.maps = [map];
-  state.visitedMaps = [map.map(row => row?.map(() => true) || [])];
+  state.visitedMaps = [map?.map(row => row?.map(() => true) || []) || []];
   state.x = 0;
   state.y = 0;
   state.dir = 0;
@@ -46,26 +46,39 @@ function configureExploration(map) {
   menuContext.prevGameState = null;
 }
 
+function renderInProductionOrder(message) {
+  assert.doesNotThrow(
+    () => {
+      const sceneVisibility = renderer.getSceneVisibility();
+      renderer.isAnimating(sceneVisibility);
+      renderer.draw(sceneVisibility);
+    },
+    message
+  );
+}
+
 configureExploration([null]);
-assert.doesNotThrow(
-  () => renderer.draw(),
-  "renderer does not draw dungeon walls before the floor map is initialized"
+renderInProductionOrder(
+  "renderer does not animate or draw dungeon walls before the floor map is initialized"
+);
+
+configureExploration([undefined]);
+renderInProductionOrder(
+  "renderer does not animate or draw dungeon walls when a map row is malformed"
 );
 
 const partialMap = Array.from({ length: 5 }, () => Array.from({ length: 5 }, createCell));
 delete partialMap[0][1];
 configureExploration(partialMap);
-assert.doesNotThrow(
-  () => renderer.draw(),
-  "renderer does not dereference walls from a missing visible map cell"
+renderInProductionOrder(
+  "renderer does not dereference walls from a sparse visible map cell"
 );
 
 const validMap = Array.from({ length: 5 }, () => Array.from({ length: 5 }, createCell));
 configureExploration(validMap);
 assert.deepEqual(state.map[0][0].walls, [false, false, false, false]);
-assert.doesNotThrow(
-  () => renderer.draw(),
-  "renderer keeps drawing a valid map cell with walls"
+renderInProductionOrder(
+  "renderer keeps animating and drawing a valid map cell with walls"
 );
 
 console.log("ISSUE 800 UNDEFINED MAP STATE TEST PASSED");
