@@ -1,12 +1,12 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, markMapChanged, markMapCellVisited } from "./state.js";
 import { MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import {
-  CHEST_USABLE_BREAK_CHANCE,
   rollChestTrap,
   rollChestAccessory,
   rollChestReward,
   rollChestSpecialReward,
-  CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP
+  CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
+  resolveChestSmashRewardLosses
 } from "./rules/chest_rules.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -202,7 +202,8 @@ export function openChestMenu() {
   // 3. Traps Help
   const helpText = `<div class="chest-help-text">
 毒針:単体+毒 | ガス:全体ダメ<br>
-テレポ:転移 | 閃光:全体盲目
+テレポ:転移 | 閃光:全体盲目<br>
+<span style="color:var(--neon-red)">叩き壊す：罠を弱める代わりに、報酬が壊れることがある。</span>
 </div>`;
 
   const loot = state.chestState.lootHint;
@@ -325,6 +326,7 @@ export function openChestMenu() {
   btnSmash.id = "btn-chest-smash";
   btnSmash.className = "btn btn-danger btn-block";
   btnSmash.textContent = "叩き壊す";
+  btnSmash.title = "罠を弱める代わりに、報酬が壊れることがあります";
   btnSmash.style.minHeight = "44px";
   btnSmash.addEventListener("click", () => {
     btnSmash.disabled = true;
@@ -386,6 +388,18 @@ function recoverChestOpenTransition(error, chest = state.chestState) {
   state.gameState = "explore";
   resetSubmenuBackButton();
   updateUI();
+}
+
+function markChestProcessed(chest) {
+  const cell = state.map?.[chest.y]?.[chest.x];
+  if (cell?.event === "chest") {
+    cell.event = null;
+    markMapChanged();
+  }
+  if (!chest.fromDrop && state.floorChestsOpened) {
+    state.floorChestsOpened[state.floor - 1] =
+      (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
+  }
 }
 
 export function executeDisarm(char, rng = Math.random) {
@@ -578,13 +592,7 @@ export function smashChest(rng = Math.random) {
       triggerChestTrap(trapTarget, true, rng);
     }
 
-    const item = chest.item ? getItemData(chest.item) : null;
-    if (item?.type === "usable" && rng() < CHEST_USABLE_BREAK_CHANCE) {
-      chest.item = null;
-      addLog("衝撃で中身の一部が砕けた…");
-    }
-
-    openChestDirectly(null, rng);
+    openChestDirectly(null, rng, { smash: true });
     return true;
   } catch (error) {
     recoverChestOpenTransition(error, chest);
@@ -592,15 +600,12 @@ export function smashChest(rng = Math.random) {
   }
 }
 
-export function openChestDirectly(opener = null, rng = Math.random) {
+export function openChestDirectly(opener = null, rng = Math.random, options = {}) {
   state.transitioning = true;
   try {
+    const smash = options.smash === true;
     menuContext.type = "chest_result";
     const chest = state.chestState;
-    const chestMap = state.map;
-    const chestX = chest.x;
-    const chestY = chest.y;
-    const fromDrop = chest.fromDrop;
     const tombRaiderActivated = applyTombRaiderTrapTier(chest, opener);
 
     if (state.currentRun) {
@@ -623,6 +628,44 @@ export function openChestDirectly(opener = null, rng = Math.random) {
         state.currentRun.trapsTriggered++;
       }
       triggerChestTrap(trapTarget, false, rng);
+    }
+
+    // Smash has a deliberate two-stage risk: the weakened trap resolves first,
+    // then a dead party stops all reward work. Ordinary open/disarm/kit paths
+    // retain their existing reward behavior and never use these loss rolls.
+    if (smash && !state.party.some(c => c.status !== "dead")) {
+      markChestProcessed(chest);
+      state.chestState = null;
+      state.gameState = "explore";
+      updateUI();
+      setTimeout(() => {
+        resetSubmenuBackButton();
+        state.transitioning = false;
+        triggerGameOver();
+      }, 1800);
+      return;
+    }
+
+    if (smash) {
+      const losses = resolveChestSmashRewardLosses([
+        { role: "main", item: chest.item },
+        { role: "special", item: chest.specialItem },
+        { role: "accessory", item: chest.accessoryItem }
+      ], rng);
+      const lostRoles = new Set(losses.map(loss => loss.role));
+      if (lostRoles.has("main")) chest.item = null;
+      if (lostRoles.has("special")) chest.specialItem = null;
+      if (lostRoles.has("accessory")) chest.accessoryItem = null;
+
+      if (losses.length === 0) {
+        addLog("叩き壊した衝撃に耐え、報酬は無事だった。");
+      } else if (losses.length > 1) {
+        addLog("叩き壊した衝撃で、複数の報酬が失われた。");
+      } else if (losses[0].category === "usable") {
+        addLog("叩き壊した衝撃で、消耗品が砕けていた。");
+      } else {
+        addLog("叩き壊した衝撃で、装備品が壊れていた。");
+      }
     }
 
     // 素材束の獲得
@@ -710,11 +753,7 @@ export function openChestDirectly(opener = null, rng = Math.random) {
     }
 
     // Clear the original chest cell even if a trap moved the party.
-    chestMap[chestY][chestX].event = null;
-    markMapChanged();
-    if (!fromDrop && state.floorChestsOpened) {
-      state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
-    }
+    markChestProcessed(chest);
 
     // Check game over
     const partyAlive = state.party.some(c => c.status !== "dead");

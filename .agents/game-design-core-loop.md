@@ -101,6 +101,25 @@ transport, and policies outside the configured simulator. Retreat/death fields
 are therefore simulated outcomes, not production telemetry, and do not claim
 to measure player behavior.
 
+**Decided: smash can destroy ordinary chest rewards (Issue #808,
+2026-08-22).** The chest action order is fixed: smash, trigger the weakened
+trap if present, stop without awarding rewards when the party is dead, resolve
+independent reward-loss rolls, award the remaining rewards, then mark the chest
+processed. Smash-only loss rates are weapon 25%, armor 25%, shield 25%,
+accessory 25%, and usable 50%. Special rewards, quest items, and
+progression-required items are protected at 0%; Return Wing remains an explicit
+special reward and is never destroyed. Ordinary opening, successful disarm,
+and TRAP_KIT paths do not roll reward loss. Destroyed rewards are omitted from
+inventory and current-run reward records, while chest materials and existing
+Return Wing/fromDrop scope remain unchanged.
+
+The real-run simulator's existing `force` chest branch models the weakened
+trap/smash path and now consumes the shared role-aware loss rule for its main,
+special, and accessory rewards. Live manual choice timing, UI presentation,
+and combat-generated `fromDrop` smash choices remain outside simulator scope;
+the focused chest formula/transition tests cover those omitted choices and
+protect the existing fromDrop behavior.
+
 ## Design Pillars
 
 1. **Depth as the question.** The game asks one thing: "how deep can you go

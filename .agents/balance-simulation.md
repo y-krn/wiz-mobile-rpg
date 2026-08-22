@@ -621,10 +621,14 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
   素材、罠被害など）について95% CI付きで出す。N<30のセルは未確定として結論に使わない。
 - 宝箱の保守EVは `src/rules/trap_effect_rules.js` の `calculateChestTrapExpectedRisk` と、
   `src/rules/trap_rules.js` の `calculateChestDisarmActionEv` / `calculateChestDisarmEvThreshold` から導出する。
-  directの損失は `(1−解除成功率)×完全効果risk`、強行の損失は `弱体効果risk＋usable中身の破損期待値`。
-  `src/chest.js` のusable破損率30%は `CHEST_USABLE_BREAK_CHANCE` として共有し、simで再掲しない。
+  directの損失は `(1−解除成功率)×完全効果risk`、強行（smash相当）の損失は
+  `弱体効果risk＋共有された報酬破損期待値`。報酬破損率は
+  `src/rules/chest_rules.js` の `CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY` として
+  共有し、simで再掲しない。
 - 罠効果は、完全/弱体の期待HP、致死確率、毒・盲目・teleporter発動確率を計算する。異種効果を素材・HP・時間へ換算する共通効用はないため、riskは「party最大HPに対する期待HP割合」と各確率の最大成分を採る保守近似。item品質、状態異常継続時間、teleporterの追加歩数は数値化しない。
-- 宝箱中身は生成済みmain itemの存在を1 content unitとする。装備品質・usable個別効用を捏造せず、force時のusable30%損失だけEVへ反映する。素材束は罠発動後も同じ生成経路で記録し、素材収入・bank素材EVは実測指標として別に併記する。
+- 宝箱中身は生成済みmain itemの存在を1 content unitとする。装備品質・usable個別効用を捏造せず、
+  force時のmain item損失を共有ルールでEVへ反映する。実際のforce報酬処理はmain・special・accessoryを
+  独立判定し、素材束は罠発動後も同じ生成経路で記録する。素材収入・bank素材EVは実測指標として別に併記する。
 - TRAP_KITは有限在庫。現在floorで既知の未来chest数があり、kit数が未来機会数以下なら現在kitを温存する。現在chestの最良non-kit損失を1段先の機会費用近似に使い、未生成の未来floorの罠・中身分布を数字で作らない。現在floorに未来chestがない、またはkitが余剰ならkit使用を比較対象に含める。
 - 代表近似（完全効果risk=1、弱体効果risk=0.5、中身損失なし）の等価点は50%。これは説明用の値であり、保守方針の実判定はtrap、party、main item、kit在庫、未来chest数で動く。
 

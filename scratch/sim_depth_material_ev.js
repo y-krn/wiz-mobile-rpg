@@ -143,6 +143,7 @@ const {
   CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
   calculateChestMainItemExpectedValue,
   calculateChestMainItemForcedLossRate,
+  resolveChestSmashRewardLosses,
   rollChestAccessory,
   rollChestReward,
   rollChestTrap,
@@ -8629,7 +8630,7 @@ function resolveChestTrapForSimulation(
   mainItem,
   observations,
   metrics,
-  { futureChestCount = 0 } = {}
+  { futureChestCount = 0, smashRewards = [], rng = Math.random } = {}
 ) {
   const character = state.party[0];
   const blindStatus = character.status === "blind" ? "blind" : "clear";
@@ -8720,6 +8721,9 @@ function resolveChestTrapForSimulation(
     state.currentRun.trapsTriggered++;
     metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
     applyChestTrapEffect(state, trap, false, metrics);
+    // Ordinary disarm failure intentionally follows the existing live path:
+    // openChestDirectly still awards the chest before the game-over transition.
+    // Only the force/smash-equivalent branch has the lethal reward gate.
     return { mainItemLost: false };
   }
 
@@ -8728,9 +8732,17 @@ function resolveChestTrapForSimulation(
   state.currentRun.trapsTriggered++;
   metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
   applyChestTrapEffect(state, trap, true, metrics);
-  const mainItemLossRate = calculateChestMainItemForcedLossRate(mainItem);
-  const mainItemLost = mainItemLossRate > 0 && Math.random() < mainItemLossRate;
-  return { mainItemLost };
+  if (!state.party.some(isAlive)) {
+    return { lethal: true, mainItemLost: false, lostRewardRoles: [] };
+  }
+  // The simulator's `force` action is the production weakened-trap/smash
+  // branch. Use the shared role-aware rule for all modeled chest rewards.
+  const losses = resolveChestSmashRewardLosses(smashRewards, rng);
+  return {
+    lethal: false,
+    mainItemLost: losses.some(loss => loss.role === "main"),
+    lostRewardRoles: losses.map(loss => loss.role)
+  };
 }
 
 // 抽選そのものは src/rules/chest_rules.js（src/chest.js と同一の出所）を叩き、
@@ -8859,13 +8871,28 @@ function rollChestItems(
       item,
       observations,
       metrics,
-      { futureChestCount }
+      {
+        futureChestCount,
+        // Keep smash-loss rolls deterministic without perturbing the shared
+        // combat/recovery RNG stream used by existing simulator policies.
+        rng: createMaterialOverrideRandom(
+          `${state.currentRun.runSeed}:chest-smash:${floor}:${state.currentRun.chestsOpened}`
+        ),
+        smashRewards: ["main", "special", "accessory"]
+          .filter(role => Number.isInteger(itemIndices[role]))
+          .map(role => ({ role, item: items[itemIndices[role]] }))
+      }
     );
+  const rewardLossRoles = new Set(trapResult.lostRewardRoles || []);
   return {
     items,
+    lethal: trapResult.lethal === true,
     mainItem: mainRewardItem,
     mainItemIndex: itemIndices.main ?? -1,
     mainItemLost: trapResult.mainItemLost,
+    lostRewardIndices: [...rewardLossRoles]
+      .map(role => itemIndices[role])
+      .filter(index => Number.isInteger(index)),
     specialItem,
     specialItemIndex: itemIndices.special ?? -1,
     extraHealPotion: Boolean(extraHealPotion),
@@ -9269,6 +9296,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     steps: metrics.steps,
     battles: state.currentRun.battles,
+    chestsOpenedInRun: state.currentRun.chestsOpened,
     floorBudgetSteps: metrics.floorBudgetSteps,
     routePolicyExtraSteps: metrics.routePolicyExtraSteps,
     eliteExtraSteps: metrics.eliteExtraSteps,
@@ -10346,18 +10374,6 @@ export function simulateRun({
             materialPoolProfile: state.simPolicy.materialDropOverride?.chestMaterialProfile
           }
         );
-        if (tombRaider) {
-          metrics.coreObservations.coreOpportunityCounts.CORE_TOMB_RAIDER++;
-          metrics.coreObservations.tombRaiderMaterialBonusTotal +=
-            tombRaider.materialBonus || 0;
-          if (totalMaterials(chestMaterials) > 0) {
-            metrics.coreObservations.coreActivationCounts.CORE_TOMB_RAIDER++;
-          }
-        }
-        addMaterials(state.currentRun.materials, chestMaterials);
-        addMaterials(metrics.materialSourceCounts.chest, chestMaterials);
-        metrics.materialSources.chest += totalMaterials(chestMaterials);
-        recordMaterialPickup(metrics, chestMaterials);
         const chestItems = rollChestItems(
           state,
           floor,
@@ -10372,11 +10388,30 @@ export function simulateRun({
             futureChestCount: Math.max(0, pickedUpChests - chest - 1)
           }
         );
+        if (chestItems.lethal) {
+          // Match src/chest.js: a lethal trap ends the chest transition before
+          // any material, reward, or equipment telemetry is recorded.
+          state.currentRun.chestsOpened++;
+          break;
+        }
+        if (tombRaider) {
+          metrics.coreObservations.coreOpportunityCounts.CORE_TOMB_RAIDER++;
+          metrics.coreObservations.tombRaiderMaterialBonusTotal +=
+            tombRaider.materialBonus || 0;
+          if (totalMaterials(chestMaterials) > 0) {
+            metrics.coreObservations.coreActivationCounts.CORE_TOMB_RAIDER++;
+          }
+        }
+        addMaterials(state.currentRun.materials, chestMaterials);
+        addMaterials(metrics.materialSourceCounts.chest, chestMaterials);
+        metrics.materialSources.chest += totalMaterials(chestMaterials);
+        recordMaterialPickup(metrics, chestMaterials);
         chestItems.items = applyEquipmentPostGenerationTransforms(chestItems.items, state);
         const cureCountsBeforeChest = countInventoryItems(state.inventory);
         const acquiredEquipment = [];
         recordEquipmentGenerations(metrics, chestItems.items);
         chestItems.items.forEach((item, itemIndex) => {
+          if (chestItems.lostRewardIndices?.includes(itemIndex)) return;
           if (
             chestItems.mainItemLost &&
             itemIndex === chestItems.mainItemIndex &&
