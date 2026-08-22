@@ -128,7 +128,8 @@ export class DungeonRenderer {
       monster.multiActionQueued,
       monster.summonQueued,
       monster.snipeQueued,
-      monster.snipeTargetIdx
+      monster.snipeTargetIdx,
+      monster.statusEffects?.bleeding?.remainingTurns
     ].join(",")).join(";") || "";
     const roamingMonsters = state.roamingMonsters?.map(monster => [
       monster.floor,

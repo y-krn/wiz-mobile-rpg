@@ -1,0 +1,9 @@
+{
+  "id": "issue-793-ci-shallow",
+  "scope": "test-only",
+  "baseRef": "HEAD",
+  "baseCommit": "HEAD",
+  "baseRefReason": "issue-793-ci-shallow",
+  "productionBaseRef": "origin/main",
+  "purpose": "Exercise git-backed provenance in a CI checkout that does not materialize origin/main. This fixture is not production measurement evidence."
+}

@@ -22,14 +22,14 @@ function lcg(seed) {
   };
 }
 
-assert.strictEqual(SUPPORT_AFFIXES.length, 46, "support registry count");
-assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 46, "enabled support count");
+assert.strictEqual(SUPPORT_AFFIXES.length, 47, "support registry count");
+assert.strictEqual(SUPPORT_AFFIXES.filter(affix => affix.enabled).length, 47, "enabled support count");
 assert.deepStrictEqual(
   Object.fromEntries(["basic", "conditional", "trigger", "economy"].map(category => [
     category,
     SUPPORT_AFFIXES.filter(affix => affix.category === category).length
   ])),
-  { basic: 26, conditional: 11, trigger: 6, economy: 3 }
+  { basic: 26, conditional: 11, trigger: 7, economy: 3 }
 );
 SUPPORT_AFFIXES.forEach(affix => {
   assert.strictEqual(affix.kind, "support");
@@ -193,6 +193,19 @@ assert.strictEqual(
   findGeneratedAffix(generateRandomAccessory, 4, "poisonAtk"),
   null,
   "poisonAtk does not enter the accessory pool"
+);
+const generatedBleedingAtk = findGeneratedAffix(generateRandomEquipment, 4, "bleedingAtk");
+assert.ok(generatedBleedingAtk, "bleedingAtk enters the weapon pool");
+assert.strictEqual(generatedBleedingAtk.affix.value, 12, "bleedingAtk scales to 12% on B4");
+assert.equal(
+  findGeneratedAffix(generateRandomEquipment, 2, "bleedingAtk"),
+  null,
+  "bleedingAtk is unavailable before B3"
+);
+assert.equal(
+  findGeneratedAffix(generateRandomAccessory, 4, "bleedingAtk"),
+  null,
+  "bleedingAtk does not enter the accessory pool"
 );
 const trapBonusValues = [
   [generateRandomEquipment, 1],

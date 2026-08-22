@@ -114,7 +114,12 @@ test("save round-trip normalizes old status fields and retains the canonical sha
   const originalCombatState = state.combatState;
   state.party = [{ ...createSoloCharacter("Mage"), status: "sleep", sleepTurns: 2, silenceTurns: 2 }];
   state.combatState = {
-    monsters: [{ name: "Monster", hp: 20, status: "poisoned" }]
+    monsters: [{
+      name: "Monster", hp: 20, status: "poisoned",
+      statusEffects: {
+        bleeding: { id: "bleeding", remainingTurns: 2, stacks: 1, source: "bleedingAtk" }
+      }
+    }]
   };
 
   try {
@@ -126,6 +131,13 @@ test("save round-trip normalizes old status fields and retains the canonical sha
     assert.deepEqual(payload.combatState.monsters[0].statusEffects.poisoned, {
       id: "poisoned", remainingTurns: null, stacks: 1, source: null
     });
+    assert.deepEqual(payload.combatState.monsters[0].statusEffects.bleeding, {
+      id: "bleeding", remainingTurns: 2, stacks: 1, source: "bleedingAtk"
+    });
+
+    applySavePayload(migrateSavePayload(payload));
+    assert.equal(state.combatState.monsters[0].statusEffects.bleeding.remainingTurns, 2);
+    assert.equal(state.combatState.monsters[0].statusEffects.bleeding.source, "bleedingAtk");
 
     const legacyPayload = JSON.parse(JSON.stringify(payload));
     delete legacyPayload.party[0].statusEffects;

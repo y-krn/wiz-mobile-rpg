@@ -97,7 +97,7 @@ existence of the curse and prevents ordinary removal.
 - conditional (Phase 2): deepAssault (attack+ from B3F onward) / frontGuard /
   rearEvasion / fullHpDamage / firstTurnAttack / antiBeast / antiSpirit /
   firstStrikeDefense / lastSurvivorStats / statusResistance / spellAccuracy
-- trigger (Phase 2/3): killHeal / followUpMp / hitFlinch / poisonAtk /
+- trigger (Phase 2/3): killHeal / followUpMp / hitFlinch / poisonAtk / bleedingAtk /
   victoryMaterial / stairsHeal
 - economy (Phase 3): identifyDiscount / materialFind / contractReward
 
@@ -141,6 +141,7 @@ values.
 | antiBeast / antiSpirit | 15% | 20% | 25% |
 | spellAccuracy / hitFlinch | 10% | 12% | 15% |
 | poisonAtk | 8% | 10% | 12% |
+| bleedingAtk | 8% | 10% | 12% |
 | lastSurvivorStats | 2 | 3 | 3 |
 | statusResistance | 12% | 16% | 20% |
 | stairsHeal | 2 | 3 | 4 |

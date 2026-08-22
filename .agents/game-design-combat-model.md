@@ -916,7 +916,7 @@ statusEffects: {
 ```
 
 Phase 0 で既存表現に対応する ID は `poisoned`、`blind`、`sleep`、`paralyzed`、
-`silence` のみである。`dead` と `ok` は状態異常 ID ではない。`remainingTurns`
+`silence` であり、Phase 1 で combat-only の `bleeding` を追加した。`dead` と `ok` は状態異常 ID ではない。`remainingTurns`
 が `null` の既存状態は期限を持たない legacy 表現、`stacks` は既存挙動を変えない
 ため常に最低 1、`source` は既存の付与元を再判定するための値ではなく記録用の
 任意メタデータである。Phase 0 は stack、consume、refresh、耐性計算、ダメージ、
@@ -941,10 +941,102 @@ Phase 0 で既存表現に対応する ID は `poisoned`、`blind`、`sleep`、`
   #313 の攻撃前 poison setup、35%、1.4 倍、同一攻撃への入力、KATINO sleep 保持は
   固定する。
 
-### 8.3 future owner decisions (not selected in Phase 0)
+### 8.3 #793 Phase 1 bleeding vertical slice
 
-Bleed / Vulnerable の採否、最終名称・内部 ID、numeric value、付与 source と供給量、
-duration、stack/refresh/consume、status resistance の対象と値、敵側耐性・免疫、
-boss policy、CORE_EXECUTIONER 対象化、cure/clear policy、UI terminology/iconography、
-telemetry schema は未決定である。これらを選定するまで、新しい status type、rate、
-damage、duration、resistance、boss rule、UI 表示は追加しない。
+`bleeding`（プレイヤー表示「出血」）だけを Phase 1 の新規状態として採用した。
+`Vulnerable`、行動不能、ラウンド終了ダメージ、汎用 status engine は追加しない。
+
+#### Rule and stage
+
+- Producer は weapon-only support `bleedingAtk`（magic/rare/epic = 8%/10%/12%）。
+  `poisonAtk` は既存の判定・値・付与順をそのまま維持する。
+- `round.js` の命中判定、物理式、targeted affix、guard、会心を通過した
+  **通常の直接物理ヒット**の後にだけ producer を判定する。DoT、反射、呪文、
+  follow-up/secondary hit は producer にならず、payoff も消費しない。
+- 初回付与は生存対象へ成功ヒット後に行う。再付与は
+  `remainingTurns = 3` へ refresh するだけで、`stacks` は常に 1。各 combat
+  round transition で 1 減り、0 で expiry。敵撃破時、combat cleanup、save/load は
+  canonical adapter entry を対象にする。
+- 既に出血中の後続通常ヒットは、直接ヒットの後に固定 `+1` damage を加える。
+  低 HP の overkill は実際に減った HP だけを contribution として記録する。
+  これは次の通常攻撃にだけ反応し、action lock や round-end tick ではない。
+- `CORE_EXECUTIONER` の predicate は legacy status のみを読むため、出血だけでは
+  発動しない。既存の攻撃前 poison 35%、1.4x、KATINO sleep 互換境界は不変である。
+
+#### Numeric decision and measurement
+
+候補は payoff `+1/+2/+3` の小 sweep とし、`bleedingAtk=100%` の calibration build
+を用いて candidate 側の producer/consumer 実経路を必ず発火させた。`+1` を選択した
+理由は、実際の application/trigger/damage contribution が観測でき、base の B5/B10
+突破率を下げずに build choice の差を作る、最小の候補だったためである。`+3` の
+到達階点推定は高かったが 95% mean CI が広く base と重なり、`+2` は B5/B10 突破率
+を下げたため、より大きい値を採用する根拠にはしなかった。
+
+- source code base: `f076e89fa759968c10e2d1e847945dddfcf9be24`
+- candidate source/runner commit: `59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4`
+- runner: Node `v26.7.0`, `scratch/sim_issue_793_bleeding.js`
+- provenance: base case `sourceCommit=f076e89fa759968c10e2d1e847945dddfcf9be24`,
+  candidate cases `sourceCommit=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4`; both record
+  `originMainAncestor=true`, `staleTreeAllowed=false`, and the same runner commit
+  `59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4`
+- provenance output also records the resolved `provenanceBaseRef` and commit. Production
+  measurements use the required `origin/main` ref. The unit-side CI compatibility check
+  uses the explicit test-only fixture
+  `scratch/fixtures/issue-793-measurement-provenance.json`, which resolves local `HEAD`
+  and records `provenanceBaseRefReason=issue-793-ci-shallow`; this fixture is not
+  measurement evidence and does not make a missing ref valid. An unknown ref fails before
+  simulation starts.
+- seed policy: `SIM_INDEPENDENT_RUN_RANDOM=1`, `SIM_SEED=793`; class、runIndex、seriesId
+  を base/candidate で一致
+- dataset/preset: current `src` data、`generateRunFloor` 経由の solo real-run、
+  `targetDepth=20`、base/candidate N=100、calibration N=50
+- reproduction (raw JSON remains untracked in `scratch/results/`):
+
+  ```sh
+  git worktree add --detach /private/tmp/issue-793-bleed-base-clean f076e89fa759968c10e2d1e847945dddfcf9be24
+  cp /private/tmp/issue-793-bleed-vertical-slice/scratch/sim_issue_793_bleeding.js /private/tmp/issue-793-bleed-base-clean/scratch/sim_issue_793_bleeding.js
+  cd /private/tmp/issue-793-bleed-base-clean
+  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=base BLEEDING_SOURCE_CODE_SHA=f076e89fa759968c10e2d1e847945dddfcf9be24 BLEEDING_RUNNER_COMMIT=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/sim_issue_793_bleeding.js
+  cd /private/tmp/issue-793-bleed-vertical-slice
+  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=candidate BLEEDING_SOURCE_CODE_SHA=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_RUNNER_COMMIT=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/sim_issue_793_bleeding.js
+  ```
+- matched base (base, no bleeding route): reached floor `2.82 ± 0.37` (95% mean
+  CI), B5 reach/breakthrough `28%/3%`, B10 `1%/1%`, survival `0%`, final combat
+  build score `27.12 ± 3.84`, final core count `0.63 ± 0.19`, and natural source
+  selection observed `0/100` runs
+- candidate `+1` forced calibration: reached floor `2.85 ± 0.45`, B5 `24%/4%`,
+  B10 `3%/2%`, survival `0%`; 372 applications, 238 refreshes, 573 triggers,
+  260 damage contribution, 15 expiries, 340 clears (clear reasons: defeat 335,
+  self-destruct 5). Build snapshots observed the forced producer in `100/100` runs,
+  `69/100` at the final snapshot, with final combat build score `27.02 ± 3.74`
+  and final core count `0.60 ± 0.18`. Natural source selection is explicitly
+  `unexecuted/omitted` for this forced case.
+- candidate `+2`: reached floor `2.76 ± 0.40`, B5 `27%/2%`, B10 `1%/1%`, survival
+  `0%`, contribution `327`; candidate `+3`: reached `3.03 ± 0.57`, B5 `27%/3%`,
+  B10 `3%/3%`, survival `0%`, contribution `391`. The larger candidates are not
+  selected by the smallest-meaningful-effect rule.
+- candidate natural-loot reachability was measured separately at N=50: source
+  selection was observed in `1/50` runs (`0.02` per run), with 9 applications,
+  1 refresh, 12 triggers, and 10 damage contribution. This is a measured result,
+  not a theoretical probability; forced calibration bypasses natural selection.
+
+Modeled: real floor generation/traversal, existing equipment scoring/build snapshots,
+round combat, rewards, retreat and status-cure policy, and the normal direct-hit path.
+Omitted: manual UI timing/live analytics transport, natural loot choice in the forced
+calibration, and all other new statuses. Required telemetry fields are recorded in
+the simulation result and production `bleeding_*` events: application, failed roll,
+resisted (0; no enemy resistance rule exists), refresh, qualifying trigger, damage
+contribution, expiry/clear with reason, boss/midboss flags, and source/build key.
+
+#### Compatibility boundary
+
+The adapter retains legacy string/duration fields and accepts `bleeding` as an additive
+canonical entry. `createSavePayload`/`applySavePayload` preserve remaining duration and
+source metadata. `hasStatusEffectForDamage` intentionally remains legacy-only for
+`CORE_EXECUTIONER`; adding a future status must not silently widen that predicate.
+
+### 8.4 future owner decisions (not selected)
+
+Vulnerable、追加の producer/source、敵側耐性・免疫、出血の cure item、出血を
+`CORE_EXECUTIONER` 対象へ広げること、追加の status stacking、action-denial mechanics
+は未決定である。
