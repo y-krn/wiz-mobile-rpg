@@ -19,6 +19,14 @@ const XR = [400, 300, 255, 230, 216];
 const YT = [0, 52, 86, 106, 118];
 const YB = [260, 208, 174, 154, 142];
 
+// The state owner guarantees this shape for a playable floor. The renderer
+// still checks it at the boundary because a save or a transition can expose
+// a partially initialized cell for one frame.
+function isRenderableCell(cell) {
+  return cell && Array.isArray(cell.walls) && cell.walls.length === 4 &&
+    cell.walls.every(wall => typeof wall === "boolean");
+}
+
 export class DungeonRenderer {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
@@ -157,6 +165,9 @@ export class DungeonRenderer {
     const { showTownBackground, showCombat, showChest, showEventScene, showItemMenu } = sceneVisibility;
     if (showTownBackground) return false;
 
+    const map = state.map;
+    if (!Array.isArray(map)) return false;
+
     // These layers use Date.now() for visual pulses and must keep redrawing.
     const environment = getFloorTheme(state.floor).visualSignature.environment;
     const cyclePosition = (state.floor - 1) % 5;
@@ -164,9 +175,10 @@ export class DungeonRenderer {
     if (showCombat || showChest || showEventScene || showItemMenu) return false;
 
     const minY = Math.max(0, state.y - 4);
-    const maxY = Math.min(state.map.length - 1, state.y + 4);
+    const maxY = Math.min(map.length - 1, state.y + 4);
     for (let y = minY; y <= maxY; y++) {
-      const row = state.map[y];
+      const row = map[y];
+      if (!Array.isArray(row)) continue;
       const minX = Math.max(0, state.x - 4);
       const maxX = Math.min(row.length - 1, state.x + 4);
       for (let x = minX; x <= maxX; x++) {
@@ -297,6 +309,9 @@ export class DungeonRenderer {
   }
 
   draw3DCorridors(ctx) {
+    const map = state.map;
+    if (!Array.isArray(map)) return;
+
     const px = state.x;
     const py = state.y;
     const dir = state.dir;
@@ -331,13 +346,20 @@ export class DungeonRenderer {
         const nextRight = XR[z + 1] + nextWidth * column;
 
         // Check out of bounds
-        if (cx < 0 || cy < 0 || cy >= state.map.length || cx >= state.map[cy].length) {
+        const row = map[cy];
+        if (cx < 0 || cy < 0 || cy >= map.length || !Array.isArray(row) || cx >= row.length) {
           // Render a solid wall block at depth z
           this.renderSolidWall(ctx, z, outOfBoundsColor, column); // Red glow for out of bounds
           continue;
         }
 
-        const cell = state.map[cy][cx];
+        const cell = row[cx];
+        if (!isRenderableCell(cell)) {
+          // A partially loaded cell is not traversable or drawable. Keep the
+          // corridor closed until the state owner supplies a valid cell.
+          this.renderSolidWall(ctx, z, outOfBoundsColor, column);
+          continue;
+        }
 
         // Relative directions based on player orientation
         const dirLeft = (dir + 3) % 4;
@@ -349,7 +371,7 @@ export class DungeonRenderer {
         const frontX = cx + DX[dirFront];
         const frontY = cy + DY[dirFront];
         const frontEnterFace = (dirFront + 2) % 4;
-        const hasFrontOneWayBarrier = column === 0 && !hasFrontWall && Boolean(state.map[frontY]?.[frontX]?.blockEnter?.[frontEnterFace]);
+        const hasFrontOneWayBarrier = column === 0 && !hasFrontWall && Boolean(map[frontY]?.[frontX]?.blockEnter?.[frontEnterFace]);
 
         // 1. Draw floor/ceiling segments
         ctx.strokeStyle = gridColor;
@@ -1081,6 +1103,12 @@ export class DungeonRenderer {
   }
 
   drawMiniMap(ctx) {
+    const map = state.map;
+    if (!Array.isArray(map) || map.length === 0) return;
+    for (let y = 0; y < map.length; y++) {
+      if (!Object.hasOwn(map, y) || !Array.isArray(map[y])) return;
+    }
+
     const cellS = 10; // Adjust cell size to 10px
     const margin = 8;
     const minimapSize = 128; // Fixed minimap size to match 16x16 cell size (128x128px)
@@ -1103,8 +1131,8 @@ export class DungeonRenderer {
     const desiredOffsetX = (minimapSize / 2) - (state.x * cellS + cellS / 2);
     const desiredOffsetY = (minimapSize / 2) - (state.y * cellS + cellS / 2);
 
-    const mapWidth = Math.max(...state.map.map(row => row.length));
-    const mapHeight = state.map.length;
+    const mapWidth = Math.max(...map.map(row => row.length));
+    const mapHeight = map.length;
     const mapPixelW = mapWidth * cellS;
     const mapPixelH = mapHeight * cellS;
 
@@ -1119,8 +1147,8 @@ export class DungeonRenderer {
     const lightRad = state.dumapicTurns > 0 ? 5 : (state.lightPower === "lomilwa" ? 5 : (state.lightTurns > 0 ? 3 : 0));
     const fragmentCells = new Set(state.dungeonMemory?.mapFragments?.[state.floor] || []);
 
-      for (let y = 0; y < state.map.length; y++) {
-        for (let x = 0; x < state.map[y].length; x++) {
+      for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < map[y].length; x++) {
           const isVisited = Boolean(state.visitedMap?.[y]?.[x]);
         const isFragmentRevealed = fragmentCells.has(`${x},${y}`);
         const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
@@ -1129,7 +1157,8 @@ export class DungeonRenderer {
         // Render explored cells and temporary or contract-supplied map information.
         if (!isVisited && !isLightRevealed && !isFragmentRevealed) continue;
 
-        const cell = state.map[y][x];
+        const cell = map[y][x];
+        if (!isRenderableCell(cell)) continue;
         const screenX = margin + x * cellS + offsetX;
         const screenY = margin + y * cellS + offsetY;
 
