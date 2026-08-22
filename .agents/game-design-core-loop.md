@@ -61,7 +61,7 @@ milestone return-portal behavior remain unchanged.
 Measurement question/decision: does separating the Wing preserve ordinary
 reward supply and avoid a material EV/depth regression? Adopted because the
 matched after case passed that rule. Measurement basis: clean PR head
-`b5cd4915a2afcdb68fb985fa36a6f622ee31bc9a`, base
+`287a32ee222506f97e224f8468c1399e638ff866`, base
 `adc6631cb20f947a1f77667e0eb732d91d6b3647`, `originMainAncestor=true`,
 `staleTreeAllowed=false`, seed 231, `balance-main`, `workshop-complete`,
 N=500 per target depth, calibration N=100, Node v26.7.0, the real
@@ -69,10 +69,12 @@ N=500 per target depth, calibration N=100, Node v26.7.0, the real
 equipment scoring policies, and Return Wing use at HP≤35% with no recovery
 potions remaining. The matched baseline reconstructed the pre-#791 B2/B3/B5
 candidate pools in the measurement harness; the after case used the production
-special roll. At B5/B10/B20, baseline main-slot Wing replacements were
-0.198/0.466/0.546 per run and after special offers were 0.172/0.448/0.558;
-after chest acquisitions were 0.152/0.304/0.272 per run because the inventory
-keeps at most one Wing. Total equipment per run was
+special roll for ordinary generated-floor chests. Combat-generated reward
+chests (`fromDrop`) keep their existing behavior and are out of this
+measurement scope. At B5/B10/B20, baseline main-slot Wing replacements were
+0.198/0.466/0.546 per run; after special offers, main-slot replacements were
+0/0/0 and special chest acquisitions were 0.152/0.304/0.272 per run because
+the inventory keeps at most one Wing. Total equipment per run was
 10.374/15.048/14.726 before and 10.522/15.870/16.864 after. Banked-material
 EV was 38.968/42.936/36.966 before and 39.136/44.678/49.130 after. B5 reach /
 breakthrough was 39.8%/0.0%, 44.8%/15.4%, and 37.8%/10.6% before versus
@@ -85,7 +87,9 @@ Wing use was 0.158 per run after the change versus 0.156 ordinary chest Wing
 use in baseline; use was concentrated in the 0-20% and 21-35% HP bands. The
 sim records Wing source, acquisition, use floor, HP band, explicit
 retreat/death outcome
-counts and rates, bank EV, and main-slot replacement telemetry; raw run output
+counts and rates, bank EV, and main-slot replacement telemetry; the Issue #697
+measurement now carries the same explicit retreat/death counts and rates;
+raw run output
 remains untracked.
 
 Measurement scope: modeled behavior includes generated floors, the production
