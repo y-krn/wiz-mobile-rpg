@@ -4,7 +4,9 @@ import {
   CHEST_USABLE_BREAK_CHANCE,
   rollChestTrap,
   rollChestAccessory,
-  rollChestReward
+  rollChestReward,
+  rollChestSpecialReward,
+  CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP
 } from "./rules/chest_rules.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -18,6 +20,7 @@ import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
 import { getChestMaterialPool } from "./rules/material_rules.js";
+import { getItemBaseId } from "./rules/item_rules.js";
 
 export function applyTombRaiderTrapTier(chest, opener) {
   const params = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
@@ -56,13 +59,19 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
       party: state.party,
       currentRun: state.currentRun,
       trap,
-      firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed
+      firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
+      itemCandidates: options.fromDrop
+        ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[Math.min(5, state.floor)]
+        : null
     });
     item = reward.item;
     if (reward.consumedFirstChestGuarantee) {
       state.firstChestUnidentifiedGuaranteed = true;
     }
   }
+  const specialItem = forcedItem === null && !options.fromDrop
+    ? rollChestSpecialReward(state.floor, rng)
+    : null;
   const accessoryItem = forcedItem === null ? rollChestAccessory(state.floor, rng, state.party) : null;
 
   // Aura & loot hint calculation
@@ -111,6 +120,7 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
   state.chestState = {
     trap,
     item,
+    specialItem,
     accessoryItem,
     inspected: false,
     identifiedTrap: "",
@@ -661,6 +671,24 @@ export function openChestDirectly(opener = null, rng = Math.random) {
         addLog(`アイテム: [${item.name}] を手に入れた！`);
       } else {
         addLog(`[!] バッグがいっぱいで [${item.name}] を持ち帰れなかった！`);
+      }
+    }
+
+    if (chest.specialItem) {
+      const added = addInventoryItem(chest.specialItem);
+      if (added) {
+        recordEquipmentDiscovery(chest.specialItem);
+        if (state.currentRun) state.currentRun.itemsFound.push(chest.specialItem);
+        addLog("箱の底に帰還の翼が残されていた――帰還の翼を手に入れた。");
+      } else {
+        const alreadyHasWing = state.inventory.some(item => getItemBaseId(item) === "TOWN_PORTAL");
+        if (alreadyHasWing) {
+          addLog("帰還の翼はすでに所持している。");
+        } else if (state.inventory.length >= 20) {
+          addLog("[!] バッグがいっぱいで [帰還の翼] を持ち帰れなかった！");
+        } else {
+          addLog("帰還の翼を持ち帰れなかった。");
+        }
       }
     }
 

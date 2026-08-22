@@ -47,6 +47,60 @@ floor, retreat and death recorded separately) is always visible on the title
 screen, in town, and on the run result. Abandon is tracked as its own run
 ending without entering death metrics.
 
+**Decided: Return Wing is an independent special chest reward (Issue #791,
+2026-08-22).** `TOWN_PORTAL` is not part of the ordinary chest main-reward
+candidate pools. A chest first resolves its normal main reward, then performs a
+separate Return Wing roll, so obtaining a Wing cannot consume the ordinary
+reward slot. The explicit special-roll rates are B1 0%, B2 2%, B3 2%, B4 0%,
+and B5+ 4% (the B5 rate is reused at deeper floors). These rates match the
+base-run chest replacement opportunity measured on the real run path while
+turning the Wing into a separate push-your-luck decision. The existing bank
+rate, in-combat availability, craft cost, milestone merchant price/role, and
+milestone return-portal behavior remain unchanged.
+
+Measurement question/decision: does separating the Wing preserve ordinary
+reward supply and avoid a material EV/depth regression? Adopted because the
+matched after case passed that rule. Measurement basis: clean PR head
+`287a32ee222506f97e224f8468c1399e638ff866`, base
+`adc6631cb20f947a1f77667e0eb732d91d6b3647`, `originMainAncestor=true`,
+`staleTreeAllowed=false`, seed 231, `balance-main`, `workshop-complete`,
+N=500 per target depth, calibration N=100, Node v26.7.0, the real
+`generateRunFloor`→exploration→round/reward path, current status-cure and
+equipment scoring policies, and Return Wing use at HP≤35% with no recovery
+potions remaining. The matched baseline reconstructed the pre-#791 B2/B3/B5
+candidate pools in the measurement harness; the after case used the production
+special roll for ordinary generated-floor chests. Combat-generated reward
+chests (`fromDrop`) keep their existing behavior and are out of this
+measurement scope; their legacy main-reward candidate pools and ordering are
+preserved. At B5/B10/B20, baseline main-slot Wing replacements were
+0.198/0.466/0.546 per run; after special offers, main-slot replacements were
+0/0/0 and special chest acquisitions were 0.152/0.304/0.272 per run because
+the inventory keeps at most one Wing. Total equipment per run was
+10.374/15.048/14.726 before and 10.522/15.870/16.864 after. Banked-material
+EV was 38.968/42.936/36.966 before and 39.136/44.678/49.130 after. B5 reach /
+breakthrough was 39.8%/0.0%, 44.8%/15.4%, and 37.8%/10.6% before versus
+40.2%/0.0%, 44.2%/16.2%, and 40.6%/16.0% after for the B5/B10/B20 target
+series; B10 reach / breakthrough was 0.0%/0.0%, 10.2%/0.0%, and 6.6%/5.2%
+before versus 0.0%/0.0%, 12.6%/0.0%, and 12.2%/8.8% after. Retreat/death
+rates were 43.8%/56.2%, 22.6%/77.4%, and 16.2%/83.8% before versus
+43.8%/56.2%, 24.6%/75.4%, and 17.4%/82.6% after. At B20, chest-special
+Wing use was 0.158 per run after the change versus 0.156 ordinary chest Wing
+use in baseline; use was concentrated in the 0-20% and 21-35% HP bands. The
+sim records Wing source, acquisition, use floor, HP band, explicit
+retreat/death outcome
+counts and rates, bank EV, and main-slot replacement telemetry; the Issue #697
+measurement now carries the same explicit retreat/death counts and rates;
+raw run output
+remains untracked.
+
+Measurement scope: modeled behavior includes generated floors, the production
+chest reward order and inventory limits, Return Wing use, configured
+status-cure decisions, and equipment scoring. Omitted behavior includes live
+UI timing and manual choices, visual/audio chest presentation, live analytics
+transport, and policies outside the configured simulator. Retreat/death fields
+are therefore simulated outcomes, not production telemetry, and do not claim
+to measure player behavior.
+
 ## Design Pillars
 
 1. **Depth as the question.** The game asks one thing: "how deep can you go
