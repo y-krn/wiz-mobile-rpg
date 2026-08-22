@@ -1442,6 +1442,9 @@ function createCoreObservations() {
     lowHpOffensiveTurns: 0,
     giantTargetTurns: 0,
     statusTargetTurns: 0,
+    executionerStatusSetupCount: 0,
+    executionerStatusSetupSurvivals: 0,
+    executionerTriggerCount: 0,
     openerFirstStrikeFightTurns: 0,
     bloodWandActiveRounds: 0,
     bloodWandMpEmptyRounds: 0,
@@ -5267,6 +5270,11 @@ function recordRoundCoreObservations(
   const spell = action.type === "spell" ? SPELLS[action.spellName] : null;
   const offensive = action.type === "fight" ||
     (spell?.target?.includes("enemy") && action.spellName !== "KATINO");
+  const executionerSetupEvents = logQueue.filter(entry => entry.executionerStatusSetup);
+  observations.executionerStatusSetupCount += executionerSetupEvents.length;
+  observations.executionerStatusSetupSurvivals += executionerSetupEvents.filter(
+    entry => entry.targetRef?.hp > 0
+  ).length;
   const lastStandParams = getCharCoreParams(characterBefore, "CORE_LAST_STAND");
   const giantSlayerParams = getCharCoreParams(characterBefore, "CORE_GIANT_SLAYER");
   const executionerParams = getCharCoreParams(characterBefore, "CORE_EXECUTIONER");
@@ -5310,7 +5318,9 @@ function recordRoundCoreObservations(
         observations.coreOpportunityCounts.CORE_GIANT_SLAYER++;
       }
     }
-    if (targetBeforeRound?.status && !["ok", "dead"].includes(targetBeforeRound.status)) {
+    const statusTarget = targetBeforeRound?.status && !["ok", "dead"].includes(targetBeforeRound.status);
+    const setupTarget = executionerSetupEvents.length > 0;
+    if (statusTarget || setupTarget) {
       observations.statusTargetTurns++;
       if (executionerParams) {
         observations.coreOpportunityCounts.CORE_EXECUTIONER++;
@@ -5997,6 +6007,7 @@ function runEncounter(
       : structuredClone(state.combatState.monsters[action.targetIdx]);
     const monstersBeforeRound = structuredClone(state.combatState.monsters);
     const characterBeforeRound = structuredClone(character);
+    const executionerTriggersBefore = state.simTelemetry?.executionerTriggers || 0;
     const bloodWandOpportunity = getBloodWandOpportunity(state, action, observations);
     observations.bloodWandSpellOpportunities += Number(bloodWandOpportunity === "offense");
     observations.bloodWandHealOpportunities += Number(bloodWandOpportunity === "heal");
@@ -6081,6 +6092,8 @@ function runEncounter(
       roundResult,
       firstStrikeSucceeded
     );
+    observations.executionerTriggerCount +=
+      (roundResult.state.simTelemetry?.executionerTriggers || 0) - executionerTriggersBefore;
     const bloodWandActivationType = getBloodWandActivationType(
       action,
       roundResult.logQueue
@@ -7088,6 +7101,14 @@ function createCoreScoringProfile(observations, runCount) {
     lowHpOffensiveRate: divide(observations.lowHpOffensiveTurns, observations.offensiveTurns),
     giantTargetRate: divide(observations.giantTargetTurns, observations.offensiveTurns),
     statusTargetRate: divide(observations.statusTargetTurns, observations.offensiveTurns),
+    executionerStatusSetupCount: observations.executionerStatusSetupCount,
+    executionerStatusSetupSurvivals: observations.executionerStatusSetupSurvivals,
+    executionerStatusSetupSurvivalRate: divide(
+      observations.executionerStatusSetupSurvivals,
+      observations.executionerStatusSetupCount
+    ),
+    executionerTriggerCount: observations.executionerTriggerCount,
+    executionerTriggerRate: divide(observations.executionerTriggerCount, observations.offensiveTurns),
     openerFirstStrikeRate: divide(
       observations.openerFirstStrikeFightTurns,
       observations.fightTurns
@@ -9911,7 +9932,8 @@ export function simulateRun({
     killHeal: {
       killHealActivations: 0,
       killHealPotentialHp: 0,
-      killHealRecoveredHp: 0
+      killHealRecoveredHp: 0,
+      executionerTriggers: 0
     },
     statusCureItemsAcquired: {
       initial: countInventoryItems(state.simStartingInventory),
@@ -11811,7 +11833,9 @@ function printCoreScoringProfile(profile, policy = null) {
   );
   console.log(
     `執行人: 状態異常敵への攻撃turn率=${formatPercent(profile.statusTargetRate)}; ` +
-    "実KATINO初手方針で実測、攻撃score×率×(2-1)"
+    `仕込み=${profile.executionerStatusSetupCount}件（対象生存${formatPercent(profile.executionerStatusSetupSurvivalRate)}）、` +
+    `trigger=${profile.executionerTriggerCount}件/${formatPercent(profile.executionerTriggerRate)}、` +
+    `実KATINO初手方針で実測、攻撃score×率×(${CORE_AFFIX_BY_ID.get("CORE_EXECUTIONER").params.damageMultiplier}-1)`
   );
   console.log("血杖: 実generatorのmeta解放対象。工房state別calibrationを使用");
   console.log("\n【economy探索価値 calibration（B1→B20）】");

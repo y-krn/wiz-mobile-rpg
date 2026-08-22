@@ -50,7 +50,12 @@ import { recordCharDeath, recordMonsterResistanceDiscovery } from "../state.js";
 import { resolveBossAction } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
 import { resolvePlayerSpell } from "./spell_resolution.js";
-import { getCharCoreParams, getFollowUpChance, getStatusEffectChance } from "../rules/affix_rules.js";
+import {
+  getCharCoreParams,
+  getFollowUpChance,
+  getStatusEffectChance,
+  tryApplyExecutionerSetup
+} from "../rules/affix_rules.js";
 import { getClassCriticalChance, getClassPassiveBonus } from "../rules/class_rules.js";
 
 /**
@@ -302,6 +307,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           const isBlindApplied = char.status === "blind";
 
+          tryApplyExecutionerSetup(char, finalTarget, { logQueue });
           dmg = applyTargetedDamageBonus(char, finalTarget, dmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
           if (guard?.mon === finalTarget && guard.mon.guard?.damageRate) {
             dmg = Math.max(1, Math.round(dmg * guard.mon.guard.damageRate));
@@ -432,6 +438,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 fixedDamageBonus: trapEaterBonus
               });
               let followUpDmg = Math.max(1, Math.floor(followUpRaw * meleeMod));
+              tryApplyExecutionerSetup(char, finalTarget, { logQueue });
               followUpDmg = applyTargetedDamageBonus(char, finalTarget, followUpDmg, { floor: state.floor, maxHp: getCharMaxHp(char), state, logQueue });
               finalTarget.hp = Math.max(0, finalTarget.hp - followUpDmg);
               tryApplyHitFlinch(char, finalTarget, logQueue);

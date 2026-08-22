@@ -12,7 +12,12 @@ import {
 } from "../data.js";
 import { recordCharDeath } from "../state.js";
 import { getBuffTotal, wakeSleepingCharOnDamage } from "./status_effects.js";
-import { getCharCoreParams, getCoreLogText, getDamageAffixResult } from "../rules/affix_rules.js";
+import {
+  getCharCoreParams,
+  getCoreLogText,
+  getDamageAffixResult,
+  recordExecutionerTrigger
+} from "../rules/affix_rules.js";
 import { resolvePurifyRecovery } from "../rules/purify_rules.js";
 
 export function logCoreActivation(
@@ -68,6 +73,7 @@ export function getEffectiveAtk(mon) {
 
 export function applyTargetedDamageBonus(char, target, dmg, options = {}) {
   const result = getDamageAffixResult(char, target, dmg, options);
+  recordExecutionerTrigger(options.state, result.coreIds);
   result.coreIds.forEach(coreId => {
     logCoreActivation(options.state, options.logQueue, char, coreId);
   });

@@ -194,6 +194,38 @@ export function getDamageAffixResult(
   };
 }
 
+export function tryApplyExecutionerSetup(
+  char,
+  target,
+  { rng = Math.random, logQueue = null } = {}
+) {
+  const params = getCharCoreParams(char, "CORE_EXECUTIONER");
+  if (
+    !params ||
+    !target ||
+    target.hp <= 0 ||
+    (target.status && target.status !== "ok") ||
+    target.status === params.status ||
+    typeof rng !== "function" ||
+    rng() >= params.statusChance
+  ) return false;
+
+  target.status = params.status;
+  logQueue?.push({
+    msg: `[味方] [!] ${char.name}の執行人が${target.name}を毒に侵した！`,
+    sound: "poison",
+    executionerStatusSetup: true,
+    targetRef: target
+  });
+  return true;
+}
+
+export function recordExecutionerTrigger(state, coreIds) {
+  if (!state?.simTelemetry || !coreIds?.includes("CORE_EXECUTIONER")) return;
+  state.simTelemetry.executionerTriggers =
+    (state.simTelemetry.executionerTriggers || 0) + 1;
+}
+
 export function getSpellPayment(char, mpCost) {
   if (char.mp >= mpCost) {
     return { canCast: true, resource: "mp", cost: mpCost };

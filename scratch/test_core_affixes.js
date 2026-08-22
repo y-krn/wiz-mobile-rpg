@@ -6,6 +6,7 @@ import {
   getCharCoreParams,
   getCharMaxMp,
   getDamageAffixResult,
+  tryApplyExecutionerSetup,
   getSpellPayment,
   paySpellCost,
   getTrapEaterBonusAfterDisarm,
@@ -45,6 +46,7 @@ import { applyTombRaiderTrapTier, generateChestMaterials } from "../src/chest.js
 import { increaseChestTrapTier } from "../src/systems/traps.js";
 import { restAtCamp } from "../src/systems/camp_rest.js";
 import { applyCombatRewards } from "../src/combat_logic/rewards.js";
+import { SPELL_EFFECTS } from "../src/systems/spell_effects.js";
 
 let failures = 0;
 
@@ -549,10 +551,53 @@ test("反撃の棘: rng注入で発動と不発を固定", () => {
   assert.equal(monster.hp, hpAfterCounter);
 });
 
-test("執行人: 状態異常中だけ2倍", () => {
+test("執行人: 状態異常中は1.4倍、清浄対象は等倍", () => {
   const char = makeChar("CORE_EXECUTIONER");
-  assert.equal(getDamageAffixResult(char, { maxHp: 50, status: "poisoned" }, 100).damage, 200);
+  assert.equal(getDamageAffixResult(char, { maxHp: 50, status: "poisoned" }, 100).damage, 140);
   assert.equal(getDamageAffixResult(char, { maxHp: 50 }, 100).damage, 100);
+});
+
+test("執行人: 攻撃前の毒仕込みが同じ攻撃の倍率へ入り、重複・死亡対象を除外", () => {
+  const char = makeChar("CORE_EXECUTIONER");
+  const logQueue = [];
+  const target = { name: "Target", hp: 100, maxHp: 100, status: "ok" };
+  assert.equal(tryApplyExecutionerSetup(char, target, { rng: () => 0, logQueue }), true);
+  assert.equal(target.status, "poisoned");
+  assert.equal(getDamageAffixResult(char, target, 100).damage, 140);
+  assert.equal(logQueue.filter(entry => entry.executionerStatusSetup).length, 1);
+
+  assert.equal(
+    tryApplyExecutionerSetup(char, target, { rng: () => { throw new Error("duplicate roll"); } }),
+    false
+  );
+  const dead = { name: "Dead", hp: 0, maxHp: 100, status: "dead" };
+  assert.equal(tryApplyExecutionerSetup(char, dead, { rng: () => 0 }), false);
+  assert.equal(dead.status, "dead");
+});
+
+test("執行人: 状態異常なしの不発とKATINO睡眠を上書きしない", () => {
+  const char = makeChar("CORE_EXECUTIONER");
+  const clean = { name: "Clean", hp: 100, maxHp: 100 };
+  assert.equal(tryApplyExecutionerSetup(char, clean, { rng: () => 0.99 }), false);
+  assert.equal(clean.status, undefined);
+  assert.equal(getDamageAffixResult(char, clean, 100).damage, 100);
+
+  const sleeping = { name: "Sleeping", hp: 100, maxHp: 100, status: "sleep", sleepTurns: 2 };
+  assert.equal(
+    tryApplyExecutionerSetup(char, sleeping, { rng: () => { throw new Error("sleep roll"); } }),
+    false
+  );
+  assert.equal(sleeping.status, "sleep");
+  assert.equal(sleeping.sleepTurns, 2);
+});
+
+test("執行人: 攻撃呪文も共通affix stage前に仕込む", () => {
+  const caster = makeChar("CORE_EXECUTIONER");
+  caster.combatFloor = 1;
+  const target = { name: "SpellTarget", hp: 100, maxHp: 100, magicResist: 0 };
+  const result = SPELL_EFFECTS.HALITO({ caster, target, rng: () => 0 });
+  assert.equal(target.status, "poisoned");
+  assert.equal(result.damage, 17, "HALITO 12 damage rounded through the 1.4x setup-triggered multiplier");
 });
 
 test("薄氷の誓約: 低HP時に攻撃・被害が増える", () => {
