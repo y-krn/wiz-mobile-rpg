@@ -41,10 +41,14 @@ check("production telemetry uses the same-origin ingest host", () => {
 });
 
 check("PostHog ingest rewrites precede the SPA fallback", () => {
-  const [staticRewrite, ingestRewrite, spaFallback] = vercelConfig.rewrites;
+  const [staticRewrite, arrayRewrite, ingestRewrite, spaFallback] = vercelConfig.rewrites;
   assert.deepEqual(staticRewrite, {
     source: "/ingest/static/(.*)",
     destination: "https://us-assets.i.posthog.com/static/$1"
+  });
+  assert.deepEqual(arrayRewrite, {
+    source: "/ingest/array/(.*)",
+    destination: "https://us-assets.i.posthog.com/array/$1"
   });
   assert.deepEqual(ingestRewrite, {
     source: "/ingest/(.*)",
