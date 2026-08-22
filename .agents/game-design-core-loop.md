@@ -60,29 +60,31 @@ milestone return-portal behavior remain unchanged.
 
 Measurement question/decision: does separating the Wing preserve ordinary
 reward supply and avoid a material EV/depth regression? Adopted because the
-matched after case passed that rule. Measurement basis: runner-recorded source
-commit `6e9d26e33fa5d2f93db670b1ba0bbef6fea33c15` plus the uncommitted
-review-fix working tree, seed 231, `balance-main`, `workshop-complete`, N=500
-per target depth, calibration N=100, Node v26.7.0, the real
+matched after case passed that rule. Measurement basis: clean PR head
+`b5cd4915a2afcdb68fb985fa36a6f622ee31bc9a`, base
+`adc6631cb20f947a1f77667e0eb732d91d6b3647`, `originMainAncestor=true`,
+`staleTreeAllowed=false`, seed 231, `balance-main`, `workshop-complete`,
+N=500 per target depth, calibration N=100, Node v26.7.0, the real
 `generateRunFloor`→exploration→round/reward path, current status-cure and
 equipment scoring policies, and Return Wing use at HP≤35% with no recovery
 potions remaining. The matched baseline reconstructed the pre-#791 B2/B3/B5
 candidate pools in the measurement harness; the after case used the production
 special roll. At B5/B10/B20, baseline main-slot Wing replacements were
-0.172/0.462/0.522 per run and after special offers were 0.172/0.448/0.558;
+0.198/0.466/0.546 per run and after special offers were 0.172/0.448/0.558;
 after chest acquisitions were 0.152/0.304/0.272 per run because the inventory
 keeps at most one Wing. Total equipment per run was
-10.428/15.652/14.968 before and 10.522/15.870/16.864 after. Banked-material
-EV was 39.076/45.692/38.950 before and 39.136/44.678/49.130 after. B5 reach /
-breakthrough was 39.4%/0.0%, 45.4%/15.8%, and 39.2%/11.2% before versus
+10.374/15.048/14.726 before and 10.522/15.870/16.864 after. Banked-material
+EV was 38.968/42.936/36.966 before and 39.136/44.678/49.130 after. B5 reach /
+breakthrough was 39.8%/0.0%, 44.8%/15.4%, and 37.8%/10.6% before versus
 40.2%/0.0%, 44.2%/16.2%, and 40.6%/16.0% after for the B5/B10/B20 target
-series; B10 reach / breakthrough was 0.0%/0.0%, 10.8%/0.0%, and 7.4%/4.6%
+series; B10 reach / breakthrough was 0.0%/0.0%, 10.2%/0.0%, and 6.6%/5.2%
 before versus 0.0%/0.0%, 12.6%/0.0%, and 12.2%/8.8% after. Retreat/death
-rates were 44.2%/55.8%, 24.4%/75.6%, and 16.2%/83.8% before versus
+rates were 43.8%/56.2%, 22.6%/77.4%, and 16.2%/83.8% before versus
 43.8%/56.2%, 24.6%/75.4%, and 17.4%/82.6% after. At B20, chest-special
-Wing use was 0.158 per run after the change (baseline 0); use was concentrated
-in the 0-20% and 21-35% HP bands. The sim records
-Wing source, acquisition, use floor, HP band, explicit retreat/death outcome
+Wing use was 0.158 per run after the change versus 0.156 ordinary chest Wing
+use in baseline; use was concentrated in the 0-20% and 21-35% HP bands. The
+sim records Wing source, acquisition, use floor, HP band, explicit
+retreat/death outcome
 counts and rates, bank EV, and main-slot replacement telemetry; raw run output
 remains untracked.
 
