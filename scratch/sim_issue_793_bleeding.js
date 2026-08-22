@@ -2,6 +2,7 @@
 /* global process, console */
 
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import {
   SIM_CLASSES,
@@ -17,8 +18,31 @@ const CANDIDATES = [1, 2, 3];
 const TARGET_DEPTH = 20;
 const SERIES_ID = "issue-793-bleeding-matched-v1";
 const MEASUREMENT_SIDE = process.env.BLEEDING_MEASUREMENT_SIDE || "candidate";
-const SOURCE_COMMIT = process.env.BLEEDING_SOURCE_CODE_SHA || MEASUREMENT_PROVENANCE?.sourceCommit || null;
-const RUNNER_COMMIT = process.env.BLEEDING_RUNNER_COMMIT || MEASUREMENT_PROVENANCE?.sourceCommit || null;
+
+function requireCommitSha(value, envName) {
+  if (typeof value !== "string" || !/^[0-9a-f]{40}$/.test(value)) {
+    throw new Error(`${envName} must be a 40-character lowercase commit SHA`);
+  }
+  try {
+    const resolved = execFileSync("git", ["rev-parse", "--verify", `${value}^{commit}`], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    }).trim();
+    if (resolved !== value) throw new Error(`resolved to ${resolved}`);
+  } catch (error) {
+    throw new Error(`${envName} is not a commit in the measurement repository: ${error.message}`);
+  }
+  return value;
+}
+
+const SOURCE_COMMIT = requireCommitSha(
+  process.env.BLEEDING_SOURCE_CODE_SHA || MEASUREMENT_PROVENANCE?.sourceCommit,
+  "BLEEDING_SOURCE_CODE_SHA"
+);
+const RUNNER_COMMIT = requireCommitSha(
+  process.env.BLEEDING_RUNNER_COMMIT || MEASUREMENT_PROVENANCE?.sourceCommit,
+  "BLEEDING_RUNNER_COMMIT"
+);
 const PROVENANCE_BASE_REF = MEASUREMENT_PROVENANCE?.baseRef || null;
 const PROVENANCE_BASE_COMMIT = MEASUREMENT_PROVENANCE?.baseCommit || null;
 const PROVENANCE_BASE_REF_REASON = MEASUREMENT_PROVENANCE?.baseRefReason || null;

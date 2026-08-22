@@ -24,15 +24,21 @@ export function resolveMeasurementProvenance({
   baseRef = null
 } = {}) {
   const configuredBaseRef = process.env.SIM_PROVENANCE_BASE_REF || null;
+  const configuredBaseCommit = process.env.SIM_PROVENANCE_BASE_COMMIT || null;
   const testFixture = process.env.SIM_PROVENANCE_TEST_FIXTURE || null;
-  if (configuredBaseRef && !testFixture && !baseRef) {
+  if ((configuredBaseRef || configuredBaseCommit) && !testFixture && !baseRef) {
     throw new Error(
-      "measurement provenance failed: SIM_PROVENANCE_BASE_REF requires an explicit test fixture marker"
+      "measurement provenance failed: explicit base ref/commit requires an explicit test fixture marker"
+    );
+  }
+  if (testFixture && (!configuredBaseRef || !configuredBaseCommit)) {
+    throw new Error(
+      "measurement provenance failed: test fixture requires SIM_PROVENANCE_BASE_REF and SIM_PROVENANCE_BASE_COMMIT"
     );
   }
   const resolvedBaseRef = baseRef || (testFixture ? configuredBaseRef : null) || "origin/main";
   const baseRefReason = process.env.SIM_PROVENANCE_BASE_REF_REASON || null;
-  if (resolvedBaseRef !== "origin/main" && !baseRefReason) {
+  if ((testFixture || resolvedBaseRef !== "origin/main") && !baseRefReason) {
     throw new Error(
       `measurement provenance failed: explicit base ref ${resolvedBaseRef} requires SIM_PROVENANCE_BASE_REF_REASON`
     );
@@ -40,7 +46,16 @@ export function resolveMeasurementProvenance({
   if (fetchOriginMain) gitOutput(["fetch", "origin", "main"], cwd);
 
   const sourceCommit = gitOutput(["rev-parse", "HEAD"], cwd);
-  const baseCommit = gitOutput(["rev-parse", "--verify", `${resolvedBaseRef}^{commit}`], cwd);
+  const baseRefCommit = gitOutput(["rev-parse", "--verify", `${resolvedBaseRef}^{commit}`], cwd);
+  const baseCommit = configuredBaseCommit
+    ? gitOutput(["rev-parse", "--verify", `${configuredBaseCommit}^{commit}`], cwd)
+    : baseRefCommit;
+  if (configuredBaseCommit && baseCommit !== baseRefCommit) {
+    throw new Error(
+      `measurement provenance failed: base ref ${resolvedBaseRef} resolves to ${baseRefCommit}, ` +
+      `but explicit base commit resolves to ${baseCommit}`
+    );
+  }
   const ancestorCheck = spawnSync(
     "git",
     ["merge-base", "--is-ancestor", baseCommit, "HEAD"],
