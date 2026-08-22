@@ -242,6 +242,16 @@ await test("叩き壊すの各報酬カテゴリは指定率と境界を使う",
     { item: "TOWN_PORTAL", role: "special" },
     { item: "EXCALIBUR_FRAGMENT", role: "main" }
   ], () => 0).length, 0);
+
+  for (const item of [
+    "LEGENDARY_SWORD",
+    "LEGENDARY_SHIELD",
+    { baseId: "LEGENDARY_SWORD", type: "weapon" },
+    { baseId: "LEGENDARY_SHIELD", type: "shield" }
+  ]) {
+    assert.equal(getChestSmashRewardLossChance(item), 0);
+    assert.deepEqual(resolveChestSmashRewardLosses([{ item }], () => 0), []);
+  }
 });
 
 await test("叩き壊すの複数報酬はmain・special・accessoryを独立判定する", () => {

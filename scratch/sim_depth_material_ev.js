@@ -8721,7 +8721,11 @@ function resolveChestTrapForSimulation(
     state.currentRun.trapsTriggered++;
     metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
     applyChestTrapEffect(state, trap, false, metrics);
-    return { mainItemLost: false };
+    return {
+      lethal: !state.party.some(isAlive),
+      mainItemLost: false,
+      lostRewardRoles: []
+    };
   }
 
   metrics.trapForced++;
@@ -8729,10 +8733,14 @@ function resolveChestTrapForSimulation(
   state.currentRun.trapsTriggered++;
   metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
   applyChestTrapEffect(state, trap, true, metrics);
+  if (!state.party.some(isAlive)) {
+    return { lethal: true, mainItemLost: false, lostRewardRoles: [] };
+  }
   // The simulator's `force` action is the production weakened-trap/smash
   // branch. Use the shared role-aware rule for all modeled chest rewards.
   const losses = resolveChestSmashRewardLosses(smashRewards, rng);
   return {
+    lethal: false,
     mainItemLost: losses.some(loss => loss.role === "main"),
     lostRewardRoles: losses.map(loss => loss.role)
   };
@@ -8879,6 +8887,7 @@ function rollChestItems(
   const rewardLossRoles = new Set(trapResult.lostRewardRoles || []);
   return {
     items,
+    lethal: trapResult.lethal === true,
     mainItem: mainRewardItem,
     mainItemIndex: itemIndices.main ?? -1,
     mainItemLost: trapResult.mainItemLost,
@@ -9288,6 +9297,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     timeCost: metrics.steps + COMBAT_TURN_WEIGHT * metrics.combatRounds,
     steps: metrics.steps,
     battles: state.currentRun.battles,
+    chestsOpenedInRun: state.currentRun.chestsOpened,
     floorBudgetSteps: metrics.floorBudgetSteps,
     routePolicyExtraSteps: metrics.routePolicyExtraSteps,
     eliteExtraSteps: metrics.eliteExtraSteps,
@@ -10365,18 +10375,6 @@ export function simulateRun({
             materialPoolProfile: state.simPolicy.materialDropOverride?.chestMaterialProfile
           }
         );
-        if (tombRaider) {
-          metrics.coreObservations.coreOpportunityCounts.CORE_TOMB_RAIDER++;
-          metrics.coreObservations.tombRaiderMaterialBonusTotal +=
-            tombRaider.materialBonus || 0;
-          if (totalMaterials(chestMaterials) > 0) {
-            metrics.coreObservations.coreActivationCounts.CORE_TOMB_RAIDER++;
-          }
-        }
-        addMaterials(state.currentRun.materials, chestMaterials);
-        addMaterials(metrics.materialSourceCounts.chest, chestMaterials);
-        metrics.materialSources.chest += totalMaterials(chestMaterials);
-        recordMaterialPickup(metrics, chestMaterials);
         const chestItems = rollChestItems(
           state,
           floor,
@@ -10391,6 +10389,24 @@ export function simulateRun({
             futureChestCount: Math.max(0, pickedUpChests - chest - 1)
           }
         );
+        if (chestItems.lethal) {
+          // Match src/chest.js: a lethal trap ends the chest transition before
+          // any material, reward, or equipment telemetry is recorded.
+          state.currentRun.chestsOpened++;
+          break;
+        }
+        if (tombRaider) {
+          metrics.coreObservations.coreOpportunityCounts.CORE_TOMB_RAIDER++;
+          metrics.coreObservations.tombRaiderMaterialBonusTotal +=
+            tombRaider.materialBonus || 0;
+          if (totalMaterials(chestMaterials) > 0) {
+            metrics.coreObservations.coreActivationCounts.CORE_TOMB_RAIDER++;
+          }
+        }
+        addMaterials(state.currentRun.materials, chestMaterials);
+        addMaterials(metrics.materialSourceCounts.chest, chestMaterials);
+        metrics.materialSources.chest += totalMaterials(chestMaterials);
+        recordMaterialPickup(metrics, chestMaterials);
         chestItems.items = applyEquipmentPostGenerationTransforms(chestItems.items, state);
         const cureCountsBeforeChest = countInventoryItems(state.inventory);
         const acquiredEquipment = [];

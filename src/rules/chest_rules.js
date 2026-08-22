@@ -1,6 +1,6 @@
 import { ITEMS } from "../data/items.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
-import { getCharAffixSum } from "./item_rules.js";
+import { getCharAffixSum, isSpecialOrQuestItem } from "./item_rules.js";
 
 // 宝箱の抽選ルール。`src/chest.js` の UI/state 遷移とバランスsimの双方がここを叩く。
 // sim 側で写経すると src の変更に追随せず、深層のバランスを無音で誤って測るため
@@ -31,7 +31,9 @@ export const CHEST_USABLE_BREAK_CHANCE =
   CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY.usable;
 
 const CHEST_SMASH_PROTECTED_ITEM_IDS = new Set([
-  "TOWN_PORTAL"
+  "TOWN_PORTAL",
+  "LEGENDARY_SWORD",
+  "LEGENDARY_SHIELD"
 ]);
 
 // Return Wing is a retreat-right reward, not a normal chest item. The rates
@@ -56,9 +58,14 @@ function getChestItemData(item) {
 
 export function getChestSmashRewardCategory(item, role = null) {
   if (!item) return null;
-  if (role === "special" || CHEST_SMASH_PROTECTED_ITEM_IDS.has(
-    typeof item === "object" ? item.baseId || item.key || item.id : item
-  )) {
+  const itemId = typeof item === "object"
+    ? item.baseId || item.key || item.id
+    : item;
+  if (
+    role === "special" ||
+    CHEST_SMASH_PROTECTED_ITEM_IDS.has(itemId) ||
+    isSpecialOrQuestItem(itemId)
+  ) {
     return "special";
   }
   const type = getChestItemData(item)?.type;
