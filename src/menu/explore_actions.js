@@ -4,7 +4,7 @@ import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
 import { isSpellcaster, getClassJpName, getItemData, getCharTrapBonus, getPartyMaxAffix, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
-import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
+import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getCurrentExplorationCell, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
 import { completeCampEntry, getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
 import { startCombat, triggerGameOver } from "../combat.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
@@ -120,8 +120,13 @@ function searchSecretDoor() {
 export function handleExploreAction(action) {
   if (state.transitioning || state.gameState !== "explore") return;
   if (action === "search") {
-    const cell = state.map[state.y][state.x];
-    if (cell && (cell.type === "stairs-up" || cell.type === "stairs-down")) {
+    const cell = getCurrentExplorationCell();
+    if (!cell) {
+      saveAutosave();
+      updateUI();
+      return;
+    }
+    if (cell.type === "stairs-up" || cell.type === "stairs-down") {
       checkCellEvents(state.x, state.y);
     } else {
       searchSecretDoor();

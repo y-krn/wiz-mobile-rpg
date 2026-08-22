@@ -8,6 +8,7 @@ import { generateRandomMap } from "../map_generator.js";
 import { applyDungeonMemoryToMaps } from "./dungeon_state.js";
 import { createDefaultRecords } from "./records_state.js";
 import { findMapCellByType } from "../rules/map_queries.js";
+import { ensureRunFloor, isUsableFloorMap } from "./run_floor_state.js";
 
 const SAVE_KEY = "mobile_wiz_rpg_autosave";
 const OLD_SAVE_KEY = "mobile_wiz_rpg_save";
@@ -148,7 +149,21 @@ function applyRawSave(raw) {
   const data = JSON.parse(raw);
   const migrated = migrateSavePayload(data);
   applySavePayload(migrated);
+  recoverActiveRunFloorIfNeeded();
   applyDungeonMemoryToMaps();
+}
+
+function recoverActiveRunFloorIfNeeded() {
+  const activeRun = state.currentRun?.runSeed && !state.currentRun.returnReason;
+  const explorationState = ["explore", "combat", "chest", "trap_encounter"].includes(state.gameState);
+  if (!activeRun || !explorationState) return;
+
+  const floorMap = state.maps?.[state.floor - 1];
+  const hadUsableFloorMap = isUsableFloorMap(floorMap, state.floor);
+  ensureRunFloor(state, state.floor);
+  if (hadUsableFloorMap) return;
+  addLog("探索中のマップデータが欠落していたため、同じランの階層を再生成して復旧しました。");
+  saveAutosave();
 }
 
 export function loadGame() {
@@ -160,6 +175,7 @@ export function loadGame() {
   ];
 
   let firstCorrupt = null;
+  let recoveryFailure = null;
   let foundIncompatibleSave = false;
   for (const src of sources) {
     const raw = localStorage.getItem(src.key);
@@ -173,6 +189,10 @@ export function loadGame() {
       saveAutosave();
       return;
     } catch (err) {
+      if (err?.name === "RunFloorRecoveryError") {
+        recoveryFailure ||= { raw, error: err };
+        break;
+      }
       if (err?.name === "IncompatibleSaveVersionError") {
         foundIncompatibleSave = true;
         continue;
@@ -186,6 +206,18 @@ export function loadGame() {
       });
       if (firstCorrupt === null) firstCorrupt = raw;
     }
+  }
+
+  if (recoveryFailure) {
+    try {
+      localStorage.setItem(CORRUPT_KEY, recoveryFailure.raw);
+    } catch (err) {
+      console.error("Failed to preserve unrecoverable active-run save", err);
+    }
+    state.gameState = "town";
+    state.transitioning = false;
+    state.logs = [...(state.logs || []), recoveryFailure.error.userMessage];
+    return;
   }
 
   if (foundIncompatibleSave) {
@@ -213,4 +245,8 @@ export function loadGame() {
     });
   }
   initNewGame();
+  if (firstCorrupt !== null) {
+    state.logs = ["セーブデータのマップを読み込めなかったため、新しい冒険を開始しました。破損データは保管されています。"];
+    saveAutosave();
+  }
 }

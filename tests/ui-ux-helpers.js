@@ -56,6 +56,8 @@ async function beginPendingOutcomePlayback(page, kind, floor = 1) {
 
     if (outcomeKind === 'milestoneVictory' && !state.maps[outcomeFloor - 1]) {
       state.maps[outcomeFloor - 1] = structuredClone(state.maps[0]);
+      state.visitedMaps[outcomeFloor - 1] = state.maps[outcomeFloor - 1]
+        .map(row => row.map(() => false));
     }
     state.floor = outcomeFloor;
     state.gameState = 'combat';

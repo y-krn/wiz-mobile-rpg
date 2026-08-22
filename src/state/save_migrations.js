@@ -7,6 +7,7 @@ import { findMapCellByType } from "../rules/map_queries.js";
 import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
 import { addMaterials } from "../rules/material_rules.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
+import { isUsableFloorMap } from "./run_floor_state.js";
 
 export function migrateCharSpells(char) {
   if (!char.spells) char.spells = [];
@@ -231,7 +232,12 @@ export function normalizeSavePayload(data) {
   const normalized = { ...data };
 
   normalized.floor = data.floor ?? 1;
-  const defaultStart = findMapCellByType(data.maps?.[normalized.floor - 1], "stairs-up") ||
+  const activeRunMap = Boolean(data.currentRun?.runSeed && !data.currentRun.returnReason);
+  const activeFloorMap = data.maps?.[normalized.floor - 1];
+  const activeFloorMapUsable = !activeRunMap || isUsableFloorMap(activeFloorMap, normalized.floor);
+  const defaultStart = (activeFloorMapUsable
+    ? findMapCellByType(activeFloorMap, "stairs-up")
+    : null) ||
     { x: START_X, y: START_Y };
   normalized.x = data.x ?? defaultStart.x;
   normalized.y = data.y ?? defaultStart.y;
@@ -309,11 +315,14 @@ export function normalizeSavePayload(data) {
   backfillMonsterCriticalEligibility(normalized);
   normalizeStatusEffectState(normalized);
 
-  let loadedMaps = data.maps;
+  let loadedMaps = Array.isArray(data.maps) ? data.maps.slice() : [];
   let needsMigration = false;
   const generatedRunMaps = Boolean(normalized.currentRun?.runSeed);
   if (generatedRunMaps) {
-    needsMigration = !loadedMaps?.some(Boolean);
+    // Run maps are derived from currentRun.runSeed. Preserve an all-missing
+    // run map so active-run recovery can fail closed instead of silently
+    // replacing progress with legacy state.seed maps.
+    needsMigration = false;
   } else if (!loadedMaps || loadedMaps.length < 5) {
     needsMigration = true;
   } else {
@@ -348,19 +357,26 @@ export function normalizeSavePayload(data) {
     ];
     normalized.visitedMaps[0][migratedStart.y][migratedStart.x] = true;
   } else {
-    normalized.visitedMaps = data.visitedMaps ?? loadedMaps.map(map =>
-      map ? map.map(row => row.map(() => false)) : null
-    );
+    normalized.visitedMaps = activeRunMap
+      ? data.visitedMaps
+      : data.visitedMaps ?? loadedMaps.map(map =>
+        map ? map.map(row => row.map(() => false)) : null
+      );
   }
 
-  loadedMaps.forEach(map => {
+  loadedMaps.forEach((map, index) => {
+    // Active-run maps are player progress, not disposable legacy data. Do not
+    // let repair helpers dereference malformed cells before recovery validates
+    // the saved floor and preserves it for explicit recovery handling.
+    if (activeRunMap && !isUsableFloorMap(map, index + 1)) return;
     backfillMapBlockEnter({ maps: [map] });
     backfillMapSecretDoors({ maps: [map] });
     if (map) removeIsolatedInternalWalls(map);
   });
   normalized.maps = loadedMaps;
 
-  normalized.floorChestsTotal = data.floorChestsTotal ?? normalized.maps.map(grid => {
+  normalized.floorChestsTotal = data.floorChestsTotal ?? normalized.maps.map((grid, index) => {
+    if (activeRunMap && !isUsableFloorMap(grid, index + 1)) return 0;
     let count = 0;
     if (grid) {
       for (let y = 0; y < grid.length; y++) {

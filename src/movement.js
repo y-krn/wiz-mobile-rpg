@@ -6,7 +6,7 @@ import { dungeonRenderer as renderer } from "./renderer.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
 import { showFloorEntryStinger, updateUI } from "./ui.js";
 import { getFloorLabel, getFloorTheme, revealFloor } from "./data/floor_themes.js";
-import { ensureRunFloor, resetRunFloors } from "./state/run_floor_state.js";
+import { ensureRunFloor, isUsableFloorCell, resetRunFloors } from "./state/run_floor_state.js";
 import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
 import { menuContext, openGuardedSubmenu, openSubmenu } from "./navigation.js";
@@ -94,6 +94,38 @@ function blockOneWayMove() {
   addLog("見えない力に押し返された。ここは一方通行だ…");
 }
 
+export function getCurrentExplorationCell() {
+  let cell = state.map?.[state.y]?.[state.x];
+  if (isUsableFloorCell(cell)) return cell;
+
+  if (state.currentRun?.runSeed) {
+    try {
+      ensureRunFloor(state, state.floor);
+    } catch (error) {
+      addLog(error?.userMessage || "マップデータを安全に復旧できないため、探索を続行できません。セーブデータは保持されています。");
+      state.gameState = "town";
+      return null;
+    }
+    cell = state.map?.[state.y]?.[state.x];
+    if (!cell) {
+      const fallback = findCellCoordsByType(state.map, "stairs-up");
+      state.x = fallback.x;
+      state.y = fallback.y;
+      state.prevX = fallback.x;
+      state.prevY = fallback.y;
+      cell = state.map?.[state.y]?.[state.x];
+    }
+    if (isUsableFloorCell(cell)) {
+      addLog("探索位置のマップデータが欠落していたため、安全な地点へ復旧しました。");
+      return cell;
+    }
+  }
+
+  addLog("マップデータを読み込めないため、探索を続行できません。街へ戻ってください。");
+  state.gameState = "town";
+  return null;
+}
+
 export function handleMove(action) {
   if (state.transitioning || state.gameState !== "explore") return;
   playSound("move");
@@ -103,6 +135,13 @@ export function handleMove(action) {
   
   const prevX = state.x;
   const prevY = state.y;
+
+  const currentCell = getCurrentExplorationCell();
+  if (!currentCell) {
+    saveAutosave();
+    updateUI();
+    return;
+  }
   
   if (action === "turn-left") {
     state.dir = (state.dir + 3) % 4;
@@ -111,7 +150,6 @@ export function handleMove(action) {
     state.dir = (state.dir + 1) % 4;
     advanceRoamingTurn(false);
   } else if (action === "forward") {
-    const currentCell = state.map[state.y][state.x];
     if (currentCell.walls[state.dir]) {
       playSound("bump");
       if (renderer) renderer.triggerShake(4, 150);
@@ -143,7 +181,6 @@ export function handleMove(action) {
       processExplorationResolution(prevX, prevY);
     }
   } else if (action === "backward") {
-    const currentCell = state.map[state.y][state.x];
     const backDir = (state.dir + 2) % 4;
     if (currentCell.walls[backDir]) {
       playSound("bump");
@@ -855,7 +892,8 @@ export function processExplorationResolution(prevX, prevY) {
 
   // 2.5. Detect traps on adjacent cells. Stepping onto a trap is intercepted
   // before the move happens (see handleMove), so there is no step check here.
-  const cell = state.map[state.y][state.x];
+  const cell = getCurrentExplorationCell();
+  if (!cell) return;
   // A trap that was never spotted fires without offering a choice.
   const steppedTrap = cell.trap;
   if (steppedTrap && steppedTrap.state === "hidden") {
