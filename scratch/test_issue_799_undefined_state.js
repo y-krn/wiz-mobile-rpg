@@ -7,7 +7,8 @@ import {
   saveAutosave,
   state
 } from "../src/state.js";
-import { ensureRunFloor, isUsableFloorMap, resetRunFloors } from "../src/state/run_floor_state.js";
+import { ensureRunFloor, isUsableFloorMap, resetRunFloors, RunFloorRecoveryError } from "../src/state/run_floor_state.js";
+import { getCurrentExplorationCell } from "../src/movement.js";
 
 globalThis.localStorage = (() => {
   let values = new Map();
@@ -41,9 +42,36 @@ assert.ok(state.visitedMaps[0], "new run restores visited state with the map");
 ensureRunFloor(state, 2);
 assert.ok(isUsableFloorMap(state.maps[1]), "floor transition creates a complete destination map");
 
+// Active-floor corruption must fail closed rather than replace the map and
+// reset chest/trap/secret/milestone progress.
+initNewGame();
+createRunState("ISSUE-799-MUTATION");
+const mutationMap = generateRunFloor({ runSeed: "ISSUE-799-MUTATION", floor: 1 }).grid;
+state.maps = [mutationMap];
+state.visitedMaps = [mutationMap.map(row => row.map(() => false))];
+state.floorChestsOpened = [2];
+state.floorChestsTotal = [7];
+state.currentRun.floorSteps = { 1: 12 };
+state.currentRun.defeatedMilestones = [5];
+delete state._freshRunFloor;
+const damagedMap = state.maps[0];
+damagedMap[0].splice(0, 1);
+assert.throws(() => ensureRunFloor(state, 1), error => error instanceof RunFloorRecoveryError, "active-floor damage fails closed");
+assert.strictEqual(state.maps[0], damagedMap, "active-floor damage is not silently replaced");
+assert.equal(state.floorChestsOpened[0], 2, "active-floor chest progress is retained on failure");
+
+// The Search action shares this guarded preflight with movement, so a broken
+// active map becomes an explicit recovery stop instead of a TypeError.
+state.logs = [];
+state.gameState = "explore";
+state.maps[0] = null;
+assert.equal(getCurrentExplorationCell(), null, "broken active map has no exploration cell");
+assert.equal(state.gameState, "town", "broken active map stops exploration");
+assert.match(state.logs.join("\n"), /安全に復旧できない/, "broken active map exposes a recovery error");
+
 // Resume path: a save may contain other run floors while the active floor is
-// missing. The load must regenerate that floor from runSeed before exploration
-// can reach direct state.map[y][x] callers.
+// damaged. Loading must preserve the run seed, floor, and damaged payload, then
+// fail closed instead of regenerating it and replaying rewards.
 const expected = generateRunFloor({ runSeed: "ISSUE-799-RESUME", floor: 3 }).grid;
 initNewGame();
 createRunState("ISSUE-799-RESUME");
@@ -61,8 +89,29 @@ corrupt.visitedMaps[2] = corrupt.maps[2].map(row => row.map(() => false));
 localStorage.setItem("mobile_wiz_rpg_autosave", JSON.stringify(corrupt));
 loadGame();
 
-assert.ok(isUsableFloorMap(state.maps[2]), "resume repairs a missing active-floor map");
-assert.deepEqual(state.maps[2], expected, "resume regeneration is deterministic for the saved run");
-assert.match(state.logs.join("\n"), /マップデータが欠落していたため/, "resume exposes map recovery to the player");
+assert.equal(state.currentRun.runSeed, "ISSUE-799-RESUME", "failed recovery preserves currentRun.runSeed");
+assert.equal(state.floor, 3, "failed recovery preserves active floor");
+assert.equal(isUsableFloorMap(state.maps[2]), false, "failed recovery preserves the damaged active-floor map");
+assert.match(state.logs.join("\n"), /安全に復旧できない/, "resume exposes an explicit recovery error");
+assert.ok(localStorage.getItem("mobile_wiz_rpg_corrupt"), "unrecoverable save is preserved for recovery");
 
-console.log("[PASS] #799 map recovery covers new start, floor transition, and active-run resume");
+// Migration path: all maps missing in an active-run save must not be replaced
+// by maps generated from the legacy state.seed.
+initNewGame();
+createRunState("ISSUE-799-ALL-MISSING");
+state.seed = "LEGACY-SEED-MUST-NOT-BE-USED";
+state.floor = 2;
+state.maps = [null, null, null, null, null];
+state.visitedMaps = [null, null, null, null, null];
+saveAutosave();
+const allMissing = JSON.parse(localStorage.getItem("mobile_wiz_rpg_autosave"));
+allMissing.maps = [];
+localStorage.setItem("mobile_wiz_rpg_autosave", JSON.stringify(allMissing));
+loadGame();
+
+assert.equal(state.currentRun.runSeed, "ISSUE-799-ALL-MISSING", "all-missing migration preserves active run seed");
+assert.equal(state.floor, 2, "all-missing migration preserves active floor");
+assert.equal(state.maps.every(map => map == null), true, "all-missing migration does not create legacy maps");
+assert.match(state.logs.join("\n"), /安全に復旧できない/, "all-missing migration fails closed visibly");
+
+console.log("[PASS] #799 map recovery covers fresh floors, mutation safety, Search preflight, and active-run migration");

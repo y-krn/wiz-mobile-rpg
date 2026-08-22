@@ -175,6 +175,7 @@ export function loadGame() {
   ];
 
   let firstCorrupt = null;
+  let recoveryFailure = null;
   let foundIncompatibleSave = false;
   for (const src of sources) {
     const raw = localStorage.getItem(src.key);
@@ -188,6 +189,10 @@ export function loadGame() {
       saveAutosave();
       return;
     } catch (err) {
+      if (err?.name === "RunFloorRecoveryError") {
+        recoveryFailure ||= { raw, error: err };
+        break;
+      }
       if (err?.name === "IncompatibleSaveVersionError") {
         foundIncompatibleSave = true;
         continue;
@@ -201,6 +206,18 @@ export function loadGame() {
       });
       if (firstCorrupt === null) firstCorrupt = raw;
     }
+  }
+
+  if (recoveryFailure) {
+    try {
+      localStorage.setItem(CORRUPT_KEY, recoveryFailure.raw);
+    } catch (err) {
+      console.error("Failed to preserve unrecoverable active-run save", err);
+    }
+    state.gameState = "town";
+    state.transitioning = false;
+    state.logs = [...(state.logs || []), recoveryFailure.error.userMessage];
+    return;
   }
 
   if (foundIncompatibleSave) {

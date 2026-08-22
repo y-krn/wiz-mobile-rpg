@@ -94,12 +94,18 @@ function blockOneWayMove() {
   addLog("見えない力に押し返された。ここは一方通行だ…");
 }
 
-function getCurrentExplorationCell() {
+export function getCurrentExplorationCell() {
   let cell = state.map?.[state.y]?.[state.x];
   if (cell) return cell;
 
   if (state.currentRun?.runSeed) {
-    ensureRunFloor(state, state.floor);
+    try {
+      ensureRunFloor(state, state.floor);
+    } catch (error) {
+      addLog(error?.userMessage || "マップデータを安全に復旧できないため、探索を続行できません。セーブデータは保持されています。");
+      state.gameState = "town";
+      return null;
+    }
     cell = state.map?.[state.y]?.[state.x];
     if (!cell) {
       const fallback = findCellCoordsByType(state.map, "stairs-up");

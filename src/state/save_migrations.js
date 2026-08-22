@@ -309,11 +309,14 @@ export function normalizeSavePayload(data) {
   backfillMonsterCriticalEligibility(normalized);
   normalizeStatusEffectState(normalized);
 
-  let loadedMaps = data.maps;
+  let loadedMaps = Array.isArray(data.maps) ? data.maps.slice() : [];
   let needsMigration = false;
   const generatedRunMaps = Boolean(normalized.currentRun?.runSeed);
   if (generatedRunMaps) {
-    needsMigration = !loadedMaps?.some(Boolean);
+    // Run maps are derived from currentRun.runSeed. Preserve an all-missing
+    // run map so active-run recovery can fail closed instead of silently
+    // replacing progress with legacy state.seed maps.
+    needsMigration = false;
   } else if (!loadedMaps || loadedMaps.length < 5) {
     needsMigration = true;
   } else {

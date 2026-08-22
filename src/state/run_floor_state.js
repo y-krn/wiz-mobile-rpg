@@ -18,6 +18,15 @@ export function isUsableFloorMap(grid) {
   );
 }
 
+export class RunFloorRecoveryError extends Error {
+  constructor(floor) {
+    super(`B${floor}F map recovery is unsafe because saved floor progress cannot be reconstructed.`);
+    this.name = "RunFloorRecoveryError";
+    this.floor = floor;
+    this.userMessage = `地下${floor}階のマップを安全に復旧できないため、探索を停止しました。進行を守るためセーブデータは保持されています。`;
+  }
+}
+
 // 徘徊エリートは階を生成した瞬間に置く。撃破済みの階はmapsが残るためここまで来ない。
 function spawnFloorElite(stateLike, floor, runSeed, mapData) {
   const elite = createFloorElite({ runSeed, floor, mapData });
@@ -38,6 +47,13 @@ export function ensureRunFloor(stateLike, floor) {
     }
     return existingMap;
   }
+
+  const isActiveRun = Boolean(stateLike.currentRun?.runSeed && !stateLike.currentRun.returnReason);
+  const isActiveFloor = floor === stateLike.floor;
+  if (isActiveRun && isActiveFloor && stateLike._freshRunFloor !== floor) {
+    throw new RunFloorRecoveryError(floor);
+  }
+
   const runSeed = stateLike.currentRun?.runSeed;
   if (!runSeed) throw new Error("currentRun.runSeed is required before floor generation");
   const generated = generateRunFloor({ runSeed, floor });
@@ -50,6 +66,7 @@ export function ensureRunFloor(stateLike, floor) {
   stateLike.visitedMaps[index] = createVisitedGrid(generated.grid);
   stateLike.floorChestsOpened[index] = 0;
   stateLike.floorChestsTotal[index] = countChests(generated.grid);
+  if (stateLike._freshRunFloor === floor) delete stateLike._freshRunFloor;
   markMapChanged(stateLike);
   return generated.grid;
 }
@@ -62,5 +79,6 @@ export function resetRunFloors(stateLike) {
   // 床を捨てる以上、前ランの座標を持つ徘徊エリートと騒音も一緒に捨てる。
   stateLike.roamingMonsters = [];
   stateLike.noiseEvents = [];
+  stateLike._freshRunFloor = stateLike.floor;
   markMapChanged(stateLike);
 }
