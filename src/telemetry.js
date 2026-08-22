@@ -171,6 +171,44 @@ export function trackEvent(eventName, properties = {}) {
   capture(eventName, properties);
 }
 
+export function trackChestAction(chest, action, details = {}) {
+  if (!isTelemetryAvailable() || !runId) return;
+
+  capture("chest_action", {
+    runId,
+    floor: details.floor,
+    chestSource: chest?.fromDrop ? "fromDrop" : "ordinary",
+    fromDrop: Boolean(chest?.fromDrop),
+    action,
+    trap: details.trap,
+    inspected: Boolean(chest?.inspected),
+    inventoryCount: details.inventoryCount,
+    hasTrapKit: details.hasTrapKit,
+    rewardCount: details.rewardCount,
+    lootAura: chest?.lootHint?.aura
+  });
+}
+
+export function trackChestSmashResult(chest, details = {}) {
+  if (!isTelemetryAvailable() || !runId) return;
+
+  capture("chest_smash_result", {
+    runId,
+    floor: details.floor,
+    chestSource: chest?.fromDrop ? "fromDrop" : "ordinary",
+    fromDrop: Boolean(chest?.fromDrop),
+    trapFired: Boolean(details.trapFired),
+    partyDied: Boolean(details.partyDied),
+    rewardCount: details.rewardCount,
+    lostRewardCount: details.lostRewardCount,
+    lostRewardRoles: details.lostRewardRoles,
+    lostRewardCategories: details.lostRewardCategories,
+    remainingRewardCount: details.remainingRewardCount,
+    awardedRewardCount: details.awardedRewardCount,
+    unawardedRewardCount: details.unawardedRewardCount
+  });
+}
+
 export function trackRunStart(run, character) {
   if (!isTelemetryAvailable()) return;
   runId = createRuntimeId("run");

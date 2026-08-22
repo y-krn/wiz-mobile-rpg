@@ -21,6 +21,7 @@ import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
 import { getChestMaterialPool } from "./rules/material_rules.js";
 import { getItemBaseId } from "./rules/item_rules.js";
+import { trackChestAction, trackChestSmashResult } from "./telemetry.js";
 
 export function applyTombRaiderTrapTier(chest, opener) {
   const params = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
@@ -340,23 +341,31 @@ export function openChestMenu() {
   btnLeave.textContent = "立ち去る";
   btnLeave.style.minHeight = "44px";
   btnLeave.addEventListener("click", () => {
-    addLog("宝箱を開けずに立ち去った。");
-    // Clear chest event on current cell
-    state.map[state.y][state.x].event = null;
-    markMapChanged();
-    if (!state.chestState.fromDrop && state.floorChestsOpened) {
-      state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
-    }
-    state.chestState = null;
-    state.gameState = "explore";
-    saveAutosave();
-    updateUI();
+    leaveChest();
   });
   optGrid.appendChild(btnLeave);
   
   // Custom back button disable because we are in event
   document.getElementById("btn-submenu-back").style.display = "none";
   updateUI();
+}
+
+export function leaveChest() {
+  if (!state.chestState || state.transitioning) return false;
+  const chest = state.chestState;
+  trackChestChoice(chest, "leave");
+  addLog("宝箱を開けずに立ち去った。");
+  // Clear chest event on current cell
+  state.map[state.y][state.x].event = null;
+  markMapChanged();
+  if (!chest.fromDrop && state.floorChestsOpened) {
+    state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
+  }
+  state.chestState = null;
+  state.gameState = "explore";
+  saveAutosave();
+  updateUI();
+  return true;
 }
 
 
@@ -390,6 +399,24 @@ function recoverChestOpenTransition(error, chest = state.chestState) {
   updateUI();
 }
 
+function getChestRewardEntries(chest) {
+  return [
+    { role: "main", item: chest?.item },
+    { role: "special", item: chest?.specialItem },
+    { role: "accessory", item: chest?.accessoryItem }
+  ];
+}
+
+function trackChestChoice(chest, action) {
+  trackChestAction(chest, action, {
+    floor: state.floor,
+    trap: chest?.trap || "none",
+    inventoryCount: state.inventory.length,
+    hasTrapKit: state.inventory.includes("TRAP_KIT"),
+    rewardCount: getChestRewardEntries(chest).filter(reward => reward.item).length
+  });
+}
+
 function markChestProcessed(chest) {
   const cell = state.map?.[chest.y]?.[chest.x];
   if (cell?.event === "chest") {
@@ -404,6 +431,8 @@ function markChestProcessed(chest) {
 
 export function executeDisarm(char, rng = Math.random) {
   if (!state.chestState || state.transitioning) return false;
+
+  trackChestChoice(state.chestState, "disarm");
 
   applyTombRaiderTrapTier(state.chestState, char);
   const chance = calculateChestDisarmChance({
@@ -458,7 +487,7 @@ export function executeDisarm(char, rng = Math.random) {
         updateUI();
         return;
       }
-      openChestDirectly(char, rng);
+      openChestDirectly(char, rng, { recordAction: false });
     } catch (error) {
       recoverChestDisarmTransition(error);
     }
@@ -572,6 +601,7 @@ export function useTrapKit() {
   const kitIndex = state.inventory.indexOf("TRAP_KIT");
   if (kitIndex < 0) return false;
 
+  trackChestChoice(state.chestState, "trap_kit");
   state.inventory.splice(kitIndex, 1);
   state.chestState.trap = "none";
   addLog("罠外しキットを使い、宝箱の罠を確実に解除した。キットは壊れた。");
@@ -582,6 +612,8 @@ export function useTrapKit() {
 export function smashChest(rng = Math.random) {
   if (!state.chestState || state.transitioning) return false;
   const chest = state.chestState;
+  const trapFired = Boolean(chest.trap && chest.trap !== "none");
+  trackChestChoice(chest, "smash");
   state.transitioning = true;
   try {
     const trapTarget = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
@@ -592,7 +624,7 @@ export function smashChest(rng = Math.random) {
       triggerChestTrap(trapTarget, true, rng);
     }
 
-    openChestDirectly(null, rng, { smash: true });
+    openChestDirectly(null, rng, { smash: true, recordAction: false, smashTrapFired: trapFired });
     return true;
   } catch (error) {
     recoverChestOpenTransition(error, chest);
@@ -606,6 +638,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     const smash = options.smash === true;
     menuContext.type = "chest_result";
     const chest = state.chestState;
+    if (options.recordAction !== false && !smash) trackChestChoice(chest, "open");
     const tombRaiderActivated = applyTombRaiderTrapTier(chest, opener);
 
     if (state.currentRun) {
@@ -634,6 +667,19 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     // then a dead party stops all reward work. Ordinary open/disarm/kit paths
     // retain their existing reward behavior and never use these loss rolls.
     if (smash && !state.party.some(c => c.status !== "dead")) {
+      const rewardCount = getChestRewardEntries(chest).filter(reward => reward.item).length;
+      trackChestSmashResult(chest, {
+        floor: state.floor,
+        trapFired: options.smashTrapFired,
+        partyDied: true,
+        rewardCount,
+        lostRewardCount: 0,
+        lostRewardRoles: [],
+        lostRewardCategories: [],
+        remainingRewardCount: 0,
+        awardedRewardCount: 0,
+        unawardedRewardCount: rewardCount
+      });
       markChestProcessed(chest);
       state.chestState = null;
       state.gameState = "explore";
@@ -647,11 +693,9 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     }
 
     if (smash) {
-      const losses = resolveChestSmashRewardLosses([
-        { role: "main", item: chest.item },
-        { role: "special", item: chest.specialItem },
-        { role: "accessory", item: chest.accessoryItem }
-      ], rng);
+      const rewardEntries = getChestRewardEntries(chest);
+      const rewardCount = rewardEntries.filter(reward => reward.item).length;
+      const losses = resolveChestSmashRewardLosses(rewardEntries, rng);
       const lostRoles = new Set(losses.map(loss => loss.role));
       if (lostRoles.has("main")) chest.item = null;
       if (lostRoles.has("special")) chest.specialItem = null;
@@ -666,6 +710,16 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
       } else {
         addLog("叩き壊した衝撃で、装備品が壊れていた。");
       }
+      chest.smashTelemetry = {
+        floor: state.floor,
+        trapFired: options.smashTrapFired,
+        partyDied: false,
+        rewardCount,
+        lostRewardCount: losses.length,
+        lostRewardRoles: losses.map(loss => loss.role),
+        lostRewardCategories: losses.map(loss => loss.category),
+        remainingRewardCount: rewardEntries.filter(reward => reward.item && !lostRoles.has(reward.role)).length
+      };
     }
 
     // 素材束の獲得
@@ -695,11 +749,14 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
       state.codex.events.facilities.chest.opened++;
     }
   
+    let awardedRewardCount = 0;
+
     // Award Item
     if (chest.item) {
       const item = getItemData(chest.item);
       const added = addInventoryItem(chest.item);
       if (added) {
+        awardedRewardCount++;
         recordEquipmentDiscovery(chest.item);
         if (state.currentRun) {
           if (typeof chest.item === "string") {
@@ -720,6 +777,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     if (chest.specialItem) {
       const added = addInventoryItem(chest.specialItem);
       if (added) {
+        awardedRewardCount++;
         recordEquipmentDiscovery(chest.specialItem);
         if (state.currentRun) state.currentRun.itemsFound.push(chest.specialItem);
         addLog("箱の底に帰還の翼が残されていた――帰還の翼を手に入れた。");
@@ -739,6 +797,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
       const item = getItemData(chest.accessoryItem);
       const added = addInventoryItem(chest.accessoryItem);
       if (added) {
+        awardedRewardCount++;
         recordEquipmentDiscovery(chest.accessoryItem);
         if (state.currentRun) {
           state.currentRun.equipmentFound.push(chest.accessoryItem);
@@ -757,6 +816,14 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
 
     // Check game over
     const partyAlive = state.party.some(c => c.status !== "dead");
+    if (smash) {
+      trackChestSmashResult(chest, {
+        ...chest.smashTelemetry,
+        awardedRewardCount,
+        unawardedRewardCount: Math.max(0, (chest.smashTelemetry?.remainingRewardCount ?? 0) - awardedRewardCount)
+      });
+      delete chest.smashTelemetry;
+    }
     if (partyAlive) {
       resetSubmenuBackButton();
       state.transitioning = false;

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 global.localStorage = {
   getItem: () => null,
@@ -69,11 +70,17 @@ const {
 } = await import("../src/rules/chest_rules.js");
 const {
   executeDisarm,
+  leaveChest,
   openChestDirectly,
+  setupChestState,
   smashChest,
   triggerChestTrap,
   useTrapKit
 } = await import("../src/chest.js");
+const {
+  __setTelemetryClientForTests,
+  trackRunStart
+} = await import("../src/telemetry.js");
 
 const failures = [];
 
@@ -107,6 +114,7 @@ function resetChest({
   item = null,
   specialItem = null,
   accessoryItem = null,
+  fromDrop = false,
   party = null
 } = {}) {
   initNewGame();
@@ -124,9 +132,25 @@ function resetChest({
     accessoryItem,
     inspected: false,
     identifiedTrap: "",
-    lootHint: null
+    lootHint: null,
+    fromDrop
   };
   state.map[state.y][state.x].event = "chest";
+  telemetryEvents.length = 0;
+  startTelemetryRun();
+}
+
+const telemetryEvents = [];
+__setTelemetryClientForTests({
+  capture: (name, properties) => telemetryEvents.push({ name, properties })
+});
+
+function startTelemetryRun() {
+  trackRunStart(state.currentRun, state.party[0]);
+}
+
+function chestTelemetryEvents() {
+  return telemetryEvents.filter(event => event.name.startsWith("chest_"));
 }
 
 await test("弱体毒針は正のダメージ後に毒付与率50%", () => {
@@ -340,6 +364,81 @@ await test("通常開封・成功解除・キット解除は報酬を失わな�
   } finally {
     global.setTimeout = originalSetTimeout;
   }
+});
+
+await test("宝箱の実アクションを選択単位で記録し、自動開封を二重計上しない", () => {
+  const originalSetTimeout = global.setTimeout;
+  global.setTimeout = callback => { callback(); return 0; };
+  try {
+    resetChest({ trap: "none", item: "DAGGER" });
+    openChestDirectly(null, () => 0.99);
+    assert.deepEqual(chestTelemetryEvents().map(event => event.properties.action), ["open"]);
+
+    const disarmer = makeCharacter("Ninja");
+    resetChest({ trap: "poison needle", item: "DAGGER", party: [disarmer] });
+    executeDisarm(disarmer, () => 0);
+    assert.deepEqual(chestTelemetryEvents().map(event => event.properties.action), ["disarm"]);
+
+    resetChest({ trap: "poison needle", item: "DAGGER" });
+    state.inventory = ["TRAP_KIT"];
+    assert.equal(useTrapKit(), true);
+    assert.deepEqual(chestTelemetryEvents().map(event => event.properties.action), ["trap_kit"]);
+
+    resetChest({ trap: "none", item: "DAGGER" });
+    smashChest(() => 0.99);
+    assert.deepEqual(chestTelemetryEvents().filter(event => event.name === "chest_action").map(event => event.properties.action), ["smash"]);
+
+    resetChest({ trap: "none", item: "DAGGER" });
+    assert.equal(leaveChest(), true);
+    assert.deepEqual(chestTelemetryEvents().map(event => event.properties.action), ["leave"]);
+  } finally {
+    global.setTimeout = originalSetTimeout;
+  }
+});
+
+await test("叩き壊し結果は報酬役割・カテゴリと実付与数を記録する", () => {
+  resetChest({
+    trap: "none",
+    item: "DAGGER",
+    specialItem: "TOWN_PORTAL",
+    accessoryItem: "AMULET_HP"
+  });
+  smashChest(sequence([0.249, 0.249, 0.99, 0.99, 0.99]));
+
+  const result = chestTelemetryEvents().find(event => event.name === "chest_smash_result");
+  assert.ok(result);
+  assert.equal(result.properties.chestSource, "ordinary");
+  assert.equal(result.properties.trapFired, false);
+  assert.equal(result.properties.partyDied, false);
+  assert.equal(result.properties.rewardCount, 3);
+  assert.equal(result.properties.lostRewardCount, 2);
+  assert.deepEqual(result.properties.lostRewardRoles, ["main", "accessory"]);
+  assert.deepEqual(result.properties.lostRewardCategories, ["weapon", "accessory"]);
+  assert.equal(result.properties.remainingRewardCount, 1);
+  assert.equal(result.properties.awardedRewardCount, 1);
+  assert.equal(result.properties.unawardedRewardCount, 0);
+});
+
+await test("fromDrop の実生成・dispatch 経路は手動叩き壊しを source 分離して記録する", () => {
+  const combatStart = readFileSync(new URL("../src/combat_ui/combat_start.js", import.meta.url), "utf8");
+  const battleLogPlayer = readFileSync(new URL("../src/combat_ui/battle_log_player.js", import.meta.url), "utf8");
+  assert.match(combatStart, /setupChestState\(null, null, null, null, \{ fromDrop: true \}\)/);
+  assert.match(battleLogPlayer, /setupChestState\(null, null, null, null, \{ fromDrop: true \}\)/);
+
+  resetChest({ trap: "none", item: "DAGGER", fromDrop: true });
+  smashChest(() => 0.99);
+  const action = chestTelemetryEvents().find(event => event.name === "chest_action");
+  const result = chestTelemetryEvents().find(event => event.name === "chest_smash_result");
+  assert.equal(action.properties.chestSource, "fromDrop");
+  assert.equal(action.properties.fromDrop, true);
+  assert.equal(result.properties.chestSource, "fromDrop");
+  assert.equal(result.properties.fromDrop, true);
+
+  resetChest({ trap: "none" });
+  setupChestState("none", null, "DAGGER", () => 0.99, { fromDrop: true });
+  assert.equal(state.chestState.fromDrop, true);
+  smashChest(() => 0.99);
+  assert.equal(chestTelemetryEvents().find(event => event.name === "chest_smash_result").properties.chestSource, "fromDrop");
 });
 
 await test("致死的な通常解除失敗は既存どおり報酬を付与してからゲームオーバーへ進む", () => {
