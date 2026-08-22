@@ -68,6 +68,34 @@ test("legacy poison, sleep, and silence behavior remains projected through the a
   assert.equal(sleeping.silenceTurns, 1);
 });
 
+test("normalization removes stale canonical legacy status after direct legacy transition", () => {
+  const target = { status: "sleep", sleepTurns: 2 };
+  normalizeStatusEffectTarget(target);
+  target.status = "poisoned";
+  delete target.sleepTurns;
+
+  normalizeStatusEffectTarget(target);
+
+  assert.equal(hasStatusEffect(target, STATUS_EFFECT_IDS.SLEEP), false);
+  assert.equal(hasStatusEffect(target, STATUS_EFFECT_IDS.POISONED), true);
+  assert.deepEqual(Object.keys(target.statusEffects), [STATUS_EFFECT_IDS.POISONED]);
+});
+
+test("normalization removes stale canonical silence after duration expiry or absence", () => {
+  const target = { status: "ok", silenceTurns: 2 };
+  normalizeStatusEffectTarget(target);
+  target.silenceTurns = 0;
+  normalizeStatusEffectTarget(target);
+  assert.equal(hasStatusEffect(target, STATUS_EFFECT_IDS.SILENCE), false);
+
+  target.silenceTurns = 2;
+  normalizeStatusEffectTarget(target);
+  delete target.silenceTurns;
+  normalizeStatusEffectTarget(target);
+  assert.equal(hasStatusEffect(target, STATUS_EFFECT_IDS.SILENCE), false);
+  assert.equal(Object.hasOwn(target.statusEffects, STATUS_EFFECT_IDS.SILENCE), false);
+});
+
 test("KATINO and MONTINO preserve their legacy fields and model entries", () => {
   const caster = { name: "Mage", int: 10, pie: 10 };
   const target = { name: "Monster", hp: 20 };

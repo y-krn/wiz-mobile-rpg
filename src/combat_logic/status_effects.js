@@ -71,6 +71,13 @@ export function normalizeStatusEffectTarget(target) {
   if (!isRecord(target)) return target;
 
   const effects = normalizeStatusEffects(target.statusEffects);
+  const legacySources = Object.fromEntries(
+    [...LEGACY_STATUS_IDS, STATUS_EFFECT_IDS.SILENCE]
+      .map(id => [id, effects[id]?.source ?? null])
+  );
+  [...LEGACY_STATUS_IDS, STATUS_EFFECT_IDS.SILENCE].forEach(id => {
+    delete effects[id];
+  });
   const statusId = legacyStatusId(target.status);
   if (statusId) {
     const remainingTurns = statusId === STATUS_EFFECT_IDS.SLEEP
@@ -78,10 +85,16 @@ export function normalizeStatusEffectTarget(target) {
       : statusId === STATUS_EFFECT_IDS.PARALYZED
         ? normalizeRemainingTurns(target.paralyzeTurns)
         : null;
-    setLegacyEffect(target, effects, statusId, remainingTurns);
+    setLegacyEffect(target, effects, statusId, remainingTurns, legacySources[statusId]);
   }
   if (Number(target.silenceTurns) > 0) {
-    setLegacyEffect(target, effects, STATUS_EFFECT_IDS.SILENCE, target.silenceTurns);
+    setLegacyEffect(
+      target,
+      effects,
+      STATUS_EFFECT_IDS.SILENCE,
+      target.silenceTurns,
+      legacySources[STATUS_EFFECT_IDS.SILENCE]
+    );
   }
   target.statusEffects = effects;
   return target;
