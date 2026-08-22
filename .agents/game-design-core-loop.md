@@ -71,7 +71,8 @@ potions remaining. The matched baseline reconstructed the pre-#791 B2/B3/B5
 candidate pools in the measurement harness; the after case used the production
 special roll for ordinary generated-floor chests. Combat-generated reward
 chests (`fromDrop`) keep their existing behavior and are out of this
-measurement scope. At B5/B10/B20, baseline main-slot Wing replacements were
+measurement scope; their legacy main-reward candidate pools and ordering are
+preserved. At B5/B10/B20, baseline main-slot Wing replacements were
 0.198/0.466/0.546 per run; after special offers, main-slot replacements were
 0/0/0 and special chest acquisitions were 0.152/0.304/0.272 per run because
 the inventory keeps at most one Wing. Total equipment per run was

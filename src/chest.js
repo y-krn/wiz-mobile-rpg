@@ -5,7 +5,8 @@ import {
   rollChestTrap,
   rollChestAccessory,
   rollChestReward,
-  rollChestSpecialReward
+  rollChestSpecialReward,
+  CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP
 } from "./rules/chest_rules.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -58,7 +59,10 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
       party: state.party,
       currentRun: state.currentRun,
       trap,
-      firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed
+      firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
+      itemCandidates: options.fromDrop
+        ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[Math.min(5, state.floor)]
+        : null
     });
     item = reward.item;
     if (reward.consumedFirstChestGuarantee) {

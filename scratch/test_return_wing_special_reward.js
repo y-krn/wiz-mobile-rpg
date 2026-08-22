@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import {
   CHEST_ITEM_CANDIDATES_BY_FLOOR,
+  CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
   CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
   rollChestReward,
   rollChestSpecialReward
@@ -184,11 +185,14 @@ await liveCheck("live smash path still resolves the trap and rewards", async () 
 
 await liveCheck("combat-generated reward chests keep their existing reward scope", async () => {
   prepareLiveChest();
-  setupChestState("none", null, null, () => 0, { fromDrop: true });
+  const rolls = [0, (20.5 / CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[2].length), 1];
+  setupChestState("none", null, null, () => rolls.shift() ?? 1, { fromDrop: true });
   assert.ok(state.chestState.item, "combat chest should still create its main reward");
+  assert.equal(CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[2][20], "TOWN_PORTAL");
+  assert.equal(state.chestState.item, "TOWN_PORTAL");
   assert.equal(state.chestState.specialItem, null);
   openChestDirectly(state.party[0], () => 0);
-  assert.equal(state.inventory.includes("TOWN_PORTAL"), false);
+  assert.equal(state.inventory.filter(item => item === "TOWN_PORTAL").length, 1);
 });
 
 check("real-run telemetry exposes acquisition, use, floor, HP band, and outcome fields", () => {
