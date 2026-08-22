@@ -6,6 +6,7 @@ import { combatCallbacks } from "./combat_state.js";
 import { isSpellTargetAvailable, getSpellCombatSummary } from "./spell_menu.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
+import { STATUS_EFFECT_IDS, BLEEDING_PAYOFF_DAMAGE } from "../combat_logic/status_effects.js";
 
 function getEnemyResistanceStatus(monster) {
   const record = state.codex?.monsters?.[getMonsterCodexKey(monster)];
@@ -98,6 +99,10 @@ export function renderCombatOverlay() {
           const targetChar = state.party[m.snipeTargetIdx];
           omenHtml = `<div class="enemy-omen snipe">⚠️ 狙撃準備 (対象: ${targetChar ? targetChar.name : "冒険者"})</div>`;
         }
+        const bleeding = m.statusEffects?.[STATUS_EFFECT_IDS.BLEEDING];
+        const statusHtml = bleeding
+          ? `<div class="enemy-status bleeding" data-status-effect="bleeding" aria-label="出血 あと${bleeding.remainingTurns ?? 0}回">🩸 出血：あと${bleeding.remainingTurns ?? 0}回 / 次の通常攻撃+${BLEEDING_PAYOFF_DAMAGE}</div>`
+          : "";
 
         card.innerHTML = `
           <div class="card-title">${m.name}</div>
@@ -105,6 +110,7 @@ export function renderCombatOverlay() {
             <div class="card-hp-bar" style="width: ${hpPct}%"></div>
           </div>
           <div class="card-hp-text">HP: ${m.hp}/${m.maxHp}</div>
+          ${statusHtml}
           <div class="enemy-resistance-info" aria-label="耐性・弱点">
             ${getEnemyResistanceRowsHtml(m)}
           </div>

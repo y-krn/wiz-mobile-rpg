@@ -44,7 +44,10 @@ import {
   hasStatusEffect,
   removeStatusEffect,
   tickStatusEffects,
-  STATUS_EFFECT_IDS
+  STATUS_EFFECT_IDS,
+  BLEEDING_DURATION_TURNS,
+  BLEEDING_PAYOFF_DAMAGE,
+  getStatusEffectRemainingTurns
 } from "./status_effects.js";
 import {
   hasTrait,
@@ -53,6 +56,7 @@ import {
 
 import { applyCombatRewards } from "./rewards.js";
 import { recordCharDeath, recordMonsterResistanceDiscovery } from "../state.js";
+import { trackEvent } from "../telemetry.js";
 
 import { resolveBossAction } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
@@ -69,6 +73,78 @@ export { getMpWardDef };
 
 function findMonsterTemplate(name) {
   return MONSTERS.find(m => m.name === name);
+}
+
+function recordBleedingEvent(state, event, target, metadata = {}) {
+  const bleeding = state?.simTelemetry?.bleeding;
+  if (bleeding) {
+    bleeding[event] = (bleeding[event] || 0) + 1;
+    if (metadata.damageContribution) {
+      bleeding.damageContribution = (bleeding.damageContribution || 0) + metadata.damageContribution;
+    }
+    if (metadata.source) {
+      bleeding.sources[metadata.source] = (bleeding.sources[metadata.source] || 0) + 1;
+    }
+    if (metadata.buildKey) {
+      bleeding.builds[metadata.buildKey] = (bleeding.builds[metadata.buildKey] || 0) + 1;
+    }
+    if (target?.isBoss || state?.combatState?.isBoss) bleeding.bossEvents++;
+    if (target?.isMidboss || state?.combatState?.isMidboss) bleeding.midbossEvents++;
+  }
+  trackEvent(`bleeding_${event}`, {
+    floor: state?.floor,
+    playerClass: state?.party?.[0]?.class,
+    enemyId: target?.name,
+    isBoss: Boolean(target?.isBoss || state?.combatState?.isBoss),
+    isMidboss: Boolean(target?.isMidboss || state?.combatState?.isMidboss),
+    remainingTurns: getStatusEffectRemainingTurns(target, STATUS_EFFECT_IDS.BLEEDING),
+    payoffDamage: state?.bleedingPayoffDamage ?? BLEEDING_PAYOFF_DAMAGE,
+    ...metadata
+  });
+}
+
+function getBleedingPayoffDamage(state, target, directDamage) {
+  const configured = Number(state?.bleedingPayoffDamage ?? BLEEDING_PAYOFF_DAMAGE);
+  const payoff = Number.isFinite(configured) ? Math.max(0, Math.floor(configured)) : BLEEDING_PAYOFF_DAMAGE;
+  return Math.min(payoff, Math.max(0, target.hp - directDamage));
+}
+
+function tryApplyBleeding(char, target, state, logQueue) {
+  const chance = getCharAffixSum(char, "bleedingAtk") / 100;
+  if (chance <= 0 || target.hp <= 0) return false;
+  const alreadyBleeding = hasStatusEffect(target, STATUS_EFFECT_IDS.BLEEDING);
+  if (Math.random() >= chance) {
+    recordBleedingEvent(state, "failed", target, {
+      reason: "trigger-roll",
+      source: "bleedingAtk",
+      buildKey: `bleedingAtk:${getCharAffixSum(char, "bleedingAtk")}`
+    });
+    return false;
+  }
+  applyStatusEffect(target, STATUS_EFFECT_IDS.BLEEDING, {
+    remainingTurns: BLEEDING_DURATION_TURNS,
+    stacks: 1,
+    source: "bleedingAtk"
+  });
+  const event = alreadyBleeding ? "refresh" : "applied";
+  recordBleedingEvent(state, event, target, {
+    source: "bleedingAtk",
+    buildKey: `bleedingAtk:${getCharAffixSum(char, "bleedingAtk")}`
+  });
+  logQueue.push({
+    msg: alreadyBleeding
+      ? `[味方] ${char.name}の裂傷が${target.name}の出血を更新した！（あと${BLEEDING_DURATION_TURNS}回）`
+      : `[味方] [!] ${target.name}は出血した！（あと${BLEEDING_DURATION_TURNS}回、次の通常攻撃で追加ダメージ）`,
+    sound: "hit",
+    bleeding: event
+  });
+  return true;
+}
+
+function clearBleedingOnDefeat(state, target, reason) {
+  if (!hasStatusEffect(target, STATUS_EFFECT_IDS.BLEEDING)) return;
+  removeStatusEffect(target, STATUS_EFFECT_IDS.BLEEDING);
+  recordBleedingEvent(state, "cleared", target, { reason });
 }
 
 function applyFleePartingAttack(state, monsters, logQueue) {
@@ -324,7 +400,19 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (canReceiveCritical && criticalChance > 0 && Math.random() < criticalChance) {
             isCritical = true;
           }
-          const finalPhysicalDmg = isCritical ? Math.max(1, dmg * 3) : dmg;
+          const directPhysicalDmg = isCritical ? Math.max(1, dmg * 3) : dmg;
+          const bleedingTrigger = hasStatusEffect(finalTarget, STATUS_EFFECT_IDS.BLEEDING);
+          const bleedingDamage = bleedingTrigger
+            ? getBleedingPayoffDamage(state, finalTarget, directPhysicalDmg)
+            : 0;
+          const finalPhysicalDmg = directPhysicalDmg + bleedingDamage;
+          if (bleedingTrigger) {
+            recordBleedingEvent(state, "triggered", finalTarget, {
+              damageContribution: bleedingDamage,
+              directDamage: directPhysicalDmg,
+              source: finalTarget.statusEffects?.bleeding?.source || "bleedingAtk"
+            });
+          }
 
           // #611: 物理攻撃(通常攻撃)式の計装。state.combatFormulaTelemetry
           // が未設定なら no-op（既定オフ）。ここまでの分岐・乱数消費は変更しない。
@@ -342,22 +430,25 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             criticalChance: canReceiveCritical && criticalChance > 0 ? criticalChance : null,
             isCritical,
             preCriticalDmg: dmg,
-            damage: finalPhysicalDmg
+            damage: finalPhysicalDmg,
+            bleedingTrigger,
+            bleedingDamageContribution: bleedingDamage
           });
 
           if (isCritical) {
-            dmg = Math.max(1, dmg * 3);
+            dmg = finalPhysicalDmg;
             finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
             tryApplyHitFlinch(char, finalTarget, logQueue);
-            msg = `[味方] 【🗡️急所攻撃！】${char.name}の必殺の一撃！${finalTarget.name}に${dmg}の大ダメージ！`;
+            msg = `[味方] 【🗡️急所攻撃！】${char.name}の必殺の一撃！${finalTarget.name}に${dmg}の大ダメージ！${bleedingDamage > 0 ? `（出血の追撃+${bleedingDamage}）` : ""}`;
             if (wakeSleepingMonsterOnDamage(finalTarget)) msg += `${finalTarget.name}は目を覚ました！`;
             floatText = `${dmg}`;
             sound = "kill";
             shake = 15;
           } else {
+            dmg = finalPhysicalDmg;
             finalTarget.hp = Math.max(0, finalTarget.hp - dmg);
             tryApplyHitFlinch(char, finalTarget, logQueue);
-            msg = `[味方] ${char.name}の攻撃！${finalTarget.name}に${dmg}のダメージ。`;
+            msg = `[味方] ${char.name}の攻撃！${finalTarget.name}に${dmg}のダメージ。${bleedingDamage > 0 ? `（出血の追撃+${bleedingDamage}）` : ""}`;
             if (finalTarget.physResist && dmg <= 2) {
               msg += "（攻撃が弾かれている！）";
             }
@@ -378,6 +469,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               }
             }
           }
+
+          // Bleeding is deliberately a separate weapon support route.  It is
+          // applied only after this successful normal hit; follow-ups below
+          // never call this producer or consume the payoff.
+          tryApplyBleeding(char, finalTarget, state, logQueue);
 
           if (hasTrait(finalTarget, "reflectPhysical") && dmg > 0) {
             const reflected = Math.max(1, Math.floor(dmg * (finalTarget.physicalReflect?.rate ?? 0.3)));
@@ -481,6 +577,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         });
 
         if (finalTarget.hp === 0) {
+          clearBleedingOnDefeat(state, finalTarget, "defeat");
           applyKillAffixEffects(char, finalTarget, state, logQueue);
           logQueue.push({ msg: `[味方] [!] ${finalTarget.name}を倒した！` });
           processMonsterDefeat(monsters, finalTarget, logQueue);
@@ -1077,12 +1174,17 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     }
   });
 
-  tickMonsterBuffs(monsters);
+  tickMonsterBuffs(monsters, {
+    onBleedingExpire: target => recordBleedingEvent(state, "expired", target, { reason: "duration" })
+  });
   tickCharBuffs(state.party);
   state.party.forEach(char => {
     if (char.tempDefDown) char.tempDefDown = Math.max(0, char.tempDefDown - 1);
     if (char.magicVulnerableTurns) char.magicVulnerableTurns = Math.max(0, char.magicVulnerableTurns - 1);
-    tickStatusEffects(char, { tickSleep: false });
+    tickStatusEffects(char, {
+      tickSleep: false,
+      onBleedingExpire: target => recordBleedingEvent(state, "expired", target, { reason: "duration" })
+    });
     if (char.antiHealTurns) char.antiHealTurns = Math.max(0, char.antiHealTurns - 1);
     if (char.mabarrierTurns) char.mabarrierTurns = Math.max(0, char.mabarrierTurns - 1);
   });
@@ -1114,6 +1216,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           floatColor: "#ff3b30"
         });
         if (m.hp === 0) {
+          clearBleedingOnDefeat(state, m, "defeat");
           logQueue.push({ msg: `[味方] [!] ${m.name}を毒で倒した！` });
           processMonsterDefeat(monsters, m, logQueue);
         }

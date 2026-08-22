@@ -79,6 +79,15 @@
   border-color: rgba(255, 59, 48, 0.3);
 }
 
+.enemy-status.bleeding {
+  color: #ffb3b0;
+  border-left: 2px solid #ff3b30;
+  padding: 2px 4px;
+  margin: 3px 0;
+  font-size: var(--fs-xs);
+  line-height: 1.25;
+}
+
 .combat-target-card.enemy:hover, .combat-target-card.enemy:active {
   border-color: var(--neon-red);
   background-color: rgba(255, 59, 48, 0.05);

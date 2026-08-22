@@ -350,6 +350,9 @@ export function generateRandomEquipment(floor, options) {
     addAffix(3, "hitFlinch", () => getSupportValueByRarity("hitFlinch", rarity), 1);
     // #313: 前衛が自力で状態異常を撒ける唯一の手段。執行人の前提でもある。
     addAffix(3, "poisonAtk", () => getSupportValueByRarity("poisonAtk", rarity), 1);
+    // #793: the single Phase 1 bleeding producer remains weapon-only and
+    // follows the existing poison trigger pool without repurposing poisonAtk.
+    addAffix(3, "bleedingAtk", () => getSupportValueByRarity("bleedingAtk", rarity), 1);
   }
   addAffix(3, "lastSurvivorStats", () => getSupportValueByRarity("lastSurvivorStats", rarity), 1);
   addAffix(2, "statusResistance", () => getSupportValueByRarity("statusResistance", rarity), 2);

@@ -3,8 +3,15 @@ export const STATUS_EFFECT_IDS = Object.freeze({
   BLIND: "blind",
   SLEEP: "sleep",
   PARALYZED: "paralyzed",
-  SILENCE: "silence"
+  SILENCE: "silence",
+  BLEEDING: "bleeding"
 });
+
+// Bleeding is a combat-only, non-legacy effect.  A successful reapplication
+// refreshes the timer and never adds stacks.
+export const BLEEDING_DURATION_TURNS = 3;
+export const BLEEDING_PAYOFF_DAMAGE_CANDIDATES = Object.freeze([1, 2, 3]);
+export const BLEEDING_PAYOFF_DAMAGE = 2;
 
 const LEGACY_STATUS_IDS = new Set([
   STATUS_EFFECT_IDS.POISONED,
@@ -119,9 +126,15 @@ export function hasLegacyStatusEffect(target) {
 
 export function hasStatusEffectForDamage(target) {
   if (!target) return false;
+  // CORE_EXECUTIONER is intentionally poison-only (#313).  Do not let the
+  // additive adapter make newly added statuses implicit executioner inputs.
+  return hasLegacyStatusEffect(target);
+}
+
+export function getStatusEffectRemainingTurns(target, id) {
+  if (!target || typeof id !== "string") return null;
   normalizeStatusEffectTarget(target);
-  if (target.status && !["ok", "dead"].includes(target.status)) return true;
-  return Object.keys(target.statusEffects).some(id => id !== STATUS_EFFECT_IDS.SILENCE);
+  return target.statusEffects[id]?.remainingTurns ?? null;
 }
 
 /**
@@ -155,7 +168,11 @@ export function applyStatusEffect(target, id, { remainingTurns = null, stacks = 
     target.silenceTurns = normalizeRemainingTurns(remainingTurns) ?? 0;
   }
 
-  effects[id] = createCanonicalEffect(id, { remainingTurns, stacks, source });
+  effects[id] = createCanonicalEffect(id, {
+    remainingTurns,
+    stacks: id === STATUS_EFFECT_IDS.BLEEDING ? 1 : stacks,
+    source
+  });
   return true;
 }
 
@@ -179,7 +196,7 @@ export function removeStatusEffect(target, id, { legacyStatus = "ok" } = {}) {
   return hadEffect;
 }
 
-export function tickStatusEffects(target, { tickSleep = true } = {}) {
+export function tickStatusEffects(target, { tickSleep = true, onBleedingExpire = null } = {}) {
   if (!target) return;
   normalizeStatusEffectTarget(target);
 
@@ -192,19 +209,30 @@ export function tickStatusEffects(target, { tickSleep = true } = {}) {
     }
   }
 
-  if (!tickSleep) return;
+  if (tickSleep) {
+    if (target.status === STATUS_EFFECT_IDS.SLEEP) {
+      target.sleepTurns = Math.max(0, (target.sleepTurns ?? 1) - 1);
+      if (target.statusEffects[STATUS_EFFECT_IDS.SLEEP]) {
+        target.statusEffects[STATUS_EFFECT_IDS.SLEEP].remainingTurns = target.sleepTurns;
+      }
+      if (target.sleepTurns === 0) {
+        removeStatusEffect(target, STATUS_EFFECT_IDS.SLEEP, { legacyStatus: "delete" });
+      }
+    } else if (target.sleepTurns) {
+      delete target.sleepTurns;
+      delete target.statusEffects[STATUS_EFFECT_IDS.SLEEP];
+    }
+  }
 
-  if (target.status === STATUS_EFFECT_IDS.SLEEP) {
-    target.sleepTurns = Math.max(0, (target.sleepTurns ?? 1) - 1);
-    if (target.statusEffects[STATUS_EFFECT_IDS.SLEEP]) {
-      target.statusEffects[STATUS_EFFECT_IDS.SLEEP].remainingTurns = target.sleepTurns;
+  const bleeding = target.statusEffects[STATUS_EFFECT_IDS.BLEEDING];
+  if (bleeding) {
+    const remainingTurns = Math.max(0, (bleeding.remainingTurns ?? 0) - 1);
+    if (remainingTurns > 0) {
+      bleeding.remainingTurns = remainingTurns;
+    } else {
+      delete target.statusEffects[STATUS_EFFECT_IDS.BLEEDING];
+      onBleedingExpire?.(target);
     }
-    if (target.sleepTurns === 0) {
-      removeStatusEffect(target, STATUS_EFFECT_IDS.SLEEP, { legacyStatus: "delete" });
-    }
-  } else if (target.sleepTurns) {
-    delete target.sleepTurns;
-    delete target.statusEffects[STATUS_EFFECT_IDS.SLEEP];
   }
 }
 
@@ -219,9 +247,9 @@ export function addMonsterBuff(mon, type, value, turns) {
   mon.buffs.push({ type, value, turns });
 }
 
-export function tickMonsterBuffs(monsters) {
+export function tickMonsterBuffs(monsters, options = {}) {
   monsters.forEach(mon => {
-    tickStatusEffects(mon);
+    tickStatusEffects(mon, options);
     if (!mon.buffs) return;
     mon.buffs = mon.buffs
       .map(buff => ({ ...buff, turns: buff.turns - 1 }))

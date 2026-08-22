@@ -3434,6 +3434,20 @@ function createSimulationState(
   };
   equipBestWorkshopStartingGear(character, workshop, startingGearConfig);
   const finalWeaponId = character.equipment.weapon;
+  const bleedingAffixValue = Number(scenario.bleedingAffixValue);
+  if (Number.isFinite(bleedingAffixValue) && bleedingAffixValue > 0) {
+    const weapon = getItemData(character.equipment.weapon);
+    if (weapon?.type === "weapon") {
+      character.equipment.weapon = {
+        ...structuredClone(weapon),
+        identified: true,
+        affixes: [
+          ...(weapon.affixes || []),
+          { id: "bleedingAtk", type: "bleedingAtk", kind: "support", value: bleedingAffixValue }
+        ]
+      };
+    }
+  }
   const materialCompetition = scenario.departureCraftMeasurement
     ? measureMaterialCompetition(departureCraftBank, workshop, finalWeaponId)
     : null;
@@ -3513,6 +3527,9 @@ function createSimulationState(
 
   return {
     party: [character],
+    bleedingPayoffDamage: Number.isFinite(Number(scenario.bleedingPayoffDamage))
+      ? Math.max(0, Math.floor(Number(scenario.bleedingPayoffDamage)))
+      : undefined,
     workshopEffects,
     keyItems: [...keyItems],
     unlockedMilestones: [...unlockedMilestones],
@@ -9619,6 +9636,11 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     b5DeathAfterFlameWithinFiveSteps,
     deathSnapshot: metrics.deathSnapshot,
     killHeal: { ...metrics.killHeal },
+    bleedingTelemetry: {
+      ...metrics.killHeal.bleeding,
+      sources: { ...metrics.killHeal.bleeding.sources },
+      builds: { ...metrics.killHeal.bleeding.builds }
+    },
     hitEvasion: metrics.hitEvasion,
     combatFormula: state.combatFormulaTelemetry || null,
     evFleeActions: getDamageEstimateActionTotals(metrics.damageEstimateAudit).fleeActions,
@@ -10018,7 +10040,21 @@ export function simulateRun({
       killHealActivations: 0,
       killHealPotentialHp: 0,
       killHealRecoveredHp: 0,
-      executionerTriggers: 0
+      executionerTriggers: 0,
+      bleeding: {
+        applied: 0,
+        refresh: 0,
+        failed: 0,
+        resisted: 0,
+        triggered: 0,
+        damageContribution: 0,
+        expired: 0,
+        cleared: 0,
+        bossEvents: 0,
+        midbossEvents: 0,
+        sources: {},
+        builds: {}
+      }
     },
     statusCureItemsAcquired: {
       initial: countInventoryItems(state.simStartingInventory),
