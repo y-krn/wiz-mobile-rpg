@@ -689,9 +689,15 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 ### #652 rebaseline (2026-08-15)
 
 PR #645/#651 でcamp配置が更新されたため、上記の#502/#499固定値は
-pre-camp-correctionの履歴値として保持し、現行baseの判定には次を使う。
-`node scratch/sim_issue_502_trap_detection.js`（seed=502、各職N=3,000、
-calibration N=1,000、SIM_PARALLEL未指定、source `3e659a6`）では、現行→確定察知・
+pre-camp-correctionの履歴値として保持する。以下は source commit `3e659a6` における
+歴史的な測定記録であり、現行baseの再現手順ではない。測定に使った
+`sim_issue_502_trap_detection.js` runner は退役・削除済みで、もう実行できない。結果の正本は
+immutableな結果記録
+`scratch/results/issue-502-trap-detection.md`、`scratch/results/issue-502-499-fixed-detection.md`、
+`scratch/results/issue-502-461-rebaseline.md` を参照する。
+
+当時の記録では、seed=502、各職N=3,000、calibration N=1,000、SIM_PARALLEL未指定で、
+現行→確定察知・
 trapSense撤去→解除転換が、平均到達floor **5.150 → 5.516 → 5.473**、
 B10 entrant **9.5% → 11.5% → 11.1%**、床罠被害HP/run
 **22.097 → 18.571 → 18.385** となった。確定察知の方向と撤去/解除転換の
