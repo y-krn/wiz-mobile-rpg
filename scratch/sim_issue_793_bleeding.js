@@ -16,6 +16,15 @@ const SEED_POLICY = "SIM_INDEPENDENT_RUN_RANDOM=1; SIM_SEED from runner environm
 const CANDIDATES = [1, 2, 3];
 const TARGET_DEPTH = 20;
 const SERIES_ID = "issue-793-bleeding-matched-v1";
+const MEASUREMENT_SIDE = process.env.BLEEDING_MEASUREMENT_SIDE || "candidate";
+const SOURCE_COMMIT = process.env.BLEEDING_SOURCE_CODE_SHA || MEASUREMENT_PROVENANCE?.sourceCommit || null;
+const RUNNER_COMMIT = process.env.BLEEDING_RUNNER_COMMIT || MEASUREMENT_PROVENANCE?.sourceCommit || null;
+const ORIGIN_MAIN_ANCESTOR = MEASUREMENT_PROVENANCE?.originMainAncestor ?? null;
+const STALE_TREE_ALLOWED = MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null;
+
+if (!["base", "candidate"].includes(MEASUREMENT_SIDE)) {
+  throw new Error(`BLEEDING_MEASUREMENT_SIDE must be base|candidate: ${MEASUREMENT_SIDE}`);
+}
 
 function numberOrZero(value) {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -25,7 +34,7 @@ function createZeroBleedingTelemetry() {
   return {
     applied: 0, refresh: 0, failed: 0, resisted: 0, triggered: 0,
     damageContribution: 0, expired: 0, cleared: 0, bossEvents: 0,
-    midbossEvents: 0, sources: {}, builds: {}
+    midbossEvents: 0, sources: {}, builds: {}, clearReasons: {}
   };
 }
 
@@ -33,6 +42,29 @@ function addCounts(target, source) {
   Object.entries(source || {}).forEach(([key, value]) => {
     target[key] = (target[key] || 0) + numberOrZero(value);
   });
+}
+
+function summarizeBuildState(row, bleedingAffixValue) {
+  const snapshots = Array.isArray(row.buildSnapshots) ? row.buildSnapshots : [];
+  const producerSnapshots = snapshots.filter(snapshot =>
+    Number(snapshot.supportAffixes?.bleedingAtk || 0) > 0
+  );
+  const finalSnapshot = snapshots.at(-1) || null;
+  return {
+    snapshotCount: snapshots.length,
+    producerSnapshotCount: producerSnapshots.length,
+    producerObserved: producerSnapshots.length > 0,
+    producerValueMax: producerSnapshots.reduce(
+      (max, snapshot) => Math.max(max, Number(snapshot.supportAffixes?.bleedingAtk || 0)),
+      0
+    ),
+    finalProducerObserved: Boolean(finalSnapshot?.supportAffixes?.bleedingAtk),
+    finalCombatBuildScore: finalSnapshot?.combatBuildScore ?? null,
+    finalCoreCount: Array.isArray(finalSnapshot?.coreIds) ? finalSnapshot.coreIds.length : null,
+    producerMode: bleedingAffixValue === null
+      ? "natural-source-selection-measured"
+      : "forced-calibration-bypasses-natural-source-selection"
+  };
 }
 
 function summarizeCase(label, payoffDamage, bleedingAffixValue, scoringProfile, runCount = N) {
@@ -50,7 +82,8 @@ function summarizeCase(label, payoffDamage, bleedingAffixValue, scoringProfile, 
         bleedingPayoffDamage: payoffDamage,
         ...(bleedingAffixValue === null ? {} : { bleedingAffixValue })
       },
-      workshop: { ranks: {} }
+      workshop: { ranks: {} },
+      collectBuildSnapshots: true
     }));
   }
 
@@ -64,12 +97,15 @@ function summarizeCase(label, payoffDamage, bleedingAffixValue, scoringProfile, 
   };
 
   const bleeding = createZeroBleedingTelemetry();
+  const buildStates = [];
   const metrics = rows.map(row => {
     const rowBleeding = row.bleedingTelemetry || createZeroBleedingTelemetry();
     ["applied", "refresh", "failed", "resisted", "triggered", "damageContribution", "expired", "cleared", "bossEvents", "midbossEvents"]
       .forEach(key => { bleeding[key] += numberOrZero(rowBleeding[key]); });
     addCounts(bleeding.sources, rowBleeding.sources);
     addCounts(bleeding.builds, rowBleeding.builds);
+    addCounts(bleeding.clearReasons, rowBleeding.clearReasons);
+    buildStates.push(summarizeBuildState(row, bleedingAffixValue));
     return {
       reachedFloor: numberOrZero(row.reachedFloor),
       survived: Number(row.survived),
@@ -82,6 +118,12 @@ function summarizeCase(label, payoffDamage, bleedingAffixValue, scoringProfile, 
       sourceFound: numberOrZero(row.supportAffixFoundById?.bleedingAtk)
     };
   });
+  const buildScoreValues = buildStates
+    .map(state => state.finalCombatBuildScore)
+    .filter(value => Number.isFinite(value));
+  const coreCountValues = buildStates
+    .map(state => state.finalCoreCount)
+    .filter(value => Number.isFinite(value));
   return {
     label,
     payoffDamage,
@@ -96,7 +138,17 @@ function summarizeCase(label, payoffDamage, bleedingAffixValue, scoringProfile, 
       b10ReachRate: means(metrics.map(row => row.b10Reach)),
       b10BreakthroughRate: means(metrics.map(row => row.b10Breakthrough)),
       equipmentFoundPerRun: means(metrics.map(row => row.equipmentFound)),
-      sourceFoundPerRun: means(metrics.map(row => row.sourceFound))
+      sourceFoundPerRun: means(metrics.map(row => row.sourceFound)),
+      buildSelection: {
+        producerMode: buildStates[0]?.producerMode || null,
+        producerObservedRuns: buildStates.filter(state => state.producerObserved).length,
+        finalProducerObservedRuns: buildStates.filter(state => state.finalProducerObserved).length,
+        producerSnapshotRate: buildStates.reduce((sum, state) => sum + state.producerSnapshotCount, 0) /
+          Math.max(1, buildStates.reduce((sum, state) => sum + state.snapshotCount, 0)),
+        finalCombatBuildScore: uncertainty(buildScoreValues),
+        finalCoreCount: uncertainty(coreCountValues),
+        naturalSourceSelection: bleedingAffixValue === null ? "measured" : "unexecuted/omitted"
+      }
     },
     bleeding: {
       ...bleeding,
@@ -109,7 +161,15 @@ function summarizeCase(label, payoffDamage, bleedingAffixValue, scoringProfile, 
       expiriesPerRun: bleeding.expired / runCount,
       clearsPerRun: bleeding.cleared / runCount,
       bossEventRate: bleeding.bossEvents / Math.max(1, bleeding.applied + bleeding.refresh),
-      midbossEventRate: bleeding.midbossEvents / Math.max(1, bleeding.applied + bleeding.refresh)
+      midbossEventRate: bleeding.midbossEvents / Math.max(1, bleeding.applied + bleeding.refresh),
+      clearReasons: { ...bleeding.clearReasons }
+    },
+    measurement: {
+      side: MEASUREMENT_SIDE,
+      sourceCommit: SOURCE_COMMIT,
+      runnerCommit: RUNNER_COMMIT,
+      originMainAncestor: ORIGIN_MAIN_ANCESTOR,
+      staleTreeAllowed: STALE_TREE_ALLOWED
     }
   };
 }
@@ -117,10 +177,11 @@ function summarizeCase(label, payoffDamage, bleedingAffixValue, scoringProfile, 
 await mkdir("scratch/results", { recursive: true });
 const measurement = {
   issue: 793,
-  sourceCommit: process.env.BLEEDING_SOURCE_CODE_SHA || MEASUREMENT_PROVENANCE?.sourceCommit || null,
-  runnerCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
-  originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
-  staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
+  measurementSide: MEASUREMENT_SIDE,
+  sourceCommit: SOURCE_COMMIT,
+  runnerCommit: RUNNER_COMMIT,
+  originMainAncestor: ORIGIN_MAIN_ANCESTOR,
+  staleTreeAllowed: STALE_TREE_ALLOWED,
   runner: `node ${process.version}; scratch/sim_issue_793_bleeding.js`,
   seedPolicy: SEED_POLICY,
   dataset: "current src data; generateRunFloor-driven simulateRun; solo classes",
@@ -132,8 +193,9 @@ const measurement = {
     durationTurns: 3,
     producer: "bleedingAtk weapon support",
     forcedProducerCalibrationValue: 100,
-    baseline: "same real-run runner/config with no bleeding producer route in base SHA",
-    after: "same real-run runner/config with bleeding producer calibration affix"
+    base: "clean base-SHA source with no bleeding producer route",
+    candidate: "candidate source with forced bleeding producer calibration affix",
+    naturalSourceSelection: "measured only for no-forcing cases; forced cases omit this choice"
   },
   modeled: [
     "generateRunFloor-driven floor traversal",
@@ -153,11 +215,15 @@ const scoringProfile = runCoreCalibrationTask({
   scenarioId: null,
   runCount: CALIBRATION_N
 }).profile;
-measurement.cases.push(summarizeCase("baseline/no-producer", 0, null, scoringProfile, N));
-CANDIDATES.forEach(candidate => {
-  measurement.cases.push(summarizeCase(`after/forced-producer/payoff-${candidate}`, candidate, 100, scoringProfile, N));
-});
-measurement.cases.push(summarizeCase("after/natural-loot-reachability", 2, null, scoringProfile, CALIBRATION_N));
+if (MEASUREMENT_SIDE === "base") {
+  measurement.cases.push(summarizeCase("base/no-producer", 0, null, scoringProfile, N));
+} else {
+  measurement.cases.push(summarizeCase("candidate/no-producer", 0, null, scoringProfile, N));
+  CANDIDATES.forEach(candidate => {
+    measurement.cases.push(summarizeCase(`candidate/forced-producer/payoff-${candidate}`, candidate, 100, scoringProfile, N));
+  });
+  measurement.cases.push(summarizeCase("candidate/natural-loot-reachability", 2, null, scoringProfile, CALIBRATION_N));
+}
 
 const outputPath = "scratch/results/issue-793-bleeding-measurement.json";
 fs.writeFileSync(outputPath, `${JSON.stringify(measurement, null, 2)}\n`);

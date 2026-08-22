@@ -196,6 +196,14 @@ export function removeStatusEffect(target, id, { legacyStatus = "ok" } = {}) {
   return hadEffect;
 }
 
+export function clearBleedingStatus(target) {
+  if (!target) return false;
+  normalizeStatusEffectTarget(target);
+  if (!Object.hasOwn(target.statusEffects, STATUS_EFFECT_IDS.BLEEDING)) return false;
+  delete target.statusEffects[STATUS_EFFECT_IDS.BLEEDING];
+  return true;
+}
+
 export function tickStatusEffects(target, { tickSleep = true, onBleedingExpire = null } = {}) {
   if (!target) return;
   normalizeStatusEffectTarget(target);

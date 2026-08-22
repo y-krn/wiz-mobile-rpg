@@ -2,7 +2,11 @@ import { SPELLS } from "../data.js";
 import { recordCharDeath, recordMonsterResistanceDiscovery } from "../state.js";
 import { getEffectiveMagicResist, applyMagicResistBuffs, applyKillAffixEffects, logCoreActivation, recordReceivedDamage } from "./damage.js";
 import { hasTrait, processMonsterDefeat } from "./monster_traits.js";
-import { clearCharIncapacitationOnDamage, wakeSleepingMonsterOnDamage } from "./status_effects.js";
+import {
+  clearCharIncapacitationOnDamage,
+  clearBleedingStatus,
+  wakeSleepingMonsterOnDamage
+} from "./status_effects.js";
 import { getSpellPayment, paySpellCost } from "../rules/affix_rules.js";
 import { getClassPassiveBonus } from "../rules/class_rules.js";
 import { getCharMaxMp } from "../rules/character_stats.js";
@@ -73,8 +77,12 @@ function applyReflectionDamage(char, state, sources, logQueue) {
   });
 }
 
-export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
+export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks = {}) {
   const spell = SPELLS[act.spellName];
+  const clearBleedingOnDefeat = (target, reason) => {
+    if (!clearBleedingStatus(target)) return;
+    hooks.onBleedingClear?.(target, reason);
+  };
 
   if (char.silenceTurns > 0) {
     logQueue.push({ msg: `[味方] ${char.name}は沈黙していて呪文を唱えられない！` });
@@ -146,6 +154,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     }
 
     if (target.hp === 0) {
+      clearBleedingOnDefeat(target, "spell");
       applyKillAffixEffects(char, target, state, logQueue);
       logQueue.push({ msg: `[味方] [!] ${target.name}を倒した！` });
       processMonsterDefeat(monsters, target, logQueue);
@@ -215,6 +224,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue) {
     monsters.forEach(m => {
       if (m.hp === 0 && !m.loggedDeath) {
         m.loggedDeath = true;
+        clearBleedingOnDefeat(m, "spell");
         applyKillAffixEffects(char, m, state, logQueue);
         logQueue.push({ msg: `[味方] [!] ${m.name}を倒した！` });
         processMonsterDefeat(monsters, m, logQueue);

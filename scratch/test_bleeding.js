@@ -34,7 +34,7 @@ function createState(monster = {}) {
     currentRun: { itemsFound: [], equipmentFound: [], deathLogs: [] },
     floorChestsTotal: [], roamingMonsters: [], floor: 1,
     simTelemetry: {
-      bleeding: { applications: 0, refresh: 0, triggered: 0, damageContribution: 0, expired: 0, cleared: 0, failed: 0, sources: {}, builds: {}, bossEvents: 0, midbossEvents: 0 }
+      bleeding: { applications: 0, refresh: 0, triggered: 0, damageContribution: 0, expired: 0, cleared: 0, failed: 0, sources: {}, builds: {}, clearReasons: {}, bossEvents: 0, midbossEvents: 0 }
     },
     combatFormulaTelemetry: {
       physicalPlayerHits: [], physicalPlayerMisses: [], physicalMonsterHits: [],
@@ -85,5 +85,41 @@ assert.equal(getStatusEffectRemainingTurns(lifecycleTarget, STATUS_EFFECT_IDS.BL
 tickStatusEffects(lifecycleTarget);
 assert.equal(hasStatusEffect(lifecycleTarget, STATUS_EFFECT_IDS.BLEEDING), false);
 removeStatusEffect(lifecycleTarget, STATUS_EFFECT_IDS.BLEEDING);
+
+function createEnemyDefeatState(monsterOverrides) {
+  const state = createState({
+    hp: 1,
+    maxHp: 1,
+    statusEffects: {
+      bleeding: { id: STATUS_EFFECT_IDS.BLEEDING, remainingTurns: 3, stacks: 1, source: "test" }
+    },
+    ...monsterOverrides
+  });
+  state.party[0].agi = 1;
+  return state;
+}
+
+const flee = runRound(createEnemyDefeatState({ fleeChance: 1 }), Array(16).fill(0));
+assert.equal(hasStatusEffect(flee.state.combatState.monsters[0], STATUS_EFFECT_IDS.BLEEDING), false);
+assert.equal(flee.state.simTelemetry.bleeding.clearReasons.flee, 1);
+
+const selfDestruct = runRound(createEnemyDefeatState({
+  hp: 1,
+  maxHp: 100,
+  traits: ["selfDestruct"],
+  selfDestructQueued: true
+}), Array(16).fill(0));
+assert.equal(hasStatusEffect(selfDestruct.state.combatState.monsters[0], STATUS_EFFECT_IDS.BLEEDING), false);
+assert.equal(selfDestruct.state.simTelemetry.bleeding.clearReasons["self-destruct"], 1);
+
+const counterState = createEnemyDefeatState({ hp: 1, maxHp: 1, atk: 1 });
+counterState.party[0].equipment.shield = {
+  baseId: "SMALL_SHIELD",
+  identified: true,
+  affixes: [{ id: "CORE_THORN_SHIELD", type: "CORE_THORN_SHIELD", kind: "core", value: 1 }]
+};
+const counterResult = runRound(counterState, Array(16).fill(0));
+assert.equal(hasStatusEffect(counterResult.state.combatState.monsters[0], STATUS_EFFECT_IDS.BLEEDING), false);
+assert.equal(counterResult.state.simTelemetry.bleeding.clearReasons.counterattack, 1);
 
 console.log("bleeding deterministic pipeline: PASS");

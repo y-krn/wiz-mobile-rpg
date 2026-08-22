@@ -43,6 +43,7 @@ import {
   applyStatusEffect,
   hasStatusEffect,
   removeStatusEffect,
+  clearBleedingStatus,
   tickStatusEffects,
   STATUS_EFFECT_IDS,
   BLEEDING_DURATION_TURNS,
@@ -87,6 +88,10 @@ function recordBleedingEvent(state, event, target, metadata = {}) {
     }
     if (metadata.buildKey) {
       bleeding.builds[metadata.buildKey] = (bleeding.builds[metadata.buildKey] || 0) + 1;
+    }
+    if (event === "cleared" && metadata.reason) {
+      bleeding.clearReasons ||= {};
+      bleeding.clearReasons[metadata.reason] = (bleeding.clearReasons[metadata.reason] || 0) + 1;
     }
     if (target?.isBoss || state?.combatState?.isBoss) bleeding.bossEvents++;
     if (target?.isMidboss || state?.combatState?.isMidboss) bleeding.midbossEvents++;
@@ -142,8 +147,7 @@ function tryApplyBleeding(char, target, state, logQueue) {
 }
 
 function clearBleedingOnDefeat(state, target, reason) {
-  if (!hasStatusEffect(target, STATUS_EFFECT_IDS.BLEEDING)) return;
-  removeStatusEffect(target, STATUS_EFFECT_IDS.BLEEDING);
+  if (!clearBleedingStatus(target)) return;
   recordBleedingEvent(state, "cleared", target, { reason });
 }
 
@@ -583,7 +587,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           processMonsterDefeat(monsters, finalTarget, logQueue);
         }
       } else if (act.type === "spell") {
-        resolvePlayerSpell(char, act, state, monsters, logQueue);
+        resolvePlayerSpell(char, act, state, monsters, logQueue, {
+          onBleedingClear: (target, reason) => recordBleedingEvent(state, "cleared", target, { reason })
+        });
       } else if (act.type === "item") {
         const res = resolvePlayerItem(char, act, state, logQueue);
         if (res.escaped) {
@@ -645,6 +651,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (mon.fleeChance && Math.random() < mon.fleeChance) {
         mon.hp = 0;
         mon.fled = true;
+        clearBleedingOnDefeat(state, mon, "flee");
         logQueue.push({
           msg: `[ 敵 ] [!] ${mon.name}は逃げ出した！`,
           sound: "miss"
@@ -655,6 +662,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (hasTrait(mon, "selfDestruct") && mon.hp / mon.maxHp <= 0.25) {
         if (mon.selfDestructQueued) {
           mon.hp = 0;
+          clearBleedingOnDefeat(state, mon, "self-destruct");
           logQueue.push({ msg: `[ 敵 ] ${mon.name}は火花を散らして自爆した！`, sound: "cast_spell", shake: 15, flash: true });
           applyPartyDamage(state, combatSelection, logQueue, mon.name, 4, 8, { spell: true });
           return;
@@ -780,6 +788,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       // ボス固有の行動判定と実行
       if (resolveBossAction(mon, state, combatSelection, monsters, logQueue)) {
+        if (mon.hp === 0) clearBleedingOnDefeat(state, mon, mon.fled ? "flee" : "self-destruct");
         return;
       }
 
@@ -1094,6 +1103,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           tryThornCounter(target, mon, targetSelect.i, state, logQueue);
           if (mon.hp === 0) {
+            clearBleedingOnDefeat(state, mon, "counterattack");
             applyKillAffixEffects(target, mon, state, logQueue);
             logQueue.push({ msg: `[味方] [!] ${mon.name}を反撃で倒した！` });
             processMonsterDefeat(monsters, mon, logQueue);
