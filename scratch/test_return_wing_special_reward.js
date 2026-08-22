@@ -164,12 +164,14 @@ await liveCheck("live opening handles duplicate and full Return Wing inventory",
   setupChestState("none", null, null, () => 0);
   openChestDirectly(state.party[0], () => 0);
   assert.equal(state.inventory.filter(item => item === "TOWN_PORTAL").length, 1);
+  assert.ok(state.logs.includes("帰還の翼はすでに所持している。"));
 
   prepareLiveChest(Array.from({ length: 20 }, () => "ANTIDOTE"));
   setupChestState("none", null, null, () => 0);
   openChestDirectly(state.party[0], () => 0);
   assert.equal(state.inventory.length, 20, "full inventory should not overflow");
   assert.equal(state.inventory.includes("TOWN_PORTAL"), false);
+  assert.ok(state.logs.includes("[!] バッグがいっぱいで [帰還の翼] を持ち帰れなかった！"));
 });
 
 await liveCheck("live smash path still resolves the trap and rewards", async () => {
@@ -196,12 +198,18 @@ check("real-run telemetry exposes acquisition, use, floor, HP band, and outcome 
   const line = output.split("\n").find(value => value.startsWith("ISSUE791_MEASUREMENT_JSON="));
   assert.ok(line, "issue measurement output should be present");
   const measurement = JSON.parse(line.slice("ISSUE791_MEASUREMENT_JSON=".length))[0];
+  assert.deepEqual(measurement.baselinePortalCandidateIndices, {
+    2: 20,
+    3: 23,
+    5: 15
+  });
   [
     "chestPortalAcquisitions",
     "chestSpecialPortalAcquisitions",
     "mainRewardPortalReplacementsPerRun",
     "portalUsesPerRun",
     "portalUsesBySourcePerRun",
+    "baselinePortalCandidateIndices",
     "portalUseFloorCounts",
     "portalUseHpBands",
     "survivalRate",

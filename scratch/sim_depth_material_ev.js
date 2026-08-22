@@ -497,6 +497,27 @@ const ISSUE791_OMITTED_MECHANISMS = Object.freeze([
   "live analytics transport; telemetry is simulator output only",
   "policy variation outside the configured simulator decision policy"
 ]);
+// Exact pre-#791 main-reward candidates, retained only for the matched
+// baseline. The historical TOWN_PORTAL positions are B2=20, B3=23, B5=15.
+const PRE_791_CHEST_ITEM_CANDIDATES_BY_FLOOR = Object.freeze({
+  1: ["DAGGER", "WAND", "MACE", "RAPIER", "BUCKLER", "SMALL_SHIELD", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "WAKE_POWDER"],
+  2: ["DAGGER", "WAND", "SHORT_SWORD", "RAPIER", "MACE", "SACRED_MACE", "SMALL_SHIELD", "BUCKLER", "ROBE", "LEATHER_ARMOR", "EXPLORER_CLOAK", "SCALE_MAIL", "MAGE_CLOAK", "HEAL_POTION", "ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "MANA_POTION", "HOLY_WATER", "TOWN_PORTAL", "TRAP_KIT", "STR_POTION", "HASTE_POTION"],
+  3: ["SHORT_SWORD", "RAPIER", "NINJA_DAGGER", "VENOM_FANG", "LONG_SWORD", "MACE", "SACRED_MACE", "SAGE_STAFF", "SMALL_SHIELD", "LARGE_SHIELD", "MAGIC_SHIELD", "LEATHER_ARMOR", "EXPLORER_CLOAK", "NINJA_SUIT", "SCALE_MAIL", "CHAIN_MAIL", "ARCANE_ROBE", "HEAL_POTION", "GREATER_HEAL", "MANA_POTION", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT", "STR_POTION", "HASTE_POTION"],
+  4: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_DAGGER", "VENOM_FANG", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "NINJA_SUIT", "CHAIN_MAIL", "ARCANE_ROBE", "BATTLE_GARB", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TRAP_KIT", "STR_POTION", "HASTE_POTION"],
+  5: ["CLAYMORE", "PLATE_MAIL", "PRIEST_ROBE", "KNIGHT_SHIELD", "MAGIC_SHIELD", "NINJA_BLADE", "HOLY_STAFF", "FLAME_SWORD", "ARCH_WAND", "BATTLE_GARB", "SORCERER_ROBE", "GREATER_HEAL", "ETHER", "HOLY_WATER", "PANACEA", "TOWN_PORTAL", "TRAP_KIT", "STR_POTION", "HASTE_POTION"]
+});
+const ISSUE791_BASELINE_PORTAL_INDICES = Object.freeze({
+  2: PRE_791_CHEST_ITEM_CANDIDATES_BY_FLOOR[2].indexOf("TOWN_PORTAL"),
+  3: PRE_791_CHEST_ITEM_CANDIDATES_BY_FLOOR[3].indexOf("TOWN_PORTAL"),
+  5: PRE_791_CHEST_ITEM_CANDIDATES_BY_FLOOR[5].indexOf("TOWN_PORTAL")
+});
+if (
+  ISSUE791_BASELINE_PORTAL_INDICES[2] !== 20 ||
+  ISSUE791_BASELINE_PORTAL_INDICES[3] !== 23 ||
+  ISSUE791_BASELINE_PORTAL_INDICES[5] !== 15
+) {
+  throw new Error(`pre-#791 chest candidate ordering drifted: ${JSON.stringify(ISSUE791_BASELINE_PORTAL_INDICES)}`);
+}
 const EXPLICIT_SIM_ENV_KEYS = SIM_ENV_KEYS.filter(key => Object.hasOwn(process.env, key));
 const EXPLICIT_TRAP_POLICY_ID = Object.hasOwn(process.env, "TRAP_POLICY")
   ? process.env.TRAP_POLICY
@@ -8722,14 +8743,7 @@ function rollChestItems(
     firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
     coreMinFloor: getChestCoreMinFloor(supplyOverride, "equipment"),
     itemCandidates: RETURN_WING_REWARD_MODE === "baseline"
-      ? (() => {
-          const chestFloor = Math.min(5, floor);
-          const candidates = CHEST_ITEM_CANDIDATES_BY_FLOOR[chestFloor] || [];
-          return [
-            ...candidates,
-            ...([2, 3, 5].includes(chestFloor) ? ["TOWN_PORTAL"] : [])
-          ];
-        })()
+      ? PRE_791_CHEST_ITEM_CANDIDATES_BY_FLOOR[Math.min(5, floor)] || []
       : null,
     itemCandidateFilter: RETURN_WING_REWARD_MODE === "special"
       ? itemId => itemId !== "TOWN_PORTAL"
@@ -13450,6 +13464,7 @@ const issue791Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
       returnWingRewardMode: RETURN_WING_REWARD_MODE,
       specialChanceByFloor: CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
+      baselinePortalCandidateIndices: ISSUE791_BASELINE_PORTAL_INDICES,
       modeledMechanisms: ISSUE791_MODELED_MECHANISMS,
       omittedMechanisms: ISSUE791_OMITTED_MECHANISMS,
       chestPortalAcquisitions: result.averagePortalAcquisitions?.chest || 0,

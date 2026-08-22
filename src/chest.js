@@ -19,6 +19,7 @@ import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
 import { getChestMaterialPool } from "./rules/material_rules.js";
+import { getItemBaseId } from "./rules/item_rules.js";
 
 export function applyTombRaiderTrapTier(chest, opener) {
   const params = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
@@ -674,7 +675,14 @@ export function openChestDirectly(opener = null, rng = Math.random) {
         if (state.currentRun) state.currentRun.itemsFound.push(chest.specialItem);
         addLog("箱の底に帰還の翼が残されていた――帰還の翼を手に入れた。");
       } else {
-        addLog("帰還の翼はすでに所持している。");
+        const alreadyHasWing = state.inventory.some(item => getItemBaseId(item) === "TOWN_PORTAL");
+        if (alreadyHasWing) {
+          addLog("帰還の翼はすでに所持している。");
+        } else if (state.inventory.length >= 20) {
+          addLog("[!] バッグがいっぱいで [帰還の翼] を持ち帰れなかった！");
+        } else {
+          addLog("帰還の翼を持ち帰れなかった。");
+        }
       }
     }
 
