@@ -1,4 +1,5 @@
 import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, markMapChanged, markMapCellVisited } from "./state.js";
+import { trackRunStart } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum, getPartyFlameTrapWarningAvoidanceChance } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
@@ -674,6 +675,7 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   state.currentRun.characterClass = state.party[0]?.class || null;
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
+  trackRunStart(state.currentRun, state.party[0]);
   assignRunQuests(state.currentRun);
   resetRunFloors(state);
   ensureRunFloor(state, floor);

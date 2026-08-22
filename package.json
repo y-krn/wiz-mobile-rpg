@@ -26,6 +26,7 @@
     "vite": "^8.0.12"
   },
   "dependencies": {
-    "@sentry/browser": "^10.63.0"
+    "@sentry/browser": "^10.63.0",
+    "posthog-js": "^1.418.10"
   }
 }

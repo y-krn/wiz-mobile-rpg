@@ -19,6 +19,34 @@ import {
   recordExecutionerTrigger
 } from "../rules/affix_rules.js";
 import { resolvePurifyRecovery } from "../rules/purify_rules.js";
+import { getClassPassiveBonus } from "../rules/class_rules.js";
+import { trackDamageReceived } from "../telemetry.js";
+
+export function recordReceivedDamage(
+  state,
+  char,
+  sourceName,
+  rawDamage,
+  finalDamage,
+  playerHpBefore,
+  options = {}
+) {
+  trackDamageReceived({
+    floor: state?.floor,
+    playerClass: char?.class,
+    enemyId: sourceName,
+    attackType: options.attackType ?? (options.spell ? "spell" : "physical"),
+    rawDamage,
+    finalDamage,
+    finalDef: options.finalDef,
+    defResistance: options.defResistance,
+    playerHpBefore,
+    playerHpAfter: char?.hp,
+    playerMp: char?.mp,
+    mpWardActive: (char?.mp || 0) >= 1 && getClassPassiveBonus(char, "mpWard") > 0,
+    isDefending: options.isDefending
+  });
+}
 
 export function logCoreActivation(
   state,
@@ -298,6 +326,8 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
     const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
     let dmg = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
     if (isDefending) dmg = Math.max(1, Math.round(dmg * (options.defendRate ?? 0.5)));
+    const rawDamage = dmg;
+    const playerHpBefore = c.hp;
     dmg = reduceIncomingDamage(c, dmg, {
       spell: options.spell,
       dragon: options.dragon,
@@ -305,6 +335,10 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
       state
     });
     c.hp = Math.max(0, c.hp - dmg);
+    recordReceivedDamage(state, c, sourceName, rawDamage, dmg, playerHpBefore, {
+      ...options,
+      isDefending
+    });
     const wakeSuffix = wakeSleepingCharOnDamage(c) ? `${c.name}は目を覚ました！` : "";
     if (c.hp === 0) {
       c.status = "dead";

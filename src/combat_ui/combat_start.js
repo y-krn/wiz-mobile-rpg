@@ -10,6 +10,7 @@ import { resetSubmenuBackButton } from "../navigation.js";
 import { triggerRunResult } from "../result.js";
 import { setupChestState } from "../chest.js";
 import { applyPendingOutcomeRewards } from "./outcome_rewards.js";
+import { trackCombatStart } from "../telemetry.js";
 
 function getRetreatPosition() {
   const { x, y, prevX, prevY, map } = state;
@@ -69,6 +70,14 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     loggedCoreActivations: [],
     pendingOutcome: null
   };
+  trackCombatStart({
+    floor: state.floor,
+    player: state.party[0],
+    monsters,
+    isBoss,
+    isMidboss,
+    isRoamingFlack
+  });
   state.chestState = null;
 
   combatSelection.charIdx = 0;

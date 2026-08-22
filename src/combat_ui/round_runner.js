@@ -2,6 +2,7 @@ import { state, saveAutosave } from "../state.js";
 import { runCombatRoundCalculation } from "../combat_logic.js";
 import { combatSelection } from "./combat_state.js";
 import { playBattleLogs } from "./battle_log_player.js";
+import { trackCombatEnd } from "../telemetry.js";
 
 function resolvePendingOutcome(logQueue) {
   for (const log of logQueue) {
@@ -48,6 +49,18 @@ export function resolveCombatRound() {
 
   state.combatState.phase = "choose_actions";
   state.combatState.pendingOutcome = resolvePendingOutcome(logQueue);
+  if (state.combatState.pendingOutcome) {
+    const pendingKind = state.combatState.pendingOutcome.kind;
+    const combatResult = pendingKind === "runEscape" && state.party.every(char => char.status === "dead")
+      ? "gameover"
+      : pendingKind;
+    trackCombatEnd(combatResult, {
+      floor: state.floor,
+      turns: state.combatState.roundNumber,
+      player: state.party[0],
+      monsters: state.combatState.monsters
+    });
+  }
   saveAutosave();
 
   state.combatState.phase = "resolving";
