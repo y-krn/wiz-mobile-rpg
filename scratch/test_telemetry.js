@@ -13,6 +13,8 @@ import {
   trackRunEnd,
   trackRunStart
 } from "../src/telemetry.js";
+import { recordReceivedDamage } from "../src/combat_logic/damage.js";
+import { getMpWardDef } from "../src/combat_logic/mp_ward.js";
 
 let failures = 0;
 
@@ -122,6 +124,24 @@ check("runtime correlation IDs do not consume Math.random", () => {
     Math.random = originalRandom;
   }
   assert.equal(randomCalls, 0);
+});
+
+check("damage telemetry matches the live MP ward formula at zero and nonzero MP", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
+  trackCombatStart({ floor: 1, player: { class: "Mage", hp: 14, mp: 0 }, monsters: [] });
+
+  const emptyMp = { class: "Mage", hp: 10, mp: 0 };
+  recordReceivedDamage({ floor: 1 }, emptyMp, "ゴブリン A", 2, 2, 12, { attackType: "physical" });
+  const activeMp = { class: "Mage", hp: 10, mp: 1 };
+  recordReceivedDamage({ floor: 1 }, activeMp, "ゴブリン A", 2, 2, 12, { attackType: "physical" });
+
+  const damageEvents = events.filter(event => event.name === "damage_received");
+  assert.equal(damageEvents[0].properties.mpWardActive, getMpWardDef(emptyMp) > 0);
+  assert.equal(damageEvents[1].properties.mpWardActive, getMpWardDef(activeMp) > 0);
+  assert.equal(damageEvents[0].properties.mpWardActive, false);
+  assert.equal(damageEvents[1].properties.mpWardActive, true);
 });
 
 check("telemetry lifecycle preserves a fixed random sequence", () => {

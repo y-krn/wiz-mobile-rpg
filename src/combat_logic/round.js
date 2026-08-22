@@ -31,6 +31,7 @@ import {
   tryThornCounter,
   logCoreActivation
 } from "./damage.js";
+import { getMpWardDef } from "./mp_ward.js";
 import {
   addMonsterBuff,
   tickMonsterBuffs,
@@ -62,17 +63,9 @@ import {
   getStatusEffectChance,
   tryApplyExecutionerSetup
 } from "../rules/affix_rules.js";
-import { getClassCriticalChance, getClassPassiveBonus } from "../rules/class_rules.js";
+import { getClassCriticalChance } from "../rules/class_rules.js";
 
-/**
- * #267: 攻撃呪文を撃てるMPが残る間だけ働く防御。MP枯渇で消えるため
- * 前衛のような常時防御にはならず、後衛の「火力窓」という個性を保つ。
- * 攻撃呪文の最小コストが1なので MP>=1 を発動条件とする。
- */
-export function getMpWardDef(char) {
-  if (!char || (char.mp || 0) < 1) return 0;
-  return getClassPassiveBonus(char, "mpWard");
-}
+export { getMpWardDef };
 
 function findMonsterTemplate(name) {
   return MONSTERS.find(m => m.name === name);

@@ -19,7 +19,7 @@ import {
   recordExecutionerTrigger
 } from "../rules/affix_rules.js";
 import { resolvePurifyRecovery } from "../rules/purify_rules.js";
-import { getClassPassiveBonus } from "../rules/class_rules.js";
+import { getMpWardDef } from "./mp_ward.js";
 import { trackDamageReceived } from "../telemetry.js";
 
 export function recordReceivedDamage(
@@ -43,7 +43,7 @@ export function recordReceivedDamage(
     playerHpBefore,
     playerHpAfter: char?.hp,
     playerMp: char?.mp,
-    mpWardActive: (char?.mp || 0) >= 1 && getClassPassiveBonus(char, "mpWard") > 0,
+    mpWardActive: getMpWardDef(char) > 0,
     isDefending: options.isDefending
   });
 }
