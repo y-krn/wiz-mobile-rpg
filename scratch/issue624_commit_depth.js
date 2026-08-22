@@ -167,7 +167,6 @@ function makeChildEnv(condition) {
     "SIM_SKIP_PROVENANCE",
     "SIM_ALLOW_STALE_TREE",
     "TRAP_BONUS_OVERRIDE",
-    "TRAP_SENSE_OVERRIDE"
   ]);
   controlledKeys.forEach(key => delete env[key]);
   Object.assign(env, makeBaseEnv(), condition.overrides, {

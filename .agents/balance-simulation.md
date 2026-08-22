@@ -702,6 +702,12 @@ B10 entrant **9.5% → 11.5% → 11.1%**、床罠被害HP/run
 （seed=499、各職N=3,000、calibration N=1,000、SIM_PARALLEL未指定）の現行値は、
 B10 entrant **11.5%**、+0.4点 **14.1%**（実測0.513本/run）である。
 
+### Issue #672 stale trap-sense simulations (2026-08-23)
+
+- `sim_issue_271_trap_quality.js` と `sim_issue_510_b10_criteria_migration.js` は、削除済み `trapSense` 機構を測る一回限りsimとして退役済み（commit `25ae6f6` / PR #749）。現行機構への再移植も過去結果の再測定も行わない。
+- `sim_issue_502_trap_detection.js` も、無効な `trapSenseDisposition` と削除済み `trapSense*` 指標を含む閉鎖済み一回限りsimのため退役した。既存の #502 固定結果は歴史記録であり、今回再測定しない。
+- `scratch/sim_issue_461_baseline.js`、`scratch/sim_issue_612_exp_pace.js`、`scratch/issue624_commit_depth.js` の obsolete `TRAP_SENSE_OVERRIDE` 設定・除外リストも除去した。ゲームルール、balance値、material economyは不変。
+
 ## Issue #516 固定結論（基本4職sustain非対称）
 
 - #516前対照は、同一の#461固定条件（seed=461、6工房状態の観測分布、現行kit・罠・逃走方針）で

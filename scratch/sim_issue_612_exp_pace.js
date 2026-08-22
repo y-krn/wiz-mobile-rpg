@@ -108,8 +108,7 @@ const forbiddenOverrides = [
   "SIM_EQUIPMENT_POLICY",
   "SIM_MATCHING_DEFINITION",
   "SIM_CURSE_LOCK_MODE",
-  "TRAP_BONUS_OVERRIDE",
-  "TRAP_SENSE_OVERRIDE"
+  "TRAP_BONUS_OVERRIDE"
 ];
 for (const key of forbiddenOverrides) {
   if (process.env[key] !== undefined && !Object.hasOwn(FIXED_ENV, key)) {
