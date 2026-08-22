@@ -973,12 +973,12 @@ Phase 0 で既存表現に対応する ID は `poisoned`、`blind`、`sleep`、`
 を下げたため、より大きい値を採用する根拠にはしなかった。
 
 - source code base: `f076e89fa759968c10e2d1e847945dddfcf9be24`
-- candidate source/runner commit: `ecac8c2deabb984802bab7d28a407475cd529e97`
+- candidate source/runner commit: `59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4`
 - runner: Node `v26.7.0`, `scratch/sim_issue_793_bleeding.js`
 - provenance: base case `sourceCommit=f076e89fa759968c10e2d1e847945dddfcf9be24`,
-  candidate cases `sourceCommit=ecac8c2deabb984802bab7d28a407475cd529e97`; both record
+  candidate cases `sourceCommit=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4`; both record
   `originMainAncestor=true`, `staleTreeAllowed=false`, and the same runner commit
-  `ecac8c2deabb984802bab7d28a407475cd529e97`
+  `59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4`
 - provenance output also records the resolved `provenanceBaseRef` and commit. Production
   measurements use the required `origin/main` ref. The unit-side CI compatibility check
   uses the explicit test-only fixture
@@ -996,9 +996,9 @@ Phase 0 で既存表現に対応する ID は `poisoned`、`blind`、`sleep`、`
   git worktree add --detach /private/tmp/issue-793-bleed-base-clean f076e89fa759968c10e2d1e847945dddfcf9be24
   cp /private/tmp/issue-793-bleed-vertical-slice/scratch/sim_issue_793_bleeding.js /private/tmp/issue-793-bleed-base-clean/scratch/sim_issue_793_bleeding.js
   cd /private/tmp/issue-793-bleed-base-clean
-  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=base BLEEDING_RUNNER_COMMIT=ecac8c2deabb984802bab7d28a407475cd529e97 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/sim_issue_793_bleeding.js
+  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=base BLEEDING_SOURCE_CODE_SHA=f076e89fa759968c10e2d1e847945dddfcf9be24 BLEEDING_RUNNER_COMMIT=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/sim_issue_793_bleeding.js
   cd /private/tmp/issue-793-bleed-vertical-slice
-  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=candidate BLEEDING_SOURCE_CODE_SHA=ecac8c2deabb984802bab7d28a407475cd529e97 BLEEDING_RUNNER_COMMIT=ecac8c2deabb984802bab7d28a407475cd529e97 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/sim_issue_793_bleeding.js
+  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=candidate BLEEDING_SOURCE_CODE_SHA=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_RUNNER_COMMIT=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/sim_issue_793_bleeding.js
   ```
 - matched base (base, no bleeding route): reached floor `2.82 ± 0.37` (95% mean
   CI), B5 reach/breakthrough `28%/3%`, B10 `1%/1%`, survival `0%`, final combat
