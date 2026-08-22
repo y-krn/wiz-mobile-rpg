@@ -484,6 +484,19 @@ const RETURN_WING_REWARD_MODE = String(SIM_ENV.SIM_RETURN_WING_MODE || "special"
 if (!["baseline", "special"].includes(RETURN_WING_REWARD_MODE)) {
   throw new Error(`SIM_RETURN_WING_MODE must be baseline|special: ${RETURN_WING_REWARD_MODE}`);
 }
+const ISSUE791_MODELED_MECHANISMS = Object.freeze([
+  "generateRunFloor-driven real floor traversal",
+  "production chest main -> special -> accessory reward order",
+  "ordinary main reward and independent TOWN_PORTAL special roll",
+  "TOWN_PORTAL inventory limit and in-run retreat use",
+  "status-cure decisions and equipment scoring"
+]);
+const ISSUE791_OMITTED_MECHANISMS = Object.freeze([
+  "player UI timing and manual chest/retreat input",
+  "visual/audio chest presentation",
+  "live analytics transport; telemetry is simulator output only",
+  "policy variation outside the configured simulator decision policy"
+]);
 const EXPLICIT_SIM_ENV_KEYS = SIM_ENV_KEYS.filter(key => Object.hasOwn(process.env, key));
 const EXPLICIT_TRAP_POLICY_ID = Object.hasOwn(process.env, "TRAP_POLICY")
   ? process.env.TRAP_POLICY
@@ -8755,19 +8768,28 @@ function rollChestItems(
     }
   }
 
-  const baselineItems = [
+  const accessoryItem = rollChestAccessory(
+    floor,
+    rng,
+    state.party,
+    getChestCoreMinFloor(supplyOverride, "accessory")
+  );
+  const mainRewardItem = rerollSupplyEquipment(
     item,
-    rollChestAccessory(floor, rng, state.party, getChestCoreMinFloor(supplyOverride, "accessory"))
-  ]
-    .filter(Boolean)
-    .map(found => rerollSupplyEquipment(
-      found,
-      state,
-      floor,
-      "chest",
-      supplyOverride,
-      rng
-    ));
+    state,
+    floor,
+    "chest",
+    supplyOverride,
+    rng
+  );
+  const rerolledAccessoryItem = rerollSupplyEquipment(
+    accessoryItem,
+    state,
+    floor,
+    "chest",
+    supplyOverride,
+    rng
+  );
   const extra = generateExtraSupplyEquipment(
     state,
     floor,
@@ -8781,12 +8803,22 @@ function rollChestItems(
     ? "HEAL_POTION"
     : null;
   if (extraHealPotion && metrics) metrics.chestHealPotionExtraGenerated++;
-  const items = [
-    ...baselineItems,
-    ...(extra ? [extra] : []),
-    ...(extraHealPotion ? [extraHealPotion] : []),
-    ...(specialItem ? [specialItem] : [])
-  ];
+  // Keep the production award order: main -> special -> accessory -> extras.
+  // Store indices by role because the special reward and extra potion can
+  // coexist with accessory/extra equipment and inventory capacity can drop
+  // any later entry.
+  const items = [];
+  const itemIndices = {};
+  const addReward = (role, rewardItem) => {
+    if (!rewardItem) return;
+    itemIndices[role] = items.length;
+    items.push(rewardItem);
+  };
+  addReward("main", mainRewardItem);
+  addReward("special", specialItem);
+  addReward("accessory", rerolledAccessoryItem);
+  addReward("extra", extra);
+  addReward("extraHealPotion", extraHealPotion);
   const trapResult = trap === "none"
     ? { mainItemLost: false }
     : resolveChestTrapForSimulation(
@@ -8800,11 +8832,13 @@ function rollChestItems(
     );
   return {
     items,
-    mainItem: item,
+    mainItem: mainRewardItem,
+    mainItemIndex: itemIndices.main ?? -1,
     mainItemLost: trapResult.mainItemLost,
     specialItem,
-    specialItemIndex: specialItem ? items.length - 1 : -1,
+    specialItemIndex: itemIndices.special ?? -1,
     extraHealPotion: Boolean(extraHealPotion),
+    extraHealPotionIndex: itemIndices.extraHealPotion ?? -1,
     replacedMainItem
   };
 }
@@ -10295,15 +10329,15 @@ export function simulateRun({
         chestItems.items.forEach((item, itemIndex) => {
           if (
             chestItems.mainItemLost &&
-            itemIndex === 0 &&
+            itemIndex === chestItems.mainItemIndex &&
             item === chestItems.mainItem
           ) return;
           const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
           if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) return;
           const isExtraHealPotion = chestItems.extraHealPotion &&
-            itemIndex === chestItems.items.length - 1;
+            itemIndex === chestItems.extraHealPotionIndex;
           const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
-            itemIndex === 0;
+            itemIndex === chestItems.mainItemIndex;
           if (item === "HEAL_POTION" || item === "GREATER_HEAL") {
             recordRecoveryPotionOffer(metrics, "chest", item);
             if (
@@ -10801,6 +10835,7 @@ function simulateCase({
   const totals = {
     survived: 0,
     died: 0,
+    outcomeCounts: { retreat: 0, death: 0, abandon: 0 },
     carriedMaterials: 0,
     bankedMaterials: 0,
     materialAcquired: 0,
@@ -11154,6 +11189,9 @@ function simulateCase({
     addTrapBonusAggregate(classTrapBonusTotals[className], result);
     totals.survived += Number(result.survived);
     totals.died += Number(result.died);
+    if (Object.hasOwn(totals.outcomeCounts, result.outcome)) {
+      totals.outcomeCounts[result.outcome]++;
+    }
     totals.carriedMaterials += result.carriedMaterials;
     totals.bankedMaterials += result.bankedMaterials;
     totals.materialAcquired += result.materialAcquired;
@@ -11378,9 +11416,11 @@ function simulateCase({
     chestTrapPolicy: trapPolicies.chest,
     trapAvoidancePolicy: scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
     survivalRate: totals.survived / RUNS_PER_CASE,
+    retreatRate: totals.outcomeCounts.retreat / RUNS_PER_CASE,
     deathRate: totals.died / RUNS_PER_CASE,
     survivedRuns: totals.survived,
     diedRuns: totals.died,
+    outcomeCounts: { ...totals.outcomeCounts },
     townPortalUseRate: totals.runsUsingTownPortal / RUNS_PER_CASE,
     townPortalUseRuns: totals.runsUsingTownPortal,
     bankRetentionRate: totals.carriedMaterials > 0
@@ -13410,14 +13450,20 @@ const issue791Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
       returnWingRewardMode: RETURN_WING_REWARD_MODE,
       specialChanceByFloor: CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
+      modeledMechanisms: ISSUE791_MODELED_MECHANISMS,
+      omittedMechanisms: ISSUE791_OMITTED_MECHANISMS,
       chestPortalAcquisitions: result.averagePortalAcquisitions?.chest || 0,
       chestSpecialPortalAcquisitions: result.averagePortalAcquisitions?.["chest-special"] || 0,
       chestSpecialPortalOffersPerRun: result.averageChestSpecialPortalOffers,
       mainRewardPortalReplacementsPerRun: result.averageChestTownPortalMainRewardReplacements,
       portalUsesPerRun: result.averageTownPortalsUsed,
+      portalUsesBySourcePerRun: result.averagePortalUsesBySource,
       portalUseFloorCounts: result.portalUseFloorCounts,
       portalUseHpBands: result.portalUseHpBands,
       survivalRate: result.survivalRate,
+      retreatRate: result.retreatRate,
+      deathRate: result.deathRate,
+      outcomeCounts: result.outcomeCounts,
       bankedMaterialEv: result.bankedMaterialEv,
       reachedFloor: result.averageReachedFloor,
       b5ReachRate: (result.entrantsByFloor?.[5] || 0) / RUNS_PER_CASE,

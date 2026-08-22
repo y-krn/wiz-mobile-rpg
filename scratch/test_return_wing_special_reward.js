@@ -7,6 +7,60 @@ import {
   rollChestSpecialReward
 } from "../src/rules/chest_rules.js";
 
+const makeElement = () => ({
+  style: {
+    setProperty() {},
+    removeProperty() {}
+  },
+  className: "",
+  classList: {
+    add() {},
+    remove() {},
+    toggle() {},
+    contains() { return false; }
+  },
+  children: [],
+  innerHTML: "",
+  textContent: "",
+  appendChild(child) { this.children.push(child); },
+  replaceChildren(...children) { this.children = children; },
+  addEventListener() {},
+  removeEventListener() {},
+  setAttribute() {},
+  getAttribute() { return null; },
+  removeAttribute() {},
+  querySelector() { return null; },
+  querySelectorAll() { return []; },
+  closest() { return null; },
+  getContext() { return {}; }
+});
+
+const elements = new Map();
+global.document = {
+  activeElement: null,
+  documentElement: makeElement(),
+  body: makeElement(),
+  addEventListener() {},
+  removeEventListener() {},
+  getElementById(id) {
+    if (!elements.has(id)) elements.set(id, makeElement());
+    return elements.get(id);
+  },
+  createElement: makeElement,
+  querySelector() { return null; },
+  querySelectorAll() { return []; }
+};
+global.window = { innerWidth: 390, innerHeight: 844 };
+global.localStorage = {
+  getItem() { return null; },
+  setItem() {},
+  removeItem() {}
+};
+
+const { state, createDefaultCodex, createDefaultCurrentRun, createSoloCharacter } =
+  await import("../src/state.js");
+const { setupChestState, openChestDirectly, smashChest } = await import("../src/chest.js");
+
 const failures = [];
 function check(name, fn) {
   try {
@@ -54,6 +108,78 @@ check("special roll does not replace an ordinary main reward", () => {
   assert.equal(rollChestSpecialReward(2, () => 0.01), "TOWN_PORTAL");
 });
 
+function makeMap() {
+  return Array.from({ length: 20 }, () => Array.from({ length: 20 }, () => ({
+    walls: [false, false, false, false],
+    event: null
+  })));
+}
+
+function prepareLiveChest(inventory = []) {
+  state.floor = 2;
+  state.x = 1;
+  state.y = 1;
+  state.maps[1] = makeMap();
+  state.maps[1][1][1].event = "chest";
+  state.party = [createSoloCharacter("Fighter")];
+  state.inventory = [...inventory];
+  state.currentRun = createDefaultCurrentRun();
+  state.currentRun.startFloor = 1;
+  state.codex = createDefaultCodex();
+  state.firstChestUnidentifiedGuaranteed = false;
+  state.floorChestsOpened = [0, 0, 0, 0, 0];
+  state.logs = [];
+  state.chestState = null;
+  state.gameState = "explore";
+  state.transitioning = false;
+  state.seed = "RETURN-WING-SCRATCH";
+}
+
+async function liveCheck(name, fn) {
+  try {
+    await fn();
+    console.log(`[PASS] ${name}`);
+  } catch (error) {
+    failures.push(`${name}: ${error.message}`);
+    console.error(`[FAIL] ${name}: ${error.message}`);
+  }
+}
+
+await liveCheck("live setup/opening keeps main and special rewards together", async () => {
+  prepareLiveChest();
+  setupChestState("none", null, null, () => 0);
+  const mainItem = state.chestState.item;
+  assert.ok(mainItem, "setup should create an ordinary main reward");
+  assert.equal(state.chestState.specialItem, "TOWN_PORTAL");
+
+  openChestDirectly(state.party[0], () => 0);
+
+  assert.ok(state.inventory.includes(mainItem), "main reward should be awarded");
+  assert.equal(state.inventory.filter(item => item === "TOWN_PORTAL").length, 1);
+  assert.equal(state.chestState, null, "real chest opening should clear the chest state");
+});
+
+await liveCheck("live opening handles duplicate and full Return Wing inventory", async () => {
+  prepareLiveChest(["TOWN_PORTAL"]);
+  setupChestState("none", null, null, () => 0);
+  openChestDirectly(state.party[0], () => 0);
+  assert.equal(state.inventory.filter(item => item === "TOWN_PORTAL").length, 1);
+
+  prepareLiveChest(Array.from({ length: 20 }, () => "ANTIDOTE"));
+  setupChestState("none", null, null, () => 0);
+  openChestDirectly(state.party[0], () => 0);
+  assert.equal(state.inventory.length, 20, "full inventory should not overflow");
+  assert.equal(state.inventory.includes("TOWN_PORTAL"), false);
+});
+
+await liveCheck("live smash path still resolves the trap and rewards", async () => {
+  prepareLiveChest();
+  setupChestState("poison needle", null, null, () => 0);
+  assert.equal(smashChest(() => 0), true);
+  assert.ok(state.currentRun.trapsTriggered > 0, "smash should trigger the chest trap");
+  assert.equal(state.chestState, null, "smash should finish the real chest path");
+});
+
 check("real-run telemetry exposes acquisition, use, floor, HP band, and outcome fields", () => {
   const output = execFileSync(process.execPath, ["scratch/sim_depth_material_ev.js"], {
     cwd: process.cwd(),
@@ -75,9 +201,15 @@ check("real-run telemetry exposes acquisition, use, floor, HP band, and outcome 
     "chestSpecialPortalAcquisitions",
     "mainRewardPortalReplacementsPerRun",
     "portalUsesPerRun",
+    "portalUsesBySourcePerRun",
     "portalUseFloorCounts",
     "portalUseHpBands",
     "survivalRate",
+    "retreatRate",
+    "deathRate",
+    "outcomeCounts",
+    "modeledMechanisms",
+    "omittedMechanisms",
     "bankedMaterialEv",
     "b5ReachRate",
     "b10ReachRate",
