@@ -9,20 +9,52 @@ export const BALANCE_DOMAINS = Object.freeze([
 ]);
 
 const BALANCE_ALL = Object.freeze([...BALANCE_DOMAINS]);
-const historicalRunnerFiles = Object.freeze([
-  "sim_balance.js", "sim_camp_recovery.js", "sim_caster_pack.js",
-  "sim_commit_depth_624.js", "sim_depth_scaling.js", "sim_early_mortality.js",
-  "sim_encounter_rate_options.js", "sim_frontline_formula.js",
-  "sim_identification_gamble.js", "sim_inflow_reduction.js", "sim_material_income.js",
-  "sim_maze_metrics.js", "sim_new_spells.js", "sim_retreat_access.js",
-  "sim_run_floor_templates.js", "sim_solo_b1f.js", "sim_workshop_progression.js"
+const canonicalRunnerPath = "scratch/sim_depth_material_ev.js";
+
+// This is an explicit authorization inventory. Discovery may find a new
+// candidate, but lifecycle validation must reject it until it is classified.
+export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
+  { path: canonicalRunnerPath, lifecycle: "canonical", scope: "run" },
+  { path: "scratch/issue624_commit_depth.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/issue700_gate_metrics.js", lifecycle: "historical", scope: "infra" },
+  { path: "scratch/issue706_depth_enemy_pools.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_balance.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_camp_recovery.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_caster_pack.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_commit_depth_624.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_depth_scaling.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_early_mortality.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_encounter_rate_options.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_frontline_formula.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_identification_gamble.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_inflow_reduction.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_461_baseline.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_499_shallow_recovery_dose_sweep.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_499_shallow_recovery_supply.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_508_heal_unit_density.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_516_class_sustain.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_528_class_sustain_phase2.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_599_explore_spells.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_599_level_distribution.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_612_exp_pace.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_713_trap_calibration.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_793_bleeding.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_material_income.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_maze_metrics.js", lifecycle: "historical", scope: "map" },
+  { path: "scratch/sim_new_spells.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_parallel.js", lifecycle: "historical", scope: "infra" },
+  { path: "scratch/sim_parallel_worker.js", lifecycle: "historical", scope: "infra" },
+  { path: "scratch/sim_retreat_access.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_run_floor_templates.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_solo_b1f.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_workshop_progression.js", lifecycle: "historical", scope: "run" }
 ]);
 
-export const EXECUTABLE_MEASUREMENT_RUNNERS = Object.freeze([
-  "scratch/issue624_commit_depth.js",
-  "scratch/issue700_gate_metrics.js",
-  "scratch/issue706_depth_enemy_pools.js"
-]);
+export const EXECUTABLE_MEASUREMENT_RUNNERS = Object.freeze(
+  SIMULATION_RUNNER_INVENTORY
+    .filter(runner => runner.path.startsWith("scratch/issue"))
+    .map(runner => runner.path)
+);
 const RUNNER_DISCOVERY_PATTERNS = Object.freeze([
   "scratch/sim_*.js",
   ...EXECUTABLE_MEASUREMENT_RUNNERS
@@ -33,10 +65,10 @@ const RUNNER_DISCOVERY_PATTERNS = Object.freeze([
 export const SIMULATION_MANIFEST = Object.freeze({
   version: 1,
   canonical: Object.freeze({
-    path: "scratch/sim_depth_material_ev.js",
+    path: canonicalRunnerPath,
     lifecycle: "canonical",
     scope: "run",
-    covers: BALANCE_ALL,
+    modelDomains: BALANCE_ALL,
     criticalRuntimeMechanisms: Object.freeze([
       { id: "maps.run-floor-traversal", domain: "maps", evidence: { anyPositive: ["floorsTraversed"] } },
       { id: "combat.round-resolution", domain: "combat", evidence: { anyPositive: ["combatRounds"] } },
@@ -46,6 +78,18 @@ export const SIMULATION_MANIFEST = Object.freeze({
       { id: "progression.experience", domain: "progression", evidence: { anyPositive: ["expGained"] } },
       { id: "recovery.kill-heal", domain: "recovery", evidence: { anyPositive: ["killHeal.killHealActivations"] } }
     ]),
+    // Only these domains have a declared runtime evidence path in the
+    // lightweight smoke. modelDomains deliberately includes the broader
+    // source-domain inventory, while this map is the stricter gate coverage.
+    runtimeCoverage: Object.freeze({
+      maps: Object.freeze(["maps.run-floor-traversal"]),
+      combat: Object.freeze(["combat.round-resolution"]),
+      equipment: Object.freeze(["equipment.generation"]),
+      chests: Object.freeze(["chests.open"]),
+      drops: Object.freeze(["drops.reward-materials"]),
+      progression: Object.freeze(["progression.experience"]),
+      recovery: Object.freeze(["recovery.kill-heal"])
+    }),
     smoke: Object.freeze({
       modeled: Object.freeze([
         "production run-floor generation", "round combat and reward resolution",
@@ -59,17 +103,13 @@ export const SIMULATION_MANIFEST = Object.freeze({
       ])
     })
   }),
-  // Issue-specific runners remain historical. An unmatched new sim or
-  // executable measurement runner is an error.
-  runnerLifecycleRules: Object.freeze([
-    { pattern: "scratch/sim_depth_material_ev.js", lifecycle: "canonical", scope: "run" },
-    { pattern: "scratch/sim_issue_*.js", lifecycle: "historical" },
-    { pattern: "scratch/sim_parallel*.js", lifecycle: "historical" },
-    { pattern: "scratch/issue624_commit_depth.js", lifecycle: "historical", scope: "run" },
-    { pattern: "scratch/issue700_gate_metrics.js", lifecycle: "historical", scope: "infra" },
-    { pattern: "scratch/issue706_depth_enemy_pools.js", lifecycle: "historical", scope: "run" },
-    ...historicalRunnerFiles.map(file => ({ pattern: `scratch/${file}`, lifecycle: "historical" }))
-  ]),
+  // Issue-specific runners remain historical. This inventory is intentionally
+  // exact: an unmatched new sim or executable measurement runner is an error.
+  runnerLifecycleRules: Object.freeze(SIMULATION_RUNNER_INVENTORY.map(runner => ({
+    pattern: runner.path,
+    lifecycle: runner.lifecycle,
+    scope: runner.scope
+  }))),
   balanceImpactPaths: Object.freeze([
     { pattern: "src/combat.js", domains: ["combat"] },
     { pattern: "src/combat_logic.js", domains: ["combat", "status"] },
@@ -97,7 +137,10 @@ export const SIMULATION_MANIFEST = Object.freeze({
   ])
 });
 
-const STALE_SIMULATION_REFERENCE_PATTERNS = Object.freeze([
+// This is a known stale-reference regression guard, not a general deleted-
+// mechanism detector. Add a guard here only when a retired identifier needs a
+// durable regression check.
+export const KNOWN_STALE_REFERENCE_GUARDS = Object.freeze([
   { id: "trapSense", pattern: /\b(?:trapSense|trap_sense|TRAP_SENSE|simTrapSense|SIM_TRAP_SENSE)\b/ }
 ]);
 
@@ -150,6 +193,14 @@ export function assertRuntimeMechanismsFired(result, mechanisms = SIMULATION_MAN
   return firing;
 }
 
+export function evaluateRuntimeDomainCoverage(result, manifest = SIMULATION_MANIFEST) {
+  const firing = evaluateRuntimeMechanisms(result, manifest.canonical.criticalRuntimeMechanisms);
+  return Object.fromEntries(Object.entries(manifest.canonical.runtimeCoverage || {}).map(([domain, mechanismIds]) => {
+    const missing = mechanismIds.filter(id => !firing[id]?.fired);
+    return [domain, { mechanisms: mechanismIds, fired: missing.length === 0, missing }];
+  }));
+}
+
 export function validateSimulationManifest(manifest = SIMULATION_MANIFEST) {
   const errors = [];
   const allowedLifecycles = new Set(["canonical", "temporary", "historical"]);
@@ -160,22 +211,44 @@ export function validateSimulationManifest(manifest = SIMULATION_MANIFEST) {
     if (canonical.lifecycle !== "canonical") errors.push("canonical runner lifecycle must be canonical");
     if (typeof canonical.path !== "string" || !canonical.path) errors.push("canonical runner path is missing");
     if (canonical.scope !== "run") errors.push("canonical runner scope must be run");
-    if (!Array.isArray(canonical.covers) || canonical.covers.length === 0) {
-      errors.push("canonical runner coverage is missing");
+    if (!Array.isArray(canonical.modelDomains) || canonical.modelDomains.length === 0) {
+      errors.push("canonical model coverage is missing");
     } else {
-      for (const domain of canonical.covers) {
-        if (!BALANCE_DOMAINS.includes(domain)) errors.push(`unknown canonical coverage domain: ${domain}`);
+      for (const domain of canonical.modelDomains) {
+        if (!BALANCE_DOMAINS.includes(domain)) errors.push(`unknown canonical model domain: ${domain}`);
       }
     }
+    const mechanismIds = new Set();
+    const mechanismDomains = new Map();
     if (!Array.isArray(canonical.criticalRuntimeMechanisms) || canonical.criticalRuntimeMechanisms.length === 0) {
       errors.push("canonical critical runtime mechanisms are missing");
     } else {
-      const ids = new Set();
       for (const mechanism of canonical.criticalRuntimeMechanisms) {
-        if (!mechanism?.id || ids.has(mechanism.id)) errors.push(`malformed or duplicate runtime mechanism: ${mechanism?.id || "<missing>"}`);
-        ids.add(mechanism?.id);
-        if (!canonical.covers?.includes(mechanism?.domain)) errors.push(`runtime mechanism ${mechanism?.id || "<missing>"} has uncovered domain ${mechanism?.domain || "<missing>"}`);
+        if (!mechanism?.id || mechanismIds.has(mechanism.id)) errors.push(`malformed or duplicate runtime mechanism: ${mechanism?.id || "<missing>"}`);
+        mechanismIds.add(mechanism?.id);
+        mechanismDomains.set(mechanism?.id, mechanism?.domain);
+        if (!canonical.modelDomains?.includes(mechanism?.domain)) errors.push(`runtime mechanism ${mechanism?.id || "<missing>"} has uncovered model domain ${mechanism?.domain || "<missing>"}`);
         if (!Array.isArray(mechanism?.evidence?.anyPositive) || mechanism.evidence.anyPositive.length === 0) errors.push(`runtime mechanism ${mechanism?.id || "<missing>"} has malformed evidence metadata`);
+      }
+    }
+    if (!canonical.runtimeCoverage || typeof canonical.runtimeCoverage !== "object" || Array.isArray(canonical.runtimeCoverage)) {
+      errors.push("canonical runtime coverage is missing");
+    } else {
+      const mappedMechanisms = new Set();
+      for (const [domain, requiredMechanisms] of Object.entries(canonical.runtimeCoverage)) {
+        if (!canonical.modelDomains?.includes(domain)) errors.push(`runtime coverage has uncovered model domain: ${domain}`);
+        if (!Array.isArray(requiredMechanisms) || requiredMechanisms.length === 0) {
+          errors.push(`runtime coverage for ${domain} is missing mechanisms`);
+          continue;
+        }
+        for (const mechanismId of requiredMechanisms) {
+          mappedMechanisms.add(mechanismId);
+          if (!mechanismIds.has(mechanismId)) errors.push(`runtime coverage ${domain} references unknown mechanism: ${mechanismId}`);
+          else if (mechanismDomains.get(mechanismId) !== domain) errors.push(`runtime coverage ${domain} disagrees with mechanism ${mechanismId}`);
+        }
+      }
+      for (const mechanismId of mechanismIds) {
+        if (!mappedMechanisms.has(mechanismId)) errors.push(`runtime mechanism is not assigned to a runtime domain: ${mechanismId}`);
       }
     }
   }
@@ -184,6 +257,7 @@ export function validateSimulationManifest(manifest = SIMULATION_MANIFEST) {
   } else {
     for (const rule of manifest.runnerLifecycleRules) {
       if (typeof rule?.pattern !== "string" || !rule.pattern) errors.push("runner lifecycle rule pattern is missing");
+      if (rule?.pattern?.includes("*")) errors.push(`runner lifecycle rule must be explicit: ${rule.pattern}`);
       if (!allowedLifecycles.has(rule?.lifecycle)) errors.push(`unknown runner lifecycle: ${rule?.lifecycle || "<missing>"}`);
     }
     if (!manifest.runnerLifecycleRules.some(rule =>
@@ -250,19 +324,24 @@ export function inspectSimulationMetadata({ files = null, sourceByPath = new Map
   return errors;
 }
 
-export function scanStaleSimulationReferences({ files = null, sourceByPath = new Map() } = {}) {
+export function scanKnownStaleSimulationReferences({ files = null, sourceByPath = new Map() } = {}) {
   const findings = [];
   for (const file of files || defaultSimulationFiles()) {
     const normalized = normalizePath(file);
     const source = sourceByPath.has(normalized)
       ? sourceByPath.get(normalized)
       : fs.readFileSync(path.resolve(normalized), "utf8");
-    for (const stale of STALE_SIMULATION_REFERENCE_PATTERNS) {
+    for (const stale of KNOWN_STALE_REFERENCE_GUARDS) {
       if (stale.pattern.test(source)) findings.push({ file: normalized, reference: stale.id });
     }
   }
   return findings;
 }
+
+// Backward-compatible name for existing focused checks. The implementation
+// intentionally remains a finite known-reference guard, not a general stale
+// mechanism detector.
+export const scanStaleSimulationReferences = scanKnownStaleSimulationReferences;
 
 function gitNames(args) {
   return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
@@ -278,18 +357,32 @@ export function currentChangedFiles({ baseRef = process.env.BASE_REF || "origin/
   ])];
 }
 
-export function analyzeBalanceImpact(changedFiles, manifest = SIMULATION_MANIFEST) {
+export function analyzeBalanceImpact(changedFiles, manifest = SIMULATION_MANIFEST, runtimeResult = undefined) {
   const impacts = [];
   const errors = [];
+  const modelDomains = manifest.canonical?.modelDomains || [];
+  const runtimeCoverage = manifest.canonical?.runtimeCoverage || {};
+  const runtimeDomains = runtimeResult === undefined
+    ? null
+    : evaluateRuntimeDomainCoverage(runtimeResult, manifest);
   for (const rawFile of changedFiles) {
     const file = normalizePath(rawFile);
     if (!file.startsWith("src/")) continue;
     const balanceRule = (manifest.balanceImpactPaths || []).find(rule => matches(rule.pattern, file));
     if (balanceRule) {
       const domains = [...new Set(balanceRule.domains || [])];
-      const uncovered = domains.filter(domain => !manifest.canonical.covers.includes(domain));
-      impacts.push({ file, domains, uncovered });
-      if (uncovered.length > 0) errors.push(`${file}: balance domains not covered by canonical simulation: ${uncovered.join(", ")}`);
+      const uncovered = domains.filter(domain => !modelDomains.includes(domain));
+      const unsupported = domains.filter(domain => !Object.hasOwn(runtimeCoverage, domain));
+      const unfired = runtimeDomains
+        ? domains.filter(domain => Object.hasOwn(runtimeCoverage, domain) && !runtimeDomains[domain].fired)
+        : [];
+      impacts.push({ file, domains, uncovered, runtimeUnsupported: unsupported, runtimeUnfired: unfired });
+      if (uncovered.length > 0) errors.push(`${file}: balance domains not covered by canonical model: ${uncovered.join(", ")}`);
+      if (unsupported.length > 0) errors.push(`${file}: balance domains have no declared runtime evidence: ${unsupported.join(", ")}`);
+      if (runtimeResult === undefined && unsupported.length < domains.length) {
+        errors.push(`${file}: canonical runtime evidence result is required for supported domains`);
+      }
+      if (unfired.length > 0) errors.push(`${file}: declared runtime evidence did not fire: ${unfired.join(", ")}`);
       continue;
     }
     if ((manifest.balanceImpactNone || []).some(pattern => matches(pattern, file))) continue;
@@ -298,8 +391,8 @@ export function analyzeBalanceImpact(changedFiles, manifest = SIMULATION_MANIFES
   return { impacts, errors };
 }
 
-export function assertBalanceImpactCovered(changedFiles, manifest = SIMULATION_MANIFEST) {
-  const report = analyzeBalanceImpact(changedFiles, manifest);
+export function assertBalanceImpactCovered(changedFiles, manifest = SIMULATION_MANIFEST, runtimeResult = undefined) {
+  const report = analyzeBalanceImpact(changedFiles, manifest, runtimeResult);
   if (report.errors.length > 0) throw new Error(`balance impact coverage gate failed: ${report.errors.join("; ")}`);
   return report;
 }
