@@ -155,6 +155,18 @@ for (const [label, expression] of [
 `;
   assert.equal(isTelemetryOnlyDiff(mutatingCallDiff), false, `nested ${label} call is not telemetry-only`);
 }
+for (const [label, expression] of [
+  ["delete computed key", "[delete state.inventory[0]]: 1"],
+  ["computed key", "[state.inventory[0]]: 1"],
+  ["void expression", "value: void state.inventory[0]"],
+  ["new expression", "value: new InventoryState"]
+]) {
+  const sideEffectingExpressionDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,1 @@
++  trackEvent("x", { ${expression} });
+`;
+  assert.equal(isTelemetryOnlyDiff(sideEffectingExpressionDiff), false, `${label} is not telemetry-only`);
+}
 assert.throws(
   () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", mixedTelemetryDiff]]) }),
   /no declared runtime evidence: economy/

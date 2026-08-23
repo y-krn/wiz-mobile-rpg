@@ -426,16 +426,49 @@ function hasNestedCall(line) {
   return outerOpen >= 0 && line.slice(outerOpen + 1).includes("(");
 }
 
+function hasComputedPropertyKey(line) {
+  let quote = null;
+  let escaped = false;
+  for (let index = 0; index < line.length; index++) {
+    const character = line[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      continue;
+    }
+    if (character !== "]") continue;
+    let next = index + 1;
+    while (/\s/.test(line[next] || "")) next++;
+    if (line[next] === ":") return true;
+  }
+  return false;
+}
+
+function hasUnsafeExpressionSyntax(line) {
+  return hasComputedPropertyKey(line)
+    || /\b(?:delete|new|throw|void|await|yield)\b/.test(line);
+}
+
 function isTelemetryCall(line) {
   const trimmed = line.trim();
   return !hasGameplayMutation(trimmed)
     && !hasNestedCall(trimmed)
+    && !hasUnsafeExpressionSyntax(trimmed)
     && /^track[A-Z][A-Za-z0-9]*\s*\([^;]*\)?;?$/.test(trimmed);
 }
 
 function isTelemetryContextLine(line) {
   const trimmed = line.trim();
-  if (hasGameplayMutation(trimmed) || hasNestedCall(trimmed)) return false;
+  if (hasGameplayMutation(trimmed) || hasNestedCall(trimmed) || hasUnsafeExpressionSyntax(trimmed)) return false;
   if (/^\}\s*,\s*state\);$/.test(trimmed) || /^\}\);$/.test(trimmed)) return true;
   const contextKeyPattern = [...TELEMETRY_CONTEXT_KEYS]
     .map(key => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
