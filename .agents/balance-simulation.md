@@ -35,13 +35,18 @@ classifies Issue-specific runners as historical until explicitly promoted. The
 gate compares changed `src/` paths with declared balance-impact metadata,
 rejects unknown or uncovered paths and stale simulation references, validates
 runner lifecycle/scope metadata, and performs one deterministic canonical run.
-The manifest separates broad model-domain coverage from the seven domains with
-declared runtime evidence; a changed unsupported domain fails conservatively,
-and a supported domain must fire its mapped evidence in the smoke result. It is
-a reachability/provenance check, not a replacement for configured N=500+
-balance measurements; one-run-zero mechanisms remain omitted unless declared
-critical by the manifest. Its stale scan is a fixed `trapSense` regression
-guard, not a general detector for every deleted mechanism. Unit fixture
+The manifest separates broad model-domain coverage from the domains with
+declared runtime evidence. Selected mechanisms expose explicit call-level
+evidence in addition to positive result-value evidence, so a disconnected call
+cannot be masked by an incidental value. A changed unsupported domain fails
+conservatively, and a supported domain must fire its mapped evidence in the
+smoke result. Status-effect application/cure and merchant purchase remain
+explicitly omitted because the canonical N=1 smoke does not deterministically
+reach those production paths. It is a reachability/provenance check, not a
+replacement for configured N=500+ balance measurements; one-run-zero
+mechanisms remain omitted unless declared critical by the manifest. Its stale
+scan is a fixed `trapSense` regression guard, not a general detector for every
+deleted mechanism. Unit fixture
 children retain their `SIM_SKIP_PROVENANCE=1` isolation, while CI runs
 `node scratch/test_measurement_provenance.js` directly after the unit suite to
 enforce current-head ancestry and clean/stale-tree checks.

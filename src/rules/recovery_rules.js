@@ -1,3 +1,5 @@
+import { recordRuntimeCall } from "../runtime_diagnostics.js";
+
 export const RECOVERY_BALANCE = Object.freeze({
   startingHealPotions: 0
 });
@@ -19,8 +21,10 @@ export function calculateCombatRecoveryAction({
   potionAvailable = false,
   diosAvailable = false,
   fleeThreshold = 0.20,
-  healThreshold = 0.55
+  healThreshold = 0.55,
+  runtimeDiagnostics = null
 }) {
+  recordRuntimeCall(runtimeDiagnostics, "recovery.combat-policy");
   const normalizedMaxHp = Math.max(1, Number(maxHp) || 0);
   const normalizedHp = Math.max(0, Number(currentHp) || 0);
   const normalizedDefense = Math.max(0, Number(playerDefense) || 0);

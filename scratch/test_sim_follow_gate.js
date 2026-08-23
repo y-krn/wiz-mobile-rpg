@@ -7,6 +7,7 @@ import {
   currentChangedFiles,
   discoverSimulationRunnerFiles,
   EXECUTABLE_MEASUREMENT_RUNNERS,
+  evaluateRuntimeMechanisms,
   evaluateRuntimeDomainCoverage,
   isExecutableMeasurementRunner,
   inspectSimulationMetadata,
@@ -16,6 +17,16 @@ import {
 } from "./simulation_manifest.js";
 
 assert.doesNotThrow(() => assertValidSimulationManifest());
+assert.equal(Object.hasOwn(SIMULATION_MANIFEST.canonical.runtimeCoverage, "status"), false);
+assert.equal(Object.hasOwn(SIMULATION_MANIFEST.canonical.runtimeCoverage, "merchant"), false);
+assert.match(
+  SIMULATION_MANIFEST.canonical.smoke.omitted.join(" | "),
+  /status-effect application/
+);
+assert.match(
+  SIMULATION_MANIFEST.canonical.smoke.omitted.join(" | "),
+  /merchant purchase policy/
+);
 const balanceDomainsFor = file => SIMULATION_MANIFEST.balanceImpactPaths.find(rule => rule.pattern === file)?.domains;
 assert.deepEqual(balanceDomainsFor("src/combat_logic/auto_action.js"), ["combat", "recovery"]);
 assert.deepEqual(balanceDomainsFor("src/combat_logic/item_resolution.js"), ["combat", "status", "recovery"]);
@@ -135,7 +146,10 @@ const staleReferences = scanStaleSimulationReferences();
 assert.deepEqual(staleReferences, [], JSON.stringify(staleReferences));
 
 const { getScenarioById, simulateRun } = await import("./sim_depth_material_ev.js");
-const smokeScenario = { ...getScenarioById("workshop-empty"), departureCraftMeasurement: true };
+const smokeScenario = {
+  ...getScenarioById("workshop-empty"),
+  departureCraftMeasurement: true
+};
 
 function runCanonicalSmoke() {
   return simulateRun({
@@ -157,6 +171,31 @@ assert.ok(firstSmoke.floorsTraversed > 0, "canonical smoke did not traverse beyo
 const firing = assertRuntimeMechanismsFired(firstSmoke);
 const domainFiring = evaluateRuntimeDomainCoverage(firstSmoke);
 assert.equal(domainFiring.combat.fired, true, "combat runtime domain did not fire");
+assert.equal(domainFiring.equipment.fired, true, "equipment call-level runtime domain did not fire");
+assert.equal(domainFiring.chests.fired, true, "chest call-level runtime domain did not fire");
+assert.equal(domainFiring.traps.fired, true, "trap call-level runtime domain did not fire");
+assert.equal(domainFiring.recovery.fired, true, "recovery runtime domain did not fire");
+assert.equal(firing["equipment.generation"].callLevelFired, true);
+assert.equal(firing["equipment.generation"].valueFired, true);
+assert.equal(firing["chests.open"].callLevelFired, true);
+assert.equal(firing["recovery.combat-policy"].callLevelFired, true);
+assert.equal(firing["traps.chest-roll"].callLevelFired, true);
+const disconnectedEquipment = {
+  ...firstSmoke,
+  runtimeCalls: {
+    ...firstSmoke.runtimeCalls,
+    equipment: { ...firstSmoke.runtimeCalls.equipment, generate: 0 }
+  }
+};
+const disconnectedEquipmentFiring = evaluateRuntimeMechanisms(disconnectedEquipment);
+assert.equal(disconnectedEquipmentFiring["equipment.generation"].valueFired, true);
+assert.equal(disconnectedEquipmentFiring["equipment.generation"].callLevelFired, false);
+assert.equal(disconnectedEquipmentFiring["equipment.generation"].fired, false);
+assert.throws(
+  () => assertRuntimeMechanismsFired(disconnectedEquipment),
+  /equipment\.generation/,
+  "positive result values must not mask a disconnected production call"
+);
 assert.doesNotThrow(() => assertBalanceImpactCovered(["src/combat.js"], SIMULATION_MANIFEST, firstSmoke));
 assert.doesNotThrow(
   () => assertBalanceImpactCovered(["src/rules/recovery_rules.js"], SIMULATION_MANIFEST, firstSmoke),
