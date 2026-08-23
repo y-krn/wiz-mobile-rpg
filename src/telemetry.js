@@ -18,6 +18,7 @@ import { SPELLS } from "./data/spells.js";
 import { getAffixDefinition } from "./data/affixes.js";
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
+import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -47,16 +48,10 @@ const SNAPSHOT_STAT_KEYS = [
   "trapBonus"
 ];
 const SAFE_STATUSES = new Set(["ok", "poisoned", "blind", "paralyzed", "paralyze", "sleep", "dead", "ash"]);
-const SAFE_CELL_TYPES = new Set(["floor", "stairs-up", "stairs-down", "pitfall", "room"]);
+const SAFE_CELL_TYPES = new Set(["empty", "floor", "stairs-up", "stairs-down", "pitfall", "room"]);
 const SAFE_CELL_EVENTS = new Set([
-  "chest",
-  "midboss",
-  "boss",
-  "event_spring",
-  "event_camp",
-  "event_tablet",
+  ...Object.values(EVENT_TYPES),
   "merchant",
-  "return_portal",
   "explore_management",
   "stairs-down"
 ]);
@@ -80,7 +75,12 @@ const SAFE_COMPARISON_STAT_KEYS = new Set([
   "magic", "healing", "speed", "trap", "treasure", "spellGuard", "antiDragon",
   "antiUndead", "firstStrike", "poisonWard", "poisonAtk"
 ]);
-const SAFE_RETURN_REASONS = new Set(["gameover", "abandon", "escape_scroll"]);
+const SAFE_RETURN_REASONS = new Set([
+  "gameover",
+  "abandon",
+  "escape_scroll",
+  ...EVENT_SUBMENU_TYPES.filter(type => type.endsWith("_portal"))
+]);
 const SAFE_ENEMY_IDS = new Set(MONSTERS.map(monster => monster.name));
 const SAFE_SPELL_TARGET_TYPES = new Set(
   Object.values(SPELLS)
@@ -636,9 +636,9 @@ export function trackCombatEnd(result, combat, stateSnapshot = null) {
     ...safeDecisionContext({ state: stateSnapshot, character: combat?.player, combat }),
     floor: combat?.floor,
     result: normalizeCombatResult(result),
-    turns: combat?.turns,
-    playerHp: combat?.player?.hp,
-    playerMp: combat?.player?.mp,
+    turns: boundedFiniteOrNull(combat?.turns),
+    playerHp: boundedFiniteOrNull(combat?.player?.hp),
+    playerMp: boundedFiniteOrNull(combat?.player?.mp),
     enemiesDefeated: (combat?.monsters ?? []).filter(monster => monster?.hp <= 0 && !monster?.fled).length
   });
 }

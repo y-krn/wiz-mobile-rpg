@@ -114,11 +114,12 @@ const telemetryOnlyDiff = `diff --git a/src/chest.js b/src/chest.js
 `;
 assert.equal(isTelemetryOnlyDiff(telemetryOnlyDiff), false, "context-only hunks require an existing telemetry anchor");
 const anchoredTelemetryDiff = `diff --git a/src/chest.js b/src/chest.js
-@@ -416,0 +417,4 @@
+@@ -416,0 +417,5 @@
 +  trackChestAction(chest, action, {
 +    state,
 +    character: state.party[0],
 +    combat: state.combatState,
++    source: state.map?.[state.y]?.[state.x]?.event,
 `;
 assert.equal(isTelemetryOnlyDiff(anchoredTelemetryDiff), true);
 assert.doesNotThrow(
@@ -166,6 +167,13 @@ for (const [label, expression] of [
 +  trackEvent("x", { ${expression} });
 `;
   assert.equal(isTelemetryOnlyDiff(sideEffectingExpressionDiff), false, `${label} is not telemetry-only`);
+}
+for (const expression of ["state.inventory.splice(0, 1)", "getMutableState()", "state.inventory.push(item)"]) {
+  const contextCallDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,1 @@
++  trackEvent("x", { state: ${expression} });
+`;
+  assert.equal(isTelemetryOnlyDiff(contextCallDiff), false, `context value ${expression} is not telemetry-only`);
 }
 assert.throws(
   () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", mixedTelemetryDiff]]) }),
@@ -310,7 +318,11 @@ assert.throws(
   () => assertBalanceImpactCovered(["src/rules/status_effect_rules.js"], SIMULATION_MANIFEST, firstSmoke),
   /unknown production path/
 );
-const sourceCoverage = assertBalanceImpactCovered(currentChangedFiles(), SIMULATION_MANIFEST, firstSmoke);
+assert.throws(
+  () => assertBalanceImpactCovered(currentChangedFiles(), SIMULATION_MANIFEST, firstSmoke),
+  /no declared runtime evidence: economy/,
+  "non-pure telemetry context must not receive a telemetry-only exemption"
+);
 assert.throws(
   () => assertRuntimeMechanismsFired({ ...firstSmoke, floorsTraversed: 0, reachedFloor: 999 }),
   /maps\.run-floor-traversal/
@@ -318,5 +330,5 @@ assert.throws(
 
 console.log("[PASS] simulation manifest, stale-reference, and balance-impact checks");
 console.log(`[PASS] canonical N=1 smoke deterministic; fired=${Object.keys(firing).join(",")}`);
-console.log(`[INFO] changed balance paths=${sourceCoverage.impacts.length}; modeled=${SIMULATION_MANIFEST.canonical.smoke.modeled.join(" | ")}`);
+console.log(`[INFO] modeled=${SIMULATION_MANIFEST.canonical.smoke.modeled.join(" | ")}`);
 console.log(`[INFO] omitted=${SIMULATION_MANIFEST.canonical.smoke.omitted.join(" | ")}`);

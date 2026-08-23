@@ -279,6 +279,40 @@ check("decision events share context and keep action identifiers stable", () => 
   assert.deepEqual(equipmentEvent.properties.comparisonDiffs, [2]);
 });
 
+check("combat end numeric fields stay bounded", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
+  trackCombatEnd("endCombat", {
+    floor: 2,
+    turns: Number.MAX_VALUE,
+    player: { hp: Number.MAX_VALUE, mp: -Number.MAX_VALUE },
+    monsters: []
+  }, decisionState);
+  const combatEnd = events.find(event => event.name === "combat_end");
+  assert.equal(combatEnd.properties.turns, 1_000_000);
+  assert.equal(combatEnd.properties.playerHp, 1_000_000);
+  assert.equal(combatEnd.properties.playerMp, 0);
+});
+
+check("production cell and run result enums are preserved", () => {
+  const events = [];
+  const stateWithProductionEnums = {
+    ...decisionState,
+    map: [[{ type: "empty", event: "event_merchant" }]],
+    gameState: "explore"
+  };
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const context = buildDecisionContext({ state: stateWithProductionEnums, character: decisionPlayer });
+  assert.equal(context.currentCellType, "empty");
+  assert.equal(context.currentCellEvent, "event_merchant");
+  trackRunStart(run, decisionPlayer, stateWithProductionEnums);
+  trackRunEnd({ ...run, returnReason: "milestone_portal" }, "retreat", stateWithProductionEnums);
+  const runEnd = events.find(event => event.name === "run_end");
+  assert.equal(runEnd.properties.returnReason, "milestone_portal");
+});
+
 check("run start captures initialized run resources and map context", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });

@@ -458,6 +458,36 @@ function hasUnsafeExpressionSyntax(line) {
     || /\b(?:delete|new|throw|void|await|yield)\b/.test(line);
 }
 
+function isPureContextExpression(expression) {
+  const trimmed = expression.trim();
+  if (/^(?:null|true|false|-?\d+(?:\.\d+)?|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')$/.test(trimmed)) {
+    return true;
+  }
+
+  const readIdentifier = index => {
+    const match = trimmed.slice(index).match(/^[A-Za-z_$][A-Za-z0-9_$]*/);
+    return match ? index + match[0].length : -1;
+  };
+  let index = readIdentifier(0);
+  if (index < 0) return false;
+
+  while (index < trimmed.length) {
+    if (trimmed.startsWith("?.[", index) || trimmed[index] === "[") {
+      const openingLength = trimmed.startsWith("?.[", index) ? 3 : 1;
+      const closing = trimmed.indexOf("]", index + openingLength);
+      if (closing < 0 || !isPureContextExpression(trimmed.slice(index + openingLength, closing))) return false;
+      index = closing + 1;
+      continue;
+    }
+    if (trimmed.startsWith("?.", index)) index += 2;
+    else if (trimmed[index] === ".") index++;
+    else return false;
+    index = readIdentifier(index);
+    if (index < 0) return false;
+  }
+  return true;
+}
+
 function isTelemetryCall(line) {
   const trimmed = line.trim();
   return !hasGameplayMutation(trimmed)
@@ -468,12 +498,14 @@ function isTelemetryCall(line) {
 
 function isTelemetryContextLine(line) {
   const trimmed = line.trim();
-  if (hasGameplayMutation(trimmed) || hasNestedCall(trimmed) || hasUnsafeExpressionSyntax(trimmed)) return false;
   if (/^\}\s*,\s*state\);$/.test(trimmed) || /^\}\);$/.test(trimmed)) return true;
-  const contextKeyPattern = [...TELEMETRY_CONTEXT_KEYS]
-    .map(key => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|");
-  return new RegExp(`^(?:${contextKeyPattern})(?:\\s*:\\s*[^;]+)?\\s*,?$`).test(trimmed);
+  if (hasGameplayMutation(trimmed) || hasNestedCall(trimmed) || hasUnsafeExpressionSyntax(trimmed)) return false;
+  const withoutTrailingComma = trimmed.replace(/,\s*$/, "");
+  const separator = withoutTrailingComma.indexOf(":");
+  if (separator < 0) return TELEMETRY_CONTEXT_KEYS.has(withoutTrailingComma.trim());
+  const key = withoutTrailingComma.slice(0, separator).trim();
+  const value = withoutTrailingComma.slice(separator + 1).trim();
+  return TELEMETRY_CONTEXT_KEYS.has(key) && isPureContextExpression(value);
 }
 
 function isTelemetryOnlyHunk(lines) {
