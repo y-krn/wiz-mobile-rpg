@@ -9476,6 +9476,9 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     campRestCount: state.currentRun.campRestCount,
     combatRounds: metrics.combatRounds,
     reachedFloor: state.currentRun.deepestFloor,
+    // Unlike reachedFloor, which starts at the entry floor, this proves that
+    // the generated run-floor traversal advanced at least one floor.
+    floorsTraversed: Math.max(0, state.currentRun.floorsVisited.length - 1),
     endFloor: state.floor,
     deathFloor: outcome === "death" ? state.floor : null,
     stalemate: metrics.stalemate,

@@ -5,6 +5,9 @@ import {
   assertRuntimeMechanismsFired,
   assertValidSimulationManifest,
   currentChangedFiles,
+  discoverSimulationRunnerFiles,
+  EXECUTABLE_MEASUREMENT_RUNNERS,
+  isExecutableMeasurementRunner,
   inspectSimulationMetadata,
   scanStaleSimulationReferences,
   validateSimulationManifest
@@ -57,6 +60,20 @@ assert.throws(
   /not covered/
 );
 
+const discoveredRunners = discoverSimulationRunnerFiles();
+assert.deepEqual(
+  EXECUTABLE_MEASUREMENT_RUNNERS.filter(file => !discoveredRunners.includes(file)),
+  [],
+  `executable measurement runners omitted: ${discoveredRunners.join(", ")}`
+);
+assert.ok(discoveredRunners.includes("scratch/sim_depth_material_ev.js"));
+assert.equal(
+  isExecutableMeasurementRunner(
+    "scratch/issue999_new_runner.js",
+    "// sim-scope: run\nconst SIM_RUNS = 1; function main() {} main();"
+  ),
+  true
+);
 const metadataErrors = inspectSimulationMetadata();
 assert.deepEqual(metadataErrors, [], metadataErrors.join("\n"));
 const staleReferences = scanStaleSimulationReferences();
@@ -82,7 +99,12 @@ function runCanonicalSmoke() {
 const firstSmoke = runCanonicalSmoke();
 const secondSmoke = runCanonicalSmoke();
 assert.deepEqual(secondSmoke, firstSmoke, "canonical N=1 smoke is not deterministic");
+assert.ok(firstSmoke.floorsTraversed > 0, "canonical smoke did not traverse beyond its entry floor");
 const firing = assertRuntimeMechanismsFired(firstSmoke);
+assert.throws(
+  () => assertRuntimeMechanismsFired({ ...firstSmoke, floorsTraversed: 0, reachedFloor: 999 }),
+  /maps\.run-floor-traversal/
+);
 
 console.log("[PASS] simulation manifest, stale-reference, and balance-impact checks");
 console.log(`[PASS] canonical N=1 smoke deterministic; fired=${Object.keys(firing).join(",")}`);

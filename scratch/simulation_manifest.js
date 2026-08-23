@@ -18,6 +18,16 @@ const historicalRunnerFiles = Object.freeze([
   "sim_run_floor_templates.js", "sim_solo_b1f.js", "sim_workshop_progression.js"
 ]);
 
+export const EXECUTABLE_MEASUREMENT_RUNNERS = Object.freeze([
+  "scratch/issue624_commit_depth.js",
+  "scratch/issue700_gate_metrics.js",
+  "scratch/issue706_depth_enemy_pools.js"
+]);
+const RUNNER_DISCOVERY_PATTERNS = Object.freeze([
+  "scratch/sim_*.js",
+  ...EXECUTABLE_MEASUREMENT_RUNNERS
+]);
+
 // Metadata only: the canonical runner imports production rules and exposes
 // observable evidence for the mechanisms listed here.
 export const SIMULATION_MANIFEST = Object.freeze({
@@ -28,7 +38,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     scope: "run",
     covers: BALANCE_ALL,
     criticalRuntimeMechanisms: Object.freeze([
-      { id: "maps.run-floor-traversal", domain: "maps", evidence: { anyPositive: ["reachedFloor"] } },
+      { id: "maps.run-floor-traversal", domain: "maps", evidence: { anyPositive: ["floorsTraversed"] } },
       { id: "combat.round-resolution", domain: "combat", evidence: { anyPositive: ["combatRounds"] } },
       { id: "equipment.generation", domain: "equipment", evidence: { anyPositive: ["equipmentFound"] } },
       { id: "chests.open", domain: "chests", evidence: { anyPositive: ["chestsOpenedInRun"] } },
@@ -49,11 +59,15 @@ export const SIMULATION_MANIFEST = Object.freeze({
       ])
     })
   }),
-  // Issue-specific runners remain historical. An unmatched new sim is an error.
+  // Issue-specific runners remain historical. An unmatched new sim or
+  // executable measurement runner is an error.
   runnerLifecycleRules: Object.freeze([
     { pattern: "scratch/sim_depth_material_ev.js", lifecycle: "canonical", scope: "run" },
     { pattern: "scratch/sim_issue_*.js", lifecycle: "historical" },
     { pattern: "scratch/sim_parallel*.js", lifecycle: "historical" },
+    { pattern: "scratch/issue624_commit_depth.js", lifecycle: "historical", scope: "run" },
+    { pattern: "scratch/issue700_gate_metrics.js", lifecycle: "historical", scope: "infra" },
+    { pattern: "scratch/issue706_depth_enemy_pools.js", lifecycle: "historical", scope: "run" },
     ...historicalRunnerFiles.map(file => ({ pattern: `scratch/${file}`, lifecycle: "historical" }))
   ]),
   balanceImpactPaths: Object.freeze([
@@ -192,9 +206,27 @@ export function classifySimulationRunner(filePath, manifest = SIMULATION_MANIFES
   return matchesForPath.length === 1 ? matchesForPath[0] : null;
 }
 
+export function isExecutableMeasurementRunner(filePath, source) {
+  const normalized = normalizePath(filePath);
+  if (matches("scratch/sim_*.js", normalized)) return true;
+  const hasMeasurementMarker = /\b(?:simulateRun|runSimTasks|runDepthMaterialSimulation|SIM_RUNS)\b/.test(source);
+  const hasEntryPoint = /\bmain\s*\(\s*\)|process\.argv\[1\]/.test(source);
+  return Boolean(parseSimScopeDeclaration(source) && hasMeasurementMarker && hasEntryPoint);
+}
+
 function defaultSimulationFiles() {
-  return fs.readdirSync(path.dirname(new URL(import.meta.url).pathname))
-    .filter(name => /^sim_.*\.js$/.test(name)).map(name => `scratch/${name}`);
+  const scratchDir = path.dirname(new URL(import.meta.url).pathname);
+  return fs.readdirSync(scratchDir)
+    .map(name => `scratch/${name}`)
+    .filter(file => file.endsWith(".js"))
+    .filter(file => {
+      if (RUNNER_DISCOVERY_PATTERNS.some(pattern => matches(pattern, file))) return true;
+      return isExecutableMeasurementRunner(file, fs.readFileSync(path.resolve(file), "utf8"));
+    });
+}
+
+export function discoverSimulationRunnerFiles() {
+  return defaultSimulationFiles();
 }
 
 export function inspectSimulationMetadata({ files = null, sourceByPath = new Map(), manifest = SIMULATION_MANIFEST } = {}) {
@@ -211,6 +243,7 @@ export function inspectSimulationMetadata({ files = null, sourceByPath = new Map
       : fs.readFileSync(path.resolve(normalized), "utf8");
     const scope = parseSimScopeDeclaration(source);
     if (!scope) errors.push(`${normalized}: missing sim-scope metadata`);
+    else if (!new Set(["run", "formula", "map", "infra"]).has(scope.name)) errors.push(`${normalized}: unknown sim-scope ${scope.name}`);
     else if (rule.scope && scope.name !== rule.scope) errors.push(`${normalized}: lifecycle scope ${rule.scope} disagrees with sim-scope ${scope.name}`);
     if (rule.lifecycle === "canonical" && !source.includes("generateRunFloor")) errors.push(`${normalized}: canonical runner does not reference generateRunFloor`);
   }
