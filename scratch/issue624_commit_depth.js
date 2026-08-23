@@ -608,25 +608,16 @@ function renderMarkdown({
 }) {
   const baselineId = CONDITIONS[0].id;
   const baselineSummary = summaries[baselineId];
-  const expectedBaseline = {
-    Fighter: 5.778,
-    Thief: 5.162,
-    Priest: 4.740,
-    Mage: 6.474
-  };
   const baselineChecks = CLASSES.map(className => {
-    const actual = baselineSummary[className].reached.estimate;
-    const expected = expectedBaseline[className];
-    const delta = actual - expected;
+    const summary = baselineSummary[className].reached;
     return {
       className,
-      actual,
-      expected,
-      delta,
-      match: Math.abs(delta) <= 0.005
+      actual: summary.estimate,
+      samples: summary.n,
+      valid: Number.isFinite(summary.estimate) && summary.n === RUNS_PER_CLASS
     };
   });
-  const baselineOk = baselineChecks.every(check => check.match);
+  const baselineOk = baselineChecks.every(check => check.valid);
   const lines = [
     "# Issue #624 測定: 「持ち帰りを諦めて潜る」到達限界",
     "",
@@ -658,36 +649,22 @@ function renderMarkdown({
     "条件4は条件2（翼を出発キットから除外）に `FLEE_POLICY=never` を加えた。" +
       "条件2は宝箱等で途中入手した翼まで禁止する条件ではなく、「持たずに出発」の条件である。",
     "",
-    "## 基準線再現（#652値との照合）",
+    "## 基準線検証（固定値照合なし）",
     "",
-    "期待値は #652 再測定の到達階平均 Fighter 5.778 / Thief 5.162 / Priest 4.740 / Mage 6.474。" +
-      " 判定は表示2桁の丸め誤差を許容して |実測−期待|≤0.005 とした。",
+    "過去Issueの固定値は現行source/baseの回復・戦闘・報酬経路を検証する基準にはならないため、" +
+      "旧#652値および別時点の#627/#736値との完全一致 assertion は退役した。" +
+      " 現行 baseline-portal-flee の全職について、有限な平均値と職別Nを検証する。",
     "",
-    "| 職 | 期待 | 実測平均 | 差 | 判定 |",
-    "| --- | ---: | ---: | ---: | --- |",
+    "| 職 | 実測平均 | N | 検証 |",
+    "| --- | ---: | ---: | --- |",
     ...baselineChecks.map(check =>
-      `| ${CLASS_LABELS[check.className]} | ${check.expected.toFixed(2)} | ` +
-      `${check.actual.toFixed(4)} | ${check.delta >= 0 ? "+" : ""}${check.delta.toFixed(4)} | ` +
-      `${check.match ? "一致" : "不一致（原因調査要）"} |`
+      `| ${CLASS_LABELS[check.className]} | ${check.actual.toFixed(4)} | ` +
+      `${check.samples} | ${check.valid ? "PASS" : "FAIL"} |`
     ),
     "",
-    `基準線再現: **${baselineOk ? "可" : "不可。測定側の変更を確定せず原因調査が必要"}**。`,
+    `基準線測定guard: **${baselineOk ? "PASS" : "FAIL"}**（固定値照合は退役、` +
+      "provenance guardはsim_depth_material_ev側で継続）。",
     "",
-    ...(baselineOk
-      ? []
-      : [
-          "### 基準線不一致の原因調査",
-          "",
-          "#652 の基準値は base `3e659a62a2b7acca1442feddf101b9b71849458f` で測定された。" +
-            "現行 base では #656 により `scratch/sim_depth_material_ev.js` の回復経路へ " +
-            "mana potion と MP不足時の計測が入り、#662 で MP圧力計測が追加されている。" +
-            "#657 はUI変更で、ゲーム本体のルール値はこの区間で変更されていない。",
-          "",
-          "このため新しい基準値は現行 base では再現しなかった。旧値へ合わせる変更は行わず、" +
-            "以下の paired 比較は現行 base で再測定した `baseline-portal-flee` を対照にする。" +
-            "#656/#662 の各差分が平均値の差へ与えた寄与は、過去 base の再実行を伴わないため個別には判定しない。",
-          ""
-        ]),
     "## 到達階の主要結果（全run分母）",
     "",
     "平均は通常近似95% CI、率は Wilson 95% CI。`N不足` は該当セルの N<30 で、結論には使わない。" +

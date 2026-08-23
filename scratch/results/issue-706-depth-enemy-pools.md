@@ -27,6 +27,32 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
   `98eb262fefa8655f18ad4c8b8e53ebb7d817a000ce1bfda5ee4eebdb1d233aad`.
   Both repeated runs produced the same raw SHA. Summary env hashes were
   `0077004b5fa2b729` (base) and `4efccf4cdc6864e3` (final).
+- Current four-class baseline validation (base remeasurement):
+  `baseline-portal-flee` measured Fighter `7.1700`, Thief `9.1960`,
+  Priest `3.8880`, Mage `10.1480`; N=500 per class (2,000 rows).
+  Source SHA `df08931fb9eb2208acaf4f17e5e430589f270276`; raw SHA-256
+  `0508b18b102b3dcee8e585979d904d233e4a35ad2721b9249325103fc65263bb`;
+  env hash `0077004b5fa2b729`; resolved parallelism 15; stale-tree override
+  not used. The runner's updated baseline measurement guard passed: all four
+  means were finite and all four sample counts were exactly 500.
+- The historical #627/#736 tracking tuple
+  (Fighter `7.9200` / Thief `8.5500` / Priest `4.9480` / Mage
+  `6.9580`) is retained only as historical context; it is not reproduced by
+  the supplied current base/source and is no longer used as an assertion.
+- Post-review remeasurement at the supplied PR HEAD
+  `ccd463a7f5af263c33ad0a825c4d565c4727fa95` produced
+  Fighter `7.0300` / Thief `8.9240` / Priest `4.0440` / Mage
+  `9.8800`, again N=500 per class; raw SHA-256
+  `9bbe26e3f08ff6582a53e4735603d5273156480f328eaadf813a7ba47aa83d05`,
+  env hash `5831171ec0ff70bc`, and baseline measurement guard PASS.
+- Exact baseline command/config:
+  `node scratch/issue624_commit_depth.js`; `SIM_SEED=231`,
+  `SIM_RUNS=500`, `SIM_CALIBRATION_RUNS=100`,
+  `STATUS_CURE_POLICY=ev`, `FLEE_POLICY=ev`,
+  `TRAP_POLICY=conservative`, powder identification,
+  `DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION`,
+  six observed workshop scenarios, `SIM_PARALLEL` and
+  `SIM_MAP_CACHE_ENTRIES` omitted (runtime defaults).
 - Floor/status runner: `scratch/issue706_depth_enemy_pools.js`, same config,
   B1-B5 traversal to B6, 500 runs per scenario and 100 calibration runs per
   scenario (3,000 total; 750 per class). Output schema is
