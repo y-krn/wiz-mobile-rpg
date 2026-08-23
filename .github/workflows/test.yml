@@ -16,12 +16,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The simulation-follow gate compares the PR with origin/main.
+          # Full history makes that base ref available in the actual PR job.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
       - run: npm ci
       - run: npm run test:unit:full
+      - name: Verify measurement provenance
+        run: node scratch/test_measurement_provenance.js
 
   lint:
     runs-on: ubuntu-latest

@@ -28,6 +28,28 @@ smallest deterministic scratch check that exercises the changed values.
 - Affected enemies, items, rewards, spells, run quests, or map rules
 - Simulation output or deterministic seeds, when available
 
+The lightweight simulation-follow gate runs as part of `npm run test:unit`. Its
+manifest classifies `scratch/sim_depth_material_ev.js` as the canonical `run`
+runner, records its balance-domain coverage and critical runtime evidence, and
+classifies Issue-specific runners as historical until explicitly promoted. The
+gate compares changed `src/` paths with declared balance-impact metadata,
+rejects unknown or uncovered paths and stale simulation references, validates
+runner lifecycle/scope metadata, and performs one deterministic canonical run.
+The manifest separates broad model-domain coverage from the seven domains with
+declared runtime evidence; a changed unsupported domain fails conservatively,
+and a supported domain must fire its mapped evidence in the smoke result. It is
+a reachability/provenance check, not a replacement for configured N=500+
+balance measurements; one-run-zero mechanisms remain omitted unless declared
+critical by the manifest. Its stale scan is a fixed `trapSense` regression
+guard, not a general detector for every deleted mechanism. Unit fixture
+children retain their `SIM_SKIP_PROVENANCE=1` isolation, while CI runs
+`node scratch/test_measurement_provenance.js` directly after the unit suite to
+enforce current-head ancestry and clean/stale-tree checks.
+Recursive `src/data/**`, `src/rules/**`, `src/systems/**`, and
+`src/combat_logic/**` fallbacks are not balance mappings: only listed primary
+files are classified, and a new or unlisted production path must receive an
+explicit domain mapping before it can pass the gate.
+
 ## Agent Skills
 
 - No skill is mandatory by default; prioritize deterministic source, data, and

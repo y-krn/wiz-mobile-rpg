@@ -1,0 +1,415 @@
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { parseSimScopeDeclaration } from "./measurement_env_signature.js";
+
+export const BALANCE_DOMAINS = Object.freeze([
+  "combat", "status", "equipment", "drops", "chests", "traps",
+  "economy", "progression", "maps", "recovery", "merchant", "workshop"
+]);
+
+const BALANCE_ALL = Object.freeze([...BALANCE_DOMAINS]);
+const canonicalRunnerPath = "scratch/sim_depth_material_ev.js";
+
+// This is an explicit authorization inventory. Discovery may find a new
+// candidate, but lifecycle validation must reject it until it is classified.
+export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
+  { path: canonicalRunnerPath, lifecycle: "canonical", scope: "run" },
+  { path: "scratch/issue624_commit_depth.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/issue700_gate_metrics.js", lifecycle: "historical", scope: "infra" },
+  { path: "scratch/issue706_depth_enemy_pools.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_balance.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_camp_recovery.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_caster_pack.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_commit_depth_624.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_depth_scaling.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_early_mortality.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_encounter_rate_options.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_frontline_formula.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_identification_gamble.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_inflow_reduction.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_461_baseline.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_499_shallow_recovery_dose_sweep.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_499_shallow_recovery_supply.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_508_heal_unit_density.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_516_class_sustain.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_528_class_sustain_phase2.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_599_explore_spells.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_599_level_distribution.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_612_exp_pace.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_713_trap_calibration.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_issue_793_bleeding.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_material_income.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_maze_metrics.js", lifecycle: "historical", scope: "map" },
+  { path: "scratch/sim_new_spells.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_parallel.js", lifecycle: "historical", scope: "infra" },
+  { path: "scratch/sim_parallel_worker.js", lifecycle: "historical", scope: "infra" },
+  { path: "scratch/sim_retreat_access.js", lifecycle: "historical", scope: "formula" },
+  { path: "scratch/sim_run_floor_templates.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_solo_b1f.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/sim_workshop_progression.js", lifecycle: "historical", scope: "run" }
+]);
+
+export const EXECUTABLE_MEASUREMENT_RUNNERS = Object.freeze(
+  SIMULATION_RUNNER_INVENTORY
+    .filter(runner => runner.path.startsWith("scratch/issue"))
+    .map(runner => runner.path)
+);
+const RUNNER_DISCOVERY_PATTERNS = Object.freeze([
+  "scratch/sim_*.js",
+  ...EXECUTABLE_MEASUREMENT_RUNNERS
+]);
+
+// Metadata only: the canonical runner imports production rules and exposes
+// observable evidence for the mechanisms listed here.
+export const SIMULATION_MANIFEST = Object.freeze({
+  version: 1,
+  canonical: Object.freeze({
+    path: canonicalRunnerPath,
+    lifecycle: "canonical",
+    scope: "run",
+    modelDomains: BALANCE_ALL,
+    criticalRuntimeMechanisms: Object.freeze([
+      { id: "maps.run-floor-traversal", domain: "maps", evidence: { anyPositive: ["floorsTraversed"] } },
+      { id: "combat.round-resolution", domain: "combat", evidence: { anyPositive: ["combatRounds"] } },
+      { id: "equipment.generation", domain: "equipment", evidence: { anyPositive: ["equipmentFound"] } },
+      { id: "chests.open", domain: "chests", evidence: { anyPositive: ["chestsOpenedInRun"] } },
+      { id: "drops.reward-materials", domain: "drops", evidence: { anyPositive: ["materialAcquired"] } },
+      { id: "progression.experience", domain: "progression", evidence: { anyPositive: ["expGained"] } },
+      { id: "recovery.kill-heal", domain: "recovery", evidence: { anyPositive: ["killHeal.killHealActivations"] } }
+    ]),
+    // Only these domains have a declared runtime evidence path in the
+    // lightweight smoke. modelDomains deliberately includes the broader
+    // source-domain inventory, while this map is the stricter gate coverage.
+    runtimeCoverage: Object.freeze({
+      maps: Object.freeze(["maps.run-floor-traversal"]),
+      combat: Object.freeze(["combat.round-resolution"]),
+      equipment: Object.freeze(["equipment.generation"]),
+      chests: Object.freeze(["chests.open"]),
+      drops: Object.freeze(["drops.reward-materials"]),
+      progression: Object.freeze(["progression.experience"]),
+      recovery: Object.freeze(["recovery.kill-heal"])
+    }),
+    smoke: Object.freeze({
+      modeled: Object.freeze([
+        "production run-floor generation", "round combat and reward resolution",
+        "equipment generation and upgrade path", "chest opening and material rewards",
+        "production recovery effect"
+      ]),
+      omitted: Object.freeze([
+        "merchant purchase policy", "status/trap stochastic firing not guaranteed by one run",
+        "UI input, rendering, and analytics transport",
+        "statistical balance estimates and Monte Carlo confidence intervals"
+      ])
+    })
+  }),
+  // Issue-specific runners remain historical. This inventory is intentionally
+  // exact: an unmatched new sim or executable measurement runner is an error.
+  runnerLifecycleRules: Object.freeze(SIMULATION_RUNNER_INVENTORY.map(runner => ({
+    pattern: runner.path,
+    lifecycle: runner.lifecycle,
+    scope: runner.scope
+  }))),
+  balanceImpactPaths: Object.freeze([
+    { pattern: "src/combat.js", domains: ["combat"] },
+    { pattern: "src/combat_logic.js", domains: ["combat", "status"] },
+    { pattern: "src/combat_logic/auto_action.js", domains: ["combat", "recovery"] },
+    { pattern: "src/combat_logic/boss_actions.js", domains: ["combat", "status"] },
+    { pattern: "src/combat_logic/damage.js", domains: ["combat", "status", "recovery"] },
+    { pattern: "src/combat_logic/drops.js", domains: ["drops"] },
+    { pattern: "src/combat_logic/item_resolution.js", domains: ["combat", "status", "recovery"] },
+    { pattern: "src/combat_logic/monster_traits.js", domains: ["combat", "status"] },
+    { pattern: "src/combat_logic/mp_ward.js", domains: ["combat"] },
+    { pattern: "src/combat_logic/rewards.js", domains: ["drops", "progression"] },
+    { pattern: "src/combat_logic/round.js", domains: ["combat", "status"] },
+    { pattern: "src/combat_logic/spell_resolution.js", domains: ["combat", "status"] },
+    { pattern: "src/combat_logic/status_effects.js", domains: ["status"] },
+    { pattern: "src/combat_logic/targeting.js", domains: ["combat"] },
+    { pattern: "src/data.js", domains: ["combat", "equipment", "maps", "progression", "status", "recovery"] },
+    { pattern: "src/data/encounters.js", domains: ["combat", "maps"] },
+    { pattern: "src/data/equipment_tables.js", domains: ["equipment"] },
+    { pattern: "src/data/materials.js", domains: ["drops"] },
+    { pattern: "src/data/progression.js", domains: ["progression"] },
+    { pattern: "src/rules/character_stats.js", domains: ["combat", "equipment"] },
+    { pattern: "src/rules/depth_scaling.js", domains: ["combat", "maps"] },
+    { pattern: "src/rules/equipment_slots.js", domains: ["equipment"] },
+    { pattern: "src/rules/leveling.js", domains: ["progression"] },
+    { pattern: "src/rules/map_queries.js", domains: ["maps"] },
+    { pattern: "src/rules/recovery_rules.js", domains: ["recovery"] },
+    { pattern: "src/movement.js", domains: ["maps", "traps", "chests", "recovery", "status"] },
+    { pattern: "src/run_map_generator.js", domains: ["maps", "traps", "chests", "combat"] },
+    { pattern: "src/map_generator.js", domains: ["maps"] },
+    { pattern: "src/chest.js", domains: ["chests", "traps", "drops", "equipment", "recovery", "economy"] },
+    { pattern: "src/craft.js", domains: ["workshop", "economy", "equipment"] },
+    { pattern: "src/equip.js", domains: ["equipment", "economy"] },
+    { pattern: "src/result.js", domains: ["drops", "economy", "progression"] },
+    { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
+    { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },
+    { pattern: "src/systems/leveling.js", domains: ["progression"] }
+  ].map(rule => ({ ...rule, domains: Object.freeze([...rule.domains]) }))),
+  balanceImpactNone: Object.freeze([
+    "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
+    "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**",
+    "src/sentry.js", "src/error_context.js", "src/controls_guard.js"
+  ])
+});
+
+// This is a known stale-reference regression guard, not a general deleted-
+// mechanism detector. Add a guard here only when a retired identifier needs a
+// durable regression check.
+export const KNOWN_STALE_REFERENCE_GUARDS = Object.freeze([
+  { id: "trapSense", pattern: /\b(?:trapSense|trap_sense|TRAP_SENSE|simTrapSense|SIM_TRAP_SENSE)\b/ }
+]);
+
+function globToRegExp(glob) {
+  let source = "^";
+  for (let index = 0; index < glob.length; index++) {
+    const character = glob[index];
+    if (character === "*" && glob[index + 1] === "*") {
+      source += ".*";
+      index++;
+    } else if (character === "*") {
+      source += "[^/]*";
+    } else {
+      source += character.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(`${source}$`);
+}
+
+function normalizePath(filePath) {
+  return filePath.replaceAll(path.sep, "/").replace(/^\.\//, "");
+}
+
+function matches(pattern, filePath) {
+  return globToRegExp(pattern).test(normalizePath(filePath));
+}
+
+function getPathValue(value, dottedPath) {
+  return dottedPath.split(".").reduce((current, key) => current?.[key], value);
+}
+
+function isPositiveEvidence(value) {
+  if (typeof value === "number") return Number.isFinite(value) && value > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  return Boolean(value);
+}
+
+export function evaluateRuntimeMechanisms(result, mechanisms = SIMULATION_MANIFEST.canonical.criticalRuntimeMechanisms) {
+  return Object.fromEntries(mechanisms.map(mechanism => {
+    const fields = mechanism.evidence?.anyPositive || [];
+    const fired = fields.some(field => isPositiveEvidence(getPathValue(result, field)));
+    return [mechanism.id, { domain: mechanism.domain, fired, evidence: fields }];
+  }));
+}
+
+export function assertRuntimeMechanismsFired(result, mechanisms = SIMULATION_MANIFEST.canonical.criticalRuntimeMechanisms) {
+  const firing = evaluateRuntimeMechanisms(result, mechanisms);
+  const missing = Object.entries(firing).filter(([, status]) => !status.fired).map(([id]) => id);
+  if (missing.length > 0) throw new Error(`canonical simulation runtime evidence missing: ${missing.join(", ")}`);
+  return firing;
+}
+
+export function evaluateRuntimeDomainCoverage(result, manifest = SIMULATION_MANIFEST) {
+  const firing = evaluateRuntimeMechanisms(result, manifest.canonical.criticalRuntimeMechanisms);
+  return Object.fromEntries(Object.entries(manifest.canonical.runtimeCoverage || {}).map(([domain, mechanismIds]) => {
+    const missing = mechanismIds.filter(id => !firing[id]?.fired);
+    return [domain, { mechanisms: mechanismIds, fired: missing.length === 0, missing }];
+  }));
+}
+
+export function validateSimulationManifest(manifest = SIMULATION_MANIFEST) {
+  const errors = [];
+  const allowedLifecycles = new Set(["canonical", "temporary", "historical"]);
+  const canonical = manifest?.canonical;
+  if (!canonical || typeof canonical !== "object") {
+    errors.push("canonical runner metadata is missing");
+  } else {
+    if (canonical.lifecycle !== "canonical") errors.push("canonical runner lifecycle must be canonical");
+    if (typeof canonical.path !== "string" || !canonical.path) errors.push("canonical runner path is missing");
+    if (canonical.scope !== "run") errors.push("canonical runner scope must be run");
+    if (!Array.isArray(canonical.modelDomains) || canonical.modelDomains.length === 0) {
+      errors.push("canonical model coverage is missing");
+    } else {
+      for (const domain of canonical.modelDomains) {
+        if (!BALANCE_DOMAINS.includes(domain)) errors.push(`unknown canonical model domain: ${domain}`);
+      }
+    }
+    const mechanismIds = new Set();
+    const mechanismDomains = new Map();
+    if (!Array.isArray(canonical.criticalRuntimeMechanisms) || canonical.criticalRuntimeMechanisms.length === 0) {
+      errors.push("canonical critical runtime mechanisms are missing");
+    } else {
+      for (const mechanism of canonical.criticalRuntimeMechanisms) {
+        if (!mechanism?.id || mechanismIds.has(mechanism.id)) errors.push(`malformed or duplicate runtime mechanism: ${mechanism?.id || "<missing>"}`);
+        mechanismIds.add(mechanism?.id);
+        mechanismDomains.set(mechanism?.id, mechanism?.domain);
+        if (!canonical.modelDomains?.includes(mechanism?.domain)) errors.push(`runtime mechanism ${mechanism?.id || "<missing>"} has uncovered model domain ${mechanism?.domain || "<missing>"}`);
+        if (!Array.isArray(mechanism?.evidence?.anyPositive) || mechanism.evidence.anyPositive.length === 0) errors.push(`runtime mechanism ${mechanism?.id || "<missing>"} has malformed evidence metadata`);
+      }
+    }
+    if (!canonical.runtimeCoverage || typeof canonical.runtimeCoverage !== "object" || Array.isArray(canonical.runtimeCoverage)) {
+      errors.push("canonical runtime coverage is missing");
+    } else {
+      const mappedMechanisms = new Set();
+      for (const [domain, requiredMechanisms] of Object.entries(canonical.runtimeCoverage)) {
+        if (!canonical.modelDomains?.includes(domain)) errors.push(`runtime coverage has uncovered model domain: ${domain}`);
+        if (!Array.isArray(requiredMechanisms) || requiredMechanisms.length === 0) {
+          errors.push(`runtime coverage for ${domain} is missing mechanisms`);
+          continue;
+        }
+        for (const mechanismId of requiredMechanisms) {
+          mappedMechanisms.add(mechanismId);
+          if (!mechanismIds.has(mechanismId)) errors.push(`runtime coverage ${domain} references unknown mechanism: ${mechanismId}`);
+          else if (mechanismDomains.get(mechanismId) !== domain) errors.push(`runtime coverage ${domain} disagrees with mechanism ${mechanismId}`);
+        }
+      }
+      for (const mechanismId of mechanismIds) {
+        if (!mappedMechanisms.has(mechanismId)) errors.push(`runtime mechanism is not assigned to a runtime domain: ${mechanismId}`);
+      }
+    }
+  }
+  if (!Array.isArray(manifest?.runnerLifecycleRules) || manifest.runnerLifecycleRules.length === 0) {
+    errors.push("runner lifecycle metadata is missing");
+  } else {
+    for (const rule of manifest.runnerLifecycleRules) {
+      if (typeof rule?.pattern !== "string" || !rule.pattern) errors.push("runner lifecycle rule pattern is missing");
+      if (rule?.pattern?.includes("*")) errors.push(`runner lifecycle rule must be explicit: ${rule.pattern}`);
+      if (!allowedLifecycles.has(rule?.lifecycle)) errors.push(`unknown runner lifecycle: ${rule?.lifecycle || "<missing>"}`);
+    }
+    if (!manifest.runnerLifecycleRules.some(rule =>
+      rule.pattern === canonical?.path && rule.lifecycle === "canonical"
+    )) errors.push("canonical runner is missing from lifecycle metadata");
+  }
+  if (!Array.isArray(manifest?.balanceImpactPaths) || manifest.balanceImpactPaths.length === 0) errors.push("balance impact path metadata is missing");
+  return errors;
+}
+
+export function assertValidSimulationManifest(manifest = SIMULATION_MANIFEST) {
+  const errors = validateSimulationManifest(manifest);
+  if (errors.length > 0) throw new Error(`malformed simulation manifest: ${errors.join("; ")}`);
+  return manifest;
+}
+
+export function classifySimulationRunner(filePath, manifest = SIMULATION_MANIFEST) {
+  const normalized = normalizePath(filePath);
+  const matchesForPath = (manifest.runnerLifecycleRules || []).filter(rule => matches(rule.pattern, normalized));
+  return matchesForPath.length === 1 ? matchesForPath[0] : null;
+}
+
+export function isExecutableMeasurementRunner(filePath, source) {
+  const normalized = normalizePath(filePath);
+  if (matches("scratch/sim_*.js", normalized)) return true;
+  const hasMeasurementMarker = /\b(?:simulateRun|runSimTasks|runDepthMaterialSimulation|SIM_RUNS)\b/.test(source);
+  const hasEntryPoint = /\bmain\s*\(\s*\)|process\.argv\[1\]/.test(source);
+  return Boolean(parseSimScopeDeclaration(source) && hasMeasurementMarker && hasEntryPoint);
+}
+
+function defaultSimulationFiles() {
+  const scratchDir = path.dirname(new URL(import.meta.url).pathname);
+  return fs.readdirSync(scratchDir)
+    .map(name => `scratch/${name}`)
+    .filter(file => file.endsWith(".js"))
+    .filter(file => {
+      if (RUNNER_DISCOVERY_PATTERNS.some(pattern => matches(pattern, file))) return true;
+      return isExecutableMeasurementRunner(file, fs.readFileSync(path.resolve(file), "utf8"));
+    });
+}
+
+export function discoverSimulationRunnerFiles() {
+  return defaultSimulationFiles();
+}
+
+export function inspectSimulationMetadata({ files = null, sourceByPath = new Map(), manifest = SIMULATION_MANIFEST } = {}) {
+  const errors = [];
+  for (const file of files || defaultSimulationFiles()) {
+    const normalized = normalizePath(file);
+    const rule = classifySimulationRunner(normalized, manifest);
+    if (!rule) {
+      errors.push(`${normalized}: missing or ambiguous lifecycle metadata`);
+      continue;
+    }
+    const source = sourceByPath.has(normalized)
+      ? sourceByPath.get(normalized)
+      : fs.readFileSync(path.resolve(normalized), "utf8");
+    const scope = parseSimScopeDeclaration(source);
+    if (!scope) errors.push(`${normalized}: missing sim-scope metadata`);
+    else if (!new Set(["run", "formula", "map", "infra"]).has(scope.name)) errors.push(`${normalized}: unknown sim-scope ${scope.name}`);
+    else if (rule.scope && scope.name !== rule.scope) errors.push(`${normalized}: lifecycle scope ${rule.scope} disagrees with sim-scope ${scope.name}`);
+    if (rule.lifecycle === "canonical" && !source.includes("generateRunFloor")) errors.push(`${normalized}: canonical runner does not reference generateRunFloor`);
+  }
+  return errors;
+}
+
+export function scanKnownStaleSimulationReferences({ files = null, sourceByPath = new Map() } = {}) {
+  const findings = [];
+  for (const file of files || defaultSimulationFiles()) {
+    const normalized = normalizePath(file);
+    const source = sourceByPath.has(normalized)
+      ? sourceByPath.get(normalized)
+      : fs.readFileSync(path.resolve(normalized), "utf8");
+    for (const stale of KNOWN_STALE_REFERENCE_GUARDS) {
+      if (stale.pattern.test(source)) findings.push({ file: normalized, reference: stale.id });
+    }
+  }
+  return findings;
+}
+
+// Backward-compatible name for existing focused checks. The implementation
+// intentionally remains a finite known-reference guard, not a general stale
+// mechanism detector.
+export const scanStaleSimulationReferences = scanKnownStaleSimulationReferences;
+
+function gitNames(args) {
+  return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+    .split(/\r?\n/).map(normalizePath).filter(Boolean);
+}
+
+export function currentChangedFiles({ baseRef = process.env.BASE_REF || "origin/main" } = {}) {
+  return [...new Set([
+    ...gitNames(["diff", "--name-only", `${baseRef}...HEAD`]),
+    ...gitNames(["diff", "--name-only"]),
+    ...gitNames(["diff", "--name-only", "--cached"]),
+    ...gitNames(["ls-files", "--others", "--exclude-standard"])
+  ])];
+}
+
+export function analyzeBalanceImpact(changedFiles, manifest = SIMULATION_MANIFEST, runtimeResult = undefined) {
+  const impacts = [];
+  const errors = [];
+  const modelDomains = manifest.canonical?.modelDomains || [];
+  const runtimeCoverage = manifest.canonical?.runtimeCoverage || {};
+  const runtimeDomains = runtimeResult === undefined
+    ? null
+    : evaluateRuntimeDomainCoverage(runtimeResult, manifest);
+  for (const rawFile of changedFiles) {
+    const file = normalizePath(rawFile);
+    if (!file.startsWith("src/")) continue;
+    const balanceRule = (manifest.balanceImpactPaths || []).find(rule => matches(rule.pattern, file));
+    if (balanceRule) {
+      const domains = [...new Set(balanceRule.domains || [])];
+      const uncovered = domains.filter(domain => !modelDomains.includes(domain));
+      const unsupported = domains.filter(domain => !Object.hasOwn(runtimeCoverage, domain));
+      const unfired = runtimeDomains
+        ? domains.filter(domain => Object.hasOwn(runtimeCoverage, domain) && !runtimeDomains[domain].fired)
+        : [];
+      impacts.push({ file, domains, uncovered, runtimeUnsupported: unsupported, runtimeUnfired: unfired });
+      if (uncovered.length > 0) errors.push(`${file}: balance domains not covered by canonical model: ${uncovered.join(", ")}`);
+      if (unsupported.length > 0) errors.push(`${file}: balance domains have no declared runtime evidence: ${unsupported.join(", ")}`);
+      if (runtimeResult === undefined && unsupported.length < domains.length) {
+        errors.push(`${file}: canonical runtime evidence result is required for supported domains`);
+      }
+      if (unfired.length > 0) errors.push(`${file}: declared runtime evidence did not fire: ${unfired.join(", ")}`);
+      continue;
+    }
+    if ((manifest.balanceImpactNone || []).some(pattern => matches(pattern, file))) continue;
+    errors.push(`${file}: unknown production path; declare balance-impact domains or explicit balance-impact: none`);
+  }
+  return { impacts, errors };
+}
+
+export function assertBalanceImpactCovered(changedFiles, manifest = SIMULATION_MANIFEST, runtimeResult = undefined) {
+  const report = analyzeBalanceImpact(changedFiles, manifest, runtimeResult);
+  if (report.errors.length > 0) throw new Error(`balance impact coverage gate failed: ${report.errors.join("; ")}`);
+  return report;
+}
