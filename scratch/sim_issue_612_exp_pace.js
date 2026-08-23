@@ -1,6 +1,7 @@
 // sim-scope: run — Issue #612 experience supply, encounter-rate sweep, and level pace
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import {
   mkdirSync,

@@ -1,6 +1,7 @@
 // sim-scope: run — measures solo B1F outcomes across classes and conditions with the simulation runner; retained because origin is unknown and no closed-Issue owner was found.
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { pathToFileURL } from "node:url";
 
 const {

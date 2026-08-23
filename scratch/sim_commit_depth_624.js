@@ -1,6 +1,7 @@
 // sim-scope: run — Issue #624 の撤退方針別到達深度・素材収支測定
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { isMainThread } from "node:worker_threads";

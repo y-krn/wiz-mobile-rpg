@@ -3,6 +3,7 @@
 // current canon is .agents/balance-simulation.md, Issue #471.
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
