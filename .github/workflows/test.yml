@@ -26,6 +26,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:unit:full
+      - name: Verify measurement provenance
+        run: node scratch/test_measurement_provenance.js
 
   lint:
     runs-on: ubuntu-latest
