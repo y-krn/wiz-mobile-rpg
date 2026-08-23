@@ -156,7 +156,14 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**",
     "src/sentry.js", "src/error_context.js", "src/controls_guard.js",
-    "src/runtime_diagnostics.js"
+    "src/runtime_diagnostics.js", "src/telemetry.js"
+  ]),
+  // Exact paths whose current callers may receive telemetry-only edits. A
+  // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
+  telemetryOnlyPaths: Object.freeze([
+    "src/combat_ui/action_selection.js",
+    "src/combat_ui/combat_start.js",
+    "src/combat_ui/round_runner.js"
   ])
 });
 
@@ -302,6 +309,11 @@ export function validateSimulationManifest(manifest = SIMULATION_MANIFEST) {
     )) errors.push("canonical runner is missing from lifecycle metadata");
   }
   if (!Array.isArray(manifest?.balanceImpactPaths) || manifest.balanceImpactPaths.length === 0) errors.push("balance impact path metadata is missing");
+  for (const pattern of manifest?.telemetryOnlyPaths || []) {
+    if (typeof pattern !== "string" || !pattern || pattern.includes("*")) {
+      errors.push(`telemetry-only path must be exact: ${pattern || "<missing>"}`);
+    }
+  }
   return errors;
 }
 
@@ -394,7 +406,78 @@ export function currentChangedFiles({ baseRef = process.env.BASE_REF || "origin/
   ])];
 }
 
-export function analyzeBalanceImpact(changedFiles, manifest = SIMULATION_MANIFEST, runtimeResult = undefined) {
+const TELEMETRY_CONTEXT_KEYS = new Set([
+  "state", "character", "combat", "actorIdx", "targetIdx", "spellName", "itemKey",
+  "currentKey", "candidateKey", "preview"
+]);
+
+function isTelemetryImport(line) {
+  return /^import\s+\{[^}]*\btrack[A-Z][A-Za-z0-9]*\b[^}]*\}\s+from\s+["'][^"']*telemetry\.js["'];?$/.test(line.trim());
+}
+
+function isTelemetryCall(line) {
+  return /^track[A-Z][A-Za-z0-9]*\s*\(/.test(line.trim());
+}
+
+function isTelemetryContextLine(line) {
+  const trimmed = line.trim();
+  if (/^\}\s*,\s*state\);$/.test(trimmed) || /^\}\);$/.test(trimmed)) return true;
+  const match = trimmed.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*(?::|,|$)/);
+  return Boolean(match && TELEMETRY_CONTEXT_KEYS.has(match[1]));
+}
+
+function isTelemetryOnlyHunk(lines) {
+  const changedLines = lines.filter(line => line[0] === "+" || line[0] === "-");
+  if (changedLines.length === 0) return true;
+  const hunkText = lines.map(line => line.slice(1));
+  const hasTelemetryAnchor = hunkText.some(line => isTelemetryImport(line) || isTelemetryCall(line));
+  if (!hasTelemetryAnchor) return false;
+  return changedLines.every(line => {
+    const text = line.slice(1);
+    return isTelemetryImport(text) || isTelemetryCall(text) || isTelemetryContextLine(text);
+  });
+}
+
+export function isTelemetryOnlyDiff(diff) {
+  if (typeof diff !== "string" || !diff.trim()) return false;
+  const hunks = [];
+  let currentHunk = null;
+  for (const line of diff.split(/\r?\n/)) {
+    if (line.startsWith("@@")) {
+      currentHunk = [];
+      hunks.push(currentHunk);
+      continue;
+    }
+    if (currentHunk && (line.startsWith("+") || line.startsWith("-") || line.startsWith(" "))) {
+      currentHunk.push(line);
+    }
+  }
+  return hunks.length > 0 && hunks.every(isTelemetryOnlyHunk);
+}
+
+function getChangedDiff(file, baseRef = process.env.BASE_REF || "origin/main") {
+  const diffs = [];
+  for (const args of [
+    ["diff", "--function-context", `${baseRef}...HEAD`, "--", file],
+    ["diff", "--function-context", "--", file],
+    ["diff", "--cached", "--function-context", "--", file]
+  ]) {
+    try {
+      const output = execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      if (output.trim()) diffs.push(output);
+    } catch {
+      // Missing base refs or an empty optional diff must not create an exemption.
+    }
+  }
+  return diffs.join("\n");
+}
+
+export function analyzeBalanceImpact(
+  changedFiles,
+  manifest = SIMULATION_MANIFEST,
+  runtimeResult = undefined,
+  { diffByFile = null, baseRef = process.env.BASE_REF || "origin/main" } = {}
+) {
   const impacts = [];
   const errors = [];
   const modelDomains = manifest.canonical?.modelDomains || [];
@@ -405,7 +488,18 @@ export function analyzeBalanceImpact(changedFiles, manifest = SIMULATION_MANIFES
   for (const rawFile of changedFiles) {
     const file = normalizePath(rawFile);
     if (!file.startsWith("src/")) continue;
+    const diff = diffByFile instanceof Map ? diffByFile.get(file) : diffByFile?.[file] ?? getChangedDiff(file, baseRef);
     const balanceRule = (manifest.balanceImpactPaths || []).find(rule => matches(rule.pattern, file));
+    const balanceImpactNone = (manifest.balanceImpactNone || []).some(pattern => matches(pattern, file));
+    const telemetryOnlyPath = (manifest.telemetryOnlyPaths || []).some(pattern => matches(pattern, file));
+    if (!balanceRule && !balanceImpactNone && !telemetryOnlyPath) {
+      errors.push(`${file}: unknown production path; declare balance-impact domains or explicit balance-impact: none`);
+      continue;
+    }
+    if (isTelemetryOnlyDiff(diff) && (balanceRule || telemetryOnlyPath)) {
+      impacts.push({ file, domains: [], telemetryOnly: true, runtimeUnsupported: [], runtimeUnfired: [] });
+      continue;
+    }
     if (balanceRule) {
       const domains = [...new Set(balanceRule.domains || [])];
       const uncovered = domains.filter(domain => !modelDomains.includes(domain));
@@ -422,14 +516,19 @@ export function analyzeBalanceImpact(changedFiles, manifest = SIMULATION_MANIFES
       if (unfired.length > 0) errors.push(`${file}: declared runtime evidence did not fire: ${unfired.join(", ")}`);
       continue;
     }
-    if ((manifest.balanceImpactNone || []).some(pattern => matches(pattern, file))) continue;
-    errors.push(`${file}: unknown production path; declare balance-impact domains or explicit balance-impact: none`);
+    if (balanceImpactNone) continue;
+    errors.push(`${file}: telemetry-only path contains non-telemetry changes; classify the gameplay impact explicitly`);
   }
   return { impacts, errors };
 }
 
-export function assertBalanceImpactCovered(changedFiles, manifest = SIMULATION_MANIFEST, runtimeResult = undefined) {
-  const report = analyzeBalanceImpact(changedFiles, manifest, runtimeResult);
+export function assertBalanceImpactCovered(
+  changedFiles,
+  manifest = SIMULATION_MANIFEST,
+  runtimeResult = undefined,
+  options = undefined
+) {
+  const report = analyzeBalanceImpact(changedFiles, manifest, runtimeResult, options);
   if (report.errors.length > 0) throw new Error(`balance impact coverage gate failed: ${report.errors.join("; ")}`);
   return report;
 }

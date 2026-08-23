@@ -9,6 +9,7 @@ import {
   EXECUTABLE_MEASUREMENT_RUNNERS,
   evaluateRuntimeMechanisms,
   evaluateRuntimeDomainCoverage,
+  isTelemetryOnlyDiff,
   isExecutableMeasurementRunner,
   inspectSimulationMetadata,
   SIMULATION_RUNNER_INVENTORY,
@@ -62,6 +63,13 @@ assert.throws(
 assert.throws(
   () => assertValidSimulationManifest({
     ...SIMULATION_MANIFEST,
+    telemetryOnlyPaths: ["src/**"]
+  }),
+  /telemetry-only path must be exact/
+);
+assert.throws(
+  () => assertValidSimulationManifest({
+    ...SIMULATION_MANIFEST,
     canonical: {
       ...SIMULATION_MANIFEST.canonical,
       runtimeCoverage: { ...SIMULATION_MANIFEST.canonical.runtimeCoverage, combat: ["missing-mechanism"] }
@@ -97,6 +105,39 @@ const narrowCoverageManifest = {
 assert.throws(
   () => assertBalanceImpactCovered(["src/rules/status_effect_rules.js"], narrowCoverageManifest),
   /not covered by canonical model/
+);
+const telemetryOnlyDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,3 @@
++    state,
++    character: state.party[0],
++    combat: state.combatState,
+`;
+assert.equal(isTelemetryOnlyDiff(telemetryOnlyDiff), false, "context-only hunks require an existing telemetry anchor");
+const anchoredTelemetryDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,4 @@
++  trackChestAction(chest, action, {
++    state,
++    character: state.party[0],
++    combat: state.combatState,
+`;
+assert.equal(isTelemetryOnlyDiff(anchoredTelemetryDiff), true);
+assert.doesNotThrow(
+  () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", anchoredTelemetryDiff]]) }),
+  "telemetry-only mapped-module diff should not require balance runtime evidence"
+);
+const mixedTelemetryDiff = `${anchoredTelemetryDiff}+    state.currentRun.materials.blackHorn += 1;\n`;
+assert.equal(isTelemetryOnlyDiff(mixedTelemetryDiff), false);
+assert.throws(
+  () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", mixedTelemetryDiff]]) }),
+  /no declared runtime evidence: economy/
+);
+assert.throws(
+  () => assertBalanceImpactCovered(["src/unknown_telemetry.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/unknown_telemetry.js", anchoredTelemetryDiff]]) }),
+  /unknown production path/
+);
+assert.doesNotThrow(
+  () => assertBalanceImpactCovered(["src/combat_ui/action_selection.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/combat_ui/action_selection.js", anchoredTelemetryDiff]]) }),
+  "known telemetry caller path should use the conservative diff-aware exemption"
 );
 
 const discoveredRunners = discoverSimulationRunnerFiles();
