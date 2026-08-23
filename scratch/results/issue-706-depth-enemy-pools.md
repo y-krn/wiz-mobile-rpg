@@ -12,8 +12,10 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
 ## Provenance and matched conditions
 
 - Base source: `df08931fb9eb2208acaf4f17e5e430589f270276`.
-- Review-current source for the authoritative floor/status measurement:
-  `1de47098c2eb3bd524a8b8be66eeb649d6748183`.
+- Current-head source for the authoritative floor/status measurement:
+  `9dc1a7bf5b338223d7443dd54adf2c4705d8bf79`. The preceding
+  `1de47098c2eb3bd524a8b8be66eeb649d6748183` source is historical; the
+  current-head runner was rerun after the self-contained provenance changes.
 - `origin/main` matched the supplied base and was an ancestor of the measured
   source; stale-tree override was not used. Node: `v26.7.0`;
   `SIM_PARALLEL` omitted, runtime parallelism `15`.
@@ -22,7 +24,8 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
   are pre-fix historical artifacts only. The `ccd463a` → `1de47098` range
   changed only `scratch/issue624_commit_depth.js` and this summary; it did not
   change `src/`, `scratch/sim_depth_material_ev.js`, or the Issue #706 runner.
-  Current floor/status evidence was rerun directly at `1de47098`.
+  The prior `1de47098c2eb3bd524a8b8be66eeb649d6748183` measurement is also
+  historical; current floor/status evidence was rerun directly at `9dc1a7bf`.
 - Seed `231`; `SIM_RUNS=500`; `SIM_CALIBRATION_RUNS=100`; classes
   Fighter/Thief/Priest/Mage; six observed workshop scenarios; powder
   identification; EV flee and status-cure policy; conservative traps; current
@@ -63,11 +66,37 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
 - Current-head floor/status runner: `scratch/issue706_depth_enemy_pools.js`,
   B1-B5 traversal to B6, 500 runs per scenario and 100 calibration runs per
   scenario (3,000 total; 750 per class). Output schema is
-  `issue706-depth-enemy-pools-v1`; canonical JSONL/output SHA-256 is
-  `bcbd5b9731d1f45d936723bf01ab9af3a9db9d01ed191eb8eb9bcf0e8239c48e`.
-  Two clean-environment reruns produced this same SHA and byte-identical
-  stdout/stderr. The result reports source `1de47098c2eb3bd524a8b8be66eeb649d6748183`,
-  `originMainAncestor=true`, and `staleTreeAllowed=false`.
+  `issue706-depth-enemy-pools-v1`. At current HEAD
+  `9dc1a7bf5b338223d7443dd54adf2c4705d8bf79`, two clean-environment reruns
+  produced byte-identical stdout and stderr:
+  - output JSONL SHA-256: `66f5556d00513bc79543d9431400692b3ae53cba9e9747d7a1858cf074c2f89f`
+  - stderr SHA-256: `263d7c1e27f9a4d9bd6554baeaae0655387565fe574172053f4ffa30f91004c3`
+  - stderr report on both runs:
+    `ISSUE706_JSON_SHA256=66f5556d00513bc79543d9431400692b3ae53cba9e9747d7a1858cf074c2f89f`
+  The result reports `sourceCommit=9dc1a7bf5b338223d7443dd54adf2c4705d8bf79`,
+  `originMainAncestor=true`, and `staleTreeAllowed=false`. The earlier
+  `bcbd5b9731d1f45d936723bf01ab9af3a9db9d01ed191eb8eb9bcf0e8239c48e` output
+  SHA is retained as historical evidence from source `1de47098`; it is not
+  current-head evidence.
+- Exact current-head command (run twice with stdout/stderr captured outside the
+  repository):
+  `env -i PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin node scratch/issue706_depth_enemy_pools.js`.
+  The resolved `config` object in both outputs was:
+  `SIM_SEED=231, SIM_RUNS=500, SIM_CALIBRATION_RUNS=100,
+  DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION,
+  TRAP_POLICY=conservative, TRAP_AVOIDANCE_POLICY=ev, TRAP_DAMAGE_MULTIPLIER=1,
+  IDENTIFICATION_POLICY=powder, IDENTIFICATION_STARTING_POWDER=2,
+  IDENTIFICATION_COST_OVERRIDE=1, STATUS_CURE_POLICY=ev,
+  STATUS_CURE_HP_THRESHOLD=1, STATUS_CURE_MERCHANT_POLICY=missing,
+  HEAL_POTION_MERCHANT_POLICY=missing, FLEE_POLICY=ev, FLEE_HP_THRESHOLD=0.20,
+  HEAL_POTION_THRESHOLD=0.55, MANA_POTION_THRESHOLD=0.55, PORTAL_HP_THRESHOLD=0.35,
+  PORTAL_MAX_HEAL_POTIONS=0, PORTAL_MIN_FLOOR=3, ELITE_POLICY=avoid,
+  BLOOD_WAND_HP_PAYMENT_MIN_RATE=0.50, SIM_CORE_SCORE_DROP_TOLERANCE=0,
+  SIM_440_CONDITION=current, SIM_ISSUE646_CAMP_LEVEL=, SIM_INDEPENDENT_RUN_RANDOM=1,
+  SIM_737_DAMAGE_AUDIT=0, SIM_728_HIT_EVASION=0, SIM_DIALMA_CANDIDATE=1,
+  SIM_MADI_CANDIDATE=1, SIM_MADI_HEAL_MIN=, SIM_MADI_HEAL_MAX=, SIM_MADI_COST=,
+  SIM_MERCHANT_MANA_COST=, SIM_MERCHANT_EYE_DROPS=0, SIM_MERCHANT_RETURN_WING=0,
+  SIM_MERCHANT_RETURN_WING_COST=, SIM_RETURN_WING_MODE=special, SIM_SCENARIOS=`.
 - The runner forces the documented defaults before importing
   `sim_depth_material_ev.js`: `SIM_SEED=231`, `SIM_RUNS=500`,
   `SIM_CALIBRATION_RUNS=100`, `STATUS_CURE_POLICY=ev`, `FLEE_POLICY=ev`,
@@ -141,10 +170,15 @@ env -i PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin ISSUE706_SMOKE=1 SIM_
 node scratch/test_issue_706_enemy_pools.js
 env -i PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin node scratch/issue706_depth_enemy_pools.js
 node scratch/issue624_commit_depth.js
+npm run lint
+npm run test:unit
+node scripts/check_doc_paths.js
+git diff --check
 ```
 
 Raw JSONL and large one-off output remain outside the repository. The focused
 test confirms B1 gating, local-floor unlock, unchanged biome identity, and
-normal weights. The current-head rerun confirms B1 blind/sleep applications
+normal weights. The two current-head reruns confirm B1 blind/sleep applications
 remain zero while B2-B5 use the unlocked status-capable pools. Gameplay source
-was unchanged, so the prior source build remains valid.
+was unchanged, so the prior source build remains valid and a new build is
+unnecessary.
