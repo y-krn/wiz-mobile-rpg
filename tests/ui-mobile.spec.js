@@ -1,5 +1,13 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 import { VIEWPORTS } from './ui-ux-helpers.js';
+
+async function waitForControlsReady(page) {
+  await expect.poll(() => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return state.controlsGuardUntil <= performance.now();
+  })).toBe(true);
+}
+
 for (const vp of VIEWPORTS) {
   test.describe(`UIUX Mobile One-Handed Operation tests on ${vp.name} (${vp.width}x${vp.height})`, () => {
     test.beforeEach(async ({ page }) => {
@@ -9,13 +17,10 @@ for (const vp of VIEWPORTS) {
         localStorage.clear();
       });
       await page.goto('/');
-      await page.waitForTimeout(1000);
+      await expect(page.locator('#btn-town-dungeon')).toBeVisible();
     });
 
-    test('Check all visible buttons are at least 44px high and key actions are at the bottom', async ({ page }) => {
-      // Wait for initial load
-      await page.waitForTimeout(1000);
-
+    test('Check all visible buttons are at least 44px high and key actions are at the bottom @visual', async ({ page }) => {
       const verifyScreenButtons = async (screenName) => {
         let buttons = await page.locator('button:visible, [role="button"]:visible, .btn:visible, .equip-item-row:visible, .char-row:visible, .archives-tab:visible').all();
 
@@ -125,27 +130,27 @@ for (const vp of VIEWPORTS) {
       const workshopBtn = page.locator('#btn-town-workshop');
       if (await workshopBtn.isVisible()) {
         await workshopBtn.click();
-        await page.waitForTimeout(500);
+        await expect(page.locator('#submenu-controls')).toBeVisible();
         await verifyScreenButtons('Workshop Screen');
         const backBtn = page.locator('button:has-text("閉じる"):visible, #btn-submenu-back:visible').first();
         await backBtn.click();
-        await page.waitForTimeout(500);
+        await expect(page.locator('#town-controls')).toBeVisible();
       }
 
       // 3. Archives Screen
       const archivesBtn = page.locator('#btn-town-archives');
       if (await archivesBtn.isVisible()) {
         await archivesBtn.click();
-        await page.waitForTimeout(500);
+        await expect(page.locator('#archives-overlay')).toBeVisible();
         await verifyScreenButtons('Archives Screen');
         const backBtn = page.locator('button:has-text("閉じる"):visible, #btn-submenu-back:visible').first();
         await backBtn.click();
-        await page.waitForTimeout(500);
+        await expect(page.locator('#town-controls')).toBeVisible();
       }
 
     });
 
-    test('Dungeon exploration controls stay compact after entering the dungeon', async ({ page }) => {
+    test('Dungeon exploration controls stay compact after entering the dungeon @visual', async ({ page }) => {
       await page.locator('#btn-town-dungeon').click();
       await expect(page.locator('#submenu-controls')).toBeVisible();
       await page.getByRole('button', { name: /戦士/ }).click();
@@ -164,7 +169,7 @@ for (const vp of VIEWPORTS) {
       }
     });
 
-    test('Few-button submenu rows do not stretch to fill the panel', async ({ page }) => {
+    test('Few-button submenu rows do not stretch to fill the panel @visual', async ({ page }) => {
       await page.evaluate(async () => {
         const { openSubmenu } = await import('/src/navigation.js');
         openSubmenu('enter_dungeon_select', '迷宮へ入る準備：');
@@ -177,7 +182,7 @@ for (const vp of VIEWPORTS) {
       expect(box.height, `Few-button submenu row should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
     });
 
-    test('Result screen expands by collapsing logs and controls', async ({ page }) => {
+    test('Result screen expands by collapsing logs and controls @visual', async ({ page }) => {
       await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
         const { createDefaultCurrentRun } = await import('/src/state/initial_state.js');
@@ -224,7 +229,7 @@ for (const vp of VIEWPORTS) {
       expect(layout.party.bottom, `Solo HUD should stay visible below result viewport on ${vp.name}`).toBeLessThanOrEqual(layout.height);
     });
 
-    test('Standalone safe-area chest menu keeps solo HUD visible', async ({ page }) => {
+    test('Standalone safe-area chest menu keeps solo HUD visible @visual', async ({ page }) => {
       await page.addStyleTag({
         content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,
       });
@@ -384,7 +389,7 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
     });
 
-    test('Dungeon event submenus hide logs only until result phase', async ({ page }) => {
+    test('Dungeon event submenus hide logs only until result phase @visual', async ({ page }) => {
       await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
         const { openSubmenu } = await import('/src/navigation.js');
@@ -484,7 +489,7 @@ for (const vp of VIEWPORTS) {
       for (const button of stairsLayout.buttons) {
         expect(button.height).toBeGreaterThanOrEqual(44);
       }
-      await page.waitForTimeout(400);
+      await waitForControlsReady(page);
       await page.getByRole('button', { name: '降りずに進む' }).click();
 
       const afterStay = await page.evaluate(async () => {
@@ -499,7 +504,8 @@ for (const vp of VIEWPORTS) {
         checkCellEvents();
         updateUI();
       });
-      await page.waitForTimeout(400);
+      await expect(page.getByRole('button', { name: /へ降りる$/ })).toBeVisible();
+      await waitForControlsReady(page);
       await page.getByRole('button', { name: /へ降りる$/ }).click();
       await expect.poll(async () => page.evaluate(async () => {
         const { state } = await import('/src/state.js');
@@ -652,7 +658,7 @@ for (const vp of VIEWPORTS) {
       expect(started).toBe(true);
       await expect(page.getByRole('button', { name: '休息する' })).toBeVisible();
       await expect(page.getByRole('button', { name: '休息せず進む' })).toBeVisible();
-      await page.waitForTimeout(400);
+      await waitForControlsReady(page);
       await page.getByRole('button', { name: '休息する' }).click();
 
       const afterRest = await page.evaluate(async () => {
@@ -674,7 +680,8 @@ for (const vp of VIEWPORTS) {
         return startCampEntryIfEligible(11);
       });
       expect(secondStarted).toBe(true);
-      await page.waitForTimeout(400);
+      await expect(page.getByRole('button', { name: '休息せず進む' })).toBeVisible();
+      await waitForControlsReady(page);
       await page.getByRole('button', { name: '休息せず進む' }).click();
       const afterContinue = await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
@@ -687,7 +694,7 @@ for (const vp of VIEWPORTS) {
       expect(afterContinue).toEqual({ gameState: 'explore', pending: null, completed: [6, 11] });
     });
 
-    test('Standalone safe-area town menu is scroll-contained above solo HUD', async ({ page }) => {
+    test('Standalone safe-area town menu is scroll-contained above solo HUD @visual', async ({ page }) => {
       await page.addStyleTag({
         content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,
       });

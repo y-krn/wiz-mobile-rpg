@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 import { VIEWPORTS, SOLO_HUD_VIEWPORTS, SOLO_HUD_STATES } from './ui-ux-helpers.js';
 test('Debug reset clears all progression and persists the initial state', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
@@ -53,7 +53,7 @@ test('Debug reset clears all progression and persists the initial state', async 
 });
 
 for (const vp of VIEWPORTS) {
-  test(`Records, run quests, and result focus stay visible at ${vp.width}x${vp.height}`, async ({ page }) => {
+  test(`Records, run quests, and result focus stay visible at ${vp.width}x${vp.height} @visual`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(async () => {
@@ -130,7 +130,7 @@ for (const vp of VIEWPORTS) {
 }
 
 for (const vp of VIEWPORTS) {
-  test(`Floor identity fits ${vp.name} (${vp.width}x${vp.height})`, async ({ page }) => {
+  test(`Floor identity fits ${vp.name} (${vp.width}x${vp.height}) @visual`, async ({ page }) => {
     await page.setViewportSize(vp);
     await page.goto('/');
     await page.evaluate(async () => {
@@ -156,7 +156,7 @@ for (const vp of VIEWPORTS) {
 }
 
 for (const vp of SOLO_HUD_VIEWPORTS) {
-  test.describe(`Solo HUD on ${vp.name} (${vp.width}x${vp.height})`, () => {
+  test.describe(`Solo HUD on ${vp.name} (${vp.width}x${vp.height}) @visual`, () => {
     for (const gameState of SOLO_HUD_STATES) {
       test(`shows one Mage with visible MP in ${gameState}`, async ({ page }) => {
         await page.setViewportSize({ width: vp.width, height: vp.height });

@@ -1,8 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 import { VIEWPORTS } from './ui-ux-helpers.js';
 
 for (const viewport of VIEWPORTS) {
-  test(`bleeding enemy card is observable at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+  test(`bleeding enemy card is observable at ${viewport.width}x${viewport.height} @visual`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto('/');
     await page.evaluate(async () => {

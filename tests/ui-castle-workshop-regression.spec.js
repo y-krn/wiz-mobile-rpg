@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 test('Castle to workshop transition keeps the workshop grid readable', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });

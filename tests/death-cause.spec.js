@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 test('real trap, status, and combat deaths keep structured causes', async ({ page }) => {
   await page.goto('/');

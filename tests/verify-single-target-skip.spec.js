@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
 const OTHER_MOBILE_VIEWPORTS = [

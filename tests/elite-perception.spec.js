@@ -1,7 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 for (const viewport of [{ width: 360, height: 800 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
-  test(`Noise ball direction controls fit ${viewport.width}x${viewport.height}`, async ({ page }) => {
+  test(`Noise ball direction controls fit ${viewport.width}x${viewport.height} @visual`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/');
     const result = await page.evaluate(async () => {

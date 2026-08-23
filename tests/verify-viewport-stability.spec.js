@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 const VIEWPORTS = [
   { width: 390, height: 844 },
@@ -47,7 +47,7 @@ async function activateControlsMode(page, mode) {
   }));
 }
 
-test('canvas top and height stay stable across controls modes', async ({ page }) => {
+test('canvas top and height stay stable across controls modes @visual', async ({ page }) => {
   const failures = [];
   const measurements = {};
 
@@ -119,7 +119,7 @@ for (const viewport of [
   { width: 390, height: 844 },
   { width: 430, height: 932 },
 ]) {
-  test(`exploration canvas stays stable across repeated updates at ${viewport.width}px`, async ({ page }) => {
+  test(`exploration canvas stays stable across repeated updates at ${viewport.width}px @visual`, async ({ page }) => {
     await page.addInitScript(() => {
       const originalSetAttribute = Element.prototype.setAttribute;
       window.__viewportMetaWrites = 0;
@@ -164,7 +164,7 @@ for (const viewport of [
   });
 }
 
-test('result and event viewports preserve their flexible heights', async ({ page }) => {
+test('result and event viewports preserve their flexible heights @visual', async ({ page }) => {
   const failures = [];
   const measurements = {};
 

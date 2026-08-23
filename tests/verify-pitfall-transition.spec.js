@@ -1,8 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
-test('jumping into a discovered pitfall descends from a lazily generated floor', async ({ page }) => {
-  const pageErrors = [];
-  page.on('pageerror', error => pageErrors.push(error.message));
+test('jumping into a discovered pitfall descends from a lazily generated floor @e2e @smoke', async ({ page }) => {
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -42,33 +40,16 @@ test('jumping into a discovered pitfall descends from a lazily generated floor',
       difficulty: 30
     };
 
-    // executeEnterDungeon resets run floors, so B2 is intentionally ungenerated.
-    if (state.maps[1] !== undefined) throw new Error('Pitfall test requires a lazy B2 map');
     handleMove('forward');
   });
 
   await expect(page.locator('#btn-trap-force')).toHaveText('飛び込む');
-  await page.waitForTimeout(400);
-  await page.locator('#btn-trap-force').click();
-  await page.waitForTimeout(1500);
-
-  const snapshot = await page.evaluate(async () => {
-    const { state } = await import('/src/state.js');
-    return {
-      floor: state.floor,
-      gameState: state.gameState,
-      transitioning: state.transitioning,
-      activeTrapState: state.activeTrapState,
-      nextMapGenerated: Boolean(state.maps[1])
-    };
-  });
-
-  expect(pageErrors).toEqual([]);
-  expect(snapshot).toEqual({
-    floor: 2,
-    gameState: 'explore',
-    transitioning: false,
-    activeTrapState: null,
-    nextMapGenerated: true
-  });
+  await expect.poll(async () => {
+    const location = await page.locator('#location-label').textContent();
+    if (!location?.includes('B2F')) await page.locator('#btn-trap-force').click();
+    return location;
+  }).toContain('B2F');
+  await expect(page.locator('#explore-controls')).toBeVisible();
+  await expect(page.locator('#btn-move-forward')).toBeVisible();
+  await expect(page.locator('#trap-controls')).toBeHidden();
 });

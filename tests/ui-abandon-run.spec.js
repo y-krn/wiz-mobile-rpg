@@ -1,8 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 import { VIEWPORTS } from './ui-ux-helpers.js';
 
 for (const vp of VIEWPORTS) {
-  test(`abandon run confirmation is cancelable and death-equivalent at ${vp.width}x${vp.height}`, async ({ page }) => {
+  test(`abandon run confirmation is cancelable and death-equivalent at ${vp.width}x${vp.height} @e2e @smoke`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.locator('#btn-town-dungeon').click();

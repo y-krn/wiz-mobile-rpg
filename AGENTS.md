@@ -37,6 +37,11 @@ tool-specific fallback instruction files.
 - Keep one concern per Issue. Changes that modify the repository go through a
   pull request linked with `Closes #<issue>`.
 
+- For browser coverage, prefer strengthening an existing specification test or
+  adding unit coverage over creating a new Issue-named spec. Use Playwright for
+  user-visible behavior and layout/visual evidence; use unit tests for
+  browser-independent rules, state transitions, and calculations.
+
 ## Git and remote hosting
 
 - Use `git` for local repository history, diffs, branches, worktrees, commits,

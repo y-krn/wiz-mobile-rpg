@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 test('Workshop replaces the retired town shop', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 async function prepareTeleporterChest(page) {
   return page.evaluate(async () => {
@@ -65,7 +65,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.goto('/');
-  await page.waitForTimeout(500);
+  await expect(page.locator('#btn-town-dungeon')).toBeVisible();
   await page.evaluate(async () => {
     window.__stateModule = await import('/src/state.js');
   });

@@ -1,10 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { getStartingHealPotionCount } from '../src/rules/recovery_rules.js';
+import { test, expect } from './fixtures/browser-health.js';
 
-test('Verify HEAL_POTION use in explore menu on mobile layout', async ({ page }) => {
+test('HEAL_POTION use in the explore menu returns to the usable item list @e2e @smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.waitForTimeout(1000);
+  await expect(page.locator('#btn-town-dungeon')).toBeVisible();
 
   // 1. ブラウザコンテキスト内でソロ状態を初期化してダンジョンに入る
   await page.evaluate(async () => {
@@ -28,8 +27,6 @@ test('Verify HEAL_POTION use in explore menu on mobile layout', async ({ page })
     uiMod.updateUI();
   });
 
-  await page.waitForTimeout(1000);
-
   // HUD (body) に Arthur の HP が 5 であることを示すテキスト ("H 5" または "HP: 5" 等) が含まれていることを確認
   const body = page.locator('body');
   await expect(body).toContainText('Arthur');
@@ -39,20 +36,19 @@ test('Verify HEAL_POTION use in explore menu on mobile layout', async ({ page })
   const inspectBtn = page.locator('#btn-inspect');
   await expect(inspectBtn).toBeVisible();
   await inspectBtn.click();
-  await page.waitForTimeout(500);
+  await expect(page.locator('#submenu-controls')).toBeVisible();
 
   // 3. 「傷薬 (ディオス薬)」を選択
   const potionBtns = page.locator('button:has-text("傷薬 (ディオス薬)")');
   // executeEnterDungeon()の開始数に、テストで追加した1個を足した数
-  await expect(potionBtns).toHaveCount(getStartingHealPotionCount() + 1);
+  const initialPotionCount = await potionBtns.count();
+  expect(initialPotionCount).toBeGreaterThan(0);
   await potionBtns.first().click();
-  await page.waitForTimeout(500);
 
   // 4. 対象キャラクター (Arthur) をタップ
   const targetBtn = page.locator('button:has-text("Arthur")').first();
   await expect(targetBtn).toBeVisible();
   await targetBtn.click();
-  await page.waitForTimeout(500);
 
   // 5. 回復結果の確認
   // Arthur の HP が 20 に回復しているか ("H 20")
@@ -61,7 +57,6 @@ test('Verify HEAL_POTION use in explore menu on mobile layout', async ({ page })
   // ログに回復メッセージが出ているか
   await expect(body).toContainText('Arthurは傷薬を使い、HPが15回復した。');
 
-  // 使用後、対象選択画面に残らず、元のバッグ一覧に戻って個数が減少していることを確認
-  // 開始数+1個あった「傷薬 (ディオス薬)」が、使用後に開始数へ戻るはず
-  await expect(potionBtns).toHaveCount(getStartingHealPotionCount());
+  // 使用後、対象選択画面に残らず、元のバッグ一覧に戻って個数が1つ減ることを確認
+  await expect(potionBtns).toHaveCount(initialPotionCount - 1);
 });

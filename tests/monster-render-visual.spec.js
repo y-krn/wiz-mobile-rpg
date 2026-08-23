@@ -1,7 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 const phase = process.env.MONSTER_VOLUME_PHASE || 'after';
-const screenshotPath = `output/playwright/issue-708-monster-${phase}.png`;
+const screenshotPath = `output/playwright/monster-render-${phase}.png`;
 
 const MONSTERS = [
   { name: 'ゾンビ', level: 2, hp: 32, maxHp: 32, color: '#8a2be2', spriteType: 'zombie' },
@@ -99,7 +99,7 @@ async function installLegacyMonsterRenderer(page) {
   });
 }
 
-test('Issue 708 captures three-monster mobile render and frame timing', async ({ page }) => {
+test('Three-monster mobile render preserves distinct bodies and frame timing @visual', async ({ page }) => {
   await setupCombatScene(page);
   if (phase === 'before') await installLegacyMonsterRenderer(page);
 
@@ -147,8 +147,8 @@ test('Issue 708 captures three-monster mobile render and frame timing', async ({
     };
   });
 
-  console.log(`[issue-708:${phase}] mean=${result.meanMs.toFixed(3)}ms p50=${result.p50Ms.toFixed(3)}ms p95=${result.p95Ms.toFixed(3)}ms`);
-  console.log(`[issue-708:${phase}] pixels=${JSON.stringify(result)}`);
+  console.log(`[monster-render:${phase}] mean=${result.meanMs.toFixed(3)}ms p50=${result.p50Ms.toFixed(3)}ms p95=${result.p95Ms.toFixed(3)}ms`);
+  console.log(`[monster-render:${phase}] pixels=${JSON.stringify(result)}`);
   expect(result.meanMs).toBeGreaterThan(0);
 
   if (phase === 'after') {

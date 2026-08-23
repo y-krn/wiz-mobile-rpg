@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 const VIEWPORTS = [
   { width: 360, height: 800 },
@@ -43,7 +43,7 @@ async function scrollWorkshopToBottom(page) {
 }
 
 for (const viewport of VIEWPORTS) {
-  test(`Workshop materials stay visible at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+  test(`Workshop materials stay visible at ${viewport.width}x${viewport.height} @visual`, async ({ page }) => {
     await openWorkshop(page, viewport);
 
     const assertStickyBalance = async () => {
@@ -63,7 +63,7 @@ for (const viewport of VIEWPORTS) {
     await assertStickyBalance();
   });
 
-  test(`Workshop list keeps readable nodes at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+  test(`Workshop list keeps readable nodes at ${viewport.width}x${viewport.height} @visual`, async ({ page }) => {
     await openWorkshop(page, viewport);
 
     const grid = page.locator('#submenu-options.workshop-grid');
