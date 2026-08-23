@@ -161,65 +161,118 @@ test('Dungeon theme clears inline variables when leaving an active run @visual',
   expect(Object.values(evidence.resultInline).every(value => value === '')).toBe(true);
 });
 
-test('Representative biomes use distinct stable exploration silhouettes @visual', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  await page.waitForLoadState('networkidle');
+for (const viewport of VIEWPORTS) {
+  test(`Representative biome renderer output remains distinct at ${viewport.width}px @visual`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
-  const evidence = {};
-  for (const floor of REPRESENTATIVE_FLOORS) {
-    evidence[floor] = await page.evaluate(async targetFloor => {
-      const { state, createDefaultCurrentRun } = await import('/src/state.js');
-      const { getProjectionPlanes } = await import('/src/renderer.js');
-      const { getFloorTheme } = await import('/src/data/floor_themes.js');
-      const { updateUI } = await import('/src/ui/ui_root.js');
-      const makeCell = () => ({
-        walls: [false, false, false, false],
-        blockEnter: [false, false, false, false],
-        secretDoor: [false, false, false, false],
-        type: 'empty',
-      });
-      const map = Array.from({ length: 12 }, () => Array.from({ length: 12 }, makeCell));
-      map[5][4].walls[0] = true;
-      map[5][6].walls[0] = true;
-      map[4][5].walls[0] = true;
-      state.currentRun = createDefaultCurrentRun();
-      state.floor = targetFloor;
-      state.x = 5;
-      state.y = 5;
-      state.dir = 0;
-      state.gameState = 'explore';
-      state.maps[targetFloor - 1] = map;
-      state.visitedMaps[targetFloor - 1] = map.map(row => row.map(() => true));
-      state.map = map;
-      updateUI();
-      const { dungeonRenderer } = await import('/src/renderer.js');
-      dungeonRenderer.draw();
+    const evidence = {};
+    for (const floor of REPRESENTATIVE_FLOORS) {
+      evidence[floor] = await page.evaluate(async targetFloor => {
+        const { state, createDefaultCurrentRun } = await import('/src/state.js');
+        const { dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
+        const { getFloorTheme } = await import('/src/data/floor_themes.js');
+        const makeCell = () => ({
+          walls: [false, false, false, false],
+          blockEnter: [false, false, false, false],
+          secretDoor: [false, false, false, false],
+          type: 'empty',
+        });
+        const map = Array.from({ length: 12 }, () => Array.from({ length: 12 }, makeCell));
+        map[5][4].walls[0] = true;
+        map[5][6].walls[0] = true;
+        map[4][5].blockEnter[2] = true;
+        state.currentRun = createDefaultCurrentRun();
+        state.floor = targetFloor;
+        state.x = 5;
+        state.y = 5;
+        state.dir = 0;
+        state.gameState = 'explore';
+        state.maps[targetFloor - 1] = map;
+        state.visitedMaps[targetFloor - 1] = map.map(row => row.map(() => true));
+        state.map = map;
 
-      const geometry = getFloorTheme(targetFloor).visualSignature.geometry;
-      const projection = getProjectionPlanes(geometry);
-      return {
-        geometry,
-        silhouette: [
-          projection.leftTop[0], projection.rightTop[0], projection.yt[0], projection.yb[0],
-          projection.leftTop[1], projection.rightTop[1], projection.yt[1], projection.yb[1],
-          projection.ceilingStyle,
-        ],
-      };
-    }, floor);
-    await page.screenshot({
-      path: `output/playwright/dungeon-geometry-390-B${floor}.png`,
-      fullPage: true,
-    });
-  }
+        const geometry = getFloorTheme(targetFloor).visualSignature.geometry;
+        const projection = getProjectionPlanes(geometry);
+        const barrierPlane = getProjectionColumn(projection, 1);
+        const canvas = document.querySelector('#dungeon-canvas');
+        const ctx = canvas.getContext('2d');
+        const scene = {
+          showTownBackground: false,
+          showCombat: false,
+          showChest: false,
+          showEventScene: true,
+          showItemMenu: false,
+        };
+        const originalDateNow = Date.now;
+        Date.now = () => 1700000000000;
+        const render = blocked => {
+          map[4][5].blockEnter[2] = blocked;
+          dungeonRenderer.draw(scene);
+          return new Uint8ClampedArray(ctx.getImageData(0, 0, canvas.width, canvas.height).data);
+        };
+        const withoutBarrier = render(false);
+        const withBarrier = render(true);
+        Date.now = originalDateNow;
 
-  const baseline = { corridorWidth: 1, ceilingHeight: 1, wallLean: 0, ceilingStyle: 'flat' };
-  for (const floor of REPRESENTATIVE_FLOORS) {
-    const geometry = evidence[floor].geometry;
-    const changedDimensions = ['corridorWidth', 'ceilingHeight', 'wallLean', 'ceilingStyle']
-      .filter(key => geometry[key] !== baseline[key]);
-    expect(changedDimensions.length, `B${floor} should change at least two geometry dimensions`).toBeGreaterThanOrEqual(2);
-  }
-  expect(new Set(REPRESENTATIVE_FLOORS.map(floor => JSON.stringify(evidence[floor].silhouette))).size)
-    .toBe(REPRESENTATIVE_FLOORS.length);
-});
+        const pixelDelta = (pixels, x, y) => {
+          const index = (Math.max(0, Math.min(canvas.width - 1, Math.round(x))) +
+            Math.max(0, Math.min(canvas.height - 1, Math.round(y))) * canvas.width) * 4;
+          return Math.abs(pixels[index] - withoutBarrier[index]) +
+            Math.abs(pixels[index + 1] - withoutBarrier[index + 1]) +
+            Math.abs(pixels[index + 2] - withoutBarrier[index + 2]);
+        };
+        let changedPixels = 0;
+        for (let index = 0; index < withBarrier.length; index += 4) {
+          if (withBarrier[index] !== withoutBarrier[index] ||
+              withBarrier[index + 1] !== withoutBarrier[index + 1] ||
+              withBarrier[index + 2] !== withoutBarrier[index + 2]) changedPixels++;
+        }
+
+        const t = 0.8;
+        const leftAtT = barrierPlane.leftTop + (barrierPlane.leftBottom - barrierPlane.leftTop) * t;
+        const edgeX = (barrierPlane.leftTop + leftAtT) / 2;
+        const edgeY = barrierPlane.top + (barrierPlane.bottom - barrierPlane.top) * t;
+        const centerX = (barrierPlane.leftTop + barrierPlane.rightTop) / 2;
+        const centerY = barrierPlane.top + (barrierPlane.bottom - barrierPlane.top) / 2;
+        const archHeight = Math.max(3, (barrierPlane.bottom - barrierPlane.top) * 0.12);
+        return {
+          geometry,
+          silhouette: [
+            projection.leftTop[0], projection.rightTop[0], projection.yt[0], projection.yb[0],
+            projection.leftTop[1], projection.rightTop[1], projection.yt[1], projection.yb[1],
+            projection.ceilingStyle,
+          ],
+          canvasSize: [canvas.width, canvas.height],
+          changedPixels,
+          centerDelta: pixelDelta(withBarrier, centerX, centerY),
+          edgeDelta: pixelDelta(withBarrier, edgeX, edgeY),
+          archApexDelta: pixelDelta(withBarrier, centerX, barrierPlane.top - archHeight * 0.5 + 2),
+        };
+      }, floor);
+    }
+
+    const baseline = { corridorWidth: 1, ceilingHeight: 1, wallLean: 0, ceilingStyle: 'flat' };
+    for (const floor of REPRESENTATIVE_FLOORS) {
+      const { geometry, canvasSize, changedPixels, centerDelta, edgeDelta, archApexDelta } = evidence[floor];
+      const changedDimensions = ['corridorWidth', 'ceilingHeight', 'wallLean', 'ceilingStyle']
+        .filter(key => geometry[key] !== baseline[key]);
+      expect(changedDimensions.length, `B${floor} should change at least two geometry dimensions`).toBeGreaterThanOrEqual(2);
+      expect(canvasSize).toEqual([400, 260]);
+      expect(changedPixels, `B${floor} barrier should change the rendered canvas`).toBeGreaterThan(40);
+      expect(centerDelta, `B${floor} barrier center should be rendered`).toBeGreaterThan(5);
+      if (geometry.wallLean > 0) {
+        expect(edgeDelta, `B${floor} positive lean should render the expanded lower edge`).toBeGreaterThan(5);
+      }
+      if (geometry.wallLean < 0) {
+        expect(edgeDelta, `B${floor} negative lean should clip the contracted lower edge`).toBeLessThan(5);
+      }
+      if (geometry.ceilingStyle === 'arch') {
+        expect(archApexDelta, `B${floor} arch barrier should render its curved apex`).toBeGreaterThan(5);
+      }
+    }
+    expect(new Set(REPRESENTATIVE_FLOORS.map(floor => JSON.stringify(evidence[floor].silhouette))).size)
+      .toBe(REPRESENTATIVE_FLOORS.length);
+  });
+}

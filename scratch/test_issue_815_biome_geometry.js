@@ -74,6 +74,20 @@ check("every geometry projection preserves left-right and top-bottom ordering", 
   });
 });
 
+check("leaned projection columns share every adjacent top and bottom seam", () => {
+  BIOMES.forEach(({ visualSignature }) => {
+    const projection = getProjectionPlanes(visualSignature.geometry);
+    for (let z = 0; z < projection.xl.length; z++) {
+      for (let column = -2; column < 2; column++) {
+        const current = getProjectionColumn(projection, z, column);
+        const next = getProjectionColumn(projection, z, column + 1);
+        assert.equal(current.rightTop, next.leftTop, `top seam failed at z=${z}, column=${column}`);
+        assert.equal(current.rightBottom, next.leftBottom, `bottom seam failed at z=${z}, column=${column}`);
+      }
+    }
+  });
+});
+
 check("floor themes preserve the canonical geometry lookup", () => {
   [1, 6, 11, 16, 21, 26].forEach(floor => {
     assert.deepEqual(

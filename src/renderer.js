@@ -86,12 +86,13 @@ export function getProjectionPlanes(geometry = BASE_GEOMETRY) {
 }
 
 export function getProjectionColumn(projection, z, column = 0) {
-  const width = projection.xr[z] - projection.xl[z];
+  const topWidth = projection.rightTop[z] - projection.leftTop[z];
+  const bottomWidth = projection.rightBottom[z] - projection.leftBottom[z];
   return {
-    leftTop: projection.leftTop[z] + width * column,
-    leftBottom: projection.leftBottom[z] + width * column,
-    rightTop: projection.rightTop[z] + width * column,
-    rightBottom: projection.rightBottom[z] + width * column,
+    leftTop: projection.leftTop[z] + topWidth * column,
+    leftBottom: projection.leftBottom[z] + bottomWidth * column,
+    rightTop: projection.leftTop[z] + topWidth * (column + 1),
+    rightBottom: projection.leftBottom[z] + bottomWidth * (column + 1),
     top: projection.yt[z],
     bottom: projection.yb[z]
   };
@@ -584,6 +585,14 @@ export class DungeonRenderer {
     }
     ctx.lineTo(nextPlane.rightBottom, nextPlane.bottom);
     ctx.lineTo(plane.rightBottom, plane.bottom);
+    ctx.lineTo(plane.rightTop, plane.top);
+    if (ceilingStyle === "arch") {
+      const centerX = (plane.leftTop + plane.rightTop) / 2;
+      const archHeight = Math.max(3, (plane.bottom - plane.top) * 0.12);
+      ctx.quadraticCurveTo(centerX, plane.top - archHeight, plane.leftTop, plane.top);
+    } else {
+      ctx.lineTo(plane.leftTop, plane.top);
+    }
     ctx.closePath();
     ctx.fill();
   }
@@ -650,20 +659,21 @@ export class DungeonRenderer {
 
   drawOneWayBarrier(ctx, z, color, projection = getProjectionPlanes()) {
     const plane = getProjectionColumn(projection, z + 1);
-    const x = plane.leftTop;
+    const topWidth = plane.rightTop - plane.leftTop;
+    const bottomWidth = plane.rightBottom - plane.leftBottom;
     const y = plane.top;
-    const w = plane.rightTop - plane.leftTop;
+    const w = (topWidth + bottomWidth) / 2;
     const h = plane.bottom - plane.top;
-    const midX = x + w / 2;
+    const midX = (plane.leftTop + plane.rightTop + plane.leftBottom + plane.rightBottom) / 4;
     const midY = y + h / 2;
     const chevronW = Math.max(8, w * 0.18);
     const chevronH = Math.max(6, h * 0.12);
 
     ctx.fillStyle = "rgba(0, 229, 255, 0.10)";
-    ctx.fillRect(x, y, w, h);
+    this.fillProjectedFrontWall(ctx, plane, projection.ceilingStyle);
     ctx.strokeStyle = "rgba(0, 229, 255, 0.75)";
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(x, y, w, h);
+    this.strokeProjectedFrontWall(ctx, plane, projection.ceilingStyle);
 
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
