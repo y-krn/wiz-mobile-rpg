@@ -9,6 +9,7 @@ import {
   getSpellAllyTargetIndices,
   getSpellAllyTargetStatus
 } from "./rules/spell_targeting.js";
+import { trackExplorationDecision } from "./telemetry.js";
 
 export let spellMenuState = {
   filter: "all", // "all", "usable", "heal", "utility", "combat"
@@ -20,6 +21,12 @@ function executeUtilitySpell() {
   const spell = SPELLS[menuContext.spellName];
   const payment = paySpellCost(caster, spell.cost);
   if (!payment.canCast) return;
+  trackExplorationDecision("spell", {
+    state,
+    character: caster,
+    source: state.map?.[state.y]?.[state.x]?.event,
+    spellName: menuContext.spellName
+  });
   if (payment.resource === "hp") addLog(getCoreLogText("CORE_BLOOD_WAND"));
   playSound("cast_spell");
   if (menuContext.spellName === "DUMAPIC") state.dumapicTurns = 30;
@@ -34,6 +41,13 @@ function executeAllySpell(targetIdx) {
   const spell = SPELLS[menuContext.spellName];
   const payment = paySpellCost(caster, spell.cost);
   if (!payment.canCast) return;
+  trackExplorationDecision("spell", {
+    state,
+    character: caster,
+    source: state.map?.[state.y]?.[state.x]?.event,
+    spellName: menuContext.spellName,
+    targetIdx
+  });
   if (payment.resource === "hp") addLog(getCoreLogText("CORE_BLOOD_WAND"));
   playSound("cast_spell");
   const target = spell.target === "all_allies" ? state.party : state.party[targetIdx];

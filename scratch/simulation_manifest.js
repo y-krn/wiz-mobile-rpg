@@ -157,7 +157,14 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/combat_ui/spell_menu.js",
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**",
     "src/sentry.js", "src/error_context.js", "src/controls_guard.js",
-    "src/runtime_diagnostics.js"
+    "src/runtime_diagnostics.js", "src/telemetry.js", "src/spell_menu.js"
+  ]),
+  // Exact paths whose current callers may receive telemetry-only edits. A
+  // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
+  telemetryOnlyPaths: Object.freeze([
+    "src/combat_ui/action_selection.js",
+    "src/combat_ui/combat_start.js",
+    "src/combat_ui/round_runner.js"
   ])
 });
 
@@ -303,6 +310,11 @@ export function validateSimulationManifest(manifest = SIMULATION_MANIFEST) {
     )) errors.push("canonical runner is missing from lifecycle metadata");
   }
   if (!Array.isArray(manifest?.balanceImpactPaths) || manifest.balanceImpactPaths.length === 0) errors.push("balance impact path metadata is missing");
+  for (const pattern of manifest?.telemetryOnlyPaths || []) {
+    if (typeof pattern !== "string" || !pattern || pattern.includes("*")) {
+      errors.push(`telemetry-only path must be exact: ${pattern || "<missing>"}`);
+    }
+  }
   return errors;
 }
 
@@ -395,7 +407,400 @@ export function currentChangedFiles({ baseRef = process.env.BASE_REF || "origin/
   ])];
 }
 
-export function analyzeBalanceImpact(changedFiles, manifest = SIMULATION_MANIFEST, runtimeResult = undefined) {
+const TELEMETRY_CONTEXT_KEYS = new Set([
+  "state", "character", "combat", "actorIdx", "targetIdx", "spellName", "itemKey",
+  "currentKey", "candidateKey", "preview", "source", "charOriginalIdx", "dir",
+  "itemAction", "direction"
+]);
+
+function isTelemetryImport(line) {
+  return /^import\s+\{[^}]*\btrack[A-Z][A-Za-z0-9]*\b[^}]*\}\s+from\s+["'][^"']*telemetry\.js["'];?$/.test(line.trim());
+}
+
+function hasGameplayMutation(line) {
+  const trimmed = line.trim();
+  if (/(?:\+=|-=|\*=|\/=|%=|&=|\|=|\^=|<<=|>>=|>>>=|\+\+|--)/.test(trimmed)) return true;
+  return /(^|[^=!<>])=(?!=|>)/.test(trimmed);
+}
+
+function hasNestedCall(line) {
+  const outerOpen = line.indexOf("(");
+  return outerOpen >= 0 && line.slice(outerOpen + 1).includes("(");
+}
+
+function hasComputedPropertyKey(line) {
+  let quote = null;
+  let escaped = false;
+  for (let index = 0; index < line.length; index++) {
+    const character = line[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      continue;
+    }
+    if (character !== "]") continue;
+    let next = index + 1;
+    while (/\s/.test(line[next] || "")) next++;
+    if (line[next] === ":") return true;
+  }
+  return false;
+}
+
+function hasUnsafeExpressionSyntax(line) {
+  return hasComputedPropertyKey(line)
+    || /\b(?:delete|new|throw|void|await|yield)\b/.test(line);
+}
+
+const SAFE_TELEMETRY_ARGUMENT_IDENTIFIERS = new Set([
+  ...TELEMETRY_CONTEXT_KEYS,
+  "char", "character", "combat", "currentChar", "caster", "event", "action", "run", "outcome",
+  "currentItemKey", "selectedItem", "oldEq", "undefined"
+]);
+
+const SAFE_TELEMETRY_CONTEXT_PATHS = Object.freeze([
+  /^state\.combatState$/,
+  /^state\.party\[(?:0|equipState\.actorIdx)\]$/,
+  /^state\.map\?\.\[state\.y\]\?\.\[state\.x\]\?\.event$/,
+  /^preview\?\.oldEq$/,
+  /^menuContext\.(?:itemKey|spellName)$/
+]);
+
+function stripQuotedContent(value) {
+  let result = "";
+  let quote = null;
+  let escaped = false;
+  for (const character of value) {
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      result += " ";
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      result += " ";
+    } else {
+      result += character;
+    }
+  }
+  return result;
+}
+
+function hasUnvalidatedMemberRead(line) {
+  let code = stripQuotedContent(line);
+  for (const pattern of SAFE_TELEMETRY_CONTEXT_PATHS) {
+    code = code.replace(new RegExp(pattern.source.replace(/^\^|\$$/g, ""), "g"), "safe_context");
+  }
+  return /\.\.\.|\?\.|\.[A-Za-z_$][A-Za-z0-9_$]*|\b[A-Za-z_$][A-Za-z0-9_$]*\s*\[/.test(code);
+}
+
+function splitTopLevel(value) {
+  const parts = [];
+  let start = 0;
+  let quote = null;
+  let escaped = false;
+  let depth = 0;
+  for (let index = 0; index < value.length; index++) {
+    const character = value[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      continue;
+    }
+    if ("({[".includes(character)) depth++;
+    else if (")}]".includes(character)) depth--;
+    else if (character === "," && depth === 0) {
+      parts.push(value.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  parts.push(value.slice(start).trim());
+  return parts.filter(Boolean);
+}
+
+function getCompleteCallArguments(line) {
+  const open = line.indexOf("(");
+  if (open < 0) return null;
+  let quote = null;
+  let escaped = false;
+  let depth = 0;
+  for (let index = open; index < line.length; index++) {
+    const character = line[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      continue;
+    }
+    if (character === "(") depth++;
+    else if (character === ")") {
+      depth--;
+      if (depth === 0) {
+        return /^;?$/.test(line.slice(index + 1).trim())
+          ? line.slice(open + 1, index)
+          : null;
+      }
+    }
+  }
+  return null;
+}
+
+function isSafeTelemetryArgumentExpression(expression, { allowCurrentRun = false } = {}) {
+  const trimmed = expression.trim();
+  if (/^(?:null|true|false|undefined|-?\d+(?:\.\d+)?|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')$/.test(trimmed)) {
+    return true;
+  }
+  if (SAFE_TELEMETRY_ARGUMENT_IDENTIFIERS.has(trimmed)) return true;
+  if (allowCurrentRun && trimmed === "state.currentRun") return true;
+  if (SAFE_TELEMETRY_CONTEXT_PATHS.some(pattern => pattern.test(trimmed))) return true;
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return false;
+
+  const fields = splitTopLevel(trimmed.slice(1, -1));
+  return fields.length > 0 && fields.every(field => {
+    if (field.startsWith("...")) return false;
+    const separator = field.indexOf(":");
+    if (separator < 0) return TELEMETRY_CONTEXT_KEYS.has(field.trim());
+    const key = field.slice(0, separator).trim();
+    const value = field.slice(separator + 1).trim();
+    return TELEMETRY_CONTEXT_KEYS.has(key)
+      && isSafeTelemetryArgumentExpression(value);
+  });
+}
+
+function hasUnsafeTelemetryArgumentSyntax(line) {
+  return hasUnvalidatedMemberRead(line)
+    || /=>/.test(stripQuotedContent(line));
+}
+
+function isPureContextExpression(expression) {
+  const trimmed = expression.trim();
+  if (/^(?:null|true|false|-?\d+(?:\.\d+)?|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')$/.test(trimmed)) {
+    return true;
+  }
+  if (SAFE_TELEMETRY_ARGUMENT_IDENTIFIERS.has(trimmed)) return true;
+  return SAFE_TELEMETRY_CONTEXT_PATHS.some(pattern => pattern.test(trimmed));
+}
+
+function isTelemetryCall(line) {
+  const trimmed = line.trim();
+  const isRunStartCall = /^trackRunStart\s*\(/.test(trimmed);
+  if (hasGameplayMutation(trimmed) || hasNestedCall(trimmed) || hasUnsafeExpressionSyntax(trimmed)) return false;
+  if (hasUnsafeTelemetryArgumentSyntax(trimmed) && !isRunStartCall) return false;
+  if (!/^track[A-Z][A-Za-z0-9]*\s*\([^;]*\)?;?$/.test(trimmed)) return false;
+
+  const argumentsText = getCompleteCallArguments(trimmed);
+  if (argumentsText === null) return /(?:\{|,)\s*$/.test(trimmed);
+  return splitTopLevel(argumentsText).every(argument =>
+    isSafeTelemetryArgumentExpression(argument, { allowCurrentRun: isRunStartCall })
+  );
+}
+
+function isTelemetryContextLine(line) {
+  const trimmed = line.trim();
+  if (/^\}\s*,\s*state\);$/.test(trimmed) || /^\}\);$/.test(trimmed)) return true;
+  if (hasGameplayMutation(trimmed) || hasNestedCall(trimmed) || hasUnsafeExpressionSyntax(trimmed)) return false;
+  const withoutTrailingComma = trimmed.replace(/,\s*$/, "");
+  const separator = withoutTrailingComma.indexOf(":");
+  if (separator < 0) return TELEMETRY_CONTEXT_KEYS.has(withoutTrailingComma.trim());
+  const key = withoutTrailingComma.slice(0, separator).trim();
+  const value = withoutTrailingComma.slice(separator + 1).trim();
+  return TELEMETRY_CONTEXT_KEYS.has(key) && isPureContextExpression(value);
+}
+
+function getTelemetryImportLineIndexes(lines) {
+  const indexes = new Set();
+  for (let index = 0; index < lines.length; index++) {
+    const firstLine = lines[index].slice(1).trim();
+    if (!/^import\s*\{/.test(firstLine)) continue;
+    let end = index;
+    while (end < lines.length && !/from\s+["'][^"']*telemetry\.js["']\s*;?$/.test(lines[end].slice(1).trim())) end++;
+    if (end >= lines.length) continue;
+    const importText = lines.slice(index, end + 1).map(line => line.slice(1).trim()).join(" ");
+    if (/^import\s*\{\s*(?:track[A-Z][A-Za-z0-9]*\s*,?\s*)+\}\s*from\s+["'][^"']*telemetry\.js["']\s*;?$/.test(importText)) {
+      for (let lineIndex = index; lineIndex <= end; lineIndex++) indexes.add(lineIndex);
+      index = end;
+    }
+  }
+  return indexes;
+}
+
+function hasGameplayStateMutation(line) {
+  const code = stripQuotedContent(line);
+  return /\b(?:state|character|combat)(?:(?:\?\.|\.)[A-Za-z_$][A-Za-z0-9_$]*|\s*\[[^\]]+\])+\s*(?:\+=|-=|\*=|\/=|%=|&=|\|=|\^=|<<=|>>=|>>>=|\+\+|--|=(?!=|>))/.test(code);
+}
+
+function isTelemetryWrapperLine(line, file) {
+  if (!new Set(["src/menu/milestone_portal.js", "src/menu/stairs_down.js"]).has(file)) return false;
+  const trimmed = line.trim();
+  return /^[A-Za-z_$][A-Za-z0-9_$]*\.addEventListener\("click", \(\) => \{$/.test(trimmed)
+    || /^(?:triggerRunResult\([^;]*\)|closeSubmenu\(\));?$/.test(trimmed)
+    || /^[A-Za-z_$][A-Za-z0-9_$]*\.addEventListener\("click", \(\) => (?:triggerRunResult|closeSubmenu)\([^;]*\);$/.test(trimmed)
+    || /^[A-Za-z_$][A-Za-z0-9_$]*\.addEventListener\("click", closeSubmenu\);$/.test(trimmed)
+    || /^\}\);$/.test(trimmed);
+}
+
+function isEquipTelemetrySupportLine(line) {
+  const trimmed = line.trim();
+  return /^(?:function getDiscardTelemetryPreview\(char, itemKey, requestedSlot\) \{|let next;|try \{|} finally \{|} catch \{|return null;|\})$/.test(trimmed)
+    || /^char\.equipment\[slot\] = (?:itemKey|oldEq);$/.test(trimmed)
+    || /^const next = getDisplayStats\(char\);$/.test(trimmed)
+    || /^next = getDisplayStats\(char\);$/.test(trimmed)
+    || /^const preview = getEquipPreview\(char, itemKey, requestedSlot\);$/.test(trimmed)
+    || /^if \(!preview\) return null;$/.test(trimmed)
+    || /^(?:const discardPreview = getDiscardTelemetryPreview\(|state\.party\[equipState\.actorIdx\],|expectedItemKey,|equipState\.selectedSlot|\);)$/.test(trimmed)
+    || /^(?:return \{|slot: preview\.slot,|oldEq: preview\.oldEq,|primaryDiff: preview\.primaryDiff,|rows: Array\.isArray\(preview\.rows\)|: \[\],|};)$/.test(trimmed)
+    || /^\? preview\.rows\.map\(\(\{ key, current, next, diff \}\) => \(\{ key, current, next, diff \}\)\),?$/.test(trimmed)
+    || /^preview\.rows\.map\(\(\{ key, current, next, diff \}\) => \(\{ key, current, next, diff \}\)\)$/.test(trimmed)
+    || /^\/\//.test(trimmed);
+}
+
+function isEquipTelemetrySupportHunk(lines) {
+  const text = lines.map(line => line.slice(1));
+  if (!text.some(line => /getDiscardTelemetryPreview|discardPreview/.test(line))) return false;
+  return lines
+    .filter(line => line[0] === "+" || line[0] === "-")
+    .every(line => {
+      const value = line.slice(1);
+      return !hasGameplayStateMutation(value)
+        && !/\b(?:state\.[A-Za-z_$][A-Za-z0-9_$]*\.(?:splice|push|pop)|addLog|saveAutosave|playSound|identifyEquipment)\s*\(/.test(value);
+    });
+}
+
+function isTelemetryModuleImplementationLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed || /^\/\//.test(trimmed)) return true;
+  if (/^(?:export\s+)?function\s+track[A-Z][A-Za-z0-9]*\s*\(/.test(trimmed)) return true;
+  if (/^track[A-Z][A-Za-z0-9]*\s*\(/.test(trimmed) && !isTelemetryCall(trimmed)) return false;
+  return !hasGameplayStateMutation(trimmed);
+}
+
+function isTelemetryImplementationLine(line, file) {
+  if (isTelemetryWrapperLine(line, file)) return true;
+  if (file === "src/menu/milestone_portal.js" && line.trim() === 'import { state } from "../state.js";') return true;
+  if (file === "src/equip.js" && isEquipTelemetrySupportLine(line)) return true;
+  if (file === "src/menu/explore_actions.js" && /^state\.party\.forEach\(\(char(?:, targetIdx)?\) => \{$/.test(line.trim())) return true;
+  if (file === "src/menu/explore_actions.js" && /^const itemAction =/.test(line.trim())) {
+    return !hasGameplayStateMutation(line) && /menuContext\.itemKey/.test(line);
+  }
+  return file === "src/telemetry.js" && isTelemetryModuleImplementationLine(line);
+}
+
+function isExplorationActionImplementationLine(line) {
+  const trimmed = line.trim();
+  return !hasGameplayStateMutation(trimmed)
+    && !/\b(?:delete|new|throw|void|await|yield)\b/.test(trimmed)
+    && !/=>/.test(trimmed);
+}
+
+function isTelemetryModuleHunk(lines) {
+  return lines
+    .filter(line => line[0] === "+" || line[0] === "-")
+    .every(line => {
+      const text = line.slice(1).trim();
+      if (hasGameplayStateMutation(text)) return false;
+      if (/^(?:export\s+)?function\s+track[A-Z][A-Za-z0-9]*\s*\(/.test(text)) return true;
+      return !(/^track[A-Z][A-Za-z0-9]*\s*\(/.test(text) && !isTelemetryCall(text));
+    });
+}
+
+function isTelemetryOnlyHunk(lines, { file = null } = {}) {
+  const changedLines = lines.filter(line => line[0] === "+" || line[0] === "-");
+  if (changedLines.length === 0) return true;
+  const hunkText = lines.map(line => line.slice(1));
+  const telemetryImportLines = getTelemetryImportLineIndexes(lines);
+  const telemetryModuleHunk = file === "src/telemetry.js" && isTelemetryModuleHunk(lines);
+  const equipTelemetrySupportHunk = file === "src/equip.js" && isEquipTelemetrySupportHunk(lines);
+  const hasTelemetryAnchor = hunkText.some(line => isTelemetryImport(line) || isTelemetryCall(line))
+    || telemetryImportLines.size > 0
+    || telemetryModuleHunk
+    || equipTelemetrySupportHunk
+    || changedLines.some(line => isTelemetryImplementationLine(line.slice(1), file));
+  const hasItemActionImplementation = hunkText.some(line => /^const itemAction =/.test(line.trim()));
+  if (!hasTelemetryAnchor) return false;
+  if (telemetryModuleHunk) return true;
+  if (equipTelemetrySupportHunk) return true;
+  return changedLines.every(line => {
+    const lineIndex = lines.indexOf(line);
+    const text = line.slice(1);
+    return telemetryImportLines.has(lineIndex)
+      || isTelemetryImport(text)
+      || isTelemetryCall(text)
+      || isTelemetryContextLine(text)
+      || isTelemetryImplementationLine(text, file)
+      || (hasItemActionImplementation && isExplorationActionImplementationLine(text));
+  });
+}
+
+function hasTelemetryAnchor(diff) {
+  if (typeof diff !== "string") return false;
+  return diff.split(/\r?\n/).some(line => {
+    if (!(line.startsWith("+") || line.startsWith("-") || line.startsWith(" "))
+      || line.startsWith("+++") || line.startsWith("---")) return false;
+    const text = line.slice(1);
+    return isTelemetryImport(text) || /\btrack[A-Z][A-Za-z0-9]*\s*\(/.test(text);
+  });
+}
+
+export function isTelemetryOnlyDiff(diff, { file = null } = {}) {
+  if (typeof diff !== "string" || !diff.trim()) return false;
+  const hunks = [];
+  let currentHunk = null;
+  for (const line of diff.split(/\r?\n/)) {
+    if (line.startsWith("@@")) {
+      currentHunk = { lines: [], header: line };
+      hunks.push(currentHunk);
+      continue;
+    }
+    if (currentHunk && !line.startsWith("+++") && !line.startsWith("---")
+      && (line.startsWith("+") || line.startsWith("-") || line.startsWith(" "))) {
+      currentHunk.lines.push(line);
+    }
+  }
+  return hunks.length > 0 && hunks.every(hunk => isTelemetryOnlyHunk(hunk.lines, { file }));
+}
+
+function getChangedDiff(file, baseRef = process.env.BASE_REF || "origin/main") {
+  const diffs = [];
+  for (const args of [
+    ["diff", "--function-context", `${baseRef}...HEAD`, "--", file],
+    ["diff", "--function-context", "--", file],
+    ["diff", "--cached", "--function-context", "--", file]
+  ]) {
+    try {
+      const output = execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      if (output.trim()) diffs.push(output);
+    } catch {
+      // Missing base refs or an empty optional diff must not create an exemption.
+    }
+  }
+  return diffs.join("\n");
+}
+
+export function analyzeBalanceImpact(
+  changedFiles,
+  manifest = SIMULATION_MANIFEST,
+  runtimeResult = undefined,
+  { diffByFile = null, baseRef = process.env.BASE_REF || "origin/main" } = {}
+) {
   const impacts = [];
   const errors = [];
   const modelDomains = manifest.canonical?.modelDomains || [];
@@ -406,7 +811,23 @@ export function analyzeBalanceImpact(changedFiles, manifest = SIMULATION_MANIFES
   for (const rawFile of changedFiles) {
     const file = normalizePath(rawFile);
     if (!file.startsWith("src/")) continue;
+    const diff = diffByFile instanceof Map ? diffByFile.get(file) : diffByFile?.[file] ?? getChangedDiff(file, baseRef);
     const balanceRule = (manifest.balanceImpactPaths || []).find(rule => matches(rule.pattern, file));
+    const balanceImpactNone = (manifest.balanceImpactNone || []).some(pattern => matches(pattern, file));
+    const telemetryOnlyPath = (manifest.telemetryOnlyPaths || []).some(pattern => matches(pattern, file));
+    if (!balanceRule && !balanceImpactNone && !telemetryOnlyPath) {
+      errors.push(`${file}: unknown production path; declare balance-impact domains or explicit balance-impact: none`);
+      continue;
+    }
+    const telemetryOnly = isTelemetryOnlyDiff(diff, { file });
+    if (hasTelemetryAnchor(diff) && !telemetryOnly) {
+      errors.push(`${file}: telemetry anchor mixed with non-telemetry changes; classify the gameplay impact explicitly`);
+      continue;
+    }
+    if (telemetryOnly && (balanceRule || telemetryOnlyPath)) {
+      impacts.push({ file, domains: [], telemetryOnly: true, runtimeUnsupported: [], runtimeUnfired: [] });
+      continue;
+    }
     if (balanceRule) {
       const domains = [...new Set(balanceRule.domains || [])];
       const uncovered = domains.filter(domain => !modelDomains.includes(domain));
@@ -423,14 +844,19 @@ export function analyzeBalanceImpact(changedFiles, manifest = SIMULATION_MANIFES
       if (unfired.length > 0) errors.push(`${file}: declared runtime evidence did not fire: ${unfired.join(", ")}`);
       continue;
     }
-    if ((manifest.balanceImpactNone || []).some(pattern => matches(pattern, file))) continue;
-    errors.push(`${file}: unknown production path; declare balance-impact domains or explicit balance-impact: none`);
+    if (balanceImpactNone) continue;
+    errors.push(`${file}: telemetry-only path contains non-telemetry changes; classify the gameplay impact explicitly`);
   }
   return { impacts, errors };
 }
 
-export function assertBalanceImpactCovered(changedFiles, manifest = SIMULATION_MANIFEST, runtimeResult = undefined) {
-  const report = analyzeBalanceImpact(changedFiles, manifest, runtimeResult);
+export function assertBalanceImpactCovered(
+  changedFiles,
+  manifest = SIMULATION_MANIFEST,
+  runtimeResult = undefined,
+  options = undefined
+) {
+  const report = analyzeBalanceImpact(changedFiles, manifest, runtimeResult, options);
   if (report.errors.length > 0) throw new Error(`balance impact coverage gate failed: ${report.errors.join("; ")}`);
   return report;
 }

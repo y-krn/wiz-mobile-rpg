@@ -414,6 +414,9 @@ function getChestRewardEntries(chest) {
 
 function trackChestChoice(chest, action) {
   trackChestAction(chest, action, {
+    state,
+    character: state.party[0],
+    combat: state.combatState,
     floor: state.floor,
     trap: chest?.trap || "none",
     inventoryCount: state.inventory.length,

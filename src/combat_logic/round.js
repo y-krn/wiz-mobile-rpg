@@ -58,7 +58,7 @@ import {
 
 import { applyCombatRewards } from "./rewards.js";
 import { recordCharDeath, recordMonsterResistanceDiscovery } from "../state.js";
-import { trackEvent } from "../telemetry.js";
+import { trackBleedingEvent } from "../telemetry.js";
 
 import { resolveBossAction } from "./boss_actions.js";
 import { resolvePlayerItem } from "./item_resolution.js";
@@ -97,7 +97,7 @@ function recordBleedingEvent(state, event, target, metadata = {}) {
     if (target?.isBoss || state?.combatState?.isBoss) bleeding.bossEvents++;
     if (target?.isMidboss || state?.combatState?.isMidboss) bleeding.midbossEvents++;
   }
-  trackEvent(`bleeding_${event}`, {
+  trackBleedingEvent(event, {
     floor: state?.floor,
     playerClass: state?.party?.[0]?.class,
     enemyId: target?.name,

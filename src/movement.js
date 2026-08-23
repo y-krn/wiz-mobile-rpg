@@ -719,7 +719,6 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   state.currentRun.characterClass = state.party[0]?.class || null;
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
-  trackRunStart(state.currentRun, state.party[0]);
   assignRunQuests(state.currentRun);
   resetRunFloors(state);
   ensureRunFloor(state, floor);
@@ -752,6 +751,7 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
 
   state.dir = DIR_N;
   markMapCellVisited(state.x, state.y);
+  trackRunStart(state.currentRun, state.party[0], state);
   const theme = getFloorTheme(floor);
   const firstVisit = revealFloor(state, floor);
   addLog(`【${theme.name}】${firstVisit ? theme.entryText.first : theme.entryText.revisit}`);

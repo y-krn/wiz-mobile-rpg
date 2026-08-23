@@ -164,6 +164,7 @@ for (const vp of VIEWPORTS) {
     await page.evaluate(async () => {
       const { createSoloCharacter, state } = await import('/src/state.js');
       const { openEquipOverlay } = await import('/src/equip.js');
+      const { __setTelemetryClientForTests, trackRunStart } = await import('/src/telemetry.js');
       state.party = [createSoloCharacter('Fighter')];
       state.inventory = [
         {
@@ -175,6 +176,11 @@ for (const vp of VIEWPORTS) {
           identified: true, affixes: []
         }
       ];
+      window.__discardTelemetry = [];
+      __setTelemetryClientForTests({
+        capture: (name, properties) => window.__discardTelemetry.push({ name, properties })
+      });
+      trackRunStart(state.currentRun || {}, state.party[0], state);
       openEquipOverlay(0);
     });
 
@@ -189,7 +195,22 @@ for (const vp of VIEWPORTS) {
     });
     await discardButton.click();
     await expect.poll(() => page.evaluate(async () => (await import('/src/state.js')).state.inventory.length)).toBe(2);
+    expect(await page.evaluate(() => window.__discardTelemetry.filter(event => event.name === 'equipment_decision' && event.properties.action === 'discard'))).toEqual([]);
 
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const equipment = state.party[0].equipment;
+      let rejectNextWrite = true;
+      state.party[0].equipment = new Proxy(equipment, {
+        set(target, property, value) {
+          if (rejectNextWrite) {
+            rejectNextWrite = false;
+            throw new Error('preview write rejected');
+          }
+          return Reflect.set(target, property, value);
+        }
+      });
+    });
     page.once('dialog', async (dialog) => {
       await dialog.accept();
     });
@@ -202,6 +223,10 @@ for (const vp of VIEWPORTS) {
       const payload = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
       return payload.inventory.map((item) => item.instanceId);
     })).toEqual(['keep_armor']);
+    const discardEvents = await page.evaluate(() => window.__discardTelemetry.filter(event => event.name === 'equipment_decision' && event.properties.action === 'discard'));
+    expect(discardEvents).toHaveLength(1);
+    expect(discardEvents[0].properties.action).toBe('discard');
+    expect(discardEvents[0].properties.comparisonAvailable).toBe(false);
   });
 
   test(`Equipment detail can return to the list at ${vp.width}x${vp.height}`, async ({ page }) => {

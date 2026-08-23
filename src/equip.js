@@ -38,6 +38,7 @@ import {
   getEquipmentSlot,
   getEquipmentSlotsForType
 } from "./rules/equipment_slots.js";
+import { trackEquipmentDecision } from "./telemetry.js";
 
 export let equipState = {
   mode: "equip",
@@ -213,9 +214,19 @@ function getEquipPreview(char, itemKey, requestedSlot = null) {
   if (!slot) return null;
   const current = getDisplayStats(char);
   const oldEq = char.equipment?.[slot] || null;
-  char.equipment[slot] = itemKey;
-  const next = getDisplayStats(char);
-  char.equipment[slot] = oldEq;
+  let next;
+  try {
+    char.equipment[slot] = itemKey;
+    next = getDisplayStats(char);
+  } catch {
+    return null;
+  } finally {
+    try {
+      char.equipment[slot] = oldEq;
+    } catch {
+      // A migrated or guarded equipment object must not break the UI.
+    }
+  }
 
   const rows = STAT_ROWS.map((stat) => ({
     ...stat,
@@ -311,6 +322,23 @@ function isItemEquipped(itemKey) {
   );
 }
 
+function getDiscardTelemetryPreview(char, itemKey, requestedSlot) {
+  try {
+    const preview = getEquipPreview(char, itemKey, requestedSlot);
+    if (!preview) return null;
+    return {
+      slot: preview.slot,
+      oldEq: preview.oldEq,
+      primaryDiff: preview.primaryDiff,
+      rows: Array.isArray(preview.rows)
+        ? preview.rows.map(({ key, current, next, diff }) => ({ key, current, next, diff }))
+        : []
+    };
+  } catch {
+    return null;
+  }
+}
+
 function discardEquipment(itemIdx, expectedItemKey) {
   const selectedItem = state.inventory[itemIdx];
   const item = getItemData(selectedItem);
@@ -319,11 +347,26 @@ function discardEquipment(itemIdx, expectedItemKey) {
   }
 
   const displayName = `${isIdentified(selectedItem) ? "" : "? "}${item.name}`;
+  const discardPreview = getDiscardTelemetryPreview(
+    state.party[equipState.actorIdx],
+    expectedItemKey,
+    equipState.selectedSlot
+  );
   if (!confirm(`「${displayName}」を破棄しますか？この操作は取り消せません。`)) {
     return false;
   }
 
   state.inventory.splice(itemIdx, 1);
+  try {
+    trackEquipmentDecision("discard", {
+      state,
+      character: state.party[equipState.actorIdx],
+      candidateKey: expectedItemKey,
+      preview: discardPreview
+    });
+  } catch {
+    // Telemetry must never interrupt a confirmed discard.
+  }
   addLog(`[破棄] ${displayName}を破棄した。`);
   playSound("move");
   saveAutosave();
@@ -645,6 +688,13 @@ function createEquipmentList(char, savedScrollTop) {
         if (selected) {
           clearSelection();
         } else {
+          trackEquipmentDecision("compare", {
+            state,
+            character: char,
+            candidateKey: itemKey,
+            currentKey: preview?.oldEq,
+            preview
+          });
           equipState.selectedIdx = idx;
           equipState.selectedKey = itemKey;
           equipState.selectedSlot = preview?.slot || getDefaultTargetSlot(char, item.type);
@@ -1061,6 +1111,12 @@ function createDetailPanel(char) {
       const slot = equipState.selectedSlot;
       const currentItemKey = currentChar.equipment[slot];
       const itemData = getItemData(currentItemKey);
+      trackEquipmentDecision("unequip", {
+        state,
+        character: currentChar,
+        currentKey: currentItemKey,
+        preview
+      });
 
       currentChar.equipment[slot] = null;
       state.inventory.push(currentItemKey);
@@ -1086,6 +1142,12 @@ function createDetailPanel(char) {
       identifyBtn.addEventListener("click", () => {
         const selectedItem = state.inventory[equipState.selectedIdx];
         const currentChar = state.party[equipState.actorIdx];
+        trackEquipmentDecision("identify", {
+          state,
+          character: currentChar,
+          candidateKey: selectedItem,
+          preview
+        });
         const result = identifyEquipment(state, selectedItem, currentChar);
         if (!result.ok) return;
         const revealedData = getItemData(selectedItem);
@@ -1111,6 +1173,13 @@ function createDetailPanel(char) {
       const selectedData = getItemData(selectedItem);
       const slot = preview?.slot || getDefaultTargetSlot(currentChar, selectedData.type);
       const oldEq = currentChar.equipment[slot];
+      trackEquipmentDecision("equip", {
+        state,
+        character: currentChar,
+        candidateKey: selectedItem,
+        currentKey: oldEq,
+        preview
+      });
 
       currentChar.equipment[slot] = selectedItem;
       if (oldEq) {

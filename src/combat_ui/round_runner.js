@@ -2,7 +2,7 @@ import { state, saveAutosave } from "../state.js";
 import { runCombatRoundCalculation } from "../combat_logic.js";
 import { combatSelection } from "./combat_state.js";
 import { playBattleLogs } from "./battle_log_player.js";
-import { trackCombatEnd } from "../telemetry.js";
+import { trackCombatDecisionCommit, trackCombatEnd } from "../telemetry.js";
 
 function resolvePendingOutcome(logQueue) {
   for (const log of logQueue) {
@@ -26,6 +26,7 @@ function resolvePendingOutcome(logQueue) {
 export function resolveCombatRound() {
   state.gameState = "combat";
   state.combatState.phase = "resolving";
+  trackCombatDecisionCommit();
   const backBtn = document.getElementById("btn-submenu-back");
   if (backBtn) {
     backBtn.style.display = "none";
@@ -59,7 +60,7 @@ export function resolveCombatRound() {
       turns: state.combatState.roundNumber,
       player: state.party[0],
       monsters: state.combatState.monsters
-    });
+    }, state);
   }
   saveAutosave();
 
