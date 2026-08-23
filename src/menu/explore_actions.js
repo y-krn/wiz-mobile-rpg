@@ -242,7 +242,7 @@ export function renderItemTargetSelect(optGrid) {
     optGrid.appendChild(createRunStakesSummary());
   }
 
-  state.party.forEach((char) => {
+  state.party.forEach((char, targetIdx) => {
     const btn = document.createElement("button");
     btn.style.minHeight = "44px";
     btn.style.display = "flex";
@@ -272,6 +272,7 @@ export function renderItemTargetSelect(optGrid) {
         trackExplorationDecision(itemAction, {
           state,
           character: char,
+          targetIdx,
           source: state.map?.[state.y]?.[state.x]?.event,
           itemKey: menuContext.itemKey
         });

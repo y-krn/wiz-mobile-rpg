@@ -696,6 +696,7 @@ function isTelemetryImplementationLine(line, file) {
   if (isTelemetryWrapperLine(line, file)) return true;
   if (file === "src/menu/milestone_portal.js" && line.trim() === 'import { state } from "../state.js";') return true;
   if (file === "src/equip.js" && isEquipTelemetrySupportLine(line)) return true;
+  if (file === "src/menu/explore_actions.js" && /^state\.party\.forEach\(\(char(?:, targetIdx)?\) => \{$/.test(line.trim())) return true;
   if (file === "src/menu/explore_actions.js" && /^const itemAction =/.test(line.trim())) {
     return !hasGameplayStateMutation(line) && /menuContext\.itemKey/.test(line);
   }

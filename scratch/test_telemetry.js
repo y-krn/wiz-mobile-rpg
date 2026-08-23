@@ -608,6 +608,27 @@ check("exploration spell telemetry preserves target shape", () => {
   assert.equal(spellEvents[1].properties.targetType, "all_allies");
 });
 
+check("exploration item telemetry identifies the selected ally", () => {
+  const events = [];
+  const state = {
+    ...decisionState,
+    gameState: "explore",
+    party: [decisionPlayer, { ...decisionPlayer }, { ...decisionPlayer }]
+  };
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, state);
+  trackExplorationDecision("heal", {
+    state,
+    character: state.party[2],
+    itemKey: "HEAL_POTION",
+    targetIdx: 2
+  });
+  const itemEvent = events.find(event => event.name === "exploration_decision");
+  assert.equal(itemEvent.properties.action, "heal");
+  assert.equal(itemEvent.properties.itemId, "HEAL_POTION");
+  assert.equal(itemEvent.properties.targetIndex, 2);
+});
+
 check("directional exploration item telemetry preserves validated directions", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
