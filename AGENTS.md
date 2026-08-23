@@ -188,6 +188,8 @@ review checklist by default.
 - `.agents/game-logic.md`: mechanics, state, and rule correctness.
 - `.agents/balance-simulation.md`: progression, economy, rewards, and pacing.
 - `.agents/content-design.md`: player-facing content and terminology.
+- `.agents/merge-gate.md`: GitHub protections, independent review evidence,
+  and current-head required-CI merge criteria.
 - `.agents/game-design*.md`: product canon for the matching system.
 - `.agents/skills/*/SKILL.md`: repository-scoped Codex skills when the task
   matches a skill trigger.
