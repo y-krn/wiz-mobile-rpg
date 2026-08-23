@@ -4,6 +4,7 @@ import { getSpellCombatSummary } from "../src/combat_ui/spell_menu.js";
 
 const RANGE_PATTERN = /(\d+)\s*-\s*(\d+)/;
 const failures = [];
+const checkedSummaries = [];
 const checkedSpells = [];
 
 function extractRange(text) {
@@ -20,11 +21,24 @@ function recordAssertion(assertion) {
 }
 
 for (const [spellName, spell] of Object.entries(SPELLS)) {
+  const summary = getSpellCombatSummary(spellName);
+  checkedSummaries.push(spellName);
+
+  recordAssertion(() => {
+    assert.notStrictEqual(
+      summary.category,
+      "unknown",
+      `${spellName}: combat summary definition is missing`
+    );
+    assert.ok(summary.tag, `${spellName}: combat summary tag is missing`);
+    assert.ok(summary.effect, `${spellName}: combat summary effect is missing`);
+  });
+
   const descRange = extractRange(spell.desc);
   if (!descRange) continue;
 
   checkedSpells.push(spellName);
-  const effect = getSpellCombatSummary(spellName).effect;
+  const effect = summary.effect;
   const effectRange = extractRange(effect);
 
   recordAssertion(() => {
@@ -37,6 +51,22 @@ for (const [spellName, spell] of Object.entries(SPELLS)) {
 }
 
 recordAssertion(() => {
+  assert.deepStrictEqual(
+    getSpellCombatSummary("WEAKEN"),
+    { tag: "弱体", effect: "全体攻撃力 -3 3T", category: "debuff" },
+    "WEAKEN: combat summary must match the exact debuff definition"
+  );
+});
+
+recordAssertion(() => {
+  assert.strictEqual(
+    checkedSummaries.length,
+    Object.keys(SPELLS).length,
+    "every spell must have a combat summary check"
+  );
+});
+
+recordAssertion(() => {
   assert.ok(checkedSpells.length > 0, "at least one spell range must be checked");
 });
 
@@ -46,4 +76,6 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`[PASS] spell summary ranges match (${checkedSpells.length} spells)`);
+console.log(
+  `[PASS] spell summaries exist for ${checkedSummaries.length} spells; ranges match (${checkedSpells.length} spells)`
+);
