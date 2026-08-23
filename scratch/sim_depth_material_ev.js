@@ -4872,7 +4872,8 @@ function getEnemyAwareCombatAction(state, recoveryItem, diosAction, metrics = nu
     potionAvailable: Boolean(recoveryItem),
     diosAvailable: Boolean(diosAction),
     fleeThreshold: state.simPolicy.fleeHpThreshold ?? 0.20,
-    healThreshold: state.simPolicy.healPotionThreshold
+    healThreshold: state.simPolicy.healPotionThreshold,
+    runtimeDiagnostics: metrics?.runtimeDiagnostics
   });
   recordDamageEstimateDecision(metrics, state, getEvDamageEstimate(state), decision);
   if (decision === "flee") {
@@ -8923,7 +8924,7 @@ function rollChestItems(
   metrics = null,
   { futureChestCount = 0 } = {}
 ) {
-  const trap = rollChestTrap(floor, rng);
+  const trap = rollChestTrap(floor, rng, metrics?.runtimeDiagnostics);
   maybeAcquireChestIdentificationPowder(state, metrics, rng);
   if (floor === 1) {
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
@@ -8942,7 +8943,8 @@ function rollChestItems(
       : null,
     itemCandidateFilter: RETURN_WING_REWARD_MODE === "special"
       ? itemId => itemId !== "TOWN_PORTAL"
-      : null
+      : null,
+    runtimeDiagnostics: metrics?.runtimeDiagnostics
   });
   let item = reward.item;
   if (reward.consumedFirstChestGuarantee) {
@@ -9475,6 +9477,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     extraCampSteps: metrics.extraCampSteps,
     campRestCount: state.currentRun.campRestCount,
     combatRounds: metrics.combatRounds,
+    runtimeCalls: { ...metrics.runtimeCalls },
     reachedFloor: state.currentRun.deepestFloor,
     // Unlike reachedFloor, which starts at the entry floor, this proves that
     // the generated run-floor traversal advanced at least one floor.
@@ -9935,6 +9938,15 @@ export function simulateRun({
   if (typeof encounterRateOverride === "function") {
     state.encounterRateOverride = encounterRateOverride;
   }
+  const runtimeCalls = {};
+  const runtimeDiagnostics = {
+    onCall(mechanism) {
+      const [domain, call] = String(mechanism).split(".", 2);
+      if (!domain || !call) return;
+      runtimeCalls[domain] ||= {};
+      runtimeCalls[domain][call] = (runtimeCalls[domain][call] || 0) + 1;
+    }
+  };
   // Issue #611: 戦闘計算式の実態測定用計装。既定オフ。有効時のみ
   // src/combat_logic/{round,damage,spell_resolution}.js のフックが書き込む。
   if (collectCombatFormula) {
@@ -9953,6 +9965,8 @@ export function simulateRun({
     `${runSeed}:${scenario.materialDropOverride?.id || "baseline"}`
   );
   const metrics = {
+    runtimeCalls,
+    runtimeDiagnostics,
     steps: 0,
     floorBudgetSteps: 0,
     routePolicyExtraSteps: 0,

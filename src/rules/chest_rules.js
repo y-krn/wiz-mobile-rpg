@@ -1,6 +1,7 @@
 import { ITEMS } from "../data/items.js";
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { getCharAffixSum, isSpecialOrQuestItem } from "./item_rules.js";
+import { recordRuntimeCall } from "../runtime_diagnostics.js";
 
 // 宝箱の抽選ルール。`src/chest.js` の UI/state 遷移とバランスsimの双方がここを叩く。
 // sim 側で写経すると src の変更に追随せず、深層のバランスを無音で誤って測るため
@@ -139,7 +140,8 @@ export function rollChestSpecialReward(floor, rng) {
 
 const DANGEROUS_TRAPS = ["poison needle", "gas bomb", "teleporter"];
 
-export function rollChestTrap(floor, rng) {
+export function rollChestTrap(floor, rng, runtimeDiagnostics = null) {
+  recordRuntimeCall(runtimeDiagnostics, "traps.chest-roll", { floor });
   if (floor === 1) {
     const r = rng();
     if (r < 0.35) return "none";
@@ -195,8 +197,10 @@ export function rollChestReward({
   firstChestGuaranteed = false,
   coreMinFloor = CHEST_EQUIPMENT_CORE_MIN_FLOOR,
   itemCandidateFilter = null,
-  itemCandidates = null
+  itemCandidates = null,
+  runtimeDiagnostics = null
 }) {
+  recordRuntimeCall(runtimeDiagnostics, "chests.reward-roll", { floor });
   let isGuaranteed = false;
   if (floor === 1) {
     if (currentRun) {
@@ -227,7 +231,8 @@ export function rollChestReward({
       rng,
       party,
       excludeHighEnd: true,
-      allowCores: floor >= coreMinFloor
+      allowCores: floor >= coreMinFloor,
+      runtimeDiagnostics
     });
     return { item, consumedFirstChestGuarantee: floor === 1 };
   }
@@ -278,7 +283,8 @@ export function rollChestReward({
       rng,
       party,
       excludeHighEnd: true,
-      allowCores: floor >= coreMinFloor
+      allowCores: floor >= coreMinFloor,
+      runtimeDiagnostics
     });
   }
   return { item, consumedFirstChestGuarantee: false };

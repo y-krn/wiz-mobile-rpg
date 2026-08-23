@@ -11,6 +11,7 @@ import {
   IDENTIFICATION_BALANCE,
   getIdentificationGambleProfile
 } from "../rules/identification_rules.js";
+import { recordRuntimeCall } from "../runtime_diagnostics.js";
 
 const SUPPORT_AFFIX_BY_TYPE = new Map(SUPPORT_AFFIXES.map(affix => [affix.type, affix]));
 // Workshop pool nodes intentionally gate pre-existing core IDs to make the
@@ -172,8 +173,9 @@ export function buildUnidentifiedMeta(
 }
 
 export function generateRandomEquipment(floor, options) {
-  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true } =
+  const { forceRarity = null, rng = Math.random, party = null, excludeHighEnd = false, allowCores = true, runtimeDiagnostics = null } =
     requireGenerationOptions(options, "generateRandomEquipment");
+  recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "equipment", floor });
   const gambleProfile = getIdentificationGambleProfile(floor);
   let baseCandidates = EQUIPMENT_CANDIDATES_BY_FLOOR[floor] || EQUIPMENT_CANDIDATES_BY_FLOOR[5];
 
@@ -470,8 +472,9 @@ export function generateRandomEquipment(floor, options) {
 }
 
 export function generateRandomAccessory(floor, options) {
-  const { forceRarity = null, rng = Math.random, party = null, allowCores = true } =
+  const { forceRarity = null, rng = Math.random, party = null, allowCores = true, runtimeDiagnostics = null } =
     requireGenerationOptions(options, "generateRandomAccessory");
+  recordRuntimeCall(runtimeDiagnostics, "equipment.generate", { kind: "accessory", floor });
   const gambleProfile = getIdentificationGambleProfile(floor);
   let baseCandidates = ACCESSORY_CANDIDATES_BY_FLOOR[floor] || ACCESSORY_CANDIDATES_BY_FLOOR[5];
 

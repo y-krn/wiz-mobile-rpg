@@ -72,11 +72,13 @@ export const SIMULATION_MANIFEST = Object.freeze({
     criticalRuntimeMechanisms: Object.freeze([
       { id: "maps.run-floor-traversal", domain: "maps", evidence: { anyPositive: ["floorsTraversed"] } },
       { id: "combat.round-resolution", domain: "combat", evidence: { anyPositive: ["combatRounds"] } },
-      { id: "equipment.generation", domain: "equipment", evidence: { anyPositive: ["equipmentFound"] } },
-      { id: "chests.open", domain: "chests", evidence: { anyPositive: ["chestsOpenedInRun"] } },
+      { id: "equipment.generation", domain: "equipment", evidence: { callLevel: ["runtimeCalls.equipment.generate"], anyPositive: ["equipmentFound"] } },
+      { id: "chests.open", domain: "chests", evidence: { callLevel: ["runtimeCalls.chests.reward-roll"], anyPositive: ["chestsOpenedInRun"] } },
       { id: "drops.reward-materials", domain: "drops", evidence: { anyPositive: ["materialAcquired"] } },
       { id: "progression.experience", domain: "progression", evidence: { anyPositive: ["expGained"] } },
-      { id: "recovery.kill-heal", domain: "recovery", evidence: { anyPositive: ["killHeal.killHealActivations"] } }
+      { id: "recovery.kill-heal", domain: "recovery", evidence: { anyPositive: ["killHeal.killHealActivations"] } },
+      { id: "recovery.combat-policy", domain: "recovery", evidence: { callLevel: ["runtimeCalls.recovery.combat-policy"] } },
+      { id: "traps.chest-roll", domain: "traps", evidence: { callLevel: ["runtimeCalls.traps.chest-roll"] } }
     ]),
     // Only these domains have a declared runtime evidence path in the
     // lightweight smoke. modelDomains deliberately includes the broader
@@ -88,16 +90,18 @@ export const SIMULATION_MANIFEST = Object.freeze({
       chests: Object.freeze(["chests.open"]),
       drops: Object.freeze(["drops.reward-materials"]),
       progression: Object.freeze(["progression.experience"]),
-      recovery: Object.freeze(["recovery.kill-heal"])
+      recovery: Object.freeze(["recovery.kill-heal", "recovery.combat-policy"]),
+      traps: Object.freeze(["traps.chest-roll"])
     }),
     smoke: Object.freeze({
       modeled: Object.freeze([
         "production run-floor generation", "round combat and reward resolution",
         "equipment generation and upgrade path", "chest opening and material rewards",
-        "production recovery effect"
+        "production recovery effect", "production chest-trap roll"
       ]),
       omitted: Object.freeze([
-        "merchant purchase policy", "status/trap stochastic firing not guaranteed by one run",
+        "status-effect application and cure outcome (stochastic; no deterministic canonical N=1 fixture)",
+        "merchant purchase policy (canonical N=1 ends before milestone floor)",
         "UI input, rendering, and analytics transport",
         "statistical balance estimates and Monte Carlo confidence intervals"
       ])
@@ -145,12 +149,14 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/result.js", domains: ["drops", "economy", "progression"] },
     { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
     { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },
+    { pattern: "src/rules/chest_rules.js", domains: ["chests", "equipment", "traps"] },
     { pattern: "src/systems/leveling.js", domains: ["progression"] }
   ].map(rule => ({ ...rule, domains: Object.freeze([...rule.domains]) }))),
   balanceImpactNone: Object.freeze([
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**",
-    "src/sentry.js", "src/error_context.js", "src/controls_guard.js"
+    "src/sentry.js", "src/error_context.js", "src/controls_guard.js",
+    "src/runtime_diagnostics.js"
   ])
 });
 
@@ -197,9 +203,18 @@ function isPositiveEvidence(value) {
 
 export function evaluateRuntimeMechanisms(result, mechanisms = SIMULATION_MANIFEST.canonical.criticalRuntimeMechanisms) {
   return Object.fromEntries(mechanisms.map(mechanism => {
-    const fields = mechanism.evidence?.anyPositive || [];
-    const fired = fields.some(field => isPositiveEvidence(getPathValue(result, field)));
-    return [mechanism.id, { domain: mechanism.domain, fired, evidence: fields }];
+    const callLevel = mechanism.evidence?.callLevel || [];
+    const anyPositive = mechanism.evidence?.anyPositive || [];
+    const callLevelFired = callLevel.some(field => isPositiveEvidence(getPathValue(result, field)));
+    const valueFired = anyPositive.some(field => isPositiveEvidence(getPathValue(result, field)));
+    const fired = callLevel.length > 0 ? callLevelFired : valueFired;
+    return [mechanism.id, {
+      domain: mechanism.domain,
+      fired,
+      callLevelFired,
+      valueFired,
+      evidence: { callLevel, anyPositive }
+    }];
   }));
 }
 
@@ -245,7 +260,12 @@ export function validateSimulationManifest(manifest = SIMULATION_MANIFEST) {
         mechanismIds.add(mechanism?.id);
         mechanismDomains.set(mechanism?.id, mechanism?.domain);
         if (!canonical.modelDomains?.includes(mechanism?.domain)) errors.push(`runtime mechanism ${mechanism?.id || "<missing>"} has uncovered model domain ${mechanism?.domain || "<missing>"}`);
-        if (!Array.isArray(mechanism?.evidence?.anyPositive) || mechanism.evidence.anyPositive.length === 0) errors.push(`runtime mechanism ${mechanism?.id || "<missing>"} has malformed evidence metadata`);
+        const callLevelEvidence = mechanism?.evidence?.callLevel;
+        const valueEvidence = mechanism?.evidence?.anyPositive;
+        if ((!Array.isArray(callLevelEvidence) || callLevelEvidence.length === 0) &&
+          (!Array.isArray(valueEvidence) || valueEvidence.length === 0)) {
+          errors.push(`runtime mechanism ${mechanism?.id || "<missing>"} has malformed evidence metadata`);
+        }
       }
     }
     if (!canonical.runtimeCoverage || typeof canonical.runtimeCoverage !== "object" || Array.isArray(canonical.runtimeCoverage)) {
