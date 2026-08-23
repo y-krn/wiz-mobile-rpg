@@ -33,6 +33,8 @@ than depth effects. This separation changes presentation and terrain shape only;
 gameplay quantities, encounter pacing, and balance targets remain governed by
 the existing floor-template rules.
 
+The biome Visual Signature includes spatial silhouette as well as color and ambient treatment: `corridorWidth`, `ceilingHeight`, `wallLean`, and `ceilingStyle` describe the stable pseudo-3D geometry seen during exploration. The renderer interprets this geometry generically through the shared projection; it must not enumerate biome IDs. Geometry is presentation-only, derived from floor → biome → `visualSignature`, and is not persisted or used by map generation, movement, or balance rules.
+
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with `src/data.js`
