@@ -45,6 +45,10 @@ guard, not a general detector for every deleted mechanism. Unit fixture
 children retain their `SIM_SKIP_PROVENANCE=1` isolation, while CI runs
 `node scratch/test_measurement_provenance.js` directly after the unit suite to
 enforce current-head ancestry and clean/stale-tree checks.
+Recursive `src/data/**`, `src/rules/**`, `src/systems/**`, and
+`src/combat_logic/**` fallbacks are not balance mappings: only listed primary
+files are classified, and a new or unlisted production path must receive an
+explicit domain mapping before it can pass the gate.
 
 ## Agent Skills
 

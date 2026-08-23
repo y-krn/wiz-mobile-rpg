@@ -70,6 +70,10 @@ assert.throws(
   () => assertBalanceImpactCovered(["src/new_balance_rule.js"]),
   /unknown production path/
 );
+assert.throws(
+  () => assertBalanceImpactCovered(["src/rules/status_effect_rules.js"]),
+  /unknown production path/
+);
 const narrowCoverageManifest = {
   ...SIMULATION_MANIFEST,
   canonical: { ...SIMULATION_MANIFEST.canonical, modelDomains: ["combat"] },
@@ -150,13 +154,25 @@ const firing = assertRuntimeMechanismsFired(firstSmoke);
 const domainFiring = evaluateRuntimeDomainCoverage(firstSmoke);
 assert.equal(domainFiring.combat.fired, true, "combat runtime domain did not fire");
 assert.doesNotThrow(() => assertBalanceImpactCovered(["src/combat.js"], SIMULATION_MANIFEST, firstSmoke));
+assert.doesNotThrow(
+  () => assertBalanceImpactCovered(["src/rules/recovery_rules.js"], SIMULATION_MANIFEST, firstSmoke),
+  "pure recovery rule changes should use recovery evidence only"
+);
+const declaredUnsupportedManifest = {
+  ...SIMULATION_MANIFEST,
+  balanceImpactPaths: [{ pattern: "src/rules/status_effect_rules.js", domains: ["status"] }]
+};
+assert.throws(
+  () => assertBalanceImpactCovered(["src/rules/status_effect_rules.js"], declaredUnsupportedManifest, firstSmoke),
+  /no declared runtime evidence: status/
+);
 assert.throws(
   () => assertBalanceImpactCovered(["src/combat.js"], SIMULATION_MANIFEST, { ...firstSmoke, combatRounds: 0 }),
   /declared runtime evidence did not fire: combat/
 );
 assert.throws(
   () => assertBalanceImpactCovered(["src/rules/status_effect_rules.js"], SIMULATION_MANIFEST, firstSmoke),
-  /no declared runtime evidence: status/
+  /unknown production path/
 );
 const sourceCoverage = assertBalanceImpactCovered(currentChangedFiles(), SIMULATION_MANIFEST, firstSmoke);
 assert.throws(
