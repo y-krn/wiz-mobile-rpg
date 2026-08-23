@@ -1434,6 +1434,62 @@ const CORE_SUPPORT_SYNERGY = Object.freeze({
 });
 const ENABLED_SUPPORT_AFFIXES = SUPPORT_AFFIXES.filter(affix => affix.enabled);
 const ALL_ENABLED_SUPPORT_IDS = ENABLED_SUPPORT_AFFIXES.map(affix => affix.id);
+
+// Issue #679: retain the real-run equipment funnel without changing selection
+// policy.  `candidate` is a distinct acquired item examined by the existing
+// greedy equip path; `generated` is an affix instance on an acquired item;
+// `equipped` is an affix instance on a selected swap.  Condition/application
+// counters remain separate and are populated only by existing runtime probes.
+function createAffixReachability() {
+  return {
+    byId: Object.fromEntries(
+      [...ENABLED_CORE_AFFIXES, ...ENABLED_SUPPORT_AFFIXES].map(affix => [affix.id, {
+        candidate: 0,
+        generated: 0,
+        equipped: 0,
+        conditionEligible: 0,
+        application: 0
+      }])
+    ),
+    candidateInstanceIds: new Set()
+  };
+}
+
+function recordAffixGenerated(metrics, item) {
+  (item?.affixes || []).forEach(affix => {
+    const id = affix.id || affix.type;
+    if (metrics.affixReachability.byId[id]) {
+      metrics.affixReachability.byId[id].generated++;
+    }
+  });
+}
+
+function recordAffixCandidate(metrics, item) {
+  const instanceId = item?.instanceId || item;
+  if (!instanceId || metrics.affixReachability.candidateInstanceIds.has(instanceId)) return;
+  metrics.affixReachability.candidateInstanceIds.add(instanceId);
+  (item?.affixes || []).forEach(affix => {
+    const id = affix.id || affix.type;
+    if (metrics.affixReachability.byId[id]) {
+      metrics.affixReachability.byId[id].candidate++;
+    }
+  });
+}
+
+function recordAffixEquipped(metrics, item) {
+  (item?.affixes || []).forEach(affix => {
+    const id = affix.id || affix.type;
+    if (metrics.affixReachability.byId[id]) {
+      metrics.affixReachability.byId[id].equipped++;
+    }
+  });
+}
+
+function finalizeAffixReachability(metrics) {
+  return Object.fromEntries(
+    Object.entries(metrics.affixReachability.byId).map(([id, values]) => [id, { ...values }])
+  );
+}
 const MATCHING_SUPPORT_BONUS = 1000;
 // 素材1個のrun EVを装備score 1点へ換算する感度分析用の基準。
 const MATERIAL_EV_SCORE_WEIGHT = 1;
@@ -7606,6 +7662,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
     state.inventory.forEach((inventoryItem, index) => {
       const itemData = getItemData(inventoryItem);
       if (!isEquipment(itemData)) return;
+      recordAffixCandidate(metrics, inventoryItem);
       recordCoreItemEncounter(metrics, inventoryItem, state.floor);
       if (itemData.classes && !itemData.classes.includes(character.class)) {
         recordCoreDecision(metrics, inventoryItem, "class-incompatible");
@@ -7756,6 +7813,7 @@ function equipGreedyUpgrades(state, metrics, scoringProfile) {
       : best.candidate;
     const selectedCandidateCoreId = getItemCoreId(selectedCandidate);
     character.equipment[best.slot] = selectedCandidate;
+    recordAffixEquipped(metrics, selectedCandidate);
     if (wasUnidentified && state.simPolicy.identificationPolicy === "gamble") {
       revealEquipmentOnEquip(selectedCandidate);
       metrics.unidentifiedWearCount++;
@@ -8970,6 +9028,7 @@ function recordEquipmentAcquisitions(metrics, equipmentItems, floor, source = "o
     const rarity = ["magic", "rare", "epic"].includes(item?.rarity)
       ? item.rarity
       : "other";
+    recordAffixGenerated(metrics, item);
     metrics.equipmentFound++;
     metrics.equipmentFoundBySource[normalizedSource]++;
     metrics.equipmentFoundByFloor[floor]++;
@@ -9274,6 +9333,11 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     state.party[0].status,
     outcome
   );
+  ENABLED_CORE_AFFIXES.forEach(affix => {
+    const reachability = metrics.affixReachability.byId[affix.id];
+    reachability.conditionEligible = metrics.coreObservations.coreOpportunityCounts[affix.id] || 0;
+    reachability.application = metrics.coreObservations.coreActivationCounts[affix.id] || 0;
+  });
   if (metrics.diagnostics && metrics.diagnosticLevel === "full") {
     metrics.diagnostics.finalBuild = createBuildSnapshot(
       state,
@@ -9347,6 +9411,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
       nonCore: { ...metrics.curseGeneration.nonCore }
     },
     supportAffixFoundById: { ...metrics.supportAffixFoundById },
+    affixReachability: finalizeAffixReachability(metrics),
     trapBonusItemsFound: metrics.trapBonusItemsFound,
     trapBonusFoundByValue: { ...metrics.trapBonusFoundByValue },
     rarityFound: metrics.rarityFound,
@@ -9856,6 +9921,7 @@ export function simulateRun({
       economy: null
     },
     coreDecisionReasons: {},
+    affixReachability: createAffixReachability(),
     coreObservations: createCoreObservations(),
     firstCoreDepth: null,
     firstCoreEquippedFloor: null,
@@ -10978,6 +11044,7 @@ function simulateCase({
     curseHitCount: 0,
     curseGeneration: createCurseGenerationCounts(),
     coreEquipmentFound: 0,
+    affixReachability: createAffixReachability().byId,
     runsWithCoreEncounter: 0,
     runsWithEarlyCoreEncounter: 0,
     runsWithCoreEquipped: 0,
@@ -11348,6 +11415,13 @@ function simulateCase({
       totals.curseGeneration[group].cursed += counts.cursed;
     });
     totals.coreEquipmentFound += result.coreEquipmentFound;
+    Object.entries(result.affixReachability || {}).forEach(([id, values]) => {
+      const destination = totals.affixReachability[id];
+      if (!destination) return;
+      Object.keys(destination).forEach(field => {
+        destination[field] += values[field] || 0;
+      });
+    });
     totals.runsWithCoreEncounter += Number(result.firstCoreDepth !== null);
     totals.runsWithEarlyCoreEncounter += Number(
       result.firstCoreDepth !== null && result.firstCoreDepth <= EARLY_BUILD_MAX_FLOOR
@@ -11589,6 +11663,9 @@ function simulateCase({
       : 0,
     coreEquipmentFound: totals.coreEquipmentFound,
     equipmentFound: totals.equipmentFound,
+    affixReachability: Object.fromEntries(
+      Object.entries(totals.affixReachability).map(([id, values]) => [id, { ...values }])
+    ),
     coreEncounterRuns: totals.runsWithCoreEncounter,
     coreEquippedRuns: totals.runsWithCoreEquipped,
     combatCoreEncounterRuns: totals.runsWithCombatCoreEncounter,
@@ -13580,6 +13657,22 @@ const allMeasuredResults = resultsByPolicy.flatMap(({ scenarioResults, milestone
   ...scenarioResults.flatMap(({ results }) => results),
   ...milestoneResults
 ]);
+const issue679Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }) =>
+  scenarioResults.map(({ scenario, results }) => {
+    const result = results.find(entry => entry.targetDepth === 20) || results.at(-1);
+    return {
+      policy: policy.id,
+      scenario: scenario.id,
+      targetDepth: result.targetDepth,
+      runs: RUNS_PER_CASE,
+      sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
+      originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
+      staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
+      affixReachability: result.affixReachability
+    };
+  })
+);
+console.log(`ISSUE679_AFFIX_REACHABILITY_JSON=${JSON.stringify(issue679Measurement)}`);
 // scenarioResults と milestoneResults を合算し双方に一律 RUNS_PER_CASE を掛けるため、
 // 同一runが両方の集計に現れる場合は延べの推定値になる（実際の発火回数と一致しない）。
 // 0/非0の判別が目的でありこの用途では実害はないが、ラベルは延べと分かる語にする。
