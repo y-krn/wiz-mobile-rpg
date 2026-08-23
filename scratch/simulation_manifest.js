@@ -520,6 +520,16 @@ function isTelemetryOnlyHunk(lines) {
   });
 }
 
+function hasTelemetryAnchor(diff) {
+  if (typeof diff !== "string") return false;
+  return diff.split(/\r?\n/).some(line => {
+    if (!(line.startsWith("+") || line.startsWith("-") || line.startsWith(" "))
+      || line.startsWith("+++") || line.startsWith("---")) return false;
+    const text = line.slice(1);
+    return isTelemetryImport(text) || /\btrack[A-Z][A-Za-z0-9]*\s*\(/.test(text);
+  });
+}
+
 export function isTelemetryOnlyDiff(diff) {
   if (typeof diff !== "string" || !diff.trim()) return false;
   const hunks = [];
@@ -579,7 +589,12 @@ export function analyzeBalanceImpact(
       errors.push(`${file}: unknown production path; declare balance-impact domains or explicit balance-impact: none`);
       continue;
     }
-    if (isTelemetryOnlyDiff(diff) && (balanceRule || telemetryOnlyPath)) {
+    const telemetryOnly = isTelemetryOnlyDiff(diff);
+    if (hasTelemetryAnchor(diff) && !telemetryOnly) {
+      errors.push(`${file}: telemetry anchor mixed with non-telemetry changes; classify the gameplay impact explicitly`);
+      continue;
+    }
+    if (telemetryOnly && (balanceRule || telemetryOnlyPath)) {
       impacts.push({ file, domains: [], telemetryOnly: true, runtimeUnsupported: [], runtimeUnfired: [] });
       continue;
     }

@@ -18,6 +18,7 @@ import {
   trackCombatDecision,
   trackEquipmentDecision,
   trackChestAction,
+  trackChestSmashResult,
   trackDamageReceived,
   trackEvent,
   trackExplorationDecision,
@@ -294,6 +295,63 @@ check("combat end numeric fields stay bounded", () => {
   assert.equal(combatEnd.properties.turns, 1_000_000);
   assert.equal(combatEnd.properties.playerHp, 1_000_000);
   assert.equal(combatEnd.properties.playerMp, 0);
+});
+
+check("legacy chest, combat, and run fields stay bounded", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackChestAction({ fromDrop: false }, "open", {
+    floor: Number.MAX_VALUE,
+    inventoryCount: Number.MAX_VALUE,
+    rewardCount: Number.MAX_VALUE
+  });
+  trackChestSmashResult({}, {
+    floor: Number.MAX_VALUE,
+    rewardCount: Number.MAX_VALUE,
+    lostRewardCount: Number.MAX_VALUE,
+    lostRewardRoles: Array.from({ length: 100 }, (_, index) => index === 0 ? "main" : "migrated-role"),
+    lostRewardCategories: Array.from({ length: 100 }, (_, index) => index === 0 ? "usable" : "migrated-category"),
+    remainingRewardCount: Number.MAX_VALUE,
+    awardedRewardCount: Number.MAX_VALUE,
+    unawardedRewardCount: Number.MAX_VALUE
+  });
+  trackCombatStart({
+    ...decisionCombat,
+    floor: Number.MAX_VALUE,
+    player: { ...decisionPlayer, hp: Number.MAX_VALUE, mp: Number.MAX_VALUE },
+    monsters: []
+  }, decisionState);
+  trackCombatEnd("victory", {
+    floor: Number.MAX_VALUE,
+    turns: Number.MAX_VALUE,
+    player: { hp: Number.MAX_VALUE, mp: Number.MAX_VALUE },
+    monsters: Array.from({ length: 100 }, () => ({ hp: 0, fled: false }))
+  }, decisionState);
+  trackRunEnd({ ...run, startedAt: 1 }, "retreat", decisionState);
+
+  const chest = events.find(event => event.name === "chest_action");
+  const smash = events.find(event => event.name === "chest_smash_result");
+  const combat = events.find(event => event.name === "combat_start");
+  const combatEnd = events.find(event => event.name === "combat_end");
+  const runEnd = events.find(event => event.name === "run_end");
+  assert.equal(chest.properties.floor, 1_000_000);
+  assert.equal(chest.properties.inventoryCount, 1_000_000);
+  assert.equal(chest.properties.rewardCount, 1_000_000);
+  assert.equal(smash.properties.floor, 1_000_000);
+  assert.equal(smash.properties.lostRewardCount, 1_000_000);
+  assert.equal(smash.properties.remainingRewardCount, 1_000_000);
+  assert.equal(smash.properties.awardedRewardCount, 1_000_000);
+  assert.equal(smash.properties.unawardedRewardCount, 1_000_000);
+  assert.equal(smash.properties.lostRewardRoles.length, 24);
+  assert.deepEqual(smash.properties.lostRewardRoles.slice(0, 2), ["main", "other"]);
+  assert.equal(smash.properties.lostRewardCategories.length, 24);
+  assert.deepEqual(smash.properties.lostRewardCategories.slice(0, 2), ["usable", "other"]);
+  assert.equal(combat.properties.floor, 1_000_000);
+  assert.equal(combatEnd.properties.floor, 1_000_000);
+  assert.equal(combatEnd.properties.turns, 1_000_000);
+  assert.equal(combatEnd.properties.enemiesDefeated, 8);
+  assert.equal(runEnd.properties.durationMs, 1_000_000);
 });
 
 check("production cell and run result enums are preserved", () => {

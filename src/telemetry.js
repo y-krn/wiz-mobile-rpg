@@ -19,6 +19,7 @@ import { getAffixDefinition } from "./data/affixes.js";
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
+import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -88,6 +89,8 @@ const SAFE_SPELL_TARGET_TYPES = new Set(
     .filter(target => typeof target === "string")
 );
 const SAFE_DIRECTIONS = new Set(DIR_NAMES.map((_, index) => index));
+const SAFE_CHEST_REWARD_ROLES = new Set(["main", "special", "accessory"]);
+const SAFE_CHEST_REWARD_CATEGORIES = new Set(Object.keys(CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY));
 const MAX_ENEMY_SNAPSHOT = 8;
 const MAX_AFFIX_SNAPSHOT = 24;
 const MAX_RESOURCE_VALUE = 1_000_000;
@@ -159,6 +162,12 @@ function normalizeStatus(status) {
 
 function normalizeStableValue(value, allowedValues) {
   return allowedValues.has(value) ? value : "other";
+}
+
+function normalizeBoundedEnumArray(value, allowedValues, cap = MAX_AFFIX_SNAPSHOT) {
+  return Array.isArray(value)
+    ? value.slice(0, cap).map(item => normalizeStableValue(item, allowedValues))
+    : [];
 }
 
 function normalizeOptionalStableValue(value, allowedValues) {
@@ -529,15 +538,15 @@ export function trackChestAction(chest, action, details = {}) {
       character: details.character,
       combat: details.combat
     }),
-    floor: details.floor,
+    floor: boundedFiniteOrNull(details.floor),
     chestSource: chest?.fromDrop ? "fromDrop" : "ordinary",
     fromDrop: Boolean(chest?.fromDrop),
     action,
     trap: details.trap,
     inspected: Boolean(chest?.inspected),
-    inventoryCount: details.inventoryCount,
+    inventoryCount: boundedFiniteOrNull(details.inventoryCount),
     hasTrapKit: details.hasTrapKit,
-    rewardCount: details.rewardCount,
+    rewardCount: boundedFiniteOrNull(details.rewardCount),
     lootAura: chest?.lootHint?.aura
   });
 }
@@ -547,18 +556,18 @@ export function trackChestSmashResult(chest, details = {}) {
 
   capture("chest_smash_result", {
     runId,
-    floor: details.floor,
+    floor: boundedFiniteOrNull(details.floor),
     chestSource: chest?.fromDrop ? "fromDrop" : "ordinary",
     fromDrop: Boolean(chest?.fromDrop),
     trapFired: Boolean(details.trapFired),
     partyDied: Boolean(details.partyDied),
-    rewardCount: details.rewardCount,
-    lostRewardCount: details.lostRewardCount,
-    lostRewardRoles: details.lostRewardRoles,
-    lostRewardCategories: details.lostRewardCategories,
-    remainingRewardCount: details.remainingRewardCount,
-    awardedRewardCount: details.awardedRewardCount,
-    unawardedRewardCount: details.unawardedRewardCount
+    rewardCount: boundedFiniteOrNull(details.rewardCount),
+    lostRewardCount: boundedFiniteOrNull(details.lostRewardCount),
+    lostRewardRoles: normalizeBoundedEnumArray(details.lostRewardRoles, SAFE_CHEST_REWARD_ROLES),
+    lostRewardCategories: normalizeBoundedEnumArray(details.lostRewardCategories, SAFE_CHEST_REWARD_CATEGORIES),
+    remainingRewardCount: boundedFiniteOrNull(details.remainingRewardCount),
+    awardedRewardCount: boundedFiniteOrNull(details.awardedRewardCount),
+    unawardedRewardCount: boundedFiniteOrNull(details.unawardedRewardCount)
   });
 }
 
@@ -593,7 +602,7 @@ export function trackCombatStart(combat, stateSnapshot = null) {
     runId,
     combatId,
     ...safeDecisionContext({ state: stateSnapshot, character: combat?.player, combat }),
-    floor: combat?.floor,
+    floor: boundedFiniteOrNull(combat?.floor),
     playerClass: normalizeClass(combat?.player?.class),
     playerHp: boundedFiniteOrNull(combat?.player?.hp),
     playerMp: boundedFiniteOrNull(combat?.player?.mp),
@@ -610,7 +619,7 @@ export function trackDamageReceived(damage) {
   capture("damage_received", {
     runId,
     combatId,
-    floor: damage?.floor,
+    floor: boundedFiniteOrNull(damage?.floor),
     playerClass: normalizeClass(damage?.playerClass),
     enemyId: normalizeEnemyId(damage?.enemyId),
     attackType: normalizeStableValue(damage?.attackType, SAFE_ATTACK_TYPES),
@@ -634,12 +643,15 @@ export function trackCombatEnd(result, combat, stateSnapshot = null) {
     runId,
     combatId,
     ...safeDecisionContext({ state: stateSnapshot, character: combat?.player, combat }),
-    floor: combat?.floor,
+    floor: boundedFiniteOrNull(combat?.floor),
     result: normalizeCombatResult(result),
     turns: boundedFiniteOrNull(combat?.turns),
     playerHp: boundedFiniteOrNull(combat?.player?.hp),
     playerMp: boundedFiniteOrNull(combat?.player?.mp),
-    enemiesDefeated: (combat?.monsters ?? []).filter(monster => monster?.hp <= 0 && !monster?.fled).length
+    enemiesDefeated: (combat?.monsters ?? [])
+      .slice(0, MAX_ENEMY_SNAPSHOT)
+      .filter(monster => monster?.hp <= 0 && !monster?.fled)
+      .length
   });
 }
 
@@ -664,7 +676,7 @@ export function trackRunEnd(run, outcome, stateSnapshot = null) {
     chestsOpened: boundedFiniteOrNull(run?.chestsOpened),
     trapsTriggered: boundedFiniteOrNull(run?.trapsTriggered),
     durationMs: Number.isFinite(run?.startedAt) && run.startedAt > 0
-      ? Math.max(0, Date.now() - run.startedAt)
+      ? boundedFiniteOrNull(Date.now() - run.startedAt)
       : null,
     deathType,
     deathSource,
