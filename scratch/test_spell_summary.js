@@ -51,6 +51,14 @@ for (const [spellName, spell] of Object.entries(SPELLS)) {
 }
 
 recordAssertion(() => {
+  assert.deepStrictEqual(
+    getSpellCombatSummary("WEAKEN"),
+    { tag: "弱体", effect: "全体攻撃力 -3 3T", category: "debuff" },
+    "WEAKEN: combat summary must match the exact debuff definition"
+  );
+});
+
+recordAssertion(() => {
   assert.strictEqual(
     checkedSummaries.length,
     Object.keys(SPELLS).length,
