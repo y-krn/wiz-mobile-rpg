@@ -16,6 +16,10 @@ import {
 } from "./simulation_manifest.js";
 
 assert.doesNotThrow(() => assertValidSimulationManifest());
+const balanceDomainsFor = file => SIMULATION_MANIFEST.balanceImpactPaths.find(rule => rule.pattern === file)?.domains;
+assert.deepEqual(balanceDomainsFor("src/combat_logic/auto_action.js"), ["combat", "recovery"]);
+assert.deepEqual(balanceDomainsFor("src/combat_logic/item_resolution.js"), ["combat", "status", "recovery"]);
+assert.deepEqual(balanceDomainsFor("src/data.js"), ["combat", "equipment", "maps", "progression", "status", "recovery"]);
 assert.ok(validateSimulationManifest({
   ...SIMULATION_MANIFEST,
   canonical: { ...SIMULATION_MANIFEST.canonical, modelDomains: [] }
@@ -157,6 +161,18 @@ assert.doesNotThrow(() => assertBalanceImpactCovered(["src/combat.js"], SIMULATI
 assert.doesNotThrow(
   () => assertBalanceImpactCovered(["src/rules/recovery_rules.js"], SIMULATION_MANIFEST, firstSmoke),
   "pure recovery rule changes should use recovery evidence only"
+);
+assert.doesNotThrow(
+  () => assertBalanceImpactCovered(["src/combat_logic/auto_action.js"], SIMULATION_MANIFEST, firstSmoke),
+  "auto-action combat and recovery mapping should use fired evidence"
+);
+assert.throws(
+  () => assertBalanceImpactCovered(["src/combat_logic/item_resolution.js"], SIMULATION_MANIFEST, firstSmoke),
+  /no declared runtime evidence: status/
+);
+assert.throws(
+  () => assertBalanceImpactCovered(["src/data.js"], SIMULATION_MANIFEST, firstSmoke),
+  /no declared runtime evidence: status/
 );
 const declaredUnsupportedManifest = {
   ...SIMULATION_MANIFEST,
