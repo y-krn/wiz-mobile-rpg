@@ -325,17 +325,18 @@ function discardEquipment(itemIdx, expectedItemKey) {
   }
 
   state.inventory.splice(itemIdx, 1);
+  trackEquipmentDecision("discard", {
+    state,
+    character: state.party[equipState.actorIdx],
+    candidateKey: expectedItemKey,
+    preview: getEquipPreview(state.party[equipState.actorIdx], expectedItemKey, equipState.selectedSlot)
+  });
   addLog(`[破棄] ${displayName}を破棄した。`);
   playSound("move");
   saveAutosave();
   clearSelection();
   renderEquip();
   updateUI();
-  trackEquipmentDecision("discard", {
-    state,
-    character: state.party[equipState.actorIdx],
-    candidateKey: expectedItemKey
-  });
   return true;
 }
 
