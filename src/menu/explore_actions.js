@@ -10,7 +10,12 @@ import { startCombat, triggerGameOver } from "../combat.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
 import { executeDisarm, openChestDirectly } from "../chest.js";
 import { openWall } from "../map_generator.js";
-import { clearCharIncapacitationOnDamage } from "../combat_logic/status_effects.js";
+import {
+  applyStatusEffect,
+  clearCharIncapacitationOnDamage,
+  EXPLORATION_POISON_DURATION_STEPS,
+  STATUS_EFFECT_IDS
+} from "../combat_logic/status_effects.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
 
@@ -340,9 +345,12 @@ export function renderEventSpring(optGrid) {
       const aliveChars = state.party.filter(char => char.status !== "dead");
       if (aliveChars.length > 0) {
         const target = aliveChars[Math.floor(Math.random() * aliveChars.length)];
-        target.status = "poisoned";
+        applyStatusEffect(target, STATUS_EFFECT_IDS.POISONED, {
+          remainingTurns: EXPLORATION_POISON_DURATION_STEPS,
+          source: "spring"
+        });
         playSound("bump");
-        addLog(`[!] うわっ、水には毒が混ざっていた！${target.name}は毒状態になった！`);
+        addLog(`[!] うわっ、水には毒が混ざっていた！${target.name}は毒状態になった！（探索中${EXPLORATION_POISON_DURATION_STEPS}歩で自然に消える）`);
       }
     } else {
       const aliveChars = state.party.filter(char => char.status !== "dead");

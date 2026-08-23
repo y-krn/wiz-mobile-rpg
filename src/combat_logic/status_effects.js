@@ -13,6 +13,14 @@ export const BLEEDING_DURATION_TURNS = 3;
 export const BLEEDING_PAYOFF_DAMAGE_CANDIDATES = Object.freeze([1, 2, 3]);
 export const BLEEDING_PAYOFF_DAMAGE = 1;
 
+// Exploration poison is intentionally separate from combat-round poison.
+// Combat poison remains a legacy status until the character next takes an
+// exploration step, where the finite exploration window is initialized.
+export const EXPLORATION_POISON_DAMAGE_CHANCE = 0.30;
+export const EXPLORATION_POISON_DURATION_STEPS = 10;
+export const EXPLORATION_POISON_DAMAGE_MIN = 1;
+export const EXPLORATION_POISON_DAMAGE_MAX = 2;
+
 const LEGACY_STATUS_IDS = new Set([
   STATUS_EFFECT_IDS.POISONED,
   STATUS_EFFECT_IDS.BLIND,
@@ -82,16 +90,19 @@ export function normalizeStatusEffectTarget(target) {
     [...LEGACY_STATUS_IDS, STATUS_EFFECT_IDS.SILENCE]
       .map(id => [id, effects[id]?.source ?? null])
   );
+  const legacyPoisonRemainingTurns = effects[STATUS_EFFECT_IDS.POISONED]?.remainingTurns ?? null;
   [...LEGACY_STATUS_IDS, STATUS_EFFECT_IDS.SILENCE].forEach(id => {
     delete effects[id];
   });
   const statusId = legacyStatusId(target.status);
   if (statusId) {
-    const remainingTurns = statusId === STATUS_EFFECT_IDS.SLEEP
-      ? normalizeRemainingTurns(target.sleepTurns)
-      : statusId === STATUS_EFFECT_IDS.PARALYZED
-        ? normalizeRemainingTurns(target.paralyzeTurns)
-        : null;
+    const remainingTurns = statusId === STATUS_EFFECT_IDS.POISONED
+      ? legacyPoisonRemainingTurns
+      : statusId === STATUS_EFFECT_IDS.SLEEP
+        ? normalizeRemainingTurns(target.sleepTurns)
+        : statusId === STATUS_EFFECT_IDS.PARALYZED
+          ? normalizeRemainingTurns(target.paralyzeTurns)
+          : null;
     setLegacyEffect(target, effects, statusId, remainingTurns, legacySources[statusId]);
   }
   if (Number(target.silenceTurns) > 0) {
@@ -194,6 +205,58 @@ export function removeStatusEffect(target, id, { legacyStatus = "ok" } = {}) {
     }
   }
   return hadEffect;
+}
+
+/**
+ * Resolve one exploration step of poison. A null remainingTurns value is the
+ * legacy representation; finite duration is initialized lazily so old saves
+ * and combat-applied poison remain readable and cureable.
+ */
+export function resolveExplorationPoisonStep(
+  target,
+  {
+    rng = Math.random,
+    damageChance = EXPLORATION_POISON_DAMAGE_CHANCE,
+    durationSteps = EXPLORATION_POISON_DURATION_STEPS,
+    damageMin = EXPLORATION_POISON_DAMAGE_MIN,
+    damageMax = EXPLORATION_POISON_DAMAGE_MAX
+  } = {}
+) {
+  if (!target || target.status !== STATUS_EFFECT_IDS.POISONED || target.hp <= 0) {
+    return { active: false, damage: 0, naturalCure: false, remainingSteps: null };
+  }
+
+  normalizeStatusEffectTarget(target);
+  const effect = target.statusEffects[STATUS_EFFECT_IDS.POISONED];
+  let remainingSteps = normalizeRemainingTurns(effect?.remainingTurns);
+  const finiteDuration = Number.isFinite(durationSteps)
+    ? Math.max(0, Math.floor(durationSteps))
+    : null;
+  if (remainingSteps === null && finiteDuration !== null) {
+    remainingSteps = finiteDuration;
+    effect.remainingTurns = remainingSteps;
+  }
+
+  const legacyDamage = damageChance === null;
+  const chance = legacyDamage
+    ? 1
+    : Math.max(0, Math.min(1, Number(damageChance) || 0));
+  const shouldDamage = legacyDamage || rng() < chance;
+  const minDamage = Math.max(1, Math.floor(Number(damageMin) || 1));
+  const maxDamage = Math.max(minDamage, Math.floor(Number(damageMax) || minDamage));
+  const damage = shouldDamage
+    ? Math.floor(rng() * (maxDamage - minDamage + 1)) + minDamage
+    : 0;
+  if (damage > 0) target.hp = Math.max(0, target.hp - damage);
+
+  if (remainingSteps !== null) {
+    remainingSteps = Math.max(0, remainingSteps - 1);
+    effect.remainingTurns = remainingSteps;
+  }
+  const naturalCure = remainingSteps === 0 && target.hp > 0;
+  if (naturalCure) removeStatusEffect(target, STATUS_EFFECT_IDS.POISONED);
+
+  return { active: true, damage, naturalCure, remainingSteps };
 }
 
 export function clearBleedingStatus(target) {

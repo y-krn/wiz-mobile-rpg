@@ -15,7 +15,12 @@ import { menuContext, openSubmenu, resetSubmenuBackButton } from "./navigation.j
 import { triggerGameOver } from "./combat.js";
 import { createRng } from "./seed_rng.js";
 import { increaseChestTrapTier } from "./systems/traps.js";
-import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
+import {
+  applyStatusEffect,
+  clearCharIncapacitationOnDamage,
+  EXPLORATION_POISON_DURATION_STEPS,
+  STATUS_EFFECT_IDS
+} from "./combat_logic/status_effects.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
@@ -533,11 +538,16 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
       char.status = "dead";
       recordCharDeath(state, char, "宝箱の罠「毒針」", { type: "trap", source: "宝箱の毒針" });
     } else if (poisonTriggered && !resisted) {
-      char.status = "poisoned";
+      applyStatusEffect(char, STATUS_EFFECT_IDS.POISONED, {
+        remainingTurns: EXPLORATION_POISON_DURATION_STEPS,
+        source: "chest"
+      });
     }
     const poisonResult = resisted
       ? "毒避けの備えで毒は免れた！"
-      : (poisonTriggered ? "毒状態になった！" : "毒は付着しなかった。");
+      : (poisonTriggered
+        ? `毒状態になった！（探索中${EXPLORATION_POISON_DURATION_STEPS}歩で自然に消える）`
+        : "毒は付着しなかった。");
     addLog(`毒針が作動！${char.name}は${damage}のダメージを受けた。${poisonResult}`);
     if (renderer) renderer.addDamageText(String(damage), "#ff3b30");
   } else if (trap === "gas bomb") {
