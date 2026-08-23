@@ -11,7 +11,11 @@ import { startCombat, triggerGameOver } from "./combat.js";
 import { setupChestState } from "./chest.js";
 import { menuContext, openGuardedSubmenu, openSubmenu } from "./navigation.js";
 import { detectAdjacentTraps, startTrapEncounter, triggerTrap, triggerPitfall } from "./systems/traps.js";
-import { clearCharIncapacitationOnDamage } from "./combat_logic/status_effects.js";
+import {
+  clearCharIncapacitationOnDamage,
+  resolveExplorationPoisonStep,
+  EXPLORATION_POISON_DURATION_STEPS
+} from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/elite_perception.js";
 import { ELITE_PATROL_RADIUS } from "./systems/roaming_elites.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
@@ -623,14 +627,17 @@ export function applyExplorationPoison() {
   let tookDamage = false;
   state.party.forEach(c => {
     if (c.status === "poisoned" && c.hp > 0) {
-      const pDmg = Math.floor(Math.random() * 2) + 1; // 1-2 HP damage
-      c.hp = Math.max(0, c.hp - pDmg);
-      addLog(`[!] 毒のダメージ！${c.name}は${pDmg}のダメージを受けた。`);
-      tookDamage = true;
+      const result = resolveExplorationPoisonStep(c);
+      if (result.damage > 0) {
+        addLog(`[!] 毒のダメージ！${c.name}は${result.damage}のダメージを受けた。`);
+        tookDamage = true;
+      }
       if (c.hp === 0) {
         c.status = "dead";
         recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
         addLog(`[!] ${c.name}は毒で力尽きた！`);
+      } else if (result.naturalCure) {
+        addLog(`[!] ${c.name}の毒が自然に消えた。（${EXPLORATION_POISON_DURATION_STEPS}歩で回復）`);
       }
     }
   });

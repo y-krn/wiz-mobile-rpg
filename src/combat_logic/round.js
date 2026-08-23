@@ -46,6 +46,7 @@ import {
   clearBleedingStatus,
   tickStatusEffects,
   STATUS_EFFECT_IDS,
+  EXPLORATION_POISON_DURATION_STEPS,
   BLEEDING_DURATION_TURNS,
   BLEEDING_PAYOFF_DAMAGE,
   getStatusEffectRemainingTurns
@@ -1132,7 +1133,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             } else {
               applyStatusEffect(target, STATUS_EFFECT_IDS.POISONED, { source: "monster" });
               logQueue.push({
-                msg: `[ 敵 ] [!] ${target.name}は毒を受け、毒状態になった！`,
+                msg: `[ 敵 ] [!] ${target.name}は毒を受け、毒状態になった！（探索中${EXPLORATION_POISON_DURATION_STEPS}歩で自然に消える）`,
                 sound: "chest_trap"
               });
             }

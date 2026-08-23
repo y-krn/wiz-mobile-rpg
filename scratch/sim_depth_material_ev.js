@@ -280,7 +280,12 @@ const { getEffectiveHealAmount } = await import("../src/rules/item_rules.js");
 const { canUseManaItems } = await import("../src/rules/class_rules.js");
 const {
   clearCharIncapacitationOnDamage,
-  getBuffTotal
+  getBuffTotal,
+  applyStatusEffect,
+  resolveExplorationPoisonStep,
+  EXPLORATION_POISON_DURATION_STEPS,
+  EXPLORATION_POISON_DAMAGE_CHANCE,
+  STATUS_EFFECT_IDS
 } = await import("../src/combat_logic/status_effects.js");
 const {
   getEffectiveDef,
@@ -356,8 +361,29 @@ const SIM_ENV_KEYS = Object.freeze([
   "SIM_MERCHANT_RETURN_WING",
   "SIM_MERCHANT_RETURN_WING_COST",
   "SIM_RETURN_WING_MODE",
-  "SIM_SCENARIOS"
+  "SIM_SCENARIOS",
+  "SIM_EXPLORATION_POISON_MODEL",
+  "SIM_EXPLORATION_POISON_CHANCE",
+  "SIM_EXPLORATION_POISON_DURATION"
 ]);
+
+const SIM_EXPLORATION_POISON_MODEL = process.env.SIM_EXPLORATION_POISON_MODEL || "combined";
+const SIM_EXPLORATION_POISON_CHANCE = Number.isFinite(Number(process.env.SIM_EXPLORATION_POISON_CHANCE))
+  ? Math.max(0, Math.min(1, Number(process.env.SIM_EXPLORATION_POISON_CHANCE)))
+  : EXPLORATION_POISON_DAMAGE_CHANCE;
+const SIM_EXPLORATION_POISON_DURATION = Number.isFinite(Number(process.env.SIM_EXPLORATION_POISON_DURATION))
+  ? Math.max(0, Math.floor(Number(process.env.SIM_EXPLORATION_POISON_DURATION)))
+  : EXPLORATION_POISON_DURATION_STEPS;
+
+function getSimulationExplorationPoisonConfig() {
+  const probabilityOnly = SIM_EXPLORATION_POISON_MODEL === "probability-only";
+  const finiteOnly = SIM_EXPLORATION_POISON_MODEL === "finite-only";
+  const legacy = SIM_EXPLORATION_POISON_MODEL === "legacy";
+  return {
+    damageChance: legacy ? null : (finiteOnly ? 1 : SIM_EXPLORATION_POISON_CHANCE),
+    durationSteps: legacy || probabilityOnly ? null : SIM_EXPLORATION_POISON_DURATION
+  };
+}
 const REVALIDATION_DEPARTURE_CRAFT_IDS =
   "TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION";
 const DEFAULT_DEPTH_SCENARIOS_CSV =
@@ -2995,6 +3021,7 @@ function createStatusObservationBuckets() {
     totalExplorationSteps: 0,
     totalIncapacitatedActions: 0,
     totalPoisonDamageHp: 0,
+    maxConsecutivePoisonDamageSteps: 0,
     totalIncomingDamageHp: 0,
     blindAttackAttempts: 0,
     blindAttackMisses: 0,
@@ -3009,14 +3036,19 @@ function createStatusObservationBuckets() {
 function createStatusObservationMetrics() {
   return {
     byStatus: createStatusObservationBuckets(),
-    activeEpisode: null
+    activeEpisode: null,
+    poisonEnded: false,
+    postPoisonContinuationSteps: 0,
+    postPoisonOutcomes: {}
   };
 }
 
 function createStatusObservationAggregate() {
   return {
     runs: 0,
-    byStatus: createStatusObservationBuckets()
+    byStatus: createStatusObservationBuckets(),
+    postPoisonContinuationSteps: 0,
+    postPoisonOutcomes: {}
   };
 }
 
@@ -3029,12 +3061,19 @@ function closeStatusObservationEpisode(observations, reason = "run-end") {
   bucket.totalExplorationSteps += episode.explorationSteps;
   bucket.totalIncapacitatedActions += episode.incapacitatedActions;
   bucket.totalPoisonDamageHp += episode.poisonDamageHp;
+  bucket.maxConsecutivePoisonDamageSteps = Math.max(
+    bucket.maxConsecutivePoisonDamageSteps,
+    episode.maxConsecutivePoisonDamageSteps
+  );
   bucket.totalIncomingDamageHp += episode.incomingDamageHp;
   bucket.blindAttackAttempts += episode.blindAttackAttempts;
   bucket.blindAttackMisses += episode.blindAttackMisses;
   bucket.blindAttackHitDamageHp += episode.blindAttackHitDamageHp;
   bucket.maxCombatRounds = Math.max(bucket.maxCombatRounds, episode.combatRounds);
   bucket.endReasons[reason] = (bucket.endReasons[reason] || 0) + 1;
+  if (episode.status === "poisoned" && !["death", "run-end"].includes(reason)) {
+    observations.poisonEnded = true;
+  }
   observations.activeEpisode = null;
 }
 
@@ -3052,6 +3091,8 @@ function ensureStatusObservationEpisode(observations, status, source = "state") 
       explorationSteps: 0,
       incapacitatedActions: 0,
       poisonDamageHp: 0,
+      consecutivePoisonDamageSteps: 0,
+      maxConsecutivePoisonDamageSteps: 0,
       incomingDamageHp: 0,
       blindAttackAttempts: 0,
       blindAttackMisses: 0,
@@ -3186,9 +3227,26 @@ function recordStatusObservationAfterCombatRound(
 }
 
 function recordStatusObservationStep(observations, status) {
+  if (observations.poisonEnded) observations.postPoisonContinuationSteps++;
   const normalized = normalizeStatusObservation(status);
   if (!normalized) return;
   recordStatusObservationExposure(observations, normalized, { explorationStep: true });
+}
+
+function recordStatusObservationPoisonDamage(observations, damage) {
+  const episode = observations?.activeEpisode?.status === "poisoned"
+    ? observations.activeEpisode
+    : null;
+  if (!episode) return;
+  const normalizedDamage = Number(damage) || 0;
+  episode.poisonDamageHp += normalizedDamage;
+  episode.consecutivePoisonDamageSteps = normalizedDamage > 0
+    ? episode.consecutivePoisonDamageSteps + 1
+    : 0;
+  episode.maxConsecutivePoisonDamageSteps = Math.max(
+    episode.maxConsecutivePoisonDamageSteps,
+    episode.consecutivePoisonDamageSteps
+  );
 }
 
 function finalizeStatusObservation(metrics, finalStatus, outcome) {
@@ -3203,7 +3261,12 @@ function finalizeStatusObservation(metrics, finalStatus, outcome) {
     bucket.runsWithApplications = Number(bucket.applications > 0);
     bucket.runsWithEpisodes = Number(bucket.episodes > 0);
   });
+  if (metrics.poisonEnded) {
+    metrics.postPoisonOutcomes[outcome] = (metrics.postPoisonOutcomes[outcome] || 0) + 1;
+  }
   return {
+    postPoisonContinuationSteps: metrics.postPoisonContinuationSteps,
+    postPoisonOutcomes: { ...metrics.postPoisonOutcomes },
     byStatus: Object.fromEntries(
       STATUS_OBSERVATION_KEYS.map(status => [
         status,
@@ -3219,6 +3282,10 @@ function finalizeStatusObservation(metrics, finalStatus, outcome) {
 
 function addStatusObservationAggregate(target, result) {
   target.runs++;
+  target.postPoisonContinuationSteps += result.statusObservations?.postPoisonContinuationSteps || 0;
+  Object.entries(result.statusObservations?.postPoisonOutcomes || {}).forEach(([outcome, count]) => {
+    target.postPoisonOutcomes[outcome] = (target.postPoisonOutcomes[outcome] || 0) + count;
+  });
   STATUS_OBSERVATION_KEYS.forEach(status => {
     const source = result.statusObservations?.byStatus?.[status];
     if (!source) return;
@@ -3229,6 +3296,10 @@ function addStatusObservationAggregate(target, result) {
     destination.totalExplorationSteps += source.totalExplorationSteps || 0;
     destination.totalIncapacitatedActions += source.totalIncapacitatedActions || 0;
     destination.totalPoisonDamageHp += source.totalPoisonDamageHp || 0;
+    destination.maxConsecutivePoisonDamageSteps = Math.max(
+      destination.maxConsecutivePoisonDamageSteps || 0,
+      source.maxConsecutivePoisonDamageSteps || 0
+    );
     destination.totalIncomingDamageHp += source.totalIncomingDamageHp || 0;
     destination.blindAttackAttempts += source.blindAttackAttempts || 0;
     destination.blindAttackMisses += source.blindAttackMisses || 0;
@@ -3253,6 +3324,8 @@ function finalizeStatusObservationAggregate(aggregate) {
   const runs = Math.max(1, aggregate.runs);
   return {
     runs: aggregate.runs,
+    postPoisonContinuationSteps: aggregate.postPoisonContinuationSteps,
+    postPoisonOutcomes: { ...aggregate.postPoisonOutcomes },
     byStatus: Object.fromEntries(STATUS_OBSERVATION_KEYS.map(status => {
       const values = aggregate.byStatus[status];
       return [status, {
@@ -6663,7 +6736,11 @@ function applyChestTrapEffect(state, trap, weakened, metrics) {
     if (character.hp === 0) {
       character.status = "dead";
     } else if (effect.targetPoisonTriggered && !effect.targetPoisonResisted) {
-      character.status = "poisoned";
+      const poisonConfig = getSimulationExplorationPoisonConfig();
+      applyStatusEffect(character, STATUS_EFFECT_IDS.POISONED, {
+        remainingTurns: poisonConfig.durationSteps,
+        source: "chest"
+      });
       recordStatusObservationApplication(metrics.statusObservations, "poisoned", "chest");
     }
     recordTrapDamage(metrics, "chest", trap, effect.targetDamage, state.floor, state, {
@@ -10407,6 +10484,23 @@ export function simulateRun({
       state.currentRun.steps++;
       state.currentRun.floorSteps[String(floor)] =
         (state.currentRun.floorSteps[String(floor)] || 0) + 1;
+      const poisonStep = resolveExplorationPoisonStep(
+        state.party[0],
+        getSimulationExplorationPoisonConfig()
+      );
+      recordStatusObservationPoisonDamage(metrics.statusObservations, poisonStep.damage);
+      if (poisonStep.naturalCure) {
+        clearStatusObservation(metrics.statusObservations, "poisoned", "natural-cure");
+      }
+      if (!isAlive(state.party[0])) {
+        state.party[0].status = "dead";
+        recordCharDeath(state, state.party[0], "毒のダメージ", {
+          type: "status",
+          source: "毒"
+        });
+        metrics.deathEncounterType = "poison";
+        return finishRun(state, "death", metrics);
+      }
       tickExplorationSpellEffects(state);
       if (SIM_EXPLORE_SPELLS_ENABLED) maybeCastExplorationSpells(state, metrics);
       metrics.lightActiveSteps += Number(state.lightTurns > 0);
@@ -12492,6 +12586,10 @@ function printStatusCureSummary(result) {
   );
   console.log(`状態回復アイテム/run 入手/消費: ${JSON.stringify(statusItems)}`);
   console.log(`状態回復アイテム合計使用: ${JSON.stringify(result.statusCureItemsUsed || {})}`);
+  console.log(
+    `毒終了後: 継続step/run=${((result.statusObservations?.postPoisonContinuationSteps || 0) / RUNS_PER_CASE).toFixed(4)} ` +
+    `終了後run outcome=${JSON.stringify(result.statusObservations?.postPoisonOutcomes || {})}`
+  );
   Object.entries(result.statusObservations?.byStatus || {}).forEach(([status, values]) => {
     console.log(
       `状態異常 ${status}: ` +
@@ -12501,6 +12599,7 @@ function printStatusCureSummary(result) {
       `探索step/run=${values.averageExplorationSteps.toFixed(4)}, ` +
       `行動損失/run=${values.averageIncapacitatedActions.toFixed(4)}, ` +
       `毒ダメージHP/run=${values.averagePoisonDamageHp.toFixed(4)}, ` +
+      `連続毒step最大=${values.maxConsecutivePoisonDamageSteps}, ` +
       `被弾HP/run=${values.averageIncomingDamageHp.toFixed(4)}, ` +
       `盲目攻撃試行/空振り/run=${values.averageBlindAttackAttempts.toFixed(4)}/` +
       `${values.averageBlindAttackMisses.toFixed(4)}`
@@ -13357,6 +13456,9 @@ const ENV_SIGNATURE = {
     ? null
     : [SIM_MADI_HEAL_MIN, SIM_MADI_HEAL_MAX],
   madiCostOverride: SIM_MADI_COST,
+  explorationPoisonModel: SIM_EXPLORATION_POISON_MODEL,
+  explorationPoisonChance: SIM_EXPLORATION_POISON_CHANCE,
+  explorationPoisonDuration: SIM_EXPLORATION_POISON_DURATION,
   portalMinFloor: PORTAL_MIN_FLOOR,
   portalHpThreshold: PORTAL_HP_THRESHOLD,
   portalMaxHealPotions: PORTAL_MAX_HEAL_POTIONS,

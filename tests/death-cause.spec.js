@@ -29,7 +29,13 @@ test('real trap, status, and combat deaths keep structured causes', async ({ pag
 
     setup();
     state.party[0].status = 'poisoned';
-    applyExplorationPoison();
+    const originalRandom = Math.random;
+    Math.random = () => 0;
+    try {
+      applyExplorationPoison();
+    } finally {
+      Math.random = originalRandom;
+    }
     const status = state.currentRun.deathLogs.at(-1);
 
     setup();

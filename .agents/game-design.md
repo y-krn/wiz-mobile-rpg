@@ -35,6 +35,18 @@ is a bug in the economy.
 
 ## Status Effects And Counterplay
 
+- Exploration poison is a finite exploration risk, not a permanent per-step
+  tax: on each exploration step it has a 30% chance to deal 1–2 HP damage and
+  expires after 10 exploration steps. The canonical values live in
+  `src/combat_logic/status_effects.js`; combat-round poison keeps its existing
+  round timing and application rules.
+- Antidote, Holy Water, Panacea, LATUMOFIS, and healing recovery remain valid
+  immediate counterplay. The finite window lowers the chance that poison alone
+  ends a run while preserving the decision to spend a cure when HP or the
+  remaining route makes waiting unsafe. Existing legacy poison records without
+  a timer remain readable and receive the finite exploration window lazily on
+  their next exploration step.
+
 - Blind remains a combat disruption: the affected character can act, but may
   miss attacks and takes the existing incoming-damage penalty.
 - Blind clears when combat ends through victory or retreat while the character
