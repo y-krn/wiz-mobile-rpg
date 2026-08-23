@@ -1211,6 +1211,12 @@ Use the repository review output format from `.agents/README.md`.
 
 This is a measurement record, not gameplay canon. The source registry is authoritative: **18 enabled cores** and **47 enabled SUPPORT affixes**; this reconciles with the current assertions in `scratch/test_affixes.js` and `scratch/test_core_affixes.js` (support categories 26 basic / 11 conditional / 7 trigger / 3 economy). No registry values, enable flags, or production wiring were changed.
 
+### Classification correction (2026-08-23)
+
+This correction supersedes the SUPPORT classification in the [prior completion record](https://github.com/y-krn/wiz-mobile-rpg/issues/679#issuecomment-5384541391). The raw measurements, generated/equipped counts, Wilson intervals, provenance hashes, and simulator output are unchanged; only the interpretation/status labels were corrected. The corrected aggregate is **CORE A11/B0/C1/D6** and **SUPPORT A0/B0/C47/D0** (combined **A11/B0/C48/D6**).
+
+Classification rule: a missing per-mechanism simulator probe is **C/sim-missing even when equipped N<30**. **D** applies only when the required runtime observation probe exists but equipped N<30. Therefore every SUPPORT row below is C/sim-missing because the current simulator has no per-SUPPORT condition/application probe.
+
 ### Measurement path and provenance
 
 - Real path: `scratch/sim_depth_material_ev.js` (`sim-scope: run`) → `generateRunFloor` → current equipment generation/identification/equip selection → current round/reward/movement/chest rules.
@@ -1222,7 +1228,7 @@ This is a measurement record, not gameplay canon. The source registry is authori
 
 ### Funnel definitions and classification
 
-Each row is `G/C/E/Q/A`: generated affix instances / distinct generated instances examined by the existing greedy equip path / equip events / condition-or-trigger eligible events / application/activation events. `E/C` and `A/Q` are Wilson 95% intervals where the denominator is a binary rate; Q/A are event counts otherwise. Core Q/A are populated from existing simulator probes. SUPPORT Q/A are deliberately `0/0` because the current sim has no per-SUPPORT event probe; this is **C/sim-missing**, not a measured zero. D means fewer than 30 equipped observations, never B. A means equipped and observed through the existing runtime probe. B had no findings: every non-observed case had either N<30 or an identified simulator coverage gap. Source tracing through imports/re-exports and direct callers found no enabled registry entry with a source-wiring absence; C findings below are sim-missing.
+Each row is `G/C/E/Q/A`: generated affix instances / distinct generated instances examined by the existing greedy equip path / equip events / condition-or-trigger eligible events / application/activation events. `E/C` and `A/Q` are Wilson 95% intervals where the denominator is a binary rate; Q/A are event counts otherwise. Core Q/A are populated from existing simulator probes. SUPPORT Q/A are deliberately `0/0` because the current sim has no per-SUPPORT event probe; this is **C/sim-missing**, not a measured zero. A means equipped and observed through the existing runtime probe. D means fewer than 30 equipped observations only when the required runtime probe exists; a missing per-mechanism simulator probe is C/sim-missing regardless of N. B had no findings: every non-observed case had either N<30 with a required probe present or an identified simulator coverage gap. Source tracing through imports/re-exports and direct callers found no enabled registry entry with a source-wiring absence; C findings below are sim-missing.
 
 ### Slot coverage
 
@@ -1251,7 +1257,7 @@ Core slots are mutually exclusive: weapon 6, accessory 8, armor 3, shield 1. SUP
 #### Complete enabled SUPPORT inventory (coverage run: gate off)
 | id | category/slot | min-floor/availability gate | source effect/params | status | G/C/E/Q/A | E/C Wilson | A/Q |
 |---|---|---|---|---|---|---|---|
-| atk | basic/weapon | B1; base-item/pool dependent | 攻撃力が増加する。 cost=3 | D | 54/54/20/0/0 | 37.0% [25.4,50.4] | — (sim-missing) |
+| atk | basic/weapon | B1; base-item/pool dependent | 攻撃力が増加する。 cost=3 | C/sim-missing | 54/54/20/0/0 | 37.0% [25.4,50.4] | — (sim-missing) |
 | def | basic/armor/shield | B1; base-item/pool dependent | 防御力が増加する。 cost=3 | C/sim-missing | 128/128/65/0/0 | 50.8% [42.2,59.3] | — (sim-missing) |
 | str | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 力が増加する。 cost=2 | C/sim-missing | 232/232/107/0/0 | 46.1% [39.8,52.5] | — (sim-missing) |
 | int | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 知恵が増加する。 cost=2 | C/sim-missing | 212/212/92/0/0 | 43.4% [36.9,50.1] | — (sim-missing) |
@@ -1260,41 +1266,41 @@ Core slots are mutually exclusive: weapon 6, accessory 8, armor 3, shield 1. SUP
 | agi | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 素早さが増加する。 cost=2 | C/sim-missing | 213/213/87/0/0 | 40.8% [34.5,47.6] | — (sim-missing) |
 | luk | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 運が増加する。 cost=2 | C/sim-missing | 212/212/52/0/0 | 24.5% [19.2,30.7] | — (sim-missing) |
 | hp | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 最大HPが増加する。 cost=2 | C/sim-missing | 208/208/93/0/0 | 44.7% [38.1,51.5] | — (sim-missing) |
-| mp | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 最大MPが増加する。 cost=2 | D | 91/91/27/0/0 | 29.7% [21.3,39.7] | — (sim-missing) |
-| antiUndead | basic/weapon/accessory | B3 accessory / B3 equipment | 不死への与ダメージが増加する。 cost=3 unit=% | D | 7/7/0/0/0 | 0.0% [0.0,35.4] | — (sim-missing) |
-| antiDragon | basic/armor/accessory | B4 | 竜への与ダメージが増加する。 cost=3 unit=% | D | 9/9/1/0/0 | 11.1% [2.0,43.5] | — (sim-missing) |
-| antiDemon | basic/weapon/accessory | B2 | 悪魔への与ダメージが増加する。 cost=3 unit=% | D | 15/15/2/0/0 | 13.3% [3.7,37.9] | — (sim-missing) |
-| poisonWard | basic/armor/accessory | B1 accessory / B2 equipment | 毒への耐性が増加する。 cost=2 unit=% | D | 13/13/2/0/0 | 15.4% [4.3,42.2] | — (sim-missing) |
-| spellGuard | basic/armor/shield/accessory | B1; base-item/pool dependent | 呪文ダメージを軽減する。 cost=3 unit=% | D | 22/22/11/0/0 | 50.0% [30.7,69.3] | — (sim-missing) |
+| mp | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 最大MPが増加する。 cost=2 | C/sim-missing | 91/91/27/0/0 | 29.7% [21.3,39.7] | — (sim-missing) |
+| antiUndead | basic/weapon/accessory | B3 accessory / B3 equipment | 不死への与ダメージが増加する。 cost=3 unit=% | C/sim-missing | 7/7/0/0/0 | 0.0% [0.0,35.4] | — (sim-missing) |
+| antiDragon | basic/armor/accessory | B4 | 竜への与ダメージが増加する。 cost=3 unit=% | C/sim-missing | 9/9/1/0/0 | 11.1% [2.0,43.5] | — (sim-missing) |
+| antiDemon | basic/weapon/accessory | B2 | 悪魔への与ダメージが増加する。 cost=3 unit=% | C/sim-missing | 15/15/2/0/0 | 13.3% [3.7,37.9] | — (sim-missing) |
+| poisonWard | basic/armor/accessory | B1 accessory / B2 equipment | 毒への耐性が増加する。 cost=2 unit=% | C/sim-missing | 13/13/2/0/0 | 15.4% [4.3,42.2] | — (sim-missing) |
+| spellGuard | basic/armor/shield/accessory | B1; base-item/pool dependent | 呪文ダメージを軽減する。 cost=3 unit=% | C/sim-missing | 22/22/11/0/0 | 50.0% [30.7,69.3] | — (sim-missing) |
 | trapBonus | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 罠解除率が増加する。 cost=2 unit=% | C/sim-missing | 155/155/38/0/0 | 24.5% [18.4,31.9] | — (sim-missing) |
-| treasureSense | basic/weapon/armor/shield/accessory | B1 accessory / B3 equipment | 宝の発見率が増加する。 cost=2 unit=% | D | 19/19/10/0/0 | 52.6% [31.7,72.7] | — (sim-missing) |
-| arcaneSense | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 魔力感知範囲が増加する。 cost=1 unit=Lv | D | 50/50/10/0/0 | 20.0% [11.2,33.0] | — (sim-missing) |
-| hearRange | basic/armor/shield/accessory | B1; base-item/pool dependent | 聴覚範囲が増加する。 cost=1 | D | 46/46/18/0/0 | 39.1% [26.4,53.5] | — (sim-missing) |
-| traceRead | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 痕跡判読範囲が増加する。 cost=1 unit=Lv | D | 43/43/13/0/0 | 30.2% [18.6,45.1] | — (sim-missing) |
-| followUp | basic/weapon | B2 | 追加攻撃率が増加する。 cost=3 unit=% | D | 19/19/8/0/0 | 42.1% [23.1,63.7] | — (sim-missing) |
-| spellPower | basic/weapon/armor/shield/accessory | B2 | 攻撃・回復呪文の威力が増加する。 cost=3 unit=% | D | 32/32/4/0/0 | 12.5% [5.0,28.1] | — (sim-missing) |
-| arcane | basic/weapon/armor/shield | B2 | 呪文威力が増加する。 cost=3 unit=% | D | 19/19/2/0/0 | 10.5% [2.9,31.4] | — (sim-missing) |
-| devotion | basic/weapon/armor | B2 | 回復威力が増加する。 cost=3 unit=% | D | 3/3/1/0/0 | 33.3% [6.1,79.2] | — (sim-missing) |
-| guardian | basic/armor/shield | B3 | HP25%以下のとき、物理ダメージを軽減する。 cost=3 unit=% | D | 7/7/2/0/0 | 28.6% [8.2,64.1] | — (sim-missing) |
-| firstStrike | basic/weapon | B4 | 先制率が増加する。 cost=3 | D | 3/3/0/0/0 | 0.0% [0.0,56.2] | — (sim-missing) |
-| deepAssault | conditional/weapon/armor/shield/accessory | B3 | B3F以深で与ダメージが増加する。 cost=2 unit=% | D | 57/57/11/0/0 | 19.3% [11.1,31.3] | — (sim-missing) |
-| frontGuard | conditional/armor/shield | B1; base-item/pool dependent | 前列で防御力が増加する。 cost=2 | D | 94/94/25/0/0 | 26.6% [18.7,36.3] | — (sim-missing) |
-| rearEvasion | conditional/armor/shield | B2 | 後列で回避率が増加する。 cost=2 unit=% | D | 35/35/4/0/0 | 11.4% [4.5,26.0] | — (sim-missing) |
-| fullHpDamage | conditional/weapon/accessory | B2 | HP満タン時に与ダメージが増加する。 cost=3 unit=% | D | 60/60/8/0/0 | 13.3% [6.9,24.2] | — (sim-missing) |
-| firstTurnAttack | conditional/weapon | B1; base-item/pool dependent | 1ターン目に攻撃力が増加する。 cost=2 | D | 28/28/2/0/0 | 7.1% [2.0,22.6] | — (sim-missing) |
-| antiBeast | conditional/weapon/accessory | B2 | 獣への与ダメージが増加する。 cost=2 unit=% | D | 24/24/2/0/0 | 8.3% [2.3,25.8] | — (sim-missing) |
-| antiSpirit | conditional/weapon/accessory | B2 | 霊体への与ダメージが増加する。 cost=2 unit=% | D | 18/18/1/0/0 | 5.6% [1.0,25.8] | — (sim-missing) |
-| firstStrikeDefense | conditional/armor/shield | B2 | 先制成功時に防御力が増加する。 cost=2 | D | 14/14/3/0/0 | 21.4% [7.6,47.6] | — (sim-missing) |
-| lastSurvivorStats | conditional/weapon/armor/shield/accessory | B3 | 単独生存時に全能力が増加する。 cost=3 | D | 22/22/5/0/0 | 22.7% [10.1,43.4] | — (sim-missing) |
-| statusResistance | conditional/weapon/armor/shield/accessory | B2 | 状態異常への耐性が増加する。 cost=2 unit=% | D | 71/71/12/0/0 | 16.9% [9.9,27.3] | — (sim-missing) |
-| spellAccuracy | conditional/weapon/accessory | B3 | 呪文命中率が増加する。 cost=2 unit=% | D | 21/21/3/0/0 | 14.3% [5.0,34.6] | — (sim-missing) |
-| killHeal | trigger/weapon/accessory | B3 | 敵撃破時にHPを2回復する。 cost=2 | D | 13/13/1/0/0 | 7.7% [1.4,33.3] | — (sim-missing) |
-| followUpMp | trigger/weapon/accessory | B3 | 追撃時にMPを1回復する。 cost=2 | D | 8/8/0/0/0 | 0.0% [0.0,32.4] | — (sim-missing) |
-| hitFlinch | trigger/weapon/accessory | B3 | 被弾時に低確率で敵を怯ませる。 cost=2 | D | 19/19/3/0/0 | 15.8% [5.5,37.6] | — (sim-missing) |
-| poisonAtk | trigger/weapon | B3 | 攻撃命中時に低確率で敵を毒にする。 cost=2 unit=% | D | 12/12/0/0/0 | 0.0% [0.0,24.3] | — (sim-missing) |
-| bleedingAtk | trigger/weapon | B3 | 攻撃命中時に低確率で敵を出血させる。後続の通常攻撃で追加ダメージ。 cost=2 unit=% | D | 8/8/0/0/0 | 0.0% [0.0,32.4] | — (sim-missing) |
-| victoryMaterial | trigger/weapon/armor/shield/accessory | B2 | 勝利時に低確率で素材を得る。 cost=2 unit=% | D | 51/51/3/0/0 | 5.9% [2.0,15.9] | — (sim-missing) |
-| stairsHeal | trigger/weapon/armor/shield/accessory | B1; base-item/pool dependent | 階段発見時にHPを回復する。 cost=1 | D | 75/75/14/0/0 | 18.7% [11.5,28.9] | — (sim-missing) |
+| treasureSense | basic/weapon/armor/shield/accessory | B1 accessory / B3 equipment | 宝の発見率が増加する。 cost=2 unit=% | C/sim-missing | 19/19/10/0/0 | 52.6% [31.7,72.7] | — (sim-missing) |
+| arcaneSense | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 魔力感知範囲が増加する。 cost=1 unit=Lv | C/sim-missing | 50/50/10/0/0 | 20.0% [11.2,33.0] | — (sim-missing) |
+| hearRange | basic/armor/shield/accessory | B1; base-item/pool dependent | 聴覚範囲が増加する。 cost=1 | C/sim-missing | 46/46/18/0/0 | 39.1% [26.4,53.5] | — (sim-missing) |
+| traceRead | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 痕跡判読範囲が増加する。 cost=1 unit=Lv | C/sim-missing | 43/43/13/0/0 | 30.2% [18.6,45.1] | — (sim-missing) |
+| followUp | basic/weapon | B2 | 追加攻撃率が増加する。 cost=3 unit=% | C/sim-missing | 19/19/8/0/0 | 42.1% [23.1,63.7] | — (sim-missing) |
+| spellPower | basic/weapon/armor/shield/accessory | B2 | 攻撃・回復呪文の威力が増加する。 cost=3 unit=% | C/sim-missing | 32/32/4/0/0 | 12.5% [5.0,28.1] | — (sim-missing) |
+| arcane | basic/weapon/armor/shield | B2 | 呪文威力が増加する。 cost=3 unit=% | C/sim-missing | 19/19/2/0/0 | 10.5% [2.9,31.4] | — (sim-missing) |
+| devotion | basic/weapon/armor | B2 | 回復威力が増加する。 cost=3 unit=% | C/sim-missing | 3/3/1/0/0 | 33.3% [6.1,79.2] | — (sim-missing) |
+| guardian | basic/armor/shield | B3 | HP25%以下のとき、物理ダメージを軽減する。 cost=3 unit=% | C/sim-missing | 7/7/2/0/0 | 28.6% [8.2,64.1] | — (sim-missing) |
+| firstStrike | basic/weapon | B4 | 先制率が増加する。 cost=3 | C/sim-missing | 3/3/0/0/0 | 0.0% [0.0,56.2] | — (sim-missing) |
+| deepAssault | conditional/weapon/armor/shield/accessory | B3 | B3F以深で与ダメージが増加する。 cost=2 unit=% | C/sim-missing | 57/57/11/0/0 | 19.3% [11.1,31.3] | — (sim-missing) |
+| frontGuard | conditional/armor/shield | B1; base-item/pool dependent | 前列で防御力が増加する。 cost=2 | C/sim-missing | 94/94/25/0/0 | 26.6% [18.7,36.3] | — (sim-missing) |
+| rearEvasion | conditional/armor/shield | B2 | 後列で回避率が増加する。 cost=2 unit=% | C/sim-missing | 35/35/4/0/0 | 11.4% [4.5,26.0] | — (sim-missing) |
+| fullHpDamage | conditional/weapon/accessory | B2 | HP満タン時に与ダメージが増加する。 cost=3 unit=% | C/sim-missing | 60/60/8/0/0 | 13.3% [6.9,24.2] | — (sim-missing) |
+| firstTurnAttack | conditional/weapon | B1; base-item/pool dependent | 1ターン目に攻撃力が増加する。 cost=2 | C/sim-missing | 28/28/2/0/0 | 7.1% [2.0,22.6] | — (sim-missing) |
+| antiBeast | conditional/weapon/accessory | B2 | 獣への与ダメージが増加する。 cost=2 unit=% | C/sim-missing | 24/24/2/0/0 | 8.3% [2.3,25.8] | — (sim-missing) |
+| antiSpirit | conditional/weapon/accessory | B2 | 霊体への与ダメージが増加する。 cost=2 unit=% | C/sim-missing | 18/18/1/0/0 | 5.6% [1.0,25.8] | — (sim-missing) |
+| firstStrikeDefense | conditional/armor/shield | B2 | 先制成功時に防御力が増加する。 cost=2 | C/sim-missing | 14/14/3/0/0 | 21.4% [7.6,47.6] | — (sim-missing) |
+| lastSurvivorStats | conditional/weapon/armor/shield/accessory | B3 | 単独生存時に全能力が増加する。 cost=3 | C/sim-missing | 22/22/5/0/0 | 22.7% [10.1,43.4] | — (sim-missing) |
+| statusResistance | conditional/weapon/armor/shield/accessory | B2 | 状態異常への耐性が増加する。 cost=2 unit=% | C/sim-missing | 71/71/12/0/0 | 16.9% [9.9,27.3] | — (sim-missing) |
+| spellAccuracy | conditional/weapon/accessory | B3 | 呪文命中率が増加する。 cost=2 unit=% | C/sim-missing | 21/21/3/0/0 | 14.3% [5.0,34.6] | — (sim-missing) |
+| killHeal | trigger/weapon/accessory | B3 | 敵撃破時にHPを2回復する。 cost=2 | C/sim-missing | 13/13/1/0/0 | 7.7% [1.4,33.3] | — (sim-missing) |
+| followUpMp | trigger/weapon/accessory | B3 | 追撃時にMPを1回復する。 cost=2 | C/sim-missing | 8/8/0/0/0 | 0.0% [0.0,32.4] | — (sim-missing) |
+| hitFlinch | trigger/weapon/accessory | B3 | 被弾時に低確率で敵を怯ませる。 cost=2 | C/sim-missing | 19/19/3/0/0 | 15.8% [5.5,37.6] | — (sim-missing) |
+| poisonAtk | trigger/weapon | B3 | 攻撃命中時に低確率で敵を毒にする。 cost=2 unit=% | C/sim-missing | 12/12/0/0/0 | 0.0% [0.0,24.3] | — (sim-missing) |
+| bleedingAtk | trigger/weapon | B3 | 攻撃命中時に低確率で敵を出血させる。後続の通常攻撃で追加ダメージ。 cost=2 unit=% | C/sim-missing | 8/8/0/0/0 | 0.0% [0.0,32.4] | — (sim-missing) |
+| victoryMaterial | trigger/weapon/armor/shield/accessory | B2 | 勝利時に低確率で素材を得る。 cost=2 unit=% | C/sim-missing | 51/51/3/0/0 | 5.9% [2.0,15.9] | — (sim-missing) |
+| stairsHeal | trigger/weapon/armor/shield/accessory | B1; base-item/pool dependent | 階段発見時にHPを回復する。 cost=1 | C/sim-missing | 75/75/14/0/0 | 18.7% [11.5,28.9] | — (sim-missing) |
 | identifyDiscount | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | 鑑定費用を軽減する。 cost=1 unit=% | C/sim-missing | 145/145/30/0/0 | 20.7% [14.9,28.0] | — (sim-missing) |
 | materialFind | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | 素材発見率が10%増加する。 cost=2 unit=% | C/sim-missing | 154/154/37/0/0 | 24.0% [18.0,31.4] | — (sim-missing) |
 | contractReward | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | ランクエスト報酬が10%増加する。 cost=2 unit=% | C/sim-missing | 158/158/34/0/0 | 21.5% [15.8,28.6] | — (sim-missing) |
