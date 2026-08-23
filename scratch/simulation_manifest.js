@@ -156,7 +156,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**",
     "src/sentry.js", "src/error_context.js", "src/controls_guard.js",
-    "src/runtime_diagnostics.js", "src/telemetry.js"
+    "src/runtime_diagnostics.js", "src/telemetry.js", "src/spell_menu.js"
   ]),
   // Exact paths whose current callers may receive telemetry-only edits. A
   // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
@@ -408,7 +408,7 @@ export function currentChangedFiles({ baseRef = process.env.BASE_REF || "origin/
 
 const TELEMETRY_CONTEXT_KEYS = new Set([
   "state", "character", "combat", "actorIdx", "targetIdx", "spellName", "itemKey",
-  "currentKey", "candidateKey", "preview"
+  "currentKey", "candidateKey", "preview", "source"
 ]);
 
 function isTelemetryImport(line) {
@@ -416,7 +416,7 @@ function isTelemetryImport(line) {
 }
 
 function isTelemetryCall(line) {
-  return /^track[A-Z][A-Za-z0-9]*\s*\(/.test(line.trim());
+  return /^track[A-Z][A-Za-z0-9]*\s*\([^;]*\)?;?$/.test(line.trim());
 }
 
 function isTelemetryContextLine(line) {
@@ -448,7 +448,8 @@ export function isTelemetryOnlyDiff(diff) {
       hunks.push(currentHunk);
       continue;
     }
-    if (currentHunk && (line.startsWith("+") || line.startsWith("-") || line.startsWith(" "))) {
+    if (currentHunk && !line.startsWith("+++") && !line.startsWith("---")
+      && (line.startsWith("+") || line.startsWith("-") || line.startsWith(" "))) {
       currentHunk.push(line);
     }
   }

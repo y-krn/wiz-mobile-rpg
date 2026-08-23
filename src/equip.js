@@ -331,6 +331,11 @@ function discardEquipment(itemIdx, expectedItemKey) {
   clearSelection();
   renderEquip();
   updateUI();
+  trackEquipmentDecision("discard", {
+    state,
+    character: state.party[equipState.actorIdx],
+    candidateKey: expectedItemKey
+  });
   return true;
 }
 
@@ -1170,12 +1175,6 @@ function createDetailPanel(char) {
       discardBtn.className = "btn btn-danger btn-block equip-action-btn";
       discardBtn.textContent = "破棄する";
       discardBtn.addEventListener("click", () => {
-        trackEquipmentDecision("discard", {
-          state,
-          character: state.party[equipState.actorIdx],
-          candidateKey: itemKey,
-          preview
-        });
         discardEquipment(equipState.selectedIdx, itemKey);
       });
       actions.appendChild(discardBtn);

@@ -214,6 +214,12 @@ export function renderItemDirectionSelect(optGrid) {
       }
       createNoiseEvent(x, y);
       state.inventory.splice(menuContext.itemIdx, 1);
+      trackExplorationDecision("item", {
+        state,
+        character: state.party[0],
+        source: state.map?.[state.y]?.[state.x]?.event,
+        itemKey: "NOISE_BALL"
+      });
       recordExplorationSteps();
       tickExplorationSpellEffects();
       addLog(`鳴らし玉を${name}へ投げた。甲高い音が迷宮に響く。`);

@@ -78,7 +78,7 @@ const run = {
   chestsOpened: 2,
   trapsTriggered: 1,
   returnReason: "gameover",
-  deathLogs: [{ type: "status", source: "ゴブリン A", cause: "free text must not be sent" }]
+  deathLogs: [{ type: "status", source: "ゾンビ A", cause: "free text must not be sent" }]
 };
 
 check("telemetry without a client is a complete no-op", () => {
@@ -119,8 +119,9 @@ check("properties are normalized and undefined values are removed", () => {
 });
 
 check("enemy suffixes and enum fields are normalized", () => {
-  assert.equal(normalizeEnemyId("ゴブリン A"), "ゴブリン");
-  assert.equal(normalizeEnemyId("ゴブリン"), "ゴブリン");
+  assert.equal(normalizeEnemyId("ゾンビ A"), "ゾンビ");
+  assert.equal(normalizeEnemyId("ゾンビ"), "ゾンビ");
+  assert.equal(normalizeEnemyId("migrated free text"), "other");
   assert.equal(normalizeOutcome("death"), "death");
   assert.equal(normalizeOutcome("unknown"), null);
   assert.equal(normalizeCombatResult("escapeToTown"), "escape_to_town");
@@ -139,7 +140,7 @@ check("run end sends the existing death-log cause with normalized fields", () =>
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
   const runWithDeathCause = {
     ...run,
-    deathLogs: [{ type: "status", source: "毒 A", cause: "毒のダメージ" }],
+    deathLogs: [{ type: "status", source: "ゾンビ A", cause: "毒のダメージ" }],
     freeTextDeathCause: "must not be sent"
   };
   trackRunStart(runWithDeathCause, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
@@ -147,7 +148,7 @@ check("run end sends the existing death-log cause with normalized fields", () =>
   const properties = events.at(-1).properties;
   assert.equal(properties.outcome, "death");
   assert.equal(properties.deathType, "status");
-  assert.equal(properties.deathSource, "毒");
+  assert.equal(properties.deathSource, "ゾンビ");
   assert.equal(properties.deathCause, "poison");
   assert.equal(properties.returnReason, "gameover");
   assert.equal(Object.hasOwn(properties, "charName"), false);
@@ -200,7 +201,7 @@ const decisionCombat = {
   floor: 2,
   roundNumber: 4,
   phase: "choose_actions",
-  monsters: [{ name: "ゴブリン A", hp: 10, isBoss: false }, { name: "竜王 B", hp: 20, isBoss: true }],
+  monsters: [{ name: "ゴブリンの呪術師 A", hp: 10, isBoss: false }, { name: "いにしえの竜 B", hp: 20, isBoss: true }],
   isBoss: true
 };
 
@@ -219,7 +220,7 @@ check("shared snapshots use bounded production-derived values", () => {
   assert.equal(resourceSnapshot.consumableCureCount, 1);
   assert.equal(resourceSnapshot.consumableManaCount, 1);
   assert.equal(context.enemyCount, 2);
-  assert.deepEqual(context.enemyIds, ["ゴブリン", "竜王"]);
+  assert.deepEqual(context.enemyIds, ["ゴブリンの呪術師", "いにしえの竜"]);
 });
 
 check("decision events share context and keep action identifiers stable", () => {
@@ -256,13 +257,82 @@ check("decision events share context and keep action identifiers stable", () => 
   const explorationEvent = events.find(event => event.name === "exploration_decision");
   const equipmentEvent = events.find(event => event.name === "equipment_decision");
   assert.equal(combatEvent.properties.action, "attack");
-  assert.equal(combatEvent.properties.targetEnemyId, "竜王");
+  assert.equal(combatEvent.properties.targetEnemyId, "いにしえの竜");
   assert.equal(combatEvent.properties.enemyCount, 2);
   assert.equal(explorationEvent.properties.action, "heal");
   assert.equal(explorationEvent.properties.source, "event_camp");
   assert.equal(equipmentEvent.properties.action, "compare");
   assert.equal(equipmentEvent.properties.candidateId, "DAGGER");
   assert.deepEqual(equipmentEvent.properties.comparisonDiffs, [2]);
+});
+
+check("run start captures initialized run resources and map context", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, {
+    ...decisionState,
+    gameState: "explore",
+    inventory: ["HEAL_POTION", "DAGGER"],
+    identifyTickets: 7,
+    map: [[{ type: "floor", event: "event_camp" }]],
+    currentRun: { ...decisionState.currentRun, materials: { "黒角": 5 } }
+  });
+  const startEvent = events.find(event => event.name === "run_start");
+  assert.equal(startEvent.properties.inventoryCount, 2);
+  assert.equal(startEvent.properties.identifyTickets, 7);
+  assert.equal(startEvent.properties.currentCellEvent, "event_camp");
+  assert.equal(startEvent.properties.runMaterialCount, 5);
+});
+
+check("combat decisions preserve all production action categories", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
+  for (const action of ["attack", "spell", "item", "defend", "flee", "migrated_action"]) {
+    trackCombatDecision(action, {
+      state: decisionState,
+      character: decisionPlayer,
+      combat: decisionCombat,
+      spellName: action === "spell" ? "HALITO" : undefined,
+      itemKey: action === "item" ? "ESCAPE_SCROLL" : undefined
+    });
+  }
+  assert.deepEqual(
+    events.filter(event => event.name === "combat_decision").map(event => event.properties.action),
+    ["attack", "spell", "item", "defend", "flee", "other"]
+  );
+});
+
+check("malformed snapshots stay allowlisted and bounded", () => {
+  const malformedCharacter = {
+    ...decisionPlayer,
+    class: "migrated free text",
+    equipment: Object.fromEntries(Array.from({ length: 100 }, (_, index) => [
+      `arbitrary-slot-${index}`,
+      { baseId: "migrated-item", affixes: Array.from({ length: 100 }, () => ({ type: "free text" })) }
+    ]))
+  };
+  const malformedState = {
+    ...decisionState,
+    gameState: "free text from save",
+    inventory: Array.from({ length: 100 }, () => ({ baseId: "migrated-item" })),
+    combatState: {
+      phase: "free phase",
+      monsters: Array.from({ length: 100 }, () => ({ name: "player-entered free text", hp: 1 }))
+    }
+  };
+  const context = buildDecisionContext({ state: malformedState, character: malformedCharacter });
+  assert.equal(context.playerClass, "other");
+  assert.equal(context.gameState, "other");
+  assert.equal(context.combatPhase, "other");
+  assert.ok(context.equipmentIds.length <= 5);
+  assert.ok(context.enemyIds.length <= 8);
+  assert.ok(context.equipmentAffixTypes.length <= 24);
+  assert.ok(context.inventoryCount <= 20);
+  assert.equal(context.equipmentIds[0], "other");
+  assert.equal(context.enemyIds[0], "other");
+  assert.equal(context.equipmentAffixTypes[0], "other");
 });
 
 check("chest and run events include common resource and status context", () => {
