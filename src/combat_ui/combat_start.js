@@ -77,7 +77,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
     isBoss,
     isMidboss,
     isRoamingFlack
-  });
+  }, state);
   state.chestState = null;
 
   combatSelection.charIdx = 0;

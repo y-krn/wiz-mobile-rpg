@@ -18,6 +18,7 @@ import {
 } from "../combat_logic/status_effects.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
+import { trackExplorationDecision } from "../telemetry.js";
 
 function getSecretSearchDirs() {
   return [
@@ -157,6 +158,7 @@ function confirmAbandonRun() {
   if (!isAllowedContext) return false;
 
   if (confirm("この冒険を諦めますか？持ち帰っていない戦利品や素材は、死亡時と同じ扱いになります。")) {
+    trackExplorationDecision("return", { state, source: "explore_management" });
     triggerRunResult("abandon");
     return true;
   }
@@ -212,6 +214,13 @@ export function renderItemDirectionSelect(optGrid) {
       }
       createNoiseEvent(x, y);
       state.inventory.splice(menuContext.itemIdx, 1);
+      trackExplorationDecision("item", {
+        state,
+        character: state.party[0],
+        source: state.map?.[state.y]?.[state.x]?.event,
+        itemKey: "NOISE_BALL",
+        direction: dir
+      });
       recordExplorationSteps();
       tickExplorationSpellEffects();
       addLog(`鳴らし玉を${name}へ投げた。甲高い音が迷宮に響く。`);
@@ -233,7 +242,7 @@ export function renderItemTargetSelect(optGrid) {
     optGrid.appendChild(createRunStakesSummary());
   }
 
-  state.party.forEach((char) => {
+  state.party.forEach((char, targetIdx) => {
     const btn = document.createElement("button");
     btn.style.minHeight = "44px";
     btn.style.display = "flex";
@@ -253,6 +262,20 @@ export function renderItemTargetSelect(optGrid) {
       btn.className = "btn btn-neon btn-block";
       btn.innerHTML = `<span style="font-weight: bold;">${charName}</span><span style="font-size: 10px; color: var(--text-muted);">${hpmpText}</span>`;
       btn.addEventListener("click", () => {
+        const itemAction = menuContext.itemKey === "TOWN_PORTAL"
+          ? "return"
+          : ["ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "PANACEA"].includes(menuContext.itemKey)
+            ? "cure"
+            : ["HEAL_POTION", "GREATER_HEAL", "HOLY_WATER", "ELIXIR"].includes(menuContext.itemKey)
+              ? "heal"
+              : "continue";
+        trackExplorationDecision(itemAction, {
+          state,
+          character: char,
+          targetIdx,
+          source: state.map?.[state.y]?.[state.x]?.event,
+          itemKey: menuContext.itemKey
+        });
         if (menuContext.itemKey === "TOWN_PORTAL") {
           addLog("帰還のスクロールを読んだ！冒険者は眩い光に包まれ、一瞬でお城へ戻った！");
           playSound("cast_spell");
@@ -321,6 +344,11 @@ export function renderEventSpring(optGrid) {
   btnDrink.className = "btn btn-neon btn-block";
   btnDrink.textContent = "泉の水を飲む";
   btnDrink.addEventListener("click", () => {
+    trackExplorationDecision("heal", {
+      state,
+      source: "event_spring",
+      character: state.party[0]
+    });
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.spring.used++;
     }
@@ -375,6 +403,7 @@ export function renderEventSpring(optGrid) {
   btnLeave.className = "btn btn-danger btn-block";
   btnLeave.textContent = "立ち去る";
   btnLeave.addEventListener("click", () => {
+    trackExplorationDecision("continue", { state, source: "event_spring" });
     addLog("泉に近づかず、そのまま立ち去った。");
     closeSubmenu();
   });
@@ -397,6 +426,7 @@ export function renderEventCamp(optGrid) {
     btnRest.className = "btn btn-neon btn-block";
     btnRest.textContent = "休息する";
     btnRest.addEventListener("click", () => {
+      trackExplorationDecision("heal", { state, source: "event_camp", character: state.party[0] });
       const result = restAtCamp(state);
       if (!result.available) return;
       playSound("heal");
@@ -413,6 +443,7 @@ export function renderEventCamp(optGrid) {
   btnLeave.className = "btn btn-danger btn-block";
   btnLeave.textContent = "休息せず進む";
   btnLeave.addEventListener("click", () => {
+    trackExplorationDecision("continue", { state, source: "event_camp" });
     completeCampEntry(state, state.floor);
     saveAutosave();
     closeSubmenu();
@@ -439,6 +470,7 @@ export function renderEventTablet(optGrid) {
   btnRead.className = "btn btn-neon btn-block";
   btnRead.textContent = "文字を読む";
   btnRead.addEventListener("click", () => {
+    trackExplorationDecision("investigate", { state, source: "event_tablet", character: state.party[0] });
     if (state.codex && state.codex.events && state.codex.events.facilities) {
       state.codex.events.facilities.tablet.read++;
     }
@@ -504,6 +536,7 @@ export function renderEventTablet(optGrid) {
   btnLeave.className = "btn btn-danger btn-block";
   btnLeave.textContent = "立ち去る";
   btnLeave.addEventListener("click", () => {
+    trackExplorationDecision("continue", { state, source: "event_tablet" });
     addLog("石碑には触れず、そのまま立ち去った。");
     closeSubmenu();
   });

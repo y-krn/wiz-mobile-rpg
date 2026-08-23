@@ -45,6 +45,51 @@ test('Combat Auto button exposes its active state @e2e @smoke', async ({ page })
     .toBe('rgb(0, 255, 102)');
 });
 
+test('Canceled combat choices do not emit decision telemetry @e2e @smoke', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.goto('/');
+  await page.locator('#btn-town-dungeon').click();
+  await page.getByRole('button', { name: /戦士/ }).click();
+  await page.getByRole('button', { name: /B1Fから開始/ }).click();
+
+  const result = await page.evaluate(async () => {
+    const { state, createSoloCharacter } = await import('/src/state.js');
+    const { startCombat, selectCombatAction, cancelCombatAction } = await import('/src/combat.js');
+    const { combatCallbacks, combatSelection } = await import('/src/combat_ui/combat_state.js');
+    const { __setTelemetryClientForTests, trackRunStart } = await import('/src/telemetry.js');
+
+    const events = [];
+    __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+    state.party = [state.party[0], createSoloCharacter('Mage')];
+    trackRunStart(state.currentRun, state.party[0], state);
+    startCombat(false, false);
+    combatSelection.charIdx = 0;
+    combatSelection.actions = [];
+
+    selectCombatAction('fight');
+    combatCallbacks.activeTargetCallback(0);
+    const selected = {
+      actionCount: combatSelection.actions.length,
+      charIdx: combatSelection.charIdx
+    };
+
+    cancelCombatAction();
+    return {
+      selected,
+      canceled: {
+        actionCount: combatSelection.actions.length,
+        charIdx: combatSelection.charIdx
+      },
+      decisions: events.filter(event => event.name === 'combat_decision'),
+    };
+  });
+
+  expect(result.selected).toEqual({ actionCount: 1, charIdx: 1 });
+  expect(result.canceled).toEqual({ actionCount: 0, charIdx: 0 });
+  expect(result.decisions).toEqual([]);
+});
+
 const COMBAT_OVERLAY_VIEWPORTS = [
   { width: 360, height: 800, name: 'Galaxy S20' },
   { width: 390, height: 844, name: 'iPhone 13' },
