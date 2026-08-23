@@ -734,10 +734,21 @@ export function trackCombatDecision(action, details = {}) {
   if (!isTelemetryAvailable() || !runId || !combatId) return;
   const combat = details.combat || details.state?.combatState || null;
   const monsters = combat?.monsters || [];
-  const target = Number.isInteger(details.targetIdx) ? monsters[details.targetIdx] : null;
   const normalizedAction = normalizeDecisionAction(action);
   const spellId = getSafeSpellId(details.spellName);
   const spellTarget = spellId && spellId !== "other" ? SPELLS[spellId]?.target : null;
+  const isAllyTarget = normalizedAction === "item" ||
+    normalizedAction === "spell" && spellTarget === "single_ally";
+  const isEnemyTarget = normalizedAction === "attack" ||
+    normalizedAction === "spell" && ["single_enemy", "all_enemies"].includes(spellTarget);
+  const targetCollectionSize = isAllyTarget
+    ? details.state?.party?.length
+    : isEnemyTarget
+      ? monsters.length
+      : 0;
+  const target = isEnemyTarget && Number.isInteger(details.targetIdx)
+    ? monsters[details.targetIdx]
+    : null;
   capture("combat_decision", {
     runId,
     combatId,
@@ -746,7 +757,7 @@ export function trackCombatDecision(action, details = {}) {
     actorIndex: normalizeCombatIndex(details.actorIdx, details.state?.party?.length),
     targetIndex: normalizeCombatIndex(
       details.targetIdx,
-      monsters.length,
+      targetCollectionSize,
       normalizedAction === "spell" && ["all_enemies", "all_allies"].includes(spellTarget)
     ),
     targetEnemyId: target ? normalizeEnemyId(target.name) : null,

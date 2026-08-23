@@ -326,6 +326,60 @@ check("combat decision indexes stay within production targets", () => {
   assert.equal(decisions[2].properties.targetIndex, -1);
 });
 
+check("combat decision targets use production collection semantics", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  const state = {
+    ...decisionState,
+    party: [
+      decisionPlayer,
+      { ...decisionPlayer, name: "Ally B" },
+      { ...decisionPlayer, name: "Ally C" }
+    ]
+  };
+  trackRunStart(run, decisionPlayer, state);
+  trackCombatStart({ ...decisionCombat, player: decisionPlayer }, state);
+
+  trackCombatDecision("spell", {
+    state,
+    character: decisionPlayer,
+    combat: decisionCombat,
+    actorIdx: 0,
+    targetIdx: 0,
+    spellName: "DIOS"
+  });
+  trackCombatDecision("item", {
+    state,
+    character: decisionPlayer,
+    combat: decisionCombat,
+    actorIdx: 0,
+    targetIdx: 2,
+    itemKey: "HEAL_POTION"
+  });
+  trackCombatDecision("attack", {
+    state,
+    character: decisionPlayer,
+    combat: decisionCombat,
+    actorIdx: 0,
+    targetIdx: 1
+  });
+  trackCombatDecision("spell", {
+    state,
+    character: decisionPlayer,
+    combat: decisionCombat,
+    actorIdx: 0,
+    targetIdx: -1,
+    spellName: "MABARRIER"
+  });
+
+  const decisions = events.filter(event => event.name === "combat_decision");
+  assert.deepEqual(decisions.map(event => event.properties.targetIndex), [0, 2, 1, -1]);
+  assert.deepEqual(
+    decisions.map(event => event.properties.targetEnemyId),
+    [null, null, "いにしえの竜", null]
+  );
+});
+
 check("canonical legendary rarity remains allowlisted", () => {
   const snapshot = buildEquipmentSnapshot({
     equipment: {
