@@ -54,6 +54,9 @@ jobs:
               - '**/*.css'
               - 'package.json'
               - 'package-lock.json'
+              - 'playwright.config.js'
+              - 'scripts/**'
+              - 'scratch/test_playwright_diagnostics.js'
               - '.github/workflows/**'
       - uses: actions/setup-node@v4
         if: steps.changes.outputs.browser == 'true'
@@ -78,3 +81,62 @@ jobs:
         if: steps.changes.outputs.browser == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
       - run: npm run test:browser
         if: steps.changes.outputs.browser == 'true'
+
+  browser-parallel:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect browser changes
+        id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          base: ${{ github.event_name == 'push' && github.ref || '' }}
+          filters: |
+            browser:
+              - 'src/**'
+              - 'tests/**'
+              - '**/*.css'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'playwright.config.js'
+              - 'scripts/**'
+              - 'scratch/test_playwright_diagnostics.js'
+              - '.github/workflows/**'
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.browser == 'true'
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+        if: steps.changes.outputs.browser == 'true'
+      - name: Resolve Playwright version
+        id: pw
+        if: steps.changes.outputs.browser == 'true'
+        run: echo "version=$(node -p "require('./node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: playwright-cache
+        if: steps.changes.outputs.browser == 'true'
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - run: npx playwright install --with-deps chromium
+        if: steps.changes.outputs.browser == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps chromium
+        if: steps.changes.outputs.browser == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
+      - name: Run explicit parallel browser probe
+        run: npm run test:browser:parallel
+        if: steps.changes.outputs.browser == 'true'
+      - name: Upload parallel browser artifacts
+        if: failure() && steps.changes.outputs.browser == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-parallel-artifacts
+          path: |
+            test-results/
+            playwright-report/
+            output/playwright/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -13,6 +13,8 @@
     "test:unit:full": "FULL_TEST=1 node scratch/run_tests.js",
     "test:browser": "npm run test:browser:smoke",
     "test:browser:smoke": "playwright test --grep @smoke",
+    "test:browser:parallel": "PLAYWRIGHT_WORKERS=2 playwright test --grep @smoke",
+    "test:browser:preflight": "node scripts/playwright-preflight.js",
     "test:browser:e2e": "playwright test --grep @e2e",
     "test:browser:visual": "playwright test --grep @visual",
     "test:browser:full": "playwright test",

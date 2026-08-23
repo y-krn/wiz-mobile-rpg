@@ -65,3 +65,21 @@ request area.
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
+
+## Playwright worker diagnostics
+
+The standard browser command is intentionally serial:
+`npm run test:browser`. Use `npm run test:browser:parallel` for the explicit
+two-worker smoke probe. Both commands print the effective worker count, base
+URL/port, Playwright and Chromium versions, executable/cache paths, and the
+temporary/test-data paths. The Playwright config does not set a persistent
+`userDataDir`; each test uses Playwright's isolated browser context, so a
+shared profile lock is not expected.
+
+If macOS reports `EACCES`, `EPERM`, quarantine, or signature errors, use the
+reported target path and reinstall the pinned browser with
+`npx playwright install chromium`, then inspect the macOS security prompt or
+signature status. Do not disable Gatekeeper/sandboxing or remove broad cache
+directories. A port collision is reported before Vite starts; retry with a
+task-owned `PLAYWRIGHT_PORT` after stopping only the process that owns that
+port.
