@@ -12,11 +12,14 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
 ## Provenance and matched conditions
 
 - Base source: `df08931fb9eb2208acaf4f17e5e430589f270276`.
-- Current-head source for the authoritative floor/status measurement:
-  `d1a2c8ec72f39d7d1147a2d134adff4b47de0a83`. The preceding
-  `9dc1a7bf5b338223d7443dd54adf2c4705d8bf79` source is historical; the
-  `1de47098c2eb3bd524a8b8be66eeb649d6748183` source is historical; the
-  current-head runner was rerun after the self-contained provenance changes.
+- Measurement source for the authoritative floor/status rerun:
+  `d752dfcba39ee8bd4d6081a198afc49da13e61a7` (the exact current branch and
+  remote head at measurement time). The preceding
+  `d1a2c8ec72f39d7d1147a2d134adff4b47de0a83`,
+  `9dc1a7bf5b338223d7443dd54adf2c4705d8bf79`, and
+  `1de47098c2eb3bd524a8b8be66eeb649d6748183` sources are historical. This
+  markdown update is a later docs-only commit; it is not the measurement
+  source and does not change the runner or its output.
 - `origin/main` matched the supplied base and was an ancestor of the measured
   source; stale-tree override was not used. Node: `v26.7.0`;
   `SIM_PARALLEL` omitted, runtime parallelism `15`.
@@ -27,7 +30,7 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
   change `src/`, `scratch/sim_depth_material_ev.js`, or the Issue #706 runner.
   The prior `1de47098c2eb3bd524a8b8be66eeb649d6748183` and
   `9dc1a7bf5b338223d7443dd54adf2c4705d8bf79` measurements are also historical;
-  current floor/status evidence was rerun directly at `d1a2c8ec`.
+  current floor/status evidence was rerun directly at `d752dfc`.
 - Seed `231`; `SIM_RUNS=500`; `SIM_CALIBRATION_RUNS=100`; classes
   Fighter/Thief/Priest/Mage; six observed workshop scenarios; powder
   identification; EV flee and status-cure policy; conservative traps; current
@@ -69,47 +72,116 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
   B1-B5 traversal to B6, 500 runs per scenario and 100 calibration runs per
   scenario (3,000 total; 750 per class). Output schema is
   `issue706-depth-enemy-pools-v1`. At current HEAD
-  `d1a2c8ec72f39d7d1147a2d134adff4b47de0a83`, two self-contained reruns with
-  ambient `SIM_INDEPENDENT_RUN_RANDOM=0` overridden by the runner
+  `d752dfcba39ee8bd4d6081a198afc49da13e61a7`, two self-contained reruns with
+  conflicting ambient simulation and provenance inputs overridden by the runner
   before import
   produced byte-identical stdout and stderr:
-  - output JSONL SHA-256: `4d600257ceff305801dd57bcc71504c680d028455e84daf3311482cb0dcc21bc`
-  - stderr SHA-256: `7a242a60e5a4083c197ea81126af7555bef5e61520884a4a218ecf8c3754bd37`
+  - stdout JSONL SHA-256 (both runs): `121de170cff2210ac88a93b2be255c18566f015fd9fce669b64d9de5765e51f6`
+  - stderr SHA-256 (both runs): `96bf558f1abe9b00002737fa324f2f8da0782f1ac33bc845da2eb6f40f567510`
   - stderr report on both runs:
-    `ISSUE706_JSON_SHA256=4d600257ceff305801dd57bcc71504c680d028455e84daf3311482cb0dcc21bc`
-  The result reports `sourceCommit=d1a2c8ec72f39d7d1147a2d134adff4b47de0a83`,
+    `ISSUE706_JSON_SHA256=121de170cff2210ac88a93b2be255c18566f015fd9fce669b64d9de5765e51f6`
+  The result reports `sourceCommit=d752dfcba39ee8bd4d6081a198afc49da13e61a7`,
   `originMainAncestor=true`, and `staleTreeAllowed=false`. The earlier
   `bcbd5b9731d1f45d936723bf01ab9af3a9db9d01ed191eb8eb9bcf0e8239c48e` output
   SHA is retained as historical evidence from source `1de47098`; it is not
   current-head evidence.
-- Exact current-head command (run twice with stdout/stderr captured outside the
-  repository):
-  `env -i PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin SIM_INDEPENDENT_RUN_RANDOM=0 node scratch/issue706_depth_enemy_pools.js`.
-  The resolved `config` object in both outputs was:
-  `SIM_SEED=231, SIM_RUNS=500, SIM_CALIBRATION_RUNS=100,
-  DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION,
-  TRAP_POLICY=conservative, TRAP_AVOIDANCE_POLICY=ev, TRAP_DAMAGE_MULTIPLIER=1,
-  IDENTIFICATION_POLICY=powder, IDENTIFICATION_STARTING_POWDER=2,
-  IDENTIFICATION_COST_OVERRIDE=1, STATUS_CURE_POLICY=ev,
-  STATUS_CURE_HP_THRESHOLD=1, STATUS_CURE_MERCHANT_POLICY=missing,
-  HEAL_POTION_MERCHANT_POLICY=missing, FLEE_POLICY=ev, FLEE_HP_THRESHOLD=0.20,
-  HEAL_POTION_THRESHOLD=0.55, MANA_POTION_THRESHOLD=0.55, PORTAL_HP_THRESHOLD=0.35,
-  PORTAL_MAX_HEAL_POTIONS=0, PORTAL_MIN_FLOOR=3, ELITE_POLICY=avoid,
-  BLOOD_WAND_HP_PAYMENT_MIN_RATE=0.50, SIM_CORE_SCORE_DROP_TOLERANCE=0,
-  SIM_440_CONDITION=current, SIM_ISSUE646_CAMP_LEVEL=, SIM_INDEPENDENT_RUN_RANDOM=1,
-  SIM_737_DAMAGE_AUDIT=0, SIM_728_HIT_EVASION=0, SIM_DIALMA_CANDIDATE=1,
-  SIM_MADI_CANDIDATE=1, SIM_MADI_HEAL_MIN=, SIM_MADI_HEAL_MAX=, SIM_MADI_COST=,
-  SIM_MERCHANT_MANA_COST=, SIM_MERCHANT_EYE_DROPS=0, SIM_MERCHANT_RETURN_WING=0,
-  SIM_MERCHANT_RETURN_WING_COST=, SIM_RETURN_WING_MODE=special, SIM_SCENARIOS=`.
-- The runner forces the documented defaults before importing
-  `sim_depth_material_ev.js`: `SIM_SEED=231`, `SIM_RUNS=500`,
-  `SIM_CALIBRATION_RUNS=100`, `STATUS_CURE_POLICY=ev`, `FLEE_POLICY=ev`,
-  `TRAP_POLICY=conservative`, `IDENTIFICATION_POLICY=powder`,
-  `SIM_INDEPENDENT_RUN_RANDOM=1`, and
-  `DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION`.
-  This forcing applies to direct measurements even when conflicting ambient
-  variables are present. `ISSUE706_SMOKE=1` is the explicit N=1 smoke path;
-  test entrypoints are also exempt and do not run the measurement main.
+- N=1 smoke under the same conflict family passed before the full runs. Its
+  stdout/stderr SHA-256 values were
+  `89f75f06998c366d5c1ebcefb5a9398e2ccf36bb9cbc21baf9a00680e4f0f066` /
+  `ecf5c1c47e66ff3ba94701e7a7a63f08ccceacf6b0a4cc1dab4719c93f760440`.
+  It resolved `SIM_RUNS=1`, `SIM_CALIBRATION_RUNS=1`,
+  `SIM_EXPLORATION_FACTOR=1.4`, `SIM_737_DAMAGE_AUDIT=0`,
+  `SIM_INDEPENDENT_RUN_RANDOM=1`, EV/conservative/powder policies, and
+  `sourceCommit=d752dfcba39ee8bd4d6081a198afc49da13e61a7`,
+  `originMainAncestor=true`, `staleTreeAllowed=false`.
+- Exact current-head command, run twice with identical conflicts and with
+  stdout/stderr captured outside the repository:
+
+  ```sh
+  env -i PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin SIM_RUNS=999 SIM_CALIBRATION_RUNS=777 SIM_SEED=999 SIM_EXPLORATION_FACTOR=9 SIM_737_DAMAGE_AUDIT=1 SIM_INDEPENDENT_RUN_RANDOM=0 SIM_SKIP_PROVENANCE=1 SIM_ALLOW_STALE_TREE=1 SIM_PROVENANCE_BASE_REF=refs/heads/other SIM_PROVENANCE_BASE_COMMIT=0000000000000000000000000000000000000000 SIM_PROVENANCE_BASE_REF_REASON=ambient-conflict SIM_PROVENANCE_TEST_FIXTURE=1 STATUS_CURE_POLICY=none FLEE_POLICY=none TRAP_POLICY=aggressive IDENTIFICATION_POLICY=manual SIM_EQUIPMENT_POLICY=all SIM_PRESET=conflicting SIM_SCENARIOS=conflicting SIM_PARALLEL=1 SIM_MAP_CACHE_ENTRIES=1 TRAP_BONUS_OVERRIDE=999 node scratch/issue706_depth_enemy_pools.js
+  ```
+
+  The resolved `config` object was identical in both outputs:
+
+  ```json
+  {
+    "SIM_SEED": "231",
+    "SIM_RUNS": "500",
+    "SIM_CALIBRATION_RUNS": "100",
+    "DEPARTURE_CRAFT_IDS": "TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION",
+    "TRAP_POLICY": "conservative",
+    "TRAP_AVOIDANCE_POLICY": "ev",
+    "TRAP_DAMAGE_MULTIPLIER": "1",
+    "IDENTIFICATION_POLICY": "powder",
+    "IDENTIFICATION_STARTING_POWDER": "2",
+    "IDENTIFICATION_COST_OVERRIDE": "1",
+    "STATUS_CURE_POLICY": "ev",
+    "STATUS_CURE_HP_THRESHOLD": "1",
+    "STATUS_CURE_MERCHANT_POLICY": "missing",
+    "HEAL_POTION_MERCHANT_POLICY": "missing",
+    "FLEE_POLICY": "ev",
+    "FLEE_HP_THRESHOLD": "0.20",
+    "HEAL_POTION_THRESHOLD": "0.55",
+    "MANA_POTION_THRESHOLD": "0.55",
+    "PORTAL_HP_THRESHOLD": "0.35",
+    "PORTAL_MAX_HEAL_POTIONS": "0",
+    "PORTAL_MIN_FLOOR": "3",
+    "ELITE_POLICY": "avoid",
+    "BLOOD_WAND_HP_PAYMENT_MIN_RATE": "0.50",
+    "SIM_CORE_SCORE_DROP_TOLERANCE": "0",
+    "SIM_440_CONDITION": "current",
+    "SIM_ISSUE646_CAMP_LEVEL": "",
+    "SIM_INDEPENDENT_RUN_RANDOM": "1",
+    "SIM_737_DAMAGE_AUDIT": "0",
+    "SIM_728_HIT_EVASION": "0",
+    "SIM_DIALMA_CANDIDATE": "1",
+    "SIM_MADI_CANDIDATE": "1",
+    "SIM_MADI_HEAL_MIN": "",
+    "SIM_MADI_HEAL_MAX": "",
+    "SIM_MADI_COST": "",
+    "SIM_MERCHANT_MANA_COST": "",
+    "SIM_MERCHANT_EYE_DROPS": "0",
+    "SIM_MERCHANT_RETURN_WING": "0",
+    "SIM_MERCHANT_RETURN_WING_COST": "",
+    "SIM_RETURN_WING_MODE": "special",
+    "SIM_SCENARIOS": "",
+    "SIM_PRESET": "",
+    "SIM_CORE_ENCOUNTER_CEILING": "",
+    "SIM_CORE_WORKSHOP_GATE": "",
+    "SIM_SUPPORT_SUPPLY_CEILING": "none",
+    "SIM_EQUIPMENT_SLOT_MODE": "standard",
+    "SIM_EQUIPMENT_SLOT_AFFIX_MODE": "retain",
+    "SIM_AFFIXLESS_DUPLICATE_COUNT": "2",
+    "SIM_AFFIXLESS_DUPLICATE_SLOT": "",
+    "SIM_EQUIPMENT_POLICY": "individual-score",
+    "SIM_MATCHING_DEFINITION": "exact",
+    "SIM_CURSE_LOCK_MODE": "current",
+    "SIM_EXPLORATION_FACTOR": "1.4",
+    "SIM_MAP_STATS": "0",
+    "SIM_DAMAGE_PROBE": "0",
+    "TRAP_BONUS_OVERRIDE": "",
+    "ISSUE538_SPELL_POLICY": "",
+    "SIM_EXPLORE_SPELLS": "",
+    "SIM_CURSE_BASE_CHANCE_OVERRIDE": "",
+    "SIM_CURSE_CHANCE_PER_FLOOR_OVERRIDE": "",
+    "SIM_CURSE_MAX_CHANCE_OVERRIDE": "",
+    "SIM_CURSE_CORE_BONUS_OVERRIDE": "",
+    "SIM_CURSE_DETECT_BASE_OVERRIDE": "",
+    "SIM_CURSE_DETECT_DECAY_OVERRIDE": "",
+    "SIM_CURSE_DETECT_MIN_OVERRIDE": "",
+    "SIM_PARALLEL": "<omitted; runtime default>",
+    "SIM_MAP_CACHE_ENTRIES": "<omitted; runtime default 1024>",
+    "SIM_SKIP_PROVENANCE": "<omitted>",
+    "SIM_ALLOW_STALE_TREE": "<omitted>",
+    "SIM_PROVENANCE_OVERRIDES": "<omitted>"
+  }
+  ```
+
+  The runner owns the complete `ISSUE706_MEASUREMENT_DEFAULTS` set before
+  importing `sim_depth_material_ev.js`, and deletes the ambient omitted and
+  provenance override keys. Thus the conflicting values above cannot alter a
+  direct measurement; `ISSUE706_SMOKE=1` is the explicit N=1 path, while test
+  entrypoints remain exempt from the measurement main.
 
 ## Floor-level normal encounter distribution
 
