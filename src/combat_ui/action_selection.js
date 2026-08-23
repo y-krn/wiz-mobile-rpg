@@ -9,6 +9,10 @@ import { openCombatTargetMenu } from "./target_menu.js";
 import { openCombatSpellMenu } from "./spell_menu.js";
 import { openCombatItemMenu } from "./item_menu.js";
 import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
+import {
+  trackCombatDecisionCancel,
+  trackCombatDecisionPending
+} from "../telemetry.js";
 
 export { combatSelection };
 
@@ -82,6 +86,13 @@ export function selectCombatAction(type) {
         actorIdx: charOriginalIdx,
         targetIdx
       });
+      trackCombatDecisionPending("attack", {
+        state,
+        character: char,
+        combat: state.combatState,
+        actorIdx: charOriginalIdx,
+        targetIdx
+      });
       combatSelection.charIdx++;
       advanceActionSelection();
     });
@@ -107,6 +118,14 @@ export function selectCombatAction(type) {
             targetIdx,
             spellName
           });
+          trackCombatDecisionPending("spell", {
+            state,
+            character: char,
+            combat: state.combatState,
+            actorIdx: charOriginalIdx,
+            targetIdx,
+            spellName
+          });
           combatSelection.charIdx++;
           advanceActionSelection();
         }, spellName);
@@ -114,6 +133,14 @@ export function selectCombatAction(type) {
         const enqueueAllySpell = (targetIdx) => {
           combatSelection.actions.push({
             type: "spell",
+            actorIdx: charOriginalIdx,
+            targetIdx,
+            spellName
+          });
+          trackCombatDecisionPending("spell", {
+            state,
+            character: char,
+            combat: state.combatState,
             actorIdx: charOriginalIdx,
             targetIdx,
             spellName
@@ -134,6 +161,14 @@ export function selectCombatAction(type) {
           type: "spell",
           actorIdx: charOriginalIdx,
           targetIdx: -1, // targets all
+          spellName
+        });
+        trackCombatDecisionPending("spell", {
+          state,
+          character: char,
+          combat: state.combatState,
+          actorIdx: charOriginalIdx,
+          targetIdx: -1,
           spellName
         });
         combatSelection.charIdx++;
@@ -160,6 +195,14 @@ export function selectCombatAction(type) {
           itemKey,
           itemIdx
         });
+        trackCombatDecisionPending("item", {
+          state,
+          character: char,
+          combat: state.combatState,
+          actorIdx: charOriginalIdx,
+          targetIdx,
+          itemKey
+        });
         combatSelection.charIdx++;
         advanceActionSelection();
       };
@@ -176,11 +219,23 @@ export function selectCombatAction(type) {
       type: "defend",
       actorIdx: charOriginalIdx
     });
+    trackCombatDecisionPending("defend", {
+      state,
+      character: char,
+      combat: state.combatState,
+      actorIdx: charOriginalIdx
+    });
     combatSelection.charIdx++;
     advanceActionSelection();
   } else if (type === "run") {
     combatSelection.actions.push({
       type: "run",
+      actorIdx: charOriginalIdx
+    });
+    trackCombatDecisionPending("flee", {
+      state,
+      character: char,
+      combat: state.combatState,
       actorIdx: charOriginalIdx
     });
     combatSelection.charIdx++;
@@ -192,6 +247,7 @@ export function cancelCombatAction() {
   if (!state.combatState || state.combatState.phase !== "choose_actions") return;
   if (combatSelection.charIdx > 0) {
     combatSelection.actions.pop();
+    trackCombatDecisionCancel();
     combatSelection.charIdx--;
     playSound("move");
     updateUI();

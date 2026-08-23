@@ -103,9 +103,9 @@ export function triggerRunResult(reason) {
       turns: state.combatState?.roundNumber,
       player: state.party[0],
       monsters: state.combatState?.monsters
-    });
+    }, state);
   }
-  trackRunEnd(run, outcome);
+  trackRunEnd(run, outcome, state);
 
   state.combatState = null;
   state.party.forEach(char => {

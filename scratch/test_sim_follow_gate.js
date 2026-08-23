@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   SIMULATION_MANIFEST,
   assertBalanceImpactCovered,
+  analyzeBalanceImpact,
   assertRuntimeMechanismsFired,
   assertValidSimulationManifest,
   currentChangedFiles,
@@ -9,6 +10,7 @@ import {
   EXECUTABLE_MEASUREMENT_RUNNERS,
   evaluateRuntimeMechanisms,
   evaluateRuntimeDomainCoverage,
+  isTelemetryOnlyDiff,
   isExecutableMeasurementRunner,
   inspectSimulationMetadata,
   SIMULATION_RUNNER_INVENTORY,
@@ -62,6 +64,13 @@ assert.throws(
 assert.throws(
   () => assertValidSimulationManifest({
     ...SIMULATION_MANIFEST,
+    telemetryOnlyPaths: ["src/**"]
+  }),
+  /telemetry-only path must be exact/
+);
+assert.throws(
+  () => assertValidSimulationManifest({
+    ...SIMULATION_MANIFEST,
     canonical: {
       ...SIMULATION_MANIFEST.canonical,
       runtimeCoverage: { ...SIMULATION_MANIFEST.canonical.runtimeCoverage, combat: ["missing-mechanism"] }
@@ -97,6 +106,148 @@ const narrowCoverageManifest = {
 assert.throws(
   () => assertBalanceImpactCovered(["src/rules/status_effect_rules.js"], narrowCoverageManifest),
   /not covered by canonical model/
+);
+const telemetryOnlyDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,3 @@
++    state,
++    character: state.party[0],
++    combat: state.combatState,
+`;
+assert.equal(isTelemetryOnlyDiff(telemetryOnlyDiff), false, "context-only hunks require an existing telemetry anchor");
+const anchoredTelemetryDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,5 @@
++  trackChestAction(chest, action, {
++    state,
++    character: state.party[0],
++    combat: state.combatState,
++    source: state.map?.[state.y]?.[state.x]?.event,
+`;
+assert.equal(isTelemetryOnlyDiff(anchoredTelemetryDiff), true);
+assert.doesNotThrow(
+  () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", anchoredTelemetryDiff]]) }),
+  "telemetry-only mapped-module diff should not require balance runtime evidence"
+);
+const mixedTelemetryDiff = `${anchoredTelemetryDiff}+    state.currentRun.materials.blackHorn += 1;\n`;
+assert.equal(isTelemetryOnlyDiff(mixedTelemetryDiff), false);
+const mixedSameLineTelemetryDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,1 @@
++  trackChestAction(chest, action, {}); state.currentRun.materials.blackHorn += 1;
+`;
+assert.equal(isTelemetryOnlyDiff(mixedSameLineTelemetryDiff), false, "a line mixing telemetry and gameplay mutation is not telemetry-only");
+for (const file of ["src/telemetry.js", "src/spell_menu.js"]) {
+  const validTelemetryDiff = `diff --git a/${file} b/${file}
+@@ -1,0 +1,1 @@
++  trackEvent("x", { state });
+`;
+  assert.doesNotThrow(
+    () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([[file, validTelemetryDiff]]) }),
+    `${file} valid telemetry-only changes remain exempt`
+  );
+  const mixedDiff = `diff --git a/${file} b/${file}
+@@ -1,0 +1,1 @@
++  trackEvent("x", { state }); state.currentRun.materials.blackHorn += 1;
+`;
+  assert.equal(isTelemetryOnlyDiff(mixedDiff), false, `${file} mixed telemetry/gameplay line is not telemetry-only`);
+  assert.throws(
+    () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([[file, mixedDiff]]) }),
+    /telemetry anchor mixed/,
+    `${file} mixed telemetry/gameplay changes are rejected before balance classification`
+  );
+}
+for (const [label, call] of [
+  ["raw state spread", 'trackEvent("x", { ...state });'],
+  ["raw collection read", 'trackEvent("x", state.inventory);'],
+  ["unknown member read", 'trackEvent("x", { source: state.currentRun });'],
+  ["getter-capable member read", 'trackEvent("x", { source: object.value });']
+]) {
+  const unvalidatedArgumentDiff = `diff --git a/src/telemetry.js b/src/telemetry.js
+@@ -1,0 +1,1 @@
++  ${call}
+`;
+  assert.equal(isTelemetryOnlyDiff(unvalidatedArgumentDiff), false, `${label} is not telemetry-only`);
+}
+const mutationInTelemetryArgumentsDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,1 @@
++  trackChestAction(chest, action, { state.currentRun.materials.blackHorn += 1 });
+`;
+assert.equal(isTelemetryOnlyDiff(mutationInTelemetryArgumentsDiff), false, "telemetry-call arguments containing mutation are not telemetry-only");
+const mutationAfterContextPrefixDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,1 @@
++    state, state.currentRun.materials.blackHorn += 1;
+`;
+assert.equal(isTelemetryOnlyDiff(mutationAfterContextPrefixDiff), false, "context-prefix lines containing mutation are not telemetry-only");
+for (const [label, expression] of [
+  ["splice", "state.inventory.splice(0, 1)"],
+  ["push", "state.inventory.push(item)"],
+  ["pop", "state.inventory.pop()"],
+  ["helper", "removeInventoryItem(state.inventory)"],
+  ["member helper", "state.inventory.removeItem()"]
+]) {
+  const mutatingCallDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,1 @@
++  trackChestAction(chest, action, { inventory: ${expression} });
+`;
+  assert.equal(isTelemetryOnlyDiff(mutatingCallDiff), false, `nested ${label} call is not telemetry-only`);
+}
+for (const [label, expression] of [
+  ["delete computed key", "[delete state.inventory[0]]: 1"],
+  ["computed key", "[state.inventory[0]]: 1"],
+  ["void expression", "value: void state.inventory[0]"],
+  ["new expression", "value: new InventoryState"]
+]) {
+  const sideEffectingExpressionDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,1 @@
++  trackEvent("x", { ${expression} });
+`;
+  assert.equal(isTelemetryOnlyDiff(sideEffectingExpressionDiff), false, `${label} is not telemetry-only`);
+}
+for (const expression of ["state.inventory.splice(0, 1)", "getMutableState()", "state.inventory.push(item)"]) {
+  const contextCallDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,1 @@
++  trackEvent("x", { state: ${expression} });
+`;
+  assert.equal(isTelemetryOnlyDiff(contextCallDiff), false, `context value ${expression} is not telemetry-only`);
+}
+for (const [label, key, expression] of [
+  ["multiline getter-capable member read", "character", "object.value"],
+  ["multiline collection read", "state", "state.inventory"],
+  ["multiline indexed collection read", "state", "state.inventory[0]"],
+  ["multiline party collection read", "character", "state.party"]
+]) {
+  const multilineContextDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,3 @@
++  trackEvent("x", {
++    ${key}: ${expression},
++  });
+`;
+  assert.equal(isTelemetryOnlyDiff(multilineContextDiff), false, `${label} is not telemetry-only`);
+}
+for (const expression of [
+  "state.combatState",
+  "state.party[0]",
+  "state.party[equipState.actorIdx]",
+  "state.map?.[state.y]?.[state.x]?.event",
+  "preview?.oldEq"
+]) {
+  const safeContextDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,3 @@
++  trackEvent("x", {
++    state: ${expression},
++  });
+`;
+  assert.equal(isTelemetryOnlyDiff(safeContextDiff), true, `${expression} remains telemetry-only`);
+}
+assert.throws(
+  () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", mixedTelemetryDiff]]) }),
+  /telemetry anchor mixed/
+);
+assert.throws(
+  () => assertBalanceImpactCovered(["src/unknown_telemetry.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/unknown_telemetry.js", anchoredTelemetryDiff]]) }),
+  /unknown production path/
+);
+assert.doesNotThrow(
+  () => assertBalanceImpactCovered(["src/combat_ui/action_selection.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/combat_ui/action_selection.js", anchoredTelemetryDiff]]) }),
+  "known telemetry caller path should use the conservative diff-aware exemption"
 );
 
 const discoveredRunners = discoverSimulationRunnerFiles();
@@ -167,6 +318,17 @@ function runCanonicalSmoke() {
 const firstSmoke = runCanonicalSmoke();
 const secondSmoke = runCanonicalSmoke();
 assert.deepEqual(secondSmoke, firstSmoke, "canonical N=1 smoke is not deterministic");
+for (const file of ["src/telemetry.js", "src/spell_menu.js"]) {
+  const mixedRuntimeDiff = `diff --git a/${file} b/${file}
+@@ -1,0 +1,1 @@
++  trackEvent("x", { state }); state.currentRun.materials.blackHorn += 1;
+`;
+  assert.throws(
+    () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, firstSmoke, { diffByFile: new Map([[file, mixedRuntimeDiff]]) }),
+    /telemetry anchor mixed/,
+    `${file} mixed changes are rejected even when runtime coverage exists`
+  );
+}
 assert.ok(firstSmoke.floorsTraversed > 0, "canonical smoke did not traverse beyond its entry floor");
 const firing = assertRuntimeMechanismsFired(firstSmoke);
 const domainFiring = evaluateRuntimeDomainCoverage(firstSmoke);
@@ -229,7 +391,17 @@ assert.throws(
   () => assertBalanceImpactCovered(["src/rules/status_effect_rules.js"], SIMULATION_MANIFEST, firstSmoke),
   /unknown production path/
 );
-const sourceCoverage = assertBalanceImpactCovered(currentChangedFiles(), SIMULATION_MANIFEST, firstSmoke);
+const finalDiffReport = analyzeBalanceImpact(
+  currentChangedFiles({ baseRef: process.env.BASE_REF || "origin/main" }),
+  SIMULATION_MANIFEST,
+  firstSmoke,
+  { baseRef: process.env.BASE_REF || "origin/main" }
+);
+assert.deepEqual(
+  finalDiffReport.errors,
+  [],
+  `actual final diff balance-impact gate failed: ${finalDiffReport.errors.join("; ")}`
+);
 assert.throws(
   () => assertRuntimeMechanismsFired({ ...firstSmoke, floorsTraversed: 0, reachedFloor: 999 }),
   /maps\.run-floor-traversal/
@@ -237,5 +409,5 @@ assert.throws(
 
 console.log("[PASS] simulation manifest, stale-reference, and balance-impact checks");
 console.log(`[PASS] canonical N=1 smoke deterministic; fired=${Object.keys(firing).join(",")}`);
-console.log(`[INFO] changed balance paths=${sourceCoverage.impacts.length}; modeled=${SIMULATION_MANIFEST.canonical.smoke.modeled.join(" | ")}`);
+console.log(`[INFO] modeled=${SIMULATION_MANIFEST.canonical.smoke.modeled.join(" | ")}`);
 console.log(`[INFO] omitted=${SIMULATION_MANIFEST.canonical.smoke.omitted.join(" | ")}`);
