@@ -33,6 +33,17 @@ than depth effects. This separation changes presentation and terrain shape only;
 gameplay quantities, encounter pacing, and balance targets remain governed by
 the existing floor-template rules.
 
+### Encounter theme and local-floor reveal
+
+Biome is the enemy theme; local floor is the reveal order. Each biome's
+opening floor uses the biome pool without blind- or sleep-capable enemies,
+because those threats remove player agency before the first local counterplay
+window. They unlock on local floor 2 at the normal pool weight; later depth
+weight changes require a measured reason and must not be compensated with
+enemy stats or encounter size. This principle applies to every five-floor
+biome cycle and keeps early status pressure distinct from the biome's visual
+identity.
+
 The biome Visual Signature includes spatial silhouette as well as color and ambient treatment: `corridorWidth`, `ceilingHeight`, `wallLean`, and `ceilingStyle` describe the stable pseudo-3D geometry seen during exploration. The renderer interprets this geometry generically through the shared projection; it must not enumerate biome IDs. Geometry is presentation-only, derived from floor → biome → `visualSignature`, and is not persisted or used by map generation, movement, or balance rules.
 
 ## Initial File Routing
