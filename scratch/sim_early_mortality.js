@@ -1,6 +1,7 @@
 // sim-scope: run
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 
 export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();

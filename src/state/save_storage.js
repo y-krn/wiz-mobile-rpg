@@ -1,5 +1,5 @@
 import { markMapChanged, markMapCellVisited, state, addLog } from "./state_core.js";
-import { Sentry } from "../sentry.js";
+import { captureException, captureMessage } from "../sentry.js";
 import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
 import { createSavePayload, applySavePayload } from "./save_payload.js";
 import { migrateSavePayload } from "./save_migrations.js";
@@ -129,7 +129,7 @@ export function saveAutosave() {
   } catch (err) {
     console.error("Save autosave failed", err);
     // 保存自体の失敗はプレイヤーの進行喪失に直結するため送信する。
-    Sentry.captureException(err, {
+    captureException(err, {
       level: "error",
       tags: { subsystem: "save", op: "autosave" },
     });
@@ -199,7 +199,7 @@ export function loadGame() {
       }
       console.error(`Failed to load save from ${src.label}, trying fallback.`, err);
       // 破損検知(fallbackで復旧しても)。migration不具合の早期発見に有用。
-      Sentry.captureException(err, {
+      captureException(err, {
         level: "warning",
         tags: { subsystem: "save", op: "load" },
         extra: { source: src.label },
@@ -239,7 +239,7 @@ export function loadGame() {
     }
     console.error("All saves unreadable. Corrupt data preserved under", CORRUPT_KEY);
     // 全読込元が破損=進行の完全喪失。最重要イベントとして送信する。
-    Sentry.captureMessage("全セーブ読込不能。新規ゲーム開始(進行喪失)", {
+    captureMessage("全セーブ読込不能。新規ゲーム開始(進行喪失)", {
       level: "error",
       tags: { subsystem: "save", op: "load-total-loss" },
     });

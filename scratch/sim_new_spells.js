@@ -1,4 +1,5 @@
 // sim-scope: formula — compares proposed-spell balance impact in the live combat engine; retained because origin is unknown and no closed-Issue owner was found.
+import "./simulation_preflight.js";
 // Balance impact sim for PROPOSED spells (ZILWAN / DEF-down / ATK-down / MADI).
 // Prototype spells are registered into the live SPELLS object and exercised via
 // the real combat engine. Baseline and enhanced arms share ONE base plan; the

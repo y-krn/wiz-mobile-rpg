@@ -8,6 +8,9 @@ import { resolveMeasurementProvenance } from "./measurement_provenance.js";
 import { runSimTasks } from "./sim_parallel.js";
 import { printEnvSignatureBanner, readSimScopeDeclaration } from "./measurement_env_signature.js";
 import { reportMechanismFiring } from "./mechanism_wiring_report.js";
+import { runDependencyPreflight } from "../scripts/dependency-preflight.js";
+
+if (!runDependencyPreflight()) process.exit(1);
 
 // Unit tests import this shared module for wiring checks, not measurements.
 const IS_TEST_PROCESS = process.env.SIM_SKIP_PROVENANCE === "1" ||

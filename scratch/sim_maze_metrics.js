@@ -1,4 +1,5 @@
 // sim-scope: map — measures generated maze structure directly without a run route; retained because origin is unknown and no closed-Issue owner was found.
+import "./simulation_preflight.js";
 import { generateRandomMap } from "../src/map_generator.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 
