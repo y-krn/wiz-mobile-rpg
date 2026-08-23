@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 test('attack spells apply shared tag affinity through the real cast path', async ({ page }) => {
   await page.goto('/');

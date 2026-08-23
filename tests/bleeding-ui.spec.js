@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 import { VIEWPORTS } from './ui-ux-helpers.js';
 
 for (const viewport of VIEWPORTS) {

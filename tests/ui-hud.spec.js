@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 import { VIEWPORTS, SOLO_HUD_VIEWPORTS, SOLO_HUD_STATES } from './ui-ux-helpers.js';
 test('Debug reset clears all progression and persists the initial state', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });

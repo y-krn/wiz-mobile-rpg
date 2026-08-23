@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 const VIEWPORTS = [
   { width: 360, height: 800 },
@@ -58,7 +58,7 @@ async function renderFloor(page, floor) {
 }
 
 for (const viewport of VIEWPORTS) {
-  test(`Issue #705 visual boundaries remain distinct at ${viewport.width}px`, async ({ page }) => {
+  test(`Dungeon biome visual boundaries remain distinct at ${viewport.width}px @visual`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/');
     await page.waitForLoadState('networkidle');
@@ -67,7 +67,7 @@ for (const viewport of VIEWPORTS) {
     for (const floor of FLOORS) {
       evidence[floor] = await renderFloor(page, floor);
       await page.screenshot({
-        path: `output/playwright/issue-705-${viewport.width}-B${floor}.png`,
+        path: `output/playwright/dungeon-theme-${viewport.width}-B${floor}.png`,
         fullPage: true,
       });
       expect(evidence[floor].matchingPixels, `B${floor} wall signature should be visible`).toBeGreaterThan(0);
@@ -80,11 +80,11 @@ for (const viewport of VIEWPORTS) {
     for (let index = 1; index < FLOORS.length; index++) {
       expect(Number(evidence[FLOORS[index]].cssDepth)).toBeGreaterThan(Number(evidence[FLOORS[index - 1]].cssDepth));
     }
-    console.log(`[issue-705:${viewport.width}] ${JSON.stringify(evidence)}`);
+    console.log(`[dungeon-theme:${viewport.width}] ${JSON.stringify(evidence)}`);
   });
 }
 
-test('Issue #705 clears inline theme variables when leaving an active run', async ({ page }) => {
+test('Dungeon theme clears inline variables when leaving an active run @visual', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.waitForLoadState('networkidle');

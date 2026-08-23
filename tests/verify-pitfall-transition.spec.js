@@ -1,8 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
-test('jumping into a discovered pitfall descends from a lazily generated floor', async ({ page }) => {
-  const pageErrors = [];
-  page.on('pageerror', error => pageErrors.push(error.message));
+test('jumping into a discovered pitfall descends from a lazily generated floor @e2e @smoke', async ({ page }) => {
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -48,9 +46,15 @@ test('jumping into a discovered pitfall descends from a lazily generated floor',
   });
 
   await expect(page.locator('#btn-trap-force')).toHaveText('飛び込む');
-  await page.waitForTimeout(400);
+  await expect.poll(async () => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return state.controlsGuardUntil <= performance.now();
+  })).toBe(true);
   await page.locator('#btn-trap-force').click();
-  await page.waitForTimeout(1500);
+  await expect.poll(async () => page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    return { gameState: state.gameState, transitioning: state.transitioning };
+  })).toEqual({ gameState: 'explore', transitioning: false });
 
   const snapshot = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
@@ -63,7 +67,6 @@ test('jumping into a discovered pitfall descends from a lazily generated floor',
     };
   });
 
-  expect(pageErrors).toEqual([]);
   expect(snapshot).toEqual({
     floor: 2,
     gameState: 'explore',

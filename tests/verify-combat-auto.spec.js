@@ -1,12 +1,12 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
-test('Combat Auto button test', async ({ page }) => {
+test('Combat Auto button exposes its active state @e2e @smoke', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => {
     localStorage.clear();
   });
   await page.goto('/');
-  await page.waitForTimeout(1000);
+  await expect(page.locator('#btn-town-dungeon')).toBeVisible();
 
   // 1. クラスを選び、単独で迷宮に入る
   const enterBtn = page.locator('#btn-town-dungeon');
@@ -19,11 +19,9 @@ test('Combat Auto button test', async ({ page }) => {
     const { startCombat } = await import('/src/combat.js');
     startCombat(false, false);
   });
-  await page.waitForTimeout(500);
-
   // 戦闘に入ったことを確認
   const combatPrompt = page.locator('#combat-prompt');
-  expect(await combatPrompt.isVisible()).toBe(true);
+  await expect(combatPrompt).toBeVisible();
 
   // 戦闘に入ったら、オートボタンのテキストとクラスを確認
   const autoBtn = page.locator('#btn-combat-auto');
@@ -54,14 +52,14 @@ const COMBAT_OVERLAY_VIEWPORTS = [
 ];
 
 for (const vp of COMBAT_OVERLAY_VIEWPORTS) {
-  test(`Combat selection overlays fit mobile width on ${vp.name}`, async ({ page }) => {
+  test(`Combat selection overlays fit mobile width on ${vp.name} @visual`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.clear();
     });
     await page.goto('/');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('#btn-town-dungeon')).toBeVisible();
 
     await page.evaluate(async () => {
       const { state, createSoloCharacter } = await import('/src/state.js');

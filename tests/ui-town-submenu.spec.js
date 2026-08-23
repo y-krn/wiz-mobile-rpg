@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/browser-health.js';
 
 const TOWN_SUBMENUS = [
   ['castle_main', 'おしろ - 記録'],

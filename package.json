@@ -11,7 +11,11 @@
     "test:unit": "node scratch/run_tests.js",
     "test:unit:fast": "FAST=1 node scratch/run_tests.js",
     "test:unit:full": "FULL_TEST=1 node scratch/run_tests.js",
-    "test:browser": "playwright test",
+    "test:browser": "npm run test:browser:smoke",
+    "test:browser:smoke": "playwright test --grep @smoke",
+    "test:browser:e2e": "playwright test --grep @e2e",
+    "test:browser:visual": "playwright test --grep @visual",
+    "test:browser:full": "playwright test",
     "lint:css": "stylelint \"src/style.css\" \"src/styles/**/*.css\"",
     "lint:docs": "node scripts/check_doc_paths.js",
     "lint": "npm run lint:css && npm run lint:docs && eslint . --cache"

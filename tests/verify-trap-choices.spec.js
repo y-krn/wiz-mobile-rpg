@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from './fixtures/browser-health.js';
 
 const VIEWPORTS = [
   { name: "Galaxy S20", width: 360, height: 800 },
