@@ -28,6 +28,17 @@ smallest deterministic scratch check that exercises the changed values.
 - Affected enemies, items, rewards, spells, run quests, or map rules
 - Simulation output or deterministic seeds, when available
 
+The lightweight simulation-follow gate runs as part of `npm run test:unit`. Its
+manifest classifies `scratch/sim_depth_material_ev.js` as the canonical `run`
+runner, records its balance-domain coverage and critical runtime evidence, and
+classifies Issue-specific runners as historical until explicitly promoted. The
+gate compares changed `src/` paths with declared balance-impact metadata,
+rejects unknown or uncovered paths and stale simulation references, validates
+runner lifecycle/scope metadata, and performs one deterministic canonical run.
+It is a reachability/provenance check, not a replacement for configured
+N=500+ balance measurements; one-run-zero mechanisms remain omitted unless
+declared critical by the manifest.
+
 ## Agent Skills
 
 - No skill is mandatory by default; prioritize deterministic source, data, and
