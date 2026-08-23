@@ -153,6 +153,18 @@ for (const file of ["src/telemetry.js", "src/spell_menu.js"]) {
     `${file} mixed telemetry/gameplay changes are rejected before balance classification`
   );
 }
+for (const [label, call] of [
+  ["raw state spread", 'trackEvent("x", { ...state });'],
+  ["raw collection read", 'trackEvent("x", state.inventory);'],
+  ["unknown member read", 'trackEvent("x", { source: state.currentRun });'],
+  ["getter-capable member read", 'trackEvent("x", { source: object.value });']
+]) {
+  const unvalidatedArgumentDiff = `diff --git a/src/telemetry.js b/src/telemetry.js
+@@ -1,0 +1,1 @@
++  ${call}
+`;
+  assert.equal(isTelemetryOnlyDiff(unvalidatedArgumentDiff), false, `${label} is not telemetry-only`);
+}
 const mutationInTelemetryArgumentsDiff = `diff --git a/src/chest.js b/src/chest.js
 @@ -416,0 +417,1 @@
 +  trackChestAction(chest, action, { state.currentRun.materials.blackHorn += 1 });

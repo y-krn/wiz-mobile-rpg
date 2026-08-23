@@ -458,6 +458,123 @@ function hasUnsafeExpressionSyntax(line) {
     || /\b(?:delete|new|throw|void|await|yield)\b/.test(line);
 }
 
+const SAFE_TELEMETRY_ARGUMENT_IDENTIFIERS = new Set([
+  ...TELEMETRY_CONTEXT_KEYS,
+  "char", "character", "combat", "currentChar", "caster", "event", "action", "undefined"
+]);
+
+function stripQuotedContent(value) {
+  let result = "";
+  let quote = null;
+  let escaped = false;
+  for (const character of value) {
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      result += " ";
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      result += " ";
+    } else {
+      result += character;
+    }
+  }
+  return result;
+}
+
+function hasUnvalidatedMemberRead(line) {
+  const code = stripQuotedContent(line);
+  return /\.\.\.|\?\.|\.[A-Za-z_$][A-Za-z0-9_$]*|\b[A-Za-z_$][A-Za-z0-9_$]*\s*\[/.test(code);
+}
+
+function splitTopLevel(value) {
+  const parts = [];
+  let start = 0;
+  let quote = null;
+  let escaped = false;
+  let depth = 0;
+  for (let index = 0; index < value.length; index++) {
+    const character = value[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      continue;
+    }
+    if ("({[".includes(character)) depth++;
+    else if (")}]".includes(character)) depth--;
+    else if (character === "," && depth === 0) {
+      parts.push(value.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  parts.push(value.slice(start).trim());
+  return parts.filter(Boolean);
+}
+
+function getCompleteCallArguments(line) {
+  const open = line.indexOf("(");
+  if (open < 0) return null;
+  let quote = null;
+  let escaped = false;
+  let depth = 0;
+  for (let index = open; index < line.length; index++) {
+    const character = line[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      continue;
+    }
+    if (character === "(") depth++;
+    else if (character === ")") {
+      depth--;
+      if (depth === 0) {
+        return /^;?$/.test(line.slice(index + 1).trim())
+          ? line.slice(open + 1, index)
+          : null;
+      }
+    }
+  }
+  return null;
+}
+
+function isSafeTelemetryArgumentExpression(expression, { allowIdentifier = true } = {}) {
+  const trimmed = expression.trim();
+  if (/^(?:null|true|false|undefined|-?\d+(?:\.\d+)?|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')$/.test(trimmed)) {
+    return true;
+  }
+  if (allowIdentifier && SAFE_TELEMETRY_ARGUMENT_IDENTIFIERS.has(trimmed)) return true;
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return false;
+
+  const fields = splitTopLevel(trimmed.slice(1, -1));
+  return fields.length > 0 && fields.every(field => {
+    if (field.startsWith("...")) return false;
+    const separator = field.indexOf(":");
+    if (separator < 0) return TELEMETRY_CONTEXT_KEYS.has(field.trim());
+    const key = field.slice(0, separator).trim();
+    const value = field.slice(separator + 1).trim();
+    return TELEMETRY_CONTEXT_KEYS.has(key)
+      && isSafeTelemetryArgumentExpression(value);
+  });
+}
+
+function hasUnsafeTelemetryArgumentSyntax(line) {
+  return hasUnvalidatedMemberRead(line)
+    || /=>/.test(stripQuotedContent(line));
+}
+
 function isPureContextExpression(expression) {
   const trimmed = expression.trim();
   if (/^(?:null|true|false|-?\d+(?:\.\d+)?|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')$/.test(trimmed)) {
@@ -490,10 +607,15 @@ function isPureContextExpression(expression) {
 
 function isTelemetryCall(line) {
   const trimmed = line.trim();
-  return !hasGameplayMutation(trimmed)
-    && !hasNestedCall(trimmed)
-    && !hasUnsafeExpressionSyntax(trimmed)
-    && /^track[A-Z][A-Za-z0-9]*\s*\([^;]*\)?;?$/.test(trimmed);
+  if (hasGameplayMutation(trimmed) || hasNestedCall(trimmed) || hasUnsafeExpressionSyntax(trimmed)) return false;
+  if (hasUnsafeTelemetryArgumentSyntax(trimmed)) return false;
+  if (!/^track[A-Z][A-Za-z0-9]*\s*\([^;]*\)?;?$/.test(trimmed)) return false;
+
+  const argumentsText = getCompleteCallArguments(trimmed);
+  if (argumentsText === null) return /(?:\{|,)\s*$/.test(trimmed);
+  return splitTopLevel(argumentsText).every((argument, index) =>
+    isSafeTelemetryArgumentExpression(argument, { allowIdentifier: index > 0 })
+  );
 }
 
 function isTelemetryContextLine(line) {

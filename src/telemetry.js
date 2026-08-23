@@ -70,7 +70,14 @@ const SAFE_GAME_STATES = new Set([
 ]);
 const SAFE_COMBAT_PHASES = new Set(["choose_actions", "resolving"]);
 const SAFE_ATTACK_TYPES = new Set(["physical", "normal", "spell", "flee", "reflect", "counter", "other"]);
-const SAFE_RARITIES = new Set(["common", "magic", "rare", "epic"]);
+// Keep this in sync with the production codex progression in
+// src/state/codex_state.js.
+const SAFE_RARITIES = new Set(["common", "magic", "rare", "epic", "legendary"]);
+const SAFE_BLEEDING_EVENTS = new Set(["failed", "applied", "refresh", "cleared", "triggered", "expired"]);
+const SAFE_BLEEDING_REASONS = new Set([
+  "trigger-roll", "defeat", "spell", "flee", "self-destruct", "counterattack", "duration"
+]);
+const SAFE_BLEEDING_SOURCES = new Set(["bleedingAtk"]);
 const SAFE_COMPARISON_STAT_KEYS = new Set([
   "attack", "defense", "maxHp", "maxMp", "str", "int", "pie", "vit", "agi", "luk",
   "magic", "healing", "speed", "trap", "treasure", "spellGuard", "antiDragon",
@@ -199,6 +206,19 @@ function normalizeTargetIndex(value, partySize) {
   return Number.isInteger(value) && value >= 0 && value < boundedPartySize ? value : null;
 }
 
+function normalizeCombatIndex(value, collectionSize, allowAllTarget = false) {
+  if (allowAllTarget && value === -1) return -1;
+  return normalizeTargetIndex(value, collectionSize);
+}
+
+function normalizeBleedingBuildKey(value) {
+  if (typeof value !== "string") return "other";
+  const match = value.match(/^bleedingAtk:(-?\d+(?:\.\d+)?)$/);
+  if (!match) return "other";
+  const affixValue = boundedFiniteOrNull(match[1], 0, 100);
+  return affixValue === null ? "other" : `bleedingAtk:${affixValue}`;
+}
+
 function normalizeDirection(value) {
   return Number.isInteger(value) && SAFE_DIRECTIONS.has(value) ? value : null;
 }
@@ -293,7 +313,7 @@ export function buildEquipmentSnapshot(character) {
     return {
       slot: normalizeStableValue(slot, new Set(EQUIPMENT_SLOTS.map(entry => entry.id))),
       id: getSafeItemId(itemKey),
-      rarity: itemKey?.identified === true ? normalizeRarity(item?.rarity) : null,
+      rarity: itemKey?.identified === true ? normalizeRarity(itemKey?.rarity ?? item?.rarity) : null,
       identified: itemKey == null || typeof itemKey !== "object" || itemKey.identified === true,
       enhancementLevel: boundedFiniteOrNull(itemKey?.enhanceLevel ?? 0, -MAX_RESOURCE_VALUE),
       affixCount: affixSummary.count,
@@ -528,6 +548,24 @@ export function trackEvent(eventName, properties = {}) {
   capture(eventName, properties);
 }
 
+export function trackBleedingEvent(event, details = {}) {
+  const normalizedEvent = normalizeStableValue(event, SAFE_BLEEDING_EVENTS);
+  capture(`bleeding_${normalizedEvent}`, {
+    floor: boundedFiniteOrNull(details.floor),
+    playerClass: normalizeClass(details.playerClass),
+    enemyId: normalizeEnemyId(details.enemyId),
+    isBoss: Boolean(details.isBoss),
+    isMidboss: Boolean(details.isMidboss),
+    remainingTurns: boundedFiniteOrNull(details.remainingTurns),
+    payoffDamage: boundedFiniteOrNull(details.payoffDamage),
+    reason: normalizeOptionalStableValue(details.reason, SAFE_BLEEDING_REASONS),
+    source: normalizeOptionalStableValue(details.source, SAFE_BLEEDING_SOURCES),
+    buildKey: normalizeBleedingBuildKey(details.buildKey),
+    damageContribution: boundedFiniteOrNull(details.damageContribution),
+    directDamage: boundedFiniteOrNull(details.directDamage)
+  });
+}
+
 export function trackChestAction(chest, action, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
 
@@ -692,15 +730,22 @@ export function trackCombatDecision(action, details = {}) {
   const combat = details.combat || details.state?.combatState || null;
   const monsters = combat?.monsters || [];
   const target = Number.isInteger(details.targetIdx) ? monsters[details.targetIdx] : null;
+  const normalizedAction = normalizeDecisionAction(action);
+  const spellId = getSafeSpellId(details.spellName);
+  const spellTarget = spellId && spellId !== "other" ? SPELLS[spellId]?.target : null;
   capture("combat_decision", {
     runId,
     combatId,
     ...safeDecisionContext({ state: details.state, character: details.character, combat }),
-    action: normalizeDecisionAction(action),
-    actorIndex: finiteOrNull(details.actorIdx),
-    targetIndex: finiteOrNull(details.targetIdx),
+    action: normalizedAction,
+    actorIndex: normalizeCombatIndex(details.actorIdx, details.state?.party?.length),
+    targetIndex: normalizeCombatIndex(
+      details.targetIdx,
+      monsters.length,
+      normalizedAction === "spell" && ["all_enemies", "all_allies"].includes(spellTarget)
+    ),
     targetEnemyId: target ? normalizeEnemyId(target.name) : null,
-    spellId: getSafeSpellId(details.spellName),
+    spellId,
     itemId: getSafeItemId(details.itemKey),
     itemCategory: getItemCategory(details.itemKey)
   });

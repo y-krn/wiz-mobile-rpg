@@ -19,6 +19,7 @@ import {
   trackEquipmentDecision,
   trackChestAction,
   trackChestSmashResult,
+  trackBleedingEvent,
   trackDamageReceived,
   trackEvent,
   trackExplorationDecision,
@@ -235,6 +236,100 @@ check("malformed hp and mp rates stay within unit bounds", () => {
   const snapshot = buildPlayerSnapshot(malformedCharacter, { floor: 2 });
   assert.equal(snapshot.hpRate, 1);
   assert.equal(snapshot.mpRate, 1);
+});
+
+check("legacy bleeding telemetry is bounded and typed", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackBleedingEvent("triggered", {
+    floor: Number.MAX_VALUE,
+    playerClass: "migrated class",
+    enemyId: "migrated enemy",
+    isBoss: 1,
+    isMidboss: 0,
+    remainingTurns: Number.MAX_VALUE,
+    payoffDamage: Number.MAX_VALUE,
+    reason: "migrated reason",
+    source: "migrated source",
+    buildKey: "bleedingAtk:999999",
+    damageContribution: Number.MAX_VALUE,
+    directDamage: -Number.MAX_VALUE,
+    extraArray: Array.from({ length: 100 }, () => "free text")
+  });
+  trackBleedingEvent("triggered", {
+    floor: 3,
+    playerClass: "Mage",
+    enemyId: "いにしえの竜 B",
+    remainingTurns: 2,
+    payoffDamage: 4,
+    reason: "duration",
+    source: "bleedingAtk",
+    buildKey: "bleedingAtk:12",
+    damageContribution: 4,
+    directDamage: 8
+  });
+  const [malformed, valid] = events;
+  assert.equal(malformed.name, "bleeding_triggered");
+  assert.equal(malformed.properties.floor, 1_000_000);
+  assert.equal(malformed.properties.playerClass, "other");
+  assert.equal(malformed.properties.enemyId, "other");
+  assert.equal(malformed.properties.remainingTurns, 1_000_000);
+  assert.equal(malformed.properties.payoffDamage, 1_000_000);
+  assert.equal(malformed.properties.reason, "other");
+  assert.equal(malformed.properties.source, "other");
+  assert.equal(malformed.properties.buildKey, "bleedingAtk:100");
+  assert.equal(malformed.properties.damageContribution, 1_000_000);
+  assert.equal(malformed.properties.directDamage, 0);
+  assert.equal(Object.hasOwn(malformed.properties, "extraArray"), false);
+  assert.equal(valid.properties.playerClass, "Mage");
+  assert.equal(valid.properties.enemyId, "いにしえの竜");
+  assert.equal(valid.properties.reason, "duration");
+  assert.equal(valid.properties.buildKey, "bleedingAtk:12");
+});
+
+check("combat decision indexes stay within production targets", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
+  trackCombatDecision("attack", {
+    state: decisionState,
+    character: decisionPlayer,
+    combat: decisionCombat,
+    actorIdx: -1,
+    targetIdx: -1
+  });
+  trackCombatDecision("spell", {
+    state: decisionState,
+    character: decisionPlayer,
+    combat: decisionCombat,
+    actorIdx: Number.MAX_VALUE,
+    targetIdx: -2
+  });
+  trackCombatDecision("spell", {
+    state: decisionState,
+    character: decisionPlayer,
+    combat: decisionCombat,
+    actorIdx: 0,
+    targetIdx: -1,
+    spellName: "MABARRIER"
+  });
+  const decisions = events.filter(event => event.name === "combat_decision");
+  assert.equal(decisions[0].properties.actorIndex, null);
+  assert.equal(decisions[0].properties.targetIndex, null);
+  assert.equal(decisions[1].properties.actorIndex, null);
+  assert.equal(decisions[1].properties.targetIndex, null);
+  assert.equal(decisions[2].properties.actorIndex, 0);
+  assert.equal(decisions[2].properties.targetIndex, -1);
+});
+
+check("canonical legendary rarity remains allowlisted", () => {
+  const snapshot = buildEquipmentSnapshot({
+    equipment: {
+      weapon: { baseId: "WAND", identified: true, rarity: "legendary", affixes: [] }
+    }
+  });
+  assert.equal(snapshot.equipmentRarities[0], "legendary");
 });
 
 check("decision events share context and keep action identifiers stable", () => {
