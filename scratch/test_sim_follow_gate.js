@@ -391,6 +391,29 @@ assert.throws(
   () => assertBalanceImpactCovered(["src/rules/status_effect_rules.js"], SIMULATION_MANIFEST, firstSmoke),
   /unknown production path/
 );
+assert.doesNotThrow(
+  () => {
+    const summaryImpactReport = assertBalanceImpactCovered(
+      ["src/combat_ui/spell_summary.js"],
+      SIMULATION_MANIFEST,
+      undefined,
+      { diffByFile: new Map([["src/combat_ui/spell_summary.js", "summary-only UI copy change"]]) }
+    );
+    assert.deepEqual(summaryImpactReport.impacts, [], "summary-only UI changes must remain exempt");
+  },
+  "summary-only UI changes remain balance-impact none"
+);
+const spellMenuImpactReport = assertBalanceImpactCovered(
+  ["src/combat_ui/spell_menu.js"],
+  SIMULATION_MANIFEST,
+  firstSmoke,
+  { diffByFile: new Map([["src/combat_ui/spell_menu.js", "target availability logic change"]]) }
+);
+assert.deepEqual(
+  spellMenuImpactReport.impacts,
+  [{ file: "src/combat_ui/spell_menu.js", domains: ["combat"], uncovered: [], runtimeUnsupported: [], runtimeUnfired: [] }],
+  "target-availability changes must remain balance-impact covered"
+);
 const finalDiffReport = analyzeBalanceImpact(
   currentChangedFiles({ baseRef: process.env.BASE_REF || "origin/main" }),
   SIMULATION_MANIFEST,

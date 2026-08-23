@@ -116,6 +116,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
   }))),
   balanceImpactPaths: Object.freeze([
     { pattern: "src/combat.js", domains: ["combat"] },
+    { pattern: "src/combat_ui/spell_menu.js", domains: ["combat"] },
     { pattern: "src/combat_logic.js", domains: ["combat", "status"] },
     { pattern: "src/combat_logic/auto_action.js", domains: ["combat", "recovery"] },
     { pattern: "src/combat_logic/boss_actions.js", domains: ["combat", "status"] },
@@ -154,7 +155,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
   ].map(rule => ({ ...rule, domains: Object.freeze([...rule.domains]) }))),
   balanceImpactNone: Object.freeze([
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
-    "src/combat_ui/spell_menu.js",
+    "src/combat_ui/spell_summary.js",
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**",
     "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js",
     "src/error_context.js", "src/controls_guard.js",
