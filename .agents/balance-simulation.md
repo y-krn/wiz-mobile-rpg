@@ -1213,7 +1213,7 @@ This is a measurement record, not gameplay canon. The source registry is authori
 
 ### Classification correction (2026-08-23)
 
-This correction supersedes the SUPPORT classification in the [prior completion record](https://github.com/y-krn/wiz-mobile-rpg/issues/679#issuecomment-5384541391). The raw measurements, recorded/acquired reward counts, Wilson intervals, provenance hashes, and simulator output are unchanged; only the interpretation/status labels and funnel label were corrected. The corrected aggregate is **CORE A11/B0/C1/D6** and **SUPPORT A0/B0/C47/D0** (combined **A11/B0/C48/D6**).
+This correction supersedes the SUPPORT classification in the [prior completion record](https://github.com/y-krn/wiz-mobile-rpg/issues/679#issuecomment-5384541391). The raw measurements, recorded/acquired reward counts, Wilson intervals, provenance hashes, and simulator output are unchanged; only the interpretation/status labels and funnel label were corrected. The corrected aggregate is **CORE A11/B0/C3/D4** and **SUPPORT A0/B0/C47/D0** (combined **A11/B0/C50/D4**).
 
 Classification rule: a missing per-mechanism simulator probe is **C/sim-missing even when equipped N<30**. **D** applies only when the required runtime observation probe exists but equipped N<30. Therefore every SUPPORT row below is C/sim-missing because the current simulator has no per-SUPPORT condition/application probe.
 
@@ -1221,8 +1221,10 @@ Classification rule: a missing per-mechanism simulator probe is **C/sim-missing 
 
 - Real path: `scratch/sim_depth_material_ev.js` (`sim-scope: run`) → `generateRunFloor` → current equipment generation/identification/equip selection → current round/reward/movement/chest rules.
 - Main coverage run: `SIM_SEED=231 SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 SIM_SCENARIOS=workshop-complete SIM_CORE_WORKSHOP_GATE=off node scratch/sim_depth_material_ev.js`; no `SIM_PARALLEL` override.
-- Gameplay source baseline SHA: `62a4e8184151a21d574e5a84697283ff208381fd`; `origin/main` ancestor: true; stale tree: false; env hash `8e525761fae5e542`.
+- Gameplay source baseline SHA: `62a4e8184151a21d574e5a84697283ff208381fd`; `origin/main` ancestor: true; stale tree: false; working tree clean: true; env hash `8e525761fae5e542`.
 - Measurement runner commit: `c56b06cbfd2c4e6c7006fca6805c7006f4fe3d39`; runner diff SHA-256 against the gameplay baseline, computed as `git diff --binary 62a4e8184151a21d574e5a84697283ff208381fd c56b06cbfd2c4e6c7006fca6805c7006f4fe3d39 -- scratch/sim_depth_material_ev.js | shasum -a 256`: `6b924d556dec0a7305ebdddf3a8e9dfcf4be3c66b42bf13b1b4651ed14008a39`.
+- The runner diff scope is now the ordered `measurementRunnerPaths` field: `scratch/sim_depth_material_ev.js`, `scratch/measurement_provenance.js`; `measurementRunnerDiffSha256` hashes the combined binary diff for exactly those two files against the gameplay baseline. The captured historical hash above remains the pre-correction provenance for the unchanged raw measurement.
+- Real measurements refuse any non-empty `git status --porcelain --untracked-files=all` result before execution. Provenance records `workingTreeClean`, `workingTreeDirty`, and `dirtyTreeAllowed`; the only supported dirty-tree opt-in is the explicit `SIM_PROVENANCE_TEST_FIXTURE` + `SIM_PROVENANCE_ALLOW_DIRTY_TREE=1` path used by test-only fixtures, never the Issue #679 measurement.
 - The recorded command was run at that pinned runner commit. To reproduce the captured raw hashes, use a detached worktree at `c56b06cbfd2c4e6c7006fca6805c7006f4fe3d39` and run the command above; running from a later documentation-only commit intentionally produces different provenance text and therefore a different raw stdout hash.
 - Current-gate comparison: same command without `SIM_CORE_WORKSHOP_GATE=off`, env hash `33fe98330a8886c8`; `CORE_MILESTONE_BREAKER` and `CORE_THIN_ICE_PACT` were zero-candidate because their current workshop grants require `FORGE_SEAL` / `ABYSS_SEAL`, absent from `workshop-complete`. The gate-off run is an explicit coverage measurement, not a claim that those grants are currently free.
 - Raw output is temporary and untracked: gate-off SHA-256 `f41f43a5785fab47694f7fb889876bffb6462e1201e1d06d3e8cce9f4af099ff`; current-gate SHA-256 `f86be496ddca3b2a59a41f92997850d6cb096d1768e72e838d92febe3a901e91`. The compact output schema hash is `852216e991ac7803a871ed362785b55c0e0e4715e532c6647f7db2353e6e1b0d`. These hashes identify the captured stdout/schema from the pinned runner commit; stdout is not expected to byte-match a rerun from another runner commit because provenance and runtime timing are part of the output.
@@ -1230,7 +1232,7 @@ Classification rule: a missing per-mechanism simulator probe is **C/sim-missing 
 
 ### Funnel definitions and classification
 
-Each row is `R/C/E/Q/A`: recorded/acquired reward item affix instances / distinct recorded reward instances examined by the existing greedy equip path / equip events / condition-or-trigger eligible events / application/activation events. `R` is counted in `recordEquipmentAcquisitions`; it is not a hook at the underlying generator, so generated items that are lost or rejected before that acquisition record are outside this numerator. `E/C` and `A/Q` are Wilson 95% intervals where the denominator is a binary rate; Q/A are event counts otherwise. Core Q/A are populated from existing simulator probes. SUPPORT Q/A are deliberately `0/0` because the current sim has no per-SUPPORT event probe; this is **C/sim-missing**, not a measured zero. A means equipped and observed through the existing runtime probe. D means fewer than 30 equipped observations only when the required runtime probe exists; a missing per-mechanism simulator probe is C/sim-missing regardless of N. B had no findings: every non-observed case had either N<30 with a required probe present or an identified simulator coverage gap. Source tracing through imports/re-exports and direct callers found no enabled registry entry with a source-wiring absence; C findings below are sim-missing.
+Each row is `R/C/E/Q/A`: recorded/acquired reward item affix instances / distinct recorded reward instances examined by the existing greedy equip path / equip events / condition-or-trigger eligible events / application/activation events. `R` is counted in `recordEquipmentAcquisitions`; it is not a hook at the underlying generator, so generated items that are lost or rejected before that acquisition record are outside this numerator. `E/C` and `A/Q` are Wilson 95% intervals where the denominator is a binary rate; Q/A are event counts otherwise. Core Q/A are populated from existing simulator probes. SUPPORT Q/A are deliberately `0/0` because the current sim has no per-SUPPORT event probe; this is **C/sim-missing**, not a measured zero. The same sim-missing rule changes `CORE_PHYSICAL_ACCURACY` and `CORE_MILESTONE_BREAKER` from D to C/sim-missing: both have Q/A=0/0 and no per-mechanism probe. A means equipped and observed through the existing runtime probe. D means fewer than 30 equipped observations only when the required runtime probe exists; a missing per-mechanism simulator probe is C/sim-missing regardless of N. B had no findings: every non-observed case had either N<30 with a required probe present or an identified simulator coverage gap. Source tracing through imports/re-exports and direct callers found no enabled registry entry with a source-wiring absence; C findings below are sim-missing.
 
 ### Slot coverage
 
@@ -1240,13 +1242,13 @@ Core slots are mutually exclusive: weapon 6, accessory 8, armor 3, shield 1. SUP
 |---|---|---|---|---|---|---|---|---|
 | CORE_LAST_STAND | combat/weapon | all floors when unlocked | {"hpThreshold":0.4,"damageMultiplier":1.4} | all | A | 209/209/31/94/45 | 14.8% [10.7,20.3] | 47.9% [38.1,57.9] |
 | CORE_OPENER | combat/accessory | all floors when unlocked | {"followUpChance":1} | all | D | 174/174/26/154/91 | 14.9% [10.4,21.0] | 59.1% [51.2,66.5] |
-| CORE_PHYSICAL_ACCURACY | combat/weapon | all floors when unlocked | {"hitChanceBonus":1} | all | D | 226/226/24/0/0 | 10.6% [7.2,15.3] | — |
+| CORE_PHYSICAL_ACCURACY | combat/weapon | all floors when unlocked | {"hitChanceBonus":1} | all | C/sim-missing | 226/226/24/0/0 | 10.6% [7.2,15.3] | — |
 | CORE_BLOOD_WAND | combat/weapon | all floors when unlocked | {"hpCostMultiplier":2} | all | D | 217/217/26/21/17 | 12.0% [8.3,17.0] | 81.0% [60.0,92.3] |
 | CORE_PURIFY_RING | combat/accessory | all floors when unlocked | {"mpRecovery":1,"fullMpHpRecovery":2,"targetTags":["undead","spirit","demon"]} | all | D | 197/197/21/51/48 | 10.7% [7.1,15.7] | 94.1% [84.1,98.0] |
 | CORE_TRAP_EATER | combat/accessory | all floors when unlocked | {"attackPerDisarm":2,"maxAttack":20} | Thief,Ranger,Ninja | D | 77/77/15/112/112 | 19.5% [12.2,29.7] | 100.0% [96.7,100.0] |
 | CORE_CURSE_KEEPER | combat/accessory | all floors when unlocked | {"statsPerCurse":3} | all | A | 177/177/44/1423/1423 | 24.9% [19.1,31.7] | 100.0% [99.7,100.0] |
 | CORE_GIANT_SLAYER | combat/weapon | all floors when unlocked | {"damageMultiplier":1.3} | all | A | 242/242/70/644/227 | 28.9% [23.6,34.9] | 35.2% [31.7,39.0] |
-| CORE_MILESTONE_BREAKER | combat/weapon | all floors when unlocked | {"damageMultiplier":1.25} | all | D | 239/239/22/0/0 | 9.2% [6.2,13.5] | — |
+| CORE_MILESTONE_BREAKER | combat/weapon | all floors when unlocked | {"damageMultiplier":1.25} | all | C/sim-missing | 239/239/22/0/0 | 9.2% [6.2,13.5] | — |
 | CORE_THORN_SHIELD | combat/shield | all floors when unlocked | {"counterChance":0.3,"counterPower":0.5} | all | A | 206/206/85/3060/776 | 41.3% [34.8,48.1] | 25.4% [23.8,26.9] |
 | CORE_EXECUTIONER | combat/weapon | all floors when unlocked | {"status":"poisoned","statusChance":0.35,"damageMultiplier":1.4} | all | A | 227/227/39/462/247 | 17.2% [12.8,22.6] | 53.5% [48.9,58.0] |
 | CORE_THIN_ICE_PACT | combat/armor | all floors when unlocked | {"hpThreshold":0.5,"damageMultiplier":1.35,"incomingDamageMultiplier":1.2} | all | C/sim-missing | 772/772/128/0/0 | 16.6% [14.1,19.4] | — |
@@ -1256,6 +1258,69 @@ Core slots are mutually exclusive: weapon 6, accessory 8, armor 3, shield 1. SUP
 | CORE_CAMP_MASTER | economy/armor | all floors when unlocked | {"recoveryMultiplier":2} | all | A | 288/288/64/16/16 | 22.2% [17.8,27.4] | 100.0% [80.6,100.0] |
 | CORE_BOUNTY_HUNTER | economy/accessory | all floors when unlocked | {"contractCountMultiplier":2} | all | A | 87/87/30/65/40 | 34.5% [25.3,44.9] | 61.5% [49.4,72.4] |
 | CORE_SCHOLAR_EYE | economy/accessory | all floors when unlocked | {"guaranteedMaterialDrop":true} | all | A | 108/108/39/127/127 | 36.1% [27.7,45.5] | 100.0% [97.1,100.0] |
+### Static source index (all enabled IDs)
+
+This index is static source evidence, separate from the measured R/C/E/Q/A
+funnel. Registry definitions are in `src/data/affixes.js` (`SUPPORT_AFFIXES`
+and `CORE_AFFIXES`). Every ID below is available only through the current
+`src/systems/equipment_generation.js` pools: `generateRandomEquipment` and
+`generateRandomAccessory` build the base-item support pool and
+`rollAffixLoadout` applies slot, floor, rarity, budget, class, and workshop
+unlock gates. The simulator candidate/equip path is
+`scratch/sim_depth_material_ev.js:equipGreedyUpgrades`; the player equip path <!-- doc-path-ignore -->
+is `src/equip.js`'s item action, with `src/rules/affix_rules.js` and
+`src/rules/item_rules.js` resolving equipped effects. Thus a C/sim-missing
+label below means missing measurement probe, not missing source wiring.
+
+| ID or group | Registry / generator availability | Candidate and equip path | Concrete runtime application or activation path | Measurement status |
+|---|---|---|---|---|
+| CORE_LAST_STAND, CORE_GIANT_SLAYER, CORE_MILESTONE_BREAKER, CORE_THIN_ICE_PACT | `CORE_AFFIXES`; weapon/armor slot gates in `rollAffixLoadout`; workshop unlock gate where applicable | `equipGreedyUpgrades` → `getEquipmentScore`; player item action | `src/rules/affix_rules.js:getDamageAffixResult`; `CORE_THIN_ICE_PACT` also `src/combat_logic/damage.js:reduceIncomingDamage`; called by `src/combat_logic/round.js` and `src/systems/spell_effects.js` | Core probes exist except `CORE_MILESTONE_BREAKER` and `CORE_THIN_ICE_PACT` Q/A=0/0; latter two C/sim-missing | <!-- doc-path-ignore -->
+| CORE_OPENER | `CORE_AFFIXES`; accessory slot and workshop unlock gate | Same candidate/equip path | `src/rules/affix_rules.js:getFollowUpChance` → `src/combat_logic/round.js:runCombatRoundCalculation` | D (probe present, equipped N<30) | <!-- doc-path-ignore -->
+| CORE_PHYSICAL_ACCURACY | `CORE_AFFIXES`; weapon slot and normal core gates | Same candidate/equip path | `src/rules/character_stats.js:getPhysicalHitChance` → `src/combat_logic/round.js` physical attack resolution | C/sim-missing (Q/A=0/0; no per-mechanism probe) | <!-- doc-path-ignore -->
+| CORE_BLOOD_WAND | `CORE_AFFIXES`; weapon slot and workshop unlock gate | Same candidate/equip path | `src/rules/affix_rules.js:getSpellPayment` / `paySpellCost` → `src/combat_logic/spell_resolution.js` and `src/spell_menu.js` | D (probe present, equipped N<30) | <!-- doc-path-ignore -->
+| CORE_PURIFY_RING | `CORE_AFFIXES`; accessory slot | Same candidate/equip path | `src/combat_logic/damage.js:applyKillAffixEffects` → `src/rules/purify_rules.js:resolvePurifyRecovery` | D (probe present, equipped N<30) | <!-- doc-path-ignore -->
+| CORE_TRAP_EATER | `CORE_AFFIXES`; accessory slot, class gate, and workshop unlock gate | Same candidate/equip path | `src/rules/affix_rules.js:getTrapEaterBonusAfterDisarm` → `src/chest.js` chest disarm path | D (probe present, equipped N<30) | <!-- doc-path-ignore -->
+| CORE_CURSE_KEEPER | `CORE_AFFIXES`; accessory slot | Same candidate/equip path | `src/rules/affix_rules.js:getCharAllStatsAffixBonus` → `src/rules/character_stats.js:getCharStr/getCharVit/getCharInt/getCharPie/getCharAgi/getCharLuk` | A | <!-- doc-path-ignore -->
+| CORE_THORN_SHIELD | `CORE_AFFIXES`; shield slot and workshop unlock gate | Same candidate/equip path | `src/combat_logic/damage.js:tryThornCounter` → `src/combat_logic/round.js` enemy attack resolution | A | <!-- doc-path-ignore -->
+| CORE_EXECUTIONER | `CORE_AFFIXES`; weapon slot | Same candidate/equip path | `src/rules/affix_rules.js:tryApplyExecutionerSetup` and `getDamageAffixResult` → round/spell offensive paths | A | <!-- doc-path-ignore -->
+| CORE_SNEAK_STEP | `CORE_AFFIXES`; armor slot | Same candidate/equip path | `src/movement.js:checkSensoryAura` and perception range helpers | A | <!-- doc-path-ignore -->
+| CORE_TOMB_RAIDER | `CORE_AFFIXES`; accessory slot and workshop unlock gate | Same candidate/equip path | `src/chest.js:applyTombRaiderTrapTier` and chest material reward path | A | <!-- doc-path-ignore -->
+| CORE_KEEN_EYE | `CORE_AFFIXES`; accessory slot | Same candidate/equip path | `src/rules/affix_rules.js:canEquipUnidentifiedItem` plus `src/rules/item_rules.js:getEquippedItemData` / identification UI path | A | <!-- doc-path-ignore -->
+| CORE_CAMP_MASTER | `CORE_AFFIXES`; armor slot | Same candidate/equip path | `src/systems/camp_rest.js:restAtCamp` | A | <!-- doc-path-ignore -->
+| CORE_BOUNTY_HUNTER | `CORE_AFFIXES`; accessory slot | Same candidate/equip path | `src/rules/affix_rules.js:getContractProgressIncrement` → `src/combat_logic/rewards.js:applyCombatRewards` and run-quest updates | A | <!-- doc-path-ignore -->
+| CORE_SCHOLAR_EYE | `CORE_AFFIXES`; accessory slot and workshop unlock gate | Same candidate/equip path | `src/combat_logic/rewards.js:applyCombatRewards` passes `guaranteed` to monster material drops | A | <!-- doc-path-ignore -->
+| atk, def, str, int, pie, vit, agi, luk, hp, mp | `SUPPORT_AFFIXES`; `generateRandomEquipment`/`generateRandomAccessory` `addAffix` entries, with base-item/slot gates | `equipGreedyUpgrades` or player item action; values resolve through `src/rules/item_rules.js:getCharAffixSum` | `src/rules/item_rules.js:getCharAffixSum`; stat IDs flow through `src/rules/character_stats.js:getChar*`, atk/def through item data and combat formulas | All SUPPORT Q/A=0/0: C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| antiUndead, antiDragon, antiDemon, deepAssault, fullHpDamage, antiBeast, antiSpirit | `SUPPORT_AFFIXES`; generator `addAffix` floor/base-item gates | Same candidate/equip path | `src/rules/affix_rules.js:getDamageAffixResult`; antiDragon also `src/combat_logic/damage.js:reduceIncomingDamage` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| poisonWard, spellGuard, guardian | `SUPPORT_AFFIXES`; generator `addAffix` floor/base-item gates | Same candidate/equip path | `src/combat_logic/damage.js:reduceIncomingDamage` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| trapBonus | `SUPPORT_AFFIXES`; generator trap-eligible base-item pools in `equipment_generation.js` | Same candidate/equip path | `src/rules/character_stats.js:getCharTrapBonus` → `src/rules/trap_rules.js:calculateDisarmRate` / `calculateChestDisarmChance`, floor/chest trap actions | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| treasureSense | `SUPPORT_AFFIXES`; treasure-sense base-item pools and floor gates | Same candidate/equip path | `src/chest.js:setupChestState` and `src/rules/chest_rules.js` reward/hint selection | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| arcaneSense, hearRange | `SUPPORT_AFFIXES`; generator base-item pools and floor gates | Same candidate/equip path | `src/movement.js:checkSensoryAura`; arcaneSense also `src/menu/explore_actions.js` search path | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| traceRead | `SUPPORT_AFFIXES`; trap-readable base-item pools and floor gates | Same candidate/equip path | `src/systems/traps.js:detectAdjacentTraps` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| followUp | `SUPPORT_AFFIXES`; weapon base-item pool, B2+ gate | Same candidate/equip path | `src/combat_logic/round.js:runCombatRoundCalculation` follow-up roll | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| spellPower, arcane, devotion | `SUPPORT_AFFIXES`; magic-item base pools, B2+ gate | Same candidate/equip path | `src/systems/spell_effects.js:getSpellPowerBonus` and `SPELL_EFFECTS` offensive/healing branches | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| firstStrike | `SUPPORT_AFFIXES`; weapon base-item pool, B4+ gate | Same candidate/equip path | `src/combat_logic/round.js` speed/preemptive-action resolution | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| frontGuard, rearEvasion, firstStrikeDefense | `SUPPORT_AFFIXES`; armor/shield base pools and floor gates | Same candidate/equip path | `src/combat_logic/round.js` target defense/evasion resolution | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| firstTurnAttack | `SUPPORT_AFFIXES`; weapon pool, B1+ gate | Same candidate/equip path | `src/combat_logic/round.js` first-round attack calculation | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| lastSurvivorStats | `SUPPORT_AFFIXES`; all eligible base-item pools, B3+ gate | Same candidate/equip path | `src/rules/affix_rules.js:getCharAllStatsAffixBonus` → character stat getters | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| statusResistance | `SUPPORT_AFFIXES`; all eligible pools, B2+ gate | Same candidate/equip path | `src/rules/affix_rules.js:getStatusEffectChance` → `src/combat_logic/round.js` and boss status actions | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| spellAccuracy | `SUPPORT_AFFIXES`; weapon/accessory pool, B3+ gate | Same candidate/equip path | `src/rules/affix_rules.js:getSpellAccuracyBonus` → `src/systems/spell_effects.js` spell hit rolls | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| killHeal | `SUPPORT_AFFIXES`; weapon pool, B3+ gate | Same candidate/equip path | `src/combat_logic/damage.js:applyKillAffixEffects` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| followUpMp, poisonAtk, bleedingAtk | `SUPPORT_AFFIXES`; weapon pool, B3+ gate | Same candidate/equip path | `src/combat_logic/round.js:runCombatRoundCalculation` follow-up MP and weapon status-trigger paths | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| hitFlinch | `SUPPORT_AFFIXES`; weapon pool, B3+ gate | Same candidate/equip path | `src/combat_logic/damage.js:tryApplyHitFlinch` → round hit resolution | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| victoryMaterial, materialFind | `SUPPORT_AFFIXES`; reward-support pools and floor gates | Same candidate/equip path | `src/combat_logic/rewards.js:applyCombatRewards` material drop calculation | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| stairsHeal | `SUPPORT_AFFIXES`; all eligible pools, B1+ gate | Same candidate/equip path | `src/movement.js:applyStairsHeal` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| identifyDiscount | `SUPPORT_AFFIXES`; all eligible pools, B1+ gate | Same candidate/equip path | `src/systems/identification.js:identifyEquipment` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| contractReward | `SUPPORT_AFFIXES`; all eligible pools, B1+ gate | Same candidate/equip path | `src/systems/run_quests.js:updateRunQuests`, called by combat rewards, movement, and result paths | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+
+The source index is the static evidence set. The measured evidence set is the
+gate-off N=500 funnel table: R/C/E are measured acquisition/candidate/equip
+counts; core Q/A are measured only where the existing simulator probes; all
+SUPPORT Q/A and the two corrected core rows are not exercised by a
+per-mechanism simulator probe. A long N=500 audit rerun is intentionally
+skipped for this correction because no RNG call, selection path, registry
+value, or gameplay rule changed; only classification labels, provenance fields,
+documentation, and the focused schema regression test changed.
+
 #### Complete enabled SUPPORT inventory (coverage run: gate off)
 | id | category/slot | min-floor/availability gate | source effect/params | status | R/C/E/Q/A | E/C Wilson | A/Q |
 |---|---|---|---|---|---|---|---|

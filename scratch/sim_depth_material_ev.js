@@ -17,7 +17,10 @@ export const MEASUREMENT_PROVENANCE = isMainThread && !IS_TEST_PROCESS
   // Keep measurements local so the runner does not retry network access.
   ? resolveMeasurementProvenance({
     fetchOriginMain: false,
-    measurementRunnerPaths: ["scratch/sim_depth_material_ev.js"]
+    measurementRunnerPaths: [
+      "scratch/sim_depth_material_ev.js",
+      "scratch/measurement_provenance.js"
+    ]
   })
   : null;
 
@@ -1438,13 +1441,37 @@ const CORE_SUPPORT_SYNERGY = Object.freeze({
 const ENABLED_SUPPORT_AFFIXES = SUPPORT_AFFIXES.filter(affix => affix.enabled);
 const ALL_ENABLED_SUPPORT_IDS = ENABLED_SUPPORT_AFFIXES.map(affix => affix.id);
 
+export const ISSUE679_AFFIX_FUNNEL_FIELDS = Object.freeze([
+  "recordedReward",
+  "candidate",
+  "equipped",
+  "conditionEligible",
+  "application"
+]);
+export const ISSUE679_PROVENANCE_FIELDS = Object.freeze([
+  "gameplaySourceCommit",
+  "measurementRunnerCommit",
+  "measurementRunnerPaths",
+  "measurementRunnerDiffSha256",
+  "originMainAncestor",
+  "staleTreeAllowed",
+  "workingTreeClean",
+  "workingTreeDirty",
+  "dirtyTreeAllowed"
+]);
+export const ISSUE679_CLASSIFICATION_AGGREGATE = Object.freeze({
+  core: Object.freeze({ A: 11, B: 0, C: 3, D: 4 }),
+  support: Object.freeze({ A: 0, B: 0, C: 47, D: 0 }),
+  combined: Object.freeze({ A: 11, B: 0, C: 50, D: 4 })
+});
+
 // Issue #679: retain the real-run equipment funnel without changing selection
 // policy.  `candidate` is a distinct acquired item examined by the existing
 // greedy equip path; `recordedReward` is an affix instance on an equipment
 // reward recorded by recordEquipmentAcquisitions; `equipped` is an affix
 // instance on a selected swap.  Condition/application counters remain separate
 // and are populated only by existing runtime probes.
-function createAffixReachability() {
+export function createAffixReachability() {
   return {
     byId: Object.fromEntries(
       [...ENABLED_CORE_AFFIXES, ...ENABLED_SUPPORT_AFFIXES].map(affix => [affix.id, {
@@ -1489,7 +1516,7 @@ function recordAffixEquipped(metrics, item) {
   });
 }
 
-function finalizeAffixReachability(metrics) {
+export function finalizeAffixReachability(metrics) {
   return Object.fromEntries(
     Object.entries(metrics.affixReachability.byId).map(([id, values]) => [id, { ...values }])
   );
@@ -13342,7 +13369,9 @@ printEnvSignatureBanner(ENV_SIGNATURE, { label: "env" });
 if (MEASUREMENT_PROVENANCE) {
   console.log(`gameplay source baseline: ${MEASUREMENT_PROVENANCE.gameplaySourceCommit}`);
   console.log(`measurement runner commit: ${MEASUREMENT_PROVENANCE.measurementRunnerCommit}`);
+  console.log(`measurement runner paths: ${MEASUREMENT_PROVENANCE.measurementRunnerPaths.join(",")}`);
   console.log(`measurement runner diff SHA-256: ${MEASUREMENT_PROVENANCE.measurementRunnerDiffSha256}`);
+  console.log(`working tree clean: ${MEASUREMENT_PROVENANCE.workingTreeClean}`);
 }
 
 console.log("深度別 リスク調整後素材EVシミュレーション");
@@ -13575,9 +13604,13 @@ const issue697Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
       gameplaySourceCommit: MEASUREMENT_PROVENANCE?.gameplaySourceCommit || null,
       measurementRunnerCommit: MEASUREMENT_PROVENANCE?.measurementRunnerCommit || null,
+      measurementRunnerPaths: MEASUREMENT_PROVENANCE?.measurementRunnerPaths || null,
       measurementRunnerDiffSha256: MEASUREMENT_PROVENANCE?.measurementRunnerDiffSha256 || null,
       originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
       staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
+      workingTreeClean: MEASUREMENT_PROVENANCE?.workingTreeClean ?? null,
+      workingTreeDirty: MEASUREMENT_PROVENANCE?.workingTreeDirty ?? null,
+      dirtyTreeAllowed: MEASUREMENT_PROVENANCE?.dirtyTreeAllowed ?? null,
       averageReachedFloor: result.averageReachedFloor,
       survivalRate: result.survivalRate,
       retreatRate: result.retreatRate,
@@ -13620,9 +13653,13 @@ const issue791Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
       gameplaySourceCommit: MEASUREMENT_PROVENANCE?.gameplaySourceCommit || null,
       measurementRunnerCommit: MEASUREMENT_PROVENANCE?.measurementRunnerCommit || null,
+      measurementRunnerPaths: MEASUREMENT_PROVENANCE?.measurementRunnerPaths || null,
       measurementRunnerDiffSha256: MEASUREMENT_PROVENANCE?.measurementRunnerDiffSha256 || null,
       originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
       staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
+      workingTreeClean: MEASUREMENT_PROVENANCE?.workingTreeClean ?? null,
+      workingTreeDirty: MEASUREMENT_PROVENANCE?.workingTreeDirty ?? null,
+      dirtyTreeAllowed: MEASUREMENT_PROVENANCE?.dirtyTreeAllowed ?? null,
       returnWingRewardMode: RETURN_WING_REWARD_MODE,
       specialChanceByFloor: CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
       baselinePortalCandidateIndices: ISSUE791_BASELINE_PORTAL_INDICES,
@@ -13680,9 +13717,13 @@ const issue679Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
       gameplaySourceCommit: MEASUREMENT_PROVENANCE?.gameplaySourceCommit || null,
       measurementRunnerCommit: MEASUREMENT_PROVENANCE?.measurementRunnerCommit || null,
+      measurementRunnerPaths: MEASUREMENT_PROVENANCE?.measurementRunnerPaths || null,
       measurementRunnerDiffSha256: MEASUREMENT_PROVENANCE?.measurementRunnerDiffSha256 || null,
       originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
       staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
+      workingTreeClean: MEASUREMENT_PROVENANCE?.workingTreeClean ?? null,
+      workingTreeDirty: MEASUREMENT_PROVENANCE?.workingTreeDirty ?? null,
+      dirtyTreeAllowed: MEASUREMENT_PROVENANCE?.dirtyTreeAllowed ?? null,
       affixReachability: result.affixReachability
     };
   })

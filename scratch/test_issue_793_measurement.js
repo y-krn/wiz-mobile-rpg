@@ -17,6 +17,7 @@ const childEnv = {
   SIM_PROVENANCE_BASE_COMMIT: fixture.baseCommit,
   SIM_PROVENANCE_BASE_REF_REASON: fixture.baseRefReason,
   SIM_PROVENANCE_TEST_FIXTURE: fixture.id,
+  SIM_PROVENANCE_ALLOW_DIRTY_TREE: "1",
   BLEEDING_MEASUREMENT_SIDE: "candidate",
   BLEEDING_SOURCE_CODE_SHA: sourceCommit,
   BLEEDING_RUNNER_COMMIT: sourceCommit,

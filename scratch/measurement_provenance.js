@@ -66,6 +66,23 @@ export function resolveMeasurementProvenance({
   }
   if (fetchOriginMain) gitOutput(["fetch", "origin", "main"], cwd);
 
+  const workingTreeStatus = gitOutput(
+    ["status", "--porcelain", "--untracked-files=all"],
+    cwd
+  );
+  const workingTreeClean = workingTreeStatus === "";
+  const workingTreeDirty = !workingTreeClean;
+  const dirtyTreeAllowed = Boolean(
+    testFixture && process.env.SIM_PROVENANCE_ALLOW_DIRTY_TREE === "1"
+  );
+  if (workingTreeDirty && !dirtyTreeAllowed) {
+    throw new Error(
+      "Measurement refused before start: working tree is dirty. " +
+      "Commit or remove all tracked and untracked changes before a real measurement. " +
+      "Only an explicit test fixture may opt in to dirty-tree execution."
+    );
+  }
+
   const sourceCommit = gitOutput(["rev-parse", "HEAD"], cwd);
   const baseRefCommit = gitOutput(["rev-parse", "--verify", `${resolvedBaseRef}^{commit}`], cwd);
   const baseCommit = configuredBaseCommit
@@ -102,6 +119,7 @@ export function resolveMeasurementProvenance({
   return Object.freeze({
     gameplaySourceCommit: baseCommit,
     measurementRunnerCommit: sourceCommit,
+    measurementRunnerPaths: [...measurementRunnerPaths],
     measurementRunnerDiffSha256: gitDiffSha256(baseCommit, sourceCommit, cwd, measurementRunnerPaths),
     // Compatibility alias for existing measurement records.
     sourceCommit,
@@ -111,7 +129,10 @@ export function resolveMeasurementProvenance({
     testFixture,
     originMainAncestor,
     allowStaleTree,
-    staleTreeAllowed
+    staleTreeAllowed,
+    workingTreeClean,
+    workingTreeDirty,
+    dirtyTreeAllowed
   });
 }
 
