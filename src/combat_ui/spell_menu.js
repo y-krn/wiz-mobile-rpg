@@ -33,7 +33,8 @@ export function getSpellCombatSummary(spellName) {
     MADI: { tag: "単体", effect: "回復 60-90", category: "single" },
     MABARRIER: { tag: "補助", effect: "自分 魔法軽減", category: "buff" },
     MONTINO: { tag: "全体", effect: "沈黙 2T", category: "all" },
-    MORLIS: { tag: "弱体", effect: "全体魔防低下", category: "debuff" }
+    MORLIS: { tag: "弱体", effect: "全体魔防低下", category: "debuff" },
+    WEAKEN: { tag: "弱体", effect: "全体攻撃力 -3 3T", category: "debuff" }
   };
   return summaries[spellName] || { tag: "不明", effect: "", category: "unknown" };
 }
