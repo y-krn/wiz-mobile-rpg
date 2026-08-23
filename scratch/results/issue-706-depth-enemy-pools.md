@@ -12,10 +12,17 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
 ## Provenance and matched conditions
 
 - Base source: `df08931fb9eb2208acaf4f17e5e430589f270276`.
-- Final source: `6351f22181cb0275109d3b74fdabb431e0a0dbf5`.
-- `origin/main` matched the supplied base and was an ancestor of both runs;
-  stale-tree override was not used.
-- Node: `v26.7.0`; `SIM_PARALLEL` omitted, runtime parallelism `15`.
+- Review-current source for the authoritative floor/status measurement:
+  `1de47098c2eb3bd524a8b8be66eeb649d6748183`.
+- `origin/main` matched the supplied base and was an ancestor of the measured
+  source; stale-tree override was not used. Node: `v26.7.0`;
+  `SIM_PARALLEL` omitted, runtime parallelism `15`.
+- The earlier implementation source `6351f22181cb0275109d3b74fdabb431e0a0dbf5`
+  and post-review measurement source `ccd463a7f5af263c33ad0a825c4d565c4727fa95`
+  are pre-fix historical artifacts only. The `ccd463a` → `1de47098` range
+  changed only `scratch/issue624_commit_depth.js` and this summary; it did not
+  change `src/`, `scratch/sim_depth_material_ev.js`, or the Issue #706 runner.
+  Current floor/status evidence was rerun directly at `1de47098`.
 - Seed `231`; `SIM_RUNS=500`; `SIM_CALIBRATION_RUNS=100`; classes
   Fighter/Thief/Priest/Mage; six observed workshop scenarios; powder
   identification; EV flee and status-cure policy; conservative traps; current
@@ -39,12 +46,12 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
   (Fighter `7.9200` / Thief `8.5500` / Priest `4.9480` / Mage
   `6.9580`) is retained only as historical context; it is not reproduced by
   the supplied current base/source and is no longer used as an assertion.
-- Post-review remeasurement at the supplied PR HEAD
-  `ccd463a7f5af263c33ad0a825c4d565c4727fa95` produced
-  Fighter `7.0300` / Thief `8.9240` / Priest `4.0440` / Mage
+- The historical post-review full-depth artifact at `ccd463a7f5af263c33ad0a825c4d565c4727fa95`
+  produced Fighter `7.0300` / Thief `8.9240` / Priest `4.0440` / Mage
   `9.8800`, again N=500 per class; raw SHA-256
   `9bbe26e3f08ff6582a53e4735603d5273156480f328eaadf813a7ba47aa83d05`,
-  env hash `5831171ec0ff70bc`, and baseline measurement guard PASS.
+  env hash `5831171ec0ff70bc`, and baseline measurement guard PASS. It is
+  retained as historical full-depth context, not as current-head evidence.
 - Exact baseline command/config:
   `node scratch/issue624_commit_depth.js`; `SIM_SEED=231`,
   `SIM_RUNS=500`, `SIM_CALIBRATION_RUNS=100`,
@@ -53,13 +60,22 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
   `DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION`,
   six observed workshop scenarios, `SIM_PARALLEL` and
   `SIM_MAP_CACHE_ENTRIES` omitted (runtime defaults).
-- Floor/status runner: `scratch/issue706_depth_enemy_pools.js`, same config,
+- Current-head floor/status runner: `scratch/issue706_depth_enemy_pools.js`,
   B1-B5 traversal to B6, 500 runs per scenario and 100 calibration runs per
   scenario (3,000 total; 750 per class). Output schema is
-  `issue706-depth-enemy-pools-v1`; newline-delimited canonical JSON SHA-256 was
-  `1ec1b5e46a5f67a1b2e4c69aa1917d8b3cffd7630a21282ac753e777bec3861e` (base)
-  and `4afe759ba230da872412396afbed2df1d957541cfbee4e3962194180809acd45`
-  (final), each repeated identically.
+  `issue706-depth-enemy-pools-v1`; canonical JSONL/output SHA-256 is
+  `bcbd5b9731d1f45d936723bf01ab9af3a9db9d01ed191eb8eb9bcf0e8239c48e`.
+  Two clean-environment reruns produced this same SHA and byte-identical
+  stdout/stderr. The result reports source `1de47098c2eb3bd524a8b8be66eeb649d6748183`,
+  `originMainAncestor=true`, and `staleTreeAllowed=false`.
+- The runner forces the documented defaults before importing
+  `sim_depth_material_ev.js`: `SIM_SEED=231`, `SIM_RUNS=500`,
+  `SIM_CALIBRATION_RUNS=100`, `STATUS_CURE_POLICY=ev`, `FLEE_POLICY=ev`,
+  `TRAP_POLICY=conservative`, `IDENTIFICATION_POLICY=powder`, and
+  `DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION`.
+  This forcing applies to direct measurements even when conflicting ambient
+  variables are present. `ISSUE706_SMOKE=1` is the explicit N=1 smoke path;
+  test entrypoints are also exempt and do not run the measurement main.
 
 ## Floor-level normal encounter distribution
 
@@ -88,7 +104,8 @@ least 30.
 | B1 retreats / all runs | 0/3000 | 0/3000 |
 | Diagnostic B5 deaths / B5 entrants | 585/1956 (29.91%) | 601/1972 (30.48%) |
 
-The full-depth four-class run gives the matched progression endpoints:
+The historical full-depth four-class run gives these matched progression
+endpoints (context only; not the current-head floor/status measurement):
 
 | class | B5 entrant | B5 death / entrant | B10 arrival |
 | --- | ---: | ---: | ---: |
@@ -98,12 +115,13 @@ The full-depth four-class run gives the matched progression endpoints:
 | Priest | 172→181 | 106/172 (61.63%) → 100/181 (55.25%) | 35/500 (7.0%) → 39/500 (7.8%) |
 | Mage | 426→421 | 48/426 (11.27%) → 47/421 (11.16%) | 242/500 (48.4%) → 239/500 (47.8%) |
 
-The final point estimate is a small B5 mortality increase of 1.54pp overall
+The historical candidate point estimate is a small B5 mortality increase of 1.54pp overall
 and a B10 arrival decrease of 0.60pp. The corresponding Wilson intervals
 overlap (`25.09% [22.91,27.40]` vs `26.62% [24.38,29.00]`; `31.55%
 [29.55,33.62]` vs `30.95% [28.96,33.01]`). The class split is mixed: Priest
 improves, Thief worsens, and Fighter/Mage are near-flat. This is reported as a
-measured impact, not as proof that the pool change improves overall difficulty.
+historical measured impact, not as proof that the pool change improves overall
+difficulty.
 
 ## Design and model limits
 
@@ -119,11 +137,14 @@ enemy, or biome was added or changed.
 ```sh
 node --check src/data/encounters.js
 node --check scratch/issue706_depth_enemy_pools.js
+env -i PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin ISSUE706_SMOKE=1 SIM_RUNS=1 SIM_CALIBRATION_RUNS=1 node scratch/issue706_depth_enemy_pools.js
 node scratch/test_issue_706_enemy_pools.js
-node scratch/issue706_depth_enemy_pools.js   # exact env above
+env -i PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin node scratch/issue706_depth_enemy_pools.js
 node scratch/issue624_commit_depth.js
 ```
 
 Raw JSONL and large one-off output remain outside the repository. The focused
 test confirms B1 gating, local-floor unlock, unchanged biome identity, and
-normal weights.
+normal weights. The current-head rerun confirms B1 blind/sleep applications
+remain zero while B2-B5 use the unlocked status-capable pools. Gameplay source
+was unchanged, so the prior source build remains valid.

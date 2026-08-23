@@ -7,6 +7,30 @@ import { pathToFileURL } from "node:url";
 import { isMainThread } from "node:worker_threads";
 
 const IS_TEST_PROCESS = basename(process.argv[1] || "").startsWith("test_");
+const IS_SMOKE_PROCESS = process.env.ISSUE706_SMOKE === "1";
+
+// The documented Issue #706 measurement is intentionally independent of the
+// caller's shell. These values must exist before sim_depth_material_ev.js is
+// imported because that module resolves its policy constants at module load.
+// Test entrypoints and ISSUE706_SMOKE=1 are exempt so they can retain their
+// existing fixtures or explicitly request a small caller-defined run; this
+// runner's measurement main() is not executed for test entrypoints.
+const ISSUE706_MEASUREMENT_DEFAULTS = Object.freeze({
+  SIM_SEED: "231",
+  SIM_RUNS: "500",
+  SIM_CALIBRATION_RUNS: "100",
+  STATUS_CURE_POLICY: "ev",
+  FLEE_POLICY: "ev",
+  TRAP_POLICY: "conservative",
+  IDENTIFICATION_POLICY: "powder",
+  DEPARTURE_CRAFT_IDS:
+    "TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION"
+});
+if (!IS_TEST_PROCESS && !IS_SMOKE_PROCESS) {
+  for (const [key, value] of Object.entries(ISSUE706_MEASUREMENT_DEFAULTS)) {
+    process.env[key] = value;
+  }
+}
 const sim = await import("./sim_depth_material_ev.js");
 
 const RUNS = Math.max(1, Number(process.env.SIM_RUNS || 500));
