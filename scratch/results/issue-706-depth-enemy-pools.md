@@ -13,7 +13,8 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
 
 - Base source: `df08931fb9eb2208acaf4f17e5e430589f270276`.
 - Current-head source for the authoritative floor/status measurement:
-  `9dc1a7bf5b338223d7443dd54adf2c4705d8bf79`. The preceding
+  `d1a2c8ec72f39d7d1147a2d134adff4b47de0a83`. The preceding
+  `9dc1a7bf5b338223d7443dd54adf2c4705d8bf79` source is historical; the
   `1de47098c2eb3bd524a8b8be66eeb649d6748183` source is historical; the
   current-head runner was rerun after the self-contained provenance changes.
 - `origin/main` matched the supplied base and was an ancestor of the measured
@@ -24,8 +25,9 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
   are pre-fix historical artifacts only. The `ccd463a` → `1de47098` range
   changed only `scratch/issue624_commit_depth.js` and this summary; it did not
   change `src/`, `scratch/sim_depth_material_ev.js`, or the Issue #706 runner.
-  The prior `1de47098c2eb3bd524a8b8be66eeb649d6748183` measurement is also
-  historical; current floor/status evidence was rerun directly at `9dc1a7bf`.
+  The prior `1de47098c2eb3bd524a8b8be66eeb649d6748183` and
+  `9dc1a7bf5b338223d7443dd54adf2c4705d8bf79` measurements are also historical;
+  current floor/status evidence was rerun directly at `d1a2c8ec`.
 - Seed `231`; `SIM_RUNS=500`; `SIM_CALIBRATION_RUNS=100`; classes
   Fighter/Thief/Priest/Mage; six observed workshop scenarios; powder
   identification; EV flee and status-cure policy; conservative traps; current
@@ -67,20 +69,22 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
   B1-B5 traversal to B6, 500 runs per scenario and 100 calibration runs per
   scenario (3,000 total; 750 per class). Output schema is
   `issue706-depth-enemy-pools-v1`. At current HEAD
-  `9dc1a7bf5b338223d7443dd54adf2c4705d8bf79`, two clean-environment reruns
+  `d1a2c8ec72f39d7d1147a2d134adff4b47de0a83`, two self-contained reruns with
+  ambient `SIM_INDEPENDENT_RUN_RANDOM=0` overridden by the runner
+  before import
   produced byte-identical stdout and stderr:
-  - output JSONL SHA-256: `66f5556d00513bc79543d9431400692b3ae53cba9e9747d7a1858cf074c2f89f`
-  - stderr SHA-256: `263d7c1e27f9a4d9bd6554baeaae0655387565fe574172053f4ffa30f91004c3`
+  - output JSONL SHA-256: `4d600257ceff305801dd57bcc71504c680d028455e84daf3311482cb0dcc21bc`
+  - stderr SHA-256: `7a242a60e5a4083c197ea81126af7555bef5e61520884a4a218ecf8c3754bd37`
   - stderr report on both runs:
-    `ISSUE706_JSON_SHA256=66f5556d00513bc79543d9431400692b3ae53cba9e9747d7a1858cf074c2f89f`
-  The result reports `sourceCommit=9dc1a7bf5b338223d7443dd54adf2c4705d8bf79`,
+    `ISSUE706_JSON_SHA256=4d600257ceff305801dd57bcc71504c680d028455e84daf3311482cb0dcc21bc`
+  The result reports `sourceCommit=d1a2c8ec72f39d7d1147a2d134adff4b47de0a83`,
   `originMainAncestor=true`, and `staleTreeAllowed=false`. The earlier
   `bcbd5b9731d1f45d936723bf01ab9af3a9db9d01ed191eb8eb9bcf0e8239c48e` output
   SHA is retained as historical evidence from source `1de47098`; it is not
   current-head evidence.
 - Exact current-head command (run twice with stdout/stderr captured outside the
   repository):
-  `env -i PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin node scratch/issue706_depth_enemy_pools.js`.
+  `env -i PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin SIM_INDEPENDENT_RUN_RANDOM=0 node scratch/issue706_depth_enemy_pools.js`.
   The resolved `config` object in both outputs was:
   `SIM_SEED=231, SIM_RUNS=500, SIM_CALIBRATION_RUNS=100,
   DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION,
@@ -100,7 +104,8 @@ because it reduced the full-depth B10 arrival point estimate from 31.55% to
 - The runner forces the documented defaults before importing
   `sim_depth_material_ev.js`: `SIM_SEED=231`, `SIM_RUNS=500`,
   `SIM_CALIBRATION_RUNS=100`, `STATUS_CURE_POLICY=ev`, `FLEE_POLICY=ev`,
-  `TRAP_POLICY=conservative`, `IDENTIFICATION_POLICY=powder`, and
+  `TRAP_POLICY=conservative`, `IDENTIFICATION_POLICY=powder`,
+  `SIM_INDEPENDENT_RUN_RANDOM=1`, and
   `DEPARTURE_CRAFT_IDS=TOWN_PORTAL,HEAL_POTION,HEAL_POTION,HEAL_POTION,HEAL_POTION,ANTIDOTE,GUARD_POTION`.
   This forcing applies to direct measurements even when conflicting ambient
   variables are present. `ISSUE706_SMOKE=1` is the explicit N=1 smoke path;
