@@ -1,6 +1,7 @@
 // sim-scope: run — Issue #713 real-run trap calibration and progression sweep
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";

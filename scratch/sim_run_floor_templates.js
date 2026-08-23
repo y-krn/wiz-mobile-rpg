@@ -1,4 +1,5 @@
 // sim-scope: run
+import "./simulation_preflight.js";
 import { FLOOR_TEMPLATES } from "../src/data/floor_templates.js";
 import { getBiomeForFloor } from "../src/data/biomes.js";
 import { generateRunFloor } from "../src/run_map_generator.js";

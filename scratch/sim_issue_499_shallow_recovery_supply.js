@@ -1,6 +1,7 @@
 // sim-scope: run — #499 浅い階回復供給の候補A/B/C比較
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";

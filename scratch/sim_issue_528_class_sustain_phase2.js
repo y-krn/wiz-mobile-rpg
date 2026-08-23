@@ -1,6 +1,7 @@
 // sim-scope: run — Issue #528 Phase 2 class-specific sustain sweep
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";

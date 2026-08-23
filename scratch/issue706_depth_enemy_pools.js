@@ -1,6 +1,7 @@
 // sim-scope: run
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import { pathToFileURL } from "node:url";

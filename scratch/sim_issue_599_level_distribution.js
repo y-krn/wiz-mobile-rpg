@@ -1,6 +1,7 @@
 // sim-scope: run — Issue #599 level distribution, level unlocks, and Priest healing
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";

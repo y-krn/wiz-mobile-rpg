@@ -1,4 +1,5 @@
 // sim-scope: formula — compares caster-pack combat outcomes with the live combat-round calculation; retained because origin is unknown and no closed-Issue owner was found.
+import "./simulation_preflight.js";
 // Mock localStorage for Node.js test environment before imports
 global.localStorage = {
   getItem: () => null,

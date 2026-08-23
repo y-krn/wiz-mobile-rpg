@@ -3,6 +3,9 @@ import os from 'os';
 import path from 'path';
 import { execFileSync, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
+import { runDependencyPreflight } from '../scripts/dependency-preflight.js';
+
+if (!runDependencyPreflight()) process.exit(1);
 
 // `test_` 接頭辞のファイルのみスイート対象。バランス調整用の数値シミュは
 // sim_ 接頭辞(例: sim_balance.js)にして命名で除外している。

@@ -1,6 +1,7 @@
 // sim-scope: run — Issue #599 stage 2 exploration spell before/after comparison
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";

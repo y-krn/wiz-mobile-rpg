@@ -1,6 +1,7 @@
 // sim-scope: run — #508 回復単位密度・HP供給固定・浅層上薬what-if
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";

@@ -1,6 +1,7 @@
 // sim-scope: run
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { pathToFileURL } from "node:url";
 import { runSimTasks } from "./sim_parallel.js";
 import { reportMechanismFiring } from "./mechanism_wiring_report.js";

@@ -1,6 +1,7 @@
 // sim-scope: run — Issue #516 basic-class sustain and counterfactuals
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";

@@ -1,4 +1,5 @@
 // sim-scope: formula — estimates return-wing chest access, drop chance, and material impact by floor; retained because origin is unknown and no closed-Issue owner was found.
+import "./simulation_preflight.js";
 import assert from "node:assert/strict";
 import { determineMonsterDrop } from "../src/combat_logic/drops.js";
 import { getBiomeForFloor } from "../src/data/biomes.js";

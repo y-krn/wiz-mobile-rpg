@@ -1,6 +1,7 @@
 // sim-scope: formula — estimates the HP resource curve with and without camp recovery; retained because origin is unknown and no closed-Issue owner was found.
 // sim_floor_density.js の100 seed平均クリティカル経路戦闘数を使う資源曲線概算。
 // HPプールを100、1戦平均被害を最大HPの9%とし、B2/B4通過後に失った分の40%を回復する。
+import "./simulation_preflight.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 
 export const MEASUREMENT_PROVENANCE = requireRunnerProvenance();

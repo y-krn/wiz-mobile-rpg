@@ -1,6 +1,7 @@
 // sim-scope: run — #499 回復供給の用量掃引と別機構同量比較
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
