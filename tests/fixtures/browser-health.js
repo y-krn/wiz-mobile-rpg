@@ -1,5 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 
+// These are the only external origins the app intentionally contacts during
+// browser tests. Other external console/request failures are actionable.
 const THIRD_PARTY_HOSTS = [
   'sentry.io',
   'ingest.sentry.io',
@@ -33,16 +35,16 @@ function formatFailure(type, detail) {
 }
 
 const test = base.extend({
-  page: async ({ page }, use, testInfo) => {
+  browserHealth: [{ allowConsoleErrorPatterns: [] }, { option: true }],
+  page: async ({ page, browserHealth }, use, testInfo) => {
     const configuredBaseURL = testInfo.project.use.baseURL;
     const appOrigin = configuredBaseURL ? originOf(configuredBaseURL) : null;
     const failures = [];
     const allowedConsoleErrorPatterns = testInfo.annotations
       .filter(annotation => annotation.type === 'browser-health:allow-console-error')
       .map(annotation => annotation.description || '')
-      .filter(Boolean);
-    const isStaleChestRegression = testInfo.title.includes('stale state');
-
+      .filter(Boolean)
+      .concat(browserHealth.allowConsoleErrorPatterns || []);
     page.on('pageerror', error => {
       failures.push(formatFailure('pageerror', error.message));
     });
@@ -51,20 +53,21 @@ const test = base.extend({
       if (message.type() !== 'error') return;
       const location = message.location().url;
       const isAppError = !location || (appOrigin && isAppOrigin(location, appOrigin));
-      const isAllowed = allowedConsoleErrorPatterns.some(pattern => message.text().includes(pattern)) || (
-        isStaleChestRegression && message.text().includes('Failed to finish chest open transition')
-      );
-      if (isAppError && !isAllowed) {
+      const isKnownThirdPartyError = Boolean(location) && isAllowedThirdParty(location);
+      const isAllowed = allowedConsoleErrorPatterns.some(pattern => message.text().includes(pattern));
+      if ((isAppError || !isKnownThirdPartyError) && !isAllowed) {
         failures.push(formatFailure('console.error', message.text()));
       }
     });
 
     page.on('requestfailed', request => {
       const url = request.url();
-      if (appOrigin && isAppOrigin(url, appOrigin) && !isAllowedThirdParty(url)) {
+      const isAppRequest = appOrigin && isAppOrigin(url, appOrigin);
+      const isKnownThirdPartyRequest = isAllowedThirdParty(url);
+      if (!isKnownThirdPartyRequest) {
         failures.push(formatFailure(
           'requestfailed',
-          `${request.method()} ${url} (${request.failure()?.errorText || 'unknown error'})`,
+          `${isAppRequest ? 'app' : 'external'} ${request.method()} ${url} (${request.failure()?.errorText || 'unknown error'})`,
         ));
       }
     });

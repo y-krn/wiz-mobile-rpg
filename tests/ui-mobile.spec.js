@@ -9,7 +9,7 @@ async function waitForControlsReady(page) {
 }
 
 for (const vp of VIEWPORTS) {
-  test.describe(`UIUX Mobile One-Handed Operation tests on ${vp.name} (${vp.width}x${vp.height}) @visual`, () => {
+  test.describe(`UIUX Mobile One-Handed Operation tests on ${vp.name} (${vp.width}x${vp.height})`, () => {
     test.beforeEach(async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto('/');
@@ -20,7 +20,7 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('#btn-town-dungeon')).toBeVisible();
     });
 
-    test('Check all visible buttons are at least 44px high and key actions are at the bottom', async ({ page }) => {
+    test('Check all visible buttons are at least 44px high and key actions are at the bottom @visual', async ({ page }) => {
       const verifyScreenButtons = async (screenName) => {
         let buttons = await page.locator('button:visible, [role="button"]:visible, .btn:visible, .equip-item-row:visible, .char-row:visible, .archives-tab:visible').all();
 
@@ -150,7 +150,7 @@ for (const vp of VIEWPORTS) {
 
     });
 
-    test('Dungeon exploration controls stay compact after entering the dungeon', async ({ page }) => {
+    test('Dungeon exploration controls stay compact after entering the dungeon @visual', async ({ page }) => {
       await page.locator('#btn-town-dungeon').click();
       await expect(page.locator('#submenu-controls')).toBeVisible();
       await page.getByRole('button', { name: /戦士/ }).click();
@@ -169,7 +169,7 @@ for (const vp of VIEWPORTS) {
       }
     });
 
-    test('Few-button submenu rows do not stretch to fill the panel', async ({ page }) => {
+    test('Few-button submenu rows do not stretch to fill the panel @visual', async ({ page }) => {
       await page.evaluate(async () => {
         const { openSubmenu } = await import('/src/navigation.js');
         openSubmenu('enter_dungeon_select', '迷宮へ入る準備：');
@@ -182,7 +182,7 @@ for (const vp of VIEWPORTS) {
       expect(box.height, `Few-button submenu row should remain tappable on ${vp.name}`).toBeGreaterThanOrEqual(44);
     });
 
-    test('Result screen expands by collapsing logs and controls', async ({ page }) => {
+    test('Result screen expands by collapsing logs and controls @visual', async ({ page }) => {
       await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
         const { createDefaultCurrentRun } = await import('/src/state/initial_state.js');
@@ -229,7 +229,7 @@ for (const vp of VIEWPORTS) {
       expect(layout.party.bottom, `Solo HUD should stay visible below result viewport on ${vp.name}`).toBeLessThanOrEqual(layout.height);
     });
 
-    test('Standalone safe-area chest menu keeps solo HUD visible', async ({ page }) => {
+    test('Standalone safe-area chest menu keeps solo HUD visible @visual', async ({ page }) => {
       await page.addStyleTag({
         content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,
       });
@@ -389,7 +389,7 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('#game-container')).not.toHaveClass(/event-mode/);
     });
 
-    test('Dungeon event submenus hide logs only until result phase', async ({ page }) => {
+    test('Dungeon event submenus hide logs only until result phase @visual', async ({ page }) => {
       await page.evaluate(async () => {
         const { state } = await import('/src/state.js');
         const { openSubmenu } = await import('/src/navigation.js');
@@ -694,7 +694,7 @@ for (const vp of VIEWPORTS) {
       expect(afterContinue).toEqual({ gameState: 'explore', pending: null, completed: [6, 11] });
     });
 
-    test('Standalone safe-area town menu is scroll-contained above solo HUD', async ({ page }) => {
+    test('Standalone safe-area town menu is scroll-contained above solo HUD @visual', async ({ page }) => {
       await page.addStyleTag({
         content: `:root { --safe-area-top: 59px; --safe-area-bottom: 34px; }`,
       });

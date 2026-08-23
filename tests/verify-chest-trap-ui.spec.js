@@ -164,6 +164,13 @@ test('Chest inspection reports when no trap needs disarming @e2e', async ({ page
 
 });
 
+test.describe('known stale chest regression', () => {
+test.use({
+  browserHealth: {
+    allowConsoleErrorPatterns: ['Failed to finish chest open transition'],
+  },
+});
+
 test('Opening a chest with stale state returns to usable controls @e2e', {
   annotations: [{
     type: 'browser-health:allow-console-error',
@@ -214,4 +221,5 @@ test('Opening a chest with stale state returns to usable controls @e2e', {
     hasChest: false,
   });
   await expect(page.locator('#controls-panel')).toHaveCSS('pointer-events', 'auto');
+});
 });
