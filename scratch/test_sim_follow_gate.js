@@ -207,6 +207,35 @@ for (const expression of ["state.inventory.splice(0, 1)", "getMutableState()", "
 `;
   assert.equal(isTelemetryOnlyDiff(contextCallDiff), false, `context value ${expression} is not telemetry-only`);
 }
+for (const [label, key, expression] of [
+  ["multiline getter-capable member read", "character", "object.value"],
+  ["multiline collection read", "state", "state.inventory"],
+  ["multiline indexed collection read", "state", "state.inventory[0]"],
+  ["multiline party collection read", "character", "state.party"]
+]) {
+  const multilineContextDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,3 @@
++  trackEvent("x", {
++    ${key}: ${expression},
++  });
+`;
+  assert.equal(isTelemetryOnlyDiff(multilineContextDiff), false, `${label} is not telemetry-only`);
+}
+for (const expression of [
+  "state.combatState",
+  "state.party[0]",
+  "state.party[equipState.actorIdx]",
+  "state.map?.[state.y]?.[state.x]?.event",
+  "preview?.oldEq"
+]) {
+  const safeContextDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,3 @@
++  trackEvent("x", {
++    state: ${expression},
++  });
+`;
+  assert.equal(isTelemetryOnlyDiff(safeContextDiff), true, `${expression} remains telemetry-only`);
+}
 assert.throws(
   () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", mixedTelemetryDiff]]) }),
   /telemetry anchor mixed/

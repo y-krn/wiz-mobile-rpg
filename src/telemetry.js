@@ -105,6 +105,7 @@ const MAX_RESOURCE_VALUE = 1_000_000;
 let client = null;
 let telemetryState = "uninitialized";
 let pendingEvents = [];
+let pendingCombatDecisions = [];
 let runId = null;
 let combatId = null;
 let combatEnded = false;
@@ -633,6 +634,7 @@ export function trackRunStart(run, character, stateSnapshot = null) {
 
 export function trackCombatStart(combat, stateSnapshot = null) {
   if (!isTelemetryAvailable() || !runId) return;
+  pendingCombatDecisions = [];
   combatId = createRuntimeId("combat");
   combatEnded = false;
 
@@ -751,6 +753,21 @@ export function trackCombatDecision(action, details = {}) {
   });
 }
 
+export function trackCombatDecisionPending(action, details = {}) {
+  if (!isTelemetryAvailable() || !runId || !combatId) return;
+  pendingCombatDecisions.push({ action, details });
+}
+
+export function trackCombatDecisionCancel() {
+  pendingCombatDecisions.pop();
+}
+
+export function trackCombatDecisionCommit() {
+  const decisions = pendingCombatDecisions;
+  pendingCombatDecisions = [];
+  decisions.forEach(({ action, details }) => trackCombatDecision(action, details));
+}
+
 export function trackExplorationDecision(action, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
   const spellId = getSafeSpellId(details.spellName);
@@ -793,6 +810,7 @@ export function trackEquipmentDecision(action, details = {}) {
 export function __setTelemetryClientForTests(testClient) {
   const queuedEvents = testClient ? pendingEvents : [];
   pendingEvents = [];
+  pendingCombatDecisions = [];
   client = testClient ?? null;
   telemetryState = testClient ? "ready" : "disabled";
   runId = null;
@@ -805,6 +823,7 @@ export function __setTelemetryInitializationForTests({ enabled = false } = {}) {
   client = null;
   telemetryState = enabled ? "loading" : "disabled";
   pendingEvents = [];
+  pendingCombatDecisions = [];
   runId = null;
   combatId = null;
   combatEnded = false;

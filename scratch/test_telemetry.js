@@ -16,6 +16,9 @@ import {
   trackCombatEnd,
   trackCombatStart,
   trackCombatDecision,
+  trackCombatDecisionCancel,
+  trackCombatDecisionCommit,
+  trackCombatDecisionPending,
   trackEquipmentDecision,
   trackChestAction,
   trackChestSmashResult,
@@ -502,6 +505,28 @@ check("combat decisions preserve all production action categories", () => {
     events.filter(event => event.name === "combat_decision").map(event => event.properties.action),
     ["attack", "spell", "item", "defend", "flee", "other"]
   );
+});
+
+check("canceled combat decisions are not committed to telemetry", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
+  const details = {
+    state: decisionState,
+    character: decisionPlayer,
+    combat: decisionCombat,
+    actorIdx: 0,
+    targetIdx: 1
+  };
+  trackCombatDecisionPending("attack", details);
+  trackCombatDecisionCancel();
+  trackCombatDecisionCommit();
+  assert.deepEqual(events.filter(event => event.name === "combat_decision"), []);
+
+  trackCombatDecisionPending("attack", details);
+  trackCombatDecisionCommit();
+  assert.equal(events.filter(event => event.name === "combat_decision").length, 1);
 });
 
 check("exploration spell telemetry preserves target shape", () => {

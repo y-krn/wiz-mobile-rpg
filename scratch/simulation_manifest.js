@@ -408,7 +408,7 @@ export function currentChangedFiles({ baseRef = process.env.BASE_REF || "origin/
 
 const TELEMETRY_CONTEXT_KEYS = new Set([
   "state", "character", "combat", "actorIdx", "targetIdx", "spellName", "itemKey",
-  "currentKey", "candidateKey", "preview", "source"
+  "currentKey", "candidateKey", "preview", "source", "charOriginalIdx", "dir"
 ]);
 
 function isTelemetryImport(line) {
@@ -575,34 +575,21 @@ function hasUnsafeTelemetryArgumentSyntax(line) {
     || /=>/.test(stripQuotedContent(line));
 }
 
+const SAFE_TELEMETRY_CONTEXT_PATHS = Object.freeze([
+  /^state\.combatState$/,
+  /^state\.party\[(?:0|equipState\.actorIdx)\]$/,
+  /^state\.map\?\.\[state\.y\]\?\.\[state\.x\]\?\.event$/,
+  /^preview\?\.oldEq$/,
+  /^menuContext\.(?:itemKey|spellName)$/
+]);
+
 function isPureContextExpression(expression) {
   const trimmed = expression.trim();
   if (/^(?:null|true|false|-?\d+(?:\.\d+)?|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')$/.test(trimmed)) {
     return true;
   }
-
-  const readIdentifier = index => {
-    const match = trimmed.slice(index).match(/^[A-Za-z_$][A-Za-z0-9_$]*/);
-    return match ? index + match[0].length : -1;
-  };
-  let index = readIdentifier(0);
-  if (index < 0) return false;
-
-  while (index < trimmed.length) {
-    if (trimmed.startsWith("?.[", index) || trimmed[index] === "[") {
-      const openingLength = trimmed.startsWith("?.[", index) ? 3 : 1;
-      const closing = trimmed.indexOf("]", index + openingLength);
-      if (closing < 0 || !isPureContextExpression(trimmed.slice(index + openingLength, closing))) return false;
-      index = closing + 1;
-      continue;
-    }
-    if (trimmed.startsWith("?.", index)) index += 2;
-    else if (trimmed[index] === ".") index++;
-    else return false;
-    index = readIdentifier(index);
-    if (index < 0) return false;
-  }
-  return true;
+  if (SAFE_TELEMETRY_ARGUMENT_IDENTIFIERS.has(trimmed)) return true;
+  return SAFE_TELEMETRY_CONTEXT_PATHS.some(pattern => pattern.test(trimmed));
 }
 
 function isTelemetryCall(line) {
