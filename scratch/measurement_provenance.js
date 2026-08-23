@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import { isMainThread } from "node:worker_threads";
 
@@ -17,11 +18,31 @@ function gitOutput(args, cwd) {
   }
 }
 
+function gitDiffSha256(baseCommit, runnerCommit, cwd, paths = []) {
+  try {
+    const diff = execFileSync("git", [
+      "diff", "--binary", baseCommit, runnerCommit, "--", ...paths
+    ], {
+      cwd,
+      encoding: null,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    return createHash("sha256").update(diff).digest("hex");
+  } catch (error) {
+    const detail = String(error.stderr || "").trim();
+    throw new Error(
+      `measurement provenance failed: git diff --binary ${baseCommit} ${runnerCommit}: ` +
+      `${detail || error.message}`
+    );
+  }
+}
+
 export function resolveMeasurementProvenance({
   cwd = process.cwd(),
   fetchOriginMain = true,
   allowStaleTree = process.env.SIM_ALLOW_STALE_TREE === "1",
-  baseRef = null
+  baseRef = null,
+  measurementRunnerPaths = []
 } = {}) {
   const configuredBaseRef = process.env.SIM_PROVENANCE_BASE_REF || null;
   const configuredBaseCommit = process.env.SIM_PROVENANCE_BASE_COMMIT || null;
@@ -79,6 +100,10 @@ export function resolveMeasurementProvenance({
   }
 
   return Object.freeze({
+    gameplaySourceCommit: baseCommit,
+    measurementRunnerCommit: sourceCommit,
+    measurementRunnerDiffSha256: gitDiffSha256(baseCommit, sourceCommit, cwd, measurementRunnerPaths),
+    // Compatibility alias for existing measurement records.
     sourceCommit,
     baseRef: resolvedBaseRef,
     baseCommit,
