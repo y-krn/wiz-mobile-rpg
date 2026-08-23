@@ -223,6 +223,19 @@ check("shared snapshots use bounded production-derived values", () => {
   assert.deepEqual(context.enemyIds, ["ゴブリンの呪術師", "いにしえの竜"]);
 });
 
+check("malformed hp and mp rates stay within unit bounds", () => {
+  const malformedCharacter = {
+    ...decisionPlayer,
+    hp: 9999,
+    maxHp: 1,
+    mp: 9999,
+    maxMp: 1
+  };
+  const snapshot = buildPlayerSnapshot(malformedCharacter, { floor: 2 });
+  assert.equal(snapshot.hpRate, 1);
+  assert.equal(snapshot.mpRate, 1);
+});
+
 check("decision events share context and keep action identifiers stable", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });

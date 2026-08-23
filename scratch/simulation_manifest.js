@@ -421,15 +421,21 @@ function hasGameplayMutation(line) {
   return /(^|[^=!<>])=(?!=|>)/.test(trimmed);
 }
 
+function hasNestedCall(line) {
+  const outerOpen = line.indexOf("(");
+  return outerOpen >= 0 && line.slice(outerOpen + 1).includes("(");
+}
+
 function isTelemetryCall(line) {
   const trimmed = line.trim();
   return !hasGameplayMutation(trimmed)
+    && !hasNestedCall(trimmed)
     && /^track[A-Z][A-Za-z0-9]*\s*\([^;]*\)?;?$/.test(trimmed);
 }
 
 function isTelemetryContextLine(line) {
   const trimmed = line.trim();
-  if (hasGameplayMutation(trimmed)) return false;
+  if (hasGameplayMutation(trimmed) || hasNestedCall(trimmed)) return false;
   if (/^\}\s*,\s*state\);$/.test(trimmed) || /^\}\);$/.test(trimmed)) return true;
   const contextKeyPattern = [...TELEMETRY_CONTEXT_KEYS]
     .map(key => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))

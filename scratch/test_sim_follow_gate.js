@@ -142,6 +142,19 @@ const mutationAfterContextPrefixDiff = `diff --git a/src/chest.js b/src/chest.js
 +    state, state.currentRun.materials.blackHorn += 1;
 `;
 assert.equal(isTelemetryOnlyDiff(mutationAfterContextPrefixDiff), false, "context-prefix lines containing mutation are not telemetry-only");
+for (const [label, expression] of [
+  ["splice", "state.inventory.splice(0, 1)"],
+  ["push", "state.inventory.push(item)"],
+  ["pop", "state.inventory.pop()"],
+  ["helper", "removeInventoryItem(state.inventory)"],
+  ["member helper", "state.inventory.removeItem()"]
+]) {
+  const mutatingCallDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,1 @@
++  trackChestAction(chest, action, { inventory: ${expression} });
+`;
+  assert.equal(isTelemetryOnlyDiff(mutatingCallDiff), false, `nested ${label} call is not telemetry-only`);
+}
 assert.throws(
   () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", mixedTelemetryDiff]]) }),
   /no declared runtime evidence: economy/

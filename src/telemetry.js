@@ -264,8 +264,12 @@ export function buildPlayerSnapshot(character, { floor = 1 } = {}) {
     agi: boundedFiniteOrNull(getCharAgi(character)),
     luk: boundedFiniteOrNull(getCharLuk(character))
   };
-  snapshot.hpRate = snapshot.maxHp > 0 ? snapshot.hp / snapshot.maxHp : null;
-  snapshot.mpRate = snapshot.maxMp > 0 ? snapshot.mp / snapshot.maxMp : null;
+  snapshot.hpRate = snapshot.maxHp > 0
+    ? Math.min(1, Math.max(0, snapshot.hp / snapshot.maxHp))
+    : null;
+  snapshot.mpRate = snapshot.maxMp > 0
+    ? Math.min(1, Math.max(0, snapshot.mp / snapshot.maxMp))
+    : null;
   SNAPSHOT_STAT_KEYS.forEach(key => {
     snapshot[`affix${key[0].toUpperCase()}${key.slice(1)}`] = boundedFiniteOrNull(getCharAffixSum(character, key), -MAX_RESOURCE_VALUE);
   });
