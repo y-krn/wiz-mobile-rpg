@@ -1206,3 +1206,168 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 ## Output
 
 Use the repository review output format from `.agents/README.md`.
+
+## Issue #679 Phase 1 — enabled core/SUPPORT reachability inventory (2026-08-23)
+
+This is a measurement record, not gameplay canon. The source registry is authoritative: **18 enabled cores** and **47 enabled SUPPORT affixes**; this reconciles with the current assertions in `scratch/test_affixes.js` and `scratch/test_core_affixes.js` (support categories 26 basic / 11 conditional / 7 trigger / 3 economy). No registry values, enable flags, or production wiring were changed.
+
+### Classification correction (2026-08-23)
+
+This correction supersedes the SUPPORT classification in the [prior completion record](https://github.com/y-krn/wiz-mobile-rpg/issues/679#issuecomment-5384541391). The raw measurements, recorded/acquired reward counts, Wilson intervals, provenance hashes, and simulator output are unchanged; only the interpretation/status labels and funnel label were corrected. The corrected aggregate is **CORE A11/B0/C3/D4** and **SUPPORT A0/B0/C47/D0** (combined **A11/B0/C50/D4**).
+
+Classification rule: a missing per-mechanism simulator probe is **C/sim-missing even when equipped N<30**. **D** applies only when the required runtime observation probe exists but equipped N<30. Therefore every SUPPORT row below is C/sim-missing because the current simulator has no per-SUPPORT condition/application probe.
+
+### Measurement path and provenance
+
+- Real path: `scratch/sim_depth_material_ev.js` (`sim-scope: run`) → `generateRunFloor` → current equipment generation/identification/equip selection → current round/reward/movement/chest rules.
+- Main coverage run: `SIM_SEED=231 SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 SIM_SCENARIOS=workshop-complete SIM_CORE_WORKSHOP_GATE=off node scratch/sim_depth_material_ev.js`; no `SIM_PARALLEL` override.
+- Gameplay source baseline SHA: `62a4e8184151a21d574e5a84697283ff208381fd`; `origin/main` ancestor: true; stale tree: false; working tree clean: true; env hash `8e525761fae5e542`.
+- Measurement runner commit: `c56b06cbfd2c4e6c7006fca6805c7006f4fe3d39`; runner diff SHA-256 against the gameplay baseline, computed as `git diff --binary 62a4e8184151a21d574e5a84697283ff208381fd c56b06cbfd2c4e6c7006fca6805c7006f4fe3d39 -- scratch/sim_depth_material_ev.js | shasum -a 256`: `6b924d556dec0a7305ebdddf3a8e9dfcf4be3c66b42bf13b1b4651ed14008a39`.
+- The runner diff scope is now the ordered `measurementRunnerPaths` field: `scratch/sim_depth_material_ev.js`, `scratch/measurement_provenance.js`; `measurementRunnerDiffSha256` hashes the combined binary diff for exactly those two files against the gameplay baseline. The captured historical hash above remains the pre-correction provenance for the unchanged raw measurement.
+- Real measurements refuse any non-empty `git status --porcelain --untracked-files=all` result before execution. Provenance records `workingTreeClean`, `workingTreeDirty`, and `dirtyTreeAllowed`; the only supported dirty-tree opt-in is the explicit `SIM_PROVENANCE_TEST_FIXTURE` + `SIM_PROVENANCE_ALLOW_DIRTY_TREE=1` path used by test-only fixtures, never the Issue #679 measurement.
+- The recorded command was run at that pinned runner commit. To reproduce the captured raw hashes, use a detached worktree at `c56b06cbfd2c4e6c7006fca6805c7006f4fe3d39` and run the command above; running from a later documentation-only commit intentionally produces different provenance text and therefore a different raw stdout hash.
+- Current-gate comparison: same command without `SIM_CORE_WORKSHOP_GATE=off`, env hash `33fe98330a8886c8`; `CORE_MILESTONE_BREAKER` and `CORE_THIN_ICE_PACT` were zero-candidate because their current workshop grants require `FORGE_SEAL` / `ABYSS_SEAL`, absent from `workshop-complete`. The gate-off run is an explicit coverage measurement, not a claim that those grants are currently free.
+- Raw output is temporary and untracked: gate-off SHA-256 `f41f43a5785fab47694f7fb889876bffb6462e1201e1d06d3e8cce9f4af099ff`; current-gate SHA-256 `f86be496ddca3b2a59a41f92997850d6cb096d1768e72e838d92febe3a901e91`. The compact output schema hash is `852216e991ac7803a871ed362785b55c0e0e4715e532c6647f7db2353e6e1b0d`. These hashes identify the captured stdout/schema from the pinned runner commit; stdout is not expected to byte-match a rerun from another runner commit because provenance and runtime timing are part of the output.
+- Configuration/model: identification `powder`, cost 1, starting powder 2; EV flee; EV status cure; elite avoid; trap legacy + EV avoidance; B3+ portal at HP≤35% with no potion reserve; departure craft empty; special return-wing reward. Modeled mitigations are the real run-floor path, real generation/equipment scoring, TOWN_PORTAL retreat, status-cure decisions, and round/reward resolution. Omitted for this inventory are manual UI choices, optional merchant purchases, and per-SUPPORT condition/application probes.
+
+### Funnel definitions and classification
+
+Each row is `R/C/E/Q/A`: recorded/acquired reward item affix instances / distinct recorded reward instances examined by the existing greedy equip path / equip events / condition-or-trigger eligible events / application/activation events. `R` is counted in `recordEquipmentAcquisitions`; it is not a hook at the underlying generator, so generated items that are lost or rejected before that acquisition record are outside this numerator. `E/C` and `A/Q` are Wilson 95% intervals where the denominator is a binary rate; Q/A are event counts otherwise. Core Q/A are populated from existing simulator probes. SUPPORT Q/A are deliberately `0/0` because the current sim has no per-SUPPORT event probe; this is **C/sim-missing**, not a measured zero. The same sim-missing rule changes `CORE_PHYSICAL_ACCURACY` and `CORE_MILESTONE_BREAKER` from D to C/sim-missing: both have Q/A=0/0 and no per-mechanism probe. A means equipped and observed through the existing runtime probe. D means fewer than 30 equipped observations only when the required runtime probe exists; a missing per-mechanism simulator probe is C/sim-missing regardless of N. B had no findings: every non-observed case had either N<30 with a required probe present or an identified simulator coverage gap. Source tracing through imports/re-exports and direct callers found no enabled registry entry with a source-wiring absence; C findings below are sim-missing.
+
+### Slot coverage
+
+Core slots are mutually exclusive: weapon 6, accessory 8, armor 3, shield 1. SUPPORT slot memberships are non-exclusive because one support can enter multiple generator pools: `{"weapon":38,"armor":32,"shield":29,"accessory":34}`. Base-item eligibility and floor gates are defined in `src/systems/equipment_generation.js`; the table records the lowest available floor and the important slot-specific exception.
+#### Complete enabled core inventory (coverage run: gate off)
+| id | category/slot | gate | params | class | status | R/C/E/Q/A | E/C Wilson | A/Q Wilson |
+|---|---|---|---|---|---|---|---|---|
+| CORE_LAST_STAND | combat/weapon | all floors when unlocked | {"hpThreshold":0.4,"damageMultiplier":1.4} | all | A | 209/209/31/94/45 | 14.8% [10.7,20.3] | 47.9% [38.1,57.9] |
+| CORE_OPENER | combat/accessory | all floors when unlocked | {"followUpChance":1} | all | D | 174/174/26/154/91 | 14.9% [10.4,21.0] | 59.1% [51.2,66.5] |
+| CORE_PHYSICAL_ACCURACY | combat/weapon | all floors when unlocked | {"hitChanceBonus":1} | all | C/sim-missing | 226/226/24/0/0 | 10.6% [7.2,15.3] | — |
+| CORE_BLOOD_WAND | combat/weapon | all floors when unlocked | {"hpCostMultiplier":2} | all | D | 217/217/26/21/17 | 12.0% [8.3,17.0] | 81.0% [60.0,92.3] |
+| CORE_PURIFY_RING | combat/accessory | all floors when unlocked | {"mpRecovery":1,"fullMpHpRecovery":2,"targetTags":["undead","spirit","demon"]} | all | D | 197/197/21/51/48 | 10.7% [7.1,15.7] | 94.1% [84.1,98.0] |
+| CORE_TRAP_EATER | combat/accessory | all floors when unlocked | {"attackPerDisarm":2,"maxAttack":20} | Thief,Ranger,Ninja | D | 77/77/15/112/112 | 19.5% [12.2,29.7] | 100.0% [96.7,100.0] |
+| CORE_CURSE_KEEPER | combat/accessory | all floors when unlocked | {"statsPerCurse":3} | all | A | 177/177/44/1423/1423 | 24.9% [19.1,31.7] | 100.0% [99.7,100.0] |
+| CORE_GIANT_SLAYER | combat/weapon | all floors when unlocked | {"damageMultiplier":1.3} | all | A | 242/242/70/644/227 | 28.9% [23.6,34.9] | 35.2% [31.7,39.0] |
+| CORE_MILESTONE_BREAKER | combat/weapon | all floors when unlocked | {"damageMultiplier":1.25} | all | C/sim-missing | 239/239/22/0/0 | 9.2% [6.2,13.5] | — |
+| CORE_THORN_SHIELD | combat/shield | all floors when unlocked | {"counterChance":0.3,"counterPower":0.5} | all | A | 206/206/85/3060/776 | 41.3% [34.8,48.1] | 25.4% [23.8,26.9] |
+| CORE_EXECUTIONER | combat/weapon | all floors when unlocked | {"status":"poisoned","statusChance":0.35,"damageMultiplier":1.4} | all | A | 227/227/39/462/247 | 17.2% [12.8,22.6] | 53.5% [48.9,58.0] |
+| CORE_THIN_ICE_PACT | combat/armor | all floors when unlocked | {"hpThreshold":0.5,"damageMultiplier":1.35,"incomingDamageMultiplier":1.2} | all | C/sim-missing | 772/772/128/0/0 | 16.6% [14.1,19.4] | — |
+| CORE_SNEAK_STEP | economy/armor | all floors when unlocked | {"detectionRangeMultiplier":0.5,"auraRangeBonus":1} | all | A | 307/307/88/3650/3650 | 28.7% [23.9,34.0] | 100.0% [99.9,100.0] |
+| CORE_TOMB_RAIDER | economy/accessory | all floors when unlocked | {"materialBonus":1,"trapTierBonus":1} | all | A | 97/97/30/850/850 | 30.9% [22.6,40.7] | 100.0% [99.6,100.0] |
+| CORE_KEEN_EYE | economy/accessory | all floors when unlocked | {"applyUnidentifiedEffects":true,"hideUntilIdentified":true} | all | A | 109/109/38/68/68 | 34.9% [26.6,44.2] | 100.0% [94.7,100.0] |
+| CORE_CAMP_MASTER | economy/armor | all floors when unlocked | {"recoveryMultiplier":2} | all | A | 288/288/64/16/16 | 22.2% [17.8,27.4] | 100.0% [80.6,100.0] |
+| CORE_BOUNTY_HUNTER | economy/accessory | all floors when unlocked | {"contractCountMultiplier":2} | all | A | 87/87/30/65/40 | 34.5% [25.3,44.9] | 61.5% [49.4,72.4] |
+| CORE_SCHOLAR_EYE | economy/accessory | all floors when unlocked | {"guaranteedMaterialDrop":true} | all | A | 108/108/39/127/127 | 36.1% [27.7,45.5] | 100.0% [97.1,100.0] |
+### Static source index (all enabled IDs)
+
+This index is static source evidence, separate from the measured R/C/E/Q/A
+funnel. Registry definitions are in `src/data/affixes.js` (`SUPPORT_AFFIXES`
+and `CORE_AFFIXES`). Every ID below is available only through the current
+`src/systems/equipment_generation.js` pools: `generateRandomEquipment` and
+`generateRandomAccessory` build the base-item support pool and
+`rollAffixLoadout` applies slot, floor, rarity, budget, class, and workshop
+unlock gates. The simulator candidate/equip path is
+`scratch/sim_depth_material_ev.js:equipGreedyUpgrades`; the player equip path <!-- doc-path-ignore -->
+is `src/equip.js`'s item action, with `src/rules/affix_rules.js` and
+`src/rules/item_rules.js` resolving equipped effects. Thus a C/sim-missing
+label below means missing measurement probe, not missing source wiring.
+
+| ID or group | Registry / generator availability | Candidate and equip path | Concrete runtime application or activation path | Measurement status |
+|---|---|---|---|---|
+| CORE_LAST_STAND, CORE_GIANT_SLAYER, CORE_MILESTONE_BREAKER, CORE_THIN_ICE_PACT | `CORE_AFFIXES`; weapon/armor slot gates in `rollAffixLoadout`; workshop unlock gate where applicable | `equipGreedyUpgrades` → `getEquipmentScore`; player item action | `src/rules/affix_rules.js:getDamageAffixResult`; `CORE_THIN_ICE_PACT` also `src/combat_logic/damage.js:reduceIncomingDamage`; called by `src/combat_logic/round.js` and `src/systems/spell_effects.js` | Core probes exist except `CORE_MILESTONE_BREAKER` and `CORE_THIN_ICE_PACT` Q/A=0/0; latter two C/sim-missing | <!-- doc-path-ignore -->
+| CORE_OPENER | `CORE_AFFIXES`; accessory slot and workshop unlock gate | Same candidate/equip path | `src/rules/affix_rules.js:getFollowUpChance` → `src/combat_logic/round.js:runCombatRoundCalculation` | D (probe present, equipped N<30) | <!-- doc-path-ignore -->
+| CORE_PHYSICAL_ACCURACY | `CORE_AFFIXES`; weapon slot and normal core gates | Same candidate/equip path | `src/rules/character_stats.js:getPhysicalHitChance` → `src/combat_logic/round.js` physical attack resolution | C/sim-missing (Q/A=0/0; no per-mechanism probe) | <!-- doc-path-ignore -->
+| CORE_BLOOD_WAND | `CORE_AFFIXES`; weapon slot and workshop unlock gate | Same candidate/equip path | `src/rules/affix_rules.js:getSpellPayment` / `paySpellCost` → `src/combat_logic/spell_resolution.js` and `src/spell_menu.js` | D (probe present, equipped N<30) | <!-- doc-path-ignore -->
+| CORE_PURIFY_RING | `CORE_AFFIXES`; accessory slot | Same candidate/equip path | `src/combat_logic/damage.js:applyKillAffixEffects` → `src/rules/purify_rules.js:resolvePurifyRecovery` | D (probe present, equipped N<30) | <!-- doc-path-ignore -->
+| CORE_TRAP_EATER | `CORE_AFFIXES`; accessory slot, class gate, and workshop unlock gate | Same candidate/equip path | `src/rules/affix_rules.js:getTrapEaterBonusAfterDisarm` → `src/chest.js` chest disarm path | D (probe present, equipped N<30) | <!-- doc-path-ignore -->
+| CORE_CURSE_KEEPER | `CORE_AFFIXES`; accessory slot | Same candidate/equip path | `src/rules/affix_rules.js:getCharAllStatsAffixBonus` → `src/rules/character_stats.js:getCharStr/getCharVit/getCharInt/getCharPie/getCharAgi/getCharLuk` | A | <!-- doc-path-ignore -->
+| CORE_THORN_SHIELD | `CORE_AFFIXES`; shield slot and workshop unlock gate | Same candidate/equip path | `src/combat_logic/damage.js:tryThornCounter` → `src/combat_logic/round.js` enemy attack resolution | A | <!-- doc-path-ignore -->
+| CORE_EXECUTIONER | `CORE_AFFIXES`; weapon slot | Same candidate/equip path | `src/rules/affix_rules.js:tryApplyExecutionerSetup` and `getDamageAffixResult` → round/spell offensive paths | A | <!-- doc-path-ignore -->
+| CORE_SNEAK_STEP | `CORE_AFFIXES`; armor slot | Same candidate/equip path | `src/movement.js:checkSensoryAura` and perception range helpers | A | <!-- doc-path-ignore -->
+| CORE_TOMB_RAIDER | `CORE_AFFIXES`; accessory slot and workshop unlock gate | Same candidate/equip path | `src/chest.js:applyTombRaiderTrapTier` and chest material reward path | A | <!-- doc-path-ignore -->
+| CORE_KEEN_EYE | `CORE_AFFIXES`; accessory slot | Same candidate/equip path | `src/rules/affix_rules.js:canEquipUnidentifiedItem` plus `src/rules/item_rules.js:getEquippedItemData` / identification UI path | A | <!-- doc-path-ignore -->
+| CORE_CAMP_MASTER | `CORE_AFFIXES`; armor slot | Same candidate/equip path | `src/systems/camp_rest.js:restAtCamp` | A | <!-- doc-path-ignore -->
+| CORE_BOUNTY_HUNTER | `CORE_AFFIXES`; accessory slot | Same candidate/equip path | `src/rules/affix_rules.js:getContractProgressIncrement` → `src/combat_logic/rewards.js:applyCombatRewards` and run-quest updates | A | <!-- doc-path-ignore -->
+| CORE_SCHOLAR_EYE | `CORE_AFFIXES`; accessory slot and workshop unlock gate | Same candidate/equip path | `src/combat_logic/rewards.js:applyCombatRewards` passes `guaranteed` to monster material drops | A | <!-- doc-path-ignore -->
+| atk, def, str, int, pie, vit, agi, luk, hp, mp | `SUPPORT_AFFIXES`; `generateRandomEquipment`/`generateRandomAccessory` `addAffix` entries, with base-item/slot gates | `equipGreedyUpgrades` or player item action; values resolve through `src/rules/item_rules.js:getCharAffixSum` | `src/rules/item_rules.js:getCharAffixSum`; stat IDs flow through `src/rules/character_stats.js:getChar*`, atk/def through item data and combat formulas | All SUPPORT Q/A=0/0: C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| antiUndead, antiDragon, antiDemon, deepAssault, fullHpDamage, antiBeast, antiSpirit | `SUPPORT_AFFIXES`; generator `addAffix` floor/base-item gates | Same candidate/equip path | `src/rules/affix_rules.js:getDamageAffixResult`; antiDragon also `src/combat_logic/damage.js:reduceIncomingDamage` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| poisonWard, spellGuard, guardian | `SUPPORT_AFFIXES`; generator `addAffix` floor/base-item gates | Same candidate/equip path | `src/combat_logic/damage.js:reduceIncomingDamage` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| trapBonus | `SUPPORT_AFFIXES`; generator trap-eligible base-item pools in `equipment_generation.js` | Same candidate/equip path | `src/rules/character_stats.js:getCharTrapBonus` → `src/rules/trap_rules.js:calculateDisarmRate` / `calculateChestDisarmChance`, floor/chest trap actions | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| treasureSense | `SUPPORT_AFFIXES`; treasure-sense base-item pools and floor gates | Same candidate/equip path | `src/chest.js:setupChestState` and `src/rules/chest_rules.js` reward/hint selection | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| arcaneSense, hearRange | `SUPPORT_AFFIXES`; generator base-item pools and floor gates | Same candidate/equip path | `src/movement.js:checkSensoryAura`; arcaneSense also `src/menu/explore_actions.js` search path | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| traceRead | `SUPPORT_AFFIXES`; trap-readable base-item pools and floor gates | Same candidate/equip path | `src/systems/traps.js:detectAdjacentTraps` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| followUp | `SUPPORT_AFFIXES`; weapon base-item pool, B2+ gate | Same candidate/equip path | `src/combat_logic/round.js:runCombatRoundCalculation` follow-up roll | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| spellPower, arcane, devotion | `SUPPORT_AFFIXES`; magic-item base pools, B2+ gate | Same candidate/equip path | `src/systems/spell_effects.js:getSpellPowerBonus` and `SPELL_EFFECTS` offensive/healing branches | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| firstStrike | `SUPPORT_AFFIXES`; weapon base-item pool, B4+ gate | Same candidate/equip path | `src/combat_logic/round.js` speed/preemptive-action resolution | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| frontGuard, rearEvasion, firstStrikeDefense | `SUPPORT_AFFIXES`; armor/shield base pools and floor gates | Same candidate/equip path | `src/combat_logic/round.js` target defense/evasion resolution | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| firstTurnAttack | `SUPPORT_AFFIXES`; weapon pool, B1+ gate | Same candidate/equip path | `src/combat_logic/round.js` first-round attack calculation | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| lastSurvivorStats | `SUPPORT_AFFIXES`; all eligible base-item pools, B3+ gate | Same candidate/equip path | `src/rules/affix_rules.js:getCharAllStatsAffixBonus` → character stat getters | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| statusResistance | `SUPPORT_AFFIXES`; all eligible pools, B2+ gate | Same candidate/equip path | `src/rules/affix_rules.js:getStatusEffectChance` → `src/combat_logic/round.js` and boss status actions | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| spellAccuracy | `SUPPORT_AFFIXES`; weapon/accessory pool, B3+ gate | Same candidate/equip path | `src/rules/affix_rules.js:getSpellAccuracyBonus` → `src/systems/spell_effects.js` spell hit rolls | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| killHeal | `SUPPORT_AFFIXES`; weapon pool, B3+ gate | Same candidate/equip path | `src/combat_logic/damage.js:applyKillAffixEffects` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| followUpMp, poisonAtk, bleedingAtk | `SUPPORT_AFFIXES`; weapon pool, B3+ gate | Same candidate/equip path | `src/combat_logic/round.js:runCombatRoundCalculation` follow-up MP and weapon status-trigger paths | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| hitFlinch | `SUPPORT_AFFIXES`; weapon pool, B3+ gate | Same candidate/equip path | `src/combat_logic/damage.js:tryApplyHitFlinch` → round hit resolution | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| victoryMaterial, materialFind | `SUPPORT_AFFIXES`; reward-support pools and floor gates | Same candidate/equip path | `src/combat_logic/rewards.js:applyCombatRewards` material drop calculation | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| stairsHeal | `SUPPORT_AFFIXES`; all eligible pools, B1+ gate | Same candidate/equip path | `src/movement.js:applyStairsHeal` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| identifyDiscount | `SUPPORT_AFFIXES`; all eligible pools, B1+ gate | Same candidate/equip path | `src/systems/identification.js:identifyEquipment` | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+| contractReward | `SUPPORT_AFFIXES`; all eligible pools, B1+ gate | Same candidate/equip path | `src/systems/run_quests.js:updateRunQuests`, called by combat rewards, movement, and result paths | C/sim-missing probe coverage | <!-- doc-path-ignore -->
+
+The source index is the static evidence set. The measured evidence set is the
+gate-off N=500 funnel table: R/C/E are measured acquisition/candidate/equip
+counts; core Q/A are measured only where the existing simulator probes; all
+SUPPORT Q/A and the two corrected core rows are not exercised by a
+per-mechanism simulator probe. A long N=500 audit rerun is intentionally
+skipped for this correction because no RNG call, selection path, registry
+value, or gameplay rule changed; only classification labels, provenance fields,
+documentation, and the focused schema regression test changed.
+
+#### Complete enabled SUPPORT inventory (coverage run: gate off)
+| id | category/slot | min-floor/availability gate | source effect/params | status | R/C/E/Q/A | E/C Wilson | A/Q |
+|---|---|---|---|---|---|---|---|
+| atk | basic/weapon | B1; base-item/pool dependent | 攻撃力が増加する。 cost=3 | C/sim-missing | 54/54/20/0/0 | 37.0% [25.4,50.4] | — (sim-missing) |
+| def | basic/armor/shield | B1; base-item/pool dependent | 防御力が増加する。 cost=3 | C/sim-missing | 128/128/65/0/0 | 50.8% [42.2,59.3] | — (sim-missing) |
+| str | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 力が増加する。 cost=2 | C/sim-missing | 232/232/107/0/0 | 46.1% [39.8,52.5] | — (sim-missing) |
+| int | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 知恵が増加する。 cost=2 | C/sim-missing | 212/212/92/0/0 | 43.4% [36.9,50.1] | — (sim-missing) |
+| pie | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 信仰が増加する。 cost=2 | C/sim-missing | 214/214/96/0/0 | 44.9% [38.3,51.6] | — (sim-missing) |
+| vit | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 生命が増加する。 cost=2 | C/sim-missing | 199/199/93/0/0 | 46.7% [39.9,53.7] | — (sim-missing) |
+| agi | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 素早さが増加する。 cost=2 | C/sim-missing | 213/213/87/0/0 | 40.8% [34.5,47.6] | — (sim-missing) |
+| luk | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 運が増加する。 cost=2 | C/sim-missing | 212/212/52/0/0 | 24.5% [19.2,30.7] | — (sim-missing) |
+| hp | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 最大HPが増加する。 cost=2 | C/sim-missing | 208/208/93/0/0 | 44.7% [38.1,51.5] | — (sim-missing) |
+| mp | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 最大MPが増加する。 cost=2 | C/sim-missing | 91/91/27/0/0 | 29.7% [21.3,39.7] | — (sim-missing) |
+| antiUndead | basic/weapon/accessory | B3 accessory / B3 equipment | 不死への与ダメージが増加する。 cost=3 unit=% | C/sim-missing | 7/7/0/0/0 | 0.0% [0.0,35.4] | — (sim-missing) |
+| antiDragon | basic/armor/accessory | B4 | 竜への与ダメージが増加する。 cost=3 unit=% | C/sim-missing | 9/9/1/0/0 | 11.1% [2.0,43.5] | — (sim-missing) |
+| antiDemon | basic/weapon/accessory | B2 | 悪魔への与ダメージが増加する。 cost=3 unit=% | C/sim-missing | 15/15/2/0/0 | 13.3% [3.7,37.9] | — (sim-missing) |
+| poisonWard | basic/armor/accessory | B1 accessory / B2 equipment | 毒への耐性が増加する。 cost=2 unit=% | C/sim-missing | 13/13/2/0/0 | 15.4% [4.3,42.2] | — (sim-missing) |
+| spellGuard | basic/armor/shield/accessory | B1; base-item/pool dependent | 呪文ダメージを軽減する。 cost=3 unit=% | C/sim-missing | 22/22/11/0/0 | 50.0% [30.7,69.3] | — (sim-missing) |
+| trapBonus | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 罠解除率が増加する。 cost=2 unit=% | C/sim-missing | 155/155/38/0/0 | 24.5% [18.4,31.9] | — (sim-missing) |
+| treasureSense | basic/weapon/armor/shield/accessory | B1 accessory / B3 equipment | 宝の発見率が増加する。 cost=2 unit=% | C/sim-missing | 19/19/10/0/0 | 52.6% [31.7,72.7] | — (sim-missing) |
+| arcaneSense | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 魔力感知範囲が増加する。 cost=1 unit=Lv | C/sim-missing | 50/50/10/0/0 | 20.0% [11.2,33.0] | — (sim-missing) |
+| hearRange | basic/armor/shield/accessory | B1; base-item/pool dependent | 聴覚範囲が増加する。 cost=1 | C/sim-missing | 46/46/18/0/0 | 39.1% [26.4,53.5] | — (sim-missing) |
+| traceRead | basic/weapon/armor/shield/accessory | B1; base-item/pool dependent | 痕跡判読範囲が増加する。 cost=1 unit=Lv | C/sim-missing | 43/43/13/0/0 | 30.2% [18.6,45.1] | — (sim-missing) |
+| followUp | basic/weapon | B2 | 追加攻撃率が増加する。 cost=3 unit=% | C/sim-missing | 19/19/8/0/0 | 42.1% [23.1,63.7] | — (sim-missing) |
+| spellPower | basic/weapon/armor/shield/accessory | B2 | 攻撃・回復呪文の威力が増加する。 cost=3 unit=% | C/sim-missing | 32/32/4/0/0 | 12.5% [5.0,28.1] | — (sim-missing) |
+| arcane | basic/weapon/armor/shield | B2 | 呪文威力が増加する。 cost=3 unit=% | C/sim-missing | 19/19/2/0/0 | 10.5% [2.9,31.4] | — (sim-missing) |
+| devotion | basic/weapon/armor | B2 | 回復威力が増加する。 cost=3 unit=% | C/sim-missing | 3/3/1/0/0 | 33.3% [6.1,79.2] | — (sim-missing) |
+| guardian | basic/armor/shield | B3 | HP25%以下のとき、物理ダメージを軽減する。 cost=3 unit=% | C/sim-missing | 7/7/2/0/0 | 28.6% [8.2,64.1] | — (sim-missing) |
+| firstStrike | basic/weapon | B4 | 先制率が増加する。 cost=3 | C/sim-missing | 3/3/0/0/0 | 0.0% [0.0,56.2] | — (sim-missing) |
+| deepAssault | conditional/weapon/armor/shield/accessory | B3 | B3F以深で与ダメージが増加する。 cost=2 unit=% | C/sim-missing | 57/57/11/0/0 | 19.3% [11.1,31.3] | — (sim-missing) |
+| frontGuard | conditional/armor/shield | B1; base-item/pool dependent | 前列で防御力が増加する。 cost=2 | C/sim-missing | 94/94/25/0/0 | 26.6% [18.7,36.3] | — (sim-missing) |
+| rearEvasion | conditional/armor/shield | B2 | 後列で回避率が増加する。 cost=2 unit=% | C/sim-missing | 35/35/4/0/0 | 11.4% [4.5,26.0] | — (sim-missing) |
+| fullHpDamage | conditional/weapon/accessory | B2 | HP満タン時に与ダメージが増加する。 cost=3 unit=% | C/sim-missing | 60/60/8/0/0 | 13.3% [6.9,24.2] | — (sim-missing) |
+| firstTurnAttack | conditional/weapon | B1; base-item/pool dependent | 1ターン目に攻撃力が増加する。 cost=2 | C/sim-missing | 28/28/2/0/0 | 7.1% [2.0,22.6] | — (sim-missing) |
+| antiBeast | conditional/weapon/accessory | B2 | 獣への与ダメージが増加する。 cost=2 unit=% | C/sim-missing | 24/24/2/0/0 | 8.3% [2.3,25.8] | — (sim-missing) |
+| antiSpirit | conditional/weapon/accessory | B2 | 霊体への与ダメージが増加する。 cost=2 unit=% | C/sim-missing | 18/18/1/0/0 | 5.6% [1.0,25.8] | — (sim-missing) |
+| firstStrikeDefense | conditional/armor/shield | B2 | 先制成功時に防御力が増加する。 cost=2 | C/sim-missing | 14/14/3/0/0 | 21.4% [7.6,47.6] | — (sim-missing) |
+| lastSurvivorStats | conditional/weapon/armor/shield/accessory | B3 | 単独生存時に全能力が増加する。 cost=3 | C/sim-missing | 22/22/5/0/0 | 22.7% [10.1,43.4] | — (sim-missing) |
+| statusResistance | conditional/weapon/armor/shield/accessory | B2 | 状態異常への耐性が増加する。 cost=2 unit=% | C/sim-missing | 71/71/12/0/0 | 16.9% [9.9,27.3] | — (sim-missing) |
+| spellAccuracy | conditional/weapon/accessory | B3 | 呪文命中率が増加する。 cost=2 unit=% | C/sim-missing | 21/21/3/0/0 | 14.3% [5.0,34.6] | — (sim-missing) |
+| killHeal | trigger/weapon/accessory | B3 | 敵撃破時にHPを2回復する。 cost=2 | C/sim-missing | 13/13/1/0/0 | 7.7% [1.4,33.3] | — (sim-missing) |
+| followUpMp | trigger/weapon/accessory | B3 | 追撃時にMPを1回復する。 cost=2 | C/sim-missing | 8/8/0/0/0 | 0.0% [0.0,32.4] | — (sim-missing) |
+| hitFlinch | trigger/weapon/accessory | B3 | 被弾時に低確率で敵を怯ませる。 cost=2 | C/sim-missing | 19/19/3/0/0 | 15.8% [5.5,37.6] | — (sim-missing) |
+| poisonAtk | trigger/weapon | B3 | 攻撃命中時に低確率で敵を毒にする。 cost=2 unit=% | C/sim-missing | 12/12/0/0/0 | 0.0% [0.0,24.3] | — (sim-missing) |
+| bleedingAtk | trigger/weapon | B3 | 攻撃命中時に低確率で敵を出血させる。後続の通常攻撃で追加ダメージ。 cost=2 unit=% | C/sim-missing | 8/8/0/0/0 | 0.0% [0.0,32.4] | — (sim-missing) |
+| victoryMaterial | trigger/weapon/armor/shield/accessory | B2 | 勝利時に低確率で素材を得る。 cost=2 unit=% | C/sim-missing | 51/51/3/0/0 | 5.9% [2.0,15.9] | — (sim-missing) |
+| stairsHeal | trigger/weapon/armor/shield/accessory | B1; base-item/pool dependent | 階段発見時にHPを回復する。 cost=1 | C/sim-missing | 75/75/14/0/0 | 18.7% [11.5,28.9] | — (sim-missing) |
+| identifyDiscount | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | 鑑定費用を軽減する。 cost=1 unit=% | C/sim-missing | 145/145/30/0/0 | 20.7% [14.9,28.0] | — (sim-missing) |
+| materialFind | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | 素材発見率が10%増加する。 cost=2 unit=% | C/sim-missing | 154/154/37/0/0 | 24.0% [18.0,31.4] | — (sim-missing) |
+| contractReward | economy/weapon/armor/shield/accessory | B1; base-item/pool dependent | ランクエスト報酬が10%増加する。 cost=2 unit=% | C/sim-missing | 158/158/34/0/0 | 21.5% [15.8,28.6] | — (sim-missing) |

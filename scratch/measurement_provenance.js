@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import { isMainThread } from "node:worker_threads";
 
@@ -17,11 +18,31 @@ function gitOutput(args, cwd) {
   }
 }
 
+function gitDiffSha256(baseCommit, runnerCommit, cwd, paths = []) {
+  try {
+    const diff = execFileSync("git", [
+      "diff", "--binary", baseCommit, runnerCommit, "--", ...paths
+    ], {
+      cwd,
+      encoding: null,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    return createHash("sha256").update(diff).digest("hex");
+  } catch (error) {
+    const detail = String(error.stderr || "").trim();
+    throw new Error(
+      `measurement provenance failed: git diff --binary ${baseCommit} ${runnerCommit}: ` +
+      `${detail || error.message}`
+    );
+  }
+}
+
 export function resolveMeasurementProvenance({
   cwd = process.cwd(),
   fetchOriginMain = true,
   allowStaleTree = process.env.SIM_ALLOW_STALE_TREE === "1",
-  baseRef = null
+  baseRef = null,
+  measurementRunnerPaths = []
 } = {}) {
   const configuredBaseRef = process.env.SIM_PROVENANCE_BASE_REF || null;
   const configuredBaseCommit = process.env.SIM_PROVENANCE_BASE_COMMIT || null;
@@ -44,6 +65,23 @@ export function resolveMeasurementProvenance({
     );
   }
   if (fetchOriginMain) gitOutput(["fetch", "origin", "main"], cwd);
+
+  const workingTreeStatus = gitOutput(
+    ["status", "--porcelain", "--untracked-files=all"],
+    cwd
+  );
+  const workingTreeClean = workingTreeStatus === "";
+  const workingTreeDirty = !workingTreeClean;
+  const dirtyTreeAllowed = Boolean(
+    testFixture && process.env.SIM_PROVENANCE_ALLOW_DIRTY_TREE === "1"
+  );
+  if (workingTreeDirty && !dirtyTreeAllowed) {
+    throw new Error(
+      "Measurement refused before start: working tree is dirty. " +
+      "Commit or remove all tracked and untracked changes before a real measurement. " +
+      "Only an explicit test fixture may opt in to dirty-tree execution."
+    );
+  }
 
   const sourceCommit = gitOutput(["rev-parse", "HEAD"], cwd);
   const baseRefCommit = gitOutput(["rev-parse", "--verify", `${resolvedBaseRef}^{commit}`], cwd);
@@ -79,6 +117,11 @@ export function resolveMeasurementProvenance({
   }
 
   return Object.freeze({
+    gameplaySourceCommit: baseCommit,
+    measurementRunnerCommit: sourceCommit,
+    measurementRunnerPaths: [...measurementRunnerPaths],
+    measurementRunnerDiffSha256: gitDiffSha256(baseCommit, sourceCommit, cwd, measurementRunnerPaths),
+    // Compatibility alias for existing measurement records.
     sourceCommit,
     baseRef: resolvedBaseRef,
     baseCommit,
@@ -86,7 +129,10 @@ export function resolveMeasurementProvenance({
     testFixture,
     originMainAncestor,
     allowStaleTree,
-    staleTreeAllowed
+    staleTreeAllowed,
+    workingTreeClean,
+    workingTreeDirty,
+    dirtyTreeAllowed
   });
 }
 
