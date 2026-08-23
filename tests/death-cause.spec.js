@@ -51,6 +51,78 @@ test('real trap, status, and combat deaths keep structured causes', async ({ pag
   expect(deaths.combat).toMatchObject({ cause: 'ゴブリン Aの攻撃', type: 'combat', source: 'ゴブリン', turn: 3 });
 });
 
+test('spring poison uses the finite exploration lifecycle', async ({ page }) => {
+  await page.goto('/');
+
+  const lifecycle = await page.evaluate(async () => {
+    const { state, createDefaultCurrentRun, createSoloCharacter, initNewGame } = await import('/src/state.js');
+    const { renderEventSpring } = await import('/src/menu/explore_actions.js');
+    const { applyExplorationPoison } = await import('/src/movement.js');
+    const { EXPLORATION_POISON_DURATION_STEPS, STATUS_EFFECT_IDS } = await import('/src/combat_logic/status_effects.js');
+
+    initNewGame();
+    state.party = [createSoloCharacter('Mage')];
+    state.party[0].hp = 20;
+    state.currentRun = createDefaultCurrentRun();
+    state.floor = 1;
+    state.gameState = 'submenu';
+    state.maps[0][state.y][state.x].event = 'event_spring';
+
+    const options = document.getElementById('submenu-options');
+    options.replaceChildren();
+    const originalRandom = Math.random;
+    const springRolls = [0.75, 0];
+    Math.random = () => springRolls.shift() ?? 0.99;
+    try {
+      renderEventSpring(options);
+      options.querySelector('button').click();
+    } finally {
+      Math.random = originalRandom;
+    }
+
+    const afterSpring = {
+      status: state.party[0].status,
+      remainingTurns: state.party[0].statusEffects[STATUS_EFFECT_IDS.POISONED]?.remainingTurns,
+      source: state.party[0].statusEffects[STATUS_EFFECT_IDS.POISONED]?.source,
+      log: state.logs.at(-1)
+    };
+
+    const step = () => {
+      const savedRandom = Math.random;
+      Math.random = () => 0.99;
+      try {
+        applyExplorationPoison();
+      } finally {
+        Math.random = savedRandom;
+      }
+    };
+    step();
+    const afterFirstStep = {
+      status: state.party[0].status,
+      remainingTurns: state.party[0].statusEffects[STATUS_EFFECT_IDS.POISONED]?.remainingTurns
+    };
+    for (let i = 0; i < EXPLORATION_POISON_DURATION_STEPS - 1; i++) step();
+
+    return {
+      afterSpring,
+      afterFirstStep,
+      afterExpiry: {
+        status: state.party[0].status,
+        hasPoison: Boolean(state.party[0].statusEffects[STATUS_EFFECT_IDS.POISONED])
+      }
+    };
+  });
+
+  expect(lifecycle.afterSpring).toMatchObject({
+    status: 'poisoned',
+    remainingTurns: 10,
+    source: 'spring'
+  });
+  expect(lifecycle.afterSpring.log).toContain('探索中10歩で自然に消える');
+  expect(lifecycle.afterFirstStep).toEqual({ status: 'poisoned', remainingTurns: 9 });
+  expect(lifecycle.afterExpiry).toEqual({ status: 'ok', hasPoison: false });
+});
+
 test('stone tablet trap death is recorded instead of using the old fallback', async ({ page }) => {
   await page.goto('/');
 

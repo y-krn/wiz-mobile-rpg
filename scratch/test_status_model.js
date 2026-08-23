@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 import { SPELL_EFFECTS } from "../src/systems/spell_effects.js";
+import { ITEM_EFFECTS } from "../src/systems/item_effects.js";
 import {
   applyStatusEffect,
   hasStatusEffect,
@@ -110,6 +111,83 @@ test("exploration poison has a finite, probabilistic lifecycle while legacy pois
   assert.equal(legacy.status, "poisoned");
   removeStatusEffect(legacy, STATUS_EFFECT_IDS.POISONED);
   assert.equal(legacy.status, "ok");
+});
+
+test("player poison save/load preserves finite and legacy records with lazy first-step migration", () => {
+  const originalParty = state.party;
+  const originalCombatState = state.combatState;
+  const character = createSoloCharacter("Priest");
+  character.status = STATUS_EFFECT_IDS.POISONED;
+  character.statusEffects = {
+    poisoned: { id: STATUS_EFFECT_IDS.POISONED, remainingTurns: 6, stacks: 1, source: "spring" }
+  };
+  state.party = [character];
+  state.combatState = null;
+
+  try {
+    const currentPayload = JSON.parse(JSON.stringify(createSavePayload()));
+    assert.equal(currentPayload.party[0].statusEffects.poisoned.remainingTurns, 6);
+    assert.equal(currentPayload.party[0].statusEffects.poisoned.source, "spring");
+
+    applySavePayload(migrateSavePayload(currentPayload));
+    assert.equal(state.party[0].status, STATUS_EFFECT_IDS.POISONED);
+    assert.equal(state.party[0].statusEffects.poisoned.remainingTurns, 6);
+
+    const currentTick = resolveExplorationPoisonStep(state.party[0], {
+      rng: () => 0.99,
+      damageChance: 0
+    });
+    assert.equal(currentTick.damage, 0);
+    assert.equal(currentTick.remainingSteps, 5);
+    assert.equal(state.party[0].statusEffects.poisoned.remainingTurns, 5);
+
+    const legacyPayload = JSON.parse(JSON.stringify(currentPayload));
+    delete legacyPayload.party[0].statusEffects;
+    applySavePayload(migrateSavePayload(legacyPayload));
+    assert.equal(state.party[0].status, STATUS_EFFECT_IDS.POISONED);
+    assert.equal(state.party[0].statusEffects.poisoned.remainingTurns, null);
+
+    const legacyTick = resolveExplorationPoisonStep(state.party[0], {
+      rng: () => 0.99,
+      damageChance: 0
+    });
+    assert.equal(legacyTick.damage, 0);
+    assert.equal(legacyTick.remainingSteps, 9);
+    assert.equal(state.party[0].statusEffects.poisoned.remainingTurns, 9);
+  } finally {
+    state.party = originalParty;
+    state.combatState = originalCombatState;
+  }
+});
+
+test("all current poison cures clear both finite and legacy player poison", () => {
+  const cures = [
+    ["ANTIDOTE", ({ char }) => ITEM_EFFECTS.ANTIDOTE({ char })],
+    ["HOLY_WATER", ({ char }) => ITEM_EFFECTS.HOLY_WATER({ char })],
+    ["PANACEA", ({ char }) => ITEM_EFFECTS.PANACEA({ char })],
+    ["LATUMOFIS", ({ char }) => SPELL_EFFECTS.LATUMOFIS({ caster: { name: "Priest" }, target: char })]
+  ];
+
+  cures.forEach(([label, cure]) => {
+    [6, null].forEach(remainingTurns => {
+      const target = {
+        name: `${label}-${remainingTurns ?? "legacy"}`,
+        hp: 10,
+        maxHp: 20,
+        status: STATUS_EFFECT_IDS.POISONED
+      };
+      if (remainingTurns !== null) {
+        target.statusEffects = {
+          poisoned: { id: STATUS_EFFECT_IDS.POISONED, remainingTurns, stacks: 1, source: "chest" }
+        };
+      }
+
+      cure({ char: target });
+
+      assert.equal(target.status, "ok", `${label} should clear ${remainingTurns === null ? "legacy" : "finite"} poison`);
+      assert.equal(hasStatusEffect(target, STATUS_EFFECT_IDS.POISONED), false, `${label} left poison active`);
+    });
+  });
 });
 
 test("normalization removes stale canonical legacy status after direct legacy transition", () => {
