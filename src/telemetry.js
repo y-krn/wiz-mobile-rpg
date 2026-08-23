@@ -1,4 +1,21 @@
-export const TELEMETRY_SCHEMA_VERSION = 1;
+import {
+  getCharAgi,
+  getCharAttackBreakdown,
+  getCharDerivedStats,
+  getCharInt,
+  getCharLuk,
+  getCharMaxHp,
+  getCharMaxMp,
+  getCharPie,
+  getCharStr,
+  getCharVit
+} from "./rules/character_stats.js";
+import { getCharAffixSum, getItemBaseId, getItemData } from "./rules/item_rules.js";
+
+// v2 changes the legacy run_end deathCause value from arbitrary cause text to a
+// bounded category. This is the only existing property whose semantics changed;
+// all other v1 event names and properties remain compatible.
+export const TELEMETRY_SCHEMA_VERSION = 2;
 
 const VALID_OUTCOMES = new Set(["death", "retreat", "abandon"]);
 const VALID_COMBAT_RESULTS = new Set([
@@ -10,6 +27,33 @@ const VALID_COMBAT_RESULTS = new Set([
 ]);
 const VALID_DEATH_TYPES = new Set(["combat", "trap", "status"]);
 const PRE_INIT_BUFFER_LIMIT = 64;
+const INVENTORY_CAPACITY = 20;
+const SNAPSHOT_STAT_KEYS = [
+  "spellGuard",
+  "poisonWard",
+  "firstStrike",
+  "antiDragon",
+  "antiUndead",
+  "arcane",
+  "spellPower",
+  "devotion",
+  "treasureSense",
+  "trapBonus"
+];
+const SAFE_STATUSES = new Set(["ok", "poisoned", "blind", "paralyzed", "paralyze", "sleep", "dead", "ash"]);
+const SAFE_CELL_TYPES = new Set(["floor", "stairs-up", "stairs-down", "pitfall", "room"]);
+const SAFE_CELL_EVENTS = new Set([
+  "chest",
+  "midboss",
+  "boss",
+  "event_spring",
+  "event_camp",
+  "event_tablet",
+  "merchant",
+  "return_portal",
+  "explore_management",
+  "stairs-down"
+]);
 
 let client = null;
 let telemetryState = "uninitialized";
@@ -62,6 +106,191 @@ function removeUndefined(value) {
   return value;
 }
 
+function finiteOrNull(value) {
+  return Number.isFinite(Number(value)) ? Number(value) : null;
+}
+
+function normalizeStatus(status) {
+  return SAFE_STATUSES.has(status) ? status : "other";
+}
+
+function normalizeStableValue(value, allowedValues) {
+  return allowedValues.has(value) ? value : "other";
+}
+
+function getSafeItemId(itemKey) {
+  const id = getItemBaseId(itemKey);
+  return typeof id === "string" && id.trim() ? id : null;
+}
+
+function getItemCategory(itemKey) {
+  const id = getSafeItemId(itemKey);
+  const item = getItemData(itemKey);
+  if (!item || !id) return "unknown";
+  if (item.type === "weapon" || item.type === "shield" || item.type === "armor" || item.type === "accessory") {
+    return "equipment";
+  }
+  if (item.type === "quest") return "quest";
+  if (item.type !== "usable") return "other";
+  if (["HEAL_POTION", "GREATER_HEAL", "HOLY_WATER", "ELIXIR"].includes(id)) return "healing";
+  if (["ANTIDOTE", "EYE_DROPS", "PARALYZE_CURE", "WAKE_POWDER", "PANACEA", "HOLY_WATER", "ELIXIR"].includes(id)) return "cure";
+  if (["MANA_POTION", "ETHER"].includes(id)) return "mana";
+  if (["TOWN_PORTAL", "ESCAPE_SCROLL"].includes(id)) return "return";
+  if (item.combatOnly) return "combat";
+  return "utility";
+}
+
+function getAffixSummary(itemKey) {
+  const affixes = itemKey && typeof itemKey === "object" && Array.isArray(itemKey.affixes)
+    ? itemKey.affixes
+    : [];
+  return {
+    count: affixes.length,
+    coreCount: affixes.filter(affix => (affix?.kind || "support") === "core").length,
+    supportCount: affixes.filter(affix => (affix?.kind || "support") === "support").length,
+    types: [...new Set(affixes.map(affix => affix?.type).filter(type => typeof type === "string"))].slice(0, 8)
+  };
+}
+
+export function buildPlayerSnapshot(character, { floor = 1 } = {}) {
+  if (!character) return {};
+  const status = normalizeStatus(character.status);
+  let derived = {};
+  let attack = {};
+  try {
+    derived = getCharDerivedStats(character, { floor });
+    attack = getCharAttackBreakdown(character);
+  } catch {
+    // Malformed optional state must never interfere with gameplay.
+  }
+  const snapshot = {
+    playerClass: typeof character.class === "string" ? character.class : null,
+    level: finiteOrNull(character.level),
+    hp: finiteOrNull(character.hp),
+    maxHp: finiteOrNull(getCharMaxHp(character)),
+    mp: finiteOrNull(character.mp),
+    maxMp: finiteOrNull(getCharMaxMp(character)),
+    status,
+    statuses: [status],
+    statusCount: status === "ok" ? 0 : 1,
+    attack: finiteOrNull(derived.attack ?? attack.total),
+    attackBase: finiteOrNull(attack.base),
+    attackEquipment: finiteOrNull(attack.equipment),
+    defense: finiteOrNull(derived.defense),
+    magic: finiteOrNull(derived.magic),
+    healing: finiteOrNull(derived.healing),
+    speed: finiteOrNull(derived.speed),
+    trap: finiteOrNull(derived.trap),
+    treasure: finiteOrNull(derived.treasure),
+    str: finiteOrNull(getCharStr(character)),
+    int: finiteOrNull(getCharInt(character)),
+    pie: finiteOrNull(getCharPie(character)),
+    vit: finiteOrNull(getCharVit(character)),
+    agi: finiteOrNull(getCharAgi(character)),
+    luk: finiteOrNull(getCharLuk(character))
+  };
+  snapshot.hpRate = snapshot.maxHp > 0 ? snapshot.hp / snapshot.maxHp : null;
+  snapshot.mpRate = snapshot.maxMp > 0 ? snapshot.mp / snapshot.maxMp : null;
+  SNAPSHOT_STAT_KEYS.forEach(key => {
+    snapshot[`affix${key[0].toUpperCase()}${key.slice(1)}`] = finiteOrNull(getCharAffixSum(character, key));
+  });
+  return snapshot;
+}
+
+export function buildEquipmentSnapshot(character) {
+  const slots = Object.entries(character?.equipment || {});
+  const equipment = slots.map(([slot, itemKey]) => {
+    const item = getItemData(itemKey);
+    const affixSummary = getAffixSummary(itemKey);
+    return {
+      slot,
+      id: getSafeItemId(itemKey),
+      rarity: itemKey?.identified === true ? (item?.rarity ?? null) : null,
+      identified: itemKey == null || typeof itemKey !== "object" || itemKey.identified === true,
+      enhancementLevel: finiteOrNull(itemKey?.enhanceLevel ?? 0),
+      affixCount: affixSummary.count,
+      coreAffixCount: affixSummary.coreCount,
+      supportAffixCount: affixSummary.supportCount,
+      affixTypes: affixSummary.types,
+      cursed: Boolean(itemKey?.curseEffectId || itemKey?.curseLocked)
+    };
+  });
+  return {
+    equipmentIds: equipment.map(item => item.id),
+    equipmentSlots: equipment.map(item => item.slot),
+    equipmentRarities: equipment.map(item => item.rarity),
+    equipmentIdentified: equipment.map(item => item.identified),
+    equipmentEnhancementLevels: equipment.map(item => item.enhancementLevel),
+    equipmentAffixCounts: equipment.map(item => item.affixCount),
+    equipmentCoreAffixCounts: equipment.map(item => item.coreAffixCount),
+    equipmentSupportAffixCounts: equipment.map(item => item.supportAffixCount),
+    equipmentAffixTypes: equipment.flatMap(item => item.affixTypes).slice(0, 24),
+    equipmentCursed: equipment.map(item => item.cursed)
+  };
+}
+
+export function buildResourceSnapshot(stateSnapshot) {
+  const inventory = Array.isArray(stateSnapshot?.inventory) ? stateSnapshot.inventory : [];
+  const categoryCounts = inventory.reduce((counts, itemKey) => {
+    const category = getItemCategory(itemKey);
+    counts[category] = (counts[category] || 0) + 1;
+    return counts;
+  }, {});
+  const materials = stateSnapshot?.currentRun?.materials || {};
+  const metaMaterials = stateSnapshot?.metaMaterials || {};
+  return {
+    inventoryCount: inventory.length,
+    inventoryCapacity: INVENTORY_CAPACITY,
+    inventoryEquipmentCount: categoryCounts.equipment || 0,
+    inventoryQuestCount: categoryCounts.quest || 0,
+    inventoryConsumableCount: inventory.length - (categoryCounts.equipment || 0) - (categoryCounts.quest || 0),
+    consumableHealingCount: categoryCounts.healing || 0,
+    consumableCureCount: categoryCounts.cure || 0,
+    consumableManaCount: categoryCounts.mana || 0,
+    consumableReturnCount: categoryCounts.return || 0,
+    consumableCombatCount: categoryCounts.combat || 0,
+    consumableUtilityCount: categoryCounts.utility || 0,
+    identifyTickets: finiteOrNull(stateSnapshot?.identifyTickets),
+    runMaterialCount: Object.values(materials).reduce((sum, value) => sum + (Number(value) || 0), 0),
+    metaMaterialCount: Object.values(metaMaterials).reduce((sum, value) => sum + (Number(value) || 0), 0)
+  };
+}
+
+export function buildEnvironmentSnapshot(stateSnapshot, combat = null) {
+  const cell = stateSnapshot?.map?.[stateSnapshot?.y]?.[stateSnapshot?.x];
+  const run = stateSnapshot?.currentRun;
+  const monsters = combat?.monsters || stateSnapshot?.combatState?.monsters || [];
+  return {
+    floor: finiteOrNull(stateSnapshot?.floor ?? combat?.floor),
+    gameState: typeof stateSnapshot?.gameState === "string" ? stateSnapshot.gameState : null,
+    currentCellType: normalizeStableValue(cell?.type, SAFE_CELL_TYPES),
+    currentCellEvent: normalizeStableValue(cell?.event, SAFE_CELL_EVENTS),
+    runDeepestFloor: finiteOrNull(run?.deepestFloor),
+    runSteps: finiteOrNull(run?.steps),
+    runBattles: finiteOrNull(run?.battles),
+    runChestsOpened: finiteOrNull(run?.chestsOpened),
+    runTrapsTriggered: finiteOrNull(run?.trapsTriggered),
+    enemyIds: monsters.map(monster => normalizeEnemyId(monster?.name)),
+    enemyCount: monsters.length,
+    enemyAliveCount: monsters.filter(monster => monster?.hp > 0 && !monster?.fled).length,
+    enemyBossFlags: monsters.map(monster => Boolean(monster?.isBoss || monster?.boss)),
+    isBoss: Boolean(combat?.isBoss ?? stateSnapshot?.combatState?.isBoss),
+    isMidboss: Boolean(combat?.isMidboss ?? stateSnapshot?.combatState?.isMidboss),
+    isRoamingFlack: Boolean(combat?.isRoamingFlack ?? stateSnapshot?.combatState?.isRoamingFlack),
+    combatRound: finiteOrNull(stateSnapshot?.combatState?.roundNumber ?? combat?.roundNumber),
+    combatPhase: typeof stateSnapshot?.combatState?.phase === "string" ? stateSnapshot.combatState.phase : null
+  };
+}
+
+export function buildDecisionContext({ state: stateSnapshot = null, character = null, combat = null } = {}) {
+  return {
+    ...buildPlayerSnapshot(character || stateSnapshot?.party?.[0], { floor: stateSnapshot?.floor ?? combat?.floor ?? 1 }),
+    ...buildEquipmentSnapshot(character || stateSnapshot?.party?.[0]),
+    ...buildResourceSnapshot(stateSnapshot),
+    ...buildEnvironmentSnapshot(stateSnapshot, combat)
+  };
+}
+
 export function normalizeEnemyId(name) {
   const normalized = String(name ?? "").replace(/\s[A-Z]$/, "").trim();
   return normalized || "unknown";
@@ -91,7 +320,42 @@ export function normalizeDeathType(type) {
 function normalizeDeathCause(cause) {
   if (typeof cause !== "string") return null;
   const normalized = cause.trim();
-  return normalized || null;
+  if (!normalized) return null;
+  if (/毒|poison/i.test(normalized)) return "poison";
+  if (/罠|trap|矢|火炎/i.test(normalized)) return "trap";
+  if (/戦闘|combat|との戦闘/i.test(normalized)) return "combat";
+  if (/石碑|泉|status|状態/i.test(normalized)) return "event_or_status";
+  return "other";
+}
+
+function safeDecisionContext(options) {
+  try {
+    return buildDecisionContext(options);
+  } catch {
+    return {};
+  }
+}
+
+function normalizeDecisionAction(action) {
+  return {
+    fight: "attack",
+    attack: "attack",
+    run: "flee",
+    flee: "flee",
+    heal: "heal",
+    cure: "cure",
+    rest: "heal",
+    drink: "heal",
+    return: "return",
+    continue: "continue",
+    descend: "descend",
+    compare: "compare",
+    equip: "equip",
+    unequip: "unequip",
+    discard: "discard",
+    identify: "identify",
+    investigate: "investigate"
+  }[action] || "other";
 }
 
 function initializeTelemetry() {
@@ -176,6 +440,11 @@ export function trackChestAction(chest, action, details = {}) {
 
   capture("chest_action", {
     runId,
+    ...safeDecisionContext({
+      state: details.state,
+      character: details.character,
+      combat: details.combat
+    }),
     floor: details.floor,
     chestSource: chest?.fromDrop ? "fromDrop" : "ordinary",
     fromDrop: Boolean(chest?.fromDrop),
@@ -209,7 +478,7 @@ export function trackChestSmashResult(chest, details = {}) {
   });
 }
 
-export function trackRunStart(run, character) {
+export function trackRunStart(run, character, stateSnapshot = null) {
   if (!isTelemetryAvailable()) return;
   runId = createRuntimeId("run");
   combatId = null;
@@ -217,16 +486,21 @@ export function trackRunStart(run, character) {
 
   capture("run_start", {
     runId,
+    ...safeDecisionContext({ state: stateSnapshot, character }),
     playerClass: character?.class ?? run?.characterClass ?? null,
     level: character?.level,
     startFloor: run?.startFloor,
-    maxHp: character?.maxHp,
-    maxMp: character?.maxMp,
+    // Preserve v1 raw capacity fields while exposing effective capacities via
+    // the shared snapshot fields above and these explicit v2 aliases.
+    maxHp: finiteOrNull(character?.maxHp),
+    maxMp: finiteOrNull(character?.maxMp),
+    effectiveMaxHp: finiteOrNull(getCharMaxHp(character)),
+    effectiveMaxMp: finiteOrNull(getCharMaxMp(character)),
     equipmentIds: Object.values(character?.equipment ?? {}).filter(value => typeof value === "string")
   });
 }
 
-export function trackCombatStart(combat) {
+export function trackCombatStart(combat, stateSnapshot = null) {
   if (!isTelemetryAvailable() || !runId) return;
   combatId = createRuntimeId("combat");
   combatEnded = false;
@@ -234,6 +508,7 @@ export function trackCombatStart(combat) {
   capture("combat_start", {
     runId,
     combatId,
+    ...safeDecisionContext({ state: stateSnapshot, character: combat?.player, combat }),
     floor: combat?.floor,
     playerClass: combat?.player?.class,
     playerHp: combat?.player?.hp,
@@ -267,13 +542,14 @@ export function trackDamageReceived(damage) {
   });
 }
 
-export function trackCombatEnd(result, combat) {
+export function trackCombatEnd(result, combat, stateSnapshot = null) {
   if (!isTelemetryAvailable() || !runId || !combatId || combatEnded) return;
   combatEnded = true;
 
   capture("combat_end", {
     runId,
     combatId,
+    ...safeDecisionContext({ state: stateSnapshot, character: combat?.player, combat }),
     floor: combat?.floor,
     result: normalizeCombatResult(result),
     turns: combat?.turns,
@@ -283,7 +559,7 @@ export function trackCombatEnd(result, combat) {
   });
 }
 
-export function trackRunEnd(run, outcome) {
+export function trackRunEnd(run, outcome, stateSnapshot = null) {
   if (!isTelemetryAvailable() || !runId) return;
 
   const latestDeath = Array.isArray(run?.deathLogs) ? run.deathLogs.at(-1) : null;
@@ -291,6 +567,7 @@ export function trackRunEnd(run, outcome) {
   const deathSource = latestDeath?.source ? normalizeEnemyId(latestDeath.source) : null;
   capture("run_end", {
     runId,
+    ...safeDecisionContext({ state: stateSnapshot, character: stateSnapshot?.party?.[0] }),
     playerClass: run?.characterClass,
     outcome: normalizeOutcome(outcome),
     returnReason: run?.returnReason ?? null,
@@ -312,6 +589,58 @@ export function trackRunEnd(run, outcome) {
   runId = null;
   combatId = null;
   combatEnded = false;
+}
+
+export function trackCombatDecision(action, details = {}) {
+  if (!isTelemetryAvailable() || !runId || !combatId) return;
+  const combat = details.combat || details.state?.combatState || null;
+  const monsters = combat?.monsters || [];
+  const target = Number.isInteger(details.targetIdx) ? monsters[details.targetIdx] : null;
+  capture("combat_decision", {
+    runId,
+    combatId,
+    ...safeDecisionContext({ state: details.state, character: details.character, combat }),
+    action: normalizeDecisionAction(action),
+    actorIndex: finiteOrNull(details.actorIdx),
+    targetIndex: finiteOrNull(details.targetIdx),
+    targetEnemyId: target ? normalizeEnemyId(target.name) : null,
+    spellId: typeof details.spellName === "string" ? details.spellName : null,
+    itemId: getSafeItemId(details.itemKey),
+    itemCategory: getItemCategory(details.itemKey)
+  });
+}
+
+export function trackExplorationDecision(action, details = {}) {
+  if (!isTelemetryAvailable() || !runId) return;
+  capture("exploration_decision", {
+    runId,
+    ...safeDecisionContext({ state: details.state, character: details.character }),
+    action: normalizeDecisionAction(action),
+    source: normalizeStableValue(details.source, SAFE_CELL_EVENTS),
+    itemId: getSafeItemId(details.itemKey),
+    itemCategory: getItemCategory(details.itemKey)
+  });
+}
+
+export function trackEquipmentDecision(action, details = {}) {
+  if (!isTelemetryAvailable() || !runId) return;
+  const preview = details.preview || {};
+  const diffRows = Array.isArray(preview.rows) ? preview.rows : [];
+  capture("equipment_decision", {
+    runId,
+    ...safeDecisionContext({ state: details.state, character: details.character }),
+    action: normalizeDecisionAction(action),
+    candidateId: getSafeItemId(details.candidateKey),
+    currentEquipmentId: getSafeItemId(details.currentKey ?? preview.oldEq),
+    slot: typeof preview.slot === "string" ? preview.slot : null,
+    candidateRarity: details.candidateKey?.identified === true ? (preview.item?.rarity ?? null) : null,
+    candidateIdentified: details.candidateKey == null || typeof details.candidateKey !== "object" || details.candidateKey.identified === true,
+    candidateEnhancementLevel: finiteOrNull(details.candidateKey?.enhanceLevel ?? 0),
+    primaryDiff: finiteOrNull(preview.primaryDiff),
+    comparisonStatKeys: diffRows.map(row => row.key).filter(key => typeof key === "string").slice(0, 24),
+    comparisonDiffs: diffRows.map(row => finiteOrNull(row.diff)).slice(0, 24),
+    comparisonAvailable: diffRows.length > 0
+  });
 }
 
 export function __setTelemetryClientForTests(testClient) {

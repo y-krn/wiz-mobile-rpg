@@ -59,7 +59,7 @@ export function resolveCombatRound() {
       turns: state.combatState.roundNumber,
       player: state.party[0],
       monsters: state.combatState.monsters
-    });
+    }, state);
   }
   saveAutosave();
 

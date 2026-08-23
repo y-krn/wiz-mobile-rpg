@@ -719,7 +719,7 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   state.currentRun.characterClass = state.party[0]?.class || null;
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
-  trackRunStart(state.currentRun, state.party[0]);
+  trackRunStart(state.currentRun, state.party[0], state);
   assignRunQuests(state.currentRun);
   resetRunFloors(state);
   ensureRunFloor(state, floor);

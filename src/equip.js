@@ -38,6 +38,7 @@ import {
   getEquipmentSlot,
   getEquipmentSlotsForType
 } from "./rules/equipment_slots.js";
+import { trackEquipmentDecision } from "./telemetry.js";
 
 export let equipState = {
   mode: "equip",
@@ -645,6 +646,13 @@ function createEquipmentList(char, savedScrollTop) {
         if (selected) {
           clearSelection();
         } else {
+          trackEquipmentDecision("compare", {
+            state,
+            character: char,
+            candidateKey: itemKey,
+            currentKey: preview?.oldEq,
+            preview
+          });
           equipState.selectedIdx = idx;
           equipState.selectedKey = itemKey;
           equipState.selectedSlot = preview?.slot || getDefaultTargetSlot(char, item.type);
@@ -1061,6 +1069,12 @@ function createDetailPanel(char) {
       const slot = equipState.selectedSlot;
       const currentItemKey = currentChar.equipment[slot];
       const itemData = getItemData(currentItemKey);
+      trackEquipmentDecision("unequip", {
+        state,
+        character: currentChar,
+        currentKey: currentItemKey,
+        preview
+      });
 
       currentChar.equipment[slot] = null;
       state.inventory.push(currentItemKey);
@@ -1086,6 +1100,12 @@ function createDetailPanel(char) {
       identifyBtn.addEventListener("click", () => {
         const selectedItem = state.inventory[equipState.selectedIdx];
         const currentChar = state.party[equipState.actorIdx];
+        trackEquipmentDecision("identify", {
+          state,
+          character: currentChar,
+          candidateKey: selectedItem,
+          preview
+        });
         const result = identifyEquipment(state, selectedItem, currentChar);
         if (!result.ok) return;
         const revealedData = getItemData(selectedItem);
@@ -1111,6 +1131,13 @@ function createDetailPanel(char) {
       const selectedData = getItemData(selectedItem);
       const slot = preview?.slot || getDefaultTargetSlot(currentChar, selectedData.type);
       const oldEq = currentChar.equipment[slot];
+      trackEquipmentDecision("equip", {
+        state,
+        character: currentChar,
+        candidateKey: selectedItem,
+        currentKey: oldEq,
+        preview
+      });
 
       currentChar.equipment[slot] = selectedItem;
       if (oldEq) {
@@ -1143,6 +1170,12 @@ function createDetailPanel(char) {
       discardBtn.className = "btn btn-danger btn-block equip-action-btn";
       discardBtn.textContent = "破棄する";
       discardBtn.addEventListener("click", () => {
+        trackEquipmentDecision("discard", {
+          state,
+          character: state.party[equipState.actorIdx],
+          candidateKey: itemKey,
+          preview
+        });
         discardEquipment(equipState.selectedIdx, itemKey);
       });
       actions.appendChild(discardBtn);

@@ -4,6 +4,10 @@ import {
   __resetTelemetryForTests,
   __setTelemetryInitializationForTests,
   __setTelemetryClientForTests,
+  buildDecisionContext,
+  buildEquipmentSnapshot,
+  buildPlayerSnapshot,
+  buildResourceSnapshot,
   normalizeCombatResult,
   normalizeDeathType,
   normalizeEnemyId,
@@ -11,8 +15,12 @@ import {
   resolvePostHogApiHost,
   trackCombatEnd,
   trackCombatStart,
+  trackCombatDecision,
+  trackEquipmentDecision,
+  trackChestAction,
   trackDamageReceived,
   trackEvent,
+  trackExplorationDecision,
   trackRunEnd,
   trackRunStart
 } from "../src/telemetry.js";
@@ -106,7 +114,7 @@ check("properties are normalized and undefined values are removed", () => {
   trackEvent("custom", { defined: 1, missing: undefined, nested: { missing: undefined, value: null } });
   assert.deepEqual(events[0], {
     name: "custom",
-    properties: { schemaVersion: 1, defined: 1, nested: { value: null } }
+    properties: { schemaVersion: 2, defined: 1, nested: { value: null } }
   });
 });
 
@@ -140,11 +148,144 @@ check("run end sends the existing death-log cause with normalized fields", () =>
   assert.equal(properties.outcome, "death");
   assert.equal(properties.deathType, "status");
   assert.equal(properties.deathSource, "毒");
-  assert.equal(properties.deathCause, "毒のダメージ");
+  assert.equal(properties.deathCause, "poison");
   assert.equal(properties.returnReason, "gameover");
   assert.equal(Object.hasOwn(properties, "charName"), false);
   assert.equal(Object.hasOwn(properties, "cause"), false);
   assert.equal(Object.hasOwn(properties, "freeTextDeathCause"), false);
+});
+
+const decisionPlayer = {
+  class: "Mage",
+  level: 3,
+  hp: 18,
+  maxHp: 24,
+  mp: 7,
+  maxMp: 12,
+  status: "poisoned",
+  str: 8,
+  int: 16,
+  pie: 12,
+  vit: 9,
+  agi: 11,
+  luk: 10,
+  equipment: {
+    weapon: "WAND",
+    shield: null,
+    armor: "ROBE",
+    accessory: null,
+    accessory2: null
+  }
+};
+const decisionState = {
+  party: [decisionPlayer],
+  inventory: ["HEAL_POTION", "ANTIDOTE", "MANA_POTION", "ESCAPE_SCROLL", "DAGGER"],
+  identifyTickets: 2,
+  metaMaterials: { "黒角": 4 },
+  floor: 2,
+  gameState: "combat",
+  x: 0,
+  y: 0,
+  map: [[{ type: "floor", event: null }]],
+  currentRun: {
+    materials: { "黒角": 3 },
+    deepestFloor: 2,
+    steps: 8,
+    battles: 2,
+    chestsOpened: 1,
+    trapsTriggered: 1
+  }
+};
+const decisionCombat = {
+  floor: 2,
+  roundNumber: 4,
+  phase: "choose_actions",
+  monsters: [{ name: "ゴブリン A", hp: 10, isBoss: false }, { name: "竜王 B", hp: 20, isBoss: true }],
+  isBoss: true
+};
+
+check("shared snapshots use bounded production-derived values", () => {
+  const playerSnapshot = buildPlayerSnapshot(decisionPlayer, { floor: 2 });
+  const equipmentSnapshot = buildEquipmentSnapshot(decisionPlayer);
+  const resourceSnapshot = buildResourceSnapshot(decisionState);
+  const context = buildDecisionContext({ state: decisionState, character: decisionPlayer, combat: decisionCombat });
+  assert.equal(playerSnapshot.hpRate, 0.75);
+  assert.equal(playerSnapshot.statusCount, 1);
+  assert.equal(typeof playerSnapshot.attack, "number");
+  assert.equal(equipmentSnapshot.equipmentIds[0], "WAND");
+  assert.equal(equipmentSnapshot.equipmentIdentified[0], true);
+  assert.equal(resourceSnapshot.inventoryCapacity, 20);
+  assert.equal(resourceSnapshot.consumableHealingCount, 1);
+  assert.equal(resourceSnapshot.consumableCureCount, 1);
+  assert.equal(resourceSnapshot.consumableManaCount, 1);
+  assert.equal(context.enemyCount, 2);
+  assert.deepEqual(context.enemyIds, ["ゴブリン", "竜王"]);
+});
+
+check("decision events share context and keep action identifiers stable", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart({ ...run, characterClass: "Mage" }, decisionPlayer, decisionState);
+  trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
+  trackCombatDecision("fight", {
+    state: decisionState,
+    character: decisionPlayer,
+    combat: decisionCombat,
+    actorIdx: 0,
+    targetIdx: 1
+  });
+  trackExplorationDecision("heal", {
+    state: { ...decisionState, gameState: "explore" },
+    character: decisionPlayer,
+    source: "event_camp"
+  });
+  trackEquipmentDecision("compare", {
+    state: decisionState,
+    character: decisionPlayer,
+    candidateKey: "DAGGER",
+    currentKey: "WAND",
+    preview: {
+      item: { rarity: "common" },
+      slot: "weapon",
+      primaryDiff: 2,
+      oldEq: "WAND",
+      rows: [{ key: "attack", diff: 2 }]
+    }
+  });
+  const combatEvent = events.find(event => event.name === "combat_decision");
+  const explorationEvent = events.find(event => event.name === "exploration_decision");
+  const equipmentEvent = events.find(event => event.name === "equipment_decision");
+  assert.equal(combatEvent.properties.action, "attack");
+  assert.equal(combatEvent.properties.targetEnemyId, "竜王");
+  assert.equal(combatEvent.properties.enemyCount, 2);
+  assert.equal(explorationEvent.properties.action, "heal");
+  assert.equal(explorationEvent.properties.source, "event_camp");
+  assert.equal(equipmentEvent.properties.action, "compare");
+  assert.equal(equipmentEvent.properties.candidateId, "DAGGER");
+  assert.deepEqual(equipmentEvent.properties.comparisonDiffs, [2]);
+});
+
+check("chest and run events include common resource and status context", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackChestAction({ fromDrop: false, inspected: true }, "disarm", {
+    state: decisionState,
+    character: decisionPlayer,
+    floor: 2,
+    trap: "poison needle",
+    inventoryCount: 5,
+    hasTrapKit: false,
+    rewardCount: 1
+  });
+  trackRunEnd(run, "retreat", { ...decisionState, gameState: "result" });
+  const chestEvent = events.find(event => event.name === "chest_action");
+  const endEvent = events.find(event => event.name === "run_end");
+  assert.equal(chestEvent.properties.playerClass, "Mage");
+  assert.equal(chestEvent.properties.status, "poisoned");
+  assert.equal(chestEvent.properties.inventoryCapacity, 20);
+  assert.equal(endEvent.properties.hpRate, 0.75);
+  assert.equal(endEvent.properties.runMaterialCount, 3);
 });
 
 check("lifecycle events emitted before SDK initialization are flushed in order", () => {
