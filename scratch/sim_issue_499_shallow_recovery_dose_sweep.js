@@ -30,7 +30,7 @@ const R95 = 1.959963984540054;
 const OUTPUT_STEM = process.env.SIM_RESULT_BASENAME || "issue-499-shallow-recovery-supply";
 const SMOKE = process.env.ISSUE499_SMOKE === "1";
 const FIXED_DETECTION_SCENARIO = process.env.ISSUE499_FIXED_DETECTION === "1"
-  ? { floorTrapDetection: "certain", trapSenseDisposition: "disarm" }
+  ? { floorTrapDetection: "certain" }
   : {};
 
 const ENV_DEFAULTS = Object.freeze({
@@ -356,7 +356,7 @@ function buildMarkdown(summary) {
   lines.push(`- seed=${summary.seed}、targetDepth=B20終了、4職、N=${summary.runsPerClass}/職（${summary.runsPerCondition}/条件）、条件数=${summary.conditions.length}、総行数=${summary.rawRows}`);
   lines.push(`- 工房分布=${WORKSHOP_DISTRIBUTION.map(row => `${row.scenarioId}:${row.observedRuns}/${WORKSHOP_TOTAL}`).join(" / ")}`);
   lines.push(`- 用量target=${DOSE_TARGETS.map(value => `+${value.toFixed(1)}`).join(" / ")}、宝箱chance=${DOSE_CHANCES.join(",")}`);
-  lines.push(`- 床罠察知: ${summary.environment.ISSUE499_FIXED_DETECTION === "1" ? "確定（trapSenseは解除へ転換）" : "source既定"}`);
+  lines.push(`- 床罠察知: ${summary.environment.ISSUE499_FIXED_DETECTION === "1" ? "確定（既存の罠ボーナスは解除へ転換）" : "source既定"}`);
   lines.push("- 現行緩和: `TOWN_PORTAL`、状態異常治療、鑑定粉、現行戦闘/報酬/装備更新、既存B2/B4 camp、#481出発kit。");
   lines.push("- Wilson 95% CI、平均値は正規近似95% CI。N<30は未確定。E/X/D/Rはentrant / breakthrough / death / retreatで、各endpoint内splitは100%。", "");
   lines.push("## 用量掃引", "");
