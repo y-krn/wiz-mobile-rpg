@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   SIMULATION_MANIFEST,
   assertBalanceImpactCovered,
+  analyzeBalanceImpact,
   assertRuntimeMechanismsFired,
   assertValidSimulationManifest,
   currentChangedFiles,
@@ -390,10 +391,16 @@ assert.throws(
   () => assertBalanceImpactCovered(["src/rules/status_effect_rules.js"], SIMULATION_MANIFEST, firstSmoke),
   /unknown production path/
 );
-assert.throws(
-  () => assertBalanceImpactCovered(currentChangedFiles(), SIMULATION_MANIFEST, firstSmoke),
-  /telemetry anchor mixed/,
-  "non-pure telemetry context must not receive a telemetry-only exemption"
+const finalDiffReport = analyzeBalanceImpact(
+  currentChangedFiles({ baseRef: process.env.BASE_REF || "origin/main" }),
+  SIMULATION_MANIFEST,
+  firstSmoke,
+  { baseRef: process.env.BASE_REF || "origin/main" }
+);
+assert.deepEqual(
+  finalDiffReport.errors,
+  [],
+  `actual final diff balance-impact gate failed: ${finalDiffReport.errors.join("; ")}`
 );
 assert.throws(
   () => assertRuntimeMechanismsFired({ ...firstSmoke, floorsTraversed: 0, reachedFloor: 999 }),

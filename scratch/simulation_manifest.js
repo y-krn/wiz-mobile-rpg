@@ -408,7 +408,8 @@ export function currentChangedFiles({ baseRef = process.env.BASE_REF || "origin/
 
 const TELEMETRY_CONTEXT_KEYS = new Set([
   "state", "character", "combat", "actorIdx", "targetIdx", "spellName", "itemKey",
-  "currentKey", "candidateKey", "preview", "source", "charOriginalIdx", "dir"
+  "currentKey", "candidateKey", "preview", "source", "charOriginalIdx", "dir",
+  "itemAction", "direction"
 ]);
 
 function isTelemetryImport(line) {
@@ -460,7 +461,16 @@ function hasUnsafeExpressionSyntax(line) {
 
 const SAFE_TELEMETRY_ARGUMENT_IDENTIFIERS = new Set([
   ...TELEMETRY_CONTEXT_KEYS,
-  "char", "character", "combat", "currentChar", "caster", "event", "action", "undefined"
+  "char", "character", "combat", "currentChar", "caster", "event", "action", "run", "outcome",
+  "currentItemKey", "selectedItem", "oldEq", "undefined"
+]);
+
+const SAFE_TELEMETRY_CONTEXT_PATHS = Object.freeze([
+  /^state\.combatState$/,
+  /^state\.party\[(?:0|equipState\.actorIdx)\]$/,
+  /^state\.map\?\.\[state\.y\]\?\.\[state\.x\]\?\.event$/,
+  /^preview\?\.oldEq$/,
+  /^menuContext\.(?:itemKey|spellName)$/
 ]);
 
 function stripQuotedContent(value) {
@@ -486,7 +496,10 @@ function stripQuotedContent(value) {
 }
 
 function hasUnvalidatedMemberRead(line) {
-  const code = stripQuotedContent(line);
+  let code = stripQuotedContent(line);
+  for (const pattern of SAFE_TELEMETRY_CONTEXT_PATHS) {
+    code = code.replace(new RegExp(pattern.source.replace(/^\^|\$$/g, ""), "g"), "safe_context");
+  }
   return /\.\.\.|\?\.|\.[A-Za-z_$][A-Za-z0-9_$]*|\b[A-Za-z_$][A-Za-z0-9_$]*\s*\[/.test(code);
 }
 
@@ -550,12 +563,14 @@ function getCompleteCallArguments(line) {
   return null;
 }
 
-function isSafeTelemetryArgumentExpression(expression, { allowIdentifier = true } = {}) {
+function isSafeTelemetryArgumentExpression(expression, { allowCurrentRun = false } = {}) {
   const trimmed = expression.trim();
   if (/^(?:null|true|false|undefined|-?\d+(?:\.\d+)?|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')$/.test(trimmed)) {
     return true;
   }
-  if (allowIdentifier && SAFE_TELEMETRY_ARGUMENT_IDENTIFIERS.has(trimmed)) return true;
+  if (SAFE_TELEMETRY_ARGUMENT_IDENTIFIERS.has(trimmed)) return true;
+  if (allowCurrentRun && trimmed === "state.currentRun") return true;
+  if (SAFE_TELEMETRY_CONTEXT_PATHS.some(pattern => pattern.test(trimmed))) return true;
   if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return false;
 
   const fields = splitTopLevel(trimmed.slice(1, -1));
@@ -575,14 +590,6 @@ function hasUnsafeTelemetryArgumentSyntax(line) {
     || /=>/.test(stripQuotedContent(line));
 }
 
-const SAFE_TELEMETRY_CONTEXT_PATHS = Object.freeze([
-  /^state\.combatState$/,
-  /^state\.party\[(?:0|equipState\.actorIdx)\]$/,
-  /^state\.map\?\.\[state\.y\]\?\.\[state\.x\]\?\.event$/,
-  /^preview\?\.oldEq$/,
-  /^menuContext\.(?:itemKey|spellName)$/
-]);
-
 function isPureContextExpression(expression) {
   const trimmed = expression.trim();
   if (/^(?:null|true|false|-?\d+(?:\.\d+)?|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')$/.test(trimmed)) {
@@ -594,14 +601,15 @@ function isPureContextExpression(expression) {
 
 function isTelemetryCall(line) {
   const trimmed = line.trim();
+  const isRunStartCall = /^trackRunStart\s*\(/.test(trimmed);
   if (hasGameplayMutation(trimmed) || hasNestedCall(trimmed) || hasUnsafeExpressionSyntax(trimmed)) return false;
-  if (hasUnsafeTelemetryArgumentSyntax(trimmed)) return false;
+  if (hasUnsafeTelemetryArgumentSyntax(trimmed) && !isRunStartCall) return false;
   if (!/^track[A-Z][A-Za-z0-9]*\s*\([^;]*\)?;?$/.test(trimmed)) return false;
 
   const argumentsText = getCompleteCallArguments(trimmed);
   if (argumentsText === null) return /(?:\{|,)\s*$/.test(trimmed);
-  return splitTopLevel(argumentsText).every((argument, index) =>
-    isSafeTelemetryArgumentExpression(argument, { allowIdentifier: index > 0 })
+  return splitTopLevel(argumentsText).every(argument =>
+    isSafeTelemetryArgumentExpression(argument, { allowCurrentRun: isRunStartCall })
   );
 }
 
@@ -617,15 +625,126 @@ function isTelemetryContextLine(line) {
   return TELEMETRY_CONTEXT_KEYS.has(key) && isPureContextExpression(value);
 }
 
-function isTelemetryOnlyHunk(lines) {
+function getTelemetryImportLineIndexes(lines) {
+  const indexes = new Set();
+  for (let index = 0; index < lines.length; index++) {
+    const firstLine = lines[index].slice(1).trim();
+    if (!/^import\s*\{/.test(firstLine)) continue;
+    let end = index;
+    while (end < lines.length && !/from\s+["'][^"']*telemetry\.js["']\s*;?$/.test(lines[end].slice(1).trim())) end++;
+    if (end >= lines.length) continue;
+    const importText = lines.slice(index, end + 1).map(line => line.slice(1).trim()).join(" ");
+    if (/^import\s*\{\s*(?:track[A-Z][A-Za-z0-9]*\s*,?\s*)+\}\s*from\s+["'][^"']*telemetry\.js["']\s*;?$/.test(importText)) {
+      for (let lineIndex = index; lineIndex <= end; lineIndex++) indexes.add(lineIndex);
+      index = end;
+    }
+  }
+  return indexes;
+}
+
+function hasGameplayStateMutation(line) {
+  const code = stripQuotedContent(line);
+  return /\b(?:state|character|combat)(?:(?:\?\.|\.)[A-Za-z_$][A-Za-z0-9_$]*|\s*\[[^\]]+\])+\s*(?:\+=|-=|\*=|\/=|%=|&=|\|=|\^=|<<=|>>=|>>>=|\+\+|--|=(?!=|>))/.test(code);
+}
+
+function isTelemetryWrapperLine(line, file) {
+  if (!new Set(["src/menu/milestone_portal.js", "src/menu/stairs_down.js"]).has(file)) return false;
+  const trimmed = line.trim();
+  return /^[A-Za-z_$][A-Za-z0-9_$]*\.addEventListener\("click", \(\) => \{$/.test(trimmed)
+    || /^(?:triggerRunResult\([^;]*\)|closeSubmenu\(\));?$/.test(trimmed)
+    || /^[A-Za-z_$][A-Za-z0-9_$]*\.addEventListener\("click", \(\) => (?:triggerRunResult|closeSubmenu)\([^;]*\);$/.test(trimmed)
+    || /^[A-Za-z_$][A-Za-z0-9_$]*\.addEventListener\("click", closeSubmenu\);$/.test(trimmed)
+    || /^\}\);$/.test(trimmed);
+}
+
+function isEquipTelemetrySupportLine(line) {
+  const trimmed = line.trim();
+  return /^(?:function getDiscardTelemetryPreview\(char, itemKey, requestedSlot\) \{|let next;|try \{|} finally \{|} catch \{|return null;|\})$/.test(trimmed)
+    || /^char\.equipment\[slot\] = (?:itemKey|oldEq);$/.test(trimmed)
+    || /^const next = getDisplayStats\(char\);$/.test(trimmed)
+    || /^next = getDisplayStats\(char\);$/.test(trimmed)
+    || /^const preview = getEquipPreview\(char, itemKey, requestedSlot\);$/.test(trimmed)
+    || /^if \(!preview\) return null;$/.test(trimmed)
+    || /^(?:const discardPreview = getDiscardTelemetryPreview\(|state\.party\[equipState\.actorIdx\],|expectedItemKey,|equipState\.selectedSlot|\);)$/.test(trimmed)
+    || /^(?:return \{|slot: preview\.slot,|oldEq: preview\.oldEq,|primaryDiff: preview\.primaryDiff,|rows: Array\.isArray\(preview\.rows\)|: \[\],|};)$/.test(trimmed)
+    || /^\? preview\.rows\.map\(\(\{ key, current, next, diff \}\) => \(\{ key, current, next, diff \}\)\),?$/.test(trimmed)
+    || /^preview\.rows\.map\(\(\{ key, current, next, diff \}\) => \(\{ key, current, next, diff \}\)\)$/.test(trimmed)
+    || /^\/\//.test(trimmed);
+}
+
+function isEquipTelemetrySupportHunk(lines) {
+  const text = lines.map(line => line.slice(1));
+  if (!text.some(line => /getDiscardTelemetryPreview|discardPreview/.test(line))) return false;
+  return lines
+    .filter(line => line[0] === "+" || line[0] === "-")
+    .every(line => {
+      const value = line.slice(1);
+      return !hasGameplayStateMutation(value)
+        && !/\b(?:state\.[A-Za-z_$][A-Za-z0-9_$]*\.(?:splice|push|pop)|addLog|saveAutosave|playSound|identifyEquipment)\s*\(/.test(value);
+    });
+}
+
+function isTelemetryModuleImplementationLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed || /^\/\//.test(trimmed)) return true;
+  if (/^(?:export\s+)?function\s+track[A-Z][A-Za-z0-9]*\s*\(/.test(trimmed)) return true;
+  if (/^track[A-Z][A-Za-z0-9]*\s*\(/.test(trimmed) && !isTelemetryCall(trimmed)) return false;
+  return !hasGameplayStateMutation(trimmed);
+}
+
+function isTelemetryImplementationLine(line, file) {
+  if (isTelemetryWrapperLine(line, file)) return true;
+  if (file === "src/menu/milestone_portal.js" && line.trim() === 'import { state } from "../state.js";') return true;
+  if (file === "src/equip.js" && isEquipTelemetrySupportLine(line)) return true;
+  if (file === "src/menu/explore_actions.js" && /^const itemAction =/.test(line.trim())) {
+    return !hasGameplayStateMutation(line) && /menuContext\.itemKey/.test(line);
+  }
+  return file === "src/telemetry.js" && isTelemetryModuleImplementationLine(line);
+}
+
+function isExplorationActionImplementationLine(line) {
+  const trimmed = line.trim();
+  return !hasGameplayStateMutation(trimmed)
+    && !/\b(?:delete|new|throw|void|await|yield)\b/.test(trimmed)
+    && !/=>/.test(trimmed);
+}
+
+function isTelemetryModuleHunk(lines) {
+  return lines
+    .filter(line => line[0] === "+" || line[0] === "-")
+    .every(line => {
+      const text = line.slice(1).trim();
+      if (hasGameplayStateMutation(text)) return false;
+      if (/^(?:export\s+)?function\s+track[A-Z][A-Za-z0-9]*\s*\(/.test(text)) return true;
+      return !(/^track[A-Z][A-Za-z0-9]*\s*\(/.test(text) && !isTelemetryCall(text));
+    });
+}
+
+function isTelemetryOnlyHunk(lines, { file = null } = {}) {
   const changedLines = lines.filter(line => line[0] === "+" || line[0] === "-");
   if (changedLines.length === 0) return true;
   const hunkText = lines.map(line => line.slice(1));
-  const hasTelemetryAnchor = hunkText.some(line => isTelemetryImport(line) || isTelemetryCall(line));
+  const telemetryImportLines = getTelemetryImportLineIndexes(lines);
+  const telemetryModuleHunk = file === "src/telemetry.js" && isTelemetryModuleHunk(lines);
+  const equipTelemetrySupportHunk = file === "src/equip.js" && isEquipTelemetrySupportHunk(lines);
+  const hasTelemetryAnchor = hunkText.some(line => isTelemetryImport(line) || isTelemetryCall(line))
+    || telemetryImportLines.size > 0
+    || telemetryModuleHunk
+    || equipTelemetrySupportHunk
+    || changedLines.some(line => isTelemetryImplementationLine(line.slice(1), file));
+  const hasItemActionImplementation = hunkText.some(line => /^const itemAction =/.test(line.trim()));
   if (!hasTelemetryAnchor) return false;
+  if (telemetryModuleHunk) return true;
+  if (equipTelemetrySupportHunk) return true;
   return changedLines.every(line => {
+    const lineIndex = lines.indexOf(line);
     const text = line.slice(1);
-    return isTelemetryImport(text) || isTelemetryCall(text) || isTelemetryContextLine(text);
+    return telemetryImportLines.has(lineIndex)
+      || isTelemetryImport(text)
+      || isTelemetryCall(text)
+      || isTelemetryContextLine(text)
+      || isTelemetryImplementationLine(text, file)
+      || (hasItemActionImplementation && isExplorationActionImplementationLine(text));
   });
 }
 
@@ -639,22 +758,22 @@ function hasTelemetryAnchor(diff) {
   });
 }
 
-export function isTelemetryOnlyDiff(diff) {
+export function isTelemetryOnlyDiff(diff, { file = null } = {}) {
   if (typeof diff !== "string" || !diff.trim()) return false;
   const hunks = [];
   let currentHunk = null;
   for (const line of diff.split(/\r?\n/)) {
     if (line.startsWith("@@")) {
-      currentHunk = [];
+      currentHunk = { lines: [], header: line };
       hunks.push(currentHunk);
       continue;
     }
     if (currentHunk && !line.startsWith("+++") && !line.startsWith("---")
       && (line.startsWith("+") || line.startsWith("-") || line.startsWith(" "))) {
-      currentHunk.push(line);
+      currentHunk.lines.push(line);
     }
   }
-  return hunks.length > 0 && hunks.every(isTelemetryOnlyHunk);
+  return hunks.length > 0 && hunks.every(hunk => isTelemetryOnlyHunk(hunk.lines, { file }));
 }
 
 function getChangedDiff(file, baseRef = process.env.BASE_REF || "origin/main") {
@@ -698,7 +817,7 @@ export function analyzeBalanceImpact(
       errors.push(`${file}: unknown production path; declare balance-impact domains or explicit balance-impact: none`);
       continue;
     }
-    const telemetryOnly = isTelemetryOnlyDiff(diff);
+    const telemetryOnly = isTelemetryOnlyDiff(diff, { file });
     if (hasTelemetryAnchor(diff) && !telemetryOnly) {
       errors.push(`${file}: telemetry anchor mixed with non-telemetry changes; classify the gameplay impact explicitly`);
       continue;

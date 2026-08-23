@@ -513,7 +513,7 @@ check("canceled combat decisions are not committed to telemetry", () => {
   trackRunStart(run, decisionPlayer, decisionState);
   trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
   const details = {
-    state: decisionState,
+    state: { ...decisionState, combatState: decisionCombat },
     character: decisionPlayer,
     combat: decisionCombat,
     actorIdx: 0,
@@ -525,8 +525,11 @@ check("canceled combat decisions are not committed to telemetry", () => {
   assert.deepEqual(events.filter(event => event.name === "combat_decision"), []);
 
   trackCombatDecisionPending("attack", details);
+  details.state.combatState.phase = "resolving";
   trackCombatDecisionCommit();
-  assert.equal(events.filter(event => event.name === "combat_decision").length, 1);
+  const committed = events.filter(event => event.name === "combat_decision");
+  assert.equal(committed.length, 1);
+  assert.equal(committed[0].properties.combatPhase, "choose_actions");
 });
 
 check("exploration spell telemetry preserves target shape", () => {
@@ -628,6 +631,40 @@ check("chest and run events include common resource and status context", () => {
   assert.equal(chestEvent.properties.inventoryCapacity, 20);
   assert.equal(endEvent.properties.hpRate, 0.75);
   assert.equal(endEvent.properties.runMaterialCount, 3);
+});
+
+check("chest action fields preserve valid values and coerce malformed input", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackChestAction({ lootHint: { aura: "strong" } }, "disarm", {
+    trap: "poison needle",
+    hasTrapKit: 1
+  });
+  trackChestAction({ lootHint: { aura: { migrated: true } } }, { migrated: true }, {
+    trap: "migrated trap",
+    hasTrapKit: "false"
+  });
+
+  const chestEvents = events.filter(event => event.name === "chest_action");
+  assert.deepEqual(
+    {
+      action: chestEvents[0].properties.action,
+      trap: chestEvents[0].properties.trap,
+      hasTrapKit: chestEvents[0].properties.hasTrapKit,
+      lootAura: chestEvents[0].properties.lootAura
+    },
+    { action: "disarm", trap: "poison needle", hasTrapKit: true, lootAura: "strong" }
+  );
+  assert.deepEqual(
+    {
+      action: chestEvents[1].properties.action,
+      trap: chestEvents[1].properties.trap,
+      hasTrapKit: chestEvents[1].properties.hasTrapKit,
+      lootAura: chestEvents[1].properties.lootAura
+    },
+    { action: "other", trap: "other", hasTrapKit: true, lootAura: "other" }
+  );
 });
 
 check("lifecycle events emitted before SDK initialization are flushed in order", () => {

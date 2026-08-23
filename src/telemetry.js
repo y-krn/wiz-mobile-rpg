@@ -98,6 +98,9 @@ const SAFE_SPELL_TARGET_TYPES = new Set(
 const SAFE_DIRECTIONS = new Set(DIR_NAMES.map((_, index) => index));
 const SAFE_CHEST_REWARD_ROLES = new Set(["main", "special", "accessory"]);
 const SAFE_CHEST_REWARD_CATEGORIES = new Set(Object.keys(CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY));
+const SAFE_CHEST_ACTIONS = new Set(["open", "leave", "disarm", "trap_kit", "smash"]);
+const SAFE_CHEST_TRAPS = new Set(["none", "poison needle", "gas bomb", "teleporter", "flash bomb"]);
+const SAFE_CHEST_AURAS = new Set(["weak", "medium", "strong"]);
 const MAX_ENEMY_SNAPSHOT = 8;
 const MAX_AFFIX_SNAPSHOT = 24;
 const MAX_RESOURCE_VALUE = 1_000_000;
@@ -580,13 +583,13 @@ export function trackChestAction(chest, action, details = {}) {
     floor: boundedFiniteOrNull(details.floor),
     chestSource: chest?.fromDrop ? "fromDrop" : "ordinary",
     fromDrop: Boolean(chest?.fromDrop),
-    action,
-    trap: details.trap,
+    action: normalizeStableValue(action, SAFE_CHEST_ACTIONS),
+    trap: normalizeStableValue(details.trap ?? "none", SAFE_CHEST_TRAPS),
     inspected: Boolean(chest?.inspected),
     inventoryCount: boundedFiniteOrNull(details.inventoryCount),
-    hasTrapKit: details.hasTrapKit,
+    hasTrapKit: Boolean(details.hasTrapKit),
     rewardCount: boundedFiniteOrNull(details.rewardCount),
-    lootAura: chest?.lootHint?.aura
+    lootAura: normalizeOptionalStableValue(chest?.lootHint?.aura, SAFE_CHEST_AURAS)
   });
 }
 
@@ -755,7 +758,15 @@ export function trackCombatDecision(action, details = {}) {
 
 export function trackCombatDecisionPending(action, details = {}) {
   if (!isTelemetryAvailable() || !runId || !combatId) return;
-  pendingCombatDecisions.push({ action, details });
+  const combat = details.combat || details.state?.combatState || null;
+  const combatSnapshot = combat ? { ...combat, phase: combat.phase } : combat;
+  const stateSnapshot = details.state && details.state.combatState === combat
+    ? { ...details.state, combatState: combatSnapshot }
+    : details.state;
+  pendingCombatDecisions.push({
+    action,
+    details: { ...details, state: stateSnapshot, combat: combatSnapshot }
+  });
 }
 
 export function trackCombatDecisionCancel() {
