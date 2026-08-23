@@ -13,11 +13,89 @@ export function setDungeonRenderer(r) {
 const VIEW_W = 400;
 const VIEW_H = 260;
 
-// Depth planes for 3D projection
-const XL = [0, 100, 145, 170, 184];
-const XR = [400, 300, 255, 230, 216];
-const YT = [0, 52, 86, 106, 118];
-const YB = [260, 208, 174, 154, 142];
+// Baseline depth planes for 3D projection. Geometry profiles deform this
+// canonical shape without changing the map or any gameplay state.
+export const BASE_PROJECTION = Object.freeze({
+  xl: Object.freeze([0, 100, 145, 170, 184]),
+  xr: Object.freeze([400, 300, 255, 230, 216]),
+  yt: Object.freeze([0, 52, 86, 106, 118]),
+  yb: Object.freeze([260, 208, 174, 154, 142])
+});
+
+export const BASE_GEOMETRY = Object.freeze({
+  corridorWidth: 1,
+  ceilingHeight: 1,
+  wallLean: 0,
+  ceilingStyle: "flat"
+});
+
+const GEOMETRY_STYLES = new Set(["flat", "arch"]);
+
+function finiteOr(value, fallback) {
+  return Number.isFinite(Number(value)) ? Number(value) : fallback;
+}
+
+export function getProjectionPlanes(geometry = BASE_GEOMETRY) {
+  const corridorWidth = finiteOr(geometry?.corridorWidth, BASE_GEOMETRY.corridorWidth);
+  const ceilingHeight = finiteOr(geometry?.ceilingHeight, BASE_GEOMETRY.ceilingHeight);
+  const wallLean = finiteOr(geometry?.wallLean, BASE_GEOMETRY.wallLean);
+  const ceilingStyle = GEOMETRY_STYLES.has(geometry?.ceilingStyle)
+    ? geometry.ceilingStyle
+    : BASE_GEOMETRY.ceilingStyle;
+  const xl = [];
+  const xr = [];
+  const yt = [];
+  const yb = [];
+  const leftTop = [];
+  const leftBottom = [];
+  const rightTop = [];
+  const rightBottom = [];
+
+  for (let z = 0; z < BASE_PROJECTION.xl.length; z++) {
+    const baseWidth = BASE_PROJECTION.xr[z] - BASE_PROJECTION.xl[z];
+    const width = baseWidth * corridorWidth;
+    const center = (BASE_PROJECTION.xr[z] + BASE_PROJECTION.xl[z]) / 2;
+    const projectedLeft = center - width / 2;
+    const projectedRight = center + width / 2;
+    const horizon = (BASE_PROJECTION.yb[z] + BASE_PROJECTION.yt[z]) / 2;
+    const projectedTop = horizon - (horizon - BASE_PROJECTION.yt[z]) * ceilingHeight;
+    const projectedBottom = horizon + (BASE_PROJECTION.yb[z] - horizon) * ceilingHeight;
+    const lean = width * wallLean * 0.5;
+
+    xl.push(projectedLeft);
+    xr.push(projectedRight);
+    yt.push(projectedTop);
+    yb.push(projectedBottom);
+    leftTop.push(projectedLeft + lean);
+    leftBottom.push(projectedLeft - lean);
+    rightTop.push(projectedRight - lean);
+    rightBottom.push(projectedRight + lean);
+  }
+
+  return Object.freeze({
+    xl: Object.freeze(xl),
+    xr: Object.freeze(xr),
+    yt: Object.freeze(yt),
+    yb: Object.freeze(yb),
+    leftTop: Object.freeze(leftTop),
+    leftBottom: Object.freeze(leftBottom),
+    rightTop: Object.freeze(rightTop),
+    rightBottom: Object.freeze(rightBottom),
+    ceilingStyle
+  });
+}
+
+export function getProjectionColumn(projection, z, column = 0) {
+  const width = projection.xr[z] - projection.xl[z];
+  return {
+    leftTop: projection.leftTop[z] + width * column,
+    leftBottom: projection.leftBottom[z] + width * column,
+    rightTop: projection.rightTop[z] + width * column,
+    rightBottom: projection.rightBottom[z] + width * column,
+    top: projection.yt[z],
+    bottom: projection.yb[z]
+  };
+}
 
 // The state owner guarantees this shape for a playable floor. The renderer
 // still checks it at the boundary because a save or a transition can expose
@@ -320,6 +398,7 @@ export class DungeonRenderer {
     ctx.shadowBlur = 0;
 
     const visual = getFloorTheme(state.floor).visualSignature;
+    const projection = getProjectionPlanes(visual.geometry);
     const depthCorruption = getDepthCorruption(state.floor);
     const environment = visual.environment;
     const isEnvironmentAnimated = environment.animated ||
@@ -333,23 +412,21 @@ export class DungeonRenderer {
 
     // Draw from back (z=3) to front (z=0), outer columns before center
     for (let z = 3; z >= 0; z--) {
-      const width = XR[z] - XL[z];
-      const nextWidth = XR[z + 1] - XL[z + 1];
+      const width = projection.xr[z] - projection.xl[z];
       for (const column of columnOrder) {
         if (Math.abs(column) === 2 && z < 2) continue;
 
         const cx = px + DX[dir] * z + DX[dirRight] * column;
         const cy = py + DY[dir] * z + DY[dirRight] * column;
-        const left = XL[z] + width * column;
-        const right = XR[z] + width * column;
-        const nextLeft = XL[z + 1] + nextWidth * column;
-        const nextRight = XR[z + 1] + nextWidth * column;
+        const plane = getProjectionColumn(projection, z, column);
+        const nextPlane = getProjectionColumn(projection, z + 1, column);
+        const left = plane.leftBottom;
 
         // Check out of bounds
         const row = map[cy];
         if (cx < 0 || cy < 0 || cy >= map.length || !Array.isArray(row) || cx >= row.length) {
           // Render a solid wall block at depth z
-          this.renderSolidWall(ctx, z, outOfBoundsColor, column); // Red glow for out of bounds
+          this.renderSolidWall(ctx, z, outOfBoundsColor, column, projection); // Red glow for out of bounds
           continue;
         }
 
@@ -357,7 +434,7 @@ export class DungeonRenderer {
         if (!isRenderableCell(cell)) {
           // A partially loaded cell is not traversable or drawable. Keep the
           // corridor closed until the state owner supplies a valid cell.
-          this.renderSolidWall(ctx, z, outOfBoundsColor, column);
+          this.renderSolidWall(ctx, z, outOfBoundsColor, column, projection);
           continue;
         }
 
@@ -378,33 +455,32 @@ export class DungeonRenderer {
 
         // Floor lines
         ctx.beginPath();
-        ctx.moveTo(left, YB[z]);
-        ctx.lineTo(nextLeft, YB[z + 1]);
-        ctx.moveTo(right, YB[z]);
-        ctx.lineTo(nextRight, YB[z + 1]);
+        ctx.moveTo(plane.leftBottom, plane.bottom);
+        ctx.lineTo(nextPlane.leftBottom, nextPlane.bottom);
+        ctx.moveTo(plane.rightBottom, plane.bottom);
+        ctx.lineTo(nextPlane.rightBottom, nextPlane.bottom);
         // Ceiling lines
-        ctx.moveTo(left, YT[z]);
-        ctx.lineTo(nextLeft, YT[z + 1]);
-        ctx.moveTo(right, YT[z]);
-        ctx.lineTo(nextRight, YT[z + 1]);
+        ctx.moveTo(plane.leftTop, plane.top);
+        ctx.lineTo(nextPlane.leftTop, nextPlane.top);
+        ctx.moveTo(plane.rightTop, plane.top);
+        ctx.lineTo(nextPlane.rightTop, nextPlane.top);
         ctx.stroke();
 
         // Horizontal grid lines
         ctx.beginPath();
-        ctx.moveTo(nextLeft, YB[z + 1]);
-        ctx.lineTo(nextRight, YB[z + 1]);
-        ctx.moveTo(nextLeft, YT[z + 1]);
-        ctx.lineTo(nextRight, YT[z + 1]);
+        ctx.moveTo(nextPlane.leftBottom, nextPlane.bottom);
+        ctx.lineTo(nextPlane.rightBottom, nextPlane.bottom);
+        this.traceCeilingEdge(ctx, nextPlane, projection.ceilingStyle);
         ctx.stroke();
 
         // 2. Left Wall
         if (hasLeftWall) {
           ctx.fillStyle = visual.background;
           ctx.beginPath();
-          ctx.moveTo(left, YT[z]);
-          ctx.lineTo(nextLeft, YT[z + 1]);
-          ctx.lineTo(nextLeft, YB[z + 1]);
-          ctx.lineTo(left, YB[z]);
+          ctx.moveTo(plane.leftTop, plane.top);
+          ctx.lineTo(nextPlane.leftTop, nextPlane.top);
+          ctx.lineTo(nextPlane.leftBottom, nextPlane.bottom);
+          ctx.lineTo(plane.leftBottom, plane.bottom);
           ctx.closePath();
           ctx.fill();
 
@@ -417,10 +493,10 @@ export class DungeonRenderer {
         if (hasRightWall) {
           ctx.fillStyle = visual.background;
           ctx.beginPath();
-          ctx.moveTo(right, YT[z]);
-          ctx.lineTo(nextRight, YT[z + 1]);
-          ctx.lineTo(nextRight, YB[z + 1]);
-          ctx.lineTo(right, YB[z]);
+          ctx.moveTo(plane.rightTop, plane.top);
+          ctx.lineTo(nextPlane.rightTop, nextPlane.top);
+          ctx.lineTo(nextPlane.rightBottom, nextPlane.bottom);
+          ctx.lineTo(plane.rightBottom, plane.bottom);
           ctx.closePath();
           ctx.fill();
 
@@ -432,26 +508,26 @@ export class DungeonRenderer {
         // 4. Front Wall (at z + 1 depth)
         if (hasFrontWall) {
           ctx.fillStyle = visual.background;
-          ctx.fillRect(nextLeft, YT[z + 1], nextWidth, YB[z + 1] - YT[z + 1]);
+          this.fillProjectedFrontWall(ctx, nextPlane, projection.ceilingStyle);
 
           ctx.strokeStyle = wallColor;
           ctx.lineWidth = Math.max(1.5, 2 - depthCorruption * 0.12);
-          ctx.strokeRect(nextLeft, YT[z + 1], nextWidth, YB[z + 1] - YT[z + 1]);
+          this.strokeProjectedFrontWall(ctx, nextPlane, projection.ceilingStyle);
         } else if (hasFrontOneWayBarrier) {
-          this.drawOneWayBarrier(ctx, z, wallColor);
+          this.drawOneWayBarrier(ctx, z, wallColor, projection);
         }
 
         // Check special symbols inside cells (stairs up / down)
         if (column === 0 && (cell.type === "stairs-up" || cell.type === "stairs-down")) {
-          this.drawStairsIcon(ctx, z, cell.type);
+          this.drawStairsIcon(ctx, z, cell.type, projection);
         }
 
         if (column === 0 && z > 0 && cell.event === EVENT_TYPES.CHEST) {
-          this.drawChestIcon(ctx, z);
+          this.drawChestIcon(ctx, z, projection);
         }
 
         if (column === 0 && z > 0 && cell.trap && cell.trap.state === "discovered") {
-          this.drawTrapIcon(ctx, z, (cell.trap.traceReadLevel || 0) >= 2);
+          this.drawTrapIcon(ctx, z, (cell.trap.traceReadLevel || 0) >= 2, projection);
         }
 
         // Check if there is a roaming monster at this coordinate (cx, cy)
@@ -460,35 +536,96 @@ export class DungeonRenderer {
             rm => rm.floor === state.floor && rm.x === cx && rm.y === cy
           );
           if (hasFlack && z > 0) { // Don't draw under the player
-            this.drawRoamingFlackIcon(ctx, z);
+            this.drawRoamingFlackIcon(ctx, z, projection);
           }
         }
 
         // 5. Draw biome ambience and a deterministic depth-corruption mark.
         if (z > 0) {
           ctx.fillStyle = environment.overlay;
-          ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
+          this.fillProjectedCorridor(ctx, plane, nextPlane, projection.ceilingStyle);
           this.drawDepthFracture(
-            ctx, z, left, YT[z], width, YB[z] - YT[z], wallColor,
+            ctx, z, left, plane.top, width, plane.bottom - plane.top, wallColor,
             depthCorruption, cx, cy
           );
           if (isEnvironmentAnimated) {
             const pulse = 0.02 + 0.02 * Math.sin(Date.now() / 250);
             ctx.fillStyle = `rgba(255, 180, 90, ${pulse})`;
-            ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
+            this.fillProjectedCorridor(ctx, plane, nextPlane, projection.ceilingStyle);
           }
         }
       }
     }
   }
 
-  renderSolidWall(ctx, z, color, column = 0) {
-    const width = XR[z] - XL[z];
-    const left = XL[z] + width * column;
+  traceCeilingEdge(ctx, plane, ceilingStyle) {
+    if (ceilingStyle !== "arch") {
+      ctx.moveTo(plane.leftTop, plane.top);
+      ctx.lineTo(plane.rightTop, plane.top);
+      return;
+    }
+
+    const centerX = (plane.leftTop + plane.rightTop) / 2;
+    const archHeight = Math.max(3, (plane.bottom - plane.top) * 0.12);
+    ctx.moveTo(plane.leftTop, plane.top);
+    ctx.quadraticCurveTo(centerX, plane.top - archHeight, plane.rightTop, plane.top);
+  }
+
+  fillProjectedCorridor(ctx, plane, nextPlane, ceilingStyle) {
+    ctx.beginPath();
+    ctx.moveTo(plane.leftTop, plane.top);
+    ctx.lineTo(nextPlane.leftTop, nextPlane.top);
+    if (ceilingStyle === "arch") {
+      const centerX = (nextPlane.leftTop + nextPlane.rightTop) / 2;
+      const archHeight = Math.max(3, (nextPlane.bottom - nextPlane.top) * 0.12);
+      ctx.quadraticCurveTo(centerX, nextPlane.top - archHeight, nextPlane.rightTop, nextPlane.top);
+    } else {
+      ctx.lineTo(nextPlane.rightTop, nextPlane.top);
+    }
+    ctx.lineTo(nextPlane.rightBottom, nextPlane.bottom);
+    ctx.lineTo(plane.rightBottom, plane.bottom);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  fillProjectedFrontWall(ctx, plane, ceilingStyle) {
+    ctx.beginPath();
+    ctx.moveTo(plane.leftTop, plane.top);
+    if (ceilingStyle === "arch") {
+      const centerX = (plane.leftTop + plane.rightTop) / 2;
+      const archHeight = Math.max(3, (plane.bottom - plane.top) * 0.12);
+      ctx.quadraticCurveTo(centerX, plane.top - archHeight, plane.rightTop, plane.top);
+    } else {
+      ctx.lineTo(plane.rightTop, plane.top);
+    }
+    ctx.lineTo(plane.rightBottom, plane.bottom);
+    ctx.lineTo(plane.leftBottom, plane.bottom);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  strokeProjectedFrontWall(ctx, plane, ceilingStyle) {
+    ctx.beginPath();
+    ctx.moveTo(plane.leftTop, plane.top);
+    if (ceilingStyle === "arch") {
+      const centerX = (plane.leftTop + plane.rightTop) / 2;
+      const archHeight = Math.max(3, (plane.bottom - plane.top) * 0.12);
+      ctx.quadraticCurveTo(centerX, plane.top - archHeight, plane.rightTop, plane.top);
+    } else {
+      ctx.lineTo(plane.rightTop, plane.top);
+    }
+    ctx.lineTo(plane.rightBottom, plane.bottom);
+    ctx.lineTo(plane.leftBottom, plane.bottom);
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  renderSolidWall(ctx, z, color, column = 0, projection = getProjectionPlanes()) {
+    const plane = getProjectionColumn(projection, z, column);
     ctx.fillStyle = "#0c0c0e";
-    ctx.fillRect(left, YT[z], width, YB[z] - YT[z]);
+    this.fillProjectedFrontWall(ctx, plane, projection.ceilingStyle);
     ctx.strokeStyle = color;
-    ctx.strokeRect(left, YT[z], width, YB[z] - YT[z]);
+    this.strokeProjectedFrontWall(ctx, plane, projection.ceilingStyle);
   }
 
   drawDepthFracture(ctx, z, x, y, width, height, color, depth, cellX, cellY) {
@@ -511,11 +648,12 @@ export class DungeonRenderer {
     ctx.restore();
   }
 
-  drawOneWayBarrier(ctx, z, color) {
-    const x = XL[z + 1];
-    const y = YT[z + 1];
-    const w = XR[z + 1] - XL[z + 1];
-    const h = YB[z + 1] - YT[z + 1];
+  drawOneWayBarrier(ctx, z, color, projection = getProjectionPlanes()) {
+    const plane = getProjectionColumn(projection, z + 1);
+    const x = plane.leftTop;
+    const y = plane.top;
+    const w = plane.rightTop - plane.leftTop;
+    const h = plane.bottom - plane.top;
     const midX = x + w / 2;
     const midY = y + h / 2;
     const chevronW = Math.max(8, w * 0.18);
@@ -539,10 +677,11 @@ export class DungeonRenderer {
     }
   }
 
-  drawStairsIcon(ctx, z, type) {
-    const xl = XL[z];
-    const xr = XR[z];
-    const yb = YB[z];
+  drawStairsIcon(ctx, z, type, projection = getProjectionPlanes()) {
+    const plane = getProjectionColumn(projection, z);
+    const xl = plane.leftBottom;
+    const xr = plane.rightBottom;
+    const yb = plane.bottom;
     
     const w = xr - xl;
     const stepW = w * 0.4;
@@ -588,10 +727,11 @@ export class DungeonRenderer {
     ctx.restore();
   }
 
-  drawChestIcon(ctx, z) {
-    const xl = XL[z];
-    const xr = XR[z];
-    const yb = YB[z];
+  drawChestIcon(ctx, z, projection = getProjectionPlanes()) {
+    const plane = getProjectionColumn(projection, z);
+    const xl = plane.leftBottom;
+    const xr = plane.rightBottom;
+    const yb = plane.bottom;
 
     const corridorWidth = xr - xl;
     const chestWidth = corridorWidth * 0.28;
@@ -626,10 +766,11 @@ export class DungeonRenderer {
     ctx.restore();
   }
 
-  drawTrapIcon(ctx, z, revealSpecies) {
-    const xl = XL[z];
-    const xr = XR[z];
-    const yb = YB[z];
+  drawTrapIcon(ctx, z, revealSpecies, projection = getProjectionPlanes()) {
+    const plane = getProjectionColumn(projection, z);
+    const xl = plane.leftBottom;
+    const xr = plane.rightBottom;
+    const yb = plane.bottom;
 
     const corridorWidth = xr - xl;
     const size = corridorWidth * 0.22;
@@ -659,11 +800,12 @@ export class DungeonRenderer {
     ctx.restore();
   }
 
-  drawRoamingFlackIcon(ctx, z) {
-    const xl = XL[z];
-    const xr = XR[z];
-    const yt = YT[z];
-    const yb = YB[z];
+  drawRoamingFlackIcon(ctx, z, projection = getProjectionPlanes()) {
+    const plane = getProjectionColumn(projection, z);
+    const xl = plane.leftBottom;
+    const xr = plane.rightBottom;
+    const yt = plane.top;
+    const yb = plane.bottom;
 
     const cx = (xl + xr) / 2;
     const cy = yb - (yb - yt) * 0.25; // Align near floor level

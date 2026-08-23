@@ -6,6 +6,7 @@ const VIEWPORTS = [
   { width: 430, height: 932 },
 ];
 const FLOORS = [3, 5, 6, 8, 10, 11, 13, 18, 23, 28];
+const REPRESENTATIVE_FLOORS = [1, 6, 11, 16, 21, 26];
 
 async function renderFloor(page, floor) {
   return page.evaluate(async (targetFloor) => {
@@ -158,4 +159,67 @@ test('Dungeon theme clears inline variables when leaving an active run @visual',
   expect(Number(evidence.activeAgain.depth)).toBeGreaterThan(Number(evidence.active.depth));
   expect(Object.values(evidence.townInline).every(value => value === '')).toBe(true);
   expect(Object.values(evidence.resultInline).every(value => value === '')).toBe(true);
+});
+
+test('Representative biomes use distinct stable exploration silhouettes @visual', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+
+  const evidence = {};
+  for (const floor of REPRESENTATIVE_FLOORS) {
+    evidence[floor] = await page.evaluate(async targetFloor => {
+      const { state, createDefaultCurrentRun } = await import('/src/state.js');
+      const { getProjectionPlanes } = await import('/src/renderer.js');
+      const { getFloorTheme } = await import('/src/data/floor_themes.js');
+      const { updateUI } = await import('/src/ui/ui_root.js');
+      const makeCell = () => ({
+        walls: [false, false, false, false],
+        blockEnter: [false, false, false, false],
+        secretDoor: [false, false, false, false],
+        type: 'empty',
+      });
+      const map = Array.from({ length: 12 }, () => Array.from({ length: 12 }, makeCell));
+      map[5][4].walls[0] = true;
+      map[5][6].walls[0] = true;
+      map[4][5].walls[0] = true;
+      state.currentRun = createDefaultCurrentRun();
+      state.floor = targetFloor;
+      state.x = 5;
+      state.y = 5;
+      state.dir = 0;
+      state.gameState = 'explore';
+      state.maps[targetFloor - 1] = map;
+      state.visitedMaps[targetFloor - 1] = map.map(row => row.map(() => true));
+      state.map = map;
+      updateUI();
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      dungeonRenderer.draw();
+
+      const geometry = getFloorTheme(targetFloor).visualSignature.geometry;
+      const projection = getProjectionPlanes(geometry);
+      return {
+        geometry,
+        silhouette: [
+          projection.leftTop[0], projection.rightTop[0], projection.yt[0], projection.yb[0],
+          projection.leftTop[1], projection.rightTop[1], projection.yt[1], projection.yb[1],
+          projection.ceilingStyle,
+        ],
+      };
+    }, floor);
+    await page.screenshot({
+      path: `output/playwright/dungeon-geometry-390-B${floor}.png`,
+      fullPage: true,
+    });
+  }
+
+  const baseline = { corridorWidth: 1, ceilingHeight: 1, wallLean: 0, ceilingStyle: 'flat' };
+  for (const floor of REPRESENTATIVE_FLOORS) {
+    const geometry = evidence[floor].geometry;
+    const changedDimensions = ['corridorWidth', 'ceilingHeight', 'wallLean', 'ceilingStyle']
+      .filter(key => geometry[key] !== baseline[key]);
+    expect(changedDimensions.length, `B${floor} should change at least two geometry dimensions`).toBeGreaterThanOrEqual(2);
+  }
+  expect(new Set(REPRESENTATIVE_FLOORS.map(floor => JSON.stringify(evidence[floor].silhouette))).size)
+    .toBe(REPRESENTATIVE_FLOORS.length);
 });

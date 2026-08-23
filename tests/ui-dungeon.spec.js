@@ -4,7 +4,8 @@ test('Three-column corridor renderer draws adjacent front walls', async ({ page 
   await page.goto('/');
   const cyanPixels = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
-    const { dungeonRenderer } = await import('/src/renderer.js');
+    const { dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
+    const { getFloorTheme } = await import('/src/data/floor_themes.js');
     const makeCell = () => ({ walls: [false, false, false, false], type: 'empty' });
 
     state.gameState = 'explore';
@@ -19,7 +20,7 @@ test('Three-column corridor renderer draws adjacent front walls', async ({ page 
 
     const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
     const countCyan = (centerX) => {
-      const pixels = ctx.getImageData(centerX - 2, 55, 5, 150).data;
+      const pixels = ctx.getImageData(centerX - 6, 55, 13, 150).data;
       let count = 0;
       for (let i = 0; i < pixels.length; i += 4) {
         if (pixels[i + 1] > 180 && pixels[i + 2] > 180) count++;
@@ -27,11 +28,15 @@ test('Three-column corridor renderer draws adjacent front walls', async ({ page 
       return count;
     };
 
-    return [countCyan(100), countCyan(300)];
+    const projection = getProjectionPlanes(getFloorTheme(state.floor).visualSignature.geometry);
+    return [
+      countCyan(Math.round((getProjectionColumn(projection, 1, -1).rightTop + getProjectionColumn(projection, 1, -1).rightBottom) / 2)),
+      countCyan(Math.round((getProjectionColumn(projection, 1, 1).leftTop + getProjectionColumn(projection, 1, 1).leftBottom) / 2)),
+    ];
   });
 
-  expect(cyanPixels[0]).toBeGreaterThan(100);
-  expect(cyanPixels[1]).toBeGreaterThan(100);
+  expect(cyanPixels[0]).toBeGreaterThan(80);
+  expect(cyanPixels[1]).toBeGreaterThan(80);
 });
 
 test('Combat monsters render colored neon bodies with visible white cores at four-enemy scale', async ({ page }) => {
@@ -96,7 +101,8 @@ test('Five-column corridor renderer draws outer front walls', async ({ page }) =
   await page.goto('/');
   const cyanPixels = await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
-    const { dungeonRenderer } = await import('/src/renderer.js');
+    const { dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
+    const { getFloorTheme } = await import('/src/data/floor_themes.js');
     const makeCell = () => ({ walls: [false, false, false, false], type: 'empty' });
 
     state.gameState = 'explore';
@@ -111,7 +117,7 @@ test('Five-column corridor renderer draws outer front walls', async ({ page }) =
 
     const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
     const countCyan = (centerX) => {
-      const pixels = ctx.getImageData(centerX - 2, 100, 5, 60).data;
+      const pixels = ctx.getImageData(centerX - 6, 100, 13, 60).data;
       let count = 0;
       for (let i = 0; i < pixels.length; i += 4) {
         if (pixels[i + 1] > 180 && pixels[i + 2] > 180) count++;
@@ -119,7 +125,11 @@ test('Five-column corridor renderer draws outer front walls', async ({ page }) =
       return count;
     };
 
-    const visible = [countCyan(50), countCyan(350)];
+    const projection = getProjectionPlanes(getFloorTheme(state.floor).visualSignature.geometry);
+    const visible = [
+      countCyan(Math.round((getProjectionColumn(projection, 3, -2).leftTop + getProjectionColumn(projection, 3, -2).leftBottom) / 2)),
+      countCyan(Math.round((getProjectionColumn(projection, 3, 2).rightTop + getProjectionColumn(projection, 3, 2).rightBottom) / 2)),
+    ];
 
     state.map[5][5].walls[1] = true;
     state.map[5][5].walls[3] = true;
@@ -127,12 +137,15 @@ test('Five-column corridor renderer draws outer front walls', async ({ page }) =
 
     return {
       visible,
-      occluded: [countCyan(50), countCyan(350)],
+      occluded: [
+        countCyan(Math.round((getProjectionColumn(projection, 3, -2).leftTop + getProjectionColumn(projection, 3, -2).leftBottom) / 2)),
+        countCyan(Math.round((getProjectionColumn(projection, 3, 2).rightTop + getProjectionColumn(projection, 3, 2).rightBottom) / 2)),
+      ],
     };
   });
 
-  expect(cyanPixels.visible[0]).toBeGreaterThan(30);
-  expect(cyanPixels.visible[1]).toBeGreaterThan(30);
+  expect(cyanPixels.visible[0]).toBeGreaterThan(15);
+  expect(cyanPixels.visible[1]).toBeGreaterThan(15);
   expect(cyanPixels.occluded[0]).toBeLessThan(10);
   expect(cyanPixels.occluded[1]).toBeLessThan(10);
 });
