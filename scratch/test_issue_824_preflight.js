@@ -14,8 +14,36 @@ import {
   inspectDependencies,
   REQUIRED_PACKAGE
 } from "../scripts/dependency-preflight.js";
+import {
+  classifySimulationRunner,
+  discoverSimulationRunnerFiles
+} from "./simulation_manifest.js";
 
 const repoRoot = path.resolve(new URL("..", import.meta.url).pathname);
+
+function hasDependencyPreflightCoverage(source) {
+  const directPreflight = source.includes('import "./simulation_preflight.js"') ||
+    source.includes('from "../scripts/dependency-preflight.js"');
+  if (directPreflight) return true;
+
+  // Historical run runners may inherit the guard from the canonical runner,
+  // but a child-only canonical import does not cover the parent entrypoint.
+  return source.includes("sim_depth_material_ev.js") && !source.includes("IS_CHILD");
+}
+
+const manifestSimEntrypoints = discoverSimulationRunnerFiles()
+  .filter(file => file.startsWith("scratch/sim_"))
+  .filter(file => classifySimulationRunner(file)?.scope !== "infra");
+const unguardedManifestSimEntrypoints = manifestSimEntrypoints.filter(file =>
+  !hasDependencyPreflightCoverage(readFileSync(path.resolve(repoRoot, file), "utf8"))
+);
+assert.ok(manifestSimEntrypoints.length > 0, "manifest must discover simulation entrypoints");
+assert.deepEqual(
+  unguardedManifestSimEntrypoints,
+  [],
+  "every manifest-discovered simulation entrypoint must be dependency-preflight guarded"
+);
+
 const tempRoot = mkdtempSync(path.join(os.tmpdir(), "wiz-issue-824-"));
 const lockfile = JSON.stringify({ name: "fixture", lockfileVersion: 3, packages: {} });
 const packagePath = path.join(tempRoot, "node_modules", "@sentry", "browser", "package.json");
