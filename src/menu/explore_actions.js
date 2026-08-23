@@ -218,7 +218,8 @@ export function renderItemDirectionSelect(optGrid) {
         state,
         character: state.party[0],
         source: state.map?.[state.y]?.[state.x]?.event,
-        itemKey: "NOISE_BALL"
+        itemKey: "NOISE_BALL",
+        direction: dir
       });
       recordExplorationSteps();
       tickExplorationSpellEffects();

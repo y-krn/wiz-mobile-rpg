@@ -415,15 +415,26 @@ function isTelemetryImport(line) {
   return /^import\s+\{[^}]*\btrack[A-Z][A-Za-z0-9]*\b[^}]*\}\s+from\s+["'][^"']*telemetry\.js["'];?$/.test(line.trim());
 }
 
+function hasGameplayMutation(line) {
+  const trimmed = line.trim();
+  if (/(?:\+=|-=|\*=|\/=|%=|&=|\|=|\^=|<<=|>>=|>>>=|\+\+|--)/.test(trimmed)) return true;
+  return /(^|[^=!<>])=(?!=|>)/.test(trimmed);
+}
+
 function isTelemetryCall(line) {
-  return /^track[A-Z][A-Za-z0-9]*\s*\([^;]*\)?;?$/.test(line.trim());
+  const trimmed = line.trim();
+  return !hasGameplayMutation(trimmed)
+    && /^track[A-Z][A-Za-z0-9]*\s*\([^;]*\)?;?$/.test(trimmed);
 }
 
 function isTelemetryContextLine(line) {
   const trimmed = line.trim();
+  if (hasGameplayMutation(trimmed)) return false;
   if (/^\}\s*,\s*state\);$/.test(trimmed) || /^\}\);$/.test(trimmed)) return true;
-  const match = trimmed.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*(?::|,|$)/);
-  return Boolean(match && TELEMETRY_CONTEXT_KEYS.has(match[1]));
+  const contextKeyPattern = [...TELEMETRY_CONTEXT_KEYS]
+    .map(key => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  return new RegExp(`^(?:${contextKeyPattern})(?:\\s*:\\s*[^;]+)?\\s*,?$`).test(trimmed);
 }
 
 function isTelemetryOnlyHunk(lines) {

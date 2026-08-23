@@ -17,6 +17,7 @@ import { MONSTERS } from "./data/monsters.js";
 import { SPELLS } from "./data/spells.js";
 import { getAffixDefinition } from "./data/affixes.js";
 import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
+import { DIR_NAMES } from "./constants/directions.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -81,6 +82,12 @@ const SAFE_COMPARISON_STAT_KEYS = new Set([
 ]);
 const SAFE_RETURN_REASONS = new Set(["gameover", "abandon", "escape_scroll"]);
 const SAFE_ENEMY_IDS = new Set(MONSTERS.map(monster => monster.name));
+const SAFE_SPELL_TARGET_TYPES = new Set(
+  Object.values(SPELLS)
+    .map(spell => spell.target)
+    .filter(target => typeof target === "string")
+);
+const SAFE_DIRECTIONS = new Set(DIR_NAMES.map((_, index) => index));
 const MAX_ENEMY_SNAPSHOT = 8;
 const MAX_AFFIX_SNAPSHOT = 24;
 const MAX_RESOURCE_VALUE = 1_000_000;
@@ -176,6 +183,15 @@ function getSafeItemId(itemKey) {
 function getSafeSpellId(spellKey) {
   if (spellKey === null || spellKey === undefined || spellKey === "") return null;
   return typeof spellKey === "string" && Object.hasOwn(SPELLS, spellKey) ? spellKey : "other";
+}
+
+function normalizeTargetIndex(value, partySize) {
+  const boundedPartySize = Math.min(MAX_ENEMY_SNAPSHOT, Math.max(0, Number(partySize) || 0));
+  return Number.isInteger(value) && value >= 0 && value < boundedPartySize ? value : null;
+}
+
+function normalizeDirection(value) {
+  return Number.isInteger(value) && SAFE_DIRECTIONS.has(value) ? value : null;
 }
 
 function getItemCategory(itemKey) {
@@ -676,14 +692,19 @@ export function trackCombatDecision(action, details = {}) {
 
 export function trackExplorationDecision(action, details = {}) {
   if (!isTelemetryAvailable() || !runId) return;
+  const spellId = getSafeSpellId(details.spellName);
+  const spellTarget = spellId && spellId !== "other" ? SPELLS[spellId]?.target : null;
   capture("exploration_decision", {
     runId,
     ...safeDecisionContext({ state: details.state, character: details.character }),
     action: normalizeDecisionAction(action),
     source: normalizeStableValue(details.source, SAFE_CELL_EVENTS),
-    spellId: getSafeSpellId(details.spellName),
+    spellId,
+    targetIndex: normalizeTargetIndex(details.targetIdx, details.state?.party?.length),
+    targetType: normalizeOptionalStableValue(details.targetType ?? spellTarget, SAFE_SPELL_TARGET_TYPES),
     itemId: getSafeItemId(details.itemKey),
-    itemCategory: getItemCategory(details.itemKey)
+    itemCategory: getItemCategory(details.itemKey),
+    direction: normalizeDirection(details.direction)
   });
 }
 

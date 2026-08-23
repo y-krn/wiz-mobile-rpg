@@ -132,6 +132,16 @@ const mixedSameLineTelemetryDiff = `diff --git a/src/chest.js b/src/chest.js
 +  trackChestAction(chest, action, {}); state.currentRun.materials.blackHorn += 1;
 `;
 assert.equal(isTelemetryOnlyDiff(mixedSameLineTelemetryDiff), false, "a line mixing telemetry and gameplay mutation is not telemetry-only");
+const mutationInTelemetryArgumentsDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,1 @@
++  trackChestAction(chest, action, { state.currentRun.materials.blackHorn += 1 });
+`;
+assert.equal(isTelemetryOnlyDiff(mutationInTelemetryArgumentsDiff), false, "telemetry-call arguments containing mutation are not telemetry-only");
+const mutationAfterContextPrefixDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -416,0 +417,1 @@
++    state, state.currentRun.materials.blackHorn += 1;
+`;
+assert.equal(isTelemetryOnlyDiff(mutationAfterContextPrefixDiff), false, "context-prefix lines containing mutation are not telemetry-only");
 assert.throws(
   () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", mixedTelemetryDiff]]) }),
   /no declared runtime evidence: economy/

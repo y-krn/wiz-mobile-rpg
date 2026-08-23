@@ -304,6 +304,53 @@ check("combat decisions preserve all production action categories", () => {
   );
 });
 
+check("exploration spell telemetry preserves target shape", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, { ...decisionState, gameState: "explore" });
+  trackExplorationDecision("spell", {
+    state: { ...decisionState, gameState: "explore" },
+    character: decisionPlayer,
+    spellName: "DIOS",
+    targetIdx: 0
+  });
+  trackExplorationDecision("spell", {
+    state: { ...decisionState, gameState: "explore" },
+    character: decisionPlayer,
+    spellName: "MABARRIER"
+  });
+  const spellEvents = events.filter(event => event.name === "exploration_decision");
+  assert.equal(spellEvents[0].properties.targetIndex, 0);
+  assert.equal(spellEvents[0].properties.targetType, "single_ally");
+  assert.equal(spellEvents[1].properties.targetIndex, null);
+  assert.equal(spellEvents[1].properties.targetType, "all_allies");
+});
+
+check("directional exploration item telemetry preserves validated directions", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, { ...decisionState, gameState: "explore" });
+  for (const direction of [0, 1, 2, 3]) {
+    trackExplorationDecision("item", {
+      state: { ...decisionState, gameState: "explore" },
+      character: decisionPlayer,
+      itemKey: "NOISE_BALL",
+      direction
+    });
+  }
+  assert.deepEqual(
+    events.filter(event => event.name === "exploration_decision").map(event => event.properties.direction),
+    [0, 1, 2, 3]
+  );
+  trackExplorationDecision("item", {
+    state: { ...decisionState, gameState: "explore" },
+    character: decisionPlayer,
+    itemKey: "NOISE_BALL",
+    direction: 99
+  });
+  assert.equal(events.at(-1).properties.direction, null);
+});
+
 check("malformed snapshots stay allowlisted and bounded", () => {
   const malformedCharacter = {
     ...decisionPlayer,
