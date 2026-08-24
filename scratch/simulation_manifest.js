@@ -814,6 +814,14 @@ const ARRAY_MUTATOR_CALL = /\.\s*(?:push|pop|shift|unshift|splice|sort|reverse|f
 const BALANCE_MUTATOR_CALL = /\b(?:award|grant|give|add|remove|consume|refund|credit|debit|roll|resolve|trigger|apply|drop|loot|reward|trap|economy|material|currency|inventory|equipment|item|ticket|chestReward)\w*\s*\(/i;
 const BOUNDARY_COMPUTED_ACCESS = /\b(?:state\.(?:chestState|gameState|transitioning)|chest|menuContext|menuHistory)\s*\[/;
 const AGGREGATE_MUTATOR_CALL = /\b(?:Object\.(?:assign|defineProperty|defineProperties|setPrototypeOf)|Reflect\.(?:set|defineProperty|defineProperties))\s*\(/;
+const COMPUTED_AGGREGATE_ACCESS = /\b(?:Object|Reflect)\s*\[/;
+const BOUNDARY_CALL_ROOT = /\b(?:state\.(?:chestState|gameState|transitioning)|chest|menuContext|menuHistory)\b/;
+const CALL_EXPRESSION = /\b(?:[A-Za-z_$][A-Za-z0-9_$]*\s*\.\s*)?[A-Za-z_$][A-Za-z0-9_$]*\s*\(/g;
+const CONTROL_KEYWORDS = new Set(["if", "while", "switch", "for", "catch"]);
+const KNOWN_BOUNDARY_CALLS = new Set([
+  "transitionChestPhase", "getChestPhase", "chestActionAllowed",
+  "clearChestInspectionState", "finishChest"
+]);
 const STATE_BOUNDARY_HELPERS = /\b(?:CHEST_PHASES|CHEST_PHASE_TRANSITIONS|transitionChestPhase|getChestPhase|chestActionAllowed|isEligibleChestCharacter|clearChestInspectionState|finishChest|openChestMenu|executeDisarm|smashChest|openChestDirectly)\b/;
 const STATE_BOUNDARY_LOCALS = /\b(?:currentPhase|allowedPhases|persistedChestState|recordAction|allowTransition|fromDisarm|smashTrapFired)\b/;
 const STATE_BOUNDARY_PROPERTIES = new Set([
@@ -827,6 +835,7 @@ function isAllowedStateBoundaryLine(text, file) {
   if (BALANCE_MUTATOR_CALL.test(text)) return false;
   if (BOUNDARY_COMPUTED_ACCESS.test(text)) return false;
   if (AGGREGATE_MUTATOR_CALL.test(text)) return false;
+  if (COMPUTED_AGGREGATE_ACCESS.test(text)) return false;
   if (/^(?:state\.party\.includes\((?:char|opener)\)\s*&&|if \(options\.fromDisarm === true && !state\.party\.includes\(opener\)\) return false;)$/.test(text)) return true;
   if ([...text.matchAll(STATE_ROOT_ACCESS)].some(([, root]) => !ALLOWED_STATE_ROOTS.has(root))) return false;
   if (/^\["ok",\s*"poisoned",\s*"blind"\]\.includes\(char\.status\)$/.test(text)) return true;
@@ -850,11 +859,79 @@ function isAllowedStateBoundaryLine(text, file) {
   return false;
 }
 
+function getChangedCodeBlocks(diff) {
+  const blocks = [];
+  let block = [];
+  const flush = () => {
+    if (block.length > 0) blocks.push(block.join(" "));
+    block = [];
+  };
+  for (const line of diff.split(/\r?\n/)) {
+    if (!(line.startsWith("+") || line.startsWith("-")) || line.startsWith("+++") || line.startsWith("---")) {
+      flush();
+      continue;
+    }
+    const text = line.slice(1).trim();
+    if (!text || text.startsWith("//")) {
+      flush();
+      continue;
+    }
+    block.push(text);
+  }
+  flush();
+  return blocks;
+}
+
+function hasUnrecognizedBoundaryCall(block) {
+  for (const match of block.matchAll(CALL_EXPRESSION)) {
+    const fullMatch = match[0];
+    const callName = fullMatch.slice(0, fullMatch.lastIndexOf("(")).replace(/\s/g, "").split(".").pop();
+    if (CONTROL_KEYWORDS.has(callName)) continue;
+    const openIndex = match.index + fullMatch.lastIndexOf("(");
+    let depth = 0;
+    let quote = null;
+    let escaped = false;
+    let hasDirectBoundaryRoot = false;
+    for (let index = openIndex; index < block.length; index += 1) {
+      const char = block[index];
+      if (quote) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === quote) quote = null;
+        continue;
+      }
+      if (char === "\"" || char === "'" || char === "`") {
+        quote = char;
+        continue;
+      }
+      if (char === "(") {
+        depth += 1;
+        continue;
+      }
+      if (char === ")") {
+        depth -= 1;
+        if (depth === 0) break;
+        continue;
+      }
+      const boundaryAtCurrent = block.slice(index).match(BOUNDARY_CALL_ROOT);
+      if (depth === 1 && boundaryAtCurrent?.index === 0) {
+        hasDirectBoundaryRoot = true;
+        break;
+      }
+    }
+    if (hasDirectBoundaryRoot && !KNOWN_BOUNDARY_CALLS.has(callName)) return true;
+  }
+  return false;
+}
+
 function getNonBoundaryStateDiffLine(diff, file) {
   if (typeof diff !== "string" || !diff.trim()) return false;
-  return diff.split(/\r?\n/).filter(line =>
+  const nonBoundaryLine = diff.split(/\r?\n/).filter(line =>
     (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")
-  ).map(line => line.slice(1).trim()).find(text => !isAllowedStateBoundaryLine(text, file)) || null;
+  ).map(line => line.slice(1).trim()).find(text => !isAllowedStateBoundaryLine(text, file));
+  if (nonBoundaryLine) return nonBoundaryLine;
+  const unsafeBlock = getChangedCodeBlocks(diff).find(hasUnrecognizedBoundaryCall);
+  return unsafeBlock || null;
 }
 
 function hasOnlyStateBoundaryChanges(diff, file) {

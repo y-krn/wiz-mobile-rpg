@@ -199,7 +199,10 @@ for (const [label, mutation] of [
   ["run item-found array", "state.currentRun.itemsFound.push(\"DAGGER\");"],
   ["inventory array", "state.inventory.push(\"HEAL_POTION\");"],
   ["computed chest-state write", "state.chestState[\"trap\"] = \"none\";"],
-  ["aggregate chest-state write", "Object.assign(state.chestState, { trap: \"none\" });"]
+  ["aggregate chest-state write", "Object.assign(state.chestState, { trap: \"none\" });"],
+  ["computed aggregate object write", "Object[\"assign\"](state.chestState, { trap: \"none\" });"],
+  ["computed aggregate reflect write", "Reflect[\"set\"](state.chestState, \"phase\", \"menu\");"],
+  ["aliased aggregate write", "assign(state.chestState, { trap: \"none\" });"]
 ]) {
   const markerMutationDiff = `diff --git a/src/chest.js b/src/chest.js
 @@ -28,0 +29,2 @@
