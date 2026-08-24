@@ -1,5 +1,5 @@
 import { markMapChanged, state } from "./state_core.js";
-import { SAVE_VERSION } from "./save_migrations.js";
+import { SAVE_VERSION, normalizeSavePayload } from "./save_migrations.js";
 import { menuContext, menuHistory } from "../navigation.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 
@@ -23,6 +23,7 @@ function resolvePersistedGameState() {
   if (state.chestState?.fromDrop) return "submenu";
   if (state.gameState === "chest") return "explore";
   if (state.gameState === "trap_encounter") return "explore";
+  if (state.gameState === "equip_overlay") return "explore";
   if (state.gameState !== "submenu") return state.gameState;
   if (menuContext.prevGameState) return menuContext.prevGameState;
   const t = menuContext.type || "";
@@ -110,6 +111,10 @@ export function createSavePayload() {
 }
 
 export function applySavePayload(data) {
+  // Normalize the complete payload before mutating state. This keeps malformed
+  // direct callers atomic and leaves loadGame's existing fallback path in
+  // control when a payload cannot be safely normalized.
+  data = normalizeSavePayload(data);
   state.x = data.x;
   state.y = data.y;
   state.dir = data.dir;

@@ -159,7 +159,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
     "src/combat_ui/spell_summary.js",
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**",
-    "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js",
+    "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js", "src/state/save_migrations.js", "src/state/save_payload.js",
     "src/error_context.js", "src/controls_guard.js",
     "src/runtime_diagnostics.js", "src/telemetry.js", "src/spell_menu.js"
   ]),

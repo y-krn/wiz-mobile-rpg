@@ -1,10 +1,18 @@
 import { strict as assert } from "node:assert";
 import { applySavePayload, createSavePayload } from "../src/state/save_payload.js";
-import { SAVE_VERSION, migrateSavePayload } from "../src/state/save_migrations.js";
-import { SOLO_CLASSES, createDefaultCurrentRun, createSoloCharacter, state } from "../src/state.js";
+import { SAVE_PAYLOAD_FIELDS, SAVE_VERSION, migrateSavePayload } from "../src/state/save_migrations.js";
+import { SOLO_CLASSES, createDefaultCurrentRun, createSoloCharacter, loadGame, state } from "../src/state.js";
 import { menuContext, openGuardedSubmenu } from "../src/navigation.js";
 import { EVENT_TYPES } from "../src/data.js";
 import { applyFloorTransitionHeal, checkCellEvents } from "../src/movement.js";
+
+const saveValues = new Map();
+globalThis.localStorage = {
+  getItem: key => saveValues.get(key) ?? null,
+  setItem: (key, value) => saveValues.set(key, String(value)),
+  removeItem: key => saveValues.delete(key),
+  clear: () => saveValues.clear()
+};
 
 let failures = 0;
 function check(label, test) {
@@ -51,6 +59,15 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.deepEqual(payload.unlockedMilestones, [5, 10]);
   assert.deepEqual(payload.records, state.records);
   assert.equal(payload.currentRun.quests[0].currentValue, 4);
+  assert.deepEqual(Object.keys(payload).sort(), [...SAVE_PAYLOAD_FIELDS].sort());
+  state.transitioning = true;
+  state.controlsGuardUntil = Date.now() + 1000;
+  state.mapRevision = 99;
+  state.sessionMaxFloor = 99;
+  assert.equal(Object.hasOwn(createSavePayload(), "transitioning"), false);
+  assert.equal(Object.hasOwn(createSavePayload(), "controlsGuardUntil"), false);
+  assert.equal(Object.hasOwn(createSavePayload(), "mapRevision"), false);
+  assert.equal(Object.hasOwn(createSavePayload(), "sessionMaxFloor"), false);
   assert.equal(Object.hasOwn(payload, "contracts"), false);
   assert.equal(Object.hasOwn(payload, "activeContract"), false);
   assert.equal(Object.hasOwn(payload, "roster"), false);
@@ -73,6 +90,61 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
   assert.deepEqual(state.records, { deepestRetreat: 12, deepestDeath: 9, deepestByClass: { Mage: 12 }, totalRuns: 7 });
   assert.equal(state.currentRun.quests[0].currentValue, 4);
+});
+
+check("partial current-version payloads receive safe defaults", () => {
+  const partialPayload = {
+    version: SAVE_VERSION,
+    party: [createSoloCharacter("Thief")],
+    gameState: "equip_overlay",
+    transitioning: true,
+    menuContext: { type: "equipment" },
+    eventCooldownTurns: 20
+  };
+
+  applySavePayload(migrateSavePayload(partialPayload));
+
+  assert.equal(state.party[0].class, "Thief");
+  assert.equal(state.gameState, "explore");
+  assert.equal(state.floor, 1);
+  assert.equal(state.maps.length, 5);
+  assert.deepEqual(state.floorChestsOpened, [0, 0, 0, 0, 0]);
+  assert.equal(state.floorChestsTotal.length, 5);
+  assert.equal(Object.hasOwn(state, "eventCooldownTurns"), false);
+});
+
+check("malformed direct payloads fail before state mutation", () => {
+  const originalX = state.x;
+  assert.throws(
+    () => applySavePayload(null),
+    error => error?.name === "MalformedSavePayloadError"
+  );
+  assert.equal(state.x, originalX);
+
+  const malformedPayload = {
+    ...createSavePayload(),
+    party: {},
+    inventory: {},
+    records: null,
+    codex: null,
+    combatState: { monsters: {} }
+  };
+  assert.doesNotThrow(() => applySavePayload(malformedPayload));
+  assert.deepEqual(state.party, []);
+  assert.deepEqual(state.inventory, []);
+  assert.deepEqual(state.combatState.monsters, []);
+});
+
+check("malformed primary save falls back to a valid backup", () => {
+  saveValues.clear();
+  const backupPayload = createSavePayload();
+  backupPayload.party = [createSoloCharacter("Bishop")];
+  saveValues.set("mobile_wiz_rpg_autosave", "{not-json");
+  saveValues.set("mobile_wiz_rpg_backup", JSON.stringify(backupPayload));
+
+  loadGame();
+
+  assert.equal(state.party[0].class, "Bishop");
 });
 
 check("legacy event cooldown field is ignored during load", () => {
