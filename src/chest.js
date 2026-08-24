@@ -500,7 +500,7 @@ function markChestProcessed(chest) {
 
 export function executeDisarm(char, rng = Math.random) {
   if (
-    !chestActionAllowed([CHEST_PHASES.MENU, CHEST_PHASES.DISARM_SELECT]) ||
+    !chestActionAllowed([CHEST_PHASES.DISARM_SELECT]) ||
     !isEligibleChestCharacter(char)
   ) return false;
 

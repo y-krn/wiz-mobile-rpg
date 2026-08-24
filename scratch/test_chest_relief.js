@@ -280,6 +280,7 @@ await test("fromDrop宝箱はsave/load後も同じ未開封報酬を保持する
 
 await test("欠損・死亡・非partyのactorはtrackingとphase変更前に拒否する", () => {
   resetChest({ trap: "poison needle", item: "HEAL_POTION" });
+  state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
   const chest = state.chestState;
   const before = {
     phase: chest.phase,
@@ -307,6 +308,35 @@ await test("欠損・死亡・非partyのactorはtrackingとphase変更前に拒
     telemetry: chestTelemetryEvents().length
   }, before);
   assert.equal(state.inventory.includes("HEAL_POTION"), false);
+});
+
+await test("解除選択をキャンセルした後のstale解除入力は副作用なし", () => {
+  resetChest({ trap: "poison needle", item: "HEAL_POTION" });
+  const chest = state.chestState;
+  state.gameState = "submenu";
+  menuContext.type = "chest_menu";
+  state.chestState.phase = CHEST_PHASES.MENU;
+  const before = {
+    phase: chest.phase,
+    trap: chest.trap,
+    inventory: [...state.inventory],
+    gameState: state.gameState,
+    menuType: menuContext.type,
+    mapEvent: state.map[state.y][state.x].event,
+    telemetry: chestTelemetryEvents().length
+  };
+
+  assert.equal(executeDisarm(state.party[0], () => 0), false);
+  assert.equal(executeDisarm(state.party[0], () => 0), false);
+  assert.deepEqual({
+    phase: chest.phase,
+    trap: chest.trap,
+    inventory: [...state.inventory],
+    gameState: state.gameState,
+    menuType: menuContext.type,
+    mapEvent: state.map[state.y][state.x].event,
+    telemetry: chestTelemetryEvents().length
+  }, before);
 });
 
 await test("弱体毒針は正のダメージ後に毒付与率50%", () => {
@@ -507,6 +537,7 @@ await test("通常開封・成功解除・キット解除は報酬を失わな�
   try {
     const disarmer = makeCharacter("Ninja");
     resetChest({ trap: "poison needle", item: "HEAL_POTION", accessoryItem: "AMULET_HP", party: [disarmer] });
+    state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
     executeDisarm(disarmer, () => 0);
     assert.equal(state.inventory.includes("HEAL_POTION"), true);
     assert.equal(state.inventory.includes("AMULET_HP"), true);
@@ -532,6 +563,7 @@ await test("宝箱の実アクションを選択単位で記録し、自動開�
 
     const disarmer = makeCharacter("Ninja");
     resetChest({ trap: "poison needle", item: "DAGGER", party: [disarmer] });
+    state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
     executeDisarm(disarmer, () => 0);
     assert.deepEqual(chestTelemetryEvents().map(event => event.properties.action), ["disarm"]);
 
@@ -605,6 +637,7 @@ await test("致死的な通常解除失敗は既存どおり報酬を付与し�
   global.setTimeout = callback => { callback(); return 0; };
   try {
     // Ninja's 70% disarm boundary fails; the full trap then deals lethal damage.
+    state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
     executeDisarm(doomed, sequence([0.70, 0, 0, 0, 0]));
   } finally {
     global.setTimeout = originalSetTimeout;
@@ -650,12 +683,14 @@ await test("忍者の解除率は0.70", () => {
   try {
     const successNinja = makeCharacter("Ninja", "Success Ninja");
     resetChest({ trap: "poison needle", party: [successNinja] });
+    state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
     executeDisarm(successNinja, () => 0.699);
     assert.equal(state.currentRun.trapsDisarmed, 1);
     assert.equal(state.currentRun.trapsTriggered, 0);
 
     const failedNinja = makeCharacter("Ninja", "Failed Ninja");
     resetChest({ trap: "poison needle", party: [failedNinja] });
+    state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
     executeDisarm(failedNinja, () => 0.70);
     assert.equal(state.currentRun.trapsDisarmed, 0);
     assert.equal(state.currentRun.trapsTriggered, 1);

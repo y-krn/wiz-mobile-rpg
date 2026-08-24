@@ -106,6 +106,35 @@ test('Chest trap inspection exposes the correct disarm flow @e2e', async ({ page
     await expect(btnInspectBack).toBeVisible();
     await expect(btnInspectBack).toBeDisabled();
 
+    const staleDisarm = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { executeDisarm } = await import('/src/chest.js');
+      const before = {
+        phase: state.chestState.phase,
+        trap: state.chestState.trap,
+        inventory: [...state.inventory],
+        gameState: state.gameState,
+        menuType: menuContext.type,
+        mapEvent: state.map[state.y][state.x].event,
+      };
+      const result = executeDisarm(state.party[0], () => 0);
+      return {
+        result,
+        before,
+        after: {
+          phase: state.chestState.phase,
+          trap: state.chestState.trap,
+          inventory: [...state.inventory],
+          gameState: state.gameState,
+          menuType: menuContext.type,
+          mapEvent: state.map[state.y][state.x].event,
+        },
+      };
+    });
+    expect(staleDisarm.result).toBe(false);
+    expect(staleDisarm.after).toEqual(staleDisarm.before);
+
     await btnDisarmAfter.click();
     await page.getByRole('button', { name: /Robin .*解除/ }).click();
     await expect.poll(async () => page.evaluate(async () => {
