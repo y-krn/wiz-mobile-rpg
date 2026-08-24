@@ -63,6 +63,14 @@ function chestActionAllowed(phases, { allowTransition = false } = {}) {
   return phases.includes(getChestPhase(state.chestState));
 }
 
+function isEligibleChestCharacter(char) {
+  return Boolean(
+    char &&
+    state.party.includes(char) &&
+    ["ok", "poisoned", "blind"].includes(char.status)
+  );
+}
+
 function clearChestInspectionState(chest) {
   delete chest.inspected;
   delete chest.identifiedTrap;
@@ -491,7 +499,10 @@ function markChestProcessed(chest) {
 }
 
 export function executeDisarm(char, rng = Math.random) {
-  if (!chestActionAllowed([CHEST_PHASES.MENU, CHEST_PHASES.DISARM_SELECT])) return false;
+  if (
+    !chestActionAllowed([CHEST_PHASES.MENU, CHEST_PHASES.DISARM_SELECT]) ||
+    !isEligibleChestCharacter(char)
+  ) return false;
 
   trackChestChoice(state.chestState, "disarm");
   transitionChestPhase(state.chestState, CHEST_PHASES.RESOLVING);
@@ -713,10 +724,11 @@ export function smashChest(rng = Math.random) {
 }
 
 export function openChestDirectly(opener = null, rng = Math.random, options = {}) {
-  if (!state.chestState) {
-    recoverChestOpenTransition(new Error("Chest state is missing at open transition."));
-    return false;
-  }
+  if (!state.chestState) return false;
+  if (options.smash !== true && options.fromDisarm !== true && !isEligibleChestCharacter(opener)) return false;
+  // A failed disarm may kill the already-validated disarmer before the
+  // automatic reward resolution. Keep that internal continuation legal.
+  if (options.fromDisarm === true && !state.party.includes(opener)) return false;
   const allowedPhases = options.fromDisarm || options.smash
     ? [CHEST_PHASES.RESOLVING]
     : [CHEST_PHASES.MENU, CHEST_PHASES.OPEN_SELECT];
@@ -782,7 +794,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
         state.transitioning = false;
         triggerGameOver();
       }, 1800);
-      return;
+      return true;
     }
 
     if (smash) {

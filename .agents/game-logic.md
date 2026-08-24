@@ -29,11 +29,14 @@ transitions are:
 | `terminal` | No chest action is legal. The chest state is cleared and exploration or game-over owns the next screen. |
 
 The selection screens are navigation-only: their back/cancel path must restore
-the chest menu without consuming a trap or reward. Active chest phase state is
-never written to a save payload; saves flatten chest encounters to `explore`
-and reload with `chestState: null`, leaving the map event to be entered again.
-This keeps inspection, disarm, smash, and reward bookkeeping out of later
-phases while preserving reward, trap, telemetry, and navigation behavior.
+the chest menu without consuming a trap or reward. Ordinary active chest phase
+state is never written to a save payload; saves flatten those encounters to
+`explore` and reload with `chestState: null`, leaving the map event to be
+entered again. The exception is an unopened `fromDrop` chest, which has no map
+event to re-enter: its reward/trap state is saved, its phase is normalized to
+`menu`, and load restores the chest menu. This keeps inspection, disarm, smash,
+and reward bookkeeping out of later phases while preserving reward, trap,
+telemetry, and navigation behavior.
 
 ## Initial File Routing
 

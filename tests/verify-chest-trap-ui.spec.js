@@ -66,6 +66,14 @@ test('Chest trap inspection exposes the correct disarm flow @e2e', async ({ page
     await expect(btnDisarmAfter).toBeEnabled();
 
     // Opener selection is cancellable and must return to the chest menu.
+    const chestBeforeOpenCancel = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return {
+        trap: state.chestState.trap,
+        inventory: [...state.inventory],
+        mapEvent: state.map[state.y][state.x].event,
+      };
+    });
     await page.getByRole('button', { name: '宝箱を開ける' }).click();
     await expect.poll(async () => page.evaluate(async () => {
       const { state } = await import('/src/state.js');
@@ -76,6 +84,14 @@ test('Chest trap inspection exposes the correct disarm flow @e2e', async ({ page
       const { state } = await import('/src/state.js');
       return state.chestState.phase;
     })).toBe('menu');
+    await expect.poll(async () => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return {
+        trap: state.chestState.trap,
+        inventory: [...state.inventory],
+        mapEvent: state.map[state.y][state.x].event,
+      };
+    })).toEqual(chestBeforeOpenCancel);
 
     // Click "解除する" to open disarmer select submenu
     await page.locator('#btn-chest-disarm').click();
@@ -222,15 +238,18 @@ test('Opening a chest with stale state returns to usable controls @e2e', {
 
   await expect.poll(async () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
+    const { menuContext } = await import('/src/navigation.js');
     return {
       gameState: state.gameState,
       transitioning: state.transitioning,
       hasChest: Boolean(state.chestState),
+      menuType: menuContext.type,
     };
   })).toEqual({
-    gameState: 'explore',
+    gameState: 'submenu',
     transitioning: false,
     hasChest: false,
+    menuType: 'chest_opener_select',
   });
   await expect(page.locator('#controls-panel')).toHaveCSS('pointer-events', 'auto');
 });
