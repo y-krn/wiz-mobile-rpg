@@ -196,10 +196,12 @@ export function getScreenViewState(stateLike, menuContextLike) {
   const isSpellOverlaySubmenu = isSubmenu && previousGameState === "explore" && hasMap && hasCurrentCell && SPELL_OVERLAY_TYPES.has(menuType);
   const usableCaster = hasUsableCaster(source.party, menu.actorIdx);
   const isUsableCombatOverlaySubmenu = isCombatOverlaySubmenu && isActionableCombat && (
-    menuType === "combat_spell"
-      ? usableCaster
+      menuType === "combat_spell"
+        ? usableCaster
       : menuType === "combat_target"
-        ? menu.targetType === "enemy" || (menu.targetType === "ally" && (!menu.spellName || isUsableSpellForActor(source.party, menu.actorIdx, menu.spellName, "single_ally")))
+        ? menu.targetType === "enemy"
+          ? !menu.spellName || isUsableSpellForActor(source.party, menu.actorIdx, menu.spellName, "single_enemy")
+          : menu.targetType === "ally" && (!menu.spellName || isUsableSpellForActor(source.party, menu.actorIdx, menu.spellName, "single_ally"))
         : menuType === "combat_item"
   );
   const isUsableSpellOverlaySubmenu = isSpellOverlaySubmenu && usableCaster && (

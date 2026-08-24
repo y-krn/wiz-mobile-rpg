@@ -407,6 +407,28 @@ for (const [file, guard] of [
   );
 }
 
+for (const [file, boundaryLine] of [
+  ["src/combat_ui/combat_state.js", "  menuContext.type = \"combat_target\";"],
+  ["src/combat_ui/item_menu.js", "  menuContext.targetType = \"\";"],
+  ["src/combat_ui/target_menu.js", "  menuContext.targetType = \"enemy\";"]
+]) {
+  const boundaryDiff = `diff --git a/${file} b/${file}
+@@ -1,0 +1,2 @@
++// balance-impact: none — combat callback context boundary only
++${boundaryLine}
+`;
+  assert.doesNotThrow(
+    () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([[file, boundaryDiff]]) }),
+    `${file} callback context boundary diff is classified explicitly`
+  );
+  const mixedBoundaryDiff = `${boundaryDiff}+  trackCombatDecisionCommit();\n+  state.currentRun.materials.blackHorn += 1;\n`;
+  assert.throws(
+    () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([[file, mixedBoundaryDiff]]) }),
+    /balance-impact none declaration contains a non-boundary diff line|telemetry anchor mixed/,
+    `${file} synthetic mixed telemetry/balance changes remain rejected`
+  );
+}
+
 const discoveredRunners = discoverSimulationRunnerFiles();
 assert.deepEqual(
   EXECUTABLE_MEASUREMENT_RUNNERS.filter(file => !discoveredRunners.includes(file)),

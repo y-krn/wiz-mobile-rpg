@@ -937,6 +937,127 @@ for (const vp of VIEWPORTS) {
 }
 
 for (const vp of VIEWPORTS) {
+  test(`Combat callbacks fail closed after navigation and invalid context at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { menuContext, menuHistory, goBackSubmenu } = await import('/src/navigation.js');
+      const { combatCallbacks, combatSelection } = await import('/src/combat_ui/combat_state.js');
+      const { selectCombatAction } = await import('/src/combat.js');
+      const { getScreenViewState } = await import('/src/state/view_state.js');
+
+      const reset = (spells = ['HALITO']) => {
+        const actor = createSoloCharacter('Priest');
+        actor.spells = spells;
+        state.party = [actor];
+        state.inventory = ['HEAL_POTION'];
+        state.combatState = {
+          phase: 'choose_actions',
+          monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+        };
+        state.gameState = 'combat';
+        state.transitioning = false;
+        menuContext.type = '';
+        menuContext.actorIdx = -1;
+        menuContext.targetType = '';
+        menuContext.spellName = '';
+        menuContext.prevGameState = null;
+        menuHistory.length = 0;
+        combatSelection.charIdx = 0;
+        combatSelection.actions = [];
+        combatCallbacks.activeTargetCallback = null;
+        combatCallbacks.activeSpellCallback = null;
+        combatCallbacks.activeItemCallback = null;
+      };
+
+      reset();
+      selectCombatAction('fight');
+      const staleFightCallback = combatCallbacks.activeTargetCallback;
+      goBackSubmenu();
+      staleFightCallback?.(0);
+      const staleAfterBack = {
+        actionCount: combatSelection.actions.length,
+        gameState: state.gameState,
+        previousGameState: menuContext.prevGameState,
+      };
+
+      reset();
+      selectCombatAction('spell');
+      const spellCallback = combatCallbacks.activeSpellCallback;
+      spellCallback?.('HALITO');
+      const nestedTargetCallback = combatCallbacks.activeTargetCallback;
+      goBackSubmenu();
+      nestedTargetCallback?.(0);
+      const afterNestedBack = {
+        actionCount: combatSelection.actions.length,
+        menuType: menuContext.type,
+      };
+      goBackSubmenu();
+      spellCallback?.('HALITO');
+      const afterParentClose = {
+        actionCount: combatSelection.actions.length,
+        gameState: state.gameState,
+        previousGameState: menuContext.prevGameState,
+      };
+
+      reset(['DUMAPIC']);
+      const mpBeforeUtility = state.party[0].mp;
+      selectCombatAction('spell');
+      const utilityCallback = combatCallbacks.activeSpellCallback;
+      utilityCallback?.('DUMAPIC');
+      const utilityTargetView = getScreenViewState(state, {
+        ...menuContext,
+        type: 'combat_target',
+        targetType: 'enemy',
+        spellName: 'DUMAPIC',
+      });
+      const utilityResult = {
+        actionCount: combatSelection.actions.length,
+        mp: state.party[0].mp,
+        mpBefore: mpBeforeUtility,
+        menuType: menuContext.type,
+        targetUsable: utilityTargetView.isUsableCombatOverlaySubmenu,
+      };
+
+      reset();
+      selectCombatAction('fight');
+      const invalidTargetCallback = combatCallbacks.activeTargetCallback;
+      state.combatState.monsters[0].hp = 0;
+      invalidTargetCallback?.(-1);
+      invalidTargetCallback?.(99);
+      invalidTargetCallback?.(0);
+      const invalidTargetResult = {
+        actionCount: combatSelection.actions.length,
+        gameState: state.gameState,
+      };
+
+      reset();
+      selectCombatAction('fight');
+      const invalidActorCallback = combatCallbacks.activeTargetCallback;
+      state.party[0] = null;
+      invalidActorCallback?.(0);
+      const invalidActorResult = {
+        actionCount: combatSelection.actions.length,
+        gameState: state.gameState,
+      };
+
+      return { staleAfterBack, afterNestedBack, afterParentClose, utilityResult, invalidTargetResult, invalidActorResult };
+    });
+
+    expect(result).toEqual({
+      staleAfterBack: { actionCount: 0, gameState: 'combat', previousGameState: null },
+      afterNestedBack: { actionCount: 0, menuType: 'combat_spell' },
+      afterParentClose: { actionCount: 0, gameState: 'combat', previousGameState: null },
+      utilityResult: { actionCount: 0, mp: 13, mpBefore: 13, menuType: 'combat_spell', targetUsable: false },
+      invalidTargetResult: { actionCount: 0, gameState: 'submenu' },
+      invalidActorResult: { actionCount: 0, gameState: 'submenu' },
+    });
+  });
+}
+
+for (const vp of VIEWPORTS) {
   test(`Missing combat data disables combat UI paths at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');

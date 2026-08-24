@@ -183,6 +183,21 @@ export const SIMULATION_MANIFEST = Object.freeze({
       marker: "// balance-impact: none",
       reason: "canonical combat screen guard only; combat rules remain unchanged"
     },
+    {
+      pattern: "src/combat_ui/combat_state.js",
+      marker: "// balance-impact: none",
+      reason: "combat callback context boundary only; action resolution remains unchanged"
+    },
+    {
+      pattern: "src/combat_ui/item_menu.js",
+      marker: "// balance-impact: none",
+      reason: "combat item callback context boundary only; item resolution remains unchanged"
+    },
+    {
+      pattern: "src/combat_ui/target_menu.js",
+      marker: "// balance-impact: none",
+      reason: "combat target callback context boundary only; target resolution remains unchanged"
+    },
   ].map(declaration => Object.freeze({ ...declaration }))),
   // Exact paths whose current callers may receive telemetry-only edits. A
   // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
@@ -844,7 +859,8 @@ const CONTROL_KEYWORDS = new Set(["if", "while", "switch", "for", "catch"]);
 const KNOWN_BOUNDARY_CALLS = new Set([
   "transitionChestPhase", "getChestPhase", "chestActionAllowed",
   "clearChestInspectionState", "finishChest", "isUsableCombatScreen",
-  "hasUsableCombatActor", "isUsableSpellForActor"
+  "hasUsableCombatActor", "isUsableSpellForActor", "getScreenViewState",
+  "bindCombatCallback"
 ]);
 const STATE_BOUNDARY_HELPERS = /\b(?:CHEST_PHASES|CHEST_PHASE_TRANSITIONS|transitionChestPhase|getChestPhase|chestActionAllowed|isEligibleChestCharacter|clearChestInspectionState|finishChest|openChestMenu|executeDisarm|smashChest|openChestDirectly)\b/;
 const STATE_BOUNDARY_LOCALS = /\b(?:currentPhase|allowedPhases|persistedChestState|recordAction|allowTransition|fromDisarm|smashTrapFired)\b/;
@@ -869,10 +885,27 @@ function isCombatBoundaryLine(text, file) {
     || /^state\.combatState\?\.phase !== "choose_actions" \|\| !hasUsableCombatActor\(state\.party\)\) return;$/.test(trimmed);
 }
 
+const CALLBACK_CONTEXT_BOUNDARY_FILES = new Set([
+  "src/combat_ui/combat_state.js",
+  "src/combat_ui/item_menu.js",
+  "src/combat_ui/target_menu.js"
+]);
+
+function isCallbackContextBoundaryLine(text, file) {
+  if (!CALLBACK_CONTEXT_BOUNDARY_FILES.has(file)) return false;
+  const trimmed = text.trim();
+  if (/^import\s/.test(trimmed) || trimmed.startsWith("//")) return true;
+  // Keep the declaration diff-aware: gameplay mutations and telemetry still
+  // disqualify a callback-context exemption below.
+  if (BALANCE_MUTATOR_CALL.test(trimmed) || /\bstate\.(?!party\b)|\b(?:currentRun|materials|inventory|track[A-Z])\b/.test(trimmed)) return false;
+  return true;
+}
+
 function isAllowedStateBoundaryLine(text, file) {
   if (!text || text.startsWith("//")) return true;
   const classificationText = maskLiteralsAndNormalizeComments(text);
   if (isCombatBoundaryLine(text, file)) return true;
+  if (isCallbackContextBoundaryLine(text, file)) return true;
   if (LITERAL_ONLY_DECLARATION.test(classificationText)) return true;
   if (file === "src/state/save_payload.js" && /^import\s+\{[^}]*\bmenuContext\b[^}]*\bmenuHistory\b/.test(classificationText)) return true;
   if (ARRAY_MUTATOR_CALL.test(classificationText)) return false;

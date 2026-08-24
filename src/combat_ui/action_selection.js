@@ -27,6 +27,22 @@ function canCommitCombatAction() {
   return isActionableCombatContext(state, menuContext);
 }
 
+const COMBAT_SPELL_TARGETS = ["single_enemy", "all_enemies", "single_ally", "all_allies"];
+
+function isValidEnemyTarget(targetIdx) {
+  const monsters = state.combatState?.monsters;
+  if (!Array.isArray(monsters) || !Number.isInteger(targetIdx) || targetIdx < 0 || !Object.hasOwn(monsters, targetIdx)) return false;
+  const monster = monsters[targetIdx];
+  return Boolean(monster) && typeof monster === "object" && !Array.isArray(monster) && monster.hp > 0;
+}
+
+function isValidAllyTarget(targetIdx, allowedIndices) {
+  if (!Array.isArray(state.party) || !Number.isInteger(targetIdx) || !allowedIndices.includes(targetIdx) || !Object.hasOwn(state.party, targetIdx)) return false;
+  const actor = state.party[targetIdx];
+  return Boolean(actor) && typeof actor === "object" && !Array.isArray(actor) &&
+    ["ok", "poisoned", "blind"].includes(actor.status);
+}
+
 function getLivingCharacters() {
   if (!Array.isArray(state.party)) return [];
   return state.party
@@ -104,8 +120,9 @@ export function selectCombatAction(type) {
 
   if (type === "fight") {
     // Let player choose target monster
+    menuContext.actorIdx = charOriginalIdx;
     openCombatTargetMenu("enemy", (targetIdx) => {
-      if (!canCommitCombatAction()) return;
+      if (!canCommitCombatAction() || !isValidEnemyTarget(targetIdx)) return;
       state.gameState = "combat";
       combatSelection.actions.push({
         type: "fight",
@@ -128,8 +145,9 @@ export function selectCombatAction(type) {
       addLog(`${char.name}は唱えられる呪文を持っていません。`);
       return;
     }
+    menuContext.actorIdx = charOriginalIdx;
     openCombatSpellMenu(char, (spellName) => {
-      if (!canCommitCombatAction() || !isUsableSpellForActor(state.party, charOriginalIdx, spellName)) return;
+      if (!canCommitCombatAction() || !isUsableSpellForActor(state.party, charOriginalIdx, spellName, COMBAT_SPELL_TARGETS)) return;
       const spell = SPELLS[spellName];
       if (!getSpellPayment(char, spell.cost).canCast) {
         addLog("MPもHPも足りません。");
@@ -139,7 +157,7 @@ export function selectCombatAction(type) {
       // Determine targets
       if (spell.target === "single_enemy") {
         openCombatTargetMenu("enemy", (targetIdx) => {
-          if (!canCommitCombatAction()) return;
+          if (!canCommitCombatAction() || !isValidEnemyTarget(targetIdx)) return;
           state.gameState = "combat";
           combatSelection.actions.push({
             type: "spell",
@@ -160,7 +178,8 @@ export function selectCombatAction(type) {
         }, spellName);
       } else if (spell.target === "single_ally") {
         const enqueueAllySpell = (targetIdx) => {
-          if (!canCommitCombatAction()) return;
+          if (!canCommitCombatAction() || !isUsableSpellForActor(state.party, charOriginalIdx, spellName, "single_ally") ||
+              !isValidAllyTarget(targetIdx, getSpellAllyTargetIndices(spellName, state.party))) return;
           state.gameState = "combat";
           combatSelection.actions.push({
             type: "spell",
@@ -189,6 +208,7 @@ export function selectCombatAction(type) {
       } else {
         // All enemies / all allies
         if (!canCommitCombatAction()) return;
+        state.gameState = "combat";
         combatSelection.actions.push({
           type: "spell",
           actorIdx: charOriginalIdx,
@@ -213,14 +233,16 @@ export function selectCombatAction(type) {
       addLog("共有バッグは空っぽです。");
       return;
     }
+    menuContext.actorIdx = charOriginalIdx;
     openCombatItemMenu((itemKey, itemIdx) => {
       if (!canCommitCombatAction()) return;
       const item = ITEMS[itemKey];
-      if (item.type !== "usable" || item.campOnly) {
+      if (!item || item.type !== "usable" || item.campOnly) {
         addLog("戦闘中その道具は使用できません。");
         return;
       }
       const enqueueAllyItem = (targetIdx) => {
+        if (!canCommitCombatAction() || !isValidAllyTarget(targetIdx, getItemAllyTargetIndices(state.party))) return;
         state.gameState = "combat";
         combatSelection.actions.push({
           type: "item",
