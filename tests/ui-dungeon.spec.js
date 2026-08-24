@@ -486,6 +486,98 @@ for (const vp of VIEWPORTS) {
 }
 
 for (const vp of VIEWPORTS) {
+  test(`Nested combat history and stale spell context stay hidden at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { goBackSubmenu, menuContext, menuHistory, openSubmenu } = await import('/src/navigation.js');
+      const { updateUI } = await import('/src/ui.js');
+      const { renderSpellOverlay } = await import('/src/spell_menu.js');
+
+      const validCombatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
+      };
+      const resetContext = (map) => {
+        state.party = [createSoloCharacter('Fighter')];
+        state.party[0].spells = [];
+        state.maps[0] = map;
+        state.floor = 1;
+        state.x = 0;
+        state.y = 0;
+        state.gameState = 'combat';
+        state.combatState = structuredClone(validCombatState);
+        menuContext.type = '';
+        menuContext.actorIdx = 0;
+        menuContext.prevGameState = null;
+        menuHistory.length = 0;
+      };
+
+      resetContext([[{ walls: [true, true, true, true], type: 'empty' }]]);
+      openSubmenu('combat_spell', '呪文を唱える');
+      openSubmenu('combat_target', '攻撃対象を選択');
+      goBackSubmenu();
+      const validNestedCombat = {
+        gameState: state.gameState,
+        menuType: menuContext.type,
+        historyLength: menuHistory.length,
+      };
+
+      resetContext([[{ walls: [true, true, true, true], type: 'empty' }]]);
+      openSubmenu('combat_spell', '呪文を唱える');
+      openSubmenu('combat_target', '攻撃対象を選択');
+      state.combatState = { phase: 'choose_actions', monsters: [null] };
+      goBackSubmenu();
+      const malformedNestedCombat = state.gameState;
+
+      resetContext([]);
+      openSubmenu('combat_spell', '呪文を唱える');
+      openSubmenu('combat_target', '攻撃対象を選択');
+      state.combatState = { phase: 'choose_actions', monsters: [null] };
+      goBackSubmenu();
+      const malformedNestedCombatWithoutMap = state.gameState;
+
+      const staleSpellCases = [
+        { gameState: 'town', prevGameState: null, type: 'spell_select' },
+        { gameState: 'explore', prevGameState: null, type: 'spell_target_ally' },
+        { gameState: 'submenu', prevGameState: 'town', type: 'spell_select' },
+      ].map(({ gameState, prevGameState, type }) => {
+        state.gameState = gameState;
+        state.combatState = null;
+        menuContext.type = type;
+        menuContext.prevGameState = prevGameState;
+        updateUI();
+        renderSpellOverlay();
+        const overlay = document.getElementById('spell-overlay');
+        return {
+          gameState,
+          overlayDisplay: overlay.style.display,
+          overlayChildren: overlay.children.length,
+        };
+      });
+
+      return { validNestedCombat, malformedNestedCombat, malformedNestedCombatWithoutMap, staleSpellCases };
+    });
+
+    expect(result.validNestedCombat).toEqual({
+      gameState: 'submenu',
+      menuType: 'combat_spell',
+      historyLength: 0,
+    });
+    expect(result.malformedNestedCombat).toBe('explore');
+    expect(result.malformedNestedCombatWithoutMap).toBe('town');
+    for (const staleSpell of result.staleSpellCases) {
+      expect(staleSpell).toMatchObject({
+        overlayDisplay: 'none',
+        overlayChildren: 0,
+      });
+    }
+  });
+}
+
+for (const vp of VIEWPORTS) {
   test(`Missing combat data disables combat UI paths at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');

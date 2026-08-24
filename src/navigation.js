@@ -129,6 +129,11 @@ export function goBackSubmenu() {
       closeSubmenu();
       return;
     }
+    const previousView = getScreenViewState(state, { ...menuContext, ...prev });
+    if (previousView.isCombatOverlaySubmenu && !previousView.hasCombat) {
+      closeSubmenu();
+      return;
+    }
     applyMenuContext(menuContext, prev);
     openSubmenu(prev.type, prev.title, true);
   } else {

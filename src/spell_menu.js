@@ -1,4 +1,5 @@
 import { state, saveAutosave, addLog } from "./state.js";
+import { getScreenViewState } from "./state/view_state.js";
 import { getClassJpName, isSpellcaster, SPELLS, getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp } from "./data.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { playSound } from "./audio.js";
@@ -97,8 +98,8 @@ export function getSpellCategory(spKey) {
 }
 
 function getSafeMenuType() {
-  const type = menuContext?.type;
-  return state.gameState === "submenu" && typeof type === "string" && type.trim() ? type : "";
+  const view = getScreenViewState(state, menuContext);
+  return view.isSpellOverlaySubmenu ? view.menuType : "";
 }
 
 export function renderSpellOverlay() {
@@ -109,6 +110,10 @@ export function renderSpellOverlay() {
 
   // Clear container
   overlay.innerHTML = "";
+  if (!menuType) {
+    overlay.style.display = "none";
+    return;
+  }
 
   // Set default values if uninitialized
   if (spellMenuState.filter === undefined) {

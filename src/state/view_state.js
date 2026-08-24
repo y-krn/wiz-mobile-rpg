@@ -25,6 +25,7 @@ const SUBMENU_OVERLAY_TYPES = new Set([
   "spell_select",
   "spell_target_ally"
 ]);
+const SPELL_OVERLAY_TYPES = new Set(["spell_caster_select", "spell_select", "spell_target_ally"]);
 const TOWN_SUBMENU_TYPES = new Set(["castle_main", "castle_death_logs", "workshop_main"]);
 const SAFE_PREVIOUS_STATES = new Set(GAME_STATES.filter(gameState => gameState !== "submenu"));
 
@@ -158,6 +159,7 @@ export function getScreenViewState(stateLike, menuContextLike) {
     isWorkshopSubmenu: isSubmenu && menuType === "workshop_main",
     isTownSubmenu: isSubmenu && TOWN_SUBMENU_TYPES.has(menuType),
     isCombatOverlaySubmenu: isSubmenu && previousGameState === "combat" && SUBMENU_OVERLAY_TYPES.has(menuType),
+    isSpellOverlaySubmenu: isSubmenu && previousGameState === "explore" && hasMap && hasCurrentCell && SPELL_OVERLAY_TYPES.has(menuType),
     isEventSubmenu: isSubmenu && (menuType === "chest_menu" || menuType === "chest_disarmer_select" || menuType === "chest_opener_select" || EVENT_SUBMENU_TYPES.includes(menuType)),
     isItemSubmenu: isSubmenu && ITEM_SUBMENU_TYPES.includes(menuType),
     hasMap,

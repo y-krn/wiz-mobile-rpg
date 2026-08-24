@@ -1,4 +1,5 @@
 import { state } from "../state.js";
+import { getScreenViewState } from "../state/view_state.js";
 
 function floorText(value) {
   return value > 0 ? `B${value}F` : "未記録";
@@ -7,7 +8,7 @@ function floorText(value) {
 export function updateRecordsStrip() {
   const strip = document.getElementById("records-strip");
   if (!strip) return;
-  const visible = state.gameState === "town";
+  const visible = getScreenViewState(state, null).gameState === "town";
   strip.hidden = !visible;
   if (!visible) return;
   const records = state.records || { deepestRetreat: 0, deepestDeath: 0, totalRuns: 0 };

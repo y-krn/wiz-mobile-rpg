@@ -494,7 +494,7 @@ export function updateUI() {
   // Update Spell Overlay visibility
   const spellOverlay = document.getElementById("spell-overlay");
   if (spellOverlay) {
-    if (view.isSubmenu && ["spell_caster_select", "spell_select", "spell_target_ally"].includes(view.menuType)) {
+    if (view.isSpellOverlaySubmenu) {
       spellOverlay.style.display = "flex";
       renderPreservingOverlayFocus(spellOverlay, renderSpellOverlay);
     } else {
