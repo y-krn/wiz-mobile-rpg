@@ -8,6 +8,7 @@ import { renderMilestonePortal } from "./milestone_portal.js";
 import { renderStairsDown } from "./stairs_down.js";
 import { renderItemDirectionSelect, renderItemInventory, renderItemTargetSelect, renderGameOverMain, renderEnterDungeonSelect, renderEventCamp, renderEventSpring, renderEventSpringResult, renderEventTablet, renderEventTabletResult, renderChestDisarmerSelect, renderChestOpenerSelect, renderExploreManagement } from "./explore_actions.js";
 import { updateUI } from "../ui.js";
+import { normalizeSubmenuType } from "../state/view_state.js";
 
 const SUBMENU_RENDERERS = {
   chest_menu: () => openChestMenu(),
@@ -37,11 +38,14 @@ export function renderSubmenu(type) {
   const optGrid = document.getElementById("submenu-options");
   if (!optGrid) return;
 
-  if (type === "spell_caster_select" || type === "spell_select" || type === "spell_target_ally") {
+  const submenuType = normalizeSubmenuType(type);
+  if (!submenuType) return;
+
+  if (submenuType === "spell_caster_select" || submenuType === "spell_select" || submenuType === "spell_target_ally") {
     return;
   }
 
-  const renderer = SUBMENU_RENDERERS[type];
+  const renderer = SUBMENU_RENDERERS[submenuType];
   if (renderer) {
     renderer(optGrid);
   }

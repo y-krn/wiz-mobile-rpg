@@ -7,6 +7,7 @@ import { setUiUpdateCallback, goBackSubmenu } from "./navigation.js";
 import { handleTrapAction } from "./systems/traps.js";
 import { blockGuardedControlsEvent } from "./controls_guard.js";
 import { openChestMenu } from "./chest.js";
+import { getScreenViewState } from "./state/view_state.js";
 
 // Import modules for re-export and button bindings
 import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
@@ -51,7 +52,8 @@ export function initGame() {
   // Load Initial UI state
   updateUI();
   resumePendingCampEntry();
-  if (state.gameState === "combat" && state.combatState) {
+  const view = getScreenViewState(state, null);
+  if (view.gameState === "combat" && view.hasCombat) {
     resumeCombat();
   }
 }
@@ -178,7 +180,7 @@ function bindButtons() {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener("click", () => {
-        if (state.gameState === "trap_encounter") {
+        if (getScreenViewState(state, null).gameState === "trap_encounter") {
           handleTrapAction(action);
         }
       });
@@ -278,7 +280,7 @@ function bindButtons() {
   // Keyboard navigation for desktop testing
   window.addEventListener("keydown", (e) => {
     if (state.transitioning) return;
-    if (state.gameState === "explore") {
+    if (getScreenViewState(state, null).gameState === "explore") {
       // キーボード操作はSDKのui.click breadcrumbに乗らないため手動記録する
       const keyMap = {
         ArrowUp: ["move", "forward"], w: ["move", "forward"],

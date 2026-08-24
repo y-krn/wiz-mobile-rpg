@@ -217,6 +217,7 @@ check("applying a save clears omitted transient runtime state", () => {
   assert.equal(equipState.prevGameState, null);
   assert.deepEqual(menuContext, {
     type: "",
+    targetType: "",
     actorIdx: -1,
     spellName: "",
     itemKey: "",

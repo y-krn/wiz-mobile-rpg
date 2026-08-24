@@ -369,6 +369,59 @@ test('Chest opened immediately after entering the dungeon does not draw the town
   expect(result.gameStateAfterClose).toBe('explore');
 });
 
+test('Renderer and navigation keep modal transitions safe with stale context', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  const result = await page.evaluate(async () => {
+    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { goBackSubmenu, menuContext, menuHistory, openSubmenu } = await import('/src/navigation.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const { updateUI } = await import('/src/ui.js');
+
+    state.party = [createSoloCharacter('Fighter')];
+    state.maps[0] = [[{ walls: [true, true, true, true], type: 'empty' }]];
+    state.visitedMaps[0] = [[true]];
+    state.floor = 1;
+    state.gameState = 'combat';
+    state.combatState = {
+      phase: 'choose_actions',
+      monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
+    };
+    menuContext.type = '';
+    menuContext.prevGameState = null;
+    menuHistory.length = 0;
+
+    openSubmenu('combat_target', '攻撃対象を選択');
+    const modalOpen = document.getElementById('combat-overlay').style.display === 'flex';
+    goBackSubmenu();
+    const restoredCombat = state.gameState === 'combat' && document.getElementById('combat-overlay').style.display === 'none';
+
+    state.gameState = 'submenu';
+    state.combatState = null;
+    state.chestState = null;
+    menuContext.type = undefined;
+    menuContext.prevGameState = { stale: true };
+    menuHistory.length = 0;
+    updateUI();
+    const staleVisibility = dungeonRenderer.getSceneVisibility();
+    goBackSubmenu();
+
+    return {
+      modalOpen,
+      restoredCombat,
+      staleVisibility,
+      restoredExplore: state.gameState === 'explore',
+    };
+  });
+
+  expect(result.modalOpen).toBe(true);
+  expect(result.restoredCombat).toBe(true);
+  expect(result.staleVisibility.showCombat).toBe(false);
+  expect(result.staleVisibility.showChest).toBe(false);
+  expect(result.restoredExplore).toBe(true);
+});
+
 test('Combat autosave resumes action selection without persisting resolving phase', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

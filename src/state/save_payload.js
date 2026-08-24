@@ -9,6 +9,7 @@ const STABLE_PERSISTED_GAME_STATES = new Set([
 ]);
 const DEFAULT_MENU_CONTEXT = Object.freeze({
   type: "",
+  targetType: "",
   actorIdx: -1,
   spellName: "",
   itemKey: "",
