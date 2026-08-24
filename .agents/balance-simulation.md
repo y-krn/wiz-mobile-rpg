@@ -69,8 +69,9 @@ access, party mutators, computed/bracket boundary access, and aggregate
 assignment/mutator calls remain outside the allowlist. Direct, named phase and
 transient-state resets remain explicit exceptions for Issue #832. The checker
 also conservatively rejects computed Object/Reflect aggregate access and any
-unrecognized call whose direct argument is a boundary root, including aliases;
-only the named boundary helpers can receive those roots. This
+unrecognized call whose direct argument is a boundary root, including aliases
+and optional calls (`fn?.(...)`); only the named boundary helpers can receive
+those roots. This
 prevents a mapped path such as `src/chest.js` from being globally exempted: later chest
 reward, trap, drop, or economy changes without the marker still use the normal
 balance-domain mapping and runtime-evidence checks. The Issue #832 chest phase

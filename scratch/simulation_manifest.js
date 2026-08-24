@@ -816,7 +816,7 @@ const BOUNDARY_COMPUTED_ACCESS = /\b(?:state\.(?:chestState|gameState|transition
 const AGGREGATE_MUTATOR_CALL = /\b(?:Object\.(?:assign|defineProperty|defineProperties|setPrototypeOf)|Reflect\.(?:set|defineProperty|defineProperties))\s*\(/;
 const COMPUTED_AGGREGATE_ACCESS = /\b(?:Object|Reflect)\s*\[/;
 const BOUNDARY_CALL_ROOT = /\b(?:state\.(?:chestState|gameState|transitioning)|chest|menuContext|menuHistory)\b/;
-const CALL_EXPRESSION = /\b(?:[A-Za-z_$][A-Za-z0-9_$]*\s*\.\s*)?[A-Za-z_$][A-Za-z0-9_$]*\s*\(/g;
+const CALL_EXPRESSION = /\b(?:[A-Za-z_$][A-Za-z0-9_$]*\s*\.\s*)?[A-Za-z_$][A-Za-z0-9_$]*\s*(?:\?\.)?\s*\(/g;
 const CONTROL_KEYWORDS = new Set(["if", "while", "switch", "for", "catch"]);
 const KNOWN_BOUNDARY_CALLS = new Set([
   "transitionChestPhase", "getChestPhase", "chestActionAllowed",
@@ -885,7 +885,7 @@ function getChangedCodeBlocks(diff) {
 function hasUnrecognizedBoundaryCall(block) {
   for (const match of block.matchAll(CALL_EXPRESSION)) {
     const fullMatch = match[0];
-    const callName = fullMatch.slice(0, fullMatch.lastIndexOf("(")).replace(/\s/g, "").split(".").pop();
+    const callName = fullMatch.slice(0, fullMatch.lastIndexOf("(")).replace(/\s/g, "").replace(/\?\.$/, "").split(".").pop();
     if (CONTROL_KEYWORDS.has(callName)) continue;
     const openIndex = match.index + fullMatch.lastIndexOf("(");
     let depth = 0;

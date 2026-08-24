@@ -202,7 +202,8 @@ for (const [label, mutation] of [
   ["aggregate chest-state write", "Object.assign(state.chestState, { trap: \"none\" });"],
   ["computed aggregate object write", "Object[\"assign\"](state.chestState, { trap: \"none\" });"],
   ["computed aggregate reflect write", "Reflect[\"set\"](state.chestState, \"phase\", \"menu\");"],
-  ["aliased aggregate write", "assign(state.chestState, { trap: \"none\" });"]
+  ["aliased aggregate write", "assign(state.chestState, { trap: \"none\" });"],
+  ["optional aliased aggregate write", "assign?.(state.chestState, { trap: \"none\" });"]
 ]) {
   const markerMutationDiff = `diff --git a/src/chest.js b/src/chest.js
 @@ -28,0 +29,2 @@
