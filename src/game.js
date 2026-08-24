@@ -166,7 +166,8 @@ function bindButtons() {
   // Combat actions
   const bindCombatAction = (id, action) => {
     document.getElementById(id).addEventListener("click", () => {
-      if (getScreenViewState(state, null).hasCombat) action();
+      const view = getScreenViewState(state, null);
+      if (view.gameState === "combat" && view.hasCombat) action();
     });
   };
   bindCombatAction("btn-combat-fight", () => selectCombatAction("fight"));

@@ -389,6 +389,7 @@ test('Renderer and navigation keep modal transitions safe with stale context', a
       monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
     };
     menuContext.type = '';
+    menuContext.targetType = 'enemy';
     menuContext.prevGameState = null;
     menuHistory.length = 0;
 
@@ -574,6 +575,144 @@ for (const vp of VIEWPORTS) {
         overlayChildren: 0,
       });
     }
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Malformed map and modal context fail closed at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { getScreenViewState } = await import('/src/state/view_state.js');
+      const { getFloorExplorationRate, updateUI } = await import('/src/ui.js');
+      const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
+      const { renderSpellOverlay } = await import('/src/spell_menu.js');
+      const { combatSelection } = await import('/src/combat.js');
+
+      const cell = () => ({ walls: [false, false, false, false], type: 'empty' });
+      const validCombatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
+      };
+      state.party = [createSoloCharacter('Priest')];
+      state.party[0].spells = ['DIOS'];
+      state.floor = 1;
+      state.x = 1;
+      state.y = 1;
+      state.visitedMaps[0] = [[true, true, true], null, [true, true, true]];
+      const malformedRows = [
+        [cell(), cell(), cell()],
+        null,
+        [cell(), cell(), cell()],
+      ];
+      state.maps[0] = malformedRows;
+      state.gameState = 'explore';
+      state.combatState = null;
+      menuContext.type = '';
+      menuContext.prevGameState = null;
+
+      let malformedMapError = null;
+      let sparseMapError = null;
+      try {
+        updateUI();
+        getFloorExplorationRate();
+      } catch (error) {
+        malformedMapError = error.message;
+      }
+      const malformedMapView = getScreenViewState(state, menuContext);
+
+      const sparseRow = [cell(), cell(), cell()];
+      delete sparseRow[1];
+      state.maps[0] = [[cell(), cell(), cell()], sparseRow, [cell(), cell(), cell()]];
+      try {
+        updateUI();
+        getFloorExplorationRate();
+      } catch (error) {
+        sparseMapError = error.message;
+      }
+      const sparseMapView = getScreenViewState(state, menuContext);
+
+      state.maps[0] = [[cell(), cell(), cell()], [cell(), cell(), cell()], [cell(), cell(), cell()]];
+      state.visitedMaps[0] = [[true, true, true], [true, true, true], [true, true, true]];
+      state.combatState = structuredClone(validCombatState);
+      state.gameState = 'submenu';
+      menuContext.prevGameState = 'combat';
+      menuContext.type = 'combat_spell';
+      menuContext.actorIdx = 99;
+      let invalidCasterError = null;
+      try {
+        updateUI();
+        renderCombatOverlay();
+      } catch (error) {
+        invalidCasterError = error.message;
+      }
+      const invalidCasterOverlay = document.getElementById('combat-overlay');
+
+      menuContext.type = 'combat_target';
+      menuContext.targetType = 'unknown';
+      menuContext.spellName = 'UNKNOWN';
+      let invalidCombatTargetError = null;
+      try {
+        updateUI();
+        renderCombatOverlay();
+      } catch (error) {
+        invalidCombatTargetError = error.message;
+      }
+      const invalidCombatTargetOverlay = document.getElementById('combat-overlay');
+
+      state.gameState = 'submenu';
+      menuContext.prevGameState = 'explore';
+      menuContext.type = 'spell_target_ally';
+      menuContext.actorIdx = 0;
+      menuContext.spellName = 'UNKNOWN';
+      let invalidSpellTargetError = null;
+      try {
+        updateUI();
+        renderSpellOverlay();
+      } catch (error) {
+        invalidSpellTargetError = error.message;
+      }
+      const invalidSpellOverlay = document.getElementById('spell-overlay');
+
+      state.gameState = 'explore';
+      menuContext.type = '';
+      menuContext.prevGameState = null;
+      combatSelection.actions = [];
+      document.getElementById('btn-combat-fight').click();
+
+      return {
+        malformedMapError,
+        malformedMapView: { hasMap: malformedMapView.hasMap, hasCurrentCell: malformedMapView.hasCurrentCell },
+        sparseMapError,
+        sparseMapView: { hasMap: sparseMapView.hasMap, hasCurrentCell: sparseMapView.hasCurrentCell },
+        invalidCasterError,
+        invalidCasterOverlay: { display: invalidCasterOverlay.style.display, children: invalidCasterOverlay.children.length },
+        invalidCombatTargetError,
+        invalidCombatTargetOverlay: { display: invalidCombatTargetOverlay.style.display, children: invalidCombatTargetOverlay.children.length },
+        invalidSpellTargetError,
+        invalidSpellOverlay: { display: invalidSpellOverlay.style.display, children: invalidSpellOverlay.children.length },
+        staleCombatActionCount: combatSelection.actions.length,
+        staleCombatGameState: state.gameState,
+      };
+    });
+
+    expect(result).toMatchObject({
+      malformedMapError: null,
+      malformedMapView: { hasMap: false, hasCurrentCell: false },
+      sparseMapError: null,
+      sparseMapView: { hasMap: false, hasCurrentCell: false },
+      invalidCasterError: null,
+      invalidCasterOverlay: { display: 'none', children: 0 },
+      invalidCombatTargetError: null,
+      invalidCombatTargetOverlay: { display: 'none', children: 0 },
+      invalidSpellTargetError: null,
+      invalidSpellOverlay: { display: 'none', children: 0 },
+      staleCombatActionCount: 0,
+      staleCombatGameState: 'explore',
+    });
   });
 }
 

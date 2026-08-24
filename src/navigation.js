@@ -90,7 +90,8 @@ export function openGuardedSubmenu(type, title) {
 }
 
 function restorePreviousGameState(view) {
-  if (view.previousGameState === "combat" && !view.hasCombat) {
+  if (view.previousGameState === "combat" && (!view.hasCombat ||
+      (view.isCombatOverlaySubmenu && !view.isUsableCombatOverlaySubmenu))) {
     return view.hasMap ? "explore" : "town";
   }
   return view.previousGameState;
@@ -99,7 +100,7 @@ function restorePreviousGameState(view) {
 export function closeSubmenu() {
   const view = getScreenViewState(state, menuContext);
   if (view.isSubmenu) {
-    if (view.isCombatOverlaySubmenu && view.hasCombat) {
+    if (view.isCombatOverlaySubmenu && view.isUsableCombatOverlaySubmenu) {
       state.gameState = "combat";
       menuContext.prevGameState = null;
     } else if (view.previousGameState) {
@@ -130,7 +131,7 @@ export function goBackSubmenu() {
       return;
     }
     const previousView = getScreenViewState(state, { ...menuContext, ...prev });
-    if (previousView.isCombatOverlaySubmenu && !previousView.hasCombat) {
+    if (previousView.isCombatOverlaySubmenu && !previousView.isUsableCombatOverlaySubmenu) {
       closeSubmenu();
       return;
     }

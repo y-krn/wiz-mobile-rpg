@@ -50,7 +50,7 @@ export function renderCombatOverlay() {
   const overlay = document.getElementById("combat-overlay");
   if (!overlay) return;
   const view = getScreenViewState(state, menuContext);
-  if (!view.hasCombat || !view.isCombatOverlaySubmenu) {
+  if (!view.isUsableCombatOverlaySubmenu) {
     overlay.replaceChildren();
     return;
   }

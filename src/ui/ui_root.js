@@ -156,8 +156,9 @@ export function closeLogOverlay() {
 }
 
 export function getFloorExplorationRate() {
+  const view = getScreenViewState(state, null);
+  if (!view.hasMap) return 0;
   const map = state.map;
-  if (!map) return 0;
   let passableCount = 0;
   let visitedCount = 0;
   for (let y = 1; y < map.length - 1; y++) {
@@ -165,7 +166,7 @@ export function getFloorExplorationRate() {
       const cell = map[y][x];
       if (cell && cell.walls && cell.walls.some(w => !w)) {
         passableCount++;
-        if (state.visitedMap && state.visitedMap[y][x]) {
+        if (Array.isArray(state.visitedMap?.[y]) && state.visitedMap[y][x]) {
           visitedCount++;
         }
       }
@@ -208,7 +209,7 @@ export function updateUI() {
   const combatOverlayTypes = ["combat_target", "combat_spell", "combat_item"];
   const hasUsableCombat = view.hasCombat;
   const isUsableCombatScreen = gameState === "combat" && hasUsableCombat;
-  const isCombatOverlaySubmenu = hasUsableCombat && view.isCombatOverlaySubmenu && combatOverlayTypes.includes(view.menuType);
+  const isCombatOverlaySubmenu = view.isCombatOverlaySubmenu && combatOverlayTypes.includes(view.menuType);
   const departurePrepSubmenu = view.isDeparturePrepSubmenu;
   const workshopSubmenu = view.isWorkshopSubmenu;
   const townSubmenu = view.isTownSubmenu;
@@ -472,7 +473,7 @@ export function updateUI() {
   // Update Combat Overlay visibility
   const combatOverlay = document.getElementById("combat-overlay");
   if (combatOverlay) {
-    if (isCombatOverlaySubmenu) {
+    if (view.isUsableCombatOverlaySubmenu) {
       combatOverlay.style.display = "flex";
       renderPreservingOverlayFocus(combatOverlay, renderCombatOverlay);
     } else {
@@ -494,7 +495,7 @@ export function updateUI() {
   // Update Spell Overlay visibility
   const spellOverlay = document.getElementById("spell-overlay");
   if (spellOverlay) {
-    if (view.isSpellOverlaySubmenu) {
+    if (view.isUsableSpellOverlaySubmenu) {
       spellOverlay.style.display = "flex";
       renderPreservingOverlayFocus(spellOverlay, renderSpellOverlay);
     } else {

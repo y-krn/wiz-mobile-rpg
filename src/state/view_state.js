@@ -1,4 +1,5 @@
 import { EVENT_SUBMENU_TYPES, ITEM_SUBMENU_TYPES } from "../constants/events.js";
+import { SPELLS } from "../data/spells.js";
 
 // Canonical boundary shape shared by navigation, UI, and the renderer.
 // Gameplay state remains owned by state/state_core.js; this module only
@@ -37,6 +38,15 @@ function isUsableMapCell(cell) {
   return isRecord(cell) && typeof cell.type === "string" &&
     Array.isArray(cell.walls) && cell.walls.length === 4 &&
     cell.walls.every(wall => typeof wall === "boolean");
+}
+
+function hasUsableCaster(party, actorIdx) {
+  return Array.isArray(party) && Number.isInteger(actorIdx) && actorIdx >= 0 &&
+    Object.hasOwn(party, actorIdx) && isRecord(party[actorIdx]) && Array.isArray(party[actorIdx].spells);
+}
+
+function hasUsableSpellName(spellName) {
+  return typeof spellName === "string" && Object.hasOwn(SPELLS, spellName) && isRecord(SPELLS[spellName]);
 }
 
 export function isUsableCombatState(combatState) {
@@ -149,6 +159,20 @@ export function getScreenViewState(stateLike, menuContextLike) {
   const currentRow = hasMap ? source.map[source.y] : null;
   const hasCurrentCell = Number.isInteger(source.x) && Number.isInteger(source.y) &&
     isUsableMapCell(currentRow?.[source.x]);
+  const isCombatOverlaySubmenu = isSubmenu && previousGameState === "combat" && SUBMENU_OVERLAY_TYPES.has(menuType);
+  const isSpellOverlaySubmenu = isSubmenu && previousGameState === "explore" && hasMap && hasCurrentCell && SPELL_OVERLAY_TYPES.has(menuType);
+  const usableCaster = hasUsableCaster(source.party, menu.actorIdx);
+  const usableSpellName = hasUsableSpellName(menu.spellName);
+  const isUsableCombatOverlaySubmenu = isCombatOverlaySubmenu && hasCombat && (
+    menuType === "combat_spell"
+      ? usableCaster
+      : menuType === "combat_target"
+        ? menu.targetType === "enemy" || (menu.targetType === "ally" && (!menu.spellName || usableSpellName))
+        : menuType === "combat_item"
+  );
+  const isUsableSpellOverlaySubmenu = isSpellOverlaySubmenu && usableCaster && (
+    menuType !== "spell_target_ally" || usableSpellName
+  );
 
   return Object.freeze({
     gameState,
@@ -158,8 +182,10 @@ export function getScreenViewState(stateLike, menuContextLike) {
     isDeparturePrepSubmenu: isSubmenu && menuType === "solo_start",
     isWorkshopSubmenu: isSubmenu && menuType === "workshop_main",
     isTownSubmenu: isSubmenu && TOWN_SUBMENU_TYPES.has(menuType),
-    isCombatOverlaySubmenu: isSubmenu && previousGameState === "combat" && SUBMENU_OVERLAY_TYPES.has(menuType),
-    isSpellOverlaySubmenu: isSubmenu && previousGameState === "explore" && hasMap && hasCurrentCell && SPELL_OVERLAY_TYPES.has(menuType),
+    isCombatOverlaySubmenu,
+    isUsableCombatOverlaySubmenu,
+    isSpellOverlaySubmenu,
+    isUsableSpellOverlaySubmenu,
     isEventSubmenu: isSubmenu && (menuType === "chest_menu" || menuType === "chest_disarmer_select" || menuType === "chest_opener_select" || EVENT_SUBMENU_TYPES.includes(menuType)),
     isItemSubmenu: isSubmenu && ITEM_SUBMENU_TYPES.includes(menuType),
     hasMap,

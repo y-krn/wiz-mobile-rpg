@@ -99,7 +99,7 @@ export function getSpellCategory(spKey) {
 
 function getSafeMenuType() {
   const view = getScreenViewState(state, menuContext);
-  return view.isSpellOverlaySubmenu ? view.menuType : "";
+  return view.isUsableSpellOverlaySubmenu ? view.menuType : "";
 }
 
 export function renderSpellOverlay() {
