@@ -1,8 +1,8 @@
 import { DX, DY, EVENT_TYPES, getPartyMaxAffix } from "./data.js";
 import { state } from "./state.js";
 import { menuContext } from "./navigation.js";
-import { EVENT_SUBMENU_TYPES, ITEM_SUBMENU_TYPES } from "./constants/events.js";
 import { getDepthCorruption, getFloorTheme } from "./data/floor_themes.js";
+import { getScreenViewState } from "./state/view_state.js";
 
 export let dungeonRenderer = null;
 export function setDungeonRenderer(r) {
@@ -152,54 +152,56 @@ export class DungeonRenderer {
   }
 
   getSceneVisibility() {
-    const isDeparturePrepSubmenu = state.gameState === "submenu" && menuContext.type === "solo_start";
-    const showTownBackground = !state.map || (
-      !isDeparturePrepSubmenu && (
-        ["town", "result", "gameover", "victory"].includes(state.gameState) ||
-        (state.gameState === "submenu" && menuContext.prevGameState === "town")
+    const view = getScreenViewState(state, menuContext);
+    const { gameState, previousGameState } = view;
+    const showTownBackground = !view.hasMap || (
+      !view.isDeparturePrepSubmenu && (
+        ["town", "result", "gameover", "victory"].includes(gameState) ||
+        (view.isSubmenu && previousGameState === "town")
       )
     );
     const showCombat = !showTownBackground && Boolean(
-      state.combatState && (
-        state.gameState === "combat"
-        || (state.gameState === "submenu" && menuContext.type.startsWith("combat"))
+      view.hasCombat && (
+        gameState === "combat"
+        || view.isCombatOverlaySubmenu
       )
     );
     const showChest = !showTownBackground && (
-      state.gameState === "chest"
-      || (state.gameState === "submenu" && state.chestState)
+      gameState === "chest"
+      || (view.isSubmenu && view.hasChest && view.menuType.startsWith("chest"))
     );
     const showEventScene = !showTownBackground && (
-      state.gameState === "trap_encounter"
-      || (state.gameState === "submenu" && EVENT_SUBMENU_TYPES.includes(menuContext.type))
+      gameState === "trap_encounter"
+      || view.isEventSubmenu
     );
     const showItemMenu = !showTownBackground && (
-      state.gameState === "submenu" && ITEM_SUBMENU_TYPES.includes(menuContext.type)
+      view.isItemSubmenu
     );
 
     return { showTownBackground, showCombat, showChest, showEventScene, showItemMenu };
   }
 
   getDrawSignature(sceneVisibility = this.getSceneVisibility()) {
+    const view = getScreenViewState(state, menuContext);
     const { showTownBackground, showItemMenu } = sceneVisibility;
     const signature = [
-      state.gameState,
+      view.gameState,
       state.floor,
       state.x,
       state.y,
       state.dir,
-      Boolean(state.map),
-      menuContext.type,
-      menuContext.prevGameState,
-      Boolean(state.combatState),
-      Boolean(state.chestState),
+      view.hasMap,
+      view.menuType,
+      view.previousGameState,
+      view.hasCombat,
+      view.hasChest,
       state.mapRevision,
       showItemMenu
     ];
 
     if (showTownBackground) return signature.join("|");
 
-    const combatMonsters = state.combatState?.monsters?.map(monster => [
+    const combatMonsters = view.hasCombat ? state.combatState.monsters.map(monster => [
       monster.name,
       monster.level,
       monster.hp,
@@ -217,7 +219,7 @@ export class DungeonRenderer {
       monster.snipeQueued,
       monster.snipeTargetIdx,
       monster.statusEffects?.bleeding?.remainingTurns
-    ].join(",")).join(";") || "";
+    ].join(",")).join(";") : "";
     const roamingMonsters = state.roamingMonsters?.map(monster => [
       monster.floor,
       monster.x,
@@ -233,7 +235,7 @@ export class DungeonRenderer {
       roamingMonsters,
       getPartyMaxAffix(state.party, "arcaneSense"),
       combatMonsters,
-      state.party.map(char => char?.name).join(",")
+      (Array.isArray(state.party) ? state.party : []).map(char => char?.name).join(",")
     );
     return signature.join("|");
   }
@@ -244,6 +246,8 @@ export class DungeonRenderer {
     const { showTownBackground, showCombat, showChest, showEventScene, showItemMenu } = sceneVisibility;
     if (showTownBackground) return false;
 
+    const view = getScreenViewState(state, menuContext);
+    if (!view.hasMap) return false;
     const map = state.map;
     if (!Array.isArray(map)) return false;
 
@@ -900,6 +904,8 @@ export class DungeonRenderer {
   }
 
   drawMonsters(ctx) {
+    const view = getScreenViewState(state, menuContext);
+    if (!view.hasCombat) return;
     const monsters = state.combatState.monsters;
     const alive = monsters.filter(m => m.hp > 0);
     if (alive.length === 0) return;

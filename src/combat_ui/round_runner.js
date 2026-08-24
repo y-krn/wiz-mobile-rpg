@@ -1,9 +1,12 @@
 import { state, saveAutosave } from "../state.js";
+import { menuContext } from "../navigation.js";
+import { hasUsableCombatActor, isUsableCombatScreen } from "../state/view_state.js";
 import { runCombatRoundCalculation } from "../combat_logic.js";
 import { combatSelection } from "./combat_state.js";
 import { playBattleLogs } from "./battle_log_player.js";
 import { trackCombatDecisionCommit, trackCombatEnd } from "../telemetry.js";
 
+// balance-impact: none — canonical combat screen guard only; combat rules unchanged
 function resolvePendingOutcome(logQueue) {
   for (const log of logQueue) {
     if (log.runEscape) return { kind: "runEscape" };
@@ -24,6 +27,8 @@ function resolvePendingOutcome(logQueue) {
 }
 
 export function resolveCombatRound() {
+  if (state.transitioning || !isUsableCombatScreen(state, menuContext) ||
+      state.combatState?.phase !== "choose_actions" || !hasUsableCombatActor(state.party)) return;
   state.gameState = "combat";
   state.combatState.phase = "resolving";
   trackCombatDecisionCommit();

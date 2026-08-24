@@ -1,6 +1,6 @@
 import { state } from "../state.js";
 import { menuContext, openSubmenu } from "../navigation.js";
-import { combatCallbacks } from "./combat_state.js";
+import { bindCombatCallback, combatCallbacks } from "./combat_state.js";
 import { getLivingAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 
 export { getSpellCombatSummary } from "./spell_summary.js";
@@ -9,7 +9,16 @@ export function openCombatSpellMenu(char, callback) {
   // Find actor index
   const actorIdx = state.party.findIndex(c => c.name === char.name);
   menuContext.actorIdx = actorIdx;
-  combatCallbacks.activeSpellCallback = callback;
+  menuContext.targetType = "";
+  menuContext.spellName = "";
+  combatCallbacks.activeSpellCallback = bindCombatCallback(callback, {
+    type: "combat_spell",
+    actorIdx,
+    actor: state.party?.[actorIdx],
+    actorName: state.party?.[actorIdx]?.name,
+    targetType: "",
+    spellName: ""
+  });
   openSubmenu("combat_spell", "呪文を唱える");
 }
 

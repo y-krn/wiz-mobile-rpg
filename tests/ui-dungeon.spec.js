@@ -369,6 +369,1149 @@ test('Chest opened immediately after entering the dungeon does not draw the town
   expect(result.gameStateAfterClose).toBe('explore');
 });
 
+test('Renderer and navigation keep modal transitions safe with stale context', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  const result = await page.evaluate(async () => {
+    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { goBackSubmenu, menuContext, menuHistory, openSubmenu } = await import('/src/navigation.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const { updateUI } = await import('/src/ui.js');
+
+    state.party = [createSoloCharacter('Fighter')];
+    state.maps[0] = [[{ walls: [true, true, true, true], type: 'empty' }]];
+    state.visitedMaps[0] = [[true]];
+    state.floor = 1;
+    state.gameState = 'combat';
+    state.combatState = {
+      phase: 'choose_actions',
+      monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
+    };
+    menuContext.type = '';
+    menuContext.targetType = 'enemy';
+    menuContext.prevGameState = null;
+    menuHistory.length = 0;
+
+    openSubmenu('combat_target', '攻撃対象を選択');
+    const modalOpen = document.getElementById('combat-overlay').style.display === 'flex';
+    goBackSubmenu();
+    const restoredCombat = state.gameState === 'combat' && document.getElementById('combat-overlay').style.display === 'none';
+
+    state.gameState = 'submenu';
+    state.combatState = {
+      phase: 'choose_actions',
+      monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
+    };
+    menuContext.type = 'combat_target';
+    menuContext.prevGameState = 'town';
+    menuHistory.length = 0;
+    updateUI();
+    const staleModalHidden = document.getElementById('combat-overlay').style.display === 'none';
+    goBackSubmenu();
+    const restoredTownFromStaleCombat = state.gameState === 'town' && document.getElementById('combat-overlay').style.display === 'none';
+
+    state.gameState = 'submenu';
+    state.combatState = null;
+    state.chestState = null;
+    menuContext.type = undefined;
+    menuContext.prevGameState = { stale: true };
+    menuHistory.length = 0;
+    updateUI();
+    const staleVisibility = dungeonRenderer.getSceneVisibility();
+    goBackSubmenu();
+
+    return {
+      modalOpen,
+      restoredCombat,
+      staleModalHidden,
+      restoredTownFromStaleCombat,
+      staleVisibility,
+      restoredExplore: state.gameState === 'explore',
+    };
+  });
+
+  expect(result.modalOpen).toBe(true);
+  expect(result.restoredCombat).toBe(true);
+  expect(result.staleModalHidden).toBe(true);
+  expect(result.restoredTownFromStaleCombat).toBe(true);
+  expect(result.staleVisibility.showCombat).toBe(false);
+  expect(result.staleVisibility.showChest).toBe(false);
+  expect(result.restoredExplore).toBe(true);
+});
+
+for (const vp of VIEWPORTS) {
+  test(`Combat submenu falls back safely after combat data is lost at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { closeSubmenu, goBackSubmenu, menuContext, menuHistory, openSubmenu } = await import('/src/navigation.js');
+
+      const validCombatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
+      };
+      const resetCombatSubmenu = (map) => {
+        state.maps[0] = map;
+        state.floor = 1;
+        state.x = 0;
+        state.y = 0;
+        state.gameState = 'combat';
+        state.combatState = structuredClone(validCombatState);
+        menuContext.type = '';
+        menuContext.prevGameState = null;
+        menuHistory.length = 0;
+        openSubmenu('combat_target', '攻撃対象を選択');
+      };
+
+      resetCombatSubmenu([[{ walls: [true, true, true, true], type: 'empty' }]]);
+      state.combatState = null;
+      goBackSubmenu();
+      const missingWithMap = state.gameState;
+
+      resetCombatSubmenu([]);
+      state.combatState = { phase: 'choose_actions', monsters: [null] };
+      closeSubmenu();
+      const malformedWithoutMap = state.gameState;
+
+      return { missingWithMap, malformedWithoutMap };
+    });
+
+    expect(result).toEqual({
+      missingWithMap: 'explore',
+      malformedWithoutMap: 'town',
+    });
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Nested combat history and stale spell context stay hidden at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { goBackSubmenu, menuContext, menuHistory, openSubmenu } = await import('/src/navigation.js');
+      const { updateUI } = await import('/src/ui.js');
+      const { renderSpellOverlay } = await import('/src/spell_menu.js');
+
+      const validCombatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
+      };
+      const resetContext = (map) => {
+        state.party = [createSoloCharacter('Priest')];
+        state.party[0].spells = [];
+        state.maps[0] = map;
+        state.floor = 1;
+        state.x = 0;
+        state.y = 0;
+        state.gameState = 'combat';
+        state.combatState = structuredClone(validCombatState);
+        menuContext.type = '';
+        menuContext.actorIdx = 0;
+        menuContext.prevGameState = null;
+        menuHistory.length = 0;
+      };
+
+      resetContext([[{ walls: [true, true, true, true], type: 'empty' }]]);
+      openSubmenu('combat_spell', '呪文を唱える');
+      openSubmenu('combat_target', '攻撃対象を選択');
+      goBackSubmenu();
+      const validNestedCombat = {
+        gameState: state.gameState,
+        menuType: menuContext.type,
+        historyLength: menuHistory.length,
+      };
+
+      resetContext([[{ walls: [true, true, true, true], type: 'empty' }]]);
+      openSubmenu('combat_spell', '呪文を唱える');
+      openSubmenu('combat_target', '攻撃対象を選択');
+      state.combatState = { phase: 'choose_actions', monsters: [null] };
+      goBackSubmenu();
+      const malformedNestedCombat = state.gameState;
+
+      resetContext([]);
+      openSubmenu('combat_spell', '呪文を唱える');
+      openSubmenu('combat_target', '攻撃対象を選択');
+      state.combatState = { phase: 'choose_actions', monsters: [null] };
+      goBackSubmenu();
+      const malformedNestedCombatWithoutMap = state.gameState;
+
+      const staleSpellCases = [
+        { gameState: 'town', prevGameState: null, type: 'spell_select' },
+        { gameState: 'explore', prevGameState: null, type: 'spell_target_ally' },
+        { gameState: 'submenu', prevGameState: 'town', type: 'spell_select' },
+      ].map(({ gameState, prevGameState, type }) => {
+        state.gameState = gameState;
+        state.combatState = null;
+        menuContext.type = type;
+        menuContext.prevGameState = prevGameState;
+        updateUI();
+        renderSpellOverlay();
+        const overlay = document.getElementById('spell-overlay');
+        return {
+          gameState,
+          overlayDisplay: overlay.style.display,
+          overlayChildren: overlay.children.length,
+        };
+      });
+
+      return { validNestedCombat, malformedNestedCombat, malformedNestedCombatWithoutMap, staleSpellCases };
+    });
+
+    expect(result.validNestedCombat).toEqual({
+      gameState: 'submenu',
+      menuType: 'combat_spell',
+      historyLength: 0,
+    });
+    expect(result.malformedNestedCombat).toBe('explore');
+    expect(result.malformedNestedCombatWithoutMap).toBe('town');
+    for (const staleSpell of result.staleSpellCases) {
+      expect(staleSpell).toMatchObject({
+        overlayDisplay: 'none',
+        overlayChildren: 0,
+      });
+    }
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Malformed map and modal context fail closed at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { getScreenViewState } = await import('/src/state/view_state.js');
+      const { getFloorExplorationRate, updateUI } = await import('/src/ui.js');
+      const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
+      const { renderSpellOverlay, spellMenuState } = await import('/src/spell_menu.js');
+      const { combatSelection } = await import('/src/combat.js');
+
+      const cell = () => ({ walls: [false, false, false, false], type: 'empty' });
+      const overlaySnapshot = overlay => ({
+        display: overlay?.style.display ?? 'missing',
+        children: overlay?.children.length ?? -1,
+      });
+      const validCombatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
+      };
+      state.party = [createSoloCharacter('Priest')];
+      state.party[0].spells = ['DIOS'];
+      state.floor = 1;
+      state.x = 1;
+      state.y = 1;
+      state.visitedMaps[0] = [[true, true, true], null, [true, true, true]];
+      const malformedRows = [
+        [cell(), cell(), cell()],
+        null,
+        [cell(), cell(), cell()],
+      ];
+      state.maps[0] = malformedRows;
+      state.gameState = 'explore';
+      state.combatState = null;
+      menuContext.type = '';
+      menuContext.prevGameState = null;
+
+      let malformedMapError = null;
+      let sparseMapError = null;
+      try {
+        updateUI();
+        getFloorExplorationRate();
+      } catch (error) {
+        malformedMapError = error.message;
+      }
+      const malformedMapView = getScreenViewState(state, menuContext);
+
+      const sparseRow = [cell(), cell(), cell()];
+      delete sparseRow[1];
+      state.maps[0] = [[cell(), cell(), cell()], sparseRow, [cell(), cell(), cell()]];
+      try {
+        updateUI();
+        getFloorExplorationRate();
+      } catch (error) {
+        sparseMapError = error.message;
+      }
+      const sparseMapView = getScreenViewState(state, menuContext);
+
+      state.maps[0] = [[cell(), cell(), cell()], [cell(), cell(), cell()], [cell(), cell(), cell()]];
+      state.visitedMaps[0] = [[true, true, true], [true, true, true], [true, true, true]];
+      state.combatState = structuredClone(validCombatState);
+      state.gameState = 'submenu';
+      menuContext.prevGameState = 'combat';
+      menuContext.type = 'combat_spell';
+      menuContext.actorIdx = 99;
+      let invalidCasterError = null;
+      try {
+        updateUI();
+        renderCombatOverlay();
+      } catch (error) {
+        invalidCasterError = error.message;
+      }
+      const invalidCasterOverlay = overlaySnapshot(document.getElementById('combat-overlay'));
+
+      state.party[0].status = 'dead';
+      menuContext.actorIdx = 0;
+      let deadCasterError = null;
+      try {
+        updateUI();
+        renderCombatOverlay();
+      } catch (error) {
+        deadCasterError = error.message;
+      }
+      const deadCasterOverlay = overlaySnapshot(document.getElementById('combat-overlay'));
+
+      state.party[0].status = 'ok';
+      state.party[0].spells = ['HALITO'];
+      state.gameState = 'submenu';
+      menuContext.prevGameState = 'explore';
+      menuContext.type = 'spell_target_ally';
+      menuContext.actorIdx = 0;
+      menuContext.spellName = 'HALITO';
+      let incompatibleSpellTargetError = null;
+      try {
+        updateUI();
+        renderSpellOverlay();
+      } catch (error) {
+        incompatibleSpellTargetError = error.message;
+      }
+      const incompatibleSpellTargetOverlay = overlaySnapshot(document.getElementById('spell-overlay'));
+
+      state.party[0].spells = ['DIOS'];
+      let unownedSpellError = null;
+      try {
+        updateUI();
+        renderSpellOverlay();
+      } catch (error) {
+        unownedSpellError = error.message;
+      }
+      const unownedSpellOverlay = overlaySnapshot(document.getElementById('spell-overlay'));
+
+      menuContext.type = 'combat_target';
+      menuContext.targetType = 'unknown';
+      menuContext.spellName = 'UNKNOWN';
+      let invalidCombatTargetError = null;
+      try {
+        updateUI();
+        renderCombatOverlay();
+      } catch (error) {
+        invalidCombatTargetError = error.message;
+      }
+      const invalidCombatTargetOverlay = overlaySnapshot(document.getElementById('combat-overlay'));
+
+      state.gameState = 'submenu';
+      menuContext.prevGameState = 'explore';
+      menuContext.type = 'spell_target_ally';
+      menuContext.actorIdx = 0;
+      menuContext.spellName = 'UNKNOWN';
+      let invalidSpellTargetError = null;
+      try {
+        updateUI();
+        renderSpellOverlay();
+      } catch (error) {
+        invalidSpellTargetError = error.message;
+      }
+      const invalidSpellOverlayElement = document.getElementById('spell-overlay');
+      const invalidSpellOverlay = {
+        display: invalidSpellOverlayElement.style.display,
+        children: invalidSpellOverlayElement.children.length,
+      };
+
+      state.party[0].spells = ['UNKNOWN'];
+      state.gameState = 'submenu';
+      menuContext.prevGameState = 'explore';
+      menuContext.type = 'spell_select';
+      menuContext.actorIdx = 0;
+      spellMenuState.selectedKey = 'UNKNOWN';
+      let invalidSpellSelectionError = null;
+      try {
+        updateUI();
+        renderSpellOverlay();
+      } catch (error) {
+        invalidSpellSelectionError = error.message;
+      }
+      const invalidSpellSelectionOverlayElement = document.getElementById('spell-overlay');
+      const invalidSpellSelectionOverlay = {
+        ...overlaySnapshot(invalidSpellSelectionOverlayElement),
+        emptyList: Boolean(invalidSpellSelectionOverlayElement.querySelector('.list-empty')),
+      };
+
+      state.gameState = 'explore';
+      menuContext.type = '';
+      menuContext.prevGameState = null;
+      combatSelection.actions = [];
+      document.getElementById('btn-combat-fight').click();
+
+      return {
+        malformedMapError,
+        malformedMapView: { hasMap: malformedMapView.hasMap, hasCurrentCell: malformedMapView.hasCurrentCell },
+        sparseMapError,
+        sparseMapView: { hasMap: sparseMapView.hasMap, hasCurrentCell: sparseMapView.hasCurrentCell },
+        invalidCasterError,
+        invalidCasterOverlay,
+        deadCasterError,
+        deadCasterOverlay,
+        incompatibleSpellTargetError,
+        incompatibleSpellTargetOverlay,
+        unownedSpellError,
+        unownedSpellOverlay,
+        invalidCombatTargetError,
+        invalidCombatTargetOverlay,
+        invalidSpellTargetError,
+        invalidSpellOverlay,
+        invalidSpellSelectionError,
+        invalidSpellSelection: {
+          selectedKey: spellMenuState.selectedKey,
+          ...invalidSpellSelectionOverlay,
+        },
+        staleCombatActionCount: combatSelection.actions.length,
+        staleCombatGameState: state.gameState,
+      };
+    });
+
+    expect(result).toMatchObject({
+      malformedMapError: null,
+      malformedMapView: { hasMap: false, hasCurrentCell: false },
+      sparseMapError: null,
+      sparseMapView: { hasMap: false, hasCurrentCell: false },
+      invalidCasterError: null,
+      invalidCasterOverlay: { display: 'none', children: 0 },
+      deadCasterError: null,
+      deadCasterOverlay: { display: 'none', children: 0 },
+      incompatibleSpellTargetError: null,
+      incompatibleSpellTargetOverlay: { display: 'none', children: 0 },
+      unownedSpellError: null,
+      unownedSpellOverlay: { display: 'none', children: 0 },
+      invalidCombatTargetError: null,
+      invalidCombatTargetOverlay: { display: 'none', children: 0 },
+      invalidSpellTargetError: null,
+      invalidSpellOverlay: { display: 'none', children: 0 },
+      invalidSpellSelectionError: null,
+      invalidSpellSelection: { selectedKey: null, display: 'flex', emptyList: true },
+      staleCombatActionCount: 0,
+      staleCombatGameState: 'explore',
+    });
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Direct combat handlers ignore stale combat data at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { cancelCombatAction, advanceActionSelection, resolveCombatRound, selectCombatAction, toggleCombatAuto } = await import('/src/combat.js');
+      const { combatSelection } = await import('/src/combat.js');
+
+      const cell = { walls: [false, false, false, false], type: 'empty' };
+      state.party = [createSoloCharacter('Fighter')];
+      state.maps[0] = [[cell]];
+      state.floor = 1;
+      state.x = 0;
+      state.y = 0;
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+      };
+      state.gameState = 'explore';
+      state.transitioning = false;
+      menuContext.type = '';
+      menuContext.prevGameState = null;
+      combatSelection.charIdx = 0;
+      combatSelection.actions = [];
+      const errors = [];
+      for (const action of [
+        () => toggleCombatAuto(),
+        () => advanceActionSelection(),
+        () => selectCombatAction('fight'),
+        () => cancelCombatAction(),
+        () => resolveCombatRound(),
+      ]) {
+        try {
+          action();
+        } catch (error) {
+          errors.push(error.message);
+        }
+      }
+      state.gameState = 'combat';
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+      };
+      state.party = [null];
+      state.transitioning = false;
+      combatSelection.charIdx = 0;
+      combatSelection.actions = [];
+      const invalidActorErrors = [];
+      for (const action of [
+        () => toggleCombatAuto(),
+        () => advanceActionSelection(),
+        () => selectCombatAction('fight'),
+        () => cancelCombatAction(),
+        () => resolveCombatRound(),
+      ]) {
+        try {
+          action();
+        } catch (error) {
+          invalidActorErrors.push(error.message);
+        }
+      }
+      const invalidActor = {
+        errors: invalidActorErrors,
+        phase: state.combatState.phase,
+        actionCount: combatSelection.actions.length,
+      };
+
+      state.party = [createSoloCharacter('Fighter')];
+      state.combatState.phase = 'resolving';
+      combatSelection.charIdx = 0;
+      combatSelection.actions = [];
+      const invalidPhaseErrors = [];
+      for (const action of [
+        () => selectCombatAction('fight'),
+        () => advanceActionSelection(),
+        () => cancelCombatAction(),
+        () => resolveCombatRound(),
+      ]) {
+        try {
+          action();
+        } catch (error) {
+          invalidPhaseErrors.push(error.message);
+        }
+      }
+      const invalidPhase = {
+        errors: invalidPhaseErrors,
+        phase: state.combatState.phase,
+        actionCount: combatSelection.actions.length,
+      };
+
+      state.combatState.phase = 'choose_actions';
+      state.transitioning = true;
+      const transitioningErrors = [];
+      for (const action of [
+        () => selectCombatAction('fight'),
+        () => advanceActionSelection(),
+        () => cancelCombatAction(),
+        () => resolveCombatRound(),
+      ]) {
+        try {
+          action();
+        } catch (error) {
+          transitioningErrors.push(error.message);
+        }
+      }
+      const transitioning = {
+        errors: transitioningErrors,
+        phase: state.combatState.phase,
+        actionCount: combatSelection.actions.length,
+      };
+      state.gameState = 'explore';
+      return {
+        errors,
+        gameState: state.gameState,
+        combatPhase: state.combatState.phase,
+        actionCount: combatSelection.actions.length,
+        invalidActor,
+        invalidPhase,
+        transitioning,
+      };
+    });
+
+    expect(result).toEqual({
+      errors: [],
+      gameState: 'explore',
+      combatPhase: 'choose_actions',
+      actionCount: 0,
+      invalidActor: { errors: [], phase: 'choose_actions', actionCount: 0 },
+      invalidPhase: { errors: [], phase: 'resolving', actionCount: 0 },
+      transitioning: { errors: [], phase: 'choose_actions', actionCount: 0 },
+    });
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Startup combat resume fails closed for unusable party at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const basePayload = await page.evaluate(async () => {
+      const { createSavePayload, createSoloCharacter, state } = await import('/src/state.js');
+      state.party = [createSoloCharacter('Fighter')];
+      state.gameState = 'combat';
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+      };
+      return createSavePayload();
+    });
+
+    const results = [];
+    const partyCases = [
+      { label: 'null' },
+      { label: 'sparse' },
+      { label: 'unknown-status', status: 'confused' },
+      { label: 'sleep', status: 'sleep' },
+      { label: 'paralyze', status: 'paralyze' },
+      { label: 'paralyzed', status: 'paralyzed' },
+    ];
+    for (const partyCase of partyCases) {
+      await page.evaluate(async ({ payload, partyCase }) => {
+        const { state } = await import('/src/state.js');
+        state.transitioning = true;
+        const data = structuredClone(payload);
+        data.gameState = 'combat';
+        data.combatState = {
+          phase: 'choose_actions',
+          monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+        };
+        if (partyCase.label === 'null') data.party = null;
+        if (partyCase.label === 'sparse') data.party = [null];
+        if (partyCase.status) data.party = [{ ...data.party[0], status: partyCase.status }];
+        localStorage.setItem('mobile_wiz_rpg_autosave', JSON.stringify(data));
+      }, { payload: basePayload, partyCase });
+      await page.reload();
+      await page.waitForLoadState('networkidle');
+
+      results.push(await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { getScreenViewState } = await import('/src/state/view_state.js');
+        const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
+        const view = getScreenViewState(state, null);
+        return {
+          gameState: state.gameState,
+          combatPhase: state.combatState?.phase ?? null,
+          partyLength: state.party.length,
+          partyStatus: state.party[0]?.status,
+          hasCombat: view.hasCombat,
+          hasStructurallyUsableCombatParty: view.hasStructurallyUsableCombatParty,
+          hasUsableCombatActor: view.hasUsableCombatActor,
+          savedGameState: saved.gameState,
+          savedCombatPhase: saved.combatState?.phase ?? null,
+        };
+      }));
+    }
+
+    expect(results).toEqual([
+      {
+        gameState: 'explore',
+        combatPhase: null,
+        partyStatus: undefined,
+        hasCombat: false,
+        hasStructurallyUsableCombatParty: false,
+        partyLength: 0,
+        hasUsableCombatActor: false,
+        savedGameState: 'explore',
+        savedCombatPhase: null,
+      },
+      {
+        gameState: 'explore',
+        combatPhase: null,
+        partyStatus: undefined,
+        hasCombat: false,
+        hasStructurallyUsableCombatParty: false,
+        partyLength: 0,
+        hasUsableCombatActor: false,
+        savedGameState: 'explore',
+        savedCombatPhase: null,
+      },
+      {
+        gameState: 'explore',
+        combatPhase: null,
+        partyStatus: 'confused',
+        hasCombat: false,
+        hasStructurallyUsableCombatParty: false,
+        partyLength: 1,
+        hasUsableCombatActor: false,
+        savedGameState: 'explore',
+        savedCombatPhase: null,
+      },
+      ...['sleep', 'paralyze', 'paralyzed'].map(status => ({
+        gameState: 'combat',
+        combatPhase: 'choose_actions',
+        partyStatus: status,
+        hasCombat: true,
+        hasStructurallyUsableCombatParty: true,
+        partyLength: 1,
+        hasUsableCombatActor: false,
+        savedGameState: 'combat',
+        savedCombatPhase: 'choose_actions',
+      })),
+    ]);
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Combat callbacks fail closed after navigation and invalid context at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { menuContext, menuHistory, goBackSubmenu } = await import('/src/navigation.js');
+      const { combatCallbacks, combatSelection } = await import('/src/combat_ui/combat_state.js');
+      const { selectCombatAction } = await import('/src/combat.js');
+      const { getScreenViewState } = await import('/src/state/view_state.js');
+
+      const reset = (spells = ['HALITO']) => {
+        const actor = createSoloCharacter('Priest');
+        actor.spells = spells;
+        state.party = [actor];
+        state.inventory = ['HEAL_POTION'];
+        state.combatState = {
+          phase: 'choose_actions',
+          monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+        };
+        state.gameState = 'combat';
+        state.transitioning = false;
+        menuContext.type = '';
+        menuContext.actorIdx = -1;
+        menuContext.targetType = '';
+        menuContext.spellName = '';
+        menuContext.prevGameState = null;
+        menuHistory.length = 0;
+        combatSelection.charIdx = 0;
+        combatSelection.actions = [];
+        combatCallbacks.activeTargetCallback = null;
+        combatCallbacks.activeSpellCallback = null;
+        combatCallbacks.activeItemCallback = null;
+      };
+
+      reset();
+      selectCombatAction('fight');
+      const staleFightCallback = combatCallbacks.activeTargetCallback;
+      goBackSubmenu();
+      staleFightCallback?.(0);
+      const staleAfterBack = {
+        actionCount: combatSelection.actions.length,
+        gameState: state.gameState,
+        previousGameState: menuContext.prevGameState,
+      };
+
+      reset();
+      selectCombatAction('spell');
+      const spellCallback = combatCallbacks.activeSpellCallback;
+      spellCallback?.('HALITO');
+      const nestedTargetCallback = combatCallbacks.activeTargetCallback;
+      goBackSubmenu();
+      nestedTargetCallback?.(0);
+      const afterNestedBack = {
+        actionCount: combatSelection.actions.length,
+        menuType: menuContext.type,
+      };
+      goBackSubmenu();
+      spellCallback?.('HALITO');
+      const afterParentClose = {
+        actionCount: combatSelection.actions.length,
+        gameState: state.gameState,
+        previousGameState: menuContext.prevGameState,
+      };
+
+      reset(['DUMAPIC']);
+      const mpBeforeUtility = state.party[0].mp;
+      selectCombatAction('spell');
+      const utilityCallback = combatCallbacks.activeSpellCallback;
+      utilityCallback?.('DUMAPIC');
+      const utilityTargetView = getScreenViewState(state, {
+        ...menuContext,
+        type: 'combat_target',
+        targetType: 'enemy',
+        spellName: 'DUMAPIC',
+      });
+      const utilityResult = {
+        actionCount: combatSelection.actions.length,
+        mp: state.party[0].mp,
+        mpBefore: mpBeforeUtility,
+        menuType: menuContext.type,
+        targetUsable: utilityTargetView.isUsableCombatOverlaySubmenu,
+      };
+
+      reset();
+      selectCombatAction('fight');
+      const invalidTargetCallback = combatCallbacks.activeTargetCallback;
+      state.combatState.monsters[0].hp = 0;
+      invalidTargetCallback?.(-1);
+      invalidTargetCallback?.(99);
+      invalidTargetCallback?.(0);
+      const invalidTargetResult = {
+        actionCount: combatSelection.actions.length,
+        gameState: state.gameState,
+      };
+
+      reset();
+      selectCombatAction('fight');
+      const invalidActorCallback = combatCallbacks.activeTargetCallback;
+      state.party[0] = null;
+      invalidActorCallback?.(0);
+      const invalidActorResult = {
+        actionCount: combatSelection.actions.length,
+        gameState: state.gameState,
+      };
+
+      return { staleAfterBack, afterNestedBack, afterParentClose, utilityResult, invalidTargetResult, invalidActorResult };
+    });
+
+    expect(result).toEqual({
+      staleAfterBack: { actionCount: 0, gameState: 'combat', previousGameState: null },
+      afterNestedBack: { actionCount: 0, menuType: 'combat_spell' },
+      afterParentClose: { actionCount: 0, gameState: 'combat', previousGameState: null },
+      utilityResult: { actionCount: 0, mp: 13, mpBefore: 13, menuType: 'combat_spell', targetUsable: false },
+      invalidTargetResult: { actionCount: 0, gameState: 'submenu' },
+      invalidActorResult: { actionCount: 0, gameState: 'submenu' },
+    });
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Missing combat data disables combat UI paths at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
+      const { updateUI } = await import('/src/ui.js');
+
+      const combatControls = document.getElementById('combat-controls');
+      const combatOverlay = document.getElementById('combat-overlay');
+      const controlsPanel = document.getElementById('controls-panel');
+      const snapshot = () => ({
+        gameState: state.gameState,
+        combatState: state.combatState,
+        menuType: menuContext.type,
+        combatControlsActive: combatControls.classList.contains('active'),
+        combatMode: controlsPanel.classList.contains('combat-mode'),
+        overlayDisplay: combatOverlay.style.display,
+        overlayChildren: combatOverlay.children.length,
+      });
+
+      const sparseMonsters = [];
+      sparseMonsters.length = 1;
+      const invalidCombatCases = [
+        { label: 'empty', monsters: [] },
+        { label: 'null', monsters: [null] },
+        { label: 'scalar', monsters: ['monster'] },
+        { label: 'sparse', monsters: sparseMonsters },
+      ];
+      const invalidCombatResults = invalidCombatCases.map(({ label, monsters }) => {
+        state.gameState = 'combat';
+        state.combatState = { phase: 'choose_actions', monsters };
+        menuContext.type = '';
+        updateUI();
+        document.getElementById('btn-combat-fight').click();
+        const explicitCombat = snapshot();
+
+        state.gameState = 'submenu';
+        state.combatState = { phase: 'choose_actions', monsters };
+        menuContext.type = 'combat_target';
+        menuContext.targetType = 'enemy';
+        updateUI();
+        renderCombatOverlay();
+        document.getElementById('btn-combat-fight').click();
+        const targetSubmenu = snapshot();
+
+        return { label, hasOwnFirstMonster: Object.hasOwn(monsters, 0), explicitCombat, targetSubmenu };
+      });
+
+      const partyCases = [
+        { label: 'missing', party: null },
+        { label: 'sparse', party: Object.assign([], { length: 1 }) },
+        { label: 'all-dead', party: [{ ...createSoloCharacter('Fighter'), status: 'dead' }] },
+      ];
+      const invalidPartyResults = partyCases.map(({ label, party }) => {
+        state.party = party;
+        state.gameState = 'combat';
+        state.combatState = { phase: 'choose_actions', monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }] };
+        menuContext.type = '';
+        menuContext.prevGameState = null;
+        let error = null;
+        try {
+          updateUI();
+        } catch (caught) {
+          error = caught.message;
+        }
+        return {
+          label,
+          error,
+          promptText: document.getElementById('combat-prompt').textContent,
+          combatControlsActive: combatControls.classList.contains('active'),
+          combatMode: controlsPanel.classList.contains('combat-mode'),
+          overlayDisplay: combatOverlay.style.display,
+        };
+      });
+
+      return { invalidCombatResults, invalidPartyResults };
+    });
+
+    for (const { label, hasOwnFirstMonster, explicitCombat, targetSubmenu } of result.invalidCombatResults) {
+      expect(label).toBeDefined();
+      expect(hasOwnFirstMonster).toBe(label === 'null' || label === 'scalar');
+      expect(explicitCombat).toMatchObject({
+        gameState: 'combat',
+        menuType: '',
+        combatControlsActive: false,
+        combatMode: false,
+        overlayDisplay: 'none',
+        overlayChildren: 0,
+      });
+      expect(targetSubmenu).toMatchObject({
+        gameState: 'submenu',
+        menuType: 'combat_target',
+        combatControlsActive: false,
+        combatMode: false,
+        overlayDisplay: 'none',
+        overlayChildren: 0,
+      });
+    }
+    expect(result.invalidPartyResults).toEqual([
+      {
+        label: 'missing',
+        error: null,
+        promptText: '',
+        combatControlsActive: false,
+        combatMode: false,
+        overlayDisplay: 'none',
+      },
+      {
+        label: 'sparse',
+        error: null,
+        promptText: '',
+        combatControlsActive: false,
+        combatMode: false,
+        overlayDisplay: 'none',
+      },
+      {
+        label: 'all-dead',
+        error: null,
+        promptText: '',
+        combatControlsActive: false,
+        combatMode: false,
+        overlayDisplay: 'none',
+      },
+    ]);
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Combat overlays reject resolving and transitioning clicks at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { combatCallbacks } = await import('/src/combat_ui/combat_state.js');
+      const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
+
+      state.party = [createSoloCharacter('Priest')];
+      state.party[0].spells = ['HALITO'];
+      state.inventory = ['HEAL_POTION'];
+      state.gameState = 'submenu';
+      state.transitioning = false;
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+      };
+      menuContext.prevGameState = 'combat';
+
+      const rejected = [];
+      const rejectClick = (type, selector, callbackKey, phase, transitioning) => {
+        menuContext.type = type;
+        menuContext.targetType = type === 'combat_target' ? 'enemy' : '';
+        menuContext.actorIdx = 0;
+        menuContext.spellName = '';
+        combatCallbacks[callbackKey] = () => rejected.push(type);
+        renderCombatOverlay();
+        const card = document.querySelector(`#combat-overlay ${selector}`);
+        state.combatState.phase = phase;
+        state.transitioning = transitioning;
+        card?.click();
+      };
+
+      rejectClick('combat_target', '.combat-target-card.enemy', 'activeTargetCallback', 'resolving', false);
+      rejectClick('combat_spell', '.combat-item-card.spell', 'activeSpellCallback', 'choose_actions', true);
+      rejectClick('combat_item', '.combat-item-card.item', 'activeItemCallback', 'resolving', false);
+
+      return {
+        rejected,
+        gameState: state.gameState,
+        phase: state.combatState.phase,
+        transitioning: state.transitioning,
+      };
+    });
+
+    expect(result).toEqual({
+      rejected: [],
+      gameState: 'submenu',
+      phase: 'resolving',
+      transitioning: false,
+    });
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Malformed active-map combat stays out of renderer and viewport HUD at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { getScreenViewState } = await import('/src/state/view_state.js');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      const { updateViewportHUD } = await import('/src/ui/viewport_hud.js');
+
+      state.map = [[{ walls: [false, false, false, false], type: 'empty' }]];
+      state.x = 0;
+      state.y = 0;
+      state.gameState = 'explore';
+      state.combatState = null;
+      menuContext.type = '';
+      updateViewportHUD();
+
+      state.gameState = 'combat';
+      state.combatState = { phase: 'choose_actions', monsters: [null] };
+      const view = getScreenViewState(state, menuContext);
+      const visibility = dungeonRenderer.getSceneVisibility();
+      const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
+      const originalDrawMiniMap = dungeonRenderer.drawMiniMap;
+      let drawError = null;
+      dungeonRenderer.draw3DCorridors = () => {};
+      dungeonRenderer.drawMiniMap = () => {};
+      try {
+        dungeonRenderer.getDrawSignature(visibility);
+        dungeonRenderer.draw(visibility);
+      } catch (error) {
+        drawError = error.message;
+      } finally {
+        dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
+        dungeonRenderer.drawMiniMap = originalDrawMiniMap;
+      }
+      updateViewportHUD();
+
+      return {
+        hasCombat: view.hasCombat,
+        showCombat: visibility.showCombat,
+        hudDisplay: document.getElementById('viewport-hud').style.display,
+        drawError,
+      };
+    });
+
+    expect(result).toEqual({
+      hasCombat: false,
+      showCombat: false,
+      hudDisplay: 'none',
+      drawError: null,
+    });
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Malformed map keeps solo_start on the safe town scene at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { getScreenViewState } = await import('/src/state/view_state.js');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      const { updateViewportHUD } = await import('/src/ui/viewport_hud.js');
+
+      state.gameState = 'submenu';
+      state.floor = 1;
+      state.combatState = null;
+      menuContext.type = 'solo_start';
+      menuContext.prevGameState = 'town';
+      const malformedMaps = [
+        { label: 'object', map: { stale: true } },
+        { label: 'null-row', map: [null] },
+        { label: 'empty-row', map: [[]] },
+        { label: 'null-cell', map: [[null]] },
+        { label: 'partial-cell', map: [[{ type: 'empty' }]] },
+      ];
+      const malformedMapResults = malformedMaps.map(({ label, map }) => {
+        state.maps[0] = map;
+        const view = getScreenViewState(state, menuContext);
+        const visibility = dungeonRenderer.getSceneVisibility();
+        const originalDrawTownBackground = dungeonRenderer.drawTownBackground;
+        const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
+        let townDraws = 0;
+        let corridorDraws = 0;
+        dungeonRenderer.drawTownBackground = (...args) => {
+          townDraws++;
+          return originalDrawTownBackground.apply(dungeonRenderer, args);
+        };
+        dungeonRenderer.draw3DCorridors = (...args) => {
+          corridorDraws++;
+          return originalDraw3DCorridors.apply(dungeonRenderer, args);
+        };
+        let drawError = null;
+        try {
+          dungeonRenderer.draw(visibility);
+        } catch (error) {
+          drawError = error.message;
+        } finally {
+          dungeonRenderer.drawTownBackground = originalDrawTownBackground;
+          dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
+        }
+        updateViewportHUD();
+
+        return {
+          label,
+          hasMap: view.hasMap,
+          showTownBackground: visibility.showTownBackground,
+          townDraws,
+          corridorDraws,
+          hudDisplay: document.getElementById('viewport-hud').style.display,
+          drawError,
+        };
+      });
+      state.maps[0] = [[{ type: 'empty', walls: [false, false, false, false] }]];
+      state.x = 1;
+      state.y = 0;
+      const currentCellView = getScreenViewState(state, menuContext);
+      const currentCellVisibility = dungeonRenderer.getSceneVisibility();
+      updateViewportHUD();
+
+      return {
+        malformedMapResults,
+        currentCell: {
+          hasMap: currentCellView.hasMap,
+          hasCurrentCell: currentCellView.hasCurrentCell,
+          showTownBackground: currentCellVisibility.showTownBackground,
+          hudDisplay: document.getElementById('viewport-hud').style.display,
+        },
+      };
+    });
+
+    expect(result.malformedMapResults).toHaveLength(5);
+    for (const malformed of result.malformedMapResults) {
+      expect(malformed).toMatchObject({
+        hasMap: false,
+        showTownBackground: true,
+        townDraws: 1,
+        corridorDraws: 0,
+        hudDisplay: 'none',
+        drawError: null,
+      });
+    }
+    expect(result.currentCell).toEqual({
+      hasMap: true,
+      hasCurrentCell: false,
+      showTownBackground: false,
+      hudDisplay: 'none',
+    });
+  });
+}
+
 test('Combat autosave resumes action selection without persisting resolving phase', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -761,6 +1904,7 @@ test('Defeat during battle log playback reloads into game over', async ({ page }
   await startSoloRun(page);
   const playback = await page.evaluate(async () => {
     const { state, saveAutosave } = await import('/src/state.js');
+    const { getScreenViewState } = await import('/src/state/view_state.js');
     const { startCombat, resolveCombatRound, combatSelection } = await import('/src/combat.js');
     startCombat(false, false);
     state.combatState.monsters = [state.combatState.monsters[0]];
@@ -781,11 +1925,14 @@ test('Defeat during battle log playback reloads into game over', async ({ page }
     Math.random = () => 0.99;
     resolveCombatRound();
     const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
+    const view = getScreenViewState(state, null);
     return {
       gameState: state.gameState,
       status: state.party[0].status,
       savedStatus: saved.party[0].status,
       savedPhase: saved.combatState.phase,
+      hasStructurallyUsableCombatParty: view.hasStructurallyUsableCombatParty,
+      hasUsableCombatActor: view.hasUsableCombatActor,
     };
   });
   expect(playback).toEqual({
@@ -793,6 +1940,8 @@ test('Defeat during battle log playback reloads into game over', async ({ page }
     status: 'dead',
     savedStatus: 'dead',
     savedPhase: 'choose_actions',
+    hasStructurallyUsableCombatParty: true,
+    hasUsableCombatActor: false,
   });
 
   await page.reload();
@@ -890,6 +2039,7 @@ for (const vp of VIEWPORTS) {
       state.gameState = 'submenu';
       menuContext.type = 'combat_target';
       menuContext.targetType = 'enemy';
+      menuContext.prevGameState = 'combat';
       dungeonRenderer.draw();
       const submenuMiniMapDraws = miniMapDraws;
       renderCombatOverlay();
@@ -899,6 +2049,7 @@ for (const vp of VIEWPORTS) {
 
       state.gameState = 'explore';
       menuContext.type = '';
+      menuContext.prevGameState = null;
       dungeonRenderer.draw();
       const monsterLabelCountAfterExplore = labels.filter(label => label.text.includes('敵')).length;
       const exploreMiniMapDrawsBeforeItemMenu = miniMapDraws;

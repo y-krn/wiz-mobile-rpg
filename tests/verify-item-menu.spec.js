@@ -51,7 +51,10 @@ for (const viewport of VIEWPORTS) {
       const afterExploreUse = [...state.inventory];
 
       state.gameState = 'submenu';
-      state.combatState = { phase: 'choose_actions', monsters: [] };
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: '検証用モンスター', hp: 10, maxHp: 10 }]
+      };
       state.inventory = [
         'DAGGER',
         'TOWN_PORTAL',
@@ -64,6 +67,7 @@ for (const viewport of VIEWPORTS) {
         'MANA_POTION',
       ];
       menuContext.type = 'combat_item';
+      menuContext.prevGameState = 'combat';
       let combatSelection;
       combatCallbacks.activeItemCallback = (...args) => {
         combatSelection = args;

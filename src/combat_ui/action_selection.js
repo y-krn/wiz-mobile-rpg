@@ -1,4 +1,6 @@
 import { state, addLog, saveAutosave } from "../state.js";
+import { menuContext } from "../navigation.js";
+import { hasUsableCombatActor, isActionableCombatContext, isActionableCombatScreen, isUsableSpellForActor } from "../state/view_state.js";
 import { SPELLS, ITEMS, getSpellPayment } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
@@ -16,8 +18,40 @@ import {
 
 export { combatSelection };
 
+function canActInCombat() {
+  return isActionableCombatScreen(state, menuContext) && hasUsableCombatActor(state.party) &&
+    Number.isInteger(combatSelection.charIdx) && combatSelection.charIdx >= 0;
+}
+
+function canCommitCombatAction() {
+  return isActionableCombatContext(state, menuContext);
+}
+
+const COMBAT_SPELL_TARGETS = ["single_enemy", "all_enemies", "single_ally", "all_allies"];
+
+function isValidEnemyTarget(targetIdx) {
+  const monsters = state.combatState?.monsters;
+  if (!Array.isArray(monsters) || !Number.isInteger(targetIdx) || targetIdx < 0 || !Object.hasOwn(monsters, targetIdx)) return false;
+  const monster = monsters[targetIdx];
+  return Boolean(monster) && typeof monster === "object" && !Array.isArray(monster) && monster.hp > 0;
+}
+
+function isValidAllyTarget(targetIdx, allowedIndices) {
+  if (!Array.isArray(state.party) || !Number.isInteger(targetIdx) || !allowedIndices.includes(targetIdx) || !Object.hasOwn(state.party, targetIdx)) return false;
+  const actor = state.party[targetIdx];
+  return Boolean(actor) && typeof actor === "object" && !Array.isArray(actor) &&
+    ["ok", "poisoned", "blind"].includes(actor.status);
+}
+
+function getLivingCharacters() {
+  if (!Array.isArray(state.party)) return [];
+  return state.party
+    .map((char, index) => ({ char, index }))
+    .filter(({ char }) => char && typeof char === "object" && !Array.isArray(char) && ["ok", "poisoned", "blind"].includes(char.status));
+}
+
 export function toggleCombatAuto() {
-  if (!state.combatState) return;
+  if (!canActInCombat()) return;
   const wasAuto = state.combatState.isAuto;
   state.combatState.isAuto = !state.combatState.isAuto;
   playSound("move");
@@ -36,8 +70,10 @@ export function toggleCombatAuto() {
 }
 
 export function advanceActionSelection() {
+  if (!canActInCombat()) return;
   // Find next living character
-  const livingIdxs = state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status)).map(x => x.i);
+  const livingIdxs = getLivingCharacters().map(({ index }) => index);
+  if (livingIdxs.length === 0) return;
   
   if (state.combatState && state.combatState.isAuto) {
     while (combatSelection.charIdx < livingIdxs.length) {
@@ -49,7 +85,9 @@ export function advanceActionSelection() {
         roundNumber: state.combatState.roundNumber,
         healingTargetIdx: getAutoHealTargetIdx(character),
         canCastSpell: (spellName, reserveMp) => {
-          const payment = getSpellPayment(character, SPELLS[spellName].cost);
+          const spell = SPELLS[spellName];
+          if (!spell) return false;
+          const payment = getSpellPayment(character, spell.cost);
           return payment.canCast &&
             (payment.resource !== "mp" || character.mp - reserveMp >= payment.cost);
         }
@@ -72,15 +110,20 @@ export function advanceActionSelection() {
 }
 
 export function selectCombatAction(type) {
-  if (!state.combatState || state.combatState.phase !== "choose_actions") return;
+  if (!canActInCombat() || state.combatState.phase !== "choose_actions") return;
 
-  const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status));
-  const char = livingChars[combatSelection.charIdx].c;
-  const charOriginalIdx = livingChars[combatSelection.charIdx].i;
+  const livingChars = getLivingCharacters();
+  const currentCharacter = livingChars[combatSelection.charIdx];
+  if (!currentCharacter) return;
+  const char = currentCharacter.char;
+  const charOriginalIdx = currentCharacter.index;
 
   if (type === "fight") {
     // Let player choose target monster
+    menuContext.actorIdx = charOriginalIdx;
     openCombatTargetMenu("enemy", (targetIdx) => {
+      if (!canCommitCombatAction() || !isValidEnemyTarget(targetIdx)) return;
+      state.gameState = "combat";
       combatSelection.actions.push({
         type: "fight",
         actorIdx: charOriginalIdx,
@@ -98,11 +141,13 @@ export function selectCombatAction(type) {
     });
   } else if (type === "spell") {
     // Show available caster spells
-    if (!char.spells || char.spells.length === 0) {
+    if (!Array.isArray(char.spells) || char.spells.length === 0) {
       addLog(`${char.name}は唱えられる呪文を持っていません。`);
       return;
     }
+    menuContext.actorIdx = charOriginalIdx;
     openCombatSpellMenu(char, (spellName) => {
+      if (!canCommitCombatAction() || !isUsableSpellForActor(state.party, charOriginalIdx, spellName, COMBAT_SPELL_TARGETS)) return;
       const spell = SPELLS[spellName];
       if (!getSpellPayment(char, spell.cost).canCast) {
         addLog("MPもHPも足りません。");
@@ -112,6 +157,8 @@ export function selectCombatAction(type) {
       // Determine targets
       if (spell.target === "single_enemy") {
         openCombatTargetMenu("enemy", (targetIdx) => {
+          if (!canCommitCombatAction() || !isValidEnemyTarget(targetIdx)) return;
+          state.gameState = "combat";
           combatSelection.actions.push({
             type: "spell",
             actorIdx: charOriginalIdx,
@@ -131,6 +178,9 @@ export function selectCombatAction(type) {
         }, spellName);
       } else if (spell.target === "single_ally") {
         const enqueueAllySpell = (targetIdx) => {
+          if (!canCommitCombatAction() || !isUsableSpellForActor(state.party, charOriginalIdx, spellName, "single_ally") ||
+              !isValidAllyTarget(targetIdx, getSpellAllyTargetIndices(spellName, state.party))) return;
+          state.gameState = "combat";
           combatSelection.actions.push({
             type: "spell",
             actorIdx: charOriginalIdx,
@@ -157,6 +207,8 @@ export function selectCombatAction(type) {
         }
       } else {
         // All enemies / all allies
+        if (!canCommitCombatAction()) return;
+        state.gameState = "combat";
         combatSelection.actions.push({
           type: "spell",
           actorIdx: charOriginalIdx,
@@ -181,13 +233,17 @@ export function selectCombatAction(type) {
       addLog("共有バッグは空っぽです。");
       return;
     }
+    menuContext.actorIdx = charOriginalIdx;
     openCombatItemMenu((itemKey, itemIdx) => {
+      if (!canCommitCombatAction()) return;
       const item = ITEMS[itemKey];
-      if (item.type !== "usable" || item.campOnly) {
+      if (!item || item.type !== "usable" || item.campOnly) {
         addLog("戦闘中その道具は使用できません。");
         return;
       }
       const enqueueAllyItem = (targetIdx) => {
+        if (!canCommitCombatAction() || !isValidAllyTarget(targetIdx, getItemAllyTargetIndices(state.party))) return;
+        state.gameState = "combat";
         combatSelection.actions.push({
           type: "item",
           actorIdx: charOriginalIdx,
@@ -208,6 +264,7 @@ export function selectCombatAction(type) {
       };
       const targetIndices = getItemAllyTargetIndices(state.party);
       if (targetIndices.length === 1) {
+        if (!canCommitCombatAction()) return;
         state.gameState = "combat";
         enqueueAllyItem(targetIndices[0]);
       } else {
@@ -244,7 +301,7 @@ export function selectCombatAction(type) {
 }
 
 export function cancelCombatAction() {
-  if (!state.combatState || state.combatState.phase !== "choose_actions") return;
+  if (!canActInCombat() || state.combatState.phase !== "choose_actions") return;
   if (combatSelection.charIdx > 0) {
     combatSelection.actions.pop();
     trackCombatDecisionCancel();

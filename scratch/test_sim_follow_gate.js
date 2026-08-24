@@ -219,7 +219,7 @@ for (const [label, mutation] of [
       undefined,
       { diffByFile: new Map([["src/chest.js", markerMutationDiff]]) }
     ),
-    /balance-impact none declaration contains a non-boundary diff line/,
+    /balance-impact none declaration contains a non-boundary diff line|telemetry anchor mixed/,
     `${label} mutation cannot use the state-boundary exemption`
   );
 }
@@ -384,10 +384,50 @@ assert.throws(
   () => assertBalanceImpactCovered(["src/unknown_telemetry.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/unknown_telemetry.js", anchoredTelemetryDiff]]) }),
   /unknown production path/
 );
-assert.doesNotThrow(
-  () => assertBalanceImpactCovered(["src/combat_ui/action_selection.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/combat_ui/action_selection.js", anchoredTelemetryDiff]]) }),
-  "known telemetry caller path should use the conservative diff-aware exemption"
-);
+for (const [file, guard] of [
+  ["src/combat_ui/action_selection.js", "if (!canActInCombat()) return;"],
+  ["src/combat_ui/round_runner.js", "if (!isUsableCombatScreen(state, menuContext)) return;"]
+]) {
+  const marker = file === "src/combat_ui/round_runner.js"
+    ? "// balance-impact: none — canonical combat screen guard only; combat rules unchanged\n"
+    : "";
+  const boundaryDiff = `diff --git a/${file} b/${file}
+@@ -1,0 +1,2 @@
++${marker}  ${guard}
+`;
+  assert.doesNotThrow(
+    () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([[file, boundaryDiff]]) }),
+    `${file} canonical boundary diff is classified explicitly`
+  );
+  const mixedBoundaryDiff = `${boundaryDiff}+  trackCombatDecisionCommit();\n+  state.currentRun.materials.blackHorn += 1;\n`;
+  assert.throws(
+    () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([[file, mixedBoundaryDiff]]) }),
+    /balance-impact none declaration contains a non-boundary diff line|telemetry anchor mixed/,
+    `${file} synthetic mixed telemetry/balance changes remain rejected`
+  );
+}
+
+for (const [file, boundaryLine] of [
+  ["src/combat_ui/combat_state.js", "  menuContext.type = \"combat_target\";"],
+  ["src/combat_ui/item_menu.js", "  menuContext.targetType = \"\";"],
+  ["src/combat_ui/target_menu.js", "  menuContext.targetType = \"enemy\";"]
+]) {
+  const boundaryDiff = `diff --git a/${file} b/${file}
+@@ -1,0 +1,2 @@
++// balance-impact: none — combat callback context boundary only
++${boundaryLine}
+`;
+  assert.doesNotThrow(
+    () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([[file, boundaryDiff]]) }),
+    `${file} callback context boundary diff is classified explicitly`
+  );
+  const mixedBoundaryDiff = `${boundaryDiff}+  trackCombatDecisionCommit();\n+  state.currentRun.materials.blackHorn += 1;\n`;
+  assert.throws(
+    () => assertBalanceImpactCovered([file], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([[file, mixedBoundaryDiff]]) }),
+    /balance-impact none declaration contains a non-boundary diff line|telemetry anchor mixed/,
+    `${file} synthetic mixed telemetry/balance changes remain rejected`
+  );
+}
 
 const discoveredRunners = discoverSimulationRunnerFiles();
 assert.deepEqual(

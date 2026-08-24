@@ -11,6 +11,7 @@ globalThis.document = {
 const { state } = await import("../src/state.js");
 const { menuContext } = await import("../src/navigation.js");
 const { DungeonRenderer } = await import("../src/renderer.js");
+const { getScreenViewState } = await import("../src/state/view_state.js");
 
 const renderer = new DungeonRenderer("dungeon-canvas");
 state.floor = 2;
@@ -35,8 +36,18 @@ for (const missingMap of [null, undefined]) {
   assert.equal(renderer.isAnimating(noMapVisibility), false, "no-map solo_start is not animated");
 }
 
-state.maps[1] = [[{ type: "empty" }]];
+state.maps[1] = [[{ type: "empty", walls: [false, false, false, false] }]];
 const mappedVisibility = renderer.getSceneVisibility();
 assert.equal(mappedVisibility.showTownBackground, false, "mapped solo_start keeps the dungeon scene");
+
+state.gameState = "submenu";
+state.maps[1] = null;
+state.combatState = { phase: "choose_actions" };
+menuContext.type = undefined;
+menuContext.prevGameState = undefined;
+const partialView = getScreenViewState(state, menuContext);
+assert.equal(partialView.menuType, "", "partial submenu context is normalized");
+assert.equal(partialView.hasCombat, false, "partial combat state is not renderable");
+assert.doesNotThrow(() => renderer.getSceneVisibility(), "partial screen state stays render-safe");
 
 console.log("RENDERER NO-MAP SOLO_START TEST PASSED");

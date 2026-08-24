@@ -7,6 +7,7 @@ import { isSpellTargetAvailable, getSpellCombatSummary } from "./spell_menu.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 import { STATUS_EFFECT_IDS, BLEEDING_PAYOFF_DAMAGE } from "../combat_logic/status_effects.js";
+import { getScreenViewState, getUsableSpellKeys } from "../state/view_state.js";
 
 function getEnemyResistanceStatus(monster) {
   const record = state.codex?.monsters?.[getMonsterCodexKey(monster)];
@@ -48,9 +49,16 @@ function createCombatEnemyInfoPanel() {
 export function renderCombatOverlay() {
   const overlay = document.getElementById("combat-overlay");
   if (!overlay) return;
+  const view = getScreenViewState(state, menuContext);
+  if (!view.isUsableCombatOverlaySubmenu) {
+    overlay.replaceChildren();
+    return;
+  }
   overlay.innerHTML = "";
 
-  const type = menuContext.type;
+  const type = view.menuType;
+
+  const canCommitOverlayAction = () => getScreenViewState(state, menuContext).isUsableCombatOverlaySubmenu;
 
   // 1. Create header
   const header = document.createElement("div");
@@ -119,8 +127,9 @@ export function renderCombatOverlay() {
 
         if (m.hp > 0) {
           card.addEventListener("click", () => {
+            if (!canCommitOverlayAction() || typeof combatCallbacks.activeTargetCallback !== "function") return;
             state.gameState = "combat";
-            if (combatCallbacks.activeTargetCallback) combatCallbacks.activeTargetCallback(idx);
+            combatCallbacks.activeTargetCallback(idx);
           });
         }
         targetGrid.appendChild(card);
@@ -162,8 +171,9 @@ export function renderCombatOverlay() {
 
         if (!disabled) {
           card.addEventListener("click", () => {
+            if (!canCommitOverlayAction() || typeof combatCallbacks.activeTargetCallback !== "function") return;
             state.gameState = "combat";
-            if (combatCallbacks.activeTargetCallback) combatCallbacks.activeTargetCallback(idx);
+            combatCallbacks.activeTargetCallback(idx);
           });
         }
         targetGrid.appendChild(card);
@@ -181,7 +191,7 @@ export function renderCombatOverlay() {
     const casterIdx = menuContext.actorIdx;
     const caster = state.party[casterIdx];
 
-    caster.spells.forEach(spKey => {
+    getUsableSpellKeys(caster.spells).forEach(spKey => {
       const spell = SPELLS[spKey];
       if (spell.campOnly) return;
       
@@ -223,8 +233,9 @@ export function renderCombatOverlay() {
 
       if (!disabled) {
         card.addEventListener("click", () => {
+          if (!canCommitOverlayAction() || typeof combatCallbacks.activeSpellCallback !== "function") return;
           state.gameState = "combat";
-          if (combatCallbacks.activeSpellCallback) combatCallbacks.activeSpellCallback(spKey);
+          combatCallbacks.activeSpellCallback(spKey);
         });
       }
       spellGrid.appendChild(card);
@@ -258,8 +269,9 @@ export function renderCombatOverlay() {
 
         if (!usableCheck) {
           card.addEventListener("click", () => {
+            if (!canCommitOverlayAction() || typeof combatCallbacks.activeItemCallback !== "function") return;
             state.gameState = "combat";
-            if (combatCallbacks.activeItemCallback) combatCallbacks.activeItemCallback(itemKey, idx);
+            combatCallbacks.activeItemCallback(itemKey, idx);
           });
         }
         itemGrid.appendChild(card);

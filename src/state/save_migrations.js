@@ -8,6 +8,7 @@ import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
 import { addMaterials } from "../rules/material_rules.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 import { isUsableFloorMap } from "./run_floor_state.js";
+import { isUsableCombatState } from "./view_state.js";
 
 export function migrateCharSpells(char) {
   if (!char.spells) char.spells = [];
@@ -135,11 +136,6 @@ function isUsableVisitedMaps(visitedMaps, maps) {
             row.length === mapRow.length && row.every(cell => typeof cell === "boolean");
         });
     });
-}
-
-function isUsableCombatState(combatState) {
-  return isRecord(combatState) && Array.isArray(combatState.monsters) &&
-    combatState.monsters.length > 0 && combatState.monsters.every(isRecord);
 }
 
 function normalizePersistedGameState(gameState, currentRun, combatState) {
@@ -402,14 +398,10 @@ export function normalizeSavePayload(data) {
   normalized.dumapicTurns = numberOr(data.dumapicTurns, 0);
   normalized.dumapicHint = typeof data.dumapicHint === "string" ? data.dumapicHint : "";
   normalized.activeMerchantStock = arrayOr(data.activeMerchantStock);
-  normalized.combatState = recordOr(data.combatState, null);
-  if (normalized.combatState) {
-    normalized.combatState = {
-      ...normalized.combatState,
-      monsters: arrayOr(normalized.combatState.monsters).filter(isRecord)
-    };
-    if (!isUsableCombatState(normalized.combatState)) normalized.combatState = null;
-  }
+  const persistedCombatState = recordOr(data.combatState, null);
+  normalized.combatState = isUsableCombatState(persistedCombatState)
+    ? { ...persistedCombatState, monsters: persistedCombatState.monsters.slice() }
+    : null;
   normalized.chestState = recordOr(data.chestState, null);
   normalized.gameState = normalizePersistedGameState(data.gameState, currentRun, normalized.combatState);
   normalized.logs = arrayOr(data.logs).filter(log => typeof log === "string");

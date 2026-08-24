@@ -40,7 +40,8 @@ globalThis.localStorage = (() => {
 (async () => {
   const assert = (await import("assert")).default;
   const { state, initNewGame, saveAutosave, loadGame, createDefaultCurrentRun } = await import("../src/state.js");
-  const { openSubmenu } = await import("../src/navigation.js");
+  const { goBackSubmenu, menuContext, menuHistory, openSubmenu } = await import("../src/navigation.js");
+  const { getScreenViewState } = await import("../src/state/view_state.js");
 
   console.log("=== SUBMENU SAVE COLLAPSE VERIFICATION ===");
 
@@ -128,6 +129,24 @@ globalThis.localStorage = (() => {
   loadGame();
   assert.strictEqual(state.gameState, "explore", "milestone merchant should resume as explore");
   console.log("-> [PASS] 深層商人保存→再開でexplore復帰");
+
+  // [G] Partial/stale navigation context is normalized at the boundary and
+  // returns to the safe exploration screen rather than throwing on back.
+  initNewGame();
+  state.gameState = "submenu";
+  state.combatState = null;
+  state.chestState = null;
+  menuContext.type = undefined;
+  menuContext.prevGameState = { stale: true };
+  menuHistory.length = 0;
+  menuHistory.push({ type: null, title: null });
+  const partialView = getScreenViewState(state, menuContext);
+  assert.strictEqual(partialView.gameState, "submenu", "partial state keeps the active screen canonical");
+  assert.strictEqual(partialView.menuType, "", "partial menu type is empty");
+  assert.strictEqual(partialView.previousGameState, null, "partial previous screen is cleared");
+  goBackSubmenu();
+  assert.strictEqual(state.gameState, "explore", "stale history falls back to exploration on back");
+  console.log("-> [PASS] 部分的なナビゲーション状態は安全に正規化");
 
   console.log("\n[TEST_SUBMENU_RESUME PASSED]");
 })();

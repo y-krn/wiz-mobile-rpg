@@ -1,10 +1,18 @@
 import { state } from "./state.js";
 import { armControlsGuard } from "./controls_guard.js";
+import {
+  applyMenuContext,
+  createMenuHistoryEntry,
+  getScreenViewState,
+  normalizeMenuHistoryEntry,
+  normalizeSubmenuType
+} from "./state/view_state.js";
 
 // Submenu navigation tracker
 export let menuContext = {
   type: "", // "spell", "item", "equip", "workshop_main", "target_enemy", "target_ally"
   actorIdx: -1,
+  targetType: "",
   spellName: "",
   itemKey: "",
   itemIdx: -1,
@@ -31,25 +39,28 @@ export function triggerUiUpdate() {
 }
 
 export function openSubmenu(type, title, isBack = false) {
+  const submenuType = normalizeSubmenuType(type);
+  if (!submenuType) return false;
+
+  const view = getScreenViewState(state, menuContext);
   if (!isBack) {
-    if (state.gameState !== "submenu") {
-      menuContext.prevGameState = state.gameState;
+    if (!view.isSubmenu) {
+      menuContext.prevGameState = view.gameState;
       menuHistory.length = 0; // Reset history when entering submenu from main game
     } else {
       // Save current state to history before transitioning
-      menuHistory.push({
-        type: menuContext.type,
-        title: document.getElementById("submenu-title").textContent,
-        actorIdx: menuContext.actorIdx,
-        spellName: menuContext.spellName,
-        itemKey: menuContext.itemKey,
-        itemIdx: menuContext.itemIdx,
-        slot: menuContext.slot
-      });
+      const titleEl = document.getElementById("submenu-title");
+      menuHistory.push(createMenuHistoryEntry(
+        menuContext,
+        titleEl?.textContent || ""
+      ));
     }
   }
   state.gameState = "submenu";
-  menuContext.type = type;
+  applyMenuContext(menuContext, {
+    ...menuContext,
+    type: submenuType
+  });
   document.getElementById("btn-submenu-back").style.display = "block";
   
   const titleEl = document.getElementById("submenu-title");
@@ -70,6 +81,7 @@ export function openSubmenu(type, title, isBack = false) {
   }
 
   triggerUiUpdate();
+  return true;
 }
 
 export function openGuardedSubmenu(type, title) {
@@ -77,21 +89,30 @@ export function openGuardedSubmenu(type, title) {
   openSubmenu(type, title);
 }
 
+function restorePreviousGameState(view) {
+  if (view.previousGameState === "combat" && (!view.hasCombat ||
+      (view.isCombatOverlaySubmenu && !view.isUsableCombatOverlaySubmenu))) {
+    return view.hasMap ? "explore" : "town";
+  }
+  return view.previousGameState;
+}
+
 export function closeSubmenu() {
-  if (state.gameState === "submenu") {
-    if (state.combatState && menuContext.type.startsWith("combat")) {
+  const view = getScreenViewState(state, menuContext);
+  if (view.isSubmenu) {
+    if (view.isCombatOverlaySubmenu && view.isUsableCombatOverlaySubmenu) {
       state.gameState = "combat";
       menuContext.prevGameState = null;
-    } else if (menuContext.prevGameState) {
-      state.gameState = menuContext.prevGameState;
+    } else if (view.previousGameState) {
+      state.gameState = restorePreviousGameState(view);
       menuContext.prevGameState = null;
     } else {
-      if (menuContext.type.startsWith("castle") ||
-          menuContext.type.startsWith("solo_start") ||
-          menuContext.type.startsWith("workshop")) {
+      if (view.menuType.startsWith("castle") ||
+          view.menuType.startsWith("solo_start") ||
+          view.menuType.startsWith("workshop")) {
         state.gameState = "town";
-      } else if (menuContext.type.startsWith("combat")) {
-        state.gameState = "combat";
+      } else if (view.menuType.startsWith("combat")) {
+        state.gameState = view.hasMap ? "explore" : "town";
       } else {
         state.gameState = "explore";
       }
@@ -102,13 +123,19 @@ export function closeSubmenu() {
 
 export function goBackSubmenu() {
   if (state.transitioning) return;
-  if (state.gameState === "submenu" && menuHistory.length > 0) {
-    const prev = menuHistory.pop();
-    menuContext.actorIdx = prev.actorIdx;
-    menuContext.spellName = prev.spellName;
-    menuContext.itemKey = prev.itemKey;
-    menuContext.itemIdx = prev.itemIdx;
-    menuContext.slot = prev.slot;
+  const view = getScreenViewState(state, menuContext);
+  if (view.isSubmenu && menuHistory.length > 0) {
+    const prev = normalizeMenuHistoryEntry(menuHistory.pop());
+    if (!prev) {
+      closeSubmenu();
+      return;
+    }
+    const previousView = getScreenViewState(state, { ...menuContext, ...prev });
+    if (previousView.isCombatOverlaySubmenu && !previousView.isUsableCombatOverlaySubmenu) {
+      closeSubmenu();
+      return;
+    }
+    applyMenuContext(menuContext, prev);
     openSubmenu(prev.type, prev.title, true);
   } else {
     closeSubmenu();

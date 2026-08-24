@@ -7,6 +7,7 @@ import { setUiUpdateCallback, goBackSubmenu } from "./navigation.js";
 import { handleTrapAction } from "./systems/traps.js";
 import { blockGuardedControlsEvent } from "./controls_guard.js";
 import { openChestMenu } from "./chest.js";
+import { getScreenViewState } from "./state/view_state.js";
 
 // Import modules for re-export and button bindings
 import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
@@ -51,8 +52,16 @@ export function initGame() {
   // Load Initial UI state
   updateUI();
   resumePendingCampEntry();
-  if (state.gameState === "combat" && state.combatState) {
+  const view = getScreenViewState(state, null);
+  if (view.gameState === "combat" && view.hasCombat && view.hasStructurallyUsableCombatParty) {
     resumeCombat();
+  } else if (view.gameState === "combat") {
+    // A saved combat without a structurally usable party cannot be resumed.
+    // Clear the stale combat payload before returning to the safe base screen.
+    state.combatState = null;
+    state.gameState = view.hasMap ? "explore" : "town";
+    saveAutosave();
+    updateUI();
   }
 }
 
@@ -162,13 +171,19 @@ function bindButtons() {
   document.getElementById("btn-town-archives").addEventListener("click", () => handleTownOption("archives"));
 
   // Combat actions
-  document.getElementById("btn-combat-fight").addEventListener("click", () => selectCombatAction("fight"));
-  document.getElementById("btn-combat-spell").addEventListener("click", () => selectCombatAction("spell"));
-  document.getElementById("btn-combat-item").addEventListener("click", () => selectCombatAction("item"));
-  document.getElementById("btn-combat-auto").addEventListener("click", () => toggleCombatAuto());
-  document.getElementById("btn-combat-defend").addEventListener("click", () => selectCombatAction("defend"));
-  document.getElementById("btn-combat-run").addEventListener("click", () => selectCombatAction("run"));
-  document.getElementById("btn-combat-cancel").addEventListener("click", () => cancelCombatAction());
+  const bindCombatAction = (id, action) => {
+    document.getElementById(id).addEventListener("click", () => {
+      const view = getScreenViewState(state, null);
+      if (view.gameState === "combat" && view.hasCombat) action();
+    });
+  };
+  bindCombatAction("btn-combat-fight", () => selectCombatAction("fight"));
+  bindCombatAction("btn-combat-spell", () => selectCombatAction("spell"));
+  bindCombatAction("btn-combat-item", () => selectCombatAction("item"));
+  bindCombatAction("btn-combat-auto", () => toggleCombatAuto());
+  bindCombatAction("btn-combat-defend", () => selectCombatAction("defend"));
+  bindCombatAction("btn-combat-run", () => selectCombatAction("run"));
+  bindCombatAction("btn-combat-cancel", () => cancelCombatAction());
 
   // Submenu
   document.getElementById("btn-submenu-back").addEventListener("click", () => goBackSubmenu());
@@ -178,7 +193,7 @@ function bindButtons() {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener("click", () => {
-        if (state.gameState === "trap_encounter") {
+        if (getScreenViewState(state, null).gameState === "trap_encounter") {
           handleTrapAction(action);
         }
       });
@@ -278,7 +293,7 @@ function bindButtons() {
   // Keyboard navigation for desktop testing
   window.addEventListener("keydown", (e) => {
     if (state.transitioning) return;
-    if (state.gameState === "explore") {
+    if (getScreenViewState(state, null).gameState === "explore") {
       // キーボード操作はSDKのui.click breadcrumbに乗らないため手動記録する
       const keyMap = {
         ArrowUp: ["move", "forward"], w: ["move", "forward"],

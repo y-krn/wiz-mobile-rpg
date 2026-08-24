@@ -11,12 +11,11 @@ import { renderResultScreen } from "./result_screen.js";
 import { getDepthCorruption, getFloorDisplayName, getFloorLabel, getFloorTheme } from "../data/floor_themes.js";
 import { formatRunQuestProgress } from "../systems/run_quests.js";
 import { updateRecordsStrip } from "./records_view.js";
-import { EVENT_SUBMENU_TYPES } from "../constants/events.js";
+import { getScreenViewState } from "../state/view_state.js";
 
 let floorStingerTimer = null;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
 const LOCKED_VIEWPORT = "width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover";
-const TOWN_SUBMENU_TYPES = new Set(["castle_main", "castle_death_logs", "workshop_main"]);
 const FLOOR_THEME_STYLE_PROPERTIES = [
   "--biome-wall-color",
   "--biome-glow",
@@ -27,18 +26,6 @@ const FLOOR_THEME_STYLE_PROPERTIES = [
   "--biome-aura-opacity",
   "--depth-corruption",
 ];
-
-function isDeparturePrepSubmenu() {
-  return state.gameState === "submenu" && menuContext.type === "solo_start";
-}
-
-function isWorkshopSubmenu() {
-  return state.gameState === "submenu" && menuContext.type === "workshop_main";
-}
-
-function isTownSubmenu() {
-  return state.gameState === "submenu" && TOWN_SUBMENU_TYPES.has(menuContext.type);
-}
 
 function captureScrollState(element) {
   return {
@@ -169,8 +156,9 @@ export function closeLogOverlay() {
 }
 
 export function getFloorExplorationRate() {
+  const view = getScreenViewState(state, null);
+  if (!view.hasMap) return 0;
   const map = state.map;
-  if (!map) return 0;
   let passableCount = 0;
   let visitedCount = 0;
   for (let y = 1; y < map.length - 1; y++) {
@@ -178,7 +166,7 @@ export function getFloorExplorationRate() {
       const cell = map[y][x];
       if (cell && cell.walls && cell.walls.some(w => !w)) {
         passableCount++;
-        if (state.visitedMap && state.visitedMap[y][x]) {
+        if (Array.isArray(state.visitedMap?.[y]) && state.visitedMap[y][x]) {
           visitedCount++;
         }
       }
@@ -202,7 +190,8 @@ export function resetViewportZoom() {
 }
 
 export function getCurrentGoal() {
-  if (state.gameState === "town" || isDeparturePrepSubmenu()) {
+  const view = getScreenViewState(state, menuContext);
+  if (view.gameState === "town" || view.isDeparturePrepSubmenu) {
     return "開始地点とクラスを選び、自己最深記録を更新せよ";
   }
 
@@ -215,18 +204,16 @@ export function getCurrentGoal() {
 export function updateUI() {
   resetViewportZoom();
   updateRecordsStrip();
+  const view = getScreenViewState(state, menuContext);
+  const { gameState } = view;
   const combatOverlayTypes = ["combat_target", "combat_spell", "combat_item"];
-  const isCombatOverlaySubmenu = state.gameState === "submenu" && combatOverlayTypes.includes(menuContext.type);
-  const eventModeSubmenus = [
-    "chest_menu",
-    "chest_disarmer_select",
-    "chest_opener_select",
-    ...EVENT_SUBMENU_TYPES
-  ];
-  const departurePrepSubmenu = isDeparturePrepSubmenu();
-  const workshopSubmenu = isWorkshopSubmenu();
-  const townSubmenu = isTownSubmenu();
-  const isTownLikeGoal = state.gameState === "town" || departurePrepSubmenu;
+  const hasUsableCombat = view.hasCombat && view.hasUsableCombatActor;
+  const isUsableCombatScreen = gameState === "combat" && hasUsableCombat;
+  const isCombatOverlaySubmenu = view.isCombatOverlaySubmenu && combatOverlayTypes.includes(view.menuType);
+  const departurePrepSubmenu = view.isDeparturePrepSubmenu;
+  const workshopSubmenu = view.isWorkshopSubmenu;
+  const townSubmenu = view.isTownSubmenu;
+  const isTownLikeGoal = gameState === "town" || departurePrepSubmenu;
 
   // Reset/Apply floor-theme class on #game-container
   const container = document.getElementById("game-container");
@@ -234,20 +221,19 @@ export function updateUI() {
     for (let i = 1; i <= 6; i++) {
       container.classList.remove(`floor-theme-b${i}`);
     }
-    container.classList.toggle("result-mode", state.gameState === "result");
+    container.classList.toggle("result-mode", gameState === "result");
     container.classList.toggle(
       "event-mode",
-      state.gameState === "trap_encounter" ||
-      (state.gameState === "submenu" && eventModeSubmenus.includes(menuContext.type))
+      gameState === "trap_encounter" || view.isEventSubmenu
     );
     container.classList.toggle("departure-mode", departurePrepSubmenu);
     container.classList.toggle("workshop-mode", workshopSubmenu);
     container.classList.toggle("town-submenu-mode", townSubmenu);
     if (state.currentRun &&
-        state.gameState !== "town" &&
-        state.gameState !== "gameover" &&
-        state.gameState !== "victory" &&
-        state.gameState !== "result" &&
+        gameState !== "town" &&
+        gameState !== "gameover" &&
+        gameState !== "victory" &&
+        gameState !== "result" &&
         state.floor >= 1) {
       const floorTheme = getFloorTheme(state.floor);
       const visual = floorTheme.visualSignature;
@@ -272,7 +258,7 @@ export function updateUI() {
   
   const resultOverlay = document.getElementById("result-overlay");
   if (resultOverlay) {
-    if (state.gameState === "result") {
+    if (gameState === "result") {
       resultOverlay.style.display = "flex";
       renderPreservingOverlayFocus(resultOverlay, renderResultScreen);
     } else {
@@ -280,22 +266,22 @@ export function updateUI() {
     }
   }
 
-  if (state.gameState === "town") {
+  if (gameState === "town") {
     locLabel.textContent = "TOWN OF LLYLGAMYN";
-  } else if (state.gameState === "explore") {
+  } else if (gameState === "explore") {
     const themeLabel = ` / ${getFloorDisplayName(state, state.floor)}`;
     const lightLabel = state.lightPower === "lomilwa" ? "LOMILWA" : "LIGHT";
     const lightText = state.lightTurns > 0 ? ` (${lightLabel}:${state.lightTurns})` : "";
     const repelText = state.repelTurns > 0 ? ` (REPEL:${state.repelTurns})` : "";
     const dumapicText = state.dumapicTurns > 0 ? ` (DUMAPIC:${state.dumapicTurns})` : "";
     locLabel.textContent = `B${state.floor}F${themeLabel} X:${state.x} Y:${state.y}${lightText}${repelText}${dumapicText}`;
-  } else if (state.gameState === "combat") {
+  } else if (gameState === "combat") {
     locLabel.textContent = "BATTLE ENCOUNTER";
-  } else if (state.gameState === "chest") {
+  } else if (gameState === "chest") {
     locLabel.textContent = "TREASURE CHEST";
-  } else if (state.gameState === "victory") {
+  } else if (gameState === "victory") {
     locLabel.textContent = "CONGRATULATIONS!";
-  } else if (state.gameState === "gameover") {
+  } else if (gameState === "gameover") {
     locLabel.textContent = "GAME OVER";
   }
   
@@ -307,9 +293,9 @@ export function updateUI() {
     goalRow.className = "goal-row";
     
     const goalText = document.createElement("span");
-    if (state.gameState === "gameover") {
+    if (gameState === "gameover") {
       goalText.textContent = "🎯 目標: 全滅した。街に戻って立て直せ";
-    } else if (state.gameState === "victory") {
+    } else if (gameState === "victory") {
       goalText.textContent = "🎯 目標: おめでとう！ゲームクリア！";
     } else if (isTownLikeGoal) {
       goalText.textContent = `🎯 目標: ${getCurrentGoal()}`;
@@ -318,7 +304,7 @@ export function updateUI() {
     }
     goalRow.appendChild(goalText);
 
-    if (state.gameState !== "gameover" && state.gameState !== "victory" && !isTownLikeGoal) {
+    if (gameState !== "gameover" && gameState !== "victory" && !isTownLikeGoal) {
       const expRate = getFloorExplorationRate();
       
       const statsContainer = document.createElement("span");
@@ -327,7 +313,7 @@ export function updateUI() {
       goalRow.appendChild(statsContainer);
     }
     goalBanner.appendChild(goalRow);
-    if (state.currentRun?.quests?.length && !["result", "gameover", "victory"].includes(state.gameState)) {
+    if (state.currentRun?.quests?.length && !["result", "gameover", "victory"].includes(gameState)) {
       const questList = document.createElement("div");
       questList.className = "quest-hud-list";
       state.currentRun.quests.forEach(quest => {
@@ -385,19 +371,19 @@ export function updateUI() {
 
   const controlsPanel = document.getElementById("controls-panel");
   if (controlsPanel) {
-    controlsPanel.classList.toggle("explore-mode", state.gameState === "explore");
-    controlsPanel.classList.toggle("combat-mode", state.gameState === "combat");
-    controlsPanel.classList.toggle("town-mode", state.gameState === "town");
-    controlsPanel.classList.toggle("submenu-mode", state.gameState === "submenu");
-    controlsPanel.classList.toggle("departure-mode", isDeparturePrepSubmenu());
+    controlsPanel.classList.toggle("explore-mode", gameState === "explore");
+    controlsPanel.classList.toggle("combat-mode", isUsableCombatScreen);
+    controlsPanel.classList.toggle("town-mode", gameState === "town");
+    controlsPanel.classList.toggle("submenu-mode", gameState === "submenu");
+    controlsPanel.classList.toggle("departure-mode", departurePrepSubmenu);
     controlsPanel.classList.toggle("workshop-mode", workshopSubmenu);
-    controlsPanel.classList.toggle("chest-menu-mode", state.gameState === "submenu" && menuContext.type === "chest_menu");
-    controlsPanel.classList.toggle("trap-mode", state.gameState === "trap_encounter");
+    controlsPanel.classList.toggle("chest-menu-mode", view.isSubmenu && view.menuType === "chest_menu");
+    controlsPanel.classList.toggle("trap-mode", gameState === "trap_encounter");
   }
 
-  if (state.gameState === "explore") {
+  if (gameState === "explore") {
     document.getElementById("explore-controls").classList.add("active");
-  } else if (state.gameState === "trap_encounter" && state.activeTrapState) {
+  } else if (gameState === "trap_encounter" && state.activeTrapState) {
     const el = document.getElementById("trap-controls");
     if (el) el.classList.add("active");
     
@@ -427,7 +413,7 @@ export function updateUI() {
     const rateColor = successRate >= 75 ? "var(--neon-green)" : (successRate >= 45 ? "var(--neon-amber)" : "var(--neon-red)");
     const rateText = isPitfall ? "回避成功率" : "解除成功率";
     document.getElementById("trap-success-rate").innerHTML = `${rateText}: <span style="color:${rateColor}; font-weight:bold;">${successRate}%</span>`;
-  } else if (state.gameState === "combat") {
+  } else if (isUsableCombatScreen) {
     document.getElementById("combat-controls").classList.add("active");
     const gridEl = document.querySelector(".combat-grid");
     if (gridEl) {
@@ -478,16 +464,20 @@ export function updateUI() {
       }
     }
     updateCombatPrompt();
-  } else if (state.gameState === "town") {
+  } else if (gameState === "town") {
     document.getElementById("town-controls").classList.add("active");
-  } else if (state.gameState === "submenu" && !isCombatOverlaySubmenu) {
+  } else if (gameState === "submenu" && !isCombatOverlaySubmenu) {
     document.getElementById("submenu-controls").classList.add("active");
+  }
+
+  if (gameState === "combat" && !isUsableCombatScreen) {
+    updateCombatPrompt();
   }
 
   // Update Combat Overlay visibility
   const combatOverlay = document.getElementById("combat-overlay");
   if (combatOverlay) {
-    if (isCombatOverlaySubmenu) {
+    if (view.isUsableCombatOverlaySubmenu) {
       combatOverlay.style.display = "flex";
       renderPreservingOverlayFocus(combatOverlay, renderCombatOverlay);
     } else {
@@ -498,7 +488,7 @@ export function updateUI() {
   // Update Equip Overlay visibility
   const equipOverlay = document.getElementById("equip-overlay");
   if (equipOverlay) {
-    if (state.gameState === "equip_overlay") {
+    if (gameState === "equip_overlay") {
       equipOverlay.style.display = "flex";
       renderPreservingOverlayFocus(equipOverlay, renderEquip);
     } else {
@@ -509,7 +499,7 @@ export function updateUI() {
   // Update Spell Overlay visibility
   const spellOverlay = document.getElementById("spell-overlay");
   if (spellOverlay) {
-    if (state.gameState === "submenu" && (menuContext.type === "spell_caster_select" || menuContext.type === "spell_select" || menuContext.type === "spell_target_ally")) {
+    if (view.isUsableSpellOverlaySubmenu) {
       spellOverlay.style.display = "flex";
       renderPreservingOverlayFocus(spellOverlay, renderSpellOverlay);
     } else {
