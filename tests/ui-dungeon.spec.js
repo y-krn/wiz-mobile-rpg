@@ -937,6 +937,86 @@ for (const vp of VIEWPORTS) {
 }
 
 for (const vp of VIEWPORTS) {
+  test(`Startup combat resume fails closed for unusable party at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const basePayload = await page.evaluate(async () => {
+      const { createSavePayload, createSoloCharacter, state } = await import('/src/state.js');
+      state.party = [createSoloCharacter('Fighter')];
+      state.gameState = 'combat';
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+      };
+      return createSavePayload();
+    });
+
+    const results = [];
+    for (const partyShape of ['null', 'sparse', 'all-dead']) {
+      await page.evaluate(async ({ payload, partyShape }) => {
+        const { state } = await import('/src/state.js');
+        state.transitioning = true;
+        const data = structuredClone(payload);
+        data.gameState = 'combat';
+        data.combatState = {
+          phase: 'choose_actions',
+          monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+        };
+        if (partyShape === 'null') data.party = null;
+        if (partyShape === 'sparse') data.party = [null];
+        if (partyShape === 'all-dead') data.party = [{ ...data.party[0], status: 'dead' }];
+        localStorage.setItem('mobile_wiz_rpg_autosave', JSON.stringify(data));
+      }, { payload: basePayload, partyShape });
+      await page.reload();
+      await page.waitForLoadState('networkidle');
+
+      results.push(await page.evaluate(async () => {
+        const { state } = await import('/src/state.js');
+        const { getScreenViewState } = await import('/src/state/view_state.js');
+        const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
+        const view = getScreenViewState(state, null);
+        return {
+          gameState: state.gameState,
+          combatState: state.combatState,
+          partyLength: state.party.length,
+          hasUsableCombatActor: view.hasUsableCombatActor,
+          savedGameState: saved.gameState,
+          savedCombatState: saved.combatState,
+        };
+      }));
+    }
+
+    expect(results).toEqual([
+      {
+        gameState: 'explore',
+        combatState: null,
+        partyLength: 0,
+        hasUsableCombatActor: false,
+        savedGameState: 'explore',
+        savedCombatState: null,
+      },
+      {
+        gameState: 'explore',
+        combatState: null,
+        partyLength: 0,
+        hasUsableCombatActor: false,
+        savedGameState: 'explore',
+        savedCombatState: null,
+      },
+      {
+        gameState: 'explore',
+        combatState: null,
+        partyLength: 1,
+        hasUsableCombatActor: false,
+        savedGameState: 'explore',
+        savedCombatState: null,
+      },
+    ]);
+  });
+}
+
+for (const vp of VIEWPORTS) {
   test(`Combat callbacks fail closed after navigation and invalid context at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');

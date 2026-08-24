@@ -53,8 +53,15 @@ export function initGame() {
   updateUI();
   resumePendingCampEntry();
   const view = getScreenViewState(state, null);
-  if (view.gameState === "combat" && view.hasCombat) {
+  if (view.gameState === "combat" && view.hasCombat && view.hasUsableCombatActor) {
     resumeCombat();
+  } else if (view.gameState === "combat") {
+    // A saved combat without a structurally usable party cannot be resumed.
+    // Clear the stale combat payload before returning to the safe base screen.
+    state.combatState = null;
+    state.gameState = view.hasMap ? "explore" : "town";
+    saveAutosave();
+    updateUI();
   }
 }
 
