@@ -122,3 +122,61 @@ for (const viewport of VIEWPORTS) {
     expect(result.eventMode).toBe(false);
   });
 }
+
+test('combat item cards keep long descriptions visible and scroll the list on short viewports @e2e @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+
+  const metrics = await page.evaluate(async () => {
+    const { createSoloCharacter, state } = await import('/src/state.js');
+    const { menuContext } = await import('/src/navigation.js');
+    const { ITEMS } = await import('/src/data/items.js');
+    const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
+
+    state.party = [createSoloCharacter('Fighter')];
+    state.gameState = 'submenu';
+    state.combatState = {
+      phase: 'choose_actions',
+      monsters: [{ name: '検証用モンスター', hp: 10, maxHp: 10 }],
+    };
+    state.inventory = Array.from({ length: 8 }, () => 'HEAL_POTION');
+    ITEMS.HEAL_POTION.desc = '使用するとHPを15回復し、毒状態も治療する。戦闘中に何度でも使える長い説明文です。';
+    menuContext.type = 'combat_item';
+    menuContext.prevGameState = 'combat';
+
+    const overlay = document.querySelector('#combat-overlay');
+    overlay.style.display = 'flex';
+    renderCombatOverlay();
+
+    const card = overlay.querySelector('.combat-item-card.item');
+    const description = card.querySelector('.item-card-desc');
+    const list = overlay.querySelector('.combat-selection-grid');
+    const back = overlay.querySelector('.btn-combat-back');
+    const cardRect = card.getBoundingClientRect();
+    const descriptionRect = description.getBoundingClientRect();
+    const backRect = back.getBoundingClientRect();
+    const overlayRect = overlay.getBoundingClientRect();
+    return {
+      cardHeight: cardRect.height,
+      cardScrollHeight: card.scrollHeight,
+      descriptionHeight: descriptionRect.height,
+      descriptionScrollHeight: description.scrollHeight,
+      descriptionDisplay: getComputedStyle(description).display,
+      listClientHeight: list.clientHeight,
+      listScrollHeight: list.scrollHeight,
+      listOverflowY: getComputedStyle(list).overflowY,
+      backHeight: backRect.height,
+      backBottom: backRect.bottom,
+      overlayBottom: overlayRect.bottom,
+    };
+  });
+
+  expect(metrics.descriptionDisplay).not.toBe('-webkit-box');
+  expect(metrics.descriptionScrollHeight).toBeLessThanOrEqual(metrics.descriptionHeight + 1);
+  expect(metrics.cardScrollHeight).toBeLessThanOrEqual(metrics.cardHeight + 1);
+  expect(metrics.listOverflowY).toBe('auto');
+  expect(metrics.listScrollHeight).toBeGreaterThan(metrics.listClientHeight);
+  expect(metrics.backHeight).toBeGreaterThanOrEqual(44);
+  expect(metrics.backBottom).toBeLessThanOrEqual(metrics.overlayBottom + 1);
+});
