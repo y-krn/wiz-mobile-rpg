@@ -449,6 +449,72 @@ check("combat end numeric fields stay bounded", () => {
   assert.equal(combatEnd.properties.playerMp, 0);
 });
 
+check("combat start joins player and equipment snapshots without duplicating them on damage", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
+  trackDamageReceived({
+    floor: 2,
+    playerClass: decisionPlayer.class,
+    enemyId: "墓守の巨躯",
+    attackType: "physical",
+    rawDamage: 12,
+    finalDamage: 2,
+    finalDef: 10,
+    defResistance: 0.8333,
+    defenseBreakdown: {
+      equipmentDef: 3,
+      vitContribution: 2,
+      buffDef: 1,
+      frontGuardDef: 2,
+      firstStrikeDefense: 1,
+      mpWardDef: 1,
+      tempDefDown: 0
+    }
+  });
+
+  const combatStart = events.find(event => event.name === "combat_start").properties;
+  const damage = events.find(event => event.name === "damage_received").properties;
+  assert.equal(combatStart.runId, damage.runId);
+  assert.equal(combatStart.combatId, damage.combatId);
+  assert.equal(combatStart.playerClass, "Mage");
+  assert.equal(combatStart.level, decisionPlayer.level);
+  assert.equal(combatStart.str, decisionPlayer.str);
+  assert.equal(combatStart.vit, decisionPlayer.vit);
+  assert.deepEqual(combatStart.equipmentIds, ["WAND", null, "ROBE", null, null]);
+  assert.equal(combatStart.equipmentRarities.length, 5);
+  assert.equal(combatStart.equipmentEnhancementLevels.length, 5);
+  assert.equal(damage.equipmentDef, 3);
+  assert.equal(damage.baseDef, 3);
+  assert.equal(damage.vitContribution, 2);
+  assert.equal(damage.mpWardDef, 1);
+  assert.equal(Object.hasOwn(damage, "equipmentIds"), false);
+  assert.equal(Object.hasOwn(damage, "equipmentAffixTypes"), false);
+});
+
+check("defense breakdown fields stay bounded and unknown values become null", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackRunStart(run, decisionPlayer, decisionState);
+  trackCombatStart({ ...decisionCombat, player: decisionPlayer }, decisionState);
+  trackDamageReceived({
+    enemyId: "ゴブリン A",
+    rawDamage: 2,
+    finalDamage: 1,
+    defenseBreakdown: {
+      equipmentDef: Number.MAX_VALUE,
+      vitContribution: "invalid",
+      tempDefDown: -Number.MAX_VALUE
+    }
+  });
+  const damage = events.find(event => event.name === "damage_received").properties;
+  assert.equal(damage.equipmentDef, 1_000_000);
+  assert.equal(damage.vitContribution, null);
+  assert.equal(damage.tempDefDown, -1_000_000);
+  assert.equal(damage.buffDef, null);
+});
+
 check("legacy chest, combat, and run fields stay bounded", () => {
   const events = [];
   __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
@@ -799,16 +865,21 @@ check("damage telemetry matches the live MP ward formula at zero and nonzero MP"
   trackRunStart(run, { class: "Mage", level: 1, maxHp: 14, maxMp: 12, equipment: {} });
   trackCombatStart({ floor: 1, player: { class: "Mage", hp: 14, mp: 0 }, monsters: [] });
 
-  const emptyMp = { class: "Mage", hp: 10, mp: 0 };
-  recordReceivedDamage({ floor: 1 }, emptyMp, "ゴブリン A", 2, 2, 12, { attackType: "physical" });
-  const activeMp = { class: "Mage", hp: 10, mp: 1 };
-  recordReceivedDamage({ floor: 1 }, activeMp, "ゴブリン A", 2, 2, 12, { attackType: "physical" });
+  const emptyMp = { class: "Mage", hp: 10, mp: 0, vit: 10, equipment: {} };
+  recordReceivedDamage({ floor: 1 }, emptyMp, "ゴブリン A", 2, 2, 12, { attackType: "physical", finalDef: 2 });
+  const activeMp = { class: "Mage", hp: 10, mp: 1, vit: 10, equipment: {} };
+  recordReceivedDamage({ floor: 1 }, activeMp, "ゴブリン A", 2, 2, 12, { attackType: "physical", finalDef: 2 });
 
   const damageEvents = events.filter(event => event.name === "damage_received");
   assert.equal(damageEvents[0].properties.mpWardActive, getMpWardDef(emptyMp) > 0);
   assert.equal(damageEvents[1].properties.mpWardActive, getMpWardDef(activeMp) > 0);
   assert.equal(damageEvents[0].properties.mpWardActive, false);
   assert.equal(damageEvents[1].properties.mpWardActive, true);
+  assert.equal(damageEvents[0].properties.equipmentDef, 0);
+  assert.equal(damageEvents[0].properties.vitContribution, 2);
+  assert.equal(damageEvents[0].properties.buffDef, 0);
+  assert.equal(damageEvents[0].properties.mpWardDef, 0);
+  assert.equal(damageEvents[1].properties.mpWardDef, 1);
 });
 
 check("telemetry lifecycle preserves a fixed random sequence", () => {
