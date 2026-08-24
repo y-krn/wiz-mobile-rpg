@@ -150,7 +150,8 @@ real run. Each item below has already produced a wrong conclusion at least once.
   The worker then revalidates the SHA, ref, ancestor relationship, and
   worktree state before resuming. Approval waiting alone is not `BLOCKED`; only
   a refusal or failure to transmit the approval result is `BLOCKED`.
-  Always measure from the parent-provided worktree, per AGENTS.md.
+  Always measure from the dedicated measurement worktree, never the `main`
+  checkout.
 
 ### Source tree provenance（Issue #519）
 

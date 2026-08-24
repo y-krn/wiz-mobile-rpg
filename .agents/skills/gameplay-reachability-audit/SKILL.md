@@ -6,8 +6,8 @@ description: Audit whether a gameplay mechanic reaches definition, caller/execut
 # Audit gameplay reachability
 
 Use this skill when a claim says that a mechanic is live, dead, hidden, or
-missing from a player flow. Treat [AGENTS.md](../../../AGENTS.md) as the source
-of truth for reachability evidence and use this skill for the audit sequence.
+missing from a player flow. Use source, runtime checks, and production output as
+evidence; this skill defines the audit sequence.
 
 ## When to use
 
@@ -18,7 +18,6 @@ Do not use it for style-only searches or naming cleanup.
 
 ## Read before searching
 
-- [AGENTS.md](../../../AGENTS.md), especially the reachability rules
 - [file-map.md](../../file-map.md) to choose the smallest source and test set
 - [game-logic.md](../../game-logic.md) for state and mechanic boundaries
 - [qa-regression.md](../../qa-regression.md) when runtime or regression evidence is needed
@@ -28,6 +27,8 @@ Do not use it for style-only searches or naming cleanup.
 1. Define the exact mechanic, entry condition, expected player operation, and
    observable effect. Record the target symbol, string, state, or data key.
 2. Trace the static path from definition through imports, callers, and exports.
+   Resolve identifiers through imports, re-exports, wrappers, compatibility
+   layers, and aliases before deciding which definition a call invokes.
    Check barrel re-exports and both forms of dynamic import. Search string
    dispatch, HTML inline handlers, `data-action` routers, `window` or
    `globalThis` bindings, `eval`, and `new Function`. Do not treat one `grep`
@@ -35,7 +36,9 @@ Do not use it for style-only searches or naming cleanup.
 3. Confirm every target layer in this order: **definition**, **caller and
    execution**, **player operation and UI**, **simulation**, and **telemetry or
    record**. A known caller does not satisfy any later layer, and it does not
-   remove those layers from the audit. Mark each layer as evidenced, not
+   prove that a runtime value or configuration occurred. Verify
+   runtime-dependent claims by execution when feasible, using a counterfactual
+   check when causality matters. Mark each layer as evidenced, not
    exercised, unreachable, out of scope, or unknown. For `not exercised`, cite
    evidence that the path exists but the test or sim omitted it. For
    `unreachable`, cite static or production-build evidence. For `out of scope`,

@@ -18,7 +18,6 @@ unrelated test failure.
 
 ## Read before measuring
 
-- [AGENTS.md](../../../AGENTS.md) for worktree, search, and verification rules
 - [file-map.md](../../file-map.md) to route to the smallest source and test set
 - [balance-simulation.md](../../balance-simulation.md) for all sim invariants
 - Read the existing design document that owns the affected `file-map.md` area,
