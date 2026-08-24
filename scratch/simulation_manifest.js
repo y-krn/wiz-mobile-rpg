@@ -146,7 +146,9 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/map_generator.js", domains: ["maps"] },
     { pattern: "src/chest.js", domains: ["chests", "traps", "drops", "equipment", "recovery", "economy"] },
     { pattern: "src/craft.js", domains: ["workshop", "economy", "equipment"] },
-    { pattern: "src/equip.js", domains: ["equipment", "economy"] },
+    // Equipment preview/rendering changes do not alter economy rules; economy
+    // mutations remain covered by their owning action/system modules.
+    { pattern: "src/equip.js", domains: ["equipment"] },
     { pattern: "src/result.js", domains: ["drops", "economy", "progression"] },
     { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
     { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },

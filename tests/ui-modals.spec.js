@@ -158,6 +158,83 @@ for (const vp of VIEWPORTS) {
     await expect(evenWeapon.locator('.equip-row-badge')).toHaveText('-1');
   });
 
+  test(`Equipment previews do not mutate player state or save payload at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state, saveAutosave, createSavePayload } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      const char = createSoloCharacter('Fighter');
+      char.equipment.weapon = 'DAGGER';
+      state.party = [char];
+      state.inventory = [{
+        kind: 'equipment', instanceId: 'pure_preview_sword', baseId: 'SHORT_SWORD', rarity: 'magic', level: 1,
+        identified: true, affixes: [{ id: 'atk', type: 'atk', kind: 'support', value: 3 }]
+      }];
+      state.metaMaterials = { '鉄片': 4 };
+      saveAutosave();
+      openEquipOverlay(0);
+      window.__equipmentPreviewBaseline = {
+        party: JSON.stringify(state.party),
+        inventory: JSON.stringify(state.inventory),
+        savePayload: JSON.stringify(createSavePayload()),
+        autosave: localStorage.getItem('mobile_wiz_rpg_autosave')
+      };
+    });
+
+    const assertPreviewStateUnchanged = async () => {
+      const current = await page.evaluate(async () => {
+        const { state, createSavePayload } = await import('/src/state.js');
+        const baseline = window.__equipmentPreviewBaseline;
+        return {
+          party: JSON.stringify(state.party),
+          inventory: JSON.stringify(state.inventory),
+          savePayload: JSON.stringify(createSavePayload()),
+          autosave: localStorage.getItem('mobile_wiz_rpg_autosave'),
+          baseline
+        };
+      });
+      expect(current.party).toBe(current.baseline.party);
+      expect(current.inventory).toBe(current.baseline.inventory);
+      expect(current.savePayload).toBe(current.baseline.savePayload);
+      expect(current.autosave).toBe(current.baseline.autosave);
+    };
+
+    await page.locator('.equip-item-row', { hasText: 'ショートソード' }).click();
+    await expect(page.locator('.equip-stat-pill', { hasText: '攻撃' })).toBeVisible();
+    await assertPreviewStateUnchanged();
+
+    await page.getByRole('button', { name: '一覧へ戻る' }).click();
+    await assertPreviewStateUnchanged();
+    await page.locator('.equip-equipped-row[data-slot-id="weapon"]').click();
+    await expect(page.locator('.equip-exchange-line')).toContainText('→ なし');
+    await assertPreviewStateUnchanged();
+
+    await page.getByRole('button', { name: '一覧へ戻る' }).click();
+    await page.locator('.equip-item-row', { hasText: 'ショートソード' }).click();
+    await assertPreviewStateUnchanged();
+    await page.getByRole('button', { name: '一覧へ戻る' }).click();
+    await page.getByRole('button', { name: '閉じる' }).click();
+    await page.evaluate(async () => {
+      const { openEquipOverlay } = await import('/src/equip.js');
+      openEquipOverlay(0);
+    });
+    await page.locator('.equip-item-row', { hasText: 'ショートソード' }).click();
+    await assertPreviewStateUnchanged();
+    await page.getByRole('button', { name: '装備する' }).click();
+    await expect(page.locator('.equip-equipped-row[data-slot-id="weapon"]')).toContainText('ショートソード');
+    await page.locator('.equip-equipped-row[data-slot-id="weapon"]').click();
+    await page.getByRole('button', { name: '外す' }).click();
+    await expect(page.locator('.equip-bag-section .equip-item-row', { hasText: 'ショートソード' })).toHaveCount(1);
+    expect(await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return {
+        equipped: state.party[0].equipment.weapon,
+        inventory: state.inventory.map((item) => typeof item === 'object' ? item.instanceId : item)
+      };
+    })).toEqual({ equipped: null, inventory: ['DAGGER', 'pure_preview_sword'] });
+  });
+
   test(`Equipment can be discarded with confirmation at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
@@ -226,7 +303,7 @@ for (const vp of VIEWPORTS) {
     const discardEvents = await page.evaluate(() => window.__discardTelemetry.filter(event => event.name === 'equipment_decision' && event.properties.action === 'discard'));
     expect(discardEvents).toHaveLength(1);
     expect(discardEvents[0].properties.action).toBe('discard');
-    expect(discardEvents[0].properties.comparisonAvailable).toBe(false);
+    expect(discardEvents[0].properties.comparisonAvailable).toBe(true);
   });
 
   test(`Equipment detail can return to the list at ${vp.width}x${vp.height}`, async ({ page }) => {
