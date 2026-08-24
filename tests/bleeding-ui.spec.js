@@ -9,7 +9,7 @@ for (const viewport of VIEWPORTS) {
       const { state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
       const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
-      state.gameState = 'combat';
+      state.gameState = 'submenu';
       state.combatState = {
         phase: 'choose_actions',
         monsters: [{
@@ -23,6 +23,7 @@ for (const viewport of VIEWPORTS) {
       state.codex = { monsters: {} };
       menuContext.type = 'combat_target';
       menuContext.targetType = 'enemy';
+      menuContext.prevGameState = 'combat';
       document.getElementById('combat-overlay').style.display = 'flex';
       renderCombatOverlay();
     });

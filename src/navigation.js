@@ -92,7 +92,7 @@ export function openGuardedSubmenu(type, title) {
 export function closeSubmenu() {
   const view = getScreenViewState(state, menuContext);
   if (view.isSubmenu) {
-    if (view.hasCombat && view.menuType.startsWith("combat")) {
+    if (view.isCombatOverlaySubmenu) {
       state.gameState = "combat";
       menuContext.prevGameState = null;
     } else if (view.previousGameState) {
@@ -104,7 +104,7 @@ export function closeSubmenu() {
           view.menuType.startsWith("workshop")) {
         state.gameState = "town";
       } else if (view.menuType.startsWith("combat")) {
-        state.gameState = "combat";
+        state.gameState = view.hasMap ? "explore" : "town";
       } else {
         state.gameState = "explore";
       }

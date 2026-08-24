@@ -398,6 +398,19 @@ test('Renderer and navigation keep modal transitions safe with stale context', a
     const restoredCombat = state.gameState === 'combat' && document.getElementById('combat-overlay').style.display === 'none';
 
     state.gameState = 'submenu';
+    state.combatState = {
+      phase: 'choose_actions',
+      monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
+    };
+    menuContext.type = 'combat_target';
+    menuContext.prevGameState = 'town';
+    menuHistory.length = 0;
+    updateUI();
+    const staleModalHidden = document.getElementById('combat-overlay').style.display === 'none';
+    goBackSubmenu();
+    const restoredTownFromStaleCombat = state.gameState === 'town' && document.getElementById('combat-overlay').style.display === 'none';
+
+    state.gameState = 'submenu';
     state.combatState = null;
     state.chestState = null;
     menuContext.type = undefined;
@@ -410,6 +423,8 @@ test('Renderer and navigation keep modal transitions safe with stale context', a
     return {
       modalOpen,
       restoredCombat,
+      staleModalHidden,
+      restoredTownFromStaleCombat,
       staleVisibility,
       restoredExplore: state.gameState === 'explore',
     };
@@ -417,6 +432,8 @@ test('Renderer and navigation keep modal transitions safe with stale context', a
 
   expect(result.modalOpen).toBe(true);
   expect(result.restoredCombat).toBe(true);
+  expect(result.staleModalHidden).toBe(true);
+  expect(result.restoredTownFromStaleCombat).toBe(true);
   expect(result.staleVisibility.showCombat).toBe(false);
   expect(result.staleVisibility.showChest).toBe(false);
   expect(result.restoredExplore).toBe(true);
@@ -446,8 +463,15 @@ for (const vp of VIEWPORTS) {
         overlayChildren: combatOverlay.children.length,
       });
 
-      const invalidMonsters = [[], [null], ['monster']];
-      return invalidMonsters.map(monsters => {
+      const sparseMonsters = [];
+      sparseMonsters.length = 1;
+      const invalidCombatCases = [
+        { label: 'empty', monsters: [] },
+        { label: 'null', monsters: [null] },
+        { label: 'scalar', monsters: ['monster'] },
+        { label: 'sparse', monsters: sparseMonsters },
+      ];
+      return invalidCombatCases.map(({ label, monsters }) => {
         state.gameState = 'combat';
         state.combatState = { phase: 'choose_actions', monsters };
         menuContext.type = '';
@@ -464,23 +488,23 @@ for (const vp of VIEWPORTS) {
         document.getElementById('btn-combat-fight').click();
         const targetSubmenu = snapshot();
 
-        return { monsters, explicitCombat, targetSubmenu };
+        return { label, hasOwnFirstMonster: Object.hasOwn(monsters, 0), explicitCombat, targetSubmenu };
       });
     });
 
-    for (const { monsters, explicitCombat, targetSubmenu } of result) {
-      expect(explicitCombat).toEqual({
+    for (const { label, hasOwnFirstMonster, explicitCombat, targetSubmenu } of result) {
+      expect(label).toBeDefined();
+      expect(hasOwnFirstMonster).toBe(label === 'null' || label === 'scalar');
+      expect(explicitCombat).toMatchObject({
         gameState: 'combat',
-        combatState: { phase: 'choose_actions', monsters },
         menuType: '',
         combatControlsActive: false,
         combatMode: false,
         overlayDisplay: 'none',
         overlayChildren: 0,
       });
-      expect(targetSubmenu).toEqual({
+      expect(targetSubmenu).toMatchObject({
         gameState: 'submenu',
-        combatState: { phase: 'choose_actions', monsters },
         menuType: 'combat_target',
         combatControlsActive: false,
         combatMode: false,
@@ -562,52 +586,87 @@ for (const vp of VIEWPORTS) {
 
       state.gameState = 'submenu';
       state.floor = 1;
-      state.maps[0] = { stale: true };
       state.combatState = null;
       menuContext.type = 'solo_start';
       menuContext.prevGameState = 'town';
-      const view = getScreenViewState(state, menuContext);
-      const visibility = dungeonRenderer.getSceneVisibility();
-      const originalDrawTownBackground = dungeonRenderer.drawTownBackground;
-      const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
-      let townDraws = 0;
-      let corridorDraws = 0;
-      dungeonRenderer.drawTownBackground = (...args) => {
-        townDraws++;
-        return originalDrawTownBackground.apply(dungeonRenderer, args);
-      };
-      dungeonRenderer.draw3DCorridors = (...args) => {
-        corridorDraws++;
-        return originalDraw3DCorridors.apply(dungeonRenderer, args);
-      };
-      let drawError = null;
-      try {
-        dungeonRenderer.draw(visibility);
-      } catch (error) {
-        drawError = error.message;
-      } finally {
-        dungeonRenderer.drawTownBackground = originalDrawTownBackground;
-        dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
-      }
+      const malformedMaps = [
+        { label: 'object', map: { stale: true } },
+        { label: 'null-row', map: [null] },
+        { label: 'empty-row', map: [[]] },
+        { label: 'null-cell', map: [[null]] },
+        { label: 'partial-cell', map: [[{ type: 'empty' }]] },
+      ];
+      const malformedMapResults = malformedMaps.map(({ label, map }) => {
+        state.maps[0] = map;
+        const view = getScreenViewState(state, menuContext);
+        const visibility = dungeonRenderer.getSceneVisibility();
+        const originalDrawTownBackground = dungeonRenderer.drawTownBackground;
+        const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
+        let townDraws = 0;
+        let corridorDraws = 0;
+        dungeonRenderer.drawTownBackground = (...args) => {
+          townDraws++;
+          return originalDrawTownBackground.apply(dungeonRenderer, args);
+        };
+        dungeonRenderer.draw3DCorridors = (...args) => {
+          corridorDraws++;
+          return originalDraw3DCorridors.apply(dungeonRenderer, args);
+        };
+        let drawError = null;
+        try {
+          dungeonRenderer.draw(visibility);
+        } catch (error) {
+          drawError = error.message;
+        } finally {
+          dungeonRenderer.drawTownBackground = originalDrawTownBackground;
+          dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
+        }
+        updateViewportHUD();
+
+        return {
+          label,
+          hasMap: view.hasMap,
+          showTownBackground: visibility.showTownBackground,
+          townDraws,
+          corridorDraws,
+          hudDisplay: document.getElementById('viewport-hud').style.display,
+          drawError,
+        };
+      });
+      state.maps[0] = [[{ type: 'empty', walls: [false, false, false, false] }]];
+      state.x = 1;
+      state.y = 0;
+      const currentCellView = getScreenViewState(state, menuContext);
+      const currentCellVisibility = dungeonRenderer.getSceneVisibility();
       updateViewportHUD();
 
       return {
-        hasMap: view.hasMap,
-        showTownBackground: visibility.showTownBackground,
-        townDraws,
-        corridorDraws,
-        hudDisplay: document.getElementById('viewport-hud').style.display,
-        drawError,
+        malformedMapResults,
+        currentCell: {
+          hasMap: currentCellView.hasMap,
+          hasCurrentCell: currentCellView.hasCurrentCell,
+          showTownBackground: currentCellVisibility.showTownBackground,
+          hudDisplay: document.getElementById('viewport-hud').style.display,
+        },
       };
     });
 
-    expect(result).toEqual({
-      hasMap: false,
-      showTownBackground: true,
-      townDraws: 1,
-      corridorDraws: 0,
+    expect(result.malformedMapResults).toHaveLength(5);
+    for (const malformed of result.malformedMapResults) {
+      expect(malformed).toMatchObject({
+        hasMap: false,
+        showTownBackground: true,
+        townDraws: 1,
+        corridorDraws: 0,
+        hudDisplay: 'none',
+        drawError: null,
+      });
+    }
+    expect(result.currentCell).toEqual({
+      hasMap: true,
+      hasCurrentCell: false,
+      showTownBackground: false,
       hudDisplay: 'none',
-      drawError: null,
     });
   });
 }
@@ -1133,6 +1192,7 @@ for (const vp of VIEWPORTS) {
       state.gameState = 'submenu';
       menuContext.type = 'combat_target';
       menuContext.targetType = 'enemy';
+      menuContext.prevGameState = 'combat';
       dungeonRenderer.draw();
       const submenuMiniMapDraws = miniMapDraws;
       renderCombatOverlay();
@@ -1142,6 +1202,7 @@ for (const vp of VIEWPORTS) {
 
       state.gameState = 'explore';
       menuContext.type = '';
+      menuContext.prevGameState = null;
       dungeonRenderer.draw();
       const monsterLabelCountAfterExplore = labels.filter(label => label.text.includes('敵')).length;
       const exploreMiniMapDrawsBeforeItemMenu = miniMapDraws;

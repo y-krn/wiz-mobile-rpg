@@ -96,9 +96,16 @@ export function getSpellCategory(spKey) {
   return { cat: "combat", name: "戦闘" };
 }
 
+function getSafeMenuType() {
+  const type = menuContext?.type;
+  return state.gameState === "submenu" && typeof type === "string" && type.trim() ? type : "";
+}
+
 export function renderSpellOverlay() {
   const overlay = document.getElementById("spell-overlay");
   if (!overlay) return;
+
+  let menuType = getSafeMenuType();
 
   // Clear container
   overlay.innerHTML = "";
@@ -112,7 +119,7 @@ export function renderSpellOverlay() {
   }
 
   // Auto-normalize caster selection when entering spell system
-  if (menuContext.type === "spell_caster_select") {
+  if (menuType === "spell_caster_select") {
     spellMenuState.filter = "all";
     spellMenuState.selectedKey = null;
     
@@ -120,6 +127,7 @@ export function renderSpellOverlay() {
     const firstCasterIdx = state.party.findIndex(c => c.status !== "dead" && isSpellcaster(c) && c.maxMp > 0);
     menuContext.actorIdx = firstCasterIdx !== -1 ? firstCasterIdx : 0;
     menuContext.type = "spell_select";
+    menuType = getSafeMenuType();
   }
 
   // 1. Header
@@ -129,7 +137,7 @@ export function renderSpellOverlay() {
   overlay.appendChild(header);
 
   // 2. Render based on type
-  if (menuContext.type === "spell_select") {
+  if (menuType === "spell_select") {
     // 2.1 Caster Switch Bar (術者バー)
     const casterBar = document.createElement("div");
     casterBar.className = "spell-caster-bar";
@@ -310,7 +318,7 @@ export function renderSpellOverlay() {
 
     // Render details for previously selected key or show placeholder
     renderSpellDetailInPanel(spellMenuState.selectedKey, caster);
-  } else if (menuContext.type === "spell_target_ally") {
+  } else if (menuType === "spell_target_ally") {
     // 3. Spell Target Selection Screen (2x2 Grid)
     const spell = SPELLS[menuContext.spellName];
     const caster = state.party[menuContext.actorIdx];
@@ -401,7 +409,7 @@ export function renderSpellOverlay() {
   btnBack.className = "btn btn-danger btn-block";
   btnBack.textContent = "◀ 戻る";
   btnBack.addEventListener("click", () => {
-    if (menuContext.type === "spell_select") {
+    if (getSafeMenuType() === "spell_select") {
       closeSubmenu();
     } else {
       goBackSubmenu();

@@ -36,7 +36,7 @@ for (const missingMap of [null, undefined]) {
   assert.equal(renderer.isAnimating(noMapVisibility), false, "no-map solo_start is not animated");
 }
 
-state.maps[1] = [[{ type: "empty" }]];
+state.maps[1] = [[{ type: "empty", walls: [false, false, false, false] }]];
 const mappedVisibility = renderer.getSceneVisibility();
 assert.equal(mappedVisibility.showTownBackground, false, "mapped solo_start keeps the dungeon scene");
 

@@ -49,13 +49,14 @@ function createCombatEnemyInfoPanel() {
 export function renderCombatOverlay() {
   const overlay = document.getElementById("combat-overlay");
   if (!overlay) return;
-  if (!getScreenViewState(state, menuContext).hasCombat) {
+  const view = getScreenViewState(state, menuContext);
+  if (!view.hasCombat || !view.isCombatOverlaySubmenu) {
     overlay.replaceChildren();
     return;
   }
   overlay.innerHTML = "";
 
-  const type = menuContext.type;
+  const type = view.menuType;
 
   // 1. Create header
   const header = document.createElement("div");

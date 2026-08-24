@@ -153,7 +153,7 @@ export class DungeonRenderer {
 
   getSceneVisibility() {
     const view = getScreenViewState(state, menuContext);
-    const { gameState, menuType, previousGameState } = view;
+    const { gameState, previousGameState } = view;
     const showTownBackground = !view.hasMap || (
       !view.isDeparturePrepSubmenu && (
         ["town", "result", "gameover", "victory"].includes(gameState) ||
@@ -163,7 +163,7 @@ export class DungeonRenderer {
     const showCombat = !showTownBackground && Boolean(
       view.hasCombat && (
         gameState === "combat"
-        || (view.isSubmenu && menuType.startsWith("combat"))
+        || view.isCombatOverlaySubmenu
       )
     );
     const showChest = !showTownBackground && (

@@ -3,6 +3,7 @@ import { SAVE_VERSION, normalizeSavePayload } from "./save_migrations.js";
 import { menuContext, menuHistory } from "../navigation.js";
 import { resetEquipState } from "../equip.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
+import { isUsableCombatState } from "./view_state.js";
 
 const STABLE_PERSISTED_GAME_STATES = new Set([
   "town", "explore", "combat", "result", "gameover", "victory"
@@ -38,16 +39,9 @@ function getStableFallbackGameState() {
   return state.currentRun?.runSeed && !state.currentRun.returnReason ? "explore" : "town";
 }
 
-function hasUsableCombatState(combatState) {
-  return combatState && typeof combatState === "object" && !Array.isArray(combatState) &&
-    Array.isArray(combatState.monsters) &&
-    combatState.monsters.length > 0 &&
-    combatState.monsters.every(monster => monster && typeof monster === "object" && !Array.isArray(monster));
-}
-
 function resolveStableGameState(candidate) {
   if (!STABLE_PERSISTED_GAME_STATES.has(candidate)) return null;
-  if (candidate === "combat" && !hasUsableCombatState(state.combatState)) {
+  if (candidate === "combat" && !isUsableCombatState(state.combatState)) {
     return getStableFallbackGameState();
   }
   return candidate;
@@ -73,7 +67,7 @@ function resolvePersistedGameState() {
     return "town";
   }
   if (t.startsWith("combat")) {
-    return hasUsableCombatState(state.combatState)
+    return isUsableCombatState(state.combatState)
       ? "combat"
       : getStableFallbackGameState();
   }
@@ -89,7 +83,7 @@ export function createSavePayload() {
     return persistedChar;
   });
 
-  const persistedCombatState = hasUsableCombatState(state.combatState)
+  const persistedCombatState = isUsableCombatState(state.combatState)
     ? {
       ...state.combatState,
       monsters: state.combatState.monsters.map(monster => {

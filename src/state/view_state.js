@@ -32,6 +32,37 @@ function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function isUsableMapCell(cell) {
+  return isRecord(cell) && typeof cell.type === "string" &&
+    Array.isArray(cell.walls) && cell.walls.length === 4 &&
+    cell.walls.every(wall => typeof wall === "boolean");
+}
+
+export function isUsableCombatState(combatState) {
+  if (!isRecord(combatState) || !Array.isArray(combatState.monsters) || combatState.monsters.length === 0) {
+    return false;
+  }
+  for (let index = 0; index < combatState.monsters.length; index++) {
+    if (!Object.hasOwn(combatState.monsters, index) || !isRecord(combatState.monsters[index])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function isUsableMap(map) {
+  if (!Array.isArray(map) || map.length === 0) return false;
+  const width = map[0]?.length;
+  if (!Number.isInteger(width) || width === 0) return false;
+  for (let y = 0; y < map.length; y++) {
+    if (!Object.hasOwn(map, y) || !Array.isArray(map[y]) || map[y].length !== width) return false;
+    for (let x = 0; x < map[y].length; x++) {
+      if (!Object.hasOwn(map[y], x) || !isUsableMapCell(map[y][x])) return false;
+    }
+  }
+  return true;
+}
+
 function normalizeIndex(value, fallback = -1) {
   return Number.isInteger(value) && value >= 0 ? value : fallback;
 }
@@ -111,10 +142,12 @@ export function getScreenViewState(stateLike, menuContextLike) {
   const menuType = isSubmenu ? menu.type : "";
   const previousGameState = isSubmenu ? menu.prevGameState : null;
   const combatState = isRecord(source.combatState) ? source.combatState : null;
-  const hasCombat = Boolean(combatState && Array.isArray(combatState.monsters) &&
-    combatState.monsters.length > 0 &&
-    combatState.monsters.every(monster => isRecord(monster)));
+  const hasCombat = isUsableCombatState(combatState);
   const hasChest = isRecord(source.chestState);
+  const hasMap = isUsableMap(source.map);
+  const currentRow = hasMap ? source.map[source.y] : null;
+  const hasCurrentCell = Number.isInteger(source.x) && Number.isInteger(source.y) &&
+    isUsableMapCell(currentRow?.[source.x]);
 
   return Object.freeze({
     gameState,
@@ -124,10 +157,11 @@ export function getScreenViewState(stateLike, menuContextLike) {
     isDeparturePrepSubmenu: isSubmenu && menuType === "solo_start",
     isWorkshopSubmenu: isSubmenu && menuType === "workshop_main",
     isTownSubmenu: isSubmenu && TOWN_SUBMENU_TYPES.has(menuType),
-    isCombatOverlaySubmenu: isSubmenu && SUBMENU_OVERLAY_TYPES.has(menuType),
+    isCombatOverlaySubmenu: isSubmenu && previousGameState === "combat" && SUBMENU_OVERLAY_TYPES.has(menuType),
     isEventSubmenu: isSubmenu && (menuType === "chest_menu" || menuType === "chest_disarmer_select" || menuType === "chest_opener_select" || EVENT_SUBMENU_TYPES.includes(menuType)),
     isItemSubmenu: isSubmenu && ITEM_SUBMENU_TYPES.includes(menuType),
-    hasMap: Array.isArray(source.map),
+    hasMap,
+    hasCurrentCell,
     hasCombat,
     hasChest
   });

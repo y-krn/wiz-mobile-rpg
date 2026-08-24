@@ -13,7 +13,7 @@ export function updateViewportHUD() {
     return;
   }
 
-  if (!view.hasMap) {
+  if (!view.hasMap || !view.hasCurrentCell) {
     hud.style.display = "none";
     return;
   }
