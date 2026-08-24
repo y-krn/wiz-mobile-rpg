@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog } from "./state.js";
-import { getScreenViewState } from "./state/view_state.js";
+import { getScreenViewState, getUsableSpellKeys, isUsableSpellKey } from "./state/view_state.js";
 import { getClassJpName, isSpellcaster, SPELLS, getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp } from "./data.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { playSound } from "./audio.js";
@@ -122,6 +122,9 @@ export function renderSpellOverlay() {
   if (spellMenuState.selectedKey === undefined) {
     spellMenuState.selectedKey = null;
   }
+  if (spellMenuState.selectedKey && !isUsableSpellKey(spellMenuState.selectedKey)) {
+    spellMenuState.selectedKey = null;
+  }
 
   // Auto-normalize caster selection when entering spell system
   if (menuType === "spell_caster_select") {
@@ -160,7 +163,7 @@ export function renderSpellOverlay() {
       if (char.status === "dead") {
         isDisabled = true;
         reason = "死亡";
-      } else if (char.mp <= 0 && !char.spells?.some(spellKey => getSpellPayment(char, SPELLS[spellKey].cost).canCast)) {
+      } else if (char.mp <= 0 && !getUsableSpellKeys(char.spells).some(spellKey => getSpellPayment(char, SPELLS[spellKey].cost).canCast)) {
         isDisabled = true;
         reason = "MP枯渇";
       }
@@ -193,7 +196,7 @@ export function renderSpellOverlay() {
     listContainer.className = "spell-item-list";
 
     const caster = state.party[menuContext.actorIdx];
-    const casterSpells = caster ? (caster.spells || []) : [];
+    const casterSpells = caster ? getUsableSpellKeys(caster.spells) : [];
 
     // Filter spells
     const filteredSpells = casterSpells.filter(spKey => {
@@ -428,7 +431,8 @@ export function renderSpellOverlay() {
     const panel = document.getElementById("spell-detail-panel");
     if (!panel) return;
 
-    if (!spKey || !caster) {
+    if (!spKey || !caster || !isUsableSpellKey(spKey)) {
+      if (spKey && !isUsableSpellKey(spKey)) spellMenuState.selectedKey = null;
       panel.innerHTML = `
         <div class="spell-detail-placeholder">呪文を選択してください</div>
         <button class="btn btn-neon btn-block disabled" disabled>唱える呪文を選択</button>

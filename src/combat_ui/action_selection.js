@@ -1,4 +1,6 @@
 import { state, addLog, saveAutosave } from "../state.js";
+import { menuContext } from "../navigation.js";
+import { isUsableCombatScreen } from "../state/view_state.js";
 import { SPELLS, ITEMS, getSpellPayment } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
@@ -16,8 +18,12 @@ import {
 
 export { combatSelection };
 
+function canActInCombat() {
+  return isUsableCombatScreen(state, menuContext);
+}
+
 export function toggleCombatAuto() {
-  if (!state.combatState) return;
+  if (!canActInCombat()) return;
   const wasAuto = state.combatState.isAuto;
   state.combatState.isAuto = !state.combatState.isAuto;
   playSound("move");
@@ -36,6 +42,7 @@ export function toggleCombatAuto() {
 }
 
 export function advanceActionSelection() {
+  if (!canActInCombat()) return;
   // Find next living character
   const livingIdxs = state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status)).map(x => x.i);
   
@@ -72,7 +79,7 @@ export function advanceActionSelection() {
 }
 
 export function selectCombatAction(type) {
-  if (!state.combatState || state.combatState.phase !== "choose_actions") return;
+  if (!canActInCombat() || state.combatState.phase !== "choose_actions") return;
 
   const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status));
   const char = livingChars[combatSelection.charIdx].c;
@@ -81,6 +88,7 @@ export function selectCombatAction(type) {
   if (type === "fight") {
     // Let player choose target monster
     openCombatTargetMenu("enemy", (targetIdx) => {
+      state.gameState = "combat";
       combatSelection.actions.push({
         type: "fight",
         actorIdx: charOriginalIdx,
@@ -112,6 +120,7 @@ export function selectCombatAction(type) {
       // Determine targets
       if (spell.target === "single_enemy") {
         openCombatTargetMenu("enemy", (targetIdx) => {
+          state.gameState = "combat";
           combatSelection.actions.push({
             type: "spell",
             actorIdx: charOriginalIdx,
@@ -131,6 +140,7 @@ export function selectCombatAction(type) {
         }, spellName);
       } else if (spell.target === "single_ally") {
         const enqueueAllySpell = (targetIdx) => {
+          state.gameState = "combat";
           combatSelection.actions.push({
             type: "spell",
             actorIdx: charOriginalIdx,
@@ -188,6 +198,7 @@ export function selectCombatAction(type) {
         return;
       }
       const enqueueAllyItem = (targetIdx) => {
+        state.gameState = "combat";
         combatSelection.actions.push({
           type: "item",
           actorIdx: charOriginalIdx,
@@ -244,7 +255,7 @@ export function selectCombatAction(type) {
 }
 
 export function cancelCombatAction() {
-  if (!state.combatState || state.combatState.phase !== "choose_actions") return;
+  if (!canActInCombat() || state.combatState.phase !== "choose_actions") return;
   if (combatSelection.charIdx > 0) {
     combatSelection.actions.pop();
     trackCombatDecisionCancel();

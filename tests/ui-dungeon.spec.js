@@ -589,7 +589,7 @@ for (const vp of VIEWPORTS) {
       const { getScreenViewState } = await import('/src/state/view_state.js');
       const { getFloorExplorationRate, updateUI } = await import('/src/ui.js');
       const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
-      const { renderSpellOverlay } = await import('/src/spell_menu.js');
+      const { renderSpellOverlay, spellMenuState } = await import('/src/spell_menu.js');
       const { combatSelection } = await import('/src/combat.js');
 
       const cell = () => ({ walls: [false, false, false, false], type: 'empty' });
@@ -675,7 +675,26 @@ for (const vp of VIEWPORTS) {
       } catch (error) {
         invalidSpellTargetError = error.message;
       }
-      const invalidSpellOverlay = document.getElementById('spell-overlay');
+      const invalidSpellOverlayElement = document.getElementById('spell-overlay');
+      const invalidSpellOverlay = {
+        display: invalidSpellOverlayElement.style.display,
+        children: invalidSpellOverlayElement.children.length,
+      };
+
+      state.party[0].spells = ['UNKNOWN'];
+      state.gameState = 'submenu';
+      menuContext.prevGameState = 'explore';
+      menuContext.type = 'spell_select';
+      menuContext.actorIdx = 0;
+      spellMenuState.selectedKey = 'UNKNOWN';
+      let invalidSpellSelectionError = null;
+      try {
+        updateUI();
+        renderSpellOverlay();
+      } catch (error) {
+        invalidSpellSelectionError = error.message;
+      }
+      const invalidSpellSelectionOverlay = document.getElementById('spell-overlay');
 
       state.gameState = 'explore';
       menuContext.type = '';
@@ -693,7 +712,13 @@ for (const vp of VIEWPORTS) {
         invalidCombatTargetError,
         invalidCombatTargetOverlay: { display: invalidCombatTargetOverlay.style.display, children: invalidCombatTargetOverlay.children.length },
         invalidSpellTargetError,
-        invalidSpellOverlay: { display: invalidSpellOverlay.style.display, children: invalidSpellOverlay.children.length },
+        invalidSpellOverlay,
+        invalidSpellSelectionError,
+        invalidSpellSelection: {
+          selectedKey: spellMenuState.selectedKey,
+          display: invalidSpellSelectionOverlay.style.display,
+          emptyList: Boolean(invalidSpellSelectionOverlay.querySelector('.list-empty')),
+        },
         staleCombatActionCount: combatSelection.actions.length,
         staleCombatGameState: state.gameState,
       };
@@ -710,8 +735,68 @@ for (const vp of VIEWPORTS) {
       invalidCombatTargetOverlay: { display: 'none', children: 0 },
       invalidSpellTargetError: null,
       invalidSpellOverlay: { display: 'none', children: 0 },
+      invalidSpellSelectionError: null,
+      invalidSpellSelection: { selectedKey: null, display: 'flex', emptyList: true },
       staleCombatActionCount: 0,
       staleCombatGameState: 'explore',
+    });
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Direct combat handlers ignore stale combat data at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { cancelCombatAction, advanceActionSelection, resolveCombatRound, selectCombatAction, toggleCombatAuto } = await import('/src/combat.js');
+      const { combatSelection } = await import('/src/combat.js');
+
+      const cell = { walls: [false, false, false, false], type: 'empty' };
+      state.party = [createSoloCharacter('Fighter')];
+      state.maps[0] = [[cell]];
+      state.floor = 1;
+      state.x = 0;
+      state.y = 0;
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+      };
+      state.gameState = 'explore';
+      state.transitioning = false;
+      menuContext.type = '';
+      menuContext.prevGameState = null;
+      combatSelection.charIdx = 0;
+      combatSelection.actions = [];
+      const errors = [];
+      for (const action of [
+        () => toggleCombatAuto(),
+        () => advanceActionSelection(),
+        () => selectCombatAction('fight'),
+        () => cancelCombatAction(),
+        () => resolveCombatRound(),
+      ]) {
+        try {
+          action();
+        } catch (error) {
+          errors.push(error.message);
+        }
+      }
+      return {
+        errors,
+        gameState: state.gameState,
+        combatPhase: state.combatState.phase,
+        actionCount: combatSelection.actions.length,
+      };
+    });
+
+    expect(result).toEqual({
+      errors: [],
+      gameState: 'explore',
+      combatPhase: 'choose_actions',
+      actionCount: 0,
     });
   });
 }

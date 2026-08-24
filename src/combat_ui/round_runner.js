@@ -1,4 +1,6 @@
 import { state, saveAutosave } from "../state.js";
+import { menuContext } from "../navigation.js";
+import { isUsableCombatScreen } from "../state/view_state.js";
 import { runCombatRoundCalculation } from "../combat_logic.js";
 import { combatSelection } from "./combat_state.js";
 import { playBattleLogs } from "./battle_log_player.js";
@@ -24,6 +26,7 @@ function resolvePendingOutcome(logQueue) {
 }
 
 export function resolveCombatRound() {
+  if (!isUsableCombatScreen(state, menuContext)) return;
   state.gameState = "combat";
   state.combatState.phase = "resolving";
   trackCombatDecisionCommit();

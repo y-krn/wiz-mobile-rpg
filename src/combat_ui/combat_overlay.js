@@ -7,7 +7,7 @@ import { isSpellTargetAvailable, getSpellCombatSummary } from "./spell_menu.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
 import { STATUS_EFFECT_IDS, BLEEDING_PAYOFF_DAMAGE } from "../combat_logic/status_effects.js";
-import { getScreenViewState } from "../state/view_state.js";
+import { getScreenViewState, getUsableSpellKeys } from "../state/view_state.js";
 
 function getEnemyResistanceStatus(monster) {
   const record = state.codex?.monsters?.[getMonsterCodexKey(monster)];
@@ -187,7 +187,7 @@ export function renderCombatOverlay() {
     const casterIdx = menuContext.actorIdx;
     const caster = state.party[casterIdx];
 
-    caster.spells.forEach(spKey => {
+    getUsableSpellKeys(caster.spells).forEach(spKey => {
       const spell = SPELLS[spKey];
       if (spell.campOnly) return;
       

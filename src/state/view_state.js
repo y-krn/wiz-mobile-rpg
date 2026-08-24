@@ -45,8 +45,12 @@ function hasUsableCaster(party, actorIdx) {
     Object.hasOwn(party, actorIdx) && isRecord(party[actorIdx]) && Array.isArray(party[actorIdx].spells);
 }
 
-function hasUsableSpellName(spellName) {
+export function isUsableSpellKey(spellName) {
   return typeof spellName === "string" && Object.hasOwn(SPELLS, spellName) && isRecord(SPELLS[spellName]);
+}
+
+export function getUsableSpellKeys(spellKeys) {
+  return Array.isArray(spellKeys) ? spellKeys.filter(isUsableSpellKey) : [];
 }
 
 export function isUsableCombatState(combatState) {
@@ -162,7 +166,7 @@ export function getScreenViewState(stateLike, menuContextLike) {
   const isCombatOverlaySubmenu = isSubmenu && previousGameState === "combat" && SUBMENU_OVERLAY_TYPES.has(menuType);
   const isSpellOverlaySubmenu = isSubmenu && previousGameState === "explore" && hasMap && hasCurrentCell && SPELL_OVERLAY_TYPES.has(menuType);
   const usableCaster = hasUsableCaster(source.party, menu.actorIdx);
-  const usableSpellName = hasUsableSpellName(menu.spellName);
+  const usableSpellName = isUsableSpellKey(menu.spellName);
   const isUsableCombatOverlaySubmenu = isCombatOverlaySubmenu && hasCombat && (
     menuType === "combat_spell"
       ? usableCaster
@@ -193,4 +197,9 @@ export function getScreenViewState(stateLike, menuContextLike) {
     hasCombat,
     hasChest
   });
+}
+
+export function isUsableCombatScreen(stateLike, menuContextLike) {
+  const view = getScreenViewState(stateLike, menuContextLike);
+  return view.gameState === "combat" && view.hasCombat;
 }
