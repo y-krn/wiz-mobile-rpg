@@ -16,19 +16,31 @@ import {
   REQUIRED_PACKAGE
 } from "../scripts/dependency-preflight.js";
 
-const lockfile = JSON.stringify({ name: "fixture", lockfileVersion: 3, packages: {} });
+const lockfile = JSON.stringify({
+  name: "fixture",
+  lockfileVersion: 3,
+  packages: {
+    [`node_modules/${REQUIRED_PACKAGE}`]: { version: "10.63.0" },
+    "node_modules/fixture-dependency": { version: "1.0.0" }
+  }
+});
 
 function sha256(filePath) {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
 
-function createFixture(prefix, { packageJson = null } = {}) {
+function createFixture(prefix, { packageJson = null, dependencyJson = null } = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), prefix));
   writeFileSync(path.join(root, "package-lock.json"), lockfile);
   if (packageJson) {
     const packagePath = path.join(root, "node_modules", "@sentry", "browser", "package.json");
     mkdirSync(path.dirname(packagePath), { recursive: true });
     writeFileSync(packagePath, packageJson);
+  }
+  if (dependencyJson) {
+    const dependencyPath = path.join(root, "node_modules", "fixture-dependency", "package.json");
+    mkdirSync(path.dirname(dependencyPath), { recursive: true });
+    writeFileSync(dependencyPath, dependencyJson);
   }
   return root;
 }
@@ -57,8 +69,8 @@ function assertRecoveryFailure(callback, expectedText) {
 
 const roots = [];
 try {
-  // Same-byte reinstall: the installer repairs another tree entry and returns
-  // evidence tied to the current lockfile and required package metadata.
+  // Same-byte reinstall: the installer repairs another lockfile tree entry,
+  // while the required package metadata remains byte-identical.
   const sameByteRoot = createFixture("wiz-issue-854-same-byte-", {
     packageJson: JSON.stringify({ name: REQUIRED_PACKAGE, version: "10.63.0" })
   });
@@ -69,7 +81,9 @@ try {
     repoRoot: sameByteRoot,
     install: root => {
       sameByteInstallCalls += 1;
-      writeFileSync(path.join(root, "node_modules", ".tree-repaired"), "verified");
+      const dependencyPath = path.join(root, "node_modules", "fixture-dependency", "package.json");
+      mkdirSync(path.dirname(dependencyPath), { recursive: true });
+      writeFileSync(dependencyPath, JSON.stringify({ name: "fixture-dependency", version: "1.0.0" }));
       // Installer claims are intentionally ignored by the wrapper.
       return verifiedContract(root, sameBytePackagePath);
     },
@@ -81,6 +95,7 @@ try {
   assert.equal(sameByteResult.installed, true);
   assert.equal(sameByteInstallCalls, 1);
   assert.equal(sameByteResult.result.verified, true);
+  assert.equal(existsSync(path.join(sameByteRoot, "node_modules", "fixture-dependency", "package.json")), true);
   assert.equal(existsSync(path.join(sameByteRoot, "node_modules", ".dependency-preflight.json")), true);
 
   // A matching stamp reuses the tree and does not invoke the legacy installer.
@@ -102,6 +117,9 @@ try {
     () => dependencyPreflight({
       repoRoot: noOpRoot,
       install: root => verifiedContract(root, path.join(root, "node_modules", "@sentry", "browser", "package.json")),
+      // A verifier can forge current hashes for the package-only tree too;
+      // wrapper-owned complete-tree validation must still reject the stamp.
+      verify: ({ root }) => verifiedContract(root, path.join(root, "node_modules", "@sentry", "browser", "package.json")),
       log: { log() {} }
     }),
     "was unchanged by the compatibility installer"
