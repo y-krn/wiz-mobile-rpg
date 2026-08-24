@@ -237,6 +237,25 @@ assert.doesNotThrow(
   ),
   "call-like text inside a string literal is not an executable boundary call"
 );
+for (const [label, declaration] of [
+  ["ordinary string", "const label = \"hello\";"],
+  ["regex literal", "const pattern = /someFn(state.chestState)/;"]
+]) {
+  const literalDeclarationDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,2 @@
++// balance-impact: none — state boundary only
++  ${declaration}
+`;
+  assert.doesNotThrow(
+    () => assertBalanceImpactCovered(
+      ["src/chest.js"],
+      SIMULATION_MANIFEST,
+      undefined,
+      { diffByFile: new Map([["src/chest.js", literalDeclarationDiff]]) }
+    ),
+    `${label} declaration remains outside executable boundary classification`
+  );
+}
 assert.throws(
   () => assertBalanceImpactCovered(
     ["src/chest.js"],

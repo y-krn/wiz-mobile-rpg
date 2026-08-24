@@ -827,32 +827,35 @@ const STATE_BOUNDARY_LOCALS = /\b(?:currentPhase|allowedPhases|persistedChestSta
 const STATE_BOUNDARY_PROPERTIES = new Set([
   "phase", "fromDrop", "smashTelemetry", "inspected", "identifiedTrap", "inspectChance"
 ]);
+const LITERAL_ONLY_DECLARATION = /^(?:const|let|var)\s+[A-Za-z_$][A-Za-z0-9_$]*\s*=\s*(?:"\s*"|'\s*'|`\s*`|\/\s*\/[A-Za-z]*)\s*;?$/;
 
 function isAllowedStateBoundaryLine(text, file) {
   if (!text || text.startsWith("//")) return true;
-  if (file === "src/state/save_payload.js" && /^import\s+\{[^}]*\bmenuContext\b[^}]*\bmenuHistory\b/.test(text)) return true;
-  if (ARRAY_MUTATOR_CALL.test(text)) return false;
-  if (BALANCE_MUTATOR_CALL.test(text)) return false;
-  if (BOUNDARY_COMPUTED_ACCESS.test(text)) return false;
-  if (AGGREGATE_MUTATOR_CALL.test(text)) return false;
-  if (COMPUTED_AGGREGATE_ACCESS.test(text)) return false;
-  if (/^(?:state\.party\.includes\((?:char|opener)\)\s*&&|if \(options\.fromDisarm === true && !state\.party\.includes\(opener\)\) return false;)$/.test(text)) return true;
-  if ([...text.matchAll(STATE_ROOT_ACCESS)].some(([, root]) => !ALLOWED_STATE_ROOTS.has(root))) return false;
+  const classificationText = maskLiteralsAndNormalizeComments(text);
+  if (LITERAL_ONLY_DECLARATION.test(classificationText)) return true;
+  if (file === "src/state/save_payload.js" && /^import\s+\{[^}]*\bmenuContext\b[^}]*\bmenuHistory\b/.test(classificationText)) return true;
+  if (ARRAY_MUTATOR_CALL.test(classificationText)) return false;
+  if (BALANCE_MUTATOR_CALL.test(classificationText)) return false;
+  if (BOUNDARY_COMPUTED_ACCESS.test(classificationText)) return false;
+  if (AGGREGATE_MUTATOR_CALL.test(classificationText)) return false;
+  if (COMPUTED_AGGREGATE_ACCESS.test(classificationText)) return false;
+  if (/^(?:state\.party\.includes\((?:char|opener)\)\s*&&|if \(options\.fromDisarm === true && !state\.party\.includes\(opener\)\) return false;)$/.test(classificationText)) return true;
+  if ([...classificationText.matchAll(STATE_ROOT_ACCESS)].some(([, root]) => !ALLOWED_STATE_ROOTS.has(root))) return false;
   if (/^\["ok",\s*"poisoned",\s*"blind"\]\.includes\(char\.status\)$/.test(text)) return true;
   if (/^(?:MENU|DISARM_SELECT|OPEN_SELECT|RESOLVING|REWARD|TERMINAL):\s*"[a-z_]+",?$/.test(text)) return true;
-  if (/^smash:\s*true,?$/.test(text)) return true;
-  if (/^:\s*(?:null|state\.chestState)/.test(text)) return true;
-  if (/^(?:if|while|switch)\s*\($/.test(text)) return true;
-  if (/^\)\s*return\s+(?:false|true|undefined);$/.test(text)) return true;
-  if (/^(?:char\s*&&|return\s+Boolean\(|[{}),;]+|return(?:\s+(?:true|false|undefined))?;?)$/.test(text)) return true;
+  if (/^smash:\s*true,?$/.test(classificationText)) return true;
+  if (/^:\s*(?:null|state\.chestState)/.test(classificationText)) return true;
+  if (/^(?:if|while|switch)\s*\($/.test(classificationText)) return true;
+  if (/^\)\s*return\s+(?:false|true|undefined);$/.test(classificationText)) return true;
+  if (/^(?:char\s*&&|return\s+Boolean\(|[{}),;]+|return(?:\s+(?:true|false|undefined))?;?)$/.test(classificationText)) return true;
   if (file === "src/state/save_payload.js" && /^\?\s*\{\s*\.\.\.data\.chestState,\s*phase:\s*"menu"\s*\}$/.test(text)) return true;
-  if (/^(?:delete\s+)?chest\.(?:phase|inspected|identifiedTrap|inspectChance)\b/.test(text)) return true;
-  if (/^const\s+(?:currentPhase|allowedPhases|persistedChestState)\b/.test(text)) return true;
-  if ((STATE_BOUNDARY_LOCALS.test(text) || STATE_BOUNDARY_HELPERS.test(text)) && !/\bstate\./.test(text)) return true;
-  if (STATE_BOUNDARY_ROOTS.test(text)) {
-    const chestStateAccesses = [...text.matchAll(/\bstate\.chestState(?:\?\.|\.)([A-Za-z_$][A-Za-z0-9_$]*)/g)];
+  if (/^(?:delete\s+)?chest\.(?:phase|inspected|identifiedTrap|inspectChance)\b/.test(classificationText)) return true;
+  if (/^const\s+(?:currentPhase|allowedPhases|persistedChestState)\b/.test(classificationText)) return true;
+  if ((STATE_BOUNDARY_LOCALS.test(classificationText) || STATE_BOUNDARY_HELPERS.test(classificationText)) && !/\bstate\./.test(classificationText)) return true;
+  if (STATE_BOUNDARY_ROOTS.test(classificationText)) {
+    const chestStateAccesses = [...classificationText.matchAll(/\bstate\.chestState(?:\?\.|\.)([A-Za-z_$][A-Za-z0-9_$]*)/g)];
     if (chestStateAccesses.some(([, property]) => !STATE_BOUNDARY_PROPERTIES.has(property))) return false;
-    const localChestAccesses = [...text.matchAll(/\bchest\.([A-Za-z_$][A-Za-z0-9_$]*)/g)];
+    const localChestAccesses = [...classificationText.matchAll(/\bchest\.([A-Za-z_$][A-Za-z0-9_$]*)/g)];
     if (localChestAccesses.some(([, property]) => !STATE_BOUNDARY_PROPERTIES.has(property))) return false;
     return true;
   }
