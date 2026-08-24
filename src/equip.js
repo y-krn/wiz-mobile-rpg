@@ -206,6 +206,13 @@ function getPrimaryDiff(itemType, rows) {
   return rows.find((row) => row.diff !== 0)?.diff ?? 0;
 }
 
+function createEquipmentPreviewChar(char) {
+  return {
+    ...char,
+    equipment: { ...(char.equipment || {}) }
+  };
+}
+
 function getEquipPreview(char, itemKey, requestedSlot = null) {
   const item = getItemData(itemKey);
   if (!isEquipmentItem(item)) return null;
@@ -214,19 +221,9 @@ function getEquipPreview(char, itemKey, requestedSlot = null) {
   if (!slot) return null;
   const current = getDisplayStats(char);
   const oldEq = char.equipment?.[slot] || null;
-  let next;
-  try {
-    char.equipment[slot] = itemKey;
-    next = getDisplayStats(char);
-  } catch {
-    return null;
-  } finally {
-    try {
-      char.equipment[slot] = oldEq;
-    } catch {
-      // A migrated or guarded equipment object must not break the UI.
-    }
-  }
+  const previewChar = createEquipmentPreviewChar(char);
+  previewChar.equipment[slot] = itemKey;
+  const next = getDisplayStats(previewChar);
 
   const rows = STAT_ROWS.map((stat) => ({
     ...stat,
@@ -244,9 +241,9 @@ function getUnequipPreview(char, slot) {
   if (!item) return null;
 
   const current = getDisplayStats(char);
-  char.equipment[slot] = null;
-  const next = getDisplayStats(char);
-  char.equipment[slot] = itemKey;
+  const previewChar = createEquipmentPreviewChar(char);
+  previewChar.equipment[slot] = null;
+  const next = getDisplayStats(previewChar);
 
   const rows = STAT_ROWS.map((stat) => ({
     ...stat,
