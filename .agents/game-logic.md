@@ -66,8 +66,13 @@ supported combat state, roaming/noise state, storage/workshop/materials/key
 items, dungeon memory, and the last 30 log entries. Defaults cover missing
 optional values (empty collections, town/standard coordinates, zero timers,
 fresh codex/records, and the standard dungeon-memory seed). `floorChestsTotal`
-is derived from loaded maps when absent. A malformed active-run map is preserved
-for `RunFloorRecoveryError` handling rather than silently regenerated.
+is derived from loaded maps when absent. Combat is resumed only when it has a
+non-empty, object-shaped monster list; otherwise the screen falls back safely.
+Run-history and death-log arrays discard non-record entries and repair malformed
+archive fields while preserving valid legacy records. A malformed active-run
+map is preserved for `RunFloorRecoveryError` handling rather than silently
+regenerated. Normalization starts from a structured clone so migration repairs
+cannot mutate caller-owned or state-shared nested data.
 
 ## Initial File Routing
 

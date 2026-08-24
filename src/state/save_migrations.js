@@ -116,11 +116,22 @@ function numberOr(value, fallback) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function isUsableCombatState(combatState) {
+  return isRecord(combatState) && Array.isArray(combatState.monsters) &&
+    combatState.monsters.length > 0 && combatState.monsters.every(isRecord);
+}
+
 function normalizePersistedGameState(gameState, currentRun, combatState) {
+  if (gameState === "combat") {
+    if (isUsableCombatState(combatState)) return "combat";
+    return currentRun?.runSeed && !currentRun.returnReason ? "explore" : "town";
+  }
   if (PERSISTED_GAME_STATES.has(gameState)) return gameState;
   if (["equip_overlay", "chest", "trap_encounter"].includes(gameState)) return "explore";
-  if (gameState === "submenu") return isRecord(combatState) ? "combat" : (currentRun?.runSeed ? "explore" : "town");
-  if (gameState === "combat" || isRecord(combatState)) return "combat";
+  if (gameState === "submenu") return isUsableCombatState(combatState)
+    ? "combat"
+    : (currentRun?.runSeed ? "explore" : "town");
+  if (isUsableCombatState(combatState)) return "combat";
   if (currentRun?.runSeed && !currentRun.returnReason) return "explore";
   return "town";
 }
@@ -184,6 +195,27 @@ function normalizeRunOutcome(run) {
     ...run,
     outcome: RUN_OUTCOMES.has(run.outcome) ? run.outcome : inferRunOutcome(run.returnReason)
   };
+}
+
+function normalizeRunHistoryEntry(entry) {
+  if (!isRecord(entry)) return null;
+  const normalized = normalizeRunOutcome(entry);
+  if (Object.hasOwn(normalized, "bankedMaterials") && !isRecord(normalized.bankedMaterials)) {
+    normalized.bankedMaterials = {};
+  }
+  return normalized;
+}
+
+function normalizeDeathLogEntry(entry) {
+  if (!isRecord(entry)) return null;
+  const normalized = { ...entry };
+  if (Object.hasOwn(normalized, "lostItems") && !Array.isArray(normalized.lostItems)) {
+    normalized.lostItems = [];
+  }
+  if (Object.hasOwn(normalized, "character") && normalized.character !== null && !isRecord(normalized.character)) {
+    normalized.character = null;
+  }
+  return normalized;
 }
 
 function backfillMonsterCriticalEligibility(data) {
@@ -290,6 +322,13 @@ export function normalizeSavePayload(data) {
     error.name = "MalformedSavePayloadError";
     throw error;
   }
+  try {
+    data = structuredClone(data);
+  } catch (error) {
+    const malformed = new Error("Save payload contains unsupported values.", { cause: error });
+    malformed.name = "MalformedSavePayloadError";
+    throw malformed;
+  }
   const normalized = Object.fromEntries(
     SAVE_PAYLOAD_FIELDS
       .filter(field => Object.hasOwn(data, field))
@@ -325,6 +364,7 @@ export function normalizeSavePayload(data) {
       ...normalized.combatState,
       monsters: arrayOr(normalized.combatState.monsters).filter(isRecord)
     };
+    if (!isUsableCombatState(normalized.combatState)) normalized.combatState = null;
   }
   normalized.chestState = recordOr(data.chestState, null);
   normalized.gameState = normalizePersistedGameState(data.gameState, currentRun, normalized.combatState);
@@ -344,15 +384,20 @@ export function normalizeSavePayload(data) {
     normalized.currentRun.recordResult ??= null;
     normalized.currentRun.pendingCampEntryFloor ??= null;
     normalized.currentRun.completedCampEntryFloors ??= [];
+    normalized.currentRun.deathLogs = arrayOr(normalized.currentRun.deathLogs)
+      .map(normalizeDeathLogEntry)
+      .filter(isRecord);
   }
   normalized.records = normalizeRecords(recordOr(data.records, {}));
   normalized.unlockedMilestones = Array.from(new Set(arrayOr(data.unlockedMilestones)))
     .filter(floor => Number.isInteger(floor) && floor > 0 && floor % 5 === 0)
     .sort((a, b) => a - b);
   normalized.runHistory = Array.isArray(data.runHistory)
-    ? data.runHistory.map(normalizeRunOutcome)
+    ? data.runHistory.map(normalizeRunHistoryEntry).filter(isRecord)
     : [];
-  normalized.deathLogs = arrayOr(data.deathLogs);
+  normalized.deathLogs = arrayOr(data.deathLogs)
+    .map(normalizeDeathLogEntry)
+    .filter(isRecord);
   normalized.codex = recordOr(data.codex, createDefaultCodex());
   if (normalized.codex?.monsters) {
     Object.keys(normalized.codex.monsters).forEach(name => {

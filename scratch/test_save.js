@@ -113,6 +113,67 @@ check("partial current-version payloads receive safe defaults", () => {
   assert.equal(Object.hasOwn(state, "eventCooldownTurns"), false);
 });
 
+check("combat screens require a usable combat payload", () => {
+  const validPayload = {
+    ...createSavePayload(),
+    gameState: "combat",
+    combatState: {
+      phase: "choose_actions",
+      monsters: [{ name: "スライム", hp: 5, maxHp: 5 }]
+    }
+  };
+  const valid = migrateSavePayload(validPayload);
+  assert.equal(valid.gameState, "combat");
+  assert.equal(valid.combatState.monsters.length, 1);
+
+  const malformed = migrateSavePayload({
+    ...validPayload,
+    combatState: { phase: "choose_actions", monsters: null }
+  });
+  assert.equal(malformed.combatState, null);
+  assert.equal(malformed.gameState, "town");
+});
+
+check("malformed history entries are filtered without changing valid records", () => {
+  const validHistory = {
+    outcome: "death",
+    endedAt: 0,
+    result: "failed",
+    bankedMaterials: { "獣の牙": 2 }
+  };
+  const validDeath = {
+    endedAt: 0,
+    floor: 2,
+    cause: "罠",
+    lostItems: ["HEAL_POTION"],
+    character: { level: 3 }
+  };
+  const normalized = migrateSavePayload({
+    ...createSavePayload(),
+    runHistory: [null, validHistory, "invalid"],
+    deathLogs: [null, { ...validDeath, lostItems: "invalid" }]
+  });
+
+  assert.deepEqual(normalized.runHistory, [validHistory]);
+  assert.equal(normalized.deathLogs.length, 1);
+  assert.deepEqual(normalized.deathLogs[0].lostItems, []);
+});
+
+check("save normalization does not mutate caller-owned nested data", () => {
+  const payload = createSavePayload();
+  payload.party[0].spells = undefined;
+  payload.party[0].runTrapAttackBonus = 7;
+  payload.currentRun = createDefaultCurrentRun();
+  payload.currentRun.seenOmenFloors = [1];
+  payload.currentRun.quests = undefined;
+  payload.workshop = { ranks: {} };
+  const before = structuredClone(payload);
+
+  migrateSavePayload(payload);
+
+  assert.deepEqual(payload, before);
+});
+
 check("malformed direct payloads fail before state mutation", () => {
   const originalX = state.x;
   assert.throws(
@@ -132,7 +193,7 @@ check("malformed direct payloads fail before state mutation", () => {
   assert.doesNotThrow(() => applySavePayload(malformedPayload));
   assert.deepEqual(state.party, []);
   assert.deepEqual(state.inventory, []);
-  assert.deepEqual(state.combatState.monsters, []);
+  assert.equal(state.combatState, null);
 });
 
 check("malformed primary save falls back to a valid backup", () => {
