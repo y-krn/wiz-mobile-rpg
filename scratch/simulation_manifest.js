@@ -882,8 +882,50 @@ function getChangedCodeBlocks(diff) {
   return blocks;
 }
 
+function stripCommentsPreservingStrings(text) {
+  let normalized = "";
+  let quote = null;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+    if (quote) {
+      normalized += char;
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "\"" || char === "'" || char === "`") {
+      quote = char;
+      normalized += char;
+      continue;
+    }
+    if (char === "/" && next === "/") {
+      normalized += " ";
+      index += 2;
+      while (index < text.length && text[index] !== "\n") index += 1;
+      if (index < text.length) normalized += "\n";
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      normalized += " ";
+      index += 2;
+      while (index < text.length && !(text[index] === "*" && text[index + 1] === "/")) {
+        if (text[index] === "\n") normalized += "\n";
+        index += 1;
+      }
+      index += 1;
+      continue;
+    }
+    normalized += char;
+  }
+  return normalized;
+}
+
 function hasUnrecognizedBoundaryCall(block) {
-  for (const match of block.matchAll(CALL_EXPRESSION)) {
+  const normalizedBlock = stripCommentsPreservingStrings(block);
+  for (const match of normalizedBlock.matchAll(CALL_EXPRESSION)) {
     const fullMatch = match[0];
     const callName = fullMatch.slice(0, fullMatch.lastIndexOf("(")).replace(/\s/g, "").replace(/\?\.$/, "").split(".").pop();
     if (CONTROL_KEYWORDS.has(callName)) continue;
@@ -892,8 +934,8 @@ function hasUnrecognizedBoundaryCall(block) {
     let quote = null;
     let escaped = false;
     let hasDirectBoundaryRoot = false;
-    for (let index = openIndex; index < block.length; index += 1) {
-      const char = block[index];
+    for (let index = openIndex; index < normalizedBlock.length; index += 1) {
+      const char = normalizedBlock[index];
       if (quote) {
         if (escaped) escaped = false;
         else if (char === "\\") escaped = true;
@@ -913,7 +955,7 @@ function hasUnrecognizedBoundaryCall(block) {
         if (depth === 0) break;
         continue;
       }
-      const boundaryAtCurrent = block.slice(index).match(BOUNDARY_CALL_ROOT);
+      const boundaryAtCurrent = normalizedBlock.slice(index).match(BOUNDARY_CALL_ROOT);
       if (depth === 1 && boundaryAtCurrent?.index === 0) {
         hasDirectBoundaryRoot = true;
         break;
