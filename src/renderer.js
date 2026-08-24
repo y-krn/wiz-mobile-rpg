@@ -154,7 +154,7 @@ export class DungeonRenderer {
   getSceneVisibility() {
     const view = getScreenViewState(state, menuContext);
     const { gameState, menuType, previousGameState } = view;
-    const showTownBackground = !state.map || (
+    const showTownBackground = !view.hasMap || (
       !view.isDeparturePrepSubmenu && (
         ["town", "result", "gameover", "victory"].includes(gameState) ||
         (view.isSubmenu && previousGameState === "town")
@@ -190,7 +190,7 @@ export class DungeonRenderer {
       state.x,
       state.y,
       state.dir,
-      Boolean(state.map),
+      view.hasMap,
       view.menuType,
       view.previousGameState,
       view.hasCombat,
@@ -201,7 +201,7 @@ export class DungeonRenderer {
 
     if (showTownBackground) return signature.join("|");
 
-    const combatMonsters = state.combatState?.monsters?.map(monster => [
+    const combatMonsters = view.hasCombat ? state.combatState.monsters.map(monster => [
       monster.name,
       monster.level,
       monster.hp,
@@ -219,7 +219,7 @@ export class DungeonRenderer {
       monster.snipeQueued,
       monster.snipeTargetIdx,
       monster.statusEffects?.bleeding?.remainingTurns
-    ].join(",")).join(";") || "";
+    ].join(",")).join(";") : "";
     const roamingMonsters = state.roamingMonsters?.map(monster => [
       monster.floor,
       monster.x,
@@ -246,6 +246,8 @@ export class DungeonRenderer {
     const { showTownBackground, showCombat, showChest, showEventScene, showItemMenu } = sceneVisibility;
     if (showTownBackground) return false;
 
+    const view = getScreenViewState(state, menuContext);
+    if (!view.hasMap) return false;
     const map = state.map;
     if (!Array.isArray(map)) return false;
 
@@ -902,6 +904,8 @@ export class DungeonRenderer {
   }
 
   drawMonsters(ctx) {
+    const view = getScreenViewState(state, menuContext);
+    if (!view.hasCombat) return;
     const monsters = state.combatState.monsters;
     const alive = monsters.filter(m => m.hp > 0);
     if (alive.length === 0) return;

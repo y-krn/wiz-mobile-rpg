@@ -1,17 +1,24 @@
 import { state } from "../state.js";
+import { menuContext } from "../navigation.js";
+import { getScreenViewState } from "../state/view_state.js";
 
 export function updateViewportHUD() {
   const hud = document.getElementById("viewport-hud");
   if (!hud) return;
 
-  if (state.gameState !== "explore" && state.gameState !== "combat") {
+  const view = getScreenViewState(state, menuContext);
+  const isUsableCombat = view.gameState === "combat" && view.hasCombat;
+  if (view.gameState !== "explore" && !isUsableCombat) {
+    hud.style.display = "none";
+    return;
+  }
+
+  if (!view.hasMap) {
     hud.style.display = "none";
     return;
   }
   hud.style.display = "flex";
-
   const map = state.map;
-  if (!map) return;
   const cell = map[state.y]?.[state.x];
   if (!cell) return;
 

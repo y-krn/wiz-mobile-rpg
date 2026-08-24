@@ -491,6 +491,127 @@ for (const vp of VIEWPORTS) {
   });
 }
 
+for (const vp of VIEWPORTS) {
+  test(`Malformed active-map combat stays out of renderer and viewport HUD at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { getScreenViewState } = await import('/src/state/view_state.js');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      const { updateViewportHUD } = await import('/src/ui/viewport_hud.js');
+
+      state.map = [[{ walls: [false, false, false, false], type: 'empty' }]];
+      state.x = 0;
+      state.y = 0;
+      state.gameState = 'explore';
+      state.combatState = null;
+      menuContext.type = '';
+      updateViewportHUD();
+
+      state.gameState = 'combat';
+      state.combatState = { phase: 'choose_actions', monsters: [null] };
+      const view = getScreenViewState(state, menuContext);
+      const visibility = dungeonRenderer.getSceneVisibility();
+      const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
+      const originalDrawMiniMap = dungeonRenderer.drawMiniMap;
+      let drawError = null;
+      dungeonRenderer.draw3DCorridors = () => {};
+      dungeonRenderer.drawMiniMap = () => {};
+      try {
+        dungeonRenderer.getDrawSignature(visibility);
+        dungeonRenderer.draw(visibility);
+      } catch (error) {
+        drawError = error.message;
+      } finally {
+        dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
+        dungeonRenderer.drawMiniMap = originalDrawMiniMap;
+      }
+      updateViewportHUD();
+
+      return {
+        hasCombat: view.hasCombat,
+        showCombat: visibility.showCombat,
+        hudDisplay: document.getElementById('viewport-hud').style.display,
+        drawError,
+      };
+    });
+
+    expect(result).toEqual({
+      hasCombat: false,
+      showCombat: false,
+      hudDisplay: 'none',
+      drawError: null,
+    });
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Malformed map keeps solo_start on the safe town scene at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { getScreenViewState } = await import('/src/state/view_state.js');
+      const { dungeonRenderer } = await import('/src/renderer.js');
+      const { updateViewportHUD } = await import('/src/ui/viewport_hud.js');
+
+      state.gameState = 'submenu';
+      state.floor = 1;
+      state.maps[0] = { stale: true };
+      state.combatState = null;
+      menuContext.type = 'solo_start';
+      menuContext.prevGameState = 'town';
+      const view = getScreenViewState(state, menuContext);
+      const visibility = dungeonRenderer.getSceneVisibility();
+      const originalDrawTownBackground = dungeonRenderer.drawTownBackground;
+      const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
+      let townDraws = 0;
+      let corridorDraws = 0;
+      dungeonRenderer.drawTownBackground = (...args) => {
+        townDraws++;
+        return originalDrawTownBackground.apply(dungeonRenderer, args);
+      };
+      dungeonRenderer.draw3DCorridors = (...args) => {
+        corridorDraws++;
+        return originalDraw3DCorridors.apply(dungeonRenderer, args);
+      };
+      let drawError = null;
+      try {
+        dungeonRenderer.draw(visibility);
+      } catch (error) {
+        drawError = error.message;
+      } finally {
+        dungeonRenderer.drawTownBackground = originalDrawTownBackground;
+        dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
+      }
+      updateViewportHUD();
+
+      return {
+        hasMap: view.hasMap,
+        showTownBackground: visibility.showTownBackground,
+        townDraws,
+        corridorDraws,
+        hudDisplay: document.getElementById('viewport-hud').style.display,
+        drawError,
+      };
+    });
+
+    expect(result).toEqual({
+      hasMap: false,
+      showTownBackground: true,
+      townDraws: 1,
+      corridorDraws: 0,
+      hudDisplay: 'none',
+      drawError: null,
+    });
+  });
+}
+
 test('Combat autosave resumes action selection without persisting resolving phase', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
