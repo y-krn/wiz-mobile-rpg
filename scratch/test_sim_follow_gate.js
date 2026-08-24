@@ -71,6 +71,13 @@ assert.throws(
 assert.throws(
   () => assertValidSimulationManifest({
     ...SIMULATION_MANIFEST,
+    balanceImpactNoneDiffs: [{ pattern: "src/**", marker: "// balance-impact: none", reason: "test" }]
+  }),
+  /balance-impact none diff path must be exact/
+);
+assert.throws(
+  () => assertValidSimulationManifest({
+    ...SIMULATION_MANIFEST,
     canonical: {
       ...SIMULATION_MANIFEST.canonical,
       runtimeCoverage: { ...SIMULATION_MANIFEST.canonical.runtimeCoverage, combat: ["missing-mechanism"] }
@@ -126,6 +133,138 @@ assert.equal(isTelemetryOnlyDiff(anchoredTelemetryDiff), true);
 assert.doesNotThrow(
   () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", anchoredTelemetryDiff]]) }),
   "telemetry-only mapped-module diff should not require balance runtime evidence"
+);
+const chestStateBoundaryDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,3 @@
++// balance-impact: none — chest phase and transient-state boundary only
++  state.chestState.phase = nextPhase;
+`;
+const chestStateBoundaryReport = assertBalanceImpactCovered(
+  ["src/chest.js"],
+  SIMULATION_MANIFEST,
+  undefined,
+  { diffByFile: new Map([["src/chest.js", chestStateBoundaryDiff]]) }
+);
+assert.deepEqual(
+  chestStateBoundaryReport.impacts,
+  [{ file: "src/chest.js", domains: [], balanceImpactNone: true, runtimeUnsupported: [], runtimeUnfired: [] }],
+  "explicit state-boundary declaration must classify the mapped chest path as balance-impact none for this diff"
+);
+const saveStateBoundaryDiff = `diff --git a/src/state/save_payload.js b/src/state/save_payload.js
+@@ -1,0 +2,2 @@
++// balance-impact: none — persistence boundary only
++  state.chestState = null;
+`;
+assert.doesNotThrow(
+  () => assertBalanceImpactCovered(
+    ["src/state/save_payload.js"],
+    SIMULATION_MANIFEST,
+    undefined,
+    { diffByFile: new Map([["src/state/save_payload.js", saveStateBoundaryDiff]]) }
+  ),
+  "explicit persistence declaration must classify an otherwise unknown path as balance-impact none"
+);
+const markerWithBalanceMutationDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,4 @@
++// balance-impact: none — state boundary only
++  state.currentRun.materials.blackHorn += 1;
+`;
+assert.throws(
+  () => assertBalanceImpactCovered(
+    ["src/chest.js"],
+    SIMULATION_MANIFEST,
+    undefined,
+    { diffByFile: new Map([["src/chest.js", markerWithBalanceMutationDiff]]) }
+  ),
+  /balance-impact none declaration contains a non-boundary diff line/,
+  "a marker cannot exempt a diff that mutates balance-sensitive state"
+);
+const inlineMarkerMutationDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,1 @@
++// balance-impact: none; state.currentRun.materials.blackHorn += 1;
+`;
+assert.throws(
+  () => assertBalanceImpactCovered(
+    ["src/chest.js"],
+    SIMULATION_MANIFEST,
+    undefined,
+    { diffByFile: new Map([["src/chest.js", inlineMarkerMutationDiff]]) }
+  ),
+  /canonical runtime evidence result is required/,
+  "an inline marker is not a standalone declaration"
+);
+for (const [label, mutation] of [
+  ["identify tickets", "state.identifyTickets += 1;"],
+  ["first unidentified guarantee", "state.firstChestUnidentifiedGuaranteed = true;"],
+  ["run item-found array", "state.currentRun.itemsFound.push(\"DAGGER\");"],
+  ["inventory array", "state.inventory.push(\"HEAL_POTION\");"],
+  ["computed chest-state write", "state.chestState[\"trap\"] = \"none\";"],
+  ["aggregate chest-state write", "Object.assign(state.chestState, { trap: \"none\" });"],
+  ["computed aggregate object write", "Object[\"assign\"](state.chestState, { trap: \"none\" });"],
+  ["computed aggregate reflect write", "Reflect[\"set\"](state.chestState, \"phase\", \"menu\");"],
+  ["aliased aggregate write", "assign(state.chestState, { trap: \"none\" });"],
+  ["optional aliased aggregate write", "assign?.(state.chestState, { trap: \"none\" });"],
+  ["comment-separated aggregate write", "someFn /* comment */ (state.chestState);"],
+  ["comment-separated optional aggregate write", "assign /* alias */ ?. (state.chestState, { trap: \"none\" });"]
+]) {
+  const markerMutationDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,2 @@
++// balance-impact: none — state boundary only
++  ${mutation}
+`;
+  assert.throws(
+    () => assertBalanceImpactCovered(
+      ["src/chest.js"],
+      SIMULATION_MANIFEST,
+      undefined,
+      { diffByFile: new Map([["src/chest.js", markerMutationDiff]]) }
+    ),
+    /balance-impact none declaration contains a non-boundary diff line/,
+    `${label} mutation cannot use the state-boundary exemption`
+  );
+}
+const stringLiteralCallDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,2 @@
++// balance-impact: none — state boundary only
++  const label = "someFn(state.chestState)";
+`;
+assert.doesNotThrow(
+  () => assertBalanceImpactCovered(
+    ["src/chest.js"],
+    SIMULATION_MANIFEST,
+    undefined,
+    { diffByFile: new Map([["src/chest.js", stringLiteralCallDiff]]) }
+  ),
+  "call-like text inside a string literal is not an executable boundary call"
+);
+for (const [label, declaration] of [
+  ["ordinary string", "const label = \"hello\";"],
+  ["regex literal", "const pattern = /someFn(state.chestState)/;"]
+]) {
+  const literalDeclarationDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,2 @@
++// balance-impact: none — state boundary only
++  ${declaration}
+`;
+  assert.doesNotThrow(
+    () => assertBalanceImpactCovered(
+      ["src/chest.js"],
+      SIMULATION_MANIFEST,
+      undefined,
+      { diffByFile: new Map([["src/chest.js", literalDeclarationDiff]]) }
+    ),
+    `${label} declaration remains outside executable boundary classification`
+  );
+}
+assert.throws(
+  () => assertBalanceImpactCovered(
+    ["src/chest.js"],
+    SIMULATION_MANIFEST,
+    undefined,
+    { diffByFile: new Map([["src/chest.js", "diff --git a/src/chest.js b/src/chest.js\n@@ -1,0 +1,1 @@\n+  state.chestState.phase = nextPhase;\n"]]) }
+  ),
+  /canonical runtime evidence result is required/,
+  "future chest changes without the one-off marker must retain normal balance mapping"
 );
 const mixedTelemetryDiff = `${anchoredTelemetryDiff}+    state.currentRun.materials.blackHorn += 1;\n`;
 assert.equal(isTelemetryOnlyDiff(mixedTelemetryDiff), false);

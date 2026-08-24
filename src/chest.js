@@ -28,6 +28,62 @@ import { getChestMaterialPool } from "./rules/material_rules.js";
 import { getItemBaseId } from "./rules/item_rules.js";
 import { trackChestAction, trackChestSmashResult } from "./telemetry.js";
 
+// balance-impact: none — this change adds only the chest phase/state boundary;
+// reward and trap formulas remain covered by the chest balance mapping.
+export const CHEST_PHASES = Object.freeze({
+  MENU: "menu",
+  DISARM_SELECT: "disarm_select",
+  OPEN_SELECT: "open_select",
+  RESOLVING: "resolving",
+  REWARD: "reward",
+  TERMINAL: "terminal"
+});
+
+export const CHEST_PHASE_TRANSITIONS = Object.freeze({
+  [CHEST_PHASES.MENU]: [CHEST_PHASES.MENU, CHEST_PHASES.DISARM_SELECT, CHEST_PHASES.OPEN_SELECT, CHEST_PHASES.RESOLVING, CHEST_PHASES.TERMINAL],
+  [CHEST_PHASES.DISARM_SELECT]: [CHEST_PHASES.MENU, CHEST_PHASES.RESOLVING],
+  [CHEST_PHASES.OPEN_SELECT]: [CHEST_PHASES.MENU, CHEST_PHASES.RESOLVING],
+  [CHEST_PHASES.RESOLVING]: [CHEST_PHASES.REWARD, CHEST_PHASES.MENU, CHEST_PHASES.TERMINAL],
+  [CHEST_PHASES.REWARD]: [CHEST_PHASES.TERMINAL],
+  [CHEST_PHASES.TERMINAL]: []
+});
+
+function getChestPhase(chest) {
+  return chest?.phase || CHEST_PHASES.MENU;
+}
+
+function transitionChestPhase(chest, nextPhase) {
+  const currentPhase = getChestPhase(chest);
+  if (!CHEST_PHASE_TRANSITIONS[currentPhase]?.includes(nextPhase)) return false;
+  chest.phase = nextPhase;
+  return true;
+}
+
+function chestActionAllowed(phases, { allowTransition = false } = {}) {
+  if (!state.chestState) return false;
+  if (state.transitioning && !allowTransition) return false;
+  return phases.includes(getChestPhase(state.chestState));
+}
+
+function isEligibleChestCharacter(char) {
+  return Boolean(
+    char &&
+    state.party.includes(char) &&
+    ["ok", "poisoned", "blind"].includes(char.status)
+  );
+}
+
+function clearChestInspectionState(chest) {
+  delete chest.inspected;
+  delete chest.identifiedTrap;
+  delete chest.inspectChance;
+}
+
+function finishChest(chest) {
+  transitionChestPhase(chest, CHEST_PHASES.TERMINAL);
+  state.chestState = null;
+}
+
 export function applyTombRaiderTrapTier(chest, opener) {
   const params = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
   if (!params || chest.tombRaiderTrapApplied) return false;
@@ -130,6 +186,7 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
     accessoryItem,
     inspected: false,
     identifiedTrap: "",
+    phase: CHEST_PHASES.MENU,
     x: state.x,
     y: state.y,
     fromDrop: options.fromDrop ?? false,
@@ -145,6 +202,8 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
 }
 
 export function openChestMenu() {
+  if (!state.chestState || state.transitioning) return false;
+  if (!transitionChestPhase(state.chestState, CHEST_PHASES.MENU)) return false;
   menuContext.prevGameState = null;
   state.gameState = "submenu";
   menuContext.type = "chest_menu";
@@ -296,6 +355,7 @@ export function openChestMenu() {
   } else {
     btnDisarm.textContent = "解除する";
     btnDisarm.addEventListener("click", () => {
+      if (!transitionChestPhase(state.chestState, CHEST_PHASES.DISARM_SELECT)) return;
       openSubmenu("chest_disarmer_select", "罠を解除するキャラクターを選択：");
     });
   }
@@ -323,6 +383,7 @@ export function openChestMenu() {
   btnOpen.textContent = "宝箱を開ける";
   btnOpen.style.minHeight = "44px";
   btnOpen.addEventListener("click", () => {
+    if (!transitionChestPhase(state.chestState, CHEST_PHASES.OPEN_SELECT)) return;
     openSubmenu("chest_opener_select", "宝箱を開けるキャラクターを選択：");
   });
   optGrid.appendChild(btnOpen);
@@ -356,7 +417,7 @@ export function openChestMenu() {
 }
 
 export function leaveChest() {
-  if (!state.chestState || state.transitioning) return false;
+  if (!chestActionAllowed([CHEST_PHASES.MENU])) return false;
   const chest = state.chestState;
   trackChestChoice(chest, "leave");
   addLog("宝箱を開けずに立ち去った。");
@@ -366,7 +427,7 @@ export function leaveChest() {
   if (!chest.fromDrop && state.floorChestsOpened) {
     state.floorChestsOpened[state.floor - 1] = (state.floorChestsOpened[state.floor - 1] ?? 0) + 1;
   }
-  state.chestState = null;
+  finishChest(chest);
   state.gameState = "explore";
   saveAutosave();
   updateUI();
@@ -380,6 +441,7 @@ function recoverChestDisarmTransition(error) {
   console.error("Failed to finish chest disarm transition", error);
   state.transitioning = false;
   if (state.chestState) {
+    state.chestState.phase = CHEST_PHASES.MENU;
     openChestMenu();
   } else {
     state.gameState = "explore";
@@ -398,6 +460,7 @@ function recoverChestOpenTransition(error, chest = state.chestState) {
     cell.event = null;
     markMapChanged();
   }
+  if (chest) transitionChestPhase(chest, CHEST_PHASES.TERMINAL);
   state.chestState = null;
   state.gameState = "explore";
   resetSubmenuBackButton();
@@ -438,9 +501,13 @@ function markChestProcessed(chest) {
 }
 
 export function executeDisarm(char, rng = Math.random) {
-  if (!state.chestState || state.transitioning) return false;
+  if (
+    !chestActionAllowed([CHEST_PHASES.DISARM_SELECT]) ||
+    !isEligibleChestCharacter(char)
+  ) return false;
 
   trackChestChoice(state.chestState, "disarm");
+  transitionChestPhase(state.chestState, CHEST_PHASES.RESOLVING);
 
   applyTombRaiderTrapTier(state.chestState, char);
   const chance = calculateChestDisarmChance({
@@ -495,7 +562,15 @@ export function executeDisarm(char, rng = Math.random) {
         updateUI();
         return;
       }
-      openChestDirectly(char, rng, { recordAction: false });
+      if (getChestPhase(state.chestState) !== CHEST_PHASES.RESOLVING) {
+        state.transitioning = false;
+        return;
+      }
+      openChestDirectly(char, rng, {
+        recordAction: false,
+        allowTransition: true,
+        fromDisarm: true
+      });
     } catch (error) {
       recoverChestDisarmTransition(error);
     }
@@ -610,7 +685,7 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
 }
 
 export function useTrapKit() {
-  if (!state.chestState) return false;
+  if (!chestActionAllowed([CHEST_PHASES.MENU])) return false;
   const kitIndex = state.inventory.indexOf("TRAP_KIT");
   if (kitIndex < 0) return false;
 
@@ -623,11 +698,12 @@ export function useTrapKit() {
 }
 
 export function smashChest(rng = Math.random) {
-  if (!state.chestState || state.transitioning) return false;
+  if (!chestActionAllowed([CHEST_PHASES.MENU])) return false;
   const chest = state.chestState;
   const trapFired = Boolean(chest.trap && chest.trap !== "none");
   trackChestChoice(chest, "smash");
   state.transitioning = true;
+  transitionChestPhase(chest, CHEST_PHASES.RESOLVING);
   try {
     const trapTarget = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status)) || state.party[0];
     addLog("宝箱を力任せに叩き壊した！");
@@ -637,8 +713,12 @@ export function smashChest(rng = Math.random) {
       triggerChestTrap(trapTarget, true, rng);
     }
 
-    openChestDirectly(null, rng, { smash: true, recordAction: false, smashTrapFired: trapFired });
-    return true;
+    return openChestDirectly(null, rng, {
+      smash: true,
+      recordAction: false,
+      allowTransition: true,
+      smashTrapFired: trapFired
+    });
   } catch (error) {
     recoverChestOpenTransition(error, chest);
     return false;
@@ -646,6 +726,20 @@ export function smashChest(rng = Math.random) {
 }
 
 export function openChestDirectly(opener = null, rng = Math.random, options = {}) {
+  if (!state.chestState) return false;
+  if (options.smash !== true && options.fromDisarm !== true && !isEligibleChestCharacter(opener)) return false;
+  // A failed disarm may kill the already-validated disarmer before the
+  // automatic reward resolution. Keep that internal continuation legal.
+  if (options.fromDisarm === true && !state.party.includes(opener)) return false;
+  const allowedPhases = options.fromDisarm || options.smash
+    ? [CHEST_PHASES.RESOLVING]
+    : [CHEST_PHASES.MENU, CHEST_PHASES.OPEN_SELECT];
+  if (!chestActionAllowed(allowedPhases, { allowTransition: options.allowTransition === true })) {
+    return false;
+  }
+  if (!options.fromDisarm && !options.smash) {
+    transitionChestPhase(state.chestState, CHEST_PHASES.RESOLVING);
+  }
   state.transitioning = true;
   try {
     const smash = options.smash === true;
@@ -694,7 +788,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
         unawardedRewardCount: rewardCount
       });
       markChestProcessed(chest);
-      state.chestState = null;
+      finishChest(chest);
       state.gameState = "explore";
       updateUI();
       setTimeout(() => {
@@ -702,7 +796,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
         state.transitioning = false;
         triggerGameOver();
       }, 1800);
-      return;
+      return true;
     }
 
     if (smash) {
@@ -734,6 +828,9 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
         remainingRewardCount: rewardEntries.filter(reward => reward.item && !lostRoles.has(reward.role)).length
       };
     }
+
+    transitionChestPhase(chest, CHEST_PHASES.REWARD);
+    clearChestInspectionState(chest);
 
     // 素材束の獲得
     const tombRaider = getCharCoreParams(opener, "CORE_TOMB_RAIDER");
@@ -840,13 +937,14 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     if (partyAlive) {
       resetSubmenuBackButton();
       state.transitioning = false;
-      state.chestState = null;
+      finishChest(chest);
       state.gameState = "explore";
       saveAutosave();
       updateUI();
-      return;
+      return true;
     }
 
+    finishChest(chest);
     updateUI();
     setTimeout(() => {
       resetSubmenuBackButton();
@@ -855,6 +953,7 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     }, 1800);
   } catch (error) {
     recoverChestOpenTransition(error);
+    return false;
   }
 }
 

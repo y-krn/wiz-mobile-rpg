@@ -46,7 +46,7 @@ global.localStorage = {
 
 const { state } = await import("../src/state.js");
 const { createDefaultCurrentRun } = await import("../src/state/initial_state.js");
-const { setupChestState, executeDisarm } = await import("../src/chest.js");
+const { CHEST_PHASES, setupChestState, executeDisarm } = await import("../src/chest.js");
 
 const failures = [];
 
@@ -96,6 +96,7 @@ async function test(name, fn) {
 await test("successful disarm leaves transition state and returns to exploration", async () => {
   prepareChest();
   setupChestState("poison needle", null, "HEAL_POTION");
+  state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
 
   assert.equal(executeDisarm(state.party[0], () => 0), true);
   await waitForChestTransition();
@@ -108,6 +109,7 @@ await test("successful disarm leaves transition state and returns to exploration
 await test("cleared chest state during delayed resolution cannot lock the controls", async () => {
   prepareChest();
   setupChestState("poison needle", null, "HEAL_POTION");
+  state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
 
   assert.equal(executeDisarm(state.party[0], () => 0), true);
   state.chestState = null;

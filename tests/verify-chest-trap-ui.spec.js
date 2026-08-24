@@ -65,8 +65,36 @@ test('Chest trap inspection exposes the correct disarm flow @e2e', async ({ page
     await expect(btnDisarmAfter).toHaveText("解除する");
     await expect(btnDisarmAfter).toBeEnabled();
 
+    // Opener selection is cancellable and must return to the chest menu.
+    const chestBeforeOpenCancel = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return {
+        trap: state.chestState.trap,
+        inventory: [...state.inventory],
+        mapEvent: state.map[state.y][state.x].event,
+      };
+    });
+    await page.getByRole('button', { name: '宝箱を開ける' }).click();
+    await expect.poll(async () => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return state.chestState.phase;
+    })).toBe('open_select');
+    await page.locator('#btn-submenu-back').click();
+    await expect.poll(async () => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return state.chestState.phase;
+    })).toBe('menu');
+    await expect.poll(async () => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return {
+        trap: state.chestState.trap,
+        inventory: [...state.inventory],
+        mapEvent: state.map[state.y][state.x].event,
+      };
+    })).toEqual(chestBeforeOpenCancel);
+
     // Click "解除する" to open disarmer select submenu
-    await btnDisarmAfter.click();
+    await page.locator('#btn-chest-disarm').click();
 
     // Verify back button is visible and click it
     const btnBack = page.locator('#btn-submenu-back');
@@ -77,6 +105,35 @@ test('Chest trap inspection exposes the correct disarm flow @e2e', async ({ page
     const btnInspectBack = page.locator('#btn-chest-inspect');
     await expect(btnInspectBack).toBeVisible();
     await expect(btnInspectBack).toBeDisabled();
+
+    const staleDisarm = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { executeDisarm } = await import('/src/chest.js');
+      const before = {
+        phase: state.chestState.phase,
+        trap: state.chestState.trap,
+        inventory: [...state.inventory],
+        gameState: state.gameState,
+        menuType: menuContext.type,
+        mapEvent: state.map[state.y][state.x].event,
+      };
+      const result = executeDisarm(state.party[0], () => 0);
+      return {
+        result,
+        before,
+        after: {
+          phase: state.chestState.phase,
+          trap: state.chestState.trap,
+          inventory: [...state.inventory],
+          gameState: state.gameState,
+          menuType: menuContext.type,
+          mapEvent: state.map[state.y][state.x].event,
+        },
+      };
+    });
+    expect(staleDisarm.result).toBe(false);
+    expect(staleDisarm.after).toEqual(staleDisarm.before);
 
     await btnDisarmAfter.click();
     await page.getByRole('button', { name: /Robin .*解除/ }).click();
@@ -210,15 +267,18 @@ test('Opening a chest with stale state returns to usable controls @e2e', {
 
   await expect.poll(async () => page.evaluate(async () => {
     const { state } = await import('/src/state.js');
+    const { menuContext } = await import('/src/navigation.js');
     return {
       gameState: state.gameState,
       transitioning: state.transitioning,
       hasChest: Boolean(state.chestState),
+      menuType: menuContext.type,
     };
   })).toEqual({
-    gameState: 'explore',
+    gameState: 'submenu',
     transitioning: false,
     hasChest: false,
+    menuType: 'chest_opener_select',
   });
   await expect(page.locator('#controls-panel')).toHaveCSS('pointer-events', 'auto');
 });

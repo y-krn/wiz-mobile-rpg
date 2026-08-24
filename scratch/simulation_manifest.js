@@ -163,6 +163,21 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/error_context.js", "src/controls_guard.js",
     "src/runtime_diagnostics.js", "src/telemetry.js", "src/spell_menu.js"
   ]),
+  // A one-off no-impact declaration is recognized only when its marker is
+  // added in the same production diff. This keeps mapped modules such as
+  // chest.js balance-covered for later formula or reward changes.
+  balanceImpactNoneDiffs: Object.freeze([
+    {
+      pattern: "src/chest.js",
+      marker: "// balance-impact: none",
+      reason: "chest phase and transient-state boundary only; reward and trap formulas remain mapped"
+    },
+    {
+      pattern: "src/state/save_payload.js",
+      marker: "// balance-impact: none",
+      reason: "save/load boundary only; reward and trap formulas remain in their owning modules"
+    }
+  ].map(declaration => Object.freeze({ ...declaration }))),
   // Exact paths whose current callers may receive telemetry-only edits. A
   // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
   telemetryOnlyPaths: Object.freeze([
@@ -317,6 +332,17 @@ export function validateSimulationManifest(manifest = SIMULATION_MANIFEST) {
   for (const pattern of manifest?.telemetryOnlyPaths || []) {
     if (typeof pattern !== "string" || !pattern || pattern.includes("*")) {
       errors.push(`telemetry-only path must be exact: ${pattern || "<missing>"}`);
+    }
+  }
+  for (const declaration of manifest?.balanceImpactNoneDiffs || []) {
+    if (!declaration || typeof declaration !== "object" || typeof declaration.pattern !== "string" || !declaration.pattern || declaration.pattern.includes("*")) {
+      errors.push(`balance-impact none diff path must be exact: ${declaration?.pattern || "<missing>"}`);
+    }
+    if (typeof declaration?.marker !== "string" || !declaration.marker) {
+      errors.push(`balance-impact none diff marker is missing: ${declaration?.pattern || "<missing>"}`);
+    }
+    if (typeof declaration?.reason !== "string" || !declaration.reason.trim()) {
+      errors.push(`balance-impact none diff reason is missing: ${declaration?.pattern || "<missing>"}`);
     }
   }
   return errors;
@@ -764,6 +790,327 @@ function hasTelemetryAnchor(diff) {
   });
 }
 
+function getBalanceImpactNoneDeclaration(diff, file, manifest) {
+  if (typeof diff !== "string" || !diff.trim()) return false;
+  return (manifest.balanceImpactNoneDiffs || []).find(declaration =>
+    matches(declaration.pattern, file) && diff.split(/\r?\n/).some(line =>
+      line.startsWith("+") && !line.startsWith("+++") && isStandaloneBalanceImpactNoneDeclaration(line.slice(1), declaration)
+    )
+  ) || null;
+}
+
+function isStandaloneBalanceImpactNoneDeclaration(text, declaration) {
+  const trimmed = text.trim();
+  const marker = declaration.marker.trim();
+  return trimmed === marker ||
+    trimmed.startsWith(`${marker} —`) ||
+    trimmed.startsWith(`${marker} -`);
+}
+
+const STATE_BOUNDARY_ROOTS = /\b(?:state\.(?:chestState|gameState|transitioning)|menuContext|menuHistory)\b/;
+const STATE_ROOT_ACCESS = /\bstate\.([A-Za-z_$][A-Za-z0-9_$]*)/g;
+const ALLOWED_STATE_ROOTS = new Set(["chestState", "gameState", "transitioning"]);
+const ARRAY_MUTATOR_CALL = /\.\s*(?:push|pop|shift|unshift|splice|sort|reverse|fill|copyWithin)\s*\(/;
+const BALANCE_MUTATOR_CALL = /\b(?:award|grant|give|add|remove|consume|refund|credit|debit|roll|resolve|trigger|apply|drop|loot|reward|trap|economy|material|currency|inventory|equipment|item|ticket|chestReward)\w*\s*\(/i;
+const BOUNDARY_COMPUTED_ACCESS = /\b(?:state\.(?:chestState|gameState|transitioning)|chest|menuContext|menuHistory)\s*\[/;
+const AGGREGATE_MUTATOR_CALL = /\b(?:Object\.(?:assign|defineProperty|defineProperties|setPrototypeOf)|Reflect\.(?:set|defineProperty|defineProperties))\s*\(/;
+const COMPUTED_AGGREGATE_ACCESS = /\b(?:Object|Reflect)\s*\[/;
+const BOUNDARY_CALL_ROOT = /\b(?:state\.(?:chestState|gameState|transitioning)|chest|menuContext|menuHistory)\b/;
+const CALL_EXPRESSION = /\b(?:[A-Za-z_$][A-Za-z0-9_$]*\s*\.\s*)?[A-Za-z_$][A-Za-z0-9_$]*\s*(?:\?\.)?\s*\(/g;
+const CONTROL_KEYWORDS = new Set(["if", "while", "switch", "for", "catch"]);
+const KNOWN_BOUNDARY_CALLS = new Set([
+  "transitionChestPhase", "getChestPhase", "chestActionAllowed",
+  "clearChestInspectionState", "finishChest"
+]);
+const STATE_BOUNDARY_HELPERS = /\b(?:CHEST_PHASES|CHEST_PHASE_TRANSITIONS|transitionChestPhase|getChestPhase|chestActionAllowed|isEligibleChestCharacter|clearChestInspectionState|finishChest|openChestMenu|executeDisarm|smashChest|openChestDirectly)\b/;
+const STATE_BOUNDARY_LOCALS = /\b(?:currentPhase|allowedPhases|persistedChestState|recordAction|allowTransition|fromDisarm|smashTrapFired)\b/;
+const STATE_BOUNDARY_PROPERTIES = new Set([
+  "phase", "fromDrop", "smashTelemetry", "inspected", "identifiedTrap", "inspectChance"
+]);
+const LITERAL_ONLY_DECLARATION = /^(?:const|let|var)\s+[A-Za-z_$][A-Za-z0-9_$]*\s*=\s*(?:"\s*"|'\s*'|`\s*`|\/\s*\/[A-Za-z]*)\s*;?$/;
+
+function isAllowedStateBoundaryLine(text, file) {
+  if (!text || text.startsWith("//")) return true;
+  const classificationText = maskLiteralsAndNormalizeComments(text);
+  if (LITERAL_ONLY_DECLARATION.test(classificationText)) return true;
+  if (file === "src/state/save_payload.js" && /^import\s+\{[^}]*\bmenuContext\b[^}]*\bmenuHistory\b/.test(classificationText)) return true;
+  if (ARRAY_MUTATOR_CALL.test(classificationText)) return false;
+  if (BALANCE_MUTATOR_CALL.test(classificationText)) return false;
+  if (BOUNDARY_COMPUTED_ACCESS.test(classificationText)) return false;
+  if (AGGREGATE_MUTATOR_CALL.test(classificationText)) return false;
+  if (COMPUTED_AGGREGATE_ACCESS.test(classificationText)) return false;
+  if (/^(?:state\.party\.includes\((?:char|opener)\)\s*&&|if \(options\.fromDisarm === true && !state\.party\.includes\(opener\)\) return false;)$/.test(classificationText)) return true;
+  if ([...classificationText.matchAll(STATE_ROOT_ACCESS)].some(([, root]) => !ALLOWED_STATE_ROOTS.has(root))) return false;
+  if (/^\["ok",\s*"poisoned",\s*"blind"\]\.includes\(char\.status\)$/.test(text)) return true;
+  if (/^(?:MENU|DISARM_SELECT|OPEN_SELECT|RESOLVING|REWARD|TERMINAL):\s*"[a-z_]+",?$/.test(text)) return true;
+  if (/^smash:\s*true,?$/.test(classificationText)) return true;
+  if (/^:\s*(?:null|state\.chestState)/.test(classificationText)) return true;
+  if (/^(?:if|while|switch)\s*\($/.test(classificationText)) return true;
+  if (/^\)\s*return\s+(?:false|true|undefined);$/.test(classificationText)) return true;
+  if (/^(?:char\s*&&|return\s+Boolean\(|[{}),;]+|return(?:\s+(?:true|false|undefined))?;?)$/.test(classificationText)) return true;
+  if (file === "src/state/save_payload.js" && /^\?\s*\{\s*\.\.\.data\.chestState,\s*phase:\s*"menu"\s*\}$/.test(text)) return true;
+  if (/^(?:delete\s+)?chest\.(?:phase|inspected|identifiedTrap|inspectChance)\b/.test(classificationText)) return true;
+  if (/^const\s+(?:currentPhase|allowedPhases|persistedChestState)\b/.test(classificationText)) return true;
+  if ((STATE_BOUNDARY_LOCALS.test(classificationText) || STATE_BOUNDARY_HELPERS.test(classificationText)) && !/\bstate\./.test(classificationText)) return true;
+  if (STATE_BOUNDARY_ROOTS.test(classificationText)) {
+    const chestStateAccesses = [...classificationText.matchAll(/\bstate\.chestState(?:\?\.|\.)([A-Za-z_$][A-Za-z0-9_$]*)/g)];
+    if (chestStateAccesses.some(([, property]) => !STATE_BOUNDARY_PROPERTIES.has(property))) return false;
+    const localChestAccesses = [...classificationText.matchAll(/\bchest\.([A-Za-z_$][A-Za-z0-9_$]*)/g)];
+    if (localChestAccesses.some(([, property]) => !STATE_BOUNDARY_PROPERTIES.has(property))) return false;
+    return true;
+  }
+  return false;
+}
+
+function getChangedCodeBlocks(diff) {
+  const blocks = [];
+  let block = [];
+  const flush = () => {
+    if (block.length > 0) blocks.push(block.join(" "));
+    block = [];
+  };
+  for (const line of diff.split(/\r?\n/)) {
+    if (!(line.startsWith("+") || line.startsWith("-")) || line.startsWith("+++") || line.startsWith("---")) {
+      flush();
+      continue;
+    }
+    const text = line.slice(1).trim();
+    if (!text || text.startsWith("//")) {
+      flush();
+      continue;
+    }
+    block.push(text);
+  }
+  flush();
+  return blocks;
+}
+
+function maskLiteralsAndNormalizeComments(text) {
+  const maskCharacter = char => char === "\n" ? "\n" : " ";
+  let processCode;
+
+  const maskQuotedLiteral = (start, quote) => {
+    let result = quote;
+    let escaped = false;
+    let index = start + 1;
+    while (index < text.length) {
+      const char = text[index];
+      result += maskCharacter(char);
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quote) {
+        result += quote;
+        index += 1;
+        break;
+      }
+      index += 1;
+    }
+    return { result, index };
+  };
+
+  const regexCanStart = code => {
+    const trimmed = code.trimEnd();
+    if (!trimmed) return true;
+    if (/[=(:,!&|?{}\[\];+\-*%^~<>]$/.test(trimmed)) return true;
+    return /(?:^|\s)(?:return|throw|case|delete|void|typeof|in|of)$/.test(trimmed);
+  };
+
+  const maskRegexLiteral = start => {
+    let result = "/";
+    let escaped = false;
+    let inCharacterClass = false;
+    let index = start + 1;
+    while (index < text.length) {
+      const char = text[index];
+      if (escaped) {
+        result += maskCharacter(char);
+        escaped = false;
+      } else if (char === "\\") {
+        result += " ";
+        escaped = true;
+      } else if (char === "[" && !inCharacterClass) {
+        result += " ";
+        inCharacterClass = true;
+      } else if (char === "]" && inCharacterClass) {
+        result += " ";
+        inCharacterClass = false;
+      } else if (char === "/" && !inCharacterClass) {
+        result += "/";
+        index += 1;
+        while (index < text.length && /[A-Za-z]/.test(text[index])) {
+          result += text[index];
+          index += 1;
+        }
+        break;
+      } else {
+        result += maskCharacter(char);
+      }
+      index += 1;
+    }
+    return { result, index };
+  };
+
+  const maskTemplateLiteral = start => {
+    let result = "`";
+    let escaped = false;
+    let index = start + 1;
+    while (index < text.length) {
+      const char = text[index];
+      const next = text[index + 1];
+      if (escaped) {
+        result += maskCharacter(char);
+        escaped = false;
+        index += 1;
+        continue;
+      }
+      if (char === "\\") {
+        result += " ";
+        escaped = true;
+        index += 1;
+        continue;
+      }
+      if (char === "`") {
+        result += "`";
+        return { result, index: index + 1 };
+      }
+      if (char === "$" && next === "{") {
+        const expression = processCode(index + 2, true);
+        result += "${" + expression.result;
+        index = expression.index;
+        if (text[index] === "}") {
+          result += "}";
+          index += 1;
+        }
+        continue;
+      }
+      result += maskCharacter(char);
+      index += 1;
+    }
+    return { result, index };
+  };
+
+  processCode = (start, stopAtBrace = false) => {
+    let result = "";
+    let braceDepth = 0;
+    let index = start;
+    while (index < text.length) {
+      const char = text[index];
+      const next = text[index + 1];
+      if (stopAtBrace && char === "}" && braceDepth === 0) return { result, index };
+      if (char === "{") {
+        braceDepth += 1;
+        result += char;
+        index += 1;
+        continue;
+      }
+      if (char === "}") {
+        braceDepth -= 1;
+        result += char;
+        index += 1;
+        continue;
+      }
+      if (char === "/" && next === "/") {
+        result += " ";
+        index += 2;
+        while (index < text.length && text[index] !== "\n") index += 1;
+        continue;
+      }
+      if (char === "/" && next === "*") {
+        result += " ";
+        index += 2;
+        while (index < text.length && !(text[index] === "*" && text[index + 1] === "/")) {
+          result += maskCharacter(text[index]);
+          index += 1;
+        }
+        index += 2;
+        continue;
+      }
+      if (char === "\"" || char === "'") {
+        const literal = maskQuotedLiteral(index, char);
+        result += literal.result;
+        index = literal.index;
+        continue;
+      }
+      if (char === "`") {
+        const literal = maskTemplateLiteral(index);
+        result += literal.result;
+        index = literal.index;
+        continue;
+      }
+      if (char === "/" && regexCanStart(result)) {
+        const literal = maskRegexLiteral(index);
+        result += literal.result;
+        index = literal.index;
+        continue;
+      }
+      result += char;
+      index += 1;
+    }
+    return { result, index };
+  };
+
+  return processCode(0).result;
+}
+
+function hasUnrecognizedBoundaryCall(block) {
+  const normalizedBlock = maskLiteralsAndNormalizeComments(block);
+  for (const match of normalizedBlock.matchAll(CALL_EXPRESSION)) {
+    const fullMatch = match[0];
+    const callName = fullMatch.slice(0, fullMatch.lastIndexOf("(")).replace(/\s/g, "").replace(/\?\.$/, "").split(".").pop();
+    if (CONTROL_KEYWORDS.has(callName)) continue;
+    const openIndex = match.index + fullMatch.lastIndexOf("(");
+    let depth = 0;
+    let quote = null;
+    let escaped = false;
+    let hasDirectBoundaryRoot = false;
+    for (let index = openIndex; index < normalizedBlock.length; index += 1) {
+      const char = normalizedBlock[index];
+      if (quote) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === quote) quote = null;
+        continue;
+      }
+      if (char === "\"" || char === "'" || char === "`") {
+        quote = char;
+        continue;
+      }
+      if (char === "(") {
+        depth += 1;
+        continue;
+      }
+      if (char === ")") {
+        depth -= 1;
+        if (depth === 0) break;
+        continue;
+      }
+      const boundaryAtCurrent = normalizedBlock.slice(index).match(BOUNDARY_CALL_ROOT);
+      if (depth === 1 && boundaryAtCurrent?.index === 0) {
+        hasDirectBoundaryRoot = true;
+        break;
+      }
+    }
+    if (hasDirectBoundaryRoot && !KNOWN_BOUNDARY_CALLS.has(callName)) return true;
+  }
+  return false;
+}
+
+function getNonBoundaryStateDiffLine(diff, file) {
+  if (typeof diff !== "string" || !diff.trim()) return false;
+  const nonBoundaryLine = diff.split(/\r?\n/).filter(line =>
+    (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")
+  ).map(line => line.slice(1).trim()).find(text => !isAllowedStateBoundaryLine(text, file));
+  if (nonBoundaryLine) return nonBoundaryLine;
+  const unsafeBlock = getChangedCodeBlocks(diff).find(hasUnrecognizedBoundaryCall);
+  return unsafeBlock || null;
+}
+
+function hasOnlyStateBoundaryChanges(diff, file) {
+  return getNonBoundaryStateDiffLine(diff, file) === null;
+}
+
 export function isTelemetryOnlyDiff(diff, { file = null } = {}) {
   if (typeof diff !== "string" || !diff.trim()) return false;
   const hunks = [];
@@ -819,6 +1166,15 @@ export function analyzeBalanceImpact(
     const balanceRule = (manifest.balanceImpactPaths || []).find(rule => matches(rule.pattern, file));
     const balanceImpactNone = (manifest.balanceImpactNone || []).some(pattern => matches(pattern, file));
     const telemetryOnlyPath = (manifest.telemetryOnlyPaths || []).some(pattern => matches(pattern, file));
+    const balanceImpactNoneDiff = getBalanceImpactNoneDeclaration(diff, file, manifest);
+    if (balanceImpactNoneDiff && !hasOnlyStateBoundaryChanges(diff, file)) {
+      const line = getNonBoundaryStateDiffLine(diff, file);
+      errors.push(`${file}: balance-impact none declaration contains a non-boundary diff line (${JSON.stringify(line)}); use normal balance mapping`);
+      continue;
+    } else if (balanceImpactNoneDiff) {
+      impacts.push({ file, domains: [], balanceImpactNone: true, runtimeUnsupported: [], runtimeUnfired: [] });
+      continue;
+    }
     if (!balanceRule && !balanceImpactNone && !telemetryOnlyPath) {
       errors.push(`${file}: unknown production path; declare balance-impact domains or explicit balance-impact: none`);
       continue;

@@ -14,6 +14,30 @@ existing state and data structures.
 
 Target files are determined from the relevant rows in `.agents/file-map.md`.
 
+## Chest Transition Contract
+
+`state.chestState.phase` is transient runtime state. The legal phases and
+transitions are:
+
+| Phase | Legal input and output |
+| --- | --- |
+| `menu` | A live chest at the current cell. Inspect stays in `menu`; kit disarm stays in `menu` with `trap: "none"`; disarm selection enters `disarm_select`; opener selection enters `open_select`; smash or direct open enters `resolving`; leave enters `terminal`. |
+| `disarm_select` | Back/cancel returns to `menu`; a live eligible character enters `resolving`. |
+| `open_select` | Back/cancel returns to `menu`; a live eligible character enters `resolving`. |
+| `resolving` | A trap is resolved at most once, then enters `reward`; an interrupted or lethal smash may enter `terminal`. Repeated actions are rejected while `state.transitioning` is true. |
+| `reward` | Generated materials, identification powder, and the existing main/special/accessory rewards are applied once, then enter `terminal`. |
+| `terminal` | No chest action is legal. The chest state is cleared and exploration or game-over owns the next screen. |
+
+The selection screens are navigation-only: their back/cancel path must restore
+the chest menu without consuming a trap or reward. Ordinary active chest phase
+state is never written to a save payload; saves flatten those encounters to
+`explore` and reload with `chestState: null`, leaving the map event to be
+entered again. The exception is an unopened `fromDrop` chest, which has no map
+event to re-enter: its reward/trap state is saved, its phase is normalized to
+`menu`, and load restores the chest menu. This keeps inspection, disarm, smash,
+and reward bookkeeping out of later phases while preserving reward, trap,
+telemetry, and navigation behavior.
+
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with the mechanic

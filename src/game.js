@@ -6,6 +6,7 @@ import { toggleMute } from "./audio.js";
 import { setUiUpdateCallback, goBackSubmenu } from "./navigation.js";
 import { handleTrapAction } from "./systems/traps.js";
 import { blockGuardedControlsEvent } from "./controls_guard.js";
+import { openChestMenu } from "./chest.js";
 
 // Import modules for re-export and button bindings
 import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
@@ -29,6 +30,7 @@ export function initGame() {
   setUiUpdateCallback(updateUI);
   lockViewportScale();
   loadGame();
+  if (state.chestState?.fromDrop) openChestMenu();
 
   // エラー発生時にゲーム状態をSentryへ添付できるよう登録（stateはロード済み）
   initErrorContext(state);

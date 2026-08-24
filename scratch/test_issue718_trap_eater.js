@@ -49,7 +49,7 @@ const {
   getCharCoreParams,
   getTrapEaterBonusAfterDisarm
 } = await import("../src/rules/affix_rules.js");
-const { setupChestState, executeDisarm } = await import("../src/chest.js");
+const { CHEST_PHASES, setupChestState, executeDisarm } = await import("../src/chest.js");
 const { handleTrapAction } = await import("../src/systems/traps.js");
 const { triggerRunResult } = await import("../src/result.js");
 
@@ -141,6 +141,7 @@ await test("bonus uses +2 per successful disarm and caps at +20", () => {
 await test("successful chest disarm triggers the bonus for eligible class", async () => {
   prepareState(makeChar());
   setupChestState("poison needle", null, "HEAL_POTION");
+  state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
   assert.equal(executeDisarm(state.party[0], () => 0), true);
   assert.equal(state.party[0].runTrapAttackBonus, 2);
   state.chestState = null;

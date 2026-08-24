@@ -55,6 +55,36 @@ Recursive `src/data/**`, `src/rules/**`, `src/systems/**`, and
 files are classified, and a new or unlisted production path must receive an
 explicit domain mapping before it can pass the gate.
 
+State-transition or persistence-only changes may use a one-off
+`// balance-impact: none` declaration in the changed production diff. The
+declaration is registered in `balanceImpactNoneDiffs` with a reason and is
+recognized only when the marker is newly added as a standalone comment for
+that diff. The gate also rejects the declaration when the same file diff
+contains any changed non-comment line outside the strict state/persistence
+boundary allowlist, including balance-sensitive state, reward, trap, or economy
+access or mutation and every array mutator. The exact read-only
+`state.party.includes(char|opener)` eligibility checks are allowed because they
+only validate the already-selected chest actor; party assignment, other party
+access, party mutators, computed/bracket boundary access, and aggregate
+assignment/mutator calls remain outside the allowlist. Direct, named phase and
+transient-state resets remain explicit exceptions for Issue #832. The checker
+also conservatively rejects computed Object/Reflect aggregate access and any
+unrecognized call whose direct argument is a boundary root, including aliases
+and optional calls (`fn?.(...)`); only the named boundary helpers can receive
+those roots. Boundary-line and call detection share one representation: block
+and line comments are normalized; string, template, and regex literal contents
+are masked while their delimiters and template expressions remain available for
+real-call detection. Literal-only declarations are harmless and allowed, while
+executable state/reward/trap/economy mutations remain subject to the strict
+allowlist. This covers comment-separated ordinary and optional call spellings
+without matching call-like text inside literals. This
+prevents a mapped path such as `src/chest.js` from being globally exempted: later chest
+reward, trap, drop, or economy changes without the marker still use the normal
+balance-domain mapping and runtime-evidence checks. The Issue #832 chest phase
+and save-payload changes use this classification because they alter state
+boundaries and navigation persistence, not reward/trap formulas or balance
+constants.
+
 ## Agent Skills
 
 - No skill is mandatory by default; prioritize deterministic source, data, and

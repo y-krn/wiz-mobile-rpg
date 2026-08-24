@@ -13,6 +13,18 @@ game flows.
 
 Target files are determined from the relevant rows in `.agents/file-map.md`.
 
+## Chest transition regression matrix
+
+Chest tests should cover menu entry, inspection, back/cancel from both
+selection screens, successful and failed disarm, trap-kit disarm, direct open,
+smash, reward completion, leave, and lethal terminal paths. Each action also
+needs a representative invalid or repeated call (missing chest, stale phase,
+or `state.transitioning`) asserting no duplicate trap, reward, telemetry, or
+navigation effect. Save-payload checks must assert that ordinary active chest
+phase data is omitted and reload starts from `explore` with no `chestState`; an
+unopened `fromDrop` chest must retain its reward/trap state and reload into the
+chest menu.
+
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with the changed
