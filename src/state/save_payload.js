@@ -10,10 +10,14 @@ import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 //   再開時に menuContext が初期化され、街サブメニュー(お城/工房 等)にいても
 //   renderer が街と判定できず、floor=1/START座標(=地下1F登り階段)のダンジョンを描画。
 //   closeSubmenu と同じ規則で親画面へ畳む。
+// - "chest" / "submenu": chestState/menuContext が未保存。phase途中の宝箱や
+//   選択画面を再開時に復元すると、報酬・罠・操作対象だけが残った不整合状態になるため
+//   exploreへ畳む(宝箱マスはマップに残り、再入場時に通常の初期化を行う)。
 // - "trap_encounter": activeTrapState が未保存。gameState="trap_encounter" のまま保存すると
 //   再開時に罠UIが表示されず、罠操作パネルだけ出て操作不能になる。罠は探索中のみ発生する
 //   ため explore へ畳む(罠マス上で再開し、踏み直せば罠が再発生する)。
 function resolvePersistedGameState() {
+  if (state.gameState === "chest") return "explore";
   if (state.gameState === "trap_encounter") return "explore";
   if (state.gameState !== "submenu") return state.gameState;
   if (menuContext.prevGameState) return menuContext.prevGameState;
@@ -77,7 +81,7 @@ export function createSavePayload() {
     seed: state.seed,
     gameState: resolvePersistedGameState(),
     combatState: persistedCombatState,
-    chestState: state.chestState,
+    chestState: null,
     prevX: state.prevX,
     prevY: state.prevY,
     roamingMonsters: state.roamingMonsters,
@@ -122,7 +126,7 @@ export function applySavePayload(data) {
   state.gameState = data.gameState;
   state.combatState = data.combatState;
   state.combatState?.monsters?.forEach(normalizeStatusEffectTarget);
-  state.chestState = data.chestState;
+  state.chestState = null;
   state.logs = data.logs;
   state.floorChestsOpened = data.floorChestsOpened;
   state.floorChestsTotal = data.floorChestsTotal;

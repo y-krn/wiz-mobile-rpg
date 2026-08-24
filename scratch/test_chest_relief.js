@@ -58,7 +58,13 @@ Object.defineProperty(global, "navigator", {
   configurable: true
 });
 
-const { state, initNewGame, createSoloCharacter } = await import("../src/state.js");
+const {
+  state,
+  initNewGame,
+  createSoloCharacter,
+  createSavePayload,
+  applySavePayload
+} = await import("../src/state.js");
 const { createDefaultCurrentRun } = await import("../src/state/initial_state.js");
 const { ITEMS } = await import("../src/data.js");
 const { MILESTONE_MERCHANT_STOCK } = await import("../src/data/milestone_merchant.js");
@@ -70,6 +76,8 @@ const {
 } = await import("../src/rules/chest_rules.js");
 const {
   executeDisarm,
+  CHEST_PHASES,
+  CHEST_PHASE_TRANSITIONS,
   leaveChest,
   openChestDirectly,
   setupChestState,
@@ -152,6 +160,79 @@ function startTelemetryRun() {
 function chestTelemetryEvents() {
   return telemetryEvents.filter(event => event.name.startsWith("chest_"));
 }
+
+await test("宝箱の合法フェーズ遷移表を固定する", () => {
+  assert.deepEqual(CHEST_PHASE_TRANSITIONS[CHEST_PHASES.MENU], [
+    CHEST_PHASES.MENU,
+    CHEST_PHASES.DISARM_SELECT,
+    CHEST_PHASES.OPEN_SELECT,
+    CHEST_PHASES.RESOLVING,
+    CHEST_PHASES.TERMINAL
+  ]);
+  assert.deepEqual(CHEST_PHASE_TRANSITIONS[CHEST_PHASES.DISARM_SELECT], [
+    CHEST_PHASES.MENU,
+    CHEST_PHASES.RESOLVING
+  ]);
+  assert.deepEqual(CHEST_PHASE_TRANSITIONS[CHEST_PHASES.OPEN_SELECT], [
+    CHEST_PHASES.MENU,
+    CHEST_PHASES.RESOLVING
+  ]);
+  assert.deepEqual(CHEST_PHASE_TRANSITIONS[CHEST_PHASES.RESOLVING], [
+    CHEST_PHASES.REWARD,
+    CHEST_PHASES.MENU,
+    CHEST_PHASES.TERMINAL
+  ]);
+  assert.deepEqual(CHEST_PHASE_TRANSITIONS[CHEST_PHASES.REWARD], [CHEST_PHASES.TERMINAL]);
+  assert.deepEqual(CHEST_PHASE_TRANSITIONS[CHEST_PHASES.TERMINAL], []);
+});
+
+await test("開封はmenu/open選択からrewardを経てterminalになり検査状態を残さない", () => {
+  resetChest({ trap: "none", item: "HEAL_POTION" });
+  state.chestState.phase = CHEST_PHASES.OPEN_SELECT;
+  state.chestState.inspected = true;
+  state.chestState.identifiedTrap = "none";
+  state.chestState.inspectChance = 0.85;
+
+  assert.equal(openChestDirectly(null, () => 0.99), true);
+  assert.equal(state.chestState, null);
+  assert.equal(state.gameState, "explore");
+  assert.equal(state.inventory.includes("HEAL_POTION"), true);
+});
+
+await test("無効・反復入力はphaseと報酬を変更しない", () => {
+  resetChest({ trap: "none", item: "HEAL_POTION" });
+  state.chestState.phase = CHEST_PHASES.REWARD;
+  state.transitioning = true;
+
+  assert.equal(openChestDirectly(null, () => 0), false);
+  assert.equal(smashChest(() => 0), false);
+  assert.equal(leaveChest(), false);
+  assert.equal(useTrapKit(), false);
+  assert.equal(state.chestState.phase, CHEST_PHASES.REWARD);
+  assert.equal(state.inventory.includes("HEAL_POTION"), false);
+
+  state.chestState = null;
+  state.transitioning = false;
+  assert.equal(openChestDirectly(null, () => 0), false);
+  assert.equal(smashChest(() => 0), false);
+  assert.equal(leaveChest(), false);
+  assert.equal(useTrapKit(), false);
+});
+
+await test("phase途中の宝箱はsave payloadへ漏れず、load後は探索へ戻る", () => {
+  resetChest({ trap: "poison needle", item: "HEAL_POTION" });
+  state.gameState = "submenu";
+  state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
+  state.chestState.inspectChance = 0.85;
+
+  const payload = createSavePayload();
+  assert.equal(payload.gameState, "explore");
+  assert.equal(payload.chestState, null);
+
+  applySavePayload(JSON.parse(JSON.stringify(payload)));
+  assert.equal(state.gameState, "explore");
+  assert.equal(state.chestState, null);
+});
 
 await test("弱体毒針は正のダメージ後に毒付与率50%", () => {
   const poisoned = makeCharacter("Fighter", "Poisoned");

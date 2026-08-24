@@ -65,8 +65,20 @@ test('Chest trap inspection exposes the correct disarm flow @e2e', async ({ page
     await expect(btnDisarmAfter).toHaveText("解除する");
     await expect(btnDisarmAfter).toBeEnabled();
 
+    // Opener selection is cancellable and must return to the chest menu.
+    await page.getByRole('button', { name: '宝箱を開ける' }).click();
+    await expect.poll(async () => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return state.chestState.phase;
+    })).toBe('open_select');
+    await page.locator('#btn-submenu-back').click();
+    await expect.poll(async () => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return state.chestState.phase;
+    })).toBe('menu');
+
     // Click "解除する" to open disarmer select submenu
-    await btnDisarmAfter.click();
+    await page.locator('#btn-chest-disarm').click();
 
     // Verify back button is visible and click it
     const btnBack = page.locator('#btn-submenu-back');
