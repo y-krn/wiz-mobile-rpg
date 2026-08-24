@@ -37,7 +37,8 @@ function getStableFallbackGameState() {
 }
 
 function hasUsableCombatState(combatState) {
-  return combatState && Array.isArray(combatState.monsters) &&
+  return combatState && typeof combatState === "object" && !Array.isArray(combatState) &&
+    Array.isArray(combatState.monsters) &&
     combatState.monsters.length > 0 &&
     combatState.monsters.every(monster => monster && typeof monster === "object" && !Array.isArray(monster));
 }
@@ -86,16 +87,16 @@ export function createSavePayload() {
     return persistedChar;
   });
 
-  const persistedCombatState = state.combatState
+  const persistedCombatState = hasUsableCombatState(state.combatState)
     ? {
       ...state.combatState,
-      monsters: state.combatState.monsters?.map(monster => {
+      monsters: state.combatState.monsters.map(monster => {
         const persistedMonster = { ...monster };
         normalizeStatusEffectTarget(persistedMonster);
         return persistedMonster;
       })
     }
-    : state.combatState;
+    : null;
 
   const persistedChestState = state.chestState?.fromDrop
     ? { ...state.chestState, phase: "menu" }

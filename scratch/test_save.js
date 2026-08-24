@@ -146,6 +146,14 @@ check("combat screens require a usable combat payload", () => {
   state.combatState = { phase: "choose_actions", monsters: [{ name: "スライム", hp: 5 }] };
   assert.equal(createSavePayload().gameState, "combat");
 
+  for (const monsters of [{}, null, [null]]) {
+    state.combatState = { phase: "choose_actions", monsters };
+    const malformedSave = createSavePayload();
+    assert.equal(malformedSave.combatState, null);
+    assert.equal(malformedSave.gameState, "explore");
+  }
+  state.combatState = { phase: "choose_actions", monsters: [{ name: "スライム", hp: 5 }] };
+
   const validPayload = {
     ...createSavePayload(),
     gameState: "combat",
@@ -223,6 +231,28 @@ check("malformed current-run collections receive safe defaults", () => {
   assert.deepEqual(normalized.currentRun.campRested, {});
   assert.deepEqual(normalized.currentRun.defeatsByRole, {});
   assert.deepEqual(normalized.currentRun.codexRewards, {});
+});
+
+check("non-active malformed visited maps default to safe grids", () => {
+  state.currentRun = null;
+  state.gameState = "town";
+  const basePayload = createSavePayload();
+
+  for (const visitedMaps of ["invalid", { floor: 1 }]) {
+    const normalized = migrateSavePayload({ ...basePayload, visitedMaps });
+    assert.equal(normalized.visitedMaps.length, normalized.maps.length);
+    normalized.maps.forEach((map, mapIndex) => {
+      if (!map) {
+        assert.equal(normalized.visitedMaps[mapIndex], null);
+        return;
+      }
+      map.forEach((row, rowIndex) => {
+        row.forEach((_, columnIndex) => {
+          assert.equal(normalized.visitedMaps[mapIndex][rowIndex][columnIndex], false);
+        });
+      });
+    });
+  }
 });
 
 check("malformed history entries are filtered without changing valid records", () => {

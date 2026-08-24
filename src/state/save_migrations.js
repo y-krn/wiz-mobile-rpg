@@ -116,6 +116,27 @@ function numberOr(value, fallback) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function createDefaultVisitedMaps(maps) {
+  return maps.map(map => Array.isArray(map)
+    ? map.map(row => Array.isArray(row) ? row.map(() => false) : [])
+    : null
+  );
+}
+
+function isUsableVisitedMaps(visitedMaps, maps) {
+  return Array.isArray(visitedMaps) && visitedMaps.length === maps.length &&
+    visitedMaps.every((visitedMap, mapIndex) => {
+      const map = maps[mapIndex];
+      if (!map) return visitedMap === null;
+      return Array.isArray(visitedMap) && visitedMap.length === map.length &&
+        visitedMap.every((row, rowIndex) => {
+          const mapRow = map[rowIndex];
+          return Array.isArray(row) && Array.isArray(mapRow) &&
+            row.length === mapRow.length && row.every(cell => typeof cell === "boolean");
+        });
+    });
+}
+
 function isUsableCombatState(combatState) {
   return isRecord(combatState) && Array.isArray(combatState.monsters) &&
     combatState.monsters.length > 0 && combatState.monsters.every(isRecord);
@@ -499,9 +520,9 @@ export function normalizeSavePayload(data) {
   } else {
     normalized.visitedMaps = activeRunMap
       ? data.visitedMaps
-      : data.visitedMaps ?? loadedMaps.map(map =>
-        map ? map.map(row => row.map(() => false)) : null
-      );
+      : isUsableVisitedMaps(data.visitedMaps, loadedMaps)
+        ? data.visitedMaps
+        : createDefaultVisitedMaps(loadedMaps);
   }
 
   loadedMaps.forEach((map, index) => {
