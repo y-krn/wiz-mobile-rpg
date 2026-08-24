@@ -942,7 +942,7 @@ for (const vp of VIEWPORTS) {
     await page.goto('/');
 
     const result = await page.evaluate(async () => {
-      const { state } = await import('/src/state.js');
+      const { createSoloCharacter, state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
       const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
       const { updateUI } = await import('/src/ui.js');
@@ -968,7 +968,7 @@ for (const vp of VIEWPORTS) {
         { label: 'scalar', monsters: ['monster'] },
         { label: 'sparse', monsters: sparseMonsters },
       ];
-      return invalidCombatCases.map(({ label, monsters }) => {
+      const invalidCombatResults = invalidCombatCases.map(({ label, monsters }) => {
         state.gameState = 'combat';
         state.combatState = { phase: 'choose_actions', monsters };
         menuContext.type = '';
@@ -987,9 +987,38 @@ for (const vp of VIEWPORTS) {
 
         return { label, hasOwnFirstMonster: Object.hasOwn(monsters, 0), explicitCombat, targetSubmenu };
       });
+
+      const partyCases = [
+        { label: 'missing', party: null },
+        { label: 'sparse', party: Object.assign([], { length: 1 }) },
+        { label: 'all-dead', party: [{ ...createSoloCharacter('Fighter'), status: 'dead' }] },
+      ];
+      const invalidPartyResults = partyCases.map(({ label, party }) => {
+        state.party = party;
+        state.gameState = 'combat';
+        state.combatState = { phase: 'choose_actions', monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }] };
+        menuContext.type = '';
+        menuContext.prevGameState = null;
+        let error = null;
+        try {
+          updateUI();
+        } catch (caught) {
+          error = caught.message;
+        }
+        return {
+          label,
+          error,
+          promptText: document.getElementById('combat-prompt').textContent,
+          combatControlsActive: combatControls.classList.contains('active'),
+          combatMode: controlsPanel.classList.contains('combat-mode'),
+          overlayDisplay: combatOverlay.style.display,
+        };
+      });
+
+      return { invalidCombatResults, invalidPartyResults };
     });
 
-    for (const { label, hasOwnFirstMonster, explicitCombat, targetSubmenu } of result) {
+    for (const { label, hasOwnFirstMonster, explicitCombat, targetSubmenu } of result.invalidCombatResults) {
       expect(label).toBeDefined();
       expect(hasOwnFirstMonster).toBe(label === 'null' || label === 'scalar');
       expect(explicitCombat).toMatchObject({
@@ -1009,6 +1038,89 @@ for (const vp of VIEWPORTS) {
         overlayChildren: 0,
       });
     }
+    expect(result.invalidPartyResults).toEqual([
+      {
+        label: 'missing',
+        error: null,
+        promptText: '',
+        combatControlsActive: false,
+        combatMode: false,
+        overlayDisplay: 'none',
+      },
+      {
+        label: 'sparse',
+        error: null,
+        promptText: '',
+        combatControlsActive: false,
+        combatMode: false,
+        overlayDisplay: 'none',
+      },
+      {
+        label: 'all-dead',
+        error: null,
+        promptText: '',
+        combatControlsActive: false,
+        combatMode: false,
+        overlayDisplay: 'none',
+      },
+    ]);
+  });
+}
+
+for (const vp of VIEWPORTS) {
+  test(`Combat overlays reject resolving and transitioning clicks at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { combatCallbacks } = await import('/src/combat_ui/combat_state.js');
+      const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
+
+      state.party = [createSoloCharacter('Priest')];
+      state.party[0].spells = ['HALITO'];
+      state.inventory = ['HEAL_POTION'];
+      state.gameState = 'submenu';
+      state.transitioning = false;
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+      };
+      menuContext.prevGameState = 'combat';
+
+      const rejected = [];
+      const rejectClick = (type, selector, callbackKey, phase, transitioning) => {
+        menuContext.type = type;
+        menuContext.targetType = type === 'combat_target' ? 'enemy' : '';
+        menuContext.actorIdx = 0;
+        menuContext.spellName = '';
+        combatCallbacks[callbackKey] = () => rejected.push(type);
+        renderCombatOverlay();
+        const card = document.querySelector(`#combat-overlay ${selector}`);
+        state.combatState.phase = phase;
+        state.transitioning = transitioning;
+        card?.click();
+      };
+
+      rejectClick('combat_target', '.combat-target-card.enemy', 'activeTargetCallback', 'resolving', false);
+      rejectClick('combat_spell', '.combat-item-card.spell', 'activeSpellCallback', 'choose_actions', true);
+      rejectClick('combat_item', '.combat-item-card.item', 'activeItemCallback', 'resolving', false);
+
+      return {
+        rejected,
+        gameState: state.gameState,
+        phase: state.combatState.phase,
+        transitioning: state.transitioning,
+      };
+    });
+
+    expect(result).toEqual({
+      rejected: [],
+      gameState: 'submenu',
+      phase: 'resolving',
+      transitioning: false,
+    });
   });
 }
 

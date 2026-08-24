@@ -6,7 +6,7 @@ export function updateSoloHUD() {
   if (!hud) return;
   hud.replaceChildren();
 
-  const char = state.party[0];
+  const char = Array.isArray(state.party) ? state.party[0] : null;
   if (!char) {
     const empty = document.createElement("div");
     empty.className = "list-empty";

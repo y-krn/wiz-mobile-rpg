@@ -190,9 +190,12 @@ export function getScreenViewState(stateLike, menuContextLike) {
   const hasCurrentCell = Number.isInteger(source.x) && Number.isInteger(source.y) &&
     isUsableMapCell(currentRow?.[source.x]);
   const isCombatOverlaySubmenu = isSubmenu && previousGameState === "combat" && SUBMENU_OVERLAY_TYPES.has(menuType);
+  const hasUsableCombatParty = hasUsableCombatActor(source.party);
+  const isActionableCombat = (gameState === "combat" || isCombatOverlaySubmenu) && hasCombat &&
+    hasUsableCombatParty && combatState.phase === "choose_actions" && source.transitioning === false;
   const isSpellOverlaySubmenu = isSubmenu && previousGameState === "explore" && hasMap && hasCurrentCell && SPELL_OVERLAY_TYPES.has(menuType);
   const usableCaster = hasUsableCaster(source.party, menu.actorIdx);
-  const isUsableCombatOverlaySubmenu = isCombatOverlaySubmenu && hasCombat && (
+  const isUsableCombatOverlaySubmenu = isCombatOverlaySubmenu && isActionableCombat && (
     menuType === "combat_spell"
       ? usableCaster
       : menuType === "combat_target"
@@ -220,6 +223,8 @@ export function getScreenViewState(stateLike, menuContextLike) {
     hasMap,
     hasCurrentCell,
     hasCombat,
+    hasUsableCombatActor: hasUsableCombatParty,
+    isActionableCombat,
     hasChest
   });
 }
@@ -227,4 +232,13 @@ export function getScreenViewState(stateLike, menuContextLike) {
 export function isUsableCombatScreen(stateLike, menuContextLike) {
   const view = getScreenViewState(stateLike, menuContextLike);
   return view.gameState === "combat" && view.hasCombat;
+}
+
+export function isActionableCombatScreen(stateLike, menuContextLike) {
+  const view = getScreenViewState(stateLike, menuContextLike);
+  return view.gameState === "combat" && view.isActionableCombat;
+}
+
+export function isActionableCombatContext(stateLike, menuContextLike) {
+  return getScreenViewState(stateLike, menuContextLike).isActionableCombat;
 }

@@ -6,9 +6,10 @@ for (const viewport of VIEWPORTS) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { state } = await import('/src/state.js');
+      const { createSoloCharacter, state } = await import('/src/state.js');
       const { menuContext } = await import('/src/navigation.js');
       const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
+      state.party = [createSoloCharacter('Fighter')];
       state.gameState = 'submenu';
       state.combatState = {
         phase: 'choose_actions',

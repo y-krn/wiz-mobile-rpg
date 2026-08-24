@@ -17,7 +17,6 @@ export let spellMenuState = {
   selectedKey: null
 };
 
-// balance-impact: none — canonical spell context validation only; spell rules unchanged
 function executeUtilitySpell() {
   if (!isUsableSpellForActor(state.party, menuContext.actorIdx, menuContext.spellName, "utility")) return;
   const caster = state.party[menuContext.actorIdx];

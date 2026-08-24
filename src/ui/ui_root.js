@@ -207,7 +207,7 @@ export function updateUI() {
   const view = getScreenViewState(state, menuContext);
   const { gameState } = view;
   const combatOverlayTypes = ["combat_target", "combat_spell", "combat_item"];
-  const hasUsableCombat = view.hasCombat;
+  const hasUsableCombat = view.hasCombat && view.hasUsableCombatActor;
   const isUsableCombatScreen = gameState === "combat" && hasUsableCombat;
   const isCombatOverlaySubmenu = view.isCombatOverlaySubmenu && combatOverlayTypes.includes(view.menuType);
   const departurePrepSubmenu = view.isDeparturePrepSubmenu;
@@ -468,6 +468,10 @@ export function updateUI() {
     document.getElementById("town-controls").classList.add("active");
   } else if (gameState === "submenu" && !isCombatOverlaySubmenu) {
     document.getElementById("submenu-controls").classList.add("active");
+  }
+
+  if (gameState === "combat" && !isUsableCombatScreen) {
+    updateCombatPrompt();
   }
 
   // Update Combat Overlay visibility

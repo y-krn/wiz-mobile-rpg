@@ -183,11 +183,6 @@ export const SIMULATION_MANIFEST = Object.freeze({
       marker: "// balance-impact: none",
       reason: "canonical combat screen guard only; combat rules remain unchanged"
     },
-    {
-      pattern: "src/spell_menu.js",
-      marker: "// balance-impact: none",
-      reason: "canonical spell context validation only; spell rules remain unchanged"
-    }
   ].map(declaration => Object.freeze({ ...declaration }))),
   // Exact paths whose current callers may receive telemetry-only edits. A
   // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
@@ -874,31 +869,10 @@ function isCombatBoundaryLine(text, file) {
     || /^state\.combatState\?\.phase !== "choose_actions" \|\| !hasUsableCombatActor\(state\.party\)\) return;$/.test(trimmed);
 }
 
-function isSpellBoundaryLine(text, file) {
-  if (file !== "src/spell_menu.js") return false;
-  const trimmed = text.trim();
-  if (/^import \{[^}]+\} from "\.\/state\/view_state\.js";$/.test(trimmed)) {
-    const importedNames = trimmed.slice(trimmed.indexOf("{") + 1, trimmed.indexOf("}"))
-      .split(",").map(name => name.trim()).filter(Boolean);
-    return importedNames.every(name => ["getScreenViewState", "getUsableSpellKeys", "isUsableSpellForActor", "isUsableSpellKey"].includes(name));
-  }
-  return [
-    'if (!isUsableSpellForActor(state.party, menuContext.actorIdx, menuContext.spellName, "utility")) return;',
-    'if (!isUsableSpellForActor(state.party, menuContext.actorIdx, menuContext.spellName, ["single_ally", "all_allies"])) return;',
-    'if (spellMenuState.selectedKey && !isUsableSpellKey(spellMenuState.selectedKey)) {',
-    'if (!spKey || !caster || !isUsableSpellKey(spKey)) {',
-    'if (spKey && !isUsableSpellKey(spKey)) spellMenuState.selectedKey = null;',
-    'if (spKey) spellMenuState.selectedKey = null;',
-    'if (spellMenuState.selectedKey && !isUsableSpellForActor(state.party, menuContext.actorIdx, spellMenuState.selectedKey)) {',
-    'if (!spKey || !caster || !isUsableSpellForActor(state.party, menuContext.actorIdx, spKey)) {'
-  ].includes(trimmed);
-}
-
 function isAllowedStateBoundaryLine(text, file) {
   if (!text || text.startsWith("//")) return true;
   const classificationText = maskLiteralsAndNormalizeComments(text);
   if (isCombatBoundaryLine(text, file)) return true;
-  if (isSpellBoundaryLine(text, file)) return true;
   if (LITERAL_ONLY_DECLARATION.test(classificationText)) return true;
   if (file === "src/state/save_payload.js" && /^import\s+\{[^}]*\bmenuContext\b[^}]*\bmenuHistory\b/.test(classificationText)) return true;
   if (ARRAY_MUTATOR_CALL.test(classificationText)) return false;

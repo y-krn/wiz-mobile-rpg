@@ -1,6 +1,6 @@
 import { state, addLog, saveAutosave } from "../state.js";
 import { menuContext } from "../navigation.js";
-import { hasUsableCombatActor, isUsableCombatScreen, isUsableSpellForActor } from "../state/view_state.js";
+import { hasUsableCombatActor, isActionableCombatContext, isActionableCombatScreen, isUsableSpellForActor } from "../state/view_state.js";
 import { SPELLS, ITEMS, getSpellPayment } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
@@ -19,9 +19,12 @@ import {
 export { combatSelection };
 
 function canActInCombat() {
-  return !state.transitioning && isUsableCombatScreen(state, menuContext) &&
-    state.combatState?.phase === "choose_actions" && hasUsableCombatActor(state.party) &&
+  return isActionableCombatScreen(state, menuContext) && hasUsableCombatActor(state.party) &&
     Number.isInteger(combatSelection.charIdx) && combatSelection.charIdx >= 0;
+}
+
+function canCommitCombatAction() {
+  return isActionableCombatContext(state, menuContext);
 }
 
 function getLivingCharacters() {
@@ -102,6 +105,7 @@ export function selectCombatAction(type) {
   if (type === "fight") {
     // Let player choose target monster
     openCombatTargetMenu("enemy", (targetIdx) => {
+      if (!canCommitCombatAction()) return;
       state.gameState = "combat";
       combatSelection.actions.push({
         type: "fight",
@@ -125,7 +129,7 @@ export function selectCombatAction(type) {
       return;
     }
     openCombatSpellMenu(char, (spellName) => {
-      if (!isUsableSpellForActor(state.party, charOriginalIdx, spellName)) return;
+      if (!canCommitCombatAction() || !isUsableSpellForActor(state.party, charOriginalIdx, spellName)) return;
       const spell = SPELLS[spellName];
       if (!getSpellPayment(char, spell.cost).canCast) {
         addLog("MPもHPも足りません。");
@@ -135,6 +139,7 @@ export function selectCombatAction(type) {
       // Determine targets
       if (spell.target === "single_enemy") {
         openCombatTargetMenu("enemy", (targetIdx) => {
+          if (!canCommitCombatAction()) return;
           state.gameState = "combat";
           combatSelection.actions.push({
             type: "spell",
@@ -155,6 +160,7 @@ export function selectCombatAction(type) {
         }, spellName);
       } else if (spell.target === "single_ally") {
         const enqueueAllySpell = (targetIdx) => {
+          if (!canCommitCombatAction()) return;
           state.gameState = "combat";
           combatSelection.actions.push({
             type: "spell",
@@ -182,6 +188,7 @@ export function selectCombatAction(type) {
         }
       } else {
         // All enemies / all allies
+        if (!canCommitCombatAction()) return;
         combatSelection.actions.push({
           type: "spell",
           actorIdx: charOriginalIdx,
@@ -207,6 +214,7 @@ export function selectCombatAction(type) {
       return;
     }
     openCombatItemMenu((itemKey, itemIdx) => {
+      if (!canCommitCombatAction()) return;
       const item = ITEMS[itemKey];
       if (item.type !== "usable" || item.campOnly) {
         addLog("戦闘中その道具は使用できません。");
@@ -234,6 +242,7 @@ export function selectCombatAction(type) {
       };
       const targetIndices = getItemAllyTargetIndices(state.party);
       if (targetIndices.length === 1) {
+        if (!canCommitCombatAction()) return;
         state.gameState = "combat";
         enqueueAllyItem(targetIndices[0]);
       } else {

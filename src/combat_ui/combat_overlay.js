@@ -58,6 +58,8 @@ export function renderCombatOverlay() {
 
   const type = view.menuType;
 
+  const canCommitOverlayAction = () => getScreenViewState(state, menuContext).isUsableCombatOverlaySubmenu;
+
   // 1. Create header
   const header = document.createElement("div");
   header.className = "combat-overlay-header";
@@ -125,8 +127,9 @@ export function renderCombatOverlay() {
 
         if (m.hp > 0) {
           card.addEventListener("click", () => {
+            if (!canCommitOverlayAction() || typeof combatCallbacks.activeTargetCallback !== "function") return;
             state.gameState = "combat";
-            if (combatCallbacks.activeTargetCallback) combatCallbacks.activeTargetCallback(idx);
+            combatCallbacks.activeTargetCallback(idx);
           });
         }
         targetGrid.appendChild(card);
@@ -168,8 +171,9 @@ export function renderCombatOverlay() {
 
         if (!disabled) {
           card.addEventListener("click", () => {
+            if (!canCommitOverlayAction() || typeof combatCallbacks.activeTargetCallback !== "function") return;
             state.gameState = "combat";
-            if (combatCallbacks.activeTargetCallback) combatCallbacks.activeTargetCallback(idx);
+            combatCallbacks.activeTargetCallback(idx);
           });
         }
         targetGrid.appendChild(card);
@@ -229,8 +233,9 @@ export function renderCombatOverlay() {
 
       if (!disabled) {
         card.addEventListener("click", () => {
+          if (!canCommitOverlayAction() || typeof combatCallbacks.activeSpellCallback !== "function") return;
           state.gameState = "combat";
-          if (combatCallbacks.activeSpellCallback) combatCallbacks.activeSpellCallback(spKey);
+          combatCallbacks.activeSpellCallback(spKey);
         });
       }
       spellGrid.appendChild(card);
@@ -264,8 +269,9 @@ export function renderCombatOverlay() {
 
         if (!usableCheck) {
           card.addEventListener("click", () => {
+            if (!canCommitOverlayAction() || typeof combatCallbacks.activeItemCallback !== "function") return;
             state.gameState = "combat";
-            if (combatCallbacks.activeItemCallback) combatCallbacks.activeItemCallback(itemKey, idx);
+            combatCallbacks.activeItemCallback(itemKey, idx);
           });
         }
         itemGrid.appendChild(card);
