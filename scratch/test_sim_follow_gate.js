@@ -71,6 +71,13 @@ assert.throws(
 assert.throws(
   () => assertValidSimulationManifest({
     ...SIMULATION_MANIFEST,
+    balanceImpactNoneDiffs: [{ pattern: "src/**", marker: "// balance-impact: none", reason: "test" }]
+  }),
+  /balance-impact none diff path must be exact/
+);
+assert.throws(
+  () => assertValidSimulationManifest({
+    ...SIMULATION_MANIFEST,
     canonical: {
       ...SIMULATION_MANIFEST.canonical,
       runtimeCoverage: { ...SIMULATION_MANIFEST.canonical.runtimeCoverage, combat: ["missing-mechanism"] }
@@ -126,6 +133,47 @@ assert.equal(isTelemetryOnlyDiff(anchoredTelemetryDiff), true);
 assert.doesNotThrow(
   () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", anchoredTelemetryDiff]]) }),
   "telemetry-only mapped-module diff should not require balance runtime evidence"
+);
+const chestStateBoundaryDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,4 @@
++// balance-impact: none — chest phase and transient-state boundary only
++  trackChestAction(chest, action, { state });
++  state.chestState.phase = nextPhase;
+`;
+const chestStateBoundaryReport = assertBalanceImpactCovered(
+  ["src/chest.js"],
+  SIMULATION_MANIFEST,
+  undefined,
+  { diffByFile: new Map([["src/chest.js", chestStateBoundaryDiff]]) }
+);
+assert.deepEqual(
+  chestStateBoundaryReport.impacts,
+  [{ file: "src/chest.js", domains: [], balanceImpactNone: true, runtimeUnsupported: [], runtimeUnfired: [] }],
+  "explicit state-boundary declaration must classify the mapped chest path as balance-impact none for this diff"
+);
+const saveStateBoundaryDiff = `diff --git a/src/state/save_payload.js b/src/state/save_payload.js
+@@ -1,0 +2,2 @@
++// balance-impact: none — persistence boundary only
++  state.chestState = null;
+`;
+assert.doesNotThrow(
+  () => assertBalanceImpactCovered(
+    ["src/state/save_payload.js"],
+    SIMULATION_MANIFEST,
+    undefined,
+    { diffByFile: new Map([["src/state/save_payload.js", saveStateBoundaryDiff]]) }
+  ),
+  "explicit persistence declaration must classify an otherwise unknown path as balance-impact none"
+);
+assert.throws(
+  () => assertBalanceImpactCovered(
+    ["src/chest.js"],
+    SIMULATION_MANIFEST,
+    undefined,
+    { diffByFile: new Map([["src/chest.js", "diff --git a/src/chest.js b/src/chest.js\n@@ -1,0 +1,1 @@\n+  state.chestState.phase = nextPhase;\n"]]) }
+  ),
+  /canonical runtime evidence result is required/,
+  "future chest changes without the one-off marker must retain normal balance mapping"
 );
 const mixedTelemetryDiff = `${anchoredTelemetryDiff}+    state.currentRun.materials.blackHorn += 1;\n`;
 assert.equal(isTelemetryOnlyDiff(mixedTelemetryDiff), false);

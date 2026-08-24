@@ -28,6 +28,8 @@ import { getChestMaterialPool } from "./rules/material_rules.js";
 import { getItemBaseId } from "./rules/item_rules.js";
 import { trackChestAction, trackChestSmashResult } from "./telemetry.js";
 
+// balance-impact: none — this change adds only the chest phase/state boundary;
+// reward and trap formulas remain covered by the chest balance mapping.
 export const CHEST_PHASES = Object.freeze({
   MENU: "menu",
   DISARM_SELECT: "disarm_select",

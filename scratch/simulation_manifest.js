@@ -163,6 +163,21 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/error_context.js", "src/controls_guard.js",
     "src/runtime_diagnostics.js", "src/telemetry.js", "src/spell_menu.js"
   ]),
+  // A one-off no-impact declaration is recognized only when its marker is
+  // added in the same production diff. This keeps mapped modules such as
+  // chest.js balance-covered for later formula or reward changes.
+  balanceImpactNoneDiffs: Object.freeze([
+    {
+      pattern: "src/chest.js",
+      marker: "// balance-impact: none",
+      reason: "chest phase and transient-state boundary only; reward and trap formulas remain mapped"
+    },
+    {
+      pattern: "src/state/save_payload.js",
+      marker: "// balance-impact: none",
+      reason: "save/load boundary only; reward and trap formulas remain in their owning modules"
+    }
+  ].map(declaration => Object.freeze({ ...declaration }))),
   // Exact paths whose current callers may receive telemetry-only edits. A
   // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
   telemetryOnlyPaths: Object.freeze([
@@ -317,6 +332,17 @@ export function validateSimulationManifest(manifest = SIMULATION_MANIFEST) {
   for (const pattern of manifest?.telemetryOnlyPaths || []) {
     if (typeof pattern !== "string" || !pattern || pattern.includes("*")) {
       errors.push(`telemetry-only path must be exact: ${pattern || "<missing>"}`);
+    }
+  }
+  for (const declaration of manifest?.balanceImpactNoneDiffs || []) {
+    if (!declaration || typeof declaration !== "object" || typeof declaration.pattern !== "string" || !declaration.pattern || declaration.pattern.includes("*")) {
+      errors.push(`balance-impact none diff path must be exact: ${declaration?.pattern || "<missing>"}`);
+    }
+    if (typeof declaration?.marker !== "string" || !declaration.marker) {
+      errors.push(`balance-impact none diff marker is missing: ${declaration?.pattern || "<missing>"}`);
+    }
+    if (typeof declaration?.reason !== "string" || !declaration.reason.trim()) {
+      errors.push(`balance-impact none diff reason is missing: ${declaration?.pattern || "<missing>"}`);
     }
   }
   return errors;
@@ -764,6 +790,15 @@ function hasTelemetryAnchor(diff) {
   });
 }
 
+function hasBalanceImpactNoneDeclaration(diff, file, manifest) {
+  if (typeof diff !== "string" || !diff.trim()) return false;
+  return (manifest.balanceImpactNoneDiffs || []).some(declaration =>
+    matches(declaration.pattern, file) && diff.split(/\r?\n/).some(line =>
+      line.startsWith("+") && !line.startsWith("+++") && line.includes(declaration.marker)
+    )
+  );
+}
+
 export function isTelemetryOnlyDiff(diff, { file = null } = {}) {
   if (typeof diff !== "string" || !diff.trim()) return false;
   const hunks = [];
@@ -819,6 +854,11 @@ export function analyzeBalanceImpact(
     const balanceRule = (manifest.balanceImpactPaths || []).find(rule => matches(rule.pattern, file));
     const balanceImpactNone = (manifest.balanceImpactNone || []).some(pattern => matches(pattern, file));
     const telemetryOnlyPath = (manifest.telemetryOnlyPaths || []).some(pattern => matches(pattern, file));
+    const balanceImpactNoneDiff = hasBalanceImpactNoneDeclaration(diff, file, manifest);
+    if (balanceImpactNoneDiff) {
+      impacts.push({ file, domains: [], balanceImpactNone: true, runtimeUnsupported: [], runtimeUnfired: [] });
+      continue;
+    }
     if (!balanceRule && !balanceImpactNone && !telemetryOnlyPath) {
       errors.push(`${file}: unknown production path; declare balance-impact domains or explicit balance-impact: none`);
       continue;

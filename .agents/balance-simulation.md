@@ -55,6 +55,17 @@ Recursive `src/data/**`, `src/rules/**`, `src/systems/**`, and
 files are classified, and a new or unlisted production path must receive an
 explicit domain mapping before it can pass the gate.
 
+State-transition or persistence-only changes may use a one-off
+`// balance-impact: none` declaration in the changed production diff. The
+declaration is registered in `balanceImpactNoneDiffs` with a reason and is
+recognized only when the marker is newly added for that diff. This prevents a
+mapped path such as `src/chest.js` from being globally exempted: later chest
+reward, trap, drop, or economy changes without the marker still use the normal
+balance-domain mapping and runtime-evidence checks. The Issue #832 chest phase
+and save-payload changes use this classification because they alter state
+boundaries and navigation persistence, not reward/trap formulas or balance
+constants.
+
 ## Agent Skills
 
 - No skill is mandatory by default; prioritize deterministic source, data, and

@@ -3,6 +3,8 @@ import { SAVE_VERSION } from "./save_migrations.js";
 import { menuContext, menuHistory } from "../navigation.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 
+// balance-impact: none — this change is a persistence boundary only; reward
+// and trap formulas remain covered by their owning modules.
 // 一時オーバーレイ状態は付随コンテキストが永続化されないため、そのまま保存すると
 // 再開時に壊れる。基底画面へ畳んでから保存する。
 //
