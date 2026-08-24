@@ -134,6 +134,15 @@ function clearSelection() {
   equipState.selectedIsEquipped = false;
 }
 
+export function resetEquipState() {
+  equipState.mode = "equip";
+  equipState.filter = "all";
+  equipState.actorIdx = 0;
+  clearSelection();
+  equipState.listScrollTop = 0;
+  equipState.prevGameState = null;
+}
+
 function isEquipmentItem(item) {
   return item && (item.type === "weapon" || item.type === "shield" || item.type === "armor" || item.type === "accessory");
 }

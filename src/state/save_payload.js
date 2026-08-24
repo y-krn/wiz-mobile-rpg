@@ -1,7 +1,21 @@
 import { markMapChanged, state } from "./state_core.js";
-import { SAVE_VERSION } from "./save_migrations.js";
+import { SAVE_VERSION, normalizeSavePayload } from "./save_migrations.js";
 import { menuContext, menuHistory } from "../navigation.js";
+import { resetEquipState } from "../equip.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
+
+const STABLE_PERSISTED_GAME_STATES = new Set([
+  "town", "explore", "combat", "result", "gameover", "victory"
+]);
+const DEFAULT_MENU_CONTEXT = Object.freeze({
+  type: "",
+  actorIdx: -1,
+  spellName: "",
+  itemKey: "",
+  itemIdx: -1,
+  prevGameState: null,
+  slot: ""
+});
 
 // balance-impact: none — this change is a persistence boundary only; reward
 // and trap formulas remain covered by their owning modules.
@@ -19,12 +33,36 @@ import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 // - "trap_encounter": activeTrapState が未保存。gameState="trap_encounter" のまま保存すると
 //   再開時に罠UIが表示されず、罠操作パネルだけ出て操作不能になる。罠は探索中のみ発生する
 //   ため explore へ畳む(罠マス上で再開し、踏み直せば罠が再発生する)。
+function getStableFallbackGameState() {
+  return state.currentRun?.runSeed && !state.currentRun.returnReason ? "explore" : "town";
+}
+
+function hasUsableCombatState(combatState) {
+  return combatState && typeof combatState === "object" && !Array.isArray(combatState) &&
+    Array.isArray(combatState.monsters) &&
+    combatState.monsters.length > 0 &&
+    combatState.monsters.every(monster => monster && typeof monster === "object" && !Array.isArray(monster));
+}
+
+function resolveStableGameState(candidate) {
+  if (!STABLE_PERSISTED_GAME_STATES.has(candidate)) return null;
+  if (candidate === "combat" && !hasUsableCombatState(state.combatState)) {
+    return getStableFallbackGameState();
+  }
+  return candidate;
+}
+
 function resolvePersistedGameState() {
   if (state.chestState?.fromDrop) return "submenu";
+  if (state.chestState) return "explore";
   if (state.gameState === "chest") return "explore";
   if (state.gameState === "trap_encounter") return "explore";
-  if (state.gameState !== "submenu") return state.gameState;
-  if (menuContext.prevGameState) return menuContext.prevGameState;
+  if (state.gameState === "equip_overlay") return "explore";
+  if (state.gameState !== "submenu") {
+    return resolveStableGameState(state.gameState) || getStableFallbackGameState();
+  }
+  const stableParent = resolveStableGameState(menuContext.prevGameState);
+  if (stableParent) return stableParent;
   const t = menuContext.type || "";
   if (
     t.startsWith("castle") ||
@@ -33,9 +71,13 @@ function resolvePersistedGameState() {
   ) {
     return "town";
   }
-  if (t.startsWith("combat")) return "combat";
+  if (t.startsWith("combat")) {
+    return hasUsableCombatState(state.combatState)
+      ? "combat"
+      : getStableFallbackGameState();
+  }
   if (t.startsWith("milestone")) return "explore";
-  return "explore";
+  return getStableFallbackGameState();
 }
 
 export function createSavePayload() {
@@ -46,16 +88,16 @@ export function createSavePayload() {
     return persistedChar;
   });
 
-  const persistedCombatState = state.combatState
+  const persistedCombatState = hasUsableCombatState(state.combatState)
     ? {
       ...state.combatState,
-      monsters: state.combatState.monsters?.map(monster => {
+      monsters: state.combatState.monsters.map(monster => {
         const persistedMonster = { ...monster };
         normalizeStatusEffectTarget(persistedMonster);
         return persistedMonster;
       })
     }
-    : state.combatState;
+    : null;
 
   const persistedChestState = state.chestState?.fromDrop
     ? { ...state.chestState, phase: "menu" }
@@ -109,7 +151,23 @@ export function createSavePayload() {
   };
 }
 
+function resetTransientState() {
+  state.transitioning = false;
+  state.controlsGuardUntil = 0;
+  state.activeTrapState = null;
+  resetEquipState();
+  Object.keys(menuContext).forEach(key => delete menuContext[key]);
+  Object.assign(menuContext, DEFAULT_MENU_CONTEXT);
+  menuContext.prevGameState = null;
+  menuHistory.length = 0;
+}
+
 export function applySavePayload(data) {
+  // Normalize the complete payload before mutating state. This keeps malformed
+  // direct callers atomic and leaves loadGame's existing fallback path in
+  // control when a payload cannot be safely normalized.
+  data = normalizeSavePayload(data);
+  resetTransientState();
   state.x = data.x;
   state.y = data.y;
   state.dir = data.dir;

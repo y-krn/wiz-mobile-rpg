@@ -25,6 +25,18 @@ phase data is omitted and reload starts from `explore` with no `chestState`; an
 unopened `fromDrop` chest must retain its reward/trap state and reload into the
 chest menu.
 
+## Save/apply boundary regression matrix (#835)
+
+Save tests must cover a full JSON round trip, a current-version payload with
+missing optional fields, legacy unknown fields, malformed top-level/nested
+values, and backup recovery when the primary save is unreadable. Assertions
+must verify that only `SAVE_PAYLOAD_FIELDS` are written, that menu/equipment
+overlay context, transition guards, map revision, and session-only counters do
+not leak into the payload, and that ordinary chest/trap phases reload as
+`explore`. Malformed direct application must not mutate `state` before the
+existing `loadGame()` fallback path handles the payload. Active-run map damage
+remains a separate fail-closed recovery path so #799 progress is preserved.
+
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with the changed

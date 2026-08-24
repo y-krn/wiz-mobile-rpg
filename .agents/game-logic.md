@@ -38,6 +38,43 @@ event to re-enter: its reward/trap state is saved, its phase is normalized to
 and reward bookkeeping out of later phases while preserving reward, trap,
 telemetry, and navigation behavior.
 
+## Save/Apply State-Shape Contract (#835)
+
+`createSavePayload()` is the persistence allowlist. The fields in
+`SAVE_PAYLOAD_FIELDS` are persisted; unknown keys and the following runtime-only
+fields are intentionally omitted: `menuContext`, `menuHistory`, `equipState`,
+`transitioning`, `controlsGuardUntil`, `mapRevision`, and `sessionMaxFloor`.
+`gameState` is persisted only as a stable screen (`town`, `explore`, `combat`,
+`result`, `gameover`, or `victory`). Submenu, equipment-overlay, ordinary chest,
+and trap-encounter state is flattened to a stable screen. The exception is an
+unopened `chestState.fromDrop`, which is persisted with phase `menu` because no
+map event can recreate it. Unknown direct screens and unsupported submenu parent
+screens fall back to `explore` during an active run and `town` otherwise.
+
+At the apply boundary, `normalizeSavePayload()` validates the top-level object,
+filters or defaults malformed collections, restores missing scalar defaults,
+and canonicalizes supported nested state before any mutation of `state`.
+`migrateSavePayload()` then applies current-version compatibility transforms:
+character equipment/spell defaults, affix/status metadata, run outcomes,
+retired workshop refunds, map cell defaults, and removed legacy fields. The
+current version remains `13`; unknown legacy fields are ignored, while an
+older/incompatible version or an unreadable payload uses `loadGame()`'s existing
+backup/fresh-game fallback.
+
+Persisted gameplay data includes coordinates, party/inventory, maps and visited
+maps, exploration timers, chest/kill/run records, codex/progression, seed,
+supported combat state, roaming/noise state, storage/workshop/materials/key
+items, dungeon memory, and the last 30 log entries. Defaults cover missing
+optional values (empty collections, town/standard coordinates, zero timers,
+fresh codex/records, and the standard dungeon-memory seed). `floorChestsTotal`
+is derived from loaded maps when absent. Combat is resumed only when it has a
+non-empty, object-shaped monster list; otherwise the screen falls back safely.
+Run-history and death-log arrays discard non-record entries and repair malformed
+archive fields while preserving valid legacy records. A malformed active-run
+map is preserved for `RunFloorRecoveryError` handling rather than silently
+regenerated. Normalization starts from a structured clone so migration repairs
+cannot mutate caller-owned or state-shared nested data.
+
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with the mechanic
