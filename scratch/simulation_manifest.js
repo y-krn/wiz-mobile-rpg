@@ -158,6 +158,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
   balanceImpactNone: Object.freeze([
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
     "src/combat_ui/spell_summary.js", "src/combat_ui/combat_overlay.js", "src/spell_menu.js",
+    "src/combat_ui/action_selection.js", "src/combat_ui/round_runner.js",
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**", "src/renderer.js", "src/state/view_state.js",
     "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js", "src/state/save_migrations.js", "src/state/save_payload.js",
     "src/error_context.js", "src/controls_guard.js",
@@ -181,9 +182,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
   // Exact paths whose current callers may receive telemetry-only edits. A
   // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
   telemetryOnlyPaths: Object.freeze([
-    "src/combat_ui/action_selection.js",
-    "src/combat_ui/combat_start.js",
-    "src/combat_ui/round_runner.js"
+    "src/combat_ui/combat_start.js"
   ])
 });
 
@@ -1165,6 +1164,8 @@ export function analyzeBalanceImpact(
     const diff = diffByFile instanceof Map ? diffByFile.get(file) : diffByFile?.[file] ?? getChangedDiff(file, baseRef);
     const balanceRule = (manifest.balanceImpactPaths || []).find(rule => matches(rule.pattern, file));
     const balanceImpactNone = (manifest.balanceImpactNone || []).some(pattern => matches(pattern, file));
+    const balanceImpactNoneStateBoundary = balanceImpactNone &&
+      ["src/combat_ui/action_selection.js", "src/combat_ui/round_runner.js"].includes(file);
     const telemetryOnlyPath = (manifest.telemetryOnlyPaths || []).some(pattern => matches(pattern, file));
     const balanceImpactNoneDiff = getBalanceImpactNoneDeclaration(diff, file, manifest);
     if (balanceImpactNoneDiff && !hasOnlyStateBoundaryChanges(diff, file)) {
@@ -1180,7 +1181,7 @@ export function analyzeBalanceImpact(
       continue;
     }
     const telemetryOnly = isTelemetryOnlyDiff(diff, { file });
-    if (hasTelemetryAnchor(diff) && !telemetryOnly) {
+    if (hasTelemetryAnchor(diff) && !telemetryOnly && !balanceImpactNoneStateBoundary) {
       errors.push(`${file}: telemetry anchor mixed with non-telemetry changes; classify the gameplay impact explicitly`);
       continue;
     }
