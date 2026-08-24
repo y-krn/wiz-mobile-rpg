@@ -149,10 +149,7 @@ function normalizePersistedGameState(gameState, currentRun, combatState) {
   }
   if (PERSISTED_GAME_STATES.has(gameState)) return gameState;
   if (["equip_overlay", "chest", "trap_encounter"].includes(gameState)) return "explore";
-  if (gameState === "submenu") return isUsableCombatState(combatState)
-    ? "combat"
-    : (currentRun?.runSeed ? "explore" : "town");
-  if (isUsableCombatState(combatState)) return "combat";
+  if (gameState === "submenu") return currentRun?.runSeed ? "explore" : "town";
   if (currentRun?.runSeed && !currentRun.returnReason) return "explore";
   return "town";
 }

@@ -3,6 +3,7 @@ import { applySavePayload, createSavePayload } from "../src/state/save_payload.j
 import { SAVE_PAYLOAD_FIELDS, SAVE_VERSION, migrateSavePayload } from "../src/state/save_migrations.js";
 import { SOLO_CLASSES, createDefaultCurrentRun, createSoloCharacter, loadGame, state } from "../src/state.js";
 import { menuContext, menuHistory, openGuardedSubmenu } from "../src/navigation.js";
+import { equipState } from "../src/equip.js";
 import { EVENT_TYPES } from "../src/data.js";
 import { applyFloorTransitionHeal, checkCellEvents } from "../src/movement.js";
 
@@ -172,6 +173,18 @@ check("combat screens require a usable combat payload", () => {
   });
   assert.equal(malformed.combatState, null);
   assert.equal(malformed.gameState, "explore");
+
+  const unsupportedWithCombat = migrateSavePayload({
+    ...validPayload,
+    gameState: "future_screen"
+  });
+  assert.equal(unsupportedWithCombat.gameState, "explore");
+
+  const submenuWithCombat = migrateSavePayload({
+    ...validPayload,
+    gameState: "submenu"
+  });
+  assert.equal(submenuWithCombat.gameState, "explore");
 });
 
 check("applying a save clears omitted transient runtime state", () => {
@@ -179,6 +192,12 @@ check("applying a save clears omitted transient runtime state", () => {
   state.transitioning = true;
   state.controlsGuardUntil = Date.now() + 10000;
   state.activeTrapState = { type: "poison needle" };
+  equipState.selectedIdx = 2;
+  equipState.selectedKey = "LONG_SWORD";
+  equipState.selectedSlot = "weapon";
+  equipState.selectedActorIdx = 0;
+  equipState.selectedIsEquipped = true;
+  equipState.prevGameState = "town";
   menuContext.type = "combat_target_enemy";
   menuContext.targetType = "enemy";
   menuContext.prevGameState = "combat";
@@ -190,6 +209,12 @@ check("applying a save clears omitted transient runtime state", () => {
   assert.equal(state.transitioning, false);
   assert.equal(state.controlsGuardUntil, 0);
   assert.equal(state.activeTrapState, null);
+  assert.equal(equipState.selectedIdx, -1);
+  assert.equal(equipState.selectedKey, null);
+  assert.equal(equipState.selectedSlot, null);
+  assert.equal(equipState.selectedActorIdx, -1);
+  assert.equal(equipState.selectedIsEquipped, false);
+  assert.equal(equipState.prevGameState, null);
   assert.deepEqual(menuContext, {
     type: "",
     actorIdx: -1,

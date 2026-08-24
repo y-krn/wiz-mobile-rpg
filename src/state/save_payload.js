@@ -1,6 +1,7 @@
 import { markMapChanged, state } from "./state_core.js";
 import { SAVE_VERSION, normalizeSavePayload } from "./save_migrations.js";
 import { menuContext, menuHistory } from "../navigation.js";
+import { resetEquipState } from "../equip.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 
 const STABLE_PERSISTED_GAME_STATES = new Set([
@@ -154,8 +155,10 @@ function resetTransientState() {
   state.transitioning = false;
   state.controlsGuardUntil = 0;
   state.activeTrapState = null;
+  resetEquipState();
   Object.keys(menuContext).forEach(key => delete menuContext[key]);
   Object.assign(menuContext, DEFAULT_MENU_CONTEXT);
+  menuContext.prevGameState = null;
   menuHistory.length = 0;
 }
 
