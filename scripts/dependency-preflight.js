@@ -49,6 +49,15 @@ function writeStamp(stampPath, lockfileSha256, fsImpl) {
   );
 }
 
+function packageFingerprint(status, fsImpl) {
+  if (!status.ready) return null;
+  try {
+    return hashFile(status.packagePath, fsImpl);
+  } catch {
+    return null;
+  }
+}
+
 export function inspectDependencies({ root = process.cwd(), fsImpl = fs } = {}) {
   const { packageLockPath, packagePath, stampPath } = getPaths(root);
   if (!fsImpl.existsSync(packageLockPath)) {
@@ -148,6 +157,10 @@ export function runDependencyPreflight(options = {}) {
 // unstamped trees on the install path just like ensureDependencies.
 export function dependencyPreflight({ repoRoot = process.cwd(), install, log = console } = {}) {
   const status = inspectDependencies({ root: repoRoot });
+  if (!status.lockfileSha256) {
+    throw new DependencyPreflightError(recoveryMessage(repoRoot, "package-lock.json is missing."));
+  }
+
   const markerExists = fs.existsSync(status.stampPath);
   const lockChanged = markerExists && !status.stampMatches;
   if (status.ready && markerExists && !lockChanged) {
@@ -155,10 +168,46 @@ export function dependencyPreflight({ repoRoot = process.cwd(), install, log = c
   }
   if (typeof install === "function") {
     log.log?.(`[dependency-preflight] installing dependencies in ${repoRoot}`);
-    const result = install(repoRoot);
+    const beforePackageFingerprint = packageFingerprint(status, fs);
+    let result;
+    try {
+      result = install(repoRoot);
+    } catch (error) {
+      throw new DependencyPreflightError(
+        recoveryMessage(repoRoot, `dependency installation failed: ${error.message}`),
+        { cause: error }
+      );
+    }
+
     const afterInstall = inspectDependencies({ root: repoRoot });
-    if (afterInstall.ready) writeStamp(afterInstall.stampPath, afterInstall.lockfileSha256, fs);
-    return { installed: true, result, ...inspectDependencies({ root: repoRoot }) };
+    if (!afterInstall.ready) {
+      throw new DependencyPreflightError(
+        recoveryMessage(repoRoot, `${REQUIRED_PACKAGE}/package.json is still missing after the compatibility installer.`)
+      );
+    }
+
+    // Legacy installers do not provide npm's verification result. If the
+    // package was already present, require its metadata to change before
+    // trusting the callback and recording a stamp.
+    const afterPackageFingerprint = packageFingerprint(afterInstall, fs);
+    if (status.ready && beforePackageFingerprint === afterPackageFingerprint) {
+      throw new DependencyPreflightError(
+        recoveryMessage(
+          repoRoot,
+          `${REQUIRED_PACKAGE}/package.json was unchanged by the compatibility installer; the dependency tree could not be verified.`
+        )
+      );
+    }
+
+    try {
+      writeStamp(afterInstall.stampPath, afterInstall.lockfileSha256, fs);
+    } catch (error) {
+      throw new DependencyPreflightError(
+        recoveryMessage(repoRoot, `dependency stamp could not be written: ${error.message}`),
+        { cause: error }
+      );
+    }
+    return { installed: true, result, ...afterInstall };
   }
   const result = ensureDependencies({ root: repoRoot, log: message => log.log?.(message) });
   return { installed: result.action === "installed", ...result };
