@@ -953,7 +953,7 @@ for (const vp of VIEWPORTS) {
     });
 
     const results = [];
-    for (const partyShape of ['null', 'sparse']) {
+    for (const partyShape of ['null', 'sparse', 'unknown-status']) {
       await page.evaluate(async ({ payload, partyShape }) => {
         const { state } = await import('/src/state.js');
         state.transitioning = true;
@@ -965,6 +965,7 @@ for (const vp of VIEWPORTS) {
         };
         if (partyShape === 'null') data.party = null;
         if (partyShape === 'sparse') data.party = [null];
+        if (partyShape === 'unknown-status') data.party = [{ ...data.party[0], status: 'confused' }];
         localStorage.setItem('mobile_wiz_rpg_autosave', JSON.stringify(data));
       }, { payload: basePayload, partyShape });
       await page.reload();
@@ -1008,6 +1009,17 @@ for (const vp of VIEWPORTS) {
         hasCombat: false,
         hasStructurallyUsableCombatParty: false,
         partyLength: 0,
+        hasUsableCombatActor: false,
+        savedGameState: 'explore',
+        savedCombatState: null,
+      },
+      {
+        gameState: 'explore',
+        combatState: null,
+        partyStatus: 'confused',
+        hasCombat: false,
+        hasStructurallyUsableCombatParty: false,
+        partyLength: 1,
         hasUsableCombatActor: false,
         savedGameState: 'explore',
         savedCombatState: null,

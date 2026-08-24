@@ -30,6 +30,7 @@ const SUBMENU_OVERLAY_TYPES = new Set([
 const SPELL_OVERLAY_TYPES = new Set(["spell_caster_select", "spell_select", "spell_target_ally"]);
 const TOWN_SUBMENU_TYPES = new Set(["castle_main", "castle_death_logs", "workshop_main"]);
 const SAFE_PREVIOUS_STATES = new Set(GAME_STATES.filter(gameState => gameState !== "submenu"));
+const COMBAT_PARTY_STATUSES = new Set(["ok", "poisoned", "blind", "dead"]);
 
 function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -72,7 +73,7 @@ export function hasStructurallyUsableCombatParty(party) {
   if (!Array.isArray(party) || party.length === 0) return false;
   for (let index = 0; index < party.length; index++) {
     const actor = party[index];
-    if (!Object.hasOwn(party, index) || !isRecord(actor) || typeof actor.name !== "string" || typeof actor.status !== "string") return false;
+    if (!Object.hasOwn(party, index) || !isRecord(actor) || typeof actor.name !== "string" || !COMBAT_PARTY_STATUSES.has(actor.status)) return false;
   }
   return true;
 }
