@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { applySavePayload, createSavePayload } from "../src/state/save_payload.js";
 import { SAVE_PAYLOAD_FIELDS, SAVE_VERSION, migrateSavePayload } from "../src/state/save_migrations.js";
 import { SOLO_CLASSES, createDefaultCurrentRun, createSoloCharacter, loadGame, state } from "../src/state.js";
-import { menuContext, openGuardedSubmenu } from "../src/navigation.js";
+import { menuContext, menuHistory, openGuardedSubmenu } from "../src/navigation.js";
 import { EVENT_TYPES } from "../src/data.js";
 import { applyFloorTransitionHeal, checkCellEvents } from "../src/movement.js";
 
@@ -136,6 +136,16 @@ check("unknown screens collapse to stable save screens", () => {
 });
 
 check("combat screens require a usable combat payload", () => {
+  state.currentRun = null;
+  state.gameState = "combat";
+  state.combatState = null;
+  assert.equal(createSavePayload().gameState, "town");
+
+  state.currentRun = createDefaultCurrentRun();
+  state.currentRun.runSeed = "SAVE-CONTRACT-COMBAT";
+  state.combatState = { phase: "choose_actions", monsters: [{ name: "スライム", hp: 5 }] };
+  assert.equal(createSavePayload().gameState, "combat");
+
   const validPayload = {
     ...createSavePayload(),
     gameState: "combat",
@@ -153,7 +163,66 @@ check("combat screens require a usable combat payload", () => {
     combatState: { phase: "choose_actions", monsters: null }
   });
   assert.equal(malformed.combatState, null);
-  assert.equal(malformed.gameState, "town");
+  assert.equal(malformed.gameState, "explore");
+});
+
+check("applying a save clears omitted transient runtime state", () => {
+  state.gameState = "town";
+  state.transitioning = true;
+  state.controlsGuardUntil = Date.now() + 10000;
+  state.activeTrapState = { type: "poison needle" };
+  menuContext.type = "combat_target_enemy";
+  menuContext.targetType = "enemy";
+  menuContext.prevGameState = "combat";
+  menuHistory.push({ type: "stale_menu" });
+
+  const payload = createSavePayload();
+  applySavePayload(JSON.parse(JSON.stringify(payload)));
+
+  assert.equal(state.transitioning, false);
+  assert.equal(state.controlsGuardUntil, 0);
+  assert.equal(state.activeTrapState, null);
+  assert.deepEqual(menuContext, {
+    type: "",
+    actorIdx: -1,
+    spellName: "",
+    itemKey: "",
+    itemIdx: -1,
+    prevGameState: null,
+    slot: ""
+  });
+  assert.equal(menuHistory.length, 0);
+});
+
+check("malformed current-run collections receive safe defaults", () => {
+  const validQuest = { id: "depth", currentValue: 1, targetValue: 2, completed: false };
+  const normalized = migrateSavePayload({
+    ...createSavePayload(),
+    currentRun: {
+      ...createDefaultCurrentRun(),
+      quests: [null, validQuest],
+      itemsFound: null,
+      equipmentFound: "invalid",
+      floorsVisited: null,
+      floorSteps: null,
+      materials: null,
+      bankedMaterials: null,
+      campRested: null,
+      defeatsByRole: null,
+      codexRewards: null
+    }
+  });
+
+  assert.deepEqual(normalized.currentRun.quests, [validQuest]);
+  assert.deepEqual(normalized.currentRun.itemsFound, []);
+  assert.deepEqual(normalized.currentRun.equipmentFound, []);
+  assert.deepEqual(normalized.currentRun.floorsVisited, []);
+  assert.deepEqual(normalized.currentRun.floorSteps, {});
+  assert.deepEqual(normalized.currentRun.materials, {});
+  assert.deepEqual(normalized.currentRun.bankedMaterials, {});
+  assert.deepEqual(normalized.currentRun.campRested, {});
+  assert.deepEqual(normalized.currentRun.defeatsByRole, {});
+  assert.deepEqual(normalized.currentRun.codexRewards, {});
 });
 
 check("malformed history entries are filtered without changing valid records", () => {

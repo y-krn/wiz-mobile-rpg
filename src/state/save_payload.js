@@ -6,6 +6,15 @@ import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 const STABLE_PERSISTED_GAME_STATES = new Set([
   "town", "explore", "combat", "result", "gameover", "victory"
 ]);
+const DEFAULT_MENU_CONTEXT = Object.freeze({
+  type: "",
+  actorIdx: -1,
+  spellName: "",
+  itemKey: "",
+  itemIdx: -1,
+  prevGameState: null,
+  slot: ""
+});
 
 // balance-impact: none — this change is a persistence boundary only; reward
 // and trap formulas remain covered by their owning modules.
@@ -27,6 +36,20 @@ function getStableFallbackGameState() {
   return state.currentRun?.runSeed && !state.currentRun.returnReason ? "explore" : "town";
 }
 
+function hasUsableCombatState(combatState) {
+  return combatState && Array.isArray(combatState.monsters) &&
+    combatState.monsters.length > 0 &&
+    combatState.monsters.every(monster => monster && typeof monster === "object" && !Array.isArray(monster));
+}
+
+function resolveStableGameState(candidate) {
+  if (!STABLE_PERSISTED_GAME_STATES.has(candidate)) return null;
+  if (candidate === "combat" && !hasUsableCombatState(state.combatState)) {
+    return getStableFallbackGameState();
+  }
+  return candidate;
+}
+
 function resolvePersistedGameState() {
   if (state.chestState?.fromDrop) return "submenu";
   if (state.chestState) return "explore";
@@ -34,13 +57,10 @@ function resolvePersistedGameState() {
   if (state.gameState === "trap_encounter") return "explore";
   if (state.gameState === "equip_overlay") return "explore";
   if (state.gameState !== "submenu") {
-    return STABLE_PERSISTED_GAME_STATES.has(state.gameState)
-      ? state.gameState
-      : getStableFallbackGameState();
+    return resolveStableGameState(state.gameState) || getStableFallbackGameState();
   }
-  if (STABLE_PERSISTED_GAME_STATES.has(menuContext.prevGameState)) {
-    return menuContext.prevGameState;
-  }
+  const stableParent = resolveStableGameState(menuContext.prevGameState);
+  if (stableParent) return stableParent;
   const t = menuContext.type || "";
   if (
     t.startsWith("castle") ||
@@ -49,7 +69,11 @@ function resolvePersistedGameState() {
   ) {
     return "town";
   }
-  if (t.startsWith("combat")) return "combat";
+  if (t.startsWith("combat")) {
+    return hasUsableCombatState(state.combatState)
+      ? "combat"
+      : getStableFallbackGameState();
+  }
   if (t.startsWith("milestone")) return "explore";
   return getStableFallbackGameState();
 }
@@ -125,11 +149,21 @@ export function createSavePayload() {
   };
 }
 
+function resetTransientState() {
+  state.transitioning = false;
+  state.controlsGuardUntil = 0;
+  state.activeTrapState = null;
+  Object.keys(menuContext).forEach(key => delete menuContext[key]);
+  Object.assign(menuContext, DEFAULT_MENU_CONTEXT);
+  menuHistory.length = 0;
+}
+
 export function applySavePayload(data) {
   // Normalize the complete payload before mutating state. This keeps malformed
   // direct callers atomic and leaves loadGame's existing fallback path in
   // control when a payload cannot be safely normalized.
   data = normalizeSavePayload(data);
+  resetTransientState();
   state.x = data.x;
   state.y = data.y;
   state.dir = data.dir;

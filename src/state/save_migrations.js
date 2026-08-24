@@ -1,6 +1,6 @@
 import { START_X, START_Y, DIR_N, MAP_WIDTH, MAP_HEIGHT } from "../data.js";
 import { generateRandomMap, removeIsolatedInternalWalls } from "../map_generator.js";
-import { generateRandomSeed, createDefaultCodex } from "./initial_state.js";
+import { generateRandomSeed, createDefaultCodex, createDefaultCurrentRun } from "./initial_state.js";
 import { getIdentificationGambleProfile } from "../rules/identification_rules.js";
 import { normalizeRecords } from "./records_state.js";
 import { findMapCellByType } from "../rules/map_queries.js";
@@ -218,6 +218,32 @@ function normalizeDeathLogEntry(entry) {
   return normalized;
 }
 
+function normalizeCurrentRun(run) {
+  if (!isRecord(run)) return null;
+  const normalized = normalizeRunOutcome(run);
+  const defaults = createDefaultCurrentRun();
+
+  Object.entries(defaults).forEach(([key, defaultValue]) => {
+    if (Array.isArray(defaultValue)) {
+      normalized[key] = arrayOr(normalized[key]);
+    } else if (isRecord(defaultValue)) {
+      normalized[key] = recordOr(normalized[key], { ...defaultValue });
+    } else if (typeof defaultValue === "number") {
+      normalized[key] = numberOr(normalized[key], defaultValue);
+    } else if (typeof defaultValue === "string") {
+      normalized[key] = typeof normalized[key] === "string" ? normalized[key] : defaultValue;
+    } else {
+      normalized[key] = normalized[key] ?? defaultValue;
+    }
+  });
+
+  normalized.quests = normalized.quests.filter(isRecord);
+  normalized.deathLogs = normalized.deathLogs
+    .map(normalizeDeathLogEntry)
+    .filter(isRecord);
+  return normalized;
+}
+
 function backfillMonsterCriticalEligibility(data) {
   const monsters = data.combatState?.monsters;
   if (!Array.isArray(monsters)) return data;
@@ -375,18 +401,9 @@ export function normalizeSavePayload(data) {
   normalized.firstKills = normalized.firstKills.filter(name => !/の分裂体\d+/.test(name));
   normalized.currentRun = currentRun;
   if (normalized.currentRun) {
-    normalized.currentRun = normalizeRunOutcome(normalized.currentRun);
+    normalized.currentRun = normalizeCurrentRun(normalized.currentRun);
     delete normalized.currentRun.seenOmenFloors;
     delete normalized.currentRun.matchedOmenFloors;
-    normalized.currentRun.quests ??= [];
-    normalized.currentRun.defeatsByRole ??= {};
-    normalized.currentRun.codexRewards ??= {};
-    normalized.currentRun.recordResult ??= null;
-    normalized.currentRun.pendingCampEntryFloor ??= null;
-    normalized.currentRun.completedCampEntryFloors ??= [];
-    normalized.currentRun.deathLogs = arrayOr(normalized.currentRun.deathLogs)
-      .map(normalizeDeathLogEntry)
-      .filter(isRecord);
   }
   normalized.records = normalizeRecords(recordOr(data.records, {}));
   normalized.unlockedMilestones = Array.from(new Set(arrayOr(data.unlockedMilestones)))
