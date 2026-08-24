@@ -882,49 +882,177 @@ function getChangedCodeBlocks(diff) {
   return blocks;
 }
 
-function stripCommentsPreservingStrings(text) {
-  let normalized = "";
-  let quote = null;
-  let escaped = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-    if (quote) {
-      normalized += char;
-      if (escaped) escaped = false;
-      else if (char === "\\") escaped = true;
-      else if (char === quote) quote = null;
-      continue;
-    }
-    if (char === "\"" || char === "'" || char === "`") {
-      quote = char;
-      normalized += char;
-      continue;
-    }
-    if (char === "/" && next === "/") {
-      normalized += " ";
-      index += 2;
-      while (index < text.length && text[index] !== "\n") index += 1;
-      if (index < text.length) normalized += "\n";
-      continue;
-    }
-    if (char === "/" && next === "*") {
-      normalized += " ";
-      index += 2;
-      while (index < text.length && !(text[index] === "*" && text[index + 1] === "/")) {
-        if (text[index] === "\n") normalized += "\n";
+function maskLiteralsAndNormalizeComments(text) {
+  const maskCharacter = char => char === "\n" ? "\n" : " ";
+  let processCode;
+
+  const maskQuotedLiteral = (start, quote) => {
+    let result = quote;
+    let escaped = false;
+    let index = start + 1;
+    while (index < text.length) {
+      const char = text[index];
+      result += maskCharacter(char);
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quote) {
+        result += quote;
         index += 1;
+        break;
       }
       index += 1;
-      continue;
     }
-    normalized += char;
-  }
-  return normalized;
+    return { result, index };
+  };
+
+  const regexCanStart = code => {
+    const trimmed = code.trimEnd();
+    if (!trimmed) return true;
+    if (/[=(:,!&|?{}\[\];+\-*%^~<>]$/.test(trimmed)) return true;
+    return /(?:^|\s)(?:return|throw|case|delete|void|typeof|in|of)$/.test(trimmed);
+  };
+
+  const maskRegexLiteral = start => {
+    let result = "/";
+    let escaped = false;
+    let inCharacterClass = false;
+    let index = start + 1;
+    while (index < text.length) {
+      const char = text[index];
+      if (escaped) {
+        result += maskCharacter(char);
+        escaped = false;
+      } else if (char === "\\") {
+        result += " ";
+        escaped = true;
+      } else if (char === "[" && !inCharacterClass) {
+        result += " ";
+        inCharacterClass = true;
+      } else if (char === "]" && inCharacterClass) {
+        result += " ";
+        inCharacterClass = false;
+      } else if (char === "/" && !inCharacterClass) {
+        result += "/";
+        index += 1;
+        while (index < text.length && /[A-Za-z]/.test(text[index])) {
+          result += text[index];
+          index += 1;
+        }
+        break;
+      } else {
+        result += maskCharacter(char);
+      }
+      index += 1;
+    }
+    return { result, index };
+  };
+
+  const maskTemplateLiteral = start => {
+    let result = "`";
+    let escaped = false;
+    let index = start + 1;
+    while (index < text.length) {
+      const char = text[index];
+      const next = text[index + 1];
+      if (escaped) {
+        result += maskCharacter(char);
+        escaped = false;
+        index += 1;
+        continue;
+      }
+      if (char === "\\") {
+        result += " ";
+        escaped = true;
+        index += 1;
+        continue;
+      }
+      if (char === "`") {
+        result += "`";
+        return { result, index: index + 1 };
+      }
+      if (char === "$" && next === "{") {
+        const expression = processCode(index + 2, true);
+        result += "${" + expression.result;
+        index = expression.index;
+        if (text[index] === "}") {
+          result += "}";
+          index += 1;
+        }
+        continue;
+      }
+      result += maskCharacter(char);
+      index += 1;
+    }
+    return { result, index };
+  };
+
+  processCode = (start, stopAtBrace = false) => {
+    let result = "";
+    let braceDepth = 0;
+    let index = start;
+    while (index < text.length) {
+      const char = text[index];
+      const next = text[index + 1];
+      if (stopAtBrace && char === "}" && braceDepth === 0) return { result, index };
+      if (char === "{") {
+        braceDepth += 1;
+        result += char;
+        index += 1;
+        continue;
+      }
+      if (char === "}") {
+        braceDepth -= 1;
+        result += char;
+        index += 1;
+        continue;
+      }
+      if (char === "/" && next === "/") {
+        result += " ";
+        index += 2;
+        while (index < text.length && text[index] !== "\n") index += 1;
+        continue;
+      }
+      if (char === "/" && next === "*") {
+        result += " ";
+        index += 2;
+        while (index < text.length && !(text[index] === "*" && text[index + 1] === "/")) {
+          result += maskCharacter(text[index]);
+          index += 1;
+        }
+        index += 2;
+        continue;
+      }
+      if (char === "\"" || char === "'") {
+        const literal = maskQuotedLiteral(index, char);
+        result += literal.result;
+        index = literal.index;
+        continue;
+      }
+      if (char === "`") {
+        const literal = maskTemplateLiteral(index);
+        result += literal.result;
+        index = literal.index;
+        continue;
+      }
+      if (char === "/" && regexCanStart(result)) {
+        const literal = maskRegexLiteral(index);
+        result += literal.result;
+        index = literal.index;
+        continue;
+      }
+      result += char;
+      index += 1;
+    }
+    return { result, index };
+  };
+
+  return processCode(0).result;
 }
 
 function hasUnrecognizedBoundaryCall(block) {
-  const normalizedBlock = stripCommentsPreservingStrings(block);
+  const normalizedBlock = maskLiteralsAndNormalizeComments(block);
   for (const match of normalizedBlock.matchAll(CALL_EXPRESSION)) {
     const fullMatch = match[0];
     const callName = fullMatch.slice(0, fullMatch.lastIndexOf("(")).replace(/\s/g, "").replace(/\?\.$/, "").split(".").pop();

@@ -71,9 +71,11 @@ transient-state resets remain explicit exceptions for Issue #832. The checker
 also conservatively rejects computed Object/Reflect aggregate access and any
 unrecognized call whose direct argument is a boundary root, including aliases
 and optional calls (`fn?.(...)`); only the named boundary helpers can receive
-those roots. Before call detection, block and line comments are removed while
-string literals are preserved, so comment-separated ordinary and optional call
-spellings are covered without matching call-like text inside strings. This
+those roots. Before call detection, block and line comments are normalized;
+string, template, and regex literal contents are masked while their delimiters
+and template expressions remain available for real-call detection. This covers
+comment-separated ordinary and optional call spellings without matching
+call-like text inside literals. This
 prevents a mapped path such as `src/chest.js` from being globally exempted: later chest
 reward, trap, drop, or economy changes without the marker still use the normal
 balance-domain mapping and runtime-evidence checks. The Issue #832 chest phase

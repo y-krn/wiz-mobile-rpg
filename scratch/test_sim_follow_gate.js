@@ -223,6 +223,20 @@ for (const [label, mutation] of [
     `${label} mutation cannot use the state-boundary exemption`
   );
 }
+const stringLiteralCallDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,2 @@
++// balance-impact: none — state boundary only
++  const label = "someFn(state.chestState)";
+`;
+assert.doesNotThrow(
+  () => assertBalanceImpactCovered(
+    ["src/chest.js"],
+    SIMULATION_MANIFEST,
+    undefined,
+    { diffByFile: new Map([["src/chest.js", stringLiteralCallDiff]]) }
+  ),
+  "call-like text inside a string literal is not an executable boundary call"
+);
 assert.throws(
   () => assertBalanceImpactCovered(
     ["src/chest.js"],
