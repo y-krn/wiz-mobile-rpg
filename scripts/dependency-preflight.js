@@ -58,6 +58,17 @@ function packageFingerprint(status, fsImpl) {
   }
 }
 
+function verifyLegacyInstallResult(result, beforeInstall, afterInstall, packageJsonSha256) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return false;
+  const dependencyTree = result.dependencyTree;
+  return result.verified === true &&
+    result.lockfileSha256 === beforeInstall.lockfileSha256 &&
+    result.lockfileSha256 === afterInstall.lockfileSha256 &&
+    dependencyTree?.package === REQUIRED_PACKAGE &&
+    dependencyTree.ready === true &&
+    dependencyTree.packageJsonSha256 === packageJsonSha256;
+}
+
 export function inspectDependencies({ root = process.cwd(), fsImpl = fs } = {}) {
   const { packageLockPath, packagePath, stampPath } = getPaths(root);
   if (!fsImpl.existsSync(packageLockPath)) {
@@ -154,7 +165,11 @@ export function runDependencyPreflight(options = {}) {
 }
 
 // Compatibility API for small fixture tests and older local wrappers. Keep
-// unstamped trees on the install path just like ensureDependencies.
+// unstamped trees on the install path just like ensureDependencies. Legacy
+// installers must return this verification contract before a stamp is written:
+// { verified: true, lockfileSha256, dependencyTree: {
+//   package: REQUIRED_PACKAGE, ready: true, packageJsonSha256
+// } }. New callers should use ensureDependencies instead.
 export function dependencyPreflight({ repoRoot = process.cwd(), install, log = console } = {}) {
   const status = inspectDependencies({ root: repoRoot });
   if (!status.lockfileSha256) {
@@ -186,15 +201,21 @@ export function dependencyPreflight({ repoRoot = process.cwd(), install, log = c
       );
     }
 
-    // Legacy installers do not provide npm's verification result. If the
-    // package was already present, require its metadata to change before
-    // trusting the callback and recording a stamp.
     const afterPackageFingerprint = packageFingerprint(afterInstall, fs);
     if (status.ready && beforePackageFingerprint === afterPackageFingerprint) {
+      if (!verifyLegacyInstallResult(result, status, afterInstall, afterPackageFingerprint)) {
+        throw new DependencyPreflightError(
+          recoveryMessage(
+            repoRoot,
+            `${REQUIRED_PACKAGE}/package.json was unchanged by the compatibility installer; a verified success contract is required to trust a same-byte reinstall.`
+          )
+        );
+      }
+    } else if (!verifyLegacyInstallResult(result, status, afterInstall, afterPackageFingerprint)) {
       throw new DependencyPreflightError(
         recoveryMessage(
           repoRoot,
-          `${REQUIRED_PACKAGE}/package.json was unchanged by the compatibility installer; the dependency tree could not be verified.`
+          "the compatibility installer did not provide verifiable lockfile and dependency-tree evidence; return the documented structured success contract."
         )
       );
     }
