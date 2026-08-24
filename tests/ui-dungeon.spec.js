@@ -446,43 +446,48 @@ for (const vp of VIEWPORTS) {
         overlayChildren: combatOverlay.children.length,
       });
 
-      state.gameState = 'combat';
-      state.combatState = null;
-      menuContext.type = '';
-      updateUI();
-      document.getElementById('btn-combat-fight').click();
-      const explicitCombat = snapshot();
+      const invalidMonsters = [[], [null], ['monster']];
+      return invalidMonsters.map(monsters => {
+        state.gameState = 'combat';
+        state.combatState = { phase: 'choose_actions', monsters };
+        menuContext.type = '';
+        updateUI();
+        document.getElementById('btn-combat-fight').click();
+        const explicitCombat = snapshot();
 
-      state.gameState = 'submenu';
-      state.combatState = { phase: 'choose_actions', monsters: null };
-      menuContext.type = 'combat_target';
-      menuContext.targetType = 'enemy';
-      updateUI();
-      renderCombatOverlay();
-      document.getElementById('btn-combat-fight').click();
-      const targetSubmenu = snapshot();
+        state.gameState = 'submenu';
+        state.combatState = { phase: 'choose_actions', monsters };
+        menuContext.type = 'combat_target';
+        menuContext.targetType = 'enemy';
+        updateUI();
+        renderCombatOverlay();
+        document.getElementById('btn-combat-fight').click();
+        const targetSubmenu = snapshot();
 
-      return { explicitCombat, targetSubmenu };
+        return { monsters, explicitCombat, targetSubmenu };
+      });
     });
 
-    expect(result.explicitCombat).toEqual({
-      gameState: 'combat',
-      combatState: null,
-      menuType: '',
-      combatControlsActive: false,
-      combatMode: false,
-      overlayDisplay: 'none',
-      overlayChildren: 0,
-    });
-    expect(result.targetSubmenu).toEqual({
-      gameState: 'submenu',
-      combatState: { phase: 'choose_actions', monsters: null },
-      menuType: 'combat_target',
-      combatControlsActive: false,
-      combatMode: false,
-      overlayDisplay: 'none',
-      overlayChildren: 0,
-    });
+    for (const { monsters, explicitCombat, targetSubmenu } of result) {
+      expect(explicitCombat).toEqual({
+        gameState: 'combat',
+        combatState: { phase: 'choose_actions', monsters },
+        menuType: '',
+        combatControlsActive: false,
+        combatMode: false,
+        overlayDisplay: 'none',
+        overlayChildren: 0,
+      });
+      expect(targetSubmenu).toEqual({
+        gameState: 'submenu',
+        combatState: { phase: 'choose_actions', monsters },
+        menuType: 'combat_target',
+        combatControlsActive: false,
+        combatMode: false,
+        overlayDisplay: 'none',
+        overlayChildren: 0,
+      });
+    }
   });
 }
 

@@ -111,7 +111,9 @@ export function getScreenViewState(stateLike, menuContextLike) {
   const menuType = isSubmenu ? menu.type : "";
   const previousGameState = isSubmenu ? menu.prevGameState : null;
   const combatState = isRecord(source.combatState) ? source.combatState : null;
-  const hasCombat = Boolean(combatState && Array.isArray(combatState.monsters));
+  const hasCombat = Boolean(combatState && Array.isArray(combatState.monsters) &&
+    combatState.monsters.length > 0 &&
+    combatState.monsters.every(monster => isRecord(monster)));
   const hasChest = isRecord(source.chestState);
 
   return Object.freeze({
