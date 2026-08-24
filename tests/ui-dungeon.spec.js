@@ -440,6 +440,52 @@ test('Renderer and navigation keep modal transitions safe with stale context', a
 });
 
 for (const vp of VIEWPORTS) {
+  test(`Combat submenu falls back safely after combat data is lost at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { closeSubmenu, goBackSubmenu, menuContext, menuHistory, openSubmenu } = await import('/src/navigation.js');
+
+      const validCombatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
+      };
+      const resetCombatSubmenu = (map) => {
+        state.maps[0] = map;
+        state.floor = 1;
+        state.x = 0;
+        state.y = 0;
+        state.gameState = 'combat';
+        state.combatState = structuredClone(validCombatState);
+        menuContext.type = '';
+        menuContext.prevGameState = null;
+        menuHistory.length = 0;
+        openSubmenu('combat_target', '攻撃対象を選択');
+      };
+
+      resetCombatSubmenu([[{ walls: [true, true, true, true], type: 'empty' }]]);
+      state.combatState = null;
+      goBackSubmenu();
+      const missingWithMap = state.gameState;
+
+      resetCombatSubmenu([]);
+      state.combatState = { phase: 'choose_actions', monsters: [null] };
+      closeSubmenu();
+      const malformedWithoutMap = state.gameState;
+
+      return { missingWithMap, malformedWithoutMap };
+    });
+
+    expect(result).toEqual({
+      missingWithMap: 'explore',
+      malformedWithoutMap: 'town',
+    });
+  });
+}
+
+for (const vp of VIEWPORTS) {
   test(`Missing combat data disables combat UI paths at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');

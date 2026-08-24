@@ -89,14 +89,21 @@ export function openGuardedSubmenu(type, title) {
   openSubmenu(type, title);
 }
 
+function restorePreviousGameState(view) {
+  if (view.previousGameState === "combat" && !view.hasCombat) {
+    return view.hasMap ? "explore" : "town";
+  }
+  return view.previousGameState;
+}
+
 export function closeSubmenu() {
   const view = getScreenViewState(state, menuContext);
   if (view.isSubmenu) {
-    if (view.isCombatOverlaySubmenu) {
+    if (view.isCombatOverlaySubmenu && view.hasCombat) {
       state.gameState = "combat";
       menuContext.prevGameState = null;
     } else if (view.previousGameState) {
-      state.gameState = view.previousGameState;
+      state.gameState = restorePreviousGameState(view);
       menuContext.prevGameState = null;
     } else {
       if (view.menuType.startsWith("castle") ||
