@@ -28,6 +28,24 @@ export function getEffectiveHealAmount(target, amount) {
   return Math.max(1, Math.round(amount * mult));
 }
 
+const EQUIPMENT_SLOT_IDS = ["weapon", "shield", "armor", "accessory", "accessory2"];
+
+function getSafeEquipmentValue(equipment, slot) {
+  try {
+    return equipment?.[slot] || null;
+  } catch {
+    return null;
+  }
+}
+
+function getEquipmentValues(equipment) {
+  try {
+    return Object.values(equipment || {});
+  } catch {
+    return EQUIPMENT_SLOT_IDS.map(slot => getSafeEquipmentValue(equipment, slot));
+  }
+}
+
 export function getEquippedItemData(char, item) {
   if (item && typeof item === "object" && item.identified !== true) {
     return getItemData({ ...item, identified: true });
@@ -38,7 +56,7 @@ export function getEquippedItemData(char, item) {
 export function getCharAffixSum(char, affixType) {
   if (!char) return 0;
   let sum = 0;
-  Object.values(char.equipment || {}).forEach(eqKey => {
+  getEquipmentValues(char.equipment).forEach(eqKey => {
     if (!eqKey) return;
     const eqData = getEquippedItemData(char, eqKey);
     if (eqData?.affixBonus?.[affixType] !== undefined) {
@@ -63,19 +81,19 @@ export function getCharAffixSum(char, affixType) {
     }
   });
   if (affixType === "arcane") {
-    const weaponIdStr = getItemBaseId(char.equipment.weapon);
+    const weaponIdStr = getItemBaseId(getSafeEquipmentValue(char.equipment, "weapon"));
     if (weaponIdStr === "WAND") {
       sum += 10;
     }
   }
   if (affixType === "antiUndead" || affixType === "antiDemon") {
-    const weaponIdStr = getItemBaseId(char.equipment.weapon);
+    const weaponIdStr = getItemBaseId(getSafeEquipmentValue(char.equipment, "weapon"));
     if (weaponIdStr === "HOLY_BLADE") {
       sum += 20;
     }
   }
   if (affixType === "antiDragon") {
-    const shieldIdStr = getItemBaseId(char.equipment.shield);
+    const shieldIdStr = getItemBaseId(getSafeEquipmentValue(char.equipment, "shield"));
     if (shieldIdStr === "DRAGON_CHARM") {
       sum += 30;
     }

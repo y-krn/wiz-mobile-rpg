@@ -17,8 +17,18 @@ export function updateSoloHUD() {
 
   const card = document.createElement("div");
   card.className = "character-card";
-  const maxHp = getCharMaxHp(char);
-  const maxMp = getCharMaxMp(char);
+  let maxHp;
+  let maxMp;
+  try {
+    maxHp = getCharMaxHp(char);
+  } catch {
+    maxHp = Math.max(1, Number(char.maxHp) || 1);
+  }
+  try {
+    maxMp = getCharMaxMp(char);
+  } catch {
+    maxMp = Math.max(0, Number(char.maxMp) || 0);
+  }
   const hpPct = maxHp > 0 ? (char.hp / maxHp) * 100 : 0;
   const mpPct = maxMp > 0 ? (char.mp / maxMp) * 100 : 0;
 
