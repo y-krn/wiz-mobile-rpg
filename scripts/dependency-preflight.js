@@ -97,20 +97,16 @@ export function ensureDependencies({
     throw new DependencyPreflightError(recoveryMessage(root, "package-lock.json is missing."));
   }
 
-  // Existing installs from before this preflight may not have a stamp. Trust
-  // the required package once, then record the lockfile to avoid npm ci loops.
-  if (status.ready && !status.stamp) {
-    writeStamp(status.stampPath, status.lockfileSha256, fsImpl);
-    log?.("[dependency-preflight] dependencies ready; recorded lockfile stamp");
-    return { ...status, action: "stamped" };
-  }
-
   if (status.ready && status.stampMatches) {
     log?.("[dependency-preflight] dependencies ready; lockfile unchanged");
     return { ...status, action: "reused" };
   }
 
-  const reason = status.ready ? "package-lock.json changed" : `${REQUIRED_PACKAGE} is not installed`;
+  const reason = !status.ready
+    ? `${REQUIRED_PACKAGE} is not installed`
+    : !status.stamp
+      ? "dependency stamp is missing"
+      : "package-lock.json changed";
   log?.(`[dependency-preflight] ${reason}; running npm ci --ignore-scripts`);
   try {
     exec("npm", ["ci", "--ignore-scripts"], { cwd: root, stdio: "inherit" });
@@ -148,20 +144,20 @@ export function runDependencyPreflight(options = {}) {
   }
 }
 
-// Compatibility API for small fixture tests and older local wrappers. New
-// runners use ensureDependencies so the required package.json is verified.
+// Compatibility API for small fixture tests and older local wrappers. Keep
+// unstamped trees on the install path just like ensureDependencies.
 export function dependencyPreflight({ repoRoot = process.cwd(), install, log = console } = {}) {
   const status = inspectDependencies({ root: repoRoot });
   const markerExists = fs.existsSync(status.stampPath);
   const lockChanged = markerExists && !status.stampMatches;
-  if (status.ready && !lockChanged) {
+  if (status.ready && markerExists && !lockChanged) {
     return { installed: false, ...status };
   }
   if (typeof install === "function") {
     log.log?.(`[dependency-preflight] installing dependencies in ${repoRoot}`);
     const result = install(repoRoot);
     const afterInstall = inspectDependencies({ root: repoRoot });
-    if (!afterInstall.stamp) writeStamp(afterInstall.stampPath, afterInstall.lockfileSha256, fs);
+    if (afterInstall.ready) writeStamp(afterInstall.stampPath, afterInstall.lockfileSha256, fs);
     return { installed: true, result, ...inspectDependencies({ root: repoRoot }) };
   }
   const result = ensureDependencies({ root: repoRoot, log: message => log.log?.(message) });
