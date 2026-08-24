@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { SPELLS } from "../src/data/spells.js";
-import { getSpellCombatSummary } from "../src/combat_ui/spell_menu.js";
+import { getSpellCombatSummary } from "../src/combat_ui/spell_summary.js";
+import { getSpellCombatSummary as getSpellCombatSummaryFromMenu } from "../src/combat_ui/spell_menu.js";
 
 const RANGE_PATTERN = /(\d+)\s*-\s*(\d+)/;
 const failures = [];
@@ -55,6 +56,14 @@ recordAssertion(() => {
     getSpellCombatSummary("WEAKEN"),
     { tag: "弱体", effect: "全体攻撃力 -3 3T", category: "debuff" },
     "WEAKEN: combat summary must match the exact debuff definition"
+  );
+});
+
+recordAssertion(() => {
+  assert.deepStrictEqual(
+    getSpellCombatSummaryFromMenu("WEAKEN"),
+    getSpellCombatSummary("WEAKEN"),
+    "spell menu compatibility export must use the dedicated summary module"
   );
 });
 
