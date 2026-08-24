@@ -19,7 +19,6 @@ layout change, or text-only correction that cannot change model observability.
 
 ## Read before deciding
 
-- [AGENTS.md](../../../AGENTS.md) for design, worktree, and verification gates
 - [file-map.md](../../file-map.md) for combat source and test routing
 - [game-design-combat-model.md](../../game-design-combat-model.md) for the
   official formulas, stages, measured limits, and settled decisions
@@ -48,8 +47,9 @@ layout change, or text-only correction that cannot change model observability.
    - simulation inputs, baseline, and whether the real resolution path is used
 4. Compare the proposed behavior with the official combat model and linked
    design documents. If the change alters an official rule, apply the
-   `AGENTS.md` design-document gate. Keep formulas and values in their existing
-   canonical files instead of copying them into this skill.
+   matching design-document change or stop when that change is outside the
+   authorized scope. Keep formulas and values in their existing canonical files
+   instead of copying them into this skill.
 5. Choose verification from the affected surfaces: focused deterministic
    checks, `npm run test:unit`, `npm run lint`, `npm run build` for import or
    boundary changes, browser checks for observable UI, and a valid before/after

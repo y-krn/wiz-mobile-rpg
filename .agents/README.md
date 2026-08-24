@@ -1,12 +1,12 @@
-# Review Checklists
+# Review and design map
 
-This directory defines review-only checklists for expanding this mobile RPG.
-They are documents to read and review against, not sub-agents registered with
-the Agent tool.
+`.agents/*.md` contains reference knowledge for implementation and review.
+Read only the documents whose scope matches the task. This index does not
+define agent roles, operating modes, delegation, or authorization; the request
+and root [`AGENTS.md`](../AGENTS.md) define those boundaries.
 
-Use these checklists to review plans, diffs, tests, and content proposals. They
-do not drive direct implementation unless the user explicitly changes the
-operating mode.
+`.agents/skills/*/SKILL.md` contains repeatable conditional workflows.
+The checklists below are references, not automatic skills or subagents.
 
 For progression, economy, materials, workshop, rewards, run quests, or B5F clear
 behavior, review against `.agents/game-design.md` in addition to the relevant
@@ -17,22 +17,10 @@ files listed for the request area. Expand only to direct imports, touched files,
 or verification targets.
 
 The codebase uses thin facade modules. Facade-to-concrete-module mappings are
-defined in `.agents/file-map.md` under `## Module Boundaries`. When a review
+defined in `.agents/file-map.md` under `## Module Boundaries`. When a task
 touches a facade, inspect the concrete module before drawing conclusions.
 
-## Operating Mode
-
-- Default mode: review-only.
-- Main agent owns implementation and final decisions.
-- Each checklist inspects only the files relevant to its scope.
-- Each checklist uses the Agent Skills listed in its own definition when the
-  review scope matches the skill trigger.
-- Reviews must be concrete, file-aware, and tied to project constraints.
-- Reviews must distinguish facade wiring issues from concrete module behavior.
-- Reviews must avoid unrelated refactors, broad redesigns, and speculative
-  future systems.
-
-## Checklists
+## Review checklists
 
 1. `qa-regression.md`
 2. `mobile-ui-ux.md`
@@ -40,7 +28,7 @@ touches a facade, inspect the concrete module before drawing conclusions.
 4. `balance-simulation.md`
 5. `content-design.md`
 
-## Design References
+## Design references
 
 - `game-design-core-loop.md`: top-level design pillars, core loop,
   information-disclosure principles, floor density and pacing targets,
@@ -57,13 +45,13 @@ touches a facade, inspect the concrete module before drawing conclusions.
   curse-seal rules. The source of truth is `src/data/affixes.js`. Canonical for
   any change to affixes, `AFFIX_BALANCE`, `CORE_SEAL_RULES`, or workshop actions.
 
-## File Routing
+## File routing
 
 Use `.agents/file-map.md` to decide the initial files for implementation and
 review. Each checklist's `Scope` section remains authoritative for what that
 checklist covers.
 
-## Scope Overlap Resolution
+## Scope overlap resolution
 
 Checklist scopes may overlap. Select by the nature of the change, not the file
 alone:
@@ -89,12 +77,7 @@ Resolution rules:
 - If the applicable checklist is still ambiguous after this, ask before
   applying, rather than applying all of them.
 
-These checklists are intentionally kept as review-only documents rather than
-automatic skills: a checklist is selected by the nature of the change, and the
-reviewer must not apply every checklist by default. Repository-scoped Codex
-skills live separately under `.agents/skills/`.
-
-## Review Output Format
+## Review output format
 
 Each review should return:
 
