@@ -65,7 +65,9 @@ boundary allowlist, including balance-sensitive state, reward, trap, or economy
 access or mutation and every array mutator. The exact read-only
 `state.party.includes(char|opener)` eligibility checks are allowed because they
 only validate the already-selected chest actor; party assignment, other party
-access, and party mutators remain outside the allowlist. This
+access, party mutators, computed/bracket boundary access, and aggregate
+assignment/mutator calls remain outside the allowlist. Direct, named phase and
+transient-state resets remain explicit exceptions for Issue #832. This
 prevents a mapped path such as `src/chest.js` from being globally exempted: later chest
 reward, trap, drop, or economy changes without the marker still use the normal
 balance-domain mapping and runtime-evidence checks. The Issue #832 chest phase

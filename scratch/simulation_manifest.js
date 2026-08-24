@@ -812,6 +812,8 @@ const STATE_ROOT_ACCESS = /\bstate\.([A-Za-z_$][A-Za-z0-9_$]*)/g;
 const ALLOWED_STATE_ROOTS = new Set(["chestState", "gameState", "transitioning"]);
 const ARRAY_MUTATOR_CALL = /\.\s*(?:push|pop|shift|unshift|splice|sort|reverse|fill|copyWithin)\s*\(/;
 const BALANCE_MUTATOR_CALL = /\b(?:award|grant|give|add|remove|consume|refund|credit|debit|roll|resolve|trigger|apply|drop|loot|reward|trap|economy|material|currency|inventory|equipment|item|ticket|chestReward)\w*\s*\(/i;
+const BOUNDARY_COMPUTED_ACCESS = /\b(?:state\.(?:chestState|gameState|transitioning)|chest|menuContext|menuHistory)\s*\[/;
+const AGGREGATE_MUTATOR_CALL = /\b(?:Object\.(?:assign|defineProperty|defineProperties|setPrototypeOf)|Reflect\.(?:set|defineProperty|defineProperties))\s*\(/;
 const STATE_BOUNDARY_HELPERS = /\b(?:CHEST_PHASES|CHEST_PHASE_TRANSITIONS|transitionChestPhase|getChestPhase|chestActionAllowed|isEligibleChestCharacter|clearChestInspectionState|finishChest|openChestMenu|executeDisarm|smashChest|openChestDirectly)\b/;
 const STATE_BOUNDARY_LOCALS = /\b(?:currentPhase|allowedPhases|persistedChestState|recordAction|allowTransition|fromDisarm|smashTrapFired)\b/;
 const STATE_BOUNDARY_PROPERTIES = new Set([
@@ -823,6 +825,8 @@ function isAllowedStateBoundaryLine(text, file) {
   if (file === "src/state/save_payload.js" && /^import\s+\{[^}]*\bmenuContext\b[^}]*\bmenuHistory\b/.test(text)) return true;
   if (ARRAY_MUTATOR_CALL.test(text)) return false;
   if (BALANCE_MUTATOR_CALL.test(text)) return false;
+  if (BOUNDARY_COMPUTED_ACCESS.test(text)) return false;
+  if (AGGREGATE_MUTATOR_CALL.test(text)) return false;
   if (/^(?:state\.party\.includes\((?:char|opener)\)\s*&&|if \(options\.fromDisarm === true && !state\.party\.includes\(opener\)\) return false;)$/.test(text)) return true;
   if ([...text.matchAll(STATE_ROOT_ACCESS)].some(([, root]) => !ALLOWED_STATE_ROOTS.has(root))) return false;
   if (/^\["ok",\s*"poisoned",\s*"blind"\]\.includes\(char\.status\)$/.test(text)) return true;

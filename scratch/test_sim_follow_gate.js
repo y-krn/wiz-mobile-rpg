@@ -197,7 +197,9 @@ for (const [label, mutation] of [
   ["identify tickets", "state.identifyTickets += 1;"],
   ["first unidentified guarantee", "state.firstChestUnidentifiedGuaranteed = true;"],
   ["run item-found array", "state.currentRun.itemsFound.push(\"DAGGER\");"],
-  ["inventory array", "state.inventory.push(\"HEAL_POTION\");"]
+  ["inventory array", "state.inventory.push(\"HEAL_POTION\");"],
+  ["computed chest-state write", "state.chestState[\"trap\"] = \"none\";"],
+  ["aggregate chest-state write", "Object.assign(state.chestState, { trap: \"none\" });"]
 ]) {
   const markerMutationDiff = `diff --git a/src/chest.js b/src/chest.js
 @@ -28,0 +29,2 @@
