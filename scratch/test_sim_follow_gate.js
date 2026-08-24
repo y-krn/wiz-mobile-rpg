@@ -165,6 +165,35 @@ assert.doesNotThrow(
   ),
   "explicit persistence declaration must classify an otherwise unknown path as balance-impact none"
 );
+const markerWithBalanceMutationDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,4 @@
++// balance-impact: none — state boundary only
++  state.currentRun.materials.blackHorn += 1;
+`;
+assert.throws(
+  () => assertBalanceImpactCovered(
+    ["src/chest.js"],
+    SIMULATION_MANIFEST,
+    undefined,
+    { diffByFile: new Map([["src/chest.js", markerWithBalanceMutationDiff]]) }
+  ),
+  /balance-impact none declaration conflicts with a balance-sensitive mutation/,
+  "a marker cannot exempt a diff that mutates balance-sensitive state"
+);
+const inlineMarkerMutationDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,1 @@
++// balance-impact: none; state.currentRun.materials.blackHorn += 1;
+`;
+assert.throws(
+  () => assertBalanceImpactCovered(
+    ["src/chest.js"],
+    SIMULATION_MANIFEST,
+    undefined,
+    { diffByFile: new Map([["src/chest.js", inlineMarkerMutationDiff]]) }
+  ),
+  /canonical runtime evidence result is required/,
+  "an inline marker is not a standalone declaration"
+);
 assert.throws(
   () => assertBalanceImpactCovered(
     ["src/chest.js"],

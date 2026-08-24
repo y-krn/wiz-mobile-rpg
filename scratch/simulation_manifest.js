@@ -794,9 +794,32 @@ function hasBalanceImpactNoneDeclaration(diff, file, manifest) {
   if (typeof diff !== "string" || !diff.trim()) return false;
   return (manifest.balanceImpactNoneDiffs || []).some(declaration =>
     matches(declaration.pattern, file) && diff.split(/\r?\n/).some(line =>
-      line.startsWith("+") && !line.startsWith("+++") && line.includes(declaration.marker)
+      line.startsWith("+") && !line.startsWith("+++") && isStandaloneBalanceImpactNoneDeclaration(line.slice(1), declaration)
     )
   );
+}
+
+const BALANCE_MUTATION_OPERATORS = /(?:\+=|-=|\*=|\/=|%=|&=|\|=|\^=|<<=|>>=|>>>=|\+\+|--|(?<![=!<>])=(?!=|>))/;
+const BALANCE_MUTATING_CALLS = /\b(?:addInventoryItem|recordEquipmentDiscovery|recordCharDeath|generateChestMaterials|rollChestTrap|rollChestReward|rollChestSpecialReward|resolveChestSmashRewardLosses|triggerChestTrap|resolveChestTrapEffect|increaseChestTrapTier)\s*\(/;
+
+function isStandaloneBalanceImpactNoneDeclaration(text, declaration) {
+  const trimmed = text.trim();
+  const marker = declaration.marker.trim();
+  return trimmed === marker ||
+    trimmed.startsWith(`${marker} —`) ||
+    trimmed.startsWith(`${marker} -`);
+}
+
+function hasBalanceSensitiveMutation(diff) {
+  if (typeof diff !== "string" || !diff.trim()) return false;
+  return diff.split(/\r?\n/).some(line => {
+    if (!(line.startsWith("+") || line.startsWith("-")) || line.startsWith("+++") || line.startsWith("---")) return false;
+    const text = line.slice(1).trim();
+    if (!text || text.startsWith("//")) return false;
+    if (BALANCE_MUTATING_CALLS.test(text)) return true;
+    const stateOrRewardPath = /\b(?:state\.(?:currentRun|inventory|party|floorChestsOpened|gold|materials)|(?:state\.)?chestState\.(?:trap|item|specialItem|accessoryItem)|\bchest\.(?:trap|item|specialItem|accessoryItem))\b/;
+    return stateOrRewardPath.test(text) && BALANCE_MUTATION_OPERATORS.test(text);
+  });
 }
 
 export function isTelemetryOnlyDiff(diff, { file = null } = {}) {
@@ -855,7 +878,9 @@ export function analyzeBalanceImpact(
     const balanceImpactNone = (manifest.balanceImpactNone || []).some(pattern => matches(pattern, file));
     const telemetryOnlyPath = (manifest.telemetryOnlyPaths || []).some(pattern => matches(pattern, file));
     const balanceImpactNoneDiff = hasBalanceImpactNoneDeclaration(diff, file, manifest);
-    if (balanceImpactNoneDiff) {
+    if (balanceImpactNoneDiff && hasBalanceSensitiveMutation(diff)) {
+      errors.push(`${file}: balance-impact none declaration conflicts with a balance-sensitive mutation; use normal balance mapping`);
+    } else if (balanceImpactNoneDiff) {
       impacts.push({ file, domains: [], balanceImpactNone: true, runtimeUnsupported: [], runtimeUnfired: [] });
       continue;
     }
