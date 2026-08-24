@@ -58,12 +58,12 @@ function packageFingerprint(status, fsImpl) {
   }
 }
 
-function verifyLegacyInstallResult(result, beforeInstall, afterInstall, packageJsonSha256) {
-  if (!result || typeof result !== "object" || Array.isArray(result)) return false;
-  const dependencyTree = result.dependencyTree;
-  return result.verified === true &&
-    result.lockfileSha256 === beforeInstall.lockfileSha256 &&
-    result.lockfileSha256 === afterInstall.lockfileSha256 &&
+function verifyLegacyInstallEvidence(evidence, beforeInstall, afterInstall, packageJsonSha256) {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return false;
+  const dependencyTree = evidence.dependencyTree;
+  return evidence.verified === true &&
+    evidence.lockfileSha256 === beforeInstall.lockfileSha256 &&
+    evidence.lockfileSha256 === afterInstall.lockfileSha256 &&
     dependencyTree?.package === REQUIRED_PACKAGE &&
     dependencyTree.ready === true &&
     dependencyTree.packageJsonSha256 === packageJsonSha256;
@@ -166,11 +166,15 @@ export function runDependencyPreflight(options = {}) {
 
 // Compatibility API for small fixture tests and older local wrappers. Keep
 // unstamped trees on the install path just like ensureDependencies. Legacy
-// installers must return this verification contract before a stamp is written:
+// installers must be paired with an independent `verify` callback before a
+// stamp is written. The verifier must establish the complete dependency tree
+// against the current lockfile (for example, with canonical npm evidence) and
+// return this contract. Its evidence is checked against the current filesystem;
+// the install callback's return value is never used as verification evidence:
 // { verified: true, lockfileSha256, dependencyTree: {
 //   package: REQUIRED_PACKAGE, ready: true, packageJsonSha256
 // } }. New callers should use ensureDependencies instead.
-export function dependencyPreflight({ repoRoot = process.cwd(), install, log = console } = {}) {
+export function dependencyPreflight({ repoRoot = process.cwd(), install, verify, log = console } = {}) {
   const status = inspectDependencies({ root: repoRoot });
   if (!status.lockfileSha256) {
     throw new DependencyPreflightError(recoveryMessage(repoRoot, "package-lock.json is missing."));
@@ -201,34 +205,49 @@ export function dependencyPreflight({ repoRoot = process.cwd(), install, log = c
       );
     }
 
-    const afterPackageFingerprint = packageFingerprint(afterInstall, fs);
-    if (status.ready && beforePackageFingerprint === afterPackageFingerprint) {
-      if (!verifyLegacyInstallResult(result, status, afterInstall, afterPackageFingerprint)) {
+    let evidence = null;
+    if (typeof verify === "function") {
+      try {
+        evidence = verify({
+          root: repoRoot,
+          beforeInstall: status,
+          afterInstall
+        });
+      } catch (error) {
         throw new DependencyPreflightError(
-          recoveryMessage(
-            repoRoot,
-            `${REQUIRED_PACKAGE}/package.json was unchanged by the compatibility installer; a verified success contract is required to trust a same-byte reinstall.`
-          )
+          recoveryMessage(repoRoot, `independent dependency verification failed: ${error.message}`),
+          { cause: error }
         );
       }
-    } else if (!verifyLegacyInstallResult(result, status, afterInstall, afterPackageFingerprint)) {
+    }
+
+    const verifiedInstall = inspectDependencies({ root: repoRoot });
+    if (!verifiedInstall.ready) {
+      throw new DependencyPreflightError(
+        recoveryMessage(repoRoot, `${REQUIRED_PACKAGE}/package.json is missing after independent dependency verification.`)
+      );
+    }
+    const verifiedPackageFingerprint = packageFingerprint(verifiedInstall, fs);
+    if (!verifyLegacyInstallEvidence(evidence, status, verifiedInstall, verifiedPackageFingerprint)) {
       throw new DependencyPreflightError(
         recoveryMessage(
           repoRoot,
-          "the compatibility installer did not provide verifiable lockfile and dependency-tree evidence; return the documented structured success contract."
+          status.ready && beforePackageFingerprint === verifiedPackageFingerprint
+            ? `${REQUIRED_PACKAGE}/package.json was unchanged by the compatibility installer; an independent verifier must establish a valid dependency tree before a same-byte reinstall can be stamped.`
+            : "the compatibility installer did not have independent lockfile and dependency-tree verification; provide the documented verifier callback and structured evidence."
         )
       );
     }
 
     try {
-      writeStamp(afterInstall.stampPath, afterInstall.lockfileSha256, fs);
+      writeStamp(verifiedInstall.stampPath, verifiedInstall.lockfileSha256, fs);
     } catch (error) {
       throw new DependencyPreflightError(
         recoveryMessage(repoRoot, `dependency stamp could not be written: ${error.message}`),
         { cause: error }
       );
     }
-    return { installed: true, result, ...afterInstall };
+    return { installed: true, result, ...verifiedInstall };
   }
   const result = ensureDependencies({ root: repoRoot, log: message => log.log?.(message) });
   return { installed: result.action === "installed", ...result };

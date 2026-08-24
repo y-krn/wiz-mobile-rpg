@@ -70,8 +70,12 @@ try {
     install: root => {
       sameByteInstallCalls += 1;
       writeFileSync(path.join(root, "node_modules", ".tree-repaired"), "verified");
+      // Installer claims are intentionally ignored by the wrapper.
       return verifiedContract(root, sameBytePackagePath);
     },
+    // This callback represents an independent full-tree/npm verification;
+    // its evidence is validated against the current filesystem by the wrapper.
+    verify: ({ root }) => verifiedContract(root, sameBytePackagePath),
     log: { log() {} }
   });
   assert.equal(sameByteResult.installed, true);
@@ -88,13 +92,18 @@ try {
   assert.equal(reused.installed, false);
   assert.equal(reused.stampMatches, true);
 
-  // A no-op installer cannot turn a package-only tree into a stamped tree.
+  // A no-op installer cannot turn a package-only tree into a stamped tree,
+  // even when it forges a complete-looking current-hash result.
   const noOpRoot = createFixture("wiz-issue-854-no-op-", {
     packageJson: JSON.stringify({ name: REQUIRED_PACKAGE, version: "stale" })
   });
   roots.push(noOpRoot);
   assertRecoveryFailure(
-    () => dependencyPreflight({ repoRoot: noOpRoot, install: () => undefined, log: { log() {} } }),
+    () => dependencyPreflight({
+      repoRoot: noOpRoot,
+      install: root => verifiedContract(root, path.join(root, "node_modules", "@sentry", "browser", "package.json")),
+      log: { log() {} }
+    }),
     "was unchanged by the compatibility installer"
   );
   assert.equal(existsSync(path.join(noOpRoot, "node_modules", ".dependency-preflight.json")), false);
@@ -115,7 +124,7 @@ try {
       },
       log: { log() {} }
     }),
-    "did not provide verifiable lockfile and dependency-tree evidence"
+    "did not have independent lockfile and dependency-tree verification"
   );
   assert.equal(existsSync(path.join(unverifiedRoot, "node_modules", ".dependency-preflight.json")), false);
 

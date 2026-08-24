@@ -172,6 +172,7 @@ try {
         const installedPackagePath = path.join(root, "node_modules", "@sentry", "browser", "package.json");
         mkdirSync(path.dirname(installedPackagePath), { recursive: true });
         writeFileSync(installedPackagePath, JSON.stringify({ name: REQUIRED_PACKAGE, version: "10.63.0" }));
+        // Installer claims are not sufficient evidence for a compatibility stamp.
         return {
           verified: true,
           lockfileSha256: sha256(path.join(root, "package-lock.json")),
@@ -182,6 +183,15 @@ try {
           }
         };
       },
+      verify: ({ root, afterInstall }) => ({
+        verified: true,
+        lockfileSha256: sha256(path.join(root, "package-lock.json")),
+        dependencyTree: {
+          package: REQUIRED_PACKAGE,
+          ready: afterInstall.ready,
+          packageJsonSha256: sha256(afterInstall.packagePath)
+        }
+      }),
       log: { log() {} }
     });
     assert.equal(compatibilityInstalled.installed, true);
