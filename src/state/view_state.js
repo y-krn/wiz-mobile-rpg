@@ -68,15 +68,17 @@ export function isUsableSpellForActor(party, actorIdx, spellName, targetTypes = 
   return acceptedTargets.includes(SPELLS[spellName].target);
 }
 
-export function hasUsableCombatActor(party) {
+export function hasStructurallyUsableCombatParty(party) {
   if (!Array.isArray(party) || party.length === 0) return false;
-  let hasLivingActor = false;
   for (let index = 0; index < party.length; index++) {
     const actor = party[index];
     if (!Object.hasOwn(party, index) || !isRecord(actor) || typeof actor.name !== "string" || typeof actor.status !== "string") return false;
-    if (actor.status !== "dead") hasLivingActor = true;
   }
-  return hasLivingActor;
+  return true;
+}
+
+export function hasUsableCombatActor(party) {
+  return hasStructurallyUsableCombatParty(party) && party.some(actor => actor.status !== "dead");
 }
 
 export function isUsableCombatState(combatState) {
@@ -190,6 +192,7 @@ export function getScreenViewState(stateLike, menuContextLike) {
   const hasCurrentCell = Number.isInteger(source.x) && Number.isInteger(source.y) &&
     isUsableMapCell(currentRow?.[source.x]);
   const isCombatOverlaySubmenu = isSubmenu && previousGameState === "combat" && SUBMENU_OVERLAY_TYPES.has(menuType);
+  const hasStructurallyUsableCombatPartyState = hasStructurallyUsableCombatParty(source.party);
   const hasUsableCombatParty = hasUsableCombatActor(source.party);
   const isActionableCombat = (gameState === "combat" || isCombatOverlaySubmenu) && hasCombat &&
     hasUsableCombatParty && combatState.phase === "choose_actions" && source.transitioning === false;
@@ -225,6 +228,7 @@ export function getScreenViewState(stateLike, menuContextLike) {
     hasMap,
     hasCurrentCell,
     hasCombat,
+    hasStructurallyUsableCombatParty: hasStructurallyUsableCombatPartyState,
     hasUsableCombatActor: hasUsableCombatParty,
     isActionableCombat,
     hasChest

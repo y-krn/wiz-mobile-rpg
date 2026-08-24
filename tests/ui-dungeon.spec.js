@@ -953,7 +953,7 @@ for (const vp of VIEWPORTS) {
     });
 
     const results = [];
-    for (const partyShape of ['null', 'sparse', 'all-dead']) {
+    for (const partyShape of ['null', 'sparse']) {
       await page.evaluate(async ({ payload, partyShape }) => {
         const { state } = await import('/src/state.js');
         state.transitioning = true;
@@ -965,7 +965,6 @@ for (const vp of VIEWPORTS) {
         };
         if (partyShape === 'null') data.party = null;
         if (partyShape === 'sparse') data.party = [null];
-        if (partyShape === 'all-dead') data.party = [{ ...data.party[0], status: 'dead' }];
         localStorage.setItem('mobile_wiz_rpg_autosave', JSON.stringify(data));
       }, { payload: basePayload, partyShape });
       await page.reload();
@@ -980,6 +979,9 @@ for (const vp of VIEWPORTS) {
           gameState: state.gameState,
           combatState: state.combatState,
           partyLength: state.party.length,
+          partyStatus: state.party[0]?.status,
+          hasCombat: view.hasCombat,
+          hasStructurallyUsableCombatParty: view.hasStructurallyUsableCombatParty,
           hasUsableCombatActor: view.hasUsableCombatActor,
           savedGameState: saved.gameState,
           savedCombatState: saved.combatState,
@@ -991,6 +993,9 @@ for (const vp of VIEWPORTS) {
       {
         gameState: 'explore',
         combatState: null,
+        partyStatus: undefined,
+        hasCombat: false,
+        hasStructurallyUsableCombatParty: false,
         partyLength: 0,
         hasUsableCombatActor: false,
         savedGameState: 'explore',
@@ -999,15 +1004,10 @@ for (const vp of VIEWPORTS) {
       {
         gameState: 'explore',
         combatState: null,
+        partyStatus: undefined,
+        hasCombat: false,
+        hasStructurallyUsableCombatParty: false,
         partyLength: 0,
-        hasUsableCombatActor: false,
-        savedGameState: 'explore',
-        savedCombatState: null,
-      },
-      {
-        gameState: 'explore',
-        combatState: null,
-        partyLength: 1,
         hasUsableCombatActor: false,
         savedGameState: 'explore',
         savedCombatState: null,
@@ -1873,6 +1873,7 @@ test('Defeat during battle log playback reloads into game over', async ({ page }
   await startSoloRun(page);
   const playback = await page.evaluate(async () => {
     const { state, saveAutosave } = await import('/src/state.js');
+    const { getScreenViewState } = await import('/src/state/view_state.js');
     const { startCombat, resolveCombatRound, combatSelection } = await import('/src/combat.js');
     startCombat(false, false);
     state.combatState.monsters = [state.combatState.monsters[0]];
@@ -1893,11 +1894,14 @@ test('Defeat during battle log playback reloads into game over', async ({ page }
     Math.random = () => 0.99;
     resolveCombatRound();
     const saved = JSON.parse(localStorage.getItem('mobile_wiz_rpg_autosave'));
+    const view = getScreenViewState(state, null);
     return {
       gameState: state.gameState,
       status: state.party[0].status,
       savedStatus: saved.party[0].status,
       savedPhase: saved.combatState.phase,
+      hasStructurallyUsableCombatParty: view.hasStructurallyUsableCombatParty,
+      hasUsableCombatActor: view.hasUsableCombatActor,
     };
   });
   expect(playback).toEqual({
@@ -1905,6 +1909,8 @@ test('Defeat during battle log playback reloads into game over', async ({ page }
     status: 'dead',
     savedStatus: 'dead',
     savedPhase: 'choose_actions',
+    hasStructurallyUsableCombatParty: true,
+    hasUsableCombatActor: false,
   });
 
   await page.reload();

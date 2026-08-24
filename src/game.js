@@ -53,7 +53,7 @@ export function initGame() {
   updateUI();
   resumePendingCampEntry();
   const view = getScreenViewState(state, null);
-  if (view.gameState === "combat" && view.hasCombat && view.hasUsableCombatActor) {
+  if (view.gameState === "combat" && view.hasCombat && view.hasStructurallyUsableCombatParty) {
     resumeCombat();
   } else if (view.gameState === "combat") {
     // A saved combat without a structurally usable party cannot be resumed.
