@@ -206,7 +206,9 @@ export function updateUI() {
   const view = getScreenViewState(state, menuContext);
   const { gameState } = view;
   const combatOverlayTypes = ["combat_target", "combat_spell", "combat_item"];
-  const isCombatOverlaySubmenu = view.isCombatOverlaySubmenu && combatOverlayTypes.includes(view.menuType);
+  const hasUsableCombat = view.hasCombat;
+  const isUsableCombatScreen = gameState === "combat" && hasUsableCombat;
+  const isCombatOverlaySubmenu = hasUsableCombat && view.isCombatOverlaySubmenu && combatOverlayTypes.includes(view.menuType);
   const departurePrepSubmenu = view.isDeparturePrepSubmenu;
   const workshopSubmenu = view.isWorkshopSubmenu;
   const townSubmenu = view.isTownSubmenu;
@@ -369,7 +371,7 @@ export function updateUI() {
   const controlsPanel = document.getElementById("controls-panel");
   if (controlsPanel) {
     controlsPanel.classList.toggle("explore-mode", gameState === "explore");
-    controlsPanel.classList.toggle("combat-mode", gameState === "combat");
+    controlsPanel.classList.toggle("combat-mode", isUsableCombatScreen);
     controlsPanel.classList.toggle("town-mode", gameState === "town");
     controlsPanel.classList.toggle("submenu-mode", gameState === "submenu");
     controlsPanel.classList.toggle("departure-mode", departurePrepSubmenu);
@@ -410,7 +412,7 @@ export function updateUI() {
     const rateColor = successRate >= 75 ? "var(--neon-green)" : (successRate >= 45 ? "var(--neon-amber)" : "var(--neon-red)");
     const rateText = isPitfall ? "回避成功率" : "解除成功率";
     document.getElementById("trap-success-rate").innerHTML = `${rateText}: <span style="color:${rateColor}; font-weight:bold;">${successRate}%</span>`;
-  } else if (gameState === "combat") {
+  } else if (isUsableCombatScreen) {
     document.getElementById("combat-controls").classList.add("active");
     const gridEl = document.querySelector(".combat-grid");
     if (gridEl) {

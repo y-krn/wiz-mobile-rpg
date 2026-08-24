@@ -164,13 +164,18 @@ function bindButtons() {
   document.getElementById("btn-town-archives").addEventListener("click", () => handleTownOption("archives"));
 
   // Combat actions
-  document.getElementById("btn-combat-fight").addEventListener("click", () => selectCombatAction("fight"));
-  document.getElementById("btn-combat-spell").addEventListener("click", () => selectCombatAction("spell"));
-  document.getElementById("btn-combat-item").addEventListener("click", () => selectCombatAction("item"));
-  document.getElementById("btn-combat-auto").addEventListener("click", () => toggleCombatAuto());
-  document.getElementById("btn-combat-defend").addEventListener("click", () => selectCombatAction("defend"));
-  document.getElementById("btn-combat-run").addEventListener("click", () => selectCombatAction("run"));
-  document.getElementById("btn-combat-cancel").addEventListener("click", () => cancelCombatAction());
+  const bindCombatAction = (id, action) => {
+    document.getElementById(id).addEventListener("click", () => {
+      if (getScreenViewState(state, null).hasCombat) action();
+    });
+  };
+  bindCombatAction("btn-combat-fight", () => selectCombatAction("fight"));
+  bindCombatAction("btn-combat-spell", () => selectCombatAction("spell"));
+  bindCombatAction("btn-combat-item", () => selectCombatAction("item"));
+  bindCombatAction("btn-combat-auto", () => toggleCombatAuto());
+  bindCombatAction("btn-combat-defend", () => selectCombatAction("defend"));
+  bindCombatAction("btn-combat-run", () => selectCombatAction("run"));
+  bindCombatAction("btn-combat-cancel", () => cancelCombatAction());
 
   // Submenu
   document.getElementById("btn-submenu-back").addEventListener("click", () => goBackSubmenu());

@@ -422,6 +422,70 @@ test('Renderer and navigation keep modal transitions safe with stale context', a
   expect(result.restoredExplore).toBe(true);
 });
 
+for (const vp of VIEWPORTS) {
+  test(`Missing combat data disables combat UI paths at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const { menuContext } = await import('/src/navigation.js');
+      const { renderCombatOverlay } = await import('/src/combat_ui/combat_overlay.js');
+      const { updateUI } = await import('/src/ui.js');
+
+      const combatControls = document.getElementById('combat-controls');
+      const combatOverlay = document.getElementById('combat-overlay');
+      const controlsPanel = document.getElementById('controls-panel');
+      const snapshot = () => ({
+        gameState: state.gameState,
+        combatState: state.combatState,
+        menuType: menuContext.type,
+        combatControlsActive: combatControls.classList.contains('active'),
+        combatMode: controlsPanel.classList.contains('combat-mode'),
+        overlayDisplay: combatOverlay.style.display,
+        overlayChildren: combatOverlay.children.length,
+      });
+
+      state.gameState = 'combat';
+      state.combatState = null;
+      menuContext.type = '';
+      updateUI();
+      document.getElementById('btn-combat-fight').click();
+      const explicitCombat = snapshot();
+
+      state.gameState = 'submenu';
+      state.combatState = { phase: 'choose_actions', monsters: null };
+      menuContext.type = 'combat_target';
+      menuContext.targetType = 'enemy';
+      updateUI();
+      renderCombatOverlay();
+      document.getElementById('btn-combat-fight').click();
+      const targetSubmenu = snapshot();
+
+      return { explicitCombat, targetSubmenu };
+    });
+
+    expect(result.explicitCombat).toEqual({
+      gameState: 'combat',
+      combatState: null,
+      menuType: '',
+      combatControlsActive: false,
+      combatMode: false,
+      overlayDisplay: 'none',
+      overlayChildren: 0,
+    });
+    expect(result.targetSubmenu).toEqual({
+      gameState: 'submenu',
+      combatState: { phase: 'choose_actions', monsters: null },
+      menuType: 'combat_target',
+      combatControlsActive: false,
+      combatMode: false,
+      overlayDisplay: 'none',
+      overlayChildren: 0,
+    });
+  });
+}
+
 test('Combat autosave resumes action selection without persisting resolving phase', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

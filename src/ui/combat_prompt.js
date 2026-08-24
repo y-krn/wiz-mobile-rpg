@@ -1,10 +1,12 @@
 import { state } from "../state.js";
 import { getClassJpName } from "../data.js";
 import { combatSelection } from "../combat.js";
+import { getScreenViewState } from "../state/view_state.js";
+import { menuContext } from "../navigation.js";
 
 export function updateCombatPrompt() {
   const prompt = document.getElementById("combat-prompt");
-  if (!prompt || !state.combatState) return;
+  if (!prompt || !getScreenViewState(state, menuContext).hasCombat) return;
 
   const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status));
   const currentSelect = livingChars[combatSelection.charIdx];
