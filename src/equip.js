@@ -147,11 +147,27 @@ function isEquipmentItem(item) {
   return item && (item.type === "weapon" || item.type === "shield" || item.type === "armor" || item.type === "accessory");
 }
 
+function getEquipmentSlotValue(equipment, slot) {
+  try {
+    return equipment?.[slot] || null;
+  } catch {
+    return null;
+  }
+}
+
+function getSafeEquipmentSnapshot(equipment) {
+  const snapshot = {};
+  EQUIPMENT_SLOTS.forEach(({ id }) => {
+    snapshot[id] = getEquipmentSlotValue(equipment, id);
+  });
+  return snapshot;
+}
+
 function getDefaultTargetSlot(char, itemType) {
   const slots = getEquipmentSlotsForType(itemType);
-  const emptySlot = slots.find(({ id }) => !char.equipment?.[id]);
+  const emptySlot = slots.find(({ id }) => !getEquipmentSlotValue(char.equipment, id));
   if (emptySlot) return emptySlot.id;
-  const replaceableSlot = slots.find(({ id }) => !isCurseLocked(char.equipment?.[id]));
+  const replaceableSlot = slots.find(({ id }) => !isCurseLocked(getEquipmentSlotValue(char.equipment, id)));
   return replaceableSlot?.id || slots[0]?.id || null;
 }
 
@@ -218,7 +234,7 @@ function getPrimaryDiff(itemType, rows) {
 function createEquipmentPreviewChar(char) {
   return {
     ...char,
-    equipment: { ...(char.equipment || {}) }
+    equipment: getSafeEquipmentSnapshot(char?.equipment)
   };
 }
 
@@ -226,11 +242,11 @@ function getEquipPreview(char, itemKey, requestedSlot = null) {
   const item = getItemData(itemKey);
   if (!isEquipmentItem(item)) return null;
 
-  const slot = getTargetSlot(char, item.type, requestedSlot);
-  if (!slot) return null;
-  const current = getDisplayStats(char);
-  const oldEq = char.equipment?.[slot] || null;
   const previewChar = createEquipmentPreviewChar(char);
+  const slot = getTargetSlot(previewChar, item.type, requestedSlot);
+  if (!slot) return null;
+  const current = getDisplayStats(previewChar);
+  const oldEq = getEquipmentSlotValue(previewChar.equipment, slot);
   previewChar.equipment[slot] = itemKey;
   const next = getDisplayStats(previewChar);
 
@@ -245,12 +261,12 @@ function getEquipPreview(char, itemKey, requestedSlot = null) {
 }
 
 function getUnequipPreview(char, slot) {
-  const itemKey = char.equipment?.[slot];
+  const previewChar = createEquipmentPreviewChar(char);
+  const itemKey = getEquipmentSlotValue(previewChar.equipment, slot);
   const item = getItemData(itemKey);
   if (!item) return null;
 
-  const current = getDisplayStats(char);
-  const previewChar = createEquipmentPreviewChar(char);
+  const current = getDisplayStats(previewChar);
   previewChar.equipment[slot] = null;
   const next = getDisplayStats(previewChar);
 
@@ -410,7 +426,7 @@ function canEquip(char, itemKey, requestedSlot = null) {
   if (!slot) {
     return { ok: false, reason: "装備先がありません" };
   }
-  if (isCurseLocked(char.equipment?.[slot])) {
+  if (isCurseLocked(getEquipmentSlotValue(char.equipment, slot))) {
     return { ok: false, reason: "現在の呪い装備を外せません" };
   }
   return { ok: true, reason: "", slot };
@@ -474,7 +490,8 @@ function createFooter(overlay) {
 
   const actorRow = document.createElement("div");
   actorRow.className = "bottom-actions-row equip-actor-row";
-  state.party.forEach((char, idx) => {
+  state.party.forEach((liveChar, idx) => {
+    const char = createEquipmentPreviewChar(liveChar);
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = `equip-actor-chip ${idx === equipState.actorIdx ? "active" : ""}`;
@@ -781,7 +798,10 @@ function createAffixDetails(itemKey) {
 
 function getSelectedItemKey() {
   if (equipState.selectedIsEquipped) {
-    return state.party[equipState.actorIdx]?.equipment?.[equipState.selectedSlot] || null;
+    return getEquipmentSlotValue(
+      state.party[equipState.actorIdx]?.equipment,
+      equipState.selectedSlot
+    );
   }
   return state.inventory[equipState.selectedIdx] || null;
 }
@@ -956,7 +976,7 @@ function createAccessorySlotPicker(char, selectedSlot) {
   const choices = document.createElement("div");
   choices.className = "equip-slot-choices";
   getEquipmentSlotsForType("accessory").forEach(({ id }) => {
-    const currentKey = char.equipment?.[id];
+    const currentKey = getEquipmentSlotValue(char.equipment, id);
     const currentItem = currentKey ? getItemData(currentKey) : null;
     const button = document.createElement("button");
     button.type = "button";
@@ -1238,11 +1258,12 @@ export function renderEquip() {
   const detailMode = equipState.selectedKey !== null;
   overlay.innerHTML = "";
 
-  const char = state.party[equipState.actorIdx];
-  if (!char) {
+  const liveChar = state.party[equipState.actorIdx];
+  if (!liveChar) {
     closeEquipOverlay();
     return;
   }
+  const char = createEquipmentPreviewChar(liveChar);
 
   createHeader(overlay, char);
 

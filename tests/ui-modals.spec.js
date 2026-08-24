@@ -235,6 +235,85 @@ for (const vp of VIEWPORTS) {
     })).toEqual({ equipped: null, inventory: ['DAGGER', 'pure_preview_sword'] });
   });
 
+  test(`Equipment preview tolerates guarded equipment proxies at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state, createSavePayload } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      const char = createSoloCharacter('Fighter');
+      char.equipment.weapon = 'DAGGER';
+      const equipment = {
+        weapon: char.equipment.weapon,
+        shield: char.equipment.shield,
+        armor: char.equipment.armor,
+        accessory: char.equipment.accessory,
+        accessory2: char.equipment.accessory2,
+        ignored: 'ignored'
+      };
+      char.equipment = new Proxy(equipment, {
+        ownKeys() {
+          throw new Error('equipment keys unavailable');
+        }
+      });
+      state.party = [char];
+      state.inventory = [{
+        kind: 'equipment', instanceId: 'proxy_preview_sword', baseId: 'SHORT_SWORD', rarity: 'magic', level: 1,
+        identified: true, affixes: []
+      }];
+      const payload = createSavePayload();
+      window.__guardedEquipmentBaseline = {
+        partyEquipment: JSON.stringify({ weapon: payload.party[0].equipment.weapon, shield: payload.party[0].equipment.shield }),
+        inventory: JSON.stringify(payload.inventory)
+      };
+      openEquipOverlay(0);
+    });
+
+    const assertGuardedStateUnchanged = async () => {
+      const current = await page.evaluate(async () => {
+        const { createSavePayload } = await import('/src/state.js');
+        const payload = createSavePayload();
+        return {
+          partyEquipment: JSON.stringify({ weapon: payload.party[0].equipment.weapon, shield: payload.party[0].equipment.shield }),
+          inventory: JSON.stringify(payload.inventory),
+          baseline: window.__guardedEquipmentBaseline
+        };
+      });
+      expect(current.partyEquipment).toBe(current.baseline.partyEquipment);
+      expect(current.inventory).toBe(current.baseline.inventory);
+    };
+
+    await expect(page.locator('.equip-equipped-row[data-slot-id="weapon"]')).toContainText('ダガー');
+    await page.locator('.equip-equipped-row[data-slot-id="weapon"]').click();
+    await expect(page.locator('.equip-exchange-line')).toContainText('ダガー → なし');
+    await assertGuardedStateUnchanged();
+    await page.getByRole('button', { name: '一覧へ戻る' }).click();
+
+    await page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      const equipment = {
+        weapon: state.party[0].equipment.weapon,
+        shield: state.party[0].equipment.shield,
+        armor: state.party[0].equipment.armor,
+        accessory: state.party[0].equipment.accessory,
+        accessory2: state.party[0].equipment.accessory2,
+        ignored: 'ignored'
+      };
+      state.party[0].equipment = new Proxy(equipment, {
+        get(target, property, receiver) {
+          if (property === 'ignored') throw new Error('equipment property unavailable');
+          return Reflect.get(target, property, receiver);
+        }
+      });
+      const { openEquipOverlay } = await import('/src/equip.js');
+      openEquipOverlay(0);
+    });
+    await expect(page.locator('.equip-equipped-row[data-slot-id="weapon"]')).toContainText('ダガー');
+    await page.locator('.equip-equipped-row[data-slot-id="weapon"]').click();
+    await expect(page.locator('.equip-exchange-line')).toContainText('ダガー → なし');
+    await assertGuardedStateUnchanged();
+  });
+
   test(`Equipment can be discarded with confirmation at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
