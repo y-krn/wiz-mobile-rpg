@@ -953,8 +953,16 @@ for (const vp of VIEWPORTS) {
     });
 
     const results = [];
-    for (const partyShape of ['null', 'sparse', 'unknown-status']) {
-      await page.evaluate(async ({ payload, partyShape }) => {
+    const partyCases = [
+      { label: 'null' },
+      { label: 'sparse' },
+      { label: 'unknown-status', status: 'confused' },
+      { label: 'sleep', status: 'sleep' },
+      { label: 'paralyze', status: 'paralyze' },
+      { label: 'paralyzed', status: 'paralyzed' },
+    ];
+    for (const partyCase of partyCases) {
+      await page.evaluate(async ({ payload, partyCase }) => {
         const { state } = await import('/src/state.js');
         state.transitioning = true;
         const data = structuredClone(payload);
@@ -963,11 +971,11 @@ for (const vp of VIEWPORTS) {
           phase: 'choose_actions',
           monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
         };
-        if (partyShape === 'null') data.party = null;
-        if (partyShape === 'sparse') data.party = [null];
-        if (partyShape === 'unknown-status') data.party = [{ ...data.party[0], status: 'confused' }];
+        if (partyCase.label === 'null') data.party = null;
+        if (partyCase.label === 'sparse') data.party = [null];
+        if (partyCase.status) data.party = [{ ...data.party[0], status: partyCase.status }];
         localStorage.setItem('mobile_wiz_rpg_autosave', JSON.stringify(data));
-      }, { payload: basePayload, partyShape });
+      }, { payload: basePayload, partyCase });
       await page.reload();
       await page.waitForLoadState('networkidle');
 
@@ -978,14 +986,14 @@ for (const vp of VIEWPORTS) {
         const view = getScreenViewState(state, null);
         return {
           gameState: state.gameState,
-          combatState: state.combatState,
+          combatPhase: state.combatState?.phase ?? null,
           partyLength: state.party.length,
           partyStatus: state.party[0]?.status,
           hasCombat: view.hasCombat,
           hasStructurallyUsableCombatParty: view.hasStructurallyUsableCombatParty,
           hasUsableCombatActor: view.hasUsableCombatActor,
           savedGameState: saved.gameState,
-          savedCombatState: saved.combatState,
+          savedCombatPhase: saved.combatState?.phase ?? null,
         };
       }));
     }
@@ -993,37 +1001,48 @@ for (const vp of VIEWPORTS) {
     expect(results).toEqual([
       {
         gameState: 'explore',
-        combatState: null,
+        combatPhase: null,
         partyStatus: undefined,
         hasCombat: false,
         hasStructurallyUsableCombatParty: false,
         partyLength: 0,
         hasUsableCombatActor: false,
         savedGameState: 'explore',
-        savedCombatState: null,
+        savedCombatPhase: null,
       },
       {
         gameState: 'explore',
-        combatState: null,
+        combatPhase: null,
         partyStatus: undefined,
         hasCombat: false,
         hasStructurallyUsableCombatParty: false,
         partyLength: 0,
         hasUsableCombatActor: false,
         savedGameState: 'explore',
-        savedCombatState: null,
+        savedCombatPhase: null,
       },
       {
         gameState: 'explore',
-        combatState: null,
+        combatPhase: null,
         partyStatus: 'confused',
         hasCombat: false,
         hasStructurallyUsableCombatParty: false,
         partyLength: 1,
         hasUsableCombatActor: false,
         savedGameState: 'explore',
-        savedCombatState: null,
+        savedCombatPhase: null,
       },
+      ...['sleep', 'paralyze', 'paralyzed'].map(status => ({
+        gameState: 'combat',
+        combatPhase: 'choose_actions',
+        partyStatus: status,
+        hasCombat: true,
+        hasStructurallyUsableCombatParty: true,
+        partyLength: 1,
+        hasUsableCombatActor: false,
+        savedGameState: 'combat',
+        savedCombatPhase: 'choose_actions',
+      })),
     ]);
   });
 }
