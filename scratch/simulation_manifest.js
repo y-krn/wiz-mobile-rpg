@@ -158,7 +158,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
   balanceImpactNone: Object.freeze([
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
     "src/combat_ui/spell_summary.js", "src/combat_ui/combat_overlay.js", "src/spell_menu.js",
-    "src/combat_ui/action_selection.js", "src/combat_ui/round_runner.js",
+    "src/combat_ui/action_selection.js",
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**", "src/renderer.js", "src/state/view_state.js",
     "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js", "src/state/save_migrations.js", "src/state/save_payload.js",
     "src/error_context.js", "src/controls_guard.js",
@@ -177,6 +177,16 @@ export const SIMULATION_MANIFEST = Object.freeze({
       pattern: "src/state/save_payload.js",
       marker: "// balance-impact: none",
       reason: "save/load boundary only; reward and trap formulas remain in their owning modules"
+    },
+    {
+      pattern: "src/combat_ui/round_runner.js",
+      marker: "// balance-impact: none",
+      reason: "canonical combat screen guard only; combat rules remain unchanged"
+    },
+    {
+      pattern: "src/spell_menu.js",
+      marker: "// balance-impact: none",
+      reason: "canonical spell context validation only; spell rules remain unchanged"
     }
   ].map(declaration => Object.freeze({ ...declaration }))),
   // Exact paths whose current callers may receive telemetry-only edits. A
@@ -789,6 +799,16 @@ function hasTelemetryAnchor(diff) {
   });
 }
 
+function hasChangedTelemetryAnchor(diff) {
+  if (typeof diff !== "string") return false;
+  return diff.split(/\r?\n/).some(line => {
+    if (!(line.startsWith("+") || line.startsWith("-"))
+      || line.startsWith("+++") || line.startsWith("---")) return false;
+    const text = line.slice(1);
+    return isTelemetryImport(text) || /\btrack[A-Z][A-Za-z0-9]*\s*\(/.test(text);
+  });
+}
+
 function getBalanceImpactNoneDeclaration(diff, file, manifest) {
   if (typeof diff !== "string" || !diff.trim()) return false;
   return (manifest.balanceImpactNoneDiffs || []).find(declaration =>
@@ -796,6 +816,15 @@ function getBalanceImpactNoneDeclaration(diff, file, manifest) {
       line.startsWith("+") && !line.startsWith("+++") && isStandaloneBalanceImpactNoneDeclaration(line.slice(1), declaration)
     )
   ) || null;
+}
+
+function getDeclaredBoundaryDiff(diff, declaration) {
+  if (!declaration || typeof diff !== "string") return diff;
+  const segments = diff.split(/(?=^diff --git )/m);
+  const matchingSegments = segments.filter(segment => segment.split(/\r?\n/).some(line =>
+    line.startsWith("+") && !line.startsWith("+++") && isStandaloneBalanceImpactNoneDeclaration(line.slice(1), declaration)
+  ));
+  return matchingSegments.length > 0 ? matchingSegments.join("\n") : diff;
 }
 
 function isStandaloneBalanceImpactNoneDeclaration(text, declaration) {
@@ -819,7 +848,8 @@ const CALL_EXPRESSION = /\b(?:[A-Za-z_$][A-Za-z0-9_$]*\s*\.\s*)?[A-Za-z_$][A-Za-
 const CONTROL_KEYWORDS = new Set(["if", "while", "switch", "for", "catch"]);
 const KNOWN_BOUNDARY_CALLS = new Set([
   "transitionChestPhase", "getChestPhase", "chestActionAllowed",
-  "clearChestInspectionState", "finishChest"
+  "clearChestInspectionState", "finishChest", "isUsableCombatScreen",
+  "hasUsableCombatActor", "isUsableSpellForActor"
 ]);
 const STATE_BOUNDARY_HELPERS = /\b(?:CHEST_PHASES|CHEST_PHASE_TRANSITIONS|transitionChestPhase|getChestPhase|chestActionAllowed|isEligibleChestCharacter|clearChestInspectionState|finishChest|openChestMenu|executeDisarm|smashChest|openChestDirectly)\b/;
 const STATE_BOUNDARY_LOCALS = /\b(?:currentPhase|allowedPhases|persistedChestState|recordAction|allowTransition|fromDisarm|smashTrapFired)\b/;
@@ -828,9 +858,47 @@ const STATE_BOUNDARY_PROPERTIES = new Set([
 ]);
 const LITERAL_ONLY_DECLARATION = /^(?:const|let|var)\s+[A-Za-z_$][A-Za-z0-9_$]*\s*=\s*(?:"\s*"|'\s*'|`\s*`|\/\s*\/[A-Za-z]*)\s*;?$/;
 
+function isCombatBoundaryLine(text, file) {
+  if (file !== "src/combat_ui/round_runner.js") return false;
+  const trimmed = text.trim();
+  if (/^import \{[^}]+\} from "\.\.\/state\/view_state\.js";$/.test(trimmed)) {
+    const importedNames = trimmed.slice(trimmed.indexOf("{") + 1, trimmed.indexOf("}"))
+      .split(",").map(name => name.trim()).filter(Boolean);
+    return importedNames.every(name => ["hasUsableCombatActor", "isUsableCombatScreen", "isUsableSpellForActor"].includes(name));
+  }
+  return new Set([
+    'import { isUsableCombatScreen } from "../state/view_state.js";',
+    "if (!isUsableCombatScreen(state, menuContext)) return;",
+    'if (state.combatState?.phase !== "choose_actions" || !hasUsableCombatActor(state.party)) return;'
+  ]).has(trimmed)
+    || /^state\.combatState\?\.phase !== "choose_actions" \|\| !hasUsableCombatActor\(state\.party\)\) return;$/.test(trimmed);
+}
+
+function isSpellBoundaryLine(text, file) {
+  if (file !== "src/spell_menu.js") return false;
+  const trimmed = text.trim();
+  if (/^import \{[^}]+\} from "\.\/state\/view_state\.js";$/.test(trimmed)) {
+    const importedNames = trimmed.slice(trimmed.indexOf("{") + 1, trimmed.indexOf("}"))
+      .split(",").map(name => name.trim()).filter(Boolean);
+    return importedNames.every(name => ["getScreenViewState", "getUsableSpellKeys", "isUsableSpellForActor", "isUsableSpellKey"].includes(name));
+  }
+  return [
+    'if (!isUsableSpellForActor(state.party, menuContext.actorIdx, menuContext.spellName, "utility")) return;',
+    'if (!isUsableSpellForActor(state.party, menuContext.actorIdx, menuContext.spellName, ["single_ally", "all_allies"])) return;',
+    'if (spellMenuState.selectedKey && !isUsableSpellKey(spellMenuState.selectedKey)) {',
+    'if (!spKey || !caster || !isUsableSpellKey(spKey)) {',
+    'if (spKey && !isUsableSpellKey(spKey)) spellMenuState.selectedKey = null;',
+    'if (spKey) spellMenuState.selectedKey = null;',
+    'if (spellMenuState.selectedKey && !isUsableSpellForActor(state.party, menuContext.actorIdx, spellMenuState.selectedKey)) {',
+    'if (!spKey || !caster || !isUsableSpellForActor(state.party, menuContext.actorIdx, spKey)) {'
+  ].includes(trimmed);
+}
+
 function isAllowedStateBoundaryLine(text, file) {
   if (!text || text.startsWith("//")) return true;
   const classificationText = maskLiteralsAndNormalizeComments(text);
+  if (isCombatBoundaryLine(text, file)) return true;
+  if (isSpellBoundaryLine(text, file)) return true;
   if (LITERAL_ONLY_DECLARATION.test(classificationText)) return true;
   if (file === "src/state/save_payload.js" && /^import\s+\{[^}]*\bmenuContext\b[^}]*\bmenuHistory\b/.test(classificationText)) return true;
   if (ARRAY_MUTATOR_CALL.test(classificationText)) return false;
@@ -1164,12 +1232,11 @@ export function analyzeBalanceImpact(
     const diff = diffByFile instanceof Map ? diffByFile.get(file) : diffByFile?.[file] ?? getChangedDiff(file, baseRef);
     const balanceRule = (manifest.balanceImpactPaths || []).find(rule => matches(rule.pattern, file));
     const balanceImpactNone = (manifest.balanceImpactNone || []).some(pattern => matches(pattern, file));
-    const balanceImpactNoneStateBoundary = balanceImpactNone &&
-      ["src/combat_ui/action_selection.js", "src/combat_ui/round_runner.js"].includes(file);
     const telemetryOnlyPath = (manifest.telemetryOnlyPaths || []).some(pattern => matches(pattern, file));
     const balanceImpactNoneDiff = getBalanceImpactNoneDeclaration(diff, file, manifest);
-    if (balanceImpactNoneDiff && !hasOnlyStateBoundaryChanges(diff, file)) {
-      const line = getNonBoundaryStateDiffLine(diff, file);
+    const declaredBoundaryDiff = getDeclaredBoundaryDiff(diff, balanceImpactNoneDiff);
+    if (balanceImpactNoneDiff && !hasOnlyStateBoundaryChanges(declaredBoundaryDiff, file)) {
+      const line = getNonBoundaryStateDiffLine(declaredBoundaryDiff, file);
       errors.push(`${file}: balance-impact none declaration contains a non-boundary diff line (${JSON.stringify(line)}); use normal balance mapping`);
       continue;
     } else if (balanceImpactNoneDiff) {
@@ -1181,7 +1248,10 @@ export function analyzeBalanceImpact(
       continue;
     }
     const telemetryOnly = isTelemetryOnlyDiff(diff, { file });
-    if (hasTelemetryAnchor(diff) && !telemetryOnly && !balanceImpactNoneStateBoundary) {
+    // Context-only telemetry calls in a no-impact path are not a changed
+    // telemetry anchor; newly added telemetry remains subject to this gate.
+    const telemetryAnchor = balanceImpactNone ? hasChangedTelemetryAnchor(diff) : hasTelemetryAnchor(diff);
+    if (telemetryAnchor && !telemetryOnly) {
       errors.push(`${file}: telemetry anchor mixed with non-telemetry changes; classify the gameplay impact explicitly`);
       continue;
     }

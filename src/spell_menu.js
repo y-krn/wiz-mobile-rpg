@@ -1,5 +1,5 @@
 import { state, saveAutosave, addLog } from "./state.js";
-import { getScreenViewState, getUsableSpellKeys, isUsableSpellKey } from "./state/view_state.js";
+import { getScreenViewState, getUsableSpellKeys, isUsableSpellForActor } from "./state/view_state.js";
 import { getClassJpName, isSpellcaster, SPELLS, getSpellPayment, paySpellCost, getCoreLogText, getCharMaxHp } from "./data.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "./navigation.js";
 import { playSound } from "./audio.js";
@@ -17,7 +17,9 @@ export let spellMenuState = {
   selectedKey: null
 };
 
+// balance-impact: none — canonical spell context validation only; spell rules unchanged
 function executeUtilitySpell() {
+  if (!isUsableSpellForActor(state.party, menuContext.actorIdx, menuContext.spellName, "utility")) return;
   const caster = state.party[menuContext.actorIdx];
   const spell = SPELLS[menuContext.spellName];
   const payment = paySpellCost(caster, spell.cost);
@@ -38,6 +40,7 @@ function executeUtilitySpell() {
 }
 
 function executeAllySpell(targetIdx) {
+  if (!isUsableSpellForActor(state.party, menuContext.actorIdx, menuContext.spellName, ["single_ally", "all_allies"])) return;
   const caster = state.party[menuContext.actorIdx];
   const spell = SPELLS[menuContext.spellName];
   const payment = paySpellCost(caster, spell.cost);
@@ -122,7 +125,7 @@ export function renderSpellOverlay() {
   if (spellMenuState.selectedKey === undefined) {
     spellMenuState.selectedKey = null;
   }
-  if (spellMenuState.selectedKey && !isUsableSpellKey(spellMenuState.selectedKey)) {
+  if (spellMenuState.selectedKey && !isUsableSpellForActor(state.party, menuContext.actorIdx, spellMenuState.selectedKey)) {
     spellMenuState.selectedKey = null;
   }
 
@@ -431,8 +434,8 @@ export function renderSpellOverlay() {
     const panel = document.getElementById("spell-detail-panel");
     if (!panel) return;
 
-    if (!spKey || !caster || !isUsableSpellKey(spKey)) {
-      if (spKey && !isUsableSpellKey(spKey)) spellMenuState.selectedKey = null;
+    if (!spKey || !caster || !isUsableSpellForActor(state.party, menuContext.actorIdx, spKey)) {
+      if (spKey) spellMenuState.selectedKey = null;
       panel.innerHTML = `
         <div class="spell-detail-placeholder">呪文を選択してください</div>
         <button class="btn btn-neon btn-block disabled" disabled>唱える呪文を選択</button>

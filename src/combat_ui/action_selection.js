@@ -1,6 +1,6 @@
 import { state, addLog, saveAutosave } from "../state.js";
 import { menuContext } from "../navigation.js";
-import { isUsableCombatScreen } from "../state/view_state.js";
+import { hasUsableCombatActor, isUsableCombatScreen, isUsableSpellForActor } from "../state/view_state.js";
 import { SPELLS, ITEMS, getSpellPayment } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
@@ -19,7 +19,16 @@ import {
 export { combatSelection };
 
 function canActInCombat() {
-  return isUsableCombatScreen(state, menuContext);
+  return !state.transitioning && isUsableCombatScreen(state, menuContext) &&
+    state.combatState?.phase === "choose_actions" && hasUsableCombatActor(state.party) &&
+    Number.isInteger(combatSelection.charIdx) && combatSelection.charIdx >= 0;
+}
+
+function getLivingCharacters() {
+  if (!Array.isArray(state.party)) return [];
+  return state.party
+    .map((char, index) => ({ char, index }))
+    .filter(({ char }) => char && typeof char === "object" && !Array.isArray(char) && ["ok", "poisoned", "blind"].includes(char.status));
 }
 
 export function toggleCombatAuto() {
@@ -44,7 +53,8 @@ export function toggleCombatAuto() {
 export function advanceActionSelection() {
   if (!canActInCombat()) return;
   // Find next living character
-  const livingIdxs = state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status)).map(x => x.i);
+  const livingIdxs = getLivingCharacters().map(({ index }) => index);
+  if (livingIdxs.length === 0) return;
   
   if (state.combatState && state.combatState.isAuto) {
     while (combatSelection.charIdx < livingIdxs.length) {
@@ -56,7 +66,9 @@ export function advanceActionSelection() {
         roundNumber: state.combatState.roundNumber,
         healingTargetIdx: getAutoHealTargetIdx(character),
         canCastSpell: (spellName, reserveMp) => {
-          const payment = getSpellPayment(character, SPELLS[spellName].cost);
+          const spell = SPELLS[spellName];
+          if (!spell) return false;
+          const payment = getSpellPayment(character, spell.cost);
           return payment.canCast &&
             (payment.resource !== "mp" || character.mp - reserveMp >= payment.cost);
         }
@@ -81,9 +93,11 @@ export function advanceActionSelection() {
 export function selectCombatAction(type) {
   if (!canActInCombat() || state.combatState.phase !== "choose_actions") return;
 
-  const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => ["ok", "poisoned", "blind"].includes(x.c.status));
-  const char = livingChars[combatSelection.charIdx].c;
-  const charOriginalIdx = livingChars[combatSelection.charIdx].i;
+  const livingChars = getLivingCharacters();
+  const currentCharacter = livingChars[combatSelection.charIdx];
+  if (!currentCharacter) return;
+  const char = currentCharacter.char;
+  const charOriginalIdx = currentCharacter.index;
 
   if (type === "fight") {
     // Let player choose target monster
@@ -106,11 +120,12 @@ export function selectCombatAction(type) {
     });
   } else if (type === "spell") {
     // Show available caster spells
-    if (!char.spells || char.spells.length === 0) {
+    if (!Array.isArray(char.spells) || char.spells.length === 0) {
       addLog(`${char.name}は唱えられる呪文を持っていません。`);
       return;
     }
     openCombatSpellMenu(char, (spellName) => {
+      if (!isUsableSpellForActor(state.party, charOriginalIdx, spellName)) return;
       const spell = SPELLS[spellName];
       if (!getSpellPayment(char, spell.cost).canCast) {
         addLog("MPもHPも足りません。");

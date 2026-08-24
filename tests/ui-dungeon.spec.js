@@ -502,7 +502,7 @@ for (const vp of VIEWPORTS) {
         monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
       };
       const resetContext = (map) => {
-        state.party = [createSoloCharacter('Fighter')];
+        state.party = [createSoloCharacter('Priest')];
         state.party[0].spells = [];
         state.maps[0] = map;
         state.floor = 1;
@@ -593,6 +593,10 @@ for (const vp of VIEWPORTS) {
       const { combatSelection } = await import('/src/combat.js');
 
       const cell = () => ({ walls: [false, false, false, false], type: 'empty' });
+      const overlaySnapshot = overlay => ({
+        display: overlay?.style.display ?? 'missing',
+        children: overlay?.children.length ?? -1,
+      });
       const validCombatState = {
         phase: 'choose_actions',
         monsters: [{ name: 'Biter', level: 1, hp: 10, maxHp: 10 }],
@@ -649,7 +653,44 @@ for (const vp of VIEWPORTS) {
       } catch (error) {
         invalidCasterError = error.message;
       }
-      const invalidCasterOverlay = document.getElementById('combat-overlay');
+      const invalidCasterOverlay = overlaySnapshot(document.getElementById('combat-overlay'));
+
+      state.party[0].status = 'dead';
+      menuContext.actorIdx = 0;
+      let deadCasterError = null;
+      try {
+        updateUI();
+        renderCombatOverlay();
+      } catch (error) {
+        deadCasterError = error.message;
+      }
+      const deadCasterOverlay = overlaySnapshot(document.getElementById('combat-overlay'));
+
+      state.party[0].status = 'ok';
+      state.party[0].spells = ['HALITO'];
+      state.gameState = 'submenu';
+      menuContext.prevGameState = 'explore';
+      menuContext.type = 'spell_target_ally';
+      menuContext.actorIdx = 0;
+      menuContext.spellName = 'HALITO';
+      let incompatibleSpellTargetError = null;
+      try {
+        updateUI();
+        renderSpellOverlay();
+      } catch (error) {
+        incompatibleSpellTargetError = error.message;
+      }
+      const incompatibleSpellTargetOverlay = overlaySnapshot(document.getElementById('spell-overlay'));
+
+      state.party[0].spells = ['DIOS'];
+      let unownedSpellError = null;
+      try {
+        updateUI();
+        renderSpellOverlay();
+      } catch (error) {
+        unownedSpellError = error.message;
+      }
+      const unownedSpellOverlay = overlaySnapshot(document.getElementById('spell-overlay'));
 
       menuContext.type = 'combat_target';
       menuContext.targetType = 'unknown';
@@ -661,7 +702,7 @@ for (const vp of VIEWPORTS) {
       } catch (error) {
         invalidCombatTargetError = error.message;
       }
-      const invalidCombatTargetOverlay = document.getElementById('combat-overlay');
+      const invalidCombatTargetOverlay = overlaySnapshot(document.getElementById('combat-overlay'));
 
       state.gameState = 'submenu';
       menuContext.prevGameState = 'explore';
@@ -694,7 +735,11 @@ for (const vp of VIEWPORTS) {
       } catch (error) {
         invalidSpellSelectionError = error.message;
       }
-      const invalidSpellSelectionOverlay = document.getElementById('spell-overlay');
+      const invalidSpellSelectionOverlayElement = document.getElementById('spell-overlay');
+      const invalidSpellSelectionOverlay = {
+        ...overlaySnapshot(invalidSpellSelectionOverlayElement),
+        emptyList: Boolean(invalidSpellSelectionOverlayElement.querySelector('.list-empty')),
+      };
 
       state.gameState = 'explore';
       menuContext.type = '';
@@ -708,16 +753,21 @@ for (const vp of VIEWPORTS) {
         sparseMapError,
         sparseMapView: { hasMap: sparseMapView.hasMap, hasCurrentCell: sparseMapView.hasCurrentCell },
         invalidCasterError,
-        invalidCasterOverlay: { display: invalidCasterOverlay.style.display, children: invalidCasterOverlay.children.length },
+        invalidCasterOverlay,
+        deadCasterError,
+        deadCasterOverlay,
+        incompatibleSpellTargetError,
+        incompatibleSpellTargetOverlay,
+        unownedSpellError,
+        unownedSpellOverlay,
         invalidCombatTargetError,
-        invalidCombatTargetOverlay: { display: invalidCombatTargetOverlay.style.display, children: invalidCombatTargetOverlay.children.length },
+        invalidCombatTargetOverlay,
         invalidSpellTargetError,
         invalidSpellOverlay,
         invalidSpellSelectionError,
         invalidSpellSelection: {
           selectedKey: spellMenuState.selectedKey,
-          display: invalidSpellSelectionOverlay.style.display,
-          emptyList: Boolean(invalidSpellSelectionOverlay.querySelector('.list-empty')),
+          ...invalidSpellSelectionOverlay,
         },
         staleCombatActionCount: combatSelection.actions.length,
         staleCombatGameState: state.gameState,
@@ -731,6 +781,12 @@ for (const vp of VIEWPORTS) {
       sparseMapView: { hasMap: false, hasCurrentCell: false },
       invalidCasterError: null,
       invalidCasterOverlay: { display: 'none', children: 0 },
+      deadCasterError: null,
+      deadCasterOverlay: { display: 'none', children: 0 },
+      incompatibleSpellTargetError: null,
+      incompatibleSpellTargetOverlay: { display: 'none', children: 0 },
+      unownedSpellError: null,
+      unownedSpellOverlay: { display: 'none', children: 0 },
       invalidCombatTargetError: null,
       invalidCombatTargetOverlay: { display: 'none', children: 0 },
       invalidSpellTargetError: null,
@@ -784,11 +840,87 @@ for (const vp of VIEWPORTS) {
           errors.push(error.message);
         }
       }
+      state.gameState = 'combat';
+      state.combatState = {
+        phase: 'choose_actions',
+        monsters: [{ name: 'Biter', hp: 10, maxHp: 10 }],
+      };
+      state.party = [null];
+      state.transitioning = false;
+      combatSelection.charIdx = 0;
+      combatSelection.actions = [];
+      const invalidActorErrors = [];
+      for (const action of [
+        () => toggleCombatAuto(),
+        () => advanceActionSelection(),
+        () => selectCombatAction('fight'),
+        () => cancelCombatAction(),
+        () => resolveCombatRound(),
+      ]) {
+        try {
+          action();
+        } catch (error) {
+          invalidActorErrors.push(error.message);
+        }
+      }
+      const invalidActor = {
+        errors: invalidActorErrors,
+        phase: state.combatState.phase,
+        actionCount: combatSelection.actions.length,
+      };
+
+      state.party = [createSoloCharacter('Fighter')];
+      state.combatState.phase = 'resolving';
+      combatSelection.charIdx = 0;
+      combatSelection.actions = [];
+      const invalidPhaseErrors = [];
+      for (const action of [
+        () => selectCombatAction('fight'),
+        () => advanceActionSelection(),
+        () => cancelCombatAction(),
+        () => resolveCombatRound(),
+      ]) {
+        try {
+          action();
+        } catch (error) {
+          invalidPhaseErrors.push(error.message);
+        }
+      }
+      const invalidPhase = {
+        errors: invalidPhaseErrors,
+        phase: state.combatState.phase,
+        actionCount: combatSelection.actions.length,
+      };
+
+      state.combatState.phase = 'choose_actions';
+      state.transitioning = true;
+      const transitioningErrors = [];
+      for (const action of [
+        () => selectCombatAction('fight'),
+        () => advanceActionSelection(),
+        () => cancelCombatAction(),
+        () => resolveCombatRound(),
+      ]) {
+        try {
+          action();
+        } catch (error) {
+          transitioningErrors.push(error.message);
+        }
+      }
+      const transitioning = {
+        errors: transitioningErrors,
+        phase: state.combatState.phase,
+        actionCount: combatSelection.actions.length,
+      };
+      state.gameState = 'explore';
       return {
         errors,
         gameState: state.gameState,
         combatPhase: state.combatState.phase,
         actionCount: combatSelection.actions.length,
+        invalidActor,
+        invalidPhase,
+        transitioning,
       };
     });
 
@@ -797,6 +929,9 @@ for (const vp of VIEWPORTS) {
       gameState: 'explore',
       combatPhase: 'choose_actions',
       actionCount: 0,
+      invalidActor: { errors: [], phase: 'choose_actions', actionCount: 0 },
+      invalidPhase: { errors: [], phase: 'resolving', actionCount: 0 },
+      transitioning: { errors: [], phase: 'choose_actions', actionCount: 0 },
     });
   });
 }

@@ -1,5 +1,6 @@
 import { EVENT_SUBMENU_TYPES, ITEM_SUBMENU_TYPES } from "../constants/events.js";
 import { SPELLS } from "../data/spells.js";
+import { isSpellcaster } from "../rules/class_rules.js";
 
 // Canonical boundary shape shared by navigation, UI, and the renderer.
 // Gameplay state remains owned by state/state_core.js; this module only
@@ -40,9 +41,15 @@ function isUsableMapCell(cell) {
     cell.walls.every(wall => typeof wall === "boolean");
 }
 
+function getUsableCaster(party, actorIdx) {
+  if (!Array.isArray(party) || !Number.isInteger(actorIdx) || actorIdx < 0 || !Object.hasOwn(party, actorIdx)) return null;
+  const actor = party[actorIdx];
+  if (!isRecord(actor) || actor.status === "dead" || !isSpellcaster(actor) || !Number.isFinite(actor.maxMp) || actor.maxMp <= 0 || !Array.isArray(actor.spells)) return null;
+  return actor;
+}
+
 function hasUsableCaster(party, actorIdx) {
-  return Array.isArray(party) && Number.isInteger(actorIdx) && actorIdx >= 0 &&
-    Object.hasOwn(party, actorIdx) && isRecord(party[actorIdx]) && Array.isArray(party[actorIdx].spells);
+  return Boolean(getUsableCaster(party, actorIdx));
 }
 
 export function isUsableSpellKey(spellName) {
@@ -51,6 +58,25 @@ export function isUsableSpellKey(spellName) {
 
 export function getUsableSpellKeys(spellKeys) {
   return Array.isArray(spellKeys) ? spellKeys.filter(isUsableSpellKey) : [];
+}
+
+export function isUsableSpellForActor(party, actorIdx, spellName, targetTypes = null) {
+  const caster = getUsableCaster(party, actorIdx);
+  if (!caster || !isUsableSpellKey(spellName) || !getUsableSpellKeys(caster.spells).includes(spellName)) return false;
+  if (targetTypes === null) return true;
+  const acceptedTargets = Array.isArray(targetTypes) ? targetTypes : [targetTypes];
+  return acceptedTargets.includes(SPELLS[spellName].target);
+}
+
+export function hasUsableCombatActor(party) {
+  if (!Array.isArray(party) || party.length === 0) return false;
+  let hasLivingActor = false;
+  for (let index = 0; index < party.length; index++) {
+    const actor = party[index];
+    if (!Object.hasOwn(party, index) || !isRecord(actor) || typeof actor.name !== "string" || typeof actor.status !== "string") return false;
+    if (actor.status !== "dead") hasLivingActor = true;
+  }
+  return hasLivingActor;
 }
 
 export function isUsableCombatState(combatState) {
@@ -166,16 +192,15 @@ export function getScreenViewState(stateLike, menuContextLike) {
   const isCombatOverlaySubmenu = isSubmenu && previousGameState === "combat" && SUBMENU_OVERLAY_TYPES.has(menuType);
   const isSpellOverlaySubmenu = isSubmenu && previousGameState === "explore" && hasMap && hasCurrentCell && SPELL_OVERLAY_TYPES.has(menuType);
   const usableCaster = hasUsableCaster(source.party, menu.actorIdx);
-  const usableSpellName = isUsableSpellKey(menu.spellName);
   const isUsableCombatOverlaySubmenu = isCombatOverlaySubmenu && hasCombat && (
     menuType === "combat_spell"
       ? usableCaster
       : menuType === "combat_target"
-        ? menu.targetType === "enemy" || (menu.targetType === "ally" && (!menu.spellName || usableSpellName))
+        ? menu.targetType === "enemy" || (menu.targetType === "ally" && (!menu.spellName || isUsableSpellForActor(source.party, menu.actorIdx, menu.spellName, "single_ally")))
         : menuType === "combat_item"
   );
   const isUsableSpellOverlaySubmenu = isSpellOverlaySubmenu && usableCaster && (
-    menuType !== "spell_target_ally" || usableSpellName
+    menuType !== "spell_target_ally" || isUsableSpellForActor(source.party, menu.actorIdx, menu.spellName, "single_ally")
   );
 
   return Object.freeze({
