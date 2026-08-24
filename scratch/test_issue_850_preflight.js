@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -21,6 +22,10 @@ const lockfile = JSON.stringify({ name: "fixture", lockfileVersion: 3, packages:
 const tempRoot = mkdtempSync(path.join(os.tmpdir(), "wiz-issue-850-"));
 const packagePath = path.join(tempRoot, "node_modules", "@sentry", "browser", "package.json");
 const stampPath = path.join(tempRoot, "node_modules", ".dependency-preflight.json");
+
+function sha256(filePath) {
+  return createHash("sha256").update(readFileSync(filePath)).digest("hex");
+}
 
 function writeLockfile(value = lockfile) {
   writeFileSync(path.join(tempRoot, "package-lock.json"), value);
@@ -167,13 +172,31 @@ try {
         const installedPackagePath = path.join(root, "node_modules", "@sentry", "browser", "package.json");
         mkdirSync(path.dirname(installedPackagePath), { recursive: true });
         writeFileSync(installedPackagePath, JSON.stringify({ name: REQUIRED_PACKAGE, version: "10.63.0" }));
-        return "legacy-install-ok";
+        // Installer claims are not sufficient evidence for a compatibility stamp.
+        return {
+          verified: true,
+          lockfileSha256: sha256(path.join(root, "package-lock.json")),
+          dependencyTree: {
+            package: REQUIRED_PACKAGE,
+            ready: true,
+            packageJsonSha256: sha256(installedPackagePath)
+          }
+        };
       },
+      verify: ({ root, afterInstall }) => ({
+        verified: true,
+        lockfileSha256: sha256(path.join(root, "package-lock.json")),
+        dependencyTree: {
+          package: REQUIRED_PACKAGE,
+          ready: afterInstall.ready,
+          packageJsonSha256: sha256(afterInstall.packagePath)
+        }
+      }),
       log: { log() {} }
     });
     assert.equal(compatibilityInstalled.installed, true);
     assert.equal(compatibilityInstalled.ready, true);
-    assert.equal(compatibilityInstalled.result, "legacy-install-ok");
+    assert.equal(compatibilityInstalled.result.verified, true);
     assert.equal(installCalls, 1);
     assert.equal(existsSync(path.join(compatibilitySuccessRoot, "node_modules", ".dependency-preflight.json")), true);
 
