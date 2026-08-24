@@ -40,6 +40,7 @@ export function recordReceivedDamage(
     finalDamage,
     finalDef: options.finalDef,
     defResistance: options.defResistance,
+    character: char,
     playerHpBefore,
     playerHpAfter: char?.hp,
     playerMp: char?.mp,

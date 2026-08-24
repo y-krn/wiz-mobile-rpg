@@ -1,6 +1,7 @@
 import {
   getCharAgi,
   getCharAttackBreakdown,
+  getCharDef,
   getCharDerivedStats,
   getCharInt,
   getCharLuk,
@@ -20,6 +21,8 @@ import { EQUIPMENT_SLOTS } from "./rules/equipment_slots.js";
 import { DIR_NAMES } from "./constants/directions.js";
 import { EVENT_TYPES, EVENT_SUBMENU_TYPES } from "./constants/events.js";
 import { CHEST_SMASH_REWARD_LOSS_CHANCE_BY_CATEGORY } from "./rules/chest_rules.js";
+import { getBuffTotal } from "./combat_logic/status_effects.js";
+import { getMpWardDef } from "./combat_logic/mp_ward.js";
 
 // v2 changes the legacy run_end deathCause value from arbitrary cause text to a
 // bounded category and bounds migrated snapshot values before capture.
@@ -450,6 +453,57 @@ function safeDecisionContext(options) {
   }
 }
 
+function normalizeDefenseBreakdown(breakdown) {
+  if (!breakdown || typeof breakdown !== "object") return {};
+  const normalize = value => boundedFiniteOrNull(value, -MAX_RESOURCE_VALUE);
+  return {
+    baseDef: normalize(breakdown.baseDef ?? breakdown.equipmentDef),
+    equipmentDef: normalize(breakdown.equipmentDef),
+    vitContribution: normalize(breakdown.vitContribution),
+    buffDef: normalize(breakdown.buffDef),
+    frontGuardDef: normalize(breakdown.frontGuardDef),
+    firstStrikeDefense: normalize(breakdown.firstStrikeDefense),
+    mpWardDef: normalize(breakdown.mpWardDef),
+    tempDefDown: normalize(breakdown.tempDefDown)
+  };
+}
+
+function buildDefenseBreakdown(character, finalDef, damage) {
+  if (!character || typeof character !== "object" || !Number.isFinite(Number(finalDef))) return null;
+  const attackType = damage?.attackType;
+  const isPhysical = attackType === "physical" || attackType === "flee" || (!attackType && !damage?.spell);
+  if (!isPhysical) return null;
+
+  try {
+    const equipmentDef = getCharDef(character);
+    const vit = getCharVit(character);
+    const vitContribution = Math.floor(vit / 4);
+    const mpWardDef = getMpWardDef(character);
+    const buffDef = attackType === "flee" ? 0 : getBuffTotal(character, "def");
+    const tempDefDown = attackType === "flee" ? 0 : (character.tempDefDown || 0);
+    const firstStrikeDefense = attackType === "physical" && character.combatFirstStrikeActive
+      ? getCharAffixSum(character, "firstStrikeDefense")
+      : 0;
+    const frontGuardDef = attackType === "physical"
+      ? Number(finalDef) - (equipmentDef + vitContribution + buffDef + firstStrikeDefense + mpWardDef - tempDefDown)
+      : 0;
+    return {
+      // The live formula's baseDef input is the player's effective equipment DEF;
+      // there is no separate character-base DEF term in the current rules.
+      baseDef: equipmentDef,
+      equipmentDef,
+      vitContribution,
+      buffDef,
+      frontGuardDef,
+      firstStrikeDefense,
+      mpWardDef,
+      tempDefDown
+    };
+  } catch {
+    return null;
+  }
+}
+
 function normalizeDecisionAction(action) {
   return {
     fight: "attack",
@@ -659,6 +713,8 @@ export function trackCombatStart(combat, stateSnapshot = null) {
 export function trackDamageReceived(damage) {
   if (!isTelemetryAvailable() || !runId || !combatId) return;
 
+  const defenseBreakdown = damage?.defenseBreakdown
+    ?? buildDefenseBreakdown(damage?.character, damage?.finalDef, damage);
   capture("damage_received", {
     runId,
     combatId,
@@ -670,6 +726,7 @@ export function trackDamageReceived(damage) {
     finalDamage: boundedFiniteOrNull(damage?.finalDamage),
     finalDef: boundedFiniteOrNull(damage?.finalDef),
     defResistance: boundedFiniteOrNull(damage?.defResistance, -1, 1),
+    ...normalizeDefenseBreakdown(defenseBreakdown),
     playerHpBefore: boundedFiniteOrNull(damage?.playerHpBefore),
     playerHpAfter: boundedFiniteOrNull(damage?.playerHpAfter),
     playerMp: boundedFiniteOrNull(damage?.playerMp),
