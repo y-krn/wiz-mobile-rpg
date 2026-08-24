@@ -3,6 +3,10 @@ import { SAVE_VERSION, normalizeSavePayload } from "./save_migrations.js";
 import { menuContext, menuHistory } from "../navigation.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 
+const STABLE_PERSISTED_GAME_STATES = new Set([
+  "town", "explore", "combat", "result", "gameover", "victory"
+]);
+
 // balance-impact: none — this change is a persistence boundary only; reward
 // and trap formulas remain covered by their owning modules.
 // 一時オーバーレイ状態は付随コンテキストが永続化されないため、そのまま保存すると
@@ -19,13 +23,24 @@ import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
 // - "trap_encounter": activeTrapState が未保存。gameState="trap_encounter" のまま保存すると
 //   再開時に罠UIが表示されず、罠操作パネルだけ出て操作不能になる。罠は探索中のみ発生する
 //   ため explore へ畳む(罠マス上で再開し、踏み直せば罠が再発生する)。
+function getStableFallbackGameState() {
+  return state.currentRun?.runSeed && !state.currentRun.returnReason ? "explore" : "town";
+}
+
 function resolvePersistedGameState() {
   if (state.chestState?.fromDrop) return "submenu";
+  if (state.chestState) return "explore";
   if (state.gameState === "chest") return "explore";
   if (state.gameState === "trap_encounter") return "explore";
   if (state.gameState === "equip_overlay") return "explore";
-  if (state.gameState !== "submenu") return state.gameState;
-  if (menuContext.prevGameState) return menuContext.prevGameState;
+  if (state.gameState !== "submenu") {
+    return STABLE_PERSISTED_GAME_STATES.has(state.gameState)
+      ? state.gameState
+      : getStableFallbackGameState();
+  }
+  if (STABLE_PERSISTED_GAME_STATES.has(menuContext.prevGameState)) {
+    return menuContext.prevGameState;
+  }
   const t = menuContext.type || "";
   if (
     t.startsWith("castle") ||
@@ -36,7 +51,7 @@ function resolvePersistedGameState() {
   }
   if (t.startsWith("combat")) return "combat";
   if (t.startsWith("milestone")) return "explore";
-  return "explore";
+  return getStableFallbackGameState();
 }
 
 export function createSavePayload() {

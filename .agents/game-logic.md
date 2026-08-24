@@ -48,7 +48,8 @@ fields are intentionally omitted: `menuContext`, `menuHistory`, `equipState`,
 `result`, `gameover`, or `victory`). Submenu, equipment-overlay, ordinary chest,
 and trap-encounter state is flattened to a stable screen. The exception is an
 unopened `chestState.fromDrop`, which is persisted with phase `menu` because no
-map event can recreate it.
+map event can recreate it. Unknown direct screens and unsupported submenu parent
+screens fall back to `explore` during an active run and `town` otherwise.
 
 At the apply boundary, `normalizeSavePayload()` validates the top-level object,
 filters or defaults malformed collections, restores missing scalar defaults,

@@ -113,6 +113,28 @@ check("partial current-version payloads receive safe defaults", () => {
   assert.equal(Object.hasOwn(state, "eventCooldownTurns"), false);
 });
 
+check("unknown screens collapse to stable save screens", () => {
+  state.currentRun = null;
+  state.gameState = "future_screen";
+  assert.equal(createSavePayload().gameState, "town");
+
+  state.currentRun = createDefaultCurrentRun();
+  state.currentRun.runSeed = "SAVE-CONTRACT-RUN";
+  state.gameState = "future_screen";
+  assert.equal(createSavePayload().gameState, "explore");
+
+  state.gameState = "submenu";
+  menuContext.prevGameState = "future_parent_screen";
+  menuContext.type = "unknown_menu";
+  assert.equal(createSavePayload().gameState, "explore");
+
+  state.currentRun = null;
+  assert.equal(createSavePayload().gameState, "town");
+  menuContext.prevGameState = null;
+  menuContext.type = "";
+  state.gameState = "town";
+});
+
 check("combat screens require a usable combat payload", () => {
   const validPayload = {
     ...createSavePayload(),
