@@ -135,9 +135,8 @@ assert.doesNotThrow(
   "telemetry-only mapped-module diff should not require balance runtime evidence"
 );
 const chestStateBoundaryDiff = `diff --git a/src/chest.js b/src/chest.js
-@@ -28,0 +29,4 @@
+@@ -28,0 +29,3 @@
 +// balance-impact: none — chest phase and transient-state boundary only
-+  trackChestAction(chest, action, { state });
 +  state.chestState.phase = nextPhase;
 `;
 const chestStateBoundaryReport = assertBalanceImpactCovered(
@@ -177,7 +176,7 @@ assert.throws(
     undefined,
     { diffByFile: new Map([["src/chest.js", markerWithBalanceMutationDiff]]) }
   ),
-  /balance-impact none declaration conflicts with a balance-sensitive mutation/,
+  /balance-impact none declaration contains a non-boundary diff line/,
   "a marker cannot exempt a diff that mutates balance-sensitive state"
 );
 const inlineMarkerMutationDiff = `diff --git a/src/chest.js b/src/chest.js
@@ -194,6 +193,28 @@ assert.throws(
   /canonical runtime evidence result is required/,
   "an inline marker is not a standalone declaration"
 );
+for (const [label, mutation] of [
+  ["identify tickets", "state.identifyTickets += 1;"],
+  ["first unidentified guarantee", "state.firstChestUnidentifiedGuaranteed = true;"],
+  ["run item-found array", "state.currentRun.itemsFound.push(\"DAGGER\");"],
+  ["inventory array", "state.inventory.push(\"HEAL_POTION\");"]
+]) {
+  const markerMutationDiff = `diff --git a/src/chest.js b/src/chest.js
+@@ -28,0 +29,2 @@
++// balance-impact: none — state boundary only
++  ${mutation}
+`;
+  assert.throws(
+    () => assertBalanceImpactCovered(
+      ["src/chest.js"],
+      SIMULATION_MANIFEST,
+      undefined,
+      { diffByFile: new Map([["src/chest.js", markerMutationDiff]]) }
+    ),
+    /balance-impact none declaration contains a non-boundary diff line/,
+    `${label} mutation cannot use the state-boundary exemption`
+  );
+}
 assert.throws(
   () => assertBalanceImpactCovered(
     ["src/chest.js"],

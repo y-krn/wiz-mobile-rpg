@@ -790,17 +790,14 @@ function hasTelemetryAnchor(diff) {
   });
 }
 
-function hasBalanceImpactNoneDeclaration(diff, file, manifest) {
+function getBalanceImpactNoneDeclaration(diff, file, manifest) {
   if (typeof diff !== "string" || !diff.trim()) return false;
-  return (manifest.balanceImpactNoneDiffs || []).some(declaration =>
+  return (manifest.balanceImpactNoneDiffs || []).find(declaration =>
     matches(declaration.pattern, file) && diff.split(/\r?\n/).some(line =>
       line.startsWith("+") && !line.startsWith("+++") && isStandaloneBalanceImpactNoneDeclaration(line.slice(1), declaration)
     )
-  );
+  ) || null;
 }
-
-const BALANCE_MUTATION_OPERATORS = /(?:\+=|-=|\*=|\/=|%=|&=|\|=|\^=|<<=|>>=|>>>=|\+\+|--|(?<![=!<>])=(?!=|>))/;
-const BALANCE_MUTATING_CALLS = /\b(?:addInventoryItem|recordEquipmentDiscovery|recordCharDeath|generateChestMaterials|rollChestTrap|rollChestReward|rollChestSpecialReward|resolveChestSmashRewardLosses|triggerChestTrap|resolveChestTrapEffect|increaseChestTrapTier)\s*\(/;
 
 function isStandaloneBalanceImpactNoneDeclaration(text, declaration) {
   const trimmed = text.trim();
@@ -810,16 +807,54 @@ function isStandaloneBalanceImpactNoneDeclaration(text, declaration) {
     trimmed.startsWith(`${marker} -`);
 }
 
-function hasBalanceSensitiveMutation(diff) {
+const STATE_BOUNDARY_ROOTS = /\b(?:state\.(?:chestState|gameState|transitioning)|menuContext|menuHistory)\b/;
+const STATE_ROOT_ACCESS = /\bstate\.([A-Za-z_$][A-Za-z0-9_$]*)/g;
+const ALLOWED_STATE_ROOTS = new Set(["chestState", "gameState", "transitioning"]);
+const ARRAY_MUTATOR_CALL = /\.\s*(?:push|pop|shift|unshift|splice|sort|reverse|fill|copyWithin)\s*\(/;
+const BALANCE_MUTATOR_CALL = /\b(?:award|grant|give|add|remove|consume|refund|credit|debit|roll|resolve|trigger|apply|drop|loot|reward|trap|economy|material|currency|inventory|equipment|item|ticket|chestReward)\w*\s*\(/i;
+const STATE_BOUNDARY_HELPERS = /\b(?:CHEST_PHASES|CHEST_PHASE_TRANSITIONS|transitionChestPhase|getChestPhase|chestActionAllowed|isEligibleChestCharacter|clearChestInspectionState|finishChest|openChestMenu|executeDisarm|smashChest|openChestDirectly)\b/;
+const STATE_BOUNDARY_LOCALS = /\b(?:currentPhase|allowedPhases|persistedChestState|recordAction|allowTransition|fromDisarm|smashTrapFired)\b/;
+const STATE_BOUNDARY_PROPERTIES = new Set([
+  "phase", "fromDrop", "smashTelemetry", "inspected", "identifiedTrap", "inspectChance"
+]);
+
+function isAllowedStateBoundaryLine(text, file) {
+  if (!text || text.startsWith("//")) return true;
+  if (file === "src/state/save_payload.js" && /^import\s+\{[^}]*\bmenuContext\b[^}]*\bmenuHistory\b/.test(text)) return true;
+  if (ARRAY_MUTATOR_CALL.test(text)) return false;
+  if (BALANCE_MUTATOR_CALL.test(text)) return false;
+  if (/^(?:state\.party\.includes\((?:char|opener)\)\s*&&|if \(options\.fromDisarm === true && !state\.party\.includes\(opener\)\) return false;)$/.test(text)) return true;
+  if ([...text.matchAll(STATE_ROOT_ACCESS)].some(([, root]) => !ALLOWED_STATE_ROOTS.has(root))) return false;
+  if (/^\["ok",\s*"poisoned",\s*"blind"\]\.includes\(char\.status\)$/.test(text)) return true;
+  if (/^(?:MENU|DISARM_SELECT|OPEN_SELECT|RESOLVING|REWARD|TERMINAL):\s*"[a-z_]+",?$/.test(text)) return true;
+  if (/^smash:\s*true,?$/.test(text)) return true;
+  if (/^:\s*(?:null|state\.chestState)/.test(text)) return true;
+  if (/^(?:if|while|switch)\s*\($/.test(text)) return true;
+  if (/^\)\s*return\s+(?:false|true|undefined);$/.test(text)) return true;
+  if (/^(?:char\s*&&|return\s+Boolean\(|[{}),;]+|return(?:\s+(?:true|false|undefined))?;?)$/.test(text)) return true;
+  if (file === "src/state/save_payload.js" && /^\?\s*\{\s*\.\.\.data\.chestState,\s*phase:\s*"menu"\s*\}$/.test(text)) return true;
+  if (/^(?:delete\s+)?chest\.(?:phase|inspected|identifiedTrap|inspectChance)\b/.test(text)) return true;
+  if (/^const\s+(?:currentPhase|allowedPhases|persistedChestState)\b/.test(text)) return true;
+  if ((STATE_BOUNDARY_LOCALS.test(text) || STATE_BOUNDARY_HELPERS.test(text)) && !/\bstate\./.test(text)) return true;
+  if (STATE_BOUNDARY_ROOTS.test(text)) {
+    const chestStateAccesses = [...text.matchAll(/\bstate\.chestState(?:\?\.|\.)([A-Za-z_$][A-Za-z0-9_$]*)/g)];
+    if (chestStateAccesses.some(([, property]) => !STATE_BOUNDARY_PROPERTIES.has(property))) return false;
+    const localChestAccesses = [...text.matchAll(/\bchest\.([A-Za-z_$][A-Za-z0-9_$]*)/g)];
+    if (localChestAccesses.some(([, property]) => !STATE_BOUNDARY_PROPERTIES.has(property))) return false;
+    return true;
+  }
+  return false;
+}
+
+function getNonBoundaryStateDiffLine(diff, file) {
   if (typeof diff !== "string" || !diff.trim()) return false;
-  return diff.split(/\r?\n/).some(line => {
-    if (!(line.startsWith("+") || line.startsWith("-")) || line.startsWith("+++") || line.startsWith("---")) return false;
-    const text = line.slice(1).trim();
-    if (!text || text.startsWith("//")) return false;
-    if (BALANCE_MUTATING_CALLS.test(text)) return true;
-    const stateOrRewardPath = /\b(?:state\.(?:currentRun|inventory|party|floorChestsOpened|gold|materials)|(?:state\.)?chestState\.(?:trap|item|specialItem|accessoryItem)|\bchest\.(?:trap|item|specialItem|accessoryItem))\b/;
-    return stateOrRewardPath.test(text) && BALANCE_MUTATION_OPERATORS.test(text);
-  });
+  return diff.split(/\r?\n/).filter(line =>
+    (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")
+  ).map(line => line.slice(1).trim()).find(text => !isAllowedStateBoundaryLine(text, file)) || null;
+}
+
+function hasOnlyStateBoundaryChanges(diff, file) {
+  return getNonBoundaryStateDiffLine(diff, file) === null;
 }
 
 export function isTelemetryOnlyDiff(diff, { file = null } = {}) {
@@ -877,9 +912,11 @@ export function analyzeBalanceImpact(
     const balanceRule = (manifest.balanceImpactPaths || []).find(rule => matches(rule.pattern, file));
     const balanceImpactNone = (manifest.balanceImpactNone || []).some(pattern => matches(pattern, file));
     const telemetryOnlyPath = (manifest.telemetryOnlyPaths || []).some(pattern => matches(pattern, file));
-    const balanceImpactNoneDiff = hasBalanceImpactNoneDeclaration(diff, file, manifest);
-    if (balanceImpactNoneDiff && hasBalanceSensitiveMutation(diff)) {
-      errors.push(`${file}: balance-impact none declaration conflicts with a balance-sensitive mutation; use normal balance mapping`);
+    const balanceImpactNoneDiff = getBalanceImpactNoneDeclaration(diff, file, manifest);
+    if (balanceImpactNoneDiff && !hasOnlyStateBoundaryChanges(diff, file)) {
+      const line = getNonBoundaryStateDiffLine(diff, file);
+      errors.push(`${file}: balance-impact none declaration contains a non-boundary diff line (${JSON.stringify(line)}); use normal balance mapping`);
+      continue;
     } else if (balanceImpactNoneDiff) {
       impacts.push({ file, domains: [], balanceImpactNone: true, runtimeUnsupported: [], runtimeUnfired: [] });
       continue;
