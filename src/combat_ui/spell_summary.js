@@ -24,5 +24,5 @@ const SPELL_COMBAT_SUMMARIES = Object.freeze({
 });
 
 export function getSpellCombatSummary(spellName) {
-  return SPELL_COMBAT_SUMMARIES[spellName] || { tag: "不明", effect: "", category: "unknown" };
+  return { ...(SPELL_COMBAT_SUMMARIES[spellName] || { tag: "不明", effect: "", category: "unknown" }) };
 }

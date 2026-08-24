@@ -68,6 +68,19 @@ recordAssertion(() => {
 });
 
 recordAssertion(() => {
+  const firstSummary = getSpellCombatSummary("HALITO");
+  firstSummary.tag = "mutated";
+  firstSummary.effect = "mutated";
+  firstSummary.category = "mutated";
+
+  assert.deepStrictEqual(
+    getSpellCombatSummary("HALITO"),
+    { tag: "単体", effect: "火 12-22", category: "single" },
+    "mutating one returned summary must not affect a later call"
+  );
+});
+
+recordAssertion(() => {
   assert.strictEqual(
     checkedSummaries.length,
     Object.keys(SPELLS).length,
