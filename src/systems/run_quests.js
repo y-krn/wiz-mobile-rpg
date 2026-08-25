@@ -37,8 +37,7 @@ export function assignRunQuests(run, rng = Math.random) {
     const j = Math.floor(rng() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  run.quests = pool.slice(0, count)
-    .map(template => createRunQuest(template, run.startFloor || 1));
+  run.quests = pool.slice(0, count).map(template => createRunQuest(template, run.startFloor || 1));
   run.defeatsByRole ||= {};
   updateRunQuests(run);
   return run.quests;
