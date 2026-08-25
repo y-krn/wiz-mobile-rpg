@@ -346,6 +346,10 @@ await test("弱体毒針は正のダメージ後に毒付与率50%", () => {
   triggerChestTrap(poisoned, true, () => 0.49);
   assert.ok(poisoned.hp < poisonedHpBefore && poisoned.hp >= 0);
   assert.equal(poisoned.status, "poisoned");
+  assert.equal(poisoned.statusEffects.poisoned.remainingTurns, 9);
+  assert.match(state.logs.at(-2), /^Poisonedは毒に侵された。$/);
+  assert.equal(state.logs.at(-1), "毒はそれほど深くない。やがて体から抜けるだろう。");
+  assert.equal(state.logs.some(log => /10歩|残り\d+歩/.test(log)), false);
 
   const safe = makeCharacter("Fighter", "Safe");
   resetChest({ trap: "poison needle", party: [safe] });

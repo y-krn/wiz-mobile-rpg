@@ -17,9 +17,20 @@ export const BLEEDING_PAYOFF_DAMAGE = 1;
 // Combat poison remains a legacy status until the character next takes an
 // exploration step, where the finite exploration window is initialized.
 export const EXPLORATION_POISON_DAMAGE_CHANCE = 0.30;
+export const EXPLORATION_POISON_DURATION_MIN = 7;
+export const EXPLORATION_POISON_DURATION_MAX = 12;
+// Retained for simulation and save-compatibility consumers that use the old
+// nominal duration as an explicit scenario override. Gameplay no longer uses
+// this value as the poison duration.
 export const EXPLORATION_POISON_DURATION_STEPS = 10;
 export const EXPLORATION_POISON_DAMAGE_MIN = 1;
 export const EXPLORATION_POISON_DAMAGE_MAX = 2;
+
+export function rollExplorationPoisonDuration(rng = Math.random) {
+  const roll = Math.max(0, Math.min(0.999999999, Number(rng()) || 0));
+  return EXPLORATION_POISON_DURATION_MIN
+    + Math.floor(roll * (EXPLORATION_POISON_DURATION_MAX - EXPLORATION_POISON_DURATION_MIN + 1));
+}
 
 const LEGACY_STATUS_IDS = new Set([
   STATUS_EFFECT_IDS.POISONED,
@@ -217,7 +228,7 @@ export function resolveExplorationPoisonStep(
   {
     rng = Math.random,
     damageChance = EXPLORATION_POISON_DAMAGE_CHANCE,
-    durationSteps = EXPLORATION_POISON_DURATION_STEPS,
+    durationSteps = null,
     damageMin = EXPLORATION_POISON_DAMAGE_MIN,
     damageMax = EXPLORATION_POISON_DAMAGE_MAX
   } = {}
@@ -232,8 +243,8 @@ export function resolveExplorationPoisonStep(
   const finiteDuration = Number.isFinite(durationSteps)
     ? Math.max(0, Math.floor(durationSteps))
     : null;
-  if (remainingSteps === null && finiteDuration !== null) {
-    remainingSteps = finiteDuration;
+  if (remainingSteps === null) {
+    remainingSteps = finiteDuration ?? rollExplorationPoisonDuration(rng);
     effect.remainingTurns = remainingSteps;
   }
 

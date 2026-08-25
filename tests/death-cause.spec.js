@@ -58,7 +58,7 @@ test('spring poison uses the finite exploration lifecycle', async ({ page }) => 
     const { state, createDefaultCurrentRun, createSoloCharacter, initNewGame } = await import('/src/state.js');
     const { renderEventSpring } = await import('/src/menu/explore_actions.js');
     const { applyExplorationPoison } = await import('/src/movement.js');
-    const { EXPLORATION_POISON_DURATION_STEPS, STATUS_EFFECT_IDS } = await import('/src/combat_logic/status_effects.js');
+    const { STATUS_EFFECT_IDS } = await import('/src/combat_logic/status_effects.js');
 
     initNewGame();
     state.party = [createSoloCharacter('Mage')];
@@ -71,7 +71,7 @@ test('spring poison uses the finite exploration lifecycle', async ({ page }) => 
     const options = document.getElementById('submenu-options');
     options.replaceChildren();
     const originalRandom = Math.random;
-    const springRolls = [0.75, 0];
+    const springRolls = [0.75, 0, 0.4];
     Math.random = () => springRolls.shift() ?? 0.99;
     try {
       renderEventSpring(options);
@@ -84,7 +84,7 @@ test('spring poison uses the finite exploration lifecycle', async ({ page }) => 
       status: state.party[0].status,
       remainingTurns: state.party[0].statusEffects[STATUS_EFFECT_IDS.POISONED]?.remainingTurns,
       source: state.party[0].statusEffects[STATUS_EFFECT_IDS.POISONED]?.source,
-      log: state.logs.at(-1)
+      logs: state.logs.slice(-2)
     };
 
     const step = () => {
@@ -101,7 +101,7 @@ test('spring poison uses the finite exploration lifecycle', async ({ page }) => 
       status: state.party[0].status,
       remainingTurns: state.party[0].statusEffects[STATUS_EFFECT_IDS.POISONED]?.remainingTurns
     };
-    for (let i = 0; i < EXPLORATION_POISON_DURATION_STEPS - 1; i++) step();
+    for (let i = 0; i < afterSpring.remainingTurns - 1; i++) step();
 
     return {
       afterSpring,
@@ -115,11 +115,13 @@ test('spring poison uses the finite exploration lifecycle', async ({ page }) => 
 
   expect(lifecycle.afterSpring).toMatchObject({
     status: 'poisoned',
-    remainingTurns: 10,
+    remainingTurns: 9,
     source: 'spring'
   });
-  expect(lifecycle.afterSpring.log).toContain('探索中10歩で自然に消える');
-  expect(lifecycle.afterFirstStep).toEqual({ status: 'poisoned', remainingTurns: 9 });
+  expect(lifecycle.afterSpring.logs[0]).toMatch(/^\[!\] .+は毒に侵された。$/);
+  expect(lifecycle.afterSpring.logs[1]).toBe('毒はそれほど深くない。やがて体から抜けるだろう。');
+  expect(lifecycle.afterSpring.logs.join(' ')).not.toMatch(/10歩|残り\d+歩/);
+  expect(lifecycle.afterFirstStep).toEqual({ status: 'poisoned', remainingTurns: 8 });
   expect(lifecycle.afterExpiry).toEqual({ status: 'ok', hasPoison: false });
 });
 

@@ -13,7 +13,7 @@ import { openWall } from "../map_generator.js";
 import {
   applyStatusEffect,
   clearCharIncapacitationOnDamage,
-  EXPLORATION_POISON_DURATION_STEPS,
+  rollExplorationPoisonDuration,
   STATUS_EFFECT_IDS
 } from "../combat_logic/status_effects.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
@@ -400,11 +400,12 @@ export function renderEventSpring(optGrid) {
       if (aliveChars.length > 0) {
         const target = aliveChars[Math.floor(Math.random() * aliveChars.length)];
         applyStatusEffect(target, STATUS_EFFECT_IDS.POISONED, {
-          remainingTurns: EXPLORATION_POISON_DURATION_STEPS,
+          remainingTurns: rollExplorationPoisonDuration(),
           source: "spring"
         });
         playSound("bump");
-        addLog(`[!] うわっ、水には毒が混ざっていた！${target.name}は毒状態になった！（探索中${EXPLORATION_POISON_DURATION_STEPS}歩で自然に消える）`);
+        addLog(`[!] ${target.name}は毒に侵された。`);
+        addLog("毒はそれほど深くない。やがて体から抜けるだろう。");
       }
     } else {
       const aliveChars = state.party.filter(char => char.status !== "dead");

@@ -207,7 +207,7 @@ function selectCombatAction(state) {
 
 function updateStatusFromLog(currentStatus, message, characterName) {
   if (!message.includes(characterName)) return currentStatus;
-  if (message.includes("毒状態になった")) return "poisoned";
+  if (message.includes("毒に侵された")) return "poisoned";
   if (message.includes("麻痺状態になった")) return "paralyzed";
   if (message.includes("眠りに落ちた")) return "sleep";
   if (message.includes("盲目状態になった")) return "blind";

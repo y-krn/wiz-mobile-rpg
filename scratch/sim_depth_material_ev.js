@@ -3179,7 +3179,7 @@ function recordStatusObservationAfterCombatRound(
   const beforeStatus = normalizeStatusObservation(characterBefore?.status);
   const afterStatus = normalizeStatusObservation(characterAfter?.status);
   const applicationLogs = [
-    ["poisoned", "毒を受け、毒状態になった"],
+    ["poisoned", "毒に侵された"],
     ["paralyzed", "麻痺を受け、麻痺状態になった"],
     ["sleep", "眠りに落ちた"],
     ["blind", "盲目状態になった"]

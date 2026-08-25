@@ -18,7 +18,7 @@ import { increaseChestTrapTier } from "./systems/traps.js";
 import {
   applyStatusEffect,
   clearCharIncapacitationOnDamage,
-  EXPLORATION_POISON_DURATION_STEPS,
+  rollExplorationPoisonDuration,
   STATUS_EFFECT_IDS
 } from "./combat_logic/status_effects.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
@@ -617,16 +617,18 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
       recordCharDeath(state, char, "宝箱の罠「毒針」", { type: "trap", source: "宝箱の毒針" });
     } else if (poisonTriggered && !resisted) {
       applyStatusEffect(char, STATUS_EFFECT_IDS.POISONED, {
-        remainingTurns: EXPLORATION_POISON_DURATION_STEPS,
+        remainingTurns: rollExplorationPoisonDuration(rng),
         source: "chest"
       });
     }
     const poisonResult = resisted
       ? "毒避けの備えで毒は免れた！"
-      : (poisonTriggered
-        ? `毒状態になった！（探索中${EXPLORATION_POISON_DURATION_STEPS}歩で自然に消える）`
-        : "毒は付着しなかった。");
+      : (poisonTriggered ? "" : "毒は付着しなかった。");
     addLog(`毒針が作動！${char.name}は${damage}のダメージを受けた。${poisonResult}`);
+    if (poisonTriggered && !resisted && char.hp > 0) {
+      addLog(`${char.name}は毒に侵された。`);
+      addLog("毒はそれほど深くない。やがて体から抜けるだろう。");
+    }
     if (renderer) renderer.addDamageText(String(damage), "#ff3b30");
   } else if (trap === "gas bomb") {
     addLog("ガス爆弾が作動！冒険者はガスに包まれた！");

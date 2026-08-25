@@ -9,6 +9,9 @@ import {
   normalizeStatusEffectTarget,
   removeStatusEffect,
   resolveExplorationPoisonStep,
+  rollExplorationPoisonDuration,
+  EXPLORATION_POISON_DURATION_MIN,
+  EXPLORATION_POISON_DURATION_MAX,
   tickMonsterBuffs,
   wakeSleepingMonsterOnDamage,
   STATUS_EFFECT_IDS
@@ -102,15 +105,49 @@ test("exploration poison has a finite, probabilistic lifecycle while legacy pois
   assert.equal(target.status, "ok");
 
   const legacy = { name: "Legacy", hp: 10, status: "poisoned" };
+  const legacyRolls = [0.99, 0.99];
   const legacyTick = resolveExplorationPoisonStep(legacy, {
-    rng: () => 0.99,
+    rng: () => legacyRolls.shift() ?? 0.99,
     damageChance: null,
     durationSteps: null
   });
   assert.equal(legacyTick.damage, 2);
+  assert.equal(legacyTick.remainingSteps, 11);
   assert.equal(legacy.status, "poisoned");
   removeStatusEffect(legacy, STATUS_EFFECT_IDS.POISONED);
   assert.equal(legacy.status, "ok");
+});
+
+test("exploration poison duration is rolled once within the 7-12 step range", () => {
+  assert.equal(rollExplorationPoisonDuration(() => 0), EXPLORATION_POISON_DURATION_MIN);
+  assert.equal(rollExplorationPoisonDuration(() => 0.999999), EXPLORATION_POISON_DURATION_MAX);
+
+  const target = { name: "Rolled", hp: 20, status: STATUS_EFFECT_IDS.POISONED };
+  const rolls = [0, 0.999999];
+  const first = resolveExplorationPoisonStep(target, { rng: () => rolls.shift(), damageChance: 0 });
+  const second = resolveExplorationPoisonStep(target, { rng: () => rolls.shift(), damageChance: 0 });
+  assert.equal(first.remainingSteps, EXPLORATION_POISON_DURATION_MIN - 1);
+  assert.equal(second.remainingSteps, EXPLORATION_POISON_DURATION_MIN - 2);
+});
+
+test("exploration poison keeps the default 30% chance and 1-2 damage range", () => {
+  const noDamage = { hp: 20, status: STATUS_EFFECT_IDS.POISONED };
+  const noDamageRolls = [0, 0.30];
+  assert.equal(resolveExplorationPoisonStep(noDamage, {
+    rng: () => noDamageRolls.shift(),
+  }).damage, 0);
+
+  const oneDamage = { hp: 20, status: STATUS_EFFECT_IDS.POISONED };
+  const oneDamageRolls = [0, 0.29, 0];
+  assert.equal(resolveExplorationPoisonStep(oneDamage, {
+    rng: () => oneDamageRolls.shift(),
+  }).damage, 1);
+
+  const twoDamage = { hp: 20, status: STATUS_EFFECT_IDS.POISONED };
+  const twoDamageRolls = [0, 0.29, 0.999];
+  assert.equal(resolveExplorationPoisonStep(twoDamage, {
+    rng: () => twoDamageRolls.shift(),
+  }).damage, 2);
 });
 
 test("player poison save/load preserves finite and legacy records with lazy first-step migration", () => {
@@ -152,8 +189,8 @@ test("player poison save/load preserves finite and legacy records with lazy firs
       damageChance: 0
     });
     assert.equal(legacyTick.damage, 0);
-    assert.equal(legacyTick.remainingSteps, 9);
-    assert.equal(state.party[0].statusEffects.poisoned.remainingTurns, 9);
+    assert.equal(legacyTick.remainingSteps, 11);
+    assert.equal(state.party[0].statusEffects.poisoned.remainingTurns, 11);
   } finally {
     state.party = originalParty;
     state.combatState = originalCombatState;

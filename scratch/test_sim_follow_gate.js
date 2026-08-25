@@ -19,12 +19,8 @@ import {
 } from "./simulation_manifest.js";
 
 assert.doesNotThrow(() => assertValidSimulationManifest());
-assert.equal(Object.hasOwn(SIMULATION_MANIFEST.canonical.runtimeCoverage, "status"), false);
+assert.equal(Object.hasOwn(SIMULATION_MANIFEST.canonical.runtimeCoverage, "status"), true);
 assert.equal(Object.hasOwn(SIMULATION_MANIFEST.canonical.runtimeCoverage, "merchant"), false);
-assert.match(
-  SIMULATION_MANIFEST.canonical.smoke.omitted.join(" | "),
-  /status-effect application/
-);
 assert.match(
   SIMULATION_MANIFEST.canonical.smoke.omitted.join(" | "),
   /merchant purchase policy/
@@ -546,16 +542,27 @@ assert.doesNotThrow(
   () => assertBalanceImpactCovered(["src/combat_logic/auto_action.js"], SIMULATION_MANIFEST, firstSmoke),
   "auto-action combat and recovery mapping should use fired evidence"
 );
+const statusUnsupportedManifest = {
+  ...SIMULATION_MANIFEST,
+  canonical: {
+    ...SIMULATION_MANIFEST.canonical,
+    runtimeCoverage: Object.fromEntries(
+      Object.entries(SIMULATION_MANIFEST.canonical.runtimeCoverage)
+        .filter(([domain]) => domain !== "status")
+    )
+  }
+};
 assert.throws(
-  () => assertBalanceImpactCovered(["src/combat_logic/item_resolution.js"], SIMULATION_MANIFEST, firstSmoke),
+  () => assertBalanceImpactCovered(["src/combat_logic/item_resolution.js"], statusUnsupportedManifest, firstSmoke),
   /no declared runtime evidence: status/
 );
 assert.throws(
-  () => assertBalanceImpactCovered(["src/data.js"], SIMULATION_MANIFEST, firstSmoke),
+  () => assertBalanceImpactCovered(["src/data.js"], statusUnsupportedManifest, firstSmoke),
   /no declared runtime evidence: status/
 );
 const declaredUnsupportedManifest = {
   ...SIMULATION_MANIFEST,
+  canonical: statusUnsupportedManifest.canonical,
   balanceImpactPaths: [{ pattern: "src/rules/status_effect_rules.js", domains: ["status"] }]
 };
 assert.throws(

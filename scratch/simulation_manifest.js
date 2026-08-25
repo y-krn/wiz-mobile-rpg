@@ -76,6 +76,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
       { id: "chests.open", domain: "chests", evidence: { callLevel: ["runtimeCalls.chests.reward-roll"], anyPositive: ["chestsOpenedInRun"] } },
       { id: "drops.reward-materials", domain: "drops", evidence: { anyPositive: ["materialAcquired"] } },
       { id: "progression.experience", domain: "progression", evidence: { anyPositive: ["expGained"] } },
+      { id: "status.exploration-poison", domain: "status", evidence: { anyPositive: ["statusObservations.byStatus.poisoned.applications"] } },
       { id: "recovery.kill-heal", domain: "recovery", evidence: { anyPositive: ["killHeal.killHealActivations"] } },
       { id: "recovery.combat-policy", domain: "recovery", evidence: { callLevel: ["runtimeCalls.recovery.combat-policy"] } },
       { id: "traps.chest-roll", domain: "traps", evidence: { callLevel: ["runtimeCalls.traps.chest-roll"] } },
@@ -92,6 +93,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
       chests: Object.freeze(["chests.open"]),
       drops: Object.freeze(["drops.reward-materials"]),
       progression: Object.freeze(["progression.experience"]),
+      status: Object.freeze(["status.exploration-poison"]),
       recovery: Object.freeze(["recovery.kill-heal", "recovery.combat-policy"]),
       traps: Object.freeze(["traps.chest-roll"]),
       economy: Object.freeze(["economy.material-bank"]),
@@ -104,7 +106,6 @@ export const SIMULATION_MANIFEST = Object.freeze({
         "production recovery effect", "production chest-trap roll"
       ]),
       omitted: Object.freeze([
-        "status-effect application and cure outcome (stochastic; no deterministic canonical N=1 fixture)",
         "merchant purchase policy (canonical N=1 ends before milestone floor)",
         "UI input, rendering, and analytics transport",
         "statistical balance estimates and Monte Carlo confidence intervals"
