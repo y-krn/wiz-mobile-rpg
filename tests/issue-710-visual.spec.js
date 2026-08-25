@@ -57,6 +57,25 @@ test('Zombie visual variants stay deterministic and readable on a mobile canvas 
     const deterministic = detailPaths.every((paths, index) => (
       paths === dungeonRenderer.buildMonsterDetailPaths('zombie', monsters[index].name)
     ));
+    const signatureCanvas = document.createElement('canvas');
+    signatureCanvas.width = 120;
+    signatureCanvas.height = 120;
+    const signatureCtx = signatureCanvas.getContext('2d');
+    const detailSignatures = monsters.map(monster => {
+      signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+      signatureCtx.save();
+      signatureCtx.translate(60, 60);
+      const bodyPath = dungeonRenderer.buildMonsterPaths('zombie')[0];
+      signatureCtx.fillStyle = '#888888';
+      signatureCtx.fill(bodyPath);
+      dungeonRenderer.drawMonsterDetails(
+        signatureCtx,
+        dungeonRenderer.buildMonsterDetailPaths('zombie', monster.name),
+      );
+      signatureCtx.restore();
+      const pixels = signatureCtx.getImageData(0, 0, signatureCanvas.width, signatureCanvas.height).data;
+      return pixels.reduce((hash, value) => ((hash * 31) + value) >>> 0, 7);
+    });
     const darkLandmarkPixels = [];
     const centers = [40, 120, 200, 280, 360];
     for (const cy of [100, 210]) {
@@ -74,6 +93,7 @@ test('Zombie visual variants stay deterministic and readable on a mobile canvas 
       pathCacheSize: dungeonRenderer.monsterPathCache.size,
       detailCacheSize: dungeonRenderer.monsterDetailCache.size,
       deterministic,
+      detailSignatures,
       darkLandmarkPixels,
     };
   }, ZOMBIES);
@@ -82,7 +102,43 @@ test('Zombie visual variants stay deterministic and readable on a mobile canvas 
   expect(metrics.pathCacheSize).toBe(1);
   expect(metrics.detailCacheSize).toBe(ZOMBIES.length);
   expect(metrics.deterministic).toBe(true);
+  expect(new Set(metrics.detailSignatures).size).toBe(ZOMBIES.length);
   expect(metrics.darkLandmarkPixels.filter(count => count > 0).length).toBeGreaterThanOrEqual(7);
+
+  const timing = await page.evaluate(async () => {
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const canvas = document.querySelector('#dungeon-canvas');
+    const ctx = canvas.getContext('2d');
+    const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
+    const originalDrawMonsterDetails = dungeonRenderer.drawMonsterDetails;
+    dungeonRenderer.draw3DCorridors = () => {
+      ctx.fillStyle = '#14242e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    };
+
+    const measure = (withDetails) => {
+      dungeonRenderer.drawMonsterDetails = withDetails ? originalDrawMonsterDetails : () => {};
+      for (let i = 0; i < 30; i++) dungeonRenderer.draw();
+      const samples = [];
+      for (let i = 0; i < 60; i++) {
+        const start = performance.now();
+        for (let frame = 0; frame < 10; frame++) dungeonRenderer.draw();
+        samples.push((performance.now() - start) / 10);
+      }
+      const sorted = [...samples].sort((a, b) => a - b);
+      const meanMs = samples.reduce((sum, sample) => sum + sample, 0) / samples.length;
+      const percentile = ratio => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * ratio))];
+      return { meanMs, p50Ms: percentile(0.5), p95Ms: percentile(0.95) };
+    };
+
+    const before = measure(false);
+    const after = measure(true);
+    dungeonRenderer.drawMonsterDetails = originalDrawMonsterDetails;
+    dungeonRenderer.draw3DCorridors = originalDraw3DCorridors;
+    return { before, after };
+  });
+  console.log(`[issue-710-performance] before=${JSON.stringify(timing.before)} after=${JSON.stringify(timing.after)}`);
+  expect(timing.after.p50Ms).toBeLessThanOrEqual(timing.before.p50Ms + 0.02);
 
   await page.evaluate(() => {
     document.documentElement.style.filter = 'grayscale(1)';

@@ -121,8 +121,10 @@ behavior may be relevant.
   image assets for enemy volume; the dungeon 3D view remains line art.
 - Same-`spriteType` enemies may share a cached base silhouette, but must expose
   a deterministic, monochrome-readable landmark inside the body. Derive the
-  visual variant from stable monster identity, keep it clipped to the opaque
-  body, and limit each enemy to one landmark so mobile frame cost stays flat.
+  visual variant from stable monster identity, keep its geometry inside the
+  opaque body, and limit each enemy to one landmark so mobile frame cost stays
+  flat. Avoid a per-frame clip or bitmap allocation; if masking is needed,
+  precompute it outside the draw loop.
 
 ## Required Verification
 

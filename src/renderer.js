@@ -1484,8 +1484,13 @@ export class DungeonRenderer {
       detail.lineTo(21, -3);
       detail.moveTo(17, 6);
       detail.lineTo(23, 2);
-    } else if (variant === "アイアンゴーレム" || variant === "リビングアーマー") {
-      // Empty helmet: a dark visor makes the construct read as hollow.
+    } else if (variant === "アイアンゴーレム") {
+      // Iron core: a square chest plate and two rivets mark the construct.
+      detail.rect(-15, -10, 30, 20);
+      detail.arc(-9, -4, 2, 0, Math.PI * 2);
+      detail.arc(9, 4, 2, 0, Math.PI * 2);
+    } else if (variant === "リビングアーマー") {
+      // Empty helmet: a dark visor makes the armor read as hollow.
       detail.rect(-12, -42, 24, 9);
       detail.moveTo(-9, -37);
       detail.lineTo(9, -37);
@@ -1518,14 +1523,17 @@ export class DungeonRenderer {
       detail.closePath();
     } else if (variant === "石像兵") {
       // Masonry: a carved block seam and central crack.
-      detail.moveTo(-18, -14);
-      detail.lineTo(18, -14);
-      detail.moveTo(-18, 0);
-      detail.lineTo(18, 0);
-      detail.moveTo(0, -14);
-      detail.lineTo(-5, -5);
-      detail.lineTo(4, 5);
+      detail.rect(-18, -15, 36, 2);
+      detail.rect(-18, -1, 36, 2);
+      detail.moveTo(0, -13);
+      detail.lineTo(-5, -4);
+      detail.lineTo(4, 6);
       detail.lineTo(0, 17);
+      detail.lineTo(-2, 17);
+      detail.lineTo(2, 6);
+      detail.lineTo(-7, -4);
+      detail.lineTo(-2, -13);
+      detail.closePath();
     } else if (variant === "反逆の鎧") {
       // Rebellious armor: one deep diagonal slash through the plate.
       detail.moveTo(-16, -29);
@@ -1584,17 +1592,11 @@ export class DungeonRenderer {
     ctx.globalAlpha = 1;
   }
 
-  drawMonsterDetails(ctx, bodyPath, detailPaths, scale) {
+  drawMonsterDetails(ctx, detailPaths) {
     if (detailPaths.length === 0) return;
 
-    ctx.save();
-    ctx.clip(bodyPath);
-    ctx.strokeStyle = "rgba(8, 12, 16, 0.88)";
-    ctx.lineWidth = Math.max(1.4, 2 / scale);
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    detailPaths.forEach(path => ctx.stroke(path));
-    ctx.restore();
+    ctx.fillStyle = "rgba(8, 12, 16, 0.88)";
+    detailPaths.forEach(path => ctx.fill(path));
   }
 
   drawMonster(ctx, monster, cx, cy, scale, maxLabelWidth) {
@@ -1615,7 +1617,7 @@ export class DungeonRenderer {
     const variant = this.getMonsterVisualVariant(monster);
     const paths = this.buildMonsterPaths(spriteType);
     this.strokeNeonPaths(ctx, paths, color, scale, bodyGradient);
-    this.drawMonsterDetails(ctx, paths[0], this.buildMonsterDetailPaths(spriteType, variant), scale);
+    this.drawMonsterDetails(ctx, this.buildMonsterDetailPaths(spriteType, variant));
 
     ctx.restore();
 
