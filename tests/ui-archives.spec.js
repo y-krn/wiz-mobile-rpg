@@ -65,22 +65,64 @@ test('Archives list restores scroll after detail and resets on navigation', asyn
   await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBe(0);
 });
 
-test('Archives shows flash bat combat traits after its first defeat', async ({ page }) => {
+test('Archives shows only combat observations for a flash bat', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.evaluate(async () => {
     const { state } = await import('/src/state.js');
     const { openArchivesOverlay } = await import('/src/ui.js');
 
-    state.codex.monsters['フラッシュバット'] = { encountered: 1, killed: 1 };
+    state.codex.monsters['フラッシュバット'] = {
+      encountered: 1,
+      killed: 1,
+      observedActions: ['通常攻撃'],
+      observedConditions: ['盲目を受けた']
+    };
     openArchivesOverlay();
   });
 
   await page.locator('#archives-overlay .codex-row', { hasText: 'フラッシュバット' }).click();
-  const traits = page.locator('#archives-overlay .codex-traits');
-  await expect(traits).toBeVisible();
-  await expect(traits).toContainText('盲目を付与');
-  await expect(traits).toContainText('妨害役');
+  const detail = page.locator('#archives-overlay .codex-detail');
+  await expect(detail).toContainText('通常攻撃');
+  await expect(detail).toContainText('盲目を受けた');
+  await expect(detail).toContainText('妨害役');
+  await expect(detail).not.toContainText('盲目を付与');
+  await expect(detail).toContainText('???');
+});
+
+test('Archives keeps unknown monster knowledge and removes kill-count spoilers', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openArchivesOverlay } = await import('/src/ui.js');
+    state.codex.monsters['ワーウルフ'] = {
+      encountered: 12,
+      killed: 10,
+      observedActions: ['通常攻撃'],
+      observedLoot: ['獣の牙'],
+      encounterFloors: { '7': 2, '9': 10 },
+      firstEncounterFloor: 7,
+      lastEncounterFloor: 9,
+      magicResistKnown: false,
+      physResistKnown: true
+    };
+    openArchivesOverlay();
+  });
+
+  await page.locator('#archives-overlay .codex-row', { hasText: 'ワーウルフ' }).click();
+  const detail = page.locator('#archives-overlay .codex-detail');
+  await expect(detail).toContainText('生態');
+  await expect(detail).toContainText('行動');
+  await expect(detail).toContainText('耐性・弱点');
+  await expect(detail).toContainText('確認した戦利品');
+  await expect(detail).toContainText('あなたの記録');
+  await expect(detail).toContainText('B7F');
+  await expect(detail).toContainText('B9F');
+  await expect(detail).toContainText('獣の牙');
+  await expect(detail).not.toContainText('HP:');
+  await expect(detail).not.toContainText('攻略メモ');
+  await expect(detail).not.toContainText('毒避け');
 });
 
 test('Equipment archives present observed knowledge without exposing affix ids or drop rates', async ({ page }) => {

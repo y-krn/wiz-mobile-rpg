@@ -50,6 +50,18 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   state.records = { deepestRetreat: 12, deepestDeath: 9, deepestByClass: { Mage: 12 }, totalRuns: 7 };
   state.currentRun = createDefaultCurrentRun();
   state.currentRun.quests = [{ id: "depth", currentValue: 4, targetValue: 5, completed: false }];
+  state.codex.monsters = {
+    "ワーウルフ": {
+      encountered: 2,
+      killed: 1,
+      observedActions: ["通常攻撃"],
+      observedConditions: ["麻痺を受けた"],
+      observedLoot: ["獣の牙"],
+      encounterFloors: { "3": 1, "4": 1 },
+      firstEncounterFloor: 3,
+      lastEncounterFloor: 4
+    }
+  };
   menuContext.type = "solo_start";
   menuContext.prevGameState = "town";
 
@@ -91,6 +103,10 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.deepEqual(state.unlockedMilestones, [5, 10]);
   assert.deepEqual(state.records, { deepestRetreat: 12, deepestDeath: 9, deepestByClass: { Mage: 12 }, totalRuns: 7 });
   assert.equal(state.currentRun.quests[0].currentValue, 4);
+  assert.deepEqual(state.codex.monsters["ワーウルフ"].observedActions, ["通常攻撃"]);
+  assert.deepEqual(state.codex.monsters["ワーウルフ"].observedConditions, ["麻痺を受けた"]);
+  assert.deepEqual(state.codex.monsters["ワーウルフ"].observedLoot, ["獣の牙"]);
+  assert.deepEqual(state.codex.monsters["ワーウルフ"].encounterFloors, { "3": 1, "4": 1 });
 });
 
 check("partial current-version payloads receive safe defaults", () => {

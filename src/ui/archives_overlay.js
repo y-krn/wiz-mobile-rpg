@@ -1,5 +1,5 @@
 import { state, createDefaultCodex } from "../state.js";
-import { describeMonsterTraits, describeMonsterResistances, getClassJpName, getAffixDefinition, MONSTERS, ITEMS } from "../data.js";
+import { getMonsterResistanceStatus, getClassJpName, getAffixDefinition, MONSTERS, ITEMS } from "../data.js";
 import { updateUI } from "./ui_root.js";
 import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
 
@@ -34,72 +34,70 @@ export function getMonsterCodexDetailHtml(m, record) {
     return `<div style="text-align: center; padding: 20px; color: var(--text-muted);">遭遇したことがありません</div>`;
   }
   
+  const observedActions = Array.isArray(record?.observedActions) ? record.observedActions : [];
+  const observedConditions = Array.isArray(record?.observedConditions) ? record.observedConditions : [];
+  const observedLoot = Array.isArray(record?.observedLoot) ? record.observedLoot : [];
+  const floorHistory = Object.entries(record?.encounterFloors || {})
+    .map(([floor, count]) => [Number(floor), Number(count)])
+    .filter(([floor, count]) => Number.isInteger(floor) && floor > 0 && count > 0)
+    .sort((a, b) => a[0] - b[0]);
+  const firstFloor = Number(record?.firstEncounterFloor) || floorHistory[0]?.[0] || 0;
+  const lastFloor = Number(record?.lastEncounterFloor) || floorHistory.at(-1)?.[0] || 0;
+  const roleLabels = {
+    aggressor: "攻撃役",
+    disruptor: "妨害役",
+    amplifier: "支援役"
+  };
+  const observedList = (values, emptyText) => `
+    <ul class="codex-observation-list">
+      ${values.map(value => `<li>${value}</li>`).join("")}
+      <li class="codex-unknown">???</li>
+    </ul>
+    ${values.length === 0 ? `<p class="codex-muted">${emptyText}</p>` : ""}
+  `;
+  const resistanceRows = getMonsterResistanceStatus(m, record)
+    .map(({ label, known, description }) => `
+      <div class="codex-observation-row">
+        <span>${label}</span>
+        <strong class="${known ? "is-known" : "is-unknown"}">${known ? description : "未確認"}</strong>
+      </div>
+    `).join("");
+  const floorRows = floorHistory.length > 0
+    ? floorHistory.map(([floor, count]) => `<li>B${floor}F <span>${count}回</span></li>`).join("")
+    : `<li class="codex-muted">階層履歴は旧記録のため残っていません</li>`;
+
   let html = `<div class="codex-detail">`;
-  const resistanceDescriptions = describeMonsterResistances(m, record);
   html += `
     <div class="codex-detail-header">
       <span class="codex-detail-name">${m.name}</span>
       <span class="codex-meta">遭遇: ${enc} / 撃破: ${kil}</span>
     </div>
     <div class="codex-detail-body">
-      <p><strong>主な出現階層:</strong> B${m.level}F 階付近</p>
+      <section class="codex-info-section">
+        <div class="codex-subtitle">生態</div>
+        <p><strong>分類:</strong> ${roleLabels[m.role] || "未分類"}${m.isRare ? " / 希少な遭遇" : ""}</p>
+        <p><strong>初遭遇:</strong> ${firstFloor ? `B${firstFloor}F` : "未記録"}</p>
+        <div class="codex-floor-history"><strong>遭遇した階層</strong><ul>${floorRows}</ul></div>
+      </section>
+      <section class="codex-info-section">
+        <div class="codex-subtitle">行動</div>
+        ${observedList(observedActions, "実戦で確認した行動はまだありません。")}
+        ${observedConditions.length > 0 ? `<p class="codex-observation-label">受けた特徴</p>${observedList(observedConditions, "")}` : ""}
+      </section>
+      <section class="codex-info-section">
+        <div class="codex-subtitle">耐性・弱点</div>
+        <div class="codex-observation-grid">${resistanceRows}</div>
+      </section>
+      <section class="codex-info-section">
+        <div class="codex-subtitle">確認した戦利品</div>
+        ${observedList(observedLoot, "実際に得た戦利品はまだありません。")}
+      </section>
+      <section class="codex-info-section codex-personal-record">
+        <div class="codex-subtitle">あなたの記録</div>
+        <p>遭遇: ${enc}回 / 撃破: ${kil}回</p>
+        <p>最後に遭遇: ${lastFloor ? `B${lastFloor}F` : "未記録"}</p>
+      </section>
   `;
-  
-  if (kil >= 1) {
-    html += `
-      <p><strong>特徴:</strong></p>
-      <ul class="codex-traits">
-        ${describeMonsterTraits(m, record).map(trait => `<li>${trait}</li>`).join("")}
-      </ul>
-      <p><strong>戦利品傾向:</strong> ${m.isRare ? "未鑑定装備と希少素材" : "グループ別素材"}</p>
-    `;
-  } else {
-    html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[初討伐で特徴と素材報酬が解放されます]</p>`;
-  }
-
-  if (kil === 0 && resistanceDescriptions.length > 0) {
-    html += `<p><strong>耐性・弱点:</strong> ${resistanceDescriptions.join(" / ")}</p>`;
-  }
-  
-  if (kil >= 3) {
-    html += `
-      <p><strong>能力値:</strong> HP: ${m.hp} | 攻撃力: ${m.atk} | 防御力: ${m.def}</p>
-    `;
-  } else {
-    html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[3回撃破すると能力値が解放されます]</p>`;
-  }
-  
-  if (kil >= 5) {
-    const spellList = m.spells || (m.spell ? [m.spell] : []);
-    const spellsJp = spellList.length > 0 ? spellList.join(", ") : "唱えられない";
-    html += `
-      <p><strong>使用呪文:</strong> ${spellsJp}</p>
-    `;
-  } else {
-    html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[5回撃破すると使用呪文が解放されます]</p>`;
-  }
-  
-  if (kil >= 10) {
-    let note;
-    if (m.name.includes("ワーウルフ")) {
-      note = "毒攻撃の被弾率が高いため、毒避けを持つ前衛を編成するか解毒薬（アンチドート・ラツモフィス）を多めに準備せよ。";
-    } else if (m.name.includes("デーモンガード")) {
-      note = "非常に堅い鎧をまとっている。打撃武器より、侍のカタナや魔術師の強力な攻撃呪文（ラハリト、マハリト）で一掃せよ。";
-    } else if (m.name.includes("いにしえの竜")) {
-      note = "全階層中最強のブレス攻撃を放つ。竜殺し・魔除け・守護を重ね、回復役のMP補強装備を切らさずに戦え。";
-    } else {
-      note = `B${m.level}Fに広く出現する魔物。十分な装備の補正値があれば安全に討伐可能。`;
-    }
-    
-    html += `
-      <p style="border-top: 1px dashed #333; margin-top: 6px; padding-top: 6px; color: var(--neon-yellow);">
-        <strong>攻略メモ:</strong> ${note}
-      </p>
-    `;
-  } else {
-    html += `<p style="color: var(--text-muted); font-size: 10px; margin-top: 4px;">[10回撃破すると攻略メモが解放されます]</p>`;
-  }
-  
   html += `</div></div>`;
   return html;
 }

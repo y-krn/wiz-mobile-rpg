@@ -259,6 +259,43 @@ function normalizeEquipmentCodexRecord(record) {
   return normalized;
 }
 
+function normalizeMonsterCodexRecord(record) {
+  if (!isRecord(record)) return null;
+  const normalized = { ...record };
+  normalized.encountered = Math.max(0, integerOr(record.encountered, 0));
+  normalized.killed = Math.max(0, integerOr(record.killed, 0));
+  normalized.firstKilled = record.firstKilled === true;
+  if (Object.hasOwn(record, "magicResistKnown")) {
+    normalized.magicResistKnown = record.magicResistKnown === true;
+  }
+  if (Object.hasOwn(record, "physResistKnown")) {
+    normalized.physResistKnown = record.physResistKnown === true;
+  }
+  if (Object.hasOwn(record, "observedActions")) {
+    normalized.observedActions = arrayOr(record.observedActions).filter(action => typeof action === "string");
+  }
+  if (Object.hasOwn(record, "observedConditions")) {
+    normalized.observedConditions = arrayOr(record.observedConditions).filter(condition => typeof condition === "string");
+  }
+  if (Object.hasOwn(record, "observedLoot")) {
+    normalized.observedLoot = arrayOr(record.observedLoot).filter(loot => typeof loot === "string");
+  }
+  if (Object.hasOwn(record, "encounterFloors")) {
+    normalized.encounterFloors = Object.fromEntries(
+      Object.entries(recordOr(record.encounterFloors, {}))
+        .filter(([floor, count]) => /^\d+$/.test(floor) && Number(floor) > 0 && Number.isFinite(count) && count > 0)
+        .map(([floor, count]) => [floor, Math.floor(count)])
+    );
+  }
+  if (Object.hasOwn(record, "firstEncounterFloor")) {
+    normalized.firstEncounterFloor = Math.max(0, integerOr(record.firstEncounterFloor, 0));
+  }
+  if (Object.hasOwn(record, "lastEncounterFloor")) {
+    normalized.lastEncounterFloor = Math.max(0, integerOr(record.lastEncounterFloor, 0));
+  }
+  return normalized;
+}
+
 function normalizeCurrentRun(run) {
   if (!isRecord(run)) return null;
   const normalized = normalizeRunOutcome(run);
@@ -460,11 +497,12 @@ export function normalizeSavePayload(data) {
       .map(([key, record]) => [key, normalizeEquipmentCodexRecord(record)])
       .filter(([, record]) => record !== null)
   );
-  if (normalized.codex?.monsters) {
-    Object.keys(normalized.codex.monsters).forEach(name => {
-      if (/の分裂体\d+/.test(name)) delete normalized.codex.monsters[name];
-    });
-  }
+  normalized.codex.monsters = Object.fromEntries(
+    Object.entries(recordOr(normalized.codex.monsters, {}))
+      .filter(([name]) => !/の分裂体\d+/.test(name))
+      .map(([name, record]) => [name, normalizeMonsterCodexRecord(record)])
+      .filter(([, record]) => record !== null)
+  );
   if (normalized.codex && normalized.codex.events) {
     delete normalized.codex.events.omens;
   }

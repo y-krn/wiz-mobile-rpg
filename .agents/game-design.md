@@ -322,6 +322,10 @@ farming loops on known ground.
   total runs.
 - Codex is kept; first-kill rewards pay a one-time material bonus.
 - Split-spawned enemies stay excluded from codex and first-kill rewards.
+- The enemy codex records facts observed during adventures rather than exposing
+  hidden data as a strategy guide. Combat actions, conditions, resistances,
+  loot, and encounter floors are added only when observed; unknown information
+  remains unknown without revealing its total or an optimal answer.
 
 ## Avoid
 

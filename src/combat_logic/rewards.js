@@ -5,7 +5,7 @@ import {
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
-import { createMonsterCodexRecord, recordEquipmentDiscovery } from "../state/codex_state.js";
+import { createMonsterCodexRecord, recordEquipmentDiscovery, recordMonsterLoot } from "../state/codex_state.js";
 import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js";
 
 function rollCombatAccessoryDrop(state, rng) {
@@ -56,6 +56,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
       const mat = getMonsterMainMaterial(m);
       if (mat) {
         firstKilledMats[mat] = (firstKilledMats[mat] || 0) + 1;
+        recordMonsterLoot(m, mat, state);
       }
       
       // 5種類討伐ごとにラン内鑑定粉+1個
@@ -144,6 +145,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
     scholarActivated ||= guaranteed;
     Object.entries(drops).forEach(([mat, qty]) => {
       runMats[mat] = (runMats[mat] || 0) + qty;
+      recordMonsterLoot(m, mat, state);
       
       if (state.currentRun) {
         state.currentRun.materials ||= {};
@@ -154,8 +156,10 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
 
   const victoryMaterial = getPartyMaxAffix(state.party, "victoryMaterial");
   if (nonFledMonsters.length > 0 && victoryMaterial > 0 && rng() * 100 < victoryMaterial) {
-    const mat = getMonsterMainMaterial(nonFledMonsters[Math.floor(rng() * nonFledMonsters.length)]);
+    const sourceMonster = nonFledMonsters[Math.floor(rng() * nonFledMonsters.length)];
+    const mat = getMonsterMainMaterial(sourceMonster);
     runMats[mat] = (runMats[mat] || 0) + 1;
+    recordMonsterLoot(sourceMonster, mat, state);
     if (state.currentRun) {
       state.currentRun.materials ||= {};
       state.currentRun.materials[mat] = (state.currentRun.materials[mat] || 0) + 1;
@@ -279,6 +283,9 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
         state.currentRun.equipmentFound.push(dropEquipment);
       }
       const eqData = getItemData(dropEquipment);
+      if (nonFledMonsters.length === 1) {
+        recordMonsterLoot(nonFledMonsters[0], eqData.name, state);
+      }
       logQueue.push({
         msg: `モンスターの骸から [${eqData.name}] を手に入れた！`,
         sound: "item"
@@ -300,6 +307,9 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
         state.currentRun.equipmentFound.push(dropAccessory);
       }
       const itemData = getItemData(dropAccessory);
+      if (nonFledMonsters.length === 1) {
+        recordMonsterLoot(nonFledMonsters[0], itemData.name, state);
+      }
       logQueue.push({
         msg: `モンスターの骸から [${itemData.name}] を手に入れた！`,
         sound: "item"

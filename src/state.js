@@ -37,7 +37,11 @@ export {
   recordEquipmentAffixDiscovery,
   getMonsterCodexKey,
   createMonsterCodexRecord,
-  recordMonsterResistanceDiscovery
+  recordMonsterResistanceDiscovery,
+  recordMonsterEncounter,
+  recordMonsterAction,
+  recordMonsterCondition,
+  recordMonsterLoot
 } from "./state/codex_state.js";
 
 export {

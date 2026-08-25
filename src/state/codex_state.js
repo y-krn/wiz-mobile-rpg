@@ -16,8 +16,67 @@ export function createMonsterCodexRecord(overrides = {}) {
     firstKilled: false,
     magicResistKnown: false,
     physResistKnown: false,
+    observedActions: [],
+    observedConditions: [],
+    observedLoot: [],
+    encounterFloors: {},
+    firstEncounterFloor: 0,
+    lastEncounterFloor: 0,
     ...overrides
   };
+}
+
+function getOrCreateMonsterRecord(monster, stateLike = state) {
+  const baseName = getMonsterCodexKey(monster);
+  if (!baseName || !stateLike?.codex) return null;
+
+  stateLike.codex.monsters ||= {};
+  const current = stateLike.codex.monsters[baseName];
+  if (!current || typeof current !== "object" || Array.isArray(current)) {
+    stateLike.codex.monsters[baseName] = createMonsterCodexRecord();
+  }
+
+  const record = stateLike.codex.monsters[baseName];
+  record.observedActions = Array.isArray(record.observedActions) ? record.observedActions : [];
+  record.observedConditions = Array.isArray(record.observedConditions) ? record.observedConditions : [];
+  record.observedLoot = Array.isArray(record.observedLoot) ? record.observedLoot : [];
+  record.encounterFloors = record.encounterFloors && typeof record.encounterFloors === "object" && !Array.isArray(record.encounterFloors)
+    ? record.encounterFloors
+    : {};
+  record.firstEncounterFloor = Number.isInteger(record.firstEncounterFloor) ? record.firstEncounterFloor : 0;
+  record.lastEncounterFloor = Number.isInteger(record.lastEncounterFloor) ? record.lastEncounterFloor : 0;
+  return record;
+}
+
+export function recordMonsterEncounter(monster, stateLike = state) {
+  const record = getOrCreateMonsterRecord(monster, stateLike);
+  if (!record) return;
+
+  record.encountered = Math.max(0, Number(record.encountered) || 0) + 1;
+  const floor = Math.max(1, Number(stateLike.floor) || 1);
+  const floorKey = String(floor);
+  record.encounterFloors[floorKey] = (Number(record.encounterFloors[floorKey]) || 0) + 1;
+  if (!record.firstEncounterFloor) record.firstEncounterFloor = floor;
+  record.lastEncounterFloor = floor;
+}
+
+function appendMonsterObservation(monster, field, value, stateLike = state) {
+  if (typeof value !== "string" || !value) return;
+  const record = getOrCreateMonsterRecord(monster, stateLike);
+  if (!record || record[field].includes(value)) return;
+  record[field].push(value);
+}
+
+export function recordMonsterAction(monster, action, stateLike = state) {
+  appendMonsterObservation(monster, "observedActions", action, stateLike);
+}
+
+export function recordMonsterCondition(monster, condition, stateLike = state) {
+  appendMonsterObservation(monster, "observedConditions", condition, stateLike);
+}
+
+export function recordMonsterLoot(monster, loot, stateLike = state) {
+  appendMonsterObservation(monster, "observedLoot", loot, stateLike);
 }
 
 export function recordMonsterResistanceDiscovery(monster, type, stateLike = state) {
@@ -29,9 +88,8 @@ export function recordMonsterResistanceDiscovery(monster, type, stateLike = stat
   const baseName = getMonsterCodexKey(monster);
   if (!knownField || !baseName || !stateLike?.codex) return;
 
-  stateLike.codex.monsters ||= {};
-  stateLike.codex.monsters[baseName] ||= createMonsterCodexRecord();
-  stateLike.codex.monsters[baseName][knownField] = true;
+  const record = getOrCreateMonsterRecord(monster, stateLike);
+  if (record) record[knownField] = true;
 }
 
 function appendObservedAffixes(record, equipKey) {

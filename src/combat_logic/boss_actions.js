@@ -1,5 +1,5 @@
 import { reduceIncomingDamage, recordReceivedDamage } from "./damage.js";
-import { recordCharDeath } from "../state.js";
+import { recordCharDeath, recordMonsterAction, recordMonsterCondition } from "../state.js";
 import { getStatusEffectChance } from "../rules/affix_rules.js";
 import {
   applyStatusEffect,
@@ -59,6 +59,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     }
 
     if (!isSilenced && mon.lahalitoQueued) {
+      recordMonsterAction(mon, "LAHALITO", state);
       mon.lahalitoQueued = false;
       logQueue.push({
         msg: `[ 敵 ] フラックは激しい炎の息（ラハリト）を吹き出した！`,
@@ -112,6 +113,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     }
 
     if (action === "flee") {
+      recordMonsterAction(mon, "逃走", state);
       mon.hp = 0;
       mon.fled = true;
       logQueue.push({
@@ -120,6 +122,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
       });
       return true;
     } else if (action === "suicide") {
+      recordMonsterAction(mon, "自爆", state);
       mon.hp = 0;
       logQueue.push({
         msg: `[ 敵 ] フラックは禍々しい光を放ち、自爆した！`,
@@ -156,6 +159,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     } else if (action === "gaze") {
       const livingChars = state.party.map((c, i) => ({ c, i })).filter(x => x.c.status === "ok");
       if (livingChars.length > 0) {
+        recordMonsterAction(mon, "呪いの眼光", state);
         const targetChar = livingChars[Math.floor(Math.random() * livingChars.length)];
         const target = targetChar.c;
         const isDefending = combatSelection.actions.some(a => a.actorIdx === targetChar.i && a.type === "defend");
@@ -173,9 +177,11 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           const gazeRoll = Math.random();
           if (gazeRoll < 0.50) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.BLIND, { source: "boss_gaze" });
+            recordMonsterCondition(mon, "盲目を受けた", state);
             logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は盲目になった！` });
           } else {
             applyStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED, { source: "boss_gaze" });
+            recordMonsterCondition(mon, "麻痺を受けた", state);
             logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は麻痺した！` });
           }
         }
@@ -200,6 +206,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         return true;
       }
       mon.turnCount = (mon.turnCount || 0) + 1;
+      recordMonsterAction(mon, "TILTOWAIT", state);
       logQueue.push({
         msg: `[ 敵 ] いにしえの竜はティルトウェイトを唱えた！極大爆裂が襲いかかる！(防御で大幅軽減可能)`,
         sound: "cast_spell",
@@ -233,6 +240,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
     if (mon.dragonBreathQueued) {
       mon.dragonBreathQueued = false;
       mon.turnCount = (mon.turnCount || 0) + 1;
+      recordMonsterAction(mon, "炎の息", state);
       logQueue.push({
         msg: `[ 敵 ] いにしえの竜は激しい炎の息を吐き出した！`,
         sound: "cast_spell",
@@ -273,6 +281,7 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
         shake: 15,
         flash: true
       });
+      recordMonsterAction(mon, "MADALTO", state);
       state.party.forEach((c, charIdx) => {
         if (c.status !== "dead") {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === charIdx && a.type === "defend");
