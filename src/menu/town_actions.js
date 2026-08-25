@@ -15,6 +15,8 @@ function isAbandonRun(run) {
 export function handleTownOption(option) {
   if (option === "castle") {
     openSubmenu("castle_main", "おしろ - 記録");
+  } else if (option === "run_quest_board") {
+    openSubmenu("run_quest_board", "依頼板 - 潜行の目的");
   } else if (option === "workshop") {
     openSubmenu("workshop_main", "工房 - 恒久アンロック");
   } else if (option === "archives") {

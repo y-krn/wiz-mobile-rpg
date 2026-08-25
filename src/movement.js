@@ -20,7 +20,8 @@ import { getPerceptionIntent } from "./systems/elite_perception.js";
 import { ELITE_PATROL_RADIUS } from "./systems/roaming_elites.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.js";
-import { assignRunQuests, updateRunQuests } from "./systems/run_quests.js";
+import { RUN_QUEST_TEMPLATES } from "./data/run_quests.js";
+import { assignRunQuests, createRunQuest, updateRunQuests } from "./systems/run_quests.js";
 import { applyTrapGuardToEffect, resolveFlameTrapEffect } from "./rules/trap_effect_rules.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
@@ -721,7 +722,21 @@ export function enterDungeon() {
   openSubmenu("solo_start", "クラスを選択：潜行ごとにLv1から開始");
 }
 
-export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
+function assignSelectedRunQuests(run, templateIds) {
+  const selected = [...new Set(templateIds)]
+    .map(id => RUN_QUEST_TEMPLATES.find(template => template.id === id))
+    .filter(Boolean)
+    .slice(0, 2);
+  if (selected.length === 0) {
+    assignRunQuests(run);
+    return;
+  }
+  run.quests = selected.map(template => createRunQuest(template, run.startFloor || 1));
+  run.defeatsByRole ||= {};
+  updateRunQuests(run);
+}
+
+export function executeEnterDungeon(floor, { departureCraft = [], runQuestTemplateIds = null } = {}) {
   state.party = state.party.slice(0, 1);
   state.gameState = "explore";
   menuContext.prevGameState = null;
@@ -737,7 +752,11 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   state.currentRun.characterClass = state.party[0]?.class || null;
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
-  assignRunQuests(state.currentRun);
+  if (Array.isArray(runQuestTemplateIds) && runQuestTemplateIds.length > 0) {
+    assignSelectedRunQuests(state.currentRun, runQuestTemplateIds);
+  } else {
+    assignRunQuests(state.currentRun);
+  }
   resetRunFloors(state);
   ensureRunFloor(state, floor);
   if (floor > 1) {

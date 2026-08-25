@@ -485,6 +485,49 @@
   box-shadow: var(--neon-glow-cyan);
 }
 
+.run-quest-board-grid {
+  gap: var(--sp-sm);
+}
+
+.run-quest-board-note,
+.run-quest-board-selection {
+  padding: var(--sp-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+}
+
+.run-quest-card {
+  display: grid !important;
+  gap: var(--sp-xxs);
+  justify-items: start;
+  text-align: left;
+}
+
+.run-quest-card strong {
+  color: var(--text-main);
+}
+
+.run-quest-card span,
+.run-quest-card small {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+}
+
+.run-quest-card.is-selected {
+  border-color: var(--neon-green);
+  background: var(--sel-bg);
+  box-shadow: var(--neon-glow-green);
+}
+
+.run-quest-card.is-selected strong,
+.run-quest-board-confirm {
+  color: var(--neon-green);
+}
+
 .submenu-info {
   padding: var(--sp-sm);
   border: 1px solid var(--border-strong);
