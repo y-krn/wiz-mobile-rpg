@@ -18,6 +18,7 @@ import { getSortedCraftRecipes } from "../rules/craft_rules.js";
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
 import { getEquipmentSlotsForType } from "../rules/equipment_slots.js";
 import { consumeSelectedRunQuestTemplateIds } from "./run_quest_board.js";
+import { createActionCard } from "./action_card.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
@@ -105,15 +106,6 @@ function changeDepartureCraftQuantity(optGrid, className, startingGear, recipeId
   renderStartFloorChoices(optGrid, className, startingGear);
 }
 
-function appendLabelledLines(button, title, detail, detailClass = "") {
-  const strong = document.createElement("strong");
-  strong.textContent = title;
-  const span = document.createElement("span");
-  if (detailClass) span.className = detailClass;
-  span.textContent = detail;
-  button.append(strong, span);
-}
-
 function clearDepartureStartFooter() {
   const footer = document.getElementById("departure-start-footer");
   if (footer) footer.replaceChildren();
@@ -174,12 +166,6 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
       changeDepartureCraftQuantity(optGrid, className, startingGear, recipe.resultId, -1);
     });
 
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `btn btn-block solo-start-craft-option${quantity > 0 ? " is-selected" : ""}`;
-    button.dataset.recipeId = recipe.resultId;
-    button.disabled = !canAdd;
-    button.setAttribute("aria-pressed", String(quantity > 0));
     const availability = canAdd
       ? `あと${additionalCraftable}個`
       : "あと0個・素材不足";
@@ -187,14 +173,19 @@ function renderDepartureCraftOptions(optGrid, className, startingGear) {
     const hasEmptyMaterial = Object.keys(payment.typed || {}).some(
       material => (selectedBalance?.[material] || 0) <= 0
     ) || (payment.any > 0 && getMaterialBalanceTotal(selectedBalance) === 0);
-    appendLabelledLines(
-      button,
-      `${recipe.name}：${quantity}個`,
-      `${formatCraftPaymentWithBalance(recipe, selectedBalance)} ・ ${availability}`,
-      `solo-start-craft-cost${hasEmptyMaterial ? " is-insufficient" : ""}`
-    );
-    button.addEventListener("click", () => {
-      changeDepartureCraftQuantity(optGrid, className, startingGear, recipe.resultId, 1);
+    const button = createActionCard({
+      name: `${recipe.name}：${quantity}個`,
+      description: recipe.desc,
+      cost: `${formatCraftPaymentWithBalance(recipe, selectedBalance)} ・ ${availability}`,
+      costClassName: `solo-start-craft-cost${hasEmptyMaterial ? " is-insufficient" : ""}`,
+      className: "solo-start-craft-option",
+      selected: quantity > 0,
+      disabled: !canAdd,
+      ariaPressed: quantity > 0,
+      dataset: { recipeId: recipe.resultId },
+      onClick: () => {
+        changeDepartureCraftQuantity(optGrid, className, startingGear, recipe.resultId, 1);
+      }
     });
     stepper.append(decrement, button);
     optGrid.appendChild(stepper);

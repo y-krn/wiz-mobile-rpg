@@ -43,6 +43,10 @@
   flex: 1 1 auto;
 }
 
+#controls-panel.submenu-mode.merchant-mode {
+  max-height: min(58svh, 440px);
+}
+
 #controls-panel.combat-mode {
   height: auto; /* Compact — buttons sized to content, no vertical stretch */
   min-height: 0;
@@ -333,6 +337,44 @@
   min-height: var(--tap-min);
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+.milestone-merchant-balance {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--hud-chrome-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+#merchant-confirm-footer {
+  display: none;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--sp-xs);
+  width: 100%;
+}
+
+#controls-panel.merchant-mode #submenu-options {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#controls-panel.merchant-mode #merchant-confirm-footer {
+  display: flex;
+}
+
+.merchant-selection-summary {
+  min-width: 0;
+  padding: var(--sp-xs) 2px 0;
+  overflow-wrap: anywhere;
+  color: var(--neon-cyan);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.merchant-confirm-button {
+  min-height: var(--tap-min);
 }
 
 

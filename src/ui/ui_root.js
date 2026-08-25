@@ -212,6 +212,7 @@ export function updateUI() {
   const isCombatOverlaySubmenu = view.isCombatOverlaySubmenu && combatOverlayTypes.includes(view.menuType);
   const departurePrepSubmenu = view.isDeparturePrepSubmenu;
   const workshopSubmenu = view.isWorkshopSubmenu;
+  const merchantSubmenu = view.isSubmenu && view.menuType === "milestone_merchant";
   const townSubmenu = view.isTownSubmenu;
   const isTownLikeGoal = gameState === "town" || departurePrepSubmenu;
 
@@ -377,6 +378,7 @@ export function updateUI() {
     controlsPanel.classList.toggle("submenu-mode", gameState === "submenu");
     controlsPanel.classList.toggle("departure-mode", departurePrepSubmenu);
     controlsPanel.classList.toggle("workshop-mode", workshopSubmenu);
+    controlsPanel.classList.toggle("merchant-mode", merchantSubmenu);
     controlsPanel.classList.toggle("chest-menu-mode", view.isSubmenu && view.menuType === "chest_menu");
     controlsPanel.classList.toggle("trap-mode", gameState === "trap_encounter");
   }
