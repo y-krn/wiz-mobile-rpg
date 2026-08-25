@@ -1,6 +1,37 @@
 import { state } from "../state.js";
 import { openSubmenu } from "../navigation.js";
-import { getRunQuestBoardCandidates } from "../systems/run_quests.js";
+import { RUN_QUEST_TEMPLATES } from "../data/run_quests.js";
+
+function cloneMaterials(materials) {
+  return Object.fromEntries(Object.entries(materials || {}).map(([name, quantity]) => [name, quantity]));
+}
+
+function shuffleTemplates(templates, rng) {
+  const pool = [...templates];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool;
+}
+
+export function getRunQuestBoardCandidates({ startFloor = 1, rng = Math.random } = {}) {
+  const byType = type => RUN_QUEST_TEMPLATES.filter(template => template.type === type);
+  const depth = shuffleTemplates(byType("depth"), rng)[0];
+  const hunt = shuffleTemplates(
+    RUN_QUEST_TEMPLATES.filter(template => ["role_kill", "elite_kill"].includes(template.type)),
+    rng
+  )[0];
+  const trapless = RUN_QUEST_TEMPLATES.find(template => template.type === "trapless_depth");
+  return [depth, hunt, trapless]
+    .filter(Boolean)
+    .map(template => ({
+      ...template,
+      target: { ...template.target },
+      reward: { materials: cloneMaterials(template.reward.materials) },
+      startFloor
+    }));
+}
 
 let boardCandidates = null;
 let selectedTemplateIds = new Set();

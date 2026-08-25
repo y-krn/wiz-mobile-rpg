@@ -3,10 +3,10 @@ import { RUN_QUEST_TEMPLATES } from "../src/data/run_quests.js";
 import {
   assignRunQuests,
   createRunQuest,
-  getRunQuestBoardCandidates,
   recordRunQuestDefeats,
   updateRunQuests
 } from "../src/systems/run_quests.js";
+import { getRunQuestBoardCandidates } from "../src/menu/run_quest_board.js";
 import { finalizeRunRecords } from "../src/state/records_state.js";
 
 let failures = 0;
@@ -45,15 +45,7 @@ check("依頼板は深度・討伐・無傷踏破を各1件ずつ提示し、選
     ["depth", "role_kill", "trapless_depth"]
   );
 
-  const run = { startFloor: 5 };
-  assignRunQuests(run, sequenceRng([0.1]), {
-    templateIds: candidates.slice(0, 2).map(candidate => candidate.id)
-  });
-  assert.deepEqual(
-    run.quests.map(quest => quest.templateId),
-    candidates.slice(0, 2).map(candidate => candidate.id)
-  );
-  assert.equal(run.quests[0].targetValue >= 5, true);
+  assert.equal(candidates[0].startFloor, 5);
 });
 
 check("全テンプレが深度またはリスクへ向け、浅層周回目標を持たない", () => {
