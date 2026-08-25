@@ -14,10 +14,27 @@ The merge gate has two separate responsibilities:
 A review passes only when all of the following are true:
 
 1. An independent native review records `APPROVE`.
-2. The evidence records the reviewed commit/head SHA.
-3. The reviewed SHA equals the current pull request head, and no push occurred
-   after that review. Otherwise, obtain a new review for the current head.
-4. There are zero unresolved actionable P0-P2 findings.
+2. The evidence records the reviewed head SHA, the base SHA used for the
+   review, and enough information to verify the PR-specific diff.
+3. The reviewed change set is unchanged since the review. A changed head SHA
+   does not by itself invalidate the evidence when the change is a clean
+   rebase with no conflict resolution and the PR-specific diff is verified to
+   be unchanged against the updated base.
+4. Obtain a new review when changes after the review include any code, test, or
+   configuration modification; conflict resolution; a changed PR-specific
+   diff; or a base update that changes the meaning or safety of the PR. If
+   equivalence cannot be established, obtain a new review.
+5. There are zero unresolved actionable P0-P2 findings.
+
+### Reusing review evidence after a base update
+
+Record the base and head SHAs before the update, then compare the
+PR-specific diff before and after the update (for example, the changed-file
+set plus a stable patch identity, with the full binary diff when applicable).
+Review evidence may be reused only when the rebase completed without
+conflicts, no PR-specific change was added, and that comparison is identical.
+The current pull request head still needs fresh required CI; prior check-run
+results must not be reused.
 
 For a same-owner pull request, GitHub may record that review with state
 `COMMENTED` rather than `APPROVED`. That state is valid evidence when the
@@ -43,5 +60,6 @@ not pass until the current head's required checks succeed. A failed,
 cancelled, or timed-out required check stops the merge.
 
 The final merge decision therefore requires both a passing independent review
-for the current head and passing required CI, while GitHub's repository
-protections remain in force.
+whose evidence is valid for the current change set and passing required CI for
+the current pull request head, while GitHub's repository protections remain in
+force.
