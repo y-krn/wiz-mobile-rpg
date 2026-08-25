@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { applySavePayload, createSavePayload } from "../src/state/save_payload.js";
 import { SAVE_PAYLOAD_FIELDS, SAVE_VERSION, migrateSavePayload } from "../src/state/save_migrations.js";
-import { SOLO_CLASSES, createDefaultCurrentRun, createSoloCharacter, loadGame, state } from "../src/state.js";
+import { SOLO_CLASSES, createDefaultCurrentRun, createSoloCharacter, initNewGame, loadGame, state } from "../src/state.js";
 import { menuContext, menuHistory, openGuardedSubmenu } from "../src/navigation.js";
 import { equipState } from "../src/equip.js";
 import { EVENT_TYPES } from "../src/data.js";
@@ -295,6 +295,60 @@ check("non-active malformed visited maps default to safe grids", () => {
       });
     });
   }
+});
+
+check("save bounds normalize floor and coordinates to a traversable cell", () => {
+  initNewGame();
+  state.currentRun = null;
+  state.party = [createSoloCharacter("Fighter")];
+  const basePayload = createSavePayload();
+  const start = basePayload.maps[0]
+    .flatMap((row, y) => row.map((cell, x) => cell.type === "stairs-up" ? { x, y } : null))
+    .find(Boolean);
+  const wall = basePayload.maps[0]
+    .flatMap((row, y) => row.map((cell, x) =>
+      cell.type === "empty" && !cell.event && !cell.trap && cell.walls.every(Boolean)
+        ? { x, y }
+        : null
+    ))
+    .find(Boolean);
+
+  assert.ok(start, "generated map has a stairs-up cell");
+  assert.ok(wall, "generated map has a non-traversable wall cell");
+
+  const floorZero = migrateSavePayload({
+    ...basePayload,
+    floor: 0,
+    x: start.x,
+    y: start.y,
+    prevX: start.x,
+    prevY: start.y
+  });
+  assert.equal(floorZero.floor, 1);
+  assert.deepEqual({ x: floorZero.x, y: floorZero.y }, start);
+
+  const excessiveFloor = migrateSavePayload({
+    ...basePayload,
+    floor: 999,
+    x: -1,
+    y: -1,
+    prevX: 999,
+    prevY: 999
+  });
+  assert.equal(excessiveFloor.floor, 1, "floor outside the loaded map set falls back to B1F");
+  assert.deepEqual({ x: excessiveFloor.x, y: excessiveFloor.y }, start);
+  assert.deepEqual({ x: excessiveFloor.prevX, y: excessiveFloor.prevY }, start);
+
+  const invalidCoordinates = migrateSavePayload({
+    ...basePayload,
+    floor: 1,
+    x: -1,
+    y: start.y,
+    prevX: wall.x,
+    prevY: wall.y
+  });
+  assert.deepEqual({ x: invalidCoordinates.x, y: invalidCoordinates.y }, start, "negative coordinates fall back");
+  assert.deepEqual({ x: invalidCoordinates.prevX, y: invalidCoordinates.prevY }, start, "wall coordinates fall back");
 });
 
 check("malformed history entries are filtered without changing valid records", () => {
