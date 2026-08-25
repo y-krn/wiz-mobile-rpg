@@ -17,6 +17,7 @@ import { CRAFT_RECIPES } from "../craft.js";
 import { getSortedCraftRecipes } from "../rules/craft_rules.js";
 import { MATERIAL_DROP_BALANCE, MATERIAL_TYPES } from "../data/materials.js";
 import { getEquipmentSlotsForType } from "../rules/equipment_slots.js";
+import { consumeSelectedRunQuestTemplateIds } from "./run_quest_board.js";
 
 // 選択は階を選ぶまで確定しない。支払いは startRun で1回だけ。
 let departureCraftQuantities = new Map();
@@ -51,6 +52,7 @@ function formatCraftPaymentWithBalance(recipe, balance) {
 
 function startRun(className, startingGear = null, startFloor = 1) {
   clearDepartureStartFooter();
+  const runQuestTemplateIds = consumeSelectedRunQuestTemplateIds();
   const selectedRecipeIds = getSelectedRecipeIds();
   let departureCraft = [];
   if (selectedRecipeIds.length > 0) {
@@ -75,7 +77,7 @@ function startRun(className, startingGear = null, startFloor = 1) {
   }
   state.party = [character];
   addLog(`${character.name}（${getClassJpName(className)}）が単独で潜行を開始する。`);
-  executeEnterDungeon(startFloor, { departureCraft });
+  executeEnterDungeon(startFloor, { departureCraft, runQuestTemplateIds });
 }
 
 function getSelectedRecipeIds() {

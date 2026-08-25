@@ -62,7 +62,8 @@ function resolvePersistedGameState() {
   if (
     t.startsWith("castle") ||
     t.startsWith("solo_start") ||
-    t.startsWith("workshop")
+    t.startsWith("workshop") ||
+    t.startsWith("run_quest")
   ) {
     return "town";
   }

@@ -3,6 +3,7 @@ import { RUN_QUEST_TEMPLATES } from "../src/data/run_quests.js";
 import {
   assignRunQuests,
   createRunQuest,
+  getRunQuestBoardCandidates,
   recordRunQuestDefeats,
   updateRunQuests
 } from "../src/systems/run_quests.js";
@@ -31,6 +32,28 @@ check("潜行開始時に重複なしで1〜2件を抽選する", () => {
   assert.equal(assignRunQuests(oneRun, sequenceRng([0.1, 0, 0, 0, 0, 0])).length, 1);
   assert.equal(assignRunQuests(twoRun, sequenceRng([0.9, 0, 0, 0, 0, 0])).length, 2);
   assert.equal(new Set(twoRun.quests.map(quest => quest.templateId)).size, 2);
+});
+
+check("依頼板は深度・討伐・無傷踏破を各1件ずつ提示し、選択を反映する", () => {
+  const candidates = getRunQuestBoardCandidates({
+    startFloor: 5,
+    rng: sequenceRng([0, 0.99, 0.99, 0, 0])
+  });
+  assert.equal(candidates.length, 3);
+  assert.deepEqual(
+    candidates.map(candidate => candidate.type),
+    ["depth", "role_kill", "trapless_depth"]
+  );
+
+  const run = { startFloor: 5 };
+  assignRunQuests(run, sequenceRng([0.1]), {
+    templateIds: candidates.slice(0, 2).map(candidate => candidate.id)
+  });
+  assert.deepEqual(
+    run.quests.map(quest => quest.templateId),
+    candidates.slice(0, 2).map(candidate => candidate.id)
+  );
+  assert.equal(run.quests[0].targetValue >= 5, true);
 });
 
 check("全テンプレが深度またはリスクへ向け、浅層周回目標を持たない", () => {

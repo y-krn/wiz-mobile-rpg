@@ -17,6 +17,8 @@ economy, this document wins.
 ```text
 town (meta screen): pick class and starting gear
         ↓
+town (departure board): optionally choose 1–2 goals from 3 varied contracts
+        ↓
 descend from B1F at Lv1 (or an unlocked milestone start)
         ↓
 explore generated floors, fight, pick up unidentified gear,
@@ -32,6 +34,23 @@ spend materials on permanent unlocks in the workshop
         ↓
 descend again, deeper than before
 ```
+
+**Decided: departure contracts are player-selected (Issue #694, 2026-08-25).**
+The town's departure board presents three varied candidates: one depth goal, one
+hunt goal, and one trapless-depth goal. The player may accept one or two before
+class and starting-floor preparation; the selected templates resolve their
+actual target from that run's starting floor. Candidates are bounded by the
+highest unlocked milestone start, so early runs are not offered deep goals
+outside the player's current preparation range. The board does not change
+contract types, target values, or reward amounts. Entering the dungeon through
+the ordinary "迷宮に入る" path keeps the existing random assignment of one or
+two contracts.
+
+An uncompleted contract expires with its run and is not carried into the next
+descent. This keeps a contract a promise about the current push-your-luck run,
+not a persistent checklist or a reason to farm shallow floors. Completed
+contracts still award their existing materials during the run, and the active
+contract list remains visible in the run HUD and result screen.
 
 **Decided: the castle is a preparation loop, not only a record viewer**
 (2026-08-16). The castle keeps structured death causes (floor, category, and

@@ -721,7 +721,7 @@ export function enterDungeon() {
   openSubmenu("solo_start", "クラスを選択：潜行ごとにLv1から開始");
 }
 
-export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
+export function executeEnterDungeon(floor, { departureCraft = [], runQuestTemplateIds = null } = {}) {
   state.party = state.party.slice(0, 1);
   state.gameState = "explore";
   menuContext.prevGameState = null;
@@ -737,7 +737,11 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   state.currentRun.characterClass = state.party[0]?.class || null;
   state.currentRun.floorsVisited = [floor];
   state.currentRun.floorSteps = {};
-  assignRunQuests(state.currentRun);
+  if (Array.isArray(runQuestTemplateIds) && runQuestTemplateIds.length > 0) {
+    assignRunQuests(state.currentRun, Math.random, { templateIds: runQuestTemplateIds });
+  } else {
+    assignRunQuests(state.currentRun);
+  }
   resetRunFloors(state);
   ensureRunFloor(state, floor);
   if (floor > 1) {

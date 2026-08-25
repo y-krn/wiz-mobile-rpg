@@ -1,3 +1,5 @@
+// balance-impact: none — this change adds pre-run contract selection only;
+// existing contract targets, rewards, and progress rules remain unchanged.
 import { RUN_QUEST_TEMPLATES } from "../data/run_quests.js";
 
 function resolveTargetValue(template, startFloor) {
@@ -30,14 +32,40 @@ export function createRunQuest(template, startFloor) {
   };
 }
 
-export function assignRunQuests(run, rng = Math.random) {
-  const count = rng() < 0.5 ? 1 : 2;
-  const pool = [...RUN_QUEST_TEMPLATES];
+function shuffleTemplates(templates, rng) {
+  const pool = [...templates];
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  run.quests = pool.slice(0, count).map(template => createRunQuest(template, run.startFloor || 1));
+  return pool;
+}
+
+export function getRunQuestBoardCandidates({ startFloor = 1, rng = Math.random } = {}) {
+  const byType = type => RUN_QUEST_TEMPLATES.filter(template => template.type === type);
+  const depthPool = byType("depth");
+  const huntPool = RUN_QUEST_TEMPLATES.filter(template => ["role_kill", "elite_kill"].includes(template.type));
+  const depth = shuffleTemplates(depthPool, rng)[0];
+  const hunt = shuffleTemplates(huntPool, rng)[0];
+  const trapless = RUN_QUEST_TEMPLATES.find(template => template.type === "trapless_depth");
+  return [depth, hunt, trapless]
+    .filter(Boolean)
+    .map(template => ({
+      ...template,
+      target: { ...template.target },
+      reward: { materials: cloneMaterials(template.reward.materials) },
+      startFloor
+    }));
+}
+
+export function assignRunQuests(run, rng = Math.random, { templateIds = null } = {}) {
+  const selected = Array.isArray(templateIds)
+    ? [...new Set(templateIds)].map(id => RUN_QUEST_TEMPLATES.find(template => template.id === id)).filter(Boolean).slice(0, 2)
+    : [];
+  const count = rng() < 0.5 ? 1 : 2;
+  const pool = selected.length > 0 ? selected : shuffleTemplates(RUN_QUEST_TEMPLATES, rng);
+  run.quests = pool.slice(0, selected.length > 0 ? selected.length : count)
+    .map(template => createRunQuest(template, run.startFloor || 1));
   run.defeatsByRole ||= {};
   updateRunQuests(run);
   return run.quests;
