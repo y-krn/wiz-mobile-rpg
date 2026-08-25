@@ -56,6 +56,12 @@ for (const vp of VIEWPORTS) {
     await page.locator('#btn-merchant-confirm').click();
     await expect(page.locator('#log-content')).toContainText('鑑定粉を購入した');
 
+    const healPotion = page.locator('.milestone-merchant-option[data-stock-id="heal_potion"]');
+    await healPotion.click();
+    await expect(page.locator('.merchant-selection-summary')).toContainText('傷薬 (ディオス薬)を購入');
+    await page.locator('#btn-merchant-confirm').click();
+    await expect(page.locator('#log-content')).toContainText('傷薬 (ディオス薬)を購入した');
+
     await page.evaluate(async () => {
       const { openSubmenu } = await import('/src/navigation.js');
       openSubmenu('milestone_portal', '帰還の門');

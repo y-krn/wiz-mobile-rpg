@@ -22,6 +22,10 @@ function createSection(label, className = "") {
   return heading;
 }
 
+function getEntryDisplayName(entry) {
+  return entry.itemId ? ITEMS[entry.itemId]?.name || entry.name : entry.name;
+}
+
 function getEntryDescription(entry) {
   if (entry.itemId) return ITEMS[entry.itemId]?.desc || "迷宮で使える補給品。";
   return "未鑑定の装備を1つ見通せる。";
@@ -33,7 +37,7 @@ function getSelectedLabel() {
     return `${getItemData(selectedOffer.item).name}の呪いを解く`;
   }
   const entry = MILESTONE_MERCHANT_STOCK.find(item => item.id === selectedOffer.id);
-  return entry ? `${entry.name}を購入` : "商品を選択してください";
+  return entry ? `${getEntryDisplayName(entry)}を購入` : "商品を選択してください";
 }
 
 function renderConfirmFooter(optGrid) {
@@ -86,7 +90,7 @@ export function renderMilestoneMerchant(optGrid) {
   MILESTONE_MERCHANT_STOCK.forEach(entry => {
     const affordable = canAffordMaterials(materials, entry.cost);
     const full = entry.kind === "item" && state.inventory.length >= 20;
-    const itemName = entry.itemId ? ITEMS[entry.itemId]?.name || entry.name : entry.name;
+    const itemName = getEntryDisplayName(entry);
     const status = full ? "バッグ満杯" : affordable ? "購入可能" : "素材不足";
     const button = createActionCard({
       name: itemName,
