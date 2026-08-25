@@ -2,7 +2,7 @@
 
 ## 判定
 
-- 対象 production SHA: `6aaf28aede87c3b53e1c0dac40c4b3b60fe2c584`
+- 対象 production SHA: `a18d7bc1121df9e64290f79b1e07fa11ddc28ca5`（PR base / current `main`）
 - canonical runner: `scratch/sim_depth_material_ev.js` (`sim-scope: run`)
 - 結論: **#843 の標準 baseline は全指標について `blocked`**
 - ただし、merchant / secret route / enhance・polish / `fromDrop` chest の影響を受けない、production combat round の狭い診断値は `ready` として別扱いできる。
@@ -19,6 +19,8 @@ Production inventory は以下を起点に、直接 caller と UI/action handler
 - item / equipment: `src/chest.js`, `src/rules/chest_rules.js`, `src/systems/equipment_generation.js`, `src/systems/identification.js`, `src/craft.js`
 - economy / progression: `src/systems/workshop.js`, `src/systems/milestone_merchant.js`, `src/systems/leveling.js`, `src/combat_logic/rewards.js`, `src/result.js`
 - record / UI: `src/telemetry.js`, `src/state/codex_state.js`, `src/menu/milestone_merchant.js`, `src/equip.js`
+
+PR base に含まれる #891（`src/state/save_migrations.js` の floor / coordinate bounds validation と `scratch/test_save.js` の回帰テスト）も確認した。これは保存データの再開時に不正な floor / 座標を安全な cell へ補正する persistence 境界であり、canonical sim は save load / resume を実行せず `createSimulationState` から run を開始するため、balance path には到達しない。`permanent save/result/codex progression` の safe omission（balance transport 外）として扱い、保存互換性の回帰テストは simulation coverage とは別に維持する。
 
 実行したチェック:
 
