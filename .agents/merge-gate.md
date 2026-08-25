@@ -38,9 +38,10 @@ results must not be reused.
 
 For a same-owner pull request, GitHub may record that review with state
 `COMMENTED` rather than `APPROVED`. That state is valid evidence when the
-record explicitly contains the independent `APPROVE` verdict and reviewed
-head SHA. A formal GitHub `APPROVED` state is not required; a generic comment
-without that evidence is insufficient.
+record explicitly contains the independent `APPROVE` verdict and the required
+reviewed head SHA, base SHA, and PR-specific diff evidence. A formal GitHub
+`APPROVED` state is not required; a generic comment without that evidence is
+insufficient.
 
 ## Required CI
 
