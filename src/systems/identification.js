@@ -1,5 +1,6 @@
 import { IDENTIFICATION_BALANCE, isCurseLocked } from "../rules/identification_rules.js";
 import { getCharAffixSum } from "../rules/item_rules.js";
+import { recordEquipmentAffixDiscovery } from "../state/codex_state.js";
 
 export function identifyEquipment(stateLike, item, character = null, rng = Math.random) {
   if (!item || typeof item !== "object" || item.identified) {
@@ -18,6 +19,7 @@ export function identifyEquipment(stateLike, item, character = null, rng = Math.
   }
   item.identified = true;
   item.halfIdentified = true;
+  recordEquipmentAffixDiscovery(item, stateLike);
   return { ok: true, cursed: Boolean(item.curseEffectId) };
 }
 

@@ -34,6 +34,7 @@ export {
 
 export {
   recordEquipmentDiscovery,
+  recordEquipmentAffixDiscovery,
   getMonsterCodexKey,
   createMonsterCodexRecord,
   recordMonsterResistanceDiscovery
