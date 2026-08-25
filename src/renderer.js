@@ -179,6 +179,7 @@ export class DungeonRenderer {
     this.damageTexts = []; // Array of { text, x, y, age, color }
     this.lastSignature = null;
     this.monsterPathCache = new Map();
+    this.monsterDetailCache = new Map();
     this.monsterGradientCache = new Map();
   }
 
@@ -1162,6 +1163,21 @@ export class DungeonRenderer {
     return "biter";
   }
 
+  getMonsterVisualVariant(monster) {
+    const spriteType = this.getMonsterSpriteType(monster);
+    if (spriteType !== "zombie") return "default";
+    return monster.name || "zombie";
+  }
+
+  getMonsterScaleMultiplier(monster) {
+    const name = monster.name || "";
+    if (name.includes("ジャイアント") || name.includes("巨躯")) return 1.18;
+    if (name.includes("ゴーレム") || name.includes("アーマー") || name.includes("ストーン") || name.includes("石像")) {
+      return 1.08;
+    }
+    return 1;
+  }
+
   drawMonsters(ctx) {
     const view = getScreenViewState(state, menuContext);
     if (!view.hasCombat) return;
@@ -1180,7 +1196,8 @@ export class DungeonRenderer {
       const slotWidth = VIEW_W / rowCount;
       const cx = slotWidth * (index - rowStart + 0.5);
       const cy = rows === 1 ? VIEW_H / 2 + 15 : row === 0 ? 100 : 210;
-      this.drawMonster(ctx, monster, cx, cy, scale, slotWidth - 8);
+      const monsterScale = scale * this.getMonsterScaleMultiplier(monster);
+      this.drawMonster(ctx, monster, cx, cy, monsterScale, slotWidth - 8);
     });
   }
 
@@ -1415,6 +1432,114 @@ export class DungeonRenderer {
     return paths;
   }
 
+  buildMonsterDetailPaths(spriteType, variant = "default") {
+    if (spriteType !== "zombie" || variant === "default") return [];
+
+    const cacheKey = `${spriteType}:${variant}`;
+    const cached = this.monsterDetailCache.get(cacheKey);
+    if (cached) return cached;
+
+    const detail = new Path2D();
+    // Keep one readable, monochrome landmark per zombie. These paths are
+    // clipped to the shared body so they add information without widening
+    // the cached silhouette or adding another glow pass.
+    if (variant === "ゾンビ") {
+      // Torn cloth: an uneven hem across the torso.
+      detail.moveTo(-18, -17);
+      detail.lineTo(-9, -10);
+      detail.lineTo(-2, -17);
+      detail.lineTo(7, -8);
+      detail.lineTo(18, -16);
+      detail.lineTo(18, 6);
+      detail.lineTo(8, 1);
+      detail.lineTo(0, 8);
+      detail.lineTo(-9, 1);
+      detail.lineTo(-18, 7);
+      detail.closePath();
+    } else if (variant === "ポイズンジャイアント") {
+      // Poison sacs: two heavy, asymmetric pockets.
+      detail.arc(-12, -4, 8, 0, Math.PI * 2);
+      detail.arc(12, 3, 6, 0, Math.PI * 2);
+      detail.moveTo(-5, -5);
+      detail.lineTo(5, 1);
+    } else if (variant === "アースジャイアント") {
+      // Rock shoulders: angular plates break the humanoid outline internally.
+      detail.moveTo(-20, -22);
+      detail.lineTo(-33, -14);
+      detail.lineTo(-24, -2);
+      detail.lineTo(-13, -8);
+      detail.closePath();
+      detail.moveTo(20, -20);
+      detail.lineTo(33, -8);
+      detail.lineTo(23, 2);
+      detail.lineTo(13, -8);
+      detail.closePath();
+    } else if (variant === "墓守の巨躯") {
+      // Gravekeeper's key: a large ring and stem across the torso.
+      detail.arc(-2, -12, 8, 0, Math.PI * 2);
+      detail.moveTo(6, -12);
+      detail.lineTo(17, 4);
+      detail.lineTo(11, 8);
+      detail.moveTo(14, 1);
+      detail.lineTo(21, -3);
+      detail.moveTo(17, 6);
+      detail.lineTo(23, 2);
+    } else if (variant === "アイアンゴーレム" || variant === "リビングアーマー") {
+      // Empty helmet: a dark visor makes the construct read as hollow.
+      detail.rect(-12, -42, 24, 9);
+      detail.moveTo(-9, -37);
+      detail.lineTo(9, -37);
+    } else if (variant === "ストーンガード") {
+      // Shield and pillar: the guard's defensive role is visible in silhouette.
+      detail.moveTo(-17, -17);
+      detail.lineTo(-5, -11);
+      detail.lineTo(-7, 5);
+      detail.lineTo(-17, 12);
+      detail.lineTo(-27, 5);
+      detail.lineTo(-29, -11);
+      detail.closePath();
+      detail.rect(8, -20, 8, 30);
+    } else if (variant === "カースドハンド") {
+      // Reaching fingers: a single palm with four hooked fingertips.
+      detail.moveTo(5, 12);
+      detail.lineTo(7, -10);
+      detail.lineTo(12, -17);
+      detail.lineTo(15, -14);
+      detail.lineTo(13, -3);
+      detail.lineTo(18, -18);
+      detail.lineTo(22, -16);
+      detail.lineTo(19, -2);
+      detail.lineTo(25, -13);
+      detail.lineTo(28, -10);
+      detail.lineTo(22, 1);
+      detail.lineTo(27, -5);
+      detail.lineTo(30, -1);
+      detail.lineTo(19, 14);
+      detail.closePath();
+    } else if (variant === "石像兵") {
+      // Masonry: a carved block seam and central crack.
+      detail.moveTo(-18, -14);
+      detail.lineTo(18, -14);
+      detail.moveTo(-18, 0);
+      detail.lineTo(18, 0);
+      detail.moveTo(0, -14);
+      detail.lineTo(-5, -5);
+      detail.lineTo(4, 5);
+      detail.lineTo(0, 17);
+    } else if (variant === "反逆の鎧") {
+      // Rebellious armor: one deep diagonal slash through the plate.
+      detail.moveTo(-16, -29);
+      detail.lineTo(18, 15);
+      detail.lineTo(13, 19);
+      detail.lineTo(-21, -24);
+      detail.closePath();
+    }
+
+    const paths = [detail];
+    this.monsterDetailCache.set(cacheKey, paths);
+    return paths;
+  }
+
   getMonsterBodyGradient(ctx, color, cy) {
     const key = `${color}|${cy}`;
     const cached = this.monsterGradientCache.get(key);
@@ -1459,6 +1584,19 @@ export class DungeonRenderer {
     ctx.globalAlpha = 1;
   }
 
+  drawMonsterDetails(ctx, bodyPath, detailPaths, scale) {
+    if (detailPaths.length === 0) return;
+
+    ctx.save();
+    ctx.clip(bodyPath);
+    ctx.strokeStyle = "rgba(8, 12, 16, 0.88)";
+    ctx.lineWidth = Math.max(1.4, 2 / scale);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    detailPaths.forEach(path => ctx.stroke(path));
+    ctx.restore();
+  }
+
   drawMonster(ctx, monster, cx, cy, scale, maxLabelWidth) {
     const color = monster.color || "#ff3b30";
     const bodyGradient = this.getMonsterBodyGradient(ctx, color, cy);
@@ -1474,8 +1612,10 @@ export class DungeonRenderer {
     ctx.scale(scale, scale);
 
     const spriteType = this.getMonsterSpriteType(monster);
+    const variant = this.getMonsterVisualVariant(monster);
     const paths = this.buildMonsterPaths(spriteType);
     this.strokeNeonPaths(ctx, paths, color, scale, bodyGradient);
+    this.drawMonsterDetails(ctx, paths[0], this.buildMonsterDetailPaths(spriteType, variant), scale);
 
     ctx.restore();
 

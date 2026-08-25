@@ -119,6 +119,10 @@ behavior may be relevant.
 - Enemy rendering foundation: keep enemy bodies in Canvas 2D `Path2D` with an
   opaque gradient fill and one flat contact shadow. Do not introduce raster
   image assets for enemy volume; the dungeon 3D view remains line art.
+- Same-`spriteType` enemies may share a cached base silhouette, but must expose
+  a deterministic, monochrome-readable landmark inside the body. Derive the
+  visual variant from stable monster identity, keep it clipped to the opaque
+  body, and limit each enemy to one landmark so mobile frame cost stays flat.
 
 ## Required Verification
 
