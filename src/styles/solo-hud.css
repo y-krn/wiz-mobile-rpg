@@ -207,6 +207,53 @@
   overflow-wrap: anywhere;
 }
 
+.menu-action-card {
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--sp-xxs);
+  padding: var(--sp-sm) var(--sp-md);
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.menu-action-card-name {
+  color: var(--text-main);
+  font-size: var(--fs-base);
+}
+
+.menu-action-card-description,
+.menu-action-card-cost {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+.menu-action-card-description {
+  line-height: 1.35;
+}
+
+.menu-action-card-cost {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.menu-action-card-cost.is-insufficient {
+  color: var(--text-danger, var(--neon-red));
+}
+
+.menu-action-card.is-selected,
+.solo-start-craft-option.is-selected {
+  border-color: var(--neon-cyan);
+  box-shadow: var(--neon-glow-cyan);
+  color: var(--neon-cyan);
+}
+
+.menu-action-card.is-selected .menu-action-card-name,
+.solo-start-craft-option.is-selected strong {
+  color: var(--neon-cyan);
+}
+
 .solo-start-craft-option span,
 .solo-start-floor-option span {
   color: var(--text-muted);
@@ -215,12 +262,6 @@
 
 .solo-start-craft-option .solo-start-craft-cost.is-insufficient {
   color: var(--text-danger, var(--neon-red));
-}
-
-.solo-start-craft-option.is-selected {
-  border-color: var(--neon-cyan);
-  box-shadow: var(--neon-glow-cyan);
-  color: var(--neon-cyan);
 }
 
 .solo-start-floor-option {

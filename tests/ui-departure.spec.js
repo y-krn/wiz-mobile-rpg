@@ -41,12 +41,19 @@ for (const vp of VIEWPORTS) {
       state.gameState = 'explore';
       openSubmenu('milestone_merchant', '深層商人');
     });
-    const powder = page.getByRole('button', { name: /鑑定粉/ });
+    const powder = page.locator('.milestone-merchant-option[data-stock-id="identify_powder"]');
     const uncurse = page.getByRole('button', { name: /呪いを解く/ });
     expect((await powder.boundingBox()).height).toBeGreaterThanOrEqual(44);
     expect((await uncurse.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('.milestone-merchant-option[data-stock-kind="equipment"]')).toHaveCount(0);
+    await expect(powder).toContainText('価格');
+    await expect(powder).toHaveAttribute('aria-pressed', 'false');
     await powder.click();
+    await expect(powder).toHaveClass(/is-selected/);
+    await expect(page.locator('#btn-merchant-confirm')).toBeEnabled();
+    await expect(page.locator('#btn-merchant-confirm')).toContainText('購入');
+    expect((await page.locator('#btn-merchant-confirm').boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await page.locator('#btn-merchant-confirm').click();
     await expect(page.locator('#log-content')).toContainText('鑑定粉を購入した');
 
     await page.evaluate(async () => {
