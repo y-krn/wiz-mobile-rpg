@@ -7,7 +7,7 @@ import { findMapCellByType } from "../rules/map_queries.js";
 import { RETIRED_WORKSHOP_NODES } from "../data/workshop.js";
 import { addMaterials } from "../rules/material_rules.js";
 import { normalizeStatusEffectTarget } from "../combat_logic/status_effects.js";
-import { isUsableFloorMap } from "./run_floor_state.js";
+import { isUsableFloorCell, isUsableFloorMap } from "./run_floor_state.js";
 import { isUsableCombatState } from "./view_state.js";
 
 export function migrateCharSpells(char) {
@@ -122,6 +122,56 @@ function createDefaultVisitedMaps(maps) {
     ? map.map(row => Array.isArray(row) ? row.map(() => false) : [])
     : null
   );
+}
+
+function isTraversableSaveCell(cell) {
+  if (!isUsableFloorCell(cell)) return false;
+  return cell.walls.some(wall => !wall) ||
+    cell.secretDoor.some(Boolean) ||
+    cell.type !== "empty" ||
+    Boolean(cell.event) ||
+    Boolean(cell.trap);
+}
+
+function isValidSaveCoordinate(map, x, y) {
+  return Number.isInteger(x) && Number.isInteger(y) &&
+    y >= 0 && y < map.length &&
+    Array.isArray(map[y]) && x >= 0 && x < map[y].length &&
+    isTraversableSaveCell(map[y][x]);
+}
+
+function findSafeSaveCoordinate(map) {
+  if (!Array.isArray(map)) return null;
+
+  for (let y = 0; y < map.length; y++) {
+    const row = map[y];
+    if (!Array.isArray(row)) continue;
+    for (let x = 0; x < row.length; x++) {
+      if (row[x]?.type === "stairs-up" && isTraversableSaveCell(row[x])) {
+        return { x, y };
+      }
+    }
+  }
+
+  for (let y = 0; y < map.length; y++) {
+    const row = map[y];
+    if (!Array.isArray(row)) continue;
+    for (let x = 0; x < row.length; x++) {
+      if (isTraversableSaveCell(row[x])) return { x, y };
+    }
+  }
+
+  return null;
+}
+
+function findLoadedFloorWithSafeCoordinate(maps, preferredFloor) {
+  if (!Array.isArray(maps)) return -1;
+  const preferredIndex = preferredFloor - 1;
+  if (preferredIndex >= 0 && preferredIndex < maps.length &&
+      findSafeSaveCoordinate(maps[preferredIndex])) {
+    return preferredIndex;
+  }
+  return maps.findIndex(map => findSafeSaveCoordinate(map));
 }
 
 function isUsableVisitedMaps(visitedMaps, maps) {
@@ -595,6 +645,33 @@ export function normalizeSavePayload(data) {
     backfillMapSecretDoors({ maps: [map] });
     if (map) removeIsolatedInternalWalls(map);
   });
+
+  if (!activeRunMap) {
+    // Legacy saves contain a finite map set. Keep floor within that set by
+    // selecting the requested map when usable, otherwise the first usable
+    // map, without assuming a particular map count.
+    const loadedFloorIndex = findLoadedFloorWithSafeCoordinate(loadedMaps, normalized.floor);
+    if (loadedFloorIndex >= 0) normalized.floor = loadedFloorIndex + 1;
+  }
+
+  const activeMap = loadedMaps[normalized.floor - 1];
+  const canValidateCoordinates = activeRunMap
+    ? isUsableFloorMap(activeMap, normalized.floor)
+    : Array.isArray(activeMap);
+  if (canValidateCoordinates) {
+    const safeCoordinate = findSafeSaveCoordinate(activeMap);
+    if (safeCoordinate) {
+      if (!isValidSaveCoordinate(activeMap, normalized.x, normalized.y)) {
+        normalized.x = safeCoordinate.x;
+        normalized.y = safeCoordinate.y;
+      }
+      if (!isValidSaveCoordinate(activeMap, normalized.prevX, normalized.prevY)) {
+        normalized.prevX = safeCoordinate.x;
+        normalized.prevY = safeCoordinate.y;
+      }
+    }
+  }
+
   normalized.maps = loadedMaps;
 
   normalized.floorChestsTotal = Array.isArray(data.floorChestsTotal)
