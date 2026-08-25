@@ -156,4 +156,4 @@ The following independent Issues must be completed before #843 claims a full-gam
 - [x] #843 の指標ごとの影響を記録
 - [x] #843 baseline の判断を `blocked` と記録
 - [x] production behavior / balance values は変更なし
-- [ ] `npm run lint` / focused tests / deterministic checks — PR verification に記録
+- [x] `npm run lint` / focused tests / deterministic checks — PR verification に記録
