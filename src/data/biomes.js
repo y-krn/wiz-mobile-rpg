@@ -13,7 +13,8 @@ const biome = (definition) => Object.freeze({
   }),
   visualSignature: Object.freeze({
     ...definition.visualSignature,
-    geometry: Object.freeze({ ...definition.visualSignature.geometry })
+    geometry: Object.freeze({ ...definition.visualSignature.geometry }),
+    landmarks: Object.freeze({ ...definition.visualSignature.landmarks })
   }),
   theme: Object.freeze({
     ...definition.theme,
@@ -41,6 +42,7 @@ export const BIOMES = Object.freeze([
       aura: "radial-gradient(circle at 50% 45%, rgba(88, 214, 232, 0.12) 0%, rgba(0, 8, 12, 0.66) 100%)",
       auraOpacity: 0.62,
       geometry: { corridorWidth: 0.82, ceilingHeight: 0.82, wallLean: 0.04, ceilingStyle: "flat" },
+      landmarks: { chestStyle: "wood_crate", trapStyle: "rockfall_mark", stairsStyle: "rough_stone" },
       environment: { overlay: "rgba(10, 35, 44, 0.04)", animated: false, animatedCyclePosition: 4 }
     },
     bossName: "デーモンガード", eliteName: "フラック",
@@ -69,6 +71,7 @@ export const BIOMES = Object.freeze([
       aura: "radial-gradient(circle at 55% 42%, rgba(213, 181, 111, 0.11) 0%, rgba(32, 20, 5, 0.72) 70%, rgba(0, 0, 0, 0.86) 100%)",
       auraOpacity: 0.68,
       geometry: { corridorWidth: 1.00, ceilingHeight: 1.18, wallLean: 0.00, ceilingStyle: "arch" },
+      landmarks: { chestStyle: "stone_ossuary", trapStyle: "grave_seal", stairsStyle: "catacomb_arch" },
       environment: { overlay: "rgba(58, 38, 13, 0.14)", animated: false }
     },
     bossName: "ストーンガード", eliteName: "墓守の巨躯",
@@ -97,6 +100,7 @@ export const BIOMES = Object.freeze([
       aura: "radial-gradient(circle at 48% 42%, rgba(189, 120, 242, 0.12) 0%, rgba(45, 8, 55, 0.70) 70%, rgba(0, 0, 0, 0.90) 100%)",
       auraOpacity: 0.72,
       geometry: { corridorWidth: 0.92, ceilingHeight: 1.10, wallLean: -0.08, ceilingStyle: "flat" },
+      landmarks: { chestStyle: "bone_cache", trapStyle: "claw_rift", stairsStyle: "broken_ledge" },
       environment: { overlay: "rgba(107, 27, 116, 0.08)", animated: false }
     },
     bossName: "ポイズンジャイアント", eliteName: "這い寄る影",
@@ -125,6 +129,7 @@ export const BIOMES = Object.freeze([
       aura: "radial-gradient(circle at 52% 45%, rgba(84, 200, 195, 0.12) 0%, rgba(3, 38, 42, 0.74) 70%, rgba(0, 0, 0, 0.91) 100%)",
       auraOpacity: 0.76,
       geometry: { corridorWidth: 1.18, ceilingHeight: 1.05, wallLean: 0.00, ceilingStyle: "flat" },
+      landmarks: { chestStyle: "sealed_book_coffer", trapStyle: "arcane_glyph", stairsStyle: "flooded_steps" },
       environment: { overlay: "rgba(7, 62, 68, 0.11)", animated: false }
     },
     bossName: "マスターデーモン", eliteName: "禁書の番人",
@@ -153,6 +158,7 @@ export const BIOMES = Object.freeze([
       aura: "radial-gradient(circle at 50% 45%, rgba(240, 138, 69, 0.13) 0%, rgba(64, 12, 4, 0.78) 70%, rgba(0, 0, 0, 0.93) 100%)",
       auraOpacity: 0.80,
       geometry: { corridorWidth: 1.16, ceilingHeight: 1.24, wallLean: 0.03, ceilingStyle: "flat" },
+      landmarks: { chestStyle: "iron_strongbox", trapStyle: "forge_vent", stairsStyle: "forge_stair" },
       environment: { overlay: "rgba(106, 29, 8, 0.12)", animated: true }
     },
     bossName: "レッドドラゴン", eliteName: "灼熱の徘徊者",
@@ -181,6 +187,7 @@ export const BIOMES = Object.freeze([
       aura: "radial-gradient(circle at 48% 42%, rgba(212, 93, 230, 0.14) 0%, rgba(45, 3, 55, 0.82) 70%, rgba(0, 0, 0, 0.95) 100%)",
       auraOpacity: 0.84,
       geometry: { corridorWidth: 0.96, ceilingHeight: 1.20, wallLean: -0.12, ceilingStyle: "arch" },
+      landmarks: { chestStyle: "abyss_reliquary", trapStyle: "void_sigill", stairsStyle: "impossible_stair" },
       environment: { overlay: "rgba(46, 8, 65, 0.14)", animated: true }
     },
     bossName: "いにしえの竜", eliteName: "深淵の徘徊者",
