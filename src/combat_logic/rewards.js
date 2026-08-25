@@ -5,7 +5,7 @@ import {
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { determineMonsterDrop, getMonsterMainMaterial } from "./drops.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
-import { createMonsterCodexRecord } from "../state/codex_state.js";
+import { createMonsterCodexRecord, recordEquipmentDiscovery } from "../state/codex_state.js";
 import { recordRunQuestDefeats, updateRunQuests } from "../systems/run_quests.js";
 
 function rollCombatAccessoryDrop(state, rng) {
@@ -274,6 +274,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   if (dropEquipment) {
     const added = addInventoryItemToState(state, dropEquipment);
     if (added) {
+      recordEquipmentDiscovery(dropEquipment);
       if (state.currentRun) {
         state.currentRun.equipmentFound.push(dropEquipment);
       }
@@ -294,6 +295,7 @@ export function applyCombatRewards(state, monsters, logQueue, rng = Math.random)
   if (dropAccessory) {
     const added = addInventoryItemToState(state, dropAccessory);
     if (added) {
+      recordEquipmentDiscovery(dropAccessory);
       if (state.currentRun) {
         state.currentRun.equipmentFound.push(dropAccessory);
       }

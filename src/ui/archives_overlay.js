@@ -1,5 +1,5 @@
 import { state, createDefaultCodex } from "../state.js";
-import { describeMonsterTraits, describeMonsterResistances, getClassJpName, MONSTERS, ITEMS } from "../data.js";
+import { describeMonsterTraits, describeMonsterResistances, getClassJpName, getAffixDefinition, MONSTERS, ITEMS } from "../data.js";
 import { updateUI } from "./ui_root.js";
 import { FLOOR_THEMES, getFloorDisplayName } from "../data/floor_themes.js";
 
@@ -104,30 +104,151 @@ export function getMonsterCodexDetailHtml(m, record) {
   return html;
 }
 
+const EQUIPMENT_TAG_LABELS = {
+  fire: "🔥 炎",
+  blade: "⚔️ 刀剣",
+  poison: "☠️ 毒",
+  ambush: "🗡️ 奇襲",
+  ward: "🛡️ 守護",
+  spirit: "🔮 霊術",
+  holy: "✦ 聖",
+  iron: "⛓️ 鉄",
+  dragon: "🐉 竜",
+  beast: "🐾 獣",
+  evasion: "🌑 回避",
+  search: "🔎 探索",
+  trap: "⚠️ 罠",
+  analysis: "📖 解析",
+  curse: "🜏 呪",
+  blood: "🩸 血",
+  decay: "☾ 衰弱",
+  fire_rite: "🔥 火葬"
+};
+
+const EQUIPMENT_RESEARCH_AFFIXES = {
+  fire: ["firstTurnAttack", "fullHpDamage", "deepAssault"],
+  blade: ["atk", "followUp", "firstTurnAttack"],
+  poison: ["poisonAtk", "poisonWard", "statusResistance"],
+  ambush: ["firstStrike", "firstTurnAttack", "rearEvasion"],
+  ward: ["def", "guardian", "spellGuard"],
+  spirit: ["spellPower", "arcane", "devotion"],
+  holy: ["antiUndead", "antiDemon", "devotion"],
+  dragon: ["antiDragon", "spellGuard"],
+  trap: ["trapBonus", "traceRead"],
+  search: ["treasureSense", "hearRange"],
+  analysis: ["arcaneSense", "spellAccuracy"]
+};
+
+function getEquipmentTypeLabel(type) {
+  return type === "weapon" ? "武器" : type === "shield" ? "盾" : type === "accessory" ? "装飾" : "防具";
+}
+
+function getKnownEquipmentTagIds(item, record) {
+  const observations = record?.tagObservations;
+  if (!observations || typeof observations !== "object") return [];
+  return (item.tags || [])
+    .filter(tag => Number(observations[tag]) >= 2 && EQUIPMENT_TAG_LABELS[tag]);
+}
+
+function getKnownEquipmentTags(item, record) {
+  return getKnownEquipmentTagIds(item, record).map(tag => EQUIPMENT_TAG_LABELS[tag]);
+}
+
+function getEquipmentFoundFloors(record) {
+  const floors = Object.entries(record?.foundFloors || {})
+    .map(([floor, count]) => [Number(floor), Number(count)])
+    .filter(([floor, count]) => Number.isInteger(floor) && floor > 0 && count > 0)
+    .sort((a, b) => a[0] - b[0]);
+  if (floors.length > 0) return floors;
+
+  const match = String(record?.firstFoundAt || "").match(/^B(\d+)F$/);
+  return match ? [[Number(match[1]), 1]] : [];
+}
+
+function getEquipmentAffixDetails(record) {
+  return (Array.isArray(record?.affixesSeen) ? record.affixesSeen : [])
+    .map(affixId => getAffixDefinition(affixId))
+    .filter(Boolean)
+    .map(definition => `<li><strong>${definition.jpName}</strong><span>${definition.desc}</span></li>`)
+    .join("");
+}
+
+function getEquipmentResearchHtml(item, record) {
+  const knownTags = getKnownEquipmentTagIds(item, record);
+  if (knownTags.length === 0) {
+    return `<p class="codex-muted">系統は、同じ装備をもう一度観測すると研究記録に加わります。</p>`;
+  }
+
+  const notes = [];
+  if (knownTags.includes("fire")) notes.push("炎系の装備。初動や火力を伸ばす特性との組み合わせを試す余地がある。");
+  if (knownTags.includes("blade")) notes.push("刀剣の扱いに向く装備。攻撃や追撃を重ねる構成で手応えが変わりそうだ。");
+  if (knownTags.includes("poison")) notes.push("毒に関わる装備。付与と耐性のどちらを伸ばすかで役割が変わる。");
+  if (knownTags.includes("ambush")) notes.push("奇襲向きの装備。先制や初手を活かす探索方針と相性がよい。");
+  if (knownTags.includes("ward")) notes.push("守護系の装備。防御や被害軽減を重ねる研究に向く。");
+  if (knownTags.includes("spirit") || knownTags.includes("holy")) notes.push("術式・聖別の気配がある。呪文や対魔の特性と組み合わせて観測したい。");
+  if (knownTags.includes("trap") || knownTags.includes("search")) notes.push("探索補助の系統。罠や宝の発見を重ねる旅で違いが出る可能性がある。");
+
+  const knownAffixIds = new Set(Array.isArray(record?.affixesSeen) ? record.affixesSeen : []);
+  const relatedAffixes = [...new Set(knownTags.flatMap(tag => EQUIPMENT_RESEARCH_AFFIXES[tag] || []))]
+    .filter(affixId => knownAffixIds.has(affixId))
+    .map(affixId => getAffixDefinition(affixId)?.jpName)
+    .filter(Boolean);
+  if (relatedAffixes.length > 0) {
+    notes.push(`関連して記録した特性: ${relatedAffixes.join(" / ")}`);
+  }
+
+  return notes.map(note => `<p>${note}</p>`).join("");
+}
+
 export function getEquipmentCodexDetailHtml(itemKey, record) {
   const item = ITEMS[itemKey];
-  if (!record) {
+  if (!item || !record) {
     return `<div style="text-align: center; padding: 20px; color: var(--text-muted);">入手したことがありません</div>`;
   }
-  
+
+  const foundFloors = getEquipmentFoundFloors(record);
+  const knownTags = getKnownEquipmentTags(item, record);
+  const affixDetails = getEquipmentAffixDetails(record);
+  const classes = item.classes?.map(getClassJpName).join("・") || "全員";
+  const baseStat = item.atk !== undefined
+    ? `<p><strong>基礎攻撃力:</strong> ${item.atk}</p>`
+    : item.def !== undefined
+      ? `<p><strong>基礎防御力:</strong> ${item.def}</p>`
+      : "";
+
   let html = `<div class="codex-detail">`;
   html += `
     <div class="codex-detail-header">
       <span class="codex-detail-name">${item.name}</span>
-      <span class="codex-meta">入手回数: ${record.foundCount} 回</span>
+      <span class="codex-meta">${getEquipmentTypeLabel(item.type)}</span>
     </div>
     <div class="codex-detail-body">
-      <p><strong>種別:</strong> ${item.type === "weapon" ? "武器" : item.type === "shield" ? "盾" : item.type === "accessory" ? "装飾" : "防具"}</p>
-      <p><strong>最高レアリティ:</strong> <span class="${record.highestRarity}">${record.highestRarity.toUpperCase()}</span></p>
-      <p><strong>最高補正値:</strong> +${record.bestBonus}</p>
-      <p><strong>発見済み装備効果:</strong> ${record.affixesSeen.length > 0 ? record.affixesSeen.map(a => {
-        if (a === "atk") return "攻撃力+";
-        if (a === "def") return "防御力+";
-        if (a === "agi") return "素早さ+";
-        if (a === "trapBonus") return "罠解除+";
-        return a;
-      }).join(", ") : "なし"}</p>
-      <p><strong>初発見階層:</strong> ${record.firstFoundAt || "不明"}</p>
+      <div class="codex-info-section">
+        <div class="codex-subtitle">基本情報</div>
+        ${baseStat}
+        <p><strong>装備可能:</strong> ${classes}</p>
+        <p class="codex-item-description">${item.desc || "説明は記録されていない。"}</p>
+      </div>
+      <div class="codex-info-section">
+        <div class="codex-subtitle">発見した特性</div>
+        ${affixDetails ? `<ul class="codex-affixes">${affixDetails}</ul>` : `<p class="codex-muted">まだ特性の詳細は記録されていません。</p>`}
+      </div>
+      <div class="codex-info-section">
+        <div class="codex-subtitle">系統・研究</div>
+        ${knownTags.length > 0 ? `<div class="codex-tags">${knownTags.map(tag => `<span>${tag}</span>`).join("")}</div>` : ""}
+        ${getEquipmentResearchHtml(item, record)}
+      </div>
+      <div class="codex-info-section">
+        <div class="codex-subtitle">発見記録</div>
+        ${foundFloors.length > 0
+          ? foundFloors.map(([floor, count]) => `<div class="codex-floor-record"><span>B${floor}F</span><span class="codex-dots">${"●".repeat(Math.min(12, count))}</span><span>${count}回</span></div>`).join("")
+          : `<p class="codex-muted">階層別の記録はありません。</p>`}
+      </div>
+      <div class="codex-info-section codex-personal-record">
+        <div class="codex-subtitle">個人記録</div>
+        <p>入手 ${record.foundCount || 0}回 / 最高 <span class="${record.highestRarity || "common"}">${(record.highestRarity || "common").toUpperCase()}</span> +${record.bestBonus || 0}</p>
+        <p>初発見階層: ${record.firstFoundAt || "不明"}</p>
+      </div>
     </div>
   </div>`;
   return html;

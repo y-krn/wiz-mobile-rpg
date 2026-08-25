@@ -1,6 +1,9 @@
 import { state } from "./state_core.js";
 import { getItemData } from "../data.js";
 
+// balance-impact: none — this module records observed equipment knowledge only;
+// equipment generation, drop rates, and affix values remain unchanged.
+
 export function getMonsterCodexKey(monsterOrName) {
   const name = typeof monsterOrName === "string" ? monsterOrName : monsterOrName?.name;
   return typeof name === "string" ? name.replace(/\s[A-Z]$/, "") : "";
@@ -42,7 +45,7 @@ export function recordEquipmentDiscovery(equipKey) {
   const item = getItemData(baseId);
   if (!item) return;
   
-  if (item.type !== "weapon" && item.type !== "armor" && item.type !== "shield") return;
+  if (!["weapon", "armor", "shield", "accessory"].includes(item.type)) return;
 
   if (!state.codex.equipment[baseId]) {
     state.codex.equipment[baseId] = {
@@ -51,14 +54,31 @@ export function recordEquipmentDiscovery(equipKey) {
       highestRarity: "common",
       bestBonus: 0,
       affixesSeen: [],
+      foundFloors: {},
+      tagObservations: {},
       firstFoundAt: `B${state.floor}F`,
       lastFoundSeed: state.seed
     };
   }
 
   const record = state.codex.equipment[baseId];
+  record.affixesSeen = Array.isArray(record.affixesSeen) ? record.affixesSeen : [];
+  record.foundFloors = record.foundFloors && typeof record.foundFloors === "object" && !Array.isArray(record.foundFloors)
+    ? record.foundFloors
+    : {};
+  record.tagObservations = record.tagObservations && typeof record.tagObservations === "object" && !Array.isArray(record.tagObservations)
+    ? record.tagObservations
+    : {};
   record.foundCount++;
   record.lastFoundSeed = state.seed;
+  const floorKey = String(Math.max(1, Number(state.floor) || 1));
+  record.foundFloors[floorKey] = (Number(record.foundFloors[floorKey]) || 0) + 1;
+
+  // Base tags are authored equipment knowledge. They become research only
+  // after the player has observed the same equipment twice.
+  (item.tags || []).forEach(tag => {
+    record.tagObservations[tag] = (Number(record.tagObservations[tag]) || 0) + 1;
+  });
 
   if (isRandomEquip) {
     const rarities = ["common", "magic", "rare", "epic", "legendary"];
@@ -75,8 +95,9 @@ export function recordEquipmentDiscovery(equipKey) {
 
     if (equipKey.affixes && Array.isArray(equipKey.affixes)) {
       equipKey.affixes.forEach(aff => {
-        if (!record.affixesSeen.includes(aff.type)) {
-          record.affixesSeen.push(aff.type);
+        const affixId = aff?.id || aff?.type;
+        if (affixId && !record.affixesSeen.includes(affixId)) {
+          record.affixesSeen.push(affixId);
         }
       });
     }

@@ -83,6 +83,44 @@ test('Archives shows flash bat combat traits after its first defeat', async ({ p
   await expect(traits).toContainText('妨害役');
 });
 
+test('Equipment archives present observed knowledge without exposing affix ids or drop rates', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { openArchivesOverlay } = await import('/src/ui.js');
+
+    state.codex.equipment = {
+      FLAME_SWORD: {
+        discovered: true,
+        foundCount: 5,
+        highestRarity: 'epic',
+        bestBonus: 4,
+        affixesSeen: ['firstTurnAttack'],
+        foundFloors: { '3': 1, '4': 3, '5': 1 },
+        tagObservations: { fire: 2, blade: 2 },
+        firstFoundAt: 'B3F',
+      },
+    };
+    openArchivesOverlay();
+  });
+
+  await page.getByRole('button', { name: '🛡️ 装備' }).click();
+  await page.locator('#archives-overlay .codex-row', { hasText: 'フレイムソード' }).click();
+  const detail = page.locator('#archives-overlay .codex-detail');
+  await expect(detail).toContainText('基礎攻撃力: 21');
+  await expect(detail).toContainText('装備可能: 戦士・侍・野伏');
+  await expect(detail).toContainText('火のルーンを刻んだ剣');
+  await expect(detail).toContainText('初陣');
+  await expect(detail).toContainText('B3F');
+  await expect(detail).toContainText('B4F');
+  await expect(detail).toContainText('B5F');
+  await expect(detail).toContainText('炎');
+  await expect(detail).toContainText('刀剣');
+  await expect(detail).not.toContainText('firstTurnAttack');
+  await expect(detail).not.toContainText('ドロップ率');
+});
+
 test('Archives touch return does not leave a hover state on another row', async ({ browser }) => {
   for (const viewport of [
     { width: 360, height: 800 },
