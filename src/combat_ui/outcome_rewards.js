@@ -1,8 +1,9 @@
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
-import { recordEquipmentDiscovery } from "../state/codex_state.js";
+import { recordEquipmentDiscovery, recordMonsterLoot } from "../state/codex_state.js";
 import { markMapChanged } from "../state/state_core.js";
 import { recordMilestoneVictory } from "../state/run_state.js";
+import { getItemData } from "../data.js";
 import {
   KEY_ITEM_LABELS,
   KEY_ITEM_WORKSHOP_BRANCHES,
@@ -38,14 +39,21 @@ function applyMilestoneVictoryRewards(stateLike, floor) {
   return messages;
 }
 
+function getSoleDefeatedMonster(stateLike) {
+  const monsters = stateLike.combatState?.monsters?.filter(monster => !monster.fled && monster.hp <= 0) || [];
+  return monsters.length === 1 ? monsters[0] : null;
+}
+
 function applyGiveKeyRewards(stateLike, rng) {
   clearOutcomeCell(stateLike, "midboss");
+  const defeatedMonster = getSoleDefeatedMonster(stateLike);
 
   const hasKey = stateLike.inventory.some(item => (
     (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY"
   ));
   if (!hasKey) {
     addInventoryItemToState(stateLike, "DRAGON_KEY");
+    if (defeatedMonster) recordMonsterLoot(defeatedMonster, "竜の鍵", stateLike);
     if (stateLike.currentRun) {
       stateLike.currentRun.itemsFound.push("DRAGON_KEY");
     }
@@ -63,6 +71,7 @@ function applyGiveKeyRewards(stateLike, rng) {
     const added = addInventoryItemToState(stateLike, rewardEquip);
     if (added) {
       recordEquipmentDiscovery(rewardEquip, stateLike);
+      if (defeatedMonster) recordMonsterLoot(defeatedMonster, getItemData(rewardEquip)?.name, stateLike);
       if (stateLike.currentRun) {
         stateLike.currentRun.equipmentFound.push(rewardEquip);
       }
@@ -79,6 +88,7 @@ function applyGiveKeyRewards(stateLike, rng) {
       const added = addInventoryItemToState(stateLike, rewardAccessory);
       if (added) {
         recordEquipmentDiscovery(rewardAccessory, stateLike);
+        if (defeatedMonster) recordMonsterLoot(defeatedMonster, getItemData(rewardAccessory)?.name, stateLike);
         if (stateLike.currentRun) {
           stateLike.currentRun.equipmentFound.push(rewardAccessory);
         }
@@ -91,6 +101,7 @@ function applyGiveKeyRewards(stateLike, rng) {
     stateLike.currentRun.materials["黒角"] =
       (stateLike.currentRun.materials["黒角"] || 0) + 2;
   }
+  if (defeatedMonster) recordMonsterLoot(defeatedMonster, "黒角", stateLike);
 
   return ["迷宮の守護者を撃破した！お宝: [未鑑定のレア装備] と [黒角 x2] を手に入れた！"];
 }

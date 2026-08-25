@@ -56,7 +56,12 @@ import {
 } from "./monster_traits.js";
 
 import { applyCombatRewards } from "./rewards.js";
-import { recordCharDeath, recordMonsterResistanceDiscovery } from "../state.js";
+import {
+  recordCharDeath,
+  recordMonsterResistanceDiscovery,
+  recordMonsterAction,
+  recordMonsterCondition
+} from "../state.js";
 import { trackBleedingEvent } from "../telemetry.js";
 
 import { resolveBossAction } from "./boss_actions.js";
@@ -620,10 +625,6 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         return;
       }
 
-      if (mon.multiActionQueued) {
-        mon.multiActionQueued = false;
-      }
-
       if (mon.status === "sleep" || mon.status === "paralyzed" || mon.status === "paralyze") {
         mon.chargeQueued = false;
         mon.selfDestructQueued = false;
@@ -641,7 +642,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         return;
       }
 
+      const isMultiActionTurn = mon.multiActionQueued;
+      mon.multiActionQueued = false;
+
       if (hasTrait(mon, "regen") && mon.hp < mon.maxHp) {
+        recordMonsterAction(mon, "自己再生", state);
         const heal = mon.regenAmount ?? Math.max(1, Math.floor(mon.maxHp * 0.12));
         mon.hp = Math.min(mon.maxHp, mon.hp + heal);
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は再生し、HPが${heal}回復した。` });
@@ -649,6 +654,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       // Check if monster flees
       if (mon.fleeChance && Math.random() < mon.fleeChance) {
+        recordMonsterAction(mon, "逃走", state);
         mon.hp = 0;
         mon.fled = true;
         clearBleedingOnDefeat(state, mon, "flee");
@@ -661,6 +667,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       if (hasTrait(mon, "selfDestruct") && mon.hp / mon.maxHp <= 0.25) {
         if (mon.selfDestructQueued) {
+          recordMonsterAction(mon, "自爆", state);
           mon.hp = 0;
           clearBleedingOnDefeat(state, mon, "self-destruct");
           logQueue.push({ msg: `[ 敵 ] ${mon.name}は火花を散らして自爆した！`, sound: "cast_spell", shake: 15, flash: true });
@@ -674,6 +681,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       if (hasTrait(mon, "chargeAttack")) {
         if (mon.chargeQueued) {
+          recordMonsterAction(mon, "溜めて大打撃", state);
           mon.chargeQueued = false;
           logQueue.push({ msg: `[ 敵 ] ${mon.name}は破滅の波動を放った！`, sound: "cast_spell", shake: 20, flash: true });
           applyPartyDamage(state, combatSelection, logQueue, mon.name, 18, 32, { spell: true, defendRate: 0.5 });
@@ -694,6 +702,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           if (livingMonsterCount < summonLimit) {
             const template = findMonsterTemplate(mon.summon?.name || "ゴブリンの呪術師");
             if (template) {
+              recordMonsterAction(mon, "仲間を呼ぶ", state);
               monsters.push({ ...template, hp: template.hp, maxHp: template.hp });
               logQueue.push({ msg: `[ 敵 ] ${mon.name}は${template.name}を召喚した！` });
               return;
@@ -722,6 +731,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (hasTrait(mon, "cleanseAlly") && Math.random() < (mon.traitChance ?? 0.35)) {
         const target = monsters.find(m => m.hp > 0 && ((m.buffs || []).some(buff => buff.value < 0) || m.status === "sleep"));
         if (target) {
+          recordMonsterAction(mon, "状態異常を治す", state);
           target.buffs = (target.buffs || []).filter(buff => buff.value > 0);
           if (target.status === "sleep") {
             removeStatusEffect(target, STATUS_EFFECT_IDS.SLEEP, { legacyStatus: "delete" });
@@ -734,6 +744,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (hasTrait(mon, "drainMp") && Math.random() < (mon.traitChance ?? 0.25)) {
         const targetSelect = pickTarget(state.party);
         if (targetSelect && targetSelect.c.mp > 0) {
+          recordMonsterAction(mon, "MPを吸収", state);
           const amount = Math.min(targetSelect.c.mp, mon.drainMpAmount ?? 1);
           targetSelect.c.mp -= amount;
           mon.hp = Math.min(mon.maxHp, mon.hp + amount * 3);
@@ -745,9 +756,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (hasTrait(mon, "silence") && Math.random() < (mon.traitChance ?? 0.25)) {
         const targetSelect = pickTarget(state.party);
         if (targetSelect) {
+          recordMonsterAction(mon, "沈黙", state);
           if (Math.random() >= getStatusEffectChance(targetSelect.c, 1)) {
             logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は不屈の意志で沈黙を退けた！`, sound: "miss" });
           } else {
+            recordMonsterCondition(mon, "沈黙を受けた", state);
             applyStatusEffect(targetSelect.c, STATUS_EFFECT_IDS.SILENCE, { remainingTurns: 2 });
             logQueue.push({ msg: `[ 敵 ] ${mon.name}は封呪の気配を放った！${targetSelect.c.name}は沈黙した。`, sound: "cast_spell" });
           }
@@ -758,9 +771,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (hasTrait(mon, "antiHeal") && Math.random() < (mon.traitChance ?? 0.3)) {
         const targetSelect = pickTarget(state.party, "lowHp");
         if (targetSelect) {
+          recordMonsterAction(mon, "回復を阻害", state);
           if (Math.random() >= getStatusEffectChance(targetSelect.c, 1)) {
             logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は不屈の意志で呪いを退けた！`, sound: "miss" });
           } else {
+            recordMonsterCondition(mon, "回復阻害を受けた", state);
             targetSelect.c.antiHealTurns = 2;
             logQueue.push({ msg: `[ 敵 ] ${mon.name}は命を喰らう呪いを刻んだ！${targetSelect.c.name}への回復量が半減する。`, sound: "cast_spell" });
           }
@@ -769,18 +784,21 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       if (hasTrait(mon, "buffPhysicalDef") && Math.random() < (mon.traitChance ?? 0.3)) {
+        recordMonsterAction(mon, "物理防御を強化", state);
         monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "def", mon.buffValue ?? 2, 3));
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は仲間の守りを固めた！` });
         return;
       }
 
       if (hasTrait(mon, "buffMagicDef") && Math.random() < (mon.traitChance ?? 0.3)) {
+        recordMonsterAction(mon, "魔法防御を強化", state);
         monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "magicResist", mon.buffValue ?? 0.3, 3));
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は魔法の結界を張った！` });
         return;
       }
 
       if (hasTrait(mon, "buffAtk") && Math.random() < (mon.traitChance ?? 0.3)) {
+        recordMonsterAction(mon, "仲間を鼓舞", state);
         monsters.filter(m => m.hp > 0).forEach(m => addMonsterBuff(m, "atk", mon.buffValue ?? 3, 3));
         logQueue.push({ msg: `[ 敵 ] ${mon.name}は仲間を鼓舞した！` });
         return;
@@ -806,6 +824,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && ["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < healSpellChance) {
         const woundedMonsters = monsters.filter(m => m.hp > 0 && m.hp < m.maxHp);
         if (woundedMonsters.length > 0) {
+          recordMonsterAction(mon, mon.spell, state);
           woundedMonsters.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
           const healTarget = woundedMonsters[0];
           const healAmount = mon.spell === "DIOS" ? (Math.floor(Math.random() * 6) + 10) : (Math.floor(Math.random() * 15) + 20);
@@ -866,6 +885,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
 
       const target = targetSelect.c;
+      if (isMultiActionTurn) recordMonsterAction(mon, "連続攻撃", state);
 
       // Attack spells (HALITO, LAHALITO etc., excluding healer spells)
       const attackSpellChance = mon.spellChance !== undefined ? mon.spellChance : 0.20;
@@ -875,6 +895,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       if (isLahalitoForced || isMadaltoForced || (!isSilenced && mon.name !== "いにしえの竜" && mon.spell && !["DIOS", "DIALMA"].includes(mon.spell) && Math.random() < attackSpellChance)) {
         if (isLahalitoForced || mon.spell === "LAHALITO") {
           if (mon.lahalitoQueued) {
+            recordMonsterAction(mon, "LAHALITO", state);
             mon.lahalitoQueued = false;
             logQueue.push({
               msg: `[ 敵 ] ${mon.name}は激しい炎の息（ラハリト）を吹き出した！`,
@@ -918,6 +939,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           return;
         } else if (isMadaltoForced || mon.spell === "MADALTO") {
           if (mon.madaltoQueued) {
+            recordMonsterAction(mon, "MADALTO", state);
             mon.madaltoQueued = false;
             logQueue.push({
               msg: `[ 敵 ] ${mon.name}はマダルトを唱えた！氷の嵐が吹き荒れる！`,
@@ -960,6 +982,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           }
           return;
         } else if (mon.spell === "HALITO") {
+          recordMonsterAction(mon, "HALITO", state);
           let dmg = Math.floor(Math.random() * 10) + 5;
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           if (isDefending) dmg = Math.max(1, Math.round(dmg * 0.5));
@@ -1019,6 +1042,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           });
         }
       } else {
+        recordMonsterAction(mon, isSnipeAttack ? "狙撃" : "通常攻撃", state);
         // Ninja physical attack evasion (25% chance)
         let isEvaded = false;
         const evasion = getCharAffixSum(target, "evasion") / 100;
@@ -1131,6 +1155,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               });
             } else {
               applyStatusEffect(target, STATUS_EFFECT_IDS.POISONED, { source: "monster" });
+              recordMonsterCondition(mon, "毒を受けた", state);
               logQueue.push({
                 msg: `[ 敵 ] [!] ${target.name}は毒に侵された。`,
                 sound: "chest_trap"
@@ -1145,6 +1170,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const paralyzeChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
           if (mon.isParalyzing && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, paralyzeChance)) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.PARALYZED, { source: "monster" });
+            recordMonsterCondition(mon, "麻痺を受けた", state);
             logQueue.push({
               msg: `[ 敵 ] [!] ${target.name}は麻痺を受け、麻痺状態になった！`,
               sound: "chest_trap"
@@ -1155,6 +1181,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const sleepChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
           if (mon.isSleepInflicting && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, sleepChance)) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.SLEEP, { remainingTurns: 2, source: "monster" });
+            recordMonsterCondition(mon, "睡眠を受けた", state);
             logQueue.push({
               msg: `[ 敵 ] [!] ${target.name}は眠りに落ちた！`,
               sound: "chest_trap"
@@ -1165,6 +1192,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const blindChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
           if (mon.isBlinding && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, blindChance)) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.BLIND, { source: "monster" });
+            recordMonsterCondition(mon, "盲目を受けた", state);
             logQueue.push({
               msg: `[ 敵 ] [!] ${mon.name}の放つ閃光により、${target.name}は盲目状態になった！`,
               sound: "chest_trap"

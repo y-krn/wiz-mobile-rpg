@@ -172,7 +172,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
     { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },
     { pattern: "src/rules/chest_rules.js", domains: ["chests", "equipment", "traps"] },
-    { pattern: "src/systems/leveling.js", domains: ["progression"] }
+    { pattern: "src/systems/leveling.js", domains: ["progression"] },
+    { pattern: "src/combat_ui/combat_start.js", domains: ["combat"] }
   ].map(rule => ({ ...rule, domains: Object.freeze([...rule.domains]) }))),
   balanceImpactNone: Object.freeze([
     "src/ui.js", "src/ui/**", "src/styles/**", "src/style.css", "src/audio.js",
@@ -227,7 +228,11 @@ export const SIMULATION_MANIFEST = Object.freeze({
   // its telemetry anchor. These paths still require a balance mapping above.
   telemetryGameplayPaths: Object.freeze([
     "src/menu/explore_actions.js",
-    "src/movement.js"
+    "src/movement.js",
+    // Codex observations share combat entry/resolution paths with the
+    // existing telemetry anchors but do not change combat formulas.
+    "src/combat_ui/combat_start.js",
+    "src/combat_logic/round.js"
   ])
 });
 

@@ -1,4 +1,4 @@
-import { state, addLog, saveAutosave, createMonsterCodexRecord } from "../state.js";
+import { state, addLog, saveAutosave, recordMonsterEncounter } from "../state.js";
 import { menuContext, menuHistory } from "../navigation.js";
 import { combatSelection } from "./combat_state.js";
 import { generateEncounter } from "./encounter.js";
@@ -97,14 +97,7 @@ export function startCombat(isBoss, isMidboss = false, isRoamingFlack = false, r
   });
   
   if (state.codex) {
-    if (!state.codex.monsters) state.codex.monsters = {};
-    monsters.forEach(m => {
-      const baseName = m.name.replace(/\s[A-Z]$/, "");
-      if (!state.codex.monsters[baseName]) {
-        state.codex.monsters[baseName] = createMonsterCodexRecord();
-      }
-      state.codex.monsters[baseName].encountered++;
-    });
+    monsters.forEach(m => recordMonsterEncounter(m, state));
   }
   
   advanceActionSelection();
