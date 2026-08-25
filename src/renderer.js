@@ -1463,27 +1463,27 @@ export class DungeonRenderer {
       detail.moveTo(-5, -5);
       detail.lineTo(5, 1);
     } else if (variant === "アースジャイアント") {
-      // Rock shoulders: angular plates break the humanoid outline internally.
-      detail.moveTo(-20, -22);
-      detail.lineTo(-33, -14);
-      detail.lineTo(-24, -2);
-      detail.lineTo(-13, -8);
+      // Rock shoulders: angular plates stay inside the torso and arms.
+      detail.moveTo(-19, -22);
+      detail.lineTo(-12, -18);
+      detail.lineTo(-13, -9);
+      detail.lineTo(-19, -7);
       detail.closePath();
-      detail.moveTo(20, -20);
-      detail.lineTo(33, -8);
-      detail.lineTo(23, 2);
+      detail.moveTo(19, -20);
+      detail.lineTo(13, -16);
       detail.lineTo(13, -8);
+      detail.lineTo(19, -5);
       detail.closePath();
     } else if (variant === "墓守の巨躯") {
       // Gravekeeper's key: a large ring and stem across the torso.
       detail.arc(-2, -12, 8, 0, Math.PI * 2);
       detail.moveTo(6, -12);
-      detail.lineTo(17, 4);
+      detail.lineTo(16, 4);
       detail.lineTo(11, 8);
       detail.moveTo(14, 1);
-      detail.lineTo(21, -3);
-      detail.moveTo(17, 6);
-      detail.lineTo(23, 2);
+      detail.lineTo(19, -3);
+      detail.moveTo(16, 6);
+      detail.lineTo(19, 2);
     } else if (variant === "アイアンゴーレム") {
       // Iron core: a square chest plate and two rivets mark the construct.
       detail.rect(-15, -10, 30, 20);
@@ -1495,31 +1495,31 @@ export class DungeonRenderer {
       detail.moveTo(-9, -37);
       detail.lineTo(9, -37);
     } else if (variant === "ストーンガード") {
-      // Shield and pillar: the guard's defensive role is visible in silhouette.
+      // Shield and pillar: the guard's defensive role stays inside the torso.
       detail.moveTo(-17, -17);
-      detail.lineTo(-5, -11);
-      detail.lineTo(-7, 5);
-      detail.lineTo(-17, 12);
-      detail.lineTo(-27, 5);
-      detail.lineTo(-29, -11);
+      detail.lineTo(-7, -12);
+      detail.lineTo(-8, 5);
+      detail.lineTo(-17, 10);
+      detail.lineTo(-19, 5);
+      detail.lineTo(-19, -12);
       detail.closePath();
-      detail.rect(8, -20, 8, 30);
+      detail.rect(8, -19, 8, 28);
     } else if (variant === "カースドハンド") {
-      // Reaching fingers: a single palm with four hooked fingertips.
+      // Reaching fingers: a compact palm inside the right torso.
       detail.moveTo(5, 12);
-      detail.lineTo(7, -10);
-      detail.lineTo(12, -17);
-      detail.lineTo(15, -14);
-      detail.lineTo(13, -3);
-      detail.lineTo(18, -18);
-      detail.lineTo(22, -16);
-      detail.lineTo(19, -2);
-      detail.lineTo(25, -13);
-      detail.lineTo(28, -10);
-      detail.lineTo(22, 1);
-      detail.lineTo(27, -5);
-      detail.lineTo(30, -1);
-      detail.lineTo(19, 14);
+      detail.lineTo(7, -8);
+      detail.lineTo(11, -15);
+      detail.lineTo(14, -12);
+      detail.lineTo(12, -3);
+      detail.lineTo(16, -14);
+      detail.lineTo(19, -12);
+      detail.lineTo(16, -1);
+      detail.lineTo(19, -8);
+      detail.lineTo(20, -5);
+      detail.lineTo(15, 8);
+      detail.lineTo(18, 5);
+      detail.lineTo(19, 9);
+      detail.lineTo(15, 14);
       detail.closePath();
     } else if (variant === "石像兵") {
       // Masonry: a carved block seam and central crack.
@@ -1536,10 +1536,10 @@ export class DungeonRenderer {
       detail.closePath();
     } else if (variant === "反逆の鎧") {
       // Rebellious armor: one deep diagonal slash through the plate.
-      detail.moveTo(-16, -29);
-      detail.lineTo(18, 15);
-      detail.lineTo(13, 19);
-      detail.lineTo(-21, -24);
+      detail.moveTo(-14, -21);
+      detail.lineTo(16, 14);
+      detail.lineTo(12, 15);
+      detail.lineTo(-16, -18);
       detail.closePath();
     }
 
