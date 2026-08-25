@@ -46,6 +46,24 @@ identity.
 
 The biome Visual Signature includes spatial silhouette as well as color and ambient treatment: `corridorWidth`, `ceilingHeight`, `wallLean`, and `ceilingStyle` describe the stable pseudo-3D geometry seen during exploration. The renderer interprets this geometry generically through the shared projection; it must not enumerate biome IDs. Geometry is presentation-only, derived from floor → biome → `visualSignature`, and is not persisted or used by map generation, movement, or balance rules.
 
+### Landmark signature
+
+Biome Signature includes the recurring exploration landmarks that tell the
+player why an object exists in that place, not only the corridor geometry and
+ambient color. Chests, discovered traps, and stairs retain their functional
+silhouette while using biome-specific shapes: a mine uses a rough crate, a
+catacomb uses an ossuary coffer and arch, a library uses sealed bookwork, and
+the abyss may use an intentionally impossible but still readable stair.
+
+The canonical source is `visualSignature.landmarks` in
+`src/data/biomes.js`, with `chestStyle`, `trapStyle`, and `stairsStyle` IDs.
+`src/renderer.js` interprets those IDs through shared Canvas 2D drawing
+functions and the same projection/depth planes as the corridor. It must not
+branch on floor number or biome ID, persist a style ID in save data, or use a
+style to reveal an undiscovered trap. Style changes are presentation-only:
+chest rewards and actions, trap type/discovery information and effects, stair
+movement, spawn rates, and balance remain unchanged.
+
 ## Initial File Routing
 
 Before searching broadly, read `.agents/file-map.md`. Start with `src/data.js`

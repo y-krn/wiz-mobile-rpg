@@ -31,6 +31,27 @@ export const BASE_GEOMETRY = Object.freeze({
 
 const GEOMETRY_STYLES = new Set(["flat", "arch"]);
 
+export const LANDMARK_STYLE_IDS = Object.freeze({
+  chest: Object.freeze(["wood_crate", "stone_ossuary", "bone_cache", "sealed_book_coffer", "iron_strongbox", "abyss_reliquary"]),
+  trap: Object.freeze(["rockfall_mark", "grave_seal", "claw_rift", "arcane_glyph", "forge_vent", "void_sigill"]),
+  stairs: Object.freeze(["rough_stone", "catacomb_arch", "broken_ledge", "flooded_steps", "forge_stair", "impossible_stair"])
+});
+
+const LANDMARK_STYLE_SETS = Object.freeze({
+  chest: new Set(LANDMARK_STYLE_IDS.chest),
+  trap: new Set(LANDMARK_STYLE_IDS.trap),
+  stairs: new Set(LANDMARK_STYLE_IDS.stairs)
+});
+
+export function getLandmarkStyles(visualSignature) {
+  const landmarks = visualSignature?.landmarks || {};
+  return {
+    chestStyle: LANDMARK_STYLE_SETS.chest.has(landmarks.chestStyle) ? landmarks.chestStyle : LANDMARK_STYLE_IDS.chest[0],
+    trapStyle: LANDMARK_STYLE_SETS.trap.has(landmarks.trapStyle) ? landmarks.trapStyle : LANDMARK_STYLE_IDS.trap[0],
+    stairsStyle: LANDMARK_STYLE_SETS.stairs.has(landmarks.stairsStyle) ? landmarks.stairsStyle : LANDMARK_STYLE_IDS.stairs[0]
+  };
+}
+
 function finiteOr(value, fallback) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
 }
@@ -404,6 +425,7 @@ export class DungeonRenderer {
 
     const visual = getFloorTheme(state.floor).visualSignature;
     const projection = getProjectionPlanes(visual.geometry);
+    const landmarks = getLandmarkStyles(visual);
     const depthCorruption = getDepthCorruption(state.floor);
     const environment = visual.environment;
     const isEnvironmentAnimated = environment.animated ||
@@ -524,15 +546,15 @@ export class DungeonRenderer {
 
         // Check special symbols inside cells (stairs up / down)
         if (column === 0 && (cell.type === "stairs-up" || cell.type === "stairs-down")) {
-          this.drawStairsIcon(ctx, z, cell.type, projection);
+          this.drawStairsIcon(ctx, z, cell.type, landmarks.stairsStyle, projection);
         }
 
         if (column === 0 && z > 0 && cell.event === EVENT_TYPES.CHEST) {
-          this.drawChestIcon(ctx, z, projection);
+          this.drawChestIcon(ctx, z, landmarks.chestStyle, projection);
         }
 
         if (column === 0 && z > 0 && cell.trap && cell.trap.state === "discovered") {
-          this.drawTrapIcon(ctx, z, (cell.trap.traceReadLevel || 0) >= 2, projection);
+          this.drawTrapIcon(ctx, z, (cell.trap.traceReadLevel || 0) >= 2, landmarks.trapStyle, projection);
         }
 
         // Check if there is a roaming monster at this coordinate (cx, cy)
@@ -691,57 +713,113 @@ export class DungeonRenderer {
     }
   }
 
-  drawStairsIcon(ctx, z, type, projection = getProjectionPlanes()) {
+  drawStairsIcon(ctx, z, type, style, projection = getProjectionPlanes()) {
     const plane = getProjectionColumn(projection, z);
     const xl = plane.leftBottom;
     const xr = plane.rightBottom;
     const yb = plane.bottom;
-    
-    const w = xr - xl;
-    const stepW = w * 0.4;
-    const startX = xl + w * 0.3;
 
+    const w = xr - xl;
+    const safeStyle = LANDMARK_STYLE_SETS.stairs.has(style) ? style : LANDMARK_STYLE_IDS.stairs[0];
     const isUp = type === "stairs-up";
     const color = isUp ? "#00b7ff" : "#ffb300";
     const label = isUp ? "↑" : "↓";
+    const centerX = xl + w * 0.5;
+    const baseY = yb - Math.max(2, w * 0.018);
+    const step = (left, top, right, bottom) => {
+      ctx.moveTo(left, bottom);
+      ctx.lineTo(right, bottom);
+      ctx.lineTo(right - w * 0.015, top);
+      ctx.lineTo(left + w * 0.015, top);
+      ctx.closePath();
+    };
 
     ctx.save();
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     ctx.shadowColor = color;
-    ctx.shadowBlur = 6;
-    ctx.beginPath();
-    // Base step
-    ctx.moveTo(startX, yb - 2);
-    ctx.lineTo(startX + stepW, yb - 2);
-    ctx.lineTo(startX + stepW * 0.9, yb - 12);
-    ctx.lineTo(startX + stepW * 0.1, yb - 12);
-    ctx.closePath();
-    
-    // Middle step
-    ctx.moveTo(startX + stepW * 0.15, yb - 12);
-    ctx.lineTo(startX + stepW * 0.85, yb - 12);
-    ctx.lineTo(startX + stepW * 0.75, yb - 22);
-    ctx.lineTo(startX + stepW * 0.25, yb - 22);
-    ctx.closePath();
+    ctx.shadowBlur = Math.max(3, w * 0.025);
+    ctx.lineWidth = Math.max(1.2, w * 0.012);
 
-    // Top step
-    ctx.moveTo(startX + stepW * 0.3, yb - 22);
-    ctx.lineTo(startX + stepW * 0.7, yb - 22);
-    ctx.lineTo(startX + stepW * 0.6, yb - 30);
-    ctx.lineTo(startX + stepW * 0.4, yb - 30);
-    ctx.closePath();
+    if (safeStyle === "rough_stone") {
+      const stepW = w * 0.40;
+      const startX = xl + w * 0.30;
+      ctx.beginPath();
+      step(startX, baseY - w * 0.10, startX + stepW, baseY);
+      step(startX + stepW * 0.12, baseY - w * 0.21, startX + stepW * 0.88, baseY - w * 0.10);
+      step(startX + stepW * 0.27, baseY - w * 0.31, startX + stepW * 0.73, baseY - w * 0.21);
+      ctx.stroke();
+    } else if (safeStyle === "catacomb_arch") {
+      ctx.beginPath();
+      ctx.arc(centerX, baseY - w * 0.25, w * 0.29, Math.PI, 0);
+      ctx.moveTo(xl + w * 0.21, baseY);
+      ctx.lineTo(xl + w * 0.79, baseY);
+      ctx.moveTo(xl + w * 0.29, baseY - w * 0.10);
+      ctx.lineTo(xl + w * 0.71, baseY - w * 0.10);
+      ctx.moveTo(xl + w * 0.37, baseY - w * 0.20);
+      ctx.lineTo(xl + w * 0.63, baseY - w * 0.20);
+      ctx.stroke();
+    } else if (safeStyle === "broken_ledge") {
+      ctx.beginPath();
+      ctx.moveTo(xl + w * 0.22, baseY);
+      ctx.lineTo(xl + w * 0.70, baseY);
+      ctx.lineTo(xl + w * 0.62, baseY - w * 0.10);
+      ctx.lineTo(xl + w * 0.44, baseY - w * 0.10);
+      ctx.lineTo(xl + w * 0.51, baseY - w * 0.19);
+      ctx.lineTo(xl + w * 0.28, baseY - w * 0.19);
+      ctx.lineTo(xl + w * 0.36, baseY - w * 0.29);
+      ctx.lineTo(xl + w * 0.50, baseY - w * 0.29);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(xl + w * 0.72, baseY - w * 0.02);
+      ctx.lineTo(xl + w * 0.84, baseY - w * 0.10);
+      ctx.lineTo(xl + w * 0.77, baseY - w * 0.18);
+      ctx.stroke();
+    } else if (safeStyle === "flooded_steps") {
+      ctx.beginPath();
+      step(xl + w * 0.18, baseY - w * 0.10, xl + w * 0.82, baseY);
+      step(xl + w * 0.29, baseY - w * 0.21, xl + w * 0.71, baseY - w * 0.10);
+      step(xl + w * 0.39, baseY - w * 0.31, xl + w * 0.61, baseY - w * 0.21);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(centerX - w * 0.20, baseY + w * 0.02, w * 0.10, Math.PI, 0);
+      ctx.arc(centerX + w * 0.13, baseY + w * 0.02, w * 0.09, Math.PI, 0);
+      ctx.stroke();
+    } else if (safeStyle === "forge_stair") {
+      ctx.beginPath();
+      step(xl + w * 0.16, baseY - w * 0.10, xl + w * 0.84, baseY);
+      step(xl + w * 0.27, baseY - w * 0.20, xl + w * 0.73, baseY - w * 0.10);
+      step(xl + w * 0.38, baseY - w * 0.30, xl + w * 0.62, baseY - w * 0.20);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(xl + w * 0.16, baseY - w * 0.10);
+      ctx.lineTo(xl + w * 0.16, baseY - w * 0.22);
+      ctx.lineTo(xl + w * 0.38, baseY - w * 0.37);
+      ctx.moveTo(xl + w * 0.84, baseY - w * 0.10);
+      ctx.lineTo(xl + w * 0.84, baseY - w * 0.22);
+      ctx.lineTo(xl + w * 0.62, baseY - w * 0.37);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      step(xl + w * 0.18, baseY - w * 0.08, xl + w * 0.71, baseY);
+      step(xl + w * 0.34, baseY - w * 0.18, xl + w * 0.87, baseY - w * 0.08);
+      step(xl + w * 0.22, baseY - w * 0.29, xl + w * 0.66, baseY - w * 0.18);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(xl + w * 0.71, baseY - w * 0.01);
+      ctx.lineTo(xl + w * 0.90, baseY - w * 0.14);
+      ctx.lineTo(xl + w * 0.66, baseY - w * 0.29);
+      ctx.stroke();
+    }
 
-    ctx.stroke();
-
-    ctx.font = "bold 16px monospace";
+    ctx.font = `bold ${Math.max(10, Math.min(16, Math.round(w * 0.12)))}px monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(label, xl + w * 0.5, yb - 18);
+    ctx.fillText(label, centerX, baseY - w * 0.16);
     ctx.restore();
   }
 
-  drawChestIcon(ctx, z, projection = getProjectionPlanes()) {
+  drawChestIcon(ctx, z, style, projection = getProjectionPlanes()) {
     const plane = getProjectionColumn(projection, z);
     const xl = plane.leftBottom;
     const xr = plane.rightBottom;
@@ -752,35 +830,115 @@ export class DungeonRenderer {
     const chestHeight = chestWidth * 0.58;
     const x = xl + (corridorWidth - chestWidth) / 2;
     const y = yb - chestHeight - 2;
-    const lidHeight = chestHeight * 0.38;
-    const bandWidth = chestWidth * 0.12;
+    const safeStyle = LANDMARK_STYLE_SETS.chest.has(style) ? style : LANDMARK_STYLE_IDS.chest[0];
     const color = "#ffd60a";
 
     ctx.save();
-    ctx.fillStyle = "#6b3a00";
     ctx.strokeStyle = color;
     ctx.lineWidth = Math.max(1, corridorWidth * 0.008);
     ctx.shadowColor = color;
-    ctx.shadowBlur = 6;
+    ctx.shadowBlur = Math.max(3, corridorWidth * 0.025);
+    const bodyTop = y + chestHeight * 0.35;
+    const bodyBottom = y + chestHeight;
+    const drawBody = (fill = "#6b3a00") => {
+      ctx.fillStyle = fill;
+      ctx.fillRect(x, bodyTop, chestWidth, bodyBottom - bodyTop);
+      ctx.strokeRect(x, bodyTop, chestWidth, bodyBottom - bodyTop);
+    };
 
-    ctx.beginPath();
-    ctx.moveTo(x, y + lidHeight);
-    ctx.lineTo(x + chestWidth * 0.12, y);
-    ctx.lineTo(x + chestWidth * 0.88, y);
-    ctx.lineTo(x + chestWidth, y + lidHeight);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillRect(x, y + lidHeight, chestWidth, chestHeight - lidHeight);
-    ctx.strokeRect(x, y + lidHeight, chestWidth, chestHeight - lidHeight);
-
-    ctx.fillStyle = color;
-    ctx.fillRect(x + (chestWidth - bandWidth) / 2, y, bandWidth, chestHeight);
+    if (safeStyle === "wood_crate") {
+      drawBody();
+      ctx.beginPath();
+      ctx.moveTo(x, bodyTop);
+      ctx.lineTo(x + chestWidth * 0.12, y);
+      ctx.lineTo(x + chestWidth * 0.88, y);
+      ctx.lineTo(x + chestWidth, bodyTop);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fillRect(x + chestWidth * 0.44, y, chestWidth * 0.12, chestHeight);
+    } else if (safeStyle === "stone_ossuary") {
+      drawBody("#77736b");
+      ctx.beginPath();
+      ctx.moveTo(x - chestWidth * 0.04, bodyTop);
+      ctx.lineTo(x + chestWidth * 0.08, y - chestHeight * 0.18);
+      ctx.lineTo(x + chestWidth * 0.92, y - chestHeight * 0.18);
+      ctx.lineTo(x + chestWidth * 1.04, bodyTop);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + chestWidth * 0.50, y - chestHeight * 0.10);
+      ctx.lineTo(x + chestWidth * 0.50, bodyBottom);
+      ctx.moveTo(x + chestWidth * 0.39, y + chestHeight * 0.02);
+      ctx.lineTo(x + chestWidth * 0.61, y + chestHeight * 0.02);
+      ctx.stroke();
+    } else if (safeStyle === "bone_cache") {
+      drawBody("#4d3e55");
+      ctx.beginPath();
+      ctx.moveTo(x - chestWidth * 0.10, bodyTop);
+      ctx.quadraticCurveTo(x + chestWidth * 0.16, y - chestHeight * 0.33, x + chestWidth * 0.49, bodyTop);
+      ctx.quadraticCurveTo(x + chestWidth * 0.82, y - chestHeight * 0.33, x + chestWidth * 1.10, bodyTop);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + chestWidth * 0.08, y + chestHeight * 0.02);
+      ctx.lineTo(x + chestWidth * 0.92, y + chestHeight * 0.34);
+      ctx.moveTo(x + chestWidth * 0.92, y + chestHeight * 0.02);
+      ctx.lineTo(x + chestWidth * 0.08, y + chestHeight * 0.34);
+      ctx.stroke();
+    } else if (safeStyle === "sealed_book_coffer") {
+      drawBody("#174c56");
+      ctx.beginPath();
+      ctx.moveTo(x, bodyTop);
+      ctx.lineTo(x + chestWidth * 0.10, y + chestHeight * 0.02);
+      ctx.lineTo(x + chestWidth * 0.90, y + chestHeight * 0.02);
+      ctx.lineTo(x + chestWidth, bodyTop);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + chestWidth * 0.24, y + chestHeight * 0.03);
+      ctx.lineTo(x + chestWidth * 0.24, bodyBottom);
+      ctx.moveTo(x + chestWidth * 0.76, y + chestHeight * 0.03);
+      ctx.lineTo(x + chestWidth * 0.76, bodyBottom);
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x + chestWidth * 0.50, bodyTop + chestHeight * 0.12, chestWidth * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (safeStyle === "iron_strongbox") {
+      drawBody("#514747");
+      ctx.fillStyle = "#514747";
+      ctx.fillRect(x + chestWidth * 0.08, y, chestWidth * 0.84, chestHeight * 0.35);
+      ctx.strokeRect(x + chestWidth * 0.08, y, chestWidth * 0.84, chestHeight * 0.35);
+      ctx.fillStyle = color;
+      [0.14, 0.86].forEach(position => {
+        ctx.beginPath();
+        ctx.arc(x + chestWidth * position, bodyTop + chestHeight * 0.22, chestWidth * 0.045, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.fillRect(x + chestWidth * 0.44, y + chestHeight * 0.08, chestWidth * 0.12, chestHeight * 0.70);
+    } else {
+      drawBody("#30233e");
+      ctx.beginPath();
+      ctx.moveTo(x, bodyTop);
+      ctx.lineTo(x + chestWidth * 0.23, y - chestHeight * 0.20);
+      ctx.lineTo(x + chestWidth * 0.74, y - chestHeight * 0.07);
+      ctx.lineTo(x + chestWidth, bodyTop);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + chestWidth * 0.18, y + chestHeight * 0.06);
+      ctx.lineTo(x + chestWidth * 0.50, bodyBottom);
+      ctx.lineTo(x + chestWidth * 0.83, y + chestHeight * 0.08);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
-  drawTrapIcon(ctx, z, revealSpecies, projection = getProjectionPlanes()) {
+  drawTrapIcon(ctx, z, revealSpecies, style, projection = getProjectionPlanes()) {
     const plane = getProjectionColumn(projection, z);
     const xl = plane.leftBottom;
     const xr = plane.rightBottom;
@@ -790,20 +948,77 @@ export class DungeonRenderer {
     const size = corridorWidth * 0.22;
     const cx = xl + corridorWidth / 2;
     const cy = yb - size * 0.6 - 2;
+    const safeStyle = LANDMARK_STYLE_SETS.trap.has(style) ? style : LANDMARK_STYLE_IDS.trap[0];
 
     ctx.save();
     ctx.strokeStyle = "#ff3b30";
     ctx.shadowColor = "#ff3b30";
-    ctx.shadowBlur = 6;
-    ctx.lineWidth = 2;
+    ctx.shadowBlur = Math.max(3, size * 0.22);
+    ctx.lineWidth = Math.max(1.2, size * 0.10);
 
-    // Hazard triangle on the floor ahead
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - size * 0.5);
-    ctx.lineTo(cx + size * 0.55, cy + size * 0.4);
-    ctx.lineTo(cx - size * 0.55, cy + size * 0.4);
-    ctx.closePath();
-    ctx.stroke();
+    if (safeStyle === "rockfall_mark") {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - size * 0.5);
+      ctx.lineTo(cx + size * 0.55, cy + size * 0.4);
+      ctx.lineTo(cx - size * 0.55, cy + size * 0.4);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx - size * 0.85, cy + size * 0.60);
+      ctx.lineTo(cx - size * 0.40, cy + size * 0.40);
+      ctx.moveTo(cx + size * 0.45, cy + size * 0.50);
+      ctx.lineTo(cx + size * 0.85, cy + size * 0.68);
+      ctx.stroke();
+    } else if (safeStyle === "grave_seal") {
+      ctx.beginPath();
+      ctx.arc(cx, cy, size * 0.62, 0, Math.PI * 2);
+      ctx.moveTo(cx - size * 0.38, cy);
+      ctx.lineTo(cx + size * 0.38, cy);
+      ctx.moveTo(cx, cy - size * 0.38);
+      ctx.lineTo(cx, cy + size * 0.38);
+      ctx.stroke();
+    } else if (safeStyle === "claw_rift") {
+      ctx.beginPath();
+      [-0.42, 0, 0.42].forEach(offset => {
+        ctx.moveTo(cx + size * (offset - 0.22), cy - size * 0.58);
+        ctx.lineTo(cx + size * (offset + 0.30), cy + size * 0.52);
+      });
+      ctx.moveTo(cx - size * 0.30, cy + size * 0.40);
+      ctx.lineTo(cx, cy - size * 0.20);
+      ctx.lineTo(cx + size * 0.30, cy + size * 0.40);
+      ctx.stroke();
+    } else if (safeStyle === "arcane_glyph") {
+      ctx.beginPath();
+      ctx.arc(cx, cy, size * 0.63, 0, Math.PI * 2);
+      ctx.moveTo(cx, cy - size * 0.76);
+      ctx.lineTo(cx + size * 0.70, cy);
+      ctx.lineTo(cx, cy + size * 0.76);
+      ctx.lineTo(cx - size * 0.70, cy);
+      ctx.closePath();
+      ctx.stroke();
+    } else if (safeStyle === "forge_vent") {
+      ctx.strokeRect(cx - size * 0.68, cy - size * 0.40, size * 1.36, size * 0.80);
+      ctx.beginPath();
+      [-0.34, 0, 0.34].forEach(offset => {
+        ctx.moveTo(cx + size * offset, cy - size * 0.32);
+        ctx.lineTo(cx + size * offset, cy + size * 0.32);
+      });
+      ctx.moveTo(cx - size * 0.52, cy - size * 0.62);
+      ctx.quadraticCurveTo(cx - size * 0.34, cy - size * 0.90, cx - size * 0.16, cy - size * 0.62);
+      ctx.moveTo(cx + size * 0.18, cy - size * 0.62);
+      ctx.quadraticCurveTo(cx + size * 0.36, cy - size * 0.90, cx + size * 0.54, cy - size * 0.62);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - size * 0.76);
+      ctx.lineTo(cx + size * 0.64, cy - size * 0.25);
+      ctx.lineTo(cx + size * 0.46, cy + size * 0.56);
+      ctx.lineTo(cx - size * 0.40, cy + size * 0.72);
+      ctx.lineTo(cx - size * 0.72, cy - size * 0.18);
+      ctx.closePath();
+      ctx.arc(cx, cy, size * 0.34, 0, Math.PI * 1.6);
+      ctx.stroke();
+    }
 
     ctx.fillStyle = "#ff3b30";
     ctx.font = `bold ${Math.max(8, Math.round(size * 0.5))}px monospace`;

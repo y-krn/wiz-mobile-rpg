@@ -145,6 +145,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/combat_logic/targeting.js", domains: ["combat"] },
     { pattern: "src/data.js", domains: ["combat", "equipment", "maps", "progression", "status", "recovery"] },
     { pattern: "src/data/encounters.js", domains: ["combat", "maps"] },
+    // Biome landmark signatures are render-only and intentionally map to no balance domain.
+    { pattern: "src/data/biomes.js", domains: [] },
     { pattern: "src/data/equipment_tables.js", domains: ["equipment"] },
     { pattern: "src/data/materials.js", domains: ["drops"] },
     { pattern: "src/data/progression.js", domains: ["progression"] },
