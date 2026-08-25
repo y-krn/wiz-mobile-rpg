@@ -10,6 +10,7 @@ globalThis.document = {
 
 const { DX, DY } = await import("../src/constants/directions.js");
 const { getVisibleCorridorCells } = await import("../src/renderer.js");
+const { isMapDirectionBlocked } = await import("../src/rules/map_movement.js");
 
 const CENTER = { x: 4, y: 4 };
 const DIR = 0;
@@ -71,6 +72,20 @@ assert.deepEqual(
   keys(oneWay),
   ["0:0"],
   "a one-way entrance is closed in the same direction as movement"
+);
+
+const malformedDestination = makeGrid();
+carve(malformedDestination, CENTER.x, CENTER.y, DIR);
+delete malformedDestination[CENTER.y - 1][CENTER.x].blockEnter;
+assert.equal(
+  isMapDirectionBlocked(malformedDestination, CENTER.x, CENTER.y, DIR),
+  true,
+  "movement rejects a destination with missing blockEnter metadata"
+);
+assert.deepEqual(
+  keys(malformedDestination),
+  ["0:0"],
+  "renderer closes a destination with missing blockEnter metadata"
 );
 
 console.log("[PASS] renderer corridor visibility follows reachable map connections");

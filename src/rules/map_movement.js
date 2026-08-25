@@ -2,7 +2,9 @@ import { DX, DY } from "../constants/directions.js";
 
 function isMapCell(cell) {
   return cell && Array.isArray(cell.walls) && cell.walls.length === 4 &&
-    cell.walls.every(wall => typeof wall === "boolean");
+    cell.walls.every(wall => typeof wall === "boolean") &&
+    Array.isArray(cell.blockEnter) && cell.blockEnter.length === 4 &&
+    cell.blockEnter.every(blocked => typeof blocked === "boolean");
 }
 
 /**

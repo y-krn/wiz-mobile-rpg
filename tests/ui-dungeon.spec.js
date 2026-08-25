@@ -6,7 +6,7 @@ test('Three-column corridor renderer draws adjacent front walls', async ({ page 
     const { state } = await import('/src/state.js');
     const { dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
     const { getFloorTheme } = await import('/src/data/floor_themes.js');
-    const makeCell = () => ({ walls: [false, false, false, false], type: 'empty' });
+    const makeCell = () => ({ walls: [false, false, false, false], blockEnter: [false, false, false, false], type: 'empty' });
 
     state.gameState = 'explore';
     state.floor = 1;
@@ -49,7 +49,7 @@ test('Combat monsters render colored neon bodies with visible white cores at fou
     const ctx = canvas.getContext('2d');
     const originalDraw3DCorridors = dungeonRenderer.draw3DCorridors;
 
-    state.map = [[{ walls: [false, false, false, false], type: 'empty' }]];
+    state.map = [[{ walls: [false, false, false, false], blockEnter: [false, false, false, false], type: 'empty' }]];
     state.floor = 1;
     state.gameState = 'combat';
     state.combatState = {
@@ -103,7 +103,7 @@ test('Five-column corridor renderer draws outer front walls', async ({ page }) =
     const { state } = await import('/src/state.js');
     const { dungeonRenderer, getProjectionColumn, getProjectionPlanes } = await import('/src/renderer.js');
     const { getFloorTheme } = await import('/src/data/floor_themes.js');
-    const makeCell = () => ({ walls: [false, false, false, false], type: 'empty' });
+    const makeCell = () => ({ walls: [false, false, false, false], blockEnter: [false, false, false, false], type: 'empty' });
 
     state.gameState = 'explore';
     state.floor = 1;
@@ -158,6 +158,7 @@ test('3D corridor draws unopened chest icons at perspective-scaled depths', asyn
     const { dungeonRenderer } = await import('/src/renderer.js');
     const makeCell = () => ({
       walls: [false, false, false, false],
+      blockEnter: [false, false, false, false],
       type: 'empty',
       event: null,
     });
