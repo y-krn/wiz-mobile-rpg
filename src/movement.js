@@ -24,6 +24,7 @@ import { assignRunQuests, createRunQuest, updateRunQuests } from "./systems/run_
 import { applyTrapGuardToEffect, resolveFlameTrapEffect } from "./rules/trap_effect_rules.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
+import { isMapDirectionBlocked } from "./rules/map_movement.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -97,10 +98,7 @@ export function tickExplorationSpellEffects() {
 }
 
 function isBlockedByOneWayPassage(x, y, dir) {
-  const nx = x + DX[dir];
-  const ny = y + DY[dir];
-  const enterFace = (dir + 2) % 4;
-  return Boolean(state.map[ny]?.[nx]?.blockEnter?.[enterFace]);
+  return isMapDirectionBlocked(state.map, x, y, dir) && !state.map?.[y]?.[x]?.walls?.[dir];
 }
 
 function blockOneWayMove() {

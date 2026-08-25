@@ -3,6 +3,7 @@ import { state } from "./state.js";
 import { menuContext } from "./navigation.js";
 import { getDepthCorruption, getFloorTheme } from "./data/floor_themes.js";
 import { getScreenViewState } from "./state/view_state.js";
+import { isMapDirectionBlocked } from "./rules/map_movement.js";
 
 export let dungeonRenderer = null;
 export function setDungeonRenderer(r) {
@@ -125,6 +126,43 @@ export function getProjectionColumn(projection, z, column = 0) {
 function isRenderableCell(cell) {
   return cell && Array.isArray(cell.walls) && cell.walls.length === 4 &&
     cell.walls.every(wall => typeof wall === "boolean");
+}
+
+export function getVisibleCorridorCells(map, px, py, dir, maxDepth = 3, maxColumn = 2) {
+  const dirRight = (dir + 1) % 4;
+  const offsets = [{ z: 0, column: 0 }];
+  const queue = [{ z: 0, column: 0 }];
+  const seen = new Set(["0:0"]);
+
+  const visit = (z, column) => {
+    if (z < 0 || z > maxDepth || column < -maxColumn || column > maxColumn) return;
+    const key = `${z}:${column}`;
+    if (seen.has(key)) return;
+    const x = px + DX[dir] * z + DX[dirRight] * column;
+    const y = py + DY[dir] * z + DY[dirRight] * column;
+    if (!isRenderableCell(map?.[y]?.[x])) return;
+    seen.add(key);
+    offsets.push({ z, column });
+    queue.push({ z, column });
+  };
+
+  while (queue.length > 0) {
+    const { z, column } = queue.shift();
+    const x = px + DX[dir] * z + DX[dirRight] * column;
+    const y = py + DY[dir] * z + DY[dirRight] * column;
+    const neighbors = [
+      { z: z + 1, column, moveDir: dir },
+      { z: z - 1, column, moveDir: (dir + 2) % 4 },
+      { z, column: column + 1, moveDir: dirRight },
+      { z, column: column - 1, moveDir: (dirRight + 2) % 4 },
+    ];
+    for (const neighbor of neighbors) {
+      if (isMapDirectionBlocked(map, x, y, neighbor.moveDir)) continue;
+      visit(neighbor.z, neighbor.column);
+    }
+  }
+
+  return offsets;
 }
 
 export class DungeonRenderer {
@@ -436,12 +474,18 @@ export class DungeonRenderer {
 
     const columnOrder = [-2, 2, -1, 1, 0];
     const dirRight = (dir + 1) % 4;
+    const visibleCells = new Set(
+      getVisibleCorridorCells(map, px, py, dir).map(({ z, column }) => `${z}:${column}`)
+    );
 
-    // Draw from back (z=3) to front (z=0), outer columns before center
+    // Draw from back (z=3) to front (z=0), outer columns before center.
+    // A cell is rendered only when it is reachable from the player through
+    // the same wall/one-way rules used by exploration movement.
     for (let z = 3; z >= 0; z--) {
       const width = projection.xr[z] - projection.xl[z];
       for (const column of columnOrder) {
         if (Math.abs(column) === 2 && z < 2) continue;
+        if (!visibleCells.has(`${z}:${column}`)) continue;
 
         const cx = px + DX[dir] * z + DX[dirRight] * column;
         const cy = py + DY[dir] * z + DY[dirRight] * column;
@@ -469,13 +513,11 @@ export class DungeonRenderer {
         const dirLeft = (dir + 3) % 4;
         const dirFront = dir;
 
-        const hasLeftWall = cell.walls[dirLeft];
-        const hasRightWall = cell.walls[dirRight];
+        const hasLeftWall = isMapDirectionBlocked(map, cx, cy, dirLeft);
+        const hasRightWall = isMapDirectionBlocked(map, cx, cy, dirRight);
         const hasFrontWall = cell.walls[dirFront];
-        const frontX = cx + DX[dirFront];
-        const frontY = cy + DY[dirFront];
-        const frontEnterFace = (dirFront + 2) % 4;
-        const hasFrontOneWayBarrier = column === 0 && !hasFrontWall && Boolean(map[frontY]?.[frontX]?.blockEnter?.[frontEnterFace]);
+        const hasFrontBlocked = isMapDirectionBlocked(map, cx, cy, dirFront);
+        const hasFrontOneWayBarrier = !hasFrontWall && hasFrontBlocked;
 
         // 1. Draw floor/ceiling segments
         ctx.strokeStyle = gridColor;
@@ -533,15 +575,17 @@ export class DungeonRenderer {
         }
 
         // 4. Front Wall (at z + 1 depth)
-        if (hasFrontWall) {
+        if (hasFrontBlocked) {
           ctx.fillStyle = visual.background;
           this.fillProjectedFrontWall(ctx, nextPlane, projection.ceilingStyle);
 
           ctx.strokeStyle = wallColor;
           ctx.lineWidth = Math.max(1.5, 2 - depthCorruption * 0.12);
-          this.strokeProjectedFrontWall(ctx, nextPlane, projection.ceilingStyle);
-        } else if (hasFrontOneWayBarrier) {
-          this.drawOneWayBarrier(ctx, z, wallColor, projection);
+          if (hasFrontOneWayBarrier && column === 0) {
+            this.drawOneWayBarrier(ctx, z, wallColor, projection);
+          } else {
+            this.strokeProjectedFrontWall(ctx, nextPlane, projection.ceilingStyle);
+          }
         }
 
         // Check special symbols inside cells (stairs up / down)
