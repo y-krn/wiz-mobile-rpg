@@ -13,8 +13,7 @@ import { menuContext, openGuardedSubmenu, openSubmenu } from "./navigation.js";
 import { detectAdjacentTraps, startTrapEncounter, triggerTrap, triggerPitfall } from "./systems/traps.js";
 import {
   clearCharIncapacitationOnDamage,
-  resolveExplorationPoisonStep,
-  EXPLORATION_POISON_DURATION_STEPS
+  resolveExplorationPoisonStep
 } from "./combat_logic/status_effects.js";
 import { getPerceptionIntent } from "./systems/elite_perception.js";
 import { ELITE_PATROL_RADIUS } from "./systems/roaming_elites.js";
@@ -654,7 +653,7 @@ export function applyExplorationPoison() {
         recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
         addLog(`[!] ${c.name}は毒で力尽きた！`);
       } else if (result.naturalCure) {
-        addLog(`[!] ${c.name}の毒が自然に消えた。（${EXPLORATION_POISON_DURATION_STEPS}歩で回復）`);
+        addLog(`[!] ${c.name}の毒が自然に消えた。`);
       }
     }
   });
