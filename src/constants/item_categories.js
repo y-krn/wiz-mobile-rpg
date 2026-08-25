@@ -16,6 +16,8 @@ export const ITEM_CATEGORY = {
   GUARD_POTION: "buff",
   HASTE_POTION: "buff",
   NOISE_BALL: "utility",
+  SILENCE_INCENSE: "utility",
+  TRAP_SENSE_STONE: "utility",
   TRAP_KIT: "utility",
   ESCAPE_SCROLL: "utility",
   TOWN_PORTAL: "utility"

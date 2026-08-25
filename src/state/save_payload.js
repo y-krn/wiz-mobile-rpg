@@ -112,6 +112,8 @@ export function createSavePayload() {
     lightTurns: state.lightTurns,
     lightPower: state.lightPower,
     repelTurns: state.repelTurns,
+    silenceTurns: state.silenceTurns,
+    forcedEncounterSteps: state.forcedEncounterSteps,
     dumapicTurns: state.dumapicTurns,
     dumapicHint: state.dumapicHint,
     activeMerchantStock: state.activeMerchantStock,
@@ -182,6 +184,8 @@ export function applySavePayload(data) {
   state.lightTurns = data.lightTurns;
   state.lightPower = data.lightPower;
   state.repelTurns = data.repelTurns;
+  state.silenceTurns = data.silenceTurns;
+  state.forcedEncounterSteps = data.forcedEncounterSteps;
   state.dumapicTurns = data.dumapicTurns;
   state.dumapicHint = data.dumapicHint;
   state.activeMerchantStock = data.activeMerchantStock;

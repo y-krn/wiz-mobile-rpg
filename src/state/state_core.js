@@ -22,6 +22,8 @@ export const state = {
   lightTurns: 0,
   lightPower: "",
   repelTurns: 0,
+  silenceTurns: 0,
+  forcedEncounterSteps: 0,
   dumapicTurns: 0,
   dumapicHint: "",
   mapRevision: 0,

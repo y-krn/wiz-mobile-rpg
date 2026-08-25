@@ -19,6 +19,7 @@ import {
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { createRunStakesSummary } from "../ui/run_stakes.js";
 import { trackExplorationDecision } from "../telemetry.js";
+import { applyExplorationItem } from "../systems/exploration_items.js";
 
 function getSecretSearchDirs() {
   return [
@@ -190,11 +191,35 @@ export function renderItemInventory(optGrid) {
       btn.addEventListener("click", () => {
         menuContext.itemKey = itemKey;
         menuContext.itemIdx = idx;
+        if (item.exploreNoTarget) {
+          useExplorationItem(itemKey, idx, item);
+          return;
+        }
         openSubmenu(item.exploreDirectional ? "item_direction_select" : "item_target_select", item.exploreDirectional ? `${item.name}を投げる方向:` : `${item.name}の対象を選択:`);
       });
       optGrid.appendChild(btn);
     });
   }
+}
+
+function useExplorationItem(itemKey, itemIdx, item) {
+  const result = applyExplorationItem(state, itemKey);
+  if (!result.ok) return;
+  state.inventory.splice(itemIdx, 1);
+  trackExplorationDecision("item", {
+    state,
+    character: state.party[0],
+    source: state.map?.[state.y]?.[state.x]?.event,
+    itemKey
+  });
+  recordExplorationSteps();
+  tickExplorationSpellEffects();
+  addLog(`${item.name}を使った。${result.message}`);
+  playSound("item");
+  closeSubmenu();
+  advanceRoamingTurn(false);
+  saveAutosave();
+  updateUI();
 }
 
 export function renderItemDirectionSelect(optGrid) {
@@ -213,6 +238,7 @@ export function renderItemDirectionSelect(optGrid) {
         y += DY[dir];
       }
       createNoiseEvent(x, y);
+      const effect = applyExplorationItem(state, "NOISE_BALL");
       state.inventory.splice(menuContext.itemIdx, 1);
       trackExplorationDecision("item", {
         state,
@@ -223,7 +249,7 @@ export function renderItemDirectionSelect(optGrid) {
       });
       recordExplorationSteps();
       tickExplorationSpellEffects();
-      addLog(`鳴らし玉を${name}へ投げた。甲高い音が迷宮に響く。`);
+      addLog(`鳴らし玉を${name}へ投げた。甲高い音が迷宮に響く。${effect.message}`);
       playSound("bump");
       closeSubmenu();
       advanceRoamingTurn(false);

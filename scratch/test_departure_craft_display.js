@@ -35,6 +35,8 @@ check(
     "EYE_DROPS",
     "GUARD_POTION",
     "TRAP_KIT",
+    "NOISE_BALL",
+    "SILENCE_INCENSE",
     "TOWN_PORTAL",
     "IDENTIFY_POWDER"
   ]),
@@ -48,6 +50,8 @@ check(
     "HOLY_WATER",
     "MANA_POTION",
     "TRAP_KIT",
+    "NOISE_BALL",
+    "SILENCE_INCENSE",
     "TOWN_PORTAL",
     "GREATER_HEAL",
     "GUARD_POTION",

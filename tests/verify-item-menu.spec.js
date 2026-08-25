@@ -180,3 +180,43 @@ test('combat item cards keep long descriptions visible and scroll the list on sh
   expect(metrics.backHeight).toBeGreaterThanOrEqual(44);
   expect(metrics.backBottom).toBeLessThanOrEqual(metrics.overlayBottom + 1);
 });
+
+test('exploration tactical consumables use directly without target selection @e2e @smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+
+  const result = await page.evaluate(async () => {
+    const { createSoloCharacter, initNewGame, state } = await import('/src/state.js');
+    const { executeEnterDungeon } = await import('/src/movement.js');
+    const { renderItemInventory } = await import('/src/menu/explore_actions.js');
+    const { updateUI } = await import('/src/ui.js');
+
+    initNewGame();
+    state.party = [createSoloCharacter('Fighter')];
+    executeEnterDungeon(1);
+    state.inventory = ['SILENCE_INCENSE', 'TRAP_SENSE_STONE'];
+    updateUI();
+    const findButton = (grid, label) =>
+      [...grid.querySelectorAll('button')].find(button => button.textContent === label);
+
+    const firstGrid = document.createElement('div');
+    renderItemInventory(firstGrid);
+    findButton(firstGrid, '静寂の香')?.click();
+    const afterSilence = [...state.inventory];
+
+    const secondGrid = document.createElement('div');
+    renderItemInventory(secondGrid);
+    findButton(secondGrid, '探知石')?.click();
+    return {
+      afterSilence,
+      inventory: [...state.inventory],
+      log: state.logs.slice(-4)
+    };
+  });
+
+  expect(result.afterSilence).toEqual(['TRAP_SENSE_STONE']);
+  expect(result.inventory).toEqual([]);
+  expect(result.log.join('\n')).toContain('静寂の香を使った');
+  expect(result.log.join('\n')).toContain('探知石を使った');
+});

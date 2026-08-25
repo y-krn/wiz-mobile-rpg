@@ -42,6 +42,10 @@ const {
 } = await import("../src/state/initial_state.js");
 const { recordCharDeath } = await import("../src/state.js");
 const { calculateEncounterChance } = await import("../src/movement.js");
+const {
+  applyExplorationItem,
+  SILENCE_INCENSE_ENCOUNTER_MULTIPLIER
+} = await import("../src/systems/exploration_items.js");
 const { ELITE_CLASSES } = await import("../src/data/classes.js");
 const { generateEncounter } = await import("../src/combat_ui/encounter.js");
 const { applyPendingOutcomeRewards } = await import("../src/combat_ui/outcome_rewards.js");
@@ -364,7 +368,8 @@ const SIM_ENV_KEYS = Object.freeze([
   "SIM_SCENARIOS",
   "SIM_EXPLORATION_POISON_MODEL",
   "SIM_EXPLORATION_POISON_CHANCE",
-  "SIM_EXPLORATION_POISON_DURATION"
+  "SIM_EXPLORATION_POISON_DURATION",
+  "SIM_412_POLICY"
 ]);
 
 const SIM_EXPLORATION_POISON_MODEL = process.env.SIM_EXPLORATION_POISON_MODEL || "combined";
@@ -430,7 +435,8 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_MERCHANT_RETURN_WING: "0",
   SIM_MERCHANT_RETURN_WING_COST: "",
   SIM_RETURN_WING_MODE: "special",
-  SIM_SCENARIOS: ""
+  SIM_SCENARIOS: "",
+  SIM_412_POLICY: "baseline"
 });
 const BALANCE_MAIN_PRESET = Object.freeze({
   SIM_SEED: "231",
@@ -464,7 +470,8 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   SIM_MADI_HEAL_MIN: "",
   SIM_MADI_HEAL_MAX: "",
   SIM_MADI_COST: "",
-  SIM_SCENARIOS: ""
+  SIM_SCENARIOS: "",
+  SIM_412_POLICY: "baseline"
 });
 const REVALIDATION_PRESET = Object.freeze({
   ...BALANCE_MAIN_PRESET,
@@ -1431,6 +1438,21 @@ const CRAFT_MEASUREMENT_RECIPE_IDS = Object.freeze([
 const SIM_CONSUMABLE_IDS = Object.freeze(
   Object.keys(ITEMS).filter(itemKey => ITEMS[itemKey]?.type === "usable")
 );
+const ISSUE412_ITEM_IDS = Object.freeze([
+  "NOISE_BALL",
+  "SILENCE_INCENSE",
+  "TRAP_SENSE_STONE"
+]);
+const ISSUE412_POLICIES = Object.freeze([
+  "baseline",
+  "noise",
+  "silence",
+  "trap-sense"
+]);
+const SIM_412_POLICY = String(SIM_ENV.SIM_412_POLICY || "baseline").trim();
+if (!ISSUE412_POLICIES.includes(SIM_412_POLICY)) {
+  throw new Error(`SIM_412_POLICY must be ${ISSUE412_POLICIES.join("|")}: ${SIM_412_POLICY}`);
+}
 const TRACKED_CONSUMABLE_SOURCE_IDS = Object.freeze([
   "starting",
   "departureCraft",
@@ -3764,6 +3786,7 @@ function createSimulationState(
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
     simPolicy: {
+      tacticalConsumablePolicy: SIM_412_POLICY,
       identificationPolicy,
       healPotionAmountOverride: scenario.healPotionAmountOverride || null,
       healPotionSupplyNormalization: scenario.healPotionSupplyNormalization || null,
@@ -3819,6 +3842,8 @@ function createSimulationState(
     lightTurns: 0,
     lightPower: "",
     repelTurns: 0,
+    silenceTurns: 0,
+    forcedEncounterSteps: 0,
     flameTrapCooldownTurns: 0
   };
 }
@@ -4198,6 +4223,144 @@ function createConsumableUsageByItem() {
   );
 }
 
+function createIssue412UseMetrics() {
+  return {
+    uses: 0,
+    revealedTraps: 0,
+    byFloor: {},
+    byHpBand: { "0-20%": 0, "21-35%": 0, "36-55%": 0, "56%+": 0 },
+    byInventorySize: {}
+  };
+}
+
+function createIssue412Metrics() {
+  return {
+    usesByItem: Object.fromEntries(
+      ISSUE412_ITEM_IDS.map(itemKey => [itemKey, createIssue412UseMetrics()])
+    ),
+    forcedNormalEncounters: 0,
+    silenceActiveSteps: 0,
+    silenceChanceBeforeSum: 0,
+    silenceChanceAfterSum: 0,
+    stoneEmptyUses: 0
+  };
+}
+
+function createIssue412Aggregate() {
+  return {
+    runs: 0,
+    ...createIssue412Metrics()
+  };
+}
+
+function getIssue412HpBand(character) {
+  const hpRate = character ? character.hp / Math.max(1, getCharMaxHp(character)) : 1;
+  return hpRate <= 0.20 ? "0-20%"
+    : hpRate <= 0.35 ? "21-35%"
+      : hpRate <= 0.55 ? "36-55%" : "56%+";
+}
+
+function recordIssue412Use(metrics, itemKey, state, floor, revealedTraps = 0, inventorySize = null) {
+  const usage = metrics.issue412?.usesByItem?.[itemKey];
+  if (!usage) return;
+  usage.uses++;
+  usage.revealedTraps += revealedTraps;
+  usage.byFloor[floor] = (usage.byFloor[floor] || 0) + 1;
+  const hpBand = getIssue412HpBand(state.party?.[0]);
+  usage.byHpBand[hpBand]++;
+  const size = inventorySize ?? state.inventory.length;
+  usage.byInventorySize[size] = (usage.byInventorySize[size] || 0) + 1;
+}
+
+function addIssue412Aggregate(target, source) {
+  if (!source) return;
+  target.runs++;
+  target.forcedNormalEncounters += source.forcedNormalEncounters || 0;
+  target.silenceActiveSteps += source.silenceActiveSteps || 0;
+  target.silenceChanceBeforeSum += source.silenceChanceBeforeSum || 0;
+  target.silenceChanceAfterSum += source.silenceChanceAfterSum || 0;
+  target.stoneEmptyUses += source.stoneEmptyUses || 0;
+  ISSUE412_ITEM_IDS.forEach(itemKey => {
+    const destination = target.usesByItem[itemKey];
+    const usage = source.usesByItem?.[itemKey];
+    if (!usage) return;
+    destination.uses += usage.uses || 0;
+    destination.revealedTraps += usage.revealedTraps || 0;
+    Object.entries(usage.byFloor || {}).forEach(([floor, count]) => {
+      destination.byFloor[floor] = (destination.byFloor[floor] || 0) + count;
+    });
+    Object.entries(usage.byHpBand || {}).forEach(([band, count]) => {
+      destination.byHpBand[band] = (destination.byHpBand[band] || 0) + count;
+    });
+    Object.entries(usage.byInventorySize || {}).forEach(([size, count]) => {
+      destination.byInventorySize[size] = (destination.byInventorySize[size] || 0) + count;
+    });
+  });
+}
+
+function finalizeIssue412Aggregate(aggregate) {
+  const runs = Math.max(1, aggregate.runs);
+  const averageUsage = Object.fromEntries(ISSUE412_ITEM_IDS.map(itemKey => {
+    const usage = aggregate.usesByItem[itemKey];
+    const usageInterval = wilsonInterval(usage.uses, aggregate.runs);
+    return [itemKey, {
+      uses: usage.uses / runs,
+      usageRate: usage.uses / runs,
+      usageRateWilson95CI: usageInterval
+        ? {
+            lower: usageInterval[0],
+            upper: usageInterval[1],
+            trials: aggregate.runs,
+            confirmed: aggregate.runs >= 30
+          }
+        : null,
+      revealedTraps: usage.revealedTraps / runs,
+      byFloor: Object.fromEntries(
+        Object.entries(usage.byFloor).map(([floor, count]) => [floor, count / runs])
+      ),
+      byHpBand: Object.fromEntries(
+        Object.entries(usage.byHpBand).map(([band, count]) => [band, count / runs])
+      ),
+      byInventorySize: Object.fromEntries(
+        Object.entries(usage.byInventorySize).map(([size, count]) => [size, count / runs])
+      )
+    }];
+  }));
+  const forcedInterval = wilsonInterval(
+    aggregate.forcedNormalEncounters,
+    aggregate.runs
+  );
+  return {
+    runs: aggregate.runs,
+    policy: SIM_412_POLICY,
+    averageUsesByItem: averageUsage,
+    forcedNormalEncounters: aggregate.forcedNormalEncounters,
+    forcedNormalEncounterRate: aggregate.forcedNormalEncounters / runs,
+    forcedNormalEncounterWilson95CI: forcedInterval
+      ? {
+          lower: forcedInterval[0],
+          upper: forcedInterval[1],
+          trials: aggregate.runs,
+          confirmed: aggregate.runs >= 30
+        }
+      : null,
+    averageSilenceActiveSteps: aggregate.silenceActiveSteps / runs,
+    silenceChanceBefore: aggregate.silenceActiveSteps > 0
+      ? aggregate.silenceChanceBeforeSum / aggregate.silenceActiveSteps
+      : null,
+    silenceChanceAfter: aggregate.silenceActiveSteps > 0
+      ? aggregate.silenceChanceAfterSum / aggregate.silenceActiveSteps
+      : null,
+    silenceChanceMultiplier: SILENCE_INCENSE_ENCOUNTER_MULTIPLIER,
+    stoneEmptyUses: aggregate.stoneEmptyUses,
+    stoneEmptyUseRate: aggregate.stoneEmptyUses / runs
+  };
+}
+
+function snapshotIssue412Metrics(metrics) {
+  return structuredClone(metrics.issue412);
+}
+
 function recordConsumableAcquisition(metrics, itemKey, count = 1) {
   if (!metrics?.consumableUsageByItem?.[itemKey] || count <= 0) return;
   metrics.consumableUsageByItem[itemKey].acquired += count;
@@ -4206,6 +4369,74 @@ function recordConsumableAcquisition(metrics, itemKey, count = 1) {
 function recordConsumableConsumption(metrics, itemKey, count = 1) {
   if (!metrics?.consumableUsageByItem?.[itemKey] || count <= 0) return;
   metrics.consumableUsageByItem[itemKey].consumed += count;
+}
+
+function consumeIssue412Item(state, metrics, itemKey, floor, step, options = {}) {
+  const itemIndex = state.inventory.indexOf(itemKey);
+  if (itemIndex < 0) return false;
+  const inventorySizeBefore = state.inventory.length;
+  state.inventory.splice(itemIndex, 1);
+  recordConsumableConsumption(metrics, itemKey);
+  recordIssue412Use(
+    metrics,
+    itemKey,
+    state,
+    floor,
+    options.revealedTraps || 0,
+    inventorySizeBefore
+  );
+  if (!options.alreadyApplied) {
+    const result = applyExplorationItem(state, itemKey);
+    if (!result.ok) return false;
+  }
+  if (itemKey === "NOISE_BALL") state.simIssue412LastNoiseUseStep = step;
+  return true;
+}
+
+function applyIssue412TacticalItem({
+  state,
+  metrics,
+  floor,
+  step,
+  scheduledSpecials,
+  floorTrapSchedule
+}) {
+  const policy = state.simPolicy.tacticalConsumablePolicy;
+  if (policy === "baseline" || scheduledSpecials.length > 0) return;
+
+  if (
+    policy === "noise" &&
+    metrics.issue412.usesByItem.NOISE_BALL.uses === 0
+  ) {
+    consumeIssue412Item(state, metrics, "NOISE_BALL", floor, step);
+    return;
+  }
+  if (policy === "silence" && state.silenceTurns <= 0) {
+    if (consumeIssue412Item(state, metrics, "SILENCE_INCENSE", floor, step)) return;
+  }
+  if (policy !== "trap-sense" || state.inventory.indexOf("TRAP_SENSE_STONE") < 0) return;
+
+  const upcomingTrap = [...floorTrapSchedule.entries()]
+    .filter(([trapStep, scheduled]) =>
+      trapStep >= step && trapStep <= step + 3 && scheduled.some(entry => entry.trap.state === "hidden")
+    )
+    .sort(([left], [right]) => left - right)[0]?.[1]?.find(
+      entry => entry.trap.state === "hidden"
+    );
+  if (!upcomingTrap) return;
+  const originalCoord = { x: state.x, y: state.y };
+  state.x = upcomingTrap.previousCoord.x;
+  state.y = upcomingTrap.previousCoord.y;
+  const result = applyExplorationItem(state, "TRAP_SENSE_STONE");
+  state.x = originalCoord.x;
+  state.y = originalCoord.y;
+  const revealedTraps = result.revealed?.length || 0;
+  if (!result.ok) return;
+  consumeIssue412Item(state, metrics, "TRAP_SENSE_STONE", floor, step, {
+    revealedTraps,
+    alreadyApplied: true
+  });
+  if (revealedTraps === 0) metrics.issue412.stoneEmptyUses++;
 }
 
 function tryAddInventoryItem(state, item, metrics, source) {
@@ -8016,6 +8247,8 @@ function tickExplorationSpellEffects(state) {
     if (state.lightTurns === 0) state.lightPower = "";
   }
   if (state.repelTurns > 0) state.repelTurns--;
+  if (state.silenceTurns > 0) state.silenceTurns--;
+  if (state.forcedEncounterSteps > 0) state.forcedEncounterSteps--;
 }
 
 function getFloorStepCount(generated, floor) {
@@ -9614,6 +9847,8 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     healPotionsConsumedBySource: { ...metrics.healPotionsConsumedBySource },
     greaterHealPotionsAcquiredBySource: { ...metrics.greaterHealPotionsAcquiredBySource },
     greaterHealPotionsConsumedBySource: { ...metrics.greaterHealPotionsConsumedBySource },
+    issue412: snapshotIssue412Metrics(metrics),
+    departureCraftEvaluations: metrics.departureCraftEvaluations,
     consumableUsageByItem: Object.fromEntries(
       Object.entries(metrics.consumableUsageByItem).map(([itemKey, usage]) => [
         itemKey,
@@ -10000,6 +10235,8 @@ export function simulateRun({
     },
     identificationPowderUsed: 0,
     identificationCount: 0,
+    issue412: createIssue412Metrics(),
+    departureCraftEvaluations: 1,
     consumableUsageByItem: createConsumableUsageByItem(),
     merchantStock: createMerchantStockMetrics(),
     unidentifiedWearCount: 0,
@@ -10535,7 +10772,24 @@ export function simulateRun({
         });
       }
 
+      const scheduledSpecials = specialSchedule.get(step) || [];
       const scheduledFloorTraps = floorTrapSchedule.get(step) || [];
+      applyIssue412TacticalItem({
+        state,
+        metrics,
+        floor,
+        step,
+        scheduledSpecials,
+        floorTrapSchedule
+      });
+      if (state.silenceTurns > 0) {
+        metrics.issue412.silenceActiveSteps++;
+        metrics.issue412.silenceChanceBeforeSum += calculateEncounterChance(step, {
+          ...state,
+          silenceTurns: 0
+        });
+        metrics.issue412.silenceChanceAfterSum += calculateEncounterChance(step, state);
+      }
       for (const scheduledTrap of scheduledFloorTraps) {
         const trapResult = resolveFloorTrapAtPath(
           state,
@@ -10691,11 +10945,17 @@ export function simulateRun({
         return finishRun(state, "death", metrics);
       }
 
-      const scheduledSpecials = specialSchedule.get(step) || [];
+      const forcedNormalEncounter = scheduledSpecials.length === 0 &&
+        state.forcedEncounterSteps > 0 &&
+        state.simIssue412LastNoiseUseStep !== step;
+      if (forcedNormalEncounter) state.forcedEncounterSteps = 0;
       const hasRandomEncounter =
         scheduledSpecials.length === 0 &&
-        (!state.repelTurns || state.repelTurns <= 0) &&
-        Math.random() < getEncounterChance(step, state);
+        (forcedNormalEncounter || (
+          (!state.repelTurns || state.repelTurns <= 0) &&
+          Math.random() < getEncounterChance(step, state)
+        ));
+      if (forcedNormalEncounter) metrics.issue412.forcedNormalEncounters++;
       if (scheduledSpecials.length === 0 && !hasRandomEncounter) continue;
       const encountersThisStep = scheduledSpecials.length > 0
         ? scheduledSpecials
@@ -11276,6 +11536,7 @@ function simulateCase({
       decisionsAfterDedicatedDepletion: {}
     },
     statusesCured: {},
+    issue412: createIssue412Aggregate(),
     trap: createTrapAggregate(),
     flameTrap: createFlameTrapAggregate(),
     b5Gate: createB5GateAggregate(),
@@ -11313,6 +11574,9 @@ function simulateCase({
   );
   const classTrapTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createTrapAggregate()])
+  );
+  const classIssue412Totals = Object.fromEntries(
+    SIM_CLASSES.map(className => [className, createIssue412Aggregate()])
   );
   const classFlameTrapTotals = Object.fromEntries(
     SIM_CLASSES.map(className => [className, createFlameTrapAggregate()])
@@ -11479,6 +11743,8 @@ function simulateCase({
     workshopEffects.startingGearAttackDelta += result.workshopEffects.startingGearAttackDelta;
     addTrapAggregate(totals.trap, result);
     addTrapAggregate(classTrapTotals[className], result);
+    addIssue412Aggregate(totals.issue412, result.issue412);
+    addIssue412Aggregate(classIssue412Totals[className], result.issue412);
     addTrapBonusAggregate(totals.trapBonus, result);
     addTrapBonusAggregate(classTrapBonusTotals[className], result);
     totals.survived += Number(result.survived);
@@ -11712,6 +11978,14 @@ function simulateCase({
     label,
     startFloor,
     targetDepth,
+    issue412Policy: SIM_412_POLICY,
+    issue412: finalizeIssue412Aggregate(totals.issue412),
+    issue412ByClass: Object.fromEntries(
+      Object.entries(classIssue412Totals).map(([className, aggregate]) => [
+        className,
+        finalizeIssue412Aggregate(aggregate)
+      ])
+    ),
     workshop: scenario.workshop || { ranks: {} },
     trapPolicy: trapPolicies.floor,
     chestTrapPolicy: trapPolicies.chest,
@@ -13476,6 +13750,7 @@ const ENV_SIGNATURE = {
   explorationPoisonModel: SIM_EXPLORATION_POISON_MODEL,
   explorationPoisonChance: SIM_EXPLORATION_POISON_CHANCE,
   explorationPoisonDuration: SIM_EXPLORATION_POISON_DURATION,
+  issue412Policy: SIM_412_POLICY,
   portalMinFloor: PORTAL_MIN_FLOOR,
   portalHpThreshold: PORTAL_HP_THRESHOLD,
   portalMaxHealPotions: PORTAL_MAX_HEAL_POTIONS,
@@ -13527,6 +13802,7 @@ console.log(
 console.log(`傷薬商人方針: ${DEFAULT_HEAL_POTION_MERCHANT_POLICY}（マイルストーンで所持0時に1個購入）`);
 console.log(`core価値calibration: B1→B20 N=${CALIBRATION_RUNS} / 方針=${ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id).join(",")}`);
 console.log(`識別方針切替: IDENTIFICATION_POLICY=${SIM_ENV.IDENTIFICATION_POLICY || "powder"}`);
+console.log(`Issue #412 戦術資源ポリシー: SIM_412_POLICY=${SIM_412_POLICY}`);
 if (CORE_ENCOUNTER_CEILING_MODE) {
   console.log(`core遭遇率上界反実仮想: ${CORE_ENCOUNTER_CEILING_MODE}（生成後変換、乱数消費順維持）`);
 }
@@ -13807,6 +14083,30 @@ const issue791Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       mean95CI: result.mean95CI
     }))));
 console.log(`ISSUE791_MEASUREMENT_JSON=${JSON.stringify(issue791Measurement)}`);
+
+const issue412Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }) =>
+  scenarioResults.flatMap(({ scenario, results }) => results
+    .filter(result => [5, 10].includes(result.targetDepth))
+    .map(result => ({
+      policy: policy.id,
+      scenario: scenario.id,
+      targetDepth: result.targetDepth,
+      runs: RUNS_PER_CASE,
+      sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
+      gameplaySourceCommit: MEASUREMENT_PROVENANCE?.gameplaySourceCommit || null,
+      measurementRunnerCommit: MEASUREMENT_PROVENANCE?.measurementRunnerCommit || null,
+      measurementRunnerPaths: MEASUREMENT_PROVENANCE?.measurementRunnerPaths || null,
+      measurementRunnerDiffSha256: MEASUREMENT_PROVENANCE?.measurementRunnerDiffSha256 || null,
+      originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
+      workingTreeClean: MEASUREMENT_PROVENANCE?.workingTreeClean ?? null,
+      issue412Policy: result.issue412Policy,
+      issue412: result.issue412,
+      issue412ByClass: result.issue412ByClass,
+      survivalRate: result.survivalRate,
+      bankedMaterialEv: result.bankedMaterialEv,
+      mean95CI: result.mean95CI
+    }))));
+console.log(`ISSUE412_MEASUREMENT_JSON=${JSON.stringify(issue412Measurement)}`);
 
 const stalemateCases = [
   ...resultsByPolicy.flatMap(({ scenarioResults, milestoneResults }) => [

@@ -81,7 +81,7 @@ export const SAVE_VERSION = 13;
 // persistent merely because it was added to state.
 export const SAVE_PAYLOAD_FIELDS = Object.freeze([
   "version", "x", "y", "dir", "party", "inventory", "floor", "maps",
-  "visitedMaps", "lightTurns", "lightPower", "repelTurns", "dumapicTurns",
+  "visitedMaps", "lightTurns", "lightPower", "repelTurns", "silenceTurns", "forcedEncounterSteps", "dumapicTurns",
   "dumapicHint", "activeMerchantStock", "floorChestsOpened", "floorChestsTotal",
   "firstKills", "currentRun", "records", "unlockedMilestones", "runHistory",
   "deathLogs", "codex", "seed", "gameState", "combatState", "chestState",
@@ -395,6 +395,8 @@ export function normalizeSavePayload(data) {
   normalized.lightTurns = numberOr(data.lightTurns, 0);
   normalized.lightPower = typeof data.lightPower === "string" ? data.lightPower : "";
   normalized.repelTurns = numberOr(data.repelTurns, 0);
+  normalized.silenceTurns = numberOr(data.silenceTurns, 0);
+  normalized.forcedEncounterSteps = numberOr(data.forcedEncounterSteps, 0);
   normalized.dumapicTurns = numberOr(data.dumapicTurns, 0);
   normalized.dumapicHint = typeof data.dumapicHint === "string" ? data.dumapicHint : "";
   normalized.activeMerchantStock = arrayOr(data.activeMerchantStock);

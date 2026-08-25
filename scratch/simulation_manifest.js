@@ -78,7 +78,9 @@ export const SIMULATION_MANIFEST = Object.freeze({
       { id: "progression.experience", domain: "progression", evidence: { anyPositive: ["expGained"] } },
       { id: "recovery.kill-heal", domain: "recovery", evidence: { anyPositive: ["killHeal.killHealActivations"] } },
       { id: "recovery.combat-policy", domain: "recovery", evidence: { callLevel: ["runtimeCalls.recovery.combat-policy"] } },
-      { id: "traps.chest-roll", domain: "traps", evidence: { callLevel: ["runtimeCalls.traps.chest-roll"] } }
+      { id: "traps.chest-roll", domain: "traps", evidence: { callLevel: ["runtimeCalls.traps.chest-roll"] } },
+      { id: "economy.material-bank", domain: "economy", evidence: { anyPositive: ["bankedMaterials"] } },
+      { id: "workshop.departure-craft", domain: "workshop", evidence: { anyPositive: ["departureCraftEvaluations"] } }
     ]),
     // Only these domains have a declared runtime evidence path in the
     // lightweight smoke. modelDomains deliberately includes the broader
@@ -91,7 +93,9 @@ export const SIMULATION_MANIFEST = Object.freeze({
       drops: Object.freeze(["drops.reward-materials"]),
       progression: Object.freeze(["progression.experience"]),
       recovery: Object.freeze(["recovery.kill-heal", "recovery.combat-policy"]),
-      traps: Object.freeze(["traps.chest-roll"])
+      traps: Object.freeze(["traps.chest-roll"]),
+      economy: Object.freeze(["economy.material-bank"]),
+      workshop: Object.freeze(["workshop.departure-craft"])
     }),
     smoke: Object.freeze({
       modeled: Object.freeze([
@@ -115,6 +119,15 @@ export const SIMULATION_MANIFEST = Object.freeze({
     scope: runner.scope
   }))),
   balanceImpactPaths: Object.freeze([
+    { pattern: "src/constants/item_categories.js", domains: ["economy"] },
+    { pattern: "src/craft.js", domains: ["workshop", "economy"] },
+    { pattern: "src/data/items.js", domains: ["maps", "economy"] },
+    { pattern: "src/data/milestone_merchant.js", domains: ["economy"] },
+    { pattern: "src/menu/explore_actions.js", domains: ["maps", "traps"] },
+    { pattern: "src/movement.js", domains: ["maps", "traps"] },
+    { pattern: "src/state/state_core.js", domains: ["maps"] },
+    { pattern: "src/systems/exploration_items.js", domains: ["maps", "traps"] },
+    { pattern: "src/systems/item_effects.js", domains: ["maps"] },
     { pattern: "src/combat.js", domains: ["combat"] },
     { pattern: "src/combat_ui/spell_menu.js", domains: ["combat"] },
     { pattern: "src/combat_logic.js", domains: ["combat", "status"] },
@@ -204,6 +217,12 @@ export const SIMULATION_MANIFEST = Object.freeze({
   // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
   telemetryOnlyPaths: Object.freeze([
     "src/combat_ui/combat_start.js"
+  ]),
+  // Canonical action handlers may intentionally mix a gameplay decision and
+  // its telemetry anchor. These paths still require a balance mapping above.
+  telemetryGameplayPaths: Object.freeze([
+    "src/menu/explore_actions.js",
+    "src/movement.js"
   ])
 });
 
@@ -1239,7 +1258,8 @@ export function analyzeBalanceImpact(
     if (!file.startsWith("src/")) continue;
     const diff = diffByFile instanceof Map ? diffByFile.get(file) : diffByFile?.[file] ?? getChangedDiff(file, baseRef);
     const balanceRule = (manifest.balanceImpactPaths || []).find(rule => matches(rule.pattern, file));
-    const balanceImpactNone = (manifest.balanceImpactNone || []).some(pattern => matches(pattern, file));
+    const balanceImpactNone = !balanceRule &&
+      (manifest.balanceImpactNone || []).some(pattern => matches(pattern, file));
     const telemetryOnlyPath = (manifest.telemetryOnlyPaths || []).some(pattern => matches(pattern, file));
     const balanceImpactNoneDiff = getBalanceImpactNoneDeclaration(diff, file, manifest);
     const declaredBoundaryDiff = getDeclaredBoundaryDiff(diff, balanceImpactNoneDiff);
@@ -1259,7 +1279,9 @@ export function analyzeBalanceImpact(
     // Context-only telemetry calls in a no-impact path are not a changed
     // telemetry anchor; newly added telemetry remains subject to this gate.
     const telemetryAnchor = balanceImpactNone ? hasChangedTelemetryAnchor(diff) : hasTelemetryAnchor(diff);
-    if (telemetryAnchor && !telemetryOnly) {
+    const telemetryGameplayPath = (manifest.telemetryGameplayPaths || [])
+      .some(pattern => matches(pattern, file));
+    if (telemetryAnchor && !telemetryOnly && !telemetryGameplayPath) {
       errors.push(`${file}: telemetry anchor mixed with non-telemetry changes; classify the gameplay impact explicitly`);
       continue;
     }

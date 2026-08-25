@@ -61,6 +61,8 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.lightTurns = 0;
   state.lightPower = "";
   state.repelTurns = 0;
+  state.silenceTurns = 0;
+  state.forcedEncounterSteps = 0;
   state.dumapicTurns = 0;
   state.dumapicHint = "";
   state.activeMerchantStock = [];

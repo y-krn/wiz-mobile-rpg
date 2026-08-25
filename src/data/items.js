@@ -58,7 +58,9 @@ export const ITEMS = {
 
   // Potions / Quest items
   HEAL_POTION: { id: "HEAL_POTION", name: "傷薬 (ディオス薬)", type: "usable", desc: "使用するとHPを15回復する。" },
-  NOISE_BALL: { id: "NOISE_BALL", name: "鳴らし玉", type: "usable", desc: "探索中、指定方向へ投げて着弾地点に音を発生させる。", exploreDirectional: true },
+  NOISE_BALL: { id: "NOISE_BALL", name: "鳴らし玉", type: "usable", desc: "指定方向へ投げると、次の数歩以内に通常の魔物を呼び寄せる。", exploreDirectional: true },
+  SILENCE_INCENSE: { id: "SILENCE_INCENSE", name: "静寂の香", type: "usable", desc: "焚くと、しばらく通常の魔物に気づかれにくくなる。", exploreNoTarget: true },
+  TRAP_SENSE_STONE: { id: "TRAP_SENSE_STONE", name: "探知石", type: "usable", desc: "周囲3マス以内の床罠を可視化する。罠は解除しない。", exploreNoTarget: true },
   GREATER_HEAL: { id: "GREATER_HEAL", name: "上薬", type: "usable", desc: "使用するとHPを40回復する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
   ANTIDOTE: { id: "ANTIDOTE", name: "解毒薬", type: "usable", desc: "使用すると毒状態を解除する。" },
   EYE_DROPS: { id: "EYE_DROPS", name: "目薬", type: "usable", desc: "使用すると盲目状態を解除する。[全員用]", classes: ["Fighter", "Thief", "Priest", "Mage", "Samurai", "Bishop", "Ranger", "Ninja"] },
