@@ -387,6 +387,8 @@ export function buildEnvironmentSnapshot(stateSnapshot, combat = null) {
     runBattles: boundedFiniteOrNull(run?.battles),
     runChestsOpened: boundedFiniteOrNull(run?.chestsOpened),
     runTrapsTriggered: boundedFiniteOrNull(run?.trapsTriggered),
+    silenceTurns: boundedFiniteOrNull(stateSnapshot?.silenceTurns),
+    forcedEncounterSteps: boundedFiniteOrNull(stateSnapshot?.forcedEncounterSteps),
     enemyIds: monsters.map(monster => normalizeEnemyId(monster?.name)),
     enemyCount: monsters.length,
     enemyAliveCount: monsters.filter(monster => monster?.hp > 0 && !monster?.fled).length,

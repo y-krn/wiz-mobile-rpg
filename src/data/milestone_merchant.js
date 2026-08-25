@@ -15,7 +15,8 @@ export const MILESTONE_MERCHANT_STOCK = Object.freeze([
   stock({ id: "str_potion", kind: "item", itemId: "STR_POTION", name: "剛力の薬", cost: { "獣の牙": 2 } }),
   stock({ id: "haste_potion", kind: "item", itemId: "HASTE_POTION", name: "疾風の薬", cost: { "毒腺": 2 } }),
   stock({ id: "return_wing", kind: "item", itemId: "TOWN_PORTAL", name: "帰還の翼", cost: { "黒角": 36, "呪布": 27 } }),
-  stock({ id: "trap_kit", kind: "item", itemId: "TRAP_KIT", name: "罠外しキット", cost: { "骨片": 2 } })
+  stock({ id: "trap_kit", kind: "item", itemId: "TRAP_KIT", name: "罠外しキット", cost: { "骨片": 2 } }),
+  stock({ id: "trap_sense_stone", kind: "item", itemId: "TRAP_SENSE_STONE", name: "探知石", cost: { "魔石片": 2 } })
 ]);
 
 export const MILESTONE_UNCURSE_COST = Object.freeze({ "霊粉": 5, "呪布": 3, "黒角": 1 });

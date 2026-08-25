@@ -287,6 +287,31 @@ visit now; density targets are per-run costs.
 - Adding a fourth pillar. New systems must serve depth, push-your-luck, or
   in-run builds; a system serving none of them is out of scope.
 
+## Tactical Consumables (Issue #412)
+
+Consumables are tactical resources rather than stock used only to fill a
+shortage. Limited inventory space and use opportunities should temporarily
+change a run's risk, information, or encounter pattern. New consumables must
+have both a situation where using them is attractive and a situation where
+holding them is better; they should not be permanent or universal upgrades.
+
+Phase 1 exploration candidates:
+
+- 鳴らし玉 calls a normal encounter within the next few steps, but never a
+  boss or fixed event. It is useful for experience, drops, or run quests when
+  the party can afford the fight, and wasteful when conserving HP/MP is the
+  goal.
+- 静寂の香 greatly lowers normal encounter chance for a short window. It is
+  useful for reaching depth or preserving resources, but costs experience and
+  drop opportunities.
+- 探知石 reveals nearby floor traps without improving disarm rate. It is
+  useful before committing to a risky corridor, but is wasteful where no trap
+  is nearby and does not replace class or equipment trap advantages.
+
+Supply is intentional: 鳴らし玉 and 静寂の香 are departure-craft choices;
+探知石 is an in-run chest/deep-merchant adaptation item. They must remain
+separate from recovery, retreat, and trap-kit roles.
+
 ## Relationship To Other Documents
 
 - `.agents/game-design.md`: meta-economy rules (materials as the only

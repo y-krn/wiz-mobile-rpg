@@ -35,6 +35,18 @@ export const CRAFT_RECIPES = [
     desc: "宝箱の罠を1つ確実に外す。"
   },
   {
+    resultId: "NOISE_BALL",
+    name: "鳴らし玉",
+    mats: { "獣の牙": 1, "魔石片": 1 },
+    desc: "指定方向へ投げると、次の数歩以内に通常の魔物を呼び寄せる。"
+  },
+  {
+    resultId: "SILENCE_INCENSE",
+    name: "静寂の香",
+    mats: { "霊粉": 1, "呪布": 1 },
+    desc: "焚くと、しばらく通常の魔物に気づかれにくくなる。"
+  },
+  {
     resultId: "TOWN_PORTAL",
     name: "帰還の翼",
     departureCost: { mode: "any", total: 8 },

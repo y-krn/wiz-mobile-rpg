@@ -9,6 +9,8 @@ import {
 
 export const ITEM_EFFECTS = {
   NOISE_BALL: () => "鳴らし玉が甲高い音を響かせた。",
+  SILENCE_INCENSE: () => "静寂の香を焚いた。迷宮の気配が遠のく。",
+  TRAP_SENSE_STONE: () => "探知石を掲げた。周囲の罠が淡く光る。",
   HEAL_POTION: ({ char }) => {
     const heal = getEffectiveHealAmount(char, 15);
     char.hp = Math.min(getCharMaxHp(char), char.hp + heal);

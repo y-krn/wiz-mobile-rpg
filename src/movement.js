@@ -23,6 +23,7 @@ import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.j
 import { assignRunQuests, updateRunQuests } from "./systems/run_quests.js";
 import { applyTrapGuardToEffect, resolveFlameTrapEffect } from "./rules/trap_effect_rules.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
+import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 
 const ENCOUNTER_HIGH_STEP_LIMIT = 30;
 const ENCOUNTER_HIGH_RATE = 0.10;
@@ -43,15 +44,18 @@ export function getCurrentFloorExplorationSteps() {
   return state.currentRun.floorSteps?.[String(state.floor)] || 0;
 }
 
-export function calculateEncounterChance(floorStep, { lightPower, lightTurns } = {}) {
+export function calculateEncounterChance(floorStep, { lightPower, lightTurns, silenceTurns } = {}) {
   const baseRate = floorStep <= ENCOUNTER_HIGH_STEP_LIMIT ? ENCOUNTER_HIGH_RATE : ENCOUNTER_LOW_RATE;
+  let rate = baseRate;
   if (lightPower === "lomilwa") {
-    return Math.max(0, baseRate - LOMILWA_ENCOUNTER_REDUCTION);
+    rate = Math.max(0, rate - LOMILWA_ENCOUNTER_REDUCTION);
+  } else if (lightTurns > 0) {
+    rate = Math.max(0, rate - MILWA_ENCOUNTER_REDUCTION);
   }
-  if (lightTurns > 0) {
-    return Math.max(0, baseRate - MILWA_ENCOUNTER_REDUCTION);
+  if (silenceTurns > 0) {
+    rate *= SILENCE_INCENSE_ENCOUNTER_MULTIPLIER;
   }
-  return baseRate;
+  return rate;
 }
 
 export function getEncounterChance() {
@@ -75,6 +79,13 @@ export function tickExplorationSpellEffects() {
       addLog("マスペアルの効果が切れた。モンスターの殺気が戻った。");
     }
   }
+
+  if (state.silenceTurns > 0) {
+    state.silenceTurns--;
+    if (state.silenceTurns === 0) addLog("静寂の香の効果が切れた。魔物の気配が戻った。");
+  }
+
+  if (state.forcedEncounterSteps > 0) state.forcedEncounterSteps--;
 
   if (state.dumapicTurns > 0) {
     state.dumapicTurns--;
@@ -608,10 +619,15 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   const encounterChance = getEncounterChance();
 
   // Random Encounter
-  if ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance) {
+  const forcedEncounter = state.forcedEncounterSteps > 0;
+  if (forcedEncounter) state.forcedEncounterSteps = 0;
+  if (
+    forcedEncounter ||
+    ((!state.repelTurns || state.repelTurns <= 0) && Math.random() < encounterChance)
+  ) {
     state.transitioning = true;
     createNoiseEvent(state.x, state.y);
-    addLog("モンスターが暗闇から襲いかかってきた！");
+    addLog(forcedEncounter ? "鳴らし玉に誘われ、通常の魔物が現れた！" : "モンスターが暗闇から襲いかかってきた！");
     setTimeout(() => {
       state.transitioning = false;
       startCombat(false, false);
@@ -712,6 +728,8 @@ export function executeEnterDungeon(floor, { departureCraft = [] } = {}) {
   state.floor = floor;
   state.sessionMaxFloor = floor; // セッション最深階を初期化
   state.currentRun = createDefaultCurrentRun();
+  state.silenceTurns = 0;
+  state.forcedEncounterSteps = 0;
   state.currentRun.startedAt = Date.now();
   state.currentRun.runSeed = `${state.seed}:run:${state.currentRun.startedAt}`;
   state.currentRun.startFloor = floor;
