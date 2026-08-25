@@ -18,6 +18,26 @@ and effects belong to the wearer.
 
 Goal: effective build space ≈ `CORE_AFFIXES.length` cores × 2〜3 class fits × support configurations ≈ 60〜80.
 
+# Equipment Codex Direction (#826)
+
+The equipment codex is not only a collection list. It is meta-progression that
+stores equipment knowledge observed during expeditions and turns that knowledge
+into hypotheses for the next exploration and build.
+
+- Basic item facts (base attack/defense, usable classes, description, and type)
+  remain visible once the item is found.
+- Affix details and floor history describe only observed facts. The codex does
+  not reveal undiscovered affix names, candidate totals, drop rates, or internal
+  weights.
+- Equipment tags are research knowledge, revealed after repeated observation;
+  research notes suggest directions without declaring an optimal build.
+- Personal records such as rarity, bonus, count, and first-found floor remain
+  separate from research knowledge.
+
+This direction changes presentation and codex persistence only. Equipment
+generation, affix values, acquisition rates, and material economy are
+unchanged.
+
 Combat formula structure and application order are canonical in
 `.agents/game-design-combat-model.md`. This document remains canonical for the
 core/support registry, acquisition rules, and affix parameters; the source

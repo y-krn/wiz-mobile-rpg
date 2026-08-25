@@ -232,6 +232,33 @@ function normalizeDeathLogEntry(entry) {
   return normalized;
 }
 
+const EQUIPMENT_RARITIES = new Set(["common", "magic", "rare", "epic", "legendary"]);
+
+function normalizeEquipmentCodexRecord(record) {
+  if (!isRecord(record)) return null;
+  const normalized = { ...record };
+  normalized.discovered = record.discovered !== false;
+  normalized.foundCount = Math.max(0, integerOr(record.foundCount, 0));
+  normalized.highestRarity = EQUIPMENT_RARITIES.has(record.highestRarity)
+    ? record.highestRarity
+    : "common";
+  normalized.bestBonus = Math.max(0, numberOr(record.bestBonus, 0));
+  normalized.affixesSeen = arrayOr(record.affixesSeen).filter(affix => typeof affix === "string");
+  normalized.foundFloors = Object.fromEntries(
+    Object.entries(recordOr(record.foundFloors, {}))
+      .filter(([floor, count]) => /^\d+$/.test(floor) && Number(floor) > 0 && Number.isFinite(count) && count > 0)
+      .map(([floor, count]) => [floor, Math.floor(count)])
+  );
+  normalized.tagObservations = Object.fromEntries(
+    Object.entries(recordOr(record.tagObservations, {}))
+      .filter(([tag, count]) => typeof tag === "string" && Number.isFinite(count) && count > 0)
+      .map(([tag, count]) => [tag, Math.floor(count)])
+  );
+  normalized.firstFoundAt = typeof record.firstFoundAt === "string" ? record.firstFoundAt : "";
+  normalized.lastFoundSeed = typeof record.lastFoundSeed === "string" ? record.lastFoundSeed : "";
+  return normalized;
+}
+
 function normalizeCurrentRun(run) {
   if (!isRecord(run)) return null;
   const normalized = normalizeRunOutcome(run);
@@ -428,6 +455,11 @@ export function normalizeSavePayload(data) {
     .map(normalizeDeathLogEntry)
     .filter(isRecord);
   normalized.codex = recordOr(data.codex, createDefaultCodex());
+  normalized.codex.equipment = Object.fromEntries(
+    Object.entries(recordOr(normalized.codex.equipment, {}))
+      .map(([key, record]) => [key, normalizeEquipmentCodexRecord(record)])
+      .filter(([, record]) => record !== null)
+  );
   if (normalized.codex?.monsters) {
     Object.keys(normalized.codex.monsters).forEach(name => {
       if (/の分裂体\d+/.test(name)) delete normalized.codex.monsters[name];

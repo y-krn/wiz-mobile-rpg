@@ -168,6 +168,99 @@
   color: #ddd;
 }
 
+.codex-info-section {
+  border-top: 1px solid #2b2b38;
+  padding-top: 7px;
+  margin-top: 8px;
+}
+
+.codex-info-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.codex-subtitle {
+  color: var(--neon-cyan);
+  font-size: var(--fs-sm);
+  font-weight: bold;
+  letter-spacing: 0.04em;
+  margin-bottom: 3px;
+}
+
+.codex-item-description {
+  color: #b8b8c7;
+  margin: 6px 0 0;
+}
+
+.codex-muted {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  margin: 2px 0;
+}
+
+.codex-affixes {
+  list-style: none;
+  padding: 0;
+  margin: 3px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.codex-affixes li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 8px;
+  border-left: 2px solid var(--neon-yellow);
+}
+
+.codex-affixes li span {
+  color: #b8b8c7;
+  font-size: var(--fs-sm);
+}
+
+.codex-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 6px;
+}
+
+.codex-tags span {
+  border: 1px solid #52616b;
+  border-radius: 999px;
+  color: var(--neon-yellow);
+  font-size: var(--fs-xs);
+  padding: 2px 7px;
+}
+
+.codex-floor-record {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  min-height: 24px;
+}
+
+.codex-dots {
+  color: var(--neon-green);
+  letter-spacing: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.codex-personal-record {
+  color: #c7c7d2;
+  font-size: var(--fs-sm);
+}
+
+.codex-personal-record p {
+  margin: 2px 0;
+}
+
 .codex-traits {
   list-style: disc;
   margin: 2px 0 4px 1.5em;

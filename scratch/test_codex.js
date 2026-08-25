@@ -121,6 +121,18 @@ Object.defineProperty(global, "navigator", {
   assert.strictEqual(state.codex.equipment["SHORT_SWORD"].highestRarity, "rare", "highestRarity should be rare");
   assert.strictEqual(state.codex.equipment["SHORT_SWORD"].bestBonus, 3, "bestBonus should be 3");
   assert.deepStrictEqual(state.codex.equipment["SHORT_SWORD"].affixesSeen, ["atk", "agi"], "Seen affixes should match");
+  assert.deepStrictEqual(state.codex.equipment["SHORT_SWORD"].foundFloors, { "1": 2 }, "Found floor history should record both discoveries");
+
+  // Discover an accessory on another floor; accessories share the same codex path.
+  state.floor = 3;
+  recordEquipmentDiscovery({
+    baseId: "RING_AGI",
+    rarity: "magic",
+    identified: true,
+    affixes: [{ id: "agi", type: "agi", value: 1 }]
+  });
+  assert.strictEqual(state.codex.equipment["RING_AGI"].foundCount, 1, "Accessories should be registered in codex");
+  assert.deepStrictEqual(state.codex.equipment["RING_AGI"].foundFloors, { "3": 1 }, "Accessory floor history should be recorded");
 
 
   // Test 3: Events & Facilities
@@ -146,6 +158,7 @@ Object.defineProperty(global, "navigator", {
     equipmentFound: [randEquip],
     materials: { "獣の牙": 10, "硬い皮": 1 }
   };
+  state.floor = 1;
   state.inventory = [randEquip];
   state.party = [
     { name: "Arthur", class: "Fighter", level: 3, hp: 0, status: "dead", equipment: { weapon: null, armor: null, shield: null } }
@@ -182,6 +195,7 @@ Object.defineProperty(global, "navigator", {
   assert.strictEqual(state.deathLogs.length, 1, "Loaded deathLogs count should be 1");
   assert.strictEqual(state.codex.monsters["ワーウルフ"].killed, 1, "Loaded Wolf kill count should be 1");
   assert.strictEqual(state.codex.equipment["SHORT_SWORD"].bestBonus, 3, "Loaded SHORT_SWORD bestBonus should be 3");
+  assert.deepStrictEqual(state.codex.equipment["SHORT_SWORD"].foundFloors, { "1": 2 }, "Loaded floor history should be preserved");
 
   console.log("All Codex & Logs verification tests passed successfully!");
 })().catch(error => {
