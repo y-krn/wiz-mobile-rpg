@@ -44,7 +44,16 @@ Object.defineProperty(global, "navigator", {
 });
 
 (async () => {
-  const { state, initNewGame, saveGame, loadGame, recordEquipmentDiscovery, createDefaultCodex } = await import("../src/state.js");
+  const {
+    state,
+    initNewGame,
+    saveGame,
+    loadGame,
+    recordEquipmentDiscovery,
+    recordEquipmentAffixDiscovery,
+    createDefaultCodex
+  } = await import("../src/state.js");
+  const { identifyEquipment } = await import("../src/systems/identification.js");
   const { triggerRunResult } = await import("../src/menu.js");
   const { getDeathLogsHtml } = await import("../src/ui/archives_overlay.js");
   const assert = await import("assert");
@@ -133,6 +142,21 @@ Object.defineProperty(global, "navigator", {
   });
   assert.strictEqual(state.codex.equipment["RING_AGI"].foundCount, 1, "Accessories should be registered in codex");
   assert.deepStrictEqual(state.codex.equipment["RING_AGI"].foundFloors, { "3": 1 }, "Accessory floor history should be recorded");
+
+  // Unidentified affixes stay hidden until the identification action observes them.
+  const hiddenEquip = {
+    baseId: "FLAME_SWORD",
+    rarity: "rare",
+    identified: false,
+    affixes: [{ id: "firstTurnAttack", type: "firstTurnAttack" }]
+  };
+  recordEquipmentDiscovery(hiddenEquip);
+  assert.deepStrictEqual(state.codex.equipment["FLAME_SWORD"].affixesSeen, [], "Unidentified affixes should stay hidden");
+  recordEquipmentAffixDiscovery(hiddenEquip);
+  assert.deepStrictEqual(state.codex.equipment["FLAME_SWORD"].affixesSeen, [], "Unidentified affix observation should be ignored");
+  state.identifyTickets = 1;
+  assert.equal(identifyEquipment(state, hiddenEquip).ok, true, "Identification should succeed");
+  assert.deepStrictEqual(state.codex.equipment["FLAME_SWORD"].affixesSeen, ["firstTurnAttack"], "Identification should record the observed affix");
 
 
   // Test 3: Events & Facilities

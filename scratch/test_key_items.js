@@ -42,6 +42,27 @@ check("B10初回撃破が深淵の印を付与", () => {
   assert.deepEqual(state.keyItems, ["ABYSS_SEAL"]);
 });
 
+check("守護者報酬の装備が図鑑へ記録される", () => {
+  const state = {
+    floor: 3,
+    x: 0,
+    y: 0,
+    map: [[{ event: "midboss" }]],
+    party: [],
+    inventory: [],
+    codex: { equipment: {} },
+    currentRun: { itemsFound: [], equipmentFound: [], materials: {} },
+    keyItems: [],
+    unlockedMilestones: []
+  };
+
+  applyPendingOutcomeRewards(state, { kind: "giveKey" }, () => 0.1);
+  const reward = state.currentRun.equipmentFound[0];
+  assert.ok(reward, "The reward equipment should be added");
+  assert.equal(state.codex.equipment[reward.baseId].foundCount, 1, "The reward equipment should be registered");
+  assert.deepEqual(state.codex.equipment[reward.baseId].affixesSeen, [], "The unidentified reward affixes should stay hidden");
+});
+
 if (failures.length > 0) {
   console.error(`${failures.length} key item test(s) failed.`);
   process.exit(1);

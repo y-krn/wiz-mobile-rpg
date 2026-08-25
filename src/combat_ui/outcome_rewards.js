@@ -1,5 +1,6 @@
 import { generateRandomAccessory, generateRandomEquipment } from "../systems/equipment_generation.js";
 import { addInventoryItemToState } from "../state/inventory_state.js";
+import { recordEquipmentDiscovery } from "../state/codex_state.js";
 import { markMapChanged } from "../state/state_core.js";
 import { recordMilestoneVictory } from "../state/run_state.js";
 import {
@@ -60,8 +61,11 @@ function applyGiveKeyRewards(stateLike, rng) {
   if (rewardEquip) {
     rewardEquip.identified = false;
     const added = addInventoryItemToState(stateLike, rewardEquip);
-    if (added && stateLike.currentRun) {
-      stateLike.currentRun.equipmentFound.push(rewardEquip);
+    if (added) {
+      recordEquipmentDiscovery(rewardEquip, stateLike);
+      if (stateLike.currentRun) {
+        stateLike.currentRun.equipmentFound.push(rewardEquip);
+      }
     }
   }
 
@@ -73,8 +77,11 @@ function applyGiveKeyRewards(stateLike, rng) {
     });
     if (rewardAccessory) {
       const added = addInventoryItemToState(stateLike, rewardAccessory);
-      if (added && stateLike.currentRun) {
-        stateLike.currentRun.equipmentFound.push(rewardAccessory);
+      if (added) {
+        recordEquipmentDiscovery(rewardAccessory, stateLike);
+        if (stateLike.currentRun) {
+          stateLike.currentRun.equipmentFound.push(rewardAccessory);
+        }
       }
     }
   }

@@ -34,10 +34,20 @@ export function recordMonsterResistanceDiscovery(monster, type, stateLike = stat
   stateLike.codex.monsters[baseName][knownField] = true;
 }
 
-export function recordEquipmentDiscovery(equipKey) {
-  if (!state.codex) return;
-  if (!state.codex.equipment) {
-    state.codex.equipment = {};
+function appendObservedAffixes(record, equipKey) {
+  if (!equipKey?.affixes || !Array.isArray(equipKey.affixes)) return;
+  equipKey.affixes.forEach(aff => {
+    const affixId = aff?.id || aff?.type;
+    if (affixId && !record.affixesSeen.includes(affixId)) {
+      record.affixesSeen.push(affixId);
+    }
+  });
+}
+
+export function recordEquipmentDiscovery(equipKey, stateLike = state) {
+  if (!stateLike?.codex) return;
+  if (!stateLike.codex.equipment) {
+    stateLike.codex.equipment = {};
   }
   
   const isRandomEquip = typeof equipKey === "object";
@@ -47,8 +57,8 @@ export function recordEquipmentDiscovery(equipKey) {
   
   if (!["weapon", "armor", "shield", "accessory"].includes(item.type)) return;
 
-  if (!state.codex.equipment[baseId]) {
-    state.codex.equipment[baseId] = {
+  if (!stateLike.codex.equipment[baseId]) {
+    stateLike.codex.equipment[baseId] = {
       discovered: true,
       foundCount: 0,
       highestRarity: "common",
@@ -56,12 +66,12 @@ export function recordEquipmentDiscovery(equipKey) {
       affixesSeen: [],
       foundFloors: {},
       tagObservations: {},
-      firstFoundAt: `B${state.floor}F`,
-      lastFoundSeed: state.seed
+      firstFoundAt: `B${stateLike.floor}F`,
+      lastFoundSeed: stateLike.seed
     };
   }
 
-  const record = state.codex.equipment[baseId];
+  const record = stateLike.codex.equipment[baseId];
   record.affixesSeen = Array.isArray(record.affixesSeen) ? record.affixesSeen : [];
   record.foundFloors = record.foundFloors && typeof record.foundFloors === "object" && !Array.isArray(record.foundFloors)
     ? record.foundFloors
@@ -70,8 +80,8 @@ export function recordEquipmentDiscovery(equipKey) {
     ? record.tagObservations
     : {};
   record.foundCount++;
-  record.lastFoundSeed = state.seed;
-  const floorKey = String(Math.max(1, Number(state.floor) || 1));
+  record.lastFoundSeed = stateLike.seed;
+  const floorKey = String(Math.max(1, Number(stateLike.floor) || 1));
   record.foundFloors[floorKey] = (Number(record.foundFloors[floorKey]) || 0) + 1;
 
   // Base tags are authored equipment knowledge. They become research only
@@ -93,13 +103,20 @@ export function recordEquipmentDiscovery(equipKey) {
       record.bestBonus = newBonus;
     }
 
-    if (equipKey.affixes && Array.isArray(equipKey.affixes)) {
-      equipKey.affixes.forEach(aff => {
-        const affixId = aff?.id || aff?.type;
-        if (affixId && !record.affixesSeen.includes(affixId)) {
-          record.affixesSeen.push(affixId);
-        }
-      });
+    // Generated equipment is unidentified until the player pays to reveal it.
+    // Keep the old object-call behavior for legacy callers that have no
+    // `identified` field, but never expose a generated item's hidden affixes.
+    if (!Object.hasOwn(equipKey, "identified") || equipKey.identified === true) {
+      appendObservedAffixes(record, equipKey);
     }
   }
+}
+
+export function recordEquipmentAffixDiscovery(equipKey, stateLike = state) {
+  if (!equipKey || typeof equipKey !== "object" || equipKey.identified !== true) return;
+  const baseId = equipKey.baseId;
+  const record = stateLike?.codex?.equipment?.[baseId];
+  if (!record) return;
+  record.affixesSeen = Array.isArray(record.affixesSeen) ? record.affixesSeen : [];
+  appendObservedAffixes(record, equipKey);
 }
