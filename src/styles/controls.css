@@ -780,6 +780,64 @@
   color: var(--neon-amber);
 }
 
+.milestone-disclosure {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--sp-xs);
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid rgba(155, 215, 210, 0.5);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgba(28, 47, 49, 0.82), rgba(18, 29, 32, 0.82));
+}
+
+.milestone-disclosure-title {
+  margin: 0;
+  color: var(--neon-cyan);
+  font-size: var(--fs-md);
+  text-wrap: balance;
+}
+
+.milestone-disclosure-intro {
+  margin: 0;
+  color: var(--text-main);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.milestone-disclosure-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-xs);
+}
+
+.milestone-disclosure-item {
+  display: grid;
+  gap: var(--sp-xxs);
+  min-width: 0;
+  padding: var(--sp-xs);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background-color: rgba(0, 0, 0, 0.18);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+.milestone-disclosure-item strong {
+  color: var(--text-main);
+}
+
+.milestone-disclosure-status {
+  color: var(--neon-cyan);
+}
+
+.milestone-disclosure-available {
+  color: var(--neon-green);
+}
+
+.milestone-disclosure-locked {
+  color: var(--neon-amber);
+}
+
 
 .chest-info-panel {
   padding: var(--sp-md) 10px;

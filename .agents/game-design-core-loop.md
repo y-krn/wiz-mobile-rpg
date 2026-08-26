@@ -242,6 +242,12 @@ serves and what decision changes when the player climbs to it. Gaining
 information must cost something (exposure, light, steps), or
 maximum-visibility gear becomes the only correct build.
 
+At milestone floors, the down-stairs decision now discloses the floor structure:
+the guardian, deep merchant, and return portal are present, with each facility's
+visit state and guardian-gated availability shown. Entering a milestone floor
+also shows this structure in the entry stinger. This is display-only and does
+not reveal map positions or change movement costs.
+
 Floor traps are route-choice obstacles: adjacent floor-trap detection is certain,
 disarm is class-sensitive, forced traversal always passes with reduced damage, and
 choke placement is capped so avoidance remains meaningful. `trapBonus` is the

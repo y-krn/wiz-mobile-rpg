@@ -479,6 +479,7 @@ for (const vp of VIEWPORTS) {
       expect(before).toMatchObject({ gameState: 'submenu', floor: 2 });
 
       await expect(page.getByRole('button', { name: '降りずに進む' })).toBeVisible();
+      await expect(page.locator('.milestone-disclosure')).toHaveCount(0);
       const stairsLayout = await page.evaluate(() => ({
         buttons: Array.from(document.querySelectorAll('#submenu-options button'))
           .map((button) => button.getBoundingClientRect().toJSON()),
@@ -518,6 +519,78 @@ for (const vp of VIEWPORTS) {
       });
       expect(afterDescend.floor).toBe(3);
       expect(afterDescend.gameState).toBe('explore');
+    });
+
+    test('Milestone stairs disclose facility state without adding actions', async ({ page }) => {
+      const observed = await page.evaluate(async () => {
+        const { createDefaultCurrentRun, createSoloCharacter, state } = await import('/src/state.js');
+        const { checkCellEvents, executeEnterDungeon } = await import('/src/movement.js');
+
+        state.party = [createSoloCharacter('Fighter')];
+        state.gameState = 'town';
+        executeEnterDungeon(1);
+
+        const map = state.maps[0].map(row => row.map(cell => ({ ...cell })));
+        const points = [];
+        for (let y = 1; y < map.length - 1 && points.length < 2; y++) {
+          for (let x = 1; x < map[y].length - 1 && points.length < 2; x++) {
+            if (map[y][x].type === 'empty' && !map[y][x].event) points.push({ x, y });
+          }
+        }
+        const [merchant, portal] = points;
+        map[merchant.y][merchant.x] = {
+          ...map[merchant.y][merchant.x], event: 'event_merchant', milestoneFloor: 5,
+        };
+        map[portal.y][portal.x] = {
+          ...map[portal.y][portal.x], event: 'return_portal', milestoneFloor: 5,
+        };
+        state.maps[4] = map;
+        state.visitedMaps[4] = map.map(row => row.map(() => false));
+        state.visitedMaps[4][portal.y][portal.x] = true;
+        const stairs = map.flatMap((row, y) => row.map((cell, x) => (
+          cell.type === 'stairs-down' ? { x, y } : null
+        ))).find(Boolean);
+        state.floor = 5;
+        state.x = stairs.x;
+        state.y = stairs.y;
+        state.currentRun = createDefaultCurrentRun();
+        state.gameState = 'explore';
+
+        checkCellEvents();
+        const locked = {
+          text: document.querySelector('.milestone-disclosure')?.textContent || '',
+          merchant: document.querySelector('[data-facility="event_merchant"]')?.textContent || '',
+          portal: document.querySelector('[data-facility="return_portal"]')?.textContent || '',
+          actionCount: document.querySelectorAll('.milestone-disclosure button').length,
+          allButtons: document.querySelectorAll('#submenu-options button').length,
+          descendDisabled: document.querySelector('#submenu-options button')?.disabled || false,
+        };
+
+        state.currentRun.defeatedMilestones = [5];
+        checkCellEvents();
+        const unlocked = document.querySelector('.milestone-disclosure')?.textContent || '';
+
+        executeEnterDungeon(5);
+        const clearedEntryNotice = document.querySelector('#floor-entry-stinger')?.textContent || '';
+        state.currentRun = createDefaultCurrentRun();
+        const { showFloorEntryStinger } = await import('/src/ui.js');
+        showFloorEntryStinger(5, true);
+        const lockedEntryNotice = document.querySelector('#floor-entry-stinger')?.textContent || '';
+        return { locked, unlocked, clearedEntryNotice, lockedEntryNotice };
+      });
+
+      expect(observed.locked.text).toContain('階層守護者・深層商人・帰還の門');
+      expect(observed.locked.merchant).toContain('未訪問');
+      expect(observed.locked.merchant).toContain('守護者を倒すと開く');
+      expect(observed.locked.portal).toContain('訪問済み');
+      expect(observed.locked.portal).toContain('守護者を倒すと開く');
+      expect(observed.locked.actionCount).toBe(0);
+      expect(observed.locked.allButtons).toBe(2);
+      expect(observed.locked.descendDisabled).toBe(true);
+      expect(observed.unlocked).toContain('利用可能');
+      expect(observed.unlocked).not.toContain('守護者を倒すと開く');
+      expect(observed.clearedEntryNotice).toContain('階層守護者は撃破済み');
+      expect(observed.lockedEntryNotice).toContain('階層守護者・深層商人・帰還の門');
     });
 
     test('Run stake summary appears only at retreat decisions', async ({ page }) => {
