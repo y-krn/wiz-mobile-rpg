@@ -103,6 +103,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
       modeled: Object.freeze([
         "production run-floor generation", "round combat and reward resolution",
         "equipment generation and upgrade path", "chest opening and material rewards",
+        "hidden-door search, revealed secret-room reward reachability, and search-step cost",
+        "fromDrop chest pool and inspect/open/disarm/trap-kit/smash/leave policy outcomes",
         "production recovery effect", "production chest-trap roll"
       ]),
       omitted: Object.freeze([
