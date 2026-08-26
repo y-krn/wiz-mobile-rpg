@@ -48,6 +48,8 @@ export const createDefaultCurrentRun = () => ({
   elitesKilled: 0,
   bossesKilled: 0,
   chestsOpened: 0,
+  goldEarned: 0,
+  lootCount: 0,
   trapsTriggered: 0,
   trapsDisarmed: 0,
   expGained: 0,

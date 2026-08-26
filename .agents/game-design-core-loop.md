@@ -66,6 +66,16 @@ floor, retreat and death recorded separately) is always visible on the title
 screen, in town, and on the run result. Abandon is tracked as its own run
 ending without entering death metrics.
 
+**Decided: the castle is the player's adventure chronicle** (Issue #813,
+2026-08-26). The castle presents recent runs as factual adventure entries,
+then personal bests, first achievements, B5/B10 trends, and structured death
+causes. Retreat, death, and abandon remain distinct outcomes, and the display
+copy is generated from persisted facts rather than saved as prose. Recent run
+history is capped at 20 entries; aggregate records and first achievements are
+kept separately so the chronicle remains useful after older entries roll off.
+This changes information presentation and record keeping only; it does not
+change depth, combat, hazard, reward, or material rules.
+
 **Decided: Return Wing is an independent special chest reward (Issue #791,
 2026-08-22).** `TOWN_PORTAL` is not part of the ordinary chest main-reward
 candidate pools. A chest first resolves its normal main reward, then performs a

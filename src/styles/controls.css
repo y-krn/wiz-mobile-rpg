@@ -172,6 +172,8 @@
   grid-auto-rows: max-content;
   align-content: start;
   gap: var(--sp-md);
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .castle-death-logs-grid {
@@ -268,6 +270,152 @@
 .records-menu-summary span, .records-class-list { color: var(--text-muted); font-size: var(--fs-xs); }
 .records-menu-summary strong { color: var(--neon-cyan); }
 .records-class-list { padding: var(--sp-sm); line-height: 1.5; }
+
+.adventure-records {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--sp-md);
+  min-width: 0;
+}
+
+.adventure-record-section {
+  display: grid;
+  gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+  min-width: 0;
+}
+
+.adventure-record-section h3 {
+  margin: 0;
+  color: var(--neon-cyan);
+  font-size: var(--fs-md);
+}
+
+.adventure-record-section h3 small {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+.adventure-empty,
+.adventure-trend-note,
+.adventure-rate-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+.adventure-achievement-list,
+.adventure-history-list,
+.adventure-death-list,
+.adventure-distribution {
+  display: grid;
+  gap: var(--sp-xs);
+}
+
+.adventure-achievement {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--sp-sm);
+  align-items: center;
+  padding: var(--sp-sm);
+  border-left: 2px solid var(--neon-amber);
+  background: var(--surface-raised);
+  font-size: var(--fs-xs);
+}
+
+.adventure-achievement strong { color: var(--neon-amber); }
+.adventure-achievement small { color: var(--text-muted); }
+
+.adventure-run-card {
+  display: grid;
+  gap: var(--sp-xxs);
+  padding: var(--sp-sm);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--neon-green);
+  background: var(--surface-raised);
+  min-width: 0;
+}
+
+.adventure-run-card.death { border-left-color: var(--neon-red); }
+.adventure-run-card.abandon { border-left-color: var(--neon-amber); }
+
+.adventure-run-header,
+.adventure-run-facts,
+.adventure-death-row,
+.adventure-distribution-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-sm);
+}
+
+.adventure-run-header span { color: var(--neon-green); font-size: var(--fs-xs); }
+.adventure-run-card.death .adventure-run-header span { color: var(--neon-red); }
+.adventure-run-card.abandon .adventure-run-header span { color: var(--neon-amber); }
+.adventure-run-class,
+.adventure-run-facts,
+.adventure-run-decision,
+.adventure-death-row span { color: var(--text-muted); font-size: var(--fs-xs); }
+.adventure-run-depth { color: var(--text-main); font-size: var(--fs-sm); }
+.adventure-run-decision { margin: var(--sp-xs) 0 0; line-height: 1.45; }
+
+.adventure-run-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-xxs);
+  margin-top: var(--sp-xs);
+}
+
+.adventure-run-badges span {
+  padding: 2px 6px;
+  border: 1px solid var(--neon-amber);
+  color: var(--neon-amber);
+  font-size: var(--fs-xs);
+}
+
+.adventure-best-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-xs);
+}
+
+.adventure-best-grid > div {
+  display: grid;
+  gap: var(--sp-xxs);
+  padding: var(--sp-sm);
+  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+}
+
+.adventure-best-grid span { color: var(--text-muted); font-size: var(--fs-xs); }
+.adventure-best-grid strong { color: var(--neon-cyan); font-size: var(--fs-md); }
+.adventure-trend-lead { margin: 0; color: var(--text-main); font-size: var(--fs-sm); }
+
+.adventure-distribution-row {
+  align-items: center;
+  font-size: var(--fs-xs);
+}
+
+.adventure-distribution-row > span { width: 48px; color: var(--text-muted); }
+.adventure-distribution-row > i {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--neon-cyan) var(--bar-size), transparent var(--bar-size));
+  border: 1px solid var(--border-color);
+}
+.adventure-distribution-row strong { width: 32px; text-align: right; color: var(--text-main); }
+.adventure-death-row { padding: var(--sp-sm); border-bottom: 1px solid var(--border-color); }
+.adventure-death-row strong { overflow-wrap: anywhere; }
+
+@media (max-width: 380px) {
+  .adventure-achievement { grid-template-columns: 1fr auto; }
+  .adventure-achievement span { grid-column: 1 / -1; grid-row: 2; }
+}
 
 .workshop-grid .materials-hud,
 .workshop-category {

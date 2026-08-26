@@ -4,6 +4,12 @@ import { playSound } from "../audio.js";
 import { updateUI } from "./ui_root.js";
 import { getFloorLabel } from "../data/floor_themes.js";
 
+const ACHIEVEMENT_LABELS = {
+  first_b5_reached: "初めてB5Fへ到達",
+  first_b5_broken: "初めてB5Fを突破",
+  first_b10_reached: "初めてB10Fへ到達"
+};
+
 function formatMaterials(materials) {
   const entries = Object.entries(materials || {}).filter(([, quantity]) => quantity > 0);
   if (entries.length === 0) return '<span class="list-empty">なし</span>';
@@ -24,12 +30,16 @@ function getRecordHtml(run) {
   if (!result?.updated) {
     return '<div class="result-record-steady"><span>記録</span><strong>更新なし</strong></div>';
   }
-  const updateLabels = result.updates.map(update => update === `${result.className}最深`
+  const updateLabels = [...new Set([
+    ...(result.updates || []),
+    ...(result.milestones || []).map(id => ACHIEVEMENT_LABELS[id] || id)
+  ])].map(update => update === `${result.className}最深`
     ? `${getClassJpName(result.className)}最深`
     : update);
+  const hasDepthRecord = (result.updates || []).some(update => update === "最深到達記録" || update === "撤退最深" || update === "死亡最深" || update === `${result.className}最深`);
   return `
     <div class="result-record-new" role="status" aria-live="polite">
-      <span class="result-record-kicker">NEW DEPTH RECORD</span>
+      <span class="result-record-kicker">${hasDepthRecord ? "NEW DEPTH RECORD" : "ADVENTURE RECORD"}</span>
       <strong>B${result.depth}F</strong>
       <small>${updateLabels.join(" / ")}</small>
     </div>
