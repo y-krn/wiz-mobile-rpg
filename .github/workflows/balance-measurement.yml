@@ -1,0 +1,47 @@
+name: Balance measurement
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to measure"
+        required: false
+        default: "main"
+      runs:
+        description: "Runs per scenario (minimum 500)"
+        required: false
+        default: "500"
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || 'main' }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run standard statistical measurement
+        env:
+          BALANCE_SIM_RUNS: ${{ github.event_name == 'workflow_dispatch' && inputs.runs || '500' }}
+        run: |
+          mkdir -p /tmp/balance-measurement
+          node scratch/measure_balance.js \
+            --output /tmp/balance-measurement/measurement.json \
+            --summary /tmp/balance-measurement/measurement.md
+      - name: Upload measurement artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: balance-measurement-${{ github.run_id }}
+          path: /tmp/balance-measurement/
+          if-no-files-found: error
+          retention-days: 30
