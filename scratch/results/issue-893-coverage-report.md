@@ -44,6 +44,36 @@ measured reward/material EV.
 secret search/reward instrumentation, the ordinary/fromDrop pool distinction,
 and all six action counters. `node --check` and the canonical smoke pass.
 
-The N=500 measurement and material/item supply impact are recorded in the PR
-description after running from a clean committed source SHA with the standard
-`SIM_RUNS=500 SIM_CALIBRATION_RUNS=100` configuration.
+## N=500 measurement
+
+Command: `SIM_ALLOW_STALE_TREE=1 SIM_RUNS=500 SIM_CALIBRATION_RUNS=100
+SIM_SEED=894 SIM_INDEPENDENT_RUN_RANDOM=1 SIM_SCENARIOS=workshop-empty node
+scratch/sim_depth_material_ev.js`
+
+The measurement used source/runner commit
+`f78ca3ba167cf7dc395ff1bd33f21a07f5e9652d`, with gameplay baseline
+`ebd39078585810076fe5df812bfddad4d706d7f8`. The worktree was clean, but the
+branch could not be fast-forwarded to `origin/main` because the shared
+worktree metadata lock is outside the writable sandbox; therefore
+`originMainAncestor=false` and `staleTreeAllowed=true` are recorded in the
+measurement output. No production balance values were changed.
+
+| target | secret candidates/run | search success | extra steps/run | secret reward chests/run | fromDrop chests/run | material/run | equipment/run |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| B5 | 4.412 | 46.4% | 346.69 | 0.084 | 0.878 | 37.49 | 7.54 |
+| B10 | 5.098 | 43.6% | 404.79 | 0.098 | 1.122 | 45.04 | 9.24 |
+| B15 | 4.936 | 40.2% | 368.91 | 0.090 | 1.036 | 44.25 | 8.71 |
+| B20 | 5.506 | 36.5% | 445.33 | 0.088 | 1.162 | 48.55 | 9.45 |
+
+At B10, ordinary chests produced 91 special-reward rolls, while fromDrop
+chests produced 10 main-pool `TOWN_PORTAL` rewards and zero special-reward
+rolls. The B10 fromDrop action counts were inspect=561, open=172,
+disarm=229, trap-kit=8, smash=152, leave=0; secret-room chests exercised
+inspect=49, open=9, disarm=21, trap-kit=1, smash=18, leave=0. The action
+outcomes and trap/reward-loss counters are retained per source in the
+measurement result.
+
+The B10 material EV/time was `0.0406 [0.0372,0.0440; N=500]`, and material
+acquisition was `45.04 [40.90,49.18; N=500]`; equipment acquisition was 9.24
+per run, including 7.87 from chests. These are measurement outputs, not new
+balance constants.
