@@ -1,6 +1,6 @@
 import { state, addLog, saveAutosave } from "../state.js";
 import { menuContext } from "../navigation.js";
-import { hasUsableCombatActor, isActionableCombatContext, isActionableCombatScreen, isUsableSpellForActor } from "../state/view_state.js";
+import { hasCombatRoundActor, hasUsableCombatActor, isActionableCombatContext, isActionableCombatScreen, isUsableCombatScreen, isUsableSpellForActor } from "../state/view_state.js";
 import { SPELLS, ITEMS, getSpellPayment } from "../data.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
@@ -25,6 +25,11 @@ function canActInCombat() {
 
 function canCommitCombatAction() {
   return isActionableCombatContext(state, menuContext);
+}
+
+function canAdvanceCombatRound() {
+  return !state.transitioning && isUsableCombatScreen(state, menuContext) &&
+    state.combatState?.phase === "choose_actions" && hasCombatRoundActor(state.party);
 }
 
 const COMBAT_SPELL_TARGETS = ["single_enemy", "all_enemies", "single_ally", "all_allies"];
@@ -70,10 +75,15 @@ export function toggleCombatAuto() {
 }
 
 export function advanceActionSelection() {
-  if (!canActInCombat()) return;
+  if (!canAdvanceCombatRound()) return;
   // Find next living character
   const livingIdxs = getLivingCharacters().map(({ index }) => index);
-  if (livingIdxs.length === 0) return;
+  if (livingIdxs.length === 0) {
+    // Incapacitated characters are intentionally absent from the action UI,
+    // but their round turn still needs to reach round.js for status recovery.
+    resolveCombatRound();
+    return;
+  }
   
   if (state.combatState && state.combatState.isAuto) {
     while (combatSelection.charIdx < livingIdxs.length) {

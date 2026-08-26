@@ -182,7 +182,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     {
       pattern: "src/combat_ui/round_runner.js",
       marker: "// balance-impact: none",
-      reason: "canonical combat screen guard only; combat rules remain unchanged"
+      reason: "combat round-entry guard only; resolution rules remain unchanged"
     },
     {
       pattern: "src/combat_ui/combat_state.js",
@@ -876,12 +876,15 @@ function isCombatBoundaryLine(text, file) {
   if (/^import \{[^}]+\} from "\.\.\/state\/view_state\.js";$/.test(trimmed)) {
     const importedNames = trimmed.slice(trimmed.indexOf("{") + 1, trimmed.indexOf("}"))
       .split(",").map(name => name.trim()).filter(Boolean);
-    return importedNames.every(name => ["hasUsableCombatActor", "isUsableCombatScreen", "isUsableSpellForActor"].includes(name));
+    return importedNames.every(name => ["hasCombatRoundActor", "hasUsableCombatActor", "isUsableCombatScreen", "isUsableSpellForActor"].includes(name));
   }
   return new Set([
     'import { isUsableCombatScreen } from "../state/view_state.js";',
     "if (!isUsableCombatScreen(state, menuContext)) return;",
-    'if (state.combatState?.phase !== "choose_actions" || !hasUsableCombatActor(state.party)) return;'
+    'if (state.combatState?.phase !== "choose_actions" || !hasUsableCombatActor(state.party)) return;',
+    'if (state.transitioning || !isUsableCombatScreen(state, menuContext) ||',
+    '      state.combatState?.phase !== "choose_actions" || !hasCombatRoundActor(state.party)) return;',
+    'state.combatState?.phase !== "choose_actions" || !hasCombatRoundActor(state.party)) return;'
   ]).has(trimmed)
     || /^state\.combatState\?\.phase !== "choose_actions" \|\| !hasUsableCombatActor\(state\.party\)\) return;$/.test(trimmed);
 }
