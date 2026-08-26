@@ -81,7 +81,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
       { id: "recovery.combat-policy", domain: "recovery", evidence: { callLevel: ["runtimeCalls.recovery.combat-policy"] } },
       { id: "traps.chest-roll", domain: "traps", evidence: { callLevel: ["runtimeCalls.traps.chest-roll"] } },
       { id: "economy.material-bank", domain: "economy", evidence: { anyPositive: ["bankedMaterials"] } },
-      { id: "workshop.departure-craft", domain: "workshop", evidence: { anyPositive: ["departureCraftEvaluations"] } }
+      { id: "workshop.departure-craft", domain: "workshop", evidence: { anyPositive: ["departureCraftEvaluations"] } },
+      { id: "workshop.equipment-craft", domain: "workshop", evidence: { callLevel: ["runtimeCalls.workshop.enhance"], anyPositive: ["equipmentCraft.enhanceAttempts"] } }
     ]),
     // Only these domains have a declared runtime evidence path in the
     // lightweight smoke. modelDomains deliberately includes the broader
@@ -97,7 +98,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
       recovery: Object.freeze(["recovery.kill-heal", "recovery.combat-policy"]),
       traps: Object.freeze(["traps.chest-roll"]),
       economy: Object.freeze(["economy.material-bank"]),
-      workshop: Object.freeze(["workshop.departure-craft"])
+      workshop: Object.freeze(["workshop.departure-craft", "workshop.equipment-craft"])
     }),
     smoke: Object.freeze({
       modeled: Object.freeze([
@@ -105,7 +106,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
         "equipment generation and upgrade path", "chest opening and material rewards",
         "hidden-door search, revealed secret-room reward reachability, and search-step cost",
         "fromDrop chest pool and inspect/open/disarm/trap-kit/smash/leave policy outcomes",
-        "production recovery effect", "production chest-trap roll"
+        "production recovery effect", "production chest-trap roll",
+        "production enhance/polish actions with explicit standard and omitted policies"
       ]),
       omitted: Object.freeze([
         "merchant purchase policy (canonical N=1 ends before milestone floor)",
