@@ -255,8 +255,8 @@ The default standard profile is deliberately fixed:
 - scenarios `workshop-empty` and `workshop-complete`, with B5/B10/B15/B20
   target depths and the current base-class roster;
 - every scenario resets the simulator to the same seed and deterministic run
-  index sequence. `--runs` may increase N for a scheduled or decision-critical
-  measurement, but values below 500 are rejected.
+  index sequence. `--runs` may increase N for an explicitly requested,
+  decision-critical measurement, but values below 500 are rejected.
 
 Each JSON record includes a stable configuration key, seed policy, complete
 simulation environment, production baseline SHA (`origin/main`), simulator
@@ -293,11 +293,30 @@ interval is also adverse beyond the guardrail. Thus statistical uncertainty is
 reported separately from the observed difference and is not silently treated
 as a regression or as proof of no regression.
 
-Run the standard profile manually or on the scheduled workflow
-`.github/workflows/balance-measurement.yml`. The workflow uploads the JSON and
-Markdown as an artifact and never runs on pull requests. Reviewers compare a
+Run the standard profile by explicitly dispatching
+`.github/workflows/balance-measurement.yml`. It is a manual-only workflow: it
+has no `schedule`/Cron trigger and never runs on pull requests. The workflow
+uploads the JSON and Markdown as a short-lived artifact. Reviewers compare a
 baseline artifact and candidate artifact with the comparator; the PR unit
 suite continues to run only the N=1 follow-through/provenance gate.
+
+#### Operational ownership with Issue #892
+
+The following measurement functionality is already provided by this Issue #843
+engine and must not be reimplemented by Issue #892:
+
+- the `workflow_dispatch` entrypoint and invocation of the standard runner;
+- the runner's canonical configuration, statistical confidence intervals,
+  comparator, and regression decision;
+- machine-readable JSON / human-readable Markdown output and short-lived
+  GitHub Actions artifact upload.
+
+Issue #892 remains responsible for the operational record around a requested
+run: request metadata such as `purpose`, a manifest/index/history that lets a
+run be found later, long-term access to summary/provenance, and policy that an
+incomplete or failed run cannot become a valid baseline. Raw/debug data should
+remain short-lived artifacts and must not be permanently committed to the Git
+repository.
 
 ### 判定・監査・診断の二段階運用
 
