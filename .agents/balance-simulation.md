@@ -249,7 +249,9 @@ The default standard profile is deliberately fixed:
 
 - runner `standard-v1`, seed `843`, `N=500`, calibration `N=100`;
 - identification policy `powder`, conservative floor traps with EV avoidance,
-  EV flee/recovery/status-cure policy, and no departure craft;
+  EV flee/recovery policy, legacy status-cure threshold `0.35`, and the fixed
+  revalidation departure kit (`TOWN_PORTAL`, four `HEAL_POTION`, `ANTIDOTE`,
+  `GUARD_POTION`);
 - scenarios `workshop-empty` and `workshop-complete`, with B5/B10/B15/B20
   target depths and the current base-class roster;
 - every scenario resets the simulator to the same seed and deterministic run
