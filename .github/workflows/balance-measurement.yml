@@ -11,8 +11,6 @@ on:
         description: "Runs per scenario (minimum 500)"
         required: false
         default: "500"
-  schedule:
-    - cron: "17 3 * * 1"
 
 permissions:
   contents: read
@@ -23,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || 'main' }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -32,7 +30,7 @@ jobs:
       - run: npm ci
       - name: Run standard statistical measurement
         env:
-          BALANCE_SIM_RUNS: ${{ github.event_name == 'workflow_dispatch' && inputs.runs || '500' }}
+          BALANCE_SIM_RUNS: ${{ inputs.runs }}
         run: |
           mkdir -p /tmp/balance-measurement
           node scratch/measure_balance.js \
