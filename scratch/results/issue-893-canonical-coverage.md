@@ -2,10 +2,12 @@
 
 > Updated by Issue #895: milestone merchant and return-portal route coverage
 > is documented in [issue-895-milestone-merchant-route.md](issue-895-milestone-merchant-route.md).
+> Updated by Issue #896: production equipment enhance/polish actions and
+> explicit standard/omitted policies are measured in the canonical runner.
 
 ## 判定
 
-- 対象 production SHA: `a18d7bc1121df9e64290f79b1e07fa11ddc28ca5`（PR base / current `main`）
+- 対象 production SHA: `ad5cc9a595eb8a63dbe751426f0db050465fe25c`（#896 measurement baseline / `origin/main`）
 - canonical runner: `scratch/sim_depth_material_ev.js` (`sim-scope: run`); its
   milestone merchant / portal route is now covered by #895's deterministic
   probe and N=500 measurement.
@@ -98,8 +100,8 @@ Current main の status IDs は `poisoned`, `blind`, `sleep`, `paralyzed`, `sile
 | equipment generation | modeled | `generateRandomEquipment` / `generateRandomAccessory` を production module から呼び、runtime call と `equipmentFound` を記録する（`src/systems/equipment_generation.js:176-178,475-477`, `scratch/sim_depth_material_ev.js:8970-8992`）。 | — |
 | item drop / combat reward equipment | modeled | combat round victory から production reward path を通り、equipment/material/codex reward を集計する（`src/combat_logic/rewards.js:30-81`, `scratch/sim_depth_material_ev.js:11131-11169`）。 | — |
 | identify / curse / identify powder | modeled | `identifyEquipment` を実 decision path として呼び、starting/chest/codex/merchant supply と depletion を記録する（`scratch/sim_depth_material_ev.js:908-909,7261-7278,9741-9751`）。 | — |
-| equipment enhance | omitted | production `executeEnhance` は +1 と meta-material spend を実行する（`src/craft.js:120-177`）。canonical runner は `getEnhanceCost` で material competition を参照するだけで、`executeEnhance` / enhance spend は呼ばない（`scratch/sim_depth_material_ev.js:3447-3464`）。 | P1 |
-| support-affix polish | omitted | production `executePolish` / `polishSupportAffix` は support value を 1.5 倍にする（`src/craft.js:179-238`）。runner に polish action/policy/costはない。 | P1 |
+| equipment enhance | modeled for configured policy | canonical runner は production `executeEnhance` を run 終了時に呼び、identified weapon/armor/shield の +1 と実際の meta-material spend を記録する（`src/craft.js:120-177`, `scratch/sim_depth_material_ev.js` の `applyProductionEquipmentCraft`）。standard は安定した装備 slot 順で各 slot を一度試行し、`omitted` は action を行わない。 | P2 |
+| support-affix polish | modeled for configured policy | canonical runner は production `executePolish` と `polishSupportAffix` を使い、eligible support affix を power delta の大きい順に研磨して value と `魔石片×2` spend を記録する（`src/craft.js:179-238`）。standard/omitted を比較可能だが、run終了後の固定 policy であり、UI入力・装備の次 run 持越しは未再現。 | P2 |
 | consumable acquisition / selection / consumption | partially modeled | chest, combat, departure craft, merchant supply と combat item resolution はモデル化される。spring/tablet/manual tool selection、任意の inventory choice は固定 policy で、production `handleExploreAction("tool")` の UI route は通らない（`src/menu/explore_actions.js:127-153`）。 | P2 |
 | Return Wing / TOWN_PORTAL | partially modeled | production item resolution は inventory から消費して town escape（`src/combat_logic/item_resolution.js:9-24`）。sim は TOWN_PORTAL acquisition/use と source/floor/HP band を記録するが、portal cell navigation と manual selection は省略（`scratch/sim_depth_material_ev.js:7053-7083,10037-10048`）。 | P2 |
 
@@ -129,19 +131,19 @@ Current main の status IDs は `poisoned`, `blind`, `sleep`, `paralyzed`, `sile
 
 | Layer | Evidence | Status | Missing / next check |
 |---|---|---|---|
-| Definition | production symbols listed above; `simulation_manifest.js` maps balance-impact paths to domains | evidenced | New production mechanism needs explicit inventory row and manifest mapping. |
+| Definition | production symbols listed above; `simulation_manifest.js` maps balance-impact paths to domains | evidenced | #896 の enhance/polish policy と material spend は manifest の `workshop.equipment-craft` に明示した。 |
 | Caller and execution | canonical runner imports production map, encounter, combat, reward, chest rule, equipment, identification, recovery and status modules; N=1 smoke has finite output and traverses floors | evidenced for modeled rows; partially modeled for policy rows | Run targeted deterministic probes for each P1 path before using its metric. |
 | Player operation and UI | movement cell dispatch, explore action router, chest menu, merchant menu, equipment workshop menu are present in production (`src/movement.js:495-638`, `src/menu/explore_actions.js:127-153`, `src/chest.js:204-410`, `src/menu/milestone_merchant.js:78-143`, `src/equip.js:838-965`) | evidenced in production, not exercised by canonical sim | UI/input/rendering is outside balance scope; action-policy omissions are not safe for affected balance metrics. |
-| Simulation | `scratch/sim_depth_material_ev.js`, runtime counters, deterministic #895 probe, and N=500 `ISSUE895_MEASUREMENT_JSON` | milestone merchant / portal route is evidenced; enhance/polish/fromDrop/secret search remain unexercised | Follow-up runner work remains for #894/#896. |
+| Simulation | `scratch/sim_depth_material_ev.js`, runtime counters, deterministic #895/#896 probes, and N=500 `ISSUE896_MEASUREMENT_JSON` | milestone merchant / portal route and post-run enhance/polish are evidenced; fromDrop/secret search remain separately covered by #894 | #896 は standard/omitted policy、power delta、material spend、net bank EV を記録済み。 |
 | Telemetry or record | production `src/telemetry.js` and codex state exist; sim emits its own aggregate JSON and does not transport production telemetry | out of scope for analytics transport; partially modeled for in-memory reward records | Do not use production analytics absence as a balance omission; keep simulator output provenance separate. |
 
 ## #843 standard metrics impact
 
 | #843 metric family | Impacting gap | Decision |
 |---|---|---|
-| B5/B10 reach, death, retreat | merchant supply policy, Return Wing cell route, hidden/secret route, enhance/polish power | blocked for canonical baseline; combat-only counterfactuals may proceed |
-| material acquisition / banked material EV | secret-room chest pickup, `fromDrop` chest, merchant spend, workshop/enhance/polish material competition | blocked |
-| equipment/core acquisition and completion | enhance/polish, merchant/secret chest supply, manual identification/build policy | blocked |
+| B5/B10 reach, death, retreat | merchant supply policy, Return Wing cell route, hidden/secret route; #896 craft runs after the outcome and therefore does not alter same-run reach/death | blocked for canonical baseline; #896 records equipment power separately |
+| material acquisition / banked material EV | secret-room chest pickup, `fromDrop` chest, merchant spend, workshop/enhance/polish material competition | #896 spend is measured as gross banked vs net post-craft EV; overall baseline remains blocked by the other gaps |
+| equipment/core acquisition and completion | #896 enhance/polish power and spend, plus merchant/secret chest supply and manual identification/build policy | partially measured; full completion remains blocked |
 | combat rounds / damage / MP pressure | production round path is live; omitted exploration/player actions still affect long runs | ready only as a clearly scoped combat diagnostic, not as a full-game baseline |
 | status/trap rates | production paths are live for several sources, but representative rates for blind/sleep/paralyze/bleeding/silence and cure are policy/probability dependent | blocked until targeted calibration and metric scope are fixed |
 
@@ -149,8 +151,8 @@ Current main の status IDs は `poisoned`, `blind`, `sleep`, `paralyzed`, `sile
 
 The following independent Issues must be completed before #843 claims a full-game baseline:
 
-1. [#896](https://github.com/y-krn/wiz-mobile-rpg/issues/896): canonical sim の production `executeEnhance` / `executePolish` と material spend/policy を model する。
-2. [#895](https://github.com/y-krn/wiz-mobile-rpg/issues/895): **完了** — canonical sim の milestone merchant policy と merchant-cell/portal route、未選択 stock境界、uncurseを model した。
+1. [#895](https://github.com/y-krn/wiz-mobile-rpg/issues/895): **完了** — canonical sim の milestone merchant policy と merchant-cell/portal route、未選択 stock境界、uncurseを model した。
+2. [#896](https://github.com/y-krn/wiz-mobile-rpg/issues/896): **完了** — production `executeEnhance` / `executePolish`、standard/omitted policy、power delta、material spend を model した。
 3. [#894](https://github.com/y-krn/wiz-mobile-rpg/issues/894): canonical sim の secret search/secret-room reachability と `fromDrop` chest/action path を model する。
 
 ## Acceptance mapping
@@ -159,7 +161,9 @@ The following independent Issues must be completed before #843 claims a full-gam
 - [x] `modeled / partially modeled / omitted` を付与
 - [x] source path、caller、runtime evidence を記録
 - [x] safe omission と balance-impacting omission を分離
-- [x] P1 follow-up Issues — [#896](https://github.com/y-krn/wiz-mobile-rpg/issues/896), [#894](https://github.com/y-krn/wiz-mobile-rpg/issues/894); [#895](https://github.com/y-krn/wiz-mobile-rpg/issues/895) は完了
+- [x] P1 follow-up Issue — [#895](https://github.com/y-krn/wiz-mobile-rpg/issues/895) は完了
+- [x] #896 の production enhance/polish 接続、standard/omitted policy、deterministic probe、N=500 測定を記録
+- [ ] P1 follow-up Issue — [#894](https://github.com/y-krn/wiz-mobile-rpg/issues/894)
 - [x] #843 の指標ごとの影響を記録
 - [x] #843 baseline の判断を `blocked` と記録
 - [x] production behavior / balance values は変更なし
