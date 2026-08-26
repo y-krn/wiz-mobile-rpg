@@ -223,6 +223,12 @@ export const SIMULATION_MANIFEST = Object.freeze({
       marker: "// balance-impact: none",
       reason: "combat target callback context boundary only; target resolution remains unchanged"
     },
+    {
+      pattern: "src/movement.js",
+      marker: "// balance-impact: none",
+      reason: "milestone stairs presentation gate only; movement costs and facility rules remain unchanged",
+      kind: "presentation"
+    },
   ].map(declaration => Object.freeze({ ...declaration }))),
   // Exact paths whose current callers may receive telemetry-only edits. A
   // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
@@ -881,6 +887,19 @@ function isStandaloneBalanceImpactNoneDeclaration(text, declaration) {
     trimmed.startsWith(`${marker} -`);
 }
 
+const PRESENTATION_BOUNDARY_CALL = /^(?:addLog|playSound|openGuardedSubmenu)\s*\(/;
+
+function hasOnlyPresentationChanges(diff, file) {
+  if (file !== "src/movement.js" || typeof diff !== "string") return false;
+  return diff.split(/\r?\n/).filter(line =>
+    (line.startsWith("+") || line.startsWith("-")) &&
+    !line.startsWith("+++") && !line.startsWith("---")
+  ).map(line => line.slice(1).trim()).every(text =>
+    !text || text.startsWith("//") || text === "return;" ||
+    PRESENTATION_BOUNDARY_CALL.test(text)
+  );
+}
+
 const STATE_BOUNDARY_ROOTS = /\b(?:state\.(?:chestState|gameState|transitioning)|menuContext|menuHistory)\b/;
 const STATE_ROOT_ACCESS = /\bstate\.([A-Za-z_$][A-Za-z0-9_$]*)/g;
 const ALLOWED_STATE_ROOTS = new Set(["chestState", "gameState", "transitioning"]);
@@ -1284,11 +1303,15 @@ export function analyzeBalanceImpact(
     const telemetryOnlyPath = (manifest.telemetryOnlyPaths || []).some(pattern => matches(pattern, file));
     const balanceImpactNoneDiff = getBalanceImpactNoneDeclaration(diff, file, manifest);
     const declaredBoundaryDiff = getDeclaredBoundaryDiff(diff, balanceImpactNoneDiff);
-    if (balanceImpactNoneDiff && !hasOnlyStateBoundaryChanges(declaredBoundaryDiff, file)) {
+    const hasAllowedPresentationChanges = balanceImpactNoneDiff?.kind === "presentation" &&
+      hasOnlyPresentationChanges(declaredBoundaryDiff, file);
+    if (balanceImpactNoneDiff && !hasAllowedPresentationChanges &&
+        !hasOnlyStateBoundaryChanges(declaredBoundaryDiff, file)) {
       const line = getNonBoundaryStateDiffLine(declaredBoundaryDiff, file);
       errors.push(`${file}: balance-impact none declaration contains a non-boundary diff line (${JSON.stringify(line)}); use normal balance mapping`);
       continue;
-    } else if (balanceImpactNoneDiff) {
+    } else if (balanceImpactNoneDiff && (hasAllowedPresentationChanges ||
+        hasOnlyStateBoundaryChanges(declaredBoundaryDiff, file))) {
       impacts.push({ file, domains: [], balanceImpactNone: true, runtimeUnsupported: [], runtimeUnfired: [] });
       continue;
     }

@@ -506,8 +506,10 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // Stairs Down (ask before descending so corridors stay walkable)
   if (cell.type === "stairs-down") {
     if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
+      // balance-impact: none — milestone stairs presentation gate only; movement costs and facility rules remain unchanged
       addLog("階層守護者を倒すまで下り階段は封じられている。");
       playSound("bump");
+      openGuardedSubmenu("stairs_down", `${getFloorLabel(state, state.floor + 1)}への下り階段`);
       return;
     }
     openGuardedSubmenu("stairs_down", `${getFloorLabel(state, state.floor + 1)}への下り階段`);
