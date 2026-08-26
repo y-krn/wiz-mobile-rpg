@@ -83,6 +83,12 @@ export function hasUsableCombatActor(party) {
   return hasStructurallyUsableCombatParty(party) && party.some(actor => COMBAT_ACTIONABLE_STATUSES.has(actor.status));
 }
 
+// Incapacitated characters still receive a combat turn so round resolution can
+// consume their status. They are deliberately excluded from player action UI.
+export function hasCombatRoundActor(party) {
+  return hasStructurallyUsableCombatParty(party) && party.some(actor => actor.status !== "dead");
+}
+
 export function isUsableCombatState(combatState) {
   if (!isRecord(combatState) || !Array.isArray(combatState.monsters) || combatState.monsters.length === 0) {
     return false;
