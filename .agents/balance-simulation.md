@@ -236,6 +236,62 @@ redundancy 1.0xへ近づくが、RSSとのトレードオフを測定してか�
 snapshotする。同一workerのtask再利用時に後続caseの集計値が先行caseへ混入し得るため、
 scenario数・worker数だけで安全性を推測せず、raw resultとの差分で全フィールドを監査する。
 
+### Standard statistical measurement (Issue #843)
+
+The canonical follow-through smoke and the statistical measurement are separate
+operations. `scratch/measure_balance.js` is the standard measurement entrypoint;
+it calls `runCalibratedDepthSimulationTask` from
+`scratch/sim_depth_material_ev.js`, so it uses the production-backed
+`generateRunFloor` traversal, round resolution, reward/level-up path, real
+equipment scoring, and configured recovery/portal policy.
+
+The default standard profile is deliberately fixed:
+
+- runner `standard-v1`, seed `843`, `N=500`, calibration `N=100`;
+- identification policy `powder`, conservative floor traps with EV avoidance,
+  EV flee/recovery/status-cure policy, and no departure craft;
+- scenarios `workshop-empty` and `workshop-complete`, with B5/B10/B15/B20
+  target depths and the current base-class roster;
+- every scenario resets the simulator to the same seed and deterministic run
+  index sequence. `--runs` may increase N for a scheduled or decision-critical
+  measurement, but values below 500 are rejected.
+
+Each JSON record includes a stable configuration key, seed policy, complete
+simulation environment, production baseline SHA (`origin/main`), simulator
+runner SHA/path/diff hash, node version, ancestry and clean-tree checks, plus
+the modeled and omitted mechanisms. Raw JSON and optional Markdown are written
+to an explicitly supplied path; use a temporary directory or CI artifact and
+do not commit raw dumps.
+
+The report exposes Wilson 95% intervals for B5/B10/B15/B20 entrant,
+breakthrough, death, and retreat rates, and normal-approximation 95% intervals
+for per-run banked materials, material EV/time, material inflow/outflow, and
+average reached floor. Death and retreat rates use the entrants at that floor
+as their denominator; reach and breakthrough rates use all runs. This keeps
+"did not enter the floor" distinct from "entered and died there".
+
+Compare matched records with:
+
+```sh
+node scratch/compare_balance.js baseline.json candidate.json --output comparison.md
+```
+
+The comparator refuses a mismatched configuration key. Higher-is-better rates
+use a 5 percentage-point absolute guardrail; death uses the same guardrail in
+the lower direction. Banked materials/run and material EV/time use a 10%
+relative guardrail. A point estimate inside the guardrail is `pass`; an adverse
+point estimate outside it is `uncertain` while the conservative baseline-to-
+candidate interval still overlaps the guardrail, and is `fail` only when the
+interval is also adverse beyond the guardrail. Thus statistical uncertainty is
+reported separately from the observed difference and is not silently treated
+as a regression or as proof of no regression.
+
+Run the standard profile manually or on the scheduled workflow
+`.github/workflows/balance-measurement.yml`. The workflow uploads the JSON and
+Markdown as an artifact and never runs on pull requests. Reviewers compare a
+baseline artifact and candidate artifact with the comparator; the PR unit
+suite continues to run only the N=1 follow-through/provenance gate.
+
 ### 判定・監査・診断の二段階運用
 
 主状態は判定に必要な高Nで測定し、主状態以外のシナリオは `SIM_AUDIT_RUNS=500` を

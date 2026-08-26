@@ -12,6 +12,8 @@
     "test:unit:fast": "FAST=1 node scratch/run_tests.js",
     "test:unit:full": "FULL_TEST=1 node scratch/run_tests.js",
     "simulation": "node scratch/sim_depth_material_ev.js",
+    "measure:balance": "node scratch/measure_balance.js",
+    "compare:balance": "node scratch/compare_balance.js",
     "test:browser": "npm run test:browser:smoke",
     "test:browser:smoke": "node scripts/dependency-preflight.js && playwright test --grep @smoke",
     "test:browser:parallel": "node scripts/dependency-preflight.js && PLAYWRIGHT_WORKERS=2 playwright test --grep @smoke",
