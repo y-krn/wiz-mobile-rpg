@@ -2506,6 +2506,212 @@ function finalizeB5GateAggregate(aggregate) {
   };
 }
 
+const RETREAT_REASON_IDS = Object.freeze({
+  PORTAL_HP_THRESHOLD: "portal_hp_threshold",
+  HEAL_RESOURCE_DEPLETED: "no_heal_potion",
+  STATUS_RESOURCE: "status_resource",
+  EXPLICIT_RETREAT: "explicit_retreat",
+  TARGET_DEPTH: "target_depth",
+  OTHER: "other"
+});
+
+const DEATH_CAUSE_IDS = Object.freeze({
+  NORMAL_ENEMY: "normal_enemy",
+  ELITE: "elite",
+  GUARDIAN: "guardian",
+  BOSS: "boss",
+  POISON_STATUS_TICK: "poison_status_tick",
+  TRAP_HAZARD: "trap_hazard",
+  OTHER: "other"
+});
+
+function classifyRetreatReason({
+  outcome,
+  terminationReason,
+  portalUseEvent,
+  endingHpRate,
+  recoveryPotionsRemaining,
+  statusAtEnd,
+  cureItemsRemaining
+} = {}) {
+  if (outcome !== "retreat") return { primary: null, signals: [] };
+  const signals = [];
+  if (
+    portalUseEvent &&
+    Number(portalUseEvent.hpRate) <= PORTAL_HP_THRESHOLD
+  ) {
+    signals.push(RETREAT_REASON_IDS.PORTAL_HP_THRESHOLD);
+  }
+  if (
+    Number(recoveryPotionsRemaining) <= PORTAL_MAX_HEAL_POTIONS &&
+    Number(endingHpRate) <= PORTAL_HP_THRESHOLD
+  ) {
+    signals.push(RETREAT_REASON_IDS.HEAL_RESOURCE_DEPLETED);
+  }
+  if (
+    statusAtEnd &&
+    !["ok", "dead"].includes(statusAtEnd) &&
+    Number(cureItemsRemaining) <= 0
+  ) {
+    signals.push(RETREAT_REASON_IDS.STATUS_RESOURCE);
+  }
+  if (["milestone_portal", "milestone-retreat", "milestone-boss-blocked"].includes(terminationReason)) {
+    signals.push(RETREAT_REASON_IDS.EXPLICIT_RETREAT);
+  }
+  if (terminationReason === "target-depth") {
+    signals.push(RETREAT_REASON_IDS.TARGET_DEPTH);
+  }
+  const primary = signals.includes(RETREAT_REASON_IDS.PORTAL_HP_THRESHOLD)
+    ? RETREAT_REASON_IDS.PORTAL_HP_THRESHOLD
+    : signals.includes(RETREAT_REASON_IDS.EXPLICIT_RETREAT)
+      ? RETREAT_REASON_IDS.EXPLICIT_RETREAT
+      : signals.includes(RETREAT_REASON_IDS.TARGET_DEPTH)
+        ? RETREAT_REASON_IDS.TARGET_DEPTH
+        : signals.includes(RETREAT_REASON_IDS.STATUS_RESOURCE)
+          ? RETREAT_REASON_IDS.STATUS_RESOURCE
+          : signals.includes(RETREAT_REASON_IDS.HEAL_RESOURCE_DEPLETED)
+            ? RETREAT_REASON_IDS.HEAL_RESOURCE_DEPLETED
+            : RETREAT_REASON_IDS.OTHER;
+  return { primary, signals: [...new Set(signals)] };
+}
+
+function classifyDeathCause({ outcome, deathEncounterType, deathLog } = {}) {
+  if (outcome !== "death") return null;
+  const type = deathLog?.type || "";
+  if (
+    deathEncounterType === "poison" ||
+    type === "status" ||
+    /毒/.test(String(deathLog?.cause || ""))
+  ) return DEATH_CAUSE_IDS.POISON_STATUS_TICK;
+  if (
+    type === "trap" ||
+    ["floor-trap", "flame-trap", "chest-trap", "secret-room-chest-trap", "from-drop-chest-trap"]
+      .includes(deathEncounterType)
+  ) return DEATH_CAUSE_IDS.TRAP_HAZARD;
+  if (deathEncounterType === "boss") return DEATH_CAUSE_IDS.BOSS;
+  if (deathEncounterType === "midboss") return DEATH_CAUSE_IDS.GUARDIAN;
+  if (deathEncounterType === "elite") return DEATH_CAUSE_IDS.ELITE;
+  if (deathEncounterType === "normal" || type === "combat") return DEATH_CAUSE_IDS.NORMAL_ENEMY;
+  return DEATH_CAUSE_IDS.OTHER;
+}
+
+function createRunDiagnosticsBucket() {
+  return {
+    runs: 0,
+    outcomes: {},
+    retreatReasons: {},
+    deathCauses: {},
+    endingHpRate: [],
+    endingMpRate: [],
+    healPotionsRemaining: [],
+    greaterHealPotionsRemaining: [],
+    recoveryPotionsRemaining: [],
+    cureItemsRemaining: [],
+    fleeAttempts: [],
+    statusAtEnd: {},
+    lastEnemyId: {},
+    lastEnemyCategory: {}
+  };
+}
+
+function createRunDiagnosticsAggregate() {
+  return {
+    runs: 0,
+    endFloorDistribution: {},
+    outcomeDistribution: {},
+    retreatReasonDistribution: {},
+    retreatReasonSignalDistribution: {},
+    deathCauseDistribution: {},
+    byEndFloor: {},
+    byRetreatReason: {},
+    byDeathCause: {}
+  };
+}
+
+function incrementDiagnosticCount(bucket, key, amount = 1) {
+  if (!key) return;
+  bucket[key] = (bucket[key] || 0) + amount;
+}
+
+function addRunDiagnosticsBucket(bucket, diagnostics) {
+  bucket.runs++;
+  incrementDiagnosticCount(bucket.outcomes, diagnostics.outcome);
+  incrementDiagnosticCount(bucket.retreatReasons, diagnostics.retreatReason);
+  incrementDiagnosticCount(bucket.deathCauses, diagnostics.deathCauseCategory);
+  bucket.endingHpRate.push(diagnostics.endingHpRate);
+  bucket.endingMpRate.push(diagnostics.endingMpRate);
+  bucket.healPotionsRemaining.push(diagnostics.healPotionsRemaining);
+  bucket.greaterHealPotionsRemaining.push(diagnostics.greaterHealPotionsRemaining);
+  bucket.recoveryPotionsRemaining.push(diagnostics.recoveryPotionsRemaining);
+  bucket.cureItemsRemaining.push(diagnostics.cureItemsRemaining);
+  bucket.fleeAttempts.push(diagnostics.fleeAttempts);
+  incrementDiagnosticCount(bucket.statusAtEnd, diagnostics.statusAtEnd);
+  incrementDiagnosticCount(bucket.lastEnemyId, diagnostics.lastEnemyId);
+  incrementDiagnosticCount(bucket.lastEnemyCategory, diagnostics.lastEnemyCategory);
+}
+
+function addRunDiagnosticsAggregate(target, diagnostics) {
+  if (!diagnostics) return;
+  target.runs++;
+  incrementDiagnosticCount(target.endFloorDistribution, diagnostics.endFloor);
+  incrementDiagnosticCount(target.outcomeDistribution, diagnostics.outcome);
+  incrementDiagnosticCount(target.retreatReasonDistribution, diagnostics.retreatReason);
+  (diagnostics.retreatReasonSignals || []).forEach(reason => {
+    incrementDiagnosticCount(target.retreatReasonSignalDistribution, reason);
+  });
+  incrementDiagnosticCount(target.deathCauseDistribution, diagnostics.deathCauseCategory);
+
+  const endFloor = String(diagnostics.endFloor);
+  target.byEndFloor[endFloor] ||= createRunDiagnosticsBucket();
+  addRunDiagnosticsBucket(target.byEndFloor[endFloor], diagnostics);
+  if (diagnostics.outcome === "retreat") {
+    const reason = diagnostics.retreatReason || RETREAT_REASON_IDS.OTHER;
+    target.byRetreatReason[reason] ||= createRunDiagnosticsBucket();
+    addRunDiagnosticsBucket(target.byRetreatReason[reason], diagnostics);
+  }
+  if (diagnostics.outcome === "death") {
+    const cause = diagnostics.deathCauseCategory || DEATH_CAUSE_IDS.OTHER;
+    target.byDeathCause[cause] ||= createRunDiagnosticsBucket();
+    addRunDiagnosticsBucket(target.byDeathCause[cause], diagnostics);
+  }
+}
+
+function finalizeRunDiagnosticsBucket(bucket) {
+  return {
+    runs: bucket.runs,
+    outcomes: { ...bucket.outcomes },
+    retreatReasons: { ...bucket.retreatReasons },
+    deathCauses: { ...bucket.deathCauses },
+    endingHpRate: summarizeDistribution(bucket.endingHpRate),
+    endingMpRate: summarizeDistribution(bucket.endingMpRate),
+    healPotionsRemaining: summarizeDistribution(bucket.healPotionsRemaining),
+    greaterHealPotionsRemaining: summarizeDistribution(bucket.greaterHealPotionsRemaining),
+    recoveryPotionsRemaining: summarizeDistribution(bucket.recoveryPotionsRemaining),
+    cureItemsRemaining: summarizeDistribution(bucket.cureItemsRemaining),
+    fleeAttempts: summarizeDistribution(bucket.fleeAttempts),
+    statusAtEnd: { ...bucket.statusAtEnd },
+    lastEnemyId: { ...bucket.lastEnemyId },
+    lastEnemyCategory: { ...bucket.lastEnemyCategory }
+  };
+}
+
+function finalizeRunDiagnosticsAggregate(aggregate) {
+  const finalizeBuckets = buckets => Object.fromEntries(
+    Object.entries(buckets).map(([key, bucket]) => [key, finalizeRunDiagnosticsBucket(bucket)])
+  );
+  return {
+    runs: aggregate.runs,
+    endFloorDistribution: { ...aggregate.endFloorDistribution },
+    outcomeDistribution: { ...aggregate.outcomeDistribution },
+    retreatReasonDistribution: { ...aggregate.retreatReasonDistribution },
+    retreatReasonSignalDistribution: { ...aggregate.retreatReasonSignalDistribution },
+    deathCauseDistribution: { ...aggregate.deathCauseDistribution },
+    byEndFloor: finalizeBuckets(aggregate.byEndFloor),
+    byRetreatReason: finalizeBuckets(aggregate.byRetreatReason),
+    byDeathCause: finalizeBuckets(aggregate.byDeathCause)
+  };
+}
+
 function createOutcomeAggregate() {
   return {
     runs: 0,
@@ -2526,7 +2732,8 @@ function createOutcomeAggregate() {
     evRecoveryActions: 0,
     runsWithEvFlee: 0,
     runsWithEvRecovery: 0,
-    endResourceByReason: {}
+    endResourceByReason: {},
+    runDiagnostics: createRunDiagnosticsAggregate()
   };
 }
 
@@ -2547,6 +2754,7 @@ function addOutcomeAggregate(target, result) {
   target.evRecoveryActions += result.evRecoveryActions || 0;
   target.runsWithEvFlee += Number((result.evFleeActions || 0) > 0);
   target.runsWithEvRecovery += Number((result.evRecoveryActions || 0) > 0);
+  addRunDiagnosticsAggregate(target.runDiagnostics, result.runDiagnostics);
   const reasonResources = target.endResourceByReason[result.terminationReason] ||= {
     runs: 0,
     finalHp: [],
@@ -2604,7 +2812,8 @@ function finalizeOutcomeAggregate(aggregate) {
           finalMpRate: summarizeDistribution(values.finalMpRate)
         }
       ])
-    )
+    ),
+    runDiagnostics: finalizeRunDiagnosticsAggregate(aggregate.runDiagnostics)
   };
 }
 
@@ -6550,24 +6759,29 @@ function runEncounter(
       }
       diagnostics.encounters.push(encounterDiagnostic);
     }
-    if (result === "death" && metrics && !metrics.deathSnapshot) {
+    if (result === "death" && metrics) {
       const deathLog = state.currentRun?.deathLogs?.at(-1) || null;
-      metrics.deathSnapshot = {
-        source: encounterType,
-        floor: state.floor,
-        round: telemetry.lastRound,
-        cause: deathLog?.cause || null,
-        hpBefore: telemetry.lastRoundHpBefore,
-        hpAfter: telemetry.lastRoundHpAfter,
-        maxHp: telemetry.lastRoundMaxHp || telemetry.playerMaxHp,
-        damage: telemetry.lastIncomingDamage,
-        hits: telemetry.lastIncomingHits,
-        damageMaxHpRate: telemetry.lastIncomingDamage > 0
-          ? telemetry.lastIncomingDamage / Math.max(1, telemetry.lastRoundMaxHp || telemetry.playerMaxHp)
-          : null,
-        killHealActivationsBeforeDeath: metrics.killHeal.killHealActivations,
-        ...createDeathStateSnapshot(state, metrics.scoringProfile)
-      };
+      const terminalEnemy = state.combatState.monsters.find(monster => monster.hp > 0);
+      metrics.lastEnemyId = deathLog?.source || terminalEnemy?.name || null;
+      metrics.lastEnemyCategory = encounterType;
+      if (!metrics.deathSnapshot) {
+        metrics.deathSnapshot = {
+          source: encounterType,
+          floor: state.floor,
+          round: telemetry.lastRound,
+          cause: deathLog?.cause || null,
+          hpBefore: telemetry.lastRoundHpBefore,
+          hpAfter: telemetry.lastRoundHpAfter,
+          maxHp: telemetry.lastRoundMaxHp || telemetry.playerMaxHp,
+          damage: telemetry.lastIncomingDamage,
+          hits: telemetry.lastIncomingHits,
+          damageMaxHpRate: telemetry.lastIncomingDamage > 0
+            ? telemetry.lastIncomingDamage / Math.max(1, telemetry.lastRoundMaxHp || telemetry.playerMaxHp)
+            : null,
+          killHealActivationsBeforeDeath: metrics.killHeal.killHealActivations,
+          ...createDeathStateSnapshot(state, metrics.scoringProfile)
+        };
+      }
     }
     recordCombatMpEncounter(
       metrics,
@@ -7302,6 +7516,9 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
   const portalIndex = state.inventory.indexOf("TOWN_PORTAL");
   state.inventory.splice(portalIndex, 1);
   const source = state.simPortalSources.shift() || "unknown";
+  const recoveryPotions = state.inventory.filter(item =>
+    item === "HEAL_POTION" || item === "GREATER_HEAL"
+  ).length;
   recordConsumableConsumption(metrics, "TOWN_PORTAL");
   metrics.townPortalsUsed++;
   metrics.portalUsesBySource[source] = (metrics.portalUsesBySource[source] || 0) + 1;
@@ -7309,9 +7526,13 @@ function useTownPortalIfNeeded(state, scenario, metrics, situation) {
     floor: state.floor,
     situation,
     source,
+    reason: "portal_hp_threshold",
+    hpThreshold: PORTAL_HP_THRESHOLD,
+    maxHealPotions: PORTAL_MAX_HEAL_POTIONS,
     hpRate: character.hp / Math.max(1, getCharMaxHp(character)),
     healPotions: state.inventory.filter(item => item === "HEAL_POTION").length,
     greaterHealPotions: state.inventory.filter(item => item === "GREATER_HEAL").length,
+    recoveryPotions,
     carriedMaterials: totalMaterials(state.currentRun.materials)
   });
   return true;
@@ -10299,6 +10520,52 @@ function totalMaterials(materials) {
   return Object.values(materials).reduce((sum, quantity) => sum + quantity, 0);
 }
 
+function createRunDiagnosticsRecord(state, outcome, metrics, terminationReason) {
+  const character = state.party[0];
+  const deathLog = state.currentRun?.deathLogs?.at(-1) || null;
+  const endingHpRate = character.hp / Math.max(1, getCharMaxHp(character));
+  const endingMpRate = character.mp / Math.max(1, getCharMaxMp(character));
+  const healPotionsRemaining = state.inventory.filter(item => item === "HEAL_POTION").length;
+  const greaterHealPotionsRemaining = state.inventory.filter(item => item === "GREATER_HEAL").length;
+  const recoveryPotionsRemaining = healPotionsRemaining + greaterHealPotionsRemaining;
+  const cureItemCountsRemaining = countInventoryItems(state.inventory);
+  const cureItemsRemaining = Object.values(cureItemCountsRemaining)
+    .reduce((sum, count) => sum + count, 0);
+  const retreat = classifyRetreatReason({
+    outcome,
+    terminationReason,
+    portalUseEvent: metrics.portalUseEvents.at(-1),
+    endingHpRate,
+    recoveryPotionsRemaining,
+    statusAtEnd: character.status,
+    cureItemsRemaining
+  });
+  return {
+    outcome,
+    endFloor: state.floor,
+    terminationReason,
+    retreatReason: retreat.primary,
+    retreatReasonSignals: retreat.signals,
+    deathCause: outcome === "death" ? deathLog?.cause || null : null,
+    deathCauseCategory: classifyDeathCause({
+      outcome,
+      deathEncounterType: metrics.deathEncounterType,
+      deathLog
+    }),
+    endingHpRate,
+    endingMpRate,
+    healPotionsRemaining,
+    greaterHealPotionsRemaining,
+    recoveryPotionsRemaining,
+    cureItemsRemaining,
+    cureItemCountsRemaining,
+    fleeAttempts: metrics.fleeCount,
+    statusAtEnd: character.status,
+    lastEnemyId: metrics.lastEnemyId || null,
+    lastEnemyCategory: metrics.lastEnemyCategory || null
+  };
+}
+
 function finishRun(state, outcome, metrics, terminationReason = null) {
   if (metrics.b5FloorActive) {
     recordB5HpSnapshot(state, metrics, metrics.b5LastStep);
@@ -10453,6 +10720,12 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
   const finalCoreId = finalCoreIds[0] || null;
   const resolvedTerminationReason = terminationReason ||
     (outcome === "death" ? "death" : "retreat");
+  const runDiagnostics = createRunDiagnosticsRecord(
+    state,
+    outcome,
+    metrics,
+    resolvedTerminationReason
+  );
   const mpDepletionCausedEnd = Boolean(
     outcome === "death" && metrics.mpBlockedTerminalEncounter
   );
@@ -10859,6 +11132,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     merchantUncurseFailures: { ...metrics.merchantUncurseFailures },
     outcome,
     terminationReason: resolvedTerminationReason,
+    runDiagnostics,
     finalHp: state.party[0].hp,
     finalMaxHp: getCharMaxHp(state.party[0]),
     finalHpRate: state.party[0].hp / Math.max(1, getCharMaxHp(state.party[0])),
@@ -11410,6 +11684,8 @@ export function simulateRun({
     specialRouteFloors: [],
     specialBattles: [],
     deathEncounterType: null,
+    lastEnemyId: null,
+    lastEnemyCategory: null,
     dragonKeysAcquired: 0,
     dragonKeyUses: 0,
     normalCombatTelemetry: {
@@ -12508,6 +12784,7 @@ function simulateCase({
     outcomesByClass: Object.fromEntries(
       SIM_CLASSES.map(className => [className, createOutcomeAggregate()])
     ),
+    runDiagnostics: createRunDiagnosticsAggregate(),
     damageEstimateAudit: SIM_737_DAMAGE_AUDIT_ENABLED
       ? createDamageEstimateAggregate()
       : null,
@@ -12630,6 +12907,7 @@ function simulateCase({
     totals.lightActiveSteps += result.lightActiveSteps;
     totals.masfealActiveSteps += result.masfealActiveSteps;
     addOutcomeAggregate(totals.outcomesByClass[className], result);
+    addRunDiagnosticsAggregate(totals.runDiagnostics, result.runDiagnostics);
     addStatusObservationAggregate(totals.statusObservations, result);
     Object.entries(result.merchantStock || {}).forEach(([stockId, source]) => {
       const target = merchantStockByClass[className][stockId] ||= {
@@ -13307,6 +13585,7 @@ function simulateCase({
         finalizeOutcomeAggregate(aggregate)
       ])
     ),
+    runDiagnostics: finalizeRunDiagnosticsAggregate(totals.runDiagnostics),
     hitEvasionByClass: Object.fromEntries(
       Object.entries(classHitEvasionTotals).map(([className, totalsByFloor]) => [
         className,
@@ -13514,6 +13793,13 @@ export {
   REFERENCE_SCENARIOS,
   SIM_CLASSES,
   IDENTIFICATION_BALANCE,
+  RETREAT_REASON_IDS,
+  DEATH_CAUSE_IDS,
+  classifyRetreatReason,
+  classifyDeathCause,
+  createRunDiagnosticsAggregate,
+  addRunDiagnosticsAggregate,
+  finalizeRunDiagnosticsAggregate,
   createDamageEstimateAuditMetrics,
   recordDamageEstimatePhysicalHits
 };
