@@ -268,7 +268,9 @@ breakthrough, death, and retreat rates, and normal-approximation 95% intervals
 for per-run banked materials, material EV/time, material inflow/outflow, and
 average reached floor. Death and retreat rates use the entrants at that floor
 as their denominator; reach and breakthrough rates use all runs. This keeps
-"did not enter the floor" distinct from "entered and died there".
+"did not enter the floor" distinct from "entered and died there". A zero
+entrant denominator is emitted as `unobserved`, never as a measured zero, and
+makes the overall comparison `uncertain` rather than silently passing.
 
 Compare matched records with:
 

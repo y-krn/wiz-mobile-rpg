@@ -173,19 +173,19 @@ function parseMeanInterval(value, name) {
   };
 }
 
-function depthMetrics(result, depth) {
-  const entrants = result.entrantsByFloor?.[depth] || 0;
-  const runs = result.runs;
+function depthMetrics(outcomeResult, resourceResult, depth) {
+  const entrants = outcomeResult.entrantsByFloor?.[depth] || 0;
+  const runs = outcomeResult.runs;
   return {
     reachedRate: rateMetric(entrants, runs),
-    breakthroughRate: rateMetric(result.breakthroughsByFloor?.[depth] || 0, runs),
-    deathRate: rateMetric(result.deathsByFloor?.[depth] || 0, entrants),
-    retreatRate: rateMetric(result.retreatsByFloor?.[depth] || 0, entrants),
-    bankedMaterialsPerRun: parseMeanInterval(result.mean95CI.bankedMaterialEv, "bankedMaterialsPerRun"),
-    materialEvPerTime: parseMeanInterval(result.mean95CI.materialEvPerTime, "materialEvPerTime"),
-    materialAcquiredPerRun: parseMeanInterval(result.mean95CI.materialAcquired, "materialAcquiredPerRun"),
-    materialConsumedPerRun: parseMeanInterval(result.mean95CI.materialConsumed, "materialConsumedPerRun"),
-    averageReachedFloor: parseMeanInterval(result.mean95CI.reachedFloor, "averageReachedFloor")
+    breakthroughRate: rateMetric(outcomeResult.breakthroughsByFloor?.[depth] || 0, runs),
+    deathRate: rateMetric(outcomeResult.deathsByFloor?.[depth] || 0, entrants),
+    retreatRate: rateMetric(outcomeResult.retreatsByFloor?.[depth] || 0, entrants),
+    bankedMaterialsPerRun: parseMeanInterval(resourceResult.mean95CI.bankedMaterialEv, "bankedMaterialsPerRun"),
+    materialEvPerTime: parseMeanInterval(resourceResult.mean95CI.materialEvPerTime, "materialEvPerTime"),
+    materialAcquiredPerRun: parseMeanInterval(resourceResult.mean95CI.materialAcquired, "materialAcquiredPerRun"),
+    materialConsumedPerRun: parseMeanInterval(resourceResult.mean95CI.materialConsumed, "materialConsumedPerRun"),
+    averageReachedFloor: parseMeanInterval(resourceResult.mean95CI.reachedFloor, "averageReachedFloor")
   };
 }
 
@@ -193,17 +193,24 @@ export function summarizeSimulationResults({ config, provenance, scenarioResults
   const cases = scenarioResults.map(({ scenarioId, results }) => ({
     scenarioId,
     targetDepths: results.map(result => result.targetDepth),
-    depths: results.map(result => ({
-      depth: result.targetDepth,
-      runs: result.runs,
-      metrics: depthMetrics(result, result.targetDepth),
-      outcomeCounts: result.outcomeCounts,
-      averageTimeCost: result.averageTimeCost,
-      averageMaterialAcquired: result.averageMaterialAcquired,
-      averageMaterialConsumed: result.averageMaterialConsumed,
-      bankedMaterialEv: result.bankedMaterialEv,
-      materialEvPerTime: result.materialEvPerTime
-    }))
+    depths: config.targetDepths.map(depth => {
+      const resourceResult = results.find(result => result.targetDepth === depth);
+      const outcomeResult = results.find(result => result.targetDepth === Math.max(...config.targetDepths));
+      if (!resourceResult || !outcomeResult) {
+        throw new Error(`canonical simulator omitted standard depth result: ${scenarioId}/B${depth}`);
+      }
+      return {
+        depth,
+        runs: resourceResult.runs,
+        metrics: depthMetrics(outcomeResult, resourceResult, depth),
+        outcomeCounts: resourceResult.outcomeCounts,
+        averageTimeCost: resourceResult.averageTimeCost,
+        averageMaterialAcquired: resourceResult.averageMaterialAcquired,
+        averageMaterialConsumed: resourceResult.averageMaterialConsumed,
+        bankedMaterialEv: resourceResult.bankedMaterialEv,
+        materialEvPerTime: resourceResult.materialEvPerTime
+      };
+    })
   }));
   const measurement = {
     schemaVersion: BALANCE_MEASUREMENT_SCHEMA_VERSION,
@@ -249,6 +256,12 @@ function toleranceFor(rule, baselineEstimate) {
 }
 
 function evaluateMetric(baseline, candidate, rule) {
+  if (!Number.isFinite(baseline.estimate) || !Number.isFinite(candidate.estimate)) {
+    return {
+      status: "unobserved",
+      reason: "metric has no observed denominator in one report"
+    };
+  }
   const delta = candidate.estimate - baseline.estimate;
   const differenceCi95 = compareIntervals(baseline, candidate);
   const adverseDelta = rule.direction === "higher" ? -delta : delta;
@@ -309,7 +322,7 @@ export function compareBalanceMeasurements(baseline, candidate) {
   });
   const status = metrics.some(metric => metric.status === "fail")
     ? "fail"
-    : metrics.some(metric => metric.status === "uncertain")
+    : metrics.some(metric => ["uncertain", "unobserved"].includes(metric.status))
       ? "uncertain"
       : "pass";
   return {

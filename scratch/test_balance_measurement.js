@@ -60,6 +60,12 @@ const fail = compareBalanceMeasurements(report(), report({ breakthrough: 0.20 })
 assert.equal(fail.status, "fail");
 assert.equal(fail.metrics.find(metric => metric.key.endsWith("breakthroughRate")).status, "fail");
 
+const unobserved = report();
+unobserved.cases[0].depths[0].metrics.deathRate = rateMetric(0, 0);
+const unobservedComparison = compareBalanceMeasurements(report(), unobserved);
+assert.equal(unobservedComparison.status, "uncertain");
+assert.equal(unobservedComparison.metrics.find(metric => metric.key.endsWith("deathRate")).status, "unobserved");
+
 assert.equal(REGRESSION_RULES.deathRate.direction, "lower");
 assert.throws(
   () => compareBalanceMeasurements(report(), { ...report(), measurement: { ...report().measurement, comparisonKey: "different" } }),
