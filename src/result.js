@@ -1,4 +1,4 @@
-import { state, saveGame, saveAutosave, finalizeRunRecords, recordCharDeath, normalizeDeathSource } from "./state.js";
+import { state, saveGame, saveAutosave, finalizeRunRecords, recordCharDeath, normalizeDeathSource, HISTORY_LIMIT } from "./state.js";
 import { START_X, START_Y, DIR_N, getPartyMaxAffix } from "./data.js";
 import { updateUI } from "./ui.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
@@ -20,8 +20,22 @@ export function triggerRunResult(reason) {
   const isDeathLike = outcome === "death" || outcome === "abandon";
   run.returnReason = reason;
   run.outcome = outcome;
+  if (isDeath && !run.deathLogs?.at(-1)) {
+    const activeEnemy = state.combatState?.monsters?.find(monster => monster.hp > 0);
+    if (activeEnemy && state.party[0]) {
+      recordCharDeath(
+        state,
+        state.party[0],
+        `${activeEnemy.name.replace(/\\s[A-Z]$/, "")}との戦闘`,
+        { type: "combat", source: activeEnemy.name }
+      );
+    }
+  }
   updateRunQuests(run, getPartyMaxAffix(state.party, "contractReward"));
   run.materialsBeforeBanking = { ...(run.materials || {}) };
+  run.goldEarned = Number(run.goldEarned ?? run.gold) || 0;
+  run.lootCount = Number(run.lootCount) || Object.values(run.materialsBeforeBanking)
+    .reduce((sum, quantity) => sum + (Number(quantity) || 0), 0);
   const banking = bankRunMaterials(
     state.metaMaterials,
     run.materials,
@@ -56,18 +70,6 @@ export function triggerRunResult(reason) {
     });
 
     let latestDeath = run.deathLogs?.at(-1);
-    if (!latestDeath) {
-      const activeEnemy = state.combatState?.monsters?.find(monster => monster.hp > 0);
-      if (activeEnemy && state.party[0]) {
-        recordCharDeath(
-          state,
-          state.party[0],
-          `${activeEnemy.name.replace(/\\s[A-Z]$/, "")}との戦闘`,
-          { type: "combat", source: activeEnemy.name }
-        );
-        latestDeath = run.deathLogs?.at(-1);
-      }
-    }
     const cause = latestDeath?.cause || "原因未記録";
 
     run.wipedFloor = state.floor;
@@ -123,20 +125,34 @@ export function triggerRunResult(reason) {
   const runSummary = {
     id: `run_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     endedAt: Date.now(),
+    runNumber: recordResult.runNumber,
+    className: run.characterClass || state.party[0]?.class || null,
     result: isSuccess ? "returned" : "failed",
     deepestFloor: run.deepestFloor,
     kills: run.kills,
     chestsOpened: run.chestsOpened,
+    goldEarned: run.goldEarned || run.gold || 0,
+    lootCount: run.lootCount || Object.values(run.materialsBeforeBanking || {})
+      .reduce((sum, quantity) => sum + (Number(quantity) || 0), 0),
     dangerRank: danger.rank,
     bankedMaterials: banking.banked,
     lostUnidentifiedCount: isDeathLike ? run.equipmentFound.length : 0,
     itemCount: run.itemsFound.length + run.equipmentFound.length,
     returnReason: reason,
     outcome,
+    milestones: recordResult.milestones,
+    recordUpdates: recordResult.updates,
+    deathCause: run.deathLogs?.at(-1)?.type && run.deathLogs?.at(-1)?.source
+      ? {
+        floor: run.deathLogs.at(-1).floor,
+        type: run.deathLogs.at(-1).type,
+        source: normalizeDeathSource(run.deathLogs.at(-1).source)
+      }
+      : null
   };
   state.runHistory ||= [];
   state.runHistory.unshift(runSummary);
-  state.runHistory = state.runHistory.slice(0, 20);
+  state.runHistory = state.runHistory.slice(0, HISTORY_LIMIT);
 
   const start = findMapCellByType(state.maps?.[0], "stairs-up") || { x: START_X, y: START_Y };
   state.x = start.x;

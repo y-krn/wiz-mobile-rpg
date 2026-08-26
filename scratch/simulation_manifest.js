@@ -182,6 +182,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/game.js", "src/main.js", "src/navigation.js", "src/menu.js", "src/menu/**", "src/renderer.js", "src/rules/map_movement.js", "src/state.js", "src/state/view_state.js",
     "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js", "src/state/save_migrations.js", "src/state/save_payload.js",
     "src/error_context.js", "src/controls_guard.js", "src/state/codex_state.js",
+    "src/state/initial_state.js", "src/state/records_state.js", "src/result.js",
     "src/runtime_diagnostics.js", "src/telemetry.js"
   ]),
   // A one-off no-impact declaration is recognized only when its marker is
@@ -232,7 +233,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // Codex observations share combat entry/resolution paths with the
     // existing telemetry anchors but do not change combat formulas.
     "src/combat_ui/combat_start.js",
-    "src/combat_logic/round.js"
+    "src/combat_logic/round.js",
+    "src/result.js"
   ])
 });
 

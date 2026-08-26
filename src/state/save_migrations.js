@@ -264,6 +264,29 @@ function normalizeRunOutcome(run) {
 function normalizeRunHistoryEntry(entry) {
   if (!isRecord(entry)) return null;
   const normalized = normalizeRunOutcome(entry);
+  if ([
+    "runNumber", "className", "kills", "chestsOpened", "goldEarned", "lootCount",
+    "milestones", "recordUpdates", "deathCause"
+  ].some(key => Object.hasOwn(entry, key))) {
+    normalized.runNumber = Math.max(0, integerOr(entry.runNumber, 0));
+    normalized.className = typeof entry.className === "string"
+      ? entry.className
+      : typeof entry.class === "string" ? entry.class : null;
+    normalized.kills = Math.max(0, integerOr(entry.kills, 0));
+    normalized.chestsOpened = Math.max(0, integerOr(entry.chestsOpened, 0));
+    normalized.goldEarned = Math.max(0, integerOr(entry.goldEarned, 0));
+    normalized.lootCount = Math.max(0, integerOr(entry.lootCount, 0));
+    normalized.milestones = arrayOr(entry.milestones).filter(milestone => typeof milestone === "string");
+    normalized.recordUpdates = arrayOr(entry.recordUpdates).filter(update => typeof update === "string");
+    normalized.deathCause = entry.deathCause && isRecord(entry.deathCause)
+      ? {
+        floor: Math.max(1, integerOr(entry.deathCause.floor, 1)),
+        type: typeof entry.deathCause.type === "string" ? entry.deathCause.type : "",
+        source: typeof entry.deathCause.source === "string" ? entry.deathCause.source : "",
+        label: typeof entry.deathCause.label === "string" ? entry.deathCause.label : ""
+      }
+      : null;
+  }
   if (Object.hasOwn(normalized, "bankedMaterials") && !isRecord(normalized.bankedMaterials)) {
     normalized.bankedMaterials = {};
   }
@@ -536,7 +559,7 @@ export function normalizeSavePayload(data) {
     .filter(floor => Number.isInteger(floor) && floor > 0 && floor % 5 === 0)
     .sort((a, b) => a - b);
   normalized.runHistory = Array.isArray(data.runHistory)
-    ? data.runHistory.map(normalizeRunHistoryEntry).filter(isRecord)
+    ? data.runHistory.map(normalizeRunHistoryEntry).filter(isRecord).slice(0, 20)
     : [];
   normalized.deathLogs = arrayOr(data.deathLogs)
     .map(normalizeDeathLogEntry)

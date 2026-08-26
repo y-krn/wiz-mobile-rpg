@@ -25,7 +25,8 @@ export {
 export {
   createDefaultRecords,
   normalizeRecords,
-  finalizeRunRecords
+  finalizeRunRecords,
+  HISTORY_LIMIT
 } from "./state/records_state.js";
 
 export {

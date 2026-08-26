@@ -3,6 +3,7 @@ import { playSound } from "../audio.js";
 import { openArchivesOverlay, updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu } from "../navigation.js";
 import { getClassJpName, getItemBaseId } from "../data.js";
+import { getAdventureRecordsHtml } from "../ui/adventure_history.js";
 
 function isDebugMode() {
   return import.meta.env.DEV || new URLSearchParams(location.search).has("debug");
@@ -29,6 +30,11 @@ export function renderCastleMain(optGrid) {
   optGrid.innerHTML = "";
   const records = state.records || { deepestRetreat: 0, deepestDeath: 0, deepestByClass: {}, totalRuns: 0 };
   const abandonCount = Array.isArray(state.runHistory) ? state.runHistory.filter(isAbandonRun).length : 0;
+
+  const adventureRecords = document.createElement("div");
+  adventureRecords.innerHTML = getAdventureRecordsHtml(state);
+  optGrid.appendChild(adventureRecords.firstElementChild);
+
   const summary = document.createElement("div");
   summary.className = "records-menu-summary";
   summary.innerHTML = `
@@ -45,6 +51,7 @@ export function renderCastleMain(optGrid) {
     ? entries.map(([className, floor]) => `${getClassJpName(className)} B${floor}F`).join(" / ")
     : "クラス別記録なし";
   optGrid.appendChild(classRecords);
+
   const hasCrystal = state.inventory.some(item => getItemBaseId(item) === "ANTIGRAVITY_CRYSTAL");
   if (hasCrystal) {
     const button = document.createElement("button");
