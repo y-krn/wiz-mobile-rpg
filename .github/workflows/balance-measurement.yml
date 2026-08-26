@@ -96,5 +96,5 @@ jobs:
           if-no-files-found: error
           retention-days: 90
       - name: Fail failed measurement runs
-        if: steps.measurement.outcome == 'failure'
+        if: always() && steps.measurement.outcome != 'success'
         run: exit 1

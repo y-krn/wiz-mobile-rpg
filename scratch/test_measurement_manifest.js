@@ -27,7 +27,7 @@ const validReport = {
       targetDepths: [5]
     }
   },
-  cases: [{ scenarioId: "workshop-empty", depths: [{ depth: 5 }] }]
+  cases: [{ scenarioId: "workshop-empty", targetDepths: [5], depths: [{ depth: 5, runs: 500 }] }]
 };
 
 const metadata = {
@@ -46,6 +46,9 @@ assert.equal(valid.status, "valid");
 assert.equal(valid.baselineCandidate, true);
 assert.equal(valid.measurement.productionBaselineSha, "a".repeat(40));
 assert.equal(valid.measurement.simulatorRunnerCommit, "c".repeat(40));
+assert.equal(valid.measurement.originMainAncestor, true);
+assert.equal(valid.measurement.staleTreeAllowed, false);
+assert.equal(valid.measurement.workingTreeClean, true);
 assert.equal(valid.measuredAt, "2026-08-26T06:00:00.000Z");
 assert.match(renderMeasurementManifestMarkdown(valid), /workflow run: \[123456789\]/);
 
@@ -92,6 +95,30 @@ const incompleteProvenance = createMeasurementManifest({
 });
 assert.equal(incompleteProvenance.status, "invalid");
 assert.match(incompleteProvenance.invalidReasons.join("; "), /workingTreeClean must be true/);
+
+const partialReport = createMeasurementManifest({
+  measurementReport: {
+    ...validReport,
+    measurement: {
+      ...validReport.measurement,
+      configuration: { ...validReport.measurement.configuration, targetDepths: [5, 10] }
+    },
+    cases: [{ scenarioId: "workshop-empty", targetDepths: [5, 10], depths: [{ depth: 5, runs: 500 }] }]
+  },
+  ...metadata
+});
+assert.equal(partialReport.status, "invalid");
+assert.match(partialReport.invalidReasons.join("; "), /configured depths/);
+
+const unexpectedRunCount = createMeasurementManifest({
+  measurementReport: {
+    ...validReport,
+    cases: [{ scenarioId: "workshop-empty", targetDepths: [5], depths: [{ depth: 5, runs: 499 }] }]
+  },
+  ...metadata
+});
+assert.equal(unexpectedRunCount.status, "invalid");
+assert.match(unexpectedRunCount.invalidReasons.join("; "), /unexpected run count/);
 
 const missingPurpose = createMeasurementManifest({ measurementReport: validReport, ...metadata, purpose: "" });
 assert.equal(missingPurpose.status, "invalid");

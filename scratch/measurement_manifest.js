@@ -84,12 +84,36 @@ function validateMeasurementReport(report) {
   if (!Array.isArray(report.cases) || report.cases.length === 0) {
     errors.push("measurement cases are missing");
   } else {
+    const expectedScenarioIds = configuration?.scenarioIds || [];
+    const actualScenarioIds = report.cases.map(testCase => testCase?.scenarioId);
+    if (expectedScenarioIds.length > 0 &&
+        (actualScenarioIds.length !== expectedScenarioIds.length ||
+          new Set(actualScenarioIds).size !== expectedScenarioIds.length ||
+          expectedScenarioIds.some(scenarioId => !actualScenarioIds.includes(scenarioId)))) {
+      errors.push("measurement cases do not exactly match configured scenarios");
+    }
     report.cases.forEach((testCase, index) => {
       if (!isNonEmptyString(testCase?.scenarioId)) {
         errors.push(`measurement case ${index} has no scenarioId`);
       }
       if (!Array.isArray(testCase?.depths) || testCase.depths.length === 0) {
         errors.push(`measurement case ${index} has no depth results`);
+        return;
+      }
+      const expectedDepths = configuration?.targetDepths || [];
+      const actualDepths = testCase.depths.map(depth => depth?.depth);
+      if (expectedDepths.length > 0 &&
+          (actualDepths.length !== expectedDepths.length ||
+            new Set(actualDepths).size !== expectedDepths.length ||
+            expectedDepths.some(depth => !actualDepths.includes(depth)))) {
+        errors.push(`measurement case ${index} does not exactly match configured depths`);
+      }
+      if (Number.isInteger(configuration?.runs)) {
+        testCase.depths.forEach((depth, depthIndex) => {
+          if (depth?.runs !== configuration.runs) {
+            errors.push(`measurement case ${index} depth ${depthIndex} has an unexpected run count`);
+          }
+        });
       }
     });
   }
@@ -107,6 +131,9 @@ function copyMeasurementIdentity(measurement) {
     sourceCommit: measurement.sourceCommit,
     simulatorRunnerCommit: measurement.simulatorRunnerCommit,
     simulatorRunnerDiffSha256: measurement.simulatorRunnerDiffSha256,
+    originMainAncestor: measurement.originMainAncestor,
+    staleTreeAllowed: measurement.staleTreeAllowed,
+    workingTreeClean: measurement.workingTreeClean,
     seed: measurement.configuration?.seed,
     runs: measurement.configuration?.runs,
     calibrationRuns: measurement.configuration?.calibrationRuns,
