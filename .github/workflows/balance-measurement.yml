@@ -11,6 +11,19 @@ on:
         description: "Runs per scenario (minimum 500)"
         required: false
         default: "500"
+      purpose:
+        description: "Why this measurement is being requested"
+        required: true
+        type: string
+      run_type:
+        description: "How this run may be used later"
+        required: false
+        default: "baseline-candidate"
+        type: choice
+        options:
+          - baseline-candidate
+          - diagnostic
+          - temporary
 
 permissions:
   contents: read
@@ -29,6 +42,8 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Run standard statistical measurement
+        id: measurement
+        continue-on-error: true
         env:
           BALANCE_SIM_RUNS: ${{ inputs.runs }}
         run: |
@@ -36,10 +51,50 @@ jobs:
           node scratch/measure_balance.js \
             --output /tmp/balance-measurement/measurement.json \
             --summary /tmp/balance-measurement/measurement.md
-      - name: Upload measurement artifact
+      - name: Generate run manifest
+        if: always()
+        env:
+          MEASUREMENT_PURPOSE: ${{ inputs.purpose }}
+          MEASUREMENT_RUN_TYPE: ${{ inputs.run_type }}
+          MEASUREMENT_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          MEASUREMENT_WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MEASUREMENT_REPOSITORY: ${{ github.repository }}
+          MEASUREMENT_REQUESTED_REF: ${{ inputs.ref }}
+          MEASUREMENT_RUN_ATTEMPT: ${{ github.run_attempt }}
+          MEASUREMENT_AT: ${{ github.run_started_at }}
+          MEASUREMENT_STEP_OUTCOME: ${{ steps.measurement.outcome }}
+        run: |
+          node scratch/measurement_manifest.js \
+            --measurement /tmp/balance-measurement/measurement.json \
+            --output /tmp/balance-measurement/manifest.json \
+            --summary /tmp/balance-measurement/manifest.md
+      - name: Publish durable run summary
+        if: always()
+        run: |
+          cat /tmp/balance-measurement/manifest.md >> "$GITHUB_STEP_SUMMARY"
+          printf '\n### Machine-readable manifest\n\n```json\n' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/balance-measurement/manifest.json >> "$GITHUB_STEP_SUMMARY"
+          printf '```\n' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload raw measurement artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: balance-measurement-${{ github.run_id }}
-          path: /tmp/balance-measurement/
-          if-no-files-found: error
+          path: |
+            /tmp/balance-measurement/measurement.json
+            /tmp/balance-measurement/measurement.md
+          if-no-files-found: ignore
           retention-days: 30
+      - name: Upload run manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: balance-measurement-manifest-${{ github.run_id }}
+          path: |
+            /tmp/balance-measurement/manifest.json
+            /tmp/balance-measurement/manifest.md
+          if-no-files-found: error
+          retention-days: 90
+      - name: Fail failed measurement runs
+        if: steps.measurement.outcome == 'failure'
+        run: exit 1

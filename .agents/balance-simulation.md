@@ -312,11 +312,23 @@ engine and must not be reimplemented by Issue #892:
   GitHub Actions artifact upload.
 
 Issue #892 remains responsible for the operational record around a requested
-run: request metadata such as `purpose`, a manifest/index/history that lets a
-run be found later, long-term access to summary/provenance, and policy that an
-incomplete or failed run cannot become a valid baseline. Raw/debug data should
-remain short-lived artifacts and must not be permanently committed to the Git
-repository.
+run. The manual dispatch requires a short `purpose` and accepts a small
+`run_type` classification (`baseline-candidate`, `diagnostic`, or `temporary`).
+`scratch/measurement_manifest.js` validates the completed #843 report and
+records only its identifying measurement/provenance fields together with the
+workflow run ID/URL, requested ref, purpose, and timestamp. A missing,
+incomplete, dirty-tree, stale-tree, or failed measurement is marked `invalid`
+and cannot be a baseline candidate; a diagnostic or temporary run remains
+valid history but is explicitly excluded from baseline candidates. Statistical
+`uncertain` is not a workflow failure and remains a valid recorded result.
+
+The GitHub Actions run ID and Job Summary are the durable history/index key:
+the summary contains the human-readable record and the machine-readable
+manifest. The small manifest is also uploaded for 90 days, while measurement
+JSON/Markdown (and any raw/debug output) remains a 30-day artifact and is never
+committed to the Git repository. Baseline consumers must additionally require
+the Actions run conclusion to be successful; a failed or cancelled run is not
+a valid baseline even if a partial manifest was emitted before cancellation.
 
 ### 判定・監査・診断の二段階運用
 
