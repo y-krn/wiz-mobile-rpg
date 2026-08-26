@@ -306,7 +306,11 @@ const {
 } = await import("../src/systems/workshop.js");
 const { getEnhanceCost } = await import("../src/craft.js");
 const { WORKSHOP_NODE_BY_ID } = await import("../src/data/workshop.js");
-const { purchaseMilestoneStock } = await import("../src/systems/milestone_merchant.js");
+const {
+  getCursedEquipment,
+  purchaseMilestoneStock,
+  purchaseMilestoneUncurse
+} = await import("../src/systems/milestone_merchant.js");
 const { MILESTONE_MERCHANT_STOCK } = await import("../src/data/milestone_merchant.js");
 const {
   calculateCombatRecoveryAction,
@@ -364,6 +368,8 @@ const SIM_ENV_KEYS = Object.freeze([
   "SIM_MERCHANT_EYE_DROPS",
   "SIM_MERCHANT_RETURN_WING",
   "SIM_MERCHANT_RETURN_WING_COST",
+  "SIM_MERCHANT_POLICY",
+  "SIM_MILESTONE_PORTAL_POLICY",
   "SIM_RETURN_WING_MODE",
   "SIM_SCENARIOS",
   "SIM_EXPLORATION_POISON_MODEL",
@@ -434,6 +440,8 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_MERCHANT_EYE_DROPS: "0",
   SIM_MERCHANT_RETURN_WING: "0",
   SIM_MERCHANT_RETURN_WING_COST: "",
+  SIM_MERCHANT_POLICY: "supply-missing",
+  SIM_MILESTONE_PORTAL_POLICY: "continue",
   SIM_RETURN_WING_MODE: "special",
   SIM_SCENARIOS: "",
   SIM_412_POLICY: "baseline"
@@ -470,6 +478,8 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   SIM_MADI_HEAL_MIN: "",
   SIM_MADI_HEAL_MAX: "",
   SIM_MADI_COST: "",
+  SIM_MERCHANT_POLICY: "supply-missing",
+  SIM_MILESTONE_PORTAL_POLICY: "continue",
   SIM_SCENARIOS: "",
   SIM_412_POLICY: "baseline"
 });
@@ -518,8 +528,23 @@ const SIM_ENV = Object.freeze(Object.fromEntries(
     Object.hasOwn(process.env, key)
       ? process.env[key]
       : ACTIVE_SIM_PRESET?.[key] ?? CURRENT_SIM_ENV_DEFAULTS[key]
- ])
+  ])
 ));
+const MERCHANT_POLICY_IDS = Object.freeze(["supply-missing", "never"]);
+const MILESTONE_PORTAL_POLICY_IDS = Object.freeze(["continue", "retreat"]);
+const SIM_MERCHANT_POLICY = String(SIM_ENV.SIM_MERCHANT_POLICY || "supply-missing").trim();
+const SIM_MILESTONE_PORTAL_POLICY = String(
+  SIM_ENV.SIM_MILESTONE_PORTAL_POLICY || "continue"
+).trim();
+if (!MERCHANT_POLICY_IDS.includes(SIM_MERCHANT_POLICY)) {
+  throw new Error(`SIM_MERCHANT_POLICY must be ${MERCHANT_POLICY_IDS.join("|")}: ${SIM_MERCHANT_POLICY}`);
+}
+if (!MILESTONE_PORTAL_POLICY_IDS.includes(SIM_MILESTONE_PORTAL_POLICY)) {
+  throw new Error(
+    `SIM_MILESTONE_PORTAL_POLICY must be ${MILESTONE_PORTAL_POLICY_IDS.join("|")}: ` +
+    SIM_MILESTONE_PORTAL_POLICY
+  );
+}
 const RETURN_WING_REWARD_MODE = String(SIM_ENV.SIM_RETURN_WING_MODE || "special").trim();
 if (!["baseline", "special"].includes(RETURN_WING_REWARD_MODE)) {
   throw new Error(`SIM_RETURN_WING_MODE must be baseline|special: ${RETURN_WING_REWARD_MODE}`);
@@ -3635,6 +3660,16 @@ function createSimulationState(
     ? measureMaterialCompetition(departureCraftBank, workshop, finalWeaponId)
     : null;
   const trapPolicies = resolveTrapPolicies(scenario);
+  const merchantPolicy = scenario.merchantPolicy || SIM_MERCHANT_POLICY;
+  const milestonePortalPolicy = scenario.milestonePortalPolicy || SIM_MILESTONE_PORTAL_POLICY;
+  if (!MERCHANT_POLICY_IDS.includes(merchantPolicy)) {
+    throw new Error(`merchantPolicy must be ${MERCHANT_POLICY_IDS.join("|")}: ${merchantPolicy}`);
+  }
+  if (!MILESTONE_PORTAL_POLICY_IDS.includes(milestonePortalPolicy)) {
+    throw new Error(
+      `milestonePortalPolicy must be ${MILESTONE_PORTAL_POLICY_IDS.join("|")}: ${milestonePortalPolicy}`
+    );
+  }
   const healPriorityPolicy = scenario.healPriorityPolicy || DEFAULT_HEAL_PRIORITY_POLICY;
   if (!HEAL_PRIORITY_POLICIES.includes(healPriorityPolicy)) {
     throw new Error(
@@ -3803,6 +3838,8 @@ function createSimulationState(
         : DEFAULT_STATUS_CURE_HP_THRESHOLD,
       statusCureMerchantPolicy:
         scenario.statusCureMerchantPolicy || DEFAULT_STATUS_CURE_MERCHANT_POLICY,
+      merchantPolicy: scenario.merchantPolicy || SIM_MERCHANT_POLICY,
+      milestonePortalPolicy: scenario.milestonePortalPolicy || SIM_MILESTONE_PORTAL_POLICY,
       healPotionMerchantPolicy: healPotionMerchantPolicy.id,
       healPotionMerchantMaxPurchases: healPotionMerchantPolicy.maxPurchases,
       healPotionMerchantHoldLimit,
@@ -7092,6 +7129,65 @@ function recordMerchantMaterialSpend(metrics, before, after) {
   });
 }
 
+function maybePurchaseMerchantIdentificationPowder(state, metrics) {
+  if (state.simPolicy.merchantPolicy === "never") return;
+  if ((state.identifyTickets || 0) > 0 || !state.inventory.some(isUnidentifiedEquipment)) return;
+  const entry = MILESTONE_MERCHANT_STOCK.find(stock => stock.id === "identify_powder");
+  const materialsBefore = { ...state.currentRun.materials };
+  const result = purchaseMilestoneStock(state, entry.id);
+  recordMerchantStockAttempt(metrics, entry, result);
+  if (!result.ok) return;
+  recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
+  recordIdentificationPowderAcquisition(metrics, 1, "merchant");
+}
+
+function maybePurchaseMerchantUncurse(state, metrics) {
+  if (state.simPolicy.merchantPolicy === "never") return 0;
+  let purchases = 0;
+  getCursedEquipment(state.party[0]).forEach(({ slot }) => {
+    metrics.merchantUncurseAttempts++;
+    const materialsBefore = { ...state.currentRun.materials };
+    const result = purchaseMilestoneUncurse(state, slot);
+    if (!result.ok) {
+      metrics.merchantUncurseFailures[result.reason] =
+        (metrics.merchantUncurseFailures[result.reason] || 0) + 1;
+      return;
+    }
+    recordMerchantMaterialSpend(metrics, materialsBefore, state.currentRun.materials);
+    metrics.merchantUncursePurchases++;
+    purchases++;
+  });
+  return purchases;
+}
+
+function handleMilestoneMerchantVisit(state, scenario, metrics, scoringProfile) {
+  metrics.milestoneMerchantVisits++;
+  metrics.milestoneEventTrace.push({
+    floor: state.floor,
+    type: EVENT_TYPES.MERCHANT,
+    gateOpen: Boolean(state.currentRun?.defeatedMilestones?.includes(state.floor))
+  });
+  if (!state.currentRun?.defeatedMilestones?.includes(state.floor)) {
+    metrics.milestoneMerchantBlockedVisits++;
+    return;
+  }
+  if (state.simPolicy.merchantPolicy === "never") return;
+  maybePurchaseMerchantIdentificationPowder(state, metrics);
+  const uncursePurchases = maybePurchaseMerchantUncurse(state, metrics);
+  maybePurchaseMerchantWing(state, scenario, metrics);
+  maybePurchaseMerchantStatusCures(state, metrics);
+  maybePurchaseMerchantHealPotion(state, metrics);
+  maybePurchaseMerchantStrengthPotion(state, scenario, metrics);
+  maybePurchaseMerchantManaPotion(state, metrics);
+  if (uncursePurchases > 0) {
+    recordEquipmentUpgrades(
+      metrics,
+      equipGreedyUpgrades(state, metrics, scoringProfile),
+      state.floor
+    );
+  }
+}
+
 function maybePurchaseMerchantWing(state, scenario, metrics) {
   if (!(scenario.buyMerchantTownPortal || SIM_MERCHANT_RETURN_WING) || !isMilestoneFloor(state.floor)) return;
   if (state.inventory.includes("TOWN_PORTAL")) return;
@@ -8513,12 +8609,15 @@ function createFloorRoutePlan(
   const stairs = findFloorCell(grid, cell => cell.type === "stairs-down");
   const specialCells = [];
   grid.forEach((row, y) => row.forEach((cell, x) => {
-    if (![EVENT_TYPES.BOSS, "midboss"].includes(cell.event)) return;
+    const milestoneFacility = [EVENT_TYPES.MERCHANT, EVENT_TYPES.RETURN_PORTAL]
+      .includes(cell.event) && cell.milestoneFloor === floor;
+    if (![EVENT_TYPES.BOSS, "midboss"].includes(cell.event) && !milestoneFacility) return;
     specialCells.push({
       x,
       y,
       type: cell.event,
-      milestone: cell.event === EVENT_TYPES.BOSS && cell.milestoneFloor === floor
+      milestone: cell.event === EVENT_TYPES.BOSS && cell.milestoneFloor === floor,
+      milestoneFacility
     });
   }));
   const specialByKey = new Map(specialCells.map(cell => [routeKey(cell), cell]));
@@ -8528,10 +8627,16 @@ function createFloorRoutePlan(
   const appendPath = segment => {
     if (!segment) return false;
     const offset = path.length === 0 ? 0 : 1;
+    const endpointKey = routeKey(segment.at(-1));
     segment.slice(offset).forEach(coord => {
       path.push(coord);
       const special = specialByKey.get(routeKey(coord));
       if (!special || visitedEvents.has(routeKey(special))) return;
+      // A shortest segment can pass through another landmark. The production
+      // player route treats the milestone boss as the unlock gate, so facility
+      // actions are scheduled at their selected destination and revisited
+      // after the boss rather than being consumed as a blocked transit hit.
+      if (special.milestoneFacility && routeKey(coord) !== endpointKey) return;
       visitedEvents.add(routeKey(special));
       routeEvents.push({
         ...special,
@@ -8585,13 +8690,21 @@ function createFloorRoutePlan(
       current = stairs;
     }
 
-    const remainingMilestone = specialCells.find(
-      cell => cell.milestone && !visitedEvents.has(routeKey(cell))
-    );
-    if (remainingMilestone) {
+    const remainingMilestones = specialCells
+      .filter(cell => (cell.milestone || cell.milestoneFacility) && !visitedEvents.has(routeKey(cell)))
+      .sort((left, right) => {
+        const priority = cell => cell.milestone ? 0
+          : cell.type === EVENT_TYPES.MERCHANT ? 1 : 2;
+        return priority(left) - priority(right);
+      });
+    if (remainingMilestones.length > 0) {
       milestoneForced = true;
-      appendPath(findShortestFloorPath(grid, current, remainingMilestone));
-      current = remainingMilestone;
+      remainingMilestones.forEach(event => {
+        const segment = findShortestFloorPath(grid, current, event);
+        if (!segment) return;
+        appendPath(segment);
+        current = event;
+      });
       appendPath(findShortestFloorPath(grid, current, stairs));
     }
   } else {
@@ -8603,7 +8716,15 @@ function createFloorRoutePlan(
           segment: findShortestFloorPath(grid, current, cell)
         }))
         .filter(candidate => candidate.segment)
-        .sort((left, right) => left.segment.length - right.segment.length);
+        .sort((left, right) => {
+          const priority = candidate => {
+            if (candidate.cell.milestone && candidate.cell.type === EVENT_TYPES.BOSS) return 0;
+            if (candidate.cell.milestoneFacility && candidate.cell.type === EVENT_TYPES.MERCHANT) return 1;
+            if (candidate.cell.milestoneFacility && candidate.cell.type === EVENT_TYPES.RETURN_PORTAL) return 2;
+            return 3;
+          };
+          return priority(left) - priority(right) || left.segment.length - right.segment.length;
+        });
       if (candidates.length === 0) break;
       const selected = candidates[0];
       appendPath(selected.segment);
@@ -10047,6 +10168,17 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     merchantPurchaseFloors: metrics.merchantPurchaseFloors,
     merchantWingFailures: metrics.merchantWingFailures,
     milestoneDecisions: metrics.milestoneDecisions,
+    merchantPolicy: state.simPolicy.merchantPolicy,
+    milestonePortalPolicy: state.simPolicy.milestonePortalPolicy,
+    milestoneMerchantVisits: metrics.milestoneMerchantVisits,
+    milestoneMerchantBlockedVisits: metrics.milestoneMerchantBlockedVisits,
+    milestonePortalVisits: metrics.milestonePortalVisits,
+    milestonePortalBlockedVisits: metrics.milestonePortalBlockedVisits,
+    milestonePortalRetreats: metrics.milestonePortalRetreats,
+    milestoneEventTrace: metrics.milestoneEventTrace,
+    merchantUncurseAttempts: metrics.merchantUncurseAttempts,
+    merchantUncursePurchases: metrics.merchantUncursePurchases,
+    merchantUncurseFailures: { ...metrics.merchantUncurseFailures },
     outcome,
     terminationReason: resolvedTerminationReason,
     finalHp: state.party[0].hp,
@@ -10239,6 +10371,15 @@ export function simulateRun({
     departureCraftEvaluations: 1,
     consumableUsageByItem: createConsumableUsageByItem(),
     merchantStock: createMerchantStockMetrics(),
+    milestoneMerchantVisits: 0,
+    milestoneMerchantBlockedVisits: 0,
+    milestonePortalVisits: 0,
+    milestonePortalBlockedVisits: 0,
+    milestonePortalRetreats: 0,
+    milestoneEventTrace: [],
+    merchantUncurseAttempts: 0,
+    merchantUncursePurchases: 0,
+    merchantUncurseFailures: {},
     unidentifiedWearCount: 0,
     curseHitCount: 0,
     equipmentFoundBySource: { combat: 0, chest: 0, other: 0 },
@@ -10710,6 +10851,14 @@ export function simulateRun({
       detectedMidbosses: routePlan.specialCells.filter(
         cell => cell.type === "midboss"
       ).length,
+      detectedMerchants: routePlan.specialCells.filter(
+        cell => cell.type === EVENT_TYPES.MERCHANT
+      ).length,
+      detectedReturnPortals: routePlan.specialCells.filter(
+        cell => cell.type === EVENT_TYPES.RETURN_PORTAL
+      ).length,
+      routeEventTypes: routePlan.routeEvents.map(event => event.type),
+      routeEventDistances: routePlan.routeEvents.map(event => event.routeDistance),
       avoidedPathExists: routePlan.avoidedPathExists,
       milestoneForced: routePlan.milestoneForced
     });
@@ -10821,7 +10970,10 @@ export function simulateRun({
         metrics.deathEncounterType = "flame-trap";
         return finishRun(state, "death", metrics);
       }
-      if (flameTrapTriggered) continue stepLoop;
+      // A trap can fire on the same movement step as a landmark. The player
+      // remains on that cell after surviving the trap, so do not drop the
+      // production event transition from this step.
+      if (flameTrapTriggered && scheduledSpecials.length === 0) continue stepLoop;
 
       const pickedUpChests = chestSchedule.get(step) || 0;
       for (let chest = 0; chest < pickedUpChests; chest++) {
@@ -10960,11 +11112,50 @@ export function simulateRun({
       const encountersThisStep = scheduledSpecials.length > 0
         ? scheduledSpecials
         : [null];
+      const deferSpecialEvents = events => {
+        if (step >= floorSteps || events.length === 0) return;
+        specialSchedule.set(step + 1, [
+          ...events,
+          ...(specialSchedule.get(step + 1) || [])
+        ]);
+      };
 
       for (const specialEvent of encountersThisStep) {
         const isBoss = specialEvent?.type === EVENT_TYPES.BOSS;
         const isMidboss = specialEvent?.type === "midboss";
         const isElite = specialEvent?.type === "elite";
+        const isMerchant = specialEvent?.type === EVENT_TYPES.MERCHANT;
+        const isMilestonePortal = specialEvent?.type === EVENT_TYPES.RETURN_PORTAL;
+        if (isBoss && specialEvent.milestone) {
+          metrics.milestoneEventTrace.push({
+            floor,
+            type: EVENT_TYPES.BOSS,
+            milestone: true,
+            encounterAllowed: true,
+            defeatedBefore: Boolean(state.currentRun?.defeatedMilestones?.includes(floor))
+          });
+        }
+        if (isMerchant || isMilestonePortal) {
+          if (isMerchant) {
+            handleMilestoneMerchantVisit(state, scenario, metrics, scoringProfile);
+          } else {
+            metrics.milestonePortalVisits++;
+            metrics.milestoneEventTrace.push({
+              floor,
+              type: EVENT_TYPES.RETURN_PORTAL,
+              gateOpen: Boolean(state.currentRun?.defeatedMilestones?.includes(floor))
+            });
+            if (!state.currentRun?.defeatedMilestones?.includes(floor)) {
+              metrics.milestonePortalBlockedVisits++;
+              continue;
+            }
+            if (state.simPolicy.milestonePortalPolicy === "retreat") {
+              metrics.milestonePortalRetreats++;
+              return finishRun(state, "retreat", metrics, "milestone_portal");
+            }
+          }
+          continue;
+        }
         const encounterType = isBoss
           ? "boss"
           : (isMidboss ? "midboss" : (isElite ? "elite" : "normal"));
@@ -11016,6 +11207,14 @@ export function simulateRun({
             }
           );
           state = combatResult.state;
+          if (isBoss && specialEvent.milestone) {
+            metrics.milestoneEventTrace.push({
+              floor,
+              type: EVENT_TYPES.BOSS,
+              result: combatResult.result,
+              rounds: combatResult.rounds
+            });
+          }
           if (combatResult.result === "victory") {
             const hpGrowthBonus = Number(state.simPolicy.hpGrowthBonus) || 0;
             const levelsGained = Math.max(0, state.party[0].level - levelBeforeCombat);
@@ -11105,6 +11304,7 @@ export function simulateRun({
               // 逃走ではeventセルが消えない。1マス後退後、同じセルへ再侵入する。
               // 同じstep内で再侵入すると、シミュレーション上は後退が起きず
               // 無限に同じeventを試行する。次の探索stepへ進める。
+              deferSpecialEvents(encountersThisStep);
               continue stepLoop;
             }
             continue stepLoop;
@@ -11309,11 +11509,6 @@ export function simulateRun({
       metrics.b5FloorActive = false;
     }
     applySimulatedCampRest(state, metrics.coreObservations, metrics);
-    maybePurchaseMerchantWing(state, scenario, metrics);
-    maybePurchaseMerchantStatusCures(state, metrics);
-    maybePurchaseMerchantHealPotion(state, metrics);
-    maybePurchaseMerchantStrengthPotion(state, scenario, metrics);
-    maybePurchaseMerchantManaPotion(state, metrics);
     if (isMilestoneFloor(floor)) {
       metrics.milestoneDecisions.push({
         floor,
@@ -11326,6 +11521,9 @@ export function simulateRun({
         !state.inventory.includes("TOWN_PORTAL")
       ) {
         return finishRun(state, "retreat", metrics, "milestone-retreat");
+      }
+      if (!state.currentRun?.defeatedMilestones?.includes(floor)) {
+        return finishRun(state, "retreat", metrics, "milestone-boss-blocked");
       }
     }
     descendToNextFloor(state, floor + 1, metrics, { stairsHeal: true });
@@ -11520,6 +11718,14 @@ function simulateCase({
     statusCureItemsAcquired: {},
     statusCureItemsUsed: {},
     merchantStock: createMerchantStockMetrics(),
+    milestoneMerchantVisits: 0,
+    milestoneMerchantBlockedVisits: 0,
+    milestonePortalVisits: 0,
+    milestonePortalBlockedVisits: 0,
+    milestonePortalRetreats: 0,
+    merchantUncurseAttempts: 0,
+    merchantUncursePurchases: 0,
+    merchantUncurseFailures: {},
     statusCureDecisions: {
       selected: 0,
       unavailable: 0,
@@ -11691,6 +11897,17 @@ function simulateCase({
       Object.entries(source.failures || {}).forEach(([reason, count]) => {
         target.failures[reason] = (target.failures[reason] || 0) + count;
       });
+    });
+    totals.milestoneMerchantVisits += result.milestoneMerchantVisits || 0;
+    totals.milestoneMerchantBlockedVisits += result.milestoneMerchantBlockedVisits || 0;
+    totals.milestonePortalVisits += result.milestonePortalVisits || 0;
+    totals.milestonePortalBlockedVisits += result.milestonePortalBlockedVisits || 0;
+    totals.milestonePortalRetreats += result.milestonePortalRetreats || 0;
+    totals.merchantUncurseAttempts += result.merchantUncurseAttempts || 0;
+    totals.merchantUncursePurchases += result.merchantUncursePurchases || 0;
+    Object.entries(result.merchantUncurseFailures || {}).forEach(([reason, count]) => {
+      totals.merchantUncurseFailures[reason] =
+        (totals.merchantUncurseFailures[reason] || 0) + count;
     });
     addStatusCureEvMetrics(totals.statusCureEvMetrics, result.statusCureEvMetrics);
     if (result.statusCureSupply?.dedicatedDepletionFloor !== null) {
@@ -12224,6 +12441,18 @@ function simulateCase({
     statusCureItemsUsed: totals.statusCureItemsUsed,
     merchantStock: totals.merchantStock,
     merchantStockByClass,
+    merchantPolicy: scenario.merchantPolicy || SIM_MERCHANT_POLICY,
+    milestonePortalPolicy: scenario.milestonePortalPolicy || SIM_MILESTONE_PORTAL_POLICY,
+    milestoneMerchantVisits: totals.milestoneMerchantVisits,
+    averageMilestoneMerchantVisits: totals.milestoneMerchantVisits / RUNS_PER_CASE,
+    milestoneMerchantBlockedVisits: totals.milestoneMerchantBlockedVisits,
+    milestonePortalVisits: totals.milestonePortalVisits,
+    averageMilestonePortalVisits: totals.milestonePortalVisits / RUNS_PER_CASE,
+    milestonePortalBlockedVisits: totals.milestonePortalBlockedVisits,
+    milestonePortalRetreats: totals.milestonePortalRetreats,
+    merchantUncurseAttempts: totals.merchantUncurseAttempts,
+    merchantUncursePurchases: totals.merchantUncursePurchases,
+    merchantUncurseFailures: { ...totals.merchantUncurseFailures },
     statusCureDecisions: totals.statusCureDecisions,
     statusCureDecisionContexts: totals.statusCureDecisionContexts,
     statusCureUnavailableStatuses: totals.statusCureUnavailableStatuses,
@@ -13098,6 +13327,21 @@ function printFloorMilestoneMetrics(result) {
   console.log(`回復呪文使用集計（全run分母 N=${RUNS_PER_CASE}; selectedはcast回数）: ${recoverySpellUsage}`);
 }
 
+function printMilestoneRouteMetrics(result) {
+  console.log(
+    `マイルストーン経路: merchant=${result.averageMilestoneMerchantVisits.toFixed(2)}/run ` +
+    `(blocked=${result.milestoneMerchantBlockedVisits}), ` +
+    `portal=${result.averageMilestonePortalVisits.toFixed(2)}/run ` +
+    `(blocked=${result.milestonePortalBlockedVisits}, retreat=${result.milestonePortalRetreats}), ` +
+    `stockPolicy=${result.merchantPolicy}, portalPolicy=${result.milestonePortalPolicy}`
+  );
+  console.log(
+    `解呪: attempts=${result.merchantUncurseAttempts}, purchases=${result.merchantUncursePurchases}, ` +
+    `failures=${JSON.stringify(result.merchantUncurseFailures)}; ` +
+    `merchant material spend=${JSON.stringify(result.materialConsumedByMerchant)}`
+  );
+}
+
 function formatResourceDistribution(distribution) {
   if (!distribution || distribution.n === 0) return "n=0";
   return [
@@ -13713,6 +13957,8 @@ const ENV_SIGNATURE = {
   trapAvoidancePolicy: DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
   trapBonusOverride: TRAP_BONUS_OVERRIDE_PERCENT,
   healPotionMerchantPolicy: DEFAULT_HEAL_POTION_MERCHANT_POLICY,
+  merchantPolicy: SIM_MERCHANT_POLICY,
+  milestonePortalPolicy: SIM_MILESTONE_PORTAL_POLICY,
   identificationPolicies: ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id),
   identificationPolicyEnv: SIM_ENV.IDENTIFICATION_POLICY || "powder",
   coreEncounterCeilingMode: CORE_ENCOUNTER_CEILING_MODE || null,
@@ -13800,6 +14046,10 @@ console.log(
   "観測値なしは回避せず、直接対応（解除/強行の既存方針）を選ぶ。"
 );
 console.log(`傷薬商人方針: ${DEFAULT_HEAL_POTION_MERCHANT_POLICY}（マイルストーンで所持0時に1個購入）`);
+console.log(
+  `マイルストーン施設方針: 商人=${SIM_MERCHANT_POLICY}（不足補給のみ / never） / ` +
+  `帰還ポータル=${SIM_MILESTONE_PORTAL_POLICY}（継続 / retreat）`
+);
 console.log(`core価値calibration: B1→B20 N=${CALIBRATION_RUNS} / 方針=${ACTIVE_IDENTIFICATION_POLICIES.map(policy => policy.id).join(",")}`);
 console.log(`識別方針切替: IDENTIFICATION_POLICY=${SIM_ENV.IDENTIFICATION_POLICY || "powder"}`);
 console.log(`Issue #412 戦術資源ポリシー: SIM_412_POLICY=${SIM_412_POLICY}`);
@@ -13931,6 +14181,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   printCurseGenerationMetrics(results.at(-1));
   printCoreRetentionDetail(results.at(-1));
   printFloorMilestoneMetrics(results.at(-1));
+  printMilestoneRouteMetrics(results.find(result => result.targetDepth === 20) || results.at(-1));
 
   const monotonic = isMonotonicallyIncreasing(results);
   const bestDepthResult = [...results]
@@ -13962,6 +14213,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
     printTrapMetrics(result);
     printConsumableSummary(result);
     printStatusCureSummary(result);
+    printMilestoneRouteMetrics(result);
   });
   console.log("\n【マイルストーン開始 徘徊エリート】");
   printEliteMetrics(milestoneResults);
@@ -14083,6 +14335,49 @@ const issue791Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       mean95CI: result.mean95CI
     }))));
 console.log(`ISSUE791_MEASUREMENT_JSON=${JSON.stringify(issue791Measurement)}`);
+
+const issue895Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }) =>
+  scenarioResults.flatMap(({ scenario, results }) => results
+    .filter(result => [5, 10, 20].includes(result.targetDepth))
+    .map(result => ({
+      policy: policy.id,
+      scenario: scenario.id,
+      targetDepth: result.targetDepth,
+      runs: RUNS_PER_CASE,
+      sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
+      gameplaySourceCommit: MEASUREMENT_PROVENANCE?.gameplaySourceCommit || null,
+      measurementRunnerCommit: MEASUREMENT_PROVENANCE?.measurementRunnerCommit || null,
+      measurementRunnerPaths: MEASUREMENT_PROVENANCE?.measurementRunnerPaths || null,
+      measurementRunnerDiffSha256: MEASUREMENT_PROVENANCE?.measurementRunnerDiffSha256 || null,
+      originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
+      workingTreeClean: MEASUREMENT_PROVENANCE?.workingTreeClean ?? null,
+      merchantPolicy: result.merchantPolicy,
+      milestonePortalPolicy: result.milestonePortalPolicy,
+      merchantStock: result.merchantStock,
+      materialConsumedByMerchant: result.materialConsumedByMerchant,
+      statusCureItemsAcquired: result.statusCureItemsAcquired,
+      statusCureItemsUsed: result.statusCureItemsUsed,
+      statusCureDecisions: result.statusCureDecisions,
+      statusesCured: result.statusesCured,
+      merchantUncurseAttempts: result.merchantUncurseAttempts,
+      merchantUncursePurchases: result.merchantUncursePurchases,
+      merchantUncurseFailures: result.merchantUncurseFailures,
+      averageMilestoneMerchantVisits: result.averageMilestoneMerchantVisits,
+      milestoneMerchantBlockedVisits: result.milestoneMerchantBlockedVisits,
+      averageMilestonePortalVisits: result.averageMilestonePortalVisits,
+      milestonePortalBlockedVisits: result.milestonePortalBlockedVisits,
+      milestonePortalRetreats: result.milestonePortalRetreats,
+      survivalRate: result.survivalRate,
+      retreatRate: result.retreatRate,
+      deathRate: result.deathRate,
+      outcomeCounts: result.outcomeCounts,
+      bankedMaterialEv: result.bankedMaterialEv,
+      averageMaterialAcquired: result.averageMaterialAcquired,
+      averageMaterialConsumed: result.averageMaterialConsumed,
+      averageReachedFloor: result.averageReachedFloor,
+      mean95CI: result.mean95CI
+    }))));
+console.log(`ISSUE895_MEASUREMENT_JSON=${JSON.stringify(issue895Measurement)}`);
 
 const issue412Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }) =>
   scenarioResults.flatMap(({ scenario, results }) => results
