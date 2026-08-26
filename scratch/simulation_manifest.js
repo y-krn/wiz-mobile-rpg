@@ -182,7 +182,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     {
       pattern: "src/combat_ui/round_runner.js",
       marker: "// balance-impact: none",
-      reason: "combat round-entry guard only; resolution rules remain unchanged"
+      reason: "combat round-entry and party state boundary only; resolution rules remain unchanged"
     },
     {
       pattern: "src/combat_ui/combat_state.js",
@@ -884,7 +884,9 @@ function isCombatBoundaryLine(text, file) {
     'if (state.combatState?.phase !== "choose_actions" || !hasUsableCombatActor(state.party)) return;',
     'if (state.transitioning || !isUsableCombatScreen(state, menuContext) ||',
     '      state.combatState?.phase !== "choose_actions" || !hasCombatRoundActor(state.party)) return;',
-    'state.combatState?.phase !== "choose_actions" || !hasCombatRoundActor(state.party)) return;'
+    'state.combatState?.phase !== "choose_actions" || !hasCombatRoundActor(state.party)) return;',
+    'state.party = nextState.party.slice(0, 1);',
+    'state.party = nextState.party;'
   ]).has(trimmed)
     || /^state\.combatState\?\.phase !== "choose_actions" \|\| !hasUsableCombatActor\(state\.party\)\) return;$/.test(trimmed);
 }

@@ -75,6 +75,8 @@ test('Incapacitated combatants advance the round without exposing action control
       actionCount: combatSelection.actions.length,
       actorIdx: combatSelection.actions[0]?.actorIdx,
       prompt: document.getElementById('combat-prompt').textContent,
+      partyLengthAfterRoundStarts: state.party.length,
+      partyStatusesAfterRoundStarts: state.party.map(actor => actor.status),
     };
 
     return { allIncapacitated, mixedBefore, mixedAfterSelection };
@@ -93,5 +95,7 @@ test('Incapacitated combatants advance the round without exposing action control
     actionCount: 1,
     actorIdx: 1,
     prompt: 'ターン解決中...',
+    partyLengthAfterRoundStarts: 2,
+    partyStatusesAfterRoundStarts: ['ok', 'ok'],
   });
 });

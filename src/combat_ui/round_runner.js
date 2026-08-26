@@ -6,7 +6,7 @@ import { combatSelection } from "./combat_state.js";
 import { playBattleLogs } from "./battle_log_player.js";
 import { trackCombatDecisionCommit, trackCombatEnd } from "../telemetry.js";
 
-// balance-impact: none — combat round-entry guard only; resolution rules unchanged
+// balance-impact: none — combat round-entry and party state boundary only; resolution rules unchanged
 function resolvePendingOutcome(logQueue) {
   for (const log of logQueue) {
     if (log.runEscape) return { kind: "runEscape" };
@@ -40,7 +40,7 @@ export function resolveCombatRound() {
   const { logQueue, state: nextState } = runCombatRoundCalculation(state, combatSelection);
   
   // Apply state mutations calculated in pure combat_logic
-  state.party = nextState.party.slice(0, 1);
+  state.party = nextState.party;
   state.combatState = nextState.combatState;
   state.inventory = nextState.inventory;
   state.firstKills = nextState.firstKills;
