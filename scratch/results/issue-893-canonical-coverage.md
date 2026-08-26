@@ -1,9 +1,14 @@
 # Issue #893 canonical Balance Simulation coverage audit
 
+> Updated by Issue #895: milestone merchant and return-portal route coverage
+> is documented in [issue-895-milestone-merchant-route.md](issue-895-milestone-merchant-route.md).
+
 ## 判定
 
 - 対象 production SHA: `a18d7bc1121df9e64290f79b1e07fa11ddc28ca5`（PR base / current `main`）
-- canonical runner: `scratch/sim_depth_material_ev.js` (`sim-scope: run`)
+- canonical runner: `scratch/sim_depth_material_ev.js` (`sim-scope: run`); its
+  milestone merchant / portal route is now covered by #895's deterministic
+  probe and N=500 measurement.
 - 結論: **#843 の標準 baseline は全指標について `blocked`**
 - ただし、merchant / secret route / enhance・polish / `fromDrop` chest の影響を受けない、production combat round の狭い診断値は `ready` として別扱いできる。
 - 本監査では production rule / balance value を変更していない。
@@ -55,7 +60,7 @@ N=1 canonical smoke の出力では、`working tree clean: true`、`floorsTraver
 | encounter generation / enemy pool | modeled | `generateEncounter` は biome pool、rare chance、encounter size、depth scaling を production rule で選ぶ（`src/combat_ui/encounter.js:10-75`）。 | — |
 | normal / elite / boss / midboss placement | partially modeled | boss/midboss と roaming elite は production map / `createFloorElite` を読んで route に配置するが、normal movement と roaming AI は path schedule に置き換える（`scratch/sim_depth_material_ev.js:8377-8418,8508-8647`）。 | P2 |
 | milestone guardian / checkpoint start | partially modeled | production は milestone floor の boss/merchant/portal を map cell に配置し、`executeEnterDungeon` が start state を作る（`src/run_map_generator.js:41-60`, `src/movement.js:736-792`）。sim は `createSimulationState` と milestone floor transition を使うが、実際の entry UI / cell traversal は通らない（`scratch/sim_depth_material_ev.js:3475-3783,11311-11333`）。 | P2 |
-| milestone merchant cell / return portal cell | partially modeled | production は boss 撃破後に cell へ到達して UI submenu を開く（`src/movement.js:592-614`）。sim は floor 完了時に stock rule を直接呼ぶため、cell 到達・blocked-before-boss・portal cell の route cost は未再現（`scratch/sim_depth_material_ev.js:11311-11333`）。 | P1 |
+| milestone merchant cell / return portal cell | modeled for configured policy | #895 は production `generateRunFloor` の3 landmarkを `boss → merchant → portal` 順に経路化し、boss fleeの再試行、blocked-before-boss、stairs gate、merchant/portal policy、material/status/uncurse countersを追加した（`scratch/sim_depth_material_ev.js`、[#895 report](issue-895-milestone-merchant-route.md)）。人間の任意stock選択/UI inputは未再現。 | P2 |
 | hidden doors / secret search | partially modeled | production は `searchSecretDoor` が encounter chance を払い、成功時 `openWall` する（`src/menu/explore_actions.js:33-124`）。sim の route planner は未発見 secret door を壁として扱う一方、chest は map 全体から数え、70% pickup を独立抽選する（`scratch/sim_depth_material_ev.js:8283-8331,8650-8661`）。secret room の探索時間・発見率・報酬への到達が一致しない。 | P1 |
 | exploration items / exploration spells | partially modeled | issue #412 tactical item policy と optional exploration spell policy は sim に存在する（`scratch/sim_depth_material_ev.js:10777-10791`）。manual tool selection、search timing、UI input は未再現。 | P2 |
 | floor-specific B5 fire trap | partially modeled | production は B5 の非-special step で 5% roll、5-step cooldown、`triggerFlameTrap` を通る（`src/movement.js:959-968`）。sim は同じ chance/cooldown/effect を独自 step schedule に適用する（`scratch/sim_depth_material_ev.js:8685-8754`）ため、実移動・special-cell判定は近似。 | P2 |
@@ -115,7 +120,7 @@ Current main の status IDs は `poisoned`, `blind`, `sleep`, `paralyzed`, `sile
 | material acquisition / bank on retreat or death | modeled | chest/combat/quest sources are tracked and bank calculation is checked against production `getBankedMaterials` (`scratch/sim_depth_material_ev.js:9650-9654,10106-10110`); material banking rates are production rules. | — |
 | departure craft | partially modeled | `purchaseDepartureCraft` / `getDepartureCraftGrants` are production systems and canonical sim measures craft demand, but selection is automatic/measurement-driven rather than player policy (`scratch/sim_depth_material_ev.js:3413-3444,3536-3577`). | P2 |
 | workshop purchase / permanent progression | partially modeled | production `purchaseWorkshopNode` is exercised for affordability probes and scenarios apply fixed workshop snapshots (`src/systems/workshop.js:29-46`, `scratch/sim_depth_material_ev.js:3452-3464,3493-3500`). No run-to-run player purchase policy or post-result workshop loop is measured. | P1 |
-| milestone merchant purchase | partially modeled | production `purchaseMilestoneStock` is used for selected heal/status/return-wing/strength/mana policies, and N=10 targeted probe observed successes (`src/systems/milestone_merchant.js:6-15`, `scratch/sim_depth_material_ev.js:7095-7231`). identify powder, uncurse, guard/haste/trap-kit and human offer selection are not in the standard policy. | P1 |
+| milestone merchant purchase | modeled for configured policy | production `purchaseMilestoneStock` / `purchaseMilestoneUncurse` are called at the reached merchant cell; `supply-missing` explicitly handles identify powder, uncurse, status cures, healing, strength/mana and configured return wing, while `never` is the no-purchase control. N=500 records stock attempts/success/failures and material spend. Guard/haste/trap-kit/trap-sense and arbitrary human offer selection remain manual-policy omissions. | P2 |
 | XP / leveling / spell acquisition | modeled | production combat reward/level path is reached through round resolution; final level, exp, MP and spell usage are emitted. No direct reward/level call is used as a substitute (canonical reward guard in `scratch/test_sim_reward_paths.js`). | — |
 | run start / departure preparation | partially modeled | workshop grants, starting gear, identify powder, departure craft and return items are applied in `createSimulationState`; actual town menu/input and save boundary are omitted. | P2 |
 | permanent save/result/codex progression | partially modeled | run result and bank values are computed, and combat reward code can populate in-memory codex state. Persistent save serialization, result UI choice, and cross-run workshop/codex operation are not part of the canonical balance run. | Safe omission for balance transport; P1 for long-horizon progression |
@@ -127,7 +132,7 @@ Current main の status IDs は `poisoned`, `blind`, `sleep`, `paralyzed`, `sile
 | Definition | production symbols listed above; `simulation_manifest.js` maps balance-impact paths to domains | evidenced | New production mechanism needs explicit inventory row and manifest mapping. |
 | Caller and execution | canonical runner imports production map, encounter, combat, reward, chest rule, equipment, identification, recovery and status modules; N=1 smoke has finite output and traverses floors | evidenced for modeled rows; partially modeled for policy rows | Run targeted deterministic probes for each P1 path before using its metric. |
 | Player operation and UI | movement cell dispatch, explore action router, chest menu, merchant menu, equipment workshop menu are present in production (`src/movement.js:495-638`, `src/menu/explore_actions.js:127-153`, `src/chest.js:204-410`, `src/menu/milestone_merchant.js:78-143`, `src/equip.js:838-965`) | evidenced in production, not exercised by canonical sim | UI/input/rendering is outside balance scope; action-policy omissions are not safe for affected balance metrics. |
-| Simulation | `scratch/sim_depth_material_ev.js`, runtime counters and N=1/N=10 probes | evidenced for modeled rows; not exercised for enhance/polish/fromDrop/secret search | Follow-up runner work required. |
+| Simulation | `scratch/sim_depth_material_ev.js`, runtime counters, deterministic #895 probe, and N=500 `ISSUE895_MEASUREMENT_JSON` | milestone merchant / portal route is evidenced; enhance/polish/fromDrop/secret search remain unexercised | Follow-up runner work remains for #894/#896. |
 | Telemetry or record | production `src/telemetry.js` and codex state exist; sim emits its own aggregate JSON and does not transport production telemetry | out of scope for analytics transport; partially modeled for in-memory reward records | Do not use production analytics absence as a balance omission; keep simulator output provenance separate. |
 
 ## #843 standard metrics impact
@@ -145,7 +150,7 @@ Current main の status IDs は `poisoned`, `blind`, `sleep`, `paralyzed`, `sile
 The following independent Issues must be completed before #843 claims a full-game baseline:
 
 1. [#896](https://github.com/y-krn/wiz-mobile-rpg/issues/896): canonical sim の production `executeEnhance` / `executePolish` と material spend/policy を model する。
-2. [#895](https://github.com/y-krn/wiz-mobile-rpg/issues/895): canonical sim の milestone merchant policy と merchant-cell/portal route を model する（未選択 stock、uncurse を含める）。
+2. [#895](https://github.com/y-krn/wiz-mobile-rpg/issues/895): **完了** — canonical sim の milestone merchant policy と merchant-cell/portal route、未選択 stock境界、uncurseを model した。
 3. [#894](https://github.com/y-krn/wiz-mobile-rpg/issues/894): canonical sim の secret search/secret-room reachability と `fromDrop` chest/action path を model する。
 
 ## Acceptance mapping
@@ -154,7 +159,7 @@ The following independent Issues must be completed before #843 claims a full-gam
 - [x] `modeled / partially modeled / omitted` を付与
 - [x] source path、caller、runtime evidence を記録
 - [x] safe omission と balance-impacting omission を分離
-- [x] P1 follow-up Issues — [#896](https://github.com/y-krn/wiz-mobile-rpg/issues/896), [#895](https://github.com/y-krn/wiz-mobile-rpg/issues/895), [#894](https://github.com/y-krn/wiz-mobile-rpg/issues/894)
+- [x] P1 follow-up Issues — [#896](https://github.com/y-krn/wiz-mobile-rpg/issues/896), [#894](https://github.com/y-krn/wiz-mobile-rpg/issues/894); [#895](https://github.com/y-krn/wiz-mobile-rpg/issues/895) は完了
 - [x] #843 の指標ごとの影響を記録
 - [x] #843 baseline の判断を `blocked` と記録
 - [x] production behavior / balance values は変更なし
