@@ -150,6 +150,7 @@ const {
   CHEST_ACCESSORY_CORE_MIN_FLOOR,
   CHEST_EQUIPMENT_CORE_MIN_FLOOR,
   CHEST_ITEM_CANDIDATES_BY_FLOOR,
+  CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
   CHEST_SPECIAL_REWARD_CHANCE_BY_FLOOR,
   calculateChestMainItemExpectedValue,
   calculateChestMainItemForcedLossRate,
@@ -6371,13 +6372,15 @@ function runEncounter(
       mpBlockedEvents: Math.max(
         0,
         (metrics?.mpPressure?.combat?.total?.mpBlocked || 0) - mpBlockedAtEncounterStart
-      )
+      ),
+      triggerChest
     };
   };
 
   let rounds = 0;
   let healPotionsUsed = 0;
   let greaterHealPotionsUsed = 0;
+  let triggerChest = false;
   for (; rounds < MAX_COMBAT_TURNS; rounds++) {
     const character = state.party[0];
     if (!isAlive(character)) return finishEncounter("death", rounds, healPotionsUsed, greaterHealPotionsUsed);
@@ -6555,6 +6558,7 @@ function runEncounter(
     observations.bloodWandHealActivations += Number(bloodWandActivationType === "heal");
     observations.coreActivationCounts.CORE_BLOOD_WAND += Number(Boolean(bloodWandActivationType));
     state = roundResult.state;
+    triggerChest ||= roundResult.logQueue.some(entry => entry?.triggerChest === true);
     const combatManaPotionUsed = action.type === "item" &&
       action.itemKey === "MANA_POTION" &&
       roundResult.logQueue.some(({ msg = "" }) => msg.includes("魔力草を使用し"));
@@ -8661,6 +8665,118 @@ function schedulePickedUpChests(chestCount, floorSteps) {
   return schedule;
 }
 
+const CHEST_PATH_SOURCES = Object.freeze(["ordinary", "secretRoom", "fromDrop"]);
+const CHEST_ACTIONS = Object.freeze(["inspect", "open", "disarm", "trap_kit", "smash", "leave"]);
+
+function createChestPathMetrics() {
+  return Object.fromEntries(CHEST_PATH_SOURCES.map(source => [
+    source,
+    {
+      generated: 0,
+      opened: 0,
+      inspected: 0,
+      inspectSuccesses: 0,
+      inspectFailures: 0,
+      rewardsAwarded: 0,
+      rewardsLost: 0,
+      trapsTriggered: 0,
+      actions: Object.fromEntries(CHEST_ACTIONS.map(action => [action, 0])),
+      mainTownPortalRewards: 0,
+      specialTownPortalRewards: 0
+    }
+  ]));
+}
+
+function recordChestPathAction(metrics, source, action) {
+  const path = metrics.chestPath?.[source];
+  if (!path || path.actions[action] === undefined) return;
+  path.actions[action]++;
+}
+
+function recordChestInspection(metrics, source, character, rng) {
+  const chestPath = metrics.chestPath?.[source];
+  if (chestPath) {
+    chestPath.opened++;
+    chestPath.inspected++;
+  }
+  recordChestPathAction(metrics, source, "inspect");
+  const chance = (
+    character.class === "Thief" && isAlive(character) ? 0.85 : 0.30
+  ) / (character.status === "blind" ? 2 : 1);
+  const inspected = rng() < chance;
+  if (chestPath) chestPath[inspected ? "inspectSuccesses" : "inspectFailures"]++;
+  return inspected;
+}
+
+function findSecretRoomPlans(generated, routePlan) {
+  const routeIndices = new Map();
+  routePlan.path.forEach((coord, index) => {
+    const key = routeKey(coord);
+    if (!routeIndices.has(key)) routeIndices.set(key, index);
+  });
+  const plans = [];
+  const seenDoors = new Set();
+  const start = findFloorCell(generated.grid, cell => cell.type === "stairs-up");
+  generated.grid.forEach((row, y) => row.forEach((cell, x) => {
+    for (let dir = 0; dir < 4; dir++) {
+      if (!cell.secretDoor?.[dir]) continue;
+      const neighbor = { x: x + DX[dir], y: y + DY[dir] };
+      const doorKey = [routeKey({ x, y }), routeKey(neighbor)].sort().join("|");
+      if (seenDoors.has(doorKey)) continue;
+      seenDoors.add(doorKey);
+      const source = { x, y };
+      const routeIndex = routeIndices.get(routeKey(source));
+      const sourcePath = routeIndex === undefined
+        ? findShortestFloorPath(generated.grid, start, source)
+        : null;
+      if (routeIndex === undefined && !sourcePath) continue;
+      plans.push({
+        source,
+        room: neighbor,
+        roomEvent: generated.grid[neighbor.y]?.[neighbor.x]?.event || null,
+        sourceIndex: routeIndex ?? routePlan.path.length + sourcePath.length - 1,
+        detourSteps: routeIndex === undefined ? (sourcePath.length - 1) * 2 : 0,
+        direction: dir
+      });
+      break;
+    }
+  }));
+  return plans.sort((left, right) => left.sourceIndex - right.sourceIndex);
+}
+
+function scheduleSecretRoomSearches(plans, floorSteps, routeLength) {
+  const schedule = new Map();
+  plans.forEach(plan => {
+    const step = Math.max(
+      1,
+      Math.min(
+        floorSteps,
+        Math.ceil(((plan.sourceIndex + 1) / Math.max(1, routeLength - 1)) * floorSteps)
+      )
+    );
+    schedule.set(step, [...(schedule.get(step) || []), plan]);
+  });
+  return schedule;
+}
+
+function calculateSecretSearchSuccessRateForSimulation(party, floor) {
+  let rate = 0.35;
+  const scouts = party.filter(character =>
+    ["Thief", "Ninja", "Ranger"].includes(character.class) && character.hp > 0
+  );
+  if (scouts.length > 0) {
+    const bestScout = Math.max(...scouts.map(character => {
+      const classBonus = character.class === "Thief"
+        ? 0.20
+        : character.class === "Ninja" ? 0.15 : 0.10;
+      return classBonus + (character.luk + character.agi) * 0.01;
+    }));
+    rate += bestScout;
+  }
+  rate -= (floor - 1) * 0.05;
+  return Math.max(0.10, Math.min(0.95, rate));
+}
+
 function scheduleFloorTraps(generated, routePlan, floorSteps) {
   const schedule = new Map();
   const seen = new Set();
@@ -9030,9 +9146,27 @@ function resolveChestTrapForSimulation(
   mainItem,
   observations,
   metrics,
-  { futureChestCount = 0, smashRewards = [], rng = Math.random } = {}
+  { futureChestCount = 0, smashRewards = [], rng = Math.random, chestSource = "ordinary" } = {}
 ) {
   const character = state.party[0];
+  const chestPath = metrics.chestPath?.[chestSource];
+  const inspected = chestSource === "ordinary"
+    ? (() => {
+        if (chestPath) {
+          chestPath.opened++;
+          chestPath.inspected++;
+          chestPath.inspectSuccesses++;
+        }
+        recordChestPathAction(metrics, chestSource, "inspect");
+        return true;
+      })()
+    : recordChestInspection(metrics, chestSource, character, rng);
+  const falseTraps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
+  const identifiedTrap = chestSource === "ordinary"
+    ? trap
+    : inspected
+    ? trap
+    : falseTraps[Math.floor(rng() * falseTraps.length)];
   const blindStatus = character.status === "blind" ? "blind" : "clear";
   const disarmBlindMetric = metrics.chestDisarmByBlindStatus[blindStatus];
   metrics.trapEncounterCount++;
@@ -9048,6 +9182,7 @@ function resolveChestTrapForSimulation(
   observations.trappedChests++;
 
   if (state.simPolicy.chestTrapPolicy === "disabled") {
+    recordChestPathAction(metrics, chestSource, "open");
     const expectedDisarm = Math.max(0, Math.min(1, chance));
     observations.expectedTrapDisarms += expectedDisarm;
     observations.expectedTrapDisarmsByFloor[floor] += expectedDisarm;
@@ -9056,20 +9191,26 @@ function resolveChestTrapForSimulation(
 
   const kitCount = state.inventory.filter(item => item === "TRAP_KIT").length;
   const kitIndex = state.inventory.indexOf("TRAP_KIT");
-  const action = state.simPolicy.chestTrapPolicy === "legacy"
+  const riskTrap = identifiedTrap === "none" ? trap : identifiedTrap;
+  const fullRisk = calculateChestTrapExpectedRisk({
+    trap: riskTrap,
+    party: state.party,
+    targetIndex: Math.max(0, state.party.indexOf(character)),
+    poisonWard: getCharAffixSum(character, "poisonWard")
+  }).risk;
+  const action = identifiedTrap === "none"
+    ? "open"
+    : fullRisk >= Math.max(1, character.hp)
+      ? "leave"
+      : state.simPolicy.chestTrapPolicy === "legacy"
     ? (kitIndex >= 0
       ? "kit"
       : (chance >= LEGACY_CHEST_DISARM_MIN_CHANCE ? "direct" : "force"))
     : calculateChestDisarmActionEv({
       successRate: chance,
-      fullRisk: calculateChestTrapExpectedRisk({
-        trap,
-        party: state.party,
-        targetIndex: Math.max(0, state.party.indexOf(character)),
-        poisonWard: getCharAffixSum(character, "poisonWard")
-      }).risk,
+      fullRisk,
       weakenedRisk: calculateChestTrapExpectedRisk({
-        trap,
+        trap: riskTrap,
         weakened: true,
         party: state.party,
         targetIndex: Math.max(0, state.party.indexOf(character)),
@@ -9081,8 +9222,29 @@ function resolveChestTrapForSimulation(
       futureChestCount
     }).action;
   const actionPath = action === "force" ? "forced" : action;
-  disarmBlindMetric.decisions++;
-  disarmBlindMetric[actionPath]++;
+  recordChestPathAction(
+    metrics,
+    chestSource,
+    action === "kit"
+      ? "trap_kit"
+      : action === "force"
+        ? "smash"
+        : action === "direct"
+          ? "disarm"
+          : action
+  );
+  if (action === "leave") return { mainItemLost: false, action };
+  if (action === "open") {
+    if (trap === "none") return { mainItemLost: false, action };
+    state.currentRun.trapsTriggered++;
+    metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
+    applyChestTrapEffect(state, trap, false, metrics);
+    return { mainItemLost: false, action };
+  }
+  if (actionPath === "direct" || actionPath === "forced" || actionPath === "kit") {
+    disarmBlindMetric.decisions++;
+    disarmBlindMetric[actionPath]++;
+  }
 
   if (action === "kit" && kitIndex >= 0) {
     state.inventory.splice(kitIndex, 1);
@@ -9097,7 +9259,7 @@ function resolveChestTrapForSimulation(
     disarmBlindMetric.attempts++;
     disarmBlindMetric.successes++;
     applyTrapEaterChestDisarmBonus(character, observations);
-    return { mainItemLost: false };
+    return { mainItemLost: false, action };
   }
 
   if (action === "direct") {
@@ -9106,7 +9268,7 @@ function resolveChestTrapForSimulation(
     metrics.chestDisarmDirectAttemptsByFloor[floor]++;
     metrics.trapDisarmAttempts++;
     disarmBlindMetric.attempts++;
-    if (Math.random() < chance) {
+    if (rng() < chance) {
       state.currentRun.trapsDisarmed++;
       metrics.trapDisarms++;
       metrics.chestDisarmSuccesses++;
@@ -9115,7 +9277,7 @@ function resolveChestTrapForSimulation(
       disarmBlindMetric.successes++;
       recordTrapDisarmObservation(observations, floor);
       applyTrapEaterChestDisarmBonus(character, observations);
-      return { mainItemLost: false };
+      return { mainItemLost: false, action };
     }
     disarmBlindMetric.failures++;
     state.currentRun.trapsTriggered++;
@@ -9124,7 +9286,7 @@ function resolveChestTrapForSimulation(
     // Ordinary disarm failure intentionally follows the existing live path:
     // openChestDirectly still awards the chest before the game-over transition.
     // Only the force/smash-equivalent branch has the lethal reward gate.
-    return { mainItemLost: false };
+    return { mainItemLost: false, action };
   }
 
   metrics.trapForced++;
@@ -9133,13 +9295,14 @@ function resolveChestTrapForSimulation(
   metrics.chestTrapActivationsByBlindStatus[blindStatus]++;
   applyChestTrapEffect(state, trap, true, metrics);
   if (!state.party.some(isAlive)) {
-    return { lethal: true, mainItemLost: false, lostRewardRoles: [] };
+    return { lethal: true, mainItemLost: false, lostRewardRoles: [], action };
   }
   // The simulator's `force` action is the production weakened-trap/smash
   // branch. Use the shared role-aware rule for all modeled chest rewards.
   const losses = resolveChestSmashRewardLosses(smashRewards, rng);
   return {
     lethal: false,
+    action,
     mainItemLost: losses.some(loss => loss.role === "main"),
     lostRewardRoles: losses.map(loss => loss.role)
   };
@@ -9155,8 +9318,10 @@ function rollChestItems(
   scenario,
   supplyOverride = null,
   metrics = null,
-  { futureChestCount = 0 } = {}
+  { futureChestCount = 0, fromDrop = false, chestSource = "ordinary" } = {}
 ) {
+  const chestPath = metrics?.chestPath?.[chestSource];
+  if (chestPath) chestPath.generated++;
   const trap = rollChestTrap(floor, rng, metrics?.runtimeDiagnostics);
   maybeAcquireChestIdentificationPowder(state, metrics, rng);
   if (floor === 1) {
@@ -9171,10 +9336,12 @@ function rollChestItems(
     trap,
     firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
     coreMinFloor: getChestCoreMinFloor(supplyOverride, "equipment"),
-    itemCandidates: RETURN_WING_REWARD_MODE === "baseline"
-      ? PRE_791_CHEST_ITEM_CANDIDATES_BY_FLOOR[Math.min(5, floor)] || []
-      : null,
-    itemCandidateFilter: RETURN_WING_REWARD_MODE === "special"
+    itemCandidates: fromDrop
+      ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[Math.min(5, floor)] || []
+      : RETURN_WING_REWARD_MODE === "baseline"
+        ? PRE_791_CHEST_ITEM_CANDIDATES_BY_FLOOR[Math.min(5, floor)] || []
+        : null,
+    itemCandidateFilter: !fromDrop && RETURN_WING_REWARD_MODE === "special"
       ? itemId => itemId !== "TOWN_PORTAL"
       : null,
     runtimeDiagnostics: metrics?.runtimeDiagnostics
@@ -9187,9 +9354,11 @@ function rollChestItems(
     metrics.chestTownPortalMainRewardReplacements++;
     metrics.chestTownPortalMainRewardReplacementsByFloor[floor]++;
   }
-  const specialItem = RETURN_WING_REWARD_MODE === "special"
+  const specialItem = !fromDrop && RETURN_WING_REWARD_MODE === "special"
     ? rollChestSpecialReward(floor, rng)
     : null;
+  if (item === "TOWN_PORTAL" && chestPath) chestPath.mainTownPortalRewards++;
+  if (specialItem && chestPath) chestPath.specialTownPortalRewards++;
   if (specialItem && metrics) {
     metrics.chestSpecialPortalOffers++;
     metrics.chestSpecialPortalOffersByFloor[floor]++;
@@ -9264,7 +9433,11 @@ function rollChestItems(
   addReward("extra", extra);
   addReward("extraHealPotion", extraHealPotion);
   const trapResult = trap === "none"
-    ? { mainItemLost: false }
+    ? (() => {
+        recordChestInspection(metrics, chestSource, state.party[0], rng);
+        recordChestPathAction(metrics, chestSource, "open");
+        return { mainItemLost: false, action: "open" };
+      })()
     : resolveChestTrapForSimulation(
       state,
       floor,
@@ -9279,12 +9452,22 @@ function rollChestItems(
         rng: createMaterialOverrideRandom(
           `${state.currentRun.runSeed}:chest-smash:${floor}:${state.currentRun.chestsOpened}`
         ),
+        chestSource,
         smashRewards: ["main", "special", "accessory"]
           .filter(role => Number.isInteger(itemIndices[role]))
           .map(role => ({ role, item: items[itemIndices[role]] }))
       }
     );
   const rewardLossRoles = new Set(trapResult.lostRewardRoles || []);
+  if (chestPath) {
+    chestPath.trapsTriggered += Number(
+      state.simPolicy.chestTrapPolicy !== "disabled" &&
+      trap !== "none" &&
+      trapResult.action !== "disarm" &&
+      trapResult.action !== "trap_kit"
+    );
+    chestPath.rewardsLost += rewardLossRoles.size;
+  }
   return {
     items,
     lethal: trapResult.lethal === true,
@@ -9298,8 +9481,197 @@ function rollChestItems(
     specialItemIndex: itemIndices.special ?? -1,
     extraHealPotion: Boolean(extraHealPotion),
     extraHealPotionIndex: itemIndices.extraHealPotion ?? -1,
-    replacedMainItem
+    replacedMainItem,
+    trapAction: trapResult.action || null
   };
+}
+
+function resolveSimulationChest({
+  state,
+  floor,
+  metrics,
+  scenario,
+  supplyOverride,
+  scoringProfile,
+  source = "ordinary",
+  futureChestCount = 0
+}) {
+  metrics.chestsOpened++;
+  metrics.chestsOpenedByFloor[floor]++;
+  const chestPath = metrics.chestPath[source];
+  const tombRaider = getCharCoreParams(state.party[0], "CORE_TOMB_RAIDER");
+  const chestMaterials = generateChestMaterials(
+    floor,
+    Math.random,
+    tombRaider?.materialBonus || 0,
+    { materialPoolProfile: state.simPolicy.materialDropOverride?.chestMaterialProfile }
+  );
+  const chestItems = rollChestItems(
+    state,
+    floor,
+    Math.random,
+    metrics.coreObservations,
+    scenario,
+    supplyOverride,
+    metrics,
+    {
+      futureChestCount,
+      fromDrop: source === "fromDrop",
+      chestSource: source
+    }
+  );
+  if (chestItems.lethal) {
+    // Match src/chest.js: a lethal trap ends the chest transition before any
+    // material, reward, or equipment telemetry is recorded.
+    state.currentRun.chestsOpened++;
+    return false;
+  }
+  if (tombRaider) {
+    metrics.coreObservations.coreOpportunityCounts.CORE_TOMB_RAIDER++;
+    metrics.coreObservations.tombRaiderMaterialBonusTotal += tombRaider.materialBonus || 0;
+    if (totalMaterials(chestMaterials) > 0) {
+      metrics.coreObservations.coreActivationCounts.CORE_TOMB_RAIDER++;
+    }
+  }
+  addMaterials(state.currentRun.materials, chestMaterials);
+  addMaterials(metrics.materialSourceCounts.chest, chestMaterials);
+  metrics.materialSources.chest += totalMaterials(chestMaterials);
+  recordMaterialPickup(metrics, chestMaterials);
+  chestItems.items = applyEquipmentPostGenerationTransforms(chestItems.items, state);
+  const cureCountsBeforeChest = countInventoryItems(state.inventory);
+  const acquiredEquipment = [];
+  recordEquipmentGenerations(metrics, chestItems.items);
+  chestItems.items.forEach((item, itemIndex) => {
+    if (chestItems.lostRewardIndices?.includes(itemIndex)) return;
+    if (
+      chestItems.mainItemLost &&
+      itemIndex === chestItems.mainItemIndex &&
+      item === chestItems.mainItem
+    ) return;
+    const isSpecialTownPortal = itemIndex === chestItems.specialItemIndex;
+    if (item === "TOWN_PORTAL" && scenario.discardChestTownPortal && !isSpecialTownPortal) return;
+    const isExtraHealPotion = chestItems.extraHealPotion &&
+      itemIndex === chestItems.extraHealPotionIndex;
+    const isReplacementHealPotion = Boolean(chestItems.replacedMainItem) &&
+      itemIndex === chestItems.mainItemIndex;
+    if (item === "HEAL_POTION" || item === "GREATER_HEAL") {
+      recordRecoveryPotionOffer(metrics, "chest", item);
+      if (item === "HEAL_POTION" && !shouldGrantNormalizedHealPotion(state)) return;
+    }
+    if (!tryAddInventoryItem(state, item, metrics, "chest")) return;
+    if (item === "HEAL_POTION") {
+      recordHealPotionAcquisition(
+        state,
+        metrics,
+        isExtraHealPotion || isReplacementHealPotion ? "chest-extra" : "chest"
+      );
+    }
+    if (item === "GREATER_HEAL") recordGreaterHealAcquisition(state, metrics, "chest");
+    if (item === "TRAP_KIT") recordTrapKitAcquisition(state, metrics);
+    if (item === "TOWN_PORTAL") {
+      const portalSource = isSpecialTownPortal ? "chest-special" : "chest";
+      state.simPortalSources.push(portalSource);
+      metrics.portalAcquisitions[portalSource]++;
+    }
+    const itemData = getItemData(item);
+    if (!isEquipment(itemData)) {
+      state.currentRun.itemsFound.push(item);
+      return;
+    }
+    acquiredEquipment.push(item);
+    if (typeof item === "string") {
+      state.currentRun.itemsFound.push(item);
+    } else {
+      state.currentRun.equipmentFound.push(item);
+      if (floor === 1) state.currentRun.b1EquipFound = (state.currentRun.b1EquipFound || 0) + 1;
+    }
+  });
+  recordStatusCureAcquisitions(
+    metrics,
+    cureCountsBeforeChest,
+    countInventoryItems(state.inventory),
+    "chest"
+  );
+  recordEquipmentAcquisitions(metrics, acquiredEquipment, floor, "chest");
+  state.currentRun.chestsOpened++;
+  if (chestPath) {
+    chestPath.rewardsAwarded += chestItems.items.filter((item, index) =>
+      !chestItems.lostRewardIndices?.includes(index) &&
+      !(chestItems.mainItemLost && index === chestItems.mainItemIndex)
+    ).length;
+  }
+  recordEquipmentUpgrades(
+    metrics,
+    equipGreedyUpgrades(state, metrics, scoringProfile),
+    floor
+  );
+  return true;
+}
+
+function resolveSecretRoomSearch({
+  state,
+  floor,
+  plan,
+  metrics,
+  scenario,
+  supplyOverride,
+  scoringProfile
+}) {
+  metrics.secretDoorCandidates++;
+  const approachSteps = plan.detourSteps || 0;
+  metrics.secretSearchExtraSteps += approachSteps;
+  metrics.steps += approachSteps;
+  state.currentRun.steps += approachSteps;
+  state.currentRun.floorSteps[String(floor)] =
+    (state.currentRun.floorSteps[String(floor)] || 0) + approachSteps;
+  state.x = plan.source.x;
+  state.y = plan.source.y;
+  const chance = calculateSecretSearchSuccessRateForSimulation(state.party, floor);
+  let attempts = 0;
+  let discovered = false;
+  do {
+    attempts++;
+    metrics.secretSearchAttempts++;
+    metrics.secretSearchExtraSteps++;
+    metrics.steps++;
+    state.currentRun.steps++;
+    state.currentRun.floorSteps[String(floor)] =
+      (state.currentRun.floorSteps[String(floor)] || 0) + 1;
+    metrics.secretSearchEncounterExposure += getEncounterChance(metrics.steps, state);
+    discovered = Math.random() < chance;
+    if (!discovered) metrics.secretSearchFailures++;
+    if (attempts > 1_000) {
+      throw new Error(`secret-door search did not converge at B${floor}F`);
+    }
+  } while (!discovered);
+
+  metrics.secretSearchSuccesses++;
+  metrics.secretRoomDiscoveries++;
+  // Entering and returning from the revealed room are real movement cost. The
+  // route planner uses the hidden edge only after the production search roll.
+  metrics.secretSearchExtraSteps += 2;
+  metrics.steps += 2;
+  state.currentRun.steps += 2;
+  state.currentRun.floorSteps[String(floor)] =
+    (state.currentRun.floorSteps[String(floor)] || 0) + 2;
+  if (plan.roomEvent !== EVENT_TYPES.CHEST) return true;
+
+  metrics.secretRoomRewardChests++;
+  metrics.secretRoomRewardAttempts++;
+  state.x = plan.room.x;
+  state.y = plan.room.y;
+  const opened = resolveSimulationChest({
+    state,
+    floor,
+    metrics,
+    scenario,
+    supplyOverride,
+    scoringProfile,
+    source: "secretRoom"
+  });
+  state.x = plan.source.x;
+  state.y = plan.source.y;
+  return opened;
 }
 
 function hasBuildCoreAffix(item) {
@@ -9704,6 +10076,17 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     steps: metrics.steps,
     battles: state.currentRun.battles,
     chestsOpenedInRun: state.currentRun.chestsOpened,
+    chestPath: structuredClone(metrics.chestPath),
+    secretDoorCandidates: metrics.secretDoorCandidates,
+    secretSearchAttempts: metrics.secretSearchAttempts,
+    secretSearchSuccesses: metrics.secretSearchSuccesses,
+    secretSearchFailures: metrics.secretSearchFailures,
+    secretSearchExtraSteps: metrics.secretSearchExtraSteps,
+    secretSearchEncounterExposure: metrics.secretSearchEncounterExposure,
+    secretRoomDiscoveries: metrics.secretRoomDiscoveries,
+    secretRoomRewardChests: metrics.secretRoomRewardChests,
+    secretRoomRewardAttempts: metrics.secretRoomRewardAttempts,
+    chestDropGenerated: metrics.chestDropGenerated,
     floorBudgetSteps: metrics.floorBudgetSteps,
     routePolicyExtraSteps: metrics.routePolicyExtraSteps,
     eliteExtraSteps: metrics.eliteExtraSteps,
@@ -10407,6 +10790,17 @@ export function simulateRun({
     trapEncounterCount: 0,
     trapEncounterBySource: { chest: 0, floor: 0 },
     chestsOpened: 0,
+    chestPath: createChestPathMetrics(),
+    secretDoorCandidates: 0,
+    secretSearchAttempts: 0,
+    secretSearchSuccesses: 0,
+    secretSearchFailures: 0,
+    secretSearchExtraSteps: 0,
+    secretSearchEncounterExposure: 0,
+    secretRoomDiscoveries: 0,
+    secretRoomRewardChests: 0,
+    secretRoomRewardAttempts: 0,
+    chestDropGenerated: 0,
     chestHealPotionExtraGenerated: 0,
     chestHealPotionReplacementGenerated: 0,
     chestEquipmentReplacedByHealPotion: 0,
@@ -10599,6 +10993,17 @@ export function simulateRun({
     materialConsumedByMerchant: Object.fromEntries(
       MATERIAL_TYPES.map(material => [material, 0])
     ),
+    chestPath: createChestPathMetrics(),
+    secretDoorCandidates: 0,
+    secretSearchAttempts: 0,
+    secretSearchSuccesses: 0,
+    secretSearchFailures: 0,
+    secretSearchExtraSteps: 0,
+    secretSearchEncounterExposure: 0,
+    secretRoomDiscoveries: 0,
+    secretRoomRewardChests: 0,
+    secretRoomRewardAttempts: 0,
+    chestDropGenerated: 0,
     combatMaterialEvents: 0,
     combatMaterialHitEvents: 0,
     scoringProfile,
@@ -10645,6 +11050,7 @@ export function simulateRun({
     );
     const staticFloorSteps = getFloorStepCount(generated, floor);
     const floorSteps = routePlan.floorSteps + elitePlan.extraSteps;
+    const secretRoomPlans = findSecretRoomPlans(generated, routePlan);
     metrics.eliteAvoidDetourSteps += state.simPolicy.elitePolicy === "avoid"
       ? elitePlan.extraSteps
       : 0;
@@ -10714,6 +11120,11 @@ export function simulateRun({
       milestoneForced: routePlan.milestoneForced
     });
     const chestSchedule = schedulePickedUpChests(countFloorChests(generated.grid), floorSteps);
+    const secretRoomSchedule = scheduleSecretRoomSearches(
+      secretRoomPlans,
+      floorSteps,
+      routePlan.path.length
+    );
     const floorTrapSchedule = scheduleFloorTraps(generated, routePlan, floorSteps);
     metrics.coreObservations.pickedChestsByFloor[floor] +=
       [...chestSchedule.values()].reduce((sum, count) => sum + count, 0);
@@ -10773,6 +11184,22 @@ export function simulateRun({
       }
 
       const scheduledSpecials = specialSchedule.get(step) || [];
+      const scheduledSecretRooms = secretRoomSchedule.get(step) || [];
+      for (const secretPlan of scheduledSecretRooms) {
+        const opened = resolveSecretRoomSearch({
+          state,
+          floor,
+          plan: secretPlan,
+          metrics,
+          scenario,
+          supplyOverride,
+          scoringProfile
+        });
+        if (!opened) {
+          metrics.deathEncounterType = "secret-room-chest-trap";
+          return finishRun(state, "death", metrics);
+        }
+      }
       const scheduledFloorTraps = floorTrapSchedule.get(step) || [];
       applyIssue412TacticalItem({
         state,
@@ -10934,6 +11361,10 @@ export function simulateRun({
         );
         recordEquipmentAcquisitions(metrics, acquiredEquipment, floor, "chest");
         state.currentRun.chestsOpened++;
+        metrics.chestPath.ordinary.rewardsAwarded += chestItems.items.filter((item, itemIndex) =>
+          !chestItems.lostRewardIndices?.includes(itemIndex) &&
+          !(chestItems.mainItemLost && itemIndex === chestItems.mainItemIndex)
+        ).length;
         recordEquipmentUpgrades(
           metrics,
           equipGreedyUpgrades(state, metrics, scoringProfile),
@@ -11143,6 +11574,23 @@ export function simulateRun({
               item => (typeof item === "object" ? item.baseId : item) === "DRAGON_KEY"
             ).length;
             metrics.dragonKeysAcquired += Math.max(0, keyCountAfter - keyCountBefore);
+          }
+
+          if (combatResult.triggerChest) {
+            metrics.chestDropGenerated++;
+            const opened = resolveSimulationChest({
+              state,
+              floor,
+              metrics,
+              scenario,
+              supplyOverride,
+              scoringProfile,
+              source: "fromDrop"
+            });
+            if (!opened || !isAlive(state.party[0])) {
+              metrics.deathEncounterType = "from-drop-chest-trap";
+              return finishRun(state, "death", metrics);
+            }
           }
 
           recordStatusCureAcquisitions(
@@ -11401,6 +11849,17 @@ function simulateCase({
     materialConsumedByMerchant: Object.fromEntries(
       MATERIAL_TYPES.map(material => [material, 0])
     ),
+    chestPath: createChestPathMetrics(),
+    secretDoorCandidates: 0,
+    secretSearchAttempts: 0,
+    secretSearchSuccesses: 0,
+    secretSearchFailures: 0,
+    secretSearchExtraSteps: 0,
+    secretSearchEncounterExposure: 0,
+    secretRoomDiscoveries: 0,
+    secretRoomRewardChests: 0,
+    secretRoomRewardAttempts: 0,
+    chestDropGenerated: 0,
     timeCost: 0,
     campRestCount: 0,
     reachedFloor: 0,
@@ -11759,6 +12218,29 @@ function simulateCase({
       totals.materialAcquiredBySource[source] =
         (totals.materialAcquiredBySource[source] || 0) + amount;
     });
+    CHEST_PATH_SOURCES.forEach(source => {
+      const fromRun = result.chestPath?.[source];
+      const aggregate = totals.chestPath[source];
+      if (!fromRun) return;
+      [
+        "generated", "opened", "inspected", "inspectSuccesses", "inspectFailures",
+        "rewardsAwarded", "rewardsLost", "trapsTriggered", "mainTownPortalRewards",
+        "specialTownPortalRewards"
+      ].forEach(field => { aggregate[field] += fromRun[field] || 0; });
+      CHEST_ACTIONS.forEach(action => {
+        aggregate.actions[action] += fromRun.actions?.[action] || 0;
+      });
+    });
+    totals.secretDoorCandidates += result.secretDoorCandidates || 0;
+    totals.secretSearchAttempts += result.secretSearchAttempts || 0;
+    totals.secretSearchSuccesses += result.secretSearchSuccesses || 0;
+    totals.secretSearchFailures += result.secretSearchFailures || 0;
+    totals.secretSearchExtraSteps += result.secretSearchExtraSteps || 0;
+    totals.secretSearchEncounterExposure += result.secretSearchEncounterExposure || 0;
+    totals.secretRoomDiscoveries += result.secretRoomDiscoveries || 0;
+    totals.secretRoomRewardChests += result.secretRoomRewardChests || 0;
+    totals.secretRoomRewardAttempts += result.secretRoomRewardAttempts || 0;
+    totals.chestDropGenerated += result.chestDropGenerated || 0;
     totals.materialConsumed += result.materialConsumed;
     Object.entries(result.materialConsumedByMerchant || {}).forEach(([material, amount]) => {
       totals.materialConsumedByMerchant[material] =
@@ -12009,6 +12491,28 @@ function simulateCase({
         amount / RUNS_PER_CASE
       ])
     ),
+    chestPath: Object.fromEntries(CHEST_PATH_SOURCES.map(source => {
+      const path = totals.chestPath[source];
+      return [source, {
+        ...path,
+        generatedPerRun: path.generated / RUNS_PER_CASE,
+        openedPerRun: path.opened / RUNS_PER_CASE,
+        actionsPerRun: Object.fromEntries(
+          CHEST_ACTIONS.map(action => [action, path.actions[action] / RUNS_PER_CASE])
+        )
+      }];
+    })),
+    secretDoorCandidatesPerRun: totals.secretDoorCandidates / RUNS_PER_CASE,
+    secretSearchAttemptsPerRun: totals.secretSearchAttempts / RUNS_PER_CASE,
+    secretSearchSuccessRate: totals.secretSearchAttempts > 0
+      ? totals.secretSearchSuccesses / totals.secretSearchAttempts
+      : 0,
+    secretSearchFailuresPerRun: totals.secretSearchFailures / RUNS_PER_CASE,
+    secretSearchExtraStepsPerRun: totals.secretSearchExtraSteps / RUNS_PER_CASE,
+    secretSearchEncounterExposurePerRun: totals.secretSearchEncounterExposure / RUNS_PER_CASE,
+    secretRoomDiscoveriesPerRun: totals.secretRoomDiscoveries / RUNS_PER_CASE,
+    secretRoomRewardChestsPerRun: totals.secretRoomRewardChests / RUNS_PER_CASE,
+    chestDropGeneratedPerRun: totals.chestDropGenerated / RUNS_PER_CASE,
     averageMaterialConsumed: totals.materialConsumed / RUNS_PER_CASE,
     materialConsumedByMerchant: totals.materialConsumedByMerchant,
     averageTimeCost,
