@@ -157,6 +157,7 @@ export function rateMetric(successes, trials) {
     kind: "rate",
     successes,
     trials,
+    confidence: trials >= 30 ? "sufficient" : trials > 0 ? "low-n" : "unobserved",
     estimate,
     ci95: wilsonInterval(successes, trials)
   };
@@ -262,6 +263,16 @@ function evaluateMetric(baseline, candidate, rule) {
       reason: "metric has no observed denominator in one report"
     };
   }
+  if (baseline.trials < 30 || candidate.trials < 30) {
+    return {
+      status: "uncertain",
+      reason: "rate denominator is below N=30 in one report",
+      baseline: baseline.estimate,
+      candidate: candidate.estimate,
+      baselineTrials: baseline.trials,
+      candidateTrials: candidate.trials
+    };
+  }
   const delta = candidate.estimate - baseline.estimate;
   const differenceCi95 = compareIntervals(baseline, candidate);
   const adverseDelta = rule.direction === "higher" ? -delta : delta;
@@ -309,6 +320,11 @@ export function compareBalanceMeasurements(baseline, candidate) {
   if (baseline.measurement.comparisonKey !== candidate.measurement.comparisonKey) {
     throw new Error(
       `measurement configuration mismatch: ${baseline.measurement.comparisonKey} != ${candidate.measurement.comparisonKey}`
+    );
+  }
+  if (baseline.measurement.productionBaselineSha !== candidate.measurement.productionBaselineSha) {
+    throw new Error(
+      `production baseline mismatch: ${baseline.measurement.productionBaselineSha} != ${candidate.measurement.productionBaselineSha}`
     );
   }
   const baselineMetrics = new Map(measurementMetricEntries(baseline).map(entry => [entry.key, entry]));

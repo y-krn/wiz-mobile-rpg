@@ -272,7 +272,10 @@ average reached floor. Death and retreat rates use the entrants at that floor
 as their denominator; reach and breakthrough rates use all runs. This keeps
 "did not enter the floor" distinct from "entered and died there". A zero
 entrant denominator is emitted as `unobserved`, never as a measured zero, and
-makes the overall comparison `uncertain` rather than silently passing.
+makes the overall comparison `uncertain` rather than silently passing. A
+non-zero rate denominator below N=30 is also `uncertain`; N=500 is the run
+sample size, not a promise that every conditional floor endpoint has 500
+observations.
 
 Compare matched records with:
 
