@@ -1,4 +1,4 @@
-# Issue #893 coverage follow-up (#894)
+# Issue #893 coverage follow-up (#894, #896)
 
 ## Canonical path added
 
@@ -76,4 +76,52 @@ measurement result.
 The B10 material EV/time was `0.0406 [0.0372,0.0440; N=500]`, and material
 acquisition was `45.04 [40.90,49.18; N=500]`; equipment acquisition was 9.24
 per run, including 7.87 from chests. These are measurement outputs, not new
+balance constants.
+
+## Issue #896 follow-up
+
+The canonical runner now executes the production `executeEnhance` and
+`executePolish` actions from `src/craft.js` against the simulation state. The
+standard policy attempts each eligible equipped weapon/armor/shield once and
+then greedily polishes the eligible support affix with the largest equipment
+power delta. The `omitted` policy performs neither action. Both policies are
+selectable with `SIM_EQUIPMENT_CRAFT_POLICY`.
+
+Crafting is modeled at run completion, after gross materials are banked. It
+therefore measures equipment power and material EV impact without claiming
+that same-run enhance/polish changes reach, death, or retreat outcomes. The
+runner reports gross banked materials, actual production-action spend, and a
+net post-craft bank indicator; UI input, cross-run equipment persistence, and
+arbitrary player build choice remain outside this policy.
+
+### Deterministic probe
+
+`scratch/test_sim_issue_896_equipment_craft.js` verifies repeated identical
+standard output, production enhance/polish success and spend, positive
+equipment power delta, runtime call evidence, and the no-action `omitted`
+control. `node --check`, the canonical smoke, and the existing follow-gate
+tests pass.
+
+### N=500 measurement
+
+Both policies used `SIM_RUNS=500`, `SIM_CALIBRATION_RUNS=100`, `SIM_SEED=896`,
+`SIM_INDEPENDENT_RUN_RANDOM=1`, `SIM_SCENARIOS=workshop-empty`, and target
+depths B5/B10/B20. The source and measurement runner commit was
+`9d1b584eb970b523207fbf3af606b2b64288dfce`; the gameplay source baseline was
+`ad5cc9a595eb8a63dbe751426f0db050465fe25c`. Provenance reported a clean tree,
+`originMainAncestor=true`, and `staleTreeAllowed=false`.
+
+| target | policy | enhance success/run | polish success/run | power Δ/run | material spend/run | gross bank EV | net EV/time |
+| ---: | --- | ---: | ---: | ---: | --- | ---: | ---: |
+| B5 | omitted | 0.000 | 0.000 | 0.00 | — | 23.03 | 0.0465 [0.0431,0.0499] |
+| B5 | standard | 0.788 | 0.470 | +2.53 | 魔石片 1.218 / 鉄片 1.066 / 硬い皮 1.020 | 22.91 | 0.0394 [0.0360,0.0427] |
+| B10 | omitted | 0.000 | 0.000 | 0.00 | — | 14.97 | 0.0424 [0.0386,0.0462] |
+| B10 | standard | 0.522 | 0.450 | +1.82 | 魔石片 1.080 / 鉄片 0.702 / 硬い皮 0.684 | 15.00 | 0.0354 [0.0317,0.0390] |
+| B20 | omitted | 0.000 | 0.000 | 0.00 | — | 14.28 | 0.0385 [0.0352,0.0417] |
+| B20 | standard | 0.396 | 0.442 | +1.54 | 魔石片 1.028 / 鉄片 0.540 / 硬い皮 0.504 | 14.28 | 0.0338 [0.0306,0.0370] |
+
+The standard B20 run had survival/death `8.2%/91.8%`, matching the omitted
+control `8.2%/91.8%`; this is expected because crafting occurs after the run
+outcome. Gross bank EV is nearly unchanged at B20, while net post-craft bank
+averages `12.35` materials/run. These are measurement outputs, not new
 balance constants.

@@ -40,7 +40,7 @@ const {
   createDefaultCurrentRun,
   createSoloCharacter
 } = await import("../src/state/initial_state.js");
-const { recordCharDeath } = await import("../src/state.js");
+const { state: productionState, recordCharDeath } = await import("../src/state.js");
 const { calculateEncounterChance } = await import("../src/movement.js");
 const {
   applyExplorationItem,
@@ -305,7 +305,13 @@ const {
   purchaseWorkshopNode,
   getWorkshopGrants
 } = await import("../src/systems/workshop.js");
-const { getEnhanceCost } = await import("../src/craft.js");
+const {
+  executeEnhance,
+  executePolish,
+  getEnhanceCost,
+  getPolishCost,
+  polishSupportAffix
+} = await import("../src/craft.js");
 const { WORKSHOP_NODE_BY_ID } = await import("../src/data/workshop.js");
 const {
   getCursedEquipment,
@@ -376,7 +382,8 @@ const SIM_ENV_KEYS = Object.freeze([
   "SIM_EXPLORATION_POISON_MODEL",
   "SIM_EXPLORATION_POISON_CHANCE",
   "SIM_EXPLORATION_POISON_DURATION",
-  "SIM_412_POLICY"
+  "SIM_412_POLICY",
+  "SIM_EQUIPMENT_CRAFT_POLICY"
 ]);
 
 const SIM_EXPLORATION_POISON_MODEL = process.env.SIM_EXPLORATION_POISON_MODEL || "combined";
@@ -445,7 +452,8 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_MILESTONE_PORTAL_POLICY: "continue",
   SIM_RETURN_WING_MODE: "special",
   SIM_SCENARIOS: "",
-  SIM_412_POLICY: "baseline"
+  SIM_412_POLICY: "baseline",
+  SIM_EQUIPMENT_CRAFT_POLICY: "standard"
 });
 const BALANCE_MAIN_PRESET = Object.freeze({
   SIM_SEED: "231",
@@ -1478,6 +1486,16 @@ const ISSUE412_POLICIES = Object.freeze([
 const SIM_412_POLICY = String(SIM_ENV.SIM_412_POLICY || "baseline").trim();
 if (!ISSUE412_POLICIES.includes(SIM_412_POLICY)) {
   throw new Error(`SIM_412_POLICY must be ${ISSUE412_POLICIES.join("|")}: ${SIM_412_POLICY}`);
+}
+const EQUIPMENT_CRAFT_POLICY_IDS = Object.freeze(["standard", "omitted"]);
+const SIM_EQUIPMENT_CRAFT_POLICY = String(
+  SIM_ENV.SIM_EQUIPMENT_CRAFT_POLICY || "standard"
+).trim();
+if (!EQUIPMENT_CRAFT_POLICY_IDS.includes(SIM_EQUIPMENT_CRAFT_POLICY)) {
+  throw new Error(
+    `SIM_EQUIPMENT_CRAFT_POLICY must be ${EQUIPMENT_CRAFT_POLICY_IDS.join("|")}: ` +
+    SIM_EQUIPMENT_CRAFT_POLICY
+  );
 }
 const TRACKED_CONSUMABLE_SOURCE_IDS = Object.freeze([
   "starting",
@@ -3490,6 +3508,174 @@ function measureMaterialCompetition(metaMaterials, workshop, weapon) {
   };
 }
 
+function createEquipmentCraftMetrics(policy = SIM_EQUIPMENT_CRAFT_POLICY) {
+  return {
+    policy,
+    enhanceAttempts: 0,
+    enhanceSuccesses: 0,
+    enhanceFailures: 0,
+    polishAttempts: 0,
+    polishSuccesses: 0,
+    polishFailures: 0,
+    materialSpent: {},
+    materialSpentByAction: {
+      enhance: {},
+      polish: {}
+    },
+    enhancedItems: [],
+    polishedItems: [],
+    equipmentPowerBefore: 0,
+    equipmentPowerAfter: 0,
+    equipmentPowerDelta: 0
+  };
+}
+
+function addEquipmentCraftSpend(metrics, action, before, after) {
+  const spent = {};
+  Object.keys({ ...before, ...after }).forEach(material => {
+    const amount = Math.max(0, (before[material] || 0) - (after[material] || 0));
+    if (amount <= 0) return;
+    spent[material] = amount;
+    metrics.materialSpent[material] = (metrics.materialSpent[material] || 0) + amount;
+    metrics.materialSpentByAction[action][material] =
+      (metrics.materialSpentByAction[action][material] || 0) + amount;
+  });
+  return spent;
+}
+
+function withProductionCraftState(simState, action) {
+  const fields = ["party", "inventory", "metaMaterials", "currentRun", "floor", "logs"];
+  const previous = Object.fromEntries(fields.map(field => [field, productionState[field]]));
+  productionState.party = simState.party;
+  productionState.inventory = simState.inventory;
+  productionState.metaMaterials = simState.metaMaterials;
+  productionState.currentRun = simState.currentRun;
+  productionState.floor = simState.floor;
+  productionState.logs = [];
+  try {
+    return action();
+  } finally {
+    fields.forEach(field => {
+      productionState[field] = previous[field];
+    });
+  }
+}
+
+function normalizeEnhanceTarget(state, slot) {
+  const item = state.party[0]?.equipment?.[slot];
+  if (!item || typeof item === "object") return;
+  state.party[0].equipment[slot] = {
+    kind: "equipment",
+    instanceId: `sim-enhance:${state.currentRun.runSeed}:${slot}`,
+    baseId: item,
+    rarity: "magic",
+    level: 1,
+    identified: true,
+    enhanceLevel: 0,
+    affixes: []
+  };
+}
+
+function getPolishCandidates(character, scoringProfile, floor) {
+  const slotOrder = ["weapon", "shield", "armor", "accessory", "accessory2"];
+  const candidates = [];
+  slotOrder.forEach((slot, slotIndex) => {
+    const item = character.equipment?.[slot];
+    const cost = getPolishCost(item);
+    if (!cost) return;
+    (item.affixes || []).forEach((affix, affixIdx) => {
+      const polishedItem = structuredClone(item);
+      if (!polishSupportAffix(polishedItem, affixIdx)) return;
+      const candidate = structuredClone(character);
+      candidate.equipment = { ...(candidate.equipment || {}), [slot]: polishedItem };
+      const scoreDelta = getEquipmentScore(candidate, scoringProfile, floor) -
+        getEquipmentScore(character, scoringProfile, floor);
+      candidates.push({ slot, slotIndex, affixIdx, scoreDelta });
+    });
+  });
+  return candidates.sort((left, right) =>
+    right.scoreDelta - left.scoreDelta ||
+    left.slotIndex - right.slotIndex ||
+    left.affixIdx - right.affixIdx
+  );
+}
+
+function applyProductionEquipmentCraft(state, metrics, scoringProfile) {
+  const craft = metrics.equipmentCraft;
+  craft.equipmentPowerBefore = getEquipmentScore(state.party[0], scoringProfile, state.floor);
+  if (craft.policy === "omitted") {
+    craft.equipmentPowerAfter = craft.equipmentPowerBefore;
+    return;
+  }
+
+  // Standard policy: attempt one enhancement per eligible equipped slot in a
+  // stable order, then spend polish material on the highest score-gain support
+  // affixes until no eligible item remains or the bank cannot pay.
+  ["weapon", "armor", "shield"].forEach(slot => {
+    const item = state.party[0]?.equipment?.[slot];
+    const cost = getEnhanceCost(item);
+    if (!cost) return;
+    craft.enhanceAttempts++;
+    const beforeLevel = item?.enhanceLevel || 0;
+    const beforeMaterials = { ...state.metaMaterials };
+    if (canAffordMaterials(state.metaMaterials, cost)) normalizeEnhanceTarget(state, slot);
+    const succeeded = withProductionCraftState(
+      state,
+      () => executeEnhance({ type: "equipped", actorIdx: 0, slot })
+    );
+    metrics.runtimeDiagnostics.onCall("workshop.enhance");
+    if (!succeeded) {
+      craft.enhanceFailures++;
+      return;
+    }
+    craft.enhanceSuccesses++;
+    const enhanced = state.party[0].equipment[slot];
+    craft.enhancedItems.push({
+      slot,
+      baseId: enhanced?.baseId || enhanced,
+      enhanceLevelBefore: beforeLevel,
+      enhanceLevelAfter: enhanced?.enhanceLevel || 0,
+      materialSpent: addEquipmentCraftSpend(craft, "enhance", beforeMaterials, state.metaMaterials)
+    });
+  });
+
+  while (true) {
+    const candidate = getPolishCandidates(state.party[0], scoringProfile, state.floor)[0];
+    if (!candidate) break;
+    const item = state.party[0].equipment[candidate.slot];
+    const cost = getPolishCost(item);
+    if (!cost) break;
+    craft.polishAttempts++;
+    const beforeValue = item.affixes[candidate.affixIdx]?.value || 0;
+    const beforeMaterials = { ...state.metaMaterials };
+    const succeeded = withProductionCraftState(
+      state,
+      () => executePolish(
+        { type: "equipped", actorIdx: 0, slot: candidate.slot },
+        candidate.affixIdx
+      )
+    );
+    metrics.runtimeDiagnostics.onCall("workshop.polish");
+    if (!succeeded) {
+      craft.polishFailures++;
+      break;
+    }
+    craft.polishSuccesses++;
+    const polished = state.party[0].equipment[candidate.slot];
+    craft.polishedItems.push({
+      slot: candidate.slot,
+      affixId: polished.affixes[candidate.affixIdx]?.id ||
+        polished.affixes[candidate.affixIdx]?.type,
+      valueBefore: beforeValue,
+      valueAfter: polished.affixes[candidate.affixIdx]?.value || 0,
+      materialSpent: addEquipmentCraftSpend(craft, "polish", beforeMaterials, state.metaMaterials)
+    });
+  }
+
+  craft.equipmentPowerAfter = getEquipmentScore(state.party[0], scoringProfile, state.floor);
+  craft.equipmentPowerDelta = craft.equipmentPowerAfter - craft.equipmentPowerBefore;
+}
+
 function resolveTrapPolicies(scenario = {}) {
   const sharedPolicy = scenario.trapPolicy || null;
   return {
@@ -3661,6 +3847,12 @@ function createSimulationState(
     ? measureMaterialCompetition(departureCraftBank, workshop, finalWeaponId)
     : null;
   const trapPolicies = resolveTrapPolicies(scenario);
+  const equipmentCraftPolicy = scenario.equipmentCraftPolicy || SIM_EQUIPMENT_CRAFT_POLICY;
+  if (!EQUIPMENT_CRAFT_POLICY_IDS.includes(equipmentCraftPolicy)) {
+    throw new Error(
+      `equipmentCraftPolicy must be ${EQUIPMENT_CRAFT_POLICY_IDS.join("|")}: ${equipmentCraftPolicy}`
+    );
+  }
   const merchantPolicy = scenario.merchantPolicy || SIM_MERCHANT_POLICY;
   const milestonePortalPolicy = scenario.milestonePortalPolicy || SIM_MILESTONE_PORTAL_POLICY;
   if (!MERCHANT_POLICY_IDS.includes(merchantPolicy)) {
@@ -3823,6 +4015,7 @@ function createSimulationState(
     firstChestUnidentifiedGuaranteed: false,
     simPolicy: {
       tacticalConsumablePolicy: SIM_412_POLICY,
+      equipmentCraftPolicy,
       identificationPolicy,
       healPotionAmountOverride: scenario.healPotionAmountOverride || null,
       healPotionSupplyNormalization: scenario.healPotionSupplyNormalization || null,
@@ -9939,6 +10132,97 @@ function recordEquipmentUpgrades(metrics, upgrades, floor) {
   else metrics.deepEquipmentUpgrades += upgrades;
 }
 
+function createEquipmentCraftAggregate() {
+  return {
+    runs: 0,
+    policies: {},
+    enhanceAttempts: 0,
+    enhanceSuccesses: 0,
+    enhanceFailures: 0,
+    polishAttempts: 0,
+    polishSuccesses: 0,
+    polishFailures: 0,
+    materialSpent: {},
+    materialSpentByAction: { enhance: {}, polish: {} },
+    enhancedItems: 0,
+    polishedItems: 0,
+    enhanceLevelAfter: {},
+    polishedAffixesById: {},
+    equipmentPowerBefore: 0,
+    equipmentPowerAfter: 0,
+    equipmentPowerDelta: 0,
+    netBankedMaterials: 0
+  };
+}
+
+function addEquipmentCraftAggregate(target, result) {
+  const craft = result.equipmentCraft;
+  if (!craft) return;
+  target.runs++;
+  target.policies[craft.policy] = (target.policies[craft.policy] || 0) + 1;
+  target.enhanceAttempts += craft.enhanceAttempts;
+  target.enhanceSuccesses += craft.enhanceSuccesses;
+  target.enhanceFailures += craft.enhanceFailures;
+  target.polishAttempts += craft.polishAttempts;
+  target.polishSuccesses += craft.polishSuccesses;
+  target.polishFailures += craft.polishFailures;
+  Object.entries(craft.materialSpent || {}).forEach(([material, amount]) => {
+    target.materialSpent[material] = (target.materialSpent[material] || 0) + amount;
+  });
+  Object.entries(craft.materialSpentByAction || {}).forEach(([action, materials]) => {
+    Object.entries(materials).forEach(([material, amount]) => {
+      target.materialSpentByAction[action][material] =
+        (target.materialSpentByAction[action][material] || 0) + amount;
+    });
+  });
+  target.enhancedItems += craft.enhancedItems.length;
+  target.polishedItems += craft.polishedItems.length;
+  craft.enhancedItems.forEach(item => {
+    const level = String(item.enhanceLevelAfter);
+    target.enhanceLevelAfter[level] = (target.enhanceLevelAfter[level] || 0) + 1;
+  });
+  craft.polishedItems.forEach(item => {
+    const id = item.affixId || "unknown";
+    target.polishedAffixesById[id] = (target.polishedAffixesById[id] || 0) + 1;
+  });
+  target.equipmentPowerBefore += craft.equipmentPowerBefore;
+  target.equipmentPowerAfter += craft.equipmentPowerAfter;
+  target.equipmentPowerDelta += craft.equipmentPowerDelta;
+  target.netBankedMaterials += result.netBankedMaterials || 0;
+}
+
+function finalizeEquipmentCraftAggregate(aggregate) {
+  const runs = Math.max(1, aggregate.runs);
+  return {
+    runs: aggregate.runs,
+    policies: { ...aggregate.policies },
+    enhanceAttempts: aggregate.enhanceAttempts,
+    enhanceSuccesses: aggregate.enhanceSuccesses,
+    enhanceFailures: aggregate.enhanceFailures,
+    polishAttempts: aggregate.polishAttempts,
+    polishSuccesses: aggregate.polishSuccesses,
+    polishFailures: aggregate.polishFailures,
+    materialSpent: { ...aggregate.materialSpent },
+    materialSpentByAction: {
+      enhance: { ...aggregate.materialSpentByAction.enhance },
+      polish: { ...aggregate.materialSpentByAction.polish }
+    },
+    enhancedItems: aggregate.enhancedItems,
+    polishedItems: aggregate.polishedItems,
+    enhanceLevelAfter: { ...aggregate.enhanceLevelAfter },
+    polishedAffixesById: { ...aggregate.polishedAffixesById },
+    averageEquipmentPowerBefore: aggregate.equipmentPowerBefore / runs,
+    averageEquipmentPowerAfter: aggregate.equipmentPowerAfter / runs,
+    averageEquipmentPowerDelta: aggregate.equipmentPowerDelta / runs,
+    averageNetBankedMaterials: aggregate.netBankedMaterials / runs,
+    averageEnhanceSuccesses: aggregate.enhanceSuccesses / runs,
+    averagePolishSuccesses: aggregate.polishSuccesses / runs,
+    materialSpentPerRun: Object.fromEntries(
+      Object.entries(aggregate.materialSpent).map(([material, amount]) => [material, amount / runs])
+    )
+  };
+}
+
 function addMaterials(target, additions) {
   Object.entries(additions).forEach(([name, quantity]) => {
     target[name] = (target[name] || 0) + quantity;
@@ -10141,6 +10425,14 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
   state.currentRun.bankedMaterials = banked;
   state.metaMaterials = balance;
 
+  applyProductionEquipmentCraft(state, metrics, metrics.scoringProfile);
+  const equipmentCraftMaterialSpent = Object.values(metrics.equipmentCraft.materialSpent)
+    .reduce((sum, amount) => sum + amount, 0);
+  const netBankedMaterials = Math.max(
+    0,
+    totalMaterials(banked) - equipmentCraftMaterialSpent
+  );
+
   // getBankedMaterialsも同じ実ルール結果を返すことを、集計経路で明示的に確認する。
   const checkedBanked = getBankedMaterials(state.currentRun.materials, outcome);
   if (totalMaterials(checkedBanked) !== totalMaterials(banked)) {
@@ -10187,6 +10479,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     died: outcome === "death",
     carriedMaterials,
     bankedMaterials: totalMaterials(banked),
+    netBankedMaterials,
     materialAcquired,
     materialAcquiredBySource,
     materialConsumed,
@@ -10239,6 +10532,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     equipmentUpgrades: metrics.equipmentUpgrades,
     earlyEquipmentUpgrades: metrics.earlyEquipmentUpgrades,
     deepEquipmentUpgrades: metrics.deepEquipmentUpgrades,
+    equipmentCraft: structuredClone(metrics.equipmentCraft),
     equipmentFound: metrics.equipmentFound,
     earlyEquipmentFound: metrics.earlyEquipmentFound,
     deepEquipmentFound: metrics.deepEquipmentFound,
@@ -10383,6 +10677,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     materialCompetition: state.simMaterialCompetition
       ? { ...state.simMaterialCompetition }
       : null,
+    equipmentCraftPolicy: state.simPolicy.equipmentCraftPolicy,
     healPotionMerchantAttempts: metrics.healPotionMerchantAttempts,
     healPotionMerchantPurchased: metrics.healPotionMerchantPurchased,
     healPotionMerchantHoldLimitHits: metrics.healPotionMerchantHoldLimitHits,
@@ -10734,6 +11029,7 @@ export function simulateRun({
     earlyEquipmentUpgrades: 0,
     deepEquipmentUpgrades: 0,
     equipmentTelemetry: collectEquipmentTelemetry ? [] : null,
+    equipmentCraft: createEquipmentCraftMetrics(state.simPolicy.equipmentCraftPolicy),
     equipmentFound: 0,
     earlyEquipmentFound: 0,
     deepEquipmentFound: 0,
@@ -12037,6 +12333,7 @@ function simulateCase({
     outcomeCounts: { retreat: 0, death: 0, abandon: 0 },
     carriedMaterials: 0,
     bankedMaterials: 0,
+    netBankedMaterials: 0,
     materialAcquired: 0,
     materialAcquiredBySource: {
       combat: 0,
@@ -12067,10 +12364,12 @@ function simulateCase({
     retreatsByFloor: Array(21).fill(0),
     meanStats: createMeanStats([
       "bankedMaterials",
+      "netBankedMaterials",
       "materialAcquired",
       "materialConsumed",
       "timeCost",
       "materialEvPerTime",
+      "netMaterialEvPerTime",
       "reachedFloor",
       "identificationPowderAcquired",
       "identificationPowderUsed",
@@ -12079,6 +12378,7 @@ function simulateCase({
     stalemates: 0,
     finalLevels: 0,
     equipmentUpgrades: 0,
+    equipmentCraft: createEquipmentCraftAggregate(),
     earlyEquipmentUpgrades: 0,
     deepEquipmentUpgrades: 0,
     equipmentFound: 0,
@@ -12430,6 +12730,7 @@ function simulateCase({
     }
     totals.carriedMaterials += result.carriedMaterials;
     totals.bankedMaterials += result.bankedMaterials;
+    totals.netBankedMaterials += result.netBankedMaterials;
     totals.materialAcquired += result.materialAcquired;
     Object.entries(result.materialAcquiredBySource).forEach(([source, amount]) => {
       totals.materialAcquiredBySource[source] =
@@ -12467,12 +12768,17 @@ function simulateCase({
     totals.campRestCount += result.campRestCount;
     totals.reachedFloor += result.reachedFloor;
     addMeanSample(totals.meanStats.bankedMaterials, result.bankedMaterials);
+    addMeanSample(totals.meanStats.netBankedMaterials, result.netBankedMaterials);
     addMeanSample(totals.meanStats.materialAcquired, result.materialAcquired);
     addMeanSample(totals.meanStats.materialConsumed, result.materialConsumed);
     addMeanSample(totals.meanStats.timeCost, result.timeCost);
     addMeanSample(
       totals.meanStats.materialEvPerTime,
       result.timeCost > 0 ? result.bankedMaterials / result.timeCost : 0
+    );
+    addMeanSample(
+      totals.meanStats.netMaterialEvPerTime,
+      result.timeCost > 0 ? result.netBankedMaterials / result.timeCost : 0
     );
     addMeanSample(totals.meanStats.reachedFloor, result.reachedFloor);
     for (let floor = 1; floor < totals.entrantsByFloor.length; floor++) {
@@ -12487,6 +12793,7 @@ function simulateCase({
     totals.stalemates += Number(result.stalemate);
     totals.finalLevels += result.finalLevel;
     totals.equipmentUpgrades += result.equipmentUpgrades;
+    addEquipmentCraftAggregate(totals.equipmentCraft, result);
     totals.earlyEquipmentUpgrades += result.earlyEquipmentUpgrades;
     totals.deepEquipmentUpgrades += result.deepEquipmentUpgrades;
     totals.equipmentFound += result.equipmentFound;
@@ -12702,6 +13009,7 @@ function simulateCase({
       : 1,
     bankedMaterialEv,
     averageMaterialAcquired: totals.materialAcquired / RUNS_PER_CASE,
+    averageNetBankedMaterials: totals.netBankedMaterials / RUNS_PER_CASE,
     averageMaterialAcquiredBySource: Object.fromEntries(
       Object.entries(totals.materialAcquiredBySource).map(([source, amount]) => [
         source,
@@ -12734,14 +13042,25 @@ function simulateCase({
     materialConsumedByMerchant: totals.materialConsumedByMerchant,
     averageTimeCost,
     materialEvPerTime: bankedMaterialEv / averageTimeCost,
+    netMaterialEvPerTime:
+      (totals.netBankedMaterials / RUNS_PER_CASE) / averageTimeCost,
     averageReachedFloor: totals.reachedFloor / RUNS_PER_CASE,
     averageCampRestCount: totals.campRestCount / RUNS_PER_CASE,
     mean95CI: {
       bankedMaterialEv: meanInterval(totals.meanStats.bankedMaterials, RUNS_PER_CASE),
+      netBankedMaterials: meanInterval(
+        totals.meanStats.netBankedMaterials,
+        RUNS_PER_CASE
+      ),
       materialAcquired: meanInterval(totals.meanStats.materialAcquired, RUNS_PER_CASE),
       materialConsumed: meanInterval(totals.meanStats.materialConsumed, RUNS_PER_CASE),
       timeCost: meanInterval(totals.meanStats.timeCost, RUNS_PER_CASE),
       materialEvPerTime: meanInterval(totals.meanStats.materialEvPerTime, RUNS_PER_CASE, 4),
+      netMaterialEvPerTime: meanInterval(
+        totals.meanStats.netMaterialEvPerTime,
+        RUNS_PER_CASE,
+        4
+      ),
       reachedFloor: meanInterval(totals.meanStats.reachedFloor, RUNS_PER_CASE),
       identificationPowderAcquired: meanInterval(
         totals.meanStats.identificationPowderAcquired,
@@ -12763,6 +13082,7 @@ function simulateCase({
     stalemateRate: totals.stalemates / RUNS_PER_CASE,
     averageFinalLevel: totals.finalLevels / RUNS_PER_CASE,
     averageEquipmentUpgrades: totals.equipmentUpgrades / RUNS_PER_CASE,
+    equipmentCraft: finalizeEquipmentCraftAggregate(totals.equipmentCraft),
     averageEarlyEquipmentUpgrades: totals.earlyEquipmentUpgrades / RUNS_PER_CASE,
     averageDeepEquipmentUpgrades: totals.deepEquipmentUpgrades / RUNS_PER_CASE,
     averageEquipmentFound: totals.equipmentFound / RUNS_PER_CASE,
@@ -13690,6 +14010,21 @@ function printCraftMeasurementSummary(result) {
   );
 }
 
+function printEquipmentCraftSummary(result) {
+  const craft = result.equipmentCraft;
+  if (!craft) return;
+  console.log(
+    `装備強化/研磨: policy=${Object.keys(craft.policies).join("|") || "omitted"}, ` +
+    `enhance=${craft.enhanceSuccesses}/${craft.enhanceAttempts}, ` +
+    `polish=${craft.polishSuccesses}/${craft.polishAttempts}, ` +
+    `素材消費=${JSON.stringify(craft.materialSpent)}, ` +
+    `装備power=${craft.averageEquipmentPowerBefore.toFixed(2)}→` +
+    `${craft.averageEquipmentPowerAfter.toFixed(2)} ` +
+    `(Δ${craft.averageEquipmentPowerDelta.toFixed(2)}), ` +
+    `net素材/run=${craft.averageNetBankedMaterials.toFixed(2)}`
+  );
+}
+
 function printEliteMetrics(results) {
   console.log("戦略       | 方針 | 平均遭遇 | 勝率 | 逃走率 | 死亡率 | 勝利時Lv上昇 | 勝利時EXP | 回避追加歩数 | 回避不能初期配置");
   console.log("-----------|------|----------|------|--------|--------|--------------|-----------|--------------|------------------");
@@ -14501,6 +14836,7 @@ const ENV_SIGNATURE = {
   explorationPoisonChance: SIM_EXPLORATION_POISON_CHANCE,
   explorationPoisonDuration: SIM_EXPLORATION_POISON_DURATION,
   issue412Policy: SIM_412_POLICY,
+  equipmentCraftPolicy: SIM_EQUIPMENT_CRAFT_POLICY,
   portalMinFloor: PORTAL_MIN_FLOOR,
   portalHpThreshold: PORTAL_HP_THRESHOLD,
   portalMaxHealPotions: PORTAL_MAX_HEAL_POTIONS,
@@ -14682,6 +15018,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   console.log(`\n【${scenario.label} B1開始 ビルド供給】`);
   printBuildSupplyMetrics(results);
   printWorkshopEffects(results.at(-1));
+  printEquipmentCraftSummary(results.find(result => result.targetDepth === 20) || results.at(-1));
   printCurseGenerationMetrics(results.at(-1));
   printCoreRetentionDetail(results.at(-1));
   printFloorMilestoneMetrics(results.at(-1));
@@ -14724,6 +15061,7 @@ resultsByPolicy.forEach(({ policy, scenarioResults, milestoneResults }) => {
   printIdentificationMetrics(milestoneResults, policy);
   console.log("\n【マイルストーン開始 ビルド供給】");
   printBuildSupplyMetrics(milestoneResults);
+  printEquipmentCraftSummary(milestoneResults.at(-1));
   const milestoneDominated =
     milestoneResults[0].materialEvPerTime < milestoneResults[1].materialEvPerTime;
   console.log(
@@ -14882,6 +15220,33 @@ const issue895Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       mean95CI: result.mean95CI
     }))));
 console.log(`ISSUE895_MEASUREMENT_JSON=${JSON.stringify(issue895Measurement)}`);
+
+const issue896Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }) =>
+  scenarioResults.flatMap(({ scenario, results }) => results
+    .filter(result => [5, 10, 20].includes(result.targetDepth))
+    .map(result => ({
+      policy: policy.id,
+      scenario: scenario.id,
+      targetDepth: result.targetDepth,
+      runs: RUNS_PER_CASE,
+      sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
+      gameplaySourceCommit: MEASUREMENT_PROVENANCE?.gameplaySourceCommit || null,
+      measurementRunnerCommit: MEASUREMENT_PROVENANCE?.measurementRunnerCommit || null,
+      measurementRunnerPaths: MEASUREMENT_PROVENANCE?.measurementRunnerPaths || null,
+      measurementRunnerDiffSha256: MEASUREMENT_PROVENANCE?.measurementRunnerDiffSha256 || null,
+      originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
+      staleTreeAllowed: MEASUREMENT_PROVENANCE?.staleTreeAllowed ?? null,
+      workingTreeClean: MEASUREMENT_PROVENANCE?.workingTreeClean ?? null,
+      equipmentCraftPolicy: result.equipmentCraftPolicy,
+      equipmentCraft: result.equipmentCraft,
+      bankedMaterialEv: result.bankedMaterialEv,
+      netMaterialEvPerTime: result.netMaterialEvPerTime,
+      averageReachedFloor: result.averageReachedFloor,
+      survivalRate: result.survivalRate,
+      deathRate: result.deathRate,
+      mean95CI: result.mean95CI
+    }))));
+console.log(`ISSUE896_MEASUREMENT_JSON=${JSON.stringify(issue896Measurement)}`);
 
 const issue412Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }) =>
   scenarioResults.flatMap(({ scenario, results }) => results
