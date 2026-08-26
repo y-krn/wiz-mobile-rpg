@@ -7,6 +7,7 @@ import { resolveMeasurementProvenance } from "./measurement_provenance.js";
 import {
   applyStandardSimulationEnv,
   resolveBalanceMeasurementConfig,
+  renderDiagnosticsMarkdown,
   summarizeSimulationResults
 } from "./balance_measurement.js";
 
@@ -81,7 +82,8 @@ if (options.summary) {
     `- scenarios: ${config.scenarioIds.join(", ")}; depths: ${config.targetDepths.map(depth => `B${depth}`).join(", ")}`,
     "",
     "The JSON file is the machine-readable measurement record. Compare it with `compare_balance.js`; do not use a single rerun or a raw stdout dump as a regression decision.",
-    ""
+    "",
+    ...renderDiagnosticsMarkdown(report.cases)
   ];
   fs.writeFileSync(summaryPath, lines.join("\n"));
 }

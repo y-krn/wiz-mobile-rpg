@@ -190,6 +190,58 @@ function depthMetrics(outcomeResult, resourceResult, depth) {
   };
 }
 
+function formatDiagnosticCounts(counts = {}) {
+  const entries = Object.entries(counts).filter(([, count]) => count > 0);
+  return entries.length > 0
+    ? entries.map(([key, count]) => `${key}=${count}`).join(", ")
+    : "none";
+}
+
+function formatDiagnosticMean(distribution) {
+  return distribution && Number.isFinite(distribution.mean)
+    ? distribution.mean.toFixed(3)
+    : "—";
+}
+
+export function renderDiagnosticsMarkdown(cases) {
+  const rows = [];
+  cases.forEach(testCase => {
+    testCase.depths.forEach(depth => {
+      const diagnostics = depth.diagnostics;
+      if (!diagnostics) return;
+      Object.entries(diagnostics.byEndFloor || {})
+        .filter(([, bucket]) => bucket.outcomes?.retreat || bucket.outcomes?.death)
+        .sort(([left], [right]) => Number(left) - Number(right))
+        .forEach(([endFloor, bucket]) => {
+          const retreatRuns = bucket.outcomes?.retreat || 0;
+          const deathRuns = bucket.outcomes?.death || 0;
+          rows.push(
+            `| ${testCase.scenarioId} | B${depth.depth} | B${endFloor} | ${retreatRuns} | ` +
+            `${formatDiagnosticCounts(bucket.retreatReasons)} | ${deathRuns} | ` +
+            `${formatDiagnosticCounts(bucket.deathCauses)} | ` +
+            `${formatDiagnosticMean(bucket.endingHpRate)} | ` +
+            `${formatDiagnosticMean(bucket.endingMpRate)} | ` +
+            `${formatDiagnosticMean(bucket.healPotionsRemaining)} | ` +
+            `${formatDiagnosticMean(bucket.cureItemsRemaining)} | ` +
+            `${formatDiagnosticMean(bucket.fleeAttempts)} | ` +
+            `${formatDiagnosticCounts(bucket.statusAtEnd)} |`
+          );
+        });
+    });
+  });
+  if (rows.length === 0) return [];
+  return [
+    "## Run-level diagnostics",
+    "",
+    "Aggregated by end floor; resource columns are means for all runs ending on that floor.",
+    "",
+    "| Scenario | Target | End floor | Retreat | Retreat reasons | Death | Death causes | HP rate | MP rate | Heal potions | Cure items | Flee attempts | Status at end |",
+    "| --- | --- | ---: | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+    ...rows,
+    ""
+  ];
+}
+
 export function summarizeSimulationResults({ config, provenance, scenarioResults, nodeVersion = process.version }) {
   const cases = scenarioResults.map(({ scenarioId, results }) => ({
     scenarioId,
@@ -209,7 +261,8 @@ export function summarizeSimulationResults({ config, provenance, scenarioResults
         averageMaterialAcquired: resourceResult.averageMaterialAcquired,
         averageMaterialConsumed: resourceResult.averageMaterialConsumed,
         bankedMaterialEv: resourceResult.bankedMaterialEv,
-        materialEvPerTime: resourceResult.materialEvPerTime
+        materialEvPerTime: resourceResult.materialEvPerTime,
+        diagnostics: resourceResult.runDiagnostics
       };
     })
   }));
