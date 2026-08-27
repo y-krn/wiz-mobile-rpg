@@ -10,7 +10,7 @@ import {
   getPhysicalDefenseResistance,
   getEffectiveDef
 } from "../data.js";
-import { recordCharDeath } from "../state.js";
+import { recordCharDeath, queueCharDeathLog } from "../state.js";
 import { getBuffTotal, wakeSleepingCharOnDamage } from "./status_effects.js";
 import {
   getCharCoreParams,
@@ -341,6 +341,7 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
       isDefending
     });
     const wakeSuffix = wakeSleepingCharOnDamage(c) ? `${c.name}は目を覚ました！` : "";
+    logQueue.push({ msg: `[ 敵 ] ${sourceName}により${c.name}は${dmg}のダメージを受けた。${isDefending ? "(防御)" : ""}${wakeSuffix}` });
     if (c.hp === 0) {
       c.status = "dead";
       let causeText = `${sourceName}の攻撃`;
@@ -349,9 +350,9 @@ export function applyPartyDamage(state, combatSelection, logQueue, sourceName, m
       } else if (options.dragon) {
         causeText = `${sourceName}のブレス`;
       }
-      recordCharDeath(state, c, causeText, { type: "combat", source: sourceName });
+      const deathLog = recordCharDeath(state, c, causeText, { type: "combat", source: sourceName });
+      queueCharDeathLog(logQueue, deathLog);
     }
-    logQueue.push({ msg: `[ 敵 ] ${sourceName}により${c.name}は${dmg}のダメージを受けた。${isDefending ? "(防御)" : ""}${wakeSuffix}` });
   });
 }
 

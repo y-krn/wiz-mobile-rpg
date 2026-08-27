@@ -1,5 +1,5 @@
 import { SPELLS } from "../data.js";
-import { recordCharDeath, recordMonsterResistanceDiscovery } from "../state.js";
+import { recordCharDeath, queueCharDeathLog, recordMonsterResistanceDiscovery } from "../state.js";
 import { getEffectiveMagicResist, applyMagicResistBuffs, applyKillAffixEffects, logCoreActivation, recordReceivedDamage } from "./damage.js";
 import { hasTrait, processMonsterDefeat } from "./monster_traits.js";
 import {
@@ -56,15 +56,6 @@ function applyReflectionDamage(char, state, sources, logQueue) {
     { attackType: "reflect" }
   );
   clearCharIncapacitationOnDamage(char);
-  if (char.hp === 0) {
-    char.status = "dead";
-    const cause = sources.length === 1 ? `${sources[0].name}の魔法反射` : "魔法反射";
-    recordCharDeath(state, char, cause, {
-      type: "combat",
-      source: sources.length === 1 ? sources[0].name : "魔法反射"
-    });
-  }
-
   const sourceText = sources.length === 1
     ? `${sources[0].name}は呪文を反射した！`
     : `${sources.map(source => source.name).join("、")}は呪文を反射した！`;
@@ -75,6 +66,15 @@ function applyReflectionDamage(char, state, sources, logQueue) {
     floatText: `${total}`,
     floatColor: "#ff3b30"
   });
+  if (char.hp === 0) {
+    char.status = "dead";
+    const cause = sources.length === 1 ? `${sources[0].name}の魔法反射` : "魔法反射";
+    const deathLog = recordCharDeath(state, char, cause, {
+      type: "combat",
+      source: sources.length === 1 ? sources[0].name : "魔法反射"
+    });
+    queueCharDeathLog(logQueue, deathLog);
+  }
 }
 
 export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks = {}) {

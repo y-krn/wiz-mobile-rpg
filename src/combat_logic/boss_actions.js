@@ -1,5 +1,5 @@
 import { reduceIncomingDamage, recordReceivedDamage } from "./damage.js";
-import { recordCharDeath, recordMonsterAction, recordMonsterCondition } from "../state.js";
+import { recordCharDeath, queueCharDeathLog, recordMonsterAction, recordMonsterCondition } from "../state.js";
 import { getStatusEffectChance } from "../rules/affix_rules.js";
 import {
   applyStatusEffect,
@@ -78,11 +78,12 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "フラック", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
           if (c.hp === 0) {
             c.status = "dead";
-            recordCharDeath(state, c, "フラックのラハリト", { type: "combat", source: "フラック" });
+            const deathLog = recordCharDeath(state, c, "フラックのラハリト", { type: "combat", source: "フラック" });
+            queueCharDeathLog(logQueue, deathLog);
           }
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
       });
       return true;
@@ -141,11 +142,12 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "フラック", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
           if (c.hp === 0) {
             c.status = "dead";
-            recordCharDeath(state, c, "フラックの自爆", { type: "combat", source: "フラック" });
+            const deathLog = recordCharDeath(state, c, "フラックの自爆", { type: "combat", source: "フラック" });
+            queueCharDeathLog(logQueue, deathLog);
           }
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の自爆ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
       });
       return true;
@@ -227,11 +229,12 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
           if (c.hp === 0) {
             c.status = "dead";
-            recordCharDeath(state, c, "いにしえの竜のティルトウェイト", { type: "combat", source: "いにしえの竜" });
+            const deathLog = recordCharDeath(state, c, "いにしえの竜のティルトウェイト", { type: "combat", source: "いにしえの竜" });
+            queueCharDeathLog(logQueue, deathLog);
           }
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
       });
       return true;
@@ -258,11 +261,12 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
           if (c.hp === 0) {
             c.status = "dead";
-            recordCharDeath(state, c, "いにしえの竜の炎の息", { type: "combat", source: "いにしえの竜" });
+            const deathLog = recordCharDeath(state, c, "いにしえの竜の炎の息", { type: "combat", source: "いにしえの竜" });
+            queueCharDeathLog(logQueue, deathLog);
           }
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
       });
       return true;
@@ -293,11 +297,12 @@ export function resolveBossAction(mon, state, combatSelection, monsters, logQueu
           c.hp = Math.max(0, c.hp - dmg);
           recordReceivedDamage(state, c, "いにしえの竜", rawDamage, dmg, playerHpBefore, { attackType: "spell", isDefending });
           const recovered = clearCharIncapacitationOnDamage(c);
+          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
           if (c.hp === 0) {
             c.status = "dead";
-            recordCharDeath(state, c, "いにしえの竜のマダルト", { type: "combat", source: "いにしえの竜" });
+            const deathLog = recordCharDeath(state, c, "いにしえの竜のマダルト", { type: "combat", source: "いにしえの竜" });
+            queueCharDeathLog(logQueue, deathLog);
           }
-          logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}${recovered ? `${c.name}は状態異常から回復した！` : ""}` });
         }
       });
       return true;
