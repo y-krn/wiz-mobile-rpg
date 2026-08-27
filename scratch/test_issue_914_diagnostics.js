@@ -78,6 +78,26 @@ addRunDiagnosticsAggregate(aggregate, {
   lastEnemyCategory: null
 });
 addRunDiagnosticsAggregate(aggregate, {
+  outcome: "retreat",
+  endFloor: 3,
+  retreatReason: RETREAT_REASON_IDS.PORTAL_HP_THRESHOLD,
+  retreatReasonSignals: [
+    RETREAT_REASON_IDS.PORTAL_HP_THRESHOLD,
+    RETREAT_REASON_IDS.STATUS_RESOURCE
+  ],
+  deathCauseCategory: null,
+  endingHpRate: 0.25,
+  endingMpRate: 0.1,
+  healPotionsRemaining: 0,
+  greaterHealPotionsRemaining: 0,
+  recoveryPotionsRemaining: 0,
+  cureItemsRemaining: 0,
+  fleeAttempts: 1,
+  statusAtEnd: "poison",
+  lastEnemyId: null,
+  lastEnemyCategory: null
+});
+addRunDiagnosticsAggregate(aggregate, {
   outcome: "death",
   endFloor: 4,
   retreatReason: null,
@@ -95,13 +115,16 @@ addRunDiagnosticsAggregate(aggregate, {
   lastEnemyCategory: "normal"
 });
 const diagnostics = finalizeRunDiagnosticsAggregate(aggregate);
-assert.equal(diagnostics.runs, 2);
-assert.deepEqual(diagnostics.endFloorDistribution, { "4": 2 });
-assert.equal(diagnostics.retreatReasonDistribution.portal_hp_threshold, 1);
+assert.equal(diagnostics.runs, 3);
+assert.deepEqual(diagnostics.endFloorDistribution, { "3": 1, "4": 2 });
+assert.equal(diagnostics.retreatReasonDistribution.portal_hp_threshold, 2);
 assert.equal(diagnostics.retreatReasonSignalDistribution.no_heal_potion, 1);
+assert.equal(diagnostics.retreatReasonSignalDistribution.status_resource, 1);
 assert.equal(diagnostics.deathCauseDistribution.normal_enemy, 1);
 assert.equal(diagnostics.byEndFloor["4"].endingHpRate.mean, 0.15);
-assert.equal(diagnostics.byRetreatReason.portal_hp_threshold.fleeAttempts.mean, 2);
+assert.equal(diagnostics.byRetreatReason.portal_hp_threshold.fleeAttempts.mean, 1.5);
+assert.deepEqual(diagnostics.byRetreatReason.portal_hp_threshold.endFloors, { "3": 1, "4": 1 });
+assert.equal(diagnostics.byRetreatReason.portal_hp_threshold.retreatReasonSignals.status_resource, 1);
 assert.equal(diagnostics.byDeathCause.normal_enemy.lastEnemyId["敵A"], 1);
 
 const markdown = renderDiagnosticsMarkdown([{
@@ -109,14 +132,17 @@ const markdown = renderDiagnosticsMarkdown([{
   depths: [{
     depth: 5,
     diagnostics: {
-      byEndFloor: {
-        "4": diagnostics.byEndFloor["4"]
-      }
+      byRetreatReason: diagnostics.byRetreatReason,
+      byDeathCause: diagnostics.byDeathCause
     }
   }]
 }]).join("\n");
 assert.match(markdown, /Run-level diagnostics/);
-assert.match(markdown, /portal_hp_threshold=1/);
-assert.match(markdown, /normal_enemy=1/);
+assert.match(markdown, /Primary retreat reason/);
+assert.match(markdown, /\| workshop-empty \| B5 \| portal_hp_threshold \| 2 \| B3=1, B4=1 \| portal_hp_threshold=2, no_heal_potion=1, status_resource=1 \|/);
+assert.match(markdown, /status_resource=1/);
+assert.match(markdown, /Death cause/);
+assert.match(markdown, /\| workshop-empty \| B5 \| normal_enemy \| 1 \| B4=1 \|/);
+assert.doesNotMatch(markdown, /\| workshop-empty \| B5 \| B4 \|/);
 
 console.log("[PASS] Issue #914 run-level diagnostic classification and aggregation");
