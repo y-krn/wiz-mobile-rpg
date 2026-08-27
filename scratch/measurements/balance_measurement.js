@@ -203,41 +203,93 @@ function formatDiagnosticMean(distribution) {
     : "—";
 }
 
+function formatDiagnosticEndFloors(distribution) {
+  const entries = Object.entries(distribution || {})
+    .filter(([, count]) => count > 0)
+    .sort(([left], [right]) => Number(left) - Number(right));
+  return entries.length > 0
+    ? entries.map(([floor, count]) => `B${floor}=${count}`).join(", ")
+    : "none";
+}
+
+function formatDiagnosticRow({ scenarioId, depth, label, bucket, signals = false }) {
+  const columns = [
+    scenarioId,
+    `B${depth}`,
+    label,
+    bucket.runs || 0,
+    formatDiagnosticEndFloors(bucket.endFloors),
+    ...(signals ? [formatDiagnosticCounts(bucket.retreatReasonSignals)] : []),
+    formatDiagnosticMean(bucket.endingHpRate),
+    formatDiagnosticMean(bucket.endingMpRate),
+    formatDiagnosticMean(bucket.healPotionsRemaining),
+    formatDiagnosticMean(bucket.greaterHealPotionsRemaining),
+    formatDiagnosticMean(bucket.recoveryPotionsRemaining),
+    formatDiagnosticMean(bucket.cureItemsRemaining),
+    formatDiagnosticMean(bucket.fleeAttempts),
+    formatDiagnosticCounts(bucket.statusAtEnd)
+  ];
+  return `| ${columns.join(" | ")} |`;
+}
+
 export function renderDiagnosticsMarkdown(cases) {
-  const rows = [];
+  const retreatRows = [];
+  const deathRows = [];
   cases.forEach(testCase => {
     testCase.depths.forEach(depth => {
       const diagnostics = depth.diagnostics;
       if (!diagnostics) return;
-      Object.entries(diagnostics.byEndFloor || {})
-        .filter(([, bucket]) => bucket.outcomes?.retreat || bucket.outcomes?.death)
-        .sort(([left], [right]) => Number(left) - Number(right))
-        .forEach(([endFloor, bucket]) => {
-          const retreatRuns = bucket.outcomes?.retreat || 0;
-          const deathRuns = bucket.outcomes?.death || 0;
-          rows.push(
-            `| ${testCase.scenarioId} | B${depth.depth} | B${endFloor} | ${retreatRuns} | ` +
-            `${formatDiagnosticCounts(bucket.retreatReasons)} | ${deathRuns} | ` +
-            `${formatDiagnosticCounts(bucket.deathCauses)} | ` +
-            `${formatDiagnosticMean(bucket.endingHpRate)} | ` +
-            `${formatDiagnosticMean(bucket.endingMpRate)} | ` +
-            `${formatDiagnosticMean(bucket.healPotionsRemaining)} | ` +
-            `${formatDiagnosticMean(bucket.cureItemsRemaining)} | ` +
-            `${formatDiagnosticMean(bucket.fleeAttempts)} | ` +
-            `${formatDiagnosticCounts(bucket.statusAtEnd)} |`
-          );
+      Object.entries(diagnostics.byRetreatReason || {})
+        .filter(([, bucket]) => bucket.runs > 0)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .forEach(([reason, bucket]) => {
+          retreatRows.push(formatDiagnosticRow({
+            scenarioId: testCase.scenarioId,
+            depth: depth.depth,
+            label: reason,
+            bucket,
+            signals: true
+          }));
+        });
+      Object.entries(diagnostics.byDeathCause || {})
+        .filter(([, bucket]) => bucket.runs > 0)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .forEach(([cause, bucket]) => {
+          deathRows.push(formatDiagnosticRow({
+            scenarioId: testCase.scenarioId,
+            depth: depth.depth,
+            label: cause,
+            bucket
+          }));
         });
     });
   });
-  if (rows.length === 0) return [];
+  if (retreatRows.length === 0 && deathRows.length === 0) return [];
   return [
     "## Run-level diagnostics",
     "",
-    "Aggregated by end floor; resource columns are means for all runs ending on that floor.",
+    "Retreat and death diagnostics are separated; resource columns are means for the runs in each primary-reason/cause bucket.",
     "",
-    "| Scenario | Target | End floor | Retreat | Retreat reasons | Death | Death causes | HP rate | MP rate | Heal potions | Cure items | Flee attempts | Status at end |",
-    "| --- | --- | ---: | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- |",
-    ...rows,
+    ...(retreatRows.length > 0 ? [
+      "### Retreats",
+      "",
+      "Primary reason is the row label; reason signals may overlap and include the primary reason.",
+      "",
+      "| Scenario | Target | Primary retreat reason | Runs | End floors | Reason signals (overlap) | HP rate | MP rate | Heal potions | Greater heal | Recovery potions | Cure items | Flee attempts | Status at end |",
+      "| --- | --- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+      ...retreatRows,
+      ""
+    ] : []),
+    ...(deathRows.length > 0 ? [
+      "### Deaths",
+      "",
+      "Death rows are grouped by death cause and never mixed into retreat resource means.",
+      "",
+      "| Scenario | Target | Death cause | Runs | End floors | HP rate | MP rate | Heal potions | Greater heal | Recovery potions | Cure items | Flee attempts | Status at end |",
+      "| --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+      ...deathRows,
+      ""
+    ] : []),
     ""
   ];
 }

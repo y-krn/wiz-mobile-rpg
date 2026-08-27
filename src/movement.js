@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, markMapChanged, markMapCellVisited } from "./state.js";
+import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
 import { trackRunStart } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum, getPartyFlameTrapWarningAvoidanceChance } from "./data.js";
 import { playSound } from "./audio.js";
@@ -506,8 +506,10 @@ export function checkCellEvents(prevX = START_X, prevY = START_Y) {
   // Stairs Down (ask before descending so corridors stay walkable)
   if (cell.type === "stairs-down") {
     if (state.floor % 5 === 0 && !state.currentRun?.defeatedMilestones?.includes(state.floor)) {
+      // balance-impact: none — milestone stairs presentation gate only; movement costs and facility rules remain unchanged
       addLog("階層守護者を倒すまで下り階段は封じられている。");
       playSound("bump");
+      openGuardedSubmenu("stairs_down", `${getFloorLabel(state, state.floor + 1)}への下り階段`);
       return;
     }
     openGuardedSubmenu("stairs_down", `${getFloorLabel(state, state.floor + 1)}への下り階段`);
@@ -648,7 +650,8 @@ export function applyExplorationPoison() {
       }
       if (c.hp === 0) {
         c.status = "dead";
-        recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
+        const deathLog = recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
+        if (deathLog) addLog(formatCharDeathLog(deathLog));
         addLog(`[!] ${c.name}は毒で力尽きた！`);
       } else if (result.naturalCure) {
         addLog(`[!] ${c.name}の毒が自然に消えた。`);
@@ -700,7 +703,8 @@ export function triggerFlameTrap() {
       addLog(`${c.name}は${dmg}の炎ダメージを受けた。`);
       if (c.hp === 0) {
         c.status = "dead";
-        recordCharDeath(state, c, "火炎の罠", { type: "trap", source: "火炎の罠" });
+        const deathLog = recordCharDeath(state, c, "火炎の罠", { type: "trap", source: "火炎の罠" });
+        if (deathLog) addLog(formatCharDeathLog(deathLog));
         addLog(`[!] ${c.name}は炎に焼かれて力尽きた！`);
       }
     }

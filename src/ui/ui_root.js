@@ -12,6 +12,10 @@ import { getDepthCorruption, getFloorDisplayName, getFloorLabel, getFloorTheme }
 import { formatRunQuestProgress } from "../systems/run_quests.js";
 import { updateRecordsStrip } from "./records_view.js";
 import { getScreenViewState } from "../state/view_state.js";
+import {
+  MILESTONE_CLEARED_STRUCTURE_MESSAGE,
+  MILESTONE_STRUCTURE_MESSAGE
+} from "./milestone_disclosure.js";
 
 let floorStingerTimer = null;
 const LOG_AUTOSCROLL_THRESHOLD = 24;
@@ -85,6 +89,14 @@ export function showFloorEntryStinger(floor, firstVisit) {
   name.textContent = theme.name;
   stinger.appendChild(depth);
   stinger.appendChild(name);
+  if (floor % 5 === 0) {
+    const structure = document.createElement("span");
+    structure.className = "floor-entry-structure";
+    structure.textContent = state.currentRun?.defeatedMilestones?.includes(floor)
+      ? MILESTONE_CLEARED_STRUCTURE_MESSAGE
+      : MILESTONE_STRUCTURE_MESSAGE;
+    stinger.appendChild(structure);
+  }
   stinger.classList.toggle("first-visit", firstVisit);
   stinger.classList.add("visible");
   floorStingerTimer = setTimeout(() => stinger.classList.remove("visible"), firstVisit ? 1400 : 900);

@@ -2598,8 +2598,10 @@ function classifyDeathCause({ outcome, deathEncounterType, deathLog } = {}) {
 function createRunDiagnosticsBucket() {
   return {
     runs: 0,
+    endFloors: {},
     outcomes: {},
     retreatReasons: {},
+    retreatReasonSignals: {},
     deathCauses: {},
     endingHpRate: [],
     endingMpRate: [],
@@ -2635,8 +2637,12 @@ function incrementDiagnosticCount(bucket, key, amount = 1) {
 
 function addRunDiagnosticsBucket(bucket, diagnostics) {
   bucket.runs++;
+  incrementDiagnosticCount(bucket.endFloors, diagnostics.endFloor);
   incrementDiagnosticCount(bucket.outcomes, diagnostics.outcome);
   incrementDiagnosticCount(bucket.retreatReasons, diagnostics.retreatReason);
+  (diagnostics.retreatReasonSignals || []).forEach(reason => {
+    incrementDiagnosticCount(bucket.retreatReasonSignals, reason);
+  });
   incrementDiagnosticCount(bucket.deathCauses, diagnostics.deathCauseCategory);
   bucket.endingHpRate.push(diagnostics.endingHpRate);
   bucket.endingMpRate.push(diagnostics.endingMpRate);
@@ -2679,8 +2685,10 @@ function addRunDiagnosticsAggregate(target, diagnostics) {
 function finalizeRunDiagnosticsBucket(bucket) {
   return {
     runs: bucket.runs,
+    endFloors: { ...bucket.endFloors },
     outcomes: { ...bucket.outcomes },
     retreatReasons: { ...bucket.retreatReasons },
+    retreatReasonSignals: { ...bucket.retreatReasonSignals },
     deathCauses: { ...bucket.deathCauses },
     endingHpRate: summarizeDistribution(bucket.endingHpRate),
     endingMpRate: summarizeDistribution(bucket.endingMpRate),

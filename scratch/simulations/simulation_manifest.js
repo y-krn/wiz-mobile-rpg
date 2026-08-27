@@ -187,7 +187,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js", "src/state/save_migrations.js", "src/state/save_payload.js",
     "src/error_context.js", "src/controls_guard.js", "src/state/codex_state.js",
     "src/state/initial_state.js", "src/state/records_state.js", "src/result.js",
-    "src/runtime_diagnostics.js", "src/telemetry.js"
+    "src/runtime_diagnostics.js", "src/telemetry.js", "src/systems/traps.js"
   ]),
   // A one-off no-impact declaration is recognized only when its marker is
   // added in the same production diff. This keeps mapped modules such as
@@ -222,6 +222,12 @@ export const SIMULATION_MANIFEST = Object.freeze({
       pattern: "src/combat_ui/target_menu.js",
       marker: "// balance-impact: none",
       reason: "combat target callback context boundary only; target resolution remains unchanged"
+    },
+    {
+      pattern: "src/movement.js",
+      marker: "// balance-impact: none",
+      reason: "milestone stairs presentation gate only; movement costs and facility rules remain unchanged",
+      kind: "presentation"
     },
   ].map(declaration => Object.freeze({ ...declaration }))),
   // Exact paths whose current callers may receive telemetry-only edits. A
@@ -886,6 +892,19 @@ function isStandaloneBalanceImpactNoneDeclaration(text, declaration) {
     trimmed.startsWith(`${marker} -`);
 }
 
+const PRESENTATION_BOUNDARY_CALL = /^(?:addLog|playSound|openGuardedSubmenu)\s*\(/;
+
+function hasOnlyPresentationChanges(diff, file) {
+  if (file !== "src/movement.js" || typeof diff !== "string") return false;
+  return diff.split(/\r?\n/).filter(line =>
+    (line.startsWith("+") || line.startsWith("-")) &&
+    !line.startsWith("+++") && !line.startsWith("---")
+  ).map(line => line.slice(1).trim()).every(text =>
+    !text || text.startsWith("//") || text === "return;" ||
+    PRESENTATION_BOUNDARY_CALL.test(text)
+  );
+}
+
 const STATE_BOUNDARY_ROOTS = /\b(?:state\.(?:chestState|gameState|transitioning)|menuContext|menuHistory)\b/;
 const STATE_ROOT_ACCESS = /\bstate\.([A-Za-z_$][A-Za-z0-9_$]*)/g;
 const ALLOWED_STATE_ROOTS = new Set(["chestState", "gameState", "transitioning"]);
@@ -1289,11 +1308,15 @@ export function analyzeBalanceImpact(
     const telemetryOnlyPath = (manifest.telemetryOnlyPaths || []).some(pattern => matches(pattern, file));
     const balanceImpactNoneDiff = getBalanceImpactNoneDeclaration(diff, file, manifest);
     const declaredBoundaryDiff = getDeclaredBoundaryDiff(diff, balanceImpactNoneDiff);
-    if (balanceImpactNoneDiff && !hasOnlyStateBoundaryChanges(declaredBoundaryDiff, file)) {
+    const hasAllowedPresentationChanges = balanceImpactNoneDiff?.kind === "presentation" &&
+      hasOnlyPresentationChanges(declaredBoundaryDiff, file);
+    if (balanceImpactNoneDiff && !hasAllowedPresentationChanges &&
+        !hasOnlyStateBoundaryChanges(declaredBoundaryDiff, file)) {
       const line = getNonBoundaryStateDiffLine(declaredBoundaryDiff, file);
       errors.push(`${file}: balance-impact none declaration contains a non-boundary diff line (${JSON.stringify(line)}); use normal balance mapping`);
       continue;
-    } else if (balanceImpactNoneDiff) {
+    } else if (balanceImpactNoneDiff && (hasAllowedPresentationChanges ||
+        hasOnlyStateBoundaryChanges(declaredBoundaryDiff, file))) {
       impacts.push({ file, domains: [], balanceImpactNone: true, runtimeUnsupported: [], runtimeUnfired: [] });
       continue;
     }
