@@ -8,7 +8,7 @@ on:
         required: false
         default: "main"
       runs:
-        description: "Runs per scenario (minimum 500)"
+        description: "Runs per scenario and class (minimum 500)"
         required: false
         default: "500"
       purpose:

@@ -79,6 +79,12 @@ function validateMeasurementReport(report) {
     if (!Array.isArray(configuration.targetDepths) || configuration.targetDepths.length === 0) {
       errors.push("measurement.configuration.targetDepths is missing");
     }
+    if (configuration.classNames !== undefined &&
+        (!Array.isArray(configuration.classNames) ||
+          configuration.classNames.length === 0 ||
+          configuration.classNames.some(className => !isNonEmptyString(className)))) {
+      errors.push("measurement.configuration.classNames must contain named classes");
+    }
   }
 
   if (!Array.isArray(report.cases) || report.cases.length === 0) {
@@ -113,6 +119,14 @@ function validateMeasurementReport(report) {
           if (depth?.runs !== configuration.runs) {
             errors.push(`measurement case ${index} depth ${depthIndex} has an unexpected run count`);
           }
+          const expectedClassNames = configuration?.classNames || [];
+          if (expectedClassNames.length > 0) {
+            const actualClassNames = Object.keys(depth?.metricsByClass || {});
+            if (actualClassNames.length !== expectedClassNames.length ||
+                expectedClassNames.some(className => !actualClassNames.includes(className))) {
+              errors.push(`measurement case ${index} depth ${depthIndex} does not exactly match configured classes`);
+            }
+          }
         });
       }
     });
@@ -137,6 +151,7 @@ function copyMeasurementIdentity(measurement) {
     seed: measurement.configuration?.seed,
     runs: measurement.configuration?.runs,
     calibrationRuns: measurement.configuration?.calibrationRuns,
+    classNames: measurement.configuration?.classNames,
     seedPolicy: measurement.seedPolicy
   };
 }
@@ -216,6 +231,7 @@ export function renderMeasurementManifestMarkdown(manifest) {
     `- production baseline SHA: \`${measurement?.productionBaselineSha || "(missing)"}\``,
     `- simulator runner SHA: \`${measurement?.simulatorRunnerCommit || "(missing)"}\``,
     `- seed / runs: ${measurement?.seed ?? "(missing)"} / ${measurement?.runs ?? "(missing)"}`,
+    `- classes: ${measurement?.classNames?.join(", ") || "(missing)"}`,
     ""
   ];
   if (manifest.invalidReasons.length > 0) {

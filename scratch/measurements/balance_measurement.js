@@ -11,9 +11,10 @@ export const STANDARD_BALANCE_CONFIG = Object.freeze({
   runs: 500,
   calibrationRuns: 100,
   identificationPolicy: "powder",
+  classNames: Object.freeze(["Fighter", "Thief", "Priest", "Mage"]),
   scenarioIds: Object.freeze(["workshop-empty", "workshop-complete"]),
   targetDepths: Object.freeze([5, 10, 15, 20]),
-  seedPolicy: "Each scenario resets the canonical simulator to seed; run index is deterministic."
+  seedPolicy: "Each scenario/class task resets the canonical simulator to seed; run index is deterministic."
 });
 
 const Z95 = 1.959963984540054;
@@ -190,6 +191,30 @@ function depthMetrics(outcomeResult, resourceResult, depth) {
   };
 }
 
+function summarizeClassDepths(config, classResult) {
+  const results = classResult.results;
+  const outcomeResult = results.find(result => result.targetDepth === Math.max(...config.targetDepths));
+  if (!outcomeResult) {
+    throw new Error(`canonical simulator omitted standard outcome result: ${classResult.className}`);
+  }
+  return Object.fromEntries(config.targetDepths.map(depth => {
+    const resourceResult = results.find(result => result.targetDepth === depth);
+    if (!resourceResult) {
+      throw new Error(`canonical simulator omitted standard depth result: ${classResult.className}/B${depth}`);
+    }
+    return [depth, {
+      metrics: depthMetrics(outcomeResult, resourceResult, depth),
+      outcomeCounts: resourceResult.outcomeCounts,
+      averageTimeCost: resourceResult.averageTimeCost,
+      averageMaterialAcquired: resourceResult.averageMaterialAcquired,
+      averageMaterialConsumed: resourceResult.averageMaterialConsumed,
+      bankedMaterialEv: resourceResult.bankedMaterialEv,
+      materialEvPerTime: resourceResult.materialEvPerTime,
+      diagnostics: resourceResult.runDiagnostics
+    }];
+  }));
+}
+
 function formatDiagnosticCounts(counts = {}) {
   const entries = Object.entries(counts).filter(([, count]) => count > 0);
   return entries.length > 0
@@ -212,9 +237,10 @@ function formatDiagnosticEndFloors(distribution) {
     : "none";
 }
 
-function formatDiagnosticRow({ scenarioId, depth, label, bucket, signals = false }) {
+function formatDiagnosticRow({ scenarioId, className = null, depth, label, bucket, signals = false, includeClass = false }) {
   const columns = [
     scenarioId,
+    ...(includeClass ? [className || "—"] : []),
     `B${depth}`,
     label,
     bucket.runs || 0,
@@ -235,33 +261,44 @@ function formatDiagnosticRow({ scenarioId, depth, label, bucket, signals = false
 export function renderDiagnosticsMarkdown(cases) {
   const retreatRows = [];
   const deathRows = [];
+  const includeClass = cases.some(testCase =>
+    testCase.depths.some(depth => Boolean(depth.diagnosticsByClass))
+  );
   cases.forEach(testCase => {
     testCase.depths.forEach(depth => {
-      const diagnostics = depth.diagnostics;
-      if (!diagnostics) return;
-      Object.entries(diagnostics.byRetreatReason || {})
-        .filter(([, bucket]) => bucket.runs > 0)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .forEach(([reason, bucket]) => {
-          retreatRows.push(formatDiagnosticRow({
-            scenarioId: testCase.scenarioId,
-            depth: depth.depth,
-            label: reason,
-            bucket,
-            signals: true
-          }));
-        });
-      Object.entries(diagnostics.byDeathCause || {})
-        .filter(([, bucket]) => bucket.runs > 0)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .forEach(([cause, bucket]) => {
-          deathRows.push(formatDiagnosticRow({
-            scenarioId: testCase.scenarioId,
-            depth: depth.depth,
-            label: cause,
-            bucket
-          }));
-        });
+      const diagnosticSets = depth.diagnosticsByClass
+        ? Object.entries(depth.diagnosticsByClass)
+        : [[null, depth.diagnostics]];
+      diagnosticSets.forEach(([className, diagnostics]) => {
+        if (!diagnostics) return;
+        Object.entries(diagnostics.byRetreatReason || {})
+          .filter(([, bucket]) => bucket.runs > 0)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .forEach(([reason, bucket]) => {
+            retreatRows.push(formatDiagnosticRow({
+              scenarioId: testCase.scenarioId,
+              className,
+              depth: depth.depth,
+              label: reason,
+              bucket,
+              signals: true,
+              includeClass
+            }));
+          });
+        Object.entries(diagnostics.byDeathCause || {})
+          .filter(([, bucket]) => bucket.runs > 0)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .forEach(([cause, bucket]) => {
+            deathRows.push(formatDiagnosticRow({
+              scenarioId: testCase.scenarioId,
+              className,
+              depth: depth.depth,
+              label: cause,
+              bucket,
+              includeClass
+            }));
+          });
+      });
     });
   });
   if (retreatRows.length === 0 && deathRows.length === 0) return [];
@@ -275,8 +312,8 @@ export function renderDiagnosticsMarkdown(cases) {
       "",
       "Primary reason is the row label; reason signals may overlap and include the primary reason.",
       "",
-      "| Scenario | Target | Primary retreat reason | Runs | End floors | Reason signals (overlap) | HP rate | MP rate | Heal potions | Greater heal | Recovery potions | Cure items | Flee attempts | Status at end |",
-      "| --- | --- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+      `| Scenario | ${includeClass ? "Class | " : ""}Target | Primary retreat reason | Runs | End floors | Reason signals (overlap) | HP rate | MP rate | Heal potions | Greater heal | Recovery potions | Cure items | Flee attempts | Status at end |`,
+      `| --- | ${includeClass ? "--- | " : ""}--- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |`,
       ...retreatRows,
       ""
     ] : []),
@@ -285,8 +322,8 @@ export function renderDiagnosticsMarkdown(cases) {
       "",
       "Death rows are grouped by death cause and never mixed into retreat resource means.",
       "",
-      "| Scenario | Target | Death cause | Runs | End floors | HP rate | MP rate | Heal potions | Greater heal | Recovery potions | Cure items | Flee attempts | Status at end |",
-      "| --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+      `| Scenario | ${includeClass ? "Class | " : ""}Target | Death cause | Runs | End floors | HP rate | MP rate | Heal potions | Greater heal | Recovery potions | Cure items | Flee attempts | Status at end |`,
+      `| --- | ${includeClass ? "--- | " : ""}--- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |`,
       ...deathRows,
       ""
     ] : []),
@@ -294,30 +331,50 @@ export function renderDiagnosticsMarkdown(cases) {
   ];
 }
 
-export function summarizeSimulationResults({ config, provenance, scenarioResults, nodeVersion = process.version }) {
-  const cases = scenarioResults.map(({ scenarioId, results }) => ({
-    scenarioId,
-    targetDepths: results.map(result => result.targetDepth),
-    depths: config.targetDepths.map(depth => {
-      const resourceResult = results.find(result => result.targetDepth === depth);
-      const outcomeResult = results.find(result => result.targetDepth === Math.max(...config.targetDepths));
-      if (!resourceResult || !outcomeResult) {
-        throw new Error(`canonical simulator omitted standard depth result: ${scenarioId}/B${depth}`);
-      }
-      return {
-        depth,
-        runs: resourceResult.runs,
-        metrics: depthMetrics(outcomeResult, resourceResult, depth),
-        outcomeCounts: resourceResult.outcomeCounts,
-        averageTimeCost: resourceResult.averageTimeCost,
-        averageMaterialAcquired: resourceResult.averageMaterialAcquired,
-        averageMaterialConsumed: resourceResult.averageMaterialConsumed,
-        bankedMaterialEv: resourceResult.bankedMaterialEv,
-        materialEvPerTime: resourceResult.materialEvPerTime,
-        diagnostics: resourceResult.runDiagnostics
-      };
-    })
-  }));
+export function summarizeSimulationResults({ config, provenance, scenarioResults, nodeVersion = process.version, execution = null }) {
+  const cases = scenarioResults.map(({ scenarioId, results, classResults }) => {
+    const selectedClassResults = classResults || [{ className: null, results }];
+    const summarizedByClass = selectedClassResults.map(classResult => ({
+      className: classResult.className,
+      depths: summarizeClassDepths(config, classResult)
+    }));
+    return {
+      scenarioId,
+      targetDepths: config.targetDepths,
+      depths: config.targetDepths.map(depth => {
+        const depthByClass = Object.fromEntries(
+          summarizedByClass.map(({ className, depths }) => [className || "overall", depths[depth]])
+        );
+        const first = depthByClass.overall || depthByClass[config.classNames?.[0]];
+        return {
+          depth,
+          runs: first?.metrics ? first.metrics.reachedRate.trials : 0,
+          ...(classResults
+            ? {
+                metricsByClass: Object.fromEntries(
+                  summarizedByClass.map(({ className, depths }) => [className, depths[depth].metrics])
+                ),
+                outcomeCountsByClass: Object.fromEntries(
+                  summarizedByClass.map(({ className, depths }) => [className, depths[depth].outcomeCounts])
+                ),
+                diagnosticsByClass: Object.fromEntries(
+                  summarizedByClass.map(({ className, depths }) => [className, depths[depth].diagnostics])
+                )
+              }
+            : {
+                metrics: first.metrics,
+                outcomeCounts: first.outcomeCounts,
+                averageTimeCost: first.averageTimeCost,
+                averageMaterialAcquired: first.averageMaterialAcquired,
+                averageMaterialConsumed: first.averageMaterialConsumed,
+                bankedMaterialEv: first.bankedMaterialEv,
+                materialEvPerTime: first.materialEvPerTime,
+                diagnostics: first.diagnostics
+              })
+        };
+      })
+    };
+  });
   const measurement = {
     schemaVersion: BALANCE_MEASUREMENT_SCHEMA_VERSION,
     runnerVersion: BALANCE_MEASUREMENT_RUNNER_VERSION,
@@ -335,6 +392,7 @@ export function summarizeSimulationResults({ config, provenance, scenarioResults
     nodeVersion,
     seedPolicy: config.seedPolicy,
     configuration: config,
+    execution,
     modeledMitigations: [
       "production TOWN_PORTAL retreat policy",
       "status-cure consumables and EV policy",
@@ -406,15 +464,20 @@ function evaluateMetric(baseline, candidate, rule) {
 }
 
 function measurementMetricEntries(report) {
-  return report.cases.flatMap(testCase => testCase.depths.flatMap(depth =>
-    Object.entries(depth.metrics)
-      .filter(([name]) => Object.hasOwn(REGRESSION_RULES, name))
-      .map(([name, metric]) => ({
-        key: `${testCase.scenarioId}.B${depth.depth}.${name}`,
-        name,
-        metric
-      }))
-  ));
+  return report.cases.flatMap(testCase => testCase.depths.flatMap(depth => {
+    const metricSets = depth.metricsByClass
+      ? Object.entries(depth.metricsByClass).map(([className, metrics]) => ({ className, metrics }))
+      : [{ className: null, metrics: depth.metrics }];
+    return metricSets.flatMap(({ className, metrics }) =>
+      Object.entries(metrics || {})
+        .filter(([name]) => Object.hasOwn(REGRESSION_RULES, name))
+        .map(([name, metric]) => ({
+          key: [testCase.scenarioId, className, `B${depth.depth}`, name].filter(Boolean).join("."),
+          name,
+          metric
+        }))
+    );
+  }));
 }
 
 export function compareBalanceMeasurements(baseline, candidate) {
