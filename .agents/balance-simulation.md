@@ -29,7 +29,7 @@ smallest deterministic scratch check that exercises the changed values.
 - Simulation output or deterministic seeds, when available
 
 The lightweight simulation-follow gate runs as part of `npm run test:unit`. Its
-manifest classifies `scratch/sim_depth_material_ev.js` as the canonical `run`
+manifest classifies `scratch/simulations/sim_depth_material_ev.js` as the canonical `run`
 runner, records its balance-domain coverage and critical runtime evidence, and
 classifies Issue-specific runners as historical until explicitly promoted. The
 gate compares changed `src/` paths with declared balance-impact metadata,
@@ -48,7 +48,7 @@ mechanisms remain omitted unless declared critical by the manifest. Its stale
 scan is a fixed `trapSense` regression guard, not a general detector for every
 deleted mechanism. Unit fixture
 children retain their `SIM_SKIP_PROVENANCE=1` isolation, while CI runs
-`node scratch/test_measurement_provenance.js` directly after the unit suite to
+`node scratch/tests/regression/test_measurement_provenance.js` directly after the unit suite to
 enforce current-head ancestry and clean/stale-tree checks.
 Recursive `src/data/**`, `src/rules/**`, `src/systems/**`, and
 `src/combat_logic/**` fallbacks are not balance mappings: only listed primary
@@ -110,11 +110,11 @@ constants.
 
 ## Simulation Validity
 
-Before trusting a `scratch/sim_*.js` result, confirm the simulation reproduces a
+Before trusting a `scratch/simulations/sim_*.js` result, confirm the simulation reproduces a
 real run. Each item below has already produced a wrong conclusion at least once.
 
-- Every `scratch/sim_*.js` must declare its scope in the first 20 lines with
-  `// sim-scope: <run|formula|map|infra>`; `scratch/test_sim_reward_paths.js`
+- Every `scratch/simulations/sim_*.js` must declare its scope in the first 20 lines with
+  `// sim-scope: <run|formula|map|infra>`; `scratch/tests/regression/test_sim_reward_paths.js`
   fails without it. `run` measures depth, EV, or progression pace and must drive
   floors through `generateRunFloor` (`src/run_map_generator.js`) — a hand-rolled
   floor loop diverges silently at depth. `formula` is a narrow check that never
@@ -129,7 +129,7 @@ real run. Each item below has already produced a wrong conclusion at least once.
   support affixes. Ignoring cores understates build completion.
 - Rewards and level-ups must be reached through round resolution. Calling
   `applyCombatRewards` or `checkCharLevelUp` directly double counts;
-  `scratch/test_sim_reward_paths.js` enforces this.
+  `scratch/tests/regression/test_sim_reward_paths.js` enforces this.
 - State which mitigations the simulation models and which it omits in the
   written summary, so a later reader can tell the measured scenario from the
   real one.
@@ -171,8 +171,8 @@ refまたは基準SHAの取得・更新にnetwork操作が必要なら、worker�
 `measurement` に記録する。
 `measurement.sourceCommit`、`measurement.originMainAncestor`、
 `measurement.staleTreeAllowed` を env hash と同じ実行記録へ必ず出力する。
-測定結果の summary JSON と raw JSONL は `scratch/results/` へ出力するが、追跡しない。
-共有入口 `scratch/sim_depth_material_ev.js` の module load 時に guard を実行する。
+測定結果の summary JSON と raw JSONL は `evidence/results/` へ出力するが、追跡しない。
+共有入口 `scratch/simulations/sim_depth_material_ev.js` の module load 時に guard を実行する。
 `isMainThread` が false の worker は再実行しない。unit test は
 `SIM_SKIP_PROVENANCE=1`、または `test_*.js` entrypoint で skip する。
 `node --check` は module を実行しないため guard 対象外。
@@ -197,7 +197,7 @@ refまたは基準SHAの取得・更新にnetwork操作が必要なら、worker�
 
 ### Identification policy
 
-`scratch/sim_depth_material_ev.js` の既定は `IDENTIFICATION_POLICY=powder`。
+`scratch/simulations/sim_depth_material_ev.js` の既定は `IDENTIFICATION_POLICY=powder`。
 `powder` は `src/movement.js` の開始 `identifyTickets`、
 `src/systems/identification.js` の `identifyEquipment`、
 `src/rules/identification_rules.js` の `identifyCost` / `isCurseLocked`、
@@ -239,9 +239,9 @@ scenario数・worker数だけで安全性を推測せず、raw resultとの差�
 ### Standard statistical measurement (Issue #843)
 
 The canonical follow-through smoke and the statistical measurement are separate
-operations. `scratch/measure_balance.js` is the standard measurement entrypoint;
+operations. `scratch/measurements/measure_balance.js` is the standard measurement entrypoint;
 it calls `runCalibratedDepthSimulationTask` from
-`scratch/sim_depth_material_ev.js`, so it uses the production-backed
+`scratch/simulations/sim_depth_material_ev.js`, so it uses the production-backed
 `generateRunFloor` traversal, round resolution, reward/level-up path, real
 equipment scoring, and configured recovery/portal policy.
 
@@ -280,7 +280,7 @@ observations.
 Compare matched records with:
 
 ```sh
-node scratch/compare_balance.js baseline.json candidate.json --output comparison.md
+node scratch/measurements/compare_balance.js baseline.json candidate.json --output comparison.md
 ```
 
 The comparator refuses a mismatched configuration key. Higher-is-better rates
@@ -314,7 +314,7 @@ engine and must not be reimplemented by Issue #892:
 Issue #892 remains responsible for the operational record around a requested
 run. The manual dispatch requires a short `purpose` and accepts a small
 `run_type` classification (`baseline-candidate`, `diagnostic`, or `temporary`).
-`scratch/measurement_manifest.js` validates the completed #843 report and
+`scratch/measurements/measurement_manifest.js` validates the completed #843 report and
 records only its identifying measurement/provenance fields together with the
 workflow run ID/URL, requested ref, purpose, and timestamp. A missing,
 incomplete, dirty-tree, stale-tree, or failed measurement is marked `invalid`
@@ -353,7 +353,7 @@ paired CI は、条件の変換段階がコード上で `post-generation`、生�
 ## Issue #461 固定条件（基本4職基準線）
 
 この節は Issue #461 の基準線を再測定する際の固定条件。値を調整するための what-if
-条件ではない。実行入口は `scratch/sim_issue_461_baseline.js`、`run` scope であり、
+条件ではない。実行入口は `scratch/simulations/sim_issue_461_baseline.js`、`run` scope であり、
 `simulateRun` から `generateRunFloor` を経由する。
 
 - seed: `461`
@@ -419,7 +419,7 @@ SIM_MAP_CACHE_ENTRIES=<omitted; runtime default 1024>
 同一条件比較測定として別記し、基準線へ混在させない。
 ## Issue #485 再基準線（PR #484後）
 
-PR #484 の上薬追加を含む現行 `scratch/sim_depth_material_ev.js` で再測定した。
+PR #484 の上薬追加を含む現行 `scratch/simulations/sim_depth_material_ev.js` で再測定した。
 HPが35%以下なら `GREATER_HEAL` を優先して能動使用し、`hasRecoveryPotion` でも上薬を
 回復・ポータル判定の保有品として数える。上薬を省略した旧基準線とは混ぜない。
 
@@ -502,7 +502,7 @@ Issue #494 はゲーム本体のbalance値・逃走成功判定を変更せず�
 seed=494、各職・条件 N=500、6工房シナリオ、B20終了で、固定回復35%の逃走15/20/25/30/35%、
 固定回復45/55/65/70%の逃走15/20/25/30/35%、敵強度EV回復55%の逃走15/20/25/35%を測定した。
 率はWilson 95% CI、平均は正規近似95% CI、N<30のセルは未確定とした。詳細は
-`scratch/results/issue-494-combat-policy-default.md` を正本とする。
+`evidence/results/issue-494-combat-policy-default.md` を正本とする。
 
 - 採用: `FLEE_POLICY=ev`、`FLEE_HP_THRESHOLD=0.20`、`HEAL_POTION_THRESHOLD=0.55`。
 - 採用理由: EV/逃走20%が全職集約で平均floor **3.92 [3.81, 4.04]**、B5 entrant **26.6% [24.7, 28.5]**。
@@ -513,11 +513,11 @@ seed=494、各職・条件 N=500、6工房シナリオ、B20終了で、固定�
 - トレードオフ: 現行固定35/35に対し、生還率は **45.3%→40.9%**、bank保持率は
   **0.5731→0.5397**、素材EV/時間は **0.1561→0.1480**。深度・到達性を優先する既定値として記録し、
   bank/EVを別監視指標に残す。
-- 反映先: `scratch/sim_depth_material_ev.js` の既定/preset、`src/rules/recovery_rules.js` のsim helper既定、
+- 反映先: `scratch/simulations/sim_depth_material_ev.js` の既定/preset、`src/rules/recovery_rules.js` のsim helper既定、
   #461基準線runner。ゲーム本体のaction loopはhelperを呼ばず、ゲームプレイの逃走成功率は変更しない。
 - 実施: #461基準線の再集計、#264の傷薬本数掃引・回復単価掃引の採用値再測定。
   詳細は
-  `scratch/results/issue-494-264-remeasurement.md`。
+  `evidence/results/issue-494-264-remeasurement.md`。
 - 下流の再測定対象: #471 core監視、#468/#473 罠/解除監査、#480 罠方針比較。#470/#475のA1は
   既存rawの再集計でcanon準拠を確認した。
 
@@ -628,7 +628,7 @@ A1のN≥30ゲートだけなら、各職120 entrantが必要で、現行率で�
 4職共通層化系列を維持し、職限定測定へ分解しない。B10 entrantは到達済みrunの選別集団であり、質・core個数の関連には
 `deathFloor === floor` と同種の選別罠がある。balance値・srcのゲーム挙動は変更しない。
 
-測定記録は `scratch/results/issue-510-b10-criteria-migration.md` に固定する。
+測定記録は `evidence/results/issue-510-b10-criteria-migration.md` に固定する。
 `measurement.sourceCommit` は `1cc2ade693636413e2c163b3f0a485f421ba3cfc`、
 `measurement.originMainAncestor=true`、env hashは
 `6630774fbe1172084adde136272b09df77373427bc3d179fdd3587b9fad4f572`、raw JSONL SHA-256は
@@ -708,8 +708,8 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 
 ### 過去参照の扱い
 
-- `scratch/results/issue-440-magic-core-chance.md` と `scratch/results/issue-461-baseline.md` は当時の測定記録。目標帯・37.2%・69.0%の当時の判断を履歴として残し、書き換えない。
-- `scratch/sim_issue_461_baseline.js` は #461 基準線の歴史的 runner。生成する「採らなかった完成定義」の 35〜40%記述も当時の判断記録であり、現行 canon ではない。#471 の判断は本節を参照する。
+- `evidence/results/issue-440-magic-core-chance.md` と `evidence/results/issue-461-baseline.md` は当時の測定記録。目標帯・37.2%・69.0%の当時の判断を履歴として残し、書き換えない。
+- `scratch/simulations/sim_issue_461_baseline.js` は #461 基準線の歴史的 runner。生成する「採らなかった完成定義」の 35〜40%記述も当時の判断記録であり、現行 canon ではない。#471 の判断は本節を参照する。
 - grep で見つかった他の `37.2%` は別指標の過去測定値であり、core 装備率目標の参照ではない。
 
 ## 宝箱解除率と解除判断経路の扱い（#341 / #473）
@@ -798,7 +798,7 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
 - 宝箱解除時の盲目補正（`blind ? chance / 2 : chance`）は維持する。戦闘中の持続と別の
   counterplayであり、解除率単独ではなく試行数・`kit`/`direct`/`forced`経路と併記して評価する。
 - 詳細な実行コマンド、endpoint、カバー率、実害、素材EV、raw SHA-256は
-  `scratch/results/issue-507-blind-balance.md` に固定する。今回の結論は、B案の実ソース変更を
+  `evidence/results/issue-507-blind-balance.md` に固定する。今回の結論は、B案の実ソース変更を
   反映した再測定に基づく。
 
 ## Issue #502 固定結論（不意打ち撤廃・trapSense転換）
@@ -828,9 +828,9 @@ B5 entrant 全体であり、有群率で割ってrun数を下げない（PR #47
   が Fighter **3.54** / Thief **6.26** / Priest **6.31** / Mage **3.11**、4職Q4−Q1の
   B5死亡率差 **−4.5pt [−6.7, −2.3]**、trend **z=−4.388, p<0.0001**、A1成立。
   Q4完成率は **8.8% [8.3, 9.3]**、終了時core装備率は **74.6% [73.8, 75.4]**。
-- 詳細なendpoint表・原因分解・実行条件は `scratch/results/issue-502-trap-detection.md`、
-  `scratch/results/issue-502-499-fixed-detection.md`、
-  `scratch/results/issue-502-461-rebaseline.md` に固定する。raw JSONLはコミットしない。
+- 詳細なendpoint表・原因分解・実行条件は `evidence/results/issue-502-trap-detection.md`、
+  `evidence/results/issue-502-499-fixed-detection.md`、
+  `evidence/results/issue-502-461-rebaseline.md` に固定する。raw JSONLはコミットしない。
 - 実行記録: #502 env hash `84ca46ba0d91d8c92a672a4b165a519f30f92eda6adebac26409877a48e80392`,
   raw SHA-256 `0521257c771484ce91697f656daeca86da334b77f989cf2b5914a051d885b408`。
   #499固定察知 env hash `807295c85697da44c79c17b0d250acfe3622fa306a76ffc8ed112f67fbf4e49e`,
@@ -845,8 +845,8 @@ pre-camp-correctionの履歴値として保持する。以下は source commit `
 歴史的な測定記録であり、現行baseの再現手順ではない。測定に使った
 `sim_issue_502_trap_detection.js` runner は退役・削除済みで、もう実行できない。結果の正本は
 immutableな結果記録
-`scratch/results/issue-502-trap-detection.md`、`scratch/results/issue-502-499-fixed-detection.md`、
-`scratch/results/issue-502-461-rebaseline.md` を参照する。
+`evidence/results/issue-502-trap-detection.md`、`evidence/results/issue-502-499-fixed-detection.md`、
+`evidence/results/issue-502-461-rebaseline.md` を参照する。
 
 当時の記録では、seed=502、各職N=3,000、calibration N=1,000、SIM_PARALLEL未指定で、
 現行→確定察知・
@@ -856,7 +856,7 @@ B10 entrant **9.5% → 11.5% → 11.1%**、床罠被害HP/run
 非優越という結論は維持するが、旧66HP/run対回復予算51HPの合計収支はこのrunnerの
 出力列にないため、#652ではその不等式自体を再確定していない。
 
-`ISSUE499_FIXED_DETECTION=1 node scratch/sim_issue_499_shallow_recovery_dose_sweep.js`
+`ISSUE499_FIXED_DETECTION=1 node scratch/simulations/sim_issue_499_shallow_recovery_dose_sweep.js`
 （seed=499、各職N=3,000、calibration N=1,000、SIM_PARALLEL未指定）の現行値は、
 B10 entrant **11.5%**、+0.4点 **14.1%**（実測0.513本/run）である。
 
@@ -864,7 +864,7 @@ B10 entrant **11.5%**、+0.4点 **14.1%**（実測0.513本/run）である。
 
 - `sim_issue_271_trap_quality.js` と `sim_issue_510_b10_criteria_migration.js` は、削除済み `trapSense` 機構を測る一回限りsimとして退役済み（commit `25ae6f6` / PR #749）。現行機構への再移植も過去結果の再測定も行わない。
 - `sim_issue_502_trap_detection.js` も、無効な `trapSenseDisposition` と削除済み `trapSense*` 指標を含む閉鎖済み一回限りsimのため退役した。既存の #502 固定結果は歴史記録であり、今回再測定しない。
-- `scratch/sim_issue_461_baseline.js`、`scratch/sim_issue_612_exp_pace.js`、`scratch/issue624_commit_depth.js` の obsolete `TRAP_SENSE_OVERRIDE` 設定・除外リストも除去した。ゲームルール、balance値、material economyは不変。
+- `scratch/simulations/sim_issue_461_baseline.js`、`scratch/simulations/sim_issue_612_exp_pace.js`、`scratch/measurements/issue624_commit_depth.js` の obsolete `TRAP_SENSE_OVERRIDE` 設定・除外リストも除去した。ゲームルール、balance値、material economyは不変。
 
 ## Issue #516 固定結論（基本4職sustain非対称）
 
@@ -896,7 +896,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 | Priest | 44.4% → 44.4% | 7.0% → 7.0% | 4.48 → 4.48 | 0.1062 → 0.1062 |
 | Mage | 7.8% → 73.6% | 0.6% → 18.2% | 2.82 → 6.55 | 0.1260 → 0.1823 |
 
-再現コマンドは `node scratch/sim_issue_516_class_sustain.js`。env hashは
+再現コマンドは `node scratch/simulations/sim_issue_516_class_sustain.js`。env hashは
 `caf2dec19affd4c86e36c367ef71aff5889ef4a3c884452eb103b0b59ca7c2ab`。
 
 - guardian強化、arcane強化はB10 entrantを改善せず、全職camp/階層移動回復は平均floorを
@@ -911,8 +911,8 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   B5死亡率差は **−7.3pt [−9.2, −5.4]**、trend **z=−7.598, p<0.0001**、A1成立。
   4職Q4完成率は **13.2% [12.6, 13.8]**、終了時core装備率は **83.5% [82.8, 84.1]**。
 - 詳細なendpoint、終了理由、被害源、薬枯渇、候補比較、実行条件は
-  `scratch/results/issue-516-class-sustain.md` に固定する。#461再基準線の実行記録は
-  `scratch/results/issue-461-baseline.md` に固定し、raw JSONLはコミットしない。
+  `evidence/results/issue-516-class-sustain.md` に固定する。#461再基準線の実行記録は
+  `evidence/results/issue-461-baseline.md` に固定し、raw JSONLはコミットしない。
 - 実行記録: #516 env hash `caf2dec19affd4c86e36c367ef71aff5889ef4a3c884452eb103b0b59ca7c2ab`,
   raw SHA-256 `731ebfb1a93d7b8128e55799f15e0bbc1604e9647cf8d23946af0403ba80a725`。
   #461再基準線のraw SHA-256は
@@ -937,8 +937,8 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 - B5撤退率を主指標に、B10到達性・平均到達階・素材EV/時間を併読し、戦士は +2、
   魔術師は +4をkneeとして採用する。+6以上は到達が深くなる一方EV/時間が悪化する。
   上級職・盗賊・僧侶は変更しない。
-- 詳細表・CI・薬指標・実行条件は `scratch/results/issue-528-class-sustain-phase2.md`、
-  再現コマンドは `node scratch/sim_issue_528_class_sustain_phase2.js` とする。
+- 詳細表・CI・薬指標・実行条件は `evidence/results/issue-528-class-sustain-phase2.md`、
+  再現コマンドは `node scratch/simulations/sim_issue_528_class_sustain_phase2.js` とする。
 - 実行記録: env hash `cf75043b8049fc68892c4c0e63dc567082c76670bd58305c5692694889b93970`、
   raw SHA-256 `533f7354352efabc16c660cb4eaa0c57b95f98063447b941430158b32565a24b`。
 
@@ -975,7 +975,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 - 実行記録: calibration 122.797s、simulation 47.184s、合計169.981s、総CPU858.443s、
   resolved parallelism=15、raw JSONL SHA-256 `8786d7b113e72714909fc5957348cec681bda121a4a7ba8b22261bea1f9745fe`、
   summary JSON SHA-256 `a9fabc14cb6bc050433f53493f91f56e44b424d9fb52b8ea276d4296792fe05b`。
-- 主結果は `scratch/results/issue-461-baseline.md` / 同名summary JSON。N<30の主endpointはなし。
+- 主結果は `evidence/results/issue-461-baseline.md` / 同名summary JSON。N<30の主endpointはなし。
   本Issueでは#470/#475/#510/#264の下流再測定は別途実施せず、#532基準線更新のみ。ゲームコード・balance値は変更しない。
 
 ## Issue #512 固定結論（宝箱盲目ループ）
@@ -1020,7 +1020,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   閃光罠の盲目へは効かない。現行床罠に盲目効果はない。
 - 対策は追加しない。解除率半減を撤廃すると#480の宝箱EV分岐と経路構成が同時に動くため、
   #511の解除条件、`blind ? chance / 2 : chance`、現行EV方針、#517の`trapGuard`を維持する。
-- 詳細JSON/MDは `scratch/results/issue-512-chest-blind-loop.md` に固定し、raw JSONL/summary JSONは追跡しない。
+- 詳細JSON/MDは `evidence/results/issue-512-chest-blind-loop.md` に固定し、raw JSONL/summary JSONは追跡しない。
   実行記録: env hash `6630774fbe1172084adde136272b09df77373427bc3d179fdd3587b9fad4f572`、
   source commit `6bf1f4e8f6a781d1a0cf5e533876a3ff3178426d`、raw SHA-256
   `2a1c30a017baf44c5edfbe3c1f5bb60dfa935cc58acf41a4c102cd617c9e0a6c`、summary SHA-256
@@ -1031,7 +1031,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 - #509 は #499 の「+2.0本/run が必要」を根拠にしていたが、その後 #511（盲目解除）/
   #514（確定察知）/ #517（`trapGuard`）で、供給を追加せずに目標を達成した
   （[[Issue #516 固定結論]] 参照、4職合算 B10 entrant 12.95%）。実装前に、現行
-  `origin/main`（#517後）を基準として `scratch/sim_issue_499_shallow_recovery_dose_sweep.js`
+  `origin/main`（#517後）を基準として `scratch/simulations/sim_issue_499_shallow_recovery_dose_sweep.js`
   を seed=461・N=3,000/職・calibration N=1,000・6工房状態で再実行し、供給0/+0.4/+1.0/
   +2.0/+3.0/+4.0本/run を掃引した。
 - 基準線（供給+0）の4職合算 B10 entrant は **14.4% [13.8, 15.1]**（職業別: 戦士2.5%
@@ -1060,15 +1060,15 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   増やすため、(A)宝箱追加抽選 / (B)敵ドロップ / (C)キャンプのいずれも実装しない。
 - 実行記録: env hash `c7b419ecb53cbb0a66ec13ce34d7fed4cd2904679d4aeb6a180e6c01c3eae86c`、
   raw JSONL SHA-256 `4a4abbe45293b17e214efe403f3d5cd3c94e8b4cdd831085ec589db47c587d43`
-  （コミットしない）。詳細は `scratch/results/issue-499-shallow-recovery-supply.md` に固定する。
+  （コミットしない）。詳細は `evidence/results/issue-499-shallow-recovery-supply.md` に固定する。
 
 ## Issue #508 固定結論（回復単位密度）
 
 - 2026-08-12のオーナー判断を主判定として、#509の供給増は再提案せず、現行#461の出発kit
   **傷薬15×4 = 60HP/run**を固定した。傷薬25/40は周期配分（2/3個、1/2個）で
   60HP/runの期待値を維持し、上薬40浅層素材what-ifも同じ60HP/runで比較した。
-- `scratch/sim_depth_material_ev.js` に自然回復候補の単位正規化、回復薬使用時の要求/実回復/切捨て監査、
-  source別offer監査を追加した。`scratch/sim_issue_508_heal_unit_density.js` は#461と同じ
+- `scratch/simulations/sim_depth_material_ev.js` に自然回復候補の単位正規化、回復薬使用時の要求/実回復/切捨て監査、
+  source別offer監査を追加した。`scratch/simulations/sim_issue_508_heal_unit_density.js` は#461と同じ
   workshop分布・seed系列で4職を個別測定する。
 - オーナー提供の#461基準線は Fighter **44.4% / 72.6% / 3.4% / 4.48**、Thief
   **72.8% / 35.9% / 19.2% / 6.27**、Priest **43.7% / 0.0% / 27.5% / 6.30**、
@@ -1098,10 +1098,10 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 
   出発HPは固定供給（全条件60HP/run）。自然分と観測総量は到達経路に依存するため、候補/取得を
   別指標として記録し、固定供給の判定へ混ぜない。詳細な職業別endpoint、経済、枯渇、拾得拒否、
-  レベル帯別切捨ては `scratch/results/issue-508-heal-unit-density.md` に固定する。
+  レベル帯別切捨ては `evidence/results/issue-508-heal-unit-density.md` に固定する。
 - seed=461、4職各N=3,000、calibration N=1,000、6工房分布、B5代理、`SIM_PARALLEL`未指定、
   Wilson 95% CI / 平均は正規近似95% CI、N<30は未確定。実行は
-  `node scratch/sim_issue_508_heal_unit_density.js`。raw JSONL/summary JSONは追跡せず、summary MDのみを
+  `node scratch/simulations/sim_issue_508_heal_unit_density.js`。raw JSONL/summary JSONは追跡せず、summary MDのみを
   コミットする。
 - ゲーム本体のbalance値・craftレシピ・回復効果は変更しない。測定インフラと監査だけのため、
   Design Canonは影響なし。プレイヤー影響は単位変更を採用せず現行15HPを維持すること。
@@ -1111,8 +1111,8 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 - `npm run test:unit`
 - Deterministic scratch simulation when changing enemy, reward, map, drop, or
   progression values.
-- `node scratch/test_sim_reward_paths.js` when adding or changing a
-  `scratch/sim_*.js` file.
+- `node scratch/tests/regression/test_sim_reward_paths.js` when adding or changing a
+  `scratch/simulations/sim_*.js` file.
 - Short written summary of expected player impact.
 
 ## Must Not Do
@@ -1150,10 +1150,10 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 - `killHeal+10`は現行Mage+4の2.5倍、Fighter+2・汎用support基準値2より大きい
   class passive値となる。将来職追加時のtrigger値の基準を不自然に押し上げるため、
   `killHeal=4`を維持し、撃破前から効くHP成長を採用した。両候補はMage-only overrideで
-  他3職B10 entrant差0.0pt。詳細比較は `scratch/results/issue-534-mage-death.md`。
+  他3職B10 entrant差0.0pt。詳細比較は `evidence/results/issue-534-mage-death.md`。
 - 候補介入では他3職を変更せず、B10 entrant差は戦士/盗賊/僧侶すべて0.0pt。
-  採用値の#461基準線を `scratch/results/issue-461-baseline.md`、診断と候補比較を
-  `scratch/results/issue-534-mage-death.md` に記録する。両結果の率はWilson 95% CI、
+  採用値の#461基準線を `evidence/results/issue-461-baseline.md`、診断と候補比較を
+  `evidence/results/issue-534-mage-death.md` に記録する。両結果の率はWilson 95% CI、
   N<30のセルは未確定として扱う。採用後のN=3,000ではMage B5死亡10.6%、B10到達
   15.5%、平均floor6.08となり、4職合算A1も成立した。
 
@@ -1174,8 +1174,8 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   変更していない（Fighterの0.1pt差は同一基準線の再標本化差）。
 - #534の`killHeal`単独N=500結果は再利用し、#537ではHP順序・mpWard・罠軽減・
   撃破回復の併用だけを新規測定した。測定正本は
-  `scratch/results/issue-537-mage-hp-order.md`、最終基準線は
-  `scratch/results/issue-461-baseline.md`。両率はWilson 95% CI、N<30は未確定。
+  `evidence/results/issue-537-mage-hp-order.md`、最終基準線は
+  `evidence/results/issue-461-baseline.md`。両率はWilson 95% CI、N<30は未確定。
 - #537 focused sweepのenv/raw/summary SHA-256は、順に
   `4a8d2c9f090b137032fae47ed67f2520d4454e98e32510e72756d225675bee70`、
   `fa5b890b0913f1df9f988c28191201e36527f5938d74770a4342c5fbb6f71a11`、
@@ -1185,7 +1185,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 
 ## Issue #666 sim run単位乱数分離・基準線（2026-08-16）
 
-- `scratch/sim_depth_material_ev.js` の通常値と #624 固定envを
+- `scratch/simulations/sim_depth_material_ev.js` の通常値と #624 固定envを
   `SIM_INDEPENDENT_RUN_RANDOM=1` に更新した。`simulateRun` は既存の
   `runSeed = \`${SIM_SEED}:${seriesId}:${className}:${runIndex}\`` をhashして
   各runの `Math.random` 列を開始する。calibrationと本計測の明示的な
@@ -1207,13 +1207,13 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   2回とも一致した。#624 row JSONのSHA-256は分離前
   `4abb64b0656cc14c51a54c3e34747d1ac4519eac0bf75817f379fa24b5021e44`、分離後
   `9b3bb43fb986c5e149d39fcfa219c9fb9c2f37c12517cdd3bae9d8bab2c9b036`。
-- `scratch/sim_early_mortality.js` もrunSeed hashへ切り替えた。罠チョーク sim は #668 で、
+- `scratch/simulations/sim_early_mortality.js` もrunSeed hashへ切り替えた。罠チョーク sim は #668 で、
   到達不能な刻印に依存していたため退役させた。今回の撤去はシミュレーション専用経路であり、
   深度結果の基準線は変更しない。
 
 ## Issue #663 戦闘内MP計測（2026-08-16）
 
-- `scratch/sim_depth_material_ev.js` に、戦闘ごとの開始MP・最低MP・戦闘間回復・
+- `scratch/simulations/sim_depth_material_ev.js` に、戦闘ごとの開始MP・最低MP・戦闘間回復・
   総ラウンド数・MP不足発生ラウンドを、職業・実フロア別に記録する観測だけを追加した。
   MP支払いは `src/` の `getSpellPayment` / `getSpellActionPayment` を経由し、式を再実装していない。
   コスト、最大MP、回復量、craft、ゲーム本体の挙動は変更していない。
@@ -1234,7 +1234,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   性質ではなくsimポリシー／計測分母の人工物と判定する。#658のMage結論はこの指標からは保留する。
 - 魔力草はゲーム本体では戦闘中に使用可能だが、現在のsim自動ポリシーは戦闘終了後の
   `useManaPotionIfNeeded` でのみ扱う。この差を結果に明記し、ゲームルール変更は行わない。
-- 結果正本は `scratch/results/issue-663-mp-in-combat.md`。この結論は測定方法と判定の記録であり、
+- 結果正本は `evidence/results/issue-663-mp-in-combat.md`。この結論は測定方法と判定の記録であり、
   他の `.agents/game-design*.md` の更新は不要（ルール・balance値・material economy不変）。
 
 ## Issue #677 戦闘中魔力草使用のモデル化・新基準線（2026-08-16）
@@ -1243,7 +1243,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   `!campOnly` として戦闘中のitem選択・item resolutionを通る一方、simは
   `useManaPotionIfNeeded` を戦闘終了後にしか呼んでいなかったことである。これはゲームルールの
   欠落ではなく、sim行動モデルの欠落だった。
-- `scratch/sim_depth_material_ev.js` はsourceの `getUsableInventoryItems` と、sourceの
+- `scratch/simulations/sim_depth_material_ev.js` はsourceの `getUsableInventoryItems` と、sourceの
   `MANA_POTION` effectを使って、MP不足で呪文を選べないが効果適用後は同じsource selectorが
   呪文を選べる場合だけ戦闘中使用を選ぶ。実際の消費・回復は既存の
   `runCombatRoundCalculation` → source item resolutionを通す。回復量3、MP上限、呪文コスト、
@@ -1257,7 +1257,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   `SIM_PARALLEL`未指定。#666基準線互換（B21・6工房分布）での新しい到達階平均は
   Fighter **5.8720** / Thief **4.8980** / Priest **4.5980** / Mage **6.4800**。
   戦士・盗賊は旧基準線と完全一致し、術者の変更後値を新基準線とする。
-- 結果正本は `scratch/results/issue-677-mana-potion-combat.md`。通常sim stdout SHA-256は
+- 結果正本は `evidence/results/issue-677-mana-potion-combat.md`。通常sim stdout SHA-256は
   `a9e1b2f76d1cf4fb6ead3cac0717cd411f4f3afc11e1bb4f1abb1c0518b7ea64`（2回一致）、固定環境
   rows SHA-256は `5f24e0b281d986e1363c87a18942f9d0ac663864b82f1bac9025336f2883af5c`（2回一致）。
 - これはsimの実態合わせであり、ゲームルール・balance値・material economyは不変。他の
@@ -1267,7 +1267,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
 
 - #652の現行基準線では、逃走run率は戦士 **75.6%**、盗賊 **80.0%**、僧侶
   **77.6%**、魔術師 **78.8%**（順に約 **76–80%帯**）だった。逃走率の表記は
-  この現行値へ更新する。詳細は `scratch/results/issue-652-rebaseline.md` を正本とする。
+  この現行値へ更新する。詳細は `evidence/results/issue-652-rebaseline.md` を正本とする。
 - この訂正は測定結果の記述更新であり、逃走方針・成功判定・ゲーム本体のルール値を変更しない。
 
 ## Issue #678 消耗品のsimモデル範囲（2026-08-16）
@@ -1310,7 +1310,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   **+0.0220** は #684（#677）の魔力草戦闘使用による既知の差分で、計装による変更ではない。
   #684前のbase=`d2e83bd`での観測追加計測は4職の基準線と完全一致した。観測カウンタは乱数を消費しない。
   詳細と生出力SHA-256は
-  `scratch/results/issue-678-consumable-coverage.md` を正本とする。
+  `evidence/results/issue-678-consumable-coverage.md` を正本とする。
 
 ## Issue #692 消費計数の一般則（2026-08-21）
 
@@ -1351,7 +1351,7 @@ seed=461、各職N=500、calibration N=100、SIM_PARALLEL未指定で再測定�
   policy-deferred 3,967件となった。枯渇後の選択は残存する共有候補（主にHOLY_WATER）に限られる。
 - B5は全体で死亡518/入場1,425 = **36.35%**（受入 ≤30.9% に未達）、B10は375/2,000 =
   **18.75%**（受入 ≥15.0% を通過）。到達階の上昇は改善成果ではなく、sim側の抑制解除の観測結果である。
-- 結果正本は `scratch/results/issue-691-status-cure-ev.md`。EV raw stdout SHA-256は
+- 結果正本は `evidence/results/issue-691-status-cure-ev.md`。EV raw stdout SHA-256は
   **`2b4ea8a6c270a1432de58473dc0790fb0862116a7f8a9ac17318f568742d1907`**（同一条件2回一致）。
   旧方針の4職平均は `legacy` 退避経路で **5.8720 / 4.8980 / 4.5980 / 6.4800** と完全一致した。
 
@@ -1361,7 +1361,7 @@ Use the repository review output format from `.agents/README.md`.
 
 ## Issue #679 Phase 1 — enabled core/SUPPORT reachability inventory (2026-08-23)
 
-This is a measurement record, not gameplay canon. The source registry is authoritative: **18 enabled cores** and **47 enabled SUPPORT affixes**; this reconciles with the current assertions in `scratch/test_affixes.js` and `scratch/test_core_affixes.js` (support categories 26 basic / 11 conditional / 7 trigger / 3 economy). No registry values, enable flags, or production wiring were changed.
+This is a measurement record, not gameplay canon. The source registry is authoritative: **18 enabled cores** and **47 enabled SUPPORT affixes**; this reconciles with the current assertions in `scratch/tests/unit/test_affixes.js` and `scratch/tests/unit/test_core_affixes.js` (support categories 26 basic / 11 conditional / 7 trigger / 3 economy). No registry values, enable flags, or production wiring were changed.
 
 ### Classification correction (2026-08-23)
 
@@ -1371,11 +1371,11 @@ Classification rule: a missing per-mechanism simulator probe is **C/sim-missing 
 
 ### Measurement path and provenance
 
-- Real path: `scratch/sim_depth_material_ev.js` (`sim-scope: run`) → `generateRunFloor` → current equipment generation/identification/equip selection → current round/reward/movement/chest rules.
-- Main coverage run: `SIM_SEED=231 SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 SIM_SCENARIOS=workshop-complete SIM_CORE_WORKSHOP_GATE=off node scratch/sim_depth_material_ev.js`; no `SIM_PARALLEL` override.
+- Real path: `scratch/simulations/sim_depth_material_ev.js` (`sim-scope: run`) → `generateRunFloor` → current equipment generation/identification/equip selection → current round/reward/movement/chest rules.
+- Main coverage run: `SIM_SEED=231 SIM_RUNS=500 SIM_CALIBRATION_RUNS=100 SIM_SCENARIOS=workshop-complete SIM_CORE_WORKSHOP_GATE=off node scratch/simulations/sim_depth_material_ev.js`; no `SIM_PARALLEL` override.
 - Gameplay source baseline SHA: `62a4e8184151a21d574e5a84697283ff208381fd`; `origin/main` ancestor: true; stale tree: false; working tree clean: true; env hash `8e525761fae5e542`.
-- Measurement runner commit: `c56b06cbfd2c4e6c7006fca6805c7006f4fe3d39`; runner diff SHA-256 against the gameplay baseline, computed as `git diff --binary 62a4e8184151a21d574e5a84697283ff208381fd c56b06cbfd2c4e6c7006fca6805c7006f4fe3d39 -- scratch/sim_depth_material_ev.js | shasum -a 256`: `6b924d556dec0a7305ebdddf3a8e9dfcf4be3c66b42bf13b1b4651ed14008a39`.
-- The runner diff scope is now the ordered `measurementRunnerPaths` field: `scratch/sim_depth_material_ev.js`, `scratch/measurement_provenance.js`; `measurementRunnerDiffSha256` hashes the combined binary diff for exactly those two files against the gameplay baseline. The captured historical hash above remains the pre-correction provenance for the unchanged raw measurement.
+- Measurement runner commit: `c56b06cbfd2c4e6c7006fca6805c7006f4fe3d39`; runner diff SHA-256 against the gameplay baseline, computed as `git diff --binary 62a4e8184151a21d574e5a84697283ff208381fd c56b06cbfd2c4e6c7006fca6805c7006f4fe3d39 -- scratch/simulations/sim_depth_material_ev.js | shasum -a 256`: `6b924d556dec0a7305ebdddf3a8e9dfcf4be3c66b42bf13b1b4651ed14008a39`.
+- The runner diff scope is now the ordered `measurementRunnerPaths` field: `scratch/simulations/sim_depth_material_ev.js`, `scratch/measurements/measurement_provenance.js`; `measurementRunnerDiffSha256` hashes the combined binary diff for exactly those two files against the gameplay baseline. The captured historical hash above remains the pre-correction provenance for the unchanged raw measurement.
 - Real measurements refuse any non-empty `git status --porcelain --untracked-files=all` result before execution. Provenance records `workingTreeClean`, `workingTreeDirty`, and `dirtyTreeAllowed`; the only supported dirty-tree opt-in is the explicit `SIM_PROVENANCE_TEST_FIXTURE` + `SIM_PROVENANCE_ALLOW_DIRTY_TREE=1` path used by test-only fixtures, never the Issue #679 measurement.
 - The recorded command was run at that pinned runner commit. To reproduce the captured raw hashes, use a detached worktree at `c56b06cbfd2c4e6c7006fca6805c7006f4fe3d39` and run the command above; running from a later documentation-only commit intentionally produces different provenance text and therefore a different raw stdout hash.
 - Current-gate comparison: same command without `SIM_CORE_WORKSHOP_GATE=off`, env hash `33fe98330a8886c8`; `CORE_MILESTONE_BREAKER` and `CORE_THIN_ICE_PACT` were zero-candidate because their current workshop grants require `FORGE_SEAL` / `ABYSS_SEAL`, absent from `workshop-complete`. The gate-off run is an explicit coverage measurement, not a claim that those grants are currently free.
@@ -1419,7 +1419,7 @@ and `CORE_AFFIXES`). Every ID below is available only through the current
 `generateRandomAccessory` build the base-item support pool and
 `rollAffixLoadout` applies slot, floor, rarity, budget, class, and workshop
 unlock gates. The simulator candidate/equip path is
-`scratch/sim_depth_material_ev.js:equipGreedyUpgrades`; the player equip path <!-- doc-path-ignore -->
+`scratch/simulations/sim_depth_material_ev.js:equipGreedyUpgrades`; the player equip path <!-- doc-path-ignore -->
 is `src/equip.js`'s item action, with `src/rules/affix_rules.js` and
 `src/rules/item_rules.js` resolving equipped effects. Thus a C/sim-missing
 label below means missing measurement probe, not missing source wiring.

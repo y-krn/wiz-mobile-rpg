@@ -48,7 +48,7 @@ jobs:
           BALANCE_SIM_RUNS: ${{ inputs.runs }}
         run: |
           mkdir -p /tmp/balance-measurement
-          node scratch/measure_balance.js \
+          node scratch/measurements/measure_balance.js \
             --output /tmp/balance-measurement/measurement.json \
             --summary /tmp/balance-measurement/measurement.md
       - name: Generate run manifest
@@ -64,7 +64,7 @@ jobs:
           MEASUREMENT_AT: ${{ github.run_started_at }}
           MEASUREMENT_STEP_OUTCOME: ${{ steps.measurement.outcome }}
         run: |
-          node scratch/measurement_manifest.js \
+          node scratch/measurements/measurement_manifest.js \
             --measurement /tmp/balance-measurement/measurement.json \
             --output /tmp/balance-measurement/manifest.json \
             --summary /tmp/balance-measurement/manifest.md

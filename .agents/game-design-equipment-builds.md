@@ -303,8 +303,8 @@ the data source for departure craft through `src/systems/workshop.js` and
 
 # Verification
 
-- deterministic unit: `scratch/test_affixes.js` (registry consistency, budget, generation),
-  `scratch/test_core_affixes.js` (all core effects, legacy-field removal, polishing restrictions)
+- deterministic unit: `scratch/tests/unit/test_affixes.js` (registry consistency, budget, generation),
+  `scratch/tests/unit/test_core_affixes.js` (all core effects, legacy-field removal, polishing restrictions)
 - `npm run test:unit` / `npm run lint` / `npm run build` /
   `npm run test:browser`
 
