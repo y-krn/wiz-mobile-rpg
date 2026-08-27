@@ -25,6 +25,7 @@ function gitDiffSha256(baseCommit, runnerCommit, cwd, paths = []) {
     ], {
       cwd,
       encoding: null,
+      maxBuffer: 128 * 1024 * 1024,
       stdio: ["ignore", "pipe", "pipe"]
     });
     return createHash("sha256").update(diff).digest("hex");
