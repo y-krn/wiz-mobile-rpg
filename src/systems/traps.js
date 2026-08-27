@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, recordCharDeath, markMapChanged, markMapCellVisited } from "../state.js";
+import { state, saveAutosave, addLog, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "../state.js";
 import { updateUI } from "../ui.js";
 import { playSound } from "../audio.js";
 import { triggerGameOver } from "../combat.js";
@@ -16,6 +16,7 @@ import {
 import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "../rules/trap_effect_rules.js";
 import { ensureRunFloor } from "../state/run_floor_state.js";
 
+// balance-impact: none — death log delivery only; trap effects and damage are unchanged.
 const CHEST_TRAP_TIERS = ["poison needle", "flash bomb", "gas bomb", "teleporter"];
 
 export function increaseChestTrapTier(trap, levels = 1) {
@@ -200,7 +201,8 @@ export function triggerPitfall(trap, isPartialSuccess = false) {
         
         if (c.hp === 0) {
           c.status = "dead";
-          recordCharDeath(state, c, "落とし穴トラップ", { type: "trap", source: "落とし穴" });
+          const deathLog = recordCharDeath(state, c, "落とし穴トラップ", { type: "trap", source: "落とし穴" });
+          if (deathLog) addLog(formatCharDeathLog(deathLog));
           addLog(`[!] ${c.name}は力尽きた！`);
         }
       }
@@ -262,7 +264,8 @@ export function triggerTrap(trap, isPartialSuccess = false) {
         addLog(`[!] ${c.name}は${dmg}のダメージを受けた。`);
         if (c.hp === 0) {
           c.status = "dead";
-          recordCharDeath(state, c, "仕掛けられた罠", { type: "trap", source: "床のダメージ罠" });
+          const deathLog = recordCharDeath(state, c, "仕掛けられた罠", { type: "trap", source: "床のダメージ罠" });
+          if (deathLog) addLog(formatCharDeathLog(deathLog));
           addLog(`[!] ${c.name}は力尽きた！`);
         }
       }

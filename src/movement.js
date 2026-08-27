@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, markMapChanged, markMapCellVisited } from "./state.js";
+import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
 import { trackRunStart } from "./telemetry.js";
 import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum, getPartyFlameTrapWarningAvoidanceChance } from "./data.js";
 import { playSound } from "./audio.js";
@@ -650,7 +650,8 @@ export function applyExplorationPoison() {
       }
       if (c.hp === 0) {
         c.status = "dead";
-        recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
+        const deathLog = recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
+        if (deathLog) addLog(formatCharDeathLog(deathLog));
         addLog(`[!] ${c.name}は毒で力尽きた！`);
       } else if (result.naturalCure) {
         addLog(`[!] ${c.name}の毒が自然に消えた。`);
@@ -702,7 +703,8 @@ export function triggerFlameTrap() {
       addLog(`${c.name}は${dmg}の炎ダメージを受けた。`);
       if (c.hp === 0) {
         c.status = "dead";
-        recordCharDeath(state, c, "火炎の罠", { type: "trap", source: "火炎の罠" });
+        const deathLog = recordCharDeath(state, c, "火炎の罠", { type: "trap", source: "火炎の罠" });
+        if (deathLog) addLog(formatCharDeathLog(deathLog));
         addLog(`[!] ${c.name}は炎に焼かれて力尽きた！`);
       }
     }

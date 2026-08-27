@@ -1,4 +1,4 @@
-import { state, saveGame, saveAutosave, finalizeRunRecords, recordCharDeath, normalizeDeathSource, HISTORY_LIMIT } from "./state.js";
+import { state, saveGame, saveAutosave, addLog, finalizeRunRecords, recordCharDeath, formatCharDeathLog, normalizeDeathSource, HISTORY_LIMIT } from "./state.js";
 import { START_X, START_Y, DIR_N, getPartyMaxAffix } from "./data.js";
 import { updateUI } from "./ui.js";
 import { bankRunMaterials } from "./rules/material_rules.js";
@@ -23,12 +23,13 @@ export function triggerRunResult(reason) {
   if (isDeath && !run.deathLogs?.at(-1)) {
     const activeEnemy = state.combatState?.monsters?.find(monster => monster.hp > 0);
     if (activeEnemy && state.party[0]) {
-      recordCharDeath(
+      const deathLog = recordCharDeath(
         state,
         state.party[0],
         `${activeEnemy.name.replace(/\\s[A-Z]$/, "")}との戦闘`,
         { type: "combat", source: activeEnemy.name }
       );
+      if (deathLog) addLog(formatCharDeathLog(deathLog));
     }
   }
   updateRunQuests(run, getPartyMaxAffix(state.party, "contractReward"));

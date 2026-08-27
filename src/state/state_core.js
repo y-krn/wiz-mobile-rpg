@@ -143,12 +143,12 @@ export function addLog(msg) {
 }
 
 export function recordCharDeath(stateObj, char, cause, details = null) {
-  if (!stateObj.currentRun) return;
+  if (!stateObj.currentRun) return null;
   if (!stateObj.currentRun.deathLogs) {
     stateObj.currentRun.deathLogs = [];
   }
   const alreadyRecorded = stateObj.currentRun.deathLogs.some(log => log.charName === char.name);
-  if (alreadyRecorded) return;
+  if (alreadyRecorded) return null;
 
   const turn = stateObj.combatState ? stateObj.combatState.roundNumber ?? null : null;
   const deathLog = {
@@ -162,7 +162,16 @@ export function recordCharDeath(stateObj, char, cause, details = null) {
     deathLog.source = normalizeDeathSource(details.source);
   }
   stateObj.currentRun.deathLogs.push(deathLog);
+  return deathLog;
+}
 
-  const turnText = turn != null ? ` (ターン ${turn})` : "";
-  addLog(`☠️ [!] ${char.name}は B${stateObj.floor}F で${cause}により倒れた。${turnText}`);
+export function formatCharDeathLog(deathLog) {
+  if (!deathLog) return "";
+  const turnText = deathLog.turn != null ? ` (ターン ${deathLog.turn})` : "";
+  return `☠️ [!] ${deathLog.charName}は B${deathLog.floor}F で${deathLog.cause}により倒れた。${turnText}`;
+}
+
+export function queueCharDeathLog(logQueue, deathLog) {
+  if (!deathLog) return;
+  logQueue.push({ msg: formatCharDeathLog(deathLog) });
 }

@@ -1,4 +1,4 @@
-import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, markMapChanged, markMapCellVisited } from "./state.js";
+import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
 import { MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import {
   rollChestTrap,
@@ -612,9 +612,10 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
     clearCharIncapacitationOnDamage(char);
     const poisonTriggered = effect.targetPoisonTriggered;
     const resisted = effect.targetPoisonResisted;
+    let deathLog = null;
     if (char.hp === 0) {
       char.status = "dead";
-      recordCharDeath(state, char, "宝箱の罠「毒針」", { type: "trap", source: "宝箱の毒針" });
+      deathLog = recordCharDeath(state, char, "宝箱の罠「毒針」", { type: "trap", source: "宝箱の毒針" });
     } else if (poisonTriggered && !resisted) {
       applyStatusEffect(char, STATUS_EFFECT_IDS.POISONED, {
         remainingTurns: rollExplorationPoisonDuration(rng),
@@ -625,6 +626,7 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
       ? "毒避けの備えで毒は免れた！"
       : (poisonTriggered ? "" : "毒は付着しなかった。");
     addLog(`毒針が作動！${char.name}は${damage}のダメージを受けた。${poisonResult}`);
+    if (deathLog) addLog(formatCharDeathLog(deathLog));
     if (poisonTriggered && !resisted && char.hp > 0) {
       addLog(`${char.name}は毒に侵された。`);
       addLog("毒はそれほど深くない。やがて体から抜けるだろう。");
@@ -637,11 +639,13 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
       if (dmg > 0) {
         c.hp = Math.max(0, c.hp - dmg);
         clearCharIncapacitationOnDamage(c);
+        let deathLog = null;
         if (c.hp === 0) {
           c.status = "dead";
-          recordCharDeath(state, c, "宝箱の罠「ガス爆弾」", { type: "trap", source: "宝箱のガス爆弾" });
+          deathLog = recordCharDeath(state, c, "宝箱の罠「ガス爆弾」", { type: "trap", source: "宝箱のガス爆弾" });
         }
         addLog(`${c.name}は${dmg}のガスダメージを受けた。`);
+        if (deathLog) addLog(formatCharDeathLog(deathLog));
       }
     });
   } else if (trap === "teleporter") {

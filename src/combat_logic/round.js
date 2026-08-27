@@ -58,6 +58,7 @@ import {
 import { applyCombatRewards } from "./rewards.js";
 import {
   recordCharDeath,
+  queueCharDeathLog,
   recordMonsterResistanceDiscovery,
   recordMonsterAction,
   recordMonsterCondition
@@ -200,7 +201,8 @@ function applyFleePartingAttack(state, monsters, logQueue) {
   });
   if (target.hp === 0) {
     target.status = "dead";
-    recordCharDeath(state, target, `${attacker.name}の逃走追撃`, { type: "combat", source: attacker.name });
+    const deathLog = recordCharDeath(state, target, `${attacker.name}の逃走追撃`, { type: "combat", source: attacker.name });
+    queueCharDeathLog(logQueue, deathLog);
     logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
   }
 }
@@ -492,16 +494,17 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               attackType: "reflect"
             });
             wakeSleepingCharOnDamage(char);
-            if (char.hp === 0) {
-              char.status = "dead";
-              recordCharDeath(state, char, `${finalTarget.name}の物理反射`, { type: "combat", source: finalTarget.name });
-            }
             logQueue.push({
               msg: `[ 敵 ] ${finalTarget.name}の棘が${char.name}に${reflected}の反射ダメージを与えた！`,
               sound: "hit",
               floatText: `${reflected}`,
               floatColor: "#ff3b30"
             });
+            if (char.hp === 0) {
+              char.status = "dead";
+              const deathLog = recordCharDeath(state, char, `${finalTarget.name}の物理反射`, { type: "combat", source: finalTarget.name });
+              queueCharDeathLog(logQueue, deathLog);
+            }
           }
 
           if (hasTrait(finalTarget, "counterSpell") && finalTarget.hp > 0 && Math.random() < (finalTarget.counterSpell?.chance ?? 0.2)) {
@@ -514,16 +517,17 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
               attackType: "counter"
             });
             wakeSleepingCharOnDamage(char);
-            if (char.hp === 0) {
-              char.status = "dead";
-              recordCharDeath(state, char, `${finalTarget.name}の反撃ハリト`, { type: "combat", source: finalTarget.name });
-            }
             logQueue.push({
               msg: `[ 敵 ] ${finalTarget.name}はハリトで反撃した！${char.name}に${counterDmg}の炎ダメージ！`,
               sound: "cast_spell",
               floatText: `${counterDmg}`,
               floatColor: "#ff3b30"
             });
+            if (char.hp === 0) {
+              char.status = "dead";
+              const deathLog = recordCharDeath(state, char, `${finalTarget.name}の反撃ハリト`, { type: "combat", source: finalTarget.name });
+              queueCharDeathLog(logQueue, deathLog);
+            }
           }
 
           // followUp (追撃)
@@ -922,11 +926,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                   isDefending
                 });
                 wakeSleepingCharOnDamage(c);
+                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
                 if (c.hp === 0) {
                   c.status = "dead";
-                  recordCharDeath(state, c, `${mon.name}のラハリト`, { type: "combat", source: mon.name });
+                  const deathLog = recordCharDeath(state, c, `${mon.name}のラハリト`, { type: "combat", source: mon.name });
+                  queueCharDeathLog(logQueue, deathLog);
                 }
-                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の炎ダメージを受けた。${isDefending ? "(半減)" : ""}` });
               }
             });
           } else {
@@ -966,11 +971,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                   isDefending
                 });
                 wakeSleepingCharOnDamage(c);
+                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
                 if (c.hp === 0) {
                   c.status = "dead";
-                  recordCharDeath(state, c, `${mon.name}のマダルト`, { type: "combat", source: mon.name });
+                  const deathLog = recordCharDeath(state, c, `${mon.name}のマダルト`, { type: "combat", source: mon.name });
+                  queueCharDeathLog(logQueue, deathLog);
                 }
-                logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の氷ダメージを受けた。${isDefending ? "(半減)" : ""}` });
               }
             });
           } else {
@@ -1033,11 +1039,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
                 isDefending
               });
               wakeSleepingCharOnDamage(c);
+              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(半減)" : ""}` });
               if (c.hp === 0) {
                 c.status = "dead";
-                recordCharDeath(state, c, `${mon.name}のティルトウェイト`, { type: "combat", source: mon.name });
+                const deathLog = recordCharDeath(state, c, `${mon.name}のティルトウェイト`, { type: "combat", source: mon.name });
+                queueCharDeathLog(logQueue, deathLog);
               }
-              logQueue.push({ msg: `[ 敵 ] ${c.name}は${dmg}の爆裂ダメージを受けた。${isDefending ? "(半減)" : ""}` });
             }
           });
         }
@@ -1209,7 +1216,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         } else if (mon.spell) {
           deathCause = `${mon.name}の${mon.spell}`;
         }
-        recordCharDeath(state, target, deathCause, { type: "combat", source: mon.name });
+        const deathLog = recordCharDeath(state, target, deathCause, { type: "combat", source: mon.name });
+        queueCharDeathLog(logQueue, deathLog);
         logQueue.push({ msg: `[ 敵 ] [!] ${target.name}は倒れた！` });
       }
     }
@@ -1293,7 +1301,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         });
         if (c.hp === 0) {
           c.status = "dead";
-          recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
+          const deathLog = recordCharDeath(state, c, "毒のダメージ", { type: "status", source: "毒" });
+          queueCharDeathLog(logQueue, deathLog);
           logQueue.push({ msg: `[味方] [!] ${c.name}は毒で力尽きた！` });
         }
       }

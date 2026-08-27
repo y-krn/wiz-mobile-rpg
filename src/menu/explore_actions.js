@@ -1,4 +1,4 @@
-import { state, initNewGame, saveAutosave, addLog, markMapChanged, recordCharDeath } from "../state.js";
+import { state, initNewGame, saveAutosave, addLog, markMapChanged, recordCharDeath, formatCharDeathLog } from "../state.js";
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
@@ -532,7 +532,8 @@ export function renderEventTablet(optGrid) {
         clearCharIncapacitationOnDamage(target);
         if (target.hp === 0) {
           target.status = "dead";
-          recordCharDeath(state, target, "石碑の罠", { type: "trap", source: "石碑の矢罠" });
+          const deathLog = recordCharDeath(state, target, "石碑の罠", { type: "trap", source: "石碑の矢罠" });
+          if (deathLog) addLog(formatCharDeathLog(deathLog));
         }
         playSound("hit");
         addLog(`[!] カチッ…罠が作動した！石碑の隙間から矢が飛び出し、${target.name}に${trapDmg}のダメージ！`);
