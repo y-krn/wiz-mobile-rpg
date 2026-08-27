@@ -72,7 +72,7 @@ Issue #730 では、非対称 9 の案 A（`magicBolt` 廃止）を採用する�
 spell 側の affix minimum も 1 のままとする。棘反撃やブレス等の PR4 対象外の特殊
 damage も変更しない。
 
-詰み・長期化への判断根拠は、現行実装の `scratch/sim_depth_material_ev.js` を
+詰み・長期化への判断根拠は、現行実装の `scratch/simulations/sim_depth_material_ev.js` を
 同一 seed/config で base と PR4 の各 N=500、calibration N=100、2反復で比較する。
 平均到達 floor、B5/B10 pass rate、zero-damage、long-fight、retreat、death を確認し、
 0 damage の発生が被ダメージの回復へ転じないことを focused test と telemetry で確認する。
@@ -424,7 +424,7 @@ magic resist 後の値を同じ 1 ヒットに束ねる計装が無かった。�
 - シナリオ分布: empty 30、stats 74、gear 69、blood-wand 216、
   blood-wand-spells 47、complete 764（合計 1,200）
 - `node --check` と N=1 試走を先に実行し、その後 full run を実行
-- 既存の `scratch/sim_commit_depth_624.js` は変更していない。新しい計測 harness は
+- 既存の `scratch/simulations/sim_commit_depth_624.js` は変更していない。新しい計測 harness は
   実 sim の `simulateRun` / `runCombatRoundCalculation` / spell resolution を呼び、
   式を計測側へ写経していない
 
@@ -974,7 +974,7 @@ Phase 0 で既存表現に対応する ID は `poisoned`、`blind`、`sleep`、`
 
 - source code base: `f076e89fa759968c10e2d1e847945dddfcf9be24`
 - candidate source/runner commit: `59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4`
-- runner: Node `v26.7.0`, `scratch/sim_issue_793_bleeding.js`
+- runner: Node `v26.7.0`, `scratch/simulations/sim_issue_793_bleeding.js`
 - provenance: base case `sourceCommit=f076e89fa759968c10e2d1e847945dddfcf9be24`,
   candidate cases `sourceCommit=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4`; both record
   `originMainAncestor=true`, `staleTreeAllowed=false`, and the same runner commit
@@ -982,7 +982,7 @@ Phase 0 で既存表現に対応する ID は `poisoned`、`blind`、`sleep`、`
 - provenance output also records the resolved `provenanceBaseRef` and commit. Production
   measurements use the required `origin/main` ref. The unit-side CI compatibility check
   uses the explicit test-only fixture
-  `scratch/fixtures/issue-793-measurement-provenance.json`, which resolves local `HEAD`
+  `evidence/fixtures/issue-793-measurement-provenance.json`, which resolves local `HEAD`
   and records `provenanceBaseRefReason=issue-793-ci-shallow`; this fixture is not
   measurement evidence and does not make a missing ref valid. An unknown ref fails before
   simulation starts.
@@ -990,15 +990,15 @@ Phase 0 で既存表現に対応する ID は `poisoned`、`blind`、`sleep`、`
   を base/candidate で一致
 - dataset/preset: current `src` data、`generateRunFloor` 経由の solo real-run、
   `targetDepth=20`、base/candidate N=100、calibration N=50
-- reproduction (raw JSON remains untracked in `scratch/results/`):
+- reproduction (raw JSON remains untracked in `evidence/results/`):
 
   ```sh
   git worktree add --detach /private/tmp/issue-793-bleed-base-clean f076e89fa759968c10e2d1e847945dddfcf9be24
-  cp /private/tmp/issue-793-bleed-vertical-slice/scratch/sim_issue_793_bleeding.js /private/tmp/issue-793-bleed-base-clean/scratch/sim_issue_793_bleeding.js
+  cp /private/tmp/issue-793-bleed-vertical-slice/scratch/simulations/sim_issue_793_bleeding.js /private/tmp/issue-793-bleed-base-clean/scratch/simulations/sim_issue_793_bleeding.js
   cd /private/tmp/issue-793-bleed-base-clean
-  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=base BLEEDING_SOURCE_CODE_SHA=f076e89fa759968c10e2d1e847945dddfcf9be24 BLEEDING_RUNNER_COMMIT=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/sim_issue_793_bleeding.js
+  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=base BLEEDING_SOURCE_CODE_SHA=f076e89fa759968c10e2d1e847945dddfcf9be24 BLEEDING_RUNNER_COMMIT=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/simulations/sim_issue_793_bleeding.js
   cd /private/tmp/issue-793-bleed-vertical-slice
-  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=candidate BLEEDING_SOURCE_CODE_SHA=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_RUNNER_COMMIT=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/sim_issue_793_bleeding.js
+  SIM_SEED=793 BLEEDING_MEASUREMENT_SIDE=candidate BLEEDING_SOURCE_CODE_SHA=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_RUNNER_COMMIT=59f8eabb6f604d2f20e6c06bf4ad5ec54bbb64a4 BLEEDING_SIM_N=100 BLEEDING_CALIBRATION_N=50 node scratch/simulations/sim_issue_793_bleeding.js
   ```
 - matched base (base, no bleeding route): reached floor `2.82 ± 0.37` (95% mean
   CI), B5 reach/breakthrough `28%/3%`, B10 `1%/1%`, survival `0%`, final combat

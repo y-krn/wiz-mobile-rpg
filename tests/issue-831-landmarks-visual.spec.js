@@ -74,7 +74,7 @@ test('Representative biome landmarks keep distinct silhouettes and remain readab
       };
     }, floor);
     await page.screenshot({
-      path: `scratch/results/issue-831-landmarks-B${floor}.png`,
+      path: `evidence/results/issue-831-landmarks-B${floor}.png`,
       fullPage: true,
     });
   }

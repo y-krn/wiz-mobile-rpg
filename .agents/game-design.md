@@ -77,8 +77,8 @@ is a bug in the economy.
   時間を延ばす設計である。期待されるプレイヤー影響は、罠を踏んだ際の即時HP損失と
   浅層の薬枯渇を緩和し、盗賊・僧侶の到達性を維持すること。
 - Issue #516 の再現可能な測定値と採用候補の比較は
-  `scratch/results/issue-516-class-sustain.md`、#461再基準線は
-  `scratch/results/issue-461-baseline.md` を正本とする。
+  `evidence/results/issue-516-class-sustain.md`、#461再基準線は
+  `evidence/results/issue-461-baseline.md` を正本とする。
 
 ## 基本4職の撃破sustain（Issue #528）
 
@@ -91,7 +91,7 @@ is a bug in the economy.
   B5撤退率31.8%、魔術師は +4でB5撤退率39.5%となるkneeを採用する。+6以上は
   平均到達階が深くなり素材EV/時間が悪化するため採用しない。
 - 再現可能な測定値・条件・候補比較は
-  `scratch/results/issue-528-class-sustain-phase2.md` を正本とする。
+  `evidence/results/issue-528-class-sustain-phase2.md` を正本とする。
 
 ## 魔術師の死亡律速対策（Issue #534、#537で更新）
 
@@ -116,7 +116,7 @@ is a bug in the economy.
   要求する。初期HP+2/成長+1は撃破triggerを増幅せず、初回戦闘から全階層で効く静的耐久
   としてMageの脆さを残し、将来職にもHP成長軸で一貫して比較できる。両候補ともMageのみ
   の介入で他3職B10 entrant差は0.0pt。
-- #534の候補比較・CI・再現条件は `scratch/results/issue-534-mage-death.md` を正本とする。
+- #534の候補比較・CI・再現条件は `evidence/results/issue-534-mage-death.md` を正本とする。
 
 ## 基本4職HP順序（Issue #537）
 
@@ -138,7 +138,7 @@ is a bug in the economy.
   Fighter/Thief/PriestのB10到達は **27.9% / 19.2% / 27.5%**で、既存基準と同等。
 - #534の`killHeal+6/+8/+10`単独掃引は再利用し、同じ条件を再測定しない。#537では
   HP順序候補、`mpWard`、罠軽減・撃破回復の併用だけ新規測定した。詳細な候補表・CI・
-  実行条件は `scratch/results/issue-537-mage-hp-order.md` を正本とする。
+  実行条件は `evidence/results/issue-537-mage-hp-order.md` を正本とする。
 
 ## 上位呪文と魔術師sustain（Issue #538）
 
@@ -153,7 +153,7 @@ is a bug in the economy.
   対し、採用60/8/8はB5死亡 **11.2% [9.9,12.5]**、B10到達 **28.2% [26.6,29.8]**。
   戦闘は **59.97→46.71turn/run**、被弾turnは **49.24→38.28**、素材EV/時間は
   **0.1664→0.1658**、他3職B10 entrant差は **0.0pt**。率はWilson 95% CI、平均は
-  正規近似95% CIで、詳細と再現条件は `scratch/results/issue-538-upper-spells.md` を正本とする。
+  正規近似95% CIで、詳細と再現条件は `evidence/results/issue-538-upper-spells.md` を正本とする。
 - 同測定でMageのMP枯渇率は採用値 **30.3% [28.7,32.0]**、PriestのreserveMp違反run率は
   **0.0% [0.0,0.1]**。上位呪文別の実使用・適用率も同結果ファイルに記録する。
 - 採用後の#461 N=3000基準線はA1 **成立**。MageはB5死亡 **11.5% [10.2,12.8]**、

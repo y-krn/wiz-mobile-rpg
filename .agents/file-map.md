@@ -17,7 +17,7 @@ to verify the change.
 - Combat deterministic rules: `src/combat_logic.js`, `src/combat_logic/*`
 - Mobile styling: `src/style.css`, `src/styles/*`
 - Browser/mobile coverage: `tests/*.spec.js`
-- Unit-style deterministic checks: `scratch/test_*.js`
+- Unit-style deterministic checks: `scratch/tests/*/test_*.js`
 - Progression/economy design: `.agents/game-design.md`
 - Equipment affixes (cores/supports), workshop inscriptions/polish/seal:
   `src/data/affixes.js`, `src/rules/affix_rules.js`, `src/craft.js`,
@@ -69,26 +69,26 @@ to verify the change.
 | Equipment and inventory | `src/equip.js`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/state.js`, `src/state/*` | `src/menu.js`, `src/menu/*`, `src/chest.js`, `src/styles/overlays-equip.css` | `npm run test:unit`, `npm run test:browser` |
 | Spells, camp recovery, utility effects | `src/spell_menu.js`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*` | `src/state.js`, `src/state/*`, `src/menu.js`, `src/menu/*`, `src/combat.js`, `src/combat_ui/*` | `npm run test:unit`, `npm run test:browser` |
 | Dungeon movement and cell events | `src/movement.js`, `src/map_generator.js` | `src/state.js`, `src/state/*`, `src/data.js`, `src/data/*`, `src/constants/*`, `src/renderer.js`, `src/result.js` | `npm run test:unit` |
-| Map generation and reachability | `src/run_map_generator.js` (`generateRunFloor`, run-floor composition), `src/map_generator.js` (base map generation), `src/seed_rng.js` | `scratch/test_map_reachability.js`, `scratch/test_reachability_loop.js` | `npm run test:unit` |
+| Map generation and reachability | `src/run_map_generator.js` (`generateRunFloor`, run-floor composition), `src/map_generator.js` (base map generation), `src/seed_rng.js` | `scratch/tests/unit/test_map_reachability.js`, `scratch/tests/unit/test_reachability_loop.js` | `npm run test:unit` |
 | Combat UI and action selection | `src/combat.js`, `src/combat_ui/*`, `src/ui.js`, `src/ui/*`, `src/styles/overlays-combat.css`, `src/styles/controls.css` | `src/combat_logic.js`, `src/combat_logic/*`, `src/data.js`, `src/data/*`, `src/state.js`, `src/state/*` | `npm run test:unit`, `npm run test:browser` |
 | Combat rules and deterministic resolution | `src/combat_logic.js`, `src/combat_logic/*`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*` | `src/combat.js`, `src/combat_ui/*`, `src/state.js`, `src/state/*` | `npm run test:unit` |
 | Enemies, items, spells, classes, formulas | `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*`, `src/constants/*` | `src/combat_logic.js`, `src/combat_logic/*`, `src/state.js`, `src/state/*`, affected screen module | `npm run test:unit` |
-| Affix cores/supports, budgets, seal/polish rules | `src/data/affixes.js`, `src/rules/affix_rules.js`, `.agents/game-design-equipment-builds.md` | `src/systems/equipment_generation.js`, `src/craft.js`, `src/combat_logic/damage.js`, `src/combat_logic/round.js`, `scratch/test_affixes.js`, `scratch/test_core_affixes.js` | `npm run test:unit` |
+| Affix cores/supports, budgets, seal/polish rules | `src/data/affixes.js`, `src/rules/affix_rules.js`, `.agents/game-design-equipment-builds.md` | `src/systems/equipment_generation.js`, `src/craft.js`, `src/combat_logic/damage.js`, `src/combat_logic/round.js`, `scratch/tests/unit/test_affixes.js`, `scratch/tests/unit/test_core_affixes.js` | `npm run test:unit` |
 | Treasure chest, traps, drops | `src/chest.js`, `src/data.js`, `src/data/*`, `src/systems/*` | `src/state.js`, `src/state/*`, `src/combat.js`, `src/combat_ui/*` | `npm run test:unit` |
-| Run quests and codex/progress tracking | `src/data/run_quests.js`, `src/systems/run_quests.js`, `src/state.js`, `src/state/*` | `src/ui.js`, `src/ui/*`, `src/result.js`, `scratch/test_run_quests_records.js` | `npm run test:unit`, `npm run test:browser` |
+| Run quests and codex/progress tracking | `src/data/run_quests.js`, `src/systems/run_quests.js`, `src/state.js`, `src/state/*` | `src/ui.js`, `src/ui/*`, `src/result.js`, `scratch/tests/unit/test_run_quests_records.js` | `npm run test:unit`, `npm run test:browser` |
 | Run result, rewards, return reasons | `src/result.js`, `src/state.js`, `src/state/*` | `src/chest.js`, `src/combat.js`, `src/combat_logic/*` | `npm run test:unit`, `npm run test:browser` |
-| Progression economy, materials, workshop, post-clear loop | `.agents/game-design.md`, `src/data.js`, `src/data/*`, `src/state.js`, `src/state/*` | `src/systems/*`, `src/combat_logic.js`, `src/combat_logic/*`, `src/chest.js`, `src/menu.js`, `src/menu/*`, `src/result.js`, `scratch/test_*.js`, `tests/*.spec.js` | `npm run test:unit`, `npm run build`, `npm run test:browser` |
+| Progression economy, materials, workshop, post-clear loop | `.agents/game-design.md`, `src/data.js`, `src/data/*`, `src/state.js`, `src/state/*` | `src/systems/*`, `src/combat_logic.js`, `src/combat_logic/*`, `src/chest.js`, `src/menu.js`, `src/menu/*`, `src/result.js`, `scratch/tests/*/test_*.js`, `tests/*.spec.js` | `npm run test:unit`, `npm run build`, `npm run test:browser` |
 | Audio toggle or sound effects | `src/audio.js`, `src/game.js` | Calling module for the changed event | `npm run build` |
-| Input guards and error telemetry | `src/controls_guard.js`, `src/error_context.js`, `src/sentry.js` | `src/game.js`, `src/navigation.js`, `src/state/save_storage.js`, `scratch/test_transition_input_guard.js` | `npm run lint`, `npm run test:unit` |
+| Input guards and error telemetry | `src/controls_guard.js`, `src/error_context.js`, `src/sentry.js` | `src/game.js`, `src/navigation.js`, `src/state/save_storage.js`, `scratch/tests/unit/test_transition_input_guard.js` | `npm run lint`, `npm run test:unit` |
 | Mobile layout, tap targets, thumb flow | Relevant `src/styles/*.css`, affected UI module | `tests/*.spec.js`, `index.html`, `src/style.css` import order when cascade changes are suspected | `npm run test:browser` |
 | Browser/mobile test changes | `tests/*.spec.js`, `playwright.config.js` | Affected UI module, relevant `src/styles/*.css` | `npm run test:browser` |
-| Unit test or simulation changes | Matching `scratch/test_*.js` | Source module under test, `package.json` | `npm run test:unit` |
+| Unit test or simulation changes | Matching `scratch/tests/*/test_*.js` | Source module under test, `package.json` | `npm run test:unit` |
 
 ## Review Checklist Starting Points
 
 | Checklist | Start with | Expand to |
 | --- | --- | --- |
-| `qa-regression` | `package.json`, changed files, relevant `scratch/test_*.js` or `tests/ui-*.spec.js` | Direct imports of changed files and failing test targets |
+| `qa-regression` | `package.json`, changed files, relevant `scratch/tests/*/test_*.js` or `tests/ui-*.spec.js` | Direct imports of changed files and failing test targets |
 | `mobile-ui-ux` | Relevant `src/styles/*.css`, affected UI module or overlay module, `tests/ui-*.spec.js` | `src/style.css` import order, `src/ui.js`, `src/ui/*`, `src/menu.js`, `src/menu/*`, `src/combat_ui/*`, `src/navigation.js`, screenshots or browser observations |
 | `game-logic` | Changed mechanic module from the lookup table | `src/state.js`, `src/state/*`, `src/data.js`, `src/data/*`, `src/rules/*`, `src/systems/*`, direct caller/callee modules |
 | `balance-simulation` | `src/data.js`, `src/data/*`, `src/combat_logic.js`, `src/combat_logic/*`, changed reward/enemy/map module | Relevant scratch simulation or deterministic test |
