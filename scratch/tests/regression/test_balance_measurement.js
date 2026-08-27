@@ -12,6 +12,7 @@ const defaults = resolveBalanceMeasurementConfig({}, {});
 assert.equal(defaults.runs, 500);
 assert.equal(defaults.calibrationRuns, 100);
 assert.equal(defaults.seed, 843);
+assert.deepEqual(defaults.classNames, [...STANDARD_BALANCE_CONFIG.classNames]);
 assert.deepEqual(defaults.scenarioIds, [...STANDARD_BALANCE_CONFIG.scenarioIds]);
 assert.deepEqual(defaults.targetDepths, [...STANDARD_BALANCE_CONFIG.targetDepths]);
 assert.throws(() => resolveBalanceMeasurementConfig({ runs: 499 }, {}), /N>=500/);
@@ -51,6 +52,26 @@ function report({ breakthrough = 0.5, death = 0.1, banked = 10, ev = 0.2 } = {})
 const pass = compareBalanceMeasurements(report(), report());
 assert.equal(pass.status, "pass");
 assert.ok(pass.metrics.every(metric => metric.status === "pass"));
+
+const classMetrics = Object.fromEntries(defaults.classNames.map(className => [className, {
+  reachedRate: rateMetric(400, 500),
+  breakthroughRate: rateMetric(250, 500),
+  deathRate: rateMetric(50, 400),
+  retreatRate: rateMetric(350, 400),
+  bankedMaterialsPerRun: { kind: "mean", estimate: 10, trials: 500, ci95: [9.99, 10.01] },
+  materialEvPerTime: { kind: "mean", estimate: 0.2, trials: 500, ci95: [0.19, 0.21] }
+}]));
+const classReport = {
+  ...report(),
+  cases: [{
+    scenarioId: "workshop-empty",
+    depths: [{ depth: 5, runs: 500, metricsByClass: classMetrics }]
+  }]
+};
+const classPass = compareBalanceMeasurements(classReport, classReport);
+assert.equal(classPass.status, "pass");
+assert.ok(classPass.metrics.some(metric => metric.key === "workshop-empty.Fighter.B5.reachedRate"));
+assert.equal(classPass.metrics.length, defaults.classNames.length * 6);
 
 const uncertain = compareBalanceMeasurements(report(), report({ breakthrough: 0.43 }));
 assert.equal(uncertain.status, "uncertain");

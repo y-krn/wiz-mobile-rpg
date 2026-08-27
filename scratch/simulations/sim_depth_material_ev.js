@@ -1463,6 +1463,14 @@ const ACTIVE_SCENARIOS = REQUESTED_SCENARIO_IDS.size === 0
   ? DEPTH_SCENARIOS.filter(scenario => DEFAULT_DEPTH_SCENARIO_IDS.has(scenario.id))
   : DEPTH_SCENARIOS.filter(scenario => RESOLVED_SCENARIO_IDS.has(scenario.id));
 const SIM_CLASSES = SOLO_CLASSES.filter(className => !ELITE_CLASSES.includes(className));
+
+function resolveSimulationClassNames(className = null) {
+  if (className === null || className === undefined) return SIM_CLASSES;
+  if (!SIM_CLASSES.includes(className)) {
+    throw new Error(`unknown simulation class: ${className}`);
+  }
+  return [className];
+}
 const CRAFT_MEASUREMENT_RECIPE_IDS = Object.freeze([
   "MANA_POTION",
   "HEAL_POTION",
@@ -12609,7 +12617,8 @@ function simulateCase({
   seriesId,
   scoringProfile,
   scenario,
-  identificationPolicy = "powder"
+  identificationPolicy = "powder",
+  classNames = SIM_CLASSES
 }) {
   const totals = {
     survived: 0,
@@ -12854,7 +12863,7 @@ function simulateCase({
   );
 
   for (let runIndex = 0; runIndex < RUNS_PER_CASE; runIndex++) {
-    const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
+    const className = classNames[runIndex % classNames.length];
     const departureCraftBank = departureCraftBanksByClass[className];
     const hasDepartureCraftBank = Object.keys(departureCraftBank).length > 0;
     const hasExplicitDepartureCraftIds = ACTIVE_DEPARTURE_CRAFT_IDS.length > 0;
@@ -13745,7 +13754,8 @@ export function calibrateCoreScoringProfile(
   runCount = RUNS_PER_CASE,
   scenarioOverrides = {},
   identificationPolicy = "powder",
-  workshop = { ranks: {} }
+  workshop = { ranks: {} },
+  classNames = SIM_CLASSES
 ) {
   const calibrationScenario = {
     ...getScenarioById("legacy-no-portal"),
@@ -13759,7 +13769,7 @@ export function calibrateCoreScoringProfile(
   );
   const runCountsByClass = Object.fromEntries(SIM_CLASSES.map(className => [className, 0]));
   for (let runIndex = 0; runIndex < runCount; runIndex++) {
-    const className = SIM_CLASSES[runIndex % SIM_CLASSES.length];
+    const className = classNames[runIndex % classNames.length];
     const result = simulateRun({
       className,
       startFloor: 1,
@@ -14916,10 +14926,11 @@ function printFailureComment(results) {
 }
 
 export function runDepthSimulationTask(
-  { kind, scenarioId, identificationPolicyId = "powder" },
+  { kind, scenarioId, identificationPolicyId = "powder", className = null },
   { scoringProfile, scoringProfiles = {}, scoringProfilesByScenario = {} }
 ) {
   resetSimulationRandom(SIM_SEED);
+  const classNames = resolveSimulationClassNames(className);
   const scoringProfileForPolicy =
     scoringProfilesByScenario[`${identificationPolicyId}:${scenarioId}`] ||
     scoringProfiles[identificationPolicyId] ||
@@ -14941,7 +14952,8 @@ export function runDepthSimulationTask(
         seriesId: `depth-${targetDepth}`,
         scoringProfile: scoringProfileForPolicy,
         scenario: measurementScenario,
-        identificationPolicy
+        identificationPolicy,
+        classNames
       }))
     );
   }
@@ -14958,7 +14970,8 @@ export function runDepthSimulationTask(
       seriesId: "milestone-10-15",
       scoringProfile: scoringProfileForPolicy,
       scenario: legacyScenario,
-      identificationPolicy
+      identificationPolicy,
+      classNames
     })),
     snapshotDepthResult(simulateCase({
       startFloor: 1,
@@ -14967,12 +14980,13 @@ export function runDepthSimulationTask(
       seriesId: "baseline-1-15",
       scoringProfile: scoringProfileForPolicy,
       scenario: legacyScenario,
-      identificationPolicy
+      identificationPolicy,
+      classNames
     }))
   ];
 }
 
-export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount }) {
+export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount, classNames = SIM_CLASSES }) {
   resetSimulationRandom(SIM_SEED);
   const workshop = scenarioId === null
     ? undefined
@@ -14980,19 +14994,21 @@ export function runCoreCalibrationTask({ policyId, scenarioId = null, runCount }
   return {
     policyId,
     scenarioId,
-    profile: calibrateCoreScoringProfile(runCount, {}, policyId, workshop)
+    profile: calibrateCoreScoringProfile(runCount, {}, policyId, workshop, classNames)
   };
 }
 
 export function runCalibratedDepthSimulationTask(
-  { kind, scenarioId = null, identificationPolicyId = "powder", runCount },
+  { kind, scenarioId = null, identificationPolicyId = "powder", runCount, className = null },
   context
 ) {
+  const classNames = resolveSimulationClassNames(className);
   resetMapGenerationStats();
   const calibration = runCoreCalibrationTask({
     policyId: identificationPolicyId,
     scenarioId,
-    runCount
+    runCount,
+    classNames
   });
   const scoringProfiles = {
     [identificationPolicyId]: calibration.profile
@@ -15005,7 +15021,7 @@ export function runCalibratedDepthSimulationTask(
     scenarioId,
     profile: calibration.profile,
     results: runDepthSimulationTask(
-      { kind, scenarioId, identificationPolicyId },
+      { kind, scenarioId, identificationPolicyId, className },
       {
         ...context,
         scoringProfile: calibration.profile,

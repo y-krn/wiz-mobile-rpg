@@ -2,8 +2,10 @@
 /* global console, process */
 
 import fs from "node:fs";
+import { performance } from "node:perf_hooks";
 import { dirname, resolve } from "node:path";
 import { resolveMeasurementProvenance } from "./measurement_provenance.js";
+import { resolveSimParallelism, runSimTasks } from "../simulations/sim_parallel.js";
 import {
   applyStandardSimulationEnv,
   resolveBalanceMeasurementConfig,
@@ -45,6 +47,7 @@ const provenance = resolveMeasurementProvenance({
     "scratch/measurements/balance_measurement.js",
     "scratch/measurements/measure_balance.js",
     "scratch/simulations/sim_depth_material_ev.js",
+    "scratch/simulations/sim_parallel.js",
     "scratch/measurements/measurement_provenance.js"
   ]
 });
@@ -55,16 +58,48 @@ standardEnv.IDENTIFICATION_STARTING_POWDER = String(IDENTIFICATION_BALANCE.start
 standardEnv.IDENTIFICATION_COST_OVERRIDE = String(IDENTIFICATION_BALANCE.identifyCost);
 const { runCalibratedDepthSimulationTask } = await import("../simulations/sim_depth_material_ev.js");
 
-const scenarioResults = config.scenarioIds.map(scenarioId => {
-  const task = runCalibratedDepthSimulationTask({
+const tasks = config.scenarioIds.flatMap(scenarioId =>
+  config.classNames.map(className => ({
     kind: "scenario",
     scenarioId,
+    className,
     identificationPolicyId: config.identificationPolicy,
     runCount: config.calibrationRuns
-  }, {});
-  return { scenarioId, results: task.results };
+  }))
+);
+const startedAt = performance.now();
+const startedResourceUsage = process.resourceUsage();
+const taskResults = await runSimTasks({
+  moduleUrl: new URL("../simulations/sim_depth_material_ev.js", import.meta.url).href,
+  exportName: "runCalibratedDepthSimulationTask",
+  runTask: runCalibratedDepthSimulationTask,
+  tasks,
+  context: {},
+  mapGeneratorExportName: "generateSharedRunFloor"
 });
-const report = summarizeSimulationResults({ config, provenance, scenarioResults });
+const endedResourceUsage = process.resourceUsage();
+const execution = {
+  taskCount: tasks.length,
+  parallelism: resolveSimParallelism(tasks.length),
+  wallClockMs: Math.round(performance.now() - startedAt),
+  cpuTimeMs: Math.round(
+    (endedResourceUsage.userCPUTime - startedResourceUsage.userCPUTime +
+      endedResourceUsage.systemCPUTime - startedResourceUsage.systemCPUTime) / 1000
+  )
+};
+const taskResultsByKey = new Map(tasks.map((task, index) => [
+  `${task.scenarioId}/${task.className}`,
+  taskResults[index]
+]));
+const scenarioResults = config.scenarioIds.map(scenarioId => ({
+  scenarioId,
+  classResults: config.classNames.map(className => {
+    const task = taskResultsByKey.get(`${scenarioId}/${className}`);
+    if (!task) throw new Error(`missing standard simulation task: ${scenarioId}/${className}`);
+    return { className, results: task.results };
+  })
+}));
+const report = summarizeSimulationResults({ config, provenance, scenarioResults, execution });
 const outputPath = resolve(options.output);
 fs.mkdirSync(dirname(outputPath), { recursive: true });
 fs.writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`);
@@ -79,6 +114,7 @@ if (options.summary) {
     `- production baseline SHA: \`${report.measurement.productionBaselineSha}\``,
     `- configuration key: \`${report.measurement.comparisonKey}\``,
     `- N=${config.runs}, calibration=${config.calibrationRuns}, seed=${config.seed}`,
+    `- classes: ${config.classNames.join(", ")} (N=${config.runs}/class); tasks=${execution.taskCount}, parallelism=${execution.parallelism}, wall=${execution.wallClockMs}ms, CPU=${execution.cpuTimeMs}ms`,
     `- scenarios: ${config.scenarioIds.join(", ")}; depths: ${config.targetDepths.map(depth => `B${depth}`).join(", ")}`,
     "",
     "The JSON file is the machine-readable measurement record. Compare it with `compare_balance.js`; do not use a single rerun or a raw stdout dump as a regression decision.",

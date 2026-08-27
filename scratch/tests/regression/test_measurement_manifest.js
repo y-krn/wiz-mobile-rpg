@@ -52,6 +52,37 @@ assert.equal(valid.measurement.workingTreeClean, true);
 assert.equal(valid.measuredAt, "2026-08-26T06:00:00.000Z");
 assert.match(renderMeasurementManifestMarkdown(valid), /workflow run: \[123456789\]/);
 
+const classNames = ["Fighter", "Thief"];
+const classReport = {
+  ...validReport,
+  measurement: {
+    ...validReport.measurement,
+    configuration: { ...validReport.measurement.configuration, classNames }
+  },
+  cases: [{
+    scenarioId: "workshop-empty",
+    targetDepths: [5],
+    depths: [{
+      depth: 5,
+      runs: 500,
+      metricsByClass: Object.fromEntries(classNames.map(className => [className, {}]))
+    }]
+  }]
+};
+const validClassReport = createMeasurementManifest({ measurementReport: classReport, ...metadata });
+assert.equal(validClassReport.status, "valid");
+assert.deepEqual(validClassReport.measurement.classNames, classNames);
+assert.match(renderMeasurementManifestMarkdown(validClassReport), /classes: Fighter, Thief/);
+const missingClass = createMeasurementManifest({
+  measurementReport: {
+    ...classReport,
+    cases: [{ ...classReport.cases[0], depths: [{ ...classReport.cases[0].depths[0], metricsByClass: { Fighter: {} } }] }]
+  },
+  ...metadata
+});
+assert.equal(missingClass.status, "invalid");
+assert.match(missingClass.invalidReasons.join("; "), /configured classes/);
+
 const diagnostic = createMeasurementManifest({
   measurementReport: validReport,
   ...metadata,
