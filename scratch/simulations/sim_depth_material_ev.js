@@ -8754,7 +8754,9 @@ function canTraverseRouteEdge(grid, current, direction) {
   const nextY = current.y + direction.dy;
   const next = grid[nextY]?.[nextX];
   if (!cell || !next) return false;
-  const revealedSecret = Boolean(cell.secretDoor?.[direction.dir]);
+  const revealedSecret = Boolean(
+    cell.secretDoor?.[direction.dir] && cell.secretFound?.[direction.dir]
+  );
   if (cell.walls?.[direction.dir] && !revealedSecret) return false;
   return !next.blockEnter?.[(direction.dir + 2) % 4];
 }
@@ -9517,10 +9519,13 @@ function recordTrapRouteReplan(
   metrics.trapRoute.detourSelections++;
   const directLength = Math.max(0, (choice.directPath?.length || 1) - 1);
   const selectedLength = Math.max(0, (choice.path?.length || 1) - 1);
-  metrics.trapRoute.detourExtraSteps += Math.max(
+  const plannedExtraSteps = Math.max(
     0,
     Math.ceil((selectedLength - directLength) * EXPLORATION_FACTOR)
   );
+  metrics.trapRoute.detourBudgetExtraSteps += plannedExtraSteps;
+  metrics.trapRoute.detourDirectMovementSteps = directLength;
+  metrics.trapRoute.detourActiveMovementSteps = 0;
   route.detourActive = true;
   metrics.trapRoute.detourActive = true;
   route.detourTrapId = trap.id || trapKey;
@@ -9534,6 +9539,21 @@ function recordTrapRouteReplan(
     directSteps: directLength,
     selectedSteps: selectedLength
   });
+}
+
+function finalizeTrapRouteDetour(metrics) {
+  if (!metrics.trapRoute.detourActive) return;
+  const actualExtraSteps = Math.max(
+    0,
+    Math.ceil(
+      (metrics.trapRoute.detourActiveMovementSteps -
+        metrics.trapRoute.detourDirectMovementSteps) * EXPLORATION_FACTOR
+    )
+  );
+  metrics.trapRoute.detourExtraSteps += actualExtraSteps;
+  metrics.trapRoute.detourActiveMovementSteps = 0;
+  metrics.trapRoute.detourDirectMovementSteps = 0;
+  metrics.trapRoute.detourActive = false;
 }
 
 function advanceSimulationFloorRoute(route, generated, state, floor, metrics, step) {
@@ -9599,6 +9619,10 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
     }
   }
 
+  if (route.detourActive) {
+    metrics.trapRoute.detourActualMovementSteps++;
+    metrics.trapRoute.detourActiveMovementSteps++;
+  }
   const previous = route.current;
   state.x = next.x;
   state.y = next.y;
@@ -9612,6 +9636,7 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
     : null;
   if (event) route.processedEventKeys.add(routeKey(event));
   if (route.detourActive && route.detourTargetKey === routeKey(next)) {
+    finalizeTrapRouteDetour(metrics);
     route.detourActive = false;
     metrics.trapRoute.detourActive = false;
     route.detourTrapId = null;
@@ -9828,6 +9853,10 @@ function createTrapRouteMetrics() {
     detourSelections: 0,
     noAlternateRoute: 0,
     detourExtraSteps: 0,
+    detourActualMovementSteps: 0,
+    detourActiveMovementSteps: 0,
+    detourDirectMovementSteps: 0,
+    detourBudgetExtraSteps: 0,
     detourNormalEncounters: 0,
     detourOtherTrapEncounters: 0,
     detourDeaths: 0,
@@ -9847,6 +9876,8 @@ function createTrapRouteAggregate() {
     detourSelections: 0,
     noAlternateRoute: 0,
     detourExtraSteps: 0,
+    detourActualMovementSteps: 0,
+    detourBudgetExtraSteps: 0,
     detourNormalEncounters: 0,
     detourOtherTrapEncounters: 0,
     detourDeaths: 0,
@@ -9864,6 +9895,8 @@ function addTrapRouteAggregate(target, result) {
     "detourSelections",
     "noAlternateRoute",
     "detourExtraSteps",
+    "detourActualMovementSteps",
+    "detourBudgetExtraSteps",
     "detourNormalEncounters",
     "detourOtherTrapEncounters",
     "detourDeaths",
@@ -9883,6 +9916,8 @@ function finalizeTrapRouteAggregate(aggregate) {
     averageDetourSelections: aggregate.detourSelections / runs,
     averageNoAlternateRoute: aggregate.noAlternateRoute / runs,
     averageDetourExtraSteps: aggregate.detourExtraSteps / runs,
+    averageDetourActualMovementSteps: aggregate.detourActualMovementSteps / runs,
+    averageDetourBudgetExtraSteps: aggregate.detourBudgetExtraSteps / runs,
     averageDetourNormalEncounters: aggregate.detourNormalEncounters / runs,
     averageDetourOtherTrapEncounters: aggregate.detourOtherTrapEncounters / runs,
     averageDetourDeaths: aggregate.detourDeaths / runs,
@@ -10801,7 +10836,9 @@ function createRunDiagnosticsRecord(state, outcome, metrics, terminationReason) 
 }
 
 function finishRun(state, outcome, metrics, terminationReason = null) {
-  if (metrics.trapRoute.detourActive) {
+  const detourActive = metrics.trapRoute.detourActive;
+  finalizeTrapRouteDetour(metrics);
+  if (detourActive) {
     if (outcome === "death") metrics.trapRoute.detourDeaths++;
     if (outcome === "retreat") metrics.trapRoute.detourRetreats++;
   }
@@ -12145,7 +12182,10 @@ export function simulateRun({
       }
       floorSteps = Math.max(
         floorSteps,
-        routePlan.floorSteps + elitePlan.extraSteps + metrics.trapRoute.detourExtraSteps
+        routePlan.floorSteps + elitePlan.extraSteps + Math.max(
+          metrics.trapRoute.detourBudgetExtraSteps,
+          metrics.trapRoute.detourExtraSteps
+        )
       );
       const scheduledSpecials = [
         ...(specialSchedule.get(step) || []),

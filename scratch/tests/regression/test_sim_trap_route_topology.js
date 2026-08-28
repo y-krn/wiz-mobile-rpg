@@ -9,7 +9,8 @@ function grid(width, height) {
   return Array.from({ length: height }, () => Array.from({ length: width }, () => ({
     walls: [true, true, true, true],
     blockEnter: {},
-    secretDoor: {}
+    secretDoor: {},
+    secretFound: {}
   })));
 }
 
@@ -46,6 +47,13 @@ assert.equal(findShortestFloorPath(oneWay, { x: 1, y: 0 }, { x: 0, y: 0 }), null
 
 const hiddenDoor = grid(2, 1);
 connect(hiddenDoor, { x: 0, y: 0 }, { x: 1, y: 0 }, 1, { secret: true });
+assert.equal(
+  findShortestFloorPath(hiddenDoor, { x: 0, y: 0 }, { x: 1, y: 0 }),
+  null,
+  "an undiscovered secret door must remain unavailable to route selection"
+);
+hiddenDoor[0][0].secretFound[1] = true;
+hiddenDoor[0][1].secretFound[3] = true;
 assert.ok(findShortestFloorPath(hiddenDoor, { x: 0, y: 0 }, { x: 1, y: 0 }));
 
 console.log("[PASS] #933 route topology handles corridors, loops, multiple traps, one-way passages, and secret doors");

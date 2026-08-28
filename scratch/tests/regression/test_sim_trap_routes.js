@@ -19,7 +19,7 @@ function run() {
     className: "Fighter",
     startFloor: 1,
     targetDepth: 6,
-    runIndex: 22,
+    runIndex: 180,
     seriesId: "issue-933-route",
     scoringProfile: null,
     scenario,
@@ -39,6 +39,8 @@ for (const field of [
   "detourSelections",
   "noAlternateRoute",
   "detourExtraSteps",
+  "detourActualMovementSteps",
+  "detourBudgetExtraSteps",
   "detourNormalEncounters",
   "detourOtherTrapEncounters",
   "detourDeaths",
@@ -51,6 +53,7 @@ assert.equal(typeof route.actionSelections.disarm, "number");
 assert.equal(typeof route.actionSelections.force, "number");
 assert.ok(route.detourSelections > 0, "known traps should be able to select another route");
 assert.ok(route.detourExtraSteps > 0, "detours must add actual route steps");
+assert.ok(route.detourActualMovementSteps > 0, "detours must count actual movement");
 assert.ok(route.detourNormalEncounters > 0, "detours must process normal encounters");
 assert.ok(route.detourOtherTrapEncounters > 0, "detours must process other floor traps normally");
 assert.ok(route.decisions.every(decision => decision.selected === "detour"));
