@@ -51,7 +51,7 @@ async function enterDiscoveredTrap(page, type) {
 }
 
 for (const viewport of VIEWPORTS) {
-  test(`Trap choices use three thumb-safe actions on ${viewport.name}`, async ({ page }) => {
+  test(`Trap choices use direct actions and map detours on ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto("/");
     await page.evaluate(() => localStorage.clear());
@@ -59,13 +59,59 @@ for (const viewport of VIEWPORTS) {
 
     await expect(page.locator("#btn-trap-bypass")).toHaveCount(0);
 
+    const detour = await page.evaluate(async () => {
+      const { state, createSoloCharacter } = await import("/src/state.js");
+      const { handleMove } = await import("/src/movement.js");
+      const cell = () => ({
+        walls: [false, false, false, false],
+        blockEnter: [false, false, false, false],
+        secretDoor: [false, false, false, false],
+        secretFound: [false, false, false, false],
+        type: "empty",
+        event: null,
+        trap: null
+      });
+      const grid = Array.from({ length: 3 }, () => Array.from({ length: 3 }, cell));
+      grid[0][1].trap = {
+        id: "browser_detour",
+        floorId: "B1",
+        position: { x: 1, y: 0 },
+        type: "damage",
+        state: "discovered",
+        difficulty: 30
+      };
+      state.floor = 1;
+      state.maps = [grid];
+      state.visitedMaps = [[[false, true, false], [false, true, false], [false, false, false]]];
+      state.x = 1;
+      state.y = 1;
+      state.dir = 0;
+      state.gameState = "explore";
+      state.transitioning = false;
+      state.currentRun = null;
+      state.party = [createSoloCharacter("Thief")];
+      state.roamingMonsters = [];
+      state.logs = [];
+
+      handleMove("turn-right");
+      handleMove("forward");
+      return {
+        x: state.x,
+        y: state.y,
+        gameState: state.gameState,
+        trapState: grid[0][1].trap.state
+      };
+    });
+    expect(detour).toEqual({ x: 2, y: 1, gameState: "explore", trapState: "discovered" });
+
     await enterDiscoveredTrap(page, "damage");
     await expect(page.locator("#game-container")).toHaveClass(/event-mode/);
     await expect(page.locator("#log-panel")).toBeHidden();
     await expect(page.locator("#btn-trap-disarm")).toHaveText("解除する");
     await expect(page.locator("#btn-trap-force")).toHaveText("強行突破");
 
-    for (const id of ["#btn-trap-back", "#btn-trap-disarm", "#btn-trap-force"]) {
+    await expect(page.locator("#btn-trap-back")).toHaveCount(0);
+    for (const id of ["#btn-trap-disarm", "#btn-trap-force"]) {
       const button = page.locator(id);
       await expect(button).toBeVisible();
       const box = await button.boundingBox();
@@ -75,8 +121,18 @@ for (const viewport of VIEWPORTS) {
     }
 
     await page.evaluate(async () => {
+      const { state } = await import("/src/state.js");
       const { handleTrapAction } = await import("/src/systems/traps.js");
       handleTrapAction("back");
+      return { gameState: state.gameState, trapState: state.activeTrapState?.trap?.state };
+    }).then(result => expect(result).toEqual({ gameState: "trap_encounter", trapState: "discovered" }));
+
+    await page.evaluate(async () => {
+      const { state } = await import("/src/state.js");
+      const { updateUI } = await import("/src/ui.js");
+      state.gameState = "explore";
+      state.activeTrapState = null;
+      updateUI();
     });
     await expect(page.locator("#game-container")).not.toHaveClass(/event-mode/);
     await expect(page.locator("#log-panel")).toBeVisible();

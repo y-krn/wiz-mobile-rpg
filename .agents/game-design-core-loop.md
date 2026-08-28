@@ -314,13 +314,13 @@ because the aggregate run result moved. The Simulation follows the game's
 rules and source helpers; the game rules do not change to fit a Simulation
 policy.
 
-The current implementation gap is intentional and out of scope for #931:
-discovered floor traps still enter `trap_encounter` for `disarm`/`force` and
-staying back, while the canonical Simulation still exposes
-`TRAP_AVOIDANCE_POLICY` and evaluates detours with an expected-risk heuristic.
-Those are follow-up migration targets. Future game-side work should align
-their semantics with ordinary route selection without removing the meaningful
-disarm and forced-breakthrough choices.
+The game implementation presents discovered floor traps as map information and
+offers only `disarm` or `force` when the player attempts to enter one. A player
+who wants to avoid the trap chooses another direction through ordinary movement
+before entering the trapped cell. The canonical Simulation still exposes
+`TRAP_AVOIDANCE_POLICY` and evaluates detours with an expected-risk heuristic;
+that is a follow-up migration target. Simulation alignment must preserve the
+meaningful disarm and forced-breakthrough choices.
 
 `trapBonus` remains the single support affix for floor/chest trap disarm and
 existing equipment/class passive bonuses. On B5F, the `trapBonus` investment

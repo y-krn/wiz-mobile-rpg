@@ -200,7 +200,6 @@ function bindButtons() {
       });
     }
   };
-  bindTrapBtn("btn-trap-back", "back");
   bindTrapBtn("btn-trap-disarm", "disarm");
   bindTrapBtn("btn-trap-force", "force");
 

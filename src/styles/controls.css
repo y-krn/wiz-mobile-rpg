@@ -917,6 +917,13 @@
   text-shadow: none;
 }
 
+#trap-route-hint {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  margin-bottom: var(--sp-sm);
+}
+
 #trap-details {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -926,7 +933,6 @@
 .trap-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
   gap: var(--sp-sm);
   width: 100%;
 }
