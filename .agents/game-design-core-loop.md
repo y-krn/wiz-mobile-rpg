@@ -248,14 +248,71 @@ visit state and guardian-gated availability shown. Entering a milestone floor
 also shows this structure in the entry stinger. This is display-only and does
 not reveal map positions or change movement costs.
 
-Floor traps are route-choice obstacles: adjacent floor-trap detection is certain,
-disarm is class-sensitive, forced traversal always passes with reduced damage, and
-choke placement is capped so avoidance remains meaningful. `trapBonus` is the
-single support affix for floor/chest trap disarm and existing equipment/class passive bonuses. On B5F, the `trapBonus` investment also contributes to the
-automatic flame-trap on-trigger avoidance roll through the character-stats helper. Chest traps keep a
-risk/reward branch: every class can leave, smash for a weaker trap effect with
-possible consumable loss, or use a kit, while specialist classes retain safer
-disarm rates.
+### Trap exploration design (Issue #931)
+
+Traps are terrain and exploration information, not an isolated event that asks
+the player to choose a trap-specific escape command. A trap changes the value
+of the available routes and the player's willingness to spend steps, exposure,
+or HP to continue. The design is governed by these three responses:
+
+- **Disarm** resolves a known trap before entering its cell. It is a
+  class-sensitive and equipment-sensitive way to make the route safer; the
+  Thief's exploration identity is discovery, identification, and disarm, with
+  safe breakthrough as the resulting advantage.
+- **Forced breakthrough** enters a known trapped cell and accepts the trap's
+  effect. It must remain possible even when the trap is on a choke point, with
+  the existing weakened-effect rules providing the cost of taking this route.
+- **Ordinary movement to another route** means choosing another available
+  direction and continuing map exploration. `迂回` is not a trap-only action or
+  player-facing trap attribute; a detour costs the ordinary movement risks of
+  the route, including extra steps and possible encounters.
+
+Map generation guarantees that the floor is **攻略可能** under the game's
+available traversal rules. It does not guarantee that every trap has a safe
+detour, that all traps can be avoided, or that the shortest route is trap-free.
+Choke-point analysis and any `choke`/`avoidable` values are generation and
+balance diagnostics, not player-facing trap properties. Choke placement may be
+capped as a tuning measure, but that cap must not become a promise of a safe
+route.
+
+Information changes the decision: an undiscovered trap carries surprise risk;
+once discovered, its cell becomes map information that can be used to choose a
+route or prepare a direct response. Discovery and identification are separate
+rungs of the information ladder, and neither reveals whether the cell is a
+choke point or has an "avoidable" label.
+
+Responsibilities are separated as follows:
+
+| Layer | Owns | Does not own |
+| --- | --- | --- |
+| Map generation | Connectivity, floor reachability, trap placement, density, and internal route diagnostics | A guarantee of a safe or trap-free route; class balance |
+| Trap rules/effects | Discovery state, disarm/forced-traversal resolution, damage, status, and mitigation rules | The player's route preference |
+| Class and equipment | Discovery/identification advantages, disarm success, and safe-breakthrough advantages | Map connectivity or a universal trap bypass |
+| Movement/UI | Ordinary directional movement, map information, and available direct responses | A dedicated `迂回` action or fixed `choke`/`avoidable` display |
+| Balance Simulation | A measurable approximation of route choice and disarm/force decisions, plus outcome telemetry | Defining new gameplay rules or making the game conform to a simulation shortcut |
+
+Before balance changes, measure the layers separately: map structure and route
+cost; trap type, intensity, and effect; class/equipment discovery,
+identification, disarm, and mitigation; then Simulation policy choices and
+outcomes. A change in one layer must not be attributed to another layer merely
+because the aggregate run result moved. The Simulation follows the game's
+rules and source helpers; the game rules do not change to fit a Simulation
+policy.
+
+The current implementation gap is intentional and out of scope for #931:
+discovered floor traps still enter `trap_encounter` for `disarm`/`force` and
+staying back, while the canonical Simulation still exposes
+`TRAP_AVOIDANCE_POLICY` and evaluates detours with an expected-risk heuristic.
+Those are follow-up migration targets. Future game-side work should align
+their semantics with ordinary route selection without removing the meaningful
+disarm and forced-breakthrough choices.
+
+`trapBonus` remains the single support affix for floor/chest trap disarm and
+existing equipment/class passive bonuses. On B5F, the `trapBonus` investment
+also contributes to the automatic flame-trap on-trigger avoidance roll through
+the character-stats helper. Chest traps keep a risk/reward branch: every class
+can leave, smash for a weaker trap effect with possible consumable loss, or use
+a kit, while specialist classes retain safer disarm rates.
 
 Unidentified equipment sits on the same ladder: presence (a drop),
 identification (base type visible), detail (identified affixes). Pillar 3's
