@@ -231,7 +231,7 @@ export function getScreenViewState(stateLike, menuContextLike) {
     isUsableCombatOverlaySubmenu,
     isSpellOverlaySubmenu,
     isUsableSpellOverlaySubmenu,
-    isEventSubmenu: isSubmenu && (menuType === "chest_menu" || menuType === "chest_disarmer_select" || menuType === "chest_opener_select" || EVENT_SUBMENU_TYPES.includes(menuType)),
+    isEventSubmenu: isSubmenu && (menuType === "chest_menu" || EVENT_SUBMENU_TYPES.includes(menuType)),
     isItemSubmenu: isSubmenu && ITEM_SUBMENU_TYPES.includes(menuType),
     hasMap,
     hasCurrentCell,

@@ -11,7 +11,7 @@ import {
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
-import { menuContext, openSubmenu, resetSubmenuBackButton } from "./navigation.js";
+import { menuContext, resetSubmenuBackButton } from "./navigation.js";
 import { triggerGameOver } from "./combat.js";
 import { createRng } from "./seed_rng.js";
 import { increaseChestTrapTier } from "./systems/traps.js";
@@ -40,7 +40,9 @@ export const CHEST_PHASES = Object.freeze({
 });
 
 export const CHEST_PHASE_TRANSITIONS = Object.freeze({
-  [CHEST_PHASES.MENU]: [CHEST_PHASES.MENU, CHEST_PHASES.DISARM_SELECT, CHEST_PHASES.OPEN_SELECT, CHEST_PHASES.RESOLVING, CHEST_PHASES.TERMINAL],
+  [CHEST_PHASES.MENU]: [CHEST_PHASES.MENU, CHEST_PHASES.RESOLVING, CHEST_PHASES.TERMINAL],
+  // Kept for compatibility with stale in-memory states from the former
+  // party-selection flow. New chest actions never enter these phases.
   [CHEST_PHASES.DISARM_SELECT]: [CHEST_PHASES.MENU, CHEST_PHASES.RESOLVING],
   [CHEST_PHASES.OPEN_SELECT]: [CHEST_PHASES.MENU, CHEST_PHASES.RESOLVING],
   [CHEST_PHASES.RESOLVING]: [CHEST_PHASES.REWARD, CHEST_PHASES.MENU, CHEST_PHASES.TERMINAL],
@@ -71,6 +73,10 @@ function isEligibleChestCharacter(char) {
     state.party.includes(char) &&
     ["ok", "poisoned", "blind"].includes(char.status)
   );
+}
+
+function getActiveChestCharacter() {
+  return state.party.find(isEligibleChestCharacter) || null;
 }
 
 function clearChestInspectionState(chest) {
@@ -355,8 +361,9 @@ export function openChestMenu() {
   } else {
     btnDisarm.textContent = "解除する";
     btnDisarm.addEventListener("click", () => {
-      if (!transitionChestPhase(state.chestState, CHEST_PHASES.DISARM_SELECT)) return;
-      openSubmenu("chest_disarmer_select", "罠を解除するキャラクターを選択：");
+      const disarmer = getActiveChestCharacter();
+      if (!disarmer) return;
+      executeDisarm(disarmer);
     });
   }
 
@@ -379,12 +386,14 @@ export function openChestMenu() {
 
   // Open Chest
   const btnOpen = document.createElement("button");
+  btnOpen.id = "btn-chest-open";
   btnOpen.className = "btn btn-neon btn-block";
   btnOpen.textContent = "宝箱を開ける";
   btnOpen.style.minHeight = "44px";
   btnOpen.addEventListener("click", () => {
-    if (!transitionChestPhase(state.chestState, CHEST_PHASES.OPEN_SELECT)) return;
-    openSubmenu("chest_opener_select", "宝箱を開けるキャラクターを選択：");
+    const opener = getActiveChestCharacter();
+    if (!opener) return;
+    openChestDirectly(opener);
   });
   optGrid.appendChild(btnOpen);
 
@@ -502,7 +511,7 @@ function markChestProcessed(chest) {
 
 export function executeDisarm(char, rng = Math.random) {
   if (
-    !chestActionAllowed([CHEST_PHASES.DISARM_SELECT]) ||
+    !chestActionAllowed([CHEST_PHASES.MENU, CHEST_PHASES.DISARM_SELECT]) ||
     !isEligibleChestCharacter(char)
   ) return false;
 

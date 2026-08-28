@@ -141,7 +141,7 @@ await test("bonus uses +2 per successful disarm and caps at +20", () => {
 await test("successful chest disarm triggers the bonus for eligible class", async () => {
   prepareState(makeChar());
   setupChestState("poison needle", null, "HEAL_POTION");
-  state.chestState.phase = CHEST_PHASES.DISARM_SELECT;
+  state.chestState.phase = CHEST_PHASES.MENU;
   assert.equal(executeDisarm(state.party[0], () => 0), true);
   assert.equal(state.party[0].runTrapAttackBonus, 2);
   state.chestState = null;
