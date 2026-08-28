@@ -805,6 +805,133 @@ function getNonBridgePassageEdges(grid) {
   return edges;
 }
 
+// Convert the generated cell graph into stable, machine-readable structure
+// primitives. These are generation diagnostics, not player-facing trap flags.
+export function getMapStructureMetrics(grid, rooms = []) {
+  const width = getMapWidth(grid);
+  const height = getMapHeight(grid);
+  const roomKeys = new Set();
+  rooms.forEach(room => {
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) roomKeys.add(`${x},${y}`);
+    }
+  });
+
+  const vertices = new Set();
+  const adjacency = new Map();
+  let edgeCount = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!isPassageCell(grid, x, y)) continue;
+      const key = `${x},${y}`;
+      vertices.add(key);
+      adjacency.set(key, []);
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!isPassageCell(grid, x, y)) continue;
+      const key = `${x},${y}`;
+      if (!grid[y][x].walls[DIR_E] && isPassageCell(grid, x + 1, y)) {
+        edgeCount++;
+        adjacency.get(key).push(`${x + 1},${y}`);
+        adjacency.get(`${x + 1},${y}`).push(key);
+      }
+      if (!grid[y][x].walls[DIR_S] && isPassageCell(grid, x, y + 1)) {
+        edgeCount++;
+        adjacency.get(key).push(`${x},${y + 1}`);
+        adjacency.get(`${x},${y + 1}`).push(key);
+      }
+    }
+  }
+
+  let componentCount = 0;
+  const seen = new Set();
+  for (const key of vertices) {
+    if (seen.has(key)) continue;
+    componentCount++;
+    const queue = [key];
+    seen.add(key);
+    for (const current of queue) {
+      for (const next of adjacency.get(current) || []) {
+        if (!seen.has(next)) {
+          seen.add(next);
+          queue.push(next);
+        }
+      }
+    }
+  }
+
+  const nonBridgeEdges = getNonBridgePassageEdges(grid);
+  const loopKeys = new Set();
+  nonBridgeEdges.forEach(edge => {
+    loopKeys.add(`${edge.x},${edge.y}`);
+    loopKeys.add(`${edge.nx},${edge.ny}`);
+  });
+
+  const structureCounts = {
+    corridor: 0,
+    loop: 0,
+    hub: 0,
+    openArea: 0
+  };
+  const corridorKeys = new Set();
+  let deadEndCount = 0;
+  let junctionCount = 0;
+  for (const key of vertices) {
+    const degree = adjacency.get(key)?.length || 0;
+    if (degree === 1) deadEndCount++;
+    if (degree >= 3) junctionCount++;
+
+    if (roomKeys.has(key)) {
+      structureCounts.openArea++;
+    } else if (degree >= 3) {
+      structureCounts.hub++;
+    } else if (loopKeys.has(key)) {
+      structureCounts.loop++;
+    } else {
+      structureCounts.corridor++;
+      corridorKeys.add(key);
+    }
+  }
+
+  let corridorSegmentCount = 0;
+  const seenCorridor = new Set();
+  for (const key of corridorKeys) {
+    if (seenCorridor.has(key)) continue;
+    corridorSegmentCount++;
+    const queue = [key];
+    seenCorridor.add(key);
+    for (const current of queue) {
+      for (const next of adjacency.get(current) || []) {
+        if (corridorKeys.has(next) && !seenCorridor.has(next)) {
+          seenCorridor.add(next);
+          queue.push(next);
+        }
+      }
+    }
+  }
+
+  const walkableCellCount = vertices.size;
+  const ratio = value => walkableCellCount === 0 ? 0 : value / walkableCellCount;
+  return {
+    walkableCellCount,
+    edgeCount,
+    componentCount,
+    cycleCount: Math.max(0, edgeCount - walkableCellCount + componentCount),
+    nonBridgeEdgeCount: nonBridgeEdges.length,
+    alternativePathRate: edgeCount === 0 ? 0 : nonBridgeEdges.length / edgeCount,
+    junctionCount,
+    deadEndCount,
+    deadEndRate: ratio(deadEndCount),
+    corridorSegmentCount,
+    corridorRatio: ratio(structureCounts.corridor),
+    openAreaCount: rooms.length,
+    openAreaCellCount: structureCounts.openArea,
+    structureCounts
+  };
+}
+
 function getRequiredReachableKeys(grid, stairsDownCoord, bossCoord) {
   const keys = new Set();
 
@@ -1152,6 +1279,18 @@ export function removeIsolatedInternalWalls(grid) {
 }
 
 export const ROOM_COUNT_RANGE = [2, 4];
+export const TERRAIN_STRUCTURE_TYPES = Object.freeze([
+  "corridor",
+  "loop",
+  "hub",
+  "openArea"
+]);
+const DEFAULT_STRUCTURE_PROFILE = Object.freeze({
+  corridor: 0.40,
+  loop: 0.25,
+  hub: 0.15,
+  openArea: 0.20
+});
 export const ROOM_SIZES = [
   { w: 2, h: 2 },
   { w: 2, h: 3 },
@@ -1202,7 +1341,29 @@ function roomsTooClose(a, b) {
 // rectangle. The rectangle always contains existing passage cells, so the
 // hall stays connected to the main maze; never-dug pillar cells inside the
 // rectangle simply become hall floor.
-export function carveRooms(grid, rng, visited = null, roomCountRange = ROOM_COUNT_RANGE) {
+function normalizeStructureProfile(profile) {
+  const values = TERRAIN_STRUCTURE_TYPES.map(type => Number(profile?.[type]) || 0);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  if (total <= 0) return { ...DEFAULT_STRUCTURE_PROFILE };
+  return Object.fromEntries(TERRAIN_STRUCTURE_TYPES.map((type, index) => [type, values[index] / total]));
+}
+
+function selectStructureType(profile, rng) {
+  let threshold = rng();
+  for (const type of TERRAIN_STRUCTURE_TYPES) {
+    threshold -= profile[type];
+    if (threshold < 0) return type;
+  }
+  return TERRAIN_STRUCTURE_TYPES.at(-1);
+}
+
+export function carveRooms(
+  grid,
+  rng,
+  visited = null,
+  roomCountRange = ROOM_COUNT_RANGE,
+  structureProfile = null
+) {
   const targetCount = roomCountRange[0] +
     Math.floor(rng() * (roomCountRange[1] - roomCountRange[0] + 1));
 
@@ -1215,6 +1376,17 @@ export function carveRooms(grid, rng, visited = null, roomCountRange = ROOM_COUN
     }
   }
   shuffleInPlace(candidates, rng);
+
+  if (structureProfile) {
+    const profile = normalizeStructureProfile(structureProfile);
+    candidates.sort((a, b) => {
+      const areaScore = (candidate => candidate.w * candidate.h - 4);
+      const entranceScore = candidate => countRoomEntrances(grid, candidate);
+      const score = candidate =>
+        profile.openArea * areaScore(candidate) + profile.hub * entranceScore(candidate);
+      return score(b) - score(a);
+    });
+  }
 
   const rooms = [];
   for (const candidate of candidates) {
@@ -1245,7 +1417,7 @@ export const MAZE_PROFILE_RANGES = {
   5: { straightBias: [0.00, 0.40], loopRate: [0.10, 0.28] }
 };
 
-export function createMazeProfile(floor, rng, profileRange = null, size = null) {
+export function createMazeProfile(floor, rng, profileRange = null, size = null, structureProfile = null) {
   const range = profileRange || MAZE_PROFILE_RANGES[floor] || MAZE_PROFILE_RANGES[5];
   const mapWidth = size?.width ?? MAP_WIDTH;
   const mapHeight = size?.height ?? MAP_HEIGHT;
@@ -1260,10 +1432,23 @@ export function createMazeProfile(floor, rng, profileRange = null, size = null) 
   };
   const digColumns = Math.floor((mapWidth - 1) / 2);
   const digRows = Math.floor((mapHeight - 2) / 2);
+  const normalizedStructureProfile = structureProfile
+    ? normalizeStructureProfile(structureProfile)
+    : null;
+  const corridorAdjustment = normalizedStructureProfile
+    ? (normalizedStructureProfile.corridor - DEFAULT_STRUCTURE_PROFILE.corridor) * 0.16
+    : 0;
+  const loopAdjustment = normalizedStructureProfile
+    ? (normalizedStructureProfile.loop - DEFAULT_STRUCTURE_PROFILE.loop) * 0.16
+    : 0;
 
   return {
-    straightBias: randomInRange(range.straightBias),
-    loopRate: randomNearRangeEdge(range.loopRate),
+    straightBias: Math.max(0, Math.min(1, randomInRange(range.straightBias) + corridorAdjustment)),
+    loopRate: Math.max(0, Math.min(1, randomNearRangeEdge(range.loopRate) + loopAdjustment)),
+    structureProfile: normalizedStructureProfile,
+    structureType: normalizedStructureProfile
+      ? selectStructureType(normalizedStructureProfile, rng)
+      : null,
     digStart: {
       x: 1 + Math.floor(rng() * digColumns) * 2,
       y: 2 + Math.floor(rng() * digRows) * 2
@@ -1275,7 +1460,13 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   const mapWidth = options.size?.width ?? MAP_WIDTH;
   const mapHeight = options.size?.height ?? MAP_HEIGHT;
   const rng = seed ? createRng(`${seed}:map:B${floor}`) : Math.random;
-  const mazeProfile = createMazeProfile(floor, rng, options.mazeProfile, { width: mapWidth, height: mapHeight });
+  const mazeProfile = createMazeProfile(
+    floor,
+    rng,
+    options.mazeProfile,
+    { width: mapWidth, height: mapHeight },
+    options.structureProfile
+  );
   // 1. Initialize grid with all walls closed
   const grid = Array.from({ length: mapHeight }, () =>
     Array.from({ length: mapWidth }, () => ({
@@ -1409,7 +1600,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   removeIsolatedInternalWalls(grid);
 
-  const rooms = carveRooms(grid, rng, visited, options.roomCountRange);
+  const rooms = carveRooms(grid, rng, visited, options.roomCountRange, mazeProfile.structureProfile);
 
   const b1EntryCandidates = [];
   if (floor === 1) {
@@ -1794,11 +1985,16 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng, secretCounts);
   removeInvalidOneWayPassages(grid, suCoord);
 
+  const structureMetrics = getMapStructureMetrics(grid, rooms);
+
   return {
     grid,
     stairsDownCoord,
     bossCoord,
     rooms,
+    structureProfile: mazeProfile.structureProfile,
+    structureType: mazeProfile.structureType,
+    structureMetrics,
     trapMeta: {
       total: chosen.length,
       choke: chokePool.slice(0, chokeTargeted).length,
