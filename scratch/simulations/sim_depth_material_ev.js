@@ -9562,10 +9562,8 @@ function finalizeTrapRouteDetour(metrics) {
   if (!metrics.trapRoute.detourActive) return;
   const actualExtraSteps = Math.max(
     0,
-    Math.ceil(
-      (metrics.trapRoute.detourActiveMovementSteps -
-        metrics.trapRoute.detourDirectMovementSteps) * EXPLORATION_FACTOR
-    )
+    metrics.trapRoute.detourActiveMovementSteps -
+      metrics.trapRoute.detourDirectMovementSteps
   );
   metrics.trapRoute.detourExtraSteps += actualExtraSteps;
   metrics.trapRoute.detourActiveMovementSteps = 0;
