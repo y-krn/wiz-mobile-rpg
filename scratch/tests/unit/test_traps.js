@@ -394,21 +394,8 @@ function setupEncounter(trapType) {
   return g;
 }
 
-// "back" leaves the player where they were and costs nothing
-let g6 = setupEncounter("damage");
-handleTrapAction("back");
-if (state.x !== 1 || state.y !== 1) {
-  console.error(`FAIL: back should not move the player, got (${state.x},${state.y}).`);
-  process.exit(1);
-}
-if (g6[1][2].trap.state !== "discovered") {
-  console.error("FAIL: back should leave the trap armed.");
-  process.exit(1);
-}
-console.log("- back: stays put, trap stays armed");
-
 // "force" always moves the player through and always disables the trap
-g6 = setupEncounter("damage");
+let g6 = setupEncounter("damage");
 handleTrapAction("force");
 if (state.x !== 2 || state.y !== 1) {
   console.error(`FAIL: force should complete the move, got (${state.x},${state.y}).`);
@@ -442,14 +429,19 @@ for (const roll of [0, 0.99]) {
 }
 console.log("- disarm: completes the move on both success and failure");
 
-// "bypass" is removed and must be a no-op
+// Trap-specific detours are removed; only disarm and forced breakthrough are
+// valid trap actions.
 g6 = setupEncounter("damage");
-handleTrapAction("bypass");
+handleTrapAction("back");
 if (state.x !== 1 || state.y !== 1) {
-  console.error("FAIL: bypass should no longer exist.");
+  console.error("FAIL: a removed detour action must not move the player.");
   process.exit(1);
 }
-console.log("- bypass: removed");
+if (state.gameState !== "trap_encounter" || g6[1][2].trap.state !== "discovered") {
+  console.error("FAIL: a removed detour action must not resolve the trap encounter.");
+  process.exit(1);
+}
+console.log("- trap detour action: removed");
 console.log("PASS: Trap encounter choices verified.");
 
 // 7. Choke-aware trap placement

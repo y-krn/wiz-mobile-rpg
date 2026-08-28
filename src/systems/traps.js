@@ -314,13 +314,6 @@ export function handleTrapAction(action) {
   if (!state.activeTrapState) return;
   const { trap, successRate } = state.activeTrapState;
 
-  if (action === "back") {
-    addLog("罠を前にして、その場に留まった。");
-    playSound("move");
-    endTrapEncounter();
-    return;
-  }
-
   if (action === "force") {
     const resolution = resolveTrapAction({
       action,

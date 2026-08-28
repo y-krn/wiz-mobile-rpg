@@ -1711,10 +1711,13 @@ export class DungeonRenderer {
         const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
         const isLightRevealed = (lightRad > 0 && dist <= lightRad);
 
-        // Render explored cells and temporary or contract-supplied map information.
-        if (!isVisited && !isLightRevealed && !isFragmentRevealed) continue;
-
         const cell = map[y][x];
+        const hasDiscoveredTrap = cell.trap && cell.trap.state !== "hidden";
+        // A discovered trap is durable map information even when its cell has
+        // not otherwise been explored. Keep the marker visible so route choice
+        // can use the discovery without revealing the surrounding terrain.
+        if (!isVisited && !isLightRevealed && !isFragmentRevealed && !hasDiscoveredTrap) continue;
+
         if (!isRenderableCell(cell)) continue;
         const screenX = margin + x * cellS + offsetX;
         const screenY = margin + y * cellS + offsetY;
