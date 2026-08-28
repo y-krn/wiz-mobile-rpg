@@ -165,8 +165,6 @@ function chestTelemetryEvents() {
 await test("宝箱の合法フェーズ遷移表を固定する", () => {
   assert.deepEqual(CHEST_PHASE_TRANSITIONS[CHEST_PHASES.MENU], [
     CHEST_PHASES.MENU,
-    CHEST_PHASES.DISARM_SELECT,
-    CHEST_PHASES.OPEN_SELECT,
     CHEST_PHASES.RESOLVING,
     CHEST_PHASES.TERMINAL
   ]);
@@ -187,9 +185,8 @@ await test("宝箱の合法フェーズ遷移表を固定する", () => {
   assert.deepEqual(CHEST_PHASE_TRANSITIONS[CHEST_PHASES.TERMINAL], []);
 });
 
-await test("開封はmenu/open選択からrewardを経てterminalになり検査状態を残さない", () => {
+await test("開封はmenuからrewardを経てterminalになり検査状態を残さない", () => {
   resetChest({ trap: "none", item: "HEAL_POTION" });
-  state.chestState.phase = CHEST_PHASES.OPEN_SELECT;
   state.chestState.inspected = true;
   state.chestState.identifiedTrap = "none";
   state.chestState.inspectChance = 0.85;
@@ -214,12 +211,12 @@ await test("無効・反復入力はphaseと報酬を変更しない", () => {
   assert.equal(state.inventory.includes("HEAL_POTION"), false);
 
   state.gameState = "submenu";
-  menuContext.type = "chest_opener_select";
+  menuContext.type = "chest_menu";
   state.chestState = null;
   state.transitioning = false;
   assert.equal(openChestDirectly(null, () => 0), false);
   assert.equal(state.gameState, "submenu");
-  assert.equal(menuContext.type, "chest_opener_select");
+  assert.equal(menuContext.type, "chest_menu");
   assert.equal(smashChest(() => 0), false);
   assert.equal(leaveChest(), false);
   assert.equal(useTrapKit(), false);
@@ -310,12 +307,13 @@ await test("欠損・死亡・非partyのactorはtrackingとphase変更前に拒
   assert.equal(state.inventory.includes("HEAL_POTION"), false);
 });
 
-await test("解除選択をキャンセルした後のstale解除入力は副作用なし", () => {
+await test("有効な解除者がいない場合は宝箱状態を変更しない", () => {
   resetChest({ trap: "poison needle", item: "HEAL_POTION" });
   const chest = state.chestState;
   state.gameState = "submenu";
   menuContext.type = "chest_menu";
   state.chestState.phase = CHEST_PHASES.MENU;
+  state.party[0].status = "dead";
   const before = {
     phase: chest.phase,
     trap: chest.trap,
@@ -327,7 +325,7 @@ await test("解除選択をキャンセルした後のstale解除入力は副作
   };
 
   assert.equal(executeDisarm(state.party[0], () => 0), false);
-  assert.equal(executeDisarm(state.party[0], () => 0), false);
+  assert.equal(openChestDirectly(state.party[0], () => 0), false);
   assert.deepEqual({
     phase: chest.phase,
     trap: chest.trap,

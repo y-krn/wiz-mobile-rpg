@@ -374,7 +374,7 @@ for (const expression of [
 }
 assert.throws(
   () => assertBalanceImpactCovered(["src/chest.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/chest.js", mixedTelemetryDiff]]) }),
-  /telemetry anchor mixed/
+  /canonical runtime evidence result is required/
 );
 assert.throws(
   () => assertBalanceImpactCovered(["src/unknown_telemetry.js"], SIMULATION_MANIFEST, undefined, { diffByFile: new Map([["src/unknown_telemetry.js", anchoredTelemetryDiff]]) }),

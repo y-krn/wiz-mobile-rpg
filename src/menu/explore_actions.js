@@ -2,13 +2,12 @@ import { state, initNewGame, saveAutosave, addLog, markMapChanged, recordCharDea
 import { playSound } from "../audio.js";
 import { updateUI } from "../ui.js";
 import { openSubmenu, closeSubmenu, goBackSubmenu, menuContext } from "../navigation.js";
-import { isSpellcaster, getClassJpName, getItemData, getCharTrapBonus, getPartyMaxAffix, DX, DY, DIR_NAMES } from "../data.js";
+import { isSpellcaster, getClassJpName, getItemData, getPartyMaxAffix, DX, DY, DIR_NAMES } from "../data.js";
 import { triggerRunResult } from "../result.js";
 import { advanceRoamingTurn, checkCellEvents, createNoiseEvent, executeEnterDungeon, getCurrentExplorationCell, getEncounterChance, recordExplorationSteps, tickExplorationSpellEffects } from "../movement.js";
 import { completeCampEntry, getCampRestStatus, restAtCamp } from "../systems/camp_rest.js";
 import { startCombat, triggerGameOver } from "../combat.js";
 import { openEquipOverlay, getItemUseStatus } from "../equip.js";
-import { executeDisarm, openChestDirectly } from "../chest.js";
 import { openWall } from "../map_generator.js";
 import {
   applyStatusEffect,
@@ -581,50 +580,4 @@ export function renderEventTabletResult(optGrid) {
     closeSubmenu();
   });
   optGrid.appendChild(btnReturn);
-}
-
-export function renderChestDisarmerSelect(optGrid) {
-  state.party.forEach((char) => {
-    const btn = document.createElement("button");
-    btn.className = "btn btn-neon btn-block";
-    
-    let chance = 0.25;
-    if (char.class === "Thief") {
-      chance = 0.85;
-    } else if (char.class === "Ranger") {
-      chance = 0.60;
-    }
-    if (char.status === "blind") {
-      chance = chance / 2.0;
-    }
-    const pct = Math.floor(chance * 100);
-    const blindSuffix = char.status === "blind" ? " / 盲目" : "";
-    btn.textContent = `${char.name} (${getClassJpName(char.class)}) 解除 ${pct}%${blindSuffix}`;
-
-    if (!["ok", "poisoned", "blind"].includes(char.status)) btn.disabled = true;
-    btn.addEventListener("click", () => {
-      if (state.transitioning) return;
-      executeDisarm(char);
-    });
-    optGrid.appendChild(btn);
-  });
-}
-
-export function renderChestOpenerSelect(optGrid) {
-  state.party.forEach((char) => {
-    const btn = document.createElement("button");
-    btn.className = "btn btn-neon btn-block";
-
-    const trapBonus = getCharTrapBonus(char);
-    const statusSuffix = char.status === "blind" ? " / 盲目" : (char.status === "poisoned" ? " / 毒" : "");
-    const bonusText = trapBonus > 0 ? ` / 耐罠 +${trapBonus}%` : "";
-    btn.textContent = `${char.name} (${getClassJpName(char.class)}) 開ける${statusSuffix}${bonusText}`;
-
-    if (!["ok", "poisoned", "blind"].includes(char.status)) btn.disabled = true;
-    btn.addEventListener("click", () => {
-      if (state.transitioning) return;
-      openChestDirectly(char);
-    });
-    optGrid.appendChild(btn);
-  });
 }

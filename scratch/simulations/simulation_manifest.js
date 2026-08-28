@@ -238,6 +238,9 @@ export const SIMULATION_MANIFEST = Object.freeze({
   // Canonical action handlers may intentionally mix a gameplay decision and
   // its telemetry anchor. These paths still require a balance mapping above.
   telemetryGameplayPaths: Object.freeze([
+    // Chest action dispatch can change the selected actor/phase while keeping
+    // the existing telemetry anchor in this module.
+    "src/chest.js",
     "src/menu/explore_actions.js",
     "src/movement.js",
     // Codex observations share combat entry/resolution paths with the
