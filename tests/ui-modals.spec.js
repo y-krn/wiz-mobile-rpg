@@ -385,6 +385,92 @@ for (const vp of VIEWPORTS) {
     expect(discardEvents[0].properties.comparisonAvailable).toBe(true);
   });
 
+  test(`Equipment organize mode safely discards multiple bag items at ${vp.width}x${vp.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+    await page.evaluate(async () => {
+      const { createSoloCharacter, state } = await import('/src/state.js');
+      const { openEquipOverlay } = await import('/src/equip.js');
+      const { __setTelemetryClientForTests, trackRunStart } = await import('/src/telemetry.js');
+      const equipped = {
+        kind: 'equipment', instanceId: 'organize_equipped', baseId: 'DAGGER', rarity: 'common', level: 1,
+        identified: true, affixes: []
+      };
+      state.party = [createSoloCharacter('Fighter')];
+      state.party[0].equipment.weapon = equipped;
+      state.inventory = [
+        equipped,
+        {
+          kind: 'equipment', instanceId: 'organize_common', baseId: 'MACE', rarity: 'common', level: 1,
+          identified: true, affixes: []
+        },
+        {
+          kind: 'equipment', instanceId: 'organize_rare', baseId: 'LONG_SWORD', rarity: 'rare', level: 1,
+          identified: true, affixes: []
+        },
+        {
+          kind: 'equipment', instanceId: 'organize_unidentified', baseId: 'RING_STR', rarity: 'rare', level: 1,
+          identified: false, affixes: []
+        },
+        {
+          kind: 'equipment', instanceId: 'organize_affix', baseId: 'LEATHER_ARMOR', rarity: 'common', level: 1,
+          identified: true, enhanceLevel: 1,
+          affixes: [{ id: 'def', type: 'def', kind: 'support', value: 2 }]
+        }
+      ];
+      window.__organizeTelemetry = [];
+      __setTelemetryClientForTests({
+        capture: (name, properties) => window.__organizeTelemetry.push({ name, properties })
+      });
+      trackRunStart(state.currentRun || {}, state.party[0], state);
+      openEquipOverlay(0);
+    });
+
+    await page.getByRole('button', { name: /整理モード/ }).click();
+    await expect(page.locator('.equip-body.is-organize')).toBeVisible();
+    await expect(page.locator('#equip-organize-help')).toContainText('装備中のアイテムは選択できません');
+    const equippedRow = page.getByRole('checkbox', { name: /ダガー/ });
+    await expect(equippedRow).toBeDisabled();
+
+    await page.getByRole('checkbox', { name: /メイス/ }).click();
+    await expect(page.locator('.equip-organize-count')).toHaveText('1件選択中');
+    await page.getByRole('button', { name: '通常表示に戻る' }).click();
+    await expect(page.getByRole('button', { name: /整理モード/ })).toBeVisible();
+    await expect(page.locator('.equip-status-bar')).toContainText('バッグ 5/20');
+    await page.getByRole('button', { name: /整理モード/ }).click();
+
+    await page.getByRole('checkbox', { name: /メイス/ }).click();
+    await page.getByRole('checkbox', { name: /ロングソード/ }).click();
+    await page.getByRole('checkbox', { name: /未鑑定の装備品/ }).click();
+    await expect(page.locator('.equip-organize-count')).toHaveText('3件選択中');
+    await expect(page.locator('.equip-organize-warning')).toContainText('未鑑定 1件');
+    await expect(page.locator('.equip-organize-warning')).toContainText('Rare以上 2件');
+    const bulkDiscard = page.getByRole('button', { name: '選択した装備を破棄（3件）' });
+    await expect(bulkDiscard).toBeEnabled();
+    expect((await bulkDiscard.boundingBox()).height).toBeGreaterThanOrEqual(44);
+
+    page.once('dialog', async (dialog) => {
+      expect(dialog.message()).toContain('3件');
+      expect(dialog.message()).toContain('破棄');
+      expect(dialog.message()).toContain('未鑑定');
+      expect(dialog.message()).toContain('Rare以上');
+      await dialog.accept();
+    });
+    await bulkDiscard.click();
+
+    await expect.poll(() => page.evaluate(async () => {
+      const { state } = await import('/src/state.js');
+      return state.inventory.map((item) => item.instanceId);
+    })).toEqual(['organize_equipped', 'organize_affix']);
+    await expect(page.locator('.equip-status-bar')).toContainText('バッグ 2/20');
+    await expect.poll(() => page.evaluate(() => window.__organizeTelemetry.filter((event) => (
+      event.name === 'equipment_decision' && event.properties.action === 'discard'
+    )).length)).toBe(3);
+
+    await page.getByRole('button', { name: '通常表示に戻る' }).click();
+    await expect(page.getByRole('button', { name: /整理モード/ })).toBeVisible();
+  });
+
   test(`Equipment detail can return to the list at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');

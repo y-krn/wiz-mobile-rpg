@@ -175,6 +175,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/result.js", domains: ["drops", "economy", "progression"] },
     { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
     { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },
+    { pattern: "src/systems/equipment_discard.js", domains: ["equipment"] },
     { pattern: "src/rules/chest_rules.js", domains: ["chests", "equipment", "traps"] },
     { pattern: "src/systems/leveling.js", domains: ["progression"] },
     { pattern: "src/combat_ui/combat_start.js", domains: ["combat"] }
@@ -241,6 +242,8 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // Chest action dispatch can change the selected actor/phase while keeping
     // the existing telemetry anchor in this module.
     "src/chest.js",
+    "src/equip.js",
+    "src/systems/equipment_discard.js",
     "src/menu/explore_actions.js",
     "src/movement.js",
     // Codex observations share combat entry/resolution paths with the

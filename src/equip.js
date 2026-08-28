@@ -39,6 +39,7 @@ import {
   getEquipmentSlotsForType
 } from "./rules/equipment_slots.js";
 import { trackEquipmentDecision } from "./telemetry.js";
+import { discardEquipmentItems, getDiscardRisk } from "./systems/equipment_discard.js";
 
 export let equipState = {
   mode: "equip",
@@ -49,6 +50,7 @@ export let equipState = {
   selectedSlot: null,
   selectedActorIdx: -1,
   selectedIsEquipped: false,
+  selectedDiscardIndices: new Set(),
   listScrollTop: 0,
   prevGameState: null
 };
@@ -102,6 +104,7 @@ export function openEquipOverlay(actorIdx = 0) {
   equipState.filter = "all";
   equipState.actorIdx = actorIdx;
   clearSelection();
+  clearDiscardSelection();
 
   const overlay = document.getElementById("equip-overlay");
   if (overlay) {
@@ -134,11 +137,29 @@ function clearSelection() {
   equipState.selectedIsEquipped = false;
 }
 
+function clearDiscardSelection() {
+  equipState.selectedDiscardIndices.clear();
+}
+
+function enterOrganizeMode() {
+  clearSelection();
+  clearDiscardSelection();
+  equipState.mode = "organize";
+  renderEquip();
+}
+
+function exitOrganizeMode() {
+  clearDiscardSelection();
+  equipState.mode = "equip";
+  renderEquip();
+}
+
 export function resetEquipState() {
   equipState.mode = "equip";
   equipState.filter = "all";
   equipState.actorIdx = 0;
   clearSelection();
+  clearDiscardSelection();
   equipState.listScrollTop = 0;
   equipState.prevGameState = null;
 }
@@ -339,9 +360,17 @@ function getEquipmentItems() {
 }
 
 function isItemEquipped(itemKey) {
-  return state.party.some((char) =>
-    Object.values(char.equipment || {}).some((equippedKey) => equippedKey === itemKey)
-  );
+  try {
+    return state.party.some((char) => {
+      try {
+        return Object.values(char.equipment || {}).some((equippedKey) => equippedKey === itemKey);
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
 }
 
 function getDiscardTelemetryPreview(char, itemKey, requestedSlot) {
@@ -362,37 +391,33 @@ function getDiscardTelemetryPreview(char, itemKey, requestedSlot) {
 }
 
 function discardEquipment(itemIdx, expectedItemKey) {
-  const selectedItem = state.inventory[itemIdx];
-  const item = getItemData(selectedItem);
-  if (selectedItem !== expectedItemKey || !isEquipmentItem(item) || isItemEquipped(selectedItem)) {
-    return false;
-  }
-
-  const displayName = `${isIdentified(selectedItem) ? "" : "? "}${item.name}`;
   const discardPreview = getDiscardTelemetryPreview(
     state.party[equipState.actorIdx],
     expectedItemKey,
     equipState.selectedSlot
   );
-  if (!confirm(`「${displayName}」を破棄しますか？この操作は取り消せません。`)) {
-    return false;
-  }
-
-  state.inventory.splice(itemIdx, 1);
-  try {
-    trackEquipmentDecision("discard", {
-      state,
-      character: state.party[equipState.actorIdx],
-      candidateKey: expectedItemKey,
-      preview: discardPreview
-    });
-  } catch {
-    // Telemetry must never interrupt a confirmed discard.
-  }
-  addLog(`[破棄] ${displayName}を破棄した。`);
-  playSound("move");
-  saveAutosave();
+  const result = discardEquipmentItems([{
+    index: itemIdx,
+    expectedItemKey,
+    preview: discardPreview
+  }], { character: state.party[equipState.actorIdx] });
+  if (!result.ok) return false;
   clearSelection();
+  renderEquip();
+  updateUI();
+  return true;
+}
+
+function discardSelectedEquipment() {
+  const character = state.party[equipState.actorIdx];
+  const entries = [...equipState.selectedDiscardIndices].map((index) => ({
+    index,
+    expectedItemKey: state.inventory[index],
+    preview: getDiscardTelemetryPreview(character, state.inventory[index], null)
+  }));
+  const result = discardEquipmentItems(entries, { character });
+  if (!result.ok) return false;
+  clearDiscardSelection();
   renderEquip();
   updateUI();
   return true;
@@ -468,9 +493,23 @@ function createHeader(overlay, char) {
   overlay.appendChild(header);
 }
 
-function createFooter(overlay) {
+function createFooter(overlay, { organizing = false } = {}) {
   const footer = document.createElement("div");
   footer.className = "bottom-actions-container";
+
+  if (organizing) {
+    const discardRow = document.createElement("div");
+    discardRow.className = "bottom-actions-row equip-discard-row";
+    const discardButton = document.createElement("button");
+    discardButton.type = "button";
+    discardButton.className = "btn btn-danger btn-block equip-bulk-discard";
+    discardButton.disabled = equipState.selectedDiscardIndices.size === 0;
+    discardButton.textContent = `選択した装備を破棄（${equipState.selectedDiscardIndices.size}件）`;
+    discardButton.setAttribute("aria-describedby", "equip-organize-help");
+    discardButton.addEventListener("click", discardSelectedEquipment);
+    discardRow.appendChild(discardButton);
+    footer.appendChild(discardRow);
+  }
 
   const filterRow = document.createElement("div");
   filterRow.className = "bottom-actions-row equip-filters";
@@ -482,6 +521,7 @@ function createFooter(overlay) {
     chip.addEventListener("click", () => {
       equipState.filter = filter.id;
       clearSelection();
+      clearDiscardSelection();
       renderEquip();
     });
     filterRow.appendChild(chip);
@@ -502,6 +542,7 @@ function createFooter(overlay) {
     `;
     btn.addEventListener("click", () => {
       equipState.actorIdx = idx;
+      clearDiscardSelection();
       renderEquip();
     });
     actorRow.appendChild(btn);
@@ -510,6 +551,15 @@ function createFooter(overlay) {
 
   const closeRow = document.createElement("div");
   closeRow.className = "bottom-actions-row";
+  if (!organizing) {
+    const organizeEntry = document.createElement("button");
+    organizeEntry.type = "button";
+    organizeEntry.className = "btn equip-organize-entry";
+    organizeEntry.textContent = "整理モード";
+    organizeEntry.setAttribute("aria-label", "整理モードを開始");
+    organizeEntry.addEventListener("click", enterOrganizeMode);
+    closeRow.appendChild(organizeEntry);
+  }
   const btnClose = document.createElement("button");
   btnClose.id = "btn-equip-close";
   btnClose.className = "btn btn-danger";
@@ -519,6 +569,71 @@ function createFooter(overlay) {
   footer.appendChild(closeRow);
 
   overlay.appendChild(footer);
+}
+
+function getSelectedDiscardRiskCounts() {
+  const counts = {};
+  equipState.selectedDiscardIndices.forEach((index) => {
+    getDiscardRisk(state.inventory[index]).forEach((risk) => {
+      counts[risk] = (counts[risk] || 0) + 1;
+    });
+  });
+  return counts;
+}
+
+function createOrganizeControls() {
+  const controls = document.createElement("div");
+  controls.className = "equip-organize-controls";
+
+  const heading = document.createElement("div");
+  heading.className = "equip-organize-heading";
+  const label = document.createElement("strong");
+  label.textContent = "整理モード";
+  heading.appendChild(label);
+  const count = document.createElement("span");
+  count.className = "equip-organize-count";
+  count.setAttribute("aria-live", "polite");
+  count.textContent = `${equipState.selectedDiscardIndices.size}件選択中`;
+  heading.appendChild(count);
+  controls.appendChild(heading);
+
+  const help = document.createElement("p");
+  help.id = "equip-organize-help";
+  help.className = "equip-organize-help";
+  help.textContent = "不要な装備を選んでください。装備中のアイテムは選択できません。";
+  controls.appendChild(help);
+
+  const risks = getSelectedDiscardRiskCounts();
+  const riskEntries = Object.entries(risks);
+  if (riskEntries.length > 0) {
+    const warning = document.createElement("p");
+    warning.className = "equip-organize-warning";
+    warning.setAttribute("role", "status");
+    warning.textContent = `注意: ${riskEntries.map(([risk, riskCount]) => `${risk} ${riskCount}件`).join("、")}を選択中です。`;
+    controls.appendChild(warning);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "equip-organize-inline-actions";
+  const clearButton = document.createElement("button");
+  clearButton.type = "button";
+  clearButton.className = "btn equip-organize-clear";
+  clearButton.disabled = equipState.selectedDiscardIndices.size === 0;
+  clearButton.textContent = "選択解除";
+  clearButton.addEventListener("click", () => {
+    clearDiscardSelection();
+    renderEquip();
+  });
+  actions.appendChild(clearButton);
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "btn equip-organize-cancel";
+  cancelButton.textContent = "通常表示に戻る";
+  cancelButton.addEventListener("click", exitOrganizeMode);
+  actions.appendChild(cancelButton);
+  controls.appendChild(actions);
+  return controls;
 }
 
 function createEquipmentList(char, savedScrollTop) {
@@ -643,6 +758,9 @@ function createEquipmentList(char, savedScrollTop) {
   headingBag.className = "equip-section-heading";
   headingBag.textContent = "バッグの装備品";
   bagSection.appendChild(headingBag);
+  if (equipState.mode === "organize") {
+    bagSection.appendChild(createOrganizeControls());
+  }
 
   const itemList = document.createElement("div");
   itemList.className = "equip-item-list";
@@ -666,12 +784,20 @@ function createEquipmentList(char, savedScrollTop) {
       }
 
       const selected = !equipState.selectedIsEquipped && equipState.selectedIdx === idx;
+      const selectedForDiscard = equipState.selectedDiscardIndices.has(idx);
+      const equipped = isItemEquipped(itemKey);
       const preview = getEquipPreview(char, itemKey, equipState.selectedSlot);
       const availability = canEquip(char, itemKey, preview?.slot);
       const row = document.createElement("button");
       row.type = "button";
-      row.className = `equip-item-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${availability.ok ? "" : "not-equipable"}`.trim();
+      row.className = `equip-item-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${selectedForDiscard ? "discard-selected" : ""} ${equipped ? "discard-unavailable" : ""} ${availability.ok ? "" : "not-equipable"}`.trim();
       row.setAttribute("aria-selected", selected ? "true" : "false");
+      if (equipState.mode === "organize") {
+        row.setAttribute("role", "checkbox");
+        row.setAttribute("aria-checked", selectedForDiscard ? "true" : "false");
+        row.setAttribute("aria-label", `${!isIdentified(itemKey) ? "未鑑定の" : ""}${item.name}${equipped ? "（装備中・選択不可）" : ""}`);
+        row.disabled = equipped;
+      }
 
       const left = document.createElement("div");
       left.className = "equip-item-row-main";
@@ -692,7 +818,10 @@ function createEquipmentList(char, savedScrollTop) {
       if (rarityBadge) badges.appendChild(rarityBadge);
 
       const badge = document.createElement("span");
-      if (!isIdentified(itemKey)) {
+      if (equipState.mode === "organize" && equipped) {
+        badge.className = "equip-row-badge cant";
+        badge.textContent = "装備中";
+      } else if (!isIdentified(itemKey)) {
         badge.className = "equip-row-badge unident";
         badge.textContent = "? 未鑑定";
         badge.style.background = "rgba(255, 170, 0, 0.2)";
@@ -708,6 +837,16 @@ function createEquipmentList(char, savedScrollTop) {
       row.appendChild(badges);
 
       row.addEventListener("click", () => {
+        if (equipState.mode === "organize") {
+          if (equipped) return;
+          if (selectedForDiscard) {
+            equipState.selectedDiscardIndices.delete(idx);
+          } else {
+            equipState.selectedDiscardIndices.add(idx);
+          }
+          renderEquip();
+          return;
+        }
         if (selected) {
           clearSelection();
         } else {
@@ -1268,13 +1407,14 @@ export function renderEquip() {
   createHeader(overlay, char);
 
   const body = document.createElement("div");
-  body.className = `equip-body ${detailMode ? "is-detail" : ""}`.trim();
+  const organizing = equipState.mode === "organize";
+  body.className = `equip-body ${detailMode ? "is-detail" : ""} ${organizing ? "is-organize" : ""}`.trim();
   if (detailMode) {
     body.appendChild(createDetailPanel(char));
   } else {
     body.appendChild(createEquipmentList(char, savedScrollTop));
-    body.appendChild(createDetailPanel(char));
+    if (!organizing) body.appendChild(createDetailPanel(char));
   }
   overlay.appendChild(body);
-  if (!detailMode) createFooter(overlay);
+  if (!detailMode) createFooter(overlay, { organizing });
 }
