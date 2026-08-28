@@ -2,7 +2,7 @@
 
 - runner: `standard-v1`
 - baseline source: `d4a6a455847541c3f1079d1eddc449f3bc2af5fd`
-- candidate source: `b7d08d0d5150013273b9b6c991eeb6746efd9648`
+- candidate source: `20cb8586db8a0877895902fbb321981faf201ee6`
 - production baseline: `941129720dadaff274893b0606f04e509eb06ea1`
 - configuration: seed `843`, `N=500` per class, calibration `100`, classes `Fighter/Thief/Priest/Mage`, scenarios `workshop-empty/workshop-complete`, targets `B5/B10/B15/B20`
 - commands: `node scratch/measurements/measure_balance.js --output ...` for both SHAs, then `node scratch/measurements/compare_balance.js ...`
@@ -31,7 +31,7 @@ Each cell is `trap_hazard deaths / reachedRate / averageReachedFloor`, shown as
 The targeted deterministic route case (`SIM_SEED=231`, Fighter, B1→B6,
 `runIndex=180`, certain detection, fixed encounter rate `0.1`) produced
 machine-readable diagnostics: `discoveredTrapEncounters=7`,
-`detourSelections=1`, `detourExtraSteps=3`,
+`detourSelections=1`, `detourExtraSteps=2`,
 `detourActualMovementSteps=12`, `detourNormalEncounters=2`,
 `detourOtherTrapEncounters=1`, `actionSelections={disarm:0,force:7}`, and
 `cycleDetections=0`. Repeating the same run produced an identical result.
