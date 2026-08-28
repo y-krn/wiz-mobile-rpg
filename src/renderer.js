@@ -53,10 +53,6 @@ export function getLandmarkStyles(visualSignature) {
   };
 }
 
-function getChestStyle(style) {
-  return LANDMARK_STYLE_SETS.chest.has(style) ? style : LANDMARK_STYLE_IDS.chest[0];
-}
-
 function finiteOr(value, fallback) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
 }
@@ -879,19 +875,15 @@ export class DungeonRenderer {
     const chestHeight = chestWidth * 0.58;
     const x = xl + (corridorWidth - chestWidth) / 2;
     const y = yb - chestHeight - 2;
-    const safeStyle = getChestStyle(style);
+    const safeStyle = LANDMARK_STYLE_SETS.chest.has(style) ? style : LANDMARK_STYLE_IDS.chest[0];
+    const color = "#ffd60a";
 
     ctx.save();
-    ctx.strokeStyle = "#ffd60a";
+    ctx.strokeStyle = color;
     ctx.lineWidth = Math.max(1, corridorWidth * 0.008);
-    ctx.shadowColor = "#ffd60a";
+    ctx.shadowColor = color;
     ctx.shadowBlur = Math.max(3, corridorWidth * 0.025);
-    this.drawChestShape(ctx, safeStyle, x, y, chestWidth, chestHeight, "#ffd60a");
-    ctx.restore();
-  }
-
-  drawChestShape(ctx, style, x, y, chestWidth, chestHeight, color, bodyTopRatio = 0.35) {
-    const bodyTop = y + chestHeight * bodyTopRatio;
+    const bodyTop = y + chestHeight * 0.35;
     const bodyBottom = y + chestHeight;
     const drawBody = (fill = "#6b3a00") => {
       ctx.fillStyle = fill;
@@ -899,7 +891,7 @@ export class DungeonRenderer {
       ctx.strokeRect(x, bodyTop, chestWidth, bodyBottom - bodyTop);
     };
 
-    if (style === "wood_crate") {
+    if (safeStyle === "wood_crate") {
       drawBody();
       ctx.beginPath();
       ctx.moveTo(x, bodyTop);
@@ -911,7 +903,7 @@ export class DungeonRenderer {
       ctx.stroke();
       ctx.fillStyle = color;
       ctx.fillRect(x + chestWidth * 0.44, y, chestWidth * 0.12, chestHeight);
-    } else if (style === "stone_ossuary") {
+    } else if (safeStyle === "stone_ossuary") {
       drawBody("#77736b");
       ctx.beginPath();
       ctx.moveTo(x - chestWidth * 0.04, bodyTop);
@@ -927,7 +919,7 @@ export class DungeonRenderer {
       ctx.moveTo(x + chestWidth * 0.39, y + chestHeight * 0.02);
       ctx.lineTo(x + chestWidth * 0.61, y + chestHeight * 0.02);
       ctx.stroke();
-    } else if (style === "bone_cache") {
+    } else if (safeStyle === "bone_cache") {
       drawBody("#4d3e55");
       ctx.beginPath();
       ctx.moveTo(x - chestWidth * 0.10, bodyTop);
@@ -940,7 +932,7 @@ export class DungeonRenderer {
       ctx.moveTo(x + chestWidth * 0.92, y + chestHeight * 0.02);
       ctx.lineTo(x + chestWidth * 0.08, y + chestHeight * 0.34);
       ctx.stroke();
-    } else if (style === "sealed_book_coffer") {
+    } else if (safeStyle === "sealed_book_coffer") {
       drawBody("#174c56");
       ctx.beginPath();
       ctx.moveTo(x, bodyTop);
@@ -960,7 +952,7 @@ export class DungeonRenderer {
       ctx.beginPath();
       ctx.arc(x + chestWidth * 0.50, bodyTop + chestHeight * 0.12, chestWidth * 0.07, 0, Math.PI * 2);
       ctx.fill();
-    } else if (style === "iron_strongbox") {
+    } else if (safeStyle === "iron_strongbox") {
       drawBody("#514747");
       ctx.fillStyle = "#514747";
       ctx.fillRect(x + chestWidth * 0.08, y, chestWidth * 0.84, chestHeight * 0.35);
@@ -988,6 +980,7 @@ export class DungeonRenderer {
       ctx.lineTo(x + chestWidth * 0.83, y + chestHeight * 0.08);
       ctx.stroke();
     }
+    ctx.restore();
   }
 
   drawTrapIcon(ctx, z, revealSpecies, style, projection = getProjectionPlanes()) {
@@ -1113,26 +1106,35 @@ export class DungeonRenderer {
     ctx.shadowBlur = 0; // Reset shadow
   }
 
-  drawChest(ctx, style) {
-    // Render the current biome's treasure chest in front.
+  drawChest(ctx) {
+    // Render a 3D treasure chest in front
     const cx = VIEW_W / 2;
     const cy = VIEW_H / 2 + 20;
-
-    const chestStyle = style === undefined
-      ? getLandmarkStyles(getFloorTheme(state.floor).visualSignature).chestStyle
-      : getChestStyle(style);
-    const chestWidth = 60;
-    const chestHeight = 70;
-    const chestX = cx - chestWidth / 2;
-    const chestY = cy - 35;
-
+    
     ctx.strokeStyle = "#ffb300"; // Glowing amber chest
     ctx.shadowColor = "#ffb300";
     ctx.shadowBlur = 8;
     ctx.lineWidth = 2.5;
 
-    this.drawChestShape(ctx, chestStyle, chestX, chestY, chestWidth, chestHeight, "#ffb300", 0.5);
+    ctx.beginPath();
+    // Lid (Arc-like shape)
+    ctx.moveTo(cx - 30, cy - 10);
+    ctx.quadraticCurveTo(cx, cy - 35, cx + 30, cy - 10);
+    ctx.lineTo(cx + 30, cy);
+    ctx.lineTo(cx - 30, cy);
+    ctx.closePath();
+    
+    // Box
+    ctx.rect(cx - 30, cy, 60, 35);
+    
+    // Keyhole & bands
+    ctx.moveTo(cx - 15, cy - 10);
+    ctx.lineTo(cx - 15, cy + 35);
+    ctx.moveTo(cx + 15, cy - 10);
+    ctx.lineTo(cx + 15, cy + 35);
 
+    ctx.stroke();
+    
     // Lock
     ctx.fillStyle = "#ff3b30";
     ctx.beginPath();
