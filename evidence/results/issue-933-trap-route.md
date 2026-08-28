@@ -1,9 +1,9 @@
 # Issue #933 trap-route balance measurement
 
 - runner: `standard-v1`
-- baseline source: `d4a6a455847541c3f1079d1eddc449f3bc2af5fd`
-- candidate source: `20cb8586db8a0877895902fbb321981faf201ee6`
-- production baseline: `941129720dadaff274893b0606f04e509eb06ea1`
+- baseline source: `4e644e6ba70980c44e20252812e6c5966d510564`
+- candidate source: `b00ca33bf63d51b566f1f715fa1b7d4f9a1dd681`
+- production baseline: `4e644e6ba70980c44e20252812e6c5966d510564`
 - configuration: seed `843`, `N=500` per class, calibration `100`, classes `Fighter/Thief/Priest/Mage`, scenarios `workshop-empty/workshop-complete`, targets `B5/B10/B15/B20`
 - commands: `node scratch/measurements/measure_balance.js --output ...` for both SHAs, then `node scratch/measurements/compare_balance.js ...`
 
