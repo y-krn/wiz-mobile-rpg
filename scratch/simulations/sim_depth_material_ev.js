@@ -8748,20 +8748,31 @@ function findFloorCell(grid, predicate) {
   return null;
 }
 
-function canTraverseRouteEdge(grid, current, direction) {
+function canTraverseRouteEdge(
+  grid,
+  current,
+  direction,
+  { revealSecretDoors = false } = {}
+) {
   const cell = grid[current.y]?.[current.x];
   const nextX = current.x + direction.dx;
   const nextY = current.y + direction.dy;
   const next = grid[nextY]?.[nextX];
   if (!cell || !next) return false;
-  const revealedSecret = Boolean(
+  const revealedSecret = revealSecretDoors || Boolean(
     cell.secretDoor?.[direction.dir] && cell.secretFound?.[direction.dir]
   );
   if (cell.walls?.[direction.dir] && !revealedSecret) return false;
   return !next.blockEnter?.[(direction.dir + 2) % 4];
 }
 
-export function findShortestFloorPath(grid, start, target, blockedKeys = new Set()) {
+export function findShortestFloorPath(
+  grid,
+  start,
+  target,
+  blockedKeys = new Set(),
+  { revealSecretDoors = false } = {}
+) {
   if (!start || !target) return null;
   const startKey = routeKey(start);
   const targetKey = routeKey(target);
@@ -8772,7 +8783,7 @@ export function findShortestFloorPath(grid, start, target, blockedKeys = new Set
     const currentKey = routeKey(current);
     if (currentKey === targetKey) break;
     for (const direction of ROUTE_DIRECTIONS) {
-      if (!canTraverseRouteEdge(grid, current, direction)) continue;
+      if (!canTraverseRouteEdge(grid, current, direction, { revealSecretDoors })) continue;
       const next = {
         x: current.x + direction.dx,
         y: current.y + direction.dy
@@ -9317,7 +9328,13 @@ function findSecretRoomPlans(generated, routePlan) {
       const source = { x, y };
       const routeIndex = routeIndices.get(routeKey(source));
       const sourcePath = routeIndex === undefined
-        ? findShortestFloorPath(generated.grid, start, source)
+        ? findShortestFloorPath(
+            generated.grid,
+            start,
+            source,
+            new Set(),
+            { revealSecretDoors: true }
+          )
         : null;
       if (routeIndex === undefined && !sourcePath) continue;
       plans.push({
@@ -10451,6 +10468,12 @@ function resolveSecretRoomSearch({
 
   metrics.secretSearchSuccesses++;
   metrics.secretRoomDiscoveries++;
+  const sourceCell = state.map?.[plan.source.y]?.[plan.source.x];
+  const roomCell = state.map?.[plan.room.y]?.[plan.room.x];
+  if (sourceCell?.secretFound && roomCell?.secretFound) {
+    sourceCell.secretFound[plan.direction] = true;
+    roomCell.secretFound[(plan.direction + 2) % 4] = true;
+  }
   // Entering and returning from the revealed room are real movement cost. The
   // route planner uses the hidden edge only after the production search roll.
   metrics.secretSearchExtraSteps += 2;
