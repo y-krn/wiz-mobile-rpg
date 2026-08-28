@@ -167,7 +167,6 @@ const {
   calculateDetectRate,
   calculateFloorDisarmEvThreshold,
   calculateFloorTrapActionExpectedDamage,
-  calculateFloorTrapAvoidanceEv,
   calculateFloorTrapSuccessRate,
   FLOOR_DISARM_CALIBRATION,
   isDisarmAptClass,
@@ -342,7 +341,6 @@ const SIM_ENV_KEYS = Object.freeze([
   "SIM_CALIBRATION_RUNS",
   "DEPARTURE_CRAFT_IDS",
   "TRAP_POLICY",
-  "TRAP_AVOIDANCE_POLICY",
   "TRAP_DAMAGE_MULTIPLIER",
   "IDENTIFICATION_POLICY",
   "IDENTIFICATION_STARTING_POWDER",
@@ -415,7 +413,6 @@ const CURRENT_SIM_ENV_DEFAULTS = Object.freeze({
   SIM_CALIBRATION_RUNS: "100",
   DEPARTURE_CRAFT_IDS: "",
   TRAP_POLICY: "legacy",
-  TRAP_AVOIDANCE_POLICY: "ev",
   TRAP_DAMAGE_MULTIPLIER: "1",
   IDENTIFICATION_POLICY: "powder",
   IDENTIFICATION_STARTING_POWDER: String(IDENTIFICATION_BALANCE.startingPowder),
@@ -461,7 +458,6 @@ const BALANCE_MAIN_PRESET = Object.freeze({
   SIM_CALIBRATION_RUNS: "100",
   DEPARTURE_CRAFT_IDS: "",
   TRAP_POLICY: "conservative",
-  TRAP_AVOIDANCE_POLICY: "ev",
   TRAP_DAMAGE_MULTIPLIER: "1",
   IDENTIFICATION_POLICY: "powder",
   IDENTIFICATION_STARTING_POWDER: String(IDENTIFICATION_BALANCE.startingPowder),
@@ -1176,23 +1172,6 @@ if (!TRAP_POLICY_DEFINITIONS[DEFAULT_TRAP_POLICY_ID]) {
 if (!TRAP_POLICY_DEFINITIONS[DEFAULT_FLOOR_TRAP_POLICY_ID]) {
   throw new Error(
     `floor trap policy must be disabled|legacy|conservative: ${DEFAULT_FLOOR_TRAP_POLICY_ID}`
-  );
-}
-const TRAP_AVOIDANCE_POLICY_DEFINITIONS = Object.freeze({
-  legacy: Object.freeze({
-    id: "legacy",
-    label: "旧方針（迂回路があれば無条件回避）"
-  }),
-  ev: Object.freeze({
-    id: "ev",
-    label: "回避EV（追加遭遇被害と直接対応を比較）"
-  })
-});
-export const DEFAULT_TRAP_AVOIDANCE_POLICY_ID =
-  SIM_ENV.TRAP_AVOIDANCE_POLICY || "ev";
-if (!TRAP_AVOIDANCE_POLICY_DEFINITIONS[DEFAULT_TRAP_AVOIDANCE_POLICY_ID]) {
-  throw new Error(
-    `TRAP_AVOIDANCE_POLICY must be legacy|ev: ${DEFAULT_TRAP_AVOIDANCE_POLICY_ID}`
   );
 }
 const trapBonusOverrideInput = process.env.TRAP_BONUS_OVERRIDE;
@@ -1926,24 +1905,10 @@ function getFloorTrapActionPlan(state, trap, floor) {
   };
 }
 
-function getTrapAvoidanceEvaluation(state, trap, floor, step, avoidance, metrics) {
-  const extraSteps = Math.max(0, Math.floor(Number(avoidance.extraSteps) || 0));
-  const encounterChances = Array.from(
-    { length: extraSteps },
-    (_, index) => getEncounterChance(step + index + 1, state)
-  );
-  const actionPlan = getFloorTrapActionPlan(state, trap, floor);
-  const evaluation = calculateFloorTrapAvoidanceEv({
-    encounterChances,
-    expectedDamagePerEncounter: getExpectedNormalCombatDamage(metrics),
-    directExpectedDamage: actionPlan.expectedDamage
-  });
-  return { ...evaluation, actionPlan, extraSteps };
-}
-
 function createTrapAggregate() {
   return {
     runs: 0,
+    route: createTrapRouteAggregate(),
     encounters: 0,
     encountersBySource: { chest: 0, floor: 0 },
     activations: 0,
@@ -1958,15 +1923,7 @@ function createTrapAggregate() {
     disarmAttempts: 0,
     disarmSuccesses: 0,
     detectionAttempts: 0,
-    avoided: 0,
     forced: 0,
-    avoidanceExtraSteps: 0,
-    avoidanceCandidates: 0,
-    avoidanceRejected: 0,
-    avoidanceNoEstimate: 0,
-    avoidanceExpectedEncounterCount: 0,
-    avoidanceExpectedEncounterDamage: 0,
-    avoidanceExpectedDirectDamage: 0,
     kitsAcquired: 0,
     kitsUsed: 0,
     trapKitsAcquiredBySource: {
@@ -2835,6 +2792,7 @@ function finalizeOutcomeAggregate(aggregate) {
 
 function addTrapAggregate(target, result) {
   target.runs++;
+  addTrapRouteAggregate(target.route, result);
   target.encounters += result.trapEncounterCount;
   Object.entries(result.trapEncounterBySource).forEach(([source, amount]) => {
     target.encountersBySource[source] =
@@ -2858,15 +2816,7 @@ function addTrapAggregate(target, result) {
   target.disarmAttempts += result.trapDisarmAttempts;
   target.disarmSuccesses += result.trapDisarmSuccesses;
   target.detectionAttempts += result.trapDetectionAttempts;
-  target.avoided += result.trapAvoided;
   target.forced += result.trapForced;
-  target.avoidanceExtraSteps += result.trapAvoidanceExtraSteps;
-  target.avoidanceCandidates += result.trapAvoidanceCandidates;
-  target.avoidanceRejected += result.trapAvoidanceRejected;
-  target.avoidanceNoEstimate += result.trapAvoidanceNoEstimate;
-  target.avoidanceExpectedEncounterCount += result.trapAvoidanceExpectedEncounterCount;
-  target.avoidanceExpectedEncounterDamage += result.trapAvoidanceExpectedEncounterDamage;
-  target.avoidanceExpectedDirectDamage += result.trapAvoidanceExpectedDirectDamage;
   target.kitsAcquired += result.trapKitsAcquired;
   target.kitsUsed += result.trapKitsUsed;
   Object.entries(result.trapKitsAcquiredBySource).forEach(([source, amount]) => {
@@ -2949,6 +2899,7 @@ function finalizeTrapAggregate(aggregate) {
   const runs = Math.max(1, aggregate.runs);
   return {
     runs: aggregate.runs,
+    route: finalizeTrapRouteAggregate(aggregate.route),
     averageConsumableUsageByItem: Object.fromEntries(
       Object.entries(aggregate.consumableUsageByItem).map(([itemKey, usage]) => [
         itemKey,
@@ -2977,18 +2928,7 @@ function finalizeTrapAggregate(aggregate) {
     averageTrapDisarmAttempts: aggregate.disarmAttempts / runs,
     averageTrapDisarmSuccesses: aggregate.disarmSuccesses / runs,
     averageTrapDetectionAttempts: aggregate.detectionAttempts / runs,
-    averageTrapAvoided: aggregate.avoided / runs,
     averageTrapForced: aggregate.forced / runs,
-    averageTrapAvoidanceExtraSteps: aggregate.avoidanceExtraSteps / runs,
-    averageTrapAvoidanceCandidates: aggregate.avoidanceCandidates / runs,
-    averageTrapAvoidanceRejected: aggregate.avoidanceRejected / runs,
-    averageTrapAvoidanceNoEstimate: aggregate.avoidanceNoEstimate / runs,
-    averageTrapAvoidanceExpectedEncounterCount:
-      aggregate.avoidanceExpectedEncounterCount / runs,
-    averageTrapAvoidanceExpectedEncounterDamage:
-      aggregate.avoidanceExpectedEncounterDamage / runs,
-    averageTrapAvoidanceExpectedDirectDamage:
-      aggregate.avoidanceExpectedDirectDamage / runs,
     averageTrapKitsAcquired: aggregate.kitsAcquired / runs,
     averageTrapKitsUsed: aggregate.kitsUsed / runs,
     averageTrapKitsAcquiredBySource: Object.fromEntries(
@@ -4273,8 +4213,6 @@ function createSimulationState(
       trapGuardOverride: scenario.trapGuardOverride || null,
       trapPolicy: trapPolicies.floor,
       chestTrapPolicy: trapPolicies.chest,
-      trapAvoidancePolicy:
-        scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
       floorTrapDetection: scenario.floorTrapDetection || "source",
       ignoreThiefSustain: Boolean(scenario.ignoreThiefSustain),
       trapOverride: scenario.trapOverride || null,
@@ -8810,18 +8748,31 @@ function findFloorCell(grid, predicate) {
   return null;
 }
 
-function canTraverseRouteEdge(grid, current, direction) {
+function canTraverseRouteEdge(
+  grid,
+  current,
+  direction,
+  { revealSecretDoors = false } = {}
+) {
   const cell = grid[current.y]?.[current.x];
   const nextX = current.x + direction.dx;
   const nextY = current.y + direction.dy;
   const next = grid[nextY]?.[nextX];
   if (!cell || !next) return false;
-  const revealedSecret = Boolean(cell.secretDoor?.[direction.dir]);
+  const revealedSecret = revealSecretDoors || Boolean(
+    cell.secretDoor?.[direction.dir] && cell.secretFound?.[direction.dir]
+  );
   if (cell.walls?.[direction.dir] && !revealedSecret) return false;
   return !next.blockEnter?.[(direction.dir + 2) % 4];
 }
 
-function findShortestFloorPath(grid, start, target, blockedKeys = new Set()) {
+export function findShortestFloorPath(
+  grid,
+  start,
+  target,
+  blockedKeys = new Set(),
+  { revealSecretDoors = false } = {}
+) {
   if (!start || !target) return null;
   const startKey = routeKey(start);
   const targetKey = routeKey(target);
@@ -8832,7 +8783,7 @@ function findShortestFloorPath(grid, start, target, blockedKeys = new Set()) {
     const currentKey = routeKey(current);
     if (currentKey === targetKey) break;
     for (const direction of ROUTE_DIRECTIONS) {
-      if (!canTraverseRouteEdge(grid, current, direction)) continue;
+      if (!canTraverseRouteEdge(grid, current, direction, { revealSecretDoors })) continue;
       const next = {
         x: current.x + direction.dx,
         y: current.y + direction.dy
@@ -8858,6 +8809,105 @@ function findShortestFloorPath(grid, start, target, blockedKeys = new Set()) {
     cursor = previous.get(cursor);
   }
   return reversed.reverse();
+}
+
+function findLowestRiskFloorPath(
+  grid,
+  start,
+  target,
+  { state, floor, knownTrapKeys = new Set(), metrics, step = 0 } = {}
+) {
+  if (!start || !target) return null;
+  const startKey = routeKey(start);
+  const targetKey = routeKey(target);
+  const distance = new Map([[startKey, 0]]);
+  const previous = new Map([[startKey, null]]);
+  const queue = [{ ...start, key: startKey }];
+  const expectedCombatDamage = Math.max(1, getExpectedNormalCombatDamage(metrics) || 1);
+
+  const cellCost = (coord, pathDistance) => {
+    const cell = grid[coord.y]?.[coord.x];
+    const encounterRisk = state
+      ? getEncounterChance(step + pathDistance, state)
+      : 0;
+    let cost = 1 + encounterRisk;
+    const trap = cell?.trap;
+    if (trap && knownTrapKeys.has(routeKey(coord)) && trap.state === "discovered") {
+      const actionPlan = getFloorTrapActionPlan(state, trap, floor);
+      cost += actionPlan.expectedDamage / expectedCombatDamage;
+    }
+    return cost;
+  };
+
+  while (queue.length > 0) {
+    queue.sort((left, right) =>
+      distance.get(left.key) - distance.get(right.key) ||
+      left.y - right.y ||
+      left.x - right.x
+    );
+    const current = queue.shift();
+    if (current.key === targetKey) break;
+    for (const direction of ROUTE_DIRECTIONS) {
+      if (!canTraverseRouteEdge(grid, current, direction)) continue;
+      const next = {
+        x: current.x + direction.dx,
+        y: current.y + direction.dy
+      };
+      const nextKey = routeKey(next);
+      const nextDistance = distance.get(current.key) +
+        cellCost(next, Math.max(1, Math.round(distance.get(current.key)) + 1));
+      const priorDistance = distance.get(nextKey);
+      if (
+        priorDistance !== undefined &&
+        nextDistance >= priorDistance - 1e-9
+      ) continue;
+      distance.set(nextKey, nextDistance);
+      previous.set(nextKey, current.key);
+      queue.push({ ...next, key: nextKey });
+    }
+  }
+
+  if (!previous.has(targetKey)) return null;
+  const reversed = [];
+  let cursor = targetKey;
+  while (cursor) {
+    const [x, y] = cursor.split(",").map(Number);
+    reversed.push({ x, y });
+    cursor = previous.get(cursor);
+  }
+  return reversed.reverse();
+}
+
+export function chooseSimulationFloorRoute(
+  generated,
+  current,
+  target,
+  { state, floor, knownTrapKeys = new Set(), metrics, step = 0 } = {}
+) {
+  const directPath = findShortestFloorPath(generated.grid, current, target);
+  const alternatePath = findShortestFloorPath(
+    generated.grid,
+    current,
+    target,
+    knownTrapKeys
+  );
+  const selectedPath = findLowestRiskFloorPath(generated.grid, current, target, {
+    state,
+    floor,
+    knownTrapKeys,
+    metrics,
+    step
+  }) || directPath;
+  return {
+    path: selectedPath,
+    directPath,
+    alternatePath,
+    detours: Boolean(
+      selectedPath?.[1] &&
+      directPath?.[1] &&
+      routeKey(selectedPath[1]) !== routeKey(directPath[1])
+    )
+  };
 }
 
 function normalizeBossExitPolicy(policy) {
@@ -9278,7 +9328,13 @@ function findSecretRoomPlans(generated, routePlan) {
       const source = { x, y };
       const routeIndex = routeIndices.get(routeKey(source));
       const sourcePath = routeIndex === undefined
-        ? findShortestFloorPath(generated.grid, start, source)
+        ? findShortestFloorPath(
+            generated.grid,
+            start,
+            source,
+            new Set(),
+            { revealSecretDoors: true }
+          )
         : null;
       if (routeIndex === undefined && !sourcePath) continue;
       plans.push({
@@ -9326,27 +9382,6 @@ function calculateSecretSearchSuccessRateForSimulation(party, floor) {
   }
   rate -= (floor - 1) * 0.05;
   return Math.max(0.10, Math.min(0.95, rate));
-}
-
-function scheduleFloorTraps(generated, routePlan, floorSteps) {
-  const schedule = new Map();
-  const seen = new Set();
-  routePlan.path.slice(1).forEach((coord, index) => {
-    const trap = generated.grid[coord.y]?.[coord.x]?.trap;
-    if (!trap || seen.has(trap.id)) return;
-    seen.add(trap.id);
-    const step = Math.min(
-      floorSteps,
-      Math.max(1, Math.ceil((index + 1) * EXPLORATION_FACTOR))
-    );
-    if (!schedule.has(step)) schedule.set(step, []);
-    schedule.get(step).push({
-      trap,
-      previousCoord: routePlan.path[index],
-      step
-    });
-  });
-  return schedule;
 }
 
 function resolveFlameTrapAtStep({
@@ -9420,77 +9455,225 @@ function resolveFlameTrapAtStep({
   return true;
 }
 
-function getTrapAvoidancePlan(generated, currentCoord, trap) {
+function createSimulationFloorRoute(generated, routePlan, state, floor, metrics) {
+  const start = findFloorCell(generated.grid, cell => cell.type === "stairs-up");
   const stairs = findFloorCell(generated.grid, cell => cell.type === "stairs-down");
-  const blocked = new Set([routeKey(trap.position)]);
-  const directPath = findShortestFloorPath(generated.grid, currentCoord, stairs);
-  const alternatePath = findShortestFloorPath(
-    generated.grid,
-    currentCoord,
-    stairs,
-    blocked
-  );
-  if (!directPath || !alternatePath) return null;
-  return {
-    extraSteps: Math.ceil(
-      Math.max(0, alternatePath.length - directPath.length) * EXPLORATION_FACTOR
-    )
+  const targets = [
+    ...(routePlan.routeEvents || []),
+    ...(stairs ? [{ x: stairs.x, y: stairs.y, type: "stairs-down" }] : [])
+  ];
+  const route = {
+    current: start ? { ...start } : null,
+    path: routePlan.path?.length
+      ? routePlan.path.map(coord => ({ ...coord }))
+      : (start ? [{ ...start }] : []),
+    targetIndex: 0,
+    targets,
+    knownTrapKeys: new Set(),
+    processedEventKeys: new Set(),
+    replanStates: new Set(),
+    nextMoveAt: EXPLORATION_FACTOR,
+    detourActive: false,
+    detourTrapId: null,
+    detourTargetKey: null
   };
+  return route;
+}
+
+function replanSimulationFloorRoute(route, generated, state, floor, metrics, step) {
+  if (!route.current) return { path: [], cycleDetected: false };
+  while (
+    route.targetIndex < route.targets.length &&
+    routeKey(route.targets[route.targetIndex]) === routeKey(route.current)
+  ) {
+    route.targetIndex++;
+  }
+  const target = route.targets[route.targetIndex];
+  if (!target) {
+    route.path = [{ ...route.current }];
+    return { path: route.path, cycleDetected: false };
+  }
+  const stateKey = `${routeKey(route.current)}>${routeKey(target)}>` +
+    [...route.knownTrapKeys].sort().join("|");
+  const cycleDetected = route.replanStates.has(stateKey);
+  route.replanStates.add(stateKey);
+  const choice = cycleDetected
+    ? {
+        path: findShortestFloorPath(generated.grid, route.current, target) || [route.current],
+        directPath: findShortestFloorPath(generated.grid, route.current, target),
+        alternatePath: null,
+        detours: false
+      }
+    : chooseSimulationFloorRoute(generated, route.current, target, {
+        state,
+        floor,
+        knownTrapKeys: route.knownTrapKeys,
+        metrics,
+        step
+      });
+  route.path = choice.path || [{ ...route.current }];
+  return { ...choice, cycleDetected };
+}
+
+function recordTrapRouteReplan(
+  route,
+  choice,
+  trap,
+  metrics,
+  reason,
+  step
+) {
+  if (choice.cycleDetected) metrics.trapRoute.cycleDetections++;
+  if (reason !== "discovery") return;
+  const hasAlternate = Boolean(choice.alternatePath);
+  if (!hasAlternate) {
+    metrics.trapRoute.noAlternateRoute++;
+    return;
+  }
+  const selectedNext = choice.path?.[1];
+  const trapKey = routeKey(trap.position);
+  if (!selectedNext || routeKey(selectedNext) === trapKey) return;
+  metrics.trapRoute.detourSelections++;
+  const directLength = Math.max(0, (choice.directPath?.length || 1) - 1);
+  const selectedLength = Math.max(0, (choice.path?.length || 1) - 1);
+  const plannedExtraSteps = Math.max(
+    0,
+    Math.ceil((selectedLength - directLength) * EXPLORATION_FACTOR)
+  );
+  metrics.trapRoute.detourBudgetExtraSteps += plannedExtraSteps;
+  metrics.trapRoute.detourDirectMovementSteps = directLength;
+  metrics.trapRoute.detourActiveMovementSteps = 0;
+  route.detourActive = true;
+  metrics.trapRoute.detourActive = true;
+  route.detourTrapId = trap.id || trapKey;
+  route.detourTargetKey = routeKey(route.targets[route.targetIndex]);
+  metrics.trapRoute.decisions.push({
+    floor: metrics.trapRoute.currentFloor,
+    step,
+    trapId: trap.id || null,
+    trapType: trap.type || null,
+    selected: "detour",
+    directSteps: directLength,
+    selectedSteps: selectedLength
+  });
+}
+
+function finalizeTrapRouteDetour(metrics) {
+  if (!metrics.trapRoute.detourActive) return;
+  const actualExtraSteps = Math.max(
+    0,
+    metrics.trapRoute.detourActiveMovementSteps -
+      metrics.trapRoute.detourDirectMovementSteps
+  );
+  metrics.trapRoute.detourExtraSteps += actualExtraSteps;
+  metrics.trapRoute.detourActiveMovementSteps = 0;
+  metrics.trapRoute.detourDirectMovementSteps = 0;
+  metrics.trapRoute.detourActive = false;
+}
+
+function advanceSimulationFloorRoute(route, generated, state, floor, metrics, step) {
+  if (!route.current || step < route.nextMoveAt) return { moved: false };
+  route.nextMoveAt += EXPLORATION_FACTOR;
+  if (
+    route.targets[route.targetIndex] &&
+    routeKey(route.targets[route.targetIndex]) === routeKey(route.current)
+  ) {
+    replanSimulationFloorRoute(route, generated, state, floor, metrics, step);
+  }
+  let next = route.path[1];
+  if (!next || routeKey(route.path[0]) !== routeKey(route.current)) {
+    replanSimulationFloorRoute(route, generated, state, floor, metrics, step);
+    next = route.path[1];
+  }
+  if (!next) return { moved: false };
+
+  let nextCell = generated.grid[next.y]?.[next.x];
+  const trap = nextCell?.trap;
+  if (
+    trap &&
+    trap.state !== "disabled" &&
+    state.simPolicy.trapPolicy !== "disabled"
+  ) {
+    if (trap.state === "hidden") {
+      const detection = getSimulationDetectRate(state, floor);
+      metrics.trapDetectionAttempts++;
+      metrics.trapDetectionRateCounts[detection.rate] =
+        (metrics.trapDetectionRateCounts[detection.rate] || 0) + 1;
+      if (detection.rate >= detection.cap) metrics.trapDetectionCapHits++;
+      if (Math.random() < detection.rate) {
+        trap.state = "discovered";
+        metrics.trapDetections++;
+        route.knownTrapKeys.add(routeKey(next));
+        metrics.trapRoute.currentFloor = floor;
+        const choice = replanSimulationFloorRoute(route, generated, state, floor, metrics, step);
+        recordTrapRouteReplan(route, choice, trap, metrics, "discovery", step);
+        next = route.path[1];
+        if (!next) return { moved: false };
+        if (routeKey(next) !== routeKey(trap.position)) {
+          nextCell = generated.grid[next.y]?.[next.x];
+        }
+      }
+    }
+    const currentTrap = generated.grid[next.y]?.[next.x]?.trap;
+    if (currentTrap && currentTrap.state !== "disabled") {
+      metrics.trapRoute.currentFloor = floor;
+      const result = resolveFloorTrapAtPath(
+        state,
+        generated,
+        floor,
+        { trap: currentTrap, previousCoord: route.current, step },
+        metrics
+      );
+      if (result.pitfallTriggered || !isAlive(state.party[0])) {
+        return { moved: false, trapResult: result };
+      }
+      next = route.path[1];
+      if (!next || routeKey(next) !== routeKey(currentTrap.position)) {
+        return { moved: false, trapResult: result };
+      }
+    }
+  }
+
+  if (route.detourActive) {
+    metrics.trapRoute.detourActualMovementSteps++;
+    metrics.trapRoute.detourActiveMovementSteps++;
+  }
+  const previous = route.current;
+  state.x = next.x;
+  state.y = next.y;
+  route.current = { ...next };
+  route.path = route.path.slice(1);
+  const candidate = route.targets[route.targetIndex];
+  const event = candidate && candidate.type !== "stairs-down" &&
+    routeKey(candidate) === routeKey(next) &&
+    !route.processedEventKeys.has(routeKey(candidate))
+    ? candidate
+    : null;
+  if (event) route.processedEventKeys.add(routeKey(event));
+  if (route.detourActive && route.detourTargetKey === routeKey(next)) {
+    finalizeTrapRouteDetour(metrics);
+    route.detourActive = false;
+    metrics.trapRoute.detourActive = false;
+    route.detourTrapId = null;
+    route.detourTargetKey = null;
+  }
+  return { moved: true, previous, current: { ...next }, event };
 }
 
 function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
   const { trap, previousCoord, step } = scheduled;
   metrics.trapEncounterCount++;
   metrics.trapEncounterBySource.floor++;
+  if (
+    metrics.trapRoute.detourActive &&
+    (trap.id || routeKey(trap.position)) !== metrics.trapRoute.detourTrapId
+  ) {
+    metrics.trapRoute.detourOtherTrapEncounters++;
+  }
   if (state.simPolicy.trapPolicy === "disabled" || trap.state === "disabled") {
     return { pitfallTriggered: false };
   }
-
-  if (trap.state === "hidden") {
-    const detection = getSimulationDetectRate(state, floor);
-    metrics.trapDetectionAttempts++;
-    metrics.trapDetectionRateCounts[detection.rate] =
-      (metrics.trapDetectionRateCounts[detection.rate] || 0) + 1;
-    if (detection.scoutBonus > 0) metrics.scoutBonusDetectionAttempts++;
-    if (detection.rate >= detection.cap) metrics.trapDetectionCapHits++;
-    if (Math.random() < detection.rate) {
-      trap.state = "discovered";
-      metrics.trapDetections++;
-    }
-  }
-
-  if (trap.state === "discovered") {
-    const avoidance = getTrapAvoidancePlan(generated, previousCoord, trap);
-    if (avoidance) {
-      const evaluation = getTrapAvoidanceEvaluation(
-        state,
-        trap,
-        floor,
-        step,
-        avoidance,
-        metrics
-      );
-      metrics.trapAvoidanceCandidates++;
-      metrics.trapAvoidanceExpectedEncounterCount += evaluation.expectedEncounters;
-      metrics.trapAvoidanceExpectedEncounterDamage +=
-        evaluation.expectedEncounterDamage || 0;
-      metrics.trapAvoidanceExpectedDirectDamage += evaluation.directExpectedDamage;
-      if (!evaluation.hasCombatDamageEstimate) metrics.trapAvoidanceNoEstimate++;
-
-      const useAvoidance = state.simPolicy.trapAvoidancePolicy === "legacy"
-        ? true
-        : evaluation.shouldAvoid;
-      if (!useAvoidance && state.simPolicy.trapAvoidancePolicy === "ev") {
-        metrics.trapAvoidanceRejected++;
-      } else {
-        metrics.trapAvoided++;
-        metrics.trapAvoidanceExtraSteps += avoidance.extraSteps;
-        metrics.steps += avoidance.extraSteps;
-        state.currentRun.steps += avoidance.extraSteps;
-        return { pitfallTriggered: false };
-      }
-    }
-  }
+  if (trap.state === "discovered") metrics.trapRoute.discoveredTrapEncounters++;
 
   const actionPlan = getFloorTrapActionPlan(state, trap, floor);
   metrics.trapPlanEvaluations++;
@@ -9514,6 +9697,9 @@ function resolveFloorTrapAtPath(state, generated, floor, scheduled, metrics) {
     metrics.trapDisarmCapHits++;
   }
   const action = trap.state === "hidden" ? "trigger" : actionPlan.action;
+  if (action === "disarm" || action === "force") {
+    metrics.trapRoute.actionSelections[action]++;
+  }
   metrics.trapDisarmObservations.at(-1).action = action;
   metrics.trapPlanActionCounts[action] =
     (metrics.trapPlanActionCounts[action] || 0) + 1;
@@ -9674,6 +9860,88 @@ function recordTrapDisarmObservation(observations, floor) {
 function recordTrapEaterEffect(observations, before, after) {
   const gain = Math.max(0, after - before);
   if (gain > 0) observations.trapEaterAttackGainTotal += gain;
+}
+
+function createTrapRouteMetrics() {
+  return {
+    discoveredTrapEncounters: 0,
+    detourSelections: 0,
+    noAlternateRoute: 0,
+    detourExtraSteps: 0,
+    detourActualMovementSteps: 0,
+    detourActiveMovementSteps: 0,
+    detourDirectMovementSteps: 0,
+    detourBudgetExtraSteps: 0,
+    detourNormalEncounters: 0,
+    detourOtherTrapEncounters: 0,
+    detourDeaths: 0,
+    detourRetreats: 0,
+    cycleDetections: 0,
+    actionSelections: { disarm: 0, force: 0 },
+    decisions: [],
+    currentFloor: null,
+    detourActive: false
+  };
+}
+
+function createTrapRouteAggregate() {
+  return {
+    runs: 0,
+    discoveredTrapEncounters: 0,
+    detourSelections: 0,
+    noAlternateRoute: 0,
+    detourExtraSteps: 0,
+    detourActualMovementSteps: 0,
+    detourBudgetExtraSteps: 0,
+    detourNormalEncounters: 0,
+    detourOtherTrapEncounters: 0,
+    detourDeaths: 0,
+    detourRetreats: 0,
+    cycleDetections: 0,
+    actionSelections: { disarm: 0, force: 0 }
+  };
+}
+
+function addTrapRouteAggregate(target, result) {
+  const route = result.trapRoute || createTrapRouteMetrics();
+  target.runs++;
+  [
+    "discoveredTrapEncounters",
+    "detourSelections",
+    "noAlternateRoute",
+    "detourExtraSteps",
+    "detourActualMovementSteps",
+    "detourBudgetExtraSteps",
+    "detourNormalEncounters",
+    "detourOtherTrapEncounters",
+    "detourDeaths",
+    "detourRetreats",
+    "cycleDetections"
+  ].forEach(field => { target[field] += route[field] || 0; });
+  Object.entries(route.actionSelections || {}).forEach(([action, amount]) => {
+    target.actionSelections[action] = (target.actionSelections[action] || 0) + amount;
+  });
+}
+
+function finalizeTrapRouteAggregate(aggregate) {
+  const runs = Math.max(1, aggregate.runs);
+  return {
+    runs: aggregate.runs,
+    averageDiscoveredTrapEncounters: aggregate.discoveredTrapEncounters / runs,
+    averageDetourSelections: aggregate.detourSelections / runs,
+    averageNoAlternateRoute: aggregate.noAlternateRoute / runs,
+    averageDetourExtraSteps: aggregate.detourExtraSteps / runs,
+    averageDetourActualMovementSteps: aggregate.detourActualMovementSteps / runs,
+    averageDetourBudgetExtraSteps: aggregate.detourBudgetExtraSteps / runs,
+    averageDetourNormalEncounters: aggregate.detourNormalEncounters / runs,
+    averageDetourOtherTrapEncounters: aggregate.detourOtherTrapEncounters / runs,
+    averageDetourDeaths: aggregate.detourDeaths / runs,
+    averageDetourRetreats: aggregate.detourRetreats / runs,
+    averageCycleDetections: aggregate.cycleDetections / runs,
+    averageActionSelections: Object.fromEntries(
+      Object.entries(aggregate.actionSelections).map(([action, amount]) => [action, amount / runs])
+    )
+  };
 }
 
 function applyTrapEaterChestDisarmBonus(character, observations) {
@@ -10198,6 +10466,12 @@ function resolveSecretRoomSearch({
 
   metrics.secretSearchSuccesses++;
   metrics.secretRoomDiscoveries++;
+  const sourceCell = state.map?.[plan.source.y]?.[plan.source.x];
+  const roomCell = state.map?.[plan.room.y]?.[plan.room.x];
+  if (sourceCell?.secretFound && roomCell?.secretFound) {
+    sourceCell.secretFound[plan.direction] = true;
+    roomCell.secretFound[(plan.direction + 2) % 4] = true;
+  }
   // Entering and returning from the revealed room are real movement cost. The
   // route planner uses the hidden edge only after the production search roll.
   metrics.secretSearchExtraSteps += 2;
@@ -10583,6 +10857,12 @@ function createRunDiagnosticsRecord(state, outcome, metrics, terminationReason) 
 }
 
 function finishRun(state, outcome, metrics, terminationReason = null) {
+  const detourActive = metrics.trapRoute.detourActive;
+  finalizeTrapRouteDetour(metrics);
+  if (detourActive) {
+    if (outcome === "death") metrics.trapRoute.detourDeaths++;
+    if (outcome === "retreat") metrics.trapRoute.detourRetreats++;
+  }
   if (metrics.b5FloorActive) {
     recordB5HpSnapshot(state, metrics, metrics.b5LastStep);
     if (metrics.deathSnapshot?.floor === FLAME_TRAP_MODEL.floor) {
@@ -11010,7 +11290,6 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     reserveMpViolations: metrics.reserveMpViolations,
     trapPolicy: state.simPolicy.trapPolicy,
     chestTrapPolicy: state.simPolicy.chestTrapPolicy,
-    trapAvoidancePolicy: state.simPolicy.trapAvoidancePolicy,
     floorTrapDetection: state.simPolicy.floorTrapDetection,
     trapActivations: metrics.trapActivations,
     trapActivationsBySource: { ...metrics.trapActivationsBySource },
@@ -11076,15 +11355,8 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     trapPlanActionCounts: { ...metrics.trapPlanActionCounts },
     trapActivationCauses: { ...metrics.trapActivationCauses },
     trapDisarmFailures: metrics.trapDisarmFailures,
-    trapAvoided: metrics.trapAvoided,
     trapForced: metrics.trapForced,
-    trapAvoidanceExtraSteps: metrics.trapAvoidanceExtraSteps,
-    trapAvoidanceCandidates: metrics.trapAvoidanceCandidates,
-    trapAvoidanceRejected: metrics.trapAvoidanceRejected,
-    trapAvoidanceNoEstimate: metrics.trapAvoidanceNoEstimate,
-    trapAvoidanceExpectedEncounterCount: metrics.trapAvoidanceExpectedEncounterCount,
-    trapAvoidanceExpectedEncounterDamage: metrics.trapAvoidanceExpectedEncounterDamage,
-    trapAvoidanceExpectedDirectDamage: metrics.trapAvoidanceExpectedDirectDamage,
+    trapRoute: structuredClone(metrics.trapRoute),
     trapKitsAcquired: metrics.trapKitsAcquired,
     trapKitsUsed: metrics.trapKitsUsed,
     trapKitsAcquiredBySource: { ...metrics.trapKitsAcquiredBySource },
@@ -11577,15 +11849,8 @@ export function simulateRun({
       disarmFailure: 0
     },
     trapDisarmFailures: 0,
-    trapAvoided: 0,
     trapForced: 0,
-    trapAvoidanceExtraSteps: 0,
-    trapAvoidanceCandidates: 0,
-    trapAvoidanceRejected: 0,
-    trapAvoidanceNoEstimate: 0,
-    trapAvoidanceExpectedEncounterCount: 0,
-    trapAvoidanceExpectedEncounterDamage: 0,
-    trapAvoidanceExpectedDirectDamage: 0,
+    trapRoute: createTrapRouteMetrics(),
     trapKitsAcquired: state.simTrapKitSources.length,
     trapKitsUsed: 0,
     trapKitsAcquiredBySource: {
@@ -11778,7 +12043,15 @@ export function simulateRun({
       state.simPolicy.elitePolicy
     );
     const staticFloorSteps = getFloorStepCount(generated, floor);
-    const floorSteps = routePlan.floorSteps + elitePlan.extraSteps;
+    let floorSteps = routePlan.floorSteps + elitePlan.extraSteps;
+    const floorRoute = createSimulationFloorRoute(
+      generated,
+      routePlan,
+      state,
+      floor,
+      metrics
+    );
+    routePlan.path = [floorRoute.current, ...floorRoute.path.slice(1)];
     const secretRoomPlans = findSecretRoomPlans(generated, routePlan);
     metrics.eliteAvoidDetourSteps += state.simPolicy.elitePolicy === "avoid"
       ? elitePlan.extraSteps
@@ -11787,14 +12060,6 @@ export function simulateRun({
       state.simPolicy.elitePolicy === "avoid" && elitePlan.avoidNoRoute
     );
     const specialSchedule = new Map();
-    routePlan.routeEvents.forEach(event => {
-      const step = Math.min(
-        floorSteps,
-        Math.max(1, Math.ceil(event.routeDistance * EXPLORATION_FACTOR))
-      );
-      if (!specialSchedule.has(step)) specialSchedule.set(step, []);
-      specialSchedule.get(step).push(event);
-    });
     if (elitePlan.elite) {
       state.roamingMonsters.push(elitePlan.elite);
     }
@@ -11862,7 +12127,6 @@ export function simulateRun({
       floorSteps,
       routePlan.path.length
     );
-    const floorTrapSchedule = scheduleFloorTraps(generated, routePlan, floorSteps);
     metrics.coreObservations.pickedChestsByFloor[floor] +=
       [...chestSchedule.values()].reduce((sum, count) => sum + count, 0);
     let floorEndedByPitfall = false;
@@ -11920,7 +12184,44 @@ export function simulateRun({
         });
       }
 
-      const scheduledSpecials = specialSchedule.get(step) || [];
+      const movement = advanceSimulationFloorRoute(
+        floorRoute,
+        generated,
+        state,
+        floor,
+        metrics,
+        step
+      );
+      routePlan.path = [floorRoute.current, ...floorRoute.path.slice(1)];
+      if (movement.trapResult?.pitfallTriggered) {
+        floorEndedByPitfall = true;
+        break stepLoop;
+      }
+      if (!isAlive(state.party[0])) {
+        metrics.deathEncounterType = "floor-trap";
+        return finishRun(state, "death", metrics);
+      }
+      floorSteps = Math.max(
+        floorSteps,
+        routePlan.floorSteps + elitePlan.extraSteps + Math.max(
+          metrics.trapRoute.detourBudgetExtraSteps,
+          metrics.trapRoute.detourExtraSteps
+        )
+      );
+      const scheduledSpecials = [
+        ...(specialSchedule.get(step) || []),
+        ...(movement.event ? [movement.event] : [])
+      ];
+      const floorTrapSchedule = new Map();
+      floorRoute.path.slice(1, 5).forEach((coord, index) => {
+        const upcomingTrap = generated.grid[coord.y]?.[coord.x]?.trap;
+        if (!upcomingTrap || upcomingTrap.state !== "hidden") return;
+        floorTrapSchedule.set(step + index, [{
+          trap: upcomingTrap,
+          previousCoord: index === 0 ? floorRoute.current : floorRoute.path[index],
+          step: step + index
+        }]);
+      });
       const scheduledSecretRooms = secretRoomSchedule.get(step) || [];
       for (const secretPlan of scheduledSecretRooms) {
         const opened = resolveSecretRoomSearch({
@@ -11937,7 +12238,6 @@ export function simulateRun({
           return finishRun(state, "death", metrics);
         }
       }
-      const scheduledFloorTraps = floorTrapSchedule.get(step) || [];
       applyIssue412TacticalItem({
         state,
         metrics,
@@ -11953,23 +12253,6 @@ export function simulateRun({
           silenceTurns: 0
         });
         metrics.issue412.silenceChanceAfterSum += calculateEncounterChance(step, state);
-      }
-      for (const scheduledTrap of scheduledFloorTraps) {
-        const trapResult = resolveFloorTrapAtPath(
-          state,
-          generated,
-          floor,
-          scheduledTrap,
-          metrics
-        );
-        if (!isAlive(state.party[0])) {
-          metrics.deathEncounterType = "floor-trap";
-          return finishRun(state, "death", metrics);
-        }
-        if (trapResult.pitfallTriggered) {
-          floorEndedByPitfall = true;
-          break;
-        }
       }
       if (floorEndedByPitfall) break stepLoop;
 
@@ -12178,6 +12461,9 @@ export function simulateRun({
         const encounterType = isBoss
           ? "boss"
           : (isMidboss ? "midboss" : (isElite ? "elite" : "normal"));
+        if (encounterType === "normal" && metrics.trapRoute.detourActive) {
+          metrics.trapRoute.detourNormalEncounters++;
+        }
         const specialBattle = specialEvent && metrics.collectSpecialBattles
           ? {
               type: encounterType,
@@ -13290,7 +13576,6 @@ function simulateCase({
     workshop: scenario.workshop || { ranks: {} },
     trapPolicy: trapPolicies.floor,
     chestTrapPolicy: trapPolicies.chest,
-    trapAvoidancePolicy: scenario.trapAvoidancePolicy || DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
     survivalRate: totals.survived / RUNS_PER_CASE,
     retreatRate: totals.outcomeCounts.retreat / RUNS_PER_CASE,
     deathRate: totals.died / RUNS_PER_CASE,
@@ -14096,14 +14381,13 @@ function printB5GateDiagnostics(result) {
 function printTrapMetrics(result) {
   console.log(
     `\n【${result.label} 罠計測 / 職業別 / 床罠=${result.trapPolicy}, ` +
-    `宝箱=${result.chestTrapPolicy}, ` +
-    `回避=${result.trapAvoidancePolicy}】`
+    `宝箱=${result.chestTrapPolicy}, 通常探索の既知罠経路選択】`
   );
   console.log(
-    "職業    | 発動/run | 察知/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 出発入手 | 宝箱入手 | 商人入手 | 開始消費 | 出発消費 | 宝箱消費 | 商人消費 | 解除 | 回避 | 回避追加歩数 | 強行 | kit入手 | kit使用 | 出発kit入手 | 出発kit消費"
+    "職業    | 発動/run | 察知/run | 罠被害HP | 戦闘被害HP | 罠傷薬消費 | 傷薬消費 | 不足/run | 不足率 | 開始入手 | 出発入手 | 宝箱入手 | 商人入手 | 開始消費 | 出発消費 | 宝箱消費 | 商人消費 | 解除 | 強行 | kit入手 | kit使用 | 出発kit入手 | 出発kit消費"
   );
   console.log(
-    "--------|----------|----------|----------|------------|------------|----------|----------|--------|----------|----------|----------|----------|----------|----------|----------|----------|------|------|--------------|------|--------|--------|------------|------------"
+    "--------|----------|----------|----------|------------|------------|----------|----------|--------|----------|----------|----------|----------|----------|----------|----------|----------|------|------|--------|--------|------------|------------"
   );
   Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
     const acquired = metrics.averageHealPotionsAcquiredBySource;
@@ -14125,8 +14409,7 @@ function printTrapMetrics(result) {
       `${consumed.starting.toFixed(2).padStart(8)} | ${consumed.departureCraft.toFixed(2).padStart(8)} | ` +
       `${consumed.chest.toFixed(2).padStart(8)} | ` +
       `${consumed.merchant.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapDisarms.toFixed(2).padStart(4)} | ${metrics.averageTrapAvoided.toFixed(2).padStart(4)} | ` +
-      `${metrics.averageTrapAvoidanceExtraSteps.toFixed(2).padStart(8)} | ` +
+      `${metrics.averageTrapDisarms.toFixed(2).padStart(4)} | ` +
       `${metrics.averageTrapForced.toFixed(2).padStart(4)} | ${metrics.averageTrapKitsAcquired.toFixed(2).padStart(6)} | ` +
       `${metrics.averageTrapKitsUsed.toFixed(2).padStart(6)} | ` +
       `${kitsAcquired.departureCraft.toFixed(2).padStart(8)} | ` +
@@ -14144,15 +14427,20 @@ function printTrapMetrics(result) {
       `${metrics.averageFlameTrapEligibleSteps.toFixed(2).padStart(11)}`
     );
   });
-  console.log("回避EV評価 | 候補/run | 却下/run | 観測不足/run | 追加遭遇/run | 遭遇被害HP/run | 直接対応HP/run");
+  console.log("既知罠の経路選択 | 発見済み遭遇/run | 別経路選択/run | 別経路なし/run | 実追加歩/run | 迂回中通常遭遇/run | 迂回中他罠/run | 解除/run | 強行/run | 死亡/run | 撤退/run");
   Object.entries(result.trapMetricsByClass).forEach(([className, metrics]) => {
+    const route = metrics.route;
     console.log(
-      `${className.padEnd(7)} | ${metrics.averageTrapAvoidanceCandidates.toFixed(2).padStart(9)} | ` +
-      `${metrics.averageTrapAvoidanceRejected.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageTrapAvoidanceNoEstimate.toFixed(2).padStart(11)} | ` +
-      `${metrics.averageTrapAvoidanceExpectedEncounterCount.toFixed(2).padStart(11)} | ` +
-      `${metrics.averageTrapAvoidanceExpectedEncounterDamage.toFixed(2).padStart(14)} | ` +
-      `${metrics.averageTrapAvoidanceExpectedDirectDamage.toFixed(2).padStart(14)}`
+      `${className.padEnd(7)} | ${route.averageDiscoveredTrapEncounters.toFixed(2).padStart(15)} | ` +
+      `${route.averageDetourSelections.toFixed(2).padStart(14)} | ` +
+      `${route.averageNoAlternateRoute.toFixed(2).padStart(12)} | ` +
+      `${route.averageDetourExtraSteps.toFixed(2).padStart(10)} | ` +
+      `${route.averageDetourNormalEncounters.toFixed(2).padStart(16)} | ` +
+      `${route.averageDetourOtherTrapEncounters.toFixed(2).padStart(12)} | ` +
+      `${route.averageActionSelections.disarm.toFixed(2).padStart(6)} | ` +
+      `${route.averageActionSelections.force.toFixed(2).padStart(5)} | ` +
+      `${route.averageDetourDeaths.toFixed(2).padStart(6)} | ` +
+      `${route.averageDetourRetreats.toFixed(2).padStart(6)}`
     );
   });
   console.log("商人傷薬 | 試行/run | 失敗理由/run");
@@ -15103,7 +15391,6 @@ const ENV_SIGNATURE = {
   floorTrapPolicy: DEFAULT_FLOOR_TRAP_POLICY_ID,
   chestTrapPolicy: DEFAULT_TRAP_POLICY_ID,
   trapPolicyEnv: SIM_ENV.TRAP_POLICY || null,
-  trapAvoidancePolicy: DEFAULT_TRAP_AVOIDANCE_POLICY_ID,
   trapBonusOverride: TRAP_BONUS_OVERRIDE_PERCENT,
   healPotionMerchantPolicy: DEFAULT_HEAL_POTION_MERCHANT_POLICY,
   merchantPolicy: SIM_MERCHANT_POLICY,
@@ -15174,8 +15461,7 @@ console.log(
   `TRAP_POLICY=${SIM_ENV.TRAP_POLICY}`
 );
 console.log(
-  `罠回避方針: ${TRAP_AVOIDANCE_POLICY_DEFINITIONS[DEFAULT_TRAP_AVOIDANCE_POLICY_ID].label} / ` +
-  `TRAP_AVOIDANCE_POLICY=${DEFAULT_TRAP_AVOIDANCE_POLICY_ID}`
+  "既知床罠: 通常探索の経路コストに反映し、発見前はルート選択へ利用しない"
 );
 console.log(
   `罠解除EV閾値: 床非pitfall scoutなし=${calculateFloorDisarmEvThreshold({ trapType: "damage" }).toFixed(2)}%, ` +
@@ -15274,7 +15560,7 @@ console.log(
   "STATUS_CURE_MERCHANT_POLICY=missing|never, " +
   "PORTAL_HP_THRESHOLD / PORTAL_MAX_HEAL_POTIONS / PORTAL_MIN_FLOOR; " +
   "ELITE_POLICY=avoid|engage / TRAP_POLICY=disabled|legacy|conservative / " +
-  "TRAP_AVOIDANCE_POLICY=legacy|ev; " +
+  "既知床罠は通常探索の経路コストで再計算; " +
   "SIM_SCENARIOS=workshop-empty,workshop-stats,workshop-gear,workshop-blood-wand," +
   "workshop-blood-wand-spells,workshop-core-pools," +
   "workshop-complete;旧ID=workshop-locked|workshop-unlocked"

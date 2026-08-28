@@ -317,10 +317,12 @@ policy.
 The game implementation presents discovered floor traps as map information and
 offers only `disarm` or `force` when the player attempts to enter one. A player
 who wants to avoid the trap chooses another direction through ordinary movement
-before entering the trapped cell. The canonical Simulation still exposes
-`TRAP_AVOIDANCE_POLICY` and evaluates detours with an expected-risk heuristic;
-that is a follow-up migration target. Simulation alignment must preserve the
-meaningful disarm and forced-breakthrough choices.
+before entering the trapped cell. The canonical Simulation uses the same
+ordinary route model: unknown traps remain traversable route cells, while a
+discovered trap contributes its expected response cost to route selection.
+Choosing another route advances through ordinary movement and therefore carries
+its own steps, encounters, and other trap effects. Simulation alignment must
+preserve the meaningful disarm and forced-breakthrough choices.
 
 `trapBonus` remains the single support affix for floor/chest trap disarm and
 existing equipment/class passive bonuses. On B5F, the `trapBonus` investment
