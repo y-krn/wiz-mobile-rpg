@@ -6,6 +6,11 @@ and run quests. It is the economy-level refinement of
 `.agents/game-design-core-loop.md` (core loop, pillars, pacing targets).
 Resolve conflicts toward that document.
 
+Exploration trap principles are canonical in the `Trap exploration design`
+section of `.agents/game-design-core-loop.md` (Issue #931). This document owns
+the trap-sustain and counterplay values recorded below; it does not redefine
+route selection, map reachability, or Simulation responsibility boundaries.
+
 ## Combat damage model
 
 Physical and offensive-spell formulas, their application order, measured
