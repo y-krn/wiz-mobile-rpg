@@ -180,6 +180,7 @@ export function generateRunFloor({
         size: template.size,
         roomCountRange: biomeTerrain.roomCountRange,
         mazeProfile: biomeTerrain.mazeProfile,
+        structureProfile: biomeTerrain.structureProfile,
         oneWayPassageCount: template.gimmickDensity.oneWayPassages + biome.gimmicks.oneWayBonus,
         secretDoorCounts: template.gimmickDensity.secretDoors,
         trapCount: template.gimmickDensity.traps + biome.gimmicks.trapBonus,
@@ -202,6 +203,7 @@ export function generateRunFloor({
           biomeId: biome.id,
           biomeCycle,
           gimmickSet: biome.gimmicks,
+          structureProfile: biomeTerrain.structureProfile,
           milestoneEvents,
           validation
         };
