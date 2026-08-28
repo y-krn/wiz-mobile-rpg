@@ -2,7 +2,7 @@ import { test, expect } from './fixtures/browser-health.js';
 
 const REPRESENTATIVE_FLOORS = [1, 6, 11, 16, 21, 26];
 
-test('Representative biome landmarks keep distinct silhouettes and remain readable @visual', async ({ page }) => {
+test('Representative biome landmarks keep distinct silhouettes and remain readable @visual', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.waitForLoadState('networkidle');
@@ -74,7 +74,7 @@ test('Representative biome landmarks keep distinct silhouettes and remain readab
       };
     }, floor);
     await page.screenshot({
-      path: `evidence/results/issue-831-landmarks-B${floor}.png`,
+      path: testInfo.outputPath(`issue-831-landmarks-B${floor}.png`),
       fullPage: true,
     });
   }
