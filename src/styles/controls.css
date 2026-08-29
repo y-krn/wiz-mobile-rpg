@@ -482,9 +482,35 @@
 }
 
 .milestone-merchant-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  grid-template-areas:
+    "name description"
+    ". cost";
+  column-gap: var(--sp-md);
+  row-gap: var(--sp-xxs);
+  align-items: start;
   min-height: var(--tap-min);
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+.milestone-merchant-option > .menu-action-card-name {
+  grid-area: name;
+}
+
+.milestone-merchant-option > .menu-action-card-description {
+  grid-area: description;
+}
+
+.milestone-merchant-option > .menu-action-card-cost {
+  grid-area: cost;
+}
+
+.milestone-merchant-option > .menu-action-card-name,
+.milestone-merchant-option > .menu-action-card-description,
+.milestone-merchant-option > .menu-action-card-cost {
+  min-width: 0;
 }
 
 .milestone-merchant-balance {
