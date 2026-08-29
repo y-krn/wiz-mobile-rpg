@@ -257,6 +257,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // existing telemetry anchors but do not change combat formulas.
     "src/combat_ui/combat_start.js",
     "src/combat_logic/round.js",
+    "src/combat_logic/vulnerable.js",
     "src/result.js"
   ])
 });
