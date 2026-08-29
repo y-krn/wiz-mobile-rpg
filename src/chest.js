@@ -1,11 +1,6 @@
 import { state, saveAutosave, addLog, recordEquipmentDiscovery, addInventoryItem, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
 import { MAP_WIDTH, MAP_HEIGHT, getItemData, getCharTrapBonus, getCharAffixSum, getCharCoreParams, getTrapEaterBonusAfterDisarm, getCoreLogText } from "./data.js";
 import {
-  rollChestTrap,
-  rollChestAccessory,
-  rollChestReward,
-  rollChestSpecialReward,
-  CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP,
   resolveChestSmashRewardLosses
 } from "./rules/chest_rules.js";
 import { playSound } from "./audio.js";
@@ -13,7 +8,6 @@ import { dungeonRenderer as renderer } from "./renderer.js";
 import { updateUI } from "./ui.js";
 import { menuContext, resetSubmenuBackButton } from "./navigation.js";
 import { triggerGameOver } from "./combat.js";
-import { createRng } from "./seed_rng.js";
 import { increaseChestTrapTier } from "./systems/traps.js";
 import {
   applyStatusEffect,
@@ -24,59 +18,35 @@ import {
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { calculateChestDisarmChance } from "./rules/trap_rules.js";
 import { applyTrapGuardToEffect, resolveChestTrapEffect } from "./rules/trap_effect_rules.js";
-import { getChestMaterialPool } from "./rules/material_rules.js";
 import { getItemBaseId } from "./rules/item_rules.js";
 import { trackChestAction, trackChestSmashResult } from "./telemetry.js";
+import {
+  CHEST_PHASES,
+  CHEST_PHASE_TRANSITIONS,
+  canTransitionChestPhase,
+  generateChestMaterials,
+  getActiveChestCharacter,
+  getChestPhase,
+  getChestRewardEntries,
+  isChestActionAllowed,
+  isEligibleChestCharacter,
+  resolveChestInspection,
+  rollChestEncounter
+} from "./chest/chest_domain.js";
+import { renderChestMenu } from "./chest/chest_view.js";
+
+export { CHEST_PHASES, CHEST_PHASE_TRANSITIONS, generateChestMaterials };
 
 // balance-impact: none — this change adds only the chest phase/state boundary;
 // reward and trap formulas remain covered by the chest balance mapping.
-export const CHEST_PHASES = Object.freeze({
-  MENU: "menu",
-  DISARM_SELECT: "disarm_select",
-  OPEN_SELECT: "open_select",
-  RESOLVING: "resolving",
-  REWARD: "reward",
-  TERMINAL: "terminal"
-});
-
-export const CHEST_PHASE_TRANSITIONS = Object.freeze({
-  [CHEST_PHASES.MENU]: [CHEST_PHASES.MENU, CHEST_PHASES.RESOLVING, CHEST_PHASES.TERMINAL],
-  // Kept for compatibility with stale in-memory states from the former
-  // party-selection flow. New chest actions never enter these phases.
-  [CHEST_PHASES.DISARM_SELECT]: [CHEST_PHASES.MENU, CHEST_PHASES.RESOLVING],
-  [CHEST_PHASES.OPEN_SELECT]: [CHEST_PHASES.MENU, CHEST_PHASES.RESOLVING],
-  [CHEST_PHASES.RESOLVING]: [CHEST_PHASES.REWARD, CHEST_PHASES.MENU, CHEST_PHASES.TERMINAL],
-  [CHEST_PHASES.REWARD]: [CHEST_PHASES.TERMINAL],
-  [CHEST_PHASES.TERMINAL]: []
-});
-
-function getChestPhase(chest) {
-  return chest?.phase || CHEST_PHASES.MENU;
-}
-
 function transitionChestPhase(chest, nextPhase) {
-  const currentPhase = getChestPhase(chest);
-  if (!CHEST_PHASE_TRANSITIONS[currentPhase]?.includes(nextPhase)) return false;
+  if (!canTransitionChestPhase(chest, nextPhase)) return false;
   chest.phase = nextPhase;
   return true;
 }
 
 function chestActionAllowed(phases, { allowTransition = false } = {}) {
-  if (!state.chestState) return false;
-  if (state.transitioning && !allowTransition) return false;
-  return phases.includes(getChestPhase(state.chestState));
-}
-
-function isEligibleChestCharacter(char) {
-  return Boolean(
-    char &&
-    state.party.includes(char) &&
-    ["ok", "poisoned", "blind"].includes(char.status)
-  );
-}
-
-function getActiveChestCharacter() {
-  return state.party.find(isEligibleChestCharacter) || null;
+  return isChestActionAllowed(state.chestState, phases, state.transitioning, { allowTransition });
 }
 
 function clearChestInspectionState(chest) {
@@ -88,6 +58,39 @@ function clearChestInspectionState(chest) {
 function finishChest(chest) {
   transitionChestPhase(chest, CHEST_PHASES.TERMINAL);
   state.chestState = null;
+}
+
+function translateTrap(trap) {
+  if (trap === "poison needle") return "毒針";
+  if (trap === "gas bomb") return "ガス爆弾";
+  if (trap === "teleporter") return "テレポーター";
+  if (trap === "flash bomb") return "閃光弾";
+  return "なし";
+}
+
+function inspectChest() {
+  const chest = state.chestState;
+  if (!chest || state.transitioning || chest.inspected) return false;
+  const { chance, lightBonus, identifiedTrap } = resolveChestInspection({
+    chest,
+    party: state.party,
+    lightPower: state.lightPower,
+    lightTurns: state.lightTurns
+  });
+  if (lightBonus > 0) {
+    addLog(`明かりの呪文が罠の調査を助けている。成功率 +${Math.round(lightBonus * 100)}%`);
+  }
+  chest.inspected = true;
+  chest.inspectChance = chance;
+  chest.identifiedTrap = identifiedTrap;
+  if (identifiedTrap === chest.trap) {
+    addLog(`調査結果：[${translateTrap(chest.trap)}]の罠のようだ！`);
+  } else {
+    addLog(`調査結果：[${translateTrap(identifiedTrap)}]の罠の可能性が高い。（不確実）`);
+  }
+  playSound("move");
+  openChestMenu();
+  return true;
 }
 
 export function applyTombRaiderTrapTier(chest, opener) {
@@ -110,97 +113,35 @@ export function setupChestState(forcedTrap = null, _legacyReward = null, forcedI
   if (state.floor === 1 && state.currentRun) {
     state.currentRun.b1ChestsOpened = (state.currentRun.b1ChestsOpened || 0) + 1;
   }
-  const chestSeed = `${state.seed}:chest:B${state.floor}:${state.x},${state.y}`;
-  const rng = customRng || (state.seed ? createRng(chestSeed) : Math.random);
-
-  // Traps are floor dependent
-  const trap = forcedTrap !== null ? forcedTrap : rollChestTrap(state.floor, rng);
-
-  // Item reward scale by floor
-  let item;
-  if (forcedItem !== null) {
-    item = forcedItem;
-  } else {
-    const reward = rollChestReward({
-      floor: state.floor,
-      rng,
-      party: state.party,
-      currentRun: state.currentRun,
-      trap,
-      firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
-      itemCandidates: options.fromDrop
-        ? CHEST_ITEM_CANDIDATES_BY_FLOOR_FROM_DROP[Math.min(5, state.floor)]
-        : null
-    });
-    item = reward.item;
-    if (reward.consumedFirstChestGuarantee) {
-      state.firstChestUnidentifiedGuaranteed = true;
-    }
-  }
-  const specialItem = forcedItem === null && !options.fromDrop
-    ? rollChestSpecialReward(state.floor, rng)
-    : null;
-  const accessoryItem = forcedItem === null ? rollChestAccessory(state.floor, rng, state.party) : null;
-
-  // Aura & loot hint calculation
-  let aura = "weak";
-  let hasEquipmentSignal = false;
-  if (item && typeof item === "object" && item.kind === "equipment") {
-    hasEquipmentSignal = true;
-    if (item.rarity === "epic") aura = "strong";
-    else if (item.rarity === "rare") aura = "medium";
-    else aura = "weak";
-  }
-  if (accessoryItem) {
-    hasEquipmentSignal = true;
-    if (accessoryItem.rarity === "epic") aura = "strong";
-    else if (accessoryItem.rarity === "rare" && aura !== "strong") aura = "medium";
-  }
-  let label = hasEquipmentSignal ? "装備品の反応あり" : "消耗品または反応なし";
-  if (hasEquipmentSignal) {
-    const tagLabels = {
-      followUp: "連撃",
-      spellPower: "術力",
-      arcane: "秘術",
-      devotion: "神聖",
-      guardian: "守護",
-      treasureSense: "宝探",
-      trapBonus: "技巧",
-      antiUndead: "不死祓い",
-      antiDragon: "竜殺し",
-      spellGuard: "魔除け",
-      poisonWard: "毒避け",
-      firstStrike: "先制"
-    };
-    const senseSum = state.party.reduce((sum, c) => {
-      if (c.status === "dead") return sum;
-      return sum + getCharAffixSum(c, "treasureSense");
-    }, 0);
-    const shouldRevealTag = senseSum >= 5 || rng() < 0.20;
-    const hintedAffix = item?.affixes?.find(aff => tagLabels[aff.type]);
-    const hintedAccessoryAffix = accessoryItem?.affixes?.find(aff => tagLabels[aff.type]);
-    if (shouldRevealTag && (hintedAffix || hintedAccessoryAffix)) {
-      const affixType = hintedAffix?.type || hintedAccessoryAffix.type;
-      label = `${label} / 気配:${tagLabels[affixType]}`;
-    }
+  const encounter = rollChestEncounter({
+    floor: state.floor,
+    x: state.x,
+    y: state.y,
+    seed: state.seed,
+    party: state.party,
+    currentRun: state.currentRun,
+    firstChestGuaranteed: state.firstChestUnidentifiedGuaranteed,
+    forcedTrap,
+    forcedItem,
+    customRng,
+    fromDrop: options.fromDrop ?? false
+  });
+  if (encounter.consumedFirstChestGuarantee) {
+    state.firstChestUnidentifiedGuaranteed = true;
   }
 
   state.chestState = {
-    trap,
-    item,
-    specialItem,
-    accessoryItem,
+    trap: encounter.trap,
+    item: encounter.item,
+    specialItem: encounter.specialItem,
+    accessoryItem: encounter.accessoryItem,
     inspected: false,
     identifiedTrap: "",
     phase: CHEST_PHASES.MENU,
     x: state.x,
     y: state.y,
     fromDrop: options.fromDrop ?? false,
-    lootHint: {
-      hasEquipmentSignal,
-      aura,
-      label
-    }
+    lootHint: encounter.lootHint
   };
 
   // Transition to chest submenu
@@ -214,214 +155,27 @@ export function openChestMenu() {
   state.gameState = "submenu";
   menuContext.type = "chest_menu";
 
-  const titleEl = document.getElementById("submenu-title");
-  titleEl.textContent = "宝箱の調査・解除";
-
-  const optGrid = document.getElementById("submenu-options");
-  optGrid.className = "submenu-grid";
-  optGrid.innerHTML = "";
-
-  const translateTrap = (t) => {
-    if (t === "poison needle") return "毒針";
-    if (t === "gas bomb") return "ガス爆弾";
-    if (t === "teleporter") return "テレポーター";
-    if (t === "flash bomb") return "閃光弾";
-    return "なし";
-  };
-
-  // Create Info Panel for Chest Details & Floor Risks
-  const infoPanel = document.createElement("div");
-  infoPanel.className = "chest-info-panel";
-
-  // 1. Floor Risk Warning
-  let riskText = "";
-  if (state.floor === 1 || state.floor === 3) {
-    riskText = `<span style="color:var(--neon-yellow)">[階層] 罠遭遇：高 (約80%)</span>`;
-  } else if (state.floor === 2) {
-    riskText = `<span style="color:var(--neon-green)">[階層] 罠遭遇：中 (約70%)</span>`;
-  } else if (state.floor === 4) {
-    riskText = `<span style="color:var(--neon-red)">[警告] 全宝箱罠付き（転移警戒）</span>`;
-  } else if (state.floor === 5) {
-    riskText = `<span style="color:var(--neon-red)">[警告] 全宝箱罠付き＆火炎トラップ注意</span>`;
-  }
-
-  // 2. Inspection result
-  let inspectText;
-  if (!state.chestState.inspected) {
-    inspectText = `<span style="color:var(--text-muted)">推定罠: 未調査</span>`;
-  } else {
-    const trapNameJp = translateTrap(state.chestState.identifiedTrap);
-    const chance = state.chestState.inspectChance || 0;
-    let reliability = "極低";
-    let reliabilityColor = "var(--neon-red)";
-    if (chance >= 0.8) {
-      reliability = "高";
-      reliabilityColor = "var(--neon-green)";
-    } else if (chance >= 0.4) {
-      reliability = "中";
-      reliabilityColor = "var(--neon-yellow)";
-    } else if (chance >= 0.3) {
-      reliability = "低";
-      reliabilityColor = "#ff9f0a"; // orange
-    }
-    const uncertainty = chance >= 0.8
-      ? `<span style="color:var(--text-muted)">推定は外れる場合あり</span>`
-      : `<span style="color:${reliabilityColor}; font-weight:bold;">[!] 外れる可能性あり</span>`;
-    inspectText = `推定: <strong style="color:var(--neon-cyan)">${trapNameJp}</strong> / 信頼度 <span style="color:${reliabilityColor}">${reliability}</span><br>${uncertainty}`;
-  }
-
-  // 3. Traps Help
-  const helpText = `<div class="chest-help-text">
-毒針:単体+毒 | ガス:全体ダメ<br>
-テレポ:転移 | 閃光:全体盲目<br>
-<span style="color:var(--neon-red)">叩き壊す：罠を弱める代わりに、報酬が壊れることがある。</span>
-</div>`;
-
-  const loot = state.chestState.lootHint;
-  let lootText = "";
-  if (loot) {
-    const auraLabel = loot.aura === "strong" ? `<span style="color:var(--neon-red); font-weight:bold;">強</span>` :
-                      loot.aura === "medium" ? `<span style="color:var(--neon-yellow); font-weight:bold;">中</span>` :
-                      `<span style="color:var(--text-muted);">弱</span>`;
-    lootText = `
-      <div class="chest-loot-hint">
-        <div>宝気: <span style="color:#fff;">${loot.label}</span></div>
-        <div>魔力反応: ${auraLabel}</div>
-      </div>
-    `;
-  }
-
-  infoPanel.innerHTML = `
-    <div>${riskText}</div>
-    <div style="margin-top:4px;">${inspectText}</div>
-    ${lootText}
-    ${helpText}
-  `;
-  optGrid.appendChild(infoPanel);
-
-  // Inspect Chest
-  const btnInspect = document.createElement("button");
-  btnInspect.id = "btn-chest-inspect";
-  btnInspect.className = "btn btn-neon btn-block";
-  btnInspect.style.minHeight = "44px";
-  if (state.chestState.inspected) {
-    btnInspect.textContent = "調査済み";
-    btnInspect.disabled = true;
-    btnInspect.classList.add("disabled");
-  } else {
-    btnInspect.textContent = "調べる";
-    btnInspect.addEventListener("click", () => {
-      // Thief class has high inspect rate, others low
-      const thief = state.party.find(c => c.class === "Thief" && ["ok", "poisoned", "blind"].includes(c.status));
-      let chance = thief ? 0.85 : 0.30;
-      if (thief && thief.status === "blind") {
-        chance = chance / 2.0;
-      } else if (!thief) {
-        const activeChar = state.party.find(c => ["ok", "poisoned", "blind"].includes(c.status));
-        if (activeChar && activeChar.status === "blind") {
-          chance = chance / 2.0;
-        }
-      }
-      const lightBonus = state.lightPower === "lomilwa" ? 0.25 : (state.lightTurns > 0 ? 0.15 : 0);
-      if (lightBonus > 0) {
-        chance = Math.min(0.95, chance + lightBonus);
-        addLog(`明かりの呪文が罠の調査を助けている。成功率 +${Math.round(lightBonus * 100)}%`);
-      }
-      state.chestState.inspected = true;
-      state.chestState.inspectChance = chance; // Save inspect success rate for reliability display
-      
-      if (Math.random() < chance) {
-        state.chestState.identifiedTrap = state.chestState.trap;
-        addLog(`調査結果：[${translateTrap(state.chestState.trap)}]の罠のようだ！`);
-      } else {
-        // Pick random false trap
-        const falseTraps = ["poison needle", "gas bomb", "teleporter", "flash bomb", "none"];
-        const randTrap = falseTraps[Math.floor(Math.random() * falseTraps.length)];
-        state.chestState.identifiedTrap = randTrap;
-        addLog(`調査結果：[${translateTrap(randTrap)}]の罠の可能性が高い。（不確実）`);
-      }
-      playSound("move");
-      openChestMenu(); // redraw
-    });
-  }
-
-  // Disarm Chest
-  const btnDisarm = document.createElement("button");
-  btnDisarm.id = "btn-chest-disarm";
-  btnDisarm.className = "btn btn-neon btn-block";
-  btnDisarm.style.minHeight = "44px";
-  if (!state.chestState.inspected) {
-    btnDisarm.textContent = "解除（要調査）";
-    btnDisarm.disabled = true;
-    btnDisarm.classList.add("disabled");
-  } else if (state.chestState.identifiedTrap === "none" || state.chestState.identifiedTrap === "") {
-    btnDisarm.textContent = "解除不要";
-    btnDisarm.disabled = true;
-    btnDisarm.classList.add("disabled");
-  } else {
-    btnDisarm.textContent = "解除する";
-    btnDisarm.addEventListener("click", () => {
-      const disarmer = getActiveChestCharacter();
-      if (!disarmer) return;
-      executeDisarm(disarmer);
-    });
-  }
-
-  // Append action buttons directly to grid for 1-column layout
-  optGrid.appendChild(btnInspect);
-  optGrid.appendChild(btnDisarm);
-
-  // Disarm with a consumable kit without inspection or class-based rewards.
-  if (state.inventory.includes("TRAP_KIT")) {
-    const btnKit = document.createElement("button");
-    btnKit.id = "btn-chest-trap-kit";
-    btnKit.className = "btn btn-neon btn-block";
-    btnKit.textContent = "キットで解除";
-    btnKit.style.minHeight = "44px";
-    btnKit.addEventListener("click", () => {
-      if (useTrapKit()) openChestMenu();
-    });
-    optGrid.appendChild(btnKit);
-  }
-
-  // Open Chest
-  const btnOpen = document.createElement("button");
-  btnOpen.id = "btn-chest-open";
-  btnOpen.className = "btn btn-neon btn-block";
-  btnOpen.textContent = "宝箱を開ける";
-  btnOpen.style.minHeight = "44px";
-  btnOpen.addEventListener("click", () => {
-    const opener = getActiveChestCharacter();
-    if (!opener) return;
-    openChestDirectly(opener);
+  renderChestMenu({
+    chest: state.chestState,
+    floor: state.floor,
+    inventory: state.inventory,
+    onInspect: inspectChest,
+    onDisarm: () => {
+      const disarmer = getActiveChestCharacter(state.party);
+      if (disarmer) executeDisarm(disarmer);
+    },
+    onTrapKit: () => {
+      if (!useTrapKit()) return false;
+      openChestMenu();
+      return true;
+    },
+    onOpen: () => {
+      const opener = getActiveChestCharacter(state.party);
+      if (opener) openChestDirectly(opener);
+    },
+    onSmash: smashChest,
+    onLeave: leaveChest
   });
-  optGrid.appendChild(btnOpen);
-
-  // Smash Chest
-  const btnSmash = document.createElement("button");
-  btnSmash.id = "btn-chest-smash";
-  btnSmash.className = "btn btn-danger btn-block";
-  btnSmash.textContent = "叩き壊す";
-  btnSmash.title = "罠を弱める代わりに、報酬が壊れることがあります";
-  btnSmash.style.minHeight = "44px";
-  btnSmash.addEventListener("click", () => {
-    btnSmash.disabled = true;
-    smashChest();
-  }, { once: true });
-  optGrid.appendChild(btnSmash);
-
-  // Leave Chest
-  const btnLeave = document.createElement("button");
-  btnLeave.className = "btn btn-danger btn-block";
-  btnLeave.textContent = "立ち去る";
-  btnLeave.style.minHeight = "44px";
-  btnLeave.addEventListener("click", () => {
-    leaveChest();
-  });
-  optGrid.appendChild(btnLeave);
-  
-  // Custom back button disable because we are in event
-  document.getElementById("btn-submenu-back").style.display = "none";
   updateUI();
 }
 
@@ -476,14 +230,6 @@ function recoverChestOpenTransition(error, chest = state.chestState) {
   updateUI();
 }
 
-function getChestRewardEntries(chest) {
-  return [
-    { role: "main", item: chest?.item },
-    { role: "special", item: chest?.specialItem },
-    { role: "accessory", item: chest?.accessoryItem }
-  ];
-}
-
 function trackChestChoice(chest, action) {
   trackChestAction(chest, action, {
     state,
@@ -512,7 +258,7 @@ function markChestProcessed(chest) {
 export function executeDisarm(char, rng = Math.random) {
   if (
     !chestActionAllowed([CHEST_PHASES.MENU, CHEST_PHASES.DISARM_SELECT]) ||
-    !isEligibleChestCharacter(char)
+    !isEligibleChestCharacter(char, state.party)
   ) return false;
 
   trackChestChoice(state.chestState, "disarm");
@@ -743,7 +489,7 @@ export function smashChest(rng = Math.random) {
 
 export function openChestDirectly(opener = null, rng = Math.random, options = {}) {
   if (!state.chestState) return false;
-  if (options.smash !== true && options.fromDisarm !== true && !isEligibleChestCharacter(opener)) return false;
+  if (options.smash !== true && options.fromDisarm !== true && !isEligibleChestCharacter(opener, state.party)) return false;
   // A failed disarm may kill the already-validated disarmer before the
   // automatic reward resolution. Keep that internal continuation legal.
   if (options.fromDisarm === true && !state.party.includes(opener)) return false;
@@ -971,21 +717,4 @@ export function openChestDirectly(opener = null, rng = Math.random, options = {}
     recoverChestOpenTransition(error);
     return false;
   }
-}
-
-export function generateChestMaterials(
-  floor,
-  rng = Math.random,
-  bonus = 0,
-  { materialPoolProfile } = {}
-) {
-  const mats = {};
-  const qty = Math.floor(rng() * 3) + 1 + bonus; // 1-3個 + コア補正
-  const pool = getChestMaterialPool(floor, { profile: materialPoolProfile });
-
-  for (let i = 0; i < qty; i++) {
-    const mat = pool[Math.floor(rng() * pool.length)];
-    mats[mat] = (mats[mat] || 0) + 1;
-  }
-  return mats;
 }

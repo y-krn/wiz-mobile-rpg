@@ -168,6 +168,10 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/run_map_generator.js", domains: ["maps", "traps", "chests", "combat"] },
     { pattern: "src/map_generator.js", domains: ["maps"] },
     { pattern: "src/chest.js", domains: ["chests", "traps", "drops", "equipment", "recovery", "economy"] },
+    // Chest domain owns the explicit orchestration boundary for these existing
+    // rolls, so retain the controller's balance-domain coverage.
+    { pattern: "src/chest/chest_domain.js", domains: ["chests", "traps", "drops", "equipment", "economy"] },
+    { pattern: "src/chest/chest_view.js", domains: [] },
     { pattern: "src/craft.js", domains: ["workshop", "economy", "equipment"] },
     // Equipment preview/rendering changes do not alter economy rules; economy
     // mutations remain covered by their owning action/system modules.
