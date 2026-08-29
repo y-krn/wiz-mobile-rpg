@@ -3,7 +3,6 @@ import {
   createEncounterFixture,
   deriveSharedCaseSeed,
   getBuildDefinitions,
-  getEncounterDefinitions,
   runEncounterSample,
   runMeasurement
 } from "../../measurements/issue973_build_sensitivity.js";
@@ -45,9 +44,26 @@ assert.equal(
 const sampleA = runEncounterSample({ buildId: "hybrid-fallback", encounterId: "mp-pressure", depth: 13, seed: sharedSeed });
 const sampleB = runEncounterSample({ buildId: "hybrid-fallback", encounterId: "mp-pressure", depth: 13, seed: sharedSeed });
 assert.deepEqual(sampleA, sampleB, "production combat sample must be deterministic");
+assert.equal(sampleA.seed, sharedSeed, "the sample must retain the shared case seed");
 
-const report = runMeasurement({ seed: "schema-seed", runs: 1 });
+const provenance = {
+  sourceCommit: "source-commit",
+  gameplaySourceCommit: "gameplay-commit",
+  measurementRunnerCommit: "runner-commit",
+  measurementRunnerDiffSha256: "runner-diff",
+  originMainAncestor: true,
+  staleTreeAllowed: false,
+  workingTreeClean: true,
+  baseRef: "origin/main",
+  baseCommit: "base-commit"
+};
+const report = runMeasurement({ seed: "schema-seed", runs: 1, provenance });
 assert.equal(report.schemaVersion, 1);
+assert.equal(report.measurement.sourceCommit, "source-commit");
+assert.equal(report.measurement.gameplaySourceCommit, "gameplay-commit");
+assert.equal(report.measurement.originMainAncestor, true);
+assert.equal(report.measurement.staleTreeAllowed, false);
+assert.equal(report.measurement.workingTreeClean, true);
 assert.equal(report.measurement.configuration.runs, 1);
 assert.deepEqual(report.measurement.configuration.depths, [8, 13, 18]);
 assert.equal(report.builds.length, 4);
@@ -61,4 +77,4 @@ assert.ok(Object.hasOwn(report.cases[0], "resourceSignature"));
 assert.ok(Object.hasOwn(report.cases[0].mechanisms, "totals"));
 assert.ok(Object.hasOwn(report.cases[0].mechanisms, "averagePerRun"));
 
-console.log("[PASS] Issue #974 build definitions, fixture determinism, shared seeds, production combat determinism, and output schema verified");
+console.log("[PASS] build definitions, fixture determinism, shared seeds, production combat determinism, and output schema verified");
