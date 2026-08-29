@@ -1,45 +1,46 @@
-import { state, saveAutosave, addLog } from "./state.js";
+import { state, saveAutosave } from "./state.js";
 import {
   getClassJpName,
   getCharMaxHp,
   getCharMaxMp,
   getItemData,
-  getCharAffixSum,
-  getCharDerivedStats,
   getCharAttackBreakdown,
-  getCharStr,
-  getCharInt,
-  getCharPie,
-  getCharVit,
-  getCharAgi,
-  getCharLuk,
   formatAffixText,
   canUseManaItems,
   isCurseLocked
 } from "./data.js";
 import { CURSE_EFFECTS } from "./data/items.js";
-import {
-  identifyEquipment,
-  revealEquipmentOnEquip
-} from "./systems/identification.js";
 import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
-import { playSound } from "./audio.js";
 import { updateUI } from "./ui.js";
 import {
-  executeEnhance,
   getEnhanceCost,
-  executePolish,
   getPolishCost
 } from "./craft.js";
 import { getAffixDefinition } from "./data/affixes.js";
 import {
   EQUIPMENT_SLOTS,
   EQUIPMENT_TYPE_LABELS,
-  getEquipmentSlot,
   getEquipmentSlotsForType
 } from "./rules/equipment_slots.js";
+import { getDiscardRisk } from "./systems/equipment_discard.js";
+import {
+  createEquipmentPreviewChar,
+  getEquipmentPreview,
+  getEquipmentSlotValue,
+  getUnequipPreview,
+  isEquipmentItem
+} from "./rules/equipment_preview.js";
+import { canEquipEquipment } from "./rules/equipment_rules.js";
+import {
+  discardEquipmentAt,
+  discardEquipmentSelection,
+  enhanceEquipment,
+  equipEquipment,
+  identifyEquipmentAt,
+  polishEquipment,
+  unequipEquipment
+} from "./systems/equipment_actions.js";
 import { trackEquipmentDecision } from "./telemetry.js";
-import { discardEquipmentItems, getDiscardRisk } from "./systems/equipment_discard.js";
 
 export let equipState = {
   mode: "equip",
@@ -70,30 +71,6 @@ const RARITY_LABELS = {
   rare: "RARE",
   epic: "EPIC"
 };
-
-const STAT_ROWS = [
-  { key: "attack", label: "攻撃" },
-  { key: "defense", label: "防御" },
-  { key: "maxHp", label: "最大HP" },
-  { key: "maxMp", label: "最大MP" },
-  { key: "str", label: "力" },
-  { key: "int", label: "知恵" },
-  { key: "pie", label: "信仰" },
-  { key: "vit", label: "生命" },
-  { key: "agi", label: "素早さ" },
-  { key: "luk", label: "運" },
-  { key: "magic", label: "魔力" },
-  { key: "healing", label: "回復" },
-  { key: "speed", label: "速度" },
-  { key: "trap", label: "罠" },
-  { key: "treasure", label: "探宝" },
-  { key: "spellGuard", label: "魔法耐性" },
-  { key: "antiDragon", label: "竜特効" },
-  { key: "antiUndead", label: "不死特効" },
-  { key: "firstStrike", label: "先制" },
-  { key: "poisonWard", label: "毒耐性" },
-  { key: "poisonAtk", label: "毒付与" }
-];
 
 export function openEquipOverlay(actorIdx = 0) {
   if (state.gameState !== "equip_overlay") {
@@ -164,41 +141,6 @@ export function resetEquipState() {
   equipState.prevGameState = null;
 }
 
-function isEquipmentItem(item) {
-  return item && (item.type === "weapon" || item.type === "shield" || item.type === "armor" || item.type === "accessory");
-}
-
-function getEquipmentSlotValue(equipment, slot) {
-  try {
-    return equipment?.[slot] || null;
-  } catch {
-    return null;
-  }
-}
-
-function getSafeEquipmentSnapshot(equipment) {
-  const snapshot = {};
-  EQUIPMENT_SLOTS.forEach(({ id }) => {
-    snapshot[id] = getEquipmentSlotValue(equipment, id);
-  });
-  return snapshot;
-}
-
-function getDefaultTargetSlot(char, itemType) {
-  const slots = getEquipmentSlotsForType(itemType);
-  const emptySlot = slots.find(({ id }) => !getEquipmentSlotValue(char.equipment, id));
-  if (emptySlot) return emptySlot.id;
-  const replaceableSlot = slots.find(({ id }) => !isCurseLocked(getEquipmentSlotValue(char.equipment, id)));
-  return replaceableSlot?.id || slots[0]?.id || null;
-}
-
-function getTargetSlot(char, itemType, requestedSlot = null) {
-  const requested = getEquipmentSlot(requestedSlot);
-  return requested?.itemType === itemType
-    ? requested.id
-    : getDefaultTargetSlot(char, itemType);
-}
-
 function isIdentified(itemKey) {
   return !itemKey || typeof itemKey !== "object" || itemKey.identified === true;
 }
@@ -223,82 +165,6 @@ function createRarityBadge(itemKey, className = "") {
   badge.textContent = rarity.label;
   badge.setAttribute("aria-label", `レア度 ${rarity.label}`);
   return badge;
-}
-
-function getDisplayStats(char) {
-  const derived = getCharDerivedStats(char, { floor: state.floor });
-  return {
-    ...derived,
-    maxHp: getCharMaxHp(char),
-    maxMp: getCharMaxMp(char),
-    str: getCharStr(char),
-    int: getCharInt(char),
-    pie: getCharPie(char),
-    vit: getCharVit(char),
-    agi: getCharAgi(char),
-    luk: getCharLuk(char),
-    spellGuard: getCharAffixSum(char, "spellGuard"),
-    antiDragon: getCharAffixSum(char, "antiDragon"),
-    antiUndead: getCharAffixSum(char, "antiUndead"),
-    firstStrike: getCharAffixSum(char, "firstStrike"),
-    poisonWard: getCharAffixSum(char, "poisonWard"),
-    poisonAtk: getCharAffixSum(char, "poisonAtk")
-  };
-}
-
-function getPrimaryDiff(itemType, rows) {
-  if (itemType === "weapon") return rows.find((row) => row.key === "attack")?.diff ?? 0;
-  if (itemType === "shield" || itemType === "armor") return rows.find((row) => row.key === "defense")?.diff ?? 0;
-  return rows.find((row) => row.diff !== 0)?.diff ?? 0;
-}
-
-function createEquipmentPreviewChar(char) {
-  return {
-    ...char,
-    equipment: getSafeEquipmentSnapshot(char?.equipment)
-  };
-}
-
-function getEquipPreview(char, itemKey, requestedSlot = null) {
-  const item = getItemData(itemKey);
-  if (!isEquipmentItem(item)) return null;
-
-  const previewChar = createEquipmentPreviewChar(char);
-  const slot = getTargetSlot(previewChar, item.type, requestedSlot);
-  if (!slot) return null;
-  const current = getDisplayStats(previewChar);
-  const oldEq = getEquipmentSlotValue(previewChar.equipment, slot);
-  previewChar.equipment[slot] = itemKey;
-  const next = getDisplayStats(previewChar);
-
-  const rows = STAT_ROWS.map((stat) => ({
-    ...stat,
-    current: current[stat.key],
-    next: next[stat.key],
-    diff: next[stat.key] - current[stat.key]
-  }));
-  const primaryDiff = getPrimaryDiff(item.type, rows);
-  return { item, itemType: item.type, slot, rows, primaryDiff, oldEq };
-}
-
-function getUnequipPreview(char, slot) {
-  const previewChar = createEquipmentPreviewChar(char);
-  const itemKey = getEquipmentSlotValue(previewChar.equipment, slot);
-  const item = getItemData(itemKey);
-  if (!item) return null;
-
-  const current = getDisplayStats(previewChar);
-  previewChar.equipment[slot] = null;
-  const next = getDisplayStats(previewChar);
-
-  const rows = STAT_ROWS.map((stat) => ({
-    ...stat,
-    current: current[stat.key],
-    next: next[stat.key],
-    diff: next[stat.key] - current[stat.key]
-  }));
-  const primaryDiff = getPrimaryDiff(item.type, rows);
-  return { item, itemType: item.type, slot, rows, primaryDiff, oldEq: null };
 }
 
 export function getItemUseStatus(char, itemKey) {
@@ -373,34 +239,11 @@ function isItemEquipped(itemKey) {
   }
 }
 
-function getDiscardTelemetryPreview(char, itemKey, requestedSlot) {
-  try {
-    const preview = getEquipPreview(char, itemKey, requestedSlot);
-    if (!preview) return null;
-    return {
-      slot: preview.slot,
-      oldEq: preview.oldEq,
-      primaryDiff: preview.primaryDiff,
-      rows: Array.isArray(preview.rows)
-        ? preview.rows.map(({ key, current, next, diff }) => ({ key, current, next, diff }))
-        : []
-    };
-  } catch {
-    return null;
-  }
-}
-
 function discardEquipment(itemIdx, expectedItemKey) {
-  const discardPreview = getDiscardTelemetryPreview(
-    state.party[equipState.actorIdx],
-    expectedItemKey,
-    equipState.selectedSlot
-  );
-  const result = discardEquipmentItems([{
-    index: itemIdx,
-    expectedItemKey,
-    preview: discardPreview
-  }], { character: state.party[equipState.actorIdx] });
+  const result = discardEquipmentAt(itemIdx, expectedItemKey, {
+    actorIdx: equipState.actorIdx,
+    requestedSlot: equipState.selectedSlot
+  });
   if (!result.ok) return false;
   clearSelection();
   renderEquip();
@@ -409,13 +252,9 @@ function discardEquipment(itemIdx, expectedItemKey) {
 }
 
 function discardSelectedEquipment() {
-  const character = state.party[equipState.actorIdx];
-  const entries = [...equipState.selectedDiscardIndices].map((index) => ({
-    index,
-    expectedItemKey: state.inventory[index],
-    preview: getDiscardTelemetryPreview(character, state.inventory[index], null)
-  }));
-  const result = discardEquipmentItems(entries, { character });
+  const result = discardEquipmentSelection(equipState.selectedDiscardIndices, {
+    actorIdx: equipState.actorIdx
+  });
   if (!result.ok) return false;
   clearDiscardSelection();
   renderEquip();
@@ -437,24 +276,6 @@ function getItemSummary(item) {
     if (affix) return `${affix[0]} +${affix[1]}%`;
   }
   return "";
-}
-
-function canEquip(char, itemKey, requestedSlot = null) {
-  const item = getItemData(itemKey);
-  if (!isEquipmentItem(item)) {
-    return { ok: false, reason: "装備品ではありません" };
-  }
-  if (item.classes && !item.classes.includes(char.class)) {
-    return { ok: false, reason: `${getClassJpName(char.class)}は装備できません` };
-  }
-  const slot = getTargetSlot(char, item.type, requestedSlot);
-  if (!slot) {
-    return { ok: false, reason: "装備先がありません" };
-  }
-  if (isCurseLocked(getEquipmentSlotValue(char.equipment, slot))) {
-    return { ok: false, reason: "現在の呪い装備を外せません" };
-  }
-  return { ok: true, reason: "", slot };
 }
 
 function createHeader(overlay, char) {
@@ -789,8 +610,8 @@ function createEquipmentList(char, savedScrollTop) {
 
       const selected = !equipState.selectedIsEquipped && equipState.selectedIdx === idx;
       const selectedForDiscard = equipState.selectedDiscardIndices.has(idx);
-      const preview = getEquipPreview(char, itemKey, equipState.selectedSlot);
-      const availability = canEquip(char, itemKey, preview?.slot);
+      const preview = getEquipmentPreview(char, itemKey, equipState.selectedSlot, { floor: state.floor });
+      const availability = canEquipEquipment(char, itemKey, preview?.slot);
       const row = document.createElement("button");
       row.type = "button";
       row.className = `equip-item-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${selectedForDiscard ? "discard-selected" : ""} ${availability.ok ? "" : "not-equipable"}`.trim();
@@ -863,7 +684,7 @@ function createEquipmentList(char, savedScrollTop) {
           });
           equipState.selectedIdx = idx;
           equipState.selectedKey = itemKey;
-          equipState.selectedSlot = preview?.slot || getDefaultTargetSlot(char, item.type);
+          equipState.selectedSlot = preview?.slot || null;
           equipState.selectedActorIdx = equipState.actorIdx;
           equipState.selectedIsEquipped = false;
         }
@@ -1036,7 +857,7 @@ function createWorkshopPanel(itemKey) {
     enhanceButton.disabled = !canAfford;
     enhanceButton.textContent = canAfford ? "強化する" : "強化素材が不足しています";
     enhanceButton.addEventListener("click", () => {
-      if (!executeEnhance(target)) return;
+      if (!enhanceEquipment(target)) return;
       equipState.selectedKey = getSelectedItemKey();
       renderEquip();
       updateUI();
@@ -1073,7 +894,7 @@ function createWorkshopPanel(itemKey) {
       polishButton.disabled = !canAfford;
       polishButton.textContent = canAfford ? "研磨する" : "研磨素材が不足しています";
       polishButton.addEventListener("click", () => {
-        if (!executePolish(target, index)) return;
+        if (!polishEquipment(target, index)) return;
         equipState.selectedKey = getSelectedItemKey();
         renderEquip();
         updateUI();
@@ -1156,11 +977,11 @@ function createDetailPanel(char) {
   let preview;
   let availability;
   if (isEquipped) {
-    preview = getUnequipPreview(char, equipState.selectedSlot);
+    preview = getUnequipPreview(char, equipState.selectedSlot, { floor: state.floor });
     availability = { ok: true, reason: "" };
   } else {
-    preview = getEquipPreview(char, itemKey, equipState.selectedSlot);
-    availability = canEquip(char, itemKey, preview?.slot);
+    preview = getEquipmentPreview(char, itemKey, equipState.selectedSlot, { floor: state.floor });
+    availability = canEquipEquipment(char, itemKey, preview?.slot);
   }
 
   const content = document.createElement("div");
@@ -1276,23 +1097,11 @@ function createDetailPanel(char) {
     actionBtn.textContent = bagFull ? "バッグが満杯です" : "外す";
     actionBtn.addEventListener("click", () => {
       if (bagFull) return;
-      const currentChar = state.party[equipState.actorIdx];
-      const slot = equipState.selectedSlot;
-      const currentItemKey = currentChar.equipment[slot];
-      const itemData = getItemData(currentItemKey);
-      trackEquipmentDecision("unequip", {
-        state,
-        character: currentChar,
-        currentKey: currentItemKey,
-        preview
+      const result = unequipEquipment({
+        actorIdx: equipState.actorIdx,
+        slot: equipState.selectedSlot
       });
-
-      currentChar.equipment[slot] = null;
-      state.inventory.push(currentItemKey);
-
-      addLog(`${currentChar.name}は${itemData.name}を外した。`);
-      playSound("move");
-      saveAutosave();
+      if (!result.ok) return;
       clearSelection();
       renderEquip();
       updateUI();
@@ -1309,21 +1118,13 @@ function createDetailPanel(char) {
         ? `鑑定する（鑑定粉1 / 所持${state.identifyTickets || 0}）`
         : "鑑定粉がありません";
       identifyBtn.addEventListener("click", () => {
-        const selectedItem = state.inventory[equipState.selectedIdx];
-        const currentChar = state.party[equipState.actorIdx];
-        trackEquipmentDecision("identify", {
-          state,
-          character: currentChar,
-          candidateKey: selectedItem,
-          preview
+        const result = identifyEquipmentAt({
+          inventoryIndex: equipState.selectedIdx,
+          actorIdx: equipState.actorIdx,
+          requestedSlot: equipState.selectedSlot
         });
-        const result = identifyEquipment(state, selectedItem, currentChar);
         if (!result.ok) return;
-        const revealedData = getItemData(selectedItem);
-        addLog(`[鑑定] ${revealedData.name}。${result.cursed ? "呪いを確認した。" : "呪いはない。"}`);
-        playSound("level_up");
-        saveAutosave();
-        equipState.selectedKey = selectedItem;
+        equipState.selectedKey = result.itemKey;
         renderEquip();
         updateUI();
       });
@@ -1337,38 +1138,12 @@ function createDetailPanel(char) {
     actionBtn.textContent = availability.ok ? (hidden ? "未鑑定で装備する" : "装備する") : "装備できません";
     actionBtn.addEventListener("click", () => {
       if (!availability.ok) return;
-      const currentChar = state.party[equipState.actorIdx];
-      const selectedItem = state.inventory[equipState.selectedIdx];
-      const selectedData = getItemData(selectedItem);
-      const slot = preview?.slot || getDefaultTargetSlot(currentChar, selectedData.type);
-      const oldEq = currentChar.equipment[slot];
-      trackEquipmentDecision("equip", {
-        state,
-        character: currentChar,
-        candidateKey: selectedItem,
-        currentKey: oldEq,
-        preview
+      const result = equipEquipment({
+        inventoryIndex: equipState.selectedIdx,
+        actorIdx: equipState.actorIdx,
+        requestedSlot: equipState.selectedSlot
       });
-
-      currentChar.equipment[slot] = selectedItem;
-      if (oldEq) {
-        state.inventory[equipState.selectedIdx] = oldEq;
-      } else {
-        state.inventory.splice(equipState.selectedIdx, 1);
-      }
-
-      const reveal = revealEquipmentOnEquip(selectedItem);
-      const revealedData = getItemData(selectedItem);
-      addLog(`${currentChar.name}は${revealedData.name}を装備した。`);
-      if (reveal.revealed) {
-        addLog(reveal.cursed
-          ? `[呪い発動] ${revealedData.name}は外せなくなった！`
-          : `[賭け成功] ${revealedData.name}に呪いはなかった。`);
-      } else if (reveal.cursed) {
-        addLog(`[呪い装備] ${revealedData.name}は外せない。`);
-      }
-      playSound("move");
-      saveAutosave();
+      if (!result.ok) return;
       clearSelection();
       renderEquip();
       updateUI();
