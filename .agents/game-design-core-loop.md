@@ -200,6 +200,18 @@ straightness, loop openings, and room-carving strategy strongly enough to create
 a visible route-graph difference. This extends the existing generator rather
 than replacing it and does not introduce player-facing `choke`/`avoidable`
 terrain flags. Each generated map exposes `structureMetrics` for diagnostics:
+**Decided: terrain structures are explicit generation primitives** (Issues #934,
+#948, and layout grammar follow-up #952, 2026-08-29). Biomes provide a
+deterministic `terrain.structureProfile` that weights four graph-level
+primitives: Corridor (narrow route and retreat choice), Loop (alternative
+route), Hub (concentrated branch choice), and Open area (multi-cell sight/route
+choice). The profile first selects the floor's dominant `structureType`; the
+selected type then enters a type-specific skeleton-first layout: long backbone,
+ring, hub-and-spokes, or plaza-and-exits respectively. This extends the
+existing generator and does not introduce player-facing `choke`/`avoidable`
+terrain flags. Shared post-processing keeps events, traps, one-way passages,
+secret doors, and validation compatible. Each generated map exposes
+`structureMetrics` for diagnostics:
 `junctionCount`, `cycleCount`, `deadEndCount`, `corridorRatio`,
 `alternativePathRate`, and open-area counts. These metrics are measured on the
 connected graph before a route is considered complete, while one-way passages
