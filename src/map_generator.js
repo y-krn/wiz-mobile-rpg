@@ -336,7 +336,7 @@ function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
     }
   }
 
-  const growTarget = Math.min(target, DEAD_END_TARGET_RANGE[0]);
+  const growTarget = Math.min(target, 24);
   while (deadEnds.length < growTarget) {
     const branchCandidates = collectBranchGrowthCandidates(grid, protectedKeys, reachableKeys);
     if (branchCandidates.length > 0) {
@@ -1278,6 +1278,69 @@ export function removeIsolatedInternalWalls(grid) {
   return removed;
 }
 
+// Corridor floors still need enough long detours for the existing one-way
+// passage gimmick. A few deliberately long, non-overlapping connections keep
+// those detours meaningful without turning the whole floor into a loop map.
+function carveLongAlternatePaths(grid, visited, count) {
+  if (count <= 0) return 0;
+  const width = getMapWidth(grid);
+  const height = getMapHeight(grid);
+  const candidates = [];
+  const addCandidate = path => {
+    const endpoints = [path[0], path.at(-1)];
+    if (endpoints.some(({ x, y }) => !isPassageCell(grid, x, y))) return;
+    if (path.slice(1, -1).some(({ x, y }) =>
+      x <= 0 || x >= width - 1 || y <= 0 || y >= height - 1
+    )) return;
+    const start = path[0];
+    const end = path.at(-1);
+    const existingDetour = getDistanceMap(grid, start).get(`${end.x},${end.y}`);
+    if (!Number.isFinite(existingDetour) || existingDetour < ONE_WAY_MIN_DETOUR ||
+        existingDetour > 20) return;
+    const hasNewEdge = path.slice(0, -1).some((current, index) => {
+      const next = path[index + 1];
+      const dir = DX.findIndex((dx, direction) =>
+        current.x + dx === next.x && current.y + DY[direction] === next.y
+      );
+      return dir !== -1 && grid[current.y][current.x].walls[dir];
+    });
+    if (!hasNewEdge) return;
+    candidates.push(path);
+  };
+
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      if (x + 6 < width - 1) {
+        addCandidate(Array.from({ length: 7 }, (_, step) => ({ x: x + step, y })));
+      }
+      if (y + 6 < height - 1) {
+        addCandidate(Array.from({ length: 7 }, (_, step) => ({ x, y: y + step })));
+      }
+    }
+  }
+  const used = new Set();
+  let carved = 0;
+  for (const path of candidates) {
+    if (carved >= count) break;
+    const pathKeys = path.slice(1, -1).map(({ x, y }) => `${x},${y}`);
+    if (pathKeys.some(key => used.has(key))) continue;
+    for (let step = 0; step < path.length - 1; step++) {
+      const current = path[step];
+      const next = path[step + 1];
+      const dir = DX.findIndex((dx, index) =>
+        current.x + dx === next.x && current.y + DY[index] === next.y
+      );
+      openWall(grid, current.x, current.y, dir);
+      if (visited) visited[current.y][current.x] = true;
+    }
+    const endpoint = path.at(-1);
+    if (visited) visited[endpoint.y][endpoint.x] = true;
+    pathKeys.forEach(key => used.add(key));
+    carved++;
+  }
+  return carved;
+}
+
 export const ROOM_COUNT_RANGE = [2, 4];
 export const TERRAIN_STRUCTURE_TYPES = Object.freeze([
   "corridor",
@@ -1290,6 +1353,16 @@ const DEFAULT_STRUCTURE_PROFILE = Object.freeze({
   loop: 0.25,
   hub: 0.15,
   openArea: 0.20
+});
+
+// A biome profile chooses the floor's dominant primitive. Once chosen, the
+// primitive needs to control the generator strongly enough to be visible in
+// the resulting route graph; small profile adjustments cannot do that.
+const STRUCTURE_MAZE_RANGES = Object.freeze({
+  corridor: { straightBias: [0.86, 1.00], loopRate: [0.24, 0.38] },
+  loop: { straightBias: [0.12, 0.32], loopRate: [0.55, 0.75] },
+  hub: { straightBias: [0.04, 0.20], loopRate: [0.12, 0.22] },
+  openArea: { straightBias: [0.08, 0.28], loopRate: [0.14, 0.24] }
 });
 export const ROOM_SIZES = [
   { w: 2, h: 2 },
@@ -1362,7 +1435,8 @@ export function carveRooms(
   rng,
   visited = null,
   roomCountRange = ROOM_COUNT_RANGE,
-  structureProfile = null
+  structureProfile = null,
+  structureType = null
 ) {
   const targetCount = roomCountRange[0] +
     Math.floor(rng() * (roomCountRange[1] - roomCountRange[0] + 1));
@@ -1382,8 +1456,18 @@ export function carveRooms(
     candidates.sort((a, b) => {
       const areaScore = (candidate => candidate.w * candidate.h - 4);
       const entranceScore = candidate => countRoomEntrances(grid, candidate);
-      const score = candidate =>
-        profile.openArea * areaScore(candidate) + profile.hub * entranceScore(candidate);
+      const score = candidate => {
+        if (structureType === "corridor") {
+          return -areaScore(candidate) - entranceScore(candidate) * 0.25;
+        }
+        if (structureType === "hub") {
+          return entranceScore(candidate) * 3 + areaScore(candidate) * 0.25;
+        }
+        if (structureType === "openArea") {
+          return areaScore(candidate) * 4 + entranceScore(candidate);
+        }
+        return profile.openArea * areaScore(candidate) + profile.hub * entranceScore(candidate);
+      };
       return score(b) - score(a);
     });
   }
@@ -1391,7 +1475,7 @@ export function carveRooms(
   const rooms = [];
   for (const candidate of candidates) {
     if (rooms.length >= targetCount) break;
-    if (candidate.w === 3 && candidate.h === 3 &&
+    if (structureType !== "openArea" && candidate.w === 3 && candidate.h === 3 &&
       rooms.some(room => room.w === 3 && room.h === 3)) continue;
     if (rooms.some(room => roomsTooClose(room, candidate))) continue;
     if (countRoomEntrances(grid, candidate) < 2) continue;
@@ -1421,34 +1505,33 @@ export function createMazeProfile(floor, rng, profileRange = null, size = null, 
   const range = profileRange || MAZE_PROFILE_RANGES[floor] || MAZE_PROFILE_RANGES[5];
   const mapWidth = size?.width ?? MAP_WIDTH;
   const mapHeight = size?.height ?? MAP_HEIGHT;
-  const randomInRange = ([min, max]) => min + rng() * (max - min);
+  const randomInRange = ([min, max], roll) => min + roll * (max - min);
   // Favor visibly sparse or dense layouts over clustering near the mean.
-  const randomNearRangeEdge = ([min, max]) => {
-    const roll = rng();
+  const randomNearRangeEdge = ([min, max], roll) => {
     const edgeRoll = roll < 0.5 ? roll * 2 : (1 - roll) * 2;
     return roll < 0.5
       ? min + edgeRoll * (max - min) * 0.25
       : max - edgeRoll * (max - min) * 0.25;
   };
+  const straightRoll = rng();
+  const loopRoll = rng();
   const digColumns = Math.floor((mapWidth - 1) / 2);
   const digRows = Math.floor((mapHeight - 2) / 2);
   const normalizedStructureProfile = structureProfile
     ? normalizeStructureProfile(structureProfile)
     : null;
-  const corridorAdjustment = normalizedStructureProfile
-    ? (normalizedStructureProfile.corridor - DEFAULT_STRUCTURE_PROFILE.corridor) * 0.16
-    : 0;
-  const loopAdjustment = normalizedStructureProfile
-    ? (normalizedStructureProfile.loop - DEFAULT_STRUCTURE_PROFILE.loop) * 0.16
-    : 0;
+  const structureType = normalizedStructureProfile
+    ? selectStructureType(normalizedStructureProfile, rng)
+    : null;
+  const structureRange = STRUCTURE_MAZE_RANGES[structureType];
+  const straightRange = structureRange?.straightBias || range.straightBias;
+  const loopRange = structureRange?.loopRate || range.loopRate;
 
   return {
-    straightBias: Math.max(0, Math.min(1, randomInRange(range.straightBias) + corridorAdjustment)),
-    loopRate: Math.max(0, Math.min(1, randomNearRangeEdge(range.loopRate) + loopAdjustment)),
+    straightBias: Math.max(0, Math.min(1, randomInRange(straightRange, straightRoll))),
+    loopRate: Math.max(0, Math.min(1, randomNearRangeEdge(loopRange, loopRoll))),
     structureProfile: normalizedStructureProfile,
-    structureType: normalizedStructureProfile
-      ? selectStructureType(normalizedStructureProfile, rng)
-      : null,
+    structureType,
     digStart: {
       x: 1 + Math.floor(rng() * digColumns) * 2,
       y: 2 + Math.floor(rng() * digRows) * 2
@@ -1600,7 +1683,18 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
 
   removeIsolatedInternalWalls(grid);
 
-  const rooms = carveRooms(grid, rng, visited, options.roomCountRange, mazeProfile.structureProfile);
+  if (mazeProfile.structureType === "corridor") {
+    carveLongAlternatePaths(grid, visited, 1);
+  }
+
+  const rooms = carveRooms(
+    grid,
+    rng,
+    visited,
+    options.roomCountRange,
+    mazeProfile.structureProfile,
+    mazeProfile.structureType
+  );
 
   const b1EntryCandidates = [];
   if (floor === 1) {
@@ -1701,7 +1795,9 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   }
   const loopRateMidpoint = (MAZE_PROFILE_RANGES[floor]?.loopRate || MAZE_PROFILE_RANGES[5].loopRate)
     .reduce((sum, value) => sum + value, 0) / 2;
-  const deadEndTarget = mazeProfile.loopRate >= loopRateMidpoint
+  const deadEndTarget = mazeProfile.structureType
+    ? 22
+    : mazeProfile.loopRate >= loopRateMidpoint
     ? DEAD_END_TARGET_RANGE[0]
     : DEAD_END_TARGET_RANGE[1];
   let deadEnds = normalizeDeadEndCount(grid, suCoord, protectedDeadEndKeys, deadEndTarget, rng);
