@@ -3,11 +3,12 @@ import { initErrorContext } from "./error_context.js";
 import { addGameBreadcrumb } from "./sentry.js";
 import { DungeonRenderer, setDungeonRenderer } from "./renderer.js";
 import { toggleMute } from "./audio.js";
-import { setUiUpdateCallback, goBackSubmenu } from "./navigation.js";
+import { setUiUpdateCallback, goBackSubmenu, menuContext } from "./navigation.js";
 import { handleTrapAction } from "./systems/traps.js";
 import { blockGuardedControlsEvent } from "./controls_guard.js";
 import { openChestMenu } from "./chest.js";
 import { getScreenViewState } from "./state/view_state.js";
+import { getRendererInput } from "./state/renderer_view.js";
 
 // Import modules for re-export and button bindings
 import { updateUI, openLogOverlay, closeLogOverlay } from "./ui.js";
@@ -114,14 +115,16 @@ function gameLoop(time) {
 
   if (renderer) {
     renderer.update(dt);
-    const sceneVisibility = renderer.getSceneVisibility();
-    if (renderer.isAnimating(sceneVisibility)) {
-      renderer.draw(sceneVisibility);
+    // Convert mutable runtime state once at the render boundary. All
+    // renderer operations in this tick consume the same read-only input.
+    const renderInput = getRendererInput(state, menuContext);
+    if (renderer.isAnimating(renderInput)) {
+      renderer.draw(renderInput);
       renderer.lastSignature = null;
     } else {
-      const signature = renderer.getDrawSignature(sceneVisibility);
+      const signature = renderer.getDrawSignature(renderInput);
       if (signature !== renderer.lastSignature) {
-        renderer.draw(sceneVisibility);
+        renderer.draw(renderInput);
         renderer.lastSignature = signature;
       }
     }

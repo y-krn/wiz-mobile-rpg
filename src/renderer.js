@@ -1,8 +1,5 @@
-import { DX, DY, EVENT_TYPES, getPartyMaxAffix } from "./data.js";
-import { state } from "./state.js";
-import { menuContext } from "./navigation.js";
-import { getDepthCorruption, getFloorTheme } from "./data/floor_themes.js";
-import { getScreenViewState } from "./state/view_state.js";
+import { DX, DY, EVENT_TYPES } from "./data.js";
+import { getRendererInput, isRendererInput } from "./state/renderer_view.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
 
 export let dungeonRenderer = null;
@@ -215,57 +212,47 @@ export class DungeonRenderer {
     this.damageTexts = this.damageTexts.filter(t => t.age < t.maxAge);
   }
 
-  getSceneVisibility() {
-    const view = getScreenViewState(state, menuContext);
-    const { gameState, previousGameState } = view;
-    const showTownBackground = !view.hasMap || (
-      !view.isDeparturePrepSubmenu && (
-        ["town", "result", "gameover", "victory"].includes(gameState) ||
-        (view.isSubmenu && previousGameState === "town")
-      )
-    );
-    const showCombat = !showTownBackground && Boolean(
-      view.hasCombat && (
-        gameState === "combat"
-        || view.isCombatOverlaySubmenu
-      )
-    );
-    const showChest = !showTownBackground && (
-      gameState === "chest"
-      || (view.isSubmenu && view.hasChest && view.menuType.startsWith("chest"))
-    );
-    const showEventScene = !showTownBackground && (
-      gameState === "trap_encounter"
-      || view.isEventSubmenu
-    );
-    const showItemMenu = !showTownBackground && (
-      view.isItemSubmenu
-    );
+  resolveRenderInput(input) {
+    if (isRendererInput(input)) return input;
 
-    return { showTownBackground, showCombat, showChest, showEventScene, showItemMenu };
+    // Keep the historical scene-visibility argument working for direct test
+    // and feature calls while the game loop passes the complete input object.
+    const current = getRendererInput();
+    return input && typeof input === "object"
+      ? Object.freeze({ ...current, sceneVisibility: input })
+      : current;
   }
 
-  getDrawSignature(sceneVisibility = this.getSceneVisibility()) {
-    const view = getScreenViewState(state, menuContext);
+  getRenderInput() {
+    return getRendererInput();
+  }
+
+  getSceneVisibility(input = null) {
+    return this.resolveRenderInput(input).sceneVisibility;
+  }
+
+  getDrawSignature(input = null) {
+    const renderInput = this.resolveRenderInput(input);
+    const { view, sceneVisibility } = renderInput;
     const { showTownBackground, showItemMenu } = sceneVisibility;
     const signature = [
       view.gameState,
-      state.floor,
-      state.x,
-      state.y,
-      state.dir,
+      renderInput.floor,
+      renderInput.x,
+      renderInput.y,
+      renderInput.dir,
       view.hasMap,
       view.menuType,
       view.previousGameState,
       view.hasCombat,
       view.hasChest,
-      state.mapRevision,
+      renderInput.mapRevision,
       showItemMenu
     ];
 
     if (showTownBackground) return signature.join("|");
 
-    const combatMonsters = view.hasCombat ? state.combatState.monsters.map(monster => [
+    const combatMonsters = view.hasCombat ? renderInput.combatMonsters.map(monster => [
       monster.name,
       monster.level,
       monster.hp,
@@ -284,7 +271,7 @@ export class DungeonRenderer {
       monster.snipeTargetIdx,
       monster.statusEffects?.bleeding?.remainingTurns
     ].join(",")).join(";") : "";
-    const roamingMonsters = state.roamingMonsters?.map(monster => [
+    const roamingMonsters = renderInput.roamingMonsters.map(monster => [
       monster.floor,
       monster.x,
       monster.y,
@@ -293,59 +280,62 @@ export class DungeonRenderer {
     ].join(",")).join(";") || "";
 
     signature.push(
-      state.lightTurns > 0,
-      state.lightPower,
+      renderInput.lightTurns > 0,
+      renderInput.lightPower,
       roamingMonsters,
-      getPartyMaxAffix(state.party, "arcaneSense"),
+      renderInput.arcaneSense,
       combatMonsters,
-      (Array.isArray(state.party) ? state.party : []).map(char => char?.name).join(",")
+      renderInput.party.map(char => char?.name).join(",")
     );
     return signature.join("|");
   }
 
-  isAnimating(sceneVisibility = this.getSceneVisibility()) {
+  isAnimating(input = null) {
+    const renderInput = this.resolveRenderInput(input);
+    const { sceneVisibility } = renderInput;
     if (this.shakeTime > 0 || this.flashTime > 0 || this.damageTexts.length > 0) return true;
 
     const { showTownBackground, showCombat, showChest, showEventScene, showItemMenu } = sceneVisibility;
     if (showTownBackground) return false;
 
-    const view = getScreenViewState(state, menuContext);
+    const { view } = renderInput;
     if (!view.hasMap) return false;
-    const map = state.map;
+    const map = renderInput.map;
     if (!Array.isArray(map)) return false;
 
     // These layers use Date.now() for visual pulses and must keep redrawing.
-    const environment = getFloorTheme(state.floor).visualSignature.environment;
-    const cyclePosition = (state.floor - 1) % 5;
+    const environment = renderInput.visual.environment;
+    const cyclePosition = (renderInput.floor - 1) % 5;
     if (environment.animated || environment.animatedCyclePosition === cyclePosition) return true;
     if (showCombat || showChest || showEventScene || showItemMenu) return false;
 
-    const minY = Math.max(0, state.y - 4);
-    const maxY = Math.min(map.length - 1, state.y + 4);
+    const minY = Math.max(0, renderInput.y - 4);
+    const maxY = Math.min(map.length - 1, renderInput.y + 4);
     for (let y = minY; y <= maxY; y++) {
       const row = map[y];
       if (!Array.isArray(row)) continue;
-      const minX = Math.max(0, state.x - 4);
-      const maxX = Math.min(row.length - 1, state.x + 4);
+      const minX = Math.max(0, renderInput.x - 4);
+      const maxX = Math.min(row.length - 1, renderInput.x + 4);
       for (let x = minX; x <= maxX; x++) {
-        if (Math.abs(x - state.x) + Math.abs(y - state.y) > 4) continue;
+        if (Math.abs(x - renderInput.x) + Math.abs(y - renderInput.y) > 4) continue;
         const event = row[x]?.event;
         if (event === EVENT_TYPES.BOSS || event === EVENT_TYPES.MIDBOSS) return true;
       }
     }
 
-    const hasArcaneSense = getPartyMaxAffix(state.party, "arcaneSense") >= 1;
-    return Boolean(state.roamingMonsters?.some(monster => {
-      if (monster.floor !== state.floor) return false;
-      if (monster.perception === "afterimage" && !hasArcaneSense) return false;
-      const distance = Math.abs(monster.x - state.x) + Math.abs(monster.y - state.y);
+    return Boolean(renderInput.roamingMonsters.some(monster => {
+      if (monster.floor !== renderInput.floor) return false;
+      if (monster.perception === "afterimage" && !renderInput.hasArcaneSense) return false;
+      const distance = Math.abs(monster.x - renderInput.x) + Math.abs(monster.y - renderInput.y);
       return monster.kind === "elite" || distance <= 4;
     }));
   }
 
-  draw(sceneVisibility = this.getSceneVisibility()) {
+  draw(input = null) {
     if (!this.ctx) return;
     const ctx = this.ctx;
+    const renderInput = this.resolveRenderInput(input);
+    const { sceneVisibility } = renderInput;
 
     // Apply Screen Shake
     ctx.save();
@@ -364,20 +354,20 @@ export class DungeonRenderer {
       this.drawTownBackground(ctx);
     } else {
       // Exploration or Combat or Chest
-      this.draw3DCorridors(ctx);
+      this.draw3DCorridors(ctx, renderInput);
       
       // Draw monsters only for combat and combat-derived submenus.
       if (showCombat) {
-        this.drawMonsters(ctx);
+        this.drawMonsters(ctx, renderInput);
       }
 
       // Draw Chest if looting
       if (showChest) {
-        this.drawChest(ctx);
+        this.drawChest(ctx, undefined, renderInput);
       }
 
       // Keep combat, chest, event, and item scenes unobstructed; restore the mini-map afterward.
-      if (!showCombat && !showChest && !showEventScene && !showItemMenu) this.drawMiniMap(ctx);
+      if (!showCombat && !showChest && !showEventScene && !showItemMenu) this.drawMiniMap(ctx, renderInput);
     }
 
     // Draw Damage / Floating Texts
@@ -454,24 +444,25 @@ export class DungeonRenderer {
     ctx.fillText("Select options below to prepare your quest.", VIEW_W / 2, 85);
   }
 
-  draw3DCorridors(ctx) {
-    const map = state.map;
+  draw3DCorridors(ctx, input = null) {
+    const renderInput = this.resolveRenderInput(input);
+    const map = renderInput.map;
     if (!Array.isArray(map)) return;
 
-    const px = state.x;
-    const py = state.y;
-    const dir = state.dir;
+    const px = renderInput.x;
+    const py = renderInput.y;
+    const dir = renderInput.dir;
 
     ctx.lineWidth = 2;
     ctx.shadowBlur = 0;
 
-    const visual = getFloorTheme(state.floor).visualSignature;
+    const visual = renderInput.visual;
     const projection = getProjectionPlanes(visual.geometry);
     const landmarks = getLandmarkStyles(visual);
-    const depthCorruption = getDepthCorruption(state.floor);
+    const depthCorruption = renderInput.depthCorruption;
     const environment = visual.environment;
     const isEnvironmentAnimated = environment.animated ||
-      environment.animatedCyclePosition === (state.floor - 1) % 5;
+      environment.animatedCyclePosition === (renderInput.floor - 1) % 5;
     const wallColor = visual.wallColor;
     const gridColor = visual.gridColor;
     let outOfBoundsColor = "#ff3b30";
@@ -606,9 +597,9 @@ export class DungeonRenderer {
         }
 
         // Check if there is a roaming monster at this coordinate (cx, cy)
-        if (column === 0 && state.roamingMonsters) {
-          const hasFlack = state.roamingMonsters.some(
-            rm => rm.floor === state.floor && rm.x === cx && rm.y === cy
+        if (column === 0 && renderInput.roamingMonsters.length > 0) {
+          const hasFlack = renderInput.roamingMonsters.some(
+            rm => rm.floor === renderInput.floor && rm.x === cx && rm.y === cy
           );
           if (hasFlack && z > 0) { // Don't draw under the player
             this.drawRoamingFlackIcon(ctx, z, projection);
@@ -621,7 +612,7 @@ export class DungeonRenderer {
           this.fillProjectedCorridor(ctx, plane, nextPlane, projection.ceilingStyle);
           this.drawDepthFracture(
             ctx, z, left, plane.top, width, plane.bottom - plane.top, wallColor,
-            depthCorruption, cx, cy
+            depthCorruption, cx, cy, renderInput.floor
           );
           if (isEnvironmentAnimated) {
             const pulse = 0.02 + 0.02 * Math.sin(Date.now() / 250);
@@ -711,9 +702,9 @@ export class DungeonRenderer {
     this.strokeProjectedFrontWall(ctx, plane, projection.ceilingStyle);
   }
 
-  drawDepthFracture(ctx, z, x, y, width, height, color, depth, cellX, cellY) {
+  drawDepthFracture(ctx, z, x, y, width, height, color, depth, cellX, cellY, floor = 1) {
     if (depth < 0.12 || z < 1) return;
-    const hash = Math.abs((cellX * 37 + cellY * 17 + state.floor * 13 + z * 7) % 101) / 100;
+    const hash = Math.abs((cellX * 37 + cellY * 17 + floor * 13 + z * 7) % 101) / 100;
     const density = Math.min(0.72, 0.12 + depth * 0.48);
     if (hash > density) return;
 
@@ -1112,13 +1103,14 @@ export class DungeonRenderer {
     ctx.shadowBlur = 0; // Reset shadow
   }
 
-  drawChest(ctx, style) {
+  drawChest(ctx, style, input = null) {
+    const renderInput = this.resolveRenderInput(input);
     // Render the current biome's treasure chest in front.
     const cx = VIEW_W / 2;
     const cy = VIEW_H / 2 + 20;
 
     const chestStyle = style === undefined
-      ? getLandmarkStyles(getFloorTheme(state.floor).visualSignature).chestStyle
+      ? getLandmarkStyles(renderInput.visual).chestStyle
       : getChestStyle(style);
     const chestWidth = 60;
     const chestHeight = 70;
@@ -1175,10 +1167,10 @@ export class DungeonRenderer {
     return 1;
   }
 
-  drawMonsters(ctx) {
-    const view = getScreenViewState(state, menuContext);
-    if (!view.hasCombat) return;
-    const monsters = state.combatState.monsters;
+  drawMonsters(ctx, input = null) {
+    const renderInput = this.resolveRenderInput(input);
+    if (!renderInput.view.hasCombat) return;
+    const monsters = renderInput.combatMonsters;
     const alive = monsters.filter(m => m.hp > 0);
     if (alive.length === 0) return;
 
@@ -1194,7 +1186,7 @@ export class DungeonRenderer {
       const cx = slotWidth * (index - rowStart + 0.5);
       const cy = rows === 1 ? VIEW_H / 2 + 15 : row === 0 ? 100 : 210;
       const monsterScale = scale * this.getMonsterScaleMultiplier(monster);
-      this.drawMonster(ctx, monster, cx, cy, monsterScale, slotWidth - 8);
+      this.drawMonster(ctx, monster, cx, cy, monsterScale, slotWidth - 8, renderInput.party);
     });
   }
 
@@ -1596,7 +1588,7 @@ export class DungeonRenderer {
     detailPaths.forEach(path => ctx.fill(path));
   }
 
-  drawMonster(ctx, monster, cx, cy, scale, maxLabelWidth) {
+  drawMonster(ctx, monster, cx, cy, scale, maxLabelWidth, party = []) {
     const color = monster.color || "#ff3b30";
     const bodyGradient = this.getMonsterBodyGradient(ctx, color, cy);
 
@@ -1635,7 +1627,7 @@ export class DungeonRenderer {
     else if (monster.multiActionQueued) omenText = "⚠️連続行動の予兆";
     else if (monster.summonQueued) omenText = "⚠️召喚の予兆";
     else if (monster.snipeQueued) {
-      const targetChar = state.party[monster.snipeTargetIdx];
+      const targetChar = party[monster.snipeTargetIdx];
       omenText = `⚠️狙撃準備 (対象: ${targetChar ? targetChar.name : "冒険者"})`;
     }
 
@@ -1658,8 +1650,9 @@ export class DungeonRenderer {
     ctx.strokeRect(cx - barW / 2, cy - 62, barW, barH);
   }
 
-  drawMiniMap(ctx) {
-    const map = state.map;
+  drawMiniMap(ctx, input = null) {
+    const renderInput = this.resolveRenderInput(input);
+    const map = renderInput.map;
     if (!Array.isArray(map) || map.length === 0) return;
     for (let y = 0; y < map.length; y++) {
       if (!Object.hasOwn(map, y) || !Array.isArray(map[y])) return;
@@ -1683,8 +1676,8 @@ export class DungeonRenderer {
     ctx.clip();
 
     // Desired centering offsets so player is at the center of the minimap
-    const desiredOffsetX = (minimapSize / 2) - (state.x * cellS + cellS / 2);
-    const desiredOffsetY = (minimapSize / 2) - (state.y * cellS + cellS / 2);
+    const desiredOffsetX = (minimapSize / 2) - (renderInput.x * cellS + cellS / 2);
+    const desiredOffsetY = (minimapSize / 2) - (renderInput.y * cellS + cellS / 2);
 
     const mapWidth = Math.max(...map.map(row => row.length));
     const mapHeight = map.length;
@@ -1698,14 +1691,14 @@ export class DungeonRenderer {
     const offsetX = Math.max(minOffsetX, Math.min(0, desiredOffsetX));
     const offsetY = Math.max(minOffsetY, Math.min(0, desiredOffsetY));
 
-    const lightRad = state.lightPower === "lomilwa" ? 5 : (state.lightTurns > 0 ? 3 : 0);
-    const fragmentCells = new Set(state.dungeonMemory?.mapFragments?.[state.floor] || []);
+    const lightRad = renderInput.lightPower === "lomilwa" ? 5 : (renderInput.lightTurns > 0 ? 3 : 0);
+    const fragmentCells = new Set(renderInput.mapFragments);
 
       for (let y = 0; y < map.length; y++) {
         for (let x = 0; x < map[y].length; x++) {
-          const isVisited = Boolean(state.visitedMap?.[y]?.[x]);
+          const isVisited = Boolean(renderInput.visitedMap?.[y]?.[x]);
         const isFragmentRevealed = fragmentCells.has(`${x},${y}`);
-        const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
+        const dist = Math.abs(x - renderInput.x) + Math.abs(y - renderInput.y);
         const isLightRevealed = (lightRad > 0 && dist <= lightRad);
 
         const cell = map[y][x];
@@ -1808,12 +1801,12 @@ export class DungeonRenderer {
     }
 
     // Draw secret event auras (faint glowing circles)
-    for (let y = 0; y < state.map.length; y++) {
-      if (!state.map[y]) continue;
-      for (let x = 0; x < state.map[y].length; x++) {
-        if (!state.map[y][x]) continue;
-        const cell = state.map[y][x];
-        const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
+    for (let y = 0; y < map.length; y++) {
+      if (!map[y]) continue;
+      for (let x = 0; x < map[y].length; x++) {
+        if (!map[y][x]) continue;
+        const cell = map[y][x];
+        const dist = Math.abs(x - renderInput.x) + Math.abs(y - renderInput.y);
         
         // Aura range is within 4 steps
         if (dist > 4) continue;
@@ -1857,11 +1850,11 @@ export class DungeonRenderer {
     }
 
     // Draw roaming Flack on minimap
-    if (state.roamingMonsters) {
-      state.roamingMonsters.forEach(rm => {
-        if (rm.floor !== state.floor) return;
-        if (rm.perception === "afterimage" && getPartyMaxAffix(state.party, "arcaneSense") < 1) return;
-        const dist = Math.abs(rm.x - state.x) + Math.abs(rm.y - state.y);
+    if (renderInput.roamingMonsters.length > 0) {
+      renderInput.roamingMonsters.forEach(rm => {
+        if (rm.floor !== renderInput.floor) return;
+        if (rm.perception === "afterimage" && !renderInput.hasArcaneSense) return;
+        const dist = Math.abs(rm.x - renderInput.x) + Math.abs(rm.y - renderInput.y);
         if (rm.kind === "elite" || dist <= 4) {
           const rx = margin + rm.x * cellS + cellS / 2 + offsetX;
           const ry = margin + rm.y * cellS + cellS / 2 + offsetY;
@@ -1888,8 +1881,8 @@ export class DungeonRenderer {
     }
 
     // Draw player arrow
-    const px = margin + state.x * cellS + cellS / 2 + offsetX;
-    const py = margin + state.y * cellS + cellS / 2 + offsetY;
+    const px = margin + renderInput.x * cellS + cellS / 2 + offsetX;
+    const py = margin + renderInput.y * cellS + cellS / 2 + offsetY;
     
     // Draw background glow circle for player location.
     ctx.fillStyle = "rgba(0, 229, 255, 0.25)";
@@ -1906,7 +1899,7 @@ export class DungeonRenderer {
     ctx.save();
     ctx.translate(px, py);
     // Rotate to match direction: 0=N, 1=E, 2=S, 3=W
-    ctx.rotate((state.dir * Math.PI) / 2);
+    ctx.rotate((renderInput.dir * Math.PI) / 2);
     ctx.beginPath();
     ctx.moveTo(0, -6);
     ctx.lineTo(-5, 5);
