@@ -669,7 +669,8 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
       for (let x = 1; x < MAP_WIDTH - 1; x++) {
         const cell = state.map[y][x];
         const isPassable = cell.walls.some(closed => !closed);
-        if (isPassable && cell.event !== "boss") {
+        const isCurrentPosition = x === state.x && y === state.y;
+        if (isPassable && cell.event !== "boss" && !isCurrentPosition) {
           emptySpots.push({ x, y });
         }
       }

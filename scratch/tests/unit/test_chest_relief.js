@@ -390,6 +390,65 @@ await test("弱体テレポーターは50%で不発", () => {
   assert.notDeepEqual({ x: state.x, y: state.y }, secondOrigin);
 });
 
+await test("テレポート先の抽選から現在地を除外する", () => {
+  const char = makeCharacter();
+  resetChest({ trap: "teleporter", party: [char] });
+  const origin = { x: 2, y: 2 };
+  const destination = { x: 3, y: 2 };
+  state.x = origin.x;
+  state.y = origin.y;
+  state.map.forEach(row => row.forEach(cell => {
+    cell.walls = [true, true, true, true];
+  }));
+  state.map[origin.y][origin.x].walls = [false, true, true, true];
+  state.map[destination.y][destination.x].walls = [false, true, true, true];
+
+  triggerChestTrap(char, false, () => 0);
+
+  assert.deepEqual({ x: state.x, y: state.y }, destination);
+  assert.ok(state.logs.includes("テレポーターが作動！冒険者は別の場所にテレポートした！"));
+});
+
+await test("通常開封の成功テレポートは別座標へ移動して探索へ戻る", () => {
+  const char = makeCharacter();
+  resetChest({ trap: "teleporter", party: [char] });
+  const origin = { x: 2, y: 2 };
+  const destination = { x: 3, y: 2 };
+  state.x = origin.x;
+  state.y = origin.y;
+  state.chestState.x = origin.x;
+  state.chestState.y = origin.y;
+  state.map.forEach(row => row.forEach(cell => {
+    cell.walls = [true, true, true, true];
+  }));
+  state.map[origin.y][origin.x].walls = [false, true, true, true];
+  state.map[origin.y][origin.x].event = "chest";
+  state.map[destination.y][destination.x].walls = [false, true, true, true];
+
+  openChestDirectly(char, sequence([0, 0, 0, 0]));
+
+  assert.deepEqual({ x: state.x, y: state.y }, destination);
+  assert.equal(state.chestState, null);
+  assert.equal(state.gameState, "explore");
+  assert.ok(state.logs.includes("宝箱を開けた瞬間、罠 [テレポーター] が作動した！"));
+  assert.ok(state.logs.includes("テレポーターが作動！冒険者は別の場所にテレポートした！"));
+});
+
+await test("現在地しか転移先候補がない場合はその場に留まる", () => {
+  const char = makeCharacter();
+  resetChest({ trap: "teleporter", party: [char] });
+  const origin = { x: state.x, y: state.y };
+  state.map.forEach(row => row.forEach(cell => {
+    cell.walls = [true, true, true, true];
+  }));
+  state.map[origin.y][origin.x].walls = [false, true, true, true];
+
+  triggerChestTrap(char, false, () => 0);
+
+  assert.deepEqual({ x: state.x, y: state.y }, origin);
+  assert.ok(state.logs.includes("テレポーターは行き先を見つけられず、その場に留まった。"));
+});
+
 await test("テレポート罠付き宝箱を叩き壊しても探索へ復帰する", () => {
   const char = makeCharacter();
   resetChest({ trap: "teleporter", party: [char] });
