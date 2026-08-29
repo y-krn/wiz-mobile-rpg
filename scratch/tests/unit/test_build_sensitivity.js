@@ -53,10 +53,12 @@ const significantDifference = (estimate, significant = true) => ({
   significant
 });
 const utilityOnlyReversalA = {
+  pairedN: 500,
   outcomeDifference: significantDifference(0.4),
   utilityDifference: significantDifference(0.3)
 };
 const utilityOnlyReversalB = {
+  pairedN: 500,
   outcomeDifference: significantDifference(0.2),
   utilityDifference: significantDifference(-0.3)
 };
@@ -66,6 +68,7 @@ assert.equal(
   "utility-only encounter reversal must not be significant"
 );
 const bothMetricsReversalB = {
+  pairedN: 500,
   outcomeDifference: significantDifference(-0.2),
   utilityDifference: significantDifference(-0.3)
 };
@@ -87,7 +90,7 @@ const provenance = {
   baseCommit: "base-commit"
 };
 const report = runMeasurement({ seed: "schema-seed", runs: 1, provenance });
-assert.equal(report.schemaVersion, 3);
+assert.equal(report.schemaVersion, 5);
 assert.equal(report.measurement.sourceCommit, "source-commit");
 assert.equal(report.measurement.gameplaySourceCommit, "gameplay-commit");
 assert.equal(report.measurement.originMainAncestor, true);

@@ -21,7 +21,7 @@ import { hasStatusEffect, STATUS_EFFECT_IDS } from "../../src/combat_logic/statu
 import { readSimScopeDeclaration, printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 
-export const RUNNER_VERSION = "issue973-build-sensitivity-v3";
+export const RUNNER_VERSION = "issue973-build-sensitivity-v5";
 export const TARGET_DEPTHS = Object.freeze([8, 13, 18]);
 export const DEFAULT_SEED = "974-build-confidence";
 export const DEFAULT_RUNS = 100;
@@ -788,15 +788,20 @@ function buildPairedComparison(leftBuildId, rightBuildId, pairedSamples, seed) {
 }
 
 export function isSignificantReversal(leftComparison, rightComparison) {
+  const ciExcludesZero = difference => Array.isArray(difference.ci95) && (
+    difference.ci95[0] > 0 || difference.ci95[1] < 0
+  );
   const leftOutcomeSign = Math.sign(leftComparison.outcomeDifference.estimate);
   const rightOutcomeSign = Math.sign(rightComparison.outcomeDifference.estimate);
   const leftUtilitySign = Math.sign(leftComparison.utilityDifference.estimate);
   const rightUtilitySign = Math.sign(rightComparison.utilityDifference.estimate);
   return Boolean(
-    leftComparison.outcomeDifference.significant &&
-    leftComparison.utilityDifference.significant &&
-    rightComparison.outcomeDifference.significant &&
-    rightComparison.utilityDifference.significant &&
+    leftComparison.pairedN >= 2 &&
+    rightComparison.pairedN >= 2 &&
+    ciExcludesZero(leftComparison.outcomeDifference) &&
+    ciExcludesZero(leftComparison.utilityDifference) &&
+    ciExcludesZero(rightComparison.outcomeDifference) &&
+    ciExcludesZero(rightComparison.utilityDifference) &&
     leftOutcomeSign !== 0 &&
     rightOutcomeSign !== 0 &&
     leftUtilitySign !== 0 &&
@@ -1072,7 +1077,7 @@ export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, prove
   const redFlags = calculateRedFlags(cases, significantRankReversals, rawRankReversals);
   const falsification = redFlags.triggered.length > 0 ? "falsified_or_red_flagged" : "not_falsified_by_v0_criteria";
   return {
-    schemaVersion: 3,
+    schemaVersion: 5,
     measurement: buildMeasurementMetadata({ seed, runs, provenance, envSignature: null }),
     builds: BUILD_DEFINITIONS.map(build => ({
       id: build.id,
