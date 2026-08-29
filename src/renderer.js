@@ -1631,6 +1631,11 @@ export class DungeonRenderer {
       const targetChar = party[monster.snipeTargetIdx];
       omenText = `⚠️狙撃準備 (対象: ${targetChar ? targetChar.name : "冒険者"})`;
     }
+    else if (monster.statusPayoffQueued) {
+      omenText = monster.statusPayoffQueued.pattern === "blind_snipe"
+        ? "⚠️目眩まし狙撃準備 (盲目中に追撃)"
+        : "⚠️毒喰らい準備 (毒状態で追撃)";
+    }
 
     if (omenText) {
       ctx.fillStyle = "#ffcc00"; // Amber color for warnings

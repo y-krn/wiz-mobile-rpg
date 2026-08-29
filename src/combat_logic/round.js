@@ -1,5 +1,6 @@
 import {
   MONSTERS,
+  MONSTER_STATUS_ATTACK_PATTERNS,
   getCharStr, getCharAgi, getCharVit,
   getPhysicalHitChance, getMonsterEvasionChance,
   getCharWeaponAtk, getCharDef,
@@ -164,6 +165,170 @@ function clearBleedingOnDefeat(state, target, reason) {
 
 function clearCombatVulnerableOnDefeat(state, target, reason) {
   clearVulnerableOnDefeat(state, target, reason);
+}
+
+function recordEnemyStatusPattern(state, event, monster, target, metadata = {}) {
+  const telemetry = state?.simTelemetry?.enemyStatusGrammar;
+  if (!telemetry) return;
+  const floor = Math.max(1, Number(state.floor) || 1);
+  const enemy = monster?.name || "unknown";
+  const key = `B${floor}:${enemy}`;
+  if (event.endsWith("ByEnemyFloor")) {
+    telemetry[event][key] = (telemetry[event][key] || 0) + 1;
+  } else {
+    telemetry[event] = (telemetry[event] || 0) + 1;
+  }
+  if (metadata.damage) {
+    telemetry.payoffDamage += metadata.damage;
+    telemetry.payoffDamageByEnemy[enemy] = (telemetry.payoffDamageByEnemy[enemy] || 0) + metadata.damage;
+  }
+  if (metadata.latency !== undefined) {
+    telemetry.payoffLatencyTotal += Math.max(0, Number(metadata.latency) || 0);
+    telemetry.payoffLatencyCount++;
+  }
+  if (metadata.response) {
+    telemetry.responses[metadata.response] = (telemetry.responses[metadata.response] || 0) + 1;
+    const floorResponses = telemetry.responsesByFloor[String(floor)] ||= {};
+    floorResponses[metadata.response] = (floorResponses[metadata.response] || 0) + 1;
+  }
+  if (monster?.isBoss || state.combatState?.isBoss) telemetry.bossEvents++;
+  if (monster?.isMidboss || state.combatState?.isMidboss) telemetry.midbossEvents++;
+  if (target?.name) {
+    const targetKey = `${key}:${target.name}`;
+    telemetry.targets[targetKey] = (telemetry.targets[targetKey] || 0) + 1;
+  }
+}
+
+function clearQueuedStatusPattern(monster) {
+  const queued = monster?.statusPayoffQueued;
+  delete monster.statusPayoffQueued;
+  return queued;
+}
+
+function isStatusCureAction(action, status) {
+  if (!action) return false;
+  const cureItems = status === STATUS_EFFECT_IDS.POISONED
+    ? ["ANTIDOTE", "HOLY_WATER", "PANACEA", "ELIXIR"]
+    : status === STATUS_EFFECT_IDS.BLIND
+      ? ["EYE_DROPS", "PANACEA", "ELIXIR"]
+      : [];
+  const cureSpells = status === STATUS_EFFECT_IDS.POISONED
+    ? ["LATUMOFIS"]
+    : status === STATUS_EFFECT_IDS.BLIND
+      ? ["DIURCO"]
+      : [];
+  return action.type === "item"
+    ? cureItems.includes(action.itemKey)
+    : action.type === "spell" && cureSpells.includes(action.spellName || action.spell);
+}
+
+function resolveEnemyStatusPattern(monster, state, monsters, combatSelection, logQueue, roundNumber) {
+  const pattern = MONSTER_STATUS_ATTACK_PATTERNS[monster.statusAttackPattern];
+  const patternActive = pattern && !monster.isBoss && !monster.isMidboss &&
+    !state.combatState?.isBoss && !state.combatState?.isMidboss;
+  if (!patternActive) return null;
+
+  if (monster.statusPatternPayoffConsumed) {
+    const consumedTarget = state.party[monster.statusPatternPayoffConsumed.targetIdx];
+    if (consumedTarget?.status === pattern.status) return null;
+    delete monster.statusPatternPayoffConsumed;
+  }
+
+  const queued = monster.statusPayoffQueued;
+  if (queued) {
+    const target = state.party[queued.targetIdx];
+    const targetSelect = target && target.hp > 0 && target.status !== "dead"
+      ? { c: target, i: queued.targetIdx }
+      : null;
+    if (targetSelect && target.status === pattern.status) {
+      recordEnemyStatusPattern(state, "payoffAttempts", monster, target);
+      return {
+        payoff: {
+          pattern,
+          targetSelect,
+          queued,
+          defended: combatSelection.actions.some(action =>
+            action.actorIdx === targetSelect.i && action.type === "defend"
+          )
+        }
+      };
+    }
+
+    const response = combatSelection.actions.some(action =>
+      action.actorIdx === queued.targetIdx && isStatusCureAction(action, pattern.status)
+    ) ? "cureBeforePayoff" : "statusLostBeforePayoff";
+    recordEnemyStatusPattern(state, response, monster, target, { response });
+    clearQueuedStatusPattern(monster);
+    return null;
+  }
+
+  const candidates = getLivingTargetCandidates(state.party);
+  if (candidates.length === 0) return { handled: true };
+  const active = candidates.find(candidate => candidate.c.status === pattern.status);
+  if (active) {
+    recordEnemyStatusPattern(state, "payoffAttempts", monster, active.c);
+    return {
+      payoff: {
+        pattern,
+        targetSelect: active,
+        queued: { setupRound: roundNumber },
+        defended: combatSelection.actions.some(action =>
+          action.actorIdx === active.i && action.type === "defend"
+        )
+      }
+    };
+  }
+
+  const targetSelect = candidates[Math.floor(Math.random() * candidates.length)];
+  if (Math.random() >= pattern.setupChance) return null;
+  recordEnemyStatusPattern(state, "attemptsByEnemyFloor", monster, targetSelect.c);
+  if (Math.random() >= getStatusEffectChance(targetSelect.c, 1)) {
+    recordEnemyStatusPattern(state, "resistedByEnemyFloor", monster, targetSelect.c);
+    logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は不屈の意志で${pattern.status === "poisoned" ? "毒" : "盲目"}を退けた！`, sound: "miss" });
+    return { handled: true };
+  }
+  if (
+    pattern.status === STATUS_EFFECT_IDS.POISONED &&
+    getCharAffixSum(targetSelect.c, "poisonWard") > 0 &&
+    Math.random() * 100 < getCharAffixSum(targetSelect.c, "poisonWard")
+  ) {
+    recordEnemyStatusPattern(state, "resistedByEnemyFloor", monster, targetSelect.c);
+    logQueue.push({ msg: `[ 敵 ] ${targetSelect.c.name}は防毒の備えで毒を退けた！`, sound: "miss" });
+    return { handled: true };
+  }
+
+  applyStatusEffect(targetSelect.c, pattern.status, {
+    source: `monster:${monster.name}`,
+    remainingTurns: pattern.status === STATUS_EFFECT_IDS.SLEEP ? 2 : null
+  });
+  monster.statusPayoffQueued = {
+    pattern: monster.statusAttackPattern,
+    targetIdx: targetSelect.i,
+    setupRound: roundNumber
+  };
+  recordEnemyStatusPattern(state, "successesByEnemyFloor", monster, targetSelect.c);
+  recordMonsterCondition(monster, `${pattern.status === "poisoned" ? "毒" : "盲目"}を受けた`, state);
+  logQueue.push({
+    msg: `[警告] ${monster.name}は${targetSelect.c.name}に${pattern.setupMessage}`,
+    sound: "cast_spell"
+  });
+  return { handled: true };
+}
+
+function recordQueuedPatternDeaths(state, monsters) {
+  monsters.forEach(monster => {
+    if (monster.hp > 0 || !monster.statusPayoffQueued) return;
+    clearQueuedStatusPattern(monster);
+    recordEnemyStatusPattern(state, "killBeforePayoff", monster, null, { response: "killBeforePayoff" });
+  });
+}
+
+function recordQueuedPatternResponse(state, monsters, response) {
+  monsters.forEach(monster => {
+    if (!monster.statusPayoffQueued) return;
+    clearQueuedStatusPattern(monster);
+    recordEnemyStatusPattern(state, response, monster, null, { response });
+  });
 }
 
 function applyFleePartingAttack(state, monsters, logQueue) {
@@ -622,6 +787,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       } else if (act.type === "defend") {
         logQueue.push({ msg: `[味方] ${char.name}は身を固めて防御している。` });
       } else if (act.type === "run") {
+        recordQueuedPatternResponse(state, monsters, "fleeBeforePayoff");
         applyFleePartingAttack(state, monsters, logQueue);
         const retreated = applyFleeRetreat(state);
         logQueue.push({
@@ -662,6 +828,17 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       const isMultiActionTurn = mon.multiActionQueued;
       mon.multiActionQueued = false;
+
+      const statusPatternResult = resolveEnemyStatusPattern(
+        mon,
+        state,
+        monsters,
+        combatSelection,
+        logQueue,
+        roundNumber
+      );
+      if (statusPatternResult?.handled) return;
+      const statusPayoff = statusPatternResult?.payoff || null;
 
       if (hasTrait(mon, "regen") && mon.hp < mon.maxHp) {
         recordMonsterAction(mon, "自己再生", state);
@@ -865,8 +1042,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       // Prioritize living and active characters for physical attacks
       let targetCandidates;
-      let targetSelect = null;
-      let isSnipeAttack = false;
+      let targetSelect = statusPayoff?.targetSelect || null;
+      let isSnipeAttack = Boolean(statusPayoff?.pattern.isSnipe);
+      const statusPayoffMultiplier = statusPayoff?.pattern.payoffMultiplier ?? 1;
 
       if (mon.isSniper) {
         if (mon.snipeQueued) {
@@ -910,6 +1088,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       const target = targetSelect.c;
       if (isMultiActionTurn) recordMonsterAction(mon, "連続攻撃", state);
+      if (statusPayoff) {
+        recordMonsterAction(mon, statusPayoff.pattern.payoffAction, state);
+        if (statusPayoff.defended) {
+          recordEnemyStatusPattern(state, "defendBeforePayoff", mon, target, { response: "defendBeforePayoff" });
+        }
+      }
 
       // Attack spells (HALITO, LAHALITO etc., excluding healer spells)
       const attackSpellChance = mon.spellChance !== undefined ? mon.spellChance : 0.20;
@@ -1094,7 +1278,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           const isDefending = combatSelection.actions.some(a => a.actorIdx === targetSelect.i && a.type === "defend");
           const baseAtk = getEffectiveAtk(mon);
           let finalAtk;
-          if (isSnipeAttack) {
+          if (statusPayoff) {
+            finalAtk = Math.round(baseAtk * statusPayoffMultiplier) + Math.floor(Math.random() * 4);
+          } else if (isSnipeAttack) {
             finalAtk = Math.round(baseAtk * 1.5) + Math.floor(Math.random() * 4);
           } else {
             finalAtk = baseAtk + Math.floor(Math.random() * 4);
@@ -1140,17 +1326,28 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           });
           const wakeSuffix = wakeSleepingCharOnDamage(target) ? `${target.name}は目を覚ました！` : "";
           
-          const attackMsg = isSnipeAttack
-            ? `[ 敵 ] ${mon.name}の狙撃！${target.name}に${dmg}のダメージ！`
+          const attackMsg = statusPayoff
+            ? `[ 敵 ] ${mon.name}の${statusPayoff.pattern.payoffMessage}！${target.name}に${dmg}のダメージ！`
+            : isSnipeAttack
+              ? `[ 敵 ] ${mon.name}の狙撃！${target.name}に${dmg}のダメージ！`
             : `[ 敵 ] ${mon.name}の攻撃！${target.name}に${dmg}のダメージ！`;
           
           logQueue.push({
             msg: `${attackMsg}${wakeSuffix}`,
             sound: "hit",
-            shake: isSnipeAttack ? 12 : 8,
+            shake: statusPayoff || isSnipeAttack ? 12 : 8,
             floatText: `${dmg}`,
             floatColor: "#ff3b30"
           });
+
+          if (statusPayoff) {
+            mon.statusPatternPayoffConsumed = { targetIdx: targetSelect.i };
+            recordEnemyStatusPattern(state, "payoffs", mon, target, {
+              damage: dmg,
+              latency: Math.max(1, roundNumber - (statusPayoff.queued.setupRound || roundNumber))
+            });
+            clearQueuedStatusPattern(mon);
+          }
 
           tryThornCounter(target, mon, targetSelect.i, state, logQueue);
           if (mon.hp === 0) {
@@ -1174,7 +1371,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply poison effect if monster is poisonous and target survives
           const poisonChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isPoisonous && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, poisonChance)) {
+          const patternActive = mon.statusAttackPattern && !mon.isBoss && !mon.isMidboss &&
+            !state.combatState?.isBoss && !state.combatState?.isMidboss;
+          if (mon.isPoisonous && !patternActive && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, poisonChance)) {
             const ward = getCharAffixSum(target, "poisonWard");
             if (ward > 0 && Math.random() * 100 < ward) {
               logQueue.push({
@@ -1218,7 +1417,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
           // Apply blind effect if monster is blinding and target survives
           const blindChance = mon.statusChance !== undefined ? mon.statusChance : 0.35;
-          if (mon.isBlinding && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, blindChance)) {
+          if (mon.isBlinding && !patternActive && target.hp > 0 && target.status === "ok" && Math.random() < getStatusEffectChance(target, blindChance)) {
             applyStatusEffect(target, STATUS_EFFECT_IDS.BLIND, { source: "monster" });
             recordMonsterCondition(mon, "盲目を受けた", state);
             logQueue.push({
@@ -1243,6 +1442,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
     }
   });
+
+  recordQueuedPatternDeaths(state, monsters);
 
   tickMonsterBuffs(monsters, {
     onBleedingExpire: target => recordBleedingEvent(state, "expired", target, { reason: "duration" }),
@@ -1301,6 +1502,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
       }
     });
     allMonstersDead = monsters.every(m => m.hp <= 0);
+    recordQueuedPatternDeaths(state, monsters);
   }
 
   const allPartyDeadNow = state.party.every(c => c.status === "dead");

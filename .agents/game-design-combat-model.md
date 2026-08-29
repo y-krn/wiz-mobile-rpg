@@ -1079,7 +1079,32 @@ remaining duration/source through the existing combat save payload. No enemy-sid
 resistance is introduced; boss and midboss application is therefore observable and currently
 successful under the same rule.
 
-### 8.5 future owner decisions (not selected)
+### 8.5 #960 enemy status attack grammar
+
+Enemy status effects are an attack setup, not an unconditional `damage + random ailment`
+bonus. This slice selects only two non-boss regular enemies:
+
+| Enemy | Setup | Payoff | Player responses measured |
+| --- | --- | --- | --- |
+| ポイズンジャイアント | poison, no direct damage | next-turn `毒喰らい` at 1.75x normal physical attack | antidote, defend, kill, flee |
+| 煙幕盗賊 | blind, no direct damage | next-turn `目眩まし狙撃` at 1.6x normal physical attack | eye drops, defend, kill, flee |
+
+The setup is finite to the combat encounter through the existing legacy status lifecycle;
+reapplication is not stacked. A successful setup queues one target-specific payoff and
+the queue is cleared on payoff, cure, target loss, flee, or enemy defeat. Player status
+resistance and the existing poison ward are honored; there is still no enemy-side general
+status resistance rule. Existing poison/blind producers not listed above retain their
+legacy direct-attack behavior. Boss and midboss status behavior is unchanged and does not
+receive either new pattern; their existing custom action policy remains explicit.
+
+The canonical real-run simulator exposes `attemptsByEnemyFloor`,
+`successesByEnemyFloor`, `resistedByEnemyFloor`, payoff reach/damage/latency, and player
+responses (`cureBeforePayoff`, `defendBeforePayoff`, `killBeforePayoff`, and
+`fleeBeforePayoff`), including boss/midboss counters. This is the evidence path for
+application, payoff arrival, and response choice; live analytics transport is not required
+for the deterministic measurement.
+
+### 8.6 future owner decisions (not selected)
 
 追加の vulnerable producer/source、敵側耐性・免疫、出血の cure item、出血を
 `CORE_EXECUTIONER` 対象へ広げること、追加の status stacking、action-denial mechanics
