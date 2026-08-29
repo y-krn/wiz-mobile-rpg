@@ -180,7 +180,7 @@ is a bug in the economy.
 - #966では、敵→プレイヤー通常攻撃と逃走追撃の共通曲線を
   `scratch/simulations/sim_physical_defense_curve.js` で比較した。Mageの浅層DEF4・深層DEF14、
   DEF15–20のtank、現行装備のFighterを、現行遭遇表の通常敵（各層low/typical/high、0..3乱数）で
-  評価し、scale=4/8/10/12とATK/DEF比を候補にした。scale=8は深層の1ダメージ張り付きを解消するが、
+  評価し、scale=4/8/10/12/16、単純減算、ATK/DEF比を候補にした。scale=8は深層の1ダメージ張り付きを解消するが、
   production-backed N=500 runでB5到達率と素材収入を大幅に損なったため不採用。scale=4は
   `defResistance=DEF/(DEF+4)` としてその回帰を抑え、workshop-completeのB5到達率を基準線比
   Fighter -2.0pt、Mage -5.4pt、Thief -0.6pt、Priest -3.0ptに収めた（同一seed/config、

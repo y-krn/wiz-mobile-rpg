@@ -22,6 +22,8 @@ const CANDIDATES = Object.freeze([
   { id: "scale-8", label: "割合軽減 scale=8", kind: "scale", scale: 8 },
   { id: "scale-10", label: "割合軽減 scale=10", kind: "scale", scale: 10 },
   { id: "scale-12", label: "割合軽減 scale=12", kind: "scale", scale: 12 },
+  { id: "scale-16", label: "割合軽減 scale=16", kind: "scale", scale: 16 },
+  { id: "flat-subtract", label: "単純減算", kind: "subtract" },
   { id: "atk-def-ratio", label: "ATK/DEF比率型", kind: "ratio" }
 ]);
 
@@ -74,6 +76,9 @@ function getNormalEnemyBands(floor) {
 }
 
 function damageFor(candidate, finalAtk, finalDef) {
+  if (candidate.kind === "subtract") {
+    return Math.max(1, finalAtk - finalDef);
+  }
   if (candidate.kind === "ratio") {
     return Math.max(1, Math.floor((finalAtk * finalAtk) / (finalAtk + finalDef)));
   }
