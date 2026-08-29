@@ -3,6 +3,7 @@ import {
   createEncounterFixture,
   deriveSharedCaseSeed,
   getBuildDefinitions,
+  isSignificantReversal,
   runEncounterSample,
   runMeasurement
 } from "../../measurements/issue973_build_sensitivity.js";
@@ -46,6 +47,34 @@ const sampleB = runEncounterSample({ buildId: "hybrid-fallback", encounterId: "m
 assert.deepEqual(sampleA, sampleB, "production combat sample must be deterministic");
 assert.equal(sampleA.seed, sharedSeed, "the sample must retain the shared case seed");
 
+const significantDifference = (estimate, significant = true) => ({
+  estimate,
+  ci95: estimate > 0 ? [0.1, estimate] : [estimate, -0.1],
+  significant
+});
+const utilityOnlyReversalA = {
+  outcomeDifference: significantDifference(0.4),
+  utilityDifference: significantDifference(0.3)
+};
+const utilityOnlyReversalB = {
+  outcomeDifference: significantDifference(0.2),
+  utilityDifference: significantDifference(-0.3)
+};
+assert.equal(
+  isSignificantReversal(utilityOnlyReversalA, utilityOnlyReversalB),
+  false,
+  "utility-only encounter reversal must not be significant"
+);
+const bothMetricsReversalB = {
+  outcomeDifference: significantDifference(-0.2),
+  utilityDifference: significantDifference(-0.3)
+};
+assert.equal(
+  isSignificantReversal(utilityOnlyReversalA, bothMetricsReversalB),
+  true,
+  "outcome and utility encounter reversal must be significant"
+);
+
 const provenance = {
   sourceCommit: "source-commit",
   gameplaySourceCommit: "gameplay-commit",
@@ -58,7 +87,7 @@ const provenance = {
   baseCommit: "base-commit"
 };
 const report = runMeasurement({ seed: "schema-seed", runs: 1, provenance });
-assert.equal(report.schemaVersion, 2);
+assert.equal(report.schemaVersion, 3);
 assert.equal(report.measurement.sourceCommit, "source-commit");
 assert.equal(report.measurement.gameplaySourceCommit, "gameplay-commit");
 assert.equal(report.measurement.originMainAncestor, true);

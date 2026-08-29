@@ -21,7 +21,7 @@ import { hasStatusEffect, STATUS_EFFECT_IDS } from "../../src/combat_logic/statu
 import { readSimScopeDeclaration, printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 
-export const RUNNER_VERSION = "issue973-build-sensitivity-v2";
+export const RUNNER_VERSION = "issue973-build-sensitivity-v3";
 export const TARGET_DEPTHS = Object.freeze([8, 13, 18]);
 export const DEFAULT_SEED = "974-build-confidence";
 export const DEFAULT_RUNS = 100;
@@ -787,6 +787,25 @@ function buildPairedComparison(leftBuildId, rightBuildId, pairedSamples, seed) {
   };
 }
 
+export function isSignificantReversal(leftComparison, rightComparison) {
+  const leftOutcomeSign = Math.sign(leftComparison.outcomeDifference.estimate);
+  const rightOutcomeSign = Math.sign(rightComparison.outcomeDifference.estimate);
+  const leftUtilitySign = Math.sign(leftComparison.utilityDifference.estimate);
+  const rightUtilitySign = Math.sign(rightComparison.utilityDifference.estimate);
+  return Boolean(
+    leftComparison.outcomeDifference.significant &&
+    leftComparison.utilityDifference.significant &&
+    rightComparison.outcomeDifference.significant &&
+    rightComparison.utilityDifference.significant &&
+    leftOutcomeSign !== 0 &&
+    rightOutcomeSign !== 0 &&
+    leftUtilitySign !== 0 &&
+    rightUtilitySign !== 0 &&
+    leftOutcomeSign !== rightOutcomeSign &&
+    leftUtilitySign !== rightUtilitySign
+  );
+}
+
 function compareMetric(left, right, metric) {
   const direction = ["deathRate", "roundsToTerminal"].includes(metric) ? -1 : 1;
   const delta = (left[metric] - right[metric]) * direction;
@@ -855,17 +874,7 @@ function createSignificantRankReversals(pairedByKey, pairedComparisonByKey) {
             const rightComparison = pairedComparisonByKey.get(
               `${depth}:${rightEncounterId}:${leftBuildId}:${rightBuildId}`
             );
-            const leftSign = Math.sign(leftComparison.utilityDifference.estimate);
-            const rightSign = Math.sign(rightComparison.utilityDifference.estimate);
-            if (
-              leftComparison.outcomeDifference.significant &&
-              rightComparison.outcomeDifference.significant &&
-              leftComparison.utilityDifference.significant &&
-              rightComparison.utilityDifference.significant &&
-              leftSign !== 0 &&
-              rightSign !== 0 &&
-              leftSign !== rightSign
-            ) {
+            if (isSignificantReversal(leftComparison, rightComparison)) {
               reversals.push({
                 depth,
                 metric: "pairedOutcomeAndUtility",
@@ -971,7 +980,7 @@ function buildMeasurementMetadata({ seed, runs, provenance, envSignature }) {
       utility: "clear indicator + 0.25*postCombatHpRatio + 0.25*postCombatMpRatio - 0.1*rounds/MAX_ROUNDS",
       bootstrapIterations: BOOTSTRAP_ITERATIONS,
       significantDifference: "bootstrap 95% CI excludes zero",
-      significantReversal: "both encounters have significant outcome and utility differences with opposite signs"
+      significantReversal: "both encounters have significant outcome and utility differences, and both metrics reverse sign"
     },
     modeledProductionRules: [
       "src/data/monsters.js MONSTERS",
@@ -1063,7 +1072,7 @@ export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, prove
   const redFlags = calculateRedFlags(cases, significantRankReversals, rawRankReversals);
   const falsification = redFlags.triggered.length > 0 ? "falsified_or_red_flagged" : "not_falsified_by_v0_criteria";
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     measurement: buildMeasurementMetadata({ seed, runs, provenance, envSignature: null }),
     builds: BUILD_DEFINITIONS.map(build => ({
       id: build.id,
