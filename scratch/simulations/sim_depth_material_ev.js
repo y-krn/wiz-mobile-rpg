@@ -5675,6 +5675,80 @@ function createStatusCureSupplyMetrics() {
   };
 }
 
+function createStatusCureDecisionTimingMetrics() {
+  return Object.fromEntries(STATUS_OBSERVATION_KEYS.map(status => [status, {
+    decisions: 0,
+    selected: 0,
+    heldUnusedDecisions: 0,
+    inventoryCount: 0,
+    inventory18Plus: 0,
+    inventoryFull: 0,
+    combatRoundsBeforeDecision: 0,
+    explorationStepsBeforeDecision: 0
+  }]));
+}
+
+function recordStatusCureDecisionTiming(metrics, decision, state) {
+  const status = normalizeStatusObservation(decision?.status);
+  const bucket = status ? metrics?.statusCureDecisionTiming?.[status] : null;
+  if (!bucket) return;
+  const inventoryCount = state?.inventory?.length || 0;
+  const episode = metrics.statusObservations?.activeEpisode?.status === status
+    ? metrics.statusObservations.activeEpisode
+    : null;
+  bucket.decisions++;
+  bucket.selected += Number(decision.kind === "selected");
+  bucket.heldUnusedDecisions += Number(
+    ["policy-deferred", "incapacitated"].includes(decision.kind)
+  );
+  bucket.inventoryCount += inventoryCount;
+  bucket.inventory18Plus += Number(inventoryCount >= 18);
+  bucket.inventoryFull += Number(inventoryCount >= 20);
+  bucket.combatRoundsBeforeDecision += episode?.combatRounds || 0;
+  bucket.explorationStepsBeforeDecision += episode?.explorationSteps || 0;
+}
+
+function addStatusCureDecisionTiming(target, source) {
+  STATUS_OBSERVATION_KEYS.forEach(status => {
+    const destination = target[status];
+    const values = source?.[status];
+    if (!values) return;
+    Object.keys(destination).forEach(key => {
+      destination[key] += values[key] || 0;
+    });
+  });
+}
+
+function finalizeStatusCureDecisionTiming(aggregate) {
+  const runs = Math.max(1, RUNS_PER_CASE);
+  return Object.fromEntries(
+    STATUS_OBSERVATION_KEYS.map(status => {
+      const values = aggregate[status];
+      return [status, {
+        ...values,
+        decisionsPerRun: values.decisions / runs,
+        selectedPerRun: values.selected / runs,
+        heldUnusedDecisionsPerRun: values.heldUnusedDecisions / runs,
+        averageInventoryCount: values.decisions > 0
+          ? values.inventoryCount / values.decisions
+          : 0,
+        inventory18PlusRate: values.decisions > 0
+          ? values.inventory18Plus / values.decisions
+          : 0,
+        inventoryFullRate: values.decisions > 0
+          ? values.inventoryFull / values.decisions
+          : 0,
+        averageCombatRoundsBeforeDecision: values.decisions > 0
+          ? values.combatRoundsBeforeDecision / values.decisions
+          : 0,
+        averageExplorationStepsBeforeDecision: values.decisions > 0
+          ? values.explorationStepsBeforeDecision / values.decisions
+          : 0
+      }];
+    })
+  );
+}
+
 function addStatusCureEvMetrics(target, source) {
   STATUS_OBSERVATION_KEYS.forEach(status => {
     const destination = target[status];
@@ -5900,6 +5974,7 @@ function createStatusCureDecision(state, inCombat = true, metrics = null) {
 
 function recordStatusCureDecision(metrics, decision, context, state = null) {
   if (!metrics || !decision) return;
+  recordStatusCureDecisionTiming(metrics, decision, state);
   metrics.statusCureDecisions[decision.kind] =
     (metrics.statusCureDecisions[decision.kind] || 0) + 1;
   metrics.statusCureDecisionContexts[context] =
@@ -11472,6 +11547,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     statusCureUnavailableStatuses: metrics.statusCureUnavailableStatuses,
     statusCureHeldNotUsedStatuses: metrics.statusCureHeldNotUsedStatuses,
     statusCureEvMetrics: metrics.statusCureEvMetrics,
+    statusCureDecisionTiming: metrics.statusCureDecisionTiming,
     statusCureSupply: metrics.statusCureSupply,
     statusesCured: metrics.statusesCured,
     statusCureMerchantFailures: metrics.statusCureMerchantFailures,
@@ -12004,6 +12080,7 @@ export function simulateRun({
     statusCureItemsUsed: {},
     statusObservations: createStatusObservationMetrics(),
     statusCureEvMetrics: createStatusCureEvMetrics(),
+    statusCureDecisionTiming: createStatusCureDecisionTimingMetrics(),
     statusCureSupply: createStatusCureSupplyMetrics(),
     statusCureDecisions: {
       selected: 0,
@@ -13152,6 +13229,9 @@ function simulateCase({
     enemyStatusGrammar: createEnemyStatusGrammarMetrics(),
     statusCureItemsAcquired: {},
     statusCureItemsUsed: {},
+    statusCureInventoryRemaining: Object.fromEntries(
+      [...STATUS_CURE_ITEM_IDS].map(itemId => [itemId, 0])
+    ),
     merchantStock: createMerchantStockMetrics(),
     milestoneMerchantVisits: 0,
     milestoneMerchantBlockedVisits: 0,
@@ -13171,6 +13251,7 @@ function simulateCase({
     statusCureUnavailableStatuses: {},
     statusCureHeldNotUsedStatuses: {},
     statusCureEvMetrics: createStatusCureEvMetrics(),
+    statusCureDecisionTiming: createStatusCureDecisionTimingMetrics(),
     statusCureSupply: {
       dedicatedDepletionRuns: 0,
       dedicatedDepletionFloorCounts: {},
@@ -13354,6 +13435,11 @@ function simulateCase({
         (totals.merchantUncurseFailures[reason] || 0) + count;
     });
     addStatusCureEvMetrics(totals.statusCureEvMetrics, result.statusCureEvMetrics);
+    addStatusCureDecisionTiming(totals.statusCureDecisionTiming, result.statusCureDecisionTiming);
+    Object.entries(result.finalStatusCureInventory || {}).forEach(([itemId, count]) => {
+      totals.statusCureInventoryRemaining[itemId] =
+        (totals.statusCureInventoryRemaining[itemId] || 0) + (Number(count) || 0);
+    });
     if (result.statusCureSupply?.dedicatedDepletionFloor !== null) {
       totals.statusCureSupply.dedicatedDepletionRuns++;
       const floor = result.statusCureSupply.dedicatedDepletionFloor;
@@ -13954,6 +14040,10 @@ function simulateCase({
     enemyStatusGrammar: totals.enemyStatusGrammar,
     statusCureItemsAcquired: totals.statusCureItemsAcquired,
     statusCureItemsUsed: totals.statusCureItemsUsed,
+    statusCureInventoryRemaining: Object.fromEntries(
+      Object.entries(totals.statusCureInventoryRemaining)
+        .map(([itemId, count]) => [itemId, count / RUNS_PER_CASE])
+    ),
     merchantStock: totals.merchantStock,
     merchantStockByClass,
     merchantPolicy: scenario.merchantPolicy || SIM_MERCHANT_POLICY,
@@ -13973,6 +14063,7 @@ function simulateCase({
     statusCureUnavailableStatuses: totals.statusCureUnavailableStatuses,
     statusCureHeldNotUsedStatuses: totals.statusCureHeldNotUsedStatuses,
     statusCureEvMetrics: totals.statusCureEvMetrics,
+    statusCureDecisionTiming: finalizeStatusCureDecisionTiming(totals.statusCureDecisionTiming),
     statusCureSupply: totals.statusCureSupply,
     statusesCured: totals.statusesCured,
     ...trapSummary,
@@ -14633,6 +14724,8 @@ function printStatusCureSummary(result) {
   );
   console.log(`状態回復アイテム/run 入手/消費: ${JSON.stringify(statusItems)}`);
   console.log(`状態回復アイテム合計使用: ${JSON.stringify(result.statusCureItemsUsed || {})}`);
+  console.log(`状態回復終了保持/run: ${JSON.stringify(result.statusCureInventoryRemaining || {})}`);
+  console.log(`状態回復判定時期・バッグ占有: ${JSON.stringify(result.statusCureDecisionTiming || {})}`);
   console.log(
     `毒終了後: 継続step/run=${((result.statusObservations?.postPoisonContinuationSteps || 0) / RUNS_PER_CASE).toFixed(4)} ` +
     `終了後run outcome=${JSON.stringify(result.statusObservations?.postPoisonOutcomes || {})}`
@@ -14664,6 +14757,8 @@ function printStatusCureSummary(result) {
     statusCureEvMetrics: result.statusCureEvMetrics,
     statusCureSupply: result.statusCureSupply,
     statusCureItemsUsed: result.statusCureItemsUsed,
+    statusCureInventoryRemaining: result.statusCureInventoryRemaining,
+    statusCureDecisionTiming: result.statusCureDecisionTiming,
     statusItems,
     statusObservations: result.statusObservations
   })}`);

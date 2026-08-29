@@ -244,6 +244,11 @@ export const SIMULATION_MANIFEST = Object.freeze({
       reason: "milestone stairs presentation gate only; movement costs and facility rules remain unchanged",
       kind: "presentation"
     },
+    {
+      pattern: "src/data/status_treatments.js",
+      marker: "// balance-impact: none",
+      reason: "role catalog metadata only; item effects and supply rules remain unchanged"
+    },
   ].map(declaration => Object.freeze({ ...declaration }))),
   // Exact paths whose current callers may receive telemetry-only edits. A
   // path is exempt only when every changed hunk passes isTelemetryOnlyDiff.
