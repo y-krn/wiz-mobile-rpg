@@ -695,6 +695,7 @@ function finalizeCase(aggregate) {
     },
     mechanisms: { totals: aggregate.mechanisms, averagePerRun: mechanismAverage },
     statusTrajectory: {
+      roundsObservedPerRun: aggregate.statusTrajectory.roundsObserved / runs,
       activeRounds: Object.fromEntries(TRACKED_STATUS_IDS.map(statusId => [statusId, aggregate.statusTrajectory.activeRounds[statusId] / runs])),
       applications: aggregate.statusTrajectory.applications,
       removals: aggregate.statusTrajectory.removals,
