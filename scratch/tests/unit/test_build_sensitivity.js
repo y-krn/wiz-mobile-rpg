@@ -58,7 +58,7 @@ const provenance = {
   baseCommit: "base-commit"
 };
 const report = runMeasurement({ seed: "schema-seed", runs: 1, provenance });
-assert.equal(report.schemaVersion, 1);
+assert.equal(report.schemaVersion, 2);
 assert.equal(report.measurement.sourceCommit, "source-commit");
 assert.equal(report.measurement.gameplaySourceCommit, "gameplay-commit");
 assert.equal(report.measurement.originMainAncestor, true);
@@ -70,11 +70,16 @@ assert.equal(report.builds.length, 4);
 assert.equal(report.encounters.length, 6);
 assert.equal(report.cases.length, 72);
 assert.equal(report.pairwiseRanking.length, 18);
+assert.ok(Array.isArray(report.rawRankReversals));
 assert.ok(Array.isArray(report.rankReversals));
 assert.equal(report.redFlags.flags.length, 6);
 assert.ok(Object.hasOwn(report.cases[0], "failureAttribution"));
 assert.ok(Object.hasOwn(report.cases[0], "resourceSignature"));
 assert.ok(Object.hasOwn(report.cases[0].mechanisms, "totals"));
 assert.ok(Object.hasOwn(report.cases[0].mechanisms, "averagePerRun"));
+assert.ok(Object.hasOwn(report.cases[0], "statusTrajectory"));
+assert.ok(Object.hasOwn(report.cases[0].statusTrajectory, "incapacitatedRoundsPerRun"));
+assert.ok(Object.hasOwn(report.cases[0], "mpStarvationRoundsPerRun"));
+assert.equal(report.pairwiseRanking[0].rankings.at(-1).metric, "pairedOutcomeAndUtility");
 
-console.log("[PASS] build definitions, fixture determinism, shared seeds, production combat determinism, and output schema verified");
+console.log("[PASS] build definitions, fixture determinism, shared seeds, production combat determinism, provenance, status trajectory, and output schema verified");

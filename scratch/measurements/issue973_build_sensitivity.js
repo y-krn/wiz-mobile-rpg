@@ -17,15 +17,25 @@ import { CORE_AFFIXES, SUPPORT_AFFIXES } from "../../src/data/affixes.js";
 import { scaleEnemyForDepth } from "../../src/rules/depth_scaling.js";
 import { getCharMaxHp, getCharMaxMp } from "../../src/rules/character_stats.js";
 import { getSpellPayment, getCoreLogText } from "../../src/rules/affix_rules.js";
+import { hasStatusEffect, STATUS_EFFECT_IDS } from "../../src/combat_logic/status_effects.js";
 import { readSimScopeDeclaration, printEnvSignatureBanner } from "./measurement_env_signature.js";
 import { requireRunnerProvenance } from "./measurement_provenance.js";
 
-export const RUNNER_VERSION = "issue973-build-sensitivity-v1";
+export const RUNNER_VERSION = "issue973-build-sensitivity-v2";
 export const TARGET_DEPTHS = Object.freeze([8, 13, 18]);
 export const DEFAULT_SEED = "974-build-confidence";
 export const DEFAULT_RUNS = 100;
 export const MAX_ROUNDS = 200;
 export const LOW_RESOURCE_THRESHOLD = 0.25;
+export const BOOTSTRAP_ITERATIONS = 2000;
+
+const TRACKED_STATUS_IDS = Object.freeze([
+  STATUS_EFFECT_IDS.POISONED,
+  STATUS_EFFECT_IDS.BLIND,
+  STATUS_EFFECT_IDS.SLEEP,
+  STATUS_EFFECT_IDS.PARALYZED,
+  STATUS_EFFECT_IDS.SILENCE
+]);
 
 const BUILD_IDS = Object.freeze(["aoe-burst", "single-efficient", "sustain", "hybrid-fallback"]);
 const ENCOUNTER_IDS = Object.freeze([
@@ -303,6 +313,77 @@ function createMechanismCounts() {
   };
 }
 
+function createStatusTrajectory() {
+  return {
+    activeRounds: Object.fromEntries(TRACKED_STATUS_IDS.map(id => [id, 0])),
+    applications: Object.fromEntries(TRACKED_STATUS_IDS.map(id => [id, 0])),
+    removals: Object.fromEntries(TRACKED_STATUS_IDS.map(id => [id, 0])),
+    incapacitatedRounds: 0,
+    silenceCastOpportunityLossRounds: 0,
+    terminalActiveStatuses: []
+  };
+}
+
+function getActiveStatuses(character) {
+  return TRACKED_STATUS_IDS.filter(statusId => hasStatusEffect(character, statusId));
+}
+
+const STATUS_APPLICATION_PATTERNS = Object.freeze({
+  [STATUS_EFFECT_IDS.POISONED]: /毒に侵された|毒を受けた/,
+  [STATUS_EFFECT_IDS.BLIND]: /盲目状態になった|盲目を受けた/,
+  [STATUS_EFFECT_IDS.SLEEP]: /眠りに落ちた|睡眠を受けた/,
+  [STATUS_EFFECT_IDS.PARALYZED]: /麻痺状態になった|麻痺を受けた/,
+  [STATUS_EFFECT_IDS.SILENCE]: /沈黙した/ // "沈黙を退けた" is intentionally excluded.
+});
+
+function observeStatusTrajectory(
+  trajectory,
+  { characterBefore, characterAfter, action, logs, round, hasSpellOpportunity }
+) {
+  const beforeActive = getActiveStatuses(characterBefore);
+  const afterActive = getActiveStatuses(characterAfter);
+  const messages = logs.map(entry => String(entry.msg || ""));
+  trajectory.roundsObserved = (trajectory.roundsObserved || 0) + 1;
+  beforeActive.forEach(statusId => {
+    trajectory.activeRounds[statusId]++;
+  });
+  TRACKED_STATUS_IDS.forEach(statusId => {
+    const becameActive = !beforeActive.includes(statusId) && afterActive.includes(statusId);
+    if (becameActive) {
+      trajectory.applications[statusId]++;
+    }
+    if (beforeActive.includes(statusId) && !afterActive.includes(statusId)) {
+      trajectory.removals[statusId]++;
+    }
+    if (
+      !becameActive &&
+      STATUS_APPLICATION_PATTERNS[statusId] &&
+      messages.some(message => STATUS_APPLICATION_PATTERNS[statusId].test(message))
+    ) {
+      trajectory.applications[statusId]++;
+    }
+  });
+  if (
+    [STATUS_EFFECT_IDS.SLEEP, STATUS_EFFECT_IDS.PARALYZED].some(statusId => beforeActive.includes(statusId)) &&
+    messages.some(message => /動けない/.test(message))
+  ) {
+    trajectory.incapacitatedRounds++;
+  }
+  if (
+    beforeActive.includes(STATUS_EFFECT_IDS.SILENCE) &&
+    hasSpellOpportunity &&
+    action.type === "spell" &&
+    messages.some(message => /沈黙していて呪文を唱えられない/.test(message))
+  ) {
+    trajectory.silenceCastOpportunityLossRounds++;
+  }
+  trajectory.lastRound = {
+    round,
+    activeStatuses: beforeActive,
+    action: { type: action.type, spellName: action.spellName || null }
+  };
+}
+
 function increment(map, key, amount = 1) {
   map[key] = (map[key] || 0) + amount;
 }
@@ -362,20 +443,64 @@ function chooseAction(state) {
   return { ...action, actorIdx: 0 };
 }
 
-function classifyFailure({ state, mechanisms, rounds, hadSpellDenial, hadMpStarvation }) {
-  const character = state.party[0];
-  const evidence = [];
-  if (hadSpellDenial || (character.status === "silence")) evidence.push("spell_denial");
-  if (hadMpStarvation) evidence.push("mp_starvation");
-  if (mechanisms.reflectionOrCounter > 0) evidence.push("reflection_or_counter");
-  if (mechanisms.actionEconomy > 0) evidence.push("action_economy");
-  if (["sleep", "paralyzed", "paralyze", "blind"].includes(character.status)) evidence.push("status_lock");
-  if (mechanisms.regen > 0) evidence.push("duration_overrun");
-  if (character.hp <= 0 && evidence.length === 0) evidence.push("raw_damage_pressure");
-  if (evidence.length === 0 && rounds >= MAX_ROUNDS) evidence.push("duration_overrun");
-  if (evidence.length === 0) evidence.push("unknown_or_mixed");
-  const primary = evidence.length === 1 ? evidence[0] : "unknown_or_mixed";
-  return { primary, evidence };
+function classifyFailure({
+  outcome,
+  lowResource,
+  state,
+  mechanisms,
+  rounds,
+  statusTrajectory,
+  mpStarvationRounds,
+  terminalRound
+}) {
+  const terminalMessages = terminalRound.messages;
+  const candidates = [];
+  const terminalActiveStatuses = statusTrajectory.terminalActiveStatuses;
+  const terminalDamage = terminalRound.hpAfter < terminalRound.hpBefore;
+  const repeated = count => count >= 2;
+
+  // Mechanism firing is diagnostic evidence, not a cause by itself. Repeated
+  // trajectory evidence or a terminally relevant signal is required before a
+  // mechanism becomes a primary-cause candidate.
+  if (
+    repeated(statusTrajectory.incapacitatedRounds) ||
+    (terminalActiveStatuses.includes(STATUS_EFFECT_IDS.SLEEP) && statusTrajectory.incapacitatedRounds >= 1) ||
+    (terminalActiveStatuses.includes(STATUS_EFFECT_IDS.PARALYZED) && statusTrajectory.incapacitatedRounds >= 1)
+  ) {
+    candidates.push("status_lock");
+  }
+  if (repeated(statusTrajectory.silenceCastOpportunityLossRounds)) {
+    candidates.push("spell_denial");
+  }
+  const maxMp = getCharMaxMp(state.party[0]);
+  if (repeated(mpStarvationRounds) && state.party[0].mp / Math.max(1, maxMp) <= LOW_RESOURCE_THRESHOLD) {
+    candidates.push("mp_starvation");
+  }
+  if (
+    repeated(mechanisms.reflectionOrCounter) &&
+    terminalMessages.some(message => /反射ダメージ|反撃ダメージ/.test(message))
+  ) {
+    candidates.push("reflection_or_counter");
+  }
+  if (repeated(mechanisms.actionEconomy) && terminalDamage && outcome === "death") {
+    candidates.push("action_economy");
+  }
+  if (repeated(mechanisms.regen) && (outcome === "timeout" || rounds >= 8)) {
+    candidates.push("duration_overrun");
+  }
+  if (outcome === "timeout") candidates.push("duration_overrun");
+  if (outcome === "death" && terminalDamage && candidates.length === 0) candidates.push("raw_damage_pressure");
+  if (outcome === "clear" && lowResource && candidates.length === 0) candidates.push("sustain_failure");
+
+  const uniqueCandidates = [...new Set(candidates)];
+  const primary = uniqueCandidates.length === 1 ? uniqueCandidates[0] : "unknown_or_mixed";
+  return {
+    primary,
+    candidates: uniqueCandidates,
+    rationale: uniqueCandidates.length === 1
+      ? "single attributable terminal/trajectory signal"
+      : "multiple or insufficient terminal/trajectory signals"
+  };
 }
 
 export function runEncounterSample({ buildId, encounterId, depth, seed }) {
@@ -383,29 +508,44 @@ export function runEncounterSample({ buildId, encounterId, depth, seed }) {
     const fixture = createEncounterFixture(encounterId, depth);
     const state = createSimulationState(buildId, depth, fixture.monsters, seed);
     const mechanisms = createMechanismCounts();
+    const statusTrajectory = createStatusTrajectory();
     let rounds = 0;
-    let hadSpellDenial = false;
-    let hadMpStarvation = false;
+    let mpStarvationRounds = 0;
     let outcome = "timeout";
+    let terminalRound = { hpBefore: state.party[0].hp, hpAfter: state.party[0].hp, messages: [] };
 
     while (rounds < MAX_ROUNDS) {
       const characterBefore = state.party[0];
       const action = chooseAction(state);
+      const hpBefore = characterBefore.hp;
+      const hasSpellOpportunity = hasOffensiveSpellOpportunity(characterBefore);
       if (
         action.type === "fight" &&
-        hasOffensiveSpellOpportunity(characterBefore) &&
+        hasSpellOpportunity &&
         characterBefore.spells.every(spellName => {
           const spell = SPELLS[spellName];
           return !spell?.target?.includes("enemy") || !getSpellPayment(characterBefore, spell.cost).canCast;
         })
       ) {
-        hadMpStarvation = true;
+        mpStarvationRounds++;
       }
-      if (action.type === "spell" && characterBefore.status === "silence") hadSpellDenial = true;
       const result = runCombatRoundCalculation(state, { actions: [action] });
       rounds++;
       observeRound(mechanisms, action, result.logQueue);
-      if (result.logQueue.some(entry => /沈黙した|沈黙を退け/.test(entry.msg || ""))) hadSpellDenial = true;
+      const characterAfter = result.state.party[0];
+      observeStatusTrajectory(statusTrajectory, {
+        characterBefore,
+        characterAfter,
+        action,
+        logs: result.logQueue,
+        round: rounds,
+        hasSpellOpportunity
+      });
+      terminalRound = {
+        hpBefore,
+        hpAfter: characterAfter.hp,
+        messages: result.logQueue.map(entry => String(entry.msg || ""))
+      };
       state.party = result.state.party;
       state.combatState = result.state.combatState;
       state.currentRun = result.state.currentRun;
@@ -428,9 +568,19 @@ export function runEncounterSample({ buildId, encounterId, depth, seed }) {
     const hpRatio = Math.max(0, Math.min(1, character.hp / Math.max(1, maxHp)));
     const mpRatio = maxMp > 0 ? Math.max(0, Math.min(1, character.mp / maxMp)) : 1;
     const lowResource = hpRatio <= LOW_RESOURCE_THRESHOLD || (maxMp > 0 && mpRatio <= LOW_RESOURCE_THRESHOLD);
+    statusTrajectory.terminalActiveStatuses = getActiveStatuses(character);
     const failure = outcome === "clear" && !lowResource
       ? null
-      : classifyFailure({ state, mechanisms, rounds, hadSpellDenial, hadMpStarvation });
+      : classifyFailure({
+        outcome,
+        lowResource,
+        state,
+        mechanisms,
+        rounds,
+        statusTrajectory,
+        mpStarvationRounds,
+        terminalRound
+      });
     return {
       outcome,
       rounds,
@@ -439,6 +589,8 @@ export function runEncounterSample({ buildId, encounterId, depth, seed }) {
       lowResource,
       failure,
       mechanisms,
+      statusTrajectory,
+      mpStarvationRounds,
       seed,
       fixture: {
         encounterId,
@@ -462,7 +614,10 @@ function createCaseAggregate(buildId, encounterId, depth) {
     sumRounds: 0,
     actionMix: { physical: 0, spell: 0, spellNames: {} },
     mechanisms: createMechanismCounts(),
+    statusTrajectory: createStatusTrajectory(),
+    mpStarvationRounds: 0,
     failureAttribution: {},
+    candidateAttribution: {},
     deathFailureAttribution: {},
     samples: []
   };
@@ -485,8 +640,17 @@ function addSample(aggregate, sample, keepSamples) {
   ["statusApplications", "statusCures", "mpDrain", "reflectionOrCounter", "actionEconomy", "regen", "guard"].forEach(key => {
     aggregate.mechanisms[key] += sample.mechanisms[key];
   });
+  TRACKED_STATUS_IDS.forEach(statusId => {
+    aggregate.statusTrajectory.activeRounds[statusId] += sample.statusTrajectory.activeRounds[statusId];
+    aggregate.statusTrajectory.applications[statusId] += sample.statusTrajectory.applications[statusId];
+    aggregate.statusTrajectory.removals[statusId] += sample.statusTrajectory.removals[statusId];
+  });
+  aggregate.statusTrajectory.incapacitatedRounds += sample.statusTrajectory.incapacitatedRounds;
+  aggregate.statusTrajectory.silenceCastOpportunityLossRounds += sample.statusTrajectory.silenceCastOpportunityLossRounds;
+  aggregate.mpStarvationRounds += sample.mpStarvationRounds;
   if (sample.failure) {
     increment(aggregate.failureAttribution, sample.failure.primary);
+    sample.failure.candidates.forEach(candidate => increment(aggregate.candidateAttribution, candidate));
     if (sample.outcome === "death") increment(aggregate.deathFailureAttribution, sample.failure.primary);
   }
   if (keepSamples) aggregate.samples.push(sample);
@@ -530,9 +694,18 @@ function finalizeCase(aggregate) {
       spellNames: aggregate.actionMix.spellNames
     },
     mechanisms: { totals: aggregate.mechanisms, averagePerRun: mechanismAverage },
+    statusTrajectory: {
+      activeRounds: Object.fromEntries(TRACKED_STATUS_IDS.map(statusId => [statusId, aggregate.statusTrajectory.activeRounds[statusId] / runs])),
+      applications: aggregate.statusTrajectory.applications,
+      removals: aggregate.statusTrajectory.removals,
+      incapacitatedRoundsPerRun: aggregate.statusTrajectory.incapacitatedRounds / runs,
+      silenceCastOpportunityLossRoundsPerRun: aggregate.statusTrajectory.silenceCastOpportunityLossRounds / runs
+    },
+    mpStarvationRoundsPerRun: aggregate.mpStarvationRounds / runs,
     failureAttribution: {
       allEligibleRuns: lowResourceRuns,
       counts: aggregate.failureAttribution,
+      candidateCounts: aggregate.candidateAttribution,
       deathCounts: aggregate.deathFailureAttribution,
       rates: Object.fromEntries(Object.entries(aggregate.failureAttribution).map(([key, value]) => [key, value / Math.max(1, lowResourceRuns)]))
     },
@@ -554,6 +727,65 @@ export function deriveSharedCaseSeed(rootSeed, runIndex, depth, encounterId) {
   return deriveCaseSeed(rootSeed, runIndex, depth, encounterId);
 }
 
+function calculateDiagnosticUtility(sample) {
+  // This is a measurement-only utility, not a gameplay formula: clear is the
+  // primary outcome, with post-combat resources and duration as diagnostics.
+  return (sample.outcome === "clear" ? 1 : 0) +
+    (sample.hpRatio * 0.25) +
+    (sample.mpRatio * 0.25) -
+    (sample.rounds / MAX_ROUNDS * 0.1);
+}
+
+function percentile(sortedValues, probability) {
+  if (sortedValues.length === 0) return null;
+  const index = (sortedValues.length - 1) * probability;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  if (lower === upper) return sortedValues[lower];
+  return sortedValues[lower] + (sortedValues[upper] - sortedValues[lower]) * (index - lower);
+}
+
+function bootstrapMeanCi(values, seed) {
+  if (values.length === 0) return { estimate: null, ci95: [null, null], significant: false };
+  const estimate = values.reduce((sum, value) => sum + value, 0) / values.length;
+  if (values.length < 2) return { estimate, ci95: [estimate, estimate], significant: false };
+  const rng = createRng(seed);
+  const bootstrapMeans = [];
+  for (let iteration = 0; iteration < BOOTSTRAP_ITERATIONS; iteration++) {
+    let sum = 0;
+    for (let index = 0; index < values.length; index++) {
+      sum += values[Math.floor(rng() * values.length)];
+    }
+    bootstrapMeans.push(sum / values.length);
+  }
+  bootstrapMeans.sort((left, right) => left - right);
+  const ci95 = [percentile(bootstrapMeans, 0.025), percentile(bootstrapMeans, 0.975)];
+  return {
+    estimate,
+    ci95,
+    significant: ci95[0] > 0 || ci95[1] < 0
+  };
+}
+
+function buildPairedComparison(leftBuildId, rightBuildId, pairedSamples, seed) {
+  const outcomeDifferences = pairedSamples.map(sample =>
+    Number(sample.builds[leftBuildId].outcome === "clear") - Number(sample.builds[rightBuildId].outcome === "clear")
+  );
+  const utilityDifferences = pairedSamples.map(sample =>
+    sample.builds[leftBuildId].utility - sample.builds[rightBuildId].utility
+  );
+  const outcome = bootstrapMeanCi(outcomeDifferences, `${seed}:outcome`);
+  const utility = bootstrapMeanCi(utilityDifferences, `${seed}:utility`);
+  return {
+    leftBuildId,
+    rightBuildId,
+    pairedN: pairedSamples.length,
+    outcomeDifference: outcome,
+    utilityDifference: utility,
+    winner: utility.significant ? (utility.estimate > 0 ? leftBuildId : rightBuildId) : null
+  };
+}
+
 function compareMetric(left, right, metric) {
   const direction = ["deathRate", "roundsToTerminal"].includes(metric) ? -1 : 1;
   const delta = (left[metric] - right[metric]) * direction;
@@ -567,7 +799,7 @@ function rankCases(cases, metric) {
     .map((entry, index) => ({ buildId: entry.buildId, value: entry[metric], rank: index + 1 }));
 }
 
-function buildPairwiseRanking(cases) {
+function buildPairwiseRanking(cases, pairedComparisons) {
   const metrics = ["clearRate", "deathRate", "postCombatHpRatio", "postCombatMpRatio", "roundsToTerminal"];
   return metrics.map(metric => ({
     metric,
@@ -579,10 +811,13 @@ function buildPairwiseRanking(cases) {
       rightValue: right[metric],
       winner: compareMetric(left, right, metric)
     })))
-  }));
+  })).concat({
+    metric: "pairedOutcomeAndUtility",
+    comparisons: pairedComparisons
+  });
 }
 
-function createRankReversals(casesByKey) {
+function createRawRankReversals(casesByKey) {
   const reversals = [];
   for (const [depth, byEncounter] of casesByKey.entries()) {
     const entries = [...byEncounter.entries()];
@@ -601,7 +836,55 @@ function createRankReversals(casesByKey) {
   return reversals;
 }
 
-function calculateRedFlags(cases, reversals) {
+function createSignificantRankReversals(pairedByKey, pairedComparisonByKey) {
+  const reversals = [];
+  for (const [depth, byEncounter] of pairedByKey.entries()) {
+    const entries = [...byEncounter.entries()];
+    for (let leftIndex = 0; leftIndex < entries.length; leftIndex++) {
+      for (let rightIndex = leftIndex + 1; rightIndex < entries.length; rightIndex++) {
+        const [leftEncounterId] = entries[leftIndex];
+        const [rightEncounterId] = entries[rightIndex];
+        for (let buildLeftIndex = 0; buildLeftIndex < BUILD_IDS.length; buildLeftIndex++) {
+          for (let buildRightIndex = buildLeftIndex + 1; buildRightIndex < BUILD_IDS.length; buildRightIndex++) {
+            const leftBuildId = BUILD_IDS[buildLeftIndex];
+            const rightBuildId = BUILD_IDS[buildRightIndex];
+            const leftComparison = pairedComparisonByKey.get(
+              `${depth}:${leftEncounterId}:${leftBuildId}:${rightBuildId}`
+            );
+            const rightComparison = pairedComparisonByKey.get(
+              `${depth}:${rightEncounterId}:${leftBuildId}:${rightBuildId}`
+            );
+            const leftSign = Math.sign(leftComparison.utilityDifference.estimate);
+            const rightSign = Math.sign(rightComparison.utilityDifference.estimate);
+            if (
+              leftComparison.outcomeDifference.significant &&
+              rightComparison.outcomeDifference.significant &&
+              leftComparison.utilityDifference.significant &&
+              rightComparison.utilityDifference.significant &&
+              leftSign !== 0 &&
+              rightSign !== 0 &&
+              leftSign !== rightSign
+            ) {
+              reversals.push({
+                depth,
+                metric: "pairedOutcomeAndUtility",
+                leftEncounterId,
+                rightEncounterId,
+                leftBuildId,
+                rightBuildId,
+                leftComparison,
+                rightComparison
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+  return reversals;
+}
+
+function calculateRedFlags(cases, significantReversals, rawReversals) {
   const representative = cases.filter(testCase => testCase.runs > 0);
   const bestCounts = {};
   representative.forEach(testCase => {
@@ -639,7 +922,12 @@ function calculateRedFlags(cases, reversals) {
   const flags = [
     { id: "dominant_build", criterion: "one build is best in >=80% of representative cells", observed: { bestCounts, bestCellCount: bestCells }, triggered: dominantBest },
     { id: "deep_raw_damage_wall", criterion: "deep-band death attribution is >=60% raw_damage_pressure", observed: { deepRawDamage, deepDeaths, share: deepRawShare }, triggered: deepRawShare >= 0.6 },
-    { id: "no_rank_reversal", criterion: "no encounter-level clear-rate rank reversal is observed", observed: { reversalCount: reversals.length }, triggered: reversals.length === 0 },
+    {
+      id: "no_significant_rank_reversal",
+      criterion: "no paired outcome-and-utility rank reversal with bootstrap 95% CIs excluding zero is observed",
+      observed: { significantReversalCount: significantReversals.length, rawRankReversalCount: rawReversals.length },
+      triggered: significantReversals.length === 0
+    },
     { id: "same_resource_signature", criterion: "encounter resource signatures differ by less than 0.05", observed: { maxMeanAbsoluteDistance: signatureMaxDistance }, triggered: signatureMaxDistance < 0.05 },
     { id: "unknown_failure_attribution", criterion: "unknown_or_mixed is >40% of eligible high-consumption/death runs", observed: { unknown: unknownEligible, eligible, share: eligible > 0 ? unknownEligible / eligible : 0 }, triggered: eligible > 0 && unknownEligible / eligible > 0.4 },
     { id: "depth_scaling_dominates", criterion: "depth clear-rate range is >2x the observed build clear-rate range", observed: { depthRange, buildRange }, triggered: buildRange > 0 && depthRange > buildRange * 2 }
@@ -676,6 +964,14 @@ function buildMeasurementMetadata({ seed, runs, provenance, envSignature }) {
       derivation: "rootSeed:run:<index>:B<depth>:<encounterId>",
       buildIdExcludedFromSeed: true
     },
+    pairedRankingPolicy: {
+      unit: "same build-pair, encounter, depth, and run seed",
+      outcome: "clear=1, death/timeout=0",
+      utility: "clear indicator + 0.25*postCombatHpRatio + 0.25*postCombatMpRatio - 0.1*rounds/MAX_ROUNDS",
+      bootstrapIterations: BOOTSTRAP_ITERATIONS,
+      significantDifference: "bootstrap 95% CI excludes zero",
+      significantReversal: "both encounters have significant outcome and utility differences with opposite signs"
+    },
     modeledProductionRules: [
       "src/data/monsters.js MONSTERS",
       "src/rules/depth_scaling.js scaleEnemyForDepth",
@@ -698,17 +994,33 @@ function buildMeasurementMetadata({ seed, runs, provenance, envSignature }) {
 export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, provenance = null } = {}) {
   if (!Number.isInteger(runs) || runs < 1) throw new Error(`runs must be a positive integer: ${runs}`);
   const cases = [];
+  const pairedByKey = new Map();
   for (const depth of TARGET_DEPTHS) {
     for (const encounterId of ENCOUNTER_IDS) {
-      for (const buildId of BUILD_IDS) {
-        const aggregate = createCaseAggregate(buildId, encounterId, depth);
-        for (let runIndex = 0; runIndex < runs; runIndex++) {
-          const caseSeed = deriveCaseSeed(seed, runIndex, depth, encounterId);
-          addSample(aggregate, runEncounterSample({ buildId, encounterId, depth, seed: caseSeed }), runs === 1);
-        }
-        const finalized = finalizeCase(aggregate);
-        cases.push(finalized);
+      const key = `${depth}:${encounterId}`;
+      const aggregates = new Map(BUILD_IDS.map(buildId => [
+        buildId,
+        createCaseAggregate(buildId, encounterId, depth)
+      ]));
+      const pairedSamples = [];
+      for (let runIndex = 0; runIndex < runs; runIndex++) {
+        const caseSeed = deriveCaseSeed(seed, runIndex, depth, encounterId);
+        const sampleByBuild = {};
+        BUILD_IDS.forEach(buildId => {
+          const sample = runEncounterSample({ buildId, encounterId, depth, seed: caseSeed });
+          addSample(aggregates.get(buildId), sample, runs === 1);
+          sampleByBuild[buildId] = {
+            outcome: sample.outcome,
+            utility: calculateDiagnosticUtility(sample)
+          };
+        });
+        pairedSamples.push({ seed: caseSeed, builds: sampleByBuild });
       }
+      pairedByKey.set(key, pairedSamples);
+      BUILD_IDS.forEach(buildId => {
+        const aggregate = aggregates.get(buildId);
+        cases.push(finalizeCase(aggregate));
+      });
     }
   }
   const casesByDepthEncounter = new Map();
@@ -717,15 +1029,40 @@ export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, prove
     if (!casesByDepthEncounter.has(key)) casesByDepthEncounter.set(key, []);
     casesByDepthEncounter.get(key).push(testCase);
   });
+  const pairedComparisonByKey = new Map();
   const pairwiseRanking = [...casesByDepthEncounter.entries()].map(([key, cellCases]) => {
     const [depth, encounterId] = key.split(":");
-    return { depth: Number(depth), encounterId, rankings: buildPairwiseRanking(cellCases) };
+    const pairedComparisons = cellCases.flatMap((left, leftIndex) => cellCases.slice(leftIndex + 1).map(right => {
+      const comparison = buildPairedComparison(
+        left.buildId,
+        right.buildId,
+        pairedByKey.get(key),
+        `paired:${key}:${left.buildId}:${right.buildId}`
+      );
+      pairedComparisonByKey.set(`${key}:${left.buildId}:${right.buildId}`, comparison);
+      return comparison;
+    }));
+    return {
+      depth: Number(depth),
+      encounterId,
+      rankings: buildPairwiseRanking(cellCases, pairedComparisons)
+    };
   });
-  const reversals = createRankReversals(new Map(TARGET_DEPTHS.map(depth => [depth, new Map(ENCOUNTER_IDS.map(encounterId => [encounterId, casesByDepthEncounter.get(`${depth}:${encounterId}`)]))])));
-  const redFlags = calculateRedFlags(cases, reversals);
+  const rawRankReversals = createRawRankReversals(new Map(TARGET_DEPTHS.map(depth => [
+    depth,
+    new Map(ENCOUNTER_IDS.map(encounterId => [encounterId, casesByDepthEncounter.get(`${depth}:${encounterId}`)]))
+  ])));
+  const significantRankReversals = createSignificantRankReversals(
+    new Map(TARGET_DEPTHS.map(depth => [
+      depth,
+      new Map(ENCOUNTER_IDS.map(encounterId => [encounterId, pairedByKey.get(`${depth}:${encounterId}`)]))
+    ])),
+    pairedComparisonByKey
+  );
+  const redFlags = calculateRedFlags(cases, significantRankReversals, rawRankReversals);
   const falsification = redFlags.triggered.length > 0 ? "falsified_or_red_flagged" : "not_falsified_by_v0_criteria";
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     measurement: buildMeasurementMetadata({ seed, runs, provenance, envSignature: null }),
     builds: BUILD_DEFINITIONS.map(build => ({
       id: build.id,
@@ -745,12 +1082,14 @@ export function runMeasurement({ seed = DEFAULT_SEED, runs = DEFAULT_RUNS, prove
     })),
     cases,
     pairwiseRanking,
-    rankReversals: reversals,
+    rawRankReversals,
+    rankReversals: significantRankReversals,
     redFlags,
     falsification,
     interpretation: {
       strongestBuildQuestion: "not evaluated as a single winner; rankings are reported per encounter/depth",
-      rankReversalQuestion: reversals.length > 0 ? "observed" : "not observed",
+      rankReversalQuestion: significantRankReversals.length > 0 ? "significant paired reversal observed" : "no significant paired reversal observed",
+      rawRankReversalCount: rawRankReversals.length,
       deepFailureQuestion: redFlags.flags.find(flag => flag.id === "deep_raw_damage_wall")?.observed,
       resourceSignatureQuestion: redFlags.flags.find(flag => flag.id === "same_resource_signature")?.observed,
       playerUnderstandableFailureQuestion: redFlags.flags.find(flag => flag.id === "unknown_failure_attribution")?.observed
@@ -791,7 +1130,8 @@ function renderSummary(report) {
     "## Falsification result",
     "",
     `- v0 criteria: **${report.falsification}**`,
-    `- rank reversals: ${report.rankReversals.length}`,
+    `- significant paired rank reversals: ${report.rankReversals.length}`,
+    `- raw rank-order reversals (supplemental): ${report.rawRankReversals.length}`,
     `- triggered red flags: ${report.redFlags.triggered.length ? report.redFlags.triggered.join(", ") : "none"}`,
     "",
     "## Red flags",
@@ -808,7 +1148,7 @@ function renderSummary(report) {
       return `| B${cell.depth} | ${cell.encounterId} | ${clear.ranking.map(entry => entry.buildId).join(" > ")} | ${(caseForWinner?.clearRate || 0).toFixed(3)} | ${(caseForWinner?.deathRate || 0).toFixed(3)} | ${(caseForWinner?.postCombatHpRatio || 0).toFixed(3)} | ${(caseForWinner?.postCombatMpRatio || 0).toFixed(3)} | ${(caseForWinner?.roundsToTerminal || 0).toFixed(1)} |`;
     }),
     "",
-    "Failure attribution is based on observed production logs, status/resource trajectory, and mechanism firing. `unknown_or_mixed` is retained when multiple or insufficient explanations remain.",
+    "Failure attribution separates mechanism firing from primary cause. Primary cause requires repeated trajectory evidence or terminal relevance; `unknown_or_mixed` is retained when multiple or insufficient explanations remain. Status trajectory includes active rounds, applications, removals, incapacitated rounds, and lost silence cast opportunities.",
     "",
     "Modeled: production monster definitions, depth scaling, combat round resolution, auto action, spell effects, affix/core rules, and status rules. Omitted: map traversal, manual input, consumables/retreat, loot/economy, and between-encounter progression."
   ];
