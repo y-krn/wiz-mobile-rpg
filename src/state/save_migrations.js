@@ -23,6 +23,7 @@ export function migrateCharSpells(char) {
     }
   }
   if (char.class === "Mage") {
+    if (char.level >= 5 && !char.spells.includes("VULNERA")) char.spells.push("VULNERA");
     if (char.level >= 4) {
       if (!char.spells.includes("MASFEAL")) char.spells.push("MASFEAL");
     } else {
@@ -55,6 +56,7 @@ export function migrateCharSpells(char) {
     }
   }
   if (char.class === "Bishop") {
+    if (char.level >= 6 && !char.spells.includes("VULNERA")) char.spells.push("VULNERA");
     if (char.level >= 4) {
       if (!char.spells.includes("MASFEAL")) char.spells.push("MASFEAL");
     } else {

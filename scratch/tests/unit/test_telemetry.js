@@ -23,6 +23,7 @@ import {
   trackChestAction,
   trackChestSmashResult,
   trackBleedingEvent,
+  trackVulnerableEvent,
   trackDamageReceived,
   trackEvent,
   trackExplorationDecision,
@@ -288,6 +289,34 @@ check("legacy bleeding telemetry is bounded and typed", () => {
   assert.equal(valid.properties.enemyId, "いにしえの竜");
   assert.equal(valid.properties.reason, "duration");
   assert.equal(valid.properties.buildKey, "bleedingAtk:12");
+});
+
+check("vulnerable telemetry records bounded burst fields", () => {
+  const events = [];
+  __setTelemetryClientForTests({ capture: (name, properties) => events.push({ name, properties }) });
+  trackVulnerableEvent("consumed", {
+    floor: Number.MAX_VALUE,
+    playerClass: "migrated class",
+    enemyId: "いにしえの竜 B",
+    isBoss: true,
+    remainingTurns: Number.MAX_VALUE,
+    multiplier: Number.MAX_VALUE,
+    source: "VULNERA",
+    buildKey: "VULNERA",
+    qualifyingHitType: "spell",
+    latencyTurns: 2,
+    damageContribution: 4,
+    directDamage: 16
+  });
+  const event = events[0];
+  assert.equal(event.name, "vulnerable_consumed");
+  assert.equal(event.properties.floor, 1_000_000);
+  assert.equal(event.properties.playerClass, "other");
+  assert.equal(event.properties.enemyId, "いにしえの竜");
+  assert.equal(event.properties.multiplier, 10);
+  assert.equal(event.properties.qualifyingHitType, "spell");
+  assert.equal(event.properties.buildKey, "VULNERA");
+  assert.equal(event.properties.latencyTurns, 2);
 });
 
 check("combat decision indexes stay within production targets", () => {

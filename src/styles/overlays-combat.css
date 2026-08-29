@@ -88,6 +88,15 @@
   line-height: 1.25;
 }
 
+.enemy-status.vulnerable {
+  color: #ffd166;
+  border-left: 2px solid #ffd166;
+  padding: 2px 4px;
+  margin: 3px 0;
+  font-size: var(--fs-xs);
+  line-height: 1.25;
+}
+
 .combat-target-card.enemy:hover, .combat-target-card.enemy:active {
   border-color: var(--neon-red);
   background-color: rgba(255, 59, 48, 0.05);

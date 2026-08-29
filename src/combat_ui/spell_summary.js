@@ -20,6 +20,7 @@ const SPELL_COMBAT_SUMMARIES = Object.freeze({
   MABARRIER: { tag: "補助", effect: "自分 魔法軽減", category: "buff" },
   MONTINO: { tag: "全体", effect: "沈黙 2T", category: "all" },
   MORLIS: { tag: "弱体", effect: "全体魔防低下", category: "debuff" },
+  VULNERA: { tag: "弱体", effect: "単体 脆弱 3T", category: "debuff" },
   WEAKEN: { tag: "弱体", effect: "全体攻撃力 -3 3T", category: "debuff" }
 });
 

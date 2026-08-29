@@ -95,7 +95,7 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
         if (!char.spells.includes("MONTINO")) char.spells.push("MONTINO");
       }
       if (char.level === 5 && !char.spells.includes("MORLIS")) {
-        char.spells.push("MORLIS");
+        char.spells.push("MORLIS", "VULNERA");
       }
       if (char.level === 6 && !char.spells.includes("MADALTO")) {
         char.spells.push("MADALTO");
@@ -166,7 +166,7 @@ export function checkCharLevelUp(char, { rng = Math.random } = {}) {
         });
       }
       if (char.level === 6 && !char.spells.includes("MORLIS")) {
-        char.spells.push("MORLIS");
+        char.spells.push("MORLIS", "VULNERA");
       }
       if (char.level === 7) {
         ["DIALMA", "MADALTO", "MADI"].forEach(s => {

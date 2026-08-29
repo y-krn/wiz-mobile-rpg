@@ -6,7 +6,11 @@ import { combatCallbacks } from "./combat_state.js";
 import { isSpellTargetAvailable, getSpellCombatSummary } from "./spell_menu.js";
 import { getUsableInventoryItems } from "../rules/item_inventory.js";
 import { getItemAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
-import { STATUS_EFFECT_IDS, BLEEDING_PAYOFF_DAMAGE } from "../combat_logic/status_effects.js";
+import {
+  STATUS_EFFECT_IDS,
+  BLEEDING_PAYOFF_DAMAGE,
+  VULNERABLE_DAMAGE_MULTIPLIER
+} from "../combat_logic/status_effects.js";
 import { getScreenViewState, getUsableSpellKeys } from "../state/view_state.js";
 
 function getEnemyResistanceStatus(monster) {
@@ -108,8 +112,12 @@ export function renderCombatOverlay() {
           omenHtml = `<div class="enemy-omen snipe">⚠️ 狙撃準備 (対象: ${targetChar ? targetChar.name : "冒険者"})</div>`;
         }
         const bleeding = m.statusEffects?.[STATUS_EFFECT_IDS.BLEEDING];
+        const vulnerable = m.statusEffects?.[STATUS_EFFECT_IDS.VULNERABLE];
         const statusHtml = bleeding
           ? `<div class="enemy-status bleeding" data-status-effect="bleeding" aria-label="出血 あと${bleeding.remainingTurns ?? 0}回">🩸 出血：あと${bleeding.remainingTurns ?? 0}回 / 次の通常攻撃+${BLEEDING_PAYOFF_DAMAGE}</div>`
+          : "";
+        const vulnerableHtml = vulnerable
+          ? `<div class="enemy-status vulnerable" data-status-effect="vulnerable" aria-label="脆弱 あと${vulnerable.remainingTurns ?? 0}回">⚡ 脆弱：あと${vulnerable.remainingTurns ?? 0}回 / 次の直接攻撃×${VULNERABLE_DAMAGE_MULTIPLIER}</div>`
           : "";
 
         card.innerHTML = `
@@ -119,6 +127,7 @@ export function renderCombatOverlay() {
           </div>
           <div class="card-hp-text">HP: ${m.hp}/${m.maxHp}</div>
           ${statusHtml}
+          ${vulnerableHtml}
           <div class="enemy-resistance-info" aria-label="耐性・弱点">
             ${getEnemyResistanceRowsHtml(m)}
           </div>

@@ -7,6 +7,7 @@ import {
   clearBleedingStatus,
   wakeSleepingMonsterOnDamage
 } from "./status_effects.js";
+import { consumeVulnerableDamage } from "./vulnerable.js";
 import { getSpellPayment, paySpellCost } from "../rules/affix_rules.js";
 import { getClassPassiveBonus } from "../rules/class_rules.js";
 import { getCharMaxMp } from "../rules/character_stats.js";
@@ -123,28 +124,38 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       state,
       logQueue
     });
+    const vulnerableResult = result.damage > 0
+      ? consumeVulnerableDamage(target, result.damage, state, "spell")
+      : { consumed: false, damageContribution: 0, damage: result.damage };
+    const resolvedDamage = vulnerableResult.damage;
     result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));
     if (originalMagicResist === undefined) delete target.magicResist;
     else target.magicResist = originalMagicResist;
     // #611: 攻撃呪文ダメージの計装。既定 no-op、乱数消費・分岐は変更しない。
-    if (state.combatFormulaTelemetry && Number.isFinite(result.damage)) {
+    if (state.combatFormulaTelemetry && Number.isFinite(resolvedDamage)) {
       state.combatFormulaTelemetry.spellHits.push({
         floor: state.floor,
         spellName: act.spellName,
         casterClass: char.class,
         magicResist: appliedMagicResist,
         damageBeforeMagicResist: result.preMagicResistDamage,
-        damage: result.damage,
+        damage: resolvedDamage,
+        vulnerableConsumed: vulnerableResult.consumed,
+        vulnerableDamageContribution: vulnerableResult.damageContribution,
+        qualifyingHitType: vulnerableResult.consumed ? "spell" : null,
         formula: result.formulaTelemetry || null
       });
     }
-    target.hp = Math.max(0, target.hp - result.damage);
-    const wakeSuffix = result.damage > 0 && wakeSleepingMonsterOnDamage(target) ? `${target.name}は目を覚ました！` : "";
+    target.hp = Math.max(0, target.hp - resolvedDamage);
+    const wakeSuffix = resolvedDamage > 0 && wakeSleepingMonsterOnDamage(target) ? `${target.name}は目を覚ました！` : "";
+    const vulnerableSuffix = vulnerableResult.consumed
+      ? `（脆弱で+${vulnerableResult.damageContribution}）`
+      : "";
     logQueue.push({
-      msg: `[味方] ${result.log}${wakeSuffix}`,
+      msg: `[味方] ${result.log}${vulnerableSuffix}${wakeSuffix}`,
       sound: "hit",
       shake: 12,
-      floatText: `${result.damage}`,
+      floatText: `${resolvedDamage}`,
       floatColor: target.color
     });
 
@@ -178,6 +189,18 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
         logQueue
       })
     );
+    const vulnerableBonuses = [];
+    result.damageByTarget?.forEach(hit => {
+      if (!hit?.target || hit.dmg <= 0) return;
+      const vulnerableResult = consumeVulnerableDamage(hit.target, hit.dmg, state, "spell");
+      if (!vulnerableResult.consumed) return;
+      const actualBonus = Math.min(vulnerableResult.damageContribution, Math.max(0, hit.target.hp));
+      hit.target.hp = Math.max(0, hit.target.hp - actualBonus);
+      hit.dmg += actualBonus;
+      hit.vulnerableConsumed = true;
+      hit.vulnerableDamageContribution = actualBonus;
+      vulnerableBonuses.push(`${hit.target.name} +${actualBonus}`);
+    });
     result.coreIds?.forEach(coreId => logCoreActivation(state, logQueue, char, coreId));
     // #611: 範囲攻撃呪文の計装。既定 no-op、乱数消費・分岐は変更しない。
     if (state.combatFormulaTelemetry) {
@@ -192,6 +215,9 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
           magicResist: getEffectiveMagicResist(mon),
           damageBeforeMagicResist: hit.preMagicResistDamage,
           damage: hit.dmg,
+          vulnerableConsumed: Boolean(hit.vulnerableConsumed),
+          vulnerableDamageContribution: hit.vulnerableDamageContribution || 0,
+          qualifyingHitType: hit.vulnerableConsumed ? "spell" : null,
           formula: hit.formulaTelemetry || null
         });
       });
@@ -201,7 +227,7 @@ export function resolvePlayerSpell(char, act, state, monsters, logQueue, hooks =
       .map(mon => mon.name);
     const wakeSuffix = wokeNames.length > 0 ? ` ${wokeNames.join("、")}は目を覚ました！` : "";
     logQueue.push({
-      msg: `[味方] ${result.log}${wakeSuffix}`,
+      msg: `[味方] ${result.log}${vulnerableBonuses.length > 0 ? `（脆弱：${vulnerableBonuses.join("、")}）` : ""}${wakeSuffix}`,
       sound: "cast_spell",
       shake: 15,
       flash: true

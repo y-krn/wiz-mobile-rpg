@@ -1035,8 +1035,52 @@ canonical entry. `createSavePayload`/`applySavePayload` preserve remaining durat
 source metadata. `hasStatusEffectForDamage` intentionally remains legacy-only for
 `CORE_EXECUTIONER`; adding a future status must not silently widen that predicate.
 
-### 8.4 future owner decisions (not selected)
+### 8.4 #825 vulnerable burst-timing vertical slice
 
-Vulnerable、追加の producer/source、敵側耐性・免疫、出血の cure item、出血を
+`vulnerable`（プレイヤー表示「脆弱」）は、出血の手数圧力や毒の持続削りとは異なる
+**バーストタイミング型**の状態異常である。敵の行動を止めず、脆弱を付与してから
+今すぐ殴るか、強打・高価値の直撃まで待つかを選ばせる。
+
+#### Rule and stage
+
+- Producer は専用単体弱体呪文 `VULNERA` の1系統だけとする。Mage はレベル5、
+  Bishop はレベル6で習得し、オート戦闘の既存方針は変更しない。
+- `vulnerable` は combat-scoped、3ターン、non-stacking、refresh-only とする。
+  `source` は `VULNERA`、既存の legacy `status` を上書きしない。
+- qualifying hit はプレイヤー起点の direct physical hit または direct offensive spell。
+  防御・耐性・会心を終えた直撃値へ採用倍率を適用し、その対象の脆弱を1回だけ消費する。
+  follow-up、bleeding/poison の DoT、反射、棘/counter、環境ダメージは qualifying hit
+  ではなく、脆弱を消費・増幅しない。
+- `VULNERA` 自身は消費しない。対象が撃破・逃走・自爆・反撃で戦闘から外れた場合は
+  残存脆弱を clear し、未消費の通常期限切れと区別して記録する。
+- `CORE_EXECUTIONER` は既存契約どおり legacy status のみを判定し、脆弱を暗黙に
+  poison/setup または倍率対象へ追加しない。
+
+#### Numeric decision and measurement
+
+効果量は post-mitigation additive multiplier の候補 `1.15 / 1.25 / 1.35` を、同一
+runner・seed・Mage level 5・VULNERA→MAHALITO の構成で比較した。100 run の baseline
+平均は `49.59` damage。immediate の baseline 差は順に `+7.00 / +12.59 / +17.59`、
+delayed（1 tick 後）の平均 latency はすべて `1` turn、expired はすべて baseline に
+戻った。1.25 は最小の意味ある burst 窓として、増幅を観測できつつ1.35より大きな
+単発上振れを避ける採用値とした。
+
+- runner: `scratch/simulations/sim_issue_825_vulnerable.js`
+- seed/config: `825`, 100 runs per mode and candidate; boss/midboss 50/50
+- measured fields: application attempts/successes, refresh, consume, expiry, latency,
+  qualifying hit type, damage contribution, boss/midboss application, producer selection,
+  final build snapshot
+- result artifact: `evidence/results/issue-825-vulnerable-measurement.md`
+
+#### Compatibility boundary
+
+The adapter keeps `vulnerable` additive beside legacy status strings and preserves its
+remaining duration/source through the existing combat save payload. No enemy-side general
+resistance is introduced; boss and midboss application is therefore observable and currently
+successful under the same rule.
+
+### 8.5 future owner decisions (not selected)
+
+追加の vulnerable producer/source、敵側耐性・免疫、出血の cure item、出血を
 `CORE_EXECUTIONER` 対象へ広げること、追加の status stacking、action-denial mechanics
 は未決定である。
