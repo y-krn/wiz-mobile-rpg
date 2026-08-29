@@ -3276,6 +3276,53 @@ function createStatusObservationBuckets() {
   }]));
 }
 
+function createEnemyStatusGrammarMetrics() {
+  return {
+    attemptsByEnemyFloor: {},
+    successesByEnemyFloor: {},
+    resistedByEnemyFloor: {},
+    payoffAttempts: 0,
+    payoffs: 0,
+    payoffDamage: 0,
+    payoffDamageByEnemy: {},
+    payoffLatencyTotal: 0,
+    payoffLatencyCount: 0,
+    cureBeforePayoff: 0,
+    defendBeforePayoff: 0,
+    fleeBeforePayoff: 0,
+    killBeforePayoff: 0,
+    statusLostBeforePayoff: 0,
+    bossEvents: 0,
+    midbossEvents: 0,
+    responses: {},
+    responsesByFloor: {},
+    targets: {}
+  };
+}
+
+function addEnemyStatusGrammarAggregate(target, source) {
+  if (!source) return;
+  [
+    "payoffAttempts", "payoffs", "payoffDamage", "payoffLatencyTotal",
+    "payoffLatencyCount", "cureBeforePayoff", "defendBeforePayoff",
+    "fleeBeforePayoff", "killBeforePayoff", "statusLostBeforePayoff",
+    "bossEvents", "midbossEvents"
+  ].forEach(key => {
+    target[key] += source[key] || 0;
+  });
+  ["attemptsByEnemyFloor", "successesByEnemyFloor", "resistedByEnemyFloor", "payoffDamageByEnemy", "responses", "targets"].forEach(key => {
+    Object.entries(source[key] || {}).forEach(([name, count]) => {
+      target[key][name] = (target[key][name] || 0) + count;
+    });
+  });
+  Object.entries(source.responsesByFloor || {}).forEach(([floor, responses]) => {
+    const destination = target.responsesByFloor[floor] ||= {};
+    Object.entries(responses).forEach(([response, count]) => {
+      destination[response] = (destination[response] || 0) + count;
+    });
+  });
+}
+
 function createStatusObservationMetrics() {
   return {
     byStatus: createStatusObservationBuckets(),
@@ -11429,6 +11476,19 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     statusesCured: metrics.statusesCured,
     statusCureMerchantFailures: metrics.statusCureMerchantFailures,
     statusObservations,
+    enemyStatusGrammar: {
+      ...metrics.killHeal.enemyStatusGrammar,
+      attemptsByEnemyFloor: { ...metrics.killHeal.enemyStatusGrammar.attemptsByEnemyFloor },
+      successesByEnemyFloor: { ...metrics.killHeal.enemyStatusGrammar.successesByEnemyFloor },
+      resistedByEnemyFloor: { ...metrics.killHeal.enemyStatusGrammar.resistedByEnemyFloor },
+      payoffDamageByEnemy: { ...metrics.killHeal.enemyStatusGrammar.payoffDamageByEnemy },
+      responses: { ...metrics.killHeal.enemyStatusGrammar.responses },
+      responsesByFloor: Object.fromEntries(
+        Object.entries(metrics.killHeal.enemyStatusGrammar.responsesByFloor)
+          .map(([floor, values]) => [floor, { ...values }])
+      ),
+      targets: { ...metrics.killHeal.enemyStatusGrammar.targets }
+    },
     townPortalsUsed: metrics.townPortalsUsed,
     portalUseEvents: metrics.portalUseEvents,
     portalUsesBySource: metrics.portalUsesBySource,
@@ -11931,7 +11991,8 @@ export function simulateRun({
         midbossEvents: 0,
         sources: {},
         builds: {}
-      }
+      },
+      enemyStatusGrammar: createEnemyStatusGrammarMetrics()
     },
     statusCureItemsAcquired: {
       initial: countInventoryItems(state.simStartingInventory),
@@ -13088,6 +13149,7 @@ function simulateCase({
     ),
     healPotionsUsed: 0,
     statusObservations: createStatusObservationAggregate(),
+    enemyStatusGrammar: createEnemyStatusGrammarMetrics(),
     statusCureItemsAcquired: {},
     statusCureItemsUsed: {},
     merchantStock: createMerchantStockMetrics(),
@@ -13253,6 +13315,7 @@ function simulateCase({
     addOutcomeAggregate(totals.outcomesByClass[className], result);
     addRunDiagnosticsAggregate(totals.runDiagnostics, result.runDiagnostics);
     addStatusObservationAggregate(totals.statusObservations, result);
+    addEnemyStatusGrammarAggregate(totals.enemyStatusGrammar, result.enemyStatusGrammar);
     Object.entries(result.merchantStock || {}).forEach(([stockId, source]) => {
       const target = merchantStockByClass[className][stockId] ||= {
         itemId: source.itemId || null,
@@ -13888,6 +13951,7 @@ function simulateCase({
     firstCoreDepthCounts: totals.firstCoreDepthCounts,
     averageHealPotionsUsed: totals.healPotionsUsed / RUNS_PER_CASE,
     statusObservations: finalizeStatusObservationAggregate(totals.statusObservations),
+    enemyStatusGrammar: totals.enemyStatusGrammar,
     statusCureItemsAcquired: totals.statusCureItemsAcquired,
     statusCureItemsUsed: totals.statusCureItemsUsed,
     merchantStock: totals.merchantStock,
@@ -15958,6 +16022,23 @@ const issue679Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
   })
 );
 console.log(`ISSUE679_AFFIX_REACHABILITY_JSON=${JSON.stringify(issue679Measurement)}`);
+const issue960Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }) =>
+  scenarioResults.flatMap(({ scenario, results }) => results.map(result => ({
+    policy: policy.id,
+    scenario: scenario.id,
+    targetDepth: result.targetDepth,
+    runs: RUNS_PER_CASE,
+    sourceCommit: MEASUREMENT_PROVENANCE?.sourceCommit || null,
+    gameplaySourceCommit: MEASUREMENT_PROVENANCE?.gameplaySourceCommit || null,
+    measurementRunnerCommit: MEASUREMENT_PROVENANCE?.measurementRunnerCommit || null,
+    measurementRunnerPaths: MEASUREMENT_PROVENANCE?.measurementRunnerPaths || null,
+    measurementRunnerDiffSha256: MEASUREMENT_PROVENANCE?.measurementRunnerDiffSha256 || null,
+    originMainAncestor: MEASUREMENT_PROVENANCE?.originMainAncestor ?? null,
+    workingTreeClean: MEASUREMENT_PROVENANCE?.workingTreeClean ?? null,
+    enemyStatusGrammar: result.enemyStatusGrammar
+  })))
+);
+console.log(`ISSUE960_MEASUREMENT_JSON=${JSON.stringify(issue960Measurement)}`);
 // scenarioResults と milestoneResults を合算し双方に一律 RUNS_PER_CASE を掛けるため、
 // 同一runが両方の集計に現れる場合は延べの推定値になる（実際の発火回数と一致しない）。
 // 0/非0の判別が目的でありこの用途では実害はないが、ラベルは延べと分かる語にする。

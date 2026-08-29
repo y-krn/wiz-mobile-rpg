@@ -10,6 +10,28 @@ export const ENEMY_ROLES = Object.freeze({
   AMPLIFIER: "amplifier"
 });
 
+export const MONSTER_STATUS_ATTACK_PATTERNS = Object.freeze({
+  poison_payoff: Object.freeze({
+    status: "poisoned",
+    setupChance: 0.55,
+    setupAction: "毒液を溜める",
+    setupMessage: "毒液を溜め、次のターンに毒喰らいを狙っている！",
+    payoffAction: "毒喰らい",
+    payoffMessage: "毒喰らい",
+    payoffMultiplier: 1.75
+  }),
+  blind_snipe: Object.freeze({
+    status: "blind",
+    setupChance: 0.45,
+    setupAction: "煙幕を撒く",
+    setupMessage: "煙幕を撒き、次のターンに目眩まし狙撃を狙っている！",
+    payoffAction: "目眩まし狙撃",
+    payoffMessage: "目眩まし狙撃",
+    payoffMultiplier: 1.6,
+    isSnipe: true
+  })
+});
+
 export const MONSTER_ROLE_BY_NAME = Object.freeze({
   "かみつき蟲": ENEMY_ROLES.AGGRESSOR,
   "ゴブリンの呪術師": ENEMY_ROLES.AGGRESSOR,
@@ -112,7 +134,7 @@ const MONSTER_DATA = [
   { name: "フラッシュバット", level: 2, hp: 24, atk: 5, def: 2, exp: 100, spriteType: "bat", traits: ["evasive"], evasionChance: 0.18, isBlinding: true, tags: ["beast"], color: "#e5ff00" },
 
   { name: "マスターメイジ", level: 4, hp: 76, atk: 9, def: 5, exp: 650, spriteType: "mage", spell: "LAHALITO", spellChance: 0.35, magicResist: 0.3, color: "#ff3b30" },
-  { name: "ポイズンジャイアント", level: 4, hp: 130, atk: 19, def: 7, exp: 600, spriteType: "zombie", isPoisonous: true, color: "#bf5af2" },
+  { name: "ポイズンジャイアント", level: 4, hp: 130, atk: 19, def: 7, exp: 600, spriteType: "zombie", isPoisonous: true, statusAttackPattern: "poison_payoff", color: "#bf5af2" },
   
   { name: "デーモンガード", level: 5, hp: 180, atk: 18, def: 8, exp: 2000, spriteType: "flack", spell: "LAHALITO", isBoss: true, isMidboss: true, canReceiveCritical: false, tags: ["demon"], color: "#ff8c00" },
   { name: "アースジャイアント", level: 6, hp: 144, atk: 18, def: 10, exp: 1200, spriteType: "zombie", magicResist: -0.25, color: "#8a2be2" },
@@ -156,7 +178,7 @@ const MONSTER_DATA = [
   { name: "腐毒の蛆", level: 2, hp: 28, atk: 4, def: 1, exp: 140, spriteType: "biter", traits: ["debuffPhysicalDef"], traitChance: 0.25, debuffValue: 2, tags: ["beast"], color: "#bf5af2" },
   { name: "祈祷ゴブリン", level: 2, hp: 36, atk: 4, def: 2, exp: 190, spriteType: "orc", spell: "DIOS", spellChance: 0.35, color: "#34c759" },
   { name: "マナドレイン", level: 2, hp: 36, atk: 4, def: 2, exp: 180, spriteType: "spirit", traits: ["drainMp"], traitChance: 0.35, isSniper: true, tags: ["spirit"], color: "#00e5ff" },
-  { name: "煙幕盗賊", level: 2, hp: 36, atk: 7, def: 2, exp: 210, spriteType: "kobold", isBlinding: true, statusChance: 0.25, color: "#8e8e93" },
+  { name: "煙幕盗賊", level: 2, hp: 36, atk: 7, def: 2, spriteType: "kobold", isBlinding: true, statusChance: 0.25, statusAttackPattern: "blind_snipe", color: "#8e8e93" },
   { name: "催眠コウモリ", level: 2, hp: 24, atk: 5, def: 2, spriteType: "bat", traits: ["evasive"], evasionChance: 0.20, isSleepInflicting: true, statusChance: 0.3, tags: ["beast"], color: "#e5ff00" },
   { name: "霧の亡霊", level: 3, hp: 44, atk: 7, def: 2, spriteType: "spirit", traits: ["evasive"], evasionChance: 0.22, physResist: 0.3, magicResist: -0.3, tags: ["undead", "spirit"], color: "#00e5ff" },
   { name: "魔封じの目玉", level: 3, hp: 48, atk: 6, def: 2, exp: 360, spriteType: "wisp", traits: ["silence"], traitChance: 0.35, tags: ["spirit"], color: "#ffcc00" },

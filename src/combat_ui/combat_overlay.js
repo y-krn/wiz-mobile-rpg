@@ -111,6 +111,10 @@ export function renderCombatOverlay() {
           const targetChar = state.party[m.snipeTargetIdx];
           omenHtml = `<div class="enemy-omen snipe">⚠️ 狙撃準備 (対象: ${targetChar ? targetChar.name : "冒険者"})</div>`;
         }
+        else if (m.statusPayoffQueued) {
+          const pattern = m.statusPayoffQueued.pattern === "blind_snipe" ? "目眩まし狙撃" : "毒喰らい";
+          omenHtml = `<div class="enemy-omen status-payoff">⚠️ ${pattern}準備 (状態異常中に追撃)</div>`;
+        }
         const bleeding = m.statusEffects?.[STATUS_EFFECT_IDS.BLEEDING];
         const vulnerable = m.statusEffects?.[STATUS_EFFECT_IDS.VULNERABLE];
         const statusHtml = bleeding

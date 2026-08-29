@@ -42,7 +42,8 @@ export {
   getMonsterResistanceStatus,
   getMonsterResistanceTier,
   getMonsterPhysicalResistance,
-  MONSTER_TRAIT_LABELS
+  MONSTER_TRAIT_LABELS,
+  MONSTER_STATUS_ATTACK_PATTERNS
 } from "./data/monsters.js";
 
 // Build compatible SPELLS with inline .effect calls
