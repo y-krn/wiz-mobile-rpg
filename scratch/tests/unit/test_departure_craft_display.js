@@ -28,7 +28,6 @@ check(
   "departure craft recipes sort by category with unknown recipes last",
   JSON.stringify(sortedCraftRecipeIds) === JSON.stringify([
     "HEAL_POTION",
-    "HOLY_WATER",
     "MANA_POTION",
     "GREATER_HEAL",
     "ANTIDOTE",
@@ -47,7 +46,6 @@ check(
   JSON.stringify(CRAFT_RECIPES.map(recipe => recipe.resultId)) === JSON.stringify([
     "HEAL_POTION",
     "ANTIDOTE",
-    "HOLY_WATER",
     "MANA_POTION",
     "TRAP_KIT",
     "NOISE_BALL",

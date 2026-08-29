@@ -17,12 +17,6 @@ export const CRAFT_RECIPES = [
     desc: "使用すると毒状態を解除する。"
   },
   {
-    resultId: "HOLY_WATER",
-    name: "祝福の聖水",
-    mats: { "霊粉": 1, "骨片": 1 },
-    desc: "HPを15回復し、毒状態も治療する。"
-  },
-  {
     resultId: "MANA_POTION",
     name: "魔力草",
     mats: { "魔石片": 3, "呪布": 1 },

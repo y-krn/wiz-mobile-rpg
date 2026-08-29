@@ -44,6 +44,10 @@ check(
   `missing=${MATERIAL_TYPES.filter(material => !recipeMaterialNames.has(material)).join(",")}`
 );
 check("legacy in-run executeCraft is removed", !Object.hasOwn(craftModule, "executeCraft"));
+check(
+  "holy water is not a departure craft recipe",
+  !CRAFT_RECIPES.some(recipe => recipe.resultId === "HOLY_WATER")
+);
 check("departure craft has no recipe-count cap", !Object.hasOwn(workshopData, "DEPARTURE_CRAFT_MAX_SLOTS"));
 check("starting heal potion supply is removed", RECOVERY_BALANCE.startingHealPotions === 0);
 const milestoneQuest = RUN_QUEST_TEMPLATES.find(quest => quest.id === "reach_milestone");
@@ -136,6 +140,15 @@ const orderIndependentPurchase = purchaseDepartureCraft(
 );
 check("any-material payment preserves typed demand regardless of selection order", orderIndependentPurchase.ok);
 check("empty selection is valid", purchaseDepartureCraft({}, []).ok);
+const holyWaterPurchase = purchaseDepartureCraft(
+  { "霊粉": 1, "骨片": 1 },
+  ["HOLY_WATER"]
+);
+check(
+  "holy water departure craft purchase is rejected",
+  !holyWaterPurchase.ok && holyWaterPurchase.reason === "unknown_recipe",
+  JSON.stringify(holyWaterPurchase)
+);
 
 const powderPurchase = purchaseDepartureCraft(
   { "霊粉": 5, "呪布": 2 },

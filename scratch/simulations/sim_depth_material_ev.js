@@ -1981,6 +1981,8 @@ function createTrapAggregate() {
     manaPotionsConsumedBySource: createTrackedConsumableSourceCounts(),
     holyWaterAcquiredBySource: createTrackedConsumableSourceCounts(),
     holyWaterConsumedBySource: createTrackedConsumableSourceCounts(),
+    pickupRejectionsBySource: { chest: 0, combat: 0, material: 0 },
+    pickupRejectionsByCategory: { item: 0, equipment: 0, material: 0 },
     departureCraftCraftedByRecipe: createCraftMeasurementCounts(),
     departureCraftPotentialByRecipe: createCraftMeasurementCounts(),
     departureCraftCraftedRunsByRecipe: createCraftMeasurementCounts(),
@@ -2812,6 +2814,14 @@ function addTrapAggregate(target, result) {
     target.consumableUsageByItem[itemKey].acquired += usage.acquired || 0;
     target.consumableUsageByItem[itemKey].consumed += usage.consumed || 0;
   });
+  Object.entries(result.pickupRejectionsBySource || {}).forEach(([source, count]) => {
+    target.pickupRejectionsBySource[source] =
+      (target.pickupRejectionsBySource[source] || 0) + count;
+  });
+  Object.entries(result.pickupRejectionsByCategory || {}).forEach(([category, count]) => {
+    target.pickupRejectionsByCategory[category] =
+      (target.pickupRejectionsByCategory[category] || 0) + count;
+  });
   target.disarms += result.trapDisarms;
   target.disarmAttempts += result.trapDisarmAttempts;
   target.disarmSuccesses += result.trapDisarmSuccesses;
@@ -3012,6 +3022,8 @@ function finalizeTrapAggregate(aggregate) {
         amount / runs
       ])
     ),
+    pickupRejectionsBySource: { ...aggregate.pickupRejectionsBySource },
+    pickupRejectionsByCategory: { ...aggregate.pickupRejectionsByCategory },
     averageDepartureCraftCraftedByRecipe: Object.fromEntries(
       Object.entries(aggregate.departureCraftCraftedByRecipe).map(([recipeId, amount]) => [
         recipeId,
@@ -4903,9 +4915,11 @@ function recordStatusCureConsumption(state, metrics, itemKey, count = 1) {
   if (!STATUS_CURE_ITEM_IDS.has(itemKey) || count <= 0) return;
   if (itemKey === "HOLY_WATER") {
     recordTrackedConsumableConsumption(state, metrics, itemKey, count);
+    recordStatusCureItemDepletion(state, metrics);
     return;
   }
   recordConsumableConsumption(metrics, itemKey, count);
+  recordStatusCureItemDepletion(state, metrics);
 }
 
 function recordRecoveryPotionOffer(metrics, source, itemKey) {
@@ -5607,6 +5621,9 @@ function createStatusCureEvMetrics() {
 function createStatusCureSupplyMetrics() {
   return {
     dedicatedDepletionFloor: null,
+    itemDepletionFloorByItem: Object.fromEntries(
+      [...STATUS_CURE_ITEM_IDS].map(itemId => [itemId, null])
+    ),
     decisionsAfterDedicatedDepletion: {}
   };
 }
@@ -5645,6 +5662,24 @@ function getStatusCureDedicatedAcquiredCount(metrics) {
         (STATUS_CURE_DEDICATED_ITEM_IDS.has(itemId) ? count : 0),
       0
     );
+}
+
+function getStatusCureItemAcquiredCount(metrics, itemId) {
+  return Object.values(metrics?.statusCureItemsAcquired || {})
+    .reduce((sum, counts) => sum + (counts?.[itemId] || 0), 0);
+}
+
+function recordStatusCureItemDepletion(state, metrics) {
+  const depletion = metrics?.statusCureSupply?.itemDepletionFloorByItem;
+  if (!depletion) return;
+  STATUS_CURE_ITEM_IDS.forEach(itemId => {
+    if (
+      depletion[itemId] !== null ||
+      getStatusCureItemAcquiredCount(metrics, itemId) <= 0 ||
+      state.inventory.includes(itemId)
+    ) return;
+    depletion[itemId] = state.floor;
+  });
 }
 
 function recordStatusCureDedicatedDepletion(state, metrics) {
@@ -13077,6 +13112,12 @@ function simulateCase({
     statusCureSupply: {
       dedicatedDepletionRuns: 0,
       dedicatedDepletionFloorCounts: {},
+      itemDepletionRunCountsByItem: Object.fromEntries(
+        [...STATUS_CURE_ITEM_IDS].map(itemId => [itemId, 0])
+      ),
+      itemDepletionFloorCountsByItem: Object.fromEntries(
+        [...STATUS_CURE_ITEM_IDS].map(itemId => [itemId, {}])
+      ),
       decisionsAfterDedicatedDepletion: {}
     },
     statusesCured: {},
@@ -13256,6 +13297,12 @@ function simulateCase({
       totals.statusCureSupply.dedicatedDepletionFloorCounts[floor] =
         (totals.statusCureSupply.dedicatedDepletionFloorCounts[floor] || 0) + 1;
     }
+    Object.entries(result.statusCureSupply?.itemDepletionFloorByItem || {}).forEach(([itemId, floor]) => {
+      if (floor === null || floor === undefined) return;
+      totals.statusCureSupply.itemDepletionRunCountsByItem[itemId]++;
+      totals.statusCureSupply.itemDepletionFloorCountsByItem[itemId][floor] =
+        (totals.statusCureSupply.itemDepletionFloorCountsByItem[itemId][floor] || 0) + 1;
+    });
     Object.entries(result.statusCureSupply?.decisionsAfterDedicatedDepletion || {})
       .forEach(([kind, count]) => {
         totals.statusCureSupply.decisionsAfterDedicatedDepletion[kind] =
@@ -15706,9 +15753,12 @@ const issue697Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       merchantStock: result.merchantStock,
       merchantStockByClass: result.merchantStockByClass,
       averageConsumableUsageByItem: result.averageConsumableUsageByItem,
+      pickupRejectionsBySource: result.pickupRejectionsBySource,
+      pickupRejectionsByCategory: result.pickupRejectionsByCategory,
       consumablesByClass: result.consumablesByClass,
       statusCureItemsAcquired: result.statusCureItemsAcquired,
       statusCureItemsUsed: result.statusCureItemsUsed,
+      statusCureSupply: result.statusCureSupply,
       statusesCured: result.statusesCured,
       statusCureDecisions: result.statusCureDecisions,
       statusCureUnavailableStatuses: result.statusCureUnavailableStatuses,

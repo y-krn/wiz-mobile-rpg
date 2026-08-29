@@ -60,7 +60,7 @@ check(
 check(
   priest.departureCraftPotentialByRecipe.HEAL_POTION === 1 &&
     priest.departureCraftPotentialByRecipe.GREATER_HEAL === 1 &&
-    priest.departureCraftPotentialByRecipe.HOLY_WATER === 1,
+    priest.departureCraftPotentialByRecipe.HOLY_WATER === 0,
   "counterfactual craftability did not use the shared craft rules"
 );
 check(
