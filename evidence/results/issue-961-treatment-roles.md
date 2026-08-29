@@ -55,11 +55,11 @@
 - 各条件 N=500、calibration N=100、`SIM_PARALLEL` unset
 - 出発キット: `TOWN_PORTAL + 4×HEAL_POTION + ANTIDOTE + GUARD_POTION`
 - `STATUS_CURE_POLICY=ev`、`STATUS_CURE_MERCHANT_POLICY=missing`、保守的罠方針、powder鑑定
-- before source: `79825faff5c1951b22cb220162dffb2d2f17178f`
-- after source: `3df354514f26f7607e02633c78c3cad20f5085ec`
-- before raw SHA-256: `c336bf71346d8443f0ef59fd792460e376dee1b9755054c0498d5d6a52a80105`
-- after raw SHA-256: `a26ac31547e52daacbcb853ed14ddbaf00527a86270253c977de9fa51f624bed`
-- 両方 clean、`origin/main` の祖先。after source は計測カウンタ追加のみ。
+- before source: `7d45930b5c3939c2d39ffe2200e0104a02e01bc3`
+- after source: `7f4ef18c79a610c503da91f7127506f5fb13cabe`
+- before raw SHA-256: `57f7bb3f185bcd72528b67e31a1e309faad14e5a095ea00c58b64bb405523b4b`
+- after raw SHA-256: `5ff3d478263ca2321176652a09bec16117c0b795b62ea05712c643f4e021aff8`
+- 両方 clean、同一の最新 `origin/main` を祖先に持つ。after source は役割カタログと計測カウンタ追加のみ。
 
 ### ゲーム結果と供給（B20 target）
 
@@ -121,5 +121,5 @@ step と、判定時 `inventory.length` を集計した。以下は after のB20
 - same source path の status-cure tracking regression: PASS
 - `scratch/tests/unit/test_status_treatment_roles.js`: PASS
 
-raw output は `/private/tmp/issue-961-before.out` と
-`/private/tmp/issue-961-after-ci-fix.out` に保存し、リポジトリへ追跡していない。
+raw output は `/private/tmp/issue-961-before-latest.out` と
+`/private/tmp/issue-961-after-latest-base.out` に保存し、リポジトリへ追跡していない。
