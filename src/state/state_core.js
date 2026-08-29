@@ -24,8 +24,6 @@ export const state = {
   repelTurns: 0,
   silenceTurns: 0,
   forcedEncounterSteps: 0,
-  dumapicTurns: 0,
-  dumapicHint: "",
   mapRevision: 0,
   activeMerchantStock: [],
 

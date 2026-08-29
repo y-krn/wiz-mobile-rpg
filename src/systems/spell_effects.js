@@ -2,8 +2,8 @@ import { SPELLS } from "../data/spells.js";
 import { getSpellStatBonus } from "../rules/spell_rules.js";
 import { getCharInt, getCharPie, getCharMaxHp } from "../rules/character_stats.js";
 import { getCharAffixSum, getEffectiveHealAmount } from "../rules/item_rules.js";
-import { DIR_NAMES } from "../constants/directions.js";
-import { EVENT_TYPES } from "../constants/events.js";
+import { DIR_NAMES, DX, DY } from "../constants/directions.js";
+import { isMapDirectionBlocked } from "../rules/map_movement.js";
 import {
   getDamageAffixResult,
   getSpellAccuracyBonus,
@@ -45,7 +45,8 @@ function getSpellPowerBonus(caster) {
   return caster ? (1.0 + getCharAffixSum(caster, "spellPower") / 100) : 1.0;
 }
 
-// Helper functions for DUMAPIC
+const DUMAPIC_ONE_WAY_RADIUS = 3;
+
 function getCompassDirection(fromX, fromY, toX, toY) {
   const dx = toX - fromX;
   const dy = toY - fromY;
@@ -72,37 +73,43 @@ function findNearestCell(state, predicate) {
   return best;
 }
 
-function getNearbyEventHints(state, range) {
+function getUnexploredDirection(state) {
   const map = state.maps?.[state.floor - 1] || state.map;
-  if (!map) return [];
-  const hints = [];
-  const labels = {
-    [EVENT_TYPES.CHEST]: "宝箱",
-    [EVENT_TYPES.SPRING]: "泉",
-    [EVENT_TYPES.CAMP]: "野営地",
-    [EVENT_TYPES.TABLET]: "石碑",
-    [EVENT_TYPES.MERCHANT]: "商人",
-    [EVENT_TYPES.MIDBOSS]: "強敵",
-    [EVENT_TYPES.BOSS]: "巨大な気配"
-  };
+  if (!map) return null;
+  const visitedMap = state.visitedMaps?.[state.floor - 1] || state.visitedMap;
+  let nearest = null;
   for (let y = 0; y < map.length; y++) {
     for (let x = 0; x < map[y].length; x++) {
-      const cell = map[y][x];
+      if (!map[y]?.[x] || (x === state.x && y === state.y) || visitedMap?.[y]?.[x]) continue;
       const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
-      if (!cell || dist === 0 || dist > range) continue;
-      if (cell.event && labels[cell.event]) {
-        hints.push(`${labels[cell.event]}:${getCompassDirection(state.x, state.y, x, y)}`);
+      if (!nearest || dist < nearest.dist) nearest = { x, y, dist };
+    }
+  }
+  return nearest ? getCompassDirection(state.x, state.y, nearest.x, nearest.y) : null;
+}
+
+function getStairDistanceCategory(distance) {
+  if (distance <= 3) return "近い";
+  if (distance <= 7) return "やや遠い";
+  return "遠い";
+}
+
+function hasNearbyOneWayPassage(state) {
+  const map = state.maps?.[state.floor - 1] || state.map;
+  if (!map) return false;
+  for (let y = 0; y < map.length; y++) {
+    for (let x = 0; x < map[y].length; x++) {
+      const cell = map[y]?.[x];
+      const dist = Math.abs(x - state.x) + Math.abs(y - state.y);
+      if (!cell || dist > DUMAPIC_ONE_WAY_RADIUS || !Array.isArray(cell.walls)) continue;
+      for (let dir = 0; dir < cell.walls.length; dir++) {
+        if (!map?.[y + DY[dir]]?.[x + DX[dir]]) continue;
+        if (cell.walls[dir] || !isMapDirectionBlocked(map, x, y, dir)) continue;
+        return true;
       }
     }
   }
-  return hints.slice(0, 3);
-}
-
-function getDangerHint(state) {
-  const floorDanger = state.floor >= 5 ? "極めて危険" : state.floor >= 4 ? "危険" : state.floor >= 3 ? "警戒" : "低め";
-  const nearbyThreat = findNearestCell(state, cell => cell.event === EVENT_TYPES.BOSS || cell.event === EVENT_TYPES.MIDBOSS);
-  if (nearbyThreat && nearbyThreat.dist <= 4) return `${floorDanger}。近くに強大な気配`;
-  return floorDanger;
+  return false;
 }
 
 export const SPELL_EFFECTS = {
@@ -224,14 +231,19 @@ export const SPELL_EFFECTS = {
   },
   DUMAPIC: ({ caster, target: state }) => {
     const stairs = findNearestCell(state, cell => cell.type === "stairs-down");
-    const stairHint = stairs ? `下り階段:${getCompassDirection(state.x, state.y, stairs.x, stairs.y)}方面` : "下り階段:この階にはない";
-    const eventHints = getNearbyEventHints(state, 3);
-    const eventText = eventHints.length > 0 ? `周囲の気配:${eventHints.join(" / ")}` : "周囲の気配:特になし";
-    const dangerText = `危険度:${getDangerHint(state)}`;
-    const hint = `${stairHint} / ${eventText} / ${dangerText}`;
-    state.dumapicTurns = 30;
-    state.dumapicHint = hint;
-    return { log: `${caster.name}はデュマピックを唱えた！地下${state.floor}階 X:${state.x}, Y:${state.y}, 方角:${DIR_NAMES[state.dir]}。\nDUMAPIC: ${hint}` };
+    const surveyLines = [
+      `DUMAPIC — B${state.floor} / ${DIR_NAMES[state.dir]}向き`,
+      `測量座標 X:${state.x} Y:${state.y}`
+    ];
+    const unexploredDirection = getUnexploredDirection(state);
+    if (unexploredDirection) surveyLines.push(`${unexploredDirection}方に未踏領域の広がりを感じる。`);
+    if (stairs) {
+      const stairDirection = getCompassDirection(state.x, state.y, stairs.x, stairs.y);
+      surveyLines.push(`${stairDirection}の${getStairDistanceCategory(stairs.dist)}に下層へ続く構造を感知した。`);
+    }
+    if (hasNearbyOneWayPassage(state)) surveyLines.push("近辺の空間にわずかな歪みがある。");
+    if (surveyLines.length === 2) surveyLines.push("特異な構造は感じない。");
+    return { log: `${caster.name}はデュマピックを唱えた！\n${surveyLines.join("\n")}` };
   },
   MAHALITO: ({ caster, target, rng = Math.random, telemetryEnabled = false, state = null, logQueue = null }) => {
     const baseRoll = Math.floor(rng() * 21) + 30;

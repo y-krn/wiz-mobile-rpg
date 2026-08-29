@@ -286,8 +286,7 @@ export function updateUI() {
     const lightLabel = state.lightPower === "lomilwa" ? "LOMILWA" : "LIGHT";
     const lightText = state.lightTurns > 0 ? ` (${lightLabel}:${state.lightTurns})` : "";
     const repelText = state.repelTurns > 0 ? ` (REPEL:${state.repelTurns})` : "";
-    const dumapicText = state.dumapicTurns > 0 ? ` (DUMAPIC:${state.dumapicTurns})` : "";
-    locLabel.textContent = `B${state.floor}F${themeLabel} X:${state.x} Y:${state.y}${lightText}${repelText}${dumapicText}`;
+    locLabel.textContent = `B${state.floor}F${themeLabel}${lightText}${repelText}`;
   } else if (gameState === "combat") {
     locLabel.textContent = "BATTLE ENCOUNTER";
   } else if (gameState === "chest") {

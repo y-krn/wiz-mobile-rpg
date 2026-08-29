@@ -293,7 +293,6 @@ export class DungeonRenderer {
     ].join(",")).join(";") || "";
 
     signature.push(
-      state.dumapicTurns > 0,
       state.lightTurns > 0,
       state.lightPower,
       roamingMonsters,
@@ -1672,8 +1671,7 @@ export class DungeonRenderer {
     
     // Draw background panel border and background (unclipped)
     ctx.fillStyle = "rgba(12, 12, 14, 0.9)";
-    const isDumapic = state.dumapicTurns > 0;
-    ctx.strokeStyle = isDumapic ? "rgba(255, 215, 0, 0.9)" : "rgba(0, 229, 255, 0.5)";
+    ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
     ctx.lineWidth = 2;
     ctx.fillRect(margin - 2, margin - 2, minimapSize + 4, minimapSize + 4);
     ctx.strokeRect(margin - 2, margin - 2, minimapSize + 4, minimapSize + 4);
@@ -1700,8 +1698,7 @@ export class DungeonRenderer {
     const offsetX = Math.max(minOffsetX, Math.min(0, desiredOffsetX));
     const offsetY = Math.max(minOffsetY, Math.min(0, desiredOffsetY));
 
-    // DUMAPIC/LOMILWA reveal wider tactical context than basic MILWA.
-    const lightRad = state.dumapicTurns > 0 ? 5 : (state.lightPower === "lomilwa" ? 5 : (state.lightTurns > 0 ? 3 : 0));
+    const lightRad = state.lightPower === "lomilwa" ? 5 : (state.lightTurns > 0 ? 3 : 0);
     const fragmentCells = new Set(state.dungeonMemory?.mapFragments?.[state.floor] || []);
 
       for (let y = 0; y < map.length; y++) {
@@ -1894,17 +1891,17 @@ export class DungeonRenderer {
     const px = margin + state.x * cellS + cellS / 2 + offsetX;
     const py = margin + state.y * cellS + cellS / 2 + offsetY;
     
-    // Draw background glow circle for player location (amber/cyan depending on dumapic)
-    ctx.fillStyle = isDumapic ? "rgba(255, 215, 0, 0.3)" : "rgba(0, 229, 255, 0.25)";
+    // Draw background glow circle for player location.
+    ctx.fillStyle = "rgba(0, 229, 255, 0.25)";
     ctx.beginPath();
     ctx.arc(px, py, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = isDumapic ? "#ffd700" : "#00e5ff"; 
+    ctx.fillStyle = "#00e5ff";
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1;
-    ctx.shadowBlur = isDumapic ? 8 : 6;
-    ctx.shadowColor = isDumapic ? "#ffd700" : "#00e5ff";
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = "#00e5ff";
     
     ctx.save();
     ctx.translate(px, py);

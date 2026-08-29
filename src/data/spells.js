@@ -30,7 +30,7 @@ export const SPELLS = {
     level: 1,
     cost: 1,
     target: "utility",
-    desc: "座標探知 (位置・階段方向・周囲の気配を読む)"
+    desc: "瞬間測量 (座標・方角・迷宮構造の気配を読む)"
   },
   MAHALITO: {
     name: "MAHALITO",

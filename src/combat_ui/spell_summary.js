@@ -2,7 +2,7 @@ const SPELL_COMBAT_SUMMARIES = Object.freeze({
   HALITO: { tag: "単体", effect: "火 12-22", category: "single" },
   KATINO: { tag: "弱体", effect: "全体睡眠", category: "debuff" },
   LAHALITO: { tag: "全体", effect: "火 15-35", category: "all" },
-  DUMAPIC: { tag: "探索", effect: "座標探知", category: "utility" },
+  DUMAPIC: { tag: "探索", effect: "瞬間測量", category: "utility" },
   MAHALITO: { tag: "単体", effect: "火 30-50", category: "single" },
   MASFEAL: { tag: "探索", effect: "遭遇回避", category: "utility" },
   MADALTO: { tag: "全体", effect: "氷 30-60", category: "all" },

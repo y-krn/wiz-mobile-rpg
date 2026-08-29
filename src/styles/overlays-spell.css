@@ -291,19 +291,6 @@
   box-shadow: var(--neon-glow-purple);
 }
 
-/* DUMAPIC Active Style */
-.dumapic-active {
-  color: var(--neon-amber) !important;
-  text-shadow: var(--neon-glow-amber) !important;
-  animation: dumapic-pulse 2s infinite ease-in-out;
-}
-
-@keyframes dumapic-pulse {
-  0% { opacity: 0.9; text-shadow: 0 0 2px rgba(255, 215, 0, 0.5); }
-  50% { opacity: 1; text-shadow: 0 0 4px rgba(255, 215, 0, 0.8); }
-  100% { opacity: 0.9; text-shadow: 0 0 2px rgba(255, 215, 0, 0.5); }
-}
-
 /* Spell list category headings */
 .spell-list-heading {
   font-size: var(--fs-xs);
