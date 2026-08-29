@@ -1981,6 +1981,8 @@ function createTrapAggregate() {
     manaPotionsConsumedBySource: createTrackedConsumableSourceCounts(),
     holyWaterAcquiredBySource: createTrackedConsumableSourceCounts(),
     holyWaterConsumedBySource: createTrackedConsumableSourceCounts(),
+    pickupRejectionsBySource: { chest: 0, combat: 0, material: 0 },
+    pickupRejectionsByCategory: { item: 0, equipment: 0, material: 0 },
     departureCraftCraftedByRecipe: createCraftMeasurementCounts(),
     departureCraftPotentialByRecipe: createCraftMeasurementCounts(),
     departureCraftCraftedRunsByRecipe: createCraftMeasurementCounts(),
@@ -2812,6 +2814,14 @@ function addTrapAggregate(target, result) {
     target.consumableUsageByItem[itemKey].acquired += usage.acquired || 0;
     target.consumableUsageByItem[itemKey].consumed += usage.consumed || 0;
   });
+  Object.entries(result.pickupRejectionsBySource || {}).forEach(([source, count]) => {
+    target.pickupRejectionsBySource[source] =
+      (target.pickupRejectionsBySource[source] || 0) + count;
+  });
+  Object.entries(result.pickupRejectionsByCategory || {}).forEach(([category, count]) => {
+    target.pickupRejectionsByCategory[category] =
+      (target.pickupRejectionsByCategory[category] || 0) + count;
+  });
   target.disarms += result.trapDisarms;
   target.disarmAttempts += result.trapDisarmAttempts;
   target.disarmSuccesses += result.trapDisarmSuccesses;
@@ -3012,6 +3022,8 @@ function finalizeTrapAggregate(aggregate) {
         amount / runs
       ])
     ),
+    pickupRejectionsBySource: { ...aggregate.pickupRejectionsBySource },
+    pickupRejectionsByCategory: { ...aggregate.pickupRejectionsByCategory },
     averageDepartureCraftCraftedByRecipe: Object.fromEntries(
       Object.entries(aggregate.departureCraftCraftedByRecipe).map(([recipeId, amount]) => [
         recipeId,
@@ -15706,6 +15718,8 @@ const issue697Measurement = resultsByPolicy.flatMap(({ policy, scenarioResults }
       merchantStock: result.merchantStock,
       merchantStockByClass: result.merchantStockByClass,
       averageConsumableUsageByItem: result.averageConsumableUsageByItem,
+      pickupRejectionsBySource: result.pickupRejectionsBySource,
+      pickupRejectionsByCategory: result.pickupRejectionsByCategory,
       consumablesByClass: result.consumablesByClass,
       statusCureItemsAcquired: result.statusCureItemsAcquired,
       statusCureItemsUsed: result.statusCureItemsUsed,
