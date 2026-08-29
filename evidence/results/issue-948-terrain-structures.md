@@ -2,7 +2,8 @@
 
 Date: 2026-08-29
 
-Source: `6198e43b98232da41257364b225acd7fd28aaae3`
+Source: `9ee22f279a0776a0b2d9b6a513fb826f104dcf1a` (implementation commit;
+evidence commit follows)
 
 The four forced profiles below use `generateRandomMap` with 48 seeds, a 24x24
 map, and room range `[2, 3]`. The profile selects the floor's
