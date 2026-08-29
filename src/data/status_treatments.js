@@ -1,5 +1,3 @@
-// balance-impact: none — role catalog metadata only; item effects and supply
-// rules remain unchanged.
 // Role-based treatment groups. Keep this catalog separate from runtime state so
 // balance reviews can compare supply routes without adding one item per status.
 const freezeRole = role => Object.freeze({

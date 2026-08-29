@@ -201,7 +201,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     "src/sentry.js", "src/sentry_browser.js", "src/state/save_storage.js", "src/state/save_migrations.js", "src/state/save_payload.js",
     "src/error_context.js", "src/controls_guard.js", "src/state/codex_state.js",
     "src/state/initial_state.js", "src/state/records_state.js", "src/result.js",
-    "src/data/spells.js", "src/systems/spell_effects.js",
+    "src/data/spells.js", "src/data/status_treatments.js", "src/systems/spell_effects.js",
     "src/runtime_diagnostics.js", "src/telemetry.js", "src/systems/traps.js"
   ]),
   // A one-off no-impact declaration is recognized only when its marker is
@@ -243,11 +243,6 @@ export const SIMULATION_MANIFEST = Object.freeze({
       marker: "// balance-impact: none",
       reason: "milestone stairs presentation gate only; movement costs and facility rules remain unchanged",
       kind: "presentation"
-    },
-    {
-      pattern: "src/data/status_treatments.js",
-      marker: "// balance-impact: none",
-      reason: "role catalog metadata only; item effects and supply rules remain unchanged"
     },
   ].map(declaration => Object.freeze({ ...declaration }))),
   // Exact paths whose current callers may receive telemetry-only edits. A
