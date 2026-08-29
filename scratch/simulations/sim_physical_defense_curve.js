@@ -1,6 +1,7 @@
 // sim-scope: formula — compares enemy-to-player physical defense curves against current encounter anchors.
 /* global console, process */
 
+import "./simulation_preflight.js";
 import { requireRunnerProvenance } from "../measurements/measurement_provenance.js";
 import { MONSTERS } from "../../src/data/monsters.js";
 import { getEncounterPoolForFloor } from "../../src/data/encounters.js";
@@ -17,6 +18,7 @@ const MEASUREMENT_PROVENANCE = requireRunnerProvenance({ fetchOriginMain: false 
 const ROLLS = Object.freeze([0, 1, 2, 3]);
 const CANDIDATES = Object.freeze([
   { id: "scale-2", label: "割合軽減 scale=2", kind: "scale", scale: 2 },
+  { id: "scale-4", label: "割合軽減 scale=4", kind: "scale", scale: 4 },
   { id: "scale-8", label: "割合軽減 scale=8", kind: "scale", scale: 8 },
   { id: "scale-10", label: "割合軽減 scale=10", kind: "scale", scale: 10 },
   { id: "scale-12", label: "割合軽減 scale=12", kind: "scale", scale: 12 },

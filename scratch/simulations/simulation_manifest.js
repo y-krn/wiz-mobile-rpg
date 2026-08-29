@@ -45,6 +45,7 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: "scratch/simulations/sim_new_spells.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_parallel.js", lifecycle: "historical", scope: "infra" },
   { path: "scratch/simulations/sim_parallel_worker.js", lifecycle: "historical", scope: "infra" },
+  { path: "scratch/simulations/sim_physical_defense_curve.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_retreat_access.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_run_floor_templates.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/simulations/sim_solo_b1f.js", lifecycle: "historical", scope: "run" },
