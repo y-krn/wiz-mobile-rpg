@@ -43,6 +43,42 @@ for (const vp of VIEWPORTS) {
     });
     const powder = page.locator('.milestone-merchant-option[data-stock-id="identify_powder"]');
     const uncurse = page.getByRole('button', { name: /呪いを解く/ });
+    const merchantLayout = await page.locator('.milestone-merchant-option').evaluateAll((buttons) => {
+      const readBox = (element) => {
+        const box = element.getBoundingClientRect();
+        return {
+          left: box.left,
+          right: box.right,
+          width: box.width,
+          fits: element.scrollWidth <= element.clientWidth + 1,
+        };
+      };
+      const options = buttons.map((button) => ({
+        button: readBox(button),
+        name: readBox(button.querySelector('.menu-action-card-name')),
+        description: readBox(button.querySelector('.menu-action-card-description')),
+        cost: readBox(button.querySelector('.menu-action-card-cost')),
+        display: getComputedStyle(button).display,
+      }));
+      return {
+        options,
+        hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    expect(merchantLayout.hasHorizontalOverflow).toBe(false);
+    expect(merchantLayout.options.every(({ display }) => display === 'grid')).toBe(true);
+    const firstNameWidth = merchantLayout.options[0].name.width;
+    const firstDescriptionLeft = merchantLayout.options[0].description.left;
+    for (const { button, name, description, cost } of merchantLayout.options) {
+      expect(name.width).toBeCloseTo(firstNameWidth, 3);
+      expect(description.left).toBeCloseTo(firstDescriptionLeft, 3);
+      expect(cost.left).toBeCloseTo(firstDescriptionLeft, 3);
+      for (const child of [name, description, cost]) {
+        expect(child.fits).toBe(true);
+        expect(child.left).toBeGreaterThanOrEqual(button.left);
+        expect(child.right).toBeLessThanOrEqual(button.right);
+      }
+    }
     expect((await powder.boundingBox()).height).toBeGreaterThanOrEqual(44);
     expect((await uncurse.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('.milestone-merchant-option[data-stock-kind="equipment"]')).toHaveCount(0);
