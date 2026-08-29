@@ -12,7 +12,7 @@ const runConfig = {
   className: "Fighter",
   startFloor: 1,
   targetDepth: 3,
-  runIndex: 0,
+  runIndex: 2,
   seriesId: "lethal-smash-regression",
   scoringProfile: null,
   scenario: {
@@ -29,16 +29,16 @@ const second = simulateRun(runConfig);
 assert.equal(first.outcome, "death");
 assert.equal(first.deathEncounterType, "chest-trap");
 assert.equal(first.finalHp, 0);
-assert.equal(first.chestForcedByFloor[1], 3);
-assert.equal(first.chestsOpened, 3);
+assert.equal(first.chestForcedByFloor[1], 2);
+assert.equal(first.chestsOpened, 13);
 assert.equal(first.chestsOpenedInRun, first.chestsOpened);
 
 // The deterministic lethal chest awards neither its generated materials nor
 // its rewards/current-run records. These values cover the preceding live
 // chest awards and make a post-death award regression observable.
-assert.equal(first.materialAcquiredBySource.chest, 6);
-assert.equal(first.carriedMaterials, 6);
-assert.equal(first.equipmentFoundBySource.chest, 1);
+assert.equal(first.materialAcquiredBySource.chest, 23);
+assert.equal(first.carriedMaterials, 23);
+assert.equal(first.equipmentFoundBySource.chest, 6);
 
 assert.deepEqual(
   {

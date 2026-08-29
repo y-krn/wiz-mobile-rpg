@@ -299,7 +299,13 @@ function collectBranchGrowthCandidates(grid, protectedKeys, reachableKeys) {
   return candidates;
 }
 
-function normalizeDeadEndCount(grid, start, protectedKeys, target, rng) {
+function normalizeDeadEndCount(
+  grid,
+  start,
+  protectedKeys,
+  target,
+  rng
+) {
   const reachableKeys = getReachableCellKeys(grid, start);
   let deadEnds = collectReachableDeadEnds(grid, start, protectedKeys, reachableKeys);
 
@@ -1371,6 +1377,243 @@ export const ROOM_SIZES = [
   { w: 3, h: 3 }
 ];
 
+function resetStructureLayout(grid, visited) {
+  for (let y = 0; y < getMapHeight(grid); y++) {
+    for (let x = 0; x < getMapWidth(grid); x++) {
+      grid[y][x].walls.fill(true);
+      visited[y][x] = false;
+    }
+  }
+}
+
+function markStructureCell(visited, x, y) {
+  if (y >= 1 && y < visited.length - 1 && x >= 1 && x < visited[y].length - 1) {
+    visited[y][x] = true;
+  }
+}
+
+function carveStructurePath(grid, visited, from, to) {
+  let x = from.x;
+  let y = from.y;
+  markStructureCell(visited, x, y);
+
+  while (x !== to.x || y !== to.y) {
+    const dir = x !== to.x
+      ? (to.x > x ? DIR_E : DIR_W)
+      : (to.y > y ? DIR_S : DIR_N);
+    const nx = x + DX[dir];
+    const ny = y + DY[dir];
+    openWall(grid, x, y, dir);
+    markStructureCell(visited, nx, ny);
+    x = nx;
+    y = ny;
+  }
+}
+
+function carveStructureRoom(grid, visited, room) {
+  for (let y = room.y; y < room.y + room.h; y++) {
+    for (let x = room.x; x < room.x + room.w; x++) markStructureCell(visited, x, y);
+  }
+  for (let y = room.y; y < room.y + room.h; y++) {
+    for (let x = room.x; x < room.x + room.w; x++) {
+      if (x + 1 < room.x + room.w) openWall(grid, x, y, DIR_E);
+      if (y + 1 < room.y + room.h) openWall(grid, x, y, DIR_S);
+    }
+  }
+}
+
+function carveRectangularLoop(grid, visited, bounds) {
+  const { left, right, top, bottom } = bounds;
+  carveStructurePath(grid, visited, { x: left, y: top }, { x: right, y: top });
+  carveStructurePath(grid, visited, { x: right, y: top }, { x: right, y: bottom });
+  carveStructurePath(grid, visited, { x: right, y: bottom }, { x: left, y: bottom });
+  carveStructurePath(grid, visited, { x: left, y: bottom }, { x: left, y: top });
+}
+
+function getStructureBounds(grid) {
+  return {
+    left: 2,
+    right: getMapWidth(grid) - 3,
+    top: 2,
+    bottom: getMapHeight(grid) - 3
+  };
+}
+
+function generateCorridorLayout(grid, visited) {
+  const { left, right, top, bottom } = getStructureBounds(grid);
+  const rooms = [
+    { x: left + 3, y: top + 2, w: 3, h: 2 },
+    { x: right - 5, y: bottom - 3, w: 3, h: 2 }
+  ];
+  carveStructurePath(grid, visited, { x: left, y: top }, { x: left, y: bottom });
+  carveStructurePath(grid, visited, { x: left, y: bottom }, { x: right, y: bottom });
+  carveStructurePath(grid, visited, { x: left, y: 7 }, { x: left + 6, y: 7 });
+  carveStructurePath(grid, visited, { x: left, y: 12 }, { x: left + 4, y: 12 });
+  carveStructurePath(grid, visited, { x: right - 3, y: bottom }, { x: right - 3, y: bottom - 5 });
+  rooms.forEach(room => {
+    carveStructureRoom(grid, visited, room);
+    carveStructurePath(grid, visited, { x: left, y: room.y + 1 }, { x: room.x, y: room.y + 1 });
+  });
+  return rooms;
+}
+
+function generateLoopLayout(grid, visited) {
+  const { left, right, top, bottom } = getStructureBounds(grid);
+  const ring = { left: left + 3, right: right - 3, top: top + 2, bottom: bottom - 2 };
+  const rooms = [{ x: ring.left + 3, y: ring.top + 3, w: 3, h: 3 }];
+  carveStructurePath(grid, visited, { x: ring.left, y: ring.top }, { x: ring.right, y: ring.top });
+  carveStructurePath(grid, visited, { x: ring.right, y: ring.top }, { x: ring.right, y: ring.bottom });
+  carveStructurePath(grid, visited, { x: ring.right, y: ring.bottom }, { x: ring.left, y: ring.bottom });
+  carveStructurePath(grid, visited, { x: ring.left, y: ring.bottom }, { x: ring.left, y: ring.top });
+  carveStructurePath(grid, visited, { x: ring.left, y: ring.top }, { x: left, y: ring.top });
+  carveStructurePath(grid, visited, { x: right, y: ring.bottom }, { x: ring.right, y: ring.bottom });
+  carveStructurePath(grid, visited, { x: left, y: bottom }, { x: left, y: ring.bottom });
+  carveStructurePath(grid, visited, { x: right, y: top }, { x: right, y: ring.top });
+  carveStructurePath(grid, visited, { x: right, y: ring.top }, { x: ring.right, y: ring.top });
+  carveStructureRoom(grid, visited, rooms[0]);
+  carveStructurePath(grid, visited, { x: rooms[0].x + 1, y: rooms[0].y }, { x: rooms[0].x + 1, y: ring.top });
+  const innerLoops = [
+    { left: 7, right: 10, top: 11, bottom: 14 },
+    { left: 13, right: 16, top: 11, bottom: 14 },
+    { left: 7, right: 10, top: 15, bottom: 17 },
+    { left: 13, right: 16, top: 15, bottom: 17 }
+  ];
+  innerLoops.forEach((bounds, index) => {
+    carveRectangularLoop(grid, visited, bounds);
+    const attachment = index % 2 === 0
+      ? { x: bounds.left, y: bounds.top }
+      : { x: bounds.right, y: bounds.top };
+    const ringAttachment = index % 2 === 0
+      ? { x: ring.left, y: bounds.top }
+      : { x: ring.right, y: bounds.top };
+    carveStructurePath(grid, visited, attachment, ringAttachment);
+  });
+  return rooms;
+}
+
+function generateHubLayout(grid, visited) {
+  const { left, right, top, bottom } = getStructureBounds(grid);
+  const centerX = Math.floor((left + right) / 2);
+  const centerY = Math.floor((top + bottom) / 2);
+  const hub = { x: centerX - 2, y: centerY - 2, w: 5, h: 5 };
+  const rooms = [hub, { x: left + 2, y: top + 3, w: 3, h: 2 }];
+  carveStructureRoom(grid, visited, hub);
+  carveStructurePath(grid, visited, { x: centerX, y: top }, { x: centerX, y: hub.y });
+  carveStructurePath(grid, visited, { x: hub.x + hub.w - 1, y: centerY }, { x: right, y: centerY });
+  carveStructurePath(grid, visited, { x: centerX, y: hub.y + hub.h - 1 }, { x: centerX, y: bottom });
+  carveStructurePath(grid, visited, { x: hub.x, y: centerY }, { x: left, y: centerY });
+  // The outer connector is deliberately secondary to the central hub, but
+  // gives the spokes a real alternate route for detours and one-way edges.
+  carveStructurePath(grid, visited, { x: left, y: centerY }, { x: left, y: bottom });
+  carveStructurePath(grid, visited, { x: left, y: bottom }, { x: right, y: bottom });
+  carveStructurePath(grid, visited, { x: right, y: bottom }, { x: right, y: centerY });
+  for (const offset of [-4, -3, -1, 1, 3, 4]) {
+    carveStructurePath(
+      grid,
+      visited,
+      { x: centerX + offset, y: centerY - 4 },
+      { x: centerX + offset, y: centerY + 4 }
+    );
+    carveStructurePath(
+      grid,
+      visited,
+      { x: centerX - 4, y: centerY + offset },
+      { x: centerX + 4, y: centerY + offset }
+    );
+  }
+  carveStructureRoom(grid, visited, rooms[1]);
+  carveStructurePath(grid, visited, { x: rooms[1].x + rooms[1].w - 1, y: rooms[1].y + 1 }, { x: centerX, y: top });
+  return rooms;
+}
+
+function generateOpenAreaLayout(grid, visited) {
+  const { left, right, top, bottom } = getStructureBounds(grid);
+  const centerX = Math.floor((left + right) / 2);
+  const centerY = Math.floor((top + bottom) / 2);
+  const plaza = { x: centerX - 4, y: centerY - 3, w: 9, h: 7 };
+  const rooms = [plaza, { x: left + 2, y: bottom - 4, w: 3, h: 2 }];
+  carveStructureRoom(grid, visited, plaza);
+  const exits = [
+    [{ x: centerX, y: top }, { x: centerX, y: plaza.y }],
+    [{ x: right, y: centerY - 1 }, { x: plaza.x + plaza.w - 1, y: centerY - 1 }],
+    [{ x: centerX, y: bottom }, { x: centerX, y: plaza.y + plaza.h - 1 }],
+    [{ x: left, y: centerY + 1 }, { x: plaza.x, y: centerY + 1 }]
+  ];
+  exits.forEach(([outer, inner]) => carveStructurePath(grid, visited, outer, inner));
+  carveStructurePath(grid, visited, { x: left, y: top + 2 }, { x: left, y: bottom - 2 });
+  carveStructurePath(grid, visited, { x: left, y: top + 2 }, { x: centerX, y: top });
+  carveStructurePath(grid, visited, rooms[1], { x: left, y: bottom - 2 });
+  return rooms;
+}
+
+function generateStructureLayout(grid, visited, structureType) {
+  resetStructureLayout(grid, visited);
+  switch (structureType) {
+    case "corridor": return generateCorridorLayout(grid, visited);
+    case "loop": return generateLoopLayout(grid, visited);
+    case "hub": return generateHubLayout(grid, visited);
+    case "openArea": return generateOpenAreaLayout(grid, visited);
+    default: return [];
+  }
+}
+
+function collectPassageComponents(grid) {
+  const components = [];
+  const seen = new Set();
+  for (let y = 1; y < getMapHeight(grid) - 1; y++) {
+    for (let x = 1; x < getMapWidth(grid) - 1; x++) {
+      const key = `${x},${y}`;
+      if (!isPassageCell(grid, x, y) || seen.has(key)) continue;
+      const component = [];
+      const queue = [{ x, y }];
+      seen.add(key);
+      for (const current of queue) {
+        component.push(current);
+        for (let dir = 0; dir < 4; dir++) {
+          const nx = current.x + DX[dir];
+          const ny = current.y + DY[dir];
+          if (!isPassageCell(grid, nx, ny)) continue;
+          const nextKey = `${nx},${ny}`;
+          if (!seen.has(nextKey)) {
+            seen.add(nextKey);
+            queue.push({ x: nx, y: ny });
+          }
+        }
+      }
+      components.push(component);
+    }
+  }
+  return components;
+}
+
+function connectStructureComponents(grid) {
+  let components = collectPassageComponents(grid);
+  while (components.length > 1) {
+    components.sort((a, b) => b.length - a.length);
+    const main = components[0];
+    const secondary = components[1];
+    let closest = null;
+    for (const from of main) {
+      for (const to of secondary) {
+        const distance = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
+        if (!closest || distance < closest.distance) closest = { from, to, distance };
+      }
+    }
+    if (!closest) break;
+    let x = closest.from.x;
+    let y = closest.from.y;
+    while (x !== closest.to.x || y !== closest.to.y) {
+      const dir = x !== closest.to.x
+        ? (closest.to.x > x ? DIR_E : DIR_W)
+        : (closest.to.y > y ? DIR_S : DIR_N);
+      openWall(grid, x, y, dir);
+      x += DX[dir];
+      y += DY[dir];
+    }
+    components = collectPassageComponents(grid);
+  }
+}
+
 function isInsideRoom(room, x, y) {
   return x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
 }
@@ -1436,7 +1679,8 @@ export function carveRooms(
   visited = null,
   roomCountRange = ROOM_COUNT_RANGE,
   structureProfile = null,
-  structureType = null
+  structureType = null,
+  seedRooms = []
 ) {
   const targetCount = roomCountRange[0] +
     Math.floor(rng() * (roomCountRange[1] - roomCountRange[0] + 1));
@@ -1472,7 +1716,7 @@ export function carveRooms(
     });
   }
 
-  const rooms = [];
+  const rooms = [...seedRooms];
   for (const candidate of candidates) {
     if (rooms.length >= targetCount) break;
     if (structureType !== "openArea" && candidate.w === 3 && candidate.h === 3 &&
@@ -1681,11 +1925,15 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     }
   }
 
-  removeIsolatedInternalWalls(grid);
+  let seededRooms = [];
+  if (mazeProfile.structureType) {
+    seededRooms = generateStructureLayout(grid, visited, mazeProfile.structureType);
+  }
 
   if (mazeProfile.structureType === "corridor") {
     carveLongAlternatePaths(grid, visited, 1);
   }
+  if (!mazeProfile.structureType) removeIsolatedInternalWalls(grid);
 
   const rooms = carveRooms(
     grid,
@@ -1693,7 +1941,8 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
     visited,
     options.roomCountRange,
     mazeProfile.structureProfile,
-    mazeProfile.structureType
+    mazeProfile.structureType,
+    seededRooms
   );
 
   const b1EntryCandidates = [];
@@ -2080,6 +2329,7 @@ export function generateRandomMap(floor = 1, parentStairsCoord = null, seed = nu
   );
   placeSecretDoors(grid, floor, suCoord, stairsDownCoord, bossCoord, rng, secretCounts);
   removeInvalidOneWayPassages(grid, suCoord);
+  if (mazeProfile.structureType) connectStructureComponents(grid);
 
   const structureMetrics = getMapStructureMetrics(grid, rooms);
 
