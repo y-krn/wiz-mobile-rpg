@@ -176,6 +176,11 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // Equipment preview/rendering changes do not alter economy rules; economy
     // mutations remain covered by their owning action/system modules.
     { pattern: "src/equip.js", domains: ["equipment"] },
+    // Equipment preview and action modules preserve the existing formulas and
+    // owning system side effects; this refactor only makes those boundaries explicit.
+    { pattern: "src/rules/equipment_preview.js", domains: [] },
+    { pattern: "src/rules/equipment_rules.js", domains: [] },
+    { pattern: "src/systems/equipment_actions.js", domains: [] },
     { pattern: "src/result.js", domains: ["drops", "economy", "progression"] },
     { pattern: "src/systems/camp_rest.js", domains: ["recovery"] },
     { pattern: "src/systems/equipment_generation.js", domains: ["equipment"] },
@@ -248,6 +253,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // the existing telemetry anchor in this module.
     "src/chest.js",
     "src/equip.js",
+    "src/systems/equipment_actions.js",
     "src/systems/equipment_discard.js",
     "src/menu/explore_actions.js",
     "src/movement.js",
