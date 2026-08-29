@@ -51,9 +51,9 @@
 - 出発キット: `TOWN_PORTAL + 4×HEAL_POTION + ANTIDOTE + GUARD_POTION`
 - `STATUS_CURE_POLICY=ev`、`STATUS_CURE_MERCHANT_POLICY=missing`、保守的罠方針、powder鑑定
 - before source: `79825faff5c1951b22cb220162dffb2d2f17178f`
-- after source: `352ab45bf5d64c45a2272b1df11d186071f42f67`
+- after source: `3df354514f26f7607e02633c78c3cad20f5085ec`
 - before raw SHA-256: `c336bf71346d8443f0ef59fd792460e376dee1b9755054c0498d5d6a52a80105`
-- after raw SHA-256: `1e08f5a93f546cf74f2aaf12a2d7106adc4deca385bb58438cded407fe6b82e4`
+- after raw SHA-256: `a26ac31547e52daacbcb853ed14ddbaf00527a86270253c977de9fa51f624bed`
 - 両方 clean、`origin/main` の祖先。after source は計測カウンタ追加のみ。
 
 ### ゲーム結果と供給（B20 target）
@@ -117,4 +117,4 @@ step と、判定時 `inventory.length` を集計した。以下は after のB20
 - `scratch/tests/unit/test_status_treatment_roles.js`: PASS
 
 raw output は `/private/tmp/issue-961-before.out` と
-`/private/tmp/issue-961-after-final.out` に保存し、リポジトリへ追跡していない。
+`/private/tmp/issue-961-after-ci-fix.out` に保存し、リポジトリへ追跡していない。
