@@ -51,6 +51,11 @@ import {
   getStatusEffectRemainingTurns
 } from "./status_effects.js";
 import {
+  consumeVulnerableDamage,
+  recordVulnerableExpiry,
+  clearVulnerableOnDefeat
+} from "./vulnerable.js";
+import {
   hasTrait,
   processMonsterDefeat
 } from "./monster_traits.js";
@@ -155,6 +160,10 @@ function tryApplyBleeding(char, target, state, logQueue) {
 function clearBleedingOnDefeat(state, target, reason) {
   if (!clearBleedingStatus(target)) return;
   recordBleedingEvent(state, "cleared", target, { reason });
+}
+
+function clearCombatVulnerableOnDefeat(state, target, reason) {
+  clearVulnerableOnDefeat(state, target, reason);
 }
 
 function applyFleePartingAttack(state, monsters, logQueue) {
@@ -412,11 +421,13 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             isCritical = true;
           }
           const directPhysicalDmg = isCritical ? Math.max(1, dmg * 3) : dmg;
+          const vulnerableResult = consumeVulnerableDamage(finalTarget, directPhysicalDmg, state, "physical");
+          const vulnerableDamage = vulnerableResult.consumed ? vulnerableResult.damage : directPhysicalDmg;
           const bleedingTrigger = hasStatusEffect(finalTarget, STATUS_EFFECT_IDS.BLEEDING);
           const bleedingDamage = bleedingTrigger
-            ? getBleedingPayoffDamage(state, finalTarget, directPhysicalDmg)
+            ? getBleedingPayoffDamage(state, finalTarget, vulnerableDamage)
             : 0;
-          const finalPhysicalDmg = directPhysicalDmg + bleedingDamage;
+          const finalPhysicalDmg = vulnerableDamage + bleedingDamage;
           if (bleedingTrigger) {
             recordBleedingEvent(state, "triggered", finalTarget, {
               damageContribution: bleedingDamage,
@@ -442,6 +453,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
             isCritical,
             preCriticalDmg: dmg,
             damage: finalPhysicalDmg,
+            vulnerableConsumed: vulnerableResult.consumed,
+            vulnerableDamageContribution: vulnerableResult.damageContribution,
             bleedingTrigger,
             bleedingDamageContribution: bleedingDamage
           });
@@ -591,6 +604,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
         if (finalTarget.hp === 0) {
           clearBleedingOnDefeat(state, finalTarget, "defeat");
+          clearCombatVulnerableOnDefeat(state, finalTarget, "defeat");
           applyKillAffixEffects(char, finalTarget, state, logQueue);
           logQueue.push({ msg: `[味方] [!] ${finalTarget.name}を倒した！` });
           processMonsterDefeat(monsters, finalTarget, logQueue);
@@ -662,6 +676,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         mon.hp = 0;
         mon.fled = true;
         clearBleedingOnDefeat(state, mon, "flee");
+        clearCombatVulnerableOnDefeat(state, mon, "flee");
         logQueue.push({
           msg: `[ 敵 ] [!] ${mon.name}は逃げ出した！`,
           sound: "miss"
@@ -674,6 +689,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           recordMonsterAction(mon, "自爆", state);
           mon.hp = 0;
           clearBleedingOnDefeat(state, mon, "self-destruct");
+          clearCombatVulnerableOnDefeat(state, mon, "self-destruct");
           logQueue.push({ msg: `[ 敵 ] ${mon.name}は火花を散らして自爆した！`, sound: "cast_spell", shake: 15, flash: true });
           applyPartyDamage(state, combatSelection, logQueue, mon.name, 4, 8, { spell: true });
           return;
@@ -810,7 +826,11 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
 
       // ボス固有の行動判定と実行
       if (resolveBossAction(mon, state, combatSelection, monsters, logQueue)) {
-        if (mon.hp === 0) clearBleedingOnDefeat(state, mon, mon.fled ? "flee" : "self-destruct");
+        if (mon.hp === 0) {
+          const reason = mon.fled ? "flee" : "self-destruct";
+          clearBleedingOnDefeat(state, mon, reason);
+          clearCombatVulnerableOnDefeat(state, mon, reason);
+        }
         return;
       }
 
@@ -1135,6 +1155,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
           tryThornCounter(target, mon, targetSelect.i, state, logQueue);
           if (mon.hp === 0) {
             clearBleedingOnDefeat(state, mon, "counterattack");
+            clearCombatVulnerableOnDefeat(state, mon, "counterattack");
             applyKillAffixEffects(target, mon, state, logQueue);
             logQueue.push({ msg: `[味方] [!] ${mon.name}を反撃で倒した！` });
             processMonsterDefeat(monsters, mon, logQueue);
@@ -1224,7 +1245,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
   });
 
   tickMonsterBuffs(monsters, {
-    onBleedingExpire: target => recordBleedingEvent(state, "expired", target, { reason: "duration" })
+    onBleedingExpire: target => recordBleedingEvent(state, "expired", target, { reason: "duration" }),
+    onVulnerableExpire: target => recordVulnerableExpiry(state, target)
   });
   tickCharBuffs(state.party);
   state.party.forEach(char => {
@@ -1232,7 +1254,8 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     if (char.magicVulnerableTurns) char.magicVulnerableTurns = Math.max(0, char.magicVulnerableTurns - 1);
     tickStatusEffects(char, {
       tickSleep: false,
-      onBleedingExpire: target => recordBleedingEvent(state, "expired", target, { reason: "duration" })
+      onBleedingExpire: target => recordBleedingEvent(state, "expired", target, { reason: "duration" }),
+      onVulnerableExpire: target => recordVulnerableExpiry(state, target)
     });
     if (char.antiHealTurns) char.antiHealTurns = Math.max(0, char.antiHealTurns - 1);
     if (char.mabarrierTurns) char.mabarrierTurns = Math.max(0, char.mabarrierTurns - 1);
@@ -1246,7 +1269,12 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     });
   };
 
+  const clearVulnerableStatuses = reason => {
+    monsters.forEach(monster => clearCombatVulnerableOnDefeat(state, monster, reason));
+  };
+
   if (escaped) {
+    clearVulnerableStatuses("flee");
     clearBlindStatuses();
     return { logQueue, state };
   }
@@ -1266,6 +1294,7 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
         });
         if (m.hp === 0) {
           clearBleedingOnDefeat(state, m, "defeat");
+          clearCombatVulnerableOnDefeat(state, m, "defeat");
           logQueue.push({ msg: `[味方] [!] ${m.name}を毒で倒した！` });
           processMonsterDefeat(monsters, m, logQueue);
         }
@@ -1280,7 +1309,9 @@ export function runCombatRoundCalculation(originalState, combatSelection) {
     // 相互全滅：最後の敵と味方全員が同一ラウンドで倒れた場合、勝利より全滅を優先する。
     // 勝利報酬(endCombat)を出すと checkCombatStatus に届く前に戦闘が「勝利」で終わり、
     // ゲームオーバーが発火しない。報酬はスキップし、後段の checkCombatStatus に委ねる。
+    clearVulnerableStatuses("death");
   } else if (allMonstersDead) {
+    clearVulnerableStatuses("defeat");
     applyCombatRewards(state, monsters, logQueue);
     clearBlindStatuses();
   } else {

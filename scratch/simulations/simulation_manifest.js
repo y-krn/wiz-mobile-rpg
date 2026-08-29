@@ -39,6 +39,7 @@ export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: "scratch/simulations/sim_issue_612_exp_pace.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/simulations/sim_issue_713_trap_calibration.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/simulations/sim_issue_793_bleeding.js", lifecycle: "historical", scope: "run" },
+  { path: "scratch/simulations/sim_issue_825_vulnerable.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_material_income.js", lifecycle: "historical", scope: "formula" },
   { path: "scratch/simulations/sim_maze_metrics.js", lifecycle: "historical", scope: "map" },
   { path: "scratch/simulations/sim_new_spells.js", lifecycle: "historical", scope: "formula" },
@@ -148,6 +149,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     { pattern: "src/combat_logic/round.js", domains: ["combat", "status"] },
     { pattern: "src/combat_logic/spell_resolution.js", domains: ["combat", "status"] },
     { pattern: "src/combat_logic/status_effects.js", domains: ["status"] },
+    { pattern: "src/combat_logic/vulnerable.js", domains: ["combat", "status"] },
     { pattern: "src/combat_logic/targeting.js", domains: ["combat"] },
     { pattern: "src/data.js", domains: ["combat", "equipment", "maps", "progression", "status", "recovery"] },
     { pattern: "src/data/encounters.js", domains: ["combat", "maps"] },
@@ -261,6 +263,7 @@ export const SIMULATION_MANIFEST = Object.freeze({
     // existing telemetry anchors but do not change combat formulas.
     "src/combat_ui/combat_start.js",
     "src/combat_logic/round.js",
+    "src/combat_logic/vulnerable.js",
     "src/result.js"
   ])
 });

@@ -16,6 +16,7 @@ import {
   removeStatusEffect,
   STATUS_EFFECT_IDS
 } from "../combat_logic/status_effects.js";
+import { tryApplyVulnerable } from "../combat_logic/vulnerable.js";
 
 function rollHealing(spellName, rng, minOverride = null, maxOverride = null) {
   const spell = SPELLS[spellName];
@@ -612,6 +613,10 @@ export const SPELL_EFFECTS = {
       }
     });
     return { log: `${caster.name}はモーリスを唱えた！敵全体の魔法耐性を下げた。` };
+  },
+  VULNERA: ({ caster, target, state = null, logQueue = null }) => {
+    tryApplyVulnerable(caster, target, state, logQueue);
+    return { damage: 0, statusApplied: true, log: `${caster.name}はヴルネラを唱えた！${target.name}の脆弱を引き出した。` };
   },
   WEAKEN: ({ caster, target: targets }) => {
     targets.forEach(t => {

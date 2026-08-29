@@ -81,6 +81,10 @@ const SAFE_BLEEDING_REASONS = new Set([
   "trigger-roll", "defeat", "spell", "flee", "self-destruct", "counterattack", "duration"
 ]);
 const SAFE_BLEEDING_SOURCES = new Set(["bleedingAtk"]);
+const SAFE_VULNERABLE_EVENTS = new Set(["attempt", "applied", "refresh", "consumed", "expired", "cleared"]);
+const SAFE_VULNERABLE_REASONS = new Set(["duration", "defeat", "flee", "self-destruct", "counterattack", "death", "spell"]);
+const SAFE_VULNERABLE_SOURCES = new Set(["VULNERA"]);
+const SAFE_VULNERABLE_HIT_TYPES = new Set(["physical", "spell"]);
 const SAFE_COMPARISON_STAT_KEYS = new Set([
   "attack", "defense", "maxHp", "maxMp", "str", "int", "pie", "vit", "agi", "luk",
   "magic", "healing", "speed", "trap", "treasure", "spellGuard", "antiDragon",
@@ -224,6 +228,10 @@ function normalizeBleedingBuildKey(value) {
   if (!match) return "other";
   const affixValue = boundedFiniteOrNull(match[1], 0, 100);
   return affixValue === null ? "other" : `bleedingAtk:${affixValue}`;
+}
+
+function normalizeVulnerableBuildKey(value) {
+  return value === "VULNERA" ? value : "other";
 }
 
 function normalizeDirection(value) {
@@ -621,6 +629,26 @@ export function trackBleedingEvent(event, details = {}) {
     reason: normalizeOptionalStableValue(details.reason, SAFE_BLEEDING_REASONS),
     source: normalizeOptionalStableValue(details.source, SAFE_BLEEDING_SOURCES),
     buildKey: normalizeBleedingBuildKey(details.buildKey),
+    damageContribution: boundedFiniteOrNull(details.damageContribution),
+    directDamage: boundedFiniteOrNull(details.directDamage)
+  });
+}
+
+export function trackVulnerableEvent(event, details = {}) {
+  const normalizedEvent = normalizeStableValue(event, SAFE_VULNERABLE_EVENTS);
+  capture(`vulnerable_${normalizedEvent}`, {
+    floor: boundedFiniteOrNull(details.floor),
+    playerClass: normalizeClass(details.playerClass),
+    enemyId: normalizeEnemyId(details.enemyId),
+    isBoss: Boolean(details.isBoss),
+    isMidboss: Boolean(details.isMidboss),
+    remainingTurns: boundedFiniteOrNull(details.remainingTurns),
+    multiplier: boundedFiniteOrNull(details.multiplier, 1, 10),
+    reason: normalizeOptionalStableValue(details.reason, SAFE_VULNERABLE_REASONS),
+    source: normalizeOptionalStableValue(details.source, SAFE_VULNERABLE_SOURCES),
+    buildKey: normalizeVulnerableBuildKey(details.buildKey),
+    qualifyingHitType: normalizeOptionalStableValue(details.qualifyingHitType, SAFE_VULNERABLE_HIT_TYPES),
+    latencyTurns: boundedFiniteOrNull(details.latencyTurns, 0, 100),
     damageContribution: boundedFiniteOrNull(details.damageContribution),
     directDamage: boundedFiniteOrNull(details.directDamage)
   });

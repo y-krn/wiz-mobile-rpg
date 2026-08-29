@@ -269,7 +269,8 @@ export class DungeonRenderer {
       monster.summonQueued,
       monster.snipeQueued,
       monster.snipeTargetIdx,
-      monster.statusEffects?.bleeding?.remainingTurns
+      monster.statusEffects?.bleeding?.remainingTurns,
+      monster.statusEffects?.vulnerable?.remainingTurns
     ].join(",")).join(";") : "";
     const roamingMonsters = renderInput.roamingMonsters.map(monster => [
       monster.floor,

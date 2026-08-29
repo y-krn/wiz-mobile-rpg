@@ -4,7 +4,8 @@ export const STATUS_EFFECT_IDS = Object.freeze({
   SLEEP: "sleep",
   PARALYZED: "paralyzed",
   SILENCE: "silence",
-  BLEEDING: "bleeding"
+  BLEEDING: "bleeding",
+  VULNERABLE: "vulnerable"
 });
 
 // Bleeding is a combat-only, non-legacy effect.  A successful reapplication
@@ -12,6 +13,9 @@ export const STATUS_EFFECT_IDS = Object.freeze({
 export const BLEEDING_DURATION_TURNS = 3;
 export const BLEEDING_PAYOFF_DAMAGE_CANDIDATES = Object.freeze([1, 2, 3]);
 export const BLEEDING_PAYOFF_DAMAGE = 1;
+export const VULNERABLE_DURATION_TURNS = 3;
+export const VULNERABLE_DAMAGE_MULTIPLIER_CANDIDATES = Object.freeze([1.15, 1.25, 1.35]);
+export const VULNERABLE_DAMAGE_MULTIPLIER = 1.25;
 
 // Exploration poison is intentionally separate from combat-round poison.
 // Combat poison remains a legacy status until the character next takes an
@@ -57,8 +61,12 @@ function normalizeStacks(value) {
 function createCanonicalEffect(id, effect = {}) {
   return {
     id,
-    remainingTurns: normalizeRemainingTurns(effect.remainingTurns),
-    stacks: normalizeStacks(effect.stacks),
+    remainingTurns: id === STATUS_EFFECT_IDS.VULNERABLE
+      ? normalizeRemainingTurns(effect.remainingTurns) ?? VULNERABLE_DURATION_TURNS
+      : normalizeRemainingTurns(effect.remainingTurns),
+    stacks: [STATUS_EFFECT_IDS.BLEEDING, STATUS_EFFECT_IDS.VULNERABLE].includes(id)
+      ? 1
+      : normalizeStacks(effect.stacks),
     source: typeof effect.source === "string" ? effect.source : null
   };
 }
@@ -192,7 +200,7 @@ export function applyStatusEffect(target, id, { remainingTurns = null, stacks = 
 
   effects[id] = createCanonicalEffect(id, {
     remainingTurns,
-    stacks: id === STATUS_EFFECT_IDS.BLEEDING ? 1 : stacks,
+    stacks: [STATUS_EFFECT_IDS.BLEEDING, STATUS_EFFECT_IDS.VULNERABLE].includes(id) ? 1 : stacks,
     source
   });
   return true;
@@ -278,7 +286,49 @@ export function clearBleedingStatus(target) {
   return true;
 }
 
-export function tickStatusEffects(target, { tickSleep = true, onBleedingExpire = null } = {}) {
+export function applyVulnerableDamage(
+  target,
+  damage,
+  { multiplier = VULNERABLE_DAMAGE_MULTIPLIER } = {}
+) {
+  const baseDamage = Math.max(0, Number(damage) || 0);
+  if (!hasStatusEffect(target, STATUS_EFFECT_IDS.VULNERABLE) || baseDamage <= 0) {
+    return {
+      damage: baseDamage,
+      consumed: false,
+      damageContribution: 0,
+      latencyTurns: null
+    };
+  }
+
+  const effect = target.statusEffects[STATUS_EFFECT_IDS.VULNERABLE];
+  const remainingTurns = effect?.remainingTurns ?? VULNERABLE_DURATION_TURNS;
+  const normalizedMultiplier = Number.isFinite(Number(multiplier))
+    ? Math.max(1, Number(multiplier))
+    : VULNERABLE_DAMAGE_MULTIPLIER;
+  const amplifiedDamage = Math.max(1, Math.round(baseDamage * normalizedMultiplier));
+  removeStatusEffect(target, STATUS_EFFECT_IDS.VULNERABLE);
+  return {
+    damage: amplifiedDamage,
+    consumed: true,
+    damageContribution: amplifiedDamage - baseDamage,
+    latencyTurns: Math.max(0, VULNERABLE_DURATION_TURNS - remainingTurns),
+    source: effect?.source ?? null
+  };
+}
+
+export function clearVulnerableStatus(target) {
+  if (!target) return false;
+  normalizeStatusEffectTarget(target);
+  if (!Object.hasOwn(target.statusEffects, STATUS_EFFECT_IDS.VULNERABLE)) return false;
+  delete target.statusEffects[STATUS_EFFECT_IDS.VULNERABLE];
+  return true;
+}
+
+export function tickStatusEffects(
+  target,
+  { tickSleep = true, onBleedingExpire = null, onVulnerableExpire = null } = {}
+) {
   if (!target) return;
   normalizeStatusEffectTarget(target);
 
@@ -314,6 +364,17 @@ export function tickStatusEffects(target, { tickSleep = true, onBleedingExpire =
     } else {
       delete target.statusEffects[STATUS_EFFECT_IDS.BLEEDING];
       onBleedingExpire?.(target);
+    }
+  }
+
+  const vulnerable = target.statusEffects[STATUS_EFFECT_IDS.VULNERABLE];
+  if (vulnerable) {
+    const remainingTurns = Math.max(0, (vulnerable.remainingTurns ?? 0) - 1);
+    if (remainingTurns > 0) {
+      vulnerable.remainingTurns = remainingTurns;
+    } else {
+      delete target.statusEffects[STATUS_EFFECT_IDS.VULNERABLE];
+      onVulnerableExpire?.(target);
     }
   }
 }

@@ -179,6 +179,14 @@ export const SPELLS = {
     target: "all_enemies",
     desc: "魔防低下の呪文 (3ターン、敵全体の魔法耐性を20%低下させる)"
   },
+  VULNERA: {
+    name: "VULNERA",
+    type: "mage",
+    level: 5,
+    cost: 2,
+    target: "single_enemy",
+    desc: "脆弱の呪文 (3ターン、次の直接攻撃を増幅する)"
+  },
   WEAKEN: {
     name: "WEAKEN",
     type: "priest",
