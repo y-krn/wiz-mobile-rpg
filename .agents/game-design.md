@@ -171,12 +171,14 @@ is a bug in the economy.
   `src/combat_logic/round.js` の `getMpWardDef`（MP>=1の間だけ有効）であり、敵通常攻撃と
   逃走追撃の共通 `finalDef` へ加算する。最低1ダメージ、ミス/回避0、incoming scale=4、
   `calculatePhysicalDefenseFormula` と `reduceIncomingDamage` の順序は変更しない。
-- Ged相当の装備DEF=1、VIT=8、Mana Drain ATK=4を実 `runCombatRoundCalculation` で固定乱数測定した。
-  現行8は `finalDef=11`、`defResistance=0.8462`、ATK4/5/6/7の通常被弾が
-  `formulaDmg/finalDmg=1/1/1/1`。候補1は `finalDef=4`、`defResistance=0.6667`、
-  `1/1/2/2`となり、MP0は `finalDef=3`、`defResistance=0.6`、`1/2/2/2`を維持した。
-  候補0はMP0と同値で障壁の意味を失い、候補2は `finalDef=5`、`defResistance=0.7143`、
-  `1/1/1/2`だったため、最小の正値である1を採用した。
+- #780時点の scale=2 固定乱数測定では、Ged相当の装備DEF=1、VIT=8、Mana Drain ATK=4に対し、
+  mpWard有効時 `finalDef=11` / `defResistance=0.8462` / `1/1/1/1`、無効時
+  `finalDef=3` / `defResistance=0.6` / `1/2/2/2`だった。これらは旧式の履歴値であり、
+  現行 scale=4 の正本値ではない。
+- #966後の同条件では、mpWard有効時 `finalDef=4` / `defResistance=4/8=0.5` /
+  ATK4/5/6/7の `formulaDmg/finalDmg=2/2/3/3`、無効時 `finalDef=3` /
+  `defResistance=3/7≈0.4286` / `2/2/3/4`となる。障壁の +1 DEF と最低1ダメージ、
+  ミス/回避0、適用順序は維持され、scaleだけを更新した。
 - #966では、敵→プレイヤー通常攻撃と逃走追撃の共通曲線を
   `scratch/simulations/sim_physical_defense_curve.js` で比較した。Mageの浅層DEF4・深層DEF14、
   DEF15–20のtank、現行装備のFighterを、現行遭遇表の通常敵（各層low/typical/high、0..3乱数）で
@@ -184,7 +186,9 @@ is a bug in the economy.
   production-backed N=500 runでB5到達率と素材収入を大幅に損なったため不採用。scale=4は
   `defResistance=DEF/(DEF+4)` としてその回帰を抑え、workshop-completeのB5到達率を基準線比
   Fighter -2.0pt、Mage -5.4pt、Thief -0.6pt、Priest -3.0ptに収めた（同一seed/config、
-  N=500、calibration N=100）。
+  N=500、calibration N=100）。これはscale=4を暫定再校正として採用する根拠であり、最適値の確定ではない。
+  深層DEF14–20で残る1ダメージ率はPostHog実測で再評価する。formula anchorのFighterはB1初期装備のみのため、
+  深層Fighterの安全性はproduction-backed runの結果を根拠とし、formula anchorからは推定しない。
 - 同一seed/configの実run sim（`generateRunFloor`→実round、seed=780、N=300、calibration=100、
   `workshop-empty`/`workshop-complete`、B5/B10/B15/B20）を変更前後で比較する。MageのMP active/empty
   分布、Fighterを非対象controlとして追跡し、`mpWard` 以外の職・敵データ・共通式は変更しない。
