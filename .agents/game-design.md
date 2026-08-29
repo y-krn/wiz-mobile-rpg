@@ -165,11 +165,11 @@ is a bug in the economy.
   B10到達 **27.3% [25.8,29.0]**、平均floor **7.35 [7.19,7.50]**。Fighter/Thief/Priestの
   B10到達は **28.1% / 19.2% / 27.2%**で、他3職を悪化させず、PriestのB5撤退は **0.0%**。
 
-## MP障壁の浅層物理被弾調整（Issue #780）
+## MP障壁の浅層物理被弾調整（Issue #780、incoming scale は #966 で更新）
 
 - 魔術師の `mpWard` は **1** を採用する。正本は `src/data/classes.js`、発動条件は
   `src/combat_logic/round.js` の `getMpWardDef`（MP>=1の間だけ有効）であり、敵通常攻撃と
-  逃走追撃の共通 `finalDef` へ加算する。最低1ダメージ、ミス/回避0、incoming scale=2、
+  逃走追撃の共通 `finalDef` へ加算する。最低1ダメージ、ミス/回避0、incoming scale=8、
   `calculatePhysicalDefenseFormula` と `reduceIncomingDamage` の順序は変更しない。
 - Ged相当の装備DEF=1、VIT=8、Mana Drain ATK=4を実 `runCombatRoundCalculation` で固定乱数測定した。
   現行8は `finalDef=11`、`defResistance=0.8462`、ATK4/5/6/7の通常被弾が
