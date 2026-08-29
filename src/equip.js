@@ -600,7 +600,7 @@ function createOrganizeControls() {
   const help = document.createElement("p");
   help.id = "equip-organize-help";
   help.className = "equip-organize-help";
-  help.textContent = "不要な装備を選んでください。装備中のアイテムは選択できません。";
+  help.textContent = "不要なバッグ装備を選んでください。装備中のアイテムは整理対象から除外されます。";
   controls.appendChild(help);
 
   const risks = getSelectedDiscardRiskCounts();
@@ -641,10 +641,11 @@ function createEquipmentList(char, savedScrollTop) {
   listContainer.className = "equip-list-container";
 
   const filteredSlots = EQUIPMENT_SLOTS.filter(s => equipState.filter === "all" || equipState.filter === s.itemType);
-  const equippedCount = filteredSlots.filter(({ id }) => char.equipment[id] && getItemData(char.equipment[id])).length;
+  if (equipState.mode !== "organize") {
+    const equippedCount = filteredSlots.filter(({ id }) => char.equipment[id] && getItemData(char.equipment[id])).length;
 
-  const equippedSection = document.createElement("section");
-  equippedSection.className = "equip-list-section equip-equipped-section";
+    const equippedSection = document.createElement("section");
+    equippedSection.className = "equip-list-section equip-equipped-section";
 
   const headingEquipped = document.createElement("h2");
   headingEquipped.className = "equip-section-heading";
@@ -749,7 +750,8 @@ function createEquipmentList(char, savedScrollTop) {
     equippedSection.appendChild(emptySlotSummary);
   }
 
-  listContainer.appendChild(equippedSection);
+    listContainer.appendChild(equippedSection);
+  }
 
   const bagSection = document.createElement("section");
   bagSection.className = "equip-list-section equip-bag-section";
@@ -765,7 +767,9 @@ function createEquipmentList(char, savedScrollTop) {
   const itemList = document.createElement("div");
   itemList.className = "equip-item-list";
 
-  const equipmentItems = getEquipmentItems();
+  const equipmentItems = getEquipmentItems().filter(({ itemKey }) => (
+    equipState.mode !== "organize" || !isItemEquipped(itemKey)
+  ));
 
   if (equipmentItems.length === 0) {
     const placeholder = document.createElement("div");
@@ -785,18 +789,22 @@ function createEquipmentList(char, savedScrollTop) {
 
       const selected = !equipState.selectedIsEquipped && equipState.selectedIdx === idx;
       const selectedForDiscard = equipState.selectedDiscardIndices.has(idx);
-      const equipped = isItemEquipped(itemKey);
       const preview = getEquipPreview(char, itemKey, equipState.selectedSlot);
       const availability = canEquip(char, itemKey, preview?.slot);
       const row = document.createElement("button");
       row.type = "button";
-      row.className = `equip-item-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${selectedForDiscard ? "discard-selected" : ""} ${equipped ? "discard-unavailable" : ""} ${availability.ok ? "" : "not-equipable"}`.trim();
+      row.className = `equip-item-row ${getRarityClass(itemKey)} ${selected ? "selected" : ""} ${selectedForDiscard ? "discard-selected" : ""} ${availability.ok ? "" : "not-equipable"}`.trim();
       row.setAttribute("aria-selected", selected ? "true" : "false");
       if (equipState.mode === "organize") {
         row.setAttribute("role", "checkbox");
         row.setAttribute("aria-checked", selectedForDiscard ? "true" : "false");
-        row.setAttribute("aria-label", `${!isIdentified(itemKey) ? "未鑑定の" : ""}${item.name}${equipped ? "（装備中・選択不可）" : ""}`);
-        row.disabled = equipped;
+        row.setAttribute("aria-label", `${!isIdentified(itemKey) ? "未鑑定の" : ""}${item.name}`);
+
+        const indicator = document.createElement("span");
+        indicator.className = "equip-discard-indicator";
+        indicator.setAttribute("aria-hidden", "true");
+        indicator.textContent = selectedForDiscard ? "☑" : "☐";
+        row.appendChild(indicator);
       }
 
       const left = document.createElement("div");
@@ -818,10 +826,7 @@ function createEquipmentList(char, savedScrollTop) {
       if (rarityBadge) badges.appendChild(rarityBadge);
 
       const badge = document.createElement("span");
-      if (equipState.mode === "organize" && equipped) {
-        badge.className = "equip-row-badge cant";
-        badge.textContent = "装備中";
-      } else if (!isIdentified(itemKey)) {
+      if (!isIdentified(itemKey)) {
         badge.className = "equip-row-badge unident";
         badge.textContent = "? 未鑑定";
         badge.style.background = "rgba(255, 170, 0, 0.2)";
@@ -838,7 +843,6 @@ function createEquipmentList(char, savedScrollTop) {
 
       row.addEventListener("click", () => {
         if (equipState.mode === "organize") {
-          if (equipped) return;
           if (selectedForDiscard) {
             equipState.selectedDiscardIndices.delete(idx);
           } else {

@@ -428,12 +428,19 @@ for (const vp of VIEWPORTS) {
 
     await page.getByRole('button', { name: /整理モード/ }).click();
     await expect(page.locator('.equip-body.is-organize')).toBeVisible();
-    await expect(page.locator('#equip-organize-help')).toContainText('装備中のアイテムは選択できません');
-    const equippedRow = page.getByRole('checkbox', { name: /ダガー/ });
-    await expect(equippedRow).toBeDisabled();
+    await expect(page.locator('#equip-organize-help')).toContainText('装備中のアイテムは整理対象から除外されます');
+    await expect(page.locator('.equip-equipped-section')).toHaveCount(0);
+    await expect(page.locator('.equip-body.is-organize .equip-item-row')).toHaveCount(4);
+    await expect(page.getByRole('checkbox', { name: /ダガー/ })).toHaveCount(0);
+    for (const row of await page.locator('.equip-body.is-organize .equip-item-row').all()) {
+      expect((await row.boundingBox()).height, `organize row should be comfortable to tap on ${vp.width}x${vp.height}`).toBeGreaterThanOrEqual(48);
+      await expect(row.locator('.equip-discard-indicator')).toHaveText('☐');
+    }
 
     await page.getByRole('checkbox', { name: /メイス/ }).click();
     await expect(page.locator('.equip-organize-count')).toHaveText('1件選択中');
+    await expect(page.getByRole('checkbox', { name: /メイス/ })).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByRole('checkbox', { name: /メイス/ }).locator('.equip-discard-indicator')).toHaveText('☑');
     await page.getByRole('button', { name: '通常表示に戻る' }).click();
     await expect(page.getByRole('button', { name: /整理モード/ })).toBeVisible();
     await expect(page.locator('.equip-status-bar')).toContainText('バッグ 5/20');
