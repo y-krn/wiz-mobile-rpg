@@ -422,7 +422,17 @@ export function triggerChestTrap(char, weakened = false, rng = Math.random) {
       }
     }
     const spot = emptySpots.length > 0
-      ? emptySpots[Math.floor(rng() * emptySpots.length)]
+      ? (() => {
+        // Keep a valid destination even when an injected RNG returns its
+        // upper bound. Math.random() normally returns values below 1, but
+        // the teleporter contract is stronger: a candidate must not turn
+        // into an accidental no-op because of the random index.
+        const roll = Number(rng());
+        const index = Number.isFinite(roll)
+          ? Math.min(emptySpots.length - 1, Math.max(0, Math.floor(roll * emptySpots.length)))
+          : 0;
+        return emptySpots[index];
+      })()
       : null;
     if (spot) {
       state.x = spot.x;

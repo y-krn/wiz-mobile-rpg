@@ -409,6 +409,25 @@ await test("テレポート先の抽選から現在地を除外する", () => {
   assert.ok(state.logs.includes("テレポーターが作動！冒険者は別の場所にテレポートした！"));
 });
 
+await test("転移先候補がある場合はRNG上限値でも現在地に留まらない", () => {
+  const char = makeCharacter();
+  resetChest({ trap: "teleporter", party: [char] });
+  const origin = { x: 2, y: 2 };
+  const destination = { x: 3, y: 2 };
+  state.x = origin.x;
+  state.y = origin.y;
+  state.map.forEach(row => row.forEach(cell => {
+    cell.walls = [true, true, true, true];
+  }));
+  state.map[origin.y][origin.x].walls = [false, true, true, true];
+  state.map[destination.y][destination.x].walls = [false, true, true, true];
+
+  triggerChestTrap(char, false, () => 1);
+
+  assert.deepEqual({ x: state.x, y: state.y }, destination);
+  assert.ok(state.logs.includes("テレポーターが作動！冒険者は別の場所にテレポートした！"));
+});
+
 await test("通常開封の成功テレポートは別座標へ移動して探索へ戻る", () => {
   const char = makeCharacter();
   resetChest({ trap: "teleporter", party: [char] });
