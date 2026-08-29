@@ -63,3 +63,15 @@ the router. Back navigation preserves the existing history/previous-screen
 rules, while malformed history falls back through the normal submenu-close
 path. Gameplay modules continue to own mutations; the snapshot is read-only
 and is not persisted.
+
+## Renderer input boundary
+
+`src/state/renderer_view.js` is the raw-state conversion point for canvas
+rendering. `getRendererInput(state, menuContext)` creates one read-only,
+per-operation input with the validated `view` snapshot, `sceneVisibility`,
+player position, current map/visited map, floor visual signature, lighting,
+roaming monsters, party names/affix visibility, and renderable combat monsters.
+`src/game.js` creates this input once per render-loop tick and passes it to
+`DungeonRenderer`; renderer methods consume this shape instead of reading
+runtime state or navigation context directly. State-owned collections remain
+referenced rather than copied to avoid adding per-frame map/combat work.
