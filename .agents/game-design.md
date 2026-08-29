@@ -65,6 +65,29 @@ is a bug in the economy.
   chest disarm through attempts and route breakdown, not as a standalone
   balance target.
 
+### Role-based treatment inventory (Issue #961)
+
+Treatment planning uses three role groups rather than adding one consumable for
+each future status:
+
+- persistent hazard: `ANTIDOTE` is the stable preparation route for poison;
+  `HOLY_WATER` is a rare recovery-plus-poison emergency item and is not
+  departure-craftable.
+- broad cleanse: `PANACEA` is the rare multi-status option for poison, blind,
+  paralysis, and sleep; `ELIXIR` is cataloged as an unreachable legacy
+  broad-cure definition because it has no current supply route.
+- targeted fallback: `EYE_DROPS`, `PARALYZE_CURE`, and `WAKE_POWDER` remain
+  legacy specialist countermeasures while their measured use is reviewed;
+  they are not a template for adding more status-named items.
+
+The role catalog is `src/data/status_treatments.js`. Adding a new status does
+not imply adding a new cure item. First compare natural expiry, spell cure,
+existing broad cleanse, and the status's observed loss. `poisonWard` and
+generic `statusResistance` equipment are an inventory-neutral alternative:
+they trade an equipment affix opportunity against carrying treatment items, so
+they must be included in future supply comparisons. The 20-slot inventory
+capacity is unchanged.
+
 ## 基本4職の罠sustain（Issue #516）
 
 - 戦士は `trapGuard=40`、魔術師は `trapGuard=60` をクラス固有passiveとして持つ。
