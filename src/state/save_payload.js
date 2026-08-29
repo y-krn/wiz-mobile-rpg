@@ -115,8 +115,6 @@ export function createSavePayload() {
     repelTurns: state.repelTurns,
     silenceTurns: state.silenceTurns,
     forcedEncounterSteps: state.forcedEncounterSteps,
-    dumapicTurns: state.dumapicTurns,
-    dumapicHint: state.dumapicHint,
     activeMerchantStock: state.activeMerchantStock,
     floorChestsOpened: state.floorChestsOpened,
     floorChestsTotal: state.floorChestsTotal,
@@ -187,8 +185,6 @@ export function applySavePayload(data) {
   state.repelTurns = data.repelTurns;
   state.silenceTurns = data.silenceTurns;
   state.forcedEncounterSteps = data.forcedEncounterSteps;
-  state.dumapicTurns = data.dumapicTurns;
-  state.dumapicHint = data.dumapicHint;
   state.activeMerchantStock = data.activeMerchantStock;
   state.gameState = data.gameState;
   state.combatState = data.combatState;

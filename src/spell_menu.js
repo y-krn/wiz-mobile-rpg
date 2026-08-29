@@ -31,7 +31,6 @@ function executeUtilitySpell() {
   });
   if (payment.resource === "hp") addLog(getCoreLogText("CORE_BLOOD_WAND"));
   playSound("cast_spell");
-  if (menuContext.spellName === "DUMAPIC") state.dumapicTurns = 30;
   const result = spell.effect(caster, state, state.party);
   addLog(result.log);
   saveAutosave();

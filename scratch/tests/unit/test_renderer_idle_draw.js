@@ -50,7 +50,6 @@ state.chestState = null;
 state.party = [];
 state.lightTurns = 0;
 state.lightPower = "";
-state.dumapicTurns = 0;
 state.mapRevision = 0;
 menuContext.type = "";
 menuContext.prevGameState = null;

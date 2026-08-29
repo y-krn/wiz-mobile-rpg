@@ -81,6 +81,8 @@ check("solo save/load roundtrip preserves one character and stable screen", () =
   assert.equal(Object.hasOwn(createSavePayload(), "controlsGuardUntil"), false);
   assert.equal(Object.hasOwn(createSavePayload(), "mapRevision"), false);
   assert.equal(Object.hasOwn(createSavePayload(), "sessionMaxFloor"), false);
+  assert.equal(Object.hasOwn(createSavePayload(), "dumapicTurns"), false);
+  assert.equal(Object.hasOwn(createSavePayload(), "dumapicHint"), false);
   assert.equal(Object.hasOwn(payload, "contracts"), false);
   assert.equal(Object.hasOwn(payload, "activeContract"), false);
   assert.equal(Object.hasOwn(payload, "roster"), false);
@@ -115,6 +117,8 @@ check("partial current-version payloads receive safe defaults", () => {
     party: [createSoloCharacter("Thief")],
     gameState: "equip_overlay",
     transitioning: true,
+    dumapicTurns: 30,
+    dumapicHint: "legacy hint",
     menuContext: { type: "equipment" },
     eventCooldownTurns: 20
   };
@@ -127,6 +131,8 @@ check("partial current-version payloads receive safe defaults", () => {
   assert.equal(state.maps.length, 5);
   assert.deepEqual(state.floorChestsOpened, [0, 0, 0, 0, 0]);
   assert.equal(state.floorChestsTotal.length, 5);
+  assert.equal(Object.hasOwn(state, "dumapicTurns"), false);
+  assert.equal(Object.hasOwn(state, "dumapicHint"), false);
   assert.equal(Object.hasOwn(state, "eventCooldownTurns"), false);
 });
 

@@ -88,13 +88,6 @@ export function tickExplorationSpellEffects() {
 
   if (state.forcedEncounterSteps > 0) state.forcedEncounterSteps--;
 
-  if (state.dumapicTurns > 0) {
-    state.dumapicTurns--;
-    if (state.dumapicTurns === 0) {
-      state.dumapicHint = "";
-      addLog("デュマピックの効果が切れた。詳細な座標探知が停止した。");
-    }
-  }
 }
 
 function isBlockedByOneWayPassage(x, y, dir) {
@@ -337,8 +330,7 @@ function checkSensoryAura() {
   const sneakStep = getPartyCoreParams(state.party, "CORE_SNEAK_STEP");
   const arcaneSense = getPartyMaxAffix(state.party, "arcaneSense");
   const lightSenseRange = state.lightPower === "lomilwa" ? 4 : (state.lightTurns > 0 ? 3 : 2);
-  const dumapicSenseRange = state.dumapicTurns > 0 ? 3 : 0;
-  const baseSenseRange = Math.max(lightSenseRange, dumapicSenseRange);
+  const baseSenseRange = lightSenseRange;
   const soundRange = baseSenseRange + hearRangeBonus + (sneakStep?.auraRangeBonus || 0);
   const arcaneRange = baseSenseRange;
   

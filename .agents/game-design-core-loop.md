@@ -277,6 +277,18 @@ visit state and guardian-gated availability shown. Entering a milestone floor
 also shows this structure in the entry stinger. This is display-only and does
 not reveal map positions or change movement costs.
 
+### DUMAPIC survey design (Issue #951)
+
+`MILWA` and `LOMILWA` define the visible map range. `DUMAPIC` is instead an
+instant survey: it reports the current floor, facing, and exact X/Y only in the
+cast result, then gives non-positional hints for the direction of unexplored
+space, the direction and coarse distance of the down stairs, and the presence
+of a nearby one-way spatial anomaly. It never persists a reveal, changes
+visited or fragment state, or exposes event, trap, secret-door, enemy, or exact
+map coordinates as a navigation target. This keeps the spell at the
+presence/inference rung of the information ladder while leaving identification
+and detail to sight, equipment, and player exploration.
+
 ### Trap exploration design (Issue #931)
 
 Traps are terrain and exploration information, not an isolated event that asks

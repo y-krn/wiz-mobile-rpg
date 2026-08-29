@@ -63,8 +63,6 @@ export function initNewGame({ preserveSeed = false } = {}) {
   state.repelTurns = 0;
   state.silenceTurns = 0;
   state.forcedEncounterSteps = 0;
-  state.dumapicTurns = 0;
-  state.dumapicHint = "";
   state.activeMerchantStock = [];
 
   state.floorChestsOpened = [0, 0, 0, 0, 0];

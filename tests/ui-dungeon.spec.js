@@ -263,7 +263,6 @@ test('Mini-map hides stairs-up markers and glows on every floor', async ({ page 
     state.x = 3;
     state.y = 3;
     state.dir = 0;
-    state.dumapicTurns = 0;
     state.lightTurns = 0;
     state.lightPower = '';
     state.roamingMonsters = [];
@@ -304,6 +303,59 @@ test('Mini-map hides stairs-up markers and glows on every floor', async ({ page 
   ]);
   expect(result.downstairs.icons).toEqual([false]);
   expect(result.downstairs.glows).toBe(1);
+});
+
+test('Mini-map keeps DUMAPIC out of reveal range while preserving light ranges', async ({ page }) => {
+  await page.goto('/');
+
+  const result = await page.evaluate(async () => {
+    const { state } = await import('/src/state.js');
+    const { dungeonRenderer } = await import('/src/renderer.js');
+    const ctx = document.querySelector('#dungeon-canvas').getContext('2d');
+    const makeCell = () => ({
+      walls: [false, false, false, false],
+      blockEnter: [false, false, false, false],
+      type: 'empty',
+      event: null,
+    });
+    const map = Array.from({ length: 16 }, () => Array.from({ length: 16 }, makeCell));
+    state.floor = 1;
+    state.x = 8;
+    state.y = 8;
+    state.maps[0] = map;
+    state.visitedMaps[0] = Array.from({ length: 16 }, () => Array(16).fill(false));
+    state.visitedMaps[0][8][8] = true;
+    state.dungeonMemory = { mapFragments: {} };
+    state.roamingMonsters = [];
+
+    const originalFillRect = ctx.fillRect;
+    const countCellFills = () => {
+      let count = 0;
+      ctx.fillRect = (x, y, width, height) => {
+        if (width === 10 && height === 10) count++;
+        originalFillRect.call(ctx, x, y, width, height);
+      };
+      dungeonRenderer.drawMiniMap(ctx);
+      ctx.fillRect = originalFillRect;
+      return count;
+    };
+
+    state.dumapicTurns = 30;
+    state.lightTurns = 0;
+    state.lightPower = '';
+    const dumapicOnly = countCellFills();
+
+    state.dumapicTurns = 0;
+    state.lightTurns = 30;
+    state.lightPower = 'milwa';
+    const milwa = countCellFills();
+
+    state.lightPower = 'lomilwa';
+    const lomilwa = countCellFills();
+    return { dumapicOnly, milwa, lomilwa };
+  });
+
+  expect(result).toEqual({ dumapicOnly: 1, milwa: 25, lomilwa: 61 });
 });
 
 test('Chest opened immediately after entering the dungeon does not draw the town background', async ({ page }) => {
