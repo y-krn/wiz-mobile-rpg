@@ -19,7 +19,9 @@ function run() {
     className: "Fighter",
     startFloor: 1,
     targetDepth: 6,
-    runIndex: 180,
+    // The structure-driven generator changed the old fixture's trap order;
+    // keep a deterministic seed that exercises the same detour guarantees.
+    runIndex: 25,
     seriesId: "issue-933-route",
     scoringProfile: null,
     scenario,

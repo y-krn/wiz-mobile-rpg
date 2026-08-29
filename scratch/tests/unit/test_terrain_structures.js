@@ -50,6 +50,49 @@ assert.notDeepEqual(aggregate.get("forgotten_catacomb"), aggregate.get("sunken_l
 assert.notDeepEqual(aggregate.get("rift_nest"), aggregate.get("dragon_forge"),
   "loop/open-area biome profiles produced identical structure aggregates");
 
+const forcedProfiles = Object.fromEntries(TERRAIN_STRUCTURE_TYPES.map(type => [type, {
+  corridor: type === "corridor" ? 1 : 0,
+  loop: type === "loop" ? 1 : 0,
+  hub: type === "hub" ? 1 : 0,
+  openArea: type === "openArea" ? 1 : 0
+}]));
+const forcedAggregates = new Map();
+for (const [type, structureProfile] of Object.entries(forcedProfiles)) {
+  const metrics = [];
+  for (let seedIndex = 0; seedIndex < 48; seedIndex++) {
+    const generated = generateRandomMap(1, null, `ISSUE-948-${seedIndex}`, {
+      size: { width: 24, height: 24 },
+      roomCountRange: [2, 3],
+      structureProfile
+    });
+    assert.equal(generated.structureType, type, `${type} profile selected another type`);
+    assert.equal(generated.structureMetrics.componentCount, 1, `${type} disconnected structure`);
+    metrics.push(generated.structureMetrics);
+  }
+  const average = key => metrics.reduce((sum, item) => sum + item[key], 0) / metrics.length;
+  forcedAggregates.set(type, {
+    cycleCount: average("cycleCount"),
+    alternativePathRate: average("alternativePathRate"),
+    junctionCount: average("junctionCount"),
+    corridorRatio: average("corridorRatio"),
+    openAreaCellCount: average("openAreaCellCount")
+  });
+}
+
+const corridor = forcedAggregates.get("corridor");
+const loop = forcedAggregates.get("loop");
+const hub = forcedAggregates.get("hub");
+const openArea = forcedAggregates.get("openArea");
+assert.ok(corridor.corridorRatio > loop.corridorRatio + 0.15,
+  "corridor primitive did not produce narrow routes");
+assert.ok(corridor.alternativePathRate < loop.alternativePathRate,
+  "corridor primitive has too many alternate routes");
+assert.ok(loop.cycleCount > corridor.cycleCount * 2, "loop primitive did not produce extra cycles");
+assert.ok(loop.alternativePathRate > corridor.alternativePathRate * 1.5, "loop primitive did not produce alternate paths");
+assert.ok(hub.junctionCount > corridor.junctionCount * 1.8, "hub primitive did not concentrate junctions");
+assert.ok(openArea.openAreaCellCount > corridor.openAreaCellCount + 8,
+  "open-area primitive did not produce larger open spaces");
+
 const direct = generateRandomMap(1, null, "ISSUE-934-DIRECT", {
   structureProfile: { corridor: 0, loop: 0, hub: 1, openArea: 0 }
 });

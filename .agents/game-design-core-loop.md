@@ -190,14 +190,16 @@ reseed every run (orchestrated by `src/run_map_generator.js` over
 count, gimmick density) selected by depth. Generation quality is the top v1
 risk and is verified first in the implementation order.
 
-**Decided: terrain structures are explicit generation primitives** (Issue #934,
-2026-08-28). Biomes provide a deterministic `terrain.structureProfile` that
-weights four graph-level primitives: Corridor (narrow route and retreat choice),
-Loop (alternative route), Hub (concentrated branch choice), and Open area
-(multi-cell sight/route choice). The profile influences the existing maze
-straightness, loop openings, and room candidate selection; it does not replace
-the existing generator or introduce player-facing `choke`/`avoidable` terrain
-flags. Each generated map exposes `structureMetrics` for diagnostics:
+**Decided: terrain structures are explicit generation primitives** (Issues #934
+and #948, 2026-08-29). Biomes provide a deterministic
+`terrain.structureProfile` that weights four graph-level primitives: Corridor
+(narrow route and retreat choice), Loop (alternative route), Hub (concentrated
+branch choice), and Open area (multi-cell sight/route choice). The profile first
+selects the floor's dominant `structureType`; that type then drives the maze
+straightness, loop openings, and room-carving strategy strongly enough to create
+a visible route-graph difference. This extends the existing generator rather
+than replacing it and does not introduce player-facing `choke`/`avoidable`
+terrain flags. Each generated map exposes `structureMetrics` for diagnostics:
 `junctionCount`, `cycleCount`, `deadEndCount`, `corridorRatio`,
 `alternativePathRate`, and open-area counts. These metrics are measured on the
 connected graph before a route is considered complete, while one-way passages
