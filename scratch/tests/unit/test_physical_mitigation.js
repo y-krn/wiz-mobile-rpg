@@ -16,6 +16,7 @@ import {
 } from "../../../src/data/monsters.js";
 
 function run() {
+  assert.equal(PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING, 4, "incoming defense curve keeps the #966 calibration");
   assert.equal(getPhysicalDefenseResistance(0), 0);
   assert.equal(getPhysicalDefenseResistance(10), 10 / (10 + PHYSICAL_DEF_RESISTANCE_SCALE));
   assert.equal(getPhysicalDefenseResistance(5), 5 / (5 + PHYSICAL_DEF_RESISTANCE_SCALE));
@@ -41,6 +42,16 @@ function run() {
     Math.floor(applyPhysicalResistance(10, incomingResistance)),
     Math.floor(10 * (1 - incomingResistance)),
     "incoming nonzero DEF uses the calibrated incoming pool"
+  );
+  assert.equal(
+    getPhysicalDefenseResistance(14, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING),
+    14 / 18,
+    "deep-anchor DEF14 uses the adopted incoming curve"
+  );
+  assert.equal(
+    Math.floor(applyPhysicalResistance(15, getPhysicalDefenseResistance(14, PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING))),
+    3,
+    "deep-anchor incoming hits do not collapse to one damage at ATK15"
   );
 
   const monster = { def: 5, physResist: 0 };

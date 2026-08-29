@@ -261,9 +261,11 @@ export function getEffectiveDef(mon) {
 export const PHYSICAL_RESISTANCE_CAP = 0.9;
 // Player attacks use the outgoing calibration; incoming monster attacks use
 // the separate scale below because the pre-change formulas applied DEF at
-// different stages and with different effective units.
+// different stages and with different effective units. Incoming scale=4 is a
+// conservative recalibration: it loosens the scale=2 minimum-damage pileup
+// without making ordinary shallow encounters disproportionately lethal.
 export const PHYSICAL_DEF_RESISTANCE_SCALE = 40;
-export const PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING = 2;
+export const PHYSICAL_DEF_RESISTANCE_SCALE_INCOMING = 4;
 
 export function getPhysicalDefenseResistance(
   def = 0,
