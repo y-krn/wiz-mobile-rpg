@@ -53,7 +53,7 @@ try {
   const allRecipesScenario = {
     recipeIds: [
       "TOWN_PORTAL", "HEAL_POTION", "ANTIDOTE", "TRAP_KIT", "IDENTIFY_POWDER",
-      "GUARD_POTION", "HOLY_WATER", "MANA_POTION", "GREATER_HEAL"
+      "GUARD_POTION", "MANA_POTION", "GREATER_HEAL"
     ]
   };
   const guardOnly = purchaseCraftFromBank(
