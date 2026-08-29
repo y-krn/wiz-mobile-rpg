@@ -74,7 +74,8 @@ each future status:
   `HOLY_WATER` is a rare recovery-plus-poison emergency item and is not
   departure-craftable.
 - broad cleanse: `PANACEA` is the rare multi-status option for poison, blind,
-  paralysis, and sleep.
+  paralysis, and sleep; `ELIXIR` is cataloged as an unreachable legacy
+  broad-cure definition because it has no current supply route.
 - targeted fallback: `EYE_DROPS`, `PARALYZE_CURE`, and `WAKE_POWDER` remain
   legacy specialist countermeasures while their measured use is reviewed;
   they are not a template for adding more status-named items.

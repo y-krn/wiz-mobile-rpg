@@ -17,12 +17,13 @@ assert.deepEqual(
 assert.equal(STATUS_TREATMENT_ITEM_ROLE.ANTIDOTE, "persistent_hazard");
 assert.equal(STATUS_TREATMENT_ITEM_ROLE.HOLY_WATER, "persistent_hazard");
 assert.equal(STATUS_TREATMENT_ITEM_ROLE.PANACEA, "broad_cleanse");
+assert.equal(STATUS_TREATMENT_ITEM_ROLE.ELIXIR, "broad_cleanse");
 assert.equal(STATUS_TREATMENT_ITEM_ROLE.WAKE_POWDER, "targeted_fallback");
 
 const catalogItems = new Set(Object.keys(STATUS_TREATMENT_ITEM_ROLE));
 assert.deepEqual(
   [...catalogItems].sort(),
-  ["ANTIDOTE", "EYE_DROPS", "HOLY_WATER", "PANACEA", "PARALYZE_CURE", "WAKE_POWDER"]
+  ["ANTIDOTE", "ELIXIR", "EYE_DROPS", "HOLY_WATER", "PANACEA", "PARALYZE_CURE", "WAKE_POWDER"]
 );
 
 console.log("[PASS] status treatment roles catalog");

@@ -22,8 +22,11 @@ export const STATUS_TREATMENT_ROLES = Object.freeze({
     id: "broad_cleanse",
     label: "汎用クリーン",
     statusIds: ["poisoned", "blind", "paralyzed", "sleep"],
-    itemIds: ["PANACEA"],
-    supplyNotes: { PANACEA: "rare-found" }
+    itemIds: ["PANACEA", "ELIXIR"],
+    supplyNotes: {
+      PANACEA: "rare-found",
+      ELIXIR: "unreachable-legacy"
+    }
   }),
   TARGETED_FALLBACK: freezeRole({
     id: "targeted_fallback",

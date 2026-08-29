@@ -3,8 +3,8 @@
 ## 判定
 
 役割ベースの3群を正本化し、新規治療薬は追加しない。現行の状態異常に
-対しては `ANTIDOTE` / `HOLY_WATER` を継続ハザード、`PANACEA` を汎用
-クリーン、既存の3個別薬を暫定フォールバックとして扱う。個別薬の削除や
+対しては `ANTIDOTE` / `HOLY_WATER` を継続ハザード、`PANACEA` と到達不能な
+旧 `ELIXIR` を汎用クリーン、既存の3個別薬を暫定フォールバックとして扱う。個別薬の削除や
 供給変更は、今回の観測だけでは副作用を分離できないため次Issueへ送る。
 
 バッグ上限は20のまま変更しない。
@@ -13,13 +13,18 @@
 
 | status | player側の付与経路 | combat / exploration persistence | natural cure | spell cure | consumable cure | broad / role |
 | --- | --- | --- | --- | --- | --- | --- |
-| poisoned | 敵、宝箱、`poisonAtk` | combat + finite exploration window | exploration window expiry | `LATUMOFIS` | `ANTIDOTE`, `HOLY_WATER` | `PANACEA` / persistent hazard |
-| blind | 敵、宝箱、罠の失敗 | combat; combat終了時に生存なら解除 | combat end | `DIURCO` | `EYE_DROPS` | `PANACEA` / targeted fallback |
-| paralyzed | 敵 | combat only | 行動消費・被弾 wake | `DIALKO` | `PARALYZE_CURE` | `PANACEA` / targeted fallback |
+| poisoned | 敵、宝箱、`poisonAtk` | combat + finite exploration window | exploration window expiry | `LATUMOFIS` | `ANTIDOTE`, `HOLY_WATER` | `PANACEA`, `ELIXIR`（到達不能） / persistent hazard |
+| blind | 敵、宝箱、罠の失敗 | combat; combat終了時に生存なら解除 | combat end | `DIURCO` | `EYE_DROPS` | `PANACEA`, `ELIXIR`（到達不能） / targeted fallback |
+| paralyzed | 敵 | combat only | 行動消費・被弾 wake | `DIALKO` | `PARALYZE_CURE` | `PANACEA`, `ELIXIR`（到達不能） / targeted fallback |
 | sleep | 敵 | combat only | 行動消費・被弾 wake | `DIALKO` | `WAKE_POWDER` | `PANACEA` / targeted fallback |
 | silence | 敵の silence trait | combat only | duration expiry | なし | なし | 今回は追加しない |
 | bleeding | 現行はプレイヤー武器の `bleedingAtk` が敵へ付与 | combat only | duration expiry / combat cleanup | なし | なし | 敵側状態。治療薬を追加しない |
 | vulnerable | 敵へ `VULNERA` で付与 | combat only | 3ターン / combat cleanup | なし | なし | 敵側状態。#825の範囲外 |
+
+`ELIXIR` は `src/data/items.js` と `src/systems/item_effects.js` に効果定義が
+あるが、現行の宝箱・商店・出発キット供給経路に存在しないため、役割には
+「到達不能な旧アイテム」として記録し、canonical status-cure metrics の
+供給/消費対象には含めない。
 
 出典は `src/data/items.js`、`src/craft.js`、
 `src/data/milestone_merchant.js`、`src/rules/chest_rules.js`、
