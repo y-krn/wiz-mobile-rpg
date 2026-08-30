@@ -15,6 +15,7 @@ const canonicalRunnerPath = "scratch/simulations/sim_depth_material_ev.js";
 // candidate, but lifecycle validation must reject it until it is classified.
 export const SIMULATION_RUNNER_INVENTORY = Object.freeze([
   { path: canonicalRunnerPath, lifecycle: "canonical", scope: "run" },
+  { path: "scratch/simulations/sim_recovery_policy.js", lifecycle: "historical", scope: "infra" },
   { path: "scratch/measurements/issue624_commit_depth.js", lifecycle: "historical", scope: "run" },
   { path: "scratch/measurements/issue700_gate_metrics.js", lifecycle: "historical", scope: "infra" },
   { path: "scratch/measurements/issue706_depth_enemy_pools.js", lifecycle: "historical", scope: "run" },

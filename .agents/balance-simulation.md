@@ -513,7 +513,7 @@ seed=494、各職・条件 N=500、6工房シナリオ、B20終了で、固定�
 - トレードオフ: 現行固定35/35に対し、生還率は **45.3%→40.9%**、bank保持率は
   **0.5731→0.5397**、素材EV/時間は **0.1561→0.1480**。深度・到達性を優先する既定値として記録し、
   bank/EVを別監視指標に残す。
-- 反映先: `scratch/simulations/sim_depth_material_ev.js` の既定/preset、`src/rules/recovery_rules.js` のsim helper既定、
+- 反映先: `scratch/simulations/sim_depth_material_ev.js` の既定/preset、`scratch/simulations/sim_recovery_policy.js` のsim helper既定、
   #461基準線runner。ゲーム本体のaction loopはhelperを呼ばず、ゲームプレイの逃走成功率は変更しない。
 - 実施: #461基準線の再集計、#264の傷薬本数掃引・回復単価掃引の採用値再測定。
   詳細は

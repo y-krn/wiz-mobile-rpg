@@ -3,10 +3,10 @@
 import assert from "node:assert/strict";
 
 import {
-  calculateCombatRecoveryAction,
   getStartingHealPotionCount,
   RECOVERY_BALANCE
 } from "../../../src/rules/recovery_rules.js";
+import { calculateCombatRecoveryAction } from "../../simulations/sim_recovery_policy.js";
 
 const failures = [];
 
