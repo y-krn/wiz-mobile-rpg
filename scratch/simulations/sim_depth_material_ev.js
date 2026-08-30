@@ -5503,7 +5503,7 @@ export const COMBAT_POLICY_RULES = Object.freeze({
     reserveMpRatio: 0.5,
     lowPressureSingleEnemyMaxHp: 22,
     dangerHpRatio: 0.45,
-    description: "physical attack by default; reserve 50% max MP in low-pressure fights"
+    description: "low-pressure single enemy uses physical attack; otherwise HALITO preserves 50% max MP when payable; multi-enemy opens with KATINO then uses LAHALITO, while high-threat single fights may use emergency HALITO"
   }),
   "burst-combat": Object.freeze({
     description: "highest currently payable offensive damage spell, with physical fallback"
