@@ -226,4 +226,3 @@ The six fixtures resolve from production `MONSTERS` definitions and retain produ
 This result is **B with a measurement follow-up**: pure raw damage is the majority of the former raw label, so the next gameplay investigation should examine non-depth raw sources, enemy count, and action count. Measurement attribution should remain in place because 18.58% is mechanic-mediated and 11.33% of the former raw label remains unknown/mixed. No enemy HP/ATK, Mage stats, encounter balance, or labels were changed.
 
 #973 Build Confidence: **Revise**. Build/encounter interactions remain real, but the old raw label concealed both mechanic-mediated chains and a large pure-raw component.
-
