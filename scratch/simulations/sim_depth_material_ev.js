@@ -2244,10 +2244,303 @@ function createCombatMpMeasurement() {
   };
 }
 
+const STAGE15_MAX_FLOOR = 9;
+const STAGE15_MP_BUCKETS = Object.freeze([
+  "0%",
+  "1-25%",
+  "26-50%",
+  "51-75%",
+  "76-100%"
+]);
+const STAGE15_INCOMPLETE_REASON_IDS = Object.freeze([
+  "exploration_route_budget_exhausted",
+  "step_limit",
+  "encounter_limit",
+  "stairs_not_discovered",
+  "boss_milestone_progression_failure",
+  "simulation_guard_safety_limit",
+  "other"
+]);
+
+function createStage15IncompleteReasons() {
+  return Object.fromEntries(STAGE15_INCOMPLETE_REASON_IDS.map(reason => [reason, 0]));
+}
+
+function classifyStage15IncompleteReason(terminationReason, context = {}) {
+  if (terminationReason === "partial-information-budget-exhausted") {
+    if (!context.stairsDiscovered) return "stairs_not_discovered";
+    if (context.milestone && !context.bossDefeated) {
+      return "boss_milestone_progression_failure";
+    }
+    return "exploration_route_budget_exhausted";
+  }
+  if (["milestone-boss-blocked", "milestone-retreat"].includes(terminationReason)) {
+    return "boss_milestone_progression_failure";
+  }
+  if (terminationReason === "step-limit") return "step_limit";
+  if (terminationReason === "encounter-limit") return "encounter_limit";
+  if (terminationReason === "simulation-guard" || terminationReason === "safety-limit") {
+    return "simulation_guard_safety_limit";
+  }
+  return "other";
+}
+
+function createStage15FloorTelemetry(floor) {
+  return {
+    floor,
+    entered: 1,
+    reachedNextFloor: 0,
+    died: 0,
+    incomplete: 0,
+    incompleteReasons: createStage15IncompleteReasons(),
+    incompleteTerminationReasons: {},
+    entryHp: null,
+    entryMaxHp: null,
+    entryHpRatio: null,
+    exitHp: null,
+    exitMaxHp: null,
+    exitHpRatio: null,
+    entryMp: null,
+    entryMaxMp: null,
+    entryMpRatio: null,
+    exitMp: null,
+    exitMaxMp: null,
+    exitMpRatio: null,
+    mpSpent: 0,
+    combatMpSpent: 0,
+    mpRecovered: 0,
+    manaPotionUses: 0,
+    campMpRecovery: 0,
+    otherMpRecovery: 0,
+    damageTaken: 0,
+    healing: 0,
+    healPotionUses: 0,
+    encounters: 0,
+    combatActions: 0,
+    spellActions: 0,
+    normalAttackActions: 0,
+    defensiveSupportActions: 0,
+    itemActions: 0,
+    failedNoopActions: 0,
+    rounds: 0,
+    enemyActions: 0,
+    normalHits: 0,
+    normalDamage: 0,
+    insufficientMpDecisionCount: 0,
+    insufficientMpRounds: 0,
+    insufficientMpNormalAttackRounds: 0,
+    combatsEnteredLowMp: 0,
+    combatsEnteredZeroMp: 0,
+    equipmentDrops: 0,
+    equipmentChanges: 0,
+    steps: 0,
+    exploredRatio: null,
+    closed: false
+  };
+}
+
+function createStage15MpBucket() {
+  return {
+    encounters: 0,
+    clear: 0,
+    death: 0,
+    pureRawDeaths: 0,
+    rounds: 0,
+    enemyActions: 0,
+    normalHits: 0,
+    normalDamage: 0,
+    spellCasts: 0,
+    normalAttacks: 0
+  };
+}
+
+function createStage15Diagnostics() {
+  return {
+    byFloor: {},
+    mpBuckets: Object.fromEntries(STAGE15_MP_BUCKETS.map(bucket => [bucket, createStage15MpBucket()])),
+    spellUsage: {},
+    b5Entry: null,
+    currentFloor: null
+  };
+}
+
+function stage15MpBucket(mp, maxMp) {
+  const ratio = Number(mp) / Math.max(1, Number(maxMp));
+  if (ratio <= 0) return "0%";
+  if (ratio <= 0.25) return "1-25%";
+  if (ratio <= 0.50) return "26-50%";
+  if (ratio <= 0.75) return "51-75%";
+  return "76-100%";
+}
+
+function stage15Floor(metrics, floor = metrics?.stage15Diagnostics?.currentFloor) {
+  if (!metrics?.stage15Diagnostics || !Number.isInteger(Number(floor))) return null;
+  const normalizedFloor = Number(floor);
+  if (normalizedFloor < 1 || normalizedFloor > STAGE15_MAX_FLOOR) return null;
+  return metrics.stage15Diagnostics.byFloor[String(normalizedFloor)] || null;
+}
+
+function startStage15Floor(state, metrics, floor) {
+  if (!metrics?.stage15Diagnostics || floor > STAGE15_MAX_FLOOR) return;
+  const character = state.party[0];
+  const telemetry = metrics.stage15Diagnostics.byFloor[String(floor)] ||=
+    createStage15FloorTelemetry(floor);
+  telemetry.entryHp = character.hp;
+  telemetry.entryMaxHp = getCharMaxHp(character);
+  telemetry.entryHpRatio = character.hp / Math.max(1, telemetry.entryMaxHp);
+  telemetry.entryMp = character.mp;
+  telemetry.entryMaxMp = getCharMaxMp(character);
+  telemetry.entryMpRatio = character.mp / Math.max(1, telemetry.entryMaxMp);
+  metrics.stage15Diagnostics.currentFloor = floor;
+  if (floor === 5) {
+    metrics.stage15Diagnostics.b5Entry = {
+      hp: character.hp,
+      maxHp: telemetry.entryMaxHp,
+      hpRatio: telemetry.entryHpRatio,
+      mp: character.mp,
+      maxMp: telemetry.entryMaxMp,
+      mpRatio: telemetry.entryMpRatio
+    };
+  }
+}
+
+function recordStage15MpDelta(metrics, before, after, source = "other") {
+  const telemetry = stage15Floor(metrics);
+  if (!telemetry) return;
+  const delta = Number(after) - Number(before);
+  if (!Number.isFinite(delta)) return;
+  if (delta < 0) telemetry.mpSpent += -delta;
+  if (delta > 0) {
+    telemetry.mpRecovered += delta;
+    if (source === "manaPotion" || source === "combatManaPotion") {
+      telemetry.manaPotionUses++;
+    } else if (source === "camp") {
+      telemetry.campMpRecovery += delta;
+    } else {
+      telemetry.otherMpRecovery += delta;
+    }
+  }
+}
+
+function recordStage15MpSpend(metrics, amount) {
+  const telemetry = stage15Floor(metrics);
+  const spent = Math.max(0, Number(amount) || 0);
+  if (telemetry && spent > 0) telemetry.mpSpent += spent;
+}
+
+function recordStage15Healing(metrics, amount, source = "other") {
+  const telemetry = stage15Floor(metrics);
+  const healing = Math.max(0, Number(amount) || 0);
+  if (!telemetry || healing <= 0) return;
+  telemetry.healing += healing;
+  if (source === "potion") telemetry.healPotionUses++;
+}
+
+function finalizeStage15Floor(state, metrics, floor, status, terminationReason = null, terminationContext = null) {
+  const telemetry = stage15Floor(metrics, floor);
+  if (!telemetry || telemetry.closed) return;
+  const character = state.party[0];
+  telemetry.exitHp = character.hp;
+  telemetry.exitMaxHp = getCharMaxHp(character);
+  telemetry.exitHpRatio = character.hp / Math.max(1, telemetry.exitMaxHp);
+  telemetry.exitMp = character.mp;
+  telemetry.exitMaxMp = getCharMaxMp(character);
+  telemetry.exitMpRatio = character.mp / Math.max(1, telemetry.exitMaxMp);
+  telemetry.reachedNextFloor = Number(status === "survived");
+  telemetry.died = Number(status === "died");
+  telemetry.incomplete = Number(status === "incomplete");
+  if (telemetry.incomplete) {
+    const reason = classifyStage15IncompleteReason(terminationReason, terminationContext || {});
+    telemetry.incompleteReasons[reason]++;
+    const rawReason = terminationReason || "unknown";
+    telemetry.incompleteTerminationReasons[rawReason] =
+      (telemetry.incompleteTerminationReasons[rawReason] || 0) + 1;
+  }
+  telemetry.closed = true;
+}
+
+function recordStage15Encounter(metrics, encounter) {
+  const diagnostics = metrics?.stage15Diagnostics;
+  if (!diagnostics || !encounter || encounter.floor > STAGE15_MAX_FLOOR) return;
+  const floorTelemetry = stage15Floor(metrics, encounter.floor);
+  if (!floorTelemetry) return;
+  floorTelemetry.encounters++;
+  floorTelemetry.combatActions += encounter.combatActions;
+  floorTelemetry.combatMpSpent += encounter.combatMpSpent;
+  floorTelemetry.spellActions += encounter.spellActions;
+  floorTelemetry.normalAttackActions += encounter.normalAttacks;
+  floorTelemetry.defensiveSupportActions += encounter.defensiveSupportActions;
+  floorTelemetry.itemActions += encounter.itemActions;
+  floorTelemetry.failedNoopActions += encounter.failedNoopActions;
+  floorTelemetry.rounds += encounter.rounds;
+  floorTelemetry.enemyActions += encounter.enemyActions;
+  floorTelemetry.normalHits += encounter.normalHits;
+  floorTelemetry.normalDamage += encounter.normalDamage;
+  floorTelemetry.damageTaken += encounter.normalDamage;
+  floorTelemetry.insufficientMpDecisionCount += encounter.insufficientMpDecisionCount;
+  floorTelemetry.insufficientMpRounds += encounter.insufficientMpRounds;
+  floorTelemetry.insufficientMpNormalAttackRounds += encounter.insufficientMpNormalAttackRounds;
+  floorTelemetry.combatsEnteredLowMp += Number(encounter.startMpRatio <= 0.25);
+  floorTelemetry.combatsEnteredZeroMp += Number(encounter.startMp <= 0);
+
+  const bucket = diagnostics.mpBuckets[encounter.mpBucket];
+  bucket.encounters++;
+  bucket.clear += Number(encounter.result === "victory");
+  bucket.death += Number(encounter.result === "death");
+  bucket.pureRawDeaths += Number(encounter.deathCategory === "pure_raw_damage");
+  bucket.rounds += encounter.rounds;
+  bucket.enemyActions += encounter.enemyActions;
+  bucket.normalHits += encounter.normalHits;
+  bucket.normalDamage += encounter.normalDamage;
+  bucket.spellCasts += encounter.spellCasts;
+  bucket.normalAttacks += encounter.normalAttacks;
+  Object.entries(encounter.spellUsage).forEach(([spellId, usage]) => {
+    const target = diagnostics.spellUsage[spellId] ||= {
+      castCount: 0,
+      successfulCasts: 0,
+      totalMpSpent: 0,
+      targetTypes: {}
+    };
+    target.castCount += usage.castCount;
+    target.successfulCasts += usage.successfulCasts;
+    target.totalMpSpent += usage.totalMpSpent;
+    Object.entries(usage.targetTypes).forEach(([type, count]) => {
+      target.targetTypes[type] = (target.targetTypes[type] || 0) + count;
+    });
+  });
+}
+
+function stage15SpellTargetType(spellName) {
+  const target = SPELLS[spellName]?.target;
+  if (typeof target === "string") return target;
+  if (Array.isArray(target)) return target.join("+");
+  return "unknown";
+}
+
+function snapshotStage15Diagnostics(diagnostics) {
+  if (!diagnostics) return null;
+  const floors = Object.fromEntries(Object.entries(diagnostics.byFloor).map(([floor, value]) => {
+    const { closed, ...snapshot } = value;
+    return [floor, snapshot];
+  }));
+  return {
+    byFloor: floors,
+    mpBuckets: Object.fromEntries(Object.entries(diagnostics.mpBuckets).map(([bucket, value]) => [bucket, { ...value }])),
+    spellUsage: Object.fromEntries(Object.entries(diagnostics.spellUsage).map(([spellId, value]) => [spellId, {
+      ...value,
+      targetTypes: { ...value.targetTypes }
+    }])),
+    b5Entry: diagnostics.b5Entry ? { ...diagnostics.b5Entry } : null
+  };
+}
+
 function recordCombatMpRecovery(metrics, source, amount) {
-  if (!metrics?.combatMpMeasurement || amount <= 0) return;
-  metrics.combatMpMeasurement.recoveryBySource[source] =
-    (metrics.combatMpMeasurement.recoveryBySource[source] || 0) + amount;
+  if (amount <= 0) return;
+  if (metrics?.combatMpMeasurement) {
+    metrics.combatMpMeasurement.recoveryBySource[source] =
+      (metrics.combatMpMeasurement.recoveryBySource[source] || 0) + amount;
+  }
+  recordStage15MpDelta(metrics, 0, amount, source);
 }
 
 function getCombatMpFloorBucket(measurement, floor) {
@@ -4244,6 +4537,7 @@ function createSimulationState(
     },
     simDepartureCraftDemand: departureCraftDemand,
     simMaterialCompetition: materialCompetition,
+    simPersonaId: scenario.personaId || null,
     simHealPotionMerchantPurchases: 0,
     gold: 0,
     firstChestUnidentifiedGuaranteed: false,
@@ -4569,6 +4863,19 @@ function castExplorationSpell(state, spellName, metrics) {
   if (!payment.canCast || payment.resource !== "mp") return false;
   character.mp -= payment.cost;
   metrics.mpConsumed += payment.cost;
+  recordStage15MpSpend(metrics, payment.cost);
+  if (metrics.stage15Diagnostics) {
+    const usage = metrics.stage15Diagnostics.spellUsage[spellName] ||= {
+      castCount: 0,
+      successfulCasts: 0,
+      totalMpSpent: 0,
+      targetTypes: {}
+    };
+    usage.castCount++;
+    usage.successfulCasts++;
+    usage.totalMpSpent += payment.cost;
+    usage.targetTypes.utility = (usage.targetTypes.utility || 0) + 1;
+  }
   SPELL_EFFECTS[spellName]({ caster: character, target: state });
   metrics.explorationSpellUsage[spellName]++;
   return true;
@@ -5035,6 +5342,7 @@ function recordRecoveryHealing(metrics, itemKey, level, requestedHp, actualHp) {
     stats.actualHp += actual;
     stats.overhealHp += Math.max(0, requested - actual);
   });
+  recordStage15Healing(metrics, actual, "potion");
 }
 
 function recordHealPotionConsumption(state, metrics, count = 1) {
@@ -6781,6 +7089,32 @@ function runEncounter(
   const enemyTurnEventStart = metrics?.killHeal?.measurementEnemyTurnEvents?.length || 0;
   let encounterMinimumMp = encounterStartMp;
   const blockedRounds = [];
+  const stage15Encounter = metrics?.stage15Diagnostics && encounterFloor <= STAGE15_MAX_FLOOR
+    ? {
+        floor: encounterFloor,
+        result: null,
+        startMp: encounterStartMp,
+        startMpRatio: encounterStartMp / Math.max(1, encounterStartMaxMp),
+        mpBucket: stage15MpBucket(encounterStartMp, encounterStartMaxMp),
+        combatActions: 0,
+        spellActions: 0,
+        spellCasts: 0,
+        normalAttacks: 0,
+        defensiveSupportActions: 0,
+        itemActions: 0,
+        failedNoopActions: 0,
+        combatMpSpent: 0,
+        insufficientMpDecisionCount: 0,
+        insufficientMpRounds: 0,
+        insufficientMpNormalAttackRounds: 0,
+        rounds: 0,
+        enemyActions: 0,
+        normalHits: 0,
+        normalDamage: 0,
+        deathCategory: null,
+        spellUsage: {}
+      }
+    : null;
   const startBuild = (isBoss || isMidboss || isElite) && metrics?.collectSpecialBattles
     ? createBuildSnapshot(state, metrics?.scoringProfile || null, `${encounterType}-start`)
     : null;
@@ -7016,6 +7350,15 @@ function runEncounter(
       rounds,
       state.party[0].mp
     );
+    if (stage15Encounter) {
+      stage15Encounter.result = result;
+      stage15Encounter.rounds = rounds;
+      stage15Encounter.enemyActions = telemetry.enemyActions;
+      stage15Encounter.normalHits = telemetry.incomingHits;
+      stage15Encounter.normalDamage = telemetry.incomingDamage;
+      stage15Encounter.deathCategory = encounterIdentity?.deathCategory || null;
+      recordStage15Encounter(metrics, stage15Encounter);
+    }
     return {
       result,
       rounds,
@@ -7068,6 +7411,25 @@ function runEncounter(
       policyProbeAction
     );
     if (pressureEvent?.mpBlocked) blockedRounds.push(roundNumber);
+    if (stage15Encounter) {
+      stage15Encounter.combatActions++;
+      stage15Encounter.insufficientMpDecisionCount += Number(Boolean(pressureEvent?.mpBlocked));
+      stage15Encounter.insufficientMpRounds += Number(Boolean(pressureEvent?.mpBlocked));
+      if (action.type === "spell") {
+        stage15Encounter.spellActions++;
+        stage15Encounter.spellCasts++;
+        if (!String(SPELLS[action.spellName]?.target || "").includes("enemy") || action.spellName === "KATINO") {
+          stage15Encounter.defensiveSupportActions++;
+        }
+      } else if (action.type === "fight") {
+        stage15Encounter.normalAttacks++;
+        stage15Encounter.insufficientMpNormalAttackRounds += Number(Boolean(pressureEvent?.mpBlocked));
+      } else if (action.type === "item") {
+        stage15Encounter.itemActions++;
+      } else {
+        stage15Encounter.failedNoopActions++;
+      }
+    }
     recordSpellSelectionMetrics(state, metrics, action);
     const actionTarget = action.targetIdx === undefined
       ? null
@@ -7181,13 +7543,38 @@ function runEncounter(
       metrics,
       roundResult.state.combatFormulaTelemetry?.physicalPlayerHits.slice(physicalHitsBeforeRound) || []
     );
-    metrics.mpConsumed += Math.max(0, mpBeforeRound - state.party[0].mp);
+    const mpAfterRound = roundResult.state.party[0].mp;
+    metrics.mpConsumed += Math.max(0, mpBeforeRound - mpAfterRound);
+    recordStage15MpSpend(metrics, Math.max(0, mpBeforeRound - mpAfterRound));
+    if (stage15Encounter) {
+      stage15Encounter.combatMpSpent += Math.max(0, mpBeforeRound - mpAfterRound);
+    }
+    if (!(action.type === "item" && action.itemKey === "MANA_POTION")) {
+      recordStage15MpDelta(metrics, 0, Math.max(0, mpAfterRound - mpBeforeRound), "other");
+    }
     recordHitEvasionMetrics(
       metrics,
       roundResult.state.combatFormulaTelemetry?.physicalPlayerHits.slice(physicalHitsBeforeRound) || [],
       roundResult.state.combatFormulaTelemetry?.physicalPlayerMisses.slice(physicalMissesBeforeRound) || []
     );
     recordSpellApplicationMetrics(metrics, action, roundResult.logQueue);
+    if (stage15Encounter && action.type === "spell") {
+      const applied = roundResult.logQueue.some(({ msg = "" }) =>
+        msg.startsWith("[味方]") && msg.includes("唱えた") && !msg.includes("唱えようとした")
+      );
+      const usage = stage15Encounter.spellUsage[action.spellName] ||= {
+        castCount: 0,
+        successfulCasts: 0,
+        totalMpSpent: 0,
+        targetTypes: {}
+      };
+      const targetType = stage15SpellTargetType(action.spellName);
+      usage.castCount++;
+      usage.successfulCasts += Number(applied);
+      usage.totalMpSpent += Math.max(0, mpBeforeRound - mpAfterRound);
+      usage.targetTypes[targetType] = (usage.targetTypes[targetType] || 0) + 1;
+      stage15Encounter.failedNoopActions += Number(!applied);
+    }
     removeRaceEffectScale(roundResult?.state);
     removeCountermeasureScale(roundResult?.state);
     const enemyBlindApplications = roundResult.logQueue.filter(entry =>
@@ -7457,8 +7844,10 @@ function applyPostCombatRecovery(state, metrics = null) {
     const mpBeforePayment = character.mp;
     character.mp -= payment.cost;
     if (metrics) metrics.mpConsumed += Math.max(0, mpBeforePayment - character.mp);
+    if (metrics) recordStage15MpDelta(metrics, mpBeforePayment, character.mp);
     SPELL_EFFECTS[spellName]({ caster: character, target: character });
     const postCombatHealingHp = Math.max(0, character.hp - hpBefore);
+    recordStage15Healing(metrics, postCombatHealingHp, "spell");
     const spellUsage = metrics?.spellUsage?.[spellName];
     if (spellUsage) {
       spellUsage.postCombatCasts++;
@@ -8264,31 +8653,37 @@ function getUnidentifiedEffectDelta(character, item) {
   };
 }
 
-function getBaseEquipmentScore(character) {
+function getPersonaEquipmentWeight(scoringProfile, key) {
+  return Number.isFinite(Number(scoringProfile?.personaEquipmentWeights?.[key]))
+    ? Number(scoringProfile.personaEquipmentWeights[key])
+    : 1;
+}
+
+function getBaseEquipmentScore(character, scoringProfile = null) {
   return (
-    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk +
-    getCharDef(character) * EQUIPMENT_SCORE_WEIGHTS.defense +
-    getCharMaxHp(character) * EQUIPMENT_SCORE_WEIGHTS.maxHp +
-    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str +
-    getCharVit(character) * EQUIPMENT_SCORE_WEIGHTS.vit +
-    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int +
-    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie +
-    getCharAgi(character) * EQUIPMENT_SCORE_WEIGHTS.agi +
-    getCharAffixSum(character, "guardian") * EQUIPMENT_SCORE_WEIGHTS.guardian +
-    getCharAffixSum(character, "spellGuard") * EQUIPMENT_SCORE_WEIGHTS.spellGuard +
-    getCharAffixSum(character, "followUp") * EQUIPMENT_SCORE_WEIGHTS.followUp +
-    getCharAffixSum(character, "firstStrike") * EQUIPMENT_SCORE_WEIGHTS.firstStrike +
-    getCharAffixSum(character, "arcane") * EQUIPMENT_SCORE_WEIGHTS.arcane +
-    getCharAffixSum(character, "devotion") * EQUIPMENT_SCORE_WEIGHTS.devotion
+    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk * getPersonaEquipmentWeight(scoringProfile, "weaponAtk") +
+    getCharDef(character) * EQUIPMENT_SCORE_WEIGHTS.defense * getPersonaEquipmentWeight(scoringProfile, "defense") +
+    getCharMaxHp(character) * EQUIPMENT_SCORE_WEIGHTS.maxHp * getPersonaEquipmentWeight(scoringProfile, "maxHp") +
+    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str * getPersonaEquipmentWeight(scoringProfile, "str") +
+    getCharVit(character) * EQUIPMENT_SCORE_WEIGHTS.vit * getPersonaEquipmentWeight(scoringProfile, "vit") +
+    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int * getPersonaEquipmentWeight(scoringProfile, "int") +
+    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie * getPersonaEquipmentWeight(scoringProfile, "pie") +
+    getCharAgi(character) * EQUIPMENT_SCORE_WEIGHTS.agi * getPersonaEquipmentWeight(scoringProfile, "agi") +
+    getCharAffixSum(character, "guardian") * EQUIPMENT_SCORE_WEIGHTS.guardian * getPersonaEquipmentWeight(scoringProfile, "guardian") +
+    getCharAffixSum(character, "spellGuard") * EQUIPMENT_SCORE_WEIGHTS.spellGuard * getPersonaEquipmentWeight(scoringProfile, "spellGuard") +
+    getCharAffixSum(character, "followUp") * EQUIPMENT_SCORE_WEIGHTS.followUp * getPersonaEquipmentWeight(scoringProfile, "followUp") +
+    getCharAffixSum(character, "firstStrike") * EQUIPMENT_SCORE_WEIGHTS.firstStrike * getPersonaEquipmentWeight(scoringProfile, "firstStrike") +
+    getCharAffixSum(character, "arcane") * EQUIPMENT_SCORE_WEIGHTS.arcane * getPersonaEquipmentWeight(scoringProfile, "arcane") +
+    getCharAffixSum(character, "devotion") * EQUIPMENT_SCORE_WEIGHTS.devotion * getPersonaEquipmentWeight(scoringProfile, "devotion")
   );
 }
 
-function getOffenseEquipmentScore(character) {
+function getOffenseEquipmentScore(character, scoringProfile = null) {
   return (
-    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk +
-    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str +
-    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int +
-    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie
+    getCharWeaponAtk(character) * EQUIPMENT_SCORE_WEIGHTS.weaponAtk * getPersonaEquipmentWeight(scoringProfile, "weaponAtk") +
+    getCharStr(character) * EQUIPMENT_SCORE_WEIGHTS.str * getPersonaEquipmentWeight(scoringProfile, "str") +
+    getCharInt(character) * EQUIPMENT_SCORE_WEIGHTS.int * getPersonaEquipmentWeight(scoringProfile, "int") +
+    getCharPie(character) * EQUIPMENT_SCORE_WEIGHTS.pie * getPersonaEquipmentWeight(scoringProfile, "pie")
   );
 }
 
@@ -8412,7 +8807,7 @@ function getCombatCoreScoreForId(character, scoringProfile, floor, coreId) {
   if (coreDefinition?.allowedClasses && !coreDefinition.allowedClasses.includes(character.class)) return 0;
   const classScoringProfile = getClassScoringProfile(scoringProfile, character);
   const params = coreDefinition.params;
-  const offenseScore = getOffenseEquipmentScore(character);
+  const offenseScore = getOffenseEquipmentScore(character, classScoringProfile);
   // 倍率コアは既存攻撃スコア×calibration実測稼働率×実params増分。
   if (coreId === "CORE_LAST_STAND") {
     return offenseScore * classScoringProfile.lowHpOffensiveRate * (params.damageMultiplier - 1);
@@ -8526,9 +8921,11 @@ function getEconomyCoreScore(character, scoringProfile, floor) {
 }
 
 function getEquipmentScore(character, scoringProfile, floor) {
-  return getBaseEquipmentScore(character) +
-    getCombatCoreScore(character, scoringProfile, floor) +
-    getEconomyCoreScore(character, scoringProfile, floor);
+  const combatCoreWeight = getPersonaEquipmentWeight(scoringProfile, "combatCore");
+  const economyCoreWeight = getPersonaEquipmentWeight(scoringProfile, "economyCore");
+  return getBaseEquipmentScore(character, scoringProfile) +
+    getCombatCoreScore(character, scoringProfile, floor) * combatCoreWeight +
+    getEconomyCoreScore(character, scoringProfile, floor) * economyCoreWeight;
 }
 
 function qualifiesAsBuildCore(candidateScore, currentScore) {
@@ -8575,7 +8972,7 @@ function createBuildSnapshot(state, scoringProfile, point) {
     };
     });
   const equipmentStatScore =
-    getBaseEquipmentScore(character) - getBaseEquipmentScore(withoutEquipment);
+    getBaseEquipmentScore(character, scoringProfile) - getBaseEquipmentScore(withoutEquipment, scoringProfile);
   const combatCoreScore = getCombatCoreScore(character, scoringProfile, state.floor);
   const combatCoreScoreById = getCombatCoreScoreById(
     character,
@@ -8629,6 +9026,48 @@ function createBuildSnapshot(state, scoringProfile, point) {
     resistanceScore:
       (supportAffixes.poisonWard || 0) + (supportAffixes.statusResistance || 0),
     equipment
+  };
+}
+
+function createCheckpointSnapshot(state, metrics, scoringProfile, floor) {
+  const build = createBuildSnapshot(state, scoringProfile, "checkpoint");
+  const character = state.party[0];
+  const previousEncounters = (metrics.encounterIdentityLog || []).slice(-3).map(encounter => ({
+    floor: encounter.floor,
+    normalHits: encounter.normalHits || 0,
+    totalNormalDamage: encounter.totalNormalDamage || 0,
+    enemyActions: encounter.enemyActions || 0,
+    rounds: encounter.rounds || 0
+  }));
+  return {
+    floor,
+    persona: state.simPersonaId || null,
+    worldSeed: state.currentRun.runSeed,
+    hp: character.hp,
+    maxHP: getCharMaxHp(character),
+    hpRatio: character.hp / Math.max(1, getCharMaxHp(character)),
+    mp: character.mp,
+    maxMP: getCharMaxMp(character),
+    mpRatio: character.mp / Math.max(1, getCharMaxMp(character)),
+    ATK: getCharWeaponAtk(character),
+    DEF: getCharDef(character),
+    spells: [...(character.spells || [])],
+    equippedBaseIds: build.equipment.map(item => item.id),
+    activeCoreIds: [...build.coreIds],
+    supportAffixes: { ...build.supportAffixes },
+    combatBuildScore: build.combatBuildScore,
+    equipmentChangesSoFar: metrics.equipmentUpgrades,
+    equipmentDropsSeen: metrics.equipmentFound,
+    encountersSoFar: state.currentRun.battles,
+    normalHitsReceivedSoFar: metrics.normalCombatTelemetry.incomingHits,
+    totalNormalDamageSoFar: metrics.normalCombatTelemetry.incomingDamage,
+    enemyActionsSoFar: metrics.normalCombatTelemetry.enemyActions,
+    roundsSoFar: metrics.normalCombatTelemetry.rounds,
+    stepsSoFar: metrics.steps,
+    exploredRatio: metrics.exploredRatioByFloor[floor] ?? 0,
+    searchActionsSoFar: metrics.searchActions,
+    campUsageSoFar: state.currentRun.campRestCount || 0,
+    previousEncounterDamage: previousEncounters
   };
 }
 
@@ -9550,14 +9989,24 @@ function createFloorRoutePlan(
 // particular, this function deliberately does not inspect event, stairs, or
 // boss fields while selecting a frontier.  Those fields are observed only
 // when the movement step enters the cell.
-function createPartialInformationFloorRoutePlan(generated, floor) {
+function createPartialInformationFloorRoutePlan(generated, floor, personaPolicy = null) {
   const start = findFloorCell(generated.grid, cell => cell.type === "stairs-up");
   const walkableCells = generated.validation?.walkableCells || generated.grid.flat()
     .filter(cell => cell?.walls?.some(wall => !wall) || cell?.event || cell?.type !== "empty")
     .length;
+  const exploration = personaPolicy?.exploration || {};
+  // The player policy must not use the generated map's total walkable-cell or
+  // critical-path knowledge. Use the floor template's fixed budget instead;
+  // walkableCells remains a telemetry denominator only.
+  const template = getFloorTemplate(floor);
+  const templateFloorSteps = Math.max(
+    1,
+    Math.round(((template.criticalPathRange[0] + template.criticalPathRange[1]) / 2) * EXPLORATION_FACTOR)
+  );
   const explorationBudget = Math.max(
-    getFloorStepCount(generated, floor),
-    Math.ceil(Math.max(1, walkableCells) * EXPLORATION_FACTOR * 2.5) + 10
+    templateFloorSteps,
+    Math.ceil(templateFloorSteps * (Number(exploration.budgetMultiplier) || 2.5)) +
+      (Number(exploration.budgetExtraSteps) || 10)
   );
   return {
     routePolicy: "partial_information_exploration",
@@ -9572,6 +10021,7 @@ function createPartialInformationFloorRoutePlan(generated, floor) {
     avoidedPathExists: false,
     milestoneForced: false,
     walkableCells,
+    personaPolicy,
     start
   };
 }
@@ -9700,6 +10150,10 @@ export function canTraverseKnownRouteEdge(generated, route, current, direction) 
   const revealedSecret = route.revealedSecretDoorKeys?.has(edgeKey) ||
     route.revealedSecretDoorKeys?.has(reverseEdgeKey);
   if (cell.walls?.[direction.dir] && !revealedSecret) return false;
+  // The destination's entrance geometry is not known until the cell is
+  // entered. A frontier destination is therefore accepted from the known
+  // source edge without peeking at the destination cell.
+  if (!route.knownCellKeys.has(routeKey(nextCoord))) return true;
   return !next.blockEnter?.[(direction.dir + 2) % 4];
 }
 
@@ -9771,7 +10225,14 @@ function findKnownFrontier(generated, route) {
 function getPartialInformationTarget(route, generated, floor) {
   const milestone = floor % 5 === 0;
   if (route.discoveredBoss && !route.bossDefeated) return route.discoveredBoss;
-  if (route.discoveredStairs && (!milestone || route.bossDefeated)) return route.discoveredStairs;
+  if (route.discoveredStairs && (!milestone || route.bossDefeated)) {
+    const afterStairsSteps = Number(route.personaPolicy?.exploration?.afterStairsSteps) || 0;
+    if (route.postStairsExplorationRemaining > 0 && afterStairsSteps > 0) {
+      const frontier = findKnownFrontier(generated, route);
+      if (frontier) return frontier;
+    }
+    return route.discoveredStairs;
+  }
   return findKnownFrontier(generated, route);
 }
 
@@ -9971,7 +10432,9 @@ function createSimulationFloorRoute(generated, routePlan, state, floor, metrics)
       nextMoveAt: EXPLORATION_FACTOR,
       detourActive: false,
       detourTrapId: null,
-      detourTargetKey: null
+      detourTargetKey: null,
+      personaPolicy: routePlan.personaPolicy,
+      postStairsExplorationRemaining: 0
     };
     metrics.exploredCellsByFloor[floor] = 1;
     metrics.exploredCells++;
@@ -10191,7 +10654,8 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
   route.path = route.path.slice(1);
   if (route.partialInformation) {
     const nextKey = routeKey(next);
-    if (!route.knownCellKeys.has(nextKey)) {
+    const wasUnknown = !route.knownCellKeys.has(nextKey);
+    if (wasUnknown) {
       route.knownCellKeys.add(nextKey);
       metrics.exploredCells++;
       metrics.exploredCellsByFloor[floor] = (metrics.exploredCellsByFloor[floor] || 0) + 1;
@@ -10199,7 +10663,18 @@ function advanceSimulationFloorRoute(route, generated, state, floor, metrics, st
     const entered = generated.grid[next.y]?.[next.x];
     if (entered?.type === "stairs-down" && !route.discoveredStairs) {
       route.discoveredStairs = { ...next };
+      route.postStairsExplorationRemaining = Number(
+        route.personaPolicy?.exploration?.afterStairsSteps
+      ) || 0;
       metrics.stairsDiscoveryStepByFloor[floor] ||= step;
+    }
+    if (
+      route.discoveredStairs &&
+      route.postStairsExplorationRemaining > 0 &&
+      nextKey !== routeKey(route.discoveredStairs) &&
+      wasUnknown
+    ) {
+      route.postStairsExplorationRemaining--;
     }
     if (entered?.event === EVENT_TYPES.BOSS && entered.milestoneFloor === floor && !route.discoveredBoss) {
       route.discoveredBoss = { ...next };
@@ -10355,6 +10830,7 @@ function applySimulatedCampRest(state, observations, metrics = null) {
   }
   if (metrics) {
     metrics.campHealingHp += hpGain;
+    recordStage15Healing(metrics, hpGain, "camp");
     recordCombatMpRecovery(metrics, "camp", mpGain);
     if (extraCamp) {
       metrics.extraCampRestCount++;
@@ -11442,7 +11918,21 @@ function createRunDiagnosticsRecord(state, outcome, metrics, terminationReason) 
   };
 }
 
-function finishRun(state, outcome, metrics, terminationReason = null) {
+function finishRun(state, outcome, metrics, terminationReason = null, terminationContext = null) {
+  if (metrics.stage15Diagnostics) {
+    const activeFloor = metrics.stage15Diagnostics.currentFloor;
+    const activeTelemetry = stage15Floor(metrics, activeFloor);
+    if (activeTelemetry && !activeTelemetry.closed) {
+      finalizeStage15Floor(
+        state,
+        metrics,
+        activeFloor,
+        outcome === "death" ? "died" : "incomplete",
+        terminationReason,
+        terminationContext
+      );
+    }
+  }
   const detourActive = metrics.trapRoute.detourActive;
   finalizeTrapRouteDetour(metrics);
   if (detourActive) {
@@ -11628,6 +12118,17 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
       "finish"
     );
     metrics.diagnostics.deathLogs = structuredClone(state.currentRun.deathLogs || []);
+  }
+  if (metrics.stage15Diagnostics) {
+    Object.values(metrics.stage15Diagnostics.byFloor).forEach(telemetry => {
+      const floorKey = String(telemetry.floor);
+      telemetry.steps = metrics.stepsByFloor[floorKey] || 0;
+      telemetry.equipmentDrops = metrics.equipmentFoundByFloor[telemetry.floor] || 0;
+      telemetry.equipmentChanges = (metrics.equipmentTelemetry || [])
+        .filter(event => event.floor === telemetry.floor && event.type === "swap")
+        .length;
+      telemetry.exploredRatio = metrics.exploredRatioByFloor[telemetry.floor] ?? null;
+    });
   }
   return {
     survived: outcome === "retreat",
@@ -12046,6 +12547,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     mpDepletionCausedEnd,
     mpPressure: finalizeSpellPressureMetrics(metrics.mpPressure),
     combatMpMeasurement: snapshotCombatMpMeasurement(metrics.combatMpMeasurement),
+    stage15Diagnostics: snapshotStage15Diagnostics(metrics.stage15Diagnostics),
     combatPolicyProbe: { ...metrics.combatPolicyProbe },
     fleeCount: metrics.fleeCount,
     bossPolicy: metrics.bossPolicy,
@@ -12103,6 +12605,9 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     combatMaterialHitEvents: metrics.combatMaterialHitEvents,
     diagnostics: metrics.diagnostics,
     ...(metrics.buildSnapshots ? { buildSnapshots: metrics.buildSnapshots } : {}),
+    ...(metrics.checkpointSnapshots
+      ? { checkpointSnapshots: structuredClone(metrics.checkpointSnapshots) }
+      : {}),
     ...(metrics.equipmentTelemetry
       ? { equipmentTelemetry: metrics.equipmentTelemetry }
       : {})
@@ -12343,6 +12848,9 @@ export function simulateRun({
     explorationSpellUsage: createExplorationSpellUsageMetrics(),
     mpPressure: createSpellPressureMetrics(),
     combatMpMeasurement: createCombatMpMeasurement(),
+    stage15Diagnostics: scenario.collectStage15Diagnostics
+      ? createStage15Diagnostics()
+      : null,
     combatPolicyProbe: createCombatPolicyProbeMetrics(),
     mpBlockedTerminalEncounter: false,
     lightActiveSteps: 0,
@@ -12645,6 +13153,7 @@ export function simulateRun({
     combatMaterialHitEvents: 0,
     scoringProfile,
     buildSnapshots: collectBuildSnapshots && !collectDiagnostics ? [] : null,
+    checkpointSnapshots: scenario.collectCheckpointSnapshots ? [] : null,
     diagnostics: collectDiagnostics
       ? {
           level: diagnosticLevel,
@@ -12667,31 +13176,35 @@ export function simulateRun({
   // 目標階へ到着した時点で撤退するため、探索するのはtargetDepthの1階手前まで。
   for (let floor = startFloor; floor < targetDepth; floor++) {
     state.floor = floor;
+    startStage15Floor(state, metrics, floor);
     applyTrapBonusExposureCeiling(state, floor);
     const buildSnapshots = metrics.diagnostics?.buildSnapshots || metrics.buildSnapshots;
     if (buildSnapshots) {
       buildSnapshots.push(createBuildSnapshot(state, scoringProfile, "floor-start"));
     }
+    if (metrics.checkpointSnapshots) {
+      metrics.checkpointSnapshots.push(
+        createCheckpointSnapshot(state, metrics, scoringProfile, floor)
+      );
+    }
     const generated = getRunFloor({ runSeed, floor });
-    const bossExitPolicy = applyBossExitPolicy(
-      generated,
-      floor,
-      scenario.bossExitPolicy || "shortcut-0"
-    );
+    const bossExitPolicy = scenario.routePolicy === "partial_information_exploration"
+      ? { kind: "baseline", distance: null }
+      : applyBossExitPolicy(generated, floor, scenario.bossExitPolicy || "shortcut-0");
     const routePlan = scenario.routePolicy === "partial_information_exploration"
-      ? createPartialInformationFloorRoutePlan(generated, floor)
+      ? createPartialInformationFloorRoutePlan(generated, floor, scenario.personaPolicy)
       : createFloorRoutePlan(
           generated,
           floor,
           metrics.bossPolicy,
           bossExitPolicy
         );
-    const elitePlan = createEliteRoutePlan(
-      generated,
-      floor,
-      runSeed,
-      state.simPolicy.elitePolicy
-    );
+    // Partial-information personas do not schedule a roaming encounter from
+    // its future map position. The production movement/combat path still
+    // handles encounters that are actually observed.
+    const elitePlan = routePlan.partialInformation
+      ? { elite: null, extraSteps: 0, encounterStep: null, avoidNoRoute: false }
+      : createEliteRoutePlan(generated, floor, runSeed, state.simPolicy.elitePolicy);
     const staticFloorSteps = getFloorStepCount(generated, floor);
     let floorSteps = routePlan.floorSteps + elitePlan.extraSteps;
     const floorRoute = createSimulationFloorRoute(
@@ -12778,7 +13291,9 @@ export function simulateRun({
       avoidedPathExists: routePlan.avoidedPathExists,
       milestoneForced: routePlan.milestoneForced
     });
-    const chestSchedule = schedulePickedUpChests(countFloorChests(generated.grid), floorSteps);
+    const chestSchedule = routePlan.partialInformation
+      ? new Map()
+      : schedulePickedUpChests(countFloorChests(generated.grid), floorSteps);
     const secretRoomSchedule = scheduleSecretRoomSearches(
       secretRoomPlans,
       floorSteps,
@@ -12882,15 +13397,17 @@ export function simulateRun({
         metrics.encountersCausedByMovement++;
       }
       const floorTrapSchedule = new Map();
-      floorRoute.path.slice(1, 5).forEach((coord, index) => {
-        const upcomingTrap = generated.grid[coord.y]?.[coord.x]?.trap;
-        if (!upcomingTrap || upcomingTrap.state !== "hidden") return;
-        floorTrapSchedule.set(step + index, [{
-          trap: upcomingTrap,
-          previousCoord: index === 0 ? floorRoute.current : floorRoute.path[index],
-          step: step + index
-        }]);
-      });
+      if (!routePlan.partialInformation) {
+        floorRoute.path.slice(1, 5).forEach((coord, index) => {
+          const upcomingTrap = generated.grid[coord.y]?.[coord.x]?.trap;
+          if (!upcomingTrap || upcomingTrap.state !== "hidden") return;
+          floorTrapSchedule.set(step + index, [{
+            trap: upcomingTrap,
+            previousCoord: index === 0 ? floorRoute.current : floorRoute.path[index],
+            step: step + index
+          }]);
+        });
+      }
       const scheduledSecretRooms = secretRoomSchedule.get(step) || [];
       for (const secretPlan of scheduledSecretRooms) {
         const opened = resolveSecretRoomSearch({
@@ -13523,6 +14040,7 @@ export function simulateRun({
     }
 
     if (floorEndedByPitfall) {
+      finalizeStage15Floor(state, metrics, floor, "survived");
       if (floor === FLAME_TRAP_MODEL.floor) {
         recordB5HpSnapshot(state, metrics, floorSteps);
         metrics.b5FloorActive = false;
@@ -13541,7 +14059,18 @@ export function simulateRun({
         knownCells: floorRoute.knownCellKeys.size,
         target: getPartialInformationTarget(floorRoute, generated, floor)
       };
-      return finishRun(state, "retreat", metrics, "partial-information-budget-exhausted");
+      return finishRun(
+        state,
+        "retreat",
+        metrics,
+        "partial-information-budget-exhausted",
+        {
+          milestone: floor % 5 === 0,
+          stairsDiscovered: Boolean(floorRoute.discoveredStairs),
+          bossDiscovered: Boolean(floorRoute.discoveredBoss),
+          bossDefeated: Boolean(floorRoute.bossDefeated)
+        }
+      );
     }
     applySimulatedCampRest(state, metrics.coreObservations, metrics);
     if (isMilestoneFloor(floor)) {
@@ -13557,10 +14086,21 @@ export function simulateRun({
       ) {
         return finishRun(state, "retreat", metrics, "milestone-retreat");
       }
-      if (!state.currentRun?.defeatedMilestones?.includes(floor)) {
-        return finishRun(state, "retreat", metrics, "milestone-boss-blocked");
+    if (!state.currentRun?.defeatedMilestones?.includes(floor)) {
+        return finishRun(
+          state,
+          "retreat",
+          metrics,
+          "milestone-boss-blocked",
+          {
+            milestone: true,
+            stairsDiscovered: true,
+            bossDefeated: false
+          }
+        );
       }
     }
+    finalizeStage15Floor(state, metrics, floor, "survived");
     descendToNextFloor(state, floor + 1, metrics, { stairsHeal: true });
     if (useTownPortalIfNeeded(state, scenario, metrics, "floor-transition")) {
       return finishRun(state, "retreat", metrics, "town-portal");

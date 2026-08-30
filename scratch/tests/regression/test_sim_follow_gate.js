@@ -436,7 +436,7 @@ assert.deepEqual(
   SIMULATION_RUNNER_INVENTORY.map(runner => runner.path).sort(),
   "runner discovery and explicit inventory diverged"
 );
-assert.equal(SIMULATION_RUNNER_INVENTORY.length, 39, "unexpected current runner inventory size");
+assert.equal(SIMULATION_RUNNER_INVENTORY.length, 41, "unexpected current runner inventory size");
 assert.ok(discoveredRunners.includes("scratch/simulations/sim_depth_material_ev.js"));
 assert.equal(
   SIMULATION_RUNNER_INVENTORY.filter(runner => runner.lifecycle === "canonical").length,
