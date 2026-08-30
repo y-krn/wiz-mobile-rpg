@@ -6,6 +6,8 @@ The measurement uses production floor generation, encounter chance and selection
 
 Production exploration does not know those coordinates at run start. Stairs and bosses are learned by reaching the relevant cell or local sensory range; a secret door is not traversable until an adjacent search reveals it. Extra walking, failed searches, and search-turn encounters are omitted. The current route is therefore a shortest-path lower bound on exploration exposure.
 
+Recovery matches the production helpers: camp entry requires a camp floor after the preceding milestone is defeated, rest is once per camp, and it restores 40% of missing HP/MP with ceiling plus any `CORE_CAMP_MASTER` multiplier. Floor transition recovery is 15% of max HP only, capped at max; no camp is granted after an uncleared milestone.
+
 No production balance value was changed. #987 W3's one-enemy-action-per-round cap was not rerun as a full-run condition. R1/R2 sensitivity runs were not added because baseline has no B21+ population to compare.
 
 ## Evidence
