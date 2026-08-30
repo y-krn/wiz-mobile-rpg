@@ -116,7 +116,7 @@ assert.ok(Object.hasOwn(report.cases[0].statusTrajectory, "incapacitatedRoundsPe
 assert.ok(Object.hasOwn(report.cases[0], "mpStarvationRoundsPerRun"));
 assert.ok(Object.hasOwn(report.cases[0], "causalAttribution"));
 assert.ok(Object.hasOwn(report.cases[0].causalAttribution, "pureRawDamageDeaths"));
-const tracedDeathCase = report.cases.find(testCase => testCase.traces.length > 0);
+const tracedDeathCase = report.cases.find(testCase => testCase.traces?.length > 0);
 assert.ok(tracedDeathCase, "at least one death trace must be retained");
 assert.ok(Object.hasOwn(tracedDeathCase.traces[0].trace[0], "damageEvents"));
 assert.ok(Object.hasOwn(report, "causalSummary"));
