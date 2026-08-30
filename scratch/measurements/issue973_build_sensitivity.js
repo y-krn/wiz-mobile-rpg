@@ -531,8 +531,8 @@ function getActionEconomyStateDegradation(trace) {
     const attackActions = round.enemyActions.filter(action => /の(?:攻撃|追撃|狙撃|自爆)/.test(action.message));
     const attackSources = attackActions.map(action => action.message.match(/^\[ 敵 \] (.+?)の(?:攻撃|追撃|狙撃|自爆)/)?.[1]).filter(Boolean);
     const repeatedAttacker = new Set(attackSources).size < attackSources.length;
-    const livingBefore = round.enemyState?.before?.filter(enemy => enemy.living).length || 0;
-    const livingAfter = round.enemyState?.after?.filter(enemy => enemy.living).length || 0;
+    const livingBefore = round.enemyState?.before?.livingCount || 0;
+    const livingAfter = round.enemyState?.after?.livingCount || 0;
     const spawnedOrSplit = livingAfter > livingBefore;
     const moreActionsThanEnemies = attackActions.length > Math.max(1, livingBefore);
     const hpLossAfterMechanic = trace.slice(index).some(entry => entry.hp.delta < 0);
@@ -547,11 +547,11 @@ function getLongFightStateDegradation(trace, rounds) {
   return trace.flatMap(round => {
     const hasRecoveryMechanic = round.mechanisms.some(event => event.type === "regen" || event.type === "guard");
     if (!hasRecoveryMechanic) return [];
-    const beforeHp = (round.enemyState?.before || []).reduce((sum, enemy) => sum + enemy.hp, 0);
-    const afterHp = (round.enemyState?.after || []).reduce((sum, enemy) => sum + enemy.hp, 0);
+    const beforeHp = round.enemyState?.before?.totalHp || 0;
+    const afterHp = round.enemyState?.after?.totalHp || 0;
     const regenExtendedSurvival = afterHp > beforeHp;
     const guardExtendedSurvival = round.mechanisms.some(event => event.type === "guard") &&
-      trace.some(entry => entry.round > round.round && entry.enemyState?.after?.some(enemy => enemy.living));
+      trace.some(entry => entry.round > round.round && entry.enemyState?.after?.livingCount > 0);
     return regenExtendedSurvival || guardExtendedSurvival ? [round.round] : [];
   });
 }
@@ -826,7 +826,16 @@ export function runEncounterSample({ buildId, encounterId, depth, seed }) {
           antiHealTurnsAfter: characterStateAfter.antiHealTurns,
           incapacitated: messages.some(message => /動けない/.test(message))
         },
-        enemyState: { before: enemyStateBefore, after: enemyStateAfter }
+        enemyState: {
+          before: {
+            livingCount: enemyStateBefore.filter(enemy => enemy.living).length,
+            totalHp: enemyStateBefore.reduce((sum, enemy) => sum + enemy.hp, 0)
+          },
+          after: {
+            livingCount: enemyStateAfter.filter(enemy => enemy.living).length,
+            totalHp: enemyStateAfter.reduce((sum, enemy) => sum + enemy.hp, 0)
+          }
+        }
       });
       state.party = result.state.party;
       state.combatState = result.state.combatState;
