@@ -2252,14 +2252,48 @@ const STAGE15_MP_BUCKETS = Object.freeze([
   "51-75%",
   "76-100%"
 ]);
+const STAGE15_INCOMPLETE_REASON_IDS = Object.freeze([
+  "exploration_route_budget_exhausted",
+  "step_limit",
+  "encounter_limit",
+  "stairs_not_discovered",
+  "boss_milestone_progression_failure",
+  "simulation_guard_safety_limit",
+  "other"
+]);
+
+function createStage15IncompleteReasons() {
+  return Object.fromEntries(STAGE15_INCOMPLETE_REASON_IDS.map(reason => [reason, 0]));
+}
+
+function classifyStage15IncompleteReason(terminationReason, context = {}) {
+  if (terminationReason === "partial-information-budget-exhausted") {
+    if (!context.stairsDiscovered) return "stairs_not_discovered";
+    if (context.milestone && !context.bossDefeated) {
+      return "boss_milestone_progression_failure";
+    }
+    return "exploration_route_budget_exhausted";
+  }
+  if (["milestone-boss-blocked", "milestone-retreat"].includes(terminationReason)) {
+    return "boss_milestone_progression_failure";
+  }
+  if (terminationReason === "step-limit") return "step_limit";
+  if (terminationReason === "encounter-limit") return "encounter_limit";
+  if (terminationReason === "simulation-guard" || terminationReason === "safety-limit") {
+    return "simulation_guard_safety_limit";
+  }
+  return "other";
+}
 
 function createStage15FloorTelemetry(floor) {
   return {
     floor,
     entered: 1,
-    survived: 0,
+    reachedNextFloor: 0,
     died: 0,
     incomplete: 0,
+    incompleteReasons: createStage15IncompleteReasons(),
+    incompleteTerminationReasons: {},
     entryHp: null,
     entryMaxHp: null,
     entryHpRatio: null,
@@ -2402,7 +2436,7 @@ function recordStage15Healing(metrics, amount, source = "other") {
   if (source === "potion") telemetry.healPotionUses++;
 }
 
-function finalizeStage15Floor(state, metrics, floor, status) {
+function finalizeStage15Floor(state, metrics, floor, status, terminationReason = null, terminationContext = null) {
   const telemetry = stage15Floor(metrics, floor);
   if (!telemetry || telemetry.closed) return;
   const character = state.party[0];
@@ -2412,9 +2446,16 @@ function finalizeStage15Floor(state, metrics, floor, status) {
   telemetry.exitMp = character.mp;
   telemetry.exitMaxMp = getCharMaxMp(character);
   telemetry.exitMpRatio = character.mp / Math.max(1, telemetry.exitMaxMp);
-  telemetry.survived = Number(status === "survived");
+  telemetry.reachedNextFloor = Number(status === "survived");
   telemetry.died = Number(status === "died");
   telemetry.incomplete = Number(status === "incomplete");
+  if (telemetry.incomplete) {
+    const reason = classifyStage15IncompleteReason(terminationReason, terminationContext || {});
+    telemetry.incompleteReasons[reason]++;
+    const rawReason = terminationReason || "unknown";
+    telemetry.incompleteTerminationReasons[rawReason] =
+      (telemetry.incompleteTerminationReasons[rawReason] || 0) + 1;
+  }
   telemetry.closed = true;
 }
 
@@ -11877,7 +11918,7 @@ function createRunDiagnosticsRecord(state, outcome, metrics, terminationReason) 
   };
 }
 
-function finishRun(state, outcome, metrics, terminationReason = null) {
+function finishRun(state, outcome, metrics, terminationReason = null, terminationContext = null) {
   if (metrics.stage15Diagnostics) {
     const activeFloor = metrics.stage15Diagnostics.currentFloor;
     const activeTelemetry = stage15Floor(metrics, activeFloor);
@@ -11886,7 +11927,9 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
         state,
         metrics,
         activeFloor,
-        outcome === "death" ? "died" : "incomplete"
+        outcome === "death" ? "died" : "incomplete",
+        terminationReason,
+        terminationContext
       );
     }
   }
@@ -14016,7 +14059,18 @@ export function simulateRun({
         knownCells: floorRoute.knownCellKeys.size,
         target: getPartialInformationTarget(floorRoute, generated, floor)
       };
-      return finishRun(state, "retreat", metrics, "partial-information-budget-exhausted");
+      return finishRun(
+        state,
+        "retreat",
+        metrics,
+        "partial-information-budget-exhausted",
+        {
+          milestone: floor % 5 === 0,
+          stairsDiscovered: Boolean(floorRoute.discoveredStairs),
+          bossDiscovered: Boolean(floorRoute.discoveredBoss),
+          bossDefeated: Boolean(floorRoute.bossDefeated)
+        }
+      );
     }
     applySimulatedCampRest(state, metrics.coreObservations, metrics);
     if (isMilestoneFloor(floor)) {
@@ -14033,7 +14087,17 @@ export function simulateRun({
         return finishRun(state, "retreat", metrics, "milestone-retreat");
       }
     if (!state.currentRun?.defeatedMilestones?.includes(floor)) {
-        return finishRun(state, "retreat", metrics, "milestone-boss-blocked");
+        return finishRun(
+          state,
+          "retreat",
+          metrics,
+          "milestone-boss-blocked",
+          {
+            milestone: true,
+            stairsDiscovered: true,
+            bossDefeated: false
+          }
+        );
       }
     }
     finalizeStage15Floor(state, metrics, floor, "survived");

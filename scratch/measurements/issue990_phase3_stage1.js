@@ -297,6 +297,10 @@ function stage15Aggregate(rows, floor) {
     .map(row => row.stage15Diagnostics?.byFloor?.[String(floor)])
     .filter(Boolean);
   const scalar = field => records.reduce((sum, record) => sum + number(record[field]), 0);
+  const scalarFromRecords = (field, key) => records.reduce(
+    (sum, record) => sum + number(record[field]?.[key]),
+    0
+  );
   const distribution = (field, side = null) => describe(
     side ? stage15Values(rows, floor, field, side) : records.map(record => number(record[field]))
   );
@@ -315,10 +319,18 @@ function stage15Aggregate(rows, floor) {
   return {
     floor,
     entered: records.length,
-    survived: scalar("survived"),
+    reachedNextFloor: scalar("reachedNextFloor"),
     died: scalar("died"),
     incomplete: scalar("incomplete"),
-    conditionalSurvival: records.length ? scalar("survived") / records.length : null,
+    incompleteReasons: Object.fromEntries(
+      [...new Set(records.flatMap(record => Object.keys(record.incompleteReasons || {})))].sort()
+        .map(reason => [reason, scalarFromRecords("incompleteReasons", reason)])
+    ),
+    incompleteTerminationReasons: Object.fromEntries(
+      [...new Set(records.flatMap(record => Object.keys(record.incompleteTerminationReasons || {})))].sort()
+        .map(reason => [reason, scalarFromRecords("incompleteTerminationReasons", reason)])
+    ),
+    conditionalSurvival: records.length ? scalar("reachedNextFloor") / records.length : null,
     status: records.length ? "observed" : "unobserved",
     entry,
     exit,
@@ -625,20 +637,40 @@ function renderStage15Sections(report) {
     const candidates = STAGE15_FLOORS.map(numberValue => floor(persona, numberValue)).filter(record => record?.entered);
     return candidates.sort((left, right) => (left.conditionalSurvival ?? 1) - (right.conditionalSurvival ?? 1))[0] || null;
   };
+  const reasonSummary = record => Object.entries(record?.incompleteReasons || {})
+    .filter(([, count]) => count > 0)
+    .map(([reason, count]) => `${reason}:${count}`)
+    .join(", ") || "none";
+  const rawReasonSummary = record => Object.entries(record?.incompleteTerminationReasons || {})
+    .filter(([, count]) => count > 0)
+    .map(([reason, count]) => `${reason}:${count}`)
+    .join(", ") || "none";
   const lines = [
     "## Stage 1.5 — shallow MP/combat diagnosis",
     "",
     "Stage 1.5 measures B1–B9 only. It does not alter Mage combat action selection, production balance, or retreat behavior.",
     "Stage 1 interpretation: these are five measurement policies sharing the same basic combat policy; Stage 1 did not implement five fully distinct combat AIs.",
     "B5 checkpoint values below are conditional on reaching B5 (survivor bias). Floor exit is sampled after floor recovery/camp and before the transition recovery; the next floor entry includes transition recovery.",
+    "In Table A, `reached next floor` means the run completed the current floor and actually transitioned to floor+1. `incomplete` means the run ended without death before that transition. Every row satisfies entered = reached next floor + died + incomplete.",
     "",
     "### Table A — Floor survival",
     "",
-    "| persona | floor | entered | survived | died | next-floor survival |",
-    "| --- | ---: | ---: | ---: | ---: | ---: |",
+    "| persona | floor | entered | reached next floor | died | incomplete | next-floor reach |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ...personas.flatMap(persona => STAGE15_FLOORS.map(numberValue => {
       const value = floor(persona, numberValue);
-      return `| ${persona} | B${numberValue} | ${value.entered} | ${value.survived} | ${value.died} | ${percent(value.conditionalSurvival)} |`;
+      return `| ${persona} | B${numberValue} | ${value.entered} | ${value.reachedNextFloor} | ${value.died} | ${value.incomplete} | ${percent(value.conditionalSurvival)} |`;
+    })),
+    "",
+    "### Incomplete termination reasons",
+    "",
+    "Reason categories are measurement-only labels; raw termination reasons are retained for audit. `stairs_not_discovered` is a route-budget stop before stairs became known, while `boss_milestone_progression_failure` covers an unmet mandatory milestone boss.",
+    "",
+    "| persona | floor | incomplete | categorized reasons | raw termination reasons |",
+    "| --- | ---: | ---: | --- | --- |",
+    ...personas.flatMap(persona => STAGE15_FLOORS.slice(0, 5).map(numberValue => {
+      const value = floor(persona, numberValue);
+      return `| ${persona} | B${numberValue} | ${value.incomplete} | ${reasonSummary(value)} | ${rawReasonSummary(value)} |`;
     })),
     "",
     "### Table B — HP/MP progression",
@@ -690,7 +722,7 @@ function renderStage15Sections(report) {
     "",
     "### Stage 1.5 answers",
     "",
-    `1. Population bottleneck: ${personas.map(persona => `${persona}=B${bottleneck(persona)?.floor ?? "n/a"} (${percent(bottleneck(persona)?.conditionalSurvival)})`).join("; ")}.`,
+    `1. Population bottleneck: ${personas.map(persona => { const value = bottleneck(persona); return `${persona}=B${value?.floor ?? "n/a"}->B${(value?.floor || 0) + 1} reach ${percent(value?.conditionalSurvival)} (died=${value?.died ?? "n/a"}, incomplete=${value?.incomplete ?? "n/a"})`; }).join("; ")}. B5→B6 reach 0% is not equivalent to every B5 entrant dying.`,
     `2. MP decline: ${personas.map(persona => { const records = observedFloors(persona); const first = records.find(value => value.exit.mpRatio.mean < value.entry.mpRatio.mean); return `${persona}=${first ? `B${first.floor}` : "not observed"}`; }).join("; ")}.`,
     `3. HP vs MP: B5 entry survivor means are ${personas.map(persona => `${persona} HP ${percent(floor(persona, 5)?.entry.hpRatio.mean)}, MP ${percent(floor(persona, 5)?.entry.mpRatio.mean)}`).join("; ")}; this is conditional on B5 entry.`,
     `4. Main spells: ${personas.map(persona => { const spells = Object.values(diagnostics[persona]?.spellUsage || {}).sort((a, b) => b.castCount - a.castCount); return `${persona}=${spells[0]?.spellId || "none"}`; }).join("; ")}.`,
@@ -700,7 +732,7 @@ function renderStage15Sections(report) {
     `8. Low-MP combats and normal damage: ${personas.some(persona => diagnostics[persona].mpBuckets["0%"]?.meanNormalDamage > diagnostics[persona].mpBuckets["76-100%"]?.meanNormalDamage) ? "higher in at least one persona" : "not uniformly higher"}.`,
     `9. Low-MP combats and pure raw death: ${personas.map(persona => `${persona}=${percent(diagnostics[persona].mpBuckets["0%"]?.pureRawDeathRate)}`).join("; ")}; do not treat this association as causation.`,
     `10. B5 MP and later survival: see Table F; buckets with N<5 are explicitly insufficient.`,
-    "11. B5 HP ~90% is survivor-conditioned and cannot be read as the all-run state; floor entrant/death counts in Table A expose that selection.",
+    "11. B5 HP ~90% is survivor-conditioned and cannot be read as the all-run state; Table A and the termination-reason table show that B5 entrants split into death and incomplete outcomes, rather than all dying.",
     `12. aggressive combat behavior: ${fmt(diagnostics.aggressive?.combat.spellCastsPerEncounter)} casts/encounter vs balanced ${fmt(diagnostics.balanced?.combat.spellCastsPerEncounter)}; the shared selector means aggressive was not independently aggressive.`,
     `13. cautious MP conservation: ${fmt(diagnostics.cautious?.combat.mpSpentPerEncounter)} MP/encounter vs balanced ${fmt(diagnostics.balanced?.combat.mpSpentPerEncounter)}; cautious did not implement combat-level MP conservation.`,
     `14. explorer tradeoff: explorer vs balanced is shown in Tables B/C and Stage 1 exposure; extra exploration should be interpreted as both equipment opportunity and additional exposure, not as a guaranteed benefit.`,

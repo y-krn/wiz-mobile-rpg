@@ -10,14 +10,14 @@ const report = runMeasurement({
   runs: 2,
   personas: Object.keys(PERSONA_POLICIES),
   collectStage15Diagnostics: true,
-  runnerVersion: "issue990-phase3-stage1.5-v1",
-  schemaVersion: 2,
+  runnerVersion: "issue990-phase3-stage1.5-v2",
+  schemaVersion: 3,
   runnerPath: "scratch/measurements/issue990_phase3_stage1_5.js"
 });
 
-assert.equal(report.schemaVersion, 2);
+assert.equal(report.schemaVersion, 3);
 assert.equal(report.measurement.stage, 1.5);
-assert.equal(report.measurement.runnerVersion, "issue990-phase3-stage1.5-v1");
+assert.equal(report.measurement.runnerVersion, "issue990-phase3-stage1.5-v2");
 assert.equal(report.measurement.configuration.startFloor, 1);
 assert.equal(report.measurement.configuration.forcedPush, true);
 assert.equal(report.measurement.configuration.retreatModeled, false);
@@ -36,7 +36,18 @@ for (const persona of Object.keys(PERSONA_POLICIES)) {
   assert.deepEqual(Object.keys(diagnostic.floors).map(Number), floors);
   for (const floor of floors) {
     const value = diagnostic.floors[String(floor)];
-    assert.equal(value.entered, value.survived + value.died + value.incomplete);
+    assert.equal(value.entered, value.reachedNextFloor + value.died + value.incomplete);
+    assert.ok(value.incomplete >= 0);
+    assert.equal(
+      Object.values(value.incompleteReasons).reduce((sum, count) => sum + count, 0),
+      value.incomplete,
+      `${persona} B${floor} incomplete reason totals match incomplete`
+    );
+    assert.equal(
+      Object.values(value.incompleteTerminationReasons).reduce((sum, count) => sum + count, 0),
+      value.incomplete,
+      `${persona} B${floor} raw termination reason totals match incomplete`
+    );
     for (const field of ["mpSpent", "mpRecovered", "damageTaken", "rounds", "enemyActions", "normalHits", "normalDamage"]) {
       assert.ok(value[field] >= 0, `${persona} B${floor} ${field} is non-negative`);
     }
@@ -68,8 +79,8 @@ const repeat = runMeasurement({
   runs: 2,
   personas: Object.keys(PERSONA_POLICIES),
   collectStage15Diagnostics: true,
-  runnerVersion: "issue990-phase3-stage1.5-v1",
-  schemaVersion: 2,
+  runnerVersion: "issue990-phase3-stage1.5-v2",
+  schemaVersion: 3,
   runnerPath: "scratch/measurements/issue990_phase3_stage1_5.js"
 });
 assert.deepEqual(repeat.stage15Diagnostics, report.stage15Diagnostics, "Stage 1.5 diagnostics are deterministic");
