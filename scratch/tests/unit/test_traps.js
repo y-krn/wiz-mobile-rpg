@@ -485,13 +485,86 @@ for (const floor of [1, 10, 30]) {
 }
 console.log("PASS: Trap placement verified.");
 
-// 9. B5F flame trap counterplay
-console.log("\n[9] Verifying flame trap counterplay:");
+// 9. B5F flame trap uses the ordinary floor-trap model without an encounter UI
+console.log("\n[9] Verifying flame trap resolution:");
 const { triggerFlameTrap } = await import("../../../src/movement.js");
 const realFlameRandom = Math.random;
 state.floor = 5;
 state.gameState = "explore";
 state.currentRun = null;
+state.party = [{
+  name: "Robin",
+  class: "Thief",
+  level: 4,
+  hp: 20,
+  maxHp: 20,
+  status: "ok",
+  equipment: {}
+}];
+state.logs = [];
+let flameRolls = [0];
+Math.random = () => flameRolls.shift() ?? 0;
+try {
+  triggerFlameTrap();
+} finally {
+  Math.random = realFlameRandom;
+}
+if (state.party[0].hp !== 20 || !state.logs.some(log => log.includes("身をかわした"))) {
+  console.error("FAIL: the ordinary floor-trap success roll should fully avoid the flame hit.");
+  process.exit(1);
+}
+
+state.party = [{
+  name: "Arthur",
+  class: "Fighter",
+  level: 1,
+  hp: 20,
+  maxHp: 20,
+  status: "ok",
+  equipment: {
+    weapon: {
+      baseId: "SHORT_SWORD",
+      identified: true,
+      affixes: [{ type: "trapBonus", value: 30 }]
+    }
+  }
+}];
+state.logs = [];
+flameRolls = [0.5];
+Math.random = () => flameRolls.shift() ?? 0;
+try {
+  triggerFlameTrap();
+} finally {
+  Math.random = realFlameRandom;
+}
+if (state.party[0].hp !== 20 || !state.logs.some(log => log.includes("身をかわした"))) {
+  console.error("FAIL: equipment trapBonus should raise the flame trap success rate.");
+  process.exit(1);
+}
+
+state.party = [{
+  name: "Robin",
+  class: "Thief",
+  level: 4,
+  hp: 20,
+  maxHp: 20,
+  status: "ok",
+  equipment: {}
+}];
+state.party[0].hp = 20;
+state.logs = [];
+flameRolls = [0.92, 0];
+Math.random = () => flameRolls.shift() ?? 0;
+try {
+  triggerFlameTrap();
+} finally {
+  Math.random = realFlameRandom;
+}
+if (state.party[0].hp !== 12 || !state.logs.some(log => log.includes("部分回避"))) {
+  console.error(`FAIL: partial flame success should use weakened B5 damage (expected 8, got ${20 - state.party[0].hp}).`);
+  process.exit(1);
+}
+
 state.party = [{
   name: "Arthur",
   class: "Fighter",
@@ -502,14 +575,15 @@ state.party = [{
   equipment: {}
 }];
 state.logs = [];
-Math.random = () => 0;
+flameRolls = [0.99, 0];
+Math.random = () => flameRolls.shift() ?? 0;
 try {
   triggerFlameTrap();
 } finally {
   Math.random = realFlameRandom;
 }
-if (state.party[0].hp !== 15) {
-  console.error(`FAIL: Fighter trapGuard should reduce 8 flame damage to 5, got ${20 - state.party[0].hp}.`);
+if (state.party[0].hp !== 10) {
+  console.error(`FAIL: Fighter trapGuard should reduce 16 flame damage to 10, got ${20 - state.party[0].hp}.`);
   process.exit(1);
 }
 if (!state.logs.some(log => log.includes("熱気の気配")) ||
@@ -519,26 +593,19 @@ if (!state.logs.some(log => log.includes("熱気の気配")) ||
 }
 
 state.party[0].hp = 20;
-state.party[0].equipment = {
-  accessory: {
-    baseId: "SHORT_SWORD",
-    identified: true,
-    affixes: [
-      { type: "trapBonus", value: 30 }
-    ]
-  }
-};
+state.party[0].equipment = {};
 state.logs = [];
-Math.random = () => 0;
+flameRolls = [0.34, 0];
+Math.random = () => flameRolls.shift() ?? 0;
 try {
   triggerFlameTrap();
 } finally {
   Math.random = realFlameRandom;
 }
-if (state.party[0].hp !== 20 || !state.logs.some(log => log.includes("身をかわした"))) {
-  console.error("FAIL: trapBonus investment should avoid the flame hit.");
+if (state.party[0].hp !== 15 || !state.logs.some(log => log.includes("部分回避"))) {
+  console.error("FAIL: the partial success band should weaken the flame hit.");
   process.exit(1);
 }
-console.log("- trapGuard reduces flame damage and invested gear can avoid it");
+console.log("- common success, partial, full-failure, and trapGuard paths verified");
 
 console.log("\n=== ALL TRAP TESTS PASSED ===");

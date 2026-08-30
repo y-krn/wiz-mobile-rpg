@@ -1,6 +1,6 @@
 import { state, saveAutosave, addLog, createDefaultCurrentRun, recordCharDeath, formatCharDeathLog, markMapChanged, markMapCellVisited } from "./state.js";
 import { trackRunStart } from "./telemetry.js";
-import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum, getPartyFlameTrapWarningAvoidanceChance } from "./data.js";
+import { DIR_N, START_X, START_Y, DX, DY, MAP_WIDTH, MAP_HEIGHT, EVENT_TYPES, DIR_NAMES, getPartyMaxAffix, getPartyCoreParams, getCoreLogText, getCharMaxHp, getCharAffixSum } from "./data.js";
 import { playSound } from "./audio.js";
 import { dungeonRenderer as renderer } from "./renderer.js";
 import { checkFloorOmenMessage } from "./systems/omens.js";
@@ -21,7 +21,8 @@ import { IDENTIFICATION_BALANCE } from "./rules/identification_rules.js";
 import { getDepartureCraftGrants, getWorkshopGrants } from "./systems/workshop.js";
 import { RUN_QUEST_TEMPLATES } from "./data/run_quests.js";
 import { assignRunQuests, createRunQuest, updateRunQuests } from "./systems/run_quests.js";
-import { applyTrapGuardToEffect, resolveFlameTrapEffect } from "./rules/trap_effect_rules.js";
+import { calculateFloorTrapSuccessRate, resolveTrapAction } from "./rules/trap_rules.js";
+import { applyTrapGuardToEffect, resolveFloorTrapEffect } from "./rules/trap_effect_rules.js";
 import { beginCampEntry, isCampEntryEligible } from "./systems/camp_rest.js";
 import { SILENCE_INCENSE_ENCOUNTER_MULTIPLIER } from "./systems/exploration_items.js";
 import { isMapDirectionBlocked } from "./rules/map_movement.js";
@@ -672,17 +673,42 @@ export function triggerFlameTrap() {
     renderer.triggerFlash(400);
   }
 
-  const warningAvoidanceChance = getPartyFlameTrapWarningAvoidanceChance(state.party);
-  if (warningAvoidanceChance > 0 && Math.random() < warningAvoidanceChance) {
+  const trap = { type: "damage" };
+  const activeCharacter = state.party.find(
+    char => char?.hp > 0 && !["dead", "ash"].includes(char.status)
+  );
+  const successRate = activeCharacter
+    ? calculateFloorTrapSuccessRate({
+      trap,
+      className: activeCharacter.class,
+      level: activeCharacter.level,
+      floor: state.floor,
+      affixBonus: Math.round(getCharAffixSum(activeCharacter, "trapBonus"))
+    })
+    : 0;
+  const resolution = resolveTrapAction({
+    action: "disarm",
+    trap,
+    successRate,
+    rng: Math.random
+  });
+  if (resolution.outcome === "disarmed") {
     addLog("熱気の気配を感じ、とっさに身をかわした！");
     saveAutosave();
     updateUI();
     return;
   }
 
-  addLog("天井から猛烈な火炎ブレスが吹き出した！");
-  const effect = applyTrapGuardToEffect(resolveFlameTrapEffect({
+  if (resolution.partialSuccess) {
+    addLog("【部分回避】火炎の直撃をわずかにかわした！");
+  } else {
+    addLog("天井から猛烈な火炎ブレスが吹き出した！");
+  }
+  const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
+    trap,
+    floor: state.floor,
     party: state.party,
+    weakened: resolution.partialSuccess,
     rng: Math.random
   }), {
     trapGuardByParty: state.party.map(char => getCharAffixSum(char, "trapGuard"))
