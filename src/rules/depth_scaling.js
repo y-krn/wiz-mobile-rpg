@@ -20,7 +20,8 @@ export function scaleEnemyForDepth(monster, floor, { boss = false } = {}) {
       ? scaling.enemy
       : deepBandCap + (scaling.enemy - deepBandCap) * 0.5
   ) * bossMultiplier;
-  const attackMultiplier = 1 + (scaling.enemy - 1) * 0.58 + (boss ? 0.08 : 0);
+  const attackGrowth = scaling.floor <= 10 ? 0.58 : 0.25;
+  const attackMultiplier = 1 + (scaling.enemy - 1) * attackGrowth + (boss ? 0.08 : 0);
   const defenseMultiplier = 1 + (scaling.enemy - 1) * 0.34;
   const rewardMultiplier = scaling.reward * (boss ? 1.2 : 1);
   const hp = Math.max(1, Math.round(monster.hp * hpMultiplier));
