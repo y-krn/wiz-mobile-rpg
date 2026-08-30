@@ -253,7 +253,7 @@ function applyEncounterCounterfactual(monsters, counterfactual) {
 
 export function createGeneratedEncounterFixture(monsters, depth, counterfactual = null, encounterId = "production-generated") {
   if (!Array.isArray(monsters) || monsters.length === 0) throw new Error("generated encounter must contain monsters");
-  if (!TARGET_DEPTHS.includes(depth)) throw new Error(`unsupported depth: ${depth}`);
+  if (!Number.isInteger(depth) || depth < 1 || depth > 30) throw new Error(`unsupported depth: ${depth}`);
   const cloned = applyEncounterCounterfactual(structuredClone(monsters), counterfactual);
   return {
     id: encounterId,
@@ -278,8 +278,13 @@ function createTelemetry() {
   };
 }
 
-function createSimulationState(buildId, depth, monsters, seed, counterfactual = null) {
-  const character = createBuildCharacter(buildId);
+function createSimulationState(buildId, depth, monsters, seed, counterfactual = null, {
+  initialCharacter = null,
+  isBoss = false,
+  isMidboss = false,
+  isRoamingFlack = false
+} = {}) {
+  const character = initialCharacter ? structuredClone(initialCharacter) : createBuildCharacter(buildId);
   const currentRun = createDefaultCurrentRun();
   currentRun.runSeed = seed;
   currentRun.startFloor = depth;
@@ -319,9 +324,9 @@ function createSimulationState(buildId, depth, monsters, seed, counterfactual = 
     combatFormulaTelemetry: createTelemetry(),
     combatState: {
       monsters,
-      isBoss: false,
-      isMidboss: false,
-      isRoamingFlack: false,
+      isBoss,
+      isMidboss,
+      isRoamingFlack,
       roundNumber: 1,
       phase: "choose_actions",
       loggedCoreActivations: []
@@ -789,12 +794,28 @@ function classifyFailure({
   };
 }
 
-export function runEncounterSample({ buildId, encounterId, depth, seed, counterfactual = null, generatedMonsters = null }) {
+export function runEncounterSample({
+  buildId,
+  encounterId,
+  depth,
+  seed,
+  counterfactual = null,
+  generatedMonsters = null,
+  initialCharacter = null,
+  isBoss = false,
+  isMidboss = false,
+  isRoamingFlack = false
+}) {
   return withSeed(seed, () => {
     const fixture = generatedMonsters
       ? createGeneratedEncounterFixture(generatedMonsters, depth, counterfactual, encounterId)
       : createEncounterFixture(encounterId, depth, counterfactual);
-    const state = createSimulationState(buildId, depth, fixture.monsters, seed, counterfactual);
+    const state = createSimulationState(buildId, depth, fixture.monsters, seed, counterfactual, {
+      initialCharacter,
+      isBoss,
+      isMidboss,
+      isRoamingFlack
+    });
     const mechanisms = createMechanismCounts();
     const statusTrajectory = createStatusTrajectory();
     let rounds = 0;
@@ -932,6 +953,7 @@ export function runEncounterSample({ buildId, encounterId, depth, seed, counterf
       statusTrajectory,
       mpStarvationRounds,
       seed,
+      postCombatCharacter: structuredClone(character),
       fixture: {
         encounterId,
         depth,
