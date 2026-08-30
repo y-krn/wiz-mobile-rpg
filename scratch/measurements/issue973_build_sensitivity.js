@@ -797,6 +797,7 @@ function createCaseAggregate(buildId, encounterId, depth) {
     causalCategoryCounts: {},
     legacyRawDamageDeaths: 0,
     legacyRawCausalCategoryCounts: {},
+    legacyRawContributingCauseCounts: {},
     fallbackActionCount: 0,
     spellCastOpportunityLossCount: 0,
     mechanicToDeathRounds: [],
@@ -842,6 +843,7 @@ function addSample(aggregate, sample, keepSamples) {
     if (sample.failure.legacyPrimary === "raw_damage_pressure") {
       aggregate.legacyRawDamageDeaths++;
       increment(aggregate.legacyRawCausalCategoryCounts, sample.failure.causalCategory || "unknown_or_mixed");
+      sample.failure.contributingCauses.forEach(cause => increment(aggregate.legacyRawContributingCauseCounts, cause));
     }
     aggregate.mechanicToDeathRounds.push(...sample.failure.mechanismToDeath.map(event => event.roundsToDeath));
   }
@@ -874,7 +876,8 @@ function finalizeCase(aggregate) {
   const unknownDeaths = aggregate.causalCategoryCounts.unknown_or_mixed || 0;
   const legacyRawPureDeaths = aggregate.legacyRawCausalCategoryCounts.pure_raw_damage || 0;
   const legacyRawMechanicDeaths = aggregate.legacyRawCausalCategoryCounts.mechanic_mediated_raw_damage || 0;
-  const legacyRawUnknownDeaths = Math.max(0, aggregate.legacyRawDamageDeaths - legacyRawPureDeaths - legacyRawMechanicDeaths);
+  const legacyRawUnknownDeaths = aggregate.legacyRawCausalCategoryCounts.unknown_or_mixed || 0;
+  const legacyRawOtherDeaths = Math.max(0, aggregate.legacyRawDamageDeaths - legacyRawPureDeaths - legacyRawMechanicDeaths - legacyRawUnknownDeaths);
   const sortedLatency = [...aggregate.mechanicToDeathRounds].sort((left, right) => left - right);
   const latencyPercentile = probability => sortedLatency.length === 0
     ? null
@@ -940,12 +943,15 @@ function finalizeCase(aggregate) {
       spellCastOpportunityLossCount: aggregate.spellCastOpportunityLossCount,
       legacyRawDamageDeaths: aggregate.legacyRawDamageDeaths,
       legacyRawCausalCategoryCounts: aggregate.legacyRawCausalCategoryCounts,
+      legacyRawContributingCauseCounts: aggregate.legacyRawContributingCauseCounts,
       legacyRawPureDamageDeaths: legacyRawPureDeaths,
       legacyRawMechanicMediatedRawDamageDeaths: legacyRawMechanicDeaths,
       legacyRawUnknownDeaths,
+      legacyRawOtherDeaths,
       legacyRawPureShare: legacyRawPureDeaths / Math.max(1, aggregate.legacyRawDamageDeaths),
       legacyRawMechanicMediatedShare: legacyRawMechanicDeaths / Math.max(1, aggregate.legacyRawDamageDeaths),
-      legacyRawUnknownShare: legacyRawUnknownDeaths / Math.max(1, aggregate.legacyRawDamageDeaths)
+      legacyRawUnknownShare: legacyRawUnknownDeaths / Math.max(1, aggregate.legacyRawDamageDeaths),
+      legacyRawOtherShare: legacyRawOtherDeaths / Math.max(1, aggregate.legacyRawDamageDeaths)
     },
     resourceSignature: {
       hpConsumedRatio: 1 - aggregate.sumHpRatio / runs,
@@ -1257,6 +1263,7 @@ function buildCausalSummary(cases) {
     contributingCauses: {},
     causalCategories: {},
     legacyRawCausalCategories: {},
+    legacyRawContributingCauses: {},
     mechanicToDeathRounds: []
   };
   cases.forEach(testCase => {
@@ -1270,6 +1277,7 @@ function buildCausalSummary(cases) {
     Object.entries(testCase.causalAttribution.contributingCauseCounts).forEach(([key, value]) => increment(totals.contributingCauses, key, value));
     Object.entries(testCase.causalAttribution.causalCategoryCounts).forEach(([key, value]) => increment(totals.causalCategories, key, value));
     Object.entries(testCase.causalAttribution.legacyRawCausalCategoryCounts).forEach(([key, value]) => increment(totals.legacyRawCausalCategories, key, value));
+    Object.entries(testCase.causalAttribution.legacyRawContributingCauseCounts).forEach(([key, value]) => increment(totals.legacyRawContributingCauses, key, value));
     totals.mechanicToDeathRounds.push(...(testCase.traces || []).flatMap(run =>
       run.failure?.mechanismToDeath?.map(event => event.roundsToDeath) || []
     ));
@@ -1541,11 +1549,11 @@ function renderSummary(report) {
     "",
     "| Depth | Encounter | Build | Clear / death | Pure raw | Mechanic raw | Unknown | Fallback | Mech→death mean |",
     "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...report.cases.map(testCase => `| B${testCase.depth} | ${testCase.encounterId} | ${testCase.buildId} | ${testCase.outcomes.clear} / ${testCase.outcomes.death} | ${testCase.causalAttribution.pureRawDamageDeaths} | ${testCase.causalAttribution.mechanicMediatedRawDamageDeaths} | ${testCase.causalAttribution.unknownDeaths} | ${testCase.causalAttribution.fallbackActionCount} | ${testCase.causalAttribution.mechanicToDeathRounds.mean === null ? "n/a" : testCase.causalAttribution.mechanicToDeathRounds.mean.toFixed(2)} |`),
+    ...report.cases.map(testCase => `| B${testCase.depth} | ${testCase.encounterId} | ${testCase.buildId} | ${testCase.outcomes.clear} / ${testCase.outcomes.death} | ${testCase.causalAttribution.legacyRawPureDamageDeaths} | ${testCase.causalAttribution.legacyRawMechanicMediatedRawDamageDeaths} | ${testCase.causalAttribution.legacyRawUnknownDeaths} | ${testCase.causalAttribution.fallbackActionCount} | ${testCase.causalAttribution.mechanicToDeathRounds.mean === null ? "n/a" : testCase.causalAttribution.mechanicToDeathRounds.mean.toFixed(2)} |`),
     "",
     "Direct cause is the lethal damage event. Contributing cause is assigned only when the trace contains state-degradation evidence before that event; `unknown_or_mixed` is retained for multiple or insufficient explanations. Each raw JSON trace retains round, HP/MP, player action, enemy action, status transitions, silence, MP drain, reflect, anti-heal, regen, summon, guard, multi-action, spell opportunity loss, physical fallback, damage source, and lethal event data.",
     "",
-    `Largest contributing cause counts: ${Object.entries(causal.contributingCauses).sort(([, left], [, right]) => right - left).slice(0, 3).map(([key, value]) => `${key}=${value}`).join(", ") || "none"}.`,
+    `Largest contributing cause counts among former raw deaths: ${Object.entries(causal.legacyRawContributingCauses).sort(([, left], [, right]) => right - left).slice(0, 3).map(([key, value]) => `${key}=${value}`).join(", ") || "none"}.`,
     `Auto action review: ${report.autoActionReview.policy}; representative death traces are included in JSON.`,
     `Fixture review: ${report.fixtureValidation.interpretation}`,
     "",
