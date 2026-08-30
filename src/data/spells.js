@@ -161,6 +161,7 @@ export const SPELLS = {
     level: 4,
     cost: 3,
     target: "all_allies",
+    combatOnly: true,
     desc: "魔力障壁 (3ターン、自身の呪文・ブレス被ダメージを30%軽減)"
   },
   MONTINO: {

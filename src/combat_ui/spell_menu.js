@@ -1,7 +1,7 @@
 import { state } from "../state.js";
 import { menuContext, openSubmenu } from "../navigation.js";
 import { bindCombatCallback, combatCallbacks } from "./combat_state.js";
-import { getLivingAllyTargetIndices, getSpellAllyTargetIndices } from "../rules/spell_targeting.js";
+import { getLivingAllyTargetIndices, getSpellAllyTargetIndices, isSpellAvailableInContext } from "../rules/spell_targeting.js";
 
 export { getSpellCombatSummary } from "./spell_summary.js";
 
@@ -23,8 +23,8 @@ export function openCombatSpellMenu(char, callback) {
 }
 
 export function isSpellTargetAvailable(spell, spellKey, party = state.party) {
-  // 1. 移動用（utility）呪文は戦闘中効果なしのため使用不可（戦闘不可）
-  if (spell.target === "utility") return false;
+  // 1. Use the shared target/context rule so combat and exploration do not diverge.
+  if (!isSpellAvailableInContext(spell, "combat")) return false;
 
   // 2. 敵対象呪文：生存している敵がいるか
   if (spell.target === "single_enemy" || spell.target === "all_enemies") {

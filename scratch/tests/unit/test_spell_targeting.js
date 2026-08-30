@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
+import { SPELLS } from "../../../src/data/spells.js";
 import {
+  COMBAT_SPELL_TARGETS,
   CURE_SPELL_KEYS,
+  EXPLORATION_SPELL_TARGETS,
   HEAL_SPELL_KEYS,
   getItemAllyTargetIndices,
   getLivingAllyTargetIndices,
   getSpellAllyTargetIndices,
-  getSpellAllyTargetStatus
+  getSpellAllyTargetStatus,
+  isSpellAvailableInContext
 } from "../../../src/rules/spell_targeting.js";
 
 const failures = [];
@@ -60,6 +64,17 @@ check("item and all-allies candidates preserve their existing definitions", () =
 check("category lists are derived from the shared spell key registry", () => {
   assert.deepEqual(HEAL_SPELL_KEYS, ["DIOS", "MADIOS", "DIALMA", "MADI", "DIURCO", "DIALKO", "LATUMOFIS"]);
   assert.deepEqual(CURE_SPELL_KEYS, ["DIURCO", "DIALKO", "LATUMOFIS"]);
+});
+
+check("spell target availability is shared between combat and exploration", () => {
+  assert.deepEqual(EXPLORATION_SPELL_TARGETS, ["utility", "single_ally", "all_allies"]);
+  assert.deepEqual(COMBAT_SPELL_TARGETS, ["single_enemy", "all_enemies", "single_ally", "all_allies"]);
+  assert.equal(isSpellAvailableInContext(SPELLS.DUMAPIC, "exploration"), true);
+  assert.equal(isSpellAvailableInContext(SPELLS.DUMAPIC, "combat"), false);
+  assert.equal(isSpellAvailableInContext(SPELLS.MABARRIER, "exploration"), false);
+  assert.equal(isSpellAvailableInContext(SPELLS.MABARRIER, "combat"), true);
+  assert.equal(isSpellAvailableInContext(SPELLS.DIOS, "exploration"), true);
+  assert.equal(isSpellAvailableInContext(SPELLS.HALITO, "exploration"), false);
 });
 
 if (failures.length > 0) {
