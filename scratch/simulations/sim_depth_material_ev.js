@@ -178,7 +178,6 @@ const {
   calculateFloorTrapExpectedDamage,
   hasTrapScout,
   resolveChestTrapEffect,
-  resolveFlameTrapEffect,
   resolveFloorTrapEffect
 } = await import("../../src/rules/trap_effect_rules.js");
 const {
@@ -230,7 +229,6 @@ const {
   getCharPie,
   getCharStr,
   getCharTrapBonus,
-  getPartyFlameTrapWarningAvoidanceChance,
   calculatePhysicalAttackFormula,
   getCharTrapEaterBonus,
   getTrapEaterBonusAfterDisarm,
@@ -1007,9 +1005,7 @@ if (!Number.isFinite(EXPLORATION_FACTOR) || EXPLORATION_FACTOR <= 0) {
 const FLAME_TRAP_MODEL = Object.freeze({
   floor: 5,
   chance: 0.05,
-  cooldownTurns: 5,
-  minDamage: 8,
-  damageRolls: 9
+  cooldownTurns: 5
 });
 // 仮値・感度分析対象: 探索係数1.4に対応し、配置宝箱の70%を拾えると置く。
 const CHEST_PICKUP_RATE = 0.7;
@@ -2007,7 +2003,7 @@ function createFlameTrapAggregate() {
     damageHp: 0,
     deaths: 0,
     eligibleSteps: 0,
-    warningAvoided: 0
+    disarmed: 0
   };
 }
 
@@ -2017,7 +2013,7 @@ function addFlameTrapAggregate(target, result) {
   target.damageHp += result.flameTrapDamageHp;
   target.deaths += result.flameTrapDeaths;
   target.eligibleSteps += result.flameTrapEligibleSteps;
-  target.warningAvoided += result.flameTrapWarningAvoided;
+  target.disarmed += result.flameTrapDisarmed;
 }
 
 function finalizeFlameTrapAggregate(aggregate) {
@@ -2028,7 +2024,7 @@ function finalizeFlameTrapAggregate(aggregate) {
     averageFlameTrapDamageHp: aggregate.damageHp / runs,
     averageFlameTrapDeaths: aggregate.deaths / runs,
     averageFlameTrapEligibleSteps: aggregate.eligibleSteps / runs,
-    averageFlameTrapWarningAvoided: aggregate.warningAvoided / runs
+    averageFlameTrapDisarmed: aggregate.disarmed / runs
   };
 }
 
@@ -2391,7 +2387,7 @@ function createB5GateAggregate() {
     retreats: 0,
     activations: 0,
     damageHp: 0,
-    warningAvoided: 0,
+    disarmed: 0,
     eligibleSteps: 0,
     entrantHp: [],
     entrantHpRate: [],
@@ -2412,7 +2408,7 @@ function addB5GateAggregate(target, result) {
   target.entrants++;
   target.activations += result.flameTrapActivations;
   target.damageHp += result.flameTrapDamageHp;
-  target.warningAvoided += result.flameTrapWarningAvoided;
+  target.disarmed += result.flameTrapDisarmed;
   target.eligibleSteps += result.flameTrapEligibleSteps;
   target.entrantHp.push(result.b5EntrantHp);
   target.entrantHpRate.push(result.b5EntrantHpRate);
@@ -2457,7 +2453,7 @@ function finalizeB5GateAggregate(aggregate) {
     retreatRate: aggregate.retreats / entrants,
     averageFlameTrapActivations: aggregate.activations / entrants,
     averageFlameTrapDamageHp: aggregate.damageHp / entrants,
-    averageFlameTrapWarningAvoided: aggregate.warningAvoided / entrants,
+    averageFlameTrapDisarmed: aggregate.disarmed / entrants,
     averageFlameTrapEligibleSteps: aggregate.eligibleSteps / entrants,
     averageFlameTrapEligibleStepsAllRuns: aggregate.eligibleSteps / runs,
     entrantHp: summarizeDistribution(aggregate.entrantHp),
@@ -9569,14 +9565,35 @@ function resolveFlameTrapAtStep({
   metrics.flameTrapActivations++;
   metrics.b5FlameActivationSteps.push(step);
   recordB5HpSnapshot(state, metrics, step);
-  const warningAvoidanceChance = getPartyFlameTrapWarningAvoidanceChance(state.party);
-  if (warningAvoidanceChance > 0 && Math.random() < warningAvoidanceChance) {
-    metrics.flameTrapWarningAvoided++;
+  const trap = { type: "damage" };
+  const trapParty = getSimulationTrapParty(state);
+  const activeCharacter = trapParty.find(character => isAlive(character));
+  const successRate = activeCharacter
+    ? calculateSimulationFloorTrapSuccessRate({
+      state,
+      trap,
+      className: activeCharacter.class,
+      level: activeCharacter.level,
+      floor: state.floor,
+      affixBonus: Math.round(getSimulationTrapBonus(activeCharacter, state) * 100)
+    })
+    : 0;
+  const resolution = resolveTrapAction({
+    action: "disarm",
+    trap,
+    successRate,
+    rng: Math.random
+  });
+  if (resolution.outcome === "disarmed") {
+    metrics.flameTrapDisarmed++;
     recordB5HpSnapshot(state, metrics, step);
     return true;
   }
-  const effect = applyTrapGuardToEffect(resolveFlameTrapEffect({
-    party: state.party,
+  const effect = applyTrapGuardToEffect(resolveFloorTrapEffect({
+    trap,
+    floor: state.floor,
+    party: trapParty,
+    weakened: resolution.partialSuccess,
     rng: Math.random
   }), { trapGuardByParty: getSimulationTrapGuardByParty(state) });
   effect.partyDamage.forEach((damage, index) => {
@@ -11455,7 +11472,7 @@ function finishRun(state, outcome, metrics, terminationReason = null) {
     flameTrapDamageHp: metrics.flameTrapDamageHp,
     flameTrapDeaths: metrics.flameTrapDeaths,
     flameTrapEligibleSteps: metrics.flameTrapEligibleSteps,
-    flameTrapWarningAvoided: metrics.flameTrapWarningAvoided,
+    flameTrapDisarmed: metrics.flameTrapDisarmed,
     trapEncounterCount: metrics.trapEncounterCount,
     trapEncounterBySource: { ...metrics.trapEncounterBySource },
     chestsOpened: metrics.chestsOpened,
@@ -11947,7 +11964,7 @@ export function simulateRun({
     flameTrapDamageHp: 0,
     flameTrapDeaths: 0,
     flameTrapEligibleSteps: 0,
-    flameTrapWarningAvoided: 0,
+    flameTrapDisarmed: 0,
     b5FloorActive: false,
     b5EntrantHp: null,
     b5EntrantMaxHp: null,
@@ -14541,7 +14558,7 @@ function printB5GateDiagnostics(result) {
   if (!result?.b5GateByClass) return;
   console.log(`\n【${result.label} B5F 火炎診断（同一 B20 撤退条件）】`);
   console.log(
-    "職業 | N | entrant | 試行歩/run(全) | 試行歩/entrant | 発動/entrant | 予告回避/entrant | 被害HP/entrant | B5突破 | B5死亡 | B5撤退"
+    "職業 | N | entrant | 試行歩/run(全) | 試行歩/entrant | 発動/entrant | 完全回避/entrant | 被害HP/entrant | B5突破 | B5死亡 | B5撤退"
   );
   Object.entries(result.b5GateByClass).forEach(([className, stats]) => {
     console.log(
@@ -14550,7 +14567,7 @@ function printB5GateDiagnostics(result) {
       `${stats.averageFlameTrapEligibleStepsAllRuns.toFixed(2).padStart(13)} | ` +
       `${stats.averageFlameTrapEligibleSteps.toFixed(2).padStart(14)} | ` +
       `${stats.averageFlameTrapActivations.toFixed(2).padStart(12)} | ` +
-      `${stats.averageFlameTrapWarningAvoided.toFixed(2).padStart(15)} | ` +
+      `${stats.averageFlameTrapDisarmed.toFixed(2).padStart(15)} | ` +
       `${stats.averageFlameTrapDamageHp.toFixed(2).padStart(14)} | ` +
       `${formatWilson(stats.breakthroughRuns, stats.entrants)} | ` +
       `${formatWilson(stats.deathRuns, stats.entrants)} | ` +
@@ -14618,12 +14635,12 @@ function printTrapMetrics(result) {
       `${kitsConsumed.departureCraft.toFixed(2).padStart(8)}`
     );
   });
-  console.log("火炎の罠（B5Fのみ・既存罠経路外） | 発動/run | 予告回避/run | 被害HP/run | 死亡者/run | 試行対象歩/run");
+  console.log("火炎の罠（B5Fのみ・既存罠経路外） | 発動/run | 完全回避/run | 被害HP/run | 死亡者/run | 試行対象歩/run");
   Object.entries(result.flameTrapByClass || {}).forEach(([className, metrics]) => {
     console.log(
       `${className.padEnd(30)} | ` +
       `${metrics.averageFlameTrapActivations.toFixed(2).padStart(8)} | ` +
-      `${metrics.averageFlameTrapWarningAvoided.toFixed(2).padStart(11)} | ` +
+      `${metrics.averageFlameTrapDisarmed.toFixed(2).padStart(11)} | ` +
       `${metrics.averageFlameTrapDamageHp.toFixed(2).padStart(9)} | ` +
       `${metrics.averageFlameTrapDeaths.toFixed(2).padStart(10)} | ` +
       `${metrics.averageFlameTrapEligibleSteps.toFixed(2).padStart(11)}`
@@ -15612,8 +15629,9 @@ const ENV_SIGNATURE = {
     floor: FLAME_TRAP_MODEL.floor,
     chance: FLAME_TRAP_MODEL.chance,
     cooldownTurns: FLAME_TRAP_MODEL.cooldownTurns,
-    minDamage: FLAME_TRAP_MODEL.minDamage,
-    maxDamage: FLAME_TRAP_MODEL.minDamage + FLAME_TRAP_MODEL.damageRolls - 1
+    damageMin: 6 + FLAME_TRAP_MODEL.floor * 2,
+    damageMax: 12 + FLAME_TRAP_MODEL.floor * 4,
+    resolution: "floor-trap-damage"
   },
   chestPickupRate: CHEST_PICKUP_RATE,
   combatTurnWeight: COMBAT_TURN_WEIGHT,
@@ -16146,7 +16164,7 @@ reportMechanismFiring({
   "罠-発動(被弾)": sumAcrossResults("averageTrapActivations"),
   "罠-被害HP": sumAcrossResults("averageTrapDamageHp"),
   "火炎の罠-発動": sumAcrossResults("averageFlameTrapActivations"),
-  "火炎の罠-予告回避": sumAcrossResults("averageFlameTrapWarningAvoided"),
+  "火炎の罠-完全回避": sumAcrossResults("averageFlameTrapDisarmed"),
   "消耗品-傷薬使用": sumAcrossResults("averageHealPotionsUsed"),
   "野営-休息": sumAcrossResults("averageCampRestCount"),
   "帰還の翼-使用": sumAcrossResults("averageTownPortalsUsed"),
