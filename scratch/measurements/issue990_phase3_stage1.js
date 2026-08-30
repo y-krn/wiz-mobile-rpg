@@ -737,7 +737,9 @@ export function renderSummary(report) {
   const b5ToB10 = report.conditionalSurvival[deepestPersona]?.["B5->B10"];
   const rawShares = personas.map(persona => summaries[persona].deathCategories.pure_raw_damage.rate).filter(Number.isFinite);
   const lines = [
-    "# Issue #990 Phase 3 Stage 1 — virtual player population",
+    report.stage15Diagnostics
+      ? "# Issue #990 Phase 3 Stage 1.5 — shallow MP/combat diagnosis"
+      : "# Issue #990 Phase 3 Stage 1 — virtual player population",
     "",
     `- runner: \`${report.measurement.runnerVersion}\` / schema \`${report.schemaVersion}\``,
     `- seed: \`${report.measurement.configuration.seed}\`; N: **${report.measurement.configuration.runs} / persona**`,
@@ -745,6 +747,8 @@ export function renderSummary(report) {
     "",
     "These personas are measurement policies, not claims about real player behavior. They measure sensitivity to simple, explainable play priorities.",
     "Stage 1 interpretation: persona differences are concentrated in exploration, equipment evaluation, and recovery thresholds. The basic Mage combat action selector is shared; this is not evidence from five fully distinct combat AIs.",
+    "Review response: Stage 1 changed exploration route budget, equipment weights, and HP/MP recovery thresholds. Combat action selection, spell targeting, enemy targeting, HP/MP payment rules, potion effects, and retreat behavior remained common across personas.",
+    "Current Mage combat policy: the production-backed simulation selector prefers KATINO on round 1 for multi-enemy encounters, otherwise the legacy Mage path prefers HALITO while payment is available, and falls back to a normal attack when it cannot pay. This Stage 1.5 run observes that policy; it does not make aggressive or cautious combat-specific.",
     "",
     "## Table 1 — Reach",
     "",
