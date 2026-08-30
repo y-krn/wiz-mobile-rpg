@@ -1,7 +1,7 @@
 # Issue #990 Phase 2 — partial-information progression
 
-- runner: `issue990-partial-information-progression-v1` / schema `1`
-- source commit: `e79a8f8b1379b0e4be0820aaec5af0992c6eb8ec`
+- runner: `issue990-partial-information-progression-v2` / schema `2`
+- source commit: `eac0ef257f21be3797b8bbac1399673fe3080750`
 - main baseline SHA: `f235c6c6405da6b3f09a1dc01f1451173b8165e4`
 - seed: `issue990-phase2-2026-08-30`; N: **500 / build / arm**
 - mode: production-backed, deterministic, partial-information, forced-push, simplified equipment policy
@@ -12,44 +12,44 @@
 
 | build | arm | B5 | B10 | B15 | B20 | B21 | B25 | B30 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| aoe-burst | oracle-fixed | 45.20% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
-| single-efficient | oracle-fixed | 61.20% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
-| sustain | oracle-fixed | 82.80% | 0.60% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
-| hybrid-fallback | oracle-fixed | 67.80% | 1.80% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
-| aoe-burst | partial-info-fixed | 5.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
-| single-efficient | partial-info-fixed | 13.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
-| sustain | partial-info-fixed | 21.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
-| hybrid-fallback | partial-info-fixed | 78.00% | 0.60% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
-| aoe-burst | partial-info-equipment-update | 22.40% | 1.60% | 0.20% | 0.00% | 0.00% | 0.00% | 0.00% |
-| single-efficient | partial-info-equipment-update | 34.20% | 2.60% | 0.20% | 0.00% | 0.00% | 0.00% | 0.00% |
-| sustain | partial-info-equipment-update | 43.20% | 5.00% | 0.60% | 0.00% | 0.00% | 0.00% | 0.00% |
-| hybrid-fallback | partial-info-equipment-update | 54.20% | 4.80% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| aoe-burst | oracle-fixed | 51.80% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| single-efficient | oracle-fixed | 65.80% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| sustain | oracle-fixed | 97.60% | 1.60% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| hybrid-fallback | oracle-fixed | 68.80% | 2.40% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| aoe-burst | partial-info-fixed | 7.40% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| single-efficient | partial-info-fixed | 19.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| sustain | partial-info-fixed | 26.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| hybrid-fallback | partial-info-fixed | 81.80% | 0.80% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| aoe-burst | partial-info-equipment-update | 28.40% | 2.40% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| single-efficient | partial-info-equipment-update | 36.00% | 2.40% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| sustain | partial-info-equipment-update | 51.00% | 3.40% | 0.40% | 0.00% | 0.00% | 0.00% | 0.00% |
+| hybrid-fallback | partial-info-equipment-update | 56.40% | 2.60% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
 
 ## 探索負荷・oracle差
 
-| build | oracle steps/floor | partial steps/floor | extra encounters | partial explored ratio | search actions |
+| build | oracle steps/floor | partial steps/floor | extra encounters/floor | partial explored ratio | search actions |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| aoe-burst | 100.87 | 109.52 | 8.57 | 35.02% | 6.39 |
-| single-efficient | 110.07 | 114.41 | 9.95 | 36.59% | 7.43 |
-| sustain | 125.02 | 121.55 | 10.23 | 37.97% | 8.79 |
-| hybrid-fallback | 116.24 | 138.39 | 26.10 | 45.02% | 13.39 |
+| aoe-burst | 103.05 | 110.47 | 4.36 | 35.47% | 0.00 |
+| single-efficient | 111.92 | 116.04 | 4.45 | 37.39% | 0.00 |
+| sustain | 141.55 | 125.44 | 4.45 | 38.88% | 0.00 |
+| hybrid-fallback | 116.76 | 137.92 | 5.29 | 44.97% | 0.00 |
 
 ## 死因・通常攻撃曝露
 
 | arm | build | pure raw | mechanic-mediated | direct mechanic | unknown/mixed | normal hit | hits | total normal damage | enemy actions | rounds |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| oracle-fixed | aoe-burst | 209 | 147 | 112 | 32 | 2.09 | 24.86 | 44.85 | 42.60 | 25.35 |
-| oracle-fixed | single-efficient | 172 | 180 | 103 | 45 | 2.36 | 26.02 | 55.69 | 46.86 | 28.52 |
-| oracle-fixed | sustain | 167 | 230 | 68 | 35 | 2.93 | 39.19 | 107.84 | 68.32 | 42.22 |
-| oracle-fixed | hybrid-fallback | 357 | 0 | 106 | 37 | 2.17 | 26.68 | 58.80 | 51.74 | 32.27 |
-| partial-info-fixed | aoe-burst | 267 | 161 | 68 | 4 | 1.89 | 39.33 | 64.41 | 69.26 | 42.67 |
-| partial-info-fixed | single-efficient | 231 | 190 | 68 | 11 | 2.08 | 45.92 | 86.90 | 81.66 | 50.18 |
-| partial-info-fixed | sustain | 318 | 85 | 73 | 24 | 2.25 | 60.62 | 130.83 | 104.36 | 63.38 |
-| partial-info-fixed | hybrid-fallback | 389 | 0 | 48 | 63 | 1.88 | 69.45 | 129.43 | 147.63 | 89.04 |
-| partial-info-equipment-update | aoe-burst | 269 | 126 | 88 | 15 | 1.89 | 64.26 | 107.38 | 108.87 | 68.71 |
-| partial-info-equipment-update | single-efficient | 266 | 118 | 90 | 26 | 1.92 | 78.14 | 131.34 | 129.07 | 81.70 |
-| partial-info-equipment-update | sustain | 296 | 88 | 74 | 40 | 1.90 | 108.50 | 196.77 | 170.75 | 107.21 |
-| partial-info-equipment-update | hybrid-fallback | 291 | 97 | 59 | 52 | 1.76 | 89.15 | 152.85 | 159.40 | 100.38 |
+| oracle-fixed | aoe-burst | 212 | 17 | 182 | 89 | 2.13 | 24.59 | 45.86 | 44.17 | 26.45 |
+| oracle-fixed | single-efficient | 201 | 26 | 164 | 109 | 2.40 | 26.27 | 57.70 | 48.52 | 29.62 |
+| oracle-fixed | sustain | 168 | 43 | 86 | 201 | 2.99 | 45.31 | 129.15 | 80.64 | 50.34 |
+| oracle-fixed | hybrid-fallback | 331 | 9 | 160 | 0 | 2.19 | 26.54 | 59.15 | 51.97 | 32.44 |
+| partial-info-fixed | aoe-burst | 277 | 0 | 79 | 144 | 1.89 | 41.83 | 67.42 | 74.42 | 45.53 |
+| partial-info-fixed | single-efficient | 251 | 0 | 79 | 170 | 2.10 | 49.20 | 93.52 | 88.95 | 54.33 |
+| partial-info-fixed | sustain | 321 | 3 | 87 | 89 | 2.20 | 63.02 | 136.03 | 110.30 | 66.73 |
+| partial-info-fixed | hybrid-fallback | 356 | 5 | 138 | 0 | 1.87 | 69.13 | 129.06 | 147.21 | 88.82 |
+| partial-info-equipment-update | aoe-burst | 285 | 10 | 110 | 92 | 1.93 | 69.70 | 116.32 | 118.51 | 74.39 |
+| partial-info-equipment-update | single-efficient | 282 | 9 | 118 | 90 | 1.95 | 78.04 | 135.05 | 130.63 | 82.55 |
+| partial-info-equipment-update | sustain | 271 | 10 | 129 | 88 | 1.83 | 102.83 | 186.67 | 167.52 | 104.76 |
+| partial-info-equipment-update | hybrid-fallback | 280 | 19 | 136 | 61 | 1.77 | 83.54 | 146.54 | 152.36 | 95.51 |
 
 ## 装備更新
 
@@ -57,48 +57,59 @@ P0 は固定装備、P1 は production drop を見た直後にだけ determinist
 
 | build | drops seen | equipped | rejected | score before | score after | build score Δ | core changes | support changes |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
-| aoe-burst | 10116 | 1137 | 8979 | 52.75 | 67.49 | 10.74 | CORE_KEEN_EYE, CORE_SNEAK_STEP, CORE_CURSE_KEEPER, CORE_PURIFY_RING, CORE_CAMP_MASTER, CORE_EXECUTIONER, CORE_LAST_STAND, CORE_BOUNTY_HUNTER, CORE_PHYSICAL_ACCURACY | int, spellPower, arcane, str, followUpMp, vit, def, pie, atk, stairsHeal, trapBonus, identifyDiscount, contractReward, agi, traceRead, firstTurnAttack, luk, antiDemon, arcaneSense, antiDragon, hitFlinch, hearRange, rearEvasion, mp, antiSpirit, materialFind, hp, frontGuard, fullHpDamage, deepAssault, antiBeast, poisonWard, victoryMaterial, statusResistance, spellGuard, poisonAtk, firstStrikeDefense, followUp, treasureSense, spellAccuracy |
-| single-efficient | 11679 | 1131 | 10548 | 52.29 | 68.97 | 12.11 | CORE_GIANT_SLAYER, CORE_LAST_STAND, CORE_SNEAK_STEP, CORE_KEEN_EYE, CORE_CAMP_MASTER, CORE_PURIFY_RING, CORE_BOUNTY_HUNTER, CORE_EXECUTIONER, CORE_CURSE_KEEPER, CORE_PHYSICAL_ACCURACY | spellPower, arcane, atk, agi, contractReward, str, def, int, spellGuard, vit, identifyDiscount, victoryMaterial, antiUndead, traceRead, mp, antiBeast, materialFind, antiDragon, hp, stairsHeal, frontGuard, luk, deepAssault, arcaneSense, statusResistance, pie, antiDemon, rearEvasion, lastSurvivorStats, fullHpDamage, trapBonus, treasureSense, antiSpirit, poisonWard, followUpMp, hearRange, firstStrikeDefense, firstTurnAttack |
-| sustain | 14069 | 1259 | 12810 | 60.86 | 77.82 | 11.52 | CORE_SNEAK_STEP, CORE_PURIFY_RING, CORE_EXECUTIONER, CORE_CAMP_MASTER, CORE_CURSE_KEEPER, CORE_KEEN_EYE, CORE_PHYSICAL_ACCURACY, CORE_BOUNTY_HUNTER, CORE_LAST_STAND | hp, statusResistance, spellPower, atk, luk, arcaneSense, contractReward, str, def, materialFind, spellGuard, int, mp, pie, agi, trapBonus, firstStrikeDefense, arcane, firstTurnAttack, victoryMaterial, antiDemon, antiSpirit, vit, deepAssault, rearEvasion, traceRead, antiBeast, poisonAtk, frontGuard, lastSurvivorStats, hitFlinch, identifyDiscount, fullHpDamage, stairsHeal, followUp, antiUndead, spellAccuracy, hearRange |
-| hybrid-fallback | 15319 | 1596 | 13723 | 52.00 | 73.02 | 15.25 | CORE_BLOOD_WAND, CORE_LAST_STAND, CORE_SNEAK_STEP, CORE_PHYSICAL_ACCURACY, CORE_CURSE_KEEPER, CORE_EXECUTIONER, CORE_CAMP_MASTER, CORE_PURIFY_RING, CORE_BOUNTY_HUNTER, CORE_KEEN_EYE | spellGuard, statusResistance, materialFind, str, atk, luk, agi, treasureSense, stairsHeal, deepAssault, def, mp, lastSurvivorStats, contractReward, hearRange, hp, firstStrikeDefense, traceRead, spellAccuracy, arcaneSense, identifyDiscount, arcane, pie, bleedingAtk, fullHpDamage, vit, rearEvasion, antiBeast, int, spellPower, frontGuard, poisonWard, victoryMaterial, hitFlinch, antiSpirit, firstTurnAttack, trapBonus, antiDemon, killHeal, followUpMp |
+| aoe-burst | 11015 | 1206 | 9809 | 52.75 | 69.62 | 12.71 | CORE_SNEAK_STEP, CORE_CURSE_KEEPER, CORE_KEEN_EYE, CORE_CAMP_MASTER, CORE_PURIFY_RING, CORE_EXECUTIONER, CORE_BOUNTY_HUNTER, CORE_PHYSICAL_ACCURACY, CORE_LAST_STAND | spellPower, arcane, agi, str, atk, int, mp, stairsHeal, luk, vit, hp, def, firstTurnAttack, contractReward, pie, antiBeast, trapBonus, arcaneSense, traceRead, antiSpirit, hearRange, identifyDiscount, spellGuard, poisonWard, deepAssault, frontGuard, victoryMaterial, lastSurvivorStats, treasureSense, statusResistance, rearEvasion, antiDemon, antiDragon, fullHpDamage, materialFind, followUpMp, antiUndead |
+| single-efficient | 11892 | 1165 | 10727 | 52.29 | 69.40 | 12.13 | CORE_CURSE_KEEPER, CORE_GIANT_SLAYER, CORE_EXECUTIONER, CORE_CAMP_MASTER, CORE_PURIFY_RING, CORE_SNEAK_STEP, CORE_KEEN_EYE, CORE_BOUNTY_HUNTER, CORE_LAST_STAND, CORE_PHYSICAL_ACCURACY | spellPower, arcane, spellGuard, pie, materialFind, agi, int, def, vit, str, hp, luk, stairsHeal, identifyDiscount, arcaneSense, mp, treasureSense, traceRead, frontGuard, statusResistance, fullHpDamage, contractReward, firstStrikeDefense, rearEvasion, deepAssault, trapBonus, lastSurvivorStats, antiDemon, antiDragon, victoryMaterial, atk, antiSpirit, antiBeast, hearRange, followUpMp, killHeal, firstTurnAttack, spellAccuracy, poisonWard |
+| sustain | 14129 | 1277 | 12852 | 60.86 | 79.21 | 12.76 | CORE_SNEAK_STEP, CORE_CAMP_MASTER, CORE_PURIFY_RING, CORE_CURSE_KEEPER, CORE_EXECUTIONER, CORE_KEEN_EYE, CORE_BOUNTY_HUNTER, CORE_LAST_STAND, CORE_PHYSICAL_ACCURACY | hp, statusResistance, spellPower, materialFind, def, spellGuard, agi, atk, str, int, vit, pie, trapBonus, luk, identifyDiscount, rearEvasion, fullHpDamage, firstTurnAttack, lastSurvivorStats, stairsHeal, mp, frontGuard, antiBeast, traceRead, firstStrikeDefense, antiSpirit, antiDemon, deepAssault, victoryMaterial, contractReward, arcane, arcaneSense, hearRange, hitFlinch, followUpMp, poisonWard |
+| hybrid-fallback | 14821 | 1553 | 13268 | 52.00 | 72.86 | 15.17 | CORE_BLOOD_WAND, CORE_LAST_STAND, CORE_SNEAK_STEP, CORE_BOUNTY_HUNTER, CORE_CURSE_KEEPER, CORE_EXECUTIONER, CORE_CAMP_MASTER, CORE_PHYSICAL_ACCURACY, CORE_KEEN_EYE, CORE_PURIFY_RING | spellGuard, statusResistance, mp, materialFind, str, def, contractReward, pie, stairsHeal, luk, deepAssault, frontGuard, hp, identifyDiscount, killHeal, agi, arcane, vit, bleedingAtk, int, lastSurvivorStats, arcaneSense, atk, fullHpDamage, rearEvasion, hitFlinch, trapBonus, antiDragon, antiSpirit, firstStrikeDefense, followUp, firstTurnAttack, antiDemon, followUpMp, antiBeast, hearRange, traceRead, spellPower, victoryMaterial, poisonWard, treasureSense, antiUndead |
+
+| build | partial P0 mean reached depth | partial P1 mean reached depth | P1 − P0 |
+| --- | ---: | ---: | ---: |
+| aoe-burst | 2.98 | 3.61 | 0.63 |
+| single-efficient | 3.39 | 3.92 | 0.53 |
+| sustain | 3.82 | 4.50 | 0.68 |
+| hybrid-fallback | 4.77 | 4.47 | -0.30 |
+
+Hybrid の P1 悪化は、starting build の production-shaped 変換（主要 stat / spells / core / support）と装備後の stat 更新を regression で確認したうえで、再現する測定結果である。P1 の scorer は現在の候補だけを greedy 評価し、未来の敵情報を参照しないため、これは policy が Hybrid に不利な候補を即時装備する場合があることを示す。修正で有利になるよう調整はしていない。
 
 ## matched comparison / Build Confidence
 
-- common-support: partial-information same worldSeed; strict reversal は #975 互換の paired outcome + diagnostic utility bootstrap 95% CI。N<30 は `insufficient_sample`。
+- common-support: partial-information fixed arm の同一 worldSeed・floor・eventKey・enemy composition。strict reversal は #975 互換の encounter-level paired outcome + diagnostic utility bootstrap 95% CI。N<30 は `insufficient_sample`。
+- death classification: #983 の exclusive contract を再利用し、mechanic-mediated は観測された state degradation evidence が1種類だけある場合に限定。mechanic発火だけでは昇格しない。
+- mean reached depth は代理到達率ではなく、各 raw row の `reachedDepth` の算術平均。encounters/floor は各 run の `encounters / max(1, reachedDepth)` の平均。
 - strict reversal count: **0**; insufficient count: **8**
 
-| build pair | paired N | status | outcome CI | utility CI | same encounter identities |
-| --- | ---: | --- | --- | --- | ---: |
-| aoe-burst vs single-efficient | 454 | eligible | [0.00, 0.00] | [-0.01, 0.00] | 454 |
-| aoe-burst vs single-efficient | 15 | insufficient_sample | [0.00, 0.00] | [-0.01, 0.00] | 15 |
-| aoe-burst vs single-efficient | 15 | insufficient_sample | [0.00, 0.00] | [-0.01, 0.00] | 15 |
-| aoe-burst vs sustain | 449 | eligible | [0.00, 0.00] | [-0.03, -0.02] | 449 |
-| aoe-burst vs sustain | 11 | insufficient_sample | [0.00, 0.00] | [-0.03, -0.02] | 11 |
-| aoe-burst vs sustain | 11 | insufficient_sample | [0.00, 0.00] | [-0.03, -0.02] | 11 |
-| aoe-burst vs hybrid-fallback | 433 | eligible | [0.00, 0.00] | [-0.03, -0.02] | 433 |
-| aoe-burst vs hybrid-fallback | 6 | insufficient_sample | [0.00, 0.00] | [-0.03, -0.02] | 6 |
-| aoe-burst vs hybrid-fallback | 6 | insufficient_sample | [0.00, 0.00] | [-0.03, -0.01] | 6 |
-| single-efficient vs sustain | 465 | eligible | [0.00, 0.00] | [-0.03, -0.02] | 465 |
-| single-efficient vs sustain | 43 | eligible | [0.00, 0.00] | [-0.03, -0.02] | 43 |
-| single-efficient vs sustain | 43 | eligible | [0.00, 0.00] | [-0.03, -0.02] | 43 |
-| single-efficient vs hybrid-fallback | 437 | eligible | [0.00, 0.00] | [-0.03, -0.02] | 437 |
-| single-efficient vs hybrid-fallback | 18 | insufficient_sample | [0.00, 0.00] | [-0.03, -0.02] | 18 |
-| single-efficient vs hybrid-fallback | 18 | insufficient_sample | [0.00, 0.00] | [-0.02, -0.01] | 18 |
-| sustain vs hybrid-fallback | 437 | eligible | [0.00, 0.00] | [-0.01, 0.00] | 437 |
-| sustain vs hybrid-fallback | 35 | eligible | [0.00, 0.00] | [-0.01, 0.00] | 35 |
-| sustain vs hybrid-fallback | 35 | eligible | [0.00, 0.00] | [-0.00, 0.01] | 35 |
+| build pair / family | matched event N | status | outcome CI | utility CI |
+| --- | ---: | --- | --- | --- |
+| aoe-burst vs single-efficient / formation vs single-target | 1303 | eligible | [0.00, 0.02] | [0.02, 0.04] |
+| aoe-burst vs single-efficient / formation vs swarm | 22 | insufficient_sample | [0.00, 0.02] | [0.02, 0.04] |
+| aoe-burst vs single-efficient / single-target vs swarm | 22 | insufficient_sample | [-0.00, 0.00] | [0.00, 0.01] |
+| aoe-burst vs sustain / formation vs single-target | 1067 | eligible | [0.01, 0.03] | [0.05, 0.07] |
+| aoe-burst vs sustain / formation vs swarm | 14 | insufficient_sample | [0.01, 0.03] | [0.05, 0.07] |
+| aoe-burst vs sustain / single-target vs swarm | 14 | insufficient_sample | [0.00, 0.01] | [0.01, 0.02] |
+| aoe-burst vs hybrid-fallback / formation vs single-target | 701 | eligible | [0.01, 0.03] | [0.03, 0.06] |
+| aoe-burst vs hybrid-fallback / formation vs swarm | 4 | insufficient_sample | [0.01, 0.03] | [0.03, 0.06] |
+| aoe-burst vs hybrid-fallback / single-target vs swarm | 4 | insufficient_sample | [-0.00, 0.01] | [0.00, 0.01] |
+| single-efficient vs sustain / formation vs single-target | 2418 | eligible | [0.00, 0.01] | [0.02, 0.03] |
+| single-efficient vs sustain / formation vs swarm | 55 | eligible | [0.00, 0.01] | [0.02, 0.03] |
+| single-efficient vs sustain / single-target vs swarm | 55 | eligible | [0.00, 0.00] | [0.01, 0.02] |
+| single-efficient vs hybrid-fallback / formation vs single-target | 1165 | eligible | [0.01, 0.02] | [0.01, 0.02] |
+| single-efficient vs hybrid-fallback / formation vs swarm | 14 | insufficient_sample | [0.01, 0.02] | [0.01, 0.02] |
+| single-efficient vs hybrid-fallback / single-target vs swarm | 14 | insufficient_sample | [0.00, 0.01] | [0.00, 0.01] |
+| sustain vs hybrid-fallback / formation vs single-target | 1862 | eligible | [-0.00, 0.00] | [-0.02, -0.01] |
+| sustain vs hybrid-fallback / formation vs swarm | 36 | eligible | [-0.00, 0.00] | [-0.02, -0.01] |
+| sustain vs hybrid-fallback / single-target vs swarm | 36 | eligible | [-0.00, 0.00] | [-0.01, -0.01] |
 
 ## #990 の質問への回答
 
 1. oracle と partial の歩数・遭遇数差は上の探索負荷表に build 別で記録した。
 2. 未知情報を使わない partial arm の到達率は到達率表の比較対象である。
 3. fixed と equipment-update の差は同表の P0/P1 で分離した。
-4. B21+ population: 未成立（このmodelでは未観測）。
-5. B21+ pure raw 増加は arm 別 death category から判定する。
+4. B21+ population: 未成立（このmodelでは未観測）。未成立なら B21+ pure raw 増加も判定不能。
+5. B21+ pure raw 増加は未観測時は判定不能、観測範囲では death category と累積曝露を分けて記録した。
 6. pure raw は単発 hit と累積 exposure（hits / total damage / enemy actions）の両方を出し、累積要因を検証可能にした。
 7. 探索追加遭遇は movement と search action を分離記録した。
-8. matched comparison の strict reversal は **0**。勝率だけでは reversal と呼ばない。
-9. 1 build の一方的支配はこの表の到達率と paired comparison で確認する。
+8. この encounter-level matched sample で #975 strict reversal を満たした比較は **0**。0でも得意不得意の不存在は意味せず、N不足は insufficient とした。
+9. 1 build の一方的支配は到達率と paired comparison の両方で確認する。深層到達率は survivor bias を含むため単独では支配と解釈しない。
 10. #973 Build Confidence: **Revise**（Phase 2 の partial-information / in-run growth を追加したが、retreat と B21+成立性は未検証）。
 11. #990: **現時点では閉じない**。モデル限界と B21+ population の成立性を明示したため、追加検証余地が残る。
 12. production tuning: **進まない**。本測定は balance constant を変更していない。
