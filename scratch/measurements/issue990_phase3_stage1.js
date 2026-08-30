@@ -472,7 +472,7 @@ export function renderSummary(report) {
   const referenceChanges = getExposure(referencePersona, "equipmentChangesPerFloor");
   const referenceDamage = getExposure(referencePersona, "normalDamagePerFloor");
   const b5ToB10 = report.conditionalSurvival[deepestPersona]?.["B5->B10"];
-  const rawShares = personas.map(persona => summaries[persona].deathCategories.pure_raw.rate).filter(Number.isFinite);
+  const rawShares = personas.map(persona => summaries[persona].deathCategories.pure_raw_damage.rate).filter(Number.isFinite);
   const lines = [
     "# Issue #990 Phase 3 Stage 1 — virtual player population",
     "",
